@@ -84,6 +84,7 @@ typedef struct SUdf {
   TUdfAggStartFunc   aggStartFunc;
   TUdfAggProcessFunc aggProcFunc;
   TUdfAggFinishFunc  aggFinishFunc;
+  TUdfAggMergeFunc   aggMergeFunc;
 
   TUdfInitFunc    initFunc;
   TUdfDestroyFunc destroyFunc;
@@ -271,6 +272,15 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
 
       break;
     }
+    case TSDB_UDF_CALL_AGG_MERGE: {
+      SUdfInterBuf outBuf = {.buf = taosMemoryMalloc(udf->bufSize), .bufLen = udf->bufSize, .numOfResult = 0};
+      code = udf->aggMergeFunc(&call->interBuf, &call->interBuf2, &outBuf);
+      freeUdfInterBuf(&call->interBuf);
+      freeUdfInterBuf(&call->interBuf2);
+      subRsp->resultBuf = outBuf;
+
+      break;
+    }
     case TSDB_UDF_CALL_AGG_FIN: {
       SUdfInterBuf outBuf = {.buf = taosMemoryMalloc(udf->bufSize), .bufLen = udf->bufSize, .numOfResult = 0};
       code = udf->aggFinishFunc(&call->interBuf, &outBuf);
@@ -306,6 +316,10 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     }
     case TSDB_UDF_CALL_AGG_PROC: {
       blockDataFreeRes(&call->block);
+      freeUdfInterBuf(&subRsp->resultBuf);
+      break;
+    }
+    case TSDB_UDF_CALL_AGG_MERGE: {
       freeUdfInterBuf(&subRsp->resultBuf);
       break;
     }
@@ -412,22 +426,31 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
     udf->outputLen = pFuncInfo->outputLen;
     udf->bufSize = pFuncInfo->bufSize;
 
+    if (!osTempSpaceAvailable()) {
+      terrno = TSDB_CODE_NO_AVAIL_DISK;
+      msgInfo->code = terrno;
+      fnError("udfd create shared library failed since %s", terrstr(terrno));
+      goto _return;
+    }
+
     char path[PATH_MAX] = {0};
 #ifdef WINDOWS
-    snprintf(path, sizeof(path), "%s%s.dll", TD_TMP_DIR_PATH, pFuncInfo->name);
+    snprintf(path, sizeof(path), "%s%s.dll", tsTempDir, pFuncInfo->name);
 #else
-    snprintf(path, sizeof(path), "%s/lib%s.so", TD_TMP_DIR_PATH, pFuncInfo->name);
+    snprintf(path, sizeof(path), "%s/lib%s.so", tsTempDir, pFuncInfo->name);
 #endif
     TdFilePtr file =
         taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
     if (file == NULL) {
       fnError("udfd write udf shared library: %s failed, error: %d %s", path, errno, strerror(errno));
       msgInfo->code = TSDB_CODE_FILE_CORRUPTED;
+      goto _return;
     }
     int64_t count = taosWriteFile(file, pFuncInfo->pCode, pFuncInfo->codeSize);
     if (count != pFuncInfo->codeSize) {
       fnError("udfd write udf shared library failed");
       msgInfo->code = TSDB_CODE_FILE_CORRUPTED;
+      goto _return;
     }
     taosCloseFile(&file);
     strncpy(udf->path, path, strlen(path));
@@ -551,7 +574,11 @@ int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
     strncpy(finishFuncName, processFuncName, strlen(processFuncName));
     strncat(finishFuncName, finishSuffix, strlen(finishSuffix));
     uv_dlsym(&udf->lib, finishFuncName, (void **)(&udf->aggFinishFunc));
-    // TODO: merge
+    char mergeFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
+    char *mergeSuffix = "_merge";
+    strncpy(finishFuncName, processFuncName, strlen(processFuncName));
+    strncat(finishFuncName, mergeSuffix, strlen(mergeSuffix));
+    uv_dlsym(&udf->lib, finishFuncName, (void **)(&udf->aggMergeFunc));
   }
   return 0;
 }
@@ -686,7 +713,6 @@ void udfdAllocBuffer(uv_handle_t *handle, size_t suggestedSize, uv_buf_t *buf) {
       buf->len = 0;
     }
   }
-  fnDebug("allocate buf. input buf cap - len - total : %d - %d - %d", ctx->inputCap, ctx->inputLen, ctx->inputTotal);
 }
 
 bool isUdfdUvMsgComplete(SUdfdUvConn *pipe) {

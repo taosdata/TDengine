@@ -19,9 +19,8 @@
 #define BATCH_DISABLE 1
 
 static inline bool vnodeIsMsgBlock(tmsg_t type) {
-  return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_CREATE_TABLE) ||
-         (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) || (type == TDMT_VND_UPDATE_TAG_VAL) ||
-         (type == TDMT_VND_ALTER_REPLICA);
+  return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
+         (type == TDMT_VND_UPDATE_TAG_VAL) || (type == TDMT_VND_ALTER_REPLICA);
 }
 
 static inline bool vnodeIsMsgWeak(tmsg_t type) { return false; }
@@ -29,20 +28,28 @@ static inline bool vnodeIsMsgWeak(tmsg_t type) { return false; }
 static inline void vnodeWaitBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
   if (vnodeIsMsgBlock(pMsg->msgType)) {
     const STraceId *trace = &pMsg->info.traceId;
-    vGTrace("vgId:%d, msg:%p wait block, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
-    pVnode->blockCount = 1;
-    tsem_wait(&pVnode->syncSem);
+    taosThreadMutexLock(&pVnode->lock);
+    if (!pVnode->blocked) {
+      vGTrace("vgId:%d, msg:%p wait block, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
+      pVnode->blocked = true;
+      taosThreadMutexUnlock(&pVnode->lock);
+      tsem_wait(&pVnode->syncSem);
+    } else {
+      taosThreadMutexUnlock(&pVnode->lock);
+    }
   }
 }
 
 static inline void vnodePostBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
   if (vnodeIsMsgBlock(pMsg->msgType)) {
     const STraceId *trace = &pMsg->info.traceId;
-    if (pVnode->blockCount) {
+    taosThreadMutexLock(&pVnode->lock);
+    if (pVnode->blocked) {
       vGTrace("vgId:%d, msg:%p post block, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
-      pVnode->blockCount = 0;
+      pVnode->blocked = false;
       tsem_post(&pVnode->syncSem);
     }
+    taosThreadMutexUnlock(&pVnode->lock);
   }
 }
 
@@ -142,6 +149,10 @@ static void inline vnodeHandleWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   }
   if (rsp.info.handle != NULL) {
     tmsgSendRsp(&rsp);
+  } else {
+    if (rsp.pCont) {
+      rpcFreeCont(rsp.pCont);
+    }
   }
 }
 
@@ -300,6 +311,10 @@ void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
     vnodePostBlockMsg(pVnode, pMsg);
     if (rsp.info.handle != NULL) {
       tmsgSendRsp(&rsp);
+    } else {
+      if (rsp.pCont) {
+        rpcFreeCont(rsp.pCont);
+      }
     }
 
     vGTrace("vgId:%d, msg:%p is freed, code:0x%x index:%" PRId64, vgId, pMsg, rsp.code, pMsg->info.conn.applyIndex);
@@ -449,7 +464,8 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     }
   }
 
-  vTrace("vgId:%d, sync msg:%p is processed, type:%s code:0x%x", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType), code);
+  vTrace("vgId:%d, sync msg:%p is processed, type:%s code:0x%x", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType),
+         code);
   syncNodeRelease(pSyncNode);
   if (code != 0 && terrno == 0) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
@@ -611,10 +627,10 @@ static int32_t vnodeSnapshotStartWrite(struct SSyncFSM *pFsm, void *pParam, void
   do {
     int32_t itemSize = tmsgGetQueueSize(&pVnode->msgCb, pVnode->config.vgId, APPLY_QUEUE);
     if (itemSize == 0) {
-      vDebug("vgId:%d, apply queue is empty, start write snapshot", pVnode->config.vgId);
+      vInfo("vgId:%d, start write vnode snapshot since apply queue is empty", pVnode->config.vgId);
       break;
     } else {
-      vDebug("vgId:%d, %d items in apply queue, write snapshot later", pVnode->config.vgId);
+      vInfo("vgId:%d, write vnode snapshot later since %d items in apply queue", pVnode->config.vgId);
       taosMsleep(10);
     }
   } while (true);
@@ -630,10 +646,11 @@ static int32_t vnodeSnapshotStartWrite(struct SSyncFSM *pFsm, void *pParam, void
 static int32_t vnodeSnapshotStopWrite(struct SSyncFSM *pFsm, void *pWriter, bool isApply, SSnapshot *pSnapshot) {
 #ifdef USE_TSDB_SNAPSHOT
   SVnode *pVnode = pFsm->data;
-  vDebug("vgId:%d, stop write snapshot, isApply:%d", pVnode->config.vgId, isApply);
+  vInfo("vgId:%d, stop write vnode snapshot, apply:%d, index:%" PRId64 " term:%" PRIu64 " config:%" PRId64,
+        pVnode->config.vgId, isApply, pSnapshot->lastApplyIndex, pSnapshot->lastApplyTerm, pSnapshot->lastConfigIndex);
 
   int32_t code = vnodeSnapWriterClose(pWriter, !isApply, pSnapshot);
-  vDebug("vgId:%d, apply snapshot to vnode, code:0x%x", pVnode->config.vgId, code);
+  vInfo("vgId:%d, apply vnode snapshot finished, code:0x%x", pVnode->config.vgId, code);
   return code;
 #else
   taosMemoryFree(pWriter);
@@ -644,8 +661,9 @@ static int32_t vnodeSnapshotStopWrite(struct SSyncFSM *pFsm, void *pWriter, bool
 static int32_t vnodeSnapshotDoWrite(struct SSyncFSM *pFsm, void *pWriter, void *pBuf, int32_t len) {
 #ifdef USE_TSDB_SNAPSHOT
   SVnode *pVnode = pFsm->data;
+  vDebug("vgId:%d, continue write vnode snapshot, len:%d", pVnode->config.vgId, len);
   int32_t code = vnodeSnapWrite(pWriter, pBuf, len);
-  vTrace("vgId:%d, write snapshot, len:%d", pVnode->config.vgId, len);
+  vDebug("vgId:%d, continue write vnode snapshot finished, len:%d", pVnode->config.vgId, len);
   return code;
 #else
   return 0;
@@ -662,6 +680,32 @@ static void vnodeRestoreFinish(struct SSyncFSM *pFsm) {
   vDebug("vgId:%d, sync restore finished", pVnode->config.vgId);
 }
 
+static void vnodeBecomeFollower(struct SSyncFSM *pFsm) {
+  SVnode *pVnode = pFsm->data;
+  vDebug("vgId:%d, become follower", pVnode->config.vgId);
+
+  // clear old leader resource
+  taosThreadMutexLock(&pVnode->lock);
+  if (pVnode->blocked) {
+    pVnode->blocked = false;
+    vDebug("vgId:%d, become follower and post block", pVnode->config.vgId);
+    tsem_post(&pVnode->syncSem);
+  }
+  taosThreadMutexUnlock(&pVnode->lock);
+}
+
+static void vnodeBecomeLeader(struct SSyncFSM *pFsm) {
+  SVnode *pVnode = pFsm->data;
+  vDebug("vgId:%d, become leader", pVnode->config.vgId);
+
+  // taosThreadMutexLock(&pVnode->lock);
+  // if (pVnode->blocked) {
+  //   pVnode->blocked = false;
+  //   tsem_post(&pVnode->syncSem);
+  // }
+  // taosThreadMutexUnlock(&pVnode->lock);
+}
+
 static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pVnode;
@@ -671,6 +715,8 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpGetSnapshotInfo = vnodeSyncGetSnapshot;
   pFsm->FpRestoreFinishCb = vnodeRestoreFinish;
   pFsm->FpLeaderTransferCb = vnodeLeaderTransfer;
+  pFsm->FpBecomeLeaderCb = vnodeBecomeLeader;
+  pFsm->FpBecomeFollowerCb = vnodeBecomeFollower;
   pFsm->FpReConfigCb = vnodeSyncReconfig;
   pFsm->FpSnapshotStartRead = vnodeSnapshotStartRead;
   pFsm->FpSnapshotStopRead = vnodeSnapshotStopRead;
@@ -706,8 +752,8 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
   }
 
   setPingTimerMS(pVnode->sync, 5000);
-  setElectTimerMS(pVnode->sync, 1300);
-  setHeartbeatTimerMS(pVnode->sync, 900);
+  setElectTimerMS(pVnode->sync, 4000);
+  setHeartbeatTimerMS(pVnode->sync, 700);
   return 0;
 }
 
@@ -718,15 +764,34 @@ void vnodeSyncStart(SVnode *pVnode) {
 
 void vnodeSyncClose(SVnode *pVnode) { syncStop(pVnode->sync); }
 
+bool vnodeIsRoleLeader(SVnode *pVnode) { return syncGetMyRole(pVnode->sync) == TAOS_SYNC_STATE_LEADER; }
+
 bool vnodeIsLeader(SVnode *pVnode) {
   if (!syncIsReady(pVnode->sync)) {
+    vDebug("vgId:%d, vnode not ready, state:%s, restore:%d", pVnode->config.vgId, syncGetMyRoleStr(pVnode->sync),
+           syncRestoreFinish(pVnode->sync));
     return false;
   }
 
   if (!pVnode->restored) {
+    vDebug("vgId:%d, vnode not restored", pVnode->config.vgId);
     terrno = TSDB_CODE_APP_NOT_READY;
     return false;
   }
 
   return true;
+}
+
+bool vnodeIsReadyForRead(SVnode *pVnode) {
+  if (syncIsReady(pVnode->sync)) {
+    return true;
+  }
+
+  if (syncIsReadyForRead(pVnode->sync)) {
+    return true;
+  }
+
+  vDebug("vgId:%d, vnode not ready for read, state:%s, last:%ld, cmt:%ld", pVnode->config.vgId,
+         syncGetMyRoleStr(pVnode->sync), syncGetLastIndex(pVnode->sync), syncGetCommitIndex(pVnode->sync));
+  return false;
 }

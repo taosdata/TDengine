@@ -23,13 +23,14 @@ from util.sqlset import TDSetSql
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), True)
+        tdSql.init(conn.cursor())
 
         self.rowNum = 10
         self.ts = 1537146000000
         self.setsql = TDSetSql()
-        self.ntbname = 'ntb'
-        self.stbname = 'stb'
+        self.dbname = 'db'
+        self.ntbname = f'{self.dbname}.ntb'
+        self.stbname = f'{self.dbname}.stb'
         self.binary_length = 20 # the length of binary for column_dict
         self.nchar_length = 20  # the length of nchar for column_dict
         self.column_dict = {
@@ -100,10 +101,9 @@ class TDTestCase:
         return intData,floatData
     def check_tags(self,tags,param,num,value):
         tdSql.query(f'select percentile({tags}, {param}) from {self.stbname}_{num}')
-        print(tdSql.queryResult)
         tdSql.checkEqual(tdSql.queryResult[0][0], value)
     def function_check_ntb(self):
-        tdSql.prepare()
+        tdSql.execute(f'create database {self.dbname}')
         tdSql.execute(self.setsql.set_create_normaltable_sql(self.ntbname,self.column_dict))
         intData,floatData = self.insert_data(self.column_dict,self.ntbname,self.rowNum)
         for k,v in self.column_dict.items():
@@ -116,8 +116,9 @@ class TDTestCase:
                 else:
                     tdSql.query(f'select percentile({k}, {param}) from {self.ntbname}')
                     tdSql.checkData(0, 0, np.percentile(floatData, param))
+        tdSql.execute(f'drop database {self.dbname}')
     def function_check_ctb(self):
-        tdSql.prepare()
+        tdSql.execute(f'create database {self.dbname}')
         tdSql.execute(self.setsql.set_create_stable_sql(self.stbname,self.column_dict,self.tag_dict))
         for i in range(self.tbnum):
             tdSql.execute(f"create table {self.stbname}_{i} using {self.stbname} tags({self.tag_values[0]})")
@@ -143,7 +144,7 @@ class TDTestCase:
                         data_num = tdSql.queryResult[0][0]
                         tdSql.query(f'select percentile({k},{param}) from {self.stbname}_{i}')
                         tdSql.checkData(0,0,data_num)
-                    
+        tdSql.execute(f'drop database {self.dbname}')            
     def run(self):
         self.function_check_ntb()
         self.function_check_ctb()

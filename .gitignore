@@ -118,3 +118,12 @@ contrib/*
 !contrib/test
 sql
 debug*/
+.env
+tools/README
+tools/LICENSE
+tools/README.1ST
+tools/THANKS
+tools/NEWS
+tools/COPYING
+tools/BUGS
+tools/taos-tools

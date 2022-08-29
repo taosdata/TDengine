@@ -60,7 +60,7 @@ static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
 }
 
 static void deregisterRequest(SRequestObj *pRequest) {
-  const static int64_t SLOW_QUERY_INTERVAL = 3000000L; // todo configurable
+  const static int64_t SLOW_QUERY_INTERVAL = 3000000L;  // todo configurable
   assert(pRequest != NULL);
 
   STscObj            *pTscObj = pRequest->pTscObj;
@@ -69,21 +69,32 @@ static void deregisterRequest(SRequestObj *pRequest) {
   int32_t currentInst = atomic_sub_fetch_64((int64_t *)&pActivity->currentRequests, 1);
   int32_t num = atomic_sub_fetch_32(&pTscObj->numOfReqs, 1);
 
-  int64_t duration = taosGetTimestampUs() - pRequest->metric.start;
+  int64_t nowUs = taosGetTimestampUs();
+  int64_t duration = nowUs - pRequest->metric.start;
   tscDebug("0x%" PRIx64 " free Request from connObj: 0x%" PRIx64 ", reqId:0x%" PRIx64 " elapsed:%" PRIu64
            " ms, current:%d, app current:%d",
            pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000, num, currentInst);
 
   if (QUERY_NODE_VNODE_MODIF_STMT == pRequest->stmtType) {
+    tscPerf("insert duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64 "us, exec:%" PRId64 "us", 
+            duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart, 
+            pRequest->metric.ctgEnd - pRequest->metric.ctgStart,
+            pRequest->metric.semanticEnd - pRequest->metric.ctgEnd,
+            pRequest->metric.execEnd - pRequest->metric.semanticEnd);
     atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
   } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
-    atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);           
+    tscPerf("select duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64 "us, exec:%" PRId64 "us", 
+            duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart, 
+            pRequest->metric.ctgEnd - pRequest->metric.ctgStart,
+            pRequest->metric.semanticEnd - pRequest->metric.ctgEnd,
+            pRequest->metric.execEnd - pRequest->metric.semanticEnd);
+    atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
   }
-  
+
   if (duration >= SLOW_QUERY_INTERVAL) {
     atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
   }
-  
+
   releaseTscObj(pTscObj->id);
 }
 
@@ -109,6 +120,14 @@ static bool clientRpcRfp(int32_t code, tmsg_t msgType) {
   }
 }
 
+// start timer for particular msgType
+static bool clientRpcTfp(int32_t code, tmsg_t msgType) {
+  if (msgType == TDMT_VND_SUBMIT || msgType == TDMT_VND_CREATE_TABLE) {
+    return true;
+  }
+  return false;
+}
+
 // TODO refactor
 void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   SRpcInit rpcInit;
@@ -118,6 +137,7 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.numOfThreads = numOfThread;
   rpcInit.cfp = processMsgFromServer;
   rpcInit.rfp = clientRpcRfp;
+  // rpcInit.tfp = clientRpcTfp;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = (char *)user;
@@ -321,7 +341,6 @@ void doDestroyRequest(void *p) {
   schedulerFreeJob(&pRequest->body.queryJob, 0);
 
   taosMemoryFreeClear(pRequest->msgBuf);
-  taosMemoryFreeClear(pRequest->sqlstr);
   taosMemoryFreeClear(pRequest->pDb);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
@@ -340,6 +359,7 @@ void doDestroyRequest(void *p) {
     taosMemoryFree(pRequest->body.param);
   }
 
+  taosMemoryFreeClear(pRequest->sqlstr);
   taosMemoryFree(pRequest);
   tscTrace("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
 }
@@ -375,7 +395,7 @@ void taos_init_imp(void) {
   initQueryModuleMsgHandle();
 
   taosConvInit();
-  
+
   rpcInit();
 
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
@@ -384,7 +404,9 @@ void taos_init_imp(void) {
   schedulerInit();
   tscDebug("starting to initialize TAOS driver");
 
+#ifndef WINDOWS
   taosSetCoreDump(true);
+#endif
 
   initTaskQueue();
   fmFuncMgtInit();

@@ -94,9 +94,21 @@ typedef void* queue[2];
 /* Return the structure holding the given element. */
 #define QUEUE_DATA(e, type, field) ((type*)((void*)((char*)(e)-offsetof(type, field))))
 
-#define TRANS_RETRY_COUNT_LIMIT 100  // retry count limit
-#define TRANS_RETRY_INTERVAL    15   // ms retry interval
-#define TRANS_CONN_TIMEOUT      3    // connect timeout
+#define TRANS_RETRY_COUNT_LIMIT 100   // retry count limit
+#define TRANS_RETRY_INTERVAL    15    // retry interval (ms)
+#define TRANS_CONN_TIMEOUT      3     // connect timeout (s)
+#define TRANS_READ_TIMEOUT      3000  // read timeout  (ms)
+#define TRANS_PACKET_LIMIT      1024 * 1024 * 512
+
+#define TRANS_MAGIC_NUM 0x5f375a86
+
+#define TRANS_NOVALID_PACKET(src) ((src) != TRANS_MAGIC_NUM ? 1 : 0)
+
+#define TRANS_PACKET_LIMIT 1024 * 1024 * 512
+
+#define TRANS_MAGIC_NUM 0x5f375a86
+
+#define TRANS_NOVALID_PACKET(src) ((src) != TRANS_MAGIC_NUM ? 1 : 0)
 
 typedef SRpcMsg      STransMsg;
 typedef SRpcCtx      STransCtx;
@@ -104,13 +116,13 @@ typedef SRpcCtxVal   STransCtxVal;
 typedef SRpcInfo     STrans;
 typedef SRpcConnInfo STransHandleInfo;
 
-// ref mgt
-// handle
+// ref mgt handle
 typedef struct SExHandle {
   void*   handle;
   int64_t refId;
   void*   pThrd;
 } SExHandle;
+
 /*convet from fqdn to ip */
 typedef struct SCvtAddr {
   char ip[TSDB_FQDN_LEN];
@@ -127,7 +139,7 @@ typedef struct {
 
   int8_t retryCnt;
   int8_t retryLimit;
-  // bool       setMaxRetry;
+
   STransCtx  appCtx;  //
   STransMsg* pRsp;    // for synchronous API
   tsem_t*    pSem;    // for synchronous API
@@ -150,6 +162,7 @@ typedef struct {
   char hasEpSet : 2;  // contain epset or not, 0(default): no epset, 1: contain epset
 
   char     user[TSDB_UNI_LEN];
+  uint32_t magicNum;
   STraceId traceId;
   uint64_t ahandle;  // ahandle assigned by client
   uint32_t code;     // del later
@@ -194,17 +207,7 @@ typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } Co
 
 #define transLabel(trans) ((STrans*)trans)->label
 
-// int  rpcAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey);
-// void rpcBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey);
-//// int32_t rpcCompressRpcMsg(char* pCont, int32_t contLen);
-//
-// int  transAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey);
-// void transBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey);
-// bool transCompressMsg(char* msg, int32_t len, int32_t* flen);
-// bool transDecompressMsg(char* msg, int32_t len, int32_t* flen);
-
 void transFreeMsg(void* msg);
-
 //
 typedef struct SConnBuffer {
   char* buf;
@@ -212,6 +215,7 @@ typedef struct SConnBuffer {
   int   cap;
   int   left;
   int   total;
+  int   invalid;
 } SConnBuffer;
 
 typedef void (*AsyncCB)(uv_async_t* handle);
@@ -302,7 +306,7 @@ int transSendResponse(const STransMsg* msg);
 int transRegisterMsg(const STransMsg* msg);
 int transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
 
-int transGetSockDebugInfo(struct sockaddr* sockname, char* dst);
+int transSockInfo2Str(struct sockaddr* sockname, char* dst);
 
 int64_t transAllocHandle();
 
@@ -321,8 +325,8 @@ void* transCtxDumpBrokenlinkVal(STransCtx* ctx, int32_t* msgType);
 
 // request list
 typedef struct STransReq {
-  queue q;
-  void* data;
+  queue      q;
+  uv_write_t wreq;
 } STransReq;
 
 void  transReqQueueInit(queue* q);

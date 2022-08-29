@@ -213,6 +213,10 @@ int32_t dataBlockToSubmit(SDataInserterHandle* pInserter, SSubmitReq** pReq) {
           tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, data, true, pColumn->offset, k);
         }
       }
+      if(!fullCol) {
+        rb.hasNone = true;
+      }
+      tdSRowEnd(&rb);
 
       if (ignoreRow) {
         continue;
@@ -225,7 +229,7 @@ int32_t dataBlockToSubmit(SDataInserterHandle* pInserter, SSubmitReq** pReq) {
     }
     
     blkHead->dataLen = htonl(dataLen);
-    blkHead->numOfRows = htons(rows);
+    blkHead->numOfRows = htonl(rows);
 
     ret->length += sizeof(SSubmitBlk) + dataLen;
     blkHead = POINTER_SHIFT(blkHead, sizeof(SSubmitBlk) + dataLen);

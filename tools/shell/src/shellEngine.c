@@ -22,7 +22,8 @@
 
 static bool    shellIsEmptyCommand(const char *cmd);
 static int32_t shellRunSingleCommand(char *command);
-static int32_t shellRunCommand(char *command);
+static void    shellRecordCommandToHistory(char *command);
+static int32_t shellRunCommand(char *command, bool recordHistory);
 static void    shellRunSingleCommandImp(char *command);
 static char   *shellFormatTimestamp(char *buf, int64_t val, int32_t precision);
 static int32_t shellDumpResultToFile(const char *fname, TAOS_RES *tres);
@@ -101,11 +102,7 @@ int32_t shellRunSingleCommand(char *command) {
   return 0;
 }
 
-int32_t shellRunCommand(char *command) {
-  if (shellIsEmptyCommand(command)) {
-    return 0;
-  }
-
+void shellRecordCommandToHistory(char *command) {
   SShellHistory *pHistory = &shell.history;
   if (pHistory->hstart == pHistory->hend ||
       pHistory->hist[(pHistory->hend + SHELL_MAX_HISTORY_SIZE - 1) % SHELL_MAX_HISTORY_SIZE] == NULL ||
@@ -120,6 +117,14 @@ int32_t shellRunCommand(char *command) {
       pHistory->hstart = (pHistory->hstart + 1) % SHELL_MAX_HISTORY_SIZE;
     }
   }
+}
+
+int32_t shellRunCommand(char *command, bool recordHistory) {
+  if (shellIsEmptyCommand(command)) {
+    return 0;
+  }
+
+  if (recordHistory) shellRecordCommandToHistory(command);
 
   char quote = 0, *cmd = command;
   for (char c = *command++; c != 0; c = *command++) {
@@ -826,10 +831,14 @@ void shellSourceFile(const char *file) {
   size_t  cmd_len = 0;
   char   *line = NULL;
   char    fullname[PATH_MAX] = {0};
+  char    sourceFileCommand[PATH_MAX + 8] = {0};
 
   if (taosExpandDir(file, fullname, PATH_MAX) != 0) {
     tstrncpy(fullname, file, PATH_MAX);
   }
+
+  sprintf(sourceFileCommand, "source %s;",fullname);
+  shellRecordCommandToHistory(sourceFileCommand);
 
   TdFilePtr pFile = taosOpenFile(fullname, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
@@ -853,9 +862,13 @@ void shellSourceFile(const char *file) {
       continue;
     }
 
+    if (line[read_len - 1] == '\r') {
+      line[read_len - 1] = ' ';
+    }
+
     memcpy(cmd + cmd_len, line, read_len);
     printf("%s%s\r\n", shell.info.promptHeader, cmd);
-    shellRunCommand(cmd);
+    shellRunCommand(cmd, false);
     memset(cmd, 0, TSDB_MAX_ALLOWED_SQL_LEN);
     cmd_len = 0;
   }
@@ -935,6 +948,10 @@ void shellCleanup(void *arg) { taosResetTerminalMode(); }
 void *shellCancelHandler(void *arg) {
   setThreadName("shellCancelHandler");
   while (1) {
+    if (shell.exit == true) {
+      break;
+    }
+
     if (tsem_wait(&shell.cancelSem) != 0) {
       taosMsleep(10);
       continue;
@@ -948,7 +965,7 @@ void *shellCancelHandler(void *arg) {
 		taos_kill_query(shell.conn);
 #ifdef WEBSOCKET
 	}
-#endif 
+#endif
   #ifdef WINDOWS
     printf("\n%s", shell.info.promptHeader);
   #endif
@@ -977,7 +994,7 @@ void *shellThreadLoop(void *arg) {
     }
 
     taosResetTerminalMode();
-  } while (shellRunCommand(command) == 0);
+  } while (shellRunCommand(command, true) == 0);
 
   taosMemoryFreeClear(command);
   shellWriteHistory();
@@ -988,7 +1005,7 @@ void *shellThreadLoop(void *arg) {
 }
 
 int32_t shellExecute() {
-  printf(shell.info.clientVersion, shell.info.osname, taos_get_client_info());
+  printf(shell.info.clientVersion, taos_get_client_info());
   fflush(stdout);
 
   SShellArgs *pArgs = &shell.args;
@@ -996,7 +1013,7 @@ int32_t shellExecute() {
   if (shell.args.restful || shell.args.cloud) {
 	if (shell_conn_ws_server(1)) {
 		return -1;
-	}	
+	}
   } else {
 #endif
 	if (shell.args.auth == NULL) {
@@ -1019,7 +1036,7 @@ int32_t shellExecute() {
     if (pArgs->commands != NULL) {
       printf("%s%s\r\n", shell.info.promptHeader, pArgs->commands);
       char *cmd = strdup(pArgs->commands);
-      shellRunCommand(cmd);
+      shellRunCommand(cmd, true);
       taosMemoryFree(cmd);
     }
 
@@ -1030,7 +1047,7 @@ int32_t shellExecute() {
 	if (shell.args.restful || shell.args.cloud) {
 		ws_close(shell.ws_conn);
 	} else {
-#endif	
+#endif
 		taos_close(shell.conn);
 #ifdef WEBSOCKET
 	}
@@ -1066,7 +1083,12 @@ int32_t shellExecute() {
     taosThreadCreate(&shell.pid, NULL, shellThreadLoop, NULL);
     taosThreadJoin(shell.pid, NULL);
     taosThreadClear(&shell.pid);
+    if (shell.exit) {
+      tsem_post(&shell.cancelSem);
+      break;
+    }
   }
+  taosThreadJoin(spid, NULL);
 
   shellCleanupHistory();
   return 0;

@@ -19,7 +19,7 @@ $stb = $stbPrefix . $i
 
 sql drop database $db -x step1
 step1:
-sql create database $db 
+sql create database $db
 print ====== create tables
 sql use $db
 
@@ -31,9 +31,9 @@ $x = 0
 while $x < $rowNum
   $xs = $x * $delta
   $ts = $ts0 + $xs
-  sql insert into $tb values ( $ts , $x ) 
+  sql insert into $tb values ( $ts , $x )
   $x = $x + 1
-endw 
+endw
 print ====== tables created
 
 $ts = $ts0 + $delta
@@ -42,8 +42,8 @@ sql import into $tb values ( $ts , -1)
 sql select count(*) from $tb
 $res = $rowNum + 1
 if $data00 != $res then
-  print expected: $res 
-  print returned: $rows 
+  print expected: $res
+  print returned: $rows
   return -1
 endi
 

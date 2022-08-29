@@ -32,7 +32,7 @@ class TDTestCase:
         tdSql.execute('reset query cache')
         tdSql.execute('drop database if exists db')
         tdSql.execute('create database db precision "ns";')
-        tdSql.query('show databases;')
+        tdSql.query('select * from information_schema.ins_databases;')
         tdSql.checkData(0,16,'ns')
         tdSql.execute('use db')
 

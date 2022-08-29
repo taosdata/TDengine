@@ -1,6 +1,7 @@
 ---
 sidebar_label: EMQX Broker
 title: EMQX Broker 写入
+description: 使用 EMQX Broker 写入 TDengine
 ---
 
 MQTT 是流行的物联网数据传输协议，[EMQX](https://github.com/emqx/emqx)是一开源的 MQTT Broker 软件，无需任何代码，只需要在 EMQX Dashboard 里使用“规则”做简单配置，即可将 MQTT 的数据直接写入 TDengine。EMQX 支持通过 发送到 Web 服务的方式保存数据到 TDengine，也在企业版上提供原生的 TDengine 驱动实现直接保存。
@@ -17,6 +18,7 @@ MQTT 是流行的物联网数据传输协议，[EMQX](https://github.com/emqx/em
 
 用户可以根据当前的操作系统，到 EMQX 官网下载安装包，并执行安装。下载地址如下：<https://www.emqx.io/zh/downloads>。安装后使用 `sudo emqx start` 或 `sudo systemctl start emqx` 启动 EMQX 服务。
 
+注意：本文基于 EMQX v4.4.5 版本，其他版本由于相关配置界面、配置方法以及功能可能随着版本升级有所区别。
 
 ## 创建数据库和表
 
@@ -32,7 +34,7 @@ CREATE TABLE sensor_data (ts TIMESTAMP, temperature FLOAT, humidity FLOAT, volum
 
 ## 配置 EMQX 规则
 
-由于 EMQX 不同版本配置界面所有不同，这里仅以 v4.4.3 为例，其他版本请参考相应官网文档。
+由于 EMQX 不同版本配置界面所有不同，这里仅以 v4.4.5 为例，其他版本请参考相应官网文档。
 
 ### 登录 EMQX Dashboard
 
@@ -89,7 +91,7 @@ http://127.0.0.1:6041/rest/sql
 ```
 Basic cm9vdDp0YW9zZGF0YQ==
 ```
-相关文档请参考[ TDengine REST API 文档](/reference/rest-api/)。
+相关文档请参考[ TDengine REST API 文档](../../connector/rest-api/)。
 
 在消息体中输入规则引擎替换模板:
 

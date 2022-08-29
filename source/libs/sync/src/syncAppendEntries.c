@@ -148,6 +148,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
     pReply->term = ths->pRaftStore->currentTerm;
     pReply->success = false;
     pReply->matchIndex = SYNC_INDEX_INVALID;
+    pReply->startTime = ths->startTime;
 
     // msg event log
     syncLogSendAppendEntriesReply(ths, pReply, "");
@@ -290,6 +291,8 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
       pReply->matchIndex = pMsg->prevLogIndex;
     }
 
+    pReply->startTime = ths->startTime;
+
     // msg event log
     syncLogSendAppendEntriesReply(ths, pReply, "");
 
@@ -357,16 +360,14 @@ static int32_t syncNodeMakeLogSame(SSyncNode* ths, SyncAppendEntries* pMsg) {
   code = ths->pLogStore->syncLogTruncate(ths->pLogStore, delBegin);
   ASSERT(code == 0);
 
-  char eventLog[128];
-  snprintf(eventLog, sizeof(eventLog), "log truncate, from %" PRId64 " to %" PRId64, delBegin, delEnd);
-  syncNodeEventLog(ths, eventLog);
-  logStoreSimpleLog2("after syncNodeMakeLogSame", ths->pLogStore);
-
   return code;
 }
 
+// if FromIndex > walCommitVer, return 0
+// else return num of pass entries
 static int32_t syncNodeDoMakeLogSame(SSyncNode* ths, SyncIndex FromIndex) {
-  int32_t code;
+  int32_t code = 0;
+  int32_t pass = 0;
 
   SyncIndex delBegin = FromIndex;
   SyncIndex delEnd = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
@@ -398,16 +399,31 @@ static int32_t syncNodeDoMakeLogSame(SSyncNode* ths, SyncIndex FromIndex) {
     }
   }
 
+  // update delete begin
+  SyncIndex walCommitVer = logStoreWalCommitVer(ths->pLogStore);
+
+  if (delBegin <= walCommitVer) {
+    delBegin = walCommitVer + 1;
+    pass = walCommitVer - delBegin + 1;
+
+    do {
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "update delete begin to %ld", delBegin);
+      syncNodeEventLog(ths, logBuf);
+    } while (0);
+  }
+
   // delete confict entries
   code = ths->pLogStore->syncLogTruncate(ths->pLogStore, delBegin);
   ASSERT(code == 0);
 
-  char eventLog[128];
-  snprintf(eventLog, sizeof(eventLog), "log truncate, from %" PRId64 " to %" PRId64, delBegin, delEnd);
-  syncNodeEventLog(ths, eventLog);
-  logStoreSimpleLog2("after syncNodeMakeLogSame", ths->pLogStore);
+  do {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "make log same from:%ld, delbegin:%ld, pass:%d", FromIndex, delBegin, pass);
+    syncNodeEventLog(ths, logBuf);
+  } while (0);
 
-  return code;
+  return pass;
 }
 
 int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry, int32_t code) {
@@ -543,37 +559,40 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
       SOffsetAndContLen* metaTableArr = syncAppendEntriesBatchMetaTableArray(pMsg);
 
       if (hasAppendEntries && pMsg->prevLogIndex == ths->commitIndex) {
+        int32_t   pass = 0;
+        SyncIndex logLastIndex = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
+        bool      hasExtraEntries = logLastIndex > pMsg->prevLogIndex;
+
         // make log same
-        do {
-          SyncIndex logLastIndex = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
-          bool      hasExtraEntries = logLastIndex > pMsg->prevLogIndex;
-
-          if (hasExtraEntries) {
-            // make log same, rollback deleted entries
-            code = syncNodeDoMakeLogSame(ths, pMsg->prevLogIndex + 1);
-            ASSERT(code == 0);
-          }
-
-        } while (0);
+        if (hasExtraEntries) {
+          // make log same, rollback deleted entries
+          pass = syncNodeDoMakeLogSame(ths, pMsg->prevLogIndex + 1);
+          ASSERT(pass >= 0);
+        }
 
         // append entry batch
-        for (int32_t i = 0; i < pMsg->dataCount; ++i) {
-          SSyncRaftEntry* pAppendEntry = (SSyncRaftEntry*)(pMsg->data + metaTableArr[i].offset);
-          code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
-          if (code != 0) {
-            return -1;
+        if (pass == 0) {
+          // assert! no batch
+          ASSERT(pMsg->dataCount <= 1);
+
+          for (int32_t i = 0; i < pMsg->dataCount; ++i) {
+            SSyncRaftEntry* pAppendEntry = (SSyncRaftEntry*)(pMsg->data + metaTableArr[i].offset);
+            code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
+            if (code != 0) {
+              return -1;
+            }
+
+            code = syncNodePreCommit(ths, pAppendEntry, 0);
+            ASSERT(code == 0);
+
+            // syncEntryDestory(pAppendEntry);
           }
-
-          code = syncNodePreCommit(ths, pAppendEntry, 0);
-          ASSERT(code == 0);
-
-          // syncEntryDestory(pAppendEntry);
         }
 
         // fsync once
         SSyncLogStoreData* pData = ths->pLogStore->data;
         SWal*              pWal = pData->pWal;
-        walFsync(pWal, true);
+        walFsync(pWal, false);
 
         // update match index
         matchIndex = pMsg->prevLogIndex + pMsg->dataCount;
@@ -587,6 +606,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
       pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
       pReply->success = true;
       pReply->matchIndex = matchIndex;
+      pReply->startTime = ths->startTime;
 
       // msg event log
       syncLogSendAppendEntriesReply(ths, pReply, "");
@@ -635,6 +655,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
       pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
       pReply->success = false;
       pReply->matchIndex = ths->commitIndex;
+      pReply->startTime = ths->startTime;
 
       // msg event log
       syncLogSendAppendEntriesReply(ths, pReply, "");
@@ -670,31 +691,39 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
 
       syncLogRecvAppendEntriesBatch(ths, pMsg, "really match");
 
+      int32_t pass = 0;
+
       if (hasExtraEntries) {
         // make log same, rollback deleted entries
-        code = syncNodeDoMakeLogSame(ths, pMsg->prevLogIndex + 1);
-        ASSERT(code == 0);
+        pass = syncNodeDoMakeLogSame(ths, pMsg->prevLogIndex + 1);
+        ASSERT(pass >= 0);
       }
 
       if (hasAppendEntries) {
         // append entry batch
-        for (int32_t i = 0; i < pMsg->dataCount; ++i) {
-          SSyncRaftEntry* pAppendEntry = (SSyncRaftEntry*)(pMsg->data + metaTableArr[i].offset);
-          code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
-          if (code != 0) {
-            return -1;
+        if (pass == 0) {
+          // assert! no batch
+          ASSERT(pMsg->dataCount <= 1);
+
+          // append entry batch
+          for (int32_t i = 0; i < pMsg->dataCount; ++i) {
+            SSyncRaftEntry* pAppendEntry = (SSyncRaftEntry*)(pMsg->data + metaTableArr[i].offset);
+            code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
+            if (code != 0) {
+              return -1;
+            }
+
+            code = syncNodePreCommit(ths, pAppendEntry, 0);
+            ASSERT(code == 0);
+
+            // syncEntryDestory(pAppendEntry);
           }
-
-          code = syncNodePreCommit(ths, pAppendEntry, 0);
-          ASSERT(code == 0);
-
-          // syncEntryDestory(pAppendEntry);
         }
 
         // fsync once
         SSyncLogStoreData* pData = ths->pLogStore->data;
         SWal*              pWal = pData->pWal;
-        walFsync(pWal, true);
+        walFsync(pWal, false);
       }
 
       // prepare response msg
@@ -705,6 +734,7 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
       pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
       pReply->success = true;
       pReply->matchIndex = hasAppendEntries ? pMsg->prevLogIndex + pMsg->dataCount : pMsg->prevLogIndex;
+      pReply->startTime = ths->startTime;
 
       // msg event log
       syncLogSendAppendEntriesReply(ths, pReply, "");
@@ -717,24 +747,15 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
 
       // maybe update commit index, leader notice me
       if (pMsg->commitIndex > ths->commitIndex) {
+        SyncIndex lastIndex = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
+
+        SyncIndex beginIndex = 0;
+        SyncIndex endIndex = -1;
+
         // has commit entry in local
-        if (pMsg->commitIndex <= ths->pLogStore->syncLogLastIndex(ths->pLogStore)) {
-          // advance commit index to sanpshot first
-          SSnapshot snapshot;
-          ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
-          if (snapshot.lastApplyIndex >= 0 && snapshot.lastApplyIndex > ths->commitIndex) {
-            SyncIndex commitBegin = ths->commitIndex;
-            SyncIndex commitEnd = snapshot.lastApplyIndex;
-            ths->commitIndex = snapshot.lastApplyIndex;
-
-            char eventLog[128];
-            snprintf(eventLog, sizeof(eventLog), "commit by snapshot from index:%" PRId64 " to index:%" PRId64,
-                     commitBegin, commitEnd);
-            syncNodeEventLog(ths, eventLog);
-          }
-
-          SyncIndex beginIndex = ths->commitIndex + 1;
-          SyncIndex endIndex = pMsg->commitIndex;
+        if (pMsg->commitIndex <= lastIndex) {
+          beginIndex = ths->commitIndex + 1;
+          endIndex = pMsg->commitIndex;
 
           // update commit index
           ths->commitIndex = pMsg->commitIndex;
@@ -743,10 +764,22 @@ int32_t syncNodeOnAppendEntriesSnapshot2Cb(SSyncNode* ths, SyncAppendEntriesBatc
           code = ths->pLogStore->updateCommitIndex(ths->pLogStore, ths->commitIndex);
           ASSERT(code == 0);
 
-          code = syncNodeCommit(ths, beginIndex, endIndex, ths->state);
+        } else if (pMsg->commitIndex > lastIndex && ths->commitIndex < lastIndex) {
+          beginIndex = ths->commitIndex + 1;
+          endIndex = lastIndex;
+
+          // update commit index, speed up
+          ths->commitIndex = lastIndex;
+
+          // call back Wal
+          code = ths->pLogStore->updateCommitIndex(ths->pLogStore, ths->commitIndex);
           ASSERT(code == 0);
         }
+
+        code = syncNodeCommit(ths, beginIndex, endIndex, ths->state);
+        ASSERT(code == 0);
       }
+
       return 0;
     }
   } while (0);
@@ -847,6 +880,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
       pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
       pReply->success = true;
       pReply->matchIndex = matchIndex;
+      pReply->startTime = ths->startTime;
 
       // msg event log
       syncLogSendAppendEntriesReply(ths, pReply, "");
@@ -892,6 +926,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
       pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
       pReply->success = false;
       pReply->matchIndex = SYNC_INDEX_INVALID;
+      pReply->startTime = ths->startTime;
 
       // msg event log
       syncLogSendAppendEntriesReply(ths, pReply, "");
@@ -957,6 +992,7 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
       pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
       pReply->success = true;
       pReply->matchIndex = hasAppendEntries ? pMsg->prevLogIndex + 1 : pMsg->prevLogIndex;
+      pReply->startTime = ths->startTime;
 
       // msg event log
       syncLogSendAppendEntriesReply(ths, pReply, "");

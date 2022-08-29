@@ -19,6 +19,7 @@
 #include "querynodes.h"
 #include "scalar.h"
 #include "taoserror.h"
+#include "ttime.h"
 
 static int32_t buildFuncErrMsg(char* pErrBuf, int32_t len, int32_t errCode, const char* pFormat, ...) {
   va_list vArgList;
@@ -191,6 +192,24 @@ static bool validateTimezoneFormat(const SValueNode* pVal) {
   return true;
 }
 
+static int32_t countTrailingSpaces(const SValueNode* pVal, bool isLtrim) {
+  int32_t numOfSpaces = 0;
+  int32_t len = varDataLen(pVal->datum.p);
+  char*   str = varDataVal(pVal->datum.p);
+
+  int32_t startPos = isLtrim ? 0 : len - 1;
+  int32_t step = isLtrim ? 1 : -1;
+  for (int32_t i = startPos; i < len || i >= 0; i += step) {
+    if (!isspace(str[i])) {
+      break;
+    }
+    numOfSpaces++;
+  }
+
+  return numOfSpaces;
+
+}
+
 void static addTimezoneParam(SNodeList* pList) {
   char      buf[6] = {0};
   time_t    t = taosTime(NULL);
@@ -284,12 +303,46 @@ static int32_t translateInOutStr(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   }
 
   SExprNode* pPara1 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
-  if (!IS_VAR_DATA_TYPE(pPara1->resType.type)) {
+  if (!IS_STR_DATA_TYPE(pPara1->resType.type)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
   pFunc->node.resType = (SDataType){.bytes = pPara1->resType.bytes, .type = pPara1->resType.type};
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateTrimStr(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isLtrim) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SExprNode* pPara1 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
+  if (!IS_STR_DATA_TYPE(pPara1->resType.type)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  int32_t numOfSpaces = 0;
+  SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 0);
+  // for select trim functions with constant value from table,
+  // need to set the proper result result schema bytes to avoid
+  // trailing garbage characters
+  if (nodeType(pParamNode1) == QUERY_NODE_VALUE) {
+    SValueNode* pValue = (SValueNode*)pParamNode1;
+    numOfSpaces = countTrailingSpaces(pValue, isLtrim);
+  }
+
+
+  int32_t resBytes = pPara1->resType.bytes - numOfSpaces;
+  pFunc->node.resType = (SDataType){.bytes = resBytes, .type = pPara1->resType.type};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateLtrim(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateTrimStr(pFunc, pErrBuf, len, true);
+}
+
+static int32_t translateRtrim(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  return translateTrimStr(pFunc, pErrBuf, len, false);
 }
 
 static int32_t translateLogarithm(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -493,7 +546,7 @@ static int32_t translateApercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t
   // param2
   if (3 == numOfParams) {
     uint8_t para3Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type;
-    if (!IS_VAR_DATA_TYPE(para3Type)) {
+    if (!IS_STR_DATA_TYPE(para3Type)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
 
@@ -540,7 +593,7 @@ static int32_t translateApercentileImpl(SFunctionNode* pFunc, char* pErrBuf, int
     // param2
     if (3 == numOfParams) {
       uint8_t para3Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type;
-      if (!IS_VAR_DATA_TYPE(para3Type)) {
+      if (!IS_STR_DATA_TYPE(para3Type)) {
         return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
       }
 
@@ -1335,7 +1388,7 @@ static int32_t translateSample(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   }
 
   // set result type
-  if (IS_VAR_DATA_TYPE(colType)) {
+  if (IS_STR_DATA_TYPE(colType)) {
     pFunc->node.resType = (SDataType){.bytes = pCol->resType.bytes, .type = colType};
   } else {
     pFunc->node.resType = (SDataType){.bytes = tDataTypes[colType].bytes, .type = colType};
@@ -1378,7 +1431,7 @@ static int32_t translateTail(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   }
 
   // set result type
-  if (IS_VAR_DATA_TYPE(colType)) {
+  if (IS_STR_DATA_TYPE(colType)) {
     pFunc->node.resType = (SDataType){.bytes = pCol->resType.bytes, .type = colType};
   } else {
     pFunc->node.resType = (SDataType){.bytes = tDataTypes[colType].bytes, .type = colType};
@@ -1439,6 +1492,63 @@ static int32_t translateIrate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) 
   addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateInterp(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  uint8_t dbPrec = pFunc->node.resType.precision;
+
+  if (1 != numOfParams && 3 != numOfParams && 4 != numOfParams) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t nodeType = nodeType(nodesListGetNode(pFunc->pParameterList, 0));
+  uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (!IS_NUMERIC_TYPE(paraType) || QUERY_NODE_VALUE == nodeType) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (3 <= numOfParams) {
+    int64_t timeVal[2] = {0};
+    for (int32_t i = 1; i < 3; ++i) {
+      nodeType = nodeType(nodesListGetNode(pFunc->pParameterList, i));
+      paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, i))->resType.type;
+      if (!IS_STR_DATA_TYPE(paraType) || QUERY_NODE_VALUE != nodeType) {
+        return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+      }
+
+      SValueNode* pValue = (SValueNode*)nodesListGetNode(pFunc->pParameterList, i);
+      int32_t     ret = convertStringToTimestamp(paraType, pValue->datum.p, dbPrec, &timeVal[i - 1]);
+      if (ret != TSDB_CODE_SUCCESS) {
+        return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
+      }
+    }
+
+    if (timeVal[0] > timeVal[1]) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "INTERP function invalid time range");
+    }
+  }
+
+  if (4 == numOfParams) {
+    nodeType = nodeType(nodesListGetNode(pFunc->pParameterList, 3));
+    paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 3))->resType.type;
+    if (!IS_INTEGER_TYPE(paraType) || QUERY_NODE_VALUE != nodeType) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    int32_t ret = validateTimeUnitParam(dbPrec, (SValueNode*)nodesListGetNode(pFunc->pParameterList, 3));
+    if (ret == TIME_UNIT_TOO_SMALL) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "INTERP function time interval parameter should be greater than db precision");
+    } else if (ret == TIME_UNIT_INVALID) {
+      return buildFuncErrMsg(
+          pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+          "INTERP function time interval parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]");
+    }
+  }
+
+  pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1523,7 +1633,8 @@ static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   }
 
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-  if (!IS_SIGNED_NUMERIC_TYPE(colType) && !IS_FLOAT_TYPE(colType) && TSDB_DATA_TYPE_BOOL != colType) {
+  if (!IS_SIGNED_NUMERIC_TYPE(colType) && !IS_FLOAT_TYPE(colType) && TSDB_DATA_TYPE_BOOL != colType &&
+      TSDB_DATA_TYPE_TIMESTAMP != colType) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -1571,7 +1682,7 @@ static int32_t translateLength(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  if (!IS_VAR_DATA_TYPE(((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type)) {
+  if (!IS_STR_DATA_TYPE(((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -1603,7 +1714,7 @@ static int32_t translateConcatImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t 
   for (int32_t i = 0; i < numOfParams; ++i) {
     SNode*  pPara = nodesListGetNode(pFunc->pParameterList, i);
     uint8_t paraType = ((SExprNode*)pPara)->resType.type;
-    if (!IS_VAR_DATA_TYPE(paraType) && !IS_NULL_TYPE(paraType)) {
+    if (!IS_STR_DATA_TYPE(paraType) && !IS_NULL_TYPE(paraType)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
     if (TSDB_DATA_TYPE_NCHAR == paraType) {
@@ -1659,7 +1770,7 @@ static int32_t translateSubstr(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 
   uint8_t para0Type = pPara0->resType.type;
   uint8_t para1Type = pPara1->resType.type;
-  if (!IS_VAR_DATA_TYPE(para0Type) || !IS_INTEGER_TYPE(para1Type)) {
+  if (!IS_STR_DATA_TYPE(para0Type) || !IS_INTEGER_TYPE(para1Type)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -1691,7 +1802,7 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   uint8_t para2Type = pFunc->node.resType.type;
 
   int32_t para2Bytes = pFunc->node.resType.bytes;
-  if (IS_VAR_DATA_TYPE(para2Type)) {
+  if (IS_STR_DATA_TYPE(para2Type)) {
     para2Bytes -= VARSTR_HEADER_SIZE;
   }
   if (para2Bytes <= 0 || para2Bytes > 4096) {  // cast dst var type length limits to 4096 bytes
@@ -1748,7 +1859,7 @@ static int32_t translateToUnixtimestamp(SFunctionNode* pFunc, char* pErrBuf, int
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  if (!IS_VAR_DATA_TYPE(((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type)) {
+  if (!IS_STR_DATA_TYPE(((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -1767,7 +1878,7 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
 
   uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
-  if ((!IS_VAR_DATA_TYPE(para1Type) && !IS_INTEGER_TYPE(para1Type) && TSDB_DATA_TYPE_TIMESTAMP != para1Type) ||
+  if ((!IS_STR_DATA_TYPE(para1Type) && !IS_INTEGER_TYPE(para1Type) && TSDB_DATA_TYPE_TIMESTAMP != para1Type) ||
       !IS_INTEGER_TYPE(para2Type)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
@@ -1800,7 +1911,7 @@ static int32_t translateTimeDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 
   for (int32_t i = 0; i < 2; ++i) {
     uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, i))->resType.type;
-    if (!IS_VAR_DATA_TYPE(paraType) && !IS_INTEGER_TYPE(paraType) && TSDB_DATA_TYPE_TIMESTAMP != paraType) {
+    if (!IS_STR_DATA_TYPE(paraType) && !IS_INTEGER_TYPE(paraType) && TSDB_DATA_TYPE_TIMESTAMP != paraType) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
   }
@@ -2083,7 +2194,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "apercentile",
     .type = FUNCTION_TYPE_APERCENTILE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateApercentile,
     .getEnvFunc   = getApercentileFuncEnv,
     .initFunc     = apercentileFunctionSetup,
@@ -2098,7 +2209,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   },
   {
     .name = "_apercentile_partial",
-    .type = FUNCTION_TYPE_APERCENTILE_PARTIAL | FUNC_MGT_TIMELINE_FUNC,
+    .type = FUNCTION_TYPE_APERCENTILE_PARTIAL,
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateApercentilePartial,
     .getEnvFunc   = getApercentileFuncEnv,
@@ -2111,7 +2222,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_apercentile_merge",
     .type = FUNCTION_TYPE_APERCENTILE_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateApercentileMerge,
     .getEnvFunc   = getApercentileFuncEnv,
     .initFunc     = apercentileFunctionSetup,
@@ -2123,7 +2234,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "top",
     .type = FUNCTION_TYPE_TOP,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
     .translateFunc = translateTopBot,
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = topBotFunctionSetup,
@@ -2138,7 +2249,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "bottom",
     .type = FUNCTION_TYPE_BOTTOM,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
     .translateFunc = translateTopBot,
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = topBotFunctionSetup,
@@ -2204,8 +2315,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = elapsedFinalize,
     .invertFunc   = NULL,
     .combineFunc  = elapsedCombine,
-    //.pPartialFunc = "_elapsed_partial",
-    //.pMergeFunc   = "_elapsed_merge"
   },
   {
     .name = "_elapsed_partial",
@@ -2236,8 +2345,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "interp",
     .type = FUNCTION_TYPE_INTERP,
-    .classification = FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_INTERVAL_INTERPO_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
-    .translateFunc = translateFirstLast,
+    .classification = FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_INTERVAL_INTERPO_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_STABLE_FUNC,
+    .translateFunc = translateInterp,
     .getEnvFunc    = getSelectivityFuncEnv,
     .initFunc      = functionSetup,
     .processFunc   = NULL,
@@ -2246,7 +2356,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "derivative",
     .type = FUNCTION_TYPE_DERIVATIVE,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC |
+                      FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateDerivative,
     .getEnvFunc   = getDerivativeFuncEnv,
     .initFunc     = derivativeFuncSetup,
@@ -2271,10 +2382,13 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_LAST_ROW,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
     .translateFunc = translateFirstLast,
+    .dynDataRequiredFunc = lastDynDataReq,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = lastRowFunction,
     .sprocessFunc = firstLastScalarFunction,
+    .pPartialFunc = "_last_row_partial",
+    .pMergeFunc   = "_last_row_merge",
     .finalizeFunc = firstLastFinalize
   },
   {
@@ -2286,6 +2400,27 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = cachedLastRowFunction,
     .finalizeFunc = firstLastFinalize
+  },
+  {
+    .name = "_last_row_partial",
+    .type = FUNCTION_TYPE_LAST_PARTIAL,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+    .translateFunc = translateFirstLastPartial,
+    .dynDataRequiredFunc = lastDynDataReq,
+    .getEnvFunc   = getFirstLastFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = lastRowFunction,
+    .finalizeFunc = firstLastPartialFinalize,
+  },
+  {
+    .name = "_last_row_merge",
+    .type = FUNCTION_TYPE_LAST_MERGE,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
+    .translateFunc = translateFirstLastMerge,
+    .getEnvFunc   = getFirstLastFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = lastFunctionMerge,
+    .finalizeFunc = firstLastFinalize,
   },
   {
     .name = "first",
@@ -2343,6 +2478,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_LAST_PARTIAL,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
     .translateFunc = translateFirstLastPartial,
+    .dynDataRequiredFunc = lastDynDataReq,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = lastFunction,
@@ -2375,7 +2511,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "histogram",
     .type = FUNCTION_TYPE_HISTOGRAM,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_FORBID_FILL_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_FORBID_FILL_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
     .translateFunc = translateHistogram,
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
@@ -2390,7 +2526,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_histogram_partial",
     .type = FUNCTION_TYPE_HISTOGRAM_PARTIAL,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
     .translateFunc = translateHistogramPartial,
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = histogramFunctionSetup,
@@ -2402,7 +2538,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_histogram_merge",
     .type = FUNCTION_TYPE_HISTOGRAM_MERGE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
     .translateFunc = translateHistogramMerge,
     .getEnvFunc   = getHistogramFuncEnv,
     .initFunc     = functionSetup,
@@ -2414,7 +2550,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "hyperloglog",
     .type = FUNCTION_TYPE_HYPERLOGLOG,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateHLL,
     .getEnvFunc   = getHLLFuncEnv,
     .initFunc     = functionSetup,
@@ -2428,7 +2564,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   },
   {
     .name = "_hyperloglog_partial",
-    .type = FUNCTION_TYPE_HYPERLOGLOG_PARTIAL | FUNC_MGT_TIMELINE_FUNC,
+    .type = FUNCTION_TYPE_HYPERLOGLOG_PARTIAL,
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateHLLPartial,
     .getEnvFunc   = getHLLFuncEnv,
@@ -2440,7 +2576,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   },
   {
     .name = "_hyperloglog_merge",
-    .type = FUNCTION_TYPE_HYPERLOGLOG_MERGE | FUNC_MGT_TIMELINE_FUNC,
+    .type = FUNCTION_TYPE_HYPERLOGLOG_MERGE,
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateHLLMerge,
     .getEnvFunc   = getHLLFuncEnv,
@@ -2453,7 +2589,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "diff",
     .type = FUNCTION_TYPE_DIFF,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_CUMULATIVE_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | 
+                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_CUMULATIVE_FUNC,
     .translateFunc = translateDiff,
     .getEnvFunc   = getDiffFuncEnv,
     .initFunc     = diffFunctionSetup,
@@ -2487,7 +2624,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "csum",
     .type = FUNCTION_TYPE_CSUM,
-    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_CUMULATIVE_FUNC,
+    .classification = FUNC_MGT_INDEFINITE_ROWS_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_TIMELINE_FUNC | 
+                      FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_CUMULATIVE_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateCsum,
     .getEnvFunc   = getCsumFuncEnv,
     .initFunc     = functionSetup,
@@ -2510,7 +2648,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "sample",
     .type = FUNCTION_TYPE_SAMPLE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_ROWS_FUNC | FUNC_MGT_KEEP_ORDER_FUNC | FUNC_MGT_FORBID_STREAM_FUNC | FUNC_MGT_FORBID_FILL_FUNC,
     .translateFunc = translateSample,
     .getEnvFunc   = getSampleFuncEnv,
     .initFunc     = sampleFunctionSetup,
@@ -2747,7 +2885,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "ltrim",
     .type = FUNCTION_TYPE_LTRIM,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .translateFunc = translateInOutStr,
+    .translateFunc = translateLtrim,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = ltrimFunction,
@@ -2757,7 +2895,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "rtrim",
     .type = FUNCTION_TYPE_RTRIM,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
-    .translateFunc = translateInOutStr,
+    .translateFunc = translateRtrim,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = rtrimFunction,
@@ -2856,7 +2994,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "tbname",
     .type = FUNCTION_TYPE_TBNAME,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateTbnameColumn,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
@@ -2896,7 +3034,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_wstart",
     .type = FUNCTION_TYPE_WSTART,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateTimePseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
@@ -2906,7 +3044,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_wend",
     .type = FUNCTION_TYPE_WEND,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateTimePseudoColumn,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
@@ -2916,7 +3054,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_wduration",
     .type = FUNCTION_TYPE_WDURATION,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_WINDOW_PC_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateWduration,
     .getEnvFunc   = getTimePseudoFuncEnv,
     .initFunc     = NULL,
@@ -2964,7 +3102,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "_group_key",
     .type = FUNCTION_TYPE_GROUP_KEY,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_KEEP_ORDER_FUNC,
     .translateFunc = translateGroupKey,
     .getEnvFunc   = getGroupKeyFuncEnv,
     .initFunc     = functionSetup,

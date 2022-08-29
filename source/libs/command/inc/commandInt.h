@@ -43,12 +43,14 @@ extern "C" {
 #define EXPLAIN_GROUP_SORT_FORMAT "Group Sort"
 #define EXPLAIN_INTERVAL_FORMAT "Interval on Column %s"
 #define EXPLAIN_MERGE_INTERVAL_FORMAT "Merge Interval on Column %s"
+#define EXPLAIN_MERGE_ALIGNED_INTERVAL_FORMAT "Merge Aligned Interval on Column %s"
 #define EXPLAIN_FILL_FORMAT "Fill"
 #define EXPLAIN_SESSION_FORMAT "Session"
 #define EXPLAIN_STATE_WINDOW_FORMAT "StateWindow on Column %s"
 #define EXPLAIN_PARITION_FORMAT "Partition on Column %s"
 #define EXPLAIN_ORDER_FORMAT "Order: %s"
 #define EXPLAIN_FILTER_FORMAT "Filter: "
+#define EXPLAIN_MERGEBLOCKS_FORMAT "Merge ResBlocks: %s"
 #define EXPLAIN_FILL_VALUE_FORMAT "Fill Values: "
 #define EXPLAIN_ON_CONDITIONS_FORMAT "Join Cond: "
 #define EXPLAIN_TIMERANGE_FORMAT "Time Range: [%" PRId64 ", %" PRId64 "]"
@@ -56,8 +58,11 @@ extern "C" {
 #define EXPLAIN_TIME_WINDOWS_FORMAT "Time Window: interval=%" PRId64 "%c offset=%" PRId64 "%c sliding=%" PRId64 "%c"
 #define EXPLAIN_WINDOW_FORMAT "Window: gap=%" PRId64
 #define EXPLAIN_RATIO_TIME_FORMAT "Ratio: %f"
-#define EXPLAIN_MERGE_FORMAT "Merge"
+#define EXPLAIN_MERGE_FORMAT "SortMerge"
 #define EXPLAIN_MERGE_KEYS_FORMAT "Merge Key: "
+#define EXPLAIN_IGNORE_GROUPID_FORMAT "Ignore Group Id: %s"
+#define EXPLAIN_PARTITION_KETS_FORMAT "Partition Key: "
+#define EXPLAIN_INTERP_FORMAT "Interp"
 
 #define EXPLAIN_PLANNING_TIME_FORMAT "Planning Time: %.3f ms"
 #define EXPLAIN_EXEC_TIME_FORMAT "Execution Time: %.3f ms"
@@ -68,6 +73,7 @@ extern "C" {
 #define EXPLAIN_LEFT_PARENTHESIS_FORMAT " ("
 #define EXPLAIN_RIGHT_PARENTHESIS_FORMAT ")"
 #define EXPLAIN_BLANK_FORMAT " "
+#define EXPLAIN_COMMA_FORMAT ", "
 #define EXPLAIN_COST_FORMAT "cost=%.2f..%.2f"
 #define EXPLAIN_ROWS_FORMAT "rows=%" PRIu64
 #define EXPLAIN_COLUMNS_FORMAT "columns=%d"
@@ -85,6 +91,7 @@ extern "C" {
 #define EXPLAIN_OUTPUT_ORDER_TYPE_FORMAT "output_order=%s"
 #define EXPLAIN_OFFSET_FORMAT "offset=%d"
 #define EXPLAIN_SOFFSET_FORMAT "soffset=%d"
+#define EXPLAIN_PARTITIONS_FORMAT "partitions=%d"
 
 #define COMMAND_RESET_LOG "resetLog"
 #define COMMAND_SCHEDULE_POLICY "schedulePolicy"
@@ -93,7 +100,6 @@ extern "C" {
 typedef struct SExplainGroup {
   int32_t   nodeNum;
   int32_t   physiPlanExecNum;
-  int32_t   physiPlanNum;
   int32_t   physiPlanExecIdx;
   SRWLatch  lock;
   SSubplan *plan;

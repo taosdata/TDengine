@@ -41,7 +41,7 @@ The agents deployed in the application nodes are responsible for providing opera
 
 - **TDengine installation and deployment**
 
-First of all, please install TDengine. Download the latest stable version of TDengine from the official website and install it. For help with using various installation packages, please refer to the blog ["Installation and Uninstallation of TDengine Multiple Installation Packages"](https://www.taosdata.com/blog/2019/08/09/566.html).
+First of all, please install TDengine. Download the latest stable version of TDengine from the official website and install it. For help with using various installation packages, please refer to [Install TDengine](../../get-started/package)
 
 Note that once the installation is complete, do not start the `taosd` service before properly configuring the parameters.
 
@@ -51,7 +51,7 @@ TDengine version 2.4 and later version includes `taosAdapter`. taosAdapter is a 
 
 Users can flexibly deploy taosAdapter instances, based on their requirements, to improve data writing throughput and provide guarantees for data writes in different application scenarios.
 
-Through taosAdapter, users can directly write the data collected by `collectd` or `StatsD` to TDengine to achieve easy, convenient and seamless migration in application scenarios. taosAdapter also supports Telegraf, Icinga, TCollector, and node_exporter data. For more details, please refer to [taosAdapter](/reference/taosadapter/).
+Through taosAdapter, users can directly write the data collected by `collectd` or `StatsD` to TDengine to achieve easy, convenient and seamless migration in application scenarios. taosAdapter also supports Telegraf, Icinga, TCollector, and node_exporter data. For more details, please refer to [taosAdapter](../../reference/taosadapter/).
 
 If using collectd, modify the configuration file in its default location `/etc/collectd/collectd.conf` to point to the IP address and port of the node where to deploy taosAdapter. For example, assuming the taosAdapter IP address is 192.168.1.130 and port 6046, configure it as follows.
 
@@ -411,7 +411,7 @@ TDengine provides a wealth of help documents to explain many aspects of cluster 
 
 ### Cluster Deployment
 
-The first is TDengine installation. Download the latest stable version of TDengine from the official website, and install it. Please refer to the blog ["Installation and Uninstallation of Various Installation Packages of TDengine"](https://www.taosdata.com/blog/2019/08/09/566.html) for the various installation package formats.
+The first is TDengine installation. Download the latest stable version of TDengine from the official website, and install it. Please refer to [Install TDengine](../../get-started/pacakge) for more details.
 
 Note that once the installation is complete, do not immediately start the `taosd` service, but start it after correctly configuring the parameters.
 
@@ -419,11 +419,11 @@ Note that once the installation is complete, do not immediately start the `taosd
 
 To ensure that the system can obtain the necessary information for regular operation. Please set the following vital parameters correctly on the server:
 
-FQDN, firstEp, secondEP, dataDir, logDir, tmpDir, serverPort. For the specific meaning and setting requirements of each parameter, please refer to the document "[TDengine Cluster Installation and Management](/cluster/)"
+FQDN, firstEp, secondEP, dataDir, logDir, tmpDir, serverPort. For the specific meaning and setting requirements of each parameter, please refer to the document "[TDengine Cluster Deployment](../../deployment)"
 
 Follow the same steps to set parameters on the other nodes, start the taosd service, and then add Dnodes to the cluster.
 
-Finally, start `taos` and execute the `show dnodes` command. If you can see all the nodes that have joined the cluster, the cluster building process was successfully completed. For specific operation procedures and precautions, please refer to the document "[TDengine Cluster Installation and Management](/cluster/)".
+Finally, start `taos` and execute the `show dnodes` command. If you can see all the nodes that have joined the cluster, the cluster building process was successfully completed. For specific operation procedures and precautions, please refer to the document "[TDengine Cluster Deployment](../../deployment)".
 
 ## Appendix 4: Super Table Names
 
@@ -431,5 +431,5 @@ Since OpenTSDB's metric name has a dot (".") in it, for example, a metric with a
 
 ## Appendix 5: Reference Articles
 
-1. [Using TDengine + collectd/StatsD + Grafana to quickly build an IT operation and maintenance monitoring system](/application/collectd/)
-2. [Write collected data directly to TDengine through collectd](/third-party/collectd/)
+1. [Using TDengine + collectd/StatsD + Grafana to quickly build an IT operation and maintenance monitoring system](../collectd/)
+2. [Write collected data directly to TDengine through collectd](../collectd/)

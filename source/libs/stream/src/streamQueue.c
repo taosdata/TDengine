@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tstream.h"
+#include "streamInc.h"
 
 SStreamQueue* streamQueueOpen() {
   SStreamQueue* pQueue = taosMemoryCalloc(1, sizeof(SStreamQueue));
@@ -35,9 +35,13 @@ FAIL:
 void streamQueueClose(SStreamQueue* queue) {
   while (1) {
     void* qItem = streamQueueNextItem(queue);
-    if (qItem)
-      taosFreeQitem(qItem);
-    else
-      return;
+    if (qItem) {
+      streamFreeQitem(qItem);
+    } else {
+      break;
+    }
   }
+  taosFreeQall(queue->qall);
+  taosCloseQueue(queue->queue);
+  taosMemoryFree(queue);
 }

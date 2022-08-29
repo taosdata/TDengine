@@ -284,7 +284,6 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
 
   for (int32_t i = 0; i < parentNum; ++i) {
     SSchTask *parent = *(SSchTask **)taosArrayGet(pTask->parents, i);
-    int32_t   readyNum = atomic_add_fetch_32(&parent->childReady, 1);
 
     SCH_LOCK(SCH_WRITE, &parent->planLock);
     SDownstreamSourceNode source = {
@@ -297,6 +296,8 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     };
     qSetSubplanExecutionNode(parent->plan, pTask->plan->id.groupId, &source);
     SCH_UNLOCK(SCH_WRITE, &parent->planLock);
+
+    int32_t readyNum = atomic_add_fetch_32(&parent->childReady, 1);
 
     if (SCH_TASK_READY_FOR_LAUNCH(readyNum, parent)) {
       SCH_TASK_DLOG("all %d children task done, start to launch parent task 0x%" PRIx64, readyNum, parent->taskId);
@@ -410,7 +411,7 @@ int32_t schHandleRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32
     if (pJob->fetched) {
       SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
       SCH_TASK_ELOG("already fetched while got error %s", tstrerror(rspCode));
-      SCH_ERR_RET(rspCode);
+      SCH_ERR_JRET(rspCode);
     }
     SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
 
@@ -536,6 +537,7 @@ int32_t schMoveTaskToExecList(SSchJob *pJob, SSchTask *pTask, bool *moved) {
 int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bool *needRetry) {
   if (TSDB_CODE_SCH_TIMEOUT_ERROR == errCode) {
     pTask->maxExecTimes++;
+    pTask->maxRetryTimes++;
     if (pTask->timeoutUsec < SCH_MAX_TASK_TIMEOUT_USEC) {
       pTask->timeoutUsec *= 2;
       if (pTask->timeoutUsec > SCH_MAX_TASK_TIMEOUT_USEC) {
@@ -817,7 +819,16 @@ int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId *pEpId, SArray *pStatusList) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
+int32_t schLaunchTaskImpl(void *param) {
+  SSchTaskCtx *pCtx = (SSchTaskCtx *)param;
+  SSchJob *pJob = schAcquireJob(pCtx->jobRid);
+  if (NULL == pJob) {
+    taosMemoryFree(param);
+    qDebug("job refId 0x%" PRIx64 " already not exist", pCtx->jobRid);
+    SCH_RET(TSDB_CODE_SCH_JOB_IS_DROPPING);
+  }
+  
+  SSchTask *pTask = pCtx->pTask;
   int8_t  status = 0;
   int32_t code = 0;
 
@@ -832,12 +843,12 @@ int32_t schLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
 
   if (schJobNeedToStop(pJob, &status)) {
     SCH_TASK_DLOG("no need to launch task cause of job status %s", jobTaskStatusStr(status));
-    SCH_ERR_RET(TSDB_CODE_SCH_IGNORE_ERROR);
+    SCH_ERR_JRET(TSDB_CODE_SCH_IGNORE_ERROR);
   }
 
   // NOTE: race condition: the task should be put into the hash table before send msg to server
   if (SCH_GET_TASK_STATUS(pTask) != JOB_TASK_STATUS_EXEC) {
-    SCH_ERR_RET(schPushTaskToExecList(pJob, pTask));
+    SCH_ERR_JRET(schPushTaskToExecList(pJob, pTask));
     SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_EXEC);
   }
 
@@ -848,20 +859,54 @@ int32_t schLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
     if (TSDB_CODE_SUCCESS != code) {
       SCH_TASK_ELOG("failed to create physical plan, code:%s, msg:%p, len:%d", tstrerror(code), pTask->msg,
                     pTask->msgLen);
-      SCH_ERR_RET(code);
+      SCH_ERR_JRET(code);
     } else {
       SCH_TASK_DLOGL("physical plan len:%d, %s", pTask->msgLen, pTask->msg);
     }
   }
 
-  SCH_ERR_RET(schSetTaskCandidateAddrs(pJob, pTask));
+  SCH_ERR_JRET(schSetTaskCandidateAddrs(pJob, pTask));
 
   if (SCH_IS_QUERY_JOB(pJob)) {
-    SCH_ERR_RET(schEnsureHbConnection(pJob, pTask));
+    SCH_ERR_JRET(schEnsureHbConnection(pJob, pTask));
   }
 
-  SCH_ERR_RET(schBuildAndSendMsg(pJob, pTask, NULL, plan->msgType));
+  SCH_ERR_JRET(schBuildAndSendMsg(pJob, pTask, NULL, plan->msgType));
 
+_return:
+
+  taosMemoryFree(param);
+
+  if (pJob->taskNum >= SCH_MIN_AYSNC_EXEC_NUM) {
+    if (code) {
+      code = schProcessOnTaskFailure(pJob, pTask, code);
+    }
+    if (code) {
+      code = schHandleJobFailure(pJob, code);
+    }
+  }
+
+  schReleaseJob(pJob->refId);
+
+  SCH_RET(code);
+}
+
+int32_t schAsyncLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {  
+
+  SSchTaskCtx *param = taosMemoryCalloc(1, sizeof(SSchTaskCtx));
+  if (NULL == param) {
+    SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+  
+  param->jobRid = pJob->refId;
+  param->pTask = pTask;
+
+  if (pJob->taskNum >= SCH_MIN_AYSNC_EXEC_NUM) {
+    taosAsyncExec(schLaunchTaskImpl, param, NULL);
+  } else {
+    SCH_ERR_RET(schLaunchTaskImpl(param));
+  }
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -876,10 +921,10 @@ int32_t schLaunchTask(SSchJob *pJob, SSchTask *pTask) {
     SCH_ERR_JRET(schCheckIncTaskFlowQuota(pJob, pTask, &enough));
 
     if (enough) {
-      SCH_ERR_JRET(schLaunchTaskImpl(pJob, pTask));
+      SCH_ERR_JRET(schAsyncLaunchTaskImpl(pJob, pTask));
     }
   } else {
-    SCH_ERR_JRET(schLaunchTaskImpl(pJob, pTask));
+    SCH_ERR_JRET(schAsyncLaunchTaskImpl(pJob, pTask));
   }
 
   return TSDB_CODE_SUCCESS;

@@ -44,11 +44,11 @@ typedef struct {
   void (*fp)(void *);
 } SRefSet;
 
-static SRefSet         tsRefSetList[TSDB_REF_OBJECTS];
+static SRefSet       tsRefSetList[TSDB_REF_OBJECTS];
 static TdThreadOnce  tsRefModuleInit = PTHREAD_ONCE_INIT;
 static TdThreadMutex tsRefMutex;
-static int32_t         tsRefSetNum = 0;
-static int32_t         tsNextId = 0;
+static int32_t       tsRefSetNum = 0;
+static int32_t       tsNextId = 0;
 
 static void    taosInitRefModule(void);
 static void    taosLockList(int64_t *lockedBy);

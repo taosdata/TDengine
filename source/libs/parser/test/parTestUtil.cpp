@@ -24,6 +24,7 @@
 #include "parInt.h"
 
 using namespace std;
+using namespace std::placeholders;
 using namespace testing;
 
 namespace ParserTest {
@@ -118,8 +119,8 @@ class ParserTestBaseImpl {
     TEST_INTERFACE_ASYNC_API
   };
 
-  static void _destoryParseMetaCache(SParseMetaCache* pMetaCache) {
-    destoryParseMetaCache(pMetaCache);
+  static void _destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request) {
+    destoryParseMetaCache(pMetaCache, request);
     delete pMetaCache;
   }
 
@@ -206,6 +207,7 @@ class ParserTestBaseImpl {
     pCxt->db = caseEnv_.db_.c_str();
     pCxt->pUser = caseEnv_.user_.c_str();
     pCxt->isSuperUser = caseEnv_.user_ == "root";
+    pCxt->enableSysInfo = true;
     pCxt->pSql = stmtEnv_.sql_.c_str();
     pCxt->sqlLen = stmtEnv_.sql_.length();
     pCxt->pMsg = stmtEnv_.msgBuf_.data();
@@ -224,16 +226,17 @@ class ParserTestBaseImpl {
     DO_WITH_THROW(collectMetaKey, pCxt, pQuery, pMetaCache);
   }
 
-  void doBuildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
-    DO_WITH_THROW(buildCatalogReq, pMetaCache, pCatalogReq);
+  void doBuildCatalogReq(SParseContext* pCxt, const SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
+    DO_WITH_THROW(buildCatalogReq, pCxt, pMetaCache, pCatalogReq);
   }
 
   void doGetAllMeta(const SCatalogReq* pCatalogReq, SMetaData* pMetaData) {
     DO_WITH_THROW(g_mockCatalogService->catalogGetAllMeta, pCatalogReq, pMetaData);
   }
 
-  void doPutMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache) {
-    DO_WITH_THROW(putMetaDataToCache, pCatalogReq, pMetaData, pMetaCache);
+  void doPutMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache,
+                            bool isInsertValues) {
+    DO_WITH_THROW(putMetaDataToCache, pCatalogReq, pMetaData, pMetaCache, isInsertValues);
   }
 
   void doAuthenticate(SParseContext* pCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
@@ -260,13 +263,26 @@ class ParserTestBaseImpl {
   void doParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, SCatalogReq* pCatalogReq) {
     DO_WITH_THROW(qParseSqlSyntax, pCxt, pQuery, pCatalogReq);
     ASSERT_NE(*pQuery, nullptr);
-    res_.parsedAst_ = toString((*pQuery)->pRoot);
+    if (nullptr != (*pQuery)->pRoot) {
+      res_.parsedAst_ = toString((*pQuery)->pRoot);
+    }
   }
 
   void doAnalyseSqlSemantic(SParseContext* pCxt, const SCatalogReq* pCatalogReq, const SMetaData* pMetaData,
                             SQuery* pQuery) {
     DO_WITH_THROW(qAnalyseSqlSemantic, pCxt, pCatalogReq, pMetaData, pQuery);
     res_.calcConstAst_ = toString(pQuery->pRoot);
+  }
+
+  void doParseInsertSql(SParseContext* pCxt, SQuery** pQuery, SParseMetaCache* pMetaCache) {
+    DO_WITH_THROW(parseInsertSql, pCxt, pQuery, pMetaCache);
+    ASSERT_NE(*pQuery, nullptr);
+    res_.parsedAst_ = toString((*pQuery)->pRoot);
+  }
+
+  void doParseInsertSyntax(SParseContext* pCxt, SQuery** pQuery, SParseMetaCache* pMetaCache) {
+    DO_WITH_THROW(parseInsertSyntax, pCxt, pQuery, pMetaCache);
+    ASSERT_NE(*pQuery, nullptr);
   }
 
   string toString(const SNode* pRoot) {
@@ -286,15 +302,20 @@ class ParserTestBaseImpl {
       SParseContext cxt = {0};
       setParseContext(sql, &cxt);
 
-      unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), _destroyQuery);
-      doParse(&cxt, query.get());
-      SQuery* pQuery = *(query.get());
+      if (qIsInsertValuesSql(cxt.pSql, cxt.sqlLen)) {
+        unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), _destroyQuery);
+        doParseInsertSql(&cxt, query.get(), nullptr);
+      } else {
+        unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), _destroyQuery);
+        doParse(&cxt, query.get());
+        SQuery* pQuery = *(query.get());
 
-      doAuthenticate(&cxt, pQuery, nullptr);
+        doAuthenticate(&cxt, pQuery, nullptr);
 
-      doTranslate(&cxt, pQuery, nullptr);
+        doTranslate(&cxt, pQuery, nullptr);
 
-      doCalculateConstant(&cxt, pQuery);
+        doCalculateConstant(&cxt, pQuery);
+      }
 
       if (g_dump) {
         dump();
@@ -337,15 +358,22 @@ class ParserTestBaseImpl {
       setParseContext(sql, &cxt, true);
 
       unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), _destroyQuery);
-      doParse(&cxt, query.get());
-      SQuery* pQuery = *(query.get());
+      bool                                    request = true;
+      unique_ptr<SParseMetaCache, function<void(SParseMetaCache*)> > metaCache(
+          new SParseMetaCache(), bind(_destoryParseMetaCache, _1, cref(request)));
+      bool isInsertValues = qIsInsertValuesSql(cxt.pSql, cxt.sqlLen);
+      if (isInsertValues) {
+        doParseInsertSyntax(&cxt, query.get(), metaCache.get());
+      } else {
+        doParse(&cxt, query.get());
+        doCollectMetaKey(&cxt, *(query.get()), metaCache.get());
+      }
 
-      unique_ptr<SParseMetaCache, void (*)(SParseMetaCache*)> metaCache(new SParseMetaCache(), _destoryParseMetaCache);
-      doCollectMetaKey(&cxt, pQuery, metaCache.get());
+      SQuery* pQuery = *(query.get());
 
       unique_ptr<SCatalogReq, void (*)(SCatalogReq*)> catalogReq(new SCatalogReq(),
                                                                  MockCatalogService::destoryCatalogReq);
-      doBuildCatalogReq(metaCache.get(), catalogReq.get());
+      doBuildCatalogReq(&cxt, metaCache.get(), catalogReq.get());
 
       string err;
       thread t1([&]() {
@@ -353,13 +381,19 @@ class ParserTestBaseImpl {
           unique_ptr<SMetaData, void (*)(SMetaData*)> metaData(new SMetaData(), MockCatalogService::destoryMetaData);
           doGetAllMeta(catalogReq.get(), metaData.get());
 
-          doPutMetaDataToCache(catalogReq.get(), metaData.get(), metaCache.get());
+          metaCache.reset(new SParseMetaCache());
+          request = false;
+          doPutMetaDataToCache(catalogReq.get(), metaData.get(), metaCache.get(), isInsertValues);
 
-          doAuthenticate(&cxt, pQuery, metaCache.get());
+          if (isInsertValues) {
+            doParseInsertSql(&cxt, query.get(), metaCache.get());
+          } else {
+            doAuthenticate(&cxt, pQuery, metaCache.get());
 
-          doTranslate(&cxt, pQuery, metaCache.get());
+            doTranslate(&cxt, pQuery, metaCache.get());
 
-          doCalculateConstant(&cxt, pQuery);
+            doCalculateConstant(&cxt, pQuery);
+          }
         } catch (const TerminateFlag& e) {
           // success and terminate
         } catch (const runtime_error& e) {

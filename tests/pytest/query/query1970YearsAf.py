@@ -133,7 +133,7 @@ class TDTestCase:
             "user": "root",
             "password": "taosdata",
             "thread_count": 4,
-            "thread_count_create_tbl": 4,
+            "create_table_thread_count": 4,
             "result_file": "/tmp/insert_res.txt",
             "confirm_parameter_prompt": "no",
             "insert_interval": 0,
@@ -235,7 +235,7 @@ class TDTestCase:
         self.sqlsquery()
 
         # after wal and sync, check again
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         index = tdSql.getData(0, 0)
         tdDnodes.stop(index)
         tdDnodes.start(index)

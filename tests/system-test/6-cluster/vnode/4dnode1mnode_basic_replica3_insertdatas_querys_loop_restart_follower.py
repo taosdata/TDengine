@@ -50,13 +50,13 @@ class TDTestCase:
         return buildPath
 
     def check_setup_cluster_status(self):
-        tdSql.query("show mnodes")
+        tdSql.query("select * from information_schema.ins_mnodes")
         for mnode in tdSql.queryResult:
             name = mnode[1]
             info = mnode
             self.mnode_list[name] = info
 
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         for dnode in tdSql.queryResult:
             name = dnode[1]
             info = dnode
@@ -200,7 +200,7 @@ class TDTestCase:
             # newTdSql=tdCom.newTdSql()
 
             status =  ""
-            newTdSql.query("show dnodes")
+            newTdSql.query("select * from information_schema.ins_dnodes")
             dnode_infos = newTdSql.queryResult
             for dnode_info in dnode_infos:
                 id = dnode_info[0]
@@ -223,7 +223,7 @@ class TDTestCase:
         def _get_status():
             # newTdSql=tdCom.newTdSql()
             status =  ""
-            newTdSql.query("show dnodes")
+            newTdSql.query("select * from information_schema.ins_dnodes")
             dnode_infos = newTdSql.queryResult
             for dnode_info in dnode_infos:
                 id = dnode_info[0]

@@ -1,6 +1,7 @@
 ---
 sidebar_label: Helm
 title: 使用 Helm 部署 TDengine 集群
+description: 使用 Helm 部署 TDengine 集群的详细指南
 ---
 
 Helm 是 Kubernetes 的包管理器，上一节使用 Kubernets 部署 TDengine 集群的操作已经足够简单，但 Helm 依然可以提供更强大的能力。
@@ -22,7 +23,7 @@ Helm 会使用 kubectl 和 kubeconfig 的配置来操作 Kubernetes，可以参�
 TDengine Chart 尚未发布到 Helm 仓库，当前可以从 GitHub 直接下载：
 
 ```bash
-wget https://github.com/taosdata/TDengine-Operator/raw/main/helm/tdengine-0.3.0.tgz
+wget https://github.com/taosdata/TDengine-Operator/raw/3.0/helm/tdengine-3.0.0.tgz
 
 ```
 
@@ -38,7 +39,7 @@ kubectl get storageclass
 之后，使用 helm 命令安装：
 
 ```bash
-helm install tdengine tdengine-0.3.0.tgz \
+helm install tdengine tdengine-3.0.0.tgz \
   --set storage.className=<your storage class name>
 
 ```
@@ -46,7 +47,7 @@ helm install tdengine tdengine-0.3.0.tgz \
 在 minikube 环境下，可以设置一个较小的容量避免超出磁盘可用空间：
 
 ```bash
-helm install tdengine tdengine-0.3.0.tgz \
+helm install tdengine tdengine-3.0.0.tgz \
   --set storage.className=standard \
   --set storage.dataSize=2Gi \
   --set storage.logSize=10Mi
@@ -83,14 +84,14 @@ TDengine 支持 `values.yaml` 自定义。
 通过 helm show values 可以获取 TDengine Chart 支持的全部 values 列表：
 
 ```bash
-helm show values tdengine-0.3.0.tgz
+helm show values tdengine-3.0.0.tgz
 
 ```
 
 你可以将结果保存为 values.yaml，之后可以修改其中的各项参数，如 replica 数量，存储类名称，容量大小，TDengine 配置等，然后使用如下命令安装 TDengine 集群：
 
 ```bash
-helm install tdengine tdengine-0.3.0.tgz -f values.yaml
+helm install tdengine tdengine-3.0.0.tgz -f values.yaml
 
 ```
 
@@ -107,37 +108,17 @@ image:
   prefix: tdengine/tdengine
   #pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
-  #tag: "2.4.0.5"
+#  tag: "3.0.0.0"
 
 service:
   # ClusterIP is the default service type, use NodeIP only if you know what you are doing.
   type: ClusterIP
   ports:
     # TCP range required
-    tcp:
-      [
-        6030,
-        6031,
-        6032,
-        6033,
-        6034,
-        6035,
-        6036,
-        6037,
-        6038,
-        6039,
-        6040,
-        6041,
-        6042,
-        6043,
-        6044,
-        6045,
-        6060,
-      ]
-    # UDP range 6030-6039
-    udp: [6030, 6031, 6032, 6033, 6034, 6035, 6036, 6037, 6038, 6039]
+    tcp: [6030, 6041, 6042, 6043, 6044, 6046, 6047, 6048, 6049, 6060]
+    # UDP range
+    udp: [6044, 6045]
 
-arbitrator: true
 
 # Set timezone here, not in taoscfg
 timezone: "Asia/Shanghai"
@@ -182,75 +163,27 @@ clusterDomainSuffix: ""
 #
 # Btw, keep quotes "" around the value like below, even the value will be number or not.
 taoscfg:
+  # Starts as cluster or not, must be 0 or 1.
+  #   0: all pods will start as a seperate TDengine server
+  #   1: pods will start as TDengine server cluster. [default]
+  CLUSTER: "1"
+
   # number of replications, for cluster only
   TAOS_REPLICA: "1"
 
-  # number of management nodes in the system
-  TAOS_NUM_OF_MNODES: "1"
 
-  # number of days per DB file
-  # TAOS_DAYS: "10"
-
-  # number of days to keep DB file, default is 10 years.
-  #TAOS_KEEP: "3650"
-
-  # cache block size (Mbyte)
-  #TAOS_CACHE: "16"
-
-  # number of cache blocks per vnode
-  #TAOS_BLOCKS: "6"
-
-  # minimum rows of records in file block
-  #TAOS_MIN_ROWS: "100"
-
-  # maximum rows of records in file block
-  #TAOS_MAX_ROWS: "4096"
-
-  #
-  # TAOS_NUM_OF_THREADS_PER_CORE: number of threads per CPU core
-  #TAOS_NUM_OF_THREADS_PER_CORE: "1.0"
+  # TAOS_NUM_OF_RPC_THREADS: number of threads for RPC
+  #TAOS_NUM_OF_RPC_THREADS: "2"
 
   #
   # TAOS_NUM_OF_COMMIT_THREADS: number of threads to commit cache data
   #TAOS_NUM_OF_COMMIT_THREADS: "4"
 
-  #
-  # TAOS_RATIO_OF_QUERY_CORES:
-  # the proportion of total CPU cores available for query processing
-  # 2.0: the query threads will be set to double of the CPU cores.
-  # 1.0: all CPU cores are available for query processing [default].
-  # 0.5: only half of the CPU cores are available for query.
-  # 0.0: only one core available.
-  #TAOS_RATIO_OF_QUERY_CORES: "1.0"
-
-  #
-  # TAOS_KEEP_COLUMN_NAME:
-  # the last_row/first/last aggregator will not change the original column name in the result fields
-  #TAOS_KEEP_COLUMN_NAME: "0"
-
-  # enable/disable backuping vnode directory when removing vnode
-  #TAOS_VNODE_BAK: "1"
-
   # enable/disable installation / usage report
   #TAOS_TELEMETRY_REPORTING: "1"
 
-  # enable/disable load balancing
-  #TAOS_BALANCE: "1"
-
-  # max timer control blocks
-  #TAOS_MAX_TMR_CTRL: "512"
-
   # time interval of system monitor, seconds
   #TAOS_MONITOR_INTERVAL: "30"
-
-  # number of seconds allowed for a dnode to be offline, for cluster only
-  #TAOS_OFFLINE_THRESHOLD: "8640000"
-
-  # RPC re-try timer, millisecond
-  #TAOS_RPC_TIMER: "1000"
-
-  # RPC maximum time for ack, seconds.
-  #TAOS_RPC_MAX_TIME: "600"
 
   # time interval of dnode status reporting to mnode, seconds, for cluster only
   #TAOS_STATUS_INTERVAL: "1"
@@ -262,37 +195,7 @@ taoscfg:
   #TAOS_MIN_SLIDING_TIME: "10"
 
   # minimum time window, milli-second
-  #TAOS_MIN_INTERVAL_TIME: "10"
-
-  # maximum delay before launching a stream computation, milli-second
-  #TAOS_MAX_STREAM_COMP_DELAY: "20000"
-
-  # maximum delay before launching a stream computation for the first time, milli-second
-  #TAOS_MAX_FIRST_STREAM_COMP_DELAY: "10000"
-
-  # retry delay when a stream computation fails, milli-second
-  #TAOS_RETRY_STREAM_COMP_DELAY: "10"
-
-  # the delayed time for launching a stream computation, from 0.1(default, 10% of whole computing time window) to 0.9
-  #TAOS_STREAM_COMP_DELAY_RATIO: "0.1"
-
-  # max number of vgroups per db, 0 means configured automatically
-  #TAOS_MAX_VGROUPS_PER_DB: "0"
-
-  # max number of tables per vnode
-  #TAOS_MAX_TABLES_PER_VNODE: "1000000"
-
-  # the number of acknowledgments required for successful data writing
-  #TAOS_QUORUM: "1"
-
-  # enable/disable compression
-  #TAOS_COMP: "2"
-
-  # write ahead log (WAL) level, 0: no wal; 1: write wal, but no fysnc; 2: write wal, and call fsync
-  #TAOS_WAL_LEVEL: "1"
-
-  # if walLevel is set to 2, the cycle of fsync being executed, if set to 0, fsync is called right away
-  #TAOS_FSYNC: "3000"
+  #TAOS_MIN_INTERVAL_TIME: "1"
 
   # the compressed rpc message, option:
   #  -1 (no compression)
@@ -300,17 +203,8 @@ taoscfg:
   # > 0 (rpc message body which larger than this value will be compressed)
   #TAOS_COMPRESS_MSG_SIZE: "-1"
 
-  # max length of an SQL
-  #TAOS_MAX_SQL_LENGTH: "1048576"
-
-  # the maximum number of records allowed for super table time sorting
-  #TAOS_MAX_NUM_OF_ORDERED_RES: "100000"
-
   # max number of connections allowed in dnode
-  #TAOS_MAX_SHELL_CONNS: "5000"
-
-  # max number of connections allowed in client
-  #TAOS_MAX_CONNECTIONS: "5000"
+  #TAOS_MAX_SHELL_CONNS: "50000"
 
   # stop writing logs when the disk size of the log folder is less than this value
   #TAOS_MINIMAL_LOG_DIR_G_B: "0.1"
@@ -330,21 +224,8 @@ taoscfg:
   # enable/disable system monitor
   #TAOS_MONITOR: "1"
 
-  # enable/disable recording the SQL statements via restful interface
-  #TAOS_HTTP_ENABLE_RECORD_SQL: "0"
-
-  # number of threads used to process http requests
-  #TAOS_HTTP_MAX_THREADS: "2"
-
-  # maximum number of rows returned by the restful interface
-  #TAOS_RESTFUL_ROW_LIMIT: "10240"
-
-  # The following parameter is used to limit the maximum number of lines in log files.
-  # max number of lines per log filters
-  # numOfLogLines         10000000
-
   # enable/disable async log
-  #TAOS_ASYNC_LOG: "0"
+  #TAOS_ASYNC_LOG: "1"
 
   #
   # time of keeping log files, days
@@ -361,25 +242,8 @@ taoscfg:
   # debug flag for all log type, take effect when non-zero value\
   #TAOS_DEBUG_FLAG: "143"
 
-  # enable/disable recording the SQL in taos client
-  #TAOS_ENABLE_RECORD_SQL: "0"
-
   # generate core file when service crash
   #TAOS_ENABLE_CORE_FILE: "1"
-
-  # maximum display width of binary and nchar fields in the shell. The parts exceeding this limit will be hidden
-  #TAOS_MAX_BINARY_DISPLAY_WIDTH: "30"
-
-  # enable/disable stream (continuous query)
-  #TAOS_STREAM: "1"
-
-  # in retrieve blocking model, only in 50% query threads will be used in query processing in dnode
-  #TAOS_RETRIEVE_BLOCKING_MODEL: "0"
-
-  # the maximum allowed query buffer size in MB during query processing for each data node
-  # -1 no limit (default)
-  # 0  no query allowed, queries are disabled
-  #TAOS_QUERY_BUFFER_SIZE: "-1"
 ```
 
 ## 扩容
@@ -422,7 +286,7 @@ kubectl --namespace default exec $POD_NAME -- taos -s 'drop dnode "<you dnode in
 
 ```
 
-## 删除集群
+## 清理集群
 
 Helm 管理下，清理操作也变得简单：
 

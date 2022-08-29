@@ -47,6 +47,8 @@ char*          logStoreSimple2Str(SSyncLogStore* pLogStore);
 
 SyncIndex logStoreFirstIndex(SSyncLogStore* pLogStore);
 
+SyncIndex logStoreWalCommitVer(SSyncLogStore* pLogStore);
+
 // for debug
 void logStorePrint(SSyncLogStore* pLogStore);
 void logStorePrint2(char* s, SSyncLogStore* pLogStore);

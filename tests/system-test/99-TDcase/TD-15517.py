@@ -50,7 +50,7 @@ class TDTestCase:
         return cur
 
     def create_tables(self,tsql, dbName,vgroups,stbName,ctbNum,rowsPerTbl):
-        tsql.execute("create database if not exists %s vgroups %d"%(dbName, vgroups))        
+        tsql.execute("create database if not exists %s vgroups %d"%(dbName, vgroups))
         tsql.execute("use %s" %dbName)
         tsql.execute("create table %s (ts timestamp, c1 bigint, c2 binary(16)) tags(t1 int)"%stbName)
         pre_create = "create table"
@@ -63,7 +63,7 @@ class TDTestCase:
                 sql = pre_create
         if sql != pre_create:
             tsql.execute(sql)
-            
+
         tdLog.debug("complete to create database[%s], stable[%s] and %d child tables" %(dbName, stbName, ctbNum))
         return
 
@@ -90,7 +90,7 @@ class TDTestCase:
             tsql.execute(sql)
         tdLog.debug("insert data ............ [OK]")
         return
-        
+
     def prepareEnv(self, **parameterDict):
         print ("input parameters:")
         print (parameterDict)
@@ -109,9 +109,9 @@ class TDTestCase:
                          parameterDict["ctbNum"],\
                          parameterDict["rowsPerTbl"],\
                          parameterDict["batchNum"],\
-                         parameterDict["startTs"])                           
-        return                   
-        
+                         parameterDict["startTs"])
+        return
+
     def run(self):
         tdSql.prepare()
 
@@ -138,22 +138,22 @@ class TDTestCase:
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
         time.sleep(2)
-        
+
         # wait stb ready
         while 1:
-            tdSql.query("show %s.stables"%parameterDict['dbName'])            
-            if tdSql.getRows() == 1:            
+            tdSql.query("show %s.stables"%parameterDict['dbName'])
+            if tdSql.getRows() == 1:
                 break
             else:
                 time.sleep(1)
 
         tdLog.info("create topics from super table")
         topicFromStb = 'topic_stb_column'
-        topicFromCtb = 'topic_ctb_column'        
-        
+        topicFromCtb = 'topic_ctb_column'
+
         tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s" %(topicFromStb, parameterDict['dbName'], parameterDict['stbName']))
         tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s_0" %(topicFromCtb, parameterDict['dbName'], parameterDict['stbName']))
-        
+
         time.sleep(1)
         tdSql.query("show topics")
         #tdSql.checkRows(2)
@@ -161,15 +161,15 @@ class TDTestCase:
         topic2 = tdSql.getData(1 , 0)
         print (topic1)
         print (topic2)
-        
+
         print (topicFromStb)
         print (topicFromCtb)
         #tdLog.info("show topics: %s, %s"%topic1, topic2)
         #if topic1 != topicFromStb or topic1 != topicFromCtb:
-        #    tdLog.exit("topic error1") 
+        #    tdLog.exit("topic error1")
         #if topic2 != topicFromStb or topic2 != topicFromCtb:
-        #    tdLog.exit("topic error2") 
-         
+        #    tdLog.exit("topic error2")
+
         tdLog.info("create consume info table and consume result table")
         cdbName = parameterDict["dbName"]
         tdSql.query("create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int)")
@@ -187,7 +187,7 @@ class TDTestCase:
         sql = "insert into consumeinfo values "
         sql += "(now, %d, '%s', '%s', %d, %d)"%(consumerId, topicList, keyList, expectmsgcnt1, ifcheckdata)
         tdSql.query(sql)
-        
+
         tdLog.info("check stb if there are data")
         while 1:
             tdSql.query("select count(*) from %s"%parameterDict["stbName"])
@@ -198,21 +198,21 @@ class TDTestCase:
                 break
             else:
                 time.sleep(1)
-        
+
         tdLog.info("start consume processor")
         pollDelay = 5
         showMsg   = 1
         showRow   = 1
-        
+
         shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
-        shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
-        shellCmd += "> /dev/null 2>&1 &"        
+        shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName)
+        shellCmd += "> /dev/null 2>&1 &"
         tdLog.info(shellCmd)
-        os.system(shellCmd)        
+        os.system(shellCmd)
 
         # wait for data ready
         prepareEnvThread.join()
-        
+
         tdLog.info("insert process end, and start to check consume result")
         while 1:
             tdSql.query("select * from consumeresult")
@@ -223,17 +223,17 @@ class TDTestCase:
                 time.sleep(5)
 
         expectrowcnt = parameterDict["rowsPerTbl"]  * parameterDict["ctbNum"]
-                    
+
         tdSql.checkData(0 , 1, consumerId)
         tdSql.checkData(0 , 2, expectmsgcnt)
         tdSql.checkData(0 , 3, expectrowcnt)
 
         tdSql.query("drop topic %s"%topicFromStb)
         tdSql.query("drop topic %s"%topicFromCtb)
-        
+
         # ==============================================================================
         tdLog.printNoPrefix("======== test scenario 2: add child table with consuming ")
-        tdLog.info(" clean database")        
+        tdLog.info(" clean database")
         # create and start thread
         parameterDict = {'cfg':        '',       \
                          'dbName':     'db2',    \
@@ -247,21 +247,21 @@ class TDTestCase:
 
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
-        
+
         # wait db ready
         while 1:
-            tdSql.query("show databases")
-            if tdSql.getRows() == 4: 
-                print (tdSql.getData(0,0), tdSql.getData(1,0),tdSql.getData(2,0),)           
+            tdSql.query("select * from information_schema.ins_databases")
+            if tdSql.getRows() == 4:
+                print (tdSql.getData(0,0), tdSql.getData(1,0),tdSql.getData(2,0),)
                 break
             else:
                 time.sleep(1)
-        
+
         tdSql.query("use %s"%parameterDict['dbName'])
         # wait stb ready
         while 1:
             tdSql.query("show %s.stables"%parameterDict['dbName'])
-            if tdSql.getRows() == 1:            
+            if tdSql.getRows() == 1:
                 break
             else:
                 time.sleep(1)
@@ -269,25 +269,25 @@ class TDTestCase:
         tdLog.info("create topics from super table")
         topicFromStb = 'topic_stb_column2'
         topicFromCtb = 'topic_ctb_column2'
-        
+
         tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s" %(topicFromStb, parameterDict['dbName'], parameterDict['stbName']))
         tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s_0" %(topicFromCtb, parameterDict['dbName'], parameterDict['stbName']))
-        
+
         time.sleep(1)
         tdSql.query("show topics")
         topic1 = tdSql.getData(0 , 0)
         topic2 = tdSql.getData(1 , 0)
         print (topic1)
         print (topic2)
-        
+
         print (topicFromStb)
         print (topicFromCtb)
         #tdLog.info("show topics: %s, %s"%topic1, topic2)
         #if topic1 != topicFromStb or topic1 != topicFromCtb:
-        #    tdLog.exit("topic error1") 
+        #    tdLog.exit("topic error1")
         #if topic2 != topicFromStb or topic2 != topicFromCtb:
-        #    tdLog.exit("topic error2") 
-         
+        #    tdLog.exit("topic error2")
+
         tdLog.info("create consume info table and consume result table")
         cdbName = parameterDict["dbName"]
         tdSql.query("create table %s.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int)"%cdbName)
@@ -305,7 +305,7 @@ class TDTestCase:
         sql = "insert into consumeinfo values "
         sql += "(now, %d, '%s', '%s', %d, %d)"%(consumerId, topicList, keyList, expectmsgcnt1, ifcheckdata)
         tdSql.query(sql)
-        
+
         tdLog.info("check stb if there are data")
         while 1:
             tdSql.query("select count(*) from %s"%parameterDict["stbName"])
@@ -316,17 +316,17 @@ class TDTestCase:
                 break
             else:
                 time.sleep(1)
-        
+
         tdLog.info("start consume processor")
         pollDelay = 5
         showMsg   = 1
         showRow   = 1
-        
+
         shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
-        shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
-        shellCmd += "> /dev/null 2>&1 &"        
+        shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName)
+        shellCmd += "> /dev/null 2>&1 &"
         tdLog.info(shellCmd)
-        os.system(shellCmd)        
+        os.system(shellCmd)
 
         # create new child table and insert data
         newCtbName = 'newctb'
@@ -340,7 +340,7 @@ class TDTestCase:
 
         # wait for data ready
         prepareEnvThread.join()
-        
+
         tdLog.info("insert process end, and start to check consume result")
         while 1:
             tdSql.query("select * from consumeresult")
@@ -352,12 +352,12 @@ class TDTestCase:
 
         expectmsgcnt += rowsOfNewCtb
         expectrowcnt = parameterDict["rowsPerTbl"]  * parameterDict["ctbNum"] + rowsOfNewCtb
-                    
+
         tdSql.checkData(0 , 1, consumerId)
         tdSql.checkData(0 , 2, expectmsgcnt)
         tdSql.checkData(0 , 3, expectrowcnt)
 
-        
+
         # ==============================================================================
         tdLog.printNoPrefix("======== test scenario 3: ")
 

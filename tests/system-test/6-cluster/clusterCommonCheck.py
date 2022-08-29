@@ -41,7 +41,7 @@ class ClusterComCheck:
         count=0
         # print(tdSql)
         while count < 30:
-            tdSql.query("show dnodes")
+            tdSql.query("select * from information_schema.ins_dnodes")
             # tdLog.debug(tdSql.queryResult)
             status=0
             for i in range(dnodeNumbers):
@@ -55,7 +55,7 @@ class ClusterComCheck:
             count+=1
             time.sleep(1)
         else:
-            tdSql.query("show dnodes")
+            tdSql.query("select * from information_schema.ins_dnodes")
             tdLog.debug(tdSql.queryResult)
             tdLog.exit("it find cluster with %d dnodes but  check that there dnodes are not ready within 30s ! "%dnodeNumbers)
 
@@ -63,7 +63,7 @@ class ClusterComCheck:
         dbNumbers=int(dbNumbers)
         count=0
         while count < 5:
-            tdSql.query("show databases;")
+            tdSql.query("select * from information_schema.ins_databases;")
             count+=1
             if tdSql.checkRows(dbNumbers+2):
                 tdLog.success("we find %d databases and expect %d in clusters! " %(tdSql.queryRows,dbNumbers+2))
@@ -81,7 +81,7 @@ class ClusterComCheck:
             query_status=0
             for j in range(dbNumbers):
                 for i in range(alldbNumbers):
-                    tdSql.query("show databases;")
+                    tdSql.query("select * from information_schema.ins_databases;")
                     if "%s_%d"%(dbNameIndex,j) == tdSql.queryResult[i][0] :
                         if tdSql.queryResult[i][15] == "ready":
                             query_status+=1
@@ -117,7 +117,7 @@ class ClusterComCheck:
 
         while count < 10:
             time.sleep(1)
-            tdSql.query("show mnodes;")
+            tdSql.query("select * from information_schema.ins_mnodes;")
             if tdSql.checkRows(self.mnodeNums) :
                 tdLog.success("cluster has %d mnodes" %self.mnodeNums )
 
@@ -164,7 +164,7 @@ class ClusterComCheck:
         count=0
         while count < 10:
             time.sleep(1)
-            tdSql.query("show mnodes;")
+            tdSql.query("select * from information_schema.ins_mnodes;")
             if tdSql.checkRows(mnodeNums) :
                 tdLog.success("cluster has %d mnodes" %self.mnodeNums )
             else:
@@ -210,7 +210,7 @@ class ClusterComCheck:
         count=0
         while count < 10:
             time.sleep(1)
-            tdSql.query("show mnodes;")
+            tdSql.query("select * from information_schema.ins_mnodes;")
             if tdSql.checkRows(mnodeNums) :
                 tdLog.success("cluster has %d mnodes" %self.mnodeNums )
             else:

@@ -335,7 +335,7 @@ class TDTestCase:
         # case11 = {"alias": ", st1"}
         # self.checksample(**case11)
         tdSql.query("select sample( c1 , 1 ) , st1 from t1")
-        
+
         # case12 = {"alias": ", c1"}
         # self.checksample(**case12)
 
@@ -497,7 +497,7 @@ class TDTestCase:
         # tdSql.query(" select sample(c1 , 1) + 2 from t1 ")
         err41 = {"alias": "+ avg(c1)"}
         # self.checksample(**err41)         # mix with arithmetic 2
-        
+
         # err42 = {"alias": ", c1"}
         # self.checksample(**err42)
         tdSql.query("select sample( c1 , 1 ) , c1 from t1")
@@ -515,7 +515,7 @@ class TDTestCase:
         #     "condition": "where ts>0 and ts < now interval(1h) fill(next)"
         # }
         # self.checksample(**err45)         # interval
-        tdSql.query("select sample( c1 , 1 )  from t1 where ts>0 and ts < now interval(1h) fill(next)")
+        tdSql.error("select sample( c1 , 1 )  from t1 where ts>0 and ts < now interval(1h) fill(next)")
         err46 = {
             "table_expr": "t1",
             "condition": "group by c6"
@@ -605,14 +605,14 @@ class TDTestCase:
             tdSql.execute(f"create table tt{i} using stb2 tags({i})")
 
         pass
-    
+
 
     def check_sample(self , sample_query , origin_query ):
 
         tdSql.query(origin_query)
 
         origin_datas = tdSql.queryResult
-        
+
         tdSql.query(sample_query)
 
         sample_datas = tdSql.queryResult
@@ -620,7 +620,7 @@ class TDTestCase:
         for ind , sample_data in enumerate(sample_datas):
             if sample_data not in origin_datas:
                 status = False
-        
+
         if status:
             tdLog.info(" sample data is in datas groups ,successed sql is :  %s" % sample_query )
         else:
@@ -637,7 +637,7 @@ class TDTestCase:
             tags (t1 int)
             '''
         )
-        
+
         tdSql.execute(
             '''
             create table t1
@@ -689,7 +689,7 @@ class TDTestCase:
         tdSql.error(" select sample(c1,ts) from t1 ")
         tdSql.error(" select sample(c1,false) from t1 ")
         tdSql.query(" select sample(123,1) from t1 ")
-        
+
         tdSql.query(" select sample(c1,2) from t1 ")
         tdSql.checkRows(2)
         tdSql.query(" select sample(c1,10) from t1 ")
@@ -704,10 +704,10 @@ class TDTestCase:
         tdSql.checkRows(9)
         tdSql.error(" select sample(c1,-1) from t1  ")
 
-        # bug need fix 
+        # bug need fix
         # tdSql.query("select sample(c1 ,2) , 123 from stb1;")
 
-        # all type support 
+        # all type support
         tdSql.query(" select sample(c1 , 20 ) from ct4 ")
         tdSql.checkRows(9)
 
@@ -743,7 +743,7 @@ class TDTestCase:
         # filter data
 
         tdSql.query(" select sample(c1, 20 ) from t1 where c1 is null ")
-        tdSql.checkRows(0)
+        tdSql.checkRows(1)
 
         tdSql.query(" select sample(c1, 20 ) from t1 where c1 =6 ")
         tdSql.checkRows(1)
@@ -761,7 +761,7 @@ class TDTestCase:
 
         self.check_sample("select sample( c1 ,3 )  from t1 where c1 between 1 and 10" ,"select c1  from t1 where c1 between 1 and 10")
 
-        # join 
+        # join
 
         tdSql.query("select sample( ct4.c1 , 1 )  from ct1, ct4 where ct4.ts=ct1.ts")
 
@@ -772,22 +772,22 @@ class TDTestCase:
 
         self.check_sample("select sample(c1,2) from stb1 partition by tbname" , "select c1 from stb1 partition by tbname")
 
-        # nest query 
+        # nest query
         # tdSql.query("select sample(c1,2) from (select c1 from t1); ")
         # tdSql.checkRows(2)
 
-        # union all 
+        # union all
         tdSql.query("select sample(c1,2) from t1 union all select sample(c1,3) from t1")
         tdSql.checkRows(5)
 
         # fill interval
 
-        # not support mix with other function 
+        # not support mix with other function
         tdSql.error("select top(c1,2) , sample(c1,2) from ct1")
         tdSql.error("select max(c1) , sample(c1,2) from ct1")
         tdSql.query("select c1 , sample(c1,2) from ct1")
 
-        # bug for mix with scalar 
+        # bug for mix with scalar
         tdSql.query("select 123 , sample(c1,100) from ct1")
         tdSql.query("select sample(c1,100)+2 from ct1")
         tdSql.query("select abs(sample(c1,100)) from ct1")
@@ -846,7 +846,7 @@ class TDTestCase:
 
 
         tdLog.printNoPrefix("######## check after WAL test:")
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         index = tdSql.getData(0, 0)
         tdDnodes.stop(index)
         tdDnodes.start(index)
@@ -864,16 +864,16 @@ class TDTestCase:
         for i in range(2000):
             ts = self.ts+i*10
             tdSql.execute(f"insert into sub_tb values({ts} ,{i})")
-        
+
         tdSql.query("select count(*) from st")
         tdSql.checkData(0,0,2000)
         tdSql.query("select sample(c1 ,1000) from st")
         tdSql.checkRows(1000)
 
-        # bug need fix 
+        # bug need fix
         tdSql.query("select c1 ,t1, sample(c1,2) from db.stb1 partition by c1 ")
         tdSql.query("select sample(c1,2) from db.stb1 partition by c1 ")
-        # tdSql.query("select c1 ,ind, sample(c1,2) from sample_db.st partition by c1 ")
+        tdSql.query("select c1 ,ind, sample(c1,2) from sample_db.st partition by c1 ")
 
     def run(self):
         import traceback

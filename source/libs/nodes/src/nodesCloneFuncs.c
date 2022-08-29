@@ -390,6 +390,7 @@ static int32_t logicProjectCopy(const SProjectLogicNode* pSrc, SProjectLogicNode
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pProjections);
   COPY_CHAR_ARRAY_FIELD(stmtName);
+  COPY_SCALAR_FIELD(ignoreGroupId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -450,6 +451,8 @@ static int32_t logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* p
 static int32_t logicFillCopy(const SFillLogicNode* pSrc, SFillLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(mode);
+  CLONE_NODE_LIST_FIELD(pFillExprs);
+  CLONE_NODE_LIST_FIELD(pNotFillExprs);
   CLONE_NODE_FIELD(pWStartTs);
   CLONE_NODE_FIELD(pValues);
   COPY_OBJECT_FIELD(timeRange, sizeof(STimeWindow));
@@ -542,6 +545,7 @@ static int32_t physiSysTableScanCopy(const SSystemTableScanPhysiNode* pSrc, SSys
   COPY_OBJECT_FIELD(mgmtEpSet, sizeof(SEpSet));
   COPY_SCALAR_FIELD(showRewrite);
   COPY_SCALAR_FIELD(accountId);
+  COPY_SCALAR_FIELD(sysInfo);
   return TSDB_CODE_SUCCESS;
 }
 

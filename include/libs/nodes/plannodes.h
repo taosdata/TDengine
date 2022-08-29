@@ -114,12 +114,14 @@ typedef struct SAggLogicNode {
   SNodeList* pAggFuncs;
   bool       hasLastRow;
   bool       hasTimeLineFunc;
+  bool       onlyHasKeepOrderFunc;
 } SAggLogicNode;
 
 typedef struct SProjectLogicNode {
   SLogicNode node;
   SNodeList* pProjections;
   char       stmtName[TSDB_TABLE_NAME_LEN];
+  bool       ignoreGroupId;
 } SProjectLogicNode;
 
 typedef struct SIndefRowsFuncLogicNode {
@@ -211,6 +213,8 @@ typedef struct SWindowLogicNode {
 typedef struct SFillLogicNode {
   SLogicNode  node;
   EFillMode   mode;
+  SNodeList*  pFillExprs;
+  SNodeList*  pNotFillExprs;
   SNode*      pWStartTs;
   SNode*      pValues;  // SNodeListNode
   STimeWindow timeRange;
@@ -313,6 +317,7 @@ typedef struct SSystemTableScanPhysiNode {
   SEpSet         mgmtEpSet;
   bool           showRewrite;
   int32_t        accountId;
+  bool           sysInfo;
 } SSystemTableScanPhysiNode;
 
 typedef struct STableScanPhysiNode {
@@ -343,6 +348,7 @@ typedef struct SProjectPhysiNode {
   SPhysiNode node;
   SNodeList* pProjections;
   bool       mergeDataBlock;
+  bool       ignoreGroupId;
 } SProjectPhysiNode;
 
 typedef struct SIndefRowsFuncPhysiNode {
@@ -377,6 +383,7 @@ typedef struct SAggPhysiNode {
   SNodeList* pExprs;  // these are expression list of group_by_clause and parameter expression of aggregate function
   SNodeList* pGroupKeys;
   SNodeList* pAggFuncs;
+  bool       mergeDataBlock;
 } SAggPhysiNode;
 
 typedef struct SDownstreamSourceNode {
@@ -415,6 +422,7 @@ typedef struct SWinodwPhysiNode {
   int8_t     igExpired;
   EOrder     inputTsOrder;
   EOrder     outputTsOrder;
+  bool       mergeDataBlock;
 } SWinodwPhysiNode;
 
 typedef struct SIntervalPhysiNode {
@@ -435,9 +443,10 @@ typedef SIntervalPhysiNode SStreamSemiIntervalPhysiNode;
 typedef struct SFillPhysiNode {
   SPhysiNode  node;
   EFillMode   mode;
+  SNodeList*  pFillExprs;
+  SNodeList*  pNotFillExprs;
   SNode*      pWStartTs;  // SColumnNode
   SNode*      pValues;    // SNodeListNode
-  SNodeList*  pTargets;
   STimeWindow timeRange;
   EOrder      inputTsOrder;
 } SFillPhysiNode;
@@ -551,6 +560,8 @@ typedef struct SQueryPlan {
 } SQueryPlan;
 
 void nodesWalkPhysiPlan(SNode* pNode, FNodeWalker walker, void* pContext);
+
+const char* dataOrderStr(EDataOrderLevel order);
 
 #ifdef __cplusplus
 }

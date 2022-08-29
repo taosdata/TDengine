@@ -1,6 +1,7 @@
 ---
 sidebar_label: 数据查询
 title: 数据查询
+description: 查询数据的详细语法
 ---
 
 ## 查询语法
@@ -103,7 +104,7 @@ SELECT d1001.* FROM d1001,d1003 WHERE d1001.ts = d1003.ts;
 在超级表和子表的查询中可以指定 _标签列_，且标签列的值会与普通列的数据一起返回。
 
 ```sql
-ELECT location, groupid, current FROM d1001 LIMIT 2;
+SELECT location, groupid, current FROM d1001 LIMIT 2;
 ```
 
 ### 结果去重
@@ -140,10 +141,6 @@ taos> SELECT ts, ts AS primary_key_ts FROM d1001;
 
 但是针对`first(*)`、`last(*)`、`last_row(*)`不支持针对单列的重命名。
 
-### 隐式结果列
-
-`Select_exprs`可以是表所属列的列名，也可以是基于列的函数表达式或计算式，数量的上限 256 个。当用户使用了`interval`或`group by tags`的子句以后，在最后返回结果中会强制返回时间戳列（第一列）和 group by 子句中的标签列。后续的版本中可以支持关闭 group by 子句中隐式列的输出，列输出完全由 select 子句控制。
-
 ### 伪列
 
 **TBNAME**
@@ -152,7 +149,13 @@ taos> SELECT ts, ts AS primary_key_ts FROM d1001;
 获取一个超级表所有的子表名及相关的标签信息：
 
 ```mysql
-SELECT TBNAME, location FROM meters;
+SELECT DISTINCT TBNAME, location FROM meters;
+```
+
+建议用户使用 INFORMATION_SCHEMA 下的 INS_TAGS 系统表来查询超级表的子表标签信息，例如获取超级表 meters 所有的子表名和标签值：
+
+```mysql
+SELECT table_name, tag_name, tag_type, tag_value FROM information_schema.ins_tags WHERE stable_name='meters';
 ```
 
 统计超级表下辖子表数量：
@@ -352,19 +355,15 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 
 :::info
 
-- 目前仅支持一层嵌套，也即不能在子查询中再嵌入子查询。
-- 内层查询的返回结果将作为“虚拟表”供外层查询使用，此虚拟表可以使用 AS 语法做重命名，以便于外层查询中方便引用。
-- 目前不能在“连续查询”功能中使用子查询。
+- 内层查询的返回结果将作为“虚拟表”供外层查询使用，此虚拟表建议起别名，以便于外层查询中方便引用。
 - 在内层和外层查询中，都支持普通的表间/超级表间 JOIN。内层查询的计算结果也可以再参与数据子表的 JOIN 操作。
-- 目前内层查询、外层查询均不支持 UNION 操作。
 - 内层查询支持的功能特性与非嵌套的查询语句能力是一致的。
   - 内层查询的 ORDER BY 子句一般没有意义，建议避免这样的写法以免无谓的资源消耗。
 - 与非嵌套的查询语句相比，外层查询所能支持的功能特性存在如下限制：
   - 计算函数部分：
-    - 如果内层查询的结果数据未提供时间戳，那么计算过程依赖时间戳的函数在外层会无法正常工作。例如：TOP, BOTTOM, FIRST, LAST, DIFF。
-    - 计算过程需要两遍扫描的函数，在外层查询中无法正常工作。例如：此类函数包括：STDDEV, PERCENTILE。
-  - 外层查询中不支持 IN 算子，但在内层中可以使用。
-  - 外层查询不支持 GROUP BY。
+    - 如果内层查询的结果数据未提供时间戳，那么计算过程隐式依赖时间戳的函数在外层会无法正常工作。例如：INTERP, DERIVATIVE, IRATE, LAST_ROW, FIRST, LAST, TWA, STATEDURATION, TAIL, UNIQUE。
+    - 如果内层查询的结果数据不是有效的时间序列，那么计算过程依赖数据为时间序列的函数在外层会无法正常工作。例如：LEASTSQUARES, ELAPSED, INTERP, DERIVATIVE, IRATE, TWA, DIFF, STATECOUNT, STATEDURATION, CSUM, MAVG, TAIL, UNIQUE。
+    - 计算过程需要两遍扫描的函数，在外层查询中无法正常工作。例如：此类函数包括：PERCENTILE。
 
 :::
 

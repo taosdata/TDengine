@@ -1,12 +1,13 @@
 ---
 title: 数据导出
+description: 如何导出 TDengine 中的数据
 ---
 
 为方便数据导出，TDengine 提供了两种导出方式，分别是按表导出和用 taosdump 导出。
 
 ## 按表导出 CSV 文件
 
-如果用户需要导出一个表或一个 STable 中的数据，可在 taos shell 中运行：
+如果用户需要导出一个表或一个 STable 中的数据，可在 TDengine CLI 中运行：
 
 ```sql
 select * from <tb_name> >> data.csv;

@@ -1,6 +1,7 @@
 import hudson.model.Result
 import hudson.model.*;
 import jenkins.model.CauseOfInterruption
+docs_only=0
 node {
 }
 
@@ -29,6 +30,49 @@ def abort_previous(){
     if (buildNumber > 1) milestone(buildNumber - 1)
     milestone(buildNumber)
 }
+def check_docs() {
+    if (env.CHANGE_URL =~ /\/TDengine\//) {
+        sh '''
+            hostname
+            date
+            env
+        '''
+        sh '''
+            cd ${WKC}
+            git reset --hard
+            git clean -fxd
+            rm -rf examples/rust/
+            git remote prune origin
+            git fetch
+        '''
+        script {
+            sh '''
+                cd ${WKC}
+                git checkout ''' + env.CHANGE_TARGET + '''
+            '''
+        }
+        sh '''
+            cd ${WKC}
+            git remote prune origin
+            git pull >/dev/null
+            git fetch origin +refs/pull/${CHANGE_ID}/merge
+            git checkout -qf FETCH_HEAD
+        '''
+        def file_changed = sh (
+            script: '''
+                cd ${WKC}
+                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/" || :
+            ''',
+            returnStdout: true
+        ).trim()
+        if (file_changed == '') {
+            echo "docs PR"
+            docs_only=1
+        } else {
+            echo file_changed
+        }
+    }
+}
 def pre_test(){
     sh '''
         hostname
@@ -38,40 +82,22 @@ def pre_test(){
     sh '''
         cd ${WK}
         git reset --hard
+        git remote prune origin
+        git fetch
         cd ${WKC}
         git reset --hard
         git clean -fxd
+        rm -rf examples/rust/
+        git remote prune origin
+        git fetch
     '''
     script {
-        if (env.CHANGE_TARGET == 'master') {
-            sh '''
-                cd ${WK}
-                git checkout master
-                cd ${WKC}
-                git checkout master
-            '''
-        } else if(env.CHANGE_TARGET == '2.0') {
-            sh '''
-                cd ${WK}
-                git checkout 2.0
-                cd ${WKC}
-                git checkout 2.0
-            '''
-        } else if(env.CHANGE_TARGET == '3.0') {
-            sh '''
-                cd ${WK}
-                git checkout 3.0
-                cd ${WKC}
-                git checkout 3.0
-            '''
-        } else {
-            sh '''
-                cd ${WK}
-                git checkout develop
-                cd ${WKC}
-                git checkout develop
-            '''
-        }
+        sh '''
+            cd ${WK}
+            git checkout ''' + env.CHANGE_TARGET + '''
+            cd ${WKC}
+            git checkout ''' + env.CHANGE_TARGET + '''
+        '''
     }
     if (env.CHANGE_URL =~ /\/TDengine\//) {
         sh '''
@@ -169,49 +195,24 @@ def pre_test_win(){
     bat '''
         cd %WIN_INTERNAL_ROOT%
         git reset --hard
+        git remote prune origin
+        git fetch
     '''
     bat '''
         cd %WIN_COMMUNITY_ROOT%
         git reset --hard
+        git remote prune origin
+        git fetch
     '''
     script {
-        if (env.CHANGE_TARGET == 'master') {
-            bat '''
-                cd %WIN_INTERNAL_ROOT%
-                git checkout master
-            '''
-            bat '''
-                cd %WIN_COMMUNITY_ROOT%
-                git checkout master
-            '''
-        } else if(env.CHANGE_TARGET == '2.0') {
-            bat '''
-                cd %WIN_INTERNAL_ROOT%
-                git checkout 2.0
-            '''
-            bat '''
-                cd %WIN_COMMUNITY_ROOT%
-                git checkout 2.0
-            '''
-        } else if(env.CHANGE_TARGET == '3.0') {
-            bat '''
-                cd %WIN_INTERNAL_ROOT%
-                git checkout 3.0
-            '''
-            bat '''
-                cd %WIN_COMMUNITY_ROOT%
-                git checkout 3.0
-            '''
-        } else {
-            bat '''
-                cd %WIN_INTERNAL_ROOT%
-                git checkout develop
-            '''
-            bat '''
-                cd %WIN_COMMUNITY_ROOT%
-                git checkout develop
-            '''
-        }
+        bat '''
+            cd %WIN_INTERNAL_ROOT%
+            git checkout ''' + env.CHANGE_TARGET + '''
+        '''
+        bat '''
+            cd %WIN_COMMUNITY_ROOT%
+            git checkout ''' + env.CHANGE_TARGET + '''
+        '''
     }
     script {
         if (env.CHANGE_URL =~ /\/TDengine\//) {
@@ -309,6 +310,7 @@ def pre_test_build_win() {
     '''
     bat '''
         cd %WIN_CONNECTOR_ROOT%
+        python.exe -m pip install --upgrade pip
         python -m pip install .
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
     '''
@@ -327,6 +329,7 @@ def run_win_test() {
     bat '''
         echo "windows test ..."
         cd %WIN_CONNECTOR_ROOT%
+        python.exe -m pip install --upgrade pip
         python -m pip install .
         xcopy /e/y/i/f %WIN_INTERNAL_ROOT%\\debug\\build\\lib\\taos.dll C:\\Windows\\System32
         ls -l C:\\Windows\\System32\\taos.dll
@@ -348,10 +351,27 @@ pipeline {
         WKPY = '/var/lib/jenkins/workspace/taos-connector-python'
     }
     stages {
+        stage('check') {
+            when {
+                allOf {
+                    not { expression { env.CHANGE_BRANCH =~ /docs\// }}
+                    not { expression { env.CHANGE_URL =~ /\/TDinternal\// }}
+                }
+            }
+            parallel {
+                stage('check docs') {
+                    agent{label " worker03 || slave215 || slave217 || slave219 || Mac_catalina "}
+                    steps {
+                        check_docs()
+                    }
+                }
+            }
+        }
         stage('run test') {
             when {
                 allOf {
                     not { expression { env.CHANGE_BRANCH =~ /docs\// }}
+                    expression { docs_only == 0 }
                 }
             }
             parallel {

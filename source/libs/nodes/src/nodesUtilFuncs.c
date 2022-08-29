@@ -201,12 +201,10 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_STREAMS_STMT:
     case QUERY_NODE_SHOW_TABLES_STMT:
     case QUERY_NODE_SHOW_USERS_STMT:
-    case QUERY_NODE_SHOW_LICENCE_STMT:
+    case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
     case QUERY_NODE_SHOW_CONSUMERS_STMT:
-    case QUERY_NODE_SHOW_SUBSCRIBES_STMT:
-    case QUERY_NODE_SHOW_SMAS_STMT:
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
     case QUERY_NODE_SHOW_VNODES_STMT:
@@ -392,6 +390,9 @@ static void destroyDataSinkNode(SDataSinkNode* pNode) { nodesDestroyNode((SNode*
 static void destroyExprNode(SExprNode* pExpr) { taosArrayDestroy(pExpr->pAssociation); }
 
 static void destroyTableCfg(STableCfg* pCfg) {
+  if (NULL == pCfg) {
+    return;
+  }
   taosArrayDestroy(pCfg->pFuncs);
   taosMemoryFree(pCfg->pComment);
   taosMemoryFree(pCfg->pSchemas);
@@ -684,12 +685,10 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_SHOW_STREAMS_STMT:
     case QUERY_NODE_SHOW_TABLES_STMT:
     case QUERY_NODE_SHOW_USERS_STMT:
-    case QUERY_NODE_SHOW_LICENCE_STMT:
+    case QUERY_NODE_SHOW_LICENCES_STMT:
     case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
     case QUERY_NODE_SHOW_CONSUMERS_STMT:
-    case QUERY_NODE_SHOW_SUBSCRIBES_STMT:
-    case QUERY_NODE_SHOW_SMAS_STMT:
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
     case QUERY_NODE_SHOW_VNODES_STMT:
@@ -713,7 +712,8 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
-      destroyTableCfg((STableCfg*)(((SShowCreateTableStmt*)pNode)->pCfg));
+      taosMemoryFreeClear(((SShowCreateTableStmt*)pNode)->pDbCfg);
+      destroyTableCfg((STableCfg*)(((SShowCreateTableStmt*)pNode)->pTableCfg));
       break;
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:  // no pointer field
     case QUERY_NODE_KILL_CONNECTION_STMT:         // no pointer field
@@ -817,6 +817,7 @@ void nodesDestroyNode(SNode* pNode) {
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyNode(pLogicNode->pWStartTs);
       nodesDestroyNode(pLogicNode->pValues);
+      nodesDestroyList(pLogicNode->pFillExprs);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_SORT: {
@@ -931,9 +932,10 @@ void nodesDestroyNode(SNode* pNode) {
     case QUERY_NODE_PHYSICAL_PLAN_FILL: {
       SFillPhysiNode* pPhyNode = (SFillPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
+      nodesDestroyList(pPhyNode->pFillExprs);
+      nodesDestroyList(pPhyNode->pNotFillExprs);
       nodesDestroyNode(pPhyNode->pWStartTs);
       nodesDestroyNode(pPhyNode->pValues);
-      nodesDestroyList(pPhyNode->pTargets);
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
@@ -1816,4 +1818,20 @@ int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc) {
   *pSrc = NULL;
 
   return TSDB_CODE_SUCCESS;
+}
+
+const char* dataOrderStr(EDataOrderLevel order) {
+  switch (order) {
+    case DATA_ORDER_LEVEL_NONE:
+      return "no order required";
+    case DATA_ORDER_LEVEL_IN_BLOCK:
+      return "in-datablock order";
+    case DATA_ORDER_LEVEL_IN_GROUP:
+      return "in-group order";
+    case DATA_ORDER_LEVEL_GLOBAL:
+      return "global order";
+    default:
+      break;
+  }
+  return "unknown";
 }

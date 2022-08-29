@@ -139,7 +139,6 @@ static int32_t rsmaSnapReadQTaskInfo(SRsmaSnapReader* pReader, uint8_t** ppBuf) 
 
   smaInfo("vgId:%d, vnode snapshot rsma read qtaskinfo, size:%" PRIi64, SMA_VID(pSma), size);
 
-
   SSnapDataHdr* pHdr = (SSnapDataHdr*)(*ppBuf);
   pHdr->type = SNAP_DATA_QTASK;
   pHdr->size = size;
@@ -275,11 +274,12 @@ int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRsmaSnapWrit
   qWriter->pSma = pSma;
 
   char qTaskInfoFullName[TSDB_FILENAME_LEN];
-  tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), 1, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFullName);
+  tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), 0, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFullName);
   TdFilePtr qTaskF = taosCreateFile(qTaskInfoFullName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (!qTaskF) {
     code = TAOS_SYSTEM_ERROR(errno);
-    smaError("vgId:%d, rsma snapshot writer open %s failed since %s", TD_VID(pSma->pVnode), qTaskInfoFullName, tstrerror(code));
+    smaError("vgId:%d, rsma snapshot writer open %s failed since %s", TD_VID(pSma->pVnode), qTaskInfoFullName,
+             tstrerror(code));
     goto _err;
   }
   qWriter->pWriteH = qTaskF;
@@ -309,7 +309,7 @@ int32_t rsmaSnapWriterClose(SRsmaSnapWriter** ppWriter, int8_t rollback) {
   if (rollback) {
     // TODO: rsma1/rsma2
     // qtaskinfo
-    if(pWriter->pQTaskFWriter) {
+    if (pWriter->pQTaskFWriter) {
       taosRemoveFile(pWriter->pQTaskFWriter->fname);
     }
   } else {
@@ -323,10 +323,19 @@ int32_t rsmaSnapWriterClose(SRsmaSnapWriter** ppWriter, int8_t rollback) {
     // qtaskinfo
     if (pWriter->pQTaskFWriter) {
       char qTaskInfoFullName[TSDB_FILENAME_LEN];
-      tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), 0, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFullName);
-      taosRenameFile(pWriter->pQTaskFWriter->fname, qTaskInfoFullName);
+      tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pWriter->ever, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFullName);
+      if (taosRenameFile(pWriter->pQTaskFWriter->fname, qTaskInfoFullName) < 0) {
+        code = TAOS_SYSTEM_ERROR(errno);
+        goto _err;
+      }
       smaInfo("vgId:%d, vnode snapshot rsma writer rename %s to %s", SMA_VID(pWriter->pSma),
               pWriter->pQTaskFWriter->fname, qTaskInfoFullName);
+
+      // rsma restore
+      if ((code = tdRsmaRestore(pWriter->pSma, RSMA_RESTORE_SYNC, pWriter->ever)) < 0) {
+        goto _err;
+      }
+      smaInfo("vgId:%d, vnode snapshot rsma writer restore from %s succeed", SMA_VID(pWriter->pSma), qTaskInfoFullName);
     }
   }
 

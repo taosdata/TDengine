@@ -162,8 +162,9 @@ typedef struct {
   int64_t     lastExecTime;
   int32_t     lastAction;
   int32_t     lastErrorNo;
-  tmsg_t      lastMsgType;
   SEpSet      lastEpset;
+  tmsg_t      lastMsgType;
+  tmsg_t      originRpcType;
   char        dbname1[TSDB_TABLE_FNAME_LEN];
   char        dbname2[TSDB_TABLE_FNAME_LEN];
   int32_t     startFunc;
@@ -178,6 +179,7 @@ typedef struct {
   char    name[TSDB_CLUSTER_ID_LEN];
   int64_t createdTime;
   int64_t updateTime;
+  int32_t upTime;
 } SClusterObj;
 
 typedef struct {
@@ -604,11 +606,11 @@ typedef struct {
   int64_t createTime;
   int64_t updateTime;
   int32_t version;
+  int32_t totalLevel;
   int64_t smaId;  // 0 for unused
   // info
   int64_t uid;
   int8_t  status;
-  int8_t  isDistributed;
   // config
   int8_t  igExpired;
   int8_t  trigger;
@@ -635,6 +637,7 @@ typedef struct {
 
 int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
 int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj);
+void    tFreeStreamObj(SStreamObj* pObj);
 
 typedef struct {
   char    streamName[TSDB_STREAM_FNAME_LEN];
@@ -647,7 +650,6 @@ typedef struct {
 typedef struct {
   int64_t uid;
   int64_t streamId;
-  int8_t  isDistributed;
   int8_t  status;
   int8_t  stage;
 } SStreamRecoverObj;

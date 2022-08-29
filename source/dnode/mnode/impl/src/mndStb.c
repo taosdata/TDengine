@@ -266,6 +266,15 @@ _OVER:
   return pRow;
 }
 
+void mndFreeStb(SStbObj *pStb) {
+  taosArrayDestroy(pStb->pFuncs);
+  taosMemoryFreeClear(pStb->pColumns);
+  taosMemoryFreeClear(pStb->pTags);
+  taosMemoryFreeClear(pStb->comment);
+  taosMemoryFreeClear(pStb->pAst1);
+  taosMemoryFreeClear(pStb->pAst2);
+}
+
 static int32_t mndStbActionInsert(SSdb *pSdb, SStbObj *pStb) {
   mTrace("stb:%s, perform insert action, row:%p", pStb->name, pStb);
   return 0;
@@ -273,12 +282,7 @@ static int32_t mndStbActionInsert(SSdb *pSdb, SStbObj *pStb) {
 
 static int32_t mndStbActionDelete(SSdb *pSdb, SStbObj *pStb) {
   mTrace("stb:%s, perform delete action, row:%p", pStb->name, pStb);
-  taosArrayDestroy(pStb->pFuncs);
-  taosMemoryFreeClear(pStb->pColumns);
-  taosMemoryFreeClear(pStb->pTags);
-  taosMemoryFreeClear(pStb->comment);
-  taosMemoryFreeClear(pStb->pAst1);
-  taosMemoryFreeClear(pStb->pAst2);
+  mndFreeStb(pStb);
   return 0;
 }
 
@@ -438,6 +442,8 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   if (req.rollup) {
     req.rsmaParam.maxdelay[0] = pStb->maxdelay[0];
     req.rsmaParam.maxdelay[1] = pStb->maxdelay[1];
+    req.rsmaParam.watermark[0] = pStb->watermark[0];
+    req.rsmaParam.watermark[1] = pStb->watermark[1];
     if (pStb->ast1Len > 0) {
       if (mndConvertRsmaTask(&req.rsmaParam.qmsg[0], &req.rsmaParam.qmsgLen[0], pStb->pAst1, pStb->uid,
                              STREAM_TRIGGER_WINDOW_CLOSE, req.rsmaParam.watermark[0]) < 0) {
@@ -530,8 +536,8 @@ int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
     return -1;
   }
 
-  if (pCreate->numOfColumns < TSDB_MIN_COLUMNS || pCreate->numOfColumns > TSDB_MAX_COLUMNS) {
-    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
+  if (pCreate->numOfColumns < TSDB_MIN_COLUMNS || pCreate->numOfTags + pCreate->numOfColumns > TSDB_MAX_COLUMNS) {
+    terrno = TSDB_CODE_PAR_INVALID_COLUMNS_NUM;
     return -1;
   }
 
@@ -542,7 +548,7 @@ int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
 
   SField *pField = taosArrayGet(pCreate->pColumns, 0);
   if (pField->type != TSDB_DATA_TYPE_TIMESTAMP) {
-    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
+    terrno = TSDB_CODE_PAR_INVALID_FIRST_COLUMN;
     return -1;
   }
 
@@ -1011,6 +1017,11 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  if ((terrno = grantCheck(TSDB_GRANT_STABLE)) < 0) {
+    code = -1;
+    goto _OVER;
+  }
+
   if (isAlter) {
     bool    needRsp = false;
     SStbObj pDst = {0};
@@ -1140,7 +1151,7 @@ static int32_t mndAddSuperTableTag(const SStbObj *pOld, SStbObj *pNew, SArray *p
   return 0;
 }
 
-int32_t mndCheckColAndTagModifiable(SMnode *pMnode, const char *stbname, int64_t suid, col_id_t colId) {
+static int32_t mndCheckAlterColForTopic(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId) {
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
   while (1) {
@@ -1149,7 +1160,7 @@ int32_t mndCheckColAndTagModifiable(SMnode *pMnode, const char *stbname, int64_t
     if (pIter == NULL) break;
 
     mDebug("topic:%s, check tag and column modifiable, stb:%s suid:%" PRId64 " colId:%d, subType:%d sql:%s",
-           pTopic->name, stbname, suid, colId, pTopic->subType, pTopic->sql);
+           pTopic->name, stbFullName, suid, colId, pTopic->subType, pTopic->sql);
     if (pTopic->subType != TOPIC_SUB_TYPE__COLUMN) {
       sdbRelease(pSdb, pTopic);
       continue;
@@ -1187,20 +1198,66 @@ int32_t mndCheckColAndTagModifiable(SMnode *pMnode, const char *stbname, int64_t
     sdbRelease(pSdb, pTopic);
     nodesDestroyNode(pAst);
   }
+  return 0;
+}
 
+static int32_t mndCheckAlterColForStream(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+  while (1) {
+    SStreamObj *pStream = NULL;
+    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+    if (pIter == NULL) break;
+
+    SNode *pAst = NULL;
+    if (nodesStringToNode(pStream->ast, &pAst) != 0) {
+      ASSERT(0);
+      return -1;
+    }
+
+    SNodeList *pNodeList = NULL;
+    nodesCollectColumns((SSelectStmt *)pAst, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pNodeList);
+    SNode *pNode = NULL;
+    FOREACH(pNode, pNodeList) {
+      SColumnNode *pCol = (SColumnNode *)pNode;
+
+      if (pCol->tableId != suid) {
+        mDebug("stream:%s, check colId:%d passed", pStream->name, pCol->colId);
+        goto NEXT;
+      }
+      if (pCol->colId > 0 && pCol->colId == colId) {
+        sdbRelease(pSdb, pStream);
+        nodesDestroyNode(pAst);
+        terrno = TSDB_CODE_MND_STREAM_MUST_BE_DELETED;
+        mError("stream:%s, check colId:%d conflicted", pStream->name, pCol->colId);
+        return -1;
+      }
+      mDebug("stream:%s, check colId:%d passed", pStream->name, pCol->colId);
+    }
+
+  NEXT:
+    sdbRelease(pSdb, pStream);
+    nodesDestroyNode(pAst);
+  }
+  return 0;
+}
+
+static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
   while (1) {
     SSmaObj *pSma = NULL;
     pIter = sdbFetch(pSdb, SDB_SMA, pIter, (void **)&pSma);
     if (pIter == NULL) break;
 
-    mDebug("tsma:%s, check tag and column modifiable, stb:%s suid:%" PRId64 " colId:%d, sql:%s", pSma->name, stbname,
-           suid, colId, pSma->sql);
+    mDebug("tsma:%s, check tag and column modifiable, stb:%s suid:%" PRId64 " colId:%d, sql:%s", pSma->name,
+           stbFullName, suid, colId, pSma->sql);
 
     SNode *pAst = NULL;
     if (nodesStringToNode(pSma->ast, &pAst) != 0) {
       terrno = TSDB_CODE_SDB_INVALID_DATA_CONTENT;
       mError("tsma:%s, check tag and column modifiable, stb:%s suid:%" PRId64 " colId:%d failed since parse AST err",
-             pSma->name, stbname, suid, colId);
+             pSma->name, stbFullName, suid, colId);
       return -1;
     }
 
@@ -1213,7 +1270,7 @@ int32_t mndCheckColAndTagModifiable(SMnode *pMnode, const char *stbname, int64_t
 
       if ((pCol->tableId != suid) && (pSma->stbUid != suid)) {
         mDebug("tsma:%s, check colId:%d passed", pSma->name, pCol->colId);
-        goto NEXT2;
+        goto NEXT;
       }
       if ((pCol->colId) > 0 && (pCol->colId == colId)) {
         sdbRelease(pSdb, pSma);
@@ -1225,11 +1282,24 @@ int32_t mndCheckColAndTagModifiable(SMnode *pMnode, const char *stbname, int64_t
       mDebug("tsma:%s, check colId:%d passed", pSma->name, pCol->colId);
     }
 
-  NEXT2:
+  NEXT:
     sdbRelease(pSdb, pSma);
     nodesDestroyNode(pAst);
   }
+  return 0;
+}
 
+int32_t mndCheckColAndTagModifiable(SMnode *pMnode, const char *stbFullName, int64_t suid, col_id_t colId) {
+  if (mndCheckAlterColForTopic(pMnode, stbFullName, suid, colId) < 0) {
+    return -1;
+  }
+  if (mndCheckAlterColForStream(pMnode, stbFullName, suid, colId) < 0) {
+    return -1;
+  }
+
+  if (mndCheckAlterColForTSma(pMnode, stbFullName, suid, colId) < 0) {
+    return -1;
+  }
   return 0;
 }
 
@@ -1704,6 +1774,67 @@ static int32_t mndBuildSMAlterStbRsp(SDbObj *pDb, SStbObj *pObj, void **pCont, i
   return 0;
 }
 
+int32_t mndBuildSMCreateStbRsp(SMnode *pMnode, char* dbFName, char* stbFName, void **pCont, int32_t *pLen) {
+  int32_t       ret = -1;
+  SDbObj *pDb = mndAcquireDb(pMnode, dbFName);
+  if (NULL == pDb) {
+    return -1;
+  }
+
+  SStbObj *pObj = mndAcquireStb(pMnode, stbFName);
+  if (NULL == pObj) {
+    goto _OVER;
+  }
+  
+  SEncoder      ec = {0};
+  uint32_t      contLen = 0;
+  SMCreateStbRsp stbRsp = {0};
+  SName         name = {0};
+  tNameFromString(&name, pObj->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+
+  stbRsp.pMeta = taosMemoryCalloc(1, sizeof(STableMetaRsp));
+  if (NULL == stbRsp.pMeta) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  ret = mndBuildStbSchemaImp(pDb, pObj, name.tname, stbRsp.pMeta);
+  if (ret) {
+    tFreeSMCreateStbRsp(&stbRsp);
+    goto _OVER;
+  }
+
+  tEncodeSize(tEncodeSMCreateStbRsp, &stbRsp, contLen, ret);
+  if (ret) {
+    tFreeSMCreateStbRsp(&stbRsp);
+    goto _OVER;
+  }
+
+  void *cont = taosMemoryMalloc(contLen);
+  tEncoderInit(&ec, cont, contLen);
+  tEncodeSMCreateStbRsp(&ec, &stbRsp);
+  tEncoderClear(&ec);
+
+  tFreeSMCreateStbRsp(&stbRsp);
+
+  *pCont = cont;
+  *pLen = contLen;
+
+  ret = 0;
+  
+_OVER:
+  if (pObj) {
+    mndReleaseStb(pMnode, pObj);
+  }
+  
+  if (pDb) {
+    mndReleaseDb(pMnode, pDb);
+  }
+
+  return ret;
+}
+
+
 static int32_t mndAlterStbImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb, bool needRsp,
                               void *alterOriData, int32_t alterOriDataLen) {
   int32_t code = -1;
@@ -1925,6 +2056,98 @@ _OVER:
   return code;
 }
 
+static int32_t mndCheckDropStbForTopic(SMnode *pMnode, const char *stbFullName, int64_t suid) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+  while (1) {
+    SMqTopicObj *pTopic = NULL;
+    pIter = sdbFetch(pSdb, SDB_TOPIC, pIter, (void **)&pTopic);
+    if (pIter == NULL) break;
+
+    if (pTopic->subType == TOPIC_SUB_TYPE__TABLE) {
+      if (pTopic->stbUid == suid) {
+        sdbRelease(pSdb, pTopic);
+        return -1;
+      }
+    }
+
+    if (pTopic->subType != TOPIC_SUB_TYPE__COLUMN) {
+      sdbRelease(pSdb, pTopic);
+      continue;
+    }
+
+    SNode *pAst = NULL;
+    if (nodesStringToNode(pTopic->ast, &pAst) != 0) {
+      ASSERT(0);
+      return -1;
+    }
+
+    SNodeList *pNodeList = NULL;
+    nodesCollectColumns((SSelectStmt *)pAst, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pNodeList);
+    SNode *pNode = NULL;
+    FOREACH(pNode, pNodeList) {
+      SColumnNode *pCol = (SColumnNode *)pNode;
+
+      if (pCol->tableId == suid) {
+        sdbRelease(pSdb, pTopic);
+        nodesDestroyNode(pAst);
+        return -1;
+      } else {
+        goto NEXT;
+      }
+    }
+  NEXT:
+    sdbRelease(pSdb, pTopic);
+    nodesDestroyNode(pAst);
+  }
+  return 0;
+}
+
+static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName, int64_t suid) {
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+  while (1) {
+    SStreamObj *pStream = NULL;
+    pIter = sdbFetch(pSdb, SDB_STREAM, pIter, (void **)&pStream);
+    if (pIter == NULL) break;
+
+    if (pStream->smaId != 0) {
+      sdbRelease(pSdb, pStream);
+      continue;
+    }
+
+    if (pStream->targetStbUid == suid) {
+      sdbRelease(pSdb, pStream);
+      return -1;
+    }
+
+    SNode *pAst = NULL;
+    if (nodesStringToNode(pStream->ast, &pAst) != 0) {
+      ASSERT(0);
+      return -1;
+    }
+
+    SNodeList *pNodeList = NULL;
+    nodesCollectColumns((SSelectStmt *)pAst, SQL_CLAUSE_FROM, NULL, COLLECT_COL_TYPE_ALL, &pNodeList);
+    SNode *pNode = NULL;
+    FOREACH(pNode, pNodeList) {
+      SColumnNode *pCol = (SColumnNode *)pNode;
+
+      if (pCol->tableId == suid) {
+        sdbRelease(pSdb, pStream);
+        nodesDestroyNode(pAst);
+        return -1;
+      } else {
+        goto NEXT;
+      }
+    }
+  NEXT:
+    sdbRelease(pSdb, pStream);
+    nodesDestroyNode(pAst);
+  }
+  return 0;
+}
+
 static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
   SMnode      *pMnode = pReq->info.node;
   int32_t      code = -1;
@@ -1966,6 +2189,16 @@ static int32_t mndProcessDropStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
+  if (mndCheckDropStbForTopic(pMnode, dropReq.name, pStb->uid) < 0) {
+    terrno = TSDB_CODE_MND_TOPIC_MUST_BE_DELETED;
+    goto _OVER;
+  }
+
+  if (mndCheckDropStbForStream(pMnode, dropReq.name, pStb->uid) < 0) {
+    terrno = TSDB_CODE_MND_STREAM_MUST_BE_DELETED;
+    goto _OVER;
+  }
+
   code = mndDropStb(pMnode, pReq, pDb, pStb);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
@@ -1985,6 +2218,10 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
   STableInfoReq infoReq = {0};
   STableMetaRsp metaRsp = {0};
 
+  SUserObj *pUser = mndAcquireUser(pMnode, pReq->info.conn.user);
+  if (pUser == NULL) return 0;
+  bool sysinfo = pUser->sysInfo;
+
   if (tDeserializeSTableInfoReq(pReq->pCont, pReq->contLen, &infoReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
@@ -1992,7 +2229,7 @@ static int32_t mndProcessTableMetaReq(SRpcMsg *pReq) {
 
   if (0 == strcmp(infoReq.dbFName, TSDB_INFORMATION_SCHEMA_DB)) {
     mDebug("information_schema table:%s.%s, start to retrieve meta", infoReq.dbFName, infoReq.tbName);
-    if (mndBuildInsTableSchema(pMnode, infoReq.dbFName, infoReq.tbName, &metaRsp) != 0) {
+    if (mndBuildInsTableSchema(pMnode, infoReq.dbFName, infoReq.tbName, sysinfo, &metaRsp) != 0) {
       goto _OVER;
     }
   } else if (0 == strcmp(infoReq.dbFName, TSDB_PERFORMANCE_SCHEMA_DB)) {
@@ -2031,6 +2268,7 @@ _OVER:
     mError("stb:%s.%s, failed to retrieve meta since %s", infoReq.dbFName, infoReq.tbName, terrstr());
   }
 
+  mndReleaseUser(pMnode, pUser);
   tFreeSTableMetaRsp(&metaRsp);
   return code;
 }

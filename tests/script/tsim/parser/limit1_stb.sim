@@ -134,7 +134,7 @@ if $rows != 0 then
 endi
 
 $offset = $offset - 1
-sql select * from $stb limit $limit offset $offset 
+sql select * from $stb limit $limit offset $offset
 if $rows != 1 then
   return -1
 endi
@@ -308,7 +308,7 @@ if $data06 != binary5 then
   return -1
 endi
 if $data07 != nchar5 then
-  return -1 
+  return -1
 endi
 
 $limit = $totalNum

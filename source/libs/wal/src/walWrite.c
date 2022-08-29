@@ -208,6 +208,9 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   taosCloseFile(&pIdxFile);
   taosCloseFile(&pLogFile);
 
+  taosFsyncFile(pWal->pLogFile);
+  taosFsyncFile(pWal->pIdxFile);
+
   walSaveMeta(pWal);
 
   // unlock
@@ -417,6 +420,8 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
 
   pWal->writeHead.cksumHead = walCalcHeadCksum(&pWal->writeHead);
   pWal->writeHead.cksumBody = walCalcBodyCksum(body, bodyLen);
+
+  wDebug("vgId:%d, wal write log %ld, msgType: %s", pWal->cfg.vgId, index, TMSG_INFO(msgType));
 
   if (taosWriteFile(pWal->pLogFile, &pWal->writeHead, sizeof(SWalCkHead)) != sizeof(SWalCkHead)) {
     // TODO ftruncate

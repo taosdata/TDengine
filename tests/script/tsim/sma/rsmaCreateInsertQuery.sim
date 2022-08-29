@@ -12,7 +12,7 @@ print =============== create super table and register rsma
 sql create table if not exists stb (ts timestamp, c1 int) tags (city binary(20),district binary(20)) rollup(min);
 
 sql show stables
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
@@ -20,7 +20,7 @@ print =============== create child table
 sql create table ct1 using stb tags("BeiJing", "ChaoYang");
 
 sql show tables
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
@@ -29,8 +29,8 @@ sql insert into ct1 values(now, 10);
 sql insert into ct1 values(now+1s, 1);
 sql insert into ct1 values(now+2s, 100);
 
-print =============== wait maxdelay 15+1 seconds for results
-sleep 16000
+print =============== wait maxdelay 15+2 seconds for results
+sleep 17000
 
 print =============== select * from retention level 2 from memory
 sql select * from ct1;
@@ -119,7 +119,7 @@ endi
 
 print =============== select * from retention level 0 from file
 sql select * from ct1 where ts > now-3d;
-print $data00 $data01 
+print $data00 $data01
 print $data10 $data11
 print $data20 $data21
 if $rows < 1 then

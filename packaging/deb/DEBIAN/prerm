@@ -1,5 +1,9 @@
 #!/bin/bash
 
+if [ "$1"x = "abort-upgrade"x ]; then
+  exit 0
+fi
+
 insmetaPath="/usr/local/taos/script"
 
 csudo=""
@@ -25,6 +29,7 @@ else
     # Remove all links
     ${csudo}rm -f ${bin_link_dir}/taos       || :
     ${csudo}rm -f ${bin_link_dir}/taosd      || :
+    ${csudo}rm -f ${bin_link_dir}/udfd       || :
     ${csudo}rm -f ${bin_link_dir}/taosadapter       || :
     ${csudo}rm -f ${bin_link_dir}/taosdemo   || :
     ${csudo}rm -f ${cfg_link_dir}/*          || :

@@ -270,13 +270,22 @@ int32_t ctgUpdateTbMeta(SCatalog* pCtg, STableMetaRsp* rspMsg, bool syncOp) {
   int32_t code = 0;
 
   strcpy(output->dbFName, rspMsg->dbFName);
-  strcpy(output->tbName, rspMsg->tbName);
 
   output->dbId = rspMsg->dbId;
 
-  SET_META_TYPE_TABLE(output->metaType);
+  if (TSDB_CHILD_TABLE == rspMsg->tableType && NULL == rspMsg->pSchemas) {
+    strcpy(output->ctbName, rspMsg->tbName);
 
-  CTG_ERR_JRET(queryCreateTableMetaFromMsg(rspMsg, rspMsg->tableType == TSDB_SUPER_TABLE, &output->tbMeta));
+    SET_META_TYPE_CTABLE(output->metaType);
+
+    CTG_ERR_JRET(queryCreateCTableMetaFromMsg(rspMsg, &output->ctbMeta));
+  } else {
+    strcpy(output->tbName, rspMsg->tbName);
+
+    SET_META_TYPE_TABLE(output->metaType);
+
+    CTG_ERR_JRET(queryCreateTableMetaFromMsg(rspMsg, rspMsg->tableType == TSDB_SUPER_TABLE, &output->tbMeta));
+  }
 
   CTG_ERR_JRET(ctgUpdateTbMetaEnqueue(pCtg, output, syncOp));
 
@@ -893,7 +902,7 @@ int32_t catalogChkTbMetaVersion(SCatalog* pCtg, SRequestConnInfo *pConn, SArray*
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  SName   name;
+  SName   name = {0};
   int32_t sver = 0;
   int32_t tver = 0;
   int32_t tbNum = taosArrayGetSize(pTables);

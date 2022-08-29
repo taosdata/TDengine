@@ -125,7 +125,9 @@ if $rows != 3 then
 endi
 
 #sql drop database $db
-#sql show databases
+#sql select * from information_schema.ins_databases
 #if $rows != 0 then
 #  return -1
 #endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT

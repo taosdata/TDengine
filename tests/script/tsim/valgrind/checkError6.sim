@@ -4,7 +4,7 @@ system sh/cfg.sh -n dnode1 -c debugflag -v 131
 system sh/exec.sh -n dnode1 -s start -v
 sql connect
 
-print =============== step1: create drop show dnodes
+print =============== step1: create drop select * from information_schema.ins_dnodes
 $x = 0
 step1:
 	$x = $x + 1
@@ -13,7 +13,7 @@ step1:
 	  print ---> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ---> $data00 $data01 $data02 $data03 $data04 $data05
 if $rows != 1 then
   return -1
@@ -78,7 +78,7 @@ sql select tbcol4, length(tbcol4), lower(tbcol4), upper(tbcol4), ltrim(tbcol4), 
 sql select * from tb1 where tbcol not in (1,2,3,null);
 sql select * from tb1 where tbcol + 3 <> null;
 sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from tb1 where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0)
-#sql select tbcol5 - tbcol3 from tb1
+sql select tbcol5 - tbcol3 from tb1
 
 print =============== step4: stb
 sql select avg(tbcol) as c from stb
@@ -109,7 +109,13 @@ sql select * from stb where tbcol + 3 <> null;
 sql select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from stb where tbcol = 1 and tbcol2 = 1 and tbcol3 = 1 partition by tgcol interval(1d)
 sql select _wstart, count(*) from tb1 session(ts, 1m)
 sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from stb where ts <= 1601481840000 and ts >= 1601481800000 partition by tgcol interval(1m) fill(value, 0)
-#sql select tbcol5 - tbcol3 from stb
+sql select tbcol5 - tbcol3 from stb
+
+sql select spread( tbcol2 )/44, spread(tbcol2), 0.204545455 * 44 from stb;
+sql select min(tbcol) * max(tbcol) /4, sum(tbcol2) * apercentile(tbcol2, 20), apercentile(tbcol2, 33) + 52/9 from stb;
+sql select distinct(tbname), tgcol from stb;
+sql select sum(tbcol) from stb partition by tbname interval(1s) slimit 1 soffset 1;
+sql select sum(tbcol) from stb partition by tbname interval(1s) slimit 2 soffset 4 limit 10 offset 1;
 
 print =============== step5: explain
 sql explain analyze select ts from stb where -2;

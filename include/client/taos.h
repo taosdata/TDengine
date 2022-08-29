@@ -131,10 +131,10 @@ DLL_EXPORT int        taos_options(TSDB_OPTION option, const void *arg, ...);
 DLL_EXPORT setConfRet taos_set_config(const char *config);
 DLL_EXPORT int        taos_init(void);
 DLL_EXPORT TAOS      *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
-DLL_EXPORT TAOS      *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
-DLL_EXPORT void       taos_close(TAOS *taos);
+DLL_EXPORT TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
+DLL_EXPORT void  taos_close(TAOS *taos);
 
-const char           *taos_data_type(int type);
+const char *taos_data_type(int type);
 
 DLL_EXPORT TAOS_STMT *taos_stmt_init(TAOS *taos);
 DLL_EXPORT int        taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length);
@@ -196,15 +196,6 @@ DLL_EXPORT void        taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, vo
 DLL_EXPORT void        taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t fp, void *param);
 DLL_EXPORT const void *taos_get_raw_block(TAOS_RES *res);
 
-// Shuduo: temporary enable for app build
-#if 1
-typedef void (*__taos_sub_fn_t)(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code);
-DLL_EXPORT TAOS_SUB *taos_subscribe(TAOS *taos, int restart, const char *topic, const char *sql, __taos_sub_fn_t fp,
-                                    void *param, int interval);
-DLL_EXPORT TAOS_RES *taos_consume(TAOS_SUB *tsub);
-DLL_EXPORT void      taos_unsubscribe(TAOS_SUB *tsub, int keepProgress);
-#endif
-
 DLL_EXPORT int       taos_load_table_info(TAOS *taos, const char *tableNameList);
 DLL_EXPORT TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLines, int protocol, int precision);
 
@@ -253,37 +244,37 @@ DLL_EXPORT void           tmq_conf_set_auto_commit_cb(tmq_conf_t *conf, tmq_comm
 
 /* -------------------------TMQ MSG HANDLE INTERFACE---------------------- */
 
+DLL_EXPORT const char *tmq_get_topic_name(TAOS_RES *res);
+DLL_EXPORT const char *tmq_get_db_name(TAOS_RES *res);
+DLL_EXPORT int32_t     tmq_get_vgroup_id(TAOS_RES *res);
+
+/* ------------------------------ TAOSX -----------------------------------*/
+// note: following apis are unstable
 enum tmq_res_t {
   TMQ_RES_INVALID = -1,
   TMQ_RES_DATA = 1,
   TMQ_RES_TABLE_META = 2,
 };
 
-typedef struct tmq_raw_data{
-  void*    raw;
+typedef struct tmq_raw_data {
+  void    *raw;
   uint32_t raw_len;
   uint16_t raw_type;
 } tmq_raw_data;
 
 typedef enum tmq_res_t tmq_res_t;
 
-DLL_EXPORT tmq_res_t     tmq_get_res_type(TAOS_RES *res);
-DLL_EXPORT int32_t       tmq_get_raw(TAOS_RES *res, tmq_raw_data *raw);
-DLL_EXPORT int32_t       tmq_write_raw(TAOS *taos, tmq_raw_data raw);
-DLL_EXPORT int           taos_write_raw_block(TAOS *taos, int numOfRows, char *pData, const char* tbname);
-DLL_EXPORT void          tmq_free_raw(tmq_raw_data raw);
-DLL_EXPORT char         *tmq_get_json_meta(TAOS_RES *res);   // Returning null means error. Returned result need to be freed by tmq_free_json_meta
-DLL_EXPORT void          tmq_free_json_meta(char* jsonMeta);
-DLL_EXPORT const char   *tmq_get_topic_name(TAOS_RES *res);
-DLL_EXPORT const char   *tmq_get_db_name(TAOS_RES *res);
-DLL_EXPORT int32_t       tmq_get_vgroup_id(TAOS_RES *res);
-DLL_EXPORT const char   *tmq_get_table_name(TAOS_RES *res);
+DLL_EXPORT const char *tmq_get_table_name(TAOS_RES *res);
+DLL_EXPORT tmq_res_t   tmq_get_res_type(TAOS_RES *res);
+DLL_EXPORT int32_t     tmq_get_raw(TAOS_RES *res, tmq_raw_data *raw);
+DLL_EXPORT int32_t     tmq_write_raw(TAOS *taos, tmq_raw_data raw);
+DLL_EXPORT int         taos_write_raw_block(TAOS *taos, int numOfRows, char *pData, const char *tbname);
+DLL_EXPORT void        tmq_free_raw(tmq_raw_data raw);
+// Returning null means error. Returned result need to be freed by tmq_free_json_meta
+DLL_EXPORT char *tmq_get_json_meta(TAOS_RES *res);
+DLL_EXPORT void  tmq_free_json_meta(char *jsonMeta);
 
-/* ------------------------------ TMQ END -------------------------------- */
-
-#if 1  // Shuduo: temporary enable for app build
-typedef void (*TAOS_SUBSCRIBE_CALLBACK)(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code);
-#endif
+/* ---------------------------- TAOSX END -------------------------------- */
 
 typedef enum {
   TSDB_SRV_STATUS_UNAVAILABLE = 0,

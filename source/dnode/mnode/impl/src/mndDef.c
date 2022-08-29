@@ -23,11 +23,11 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   if (tEncodeI64(pEncoder, pObj->createTime) < 0) return -1;
   if (tEncodeI64(pEncoder, pObj->updateTime) < 0) return -1;
   if (tEncodeI32(pEncoder, pObj->version) < 0) return -1;
+  if (tEncodeI32(pEncoder, pObj->totalLevel) < 0) return -1;
   if (tEncodeI64(pEncoder, pObj->smaId) < 0) return -1;
 
   if (tEncodeI64(pEncoder, pObj->uid) < 0) return -1;
   if (tEncodeI8(pEncoder, pObj->status) < 0) return -1;
-  if (tEncodeI8(pEncoder, pObj->isDistributed) < 0) return -1;
 
   if (tEncodeI8(pEncoder, pObj->igExpired) < 0) return -1;
   if (tEncodeI8(pEncoder, pObj->trigger) < 0) return -1;
@@ -69,11 +69,11 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
   if (tDecodeI64(pDecoder, &pObj->createTime) < 0) return -1;
   if (tDecodeI64(pDecoder, &pObj->updateTime) < 0) return -1;
   if (tDecodeI32(pDecoder, &pObj->version) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pObj->totalLevel) < 0) return -1;
   if (tDecodeI64(pDecoder, &pObj->smaId) < 0) return -1;
 
   if (tDecodeI64(pDecoder, &pObj->uid) < 0) return -1;
   if (tDecodeI8(pDecoder, &pObj->status) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pObj->isDistributed) < 0) return -1;
 
   if (tDecodeI8(pDecoder, &pObj->igExpired) < 0) return -1;
   if (tDecodeI8(pDecoder, &pObj->trigger) < 0) return -1;
@@ -114,6 +114,25 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
   if (tDecodeSSchemaWrapper(pDecoder, &pObj->outputSchema) < 0) return -1;
 
   return 0;
+}
+
+void tFreeStreamObj(SStreamObj *pStream) {
+  taosMemoryFree(pStream->sql);
+  taosMemoryFree(pStream->ast);
+  taosMemoryFree(pStream->physicalPlan);
+  if (pStream->outputSchema.nCols) taosMemoryFree(pStream->outputSchema.pSchema);
+
+  int32_t sz = taosArrayGetSize(pStream->tasks);
+  for (int32_t i = 0; i < sz; i++) {
+    SArray *pLevel = taosArrayGetP(pStream->tasks, i);
+    int32_t taskSz = taosArrayGetSize(pLevel);
+    for (int32_t j = 0; j < taskSz; j++) {
+      SStreamTask *pTask = taosArrayGetP(pLevel, j);
+      tFreeSStreamTask(pTask);
+    }
+    taosArrayDestroy(pLevel);
+  }
+  taosArrayDestroy(pStream->tasks);
 }
 
 SMqVgEp *tCloneSMqVgEp(const SMqVgEp *pVgEp) {

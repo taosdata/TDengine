@@ -36,7 +36,7 @@ static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream);
 static int32_t mndStreamActionUpdate(SSdb *pSdb, SStreamObj *pStream, SStreamObj *pNewStream);
 static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq);
 static int32_t mndProcessDropStreamReq(SRpcMsg *pReq);
-static int32_t mndProcessRecoverStreamReq(SRpcMsg *pReq);
+/*static int32_t mndProcessRecoverStreamReq(SRpcMsg *pReq);*/
 static int32_t mndProcessStreamMetaReq(SRpcMsg *pReq);
 static int32_t mndGetStreamMeta(SRpcMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
@@ -55,7 +55,7 @@ int32_t mndInitStream(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STREAM, mndProcessCreateStreamReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_STREAM, mndProcessDropStreamReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_RECOVER_STREAM, mndProcessRecoverStreamReq);
+  /*mndSetMsgHandle(pMnode, TDMT_MND_RECOVER_STREAM, mndProcessRecoverStreamReq);*/
 
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DEPLOY_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_STREAM_TASK_DROP_RSP, mndTransProcessRsp);
@@ -167,6 +167,9 @@ static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream) {
 
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream) {
   mTrace("stream:%s, perform delete action", pStream->name);
+  taosWLockLatch(&pStream->lock);
+  tFreeStreamObj(pStream);
+  taosWUnLockLatch(&pStream->lock);
   return 0;
 }
 
@@ -195,6 +198,30 @@ SStreamObj *mndAcquireStream(SMnode *pMnode, char *streamName) {
 void mndReleaseStream(SMnode *pMnode, SStreamObj *pStream) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pStream);
+}
+
+static void mndShowStreamStatus(char *dst, SStreamObj *pStream) {
+  int8_t status = atomic_load_8(&pStream->status);
+  if (status == STREAM_STATUS__NORMAL) {
+    strcpy(dst, "normal");
+  } else if (status == STREAM_STATUS__STOP) {
+    strcpy(dst, "stop");
+  } else if (status == STREAM_STATUS__FAILED) {
+    strcpy(dst, "failed");
+  } else if (status == STREAM_STATUS__RECOVER) {
+    strcpy(dst, "recover");
+  }
+}
+
+static void mndShowStreamTrigger(char *dst, SStreamObj *pStream) {
+  int8_t trigger = pStream->trigger;
+  if (trigger == STREAM_TRIGGER_AT_ONCE) {
+    strcpy(dst, "at once");
+  } else if (trigger == STREAM_TRIGGER_WINDOW_CLOSE) {
+    strcpy(dst, "window close");
+  } else if (trigger == STREAM_TRIGGER_MAX_DELAY) {
+    strcpy(dst, "max delay");
+  }
 }
 
 static int32_t mndCheckCreateStreamReq(SCMCreateStreamReq *pCreate) {
@@ -323,8 +350,7 @@ FAIL:
 }
 
 int32_t mndPersistTaskDeployReq(STrans *pTrans, const SStreamTask *pTask) {
-  ASSERT(pTask->isDataScan == 0 || pTask->isDataScan == 1);
-  if (pTask->isDataScan == 0 && pTask->sinkType == TASK_SINK__NONE) {
+  if (pTask->taskLevel == TASK_LEVEL__AGG) {
     ASSERT(taosArrayGetSize(pTask->childEpInfo) != 0);
   }
   SEncoder encoder;
@@ -437,7 +463,6 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
   pField->bytes = 8;
 
   if (mndCheckCreateStbReq(&createReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
 
@@ -471,10 +496,17 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
 
   stbObj.uid = pStream->targetStbUid;
 
-  if (mndAddStbToTrans(pMnode, pTrans, pDb, &stbObj) < 0) goto _OVER;
+  if (mndAddStbToTrans(pMnode, pTrans, pDb, &stbObj) < 0) {
+    mndFreeStb(&stbObj);
+    goto _OVER;
+  }
+
+  tFreeSMCreateStbReq(&createReq);
+  mndFreeStb(&stbObj);
 
   return 0;
 _OVER:
+  tFreeSMCreateStbReq(&createReq);
   mndReleaseStb(pMnode, pStb);
   mndReleaseDb(pMnode, pDb);
   return -1;
@@ -506,6 +538,7 @@ static int32_t mndPersistTaskDropReq(STrans *pTrans, SStreamTask *pTask) {
   return 0;
 }
 
+#if 0
 static int32_t mndPersistTaskRecoverReq(STrans *pTrans, SStreamTask *pTask) {
   SMStreamTaskRecoverReq *pReq = taosMemoryCalloc(1, sizeof(SMStreamTaskRecoverReq));
   if (pReq == NULL) {
@@ -549,7 +582,7 @@ int32_t mndRecoverStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStrea
       SArray      *pTasks = taosArrayGetP(pStream->tasks, i);
       int32_t      sz = taosArrayGetSize(pTasks);
       SStreamTask *pTask = taosArrayGetP(pTasks, 0);
-      if (!pTask->isDataScan && pTask->execType != TASK_EXEC__NONE) {
+      if (pTask->taskLevel == TASK_LEVEL__AGG) {
         ASSERT(sz == 1);
         if (mndPersistTaskRecoverReq(pTrans, pTask) < 0) {
           return -1;
@@ -565,8 +598,8 @@ int32_t mndRecoverStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStrea
       int32_t sz = taosArrayGetSize(pTasks);
       for (int32_t j = 0; j < sz; j++) {
         SStreamTask *pTask = taosArrayGetP(pTasks, j);
-        if (!pTask->isDataScan) break;
-        ASSERT(pTask->execType != TASK_EXEC__NONE);
+        if (pTask->taskLevel != TASK_LEVEL__SOURCE) break;
+        ASSERT(pTask->taskLevel != TASK_LEVEL__SINK);
         if (mndPersistTaskRecoverReq(pTrans, pTask) < 0) {
           return -1;
         }
@@ -575,6 +608,7 @@ int32_t mndRecoverStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStrea
   }
   return 0;
 }
+#endif
 
 int32_t mndDropStreamTasks(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
   int32_t lv = taosArrayGetSize(pStream->tasks);
@@ -597,6 +631,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   SStreamObj        *pStream = NULL;
   SDbObj            *pDb = NULL;
   SCMCreateStreamReq createStreamReq = {0};
+  SStreamObj         streamObj = {0};
 
   if (tDeserializeSCMCreateStreamReq(pReq->pCont, pReq->contLen, &createStreamReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -625,7 +660,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 
   // build stream obj from request
-  SStreamObj streamObj = {0};
   if (mndBuildStreamObjFromCreateReq(pMnode, &streamObj, &createStreamReq) < 0) {
     /*ASSERT(0);*/
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
@@ -691,6 +725,7 @@ _OVER:
   mndReleaseDb(pMnode, pDb);
 
   tFreeSCMCreateStreamReq(&createStreamReq);
+  tFreeStreamObj(&streamObj);
   return code;
 }
 
@@ -757,6 +792,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
+#if 0
 static int32_t mndProcessRecoverStreamReq(SRpcMsg *pReq) {
   SMnode     *pMnode = pReq->info.node;
   SStreamObj *pStream = NULL;
@@ -819,6 +855,7 @@ static int32_t mndProcessRecoverStreamReq(SRpcMsg *pReq) {
 
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
+#endif
 
 int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   SSdb *pSdb = pMnode->pSdb;
@@ -835,7 +872,7 @@ int32_t mndDropStreamByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
         sdbCancelFetch(pSdb, pIter);
         mError("db:%s, failed to drop stream:%s since sourceDbUid:%" PRId64 " not match with targetDbUid:%" PRId64,
                pDb->name, pStream->name, pStream->sourceDbUid, pStream->targetDbUid);
-        terrno = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
+        terrno = TSDB_CODE_MND_STREAM_MUST_BE_DELETED;
         return -1;
       } else {
 #if 0
@@ -924,23 +961,46 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)sql, false);
 
+    char status[20 + VARSTR_HEADER_SIZE] = {0};
+    mndShowStreamStatus(&status[VARSTR_HEADER_SIZE], pStream);
+    varDataSetLen(status, strlen(varDataVal(status)));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pStream->status, true);
+    colDataAppend(pColInfo, numOfRows, (const char *)&status, false);
 
+    char sourceDB[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    tNameFromString(&n, pStream->sourceDb, T_NAME_ACCT | T_NAME_DB);
+    tNameGetDbName(&n, varDataVal(sourceDB));
+    varDataSetLen(sourceDB, strlen(varDataVal(sourceDB)));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pStream->sourceDb, true);
+    colDataAppend(pColInfo, numOfRows, (const char *)&sourceDB, false);
 
+    char targetDB[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    tNameFromString(&n, pStream->targetDb, T_NAME_ACCT | T_NAME_DB);
+    tNameGetDbName(&n, varDataVal(targetDB));
+    varDataSetLen(targetDB, strlen(varDataVal(targetDB)));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pStream->targetDb, true);
+    colDataAppend(pColInfo, numOfRows, (const char *)&targetDB, false);
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pStream->targetSTbName, true);
+    if (pStream->targetSTbName[0] == 0) {
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, NULL, true);
+    } else {
+      char targetSTB[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      tNameFromString(&n, pStream->targetSTbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+      strcpy(&targetSTB[VARSTR_HEADER_SIZE], tNameGetTableName(&n));
+      varDataSetLen(targetSTB, strlen(varDataVal(targetSTB)));
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&targetSTB, false);
+    }
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pStream->watermark, false);
 
+    char trigger[20 + VARSTR_HEADER_SIZE] = {0};
+    mndShowStreamTrigger(&trigger[VARSTR_HEADER_SIZE], pStream);
+    varDataSetLen(trigger, strlen(varDataVal(trigger)));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pStream->trigger, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)&trigger, false);
 
     numOfRows++;
     sdbRelease(pSdb, pStream);

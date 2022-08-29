@@ -116,6 +116,11 @@ EFuncDataRequired fmFuncDynDataRequired(int32_t funcId, void* pRes, STimeWindow*
     return TSDB_CODE_FAILED;
   }
 
+  const char* name = funcMgtBuiltins[funcId].name;
+  if ((strcmp(name, "_group_key") == 0) || (strcmp(name, "_select_value") == 0)) {
+    return FUNC_DATA_REQUIRED_NOT_LOAD;
+  }
+
   if (funcMgtBuiltins[funcId].dynDataRequiredFunc == NULL) {
     return FUNC_DATA_REQUIRED_DATA_LOAD;
   } else {
@@ -207,6 +212,8 @@ bool fmIsKeepOrderFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, F
 
 bool fmIsCumulativeFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_CUMULATIVE_FUNC); }
 
+bool fmIsForbidSuperTableFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_STABLE_FUNC); }
+
 bool fmIsInterpFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;
@@ -219,6 +226,18 @@ bool fmIsLastRowFunc(int32_t funcId) {
     return false;
   }
   return FUNCTION_TYPE_LAST_ROW == funcMgtBuiltins[funcId].type;
+}
+
+bool fmIsNotNullOutputFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_LAST == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_LAST_PARTIAL == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_LAST_MERGE == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_FIRST == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_FIRST_PARTIAL == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_FIRST_MERGE == funcMgtBuiltins[funcId].type;
 }
 
 bool fmIsSelectValueFunc(int32_t funcId) {

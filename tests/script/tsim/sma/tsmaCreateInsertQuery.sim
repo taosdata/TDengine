@@ -12,7 +12,7 @@ print =============== create super table, include column type for count/sum/min/
 sql create table if not exists stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int unsigned)
 
 sql show stables
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
@@ -20,7 +20,7 @@ print =============== create child table
 sql create table ct1 using stb tags(1000)
 
 sql show tables
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
@@ -61,6 +61,7 @@ endi
 print =============== select * from stb from memory in designated vgroup
 sql select _wstart, _wend, min(c1),max(c2),max(c1) from stb interval(5m,10s) sliding(5m);
 print $data00 $data01 $data02 $data03 $data04
+print $data10 $data11 $data12 $data13 $data14
 if $rows != 1 then
   print rows $rows != 1
   return -1

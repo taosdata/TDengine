@@ -756,7 +756,7 @@ endi
 
 print ======= over
 sql drop database d2
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then 
   return -1
 endi

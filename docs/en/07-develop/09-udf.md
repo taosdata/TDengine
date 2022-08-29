@@ -1,240 +1,245 @@
 ---
 sidebar_label: UDF
-title: User Defined Functions(UDF)
-description: "Scalar functions and aggregate functions developed by users can be utilized by the query framework to expand query capability"
+title: User-Defined Functions (UDF)
+description: "You can define your own scalar and aggregate functions to expand the query capabilities of TDengine."
 ---
 
-In some use cases, built-in functions are not adequate for the query capability required by application programs. With UDF, the functions developed by users can be utilized by the query framework to meet business and application requirements. UDF normally takes one column of data as input, but can also support the result of a sub-query as input.
+The built-in functions of TDengine may not be sufficient for the use cases of every application. In this case, you can define custom functions for use in TDengine queries. These are known as user-defined functions (UDF). A user-defined function takes one column of data or the result of a subquery as its input.
 
-From version 2.2.0.0, UDF written in C/C++ are supported by TDengine.
+TDengine supports user-defined functions written in C or C++. This document describes the usage of user-defined functions.
 
+User-defined functions can be scalar functions or aggregate functions. Scalar functions, such as `abs`, `sin`, and `concat`, output a value for every row of data. Aggregate functions, such as `avg` and `max` output one value for multiple rows of data.
 
-## Types of UDF
+When you create a user-defined function, you must implement standard interface functions:
+- For scalar functions, implement the `scalarfn` interface function.
+- For aggregate functions, implement the `aggfn_start`, `aggfn`, and `aggfn_finish` interface functions.
+- To initialize your function, implement the `udf_init` function. To terminate your function, implement the `udf_destroy` function.
 
-Two kinds of functions can be implemented by UDF: scalar functions and aggregate functions.
+There are strict naming conventions for these interface functions. The names of the start, finish, init, and destroy interfaces must be <udf-name\>_start, <udf-name\>_finish, <udf-name\>_init, and <udf-name\>_destroy, respectively. Replace `scalarfn`, `aggfn`, and `udf` with the name of your user-defined function.
 
-Scalar functions return multiple rows and aggregate functions return either 0 or 1 row.
+## Implementing a Scalar Function
+The implementation of a scalar function is described as follows:
+```c
+#include "taos.h"
+#include "taoserror.h"
+#include "taosudf.h"
 
-In the case of a scalar function you only have to implement the "normal" function template.
+// initialization function. if no initialization, we can skip definition of it. The initialization function shall be concatenation of the udf name and _init suffix
+// @return error number defined in taoserror.h
+int32_t scalarfn_init() {
+    // initialization.
+    return TSDB_CODE_SUCCESS;
+}
 
-In the case of an aggregate function, in addition to the "normal" function, you also need to implement the "merge" and "finalize" function templates even if the implementation is empty. This will become clear in the sections below.
+// scalar function main computation function
+// @param inputDataBlock, input data block composed of multiple columns with each column defined by SUdfColumn
+// @param resultColumn, output column
+// @return error number defined in taoserror.h
+int32_t scalarfn(SUdfDataBlock* inputDataBlock, SUdfColumn* resultColumn) {
+    // read data from inputDataBlock and process, then output to resultColumn.
+    return TSDB_CODE_SUCCESS;
+}
 
-### Scalar Function
+// cleanup function. if no cleanup related processing, we can skip definition of it. The destroy function shall be concatenation of the udf name and _destroy suffix.
+// @return error number defined in taoserror.h
+int32_t scalarfn_destroy() {
+    // clean up
+    return TSDB_CODE_SUCCESS;
+}
+```
+Replace `scalarfn` with the name of your function.
 
-As mentioned earlier, a scalar UDF only has to implement the "normal" function template. The function template below can be used to define your own scalar function.
+## Implementing an Aggregate Function
 
-`void udfNormalFunc(char* data, short itype, short ibytes, int numOfRows, long long* ts, char* dataOutput, char* interBuf, char* tsOutput, int* numOfOutput, short otype, short obytes, SUdfInit* buf)`
+The implementation of an aggregate function is described as follows:
+```c
+#include "taos.h"
+#include "taoserror.h"
+#include "taosudf.h"
 
-`udfNormalFunc` is the place holder for a function name. A function implemented based on the above template can be used to perform scalar computation on data rows. The parameters are fixed to control the data exchange between UDF and TDengine.
+// Initialization function. if no initialization, we can skip definition of it. The initialization function shall be concatenation of the udf name and _init suffix
+// @return error number defined in taoserror.h
+int32_t aggfn_init() {
+    // initialization.
+    return TSDB_CODE_SUCCESS;
+}
 
-- Definitions of the parameters:
+// aggregate start function. The intermediate value or the state(@interBuf) is initialized in this function. The function name shall be concatenation of udf name and _start suffix
+// @param interbuf intermediate value to intialize
+// @return error number defined in taoserror.h
+int32_t aggfn_start(SUdfInterBuf* interBuf) {
+    // initialize intermediate value in interBuf
+    return TSDB_CODE_SUCESS;
+}
 
-  - data：input data
-  - itype：the type of input data, for details please refer to [type definition in column_meta](/reference/rest-api/), for example 4 represents INT
-  - iBytes：the number of bytes consumed by each value in the input data
-  - oType：the type of output data, similar to iType
-  - oBytes：the number of bytes consumed by each value in the output data
-  - numOfRows：the number of rows in the input data
-  - ts: the column of timestamp corresponding to the input data
-  - dataOutput：the buffer for output data, total size is `oBytes * numberOfRows`
-  - interBuf：the buffer for an intermediate result. Its size is specified by the `BUFSIZE` parameter when creating a UDF. It's normally used when the intermediate result is not same as the final result. This buffer is allocated and freed by TDengine.
-  - tsOutput：the column of timestamps corresponding to the output data; it can be used to output timestamp together with the output data if it's not NULL
-  - numOfOutput：the number of rows in output data
-  - buf：for the state exchange between UDF and TDengine
+// aggregate reduce function. This function aggregate old state(@interbuf) and one data bock(inputBlock) and output a new state(@newInterBuf).
+// @param inputBlock input data block
+// @param interBuf old state
+// @param newInterBuf new state
+// @return error number defined in taoserror.h
+int32_t aggfn(SUdfDataBlock* inputBlock, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf) {
+    // read from inputBlock and interBuf and output to newInterBuf
+    return TSDB_CODE_SUCCESS;
+}
 
-  [add_one.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/add_one.c) is one example of a very simple UDF implementation, i.e. one instance of the above `udfNormalFunc` template. It adds one to each value of a passed in column, which can be filtered using the `where` clause, and outputs the result.
+// aggregate function finish function. This function transforms the intermediate value(@interBuf) into the final output(@result). The function name must be concatenation of aggfn and _finish suffix.
+// @interBuf : intermediate value
+// @result: final result
+// @return error number defined in taoserror.h
+int32_t int32_t aggfn_finish(SUdfInterBuf* interBuf, SUdfInterBuf *result) {
+    // read data from inputDataBlock and process, then output to result
+    return TSDB_CODE_SUCCESS;
+}
 
-### Aggregate Function
+// cleanup function. if no cleanup related processing, we can skip definition of it. The destroy function shall be concatenation of the udf name and _destroy suffix.
+// @return error number defined in taoserror.h
+int32_t aggfn_destroy() {
+    // clean up
+    return TSDB_CODE_SUCCESS;
+}
+```
+Replace `aggfn` with the name of your function.
 
-For aggregate UDF, as mentioned earlier you must implement a "normal" function template (described above) and also implement the "merge" and "finalize" templates.
+## Interface Functions
 
-#### Merge Function Template
+There are strict naming conventions for interface functions. The names of the start, finish, init, and destroy interfaces must be <udf-name\>_start, <udf-name\>_finish, <udf-name\>_init, and <udf-name\>_destroy, respectively. Replace `scalarfn`, `aggfn`, and `udf` with the name of your user-defined function.
 
-The function template below can be used to define your own merge function for an aggregate UDF.
+Interface functions return a value that indicates whether the operation was successful. If an operation fails, the interface function returns an error code. Otherwise, it returns TSDB_CODE_SUCCESS. The error codes are defined in `taoserror.h` and in the common API error codes in `taos.h`. For example, TSDB_CODE_UDF_INVALID_INPUT indicates invalid input. TSDB_CODE_OUT_OF_MEMORY indicates insufficient memory.
 
-`void udfMergeFunc(char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput, SUdfInit* buf)`
+For information about the parameters for interface functions, see Data Model
 
-`udfMergeFunc` is the place holder for a function name. The function implemented with the above template is used to aggregate intermediate results and can only be used in the aggregate query for STable.
+### Interfaces for Scalar Functions
 
-Definitions of the parameters:
-
-- data：array of output data, if interBuf is used it's an array of interBuf
-- numOfRows：number of rows in `data`
-- dataOutput：the buffer for output data, the size is same as that of the final result; If the result is not final, it can be put in the interBuf, i.e. `data`.
-- numOfOutput：number of rows in the output data
-- buf：for the state exchange between UDF and TDengine
-
-#### Finalize Function Template
-
-The function template below can be used to finalize the result of your own UDF, normally used when interBuf is used.
-
-`void udfFinalizeFunc(char* dataOutput, char* interBuf, int* numOfOutput, SUdfInit* buf)`
-
-`udfFinalizeFunc` is the place holder of function name, definitions of the parameter are as below:
-
-- dataOutput：buffer for output data
-- interBuf：buffer for intermediate result, can be used as input for next processing step
-- numOfOutput：number of output data, can only be 0 or 1 for aggregate function
-- buf：for state exchange between UDF and TDengine
-
-### Example abs_max.c
-
-[abs_max.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/abs_max.c) is an example of a user defined aggregate function to get the maximum from the absolute values of a column.
-
-The internal processing happens as follows. The results of the select statement are divided into multiple row blocks and `udfNormalFunc`, i.e. `abs_max` in this case, is performed on each row block to generate the intermediate results for each sub table. Then `udfMergeFunc`, i.e. `abs_max_merge` in this case, is performed on the intermediate result of sub tables to aggregate and generate the final or intermediate result of STable. The intermediate result of STable is finally processed by `udfFinalizeFunc`, i.e. `abs_max_finalize` in this example, to generate the final result, which contains either 0 or 1 row.
-
-Other typical aggregation functions such as covariance, can also be implemented using aggregate UDF.
-
-## UDF Naming Conventions
-
-The naming convention for the 3 kinds of function templates required by UDF is as follows:
- - udfNormalFunc, udfMergeFunc, and udfFinalizeFunc are required to have same prefix, i.e. the actual name of udfNormalFunc. The udfNormalFunc doesn't need a suffix following the function name. 
- - udfMergeFunc should be udfNormalFunc followed by `_merge`
- - udfFinalizeFunc should be udfNormalFunc followed by `_finalize`. 
+ `int32_t scalarfn(SUdfDataBlock* inputDataBlock, SUdfColumn *resultColumn)` 
  
-The naming convention is part of TDengine's UDF framework. TDengine follows this convention to invoke the corresponding actual functions.
+ Replace `scalarfn` with the name of your function. This function performs scalar calculations on data blocks. You can configure a value through the parameters in the `resultColumn` structure.
 
-Depending on whether you are creating a scalar UDF or aggregate UDF, the functions that you need to implement are different.
+The parameters in the function are defined as follows:
+  - inputDataBlock: The data block to input.
+  - resultColumn: The column to output. The column to output. 
 
-- Scalar function：udfNormalFunc is required.
-- Aggregate function：udfNormalFunc, udfMergeFunc (if query on STable) and udfFinalizeFunc are required.
+### Interfaces for Aggregate Functions
 
-For clarity, assuming we want to implement a UDF named "foo":
-- If the function is a scalar function, we only need to implement the "normal" function template and it should be named simply `foo`. 
-- If the function is an aggregate function, we need to implement `foo`, `foo_merge`, and `foo_finalize`. Note that for aggregate UDF, even though one of the three functions is not necessary, there must be an empty implementation.
+`int32_t aggfn_start(SUdfInterBuf *interBuf)`
+
+`int32_t aggfn(SUdfDataBlock* inputBlock, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf)`
+
+`int32_t aggfn_finish(SUdfInterBuf* interBuf, SUdfInterBuf *result)`
+
+Replace `aggfn` with the name of your function. In the function, aggfn_start is called to generate a result buffer. Data is then divided between multiple blocks, and aggfn is called on each block to update the result. Finally, aggfn_finish is called to generate final results from the intermediate results. The final result contains only one or zero data points.
+
+The parameters in the function are defined as follows:
+  - interBuf: The intermediate result buffer.
+  - inputBlock: The data block to input.
+  - newInterBuf: The new intermediate result buffer.
+  - result: The final result.
+
+
+### Initializing and Terminating User-Defined Functions
+`int32_t udf_init()`
+
+`int32_t udf_destroy()`
+
+Replace `udf`with the name of your function. udf_init initializes the function. udf_destroy terminates the function. If it is not necessary to initialize your function, udf_init is not required. If it is not necessary to terminate your function, udf_destroy is not required.
+
+
+## Data Structure of User-Defined Functions
+```c
+typedef struct SUdfColumnMeta {
+  int16_t type;
+  int32_t bytes;
+  uint8_t precision;
+  uint8_t scale;
+} SUdfColumnMeta;
+
+typedef struct SUdfColumnData {
+  int32_t numOfRows;
+  int32_t rowsAlloc;
+  union {
+    struct {
+      int32_t nullBitmapLen;
+      char   *nullBitmap;
+      int32_t dataLen;
+      char   *data;
+    } fixLenCol;
+
+    struct {
+      int32_t varOffsetsLen;
+      int32_t   *varOffsets;
+      int32_t payloadLen;
+      char   *payload;
+      int32_t payloadAllocLen;
+    } varLenCol;
+  };
+} SUdfColumnData;
+
+typedef struct SUdfColumn {
+  SUdfColumnMeta colMeta;
+  bool           hasNull;
+  SUdfColumnData colData;
+} SUdfColumn;
+
+typedef struct SUdfDataBlock {
+  int32_t numOfRows;
+  int32_t numOfCols;
+  SUdfColumn **udfCols;
+} SUdfDataBlock;
+
+typedef struct SUdfInterBuf {
+  int32_t bufLen;
+  char* buf;
+  int8_t numOfResult; //zero or one
+} SUdfInterBuf;
+```
+The data structure is described as follows:
+
+- The SUdfDataBlock block includes the number of rows (numOfRows) and number of columns (numCols). udfCols[i] (0 <= i <= numCols-1) indicates that each column is of type SUdfColumn.
+- SUdfColumn includes the definition of the data type of the column (colMeta) and the data in the column (colData).
+- The member definitions of SUdfColumnMeta are the same as the data type definitions in `taos.h`.
+- The data in SUdfColumnData can become longer. varLenCol indicates variable-length data, and fixLenCol indicates fixed-length data. 
+- SUdfInterBuf defines the intermediate structure `buffer` and the number of results in the buffer `numOfResult`.
+
+Additional functions are defined in `taosudf.h` to make it easier to work with these structures.
 
 ## Compile UDF
 
-The source code of UDF in C can't be utilized by TDengine directly. UDF can only be loaded into TDengine after compiling to dynamically linked library (DLL).
+To use your user-defined function in TDengine, first compile it to a dynamically linked library (DLL).
 
-For example, the example UDF `add_one.c` mentioned earlier, can be compiled into DLL using the command below, in a Linux Shell.
+For example, the sample UDF `add_one.c` can be compiled into a DLL as follows:
 
 ```bash
 gcc -g -O0 -fPIC -shared add_one.c -o add_one.so
 ```
 
-The generated DLL file `add_one.so` can be used later when creating a UDF. It's recommended to use GCC not older than 7.5.
+The generated DLL file `add_one.so` can now be used to implement your function. Note: GCC 7.5 or later is required.
 
-## Create and Use UDF
+## Manage and Use User-Defined Functions
+After compiling your function into a DLL, you add it to TDengine. For more information, see [User-Defined Functions](../12-taos-sql/26-udf.md).
 
-When a UDF is created in a TDengine instance, it is available across the databases in that instance.
+## Sample Code
 
-### Create UDF
+### Sample scalar function: [bit_and](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/bit_and.c)
 
-SQL command can be executed on the host where the generated UDF DLL resides to load the UDF DLL into TDengine. This operation cannot be done through REST interface or web console. Once created, any client of the current TDengine can use these UDF functions in their SQL commands. UDF are stored in the management node of TDengine. The UDFs loaded in TDengine would be still available after TDengine is restarted.
-
-When creating UDF, the type of UDF, i.e. a scalar function or aggregate function must be specified. If the specified type is wrong, the SQL statements using the function would fail with errors. The input type and output type don't need to be the same in UDF, but the input data type and output data type must be consistent with the UDF definition.
-
-- Create Scalar Function
-
-```sql
-CREATE FUNCTION userDefinedFunctionName AS "/absolute/path/to/userDefinedFunctionName.so" OUTPUTTYPE <supported TDengine type> [BUFSIZE B];
-```
-
-- userDefinedFunctionName：The function name to be used in SQL statement which must be consistent with the function name defined by `udfNormalFunc` and is also the name of the compiled DLL (.so file).
-- path：The absolute path of the DLL file including the name of the shared object file (.so). The path must be quoted with single or double quotes.
-- outputtype：The output data type, the value is the literal string of the supported TDengine data type.
-- B：the size of intermediate buffer, in bytes; it is an optional parameter and the range is [0,512].
-
-For example, below SQL statement can be used to create a UDF from `add_one.so`.
-
-```sql
-CREATE FUNCTION add_one AS "/home/taos/udf_example/add_one.so" OUTPUTTYPE INT;
-```
-
-- Create Aggregate Function
-
-```sql
-CREATE AGGREGATE FUNCTION userDefinedFunctionName AS "/absolute/path/to/userDefinedFunctionName.so" OUTPUTTYPE <supported TDengine data type> [ BUFSIZE B ];
-```
-
-- userDefinedFunctionName：the function name to be used in SQL statement which must be consistent with the function name defined by `udfNormalFunc` and is also the name of the compiled DLL (.so file).
-- path：the absolute path of the DLL file including the name of the shared object file (.so). The path needs to be quoted by single or double quotes.
-- OUTPUTTYPE：the output data type, the value is the literal string of the type
-- B：the size of intermediate buffer, in bytes; it's an optional parameter and the range is [0,512]
-
-For details about how to use intermediate result, please refer to example program [demo.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/demo.c).
-
-For example, below SQL statement can be used to create a UDF from `demo.so`.
-
-```sql
-CREATE AGGREGATE FUNCTION demo AS "/home/taos/udf_example/demo.so" OUTPUTTYPE DOUBLE bufsize 14;
-```
-
-### Manage UDF
-
-- Delete UDF
-
-```
-DROP FUNCTION ids(X);
-```
-
-- ids(X)：same as that in `CREATE FUNCTION` statement
-
-```sql
-DROP FUNCTION add_one;
-```
-
-- Show Available UDF
-
-```sql
-SHOW FUNCTIONS;
-```
-
-### Use UDF
-
-The function name specified when creating UDF can be used directly in SQL statements, just like builtin functions.
-
-```sql
-SELECT X(c) FROM table/STable;
-```
-
-The above SQL statement invokes function X for column c.
-
-## Restrictions for UDF
-
-In current version there are some restrictions for UDF
-
-1. Only Linux is supported when creating and invoking UDF for both client side and server side
-2. UDF can't be mixed with builtin functions
-3. Only one UDF can be used in a SQL statement
-4. Only a single column is supported as input for UDF
-5. Once created successfully, UDF is persisted in MNode of TDengineUDF
-6. UDF can't be created through REST interface
-7. The function name used when creating UDF in SQL must be consistent with the function name defined in the DLL, i.e. the name defined by `udfNormalFunc`
-8. The name of a UDF should not conflict with any of TDengine's built-in functions
-
-## Examples
-
-### Scalar function example [add_one](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/add_one.c)
+The bit_add function implements bitwise addition for multiple columns. If there is only one column, the column is returned. The bit_add function ignores null values.
 
 <details>
-<summary>add_one.c</summary>
+<summary>bit_and.c</summary>
 
 ```c
-{{#include tests/script/sh/add_one.c}}
+{{#include tests/script/sh/bit_and.c}}
 ```
 
 </details>
 
-### Aggregate function example [abs_max](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/abs_max.c)
+### Sample aggregate function: [l2norm](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/l2norm.c)
+
+The l2norm function finds the second-order norm for all data in the input column. This squares the values, takes a cumulative sum, and finds the square root.
 
 <details>
-<summary>abs_max.c</summary>
+<summary>l2norm.c</summary>
 
 ```c
-{{#include tests/script/sh/abs_max.c}}
-```
-
-</details>
-
-### Example for using intermediate result [demo](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/demo.c)
-
-<details>
-<summary>demo.c</summary>
-
-```c
-{{#include tests/script/sh/demo.c}}
+{{#include tests/script/sh/l2norm.c}}
 ```
 
 </details>

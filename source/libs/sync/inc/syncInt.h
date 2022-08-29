@@ -162,6 +162,10 @@ typedef struct SSyncNode {
   // is config changing
   bool changing;
 
+  int64_t startTime;
+  int64_t leaderTime;
+  int64_t lastReplicateTime;
+
 } SSyncNode;
 
 // open/close --------------
@@ -186,15 +190,19 @@ int32_t syncNodePingAll(SSyncNode* pSyncNode);
 // timer control --------------
 int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode);
+
 int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms);
 int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode);
 int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms);
 int32_t syncNodeResetElectTimer(SSyncNode* pSyncNode);
+
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode);
-int32_t syncNodeStartNowHeartbeatTimer(SSyncNode* pSyncNode);
+int32_t syncNodeStartHeartbeatTimerNow(SSyncNode* pSyncNode);
+int32_t syncNodeStartHeartbeatTimerMS(SSyncNode* pSyncNode, int32_t ms);
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode);
-int32_t syncNodeRestartNowHeartbeatTimer(SSyncNode* pSyncNode);
+int32_t syncNodeRestartHeartbeatTimerNow(SSyncNode* pSyncNode);
+int32_t syncNodeRestartNowHeartbeatTimerMS(SSyncNode* pSyncNode, int32_t ms);
 
 // utils --------------
 int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
@@ -212,6 +220,7 @@ void       syncNodeRelease(SSyncNode* pNode);
 
 // raft state change --------------
 void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
+void syncNodeUpdateTermWithoutStepDown(SSyncNode* pSyncNode, SyncTerm term);
 void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr);
 void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr);
 
@@ -228,7 +237,7 @@ void syncNodeVoteForSelf(SSyncNode* pSyncNode);
 bool syncNodeHasSnapshot(SSyncNode* pSyncNode);
 void syncNodeMaybeUpdateCommitBySnapshot(SSyncNode* pSyncNode);
 
-SyncIndex syncNodeGetLastIndex(SSyncNode* pSyncNode);
+SyncIndex syncNodeGetLastIndex(const SSyncNode* pSyncNode);
 SyncTerm  syncNodeGetLastTerm(SSyncNode* pSyncNode);
 int32_t   syncNodeGetLastIndexTerm(SSyncNode* pSyncNode, SyncIndex* pLastIndex, SyncTerm* pLastTerm);
 
@@ -259,6 +268,8 @@ bool syncNodeCheckNewConfig(SSyncNode* pSyncNode, const SSyncCfg* pNewCfg);
 int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode);
 int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader);
 int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry);
+
+int32_t syncNodeDynamicQuorum(const SSyncNode* pSyncNode);
 
 // trace log
 void syncLogSendRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s);

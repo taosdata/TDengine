@@ -429,7 +429,7 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
 }
 
 static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *buffer, int32_t len) {
-  if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL) {
+  if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL && osLogSpaceAvailable()) {
     taosUpdateLogNums(level);
     if (tsAsyncLog) {
       taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
@@ -451,7 +451,6 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
 }
 
 void taosPrintLog(const char *flags, ELogLevel level, int32_t dflag, const char *format, ...) {
-  if (!osLogSpaceAvailable()) return;
   if (!(dflag & DEBUG_FILE) && !(dflag & DEBUG_SCREEN)) return;
 
   char    buffer[LOG_MAX_LINE_BUFFER_SIZE];
@@ -691,9 +690,14 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
 static void *taosAsyncOutputLog(void *param) {
   SLogBuff *pLogBuf = (SLogBuff *)param;
   setThreadName("log");
-
+  int32_t count = 0;
   while (1) {
+    count += tsWriteInterval;
     taosMsleep(tsWriteInterval);
+    if (count > 1000) {
+      osUpdate();
+      count = 0;
+    }
 
     // Polling the buffer
     taosWriteLog(pLogBuf);

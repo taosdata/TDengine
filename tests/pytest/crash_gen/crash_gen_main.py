@@ -996,7 +996,7 @@ class StateMechine:
             return  # do nothing
 
         # this should show up in the server log, separating steps
-        dbc.execute("show dnodes")
+        dbc.execute("select * from information_schema.ins_dnodes")
 
         # Generic Checks, first based on the start state
         if not Config.getConfig().ignore_errors: # verify state, only if we are asked not to ignore certain errors.
@@ -1120,7 +1120,7 @@ class Database:
     @classmethod
     def setupLastTick(cls):
         # start time will be auto generated , start at 10 years ago  local time 
-        local_time = datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-16]
+        local_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-16]
         local_epoch_time = [int(i) for i in local_time.split("-")]
         #local_epoch_time will be such as : [2022, 7, 18]
 
@@ -1339,8 +1339,9 @@ class Task():
                 0x03A1, # STable [does] not exist
                 0x03AA, # Tag already exists
                 0x0603, # Table already exists
-                0x2603, # Table does not exist
+                0x2603, # Table does not exist, replaced by 2662 below
                 0x260d, # Tags number not matched
+                0x2662, # Table does not exist #TODO: what about 2603 above?
 
 
 
@@ -2041,7 +2042,7 @@ class TaskRestartService(StateTransitionTask):
 
         if Dice.throw(self.CHANCE_TO_RESTART_SERVICE) == 0: # 1 in N chance
             dbc = wt.getDbConn()
-            dbc.execute("show databases") # simple delay, align timing with other workers
+            dbc.execute("select * from information_schema.ins_databases") # simple delay, align timing with other workers
             gSvcMgr.restart()
 
         self._isRunning = False
@@ -2334,7 +2335,7 @@ class ClientManager:
     # def _printLastNumbers(self):  # to verify data durability
     #     dbManager = DbManager()
     #     dbc = dbManager.getDbConn()
-    #     if dbc.query("show databases") <= 1:  # no database (we have a default called "log")
+    #     if dbc.query("select * from information_schema.ins_databases") <= 1:  # no database (we have a default called "log")
     #         return
     #     dbc.execute("use db")
     #     if dbc.query("show tables") == 0:  # no tables

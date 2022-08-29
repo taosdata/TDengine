@@ -398,13 +398,23 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
   if (line != NULL) taosMemoryFree(line);
   taosCloseFile(&pFile);
 
-  if (code != 0) {
+  if (code != 0 && (done & 1) == 0) {
     TdFilePtr pFile1 = taosOpenFile("/proc/device-tree/model", TD_FILE_READ | TD_FILE_STREAM);
     if (pFile1 == NULL) return code;
     taosGetsFile(pFile1, maxLen, cpuModel);
     taosCloseFile(&pFile1);
     code = 0;
     done |= 1;
+  }
+
+  if (code != 0 && (done & 1) == 0) {
+    TdCmdPtr pCmd = taosOpenCmd("uname -a");
+    if (pCmd == NULL) return code;
+    if (taosGetsCmd(pCmd, maxLen, cpuModel) > 0) {
+      code = 0;
+      done |= 1;
+    }
+    taosCloseCmd(&pCmd);
   }
 
   if ((done & 2) == 0) {
@@ -585,6 +595,7 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
 #else
   struct statvfs info;
   if (statvfs(dataDir, &info)) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   } else {
     diskSize->total = info.f_blocks * info.f_frsize;
@@ -841,13 +852,12 @@ char *taosGetCmdlineByPID(int pid) {
 }
 
 void taosSetCoreDump(bool enable) {
+  if (!enable) return;
 #ifdef WINDOWS
-  // SetUnhandledExceptionFilter(exceptionHandler);
-  // SetUnhandledExceptionFilter(&FlCrashDump);
+  SetUnhandledExceptionFilter(exceptionHandler);
+  SetUnhandledExceptionFilter(&FlCrashDump);
 #elif defined(_TD_DARWIN_64)
 #else
-  if (!enable) return;
-
   // 1. set ulimit -c unlimited
   struct rlimit rlim;
   struct rlimit rlim_new;

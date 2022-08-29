@@ -294,16 +294,6 @@ TEST_F(ParserSelectTest, intervalSemanticCheck) {
 TEST_F(ParserSelectTest, interp) {
   useDb("root", "test");
 
-  run("SELECT INTERP(c1) FROM t1");
-
-  run("SELECT INTERP(c1) FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00')");
-
-  run("SELECT INTERP(c1) FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') FILL(LINEAR)");
-
-  run("SELECT INTERP(c1) FROM t1 EVERY(5s)");
-
-  run("SELECT INTERP(c1) FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') EVERY(5s)");
-
   run("SELECT INTERP(c1) FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR)");
 }
 
@@ -316,7 +306,8 @@ TEST_F(ParserSelectTest, subquery) {
 
   run("SELECT SUM(a) FROM (SELECT MAX(c1) a, ts FROM st1s1 PARTITION BY TBNAME INTERVAL(1m)) INTERVAL(1n)");
 
-  run("SELECT SUM(a) FROM (SELECT MAX(c1) a, _wstart FROM st1s1 PARTITION BY TBNAME INTERVAL(1m)) INTERVAL(1n)");
+  run("SELECT SUM(a) FROM (SELECT MAX(c1) a, _wstart FROM st1s1 PARTITION BY TBNAME INTERVAL(1m) ORDER BY _WSTART) "
+      "INTERVAL(1n)");
 
   run("SELECT _C0 FROM (SELECT _ROWTS, ts FROM st1s1)");
 
