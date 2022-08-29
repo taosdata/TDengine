@@ -22,10 +22,12 @@ import time
 # install taospy
 
 out = subprocess.getoutput("pip3 show taospy|grep Version| awk -F ':' '{print $2}' ")
-print(out)
+print("taospy version %s "%out)
 if (out == "" ):
     os.system("pip install git+https://github.com/taosdata/taos-connector-python.git")
     print("install taos python connector")
+else:
+    os.system("pip3 install --upgrade  taospy  ")
 
 
 

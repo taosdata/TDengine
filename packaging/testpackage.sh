@@ -1,8 +1,32 @@
 #!/bin/sh
 
-# function installPkgAndCheckFile{
+# # =============================  get input parameters =================================================
 
-echo "Download package"
+# # install.sh -v [server | client]  -e [yes | no] -i [systemd | service | ...]
+
+# # set parameters by default value
+# interactiveFqdn=yes   # [yes | no]
+# verType=server        # [server | client]
+# initType=systemd      # [systemd | service | ...]
+
+# while getopts "hv:d:" arg
+# do
+#   case $arg in
+#     d)
+#       #echo "interactiveFqdn=$OPTARG"
+#       script_dir=$( echo $OPTARG )
+#       ;;
+#     h)
+#       echo "Usage: `basename $0` -d scripy_path"
+#       exit 0
+#       ;;
+#     ?) #unknow option
+#       echo "unkonw argument"
+#       exit 1
+#       ;;
+#   esac
+# done
+# echo "Download package"
 
 packgeName=$1
 version=$2
@@ -25,21 +49,41 @@ elif [ ${testFile} = "tools" ];then
     installCmd="install-taostools.sh"
 fi
 
+function cmdInstall {
+comd=$1
+if command -v ${comd} ;then
+    echo "${comd} is already installed" 
+else 
+    if command -v apt ;then
+        apt-get install ${comd}
+    elif command -v yum ;then
+        yum install ${comd}
+    else
+        echo "you should install ${comd} manually"
+    fi
+fi
+}
+
+
 echo "Uninstall all components of TDeingne"
 
 if command -v rmtaos ;then
     echo "uninstall all components of TDeingne:rmtaos"
-    echo " " 
+    rmtaos 
 else 
     echo "os doesn't include TDengine "
 fi
 
 if command -v rmtaostools ;then
     echo "uninstall all components of TDeingne:rmtaostools"
-    echo " " 
+    rmtaostools
 else 
     echo "os doesn't include rmtaostools "
 fi
+
+
+cmdInstall tree
+cmdInstall wget
 
 echo "new workroom path"
 installPath="/usr/local/src/packageTest"
@@ -104,6 +148,11 @@ elif [[ ${packgeName} =~ "tar" ]];then
     else
         bash ${installCmd} 
     fi
+    if [[ ${packgeName} =~ "Lite" ]];then
+        cd ${installPath}
+        wget https://www.taosdata.com/assets-download/3.0/taosTools-2.1.2-Linux-x64.tar.gz
+        tar xvf taosTools-2.1.2-Linux-x64.tar.gz
+        cd taosTools-2.1.2 && bash install-taostools.sh
 
 fi 
 # }
