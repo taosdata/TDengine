@@ -132,6 +132,77 @@ __compar_fn_t gDataCompare[] = {compareInt32Val, compareInt8Val, compareInt16Val
   compareChkNotInString, compareStrPatternNotMatch, compareWStrPatternNotMatch
 };
 
+__compar_fn_t gInt8SignCompare[] = {
+  compareInt8Val, compareInt8Int16, compareInt8Int32, compareInt8Int64, compareInt8Float, compareInt8Double
+};
+__compar_fn_t gInt8UsignCompare[] = {
+  compareInt8Uint8, compareInt8Uint16, compareInt8Uint32, compareInt8Uint64
+};
+
+__compar_fn_t gInt16SignCompare[] = {
+  compareInt16Int8, compareInt16Val, compareInt16Int32, compareInt16Int64, compareInt16Float, compareInt16Double
+};
+__compar_fn_t gInt16UsignCompare[] = {
+  compareInt16Uint8, compareInt16Uint16, compareInt16Uint32, compareInt16Uint64
+};
+
+__compar_fn_t gInt32SignCompare[] = {
+  compareInt32Int8, compareInt32Int16, compareInt32Val, compareInt32Int64, compareInt32Float, compareInt32Double
+};
+__compar_fn_t gInt32UsignCompare[] = {
+  compareInt32Uint8, compareInt32Uint16, compareInt32Uint32, compareInt32Uint64
+};
+
+__compar_fn_t gInt64SignCompare[] = {
+  compareInt64Int8, compareInt64Int16, compareInt64Int32, compareInt64Val, compareInt64Float, compareInt64Double
+};
+__compar_fn_t gInt64UsignCompare[] = {
+  compareInt64Uint8, compareInt64Uint16, compareInt64Uint32, compareInt64Uint64
+};
+
+__compar_fn_t gFloatSignCompare[] = {
+  compareFloatInt8, compareFloatInt16, compareFloatInt32, compareFloatInt64, compareFloatVal, compareFloatDouble
+};
+__compar_fn_t gFloatUsignCompare[] = {
+  compareFloatUint8, compareFloatUint16, compareFloatUint32, compareFloatUint64
+};
+
+__compar_fn_t gDoubleSignCompare[] = {
+  compareDoubleInt8, compareDoubleInt16, compareDoubleInt32, compareDoubleInt64, compareDoubleFloat, compareDoubleVal
+};
+__compar_fn_t gDoubleUsignCompare[] = {
+  compareDoubleUint8, compareDoubleUint16, compareDoubleUint32, compareDoubleUint64
+};
+
+__compar_fn_t gUint8SignCompare[] = {
+  compareUint8Int8, compareUint8Int16, compareUint8Int32, compareUint8Int64, compareUint8Float, compareUint8Double
+};
+__compar_fn_t gUint8UsignCompare[] = {
+  compareUint8Val, compareUint8Uint16, compareUint8Uint32, compareUint8Uint64
+};
+
+__compar_fn_t gUint16SignCompare[] = {
+  compareUint16Int8, compareUint16Int16, compareUint16Int32, compareUint16Int64, compareUint16Float, compareUint16Double
+};
+__compar_fn_t gUint16UsignCompare[] = {
+  compareUint16Uint8, compareUint16Val, compareUint16Uint32, compareUint16Uint64
+};
+
+__compar_fn_t gUint32SignCompare[] = {
+  compareUint32Int8, compareUint32Int16, compareUint32Int32, compareUint32Int64, compareUint32Float, compareUint32Double
+};
+__compar_fn_t gUint32UsignCompare[] = {
+  compareUint32Uint8, compareUint32Uint16, compareUint32Val, compareUint32Uint64
+};
+
+__compar_fn_t gUint64SignCompare[] = {
+  compareUint64Int8, compareUint64Int16, compareUint64Int32, compareUint64Int64, compareUint64Float, compareUint64Double
+};
+__compar_fn_t gUint64UsignCompare[] = {
+  compareUint64Uint8, compareUint64Uint16, compareUint64Uint32, compareUint64Val
+};
+
+
 int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
   int8_t comparFn = 0;
 
@@ -257,6 +328,93 @@ __compar_fn_t filterGetCompFunc(int32_t type, int32_t optr) {
   return gDataCompare[filterGetCompFuncIdx(type, optr)];
 }
 
+__compar_fn_t filterGetCompFuncEx(int32_t lType, int32_t rType, int32_t optr) {
+  switch (lType) {
+    case TSDB_DATA_TYPE_TINYINT: {
+      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
+        return gInt8SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      } else {
+        return gInt8UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
+        return gInt16SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      } else {
+        return gInt16UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_INT: {
+      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
+        return gInt32SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      } else {
+        return gInt32UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_BIGINT: {
+      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
+        return gInt64SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      } else {
+        return gInt64UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
+        return gFloatSignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      } else {
+        return gFloatUsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
+        return gDoubleSignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      } else {
+        return gDoubleUsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
+        return gUint8SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      } else {
+        return gUint8UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
+        return gUint16SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      } else {
+        return gUint16UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_UINT: {
+      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
+        return gUint32SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      } else {
+        return gUint32UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
+        return gUint64SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      } else {
+        return gUint64UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  return NULL;
+}
 
 static FORCE_INLINE int32_t filterCompareGroupCtx(const void *pLeft, const void *pRight) {
   SFilterGroupCtx *left = *((SFilterGroupCtx**)pLeft), *right = *((SFilterGroupCtx**)pRight);
