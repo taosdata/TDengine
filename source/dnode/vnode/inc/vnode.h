@@ -157,17 +157,17 @@ void   tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity);
 size_t tsdbCacheGetCapacity(SVnode *pVnode);
 
 // tq
-typedef struct SMetaTableInfo{
+typedef struct SMetaTableInfo {
   int64_t         suid;
   int64_t         uid;
   SSchemaWrapper *schema;
   char            tbName[TSDB_TABLE_NAME_LEN];
-}SMetaTableInfo;
+} SMetaTableInfo;
 
-typedef struct SIdInfo{
-  int64_t         version;
-  int32_t         index;
-}SIdInfo;
+typedef struct SIdInfo {
+  int64_t version;
+  int32_t index;
+} SIdInfo;
 
 typedef struct SSnapContext {
   SMeta    *pMeta;
@@ -180,8 +180,8 @@ typedef struct SSnapContext {
   SArray   *idList;
   int32_t   index;
   bool      withMeta;
-  bool      queryMetaOrData;    // true-get meta, false-get data
-}SSnapContext;
+  bool      queryMetaOrData;  // true-get meta, false-get data
+} SSnapContext;
 
 typedef struct STqReader {
   int64_t           ver;
@@ -232,11 +232,12 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWr
 int32_t vnodeSnapWriterClose(SVSnapWriter *pWriter, int8_t rollback, SSnapshot *pSnapshot);
 int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData);
 
-int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t subType, bool withMeta, SSnapContext** ctxRet);
-int32_t getMetafromSnapShot(SSnapContext* ctx, void **pBuf, int32_t *contLen, int16_t *type, int64_t *uid);
-SMetaTableInfo getUidfromSnapShot(SSnapContext* ctx);
-int32_t setForSnapShot(SSnapContext* ctx, int64_t uid);
-int32_t destroySnapContext(SSnapContext* ctx);
+int32_t        buildSnapContext(SMeta *pMeta, int64_t snapVersion, int64_t suid, int8_t subType, bool withMeta,
+                                SSnapContext **ctxRet);
+int32_t        getMetafromSnapShot(SSnapContext *ctx, void **pBuf, int32_t *contLen, int16_t *type, int64_t *uid);
+SMetaTableInfo getUidfromSnapShot(SSnapContext *ctx);
+int32_t        setForSnapShot(SSnapContext *ctx, int64_t uid);
+int32_t        destroySnapContext(SSnapContext *ctx);
 
 // structs
 struct STsdbCfg {
@@ -259,6 +260,7 @@ typedef struct {
   int64_t numOfNTables;
   int64_t numOfNTimeSeries;
   int64_t numOfTimeSeries;
+  int64_t itvTimeSeries;
   int64_t pointsWritten;
   int64_t totalStorage;
   int64_t compStorage;

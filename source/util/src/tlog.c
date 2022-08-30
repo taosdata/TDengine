@@ -97,7 +97,7 @@ int32_t tqDebugFlag = 135;
 int32_t fsDebugFlag = 135;
 int32_t metaDebugFlag = 135;
 int32_t udfDebugFlag = 135;
-int32_t smaDebugFlag = 135;
+int32_t smaDebugFlag = 131;
 int32_t idxDebugFlag = 135;
 
 int64_t dbgEmptyW = 0;
