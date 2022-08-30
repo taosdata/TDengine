@@ -36,9 +36,9 @@ class TDSimClient:
             "rpcDebugFlag": "143",
             "tmrDebugFlag": "131",
             "cDebugFlag": "143",
-            "udebugFlag": "143",
-            "jnidebugFlag": "143",
-            "qdebugFlag": "143",
+            "uDebugFlag": "143",
+            "jniDebugFlag": "143",
+            "qDebugFlag": "143",
             "supportVnodes": "1024",
             "telemetryReporting": "0",
         }
@@ -134,7 +134,6 @@ class TDDnode:
             "uDebugFlag": "131",
             "sDebugFlag": "143",
             "wDebugFlag": "143",
-            "qdebugFlag": "143",
             "numOfLogLines": "100000000",
             "statusInterval": "1",
             "supportVnodes": "1024",
@@ -484,7 +483,7 @@ class TDDnode:
             psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % toBeKilled
             processID = subprocess.check_output(
                 psCmd, shell=True).decode("utf-8")
-            
+
             onlyKillOnceWindows = 0
             while(processID):
                 if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
