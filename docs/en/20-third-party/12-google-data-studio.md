@@ -11,26 +11,26 @@ The TDengine team immediately saw the benefits of using TDengine to process time
 
 With the release of the TDengine connector in Data Studio, you can now get even more out of your data. To obtain the connector, first go to the Data Studio Connector Gallery, click Connect to Data, and search for “TDengine”.
 
-![gds/gds-02.png.webp]
+![02](gds/gds-02.png.webp)
 
 Select the TDengine connector and click Authorize.
 
-![gds/gds-03.png.webp]
+![03](gds/gds-03.png.webp)
 
 Then sign in to your Google Account and click Allow to enable the connection to TDengine.
 
-![gds/gds-04.png.webp]
+![04](gds/gds-04.png.webp)
 
 In the Enter URL field, type the hostname and port of the server running the TDengine REST service. In the following fields, type your username, password, database name, table name, and the start and end times of your query range. Then, click Connect.
 
-![gds/gds-05.png.webp]
+![05](gds/gds-05.png.webp)
 
 After the connection is established, you can use Data Studio to process your data and create reports.
 
-![gds/gds-06.png.webp]
+![06](gds/gds-06.png.webp)
 
 In Data Studio, TDengine timestamps and tags are considered dimensions, and all other items are considered metrics. You can create all kinds of custom charts with your data – some examples are shown below.
 
-![gds/gds-07.png.webp]
+![07](gds/gds-07.png.webp)
 
 With the ability to process petabytes of data per day and provide monitoring and alerting in real time, TDengine is a great solution for time-series data management. Now, with the Data Studio connector, we’re sure you’ll be able to gain new insights and obtain even more value from your data.
