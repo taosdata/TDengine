@@ -1714,9 +1714,14 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
                 smaDebug("vgId:%d, batchSize:%d, execType:%" PRIi8, SMA_VID(pSma), qallItemSize, type);
               }
 
-              if (atomic_val_compare_exchange_8(RSMA_COMMIT_STAT(pRSmaStat), 0, 2) == 0) {
+              int8_t oldStat = atomic_val_compare_exchange_8(RSMA_COMMIT_STAT(pRSmaStat), 0, 2);
+              if (oldStat == 0 ||
+                  ((oldStat == 2) && atomic_load_8(RSMA_TRIGGER_STAT(pRSmaStat)) < TASK_TRIGGER_STAT_PAUSED)) {
+                atomic_fetch_add_32(&pRSmaStat->nFetchAll, 1);
                 tdRSmaFetchAllResult(pSma, pInfo, pSubmitArr);
-                atomic_store_8(RSMA_COMMIT_STAT(pRSmaStat), 0);
+                if (0 == atomic_sub_fetch_32(&pRSmaStat->nFetchAll, 1)) {
+                  atomic_store_8(RSMA_COMMIT_STAT(pRSmaStat), 0);
+                }
               }
 
               if (qallItemSize > 0) {
