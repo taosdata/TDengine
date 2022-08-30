@@ -320,17 +320,19 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON:
-      int32_t bufIndex = 0;
-      for (int32_t i = 0; i < length; i++) {
-        buf[bufIndex] = val[i];
-        bufIndex++;
-        if (val[i] == '\"') {
+      {
+        int32_t bufIndex = 0;
+        for (int32_t i = 0; i < length; i++) {
           buf[bufIndex] = val[i];
           bufIndex++;
+          if (val[i] == '\"') {
+            buf[bufIndex] = val[i];
+            bufIndex++;
+          }
         }
+        buf[bufIndex] = 0;
+        taosFprintfFile(pFile, "%s%s%s", quotationStr, buf, quotationStr);
       }
-      buf[bufIndex] = 0;
-      taosFprintfFile(pFile, "%s%s%s", quotationStr, buf, quotationStr);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
       shellFormatTimestamp(buf, *(int64_t *)val, precision);
