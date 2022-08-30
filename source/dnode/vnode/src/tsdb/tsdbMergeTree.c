@@ -132,8 +132,20 @@ typedef struct {
   SRBTree      rbt;
 } SMergeTree;
 
+static FORCE_INLINE tLDataIterCmprFn(const void *p1, const void *p2) {
+  SLDataIter *pIter1 = (SLDataIter *)p1;
+  SLDataIter *pIter2 = (SLDataIter *)p2;
+
+  // TODO
+  ASSERT(0);
+
+  return 0;
+}
+
 void tMergeTreeOpen(SMergeTree *pMTree, int8_t backward) {
   pMTree->backward = backward;
   pMTree->pNode = NULL;
-  tRBTreeCreate(&pMTree->rbt, NULL);
+  tRBTreeCreate(&pMTree->rbt, tLDataIterCmprFn);
 }
+
+void tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter) { tRBTreePut(&pMTree->rbt, (SRBTreeNode *)pIter); }
