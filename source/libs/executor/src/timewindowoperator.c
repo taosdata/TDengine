@@ -4330,6 +4330,7 @@ static void clearStreamSessionOperator(SStreamSessionAggOperatorInfo* pInfo) {
     }
   }
   clearDiskbasedBuf(pInfo->streamAggSup.pResultBuf);
+  pInfo->streamAggSup.currentPageId = -1;
 }
 
 static void removeSessionResults(SHashObj* pHashMap, SArray* pWins) {
