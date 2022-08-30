@@ -132,7 +132,7 @@ typedef struct {
   SRBTree      rbt;
 } SMergeTree;
 
-static FORCE_INLINE tLDataIterCmprFn(const void *p1, const void *p2) {
+static FORCE_INLINE int32_t tLDataIterCmprFn(const void *p1, const void *p2) {
   SLDataIter *pIter1 = (SLDataIter *)p1;
   SLDataIter *pIter2 = (SLDataIter *)p2;
 
