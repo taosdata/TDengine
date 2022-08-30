@@ -1,35 +1,17 @@
-use std::{net::IpAddr, path::PathBuf};
+use std::path::PathBuf;
 
 use anyhow::Result;
-use taos::*;
 
 use clap::Parser;
 
-use std::{
-    error::Error,
-    future::{self, Ready},
-};
-
-use actix_web::{
-    dev::{Service, ServiceRequest, ServiceResponse, Transform},
-    middleware::Logger,
-    web::Data,
-    App, HttpResponse, HttpServer,
-};
-use futures::future::LocalBoxFuture;
-use utoipa::{
-    openapi::security::{ApiKey, ApiKeyValue, SecurityScheme},
-    Modify, OpenApi,
-};
+use actix_web::{middleware::Logger, web::Data, App, HttpServer};
+use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
 use task::*;
 
 mod metrics;
 mod task;
-
-const API_KEY_NAME: &str = "taosx-key";
-const API_KEY: &str = "taosx-rocks";
 
 #[derive(Parser, Debug)]
 pub(super) struct Cli {
@@ -62,8 +44,6 @@ impl Cli {
                 task::get_task_by_id,
                 task::replicate,
                 task::subscribe,
-                // task::update_task,
-                // task::search_tasks
             ),
             components(
                 Task,
@@ -71,29 +51,15 @@ impl Cli {
                 NewSubscribe,
                 NewTask,
                 Cluster,
-                // TaskUpdateRequest,
                 StreamType,
-                // ErrorResponse,
                 Failed
             ),
             tags(
                 (name = "tasks", description = "Task management endpoints")
             ),
-            // modifiers(&SecurityAddon)
         )]
         struct ApiDoc;
 
-        struct SecurityAddon;
-
-        impl Modify for SecurityAddon {
-            fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
-                let components = openapi.components.as_mut().unwrap(); // we can unwrap safely since there already is components registered.
-                components.add_security_scheme(
-                    "api_key",
-                    SecurityScheme::ApiKey(ApiKey::Header(ApiKeyValue::new(API_KEY_NAME))),
-                )
-            }
-        }
         let controller = std::thread::spawn(|| {
             let runtime = tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
