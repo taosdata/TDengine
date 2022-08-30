@@ -102,6 +102,7 @@ typedef struct SQueryExecMetric {
   int64_t ctgEnd;       // end to parse, us
   int64_t semanticEnd;
   int64_t planEnd;
+  int64_t resultReady;
   int64_t execEnd;
   int64_t send;  // start to send to server, us
   int64_t rsp;   // receive response from server, us
@@ -370,7 +371,7 @@ void         launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* 
 int32_t      refreshMeta(STscObj* pTscObj, SRequestObj* pRequest);
 int32_t      updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList);
 void         doAsyncQuery(SRequestObj* pRequest, bool forceUpdateMeta);
-int32_t      removeMeta(STscObj* pTscObj, SArray* tbList);  
+int32_t      removeMeta(STscObj* pTscObj, SArray* tbList);
 int32_t      handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);
 int32_t      handleCreateTbExecRes(void* res, SCatalog* pCatalog);
 bool         qnodeRequired(SRequestObj* pRequest);
