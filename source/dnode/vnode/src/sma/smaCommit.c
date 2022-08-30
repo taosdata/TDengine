@@ -327,7 +327,7 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
   ASSERT(pRSmaStat->commitAppliedVer > 0);
 
   // step 2: wait for all triggered fetch tasks to finish
-
+  nLoops = 0;
   while (1) {
     if (T_REF_VAL_GET(pStat) == 0) {
       smaDebug("vgId:%d, rsma commit, fetch tasks are all finished", SMA_VID(pSma));
