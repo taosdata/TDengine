@@ -10,7 +10,7 @@ async fn sync(id: usize, consumer: Consumer, taos: Taos) -> Result<()> {
     while let Some((offset, message)) = stream.try_next().await? {
         match message {
             MessageSet::Meta(meta) => {
-                log::debug!("[{id} meta");
+                log::debug!("[{id}] meta: {}", meta.as_json_meta().await?);
                 taos.write_raw_meta(meta.as_raw_meta().await?).await?;
             }
             MessageSet::Data(data) => {
@@ -46,7 +46,6 @@ pub async fn tmq_to_td(from: Dsn, mut to: Dsn, jobs: usize) -> Result<()> {
                 .await?;
         }
         to.database = Some(database);
-        dbg!(&to);
     } else {
         anyhow::bail!("Database not specified in DSN: {}", to);
     }
