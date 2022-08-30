@@ -373,7 +373,7 @@ sql_error insert into st_bigint_e7  values (now, "123abc")
 sql_error insert into st_bigint_e9  values (now, abc)
 sql_error insert into st_bigint_e10 values (now, "abc")
 sql_error insert into st_bigint_e11 values (now, " ")
-sql insert into st_bigint_e12 values (now, '')
+sql_error insert into st_bigint_e12 values (now, '')
 
 sql_error insert into st_bigint_e13 using mt_bigint tags (033) values (now, 9223372036854775808)
 sql insert into st_bigint_e14 using mt_bigint tags (033) values (now, -9223372036854775808)
@@ -386,7 +386,7 @@ sql_error insert into st_bigint_e20 using mt_bigint tags (033) values (now, "123
 sql_error insert into st_bigint_e22 using mt_bigint tags (033) values (now, abc)
 sql_error insert into st_bigint_e23 using mt_bigint tags (033) values (now, "abc")
 sql_error insert into st_bigint_e24 using mt_bigint tags (033) values (now, " ")
-sql insert into st_bigint_e25 using mt_bigint tags (033) values (now, '')
+sql_error insert into st_bigint_e25 using mt_bigint tags (033) values (now, '')
 
 sql_error insert into st_bigint_e13_0 using mt_bigint tags (9223372036854775808)      values (now, -033)
 sql insert into st_bigint_e14_0 using mt_bigint tags (-9223372036854775808)     values (now, -033)

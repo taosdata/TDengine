@@ -132,6 +132,77 @@ __compar_fn_t gDataCompare[] = {compareInt32Val, compareInt8Val, compareInt16Val
   compareChkNotInString, compareStrPatternNotMatch, compareWStrPatternNotMatch
 };
 
+__compar_fn_t gInt8SignCompare[] = {
+  compareInt8Val, compareInt8Int16, compareInt8Int32, compareInt8Int64, compareInt8Float, compareInt8Double
+};
+__compar_fn_t gInt8UsignCompare[] = {
+  compareInt8Uint8, compareInt8Uint16, compareInt8Uint32, compareInt8Uint64
+};
+
+__compar_fn_t gInt16SignCompare[] = {
+  compareInt16Int8, compareInt16Val, compareInt16Int32, compareInt16Int64, compareInt16Float, compareInt16Double
+};
+__compar_fn_t gInt16UsignCompare[] = {
+  compareInt16Uint8, compareInt16Uint16, compareInt16Uint32, compareInt16Uint64
+};
+
+__compar_fn_t gInt32SignCompare[] = {
+  compareInt32Int8, compareInt32Int16, compareInt32Val, compareInt32Int64, compareInt32Float, compareInt32Double
+};
+__compar_fn_t gInt32UsignCompare[] = {
+  compareInt32Uint8, compareInt32Uint16, compareInt32Uint32, compareInt32Uint64
+};
+
+__compar_fn_t gInt64SignCompare[] = {
+  compareInt64Int8, compareInt64Int16, compareInt64Int32, compareInt64Val, compareInt64Float, compareInt64Double
+};
+__compar_fn_t gInt64UsignCompare[] = {
+  compareInt64Uint8, compareInt64Uint16, compareInt64Uint32, compareInt64Uint64
+};
+
+__compar_fn_t gFloatSignCompare[] = {
+  compareFloatInt8, compareFloatInt16, compareFloatInt32, compareFloatInt64, compareFloatVal, compareFloatDouble
+};
+__compar_fn_t gFloatUsignCompare[] = {
+  compareFloatUint8, compareFloatUint16, compareFloatUint32, compareFloatUint64
+};
+
+__compar_fn_t gDoubleSignCompare[] = {
+  compareDoubleInt8, compareDoubleInt16, compareDoubleInt32, compareDoubleInt64, compareDoubleFloat, compareDoubleVal
+};
+__compar_fn_t gDoubleUsignCompare[] = {
+  compareDoubleUint8, compareDoubleUint16, compareDoubleUint32, compareDoubleUint64
+};
+
+__compar_fn_t gUint8SignCompare[] = {
+  compareUint8Int8, compareUint8Int16, compareUint8Int32, compareUint8Int64, compareUint8Float, compareUint8Double
+};
+__compar_fn_t gUint8UsignCompare[] = {
+  compareUint8Val, compareUint8Uint16, compareUint8Uint32, compareUint8Uint64
+};
+
+__compar_fn_t gUint16SignCompare[] = {
+  compareUint16Int8, compareUint16Int16, compareUint16Int32, compareUint16Int64, compareUint16Float, compareUint16Double
+};
+__compar_fn_t gUint16UsignCompare[] = {
+  compareUint16Uint8, compareUint16Val, compareUint16Uint32, compareUint16Uint64
+};
+
+__compar_fn_t gUint32SignCompare[] = {
+  compareUint32Int8, compareUint32Int16, compareUint32Int32, compareUint32Int64, compareUint32Float, compareUint32Double
+};
+__compar_fn_t gUint32UsignCompare[] = {
+  compareUint32Uint8, compareUint32Uint16, compareUint32Val, compareUint32Uint64
+};
+
+__compar_fn_t gUint64SignCompare[] = {
+  compareUint64Int8, compareUint64Int16, compareUint64Int32, compareUint64Int64, compareUint64Float, compareUint64Double
+};
+__compar_fn_t gUint64UsignCompare[] = {
+  compareUint64Uint8, compareUint64Uint16, compareUint64Uint32, compareUint64Val
+};
+
+
 int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
   int8_t comparFn = 0;
 
@@ -257,6 +328,93 @@ __compar_fn_t filterGetCompFunc(int32_t type, int32_t optr) {
   return gDataCompare[filterGetCompFuncIdx(type, optr)];
 }
 
+__compar_fn_t filterGetCompFuncEx(int32_t lType, int32_t rType, int32_t optr) {
+  switch (lType) {
+    case TSDB_DATA_TYPE_TINYINT: {
+      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
+        return gInt8SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      } else {
+        return gInt8UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
+        return gInt16SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      } else {
+        return gInt16UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_INT: {
+      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
+        return gInt32SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      } else {
+        return gInt32UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_BIGINT: {
+      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
+        return gInt64SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      } else {
+        return gInt64UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
+        return gFloatSignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      } else {
+        return gFloatUsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
+        return gDoubleSignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      } else {
+        return gDoubleUsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
+        return gUint8SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      } else {
+        return gUint8UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
+        return gUint16SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      } else {
+        return gUint16UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_UINT: {
+      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
+        return gUint32SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      } else {
+        return gUint32UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      if (IS_SIGNED_NUMERIC_TYPE(rType) || IS_FLOAT_TYPE(rType)) {
+        return gUint64SignCompare[rType - TSDB_DATA_TYPE_TINYINT];
+      } else {
+        return gUint64UsignCompare[rType - TSDB_DATA_TYPE_UTINYINT];
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  return NULL;
+}
 
 static FORCE_INLINE int32_t filterCompareGroupCtx(const void *pLeft, const void *pRight) {
   SFilterGroupCtx *left = *((SFilterGroupCtx**)pLeft), *right = *((SFilterGroupCtx**)pRight);
@@ -910,14 +1068,14 @@ int32_t filterAddFieldFromNode(SFilterInfo *info, SNode *node, SFilterFieldId *f
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFilterFieldId *right, uint32_t *uidx) {
+int32_t filterAddUnitImpl(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFilterFieldId *right, uint8_t optr2, SFilterFieldId *right2, uint32_t *uidx) {
   if (FILTER_GET_FLAG(info->options, FLT_OPTION_NEED_UNIQE)) {
     if (info->pctx.unitHash == NULL) {
       info->pctx.unitHash = taosHashInit(FILTER_DEFAULT_GROUP_SIZE * FILTER_DEFAULT_UNIT_SIZE, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, false);
     } else {
-      int64_t v = 0;
-      FILTER_PACKAGE_UNIT_HASH_KEY(&v, optr, left->idx, right ? right->idx : -1);
-      void *hu = taosHashGet(info->pctx.unitHash, &v, sizeof(v));
+      char v[14] = {0};
+      FLT_PACKAGE_UNIT_HASH_KEY(&v, optr, optr2, left->idx, (right ? right->idx : -1), (right2 ? right2->idx : -1));
+      void *hu = taosHashGet(info->pctx.unitHash, v, sizeof(v));
       if (hu) {
         *uidx = *(uint32_t *)hu;
         return TSDB_CODE_SUCCESS;
@@ -939,7 +1097,11 @@ int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFi
   if (right) {
     u->right = *right;
   }
-
+  u->compare.optr2 = optr2;
+  if (right2) {
+    u->right2 = *right2;
+  }
+  
   if (u->right.type == FLD_TYPE_VALUE) {
     SFilterField *val = FILTER_UNIT_RIGHT_FIELD(info, u);
     assert(FILTER_GET_FLAG(val->flag, FLD_TYPE_VALUE));
@@ -960,9 +1122,9 @@ int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFi
   *uidx = info->unitNum;
 
   if (FILTER_GET_FLAG(info->options, FLT_OPTION_NEED_UNIQE)) {
-    int64_t v = 0;
-    FILTER_PACKAGE_UNIT_HASH_KEY(&v, optr, left->idx, right ? right->idx : -1);
-    taosHashPut(info->pctx.unitHash, &v, sizeof(v), uidx, sizeof(*uidx));
+    char v[14] = {0};
+    FLT_PACKAGE_UNIT_HASH_KEY(&v, optr, optr2, left->idx, (right ? right->idx : -1), (right2 ? right2->idx : -1));
+    taosHashPut(info->pctx.unitHash, v, sizeof(v), uidx, sizeof(*uidx));
   }
 
   ++info->unitNum;
@@ -971,6 +1133,9 @@ int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFi
 }
 
 
+int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFilterFieldId *right, uint32_t *uidx) {
+  return filterAddUnitImpl(info, optr, left, right, 0, NULL, uidx);
+}
 
 int32_t filterAddUnitToGroup(SFilterGroup *group, uint32_t unitIdx) {
   if (group->unitNum >= group->unitSize) {
@@ -1147,8 +1312,8 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
         SIMPLE_COPY_VALUES(data2, &ra->e);
         filterAddField(dst, NULL, &data2, FLD_TYPE_VALUE, &right2, tDataTypes[type].bytes, true);
 
-        filterAddUnit(dst, FILTER_GET_FLAG(ra->sflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_GREATER_THAN : OP_TYPE_GREATER_EQUAL, &left, &right, &uidx);
-        filterAddUnitRight(dst, FILTER_GET_FLAG(ra->eflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_LOWER_THAN : OP_TYPE_LOWER_EQUAL, &right2, uidx);
+        filterAddUnitImpl(dst, FILTER_GET_FLAG(ra->sflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_GREATER_THAN : OP_TYPE_GREATER_EQUAL, &left, &right, 
+                          FILTER_GET_FLAG(ra->eflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_LOWER_THAN : OP_TYPE_LOWER_EQUAL, &right2, &uidx);
         filterAddUnitToGroup(g, uidx);
         return TSDB_CODE_SUCCESS;
       }
@@ -1222,8 +1387,8 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
         SIMPLE_COPY_VALUES(data2, &r->ra.e);
         filterAddField(dst, NULL, &data2, FLD_TYPE_VALUE, &right2, tDataTypes[type].bytes, true);
 
-        filterAddUnit(dst, FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_GREATER_THAN : OP_TYPE_GREATER_EQUAL, &left, &right, &uidx);
-        filterAddUnitRight(dst, FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_LOWER_THAN : OP_TYPE_LOWER_EQUAL, &right2, uidx);
+        filterAddUnitImpl(dst, FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_GREATER_THAN : OP_TYPE_GREATER_EQUAL, &left, &right, 
+                          FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_LOWER_THAN : OP_TYPE_LOWER_EQUAL, &right2, &uidx);
         filterAddUnitToGroup(g, uidx);
       }
 
@@ -2073,6 +2238,44 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
+bool filterIsSameUnits(SFilterColInfo* pCol1, SFilterColInfo* pCol2) {
+  if (pCol1->type != pCol2->type) {
+    return false;
+  }
+
+  if (RANGE_TYPE_MR_CTX == pCol1->type) {
+    SFilterRangeCtx* pCtx1 = (SFilterRangeCtx*)pCol1->info;
+    SFilterRangeCtx* pCtx2 = (SFilterRangeCtx*)pCol2->info;
+
+    if ((pCtx1->isnull != pCtx2->isnull) || (pCtx1->notnull != pCtx2->notnull) || (pCtx1->isrange != pCtx2->isrange)) {
+      return false;
+    }
+
+    
+    SFilterRangeNode* pNode1 = pCtx1->rs;
+    SFilterRangeNode* pNode2 = pCtx2->rs;
+
+    while (true) {
+      if (NULL == pNode1 && NULL == pNode2) {
+        break;
+      }
+      
+      if (NULL == pNode1 || NULL == pNode2) {
+        return false;
+      }
+
+      if (pNode1->ra.s != pNode2->ra.s || pNode1->ra.e != pNode2->ra.e || pNode1->ra.sflag != pNode2->ra.sflag || pNode1->ra.eflag != pNode2->ra.eflag) {
+        return false;
+      }
+
+      pNode1 = pNode1->next;
+      pNode2 = pNode2->next;
+    }
+  }
+
+  return true;
+}
+
 void filterCheckColConflict(SFilterGroupCtx* gRes1, SFilterGroupCtx* gRes2, bool *conflict) {
   uint32_t idx1 = 0, idx2 = 0, m = 0, n = 0;
   bool equal = false;
@@ -2094,6 +2297,11 @@ void filterCheckColConflict(SFilterGroupCtx* gRes1, SFilterGroupCtx* gRes2, bool
       }
 
       if (FILTER_NO_MERGE_DATA_TYPE(gRes1->colInfo[idx1].dataType)) {
+        *conflict = true;
+        return;
+      }
+
+      if (!filterIsSameUnits(&gRes1->colInfo[idx1], &gRes2->colInfo[idx2])) {
         *conflict = true;
         return;
       }
@@ -2711,17 +2919,22 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SColumnDataAgg *pDataStatis, int3
 
   for (uint32_t g = 0; g < info->groupNum; ++g) {
     SFilterGroup *group = &info->groups[g];
+    // first is block unint num for a group, following append unitNum blkUnitIdx for this group
     *unitNum = group->unitNum;
     all = 0;
     empty = 0;
 
+    // save group idx start pointer
+    uint32_t * pGroupIdx = unitIdx;
     for (uint32_t u = 0; u < group->unitNum; ++u) {
       uint32_t uidx = group->unitIdxs[u];
       if (info->blkUnitRes[uidx] == 1) {
+        // blkUnitRes == 1 is always true, so need not compare every time, delete this unit from group
         --(*unitNum);
         all = 1;
         continue;
       } else if (info->blkUnitRes[uidx] == -1) {
+        // blkUnitRes == -1 is alwary false, so in group is alwary false, need delete this group from blkGroupNum
         *unitNum = 0;
         empty = 1;
         break;
@@ -2731,6 +2944,9 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SColumnDataAgg *pDataStatis, int3
     }
 
     if (*unitNum == 0) {
+      // if unit num is zero, reset unitIdx to start on this group
+      unitIdx = pGroupIdx;
+
       --info->blkGroupNum;
       assert(empty || all);
 

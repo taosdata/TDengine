@@ -276,7 +276,7 @@ struct SFilterInfo {
 #define FILTER_CLR_FLAG(st, f) st &= (~f)
 
 #define SIMPLE_COPY_VALUES(dst, src) *((int64_t *)dst) = *((int64_t *)src)
-#define FILTER_PACKAGE_UNIT_HASH_KEY(v, optr, idx1, idx2) do { char *_t = (char *)v; _t[0] = optr; *(uint32_t *)(_t + 1) = idx1; *(uint32_t *)(_t + 3) = idx2; } while (0)
+#define FLT_PACKAGE_UNIT_HASH_KEY(v, op1, op2, lidx, ridx, ridx2) do { char *_t = (char *)(v); _t[0] = (op1); _t[1] = (op2); *(uint32_t *)(_t + 2) = (lidx); *(uint32_t *)(_t + 2 + sizeof(uint32_t)) = (ridx); } while (0)
 #define FILTER_GREATER(cr,sflag,eflag) ((cr > 0) || ((cr == 0) && (FILTER_GET_FLAG(sflag,RANGE_FLG_EXCLUDE) || FILTER_GET_FLAG(eflag,RANGE_FLG_EXCLUDE))))
 #define FILTER_COPY_RA(dst, src) do { (dst)->sflag = (src)->sflag; (dst)->eflag = (src)->eflag; (dst)->s = (src)->s; (dst)->e = (src)->e; } while (0)
 
@@ -350,6 +350,7 @@ struct SFilterInfo {
 
 extern bool filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right);
 extern __compar_fn_t filterGetCompFunc(int32_t type, int32_t optr);
+extern __compar_fn_t filterGetCompFuncEx(int32_t lType, int32_t rType, int32_t optr);
 
 #ifdef __cplusplus
 }

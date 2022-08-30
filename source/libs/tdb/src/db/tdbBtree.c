@@ -509,7 +509,7 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild, TXN
 static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTxn) {
   int ret;
 
-  int    nOlds;
+  int    nOlds, pageIdx;
   SPage *pOlds[3] = {0};
   SCell *pDivCell[3] = {0};
   int    szDivCell[3];
@@ -849,13 +849,11 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     }
   }
 
-  // TODO: here is not corrent for drop case
-  for (int i = 0; i < nNews; i++) {
-    if (i < nOlds) {
-      tdbPagerReturnPage(pBt->pPager, pOlds[i], pTxn);
-    } else {
-      tdbPagerReturnPage(pBt->pPager, pNews[i], pTxn);
-    }
+  for (pageIdx = 0; pageIdx < nOlds; ++pageIdx) {
+    tdbPagerReturnPage(pBt->pPager, pOlds[pageIdx], pTxn);
+  }
+  for (; pageIdx < nNews; ++pageIdx) {
+    tdbPagerReturnPage(pBt->pPager, pNews[pageIdx], pTxn);
   }
 
   return 0;

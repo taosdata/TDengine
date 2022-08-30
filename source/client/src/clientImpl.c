@@ -1030,6 +1030,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
         pRequest->body.subplanNum = pDag->numOfSubplans;
       }
 
+      pRequest->metric.planEnd = taosGetTimestampUs();
+
       if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
         SArray* pNodeList = NULL;
         buildAsyncExecNodeList(pRequest, &pNodeList, pMnodeList, pResultMeta);

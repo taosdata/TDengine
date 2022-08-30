@@ -476,7 +476,7 @@ sql_error insert into st_double_e7  values (now, "123abc")
 sql_error insert into st_double_e9  values (now, abc)
 sql_error insert into st_double_e10 values (now, "abc")
 sql_error insert into st_double_e11 values (now, " ")
-sql insert into st_double_e12 values (now, '')
+sql_error insert into st_double_e12 values (now, '')
 
 sql_error insert into st_double_e13 using mt_double tags (033) values (now, 11.7976931348623157e+308)
 sql_error insert into st_double_e14 using mt_double tags (033) values (now, -11.7976931348623157e+308)
@@ -489,7 +489,7 @@ sql_error insert into st_double_e20 using mt_double tags (033) values (now, "123
 sql_error insert into st_double_e22 using mt_double tags (033) values (now, abc)
 sql_error insert into st_double_e23 using mt_double tags (033) values (now, "abc")
 sql_error insert into st_double_e24 using mt_double tags (033) values (now, " ")
-sql insert into st_double_e25_1 using mt_double tags (033) values (now, '')
+sql_error insert into st_double_e25_1 using mt_double tags (033) values (now, '')
 
 sql_error insert into st_double_e13 using mt_double tags (31.7976931348623157e+308)      values (now, -033)
 sql_error insert into st_double_e14 using mt_double tags (-31.7976931348623157e+308)     values (now, -033)

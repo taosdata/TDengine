@@ -1,8 +1,5 @@
 #!/bin/sh
 
-# function installPkgAndCheckFile{
-
-echo "Download package"
 
 packgeName=$1
 version=$2
@@ -25,21 +22,40 @@ elif [ ${testFile} = "tools" ];then
     installCmd="install-taostools.sh"
 fi
 
+function cmdInstall {
+comd=$1
+if command -v ${comd} ;then
+    echo "${comd} is already installed" 
+else 
+    if command -v apt ;then
+        apt-get install ${comd} -y 
+    elif command -v yum ;then
+        yum -y install ${comd} 
+        echo "you should install ${comd} manually"
+    fi
+fi
+}
+
+
 echo "Uninstall all components of TDeingne"
 
 if command -v rmtaos ;then
     echo "uninstall all components of TDeingne:rmtaos"
-    echo " " 
+    rmtaos 
 else 
     echo "os doesn't include TDengine "
 fi
 
 if command -v rmtaostools ;then
     echo "uninstall all components of TDeingne:rmtaostools"
-    echo " " 
+    rmtaostools
 else 
     echo "os doesn't include rmtaostools "
 fi
+
+
+cmdInstall tree
+cmdInstall wget
 
 echo "new workroom path"
 installPath="/usr/local/src/packageTest"
@@ -67,8 +83,10 @@ wget https://www.taosdata.com/assets-download/3.0/${originPackageName}
 
 
 if [[ ${packgeName} =~ "deb" ]];then
+    cd ${installPath}
     echo "dpkg ${packgeName}" &&  dpkg -i ${packgeName}
 elif [[ ${packgeName} =~ "rpm" ]];then
+    cd ${installPath}
     echo "rpm ${packgeName}"  && rpm -ivh ${packgeName}
 elif [[ ${packgeName} =~ "tar" ]];then
     echo "tar ${packgeName}" && tar -xvf ${packgeName} 
@@ -104,9 +122,12 @@ elif [[ ${packgeName} =~ "tar" ]];then
     else
         bash ${installCmd} 
     fi
+    if [[ ${packgeName} =~ "Lite" ]];then
+        cd ${installPath}
+        wget https://www.taosdata.com/assets-download/3.0/taosTools-2.1.2-Linux-x64.tar.gz
+        tar xvf taosTools-2.1.2-Linux-x64.tar.gz
+        cd taosTools-2.1.2 && bash install-taostools.sh
+    fi
 
-fi 
-# }
-
-# installPkgAndCheckFile 
+fi  
 

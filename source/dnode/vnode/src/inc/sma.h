@@ -95,6 +95,7 @@ struct SRSmaStat {
   int64_t          refId;             // shared by fetch tasks
   volatile int64_t nBufItems;         // number of items in queue buffer
   SRWLatch         lock;              // r/w lock for rsma fs(e.g. qtaskinfo)
+  volatile int32_t nFetchAll;         // active number of fetch all
   int8_t           triggerStat;       // shared by fetch tasks
   int8_t           commitStat;        // 0 not in committing, 1 in committing
   SArray          *aTaskFile;         // qTaskFiles committed recently(for recovery/snapshot r/w)

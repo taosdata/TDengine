@@ -44,7 +44,7 @@ Query OK, 2 row(s) in set (0.001100s)
 
 为满足物联网场景的需求，TDengine 支持几个特殊的函数，比如 twa(时间加权平均)，spread (最大值与最小值的差)，last_row(最后一条记录)等，更多与物联网场景相关的函数将添加进来。
 
-具体的查询语法请看 [TAOS SQL 的数据查询](../../taos-sql/select) 章节。
+具体的查询语法请看 [TDengine SQL 的数据查询](../../taos-sql/select) 章节。
 
 ## 多表聚合查询
 
@@ -75,7 +75,7 @@ taos> SELECT count(*), max(current) FROM meters where groupId = 2;
 Query OK, 1 row(s) in set (0.002136s)
 ```
 
-在 [TAOS SQL 的数据查询](../../taos-sql/select) 一章，查询类操作都会注明是否支持超级表。
+在 [TDengine SQL 的数据查询](../../taos-sql/select) 一章，查询类操作都会注明是否支持超级表。
 
 ## 降采样查询、插值
 
@@ -123,7 +123,7 @@ Query OK, 6 rows in database (0.005515s)
 
 如果一个时间间隔里，没有采集的数据，TDengine 还提供插值计算的功能。
 
-语法规则细节请见 [TAOS SQL 的按时间窗口切分聚合](../../taos-sql/distinguished) 章节。
+语法规则细节请见 [TDengine SQL 的按时间窗口切分聚合](../../taos-sql/distinguished) 章节。
 
 ## 示例代码
 

@@ -1,7 +1,7 @@
 def sync_source(branch_name) {
     sh '''
         hostname
-        env
+        ip addr|grep 192|awk  '{print $2}'|sed "s/\\/.*//"  
         echo ''' + branch_name + '''
     '''
     sh '''
@@ -15,6 +15,7 @@ def sync_source(branch_name) {
         cd ${TDENGINE_ROOT_DIR}
         git reset --hard
         git fetch || git fetch
+        rm -rf examples/rust/
         git checkout ''' + branch_name + ''' -f
         git branch
         git pull || git pull
@@ -53,6 +54,16 @@ pipeline {
             defaultValue:'3.0.0.1', 
             description: 'This number of baseVerison is generally not modified.Now it is 3.0.0.1'
         )
+        string (
+            name:'toolsVersion', 
+            defaultValue:'2.1.2', 
+            description: 'This number of baseVerison is generally not modified.Now it is 3.0.0.1'
+        )
+        string (
+            name:'toolsBaseVersion', 
+            defaultValue:'2.1.2', 
+            description: 'This number of baseVerison is generally not modified.Now it is 3.0.0.1'
+        )
     }
     environment{
         WORK_DIR = '/var/lib/jenkins/workspace'
@@ -61,7 +72,7 @@ pipeline {
         BRANCH_NAME = '3.0'
 
         TD_SERVER_TAR = "TDengine-server-${version}-Linux-x64.tar.gz"
-        BASE_TD_SERVER_TAR = "TDengine-server-${baseVersion}-arm64-x64.tar.gz"
+        BASE_TD_SERVER_TAR = "TDengine-server-${baseVersion}-Linux-x64.tar.gz"
 
         TD_SERVER_ARM_TAR = "TDengine-server-${version}-Linux-arm64.tar.gz"
         BASE_TD_SERVER_ARM_TAR = "TDengine-server-${baseVersion}-Linux-arm64.tar.gz"
@@ -70,7 +81,7 @@ pipeline {
         BASE_TD_SERVER_LITE_TAR = "TDengine-server-${baseVersion}-Linux-x64-Lite.tar.gz"
 
         TD_CLIENT_TAR = "TDengine-client-${version}-Linux-x64.tar.gz"
-        BASE_TD_CLIENT_TAR = "TDengine-client-${baseVersion}-arm64-x64.tar.gz"
+        BASE_TD_CLIENT_TAR = "TDengine-client-${baseVersion}-Linux-x64.tar.gz"
 
         TD_CLIENT_ARM_TAR = "TDengine-client-${version}-Linux-arm64.tar.gz"
         BASE_TD_CLIENT_ARM_TAR = "TDengine-client-${baseVersion}-Linux-arm64.tar.gz"
@@ -86,31 +97,22 @@ pipeline {
         
         TD_CLIENT_EXE = "TDengine-client-${version}-Windows-x64.exe"
 
+        TD_TOOLS_TAR = "taosTools-${toolsVersion}-Linux-x64.tar.gz"
+
 
     }
     stages {
         stage ('RUN') {
-        stage('get check package scritps'){
-            agent{label 'ubuntu18'}
-            steps {
-                catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                    script{
-                        sync_source("${BRANCH_NAME}")
-                    }
-                    
-                }
-            }
-        }
             parallel {
                 stage('ubuntu16') {
                     agent{label " ubuntu16 "}
                     steps {
-                        timeout(time: 3, unit: 'MINUTES'){
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sync_source("${BRANCH_NAME}")
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
                             bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server
                             python3 checkPackageRuning.py  
-                            rmtaos
                             '''
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
@@ -128,12 +130,12 @@ pipeline {
                 stage('ubuntu18') {
                     agent{label " ubuntu18 "}
                     steps {
-                        timeout(time: 3, unit: 'MINUTES'){
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sync_source("${BRANCH_NAME}")
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
                             bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server
                             python3 checkPackageRuning.py  
-                            rmtaos
                             '''
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
@@ -151,12 +153,12 @@ pipeline {
                 stage('centos7') {
                     agent{label " centos7_9 "}
                     steps {
-                        timeout(time: 240, unit: 'MINUTES'){
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sync_source("${BRANCH_NAME}")
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
                             bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server
                             python3 checkPackageRuning.py  
-                            rmtaos
                             '''
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
@@ -174,7 +176,8 @@ pipeline {
                 stage('centos8') {
                     agent{label " centos8_3 "}
                     steps {
-                        timeout(time: 240, unit: 'MINUTES'){
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sync_source("${BRANCH_NAME}")
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
                             bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server

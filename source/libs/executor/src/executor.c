@@ -177,13 +177,13 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* n
 
   // extract the number of output columns
   SDataBlockDescNode* pDescNode = pPlan->pNode->pOutputDataBlockDesc;
-  if(numOfCols) *numOfCols = 0;
+  *numOfCols = 0;
 
   SNode* pNode;
   FOREACH(pNode, pDescNode->pSlots) {
     SSlotDescNode* pSlotDesc = (SSlotDescNode*)pNode;
     if (pSlotDesc->output) {
-      if(numOfCols) ++(*numOfCols);
+      ++(*numOfCols);
     }
   }
 
