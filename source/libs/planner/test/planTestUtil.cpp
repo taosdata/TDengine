@@ -278,11 +278,11 @@ class PlannerTestBaseImpl {
   }
 
   void dump(DumpModule module) {
+    cout << "========================================== " << sqlNo_ << " sql : [" << stmtEnv_.sql_ << "]" << endl;
+
     if (DUMP_MODULE_NOTHING == module) {
       return;
     }
-
-    cout << "========================================== " << sqlNo_ << " sql : [" << stmtEnv_.sql_ << "]" << endl;
 
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_PARSER == module) {
       if (res_.prepareAst_.empty()) {

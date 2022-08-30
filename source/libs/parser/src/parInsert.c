@@ -502,6 +502,10 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
     return func(pMsgBuf, NULL, 0, param);
   }
 
+  if (IS_NUMERIC_TYPE(pSchema->type) && pToken->n == 0) {
+    return buildSyntaxErrMsg(pMsgBuf, "invalid numeric data", pToken->z);
+  }
+
   switch (pSchema->type) {
     case TSDB_DATA_TYPE_BOOL: {
       if ((pToken->type == TK_NK_BOOL || pToken->type == TK_NK_STRING) && (pToken->n != 0)) {
