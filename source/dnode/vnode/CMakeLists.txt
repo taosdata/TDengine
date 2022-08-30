@@ -52,6 +52,7 @@ target_sources(
     "src/tsdb/tsdbDiskData.c"
     "src/tsdb/tsdbCompress.c"
     "src/tsdb/tsdbCompact.c"
+    "src/tsdb/tsdbMergeTree.c"
 
     # tq
     "src/tq/tq.c"

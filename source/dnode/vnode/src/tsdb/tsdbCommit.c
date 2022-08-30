@@ -20,12 +20,6 @@ typedef struct {
   STSchema *pTSchema;
 } SSkmInfo;
 
-typedef struct {
-  int64_t suid;
-  int64_t uid;
-  TSDBROW row;
-} SRowInfo;
-
 typedef enum { MEMORY_DATA_ITER = 0, LAST_DATA_ITER } EDataIterT;
 
 typedef struct {
