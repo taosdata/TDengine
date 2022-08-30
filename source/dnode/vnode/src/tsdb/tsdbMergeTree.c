@@ -84,31 +84,28 @@ void tLDataIterNextBlock(SLDataIter *pIter) {
 int32_t tLDataIterNextRow(SLDataIter *pIter) {
   int32_t code = 0;
 
+  int32_t iBlockL = pIter->iBlockL;
   if (pIter->backward) {
     pIter->iRow--;
     if (pIter->iRow < 0) {
-      pIter->iBlockL--;
-
-      if (pIter->iBlockL >= 0) {
-        code = tsdbReadLastBlockEx(pIter->pReader, pIter->iLast, taosArrayGet(pIter->aBlockL, pIter->iBlockL),
-                                   &pIter->bData);
-        if (code) goto _exit;
-      } else {
-        // TODO: no more data here
-      }
+      tLDataIterNextBlock(pIter);
     }
   } else {
     pIter->iRow++;
     if (pIter->iRow >= pIter->bData.nRow) {
       pIter->iBlockL++;
-      if (pIter->iBlockL < taosArrayGetSize(pIter->aBlockL)) {
-        code = tsdbReadLastBlockEx(pIter->pReader, pIter->iLast, taosArrayGet(pIter->aBlockL, pIter->iBlockL),
-                                   &pIter->bData);
-        if (code) goto _exit;
-      } else {
-        // TODO: not more data
-        goto _exit;
-      }
+      tLDataIterNextBlock(pIter);
+    }
+  }
+
+  if (iBlockL != pIter->iBlockL) {
+    if (pIter->pBlockL) {
+      code = tsdbReadLastBlockEx(pIter->pReader, pIter->iLast, pIter->pBlockL, &pIter->bData);
+      if (code) goto _exit;
+      pIter->iRow = 0;
+    } else {
+      // no more data
+      goto _exit;
     }
   }
 
