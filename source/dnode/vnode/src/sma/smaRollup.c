@@ -21,6 +21,7 @@
 #define RSMA_SUBMIT_BATCH_SIZE     (1024)                                                // cnt
 #define RSMA_FETCH_DELAY_MAX       (900000)                                              // ms
 #define RSMA_FETCH_ACTIVE_MAX      (1800)                                                // ms
+#define RSMA_FETCH_INTERVAL        (5000)                                                // ms
 
 SSmaMgmt smaMgmt = {
     .inited = 0,
@@ -1501,13 +1502,13 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
   switch (rsmaTriggerStat) {
     case TASK_TRIGGER_STAT_PAUSED:
     case TASK_TRIGGER_STAT_CANCELLED: {
-      tdReleaseSmaRef(smaMgmt.rsetId, pRSmaInfo->refId);
       smaDebug("vgId:%d, rsma fetch task not start for level %" PRIi8 " since stat is %" PRIi8
                ", rsetId rsetId:%" PRIi64 " refId:%d",
                SMA_VID(pSma), pItem->level, rsmaTriggerStat, smaMgmt.rsetId, pRSmaInfo->refId);
       if (rsmaTriggerStat == TASK_TRIGGER_STAT_PAUSED) {
-        taosTmrReset(tdRSmaFetchTrigger, 5000, pItem, smaMgmt.tmrHandle, &pItem->tmrId);
+        taosTmrReset(tdRSmaFetchTrigger, RSMA_FETCH_INTERVAL, pItem, smaMgmt.tmrHandle, &pItem->tmrId);
       }
+      tdReleaseSmaRef(smaMgmt.rsetId, pRSmaInfo->refId);
       return;
     }
     default:
@@ -1518,7 +1519,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
       atomic_val_compare_exchange_8(&pItem->triggerStat, TASK_TRIGGER_STAT_ACTIVE, TASK_TRIGGER_STAT_INACTIVE);
   switch (fetchTriggerStat) {
     case TASK_TRIGGER_STAT_ACTIVE: {
-      smaDebug("vgId:%d, rsma fetch task started for level:%" PRIi8 " suid:%" PRIi64 " since stat is active",
+      smaDebug("vgId:%d, rsma fetch task planned for level:%" PRIi8 " suid:%" PRIi64 " since stat is active",
                SMA_VID(pSma), pItem->level, pRSmaInfo->suid);
       // async process
       pItem->fetchLevel = pItem->level;
@@ -1531,8 +1532,6 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
       if (atomic_load_8(&pRSmaInfo->assigned) == 0) {
         tsem_post(&(pStat->notEmpty));
       }
-      smaInfo("vgId:%d, rsma fetch task planned for level:%" PRIi8 " suid:%" PRIi64, SMA_VID(pSma), pItem->level,
-              pRSmaInfo->suid);
     } break;
     case TASK_TRIGGER_STAT_PAUSED: {
       smaDebug("vgId:%d, rsma fetch task not start for level:%" PRIi8 " suid:%" PRIi64 " since stat is paused",
@@ -1715,15 +1714,30 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
                 smaDebug("vgId:%d, batchSize:%d, execType:%" PRIi8, SMA_VID(pSma), qallItemSize, type);
               }
 
-              if (type == RSMA_EXEC_OVERFLOW) {
+              int8_t oldStat = atomic_val_compare_exchange_8(RSMA_COMMIT_STAT(pRSmaStat), 0, 2);
+              if (oldStat == 0 ||
+                  ((oldStat == 2) && atomic_load_8(RSMA_TRIGGER_STAT(pRSmaStat)) < TASK_TRIGGER_STAT_PAUSED)) {
+                atomic_fetch_add_32(&pRSmaStat->nFetchAll, 1);
                 tdRSmaFetchAllResult(pSma, pInfo, pSubmitArr);
+                if (0 == atomic_sub_fetch_32(&pRSmaStat->nFetchAll, 1)) {
+                  atomic_store_8(RSMA_COMMIT_STAT(pRSmaStat), 0);
+                }
               }
 
               if (qallItemSize > 0) {
                 atomic_fetch_sub_64(&pRSmaStat->nBufItems, qallItemSize);
                 continue;
               } else if (RSMA_INFO_ITEM(pInfo, 0)->fetchLevel || RSMA_INFO_ITEM(pInfo, 1)->fetchLevel) {
-                continue;
+                if (atomic_load_8(RSMA_COMMIT_STAT(pRSmaStat)) == 0) {
+                  continue;
+                }
+                for (int32_t j = 0; j < TSDB_RETENTION_L2; ++j) {
+                  SRSmaInfoItem *pItem = RSMA_INFO_ITEM(pInfo, j);
+                  if (pItem->fetchLevel) {
+                    pItem->fetchLevel = 0;
+                    taosTmrReset(tdRSmaFetchTrigger, RSMA_FETCH_INTERVAL, pItem, smaMgmt.tmrHandle, &pItem->tmrId);
+                  }
+                }
               }
 
               break;
@@ -1775,7 +1789,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
       if (pEnv->flag & SMA_ENV_FLG_CLOSE) {
         break;
       }
-      
+
       tsem_wait(&pRSmaStat->notEmpty);
 
       if ((pEnv->flag & SMA_ENV_FLG_CLOSE) && (atomic_load_64(&pRSmaStat->nBufItems) <= 0)) {
