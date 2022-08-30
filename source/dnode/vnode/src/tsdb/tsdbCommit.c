@@ -1314,7 +1314,7 @@ static int32_t tsdbInitLastBlockIfNeed(SCommitter *pCommitter, TABLEID id) {
   if (!pBDatal->suid && !pBDatal->uid) {
     ASSERT(pCommitter->skmTable.suid == id.suid);
     ASSERT(pCommitter->skmTable.uid == id.uid);
-    code = tBlockDataInit(pBDatal, id.suid, 0, pCommitter->skmTable.pTSchema);
+    code = tBlockDataInit(pBDatal, id.suid, id.suid ? 0 : id.uid, pCommitter->skmTable.pTSchema);
     if (code) goto _exit;
   }
 
