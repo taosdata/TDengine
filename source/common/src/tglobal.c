@@ -438,7 +438,7 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
     return -1;
   } else {
     stype = pItem->stype;
-    numOfCores = pItem->i32;
+    numOfCores = pItem->fval;
   }
 
   pItem = cfgGetItem(tsCfg, "supportVnodes");
