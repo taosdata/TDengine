@@ -264,9 +264,15 @@ char *shellFormatTimestamp(char *buf, int64_t val, int32_t precision) {
   return buf;
 }
 
-void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length, int32_t precision) {
+void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length, int32_t precision, bool quotation) {
+  char quotationStr[2];
+  quotationStr[0] = 0;
+  quotationStr[1] = 0;
+  if (quotation) {
+    quotationStr[0] = '\"';
+  }
   if (val == NULL) {
-    taosFprintfFile(pFile, "%s", TSDB_DATA_NULL_STR);
+    taosFprintfFile(pFile, "%s%s%s", quotationStr, TSDB_DATA_NULL_STR, quotationStr);
     return;
   }
 
@@ -274,39 +280,39 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
   char buf[TSDB_MAX_BYTES_PER_ROW];
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
-      taosFprintfFile(pFile, "%d", ((((int32_t)(*((char *)val))) == 1) ? 1 : 0));
+      taosFprintfFile(pFile, "%s%d%s", quotationStr, ((((int32_t)(*((char *)val))) == 1) ? 1 : 0), quotationStr);
       break;
     case TSDB_DATA_TYPE_TINYINT:
-      taosFprintfFile(pFile, "%d", *((int8_t *)val));
+      taosFprintfFile(pFile, "%s%d%s", quotationStr, *((int8_t *)val), quotationStr);
       break;
     case TSDB_DATA_TYPE_UTINYINT:
-      taosFprintfFile(pFile, "%u", *((uint8_t *)val));
+      taosFprintfFile(pFile, "%s%u%s", quotationStr, *((uint8_t *)val), quotationStr);
       break;
     case TSDB_DATA_TYPE_SMALLINT:
-      taosFprintfFile(pFile, "%d", *((int16_t *)val));
+      taosFprintfFile(pFile, "%s%d%s", quotationStr, *((int16_t *)val), quotationStr);
       break;
     case TSDB_DATA_TYPE_USMALLINT:
-      taosFprintfFile(pFile, "%u", *((uint16_t *)val));
+      taosFprintfFile(pFile, "%s%u%s", quotationStr, *((uint16_t *)val), quotationStr);
       break;
     case TSDB_DATA_TYPE_INT:
-      taosFprintfFile(pFile, "%d", *((int32_t *)val));
+      taosFprintfFile(pFile, "%s%d%s", quotationStr, *((int32_t *)val), quotationStr);
       break;
     case TSDB_DATA_TYPE_UINT:
-      taosFprintfFile(pFile, "%u", *((uint32_t *)val));
+      taosFprintfFile(pFile, "%s%u%s", quotationStr, *((uint32_t *)val), quotationStr);
       break;
     case TSDB_DATA_TYPE_BIGINT:
-      taosFprintfFile(pFile, "%" PRId64, *((int64_t *)val));
+      taosFprintfFile(pFile, "%s%" PRId64 "%s", quotationStr, *((int64_t *)val), quotationStr);
       break;
     case TSDB_DATA_TYPE_UBIGINT:
-      taosFprintfFile(pFile, "%" PRIu64, *((uint64_t *)val));
+      taosFprintfFile(pFile, "%s%" PRIu64 "%s", quotationStr, *((uint64_t *)val), quotationStr);
       break;
     case TSDB_DATA_TYPE_FLOAT:
-      taosFprintfFile(pFile, "%.5f", GET_FLOAT_VAL(val));
+      taosFprintfFile(pFile, "%s%.5f%s", quotationStr, GET_FLOAT_VAL(val), quotationStr);
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", length, GET_DOUBLE_VAL(val));
+      n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%s%*.9f%s", quotationStr, length, GET_DOUBLE_VAL(val), quotationStr);
       if (n > TMAX(25, length)) {
-        taosFprintfFile(pFile, "%*.15e", length, GET_DOUBLE_VAL(val));
+        taosFprintfFile(pFile, "%s%*.15e%s", quotationStr, length, GET_DOUBLE_VAL(val), quotationStr);
       } else {
         taosFprintfFile(pFile, "%s", buf);
       }
@@ -314,13 +320,21 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON:
-      memcpy(buf, val, length);
-      buf[length] = 0;
-      taosFprintfFile(pFile, "\'%s\'", buf);
+      int32_t bufIndex = 0;
+      for (int32_t i = 0; i < length; i++) {
+        buf[bufIndex] = val[i];
+        bufIndex++;
+        if (val[i] == '\"') {
+          buf[bufIndex] = val[i];
+          bufIndex++;
+        }
+      }
+      buf[bufIndex] = 0;
+      taosFprintfFile(pFile, "%s%s%s", quotationStr, buf, quotationStr);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
       shellFormatTimestamp(buf, *(int64_t *)val, precision);
-      taosFprintfFile(pFile, "'%s'", buf);
+      taosFprintfFile(pFile, "%s%s%s", quotationStr, buf, quotationStr);
       break;
     default:
       break;
@@ -347,12 +361,16 @@ int32_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
   TAOS_FIELD *fields = taos_fetch_fields(tres);
   int32_t     num_fields = taos_num_fields(tres);
   int32_t     precision = taos_result_precision(tres);
+  bool        quotation = false;
 
   for (int32_t col = 0; col < num_fields; col++) {
     if (col > 0) {
       taosFprintfFile(pFile, ",");
     }
     taosFprintfFile(pFile, "%s", fields[col].name);
+    if (fields[col].type == TSDB_DATA_TYPE_BINARY || fields[col].type == TSDB_DATA_TYPE_NCHAR || fields[col].type == TSDB_DATA_TYPE_JSON) {
+      quotation = true;
+    }
   }
   taosFprintfFile(pFile, "\r\n");
 
@@ -363,7 +381,7 @@ int32_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
       if (i > 0) {
         taosFprintfFile(pFile, ",");
       }
-      shellDumpFieldToFile(pFile, (const char *)row[i], fields + i, length[i], precision);
+      shellDumpFieldToFile(pFile, (const char *)row[i], fields + i, length[i], precision, quotation);
     }
     taosFprintfFile(pFile, "\r\n");
 

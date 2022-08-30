@@ -132,17 +132,21 @@ static int dumpWebsocketToFile(const char* fname, WS_RES* wres, double* pexecute
   *pexecute_time += (double)(ws_take_timing(wres)/1E6);
   if (!rows) {
     taosCloseFile(&pFile);
-	return 0;
+	  return 0;
   }
   int numOfRows = 0;
   TAOS_FIELD* fields = (TAOS_FIELD*)ws_fetch_fields(wres);
   int num_fields = ws_field_count(wres);
   int precision = ws_result_precision(wres);
+  bool quotation = false;
   for (int col = 0; col < num_fields; col++) {
     if (col > 0) {
       taosFprintfFile(pFile, ",");
     }
     taosFprintfFile(pFile, "%s", fields[col].name);
+    if (fields[col].type == TSDB_DATA_TYPE_BINARY || fields[col].type == TSDB_DATA_TYPE_NCHAR || fields[col].type == TSDB_DATA_TYPE_JSON) {
+      quotation = true;
+    }
   }
   taosFprintfFile(pFile, "\r\n"); 
   do {
@@ -155,7 +159,7 @@ static int dumpWebsocketToFile(const char* fname, WS_RES* wres, double* pexecute
           taosFprintfFile(pFile, ",");
         }
         const void *value = ws_get_value_in_block(wres, i, j, &ty, &len);
-        shellDumpFieldToFile(pFile, (const char*)value, fields + j, len, precision);
+        shellDumpFieldToFile(pFile, (const char*)value, fields + j, len, precision, quotation);
       }
       taosFprintfFile(pFile, "\r\n");
     }
@@ -233,17 +237,17 @@ void shellRunSingleCommandWebsocketImp(char *command) {
   if (shellRegexMatch(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
     fprintf(stdout, "Database changed.\r\n\r\n");
     fflush(stdout);
-	ws_free_result(res);
+	  ws_free_result(res);
     return;
   }
 
   int numOfRows = 0;
   if (ws_is_update_query(res)) {
-	numOfRows = ws_affected_rows(res);
-	et = taosGetTimestampUs();
+	  numOfRows = ws_affected_rows(res);
+	  et = taosGetTimestampUs();
     double total_time = (et - st)/1E3;
     double net_time = total_time - (double)execute_time;
-	printf("Query Ok, %d of %d row(s) in database\n", numOfRows, numOfRows);
+	  printf("Query Ok, %d of %d row(s) in database\n", numOfRows, numOfRows);
     printf("Execute: %.2f ms Network: %.2f ms Total: %.2f ms\n", execute_time, net_time, total_time);
   } else {
 	int error_no = 0;
@@ -253,15 +257,15 @@ void shellRunSingleCommandWebsocketImp(char *command) {
 		return;
 	}
 	et = taosGetTimestampUs();
-    double total_time = (et - st) / 1E3;
-    double net_time = total_time - execute_time;
+  double total_time = (et - st) / 1E3;
+  double net_time = total_time - execute_time;
 	if (error_no == 0 && !shell.stop_query) {
 		printf("Query OK, %d row(s) in set\n", numOfRows);
-        printf("Execute: %.2f ms Network: %.2f ms Total: %.2f ms\n", execute_time, net_time, total_time);
+    printf("Execute: %.2f ms Network: %.2f ms Total: %.2f ms\n", execute_time, net_time, total_time);
 	} else {
 		printf("Query interrupted, %d row(s) in set (%.6fs)\n", numOfRows,
 				(et - st)/1E6);
-        printf("Execute: %.2f ms Network: %.2f ms Total: %.2f ms\n", execute_time, net_time, total_time);
+    printf("Execute: %.2f ms Network: %.2f ms Total: %.2f ms\n", execute_time, net_time, total_time);
 	}
   }
   printf("\n");
