@@ -2477,7 +2477,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
 
     // note: the lastblock may be null here
     initLastBlockReader(pLastBlockReader, pScanInfo->uid, &pScanInfo->indexInBlockL);
-    if (pScanInfo->indexInBlockL == DEFAULT_ROW_INDEX_VAL ||
+    if (pScanInfo->indexInBlockL == INITIAL_ROW_INDEX_VAL ||
         pScanInfo->indexInBlockL == pLastBlockReader->lastBlockData.nRow) {
       bool hasData = nextRowInLastBlock(pLastBlockReader, pScanInfo);
     }
