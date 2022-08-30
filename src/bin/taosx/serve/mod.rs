@@ -31,146 +31,20 @@ mod task;
 const API_KEY_NAME: &str = "taosx-key";
 const API_KEY: &str = "taosx-rocks";
 
-/// Require api key middlware will actually require valid api key
-struct RequireApiKey;
-
-impl<S> Transform<S, ServiceRequest> for RequireApiKey
-where
-    S: Service<
-        ServiceRequest,
-        Response = ServiceResponse<actix_web::body::BoxBody>,
-        Error = actix_web::Error,
-    >,
-    S::Future: 'static,
-{
-    type Response = ServiceResponse<actix_web::body::BoxBody>;
-    type Error = actix_web::Error;
-    type Transform = ApiKeyMiddleware<S>;
-    type InitError = ();
-    type Future = Ready<Result<Self::Transform, Self::InitError>>;
-
-    fn new_transform(&self, service: S) -> Self::Future {
-        future::ready(Ok(ApiKeyMiddleware {
-            service,
-            log_only: false,
-        }))
-    }
-}
-
-/// Log api key middleware only logs about missing or invalid api keys
-struct LogApiKey;
-
-impl<S> Transform<S, ServiceRequest> for LogApiKey
-where
-    S: Service<
-        ServiceRequest,
-        Response = ServiceResponse<actix_web::body::BoxBody>,
-        Error = actix_web::Error,
-    >,
-    S::Future: 'static,
-{
-    type Response = ServiceResponse<actix_web::body::BoxBody>;
-    type Error = actix_web::Error;
-    type Transform = ApiKeyMiddleware<S>;
-    type InitError = ();
-    type Future = Ready<Result<Self::Transform, Self::InitError>>;
-
-    fn new_transform(&self, service: S) -> Self::Future {
-        future::ready(Ok(ApiKeyMiddleware {
-            service,
-            log_only: true,
-        }))
-    }
-}
-
-struct ApiKeyMiddleware<S> {
-    service: S,
-    log_only: bool,
-}
-
-impl<S> Service<ServiceRequest> for ApiKeyMiddleware<S>
-where
-    S: Service<
-        ServiceRequest,
-        Response = ServiceResponse<actix_web::body::BoxBody>,
-        Error = actix_web::Error,
-    >,
-    S::Future: 'static,
-{
-    type Response = ServiceResponse<actix_web::body::BoxBody>;
-    type Error = actix_web::Error;
-    type Future = LocalBoxFuture<'static, Result<Self::Response, actix_web::Error>>;
-
-    fn poll_ready(
-        &self,
-        ctx: &mut core::task::Context<'_>,
-    ) -> std::task::Poll<Result<(), Self::Error>> {
-        self.service.poll_ready(ctx)
-    }
-
-    fn call(&self, req: ServiceRequest) -> Self::Future {
-        let response = |req: ServiceRequest, response: HttpResponse| -> Self::Future {
-            Box::pin(async { Ok(req.into_response(response)) })
-        };
-
-        match req.headers().get(API_KEY_NAME) {
-            Some(key) if key != API_KEY => {
-                if self.log_only {
-                    log::debug!("Incorrect api api provided!!!")
-                } else {
-                    return response(
-                        req,
-                        HttpResponse::Unauthorized().json(ErrorResponse::Unauthorized(
-                            String::from("incorrect api key"),
-                        )),
-                    );
-                }
-            }
-            None => {
-                if self.log_only {
-                    log::debug!("Missing api key!!!")
-                } else {
-                    return response(
-                        req,
-                        HttpResponse::Unauthorized()
-                            .json(ErrorResponse::Unauthorized(String::from("missing api key"))),
-                    );
-                }
-            }
-            _ => (), // just passthrough
-        }
-
-        if self.log_only {
-            log::debug!("Performing operation")
-        }
-
-        let future = self.service.call(req);
-
-        Box::pin(async move {
-            let response = future.await?;
-
-            Ok(response)
-        })
-    }
-}
-
 #[derive(Parser, Debug)]
 pub(super) struct Cli {
-    #[clap(short, long)]
-    host: IpAddr,
-    #[clap(short, long)]
-    port: u16,
-    #[clap(short, long)]
+    #[clap(short = 'l', long, default_value = "127.0.0.1:6050")]
+    listen: String,
+    #[clap(short = 'D', long)]
     data_dir: Option<PathBuf>,
-    #[clap(short, long)]
+    #[clap(short = 'L', long)]
     log_dir: Option<PathBuf>,
 }
 
 impl Default for Cli {
     fn default() -> Self {
         Self {
-            host: "127.0.0.1".parse().unwrap(),
-            port: 6050,
+            listen: "127.0.0.1:6050".parse().unwrap(),
             data_dir: Default::default(),
             log_dir: Default::default(),
         }
@@ -199,13 +73,13 @@ impl Cli {
                 Cluster,
                 // TaskUpdateRequest,
                 StreamType,
-                ErrorResponse,
+                // ErrorResponse,
                 Failed
             ),
             tags(
                 (name = "tasks", description = "Task management endpoints")
             ),
-            modifiers(&SecurityAddon)
+            // modifiers(&SecurityAddon)
         )]
         struct ApiDoc;
 
@@ -248,7 +122,7 @@ impl Cli {
                         .url("/api-doc/openapi.json", openapi.clone()),
                 )
         })
-        .bind((self.host, self.port))?
+        .bind(self.listen.as_str())?
         .run();
 
         tokio::select! {

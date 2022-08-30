@@ -1,3 +1,5 @@
+use std::ffi::OsString;
+
 use anyhow::Result;
 use taos::*;
 
@@ -26,6 +28,9 @@ pub(crate) struct GlobalOpts {
 #[derive(Subcommand, Debug)]
 enum Commands {
     Run(run::Cli),
+    Serve(serve::Cli),
+    #[clap(external_subcommand)]
+    External(Vec<String>),
 }
 
 // #[derive(clap::ValueEnum, Clone, Debug)]
@@ -44,11 +49,11 @@ enum Commands {
 ///
 /// Service mode:
 ///
-/// $ taosx -d
+/// $ taosx serve --help
 ///
-/// One-shot mode:
+/// Batch mode:
 ///
-/// $ taosx -f <FROM> -t <TO>
+/// $ taosx run -f <FROM> -t <TO>
 #[derive(Parser, Debug)]
 #[clap(author, version, about)]
 struct Args {
@@ -56,6 +61,8 @@ struct Args {
     globals: GlobalOpts,
     #[clap(subcommand)]
     commands: Option<Commands>,
+    #[clap(last = true, value_parser)]
+    slop: Vec<String>,
 }
 
 #[tokio::main]
@@ -69,10 +76,12 @@ async fn main() -> Result<()> {
     if let Some(cmd) = args.commands {
         match cmd {
             Commands::Run(cmd) => cmd.run_with(args.globals).await?,
-            _ => todo!(),
+            Commands::Serve(cli) => cli.run_with(args.globals).await?,
+            Commands::External(cli) => todo!(),
         }
     } else {
         //  service mode
+        dbg!(&args);
         serve::Cli::default().run_with(args.globals).await?;
     }
     Ok(())

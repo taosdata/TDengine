@@ -12,3 +12,5 @@ tarpaulin-report.json
 rust-toolchain
 .env
 .cargo
+taosx.code-workspace
+*.profraw

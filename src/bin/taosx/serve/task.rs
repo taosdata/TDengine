@@ -360,16 +360,16 @@ impl TryFrom<NewTask> for taosx::TaskOpts {
     }
 }
 
-/// Task endpoint error responses
-#[derive(Serialize, Deserialize, Clone, Component)]
-pub(super) enum ErrorResponse {
-    /// When Task is not found by search term.
-    NotFound(String),
-    /// When there is a conflict storing a new task.
-    Conflict(String),
-    /// When task endpoint was called without correct credentials
-    Unauthorized(String),
-}
+// /// Task endpoint error responses
+// #[derive(Serialize, Deserialize, Clone, Component)]
+// pub(super) enum ErrorResponse {
+//     /// When Task is not found by search term.
+//     NotFound(String),
+//     /// When there is a conflict storing a new task.
+//     Conflict(String),
+//     /// When task endpoint was called without correct credentials
+//     Unauthorized(String),
+// }
 
 /// Task endpoint error responses
 #[derive(Serialize, Deserialize, Clone, Component)]
@@ -662,7 +662,7 @@ pub(super) async fn subscribe(
     responses(
         (status = 200, description = "Task deleted successfully"),
         // (status = 401, description = "Unauthorized to delete Task", body = ErrorResponse, example = json!(ErrorResponse::Unauthorized(String::from("missing api key")))),
-        (status = 404, description = "Task not found by id", body = ErrorResponse, example = json!(ErrorResponse::NotFound(String::from("id = 1"))))
+        (status = 404, description = "Task not found by id", body = Failed)
     ),
     params(
         ("id", description = "Unique storage id of Task")
