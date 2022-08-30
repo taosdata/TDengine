@@ -28,11 +28,10 @@ SSmaMgmt smaMgmt = {
     .rsetId = -1,
 };
 
-#define TD_QTASKINFO_FNAME_PREFIX "qtaskinfo.ver"
-#define TD_RSMAINFO_DEL_FILE      "rsmainfo.del"
+#define TD_QTASKINFO_FNAME_PREFIX "qinf.v"
+
 typedef struct SRSmaQTaskInfoItem SRSmaQTaskInfoItem;
 typedef struct SRSmaQTaskInfoIter SRSmaQTaskInfoIter;
-typedef struct SRSmaExecQItem     SRSmaExecQItem;
 
 static int32_t    tdUidStorePut(STbUidStore *pStore, tb_uid_t suid, tb_uid_t *uid);
 static int32_t    tdUpdateTbUidListImpl(SSma *pSma, tb_uid_t *suid, SArray *tbUids);
@@ -81,11 +80,6 @@ struct SRSmaQTaskInfoIter {
   // ------------
   char   *qBuf;  // for iterator
   int32_t nBufPos;
-};
-
-struct SRSmaExecQItem {
-  void *pRSmaInfo;
-  void *qall;
 };
 
 void tdRSmaQTaskInfoGetFileName(int32_t vgId, int64_t version, char *outputName) {
