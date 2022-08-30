@@ -312,15 +312,22 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
 
   SSmaStat  *pStat = SMA_ENV_STAT(pEnv);
   SRSmaStat *pRSmaStat = SMA_STAT_RSMA(pStat);
+  int32_t nLoops = 0;
 
   // step 1: set rsma stat
   atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_PAUSED);
-  atomic_store_8(RSMA_COMMIT_STAT(pRSmaStat), 1);
+  while (atomic_val_compare_exchange_8(RSMA_COMMIT_STAT(pRSmaStat), 0, 1) != 0) {
+    ++nLoops;
+    if (nLoops > 1000) {
+      sched_yield();
+      nLoops = 0;
+    }
+  }
   pRSmaStat->commitAppliedVer = pSma->pVnode->state.applied;
   ASSERT(pRSmaStat->commitAppliedVer > 0);
 
   // step 2: wait for all triggered fetch tasks to finish
-  int32_t nLoops = 0;
+
   while (1) {
     if (T_REF_VAL_GET(pStat) == 0) {
       smaDebug("vgId:%d, rsma commit, fetch tasks are all finished", SMA_VID(pSma));
