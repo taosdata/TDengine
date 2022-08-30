@@ -1,5 +1,5 @@
 ---
-sidebar_label: Connect
+sidebar_label: Quick Start
 title: Connect to TDengine Cloud Service
 description: Quick start of using TDengine connectors to connect to TDengine cloud service
 ---
