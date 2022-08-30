@@ -138,15 +138,11 @@ static int dumpWebsocketToFile(const char* fname, WS_RES* wres, double* pexecute
   TAOS_FIELD* fields = (TAOS_FIELD*)ws_fetch_fields(wres);
   int num_fields = ws_field_count(wres);
   int precision = ws_result_precision(wres);
-  bool quotation = false;
   for (int col = 0; col < num_fields; col++) {
     if (col > 0) {
       taosFprintfFile(pFile, ",");
     }
     taosFprintfFile(pFile, "%s", fields[col].name);
-    if (fields[col].type == TSDB_DATA_TYPE_BINARY || fields[col].type == TSDB_DATA_TYPE_NCHAR || fields[col].type == TSDB_DATA_TYPE_JSON) {
-      quotation = true;
-    }
   }
   taosFprintfFile(pFile, "\r\n"); 
   do {
@@ -159,7 +155,7 @@ static int dumpWebsocketToFile(const char* fname, WS_RES* wres, double* pexecute
           taosFprintfFile(pFile, ",");
         }
         const void *value = ws_get_value_in_block(wres, i, j, &ty, &len);
-        shellDumpFieldToFile(pFile, (const char*)value, fields + j, len, precision, quotation);
+        shellDumpFieldToFile(pFile, (const char*)value, fields + j, len, precision);
       }
       taosFprintfFile(pFile, "\r\n");
     }
