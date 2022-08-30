@@ -3627,9 +3627,8 @@ static int32_t doUpdateTupleData(SSerializeDataHandle* pHandle, const void* pBuf
 }
 
 static int32_t updateTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos) {
-  int32_t completeRowSize = pCtx->subsidiaries.rowLen + pCtx->subsidiaries.num * sizeof(bool);
   char* buf = serializeTupleData(pSrcBlock, rowIndex, &pCtx->subsidiaries, pCtx->subsidiaries.buf);
-  doUpdateTupleData(&pCtx->saveHandle, buf, completeRowSize, pPos);
+  doUpdateTupleData(&pCtx->saveHandle, buf, pCtx->subsidiaries.rowLen, pPos);
   return TSDB_CODE_SUCCESS;
 }
 
