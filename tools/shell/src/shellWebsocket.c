@@ -18,19 +18,19 @@
 #include "shellInt.h"
 
 int shell_conn_ws_server(bool first) {
-	shell.ws_conn = ws_connect_with_dsn(shell.args.dsn);
-	if (!shell.ws_conn) {
-		fprintf(stderr, "failed to connect %s, reason: %s\n",
-				shell.args.dsn, ws_errstr(NULL));
-		return -1;
-	}
-	if (first && shell.args.restful) {
-		fprintf(stdout, "successfully connect to %s\n\n",
-				shell.args.dsn);
-	} else if (first && shell.args.cloud) {
-		fprintf(stdout, "successfully connect to cloud service\n");
-	}
-	return 0;
+  shell.ws_conn = ws_connect_with_dsn(shell.args.dsn);
+  if (!shell.ws_conn) {
+    fprintf(stderr, "failed to connect %s, reason: %s\n",
+        shell.args.dsn, ws_errstr(NULL));
+    return -1;
+  }
+  if (first && shell.args.restful) {
+    fprintf(stdout, "successfully connect to %s\n\n",
+        shell.args.dsn);
+  } else if (first && shell.args.cloud) {
+    fprintf(stdout, "successfully connect to cloud service\n");
+  }
+  return 0;
 }
 
 static int horizontalPrintWebsocket(WS_RES* wres, double* execute_time) {
@@ -39,7 +39,7 @@ static int horizontalPrintWebsocket(WS_RES* wres, double* execute_time) {
   ws_fetch_block(wres, &data, &rows);
   *execute_time += (double)(ws_take_timing(wres)/1E6);
   if (!rows) {
-	return 0;
+    return 0;
   }
   int num_fields = ws_field_count(wres);
   TAOS_FIELD* fields = (TAOS_FIELD*)ws_fetch_fields(wres);
@@ -64,7 +64,7 @@ static int horizontalPrintWebsocket(WS_RES* wres, double* execute_time) {
         putchar(' ');
         putchar('|');
       }
-	  putchar('\r');
+      putchar('\r');
       putchar('\n');
     }
     numOfRows += rows;
@@ -79,7 +79,7 @@ static int verticalPrintWebsocket(WS_RES* wres, double* pexecute_time) {
   ws_fetch_block(wres, &data, &rows);
   *pexecute_time += (double)(ws_take_timing(wres)/1E6);
   if (!rows) {
-	return 0;
+    return 0;
   }
   int num_fields = ws_field_count(wres);
   TAOS_FIELD* fields = (TAOS_FIELD*)ws_fetch_fields(wres);
@@ -98,7 +98,7 @@ static int verticalPrintWebsocket(WS_RES* wres, double* pexecute_time) {
     uint32_t len;
     for (int i = 0; i < rows; i++) {
       printf("*************************** %d.row ***************************\n",
-			  numOfRows + 1);
+        numOfRows + 1);
       for (int j = 0; j < num_fields; j++) {
         TAOS_FIELD* field = fields + j;
         int padding = (int)(maxColNameLen - strlen(field->name));
@@ -121,7 +121,7 @@ static int dumpWebsocketToFile(const char* fname, WS_RES* wres, double* pexecute
   }
 
   TdFilePtr pFile = taosOpenFile(fullname,
-		  TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
+      TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
   if (pFile == NULL) {
     fprintf(stderr, "failed to open file: %s\r\n", fullname);
     return -1;
@@ -132,7 +132,7 @@ static int dumpWebsocketToFile(const char* fname, WS_RES* wres, double* pexecute
   *pexecute_time += (double)(ws_take_timing(wres)/1E6);
   if (!rows) {
     taosCloseFile(&pFile);
-	  return 0;
+    return 0;
   }
   int numOfRows = 0;
   TAOS_FIELD* fields = (TAOS_FIELD*)ws_fetch_fields(wres);
@@ -207,7 +207,7 @@ void shellRunSingleCommandWebsocketImp(char *command) {
   }
 
   if (!shell.ws_conn && shell_conn_ws_server(0)) {
-	return;
+    return;
   }
 
   shell.stop_query = false;
@@ -216,16 +216,16 @@ void shellRunSingleCommandWebsocketImp(char *command) {
   WS_RES* res = ws_query_timeout(shell.ws_conn, command, shell.args.timeout);
   int code = ws_errno(res);
   if (code != 0) {
-	et = taosGetTimestampUs();
-	fprintf(stderr, "\nDB: error: %s (%.6fs)\n", ws_errstr(res), (et - st)/1E6);
-	if (code == TSDB_CODE_WS_SEND_TIMEOUT || code == TSDB_CODE_WS_RECV_TIMEOUT) {
-		fprintf(stderr, "Hint: use -t to increase the timeout in seconds\n");
-	} else if (code == TSDB_CODE_WS_INTERNAL_ERRO || code == TSDB_CODE_WS_CLOSED) {
-		fprintf(stderr, "TDengine server is down, will try to reconnect\n");
-		shell.ws_conn = NULL;
-	}
-	ws_free_result(res);
-	return;
+    et = taosGetTimestampUs();
+    fprintf(stderr, "\nDB: error: %s (%.6fs)\n", ws_errstr(res), (et - st)/1E6);
+    if (code == TSDB_CODE_WS_SEND_TIMEOUT || code == TSDB_CODE_WS_RECV_TIMEOUT) {
+      fprintf(stderr, "Hint: use -t to increase the timeout in seconds\n");
+    } else if (code == TSDB_CODE_WS_INTERNAL_ERRO || code == TSDB_CODE_WS_CLOSED) {
+      fprintf(stderr, "TDengine server is down, will try to reconnect\n");
+      shell.ws_conn = NULL;
+    }
+    ws_free_result(res);
+    return;
   }
 
   double execute_time = ws_take_timing(res)/1E6;
@@ -233,36 +233,36 @@ void shellRunSingleCommandWebsocketImp(char *command) {
   if (shellRegexMatch(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
     fprintf(stdout, "Database changed.\r\n\r\n");
     fflush(stdout);
-	  ws_free_result(res);
+    ws_free_result(res);
     return;
   }
 
   int numOfRows = 0;
   if (ws_is_update_query(res)) {
-	  numOfRows = ws_affected_rows(res);
-	  et = taosGetTimestampUs();
+    numOfRows = ws_affected_rows(res);
+    et = taosGetTimestampUs();
     double total_time = (et - st)/1E3;
     double net_time = total_time - (double)execute_time;
-	  printf("Query Ok, %d of %d row(s) in database\n", numOfRows, numOfRows);
+    printf("Query Ok, %d of %d row(s) in database\n", numOfRows, numOfRows);
     printf("Execute: %.2f ms Network: %.2f ms Total: %.2f ms\n", execute_time, net_time, total_time);
   } else {
-	int error_no = 0;
-	numOfRows  = shellDumpWebsocket(res, fname, &error_no, printMode, &execute_time);
-	if (numOfRows < 0) {
-		ws_free_result(res);
-		return;
-	}
-	et = taosGetTimestampUs();
-  double total_time = (et - st) / 1E3;
-  double net_time = total_time - execute_time;
-	if (error_no == 0 && !shell.stop_query) {
-		printf("Query OK, %d row(s) in set\n", numOfRows);
-    printf("Execute: %.2f ms Network: %.2f ms Total: %.2f ms\n", execute_time, net_time, total_time);
-	} else {
-		printf("Query interrupted, %d row(s) in set (%.6fs)\n", numOfRows,
-				(et - st)/1E6);
-    printf("Execute: %.2f ms Network: %.2f ms Total: %.2f ms\n", execute_time, net_time, total_time);
-	}
+    int error_no = 0;
+    numOfRows  = shellDumpWebsocket(res, fname, &error_no, printMode, &execute_time);
+    if (numOfRows < 0) {
+      ws_free_result(res);
+      return;
+    }
+    et = taosGetTimestampUs();
+    double total_time = (et - st) / 1E3;
+    double net_time = total_time - execute_time;
+    if (error_no == 0 && !shell.stop_query) {
+      printf("Query OK, %d row(s) in set\n", numOfRows);
+      printf("Execute: %.2f ms Network: %.2f ms Total: %.2f ms\n", execute_time, net_time, total_time);
+    } else {
+      printf("Query interrupted, %d row(s) in set (%.6fs)\n", numOfRows,
+          (et - st)/1E6);
+      printf("Execute: %.2f ms Network: %.2f ms Total: %.2f ms\n", execute_time, net_time, total_time);
+    }
   }
   printf("\n");
   ws_free_result(res);
