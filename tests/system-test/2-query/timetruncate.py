@@ -82,39 +82,31 @@ class TDTestCase:
                 ts_result = self.get_time.get_us_timestamp(str(tdSql.queryResult[i][0]))
                 tdSql.checkEqual(ts_result,int(date_time[i]/1000/1000/60/60/24/7)*7*24*60*60*1000*1000)
 
-    def check_ns_timestamp(self, unit, date_time:list):
+    def check_ns_timestamp(self,unit,date_time):
         if unit.lower() == '1b':
             for i in range(len(self.ts_str)):
-                ts_result = self.get_time.get_ns_timestamp(str(tdSql.queryResult[i][0]))
-                tdSql.checkEqual(ts_result,int(date_time[i]))
+                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]))
         elif unit.lower() == '1u':
             for i in range(len(self.ts_str)):
-                ts_result = self.get_time.get_ns_timestamp(str(tdSql.queryResult[i][0]))
-                tdSql.checkEqual(ts_result,int(date_time[i]*1000/1000/1000)*1000)
+                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000)*1000)
         elif unit.lower() == '1a':
             for i in range(len(self.ts_str)):
-                ts_result = self.get_time.get_ns_timestamp(str(tdSql.queryResult[i][0]))
-                tdSql.checkEqual(ts_result,int(date_time[i]*1000/1000/1000/1000)*1000*1000)
+                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000)*1000*1000)
         elif unit.lower() == '1s':
             for i in range(len(self.ts_str)):
-                ts_result = self.get_time.get_ns_timestamp(str(tdSql.queryResult[i][0]))
-                tdSql.checkEqual(ts_result,int(date_time[i]*1000/1000/1000/1000/1000)*1000*1000*1000)
+                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/1000)*1000*1000*1000)
         elif unit.lower() == '1m':
             for i in range(len(self.ts_str)):
-                ts_result = self.get_time.get_ns_timestamp(str(tdSql.queryResult[i][0]))
-                tdSql.checkEqual(ts_result,int(date_time[i]*1000/1000/1000/1000/1000/60)*60*1000*1000*1000)
+                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/1000/60)*60*1000*1000*1000)
         elif unit.lower() == '1h':
             for i in range(len(self.ts_str)):
-                ts_result = self.get_time.get_ns_timestamp(str(tdSql.queryResult[i][0]))
-                tdSql.checkEqual(ts_result,int(date_time[i]*1000/1000/1000/1000/1000/60/60)*60*60*1000*1000*1000  )
+                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/1000/60/60)*60*60*1000*1000*1000  )
         elif unit.lower() == '1d':
             for i in range(len(self.ts_str)):
-                ts_result = self.get_time.get_ns_timestamp(str(tdSql.queryResult[i][0]))
-                tdSql.checkEqual(ts_result,int(date_time[i]*1000/1000/1000/1000/1000/60/60/24)*24*60*60*1000*1000*1000 )
+                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/1000/60/60/24)*24*60*60*1000*1000*1000 )
         elif unit.lower() == '1w':
             for i in range(len(self.ts_str)):
-                ts_result = self.get_time.get_ns_timestamp(str(tdSql.queryResult[i][0]))
-                tdSql.checkEqual(ts_result,int(date_time[i]*1000/1000/1000/1000/1000/60/60/24/7)*7*24*60*60*1000*1000*1000)
+                tdSql.checkEqual(tdSql.queryResult[i][0],int(date_time[i]*1000/1000/1000/1000/1000/60/60/24/7)*7*24*60*60*1000*1000*1000)
 
     def check_tb_type(self,unit,tb_type):
         if tb_type.lower() == 'ntb':
