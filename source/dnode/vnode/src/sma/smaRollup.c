@@ -1737,7 +1737,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
               break;
             }
           }
-          ASSERT(1 == atomic_val_compare_exchange_8(&pInfo->assigned, 1, 0));
+          atomic_val_compare_exchange_8(&pInfo->assigned, 1, 0);
         }
       }
       if (type == RSMA_EXEC_COMMIT) {
@@ -1766,7 +1766,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
             }
 
             // tdRSmaFetchAllResult(pSma, pInfo, pSubmitArr);
-            ASSERT(1 == atomic_val_compare_exchange_8(&pInfo->assigned, 1, 0));
+            atomic_val_compare_exchange_8(&pInfo->assigned, 1, 0);
           }
         }
         ASSERT(taosQueueItemSize(pInfo->iQueue) == 0);
