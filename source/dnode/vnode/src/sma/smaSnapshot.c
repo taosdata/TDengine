@@ -80,7 +80,7 @@ int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRsmaSnapRead
       goto _err;
     }
     pReader->pQTaskFReader->pReadH = qTaskF;
-#if 0
+#if 1
     SQTaskFile* pQTaskF = &pReader->pQTaskFReader->fTask;
     pQTaskF->nRef = 1;
 #endif
