@@ -131,3 +131,9 @@ typedef struct {
   SRBTreeNode *pNode;
   SRBTree      rbt;
 } SMergeTree;
+
+void tMergeTreeOpen(SMergeTree *pMTree, int8_t backward) {
+  pMTree->backward = backward;
+  pMTree->pNode = NULL;
+  tRBTreeCreate(&pMTree->rbt, NULL);
+}
