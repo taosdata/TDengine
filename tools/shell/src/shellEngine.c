@@ -364,16 +364,12 @@ int32_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
   TAOS_FIELD *fields = taos_fetch_fields(tres);
   int32_t     num_fields = taos_num_fields(tres);
   int32_t     precision = taos_result_precision(tres);
-  bool        quotation = false;
 
   for (int32_t col = 0; col < num_fields; col++) {
     if (col > 0) {
       taosFprintfFile(pFile, ",");
     }
     taosFprintfFile(pFile, "%s", fields[col].name);
-    if (fields[col].type == TSDB_DATA_TYPE_BINARY || fields[col].type == TSDB_DATA_TYPE_NCHAR || fields[col].type == TSDB_DATA_TYPE_JSON) {
-      quotation = true;
-    }
   }
   taosFprintfFile(pFile, "\r\n");
 
@@ -384,7 +380,7 @@ int32_t shellDumpResultToFile(const char *fname, TAOS_RES *tres) {
       if (i > 0) {
         taosFprintfFile(pFile, ",");
       }
-      shellDumpFieldToFile(pFile, (const char *)row[i], fields + i, length[i], precision, quotation);
+      shellDumpFieldToFile(pFile, (const char *)row[i], fields + i, length[i], precision);
     }
     taosFprintfFile(pFile, "\r\n");
 
