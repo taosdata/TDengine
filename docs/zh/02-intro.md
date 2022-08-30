@@ -85,8 +85,8 @@ TDengine 的主要功能如下：
 
 ![TDengine Database 技术生态图](eco_system.webp)
 
+<center><figcaption>图 1. TDengine技术生态图</figcaption></center>
 </figure>
-<center>图 1. TDengine技术生态图</center>
 
 上图中，左侧是各种数据采集或消息队列，包括 OPC-UA、MQTT、Telegraf、也包括 Kafka，他们的数据将被源源不断的写入到 TDengine。右侧则是可视化、BI 工具、组态软件、应用程序。下侧则是 TDengine 自身提供的命令行程序（CLI）以及可视化管理工具。
 
