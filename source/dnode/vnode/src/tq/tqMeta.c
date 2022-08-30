@@ -260,7 +260,7 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
     if (handle.execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
 
       handle.execHandle.task = qCreateQueueExecTaskInfo(
-          handle.execHandle.execCol.qmsg, &reader, NULL, &handle.execHandle.pSchemaWrapper);
+          handle.execHandle.execCol.qmsg, &reader, &handle.execHandle.numOfCols, &handle.execHandle.pSchemaWrapper);
       ASSERT(handle.execHandle.task);
       void* scanner = NULL;
       qExtractStreamScanner(handle.execHandle.task, &scanner);

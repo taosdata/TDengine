@@ -1,8 +1,7 @@
 def sync_source(branch_name) {
     sh '''
         hostname
-        IP
-        env
+        ip addr|grep 192|awk  '{print $2}'|sed "s/\\/.*//"  
         echo ''' + branch_name + '''
     '''
     sh '''
@@ -73,7 +72,7 @@ pipeline {
         BRANCH_NAME = '3.0'
 
         TD_SERVER_TAR = "TDengine-server-${version}-Linux-x64.tar.gz"
-        BASE_TD_SERVER_TAR = "TDengine-server-${baseVersion}-arm64-x64.tar.gz"
+        BASE_TD_SERVER_TAR = "TDengine-server-${baseVersion}-Linux-x64.tar.gz"
 
         TD_SERVER_ARM_TAR = "TDengine-server-${version}-Linux-arm64.tar.gz"
         BASE_TD_SERVER_ARM_TAR = "TDengine-server-${baseVersion}-Linux-arm64.tar.gz"
@@ -82,7 +81,7 @@ pipeline {
         BASE_TD_SERVER_LITE_TAR = "TDengine-server-${baseVersion}-Linux-x64-Lite.tar.gz"
 
         TD_CLIENT_TAR = "TDengine-client-${version}-Linux-x64.tar.gz"
-        BASE_TD_CLIENT_TAR = "TDengine-client-${baseVersion}-arm64-x64.tar.gz"
+        BASE_TD_CLIENT_TAR = "TDengine-client-${baseVersion}-Linux-x64.tar.gz"
 
         TD_CLIENT_ARM_TAR = "TDengine-client-${version}-Linux-arm64.tar.gz"
         BASE_TD_CLIENT_ARM_TAR = "TDengine-client-${baseVersion}-Linux-arm64.tar.gz"
@@ -108,13 +107,12 @@ pipeline {
                 stage('ubuntu16') {
                     agent{label " ubuntu16 "}
                     steps {
-                        timeout(time: 10, unit: 'MINUTES'){
+                        timeout(time: 30, unit: 'MINUTES'){
                             sync_source("${BRANCH_NAME}")
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
                             bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server
                             python3 checkPackageRuning.py  
-                            rmtaos
                             '''
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
@@ -132,13 +130,12 @@ pipeline {
                 stage('ubuntu18') {
                     agent{label " ubuntu18 "}
                     steps {
-                        timeout(time: 10, unit: 'MINUTES'){
+                        timeout(time: 30, unit: 'MINUTES'){
                             sync_source("${BRANCH_NAME}")
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
                             bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server
                             python3 checkPackageRuning.py  
-                            rmtaos
                             '''
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
@@ -156,17 +153,15 @@ pipeline {
                 stage('centos7') {
                     agent{label " centos7_9 "}
                     steps {
-                        timeout(time: 10, unit: 'MINUTES'){
+                        timeout(time: 30, unit: 'MINUTES'){
                             sync_source("${BRANCH_NAME}")
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
                             bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server
                             python3 checkPackageRuning.py  
-                            rmtaos
                             '''
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_LITE_TAR} ${version} ${BASE_TD_SERVER_LITE_TAR} ${baseVersion} server
                             bash testpackage.sh ${TD_SERVER_LITE_TAR} ${version} ${BASE_TD_SERVER_LITE_TAR} ${baseVersion} server
                             python3 checkPackageRuning.py  
                             '''
@@ -181,7 +176,7 @@ pipeline {
                 stage('centos8') {
                     agent{label " centos8_3 "}
                     steps {
-                        timeout(time: 10, unit: 'MINUTES'){
+                        timeout(time: 30, unit: 'MINUTES'){
                             sync_source("${BRANCH_NAME}")
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging

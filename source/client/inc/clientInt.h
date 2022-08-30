@@ -101,6 +101,7 @@ typedef struct SQueryExecMetric {
   int64_t ctgStart;     // start to parse, us
   int64_t ctgEnd;       // end to parse, us
   int64_t semanticEnd;
+  int64_t planEnd;
   int64_t execEnd;
   int64_t send;  // start to send to server, us
   int64_t rsp;   // receive response from server, us

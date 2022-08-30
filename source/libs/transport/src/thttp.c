@@ -155,6 +155,8 @@ static void clientSentCb(uv_write_t* req, int32_t status) {
   if (status != 0) {
     terrno = TAOS_SYSTEM_ERROR(status);
     uError("http-report failed to send data %s", uv_strerror(status));
+    uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
+    return;  
   } else {
     uTrace("http-report succ to send data");
   }

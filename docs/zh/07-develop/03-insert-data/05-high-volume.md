@@ -38,13 +38,9 @@ import TabItem from "@theme/TabItem";
 
 ### 服务器配置的角度 {#setting-view}
 
-从服务器配置的角度来说，也有很多优化写入性能的方法。
+从服务端配置的角度，要根据系统中磁盘的数量，磁盘的 I/O 能力，以及处理器能力在创建数据库时设置适当的 vgroups 数量以充分发挥系统性能。如果 vgroups 过少，则系统性能无法发挥；如果 vgroups 过多，会造成无谓的资源竞争。常规推荐 vgroups 数量为 CPU 核数的 2 倍，但仍然要结合具体的系统资源配置进行调优。
 
-如果总表数不多(远小于核数乘以1000), 且无论怎么调节客户端程序，taosd 进程的 CPU 使用率都很低，那么很可能是因为表在各个 vgroup 分布不均。比如：数据库总表数是 1000 且 minTablesPerVnode 设置的也是 1000，那么所有的表都会分布在 1 个 vgroup 上。此时如果将 minTablesPerVnode 和 tablelncStepPerVnode 都设置成 100， 则可将表分布至 10 个 vgroup。（假设 maxVgroupsPerDb 大于等于 10）。
-
-如果总表数比较大（比如大于500万），适当增加 maxVgroupsPerDb 也能显著提高建表的速度。maxVgroupsPerDb 默认值为 0， 自动配置为 CPU 的核数。 如果表的数量巨大，也建议调节 maxTablesPerVnode 参数，以免超过单个 vnode 建表的上限。
-
-更多调优参数，请参考 [配置参考](../../../reference/config)部分。
+更多调优参数，请参考 [数据库管理](../../../taos-sql/database) 和 [服务端配置](../../../reference/config)。
 
 ## 高效写入示例 {#sample-code}
 

@@ -1,32 +1,5 @@
 #!/bin/sh
 
-# # =============================  get input parameters =================================================
-
-# # install.sh -v [server | client]  -e [yes | no] -i [systemd | service | ...]
-
-# # set parameters by default value
-# interactiveFqdn=yes   # [yes | no]
-# verType=server        # [server | client]
-# initType=systemd      # [systemd | service | ...]
-
-# while getopts "hv:d:" arg
-# do
-#   case $arg in
-#     d)
-#       #echo "interactiveFqdn=$OPTARG"
-#       script_dir=$( echo $OPTARG )
-#       ;;
-#     h)
-#       echo "Usage: `basename $0` -d scripy_path"
-#       exit 0
-#       ;;
-#     ?) #unknow option
-#       echo "unkonw argument"
-#       exit 1
-#       ;;
-#   esac
-# done
-# echo "Download package"
 
 packgeName=$1
 version=$2
@@ -55,10 +28,9 @@ if command -v ${comd} ;then
     echo "${comd} is already installed" 
 else 
     if command -v apt ;then
-        apt-get install ${comd}
+        apt-get install ${comd} -y 
     elif command -v yum ;then
-        yum install ${comd}
-    else
+        yum -y install ${comd} 
         echo "you should install ${comd} manually"
     fi
 fi
@@ -111,8 +83,10 @@ wget https://www.taosdata.com/assets-download/3.0/${originPackageName}
 
 
 if [[ ${packgeName} =~ "deb" ]];then
+    cd ${installPath}
     echo "dpkg ${packgeName}" &&  dpkg -i ${packgeName}
 elif [[ ${packgeName} =~ "rpm" ]];then
+    cd ${installPath}
     echo "rpm ${packgeName}"  && rpm -ivh ${packgeName}
 elif [[ ${packgeName} =~ "tar" ]];then
     echo "tar ${packgeName}" && tar -xvf ${packgeName} 
@@ -153,9 +127,7 @@ elif [[ ${packgeName} =~ "tar" ]];then
         wget https://www.taosdata.com/assets-download/3.0/taosTools-2.1.2-Linux-x64.tar.gz
         tar xvf taosTools-2.1.2-Linux-x64.tar.gz
         cd taosTools-2.1.2 && bash install-taostools.sh
+    fi
 
-fi 
-# }
-
-# installPkgAndCheckFile 
+fi  
 

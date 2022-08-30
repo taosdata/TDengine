@@ -133,8 +133,6 @@ The configuration parameters in the URL are as follows:
 - batchfetch: true: pulls result sets in batches when executing queries; false: pulls result sets row by row. The default value is true. Enabling batch pulling and obtaining a batch of data can improve query performance when the query data volume is large.
 - batchErrorIgnore:true: When executing statement executeBatch, if there is a SQL execution failure in the middle, the following SQL will continue to be executed. false: No more statements after the failed SQL are executed. The default value is: false.
 
-For more information about JDBC native connections, see [Video Tutorial](https://www.taosdata.com/blog/2020/11/11/1955.html).
-
 **Connect using the TDengine client-driven configuration file **
 
 When you use a JDBC native connection to connect to a TDengine cluster, you can use the TDengine client driver configuration file to specify parameters such as `firstEp` and `secondEp` of the cluster in the configuration file as below:

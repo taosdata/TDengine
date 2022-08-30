@@ -9,7 +9,7 @@ MQTT is a popular IoT data transfer protocol. [EMQX](https://github.com/emqx/emq
 
 The following preparations are required for EMQX to add TDengine data sources correctly.
 - The TDengine cluster is deployed and working properly
-- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](/reference/taosadapter) for details.
+- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](../../reference/taosadapter) for details.
 - If you use the emulated writers described later, you need to install the appropriate version of Node.js. V12 is recommended.
 
 ## Install and start EMQX
@@ -27,8 +27,6 @@ CREATE DATABASE test;
 USE test;
 CREATE TABLE sensor_data (ts TIMESTAMP, temperature FLOAT, humidity FLOAT, volume FLOAT, pm10 FLOAT, pm25 FLOAT, so2 FLOAT, no2 FLOAT, co FLOAT, sensor_id NCHAR(255), area TINYINT, coll_time TIMESTAMP);
 ```
-
-Note: The table schema is based on the blog [(In Chinese) Data Transfer, Storage, Presentation, EMQX + TDengine Build MQTT IoT Data Visualization Platform](https://www.taosdata.com/blog/2020/08/04/1722.html) as an example. Subsequent operations are carried out with this blog scenario too. Please modify it according to your actual application scenario.
 
 ## Configuring EMQX Rules
 
@@ -137,5 +135,5 @@ Use the TDengine CLI program to log in and query the appropriate databases and t
 
 ![TDengine Database EMQX result in taos](./emqx/check-result-in-taos.webp)
 
-Please refer to the [TDengine official documentation](https://docs.taosdata.com/) for more details on how to use TDengine.
+Please refer to the [TDengine official documentation](https://docs.tdengine.com/) for more details on how to use TDengine.
 EMQX Please refer to the [EMQX official documentation](https://www.emqx.io/docs/en/v4.4/rule/rule-engine.html) for details on how to use EMQX.

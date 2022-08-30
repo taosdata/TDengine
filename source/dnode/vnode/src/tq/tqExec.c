@@ -110,7 +110,12 @@ int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqMetaRsp*
           taosArrayPush(pRsp->blockSchema, &pSW);
         }
       }
-      tqAddBlockDataToRsp(pDataBlock, pRsp, taosArrayGetSize(pDataBlock->pDataBlock));
+
+      if(pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN){
+        tqAddBlockDataToRsp(pDataBlock, pRsp, pExec->numOfCols);
+      }else{
+        tqAddBlockDataToRsp(pDataBlock, pRsp, taosArrayGetSize(pDataBlock->pDataBlock));
+      }
       pRsp->blockNum++;
       if (pOffset->type == TMQ_OFFSET__LOG) {
         continue;

@@ -279,6 +279,6 @@ Prior to establishing connection, please make sure TDengine is already running a
 </Tabs>
 
 :::tip
-If the connection fails, in most cases it's caused by improper configuration for FQDN or firewall. Please refer to the section "Unable to establish connection" in [FAQ](https://docs.taosdata.com/train-faq/faq).
+If the connection fails, in most cases it's caused by improper configuration for FQDN or firewall. Please refer to the section "Unable to establish connection" in [FAQ](https://docs.tdengine.com/train-faq/faq).
 
 :::

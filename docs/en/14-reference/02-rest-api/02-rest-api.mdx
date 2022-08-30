@@ -18,12 +18,12 @@ If the TDengine server is already installed, it can be verified as follows:
 
 The following example is in an Ubuntu environment and uses the `curl` tool to verify that the REST interface is working. Note that the `curl` tool may need to be installed in your environment.
 
-The following example lists all databases on the host h1.taosdata.com. To use it in your environment, replace `h1.taosdata.com` and `6041` (the default port) with the actual running TDengine service FQDN and port number.
+The following example lists all databases on the host h1.tdengine.com. To use it in your environment, replace `h1.tdengine.com` and `6041` (the default port) with the actual running TDengine service FQDN and port number.
 
 ```bash
 curl -L -H "Authorization: Basic cm9vdDp0YW9zZGF0YQ==" \
   -d "select name, ntables, status from information_schema.ins_databases;" \
-  h1.taosdata.com:6041/rest/sql
+  h1.tdengine.com:6041/rest/sql
 ```
 
 The following return value results indicate that the verification passed.
