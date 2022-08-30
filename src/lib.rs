@@ -6,9 +6,6 @@ mod tmq;
 mod tmq_to_local;
 mod tmq_to_td;
 
-
-
-
 use taos::{Dsn, IntoDsn};
 
 pub use csv::*;
@@ -100,5 +97,4 @@ impl TaskOpts {
             Ok(())
         }
     }
-
 }

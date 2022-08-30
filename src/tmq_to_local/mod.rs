@@ -1,6 +1,4 @@
-use std::{
-    path::Path,
-};
+use std::path::Path;
 
 use anyhow::Result;
 use chrono::Local;
@@ -8,9 +6,7 @@ use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use taos::{Consumer, *};
 
-use crate::{
-    taoz::{ZFile},
-};
+use crate::taoz::ZFile;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct Topic {

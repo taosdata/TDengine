@@ -9,7 +9,6 @@ use std::ops::DerefMut;
 use std::path::Path;
 use std::path::PathBuf;
 
-
 use chrono::Local;
 use futures::FutureExt;
 use taos::*;
@@ -19,14 +18,11 @@ use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWrite;
 use tokio::io::AsyncWriteExt;
 
-
-
 mod header;
 
 use async_compression::{tokio::write::ZstdEncoder, Level};
 pub use header::*;
 use tokio::io::BufReader;
-
 
 type ZFileInner = ZCodec<ZstdEncoder<BufReader<tokio::fs::File>>>;
 
@@ -202,9 +198,7 @@ where
 }
 #[cfg(test)]
 mod tests {
-    use std::{
-        sync::{Arc, Mutex},
-    };
+    use std::sync::{Arc, Mutex};
 
     use futures::TryFutureExt;
     use taos::TBuilder;

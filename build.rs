@@ -14,12 +14,13 @@ async fn init_sqlx(dsn: &str) -> Result<(), sqlx::Error> {
 fn main() {
     dotenv::dotenv().ok();
     if std::env::var("DATABASE_URL").is_err() {
-        let db = std::env::temp_dir().join("taosx.dev.db");
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
+        let root = std::path::Path::new(&manifest_dir);
+        let db = root.join("target").join("taosx.dev.db");
         let dsn = format!("sqlite:{}", db.display());
         std::env::set_var("DATABASE_URL", &dsn);
 
-        let dotenv =
-            std::path::Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap()).join(".env");
+        let dotenv = root.join(".env");
         if dotenv.exists() {
             let mut file = std::fs::File::options().append(true).open(dotenv).unwrap();
             file.write_fmt(format_args!("DATABASE_URL=sqlite:{}\n", db.display()))

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use taos::*;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
-use crate::{taoz::ZCodec};
+use crate::taoz::ZCodec;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct Topic {

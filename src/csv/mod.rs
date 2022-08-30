@@ -1,8 +1,6 @@
 use anyhow::Result;
 use futures::TryStreamExt;
-use taos::{
-    AsyncFetchable, AsyncQueryable, Dsn, Itertools, TBuilder, TaosBuilder,
-};
+use taos::{AsyncFetchable, AsyncQueryable, Dsn, Itertools, TBuilder, TaosBuilder};
 
 pub async fn query_to_csv(mut from: Dsn, to: Dsn) -> Result<()> {
     let sql = from.params.remove("query").unwrap();

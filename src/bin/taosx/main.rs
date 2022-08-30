@@ -1,8 +1,6 @@
 use anyhow::Result;
 use taos::*;
 
-
-
 use clap::{Parser, Subcommand};
 
 mod run;
