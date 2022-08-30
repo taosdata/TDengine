@@ -86,7 +86,7 @@ class TDTestCase:
         tdSql.query(f"select * from {dbname}.macylr")
         tdSql.checkRows(2)
 
-        tdSql.query("desc macylr")
+        tdSql.query(f"desc {dbname}.macylr")
         tdSql.checkRows(25)
         return
 
