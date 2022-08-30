@@ -46,12 +46,9 @@ If the data source is Kafka, then the appication program is a consumer of Kafka,
 
 ### Tune TDengine
 
-TDengine is a distributed and high performance time series database, there are also some ways to tune TDengine to get better writing performance.
+On the server side, database configuration parameter `vgroups` needs to be set carefully to maximize the system performance. If it's set too low, the system capability can't be utilized fully; if it's set too big, unnecessary resource competition may be produced. A normal recommendation for `vgroups` parameter is 2 times of the number of CPU cores. However, depending on the actual system resources, it may still need to tuned.
 
-1. Set proper number of `vgroups` according to available CPU cores. Normally, we recommend 2 \* number_of_cores as a starting point. If the verification result shows this is not enough to utilize CPU resources, you can use a higher value.
-2. Set proper `minTablesPerVnode`, `tableIncStepPerVnode`, and `maxVgroupsPerDb` according to the number of tables so that tables are distributed even across vgroups. The purpose is to balance the workload among all vnodes so that system resources can be utilized better to get higher performance.
-
-For more performance tuning parameters, please refer to [Configuration Parameters](../../../reference/config).
+For more configuration parameters, please refer to [Database Configuration](../../../taos-sql/database) and [Server Configuration](../../../reference/config)。
 
 ## Sample Programs
 
