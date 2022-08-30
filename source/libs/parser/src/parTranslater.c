@@ -142,8 +142,8 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
   },
   {
     .showType = QUERY_NODE_SHOW_STREAMS_STMT,
-    .pDbName = TSDB_PERFORMANCE_SCHEMA_DB,
-    .pTableName = TSDB_PERFS_TABLE_STREAMS,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_STREAMS,
     .numOfShowCols = 1,
     .pShowCols = {"stream_name"}
   },
@@ -184,8 +184,8 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
   },
   {
     .showType = QUERY_NODE_SHOW_TOPICS_STMT,
-    .pDbName = TSDB_PERFORMANCE_SCHEMA_DB,
-    .pTableName = TSDB_PERFS_TABLE_TOPICS,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_TOPICS,
     .numOfShowCols = 1,
     .pShowCols = {"topic_name"}
   },
@@ -240,8 +240,8 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
   },
   {
     .showType = QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT,
-    .pDbName = TSDB_PERFORMANCE_SCHEMA_DB,
-    .pTableName = TSDB_PERFS_TABLE_SUBSCRIPTIONS,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_SUBSCRIPTIONS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
