@@ -87,28 +87,30 @@ echo "download  installPackage"
 # wget https://www.taosdata.com/assets-download/3.0/${originPackageName}
 
 cd ${installPath}
-cp 
+cp -r ${scriptDir}/debRpmAutoInstall.sh   . 
+
 if [ ! -f  {packgeName}  ];then
+    echo "sshpass -p ${password} scp 192.168.1.131:/nas/TDengine3/v${version}/community/${packgeName}  ."
     sshpass -p ${password} scp 192.168.1.131:/nas/TDengine3/v${version}/community/${packgeName}  .
 fi
 
-packageSuffix=`echo {packgeName}  | awk -F '.' '{print $NF}'`
+packageSuffix=$(echo ${packgeName}  | awk -F '.' '{print $NF}')
 
-cp -r ${scriptDir}/debAuto.sh   
-if [ ! -f  debAuto.sh  ];then
-    echo '#!/usr/bin/expect ' >  debAuto.sh
-    echo 'set packgeName [lindex $argv 0]' >>  debAuto.sh
-    echo 'set packageSuffix [lindex $argv 1]' >>  debAuto.sh
-    echo 'set timeout 3 ' >>  debAuto.sh
-    echo 'if { ${packageSuffix} == "deb" } {' >>  debAuto.sh
-    echo '    spawn  dpkg -i ${packgeName} '  >>  debAuto.sh
-    echo '} elseif { ${packageSuffix} == "rpm"} {' >>  debAuto.sh
-    echo '    spawn rpm -ivh ${packgeName}'  >>  debAuto.sh
-    echo '}' >>  debAuto.sh
-    echo 'expect "*one:"' >>  debAuto.sh
-    echo 'send  "\r"' >>  debAuto.sh
-    echo 'expect "*skip:"' >>  debAuto.sh
-    echo 'send  "\r" ' >>  debAuto.sh
+
+if [ ! -f  debRpmAutoInstall.sh  ];then
+    echo '#!/usr/bin/expect ' >  debRpmAutoInstall.sh
+    echo 'set packgeName [lindex $argv 0]' >>  debRpmAutoInstall.sh
+    echo 'set packageSuffix [lindex $argv 1]' >>  debRpmAutoInstall.sh
+    echo 'set timeout 3 ' >>  debRpmAutoInstall.sh
+    echo 'if { ${packageSuffix} == "deb" } {' >>  debRpmAutoInstall.sh
+    echo '    spawn  dpkg -i ${packgeName} '  >>  debRpmAutoInstall.sh
+    echo '} elseif { ${packageSuffix} == "rpm"} {' >>  debRpmAutoInstall.sh
+    echo '    spawn rpm -ivh ${packgeName}'  >>  debRpmAutoInstall.sh
+    echo '}' >>  debRpmAutoInstall.sh
+    echo 'expect "*one:"' >>  debRpmAutoInstall.sh
+    echo 'send  "\r"' >>  debRpmAutoInstall.sh
+    echo 'expect "*skip:"' >>  debRpmAutoInstall.sh
+    echo 'send  "\r" ' >>  debRpmAutoInstall.sh
 fi
 
 if [[ ${packgeName} =~ "deb" ]];then
@@ -116,7 +118,7 @@ if [[ ${packgeName} =~ "deb" ]];then
     dpkg -r taostools
     dpkg -r tdengine
     if [[ ${packgeName} =~ "TDengine" ]];then
-        echo "./debAuto.sh ${packgeName}" &&   chmod 755 debAuto.sh &&  ./debAuto.sh ${packgeName}  ${packageSuffix}
+        echo "./debRpmAutoInstall.sh ${packgeName}  ${packageSuffix}" &&   chmod 755 debRpmAutoInstall.sh &&  ./debRpmAutoInstall.sh  ${packgeName}  ${packageSuffix}
     else
         echo "dpkg  -i ${packgeName}" &&   dpkg  -i ${packgeName}
     fi
@@ -124,7 +126,11 @@ elif [[ ${packgeName} =~ "rpm" ]];then
     cd ${installPath}
     sudo rpm -e tdengine
     sudo rpm -e taostools
-    echo "rpm  -ivh ${packgeName}  --quiet "  && rpm -ivh ${packgeName}  --quiet 
+    if [[ ${packgeName} =~ "TDengine" ]];then
+        echo "./debRpmAutoInstall.sh ${packgeName}  ${packageSuffix}" &&   chmod 755 debRpmAutoInstall.sh &&  ./debRpmAutoInstall.sh  ${packgeName}  ${packageSuffix}
+    else
+        echo "rpm  -ivh ${packgeName}" &&   rpm  -ivh ${packgeName}
+    fi
 elif [[ ${packgeName} =~ "tar" ]];then
     cd  ${oriInstallPath}
     if [ ! -f  {originPackageName}  ];then
