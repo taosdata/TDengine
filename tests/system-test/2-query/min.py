@@ -36,17 +36,12 @@ class TDTestCase:
             floatData.append(i + 0.1)
 
         # max verifacation
-        tdSql.error("select min(ts) from stb_1")
-        tdSql.error("select min(ts) from db.stb_1")
         tdSql.error("select min(col7) from stb_1")
         tdSql.error("select min(col7) from db.stb_1")
         tdSql.error("select min(col8) from stb_1")
         tdSql.error("select min(col8) from db.stb_1")
         tdSql.error("select min(col9) from stb_1")
         tdSql.error("select min(col9) from db.stb_1")
-        # tdSql.error("select min(a) from stb_1")
-        # tdSql.error("select min(1) from stb_1")
-        tdSql.error("select min(now()) from stb_1")
         tdSql.error("select min(count(c1),count(c2)) from stb_1")
 
         tdSql.query("select min(col1) from stb_1")
@@ -92,18 +87,26 @@ class TDTestCase:
         tdSql.query("select min(col1) from stb_1 where col2>=5")
         tdSql.checkData(0,0,5)
 
+        tdSql.query("select min(now()) from stb_1")
+        tdSql.checkRows(1)
 
-        tdSql.error("select min(ts) from stb_1")
-        tdSql.error("select min(ts) from db.stb_1")
+        tdSql.query("select first(ts) from stb_1")
+        firstTs = tdSql.getData(0, 0)
+        tdSql.query("select min(ts) from stb_1")
+        tdSql.checkData(0, 0, firstTs)
+
+        tdSql.query("select first(ts) from db.stb_1")
+        firstTs = tdSql.getData(0, 0)
+        tdSql.query("select min(ts) from db.stb_1")
+        tdSql.checkData(0, 0, firstTs)
+
+
         tdSql.error("select min(col7) from stb_1")
         tdSql.error("select min(col7) from db.stb_1")
         tdSql.error("select min(col8) from stb_1")
         tdSql.error("select min(col8) from db.stb_1")
         tdSql.error("select min(col9) from stb_1")
         tdSql.error("select min(col9) from db.stb_1")
-        # tdSql.error("select min(a) from stb_1")
-        # tdSql.error("select min(1) from stb_1")
-        tdSql.error("select min(now()) from stb_1")
         tdSql.error("select min(count(c1),count(c2)) from stb_1")
 
         tdSql.query("select min(col1) from stb")
@@ -149,18 +152,26 @@ class TDTestCase:
         tdSql.query("select min(col1) from stb where col2>=5")
         tdSql.checkData(0,0,5)
 
+        tdSql.query("select min(now()) from stb_1")
+        tdSql.checkRows(1)
 
-        tdSql.error("select min(ts) from ntb")
-        tdSql.error("select min(ts) from db.ntb")
+        tdSql.query("select first(ts) from stb_1")
+        firstTs = tdSql.getData(0, 0)
+        tdSql.query("select min(ts) from stb_1")
+        tdSql.checkData(0, 0, firstTs)
+
+        tdSql.query("select first(ts) from db.stb_1")
+        firstTs = tdSql.getData(0, 0)
+        tdSql.query("select min(ts) from db.stb_1")
+        tdSql.checkData(0, 0, firstTs)
+
+
         tdSql.error("select min(col7) from ntb")
         tdSql.error("select min(col7) from db.ntb")
         tdSql.error("select min(col8) from ntb")
         tdSql.error("select min(col8) from db.ntb")
         tdSql.error("select min(col9) from ntb")
         tdSql.error("select min(col9) from db.ntb")
-        # tdSql.error("select min(a) from stb_1")
-        # tdSql.error("select min(1) from stb_1")
-        tdSql.error("select min(now()) from ntb")
         tdSql.error("select min(count(c1),count(c2)) from ntb")
 
         tdSql.query("select min(col1) from ntb")
@@ -205,6 +216,19 @@ class TDTestCase:
         tdSql.checkData(0, 0, np.min(floatData))
         tdSql.query("select min(col1) from ntb where col2>=5")
         tdSql.checkData(0,0,5)
+
+        tdSql.query("select min(now()) from stb_1")
+        tdSql.checkRows(1)
+
+        tdSql.query("select first(ts) from stb_1")
+        firstTs = tdSql.getData(0, 0)
+        tdSql.query("select min(ts) from stb_1")
+        tdSql.checkData(0, 0, firstTs)
+
+        tdSql.query("select first(ts) from db.stb_1")
+        firstTs = tdSql.getData(0, 0)
+        tdSql.query("select min(ts) from db.stb_1")
+        tdSql.checkData(0, 0, firstTs)
 
 
     def stop(self):

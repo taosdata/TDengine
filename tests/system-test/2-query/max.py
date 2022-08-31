@@ -29,9 +29,10 @@ class TDTestCase:
                           % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
             intData.append(i + 1)
             floatData.append(i + 0.1)
-        for i in ['ts','col11','col12','col13']:
+
+        for i in ['col11','col12','col13']:
             for j in ['db.stb','stb','db.stb_1','stb_1']:
-                tdSql.error(f'select max({i} from {j} )')
+                tdSql.error(f'select max({i}) from {j}')
 
         for i in range(1,11):
             for j in ['db.stb','stb','db.stb_1','stb_1']:
@@ -40,6 +41,20 @@ class TDTestCase:
                     tdSql.checkData(0, 0, np.max(intData))
                 elif i>=9:
                     tdSql.checkData(0, 0, np.max(floatData))
+
+        tdSql.query("select max(now()) from stb_1")
+        tdSql.checkRows(1)
+
+        tdSql.query("select last(ts) from stb_1")
+        lastTs = tdSql.getData(0, 0)
+        tdSql.query("select max(ts) from stb_1")
+        tdSql.checkData(0, 0, lastTs)
+
+        tdSql.query("select last(ts) from stb")
+        lastTs = tdSql.getData(0, 0)
+        tdSql.query("select max(ts) from stb")
+        tdSql.checkData(0, 0, lastTs)
+
         tdSql.query("select max(col1) from stb_1 where col2<=5")
         tdSql.checkData(0,0,5)
         tdSql.query("select max(col1) from stb where col2<=5")
@@ -57,9 +72,9 @@ class TDTestCase:
                           % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
             intData.append(i + 1)
             floatData.append(i + 0.1)
-        for i in ['ts','col11','col12','col13']:
+        for i in ['col11','col12','col13']:
             for j in ['db.ntb','ntb']:
-                tdSql.error(f'select max({i} from {j} )')
+                tdSql.error(f'select max({i}) from {j}')
         for i in range(1,11):
             for j in ['db.ntb','ntb']:
                 tdSql.query(f"select max(col{i}) from {j}")
@@ -67,6 +82,15 @@ class TDTestCase:
                     tdSql.checkData(0, 0, np.max(intData))
                 elif i>=9:
                     tdSql.checkData(0, 0, np.max(floatData))
+
+        tdSql.query("select max(now()) from ntb")
+        tdSql.checkRows(1)
+
+        tdSql.query("select last(ts) from ntb")
+        lastTs = tdSql.getData(0, 0)
+        tdSql.query("select max(ts) from ntb")
+        tdSql.checkData(0, 0, lastTs)
+
         tdSql.query("select max(col1) from ntb where col2<=5")
         tdSql.checkData(0,0,5)
         tdSql.execute('drop database db')
