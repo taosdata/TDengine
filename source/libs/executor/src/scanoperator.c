@@ -1280,18 +1280,18 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
   SStreamScanInfo* pInfo = pOperator->info;
 
-  qDebug("stream scan called");
+  qDebug("queue scan called");
   if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
     if (pResult && pResult->info.rows > 0) {
-      qDebug("stream scan tsdb return %d rows", pResult->info.rows);
+      qDebug("queue scan tsdb return %d rows", pResult->info.rows);
       return pResult;
     } else {
       STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
       tsdbReaderClose(pTSInfo->dataReader);
       pTSInfo->dataReader = NULL;
       tqOffsetResetToLog(&pTaskInfo->streamInfo.prepareStatus, pTaskInfo->streamInfo.snapshotVer);
-      qDebug("stream scan tsdb over, switch to wal ver %d", pTaskInfo->streamInfo.snapshotVer + 1);
+      qDebug("queue scan tsdb over, switch to wal ver %d", pTaskInfo->streamInfo.snapshotVer + 1);
       if (tqSeekVer(pInfo->tqReader, pTaskInfo->streamInfo.snapshotVer + 1) < 0) {
         return NULL;
       }
@@ -1310,7 +1310,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         }
         // TODO clean data block
         if (pInfo->pRes->info.rows > 0) {
-          qDebug("stream scan log return %d rows", pInfo->pRes->info.rows);
+          qDebug("queue scan log return %d rows", pInfo->pRes->info.rows);
           return pInfo->pRes;
         }
       } else if (ret.fetchType == FETCH_TYPE__META) {
@@ -1324,7 +1324,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         ASSERT(pTaskInfo->streamInfo.lastStatus.version + 1 == pInfo->tqReader->pWalReader->curVersion);
         char formatBuf[80];
         tFormatOffset(formatBuf, 80, &ret.offset);
-        qDebug("stream scan log return null, offset %s", formatBuf);
+        qDebug("queue scan log return null, offset %s", formatBuf);
         return NULL;
       } else {
         ASSERT(0);
@@ -1349,6 +1349,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
   SStreamScanInfo* pInfo = pOperator->info;
 
+  qDebug("stream scan called");
 #if 0
   SStreamState* pState = pTaskInfo->streamInfo.pState;
   if (pState) {

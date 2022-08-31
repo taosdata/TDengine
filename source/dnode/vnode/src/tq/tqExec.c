@@ -85,11 +85,11 @@ int64_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
   while (1) {
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;
-    tqDebug("tmqsnap task start to execute");
+    tqDebug("tmq task start to execute");
     if (qExecTask(task, &pDataBlock, &ts) < 0) {
       ASSERT(0);
     }
-    tqDebug("tmqsnap task execute end, get %p", pDataBlock);
+    tqDebug("tmq task execute end, get %p", pDataBlock);
 
     if (pDataBlock) {
       tqAddBlockDataToRsp(pDataBlock, pRsp, pExec->numOfCols);

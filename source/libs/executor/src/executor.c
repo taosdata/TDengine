@@ -856,6 +856,10 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     tsdbReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pTaskInfo->tableqinfoList.pTableList,
                    &pInfo->dataReader, NULL);
 
+    strcpy(pTaskInfo->streamInfo.tbName, mtInfo.tbName);
+    tDeleteSSchemaWrapper(pTaskInfo->streamInfo.schema);
+    pTaskInfo->streamInfo.schema = mtInfo.schema;
+
     qDebug("tmqsnap qStreamPrepareScan snapshot data uid %ld ts %ld", mtInfo.uid, pOffset->ts);
   } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_META) {
     SStreamRawScanInfo* pInfo = pOperator->info;
