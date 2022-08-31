@@ -89,14 +89,14 @@ static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mDebug("mnode:%d, will be created when deploying, raw:%p", mnodeObj.id, pRaw);
+  mInfo("mnode:%d, will be created when deploying, raw:%p", mnodeObj.id, pRaw);
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, NULL);
   if (pTrans == NULL) {
     mError("mnode:%d, failed to create since %s", mnodeObj.id, terrstr());
     return -1;
   }
-  mDebug("trans:%d, used to create mnode:%d", pTrans->id, mnodeObj.id);
+  mInfo("trans:%d, used to create mnode:%d", pTrans->id, mnodeObj.id);
 
   if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
@@ -365,7 +365,7 @@ static int32_t mndCreateMnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq);
   if (pTrans == NULL) goto _OVER;
   mndTransSetSerial(pTrans);
-  mDebug("trans:%d, used to create mnode:%d", pTrans->id, pCreate->dnodeId);
+  mInfo("trans:%d, used to create mnode:%d", pTrans->id, pCreate->dnodeId);
 
   if (mndSetCreateMnodeRedoLogs(pMnode, pTrans, &mnodeObj) != 0) goto _OVER;
   if (mndSetCreateMnodeCommitLogs(pMnode, pTrans, &mnodeObj) != 0) goto _OVER;
@@ -392,7 +392,7 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mDebug("mnode:%d, start to create", createReq.dnodeId);
+  mInfo("mnode:%d, start to create", createReq.dnodeId);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_MNODE) != 0) {
     goto _OVER;
   }
@@ -574,7 +574,7 @@ static int32_t mndDropMnode(SMnode *pMnode, SRpcMsg *pReq, SMnodeObj *pObj) {
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq);
   if (pTrans == NULL) goto _OVER;
   mndTransSetSerial(pTrans);
-  mDebug("trans:%d, used to drop mnode:%d", pTrans->id, pObj->id);
+  mInfo("trans:%d, used to drop mnode:%d", pTrans->id, pObj->id);
 
   if (mndSetDropMnodeInfoToTrans(pMnode, pTrans, pObj) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
@@ -597,7 +597,7 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mDebug("mnode:%d, start to drop", dropReq.dnodeId);
+  mInfo("mnode:%d, start to drop", dropReq.dnodeId);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_MNODE) != 0) {
     goto _OVER;
   }
@@ -732,7 +732,7 @@ static int32_t mndProcessAlterMnodeReq(SRpcMsg *pReq) {
     }
   }
 
-  mTrace("trans:-1, sync reconfig will be proposed");
+  mInfo("trans:-1, sync reconfig will be proposed");
 
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   pMgmt->standby = 0;

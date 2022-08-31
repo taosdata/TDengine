@@ -259,7 +259,6 @@ class TDTestCase:
         self.tmqCase1()
         self.tmqCase2()
 
-
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")

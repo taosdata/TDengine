@@ -38,6 +38,7 @@ typedef struct SPlanContext {
   char*       pMsg;
   int32_t     msgLen;
   const char* pUser;
+  bool        sysInfo;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.

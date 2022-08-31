@@ -215,6 +215,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
                        .pUser = pTscObj->user,
                        .schemalessType = pTscObj->schemalessType,
                        .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER)),
+                       .enableSysInfo = pTscObj->sysInfo,
                        .svrVer = pTscObj->sVer,
                        .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes)};
 
@@ -238,12 +239,15 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
     TSWAP(pRequest->targetTableList, (*pQuery)->pTargetTableList);
   }
 
+  taosArrayDestroy(cxt.pTableMetaPos);
+  taosArrayDestroy(cxt.pTableVgroupPos);
+
   return code;
 }
 
 int32_t execLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
   SRetrieveTableRsp* pRsp = NULL;
-  int32_t            code = qExecCommand(pQuery->pRoot, &pRsp);
+  int32_t            code = qExecCommand(pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, true);
   }
@@ -281,7 +285,7 @@ void asyncExecLocalCmd(SRequestObj* pRequest, SQuery* pQuery) {
     return;
   }
 
-  int32_t code = qExecCommand(pQuery->pRoot, &pRsp);
+  int32_t code = qExecCommand(pRequest->pTscObj->sysInfo, pQuery->pRoot, &pRsp);
   if (TSDB_CODE_SUCCESS == code && NULL != pRsp) {
     code = setQueryResultFromRsp(&pRequest->body.resInfo, pRsp, false, true);
   }
@@ -416,7 +420,8 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .showRewrite = pQuery->showRewrite,
                       .pMsg = pRequest->msgBuf,
                       .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
-                      .pUser = pRequest->pTscObj->user};
+                      .pUser = pRequest->pTscObj->user,
+                      .sysInfo = pRequest->pTscObj->sysInfo};
 
   return qCreateQueryPlan(&cxt, pPlan, pNodeList);
 }
@@ -689,11 +694,11 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
       TDMT_VND_CREATE_TABLE == pRequest->type) {
     pRequest->body.resInfo.numOfRows = res.numOfRows;
     if (TDMT_VND_SUBMIT == pRequest->type) {
-      STscObj            *pTscObj = pRequest->pTscObj;
-      SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
-      atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertRows, res.numOfRows);           
+      STscObj*            pTscObj = pRequest->pTscObj;
+      SAppClusterSummary* pActivity = &pTscObj->pAppInfo->summary;
+      atomic_add_fetch_64((int64_t*)&pActivity->numOfInsertRows, res.numOfRows);
     }
-    
+
     schedulerFreeJob(&pRequest->body.queryJob, 0);
   }
 
@@ -718,6 +723,12 @@ int32_t handleSubmitExecRes(SRequestObj* pRequest, void* res, SCatalog* pCatalog
 
   for (int32_t i = 0; i < pRsp->nBlocks; ++i) {
     SSubmitBlkRsp* blk = pRsp->pBlocks + i;
+    if (blk->pMeta) {
+      handleCreateTbExecRes(blk->pMeta, pCatalog);
+      tFreeSTableMetaRsp(blk->pMeta);
+      taosMemoryFreeClear(blk->pMeta);
+    }
+
     if (NULL == blk->tblFName || 0 == blk->tblFName[0]) {
       continue;
     }
@@ -777,6 +788,10 @@ int32_t handleAlterTbExecRes(void* res, SCatalog* pCatalog) {
   return catalogUpdateTableMeta(pCatalog, (STableMetaRsp*)res);
 }
 
+int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog) {
+  return catalogUpdateTableMeta(pCatalog, (STableMetaRsp*)res);
+}
+
 int32_t handleQueryExecRsp(SRequestObj* pRequest) {
   if (NULL == pRequest->body.resInfo.execRes.res) {
     return TSDB_CODE_SUCCESS;
@@ -799,9 +814,22 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
       code = handleAlterTbExecRes(pRes->res, pCatalog);
       break;
     }
+    case TDMT_VND_CREATE_TABLE: {
+      SArray* pList = (SArray*)pRes->res;
+      int32_t num = taosArrayGetSize(pList);
+      for (int32_t i = 0; i < num; ++i) {
+        void* res = taosArrayGetP(pList, i);
+        code = handleCreateTbExecRes(res, pCatalog);
+      }
+      break;
+    }
+    case TDMT_MND_CREATE_STB: {
+      code = handleCreateTbExecRes(pRes->res, pCatalog);
+      break;
+    }
     case TDMT_VND_SUBMIT: {
-      atomic_add_fetch_64((int64_t *)&pAppInfo->summary.insertBytes, pRes->numOfBytes);
-      
+      atomic_add_fetch_64((int64_t*)&pAppInfo->summary.insertBytes, pRes->numOfBytes);
+
       code = handleSubmitExecRes(pRequest, pRes->res, pCatalog, &epset);
       break;
     }
@@ -823,6 +851,8 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   SRequestObj* pRequest = (SRequestObj*)param;
   pRequest->code = code;
 
+  pRequest->metric.resultReady = taosGetTimestampUs();
+
   if (pResult) {
     memcpy(&pRequest->body.resInfo.execRes, pResult, sizeof(*pResult));
   }
@@ -832,13 +862,15 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
     if (pResult) {
       pRequest->body.resInfo.numOfRows = pResult->numOfRows;
       if (TDMT_VND_SUBMIT == pRequest->type) {
-        STscObj            *pTscObj = pRequest->pTscObj;
-        SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
-        atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertRows, pResult->numOfRows);           
+        STscObj*            pTscObj = pRequest->pTscObj;
+        SAppClusterSummary* pActivity = &pTscObj->pAppInfo->summary;
+        atomic_add_fetch_64((int64_t*)&pActivity->numOfInsertRows, pResult->numOfRows);
       }
     }
 
     schedulerFreeJob(&pRequest->body.queryJob, 0);
+
+    pRequest->metric.execEnd = taosGetTimestampUs();
   }
 
   taosMemoryFree(pResult);
@@ -856,16 +888,12 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
     return;
   }
 
-  if (code == TSDB_CODE_SUCCESS) {
-    code = handleQueryExecRsp(pRequest);
-    ASSERT(pRequest->code == TSDB_CODE_SUCCESS);
-    pRequest->code = code;
-  }
-
   tscDebug("schedulerExecCb request type %s", TMSG_INFO(pRequest->type));
-  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
+  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res) {
     removeMeta(pTscObj, pRequest->targetTableList);
   }
+
+  handleQueryExecRsp(pRequest);
 
   // return to client
   pRequest->body.queryFp(pRequest->body.param, pRequest, code);
@@ -877,14 +905,14 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
   if (pQuery->pRoot) {
     pRequest->stmtType = pQuery->pRoot->type;
   }
-  
+
   if (pQuery->pRoot && !pRequest->inRetry) {
-    STscObj            *pTscObj = pRequest->pTscObj;
-    SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
+    STscObj*            pTscObj = pRequest->pTscObj;
+    SAppClusterSummary* pActivity = &pTscObj->pAppInfo->summary;
     if (QUERY_NODE_VNODE_MODIF_STMT == pQuery->pRoot->type) {
-      atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertsReq, 1);
+      atomic_add_fetch_64((int64_t*)&pActivity->numOfInsertsReq, 1);
     } else if (QUERY_NODE_SELECT_STMT == pQuery->pRoot->type) {
-      atomic_add_fetch_64((int64_t *)&pActivity->numOfQueryReq, 1);           
+      atomic_add_fetch_64((int64_t*)&pActivity->numOfQueryReq, 1);
     }
   }
 
@@ -925,6 +953,10 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
 
   if (!keepQuery) {
     qDestroyQuery(pQuery);
+  }
+
+  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type) && NULL == pRequest->body.resInfo.execRes.res) {
+    removeMeta(pRequest->pTscObj, pRequest->targetTableList);
   }
 
   handleQueryExecRsp(pRequest);
@@ -987,7 +1019,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
                           .showRewrite = pQuery->showRewrite,
                           .pMsg = pRequest->msgBuf,
                           .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
-                          .pUser = pRequest->pTscObj->user};
+                          .pUser = pRequest->pTscObj->user,
+                          .sysInfo = pRequest->pTscObj->sysInfo};
 
       SAppInstInfo* pAppInfo = getAppInfo(pRequest);
       SQueryPlan*   pDag = NULL;
@@ -998,6 +1031,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
       } else {
         pRequest->body.subplanNum = pDag->numOfSubplans;
       }
+
+      pRequest->metric.planEnd = taosGetTimestampUs();
 
       if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
         SArray* pNodeList = NULL;
@@ -1123,10 +1158,6 @@ SRequestObj* execQuery(uint64_t connId, const char* sql, int sqlLen, bool valida
 
     inRetry = true;
   } while (retryNum++ < REQUEST_TOTAL_EXEC_TIMES);
-
-  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
-    removeMeta(pRequest->pTscObj, pRequest->targetTableList);
-  }
 
   return pRequest;
 }
@@ -1467,9 +1498,9 @@ void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) 
     tscDebug("0x%" PRIx64 " fetch results, numOfRows:%d total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
              pRequest->self, pResInfo->numOfRows, pResInfo->totalRows, pResInfo->completed, pRequest->requestId);
 
-    STscObj            *pTscObj = pRequest->pTscObj;
-    SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
-    atomic_add_fetch_64((int64_t *)&pActivity->fetchBytes, pRequest->body.resInfo.payloadLen);           
+    STscObj*            pTscObj = pRequest->pTscObj;
+    SAppClusterSummary* pActivity = &pTscObj->pAppInfo->summary;
+    atomic_add_fetch_64((int64_t*)&pActivity->fetchBytes, pRequest->body.resInfo.payloadLen);
 
     if (pResultInfo->numOfRows == 0) {
       return NULL;
@@ -1572,10 +1603,11 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
 }
 
 int32_t getVersion1BlockMetaSize(const char* p, int32_t numOfCols) {
-  int32_t cols = *(int32_t*) (p + sizeof(int32_t) * 3);
+  int32_t cols = *(int32_t*)(p + sizeof(int32_t) * 3);
   ASSERT(numOfCols == cols);
 
-  return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t)*3 + sizeof(uint64_t) + numOfCols * (sizeof(int8_t) + sizeof(int32_t));
+  return sizeof(int32_t) + sizeof(int32_t) + sizeof(int32_t) * 3 + sizeof(uint64_t) +
+         numOfCols * (sizeof(int8_t) + sizeof(int32_t));
 }
 
 static int32_t estimateJsonLen(SReqResultInfo* pResultInfo, int32_t numOfCols, int32_t numOfRows) {
@@ -1947,7 +1979,7 @@ _OVER:
 
 int32_t appendTbToReq(SHashObj* pHash, int32_t pos1, int32_t len1, int32_t pos2, int32_t len2, const char* str,
                       int32_t acctId, char* db) {
-  SName name;
+  SName name = {0};
 
   if (len1 <= 0) {
     return -1;
@@ -2006,7 +2038,7 @@ int32_t transferTableNameList(const char* tbList, int32_t acctId, char* dbName, 
 
   bool    inEscape = false;
   int32_t code = 0;
-  void *pIter = NULL;
+  void*   pIter = NULL;
 
   int32_t vIdx = 0;
   int32_t vPos[2];

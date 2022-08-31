@@ -76,6 +76,7 @@ void       taosFreeQall(STaosQall *qall);
 int32_t    taosReadAllQitems(STaosQueue *queue, STaosQall *qall);
 int32_t    taosGetQitem(STaosQall *qall, void **ppItem);
 void       taosResetQitems(STaosQall *qall);
+int32_t    taosQallItemSize(STaosQall *qall);
 
 STaosQset *taosOpenQset();
 void       taosCloseQset(STaosQset *qset);

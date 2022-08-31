@@ -381,8 +381,7 @@ function install_header() {
       ${install_main_dir}/include ||
       ${csudo}cp -f ${source_dir}/include/client/taos.h ${source_dir}/include/common/taosdef.h ${source_dir}/include/util/taoserror.h ${source_dir}/include/libs/function/taosudf.h \
         ${install_main_2_dir}/include &&
-      ${csudo}chmod 644 ${install_main_dir}/include/* ||:
-      ${csudo}chmod 644 ${install_main_2_dir}/include/*
+      ${csudo}chmod 644 ${install_main_dir}/include/* || ${csudo}chmod 644 ${install_main_2_dir}/include/*
   fi
 }
 
@@ -664,7 +663,9 @@ function install_TDengine() {
 ## ==============================Main program starts from here============================
 echo source directory: $1
 echo binary directory: $2
-if [ "$osType" != "Darwin" ]; then
+if [ -x ${data_dir}/dnode/dnodeCfg.json ]; then
+  echo -e "\033[44;31;5mThe default data directory ${data_dir} contains old data of tdengine 2.x, please clear it before installing!\033[0m"
+elif [ "$osType" != "Darwin" ]; then
   if [ -x ${bin_dir}/${clientName} ]; then
     update_TDengine
   else

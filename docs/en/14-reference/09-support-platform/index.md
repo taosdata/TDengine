@@ -5,11 +5,10 @@ description: "List of platforms supported by TDengine server, client, and connec
 
 ## List of supported platforms for TDengine server
 
-|                    | **Windows server 2016/2019** | **Windows 10/11** | **CentOS 7.9/8** | **Ubuntu 18/20** | **UOS** | **kylin** | **Ningsi V60/V80** |
-| ------------------ | ---------------------------- | ----------------- | ---------------- | ---------------- | ------- | --------- | ------------------ |
-| X64                | ●                            | ●                 | ●                | ●                | ●       | ●         | ●                  |
-| Raspberry Pi ARM64 |                              |                   | ●                |                  |         |           |                    |
-| HUAWEI Cloud ARM64 |                              |                   |                  | ●                |         |           |                    |
+|              | **Windows Server 2016/2019** | **Windows 10/11** | **CentOS 7.9/8** | **Ubuntu 18/20** |
+| ------------ | ---------------------------- | ----------------- | ---------------- | ---------------- |
+| X64          | ●                            | ●                 | ●                | ●                |
+| ARM64        |                              |                   | ●                |                  |
 
 Note: ● means officially tested and verified, ○ means unofficially tested and verified.
 

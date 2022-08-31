@@ -1,4 +1,5 @@
 ---
+sidebar_label: Insert
 title: Insert
 ---
 
@@ -17,15 +18,44 @@ INSERT INTO
     ...];
 ```
 
-## Insert Single or Multiple Rows
+**Timestamps**
 
-Single row or multiple rows specified with VALUES can be inserted into a specific table. For example:
+1. All data writes must include a timestamp. With regard to timestamps, note the following:
 
-A single row is inserted using the below statement.
+2. The precision of a timestamp depends on its format. The precision configured for the database affects only timestamps that are inserted as long integers (UNIX time). Timestamps inserted as date and time strings are not affected. As an example, the timestamp 2021-07-13 16:16:48 is equivalent to 1626164208 in UNIX time. This UNIX time is modified to 1626164208000 for databases with millisecond precision, 1626164208000000 for databases with microsecond precision, and 1626164208000000000 for databases with nanosecond precision.
 
-```sq;
+3. If you want to insert multiple rows simultaneously, do not use the NOW function in the timestamp. Using the NOW function in this situation will cause multiple rows to have the same timestamp and prevent them from being stored correctly. This is because the NOW function obtains the current time on the client, and multiple instances of NOW in a single statement will return the same time.
+   The earliest timestamp that you can use when inserting data is equal to the current time on the server minus the value of the KEEP parameter. The latest timestamp that you can use when inserting data is equal to the current time on the server plus the value of the DURATION parameter. You can configure the KEEP and DURATION parameters when you create a database. The default values are 3650 days for the KEEP parameter and 10 days for the DURATION parameter.
+
+**Syntax**
+
+1. The USING clause automatically creates the specified subtable if it does not exist. If it's unknown whether the table already exists, the table can be created automatically while inserting using the SQL statement below. To use this functionality, a STable must be used as template and tag values must be provided. Any tags that you do not specify will be assigned a null value.
+
+2. You can insert data into specified columns. Any columns in which you do not insert data will be assigned a null value.
+
+3. The VALUES clause inserts one or more rows of data into a table.
+
+4. The FILE clause inserts tags or data from a comma-separates values (CSV) file. Do not include headers in your CSV files.
+
+5. A single INSERT statement can write data to multiple tables.
+
+6. The INSERT statement is fully parsed before being executed, so that if any element of the statement fails, the entire statement will fail. For example, the following statement will not create a table because the latter part of the statement is invalid:
+
+   ```sql
+   INSERT INTO d1001 USING meters TAGS('Beijing.Chaoyang', 2) VALUES('a');
+   ```
+
+7. However, an INSERT statement that writes data to multiple subtables can succeed for some tables and fail for others. This situation is caused because vnodes perform write operations independently of each other. One vnode failing to write data does not affect the ability of other vnodes to write successfully.
+
+## Insert a Record
+
+Single row or multiple rows specified with VALUES can be inserted into a specific table. A single row is inserted using the below statement.
+
+```sql
 INSERT INTO d1001 VALUES (NOW, 10.2, 219, 0.32);
 ```
+
+## Insert Multiple Records
 
 Double rows are inserted using the below statement.
 
@@ -33,31 +63,17 @@ Double rows are inserted using the below statement.
 INSERT INTO d1001 VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32) (1626164208000, 10.15, 217, 0.33);
 ```
 
-:::note
+## Write to a Specified Column
 
-1. In the second example above, different formats are used in the two rows to be inserted. In the first row, the timestamp format is a date and time string, which is interpreted from the string value only. In the second row, the timestamp format is a long integer, which will be interpreted based on the database time precision.
-2. When trying to insert multiple rows in a single statement, only the timestamp of one row can be set as NOW, otherwise there will be duplicate timestamps among the rows and the result may be out of expectation because NOW will be interpreted as the time when the statement is executed.
-3. The oldest timestamp that is allowed is subtracting the KEEP parameter from current time.
-4. The newest timestamp that is allowed is adding the DAYS parameter to current time.
+Data can be inserted into specific columns, either single row or multiple row, while other columns will be inserted as NULL value. The key (timestamp) cannot be null. For example:
 
-:::
-
-## Insert Into Specific Columns
-
-Data can be inserted into specific columns, either single row or multiple row, while other columns will be inserted as NULL value.
-
-```
+```sql
 INSERT INTO d1001 (ts, current, phase) VALUES ('2021-07-13 14:06:33.196', 10.27, 0.31);
 ```
 
-:::info
-If no columns are explicitly specified, all the columns must be provided with values, this is called "all column mode". The insert performance of all column mode is much better than specifying a subset of columns, so it's encouraged to use "all column mode" while providing NULL value explicitly for the columns for which no actual value can be provided.
-
-:::
-
 ## Insert Into Multiple Tables
 
-One or multiple rows can be inserted into multiple tables in a single SQL statement, with or without specifying specific columns.
+One or multiple rows can be inserted into multiple tables in a single SQL statement, with or without specifying specific columns. For example:
 
 ```sql
 INSERT INTO d1001 VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32) ('2021-07-13 14:06:35.779', 10.15, 217, 0.33)
@@ -66,29 +82,25 @@ INSERT INTO d1001 VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32) ('2021-07-
 
 ## Automatically Create Table When Inserting
 
-If it's unknown whether the table already exists, the table can be created automatically while inserting using the SQL statement below. To use this functionality, a STable must be used as template and tag values must be provided.
+If it's unknown whether the table already exists, the table can be created automatically while inserting using the SQL statement below. To use this functionality, a STable must be used as template and tag values must be provided. For example:
 
 ```sql
 INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32);
 ```
 
-It's not necessary to provide values for all tags when creating tables automatically, the tags without values provided will be set to NULL.
+It's not necessary to provide values for all tags when creating tables automatically, the tags without values provided will be set to NULL. For example:
 
 ```sql
 INSERT INTO d21001 USING meters (groupId) TAGS (2) VALUES ('2021-07-13 14:06:33.196', 10.15, 217, 0.33);
 ```
 
-Multiple rows can also be inserted into the same table in a single SQL statement.
+Multiple rows can also be inserted into the same table in a single SQL statement. For example:
 
 ```sql
 INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32) ('2021-07-13 14:06:35.779', 10.15, 217, 0.33)
             d21002 USING meters (groupId) TAGS (2) VALUES ('2021-07-13 14:06:34.255', 10.15, 217, 0.33)
             d21003 USING meters (groupId) TAGS (2) (ts, current, phase) VALUES ('2021-07-13 14:06:34.255', 10.27, 0.31);
 ```
-
-:::info
-Prior to version 2.0.20.5, when using `INSERT` to create tables automatically and specifying the columns, the column names must follow the table name immediately. From version 2.0.20.5, the column names can follow the table name immediately, also can be put between `TAGS` and `VALUES`. In the same SQL statement, however, these two ways of specifying column names can't be mixed.
-:::
 
 ## Insert Rows From A File
 
@@ -107,58 +119,13 @@ INSERT INTO d1001 FILE '/tmp/csvfile.csv';
 
 ## Create Tables Automatically and Insert Rows From File
 
-From version 2.1.5.0, tables can be automatically created using a super table as template when inserting data from a CSV file, like below:
-
 ```sql
 INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile.csv';
 ```
 
-Multiple tables can be automatically created and inserted in a single SQL statement, like below:
+When writing data from a file, you can automatically create the specified subtable if it does not exist. For example:
 
 ```sql
 INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile_21001.csv'
             d21002 USING meters (groupId) TAGS (2) FILE '/tmp/csvfile_21002.csv';
 ```
-
-## More About Insert
-
-For SQL statement like `insert`, a stream parsing strategy is applied. That means before an error is found and the execution is aborted, the part prior to the error point has already been executed. Below is an experiment to help understand the behavior.
-
-First, a super table is created.
-
-```sql
-CREATE TABLE meters(ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS(location BINARY(30), groupId INT);
-```
-
-It can be proven that the super table has been created by `SHOW STableS`, but no table exists using `SHOW TABLES`.
-
-```
-taos> SHOW STableS;
-              name              |      created_time       | columns |  tags  |   tables    |
-============================================================================================
- meters                         | 2020-08-06 17:50:27.831 |       4 |      2 |           0 |
-Query OK, 1 row(s) in set (0.001029s)
-
-taos> SHOW TABLES;
-Query OK, 0 row(s) in set (0.000946s)
-```
-
-Then, try to create table d1001 automatically when inserting data into it.
-
-```sql
-INSERT INTO d1001 USING meters TAGS('California.SanFrancisco', 2) VALUES('a');
-```
-
-The output shows the value to be inserted is invalid. But `SHOW TABLES` proves that the table has been created automatically by the `INSERT` statement.
-
-```
-DB error: invalid SQL: 'a' (invalid timestamp) (0.039494s)
-
-taos> SHOW TABLES;
-           table_name           |      created_time       | columns |          STable_name           |
-======================================================================================================
- d1001                          | 2020-08-06 17:52:02.097 |       4 | meters                         |
-Query OK, 1 row(s) in set (0.001091s)
-```
-
-From the above experiment, we can see that while the value to be inserted is invalid the table is still created.

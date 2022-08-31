@@ -1,6 +1,7 @@
 ---
 sidebar_label: 元数据
 title: 存储元数据的 Information_Schema 数据库
+description: Information_Schema 数据库中存储了系统中所有的元数据信息
 ---
 
 TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数据库元数据、数据库系统信息和状态的访问，例如数据库或表的名称，当前执行的 SQL 语句等。该数据库存储有关 TDengine 维护的所有其他数据库的信息。它包含多个只读表。实际上，这些表都是视图，而不是基表，因此没有与它们关联的文件。所以对这些表只能查询，不能进行 INSERT 等写入操作。`INFORMATION_SCHEMA` 数据库旨在以一种更一致的方式来提供对 TDengine 支持的各种 SHOW 语句（如 SHOW TABLES、SHOW DATABASES）所提供的信息的访问。与 SHOW 语句相比，使用 SELECT ... FROM INFORMATION_SCHEMA.tablename 具有以下优点：
@@ -245,3 +246,35 @@ Note: 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们�
 | 1   | dnode_id | INT          | dnode 的 ID  |
 | 2   |   name   | BINARY(32)   | 配置项名称   |
 | 3   |  value   | BINARY(64)   | 该配置项的值 |
+
+## INS_TOPICS
+
+| #   |  **列名**   | **数据类型** | **说明**                       |
+| --- | :---------: | ------------ | ------------------------------ |
+| 1   | topic_name  | BINARY(192)  | topic 名称                     |
+| 2   |   db_name   | BINARY(64)   | topic 相关的 DB                |
+| 3   | create_time | TIMESTAMP    | topic 的 创建时间              |
+| 4   |     sql     | BINARY(1024) | 创建该 topic 时所用的 SQL 语句 |
+
+## INS_SUBSCRIPTIONS
+
+| #   |    **列名**    | **数据类型** | **说明**                 |
+| --- | :------------: | ------------ | ------------------------ |
+| 1   |   topic_name   | BINARY(204)  | 被订阅的 topic           |
+| 2   | consumer_group | BINARY(193)  | 订阅者的消费者组         |
+| 3   |   vgroup_id    | INT          | 消费者被分配的 vgroup id |
+| 4   |  consumer_id   | BIGINT       | 消费者的唯一 id          |
+
+## INS_STREAMS
+
+| #   |   **列名**   | **数据类型** | **说明**                                |
+| --- | :----------: | ------------ | --------------------------------------- |
+| 1   | stream_name  | BINARY(64)   | 流计算名称                              |
+| 2   | create_time  | TIMESTAMP    | 创建时间                                |
+| 3   |     sql      | BINARY(1024) | 创建流计算时提供的 SQL 语句             |
+| 4   |    status    | BIANRY(20)   | 流当前状态                              |
+| 5   |  source_db   | BINARY(64)   | 源数据库                                |
+| 6   |  target_db   | BIANRY(64)   | 目的数据库                              |
+| 7   | target_table | BINARY(192)  | 流计算写入的目标表                      |
+| 8   |  watermark   | BIGINT       | watermark，详见 SQL 手册流式计算        |
+| 9   |   trigger    | INT          | 计算结果推送模式，详见 SQL 手册流式计算 |

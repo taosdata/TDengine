@@ -1,6 +1,6 @@
 ---
 sidebar_label: StatsD
-title: StatsD writing
+title: StatsD Writing
 ---
 
 import StatsD from "../14-reference/_statsd.mdx"
@@ -12,8 +12,8 @@ You can write StatsD data to TDengine by simply modifying the configuration file
 ## Prerequisites
 
 To write StatsD data to TDengine requires the following preparations.
-- The TDengine cluster has been deployed and is working properly
-- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](/reference/taosadapter) for details.
+1. The TDengine cluster is deployed and functioning properly
+2. taosAdapter is installed and running properly. Please refer to the taosAdapter manual for details.
 - StatsD has been installed. To install StatsD, please refer to [official documentation](https://github.com/statsd/statsd)
 
 ## Configuration steps
@@ -39,9 +39,6 @@ $ echo "foo:1|c" | nc -u -w0 127.0.0.1 8125
 Use the TDengine CLI to verify that StatsD data is written to TDengine and can read out correctly.
 
 ```
-Welcome to the TDengine shell from Linux, Client Version:2.4.0.0
-Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
-
 taos> show databases;
               name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
 ====================================================================================================================================================================================================================================================================================

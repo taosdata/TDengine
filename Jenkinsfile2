@@ -1,6 +1,7 @@
 import hudson.model.Result
 import hudson.model.*;
 import jenkins.model.CauseOfInterruption
+docs_only=0
 node {
 }
 
@@ -29,6 +30,49 @@ def abort_previous(){
     if (buildNumber > 1) milestone(buildNumber - 1)
     milestone(buildNumber)
 }
+def check_docs() {
+    if (env.CHANGE_URL =~ /\/TDengine\//) {
+        sh '''
+            hostname
+            date
+            env
+        '''
+        sh '''
+            cd ${WKC}
+            git reset --hard
+            git clean -fxd
+            rm -rf examples/rust/
+            git remote prune origin
+            git fetch
+        '''
+        script {
+            sh '''
+                cd ${WKC}
+                git checkout ''' + env.CHANGE_TARGET + '''
+            '''
+        }
+        sh '''
+            cd ${WKC}
+            git remote prune origin
+            git pull >/dev/null
+            git fetch origin +refs/pull/${CHANGE_ID}/merge
+            git checkout -qf FETCH_HEAD
+        '''
+        def file_changed = sh (
+            script: '''
+                cd ${WKC}
+                git --no-pager diff --name-only FETCH_HEAD `git merge-base FETCH_HEAD ${CHANGE_TARGET}`|grep -v "^docs/en/"|grep -v "^docs/zh/" || :
+            ''',
+            returnStdout: true
+        ).trim()
+        if (file_changed == '') {
+            echo "docs PR"
+            docs_only=1
+        } else {
+            echo file_changed
+        }
+    }
+}
 def pre_test(){
     sh '''
         hostname
@@ -43,6 +87,7 @@ def pre_test(){
         cd ${WKC}
         git reset --hard
         git clean -fxd
+        rm -rf examples/rust/
         git remote prune origin
         git fetch
     '''
@@ -306,10 +351,27 @@ pipeline {
         WKPY = '/var/lib/jenkins/workspace/taos-connector-python'
     }
     stages {
+        stage('check') {
+            when {
+                allOf {
+                    not { expression { env.CHANGE_BRANCH =~ /docs\// }}
+                    not { expression { env.CHANGE_URL =~ /\/TDinternal\// }}
+                }
+            }
+            parallel {
+                stage('check docs') {
+                    agent{label " worker03 || slave215 || slave217 || slave219 || Mac_catalina "}
+                    steps {
+                        check_docs()
+                    }
+                }
+            }
+        }
         stage('run test') {
             when {
                 allOf {
                     not { expression { env.CHANGE_BRANCH =~ /docs\// }}
+                    expression { docs_only == 0 }
                 }
             }
             parallel {

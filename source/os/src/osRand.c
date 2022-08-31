@@ -37,9 +37,13 @@ uint32_t taosRandR(uint32_t *pSeed) {
 
 uint32_t taosSafeRand(void) {
 #ifdef WINDOWS
-  uint32_t seed;
+  uint32_t seed = taosRand();
   HCRYPTPROV hCryptProv;
-  if (!CryptAcquireContext(&hCryptProv, NULL, NULL, PROV_RSA_FULL, 0)) return seed;
+  if (!CryptAcquireContext(&hCryptProv, NULL, NULL, PROV_RSA_FULL, 0)) {
+    if (!CryptAcquireContext(&hCryptProv, NULL, NULL, PROV_RSA_FULL, CRYPT_NEWKEYSET)) {
+      return seed;
+    }
+  }
   if (hCryptProv != NULL) {
     if (!CryptGenRandom(hCryptProv, 4, &seed)) return seed;
   }

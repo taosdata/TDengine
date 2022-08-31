@@ -1228,6 +1228,7 @@ void blockDataFreeRes(SSDataBlock* pBlock) {
   }
 
   taosArrayDestroy(pBlock->pDataBlock);
+  pBlock->pDataBlock = NULL;
   taosMemoryFreeClear(pBlock->pBlockAgg);
   memset(&pBlock->info, 0, sizeof(SDataBlockInfo));
 }
@@ -1343,12 +1344,14 @@ SSDataBlock* createDataBlock() {
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   if (pBlock == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
   }
 
   pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
   if (pBlock->pDataBlock == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     taosMemoryFree(pBlock);
+    return NULL;
   }
 
   return pBlock;
@@ -1423,6 +1426,7 @@ size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize) {
 }
 
 void colDataDestroy(SColumnInfoData* pColData) {
+  if(!pColData) return;
   if (IS_VAR_DATA_TYPE(pColData->info.type)) {
     taosMemoryFreeClear(pColData->varmeta.offset);
   } else {
@@ -1703,8 +1707,8 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 }
 
 void blockDebugShowDataBlock(SSDataBlock* pBlock, const char* flag) {
-  SArray* dataBlocks = taosArrayInit(1, sizeof(SSDataBlock));
-  taosArrayPush(dataBlocks, pBlock);
+  SArray* dataBlocks = taosArrayInit(1, sizeof(SSDataBlock*));
+  taosArrayPush(dataBlocks, &pBlock);
   blockDebugShowDataBlocks(dataBlocks, flag);
   taosArrayDestroy(dataBlocks);
 }

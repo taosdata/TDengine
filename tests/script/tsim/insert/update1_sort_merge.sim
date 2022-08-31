@@ -13,7 +13,7 @@ print =============== create super table
 sql create table if not exists stb (ts timestamp, c1 int unsigned, c2 double, c3 binary(10), c4 nchar(10), c5 double) tags (city binary(20),district binary(20));
 
 sql show stables
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
@@ -24,7 +24,7 @@ sql create table ct3 using stb tags("BeiJing", "PingGu")
 sql create table ct4 using stb tags("BeiJing", "YanQing")
 
 sql show tables
-if $rows != 4 then 
+if $rows != 4 then
   print rows $rows != 4
   return -1
 endi
@@ -69,7 +69,7 @@ print $data30 $data31 $data32 $data33 $data34 $data35
 print $data40 $data41 $data42 $data43 $data44 $data45
 print $data50 $data51 $data52 $data53 $data54 $data55
 
-if $rows != 6 then 
+if $rows != 6 then
   print rows $rows != 6
   return -1
 endi
@@ -154,7 +154,7 @@ print =============== step 6 query records of ct2 from memory(taosc and taosd me
 sql select * from ct2;
 print $data00 $data01 $data02 $data03 $data04 $data05
 
-if $rows != 1 then 
+if $rows != 1 then
   print rows $rows != 1
   return -1
 endi
@@ -196,12 +196,12 @@ print $data60 $data61 $data62 $data63 $data64 $data65
 print $data70 $data71 $data72 $data73 $data74 $data75
 print $data80 $data81 $data82 $data83 $data84 $data85
 print $data90 $data91 $data92 $data93 $data94 $data95
-print $data[10][0] $data[10][1] $data[10][2] $data[10][3] $data[10][4] $data[10][5] 
-print $data[11][0] $data[11][1] $data[11][2] $data[11][3] $data[11][4] $data[11][5] 
-print $data[12][0] $data[12][1] $data[12][2] $data[12][3] $data[12][4] $data[12][5] 
-print $data[13][0] $data[13][1] $data[13][2] $data[13][3] $data[13][4] $data[13][5] 
+print $data[10][0] $data[10][1] $data[10][2] $data[10][3] $data[10][4] $data[10][5]
+print $data[11][0] $data[11][1] $data[11][2] $data[11][3] $data[11][4] $data[11][5]
+print $data[12][0] $data[12][1] $data[12][2] $data[12][3] $data[12][4] $data[12][5]
+print $data[13][0] $data[13][1] $data[13][2] $data[13][3] $data[13][4] $data[13][5]
 
-if $rows != 14 then 
+if $rows != 14 then
   print rows $rows != 14
   return -1
 endi
@@ -356,7 +356,7 @@ print $data30 $data31 $data32 $data33 $data34 $data35
 print $data40 $data41 $data42 $data43 $data44 $data45
 
 
-if $rows != 5 then 
+if $rows != 5 then
   print rows $rows != 5
   return -1
 endi
@@ -451,7 +451,7 @@ print $data30 $data31 $data32 $data33 $data34 $data35
 print $data40 $data41 $data42 $data43 $data44 $data45
 print $data50 $data51 $data52 $data53 $data54 $data55
 
-if $rows != 6 then 
+if $rows != 6 then
   print rows $rows != 6
   return -1
 endi
@@ -536,7 +536,7 @@ print =============== step 10 query records of ct2 from file
 sql select * from ct2;
 print $data00 $data01 $data02 $data03 $data04 $data05
 
-if $rows != 1 then 
+if $rows != 1 then
   print rows $rows != 1
   return -1
 endi
@@ -578,12 +578,12 @@ print $data60 $data61 $data62 $data63 $data64 $data65
 print $data70 $data71 $data72 $data73 $data74 $data75
 print $data80 $data81 $data82 $data83 $data84 $data85
 print $data90 $data91 $data92 $data93 $data94 $data95
-print $data[10][0] $data[10][1] $data[10][2] $data[10][3] $data[10][4] $data[10][5] 
-print $data[11][0] $data[11][1] $data[11][2] $data[11][3] $data[11][4] $data[11][5] 
-print $data[12][0] $data[12][1] $data[12][2] $data[12][3] $data[12][4] $data[12][5] 
-print $data[13][0] $data[13][1] $data[13][2] $data[13][3] $data[13][4] $data[13][5] 
+print $data[10][0] $data[10][1] $data[10][2] $data[10][3] $data[10][4] $data[10][5]
+print $data[11][0] $data[11][1] $data[11][2] $data[11][3] $data[11][4] $data[11][5]
+print $data[12][0] $data[12][1] $data[12][2] $data[12][3] $data[12][4] $data[12][5]
+print $data[13][0] $data[13][1] $data[13][2] $data[13][3] $data[13][4] $data[13][5]
 
-if $rows != 14 then 
+if $rows != 14 then
   print rows $rows != 14
   return -1
 endi
@@ -738,7 +738,7 @@ print $data30 $data31 $data32 $data33 $data34 $data35
 print $data40 $data41 $data42 $data43 $data44 $data45
 
 
-if $rows != 5 then 
+if $rows != 5 then
   print rows $rows != 5
   return -1
 endi

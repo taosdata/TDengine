@@ -17,12 +17,12 @@
 #define TDENGINE_COMMAND_H
 
 #include "cmdnodes.h"
-#include "tmsg.h"
 #include "plannodes.h"
+#include "tmsg.h"
 
 typedef struct SExplainCtx SExplainCtx;
 
-int32_t qExecCommand(SNode* pStmt, SRetrieveTableRsp** pRsp);
+int32_t qExecCommand(bool sysInfoUser, SNode *pStmt, SRetrieveTableRsp **pRsp);
 
 int32_t qExecStaticExplain(SQueryPlan *pDag, SRetrieveTableRsp **pRsp);
 int32_t qExecExplainBegin(SQueryPlan *pDag, SExplainCtx **pCtx, int64_t startTs);

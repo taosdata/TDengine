@@ -263,7 +263,7 @@ Once the import is complete, the full page view of TDinsight is shown below.
 
 ## TDinsight dashboard details
 
-The TDinsight dashboard is designed to provide the usage and status of TDengine-related resources [dnodes, mnodes, vnodes](https://www.taosdata.com/cn/documentation/architecture#cluster) or databases.
+The TDinsight dashboard is designed to provide the usage and status of TDengine-related resources [dnodes, mnodes, vnodes](../../taos-sql/node/) or databases.
 
 Details of the metrics are as follows.
 

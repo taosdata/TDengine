@@ -21,17 +21,17 @@
 
 TDengine 是一款开源、高性能、云原生的时序数据库 (Time-Series Database, TSDB)。TDengine 能被广泛运用于物联网、工业互联网、车联网、IT 运维、金融等领域。除核心的时序数据库功能外，TDengine 还提供缓存、数据订阅、流式计算等功能，是一极简的时序数据处理平台，最大程度的减小系统设计的复杂度，降低研发和运营成本。与其他时序数据库相比，TDengine 的主要优势如下：
 
-- 高性能：通过创新的存储引擎设计，无论是数据写入还是查询，TDengine 的性能比通用数据库快 10 倍以上，也远超其他时序数据库，存储空间不及通用数据库的1/10。
+- **高性能**：通过创新的存储引擎设计，无论是数据写入还是查询，TDengine 的性能比通用数据库快 10 倍以上，也远超其他时序数据库，存储空间不及通用数据库的1/10。
 
-- 云原生：通过原生分布式的设计，充分利用云平台的优势，TDengine 提供了水平扩展能力，具备弹性、韧性和可观测性，支持k8s部署，可运行在公有云、私有云和混合云上。
+- **云原生**：通过原生分布式的设计，充分利用云平台的优势，TDengine 提供了水平扩展能力，具备弹性、韧性和可观测性，支持k8s部署，可运行在公有云、私有云和混合云上。
 
-- 极简时序数据平台：TDengine 内建消息队列、缓存、流式计算等功能，应用无需再集成 Kafka/Redis/HBase/Spark 等软件，大幅降低系统的复杂度，降低应用开发和运营成本。
+- **极简时序数据平台**：TDengine 内建消息队列、缓存、流式计算等功能，应用无需再集成 Kafka/Redis/HBase/Spark 等软件，大幅降低系统的复杂度，降低应用开发和运营成本。
 
-- 分析能力：支持 SQL，同时为时序数据特有的分析提供SQL扩展。通过超级表、存储计算分离、分区分片、预计算、自定义函数等技术，TDengine 具备强大的分析能力。
+- **分析能力**：支持 SQL，同时为时序数据特有的分析提供SQL扩展。通过超级表、存储计算分离、分区分片、预计算、自定义函数等技术，TDengine 具备强大的分析能力。
 
-- 简单易用：无任何依赖，安装、集群几秒搞定；提供REST以及各种语言连接器，与众多第三方工具无缝集成；提供命令行程序，便于管理和即席查询；提供各种运维工具。
+- **简单易用**：无任何依赖，安装、集群几秒搞定；提供REST以及各种语言连接器，与众多第三方工具无缝集成；提供命令行程序，便于管理和即席查询；提供各种运维工具。
 
-- 核心开源：TDengine 的核心代码包括集群功能全部开源，截止到2022年8月1日，全球超过 135.9k 个运行实例，GitHub Star 18.7k，Fork 4.4k，社区活跃。
+- **核心开源**：TDengine 的核心代码包括集群功能全部开源，截止到2022年8月1日，全球超过 135.9k 个运行实例，GitHub Star 18.7k，Fork 4.4k，社区活跃。
 
 # 文档
 
@@ -210,14 +210,14 @@ cmake .. -G "NMake Makefiles"
 nmake
 ```
 
-### macOS 系统
+<!-- ### macOS 系统
 
 安装 Xcode 命令行工具和 cmake. 在 Catalina 和 Big Sur 操作系统上，需要安装 XCode 11.4+ 版本。
 
 ```bash
 mkdir debug && cd debug
 cmake .. && cmake --build .
-```
+``` -->
 
 # 安装
 
@@ -303,14 +303,14 @@ Query OK, 2 row(s) in set (0.001700s)
 
 TDengine 提供了丰富的应用程序开发接口，其中包括 C/C++、Java、Python、Go、Node.js、C# 、RESTful 等，便于用户快速开发应用：
 
-- [Java](https://docs.taosdata.com/reference/connector/java/)
-- [C/C++](https://www.taosdata.com/cn/documentation/connector#c-cpp)
-- [Python](https://docs.taosdata.com/reference/connector/python/)
-- [Go](https://docs.taosdata.com/reference/connector/go/)
-- [Node.js](https://docs.taosdata.com/reference/connector/node/)
-- [Rust](https://docs.taosdata.com/reference/connector/rust/)
-- [C#](https://docs.taosdata.com/reference/connector/csharp/)
-- [RESTful API](https://docs.taosdata.com/reference/rest-api/)
+- [Java](https://docs.taosdata.com/connector/java/)
+- [C/C++](https://docs.taosdata.com/connector/cpp/)
+- [Python](https://docs.taosdata.com/connector/python/)
+- [Go](https://docs.taosdata.com/connector/go/)
+- [Node.js](https://docs.taosdata.com/connector/node/)
+- [Rust](https://docs.taosdata.com/connector/rust/)
+- [C#](https://docs.taosdata.com/connector/csharp/)
+- [RESTful API](https://docs.taosdata.com/connector/rest-api/)
 
 # 成为社区贡献者
 

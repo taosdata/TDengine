@@ -179,6 +179,7 @@ typedef struct {
   char    name[TSDB_CLUSTER_ID_LEN];
   int64_t createdTime;
   int64_t updateTime;
+  int32_t upTime;
 } SClusterObj;
 
 typedef struct {
@@ -636,6 +637,7 @@ typedef struct {
 
 int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
 int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj);
+void    tFreeStreamObj(SStreamObj* pObj);
 
 typedef struct {
   char    streamName[TSDB_STREAM_FNAME_LEN];

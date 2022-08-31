@@ -24,6 +24,7 @@ target_sources(
     "src/meta/metaCommit.c"
     "src/meta/metaEntry.c"
     "src/meta/metaSnapshot.c"
+    "src/meta/metaCache.c"
 
     # sma
     "src/sma/smaEnv.c"

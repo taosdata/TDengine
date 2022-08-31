@@ -53,6 +53,7 @@ enum {
   TASK_SCHED_STATUS__WAITING,
   TASK_SCHED_STATUS__ACTIVE,
   TASK_SCHED_STATUS__FAILED,
+  TASK_SCHED_STATUS__DROPPING,
 };
 
 enum {
@@ -126,6 +127,10 @@ typedef struct {
 typedef struct {
   int8_t type;
 } SStreamCheckpoint;
+
+typedef struct {
+  int8_t type;
+} SStreamTaskDestroy;
 
 typedef struct {
   int8_t       type;
@@ -211,7 +216,6 @@ typedef struct {
   void*     vnode;
   FTbSink*  tbSinkFunc;
   STSchema* pTSchema;
-  SHashObj* pHash;  // groupId to tbuid
 } STaskSinkTb;
 
 typedef void FSmaSink(void* vnode, int64_t smaId, const SArray* data);
@@ -259,6 +263,14 @@ typedef struct {
   SArray* checkpointVer;
 } SStreamRecoveringState;
 
+// incremental state storage
+typedef struct {
+  SStreamTask* pOwner;
+  TDB*         db;
+  TTB*         pStateDb;
+  TXN          txn;
+} SStreamState;
+
 typedef struct SStreamTask {
   int64_t streamId;
   int32_t taskId;
@@ -275,12 +287,8 @@ typedef struct SStreamTask {
   int32_t nodeId;
   SEpSet  epSet;
 
-  // used for task source and sink,
-  // while task agg should have processedVer for each child
   int64_t recoverSnapVer;
   int64_t startVer;
-  int64_t checkpointVer;
-  int64_t processedVer;
 
   // children info
   SArray* childEpInfo;  // SArray<SStreamChildEpInfo*>
@@ -312,6 +320,10 @@ typedef struct SStreamTask {
 
   // msg handle
   SMsgCb* pMsgCb;
+
+  // state backend
+  SStreamState* pState;
+
 } SStreamTask;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
@@ -507,7 +519,7 @@ typedef struct SStreamMeta {
   char*        path;
   TDB*         db;
   TTB*         pTaskDb;
-  TTB*         pStateDb;
+  TTB*         pCheckpointDb;
   SHashObj*    pTasks;
   SHashObj*    pRecoverStatus;
   void*        ahandle;
@@ -519,7 +531,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
 void         streamMetaClose(SStreamMeta* streamMeta);
 
 int32_t      streamMetaAddTask(SStreamMeta* pMeta, SStreamTask* pTask);
-int32_t      streamMetaAddSerializedTask(SStreamMeta* pMeta, char* msg, int32_t msgLen);
+int32_t      streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t startVer, char* msg, int32_t msgLen);
 int32_t      streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
 SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId);
 
@@ -527,6 +539,37 @@ int32_t streamMetaBegin(SStreamMeta* pMeta);
 int32_t streamMetaCommit(SStreamMeta* pMeta);
 int32_t streamMetaRollBack(SStreamMeta* pMeta);
 int32_t streamLoadTasks(SStreamMeta* pMeta);
+
+SStreamState* streamStateOpen(char* path, SStreamTask* pTask);
+void          streamStateClose(SStreamState* pState);
+int32_t       streamStateBegin(SStreamState* pState);
+int32_t       streamStateCommit(SStreamState* pState);
+int32_t       streamStateAbort(SStreamState* pState);
+
+typedef struct {
+  TBC* pCur;
+} SStreamStateCur;
+
+#if 1
+int32_t streamStatePut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
+int32_t streamStateGet(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen);
+int32_t streamStateDel(SStreamState* pState, const SWinKey* key);
+void    streamFreeVal(void* val);
+
+SStreamStateCur* streamStateGetCur(SStreamState* pState, const SWinKey* key);
+SStreamStateCur* streamStateSeekKeyNext(SStreamState* pState, const SWinKey* key);
+SStreamStateCur* streamStateSeekKeyPrev(SStreamState* pState, const SWinKey* key);
+void             streamStateFreeCur(SStreamStateCur* pCur);
+
+int32_t streamStateGetKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
+
+int32_t streamStateSeekFirst(SStreamState* pState, SStreamStateCur* pCur);
+int32_t streamStateSeekLast(SStreamState* pState, SStreamStateCur* pCur);
+
+int32_t streamStateCurNext(SStreamState* pState, SStreamStateCur* pCur);
+int32_t streamStateCurPrev(SStreamState* pState, SStreamStateCur* pCur);
+
+#endif
 
 #ifdef __cplusplus
 }

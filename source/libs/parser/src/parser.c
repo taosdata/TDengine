@@ -136,8 +136,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
 }
 
 static EDealRes rewriteQueryExprAliasImpl(SNode* pNode, void* pContext) {
-  if (nodesIsExprNode(pNode) && QUERY_NODE_COLUMN != nodeType(pNode) && '\0' == ((SExprNode*)pNode)->userAlias[0]) {
-    strcpy(((SExprNode*)pNode)->userAlias, ((SExprNode*)pNode)->aliasName);
+  if (nodesIsExprNode(pNode) && QUERY_NODE_COLUMN != nodeType(pNode)) {
     sprintf(((SExprNode*)pNode)->aliasName, "#%d", *(int32_t*)pContext);
     ++(*(int32_t*)pContext);
   }
@@ -185,7 +184,7 @@ int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq
     code = parseSqlSyntax(pCxt, pQuery, &metaCache);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildCatalogReq(&metaCache, pCatalogReq);
+    code = buildCatalogReq(pCxt, &metaCache, pCatalogReq);
   }
   destoryParseMetaCache(&metaCache, true);
   terrno = code;
@@ -195,7 +194,7 @@ int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq
 int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCatalogReq,
                             const struct SMetaData* pMetaData, SQuery* pQuery) {
   SParseMetaCache metaCache = {0};
-  int32_t         code = putMetaDataToCache(pCatalogReq, pMetaData, &metaCache);
+  int32_t         code = putMetaDataToCache(pCatalogReq, pMetaData, &metaCache, NULL == pQuery->pRoot);
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL == pQuery->pRoot) {
       code = parseInsertSql(pCxt, &pQuery, &metaCache);

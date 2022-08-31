@@ -1731,7 +1731,7 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     SDbObj infoschemaDb = {0};
     setInformationSchemaDbCfg(&infoschemaDb);
     size_t numOfTables = 0;
-    getInfosDbMeta(NULL, &numOfTables);
+    getVisibleInfosTablesNum(sysinfo, &numOfTables);
     mndDumpDbInfoData(pMnode, pBlock, &infoschemaDb, pShow, numOfRows, numOfTables, true, 0, 1);
 
     numOfRows += 1;

@@ -3196,12 +3196,16 @@ static int32_t tDecodeSTableMetaRsp(SDecoder *pDecoder, STableMetaRsp *pRsp) {
   if (tDecodeI32(pDecoder, &pRsp->vgId) < 0) return -1;
 
   int32_t totalCols = pRsp->numOfTags + pRsp->numOfColumns;
-  pRsp->pSchemas = taosMemoryMalloc(sizeof(SSchema) * totalCols);
-  if (pRsp->pSchemas == NULL) return -1;
+  if (totalCols > 0) {
+    pRsp->pSchemas = taosMemoryMalloc(sizeof(SSchema) * totalCols);
+    if (pRsp->pSchemas == NULL) return -1;
 
-  for (int32_t i = 0; i < totalCols; ++i) {
-    SSchema *pSchema = &pRsp->pSchemas[i];
-    if (tDecodeSSchema(pDecoder, pSchema) < 0) return -1;
+    for (int32_t i = 0; i < totalCols; ++i) {
+      SSchema *pSchema = &pRsp->pSchemas[i];
+      if (tDecodeSSchema(pDecoder, pSchema) < 0) return -1;
+    }
+  } else {
+    pRsp->pSchemas = NULL;
   }
 
   return 0;
@@ -3326,7 +3330,7 @@ int32_t tDeserializeSSTbHbRsp(void *buf, int32_t bufLen, SSTbHbRsp *pRsp) {
   return 0;
 }
 
-void tFreeSTableMetaRsp(STableMetaRsp *pRsp) { taosMemoryFreeClear(pRsp->pSchemas); }
+void tFreeSTableMetaRsp(void *pRsp) { taosMemoryFreeClear(((STableMetaRsp *)pRsp)->pSchemas); }
 
 void tFreeSTableIndexRsp(void *info) {
   if (NULL == info) {
@@ -3630,6 +3634,7 @@ int32_t tSerializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   if (tEncodeU32(&encoder, pRsp->connId) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->dnodeNum) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->superUser) < 0) return -1;
+  if (tEncodeI8(&encoder, pRsp->sysInfo) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->connType) < 0) return -1;
   if (tEncodeSEpSet(&encoder, &pRsp->epSet) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->svrTimestamp) < 0) return -1;
@@ -3652,6 +3657,7 @@ int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   if (tDecodeU32(&decoder, &pRsp->connId) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->dnodeNum) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->superUser) < 0) return -1;
+  if (tDecodeI8(&decoder, &pRsp->sysInfo) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->connType) < 0) return -1;
   if (tDecodeSEpSet(&decoder, &pRsp->epSet) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->svrTimestamp) < 0) return -1;
@@ -4262,7 +4268,6 @@ int32_t tDeserializeSServerStatusRsp(void *buf, int32_t bufLen, SServerStatusRsp
   tDecoderClear(&decoder);
   return 0;
 }
-
 int32_t tEncodeSMqOffset(SEncoder *encoder, const SMqOffset *pOffset) {
   if (tEncodeI32(encoder, pOffset->vgId) < 0) return -1;
   if (tEncodeI64(encoder, pOffset->offset) < 0) return -1;
@@ -4300,7 +4305,6 @@ int32_t tDecodeSMqCMCommitOffsetReq(SDecoder *decoder, SMqCMCommitOffsetReq *pRe
   tEndDecode(decoder);
   return 0;
 }
-
 int32_t tSerializeSExplainRsp(void *buf, int32_t bufLen, SExplainRsp *pRsp) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
@@ -5092,6 +5096,10 @@ int tEncodeSVCreateTbRsp(SEncoder *pCoder, const SVCreateTbRsp *pRsp) {
   if (tStartEncode(pCoder) < 0) return -1;
 
   if (tEncodeI32(pCoder, pRsp->code) < 0) return -1;
+  if (tEncodeI32(pCoder, pRsp->pMeta ? 1 : 0) < 0) return -1;
+  if (pRsp->pMeta) {
+    if (tEncodeSTableMetaRsp(pCoder, pRsp->pMeta) < 0) return -1;
+  }
 
   tEndEncode(pCoder);
   return 0;
@@ -5102,8 +5110,30 @@ int tDecodeSVCreateTbRsp(SDecoder *pCoder, SVCreateTbRsp *pRsp) {
 
   if (tDecodeI32(pCoder, &pRsp->code) < 0) return -1;
 
+  int32_t meta = 0;
+  if (tDecodeI32(pCoder, &meta) < 0) return -1;
+  if (meta) {
+    pRsp->pMeta = taosMemoryCalloc(1, sizeof(STableMetaRsp));
+    if (NULL == pRsp->pMeta) return -1;
+    if (tDecodeSTableMetaRsp(pCoder, pRsp->pMeta) < 0) return -1;
+  } else {
+    pRsp->pMeta = NULL;
+  }
+
   tEndDecode(pCoder);
   return 0;
+}
+
+void tFreeSVCreateTbRsp(void *param) {
+  if (NULL == param) {
+    return;
+  }
+
+  SVCreateTbRsp *pRsp = (SVCreateTbRsp *)param;
+  if (pRsp->pMeta) {
+    taosMemoryFree(pRsp->pMeta->pSchemas);
+    taosMemoryFree(pRsp->pMeta);
+  }
 }
 
 // TDMT_VND_DROP_TABLE =================
@@ -5294,6 +5324,10 @@ static int32_t tEncodeSSubmitBlkRsp(SEncoder *pEncoder, const SSubmitBlkRsp *pBl
   if (tEncodeI32v(pEncoder, pBlock->numOfRows) < 0) return -1;
   if (tEncodeI32v(pEncoder, pBlock->affectedRows) < 0) return -1;
   if (tEncodeI64v(pEncoder, pBlock->sver) < 0) return -1;
+  if (tEncodeI32(pEncoder, pBlock->pMeta ? 1 : 0) < 0) return -1;
+  if (pBlock->pMeta) {
+    if (tEncodeSTableMetaRsp(pEncoder, pBlock->pMeta) < 0) return -1;
+  }
 
   tEndEncode(pEncoder);
   return 0;
@@ -5311,6 +5345,16 @@ static int32_t tDecodeSSubmitBlkRsp(SDecoder *pDecoder, SSubmitBlkRsp *pBlock) {
   if (tDecodeI32v(pDecoder, &pBlock->numOfRows) < 0) return -1;
   if (tDecodeI32v(pDecoder, &pBlock->affectedRows) < 0) return -1;
   if (tDecodeI64v(pDecoder, &pBlock->sver) < 0) return -1;
+
+  int32_t meta = 0;
+  if (tDecodeI32(pDecoder, &meta) < 0) return -1;
+  if (meta) {
+    pBlock->pMeta = taosMemoryCalloc(1, sizeof(STableMetaRsp));
+    if (NULL == pBlock->pMeta) return -1;
+    if (tDecodeSTableMetaRsp(pDecoder, pBlock->pMeta) < 0) return -1;
+  } else {
+    pBlock->pMeta = NULL;
+  }
 
   tEndDecode(pDecoder);
   return 0;
@@ -5347,6 +5391,20 @@ int32_t tDecodeSSubmitRsp(SDecoder *pDecoder, SSubmitRsp *pRsp) {
   tEndDecode(pDecoder);
   tDecoderClear(pDecoder);
   return 0;
+}
+
+void tFreeSSubmitBlkRsp(void *param) {
+  if (NULL == param) {
+    return;
+  }
+
+  SSubmitBlkRsp *pRsp = (SSubmitBlkRsp *)param;
+
+  taosMemoryFree(pRsp->tblFName);
+  if (pRsp->pMeta) {
+    taosMemoryFree(pRsp->pMeta->pSchemas);
+    taosMemoryFree(pRsp->pMeta);
+  }
 }
 
 void tFreeSSubmitRsp(SSubmitRsp *pRsp) {
@@ -5560,9 +5618,60 @@ void tFreeSMAlterStbRsp(SMAlterStbRsp *pRsp) {
   }
 }
 
+int32_t tEncodeSMCreateStbRsp(SEncoder *pEncoder, const SMCreateStbRsp *pRsp) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeI32(pEncoder, pRsp->pMeta->pSchemas ? 1 : 0) < 0) return -1;
+  if (pRsp->pMeta->pSchemas) {
+    if (tEncodeSTableMetaRsp(pEncoder, pRsp->pMeta) < 0) return -1;
+  }
+  tEndEncode(pEncoder);
+  return 0;
+}
+
+int32_t tDecodeSMCreateStbRsp(SDecoder *pDecoder, SMCreateStbRsp *pRsp) {
+  int32_t meta = 0;
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeI32(pDecoder, &meta) < 0) return -1;
+  if (meta) {
+    pRsp->pMeta = taosMemoryCalloc(1, sizeof(STableMetaRsp));
+    if (NULL == pRsp->pMeta) return -1;
+    if (tDecodeSTableMetaRsp(pDecoder, pRsp->pMeta) < 0) return -1;
+  }
+  tEndDecode(pDecoder);
+  return 0;
+}
+
+int32_t tDeserializeSMCreateStbRsp(void *buf, int32_t bufLen, SMCreateStbRsp *pRsp) {
+  int32_t  meta = 0;
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &meta) < 0) return -1;
+  if (meta) {
+    pRsp->pMeta = taosMemoryCalloc(1, sizeof(STableMetaRsp));
+    if (NULL == pRsp->pMeta) return -1;
+    if (tDecodeSTableMetaRsp(&decoder, pRsp->pMeta) < 0) return -1;
+  }
+  tEndDecode(&decoder);
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSMCreateStbRsp(SMCreateStbRsp *pRsp) {
+  if (NULL == pRsp) {
+    return;
+  }
+
+  if (pRsp->pMeta) {
+    taosMemoryFree(pRsp->pMeta->pSchemas);
+    taosMemoryFree(pRsp->pMeta);
+  }
+}
+
 int32_t tEncodeSTqOffsetVal(SEncoder *pEncoder, const STqOffsetVal *pOffsetVal) {
   if (tEncodeI8(pEncoder, pOffsetVal->type) < 0) return -1;
-  if (pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_DATA) {
+  if (pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_DATA || pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_META) {
     if (tEncodeI64(pEncoder, pOffsetVal->uid) < 0) return -1;
     if (tEncodeI64(pEncoder, pOffsetVal->ts) < 0) return -1;
   } else if (pOffsetVal->type == TMQ_OFFSET__LOG) {
@@ -5577,7 +5686,7 @@ int32_t tEncodeSTqOffsetVal(SEncoder *pEncoder, const STqOffsetVal *pOffsetVal) 
 
 int32_t tDecodeSTqOffsetVal(SDecoder *pDecoder, STqOffsetVal *pOffsetVal) {
   if (tDecodeI8(pDecoder, &pOffsetVal->type) < 0) return -1;
-  if (pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_DATA) {
+  if (pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_DATA || pOffsetVal->type == TMQ_OFFSET__SNAPSHOT_META) {
     if (tDecodeI64(pDecoder, &pOffsetVal->uid) < 0) return -1;
     if (tDecodeI64(pDecoder, &pOffsetVal->ts) < 0) return -1;
   } else if (pOffsetVal->type == TMQ_OFFSET__LOG) {
@@ -5590,7 +5699,6 @@ int32_t tDecodeSTqOffsetVal(SDecoder *pDecoder, STqOffsetVal *pOffsetVal) {
   return 0;
 }
 
-#if 1
 int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
   if (pVal->type == TMQ_OFFSET__RESET_NONE) {
     snprintf(buf, maxLen, "offset(reset to none)");
@@ -5600,16 +5708,13 @@ int32_t tFormatOffset(char *buf, int32_t maxLen, const STqOffsetVal *pVal) {
     snprintf(buf, maxLen, "offset(reset to latest)");
   } else if (pVal->type == TMQ_OFFSET__LOG) {
     snprintf(buf, maxLen, "offset(log) ver:%" PRId64, pVal->version);
-  } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_DATA) {
+  } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_DATA || pVal->type == TMQ_OFFSET__SNAPSHOT_META) {
     snprintf(buf, maxLen, "offset(ss data) uid:%" PRId64 ", ts:%" PRId64, pVal->uid, pVal->ts);
-  } else if (pVal->type == TMQ_OFFSET__SNAPSHOT_META) {
-    snprintf(buf, maxLen, "offset(ss meta) uid:%" PRId64 ", ts:%" PRId64, pVal->uid, pVal->ts);
   } else {
     ASSERT(0);
   }
   return 0;
 }
-#endif
 
 bool tOffsetEqual(const STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
   if (pLeft->type == pRight->type) {
@@ -5618,9 +5723,7 @@ bool tOffsetEqual(const STqOffsetVal *pLeft, const STqOffsetVal *pRight) {
     } else if (pLeft->type == TMQ_OFFSET__SNAPSHOT_DATA) {
       return pLeft->uid == pRight->uid && pLeft->ts == pRight->ts;
     } else if (pLeft->type == TMQ_OFFSET__SNAPSHOT_META) {
-      ASSERT(0);
-      // TODO
-      return pLeft->uid == pRight->uid && pLeft->ts == pRight->ts;
+      return pLeft->uid == pRight->uid;
     } else {
       ASSERT(0);
       /*ASSERT(pLeft->type == TMQ_OFFSET__RESET_NONE || pLeft->type == TMQ_OFFSET__RESET_EARLIEAST ||*/
@@ -5643,7 +5746,7 @@ int32_t tDecodeSTqOffset(SDecoder *pDecoder, STqOffset *pOffset) {
   return 0;
 }
 
-int32_t tEncodeSCheckAlterInfo(SEncoder *pEncoder, const SCheckAlterInfo *pInfo) {
+int32_t tEncodeSTqCheckInfo(SEncoder *pEncoder, const STqCheckInfo *pInfo) {
   if (tEncodeCStr(pEncoder, pInfo->topic) < 0) return -1;
   if (tEncodeI64(pEncoder, pInfo->ntbUid) < 0) return -1;
   int32_t sz = taosArrayGetSize(pInfo->colIdList);
@@ -5655,7 +5758,7 @@ int32_t tEncodeSCheckAlterInfo(SEncoder *pEncoder, const SCheckAlterInfo *pInfo)
   return pEncoder->pos;
 }
 
-int32_t tDecodeSCheckAlterInfo(SDecoder *pDecoder, SCheckAlterInfo *pInfo) {
+int32_t tDecodeSTqCheckInfo(SDecoder *pDecoder, STqCheckInfo *pInfo) {
   if (tDecodeCStrTo(pDecoder, pInfo->topic) < 0) return -1;
   if (tDecodeI64(pDecoder, &pInfo->ntbUid) < 0) return -1;
   int32_t sz;
@@ -5705,6 +5808,21 @@ int32_t tDecodeDeleteRes(SDecoder *pCoder, SDeleteRes *pRes) {
   if (tDecodeCStrTo(pCoder, pRes->tsColName) < 0) return -1;
   return 0;
 }
+
+int32_t tEncodeSMqMetaRsp(SEncoder *pEncoder, const SMqMetaRsp *pRsp) {
+  if (tEncodeSTqOffsetVal(pEncoder, &pRsp->rspOffset) < 0) return -1;
+  if (tEncodeI16(pEncoder, pRsp->resMsgType)) return -1;
+  if (tEncodeBinary(pEncoder, pRsp->metaRsp, pRsp->metaRspLen)) return -1;
+  return 0;
+}
+
+int32_t tDecodeSMqMetaRsp(SDecoder *pDecoder, SMqMetaRsp *pRsp) {
+  if (tDecodeSTqOffsetVal(pDecoder, &pRsp->rspOffset) < 0) return -1;
+  if (tDecodeI16(pDecoder, &pRsp->resMsgType) < 0) return -1;
+  if (tDecodeBinaryAlloc(pDecoder, &pRsp->metaRsp, (uint64_t *)&pRsp->metaRspLen) < 0) return -1;
+  return 0;
+}
+
 int32_t tEncodeSMqDataRsp(SEncoder *pEncoder, const SMqDataRsp *pRsp) {
   if (tEncodeSTqOffsetVal(pEncoder, &pRsp->reqOffset) < 0) return -1;
   if (tEncodeSTqOffsetVal(pEncoder, &pRsp->rspOffset) < 0) return -1;
@@ -5771,6 +5889,99 @@ int32_t tDecodeSMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
   return 0;
 }
 
+void tDeleteSMqDataRsp(SMqDataRsp *pRsp) {
+  taosArrayDestroy(pRsp->blockDataLen);
+  taosArrayDestroyP(pRsp->blockData, (FDelete)taosMemoryFree);
+  taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSSchemaWrapper);
+  taosArrayDestroyP(pRsp->blockTbName, (FDelete)taosMemoryFree);
+}
+
+int32_t tEncodeSTaosxRsp(SEncoder *pEncoder, const STaosxRsp *pRsp) {
+  if (tEncodeSTqOffsetVal(pEncoder, &pRsp->reqOffset) < 0) return -1;
+  if (tEncodeSTqOffsetVal(pEncoder, &pRsp->rspOffset) < 0) return -1;
+  if (tEncodeI32(pEncoder, pRsp->blockNum) < 0) return -1;
+  if (pRsp->blockNum != 0) {
+    if (tEncodeI8(pEncoder, pRsp->withTbName) < 0) return -1;
+    if (tEncodeI8(pEncoder, pRsp->withSchema) < 0) return -1;
+
+    for (int32_t i = 0; i < pRsp->blockNum; i++) {
+      int32_t bLen = *(int32_t *)taosArrayGet(pRsp->blockDataLen, i);
+      void   *data = taosArrayGetP(pRsp->blockData, i);
+      if (tEncodeBinary(pEncoder, (const uint8_t *)data, bLen) < 0) return -1;
+      if (pRsp->withSchema) {
+        SSchemaWrapper *pSW = (SSchemaWrapper *)taosArrayGetP(pRsp->blockSchema, i);
+        if (tEncodeSSchemaWrapper(pEncoder, pSW) < 0) return -1;
+      }
+      if (pRsp->withTbName) {
+        char *tbName = (char *)taosArrayGetP(pRsp->blockTbName, i);
+        if (tEncodeCStr(pEncoder, tbName) < 0) return -1;
+      }
+    }
+  }
+  if (tEncodeI32(pEncoder, pRsp->createTableNum) < 0) return -1;
+  if (pRsp->createTableNum) {
+    for (int32_t i = 0; i < pRsp->createTableNum; i++) {
+      void   *createTableReq = taosArrayGetP(pRsp->createTableReq, i);
+      int32_t createTableLen = *(int32_t *)taosArrayGet(pRsp->createTableLen, i);
+      if (tEncodeBinary(pEncoder, createTableReq, createTableLen) < 0) return -1;
+    }
+  }
+  return 0;
+}
+
+int32_t tDecodeSTaosxRsp(SDecoder *pDecoder, STaosxRsp *pRsp) {
+  if (tDecodeSTqOffsetVal(pDecoder, &pRsp->reqOffset) < 0) return -1;
+  if (tDecodeSTqOffsetVal(pDecoder, &pRsp->rspOffset) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pRsp->blockNum) < 0) return -1;
+  if (pRsp->blockNum != 0) {
+    pRsp->blockData = taosArrayInit(pRsp->blockNum, sizeof(void *));
+    pRsp->blockDataLen = taosArrayInit(pRsp->blockNum, sizeof(int32_t));
+    if (tDecodeI8(pDecoder, &pRsp->withTbName) < 0) return -1;
+    if (tDecodeI8(pDecoder, &pRsp->withSchema) < 0) return -1;
+    if (pRsp->withTbName) {
+      pRsp->blockTbName = taosArrayInit(pRsp->blockNum, sizeof(void *));
+    }
+    if (pRsp->withSchema) {
+      pRsp->blockSchema = taosArrayInit(pRsp->blockNum, sizeof(void *));
+    }
+
+    for (int32_t i = 0; i < pRsp->blockNum; i++) {
+      void    *data;
+      uint64_t bLen;
+      if (tDecodeBinaryAlloc(pDecoder, &data, &bLen) < 0) return -1;
+      taosArrayPush(pRsp->blockData, &data);
+      int32_t len = bLen;
+      taosArrayPush(pRsp->blockDataLen, &len);
+
+      if (pRsp->withSchema) {
+        SSchemaWrapper *pSW = (SSchemaWrapper *)taosMemoryCalloc(1, sizeof(SSchemaWrapper));
+        if (pSW == NULL) return -1;
+        if (tDecodeSSchemaWrapper(pDecoder, pSW) < 0) return -1;
+        taosArrayPush(pRsp->blockSchema, &pSW);
+      }
+
+      if (pRsp->withTbName) {
+        char *tbName;
+        if (tDecodeCStrAlloc(pDecoder, &tbName) < 0) return -1;
+        taosArrayPush(pRsp->blockTbName, &tbName);
+      }
+    }
+  }
+  if (tDecodeI32(pDecoder, &pRsp->createTableNum) < 0) return -1;
+  if (pRsp->createTableNum) {
+    pRsp->createTableLen = taosArrayInit(pRsp->createTableNum, sizeof(int32_t));
+    pRsp->createTableReq = taosArrayInit(pRsp->createTableNum, sizeof(void *));
+    for (int32_t i = 0; i < pRsp->createTableNum; i++) {
+      void    *pCreate = NULL;
+      uint64_t len;
+      if (tDecodeBinaryAlloc(pDecoder, &pCreate, &len) < 0) return -1;
+      int32_t l = (int32_t)len;
+      taosArrayPush(pRsp->createTableLen, &l);
+      taosArrayPush(pRsp->createTableReq, &pCreate);
+    }
+  }
+  return 0;
+}
 int32_t tEncodeSSingleDeleteReq(SEncoder *pEncoder, const SSingleDeleteReq *pReq) {
   if (tEncodeI64(pEncoder, pReq->uid) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->ts) < 0) return -1;

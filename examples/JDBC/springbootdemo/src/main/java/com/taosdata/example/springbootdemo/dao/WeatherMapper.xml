@@ -10,8 +10,7 @@
     </resultMap>
 
     <select id="lastOne" resultType="java.util.Map">
-        select last_row(*), location, groupid
-        from test.weather
+        select last_row(ts) as ts, last_row(temperature) as temperature, last_row(humidity) as humidity, last_row(note) as note,last_row(location) as location , last_row(groupid) as groupid from test.weather;
     </select>
 
     <update id="dropDB">

@@ -27,12 +27,16 @@ struct STsdbSnapReader {
   int32_t       fid;
   SDataFReader* pDataFReader;
   SArray*       aBlockIdx;  // SArray<SBlockIdx>
-  int32_t       iBlockIdx;
+  SArray*       aBlockL;    // SArray<SBlockL>
   SBlockIdx*    pBlockIdx;
-  SMapData      mBlock;  // SMapData<SBlock>
-  int32_t       iBlock;
-  SBlockData    oBlockData;
-  SBlockData    nBlockData;
+  SBlockL*      pBlockL;
+
+  int32_t    iBlockIdx;
+  int32_t    iBlockL;
+  SMapData   mBlock;  // SMapData<SBlock>
+  int32_t    iBlock;
+  SBlockData oBlockData;
+  SBlockData nBlockData;
   // for del file
   int8_t       delDone;
   SDelFReader* pDelFReader;
@@ -47,114 +51,116 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
 
   while (true) {
     if (pReader->pDataFReader == NULL) {
-      SDFileSet* pSet =
-          taosArraySearch(pReader->fs.aDFileSet, &(SDFileSet){.fid = pReader->fid}, tDFileSetCmprFn, TD_GT);
-
+      // next
+      SDFileSet  dFileSet = {.fid = pReader->fid};
+      SDFileSet* pSet = taosArraySearch(pReader->fs.aDFileSet, &dFileSet, tDFileSetCmprFn, TD_GT);
       if (pSet == NULL) goto _exit;
-
       pReader->fid = pSet->fid;
-      code = tsdbDataFReaderOpen(&pReader->pDataFReader, pReader->pTsdb, pSet);
+
+      // load
+      code = tsdbDataFReaderOpen(&pReader->pDataFReader, pTsdb, pSet);
       if (code) goto _err;
 
-      // SBlockIdx
-      code = tsdbReadBlockIdx(pReader->pDataFReader, pReader->aBlockIdx, NULL);
+      code = tsdbReadBlockIdx(pReader->pDataFReader, pReader->aBlockIdx);
       if (code) goto _err;
 
+      code = tsdbReadBlockL(pReader->pDataFReader, pReader->aBlockL);
+      if (code) goto _err;
+
+      // init
       pReader->iBlockIdx = 0;
-      pReader->pBlockIdx = NULL;
+      if (pReader->iBlockIdx < taosArrayGetSize(pReader->aBlockIdx)) {
+        pReader->pBlockIdx = (SBlockIdx*)taosArrayGet(pReader->aBlockIdx, pReader->iBlockIdx);
+
+        code = tsdbReadBlock(pReader->pDataFReader, pReader->pBlockIdx, &pReader->mBlock);
+        if (code) goto _err;
+
+        pReader->iBlock = 0;
+      } else {
+        pReader->pBlockIdx = NULL;
+      }
+
+      pReader->iBlockL = 0;
+      while (true) {
+        if (pReader->iBlockL >= taosArrayGetSize(pReader->aBlockL)) {
+          pReader->pBlockL = NULL;
+          break;
+        }
+
+        pReader->pBlockL = (SBlockL*)taosArrayGet(pReader->aBlockL, pReader->iBlockL);
+        if (pReader->pBlockL->minVer <= pReader->ever && pReader->pBlockL->maxVer >= pReader->sver) {
+          // TODO
+          break;
+        }
+
+        pReader->iBlockL++;
+      }
 
       tsdbInfo("vgId:%d, vnode snapshot tsdb open data file to read for %s, fid:%d", TD_VID(pTsdb->pVnode), pTsdb->path,
                pReader->fid);
     }
 
     while (true) {
-      if (pReader->pBlockIdx == NULL) {
-        if (pReader->iBlockIdx >= taosArrayGetSize(pReader->aBlockIdx)) {
-          tsdbDataFReaderClose(&pReader->pDataFReader);
-          break;
+      if (pReader->pBlockIdx && pReader->pBlockL) {
+        TABLEID id = {.suid = pReader->pBlockL->suid, .uid = pReader->pBlockL->minUid};
+
+        ASSERT(0);
+
+        // if (tTABLEIDCmprFn(pReader->pBlockIdx, &minId) < 0) {
+        //   // TODO
+        // } else if (tTABLEIDCmprFn(pReader->pBlockIdx, &maxId) < 0) {
+        //   // TODO
+        // } else {
+        //   // TODO
+        // }
+      } else if (pReader->pBlockIdx) {
+        while (pReader->iBlock < pReader->mBlock.nItem) {
+          SBlock block;
+          tMapDataGetItemByIdx(&pReader->mBlock, pReader->iBlock, &block, tGetBlock);
+
+          if (block.minVer <= pReader->ever && block.maxVer >= pReader->sver) {
+            // load data (todo)
+          }
+
+          // next
+          pReader->iBlock++;
+          if (*ppData) break;
         }
 
-        pReader->pBlockIdx = (SBlockIdx*)taosArrayGet(pReader->aBlockIdx, pReader->iBlockIdx);
-        pReader->iBlockIdx++;
-
-        code = tsdbReadBlock(pReader->pDataFReader, pReader->pBlockIdx, &pReader->mBlock, NULL);
-        if (code) goto _err;
-
-        pReader->iBlock = 0;
-      }
-
-      SBlock  block;
-      SBlock* pBlock = &block;
-      while (true) {
         if (pReader->iBlock >= pReader->mBlock.nItem) {
-          pReader->pBlockIdx = NULL;
-          break;
+          pReader->iBlockIdx++;
+          if (pReader->iBlockIdx < taosArrayGetSize(pReader->aBlockIdx)) {
+            pReader->pBlockIdx = (SBlockIdx*)taosArrayGet(pReader->aBlockIdx, pReader->iBlockIdx);
+
+            code = tsdbReadBlock(pReader->pDataFReader, pReader->pBlockIdx, &pReader->mBlock);
+            if (code) goto _err;
+
+            pReader->iBlock = 0;
+          } else {
+            pReader->pBlockIdx = NULL;
+          }
         }
 
-        tMapDataGetItemByIdx(&pReader->mBlock, pReader->iBlock, pBlock, tGetBlock);
-        pReader->iBlock++;
+        if (*ppData) goto _exit;
+      } else if (pReader->pBlockL) {
+        while (pReader->pBlockL) {
+          if (pReader->pBlockL->minVer <= pReader->ever && pReader->pBlockL->maxVer >= pReader->sver) {
+            // load data (todo)
+          }
 
-        if (pBlock->minVersion > pReader->ever || pBlock->maxVersion < pReader->sver) continue;
+          // next
+          pReader->iBlockL++;
+          if (pReader->iBlockL < taosArrayGetSize(pReader->aBlockL)) {
+            pReader->pBlockL = (SBlockL*)taosArrayGetSize(pReader->aBlockL);
+          } else {
+            pReader->pBlockL = NULL;
+          }
 
-        code = tsdbReadBlockData(pReader->pDataFReader, pReader->pBlockIdx, pBlock, &pReader->oBlockData, NULL, NULL);
-        if (code) goto _err;
-
-        // filter
-        tBlockDataReset(&pReader->nBlockData);
-        for (int32_t iColData = 0; iColData < taosArrayGetSize(pReader->oBlockData.aIdx); iColData++) {
-          SColData* pColDataO = tBlockDataGetColDataByIdx(&pReader->oBlockData, iColData);
-          SColData* pColDataN = NULL;
-
-          code = tBlockDataAddColData(&pReader->nBlockData, taosArrayGetSize(pReader->nBlockData.aIdx), &pColDataN);
-          if (code) goto _err;
-
-          tColDataInit(pColDataN, pColDataO->cid, pColDataO->type, pColDataO->smaOn);
+          if (*ppData) goto _exit;
         }
-
-        for (int32_t iRow = 0; iRow < pReader->oBlockData.nRow; iRow++) {
-          TSDBROW row = tsdbRowFromBlockData(&pReader->oBlockData, iRow);
-          int64_t version = TSDBROW_VERSION(&row);
-
-          tsdbTrace("vgId:%d, vnode snapshot tsdb read for %s, %" PRId64 "(%" PRId64 " , %" PRId64 ")",
-                    TD_VID(pReader->pTsdb->pVnode), pReader->pTsdb->path, version, pReader->sver, pReader->ever);
-
-          if (version < pReader->sver || version > pReader->ever) continue;
-
-          code = tBlockDataAppendRow(&pReader->nBlockData, &row, NULL);
-          if (code) goto _err;
-        }
-
-        if (pReader->nBlockData.nRow <= 0) {
-          continue;
-        }
-
-        // org data
-        // compress data (todo)
-        int32_t size = sizeof(TABLEID) + tPutBlockData(NULL, &pReader->nBlockData);
-
-        *ppData = taosMemoryMalloc(sizeof(SSnapDataHdr) + size);
-        if (*ppData == NULL) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
-          goto _err;
-        }
-
-        SSnapDataHdr* pHdr = (SSnapDataHdr*)(*ppData);
-        pHdr->type = pReader->type;
-        pHdr->size = size;
-
-        TABLEID* pId = (TABLEID*)(&pHdr[1]);
-        pId->suid = pReader->pBlockIdx->suid;
-        pId->uid = pReader->pBlockIdx->uid;
-
-        tPutBlockData((uint8_t*)(&pId[1]), &pReader->nBlockData);
-
-        tsdbInfo("vgId:%d, vnode snapshot read data for %s, fid:%d suid:%" PRId64 " uid:%" PRId64
-                 " iBlock:%d minVersion:%d maxVersion:%d nRow:%d out of %d size:%d",
-                 TD_VID(pTsdb->pVnode), pTsdb->path, pReader->fid, pReader->pBlockIdx->suid, pReader->pBlockIdx->uid,
-                 pReader->iBlock - 1, pBlock->minVersion, pBlock->maxVersion, pReader->nBlockData.nRow, pBlock->nRow,
-                 size);
-
-        goto _exit;
+      } else {
+        tsdbDataFReaderClose(&pReader->pDataFReader);
+        break;
       }
     }
   }
@@ -179,11 +185,11 @@ static int32_t tsdbSnapReadDel(STsdbSnapReader* pReader, uint8_t** ppData) {
     }
 
     // open
-    code = tsdbDelFReaderOpen(&pReader->pDelFReader, pDelFile, pTsdb, NULL);
+    code = tsdbDelFReaderOpen(&pReader->pDelFReader, pDelFile, pTsdb);
     if (code) goto _err;
 
     // read index
-    code = tsdbReadDelIdx(pReader->pDelFReader, pReader->aDelIdx, NULL);
+    code = tsdbReadDelIdx(pReader->pDelFReader, pReader->aDelIdx);
     if (code) goto _err;
 
     pReader->iDelIdx = 0;
@@ -199,7 +205,7 @@ static int32_t tsdbSnapReadDel(STsdbSnapReader* pReader, uint8_t** ppData) {
 
     pReader->iDelIdx++;
 
-    code = tsdbReadDelData(pReader->pDelFReader, pDelIdx, pReader->aDelData, NULL);
+    code = tsdbReadDelData(pReader->pDelFReader, pDelIdx, pReader->aDelData);
     if (code) goto _err;
 
     int32_t size = 0;
@@ -292,10 +298,15 @@ int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, int8_t type
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
+  pReader->aBlockL = taosArrayInit(0, sizeof(SBlockL));
+  if (pReader->aBlockL == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
   pReader->mBlock = tMapDataInit();
-  code = tBlockDataInit(&pReader->oBlockData);
+  code = tBlockDataCreate(&pReader->oBlockData);
   if (code) goto _err;
-  code = tBlockDataInit(&pReader->nBlockData);
+  code = tBlockDataCreate(&pReader->nBlockData);
   if (code) goto _err;
 
   pReader->aDelIdx = taosArrayInit(0, sizeof(SDelIdx));
@@ -327,10 +338,11 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader) {
   if (pReader->pDataFReader) {
     tsdbDataFReaderClose(&pReader->pDataFReader);
   }
+  taosArrayDestroy(pReader->aBlockL);
   taosArrayDestroy(pReader->aBlockIdx);
   tMapDataClear(&pReader->mBlock);
-  tBlockDataClear(&pReader->oBlockData, 1);
-  tBlockDataClear(&pReader->nBlockData, 1);
+  tBlockDataDestroy(&pReader->oBlockData, 1);
+  tBlockDataDestroy(&pReader->nBlockData, 1);
 
   if (pReader->pDelFReader) {
     tsdbDelFReaderClose(&pReader->pDelFReader);
@@ -405,6 +417,7 @@ struct STsdbSnapWriter {
   int8_t  cmprAlg;
   int64_t commitID;
 
+  uint8_t* aBuf[5];
   // for data file
   SBlockData bData;
 
@@ -418,6 +431,9 @@ struct STsdbSnapWriter {
   SBlockData*   pBlockData;
   int32_t       iRow;
   SBlockData    bDataR;
+  SArray*       aBlockL;  // SArray<SBlockL>
+  int32_t       iBlockL;
+  SBlockData    lDataR;
 
   SDataFWriter* pDataFWriter;
   SBlockIdx*    pBlockIdxW;  // NULL when no committing table
@@ -427,6 +443,7 @@ struct STsdbSnapWriter {
 
   SMapData mBlockW;     // SMapData<SBlock>
   SArray*  aBlockIdxW;  // SArray<SBlockIdx>
+  SArray*  aBlockLW;    // SArray<SBlockL>
 
   // for del file
   SDelFReader* pDelFReader;
@@ -436,25 +453,6 @@ struct STsdbSnapWriter {
   SArray*      aDelData;
   SArray*      aDelIdxW;
 };
-
-static int32_t tsdbSnapWriteAppendData(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
-  int32_t     code = 0;
-  int32_t     iRow = 0;           // todo
-  int32_t     nRow = 0;           // todo
-  SBlockData* pBlockData = NULL;  // todo
-
-  while (iRow < nRow) {
-    code = tBlockDataAppendRow(&pWriter->bDataW, &tsdbRowFromBlockData(pBlockData, iRow), NULL);
-    if (code) goto _err;
-  }
-
-  return code;
-
-_err:
-  tsdbError("vgId:%d, tsdb snapshot write append data for %s failed since %s", TD_VID(pWriter->pTsdb->pVnode),
-            pWriter->pTsdb->path, tstrerror(code));
-  return code;
-}
 
 static int32_t tsdbSnapWriteTableDataEnd(STsdbSnapWriter* pWriter) {
   int32_t code = 0;
@@ -467,20 +465,21 @@ static int32_t tsdbSnapWriteTableDataEnd(STsdbSnapWriter* pWriter) {
   if (pWriter->pBlockData) {
     ASSERT(pWriter->iRow < pWriter->pBlockData->nRow);
     while (pWriter->iRow < pWriter->pBlockData->nRow) {
-      code = tBlockDataAppendRow(&pWriter->bDataW, &tsdbRowFromBlockData(pWriter->pBlockData, pWriter->iRow), NULL);
+      code = tBlockDataAppendRow(&pWriter->bDataW, &tsdbRowFromBlockData(pWriter->pBlockData, pWriter->iRow), NULL,
+                                 0);  // todo
       if (code) goto _err;
 
       if (pWriter->bDataW.nRow >= pWriter->maxRow * 4 / 5) {
-        pWriter->blockW.last = 0;
-        code = tsdbWriteBlockData(pWriter->pDataFWriter, &pWriter->bDataW, NULL, NULL, pWriter->pBlockIdxW,
-                                  &pWriter->blockW, pWriter->cmprAlg);
+        // pWriter->blockW.last = 0;
+        // code = tsdbWriteBlockData(pWriter->pDataFWriter, &pWriter->bDataW, NULL, NULL, pWriter->pBlockIdxW,
+        //                           &pWriter->blockW, pWriter->cmprAlg);
         if (code) goto _err;
 
         code = tMapDataPutItem(&pWriter->mBlockW, &pWriter->blockW, tPutBlock);
         if (code) goto _err;
 
         tBlockReset(&pWriter->blockW);
-        tBlockDataClearData(&pWriter->bDataW);
+        tBlockDataClear(&pWriter->bDataW);
       }
 
       pWriter->iRow++;
@@ -489,16 +488,16 @@ static int32_t tsdbSnapWriteTableDataEnd(STsdbSnapWriter* pWriter) {
 
   // write remain data if has
   if (pWriter->bDataW.nRow > 0) {
-    pWriter->blockW.last = 0;
+    // pWriter->blockW.last = 0;
     if (pWriter->bDataW.nRow < pWriter->minRow) {
       if (pWriter->iBlock > pWriter->mBlock.nItem) {
-        pWriter->blockW.last = 1;
+        // pWriter->blockW.last = 1;
       }
     }
 
-    code = tsdbWriteBlockData(pWriter->pDataFWriter, &pWriter->bDataW, NULL, NULL, pWriter->pBlockIdxW,
-                              &pWriter->blockW, pWriter->cmprAlg);
-    if (code) goto _err;
+    // code = tsdbWriteBlockData(pWriter->pDataFWriter, &pWriter->bDataW, NULL, NULL, pWriter->pBlockIdxW,
+    //                           &pWriter->blockW, pWriter->cmprAlg);
+    // if (code) goto _err;
 
     code = tMapDataPutItem(&pWriter->mBlockW, &pWriter->blockW, tPutBlock);
     if (code) goto _err;
@@ -510,16 +509,16 @@ static int32_t tsdbSnapWriteTableDataEnd(STsdbSnapWriter* pWriter) {
     SBlock block;
     tMapDataGetItemByIdx(&pWriter->mBlock, pWriter->iBlock, &block, tGetBlock);
 
-    if (block.last) {
-      code = tsdbReadBlockData(pWriter->pDataFReader, pWriter->pBlockIdx, &block, &pWriter->bDataR, NULL, NULL);
-      if (code) goto _err;
+    // if (block.last) {
+    //   code = tsdbReadBlockData(pWriter->pDataFReader, pWriter->pBlockIdx, &block, &pWriter->bDataR, NULL, NULL);
+    //   if (code) goto _err;
 
-      tBlockReset(&block);
-      block.last = 1;
-      code = tsdbWriteBlockData(pWriter->pDataFWriter, &pWriter->bDataR, NULL, NULL, pWriter->pBlockIdxW, &block,
-                                pWriter->cmprAlg);
-      if (code) goto _err;
-    }
+    //   tBlockReset(&block);
+    //   block.last = 1;
+    //   code = tsdbWriteBlockData(pWriter->pDataFWriter, &pWriter->bDataR, NULL, NULL, pWriter->pBlockIdxW, &block,
+    //                             pWriter->cmprAlg);
+    //   if (code) goto _err;
+    // }
 
     code = tMapDataPutItem(&pWriter->mBlockW, &block, tPutBlock);
     if (code) goto _err;
@@ -528,8 +527,8 @@ static int32_t tsdbSnapWriteTableDataEnd(STsdbSnapWriter* pWriter) {
   }
 
   // SBlock
-  code = tsdbWriteBlock(pWriter->pDataFWriter, &pWriter->mBlockW, NULL, pWriter->pBlockIdxW);
-  if (code) goto _err;
+  // code = tsdbWriteBlock(pWriter->pDataFWriter, &pWriter->mBlockW, NULL, pWriter->pBlockIdxW);
+  // if (code) goto _err;
 
   // SBlockIdx
   if (taosArrayPush(pWriter->aBlockIdxW, pWriter->pBlockIdxW) == NULL) {
@@ -550,7 +549,7 @@ _err:
 static int32_t tsdbSnapMoveWriteTableData(STsdbSnapWriter* pWriter, SBlockIdx* pBlockIdx) {
   int32_t code = 0;
 
-  code = tsdbReadBlock(pWriter->pDataFReader, pBlockIdx, &pWriter->mBlock, NULL);
+  code = tsdbReadBlock(pWriter->pDataFReader, pBlockIdx, &pWriter->mBlock);
   if (code) goto _err;
 
   // SBlockData
@@ -559,16 +558,17 @@ static int32_t tsdbSnapMoveWriteTableData(STsdbSnapWriter* pWriter, SBlockIdx* p
   for (int32_t iBlock = 0; iBlock < pWriter->mBlock.nItem; iBlock++) {
     tMapDataGetItemByIdx(&pWriter->mBlock, iBlock, &block, tGetBlock);
 
-    if (block.last) {
-      code = tsdbReadBlockData(pWriter->pDataFReader, pBlockIdx, &block, &pWriter->bDataR, NULL, NULL);
-      if (code) goto _err;
+    // if (block.last) {
+    //   code = tsdbReadBlockData(pWriter->pDataFReader, pBlockIdx, &block, &pWriter->bDataR, NULL, NULL);
+    //   if (code) goto _err;
 
-      tBlockReset(&block);
-      block.last = 1;
-      code =
-          tsdbWriteBlockData(pWriter->pDataFWriter, &pWriter->bDataR, NULL, NULL, pBlockIdx, &block, pWriter->cmprAlg);
-      if (code) goto _err;
-    }
+    //   tBlockReset(&block);
+    //   block.last = 1;
+    //   code =
+    //       tsdbWriteBlockData(pWriter->pDataFWriter, &pWriter->bDataR, NULL, NULL, pBlockIdx, &block,
+    //       pWriter->cmprAlg);
+    //   if (code) goto _err;
+    // }
 
     code = tMapDataPutItem(&pWriter->mBlockW, &block, tPutBlock);
     if (code) goto _err;
@@ -576,7 +576,7 @@ static int32_t tsdbSnapMoveWriteTableData(STsdbSnapWriter* pWriter, SBlockIdx* p
 
   // SBlock
   SBlockIdx blockIdx = {.suid = pBlockIdx->suid, .uid = pBlockIdx->uid};
-  code = tsdbWriteBlock(pWriter->pDataFWriter, &pWriter->mBlockW, NULL, &blockIdx);
+  code = tsdbWriteBlock(pWriter->pDataFWriter, &pWriter->mBlockW, &blockIdx);
   if (code) goto _err;
 
   // SBlockIdx
@@ -601,9 +601,9 @@ static int32_t tsdbSnapWriteTableDataImpl(STsdbSnapWriter* pWriter) {
   TSDBROW     row;
   TSDBROW*    pRow = &row;
 
-  // correct schema
-  code = tBlockDataCorrectSchema(&pWriter->bDataW, pBlockData);
-  if (code) goto _err;
+  // // correct schema
+  // code = tBlockDataCorrectSchema(&pWriter->bDataW, pBlockData);
+  // if (code) goto _err;
 
   // loop to merge
   *pRow = tsdbRowFromBlockData(pBlockData, iRow);
@@ -618,8 +618,8 @@ static int32_t tsdbSnapWriteTableDataImpl(STsdbSnapWriter* pWriter) {
       ASSERT(c);
 
       if (c < 0) {
-        code = tBlockDataAppendRow(&pWriter->bDataW, pRow, NULL);
-        if (code) goto _err;
+        // code = tBlockDataAppendRow(&pWriter->bDataW, pRow, NULL);
+        // if (code) goto _err;
 
         iRow++;
         if (iRow < pWriter->pBlockData->nRow) {
@@ -628,8 +628,8 @@ static int32_t tsdbSnapWriteTableDataImpl(STsdbSnapWriter* pWriter) {
           pRow = NULL;
         }
       } else if (c > 0) {
-        code = tBlockDataAppendRow(&pWriter->bDataW, &tsdbRowFromBlockData(pWriter->pBlockData, pWriter->iRow), NULL);
-        if (code) goto _err;
+        // code = tBlockDataAppendRow(&pWriter->bDataW, &tsdbRowFromBlockData(pWriter->pBlockData, pWriter->iRow),
+        // NULL); if (code) goto _err;
 
         pWriter->iRow++;
         if (pWriter->iRow >= pWriter->pBlockData->nRow) {
@@ -647,16 +647,15 @@ static int32_t tsdbSnapWriteTableDataImpl(STsdbSnapWriter* pWriter) {
 
         tMapDataGetItemByIdx(&pWriter->mBlock, pWriter->iBlock, &block, tGetBlock);
 
-        if (block.last) {
-          pWriter->pBlockData = &pWriter->bDataR;
+        // if (block.last) {
+        //   pWriter->pBlockData = &pWriter->bDataR;
 
-          code = tsdbReadBlockData(pWriter->pDataFReader, pWriter->pBlockIdx, &block, pWriter->pBlockData, NULL, NULL);
-          if (code) goto _err;
-          pWriter->iRow = 0;
+        //   code = tsdbReadBlockData(pWriter->pDataFReader, pWriter->pBlockIdx, &block, pWriter->pBlockData, NULL,
+        //   NULL); if (code) goto _err; pWriter->iRow = 0;
 
-          pWriter->iBlock++;
-          break;
-        }
+        //   pWriter->iBlock++;
+        //   break;
+        // }
 
         c = tsdbKeyCmprFn(&block.maxKey, &key);
 
@@ -664,16 +663,16 @@ static int32_t tsdbSnapWriteTableDataImpl(STsdbSnapWriter* pWriter) {
 
         if (c < 0) {
           if (pWriter->bDataW.nRow) {
-            pWriter->blockW.last = 0;
-            code = tsdbWriteBlockData(pWriter->pDataFWriter, &pWriter->bDataW, NULL, NULL, pWriter->pBlockIdxW,
-                                      &pWriter->blockW, pWriter->cmprAlg);
-            if (code) goto _err;
+            // pWriter->blockW.last = 0;
+            // code = tsdbWriteBlockData(pWriter->pDataFWriter, &pWriter->bDataW, NULL, NULL, pWriter->pBlockIdxW,
+            //                           &pWriter->blockW, pWriter->cmprAlg);
+            // if (code) goto _err;
 
             code = tMapDataPutItem(&pWriter->mBlockW, &pWriter->blockW, tPutBlock);
             if (code) goto _err;
 
             tBlockReset(&pWriter->blockW);
-            tBlockDataClearData(&pWriter->bDataW);
+            tBlockDataClear(&pWriter->bDataW);
           }
 
           code = tMapDataPutItem(&pWriter->mBlockW, &block, tPutBlock);
@@ -687,9 +686,10 @@ static int32_t tsdbSnapWriteTableDataImpl(STsdbSnapWriter* pWriter) {
 
           if (c > 0) {
             pWriter->pBlockData = &pWriter->bDataR;
-            code =
-                tsdbReadBlockData(pWriter->pDataFReader, pWriter->pBlockIdx, &block, pWriter->pBlockData, NULL, NULL);
-            if (code) goto _err;
+            // code =
+            //     tsdbReadBlockData(pWriter->pDataFReader, pWriter->pBlockIdx, &block, pWriter->pBlockData, NULL,
+            //     NULL);
+            // if (code) goto _err;
             pWriter->iRow = 0;
 
             pWriter->iBlock++;
@@ -700,8 +700,8 @@ static int32_t tsdbSnapWriteTableDataImpl(STsdbSnapWriter* pWriter) {
 
       if (pWriter->pBlockData) continue;
 
-      code = tBlockDataAppendRow(&pWriter->bDataW, pRow, NULL);
-      if (code) goto _err;
+      // code = tBlockDataAppendRow(&pWriter->bDataW, pRow, NULL);
+      // if (code) goto _err;
 
       iRow++;
       if (iRow < pBlockData->nRow) {
@@ -715,15 +715,15 @@ static int32_t tsdbSnapWriteTableDataImpl(STsdbSnapWriter* pWriter) {
     if (pWriter->bDataW.nRow < pWriter->maxRow * 4 / 5) continue;
 
   _write_block:
-    code = tsdbWriteBlockData(pWriter->pDataFWriter, &pWriter->bDataW, NULL, NULL, pWriter->pBlockIdxW,
-                              &pWriter->blockW, pWriter->cmprAlg);
-    if (code) goto _err;
+    // code = tsdbWriteBlockData(pWriter->pDataFWriter, &pWriter->bDataW, NULL, NULL, pWriter->pBlockIdxW,
+    //                           &pWriter->blockW, pWriter->cmprAlg);
+    // if (code) goto _err;
 
     code = tMapDataPutItem(&pWriter->mBlockW, &pWriter->blockW, tPutBlock);
     if (code) goto _err;
 
     tBlockReset(&pWriter->blockW);
-    tBlockDataClearData(&pWriter->bDataW);
+    tBlockDataClear(&pWriter->bDataW);
   }
 
   return code;
@@ -789,7 +789,7 @@ static int32_t tsdbSnapWriteTableData(STsdbSnapWriter* pWriter, TABLEID id) {
     }
 
     if (pWriter->pBlockIdx) {
-      code = tsdbReadBlock(pWriter->pDataFReader, pWriter->pBlockIdx, &pWriter->mBlock, NULL);
+      code = tsdbReadBlock(pWriter->pDataFReader, pWriter->pBlockIdx, &pWriter->mBlock);
       if (code) goto _err;
     } else {
       tMapDataReset(&pWriter->mBlock);
@@ -831,9 +831,11 @@ static int32_t tsdbSnapWriteDataEnd(STsdbSnapWriter* pWriter) {
 
   if (pWriter->pDataFWriter == NULL) goto _exit;
 
+  // finish current table
   code = tsdbSnapWriteTableDataEnd(pWriter);
   if (code) goto _err;
 
+  // move remain table
   while (pWriter->iBlockIdx < taosArrayGetSize(pWriter->aBlockIdx)) {
     code = tsdbSnapMoveWriteTableData(pWriter, (SBlockIdx*)taosArrayGet(pWriter->aBlockIdx, pWriter->iBlockIdx));
     if (code) goto _err;
@@ -841,8 +843,16 @@ static int32_t tsdbSnapWriteDataEnd(STsdbSnapWriter* pWriter) {
     pWriter->iBlockIdx++;
   }
 
-  code = tsdbWriteBlockIdx(pWriter->pDataFWriter, pWriter->aBlockIdxW, NULL);
-  if (code) goto _err;
+  // write remain stuff
+  if (taosArrayGetSize(pWriter->aBlockLW) > 0) {
+    code = tsdbWriteBlockL(pWriter->pDataFWriter, pWriter->aBlockIdxW);
+    if (code) goto _err;
+  }
+
+  if (taosArrayGetSize(pWriter->aBlockIdx) > 0) {
+    code = tsdbWriteBlockIdx(pWriter->pDataFWriter, pWriter->aBlockIdxW);
+    if (code) goto _err;
+  }
 
   code = tsdbFSUpsertFSet(&pWriter->fs, &pWriter->pDataFWriter->wSet);
   if (code) goto _err;
@@ -866,19 +876,22 @@ _err:
 }
 
 static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
-  int32_t code = 0;
-  STsdb*  pTsdb = pWriter->pTsdb;
-  TABLEID id = *(TABLEID*)(pData + sizeof(SSnapDataHdr));
-  int64_t n;
+  int32_t       code = 0;
+  STsdb*        pTsdb = pWriter->pTsdb;
+  SSnapDataHdr* pHdr = (SSnapDataHdr*)pData;
+  TABLEID       id = *(TABLEID*)(pData + sizeof(SSnapDataHdr));
+  int64_t       n;
 
   // decode
   SBlockData* pBlockData = &pWriter->bData;
-  n = tGetBlockData(pData + sizeof(SSnapDataHdr) + sizeof(TABLEID), pBlockData);
-  ASSERT(n + sizeof(SSnapDataHdr) + sizeof(TABLEID) == nData);
+  code = tDecmprBlockData(pData + sizeof(SSnapDataHdr) + sizeof(TABLEID), pHdr->size - sizeof(TABLEID), pBlockData,
+                          pWriter->aBuf);
+  if (code) goto _err;
 
   // open file
-  TSDBKEY keyFirst = tBlockDataFirstKey(pBlockData);
-  TSDBKEY keyLast = tBlockDataLastKey(pBlockData);
+  TSDBKEY keyFirst = {.version = pBlockData->aVersion[0], .ts = pBlockData->aTSKEY[0]};
+  TSDBKEY keyLast = {.version = pBlockData->aVersion[pBlockData->nRow - 1],
+                     .ts = pBlockData->aTSKEY[pBlockData->nRow - 1]};
 
   int32_t fid = tsdbKeyFid(keyFirst.ts, pWriter->minutes, pWriter->precision);
   ASSERT(fid == tsdbKeyFid(keyLast.ts, pWriter->minutes, pWriter->precision));
@@ -895,11 +908,15 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
       code = tsdbDataFReaderOpen(&pWriter->pDataFReader, pTsdb, pSet);
       if (code) goto _err;
 
-      code = tsdbReadBlockIdx(pWriter->pDataFReader, pWriter->aBlockIdx, NULL);
+      code = tsdbReadBlockIdx(pWriter->pDataFReader, pWriter->aBlockIdx);
+      if (code) goto _err;
+
+      code = tsdbReadBlockL(pWriter->pDataFReader, pWriter->aBlockL);
       if (code) goto _err;
     } else {
       ASSERT(pWriter->pDataFReader == NULL);
       taosArrayClear(pWriter->aBlockIdx);
+      taosArrayClear(pWriter->aBlockL);
     }
     pWriter->iBlockIdx = 0;
     pWriter->pBlockIdx = NULL;
@@ -907,7 +924,9 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
     pWriter->iBlock = 0;
     pWriter->pBlockData = NULL;
     pWriter->iRow = 0;
+    pWriter->iBlockL = 0;
     tBlockDataReset(&pWriter->bDataR);
+    tBlockDataReset(&pWriter->lDataR);
 
     // write
     SHeadFile fHead;
@@ -928,7 +947,7 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
       wSet.fid = fid;
       fHead = (SHeadFile){.commitID = pWriter->commitID, .offset = 0, .size = 0};
       fData = (SDataFile){.commitID = pWriter->commitID, .size = 0};
-      fLast = (SLastFile){.commitID = pWriter->commitID, .size = 0};
+      fLast = (SLastFile){.commitID = pWriter->commitID, .size = 0, .offset = 0};
       fSma = (SSmaFile){.commitID = pWriter->commitID, .size = 0};
     }
 
@@ -936,6 +955,7 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
     if (code) goto _err;
 
     taosArrayClear(pWriter->aBlockIdxW);
+    taosArrayClear(pWriter->aBlockLW);
     tMapDataReset(&pWriter->mBlockW);
     pWriter->pBlockIdxW = NULL;
     tBlockDataReset(&pWriter->bDataW);
@@ -963,10 +983,10 @@ static int32_t tsdbSnapWriteDel(STsdbSnapWriter* pWriter, uint8_t* pData, uint32
 
     // reader
     if (pDelFile) {
-      code = tsdbDelFReaderOpen(&pWriter->pDelFReader, pDelFile, pTsdb, NULL);
+      code = tsdbDelFReaderOpen(&pWriter->pDelFReader, pDelFile, pTsdb);
       if (code) goto _err;
 
-      code = tsdbReadDelIdx(pWriter->pDelFReader, pWriter->aDelIdxR, NULL);
+      code = tsdbReadDelIdx(pWriter->pDelFReader, pWriter->aDelIdxR);
       if (code) goto _err;
     }
 
@@ -980,52 +1000,16 @@ static int32_t tsdbSnapWriteDel(STsdbSnapWriter* pWriter, uint8_t* pData, uint32
   TABLEID id = *(TABLEID*)(pData + sizeof(SSnapDataHdr));
 
   while (true) {
-    SDelIdx* pDelIdx = NULL;
-    int64_t  n = sizeof(SSnapDataHdr) + sizeof(TABLEID);
-    SDelData delData;
-    SDelIdx  delIdx;
-    int8_t   toBreak = 0;
+    if (pWriter->iDelIdx >= taosArrayGetSize(pWriter->aDelIdxR)) break;
+    if (tTABLEIDCmprFn(taosArrayGet(pWriter->aDelIdxR, pWriter->iDelIdx), &id) >= 0) break;
 
-    if (pWriter->iDelIdx < taosArrayGetSize(pWriter->aDelIdxR)) {
-      pDelIdx = (SDelIdx*)taosArrayGet(pWriter->aDelIdxR, pWriter->iDelIdx);
-    }
+    SDelIdx* pDelIdx = (SDelIdx*)taosArrayGet(pWriter->aDelIdxR, pWriter->iDelIdx);
 
-    if (pDelIdx) {
-      int32_t c = tTABLEIDCmprFn(&id, pDelIdx);
-      if (c < 0) {
-        goto _new_del;
-      } else {
-        code = tsdbReadDelData(pWriter->pDelFReader, pDelIdx, pWriter->aDelData, NULL);
-        if (code) goto _err;
+    code = tsdbReadDelData(pWriter->pDelFReader, pDelIdx, pWriter->aDelData);
+    if (code) goto _err;
 
-        pWriter->iDelIdx++;
-        if (c == 0) {
-          toBreak = 1;
-          delIdx = (SDelIdx){.suid = id.suid, .uid = id.uid};
-          goto _merge_del;
-        } else {
-          delIdx = (SDelIdx){.suid = pDelIdx->suid, .uid = pDelIdx->uid};
-          goto _write_del;
-        }
-      }
-    }
-
-  _new_del:
-    toBreak = 1;
-    delIdx = (SDelIdx){.suid = id.suid, .uid = id.uid};
-    taosArrayClear(pWriter->aDelData);
-
-  _merge_del:
-    while (n < nData) {
-      n += tGetDelData(pData + n, &delData);
-      if (taosArrayPush(pWriter->aDelData, &delData) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _err;
-      }
-    }
-
-  _write_del:
-    code = tsdbWriteDelData(pWriter->pDelFWriter, pWriter->aDelData, NULL, &delIdx);
+    SDelIdx delIdx = *pDelIdx;
+    code = tsdbWriteDelData(pWriter->pDelFWriter, pWriter->aDelData, &delIdx);
     if (code) goto _err;
 
     if (taosArrayPush(pWriter->aDelIdxW, &delIdx) == NULL) {
@@ -1033,7 +1017,40 @@ static int32_t tsdbSnapWriteDel(STsdbSnapWriter* pWriter, uint8_t* pData, uint32
       goto _err;
     }
 
-    if (toBreak) break;
+    pWriter->iDelIdx++;
+  }
+
+  if (pWriter->iDelIdx < taosArrayGetSize(pWriter->aDelIdxR) &&
+      tTABLEIDCmprFn(taosArrayGet(pWriter->aDelIdxR, pWriter->iDelIdx), &id) == 0) {
+    SDelIdx* pDelIdx = (SDelIdx*)taosArrayGet(pWriter->aDelIdxR, pWriter->iDelIdx);
+
+    code = tsdbReadDelData(pWriter->pDelFReader, pDelIdx, pWriter->aDelData);
+    if (code) goto _err;
+
+    pWriter->iDelIdx++;
+  } else {
+    taosArrayClear(pWriter->aDelData);
+  }
+
+  int64_t n = sizeof(SSnapDataHdr) + sizeof(TABLEID);
+  while (n < nData) {
+    SDelData delData;
+
+    n += tGetDelData(pData + n, &delData);
+
+    if (taosArrayPush(pWriter->aDelData, &delData) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
+  }
+
+  SDelIdx delIdx = {.suid = id.suid, .uid = id.uid};
+  code = tsdbWriteDelData(pWriter->pDelFWriter, pWriter->aDelData, &delIdx);
+  if (code) goto _err;
+
+  if (taosArrayPush(pWriter->aDelIdxW, &delIdx) == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
   }
 
 _exit:
@@ -1054,11 +1071,11 @@ static int32_t tsdbSnapWriteDelEnd(STsdbSnapWriter* pWriter) {
   for (; pWriter->iDelIdx < taosArrayGetSize(pWriter->aDelIdxR); pWriter->iDelIdx++) {
     SDelIdx* pDelIdx = (SDelIdx*)taosArrayGet(pWriter->aDelIdxR, pWriter->iDelIdx);
 
-    code = tsdbReadDelData(pWriter->pDelFReader, pDelIdx, pWriter->aDelData, NULL);
+    code = tsdbReadDelData(pWriter->pDelFReader, pDelIdx, pWriter->aDelData);
     if (code) goto _err;
 
-    SDelIdx delIdx = (SDelIdx){.suid = pDelIdx->suid, .uid = pDelIdx->uid};
-    code = tsdbWriteDelData(pWriter->pDelFWriter, pWriter->aDelData, NULL, &delIdx);
+    SDelIdx delIdx = *pDelIdx;
+    code = tsdbWriteDelData(pWriter->pDelFWriter, pWriter->aDelData, &delIdx);
     if (code) goto _err;
 
     if (taosArrayPush(pWriter->aDelIdxR, &delIdx) == NULL) {
@@ -1117,7 +1134,7 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWr
   pWriter->commitID = pTsdb->pVnode->state.commitID;
 
   // for data file
-  code = tBlockDataInit(&pWriter->bData);
+  code = tBlockDataCreate(&pWriter->bData);
 
   if (code) goto _err;
   pWriter->aBlockIdx = taosArrayInit(0, sizeof(SBlockIdx));
@@ -1125,16 +1142,28 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWr
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
-  code = tBlockDataInit(&pWriter->bDataR);
+  code = tBlockDataCreate(&pWriter->bDataR);
   if (code) goto _err;
+
+  pWriter->aBlockL = taosArrayInit(0, sizeof(SBlockL));
+  if (pWriter->aBlockL == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
 
   pWriter->aBlockIdxW = taosArrayInit(0, sizeof(SBlockIdx));
   if (pWriter->aBlockIdxW == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
-  code = tBlockDataInit(&pWriter->bDataW);
+  code = tBlockDataCreate(&pWriter->bDataW);
   if (code) goto _err;
+
+  pWriter->aBlockLW = taosArrayInit(0, sizeof(SBlockL));
+  if (pWriter->aBlockLW == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
 
   // for del file
   pWriter->aDelIdxR = taosArrayInit(0, sizeof(SDelIdx));
@@ -1186,6 +1215,10 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
     if (code) goto _err;
   }
 
+  for (int32_t iBuf = 0; iBuf < sizeof(pWriter->aBuf) / sizeof(uint8_t*); iBuf++) {
+    tFree(pWriter->aBuf[iBuf]);
+  }
+
   tsdbInfo("vgId:%d, vnode snapshot tsdb writer close for %s", TD_VID(pWriter->pTsdb->pVnode), pWriter->pTsdb->path);
   taosMemoryFree(pWriter);
   *ppWriter = NULL;
@@ -1224,6 +1257,7 @@ int32_t tsdbSnapWrite(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData) 
 
 _exit:
   tsdbDebug("vgId:%d, tsdb snapshot write for %s succeed", TD_VID(pWriter->pTsdb->pVnode), pWriter->pTsdb->path);
+
   return code;
 
 _err:

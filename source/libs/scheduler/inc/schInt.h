@@ -60,8 +60,7 @@ typedef enum {
 #define SCH_DEFAULT_TASK_TIMEOUT_USEC 10000000
 #define SCH_MAX_TASK_TIMEOUT_USEC 60000000
 #define SCH_DEFAULT_MAX_RETRY_NUM 6
-
-#define SCH_ASYNC_LAUNCH_TASK 0
+#define SCH_MIN_AYSNC_EXEC_NUM 3
 
 typedef struct SSchDebug {
   bool     lockEnable;
@@ -284,7 +283,7 @@ typedef struct SSchJob {
 } SSchJob;
 
 typedef struct SSchTaskCtx {
-  SSchJob  *pJob;
+  int64_t  jobRid;
   SSchTask *pTask;
 } SSchTaskCtx;
 

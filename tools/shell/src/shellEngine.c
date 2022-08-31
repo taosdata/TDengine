@@ -266,7 +266,6 @@ char *shellFormatTimestamp(char *buf, int64_t val, int32_t precision) {
 
 void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length, int32_t precision) {
   if (val == NULL) {
-    taosFprintfFile(pFile, "%s", TSDB_DATA_NULL_STR);
     return;
   }
 
@@ -314,13 +313,34 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON:
-      memcpy(buf, val, length);
-      buf[length] = 0;
-      taosFprintfFile(pFile, "\'%s\'", buf);
+      {
+        char quotationStr[2];
+        int32_t bufIndex = 0;
+        quotationStr[0] = 0;
+        quotationStr[1] = 0;
+        for (int32_t i = 0; i < length; i++) {
+          buf[bufIndex] = val[i];
+          bufIndex++;
+          if (val[i] == '\"') {
+            buf[bufIndex] = val[i];
+            bufIndex++;
+            quotationStr[0] = '\"';
+          }
+          if (val[i] == ',') {
+            quotationStr[0] = '\"';
+          }
+        }
+        buf[bufIndex] = 0;
+        if (length == 0) {
+          quotationStr[0] = '\"';
+        }
+        
+        taosFprintfFile(pFile, "%s%s%s", quotationStr, buf, quotationStr);
+      }
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
       shellFormatTimestamp(buf, *(int64_t *)val, precision);
-      taosFprintfFile(pFile, "'%s'", buf);
+      taosFprintfFile(pFile, "%s", buf);
       break;
     default:
       break;
@@ -948,6 +968,10 @@ void shellCleanup(void *arg) { taosResetTerminalMode(); }
 void *shellCancelHandler(void *arg) {
   setThreadName("shellCancelHandler");
   while (1) {
+    if (shell.exit == true) {
+      break;
+    }
+
     if (tsem_wait(&shell.cancelSem) != 0) {
       taosMsleep(10);
       continue;
@@ -961,7 +985,7 @@ void *shellCancelHandler(void *arg) {
 		taos_kill_query(shell.conn);
 #ifdef WEBSOCKET
 	}
-#endif 
+#endif
   #ifdef WINDOWS
     printf("\n%s", shell.info.promptHeader);
   #endif
@@ -1009,7 +1033,7 @@ int32_t shellExecute() {
   if (shell.args.restful || shell.args.cloud) {
 	if (shell_conn_ws_server(1)) {
 		return -1;
-	}	
+	}
   } else {
 #endif
 	if (shell.args.auth == NULL) {
@@ -1043,7 +1067,7 @@ int32_t shellExecute() {
 	if (shell.args.restful || shell.args.cloud) {
 		ws_close(shell.ws_conn);
 	} else {
-#endif	
+#endif
 		taos_close(shell.conn);
 #ifdef WEBSOCKET
 	}
@@ -1079,7 +1103,12 @@ int32_t shellExecute() {
     taosThreadCreate(&shell.pid, NULL, shellThreadLoop, NULL);
     taosThreadJoin(shell.pid, NULL);
     taosThreadClear(&shell.pid);
+    if (shell.exit) {
+      tsem_post(&shell.cancelSem);
+      break;
+    }
   }
+  taosThreadJoin(spid, NULL);
 
   shellCleanupHistory();
   return 0;

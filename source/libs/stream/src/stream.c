@@ -185,7 +185,9 @@ int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   tFreeStreamDispatchReq(pReq);
 
   if (exec) {
-    streamTryExec(pTask);
+    if (streamTryExec(pTask) < 0) {
+      return -1;
+    }
 
     if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
       streamDispatch(pTask);
@@ -221,7 +223,9 @@ int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp) {
 }
 
 int32_t streamProcessRunReq(SStreamTask* pTask) {
-  streamTryExec(pTask);
+  if (streamTryExec(pTask) < 0) {
+    return -1;
+  }
 
   if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     streamDispatch(pTask);
