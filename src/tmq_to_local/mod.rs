@@ -1,145 +1,22 @@
 use std::path::Path;
 
-use anyhow::Result;
+use anyhow::{bail, Context, Result};
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use taos::{Consumer, *};
 
-use crate::taoz::ZFile;
+use crate::{taoz::ZFile, tmq::{check_tmq_dsn, Topic}};
 
-#[derive(Debug, Deserialize, Serialize)]
-pub(crate) struct Topic {
-    name: String,
-    database: String,
-    vgroups: usize,
-    sql: String,
-}
-
-async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
-    let database = from.database.take().ok_or(RawError::new(
-        Code::Failed,
-        format!("requires topic or database in source dsn: {from}"),
-    ))?;
-    dbg!(&from, &database);
-
-    let source = TaosBuilder::from_dsn(&from)?.build()?;
-    let source_topics = source.topics().await?;
-
-    let topics = database.split(",").map(|s| s.trim()).collect_vec();
-    let mut databases = Vec::new();
-    if topics.len() == 1 {
-        let topic = topics[0];
-        if let Some(topic) = source_topics.iter().find(|t| t.name() == topic) {
-            databases.push(topic.db_name().to_string());
-            let vgroups = source
-                .query_one(format!(
-                    "select `vgroups` from information_schema.ins_databases where name='{}'",
-                    topic.db_name()
-                ))
-                .await?
-                .expect("database not exists");
-
-            let (_, sql): ((), String) = source
-                .query_one(format!("SHOW CREATE DATABASE `{database}`"))
-                .await?
-                .unwrap();
-            Ok((
-                from,
-                vec![Topic {
-                    name: topic.name().to_string(),
-                    database: database.to_string(),
-                    sql,
-                    vgroups,
-                }],
-            ))
-        } else {
-            // treat it as database if the topic not exists.
-            let database = topic;
-            source.create_topic_as_database(topic, database).await?;
-
-            let vgroups = source
-                .query_one(format!(
-                    "select `vgroups` from information_schema.ins_databases where name='{database}'"
-                ))
-                .await?
-                .expect("database not exists");
-
-            let (_, sql): ((), String) = source
-                .query_one(format!("SHOW CREATE DATABASE `{database}`"))
-                .await?
-                .unwrap();
-            Ok((
-                from,
-                vec![Topic {
-                    name: topic.to_string(),
-                    database: database.to_string(),
-                    sql,
-                    vgroups,
-                }],
-            ))
-        }
-    } else {
-        let found = source_topics
-            .iter()
-            .filter(|t| topics.contains(&t.name()))
-            .collect_vec();
-        let mut out = Vec::new();
-        for topic in found {
-            let vgroups: usize = source
-                .query_one(format!(
-                    "select `vgroups` from information_schema.ins_databases where name='{}'",
-                    topic.db_name()
-                ))
-                .await?
-                .expect("database not exists");
-            let (_, sql): ((), String) = source
-                .query_one(format!("SHOW CREATE DATABASE `{}`", topic.db_name()))
-                .await?
-                .unwrap();
-
-            out.push(Topic {
-                name: topic.name().to_string(),
-                database: topic.db_name().to_string(),
-                sql,
-                vgroups,
-            });
-        }
-        if topics.len() == out.len() {
-            // ok;
-            return Ok((from, out));
-        } else {
-            let invalids = topics
-                .into_iter()
-                .filter(|t| out.iter().find(|topic| topic.name == *t).is_none())
-                .collect_vec();
-            for topic in invalids {
-                if !source.database_exists(topic).await? {
-                    anyhow::bail!("{} is not either a topic or a database name", topic);
-                } else {
-                    source.create_topic_as_database(topic, topic).await?;
-                    let vgroups = source
-                        .query_one(format!(
-                            "select `vgroups` from information_schema.ins_databases where name='{topic}'"
-                        ))
-                        .await?
-                        .expect("database not exists");
-                    let (_, sql): ((), String) = source
-                        .query_one(format!("SHOW CREATE DATABASE `{topic}`"))
-                        .await?
-                        .unwrap();
-                    out.push(Topic {
-                        name: topic.to_string(),
-                        database: topic.to_string(),
-                        sql,
-                        vgroups,
-                    });
-                }
-            }
-            return Ok((from, out));
-        }
-    }
-}
+// #[derive(Debug, Deserialize, Serialize)]
+// pub(crate) struct Topic {
+//     name: String,
+//     database: String,
+//     vgroups: usize,
+//     sql: String,
+//     /// the topic is for single table
+//     table: Option<String>,
+// }
 
 async fn backup(consumer: Consumer, mut writer: ZFile, id: usize) -> Result<()> {
     let mut stream = consumer.stream();

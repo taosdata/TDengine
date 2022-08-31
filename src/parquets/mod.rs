@@ -163,25 +163,25 @@ pub async fn query_to_parquet(mut from: Dsn, to: Dsn, force: bool) -> Result<()>
 #[tokio::test(flavor = "multi_thread")]
 async fn test() -> Result<()> {
     use std::str::FromStr;
-    let from = Dsn::from_str("taos:///?query=select * from test.stb1")?;
+    let db = "parquet_test";
+    let from = Dsn::from_str(&format!("taos:///?query=select * from {db}.stb1"))?;
     let to = Dsn::from_str("local:./test.parquet")?;
 
     let client = TaosBuilder::from_dsn(&from)?.build()?;
 
-    let db = "test";
-    assert_eq!(
-        client.exec(format!("drop database if exists {db}")).await?,
-        0
-    );
     assert_eq!(
         client
-            .exec(format!("create database {db} keep 36500"))
+            .exec_many([
+                format!("drop database if exists {db}"),
+                format!("create database {db} keep 36500"),
+                format!("use {db}"),
+            ])
             .await?,
         0
     );
     assert_eq!(
             client.exec(
-                format!("create table {db}.stb1(ts timestamp,\
+                format!("create table stb1(ts timestamp,\
                     b1 bool, c8i1 tinyint, c16i1 smallint, c32i1 int, c64i1 bigint,\
                     c8u1 tinyint unsigned, c16u1 smallint unsigned, c32u1 int unsigned, c64u1 bigint unsigned,\
                     cb1 binary(100), cn1 nchar(10),
@@ -195,7 +195,7 @@ async fn test() -> Result<()> {
     assert_eq!(
         client
             .exec(format!(
-                r#"insert into {db}.tb1 using {db}.stb1 tags('{{"key":"数据"}}')
+                r#"insert into tb1 using stb1 tags('{{"key":"数据"}}')
                    values(0,    true, -1,  -2,  -3,  -4,   1,   2,   3,   4,   'abc', '涛思',
                                 false,-5,  -6,  -7,  -8,   5,   6,   7,   8,   'def', '数据')
                          (65535,NULL, NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL, NULL,  NULL,
@@ -207,7 +207,7 @@ async fn test() -> Result<()> {
     assert_eq!(
         client
             .exec(format!(
-                r#"insert into {db}.tb2 using {db}.stb1 tags(NULL)
+                r#"insert into tb2 using stb1 tags(NULL)
                    values(1,    true, -1,  -2,  -3,  -4,   1,   2,   3,   4,   'abc', '涛思',
                                 false,-5,  -6,  -7,  -8,   5,   6,   7,   8,   'def', '数据')
                          (65536,NULL, NULL,NULL,NULL,NULL, NULL,NULL,NULL,NULL, NULL,  NULL,
@@ -220,5 +220,7 @@ async fn test() -> Result<()> {
     query_to_parquet(from, to.clone(), true).await?;
 
     std::fs::remove_file(&to.fragment.unwrap())?;
+
+    client.exec(format!("drop database {db}")).await?;
     Ok(())
 }

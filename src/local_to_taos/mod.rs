@@ -1,6 +1,6 @@
-use std::{path::Path, sync::Arc};
+use std::{path::Path, sync::Arc, time::Duration};
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 use taos::*;
@@ -14,12 +14,14 @@ pub(crate) struct Topic {
     database: String,
     sql: String,
     vgroups: usize,
+    table: Option<String>,
 }
 
 async fn restore(
     id: usize,
     path: impl AsRef<Path>,
     taos: Taos,
+    table: Option<String>,
     sem: OwnedSemaphorePermit,
 ) -> Result<()> {
     let path = path.as_ref();
@@ -29,9 +31,7 @@ async fn restore(
     let reader = async_compression::tokio::bufread::ZstdDecoder::new(reader);
     let mut reader = ZCodec::new(reader);
     let header = reader.header_async().await?;
-    log::debug!("parse header: {:?}", header);
-
-    // let mut rows = AtomicU64::new(0);
+    log::debug!("[{id}] parse header: {:?}", header);
     let mut rows = 0;
 
     loop {
@@ -43,21 +43,44 @@ async fn restore(
                     taos.write_raw_meta(meta).await?
                 }
                 MessageSet::Data(data) => {
-                    // dbg!(&data);
-                    for raw in data {
+                    for mut raw in data {
+                        if let Some(name) = table.as_ref() {
+                            raw.with_table_name(name);
+                        }
                         rows += raw.nrows();
-                        taos.write_raw_block(&raw).await?;
+                        if let Err(err) = taos.write_raw_block(&raw).await {
+                            if err.to_string().contains("[0x2603]") {
+                                // table not exists
+                                if let Some(meta) = raw.to_create() {
+                                    dbg!(&meta);
+                                    if let Err(err) = taos.exec(format!("{}", meta)).await {
+                                        if err.to_string().contains("0x032C") {
+                                            tokio::time::sleep(Duration::from_nanos(1000)).await;
+                                        } else {
+                                            Err(err).context("create table error")?;
+                                        }
+                                    };
+                                    taos.write_raw_block(&raw)
+                                        .await
+                                        .context("write_raw block error")?;
+                                } else {
+                                    Err(err).context("write_raw block error")?;
+                                }
+                            } else {
+                                Err(err).context("write raw block error")?;
+                            }
+                        };
                     }
                     log::debug!("rows: {}", rows);
                     // taos.write_raw_data(data[0]).await?
                 }
             },
             Err(err) => {
-                // dbg!(&err);
                 if err.kind() == std::io::ErrorKind::UnexpectedEof {
+                    log::info!("[{id}] reading file {} done", path.display());
                     break;
                 }
-                dbg!(&err);
+                log::debug!("[{id}] Reading data error: {}", &err);
                 break;
             }
         }
@@ -84,19 +107,19 @@ pub(crate) struct LocalConfig {
 }
 
 impl LocalConfig {
-    pub fn new(
-        topics: Vec<Topic>,
-        group_id: impl Into<String>,
-        client_id: impl Into<String>,
-    ) -> Self {
-        Self {
-            created_at: Local::now(),
-            last_modified: Local::now(),
-            group_id: group_id.into(),
-            client_id: client_id.into(),
-            topics,
-        }
-    }
+    // pub fn new(
+    //     topics: Vec<Topic>,
+    //     group_id: impl Into<String>,
+    //     client_id: impl Into<String>,
+    // ) -> Self {
+    //     Self {
+    //         created_at: Local::now(),
+    //         last_modified: Local::now(),
+    //         group_id: group_id.into(),
+    //         client_id: client_id.into(),
+    //         topics,
+    //     }
+    // }
     pub fn from_path(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
         let config = config::Config::builder()
@@ -106,19 +129,19 @@ impl LocalConfig {
         Ok(config)
     }
 
-    pub fn write_to(&self, path: impl AsRef<Path>) -> Result<()> {
-        let path = path.as_ref();
-        let bytes = toml::to_vec(self)?;
-        std::fs::write(path, bytes)?;
-        Ok(())
-    }
+    // pub fn write_to(&self, path: impl AsRef<Path>) -> Result<()> {
+    //     let path = path.as_ref();
+    //     let bytes = toml::to_vec(self)?;
+    //     std::fs::write(path, bytes)?;
+    //     Ok(())
+    // }
 }
 
-pub async fn local_to_taos_validate(_from: Dsn, _to: Dsn) -> Result<()> {
-    Ok(())
-}
+// pub async fn local_to_taos_validate(_from: Dsn, _to: Dsn) -> Result<()> {
+//     Ok(())
+// }
 
-pub async fn local_to_taos(from: Dsn, to: Dsn, jobs: usize, force: bool) -> Result<()> {
+pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> Result<()> {
     if from.fragment.is_none() {
         anyhow::bail!(
             "invalid local dsn: {}\nPlease use a local path DSN like `local:./path/to/backup`",
@@ -141,7 +164,18 @@ pub async fn local_to_taos(from: Dsn, to: Dsn, jobs: usize, force: bool) -> Resu
     let config = LocalConfig::from_path(&config_path)?;
 
     // check database
-    if let Some(target) = to.database.as_ref() {
+    if let Some(target) = to.database.as_mut() {
+        let databases: Vec<_> = config
+            .topics
+            .iter()
+            .map(|t| t.database.as_str())
+            .dedup()
+            .collect();
+
+        if databases.len() > 1 {
+            bail!("taosx does not support restore data from more than one databases to a single database");
+        }
+
         for topic in &config.topics {
             if &topic.database != target {
                 if force {
@@ -153,6 +187,7 @@ pub async fn local_to_taos(from: Dsn, to: Dsn, jobs: usize, force: bool) -> Resu
         }
     }
 
+    let target_database = to.database.take();
     let target = TaosBuilder::from_dsn(&to)?;
     let global_taos = target.build()?;
 
@@ -163,18 +198,34 @@ pub async fn local_to_taos(from: Dsn, to: Dsn, jobs: usize, force: bool) -> Resu
 
     let mut task_id = 0;
     for topic in &config.topics {
-        if !global_taos.database_exists(&topic.database).await? {
-            global_taos
-                .exec(
-                    topic
+        if let Some(target) = target_database.as_ref() {
+            if !global_taos.database_exists(&target).await? {
+                if &topic.database != target {
+                    let sql = topic
                         .sql
-                        .replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS"),
-                )
-                .await?;
-        } else if !force {
-            anyhow::bail!(
-                "the database has already exists, please be sure to override it by force"
-            );
+                        .replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS")
+                        .replace(&format!("`{}`", topic.database), &format!("`{target}`"));
+                    global_taos.exec(sql).await?;
+                }
+            } else if !force {
+                anyhow::bail!(
+                    "the database has already exists, please be sure to override it by force"
+                );
+            }
+        } else {
+            if !global_taos.database_exists(&topic.database).await? {
+                global_taos
+                    .exec(
+                        topic
+                            .sql
+                            .replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS"),
+                    )
+                    .await?;
+            } else if !force {
+                anyhow::bail!(
+                    "the database has already exists, please be sure to override it by force"
+                );
+            }
         }
 
         let mut dir_entry = tokio::fs::read_dir(path).await?;
@@ -193,12 +244,15 @@ pub async fn local_to_taos(from: Dsn, to: Dsn, jobs: usize, force: bool) -> Resu
 
             let sem = task_sem.clone().acquire_owned().await?;
             let taos = target.build()?;
-            if to.database.is_none() {
+            if let Some(target) = target_database.as_ref() {
+                taos.exec(format!("use {}", target)).await?;
+            } else {
                 taos.exec(format!("use {}", topic.database)).await?;
             }
             // let barrier = barrier.clone();
+            let table = topic.table.clone();
             let handle =
-                tokio::spawn(async move { restore(task_id, path.path(), taos, sem).await });
+                tokio::spawn(async move { restore(task_id, path.path(), taos, table, sem).await });
             handles.push(handle);
 
             task_id += 1;
