@@ -1015,7 +1015,7 @@ static int32_t tsdbNextCommitRow(SCommitter *pCommitter) {
 
   if (pCommitter->pIter) {
     SDataIter *pIter = pCommitter->pIter;
-    if (pCommitter->pIter->type == 0) {  // memory
+    if (pCommitter->pIter->type == MEMORY_DATA_ITER) {  // memory
       tsdbTbDataIterNext(&pIter->iter);
       TSDBROW *pRow = tsdbTbDataIterGet(&pIter->iter);
       while (true) {
@@ -1043,7 +1043,7 @@ static int32_t tsdbNextCommitRow(SCommitter *pCommitter) {
           break;
         }
       }
-    } else if (pCommitter->pIter->type == 1) {  // last file
+    } else if (pCommitter->pIter->type == LAST_DATA_ITER) {  // last file
       pIter->iRow++;
       if (pIter->iRow < pIter->bData.nRow) {
         pIter->r.uid = pIter->bData.uid ? pIter->bData.uid : pIter->bData.aUid[pIter->iRow];
