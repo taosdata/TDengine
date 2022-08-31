@@ -3982,8 +3982,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
           STableKeyInfo* pKeyInfo = taosArrayGet(pTableListInfo->pTableList, i);
           qDebug("creating stream task: add table %" PRId64, pKeyInfo->uid);
         }
-      }
 #endif
+      }
 
       pTaskInfo->schemaInfo.qsw = extractQueriedColumnSchema(&pTableScanNode->scan);
       pOperator = createStreamScanOperatorInfo(pHandle, pTableScanNode, pTagCond, pTaskInfo);
@@ -4449,7 +4449,7 @@ _complete:
   return code;
 }
 
-static void doDestroyTableList(STableListInfo* pTableqinfoList) {
+void doDestroyTableList(STableListInfo* pTableqinfoList) {
   taosArrayDestroy(pTableqinfoList->pTableList);
   taosHashCleanup(pTableqinfoList->map);
   if (pTableqinfoList->needSortTableByGroupId) {

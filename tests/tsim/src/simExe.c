@@ -464,7 +464,10 @@ void simStoreSystemContentResult(SScript *script, char *filename) {
     taosCloseFile(&pFile);
     char rmCmd[MAX_FILE_NAME_LEN] = {0};
     sprintf(rmCmd, "rm -f %s", filename);
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
     system(rmCmd);
+#pragma GCC diagnostic pop
   }
 }
 
