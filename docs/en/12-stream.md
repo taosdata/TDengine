@@ -22,7 +22,6 @@ CREATE STREAM [IF NOT EXISTS] stream_name [stream_options] INTO stb_name AS subq
 stream_options: {
  TRIGGER    [AT_ONCE | WINDOW_CLOSE | MAX_DELAY time]
  WATERMARK   time
- IGNORE EXPIRED [0 | 1]
 }
 ```
 
