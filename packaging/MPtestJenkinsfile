@@ -149,7 +149,7 @@ pipeline {
                             '''
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_DEB} ${version} ${BASE_TD_SERVER_DEB} ${baseVersion} server ${nasPassword} 
+                            bash testpackage.sh ${TD_SERVER_DEB} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server ${nasPassword} 
                             python3 checkPackageRuning.py  
                             '''
                             sh '''

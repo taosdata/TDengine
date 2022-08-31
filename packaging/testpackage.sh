@@ -132,8 +132,8 @@ cd ${installPath}
 cp -r ${scriptDir}/debRpmAutoInstall.sh   . 
 
 if [ ! -f  {packgeName}  ];then
-    echoColor  BD "sshpass -p ${password} scp 192.168.1.131:/nas/TDengine3/v${version}/community/${packgeName}  ."
-    sshpass -p ${password} scp 192.168.1.131:/nas/TDengine3/v${version}/community/${packgeName}  .
+    echoColor  BD "sshpass -p ${password} scp -oStrictHostKeyChecking=no 192.168.1.131:/nas/TDengine3/v${version}/community/${packgeName}  ."
+    sshpass -p ${password} scp -oStrictHostKeyChecking=no -oStrictHostKeyChecking=no 192.168.1.131:/nas/TDengine3/v${version}/community/${packgeName}  .
 fi
 
 packageSuffix=$(echo ${packgeName}  | awk -F '.' '{print $NF}')
@@ -181,8 +181,8 @@ elif [[ ${packgeName} =~ "tar" ]];then
     cd  ${oriInstallPath}
     if [ ! -f  {originPackageName}  ];then
         echoColor YD "download  base installPackage"
-        echoColor BD "sshpass -p ${password} scp 192.168.1.131:/nas/TDengine3/v${originversion}/community/${originPackageName} ."
-        sshpass -p ${password} scp 192.168.1.131:/nas/TDengine3/v${originversion}/community/${originPackageName} .
+        echoColor BD "sshpass -p ${password} scp -oStrictHostKeyChecking=no 192.168.1.131:/nas/TDengine3/v${originversion}/community/${originPackageName} ."
+        sshpass -p ${password} scp -oStrictHostKeyChecking=no 192.168.1.131:/nas/TDengine3/v${originversion}/community/${originPackageName} .
     fi
     echoColor YD "unzip the base installation package" 
     echoColor BD "tar -xf ${originPackageName}" && tar -xf ${originPackageName} 
@@ -225,20 +225,20 @@ cd ${installPath}
 if ([[ ${packgeName} =~ "Lite" ]] &&  [[ ${packgeName} =~ "tar" ]]) ||   [[ ${packgeName} =~ "client" ]] ;then
     echoColor G "===== install taos-tools when package is lite or client ====="
     cd ${installPath}
-    sshpass -p ${password}   scp 192.168.1.131:/nas/TDengine3/v${version}/community/taosTools-2.1.2-Linux-x64.tar.gz .
+    sshpass -p ${password}   scp -oStrictHostKeyChecking=no 192.168.1.131:/nas/TDengine3/v${version}/community/taosTools-2.1.2-Linux-x64.tar.gz .
     # wget https://www.taosdata.com/assets-download/3.0/taosTools-2.1.2-Linux-x64.tar.gz
     tar xf taosTools-2.1.2-Linux-x64.tar.gz
     cd taosTools-2.1.2 && bash install-taostools.sh
 elif [[ ${packgeName} =~ "Lite" ]] &&  [[ ${packgeName} =~ "deb" ]] ;then
     echoColor G "===== install taos-tools when package is lite or client ====="
     cd ${installPath}
-    sshpass -p ${password}   scp 192.168.1.131:/nas/TDengine3/v${version}/community/taosTools-2.1.2-Linux-x64.tar.gz .
+    sshpass -p ${password}   scp -oStrictHostKeyChecking=no 192.168.1.131:/nas/TDengine3/v${version}/community/taosTools-2.1.2-Linux-x64.tar.gz .
     tar xf taosTools-2.1.2-Linux-x64.tar.gz
     cd taosTools-2.1.2 && bash install-taostools.sh
 elif [[ ${packgeName} =~ "Lite" ]] &&  [[ ${packgeName} =~ "rpm" ]]  ;then
     echoColor G "===== install taos-tools when package is lite or client ====="
     cd ${installPath}
-    sshpass -p ${password}   scp 192.168.1.131:/nas/TDengine3/v${version}/community/taosTools-2.1.2-Linux-x64.tar.gz .
+    sshpass -p ${password}   scp -oStrictHostKeyChecking=no -oStrictHostKeyChecking=no 192.168.1.131:/nas/TDengine3/v${version}/community/taosTools-2.1.2-Linux-x64.tar.gz .
     tar xf taosTools-2.1.2-Linux-x64.tar.gz
     cd taosTools-2.1.2 && bash install-taostools.sh
 fi
