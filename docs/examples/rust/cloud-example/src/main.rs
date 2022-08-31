@@ -4,9 +4,8 @@ use libtaos::*;
 #[tokio::main]
 async fn main() -> Result<()> {
     let dsn = std::env::var("TDENGINE_CLOUD_DSN")?;
-    let cfg = TaosCfg::from_dsn(dsn)?;
-    let conn = cfg.connect()?;
-    let _ = conn.query("show databases").await?;
+    let taos = TaosBuilder::from_dsn(dsn)?.build()?;
+    let _ = taos.query("show databases").await?;
     println!("Connected");
     Ok(())
 }
