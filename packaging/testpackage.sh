@@ -104,6 +104,10 @@ else
     echoColor YD "${installPath} already exists"
 fi
 
+if [ -d ${installPath}/${tdPath} ] ;then
+    echoColor BD "rm -rf ${installPath}/${tdPath} "
+    rm -rf ${installPath}/${tdPath} 
+fi
 
 if [ ! -d ${oriInstallPath} ] ;then
     echoColor BD "mkdir -p ${oriInstallPath}"
@@ -112,7 +116,10 @@ else
     echoColor YD "${oriInstallPath} already exists"
 fi
 
-
+if [ -d ${oriInstallPath}/${originTdpPath} ] ;then
+    echoColor BD "rm -rf ${oriInstallPath}/${originTdpPath}"
+    rm -rf  ${oriInstallPath}  
+fi
 
 
 echoColor G "===== download  installPackage ====="
@@ -206,7 +213,7 @@ elif [[ ${packgeName} =~ "tar" ]];then
     diff  ${installPath}/base_${originversion}_checkfile   ${installPath}/now_${version}_checkfile  > ${installPath}/diffFile.log
     diffNumbers=`cat ${installPath}/diffFile.log |wc -l `
     if [ ${diffNumbers} != 0 ];then
-        echoColor R "The number and names of files have changed from the previous installation package"
+        echoColor R "The number and names of files is different from the previous installation package"
         echoColor Y `cat ${installPath}/diffFile.log`
         exit -1
     else 
@@ -214,20 +221,22 @@ elif [[ ${packgeName} =~ "tar" ]];then
     fi
 fi  
 
-echoColor G "===== install taos-tools when package is lite or client ====="
 
 
 if ([[ ${packgeName} =~ "Lite" ]] &&  [[ ${packgeName} =~ "tar" ]]) ||   [[ ${packgeName} =~ "client" ]] ;then
+    echoColor G "===== install taos-tools when package is lite or client ====="
     cd ${installPath}
     sshpass -p ${password}   scp 192.168.1.131:/nas/TDengine3/v${version}/community/taosTools-2.1.2-Linux-x64.tar.gz .
     # wget https://www.taosdata.com/assets-download/3.0/taosTools-2.1.2-Linux-x64.tar.gz
     tar xf taosTools-2.1.2-Linux-x64.tar.gz
     cd taosTools-2.1.2 && bash install-taostools.sh
 elif [[ ${packgeName} =~ "Lite" ]] &&  [[ ${packgeName} =~ "deb" ]] ;then
+    echoColor G "===== install taos-tools when package is lite or client ====="
     cd ${installPath}
     sshpass -p ${password}   scp 192.168.1.131:/nas/TDengine3/v${version}/community/taosTools-2.1.2-Linux-x64.deb .
     dpkg -i taosTools-2.1.2-Linux-x64.deb 
 elif [[ ${packgeName} =~ "Lite" ]] &&  [[ ${packgeName} =~ "rpm" ]]  ;then
+    echoColor G "===== install taos-tools when package is lite or client ====="
     cd ${installPath}
     sshpass -p ${password}   scp 192.168.1.131:/nas/TDengine3/v${version}/community/taosTools-2.1.2-Linux-x64.rpm .
     rpm -ivh taosTools-2.1.2-Linux-x64.rpm --quiet 
