@@ -52,15 +52,17 @@ enum {
   RES_TYPE__QUERY = 1,
   RES_TYPE__TMQ,
   RES_TYPE__TMQ_META,
+  RES_TYPE__TAOSX,
 };
 
 #define SHOW_VARIABLES_RESULT_COLS       2
 #define SHOW_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
 
-#define TD_RES_QUERY(res)    (*(int8_t*)res == RES_TYPE__QUERY)
-#define TD_RES_TMQ(res)      (*(int8_t*)res == RES_TYPE__TMQ)
-#define TD_RES_TMQ_META(res) (*(int8_t*)res == RES_TYPE__TMQ_META)
+#define TD_RES_QUERY(res)     (*(int8_t*)res == RES_TYPE__QUERY)
+#define TD_RES_TMQ(res)       (*(int8_t*)res == RES_TYPE__TMQ || *(int8_t*)res == RES_TYPE__TAOSX)
+#define TD_RES_TMQ_META(res)  (*(int8_t*)res == RES_TYPE__TMQ_META)
+#define TD_RES_TMQ_TAOSX(res) (*(int8_t*)res == RES_TYPE__TAOSX)
 
 typedef struct SAppInstInfo SAppInstInfo;
 
@@ -200,8 +202,8 @@ typedef struct {
   int32_t        vgId;
   SSchemaWrapper schema;
   int32_t        resIter;
-  SMqDataRsp     rsp;
   SReqResultInfo resInfo;
+  SMqDataRsp     rsp;
 } SMqRspObj;
 
 typedef struct {
@@ -211,6 +213,17 @@ typedef struct {
   int32_t    vgId;
   SMqMetaRsp metaRsp;
 } SMqMetaRspObj;
+
+typedef struct {
+  int8_t         resType;
+  char           topic[TSDB_TOPIC_FNAME_LEN];
+  char           db[TSDB_DB_FNAME_LEN];
+  int32_t        vgId;
+  SSchemaWrapper schema;
+  int32_t        resIter;
+  SReqResultInfo resInfo;
+  STaosxRsp      rsp;
+} SMqTaosxRspObj;
 
 typedef struct SRequestObj {
   int8_t               resType;  // query or tmq

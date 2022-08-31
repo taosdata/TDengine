@@ -372,7 +372,7 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
         pPageIdList =  pList;
       }
 
-      pSlot->info.data = getNewBufPage(pBucket->pBuffer, groupId, &pageId);
+      pSlot->info.data = getNewBufPage(pBucket->pBuffer, &pageId);
       pSlot->info.pageId = pageId;
       taosArrayPush(pPageIdList, &pageId);
     }

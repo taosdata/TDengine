@@ -1084,7 +1084,7 @@ static int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool* pNot
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
       SScanLogicNode* pScan = (SScanLogicNode*)pNode;
-      if (NULL != pScan->pGroupTags) {
+      if (NULL != pScan->pGroupTags || TSDB_SYSTEM_TABLE == pScan->tableType) {
         *pNotOptimize = true;
         return TSDB_CODE_SUCCESS;
       }

@@ -97,7 +97,7 @@ static int32_t doAddToBucket(SLHashObj* pHashObj, SLHashBucket* pBucket, int32_t
 
     // allocate the overflow buffer page to hold this k/v.
     int32_t newPageId = -1;
-    SFilePage* pNewPage = getNewBufPage(pHashObj->pBuf, 0, &newPageId);
+    SFilePage* pNewPage = getNewBufPage(pHashObj->pBuf, &newPageId);
     if (pNewPage == NULL) {
       return terrno;
     }
@@ -227,7 +227,7 @@ static int32_t doAddNewBucket(SLHashObj* pHashObj) {
   }
 
   int32_t pageId = -1;
-  SFilePage* p = getNewBufPage(pHashObj->pBuf, 0, &pageId);
+  SFilePage* p = getNewBufPage(pHashObj->pBuf, &pageId);
   if (p == NULL) {
     return terrno;
   }

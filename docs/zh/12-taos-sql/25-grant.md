@@ -9,14 +9,51 @@ description: 企业版中才具有的权限管理功能
 ## 创建用户
 
 ```sql
-CREATE USER use_name PASS 'password';
+CREATE USER use_name PASS 'password' [SYSINFO {1|0}];
 ```
 
 创建用户。
 
-use_name最长为23字节。
+use_name 最长为 23 字节。
 
-password最长为128字节，合法字符包括"a-zA-Z0-9!?$%^&*()_–+={[}]:;@~#|<,>.?/"，不可以出现单双引号、撇号、反斜杠和空格，且不可以为空。
+password 最长为 128 字节，合法字符包括"a-zA-Z0-9!?$%^&*()_–+={[}]:;@~#|<,>.?/"，不可以出现单双引号、撇号、反斜杠和空格，且不可以为空。
+
+SYSINFO 表示用户是否可以查看系统信息。1 表示可以查看，0 表示不可以查看。系统信息包括服务端配置信息、服务端各种节点信息（如 DNODE、QNODE等）、存储相关的信息等。默认为可以查看系统信息。
+
+例如，创建密码为123456且可以查看系统信息的用户test如下：
+
+```sql
+taos> create user test pass '123456' sysinfo 1;
+Query OK, 0 of 0 rows affected (0.001254s)
+```
+
+## 查看用户
+
+```sql
+SHOW USERS;
+```
+
+查看用户信息。
+
+```sql
+taos> show users;
+           name           | super | enable | sysinfo |       create_time       |
+================================================================================
+ test                     |     0 |      1 |       1 | 2022-08-29 15:10:27.315 |
+ root                     |     1 |      1 |       1 | 2022-08-29 15:03:34.710 |
+Query OK, 2 rows in database (0.001657s)
+```
+
+也可以通过查询INFORMATION_SCHEMA.INS_USERS系统表来查看用户信息，例如：
+
+```sql
+taos> select * from information_schema.ins_users;
+           name           | super | enable | sysinfo |       create_time       |
+================================================================================
+ test                     |     0 |      1 |       1 | 2022-08-29 15:10:27.315 |
+ root                     |     1 |      1 |       1 | 2022-08-29 15:03:34.710 |
+Query OK, 2 rows in database (0.001953s)
+```
 
 ## 删除用户
 
@@ -37,9 +74,15 @@ alter_user_clause: {
 ```
 
 - PASS：修改用户密码。
-- ENABLE：修改用户是否启用。1表示启用此用户，0表示禁用此用户。
-- SYSINFO：修改用户是否可查看系统信息。1表示可以查看系统信息，0表示不可以查看系统信息。
+- ENABLE：修改用户是否启用。1 表示启用此用户，0 表示禁用此用户。
+- SYSINFO：修改用户是否可查看系统信息。1 表示可以查看系统信息，0 表示不可以查看系统信息。
 
+例如，禁用 test 用户：
+
+```sql
+taos> alter user test enable 0;
+Query OK, 0 of 0 rows affected (0.001160s)
+```
 
 ## 授权
 
@@ -62,7 +105,7 @@ priv_level : {
 }
 ```
 
-对用户授权。
+对用户授权。授权功能只包含在企业版中。
 
 授权级别支持到DATABASE，权限有READ和WRITE两种。
 
@@ -92,4 +135,4 @@ priv_level : {
 
 ```
 
-收回对用户的授权。
+收回对用户的授权。授权功能只包含在企业版中。

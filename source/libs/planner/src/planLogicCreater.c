@@ -197,28 +197,21 @@ static EScanType getScanType(SLogicPlanContext* pCxt, SNodeList* pScanPseudoCols
   return SCAN_TYPE_TABLE;
 }
 
-static SNode* createPrimaryKeyCol(uint64_t tableId) {
+static SNode* createFirstCol(uint64_t tableId, const SSchema* pSchema) {
   SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
   if (NULL == pCol) {
     return NULL;
   }
-  pCol->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
-  pCol->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+  pCol->node.resType.type = pSchema->type;
+  pCol->node.resType.bytes = pSchema->bytes;
   pCol->tableId = tableId;
-  pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  pCol->colId = pSchema->colId;
   pCol->colType = COLUMN_TYPE_COLUMN;
-  strcpy(pCol->colName, "#primarykey");
+  strcpy(pCol->colName, pSchema->name);
   return (SNode*)pCol;
 }
 
-static int32_t addPrimaryKeyCol(uint64_t tableId, SNodeList** pCols) {
-  if (NULL == *pCols) {
-    *pCols = nodesMakeList();
-    if (NULL == *pCols) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-  }
-
+static int32_t addPrimaryKeyCol(uint64_t tableId, const SSchema* pSchema, SNodeList** pCols) {
   bool   found = false;
   SNode* pCol = NULL;
   FOREACH(pCol, *pCols) {
@@ -229,11 +222,23 @@ static int32_t addPrimaryKeyCol(uint64_t tableId, SNodeList** pCols) {
   }
 
   if (!found) {
-    if (TSDB_CODE_SUCCESS != nodesListStrictAppend(*pCols, createPrimaryKeyCol(tableId))) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
+    return nodesListMakeStrictAppend(pCols, createFirstCol(tableId, pSchema));
   }
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t addSystableFirstCol(uint64_t tableId, const SSchema* pSchema, SNodeList** pCols) {
+  if (LIST_LENGTH(*pCols) > 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+  return nodesListMakeStrictAppend(pCols, createFirstCol(tableId, pSchema));
+}
+
+static int32_t addDefaultScanCol(const STableMeta* pMeta, SNodeList** pCols) {
+  if (TSDB_SYSTEM_TABLE == pMeta->tableType) {
+    return addSystableFirstCol(pMeta->uid, pMeta->schema, pCols);
+  }
+  return addPrimaryKeyCol(pMeta->uid, pMeta->schema, pCols);
 }
 
 static int32_t makeScanLogicNode(SLogicPlanContext* pCxt, SRealTableNode* pRealTable, bool hasRepeatScanFuncs,
@@ -299,8 +304,8 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
     pScan->hasNormalCols = true;
   }
 
-  if (TSDB_CODE_SUCCESS == code && SCAN_TYPE_SYSTEM_TABLE != pScan->scanType) {
-    code = addPrimaryKeyCol(pScan->tableId, &pScan->pScanCols);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addDefaultScanCol(pRealTable->pMeta, &pScan->pScanCols);
   }
 
   // set output
@@ -787,10 +792,8 @@ static int32_t createWindowLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSele
 static EDealRes needFillValueImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    if (COLUMN_TYPE_WINDOW_START != pCol->colType &&
-        COLUMN_TYPE_WINDOW_END != pCol->colType &&
-        COLUMN_TYPE_WINDOW_DURATION != pCol->colType &&
-        COLUMN_TYPE_GROUP_KEY != pCol->colType) {
+    if (COLUMN_TYPE_WINDOW_START != pCol->colType && COLUMN_TYPE_WINDOW_END != pCol->colType &&
+        COLUMN_TYPE_WINDOW_DURATION != pCol->colType && COLUMN_TYPE_GROUP_KEY != pCol->colType) {
       *(bool*)pContext = true;
       return DEAL_RES_END;
     }
@@ -1008,7 +1011,8 @@ static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pS
   int32_t code =
       nodesCollectColumns(pSelect, SQL_CLAUSE_PARTITION_BY, NULL, COLLECT_COL_TYPE_ALL, &pPartition->node.pTargets);
   if (TSDB_CODE_SUCCESS == code && NULL == pPartition->node.pTargets) {
-    code = nodesListMakeStrictAppend(&pPartition->node.pTargets, nodesCloneNode(nodesListGetNode(pCxt->pCurrRoot->pTargets, 0)));
+    code = nodesListMakeStrictAppend(&pPartition->node.pTargets,
+                                     nodesCloneNode(nodesListGetNode(pCxt->pCurrRoot->pTargets, 0)));
   }
 
   if (TSDB_CODE_SUCCESS == code) {

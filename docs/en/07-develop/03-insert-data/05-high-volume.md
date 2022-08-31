@@ -16,7 +16,7 @@ To achieve high performance writing, there are a few aspects to consider. In the
 
 From the perspective of application program, you need to consider:
 
-1. The data size of each single write, also known as batch size. Generally speaking, higher batch size generates better writing performance. However, once the batch size is over a specific value, you will not get any additional benefit anymore. When using SQL to write into TDengine, it's better to put as much as possible data in single SQL. The maximum SQL length supported by TDengine is 1,048,576 bytes, i.e. 1 MB. It can be configured by parameter `maxSQLLength` on client side, and the default value is 65,480.
+1. The data size of each single write, also known as batch size. Generally speaking, higher batch size generates better writing performance. However, once the batch size is over a specific value, you will not get any additional benefit anymore. When using SQL to write into TDengine, it's better to put as much as possible data in single SQL. The maximum SQL length supported by TDengine is 1,048,576 bytes, i.e. 1 MB. 
 
 2. The number of concurrent connections. Normally more connections can get better result. However, once the number of connections exceeds the processing ability of the server side, the performance may downgrade.
 
@@ -46,12 +46,9 @@ If the data source is Kafka, then the appication program is a consumer of Kafka,
 
 ### Tune TDengine
 
-TDengine is a distributed and high performance time series database, there are also some ways to tune TDengine to get better writing performance.
+On the server side, database configuration parameter `vgroups` needs to be set carefully to maximize the system performance. If it's set too low, the system capability can't be utilized fully; if it's set too big, unnecessary resource competition may be produced. A normal recommendation for `vgroups` parameter is 2 times of the number of CPU cores. However, depending on the actual system resources, it may still need to tuned.
 
-1. Set proper number of `vgroups` according to available CPU cores. Normally, we recommend 2 \* number_of_cores as a starting point. If the verification result shows this is not enough to utilize CPU resources, you can use a higher value.
-2. Set proper `minTablesPerVnode`, `tableIncStepPerVnode`, and `maxVgroupsPerDb` according to the number of tables so that tables are distributed even across vgroups. The purpose is to balance the workload among all vnodes so that system resources can be utilized better to get higher performance.
-
-For more performance tuning parameters, please refer to [Configuration Parameters](../../../reference/config).
+For more configuration parameters, please refer to [Database Configuration](../../../taos-sql/database) and [Server Configuration](../../../reference/config)。
 
 ## Sample Programs
 
@@ -359,7 +356,7 @@ Writing process tries to read as much as possible data from message queue and wr
 
 <details>
 
-SQLWriter class encapsulates the logic of composing SQL and writing data. Please be noted that the tables have not been created before writing, but are created automatically when catching the exception of table doesn't exist. For other exceptions caught, the SQL which caused the exception are logged for you to debug. This class also checks the SQL length, if the SQL length is closed to `maxSQLLength` the SQL will be executed immediately. To improve writing efficiency, it's better to increase `maxSQLLength` properly.
+SQLWriter class encapsulates the logic of composing SQL and writing data. Please be noted that the tables have not been created before writing, but are created automatically when catching the exception of table doesn't exist. For other exceptions caught, the SQL which caused the exception are logged for you to debug. This class also checks the SQL length, and passes the maximum SQL length by parameter maxSQLLength according to actual TDengine limit. 
 
 <summary>SQLWriter</summary>
 

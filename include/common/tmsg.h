@@ -276,7 +276,6 @@ struct SSchema {
   char     name[TSDB_COL_NAME_LEN];
 };
 
-
 typedef struct {
   char     tbName[TSDB_TABLE_NAME_LEN];
   char     stbName[TSDB_TABLE_NAME_LEN];
@@ -295,17 +294,15 @@ typedef struct {
   SSchema* pSchemas;
 } STableMetaRsp;
 
-
-
 typedef struct {
-  int32_t code;
-  int8_t  hashMeta;
-  int64_t uid;
-  char*   tblFName;
-  int32_t numOfRows;
-  int32_t affectedRows;
-  int64_t sver;
-  STableMetaRsp* pMeta;  
+  int32_t        code;
+  int8_t         hashMeta;
+  int64_t        uid;
+  char*          tblFName;
+  int32_t        numOfRows;
+  int32_t        affectedRows;
+  int64_t        sver;
+  STableMetaRsp* pMeta;
 } SSubmitBlkRsp;
 
 typedef struct {
@@ -320,7 +317,7 @@ typedef struct {
 
 int32_t tEncodeSSubmitRsp(SEncoder* pEncoder, const SSubmitRsp* pRsp);
 int32_t tDecodeSSubmitRsp(SDecoder* pDecoder, SSubmitRsp* pRsp);
-void tFreeSSubmitBlkRsp(void* param);
+void    tFreeSSubmitBlkRsp(void* param);
 void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
 
 #define COL_SMA_ON     ((int8_t)0x1)
@@ -2049,8 +2046,8 @@ typedef struct {
   STableMetaRsp* pMeta;
 } SVCreateTbRsp, SVUpdateTbRsp;
 
-int tEncodeSVCreateTbRsp(SEncoder* pCoder, const SVCreateTbRsp* pRsp);
-int tDecodeSVCreateTbRsp(SDecoder* pCoder, SVCreateTbRsp* pRsp);
+int  tEncodeSVCreateTbRsp(SEncoder* pCoder, const SVCreateTbRsp* pRsp);
+int  tDecodeSVCreateTbRsp(SDecoder* pCoder, SVCreateTbRsp* pRsp);
 void tFreeSVCreateTbRsp(void* param);
 
 int32_t tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
@@ -2960,6 +2957,25 @@ typedef struct {
 
 int32_t tEncodeSMqDataRsp(SEncoder* pEncoder, const SMqDataRsp* pRsp);
 int32_t tDecodeSMqDataRsp(SDecoder* pDecoder, SMqDataRsp* pRsp);
+
+typedef struct {
+  SMqRspHead   head;
+  STqOffsetVal reqOffset;
+  STqOffsetVal rspOffset;
+  int32_t      blockNum;
+  int8_t       withTbName;
+  int8_t       withSchema;
+  SArray*      blockDataLen;
+  SArray*      blockData;
+  SArray*      blockTbName;
+  SArray*      blockSchema;
+  int32_t      createTableNum;
+  SArray*      createTableLen;
+  SArray*      createTableReq;
+} STaosxRsp;
+
+int32_t tEncodeSTaosxRsp(SEncoder* pEncoder, const STaosxRsp* pRsp);
+int32_t tDecodeSTaosxRsp(SDecoder* pDecoder, STaosxRsp* pRsp);
 
 typedef struct {
   SMqRspHead head;

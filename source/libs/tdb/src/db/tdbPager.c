@@ -166,6 +166,7 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
 
   // ref page one more time so the page will not be release
   tdbRefPage(pPage);
+  tdbDebug("pcache/mdirty page %p/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id);
 
   // Set page as dirty
   pPage->isDirty = 1;

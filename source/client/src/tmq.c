@@ -164,6 +164,7 @@ typedef struct {
   union {
     SMqDataRsp dataRsp;
     SMqMetaRsp metaRsp;
+    STaosxRsp  taosxRsp;
   };
 } SMqPollRspWrapper;
 
@@ -1130,20 +1131,28 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     tDecodeSMqDataRsp(&decoder, &pRspWrapper->dataRsp);
     tDecoderClear(&decoder);
     memcpy(&pRspWrapper->dataRsp, pMsg->pData, sizeof(SMqRspHead));
-  } else {
-    ASSERT(rspType == TMQ_MSG_TYPE__POLL_META_RSP);
+
+    tscDebug("consumer:%" PRId64 ", recv poll: vgId:%d, req offset %" PRId64 ", rsp offset %" PRId64 " type %d",
+             tmq->consumerId, pVg->vgId, pRspWrapper->dataRsp.reqOffset.version, pRspWrapper->dataRsp.rspOffset.version,
+             rspType);
+
+  } else if (rspType == TMQ_MSG_TYPE__POLL_META_RSP) {
     SDecoder decoder;
     tDecoderInit(&decoder, POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), pMsg->len - sizeof(SMqRspHead));
     tDecodeSMqMetaRsp(&decoder, &pRspWrapper->metaRsp);
     tDecoderClear(&decoder);
     memcpy(&pRspWrapper->metaRsp, pMsg->pData, sizeof(SMqRspHead));
+  } else if (rspType == TMQ_MSG_TYPE__TAOSX_RSP) {
+    SDecoder decoder;
+    tDecoderInit(&decoder, POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), pMsg->len - sizeof(SMqRspHead));
+    tDecodeSTaosxRsp(&decoder, &pRspWrapper->taosxRsp);
+    tDecoderClear(&decoder);
+    memcpy(&pRspWrapper->taosxRsp, pMsg->pData, sizeof(SMqRspHead));
+  } else {
+    ASSERT(0);
   }
 
   taosMemoryFree(pMsg->pData);
-
-  tscDebug("consumer:%" PRId64 ", recv poll: vgId:%d, req offset %" PRId64 ", rsp offset %" PRId64 " type %d",
-           tmq->consumerId, pVg->vgId, pRspWrapper->dataRsp.reqOffset.version, pRspWrapper->dataRsp.rspOffset.version,
-           rspType);
 
   taosWriteQitem(tmq->mqueue, pRspWrapper);
   tsem_post(&tmq->rspSem);
@@ -1443,6 +1452,24 @@ SMqRspObj* tmqBuildRspFromWrapper(SMqPollRspWrapper* pWrapper) {
   return pRspObj;
 }
 
+SMqTaosxRspObj* tmqBuildTaosxRspFromWrapper(SMqPollRspWrapper* pWrapper) {
+  SMqTaosxRspObj* pRspObj = taosMemoryCalloc(1, sizeof(SMqTaosxRspObj));
+  pRspObj->resType = RES_TYPE__TAOSX;
+  tstrncpy(pRspObj->topic, pWrapper->topicHandle->topicName, TSDB_TOPIC_FNAME_LEN);
+  tstrncpy(pRspObj->db, pWrapper->topicHandle->db, TSDB_DB_FNAME_LEN);
+  pRspObj->vgId = pWrapper->vgHandle->vgId;
+  pRspObj->resIter = -1;
+  memcpy(&pRspObj->rsp, &pWrapper->dataRsp, sizeof(SMqTaosxRspObj));
+
+  pRspObj->resInfo.totalRows = 0;
+  pRspObj->resInfo.precision = TSDB_TIME_PRECISION_MILLI;
+  if (!pWrapper->dataRsp.withSchema) {
+    setResSchemaInfo(&pRspObj->resInfo, pWrapper->topicHandle->schema.pSchema, pWrapper->topicHandle->schema.nCols);
+  }
+
+  return pRspObj;
+}
+
 int32_t tmqPollImpl(tmq_t* tmq, int64_t timeout) {
   /*tscDebug("call poll");*/
   for (int i = 0; i < taosArrayGetSize(tmq->clientTopics); i++) {
@@ -1595,6 +1622,30 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
                  pollRspWrapper->metaRsp.head.epoch, consumerEpoch);
         taosFreeQitem(pollRspWrapper);
       }
+    } else if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__TAOSX_RSP) {
+      SMqPollRspWrapper* pollRspWrapper = (SMqPollRspWrapper*)rspWrapper;
+      /*atomic_sub_fetch_32(&tmq->readyRequest, 1);*/
+      int32_t consumerEpoch = atomic_load_32(&tmq->epoch);
+      if (pollRspWrapper->taosxRsp.head.epoch == consumerEpoch) {
+        SMqClientVg* pVg = pollRspWrapper->vgHandle;
+        /*printf("vgId:%d, offset %" PRId64 " up to %" PRId64 "\n", pVg->vgId, pVg->currentOffset,
+         * rspMsg->msg.rspOffset);*/
+        pVg->currentOffset = pollRspWrapper->taosxRsp.rspOffset;
+        atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
+        if (pollRspWrapper->taosxRsp.blockNum == 0) {
+          taosFreeQitem(pollRspWrapper);
+          rspWrapper = NULL;
+          continue;
+        }
+        // build rsp
+        SMqRspObj* pRsp = tmqBuildRspFromWrapper(pollRspWrapper);
+        taosFreeQitem(pollRspWrapper);
+        return pRsp;
+      } else {
+        tscDebug("msg discard since epoch mismatch: msg epoch %d, consumer epoch %d\n",
+                 pollRspWrapper->taosxRsp.head.epoch, consumerEpoch);
+        taosFreeQitem(pollRspWrapper);
+      }
     } else {
       /*printf("handle ep rsp %d\n", rspMsg->head.mqMsgType);*/
       bool reset = false;
@@ -1707,9 +1758,11 @@ tmq_res_t tmq_get_res_type(TAOS_RES* res) {
   } else if (TD_RES_TMQ_META(res)) {
     SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)res;
     if (pMetaRspObj->metaRsp.resMsgType == TDMT_VND_DELETE) {
-      return TMQ_RES_DATA;
+      return TMQ_RES_TAOSX;
     }
     return TMQ_RES_TABLE_META;
+  } else if (TD_RES_TMQ_TAOSX(res)) {
+    return TMQ_RES_TAOSX;
   } else {
     return TMQ_RES_INVALID;
   }

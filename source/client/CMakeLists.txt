@@ -30,8 +30,15 @@ endif()
 set_target_properties(
     taos
     PROPERTIES
+    CLEAN_DIRECT_OUTPUT
+    1
+)
+
+set_target_properties(
+    taos
+    PROPERTIES
     VERSION ${TD_VER_NUMBER}
-    SOVERSION ${TD_VER_NUMBER}
+    SOVERSION 1
 )
 
 add_library(taos_static STATIC ${CLIENT_SRC})

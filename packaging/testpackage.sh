@@ -1,8 +1,5 @@
 #!/bin/sh
 
-# function installPkgAndCheckFile{
-
-echo "Download package"
 
 packgeName=$1
 version=$2
@@ -10,6 +7,7 @@ originPackageName=$3
 originversion=$4
 testFile=$5
 subFile="taos.tar.gz"
+password=$6
 
 if [ ${testFile} = "server" ];then
     tdPath="TDengine-server-${version}"
@@ -25,21 +23,41 @@ elif [ ${testFile} = "tools" ];then
     installCmd="install-taostools.sh"
 fi
 
+function cmdInstall {
+comd=$1
+if command -v ${comd} ;then
+    echo "${comd} is already installed" 
+else 
+    if command -v apt ;then
+        apt-get install ${comd} -y 
+    elif command -v yum ;then
+        yum -y install ${comd} 
+        echo "you should install ${comd} manually"
+    fi
+fi
+}
+
+
 echo "Uninstall all components of TDeingne"
 
 if command -v rmtaos ;then
     echo "uninstall all components of TDeingne:rmtaos"
-    echo " " 
+    rmtaos 
 else 
     echo "os doesn't include TDengine "
 fi
 
 if command -v rmtaostools ;then
     echo "uninstall all components of TDeingne:rmtaostools"
-    echo " " 
+    rmtaostools
 else 
     echo "os doesn't include rmtaostools "
 fi
+
+
+cmdInstall tree
+cmdInstall wget
+cmdInstall sshpass
 
 echo "new workroom path"
 installPath="/usr/local/src/packageTest"
@@ -58,22 +76,49 @@ else
     echo "${oriInstallPath} already exists"
 fi
 
-echo "decompress installPackage"
+
+
+
+echo "download  installPackage"
+# cd ${installPath}
+# wget https://www.taosdata.com/assets-download/3.0/${packgeName}
+# cd  ${oriInstallPath}
+# wget https://www.taosdata.com/assets-download/3.0/${originPackageName}
 
 cd ${installPath}
-wget https://www.taosdata.com/assets-download/3.0/${packgeName}
-cd  ${oriInstallPath}
-wget https://www.taosdata.com/assets-download/3.0/${originPackageName}
-
+if [ ! -f  {packgeName}  ];then
+    sshpass -p ${password} scp 192.168.1.131:/nas/TDengine3/v${version}/community/${packgeName}  .
+fi
+if [ ! -f  debAuto.sh  ];then
+    echo '#!/usr/bin/expect ' >  debAuto.sh
+    echo 'set timeout 3 ' >>  debAuto.sh
+    echo 'pset packgeName [lindex $argv 0]' >>  debAuto.sh
+    echo 'spawn dpkg -i ${packgeName}' >>  debAuto.sh
+    echo 'expect "*one:"' >>  debAuto.sh
+    echo 'send  "\r"' >>  debAuto.sh
+    echo 'expect "*skip:"' >>  debAuto.sh
+    echo 'send  "\r" ' >>  debAuto.sh
+fi
 
 if [[ ${packgeName} =~ "deb" ]];then
-    echo "dpkg ${packgeName}" &&  dpkg -i ${packgeName}
+    cd ${installPath}
+    dpkg -r taostools
+    dpkg -r tdengine
+    if [[ ${packgeName} =~ "TDengine" ]];then
+        echo "./debAuto.sh ${packgeName}" &&   chmod 755 debAuto.sh &&  ./debAuto.sh ${packgeName}
+    else
+        echo "dpkg  -i ${packgeName}" &&   dpkg  -i ${packgeName}
+
 elif [[ ${packgeName} =~ "rpm" ]];then
-    echo "rpm ${packgeName}"  && rpm -ivh ${packgeName}
+    cd ${installPath}
+    echo "rpm ${packgeName}"  && rpm -ivh ${packgeName}  --quiet 
 elif [[ ${packgeName} =~ "tar" ]];then
-    echo "tar ${packgeName}" && tar -xvf ${packgeName} 
-    cd ${oriInstallPath}
+    cd  ${oriInstallPath}
+    if [ ! -f  {originPackageName}  ];then
+        sshpass -p ${password} scp 192.168.1.131:/nas/TDengine3/v${originversion}/community${originPackageName} .
+    fi
     echo "tar -xvf ${originPackageName}" && tar -xvf ${originPackageName} 
+
     cd ${installPath} 
     echo "tar -xvf ${packgeName}" && tar -xvf ${packgeName} 
 
@@ -87,10 +132,10 @@ elif [[ ${packgeName} =~ "tar" ]];then
 
     cd ${installPath} 
 
-    tree ${oriInstallPath}/${originTdpPath} > ${originPackageName}_checkfile
-    tree ${installPath}/${tdPath} > ${packgeName}_checkfile
+    tree ${oriInstallPath}/${originTdpPath} >  ${oriInstallPath}/${originPackageName}_checkfile
+    tree ${installPath}/${tdPath} > ${installPath}/${packgeName}_checkfile
 
-    diff  ${packgeName}_checkfile  ${originPackageName}_checkfile  > ${installPath}/diffFile.log
+    diff  ${installPath}/${packgeName}_checkfile ${oriInstallPath}/${originPackageName}_checkfile  > ${installPath}/diffFile.log
     diffNumbers=`cat ${installPath}/diffFile.log |wc -l `
     if [ ${diffNumbers} != 0 ];then
         echo "The number and names of files have changed from the previous installation package"
@@ -104,9 +149,21 @@ elif [[ ${packgeName} =~ "tar" ]];then
     else
         bash ${installCmd} 
     fi
+    if [[ ${packgeName} =~ "Lite" ]] &&  [[ ${packgeName} =~ "tar" ]]  ;then
+        cd ${installPath}
+        sshpass -p ${password}   scp 192.168.1.131:/nas/TDengine3/v${version}/community/taosTools-2.1.2-Linux-x64.tar.gz .
+        # wget https://www.taosdata.com/assets-download/3.0/taosTools-2.1.2-Linux-x64.tar.gz
+        tar xvf taosTools-2.1.2-Linux-x64.tar.gz
+        cd taosTools-2.1.2 && bash install-taostools.sh
+    elif [[ ${packgeName} =~ "Lite" ]] &&  [[ ${packgeName} =~ "deb" ]] ;then
+        cd ${installPath}
+        sshpass -p ${password}   scp 192.168.1.131:/nas/TDengine3/v${version}/community/taosTools-2.1.2-Linux-x64.deb .
+        dpkg -i taosTools-2.1.2-Linux-x64.deb 
+    elif [[ ${packgeName} =~ "Lite" ]] &&  [[ ${packgeName} =~ "rpm" ]]  ;then
+        cd ${installPath}
+        sshpass -p ${password}   scp 192.168.1.131:/nas/TDengine3/v${version}/community/taosTools-2.1.2-Linux-x64.rpm .
+        rpm -ivh taosTools-2.1.2-Linux-x64.rpm --quiet 
+    fi
 
-fi 
-# }
-
-# installPkgAndCheckFile 
+fi  
 
