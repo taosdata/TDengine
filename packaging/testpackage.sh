@@ -1,5 +1,6 @@
 #!/bin/sh
 
+scriptDir=$(dirname $(readlink -f $0))
 
 packgeName=$1
 version=$2
@@ -86,14 +87,24 @@ echo "download  installPackage"
 # wget https://www.taosdata.com/assets-download/3.0/${originPackageName}
 
 cd ${installPath}
+cp 
 if [ ! -f  {packgeName}  ];then
     sshpass -p ${password} scp 192.168.1.131:/nas/TDengine3/v${version}/community/${packgeName}  .
 fi
+
+packageSuffix=`echo {packgeName}  | awk -F '.' '{print $NF}'`
+
+cp -r ${scriptDir}/debAuto.sh   
 if [ ! -f  debAuto.sh  ];then
     echo '#!/usr/bin/expect ' >  debAuto.sh
+    echo 'set packgeName [lindex $argv 0]' >>  debAuto.sh
+    echo 'set packageSuffix [lindex $argv 1]' >>  debAuto.sh
     echo 'set timeout 3 ' >>  debAuto.sh
-    echo 'pset packgeName [lindex $argv 0]' >>  debAuto.sh
-    echo 'spawn dpkg -i ${packgeName}' >>  debAuto.sh
+    echo 'if { ${packageSuffix} == "deb" } {' >>  debAuto.sh
+    echo '    spawn  dpkg -i ${packgeName} '  >>  debAuto.sh
+    echo '} elseif { ${packageSuffix} == "rpm"} {' >>  debAuto.sh
+    echo '    spawn rpm -ivh ${packgeName}'  >>  debAuto.sh
+    echo '}' >>  debAuto.sh
     echo 'expect "*one:"' >>  debAuto.sh
     echo 'send  "\r"' >>  debAuto.sh
     echo 'expect "*skip:"' >>  debAuto.sh
@@ -105,7 +116,7 @@ if [[ ${packgeName} =~ "deb" ]];then
     dpkg -r taostools
     dpkg -r tdengine
     if [[ ${packgeName} =~ "TDengine" ]];then
-        echo "./debAuto.sh ${packgeName}" &&   chmod 755 debAuto.sh &&  ./debAuto.sh ${packgeName}
+        echo "./debAuto.sh ${packgeName}" &&   chmod 755 debAuto.sh &&  ./debAuto.sh ${packgeName}  ${packageSuffix}
     else
         echo "dpkg  -i ${packgeName}" &&   dpkg  -i ${packgeName}
     fi
