@@ -6,7 +6,7 @@ async function test() {
   let conn = connect(options);
   let cursor = conn.cursor();
   try {
-    let res = await cursor.query("show databases()");
+    let res = await cursor.query("show databases");
     res.toString();
   } catch (err) {
     console.log(err);
