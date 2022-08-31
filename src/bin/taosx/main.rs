@@ -1,8 +1,4 @@
-use std::ffi::OsString;
-
 use anyhow::Result;
-use taos::*;
-
 use clap::{Parser, Subcommand};
 
 mod run;
@@ -77,11 +73,11 @@ async fn main() -> Result<()> {
         match cmd {
             Commands::Run(cmd) => cmd.run_with(args.globals).await?,
             Commands::Serve(cli) => cli.run_with(args.globals).await?,
-            Commands::External(cli) => todo!(),
+            Commands::External(_) => todo!(),
         }
     } else {
         //  service mode
-        dbg!(&args);
+        // dbg!(&args);
         serve::Cli::default().run_with(args.globals).await?;
     }
     Ok(())

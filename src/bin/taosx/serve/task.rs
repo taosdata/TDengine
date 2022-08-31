@@ -80,20 +80,20 @@ impl TaskController {
         })
     }
 
-    pub async fn new(sqlite: &str) -> anyhow::Result<Self> {
-        let options = sqlx::sqlite::SqliteConnectOptions::from_str(sqlite)?.create_if_missing(true);
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .enable_all()
-            .max_blocking_threads(1024)
-            .build()?;
-        let pool = sqlx::SqlitePool::connect_with(options).await?;
-        MIGRATOR.run(&pool).await?;
-        Ok(Self {
-            pool,
-            runtime: Some(runtime),
-            tasks: Default::default(),
-        })
-    }
+    // pub async fn new(sqlite: &str) -> anyhow::Result<Self> {
+    //     let options = sqlx::sqlite::SqliteConnectOptions::from_str(sqlite)?.create_if_missing(true);
+    //     let runtime = tokio::runtime::Builder::new_multi_thread()
+    //         .enable_all()
+    //         .max_blocking_threads(1024)
+    //         .build()?;
+    //     let pool = sqlx::SqlitePool::connect_with(options).await?;
+    //     MIGRATOR.run(&pool).await?;
+    //     Ok(Self {
+    //         pool,
+    //         runtime: Some(runtime),
+    //         tasks: Default::default(),
+    //     })
+    // }
 
     pub async fn tasks(&self) -> anyhow::Result<Vec<Task>> {
         let tasks = sqlx::query_as_unchecked!(
@@ -578,13 +578,13 @@ impl Cluster {
     }
 }
 
-pub(super) struct SubscriptionSource {
-    dsn: String,
-    group_id: String,
-    client_id: Option<String>,
-    is_stable: bool,
-    auto_created: bool,
-}
+// pub(super) struct SubscriptionSource {
+//     dsn: String,
+//     group_id: String,
+//     client_id: Option<String>,
+//     is_stable: bool,
+//     auto_created: bool,
+// }
 #[derive(Serialize, Deserialize, Component, Clone, Debug)]
 pub(super) struct NewSubscribe {
     /// Data source DSN

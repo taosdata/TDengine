@@ -1,6 +1,6 @@
-use std::{collections::BTreeSet, path::Path, sync::Arc};
+use std::{path::Path, sync::Arc, time::Duration};
 
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 use taos::*;
@@ -14,12 +14,14 @@ pub(crate) struct Topic {
     database: String,
     sql: String,
     vgroups: usize,
+    table: Option<String>,
 }
 
 async fn restore(
     id: usize,
     path: impl AsRef<Path>,
     taos: Taos,
+    table: Option<String>,
     sem: OwnedSemaphorePermit,
 ) -> Result<()> {
     let path = path.as_ref();
@@ -29,9 +31,7 @@ async fn restore(
     let reader = async_compression::tokio::bufread::ZstdDecoder::new(reader);
     let mut reader = ZCodec::new(reader);
     let header = reader.header_async().await?;
-    log::debug!("parse header: {:?}", header);
-
-    // let mut rows = AtomicU64::new(0);
+    log::debug!("[{id}] parse header: {:?}", header);
     let mut rows = 0;
 
     loop {
@@ -43,16 +43,32 @@ async fn restore(
                     taos.write_raw_meta(meta).await?
                 }
                 MessageSet::Data(data) => {
-                    // dbg!(&data);
-                    for raw in data {
+                    for mut raw in data {
+                        if let Some(name) = table.as_ref() {
+                            raw.with_table_name(name);
+                        }
                         rows += raw.nrows();
                         if let Err(err) = taos.write_raw_block(&raw).await {
                             if err.to_string().contains("[0x2603]") {
-                                let meta = raw.to_create();
-                                dbg!(&meta);
-                                taos.exec(format!("{meta}")).await?;
-                                taos.write_raw_block(&raw).await?;
-                            };
+                                // table not exists
+                                if let Some(meta) = raw.to_create() {
+                                    dbg!(&meta);
+                                    if let Err(err) = taos.exec(format!("{}", meta)).await {
+                                        if err.to_string().contains("0x032C") {
+                                            tokio::time::sleep(Duration::from_nanos(1000)).await;
+                                        } else {
+                                            Err(err).context("create table error")?;
+                                        }
+                                    };
+                                    taos.write_raw_block(&raw)
+                                        .await
+                                        .context("write_raw block error")?;
+                                } else {
+                                    Err(err).context("write_raw block error")?;
+                                }
+                            } else {
+                                Err(err).context("write raw block error")?;
+                            }
                         };
                     }
                     log::debug!("rows: {}", rows);
@@ -60,11 +76,11 @@ async fn restore(
                 }
             },
             Err(err) => {
-                // dbg!(&err);
                 if err.kind() == std::io::ErrorKind::UnexpectedEof {
+                    log::info!("[{id}] reading file {} done", path.display());
                     break;
                 }
-                dbg!(&err);
+                log::debug!("[{id}] Reading data error: {}", &err);
                 break;
             }
         }
@@ -91,19 +107,19 @@ pub(crate) struct LocalConfig {
 }
 
 impl LocalConfig {
-    pub fn new(
-        topics: Vec<Topic>,
-        group_id: impl Into<String>,
-        client_id: impl Into<String>,
-    ) -> Self {
-        Self {
-            created_at: Local::now(),
-            last_modified: Local::now(),
-            group_id: group_id.into(),
-            client_id: client_id.into(),
-            topics,
-        }
-    }
+    // pub fn new(
+    //     topics: Vec<Topic>,
+    //     group_id: impl Into<String>,
+    //     client_id: impl Into<String>,
+    // ) -> Self {
+    //     Self {
+    //         created_at: Local::now(),
+    //         last_modified: Local::now(),
+    //         group_id: group_id.into(),
+    //         client_id: client_id.into(),
+    //         topics,
+    //     }
+    // }
     pub fn from_path(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref();
         let config = config::Config::builder()
@@ -113,17 +129,17 @@ impl LocalConfig {
         Ok(config)
     }
 
-    pub fn write_to(&self, path: impl AsRef<Path>) -> Result<()> {
-        let path = path.as_ref();
-        let bytes = toml::to_vec(self)?;
-        std::fs::write(path, bytes)?;
-        Ok(())
-    }
+    // pub fn write_to(&self, path: impl AsRef<Path>) -> Result<()> {
+    //     let path = path.as_ref();
+    //     let bytes = toml::to_vec(self)?;
+    //     std::fs::write(path, bytes)?;
+    //     Ok(())
+    // }
 }
 
-pub async fn local_to_taos_validate(_from: Dsn, _to: Dsn) -> Result<()> {
-    Ok(())
-}
+// pub async fn local_to_taos_validate(_from: Dsn, _to: Dsn) -> Result<()> {
+//     Ok(())
+// }
 
 pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> Result<()> {
     if from.fragment.is_none() {
@@ -234,8 +250,9 @@ pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> 
                 taos.exec(format!("use {}", topic.database)).await?;
             }
             // let barrier = barrier.clone();
+            let table = topic.table.clone();
             let handle =
-                tokio::spawn(async move { restore(task_id, path.path(), taos, sem).await });
+                tokio::spawn(async move { restore(task_id, path.path(), taos, table, sem).await });
             handles.push(handle);
 
             task_id += 1;
