@@ -1,6 +1,8 @@
 """
 测试云服务 Node.js 连接器示例代码
-启动命令: tt --case=cloud/connector/node.py --use=cloud_test.yaml
+启动命令:
+tt --case=cloud/connector/node.py --use=cloud/cloud_aws.yaml
+tt --case=cloud/connector/node.py --use=cloud/cloud_gcp.yaml
 """
 import os
 
@@ -12,7 +14,7 @@ class Node(TDCase):
         cwd = self.env_setting["work_dir"] + "/docs-cloud/docs/examples/node"
         os.environ.update(self.env_setting["env"])
         self.lcmd.run("rm -rf node_modules", cwd=cwd)
-        self.lcmd.run("npm i td2.0-rest-connector", cwd=cwd)
+        self.lcmd.run("npm install @tdengine/rest", cwd=cwd)
         self.lcmd.run("node connect.js", cwd=cwd)
 
     def desc(self) -> str:
