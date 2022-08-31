@@ -101,6 +101,14 @@ bool fmIsBuiltinFunc(const char* pFunc) {
   return NULL != taosHashGet(gFunMgtService.pFuncNameHashTable, pFunc, strlen(pFunc));
 }
 
+EFunctionType fmGetFuncType(const char* pFunc) {
+  void* pVal = taosHashGet(gFunMgtService.pFuncNameHashTable, pFunc, strlen(pFunc));
+  if (NULL != pVal) {
+    return funcMgtBuiltins[*(int32_t*)pVal].type;
+  }
+  return FUNCTION_TYPE_UDF;
+}
+
 EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
   if (fmIsUserDefinedFunc(pFunc->funcId) || pFunc->funcId < 0 || pFunc->funcId >= funcMgtBuiltinsNum) {
     return FUNC_DATA_REQUIRED_DATA_LOAD;
