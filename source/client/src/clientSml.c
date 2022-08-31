@@ -356,6 +356,7 @@ static int32_t  smlSendMetaMsg(SSmlHandle *info, SName *pName, SArray* pColumns,
     goto end;
   }
 
+  pRequest->syncQuery = true;
   if (!pRequest->pDb) {
     code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
     goto end;
