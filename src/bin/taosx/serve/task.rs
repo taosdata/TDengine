@@ -57,7 +57,7 @@ pub(super) enum Schedule {
     Repeated(String),
 }
 
-#[derive(Serialize, Deserialize, Component, Clone, Debug)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 #[serde(rename_all = "snake_case")]
 #[derive(sqlx::Type)]
 pub(super) enum StreamType {
@@ -249,7 +249,7 @@ pub(super) fn configure(store: Data<TaskController>) -> impl FnOnce(&mut Service
     }
 }
 
-#[derive(Serialize, Deserialize, Component, Clone, Debug)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 #[serde(rename_all = "snake_case")]
 #[derive(sqlx::Type)]
 pub(super) enum Status {
@@ -261,54 +261,54 @@ pub(super) enum Status {
 }
 
 /// A streaming workflow task description.
-#[derive(Serialize, Deserialize, Component, Clone, Debug)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub(super) struct Task {
     /// Unique id for the task item.
-    #[component(read_only, example = 1)]
+    #[schema(read_only, example = 1)]
     id: i64,
     /// Task stream data type.
-    #[component(read_only, example = "backup")]
+    #[schema(read_only, example = "backup")]
     stream_type: StreamType,
     /// The stream data source.
-    #[component(example = "tmq:///test")]
+    #[schema(example = "tmq:///test")]
     from: String,
     /// The target of the stream.
-    #[component(example = "local:/path/to/backup/test")]
+    #[schema(example = "local:/path/to/backup/test")]
     to: String,
 
     /// Created time.
-    #[component(read_only)]
+    #[schema(read_only)]
     created_at: DateTime<Local>,
 
     /// Stopped time.
-    #[component(read_only)]
+    #[schema(read_only)]
     #[serde(skip_serializing_if = "Option::is_none")]
     finished_at: Option<DateTime<Local>>,
 
     /// Last modified time.
-    #[component(read_only)]
+    #[schema(read_only)]
     #[serde(skip_serializing_if = "Option::is_none")]
     last_modified_at: Option<DateTime<Local>>,
 
     /// The current status of the tasks.
-    #[component(read_only, value_type = String)]
+    #[schema(read_only, value_type = String)]
     status: Status,
 
     /// Status reason (only for status: failed).
-    #[component(read_only)]
+    #[schema(read_only)]
     reason: Option<String>,
 
     /// Mark the task done as expected.
-    #[component(read_only)]
+    #[schema(read_only)]
     #[serde(skip_serializing_if = "is_false")]
     completed: bool,
     /// Mark the task is cancelled or not.
-    #[component(read_only)]
+    #[schema(read_only)]
     #[serde(skip_serializing_if = "is_false")]
     cancelled: bool,
 
     /// Mark the task deleted or not, deleted tasks will not be listed when query all.
-    #[component(read_only)]
+    #[schema(read_only)]
     #[serde(skip_serializing_if = "is_false")]
     deleted: bool,
 }
@@ -317,19 +317,19 @@ fn is_false(b: &bool) -> bool {
     !*b
 }
 
-#[derive(Serialize, Deserialize, Component, Clone, Debug)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub(super) struct NewTask {
-    #[component(example = "backup")]
+    #[schema(example = "backup")]
     stream_type: StreamType,
     /// The stream data source.
-    #[component(example = "tmq:///test")]
+    #[schema(example = "tmq:///test")]
     from: String,
     /// The target of the stream.
-    #[component(example = "local:/path/to/backup/test")]
+    #[schema(example = "local:/path/to/backup/test")]
     to: String,
 
     /// Jobs number
-    #[component(example = "0")]
+    #[schema(example = "0")]
     #[serde(default)]
     jobs: usize,
     #[serde(default)]
@@ -361,7 +361,7 @@ impl TryFrom<NewTask> for taosx::TaskOpts {
 }
 
 // /// Task endpoint error responses
-// #[derive(Serialize, Deserialize, Clone, Component)]
+// #[derive(Serialize, Deserialize, Clone, ToSchema)]
 // pub(super) enum ErrorResponse {
 //     /// When Task is not found by search term.
 //     NotFound(String),
@@ -372,10 +372,10 @@ impl TryFrom<NewTask> for taosx::TaskOpts {
 // }
 
 /// Task endpoint error responses
-#[derive(Serialize, Deserialize, Clone, Component)]
+#[derive(Serialize, Deserialize, Clone, ToSchema)]
 pub(super) struct Failed {
     /// Error code
-    #[component(example = 0, value_type = i32)]
+    #[schema(example = 0, value_type = i32)]
     code: Code,
     /// Error reason
     message: String,
@@ -433,27 +433,27 @@ pub(super) async fn create_task(
     Ok(HttpResponse::Created().json(task))
 }
 
-#[derive(Serialize, Deserialize, Component, Clone, Debug)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 #[serde(rename_all = "snake_case")]
 pub(super) enum FromOrTo {
     From(String),
     To(String),
 }
 
-#[derive(Serialize, Deserialize, Component, Clone, Debug)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 
 pub(super) struct NewReplicate {
     /// Cluster username
-    #[component(example = "root")]
+    #[schema(example = "root")]
     username: String,
     /// Cluster password
-    #[component(example = "taosdata")]
+    #[schema(example = "taosdata")]
     password: String,
     /// Source or target database name(or database topic name as data source).
-    #[component(example = "test2")]
+    #[schema(example = "test2")]
     database: String,
     /// Replicate database from another TDengine data source to this.
-    #[component(example = "use from or to")]
+    #[schema(example = "use from or to")]
     from: Option<String>,
     /// Replicate database to another TDengine.
     to: Option<String>,
@@ -532,20 +532,20 @@ pub(super) async fn replicate(
     }
 }
 
-#[derive(Serialize, Deserialize, Component, Clone, Debug)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 
 pub(super) struct Cluster {
-    #[component(example = false)]
+    #[schema(example = false)]
     #[serde(default)]
     websocket: bool,
-    #[component(example = "root")]
+    #[schema(example = "root")]
     username: Option<String>,
-    #[component(example = "taosdata")]
+    #[schema(example = "taosdata")]
     password: Option<String>,
-    #[component(example = "")]
+    #[schema(example = "")]
     #[serde(default)]
     address: Option<String>,
-    #[component(example = "test")]
+    #[schema(example = "test")]
     database: Option<String>,
 }
 
@@ -585,12 +585,12 @@ impl Cluster {
 //     is_stable: bool,
 //     auto_created: bool,
 // }
-#[derive(Serialize, Deserialize, Component, Clone, Debug)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
 pub(super) struct NewSubscribe {
     /// Data source DSN
-    #[component(example = "tmq://root:taosdata@localhost:6030/demo_meters?group.id=taosx")]
+    #[schema(example = "tmq://root:taosdata@localhost:6030/demo_meters?group.id=taosx")]
     from: String,
-    #[component(example = r#"{"database":"test2"}"#)]
+    #[schema(example = r#"{"database":"test2"}"#)]
     /// Target cluster information.
     to: Cluster,
 }

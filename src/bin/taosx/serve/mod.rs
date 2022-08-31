@@ -37,22 +37,26 @@ impl Cli {
     pub(super) async fn run_with(self, _opts: super::GlobalOpts) -> Result<()> {
         #[derive(OpenApi)]
         #[openapi(
-            handlers(
+            components(
+            schemas(
+                NewReplicate,
+                NewSubscribe,
+                NewTask,
+                Cluster,
+                StreamType,
+                Task,
+                Failed
+            ),
+            responses(
+            )
+            ),
+            paths(
                 task::get_tasks,
                 task::create_task,
                 task::delete_task,
                 task::get_task_by_id,
                 task::replicate,
                 task::subscribe,
-            ),
-            components(
-                Task,
-                NewReplicate,
-                NewSubscribe,
-                NewTask,
-                Cluster,
-                StreamType,
-                Failed
             ),
             tags(
                 (name = "tasks", description = "Task management endpoints")
