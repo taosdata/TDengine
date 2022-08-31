@@ -1,4 +1,4 @@
-use std::{path::Path, sync::Arc};
+use std::{collections::BTreeSet, path::Path, sync::Arc};
 
 use anyhow::{bail, Result};
 use chrono::Local;
@@ -46,7 +46,14 @@ async fn restore(
                     // dbg!(&data);
                     for raw in data {
                         rows += raw.nrows();
-                        taos.write_raw_block(&raw).await?;
+                        if let Err(err) = taos.write_raw_block(&raw).await {
+                            if err.to_string().contains("[0x2603]") {
+                                let meta = raw.to_create();
+                                dbg!(&meta);
+                                taos.exec(format!("{meta}")).await?;
+                                taos.write_raw_block(&raw).await?;
+                            };
+                        };
                     }
                     log::debug!("rows: {}", rows);
                     // taos.write_raw_data(data[0]).await?
@@ -118,7 +125,7 @@ pub async fn local_to_taos_validate(_from: Dsn, _to: Dsn) -> Result<()> {
     Ok(())
 }
 
-pub async fn local_to_taos(from: Dsn, to: Dsn, jobs: usize, force: bool) -> Result<()> {
+pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> Result<()> {
     if from.fragment.is_none() {
         anyhow::bail!(
             "invalid local dsn: {}\nPlease use a local path DSN like `local:./path/to/backup`",
@@ -141,7 +148,18 @@ pub async fn local_to_taos(from: Dsn, to: Dsn, jobs: usize, force: bool) -> Resu
     let config = LocalConfig::from_path(&config_path)?;
 
     // check database
-    if let Some(target) = to.database.as_ref() {
+    if let Some(target) = to.database.as_mut() {
+        let databases: Vec<_> = config
+            .topics
+            .iter()
+            .map(|t| t.database.as_str())
+            .dedup()
+            .collect();
+
+        if databases.len() > 1 {
+            bail!("taosx does not support restore data from more than one databases to a single database");
+        }
+
         for topic in &config.topics {
             if &topic.database != target {
                 if force {
@@ -153,6 +171,7 @@ pub async fn local_to_taos(from: Dsn, to: Dsn, jobs: usize, force: bool) -> Resu
         }
     }
 
+    let target_database = to.database.take();
     let target = TaosBuilder::from_dsn(&to)?;
     let global_taos = target.build()?;
 
@@ -163,18 +182,34 @@ pub async fn local_to_taos(from: Dsn, to: Dsn, jobs: usize, force: bool) -> Resu
 
     let mut task_id = 0;
     for topic in &config.topics {
-        if !global_taos.database_exists(&topic.database).await? {
-            global_taos
-                .exec(
-                    topic
+        if let Some(target) = target_database.as_ref() {
+            if !global_taos.database_exists(&target).await? {
+                if &topic.database != target {
+                    let sql = topic
                         .sql
-                        .replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS"),
-                )
-                .await?;
-        } else if !force {
-            anyhow::bail!(
-                "the database has already exists, please be sure to override it by force"
-            );
+                        .replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS")
+                        .replace(&format!("`{}`", topic.database), &format!("`{target}`"));
+                    global_taos.exec(sql).await?;
+                }
+            } else if !force {
+                anyhow::bail!(
+                    "the database has already exists, please be sure to override it by force"
+                );
+            }
+        } else {
+            if !global_taos.database_exists(&topic.database).await? {
+                global_taos
+                    .exec(
+                        topic
+                            .sql
+                            .replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS"),
+                    )
+                    .await?;
+            } else if !force {
+                anyhow::bail!(
+                    "the database has already exists, please be sure to override it by force"
+                );
+            }
         }
 
         let mut dir_entry = tokio::fs::read_dir(path).await?;
@@ -193,7 +228,9 @@ pub async fn local_to_taos(from: Dsn, to: Dsn, jobs: usize, force: bool) -> Resu
 
             let sem = task_sem.clone().acquire_owned().await?;
             let taos = target.build()?;
-            if to.database.is_none() {
+            if let Some(target) = target_database.as_ref() {
+                taos.exec(format!("use {}", target)).await?;
+            } else {
                 taos.exec(format!("use {}", topic.database)).await?;
             }
             // let barrier = barrier.clone();

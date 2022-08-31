@@ -15,13 +15,13 @@ pub(crate) struct GlobalOpts {
     verbose: clap_verbosity_flag::Verbosity<clap_verbosity_flag::WarnLevel>,
 
     /// Number of jobs, default to 0, will use `jobs` number of works for TMQ.
-    #[clap(short, long, value_parser, default_value = "0")]
+    #[clap(short, long, value_parser, default_value = "0", global = true)]
     jobs: usize,
 
     /// Be careful to use this, we suggest only use it when failed at first time.
     ///
     /// We'll warn you various kind of risks before really running a task.
-    #[clap(short, long)]
+    #[clap(short, long, global = true)]
     yes_i_really_mean_it: bool,
 }
 

@@ -41,14 +41,14 @@ async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                 .expect("database not exists");
 
             let (_, sql): ((), String) = source
-                .query_one(format!("SHOW CREATE DATABASE `{database}`"))
+                .query_one(format!("SHOW CREATE DATABASE `{}`", topic.db_name()))
                 .await?
                 .unwrap();
             Ok((
                 from,
                 vec![Topic {
                     name: topic.name().to_string(),
-                    database: database.to_string(),
+                    database: topic.db_name().to_string(),
                     sql,
                     vgroups,
                 }],
