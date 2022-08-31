@@ -67,21 +67,21 @@ typedef struct {
 // tqExec
 
 typedef struct {
-  char*       qmsg;
+  char* qmsg;
 } STqExecCol;
 
 typedef struct {
-  int64_t     suid;
+  int64_t suid;
 } STqExecTb;
 
 typedef struct {
-  SHashObj*   pFilterOutTbUid;
+  SHashObj* pFilterOutTbUid;
 } STqExecDb;
 
 typedef struct {
   int8_t subType;
 
-  STqReader* pExecReader;
+  STqReader*  pExecReader;
   qTaskInfo_t task;
   union {
     STqExecCol execCol;
@@ -144,7 +144,7 @@ int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqMetaRsp*
 int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** pHeadWithCkSum);
 
 // tqExec
-int32_t tqLogScanExec(STQ* pTq, STqExecHandle* pExec, SSubmitReq* pReq, SMqDataRsp* pRsp);
+int32_t tqLogScanExec(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, SMqDataRsp* pRsp);
 int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, const SMqDataRsp* pRsp);
 
 // tqMeta
