@@ -59,6 +59,7 @@ class TDTestCase:
             os.makedirs("./taosdumptest")
         else:
             print("directory exists")
+            os.system("rm -rf ./taosdumptest/*")
 
         for i in range(1, 9):
             if not os.path.exists("./taosdumptest/tmp%d" % i):
@@ -83,15 +84,15 @@ class TDTestCase:
         tdSql.execute(
             "create  table st0_0 using st0 tags(0) st0_1 using st0 tags (1) ")
         tdSql.execute(
-            "insert into st0_0 values(1614218412000,8537,'R')(1614218422000,8538,'E')")
+            "insert into st0_0 values(1661997612000,8537,'R')(1661997622000,8538,'E')")
         tdSql.execute(
-            "insert into st0_1 values(1614218413000,1537,'A')(1614218423000,1538,'D')")
+            "insert into st0_1 values(1661997613000,1537,'A')(1661997623000,1538,'D')")
         tdSql.execute(
             "create table  if not exists gt0 (ts timestamp, c0 int, c1 float)  ")
         tdSql.execute(
             "create table  if not exists gt1 (ts timestamp, c0 int, c1 double)  ")
-        tdSql.execute("insert into gt0 values(1614218412000,637,8.861)")
-        tdSql.execute("insert into gt1 values(1614218413000,638,8.862)")
+        tdSql.execute("insert into gt0 values(1661997602000,637,8.861)")
+        tdSql.execute("insert into gt1 values(1661997603000,638,8.862)")
 
         # create db1 , three stables:stb0,include ctables stb0_0 \ stb0_1,stb1 include ctables stb1_0 and stb1_1
         # \stb3,include ctables stb3_0 and stb3_1
@@ -103,35 +104,35 @@ class TDTestCase:
         tdSql.execute(
             "create table st0_0 using st0 tags(0) st0_1 using st0 tags(1) ")
         tdSql.execute(
-            "insert into st0_0 values(1614218412000,8600,'R')(1614218422000,8600,'E')")
+            "insert into st0_0 values(1654218412000,8600,'R')(1654218422000,8600,'E')")
         tdSql.execute(
-            "insert into st0_1 values(1614218413000,8601,'A')(1614218423000,8601,'D')")
+            "insert into st0_1 values(1654218413000,8601,'A')(1654218423000,8601,'D')")
         tdSql.execute(
             "create stable st1(ts timestamp, c11 float, c12 nchar(10)) tags(t1 int)")
         tdSql.execute(
             "create table st1_0 using st1 tags(0) st1_1 using st1 tags(1) ")
         tdSql.execute(
-            "insert into st1_0 values(1614218412000,8610.1,'R')(1614218422000,8610.1,'E')")
+            "insert into st1_0 values(1654218412000,8610.1,'R')(1654218422000,8610.1,'E')")
         tdSql.execute(
-            "insert into st1_1 values(1614218413000,8611.2,'A')(1614218423000,8611.1,'D')")
+            "insert into st1_1 values(1654218413000,8611.2,'A')(1654218423000,8611.1,'D')")
         tdSql.execute(
             "create stable st2(ts timestamp, c21 float, c22 nchar(10)) tags(t1 int)")
         tdSql.execute(
             "create table st2_0 using st2 tags(0) st2_1 using st2 tags(1) ")
         tdSql.execute(
-            "insert into st2_0 values(1614218412000,8620.3,'R')(1614218422000,8620.3,'E')")
+            "insert into st2_0 values(1654218412000,8620.3,'R')(1654218422000,8620.3,'E')")
         tdSql.execute(
-            "insert into st2_1 values(1614218413000,8621.4,'A')(1614218423000,8621.4,'D')")
+            "insert into st2_1 values(1654218413000,8621.4,'A')(1654218423000,8621.4,'D')")
         tdSql.execute(
             "create table  if not exists gt0 (ts timestamp, c00 int, c01 float)  ")
         tdSql.execute(
             "create table  if not exists gt1 (ts timestamp, c10 int, c11 double)  ")
         tdSql.execute(
             "create table  if not exists gt2 (ts timestamp, c20 int, c21 float)  ")
-        tdSql.execute("insert into gt0 values(1614218412700,8637,78.86155)")
+        tdSql.execute("insert into gt0 values(1654218412700,8637,78.86155)")
         tdSql.execute(
-            "insert into gt1 values(1614218413800,8638,78.862020199)")
-        tdSql.execute("insert into gt2 values(1614218413900,8639,78.863)")
+            "insert into gt1 values(1654218413800,8638,78.862020199)")
+        tdSql.execute("insert into gt2 values(1654218413900,8639,78.863)")
 
         # create
         tdSql.execute("create database if not exists dp3 precision 'ns'")
@@ -141,13 +142,15 @@ class TDTestCase:
         tdSql.execute(
             "create table st0_0 using st0 tags(0) st0_1 using st0 tags(1) ")
         tdSql.execute(
-            "insert into st0_0 values(1614218412000000001,8600,'R')(1614218422000000002,8600,'E')")
+            "insert into st0_0 values(1654218412000000001,8600,'R')(1654218422000000002,8600,'E')")
         tdSql.execute(
-            "insert into st0_1 values(1614218413000000001,8601,'A')(1614218423000000002,8601,'D')")
+            "insert into st0_1 values(1654218413000000001,8601,'A')(1654218423000000002,8601,'D')")
 
+#        sys.exit(0)
         # #  taosdump stable and  general table
         os.system("%s  -o ./taosdumptest/tmp1 -D dp1,dp2 -T 8 " % binPath)
         os.system("%s  -o ./taosdumptest/tmp2 dp1 st0 gt0   -T 8 " % binPath)
+        #sys.exit(0)
         os.system(
             "%s  -o ./taosdumptest/tmp3 dp2 st0 st1_0 gt0  -T 8 " %
             binPath)
