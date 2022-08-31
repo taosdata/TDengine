@@ -21,6 +21,7 @@
 #include "taoserror.h"
 #include "tlog.h"
 
+// clang-format on
 
 #define HTTP_RECV_BUF_SIZE 1024
 
@@ -29,7 +30,7 @@ typedef struct SHttpClient {
   uv_tcp_t     tcp;
   uv_write_t   req;
   uv_buf_t*    wbuf;
-  char         *rbuf; 
+  char*        rbuf;
   char*        addr;
   uint16_t     port;
 } SHttpClient;
@@ -130,37 +131,36 @@ static void destroyHttpClient(SHttpClient* cli) {
   taosMemoryFree(cli->rbuf);
   taosMemoryFree(cli->addr);
   taosMemoryFree(cli);
-
 }
 static void clientCloseCb(uv_handle_t* handle) {
   SHttpClient* cli = handle->data;
   destroyHttpClient(cli);
 }
-static void clientAllocBuffCb(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf) {
-  SHttpClient* cli = handle->data; 
-  buf->base = cli->rbuf; 
-  buf->len = HTTP_RECV_BUF_SIZE;  
+static void clientAllocBuffCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
+  SHttpClient* cli = handle->data;
+  buf->base = cli->rbuf;
+  buf->len = HTTP_RECV_BUF_SIZE;
 }
-static void clientRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t *buf) {
-  SHttpClient* cli = handle->data; 
+static void clientRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
+  SHttpClient* cli = handle->data;
   if (nread < 0) {
     uError("http-report recv error:%s", uv_err_name(nread));
   } else {
     uTrace("http-report succ to recv %d bytes, just ignore it", nread);
   }
   uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
-} 
+}
 static void clientSentCb(uv_write_t* req, int32_t status) {
   SHttpClient* cli = req->data;
   if (status != 0) {
     terrno = TAOS_SYSTEM_ERROR(status);
     uError("http-report failed to send data %s", uv_strerror(status));
     uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
-    return;  
+    return;
   } else {
     uTrace("http-report succ to send data");
   }
-  uv_read_start((uv_stream_t *)&cli->tcp, clientAllocBuffCb, clientRecvCb); 
+  uv_read_start((uv_stream_t*)&cli->tcp, clientAllocBuffCb, clientRecvCb);
 }
 static void clientConnCb(uv_connect_t* req, int32_t status) {
   SHttpClient* cli = req->data;
@@ -212,7 +212,7 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   cli->tcp.data = cli;
   cli->req.data = cli;
   cli->wbuf = wb;
-  cli->rbuf = taosMemoryCalloc(1, HTTP_RECV_BUF_SIZE); 
+  cli->rbuf = taosMemoryCalloc(1, HTTP_RECV_BUF_SIZE);
   cli->addr = tstrdup(server);
   cli->port = port;
 
@@ -233,4 +233,3 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   uv_loop_close(loop);
   return terrno;
 }
-// clang-format on
