@@ -175,22 +175,6 @@ void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
 char*   tqOffsetBuildFName(const char* path, int32_t ver);
 int32_t tqOffsetRestoreFromFile(STqOffsetStore* pStore, const char* fname);
 
-static FORCE_INLINE void tqOffsetResetToData(STqOffsetVal* pOffsetVal, int64_t uid, int64_t ts) {
-  pOffsetVal->type = TMQ_OFFSET__SNAPSHOT_DATA;
-  pOffsetVal->uid = uid;
-  pOffsetVal->ts = ts;
-}
-
-static FORCE_INLINE void tqOffsetResetToMeta(STqOffsetVal* pOffsetVal, int64_t uid) {
-  pOffsetVal->type = TMQ_OFFSET__SNAPSHOT_META;
-  pOffsetVal->uid = uid;
-}
-
-static FORCE_INLINE void tqOffsetResetToLog(STqOffsetVal* pOffsetVal, int64_t ver) {
-  pOffsetVal->type = TMQ_OFFSET__LOG;
-  pOffsetVal->version = ver;
-}
-
 // tqStream
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask);
 

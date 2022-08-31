@@ -1276,6 +1276,74 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   return 0;
 }
 
+static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
+  SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
+  SStreamScanInfo* pInfo = pOperator->info;
+
+  qDebug("stream scan called");
+  if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
+    SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
+    if (pResult && pResult->info.rows > 0) {
+      qDebug("stream scan tsdb return %d rows", pResult->info.rows);
+      return pResult;
+    } else {
+      STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
+      tsdbReaderClose(pTSInfo->dataReader);
+      pTSInfo->dataReader = NULL;
+      tqOffsetResetToLog(&pTaskInfo->streamInfo.prepareStatus, pTaskInfo->streamInfo.snapshotVer);
+      qDebug("stream scan tsdb over, switch to wal ver %d", pTaskInfo->streamInfo.snapshotVer + 1);
+      if (tqSeekVer(pInfo->tqReader, pTaskInfo->streamInfo.snapshotVer + 1) < 0) {
+        return NULL;
+      }
+      ASSERT(pInfo->tqReader->pWalReader->curVersion == pTaskInfo->streamInfo.snapshotVer + 1);
+    }
+  }
+
+  if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__LOG) {
+    while (1) {
+      SFetchRet ret = {0};
+      tqNextBlock(pInfo->tqReader, &ret);
+      if (ret.fetchType == FETCH_TYPE__DATA) {
+        blockDataCleanup(pInfo->pRes);
+        if (setBlockIntoRes(pInfo, &ret.data) < 0) {
+          ASSERT(0);
+        }
+        // TODO clean data block
+        if (pInfo->pRes->info.rows > 0) {
+          qDebug("stream scan log return %d rows", pInfo->pRes->info.rows);
+          return pInfo->pRes;
+        }
+      } else if (ret.fetchType == FETCH_TYPE__META) {
+        ASSERT(0);
+        //        pTaskInfo->streamInfo.lastStatus = ret.offset;
+        //        pTaskInfo->streamInfo.metaBlk = ret.meta;
+        //        return NULL;
+      } else if (ret.fetchType == FETCH_TYPE__NONE) {
+        pTaskInfo->streamInfo.lastStatus = ret.offset;
+        ASSERT(pTaskInfo->streamInfo.lastStatus.version >= pTaskInfo->streamInfo.prepareStatus.version);
+        ASSERT(pTaskInfo->streamInfo.lastStatus.version + 1 == pInfo->tqReader->pWalReader->curVersion);
+        char formatBuf[80];
+        tFormatOffset(formatBuf, 80, &ret.offset);
+        qDebug("stream scan log return null, offset %s", formatBuf);
+        return NULL;
+      } else {
+        ASSERT(0);
+      }
+    }
+  } else if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
+    SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
+    if (pResult && pResult->info.rows > 0) {
+      qDebug("stream scan tsdb return %d rows", pResult->info.rows);
+      return pResult;
+    }
+    qDebug("stream scan tsdb return null");
+    return NULL;
+  } else {
+    ASSERT(0);
+    return NULL;
+  }
+}
+
 static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   // NOTE: this operator does never check if current status is done or not
   SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
@@ -1316,48 +1384,6 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     streamFreeVal(val2);
   }
 #endif
-
-  qDebug("stream scan called");
-  if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__LOG) {
-    while (1) {
-      SFetchRet ret = {0};
-      tqNextBlock(pInfo->tqReader, &ret);
-      if (ret.fetchType == FETCH_TYPE__DATA) {
-        blockDataCleanup(pInfo->pRes);
-        if (setBlockIntoRes(pInfo, &ret.data) < 0) {
-          ASSERT(0);
-        }
-        // TODO clean data block
-        if (pInfo->pRes->info.rows > 0) {
-          qDebug("stream scan log return %d rows", pInfo->pRes->info.rows);
-          return pInfo->pRes;
-        }
-      } else if (ret.fetchType == FETCH_TYPE__META) {
-        ASSERT(0);
-        //        pTaskInfo->streamInfo.lastStatus = ret.offset;
-        //        pTaskInfo->streamInfo.metaBlk = ret.meta;
-        //        return NULL;
-      } else if (ret.fetchType == FETCH_TYPE__NONE) {
-        pTaskInfo->streamInfo.lastStatus = ret.offset;
-        ASSERT(pTaskInfo->streamInfo.lastStatus.version >= pTaskInfo->streamInfo.prepareStatus.version);
-        ASSERT(pTaskInfo->streamInfo.lastStatus.version + 1 == pInfo->tqReader->pWalReader->curVersion);
-        char formatBuf[80];
-        tFormatOffset(formatBuf, 80, &ret.offset);
-        qDebug("stream scan log return null, offset %s", formatBuf);
-        return NULL;
-      } else {
-        ASSERT(0);
-      }
-    }
-  } else if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
-    SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
-    if (pResult && pResult->info.rows > 0) {
-      qDebug("stream scan tsdb return %d rows", pResult->info.rows);
-      return pResult;
-    }
-    qDebug("stream scan tsdb return null");
-    return NULL;
-  }
 
   if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE) {
     STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
@@ -1810,6 +1836,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
 
     pInfo->readHandle = *pHandle;
     pInfo->tableUid = pScanPhyNode->uid;
+    pTaskInfo->streamInfo.snapshotVer = pHandle->version;
 
     // set the extract column id to streamHandle
     tqReaderSetColIdList(pInfo->tqReader, pColIds);
@@ -1853,8 +1880,9 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
   pOperator->pTaskInfo = pTaskInfo;
 
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doStreamScan, NULL, NULL, destroyStreamScanOperatorInfo,
-                                         NULL, NULL, NULL);
+  __optr_fn_t nextFn = pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM ? doStreamScan : doQueueScan;
+  pOperator->fpSet =
+      createOperatorFpSet(operatorDummyOpenFn, nextFn, NULL, NULL, destroyStreamScanOperatorInfo, NULL, NULL, NULL);
 
   return pOperator;
 

@@ -137,6 +137,9 @@ int64_t tqScan(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, SMqMetaRsp*
           if (tqAddTbNameToRsp(pTq, uid, pRsp) < 0) {
             continue;
           }
+        } else {
+          char* tbName = strdup(qExtractTbnameFromTask(task));
+          taosArrayPush(pRsp->blockTbName, &tbName);
         }
       }
       if (pRsp->withSchema) {
