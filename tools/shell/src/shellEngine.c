@@ -266,7 +266,6 @@ char *shellFormatTimestamp(char *buf, int64_t val, int32_t precision) {
 
 void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length, int32_t precision) {
   if (val == NULL) {
-    taosFprintfFile(pFile, "%s", TSDB_DATA_NULL_STR);
     return;
   }
 
@@ -332,6 +331,10 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
           }
         }
         buf[bufIndex] = 0;
+        if (length == 0) {
+          quotationStr[0] = '\"';
+        }
+        
         taosFprintfFile(pFile, "%s%s%s", quotationStr, buf, quotationStr);
       }
       break;
