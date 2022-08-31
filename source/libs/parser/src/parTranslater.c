@@ -2160,15 +2160,16 @@ static int32_t setTableIndex(STranslateContext* pCxt, SName* pName, SRealTableNo
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t setTableCacheLastMode(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
-  if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType) {
+static int32_t setTableCacheLastMode(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (!pSelect->hasLastRowFunc || QUERY_NODE_REAL_TABLE != nodeType(pSelect->pFromTable)) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SDbCfgInfo dbCfg = {0};
-  int32_t    code = getDBCfg(pCxt, pRealTable->table.dbName, &dbCfg);
+  SRealTableNode* pTable = (SRealTableNode*)pSelect->pFromTable;
+  SDbCfgInfo      dbCfg = {0};
+  int32_t         code = getDBCfg(pCxt, pTable->table.dbName, &dbCfg);
   if (TSDB_CODE_SUCCESS == code) {
-    pRealTable->cacheLastMode = dbCfg.cacheLast;
+    pTable->cacheLastMode = dbCfg.cacheLast;
   }
   return code;
 }
@@ -2191,9 +2192,6 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
         code = setTableVgroupList(pCxt, &name, pRealTable);
         if (TSDB_CODE_SUCCESS == code) {
           code = setTableIndex(pCxt, &name, pRealTable);
-        }
-        if (TSDB_CODE_SUCCESS == code) {
-          code = setTableCacheLastMode(pCxt, &name, pRealTable);
         }
       }
       if (TSDB_CODE_SUCCESS == code) {
@@ -2273,10 +2271,14 @@ static SNode* createMultiResFunc(SFunctionNode* pSrcFunc, SExprNode* pExpr) {
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
     SColumnNode* pCol = (SColumnNode*)pExpr;
     len = snprintf(buf, sizeof(buf), "%s(%s.%s)", pSrcFunc->functionName, pCol->tableAlias, pCol->colName);
+    strncpy(pFunc->node.aliasName, buf, TMIN(len, sizeof(pFunc->node.aliasName) - 1));
+    len = snprintf(buf, sizeof(buf), "%s(%s)", pSrcFunc->functionName, pCol->colName);
+    strncpy(pFunc->node.userAlias, buf, TMIN(len, sizeof(pFunc->node.userAlias) - 1));
   } else {
     len = snprintf(buf, sizeof(buf), "%s(%s)", pSrcFunc->functionName, pExpr->aliasName);
+    strncpy(pFunc->node.aliasName, buf, TMIN(len, sizeof(pFunc->node.aliasName) - 1));
+    strncpy(pFunc->node.userAlias, buf, TMIN(len, sizeof(pFunc->node.userAlias) - 1));
   }
-  strncpy(pFunc->node.aliasName, buf, TMIN(len, sizeof(pFunc->node.aliasName) - 1));
 
   return (SNode*)pFunc;
 }
@@ -3139,6 +3141,9 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceOrderByAliasForSelect(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setTableCacheLastMode(pCxt, pSelect);
   }
   return code;
 }

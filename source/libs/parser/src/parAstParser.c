@@ -97,16 +97,23 @@ typedef struct SCollectMetaKeyCxt {
 
 typedef struct SCollectMetaKeyFromExprCxt {
   SCollectMetaKeyCxt* pComCxt;
+  bool                hasLastRow;
   int32_t             errCode;
 } SCollectMetaKeyFromExprCxt;
 
 static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt);
 
 static EDealRes collectMetaKeyFromFunction(SCollectMetaKeyFromExprCxt* pCxt, SFunctionNode* pFunc) {
-  if (fmIsBuiltinFunc(pFunc->functionName)) {
-    return DEAL_RES_CONTINUE;
+  switch (fmGetFuncType(pFunc->functionName)) {
+    case FUNCTION_TYPE_LAST_ROW:
+      pCxt->hasLastRow = true;
+      break;
+    case FUNCTION_TYPE_UDF:
+      pCxt->errCode = reserveUdfInCache(pFunc->functionName, pCxt->pComCxt->pMetaCache);
+      break;
+    default:
+      break;
   }
-  pCxt->errCode = reserveUdfInCache(pFunc->functionName, pCxt->pComCxt->pMetaCache);
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
 
@@ -135,9 +142,6 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
   }
   if (TSDB_CODE_SUCCESS == code && (0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES))) {
     code = reserveDnodeRequiredInCache(pCxt->pMetaCache);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = reserveDbCfgInCache(pCxt->pParseCxt->acctId, pDb, pCxt->pMetaCache);
   }
   return code;
 }
@@ -185,9 +189,19 @@ static int32_t collectMetaKeyFromSetOperator(SCollectMetaKeyCxt* pCxt, SSetOpera
   return code;
 }
 
+static int32_t reserveDbCfgForLastRow(SCollectMetaKeyCxt* pCxt, SNode* pTable) {
+  if (NULL == pTable || QUERY_NODE_REAL_TABLE != nodeType(pTable)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  return reserveDbCfgInCache(pCxt->pParseCxt->acctId, ((SRealTableNode*)pTable)->table.dbName, pCxt->pMetaCache);
+}
+
 static int32_t collectMetaKeyFromSelect(SCollectMetaKeyCxt* pCxt, SSelectStmt* pStmt) {
-  SCollectMetaKeyFromExprCxt cxt = {.pComCxt = pCxt, .errCode = TSDB_CODE_SUCCESS};
+  SCollectMetaKeyFromExprCxt cxt = {.pComCxt = pCxt, .hasLastRow = false, .errCode = TSDB_CODE_SUCCESS};
   nodesWalkSelectStmt(pStmt, SQL_CLAUSE_FROM, collectMetaKeyFromExprImpl, &cxt);
+  if (TSDB_CODE_SUCCESS == cxt.errCode && cxt.hasLastRow) {
+    cxt.errCode = reserveDbCfgForLastRow(pCxt, pStmt->pFromTable);
+  }
   return cxt.errCode;
 }
 
