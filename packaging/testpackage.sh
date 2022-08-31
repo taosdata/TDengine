@@ -111,7 +111,9 @@ if [[ ${packgeName} =~ "deb" ]];then
     fi
 elif [[ ${packgeName} =~ "rpm" ]];then
     cd ${installPath}
-    echo "rpm ${packgeName}"  && rpm -ivh ${packgeName}  --quiet 
+    sudo rpm -e tdengine
+    sudo rpm -e taostools
+    echo "rpm  -ivh ${packgeName}  --quiet "  && rpm -ivh ${packgeName}  --quiet 
 elif [[ ${packgeName} =~ "tar" ]];then
     cd  ${oriInstallPath}
     if [ ! -f  {originPackageName}  ];then
