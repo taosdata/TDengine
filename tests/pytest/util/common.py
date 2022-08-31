@@ -208,11 +208,11 @@ class TDCom:
         stb_list = map(lambda x: x[0], res_row_list)
         for stb in stb_list:
             if type == "taosc":
-                tdSql.execute(f'drop table if exists `{dbname}.{stb}`')
+                tdSql.execute(f'drop table if exists {dbname}.`{stb}`')
                 if not stb[0].isdigit():
                     tdSql.execute(f'drop table if exists {dbname}.{stb}')
             elif type == "restful":
-                self.restApiPost(f"drop table if exists `{dbname}.{stb}`")
+                self.restApiPost(f"drop table if exists {dbname}.`{stb}`")
                 if not stb[0].isdigit():
                     self.restApiPost(f"drop table if exists {dbname}.{stb}")
 
