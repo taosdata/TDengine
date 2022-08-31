@@ -108,7 +108,7 @@ if [[ ${packgeName} =~ "deb" ]];then
         echo "./debAuto.sh ${packgeName}" &&   chmod 755 debAuto.sh &&  ./debAuto.sh ${packgeName}
     else
         echo "dpkg  -i ${packgeName}" &&   dpkg  -i ${packgeName}
-
+    fi
 elif [[ ${packgeName} =~ "rpm" ]];then
     cd ${installPath}
     echo "rpm ${packgeName}"  && rpm -ivh ${packgeName}  --quiet 
