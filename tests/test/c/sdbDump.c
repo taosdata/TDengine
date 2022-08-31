@@ -20,6 +20,9 @@
 #include "tconfig.h"
 #include "tjson.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
+
 #define TMP_DNODE_DIR           TD_TMP_DIR_PATH "dumpsdb"
 #define TMP_MNODE_DIR           TD_TMP_DIR_PATH "dumpsdb" TD_DIRSEP "mnode"
 #define TMP_SDB_DATA_DIR        TD_TMP_DIR_PATH "dumpsdb" TD_DIRSEP "mnode" TD_DIRSEP "data"
@@ -429,6 +432,7 @@ int32_t parseArgs(int32_t argc, char *argv[]) {
 
   char cmd[PATH_MAX * 2] = {0};
   snprintf(cmd, sizeof(cmd), "rm -rf %s", TMP_DNODE_DIR);
+  
   system(cmd);
 #ifdef WINDOWS
   taosMulMkDir(TMP_SDB_DATA_DIR);
@@ -467,3 +471,5 @@ int32_t main(int32_t argc, char *argv[]) {
 
   return dumpSdb();
 }
+
+#pragma GCC diagnostic pop

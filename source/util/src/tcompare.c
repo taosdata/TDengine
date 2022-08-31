@@ -244,6 +244,7 @@ int32_t compareJsonVal(const void *pLeft, const void *pRight) {
     return 0;
   }else{
     assert(0);
+    return 0;
   }
 }
 
