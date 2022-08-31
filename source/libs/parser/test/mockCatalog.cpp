@@ -137,7 +137,7 @@ void generatePerformanceSchema(MockCatalogService* mcs) {
   }
   {
     ITableBuilder& builder =
-        mcs->createTableBuilder(TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_STREAMS, TSDB_SYSTEM_TABLE, 1)
+        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_STREAMS, TSDB_SYSTEM_TABLE, 1)
             .addColumn("stream_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
     builder.done();
   }
@@ -149,7 +149,7 @@ void generatePerformanceSchema(MockCatalogService* mcs) {
   }
   {
     ITableBuilder& builder =
-        mcs->createTableBuilder(TSDB_PERFORMANCE_SCHEMA_DB, TSDB_PERFS_TABLE_SUBSCRIPTIONS, TSDB_SYSTEM_TABLE, 1)
+        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_SUBSCRIPTIONS, TSDB_SYSTEM_TABLE, 1)
             .addColumn("stream_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
     builder.done();
   }

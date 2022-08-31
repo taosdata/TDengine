@@ -163,6 +163,9 @@ sql select * from information_schema.ins_stables
 sql select * from information_schema.ins_tables
 sql select * from information_schema.ins_tags
 sql select * from information_schema.ins_users
+sql select * from information_schema.ins_topics
+sql select * from information_schema.ins_subscriptions
+sql select * from information_schema.ins_streams
 sql_error select * from information_schema.ins_grants
 sql_error select * from information_schema.ins_vgroups
 sql_error select * from information_schema.ins_configs
@@ -172,11 +175,8 @@ print =============== check performance_schema
 sql use performance_schema;
 sql select * from performance_schema.perf_connections
 sql select * from performance_schema.perf_queries
-sql select * from performance_schema.perf_topics
 sql select * from performance_schema.perf_consumers
-sql select * from performance_schema.perf_subscriptions
 sql select * from performance_schema.perf_trans
-sql select * from performance_schema.perf_streams
 sql select * from performance_schema.perf_apps
 
 #system sh/exec.sh -n dnode1 -s stop -x SIGINT
