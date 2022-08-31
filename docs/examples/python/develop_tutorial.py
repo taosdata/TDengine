@@ -15,14 +15,6 @@ conn = taosrest.connect(url=url, token=token)
 print("server version:", conn.server_info)
 # ANCHOR_END: connect
 # ANCHOR: insert
-# drop database
-affected_row = conn.execute("DROP DATABASE IF EXISTS power")
-print("affected_row", affected_row)  # 0
-
-# create database
-affected_row = conn.execute("CREATE DATABASE power")
-print("affected_row", affected_row)  # 0
-
 # create super table
 conn.execute("CREATE STABLE power.meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)")
 print("affected_row", affected_row)  # 0
