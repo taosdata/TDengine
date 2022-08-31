@@ -459,7 +459,7 @@ class TDTestCase:
             normal tags and cols, one for every elm
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(value_type=value_type)
         self.resCmp(input_json, stb_name)
 
@@ -468,7 +468,7 @@ class TDTestCase:
             check all normal type
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         full_type_list = ["f", "F", "false", "False", "t", "T", "true", "True"]
         for t_type in full_type_list:
             input_json_list = [self.genFullTypeJson(tag_value=self.genTagValue(t0_value=t_type))[0],
@@ -489,7 +489,7 @@ class TDTestCase:
             binary_symbols = '\"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal"\'\'"\"'
         '''
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         binary_symbols = '"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal"'
         nchar_symbols = binary_symbols
         input_sql1, stb_name1 = self.genFullTypeJson(col_value=self.genTsColValue(value=binary_symbols, t_type="binary", value_type=value_type),
@@ -505,7 +505,7 @@ class TDTestCase:
             # ! us级时间戳都为0时，数据库中查询显示，但python接口拿到的结果不显示 .000000的情况请确认，目前修改时间处理代码可以通过
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         ts_list = ["1626006833639000000ns", "1626006833639019us", "1626006833640ms", "1626006834s", "1626006834", 0]
         for ts in ts_list:
             if "s" in str(ts):
@@ -571,7 +571,7 @@ class TDTestCase:
             eg: t0=**,id=**,t1=**
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(id_change_tag=True, value_type=value_type)
         self.resCmp(input_json, stb_name)
 
@@ -581,7 +581,7 @@ class TDTestCase:
             eg: id and ID
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(id_upper_tag=True, value_type=value_type)
         self.resCmp(input_json, stb_name)
         input_json, stb_name = self.genFullTypeJson(id_mixul_tag=True, value_type=value_type)
@@ -594,7 +594,7 @@ class TDTestCase:
             id not exist
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(id_noexist_tag=True, value_type=value_type)
         self.resCmp(input_json, stb_name)
         query_sql = f"select tbname from {stb_name}"
@@ -610,10 +610,10 @@ class TDTestCase:
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         for input_json in [self.genLongJson(128, value_type)[0]]:
-            tdCom.cleanTb()
+            tdCom.cleanTb(dbname="test")
             self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         for input_json in [self.genLongJson(129, value_type)[0]]:
-            tdCom.cleanTb()
+            tdCom.cleanTb(dbname="test")
             try:
                 self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             except SchemalessError as err:
@@ -625,7 +625,7 @@ class TDTestCase:
             mix "`~!@#$¥%^&*()-+={}|[]、「」【】\:;《》<>?"
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         rstr = list("`~!@#$¥%^&*()-+={}|[]、「」【】\:;《》<>?")
         for i in rstr:
             input_json = self.genFullTypeJson(tb_name=f'aa{i}bb', value_type=value_type)[0]
@@ -639,7 +639,7 @@ class TDTestCase:
             id is start with num
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = self.genFullTypeJson(tb_name="1aaabbb", value_type=value_type)[0]
         try:
             self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -651,7 +651,7 @@ class TDTestCase:
             check now unsupported
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = self.genFullTypeJson(ts_value=self.genTsColValue(value="now", t_type="ns", value_type=value_type))[0]
         try:
             self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -663,7 +663,7 @@ class TDTestCase:
             check date format ts unsupported
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = self.genFullTypeJson(ts_value=self.genTsColValue(value="2021-07-21\ 19:01:46.920", t_type="ns", value_type=value_type))[0]
         try:
             self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -675,7 +675,7 @@ class TDTestCase:
             check ts format like 16260068336390us19
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = self.genFullTypeJson(ts_value=self.genTsColValue(value="16260068336390us19", t_type="us", value_type=value_type))[0]
         try:
             self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -690,7 +690,7 @@ class TDTestCase:
             length of stb_name tb_name <= 192
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tdSql.execute('reset query cache')
         stb_name_192 = tdCom.getLongName(len=192, mode="letters")
         tb_name_192 = tdCom.getLongName(len=192, mode="letters")
@@ -715,7 +715,7 @@ class TDTestCase:
             check tag name limit <= 62
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tag_name = tdCom.getLongName(61, "letters")
         tag_name = f't{tag_name}'
         stb_name = tdCom.getLongName(7, "letters")
@@ -733,7 +733,7 @@ class TDTestCase:
             check full type tag value limit
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         # i8
         for t1 in [-127, 127]:
             input_json, stb_name = self.genFullTypeJson(tag_value=self.genTagValue(t1_value=t1, value_type=value_type))
@@ -854,12 +854,12 @@ class TDTestCase:
             check full type col value limit
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         # i8
         for value in [-128, 127]:
             input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="tinyint", value_type=value_type))
             self.resCmp(input_json, stb_name)
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         for value in [-129, 128]:
             input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="tinyint"))[0]
             try:
@@ -868,11 +868,11 @@ class TDTestCase:
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
         # i16
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         for value in [-32768]:
             input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="smallint", value_type=value_type))
             self.resCmp(input_json, stb_name)
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         for value in [-32769, 32768]:
             input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="smallint"))[0]
             try:
@@ -882,11 +882,11 @@ class TDTestCase:
                 tdSql.checkNotEqual(err.errno, 0)
 
         # i32
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         for value in [-2147483648]:
             input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="int", value_type=value_type))
             self.resCmp(input_json, stb_name)
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         for value in [-2147483649, 2147483648]:
             input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="int"))[0]
             try:
@@ -896,12 +896,12 @@ class TDTestCase:
                 tdSql.checkNotEqual(err.errno, 0)
 
         # i64
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         for value in [-9223372036854775808]:
             input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="bigint", value_type=value_type))
             self.resCmp(input_json, stb_name)
         # ! bug
-        # tdCom.cleanTb()
+        # tdCom.cleanTb(dbname="test")
         # for value in [-9223372036854775809, 9223372036854775808]:
         #     print(value)
         #     input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="bigint"))[0]
@@ -913,12 +913,12 @@ class TDTestCase:
         #         tdSql.checkNotEqual(err.errno, 0)
 
         # f32
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         for value in [-3.4028234663852885981170418348451692544*(10**38), 3.4028234663852885981170418348451692544*(10**38)]:
             input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="float", value_type=value_type))
             self.resCmp(input_json, stb_name)
         # * limit set to 4028234664*(10**38)
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         for value in [-3.4028234664*(10**38), 3.4028234664*(10**38)]:
             input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="float"))[0]
             try:
@@ -928,12 +928,12 @@ class TDTestCase:
                 tdSql.checkNotEqual(err.errno, 0)
 
         # f64
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         for value in [-1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308), -1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308)]:
             input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="double", value_type=value_type))
             self.resCmp(input_json, stb_name)
         # * limit set to 1.797693134862316*(10**308)
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         for value in [-1.797693134862316*(10**308), -1.797693134862316*(10**308)]:
             input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="double", value_type=value_type))[0]
             try:
@@ -944,12 +944,12 @@ class TDTestCase:
 
         # if value_type == "obj":
         #     # binary
-        #     tdCom.cleanTb()
+        #     tdCom.cleanTb(dbname="test")
         #     stb_name = tdCom.getLongName(7, "letters")
         #     input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(16374, "letters"), 'type': 'binary'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
         #     self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
 
-        #     tdCom.cleanTb()
+        #     tdCom.cleanTb(dbname="test")
         #     input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(16375, "letters"), 'type': 'binary'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
         #     try:
         #         self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -959,12 +959,12 @@ class TDTestCase:
 
         #     # nchar
         #     # * legal nchar could not be larger than 16374/4
-        #     tdCom.cleanTb()
+        #     tdCom.cleanTb(dbname="test")
         #     stb_name = tdCom.getLongName(7, "letters")
         #     input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(4093, "letters"), 'type': 'nchar'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
         #     self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
 
-        #     tdCom.cleanTb()
+        #     tdCom.cleanTb(dbname="test")
         #     input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(4094, "letters"), 'type': 'nchar'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
         #     try:
         #         self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -973,14 +973,14 @@ class TDTestCase:
         #         tdSql.checkNotEqual(err.errno, 0)
         # elif value_type == "default":
         #     # binary
-        #     tdCom.cleanTb()
+        #     tdCom.cleanTb(dbname="test")
         #     stb_name = tdCom.getLongName(7, "letters")
         #     if tdSql.getVariable("defaultJSONStrType")[0].lower() == "binary":
         #         input_json = {"metric": stb_name, "timestamp": 1626006834, "value": tdCom.getLongName(16374, "letters"), "tags": {"t0": {'value': True, 'type': 'bool'}}}
         #     elif tdSql.getVariable("defaultJSONStrType")[0].lower() == "nchar":
         #         input_json = {"metric": stb_name, "timestamp": 1626006834, "value": tdCom.getLongName(4093, "letters"), "tags": {"t0": {'value': True, 'type': 'bool'}}}
         #     self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
-        #     tdCom.cleanTb()
+        #     tdCom.cleanTb(dbname="test")
         #     if tdSql.getVariable("defaultJSONStrType")[0].lower() == "binary":
         #         input_json = {"metric": stb_name, "timestamp": 1626006834, "value": tdCom.getLongName(16375, "letters"), "tags": {"t0": {'value': True, 'type': 'bool'}}}
         #     elif tdSql.getVariable("defaultJSONStrType")[0].lower() == "nchar":
@@ -997,7 +997,7 @@ class TDTestCase:
             test illegal tag col value
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         # bool
         for i in ["TrUe", "tRue", "trUe", "truE", "FalsE", "fAlse", "faLse", "falSe", "falsE"]:
             try:
@@ -1046,7 +1046,7 @@ class TDTestCase:
             check duplicate Id Tag Col
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = self.genFullTypeJson(id_double_tag=True, value_type=value_type)[0]
         print(input_json)
         try:
@@ -1068,7 +1068,7 @@ class TDTestCase:
             case no id when stb exist
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(tb_name="sub_table_0123456", col_value=self.genTsColValue(value=True, t_type="bool", value_type=value_type), tag_value=self.genTagValue(t0_value=True, value_type=value_type))
         self.resCmp(input_json, stb_name)
         input_json, stb_name = self.genFullTypeJson(stb_name=stb_name, id_noexist_tag=True, col_value=self.genTsColValue(value=True, t_type="bool", value_type=value_type), tag_value=self.genTagValue(t0_value=True, value_type=value_type))
@@ -1081,7 +1081,7 @@ class TDTestCase:
             check duplicate insert when stb exist
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(value_type=value_type)
         self.resCmp(input_json, stb_name)
         self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -1091,7 +1091,7 @@ class TDTestCase:
         """
             check length increase
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(value_type=value_type)
         self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         self.resCmp(input_json, stb_name)
@@ -1105,7 +1105,7 @@ class TDTestCase:
             check length increase
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         stb_name = "test_crash"
         input_json = self.genFullTypeJson(stb_name=stb_name)[0]
         self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -1128,7 +1128,7 @@ class TDTestCase:
             * col is added with value when update==1
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         for db_update_tag in [0, 1]:
             if db_update_tag == 1 :
@@ -1154,7 +1154,7 @@ class TDTestCase:
             check tag count add
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value=True, t_type="bool", value_type=value_type), tag_value=self.genTagValue(t0_value=True, value_type=value_type))
         self.resCmp(input_json, stb_name)
@@ -1171,7 +1171,7 @@ class TDTestCase:
             insert two table, keep tag unchange, change col
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=True, t_type="bool", value_type=value_type), tag_value=self.genTagValue(t0_value=True, value_type=value_type), id_noexist_tag=True)
         self.resCmp(input_json, stb_name)
         tb_name1 = self.getNoIdTbName(stb_name)
@@ -1194,7 +1194,7 @@ class TDTestCase:
             every binary and nchar must be length+2
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         stb_name = tdCom.getLongName(7, "letters")
         tb_name = f'{stb_name}_1'
         tag_value = {"t0": {"value": True, "type": "bool"}}
@@ -1240,7 +1240,7 @@ class TDTestCase:
             check nchar length limit
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         stb_name = tdCom.getLongName(7, "letters")
         tb_name = f'{stb_name}_1'
         tag_value = {"t0": True}
@@ -1284,7 +1284,7 @@ class TDTestCase:
             test batch insert
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         stb_name = "stb_name"
         tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 bigint)')
         input_json = [{"metric": "st123456", "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": {"value": 1, "type": "bigint"}, "tags": {"t1": {"value": 3, "type": "bigint"}, "t2": {"value": 4, "type": "double"}, "t3": {"value": "t3", "type": "binary"}}},
@@ -1319,7 +1319,7 @@ class TDTestCase:
             test multi insert
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         sql_list = list()
         stb_name = tdCom.getLongName(8, "letters")
         tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 bigint)')
@@ -1335,7 +1335,7 @@ class TDTestCase:
             test batch error insert
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = [{"metric": "st123456", "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": {"value": "tt", "type": "bool"}, "tags": {"t1": {"value": 3, "type": "bigint"}, "t2": {"value": 4, "type": "double"}, "t3": {"value": "t3", "type": "binary"}}},
                     {"metric": "st123456", "timestamp": {"value": 1626006933641000000, "type": "ns"}, "value": {"value": 9, "type": "bigint"}, "tags": {"t1": {"value": 4, "type": "bigint"}, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}}]
         try:
@@ -1349,7 +1349,7 @@ class TDTestCase:
             test multi cols insert
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = self.genFullTypeJson(c_multi_tag=True, value_type=value_type)[0]
         try:
             self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -1362,7 +1362,7 @@ class TDTestCase:
             test blank col insert
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = self.genFullTypeJson(c_blank_tag=True, value_type=value_type)[0]
         try:
             self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -1375,7 +1375,7 @@ class TDTestCase:
             test blank tag insert
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = self.genFullTypeJson(t_blank_tag=True, value_type=value_type)[0]
         try:
             self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -1388,7 +1388,7 @@ class TDTestCase:
             check nchar ---> chinese
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(chinese_tag=True)
         self.resCmp(input_json, stb_name)
 
@@ -1397,7 +1397,7 @@ class TDTestCase:
             multi_field
         '''
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = self.genFullTypeJson(multi_field_tag=True, value_type=value_type)[0]
         try:
             self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -1407,7 +1407,7 @@ class TDTestCase:
 
     def spellCheckCase(self):
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         stb_name = tdCom.getLongName(8, "letters")
         input_json_list = [{"metric": f'{stb_name}_1', "timestamp": {"value": 1626006833639000000, "type": "Ns"}, "value": {"value": 1, "type": "Bigint"}, "tags": {"t1": {"value": 127, "type": "tinYint"}}},
                         {"metric": f'{stb_name}_2', "timestamp": {"value": 1626006833639000001, "type": "nS"}, "value": {"value": 32767, "type": "smallInt"}, "tags": {"t1": {"value": 32767, "type": "smallInt"}}},
@@ -1426,7 +1426,7 @@ class TDTestCase:
 
     def tbnameTagsColsNameCheckCase(self):
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = {'metric': 'rFa$sta', 'timestamp': {'value': 1626006834, 'type': 's'}, 'value': {'value': True, 'type': 'bool'}, 'tags': {'Tt!0': {'value': False, 'type': 'bool'}, 'tT@1': {'value': 127, 'type': 'tinyint'}, 't@2': {'value': 32767, 'type': 'smallint'}, 't$3': {'value': 2147483647, 'type': 'int'}, 't%4': {'value': 9223372036854775807, 'type': 'bigint'}, 't^5': {'value': 11.12345027923584, 'type': 'float'}, 't&6': {'value': 22.123456789, 'type': 'double'}, 't*7': {'value': 'binaryTagValue', 'type': 'binary'}, 't!@#$%^&*()_+[];:<>?,9': {'value': 'ncharTagValue', 'type': 'nchar'}, 'id': 'rFas$ta_1'}}
         self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         query_sql = 'select * from `rFa$sta`'
@@ -1441,7 +1441,7 @@ class TDTestCase:
             metric value "." trans to "_"
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = self.genFullTypeJson(point_trans_tag=True, value_type=value_type)[0]
         self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         tdSql.execute("drop table `.point.trans.test`")
@@ -1509,7 +1509,7 @@ class TDTestCase:
             thread input different stb
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = self.genSqlList(value_type=value_type)[0]
         self.multiThreadRun(self.genMultiThreadSeq(input_json))
         tdSql.query(f"show tables;")
@@ -1520,7 +1520,7 @@ class TDTestCase:
             thread input same stb tb, different data, result keep first data
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value="binaryTagValue", t_type="binary", value_type=value_type))
         self.resCmp(input_json, stb_name)
@@ -1538,7 +1538,7 @@ class TDTestCase:
             thread input same stb tb, different data, add columes and tags,  result keep first data
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value="binaryTagValue", t_type="binary", value_type=value_type))
         self.resCmp(input_json, stb_name)
@@ -1556,7 +1556,7 @@ class TDTestCase:
             thread input same stb tb, different data, minus columes and tags,  result keep first data
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value="binaryTagValue", t_type="binary", value_type=value_type))
         self.resCmp(input_json, stb_name)
@@ -1574,7 +1574,7 @@ class TDTestCase:
             thread input same stb, different tb, different data
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value="binaryTagValue", t_type="binary", value_type=value_type))
         self.resCmp(input_json, stb_name)
         s_stb_d_tb_list = self.genSqlList(stb_name=stb_name, value_type=value_type)[4]
@@ -1587,7 +1587,7 @@ class TDTestCase:
             thread input same stb, different tb, different data, add col, mul tag
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value="binaryTagValue", t_type="binary"))
         self.resCmp(input_json, stb_name)
         s_stb_d_tb_m_tag_list = [({"metric": stb_name, "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": "omfdhyom", "tags": {"t0": {"value": False, "type": "bool"}, "t1": {"value": 127, "type": "tinyint"}, "t2": {"value": 32767, "type": "smallint"}, "t3": {"value": 2147483647, "type": "int"}, "t4": {"value": 9223372036854775807, "type": "bigint"}, "t5": {"value": 11.12345, "type": "float"}, "t6": {"value": 22.123456789, "type": "double"}}}, 'yzwswz'),
@@ -1605,7 +1605,7 @@ class TDTestCase:
             thread input same stb, different tb, different data, add tag, mul col
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value="binaryTagValue", t_type="binary", value_type=value_type))
         self.resCmp(input_json, stb_name)
         s_stb_d_tb_a_tag_list = self.genSqlList(stb_name=stb_name, value_type=value_type)[6]
@@ -1618,7 +1618,7 @@ class TDTestCase:
             thread input same stb tb, different ts
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value="binaryTagValue", t_type="binary"))
         self.resCmp(input_json, stb_name)
@@ -1638,7 +1638,7 @@ class TDTestCase:
             thread input same stb tb, different ts, add col, mul tag
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value="binaryTagValue", t_type="binary"))
         self.resCmp(input_json, stb_name)
@@ -1660,7 +1660,7 @@ class TDTestCase:
             thread input same stb tb, different ts, add tag, mul col
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value="binaryTagValue", t_type="binary"))
         self.resCmp(input_json, stb_name)
@@ -1683,7 +1683,7 @@ class TDTestCase:
             thread input same stb, different tb, data, ts
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value="binaryTagValue", t_type="binary", value_type=value_type))
         self.resCmp(input_json, stb_name)
         s_stb_d_tb_d_ts_list = self.genSqlList(stb_name=stb_name, value_type=value_type)[10]
@@ -1696,7 +1696,7 @@ class TDTestCase:
             thread input same stb, different tb, data, ts, add col, mul tag
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value="binaryTagValue", t_type="binary"))
         self.resCmp(input_json, stb_name)
         s_stb_d_tb_d_ts_m_tag_list = [({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': 'pjndapjb', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}}}, 'punftb'),

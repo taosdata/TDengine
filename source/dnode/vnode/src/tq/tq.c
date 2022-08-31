@@ -357,8 +357,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
               TD_VID(pTq->pVnode), formatBuf);
     } else {
       if (reqOffset.type == TMQ_OFFSET__RESET_EARLIEAST) {
-        if (pReq->useSnapshot){
-          if (pHandle->fetchMeta){
+        if (pReq->useSnapshot) {
+          if (pHandle->fetchMeta) {
             tqOffsetResetToMeta(&fetchOffsetNew, 0);
           } else {
             tqOffsetResetToData(&fetchOffsetNew, 0, 0);
@@ -373,43 +373,47 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
           code = -1;
         }
-        goto OVER;
+        tDeleteSMqDataRsp(&dataRsp);
+        return code;
       } else if (reqOffset.type == TMQ_OFFSET__RESET_NONE) {
         tqError("tmq poll: subkey %s, no offset committed for consumer %" PRId64
                 " in vg %d, subkey %s, reset none failed",
                 pHandle->subKey, consumerId, TD_VID(pTq->pVnode), pReq->subKey);
         terrno = TSDB_CODE_TQ_NO_COMMITTED_OFFSET;
         code = -1;
-        goto OVER;
+        tDeleteSMqDataRsp(&dataRsp);
+        return code;
       }
     }
   }
 
-  if(pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN || fetchOffsetNew.type != TMQ_OFFSET__LOG){
+  if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN || fetchOffsetNew.type != TMQ_OFFSET__LOG) {
     SMqMetaRsp metaRsp = {0};
     tqScan(pTq, pHandle, &dataRsp, &metaRsp, &fetchOffsetNew);
 
-    if(metaRsp.metaRspLen > 0){
+    if (metaRsp.metaRspLen > 0) {
       if (tqSendMetaPollRsp(pTq, pMsg, pReq, &metaRsp) < 0) {
         code = -1;
       }
-      tqDebug("tmq poll: consumer %ld, subkey %s, vg %d, send meta offset type:%d,uid:%ld,version:%ld", consumerId, pHandle->subKey,
-              TD_VID(pTq->pVnode), metaRsp.rspOffset.type, metaRsp.rspOffset.uid, metaRsp.rspOffset.version);
+      tqDebug("tmq poll: consumer %ld, subkey %s, vg %d, send meta offset type:%d,uid:%ld,version:%ld", consumerId,
+              pHandle->subKey, TD_VID(pTq->pVnode), metaRsp.rspOffset.type, metaRsp.rspOffset.uid,
+              metaRsp.rspOffset.version);
       taosMemoryFree(metaRsp.metaRsp);
       goto OVER;
     }
 
-    if (dataRsp.blockNum > 0){
+    if (dataRsp.blockNum > 0) {
       if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
         code = -1;
       }
       goto OVER;
-    }else{
+    } else {
       fetchOffsetNew = dataRsp.rspOffset;
     }
 
-    tqDebug("tmq poll: consumer %ld, subkey %s, vg %d, send data blockNum:%d, offset type:%d,uid:%ld,version:%ld", consumerId, pHandle->subKey,
-            TD_VID(pTq->pVnode), dataRsp.blockNum, dataRsp.rspOffset.type, dataRsp.rspOffset.uid, dataRsp.rspOffset.version);
+    tqDebug("tmq poll: consumer %ld, subkey %s, vg %d, send data blockNum:%d, offset type:%d,uid:%ld,version:%ld",
+            consumerId, pHandle->subKey, TD_VID(pTq->pVnode), dataRsp.blockNum, dataRsp.rspOffset.type,
+            dataRsp.rspOffset.uid, dataRsp.rspOffset.version);
   }
 
   if (pHandle->execHandle.subType != TOPIC_SUB_TYPE__COLUMN && fetchOffsetNew.type == TMQ_OFFSET__LOG) {
@@ -426,7 +430,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
       consumerEpoch = atomic_load_32(&pHandle->epoch);
       if (consumerEpoch > reqEpoch) {
         tqWarn("tmq poll: consumer %" PRId64 " (epoch %d), subkey %s, vg %d offset %" PRId64
-                   ", found new consumer epoch %d, discard req epoch %d",
+               ", found new consumer epoch %d, discard req epoch %d",
                consumerId, pReq->epoch, pHandle->subKey, TD_VID(pTq->pVnode), fetchVer, consumerEpoch, reqEpoch);
         break;
       }
@@ -449,7 +453,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
       if (pHead->msgType == TDMT_VND_SUBMIT) {
         SSubmitReq* pCont = (SSubmitReq*)&pHead->body;
 
-        if (tqLogScanExec(pTq, &pHandle->execHandle, pCont, &dataRsp) < 0) {
+        if (tqLogScanExec(pTq, pHandle, pCont, &dataRsp) < 0) {
           /*ASSERT(0);*/
         }
         // TODO batch optimization:
@@ -490,18 +494,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
 
 OVER:
   if (pCkHead) taosMemoryFree(pCkHead);
-  // TODO wrap in destroy func
-  taosArrayDestroy(dataRsp.blockDataLen);
-  taosArrayDestroyP(dataRsp.blockData, (FDelete)taosMemoryFree);
-
-  if (dataRsp.withSchema) {
-    taosArrayDestroyP(dataRsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
-  }
-
-  if (dataRsp.withTbName) {
-    taosArrayDestroyP(dataRsp.blockTbName, (FDelete)taosMemoryFree);
-  }
-
+  tDeleteSMqDataRsp(&dataRsp);
   return code;
 }
 
@@ -629,9 +622,9 @@ int32_t tqProcessVgChangeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLe
       tqReaderSetTbUidList(pHandle->execHandle.pExecReader, tbUidList);
       taosArrayDestroy(tbUidList);
 
-      buildSnapContext(handle.meta, handle.version, req.suid, pHandle->execHandle.subType, pHandle->fetchMeta, (SSnapContext **)(&handle.sContext));
-      pHandle->execHandle.task =
-          qCreateQueueExecTaskInfo(NULL, &handle, NULL, NULL);
+      buildSnapContext(handle.meta, handle.version, req.suid, pHandle->execHandle.subType, pHandle->fetchMeta,
+                       (SSnapContext**)(&handle.sContext));
+      pHandle->execHandle.task = qCreateQueueExecTaskInfo(NULL, &handle, NULL, NULL);
     }
     taosHashPut(pTq->pHandle, req.subKey, strlen(req.subKey), pHandle, sizeof(STqHandle));
     tqDebug("try to persist handle %s consumer %" PRId64, req.subKey, pHandle->consumerId);
