@@ -115,7 +115,7 @@ elif [[ ${packgeName} =~ "rpm" ]];then
 elif [[ ${packgeName} =~ "tar" ]];then
     cd  ${oriInstallPath}
     if [ ! -f  {originPackageName}  ];then
-        sshpass -p ${password} scp 192.168.1.131:/nas/TDengine3/v${originversion}/community${originPackageName} .
+        sshpass -p ${password} scp 192.168.1.131:/nas/TDengine3/v${originversion}/community/${originPackageName} .
     fi
     echo "tar -xvf ${originPackageName}" && tar -xvf ${originPackageName} 
 
