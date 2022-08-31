@@ -92,6 +92,8 @@ struct SResultRowEntryInfo;
 //for selectivity query, the corresponding tag value is assigned if the data is qualified
 typedef struct SSubsidiaryResInfo {
   int16_t num;
+  int32_t rowLen;
+  char*   buf;         // serialize data buffer
   struct SqlFunctionCtx **pCtx;
 } SSubsidiaryResInfo;
 
@@ -118,6 +120,11 @@ typedef struct SInputColumnInfoData {
   uint64_t          uid;            // table uid, used to set the tag value when building the final query result for selectivity functions.
 } SInputColumnInfoData;
 
+typedef struct SSerializeDataHandle {
+  struct SDiskbasedBuf* pBuf;
+  int32_t               currentPage;
+} SSerializeDataHandle;
+
 // sql function runtime context
 typedef struct SqlFunctionCtx {
   SInputColumnInfoData   input;
@@ -137,10 +144,9 @@ typedef struct SqlFunctionCtx {
   SFuncExecFuncs         fpSet;
   SScalarFuncExecFuncs   sfp;
   struct SExprInfo      *pExpr;
-  struct SDiskbasedBuf  *pBuf;
   struct SSDataBlock    *pSrcBlock;
   struct SSDataBlock    *pDstBlock; // used by indefinite rows function to set selectivity
-  int32_t                curBufPage;
+  SSerializeDataHandle   saveHandle;
   bool                   isStream;
 
   char                   udfName[TSDB_FUNC_NAME_LEN];

@@ -182,7 +182,6 @@ pipeline {
                             cd ${TDENGINE_ROOT_DIR}/packaging
                             bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server
                             python3 checkPackageRuning.py  
-                            rmtaos
                             '''
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging

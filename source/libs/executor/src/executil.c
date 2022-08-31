@@ -46,8 +46,8 @@ size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
     rowSize += pCtx[i].resDataInfo.interBufSize;
   }
 
-  rowSize +=
-      (numOfOutput * sizeof(bool));  // expand rowSize to mark if col is null for top/bottom result(doSaveTupleData)
+  rowSize += (numOfOutput * sizeof(bool));
+  // expand rowSize to mark if col is null for top/bottom result(saveTupleData)
   return rowSize;
 }
 
@@ -1178,7 +1178,6 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     SqlFunctionCtx* pCtx = &pFuncCtx[i];
 
     pCtx->functionId = -1;
-    pCtx->curBufPage = -1;
     pCtx->pExpr = pExpr;
 
     if (pExpr->pExpr->nodeType == QUERY_NODE_FUNCTION) {
@@ -1222,6 +1221,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     pCtx->isStream = false;
 
     pCtx->param = pFunct->pParam;
+    pCtx->saveHandle.currentPage = -1;
   }
 
   for (int32_t i = 1; i < numOfOutput; ++i) {
