@@ -105,8 +105,8 @@ else
 fi
 
 if [ -d ${installPath}/${tdPath} ] ;then
-    echoColor BD "rm -rf ${installPath}/${tdPath} "
-    rm -rf ${installPath}/${tdPath} 
+    echoColor BD "rm -rf ${installPath}/${tdPath}/*"
+    rm -rf ${installPath}/${tdPath}/*
 fi
 
 if [ ! -d ${oriInstallPath} ] ;then
@@ -117,8 +117,8 @@ else
 fi
 
 if [ -d ${oriInstallPath}/${originTdpPath} ] ;then
-    echoColor BD "rm -rf ${oriInstallPath}/${originTdpPath}"
-    rm -rf  ${oriInstallPath}  
+    echoColor BD "rm -rf ${oriInstallPath}/${originTdpPath}/*"
+    rm -rf  ${oriInstallPath}/${originTdpPath}/*  
 fi
 
 
@@ -177,24 +177,13 @@ elif [[ ${packgeName} =~ "rpm" ]];then
         echoColor BD "rpm  -ivh ${packgeName}" &&   rpm  -ivh ${packgeName}
     fi
 elif [[ ${packgeName} =~ "tar" ]];then
-    cd ${installPath}/${tdPath}
-    if [ ${testFile} = "server" ];then
-        echoColor BD "bash ${installCmd}  -e no  "
-        bash ${installCmd}  -e no  
-    else
-        echoColor BD "bash ${installCmd} "
-        bash ${installCmd} 
-    fi
-
     echoColor G "===== check installPackage File of tar ====="
-
     cd  ${oriInstallPath}
     if [ ! -f  {originPackageName}  ];then
         echoColor YD "download  base installPackage"
         echoColor BD "sshpass -p ${password} scp 192.168.1.131:/nas/TDengine3/v${originversion}/community/${originPackageName} ."
         sshpass -p ${password} scp 192.168.1.131:/nas/TDengine3/v${originversion}/community/${originPackageName} .
     fi
-
     echoColor YD "unzip the base installation package" 
     echoColor BD "tar -xf ${originPackageName}" && tar -xf ${originPackageName} 
     cd ${installPath} 
@@ -212,12 +201,22 @@ elif [[ ${packgeName} =~ "tar" ]];then
     cd ${installPath} 
     diff  ${installPath}/base_${originversion}_checkfile   ${installPath}/now_${version}_checkfile  > ${installPath}/diffFile.log
     diffNumbers=`cat ${installPath}/diffFile.log |wc -l `
+
     if [ ${diffNumbers} != 0 ];then
         echoColor R "The number and names of files is different from the previous installation package"
         echoColor Y `cat ${installPath}/diffFile.log`
         exit -1
     else 
         echoColor G "The number and names of files are the same as previous installation packages"
+    fi
+    echoColor YD  "===== install Package of tar ====="
+    cd ${installPath}/${tdPath}
+    if [ ${testFile} = "server" ];then
+        echoColor BD "bash ${installCmd}  -e no  "
+        bash ${installCmd}  -e no  
+    else
+        echoColor BD "bash ${installCmd} "
+        bash ${installCmd} 
     fi
 fi  
 
