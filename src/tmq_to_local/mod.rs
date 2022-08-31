@@ -1,12 +1,15 @@
 use std::path::Path;
 
-use anyhow::{bail, Context, Result};
+use anyhow::Result;
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use taos::{Consumer, *};
 
-use crate::{taoz::ZFile, tmq::{check_tmq_dsn, Topic}};
+use crate::{
+    taoz::ZFile,
+    tmq::{check_tmq_dsn, Topic},
+};
 
 // #[derive(Debug, Deserialize, Serialize)]
 // pub(crate) struct Topic {

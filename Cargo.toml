@@ -10,7 +10,7 @@ exclude = ["/docs", "TODO.md", "*.json", ".vscode"]
 
 [dependencies]
 anyhow = "1"
-arrow = "20.0.0"
+arrow = "21.0.0"
 async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
 bitflags = "1"
@@ -21,7 +21,7 @@ config = "0.13.1"
 csv-async = { version = "1.2.4", features = ["tokio"] }
 futures = "0.3"
 log = "0.4"
-parquet = { version = "20.0.0" }
+parquet = { version = "21.0.0" }
 pretty_env_logger = "0.4"
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
@@ -50,6 +50,3 @@ dotenv = "*"
 
 [patch.crates-io]
 zip = { git = "https://github.com/zip-rs/zip.git" }
-
-[build]
-rustflags = ["--cfg", "tokio_unstable"]
