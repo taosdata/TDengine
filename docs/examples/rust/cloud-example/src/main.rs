@@ -1,5 +1,5 @@
 use anyhow::Result;
-use libtaos::*;
+use taos::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {
