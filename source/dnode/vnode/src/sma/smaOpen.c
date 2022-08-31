@@ -16,8 +16,6 @@
 #include "sma.h"
 #include "tsdb.h"
 
-#define RETENTION_DAYS_SPLIT_MAX (365 * 1440)
-
 static int32_t smaEvalDays(SVnode *pVnode, SRetention *r, int8_t level, int8_t precision, int32_t duration);
 static int32_t smaSetKeepCfg(SVnode *pVnode, STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int type);
 static int32_t rsmaRestore(SSma *pSma);
@@ -86,8 +84,8 @@ static int32_t smaEvalDays(SVnode *pVnode, SRetention *r, int8_t level, int8_t p
     days = keepDuration;
   }
 
-  if (days > RETENTION_DAYS_SPLIT_MAX) {
-    days = RETENTION_DAYS_SPLIT_MAX;
+  if (days > TSDB_MAX_DURATION_PER_FILE) {
+    days = TSDB_MAX_DURATION_PER_FILE;
   }
 
   if (days < freqDuration) {
