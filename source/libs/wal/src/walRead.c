@@ -372,7 +372,7 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver, SWalCkHead *pHead) {
 int32_t walSkipFetchBody(SWalReader *pRead, const SWalCkHead *pHead) {
   int64_t code;
 
-  ASSERT(pRead->curVersion == pHead->head.version);
+//  ASSERT(pRead->curVersion == pHead->head.version);
 
   code = taosLSeekFile(pRead->pLogFile, pHead->head.bodyLen, SEEK_CUR);
   if (code < 0) {
