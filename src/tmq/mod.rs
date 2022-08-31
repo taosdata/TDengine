@@ -29,7 +29,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
         Code::Failed,
         format!("requires topic or database in source dsn: {from}"),
     ))?;
-    dbg!(&from, &database);
+    // dbg!(&from, &database);
 
     let source = TaosBuilder::from_dsn(&from)?.build()?;
     let source_topics = source.topics().await?;

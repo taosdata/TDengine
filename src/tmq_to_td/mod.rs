@@ -102,7 +102,7 @@ pub async fn tmq_to_td(from: Dsn, mut to: Dsn, jobs: usize) -> Result<()> {
         } else {
             jobs
         };
-        dbg!(&topic);
+        // dbg!(&topic);
 
         // let mut from = from.clone();
         let tmq = TmqBuilder::from_dsn(&from)?;
