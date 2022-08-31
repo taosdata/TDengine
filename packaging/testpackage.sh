@@ -130,12 +130,12 @@ elif [[ ${packgeName} =~ "tar" ]];then
 
     echo "check installPackage File"
 
+    
+    cd  ${oriInstallPath}/${originTdpPath} && tree  >  ${installPath}/base_${originversion}_checkfile
+    cd ${installPath}/${tdPath}   && tree > ${installPath}/now_${version}_checkfile
+    
     cd ${installPath} 
-
-    tree ${oriInstallPath}/${originTdpPath} >  ${oriInstallPath}/${originPackageName}_checkfile
-    tree ${installPath}/${tdPath} > ${installPath}/${packgeName}_checkfile
-
-    diff  ${installPath}/${packgeName}_checkfile ${oriInstallPath}/${originPackageName}_checkfile  > ${installPath}/diffFile.log
+    diff  ${installPath}/base_${originversion}_checkfile   ${installPath}/now_${version}_checkfile  > ${installPath}/diffFile.log
     diffNumbers=`cat ${installPath}/diffFile.log |wc -l `
     if [ ${diffNumbers} != 0 ];then
         echo "The number and names of files have changed from the previous installation package"
