@@ -1,4 +1,4 @@
-import { options, connect } from "@tdengine/rest";
+const { options, connect } = require("@tdengine/rest");
 
 async function test() {
   options.url = process.env.TDENGINE_CLOUD_URL;
