@@ -236,7 +236,7 @@ if [[ ${packgeName} =~ "Lite" ]]  ||   [[ ${packgeName} =~ "client" ]] ||  ([[ $
     wgetFile taosTools-2.1.2-Linux-x64.tar.gz .
     tar xf taosTools-2.1.2-Linux-x64.tar.gz
     cd taosTools-2.1.2 && bash install-taostools.sh
-elif  ([[ ${packgeName} =~ "arm64" ]] && [[ ${packgeName} =~ "server" ]]);then
+elif  ([[ ${packgeName} =~ "arm64" ]] && [[ ${packgeName} =~ "client" ]]);then
     echoColor G "===== install taos-tools when package is lite or client ====="
     cd ${installPath}
     wgetFile taosTools-2.1.2-Linux-arm64.tar.gz .
