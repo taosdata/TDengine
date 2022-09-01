@@ -496,6 +496,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pR
   // loop to create table
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     pCreateReq = req.pReqs + iReq;
+    memset(&cRsp, 0, sizeof(cRsp));
 
     if ((terrno = grantCheck(TSDB_GRANT_TIMESERIES)) < 0) {
       rcode = -1;
