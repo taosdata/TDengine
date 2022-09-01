@@ -42,7 +42,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
             databases.push(topic.db_name().to_string());
             let vgroups = source
                 .query_one(format!(
-                    "select `vgroups` from information_schema.ins_databases where name='{}'",
+                    "SELECT `vgroups` FROM information_schema.ins_databases WHERE name='{}'",
                     topic.db_name()
                 ))
                 .await?
@@ -62,7 +62,11 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                     table: None,
                 }],
             ))
-        } else if source.database_exists(topic).await? {
+        } else if source
+            .database_exists(topic)
+            .await
+            .context(format!("check database exists: {topic}"))?
+        {
             // treat it as database if the topic not exists.
             let database = topic;
             source.create_topic_as_database(topic, database).await?;
@@ -91,7 +95,11 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
         } else if topic.contains('.') {
             // Extract `database.table` in format.
             let (database, table) = topic.split_once('.').unwrap();
-            if source.database_exists(database).await? {
+            if source
+                .database_exists(database)
+                .await
+                .context(format!("check database exists: {database}"))?
+            {
                 // check if is STable
                 let stable: Option<String> = source
                     .query_one(format!(
@@ -238,7 +246,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
         for topic in found {
             let vgroups: usize = source
                 .query_one(format!(
-                    "select `vgroups` from information_schema.ins_databases where name='{}'",
+                    "SELECT `vgroups` FROM information_schema.ins_databases WHERE name='{}'",
                     topic.db_name()
                 ))
                 .await?
@@ -265,13 +273,17 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                 .filter(|t| out.iter().find(|topic| topic.name == *t).is_none())
                 .collect_vec();
             for topic in invalids {
-                if !source.database_exists(topic).await? {
+                if !source
+                    .database_exists(topic)
+                    .await
+                    .context(format!("check database exists: {topic}"))?
+                {
                     anyhow::bail!("{} is not either a topic or a database name", topic);
                 } else {
                     source.create_topic_as_database(topic, topic).await?;
                     let vgroups = source
                         .query_one(format!(
-                            "select `vgroups` from information_schema.ins_databases where name='{topic}'"
+                            "SELECT `vgroups` FROM information_schema.ins_databases WHERE name='{topic}'"
                         ))
                         .await?
                         .expect("database not exists");

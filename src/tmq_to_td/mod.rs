@@ -14,8 +14,13 @@ async fn sync(id: usize, consumer: Consumer, taos: Taos, table: Option<String>) 
             MessageSet::Meta(meta) => {
                 log::debug!("[{id}] meta: {}", meta.as_json_meta().await?);
                 if let Err(err) = taos.write_raw_meta(meta.as_raw_meta().await?).await {
-                    if err.to_string().contains("[0x032C") {
-                        tokio::time::sleep(Duration::from_nanos(1000)).await;
+                    let errstr = err.to_string();
+                    if errstr.contains("[0x032C]") {
+                        log::warn!("there's a same object is creating and expected to be done in some time, so we'll continue");
+                        // tokio::time::sleep(Duration::from_nanos(1000)).await;
+                    } else if errstr.contains("[0x03C7]") {
+                        log::warn!("write raw meta error with stable, but we'll continue");
+                        // tokio::time::sleep(Duration::from_nanos(1000)).await;
                     } else {
                         Err(err).context("write raw meta error")?;
                     }
