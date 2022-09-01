@@ -917,7 +917,7 @@ SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **Return value type**:Same as the data type of the column being operated upon
 
-**Applicable data types**: Numeric
+**Applicable data types**: Numeric, Timestamp
 
 **Applicable table types**: standard tables and supertables
 
@@ -932,7 +932,7 @@ SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
 
 **Return value type**:Same as the data type of the column being operated upon
 
-**Applicable data types**: Numeric
+**Applicable data types**: Numeric, Timestamp
 
 **Applicable table types**: standard tables and supertables
 
