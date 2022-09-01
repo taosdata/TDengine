@@ -50,3 +50,10 @@ dotenv = "*"
 
 [patch.crates-io]
 zip = { git = "https://github.com/zip-rs/zip.git" }
+
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+strip = true
+lto = true
+panic = "abort"
