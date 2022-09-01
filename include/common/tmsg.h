@@ -784,6 +784,7 @@ typedef struct {
   int64_t walRetentionSize;
   int32_t walRollPeriod;
   int64_t walSegmentSize;
+  int32_t sstTrigger;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -805,6 +806,7 @@ typedef struct {
   int8_t  strict;
   int8_t  cacheLast;
   int8_t  replications;
+  int32_t sstTrigger;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
@@ -2069,9 +2071,9 @@ int32_t tDeserializeSVCreateTbBatchRsp(void* buf, int32_t bufLen, SVCreateTbBatc
 
 // TDMT_VND_DROP_TABLE =================
 typedef struct {
-  char*  name;
-  uint64_t suid;        // for tmq in wal format
-  int8_t igNotExists;
+  char*    name;
+  uint64_t suid;  // for tmq in wal format
+  int8_t   igNotExists;
 } SVDropTbReq;
 
 typedef struct {

@@ -835,6 +835,7 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->schemaless = TSDB_DEFAULT_DB_SCHEMALESS;
   updateWalOptionsDefault(pOptions);
   pOptions->walSegmentSize = TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE;
+  pOptions->sstTrigger = TSDB_DEFAULT_SST_TRIGGER;
   return (SNode*)pOptions;
 }
 
@@ -866,6 +867,7 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->walRetentionSize = -1;
   pOptions->walRollPeriod = -1;
   pOptions->walSegmentSize = -1;
+  pOptions->sstTrigger = -1;
   return (SNode*)pOptions;
 }
 
@@ -948,6 +950,9 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
       break;
     case DB_OPTION_WAL_SEGMENT_SIZE:
       pDbOptions->walSegmentSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      break;
+    case DB_OPTION_SST_TRIGGER:
+      pDbOptions->sstTrigger = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     default:
       break;
@@ -1330,6 +1335,15 @@ SNode* createShowDnodeVariablesStmt(SAstCreateContext* pCxt, SNode* pDnodeId) {
   SShowDnodeVariablesStmt* pStmt = (SShowDnodeVariablesStmt*)nodesMakeNode(QUERY_NODE_SHOW_DNODE_VARIABLES_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->pDnodeId = pDnodeId;
+  return (SNode*)pStmt;
+}
+
+SNode* createShowVnodesStmt(SAstCreateContext* pCxt, SNode* pDnodeId, SNode* pDnodeEndpoint) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowVnodesStmt* pStmt = (SShowVnodesStmt*)nodesMakeNode(QUERY_NODE_SHOW_VNODES_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->pDnodeId = pDnodeId;
+  pStmt->pDnodeEndpoint = pDnodeEndpoint;
   return (SNode*)pStmt;
 }
 
