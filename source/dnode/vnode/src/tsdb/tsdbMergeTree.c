@@ -189,6 +189,7 @@ bool tLDataIterNextRow(SLDataIter *pIter) {
   }
 
   int32_t iBlockL = pIter->iBlockL;
+
   if (pIter->bData.nRow == 0 && pIter->pBlockL != NULL) {  // current block not loaded yet
     code = tsdbReadLastBlockEx(pIter->pReader, pIter->iLast, pIter->pBlockL, &pIter->bData);
     if (code != TSDB_CODE_SUCCESS) {
@@ -199,30 +200,25 @@ bool tLDataIterNextRow(SLDataIter *pIter) {
   }
 
   pIter->iRow += step;
-  findNextValidRow(pIter);
 
-  if (pIter->iRow >= pIter->bData.nRow || pIter->iRow < 0) {
-    tLDataIterNextBlock(pIter);
-    if (pIter->pBlockL == NULL) {  // no more data
-      goto _exit;
+  while(1) {
+    findNextValidRow(pIter);
+
+    if (pIter->iRow >= pIter->bData.nRow || pIter->iRow < 0) {
+      tLDataIterNextBlock(pIter);
+      if (pIter->pBlockL == NULL) {  // no more data
+        goto _exit;
+      }
+    } else {
+      break;
     }
-  }
 
-  if (iBlockL != pIter->iBlockL) {
-    if (pIter->pBlockL) {
+    if (iBlockL != pIter->iBlockL) {
       code = tsdbReadLastBlockEx(pIter->pReader, pIter->iLast, pIter->pBlockL, &pIter->bData);
       if (code) {
         goto _exit;
       }
-
-      pIter->iRow = pIter->backward? (pIter->bData.nRow-1):0;
-      findNextValidRow(pIter);
-      if (pIter->iRow >= pIter->bData.nRow || pIter->iRow < 0) {
-        // todo try next block
-      }
-    } else {
-      // no more data
-      goto _exit;
+      pIter->iRow = pIter->backward ? (pIter->bData.nRow - 1) : 0;
     }
   }
 
@@ -232,10 +228,10 @@ bool tLDataIterNextRow(SLDataIter *pIter) {
 
 _exit:
   if  (code != TSDB_CODE_SUCCESS) {
-    return false;
-  } else {
-    return pIter->pBlockL != NULL;
+    terrno = code;
   }
+
+  return (code == TSDB_CODE_SUCCESS) && (pIter->pBlockL != NULL);
 }
 
 SRowInfo *tLDataIterGet(SLDataIter *pIter) {
