@@ -273,7 +273,8 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp
       STaosxRsp* pXrsp = (STaosxRsp*)pRsp;
       while (1) {
         SSubmitBlk* pBlk = NULL;
-        if (tGetSubmitMsgNext(&iter, &pBlk) < 0) return -1;
+        if (tGetSubmitMsgNext(&iter, &pBlk) < 0) break;
+        if (pBlk == NULL) break;
         if (pBlk->schemaLen > 0) {
           if (pXrsp->createTableNum == 0) {
             pXrsp->createTableLen = taosArrayInit(0, sizeof(int32_t));
