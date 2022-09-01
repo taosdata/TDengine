@@ -1287,25 +1287,33 @@ int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHand
   // getTableCacheKeyS(uid, "l", key, &keyLen);
   getTableCacheKey(uid, 1, key, &keyLen);
   LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
-  if (h) {
-  } else {
-    SArray *pLastArray = NULL;
-    code = mergeLast(uid, pTsdb, &pLastArray);
-    // if table's empty or error, return code of -1
-    // if (code < 0 || pRow == NULL) {
-    if (code < 0 || pLastArray == NULL) {
-      *handle = NULL;
-      return 0;
-    }
-
-    _taos_lru_deleter_t deleter = deleteTableCacheLast;
-    LRUStatus           status =
-        taosLRUCacheInsert(pCache, key, keyLen, pLastArray, pLastArray->capacity, deleter, NULL, TAOS_LRU_PRIORITY_LOW);
-    if (status != TAOS_LRU_STATUS_OK) {
-      code = -1;
-    }
+  if (!h) {
+    taosThreadMutexLock(&pTsdb->lruMutex);
 
     h = taosLRUCacheLookup(pCache, key, keyLen);
+    if (!h) {
+      SArray *pLastArray = NULL;
+      code = mergeLast(uid, pTsdb, &pLastArray);
+      // if table's empty or error, return code of -1
+      // if (code < 0 || pRow == NULL) {
+      if (code < 0 || pLastArray == NULL) {
+        *handle = NULL;
+        return 0;
+      }
+
+      _taos_lru_deleter_t deleter = deleteTableCacheLast;
+      LRUStatus status = taosLRUCacheInsert(pCache, key, keyLen, pLastArray, pLastArray->capacity, deleter, NULL,
+                                            TAOS_LRU_PRIORITY_LOW);
+      if (status != TAOS_LRU_STATUS_OK) {
+        code = -1;
+      }
+
+      taosThreadMutexUnlock(&pTsdb->lruMutex);
+
+      h = taosLRUCacheLookup(pCache, key, keyLen);
+    } else {
+      taosThreadMutexUnlock(&pTsdb->lruMutex);
+    }
   }
 
   *handle = h;
