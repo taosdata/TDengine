@@ -244,7 +244,7 @@ if [[ ${packgeName} =~ "server" ]] ;then
     echoColor BD " rm -rf /var/lib/taos/* &&  systemctl restart taosd "
     rm -rf /var/lib/taos/*
     systemctl restart taosd
-
+fi
 
 # if ([[ ${packgeName} =~ "Lite" ]] &&  [[ ${packgeName} =~ "tar" ]]) ||   [[ ${packgeName} =~ "client" ]] ;then
 #     echoColor G "===== install taos-tools when package is lite or client ====="
