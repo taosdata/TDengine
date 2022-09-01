@@ -26,7 +26,7 @@ class TDTestCase:
                           % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
             intData.append(i + 1)
             floatData.append(i + 0.1)
-        for i in ['ts','col11','col12','col13']:
+        for i in ['col11','col12','col13']:
             for j in ['stb','stb_1']:
                 tdSql.error(f'select max({i} from {dbname}.{j} )')
 
@@ -37,6 +37,20 @@ class TDTestCase:
                     tdSql.checkData(0, 0, np.max(intData))
                 elif i>=9:
                     tdSql.checkData(0, 0, np.max(floatData))
+
+        tdSql.query(f"select max(now()) from {dbname}.stb_1")
+        tdSql.checkRows(1)
+
+        tdSql.query(f"select last(ts) from {dbname}.stb_1")
+        lastTs = tdSql.getData(0, 0)
+        tdSql.query(f"select max(ts) from {dbname}.stb_1")
+        tdSql.checkData(0, 0, lastTs)
+
+        tdSql.query(f"select last(ts) from {dbname}.stb")
+        lastTs = tdSql.getData(0, 0)
+        tdSql.query(f"select max(ts) from {dbname}.stb")
+        tdSql.checkData(0, 0, lastTs)
+
         tdSql.query(f"select max(col1) from {dbname}.stb_1 where col2<=5")
         tdSql.checkData(0,0,5)
         tdSql.query(f"select max(col1) from {dbname}.stb where col2<=5")
@@ -53,7 +67,7 @@ class TDTestCase:
                           % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
             intData.append(i + 1)
             floatData.append(i + 0.1)
-        for i in ['ts','col11','col12','col13']:
+        for i in ['col11','col12','col13']:
             for j in ['ntb']:
                 tdSql.error(f'select max({i} from {dbname}.{j} )')
         for i in range(1,11):
@@ -63,6 +77,15 @@ class TDTestCase:
                     tdSql.checkData(0, 0, np.max(intData))
                 elif i>=9:
                     tdSql.checkData(0, 0, np.max(floatData))
+
+        tdSql.query(f"select max(now()) from {dbname}.ntb")
+        tdSql.checkRows(1)
+
+        tdSql.query(f"select last(ts) from {dbname}.ntb")
+        lastTs = tdSql.getData(0, 0)
+        tdSql.query(f"select max(ts) from {dbname}.ntb")
+        tdSql.checkData(0, 0, lastTs)
+
         tdSql.query(f"select max(col1) from {dbname}.ntb where col2<=5")
         tdSql.checkData(0,0,5)
 

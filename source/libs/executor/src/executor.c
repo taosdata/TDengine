@@ -745,6 +745,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
   SOperatorInfo* pOperator = pTaskInfo->pRoot;
   ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE);
   pTaskInfo->streamInfo.prepareStatus = *pOffset;
+  pTaskInfo->streamInfo.returned = 0;
   if (tOffsetEqual(pOffset, &pTaskInfo->streamInfo.lastStatus)) {
     return 0;
   }

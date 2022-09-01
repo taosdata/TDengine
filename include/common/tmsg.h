@@ -2994,6 +2994,7 @@ typedef struct {
 
 int32_t tEncodeSTaosxRsp(SEncoder* pEncoder, const STaosxRsp* pRsp);
 int32_t tDecodeSTaosxRsp(SDecoder* pDecoder, STaosxRsp* pRsp);
+void    tDeleteSTaosxRsp(STaosxRsp* pRsp);
 
 typedef struct {
   SMqRspHead head;

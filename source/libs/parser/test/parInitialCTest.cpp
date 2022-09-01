@@ -111,9 +111,9 @@ TEST_F(ParserInitialCTest, createDatabase) {
     expect.numOfVgroups = TSDB_DEFAULT_VN_PER_DB;
     expect.numOfStables = TSDB_DEFAULT_DB_SINGLE_STABLE;
     expect.schemaless = TSDB_DEFAULT_DB_SCHEMALESS;
-    expect.walRetentionPeriod = TSDB_DEFAULT_DB_WAL_RETENTION_PERIOD;
-    expect.walRetentionSize = TSDB_DEFAULT_DB_WAL_RETENTION_SIZE;
-    expect.walRollPeriod = TSDB_DEFAULT_DB_WAL_ROLL_PERIOD;
+    expect.walRetentionPeriod = TSDB_REP_DEF_DB_WAL_RET_PERIOD;
+    expect.walRetentionSize = TSDB_REP_DEF_DB_WAL_RET_SIZE;
+    expect.walRollPeriod = TSDB_REP_DEF_DB_WAL_ROLL_PERIOD;
     expect.walSegmentSize = TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE;
   };
 
@@ -265,6 +265,14 @@ TEST_F(ParserInitialCTest, createDatabase) {
   run("CREATE DATABASE IF NOT EXISTS wxy_db "
       "DURATION 100m "
       "KEEP 1440m,300h,400d ");
+  clearCreateDbReq();
+
+  setCreateDbReqFunc("wxy_db", 1);
+  setDbReplicaFunc(3);
+  setDbWalRetentionPeriod(TSDB_REPS_DEF_DB_WAL_RET_PERIOD);
+  setDbWalRetentionSize(TSDB_REPS_DEF_DB_WAL_RET_SIZE);
+  setDbWalRollPeriod(TSDB_REPS_DEF_DB_WAL_ROLL_PERIOD);
+  run("CREATE DATABASE IF NOT EXISTS wxy_db REPLICA 3");
   clearCreateDbReq();
 }
 

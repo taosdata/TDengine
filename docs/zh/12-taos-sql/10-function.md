@@ -614,6 +614,7 @@ SELECT APERCENTILE(field_name, P[, algo_type]) FROM { tb_name | stb_name } [WHER
 **说明**：
 - P值范围是[0,100]，当为0时等同于MIN，为100时等同于MAX。
 - algo_type 取值为 "default" 或 "t-digest"。 输入为 "default" 时函数使用基于直方图算法进行计算。输入为 "t-digest" 时使用t-digest算法计算分位数的近似结果。如果不指定 algo_type 则使用 "default" 算法。
+- "t-digest"算法的近似结果对于输入数据顺序敏感，对超级表查询时不同的输入排序结果可能会有微小的误差。
 
 ### AVG
 
@@ -917,7 +918,7 @@ SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **返回数据类型**：同应用的字段。
 
-**适用数据类型**：数值类型。
+**适用数据类型**：数值类型，时间戳类型。
 
 **适用于**：表和超级表。
 
@@ -932,7 +933,7 @@ SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
 
 **返回数据类型**：同应用的字段。
 
-**适用数据类型**：数值类型。
+**适用数据类型**：数值类型，时间戳类型。
 
 **适用于**：表和超级表。
 
