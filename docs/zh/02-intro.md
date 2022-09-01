@@ -26,7 +26,7 @@ TDengine 的主要功能如下：
      - [Icinga2](../third-party/icinga2)
      - [TCollector](../third-party/tcollector)
      - [EMQX](../third-party/emq-broker)
-     - [HiveMQ](../third-party/hive-mq-broker) ；
+     - [HiveMQ](../third-party/hive-mq-broker)
 2. 查询数据，支持
    - [标准 SQL](../taos-sql)，含嵌套查询
    - [时序数据特色函数](../taos-sql/function/#time-series-extensions)
@@ -85,14 +85,14 @@ TDengine 的主要功能如下：
 
 ![TDengine Database 技术生态图](eco_system.webp)
 
-<center><figcaption>图 1. TDengine技术生态图</figcaption></center>
+<center><figcaption>图 1. TDengine 技术生态图</figcaption></center>
 </figure>
 
 上图中，左侧是各种数据采集或消息队列，包括 OPC-UA、MQTT、Telegraf、也包括 Kafka，他们的数据将被源源不断的写入到 TDengine。右侧则是可视化、BI 工具、组态软件、应用程序。下侧则是 TDengine 自身提供的命令行程序（CLI）以及可视化管理工具。
 
 ## 典型适用场景
 
-作为一个高性能、分布式、支持 SQL 的时序数据库（Database)，TDengine 的典型适用场景包括但不限于 IoT、工业互联网、车联网、IT 运维、能源、金融证券等领域。需要指出的是，TDengine 是针对时序数据场景设计的专用数据库和专用大数据处理工具，因其充分利用了时序大数据的特点，它无法用来处理网络爬虫、微博、微信、电商、ERP、CRM 等通用型数据。下面本文将对适用场景做更多详细的分析。
+作为一个高性能、分布式、支持 SQL 的时序数据库（Database），TDengine 的典型适用场景包括但不限于 IoT、工业互联网、车联网、IT 运维、能源、金融证券等领域。需要指出的是，TDengine 是针对时序数据场景设计的专用数据库和专用大数据处理工具，因其充分利用了时序大数据的特点，它无法用来处理网络爬虫、微博、微信、电商、ERP、CRM 等通用型数据。下面本文将对适用场景做更多详细的分析。
 
 ### 数据源特点和需求
 

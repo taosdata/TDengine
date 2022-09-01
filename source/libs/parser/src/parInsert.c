@@ -1669,6 +1669,10 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery, SParseMetaCache
       pDb = taosHashIterate(context.pDbFNameHashObj, pDb);
     }
   }
+  if (pContext->pStmtCb) {
+    context.pVgroupsHashObj = NULL;
+    context.pTableBlockHashObj = NULL;
+  }  
   destroyInsertParseContext(&context);
   return code;
 }

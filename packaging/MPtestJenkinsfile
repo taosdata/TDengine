@@ -64,6 +64,11 @@ pipeline {
             defaultValue:'2.1.2', 
             description: 'This number of baseVerison is generally not modified.Now it is 3.0.0.1'
         )
+        string (
+            name:'nasPassword', 
+            defaultValue:'password', 
+            description: 'the pasword of the NAS server which has installPackage-192.168.1.131'
+        )
     }
     environment{
         WORK_DIR = '/var/lib/jenkins/workspace'
@@ -111,17 +116,17 @@ pipeline {
                             sync_source("${BRANCH_NAME}")
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server
+                            bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server ${nasPassword}
                             python3 checkPackageRuning.py  
                             '''
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_LITE_TAR} ${version} ${BASE_TD_SERVER_LITE_TAR} ${baseVersion} server
+                            bash testpackage.sh ${TD_SERVER_LITE_TAR} ${version} ${BASE_TD_SERVER_LITE_TAR} ${baseVersion} server ${nasPassword}
                             python3 checkPackageRuning.py  
                             '''
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_DEB} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server
+                            bash testpackage.sh ${TD_SERVER_DEB} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server ${nasPassword}
                             python3 checkPackageRuning.py  
                             '''
                         }
@@ -134,17 +139,22 @@ pipeline {
                             sync_source("${BRANCH_NAME}")
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server
+                            bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server ${nasPassword}
                             python3 checkPackageRuning.py  
                             '''
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_LITE_TAR} ${version} ${BASE_TD_SERVER_LITE_TAR} ${baseVersion} server
+                            bash testpackage.sh ${TD_SERVER_LITE_TAR} ${version} ${BASE_TD_SERVER_LITE_TAR} ${baseVersion} server ${nasPassword}
                             python3 checkPackageRuning.py  
                             '''
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_DEB} ${version} ${BASE_TD_SERVER_DEB} ${baseVersion} server
+                            bash testpackage.sh ${TD_SERVER_DEB} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server ${nasPassword} 
+                            python3 checkPackageRuning.py  
+                            '''
+                            sh '''
+                            cd ${TDENGINE_ROOT_DIR}/packaging
+                            bash testpackage.sh ${TD_CLIENT_TAR} ${version} ${BASE_TD_CLIENT_TAR} ${baseVersion} client ${nasPassword}
                             python3 checkPackageRuning.py  
                             '''
                         }
@@ -157,17 +167,17 @@ pipeline {
                             sync_source("${BRANCH_NAME}")
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server
+                            bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server ${nasPassword}
                             python3 checkPackageRuning.py  
                             '''
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_LITE_TAR} ${version} ${BASE_TD_SERVER_LITE_TAR} ${baseVersion} server
+                            bash testpackage.sh ${TD_SERVER_LITE_TAR} ${version} ${BASE_TD_SERVER_LITE_TAR} ${baseVersion} server ${nasPassword}
                             python3 checkPackageRuning.py  
                             '''
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_RPM} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server
+                            bash testpackage.sh ${TD_SERVER_RPM} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server ${nasPassword}
                             python3 checkPackageRuning.py  
                             '''
                         }
@@ -179,19 +189,42 @@ pipeline {
                         timeout(time: 30, unit: 'MINUTES'){
                             sync_source("${BRANCH_NAME}")
                             sh '''
-                            cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server
-                            python3 checkPackageRuning.py  
-                            rmtaos
-                            '''
-                            sh '''
-                            cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_LITE_TAR} ${version} ${BASE_TD_SERVER_LITE_TAR} ${baseVersion} server
+                            cd ${TDENGINE_ROOT_DIR}/packaging 
+                            bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server ${nasPassword} 
                             python3 checkPackageRuning.py  
                             '''
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_RPM} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server
+                            bash testpackage.sh ${TD_SERVER_LITE_TAR} ${version} ${BASE_TD_SERVER_LITE_TAR} ${baseVersion} server ${nasPassword}
+                            python3 checkPackageRuning.py  
+                            '''
+                            sh '''
+                            cd ${TDENGINE_ROOT_DIR}/packaging
+                            bash testpackage.sh ${TD_SERVER_RPM} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server ${nasPassword}
+                            python3 checkPackageRuning.py  
+                            '''            
+                            sh '''
+                            cd ${TDENGINE_ROOT_DIR}/packaging
+                            bash testpackage.sh ${TD_CLIENT_LITE_TAR} ${version} ${BASE_TD_CLIENT_LITE_TAR} ${baseVersion} client ${nasPassword}
+                            python3 checkPackageRuning.py  
+                            '''         
+                        }
+                    }
+                }
+                                    
+                stage('arm64') {
+                    agent{label 'linux_arm64'}
+                    steps {
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sync_source("${BRANCH_NAME}")
+                            sh '''
+                            cd ${TDENGINE_ROOT_DIR}/packaging
+                            bash testpackage.sh ${TD_SERVER_ARM_TAR} ${version} ${BASE_TD_SERVER_ARM_TAR} ${baseVersion} server ${nasPassword}
+                            python3 checkPackageRuning.py  
+                            '''
+                            sh '''
+                            cd ${TDENGINE_ROOT_DIR}/packaging
+                            bash testpackage.sh ${TD_CLIENT_ARM_TAR} ${version} ${BASE_TD_CLIENT_ARM_TAR} ${baseVersion} client  ${nasPassword}
                             python3 checkPackageRuning.py  
                             '''                     
                         }

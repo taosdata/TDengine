@@ -58,11 +58,10 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
 /**
  *
  * @param pBuf
- * @param groupId
  * @param pageId
  * @return
  */
-void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t groupId, int32_t* pageId);
+void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t* pageId);
 
 /**
  *

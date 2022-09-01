@@ -446,7 +446,10 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
   }
 
   if (dflag & DEBUG_SCREEN) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
     write(1, buffer, (uint32_t)len);
+#pragma GCC diagnostic pop
   }
 }
 

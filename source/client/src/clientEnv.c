@@ -76,19 +76,19 @@ static void deregisterRequest(SRequestObj *pRequest) {
            pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000, num, currentInst);
 
   if (QUERY_NODE_VNODE_MODIF_STMT == pRequest->stmtType) {
-    tscPerf("insert duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64 "us, exec:%" PRId64 "us", 
-            duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart, 
-            pRequest->metric.ctgEnd - pRequest->metric.ctgStart,
-            pRequest->metric.semanticEnd - pRequest->metric.ctgEnd,
+    tscPerf("insert duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
+            "us, exec:%" PRId64 "us",
+            duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart,
+            pRequest->metric.ctgEnd - pRequest->metric.ctgStart, pRequest->metric.semanticEnd - pRequest->metric.ctgEnd,
             pRequest->metric.execEnd - pRequest->metric.semanticEnd);
     atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
   } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
-    tscPerf("select duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64 "us, planner:%" PRId64 "us, exec:%" PRId64 "us", 
-            duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart, 
-            pRequest->metric.ctgEnd - pRequest->metric.ctgStart,
-            pRequest->metric.semanticEnd - pRequest->metric.ctgEnd,
+    tscPerf("select duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
+            "us, planner:%" PRId64 "us, exec:%" PRId64 "us",
+            duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart,
+            pRequest->metric.ctgEnd - pRequest->metric.ctgStart, pRequest->metric.semanticEnd - pRequest->metric.ctgEnd,
             pRequest->metric.planEnd - pRequest->metric.semanticEnd,
-            nowUs - pRequest->metric.semanticEnd);
+            pRequest->metric.resultReady - pRequest->metric.planEnd);
     atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
   }
 
