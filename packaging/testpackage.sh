@@ -98,6 +98,7 @@ echoColor G "===== install basesoft ====="
 
 cmdInstall tree
 cmdInstall wget
+cmdInstall expect
 
 echoColor G "===== Uninstall all components of TDeingne ====="
 
