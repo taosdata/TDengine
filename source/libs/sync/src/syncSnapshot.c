@@ -583,7 +583,7 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
                                                            &(pReceiver->snapshot));
     if (code != 0) {
       syncNodeErrorLog(pReceiver->pSyncNode, "snapshot stop writer true error");
-      ASSERT(0);
+      // ASSERT(0);
       return -1;
     }
     pReceiver->pWriter = NULL;
