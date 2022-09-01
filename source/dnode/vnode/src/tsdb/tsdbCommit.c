@@ -457,7 +457,6 @@ static int32_t tsdbOpenCommitIter(SCommitter *pCommitter) {
         iIter++;
       }
     } else {
-      pCommitter->toLastOnly = 0;
       for (int32_t iLast = 0; iLast < pReader->pSet->nLastF; iLast++) {
         SLastFile *pLastFile = pReader->pSet->aLastF[iLast];
         if (pLastFile->size > pLastFile->offset) {
