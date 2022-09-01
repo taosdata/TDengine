@@ -136,8 +136,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
 }
 
 static EDealRes rewriteQueryExprAliasImpl(SNode* pNode, void* pContext) {
-  if (nodesIsExprNode(pNode) && QUERY_NODE_COLUMN != nodeType(pNode) && '\0' == ((SExprNode*)pNode)->userAlias[0]) {
-    strcpy(((SExprNode*)pNode)->userAlias, ((SExprNode*)pNode)->aliasName);
+  if (nodesIsExprNode(pNode) && QUERY_NODE_COLUMN != nodeType(pNode)) {
     sprintf(((SExprNode*)pNode)->aliasName, "#%d", *(int32_t*)pContext);
     ++(*(int32_t*)pContext);
   }

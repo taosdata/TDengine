@@ -1068,14 +1068,14 @@ int32_t filterAddFieldFromNode(SFilterInfo *info, SNode *node, SFilterFieldId *f
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFilterFieldId *right, uint32_t *uidx) {
+int32_t filterAddUnitImpl(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFilterFieldId *right, uint8_t optr2, SFilterFieldId *right2, uint32_t *uidx) {
   if (FILTER_GET_FLAG(info->options, FLT_OPTION_NEED_UNIQE)) {
     if (info->pctx.unitHash == NULL) {
       info->pctx.unitHash = taosHashInit(FILTER_DEFAULT_GROUP_SIZE * FILTER_DEFAULT_UNIT_SIZE, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, false);
     } else {
-      int64_t v = 0;
-      FILTER_PACKAGE_UNIT_HASH_KEY(&v, optr, left->idx, right ? right->idx : -1);
-      void *hu = taosHashGet(info->pctx.unitHash, &v, sizeof(v));
+      char v[14] = {0};
+      FLT_PACKAGE_UNIT_HASH_KEY(&v, optr, optr2, left->idx, (right ? right->idx : -1), (right2 ? right2->idx : -1));
+      void *hu = taosHashGet(info->pctx.unitHash, v, sizeof(v));
       if (hu) {
         *uidx = *(uint32_t *)hu;
         return TSDB_CODE_SUCCESS;
@@ -1097,7 +1097,11 @@ int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFi
   if (right) {
     u->right = *right;
   }
-
+  u->compare.optr2 = optr2;
+  if (right2) {
+    u->right2 = *right2;
+  }
+  
   if (u->right.type == FLD_TYPE_VALUE) {
     SFilterField *val = FILTER_UNIT_RIGHT_FIELD(info, u);
     assert(FILTER_GET_FLAG(val->flag, FLD_TYPE_VALUE));
@@ -1118,9 +1122,9 @@ int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFi
   *uidx = info->unitNum;
 
   if (FILTER_GET_FLAG(info->options, FLT_OPTION_NEED_UNIQE)) {
-    int64_t v = 0;
-    FILTER_PACKAGE_UNIT_HASH_KEY(&v, optr, left->idx, right ? right->idx : -1);
-    taosHashPut(info->pctx.unitHash, &v, sizeof(v), uidx, sizeof(*uidx));
+    char v[14] = {0};
+    FLT_PACKAGE_UNIT_HASH_KEY(&v, optr, optr2, left->idx, (right ? right->idx : -1), (right2 ? right2->idx : -1));
+    taosHashPut(info->pctx.unitHash, v, sizeof(v), uidx, sizeof(*uidx));
   }
 
   ++info->unitNum;
@@ -1129,6 +1133,9 @@ int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFi
 }
 
 
+int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFilterFieldId *right, uint32_t *uidx) {
+  return filterAddUnitImpl(info, optr, left, right, 0, NULL, uidx);
+}
 
 int32_t filterAddUnitToGroup(SFilterGroup *group, uint32_t unitIdx) {
   if (group->unitNum >= group->unitSize) {
@@ -1305,8 +1312,8 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
         SIMPLE_COPY_VALUES(data2, &ra->e);
         filterAddField(dst, NULL, &data2, FLD_TYPE_VALUE, &right2, tDataTypes[type].bytes, true);
 
-        filterAddUnit(dst, FILTER_GET_FLAG(ra->sflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_GREATER_THAN : OP_TYPE_GREATER_EQUAL, &left, &right, &uidx);
-        filterAddUnitRight(dst, FILTER_GET_FLAG(ra->eflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_LOWER_THAN : OP_TYPE_LOWER_EQUAL, &right2, uidx);
+        filterAddUnitImpl(dst, FILTER_GET_FLAG(ra->sflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_GREATER_THAN : OP_TYPE_GREATER_EQUAL, &left, &right, 
+                          FILTER_GET_FLAG(ra->eflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_LOWER_THAN : OP_TYPE_LOWER_EQUAL, &right2, &uidx);
         filterAddUnitToGroup(g, uidx);
         return TSDB_CODE_SUCCESS;
       }
@@ -1380,8 +1387,8 @@ int32_t filterAddGroupUnitFromCtx(SFilterInfo *dst, SFilterInfo *src, SFilterRan
         SIMPLE_COPY_VALUES(data2, &r->ra.e);
         filterAddField(dst, NULL, &data2, FLD_TYPE_VALUE, &right2, tDataTypes[type].bytes, true);
 
-        filterAddUnit(dst, FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_GREATER_THAN : OP_TYPE_GREATER_EQUAL, &left, &right, &uidx);
-        filterAddUnitRight(dst, FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_LOWER_THAN : OP_TYPE_LOWER_EQUAL, &right2, uidx);
+        filterAddUnitImpl(dst, FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_GREATER_THAN : OP_TYPE_GREATER_EQUAL, &left, &right, 
+                          FILTER_GET_FLAG(r->ra.eflag, RANGE_FLG_EXCLUDE) ? OP_TYPE_LOWER_THAN : OP_TYPE_LOWER_EQUAL, &right2, &uidx);
         filterAddUnitToGroup(g, uidx);
       }
 
@@ -2231,6 +2238,44 @@ int32_t filterMergeGroupUnits(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
+bool filterIsSameUnits(SFilterColInfo* pCol1, SFilterColInfo* pCol2) {
+  if (pCol1->type != pCol2->type) {
+    return false;
+  }
+
+  if (RANGE_TYPE_MR_CTX == pCol1->type) {
+    SFilterRangeCtx* pCtx1 = (SFilterRangeCtx*)pCol1->info;
+    SFilterRangeCtx* pCtx2 = (SFilterRangeCtx*)pCol2->info;
+
+    if ((pCtx1->isnull != pCtx2->isnull) || (pCtx1->notnull != pCtx2->notnull) || (pCtx1->isrange != pCtx2->isrange)) {
+      return false;
+    }
+
+    
+    SFilterRangeNode* pNode1 = pCtx1->rs;
+    SFilterRangeNode* pNode2 = pCtx2->rs;
+
+    while (true) {
+      if (NULL == pNode1 && NULL == pNode2) {
+        break;
+      }
+      
+      if (NULL == pNode1 || NULL == pNode2) {
+        return false;
+      }
+
+      if (pNode1->ra.s != pNode2->ra.s || pNode1->ra.e != pNode2->ra.e || pNode1->ra.sflag != pNode2->ra.sflag || pNode1->ra.eflag != pNode2->ra.eflag) {
+        return false;
+      }
+
+      pNode1 = pNode1->next;
+      pNode2 = pNode2->next;
+    }
+  }
+
+  return true;
+}
+
 void filterCheckColConflict(SFilterGroupCtx* gRes1, SFilterGroupCtx* gRes2, bool *conflict) {
   uint32_t idx1 = 0, idx2 = 0, m = 0, n = 0;
   bool equal = false;
@@ -2252,6 +2297,11 @@ void filterCheckColConflict(SFilterGroupCtx* gRes1, SFilterGroupCtx* gRes2, bool
       }
 
       if (FILTER_NO_MERGE_DATA_TYPE(gRes1->colInfo[idx1].dataType)) {
+        *conflict = true;
+        return;
+      }
+
+      if (!filterIsSameUnits(&gRes1->colInfo[idx1], &gRes2->colInfo[idx2])) {
         *conflict = true;
         return;
       }
@@ -2869,17 +2919,22 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SColumnDataAgg *pDataStatis, int3
 
   for (uint32_t g = 0; g < info->groupNum; ++g) {
     SFilterGroup *group = &info->groups[g];
+    // first is block unint num for a group, following append unitNum blkUnitIdx for this group
     *unitNum = group->unitNum;
     all = 0;
     empty = 0;
 
+    // save group idx start pointer
+    uint32_t * pGroupIdx = unitIdx;
     for (uint32_t u = 0; u < group->unitNum; ++u) {
       uint32_t uidx = group->unitIdxs[u];
       if (info->blkUnitRes[uidx] == 1) {
+        // blkUnitRes == 1 is always true, so need not compare every time, delete this unit from group
         --(*unitNum);
         all = 1;
         continue;
       } else if (info->blkUnitRes[uidx] == -1) {
+        // blkUnitRes == -1 is alwary false, so in group is alwary false, need delete this group from blkGroupNum
         *unitNum = 0;
         empty = 1;
         break;
@@ -2889,6 +2944,9 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SColumnDataAgg *pDataStatis, int3
     }
 
     if (*unitNum == 0) {
+      // if unit num is zero, reset unitIdx to start on this group
+      unitIdx = pGroupIdx;
+
       --info->blkGroupNum;
       assert(empty || all);
 

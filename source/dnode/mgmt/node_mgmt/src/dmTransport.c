@@ -301,7 +301,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
   SRpcInit rpcInit = {0};
-  strncpy(rpcInit.localFqdn, tsLocalFqdn, strlen(tsLocalFqdn));
+  strncpy(rpcInit.localFqdn, tsLocalFqdn, TSDB_FQDN_LEN);
   rpcInit.localPort = tsServerPort;
   rpcInit.label = "DND-S";
   rpcInit.numOfThreads = tsNumOfRpcThreads;

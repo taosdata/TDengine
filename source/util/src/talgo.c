@@ -201,6 +201,7 @@ void *taosbsearch(const void *key, const void *base, int32_t nmemb, int32_t size
     return (c > 0) ? p : (midx > 0 ? p - size : NULL);
   } else {
     ASSERT(0);
+    return NULL;
   }
 }
 

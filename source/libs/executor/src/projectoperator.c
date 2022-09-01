@@ -195,16 +195,6 @@ static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SS
   return PROJECT_RETRIEVE_DONE;
 }
 
-void printDataBlock1(SSDataBlock* pBlock, const char* flag) {
-  if (!pBlock || pBlock->info.rows == 0) {
-    qDebug("===stream===printDataBlock: Block is Null or Empty");
-    return;
-  }
-  char* pBuf = NULL;
-  qDebug("%s", dumpBlockData(pBlock, flag, &pBuf));
-  taosMemoryFreeClear(pBuf);
-}
-
 SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   SProjectOperatorInfo* pProjectInfo = pOperator->info;
   SOptrBasicInfo*       pInfo = &pProjectInfo->binfo;
