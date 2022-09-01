@@ -3,7 +3,8 @@
 用例的输入是连接云服务的环境变量
 这个用例只是启动 telegraf, 测试到云服务的连通性
 
-启动命令 tt --case=cloud/telegraf.py --use=cloud.yaml
+启动命令:
+tt --case=cloud/telegraf.py --use=cloud/cloud_aws.yaml
 """
 
 import subprocess as sp

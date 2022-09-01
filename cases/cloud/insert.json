@@ -1,0 +1,77 @@
+{
+    "filetype": "insert",
+    "connection_pool_size": 1,
+    "thread_count": 1,
+    "create_table_thread_count": 1,
+    "result_file": "./insert_res.txt",
+    "confirm_parameter_prompt": "no",
+    "insert_interval": 0,
+    "interlace_rows": 100,
+    "num_of_records_per_req": 100,
+    "prepared_rand": 10000,
+    "chinese": "no",
+    "databases": [
+        {
+            "dbinfo": {
+                "name": "benchmark",
+                "drop": "no"
+            },
+            "super_tables": [
+                {
+                    "name": "meters",
+                    "child_table_exists": "no",
+                    "childtable_count": 10000,
+                    "childtable_prefix": "d",
+                    "escape_character": "yes",
+                    "auto_create_table": "no",
+                    "batch_create_tbl_num": 5,
+                    "data_source": "rand",
+                    "insert_mode": "taosc",
+                    "non_stop_mode": "no",
+                    "line_protocol": "line",
+                    "insert_rows": 10000,
+                    "childtable_limit": 10,
+                    "childtable_offset": 100,
+                    "interlace_rows": 0,
+                    "insert_interval": 0,
+                    "partial_col_num": 0,
+                    "disorder_ratio": 0,
+                    "disorder_range": 1000,
+                    "timestamp_step": 10,
+                    "start_timestamp": "2020-10-01 00:00:00.000",
+                    "sample_format": "csv",
+                    "sample_file": "./sample.csv",
+                    "use_sample_ts": "no",
+                    "tags_file": "",
+                    "columns": [
+                        {
+                            "type": "FLOAT",
+                            "name": "current",
+                            "count": 1,
+                            "max": 12,
+                            "min": 8
+                        },
+                        { "type": "INT", "name": "voltage", "max": 225, "min": 215 },
+                        { "type": "FLOAT", "name": "phase", "max": 1, "min": 0 }
+                    ],
+                    "tags": [
+                        {
+                            "type": "TINYINT",
+                            "name": "groupid",
+                            "max": 10,
+                            "min": 1
+                        },
+                        {
+                            "name": "location",
+                            "type": "BINARY",
+                            "len": 16,
+                            "values": ["San Francisco", "Los Angles", "San Diego",
+                                "San Jose", "Palo Alto", "Campbell", "Mountain View",
+                                "Sunnyvale", "Santa Clara", "Cupertino"]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}
