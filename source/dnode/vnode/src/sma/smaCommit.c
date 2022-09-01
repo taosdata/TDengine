@@ -21,7 +21,7 @@ static int32_t tdProcessRSmaSyncPostCommitImpl(SSma *pSma);
 static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma);
 static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma);
 static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma);
-static int32_t tdCleanupQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat);
+static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat);
 
 /**
  * @brief Only applicable to Rollup SMA
@@ -166,114 +166,45 @@ static int32_t tdProcessRSmaSyncCommitImpl(SSma *pSma) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t tdCleanupQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat) {
-  SVnode       *pVnode = pSma->pVnode;
-  int64_t       committed = pRSmaStat->commitAppliedVer;
-  TdDirPtr      pDir = NULL;
-  TdDirEntryPtr pDirEntry = NULL;
-  char          dir[TSDB_FILENAME_LEN];
-  const char   *pattern = "v[0-9]+qinf\\.v([0-9]+)?$";
-  regex_t       regex;
-  int           code = 0;
-
-  tdGetVndDirName(TD_VID(pVnode), tfsGetPrimaryPath(pVnode->pTfs), VNODE_RSMA_DIR, true, dir);
-
-  // Resource allocation and init
-  if ((code = regcomp(&regex, pattern, REG_EXTENDED)) != 0) {
-    char errbuf[128];
-    regerror(code, &regex, errbuf, sizeof(errbuf));
-    smaWarn("vgId:%d, rsma post commit, regcomp for %s failed since %s", TD_VID(pVnode), dir, errbuf);
-    return TSDB_CODE_FAILED;
-  }
-
-  if ((pDir = taosOpenDir(dir)) == NULL) {
-    regfree(&regex);
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    smaDebug("vgId:%d, rsma post commit, open dir %s failed since %s", TD_VID(pVnode), dir, terrstr());
-    return TSDB_CODE_FAILED;
-  }
-
-  int32_t    dirLen = strlen(dir);
-  char      *dirEnd = POINTER_SHIFT(dir, dirLen);
-  regmatch_t regMatch[2];
-  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
-    char *entryName = taosGetDirEntryName(pDirEntry);
-    if (!entryName) {
-      continue;
-    }
-
-    code = regexec(&regex, entryName, 2, regMatch, 0);
-
-    if (code == 0) {
-      // match
-      int64_t version = -1;
-      sscanf((const char *)POINTER_SHIFT(entryName, regMatch[1].rm_so), "%" PRIi64, &version);
-      if ((version < committed) && (version > -1)) {
-        strncpy(dirEnd, entryName, TSDB_FILENAME_LEN - dirLen);
-        if (taosRemoveFile(dir) != 0) {
-          terrno = TAOS_SYSTEM_ERROR(errno);
-          smaWarn("vgId:%d, committed version:%" PRIi64 ", failed to remove %s since %s", TD_VID(pVnode), committed,
-                  dir, terrstr());
-        } else {
-          smaDebug("vgId:%d, committed version:%" PRIi64 ", success to remove %s", TD_VID(pVnode), committed, dir);
-        }
-      }
-    } else if (code == REG_NOMATCH) {
-      // not match
-      smaTrace("vgId:%d, rsma post commit, not match %s", TD_VID(pVnode), entryName);
-      continue;
-    } else {
-      // has other error
-      char errbuf[128];
-      regerror(code, &regex, errbuf, sizeof(errbuf));
-      smaWarn("vgId:%d, rsma post commit, regexec failed since %s", TD_VID(pVnode), errbuf);
-
-      taosCloseDir(&pDir);
-      regfree(&regex);
-      return TSDB_CODE_FAILED;
-    }
-  }
-
-  taosCloseDir(&pDir);
-  regfree(&regex);
-
-  return TSDB_CODE_SUCCESS;
-}
-
 // SQTaskFile ======================================================
-// int32_t tCmprQTaskFile(void const *lhs, void const *rhs) {
-//   int64_t    *lCommitted = *(int64_t *)lhs;
-//   SQTaskFile *rQTaskF = (SQTaskFile *)rhs;
 
-//   if (lCommitted < rQTaskF->commitID) {
-//     return -1;
-//   } else if (lCommitted > rQTaskF->commitID) {
-//     return 1;
-//   }
-
-//   return 0;
-// }
-
-#if 0
 /**
  * @brief At most time, there is only one qtaskinfo file committed latest in aTaskFile. Sometimes, there would be
  * multiple qtaskinfo files supporting snapshot replication.
  *
  * @param pSma
- * @param pRSmaStat
+ * @param pStat
  * @return int32_t
  */
-static int32_t tdCleanupQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat) {
-  SVnode *pVnode = pSma->pVnode;
-  int64_t committed = pRSmaStat->commitAppliedVer;
-  SArray *aTaskFile = pRSmaStat->aTaskFile;
+static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pStat) {
+  SVnode  *pVnode = pSma->pVnode;
+  SRSmaFS *pFS = &pStat->fs;
+  int64_t  committed = pStat->commitAppliedVer;
+  char     qTaskInfoFullName[TSDB_FILENAME_LEN];
 
-  void *qTaskFile = taosArraySearch(aTaskFile, committed, tCmprQTaskFile, TD_LE);
-  
+  for (int32_t i = 0; i < taosArrayGetSize(pFS->aQTaskInf);) {
+    SQTaskFile *pTaskF = taosArrayGet(pFS->aQTaskInf, i);
+    if (atomic_sub_fetch_32(&pTaskF->nRef, 1) <= 0) {
+      tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pTaskF->version, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFullName);
+      if (taosRemoveFile(qTaskInfoFullName) < 0) {
+        smaWarn("vgId:%d, cleanup qinf, failed to remove %s since %s", TD_VID(pVnode), qTaskInfoFullName,
+                tstrerror(TAOS_SYSTEM_ERROR(errno)));
+      } else {
+        smaDebug("vgId:%d, cleanup qinf, success to remove %s", TD_VID(pVnode), qTaskInfoFullName);
+      }
+      taosArrayRemove(pFS->aQTaskInf, i);
+      continue;
+    }
+    ++i;
+  }
+
+  SQTaskFile qFile = {.nRef = 1, .padding = 0, .version = committed, .size = 0};
+  if (tdRSmaFSUpsertQFile(pFS, &qFile) < 0) {
+    return TSDB_CODE_FAILED;
+  }
 
   return TSDB_CODE_SUCCESS;
 }
-#endif
 
 /**
  * @brief post-commit for rollup sma
@@ -290,8 +221,7 @@ static int32_t tdProcessRSmaSyncPostCommitImpl(SSma *pSma) {
 
   SRSmaStat *pRSmaStat = SMA_RSMA_STAT(pSma);
 
-  // cleanup outdated qtaskinfo files
-  tdCleanupQTaskInfoFiles(pSma, pRSmaStat);
+  tdUpdateQTaskInfoFiles(pSma, pRSmaStat);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -488,8 +418,7 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
   // unlock
   // taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
 
-  // step 2: cleanup outdated qtaskinfo files
-  tdCleanupQTaskInfoFiles(pSma, pRSmaStat);
+  tdUpdateQTaskInfoFiles(pSma, pRSmaStat);
 
   atomic_store_8(RSMA_COMMIT_STAT(pRSmaStat), 0);
 

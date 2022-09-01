@@ -28,6 +28,8 @@ static int32_t tdInitSmaEnv(SSma *pSma, int8_t smaType, SSmaEnv **ppEnv);
 static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pSma);
 static int32_t tdRsmaStartExecutor(const SSma *pSma);
 static int32_t tdRsmaStopExecutor(const SSma *pSma);
+static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType);
+static void   *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType);
 static void   *tdFreeTSmaStat(STSmaStat *pStat);
 static void    tdDestroyRSmaStat(void *pRSmaStat);
 
@@ -244,6 +246,11 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
       if (tdRsmaStartExecutor(pSma) < 0) {
         return TSDB_CODE_FAILED;
       }
+
+      if (!(pRSmaStat->fs.aQTaskInf = taosArrayInit(1, sizeof(SQTaskFile)))) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return TSDB_CODE_FAILED;
+      }
     } else if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
       // TODO
     } else {
@@ -307,12 +314,15 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
     // step 4:
     tdRsmaStopExecutor(pSma);
 
-    // step 5: free pStat
+    // step 5:
+    tdRSmaFSClose(&pStat->fs);
+
+    // step 6: free pStat
     taosMemoryFreeClear(pStat);
   }
 }
 
-void *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType) {
+static void *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType) {
   tdDestroySmaState(pSmaStat, smaType);
   if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
     taosMemoryFreeClear(pSmaStat);
@@ -329,7 +339,7 @@ void *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType) {
  * @return int32_t
  */
 
-int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
+static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
   if (pSmaStat) {
     if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
       tdDestroyTSmaStat(SMA_STAT_TSMA(pSmaStat));

@@ -46,6 +46,8 @@ static int32_t    tdRSmaFetchAllResult(SSma *pSma, SRSmaInfo *pInfo, SArray *pSu
 static int32_t    tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSmaInfoItem *pItem, STSchema *pTSchema,
                                             int64_t suid);
 static void       tdRSmaFetchTrigger(void *param, void *tmrId);
+static int32_t    tdRSmaInfoClone(SSma *pSma, SRSmaInfo *pInfo);
+static void       tdRSmaQTaskInfoFree(qTaskInfo_t *taskHandle, int32_t vgId, int32_t level);
 static int32_t    tdRSmaQTaskInfoIterInit(SRSmaQTaskInfoIter *pIter, STFile *pTFile);
 static int32_t    tdRSmaQTaskInfoIterNextBlock(SRSmaQTaskInfoIter *pIter, bool *isFinish);
 static int32_t    tdRSmaQTaskInfoRestore(SSma *pSma, int8_t type, SRSmaQTaskInfoIter *pIter);
@@ -96,7 +98,7 @@ static FORCE_INLINE int32_t tdRSmaQTaskInfoContLen(int32_t lenWithHead) {
 
 static FORCE_INLINE void tdRSmaQTaskInfoIterDestroy(SRSmaQTaskInfoIter *pIter) { taosMemoryFreeClear(pIter->pBuf); }
 
-void tdFreeQTaskInfo(qTaskInfo_t *taskHandle, int32_t vgId, int32_t level) {
+static void tdRSmaQTaskInfoFree(qTaskInfo_t *taskHandle, int32_t vgId, int32_t level) {
   // Note: free/kill may in RC
   if (!taskHandle || !(*taskHandle)) return;
   qTaskInfo_t otaskHandle = atomic_load_ptr(taskHandle);
@@ -129,14 +131,14 @@ void *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree) {
       }
 
       if (isDeepFree && pInfo->taskInfo[i]) {
-        tdFreeQTaskInfo(&pInfo->taskInfo[i], SMA_VID(pSma), i + 1);
+        tdRSmaQTaskInfoFree(&pInfo->taskInfo[i], SMA_VID(pSma), i + 1);
       } else {
         smaDebug("vgId:%d, table %" PRIi64 " no need to destroy rsma info level %d since empty taskInfo", SMA_VID(pSma),
                  pInfo->suid, i + 1);
       }
 
       if (pInfo->iTaskInfo[i]) {
-        tdFreeQTaskInfo(&pInfo->iTaskInfo[i], SMA_VID(pSma), i + 1);
+        tdRSmaQTaskInfoFree(&pInfo->iTaskInfo[i], SMA_VID(pSma), i + 1);
       } else {
         smaDebug("vgId:%d, table %" PRIi64 " no need to destroy rsma info level %d since empty iTaskInfo",
                  SMA_VID(pSma), pInfo->suid, i + 1);
@@ -330,7 +332,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
  * @param tbName
  * @return int32_t
  */
-int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName) {
+int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName) {
   if ((param->qmsgLen[0] == 0) && (param->qmsgLen[1] == 0)) {
     smaDebug("vgId:%d, no qmsg1/qmsg2 for rollup table %s %" PRIi64, SMA_VID(pSma), tbName, suid);
     return TSDB_CODE_SUCCESS;
@@ -427,7 +429,7 @@ int32_t tdProcessRSmaCreate(SSma *pSma, SVCreateStbReq *pReq) {
     return TSDB_CODE_SUCCESS;
   }
 
-  return tdProcessRSmaCreateImpl(pSma, &pReq->rsmaParam, pReq->suid, pReq->name);
+  return tdRSmaProcessCreateImpl(pSma, &pReq->rsmaParam, pReq->suid, pReq->name);
 }
 
 /**
@@ -817,6 +819,95 @@ static int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t msgSize, 
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t tdCloneQTaskInfo(SSma *pSma, qTaskInfo_t dstTaskInfo, qTaskInfo_t srcTaskInfo, SRSmaParam *param,
+                                tb_uid_t suid, int8_t idx) {
+  SVnode *pVnode = pSma->pVnode;
+  char   *pOutput = NULL;
+  int32_t len = 0;
+
+  if ((terrno = qSerializeTaskStatus(srcTaskInfo, &pOutput, &len)) < 0) {
+    smaError("vgId:%d, rsma clone, table %" PRIi64 " serialize qTaskInfo failed since %s", TD_VID(pVnode), suid,
+             terrstr());
+    goto _err;
+  }
+
+  SReadHandle handle = {
+      .meta = pVnode->pMeta,
+      .vnode = pVnode,
+      .initTqReader = 1,
+  };
+  ASSERT(!dstTaskInfo);
+  dstTaskInfo = qCreateStreamExecTaskInfo(param->qmsg[idx], &handle);
+  if (!dstTaskInfo) {
+    terrno = TSDB_CODE_RSMA_QTASKINFO_CREATE;
+    goto _err;
+  }
+
+  if (qDeserializeTaskStatus(dstTaskInfo, pOutput, len) < 0) {
+    smaError("vgId:%d, rsma clone, restore rsma task for table:%" PRIi64 " failed since %s", TD_VID(pVnode), suid,
+             terrstr());
+    goto _err;
+  }
+
+  smaDebug("vgId:%d, rsma clone, restore rsma task for table:%" PRIi64 " succeed", TD_VID(pVnode), suid);
+
+  taosMemoryFreeClear(pOutput);
+  return TSDB_CODE_SUCCESS;
+_err:
+  taosMemoryFreeClear(pOutput);
+  tdRSmaQTaskInfoFree(dstTaskInfo, TD_VID(pVnode), idx + 1);
+  smaError("vgId:%d, rsma clone, restore rsma task for table:%" PRIi64 " failed since %s", TD_VID(pVnode), suid,
+           terrstr());
+  return TSDB_CODE_FAILED;
+}
+
+/**
+ * @brief Clone qTaskInfo of SRSmaInfo
+ *
+ * @param pSma
+ * @param pInfo
+ * @return int32_t
+ */
+static int32_t tdRSmaInfoClone(SSma *pSma, SRSmaInfo *pInfo) {
+  SRSmaParam *param = NULL;
+  if (!pInfo) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, SMA_META(pSma), 0);
+  smaDebug("vgId:%d, rsma clone qTaskInfo for suid:%" PRIi64, SMA_VID(pSma), pInfo->suid);
+  if (metaGetTableEntryByUid(&mr, pInfo->suid) < 0) {
+    smaError("vgId:%d, rsma clone, failed to get table meta for %" PRIi64 " since %s", SMA_VID(pSma), pInfo->suid,
+             terrstr());
+    goto _err;
+  }
+  ASSERT(mr.me.type == TSDB_SUPER_TABLE);
+  ASSERT(mr.me.uid == pInfo->suid);
+  if (TABLE_IS_ROLLUP(mr.me.flags)) {
+    param = &mr.me.stbEntry.rsmaParam;
+    for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
+      if (!pInfo->iTaskInfo[i]) {
+        continue;
+      }
+      if (tdCloneQTaskInfo(pSma, pInfo->taskInfo[i], pInfo->iTaskInfo[i], param, pInfo->suid, i) < 0) {
+        goto _err;
+      }
+    }
+    smaDebug("vgId:%d, rsma clone env success for %" PRIi64, SMA_VID(pSma), pInfo->suid);
+  } else {
+    terrno = TSDB_CODE_RSMA_INVALID_SCHEMA;
+    goto _err;
+  }
+
+  metaReaderClear(&mr);
+  return TSDB_CODE_SUCCESS;
+_err:
+  metaReaderClear(&mr);
+  smaError("vgId:%d, rsma clone env failed for %" PRIi64 " since %s", SMA_VID(pSma), pInfo->suid, terrstr());
+  return TSDB_CODE_FAILED;
+}
+
 /**
  * @brief During async commit, the SRSmaInfo object would be COW from iRSmaInfoHash and write lock should be applied.
  *
@@ -848,7 +939,7 @@ static SRSmaInfo *tdAcquireRSmaInfoBySuid(SSma *pSma, int64_t suid) {
       return NULL;
     }
     if (!pRSmaInfo->taskInfo[0]) {
-      if (tdCloneRSmaInfo(pSma, pRSmaInfo) < 0) {
+      if (tdRSmaInfoClone(pSma, pRSmaInfo) < 0) {
         // taosRUnLockLatch(SMA_ENV_LOCK(pEnv));
         return NULL;
       }
@@ -1006,7 +1097,7 @@ static int32_t tdRSmaRestoreQTaskInfoInit(SSma *pSma, int64_t *nTables) {
                  " qmsgLen:%" PRIi32,
                  TD_VID(pVnode), suid, i, param->maxdelay[i], param->watermark[i], param->qmsgLen[i]);
       }
-      if (tdProcessRSmaCreateImpl(pSma, &mr.me.stbEntry.rsmaParam, suid, mr.me.name) < 0) {
+      if (tdRSmaProcessCreateImpl(pSma, &mr.me.stbEntry.rsmaParam, suid, mr.me.name) < 0) {
         smaError("vgId:%d, rsma restore env failed for %" PRIi64 " since %s", TD_VID(pVnode), suid, terrstr());
         goto _err;
       }
@@ -1118,7 +1209,7 @@ static int32_t tdRSmaRestoreTSDataReload(SSma *pSma) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tdProcessRSmaRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer) {
+int32_t tdRSmaProcessRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer) {
   // step 1: iterate all stables to restore the rsma env
   int64_t nTables = 0;
   if (tdRSmaRestoreQTaskInfoInit(pSma, &nTables) < 0) {
@@ -1139,6 +1230,12 @@ int32_t tdProcessRSmaRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer) 
   if (tdRSmaRestoreTSDataReload(pSma) < 0) {
     goto _err;
   }
+
+  // step 4: open SRSmaFS for qTaskFiles
+  if (tdRSmaFSOpen(pSma, qtaskFileVer) < 0) {
+    goto _err;
+  }
+
   smaInfo("vgId:%d, restore rsma task %" PRIi8 " from qtaskf %" PRIi64 " succeed", SMA_VID(pSma), type, qtaskFileVer);
   return TSDB_CODE_SUCCESS;
 _err:
