@@ -46,7 +46,7 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Linux" OR ${CMAKE_SYSTEM_NAME} MATCHES "Darwin
 
         MESSAGE("Current system processor is ${CMAKE_SYSTEM_PROCESSOR}.")
         IF (${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64" OR ${CMAKE_SYSTEM_PROCESSOR} MATCHES "x86_64")
-            MESSAGE("Current system arch is arm64")
+            MESSAGE("Current system arch is 64")
             SET(TD_DARWIN_64 TRUE)
             ADD_DEFINITIONS("-D_TD_DARWIN_64")
         ENDIF ()

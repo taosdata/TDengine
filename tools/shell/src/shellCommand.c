@@ -510,7 +510,10 @@ int32_t shellReadCommand(char *command) {
           shellClearLineAfter(&cmd);
           break;
         case 12:  // Ctrl + L;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
           system("clear");
+#pragma GCC diagnostic pop
           shellShowOnScreen(&cmd);
           break;
         case 21:  // Ctrl + U;

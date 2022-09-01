@@ -358,7 +358,7 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
   FAIL_SHUFFLE_DISPATCH:
     if (pReqs) {
       for (int32_t i = 0; i < vgSz; i++) {
-        taosArrayDestroy(pReqs[i].data);
+        taosArrayDestroyP(pReqs[i].data, taosMemoryFree);
         taosArrayDestroy(pReqs[i].dataLen);
       }
       taosMemoryFree(pReqs);

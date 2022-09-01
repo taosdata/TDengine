@@ -1,6 +1,6 @@
 ---
 title: Schemaless Writing
-description: "The Schemaless write method eliminates the need to create super tables/sub tables in advance and automatically creates the storage structure corresponding to the data, as it is written to the interface."
+description: 'The Schemaless write method eliminates the need to create super tables/sub tables in advance and automatically creates the storage structure corresponding to the data, as it is written to the interface.'
 ---
 
 In IoT applications, data is collected for many purposes such as intelligent control, business analysis, device monitoring and so on. Due to changes in business or functional requirements or changes in device hardware, the application logic and even the data collected may change. Schemaless writing automatically creates storage structures for your data as it is being written to TDengine, so that you do not need to create supertables in advance. When necessary, schemaless writing
@@ -25,7 +25,7 @@ where:
 - measurement will be used as the data table name. It will be separated from tag_set by a comma.
 - `tag_set` will be used as tags, with format like `<tag_key>=<tag_value>,<tag_key>=<tag_value>` Enter a space between `tag_set` and `field_set`.
 - `field_set`will be used as data columns, with format like `<field_key>=<field_value>,<field_key>=<field_value>` Enter a space between `field_set` and `timestamp`.
-- `timestamp`  is the primary key timestamp corresponding to this row of data
+- `timestamp` is the primary key timestamp corresponding to this row of data
 
 All data in tag_set is automatically converted to the NCHAR data type and does not require double quotes (").
 
@@ -36,14 +36,14 @@ In the schemaless writing data line protocol, each data item in the field_set ne
 - Spaces, equal signs (=), commas (,), and double quotes (") need to be escaped with a backslash (\\) in front. (All refer to the ASCII character)
 - Numeric types will be distinguished from data types by the suffix.
 
-| **Serial number** | **Postfix** | **Mapping type** | **Size (bytes)** |
-| -------- | -------- | ------------ | -------------- |
-| 1        | None or f64 | double       | 8              |
-| 2        | f32      | float        | 4              |
-| 3        | i8/u8       | TinyInt/UTinyInt      | 1              |
-| 4        | i16/u16      | SmallInt/USmallInt     | 2              |
-| 5        | i32/u32      | Int/UInt          | 4              |
-| 6        | i64/i/u64/u  | BigInt/BigInt/UBigInt/UBigInt       | 8              |
+| **Serial number** | **Postfix** | **Mapping type**              | **Size (bytes)** |
+| ----------------- | ----------- | ----------------------------- | ---------------- |
+| 1                 | None or f64 | double                        | 8                |
+| 2                 | f32         | float                         | 4                |
+| 3                 | i8/u8       | TinyInt/UTinyInt              | 1                |
+| 4                 | i16/u16     | SmallInt/USmallInt            | 2                |
+| 5                 | i32/u32     | Int/UInt                      | 4                |
+| 6                 | i64/i/u64/u | BigInt/BigInt/UBigInt/UBigInt | 8                |
 
 - `t`, `T`, `true`, `True`, `TRUE`, `f`, `F`, `false`, and `False` will be handled directly as BOOL types.
 
@@ -61,7 +61,7 @@ Note that if the wrong case is used when describing the data type suffix, or if 
 
 Schemaless writes process row data according to the following principles.
 
-1. You can use the following rules to generate the subtable names: first, combine the measurement name and the key and value of the label  into the next string:
+1. You can use the following rules to generate the subtable names: first, combine the measurement name and the key and value of the label into the next string:
 
 ```json
 "measurement,tag_key1=tag_value1,tag_key2=tag_value2"
@@ -82,7 +82,7 @@ You can configure smlChildTableName to specify table names, for example, `smlChi
 
 :::tip
 All processing logic of schemaless will still follow TDengine's underlying restrictions on data structures, such as the total length of each row of data cannot exceed
-16KB. See [TAOS SQL Boundary Limits](/taos-sql/limit) for specific constraints in this area.
+16KB. See [TDengine SQL Boundary Limits](/taos-sql/limit) for specific constraints in this area.
 
 :::
 
@@ -90,23 +90,23 @@ All processing logic of schemaless will still follow TDengine's underlying restr
 
 Three specified modes are supported in the schemaless writing process, as follows:
 
-| **Serial** | **Value** | **Description** |
-| -------- | ------------------- | ------------------------------- |
-| 1        | SML_LINE_PROTOCOL   | InfluxDB Line Protocol |
-| 2        | SML_TELNET_PROTOCOL | OpenTSDB file protocol            |
-| 3        | SML_JSON_PROTOCOL   | OpenTSDB JSON protocol                   |
+| **Serial** | **Value**           | **Description**        |
+| ---------- | ------------------- | ---------------------- |
+| 1          | SML_LINE_PROTOCOL   | InfluxDB Line Protocol |
+| 2          | SML_TELNET_PROTOCOL | OpenTSDB file protocol |
+| 3          | SML_JSON_PROTOCOL   | OpenTSDB JSON protocol |
 
 In InfluxDB line protocol mode, you must specify the precision of the input timestamp. Valid precisions are described in the following table.
 
-| **No.** | **Precision**                | **Description**       |
-| -------- | --------------------------------- | -------------- |
-| 1        | TSDB_SML_TIMESTAMP_NOT_CONFIGURED | Not defined (invalid) |
-| 2        | TSDB_SML_TIMESTAMP_HOURS          | Hours           |
-| 3        | TSDB_SML_TIMESTAMP_MINUTES        | Minutes           |
-| 4        | TSDB_SML_TIMESTAMP_SECONDS        | Seconds             |
-| 5        | TSDB_SML_TIMESTAMP_MILLI_SECONDS  | Milliseconds           |
-| 6        | TSDB_SML_TIMESTAMP_MICRO_SECONDS  | Microseconds           |
-| 7        | TSDB_SML_TIMESTAMP_NANO_SECONDS   | Nanoseconds           |
+| **No.** | **Precision**                     | **Description**       |
+| ------- | --------------------------------- | --------------------- |
+| 1       | TSDB_SML_TIMESTAMP_NOT_CONFIGURED | Not defined (invalid) |
+| 2       | TSDB_SML_TIMESTAMP_HOURS          | Hours                 |
+| 3       | TSDB_SML_TIMESTAMP_MINUTES        | Minutes               |
+| 4       | TSDB_SML_TIMESTAMP_SECONDS        | Seconds               |
+| 5       | TSDB_SML_TIMESTAMP_MILLI_SECONDS  | Milliseconds          |
+| 6       | TSDB_SML_TIMESTAMP_MICRO_SECONDS  | Microseconds          |
+| 7       | TSDB_SML_TIMESTAMP_NANO_SECONDS   | Nanoseconds           |
 
 In OpenTSDB file and JSON protocol modes, the precision of the timestamp is determined from its length in the standard OpenTSDB manner. User input is ignored.
 

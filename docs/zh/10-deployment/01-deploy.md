@@ -1,6 +1,7 @@
 ---
 sidebar_label: 手动部署
 title: 集群部署和管理
+description: 使用命令行工具手动部署 TDengine 集群
 ---
 
 ## 准备工作
@@ -70,7 +71,7 @@ serverPort            6030
 
 ## 启动集群
 
-按照《立即开始》里的步骤，启动第一个数据节点，例如 h1.taosdata.com，然后执行 taos，启动 taos shell，从 shell 里执行命令“SHOW DNODES”，如下所示：
+按照《立即开始》里的步骤，启动第一个数据节点，例如 h1.taosdata.com，然后执行 taos，启动 TDengine CLI，在其中执行命令 “SHOW DNODES”，如下所示：
 
 ```
 taos> show dnodes;
@@ -114,7 +115,7 @@ SHOW DNODES;
 
 任何已经加入集群在线的数据节点，都可以作为后续待加入节点的 firstEp。
 firstEp 这个参数仅仅在该数据节点首次加入集群时有作用，加入集群后，该数据节点会保存最新的 mnode 的 End Point 列表，不再依赖这个参数。
-接下来，配置文件中的 firstEp 参数就主要在客户端连接的时候使用了，例如 taos shell 如果不加参数，会默认连接由 firstEp 指定的节点。
+接下来，配置文件中的 firstEp 参数就主要在客户端连接的时候使用了，例如 TDengine CLI 如果不加参数，会默认连接由 firstEp 指定的节点。
 两个没有配置 firstEp 参数的数据节点 dnode 启动后，会独立运行起来。这个时候，无法将其中一个数据节点加入到另外一个数据节点，形成集群。无法将两个独立的集群合并成为新的集群。
 
 :::

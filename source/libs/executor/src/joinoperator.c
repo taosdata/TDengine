@@ -25,7 +25,7 @@
 
 static void         setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode);
 static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator);
-static void         destroyMergeJoinOperator(void* param, int32_t numOfOutput);
+static void         destroyMergeJoinOperator(void* param);
 static void         extractTimeCondition(SJoinOperatorInfo* pInfo, SOperatorInfo** pDownstream, int32_t numOfDownstream,
                                          SSortMergeJoinPhysiNode* pJoinNode);
 
@@ -128,12 +128,11 @@ void setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode) {
   pColumn->scale = pColumnNode->node.resType.scale;
 }
 
-void destroyMergeJoinOperator(void* param, int32_t numOfOutput) {
+void destroyMergeJoinOperator(void* param) {
   SJoinOperatorInfo* pJoinOperator = (SJoinOperatorInfo*)param;
   nodesDestroyNode(pJoinOperator->pCondAfterMerge);
 
   pJoinOperator->pRes = blockDataDestroy(pJoinOperator->pRes);
-
   taosMemoryFreeClear(param);
 }
 

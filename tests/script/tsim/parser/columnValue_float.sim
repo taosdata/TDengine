@@ -506,7 +506,7 @@ sql_error insert into st_float_e7  values (now, "123abc")
 sql_error insert into st_float_e9  values (now, abc)
 sql_error insert into st_float_e10 values (now, "abc")
 sql_error insert into st_float_e11 values (now, " ")
-sql insert into st_float_e12 values (now, '')
+sql_error insert into st_float_e12 values (now, '')
 
 sql_error insert into st_float_e13 using mt_float tags (033) values (now, 3.50282347e+38)
 sql_error insert into st_float_e14 using mt_float tags (033) values (now, -3.50282347e+38)
@@ -519,7 +519,7 @@ sql_error insert into st_float_e20 using mt_float tags (033) values (now, "123ab
 sql_error insert into st_float_e22 using mt_float tags (033) values (now, abc)
 sql_error insert into st_float_e23 using mt_float tags (033) values (now, "abc")
 sql_error insert into st_float_e24 using mt_float tags (033) values (now, " ")
-sql insert into st_float_e25_1 using mt_float tags (033) values (now, '')
+sql_error insert into st_float_e25_1 using mt_float tags (033) values (now, '')
 
 sql_error insert into st_float_e13 using mt_float tags (3.50282347e+38)      values (now, -033)
 sql_error insert into st_float_e14 using mt_float tags (-3.50282347e+38)     values (now, -033)

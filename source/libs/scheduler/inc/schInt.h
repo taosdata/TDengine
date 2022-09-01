@@ -283,7 +283,7 @@ typedef struct SSchJob {
 } SSchJob;
 
 typedef struct SSchTaskCtx {
-  SSchJob  *pJob;
+  int64_t  jobRid;
   SSchTask *pTask;
 } SSchTaskCtx;
 

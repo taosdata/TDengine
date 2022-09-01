@@ -58,19 +58,17 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
 /**
  *
  * @param pBuf
- * @param groupId
  * @param pageId
  * @return
  */
-void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t groupId, int32_t* pageId);
+void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t* pageId);
 
 /**
  *
  * @param pBuf
- * @param groupId
  * @return
  */
-SIDList getDataBufPagesIdList(SDiskbasedBuf* pBuf, int32_t groupId);
+SIDList getDataBufPagesIdList(SDiskbasedBuf* pBuf);
 
 /**
  * get the specified buffer page by id
@@ -100,13 +98,6 @@ void releaseBufPageInfo(SDiskbasedBuf* pBuf, struct SPageInfo* pi);
  * @return
  */
 size_t getTotalBufSize(const SDiskbasedBuf* pBuf);
-
-/**
- * get the number of groups in the result buffer
- * @param pBuf
- * @return
- */
-size_t getNumOfBufGroupId(const SDiskbasedBuf* pBuf);
 
 /**
  * destroy result buffer

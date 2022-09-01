@@ -82,12 +82,11 @@ The parameters described in this document by the effect that they have on the sy
 | Protocol | Default Port | Description                                      | How to configure                                                                               |
 | :------- | :----------- | :----------------------------------------------- | :--------------------------------------------------------------------------------------------- |
 | TCP | 6030 | Communication between client and server. In a multi-node cluster, communication between nodes. serverPort |
-| TCP      | 6041         | REST connection between client and server        | refer to [taosAdapter](../taosadapter/) |
+| TCP      | 6041         | REST connection between client and server        | Prior to 2.4.0.0: serverPort+11; After 2.4.0.0 refer to [taosAdapter](/reference/taosadapter/) |
 | TCP      | 6043         | Service Port of TaosKeeper                       | The parameter of TaosKeeper |
 | TCP      | 6044         | Data access port for StatsD                      | Configurable through taosAdapter parameters.
 | UDP      | 6045         | Data access for statsd                           | Configurable through taosAdapter parameters.
 | TCP      | 6060         | Port of Monitoring Service in Enterprise version | |
-
 
 ### maxShellConns
 
@@ -345,7 +344,7 @@ The charset that takes effect is UTF-8.
 | Attribute     | Description                            |
 | -------- | --------------------------------- |
 | Applicable    | Server and Client         |
-| Meaning       | The interval for taos shell to send heartbeat to mnode |
+| Meaning       | The interval for TDengine CLI to send heartbeat to mnode |
 | Unit          | second                                          |
 | Value Range   | 1-120                                         |
 | Default Value | 3                              |

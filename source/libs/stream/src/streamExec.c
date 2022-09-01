@@ -140,7 +140,6 @@ int32_t streamPipelineExec(SStreamTask* pTask, int32_t batchNum, bool dispatch) 
   return 0;
 }
 
-// TODO: handle version
 int32_t streamExecForAll(SStreamTask* pTask) {
   while (1) {
     int32_t batchCnt = 1;

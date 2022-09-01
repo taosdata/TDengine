@@ -35,6 +35,7 @@ SDbObj *mndAcquireDbByStb(SMnode *pMnode, const char *stbName);
 int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreate, SDbObj *pDb);
 int32_t mndAddStbToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb);
 void    mndFreeStb(SStbObj *pStb);
+int32_t mndBuildSMCreateStbRsp(SMnode *pMnode, char* dbFName, char* stbFName, void **pCont, int32_t *pLen);
 
 void mndExtractDbNameFromStbFullName(const char *stbFullName, char *dst);
 void mndExtractTbNameFromStbFullName(const char *stbFullName, char *dst, int32_t dstSize);

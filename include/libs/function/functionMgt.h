@@ -176,7 +176,8 @@ int32_t fmGetFuncInfo(SFunctionNode* pFunc, char* pMsg, int32_t msgLen);
 
 EFuncReturnRows fmGetFuncReturnRows(SFunctionNode* pFunc);
 
-bool fmIsBuiltinFunc(const char* pFunc);
+bool          fmIsBuiltinFunc(const char* pFunc);
+EFunctionType fmGetFuncType(const char* pFunc);
 
 bool fmIsAggFunc(int32_t funcId);
 bool fmIsScalarFunc(int32_t funcId);

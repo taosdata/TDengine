@@ -43,7 +43,7 @@ void* rpcOpen(const SRpcInit* pInit) {
     return NULL;
   }
   if (pInit->label) {
-    tstrncpy(pRpc->label, pInit->label, strlen(pInit->label) + 1);
+    tstrncpy(pRpc->label, pInit->label, TSDB_LABEL_LEN);
   }
   // register callback handle
   pRpc->cfp = pInit->cfp;

@@ -317,6 +317,7 @@ typedef struct SSystemTableScanPhysiNode {
   SEpSet         mgmtEpSet;
   bool           showRewrite;
   int32_t        accountId;
+  bool           sysInfo;
 } SSystemTableScanPhysiNode;
 
 typedef struct STableScanPhysiNode {
@@ -486,6 +487,8 @@ typedef struct SPartitionPhysiNode {
   SNodeList* pPartitionKeys;
   SNodeList* pTargets;
 } SPartitionPhysiNode;
+
+typedef SPartitionPhysiNode SStreamPartitionPhysiNode;
 
 typedef struct SDataSinkNode {
   ENodeType           type;

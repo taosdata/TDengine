@@ -52,12 +52,12 @@ class TDTestCase:
 
         return query_condition
 
-    def __join_condition(self, tb_list, filter=PRIMARY_COL, INNER=False):
+    def __join_condition(self, tb_list, filter=PRIMARY_COL, INNER=False, alias_tb1="tb1", alias_tb2="tb2"):
         table_reference = tb_list[0]
         join_condition = table_reference
         join = "inner join" if INNER else "join"
         for i in range(len(tb_list[1:])):
-            join_condition += f" {join} {tb_list[i+1]} on {table_reference}.{filter}={tb_list[i+1]}.{filter}"
+            join_condition += f" as {alias_tb1} {join} {tb_list[i+1]} as {alias_tb2} on {alias_tb1}.{filter}={alias_tb2}.{filter}"
 
         return join_condition
 
@@ -123,28 +123,28 @@ class TDTestCase:
         sqls = []
         __join_tblist = self.__join_tblist
         for join_tblist in __join_tblist:
-            for join_tb in join_tblist:
-                select_claus_list = self.__query_condition(join_tb)
-                for select_claus in select_claus_list:
-                    group_claus = self.__group_condition( col=select_claus)
-                    where_claus = self.__where_condition( query_conditon=select_claus )
-                    having_claus = self.__group_condition( col=select_claus, having=f"{select_claus} is not null" )
-                    sqls.extend(
-                        (
-                            # self.__gen_sql(select_claus, self.__join_condition(join_tblist), where_claus, group_claus),
-                            self.__gen_sql(select_claus, self.__join_condition(join_tblist), where_claus, having_claus),
-                            self.__gen_sql(select_claus, self.__join_condition(join_tblist), where_claus),
-                            # self.__gen_sql(select_claus, self.__join_condition(join_tblist), group_claus),
-                            self.__gen_sql(select_claus, self.__join_condition(join_tblist), having_claus),
-                            self.__gen_sql(select_claus, self.__join_condition(join_tblist)),
-                            # self.__gen_sql(select_claus, self.__join_condition(join_tblist, INNER=True), where_claus, group_claus),
-                            self.__gen_sql(select_claus, self.__join_condition(join_tblist, INNER=True), where_claus, having_claus),
-                            self.__gen_sql(select_claus, self.__join_condition(join_tblist, INNER=True), where_claus, ),
-                            self.__gen_sql(select_claus, self.__join_condition(join_tblist, INNER=True), having_claus ),
-                            # self.__gen_sql(select_claus, self.__join_condition(join_tblist, INNER=True), group_claus ),
-                            self.__gen_sql(select_claus, self.__join_condition(join_tblist, INNER=True) ),
-                        )
+            alias_tb = "tb1"
+            select_claus_list = self.__query_condition(alias_tb)
+            for select_claus in select_claus_list:
+                group_claus = self.__group_condition( col=select_claus)
+                where_claus = self.__where_condition( query_conditon=select_claus )
+                having_claus = self.__group_condition( col=select_claus, having=f"{select_claus} is not null" )
+                sqls.extend(
+                    (
+                        # self.__gen_sql(select_claus, self.__join_condition(join_tblist), where_claus, group_claus),
+                        self.__gen_sql(select_claus, self.__join_condition(join_tblist, alias_tb1=alias_tb), where_claus, having_claus),
+                        self.__gen_sql(select_claus, self.__join_condition(join_tblist, alias_tb1=alias_tb), where_claus),
+                        # self.__gen_sql(select_claus, self.__join_condition(join_tblist), group_claus),
+                        self.__gen_sql(select_claus, self.__join_condition(join_tblist, alias_tb1=alias_tb), having_claus),
+                        self.__gen_sql(select_claus, self.__join_condition(join_tblist, alias_tb1=alias_tb)),
+                        # self.__gen_sql(select_claus, self.__join_condition(join_tblist, INNER=True), where_claus, group_claus),
+                        self.__gen_sql(select_claus, self.__join_condition(join_tblist, alias_tb1=alias_tb, INNER=True), where_claus, having_claus),
+                        self.__gen_sql(select_claus, self.__join_condition(join_tblist, alias_tb1=alias_tb, INNER=True), where_claus, ),
+                        self.__gen_sql(select_claus, self.__join_condition(join_tblist, alias_tb1=alias_tb, INNER=True), having_claus ),
+                        # self.__gen_sql(select_claus, self.__join_condition(join_tblist, INNER=True), group_claus ),
+                        self.__gen_sql(select_claus, self.__join_condition(join_tblist, alias_tb1=alias_tb, INNER=True) ),
                     )
+                )
         return list(filter(None, sqls))
 
     def __join_check(self,):
@@ -341,10 +341,8 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step3:all check")
         self.all_test()
 
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        tdSql.execute(f"flush database db")
 
-        tdSql.execute("use db")
 
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
         self.all_test()
