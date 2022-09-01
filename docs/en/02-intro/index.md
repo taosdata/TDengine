@@ -16,9 +16,9 @@ The major features are listed below:
 3. Support for [all kinds of queries](/develop/query-data), including aggregation, nested query, downsampling, interpolation and others.
 4. Support for [user defined functions](/develop/udf).
 5. Support for [caching](/develop/cache). TDengine always saves the last data point in cache, so Redis is not needed in some scenarios.
-6. Support for [continuous query](/develop/continuous-query).
-7. Support for [data subscription](/develop/subscribe) with the capability to specify filter conditions.
-8. Support for [cluster](/cluster/), with the capability of increasing processing power by adding more nodes. High availability is supported by replication. 
+6. Support for [continuous query](../develop/continuous-query).
+7. Support for [data subscription](../develop/subscribe) with the capability to specify filter conditions.
+8. Support for [cluster](../cluster/), with the capability of increasing processing power by adding more nodes. High availability is supported by replication. 
 9. Provides an interactive [command-line interface](/reference/taos-shell) for management, maintenance and ad-hoc queries.
 10. Provides many ways to [import](/operation/import) and [export](/operation/export) data.
 11. Provides [monitoring](/operation/monitor) on running instances of TDengine.
@@ -111,3 +111,6 @@ As a high-performance, scalable and SQL supported time-series database, TDengine
 - [TDengine vs OpenTSDB](https://tdengine.com/2019/09/12/710.html)
 - [TDengine vs Cassandra](https://tdengine.com/2019/09/12/708.html)
 - [TDengine vs InfluxDB](https://tdengine.com/2019/09/12/706.html)
+
+
+If you want to learn some basics about time-series databases, please check [here](https://tdengine.com/tsdb).

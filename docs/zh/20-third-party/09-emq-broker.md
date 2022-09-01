@@ -10,13 +10,14 @@ MQTT 是流行的物联网数据传输协议，[EMQX](https://github.com/emqx/em
 要让 EMQX 能正常添加 TDengine 数据源，需要以下几方面的准备工作。
 
 - TDengine 集群已经部署并正常运行
-- taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](/reference/taosadapter)
+- taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](../../reference/taosadapter)
 - 如果使用后文介绍的模拟写入程序，需要安装合适版本的 Node.js，推荐安装 v12
 
 ## 安装并启动 EMQX
 
 用户可以根据当前的操作系统，到 EMQX 官网下载安装包，并执行安装。下载地址如下：<https://www.emqx.io/zh/downloads>。安装后使用 `sudo emqx start` 或 `sudo systemctl start emqx` 启动 EMQX 服务。
 
+注意：本文基于 EMQX v4.4.5 版本，其他版本由于相关配置界面、配置方法以及功能可能随着版本升级有所区别。
 
 ## 创建数据库和表
 
@@ -32,7 +33,7 @@ CREATE TABLE sensor_data (ts TIMESTAMP, temperature FLOAT, humidity FLOAT, volum
 
 ## 配置 EMQX 规则
 
-由于 EMQX 不同版本配置界面所有不同，这里仅以 v4.4.3 为例，其他版本请参考相应官网文档。
+由于 EMQX 不同版本配置界面所有不同，这里仅以 v4.4.5 为例，其他版本请参考相应官网文档。
 
 ### 登录 EMQX Dashboard
 
@@ -89,7 +90,7 @@ http://127.0.0.1:6041/rest/sql
 ```
 Basic cm9vdDp0YW9zZGF0YQ==
 ```
-相关文档请参考[ TDengine REST API 文档](/reference/rest-api/)。
+相关文档请参考[ TDengine REST API 文档](../../reference/rest-api/)。
 
 在消息体中输入规则引擎替换模板:
 

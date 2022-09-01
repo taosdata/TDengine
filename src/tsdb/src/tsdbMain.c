@@ -128,7 +128,7 @@ int tsdbCloseRepo(STsdbRepo *repo, int toCommit) {
 
   tsdbStopStream(pRepo);
   if(pRepo->pthread){
-    taosDestoryThread(pRepo->pthread);
+    taosDestroyThread(pRepo->pthread);
     pRepo->pthread = NULL;
   }
 

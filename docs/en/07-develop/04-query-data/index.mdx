@@ -48,7 +48,7 @@ Query OK, 2 row(s) in set (0.001100s)
 
 To meet the requirements of varied use cases, some special functions have been added in TDengine. Some examples are `twa` (Time Weighted Average), `spread` (The difference between the maximum and the minimum), and `last_row` (the last row). Furthermore, continuous query is also supported in TDengine.
 
-For detailed query syntax please refer to [Select](/taos-sql/select).
+For detailed query syntax please refer to [Select](../../12-taos-sql/06-select.md).
 
 ## Aggregation among Tables
 
@@ -81,7 +81,7 @@ taos> SELECT count(*), max(current) FROM meters where groupId = 2 and ts > now -
 Query OK, 1 row(s) in set (0.002136s)
 ```
 
-Join queries are only allowed between subtables of the same STable. In [Select](/taos-sql/select), all query operations are marked as to whether they support STables or not.
+Join queries are only allowed between subtables of the same STable. In [Select](../../12-taos-sql/06-select.md), all query operations are marked as to whether they support STables or not.
 
 ## Down Sampling and Interpolation
 
@@ -128,13 +128,13 @@ In many use cases, it's hard to align the timestamp of the data collected by eac
 
 Interpolation can be performed in TDengine if there is no data in a time range.
 
-For more details please refer to [Aggregate by Window](/taos-sql/interval).
+For more details please refer to [Aggregate by Window](../../12-taos-sql/12-interval.md).
 
 ## Examples
 
 ### Query
 
-In the section describing [Insert](/develop/insert-data/sql-writing), a database named `power` is created and some data are inserted into STable `meters`. Below sample code demonstrates how to query the data in this STable.
+In the section describing [Insert](../03-insert-data/01-sql-writing.mdx), a database named `power` is created and some data are inserted into STable `meters`. Below sample code demonstrates how to query the data in this STable.
 
 <Tabs defaultValue="java" groupId="lang">
   <TabItem label="Java" value="java">

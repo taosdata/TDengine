@@ -91,7 +91,7 @@ Add following dependency in the `pom.xml` file of your Maven project:
 You can build Java connector from source code after cloning the TDengine project:
 
 ```
-git clone https://github.com/taosdata/taos-connector-jdbc.git
+git clone https://github.com/taosdata/taos-connector-jdbc.git --branch 2.0
 cd taos-connector-jdbc
 mvn clean install -Dmaven.test.skip=true
 ```
@@ -140,34 +140,34 @@ When you use a JDBC native connection to connect to a TDengine cluster, you can 
 
 1. Do not specify hostname and port in Java applications.
 
-    ```java
-    public Connection getConn() throws Exception{
-    Class.forName("com.taosdata.jdbc.TSDBDriver");
-    String jdbcUrl = "jdbc:TAOS://:/test?user=root&password=taosdata";
-    Properties connProps = new Properties();
-    connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-    connProps.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-    connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-    Connection conn = DriverManager.getConnection(jdbcUrl, connProps);
-    return conn;
-    }
-    ```
+   ```java
+   public Connection getConn() throws Exception{
+   Class.forName("com.taosdata.jdbc.TSDBDriver");
+   String jdbcUrl = "jdbc:TAOS://:/test?user=root&password=taosdata";
+   Properties connProps = new Properties();
+   connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+   connProps.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+   connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+   Connection conn = DriverManager.getConnection(jdbcUrl, connProps);
+   return conn;
+   }
+   ```
 
 2. specify the firstEp and the secondEp in the configuration file taos.cfg
 
-    ```shell
-    # first fully qualified domain name (FQDN) for TDengine system
-    firstEp               cluster_node1:6030
+   ```shell
+   # first fully qualified domain name (FQDN) for TDengine system
+   firstEp               cluster_node1:6030
 
-    # second fully qualified domain name (FQDN) for TDengine system, for cluster only
-    secondEp              cluster_node2:6030
+   # second fully qualified domain name (FQDN) for TDengine system, for cluster only
+   secondEp              cluster_node2:6030
 
-    # default system charset
-    # charset               UTF-8
+   # default system charset
+   # charset               UTF-8
 
-    # system locale
-    # locale                en_US.UTF-8
-    ```
+   # system locale
+   # locale                en_US.UTF-8
+   ```
 
 In the above example, JDBC uses the client's configuration file to establish a connection to a hostname `cluster_node1`, port 6030, and a database named `test`. When the firstEp node in the cluster fails, JDBC attempts to connect to the cluster using secondEp.
 

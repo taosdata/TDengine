@@ -3296,7 +3296,8 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   // the param may be null, since it may be done by other query threads. and the asyncOnError may enter in this
   // function while kill query by a user.
   if (param == NULL) {
-    assert(code != TSDB_CODE_SUCCESS);
+    if(code != TSDB_CODE_SUCCESS)
+      tscError("tscRetrieveDataRes param is NULL, error code=%d", code);
     return;
   }
 
@@ -3391,6 +3392,10 @@ static void doFreeInsertSupporter(SSqlObj* pSqlObj) {
 }
 
 static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows) {
+  if(param == NULL) {
+    tscError("callback multiVnodeInsertFinalize param is NULL. tres=%p numOfRows=%d", tres, numOfRows);
+    return ;
+  }
   SInsertSupporter *pSupporter = (SInsertSupporter *)param;
   SSqlObj* pParentObj = pSupporter->pSql;
 

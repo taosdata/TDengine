@@ -28,7 +28,7 @@ taos_consume
 taos_unsubscribe
 ```
 
-For more details about these APIs please refer to [C/C++ Connector](/reference/connector/cpp). Their usage will be introduced below using the use case of meters, in which the schema of STable and subtables from the previous section [Continuous Query](/develop/continuous-query) are used. Full sample code can be found [here](https://github.com/taosdata/TDengine/blob/master/examples/c/subscribe.c).
+For more details about these APIs please refer to [C/C++ Connector](/reference/connector/cpp). Their usage will be introduced below using the use case of meters, in which the schema of STable and subtables from the previous section [Continuous Query](../continuous-query) are used. Full sample code can be found [here](https://github.com/taosdata/TDengine/blob/master/examples/c/subscribe.c).
 
 If we want to get a notification and take some actions if the current exceeds a threshold, like 10A, from some meters, there are two ways:
 
@@ -218,9 +218,6 @@ Query OK, 5 row(s) in set (0.004896s)
   {/* <TabItem label="Go" value="go">
       <Go/>
   </TabItem> */}
-  <TabItem label="Rust" value="rust">
-    <Rust />
-  </TabItem>
   {/* <TabItem label="Node.js" value="nodejs">
       <Node/>
   </TabItem>

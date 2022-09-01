@@ -44,7 +44,7 @@ import TabItem from "@theme/TabItem";
 
 如果总表数比较大（比如大于500万），适当增加 maxVgroupsPerDb 也能显著提高建表的速度。maxVgroupsPerDb 默认值为 0， 自动配置为 CPU 的核数。 如果表的数量巨大，也建议调节 maxTablesPerVnode 参数，以免超过单个 vnode 建表的上限。
 
-更多调优参数，请参考[性能优化](../../operation/optimize)和[配置参考](../../reference/config)部分。
+更多调优参数，请参考[性能优化](../../../operation/optimize)和[配置参考](../../../reference/config)部分。
 
 ## 高效写入示例 {#sample-code}
 
@@ -427,6 +427,12 @@ SQLWriter 类封装了拼 SQL 和写数据的逻辑。所有的表都没有提�
    ```
 
 </details>
+
+:::note
+使用 Python 连接器多进程连接 TDengine 的时候，有一个限制：不能在父进程中建立连接，所有连接只能在子进程中创建。
+如果在父进程中创建连接，子进程再创建连接就会一直阻塞。这是个已知问题。
+
+:::
 
 </TabItem>
 </Tabs>

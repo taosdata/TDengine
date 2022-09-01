@@ -10,7 +10,7 @@ import AptGetInstall from "./\_apt_get_install.mdx";
 
 ## 安装
 
-TDengine 完整的软件包包括服务端（taosd）、用于与第三方系统对接并提供 RESTful 接口的 taosAdapter、应用驱动（taosc）、命令行程序 (CLI，taos) 和一些工具软件，目前 2.X 版服务端 taosd 和 taosAdapter 仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。应用驱动 taosc 与 TDengine CLI 可以在 Windows 或 Linux 上安装和运行。TDengine 除了提供多种语言的连接器之外，还通过 [taosAdapter](/reference/taosadapter) 提供 [RESTful 接口](/reference/rest-api)。但在 2.4 之前的版本中没有 taosAdapter，RESTful 接口是由 taosd 内置的 HTTP 服务提供的。
+TDengine 完整的软件包包括服务端（taosd）、用于与第三方系统对接并提供 RESTful 接口的 taosAdapter、应用驱动（taosc）、命令行程序 (CLI，taos) 和一些工具软件，目前 2.X 版服务端 taosd 和 taosAdapter 仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。应用驱动 taosc 与 TDengine CLI 可以在 Windows 或 Linux 上安装和运行。TDengine 除了提供多种语言的连接器之外，还通过 [taosAdapter](../reference/taosadapter) 提供 [RESTful 接口](../reference/rest-api)。但在 2.4 之前的版本中没有 taosAdapter，RESTful 接口是由 taosd 内置的 HTTP 服务提供的。
 
 TDengine 支持 X64/ARM64/MIPS64/Alpha64 硬件平台，后续将支持 ARM32、RISC-V 等 CPU 架构。
 
@@ -36,7 +36,7 @@ docker exec -it <container name> bash
 
 然后就可以执行相关的 Linux 命令操作和访问 TDengine
 
-详细操作方法请参照 [通过 Docker 快速体验 TDengine](/train-faq/docker)。
+详细操作方法请参照 [通过 Docker 快速体验 TDengine](../train-faq/docker)。
 
 :::info
 从 2.4.0.10 开始，除 taosd 以外，Docker 镜像还包含：taos、taosAdapter、taosdump、taosBenchmark、TDinsight 安装脚本和示例代码。启动 Docker 容器时，将同时启动 taosAdapter 和 taosd，实现对 RESTful 的支持。
@@ -132,7 +132,7 @@ Query OK, 2 row(s) in set (0.003128s)
 taosBenchmark
 ```
 
-该命令将在数据库 test 下面自动创建一张超级表 meters，该超级表下有 1 万张表，表名为 "d0" 到 "d9999"，每张表有 1 万条记录，每条记录有 (ts, current, voltage, phase) 四个字段，时间戳从 "2017-07-14 10:40:00 000" 到 "2017-07-14 10:40:09 999"，每张表带有标签 location 和 groupId，groupId 被设置为 1 到 10， location 被设置为 "California.SanFrancisco" 或者 "California.LosAngeles"。
+该命令将在数据库 test 下面自动创建一张超级表 meters，该超级表下有 1 万张表，表名为 "d0" 到 "d9999"，每张表有 1 万条记录，每条记录有 (ts, current, voltage, phase) 四个字段，时间戳从 "2017-07-14 10:40:00 000" 到 "2017-07-14 10:40:09 999"，每张表带有标签 location 和 groupId，groupId 被设置为 1 到 10， location 被设置为 "San Francisco" 或者 "Los Angeles"等城市名称。
 
 这条命令很快完成 1 亿条记录的插入。具体时间取决于硬件性能，即使在一台普通的 PC 服务器往往也仅需十几秒。
 
@@ -154,10 +154,10 @@ taos> select count(*) from test.meters;
 taos> select avg(current), max(voltage), min(phase) from test.meters;
 ```
 
-查询 location="California.SanFrancisco" 的记录总条数：
+查询 location="San Francisco" 的记录总条数：
 
 ```sql
-taos> select count(*) from test.meters where location="California.SanFrancisco";
+taos> select count(*) from test.meters where location="San Francisco";
 ```
 
 查询 groupId=10 的所有记录的平均值、最大值、最小值等：

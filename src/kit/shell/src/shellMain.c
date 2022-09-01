@@ -17,6 +17,8 @@
 #include "shell.h"
 #include "tconfig.h"
 #include "tnettest.h"
+#include "shellCommand.h"
+#include "shellAuto.h"
 
 pthread_t pid;
 static tsem_t cancelSem;
@@ -162,10 +164,16 @@ int main(int argc, char* argv[]) {
 
   /* Get grant information */
   shellGetGrantInfo(args.con);
+#ifndef WINDOWS
+  shellAutoInit();
+#endif
 
   /* Loop to query the input. */
   while (1) {
     pthread_create(&pid, NULL, shellLoopQuery, args.con);
     pthread_join(pid, NULL);
   }
+#ifndef WINDOWS
+  shellAutoExit();
+#endif
 }

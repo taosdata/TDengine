@@ -41,6 +41,7 @@ extern void deleteChar(Command *cmd);
 extern void moveCursorLeft(Command *cmd);
 extern void moveCursorRight(Command *cmd);
 extern void positionCursorHome(Command *cmd);
+extern void positionCursorMiddle(Command *cmd);
 extern void positionCursorEnd(Command *cmd);
 extern void showOnScreen(Command *cmd);
 extern void updateBuffer(Command *cmd);
@@ -51,5 +52,6 @@ int countPrefixOnes(unsigned char c);
 void clearScreen(int ecmd_pos, int cursor_pos);
 void printChar(char c, int times);
 void positionCursor(int step, int direction);
+void getPrevCharSize(const char *str, int pos, int *size, int *width);
 
 #endif

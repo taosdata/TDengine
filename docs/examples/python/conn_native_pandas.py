@@ -1,8 +1,8 @@
+import taos
 import pandas
-from sqlalchemy import create_engine
 
-engine = create_engine("taos://root:taosdata@localhost:6030/power")
-df = pandas.read_sql("SELECT * FROM meters", engine)
+conn = taos.connect()
+df: pandas.DataFrame = pandas.read_sql("SELECT * FROM meters", conn)
 
 # print index
 print(df.index)

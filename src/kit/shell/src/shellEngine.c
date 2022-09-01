@@ -27,6 +27,7 @@
 #include "tglobal.h"
 #include "tsclient.h"
 #include "cJSON.h"
+#include "shellAuto.h"
 
 #include <regex.h>
 
@@ -327,6 +328,12 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     fprintf(stdout, "Database changed.\n\n");
     fflush(stdout);
 
+#ifndef WINDOWS
+    // call back auto tab module
+    callbackAutoTab(command, pSql, true);
+#endif    
+
+
     atomic_store_64(&result, 0);
     freeResultWithRid(oresult);
     return;
@@ -365,6 +372,11 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     int num_rows_affacted = taos_affected_rows(pSql);
     et = taosGetTimestampUs();
     printf("Query OK, %d of %d row(s) in database (%.6fs)\n", num_rows_affacted, num_rows_affacted, (et - st) / 1E6);
+
+#ifndef WINDOWS
+    // call auto tab
+    callbackAutoTab(command, pSql, false);
+#endif
   }
 
   printf("\n");
