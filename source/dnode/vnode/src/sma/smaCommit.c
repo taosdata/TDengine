@@ -172,7 +172,7 @@ static int32_t tdCleanupQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat) {
   TdDirPtr      pDir = NULL;
   TdDirEntryPtr pDirEntry = NULL;
   char          dir[TSDB_FILENAME_LEN];
-  const char   *pattern = "v[0-9]+qtaskinfo\\.ver([0-9]+)?$";
+  const char   *pattern = "v[0-9]+qinf\\.v([0-9]+)?$";
   regex_t       regex;
   int           code = 0;
 

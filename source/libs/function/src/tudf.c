@@ -81,7 +81,7 @@ static int32_t udfSpawnUdfd(SUdfdData* pData) {
     taosDirName(path);
   #endif
   } else {
-    strncpy(path, tsProcPath, strlen(tsProcPath));
+    strncpy(path, tsProcPath, PATH_MAX);
     taosDirName(path);
   }
 #ifdef WINDOWS

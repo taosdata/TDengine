@@ -471,6 +471,7 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE TABLE `%s` (", tbName);
     appendColumnFields(buf2, &len, pCfg);
     len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ")");
+    appendTableOptions(buf2, &len, pDbCfg, pCfg);
   }
 
   varDataLen(buf2) = len;

@@ -39,7 +39,8 @@ static void idxGenLRUKey(char* buf, const char* path, int32_t blockId) {
 }
 static int idxFileCtxDoWrite(IFileCtx* ctx, uint8_t* buf, int len) {
   if (ctx->type == TFILE) {
-    assert(len == taosWriteFile(ctx->file.pFile, buf, len));
+    int nwr = taosWriteFile(ctx->file.pFile, buf, len);
+    assert(nwr == len);
   } else {
     memcpy(ctx->mem.buf + ctx->offset, buf, len);
   }

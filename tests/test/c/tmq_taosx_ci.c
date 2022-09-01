@@ -26,6 +26,7 @@ TdFilePtr   g_fp = NULL;
 typedef struct{
   bool snapShot;
   bool dropTable;
+  bool subTable;
   int  srcVgroups;
   int  dstVgroups;
   char dir[64];
@@ -74,57 +75,7 @@ static void msg_process(TAOS_RES* msg) {
   taos_close(pConn);
 }
 
-int32_t init_env(Config *conf) {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  if (pConn == NULL) {
-    return -1;
-  }
-
-  TAOS_RES* pRes = taos_query(pConn, "drop database if exists db_taosx");
-  if (taos_errno(pRes) != 0) {
-    printf("error in drop db_taosx, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  char sql[128] = {0};
-  snprintf(sql, 128, "create database if not exists db_taosx vgroups %d", conf->dstVgroups);
-  pRes = taos_query(pConn, sql);
-  if (taos_errno(pRes) != 0) {
-    printf("error in create db_taosx, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "drop topic if exists topic_db");
-  if (taos_errno(pRes) != 0) {
-    printf("error in drop topic, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "drop database if exists abc1");
-  if (taos_errno(pRes) != 0) {
-    printf("error in drop db, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  snprintf(sql, 128, "create database if not exists abc1 vgroups %d", conf->srcVgroups);
-  pRes = taos_query(pConn, sql);
-  if (taos_errno(pRes) != 0) {
-    printf("error in create db, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "use abc1");
-  if (taos_errno(pRes) != 0) {
-    printf("error in use db, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
-
+int buildDatabase(TAOS* pConn, TAOS_RES* pRes){
   pRes = taos_query(pConn,
                     "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c3 binary(16)) tags(t1 int, t3 "
                     "nchar(8), t4 bool)");
@@ -232,7 +183,7 @@ int32_t init_env(Config *conf) {
   }
   taos_free_result(pRes);
 
-  if(conf->dropTable){
+  if(g_conf.dropTable){
     pRes = taos_query(pConn, "drop table ct3 ct1");
     if (taos_errno(pRes) != 0) {
       printf("failed to drop child table ct3, reason:%s\n", taos_errstr(pRes));
@@ -297,7 +248,7 @@ int32_t init_env(Config *conf) {
   }
   taos_free_result(pRes);
 
-  if(conf->dropTable){
+  if(g_conf.dropTable){
     pRes = taos_query(pConn, "drop table n1");
     if (taos_errno(pRes) != 0) {
       printf("failed to drop normal table n1, reason:%s\n", taos_errstr(pRes));
@@ -341,7 +292,7 @@ int32_t init_env(Config *conf) {
   }
   taos_free_result(pRes);
 
-  if(conf->dropTable){
+  if(g_conf.dropTable){
     pRes = taos_query(pConn,
                       "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c3 binary(16)) tags(t1 int, t3 "
                       "nchar(8), t4 bool)");
@@ -358,6 +309,112 @@ int32_t init_env(Config *conf) {
     }
     taos_free_result(pRes);
   }
+  return 0;
+}
+
+int buildStable(TAOS* pConn, TAOS_RES* pRes){
+  pRes = taos_query(pConn, "CREATE STABLE `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` VARCHAR(16))");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create super table meters, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create table d0 using meters tags(1, 'San Francisco')");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create child table d0, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create table d1 using meters tags(2, 'Beijing')");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create child table d1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create stream meters_summary_s into meters_summary as select _wstart, max(current) as current, groupid, location from meters partition by groupid, location interval(10m)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create super table meters_summary, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "insert into d0 (ts, current) values (now, 120)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to insert into table d0, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  return 0;
+}
+
+int32_t init_env() {
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  if (pConn == NULL) {
+    return -1;
+  }
+
+  TAOS_RES* pRes = taos_query(pConn, "drop database if exists db_taosx");
+  if (taos_errno(pRes) != 0) {
+    printf("error in drop db_taosx, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  char sql[128] = {0};
+  snprintf(sql, 128, "create database if not exists db_taosx vgroups %d", g_conf.dstVgroups);
+  pRes = taos_query(pConn, sql);
+  if (taos_errno(pRes) != 0) {
+    printf("error in create db_taosx, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "drop topic if exists topic_db");
+  if (taos_errno(pRes) != 0) {
+    printf("error in drop topic, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "drop topic if exists meters_summary_t1");
+  if (taos_errno(pRes) != 0) {
+    printf("error in drop topic, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "drop database if exists abc1");
+  if (taos_errno(pRes) != 0) {
+    printf("error in drop db, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  snprintf(sql, 128, "create database if not exists abc1 vgroups %d", g_conf.srcVgroups);
+  pRes = taos_query(pConn, sql);
+  if (taos_errno(pRes) != 0) {
+    printf("error in create db, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "use abc1");
+  if (taos_errno(pRes) != 0) {
+    printf("error in use db, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  if(g_conf.subTable){
+    buildStable(pConn, pRes);
+  }else{
+    buildDatabase(pConn, pRes);
+  }
+
   taos_close(pConn);
   return 0;
 }
@@ -377,12 +434,21 @@ int32_t create_topic() {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create topic topic_db with meta as database abc1");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create topic topic_db, reason:%s\n", taos_errstr(pRes));
-    return -1;
+  if(g_conf.subTable){
+    pRes = taos_query(pConn, "create topic meters_summary_t1 with meta as stable meters_summary");
+    if (taos_errno(pRes) != 0) {
+      printf("failed to create topic meters_summary_t1, reason:%s\n", taos_errstr(pRes));
+      return -1;
+    }
+    taos_free_result(pRes);
+  }else{
+    pRes = taos_query(pConn, "create topic topic_db with meta as database abc1");
+    if (taos_errno(pRes) != 0) {
+      printf("failed to create topic topic_db, reason:%s\n", taos_errstr(pRes));
+      return -1;
+    }
+    taos_free_result(pRes);
   }
-  taos_free_result(pRes);
 
   taos_close(pConn);
   return 0;
@@ -392,7 +458,7 @@ void tmq_commit_cb_print(tmq_t* tmq, int32_t code, void* param) {
   printf("commit %d tmq %p param %p\n", code, tmq, param);
 }
 
-tmq_t* build_consumer(Config *config) {
+tmq_t* build_consumer() {
   tmq_conf_t* conf = tmq_conf_new();
   tmq_conf_set(conf, "group.id", "tg2");
   tmq_conf_set(conf, "client.id", "my app 1");
@@ -402,7 +468,7 @@ tmq_t* build_consumer(Config *config) {
   tmq_conf_set(conf, "enable.auto.commit", "true");
   tmq_conf_set(conf, "enable.heartbeat.background", "true");
 
-  if(config->snapShot){
+  if(g_conf.snapShot){
     tmq_conf_set(conf, "experimental.snapshot.enable", "true");
   }
 
@@ -415,7 +481,11 @@ tmq_t* build_consumer(Config *config) {
 
 tmq_list_t* build_topic_list() {
   tmq_list_t* topic_list = tmq_list_new();
-  tmq_list_append(topic_list, "topic_db");
+  if(g_conf.subTable){
+    tmq_list_append(topic_list, "meters_summary_t1");
+  }else{
+    tmq_list_append(topic_list, "topic_db");
+  }
   return topic_list;
 }
 
@@ -446,16 +516,16 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     fprintf(stderr, "%% Consumer closed\n");
 }
 
-void initLogFile(Config *conf) {
+void initLogFile() {
   char f1[256] = {0};
   char f2[256] = {0};
 
-  if(conf->snapShot){
-    sprintf(f1, "%s/../log/tmq_taosx_tmp_snapshot.source", conf->dir);
-    sprintf(f2, "%s/../log/tmq_taosx_tmp_snapshot.result", conf->dir);
+  if(g_conf.snapShot){
+    sprintf(f1, "%s/../log/tmq_taosx_tmp_snapshot.source", g_conf.dir);
+    sprintf(f2, "%s/../log/tmq_taosx_tmp_snapshot.result", g_conf.dir);
   }else{
-    sprintf(f1, "%s/../log/tmq_taosx_tmp.source", conf->dir);
-    sprintf(f2, "%s/../log/tmq_taosx_tmp.result", conf->dir);
+    sprintf(f1, "%s/../log/tmq_taosx_tmp.source", g_conf.dir);
+    sprintf(f2, "%s/../log/tmq_taosx_tmp.result", g_conf.dir);
   }
 
   TdFilePtr pFile = taosOpenFile(f1, TD_FILE_TEXT | TD_FILE_TRUNC | TD_FILE_STREAM);
@@ -471,7 +541,7 @@ void initLogFile(Config *conf) {
     exit(-1);
   }
 
-  if(conf->snapShot){
+  if(g_conf.snapShot){
     char *result[] = {
         "{\"type\":\"create\",\"tableName\":\"st1\",\"tableType\":\"super\",\"columns\":[{\"name\":\"ts\",\"type\":9},{\"name\":\"c1\",\"type\":4},{\"name\":\"c2\",\"type\":6},{\"name\":\"c3\",\"type\":8,\"length\":64},{\"name\":\"c4\",\"type\":5}],\"tags\":[{\"name\":\"t1\",\"type\":4},{\"name\":\"t3\",\"type\":10,\"length\":8},{\"name\":\"t4\",\"type\":1},{\"name\":\"t2\",\"type\":8,\"length\":64}]}",
         "{\"type\":\"create\",\"tableName\":\"ct0\",\"tableType\":\"child\",\"using\":\"st1\",\"tagNum\":4,\"tags\":[{\"name\":\"t1\",\"type\":4,\"value\":1000},{\"name\":\"t3\",\"type\":10,\"value\":\"\\\"ttt\\\"\"},{\"name\":\"t4\",\"type\":1,\"value\":1}]}",
@@ -531,20 +601,22 @@ int main(int argc, char* argv[]) {
       g_conf.srcVgroups = atol(argv[++i]);
     }else if(strcmp(argv[i], "-dv") == 0){
       g_conf.dstVgroups = atol(argv[++i]);
+    }else if(strcmp(argv[i], "-t") == 0){
+      g_conf.subTable = true;
     }
   }
 
   printf("env init\n");
   if(strlen(g_conf.dir) != 0){
-    initLogFile(&g_conf);
+    initLogFile();
   }
 
-  if (init_env(&g_conf) < 0) {
+  if (init_env() < 0) {
     return -1;
   }
   create_topic();
 
-  tmq_t*      tmq = build_consumer(&g_conf);
+  tmq_t*      tmq = build_consumer();
   tmq_list_t* topic_list = build_topic_list();
   basic_consume_loop(tmq, topic_list);
   taosCloseFile(&g_fp);

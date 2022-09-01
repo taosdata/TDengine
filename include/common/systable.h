@@ -43,17 +43,17 @@ extern "C" {
 #define TSDB_INS_TABLE_VNODES            "ins_vnodes"
 #define TSDB_INS_TABLE_CONFIGS           "ins_configs"
 #define TSDB_INS_TABLE_DNODE_VARIABLES   "ins_dnode_variables"
+#define TSDB_INS_TABLE_SUBSCRIPTIONS     "ins_subscriptions"
+#define TSDB_INS_TABLE_TOPICS            "ins_topics"
+#define TSDB_INS_TABLE_STREAMS           "ins_streams"
 
 #define TSDB_PERFORMANCE_SCHEMA_DB     "performance_schema"
 #define TSDB_PERFS_TABLE_SMAS          "perf_smas"
 #define TSDB_PERFS_TABLE_CONNECTIONS   "perf_connections"
 #define TSDB_PERFS_TABLE_QUERIES       "perf_queries"
-#define TSDB_PERFS_TABLE_TOPICS        "perf_topics"
 #define TSDB_PERFS_TABLE_CONSUMERS     "perf_consumers"
-#define TSDB_PERFS_TABLE_SUBSCRIPTIONS "perf_subscriptions"
 #define TSDB_PERFS_TABLE_OFFSETS       "perf_offsets"
 #define TSDB_PERFS_TABLE_TRANS         "perf_trans"
-#define TSDB_PERFS_TABLE_STREAMS       "perf_streams"
 #define TSDB_PERFS_TABLE_APPS          "perf_apps"
 
 typedef struct SSysDbTableSchema {

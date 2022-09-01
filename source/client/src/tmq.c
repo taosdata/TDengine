@@ -811,8 +811,19 @@ int32_t tmq_subscription(tmq_t* tmq, tmq_list_t** topics) {
 }
 
 int32_t tmq_unsubscribe(tmq_t* tmq) {
+  int32_t     rsp;
+  int32_t     retryCnt = 0;
   tmq_list_t* lst = tmq_list_new();
-  int32_t     rsp = tmq_subscribe(tmq, lst);
+  while (1) {
+    rsp = tmq_subscribe(tmq, lst);
+    if (rsp != TSDB_CODE_MND_CONSUMER_NOT_READY || retryCnt > 5) {
+      break;
+    } else {
+      retryCnt++;
+      taosMsleep(500);
+    }
+  }
+
   tmq_list_destroy(lst);
   return rsp;
 }
