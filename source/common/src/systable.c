@@ -256,6 +256,13 @@ static const SSysDbTableSchema subscriptionSchema[] = {
     {.name = "consumer_id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
 };
 
+static const SSysDbTableSchema vnodesSchema[] = {
+    {.name = "dnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "dnode_endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "status", .bytes = 20 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY, .sysInfo = true},
+};
+
 static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_DNODES, dnodesSchema, tListLen(dnodesSchema), true},
     {TSDB_INS_TABLE_MNODES, mnodesSchema, tListLen(mnodesSchema), true},
@@ -279,6 +286,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_TOPICS, topicSchema, tListLen(topicSchema), false},
     {TSDB_INS_TABLE_SUBSCRIPTIONS, subscriptionSchema, tListLen(subscriptionSchema), false},
     {TSDB_INS_TABLE_STREAMS, streamSchema, tListLen(streamSchema), false},
+    {TSDB_INS_TABLE_VNODES, vnodesSchema, tListLen(vnodesSchema), true},
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {
