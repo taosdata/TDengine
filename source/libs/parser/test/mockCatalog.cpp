@@ -32,100 +32,59 @@
 namespace {
 
 void generateInformationSchema(MockCatalogService* mcs) {
-  {
-    ITableBuilder& builder =
-        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_DNODES, TSDB_SYSTEM_TABLE, 1)
-            .addColumn("endpoint", TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder =
-        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_MNODES, TSDB_SYSTEM_TABLE, 1)
-            .addColumn("endpoint", TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder =
-        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_MODULES, TSDB_SYSTEM_TABLE, 1)
-            .addColumn("endpoint", TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder =
-        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_QNODES, TSDB_SYSTEM_TABLE, 1)
-            .addColumn("endpoint", TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder =
-        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_DATABASES, TSDB_SYSTEM_TABLE, 1)
-            .addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder =
-        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_FUNCTIONS, TSDB_SYSTEM_TABLE, 1)
-            .addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_FUNC_NAME_LEN);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder =
-        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_INDEXES, TSDB_SYSTEM_TABLE, 3)
-            .addColumn("index_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
-            .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
-            .addColumn("table_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder =
-        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_STABLES, TSDB_SYSTEM_TABLE, 2)
-            .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
-            .addColumn("stable_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder =
-        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TABLES, TSDB_SYSTEM_TABLE, 2)
-            .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
-            .addColumn("table_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder =
-        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TABLE_DISTRIBUTED, TSDB_SYSTEM_TABLE, 1)
-            .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder =
-        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_USERS, TSDB_SYSTEM_TABLE, 1)
-            .addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder =
-        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_VGROUPS, TSDB_SYSTEM_TABLE, 1)
-            .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder =
-        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_CONFIGS, TSDB_SYSTEM_TABLE, 1)
-            .addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_CONFIG_OPTION_LEN);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder =
-        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_DNODE_VARIABLES, TSDB_SYSTEM_TABLE, 1)
-            .addColumn("dnode_id", TSDB_DATA_TYPE_INT);
-    builder.done();
-  }
-  {
-    ITableBuilder& builder =
-        mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_CLUSTER, TSDB_SYSTEM_TABLE, 1)
-            .addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_CLUSTER_ID_LEN);
-    builder.done();
-  }
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_DNODES, TSDB_SYSTEM_TABLE, 1)
+      .addColumn("endpoint", TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_MNODES, TSDB_SYSTEM_TABLE, 1)
+      .addColumn("endpoint", TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_MODULES, TSDB_SYSTEM_TABLE, 1)
+      .addColumn("endpoint", TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_QNODES, TSDB_SYSTEM_TABLE, 1)
+      .addColumn("endpoint", TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_DATABASES, TSDB_SYSTEM_TABLE, 1)
+      .addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_FUNCTIONS, TSDB_SYSTEM_TABLE, 1)
+      .addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_FUNC_NAME_LEN)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_INDEXES, TSDB_SYSTEM_TABLE, 3)
+      .addColumn("index_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
+      .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
+      .addColumn("table_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_STABLES, TSDB_SYSTEM_TABLE, 2)
+      .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
+      .addColumn("stable_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TABLES, TSDB_SYSTEM_TABLE, 2)
+      .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
+      .addColumn("table_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TABLE_DISTRIBUTED, TSDB_SYSTEM_TABLE, 1)
+      .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_USERS, TSDB_SYSTEM_TABLE, 1)
+      .addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_VGROUPS, TSDB_SYSTEM_TABLE, 1)
+      .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_CONFIGS, TSDB_SYSTEM_TABLE, 1)
+      .addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_CONFIG_OPTION_LEN)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_DNODE_VARIABLES, TSDB_SYSTEM_TABLE, 1)
+      .addColumn("dnode_id", TSDB_DATA_TYPE_INT)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_CLUSTER, TSDB_SYSTEM_TABLE, 1)
+      .addColumn("name", TSDB_DATA_TYPE_BINARY, TSDB_CLUSTER_ID_LEN)
+      .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_VNODES, TSDB_SYSTEM_TABLE, 2)
+      .addColumn("dnode_id", TSDB_DATA_TYPE_INT)
+      .addColumn("dnode_endpoint", TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN)
+      .done();
 }
 
 void generatePerformanceSchema(MockCatalogService* mcs) {

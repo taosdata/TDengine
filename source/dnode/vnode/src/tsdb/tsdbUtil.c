@@ -2039,7 +2039,7 @@ int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol
   size += pBlockCol->szOffset;
 
   // value
-  if (pColData->flag != (HAS_NULL | HAS_NONE)) {
+  if ((pColData->flag != (HAS_NULL | HAS_NONE)) && pColData->nData) {
     code = tsdbCmprData((uint8_t *)pColData->pData, pColData->nData, pColData->type, cmprAlg, ppOut, nOut + size,
                         &pBlockCol->szValue, ppBuf);
     if (code) goto _exit;

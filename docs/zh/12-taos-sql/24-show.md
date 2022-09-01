@@ -1,6 +1,6 @@
 ---
 sidebar_label: SHOW 命令
-title: 使用 SHOW 命令查看系统元数据
+title: SHOW 命令
 description: SHOW 命令的完整列表
 ---
 

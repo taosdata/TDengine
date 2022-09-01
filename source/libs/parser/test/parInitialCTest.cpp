@@ -111,10 +111,11 @@ TEST_F(ParserInitialCTest, createDatabase) {
     expect.numOfVgroups = TSDB_DEFAULT_VN_PER_DB;
     expect.numOfStables = TSDB_DEFAULT_DB_SINGLE_STABLE;
     expect.schemaless = TSDB_DEFAULT_DB_SCHEMALESS;
-    expect.walRetentionPeriod = TSDB_DEFAULT_DB_WAL_RETENTION_PERIOD;
-    expect.walRetentionSize = TSDB_DEFAULT_DB_WAL_RETENTION_SIZE;
-    expect.walRollPeriod = TSDB_DEFAULT_DB_WAL_ROLL_PERIOD;
+    expect.walRetentionPeriod = TSDB_REP_DEF_DB_WAL_RET_PERIOD;
+    expect.walRetentionSize = TSDB_REP_DEF_DB_WAL_RET_SIZE;
+    expect.walRollPeriod = TSDB_REP_DEF_DB_WAL_ROLL_PERIOD;
     expect.walSegmentSize = TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE;
+    expect.sstTrigger = TSDB_DEFAULT_SST_TRIGGER;
   };
 
   auto setDbBufferFunc = [&](int32_t buffer) { expect.buffer = buffer; };
@@ -155,6 +156,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
   auto setDbWalRetentionSize = [&](int32_t walRetentionSize) { expect.walRetentionSize = walRetentionSize; };
   auto setDbWalRollPeriod = [&](int32_t walRollPeriod) { expect.walRollPeriod = walRollPeriod; };
   auto setDbWalSegmentSize = [&](int32_t walSegmentSize) { expect.walSegmentSize = walSegmentSize; };
+  auto setDbSstTrigger = [&](int32_t sstTrigger) { expect.sstTrigger = sstTrigger; };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_DATABASE_STMT);
@@ -185,7 +187,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
     ASSERT_EQ(req.walRetentionSize, expect.walRetentionSize);
     ASSERT_EQ(req.walRollPeriod, expect.walRollPeriod);
     ASSERT_EQ(req.walSegmentSize, expect.walSegmentSize);
-    // ASSERT_EQ(req.schemaless, expect.schemaless);
+    ASSERT_EQ(req.sstTrigger, expect.sstTrigger);
     ASSERT_EQ(req.ignoreExist, expect.ignoreExist);
     ASSERT_EQ(req.numOfRetensions, expect.numOfRetensions);
     if (expect.numOfRetensions > 0) {
@@ -233,6 +235,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
   setDbWalRetentionSize(-1);
   setDbWalRollPeriod(10);
   setDbWalSegmentSize(20);
+  setDbSstTrigger(16);
   run("CREATE DATABASE IF NOT EXISTS wxy_db "
       "BUFFER 64 "
       "CACHEMODEL 'last_value' "
@@ -256,7 +259,8 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "WAL_RETENTION_PERIOD -1 "
       "WAL_RETENTION_SIZE -1 "
       "WAL_ROLL_PERIOD 10 "
-      "WAL_SEGMENT_SIZE 20");
+      "WAL_SEGMENT_SIZE 20 "
+      "SST_TRIGGER 16");
   clearCreateDbReq();
 
   setCreateDbReqFunc("wxy_db", 1);
@@ -265,6 +269,14 @@ TEST_F(ParserInitialCTest, createDatabase) {
   run("CREATE DATABASE IF NOT EXISTS wxy_db "
       "DURATION 100m "
       "KEEP 1440m,300h,400d ");
+  clearCreateDbReq();
+
+  setCreateDbReqFunc("wxy_db", 1);
+  setDbReplicaFunc(3);
+  setDbWalRetentionPeriod(TSDB_REPS_DEF_DB_WAL_RET_PERIOD);
+  setDbWalRetentionSize(TSDB_REPS_DEF_DB_WAL_RET_SIZE);
+  setDbWalRollPeriod(TSDB_REPS_DEF_DB_WAL_ROLL_PERIOD);
+  run("CREATE DATABASE IF NOT EXISTS wxy_db REPLICA 3");
   clearCreateDbReq();
 }
 
