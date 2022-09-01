@@ -78,6 +78,9 @@ typedef struct SDatabaseOptions {
   int32_t     walRetentionSize;
   int32_t     walRollPeriod;
   int32_t     walSegmentSize;
+  bool        walRetentionPeriodIsSet;
+  bool        walRetentionSizeIsSet;
+  bool        walRollPeriodIsSet;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {

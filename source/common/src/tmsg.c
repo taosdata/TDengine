@@ -5986,6 +5986,17 @@ int32_t tDecodeSTaosxRsp(SDecoder *pDecoder, STaosxRsp *pRsp) {
   }
   return 0;
 }
+
+void tDeleteSTaosxRsp(STaosxRsp *pRsp) {
+  taosArrayDestroy(pRsp->blockDataLen);
+  taosArrayDestroyP(pRsp->blockData, (FDelete)taosMemoryFree);
+  taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSSchemaWrapper);
+  taosArrayDestroyP(pRsp->blockTbName, (FDelete)taosMemoryFree);
+
+  taosArrayDestroy(pRsp->createTableLen);
+  taosArrayDestroyP(pRsp->createTableReq, (FDelete)taosMemoryFree);
+}
+
 int32_t tEncodeSSingleDeleteReq(SEncoder *pEncoder, const SSingleDeleteReq *pReq) {
   if (tEncodeI64(pEncoder, pReq->uid) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->ts) < 0) return -1;
