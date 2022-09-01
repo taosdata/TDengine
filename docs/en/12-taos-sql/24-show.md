@@ -5,16 +5,6 @@ title: SHOW Statement for Metadata
 
 `SHOW` command can be used to get brief system information. To get details about metatadata, information, and status in the system, please use `select` to query the tables in database `INFORMATION_SCHEMA`. 
 
-## SHOW ACCOUNTS
-
-```sql
-SHOW ACCOUNTS;
-```
-
-Shows information about tenants on the system.
-
-Note: TDengine Enterprise Edition only.
-
 ## SHOW APPS
 
 ```sql

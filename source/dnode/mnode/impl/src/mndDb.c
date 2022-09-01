@@ -358,10 +358,10 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->numOfRetensions < 0) pCfg->numOfRetensions = 0;
   if (pCfg->schemaless < 0) pCfg->schemaless = TSDB_DB_SCHEMALESS_OFF;
   if (pCfg->walRetentionPeriod < 0 && pCfg->walRetentionPeriod != -1)
-    pCfg->walRetentionPeriod = TSDB_DEFAULT_DB_WAL_RETENTION_PERIOD;
+    pCfg->walRetentionPeriod = TSDB_REPS_DEF_DB_WAL_RET_PERIOD;
   if (pCfg->walRetentionSize < 0 && pCfg->walRetentionSize != -1)
-    pCfg->walRetentionSize = TSDB_DEFAULT_DB_WAL_RETENTION_SIZE;
-  if (pCfg->walRollPeriod < 0) pCfg->walRollPeriod = TSDB_DEFAULT_DB_WAL_ROLL_PERIOD;
+    pCfg->walRetentionSize = TSDB_REPS_DEF_DB_WAL_RET_SIZE;
+  if (pCfg->walRollPeriod < 0) pCfg->walRollPeriod = TSDB_REPS_DEF_DB_WAL_ROLL_PERIOD;
   if (pCfg->walSegmentSize < 0) pCfg->walSegmentSize = TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE;
 }
 

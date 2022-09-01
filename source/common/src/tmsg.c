@@ -994,6 +994,7 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     SVnodeLoad *pload = taosArrayGet(pReq->pVloads, i);
     if (tEncodeI32(&encoder, pload->vgId) < 0) return -1;
     if (tEncodeI32(&encoder, pload->syncState) < 0) return -1;
+    if (tEncodeI64(&encoder, pload->cacheUsage) < 0) return -1;
     if (tEncodeI64(&encoder, pload->numOfTables) < 0) return -1;
     if (tEncodeI64(&encoder, pload->numOfTimeSeries) < 0) return -1;
     if (tEncodeI64(&encoder, pload->totalStorage) < 0) return -1;
@@ -1063,6 +1064,7 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     SVnodeLoad vload = {0};
     if (tDecodeI32(&decoder, &vload.vgId) < 0) return -1;
     if (tDecodeI32(&decoder, &vload.syncState) < 0) return -1;
+    if (tDecodeI64(&decoder, &vload.cacheUsage) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.numOfTables) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.numOfTimeSeries) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.totalStorage) < 0) return -1;
@@ -5984,6 +5986,17 @@ int32_t tDecodeSTaosxRsp(SDecoder *pDecoder, STaosxRsp *pRsp) {
   }
   return 0;
 }
+
+void tDeleteSTaosxRsp(STaosxRsp *pRsp) {
+  taosArrayDestroy(pRsp->blockDataLen);
+  taosArrayDestroyP(pRsp->blockData, (FDelete)taosMemoryFree);
+  taosArrayDestroyP(pRsp->blockSchema, (FDelete)tDeleteSSchemaWrapper);
+  taosArrayDestroyP(pRsp->blockTbName, (FDelete)taosMemoryFree);
+
+  taosArrayDestroy(pRsp->createTableLen);
+  taosArrayDestroyP(pRsp->createTableReq, (FDelete)taosMemoryFree);
+}
+
 int32_t tEncodeSSingleDeleteReq(SEncoder *pEncoder, const SSingleDeleteReq *pReq) {
   if (tEncodeI64(pEncoder, pReq->uid) < 0) return -1;
   if (tEncodeI64(pEncoder, pReq->ts) < 0) return -1;

@@ -91,6 +91,7 @@ bool tsSmlDataFormat =
 // query
 int32_t tsQueryPolicy = 1;
 int32_t tsQuerySmaOptimize = 0;
+bool    tsQueryPlannerTrace = false;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -286,6 +287,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "compressColData", tsCompressColData, -1, 100000000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryPolicy", tsQueryPolicy, 1, 3, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "querySmaOptimize", tsQuerySmaOptimize, 0, 1, 1) != 0) return -1;
+  if (cfgAddBool(pCfg, "queryPlannerTrace", tsQueryPlannerTrace, true) != 0) return -1;
   if (cfgAddString(pCfg, "smlChildTableName", "", 1) != 0) return -1;
   if (cfgAddString(pCfg, "smlTagName", tsSmlTagName, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
@@ -429,9 +431,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 
 static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   SConfigItem *pItem;
-  ECfgSrcType stype;
-  int32_t numOfCores;
-  int64_t totalMemoryKB;
+  ECfgSrcType  stype;
+  int32_t      numOfCores;
+  int64_t      totalMemoryKB;
 
   pItem = cfgGetItem(tsCfg, "numOfCores");
   if (pItem == NULL) {
@@ -572,7 +574,6 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
   return 0;
 }
 
-
 static void taosSetClientLogCfg(SConfig *pCfg) {
   SConfigItem *pItem = cfgGetItem(pCfg, "logDir");
   tstrncpy(tsLogDir, cfgGetItem(pCfg, "logDir")->str, PATH_MAX);
@@ -643,6 +644,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsNumOfTaskQueueThreads = cfgGetItem(pCfg, "numOfTaskQueueThreads")->i32;
   tsQueryPolicy = cfgGetItem(pCfg, "queryPolicy")->i32;
   tsQuerySmaOptimize = cfgGetItem(pCfg, "querySmaOptimize")->i32;
+  tsQueryPlannerTrace = cfgGetItem(pCfg, "queryPlannerTrace")->bval;
   return 0;
 }
 
@@ -972,6 +974,8 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         tsQnodeShmSize = cfgGetItem(pCfg, "qnodeShmSize")->i32;
       } else if (strcasecmp("qDebugFlag", name) == 0) {
         qDebugFlag = cfgGetItem(pCfg, "qDebugFlag")->i32;
+      } else if (strcasecmp("queryPlannerTrace", name) == 0) {
+        tsQueryPlannerTrace = cfgGetItem(pCfg, "queryPlannerTrace")->bval;
       }
       break;
     }
@@ -1129,7 +1133,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
   taosSetAllDebugFlag(cfgGetItem(pCfg, "debugFlag")->i32, false);
 
-  if (taosMulMkDir(tsLogDir) != 0) {
+  if (taosMulModeMkDir(tsLogDir, 0777) != 0) {
     uError("failed to create dir:%s since %s", tsLogDir, terrstr());
     cfgCleanup(pCfg);
     return -1;
@@ -1241,16 +1245,14 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
   }
 
   const char *options[] = {
-      "dDebugFlag",   "vDebugFlag",  "mDebugFlag",   "wDebugFlag",   "sDebugFlag",   "tsdbDebugFlag",
-      "tqDebugFlag",  "fsDebugFlag", "udfDebugFlag", "smaDebugFlag", "idxDebugFlag", "tdbDebugFlag",
-      "tmrDebugFlag", "uDebugFlag",  "smaDebugFlag", "rpcDebugFlag", "qDebugFlag",   "metaDebugFlag",
-      "jniDebugFlag",
+      "dDebugFlag",   "vDebugFlag",   "mDebugFlag",   "wDebugFlag",    "sDebugFlag",   "tsdbDebugFlag", "tqDebugFlag",
+      "fsDebugFlag",  "udfDebugFlag", "smaDebugFlag", "idxDebugFlag",  "tdbDebugFlag", "tmrDebugFlag",  "uDebugFlag",
+      "smaDebugFlag", "rpcDebugFlag", "qDebugFlag",   "metaDebugFlag", "jniDebugFlag",
   };
   int32_t *optionVars[] = {
-      &dDebugFlag,   &vDebugFlag,  &mDebugFlag,   &wDebugFlag,   &sDebugFlag,   &tsdbDebugFlag,
-      &tqDebugFlag,  &fsDebugFlag, &udfDebugFlag, &smaDebugFlag, &idxDebugFlag, &tdbDebugFlag,
-      &tmrDebugFlag, &uDebugFlag,  &smaDebugFlag, &rpcDebugFlag, &qDebugFlag,   &metaDebugFlag,
-      &jniDebugFlag,
+      &dDebugFlag,   &vDebugFlag,   &mDebugFlag,   &wDebugFlag,    &sDebugFlag,   &tsdbDebugFlag, &tqDebugFlag,
+      &fsDebugFlag,  &udfDebugFlag, &smaDebugFlag, &idxDebugFlag,  &tdbDebugFlag, &tmrDebugFlag,  &uDebugFlag,
+      &smaDebugFlag, &rpcDebugFlag, &qDebugFlag,   &metaDebugFlag, &jniDebugFlag,
   };
 
   int32_t optionSize = tListLen(options);

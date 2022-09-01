@@ -17,9 +17,10 @@
 
 #include "planInt.h"
 #include "scalar.h"
+#include "tglobal.h"
 
 static void dumpQueryPlan(SQueryPlan* pPlan) {
-  if (0 == (qDebugFlag & DEBUG_DEBUG)) {
+  if (!tsQueryPlannerTrace) {
     return;
   }
   char* pStr = NULL;

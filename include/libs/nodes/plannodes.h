@@ -488,6 +488,8 @@ typedef struct SPartitionPhysiNode {
   SNodeList* pTargets;
 } SPartitionPhysiNode;
 
+typedef SPartitionPhysiNode SStreamPartitionPhysiNode;
+
 typedef struct SDataSinkNode {
   ENodeType           type;
   SDataBlockDescNode* pInputDataBlockDesc;
