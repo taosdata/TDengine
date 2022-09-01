@@ -16,17 +16,17 @@
 #include "sma.h"
 #include "tsdb.h"
 
-static int32_t smaEvalDays(SRetention *r, int8_t precision);
-static int32_t smaSetKeepCfg(STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int type);
+static int32_t smaEvalDays(SVnode *pVnode, SRetention *r, int8_t level, int8_t precision, int32_t duration);
+static int32_t smaSetKeepCfg(SVnode *pVnode, STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int type);
 static int32_t rsmaRestore(SSma *pSma);
 
-#define SMA_SET_KEEP_CFG(l)                                                                       \
+#define SMA_SET_KEEP_CFG(v, l)                                                                    \
   do {                                                                                            \
     SRetention *r = &pCfg->retentions[l];                                                         \
     pKeepCfg->keep2 = convertTimeFromPrecisionToUnit(r->keep, pCfg->precision, TIME_UNIT_MINUTE); \
     pKeepCfg->keep0 = pKeepCfg->keep2;                                                            \
     pKeepCfg->keep1 = pKeepCfg->keep2;                                                            \
-    pKeepCfg->days = smaEvalDays(r, pCfg->precision);                                             \
+    pKeepCfg->days = smaEvalDays(v, pCfg->retentions, l, pCfg->precision, pCfg->days);            \
   } while (0)
 
 #define SMA_OPEN_RSMA_IMPL(v, l)                                                   \
@@ -38,51 +38,78 @@ static int32_t rsmaRestore(SSma *pSma);
       }                                                                            \
       break;                                                                       \
     }                                                                              \
-    smaSetKeepCfg(&keepCfg, pCfg, TSDB_TYPE_RSMA_L##l);                            \
+    smaSetKeepCfg(v, &keepCfg, pCfg, TSDB_TYPE_RSMA_L##l);                         \
     if (tsdbOpen(v, &SMA_RSMA_TSDB##l(pSma), VNODE_RSMA##l##_DIR, &keepCfg) < 0) { \
       goto _err;                                                                   \
     }                                                                              \
   } while (0)
 
-#define RETENTION_DAYS_SPLIT_RATIO 10
-#define RETENTION_DAYS_SPLIT_MIN   1
-#define RETENTION_DAYS_SPLIT_MAX   30
+/**
+ * @brief Evaluate days(duration) for rsma level 1/2/3.
+ *  1) level 1: duration from "create database"
+ *  2) level 2/3: duration * (freq/freqL1)
+ * @param pVnode
+ * @param r
+ * @param level
+ * @param precision
+ * @param duration
+ * @return int32_t
+ */
+static int32_t smaEvalDays(SVnode *pVnode, SRetention *r, int8_t level, int8_t precision, int32_t duration) {
+  int32_t freqDuration = convertTimeFromPrecisionToUnit((r + TSDB_RETENTION_L0)->freq, precision, TIME_UNIT_MINUTE);
+  int32_t keepDuration = convertTimeFromPrecisionToUnit((r + TSDB_RETENTION_L0)->keep, precision, TIME_UNIT_MINUTE);
+  int32_t days = duration;  // min
 
-static int32_t smaEvalDays(SRetention *r, int8_t precision) {
-  int32_t keepDays = convertTimeFromPrecisionToUnit(r->keep, precision, TIME_UNIT_DAY);
-  int32_t freqDays = convertTimeFromPrecisionToUnit(r->freq, precision, TIME_UNIT_DAY);
-
-  int32_t days = keepDays / RETENTION_DAYS_SPLIT_RATIO;
-  if (days <= RETENTION_DAYS_SPLIT_MIN) {
-    days = RETENTION_DAYS_SPLIT_MIN;
-    if (days < freqDays) {
-      days = freqDays + 1;
-    }
-  } else {
-    if (days > RETENTION_DAYS_SPLIT_MAX) {
-      days = RETENTION_DAYS_SPLIT_MAX;
-    }
-    if (days < freqDays) {
-      days = freqDays + 1;
-    }
+  if (days < freqDuration) {
+    days = freqDuration;
   }
-  return days * 1440;
+
+  if (days > keepDuration) {
+    days = keepDuration;
+  }
+
+  if (level == TSDB_RETENTION_L0) {
+    goto end;
+  }
+
+  ASSERT(level >= TSDB_RETENTION_L1 && level <= TSDB_RETENTION_L2);
+  
+  freqDuration = convertTimeFromPrecisionToUnit((r + level)->freq, precision, TIME_UNIT_MINUTE);
+  keepDuration = convertTimeFromPrecisionToUnit((r + level)->keep, precision, TIME_UNIT_MINUTE);
+
+  int32_t nFreqTimes = (r + level)->freq / (r + TSDB_RETENTION_L0)->freq;
+  days *= (nFreqTimes > 1 ? nFreqTimes : 1);
+
+  if (days > keepDuration) {
+    days = keepDuration;
+  }
+
+  if (days > TSDB_MAX_DURATION_PER_FILE) {
+    days = TSDB_MAX_DURATION_PER_FILE;
+  }
+
+  if (days < freqDuration) {
+    days = freqDuration;
+  }
+end:
+  smaInfo("vgId:%d, evaluated duration for level %" PRIi8 " is %d, raw val:%d", TD_VID(pVnode), level + 1, days, duration);
+  return days;
 }
 
-int smaSetKeepCfg(STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int type) {
+int smaSetKeepCfg(SVnode *pVnode, STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int type) {
   pKeepCfg->precision = pCfg->precision;
   switch (type) {
     case TSDB_TYPE_TSMA:
       ASSERT(0);
       break;
     case TSDB_TYPE_RSMA_L0:
-      SMA_SET_KEEP_CFG(0);
+      SMA_SET_KEEP_CFG(pVnode, 0);
       break;
     case TSDB_TYPE_RSMA_L1:
-      SMA_SET_KEEP_CFG(1);
+      SMA_SET_KEEP_CFG(pVnode, 1);
       break;
     case TSDB_TYPE_RSMA_L2:
-      SMA_SET_KEEP_CFG(2);
+      SMA_SET_KEEP_CFG(pVnode, 2);
       break;
     default:
       ASSERT(0);
@@ -148,11 +175,11 @@ int32_t smaClose(SSma *pSma) {
 
 /**
  * @brief rsma env restore
- * 
- * @param pSma 
- * @param type 
- * @param committedVer 
- * @return int32_t 
+ *
+ * @param pSma
+ * @param type
+ * @param committedVer
+ * @return int32_t
  */
 int32_t tdRsmaRestore(SSma *pSma, int8_t type, int64_t committedVer) {
   ASSERT(VND_IS_RSMA(pSma->pVnode));
