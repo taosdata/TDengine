@@ -55,8 +55,17 @@ title: JSON 类型使用说明
 4. 标签操作
 
    支持修改 json 标签值（全量覆盖）
+   
+   
+   ```
+   alter table s1_1 set tag info = '{"k1": "v2"}';
+   ```
 
    支持修改 json 标签名
+   
+   ```
+   alter stable s1 change tag info info2 ;
+   ```
 
    不支持添加 json 标签、删除 json 标签、修改 json 标签列宽
 

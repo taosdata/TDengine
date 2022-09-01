@@ -52,9 +52,20 @@ title: JSON Type
 
 4. Tag Operations
 
-   The value of a JSON tag can be altered. Please note that the full JSON will be overriden when doing this.
+   The value of a JSON tag can be altered. Please note that the full JSON will be overriden when doing this:
+   
+   ```sql
+   alter table s1_1 set tag info = '{"k1": "v2"}';
+   ```
 
-   The name of a JSON tag can be altered. A tag of JSON type can't be added or removed. The column length of a JSON tag can't be changed.
+   The name of a JSON tag can be altered:
+
+   ```sql
+   alter stable s1 change tag info info2 ;
+   ```
+
+   A tag of JSON type can't be added or removed. The column length of a JSON tag can't be changed.
+
 
 ## Other Restrictions
 
