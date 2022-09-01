@@ -16,6 +16,7 @@
 #include "filter.h"
 #include "functionMgt.h"
 #include "planInt.h"
+#include "tglobal.h"
 #include "ttime.h"
 
 #define OPTIMIZE_FLAG_MASK(n) (1 << n)
@@ -2410,7 +2411,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
 static const int32_t optimizeRuleNum = (sizeof(optimizeRuleSet) / sizeof(SOptimizeRule));
 
 static void dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) {
-  if (0 == (qDebugFlag & DEBUG_DEBUG)) {
+  if (!tsQueryPlannerTrace) {
     return;
   }
   char* pStr = NULL;
