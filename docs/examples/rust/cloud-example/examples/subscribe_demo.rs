@@ -18,6 +18,7 @@ struct Record {
 
 async fn prepare(taos: Taos) -> anyhow::Result<()> {
     let inserted = taos.exec_many([
+        "use tmq",
         // create child table
         "CREATE TABLE `d0` USING `meters` TAGS(0, 'Los Angles')",
         // insert into child table
@@ -35,22 +36,20 @@ async fn prepare(taos: Taos) -> anyhow::Result<()> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let mut dsn = std::env::var("TDENGINE_CLOUD_DSN").parse()?;
-    let builder = TaosBuilder::from_dsn(dsn)?;
+    std::env::set_var("RUST_LOG", "debug");
+    pretty_env_logger::init();
+    let dsn = std::env::var("TDENGINE_CLOUD_DSN")?;
+
+    let builder = TaosBuilder::from_dsn(&dsn)?;
 
     let taos = builder.build()?;
-    let db = "tmq";
 
     // prepare database
     taos.exec_many([
-        format!("DROP TOPIC IF EXISTS tmq_meters"),
-        format!("DROP DATABASE IF EXISTS `{db}`"),
-        format!("CREATE DATABASE `{db}`"),
-        format!("USE `{db}`"),
-        // create super table
-        format!("CREATE TABLE `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` BINARY(16))"),
-        // create topic for subscription
-        format!("CREATE TOPIC tmq_meters with META AS DATABASE {db}")
+        "DROP TOPIC IF EXISTS tmq_meters",
+        "USE tmq",
+        "CREATE STABLE IF NOT EXISTS `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` BINARY(16))",
+        "CREATE TOPIC tmq_meters with META AS DATABASE tmq"
     ])
     .await?;
 
@@ -59,10 +58,13 @@ async fn main() -> anyhow::Result<()> {
     tokio::time::sleep(Duration::from_secs(1)).await;
 
     // subscribe
-    let tmq = TmqBuilder::from_dsn("taosws://localhost:6030/?group.id=test")?;
+    let dsn2 = format!("{dsn}&group.id=test");
+    dbg!(&dsn2);
+    let tmq = TmqBuilder::from_dsn(dsn2)?;
 
     let mut consumer = tmq.build()?;
     consumer.subscribe(["tmq_meters"]).await?;
+    println!("start subscription");
 
     {
         let mut stream = consumer.stream();
