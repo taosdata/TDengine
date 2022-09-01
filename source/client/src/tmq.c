@@ -1773,7 +1773,7 @@ tmq_res_t tmq_get_res_type(TAOS_RES* res) {
     }
     return TMQ_RES_TABLE_META;
   } else if (TD_RES_TMQ_TAOSX(res)) {
-    return TMQ_RES_TAOSX;
+    return TMQ_RES_DATA;
   } else {
     return TMQ_RES_INVALID;
   }
