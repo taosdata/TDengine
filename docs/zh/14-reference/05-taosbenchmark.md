@@ -87,7 +87,7 @@ taosBenchmark -f <json file>
 <summary>subscribe.json</summary>
 
 ```json
-{{#include /taos-tools/example/tmq.json}}
+{{#include /taos-tools/example/subscribe.json}}
 ```
 
 </details>
