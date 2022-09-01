@@ -332,7 +332,10 @@ static int32_t tsdbCommitterUpdateTableSchema(SCommitter *pCommitter, int64_t su
   int32_t code = 0;
 
   if (suid) {
-    if (pCommitter->skmTable.suid == suid) goto _exit;
+    if (pCommitter->skmTable.suid == suid) {
+      pCommitter->skmTable.uid = uid;
+      goto _exit;
+    }
   } else {
     if (pCommitter->skmTable.uid == uid) goto _exit;
   }
@@ -425,40 +428,44 @@ static int32_t tsdbOpenCommitIter(SCommitter *pCommitter) {
   tRBTreePut(&pCommitter->rbt, (SRBTreeNode *)pIter);
 
   // disk
+  pCommitter->toLastOnly = 0;
   SDataFReader *pReader = pCommitter->dReader.pReader;
-  if (pReader && pReader->pSet->nLastF >= pCommitter->maxLast) {
-    int8_t iIter = 0;
-    for (int32_t iLast = 0; iLast < pReader->pSet->nLastF; iLast++) {
-      pIter = &pCommitter->aDataIter[iIter];
-      pIter->type = LAST_DATA_ITER;
-      pIter->iLast = iLast;
+  if (pReader) {
+    if (pReader->pSet->nLastF >= pCommitter->maxLast) {
+      int8_t iIter = 0;
+      for (int32_t iLast = 0; iLast < pReader->pSet->nLastF; iLast++) {
+        pIter = &pCommitter->aDataIter[iIter];
+        pIter->type = LAST_DATA_ITER;
+        pIter->iLast = iLast;
 
-      code = tsdbReadBlockL(pCommitter->dReader.pReader, iLast, pIter->aBlockL);
-      if (code) goto _err;
+        code = tsdbReadBlockL(pCommitter->dReader.pReader, iLast, pIter->aBlockL);
+        if (code) goto _err;
 
-      if (taosArrayGetSize(pIter->aBlockL) == 0) continue;
+        if (taosArrayGetSize(pIter->aBlockL) == 0) continue;
 
-      pIter->iBlockL = 0;
-      SBlockL *pBlockL = (SBlockL *)taosArrayGet(pIter->aBlockL, 0);
-      code = tsdbReadLastBlockEx(pCommitter->dReader.pReader, iLast, pBlockL, &pIter->bData);
-      if (code) goto _err;
+        pIter->iBlockL = 0;
+        SBlockL *pBlockL = (SBlockL *)taosArrayGet(pIter->aBlockL, 0);
+        code = tsdbReadLastBlockEx(pCommitter->dReader.pReader, iLast, pBlockL, &pIter->bData);
+        if (code) goto _err;
 
-      pIter->iRow = 0;
-      pIter->r.suid = pIter->bData.suid;
-      pIter->r.uid = pIter->bData.uid ? pIter->bData.uid : pIter->bData.aUid[0];
-      pIter->r.row = tsdbRowFromBlockData(&pIter->bData, 0);
+        pIter->iRow = 0;
+        pIter->r.suid = pIter->bData.suid;
+        pIter->r.uid = pIter->bData.uid ? pIter->bData.uid : pIter->bData.aUid[0];
+        pIter->r.row = tsdbRowFromBlockData(&pIter->bData, 0);
 
-      tRBTreePut(&pCommitter->rbt, (SRBTreeNode *)pIter);
-      iIter++;
-    }
-
-    if (iIter > 0) {
-      pCommitter->toLastOnly = 0;
+        tRBTreePut(&pCommitter->rbt, (SRBTreeNode *)pIter);
+        iIter++;
+      }
     } else {
-      pCommitter->toLastOnly = 1;
+      pCommitter->toLastOnly = 0;
+      for (int32_t iLast = 0; iLast < pReader->pSet->nLastF; iLast++) {
+        SLastFile *pLastFile = pReader->pSet->aLastF[iLast];
+        if (pLastFile->size > pLastFile->offset) {
+          pCommitter->toLastOnly = 1;
+          break;
+        }
+      }
     }
-  } else {
-    pCommitter->toLastOnly = 0;
   }
 
   code = tsdbNextCommitRow(pCommitter);
