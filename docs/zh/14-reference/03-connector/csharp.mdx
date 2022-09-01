@@ -63,15 +63,15 @@ dotnet add package TDengine.Connector
 </TabItem>
 <TabItem value="source" label="使用源码获取 C# 驱动">
 
-可以下载 TDengine 的源码，直接引用最新版本的 TDengine.Connector 库
+可以[下载源码](https://github.com/taosdata/taos-connector-dotnet)，直接引用 TDengine.Connector 库
 
 ```bash
-git clone https://github.com/taosdata/TDengine.git
-cd TDengine/src/connector/C#/src/
-cp -r TDengineDriver/ myProject
+git clone -b develop https://github.com/taosdata/taos-connector-dotnet
+cd taos-connector-dotnet
+cp -r src/ myProject
 
 cd myProject
-dotnet add TDengineDriver/TDengineDriver.csproj
+dotnet add myProject.csproj reference TDengineDriver/TDengineDriver.csproj
 ```
 </TabItem>
 </Tabs>
@@ -159,6 +159,7 @@ namespace TDengineExample
 
 | TDengine.Connector | 说明                           |
 |--------------------|--------------------------------|
+|        1.0.7       | 修复TDengine.Query()内存泄露的bug。 |
 |        1.0.6       | 修复 schemaless 在 1.0.4 和 1.0.5 中失效 bug。 |
 |        1.0.5       | 修复 Windows 同步查询中文报错 bug。   |
 |        1.0.4       | 新增异步查询，订阅等功能。修复绑定参数 bug。    |
