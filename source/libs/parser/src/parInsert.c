@@ -2253,7 +2253,7 @@ static int32_t smlBoundColumnData(SArray* cols, SParsedDataColInfo* pColList, SS
     SToken   sToken = {.n = kv->keyLen, .z = (char*)kv->key};
     col_id_t t = lastColIdx + 1;
     col_id_t index = ((t == 0 && !isTag) ? 0 : findCol(&sToken, t, nCols, pSchema));
-    uDebug("SML, index:%d, t:%d, ncols:%d, kv->name:%s", index, t, nCols, kv->key);
+    uDebug("SML, index:%d, t:%d, ncols:%d", index, t, nCols);
     if (index < 0 && t > 0) {
       index = findCol(&sToken, 0, t, pSchema);
       isOrdered = false;
@@ -2474,9 +2474,7 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
         if (p) kv = *p;
       }
 
-      if (!kv || kv->length == 0) {
-        MemRowAppend(&pBuf, NULL, 0, &param);
-      } else {
+      if (kv){
         int32_t colLen = kv->length;
         if (pColSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
           //          uError("SML:data before:%" PRId64 ", precision:%d", kv->i, pTableMeta->tableInfo.precision);
@@ -2489,17 +2487,14 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
         } else {
           MemRowAppend(&pBuf, &(kv->value), colLen, &param);
         }
+      }else{
+        pBuilder->hasNone = true;
       }
 
       if (PRIMARYKEY_TIMESTAMP_COL_ID == pColSchema->colId) {
         TSKEY tsKey = TD_ROW_KEY(row);
         checkTimestamp(pDataBlock, (const char*)&tsKey);
       }
-    }
-
-    // set the null value for the columns that do not assign values
-    if ((spd->numOfBound < spd->numOfCols) && TD_IS_TP_ROW(row)) {
-      pBuilder->hasNone = true;
     }
 
     tdSRowEnd(pBuilder);

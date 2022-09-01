@@ -2450,9 +2450,11 @@ static void smlInsertCallback(void *param, void *res, int32_t code) {
   uDebug("SML:0x%" PRIx64 " result. code:%d, msg:%s", info->id, pRequest->code, pRequest->msgBuf);
   // lock
   taosThreadSpinLock(&info->params->lock);
-  info->params->request->body.resInfo.numOfRows += rows;
   if (code != TSDB_CODE_SUCCESS) {
     info->params->request->code = code;
+    info->params->request->body.resInfo.numOfRows += rows;
+  }else{
+    info->params->request->body.resInfo.numOfRows += info->affectedRows;
   }
   taosThreadSpinUnlock(&info->params->lock);
   // unlock

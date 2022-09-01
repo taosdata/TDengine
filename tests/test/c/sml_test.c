@@ -63,6 +63,46 @@ int smlProcess_influx_Test() {
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
+
+  // case 1
+  pRes = taos_query(taos, "select * from t_91e0b182be80332b5c530cbf872f760e");
+  ASSERT(pRes);
+  int fieldNum = taos_field_count(pRes);
+  ASSERT(fieldNum == 11);
+  printf("fieldNum:%d\n", fieldNum);
+  TAOS_ROW row = NULL;
+  int32_t rowIndex = 0;
+  while((row = taos_fetch_row(pRes)) != NULL) {
+    int64_t ts = *(int64_t*)row[0];
+    double load_capacity = *(double*)row[1];
+    double fuel_capacity = *(double*)row[2];
+    double nominal_fuel_consumption = *(double*)row[3];
+    double latitude = *(double*)row[4];
+    double longitude = *(double*)row[5];
+    double elevation = *(double*)row[6];
+    double velocity = *(double*)row[7];
+    double heading = *(double*)row[8];
+    double grade = *(double*)row[9];
+    double fuel_consumption = *(double*)row[10];
+    if(rowIndex == 0){
+      ASSERT(ts ==1451606407000);
+//      ASSERT_EQ(load_capacity, 2000);
+//      ASSERT_EQ(fuel_capacity, 200);
+//      ASSERT_EQ(nominal_fuel_consumption, 15);
+//      ASSERT_EQ(latitude, 24.5208);
+//      ASSERT_EQ(longitude, 28.09377);
+//      ASSERT_EQ(elevation, 428);
+//      ASSERT_EQ(velocity, 0);
+//      ASSERT_EQ(heading, 304);
+//      ASSERT_EQ(grade, 0);
+//      ASSERT_EQ(fuel_consumption, 25);
+    }else{
+//      ASSERT(0);
+    }
+    rowIndex++;
+  }
+  taos_free_result(pRes);
+
   return code;
 }
 
@@ -1100,34 +1140,91 @@ int sml_add_tag_col_Test() {
   return code;
 }
 
+int smlProcess_18784_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "disk,device=sdc inodes_used=176059i,total=1081101176832i 1661943960000000000",
+      "disk,device=sdc inodes_free=66932805i 1661943960000000000",
+  };
+  pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_LINE_PROTOCOL, 0);
+  printf("%s result:%s, rows:%d\n", __FUNCTION__, taos_errstr(pRes), taos_affected_rows(pRes));
+  int code = taos_errno(pRes);
+  ASSERT(!code);
+  ASSERT(taos_affected_rows(pRes) == 2);
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "select * from disk");
+  ASSERT(pRes);
+  int fieldNum = taos_field_count(pRes);
+  ASSERT(fieldNum == 5);
+  printf("fieldNum:%d\n", fieldNum);
+  TAOS_ROW row = NULL;
+  int32_t rowIndex = 0;
+  while((row = taos_fetch_row(pRes)) != NULL) {
+    int64_t ts = *(int64_t*)row[0];
+    int64_t used = *(int64_t*)row[1];
+    int64_t total = *(int64_t*)row[2];
+    int64_t freed = *(int64_t*)row[3];
+    if(rowIndex == 0){
+      ASSERT(ts == 1661943960000);
+      ASSERT(used == 176059);
+      ASSERT(total == 1081101176832);
+      ASSERT(freed == 66932805);
+//      ASSERT_EQ(latitude, 24.5208);
+//      ASSERT_EQ(longitude, 28.09377);
+//      ASSERT_EQ(elevation, 428);
+//      ASSERT_EQ(velocity, 0);
+//      ASSERT_EQ(heading, 304);
+//      ASSERT_EQ(grade, 0);
+//      ASSERT_EQ(fuel_consumption, 25);
+    }else{
+//      ASSERT(0);
+    }
+    rowIndex++;
+  }
+  taos_free_result(pRes);
+
+  return code;
+}
+
 int main(int argc, char *argv[]) {
   int ret = 0;
   ret = smlProcess_influx_Test();
-  if(ret) return ret;
+  ASSERT(!ret);
   ret = smlProcess_telnet_Test();
-  if(ret) return ret;
+  ASSERT(!ret);
   ret = smlProcess_json1_Test();
-  if(ret) return ret;
+  ASSERT(!ret);
   ret = smlProcess_json2_Test();
-  if(ret) return ret;
+  ASSERT(!ret);
   ret = smlProcess_json3_Test();
-  if(ret) return ret;
+  ASSERT(!ret);
   ret = smlProcess_json4_Test();
-  if(ret) return ret;
+  ASSERT(!ret);
   ret = sml_TD15662_Test();
-  if(ret) return ret;
+  ASSERT(!ret);
   ret = sml_TD15742_Test();
-  if(ret) return ret;
+  ASSERT(!ret);
   ret = sml_16384_Test();
-  if(ret) return ret;
+  ASSERT(!ret);
   ret = sml_oom_Test();
-  if(ret) return ret;
+  ASSERT(!ret);
   ret = sml_16368_Test();
-  if(ret) return ret;
+  ASSERT(!ret);
   ret = sml_dup_time_Test();
-  if(ret) return ret;
+  ASSERT(!ret);
   ret = sml_16960_Test();
-  if(ret) return ret;
+  ASSERT(!ret);
   ret = sml_add_tag_col_Test();
+  ASSERT(!ret);
+  ret = smlProcess_18784_Test();
+  ASSERT(!ret);
   return ret;
 }
