@@ -2505,6 +2505,11 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
       }
     }
 
+    // set the null value for the columns that do not assign values
+    if ((spd->numOfBound < spd->numOfCols) && TD_IS_TP_ROW(row)) {
+      pBuilder->hasNone = true;
+    }
+
     tdSRowEnd(pBuilder);
     pDataBlock->size += extendedRowSize;
   }
