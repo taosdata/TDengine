@@ -1,6 +1,6 @@
 ---
 sidebar_label: 统计数据
-title: 存储统计数据的 Performance_Schema 数据库
+title: 统计数据
 description: Performance_Schema 数据库中存储了系统中的各种统计信息
 ---
 
