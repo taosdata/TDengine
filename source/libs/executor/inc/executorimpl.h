@@ -143,6 +143,8 @@ typedef struct {
   STqOffsetVal   prepareStatus; // for tmq
   STqOffsetVal   lastStatus;    // for tmq
   SMqMetaRsp     metaRsp;       // for tmq fetching meta
+  int64_t snapshotVer;
+
   SSchemaWrapper *schema;
   char           tbName[TSDB_TABLE_NAME_LEN];
   SSDataBlock*   pullOverBlk;   // for streaming
@@ -486,24 +488,23 @@ typedef struct SStreamScanInfo {
   STimeWindowAggSupp     twAggSup;
   SSDataBlock*           pUpdateDataRes;
   // status for tmq
-  // SSchemaWrapper schema;
-  SNodeList*             pGroupTags;
-  SNode*                 pTagCond;
-  SNode*                 pTagIndexCond;
+  SNodeList* pGroupTags;
+  SNode*     pTagCond;
+  SNode*     pTagIndexCond;
 } SStreamScanInfo;
 
-typedef struct SStreamRawScanInfo{
-//  int8_t    subType;
-//  bool      withMeta;
-//  int64_t   suid;
-//  int64_t   snapVersion;
-//  void     *metaInfo;
-//  void     *dataInfo;
-  SVnode*         vnode;
-  SSDataBlock     pRes;         // result SSDataBlock
-  STsdbReader*    dataReader;
-  SSnapContext*   sContext;
-}SStreamRawScanInfo;
+typedef struct {
+  //  int8_t    subType;
+  //  bool      withMeta;
+  //  int64_t   suid;
+  //  int64_t   snapVersion;
+  //  void     *metaInfo;
+  //  void     *dataInfo;
+  SVnode*       vnode;
+  SSDataBlock   pRes;  // result SSDataBlock
+  STsdbReader*  dataReader;
+  SSnapContext* sContext;
+} SStreamRawScanInfo;
 
 typedef struct SSysTableScanInfo {
   SRetrieveMetaTableRsp* pRsp;
@@ -528,14 +529,14 @@ typedef struct SBlockDistInfo {
   SSDataBlock* pResBlock;
   void*        pHandle;
   SReadHandle  readHandle;
-  uint64_t     uid;        // table uid
+  uint64_t     uid;  // table uid
 } SBlockDistInfo;
 
 // todo remove this
 typedef struct SOptrBasicInfo {
-  SResultRowInfo  resultRowInfo;
-  SSDataBlock*    pRes;
-  bool            mergeResultBlock;
+  SResultRowInfo resultRowInfo;
+  SSDataBlock*   pRes;
+  bool           mergeResultBlock;
 } SOptrBasicInfo;
 
 typedef struct SIntervalAggOperatorInfo {

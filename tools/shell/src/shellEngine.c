@@ -62,7 +62,10 @@ int32_t shellRunSingleCommand(char *command) {
   }
 
   if (shellRegexMatch(command, "^[\t ]*clear[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
-    system("clear");
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
+          system("clear");
+#pragma GCC diagnostic pop
     return 0;
   }
 

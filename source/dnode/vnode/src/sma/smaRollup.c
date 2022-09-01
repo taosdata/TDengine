@@ -1078,9 +1078,6 @@ static int32_t tdRSmaRestoreQTaskInfoReload(SSma *pSma, int8_t type, int64_t qTa
     goto _err;
   }
 
-  SSmaEnv   *pRSmaEnv = pSma->pRSmaEnv;
-  SRSmaStat *pRSmaStat = (SRSmaStat *)SMA_ENV_STAT(pRSmaEnv);
-
   SRSmaQTaskInfoIter fIter = {0};
   if (tdRSmaQTaskInfoIterInit(&fIter, &tFile) < 0) {
     tdRSmaQTaskInfoIterDestroy(&fIter);
