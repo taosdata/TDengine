@@ -172,7 +172,7 @@ static int32_t tdCleanupQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat) {
   TdDirPtr      pDir = NULL;
   TdDirEntryPtr pDirEntry = NULL;
   char          dir[TSDB_FILENAME_LEN];
-  const char   *pattern = "v[0-9]+qtaskinfo\\.ver([0-9]+)?$";
+  const char   *pattern = "v[0-9]+qinf\\.v([0-9]+)?$";
   regex_t       regex;
   int           code = 0;
 
@@ -312,7 +312,7 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
 
   SSmaStat  *pStat = SMA_ENV_STAT(pEnv);
   SRSmaStat *pRSmaStat = SMA_STAT_RSMA(pStat);
-  int32_t nLoops = 0;
+  int32_t    nLoops = 0;
 
   // step 1: set rsma stat
   atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_PAUSED);
@@ -327,7 +327,7 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
   ASSERT(pRSmaStat->commitAppliedVer > 0);
 
   // step 2: wait for all triggered fetch tasks to finish
-
+  nLoops = 0;
   while (1) {
     if (T_REF_VAL_GET(pStat) == 0) {
       smaDebug("vgId:%d, rsma commit, fetch tasks are all finished", SMA_VID(pSma));
@@ -351,7 +351,8 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
     return TSDB_CODE_FAILED;
   }
 
-  smaInfo("vgId:%d, rsma commit, wait for all items to be consumed, TID:%p", SMA_VID(pSma), (void*)taosGetSelfPthreadId());
+  smaInfo("vgId:%d, rsma commit, wait for all items to be consumed, TID:%p", SMA_VID(pSma),
+          (void *)taosGetSelfPthreadId());
   nLoops = 0;
   while (atomic_load_64(&pRSmaStat->nBufItems) > 0) {
     ++nLoops;
@@ -366,7 +367,7 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
   }
   smaInfo("vgId:%d, rsma commit, operator state commited, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
 
-#if 0 // consuming task of qTaskInfo clone 
+#if 0  // consuming task of qTaskInfo clone 
   // step 4:  swap queue/qall and iQueue/iQall
   // lock
   // taosWLockLatch(SMA_ENV_LOCK(pEnv));

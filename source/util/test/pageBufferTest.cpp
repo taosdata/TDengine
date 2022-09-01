@@ -18,7 +18,7 @@ void simpleTest() {
   int32_t pageId = 0;
   int32_t groupId = 0;
   
-  SFilePage* pBufPage = static_cast<SFilePage*>(getNewBufPage(pBuf, groupId, &pageId));
+  SFilePage* pBufPage = static_cast<SFilePage*>(getNewBufPage(pBuf, &pageId));
   ASSERT_TRUE(pBufPage != NULL);
   
   ASSERT_EQ(getTotalBufSize(pBuf), 1024);
@@ -29,26 +29,26 @@ void simpleTest() {
 
   releaseBufPage(pBuf, pBufPage);
 
-  SFilePage* pBufPage1 = static_cast<SFilePage*>(getNewBufPage(pBuf, groupId, &pageId));
+  SFilePage* pBufPage1 = static_cast<SFilePage*>(getNewBufPage(pBuf, &pageId));
 
   SFilePage* t = static_cast<SFilePage*>(getBufPage(pBuf, pageId));
   ASSERT_TRUE(t == pBufPage1);
 
-  SFilePage* pBufPage2 = static_cast<SFilePage*>(getNewBufPage(pBuf, groupId, &pageId));
+  SFilePage* pBufPage2 = static_cast<SFilePage*>(getNewBufPage(pBuf, &pageId));
   SFilePage* t1 = static_cast<SFilePage*>(getBufPage(pBuf, pageId));
   ASSERT_TRUE(t1 == pBufPage2);
 
-  SFilePage* pBufPage3 = static_cast<SFilePage*>(getNewBufPage(pBuf, groupId, &pageId));
+  SFilePage* pBufPage3 = static_cast<SFilePage*>(getNewBufPage(pBuf,  &pageId));
   SFilePage* t2 = static_cast<SFilePage*>(getBufPage(pBuf, pageId));
   ASSERT_TRUE(t2 == pBufPage3);
 
-  SFilePage* pBufPage4 = static_cast<SFilePage*>(getNewBufPage(pBuf, groupId, &pageId));
+  SFilePage* pBufPage4 = static_cast<SFilePage*>(getNewBufPage(pBuf,  &pageId));
   SFilePage* t3 = static_cast<SFilePage*>(getBufPage(pBuf, pageId));
   ASSERT_TRUE(t3 == pBufPage4);
 
   releaseBufPage(pBuf, pBufPage2);
 
-  SFilePage* pBufPage5 = static_cast<SFilePage*>(getNewBufPage(pBuf, groupId, &pageId));
+  SFilePage* pBufPage5 = static_cast<SFilePage*>(getNewBufPage(pBuf,  &pageId));
   SFilePage* t4 = static_cast<SFilePage*>(getBufPage(pBuf, pageId));
   ASSERT_TRUE(t4 == pBufPage5);
 
@@ -64,7 +64,7 @@ void writeDownTest() {
   int32_t groupId = 0;
   int32_t nx = 12345;
 
-  SFilePage* pBufPage = static_cast<SFilePage*>(getNewBufPage(pBuf, groupId, &pageId));
+  SFilePage* pBufPage = static_cast<SFilePage*>(getNewBufPage(pBuf,  &pageId));
   ASSERT_TRUE(pBufPage != NULL);
 
   *(int32_t*)(pBufPage->data) = nx;
@@ -73,22 +73,22 @@ void writeDownTest() {
   setBufPageDirty(pBufPage, true);
   releaseBufPage(pBuf, pBufPage);
 
-  SFilePage* pBufPage1 = static_cast<SFilePage*>(getNewBufPage(pBuf, groupId, &pageId));
+  SFilePage* pBufPage1 = static_cast<SFilePage*>(getNewBufPage(pBuf, &pageId));
   SFilePage* t1 = static_cast<SFilePage*>(getBufPage(pBuf, pageId));
   ASSERT_TRUE(t1 == pBufPage1);
   ASSERT_TRUE(pageId == 1);
 
-  SFilePage* pBufPage2 = static_cast<SFilePage*>(getNewBufPage(pBuf, groupId, &pageId));
+  SFilePage* pBufPage2 = static_cast<SFilePage*>(getNewBufPage(pBuf, &pageId));
   SFilePage* t2 = static_cast<SFilePage*>(getBufPage(pBuf, pageId));
   ASSERT_TRUE(t2 == pBufPage2);
   ASSERT_TRUE(pageId == 2);
 
-  SFilePage* pBufPage3 = static_cast<SFilePage*>(getNewBufPage(pBuf, groupId, &pageId));
+  SFilePage* pBufPage3 = static_cast<SFilePage*>(getNewBufPage(pBuf,  &pageId));
   SFilePage* t3 = static_cast<SFilePage*>(getBufPage(pBuf, pageId));
   ASSERT_TRUE(t3 == pBufPage3);
   ASSERT_TRUE(pageId == 3);
 
-  SFilePage* pBufPage4 = static_cast<SFilePage*>(getNewBufPage(pBuf, groupId, &pageId));
+  SFilePage* pBufPage4 = static_cast<SFilePage*>(getNewBufPage(pBuf,  &pageId));
   SFilePage* t4 = static_cast<SFilePage*>(getBufPage(pBuf, pageId));
   ASSERT_TRUE(t4 == pBufPage4);
   ASSERT_TRUE(pageId == 4);
@@ -113,32 +113,32 @@ void recyclePageTest() {
   int32_t groupId = 0;
   int32_t nx = 12345;
 
-  SFilePage* pBufPage = static_cast<SFilePage*>(getNewBufPage(pBuf, groupId, &pageId));
+  SFilePage* pBufPage = static_cast<SFilePage*>(getNewBufPage(pBuf,  &pageId));
   ASSERT_TRUE(pBufPage != NULL);
   releaseBufPage(pBuf, pBufPage);
 
-  SFilePage* pBufPage1 = static_cast<SFilePage*>(getNewBufPage(pBuf, groupId, &pageId));
+  SFilePage* pBufPage1 = static_cast<SFilePage*>(getNewBufPage(pBuf,  &pageId));
   SFilePage* t1 = static_cast<SFilePage*>(getBufPage(pBuf, pageId));
   ASSERT_TRUE(t1 == pBufPage1);
   ASSERT_TRUE(pageId == 1);
 
-  SFilePage* pBufPage2 = static_cast<SFilePage*>(getNewBufPage(pBuf, groupId, &pageId));
+  SFilePage* pBufPage2 = static_cast<SFilePage*>(getNewBufPage(pBuf,  &pageId));
   SFilePage* t2 = static_cast<SFilePage*>(getBufPage(pBuf, pageId));
   ASSERT_TRUE(t2 == pBufPage2);
   ASSERT_TRUE(pageId == 2);
 
-  SFilePage* pBufPage3 = static_cast<SFilePage*>(getNewBufPage(pBuf, groupId, &pageId));
+  SFilePage* pBufPage3 = static_cast<SFilePage*>(getNewBufPage(pBuf,  &pageId));
   SFilePage* t3 = static_cast<SFilePage*>(getBufPage(pBuf, pageId));
   ASSERT_TRUE(t3 == pBufPage3);
   ASSERT_TRUE(pageId == 3);
 
-  SFilePage* pBufPage4 = static_cast<SFilePage*>(getNewBufPage(pBuf, groupId, &pageId));
+  SFilePage* pBufPage4 = static_cast<SFilePage*>(getNewBufPage(pBuf,  &pageId));
   SFilePage* t4 = static_cast<SFilePage*>(getBufPage(pBuf, pageId));
   ASSERT_TRUE(t4 == pBufPage4);
   ASSERT_TRUE(pageId == 4);
   releaseBufPage(pBuf, t4);
 
-  SFilePage* pBufPage5 = static_cast<SFilePage*>(getNewBufPage(pBuf, groupId, &pageId));
+  SFilePage* pBufPage5 = static_cast<SFilePage*>(getNewBufPage(pBuf,  &pageId));
   SFilePage* t5 = static_cast<SFilePage*>(getBufPage(pBuf, pageId));
   ASSERT_TRUE(t5 == pBufPage5);
   ASSERT_TRUE(pageId == 5);

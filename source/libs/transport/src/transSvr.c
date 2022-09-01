@@ -906,23 +906,30 @@ static void uvDestroyConn(uv_handle_t* handle) {
   }
 }
 static void uvPipeListenCb(uv_stream_t* handle, int status) {
-  ASSERT(status == 0);
+  if (status != 0) {
+    tError("server failed to init pipe");
+    return;
+  }
 
   SServerObj* srv = container_of(handle, SServerObj, pipeListen);
   uv_pipe_t*  pipe = &(srv->pipe[srv->numOfWorkerReady][0]);
-  ASSERT(0 == uv_pipe_init(srv->loop, pipe, 1));
-  ASSERT(0 == uv_accept((uv_stream_t*)&srv->pipeListen, (uv_stream_t*)pipe));
 
-  ASSERT(1 == uv_is_readable((uv_stream_t*)pipe));
-  ASSERT(1 == uv_is_writable((uv_stream_t*)pipe));
-  ASSERT(0 == uv_is_closing((uv_handle_t*)pipe));
+  int ret = uv_pipe_init(srv->loop, pipe, 1);
+  assert(ret == 0);
+
+  ret = uv_accept((uv_stream_t*)&srv->pipeListen, (uv_stream_t*)pipe);
+  assert(ret == 0);
+
+  ret = uv_is_readable((uv_stream_t*)pipe);
+  assert(ret == 1);
+
+  ret = uv_is_writable((uv_stream_t*)pipe);
+  assert(ret == 1);
+
+  ret = uv_is_closing((uv_handle_t*)pipe);
+  assert(ret == 0);
 
   srv->numOfWorkerReady++;
-
-  // ASSERT(0 == uv_listen((uv_stream_t*)&ctx.send.tcp, 512, uvOnAcceptCb));
-
-  // r = uv_read_start((uv_stream_t*)&ctx.channel, alloc_cb, read_cb);
-  // ASSERT(r == 0);
 }
 
 void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle) {
@@ -937,7 +944,9 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   srv->port = port;
   uv_loop_init(srv->loop);
 
-  assert(0 == uv_pipe_init(srv->loop, &srv->pipeListen, 0));
+  int ret = uv_pipe_init(srv->loop, &srv->pipeListen, 0);
+  assert(ret == 0);
+
 #ifdef WINDOWS
   char pipeName[64];
   snprintf(pipeName, sizeof(pipeName), "\\\\?\\pipe\\trans.rpc.%p-" PRIu64, taosSafeRand(), GetCurrentProcessId());
@@ -946,8 +955,11 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   snprintf(pipeName, sizeof(pipeName), "%s%spipe.trans.rpc.%08X-" PRIu64, tsTempDir, TD_DIRSEP, taosSafeRand(),
            taosGetSelfPthreadId());
 #endif
-  assert(0 == uv_pipe_bind(&srv->pipeListen, pipeName));
-  assert(0 == uv_listen((uv_stream_t*)&srv->pipeListen, SOMAXCONN, uvPipeListenCb));
+  ret = uv_pipe_bind(&srv->pipeListen, pipeName);
+  assert(ret == 0);
+
+  ret = uv_listen((uv_stream_t*)&srv->pipeListen, SOMAXCONN, uvPipeListenCb);
+  assert(ret == 0);
 
   for (int i = 0; i < srv->numOfThreads; i++) {
     SWorkThrd* thrd = (SWorkThrd*)taosMemoryCalloc(1, sizeof(SWorkThrd));

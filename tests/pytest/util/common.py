@@ -199,22 +199,22 @@ class TDCom:
         res = requests.post(url, sql.encode("utf-8"), headers = self.preDefine()[0])
         return res
 
-    def cleanTb(self, type="taosc"):
+    def cleanTb(self, type="taosc", dbname="db"):
         '''
             type is taosc or restful
         '''
-        query_sql = "show stables"
+        query_sql = f"show {dbname}.stables"
         res_row_list = tdSql.query(query_sql, True)
         stb_list = map(lambda x: x[0], res_row_list)
         for stb in stb_list:
             if type == "taosc":
-                tdSql.execute(f'drop table if exists `{stb}`')
+                tdSql.execute(f'drop table if exists {dbname}.`{stb}`')
                 if not stb[0].isdigit():
-                    tdSql.execute(f'drop table if exists {stb}')
+                    tdSql.execute(f'drop table if exists {dbname}.{stb}')
             elif type == "restful":
-                self.restApiPost(f"drop table if exists `{stb}`")
+                self.restApiPost(f"drop table if exists {dbname}.`{stb}`")
                 if not stb[0].isdigit():
-                    self.restApiPost(f"drop table if exists {stb}")
+                    self.restApiPost(f"drop table if exists {dbname}.{stb}")
 
     def dateToTs(self, datetime_input):
         return int(time.mktime(time.strptime(datetime_input, "%Y-%m-%d %H:%M:%S.%f")))

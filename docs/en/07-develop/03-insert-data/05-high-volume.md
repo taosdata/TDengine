@@ -16,7 +16,7 @@ To achieve high performance writing, there are a few aspects to consider. In the
 
 From the perspective of application program, you need to consider:
 
-1. The data size of each single write, also known as batch size. Generally speaking, higher batch size generates better writing performance. However, once the batch size is over a specific value, you will not get any additional benefit anymore. When using SQL to write into TDengine, it's better to put as much as possible data in single SQL. The maximum SQL length supported by TDengine is 1,048,576 bytes, i.e. 1 MB. It can be configured by parameter `maxSQLLength` on client side, and the default value is 65,480.
+1. The data size of each single write, also known as batch size. Generally speaking, higher batch size generates better writing performance. However, once the batch size is over a specific value, you will not get any additional benefit anymore. When using SQL to write into TDengine, it's better to put as much as possible data in single SQL. The maximum SQL length supported by TDengine is 1,048,576 bytes, i.e. 1 MB. 
 
 2. The number of concurrent connections. Normally more connections can get better result. However, once the number of connections exceeds the processing ability of the server side, the performance may downgrade.
 
@@ -356,7 +356,7 @@ Writing process tries to read as much as possible data from message queue and wr
 
 <details>
 
-SQLWriter class encapsulates the logic of composing SQL and writing data. Please be noted that the tables have not been created before writing, but are created automatically when catching the exception of table doesn't exist. For other exceptions caught, the SQL which caused the exception are logged for you to debug. This class also checks the SQL length, if the SQL length is closed to `maxSQLLength` the SQL will be executed immediately. To improve writing efficiency, it's better to increase `maxSQLLength` properly.
+SQLWriter class encapsulates the logic of composing SQL and writing data. Please be noted that the tables have not been created before writing, but are created automatically when catching the exception of table doesn't exist. For other exceptions caught, the SQL which caused the exception are logged for you to debug. This class also checks the SQL length, and passes the maximum SQL length by parameter maxSQLLength according to actual TDengine limit. 
 
 <summary>SQLWriter</summary>
 

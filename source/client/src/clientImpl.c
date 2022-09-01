@@ -728,7 +728,7 @@ int32_t handleSubmitExecRes(SRequestObj* pRequest, void* res, SCatalog* pCatalog
       tFreeSTableMetaRsp(blk->pMeta);
       taosMemoryFreeClear(blk->pMeta);
     }
-    
+
     if (NULL == blk->tblFName || 0 == blk->tblFName[0]) {
       continue;
     }
@@ -850,6 +850,8 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
 void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   SRequestObj* pRequest = (SRequestObj*)param;
   pRequest->code = code;
+
+  pRequest->metric.resultReady = taosGetTimestampUs();
 
   if (pResult) {
     memcpy(&pRequest->body.resInfo.execRes, pResult, sizeof(*pResult));

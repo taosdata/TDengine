@@ -180,7 +180,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
     }
 
     int32_t pageId = -1;
-    void* pPage = getNewBufPage(pHandle->pBuf, pHandle->sourceId, &pageId);
+    void* pPage = getNewBufPage(pHandle->pBuf, &pageId);
     if (pPage == NULL) {
       blockDataDestroy(p);
       return terrno;
@@ -512,7 +512,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
         }
 
         int32_t pageId = -1;
-        void* pPage = getNewBufPage(pHandle->pBuf, pHandle->sourceId, &pageId);
+        void* pPage = getNewBufPage(pHandle->pBuf, &pageId);
         if (pPage == NULL) {
           return terrno;
         }
