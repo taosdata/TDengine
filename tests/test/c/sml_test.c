@@ -64,45 +64,6 @@ int smlProcess_influx_Test() {
   int code = taos_errno(pRes);
   taos_free_result(pRes);
 
-  // case 1
-  pRes = taos_query(taos, "select * from t_91e0b182be80332b5c530cbf872f760e");
-  ASSERT(pRes);
-  int fieldNum = taos_field_count(pRes);
-  ASSERT(fieldNum == 11);
-  printf("fieldNum:%d\n", fieldNum);
-  TAOS_ROW row = NULL;
-  int32_t rowIndex = 0;
-  while((row = taos_fetch_row(pRes)) != NULL) {
-    int64_t ts = *(int64_t*)row[0];
-    double load_capacity = *(double*)row[1];
-    double fuel_capacity = *(double*)row[2];
-    double nominal_fuel_consumption = *(double*)row[3];
-    double latitude = *(double*)row[4];
-    double longitude = *(double*)row[5];
-    double elevation = *(double*)row[6];
-    double velocity = *(double*)row[7];
-    double heading = *(double*)row[8];
-    double grade = *(double*)row[9];
-    double fuel_consumption = *(double*)row[10];
-    if(rowIndex == 0){
-      ASSERT(ts ==1451606407000);
-//      ASSERT_EQ(load_capacity, 2000);
-//      ASSERT_EQ(fuel_capacity, 200);
-//      ASSERT_EQ(nominal_fuel_consumption, 15);
-//      ASSERT_EQ(latitude, 24.5208);
-//      ASSERT_EQ(longitude, 28.09377);
-//      ASSERT_EQ(elevation, 428);
-//      ASSERT_EQ(velocity, 0);
-//      ASSERT_EQ(heading, 304);
-//      ASSERT_EQ(grade, 0);
-//      ASSERT_EQ(fuel_consumption, 25);
-    }else{
-//      ASSERT(0);
-    }
-    rowIndex++;
-  }
-  taos_free_result(pRes);
-
   return code;
 }
 
