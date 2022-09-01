@@ -1816,14 +1816,7 @@ static bool initLastBlockReader(SLastBlockReader* pLastBlockReader, uint64_t uid
   return hasVal;
 }
 
-static void setAllRowsChecked(SLastBlockReader* pLastBlockReader) {
-//  *pLastBlockReader->rowIndex = ALL_ROWS_CHECKED_INDEX;
-}
-
 static bool nextRowInLastBlock(SLastBlockReader* pLastBlockReader, STableBlockScanInfo* pBlockScanInfo) {
-//  if (*pLastBlockReader->rowIndex == ALL_ROWS_CHECKED_INDEX) {
-//    return false;
-//  }
   return tMergeTreeNext(&pLastBlockReader->mergeTree);
 
 #if 0
