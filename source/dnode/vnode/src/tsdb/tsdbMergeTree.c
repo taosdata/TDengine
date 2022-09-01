@@ -105,12 +105,16 @@ void tLDataIterNextBlock(SLDataIter *pIter) {
   size_t size = taosArrayGetSize(pIter->aBlockL);
   for(int32_t i = pIter->iBlockL; i < size && i >= 0; i += step) {
     SBlockL *p = taosArrayGet(pIter->aBlockL, i);
-    if (p->minUid <= pIter->uid && p->maxUid >= pIter->uid) {
-      index = i;
+    if ((!pIter->backward) && p->minUid > pIter->uid) {
       break;
     }
 
-    if (p->minUid > pIter->uid) {
+    if (pIter->backward && p->maxUid < pIter->uid) {
+      break;
+    }
+
+    if (p->minUid <= pIter->uid && p->maxUid >= pIter->uid) {
+      index = i;
       break;
     }
   }
@@ -145,17 +149,22 @@ static void findNextValidRow(SLDataIter* pIter) {
     }
 
     int64_t ts = pIter->bData.aTSKEY[i];
-    if (ts < pIter->timeWindow.skey) {
-      continue;
+    if (!pIter->backward) {  // asc
+      if (ts > pIter->timeWindow.ekey) {  // no more data
+        break;
+      } else if (ts < pIter->timeWindow.skey) {
+        continue;
+      }
+    } else {
+      if (ts < pIter->timeWindow.skey) {
+        break;
+      } else if (ts > pIter->timeWindow.ekey) {
+        continue;
+      }
     }
 
     int64_t ver = pIter->bData.aVersion[i];
     if (ver < pIter->verRange.minVer) {
-      continue;
-    }
-
-    // no data any more, todo opt handle desc case
-    if (ts > pIter->timeWindow.ekey) {
       continue;
     }
 
@@ -235,8 +244,7 @@ _exit:
 }
 
 SRowInfo *tLDataIterGet(SLDataIter *pIter) {
-  // TODO
-  return NULL;
+  return &pIter->rInfo;
 }
 
 // SMergeTree =================================================
