@@ -26,6 +26,7 @@
 #define SIF_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
 #define SIF_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
 #define SIF_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
+// clang-format on
 
 typedef union {
   uint8_t  u8;
@@ -64,7 +65,6 @@ typedef union {
       dst = *(uint64_t *)val;                  \
   } while (0);
 
-// clang-format on
 typedef struct SIFParam {
   SHashObj *pFilter;
 
