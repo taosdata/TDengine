@@ -453,7 +453,7 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
       goto _return;
     }
     taosCloseFile(&file);
-    strncpy(udf->path, path, strlen(path));
+    strncpy(udf->path, path, PATH_MAX);
     tFreeSFuncInfo(pFuncInfo);
     taosArrayDestroy(retrieveRsp.pFuncInfos);
     msgInfo->code = 0;
@@ -566,17 +566,17 @@ int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
     uv_dlsym(&udf->lib, processFuncName, (void **)(&udf->aggProcFunc));
     char  startFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
     char *startSuffix = "_start";
-    strncpy(startFuncName, processFuncName, strlen(processFuncName));
+    strncpy(startFuncName, processFuncName, sizeof(startFuncName));
     strncat(startFuncName, startSuffix, strlen(startSuffix));
     uv_dlsym(&udf->lib, startFuncName, (void **)(&udf->aggStartFunc));
     char  finishFuncName[TSDB_FUNC_NAME_LEN + 7] = {0};
     char *finishSuffix = "_finish";
-    strncpy(finishFuncName, processFuncName, strlen(processFuncName));
+    strncpy(finishFuncName, processFuncName, sizeof(finishFuncName));
     strncat(finishFuncName, finishSuffix, strlen(finishSuffix));
     uv_dlsym(&udf->lib, finishFuncName, (void **)(&udf->aggFinishFunc));
     char mergeFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
     char *mergeSuffix = "_merge";
-    strncpy(finishFuncName, processFuncName, strlen(processFuncName));
+    strncpy(finishFuncName, processFuncName, sizeof(finishFuncName));
     strncat(finishFuncName, mergeSuffix, strlen(mergeSuffix));
     uv_dlsym(&udf->lib, finishFuncName, (void **)(&udf->aggMergeFunc));
   }

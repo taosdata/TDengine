@@ -142,8 +142,8 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
   },
   {
     .showType = QUERY_NODE_SHOW_STREAMS_STMT,
-    .pDbName = TSDB_PERFORMANCE_SCHEMA_DB,
-    .pTableName = TSDB_PERFS_TABLE_STREAMS,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_STREAMS,
     .numOfShowCols = 1,
     .pShowCols = {"stream_name"}
   },
@@ -184,8 +184,8 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
   },
   {
     .showType = QUERY_NODE_SHOW_TOPICS_STMT,
-    .pDbName = TSDB_PERFORMANCE_SCHEMA_DB,
-    .pTableName = TSDB_PERFS_TABLE_TOPICS,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_TOPICS,
     .numOfShowCols = 1,
     .pShowCols = {"topic_name"}
   },
@@ -240,8 +240,8 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
   },
   {
     .showType = QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT,
-    .pDbName = TSDB_PERFORMANCE_SCHEMA_DB,
-    .pTableName = TSDB_PERFS_TABLE_SUBSCRIPTIONS,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_SUBSCRIPTIONS,
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
@@ -2160,15 +2160,16 @@ static int32_t setTableIndex(STranslateContext* pCxt, SName* pName, SRealTableNo
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t setTableCacheLastMode(STranslateContext* pCxt, SName* pName, SRealTableNode* pRealTable) {
-  if (TSDB_SYSTEM_TABLE == pRealTable->pMeta->tableType) {
+static int32_t setTableCacheLastMode(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (!pSelect->hasLastRowFunc || QUERY_NODE_REAL_TABLE != nodeType(pSelect->pFromTable)) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SDbCfgInfo dbCfg = {0};
-  int32_t    code = getDBCfg(pCxt, pRealTable->table.dbName, &dbCfg);
+  SRealTableNode* pTable = (SRealTableNode*)pSelect->pFromTable;
+  SDbCfgInfo      dbCfg = {0};
+  int32_t         code = getDBCfg(pCxt, pTable->table.dbName, &dbCfg);
   if (TSDB_CODE_SUCCESS == code) {
-    pRealTable->cacheLastMode = dbCfg.cacheLast;
+    pTable->cacheLastMode = dbCfg.cacheLast;
   }
   return code;
 }
@@ -2191,9 +2192,6 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
         code = setTableVgroupList(pCxt, &name, pRealTable);
         if (TSDB_CODE_SUCCESS == code) {
           code = setTableIndex(pCxt, &name, pRealTable);
-        }
-        if (TSDB_CODE_SUCCESS == code) {
-          code = setTableCacheLastMode(pCxt, &name, pRealTable);
         }
       }
       if (TSDB_CODE_SUCCESS == code) {
@@ -2273,10 +2271,14 @@ static SNode* createMultiResFunc(SFunctionNode* pSrcFunc, SExprNode* pExpr) {
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
     SColumnNode* pCol = (SColumnNode*)pExpr;
     len = snprintf(buf, sizeof(buf), "%s(%s.%s)", pSrcFunc->functionName, pCol->tableAlias, pCol->colName);
+    strncpy(pFunc->node.aliasName, buf, TMIN(len, sizeof(pFunc->node.aliasName) - 1));
+    len = snprintf(buf, sizeof(buf), "%s(%s)", pSrcFunc->functionName, pCol->colName);
+    strncpy(pFunc->node.userAlias, buf, TMIN(len, sizeof(pFunc->node.userAlias) - 1));
   } else {
     len = snprintf(buf, sizeof(buf), "%s(%s)", pSrcFunc->functionName, pExpr->aliasName);
+    strncpy(pFunc->node.aliasName, buf, TMIN(len, sizeof(pFunc->node.aliasName) - 1));
+    strncpy(pFunc->node.userAlias, buf, TMIN(len, sizeof(pFunc->node.userAlias) - 1));
   }
-  strncpy(pFunc->node.aliasName, buf, TMIN(len, sizeof(pFunc->node.aliasName) - 1));
 
   return (SNode*)pFunc;
 }
@@ -3139,6 +3141,9 @@ static int32_t translateSelectFrom(STranslateContext* pCxt, SSelectStmt* pSelect
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = replaceOrderByAliasForSelect(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setTableCacheLastMode(pCxt, pSelect);
   }
   return code;
 }
@@ -6403,8 +6408,8 @@ typedef struct SVgroupDropTableBatch {
   char             dbName[TSDB_DB_NAME_LEN];
 } SVgroupDropTableBatch;
 
-static void addDropTbReqIntoVgroup(SHashObj* pVgroupHashmap, SDropTableClause* pClause, SVgroupInfo* pVgInfo) {
-  SVDropTbReq            req = {.name = pClause->tableName, .igNotExists = pClause->ignoreNotExists};
+static void addDropTbReqIntoVgroup(SHashObj* pVgroupHashmap, SDropTableClause* pClause, SVgroupInfo* pVgInfo, uint64_t suid) {
+  SVDropTbReq            req = {.name = pClause->tableName, .suid = suid, .igNotExists = pClause->ignoreNotExists};
   SVgroupDropTableBatch* pTableBatch = taosHashGet(pVgroupHashmap, &pVgInfo->vgId, sizeof(pVgInfo->vgId));
   if (NULL == pTableBatch) {
     SVgroupDropTableBatch tBatch = {0};
@@ -6445,7 +6450,7 @@ static int32_t buildDropTableVgroupHashmap(STranslateContext* pCxt, SDropTableCl
     code = getTableHashVgroup(pCxt, pClause->dbName, pClause->tableName, &info);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    addDropTbReqIntoVgroup(pVgroupHashmap, pClause, &info);
+    addDropTbReqIntoVgroup(pVgroupHashmap, pClause, &info, pTableMeta->suid);
   }
 
 over:
