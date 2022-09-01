@@ -694,6 +694,9 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     colDataAppendNULL(pColInfo, numOfRows);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->cacheUsage, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppendNULL(pColInfo, numOfRows);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

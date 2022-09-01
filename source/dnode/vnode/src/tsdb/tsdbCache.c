@@ -1334,3 +1334,5 @@ void tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity) {
 }
 
 size_t tsdbCacheGetCapacity(SVnode *pVnode) { return taosLRUCacheGetCapacity(pVnode->pTsdb->lruCache); }
+
+size_t tsdbCacheGetUsage(SVnode *pVnode) { return taosLRUCacheGetUsage(pVnode->pTsdb->lruCache); }

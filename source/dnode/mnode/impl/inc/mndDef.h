@@ -340,6 +340,7 @@ typedef struct {
   uint32_t  hashEnd;
   char      dbName[TSDB_DB_FNAME_LEN];
   int64_t   dbUid;
+  int64_t   cacheUsage;
   int64_t   numOfTables;
   int64_t   numOfTimeSeries;
   int64_t   totalStorage;
