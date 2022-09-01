@@ -636,6 +636,7 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SArray*
 
     {
       // 1. time range check
+      printf("%ld, %ld\n", pLastBlock->minKey, pLastBlock->maxKey);
       if (pLastBlock->minKey > pReader->window.ekey || pLastBlock->maxKey < pReader->window.skey) {
         continue;
       }
