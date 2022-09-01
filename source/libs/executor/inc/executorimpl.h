@@ -143,6 +143,7 @@ typedef struct {
   STqOffsetVal   prepareStatus; // for tmq
   STqOffsetVal   lastStatus;    // for tmq
   SMqMetaRsp     metaRsp;       // for tmq fetching meta
+  int8_t  returned;
   int64_t snapshotVer;
 
   SSchemaWrapper *schema;
