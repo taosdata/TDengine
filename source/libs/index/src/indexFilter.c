@@ -26,6 +26,44 @@
 #define SIF_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
 #define SIF_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
 #define SIF_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
+
+typedef union {
+  uint8_t  u8;
+  uint16_t u16;
+  uint32_t u32;
+  uint64_t u64;
+
+  int8_t  i8;
+  int16_t i16;
+  int32_t i32;
+  int64_t i64;
+
+  double d;
+  float  f;
+} SDataTypeBuf;
+
+#define SIF_DATA_CONVERT(type, val, dst)       \
+  do {                                         \
+    if (type == TSDB_DATA_TYPE_DOUBLE)         \
+      dst = GET_DOUBLE_VAL(val);               \
+    else if (type == TSDB_DATA_TYPE_BIGINT)    \
+      dst = *(int64_t *)val;                   \
+    else if (type == TSDB_DATA_TYPE_INT)       \
+      dst = *(int32_t *)val;                   \
+    else if (type == TSDB_DATA_TYPE_SMALLINT)  \
+      dst = *(int16_t *)val;                   \
+    else if (type == TSDB_DATA_TYPE_TINYINT)   \
+      dst = *(int8_t *)val;                    \
+    else if (type == TSDB_DATA_TYPE_UTINYINT)  \
+      dst = *(uint8_t *)val;                   \
+    else if (type == TSDB_DATA_TYPE_USMALLINT) \
+      dst = *(uint16_t *)val;                  \
+    else if (type == TSDB_DATA_TYPE_UINT)      \
+      dst = *(uint32_t *)val;                  \
+    else if (type == TSDB_DATA_TYPE_UBIGINT)   \
+      dst = *(uint64_t *)val;                  \
+  } while (0);
+
 // clang-format on
 typedef struct SIFParam {
   SHashObj *pFilter;
@@ -48,7 +86,6 @@ typedef struct SIFCtx {
   SHashObj     *pRes;    /* element is SIFParam */
   bool          noExec;  // true: just iterate condition tree, and add hint to executor plan
   SIndexMetaArg arg;
-  // SIdxFltStatus st;
 } SIFCtx;
 
 static int32_t sifGetFuncFromSql(EOperatorType src, EIndexQueryType *dst) {
@@ -75,11 +112,6 @@ static int32_t sifGetFuncFromSql(EOperatorType src, EIndexQueryType *dst) {
 typedef int32_t (*sif_func_t)(SIFParam *left, SIFParam *rigth, SIFParam *output);
 
 static sif_func_t sifNullFunc = NULL;
-// typedef struct SIFWalkParm
-// construct tag filter operator later
-// static void destroyTagFilterOperatorInfo(void *param) {
-//  STagFilterOperatorInfo *pInfo = (STagFilterOperatorInfo *)param;
-//}
 
 static void sifFreeParam(SIFParam *param) {
   if (param == NULL) return;
@@ -365,42 +397,6 @@ static Filter sifGetFilterFunc(EIndexQueryType type, bool *reverse) {
   }
   return NULL;
 }
-typedef union {
-  uint8_t  u8;
-  uint16_t u16;
-  uint32_t u32;
-  uint64_t u64;
-
-  int8_t  i8;
-  int16_t i16;
-  int32_t i32;
-  int64_t i64;
-
-  double d;
-  float  f;
-} SDataTypeBuf;
-
-#define SIF_DATA_CONVERT(type, val, dst)       \
-  do {                                         \
-    if (type == TSDB_DATA_TYPE_DOUBLE)         \
-      dst = GET_DOUBLE_VAL(val);               \
-    else if (type == TSDB_DATA_TYPE_BIGINT)    \
-      dst = *(int64_t *)val;                   \
-    else if (type == TSDB_DATA_TYPE_INT)       \
-      dst = *(int32_t *)val;                   \
-    else if (type == TSDB_DATA_TYPE_SMALLINT)  \
-      dst = *(int16_t *)val;                   \
-    else if (type == TSDB_DATA_TYPE_TINYINT)   \
-      dst = *(int8_t *)val;                    \
-    else if (type == TSDB_DATA_TYPE_UTINYINT)  \
-      dst = *(uint8_t *)val;                   \
-    else if (type == TSDB_DATA_TYPE_USMALLINT) \
-      dst = *(uint16_t *)val;                  \
-    else if (type == TSDB_DATA_TYPE_UINT)      \
-      dst = *(uint32_t *)val;                  \
-    else if (type == TSDB_DATA_TYPE_UBIGINT)   \
-      dst = *(uint64_t *)val;                  \
-  } while (0);
 
 static void sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typedata, SMetaFltParam *param) {
   int8_t ltype = left->colValType, rtype = right->colValType;
@@ -693,11 +689,8 @@ static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *ou
     for (int32_t m = 0; m < node->pParameterList->length; m++) {
       if (node->condType == LOGIC_COND_TYPE_AND) {
         taosArrayAddAll(output->result, params[m].result);
-        // taosArrayDestroy(params[m].result);
-        //  params[m].result = NULL;
       } else if (node->condType == LOGIC_COND_TYPE_OR) {
         taosArrayAddAll(output->result, params[m].result);
-        // params[m].result = NULL;
       } else if (node->condType == LOGIC_COND_TYPE_NOT) {
         // taosArrayAddAll(output->result, params[m].result);
       }
