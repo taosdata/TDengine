@@ -3817,7 +3817,6 @@ static int32_t setWindowOutputBuf(SResultWindowInfo* pWinInfo, SResultRow** pRes
     if (*pResult == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    initResultRow(*pResult);
 
     // add a new result set for a new group
     pWinInfo->pos.pageId = (*pResult)->pageId;
