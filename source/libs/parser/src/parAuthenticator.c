@@ -96,6 +96,10 @@ static int32_t authInsert(SAuthCxt* pCxt, SInsertStmt* pInsert) {
   return code;
 }
 
+static int32_t authShowTables(SAuthCxt* pCxt, SShowStmt* pStmt) {
+  return checkAuth(pCxt, ((SValueNode*)pStmt->pDbName)->literal, AUTH_TYPE_READ);
+}
+
 static int32_t authShowCreateTable(SAuthCxt* pCxt, SShowCreateTableStmt* pStmt) {
   return checkAuth(pCxt, pStmt->dbName, AUTH_TYPE_READ);
 }
@@ -127,6 +131,9 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_VNODES_STMT:
     case QUERY_NODE_SHOW_SCORES_STMT:
       return !pCxt->pParseCxt->enableSysInfo ? TSDB_CODE_PAR_PERMISSION_DENIED : TSDB_CODE_SUCCESS;
+    case QUERY_NODE_SHOW_TABLES_STMT:
+    case QUERY_NODE_SHOW_STABLES_STMT:
+      return authShowTables(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
       return authShowCreateTable(pCxt, (SShowCreateTableStmt*)pStmt);
