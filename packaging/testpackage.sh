@@ -238,6 +238,14 @@ if [[ ${packgeName} =~ "Lite" ]]  ||   [[ ${packgeName} =~ "client" ]] ||  ([[ $
     cd taosTools-2.1.2 && bash install-taostools.sh
 fi
 
+echoColor G  "===== start TDengine ====="
+
+if [[ ${packgeName} =~ "server" ]] ;then
+    echoColor BD " rm -rf /var/lib/taos/* &&  systemctl restart taosd "
+    rm -rf /var/lib/taos/*
+    systemctl restart taosd
+
+
 # if ([[ ${packgeName} =~ "Lite" ]] &&  [[ ${packgeName} =~ "tar" ]]) ||   [[ ${packgeName} =~ "client" ]] ;then
 #     echoColor G "===== install taos-tools when package is lite or client ====="
 #     cd ${installPath}
