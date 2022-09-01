@@ -230,14 +230,14 @@ fi
 
 cd ${installPath}
 
-if [[ ${packgeName} =~ "Lite" ]]  ||   [[ ${packgeName} =~ "client" ]] ||  ([[ ${packgeName} =~ "deb" ]] && [[ ${packgeName} =~ "server" ]])  || ([[ ${packgeName} =~ "rpm" ]] && [[ ${packgeName} =~ "server" ]]) ;then
+if [[ ${packgeName} =~ "Lite" ]]  ||   ([[ ${packgeName} =~ "x64" ]] && [[ ${packgeName} =~ "client" ]]) ||  ([[ ${packgeName} =~ "deb" ]] && [[ ${packgeName} =~ "server" ]])  || ([[ ${packgeName} =~ "rpm" ]] && [[ ${packgeName} =~ "server" ]]) ;then
     echoColor G "===== install taos-tools when package is lite or client ====="
     cd ${installPath}
     wgetFile taosTools-2.1.2-Linux-x64.tar.gz .
     tar xf taosTools-2.1.2-Linux-x64.tar.gz
     cd taosTools-2.1.2 && bash install-taostools.sh
 elif  ([[ ${packgeName} =~ "arm64" ]] && [[ ${packgeName} =~ "client" ]]);then
-    echoColor G "===== install taos-tools when package is lite or client ====="
+    echoColor G "===== install taos-tools arm when package is arm64-client ====="
     cd ${installPath}
     wgetFile taosTools-2.1.2-Linux-arm64.tar.gz .
     tar xf taosTools-2.1.2-Linux-arm64.tar.gz
