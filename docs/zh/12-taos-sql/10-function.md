@@ -917,7 +917,7 @@ SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **返回数据类型**：同应用的字段。
 
-**适用数据类型**：数值类型。
+**适用数据类型**：数值类型，时间戳类型。
 
 **适用于**：表和超级表。
 
@@ -932,7 +932,7 @@ SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
 
 **返回数据类型**：同应用的字段。
 
-**适用数据类型**：数值类型。
+**适用数据类型**：数值类型，时间戳类型。
 
 **适用于**：表和超级表。
 
