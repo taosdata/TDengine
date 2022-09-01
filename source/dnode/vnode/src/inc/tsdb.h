@@ -64,6 +64,7 @@ typedef struct STsdbReadSnap STsdbReadSnap;
 typedef struct SBlockInfo    SBlockInfo;
 typedef struct SSmaInfo      SSmaInfo;
 typedef struct SBlockCol     SBlockCol;
+typedef struct SVersionRange SVersionRange;
 
 #define TSDB_FILE_DLMT         ((uint32_t)0xF00AFA0F)
 #define TSDB_MAX_SUBBLOCKS     8
@@ -306,6 +307,12 @@ size_t tsdbCacheGetCapacity(SVnode *pVnode);
 
 int32_t tsdbCacheLastArray2Row(SArray *pLastArray, STSRow **ppRow, STSchema *pSchema);
 
+struct SLDataIter;
+int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t iLast, int8_t backward, uint64_t uid,
+                       STimeWindow *pTimeWindow, SVersionRange *pRange);
+void tLDataIterClose(struct SLDataIter *pIter);
+bool tLDataIterNextRow(struct SLDataIter *pIter);
+
 // structs =======================
 struct STsdbFS {
   SDelFile *pDelFile;
@@ -327,6 +334,11 @@ struct STsdb {
 struct TSDBKEY {
   int64_t version;
   TSKEY   ts;
+};
+
+struct SVersionRange {
+  uint64_t minVer;
+  uint64_t maxVer;
 };
 
 typedef struct SMemSkipListNode SMemSkipListNode;
@@ -625,6 +637,19 @@ typedef struct {
   int64_t uid;
   TSDBROW row;
 } SRowInfo;
+
+typedef struct SMergeTree {
+  int8_t       backward;
+  SRBTreeNode *pNode;
+  SRBTree      rbt;
+  struct SLDataIter  *pIter;
+  SDataFReader* pLFileReader;
+} SMergeTree;
+
+void tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader* pFReader, uint64_t uid, STimeWindow* pTimeWindow, SVersionRange* pVerRange);
+void tMergeTreeAddIter(SMergeTree *pMTree, struct SLDataIter *pIter);
+bool tMergeTreeNext(SMergeTree* pMTree);
+TSDBROW tMergeTreeGetRow(SMergeTree* pMTree);
 
 // ========== inline functions ==========
 static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
