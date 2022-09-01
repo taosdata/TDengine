@@ -19,6 +19,11 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
+    def insertConsumerInfo(self,consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifmanualcommit,offset=1,cdbName='cdb'):
+        sql = "insert into %s.consumeinfo values "%cdbName
+        sql += "(now+%ds, %d, '%s', '%s', %d, %d, %d)"%(offset,consumerId, topicList, keyList, expectrowcnt, ifcheckdata, ifmanualcommit)
+        tdLog.info("consume info sql: %s"%sql)
+        tdSql.query(sql)
 
     def tmqCase1(self):
         tdLog.printNoPrefix("======== test case 1: ")
@@ -95,19 +100,23 @@ class TDTestCase:
         ifcheckdata  = 0
         ifManualCommit = 0
         keyList      = 'group.id:%s, enable.auto.commit:false, auto.commit.interval.ms:6000, auto.offset.reset:earliest'%consumeGroupIdList[0]
-        tmqCom.insertConsumerInfo(consumerIdList[0], expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
+        tsOffset=1
+        self.insertConsumerInfo(consumerIdList[0], expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit,tsOffset)
 
         topicList    = topicNameList[1]
         keyList      = 'group.id:%s, enable.auto.commit:false, auto.commit.interval.ms:6000, auto.offset.reset:earliest'%consumeGroupIdList[1]
-        tmqCom.insertConsumerInfo(consumerIdList[1], expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
+        tsOffset=2
+        self.insertConsumerInfo(consumerIdList[1], expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit,tsOffset)
 
         topicList    = topicNameList[2]
         keyList      = 'group.id:%s, enable.auto.commit:false, auto.commit.interval.ms:6000, auto.offset.reset:earliest'%consumeGroupIdList[2]
-        tmqCom.insertConsumerInfo(consumerIdList[2], expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
+        tsOffset=3
+        self.insertConsumerInfo(consumerIdList[2], expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit,tsOffset)
 
         topicList    = topicNameList[3]
         keyList      = 'group.id:%s, enable.auto.commit:false, auto.commit.interval.ms:6000, auto.offset.reset:earliest'%consumeGroupIdList[3]
-        tmqCom.insertConsumerInfo(consumerIdList[3], expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
+        tsOffset=4
+        self.insertConsumerInfo(consumerIdList[3], expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit,tsOffset)
 
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(paraDict['pollDelay'],paraDict["dbName"],paraDict['showMsg'], paraDict['showRow'])

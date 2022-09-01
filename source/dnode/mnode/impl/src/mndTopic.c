@@ -763,8 +763,9 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     int32_t          cols = 0;
 
     char topicName[TSDB_TOPIC_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    tNameFromString(&n, pTopic->name, T_NAME_ACCT | T_NAME_DB);
-    tNameGetDbName(&n, varDataVal(topicName));
+    strcpy(varDataVal(topicName), mndGetDbStr(pTopic->name));
+    /*tNameFromString(&n, pTopic->name, T_NAME_ACCT | T_NAME_DB);*/
+    /*tNameGetDbName(&n, varDataVal(topicName));*/
     varDataSetLen(topicName, strlen(varDataVal(topicName)));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)topicName, false);

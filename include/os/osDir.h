@@ -56,6 +56,7 @@ void    taosRemoveDir(const char *dirname);
 bool    taosDirExist(const char *dirname);
 int32_t taosMkDir(const char *dirname);
 int32_t taosMulMkDir(const char *dirname);
+int32_t taosMulModeMkDir(const char *dirname, int mode);
 void    taosRemoveOldFiles(const char *dirname, int32_t keepDays);
 int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen);
 int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen);

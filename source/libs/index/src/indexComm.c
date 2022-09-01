@@ -171,6 +171,7 @@ TExeCond tCompare(__compar_fn_t func, int8_t cmptype, void* a, void* b, int8_t d
     return tDoCompare(func, cmptype, &va, &vb);
   }
   assert(0);
+  return BREAK;
 #endif
 }
 TExeCond tDoCompare(__compar_fn_t func, int8_t comparType, void* a, void* b) {

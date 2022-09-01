@@ -15,9 +15,41 @@ About details of installing TDenine, please refer to [Installation Guide](../../
 ## Uninstall
 
 <Tabs>
-<TabItem label="apt-get uninstall" value="aptremove">
+<TabItem label="Uninstall apt-get" value="aptremove">
 
-TBD
+Apt-get package of TDengine can be uninstalled as below:
+
+```bash
+$ sudo apt-get remove tdengine
+Reading package lists... Done
+Building dependency tree       
+Reading state information... Done
+The following packages will be REMOVED:
+  tdengine
+0 upgraded, 0 newly installed, 1 to remove and 18 not upgraded.
+After this operation, 68.3 MB disk space will be freed.
+Do you want to continue? [Y/n] y
+(Reading database ... 135625 files and directories currently installed.)
+Removing tdengine (3.0.0.0) ...
+TDengine is removed successfully!
+
+```
+
+Apt-get package of taosTools can be uninstalled as below:
+
+```
+$ sudo apt remove taostools
+Reading package lists... Done
+Building dependency tree
+Reading state information... Done
+The following packages will be REMOVED:
+  taostools
+0 upgraded, 0 newly installed, 1 to remove and 0 not upgraded.
+After this operation, 68.3 MB disk space will be freed.
+Do you want to continue? [Y/n]
+(Reading database ... 147973 files and directories currently installed.)
+Removing taostools (2.1.2) ...
+```
 
 </TabItem>
 <TabItem label="Uninstall Deb" value="debuninst">
@@ -32,6 +64,14 @@ TDengine is removed successfully!
 
 ```
 
+Deb package of taosTools can be uninstalled as below:
+
+```
+$ sudo dpkg -r taostools
+(Reading database ... 147973 files and directories currently installed.)
+Removing taostools (2.1.2) ...
+```
+
 </TabItem>
 
 <TabItem label="Uninstall RPM" value="rpmuninst">
@@ -43,6 +83,13 @@ $ sudo rpm -e tdengine
 TDengine is removed successfully!
 ```
 
+RPM package of taosTools can be uninstalled as below:
+
+```
+sudo rpm -e taostools
+taosToole is removed successfully!
+```
+
 </TabItem>
 
 <TabItem label="Uninstall tar.gz" value="taruninst">
@@ -52,6 +99,15 @@ tar.gz package of TDengine can be uninstalled as below:
 ```
 $ rmtaos
 TDengine is removed successfully!
+```
+
+tar.gz package of taosTools can be uninstalled as below:
+
+```
+$ rmtaostools
+Start to uninstall taos tools ...
+
+taos tools is uninstalled successfully!
 ```
 
 </TabItem>

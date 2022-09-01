@@ -27,47 +27,47 @@ sql create table db.ctb6 using db.stb tags(6, "102")
 sql insert into db.ctb6 values(now, 6, "2")
 
 sql select * from db.stb where t1 = 1
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
-sql select * from db.stb where t1 < 1 
-if $rows != 0 then 
+sql select * from db.stb where t1 < 1
+if $rows != 0 then
   return -=1
 endi
 
-sql select * from db.stb where t1 < 2 
-if $rows != 1 then 
+sql select * from db.stb where t1 < 2
+if $rows != 1 then
   return -1
 endi
 
-sql select * from db.stb where t1 <= 2 
-if $rows != 2 then 
+sql select * from db.stb where t1 <= 2
+if $rows != 2 then
   return -1
 endi
 
-sql select * from db.stb where t1 >= 1 
-if $rows != 6 then 
+sql select * from db.stb where t1 >= 1
+if $rows != 6 then
   return -1
 endi
 
-sql select * from db.stb where t1 > 1 
-if $rows != 5 then 
+sql select * from db.stb where t1 > 1
+if $rows != 5 then
   return -1
 endi
 
-sql select * from db.stb where t1 between 1 and 1 
-if $rows != 1 then 
+sql select * from db.stb where t1 between 1 and 1
+if $rows != 1 then
   return -1
 endi
 
-sql select * from db.stb where t1 between 1 and 6 
-if $rows != 6 then 
+sql select * from db.stb where t1 between 1 and 6
+if $rows != 6 then
   return -1
 endi
 
-sql select * from db.stb where t1 between 1 and 7 
-if $rows != 6 then 
+sql select * from db.stb where t1 between 1 and 7
+if $rows != 6 then
   return -1
 endi
 
@@ -88,25 +88,25 @@ sql insert into db.ctbBin2 values(now, 3, "2")
 sql create table db.ctbBin3 using db.stbBin tags("d")
 sql insert into db.ctbBin3 values(now, 4, "2")
 
-sql select * from db.stbBin where t1 = "a" 
-if $rows != 1 then 
+sql select * from db.stbBin where t1 = "a"
+if $rows != 1 then
   return -1
 endi
 
 
-sql select * from db.stbBin where t1 < "a" 
-if $rows != 0 then 
+sql select * from db.stbBin where t1 < "a"
+if $rows != 0 then
   return -=1
 endi
 
-sql select * from db.stbBin where t1 < "b" 
-if $rows != 1 then 
+sql select * from db.stbBin where t1 < "b"
+if $rows != 1 then
   return -1
 endi
 
 
-sql select * from db.stbBin where t1 between "a" and "e" 
-if $rows != 4 then 
+sql select * from db.stbBin where t1 between "a" and "e"
+if $rows != 4 then
   return -1
 endi
 
@@ -127,25 +127,25 @@ sql insert into db.ctbNc2 values(now, 3, "2")
 sql create table db.ctbNc3 using db.stbNc tags("d")
 sql insert into db.ctbNc3 values(now, 4, "2")
 
-sql select * from db.stbNc where t1 = "a" 
-if $rows != 1 then 
+sql select * from db.stbNc where t1 = "a"
+if $rows != 1 then
   return -1
 endi
 
 
-sql select * from db.stbNc where t1 < "a" 
-if $rows != 0 then 
+sql select * from db.stbNc where t1 < "a"
+if $rows != 0 then
   return -=1
 endi
 
-sql select * from db.stbNc where t1 < "b" 
-if $rows != 1 then 
+sql select * from db.stbNc where t1 < "b"
+if $rows != 1 then
   return -1
 endi
 
 
-sql select * from db.stbNc where t1 between "a" and "e" 
-if $rows != 4 then 
+sql select * from db.stbNc where t1 between "a" and "e"
+if $rows != 4 then
   return -1
 endi
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

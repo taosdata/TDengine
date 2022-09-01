@@ -245,3 +245,35 @@ Provides dnode configuration information.
 | 1   | dnode_id | INT          | Dnode ID |
 | 2   |   name   | BINARY(32)   | Parameter   |
 | 3   |  value   | BINARY(64)   | Value |
+
+## INS_TOPICS
+
+| #   |    **Column**    | **Data Type** | **Description**                  |
+| --- | :---------: | ------------ | ------------------------------ |
+| 1   | topic_name  | BINARY(192)  | Topic name                     |
+| 2   |   db_name   | BINARY(64)   | Database for the topic                |
+| 3   | create_time | TIMESTAMP    | Creation time              |
+| 4   |     sql     | BINARY(1024) | SQL statement used to create the topic |
+
+## INS_SUBSCRIPTIONS
+
+| #   |    **Column**    | **Data Type** | **Description**                  |
+| --- | :------------: | ------------ | ------------------------ |
+| 1   |   topic_name   | BINARY(204)  | Subscribed topic           |
+| 2   | consumer_group | BINARY(193)  | Subscribed consumer group         |
+| 3   |   vgroup_id    | INT          | Vgroup ID for the consumer |
+| 4   |  consumer_id   | BIGINT       | Consumer ID          |
+
+## INS_STREAMS
+
+| #   |    **Column**    | **Data Type** | **Description**                  |
+| --- | :----------: | ------------ | --------------------------------------- |
+| 1   | stream_name  | BINARY(64)   | Stream name                              |
+| 2   | create_time  | TIMESTAMP    | Creation time                                |
+| 3   |     sql      | BINARY(1024) | SQL statement used to create the stream             |
+| 4   |    status    | BIANRY(20)   | Current status                              |
+| 5   |  source_db   | BINARY(64)   | Source database                                |
+| 6   |  target_db   | BIANRY(64)   | Target database                              |
+| 7   | target_table | BINARY(192)  | Target table                      |
+| 8   |  watermark   | BIGINT       | Watermark (see stream processing documentation)        |
+| 9   |   trigger    | INT          | Method of triggering the result push (see stream processing documentation) |

@@ -57,7 +57,7 @@ public class SubscribeDemo {
             properties.setProperty(TMQConstants.ENABLE_AUTO_COMMIT, "true");
             properties.setProperty(TMQConstants.GROUP_ID, "test");
             properties.setProperty(TMQConstants.VALUE_DESERIALIZER,
-                    "com.taosdata.jdbc.MetersDeserializer");
+                    "com.taos.example.MetersDeserializer");
 
             // poll data
             try (TaosConsumer<Meters> consumer = new TaosConsumer<>(properties)) {

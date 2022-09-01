@@ -16,6 +16,7 @@
 #include "filter.h"
 #include "functionMgt.h"
 #include "planInt.h"
+#include "tglobal.h"
 #include "ttime.h"
 
 #define OPTIMIZE_FLAG_MASK(n) (1 << n)
@@ -1084,7 +1085,7 @@ static int32_t sortPriKeyOptGetSequencingNodesImpl(SLogicNode* pNode, bool* pNot
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
       SScanLogicNode* pScan = (SScanLogicNode*)pNode;
-      if (NULL != pScan->pGroupTags) {
+      if (NULL != pScan->pGroupTags || TSDB_SYSTEM_TABLE == pScan->tableType) {
         *pNotOptimize = true;
         return TSDB_CODE_SUCCESS;
       }
@@ -1665,7 +1666,10 @@ static bool eliminateProjOptMayBeOptimized(SLogicNode* pNode) {
     return false;
   }
 
-  if (QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren)) {
+  // Super table scan requires project operator to merge packets to improve performance.
+  if (QUERY_NODE_LOGIC_PLAN_PROJECT != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren) ||
+      (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(nodesListGetNode(pNode->pChildren, 0)) &&
+       TSDB_SUPER_TABLE == ((SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0))->tableType)) {
     return false;
   }
 
@@ -2407,7 +2411,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
 static const int32_t optimizeRuleNum = (sizeof(optimizeRuleSet) / sizeof(SOptimizeRule));
 
 static void dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) {
-  if (0 == (qDebugFlag & DEBUG_DEBUG)) {
+  if (!tsQueryPlannerTrace) {
     return;
   }
   char* pStr = NULL;

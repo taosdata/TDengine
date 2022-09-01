@@ -95,7 +95,7 @@ sql_error alter table db.stb add tag t1 int
 sql_error alter table db.stb add tag t2 int
 sql_error alter table db.stb add tag t3 int
 sql alter table db.stb add tag t4 bigint
-sql alter table db.stb add tag c1 int  
+sql alter table db.stb add tag c1 int
 sql alter table db.stb add tag t5 binary(12)
 
 sql select * from information_schema.ins_stables where db_name = 'db'

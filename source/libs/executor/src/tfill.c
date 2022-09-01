@@ -36,6 +36,7 @@
 #define GET_DEST_SLOT_ID(_p) ((_p)->pExpr->base.resSchema.slotId)
 
 static void doSetVal(SColumnInfoData* pDstColInfoData, int32_t rowIndex, const SGroupKeys* pKey);
+static bool fillIfWindowPseudoColumn(SFillInfo* pFillInfo, SFillColInfo* pCol, SColumnInfoData* pDstColInfoData, int32_t rowIndex);
 
 static void setNullRow(SSDataBlock* pBlock, SFillInfo* pFillInfo, int32_t rowIndex) {
   for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
@@ -43,9 +44,8 @@ static void setNullRow(SSDataBlock* pBlock, SFillInfo* pFillInfo, int32_t rowInd
     int32_t dstSlotId = GET_DEST_SLOT_ID(pCol);
     SColumnInfoData* pDstColInfo = taosArrayGet(pBlock->pDataBlock, dstSlotId);
     if (pCol->notFillCol) {
-      if (pDstColInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-        colDataAppend(pDstColInfo, rowIndex, (const char*)&pFillInfo->currentKey, false);
-      } else {
+      bool filled = fillIfWindowPseudoColumn(pFillInfo, pCol, pDstColInfo, rowIndex);
+      if (!filled) {
         SArray* p = FILL_IS_ASC_FILL(pFillInfo) ? pFillInfo->prev.pRowVal : pFillInfo->next.pRowVal;
         SGroupKeys* pKey = taosArrayGet(p, i);
         doSetVal(pDstColInfo, rowIndex, pKey);
@@ -76,6 +76,35 @@ static void doSetUserSpecifiedValue(SColumnInfoData* pDst, SVariant* pVar, int32
   }
 }
 
+//fill windows pseudo column, _wstart, _wend, _wduration and return true, otherwise return false
+static bool fillIfWindowPseudoColumn(SFillInfo* pFillInfo, SFillColInfo* pCol, SColumnInfoData* pDstColInfoData, int32_t rowIndex) {
+  if (!pCol->notFillCol) {
+    return false;
+  }
+  if (pCol->pExpr->pExpr->nodeType == QUERY_NODE_COLUMN) {
+    if (pCol->pExpr->base.numOfParams != 1) {
+      return false;
+    }
+    if (pCol->pExpr->base.pParam[0].pCol->colType == COLUMN_TYPE_WINDOW_START) {
+      colDataAppend(pDstColInfoData, rowIndex, (const char*)&pFillInfo->currentKey, false);
+      return true;
+    } else if (pCol->pExpr->base.pParam[0].pCol->colType == COLUMN_TYPE_WINDOW_END) {
+      //TODO: include endpoint
+      SInterval* pInterval = &pFillInfo->interval;
+      int32_t step = (pFillInfo->order == TSDB_ORDER_ASC) ? 1 : -1;
+      int64_t windowEnd =
+          taosTimeAdd(pFillInfo->currentKey, pInterval->sliding * step, pInterval->slidingUnit, pInterval->precision);
+      colDataAppend(pDstColInfoData, rowIndex, (const char*)&windowEnd, false);
+      return true;
+    } else if (pCol->pExpr->base.pParam[0].pCol->colType == COLUMN_TYPE_WINDOW_DURATION) {
+      //TODO: include endpoint
+      colDataAppend(pDstColInfoData, rowIndex, (const char*)&pFillInfo->interval.sliding, false);
+      return true;
+    }
+  }
+  return false;
+}
+
 static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock* pSrcBlock, int64_t ts,
                          bool outOfBound) {
   SPoint  point1, point2, point;
@@ -92,10 +121,8 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
       SFillColInfo* pCol = &pFillInfo->pFillCol[i];
 
       SColumnInfoData* pDstColInfoData = taosArrayGet(pBlock->pDataBlock, GET_DEST_SLOT_ID(pCol));
-
-      if (pDstColInfoData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-        colDataAppend(pDstColInfoData, index, (const char*)&pFillInfo->currentKey, false);
-      } else {
+      bool filled = fillIfWindowPseudoColumn(pFillInfo, pCol, pDstColInfoData, index);
+      if (!filled) {
         SGroupKeys* pKey = taosArrayGet(p, i);
         doSetVal(pDstColInfoData, index, pKey);
       }
@@ -106,10 +133,8 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
     for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
       SFillColInfo* pCol = &pFillInfo->pFillCol[i];
       SColumnInfoData* pDstColInfoData = taosArrayGet(pBlock->pDataBlock, GET_DEST_SLOT_ID(pCol));
-
-      if (pDstColInfoData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-        colDataAppend(pDstColInfoData, index, (const char*)&pFillInfo->currentKey, false);
-      } else {
+      bool filled = fillIfWindowPseudoColumn(pFillInfo, pCol, pDstColInfoData, index);
+      if (!filled) {
         SGroupKeys* pKey = taosArrayGet(p, i);
         doSetVal(pDstColInfoData, index, pKey);
       }
@@ -127,9 +152,8 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
         int16_t          type = pDstCol->info.type;
 
         if (pCol->notFillCol) {
-          if (type == TSDB_DATA_TYPE_TIMESTAMP) {
-            colDataAppend(pDstCol, index, (const char*)&pFillInfo->currentKey, false);
-          } else {
+          bool filled = fillIfWindowPseudoColumn(pFillInfo, pCol, pDstCol, index);
+          if (!filled) {
             SArray* p = FILL_IS_ASC_FILL(pFillInfo) ? pFillInfo->prev.pRowVal : pFillInfo->next.pRowVal;
             SGroupKeys* pKey = taosArrayGet(p, i);
             doSetVal(pDstCol, index, pKey);
@@ -170,9 +194,8 @@ static void doFillOneRow(SFillInfo* pFillInfo, SSDataBlock* pBlock, SSDataBlock*
       SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, slotId);
 
       if (pCol->notFillCol) {
-        if (pDst->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-          colDataAppend(pDst, index, (const char*)&pFillInfo->currentKey, false);
-        } else {
+        bool filled = fillIfWindowPseudoColumn(pFillInfo, pCol, pDst, index);
+        if (!filled) {
           SArray* p = FILL_IS_ASC_FILL(pFillInfo) ? pFillInfo->prev.pRowVal : pFillInfo->next.pRowVal;
           SGroupKeys* pKey = taosArrayGet(p, i);
           doSetVal(pDst, index, pKey);

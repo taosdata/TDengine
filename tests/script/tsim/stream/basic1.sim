@@ -462,10 +462,10 @@ if $data25 != 3 then
   return -1
 endi
 
-sql create database test2 vgroups 1
-sql select * from information_schema.ins_databases
+sql create database test2 vgroups 1;
+sql select * from information_schema.ins_databases;
 
-sql use test2
+sql use test2;
 sql create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
