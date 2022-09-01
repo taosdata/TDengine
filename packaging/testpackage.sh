@@ -230,7 +230,7 @@ fi
 
 cd ${installPath}
 
-if [[ ${packgeName} =~ "Lite" ]]  ||   [[ ${packgeName} =~ "client" ]] ;then
+if [[ ${packgeName} =~ "Lite" ]]  ||   [[ ${packgeName} =~ "client" ]] ||  ([[ ${packgeName} =~ "deb" ]] && [ ${packgeName} =~ "server" ]])  ([[ ${packgeName} =~ "rpm" ]] && [ ${packgeName} =~ "server" ]]) ;then
     echoColor G "===== install taos-tools when package is lite or client ====="
     cd ${installPath}
     wgetFile taosTools-2.1.2-Linux-x64.tar.gz .
