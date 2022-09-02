@@ -63,9 +63,9 @@ telegraf --config telegraf.conf
 
 ## Verify
 
-Log in TDengine Cloud, click "Explorer" on the left navigation bar.
+- Log in TDengine Cloud, click "Explorer" on the left navigation bar, then click the "+" button besides "Databases" to add a database named as "telegraf" using all default parameters.
 
-Check weather database "telegraf" exist by executing:
+- Check weather database "telegraf" exist by executing:
 
 ```sql
 show databases;
