@@ -931,25 +931,25 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
     // write
     SHeadFile fHead;
     SDataFile fData;
-    SLastFile fLast;
+    SSstFile  fLast;
     SSmaFile  fSma;
-    SDFileSet wSet = {.pHeadF = &fHead, .pDataF = &fData, .aLastF[0] = &fLast, .pSmaF = &fSma};
+    SDFileSet wSet = {.pHeadF = &fHead, .pDataF = &fData, .aSstF[0] = &fLast, .pSmaF = &fSma};
 
     if (pSet) {
       wSet.diskId = pSet->diskId;
       wSet.fid = fid;
-      wSet.nLastF = 1;
+      wSet.nSstF = 1;
       fHead = (SHeadFile){.commitID = pWriter->commitID, .offset = 0, .size = 0};
       fData = *pSet->pDataF;
-      fLast = (SLastFile){.commitID = pWriter->commitID, .size = 0};
+      fLast = (SSstFile){.commitID = pWriter->commitID, .size = 0};
       fSma = *pSet->pSmaF;
     } else {
       wSet.diskId = (SDiskID){.level = 0, .id = 0};
       wSet.fid = fid;
-      wSet.nLastF = 1;
+      wSet.nSstF = 1;
       fHead = (SHeadFile){.commitID = pWriter->commitID, .offset = 0, .size = 0};
       fData = (SDataFile){.commitID = pWriter->commitID, .size = 0};
-      fLast = (SLastFile){.commitID = pWriter->commitID, .size = 0, .offset = 0};
+      fLast = (SSstFile){.commitID = pWriter->commitID, .size = 0, .offset = 0};
       fSma = (SSmaFile){.commitID = pWriter->commitID, .size = 0};
     }
 

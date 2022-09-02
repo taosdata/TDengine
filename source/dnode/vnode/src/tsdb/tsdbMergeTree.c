@@ -99,12 +99,12 @@ void tLDataIterClose(SLDataIter *pIter) {
 extern int32_t tsdbReadLastBlockEx(SDataFReader *pReader, int32_t iLast, SBlockL *pBlockL, SBlockData *pBlockData);
 
 void tLDataIterNextBlock(SLDataIter *pIter) {
-  int32_t step = pIter->backward? -1:1;
+  int32_t step = pIter->backward ? -1 : 1;
   pIter->iBlockL += step;
 
   int32_t index = -1;
-  size_t size = taosArrayGetSize(pIter->aBlockL);
-  for(int32_t i = pIter->iBlockL; i < size && i >= 0; i += step) {
+  size_t  size = taosArrayGetSize(pIter->aBlockL);
+  for (int32_t i = pIter->iBlockL; i < size && i >= 0; i += step) {
     SBlockL *p = taosArrayGet(pIter->aBlockL, i);
     if ((!pIter->backward) && p->minUid > pIter->uid) {
       break;
@@ -122,15 +122,15 @@ void tLDataIterNextBlock(SLDataIter *pIter) {
 
   if (index == -1) {
     pIter->pBlockL = NULL;
-  }  else {
+  } else {
     pIter->pBlockL = (SBlockL *)taosArrayGet(pIter->aBlockL, pIter->iBlockL);
   }
 }
 
-static void findNextValidRow(SLDataIter* pIter) {
-  int32_t step = pIter->backward? -1:1;
+static void findNextValidRow(SLDataIter *pIter) {
+  int32_t step = pIter->backward ? -1 : 1;
 
-  bool hasVal = false;
+  bool    hasVal = false;
   int32_t i = pIter->iRow;
   for (; i < pIter->bData.nRow && i >= 0; i += step) {
     if (pIter->bData.aUid != NULL) {
@@ -150,7 +150,7 @@ static void findNextValidRow(SLDataIter* pIter) {
     }
 
     int64_t ts = pIter->bData.aTSKEY[i];
-    if (!pIter->backward) {  // asc
+    if (!pIter->backward) {               // asc
       if (ts > pIter->timeWindow.ekey) {  // no more data
         break;
       } else if (ts < pIter->timeWindow.skey) {
@@ -186,12 +186,12 @@ static void findNextValidRow(SLDataIter* pIter) {
     break;
   }
 
-  pIter->iRow = (hasVal)? i:-1;
+  pIter->iRow = (hasVal) ? i : -1;
 }
 
 bool tLDataIterNextRow(SLDataIter *pIter) {
   int32_t code = 0;
-  int32_t step = pIter->backward? -1:1;
+  int32_t step = pIter->backward ? -1 : 1;
 
   // no qualified last file block in current file, no need to fetch row
   if (pIter->pBlockL == NULL) {
@@ -206,12 +206,12 @@ bool tLDataIterNextRow(SLDataIter *pIter) {
       goto _exit;
     }
 
-    pIter->iRow = (pIter->backward)? pIter->bData.nRow:-1;
+    pIter->iRow = (pIter->backward) ? pIter->bData.nRow : -1;
   }
 
   pIter->iRow += step;
 
-  while(1) {
+  while (1) {
     findNextValidRow(pIter);
 
     if (pIter->iRow >= pIter->bData.nRow || pIter->iRow < 0) {
@@ -237,16 +237,14 @@ bool tLDataIterNextRow(SLDataIter *pIter) {
   pIter->rInfo.row = tsdbRowFromBlockData(&pIter->bData, pIter->iRow);
 
 _exit:
-  if  (code != TSDB_CODE_SUCCESS) {
+  if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
   }
 
   return (code == TSDB_CODE_SUCCESS) && (pIter->pBlockL != NULL);
 }
 
-SRowInfo *tLDataIterGet(SLDataIter *pIter) {
-  return &pIter->rInfo;
-}
+SRowInfo *tLDataIterGet(SLDataIter *pIter) { return &pIter->rInfo; }
 
 // SMergeTree =================================================
 static FORCE_INLINE int32_t tLDataIterCmprFn(const void *p1, const void *p2) {
@@ -271,16 +269,17 @@ static FORCE_INLINE int32_t tLDataIterCmprFn(const void *p1, const void *p2) {
   }
 }
 
-void tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader* pFReader, uint64_t uid, STimeWindow* pTimeWindow, SVersionRange* pVerRange) {
+void tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t uid, STimeWindow *pTimeWindow,
+                    SVersionRange *pVerRange) {
   pMTree->backward = backward;
   pMTree->pIter = NULL;
   pMTree->pIterList = taosArrayInit(4, POINTER_BYTES);
 
   tRBTreeCreate(&pMTree->rbt, tLDataIterCmprFn);
 
-  struct SLDataIter* pIterList[TSDB_DEFAULT_LAST_FILE] = {0};
-  for(int32_t i = 0; i < pFReader->pSet->nLastF; ++i) { // open all last file
-    /*int32_t code = */tLDataIterOpen(&pIterList[i], pFReader, i, pMTree->backward, uid, pTimeWindow, pVerRange);
+  struct SLDataIter *pIterList[TSDB_DEFAULT_LAST_FILE] = {0};
+  for (int32_t i = 0; i < pFReader->pSet->nSstF; ++i) {  // open all last file
+    /*int32_t code = */ tLDataIterOpen(&pIterList[i], pFReader, i, pMTree->backward, uid, pTimeWindow, pVerRange);
     bool hasVal = tLDataIterNextRow(pIterList[i]);
     if (hasVal) {
       taosArrayPush(pMTree->pIterList, &pIterList[i]);
@@ -293,7 +292,7 @@ void tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader* pFReader,
 
 void tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter) { tRBTreePut(&pMTree->rbt, (SRBTreeNode *)pIter); }
 
-bool tMergeTreeNext(SMergeTree* pMTree) {
+bool tMergeTreeNext(SMergeTree *pMTree) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (pMTree->pIter) {
     SLDataIter *pIter = pMTree->pIter;
@@ -326,14 +325,12 @@ bool tMergeTreeNext(SMergeTree* pMTree) {
   return pMTree->pIter != NULL;
 }
 
-TSDBROW tMergeTreeGetRow(SMergeTree* pMTree) {
-  return pMTree->pIter->rInfo.row;
-}
+TSDBROW tMergeTreeGetRow(SMergeTree *pMTree) { return pMTree->pIter->rInfo.row; }
 
-void tMergeTreeClose(SMergeTree* pMTree) {
+void tMergeTreeClose(SMergeTree *pMTree) {
   size_t size = taosArrayGetSize(pMTree->pIterList);
-  for(int32_t i = 0; i < size; ++i) {
-    SLDataIter* pIter = taosArrayGetP(pMTree->pIterList, i);
+  for (int32_t i = 0; i < size; ++i) {
+    SLDataIter *pIter = taosArrayGetP(pMTree->pIterList, i);
     tLDataIterClose(pIter);
   }
 

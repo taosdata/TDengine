@@ -431,9 +431,9 @@ static int32_t tsdbOpenCommitIter(SCommitter *pCommitter) {
   pCommitter->toLastOnly = 0;
   SDataFReader *pReader = pCommitter->dReader.pReader;
   if (pReader) {
-    if (pReader->pSet->nLastF >= pCommitter->maxLast) {
+    if (pReader->pSet->nSstF >= pCommitter->maxLast) {
       int8_t iIter = 0;
-      for (int32_t iLast = 0; iLast < pReader->pSet->nLastF; iLast++) {
+      for (int32_t iLast = 0; iLast < pReader->pSet->nSstF; iLast++) {
         pIter = &pCommitter->aDataIter[iIter];
         pIter->type = LAST_DATA_ITER;
         pIter->iLast = iLast;
@@ -457,9 +457,9 @@ static int32_t tsdbOpenCommitIter(SCommitter *pCommitter) {
         iIter++;
       }
     } else {
-      for (int32_t iLast = 0; iLast < pReader->pSet->nLastF; iLast++) {
-        SLastFile *pLastFile = pReader->pSet->aLastF[iLast];
-        if (pLastFile->size > pLastFile->offset) {
+      for (int32_t iLast = 0; iLast < pReader->pSet->nSstF; iLast++) {
+        SSstFile *pSstFile = pReader->pSet->aSstF[iLast];
+        if (pSstFile->size > pSstFile->offset) {
           pCommitter->toLastOnly = 1;
           break;
         }
@@ -515,29 +515,29 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   SHeadFile fHead = {.commitID = pCommitter->commitID};
   SDataFile fData = {.commitID = pCommitter->commitID};
   SSmaFile  fSma = {.commitID = pCommitter->commitID};
-  SLastFile fLast = {.commitID = pCommitter->commitID};
+  SSstFile  fSst = {.commitID = pCommitter->commitID};
   SDFileSet wSet = {.fid = pCommitter->commitFid, .pHeadF = &fHead, .pDataF = &fData, .pSmaF = &fSma};
   if (pRSet) {
-    ASSERT(pRSet->nLastF <= pCommitter->maxLast);
+    ASSERT(pRSet->nSstF <= pCommitter->maxLast);
     fData = *pRSet->pDataF;
     fSma = *pRSet->pSmaF;
     wSet.diskId = pRSet->diskId;
-    if (pRSet->nLastF < pCommitter->maxLast) {
-      for (int32_t iLast = 0; iLast < pRSet->nLastF; iLast++) {
-        wSet.aLastF[iLast] = pRSet->aLastF[iLast];
+    if (pRSet->nSstF < pCommitter->maxLast) {
+      for (int32_t iLast = 0; iLast < pRSet->nSstF; iLast++) {
+        wSet.aSstF[iLast] = pRSet->aSstF[iLast];
       }
-      wSet.nLastF = pRSet->nLastF + 1;
+      wSet.nSstF = pRSet->nSstF + 1;
     } else {
-      wSet.nLastF = 1;
+      wSet.nSstF = 1;
     }
   } else {
     SDiskID did = {0};
     tfsAllocDisk(pTsdb->pVnode->pTfs, 0, &did);
     tfsMkdirRecurAt(pTsdb->pVnode->pTfs, pTsdb->path, did);
     wSet.diskId = did;
-    wSet.nLastF = 1;
+    wSet.nSstF = 1;
   }
-  wSet.aLastF[wSet.nLastF - 1] = &fLast;
+  wSet.aSstF[wSet.nSstF - 1] = &fSst;
   code = tsdbDataFWriterOpen(&pCommitter->dWriter.pWriter, pTsdb, &wSet);
   if (code) goto _err;
 

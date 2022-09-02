@@ -50,7 +50,7 @@ typedef struct SBlockData    SBlockData;
 typedef struct SDelFile      SDelFile;
 typedef struct SHeadFile     SHeadFile;
 typedef struct SDataFile     SDataFile;
-typedef struct SLastFile     SLastFile;
+typedef struct SSstFile      SSstFile;
 typedef struct SSmaFile      SSmaFile;
 typedef struct SDFileSet     SDFileSet;
 typedef struct SDataFWriter  SDataFWriter;
@@ -219,7 +219,7 @@ bool    tsdbDelFileIsSame(SDelFile *pDelFile1, SDelFile *pDelFile2);
 int32_t tsdbDFileRollback(STsdb *pTsdb, SDFileSet *pSet, EDataFileT ftype);
 int32_t tPutHeadFile(uint8_t *p, SHeadFile *pHeadFile);
 int32_t tPutDataFile(uint8_t *p, SDataFile *pDataFile);
-int32_t tPutLastFile(uint8_t *p, SLastFile *pLastFile);
+int32_t tPutSstFile(uint8_t *p, SSstFile *pSstFile);
 int32_t tPutSmaFile(uint8_t *p, SSmaFile *pSmaFile);
 int32_t tPutDelFile(uint8_t *p, SDelFile *pDelFile);
 int32_t tGetDelFile(uint8_t *p, SDelFile *pDelFile);
@@ -228,7 +228,7 @@ int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet);
 
 void tsdbHeadFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SHeadFile *pHeadF, char fname[]);
 void tsdbDataFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SDataFile *pDataF, char fname[]);
-void tsdbLastFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SLastFile *pLastF, char fname[]);
+void tsdbSstFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSstFile *pSstF, char fname[]);
 void tsdbSmaFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSmaFile *pSmaF, char fname[]);
 // SDelFile
 void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]);
@@ -541,7 +541,7 @@ struct SDataFile {
   int64_t size;
 };
 
-struct SLastFile {
+struct SSstFile {
   volatile int32_t nRef;
 
   int64_t commitID;
@@ -562,8 +562,8 @@ struct SDFileSet {
   SHeadFile *pHeadF;
   SDataFile *pDataF;
   SSmaFile  *pSmaF;
-  uint8_t    nLastF;
-  SLastFile *aLastF[TSDB_MAX_LAST_FILE];
+  uint8_t    nSstF;
+  SSstFile  *aSstF[TSDB_MAX_LAST_FILE];
 };
 
 struct SRowIter {
@@ -598,7 +598,7 @@ struct SDataFWriter {
   SHeadFile fHead;
   SDataFile fData;
   SSmaFile  fSma;
-  SLastFile fLast[TSDB_MAX_LAST_FILE];
+  SSstFile  fSst[TSDB_MAX_LAST_FILE];
 
   uint8_t *aBuf[4];
 };
