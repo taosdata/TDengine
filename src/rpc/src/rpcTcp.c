@@ -458,11 +458,11 @@ int taosSendTcpData(uint32_t ip, uint16_t port, void *data, int len, void *chand
   int ret = taosWriteMsg(pFdObj->fd, data, len);
   tTrace("%s %p TCP data is sent, FD:%p fd:%d bytes:%d", pThreadObj->label, pFdObj->thandle, pFdObj, pFdObj->fd, ret);
   if(ret < 0) {
-    tError("DEEP %s %p TCP data sent failed and try again, FD:%p fd:%d ctime=" PRId64 " ret=%d le=%d ip=%d port=%d threadid=%d numofFds=%d",
+    tError("DEEP %s %p TCP data sent failed and try again, FD:%p fd:%d ctime=%" PRId64 " ret=%d le=%d ip=%d port=%d threadid=%d numofFds=%d",
         pThreadObj->label, pFdObj->thandle, pFdObj, pFdObj->fd, pFdObj->ctime, ret, len, ip, port, pThreadObj->threadId, pThreadObj->numOfFds);
     ret = taosWriteMsg(pFdObj->fd, data, len);
     if(ret < 0) {
-      tError("DEEP %s %p Second TCP data sent failed, FD:%p fd:%d ctime=" PRId64 " ret=%d le=%d ip=%d port=%d threadid=%d numofFds=%d",
+      tError("DEEP %s %p Second TCP data sent failed, FD:%p fd:%d ctime=%" PRId64 " ret=%d le=%d ip=%d port=%d threadid=%d numofFds=%d",
           pThreadObj->label, pFdObj->thandle, pFdObj, pFdObj->fd, pFdObj->ctime, ret, len, ip, port, pThreadObj->threadId, pThreadObj->numOfFds);
     } 
   }
@@ -673,7 +673,7 @@ static void taosFreeFdObj(SFdObj *pFdObj) {
   pFdObj->signature = NULL;
   epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_DEL, pFdObj->fd, NULL);
   tDebug("DEEP %s close1 fd=%d pFdObj=%p ip=%d port=%d ctime=%" PRId64 " thandle=%p",
-           pThreadObj->label, pFdObj->fd, pFdObj, pFdObj->ip, pFdObj->port,pFdObj->thandle);
+           pThreadObj->label, pFdObj->fd, pFdObj, pFdObj->ip, pFdObj->port, pFdObj->ctime, pFdObj->thandle);
   taosCloseSocket(pFdObj->fd);
   
 
