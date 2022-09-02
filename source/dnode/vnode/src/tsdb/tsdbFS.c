@@ -311,17 +311,6 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
       if (code) goto _err;
     }
 
-    // sst ===========
-    tsdbSstFileName(pTsdb, pSet->diskId, pSet->fid, pSet->aSstF[0], fname);
-    if (taosStatFile(fname, &size, NULL)) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      goto _err;
-    }
-    if (size != pSet->aSstF[0]->size) {
-      code = TSDB_CODE_FILE_CORRUPTED;
-      goto _err;
-    }
-
     // sma =============
     tsdbSmaFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pSmaF, fname);
     if (taosStatFile(fname, &size, NULL)) {
@@ -334,6 +323,19 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
     } else if (size > pSet->pSmaF->size) {
       code = tsdbDFileRollback(pTsdb, pSet, TSDB_SMA_FILE);
       if (code) goto _err;
+    }
+
+    // sst ===========
+    for (int32_t iSst = 0; iSst < pSet->nSstF; iSst++) {
+      tsdbSstFileName(pTsdb, pSet->diskId, pSet->fid, pSet->aSstF[iSst], fname);
+      if (taosStatFile(fname, &size, NULL)) {
+        code = TAOS_SYSTEM_ERROR(errno);
+        goto _err;
+      }
+      if (size != pSet->aSstF[iSst]->size) {
+        code = TSDB_CODE_FILE_CORRUPTED;
+        goto _err;
+      }
     }
   }
 
