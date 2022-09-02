@@ -3166,6 +3166,12 @@ static void addRetriveWindow(SArray* wins, SStreamFinalIntervalOperatorInfo* pIn
   }
 }
 
+static void clearFunctionContext(SExprSupp* pSup) {
+  for (int32_t i = 0; i < pSup->numOfExprs; i++) {
+    pSup->pCtx[i].saveHandle.currentPage = -1;
+  }
+}
+
 static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
   SStreamFinalIntervalOperatorInfo* pInfo = pOperator->info;
 
@@ -3201,6 +3207,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
     if (pInfo->binfo.pRes->info.rows == 0) {
       pOperator->status = OP_EXEC_DONE;
       if (!IS_FINAL_OP(pInfo)) {
+        clearFunctionContext(&pOperator->exprSupp);
         // semi interval operator clear disk buffer
         clearStreamIntervalOperator(pInfo);
         qDebug("===stream===clear semi operator");
@@ -4461,6 +4468,7 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
     }
 
     if (pOperator->status == OP_RES_TO_RETURN) {
+      clearFunctionContext(&pOperator->exprSupp);
       // semi interval operator clear disk buffer
       clearStreamSessionOperator(pInfo);
       pOperator->status = OP_EXEC_DONE;
