@@ -129,15 +129,18 @@ int32_t taosWriteMsg(SOCKET fd, void *buf, int32_t nbytes) {
     if (nwritten <= 0) {
       if (errno == EINTR /* || errno == EAGAIN || errno == EWOULDBLOCK */)
         continue;
-      else
-        return -1;
+      else {
+        uError("DEEP write socket failed3. errno=%d fd=%d writeten=%d left=%d", errno, fd, nwritten, nleft);
+        return -3;
+      }
     } else {
       nleft -= nwritten;
       ptr += nwritten;
     }
 
     if (errno == SIGPIPE || errno == EPIPE) {
-      return -1;
+      uError("DEEP write socket failed4. errno=%d fd=%d writeten=%d left=%d", errno, fd, nwritten, nleft);
+      return -4;
     }
   }
 
