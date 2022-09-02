@@ -37,7 +37,7 @@ typedef struct {
       int32_t    iBlockL;
       SBlockData bData;
       int32_t    iRow;
-    };  // last file data iter
+    };  // sst file data iter
   };
 } SDataIter;
 

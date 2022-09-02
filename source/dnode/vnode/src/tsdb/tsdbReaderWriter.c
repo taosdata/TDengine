@@ -433,7 +433,7 @@ int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pS
     goto _err;
   }
 
-  // last
+  // sst
   for (int32_t iLast = 0; iLast < pSet->nSstF; iLast++) {
     tsdbSstFileName(pTsdb, pSet->diskId, pSet->fid, pSet->aSstF[iLast], fname);
     pReader->aLastFD[iLast] = taosOpenFile(fname, TD_FILE_READ);
@@ -474,7 +474,7 @@ int32_t tsdbDataFReaderClose(SDataFReader **ppReader) {
     goto _err;
   }
 
-  // last
+  // sst
   for (int32_t iLast = 0; iLast < (*ppReader)->pSet->nSstF; iLast++) {
     if (taosCloseFile(&(*ppReader)->aLastFD[iLast]) < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
@@ -1036,7 +1036,7 @@ int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pS
     ASSERT(n == pWriter->fSma.size);
   }
 
-  // last
+  // sst
   ASSERT(pWriter->fSst[pSet->nSstF - 1].size == 0);
   flag = TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
   tsdbSstFileName(pTsdb, pWriter->wSet.diskId, pWriter->wSet.fid, &pWriter->fSst[pSet->nSstF - 1], fname);
@@ -1179,7 +1179,7 @@ int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter) {
     goto _err;
   }
 
-  // last ==============
+  // sst ==============
   memset(hdr, 0, TSDB_FHDR_SIZE);
   tPutSstFile(hdr, &pWriter->fSst[pWriter->wSet.nSstF - 1]);
   taosCalcChecksumAppend(0, hdr, TSDB_FHDR_SIZE);
@@ -1554,7 +1554,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
   taosCloseFile(&pOutFD);
   taosCloseFile(&PInFD);
 
-  // last
+  // sst
   tsdbSstFileName(pTsdb, pSetFrom->diskId, pSetFrom->fid, pSetFrom->aSstF[0], fNameFrom);
   tsdbSstFileName(pTsdb, pSetTo->diskId, pSetTo->fid, pSetTo->aSstF[0], fNameTo);
 
