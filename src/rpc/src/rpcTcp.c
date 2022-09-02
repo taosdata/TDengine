@@ -435,7 +435,7 @@ void taosCloseTcpConnection(void *chandle) {
   if (pFdObj == NULL || pFdObj->signature != pFdObj) return;
 
   SThreadObj *pThreadObj = pFdObj->pThreadObj;
-  tDebug("DEEP %s shutdown3 fd=%d ip=%d port=%d ctime=%" PRId64, pThreadObj->label, pFdObj->fd, pFdObj->ip, pFdObj->port, pFdObj->ctime);
+  tDebug("DEEP %s shutdown3 fd=%d ip=0x%x port=%d ctime=%" PRId64, pThreadObj->label, pFdObj->fd, pFdObj->ip, pFdObj->port, pFdObj->ctime);
 
   // pFdObj->thandle = NULL;
   pFdObj->closedByApp = 1;
@@ -458,11 +458,11 @@ int taosSendTcpData(uint32_t ip, uint16_t port, void *data, int len, void *chand
   int ret = taosWriteMsg(pFdObj->fd, data, len);
   tTrace("%s %p TCP data is sent, FD:%p fd:%d bytes:%d", pThreadObj->label, pFdObj->thandle, pFdObj, pFdObj->fd, ret);
   if(ret < 0) {
-    tError("DEEP %s %p TCP data sent failed and try again, FD:%p fd:%d ctime=%" PRId64 " ret=%d le=%d ip=%d port=%d threadid=%d numofFds=%d",
+    tError("DEEP %s %p TCP data sent failed and try again, FD:%p fd:%d ctime=%" PRId64 " ret=%d le=%d ip=0x%x port=%d threadid=%d numofFds=%d",
         pThreadObj->label, pFdObj->thandle, pFdObj, pFdObj->fd, pFdObj->ctime, ret, len, ip, port, pThreadObj->threadId, pThreadObj->numOfFds);
     ret = taosWriteMsg(pFdObj->fd, data, len);
     if(ret < 0) {
-      tError("DEEP %s %p Second TCP data sent failed, FD:%p fd:%d ctime=%" PRId64 " ret=%d le=%d ip=%d port=%d threadid=%d numofFds=%d",
+      tError("DEEP %s %p Second TCP data sent failed, FD:%p fd:%d ctime=%" PRId64 " ret=%d le=%d ip=0x%x port=%d threadid=%d numofFds=%d",
           pThreadObj->label, pFdObj->thandle, pFdObj, pFdObj->fd, pFdObj->ctime, ret, len, ip, port, pThreadObj->threadId, pThreadObj->numOfFds);
     } 
   }
@@ -477,7 +477,7 @@ static void taosReportBrokenLink(SFdObj *pFdObj) {
   // notify the upper layer, so it will clean the associated context
   if (pFdObj->closedByApp == 0) {
     shutdown(pFdObj->fd, SHUT_WR);
-    tDebug("DEEP %s shutdown2 fd=%d ip=%d port=%d ctime=%" PRId64, pThreadObj->label, pFdObj->fd, pFdObj->ip, pFdObj->port, pFdObj->ctime);
+    tDebug("DEEP %s shutdown2 fd=%d ip=0x%x port=%d ctime=%" PRId64, pThreadObj->label, pFdObj->fd, pFdObj->ip, pFdObj->port, pFdObj->ctime);
 
     SRecvInfo recvInfo;
     recvInfo.msg = NULL;
@@ -595,7 +595,7 @@ static void *taosProcessTcpData(void *param) {
       }
 
       if (taosReadTcpData(pFdObj, &recvInfo) < 0) {
-        tDebug("DEEP %s shutdown1 fd=%d ip=%d port=%d ctime=%" PRId64, pThreadObj->label, pFdObj->fd, pFdObj->ip, pFdObj->port, pFdObj->ctime);
+        tDebug("DEEP %s shutdown1 fd=%d ip=0x%x port=%d ctime=%" PRId64, pThreadObj->label, pFdObj->fd, pFdObj->ip, pFdObj->port, pFdObj->ctime);
         shutdown(pFdObj->fd, SHUT_WR);
         continue;
       }
@@ -672,7 +672,7 @@ static void taosFreeFdObj(SFdObj *pFdObj) {
 
   pFdObj->signature = NULL;
   epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_DEL, pFdObj->fd, NULL);
-  tDebug("DEEP %s close1 fd=%d pFdObj=%p ip=%d port=%d ctime=%" PRId64 " thandle=%p",
+  tDebug("DEEP %s close1 fd=%d pFdObj=%p ip=0x%x port=%d ctime=%" PRId64 " thandle=%p",
            pThreadObj->label, pFdObj->fd, pFdObj, pFdObj->ip, pFdObj->port, pFdObj->ctime, pFdObj->thandle);
   taosCloseSocket(pFdObj->fd);
   
