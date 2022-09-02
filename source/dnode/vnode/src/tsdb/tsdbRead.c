@@ -353,11 +353,12 @@ static bool filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader) {
   int32_t step = asc ? 1 : -1;
   pIter->index += step;
 
-  pIter->pLastBlockReader->uid = 0;
-  tMergeTreeClose(&pIter->pLastBlockReader->mergeTree);
   if ((asc && pIter->index >= pIter->numOfFiles) || ((!asc) && pIter->index < 0)) {
     return false;
   }
+
+  pIter->pLastBlockReader->uid = 0;
+  tMergeTreeClose(&pIter->pLastBlockReader->mergeTree);
 
   // check file the time range of coverage
   STimeWindow win = {0};
@@ -2161,8 +2162,6 @@ _err:
 
 static TSDBKEY getCurrentKeyInBuf(STableBlockScanInfo* pScanInfo, STsdbReader* pReader) {
   TSDBKEY key = {.ts = TSKEY_INITIAL_VAL};
-
-  initMemDataIterator(pScanInfo, pReader);
   TSDBROW* pRow = getValidMemRow(&pScanInfo->iter, pScanInfo->delSkyline, pReader);
   if (pRow != NULL) {
     key = TSDBROW_KEY(pRow);
@@ -2356,6 +2355,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
     pBlock = getCurrentBlock(pBlockIter);
   }
 
+  initLastBlockReader(pLastBlockReader, pScanInfo, pReader);
   TSDBKEY key = getCurrentKeyInBuf(pScanInfo, pReader);
 
   if (pBlockInfo == NULL) {  // build data block from last data file
