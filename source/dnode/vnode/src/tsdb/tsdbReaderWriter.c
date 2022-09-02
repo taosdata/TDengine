@@ -434,10 +434,10 @@ int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pS
   }
 
   // sst
-  for (int32_t iLast = 0; iLast < pSet->nSstF; iLast++) {
-    tsdbSstFileName(pTsdb, pSet->diskId, pSet->fid, pSet->aSstF[iLast], fname);
-    pReader->aLastFD[iLast] = taosOpenFile(fname, TD_FILE_READ);
-    if (pReader->aLastFD[iLast] == NULL) {
+  for (int32_t iSst = 0; iSst < pSet->nSstF; iSst++) {
+    tsdbSstFileName(pTsdb, pSet->diskId, pSet->fid, pSet->aSstF[iSst], fname);
+    pReader->aLastFD[iSst] = taosOpenFile(fname, TD_FILE_READ);
+    if (pReader->aLastFD[iSst] == NULL) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
@@ -475,8 +475,8 @@ int32_t tsdbDataFReaderClose(SDataFReader **ppReader) {
   }
 
   // sst
-  for (int32_t iLast = 0; iLast < (*ppReader)->pSet->nSstF; iLast++) {
-    if (taosCloseFile(&(*ppReader)->aLastFD[iLast]) < 0) {
+  for (int32_t iSst = 0; iSst < (*ppReader)->pSet->nSstF; iSst++) {
+    if (taosCloseFile(&(*ppReader)->aLastFD[iSst]) < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
@@ -559,14 +559,14 @@ _err:
   return code;
 }
 
-int32_t tsdbReadBlockL(SDataFReader *pReader, int32_t iLast, SArray *aBlockL) {
+int32_t tsdbReadSstBlk(SDataFReader *pReader, int32_t iSst, SArray *aSstBlk) {
   int32_t  code = 0;
-  int64_t  offset = pReader->pSet->aSstF[iLast]->offset;
-  int64_t  size = pReader->pSet->aSstF[iLast]->size - offset;
+  int64_t  offset = pReader->pSet->aSstF[iSst]->offset;
+  int64_t  size = pReader->pSet->aSstF[iSst]->size - offset;
   int64_t  n;
   uint32_t delimiter;
 
-  taosArrayClear(aBlockL);
+  taosArrayClear(aSstBlk);
   if (size == 0) {
     goto _exit;
   }
@@ -576,13 +576,13 @@ int32_t tsdbReadBlockL(SDataFReader *pReader, int32_t iLast, SArray *aBlockL) {
   if (code) goto _err;
 
   // seek
-  if (taosLSeekFile(pReader->aLastFD[iLast], offset, SEEK_SET) < 0) {
+  if (taosLSeekFile(pReader->aLastFD[iSst], offset, SEEK_SET) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
   // read
-  n = taosReadFile(pReader->aLastFD[iLast], pReader->aBuf[0], size);
+  n = taosReadFile(pReader->aLastFD[iSst], pReader->aBuf[0], size);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -603,10 +603,10 @@ int32_t tsdbReadBlockL(SDataFReader *pReader, int32_t iLast, SArray *aBlockL) {
   ASSERT(delimiter == TSDB_FILE_DLMT);
 
   while (n < size - sizeof(TSCKSUM)) {
-    SBlockL blockl;
-    n += tGetBlockL(pReader->aBuf[0] + n, &blockl);
+    SSstBlk blockl;
+    n += tGetSstBlk(pReader->aBuf[0] + n, &blockl);
 
-    if (taosArrayPush(aBlockL, &blockl) == NULL) {
+    if (taosArrayPush(aSstBlk, &blockl) == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _err;
     }
@@ -897,10 +897,10 @@ _err:
   return code;
 }
 
-int32_t tsdbReadLastBlock(SDataFReader *pReader, int32_t iLast, SBlockL *pBlockL, SBlockData *pBlockData) {
+int32_t tsdbReadSstBlock(SDataFReader *pReader, int32_t iSst, SSstBlk *pSstBlk, SBlockData *pBlockData) {
   int32_t code = 0;
 
-  code = tsdbReadBlockDataImpl(pReader, &pBlockL->bInfo, 1, pBlockData);
+  code = tsdbReadBlockDataImpl(pReader, &pSstBlk->bInfo, 1, pBlockData);
   if (code) goto _err;
 
   return code;
@@ -910,15 +910,15 @@ _err:
   return code;
 }
 
-int32_t tsdbReadLastBlockEx(SDataFReader *pReader, int32_t iLast, SBlockL *pBlockL, SBlockData *pBlockData) {
+int32_t tsdbReadSstBlockEx(SDataFReader *pReader, int32_t iSst, SSstBlk *pSstBlk, SBlockData *pBlockData) {
   int32_t code = 0;
 
   // read
-  code = tsdbReadAndCheck(pReader->aLastFD[iLast], pBlockL->bInfo.offset, &pReader->aBuf[0], pBlockL->bInfo.szBlock, 0);
+  code = tsdbReadAndCheck(pReader->aLastFD[iSst], pSstBlk->bInfo.offset, &pReader->aBuf[0], pSstBlk->bInfo.szBlock, 0);
   if (code) goto _exit;
 
   // decmpr
-  code = tDecmprBlockData(pReader->aBuf[0], pBlockL->bInfo.szBlock, pBlockData, &pReader->aBuf[1]);
+  code = tDecmprBlockData(pReader->aBuf[0], pSstBlk->bInfo.szBlock, pBlockData, &pReader->aBuf[1]);
   if (code) goto _exit;
 
 _exit:
@@ -952,9 +952,9 @@ int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pS
   pWriter->fHead = *pSet->pHeadF;
   pWriter->fData = *pSet->pDataF;
   pWriter->fSma = *pSet->pSmaF;
-  for (int8_t iLast = 0; iLast < pSet->nSstF; iLast++) {
-    pWriter->wSet.aSstF[iLast] = &pWriter->fSst[iLast];
-    pWriter->fSst[iLast] = *pSet->aSstF[iLast];
+  for (int8_t iSst = 0; iSst < pSet->nSstF; iSst++) {
+    pWriter->wSet.aSstF[iSst] = &pWriter->fSst[iSst];
+    pWriter->fSst[iSst] = *pSet->aSstF[iSst];
   }
 
   // head
@@ -1301,22 +1301,22 @@ _err:
   return code;
 }
 
-int32_t tsdbWriteBlockL(SDataFWriter *pWriter, SArray *aBlockL) {
+int32_t tsdbWriteSstBlk(SDataFWriter *pWriter, SArray *aSstBlk) {
   int32_t   code = 0;
   SSstFile *pSstFile = &pWriter->fSst[pWriter->wSet.nSstF - 1];
   int64_t   size;
   int64_t   n;
 
   // check
-  if (taosArrayGetSize(aBlockL) == 0) {
+  if (taosArrayGetSize(aSstBlk) == 0) {
     pSstFile->offset = pSstFile->size;
     goto _exit;
   }
 
   // size
   size = sizeof(uint32_t);  // TSDB_FILE_DLMT
-  for (int32_t iBlockL = 0; iBlockL < taosArrayGetSize(aBlockL); iBlockL++) {
-    size += tPutBlockL(NULL, taosArrayGet(aBlockL, iBlockL));
+  for (int32_t iBlockL = 0; iBlockL < taosArrayGetSize(aSstBlk); iBlockL++) {
+    size += tPutSstBlk(NULL, taosArrayGet(aSstBlk, iBlockL));
   }
   size += sizeof(TSCKSUM);
 
@@ -1327,8 +1327,8 @@ int32_t tsdbWriteBlockL(SDataFWriter *pWriter, SArray *aBlockL) {
   // encode
   n = 0;
   n += tPutU32(pWriter->aBuf[0] + n, TSDB_FILE_DLMT);
-  for (int32_t iBlockL = 0; iBlockL < taosArrayGetSize(aBlockL); iBlockL++) {
-    n += tPutBlockL(pWriter->aBuf[0] + n, taosArrayGet(aBlockL, iBlockL));
+  for (int32_t iBlockL = 0; iBlockL < taosArrayGetSize(aSstBlk); iBlockL++) {
+    n += tPutSstBlk(pWriter->aBuf[0] + n, taosArrayGet(aSstBlk, iBlockL));
   }
   taosCalcChecksumAppend(0, pWriter->aBuf[0], size);
 

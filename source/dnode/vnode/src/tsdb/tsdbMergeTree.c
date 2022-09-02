@@ -18,12 +18,12 @@
 // SLDataIter =================================================
 typedef struct SLDataIter {
   SRBTreeNode   node;
-  SBlockL      *pBlockL;
+  SSstBlk      *pSstBlk;
   SDataFReader *pReader;
-  int32_t       iLast;
+  int32_t       iSst;
   int8_t        backward;
-  SArray       *aBlockL;
-  int32_t       iBlockL;
+  SArray       *aSstBlk;
+  int32_t       iSstBlk;
   SBlockData    bData;
   int32_t       iRow;
   SRowInfo      rInfo;
@@ -32,7 +32,7 @@ typedef struct SLDataIter {
   SVersionRange verRange;
 } SLDataIter;
 
-int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t iLast, int8_t backward, uint64_t uid,
+int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t iSst, int8_t backward, uint64_t uid,
                        STimeWindow *pTimeWindow, SVersionRange *pRange) {
   int32_t code = 0;
   *pIter = taosMemoryCalloc(1, sizeof(SLDataIter));
@@ -41,10 +41,10 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
   (*pIter)->timeWindow = *pTimeWindow;
   (*pIter)->verRange = *pRange;
   (*pIter)->pReader = pReader;
-  (*pIter)->iLast = iLast;
+  (*pIter)->iSst = iSst;
   (*pIter)->backward = backward;
-  (*pIter)->aBlockL = taosArrayInit(0, sizeof(SBlockL));
-  if ((*pIter)->aBlockL == NULL) {
+  (*pIter)->aSstBlk = taosArrayInit(0, sizeof(SSstBlk));
+  if ((*pIter)->aSstBlk == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
@@ -54,18 +54,18 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
     goto _exit;
   }
 
-  code = tsdbReadBlockL(pReader, iLast, (*pIter)->aBlockL);
+  code = tsdbReadSstBlk(pReader, iSst, (*pIter)->aSstBlk);
   if (code) {
     goto _exit;
   }
 
-  size_t size = taosArrayGetSize((*pIter)->aBlockL);
+  size_t size = taosArrayGetSize((*pIter)->aSstBlk);
 
   // find the start block
   int32_t index = -1;
   if (!backward) {  // asc
     for (int32_t i = 0; i < size; ++i) {
-      SBlockL *p = taosArrayGet((*pIter)->aBlockL, i);
+      SSstBlk *p = taosArrayGet((*pIter)->aSstBlk, i);
       if (p->minUid <= uid && p->maxUid >= uid) {
         index = i;
         break;
@@ -73,7 +73,7 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
     }
   } else {  // desc
     for (int32_t i = size - 1; i >= 0; --i) {
-      SBlockL *p = taosArrayGet((*pIter)->aBlockL, i);
+      SSstBlk *p = taosArrayGet((*pIter)->aSstBlk, i);
       if (p->minUid <= uid && p->maxUid >= uid) {
         index = i;
         break;
@@ -81,9 +81,9 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
     }
   }
 
-  (*pIter)->iBlockL = index;
+  (*pIter)->iSstBlk = index;
   if (index != -1) {
-    (*pIter)->pBlockL = taosArrayGet((*pIter)->aBlockL, (*pIter)->iBlockL);
+    (*pIter)->pSstBlk = taosArrayGet((*pIter)->aSstBlk, (*pIter)->iSstBlk);
   }
 
 _exit:
@@ -92,20 +92,20 @@ _exit:
 
 void tLDataIterClose(SLDataIter *pIter) {
   tBlockDataDestroy(&pIter->bData, 1);
-  taosArrayDestroy(pIter->aBlockL);
+  taosArrayDestroy(pIter->aSstBlk);
   taosMemoryFree(pIter);
 }
 
-extern int32_t tsdbReadLastBlockEx(SDataFReader *pReader, int32_t iLast, SBlockL *pBlockL, SBlockData *pBlockData);
+extern int32_t tsdbReadSstBlockEx(SDataFReader *pReader, int32_t iSst, SSstBlk *pSstBlk, SBlockData *pBlockData);
 
 void tLDataIterNextBlock(SLDataIter *pIter) {
   int32_t step = pIter->backward ? -1 : 1;
-  pIter->iBlockL += step;
+  pIter->iSstBlk += step;
 
   int32_t index = -1;
-  size_t  size = taosArrayGetSize(pIter->aBlockL);
-  for (int32_t i = pIter->iBlockL; i < size && i >= 0; i += step) {
-    SBlockL *p = taosArrayGet(pIter->aBlockL, i);
+  size_t  size = taosArrayGetSize(pIter->aSstBlk);
+  for (int32_t i = pIter->iSstBlk; i < size && i >= 0; i += step) {
+    SSstBlk *p = taosArrayGet(pIter->aSstBlk, i);
     if ((!pIter->backward) && p->minUid > pIter->uid) {
       break;
     }
@@ -121,9 +121,9 @@ void tLDataIterNextBlock(SLDataIter *pIter) {
   }
 
   if (index == -1) {
-    pIter->pBlockL = NULL;
+    pIter->pSstBlk = NULL;
   } else {
-    pIter->pBlockL = (SBlockL *)taosArrayGet(pIter->aBlockL, pIter->iBlockL);
+    pIter->pSstBlk = (SSstBlk *)taosArrayGet(pIter->aSstBlk, pIter->iSstBlk);
   }
 }
 
@@ -194,14 +194,14 @@ bool tLDataIterNextRow(SLDataIter *pIter) {
   int32_t step = pIter->backward ? -1 : 1;
 
   // no qualified last file block in current file, no need to fetch row
-  if (pIter->pBlockL == NULL) {
+  if (pIter->pSstBlk == NULL) {
     return false;
   }
 
-  int32_t iBlockL = pIter->iBlockL;
+  int32_t iBlockL = pIter->iSstBlk;
 
-  if (pIter->bData.nRow == 0 && pIter->pBlockL != NULL) {  // current block not loaded yet
-    code = tsdbReadLastBlockEx(pIter->pReader, pIter->iLast, pIter->pBlockL, &pIter->bData);
+  if (pIter->bData.nRow == 0 && pIter->pSstBlk != NULL) {  // current block not loaded yet
+    code = tsdbReadSstBlockEx(pIter->pReader, pIter->iSst, pIter->pSstBlk, &pIter->bData);
     if (code != TSDB_CODE_SUCCESS) {
       goto _exit;
     }
@@ -216,15 +216,15 @@ bool tLDataIterNextRow(SLDataIter *pIter) {
 
     if (pIter->iRow >= pIter->bData.nRow || pIter->iRow < 0) {
       tLDataIterNextBlock(pIter);
-      if (pIter->pBlockL == NULL) {  // no more data
+      if (pIter->pSstBlk == NULL) {  // no more data
         goto _exit;
       }
     } else {
       break;
     }
 
-    if (iBlockL != pIter->iBlockL) {
-      code = tsdbReadLastBlockEx(pIter->pReader, pIter->iLast, pIter->pBlockL, &pIter->bData);
+    if (iBlockL != pIter->iSstBlk) {
+      code = tsdbReadSstBlockEx(pIter->pReader, pIter->iSst, pIter->pSstBlk, &pIter->bData);
       if (code) {
         goto _exit;
       }
@@ -241,7 +241,7 @@ _exit:
     terrno = code;
   }
 
-  return (code == TSDB_CODE_SUCCESS) && (pIter->pBlockL != NULL);
+  return (code == TSDB_CODE_SUCCESS) && (pIter->pSstBlk != NULL);
 }
 
 SRowInfo *tLDataIterGet(SLDataIter *pIter) { return &pIter->rInfo; }

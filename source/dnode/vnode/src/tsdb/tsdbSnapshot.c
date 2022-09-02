@@ -27,9 +27,9 @@ struct STsdbSnapReader {
   int32_t       fid;
   SDataFReader* pDataFReader;
   SArray*       aBlockIdx;  // SArray<SBlockIdx>
-  SArray*       aBlockL;    // SArray<SBlockL>
+  SArray*       aSstBlk;    // SArray<SSstBlk>
   SBlockIdx*    pBlockIdx;
-  SBlockL*      pBlockL;
+  SSstBlk*      pSstBlk;
 
   int32_t    iBlockIdx;
   int32_t    iBlockL;
@@ -64,7 +64,7 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
       code = tsdbReadBlockIdx(pReader->pDataFReader, pReader->aBlockIdx);
       if (code) goto _err;
 
-      code = tsdbReadBlockL(pReader->pDataFReader, 0, pReader->aBlockL);
+      code = tsdbReadSstBlk(pReader->pDataFReader, 0, pReader->aSstBlk);
       if (code) goto _err;
 
       // init
@@ -82,13 +82,13 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
 
       pReader->iBlockL = 0;
       while (true) {
-        if (pReader->iBlockL >= taosArrayGetSize(pReader->aBlockL)) {
-          pReader->pBlockL = NULL;
+        if (pReader->iBlockL >= taosArrayGetSize(pReader->aSstBlk)) {
+          pReader->pSstBlk = NULL;
           break;
         }
 
-        pReader->pBlockL = (SBlockL*)taosArrayGet(pReader->aBlockL, pReader->iBlockL);
-        if (pReader->pBlockL->minVer <= pReader->ever && pReader->pBlockL->maxVer >= pReader->sver) {
+        pReader->pSstBlk = (SSstBlk*)taosArrayGet(pReader->aSstBlk, pReader->iBlockL);
+        if (pReader->pSstBlk->minVer <= pReader->ever && pReader->pSstBlk->maxVer >= pReader->sver) {
           // TODO
           break;
         }
@@ -101,8 +101,8 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
     }
 
     while (true) {
-      if (pReader->pBlockIdx && pReader->pBlockL) {
-        TABLEID id = {.suid = pReader->pBlockL->suid, .uid = pReader->pBlockL->minUid};
+      if (pReader->pBlockIdx && pReader->pSstBlk) {
+        TABLEID id = {.suid = pReader->pSstBlk->suid, .uid = pReader->pSstBlk->minUid};
 
         ASSERT(0);
 
@@ -142,18 +142,18 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
         }
 
         if (*ppData) goto _exit;
-      } else if (pReader->pBlockL) {
-        while (pReader->pBlockL) {
-          if (pReader->pBlockL->minVer <= pReader->ever && pReader->pBlockL->maxVer >= pReader->sver) {
+      } else if (pReader->pSstBlk) {
+        while (pReader->pSstBlk) {
+          if (pReader->pSstBlk->minVer <= pReader->ever && pReader->pSstBlk->maxVer >= pReader->sver) {
             // load data (todo)
           }
 
           // next
           pReader->iBlockL++;
-          if (pReader->iBlockL < taosArrayGetSize(pReader->aBlockL)) {
-            pReader->pBlockL = (SBlockL*)taosArrayGetSize(pReader->aBlockL);
+          if (pReader->iBlockL < taosArrayGetSize(pReader->aSstBlk)) {
+            pReader->pSstBlk = (SSstBlk*)taosArrayGetSize(pReader->aSstBlk);
           } else {
-            pReader->pBlockL = NULL;
+            pReader->pSstBlk = NULL;
           }
 
           if (*ppData) goto _exit;
@@ -298,8 +298,8 @@ int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, int8_t type
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
-  pReader->aBlockL = taosArrayInit(0, sizeof(SBlockL));
-  if (pReader->aBlockL == NULL) {
+  pReader->aSstBlk = taosArrayInit(0, sizeof(SSstBlk));
+  if (pReader->aSstBlk == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
@@ -338,7 +338,7 @@ int32_t tsdbSnapReaderClose(STsdbSnapReader** ppReader) {
   if (pReader->pDataFReader) {
     tsdbDataFReaderClose(&pReader->pDataFReader);
   }
-  taosArrayDestroy(pReader->aBlockL);
+  taosArrayDestroy(pReader->aSstBlk);
   taosArrayDestroy(pReader->aBlockIdx);
   tMapDataClear(&pReader->mBlock);
   tBlockDataDestroy(&pReader->oBlockData, 1);
@@ -431,7 +431,7 @@ struct STsdbSnapWriter {
   SBlockData*   pBlockData;
   int32_t       iRow;
   SBlockData    bDataR;
-  SArray*       aBlockL;  // SArray<SBlockL>
+  SArray*       aSstBlk;  // SArray<SSstBlk>
   int32_t       iBlockL;
   SBlockData    lDataR;
 
@@ -443,7 +443,7 @@ struct STsdbSnapWriter {
 
   SMapData mBlockW;     // SMapData<SBlock>
   SArray*  aBlockIdxW;  // SArray<SBlockIdx>
-  SArray*  aBlockLW;    // SArray<SBlockL>
+  SArray*  aBlockLW;    // SArray<SSstBlk>
 
   // for del file
   SDelFReader* pDelFReader;
@@ -845,7 +845,7 @@ static int32_t tsdbSnapWriteDataEnd(STsdbSnapWriter* pWriter) {
 
   // write remain stuff
   if (taosArrayGetSize(pWriter->aBlockLW) > 0) {
-    code = tsdbWriteBlockL(pWriter->pDataFWriter, pWriter->aBlockIdxW);
+    code = tsdbWriteSstBlk(pWriter->pDataFWriter, pWriter->aBlockIdxW);
     if (code) goto _err;
   }
 
@@ -911,12 +911,12 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
       code = tsdbReadBlockIdx(pWriter->pDataFReader, pWriter->aBlockIdx);
       if (code) goto _err;
 
-      code = tsdbReadBlockL(pWriter->pDataFReader, 0, pWriter->aBlockL);
+      code = tsdbReadSstBlk(pWriter->pDataFReader, 0, pWriter->aSstBlk);
       if (code) goto _err;
     } else {
       ASSERT(pWriter->pDataFReader == NULL);
       taosArrayClear(pWriter->aBlockIdx);
-      taosArrayClear(pWriter->aBlockL);
+      taosArrayClear(pWriter->aSstBlk);
     }
     pWriter->iBlockIdx = 0;
     pWriter->pBlockIdx = NULL;
@@ -1147,8 +1147,8 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWr
   code = tBlockDataCreate(&pWriter->bDataR);
   if (code) goto _err;
 
-  pWriter->aBlockL = taosArrayInit(0, sizeof(SBlockL));
-  if (pWriter->aBlockL == NULL) {
+  pWriter->aSstBlk = taosArrayInit(0, sizeof(SSstBlk));
+  if (pWriter->aSstBlk == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
@@ -1161,7 +1161,7 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWr
   code = tBlockDataCreate(&pWriter->bDataW);
   if (code) goto _err;
 
-  pWriter->aBlockLW = taosArrayInit(0, sizeof(SBlockL));
+  pWriter->aBlockLW = taosArrayInit(0, sizeof(SSstBlk));
   if (pWriter->aBlockLW == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;

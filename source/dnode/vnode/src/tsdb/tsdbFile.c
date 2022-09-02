@@ -196,8 +196,8 @@ int32_t tPutDFileSet(uint8_t *p, SDFileSet *pSet) {
 
   // sst
   n += tPutU8(p ? p + n : p, pSet->nSstF);
-  for (int32_t iLast = 0; iLast < pSet->nSstF; iLast++) {
-    n += tPutSstFile(p ? p + n : p, pSet->aSstF[iLast]);
+  for (int32_t iSst = 0; iSst < pSet->nSstF; iSst++) {
+    n += tPutSstFile(p ? p + n : p, pSet->aSstF[iSst]);
   }
 
   return n;
@@ -236,13 +236,13 @@ int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet) {
 
   // sst
   n += tGetU8(p + n, &pSet->nSstF);
-  for (int32_t iLast = 0; iLast < pSet->nSstF; iLast++) {
-    pSet->aSstF[iLast] = (SSstFile *)taosMemoryCalloc(1, sizeof(SSstFile));
-    if (pSet->aSstF[iLast] == NULL) {
+  for (int32_t iSst = 0; iSst < pSet->nSstF; iSst++) {
+    pSet->aSstF[iSst] = (SSstFile *)taosMemoryCalloc(1, sizeof(SSstFile));
+    if (pSet->aSstF[iSst] == NULL) {
       return -1;
     }
-    pSet->aSstF[iLast]->nRef = 1;
-    n += tGetSstFile(p + n, pSet->aSstF[iLast]);
+    pSet->aSstF[iSst]->nRef = 1;
+    n += tGetSstFile(p + n, pSet->aSstF[iSst]);
   }
 
   return n;
