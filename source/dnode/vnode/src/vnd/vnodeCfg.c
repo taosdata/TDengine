@@ -106,6 +106,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "wal.retentionSize", pCfg->walCfg.retentionSize) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.segSize", pCfg->walCfg.segSize) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.level", pCfg->walCfg.level) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "sstTrigger", pCfg->sstTrigger) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashBegin", pCfg->hashBegin) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashEnd", pCfg->hashEnd) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashMethod", pCfg->hashMethod) < 0) return -1;
@@ -204,6 +205,8 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   tjsonGetNumberValue(pJson, "wal.segSize", pCfg->walCfg.segSize, code);
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "wal.level", pCfg->walCfg.level, code);
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "sstTrigger", pCfg->sstTrigger, code);
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "hashBegin", pCfg->hashBegin, code);
   if (code < 0) return -1;
