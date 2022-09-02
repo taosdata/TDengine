@@ -64,7 +64,7 @@ typedef struct {
     SArray       *aBlockIdx;  // SArray<SBlockIdx>
     int32_t       iBlockIdx;
     SBlockIdx    *pBlockIdx;
-    SMapData      mBlock;  // SMapData<SBlock>
+    SMapData      mBlock;  // SMapData<SDataBlk>
     SBlockData    bData;
   } dReader;
   struct {
@@ -78,7 +78,7 @@ typedef struct {
     SDataFWriter *pWriter;
     SArray       *aBlockIdx;  // SArray<SBlockIdx>
     SArray       *aSstBlk;    // SArray<SSstBlk>
-    SMapData      mBlock;     // SMapData<SBlock>
+    SMapData      mBlock;     // SMapData<SDataBlk>
     SBlockData    bData;
     SBlockData    bDatal;
   } dWriter;
@@ -562,7 +562,7 @@ _err:
 static int32_t tsdbCommitDataBlock(SCommitter *pCommitter) {
   int32_t     code = 0;
   SBlockData *pBlockData = &pCommitter->dWriter.bData;
-  SBlock      block;
+  SDataBlk    block;
 
   ASSERT(pBlockData->nRow > 0);
 
@@ -597,8 +597,8 @@ static int32_t tsdbCommitDataBlock(SCommitter *pCommitter) {
                             ((block.nSubBlock == 1) && !block.hasDup) ? &block.smaInfo : NULL, pCommitter->cmprAlg, 0);
   if (code) goto _err;
 
-  // put SBlock
-  code = tMapDataPutItem(&pCommitter->dWriter.mBlock, &block, tPutBlock);
+  // put SDataBlk
+  code = tMapDataPutItem(&pCommitter->dWriter.mBlock, &block, tPutDataBlk);
   if (code) goto _err;
 
   // clear
@@ -1098,7 +1098,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbCommitAheadBlock(SCommitter *pCommitter, SBlock *pBlock) {
+static int32_t tsdbCommitAheadBlock(SCommitter *pCommitter, SDataBlk *pDataBlk) {
   int32_t     code = 0;
   SBlockData *pBlockData = &pCommitter->dWriter.bData;
   SRowInfo   *pRowInfo = tsdbGetCommitRow(pCommitter);
@@ -1122,7 +1122,7 @@ static int32_t tsdbCommitAheadBlock(SCommitter *pCommitter, SBlock *pBlock) {
         pRowInfo = NULL;
       } else {
         TSDBKEY tKey = TSDBROW_KEY(&pRowInfo->row);
-        if (tsdbKeyCmprFn(&tKey, &pBlock->minKey) >= 0) pRowInfo = NULL;
+        if (tsdbKeyCmprFn(&tKey, &pDataBlk->minKey) >= 0) pRowInfo = NULL;
       }
     }
 
@@ -1144,14 +1144,14 @@ _err:
   return code;
 }
 
-static int32_t tsdbCommitMergeBlock(SCommitter *pCommitter, SBlock *pBlock) {
+static int32_t tsdbCommitMergeBlock(SCommitter *pCommitter, SDataBlk *pDataBlk) {
   int32_t     code = 0;
   SRowInfo   *pRowInfo = tsdbGetCommitRow(pCommitter);
   TABLEID     id = {.suid = pRowInfo->suid, .uid = pRowInfo->uid};
   SBlockData *pBDataR = &pCommitter->dReader.bData;
   SBlockData *pBDataW = &pCommitter->dWriter.bData;
 
-  code = tsdbReadDataBlock(pCommitter->dReader.pReader, pBlock, pBDataR);
+  code = tsdbReadDataBlock(pCommitter->dReader.pReader, pDataBlk, pBDataR);
   if (code) goto _err;
 
   tBlockDataClear(pBDataW);
@@ -1188,7 +1188,7 @@ static int32_t tsdbCommitMergeBlock(SCommitter *pCommitter, SBlock *pBlock) {
           pRowInfo = NULL;
         } else {
           TSDBKEY tKey = TSDBROW_KEY(&pRowInfo->row);
-          if (tsdbKeyCmprFn(&tKey, &pBlock->maxKey) > 0) pRowInfo = NULL;
+          if (tsdbKeyCmprFn(&tKey, &pDataBlk->maxKey) > 0) pRowInfo = NULL;
         }
       }
     } else {
@@ -1237,57 +1237,57 @@ static int32_t tsdbMergeTableData(SCommitter *pCommitter, TABLEID id) {
   ASSERT(pBlockIdx == NULL || tTABLEIDCmprFn(pBlockIdx, &id) >= 0);
   if (pBlockIdx && pBlockIdx->suid == id.suid && pBlockIdx->uid == id.uid) {
     int32_t   iBlock = 0;
-    SBlock    block;
-    SBlock   *pBlock = &block;
+    SDataBlk  block;
+    SDataBlk *pDataBlk = &block;
     SRowInfo *pRowInfo = tsdbGetCommitRow(pCommitter);
 
     ASSERT(pRowInfo->suid == id.suid && pRowInfo->uid == id.uid);
 
-    tMapDataGetItemByIdx(&pCommitter->dReader.mBlock, iBlock, pBlock, tGetBlock);
-    while (pBlock && pRowInfo) {
-      SBlock  tBlock = {.minKey = TSDBROW_KEY(&pRowInfo->row), .maxKey = TSDBROW_KEY(&pRowInfo->row)};
-      int32_t c = tBlockCmprFn(pBlock, &tBlock);
+    tMapDataGetItemByIdx(&pCommitter->dReader.mBlock, iBlock, pDataBlk, tGetDataBlk);
+    while (pDataBlk && pRowInfo) {
+      SDataBlk tBlock = {.minKey = TSDBROW_KEY(&pRowInfo->row), .maxKey = TSDBROW_KEY(&pRowInfo->row)};
+      int32_t  c = tBlockCmprFn(pDataBlk, &tBlock);
 
       if (c < 0) {
-        code = tMapDataPutItem(&pCommitter->dWriter.mBlock, pBlock, tPutBlock);
+        code = tMapDataPutItem(&pCommitter->dWriter.mBlock, pDataBlk, tPutDataBlk);
         if (code) goto _err;
 
         iBlock++;
         if (iBlock < pCommitter->dReader.mBlock.nItem) {
-          tMapDataGetItemByIdx(&pCommitter->dReader.mBlock, iBlock, pBlock, tGetBlock);
+          tMapDataGetItemByIdx(&pCommitter->dReader.mBlock, iBlock, pDataBlk, tGetDataBlk);
         } else {
-          pBlock = NULL;
+          pDataBlk = NULL;
         }
       } else if (c > 0) {
-        code = tsdbCommitAheadBlock(pCommitter, pBlock);
+        code = tsdbCommitAheadBlock(pCommitter, pDataBlk);
         if (code) goto _err;
 
         pRowInfo = tsdbGetCommitRow(pCommitter);
         if (pRowInfo && (pRowInfo->suid != id.suid || pRowInfo->uid != id.uid)) pRowInfo = NULL;
       } else {
-        code = tsdbCommitMergeBlock(pCommitter, pBlock);
+        code = tsdbCommitMergeBlock(pCommitter, pDataBlk);
         if (code) goto _err;
 
         iBlock++;
         if (iBlock < pCommitter->dReader.mBlock.nItem) {
-          tMapDataGetItemByIdx(&pCommitter->dReader.mBlock, iBlock, pBlock, tGetBlock);
+          tMapDataGetItemByIdx(&pCommitter->dReader.mBlock, iBlock, pDataBlk, tGetDataBlk);
         } else {
-          pBlock = NULL;
+          pDataBlk = NULL;
         }
         pRowInfo = tsdbGetCommitRow(pCommitter);
         if (pRowInfo && (pRowInfo->suid != id.suid || pRowInfo->uid != id.uid)) pRowInfo = NULL;
       }
     }
 
-    while (pBlock) {
-      code = tMapDataPutItem(&pCommitter->dWriter.mBlock, pBlock, tPutBlock);
+    while (pDataBlk) {
+      code = tMapDataPutItem(&pCommitter->dWriter.mBlock, pDataBlk, tPutDataBlk);
       if (code) goto _err;
 
       iBlock++;
       if (iBlock < pCommitter->dReader.mBlock.nItem) {
-        tMapDataGetItemByIdx(&pCommitter->dReader.mBlock, iBlock, pBlock, tGetBlock);
+        tMapDataGetItemByIdx(&pCommitter->dReader.mBlock, iBlock, pDataBlk, tGetDataBlk);
       } else {
-        pBlock = NULL;
+        pDataBlk = NULL;
       }
     }
 

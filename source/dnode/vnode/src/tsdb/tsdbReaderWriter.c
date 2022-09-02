@@ -677,9 +677,9 @@ _err:
   return code;
 }
 
-int32_t tsdbReadBlockSma(SDataFReader *pReader, SBlock *pBlock, SArray *aColumnDataAgg) {
+int32_t tsdbReadBlockSma(SDataFReader *pReader, SDataBlk *pDataBlk, SArray *aColumnDataAgg) {
   int32_t   code = 0;
-  SSmaInfo *pSmaInfo = &pBlock->smaInfo;
+  SSmaInfo *pSmaInfo = &pDataBlk->smaInfo;
 
   ASSERT(pSmaInfo->size > 0);
 
@@ -843,13 +843,13 @@ _err:
   return code;
 }
 
-int32_t tsdbReadDataBlock(SDataFReader *pReader, SBlock *pBlock, SBlockData *pBlockData) {
+int32_t tsdbReadDataBlock(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockData *pBlockData) {
   int32_t code = 0;
 
-  code = tsdbReadBlockDataImpl(pReader, &pBlock->aSubBlock[0], 0, pBlockData);
+  code = tsdbReadBlockDataImpl(pReader, &pDataBlk->aSubBlock[0], 0, pBlockData);
   if (code) goto _err;
 
-  if (pBlock->nSubBlock > 1) {
+  if (pDataBlk->nSubBlock > 1) {
     SBlockData bData1;
     SBlockData bData2;
 
@@ -863,8 +863,8 @@ int32_t tsdbReadDataBlock(SDataFReader *pReader, SBlock *pBlock, SBlockData *pBl
     tBlockDataInitEx(&bData1, pBlockData);
     tBlockDataInitEx(&bData2, pBlockData);
 
-    for (int32_t iSubBlock = 1; iSubBlock < pBlock->nSubBlock; iSubBlock++) {
-      code = tsdbReadBlockDataImpl(pReader, &pBlock->aSubBlock[iSubBlock], 0, &bData1);
+    for (int32_t iSubBlock = 1; iSubBlock < pDataBlk->nSubBlock; iSubBlock++) {
+      code = tsdbReadBlockDataImpl(pReader, &pDataBlk->aSubBlock[iSubBlock], 0, &bData1);
       if (code) {
         tBlockDataDestroy(&bData1, 1);
         tBlockDataDestroy(&bData2, 1);
@@ -1355,28 +1355,28 @@ _err:
   return code;
 }
 
-static void tsdbUpdateBlockInfo(SBlockData *pBlockData, SBlock *pBlock) {
+static void tsdbUpdateBlockInfo(SBlockData *pBlockData, SDataBlk *pDataBlk) {
   for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
     TSDBKEY key = {.ts = pBlockData->aTSKEY[iRow], .version = pBlockData->aVersion[iRow]};
 
     if (iRow == 0) {
-      if (tsdbKeyCmprFn(&pBlock->minKey, &key) > 0) {
-        pBlock->minKey = key;
+      if (tsdbKeyCmprFn(&pDataBlk->minKey, &key) > 0) {
+        pDataBlk->minKey = key;
       }
     } else {
       if (pBlockData->aTSKEY[iRow] == pBlockData->aTSKEY[iRow - 1]) {
-        pBlock->hasDup = 1;
+        pDataBlk->hasDup = 1;
       }
     }
 
-    if (iRow == pBlockData->nRow - 1 && tsdbKeyCmprFn(&pBlock->maxKey, &key) < 0) {
-      pBlock->maxKey = key;
+    if (iRow == pBlockData->nRow - 1 && tsdbKeyCmprFn(&pDataBlk->maxKey, &key) < 0) {
+      pDataBlk->maxKey = key;
     }
 
-    pBlock->minVer = TMIN(pBlock->minVer, key.version);
-    pBlock->maxVer = TMAX(pBlock->maxVer, key.version);
+    pDataBlk->minVer = TMIN(pDataBlk->minVer, key.version);
+    pDataBlk->maxVer = TMAX(pDataBlk->maxVer, key.version);
   }
-  pBlock->nRow += pBlockData->nRow;
+  pDataBlk->nRow += pBlockData->nRow;
 }
 
 static int32_t tsdbWriteBlockSma(SDataFWriter *pWriter, SBlockData *pBlockData, SSmaInfo *pSmaInfo) {

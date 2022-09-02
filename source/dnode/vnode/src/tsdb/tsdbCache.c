@@ -527,7 +527,7 @@ typedef struct SFSNextRowIter {
   SMapData         blockMap;
   int32_t          nBlock;
   int32_t          iBlock;
-  SBlock           block;
+  SDataBlk         block;
   SBlockData       blockData;
   SBlockData      *pBlockData;
   int32_t          nRow;
@@ -602,13 +602,13 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
     }
     case SFSNEXTROW_BLOCKDATA:
       if (state->iBlock >= 0) {
-        SBlock block = {0};
+        SDataBlk block = {0};
 
         tBlockReset(&block);
         // tBlockDataReset(&state->blockData);
         tBlockDataReset(state->pBlockData);
 
-        tMapDataGetItemByIdx(&state->blockMap, state->iBlock, &block, tGetBlock);
+        tMapDataGetItemByIdx(&state->blockMap, state->iBlock, &block, tGetDataBlk);
         /* code = tsdbReadBlockData(state->pDataFReader, &state->blockIdx, &block, &state->blockData, NULL, NULL); */
         tBlockDataReset(state->pBlockData);
         code = tBlockDataInit(state->pBlockData, state->suid, state->uid, state->pTSchema);

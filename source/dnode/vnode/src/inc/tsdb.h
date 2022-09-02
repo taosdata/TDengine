@@ -42,7 +42,7 @@ typedef struct SMemTable     SMemTable;
 typedef struct STbDataIter   STbDataIter;
 typedef struct SMapData      SMapData;
 typedef struct SBlockIdx     SBlockIdx;
-typedef struct SBlock        SBlock;
+typedef struct SDataBlk      SDataBlk;
 typedef struct SSstBlk       SSstBlk;
 typedef struct SColData      SColData;
 typedef struct SDiskDataHdr  SDiskDataHdr;
@@ -114,12 +114,12 @@ int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
 int32_t tPutBlockCol(uint8_t *p, void *ph);
 int32_t tGetBlockCol(uint8_t *p, void *ph);
 int32_t tBlockColCmprFn(const void *p1, const void *p2);
-// SBlock
-void    tBlockReset(SBlock *pBlock);
-int32_t tPutBlock(uint8_t *p, void *ph);
-int32_t tGetBlock(uint8_t *p, void *ph);
+// SDataBlk
+void    tBlockReset(SDataBlk *pBlock);
+int32_t tPutDataBlk(uint8_t *p, void *ph);
+int32_t tGetDataBlk(uint8_t *p, void *ph);
 int32_t tBlockCmprFn(const void *p1, const void *p2);
-bool    tBlockHasSma(SBlock *pBlock);
+bool    tBlockHasSma(SDataBlk *pBlock);
 // SSstBlk
 int32_t tPutSstBlk(uint8_t *p, void *ph);
 int32_t tGetSstBlk(uint8_t *p, void *ph);
@@ -265,8 +265,8 @@ int32_t tsdbDataFReaderClose(SDataFReader **ppReader);
 int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx);
 int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *pMapData);
 int32_t tsdbReadSstBlk(SDataFReader *pReader, int32_t iSst, SArray *aSstBlk);
-int32_t tsdbReadBlockSma(SDataFReader *pReader, SBlock *pBlock, SArray *aColumnDataAgg);
-int32_t tsdbReadDataBlock(SDataFReader *pReader, SBlock *pBlock, SBlockData *pBlockData);
+int32_t tsdbReadBlockSma(SDataFReader *pReader, SDataBlk *pBlock, SArray *aColumnDataAgg);
+int32_t tsdbReadDataBlock(SDataFReader *pReader, SDataBlk *pBlock, SBlockData *pBlockData);
 int32_t tsdbReadSstBlock(SDataFReader *pReader, int32_t iSst, SSstBlk *pSstBlk, SBlockData *pBlockData);
 // SDelFWriter
 int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile, STsdb *pTsdb);
@@ -427,7 +427,7 @@ struct SSmaInfo {
   int32_t size;
 };
 
-struct SBlock {
+struct SDataBlk {
   TSDBKEY    minKey;
   TSDBKEY    maxKey;
   int64_t    minVer;

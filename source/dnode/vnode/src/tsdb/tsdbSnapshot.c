@@ -33,7 +33,7 @@ struct STsdbSnapReader {
 
   int32_t    iBlockIdx;
   int32_t    iBlockL;
-  SMapData   mBlock;  // SMapData<SBlock>
+  SMapData   mBlock;  // SMapData<SDataBlk>
   int32_t    iBlock;
   SBlockData oBlockData;
   SBlockData nBlockData;
@@ -115,8 +115,8 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
         // }
       } else if (pReader->pBlockIdx) {
         while (pReader->iBlock < pReader->mBlock.nItem) {
-          SBlock block;
-          tMapDataGetItemByIdx(&pReader->mBlock, pReader->iBlock, &block, tGetBlock);
+          SDataBlk block;
+          tMapDataGetItemByIdx(&pReader->mBlock, pReader->iBlock, &block, tGetDataBlk);
 
           if (block.minVer <= pReader->ever && block.maxVer >= pReader->sver) {
             // load data (todo)
@@ -426,7 +426,7 @@ struct STsdbSnapWriter {
   SArray*       aBlockIdx;  // SArray<SBlockIdx>
   int32_t       iBlockIdx;
   SBlockIdx*    pBlockIdx;
-  SMapData      mBlock;  // SMapData<SBlock>
+  SMapData      mBlock;  // SMapData<SDataBlk>
   int32_t       iBlock;
   SBlockData*   pBlockData;
   int32_t       iRow;
@@ -437,11 +437,11 @@ struct STsdbSnapWriter {
 
   SDataFWriter* pDataFWriter;
   SBlockIdx*    pBlockIdxW;  // NULL when no committing table
-  SBlock        blockW;
+  SDataBlk      blockW;
   SBlockData    bDataW;
   SBlockIdx     blockIdxW;
 
-  SMapData mBlockW;     // SMapData<SBlock>
+  SMapData mBlockW;     // SMapData<SDataBlk>
   SArray*  aBlockIdxW;  // SArray<SBlockIdx>
   SArray*  aBlockLW;    // SArray<SSstBlk>
 
@@ -475,7 +475,7 @@ static int32_t tsdbSnapWriteTableDataEnd(STsdbSnapWriter* pWriter) {
         //                           &pWriter->blockW, pWriter->cmprAlg);
         if (code) goto _err;
 
-        code = tMapDataPutItem(&pWriter->mBlockW, &pWriter->blockW, tPutBlock);
+        code = tMapDataPutItem(&pWriter->mBlockW, &pWriter->blockW, tPutDataBlk);
         if (code) goto _err;
 
         tBlockReset(&pWriter->blockW);
@@ -499,15 +499,15 @@ static int32_t tsdbSnapWriteTableDataEnd(STsdbSnapWriter* pWriter) {
     //                           &pWriter->blockW, pWriter->cmprAlg);
     // if (code) goto _err;
 
-    code = tMapDataPutItem(&pWriter->mBlockW, &pWriter->blockW, tPutBlock);
+    code = tMapDataPutItem(&pWriter->mBlockW, &pWriter->blockW, tPutDataBlk);
     if (code) goto _err;
   }
 
   while (true) {
     if (pWriter->iBlock >= pWriter->mBlock.nItem) break;
 
-    SBlock block;
-    tMapDataGetItemByIdx(&pWriter->mBlock, pWriter->iBlock, &block, tGetBlock);
+    SDataBlk block;
+    tMapDataGetItemByIdx(&pWriter->mBlock, pWriter->iBlock, &block, tGetDataBlk);
 
     // if (block.last) {
     //   code = tsdbReadBlockData(pWriter->pDataFReader, pWriter->pBlockIdx, &block, &pWriter->bDataR, NULL, NULL);
@@ -520,13 +520,13 @@ static int32_t tsdbSnapWriteTableDataEnd(STsdbSnapWriter* pWriter) {
     //   if (code) goto _err;
     // }
 
-    code = tMapDataPutItem(&pWriter->mBlockW, &block, tPutBlock);
+    code = tMapDataPutItem(&pWriter->mBlockW, &block, tPutDataBlk);
     if (code) goto _err;
 
     pWriter->iBlock++;
   }
 
-  // SBlock
+  // SDataBlk
   // code = tsdbWriteBlock(pWriter->pDataFWriter, &pWriter->mBlockW, NULL, pWriter->pBlockIdxW);
   // if (code) goto _err;
 
@@ -553,10 +553,10 @@ static int32_t tsdbSnapMoveWriteTableData(STsdbSnapWriter* pWriter, SBlockIdx* p
   if (code) goto _err;
 
   // SBlockData
-  SBlock block;
+  SDataBlk block;
   tMapDataReset(&pWriter->mBlockW);
   for (int32_t iBlock = 0; iBlock < pWriter->mBlock.nItem; iBlock++) {
-    tMapDataGetItemByIdx(&pWriter->mBlock, iBlock, &block, tGetBlock);
+    tMapDataGetItemByIdx(&pWriter->mBlock, iBlock, &block, tGetDataBlk);
 
     // if (block.last) {
     //   code = tsdbReadBlockData(pWriter->pDataFReader, pBlockIdx, &block, &pWriter->bDataR, NULL, NULL);
@@ -570,11 +570,11 @@ static int32_t tsdbSnapMoveWriteTableData(STsdbSnapWriter* pWriter, SBlockIdx* p
     //   if (code) goto _err;
     // }
 
-    code = tMapDataPutItem(&pWriter->mBlockW, &block, tPutBlock);
+    code = tMapDataPutItem(&pWriter->mBlockW, &block, tPutDataBlk);
     if (code) goto _err;
   }
 
-  // SBlock
+  // SDataBlk
   SBlockIdx blockIdx = {.suid = pBlockIdx->suid, .uid = pBlockIdx->uid};
   code = tsdbWriteBlock(pWriter->pDataFWriter, &pWriter->mBlockW, &blockIdx);
   if (code) goto _err;
@@ -642,10 +642,10 @@ static int32_t tsdbSnapWriteTableDataImpl(STsdbSnapWriter* pWriter) {
       while (true) {
         if (pWriter->iBlock >= pWriter->mBlock.nItem) break;
 
-        SBlock  block;
-        int32_t c;
+        SDataBlk block;
+        int32_t  c;
 
-        tMapDataGetItemByIdx(&pWriter->mBlock, pWriter->iBlock, &block, tGetBlock);
+        tMapDataGetItemByIdx(&pWriter->mBlock, pWriter->iBlock, &block, tGetDataBlk);
 
         // if (block.last) {
         //   pWriter->pBlockData = &pWriter->bDataR;
@@ -668,14 +668,14 @@ static int32_t tsdbSnapWriteTableDataImpl(STsdbSnapWriter* pWriter) {
             //                           &pWriter->blockW, pWriter->cmprAlg);
             // if (code) goto _err;
 
-            code = tMapDataPutItem(&pWriter->mBlockW, &pWriter->blockW, tPutBlock);
+            code = tMapDataPutItem(&pWriter->mBlockW, &pWriter->blockW, tPutDataBlk);
             if (code) goto _err;
 
             tBlockReset(&pWriter->blockW);
             tBlockDataClear(&pWriter->bDataW);
           }
 
-          code = tMapDataPutItem(&pWriter->mBlockW, &block, tPutBlock);
+          code = tMapDataPutItem(&pWriter->mBlockW, &block, tPutDataBlk);
           if (code) goto _err;
 
           pWriter->iBlock++;
@@ -719,7 +719,7 @@ static int32_t tsdbSnapWriteTableDataImpl(STsdbSnapWriter* pWriter) {
     //                           &pWriter->blockW, pWriter->cmprAlg);
     // if (code) goto _err;
 
-    code = tMapDataPutItem(&pWriter->mBlockW, &pWriter->blockW, tPutBlock);
+    code = tMapDataPutItem(&pWriter->mBlockW, &pWriter->blockW, tPutDataBlk);
     if (code) goto _err;
 
     tBlockReset(&pWriter->blockW);
