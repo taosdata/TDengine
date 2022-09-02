@@ -8,6 +8,10 @@ Prometheus is a widespread open-source monitoring and alerting system. Prometheu
 
 Prometheus provides `remote_write` interface to leverage other database products as its storage engine. To enable users of the Prometheus ecosystem to take advantage of TDengine's efficient writing, TDengine also provides support for this interface so that Prometheus data can be stored in TDengine via the `remote_write` interface with proper configuration to take full advantage of TDengine's efficient storage performance and clustering capabilities for time-series data.
 
+## Prerequisites
+
+In your TDengine cloud instance, click "Explorer" on the left panel, then click "+" besides Databases, to create a new database named as "prometheus_data". Then execute `show databases` to confirm the database has been created successfully.
+
 ## Install Prometheus
 
 Supposed that you use Linux system with architecture amd64:
