@@ -48,7 +48,6 @@ typedef struct STableBlockScanInfo {
   int32_t   fileDelIndex;       // file block delete index
   int32_t   lastBlockDelIndex;  // delete index for last block
   bool      iterInit;           // whether to initialize the in-memory skip list iterator or not
-  int16_t   indexInBlockL;      // row position in last block
 } STableBlockScanInfo;
 
 typedef struct SBlockOrderWrapper {
@@ -228,7 +227,7 @@ static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, const STableK
   }
 
   for (int32_t j = 0; j < numOfTables; ++j) {
-    STableBlockScanInfo info = {.lastKey = 0, .uid = idList[j].uid, .indexInBlockL = INITIAL_ROW_INDEX_VAL};
+    STableBlockScanInfo info = {.lastKey = 0, .uid = idList[j].uid};
     if (ASCENDING_TRAVERSE(pTsdbReader->order)) {
       if (info.lastKey == INT64_MIN || info.lastKey < pTsdbReader->window.skey) {
         info.lastKey = pTsdbReader->window.skey;
@@ -355,6 +354,7 @@ static bool filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader) {
   pIter->index += step;
 
   pIter->pLastBlockReader->uid = 0;
+  tMergeTreeClose(&pIter->pLastBlockReader->mergeTree);
   if ((asc && pIter->index >= pIter->numOfFiles) || ((!asc) && pIter->index < 0)) {
     return false;
   }
@@ -567,7 +567,6 @@ static void cleanupTableScanInfo(SHashObj* pTableMap) {
     }
 
     // reset the index in last block when handing a new file
-    px->indexInBlockL = INITIAL_ROW_INDEX_VAL;
     tMapDataClear(&px->mapData);
     taosArrayClear(px->pBlockList);
   }
@@ -1764,17 +1763,20 @@ static bool isValidFileBlockRow(SBlockData* pBlockData, SFileBlockDumpInfo* pDum
 
 static bool outOfTimeWindow(int64_t ts, STimeWindow* pWindow) { return (ts > pWindow->ekey) || (ts < pWindow->skey); }
 
-static bool initLastBlockReader(SLastBlockReader* pLastBlockReader, uint64_t uid, int16_t* startPos, SDataFReader* pFReader) {
+static bool initLastBlockReader(SLastBlockReader* pLastBlockReader, uint64_t uid, SDataFReader* pFReader) {
   // the last block reader has been initialized for this table.
   if (pLastBlockReader->uid == uid) {
     return true;
   }
 
+  if (pLastBlockReader->uid != 0) {
+    tMergeTreeClose(&pLastBlockReader->mergeTree);
+  }
+
   pLastBlockReader->uid = uid;
   /*int32_t code = */ tMergeTreeOpen(&pLastBlockReader->mergeTree, (pLastBlockReader->order == TSDB_ORDER_DESC),
                                      pFReader, uid, &pLastBlockReader->window, &pLastBlockReader->verRange);
-  bool hasVal = tMergeTreeNext(&pLastBlockReader->mergeTree);
-  return hasVal;
+  return tMergeTreeNext(&pLastBlockReader->mergeTree);
 }
 
 static bool nextRowInLastBlock(SLastBlockReader* pLastBlockReader, STableBlockScanInfo* pBlockScanInfo) {
@@ -2274,8 +2276,7 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
   while (1) {
     // load the last data block of current table
     STableBlockScanInfo* pScanInfo = pStatus->pTableIter;
-    bool hasVal =
-        initLastBlockReader(pLastBlockReader, pScanInfo->uid, &pScanInfo->indexInBlockL, pReader->pFileReader);
+    bool hasVal = initLastBlockReader(pLastBlockReader, pScanInfo->uid, pReader->pFileReader);
     if (!hasVal) {
       bool hasNexTable = moveToNextTable(pOrderedCheckInfo, pStatus);
       if (!hasNexTable) {
@@ -2283,26 +2284,6 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
       }
       continue;
     }
-
-    //      int32_t index = pScanInfo->indexInBlockL;
-
-    //      if (index == INITIAL_ROW_INDEX_VAL || index == pLastBlockReader->lastBlockData.nRow) {
-    //        bool hasData = nextRowInLastBlock(pLastBlockReader, pScanInfo);
-    //        if (!hasData) {  // current table does not have rows in last block, try next table
-    //          bool hasNexTable = moveToNextTable(pOrderedCheckInfo, pStatus);
-    //          if (!hasNexTable) {
-    //            return TSDB_CODE_SUCCESS;
-    //          }
-    //          continue;
-    //        }
-    //      }
-    //    } else {  // no data in last block, try next table
-    //      bool hasNexTable = moveToNextTable(pOrderedCheckInfo, pStatus);
-    //      if (!hasNexTable) {
-    //        return TSDB_CODE_SUCCESS;
-    //      }
-    //      continue;
-    //    }
 
     code = doBuildDataBlock(pReader);
     if (code != TSDB_CODE_SUCCESS) {
@@ -3144,7 +3125,7 @@ int32_t tsdbSetTableId(STsdbReader* pReader, int64_t uid) {
   ASSERT(pReader != NULL);
   taosHashClear(pReader->status.pTableMap);
 
-  STableBlockScanInfo info = {.lastKey = 0, .uid = uid, .indexInBlockL = INITIAL_ROW_INDEX_VAL};
+  STableBlockScanInfo info = {.lastKey = 0, .uid = uid};
   taosHashPut(pReader->status.pTableMap, &info.uid, sizeof(uint64_t), &info, sizeof(info));
   return TDB_CODE_SUCCESS;
 }
@@ -3287,7 +3268,6 @@ void tsdbReaderClose(STsdbReader* pReader) {
   }
 
   SBlockLoadSuppInfo* pSupInfo = &pReader->suppInfo;
-  tsdbUntakeReadSnap(pReader->pTsdb, pReader->pReadSnap);
 
   taosMemoryFreeClear(pSupInfo->plist);
   taosMemoryFree(pSupInfo->colIds);
@@ -3312,10 +3292,13 @@ void tsdbReaderClose(STsdbReader* pReader) {
     tsdbDataFReaderClose(&pReader->pFileReader);
   }
 
+  tsdbUntakeReadSnap(pReader->pTsdb, pReader->pReadSnap);
+
   taosMemoryFree(pReader->status.uidCheckInfo.tableUidList);
 
   SFilesetIter* pFilesetIter = &pReader->status.fileIter;
   if (pFilesetIter->pLastBlockReader != NULL) {
+    tMergeTreeClose(&pFilesetIter->pLastBlockReader->mergeTree);
     taosMemoryFree(pFilesetIter->pLastBlockReader);
   }
 

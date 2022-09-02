@@ -93,6 +93,7 @@ _exit:
 void tLDataIterClose(SLDataIter *pIter) {
   tBlockDataDestroy(&pIter->bData, 1);
   taosArrayDestroy(pIter->aBlockL);
+  taosMemoryFree(pIter);
 }
 
 extern int32_t tsdbReadLastBlockEx(SDataFReader *pReader, int32_t iLast, SBlockL *pBlockL, SBlockData *pBlockData);
@@ -272,8 +273,9 @@ static FORCE_INLINE int32_t tLDataIterCmprFn(const void *p1, const void *p2) {
 
 void tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader* pFReader, uint64_t uid, STimeWindow* pTimeWindow, SVersionRange* pVerRange) {
   pMTree->backward = backward;
-  pMTree->pNode = NULL;
   pMTree->pIter = NULL;
+  pMTree->pIterList = taosArrayInit(4, POINTER_BYTES);
+
   tRBTreeCreate(&pMTree->rbt, tLDataIterCmprFn);
 
   struct SLDataIter* pIterList[TSDB_DEFAULT_LAST_FILE] = {0};
@@ -281,7 +283,10 @@ void tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader* pFReader,
     /*int32_t code = */tLDataIterOpen(&pIterList[i], pFReader, i, pMTree->backward, uid, pTimeWindow, pVerRange);
     bool hasVal = tLDataIterNextRow(pIterList[i]);
     if (hasVal) {
+      taosArrayPush(pMTree->pIterList, &pIterList[i]);
       tMergeTreeAddIter(pMTree, pIterList[i]);
+    } else {
+      tLDataIterClose(pIterList[i]);
     }
   }
 }
@@ -326,5 +331,12 @@ TSDBROW tMergeTreeGetRow(SMergeTree* pMTree) {
 }
 
 void tMergeTreeClose(SMergeTree* pMTree) {
+  size_t size = taosArrayGetSize(pMTree->pIterList);
+  for(int32_t i = 0; i < size; ++i) {
+    SLDataIter* pIter = taosArrayGetP(pMTree->pIterList, i);
+    tLDataIterClose(pIter);
+  }
 
+  pMTree->pIterList = taosArrayDestroy(pMTree->pIterList);
+  pMTree->pIter = NULL;
 }

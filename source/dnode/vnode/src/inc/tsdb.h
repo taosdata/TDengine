@@ -307,12 +307,6 @@ size_t tsdbCacheGetCapacity(SVnode *pVnode);
 
 int32_t tsdbCacheLastArray2Row(SArray *pLastArray, STSRow **ppRow, STSchema *pSchema);
 
-struct SLDataIter;
-int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t iLast, int8_t backward, uint64_t uid,
-                       STimeWindow *pTimeWindow, SVersionRange *pRange);
-void tLDataIterClose(struct SLDataIter *pIter);
-bool tLDataIterNextRow(struct SLDataIter *pIter);
-
 // structs =======================
 struct STsdbFS {
   SDelFile *pDelFile;
@@ -640,16 +634,16 @@ typedef struct {
 
 typedef struct SMergeTree {
   int8_t       backward;
-  SRBTreeNode *pNode;
   SRBTree      rbt;
+  SArray      *pIterList;
   struct SLDataIter  *pIter;
-  SDataFReader* pLFileReader;
 } SMergeTree;
 
 void tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader* pFReader, uint64_t uid, STimeWindow* pTimeWindow, SVersionRange* pVerRange);
 void tMergeTreeAddIter(SMergeTree *pMTree, struct SLDataIter *pIter);
 bool tMergeTreeNext(SMergeTree* pMTree);
 TSDBROW tMergeTreeGetRow(SMergeTree* pMTree);
+void tMergeTreeClose(SMergeTree* pMTree);
 
 // ========== inline functions ==========
 static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
