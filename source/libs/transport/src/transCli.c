@@ -393,7 +393,11 @@ void cliHandleResp(SCliConn* conn) {
     addConnToPool(pThrd->pool, conn);
   }
 
-  uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
+  int ret = uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
+  if (0 != ret) {
+    tGError("%s conn %p failed to read, errmsg:%s", CONN_GET_INST_LABEL(conn), conn, uv_err_name(ret));
+    cliHandleExcept(conn);
+  }
 }
 
 void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
@@ -725,7 +729,11 @@ static void cliSendCb(uv_write_t* req, int status) {
     tTrace("%s conn %p no resp required", CONN_GET_INST_LABEL(pConn), pConn);
     return;
   }
-  uv_read_start((uv_stream_t*)pConn->stream, cliAllocRecvBufferCb, cliRecvCb);
+  int ret = uv_read_start((uv_stream_t*)pConn->stream, cliAllocRecvBufferCb, cliRecvCb);
+  if (0 != ret) {
+    tError("%s conn %p failed to read, errmsg: %s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(ret));
+    cliHandleExcept(pConn);
+  }
 }
 
 void cliSend(SCliConn* pConn) {
@@ -782,7 +790,13 @@ void cliSend(SCliConn* pConn) {
 
   uv_buf_t    wb = uv_buf_init((char*)pHead, msgLen);
   uv_write_t* req = transReqQueuePush(&pConn->wreqQueue);
-  uv_write(req, (uv_stream_t*)pConn->stream, &wb, 1, cliSendCb);
+
+  int ret = uv_write(req, (uv_stream_t*)pConn->stream, &wb, 1, cliSendCb);
+  if (0 != ret) {
+    tGError("%s conn %p failed to sent, errmsg: %s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(ret));
+    cliHandleExcept(pConn);
+    return;
+  }
   return;
 _RETURN:
   return;

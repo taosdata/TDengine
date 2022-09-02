@@ -424,7 +424,12 @@ static void uvStartSendRespImpl(SSvrMsg* smsg) {
 
   transRefSrvHandle(pConn);
   uv_write_t* req = transReqQueuePush(&pConn->wreqQueue);
-  uv_write(req, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnSendCb);
+
+  int ret = uv_write(req, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnSendCb);
+  if (0 != ret) {
+    tError("conn %p failed to sent, errmsg: %s", pConn, uv_err_name(ret));
+    transUnrefSrvHandle(pConn);
+  }
 }
 static void uvStartSendResp(SSvrMsg* smsg) {
   // impl
@@ -727,10 +732,13 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
 
     pConn->clientIp = addr.sin_addr.s_addr;
     pConn->port = ntohs(addr.sin_port);
-    uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocRecvBufferCb, uvOnRecvCb);
-
+    int ret = uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocRecvBufferCb, uvOnRecvCb);
+    if (0 != ret) {
+      tError("conn %p failed to recv, errmsg: %s", pConn, uv_err_name(ret));
+      transUnrefSrvHandle(pConn);
+    }
   } else {
-    tDebug("failed to create new connection");
+    tError("failed to create new connection");
     transUnrefSrvHandle(pConn);
   }
 }
@@ -748,7 +756,11 @@ void uvOnPipeConnectionCb(uv_connect_t* connect, int status) {
     return;
   }
   SWorkThrd* pThrd = container_of(connect, SWorkThrd, connect_req);
-  uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
+
+  int ret = uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
+  if (0 != ret) {
+    tError("failed to recv pipe data , errmsg: %s", uv_err_name(ret));
+  }
 }
 static bool addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
   pThrd->loop = (uv_loop_t*)taosMemoryMalloc(sizeof(uv_loop_t));
@@ -772,7 +784,6 @@ static bool addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
 
   pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 5, pThrd, uvWorkerAsyncCb);
   uv_pipe_connect(&pThrd->connect_req, pThrd->pipe, pipeName, uvOnPipeConnectionCb);
-  // uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
   return true;
 }
 
