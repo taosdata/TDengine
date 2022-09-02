@@ -30,7 +30,7 @@
 #include "systable.h"
 
 #define DB_VER_NUMBER   1
-#define DB_RESERVE_SIZE 64
+#define DB_RESERVE_SIZE 62
 
 static SSdbRaw *mndDbActionEncode(SDbObj *pDb);
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
@@ -124,6 +124,7 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT64(pRaw, dataPos, pDb->cfg.walRetentionSize, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.walRollPeriod, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pDb->cfg.walSegmentSize, _OVER)
+  SDB_SET_INT16(pRaw, dataPos, pDb->cfg.sstTrigger, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -207,6 +208,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pDb->cfg.walRetentionSize, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.walRollPeriod, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pDb->cfg.walSegmentSize, _OVER)
+  SDB_GET_INT16(pRaw, dataPos, &pDb->cfg.sstTrigger, _OVER)
 
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pDb->lock);
@@ -254,6 +256,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->cfg.strict = pNew->cfg.strict;
   pOld->cfg.cacheLast = pNew->cfg.cacheLast;
   pOld->cfg.replications = pNew->cfg.replications;
+  pOld->cfg.sstTrigger = pNew->cfg.sstTrigger;
   taosWUnLockLatch(&pOld->lock);
   return 0;
 }
@@ -330,6 +333,7 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->walRetentionSize < TSDB_DB_MIN_WAL_RETENTION_SIZE) return -1;
   if (pCfg->walRollPeriod < TSDB_DB_MIN_WAL_ROLL_PERIOD) return -1;
   if (pCfg->walSegmentSize < TSDB_DB_MIN_WAL_SEGMENT_SIZE) return -1;
+  if (pCfg->sstTrigger < TSDB_MIN_SST_TRIGGER || pCfg->sstTrigger > TSDB_MAX_SST_TRIGGER) return -1;
 
   terrno = 0;
   return terrno;
@@ -363,6 +367,7 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
     pCfg->walRetentionSize = TSDB_REPS_DEF_DB_WAL_RET_SIZE;
   if (pCfg->walRollPeriod < 0) pCfg->walRollPeriod = TSDB_REPS_DEF_DB_WAL_ROLL_PERIOD;
   if (pCfg->walSegmentSize < 0) pCfg->walSegmentSize = TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE;
+  if (pCfg->sstTrigger <= 0) pCfg->sstTrigger = TSDB_DEFAULT_SST_TRIGGER;
 }
 
 static int32_t mndSetCreateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
@@ -479,6 +484,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .walRetentionSize = pCreate->walRetentionSize,
       .walRollPeriod = pCreate->walRollPeriod,
       .walSegmentSize = pCreate->walSegmentSize,
+      .sstTrigger = pCreate->sstTrigger,
   };
 
   dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
@@ -1682,6 +1688,9 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walSegmentSize, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.sstTrigger, false);
   }
 
   taosMemoryFree(buf);

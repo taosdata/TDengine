@@ -1193,6 +1193,7 @@ typedef struct {
   int64_t  walRetentionSize;
   int32_t  walRollPeriod;
   int64_t  walSegmentSize;
+  int16_t  sstTrigger;
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
