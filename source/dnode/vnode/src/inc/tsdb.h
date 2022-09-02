@@ -66,11 +66,11 @@ typedef struct SSmaInfo      SSmaInfo;
 typedef struct SBlockCol     SBlockCol;
 typedef struct SVersionRange SVersionRange;
 
-#define TSDB_FILE_DLMT         ((uint32_t)0xF00AFA0F)
-#define TSDB_MAX_SUBBLOCKS     8
-#define TSDB_MAX_LAST_FILE     16
-#define TSDB_DEFAULT_LAST_FILE 8
-#define TSDB_FHDR_SIZE         512
+#define TSDB_FILE_DLMT        ((uint32_t)0xF00AFA0F)
+#define TSDB_MAX_SUBBLOCKS    8
+#define TSDB_MAX_SST_FILE     16
+#define TSDB_DEFAULT_SST_FILE 8
+#define TSDB_FHDR_SIZE        512
 
 #define HAS_NONE  ((int8_t)0x1)
 #define HAS_NULL  ((int8_t)0x2)
@@ -563,7 +563,7 @@ struct SDFileSet {
   SDataFile *pDataF;
   SSmaFile  *pSmaF;
   uint8_t    nSstF;
-  SSstFile  *aSstF[TSDB_MAX_LAST_FILE];
+  SSstFile  *aSstF[TSDB_MAX_SST_FILE];
 };
 
 struct SRowIter {
@@ -598,7 +598,7 @@ struct SDataFWriter {
   SHeadFile fHead;
   SDataFile fData;
   SSmaFile  fSma;
-  SSstFile  fSst[TSDB_MAX_LAST_FILE];
+  SSstFile  fSst[TSDB_MAX_SST_FILE];
 
   uint8_t *aBuf[4];
 };
@@ -615,7 +615,7 @@ struct SDataFReader {
   TdFilePtr  pHeadFD;
   TdFilePtr  pDataFD;
   TdFilePtr  pSmaFD;
-  TdFilePtr  aLastFD[TSDB_MAX_LAST_FILE];
+  TdFilePtr  aLastFD[TSDB_MAX_SST_FILE];
 
   uint8_t *aBuf[3];
 };
