@@ -235,6 +235,8 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.walRollPeriod = pDb->cfg.walRollPeriod;
   createReq.walSegmentSize = pDb->cfg.walSegmentSize;
   createReq.sstTrigger = pDb->cfg.sstTrigger;
+  createReq.hashPrefix = pDb->cfg.hashPrefix;
+  createReq.hashSuffix = pDb->cfg.hashSuffix;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SReplica  *pReplica = &createReq.replicas[v];
