@@ -15,13 +15,6 @@
 
 #include "tsdb.h"
 // =============== PAGE-WISE FILE ===============
-typedef struct {
-  TdFilePtr pFD;
-  int32_t   szPage;
-  int32_t   nBuf;
-  uint8_t  *pBuf;
-  int64_t   pgno;
-} STsdbFD;
 
 static int32_t tsdbOpenFile(const char *path, int32_t opt, STsdbFD *pFD) {
   int32_t code = 0;

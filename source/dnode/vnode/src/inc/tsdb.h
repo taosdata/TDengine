@@ -592,6 +592,14 @@ struct STsdbReadSnap {
   STsdbFS    fs;
 };
 
+typedef struct {
+  TdFilePtr pFD;
+  int32_t   szPage;
+  int32_t   nBuf;
+  uint8_t  *pBuf;
+  int64_t   pgno;
+} STsdbFD;
+
 struct SDataFWriter {
   STsdb    *pTsdb;
   SDFileSet wSet;
