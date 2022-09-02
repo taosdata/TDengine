@@ -1628,6 +1628,7 @@ int32_t tsdbOpenFile(const char *path, int32_t opt, STsdbFD *pFD) {
   }
 
   pFD->szPage = 4096;
+  pFD->pgno = 0;
   pFD->nBuf = 0;
   pFD->pBuf = taosMemoryMalloc(pFD->szPage);
   if (pFD->pBuf == NULL) {
@@ -1656,7 +1657,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbWriteFile(STsdbFD *pFD, uint8_t *pBuf, int32_t nBuf) {
+int32_t tsdbWriteFile(STsdbFD *pFD, uint8_t *pBuf, int32_t nBuf, int64_t *offset) {
   int32_t code = 0;
 
   int32_t n = 0;
