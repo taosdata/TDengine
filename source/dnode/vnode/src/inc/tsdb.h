@@ -478,12 +478,6 @@ struct SBlockData {
   SArray  *aColData;  // SArray<SColData>
 };
 
-// ================== TSDB global config
-extern bool tsdbForceKeepFile;
-
-#define TSDB_FS_ITER_FORWARD  TSDB_ORDER_ASC
-#define TSDB_FS_ITER_BACKWARD TSDB_ORDER_DESC
-
 struct TABLEID {
   tb_uid_t suid;
   tb_uid_t uid;
@@ -633,17 +627,18 @@ typedef struct {
 } SRowInfo;
 
 typedef struct SMergeTree {
-  int8_t       backward;
-  SRBTree      rbt;
-  SArray      *pIterList;
-  struct SLDataIter  *pIter;
+  int8_t             backward;
+  SRBTree            rbt;
+  SArray            *pIterList;
+  struct SLDataIter *pIter;
 } SMergeTree;
 
-void tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader* pFReader, uint64_t uid, STimeWindow* pTimeWindow, SVersionRange* pVerRange);
+void tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t uid, STimeWindow *pTimeWindow,
+                    SVersionRange *pVerRange);
 void tMergeTreeAddIter(SMergeTree *pMTree, struct SLDataIter *pIter);
-bool tMergeTreeNext(SMergeTree* pMTree);
-TSDBROW tMergeTreeGetRow(SMergeTree* pMTree);
-void tMergeTreeClose(SMergeTree* pMTree);
+bool tMergeTreeNext(SMergeTree *pMTree);
+TSDBROW tMergeTreeGetRow(SMergeTree *pMTree);
+void    tMergeTreeClose(SMergeTree *pMTree);
 
 // ========== inline functions ==========
 static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
