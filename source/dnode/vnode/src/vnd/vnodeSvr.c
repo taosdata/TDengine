@@ -1107,8 +1107,7 @@ static int32_t vnodeProcessDeleteReq(SVnode *pVnode, int64_t version, void *pReq
 
   tDecoderInit(pCoder, pReq, len);
   tDecodeDeleteRes(pCoder, pRes);
-  ASSERT(pRes->skey != 0);
-  ASSERT(pRes->ekey != 0);
+  ASSERT(taosArrayGetSize(pRes->uidList) == 0 || (pRes->skey != 0 && pRes->ekey != 0));
 
   for (int32_t iUid = 0; iUid < taosArrayGetSize(pRes->uidList); iUid++) {
     code = tsdbDeleteTableData(pVnode->pTsdb, version, pRes->suid, *(uint64_t *)taosArrayGet(pRes->uidList, iUid),

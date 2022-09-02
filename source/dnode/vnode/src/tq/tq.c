@@ -829,8 +829,6 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
 
   tDecoderInit(pCoder, pReq, len);
   tDecodeDeleteRes(pCoder, pRes);
-  /*ASSERT(pRes->skey != 0);*/
-  /*ASSERT(pRes->ekey != 0);*/
   tDecoderClear(pCoder);
 
   int32_t sz = taosArrayGetSize(pRes->uidList);
@@ -858,6 +856,8 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
     colDataAppendNULL(taosArrayGet(pDelBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX), i);
     colDataAppendNULL(taosArrayGet(pDelBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX), i);
   }
+
+  taosArrayDestroy(pRes->uidList);
 
   void* pIter = NULL;
   while (1) {
@@ -890,6 +890,7 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
       streamTaskInputFail(pTask);
     }
   }
+  blockDataDestroy(pDelBlock);
 
   return 0;
 }
