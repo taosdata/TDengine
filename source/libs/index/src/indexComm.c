@@ -178,9 +178,9 @@ TExeCond tDoCompare(__compar_fn_t func, int8_t comparType, void* a, void* b) {
   // optime later
   int32_t ret = func(a, b);
   switch (comparType) {
-    case QUERY_LESS_THAN: {
+    case QUERY_LESS_THAN:
       if (ret < 0) return MATCH;
-    } break;
+      break;
     case QUERY_LESS_EQUAL: {
       if (ret <= 0) return MATCH;
       break;

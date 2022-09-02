@@ -811,7 +811,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
         }
       }
 
-      // TODO after dropping table, table may be not found
+      // TODO after dropping table, table may not found
       ASSERT(found);
 
       if (pTableScanInfo->dataReader == NULL) {
