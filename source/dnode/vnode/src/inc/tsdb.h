@@ -586,6 +586,12 @@ struct SDelFWriter {
   uint8_t *aBuf[1];
 };
 
+struct STsdbReadSnap {
+  SMemTable *pMem;
+  SMemTable *pIMem;
+  STsdbFS    fs;
+};
+
 struct SDataFWriter {
   STsdb    *pTsdb;
   SDFileSet wSet;
@@ -601,12 +607,6 @@ struct SDataFWriter {
   SSstFile  fSst[TSDB_MAX_SST_FILE];
 
   uint8_t *aBuf[4];
-};
-
-struct STsdbReadSnap {
-  SMemTable *pMem;
-  SMemTable *pIMem;
-  STsdbFS    fs;
 };
 
 struct SDataFReader {

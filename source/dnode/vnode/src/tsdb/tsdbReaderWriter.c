@@ -23,7 +23,7 @@ typedef struct {
   int64_t   pgno;
 } STsdbFD;
 
-int32_t tsdbOpenFile(const char *path, int32_t opt, STsdbFD *pFD) {
+static int32_t tsdbOpenFile(const char *path, int32_t opt, STsdbFD *pFD) {
   int32_t code = 0;
 
   pFD->pFD = taosOpenFile(path, opt);
@@ -45,12 +45,12 @@ _exit:
   return code;
 }
 
-void tsdbCloseFile(STsdbFD *pFD) {
+static void tsdbCloseFile(STsdbFD *pFD) {
   taosMemoryFree(pFD->pBuf);
   taosCloseFile(&pFD->pFD);
 }
 
-int32_t tsdbSyncFile(STsdbFD *pFD) {
+static int32_t tsdbSyncFile(STsdbFD *pFD) {
   int32_t code = 0;
 
   if (taosFsyncFile(pFD->pFD) < 0) {
@@ -62,7 +62,7 @@ _exit:
   return code;
 }
 
-int32_t tsdbWriteFile(STsdbFD *pFD, uint8_t *pBuf, int32_t nBuf, int64_t *offset) {
+static int32_t tsdbWriteFile(STsdbFD *pFD, uint8_t *pBuf, int32_t nBuf, int64_t *offset) {
   int32_t code = 0;
 
   int32_t n = 0;
@@ -120,7 +120,7 @@ _exit:
   return code;
 }
 
-int64_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t count) {
+static int64_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t count) {
   int32_t code = 0;
 
   int64_t pgno = offset / pFD->szPage;
@@ -144,6 +144,666 @@ int64_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t count)
   }
 
 _exit:
+  return code;
+}
+
+// SDataFWriter ====================================================
+int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet) {
+  int32_t       code = 0;
+  int32_t       flag;
+  int64_t       n;
+  SDataFWriter *pWriter = NULL;
+  char          fname[TSDB_FILENAME_LEN];
+  char          hdr[TSDB_FHDR_SIZE] = {0};
+
+  // alloc
+  pWriter = taosMemoryCalloc(1, sizeof(*pWriter));
+  if (pWriter == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+  pWriter->pTsdb = pTsdb;
+  pWriter->wSet = (SDFileSet){
+      .diskId = pSet->diskId,
+      .fid = pSet->fid,
+      .pHeadF = &pWriter->fHead,
+      .pDataF = &pWriter->fData,
+      .pSmaF = &pWriter->fSma,
+      .nSstF = pSet->nSstF  //
+  };
+  pWriter->fHead = *pSet->pHeadF;
+  pWriter->fData = *pSet->pDataF;
+  pWriter->fSma = *pSet->pSmaF;
+  for (int8_t iSst = 0; iSst < pSet->nSstF; iSst++) {
+    pWriter->wSet.aSstF[iSst] = &pWriter->fSst[iSst];
+    pWriter->fSst[iSst] = *pSet->aSstF[iSst];
+  }
+
+  // head
+  flag = TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
+  tsdbHeadFileName(pTsdb, pWriter->wSet.diskId, pWriter->wSet.fid, &pWriter->fHead, fname);
+  pWriter->pHeadFD = taosOpenFile(fname, flag);
+  if (pWriter->pHeadFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  n = taosWriteFile(pWriter->pHeadFD, hdr, TSDB_FHDR_SIZE);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  ASSERT(n == TSDB_FHDR_SIZE);
+
+  pWriter->fHead.size += TSDB_FHDR_SIZE;
+
+  // data
+  if (pWriter->fData.size == 0) {
+    flag = TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
+  } else {
+    flag = TD_FILE_WRITE;
+  }
+  tsdbDataFileName(pTsdb, pWriter->wSet.diskId, pWriter->wSet.fid, &pWriter->fData, fname);
+  pWriter->pDataFD = taosOpenFile(fname, flag);
+  if (pWriter->pDataFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+  if (pWriter->fData.size == 0) {
+    n = taosWriteFile(pWriter->pDataFD, hdr, TSDB_FHDR_SIZE);
+    if (n < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+
+    pWriter->fData.size += TSDB_FHDR_SIZE;
+  } else {
+    n = taosLSeekFile(pWriter->pDataFD, 0, SEEK_END);
+    if (n < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+
+    ASSERT(n == pWriter->fData.size);
+  }
+
+  // sma
+  if (pWriter->fSma.size == 0) {
+    flag = TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
+  } else {
+    flag = TD_FILE_WRITE;
+  }
+  tsdbSmaFileName(pTsdb, pWriter->wSet.diskId, pWriter->wSet.fid, &pWriter->fSma, fname);
+  pWriter->pSmaFD = taosOpenFile(fname, flag);
+  if (pWriter->pSmaFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+  if (pWriter->fSma.size == 0) {
+    n = taosWriteFile(pWriter->pSmaFD, hdr, TSDB_FHDR_SIZE);
+    if (n < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+
+    pWriter->fSma.size += TSDB_FHDR_SIZE;
+  } else {
+    n = taosLSeekFile(pWriter->pSmaFD, 0, SEEK_END);
+    if (n < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+
+    ASSERT(n == pWriter->fSma.size);
+  }
+
+  // sst
+  ASSERT(pWriter->fSst[pSet->nSstF - 1].size == 0);
+  flag = TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
+  tsdbSstFileName(pTsdb, pWriter->wSet.diskId, pWriter->wSet.fid, &pWriter->fSst[pSet->nSstF - 1], fname);
+  pWriter->pLastFD = taosOpenFile(fname, flag);
+  if (pWriter->pLastFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+  n = taosWriteFile(pWriter->pLastFD, hdr, TSDB_FHDR_SIZE);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+  pWriter->fSst[pWriter->wSet.nSstF - 1].size += TSDB_FHDR_SIZE;
+
+  *ppWriter = pWriter;
+  return code;
+
+_err:
+  tsdbError("vgId:%d, tsdb data file writer open failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  *ppWriter = NULL;
+  return code;
+}
+
+int32_t tsdbDataFWriterClose(SDataFWriter **ppWriter, int8_t sync) {
+  int32_t code = 0;
+  STsdb  *pTsdb = NULL;
+
+  if (*ppWriter == NULL) goto _exit;
+
+  pTsdb = (*ppWriter)->pTsdb;
+  if (sync) {
+    if (taosFsyncFile((*ppWriter)->pHeadFD) < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+
+    if (taosFsyncFile((*ppWriter)->pDataFD) < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+
+    if (taosFsyncFile((*ppWriter)->pSmaFD) < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+
+    if (taosFsyncFile((*ppWriter)->pLastFD) < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+  }
+
+  if (taosCloseFile(&(*ppWriter)->pHeadFD) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  if (taosCloseFile(&(*ppWriter)->pDataFD) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  if (taosCloseFile(&(*ppWriter)->pSmaFD) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  if (taosCloseFile(&(*ppWriter)->pLastFD) < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  for (int32_t iBuf = 0; iBuf < sizeof((*ppWriter)->aBuf) / sizeof(uint8_t *); iBuf++) {
+    tFree((*ppWriter)->aBuf[iBuf]);
+  }
+  taosMemoryFree(*ppWriter);
+_exit:
+  *ppWriter = NULL;
+  return code;
+
+_err:
+  tsdbError("vgId:%d, data file writer close failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter) {
+  int32_t code = 0;
+  int64_t n;
+  char    hdr[TSDB_FHDR_SIZE];
+
+  // head ==============
+  memset(hdr, 0, TSDB_FHDR_SIZE);
+  tPutHeadFile(hdr, &pWriter->fHead);
+  taosCalcChecksumAppend(0, hdr, TSDB_FHDR_SIZE);
+
+  n = taosLSeekFile(pWriter->pHeadFD, 0, SEEK_SET);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  n = taosWriteFile(pWriter->pHeadFD, hdr, TSDB_FHDR_SIZE);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // data ==============
+  memset(hdr, 0, TSDB_FHDR_SIZE);
+  tPutDataFile(hdr, &pWriter->fData);
+  taosCalcChecksumAppend(0, hdr, TSDB_FHDR_SIZE);
+
+  n = taosLSeekFile(pWriter->pDataFD, 0, SEEK_SET);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  n = taosWriteFile(pWriter->pDataFD, hdr, TSDB_FHDR_SIZE);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // sma ==============
+  memset(hdr, 0, TSDB_FHDR_SIZE);
+  tPutSmaFile(hdr, &pWriter->fSma);
+  taosCalcChecksumAppend(0, hdr, TSDB_FHDR_SIZE);
+
+  n = taosLSeekFile(pWriter->pSmaFD, 0, SEEK_SET);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  n = taosWriteFile(pWriter->pSmaFD, hdr, TSDB_FHDR_SIZE);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // sst ==============
+  memset(hdr, 0, TSDB_FHDR_SIZE);
+  tPutSstFile(hdr, &pWriter->fSst[pWriter->wSet.nSstF - 1]);
+  taosCalcChecksumAppend(0, hdr, TSDB_FHDR_SIZE);
+
+  n = taosLSeekFile(pWriter->pLastFD, 0, SEEK_SET);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  n = taosWriteFile(pWriter->pLastFD, hdr, TSDB_FHDR_SIZE);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d, update DFileSet header failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SArray *aBlockIdx) {
+  int32_t    code = 0;
+  SHeadFile *pHeadFile = &pWriter->fHead;
+  int64_t    size = 0;
+  int64_t    n;
+
+  // check
+  if (taosArrayGetSize(aBlockIdx) == 0) {
+    pHeadFile->offset = pHeadFile->size;
+    goto _exit;
+  }
+
+  // prepare
+  size = sizeof(uint32_t);
+  for (int32_t iBlockIdx = 0; iBlockIdx < taosArrayGetSize(aBlockIdx); iBlockIdx++) {
+    size += tPutBlockIdx(NULL, taosArrayGet(aBlockIdx, iBlockIdx));
+  }
+  size += sizeof(TSCKSUM);
+
+  // alloc
+  code = tRealloc(&pWriter->aBuf[0], size);
+  if (code) goto _err;
+
+  // build
+  n = 0;
+  n = tPutU32(pWriter->aBuf[0] + n, TSDB_FILE_DLMT);
+  for (int32_t iBlockIdx = 0; iBlockIdx < taosArrayGetSize(aBlockIdx); iBlockIdx++) {
+    n += tPutBlockIdx(pWriter->aBuf[0] + n, taosArrayGet(aBlockIdx, iBlockIdx));
+  }
+  taosCalcChecksumAppend(0, pWriter->aBuf[0], size);
+
+  ASSERT(n + sizeof(TSCKSUM) == size);
+
+  // write
+  n = taosWriteFile(pWriter->pHeadFD, pWriter->aBuf[0], size);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // update
+  pHeadFile->offset = pHeadFile->size;
+  pHeadFile->size += size;
+
+_exit:
+  tsdbTrace("vgId:%d write block idx, offset:%" PRId64 " size:%" PRId64 " nBlockIdx:%d", TD_VID(pWriter->pTsdb->pVnode),
+            pHeadFile->offset, size, taosArrayGetSize(aBlockIdx));
+  return code;
+
+_err:
+  tsdbError("vgId:%d, write block idx failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *mBlock, SBlockIdx *pBlockIdx) {
+  int32_t    code = 0;
+  SHeadFile *pHeadFile = &pWriter->fHead;
+  int64_t    size;
+  int64_t    n;
+
+  ASSERT(mBlock->nItem > 0);
+
+  // alloc
+  size = sizeof(uint32_t) + tPutMapData(NULL, mBlock) + sizeof(TSCKSUM);
+  code = tRealloc(&pWriter->aBuf[0], size);
+  if (code) goto _err;
+
+  // build
+  n = 0;
+  n += tPutU32(pWriter->aBuf[0] + n, TSDB_FILE_DLMT);
+  n += tPutMapData(pWriter->aBuf[0] + n, mBlock);
+  taosCalcChecksumAppend(0, pWriter->aBuf[0], size);
+
+  ASSERT(n + sizeof(TSCKSUM) == size);
+
+  // write
+  n = taosWriteFile(pWriter->pHeadFD, pWriter->aBuf[0], size);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // update
+  pBlockIdx->offset = pHeadFile->size;
+  pBlockIdx->size = size;
+  pHeadFile->size += size;
+
+  tsdbTrace("vgId:%d, write block, file ID:%d commit ID:%d suid:%" PRId64 " uid:%" PRId64 " offset:%" PRId64
+            " size:%" PRId64 " nItem:%d",
+            TD_VID(pWriter->pTsdb->pVnode), pWriter->wSet.fid, pHeadFile->commitID, pBlockIdx->suid, pBlockIdx->uid,
+            pBlockIdx->offset, pBlockIdx->size, mBlock->nItem);
+  return code;
+
+_err:
+  tsdbError("vgId:%d, write block failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+int32_t tsdbWriteSstBlk(SDataFWriter *pWriter, SArray *aSstBlk) {
+  int32_t   code = 0;
+  SSstFile *pSstFile = &pWriter->fSst[pWriter->wSet.nSstF - 1];
+  int64_t   size;
+  int64_t   n;
+
+  // check
+  if (taosArrayGetSize(aSstBlk) == 0) {
+    pSstFile->offset = pSstFile->size;
+    goto _exit;
+  }
+
+  // size
+  size = sizeof(uint32_t);  // TSDB_FILE_DLMT
+  for (int32_t iBlockL = 0; iBlockL < taosArrayGetSize(aSstBlk); iBlockL++) {
+    size += tPutSstBlk(NULL, taosArrayGet(aSstBlk, iBlockL));
+  }
+  size += sizeof(TSCKSUM);
+
+  // alloc
+  code = tRealloc(&pWriter->aBuf[0], size);
+  if (code) goto _err;
+
+  // encode
+  n = 0;
+  n += tPutU32(pWriter->aBuf[0] + n, TSDB_FILE_DLMT);
+  for (int32_t iBlockL = 0; iBlockL < taosArrayGetSize(aSstBlk); iBlockL++) {
+    n += tPutSstBlk(pWriter->aBuf[0] + n, taosArrayGet(aSstBlk, iBlockL));
+  }
+  taosCalcChecksumAppend(0, pWriter->aBuf[0], size);
+
+  ASSERT(n + sizeof(TSCKSUM) == size);
+
+  // write
+  n = taosWriteFile(pWriter->pLastFD, pWriter->aBuf[0], size);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // update
+  pSstFile->offset = pSstFile->size;
+  pSstFile->size += size;
+
+_exit:
+  tsdbTrace("vgId:%d tsdb write blockl, loffset:%" PRId64 " size:%" PRId64, TD_VID(pWriter->pTsdb->pVnode),
+            pSstFile->offset, size);
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb write blockl failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+static int32_t tsdbWriteBlockSma(SDataFWriter *pWriter, SBlockData *pBlockData, SSmaInfo *pSmaInfo) {
+  int32_t code = 0;
+
+  pSmaInfo->offset = 0;
+  pSmaInfo->size = 0;
+
+  // encode
+  for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockData->aIdx); iColData++) {
+    SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
+
+    if ((!pColData->smaOn) || IS_VAR_DATA_TYPE(pColData->type)) continue;
+
+    SColumnDataAgg sma;
+    tsdbCalcColDataSMA(pColData, &sma);
+
+    code = tRealloc(&pWriter->aBuf[0], pSmaInfo->size + tPutColumnDataAgg(NULL, &sma));
+    if (code) goto _err;
+    pSmaInfo->size += tPutColumnDataAgg(pWriter->aBuf[0] + pSmaInfo->size, &sma);
+  }
+
+  // write
+  if (pSmaInfo->size) {
+    int32_t size = pSmaInfo->size + sizeof(TSCKSUM);
+
+    code = tRealloc(&pWriter->aBuf[0], size);
+    if (code) goto _err;
+
+    taosCalcChecksumAppend(0, pWriter->aBuf[0], size);
+
+    int64_t n = taosWriteFile(pWriter->pSmaFD, pWriter->aBuf[0], size);
+    if (n < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+
+    pSmaInfo->offset = pWriter->fSma.size;
+    pWriter->fSma.size += size;
+  }
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb write block sma failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlockInfo *pBlkInfo, SSmaInfo *pSmaInfo,
+                           int8_t cmprAlg, int8_t toLast) {
+  int32_t code = 0;
+
+  ASSERT(pBlockData->nRow > 0);
+
+  pBlkInfo->offset = toLast ? pWriter->fSst[pWriter->wSet.nSstF - 1].size : pWriter->fData.size;
+  pBlkInfo->szBlock = 0;
+  pBlkInfo->szKey = 0;
+
+  int32_t aBufN[4] = {0};
+  code = tCmprBlockData(pBlockData, cmprAlg, NULL, NULL, pWriter->aBuf, aBufN);
+  if (code) goto _err;
+
+  // write =================
+  TdFilePtr pFD = toLast ? pWriter->pLastFD : pWriter->pDataFD;
+
+  pBlkInfo->szKey = aBufN[3] + aBufN[2];
+  pBlkInfo->szBlock = aBufN[0] + aBufN[1] + aBufN[2] + aBufN[3];
+
+  int64_t n = taosWriteFile(pFD, pWriter->aBuf[3], aBufN[3]);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  n = taosWriteFile(pFD, pWriter->aBuf[2], aBufN[2]);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  if (aBufN[1]) {
+    n = taosWriteFile(pFD, pWriter->aBuf[1], aBufN[1]);
+    if (n < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+  }
+
+  if (aBufN[0]) {
+    n = taosWriteFile(pFD, pWriter->aBuf[0], aBufN[0]);
+    if (n < 0) {
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+  }
+
+  // update info
+  if (toLast) {
+    pWriter->fSst[pWriter->wSet.nSstF - 1].size += pBlkInfo->szBlock;
+  } else {
+    pWriter->fData.size += pBlkInfo->szBlock;
+  }
+
+  // ================= SMA ====================
+  if (pSmaInfo) {
+    code = tsdbWriteBlockSma(pWriter, pBlockData, pSmaInfo);
+    if (code) goto _err;
+  }
+
+_exit:
+  tsdbTrace("vgId:%d tsdb write block data, suid:%" PRId64 " uid:%" PRId64 " nRow:%d, offset:%" PRId64 " size:%d",
+            TD_VID(pWriter->pTsdb->pVnode), pBlockData->suid, pBlockData->uid, pBlockData->nRow, pBlkInfo->offset,
+            pBlkInfo->szBlock);
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb write block data failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
+  int32_t   code = 0;
+  int64_t   n;
+  int64_t   size;
+  TdFilePtr pOutFD = NULL;  // TODO
+  TdFilePtr PInFD = NULL;   // TODO
+  char      fNameFrom[TSDB_FILENAME_LEN];
+  char      fNameTo[TSDB_FILENAME_LEN];
+
+  // head
+  tsdbHeadFileName(pTsdb, pSetFrom->diskId, pSetFrom->fid, pSetFrom->pHeadF, fNameFrom);
+  tsdbHeadFileName(pTsdb, pSetTo->diskId, pSetTo->fid, pSetTo->pHeadF, fNameTo);
+
+  pOutFD = taosOpenFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+  if (pOutFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  PInFD = taosOpenFile(fNameFrom, TD_FILE_READ);
+  if (PInFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  n = taosFSendFile(pOutFD, PInFD, 0, pSetFrom->pHeadF->size);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+  taosCloseFile(&pOutFD);
+  taosCloseFile(&PInFD);
+
+  // data
+  tsdbDataFileName(pTsdb, pSetFrom->diskId, pSetFrom->fid, pSetFrom->pDataF, fNameFrom);
+  tsdbDataFileName(pTsdb, pSetTo->diskId, pSetTo->fid, pSetTo->pDataF, fNameTo);
+
+  pOutFD = taosOpenFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+  if (pOutFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  PInFD = taosOpenFile(fNameFrom, TD_FILE_READ);
+  if (PInFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  n = taosFSendFile(pOutFD, PInFD, 0, pSetFrom->pDataF->size);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+  taosCloseFile(&pOutFD);
+  taosCloseFile(&PInFD);
+
+  // sst
+  tsdbSstFileName(pTsdb, pSetFrom->diskId, pSetFrom->fid, pSetFrom->aSstF[0], fNameFrom);
+  tsdbSstFileName(pTsdb, pSetTo->diskId, pSetTo->fid, pSetTo->aSstF[0], fNameTo);
+
+  pOutFD = taosOpenFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+  if (pOutFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  PInFD = taosOpenFile(fNameFrom, TD_FILE_READ);
+  if (PInFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  n = taosFSendFile(pOutFD, PInFD, 0, pSetFrom->aSstF[0]->size);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+  taosCloseFile(&pOutFD);
+  taosCloseFile(&PInFD);
+
+  // sma
+  tsdbSmaFileName(pTsdb, pSetFrom->diskId, pSetFrom->fid, pSetFrom->pSmaF, fNameFrom);
+  tsdbSmaFileName(pTsdb, pSetTo->diskId, pSetTo->fid, pSetTo->pSmaF, fNameTo);
+
+  pOutFD = taosOpenFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+  if (pOutFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  PInFD = taosOpenFile(fNameFrom, TD_FILE_READ);
+  if (PInFD == NULL) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  n = taosFSendFile(pOutFD, PInFD, 0, pSetFrom->pSmaF->size);
+  if (n < 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+  taosCloseFile(&pOutFD);
+  taosCloseFile(&PInFD);
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d, tsdb DFileSet copy failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -679,690 +1339,6 @@ _exit:
   return code;
 }
 
-// SDataFWriter ====================================================
-int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet) {
-  int32_t       code = 0;
-  int32_t       flag;
-  int64_t       n;
-  SDataFWriter *pWriter = NULL;
-  char          fname[TSDB_FILENAME_LEN];
-  char          hdr[TSDB_FHDR_SIZE] = {0};
-
-  // alloc
-  pWriter = taosMemoryCalloc(1, sizeof(*pWriter));
-  if (pWriter == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
-  }
-  pWriter->pTsdb = pTsdb;
-  pWriter->wSet = (SDFileSet){
-      .diskId = pSet->diskId,
-      .fid = pSet->fid,
-      .pHeadF = &pWriter->fHead,
-      .pDataF = &pWriter->fData,
-      .pSmaF = &pWriter->fSma,
-      .nSstF = pSet->nSstF  //
-  };
-  pWriter->fHead = *pSet->pHeadF;
-  pWriter->fData = *pSet->pDataF;
-  pWriter->fSma = *pSet->pSmaF;
-  for (int8_t iSst = 0; iSst < pSet->nSstF; iSst++) {
-    pWriter->wSet.aSstF[iSst] = &pWriter->fSst[iSst];
-    pWriter->fSst[iSst] = *pSet->aSstF[iSst];
-  }
-
-  // head
-  flag = TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
-  tsdbHeadFileName(pTsdb, pWriter->wSet.diskId, pWriter->wSet.fid, &pWriter->fHead, fname);
-  pWriter->pHeadFD = taosOpenFile(fname, flag);
-  if (pWriter->pHeadFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  n = taosWriteFile(pWriter->pHeadFD, hdr, TSDB_FHDR_SIZE);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  ASSERT(n == TSDB_FHDR_SIZE);
-
-  pWriter->fHead.size += TSDB_FHDR_SIZE;
-
-  // data
-  if (pWriter->fData.size == 0) {
-    flag = TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
-  } else {
-    flag = TD_FILE_WRITE;
-  }
-  tsdbDataFileName(pTsdb, pWriter->wSet.diskId, pWriter->wSet.fid, &pWriter->fData, fname);
-  pWriter->pDataFD = taosOpenFile(fname, flag);
-  if (pWriter->pDataFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-  if (pWriter->fData.size == 0) {
-    n = taosWriteFile(pWriter->pDataFD, hdr, TSDB_FHDR_SIZE);
-    if (n < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      goto _err;
-    }
-
-    pWriter->fData.size += TSDB_FHDR_SIZE;
-  } else {
-    n = taosLSeekFile(pWriter->pDataFD, 0, SEEK_END);
-    if (n < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      goto _err;
-    }
-
-    ASSERT(n == pWriter->fData.size);
-  }
-
-  // sma
-  if (pWriter->fSma.size == 0) {
-    flag = TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
-  } else {
-    flag = TD_FILE_WRITE;
-  }
-  tsdbSmaFileName(pTsdb, pWriter->wSet.diskId, pWriter->wSet.fid, &pWriter->fSma, fname);
-  pWriter->pSmaFD = taosOpenFile(fname, flag);
-  if (pWriter->pSmaFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-  if (pWriter->fSma.size == 0) {
-    n = taosWriteFile(pWriter->pSmaFD, hdr, TSDB_FHDR_SIZE);
-    if (n < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      goto _err;
-    }
-
-    pWriter->fSma.size += TSDB_FHDR_SIZE;
-  } else {
-    n = taosLSeekFile(pWriter->pSmaFD, 0, SEEK_END);
-    if (n < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      goto _err;
-    }
-
-    ASSERT(n == pWriter->fSma.size);
-  }
-
-  // sst
-  ASSERT(pWriter->fSst[pSet->nSstF - 1].size == 0);
-  flag = TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
-  tsdbSstFileName(pTsdb, pWriter->wSet.diskId, pWriter->wSet.fid, &pWriter->fSst[pSet->nSstF - 1], fname);
-  pWriter->pLastFD = taosOpenFile(fname, flag);
-  if (pWriter->pLastFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-  n = taosWriteFile(pWriter->pLastFD, hdr, TSDB_FHDR_SIZE);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-  pWriter->fSst[pWriter->wSet.nSstF - 1].size += TSDB_FHDR_SIZE;
-
-  *ppWriter = pWriter;
-  return code;
-
-_err:
-  tsdbError("vgId:%d, tsdb data file writer open failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
-  *ppWriter = NULL;
-  return code;
-}
-
-int32_t tsdbDataFWriterClose(SDataFWriter **ppWriter, int8_t sync) {
-  int32_t code = 0;
-  STsdb  *pTsdb = NULL;
-
-  if (*ppWriter == NULL) goto _exit;
-
-  pTsdb = (*ppWriter)->pTsdb;
-  if (sync) {
-    if (taosFsyncFile((*ppWriter)->pHeadFD) < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      goto _err;
-    }
-
-    if (taosFsyncFile((*ppWriter)->pDataFD) < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      goto _err;
-    }
-
-    if (taosFsyncFile((*ppWriter)->pSmaFD) < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      goto _err;
-    }
-
-    if (taosFsyncFile((*ppWriter)->pLastFD) < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      goto _err;
-    }
-  }
-
-  if (taosCloseFile(&(*ppWriter)->pHeadFD) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  if (taosCloseFile(&(*ppWriter)->pDataFD) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  if (taosCloseFile(&(*ppWriter)->pSmaFD) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  if (taosCloseFile(&(*ppWriter)->pLastFD) < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  for (int32_t iBuf = 0; iBuf < sizeof((*ppWriter)->aBuf) / sizeof(uint8_t *); iBuf++) {
-    tFree((*ppWriter)->aBuf[iBuf]);
-  }
-  taosMemoryFree(*ppWriter);
-_exit:
-  *ppWriter = NULL;
-  return code;
-
-_err:
-  tsdbError("vgId:%d, data file writer close failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
-  return code;
-}
-
-int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter) {
-  int32_t code = 0;
-  int64_t n;
-  char    hdr[TSDB_FHDR_SIZE];
-
-  // head ==============
-  memset(hdr, 0, TSDB_FHDR_SIZE);
-  tPutHeadFile(hdr, &pWriter->fHead);
-  taosCalcChecksumAppend(0, hdr, TSDB_FHDR_SIZE);
-
-  n = taosLSeekFile(pWriter->pHeadFD, 0, SEEK_SET);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  n = taosWriteFile(pWriter->pHeadFD, hdr, TSDB_FHDR_SIZE);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  // data ==============
-  memset(hdr, 0, TSDB_FHDR_SIZE);
-  tPutDataFile(hdr, &pWriter->fData);
-  taosCalcChecksumAppend(0, hdr, TSDB_FHDR_SIZE);
-
-  n = taosLSeekFile(pWriter->pDataFD, 0, SEEK_SET);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  n = taosWriteFile(pWriter->pDataFD, hdr, TSDB_FHDR_SIZE);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  // sma ==============
-  memset(hdr, 0, TSDB_FHDR_SIZE);
-  tPutSmaFile(hdr, &pWriter->fSma);
-  taosCalcChecksumAppend(0, hdr, TSDB_FHDR_SIZE);
-
-  n = taosLSeekFile(pWriter->pSmaFD, 0, SEEK_SET);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  n = taosWriteFile(pWriter->pSmaFD, hdr, TSDB_FHDR_SIZE);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  // sst ==============
-  memset(hdr, 0, TSDB_FHDR_SIZE);
-  tPutSstFile(hdr, &pWriter->fSst[pWriter->wSet.nSstF - 1]);
-  taosCalcChecksumAppend(0, hdr, TSDB_FHDR_SIZE);
-
-  n = taosLSeekFile(pWriter->pLastFD, 0, SEEK_SET);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  n = taosWriteFile(pWriter->pLastFD, hdr, TSDB_FHDR_SIZE);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  return code;
-
-_err:
-  tsdbError("vgId:%d, update DFileSet header failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
-  return code;
-}
-
-int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SArray *aBlockIdx) {
-  int32_t    code = 0;
-  SHeadFile *pHeadFile = &pWriter->fHead;
-  int64_t    size = 0;
-  int64_t    n;
-
-  // check
-  if (taosArrayGetSize(aBlockIdx) == 0) {
-    pHeadFile->offset = pHeadFile->size;
-    goto _exit;
-  }
-
-  // prepare
-  size = sizeof(uint32_t);
-  for (int32_t iBlockIdx = 0; iBlockIdx < taosArrayGetSize(aBlockIdx); iBlockIdx++) {
-    size += tPutBlockIdx(NULL, taosArrayGet(aBlockIdx, iBlockIdx));
-  }
-  size += sizeof(TSCKSUM);
-
-  // alloc
-  code = tRealloc(&pWriter->aBuf[0], size);
-  if (code) goto _err;
-
-  // build
-  n = 0;
-  n = tPutU32(pWriter->aBuf[0] + n, TSDB_FILE_DLMT);
-  for (int32_t iBlockIdx = 0; iBlockIdx < taosArrayGetSize(aBlockIdx); iBlockIdx++) {
-    n += tPutBlockIdx(pWriter->aBuf[0] + n, taosArrayGet(aBlockIdx, iBlockIdx));
-  }
-  taosCalcChecksumAppend(0, pWriter->aBuf[0], size);
-
-  ASSERT(n + sizeof(TSCKSUM) == size);
-
-  // write
-  n = taosWriteFile(pWriter->pHeadFD, pWriter->aBuf[0], size);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  // update
-  pHeadFile->offset = pHeadFile->size;
-  pHeadFile->size += size;
-
-_exit:
-  tsdbTrace("vgId:%d write block idx, offset:%" PRId64 " size:%" PRId64 " nBlockIdx:%d", TD_VID(pWriter->pTsdb->pVnode),
-            pHeadFile->offset, size, taosArrayGetSize(aBlockIdx));
-  return code;
-
-_err:
-  tsdbError("vgId:%d, write block idx failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
-  return code;
-}
-
-int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *mBlock, SBlockIdx *pBlockIdx) {
-  int32_t    code = 0;
-  SHeadFile *pHeadFile = &pWriter->fHead;
-  int64_t    size;
-  int64_t    n;
-
-  ASSERT(mBlock->nItem > 0);
-
-  // alloc
-  size = sizeof(uint32_t) + tPutMapData(NULL, mBlock) + sizeof(TSCKSUM);
-  code = tRealloc(&pWriter->aBuf[0], size);
-  if (code) goto _err;
-
-  // build
-  n = 0;
-  n += tPutU32(pWriter->aBuf[0] + n, TSDB_FILE_DLMT);
-  n += tPutMapData(pWriter->aBuf[0] + n, mBlock);
-  taosCalcChecksumAppend(0, pWriter->aBuf[0], size);
-
-  ASSERT(n + sizeof(TSCKSUM) == size);
-
-  // write
-  n = taosWriteFile(pWriter->pHeadFD, pWriter->aBuf[0], size);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  // update
-  pBlockIdx->offset = pHeadFile->size;
-  pBlockIdx->size = size;
-  pHeadFile->size += size;
-
-  tsdbTrace("vgId:%d, write block, file ID:%d commit ID:%d suid:%" PRId64 " uid:%" PRId64 " offset:%" PRId64
-            " size:%" PRId64 " nItem:%d",
-            TD_VID(pWriter->pTsdb->pVnode), pWriter->wSet.fid, pHeadFile->commitID, pBlockIdx->suid, pBlockIdx->uid,
-            pBlockIdx->offset, pBlockIdx->size, mBlock->nItem);
-  return code;
-
-_err:
-  tsdbError("vgId:%d, write block failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
-  return code;
-}
-
-int32_t tsdbWriteSstBlk(SDataFWriter *pWriter, SArray *aSstBlk) {
-  int32_t   code = 0;
-  SSstFile *pSstFile = &pWriter->fSst[pWriter->wSet.nSstF - 1];
-  int64_t   size;
-  int64_t   n;
-
-  // check
-  if (taosArrayGetSize(aSstBlk) == 0) {
-    pSstFile->offset = pSstFile->size;
-    goto _exit;
-  }
-
-  // size
-  size = sizeof(uint32_t);  // TSDB_FILE_DLMT
-  for (int32_t iBlockL = 0; iBlockL < taosArrayGetSize(aSstBlk); iBlockL++) {
-    size += tPutSstBlk(NULL, taosArrayGet(aSstBlk, iBlockL));
-  }
-  size += sizeof(TSCKSUM);
-
-  // alloc
-  code = tRealloc(&pWriter->aBuf[0], size);
-  if (code) goto _err;
-
-  // encode
-  n = 0;
-  n += tPutU32(pWriter->aBuf[0] + n, TSDB_FILE_DLMT);
-  for (int32_t iBlockL = 0; iBlockL < taosArrayGetSize(aSstBlk); iBlockL++) {
-    n += tPutSstBlk(pWriter->aBuf[0] + n, taosArrayGet(aSstBlk, iBlockL));
-  }
-  taosCalcChecksumAppend(0, pWriter->aBuf[0], size);
-
-  ASSERT(n + sizeof(TSCKSUM) == size);
-
-  // write
-  n = taosWriteFile(pWriter->pLastFD, pWriter->aBuf[0], size);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  // update
-  pSstFile->offset = pSstFile->size;
-  pSstFile->size += size;
-
-_exit:
-  tsdbTrace("vgId:%d tsdb write blockl, loffset:%" PRId64 " size:%" PRId64, TD_VID(pWriter->pTsdb->pVnode),
-            pSstFile->offset, size);
-  return code;
-
-_err:
-  tsdbError("vgId:%d tsdb write blockl failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
-  return code;
-}
-
-static void tsdbUpdateBlockInfo(SBlockData *pBlockData, SDataBlk *pDataBlk) {
-  for (int32_t iRow = 0; iRow < pBlockData->nRow; iRow++) {
-    TSDBKEY key = {.ts = pBlockData->aTSKEY[iRow], .version = pBlockData->aVersion[iRow]};
-
-    if (iRow == 0) {
-      if (tsdbKeyCmprFn(&pDataBlk->minKey, &key) > 0) {
-        pDataBlk->minKey = key;
-      }
-    } else {
-      if (pBlockData->aTSKEY[iRow] == pBlockData->aTSKEY[iRow - 1]) {
-        pDataBlk->hasDup = 1;
-      }
-    }
-
-    if (iRow == pBlockData->nRow - 1 && tsdbKeyCmprFn(&pDataBlk->maxKey, &key) < 0) {
-      pDataBlk->maxKey = key;
-    }
-
-    pDataBlk->minVer = TMIN(pDataBlk->minVer, key.version);
-    pDataBlk->maxVer = TMAX(pDataBlk->maxVer, key.version);
-  }
-  pDataBlk->nRow += pBlockData->nRow;
-}
-
-static int32_t tsdbWriteBlockSma(SDataFWriter *pWriter, SBlockData *pBlockData, SSmaInfo *pSmaInfo) {
-  int32_t code = 0;
-
-  pSmaInfo->offset = 0;
-  pSmaInfo->size = 0;
-
-  // encode
-  for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockData->aIdx); iColData++) {
-    SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
-
-    if ((!pColData->smaOn) || IS_VAR_DATA_TYPE(pColData->type)) continue;
-
-    SColumnDataAgg sma;
-    tsdbCalcColDataSMA(pColData, &sma);
-
-    code = tRealloc(&pWriter->aBuf[0], pSmaInfo->size + tPutColumnDataAgg(NULL, &sma));
-    if (code) goto _err;
-    pSmaInfo->size += tPutColumnDataAgg(pWriter->aBuf[0] + pSmaInfo->size, &sma);
-  }
-
-  // write
-  if (pSmaInfo->size) {
-    int32_t size = pSmaInfo->size + sizeof(TSCKSUM);
-
-    code = tRealloc(&pWriter->aBuf[0], size);
-    if (code) goto _err;
-
-    taosCalcChecksumAppend(0, pWriter->aBuf[0], size);
-
-    int64_t n = taosWriteFile(pWriter->pSmaFD, pWriter->aBuf[0], size);
-    if (n < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      goto _err;
-    }
-
-    pSmaInfo->offset = pWriter->fSma.size;
-    pWriter->fSma.size += size;
-  }
-
-  return code;
-
-_err:
-  tsdbError("vgId:%d tsdb write block sma failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
-  return code;
-}
-
-int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlockInfo *pBlkInfo, SSmaInfo *pSmaInfo,
-                           int8_t cmprAlg, int8_t toLast) {
-  int32_t code = 0;
-
-  ASSERT(pBlockData->nRow > 0);
-
-  pBlkInfo->offset = toLast ? pWriter->fSst[pWriter->wSet.nSstF - 1].size : pWriter->fData.size;
-  pBlkInfo->szBlock = 0;
-  pBlkInfo->szKey = 0;
-
-  int32_t aBufN[4] = {0};
-  code = tCmprBlockData(pBlockData, cmprAlg, NULL, NULL, pWriter->aBuf, aBufN);
-  if (code) goto _err;
-
-  // write =================
-  TdFilePtr pFD = toLast ? pWriter->pLastFD : pWriter->pDataFD;
-
-  pBlkInfo->szKey = aBufN[3] + aBufN[2];
-  pBlkInfo->szBlock = aBufN[0] + aBufN[1] + aBufN[2] + aBufN[3];
-
-  int64_t n = taosWriteFile(pFD, pWriter->aBuf[3], aBufN[3]);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  n = taosWriteFile(pFD, pWriter->aBuf[2], aBufN[2]);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  if (aBufN[1]) {
-    n = taosWriteFile(pFD, pWriter->aBuf[1], aBufN[1]);
-    if (n < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      goto _err;
-    }
-  }
-
-  if (aBufN[0]) {
-    n = taosWriteFile(pFD, pWriter->aBuf[0], aBufN[0]);
-    if (n < 0) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      goto _err;
-    }
-  }
-
-  // update info
-  if (toLast) {
-    pWriter->fSst[pWriter->wSet.nSstF - 1].size += pBlkInfo->szBlock;
-  } else {
-    pWriter->fData.size += pBlkInfo->szBlock;
-  }
-
-  // ================= SMA ====================
-  if (pSmaInfo) {
-    code = tsdbWriteBlockSma(pWriter, pBlockData, pSmaInfo);
-    if (code) goto _err;
-  }
-
-_exit:
-  tsdbTrace("vgId:%d tsdb write block data, suid:%" PRId64 " uid:%" PRId64 " nRow:%d, offset:%" PRId64 " size:%d",
-            TD_VID(pWriter->pTsdb->pVnode), pBlockData->suid, pBlockData->uid, pBlockData->nRow, pBlkInfo->offset,
-            pBlkInfo->szBlock);
-  return code;
-
-_err:
-  tsdbError("vgId:%d tsdb write block data failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
-  return code;
-}
-
-int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
-  int32_t   code = 0;
-  int64_t   n;
-  int64_t   size;
-  TdFilePtr pOutFD = NULL;  // TODO
-  TdFilePtr PInFD = NULL;   // TODO
-  char      fNameFrom[TSDB_FILENAME_LEN];
-  char      fNameTo[TSDB_FILENAME_LEN];
-
-  // head
-  tsdbHeadFileName(pTsdb, pSetFrom->diskId, pSetFrom->fid, pSetFrom->pHeadF, fNameFrom);
-  tsdbHeadFileName(pTsdb, pSetTo->diskId, pSetTo->fid, pSetTo->pHeadF, fNameTo);
-
-  pOutFD = taosOpenFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
-  if (pOutFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  PInFD = taosOpenFile(fNameFrom, TD_FILE_READ);
-  if (PInFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  n = taosFSendFile(pOutFD, PInFD, 0, pSetFrom->pHeadF->size);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-  taosCloseFile(&pOutFD);
-  taosCloseFile(&PInFD);
-
-  // data
-  tsdbDataFileName(pTsdb, pSetFrom->diskId, pSetFrom->fid, pSetFrom->pDataF, fNameFrom);
-  tsdbDataFileName(pTsdb, pSetTo->diskId, pSetTo->fid, pSetTo->pDataF, fNameTo);
-
-  pOutFD = taosOpenFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
-  if (pOutFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  PInFD = taosOpenFile(fNameFrom, TD_FILE_READ);
-  if (PInFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  n = taosFSendFile(pOutFD, PInFD, 0, pSetFrom->pDataF->size);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-  taosCloseFile(&pOutFD);
-  taosCloseFile(&PInFD);
-
-  // sst
-  tsdbSstFileName(pTsdb, pSetFrom->diskId, pSetFrom->fid, pSetFrom->aSstF[0], fNameFrom);
-  tsdbSstFileName(pTsdb, pSetTo->diskId, pSetTo->fid, pSetTo->aSstF[0], fNameTo);
-
-  pOutFD = taosOpenFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
-  if (pOutFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  PInFD = taosOpenFile(fNameFrom, TD_FILE_READ);
-  if (PInFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  n = taosFSendFile(pOutFD, PInFD, 0, pSetFrom->aSstF[0]->size);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-  taosCloseFile(&pOutFD);
-  taosCloseFile(&PInFD);
-
-  // sma
-  tsdbSmaFileName(pTsdb, pSetFrom->diskId, pSetFrom->fid, pSetFrom->pSmaF, fNameFrom);
-  tsdbSmaFileName(pTsdb, pSetTo->diskId, pSetTo->fid, pSetTo->pSmaF, fNameTo);
-
-  pOutFD = taosOpenFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
-  if (pOutFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  PInFD = taosOpenFile(fNameFrom, TD_FILE_READ);
-  if (PInFD == NULL) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  n = taosFSendFile(pOutFD, PInFD, 0, pSetFrom->pSmaF->size);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-  taosCloseFile(&pOutFD);
-  taosCloseFile(&PInFD);
-
-  return code;
-
-_err:
-  tsdbError("vgId:%d, tsdb DFileSet copy failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
-  return code;
-}
-
 // SDelFWriter ====================================================
 int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile, STsdb *pTsdb) {
   int32_t      code = 0;
@@ -1558,7 +1534,6 @@ _err:
   tsdbError("vgId:%d, update del file hdr failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
-
 // SDelFReader ====================================================
 struct SDelFReader {
   STsdb    *pTsdb;
