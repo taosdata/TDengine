@@ -7,3 +7,7 @@ edition = "2021"
 taos = { version = "*", default-features = false, features = ["ws"] }
 tokio = { version = "1", features = ["full"]}
 anyhow = "1.0.0" 
+serde = { version = "1", features = ["derive"]}
+chrono = "*"
+pretty_env_logger = "0.4"
+log = "*"
