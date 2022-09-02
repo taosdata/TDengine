@@ -245,6 +245,12 @@ static const SSysTableShowAdapter sysTableShowAdapter[] = {
     .numOfShowCols = 1,
     .pShowCols = {"*"}
   },
+  { .showType = QUERY_NODE_SHOW_VNODES_STMT,
+    .pDbName = TSDB_INFORMATION_SCHEMA_DB,
+    .pTableName = TSDB_INS_TABLE_VNODES,
+    .numOfShowCols = 1,
+    .pShowCols = {"*"}
+  },
 };
 // clang-format on
 
@@ -3476,6 +3482,7 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->walRetentionSize = pStmt->pOptions->walRetentionSize;
   pReq->walRollPeriod = pStmt->pOptions->walRollPeriod;
   pReq->walSegmentSize = pStmt->pOptions->walSegmentSize;
+  pReq->sstTrigger = pStmt->pOptions->sstTrigger;
   pReq->ignoreExist = pStmt->ignoreExists;
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
@@ -3761,6 +3768,9 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
         checkDbRangeOption(pCxt, "walSegmentSize", pOptions->walSegmentSize, TSDB_DB_MIN_WAL_SEGMENT_SIZE, INT32_MAX);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbRangeOption(pCxt, "sstTrigger", pOptions->sstTrigger, TSDB_MIN_SST_TRIGGER, TSDB_MAX_SST_TRIGGER);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = checkOptionsDependency(pCxt, pDbName, pOptions);
   }
   return code;
@@ -3833,6 +3843,7 @@ static void buildAlterDbReq(STranslateContext* pCxt, SAlterDatabaseStmt* pStmt, 
   pReq->cacheLast = pStmt->pOptions->cacheModel;
   pReq->cacheLastSize = pStmt->pOptions->cacheLastSize;
   pReq->replications = pStmt->pOptions->replica;
+  pReq->sstTrigger = pStmt->pOptions->sstTrigger;
   return;
 }
 
@@ -5837,6 +5848,25 @@ static int32_t rewriteShowDnodeVariables(STranslateContext* pCxt, SQuery* pQuery
   return code;
 }
 
+static int32_t rewriteShowVnodes(STranslateContext* pCxt, SQuery* pQuery) {
+  SShowVnodesStmt* pShow = (SShowVnodesStmt*)(pQuery->pRoot);
+  SSelectStmt*     pStmt = NULL;
+  int32_t          code = createSelectStmtForShow(QUERY_NODE_SHOW_VNODES_STMT, &pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (NULL != pShow->pDnodeId) {
+      code = createOperatorNode(OP_TYPE_EQUAL, "dnode_id", pShow->pDnodeId, &pStmt->pWhere);
+    } else {
+      code = createOperatorNode(OP_TYPE_EQUAL, "dnode_endpoint", pShow->pDnodeEndpoint, &pStmt->pWhere);
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pQuery->showRewrite = true;
+    nodesDestroyNode(pQuery->pRoot);
+    pQuery->pRoot = (SNode*)pStmt;
+  }
+  return code;
+}
+
 static SNode* createBlockDistInfoFunc() {
   SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   if (NULL == pFunc) {
@@ -6408,7 +6438,8 @@ typedef struct SVgroupDropTableBatch {
   char             dbName[TSDB_DB_NAME_LEN];
 } SVgroupDropTableBatch;
 
-static void addDropTbReqIntoVgroup(SHashObj* pVgroupHashmap, SDropTableClause* pClause, SVgroupInfo* pVgInfo, uint64_t suid) {
+static void addDropTbReqIntoVgroup(SHashObj* pVgroupHashmap, SDropTableClause* pClause, SVgroupInfo* pVgInfo,
+                                   uint64_t suid) {
   SVDropTbReq            req = {.name = pClause->tableName, .suid = suid, .igNotExists = pClause->ignoreNotExists};
   SVgroupDropTableBatch* pTableBatch = taosHashGet(pVgroupHashmap, &pVgInfo->vgId, sizeof(pVgInfo->vgId));
   if (NULL == pTableBatch) {
@@ -6945,6 +6976,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       break;
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
       code = rewriteShowDnodeVariables(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_VNODES_STMT:
+      code = rewriteShowVnodes(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT:
       code = rewriteShowTableDist(pCxt, pQuery);

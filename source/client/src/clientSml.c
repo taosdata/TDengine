@@ -537,7 +537,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
 
         code = smlSendMetaMsg(info, &pName, pColumns, pTags, pTableMeta, action);
         if (code != TSDB_CODE_SUCCESS) {
-          uError("SML:0x%" PRIx64 " smlSendMetaMsg failed. can not create %s", info->id, superTable);
+          uError("SML:0x%" PRIx64 " smlSendMetaMsg failed. can not create %s", info->id, pName.tname);
           goto end;
         }
       }
@@ -555,7 +555,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
 
     code = catalogGetSTableMeta(info->pCatalog, &conn, &pName, &pTableMeta);
     if (code != TSDB_CODE_SUCCESS) {
-      uError("SML:0x%" PRIx64 " catalogGetSTableMeta failed. super table name %s", info->id, (char *)superTable);
+      uError("SML:0x%" PRIx64 " catalogGetSTableMeta failed. super table name %s", info->id, pName.tname);
       goto end;
     }
 
@@ -563,12 +563,12 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
       code = smlCheckMeta(&(pTableMeta->schema[pTableMeta->tableInfo.numOfColumns]), pTableMeta->tableInfo.numOfTags,
                           sTableData->tags, true);
       if (code != TSDB_CODE_SUCCESS) {
-        uError("SML:0x%" PRIx64 " check tag failed. super table name %s", info->id, (char *)superTable);
+        uError("SML:0x%" PRIx64 " check tag failed. super table name %s", info->id, pName.tname);
         goto end;
       }
       code = smlCheckMeta(&(pTableMeta->schema[0]), pTableMeta->tableInfo.numOfColumns, sTableData->cols, false);
       if (code != TSDB_CODE_SUCCESS) {
-        uError("SML:0x%" PRIx64 " check cols failed. super table name %s", info->id, (char *)superTable);
+        uError("SML:0x%" PRIx64 " check cols failed. super table name %s", info->id, pName.tname);
         goto end;
       }
     }
@@ -1559,7 +1559,7 @@ cleanup:
 
 /************* TSDB_SML_JSON_PROTOCOL function start **************/
 static int32_t smlJsonCreateSring(const char **output, char *input, int32_t inputLen) {
-  *output = (const char *)taosMemoryMalloc(inputLen);
+  *output = (const char *)taosMemoryCalloc(1, inputLen);
   if (*output == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -2450,9 +2450,11 @@ static void smlInsertCallback(void *param, void *res, int32_t code) {
   uDebug("SML:0x%" PRIx64 " result. code:%d, msg:%s", info->id, pRequest->code, pRequest->msgBuf);
   // lock
   taosThreadSpinLock(&info->params->lock);
-  info->params->request->body.resInfo.numOfRows += rows;
   if (code != TSDB_CODE_SUCCESS) {
     info->params->request->code = code;
+    info->params->request->body.resInfo.numOfRows += rows;
+  }else{
+    info->params->request->body.resInfo.numOfRows += info->affectedRows;
   }
   taosThreadSpinUnlock(&info->params->lock);
   // unlock

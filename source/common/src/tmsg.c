@@ -2026,6 +2026,7 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   if (tEncodeI64(&encoder, pReq->walRetentionSize) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->walRollPeriod) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->walSegmentSize) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->sstTrigger) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->ignoreExist) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->numOfRetensions) < 0) return -1;
   for (int32_t i = 0; i < pReq->numOfRetensions; ++i) {
@@ -2072,6 +2073,7 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
   if (tDecodeI64(&decoder, &pReq->walRetentionSize) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->walRollPeriod) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->walSegmentSize) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->sstTrigger) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->ignoreExist) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->numOfRetensions) < 0) return -1;
   pReq->pRetensions = taosArrayInit(pReq->numOfRetensions, sizeof(SRetention));
@@ -2122,6 +2124,7 @@ int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   if (tEncodeI8(&encoder, pReq->strict) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->cacheLast) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->replications) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->sstTrigger) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2148,6 +2151,7 @@ int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
   if (tDecodeI8(&decoder, &pReq->strict) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->cacheLast) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->replications) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->sstTrigger) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
