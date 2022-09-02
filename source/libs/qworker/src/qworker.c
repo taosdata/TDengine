@@ -206,6 +206,10 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
   int32_t            code = 0;
   SOutputData        output = {0};
 
+  if (NULL == ctx->sinkHandle) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   *dataLen = 0;
 
   while (true) {
