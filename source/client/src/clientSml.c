@@ -547,6 +547,8 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
         goto end;
       }
       needCheckMeta = true;
+      taosHashCleanup(hashTmp);
+      hashTmp = NULL;
     } else {
       uError("SML:0x%" PRIx64 " load table meta error: %s", info->id, tstrerror(code));
       goto end;
@@ -576,7 +578,6 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
     sTableData->tableMeta = pTableMeta;
 
     tableMetaSml = (SSmlSTableMeta **)taosHashIterate(info->superTables, tableMetaSml);
-    taosHashCleanup(hashTmp);
   }
   return 0;
 
