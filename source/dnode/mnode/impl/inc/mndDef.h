@@ -305,13 +305,15 @@ typedef struct {
   int8_t  hashMethod;  // default is 1
   int8_t  cacheLast;
   int8_t  schemaless;
+  int16_t hashPrefix;
+  int16_t hashSuffix;
+  int16_t sstTrigger;
   int32_t numOfRetensions;
   SArray* pRetensions;
   int32_t walRetentionPeriod;
-  int64_t walRetentionSize;
   int32_t walRollPeriod;
+  int64_t walRetentionSize;
   int64_t walSegmentSize;
-  int16_t sstTrigger;
 } SDbCfg;
 
 typedef struct {

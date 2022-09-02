@@ -20,6 +20,7 @@
 #include "tcrc32c.h"
 #include "tdef.h"
 #include "tmd5.h"
+#include "thash.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -67,6 +68,8 @@ static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *tar
           context.digest[12], context.digest[13], context.digest[14], context.digest[15]);
   memcpy(target, buf, TSDB_PASSWORD_LEN);
 }
+
+#define taosGetTbHashVal(tbname, tblen, method, prefix, suffix) MurmurHash3_32((tbname), (tblen))
 
 #ifdef __cplusplus
 }
