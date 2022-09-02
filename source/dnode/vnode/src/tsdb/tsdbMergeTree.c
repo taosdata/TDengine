@@ -36,6 +36,10 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
                        STimeWindow *pTimeWindow, SVersionRange *pRange) {
   int32_t code = 0;
   *pIter = taosMemoryCalloc(1, sizeof(SLDataIter));
+  if (*pIter == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
 
   (*pIter)->uid = uid;
   (*pIter)->timeWindow = *pTimeWindow;
@@ -271,16 +275,24 @@ static FORCE_INLINE int32_t tLDataIterCmprFn(const void *p1, const void *p2) {
   }
 }
 
-void tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader* pFReader, uint64_t uid, STimeWindow* pTimeWindow, SVersionRange* pVerRange) {
+int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader* pFReader, uint64_t uid, STimeWindow* pTimeWindow, SVersionRange* pVerRange) {
   pMTree->backward = backward;
   pMTree->pIter = NULL;
   pMTree->pIterList = taosArrayInit(4, POINTER_BYTES);
+  if (pMTree->pIterList == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   tRBTreeCreate(&pMTree->rbt, tLDataIterCmprFn);
+  int32_t code = TSDB_CODE_OUT_OF_MEMORY;
 
   struct SLDataIter* pIterList[TSDB_DEFAULT_LAST_FILE] = {0};
   for(int32_t i = 0; i < pFReader->pSet->nLastF; ++i) { // open all last file
-    /*int32_t code = */tLDataIterOpen(&pIterList[i], pFReader, i, pMTree->backward, uid, pTimeWindow, pVerRange);
+    code = tLDataIterOpen(&pIterList[i], pFReader, i, pMTree->backward, uid, pTimeWindow, pVerRange);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _end;
+    }
+
     bool hasVal = tLDataIterNextRow(pIterList[i]);
     if (hasVal) {
       taosArrayPush(pMTree->pIterList, &pIterList[i]);
@@ -289,6 +301,12 @@ void tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader* pFReader,
       tLDataIterClose(pIterList[i]);
     }
   }
+
+  return code;
+
+  _end:
+  tMergeTreeClose(pMTree);
+  return code;
 }
 
 void tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter) { tRBTreePut(&pMTree->rbt, (SRBTreeNode *)pIter); }

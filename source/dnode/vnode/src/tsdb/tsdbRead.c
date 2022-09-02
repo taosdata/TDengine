@@ -1748,6 +1748,70 @@ static int32_t doMergeThreeLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
 }
 #endif
 
+static int32_t initMemDataIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader* pReader) {
+  if (pBlockScanInfo->iterInit) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  TSDBKEY startKey = {0};
+  if (ASCENDING_TRAVERSE(pReader->order)) {
+    startKey = (TSDBKEY){.ts = pReader->window.skey, .version = pReader->verRange.minVer};
+  } else {
+    startKey = (TSDBKEY){.ts = pReader->window.ekey, .version = pReader->verRange.maxVer};
+  }
+
+  int32_t backward = (!ASCENDING_TRAVERSE(pReader->order));
+
+  STbData* d = NULL;
+  if (pReader->pReadSnap->pMem != NULL) {
+    d = tsdbGetTbDataFromMemTable(pReader->pReadSnap->pMem, pReader->suid, pBlockScanInfo->uid);
+    if (d != NULL) {
+      code = tsdbTbDataIterCreate(d, &startKey, backward, &pBlockScanInfo->iter.iter);
+      if (code == TSDB_CODE_SUCCESS) {
+        pBlockScanInfo->iter.hasVal = (tsdbTbDataIterGet(pBlockScanInfo->iter.iter) != NULL);
+
+        tsdbDebug("%p uid:%" PRId64 ", check data in mem from skey:%" PRId64 ", order:%d, ts range in buf:%" PRId64
+                      "-%" PRId64 " %s",
+                  pReader, pBlockScanInfo->uid, startKey.ts, pReader->order, d->minKey, d->maxKey, pReader->idStr);
+      } else {
+        tsdbError("%p uid:%" PRId64 ", failed to create iterator for imem, code:%s, %s", pReader, pBlockScanInfo->uid,
+                  tstrerror(code), pReader->idStr);
+        return code;
+      }
+    }
+  } else {
+    tsdbDebug("%p uid:%" PRId64 ", no data in mem, %s", pReader, pBlockScanInfo->uid, pReader->idStr);
+  }
+
+  STbData* di = NULL;
+  if (pReader->pReadSnap->pIMem != NULL) {
+    di = tsdbGetTbDataFromMemTable(pReader->pReadSnap->pIMem, pReader->suid, pBlockScanInfo->uid);
+    if (di != NULL) {
+      code = tsdbTbDataIterCreate(di, &startKey, backward, &pBlockScanInfo->iiter.iter);
+      if (code == TSDB_CODE_SUCCESS) {
+        pBlockScanInfo->iiter.hasVal = (tsdbTbDataIterGet(pBlockScanInfo->iiter.iter) != NULL);
+
+        tsdbDebug("%p uid:%" PRId64 ", check data in imem from skey:%" PRId64 ", order:%d, ts range in buf:%" PRId64
+                      "-%" PRId64 " %s",
+                  pReader, pBlockScanInfo->uid, startKey.ts, pReader->order, di->minKey, di->maxKey, pReader->idStr);
+      } else {
+        tsdbError("%p uid:%" PRId64 ", failed to create iterator for mem, code:%s, %s", pReader, pBlockScanInfo->uid,
+                  tstrerror(code), pReader->idStr);
+        return code;
+      }
+    }
+  } else {
+    tsdbDebug("%p uid:%" PRId64 ", no data in imem, %s", pReader, pBlockScanInfo->uid, pReader->idStr);
+  }
+
+  initDelSkylineIterator(pBlockScanInfo, pReader, d, di);
+
+  pBlockScanInfo->iterInit = true;
+  return TSDB_CODE_SUCCESS;
+}
+
 static bool isValidFileBlockRow(SBlockData* pBlockData, SFileBlockDumpInfo* pDumpInfo,
                                 STableBlockScanInfo* pBlockScanInfo, STsdbReader* pReader) {
   // it is an multi-table data block
@@ -1779,24 +1843,19 @@ static bool isValidFileBlockRow(SBlockData* pBlockData, SFileBlockDumpInfo* pDum
 
 static bool outOfTimeWindow(int64_t ts, STimeWindow* pWindow) { return (ts > pWindow->ekey) || (ts < pWindow->skey); }
 
-static bool initLastBlockReader(SLastBlockReader* pLastBlockReader, uint64_t uid, SDataFReader* pFReader) {
-  // the last block reader has been initialized for this table.
-  if (pLastBlockReader->uid == uid) {
-    return true;
+static bool nextRowFromLastBlocks(SLastBlockReader* pLastBlockReader, STableBlockScanInfo* pBlockScanInfo) {
+  while(1) {
+    bool hasVal = tMergeTreeNext(&pLastBlockReader->mergeTree);
+    if (!hasVal) {
+      return false;
+    }
+
+    TSDBROW row = tMergeTreeGetRow(&pLastBlockReader->mergeTree);
+    TSDBKEY k = TSDBROW_KEY(&row);
+    if (!hasBeenDropped(pBlockScanInfo->delSkyline, &pBlockScanInfo->lastBlockDelIndex, &k, pLastBlockReader->order)) {
+      return true;
+    }
   }
-
-  if (pLastBlockReader->uid != 0) {
-    tMergeTreeClose(&pLastBlockReader->mergeTree);
-  }
-
-  pLastBlockReader->uid = uid;
-  /*int32_t code = */ tMergeTreeOpen(&pLastBlockReader->mergeTree, (pLastBlockReader->order == TSDB_ORDER_DESC),
-                                     pFReader, uid, &pLastBlockReader->window, &pLastBlockReader->verRange);
-  return tMergeTreeNext(&pLastBlockReader->mergeTree);
-}
-
-static bool nextRowInLastBlock(SLastBlockReader* pLastBlockReader, STableBlockScanInfo* pBlockScanInfo) {
-  return tMergeTreeNext(&pLastBlockReader->mergeTree);
 
 #if 0
   *(pLastBlockReader->rowIndex) += step;
@@ -1852,6 +1911,29 @@ static bool nextRowInLastBlock(SLastBlockReader* pLastBlockReader, STableBlockSc
   setAllRowsChecked(pLastBlockReader);
   return false;
 #endif
+}
+
+static bool initLastBlockReader(SLastBlockReader* pLastBlockReader, STableBlockScanInfo* pBlockScanInfo,
+                                STsdbReader* pReader) {
+  // the last block reader has been initialized for this table.
+  if (pLastBlockReader->uid == pBlockScanInfo->uid) {
+    return true;
+  }
+
+  if (pLastBlockReader->uid != 0) {
+    tMergeTreeClose(&pLastBlockReader->mergeTree);
+  }
+
+  initMemDataIterator(pBlockScanInfo, pReader);
+  pLastBlockReader->uid = pBlockScanInfo->uid;
+  int32_t code =
+      tMergeTreeOpen(&pLastBlockReader->mergeTree, (pLastBlockReader->order == TSDB_ORDER_DESC), pReader->pFileReader,
+                     pBlockScanInfo->uid, &pLastBlockReader->window, &pLastBlockReader->verRange);
+  if (code != TSDB_CODE_SUCCESS) {
+    return false;
+  }
+
+  return nextRowFromLastBlocks(pLastBlockReader, pBlockScanInfo);
 }
 
 static int64_t getCurrentKeyInLastBlock(SLastBlockReader* pLastBlockReader) {
@@ -1997,70 +2079,6 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
 }
 
 void setComposedBlockFlag(STsdbReader* pReader, bool composed) { pReader->status.composedDataBlock = composed; }
-
-static int32_t initMemDataIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader* pReader) {
-  if (pBlockScanInfo->iterInit) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  TSDBKEY startKey = {0};
-  if (ASCENDING_TRAVERSE(pReader->order)) {
-    startKey = (TSDBKEY){.ts = pReader->window.skey, .version = pReader->verRange.minVer};
-  } else {
-    startKey = (TSDBKEY){.ts = pReader->window.ekey, .version = pReader->verRange.maxVer};
-  }
-
-  int32_t backward = (!ASCENDING_TRAVERSE(pReader->order));
-
-  STbData* d = NULL;
-  if (pReader->pReadSnap->pMem != NULL) {
-    d = tsdbGetTbDataFromMemTable(pReader->pReadSnap->pMem, pReader->suid, pBlockScanInfo->uid);
-    if (d != NULL) {
-      code = tsdbTbDataIterCreate(d, &startKey, backward, &pBlockScanInfo->iter.iter);
-      if (code == TSDB_CODE_SUCCESS) {
-        pBlockScanInfo->iter.hasVal = (tsdbTbDataIterGet(pBlockScanInfo->iter.iter) != NULL);
-
-        tsdbDebug("%p uid:%" PRId64 ", check data in mem from skey:%" PRId64 ", order:%d, ts range in buf:%" PRId64
-                  "-%" PRId64 " %s",
-                  pReader, pBlockScanInfo->uid, startKey.ts, pReader->order, d->minKey, d->maxKey, pReader->idStr);
-      } else {
-        tsdbError("%p uid:%" PRId64 ", failed to create iterator for imem, code:%s, %s", pReader, pBlockScanInfo->uid,
-                  tstrerror(code), pReader->idStr);
-        return code;
-      }
-    }
-  } else {
-    tsdbDebug("%p uid:%" PRId64 ", no data in mem, %s", pReader, pBlockScanInfo->uid, pReader->idStr);
-  }
-
-  STbData* di = NULL;
-  if (pReader->pReadSnap->pIMem != NULL) {
-    di = tsdbGetTbDataFromMemTable(pReader->pReadSnap->pIMem, pReader->suid, pBlockScanInfo->uid);
-    if (di != NULL) {
-      code = tsdbTbDataIterCreate(di, &startKey, backward, &pBlockScanInfo->iiter.iter);
-      if (code == TSDB_CODE_SUCCESS) {
-        pBlockScanInfo->iiter.hasVal = (tsdbTbDataIterGet(pBlockScanInfo->iiter.iter) != NULL);
-
-        tsdbDebug("%p uid:%" PRId64 ", check data in imem from skey:%" PRId64 ", order:%d, ts range in buf:%" PRId64
-                  "-%" PRId64 " %s",
-                  pReader, pBlockScanInfo->uid, startKey.ts, pReader->order, di->minKey, di->maxKey, pReader->idStr);
-      } else {
-        tsdbError("%p uid:%" PRId64 ", failed to create iterator for mem, code:%s, %s", pReader, pBlockScanInfo->uid,
-                  tstrerror(code), pReader->idStr);
-        return code;
-      }
-    }
-  } else {
-    tsdbDebug("%p uid:%" PRId64 ", no data in imem, %s", pReader, pBlockScanInfo->uid, pReader->idStr);
-  }
-
-  initDelSkylineIterator(pBlockScanInfo, pReader, d, di);
-
-  pBlockScanInfo->iterInit = true;
-  return TSDB_CODE_SUCCESS;
-}
 
 int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader* pReader, STbData* pMemTbData,
                                STbData* piMemTbData) {
@@ -2296,7 +2314,7 @@ static int32_t doLoadLastBlockSequentially(STsdbReader* pReader) {
   while (1) {
     // load the last data block of current table
     STableBlockScanInfo* pScanInfo = pStatus->pTableIter;
-    bool hasVal = initLastBlockReader(pLastBlockReader, pScanInfo->uid, pReader->pFileReader);
+    bool hasVal = initLastBlockReader(pLastBlockReader, pScanInfo, pReader);
     if (!hasVal) {
       bool hasNexTable = moveToNextTable(pOrderedCheckInfo, pStatus);
       if (!hasNexTable) {
@@ -2879,7 +2897,7 @@ int32_t doMergeRowsInFileBlocks(SBlockData* pBlockData, STableBlockScanInfo* pSc
 
 int32_t doMergeRowsInLastBlock(SLastBlockReader* pLastBlockReader, STableBlockScanInfo* pScanInfo, int64_t ts,
                                SRowMerger* pMerger) {
-  while (nextRowInLastBlock(pLastBlockReader, pScanInfo)) {
+  while (nextRowFromLastBlocks(pLastBlockReader, pScanInfo)) {
     int64_t next1 = getCurrentKeyInLastBlock(pLastBlockReader);
     if (next1 == ts) {
       TSDBROW fRow1 = tMergeTreeGetRow(&pLastBlockReader->mergeTree);
