@@ -16,7 +16,7 @@
 #include "tsdb.h"
 
 // SLDataIter =================================================
-typedef struct SLDataIter {
+struct SLDataIter {
   SRBTreeNode   node;
   SSstBlk      *pSstBlk;
   SDataFReader *pReader;
@@ -30,7 +30,7 @@ typedef struct SLDataIter {
   uint64_t      uid;
   STimeWindow   timeWindow;
   SVersionRange verRange;
-} SLDataIter;
+};
 
 int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t iSst, int8_t backward, uint64_t uid,
                        STimeWindow *pTimeWindow, SVersionRange *pRange) {

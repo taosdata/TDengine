@@ -65,6 +65,7 @@ typedef struct SBlockInfo    SBlockInfo;
 typedef struct SSmaInfo      SSmaInfo;
 typedef struct SBlockCol     SBlockCol;
 typedef struct SVersionRange SVersionRange;
+typedef struct SLDataIter    SLDataIter;
 
 #define TSDB_FILE_DLMT        ((uint32_t)0xF00AFA0F)
 #define TSDB_MAX_SUBBLOCKS    8
@@ -635,15 +636,15 @@ typedef struct {
 } SRowInfo;
 
 typedef struct SMergeTree {
-  int8_t             backward;
-  SRBTree            rbt;
-  SArray            *pIterList;
-  struct SLDataIter *pIter;
+  int8_t      backward;
+  SRBTree     rbt;
+  SArray     *pIterList;
+  SLDataIter *pIter;
 } SMergeTree;
 
 int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t uid,
                        STimeWindow *pTimeWindow, SVersionRange *pVerRange);
-void    tMergeTreeAddIter(SMergeTree *pMTree, struct SLDataIter *pIter);
+void    tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
 bool    tMergeTreeNext(SMergeTree *pMTree);
 TSDBROW tMergeTreeGetRow(SMergeTree *pMTree);
 void    tMergeTreeClose(SMergeTree *pMTree);
