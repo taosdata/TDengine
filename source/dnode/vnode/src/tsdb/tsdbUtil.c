@@ -232,7 +232,7 @@ int32_t tCmprBlockL(void const *lhs, void const *rhs) {
 }
 
 // SDataBlk ======================================================
-void tBlockReset(SDataBlk *pDataBlk) {
+void tDataBlkReset(SDataBlk *pDataBlk) {
   *pDataBlk = (SDataBlk){.minKey = TSDBKEY_MAX, .maxKey = TSDBKEY_MIN, .minVer = VERSION_MAX, .maxVer = VERSION_MIN};
 }
 
@@ -291,7 +291,7 @@ int32_t tGetDataBlk(uint8_t *p, void *ph) {
   return n;
 }
 
-int32_t tBlockCmprFn(const void *p1, const void *p2) {
+int32_t tDataBlkCmprFn(const void *p1, const void *p2) {
   SDataBlk *pBlock1 = (SDataBlk *)p1;
   SDataBlk *pBlock2 = (SDataBlk *)p2;
 
@@ -304,7 +304,7 @@ int32_t tBlockCmprFn(const void *p1, const void *p2) {
   return 0;
 }
 
-bool tBlockHasSma(SDataBlk *pDataBlk) {
+bool tDataBlkHasSma(SDataBlk *pDataBlk) {
   if (pDataBlk->nSubBlock > 1) return false;
   if (pDataBlk->hasDup) return false;
 

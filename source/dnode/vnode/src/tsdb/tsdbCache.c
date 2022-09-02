@@ -604,7 +604,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
       if (state->iBlock >= 0) {
         SDataBlk block = {0};
 
-        tBlockReset(&block);
+        tDataBlkReset(&block);
         // tBlockDataReset(&state->blockData);
         tBlockDataReset(state->pBlockData);
 

@@ -478,7 +478,7 @@ static int32_t tsdbSnapWriteTableDataEnd(STsdbSnapWriter* pWriter) {
         code = tMapDataPutItem(&pWriter->mBlockW, &pWriter->blockW, tPutDataBlk);
         if (code) goto _err;
 
-        tBlockReset(&pWriter->blockW);
+        tDataBlkReset(&pWriter->blockW);
         tBlockDataClear(&pWriter->bDataW);
       }
 
@@ -671,7 +671,7 @@ static int32_t tsdbSnapWriteTableDataImpl(STsdbSnapWriter* pWriter) {
             code = tMapDataPutItem(&pWriter->mBlockW, &pWriter->blockW, tPutDataBlk);
             if (code) goto _err;
 
-            tBlockReset(&pWriter->blockW);
+            tDataBlkReset(&pWriter->blockW);
             tBlockDataClear(&pWriter->bDataW);
           }
 
@@ -722,7 +722,7 @@ static int32_t tsdbSnapWriteTableDataImpl(STsdbSnapWriter* pWriter) {
     code = tMapDataPutItem(&pWriter->mBlockW, &pWriter->blockW, tPutDataBlk);
     if (code) goto _err;
 
-    tBlockReset(&pWriter->blockW);
+    tDataBlkReset(&pWriter->blockW);
     tBlockDataClear(&pWriter->bDataW);
   }
 
@@ -803,7 +803,7 @@ static int32_t tsdbSnapWriteTableData(STsdbSnapWriter* pWriter, TABLEID id) {
     pWriter->pBlockIdxW->suid = id.suid;
     pWriter->pBlockIdxW->uid = id.uid;
 
-    tBlockReset(&pWriter->blockW);
+    tDataBlkReset(&pWriter->blockW);
     tBlockDataReset(&pWriter->bDataW);
     tMapDataReset(&pWriter->mBlockW);
   }

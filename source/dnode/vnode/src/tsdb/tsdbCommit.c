@@ -566,7 +566,7 @@ static int32_t tsdbCommitDataBlock(SCommitter *pCommitter) {
 
   ASSERT(pBlockData->nRow > 0);
 
-  tBlockReset(&block);
+  tDataBlkReset(&block);
 
   // info
   block.nRow += pBlockData->nRow;
@@ -1246,7 +1246,7 @@ static int32_t tsdbMergeTableData(SCommitter *pCommitter, TABLEID id) {
     tMapDataGetItemByIdx(&pCommitter->dReader.mBlock, iBlock, pDataBlk, tGetDataBlk);
     while (pDataBlk && pRowInfo) {
       SDataBlk tBlock = {.minKey = TSDBROW_KEY(&pRowInfo->row), .maxKey = TSDBROW_KEY(&pRowInfo->row)};
-      int32_t  c = tBlockCmprFn(pDataBlk, &tBlock);
+      int32_t  c = tDataBlkCmprFn(pDataBlk, &tBlock);
 
       if (c < 0) {
         code = tMapDataPutItem(&pCommitter->dWriter.mBlock, pDataBlk, tPutDataBlk);

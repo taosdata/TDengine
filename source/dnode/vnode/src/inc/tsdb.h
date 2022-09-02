@@ -115,11 +115,11 @@ int32_t tPutBlockCol(uint8_t *p, void *ph);
 int32_t tGetBlockCol(uint8_t *p, void *ph);
 int32_t tBlockColCmprFn(const void *p1, const void *p2);
 // SDataBlk
-void    tBlockReset(SDataBlk *pBlock);
+void    tDataBlkReset(SDataBlk *pBlock);
 int32_t tPutDataBlk(uint8_t *p, void *ph);
 int32_t tGetDataBlk(uint8_t *p, void *ph);
-int32_t tBlockCmprFn(const void *p1, const void *p2);
-bool    tBlockHasSma(SDataBlk *pBlock);
+int32_t tDataBlkCmprFn(const void *p1, const void *p2);
+bool    tDataBlkHasSma(SDataBlk *pDataBlk);
 // SSstBlk
 int32_t tPutSstBlk(uint8_t *p, void *ph);
 int32_t tGetSstBlk(uint8_t *p, void *ph);
