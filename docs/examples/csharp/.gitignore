@@ -1,4 +1,7 @@
-bin
-obj
+cloud-example/connect/bin
+cloud-example/connect/obj
+cloud-example/usage/bin
+cloud-example/usage/obj
+cloud-example/stmt/bin
+cloud-example/stmt/obj
 .vs
-*.sln
