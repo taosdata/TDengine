@@ -1308,7 +1308,7 @@ static int32_t tsdbInitLastBlockIfNeed(SCommitter *pCommitter, TABLEID id) {
 
   SBlockData *pBDatal = &pCommitter->dWriter.bDatal;
   if (pBDatal->suid || pBDatal->uid) {
-    if (pBDatal->suid != id.suid || id.uid == 0) {
+    if ((pBDatal->suid != id.suid) || (id.suid == 0)) {
       if (pBDatal->nRow) {
         code = tsdbCommitLastBlock(pCommitter);
         if (code) goto _exit;

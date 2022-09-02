@@ -2244,9 +2244,12 @@ static void extractOrderedTableUidList(SUidOrderCheckInfo* pOrderCheckInfo, SRea
 }
 
 static int32_t initOrderCheckInfo(SUidOrderCheckInfo* pOrderCheckInfo, SReaderStatus* pStatus) {
-  if (pOrderCheckInfo->tableUidList == NULL) {
-    int32_t total = taosHashGetSize(pStatus->pTableMap);
+  int32_t total = taosHashGetSize(pStatus->pTableMap);
+  if (total == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
 
+  if (pOrderCheckInfo->tableUidList == NULL) {
     pOrderCheckInfo->currentIndex = 0;
     pOrderCheckInfo->tableUidList = taosMemoryMalloc(total * sizeof(uint64_t));
     if (pOrderCheckInfo->tableUidList == NULL) {
@@ -2254,21 +2257,17 @@ static int32_t initOrderCheckInfo(SUidOrderCheckInfo* pOrderCheckInfo, SReaderSt
     }
 
     extractOrderedTableUidList(pOrderCheckInfo, pStatus);
-
     uint64_t uid = pOrderCheckInfo->tableUidList[0];
     pStatus->pTableIter = taosHashGet(pStatus->pTableMap, &uid, sizeof(uid));
   } else {
     if (pStatus->pTableIter == NULL) {  // it is the last block of a new file
-      //      ASSERT(pOrderCheckInfo->currentIndex == taosHashGetSize(pStatus->pTableMap));
-
       pOrderCheckInfo->currentIndex = 0;
       uint64_t uid = pOrderCheckInfo->tableUidList[pOrderCheckInfo->currentIndex];
       pStatus->pTableIter = taosHashGet(pStatus->pTableMap, &uid, sizeof(uid));
 
       // the tableMap has already updated
       if (pStatus->pTableIter == NULL) {
-        void* p =
-            taosMemoryRealloc(pOrderCheckInfo->tableUidList, taosHashGetSize(pStatus->pTableMap) * sizeof(uint64_t));
+        void* p = taosMemoryRealloc(pOrderCheckInfo->tableUidList, total * sizeof(uint64_t));
         if (p == NULL) {
           return TSDB_CODE_OUT_OF_MEMORY;
         }
