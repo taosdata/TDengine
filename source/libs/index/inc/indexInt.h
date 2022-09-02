@@ -40,26 +40,31 @@ extern "C" {
 #define indexTrace(...) do { if (idxDebugFlag & DEBUG_TRACE) { taosPrintLog("IDX", DEBUG_TRACE, idxDebugFlag, __VA_ARGS__);} } while (0)
 // clang-format on
 
+extern void* indexQhandle;
+
 typedef enum { LT, LE, GT, GE, CONTAINS, EQ } RangeType;
 typedef enum { kTypeValue, kTypeDeletion } STermValueType;
 typedef enum { kRebuild, kFinished } SIdxStatus;
 
 typedef struct SIndexStat {
-  int32_t totalAdded;    //
-  int32_t totalDeled;    //
-  int32_t totalUpdated;  //
-  int32_t totalTerms;    //
-  int32_t distinctCol;   // distinct column
+  int32_t total;
+  int32_t add;      //
+  int32_t del;      //
+  int32_t update;   //
+  int32_t terms;    //
+  int32_t distCol;  // distinct column
 } SIndexStat;
 
 struct SIndex {
+  SIndexOpts opts;
+
   int64_t   refId;
   void*     cache;
   void*     tindex;
   SHashObj* colObj;  // < field name, field id>
 
-  int64_t    suid;      // current super table id, -1 is normal table
-  int32_t    cVersion;  // current version allocated to cache
+  int64_t    suid;     // current super table id, -1 is normal table
+  int32_t    version;  // current version allocated to cache
   SLRUCache* lru;
   char*      path;
 
@@ -68,7 +73,6 @@ struct SIndex {
   TdThreadMutex mtx;
   tsem_t        sem;
   bool          quit;
-  SIndexOpts    opts;
 };
 
 struct SIndexMultiTermQuery {
@@ -111,24 +115,21 @@ typedef struct Iterate {
 
 void iterateValueDestroy(IterateValue* iv, bool destroy);
 
-extern void* indexQhandle;
-
 typedef struct TFileCacheKey {
   uint64_t suid;
   uint8_t  colType;
   char*    colName;
   int32_t  nColName;
 } ICacheKey;
+
+int32_t idxSerialCacheKey(ICacheKey* key, char* buf);
+
 int idxFlushCacheToTFile(SIndex* sIdx, void*, bool quit);
 
 int64_t idxAddRef(void* p);
 int32_t idxRemoveRef(int64_t ref);
 void    idxAcquireRef(int64_t ref);
 void    idxReleaseRef(int64_t ref);
-
-int32_t idxSerialCacheKey(ICacheKey* key, char* buf);
-// int32_t indexSerialKey(ICacheKey* key, char* buf);
-// int32_t indexSerialTermKey(SIndexTerm* itm, char* buf);
 
 #define IDX_TYPE_CONTAIN_EXTERN_TYPE(ty, exTy) (((ty >> 4) & (exTy)) != 0)
 
