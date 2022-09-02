@@ -795,6 +795,20 @@ SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* 
   return (SNode*)setOp;
 }
 
+static void updateWalOptionsDefault(SDatabaseOptions* pOptions) {
+  if (!pOptions->walRetentionPeriodIsSet) {
+    pOptions->walRetentionPeriod =
+        pOptions->replica > 1 ? TSDB_REPS_DEF_DB_WAL_RET_PERIOD : TSDB_REP_DEF_DB_WAL_RET_PERIOD;
+  }
+  if (!pOptions->walRetentionSizeIsSet) {
+    pOptions->walRetentionSize = pOptions->replica > 1 ? TSDB_REPS_DEF_DB_WAL_RET_SIZE : TSDB_REP_DEF_DB_WAL_RET_SIZE;
+  }
+  if (!pOptions->walRollPeriodIsSet) {
+    pOptions->walRollPeriod =
+        pOptions->replica > 1 ? TSDB_REPS_DEF_DB_WAL_ROLL_PERIOD : TSDB_REP_DEF_DB_WAL_ROLL_PERIOD;
+  }
+}
+
 SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   CHECK_PARSER_STATUS(pCxt);
   SDatabaseOptions* pOptions = (SDatabaseOptions*)nodesMakeNode(QUERY_NODE_DATABASE_OPTIONS);
@@ -819,10 +833,9 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->numOfVgroups = TSDB_DEFAULT_VN_PER_DB;
   pOptions->singleStable = TSDB_DEFAULT_DB_SINGLE_STABLE;
   pOptions->schemaless = TSDB_DEFAULT_DB_SCHEMALESS;
-  pOptions->walRetentionPeriod = TSDB_DEFAULT_DB_WAL_RETENTION_PERIOD;
-  pOptions->walRetentionSize = TSDB_DEFAULT_DB_WAL_RETENTION_SIZE;
-  pOptions->walRollPeriod = TSDB_DEFAULT_DB_WAL_ROLL_PERIOD;
+  updateWalOptionsDefault(pOptions);
   pOptions->walSegmentSize = TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE;
+  pOptions->sstTrigger = TSDB_DEFAULT_SST_TRIGGER;
   return (SNode*)pOptions;
 }
 
@@ -854,83 +867,92 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->walRetentionSize = -1;
   pOptions->walRollPeriod = -1;
   pOptions->walSegmentSize = -1;
+  pOptions->sstTrigger = -1;
   return (SNode*)pOptions;
 }
 
 SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOptionType type, void* pVal) {
   CHECK_PARSER_STATUS(pCxt);
+  SDatabaseOptions* pDbOptions = (SDatabaseOptions*)pOptions;
   switch (type) {
     case DB_OPTION_BUFFER:
-      ((SDatabaseOptions*)pOptions)->buffer = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      pDbOptions->buffer = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_CACHEMODEL:
-      COPY_STRING_FORM_STR_TOKEN(((SDatabaseOptions*)pOptions)->cacheModelStr, (SToken*)pVal);
+      COPY_STRING_FORM_STR_TOKEN(pDbOptions->cacheModelStr, (SToken*)pVal);
       break;
     case DB_OPTION_CACHESIZE:
-      ((SDatabaseOptions*)pOptions)->cacheLastSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      pDbOptions->cacheLastSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_COMP:
-      ((SDatabaseOptions*)pOptions)->compressionLevel = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+      pDbOptions->compressionLevel = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_DAYS: {
       SToken* pToken = pVal;
       if (TK_NK_INTEGER == pToken->type) {
-        ((SDatabaseOptions*)pOptions)->daysPerFile = taosStr2Int32(pToken->z, NULL, 10) * 1440;
+        pDbOptions->daysPerFile = taosStr2Int32(pToken->z, NULL, 10) * 1440;
       } else {
-        ((SDatabaseOptions*)pOptions)->pDaysPerFile = (SValueNode*)createDurationValueNode(pCxt, pToken);
+        pDbOptions->pDaysPerFile = (SValueNode*)createDurationValueNode(pCxt, pToken);
       }
       break;
     }
     case DB_OPTION_FSYNC:
-      ((SDatabaseOptions*)pOptions)->fsyncPeriod = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      pDbOptions->fsyncPeriod = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_MAXROWS:
-      ((SDatabaseOptions*)pOptions)->maxRowsPerBlock = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      pDbOptions->maxRowsPerBlock = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_MINROWS:
-      ((SDatabaseOptions*)pOptions)->minRowsPerBlock = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      pDbOptions->minRowsPerBlock = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_KEEP:
-      ((SDatabaseOptions*)pOptions)->pKeep = pVal;
+      pDbOptions->pKeep = pVal;
       break;
     case DB_OPTION_PAGES:
-      ((SDatabaseOptions*)pOptions)->pages = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      pDbOptions->pages = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_PAGESIZE:
-      ((SDatabaseOptions*)pOptions)->pagesize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      pDbOptions->pagesize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_PRECISION:
-      COPY_STRING_FORM_STR_TOKEN(((SDatabaseOptions*)pOptions)->precisionStr, (SToken*)pVal);
+      COPY_STRING_FORM_STR_TOKEN(pDbOptions->precisionStr, (SToken*)pVal);
       break;
     case DB_OPTION_REPLICA:
-      ((SDatabaseOptions*)pOptions)->replica = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+      pDbOptions->replica = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+      updateWalOptionsDefault(pDbOptions);
       break;
     case DB_OPTION_STRICT:
-      COPY_STRING_FORM_STR_TOKEN(((SDatabaseOptions*)pOptions)->strictStr, (SToken*)pVal);
+      COPY_STRING_FORM_STR_TOKEN(pDbOptions->strictStr, (SToken*)pVal);
       break;
     case DB_OPTION_WAL:
-      ((SDatabaseOptions*)pOptions)->walLevel = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+      pDbOptions->walLevel = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_VGROUPS:
-      ((SDatabaseOptions*)pOptions)->numOfVgroups = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      pDbOptions->numOfVgroups = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_SINGLE_STABLE:
-      ((SDatabaseOptions*)pOptions)->singleStable = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
+      pDbOptions->singleStable = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_RETENTIONS:
-      ((SDatabaseOptions*)pOptions)->pRetentions = pVal;
+      pDbOptions->pRetentions = pVal;
       break;
     case DB_OPTION_WAL_RETENTION_PERIOD:
-      ((SDatabaseOptions*)pOptions)->walRetentionPeriod = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      pDbOptions->walRetentionPeriod = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      pDbOptions->walRetentionPeriodIsSet = true;
       break;
     case DB_OPTION_WAL_RETENTION_SIZE:
-      ((SDatabaseOptions*)pOptions)->walRetentionSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      pDbOptions->walRetentionSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      pDbOptions->walRetentionSizeIsSet = true;
       break;
     case DB_OPTION_WAL_ROLL_PERIOD:
-      ((SDatabaseOptions*)pOptions)->walRollPeriod = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      pDbOptions->walRollPeriod = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      pDbOptions->walRollPeriodIsSet = true;
       break;
     case DB_OPTION_WAL_SEGMENT_SIZE:
-      ((SDatabaseOptions*)pOptions)->walSegmentSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      pDbOptions->walSegmentSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      break;
+    case DB_OPTION_SST_TRIGGER:
+      pDbOptions->sstTrigger = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     default:
       break;
@@ -1251,7 +1273,8 @@ SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {
 
 static bool needDbShowStmt(ENodeType type) {
   return QUERY_NODE_SHOW_TABLES_STMT == type || QUERY_NODE_SHOW_STABLES_STMT == type ||
-         QUERY_NODE_SHOW_VGROUPS_STMT == type;
+         QUERY_NODE_SHOW_VGROUPS_STMT == type || QUERY_NODE_SHOW_INDEXES_STMT == type ||
+         QUERY_NODE_SHOW_TAGS_STMT == type;
 }
 
 SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type) {
@@ -1264,7 +1287,7 @@ SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type) {
 SNode* createShowStmtWithCond(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, SNode* pTbName,
                               EOperatorType tableCondType) {
   CHECK_PARSER_STATUS(pCxt);
-  if (needDbShowStmt(type) && NULL == pDbName && NULL == pCxt->pQueryCxt->db) {
+  if (needDbShowStmt(type) && NULL == pDbName) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "db not specified");
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
     return NULL;
@@ -1313,6 +1336,15 @@ SNode* createShowDnodeVariablesStmt(SAstCreateContext* pCxt, SNode* pDnodeId) {
   SShowDnodeVariablesStmt* pStmt = (SShowDnodeVariablesStmt*)nodesMakeNode(QUERY_NODE_SHOW_DNODE_VARIABLES_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->pDnodeId = pDnodeId;
+  return (SNode*)pStmt;
+}
+
+SNode* createShowVnodesStmt(SAstCreateContext* pCxt, SNode* pDnodeId, SNode* pDnodeEndpoint) {
+  CHECK_PARSER_STATUS(pCxt);
+  SShowVnodesStmt* pStmt = (SShowVnodesStmt*)nodesMakeNode(QUERY_NODE_SHOW_VNODES_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->pDnodeId = pDnodeId;
+  pStmt->pDnodeEndpoint = pDnodeEndpoint;
   return (SNode*)pStmt;
 }
 

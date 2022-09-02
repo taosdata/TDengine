@@ -102,6 +102,7 @@ static const SSysDbTableSchema userDBSchema[] = {
     {.name = "wal_retention_size", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
     {.name = "wal_roll_period", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
     {.name = "wal_segment_size", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
+    {.name = "sst_trigger", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT, .sysInfo = true},
 };
 
 static const SSysDbTableSchema userFuncSchema[] = {
@@ -256,6 +257,15 @@ static const SSysDbTableSchema subscriptionSchema[] = {
     {.name = "consumer_id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = false},
 };
 
+static const SSysDbTableSchema vnodesSchema[] = {
+    {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "replica", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT, .sysInfo = true},
+    {.name = "status", .bytes = 9 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "db_name", .bytes = SYSTABLE_SCH_DB_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "dnode_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
+    {.name = "dnode_ep", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+};
+
 static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_DNODES, dnodesSchema, tListLen(dnodesSchema), true},
     {TSDB_INS_TABLE_MNODES, mnodesSchema, tListLen(mnodesSchema), true},
@@ -279,6 +289,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_TOPICS, topicSchema, tListLen(topicSchema), false},
     {TSDB_INS_TABLE_SUBSCRIPTIONS, subscriptionSchema, tListLen(subscriptionSchema), false},
     {TSDB_INS_TABLE_STREAMS, streamSchema, tListLen(streamSchema), false},
+    {TSDB_INS_TABLE_VNODES, vnodesSchema, tListLen(vnodesSchema), true},
 };
 
 static const SSysDbTableSchema connectionsSchema[] = {

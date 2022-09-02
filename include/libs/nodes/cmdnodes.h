@@ -78,6 +78,10 @@ typedef struct SDatabaseOptions {
   int32_t     walRetentionSize;
   int32_t     walRollPeriod;
   int32_t     walSegmentSize;
+  bool        walRetentionPeriodIsSet;
+  bool        walRetentionSizeIsSet;
+  bool        walRollPeriodIsSet;
+  int32_t     sstTrigger;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {
@@ -267,6 +271,12 @@ typedef struct SShowDnodeVariablesStmt {
   ENodeType type;
   SNode*    pDnodeId;
 } SShowDnodeVariablesStmt;
+
+typedef struct SShowVnodesStmt {
+  ENodeType type;
+  SNode*    pDnodeId;
+  SNode*    pDnodeEndpoint;
+} SShowVnodesStmt;
 
 typedef enum EIndexType { INDEX_TYPE_SMA = 1, INDEX_TYPE_FULLTEXT } EIndexType;
 
