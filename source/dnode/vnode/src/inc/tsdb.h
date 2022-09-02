@@ -633,9 +633,10 @@ typedef struct SMergeTree {
   struct SLDataIter *pIter;
 } SMergeTree;
 
-int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader* pFReader, uint64_t uid, STimeWindow* pTimeWindow, SVersionRange* pVerRange);
-void tMergeTreeAddIter(SMergeTree *pMTree, struct SLDataIter *pIter);
-bool tMergeTreeNext(SMergeTree *pMTree);
+int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t uid,
+                       STimeWindow *pTimeWindow, SVersionRange *pVerRange);
+void    tMergeTreeAddIter(SMergeTree *pMTree, struct SLDataIter *pIter);
+bool    tMergeTreeNext(SMergeTree *pMTree);
 TSDBROW tMergeTreeGetRow(SMergeTree *pMTree);
 void    tMergeTreeClose(SMergeTree *pMTree);
 
