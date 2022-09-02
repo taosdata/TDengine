@@ -53,7 +53,7 @@ class TDTestCase:
         tdSql.query(f"select * from {dbname}.t_0799064f5487946e5d22164a822acfc8 order by _ts")
         tdSql.checkRows(2)
         tdSql.checkData(0, 3, "kk")
-        tdSql.checkData(1, 3, None)
+        tdSql.checkData(1, 3, "")
 
 
         tdSql.query(f"select distinct tbname from {dbname}.`sys.if.bytes.out`")
