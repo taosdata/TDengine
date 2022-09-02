@@ -98,4 +98,4 @@ dotnet add package TDengine.Connector
 
 ## API Reference
 
-[API Reference](https://docs.taosdata.com/api/td2.0-connector/)
+[API Reference](https://docs.taosdata.com/api/connector-csharp/html/860d2ac1-dd52-39c9-e460-0829c4e5a40b.htm)

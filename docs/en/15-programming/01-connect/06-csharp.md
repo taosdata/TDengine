@@ -15,6 +15,7 @@ dotnet new console -o example
 ## Add C# TDengine Driver class lib
 
 ```bash
+cd example
 dotnet add package TDengine.Connector
 ```
 
