@@ -138,6 +138,7 @@ typedef struct SQWTaskCtx {
   int32_t  execId;
   int32_t  level;
 
+  bool    queryGotData;
   bool    queryRsped;
   bool    queryEnd;
   bool    queryContinue;

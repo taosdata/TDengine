@@ -867,9 +867,11 @@ int32_t schLaunchTaskImpl(void *param) {
 
   SCH_ERR_JRET(schSetTaskCandidateAddrs(pJob, pTask));
 
+#if 0
   if (SCH_IS_QUERY_JOB(pJob)) {
     SCH_ERR_JRET(schEnsureHbConnection(pJob, pTask));
   }
+#endif
 
   SCH_ERR_JRET(schBuildAndSendMsg(pJob, pTask, NULL, plan->msgType));
 
