@@ -35,6 +35,7 @@ endif(${BUILD_TEST})
 add_subdirectory(source)
 add_subdirectory(tools)
 add_subdirectory(tests)
+#add_subdirectory(utils)
 add_subdirectory(examples/c)
 
 # docs 
