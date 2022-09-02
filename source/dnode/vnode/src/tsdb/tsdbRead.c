@@ -3349,10 +3349,10 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
   }
 
   if (pCond->suid != 0) {
-    pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pReader->suid, pCond->schemaVersion);
+    pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pReader->suid, pCond->endVersion);
   } else if (taosArrayGetSize(pTableList) > 0) {
     STableKeyInfo* pKey = taosArrayGet(pTableList, 0);
-    pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pKey->uid, pCond->schemaVersion);
+    pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pKey->uid, pCond->endVersion);
   }
 
   int32_t numOfTables = taosArrayGetSize(pTableList);

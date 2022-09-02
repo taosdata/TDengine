@@ -3908,7 +3908,6 @@ static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pC
   pCond->type = TIMEWINDOW_RANGE_CONTAINED;
   pCond->startVersion = -1;
   pCond->endVersion = -1;
-  pCond->schemaVersion = -1;
 
   return TSDB_CODE_SUCCESS;
 }
