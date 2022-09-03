@@ -14,6 +14,7 @@
  */
 
 #include "vnd.h"
+#include "tutil.h"
 
 const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                    .dbname = "",
@@ -110,6 +111,8 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "hashBegin", pCfg->hashBegin) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashEnd", pCfg->hashEnd) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashMethod", pCfg->hashMethod) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "hashPrefix", pCfg->hashPrefix) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "hashSuffix", pCfg->hashSuffix) < 0) return -1;
 
   if (tjsonAddIntegerToObject(pJson, "syncCfg.replicaNum", pCfg->syncCfg.replicaNum) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "syncCfg.myIndex", pCfg->syncCfg.myIndex) < 0) return -1;
@@ -214,6 +217,10 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "hashMethod", pCfg->hashMethod, code);
   if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "hashPrefix", pCfg->hashPrefix, code);
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "hashSuffix", pCfg->hashSuffix, code);
+  if (code < 0) return -1;
 
   tjsonGetNumberValue(pJson, "syncCfg.replicaNum", pCfg->syncCfg.replicaNum, code);
   if (code < 0) return -1;
@@ -250,7 +257,8 @@ int vnodeValidateTableHash(SVnode *pVnode, char *tableFName) {
 
   switch (pVnode->config.hashMethod) {
     default:
-      hashValue = MurmurHash3_32(tableFName, strlen(tableFName));
+      hashValue = taosGetTbHashVal(tableFName, strlen(tableFName), pVnode->config.hashMethod, pVnode->config.hashPrefix,
+                                   pVnode->config.hashSuffix);
       break;
   }
 

@@ -252,8 +252,8 @@ SRowInfo *tLDataIterGet(SLDataIter *pIter) { return &pIter->rInfo; }
 
 // SMergeTree =================================================
 static FORCE_INLINE int32_t tLDataIterCmprFn(const void *p1, const void *p2) {
-  SLDataIter *pIter1 = (SLDataIter *)(p1 - sizeof(SRBTreeNode));
-  SLDataIter *pIter2 = (SLDataIter *)(p2 - sizeof(SRBTreeNode));
+  SLDataIter *pIter1 = (SLDataIter *)(((uint8_t *)p1) - sizeof(SRBTreeNode));
+  SLDataIter *pIter2 = (SLDataIter *)(((uint8_t *)p2) - sizeof(SRBTreeNode));
 
   TSDBKEY key1 = TSDBROW_KEY(&pIter1->rInfo.row);
   TSDBKEY key2 = TSDBROW_KEY(&pIter2->rInfo.row);
@@ -285,7 +285,7 @@ int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFRead
   tRBTreeCreate(&pMTree->rbt, tLDataIterCmprFn);
   int32_t code = TSDB_CODE_OUT_OF_MEMORY;
 
-  struct SLDataIter *pIterList[TSDB_DEFAULT_SST_FILE] = {0};
+  struct SLDataIter *pIterList[TSDB_DEFAULT_LAST_FILE] = {0};
   for (int32_t i = 0; i < pFReader->pSet->nSstF; ++i) {  // open all last file
     code = tLDataIterOpen(&pIterList[i], pFReader, i, pMTree->backward, uid, pTimeWindow, pVerRange);
     if (code != TSDB_CODE_SUCCESS) {
@@ -323,7 +323,7 @@ bool tMergeTreeNext(SMergeTree *pMTree) {
     // compare with min in RB Tree
     pIter = (SLDataIter *)tRBTreeMin(&pMTree->rbt);
     if (pMTree->pIter && pIter) {
-      int32_t c = pMTree->rbt.cmprFn(pMTree->pIter->node.payload, &pIter->node.payload);
+      int32_t c = pMTree->rbt.cmprFn(RBTREE_NODE_PAYLOAD(&pMTree->pIter->node), RBTREE_NODE_PAYLOAD(&pIter->node));
       if (c > 0) {
         tRBTreePut(&pMTree->rbt, (SRBTreeNode *)pMTree->pIter);
         pMTree->pIter = NULL;
