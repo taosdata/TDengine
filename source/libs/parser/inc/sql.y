@@ -208,6 +208,8 @@ db_options(A) ::= db_options(B) WAL_RETENTION_SIZE NK_MINUS(D) NK_INTEGER(C).   
 db_options(A) ::= db_options(B) WAL_ROLL_PERIOD NK_INTEGER(C).                    { A = setDatabaseOption(pCxt, B, DB_OPTION_WAL_ROLL_PERIOD, &C); }
 db_options(A) ::= db_options(B) WAL_SEGMENT_SIZE NK_INTEGER(C).                   { A = setDatabaseOption(pCxt, B, DB_OPTION_WAL_SEGMENT_SIZE, &C); }
 db_options(A) ::= db_options(B) SST_TRIGGER NK_INTEGER(C).                        { A = setDatabaseOption(pCxt, B, DB_OPTION_SST_TRIGGER, &C); }
+db_options(A) ::= db_options(B) TABLE_PREFIX NK_INTEGER(C).                       { A = setDatabaseOption(pCxt, B, DB_OPTION_TABLE_PREFIX, &C); }
+db_options(A) ::= db_options(B) TABLE_SUFFIX NK_INTEGER(C).                       { A = setDatabaseOption(pCxt, B, DB_OPTION_TABLE_SUFFIX, &C); }
 
 alter_db_options(A) ::= alter_db_option(B).                                       { A = createAlterDatabaseOptions(pCxt); A = setAlterDatabaseOption(pCxt, A, &B); }
 alter_db_options(A) ::= alter_db_options(B) alter_db_option(C).                   { A = setAlterDatabaseOption(pCxt, B, &C); }

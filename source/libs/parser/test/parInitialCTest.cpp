@@ -116,6 +116,8 @@ TEST_F(ParserInitialCTest, createDatabase) {
     expect.walRollPeriod = TSDB_REP_DEF_DB_WAL_ROLL_PERIOD;
     expect.walSegmentSize = TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE;
     expect.sstTrigger = TSDB_DEFAULT_SST_TRIGGER;
+    expect.hashPrefix = TSDB_DEFAULT_HASH_PREFIX;
+    expect.hashSuffix = TSDB_DEFAULT_HASH_SUFFIX;
   };
 
   auto setDbBufferFunc = [&](int32_t buffer) { expect.buffer = buffer; };
@@ -157,6 +159,8 @@ TEST_F(ParserInitialCTest, createDatabase) {
   auto setDbWalRollPeriod = [&](int32_t walRollPeriod) { expect.walRollPeriod = walRollPeriod; };
   auto setDbWalSegmentSize = [&](int32_t walSegmentSize) { expect.walSegmentSize = walSegmentSize; };
   auto setDbSstTrigger = [&](int32_t sstTrigger) { expect.sstTrigger = sstTrigger; };
+  auto setDbHashPrefix = [&](int32_t hashPrefix) { expect.hashPrefix = hashPrefix; };
+  auto setDbHashSuffix = [&](int32_t hashSuffix) { expect.hashSuffix = hashSuffix; };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_DATABASE_STMT);
@@ -188,6 +192,8 @@ TEST_F(ParserInitialCTest, createDatabase) {
     ASSERT_EQ(req.walRollPeriod, expect.walRollPeriod);
     ASSERT_EQ(req.walSegmentSize, expect.walSegmentSize);
     ASSERT_EQ(req.sstTrigger, expect.sstTrigger);
+    ASSERT_EQ(req.hashPrefix, expect.hashPrefix);
+    ASSERT_EQ(req.hashSuffix, expect.hashSuffix);
     ASSERT_EQ(req.ignoreExist, expect.ignoreExist);
     ASSERT_EQ(req.numOfRetensions, expect.numOfRetensions);
     if (expect.numOfRetensions > 0) {
@@ -236,6 +242,8 @@ TEST_F(ParserInitialCTest, createDatabase) {
   setDbWalRollPeriod(10);
   setDbWalSegmentSize(20);
   setDbSstTrigger(16);
+  setDbHashPrefix(3);
+  setDbHashSuffix(4);
   run("CREATE DATABASE IF NOT EXISTS wxy_db "
       "BUFFER 64 "
       "CACHEMODEL 'last_value' "
@@ -260,7 +268,9 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "WAL_RETENTION_SIZE -1 "
       "WAL_ROLL_PERIOD 10 "
       "WAL_SEGMENT_SIZE 20 "
-      "SST_TRIGGER 16");
+      "SST_TRIGGER 16 "
+      "TABLE_PREFIX 3"
+      "TABLE_SUFFIX 4");
   clearCreateDbReq();
 
   setCreateDbReqFunc("wxy_db", 1);
