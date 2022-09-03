@@ -1552,6 +1552,24 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     STR_WITH_MAXSIZE_TO_VARSTR(buf, "NULL", bytes);
   }
 
+  const char *precStr = NULL;
+  switch (pDb->cfg.precision) {
+    case TSDB_TIME_PRECISION_MILLI:
+      precStr = TSDB_TIME_PRECISION_MILLI_STR;
+      break;
+    case TSDB_TIME_PRECISION_MICRO:
+      precStr = TSDB_TIME_PRECISION_MICRO_STR;
+      break;
+    case TSDB_TIME_PRECISION_NANO:
+      precStr = TSDB_TIME_PRECISION_NANO_STR;
+      break;
+    default:
+      precStr = "none";
+      break;
+  }
+  char precVstr[10] = {0};
+  STR_WITH_SIZE_TO_VARSTR(precVstr, precStr, 2);
+
   char *statusStr = "ready";
   if (objStatus == SDB_STATUS_CREATING) {
     statusStr = "creating";
@@ -1562,7 +1580,6 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
       statusStr = "unsynced";
     }
   }
-
   char statusVstr[24] = {0};
   STR_WITH_SIZE_TO_VARSTR(statusVstr, statusStr, strlen(statusStr));
 
@@ -1573,6 +1590,8 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
         colDataAppend(pColInfo, rows, buf, false);
       } else if (i == 3) {
         colDataAppend(pColInfo, rows, (const char *)&numOfTables, false);
+      } else if (i == 14) {
+        colDataAppend(pColInfo, rows, precVstr, false);
       } else if (i == 15) {
         colDataAppend(pColInfo, rows, statusVstr, false);
       } else {
@@ -1637,23 +1656,6 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.compression, false);
 
-    const char *precStr = NULL;
-    switch (pDb->cfg.precision) {
-      case TSDB_TIME_PRECISION_MILLI:
-        precStr = TSDB_TIME_PRECISION_MILLI_STR;
-        break;
-      case TSDB_TIME_PRECISION_MICRO:
-        precStr = TSDB_TIME_PRECISION_MICRO_STR;
-        break;
-      case TSDB_TIME_PRECISION_NANO:
-        precStr = TSDB_TIME_PRECISION_NANO_STR;
-        break;
-      default:
-        precStr = "none";
-        break;
-    }
-    char precVstr[10] = {0};
-    STR_WITH_SIZE_TO_VARSTR(precVstr, precStr, 2);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)precVstr, false);
 

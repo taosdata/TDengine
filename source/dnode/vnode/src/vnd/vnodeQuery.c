@@ -468,9 +468,13 @@ static int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
   STSchema *pTSchema = metaGetTbTSchema(pVnode->pMeta, suid, -1);
   // metaGetTbTSchemaEx(pVnode->pMeta, suid, suid, -1, &pTSchema);
 
-  *num = pTSchema->numOfCols;
+  if (pTSchema) {
+    *num = pTSchema->numOfCols;
 
-  taosMemoryFree(pTSchema);
+    taosMemoryFree(pTSchema);
+  } else {
+    *num = 2;
+  }
 
   return TSDB_CODE_SUCCESS;
 }
