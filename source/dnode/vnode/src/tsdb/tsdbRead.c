@@ -1410,6 +1410,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
 static int32_t doMergeFileBlockAndLastBlock(SLastBlockReader* pLastBlockReader, STsdbReader* pReader,
                                             STableBlockScanInfo* pBlockScanInfo, SBlockData* pBlockData,
                                             bool mergeBlockData) {
+  SFileBlockDumpInfo* pDumpInfo = &pReader->status.fBlockDumpInfo;
   SBlockData* pLastBlockData = &pLastBlockReader->lastBlockData;
   int64_t     tsLastBlock = getCurrentKeyInLastBlock(pLastBlockReader);
 
@@ -1422,7 +1423,7 @@ static int32_t doMergeFileBlockAndLastBlock(SLastBlockReader* pLastBlockReader, 
   doMergeRowsInLastBlock(pLastBlockReader, pBlockScanInfo, tsLastBlock, &merge);
 
   // merge with block data if ts == key
-  if (mergeBlockData) {
+  if (mergeBlockData && (tsLastBlock == pBlockData->aTSKEY[pDumpInfo->rowIndex])) {
     doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pReader, &merge);
   }
 
