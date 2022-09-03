@@ -74,5 +74,5 @@ Replace  <DSN\> with real TDengine cloud DSN. To obtain the real value, please l
 ```
 
 ```C#
-{{#include docs/examples/csharp/cloud-example/Connect.cs}}
+//{{#include docs/examples/csharp/cloud-example/Connect.cs}}
 ```
