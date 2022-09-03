@@ -200,6 +200,8 @@ static SKeyword keywordTable[] = {
     {"SYSINFO",              TK_SYSINFO},
     {"TABLE",                TK_TABLE},
     {"TABLES",               TK_TABLES},
+    {"TABLE_PREFIX",         TK_TABLE_PREFIX},
+    {"TABLE_SUFFIX",         TK_TABLE_SUFFIX},
     {"TAG",                  TK_TAG},
     {"TAGS",                 TK_TAGS},
     {"TBNAME",               TK_TBNAME},
