@@ -51,8 +51,9 @@ struct SRBTreeNode {
   SRBTreeNode *parent;
   SRBTreeNode *left;
   SRBTreeNode *right;
-  uint8_t      payload[0];
 };
+
+#define RBTREE_NODE_PAYLOAD(N) ((const void *)&(N)[1])
 
 struct SRBTree {
   tRBTreeCmprFn cmprFn;
