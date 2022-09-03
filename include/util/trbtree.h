@@ -51,7 +51,7 @@ struct SRBTreeNode {
   SRBTreeNode *parent;
   SRBTreeNode *left;
   SRBTreeNode *right;
-  uint8_t      payload[0];
+  uint8_t      payload[];
 };
 
 struct SRBTree {
