@@ -30,7 +30,7 @@
 #include "systable.h"
 
 #define DB_VER_NUMBER   1
-#define DB_RESERVE_SIZE 62
+#define DB_RESERVE_SIZE 58
 
 static SSdbRaw *mndDbActionEncode(SDbObj *pDb);
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
@@ -125,6 +125,8 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.walRollPeriod, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pDb->cfg.walSegmentSize, _OVER)
   SDB_SET_INT16(pRaw, dataPos, pDb->cfg.sstTrigger, _OVER)
+  SDB_SET_INT16(pRaw, dataPos, pDb->cfg.hashPrefix, _OVER)
+  SDB_SET_INT16(pRaw, dataPos, pDb->cfg.hashSuffix, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -209,6 +211,8 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.walRollPeriod, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pDb->cfg.walSegmentSize, _OVER)
   SDB_GET_INT16(pRaw, dataPos, &pDb->cfg.sstTrigger, _OVER)
+  SDB_GET_INT16(pRaw, dataPos, &pDb->cfg.hashPrefix, _OVER)
+  SDB_GET_INT16(pRaw, dataPos, &pDb->cfg.hashSuffix, _OVER)
 
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pDb->lock);
@@ -334,6 +338,8 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->walRollPeriod < TSDB_DB_MIN_WAL_ROLL_PERIOD) return -1;
   if (pCfg->walSegmentSize < TSDB_DB_MIN_WAL_SEGMENT_SIZE) return -1;
   if (pCfg->sstTrigger < TSDB_MIN_SST_TRIGGER || pCfg->sstTrigger > TSDB_MAX_SST_TRIGGER) return -1;
+  if (pCfg->hashPrefix < TSDB_MIN_HASH_PREFIX || pCfg->hashPrefix > TSDB_MAX_HASH_PREFIX) return -1;
+  if (pCfg->hashSuffix < TSDB_MIN_HASH_SUFFIX || pCfg->hashSuffix > TSDB_MAX_HASH_SUFFIX) return -1;
 
   terrno = 0;
   return terrno;
@@ -368,6 +374,8 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->walRollPeriod < 0) pCfg->walRollPeriod = TSDB_REPS_DEF_DB_WAL_ROLL_PERIOD;
   if (pCfg->walSegmentSize < 0) pCfg->walSegmentSize = TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE;
   if (pCfg->sstTrigger <= 0) pCfg->sstTrigger = TSDB_DEFAULT_SST_TRIGGER;
+  if (pCfg->hashPrefix < 0) pCfg->hashPrefix = TSDB_DEFAULT_HASH_PREFIX;
+  if (pCfg->hashSuffix < 0) pCfg->hashSuffix = TSDB_DEFAULT_HASH_SUFFIX;
 }
 
 static int32_t mndSetCreateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
@@ -485,6 +493,8 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .walRollPeriod = pCreate->walRollPeriod,
       .walSegmentSize = pCreate->walSegmentSize,
       .sstTrigger = pCreate->sstTrigger,
+      .hashPrefix = pCreate->hashPrefix,
+      .hashSuffix = pCreate->hashSuffix,
   };
 
   dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
