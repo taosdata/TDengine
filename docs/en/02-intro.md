@@ -55,7 +55,7 @@ By making full use of [characteristics of time series data](https://tdengine.com
 
 - **[Easy Data Analytics](https://tdengine.com/tdengine/time-series-data-analytics-made-easy/)**: Through super tables, storage and compute separation, data partitioning by time interval, pre-computation and other means, TDengine makes it easy to explore, format, and get access to data in a highly efficient way.
 
-- **Enterprise Ready** It supports backup, multi-cloud/multi-region database replication, VPC peering and IP whitelisting.
+- **Enterprise Ready**: It supports backup, multi-cloud/multi-region database replication, VPC peering and IP whitelisting.
 
 With TDengine cloud, the **total cost of ownership of your time-series data platform can be greatly reduced**.
 
