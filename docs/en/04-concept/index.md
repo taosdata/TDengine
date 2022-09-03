@@ -166,10 +166,9 @@ A database is a collection of tables. TDengine allows a running instance to have
 
 In a database, there can be one or more STables, but a STable belongs to only one database. All tables owned by a STable are stored in only one database.
 
-## FQDN & End Point
+## Instance, URL, Token
 
-FQDN (Fully Qualified Domain Name) is the full domain name of a specific computer or host on the Internet. FQDN consists of two parts: hostname and domain name. For example, the FQDN of a mail server might be mail.tdengine.com. The hostname is mail, and the host is located in the domain name tdengine.com. DNS (Domain Name System) is responsible for translating FQDN into IP. For systems without DNS, it can be solved by configuring the hosts file.
+An instance is a running cluster of nodes of TDengine with one or more databases. An instance cannot span across multiple regions or multiple clouds, but a single account can have multiple instances. TDengine cloud provides a unique URL for each instance, and your applications need to use the generated, instance-specific tokens to access it for security purpose.
 
-Each node of a TDengine cluster is uniquely identified by an End Point, which consists of an FQDN and a Port, such as h1.tdengine.com:6030. In this way, when the IP changes, we can still use the FQDN to dynamically find the node without changing any configuration of the cluster. In addition, FQDN is used to facilitate unified access to the same cluster from the Intranet and the Internet.
+An account may have multiple users, and each user can be configured with different access rights. In addition, the token for an instance will be different for different users, and the token can be reset by the user. 
 
-TDengine does not recommend using an IP address to access the cluster. FQDN is recommended for cluster management. 
