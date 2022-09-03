@@ -52,7 +52,11 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     // TODO: if a block was set but not consumed,
     // prevent setting a different type of block
     pInfo->validBlockIndex = 0;
-    taosArrayClear(pInfo->pBlockLists);
+    if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
+      taosArrayClearP(pInfo->pBlockLists, taosMemoryFree);
+    } else {
+      taosArrayClear(pInfo->pBlockLists);
+    }
 
     if (type == STREAM_INPUT__MERGED_SUBMIT) {
       // ASSERT(numOfBlocks > 1);

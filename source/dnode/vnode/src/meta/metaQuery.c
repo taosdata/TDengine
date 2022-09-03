@@ -129,9 +129,15 @@ _err:
 
 bool metaIsTableExist(SMeta *pMeta, tb_uid_t uid) {
   // query uid.idx
+  metaRLock(pMeta);
+
   if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), NULL, NULL) < 0) {
+    metaULock(pMeta);
+
     return false;
   }
+
+  metaULock(pMeta);
 
   return true;
 }
@@ -182,9 +188,14 @@ tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name) {
 }
 
 int metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName) {
+  int         code = 0;
   SMetaReader mr = {0};
   metaReaderInit(&mr, (SMeta *)meta, 0);
-  metaGetTableEntryByUid(&mr, uid);
+  code = metaGetTableEntryByUid(&mr, uid);
+  if (code < 0) {
+    metaReaderClear(&mr);
+    return -1;
+  }
 
   STR_TO_VARSTR(tbName, mr.me.name);
   metaReaderClear(&mr);
