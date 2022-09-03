@@ -273,7 +273,8 @@ static FORCE_INLINE int32_t tLDataIterCmprFn(const void *p1, const void *p2) {
   }
 }
 
-int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader* pFReader, uint64_t uid, STimeWindow* pTimeWindow, SVersionRange* pVerRange) {
+int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t uid,
+                       STimeWindow *pTimeWindow, SVersionRange *pVerRange) {
   pMTree->backward = backward;
   pMTree->pIter = NULL;
   pMTree->pIterList = taosArrayInit(4, POINTER_BYTES);
@@ -284,8 +285,8 @@ int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader* pFRead
   tRBTreeCreate(&pMTree->rbt, tLDataIterCmprFn);
   int32_t code = TSDB_CODE_OUT_OF_MEMORY;
 
-  struct SLDataIter* pIterList[TSDB_DEFAULT_LAST_FILE] = {0};
-  for(int32_t i = 0; i < pFReader->pSet->nSstF; ++i) { // open all last file
+  struct SLDataIter *pIterList[TSDB_DEFAULT_LAST_FILE] = {0};
+  for (int32_t i = 0; i < pFReader->pSet->nSstF; ++i) {  // open all last file
     code = tLDataIterOpen(&pIterList[i], pFReader, i, pMTree->backward, uid, pTimeWindow, pVerRange);
     if (code != TSDB_CODE_SUCCESS) {
       goto _end;
@@ -302,7 +303,7 @@ int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader* pFRead
 
   return code;
 
-  _end:
+_end:
   tMergeTreeClose(pMTree);
   return code;
 }
@@ -322,7 +323,7 @@ bool tMergeTreeNext(SMergeTree *pMTree) {
     // compare with min in RB Tree
     pIter = (SLDataIter *)tRBTreeMin(&pMTree->rbt);
     if (pMTree->pIter && pIter) {
-      int32_t c = pMTree->rbt.cmprFn(pMTree->pIter->node.payload, &pIter->node.payload);
+      int32_t c = pMTree->rbt.cmprFn(RBTREE_NODE_PAYLOAD(&pMTree->pIter->node), RBTREE_NODE_PAYLOAD(&pIter->node));
       if (c > 0) {
         tRBTreePut(&pMTree->rbt, (SRBTreeNode *)pMTree->pIter);
         pMTree->pIter = NULL;
