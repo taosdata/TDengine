@@ -252,8 +252,8 @@ SRowInfo *tLDataIterGet(SLDataIter *pIter) { return &pIter->rInfo; }
 
 // SMergeTree =================================================
 static FORCE_INLINE int32_t tLDataIterCmprFn(const void *p1, const void *p2) {
-  SLDataIter *pIter1 = (SLDataIter *)(p1 - sizeof(SRBTreeNode));
-  SLDataIter *pIter2 = (SLDataIter *)(p2 - sizeof(SRBTreeNode));
+  SLDataIter *pIter1 = (SLDataIter *)(((uint8_t *)p1) - sizeof(SRBTreeNode));
+  SLDataIter *pIter2 = (SLDataIter *)(((uint8_t *)p2) - sizeof(SRBTreeNode));
 
   TSDBKEY key1 = TSDBROW_KEY(&pIter1->rInfo.row);
   TSDBKEY key2 = TSDBROW_KEY(&pIter2->rInfo.row);
