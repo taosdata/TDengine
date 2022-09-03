@@ -9,7 +9,7 @@ import TabItem from '@theme/TabItem';
 
 ## Install Connector
 
-First, you need to install the `taospy` module version >= `2.3.3`. Run the command below in your terminal.
+First, you need to install the `taospy` module version >= `2.5.1`. Run the command below in your terminal.
 
 <Tabs defaultValue="pip">
 <TabItem value="pip" label="pip">
