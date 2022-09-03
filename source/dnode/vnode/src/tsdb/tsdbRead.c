@@ -337,12 +337,15 @@ static int32_t initFilesetIterator(SFilesetIter* pIter, SArray* aDFileSet,
       tsdbError("failed to prepare the last block iterator, code:%d %s", tstrerror(code), pReader->idStr);
       return code;
     }
-
-    SLastBlockReader* pLReader = pIter->pLastBlockReader;
-    pLReader->order = pReader->order;
-    pLReader->window = pReader->window;
-    pLReader->verRange = pReader->verRange;
   }
+
+  SLastBlockReader* pLReader = pIter->pLastBlockReader;
+  pLReader->order = pReader->order;
+  pLReader->window = pReader->window;
+  pLReader->verRange = pReader->verRange;
+
+  pLReader->uid = 0;
+  tMergeTreeClose(&pLReader->mergeTree);
 
   tsdbDebug("init fileset iterator, total files:%d %s", pIter->numOfFiles, pReader->idStr);
   return TSDB_CODE_SUCCESS;
