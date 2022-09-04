@@ -538,12 +538,12 @@ bool tdSTSRowIterGetTpVal(STSRowIter *pIter, col_type_t colType, int32_t offset,
     } else {
       pVal->val = POINTER_SHIFT(TD_ROW_DATA(pRow), offset);
     }
-    return TSDB_CODE_SUCCESS;
+    return true;
   }
 
   if (tdGetBitmapValType(pIter->pBitmap, pIter->colIdx - 1, &pVal->valType, 0) != TSDB_CODE_SUCCESS) {
     pVal->valType = TD_VTYPE_NONE;
-    return terrno;
+    return true;
   }
 
   if (pVal->valType == TD_VTYPE_NORM) {

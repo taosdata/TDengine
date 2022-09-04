@@ -227,9 +227,9 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int
         continue;
       }
 
-      SPageInfo* pPgInfo = *(SPageInfo**)taosArrayGet(pSource->pageIdList, pSource->pageIndex);
+      int32_t* pPgId = taosArrayGet(pSource->pageIdList, pSource->pageIndex);
 
-      void* pPage = getBufPage(pHandle->pBuf, getPageId(pPgInfo));
+      void* pPage = getBufPage(pHandle->pBuf, *pPgId);
       code = blockDataFromBuf(pSource->src.pBlock, pPage);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -302,9 +302,9 @@ static int32_t adjustMergeTreeForNextTuple(SSortSource *pSource, SMultiwayMergeT
         pSource->pageIndex = -1;
         pSource->src.pBlock = blockDataDestroy(pSource->src.pBlock);
       } else {
-        SPageInfo* pPgInfo = *(SPageInfo**)taosArrayGet(pSource->pageIdList, pSource->pageIndex);
+        int32_t* pPgId = taosArrayGet(pSource->pageIdList, pSource->pageIndex);
 
-        void* pPage = getBufPage(pHandle->pBuf, getPageId(pPgInfo));
+        void* pPage = getBufPage(pHandle->pBuf, *pPgId);
         int32_t    code = blockDataFromBuf(pSource->src.pBlock, pPage);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
