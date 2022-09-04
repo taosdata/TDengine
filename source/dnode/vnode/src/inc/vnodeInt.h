@@ -36,6 +36,7 @@
 #include "tlosertree.h"
 #include "tlrucache.h"
 #include "tmsgcb.h"
+#include "trbtree.h"
 #include "tref.h"
 #include "tskiplist.h"
 #include "tstream.h"

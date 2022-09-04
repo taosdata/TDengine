@@ -695,6 +695,7 @@ static void destroyTableScanOperatorInfo(void* param) {
   cleanupQueryTableDataCond(&pTableScanInfo->cond);
 
   tsdbReaderClose(pTableScanInfo->dataReader);
+  pTableScanInfo->dataReader = NULL;
 
   if (pTableScanInfo->pColMatchInfo != NULL) {
     taosArrayDestroy(pTableScanInfo->pColMatchInfo);
