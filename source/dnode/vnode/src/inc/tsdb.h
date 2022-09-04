@@ -196,7 +196,6 @@ int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol
                         uint8_t **ppBuf);
 int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, int32_t nVal, SColData *pColData,
                           uint8_t **ppBuf);
-int32_t tsdbReadAndCheck(TdFilePtr pFD, int64_t offset, uint8_t **ppOut, int32_t size, int8_t toCheck);
 // tsdbMemTable ==============================================================================================
 // SMemTable
 int32_t  tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
@@ -605,10 +604,10 @@ struct SDataFWriter {
   STsdb    *pTsdb;
   SDFileSet wSet;
 
-  TdFilePtr pHeadFD;
-  TdFilePtr pDataFD;
-  TdFilePtr pSmaFD;
-  TdFilePtr pLastFD;
+  STsdbFD *pHeadFD;
+  STsdbFD *pDataFD;
+  STsdbFD *pSmaFD;
+  STsdbFD *pLastFD;
 
   SHeadFile fHead;
   SDataFile fData;
@@ -621,10 +620,10 @@ struct SDataFWriter {
 struct SDataFReader {
   STsdb     *pTsdb;
   SDFileSet *pSet;
-  TdFilePtr  pHeadFD;
-  TdFilePtr  pDataFD;
-  TdFilePtr  pSmaFD;
-  TdFilePtr  aLastFD[TSDB_MAX_SST_FILE];
+  STsdbFD   *pHeadFD;
+  STsdbFD   *pDataFD;
+  STsdbFD   *pSmaFD;
+  STsdbFD   *aLastFD[TSDB_MAX_SST_FILE];
 
   uint8_t *aBuf[3];
 };

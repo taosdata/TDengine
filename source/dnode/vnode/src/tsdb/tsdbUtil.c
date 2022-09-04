@@ -2153,37 +2153,3 @@ int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, in
 _exit:
   return code;
 }
-
-int32_t tsdbReadAndCheck(TdFilePtr pFD, int64_t offset, uint8_t **ppOut, int32_t size, int8_t toCheck) {
-  int32_t code = 0;
-
-  // alloc
-  code = tRealloc(ppOut, size);
-  if (code) goto _exit;
-
-  // seek
-  int64_t n = taosLSeekFile(pFD, offset, SEEK_SET);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _exit;
-  }
-
-  // read
-  n = taosReadFile(pFD, *ppOut, size);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _exit;
-  } else if (n < size) {
-    code = TSDB_CODE_FILE_CORRUPTED;
-    goto _exit;
-  }
-
-  // check
-  if (toCheck && !taosCheckChecksumWhole(*ppOut, size)) {
-    code = TSDB_CODE_FILE_CORRUPTED;
-    goto _exit;
-  }
-
-_exit:
-  return code;
-}

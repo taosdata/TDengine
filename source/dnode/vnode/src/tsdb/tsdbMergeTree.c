@@ -33,11 +33,9 @@ struct SLDataIter {
   SVersionRange verRange;
 };
 
-static SBlockData* getCurrentBlock(SLDataIter* pIter) {
-  return &pIter->bData[pIter->loadIndex];
-}
+static SBlockData *getCurrentBlock(SLDataIter *pIter) { return &pIter->bData[pIter->loadIndex]; }
 
-static SBlockData* getNextBlock(SLDataIter* pIter) {
+static SBlockData *getNextBlock(SLDataIter *pIter) {
   pIter->loadIndex ^= 1;
   return getCurrentBlock(pIter);
 }
@@ -150,9 +148,9 @@ void tLDataIterNextBlock(SLDataIter *pIter) {
 static void findNextValidRow(SLDataIter *pIter) {
   int32_t step = pIter->backward ? -1 : 1;
 
-  bool    hasVal = false;
-  int32_t i = pIter->iRow;
-  SBlockData* pBlockData = getCurrentBlock(pIter);
+  bool        hasVal = false;
+  int32_t     i = pIter->iRow;
+  SBlockData *pBlockData = getCurrentBlock(pIter);
 
   for (; i < pBlockData->nRow && i >= 0; i += step) {
     if (pBlockData->aUid != NULL) {
@@ -220,8 +218,8 @@ bool tLDataIterNextRow(SLDataIter *pIter) {
     return false;
   }
 
-  int32_t iBlockL = pIter->iSstBlk;
-  SBlockData* pBlockData = getCurrentBlock(pIter);
+  int32_t     iBlockL = pIter->iSstBlk;
+  SBlockData *pBlockData = getCurrentBlock(pIter);
 
   if (pBlockData->nRow == 0 && pIter->pSstBlk != NULL) {  // current block not loaded yet
     pBlockData = getNextBlock(pIter);
@@ -306,7 +304,7 @@ int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFRead
   tRBTreeCreate(&pMTree->rbt, tLDataIterCmprFn);
   int32_t code = TSDB_CODE_OUT_OF_MEMORY;
 
-  struct SLDataIter *pIterList[TSDB_DEFAULT_LAST_FILE] = {0};
+  struct SLDataIter *pIterList[TSDB_DEFAULT_SST_FILE] = {0};
   for (int32_t i = 0; i < pFReader->pSet->nSstF; ++i) {  // open all last file
     code = tLDataIterOpen(&pIterList[i], pFReader, i, pMTree->backward, uid, pTimeWindow, pVerRange);
     if (code != TSDB_CODE_SUCCESS) {
