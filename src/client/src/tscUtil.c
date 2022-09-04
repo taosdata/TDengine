@@ -2153,7 +2153,7 @@ static int32_t getRowExpandSize(STableMeta* pTableMeta) {
   return result;
 }
 
-static void extractTableNameList(SSqlObj *pSql, SInsertStatementParam *pInsertParam, bool freeBlockMap) {
+static void extractTableNameList(SSqlObj *pSql, SInsertStatementParam *pInsertParam) {
   pInsertParam->numOfTables = (int32_t) taosHashGetSize(pInsertParam->pTableBlockHashList);
   if (pInsertParam->pTableNameList == NULL) {
     pInsertParam->pTableNameList = malloc(pInsertParam->numOfTables * POINTER_BYTES);
@@ -2168,10 +2168,113 @@ static void extractTableNameList(SSqlObj *pSql, SInsertStatementParam *pInsertPa
     pInsertParam->pTableNameList[i++] = tNameDup(&pBlocks->tableName);
     p1 = taosHashIterate(pInsertParam->pTableBlockHashList, p1);
   }
+}
 
-  if (freeBlockMap) {
-    pInsertParam->pTableBlockHashList = tscDestroyBlockHashTable(pSql, pInsertParam->pTableBlockHashList, false);
+/**
+ * Merge the KV-PayLoad SQL objects into single one. (the statements here must be an insertion statement).
+ * 
+ * @param statements the array of statements. a.k.a SArray<SSqlObj*>.
+ * @param result the returned result. result is not null!
+ * @return the status code. usually TSDB_CODE_SUCCESS.
+ */
+int32_t tscMergeKVPayLoadSqlObj(SArray* statements, SSqlObj **result) {
+  // statement array is empty.
+  if (statements == NULL || taosArrayGetSize(statements) == 0) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
   }
+  
+  // a.k.a SHashObj<int64_t, STableDataBlocks*>, the key value represents vgroup id.
+  SHashObj*              pVnodeDataBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
+  if (pVnodeDataBlockHashList == NULL) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  
+  // let the first statement in the array to be the merged result.
+  SSqlObj*               merged = *((SSqlObj**) taosArrayGet(statements, 0));
+  SSqlCmd*               pMergeCmd = &merged->cmd;
+  SInsertStatementParam* pMergeInsertParam = &pMergeCmd->insertParam;
+  SArray*                pMergeDataBlocks = pMergeInsertParam->pDataBlocks;
+  
+  // initialize the `pVnodeDataBlockHashList`.
+  assert(pMergeInsertParam->payloadType == PAYLOAD_TYPE_KV);
+  for (int i = 0; i < taosArrayGetSize(pMergeInsertParam->pDataBlocks); ++i) {
+    STableDataBlocks *pDataBlocks = *((STableDataBlocks** )taosArrayGet(pMergeInsertParam->pDataBlocks, i));
+    if (taosHashPut(pVnodeDataBlockHashList, &pDataBlocks->vgId, sizeof(pDataBlocks->vgId), &pDataBlocks, sizeof(STableDataBlocks *))) {
+      taosHashCleanup(pVnodeDataBlockHashList);
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+  }
+  
+  // merge sql obj statements[i] into sql obj `merged`.
+  for (int i = 1; i < taosArrayGetSize(statements); ++i) {
+    SSqlObj *pSql = *((SSqlObj**) taosArrayGet(statements, i));
+    SSqlCmd *pCmd = &pSql->cmd;
+    SInsertStatementParam* pInsertParam = &pCmd->insertParam;
+
+    assert(pInsertParam->payloadType == PAYLOAD_TYPE_KV);
+    
+    // merge all the data blocks by vgroup id.
+    for (int j = 0; pInsertParam->pDataBlocks && j < taosArrayGetSize(pInsertParam->pDataBlocks); ++j) {
+      STableDataBlocks * tableBlock = *((STableDataBlocks **) taosArrayGet(pInsertParam->pDataBlocks, j));
+      SSubmitBlk *pBlocks = (SSubmitBlk *)tableBlock->pData;
+      
+      // skip the empty data block.
+      if (pBlocks->numOfRows <= 0) {
+        tscDebug("0x%" PRIx64 " table %s data block is empty", pInsertParam->objectId, tableBlock->tableName.tname);
+        continue;
+      }
+      
+      // get the data blocks of vgroup id.
+      STableDataBlocks *dataBuf = NULL;
+      STableDataBlocks** iter = taosHashGet(pVnodeDataBlockHashList, &tableBlock->vgId, sizeof(tableBlock->vgId));
+      if (iter == NULL) {
+        dataBuf = tableBlock;
+        if (taosHashPut(pVnodeDataBlockHashList, &tableBlock->vgId, sizeof(tableBlock->vgId), &dataBuf, sizeof(STableDataBlocks *))) {
+          taosHashCleanup(pVnodeDataBlockHashList);
+          return TSDB_CODE_TSC_OUT_OF_MEMORY;
+        }
+        
+        if (!taosArrayPush(pMergeDataBlocks, &dataBuf)) {
+          taosHashCleanup(pVnodeDataBlockHashList);
+          return TSDB_CODE_TSC_OUT_OF_MEMORY;
+        }
+      } else {
+        dataBuf = *iter;
+      }
+      
+      // the allocated size is too small.
+      int64_t destSize = dataBuf->size + (tableBlock->size - tableBlock->headerSize);
+      if (dataBuf->nAllocSize < destSize) {
+        dataBuf->nAllocSize = (uint32_t)(destSize * 1.5);
+        char *tmp = realloc(dataBuf->pData, dataBuf->nAllocSize);
+        if (tmp != NULL) {
+          dataBuf->pData = tmp;
+        } else {  // failed to allocate memory, free already allocated memory and return error code
+          tscError("0x%" PRIx64 " failed to allocate memory for merging submit block, size:%d", pInsertParam->objectId,
+                   dataBuf->nAllocSize);
+          
+          taosHashCleanup(pVnodeDataBlockHashList);
+          tfree(dataBuf->pData);
+          return TSDB_CODE_TSC_OUT_OF_MEMORY;
+        }
+      }
+      
+      // copy the data into vgroup data blocks.
+      memcpy(dataBuf->pData + dataBuf->size, tableBlock->pData + tableBlock->headerSize, tableBlock->size - tableBlock->headerSize);
+      dataBuf->size += tableBlock->size - tableBlock->headerSize;
+      dataBuf->numOfTables += 1;
+      tscDestroyDataBlock(pSql, tableBlock, false);
+    }
+    
+    // free the data blocks and sql objs. (because it is no longer needed).
+    taosArrayDestroy(&pInsertParam->pDataBlocks);
+    taosReleaseRef(tscObjRef, pSql->self);
+  }
+  
+  // clean up.
+  taosHashCleanup(pVnodeDataBlockHashList);
+  *result = merged;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tscMergeTableDataBlocks(SSqlObj *pSql, SInsertStatementParam *pInsertParam, bool freeBlockMap) {
@@ -2283,7 +2386,11 @@ int32_t tscMergeTableDataBlocks(SSqlObj *pSql, SInsertStatementParam *pInsertPar
     pOneTableBlock = *p;
   }
 
-  extractTableNameList(pSql, pInsertParam, freeBlockMap);
+  extractTableNameList(pSql, pInsertParam);
+  
+  if (freeBlockMap) {
+    pInsertParam->pTableBlockHashList = tscDestroyBlockHashTable(pSql, pInsertParam->pTableBlockHashList, false);
+  }
 
   // free the table data blocks;
   pInsertParam->pDataBlocks = pVnodeDataBlockList;

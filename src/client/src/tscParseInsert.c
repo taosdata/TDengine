@@ -1569,7 +1569,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
   if (pInsertParam->numOfParams > 0) {
     goto _clean;
   }
-
+  
   // merge according to vgId
   if (!TSDB_QUERY_HAS_TYPE(pInsertParam->insertType, TSDB_QUERY_TYPE_STMT_INSERT) && taosHashGetSize(pInsertParam->pTableBlockHashList) > 0) {
     if ((code = tscMergeTableDataBlocks(pSql, pInsertParam, true)) != TSDB_CODE_SUCCESS) {
@@ -1577,6 +1577,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
     }
   }
 
+  pCmd->insertParam.numOfRows = totalNum;
   code = TSDB_CODE_SUCCESS;
   goto _clean;
 

@@ -256,7 +256,7 @@ typedef struct SInsertStatementParam {
 
   int32_t      batchSize;               // for parameter ('?') binding and batch processing
   int32_t      numOfParams;
-
+  int32_t      numOfRows;
   int32_t      numOfFiles;
 
   char         msg[512];                // error message
@@ -399,9 +399,10 @@ typedef struct SSqlObj {
   struct SSqlObj  *prev, *next;
   int64_t          self;
   
-  // connect alive
+
   int64_t          lastAlive;
   void *           pPrevContext;
+  bool             enableBatch;
 } SSqlObj;
 
 typedef struct SSqlStream {
@@ -496,11 +497,27 @@ void tscCloseTscObj(void *pObj);
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, TAOS **taos);
 TAOS_RES* taos_query_h(TAOS* taos, const char *sqlstr, int64_t* res);
-TAOS_RES * taos_query_ra(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *param);
+TAOS_RES * taos_query_ra(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *param, bool enableBatch);
 // get taos connection unused session number
 int32_t taos_unused_session(TAOS* taos);
 
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code);
+
+/**
+ * The initialization of async insertion auto batch feature.
+ * 
+ * @param batchLen  When user submit an insert statement to `taos_query_ra`, the statement will be buffered
+ *                  asynchronously in the execution queue instead of executing it. If the number of the buffered
+ *                  statements reach batchLen, all the statements in the queue will be merged and sent to vnodes.
+ * @param timeout   The statements will be sent to vnodes no more than timeout milliseconds. But the actual time
+ *                  vnodes received the statements depends on the network quality.
+ */
+void tscInitAsyncDispatcher(int32_t batchLen, int64_t timeout);
+
+/**
+ * Destroy the async auto batch dispatcher.
+ */
+void tscDestroyAsyncDispatcher();
 
 void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, __async_cb_func_t fp, void *param, const char *sqlstr, size_t sqlLen);
 

@@ -341,7 +341,7 @@ bool sqlBufSend(TAOS *taos, char *sqlBuf) {
   } while(++sleepCnt < 20);
 
   strcat(sqlBuf, ";");
-  taos_query_ra(taos, sqlBuf, cbSendValues, NULL);
+  taos_query_ra(taos, sqlBuf, cbSendValues, NULL, false);
   return true;
 }
 

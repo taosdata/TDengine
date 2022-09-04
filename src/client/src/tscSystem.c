@@ -215,6 +215,10 @@ void taos_init_imp(void) {
 #endif
     tscDebug("starting to initialize client ...");
     tscDebug("Local End Point is:%s", tsLocalEp);
+    
+    if (tsAsyncBatchEnable) {
+      tscInitAsyncDispatcher(tsAsyncBatchLen, tsAsyncBatchTimeout);
+    }
   }
 
   taosSetCoreDump();
@@ -279,6 +283,9 @@ void taos_cleanup(void) {
     #ifdef LUA_EMBEDDED
     scriptEnvPoolCleanup();
     #endif
+    if (tsAsyncBatchEnable) {
+      tscDestroyAsyncDispatcher();
+    }
   }
 
   int32_t id = tscObjRef;
