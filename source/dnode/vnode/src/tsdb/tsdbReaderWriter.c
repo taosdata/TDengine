@@ -408,8 +408,9 @@ int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SArray *aBlockIdx) {
   pHeadFile->size += size;
 
 _exit:
-  tsdbTrace("vgId:%d write block idx, offset:%" PRId64 " size:%" PRId64 " nBlockIdx:%d", TD_VID(pWriter->pTsdb->pVnode),
-            pHeadFile->offset, size, taosArrayGetSize(aBlockIdx));
+  // tsdbTrace("vgId:%d write block idx, offset:%" PRId64 " size:%" PRId64 " nBlockIdx:%d",
+  // TD_VID(pWriter->pTsdb->pVnode),
+  //           pHeadFile->offset, size, taosArrayGetSize(aBlockIdx));
   return code;
 
 _err:
@@ -779,8 +780,10 @@ int32_t tsdbDataFReaderClose(SDataFReader **ppReader) {
   tsdbCloseFile(&(*ppReader)->pSmaFD);
 
   // sst
-  for (int32_t iSst = 0; iSst < (*ppReader)->pSet->nSstF; iSst++) {
-    tsdbCloseFile(&(*ppReader)->aSstFD[iSst]);
+  for (int32_t iSst = 0; iSst < TSDB_MAX_SST_FILE; iSst++) {
+    if ((*ppReader)->aSstFD[iSst]) {
+      tsdbCloseFile(&(*ppReader)->aSstFD[iSst]);
+    }
   }
 
   for (int32_t iBuf = 0; iBuf < sizeof((*ppReader)->aBuf) / sizeof(uint8_t *); iBuf++) {
