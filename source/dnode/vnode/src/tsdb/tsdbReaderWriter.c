@@ -934,18 +934,20 @@ _err:
   return code;
 }
 
-static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo, int8_t fromLast,
-                                     SBlockData *pBlockData) {
+static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo, SBlockData *pBlockData) {
   int32_t code = 0;
 
   tBlockDataClear(pBlockData);
 
-  STsdbFD *pFD = fromLast ? pReader->aSstFD[0] : pReader->pDataFD;  // (todo)
-
-  // todo: realloc pReader->aBuf[0]
+  STsdbFD *pFD = pReader->pDataFD;
 
   // uid + version + tskey
-  tsdbReadFile(pFD, pBlkInfo->offset, pReader->aBuf[0], pBlkInfo->szKey);  // todo
+  code = tRealloc(&pReader->aBuf[0], pBlkInfo->szKey);
+  if (code) goto _err;
+
+  code = tsdbReadFile(pFD, pBlkInfo->offset, pReader->aBuf[0], pBlkInfo->szKey);
+  if (code) goto _err;
+
   SDiskDataHdr hdr;
   uint8_t     *p = pReader->aBuf[0] + tGetDiskDataHdr(pReader->aBuf[0], &hdr);
 
@@ -978,14 +980,15 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
   if (code) goto _err;
   p += hdr.szKey;
 
-  ASSERT(p - pReader->aBuf[0] == pBlkInfo->szKey - sizeof(TSCKSUM));
+  ASSERT(p - pReader->aBuf[0] == pBlkInfo->szKey);
 
   // read and decode columns
   if (taosArrayGetSize(pBlockData->aIdx) == 0) goto _exit;
 
   if (hdr.szBlkCol > 0) {
     int64_t offset = pBlkInfo->offset + pBlkInfo->szKey;
-    tsdbReadFile(pFD, offset, pReader->aBuf[0], hdr.szBlkCol + sizeof(TSCKSUM));
+    code = tsdbReadFile(pFD, offset, pReader->aBuf[0], hdr.szBlkCol);
+    if (code) goto _err;
   }
 
   SBlockCol  blockCol = {.cid = 0};
@@ -1022,10 +1025,11 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
         }
       } else {
         // decode from binary
-        int64_t offset = pBlkInfo->offset + pBlkInfo->szKey + hdr.szBlkCol + sizeof(TSCKSUM) + pBlockCol->offset;
-        int32_t size = pBlockCol->szBitmap + pBlockCol->szOffset + pBlockCol->szValue + sizeof(TSCKSUM);
+        int64_t offset = pBlkInfo->offset + pBlkInfo->szKey + hdr.szBlkCol + pBlockCol->offset;
+        int32_t size = pBlockCol->szBitmap + pBlockCol->szOffset + pBlockCol->szValue;
 
-        tsdbReadFile(pFD, offset, pReader->aBuf[1], size);
+        code = tsdbReadFile(pFD, offset, pReader->aBuf[1], size);
+        if (code) goto _err;
 
         code = tsdbDecmprColData(pReader->aBuf[1], pBlockCol, hdr.cmprAlg, hdr.nRow, pColData, &pReader->aBuf[2]);
         if (code) goto _err;
@@ -1044,7 +1048,7 @@ _err:
 int32_t tsdbReadDataBlock(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockData *pBlockData) {
   int32_t code = 0;
 
-  code = tsdbReadBlockDataImpl(pReader, &pDataBlk->aSubBlock[0], 0, pBlockData);
+  code = tsdbReadBlockDataImpl(pReader, &pDataBlk->aSubBlock[0], pBlockData);
   if (code) goto _err;
 
   if (pDataBlk->nSubBlock > 1) {
@@ -1062,7 +1066,7 @@ int32_t tsdbReadDataBlock(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockData 
     tBlockDataInitEx(&bData2, pBlockData);
 
     for (int32_t iSubBlock = 1; iSubBlock < pDataBlk->nSubBlock; iSubBlock++) {
-      code = tsdbReadBlockDataImpl(pReader, &pDataBlk->aSubBlock[iSubBlock], 0, &bData1);
+      code = tsdbReadBlockDataImpl(pReader, &pDataBlk->aSubBlock[iSubBlock], &bData1);
       if (code) {
         tBlockDataDestroy(&bData1, 1);
         tBlockDataDestroy(&bData2, 1);
