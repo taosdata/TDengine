@@ -37,18 +37,18 @@ static void tscAsyncQueryRowsForNextVnode(void *param, TAOS_RES *tres, int numOf
 static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows);
 
 // The async auto batch feature.
-static bool asyncBatchEnable;
+static atomic_bool asyncBatchEnable;
 // The queue store the async insertion statements
 static taos_queue insertionQueue;
 // The number of statements in the insertion queue.
-static int currentBatchLen;
+static atomic_int currentBatchLen;
 // The maximum auto batch len.
 static int asyncBatchLen;
 // The batch timeout in milliseconds.
 static int64_t asyncBatchTimeout;
 // The state of the insertion queue. While executing timeout task, the queue will set exclusive for writing
 // in order to make sure the statements will be sent to vnodes no more than `timeout` milliseconds.
-static int exclusiveState;
+static atomic_int exclusiveState;
 // The background thread to manage statement auto batch timeout.
 static pthread_t background;
 
