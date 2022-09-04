@@ -168,7 +168,9 @@ static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryE
   taosReadQitem(pDeleter->pDataBlocks, (void**)&pBuf);
   memcpy(&pDeleter->nextOutput, pBuf, sizeof(SDataDeleterBuf));
   taosFreeQitem(pBuf);
-  *pLen = ((SDataCacheEntry*)(pDeleter->nextOutput.pData))->dataLen;
+
+  SDataCacheEntry* pEntry = (SDataCacheEntry*)pDeleter->nextOutput.pData;
+  *pLen = pEntry->dataLen;
   *pQueryEnd = pDeleter->queryEnd;
   qDebug("got data len %" PRId64 ", row num %d in sink", *pLen, ((SDataCacheEntry*)(pDeleter->nextOutput.pData))->numOfRows);
 }

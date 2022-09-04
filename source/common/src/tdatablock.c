@@ -2120,6 +2120,7 @@ void blockEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_
   int32_t* rows = (int32_t*)data;
   *rows = pBlock->info.rows;
   data += sizeof(int32_t);
+  ASSERT(*rows > 0);
 
   int32_t* cols = (int32_t*)data;
   *cols = numOfCols;
@@ -2183,6 +2184,8 @@ void blockEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_
 
   *actualLen = *dataLen;
   *groupId = pBlock->info.groupId;
+  ASSERT(*dataLen > 0);
+  uDebug("build data block, actualLen:%d, rows:%d, cols:%d", *dataLen, *rows, *cols);
 }
 
 const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
