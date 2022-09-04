@@ -1,9 +1,12 @@
 build/
 .ycm_extra_conf.py
 .vscode/
+.cache/
+compile_commands.json
 .idea/
 cmake-build-debug/
 cmake-build-release/
+cmake-build-relwithdebinfo/
 cscope.out
 cscope.files
 tags
