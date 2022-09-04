@@ -220,7 +220,7 @@ static void tRSmaInfoHashFreeNode(void *data) {
     if ((pItem = RSMA_INFO_ITEM((SRSmaInfo *)pRSmaInfo, 1)) && pItem->level) {
       taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES);
     }
-    tdFreeRSmaInfo(NULL, pRSmaInfo, true);
+    tdFreeRSmaInfo(pRSmaInfo->pSma, pRSmaInfo, true);
   }
 }
 

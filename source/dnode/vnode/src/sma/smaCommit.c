@@ -364,7 +364,6 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
   }
 
   SRSmaStat     *pRSmaStat = (SRSmaStat *)SMA_ENV_STAT(pEnv);
-  SRSmaInfoItem *pItem = NULL;
 
   // step 1: merge qTaskInfo and iQTaskInfo
   // lock
