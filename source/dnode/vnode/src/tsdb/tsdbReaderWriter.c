@@ -173,28 +173,23 @@ static int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t
   int64_t fOffset = LOGIC_TO_FILE_OFFSET(offset, pFD->szPage);
   int64_t pgno = OFFSET_PGNO(fOffset, pFD->szPage);
   int32_t szPgCont = PAGE_CONTENT_SIZE(pFD->szPage);
+  int64_t bOffset = fOffset % pFD->szPage;
 
   ASSERT(pgno && pgno <= pFD->szFile);
-  if (pFD->pgno == pgno) {
-    int64_t bOff = fOffset % pFD->szPage;
-    int64_t nRead = TMIN(szPgCont - bOff, size);
-
-    ASSERT(bOff < szPgCont);
-
-    memcpy(pBuf, pFD->pBuf + bOff, nRead);
-    n = nRead;
-    pgno++;
-  }
+  ASSERT(bOffset < szPgCont);
 
   while (n < size) {
-    code = tsdbReadFilePage(pFD, pgno);
-    if (code) goto _exit;
+    if (pFD->pgno != pgno) {
+      code = tsdbReadFilePage(pFD, pgno);
+      if (code) goto _exit;
+    }
 
-    int64_t nRead = TMIN(szPgCont, size - n);
-    memcpy(pBuf + n, pFD->pBuf, nRead);
+    int64_t nRead = TMIN(szPgCont - bOffset, size - n);
+    memcpy(pBuf + n, pFD->pBuf + bOffset, nRead);
 
     n += nRead;
     pgno++;
+    bOffset = 0;
   }
 
 _exit:
