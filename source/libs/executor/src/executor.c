@@ -30,6 +30,8 @@ static void cleanupRefPool() {
   taosCloseRef(ref);
 }
 
+static FORCE_INLINE void streamInputBlockDataDestory(void* pBlock) { blockDataDestroy((SSDataBlock*)pBlock); }
+
 static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, char* id) {
   ASSERT(pOperator != NULL);
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
@@ -53,7 +55,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     // prevent setting a different type of block
     pInfo->validBlockIndex = 0;
     if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
-      taosArrayClearP(pInfo->pBlockLists, taosMemoryFree);
+      taosArrayClearP(pInfo->pBlockLists, streamInputBlockDataDestory);
     } else {
       taosArrayClear(pInfo->pBlockLists);
     }
@@ -107,11 +109,7 @@ void tdCleanupStreamInputDataBlock(qTaskInfo_t tinfo) {
   if (pOptrInfo->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     SStreamScanInfo* pInfo = pOptrInfo->info;
     if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
-      for (int32_t i = 0; i < taosArrayGetSize(pInfo->pBlockLists); ++i) {
-        SSDataBlock* p = *(SSDataBlock**)taosArrayGet(pInfo->pBlockLists, i);
-        taosArrayDestroy(p->pDataBlock);
-        taosMemoryFreeClear(p);
-      }
+      taosArrayClearP(pInfo->pBlockLists, streamInputBlockDataDestory);
     } else {
       ASSERT(0);
     }

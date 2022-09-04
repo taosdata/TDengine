@@ -1303,7 +1303,7 @@ _err:
 int32_t tsdbWriteBlockL(SDataFWriter *pWriter, SArray *aBlockL) {
   int32_t    code = 0;
   SLastFile *pLastFile = &pWriter->fLast;
-  int64_t    size;
+  int64_t    size = 0;
   int64_t    n;
 
   // check
