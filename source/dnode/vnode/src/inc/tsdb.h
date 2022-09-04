@@ -84,6 +84,14 @@ typedef struct SLDataIter    SLDataIter;
 #define TSDBKEY_MIN ((TSDBKEY){.ts = TSKEY_MIN, .version = VERSION_MIN})
 #define TSDBKEY_MAX ((TSDBKEY){.ts = TSKEY_MAX, .version = VERSION_MAX})
 
+#define PAGE_CONTENT_SIZE(PAGE) ((PAGE) - sizeof(TSCKSUM))
+#define LOGIC_TO_FILE_OFFSET(LOFFSET, PAGE) \
+  ((LOFFSET) / PAGE_CONTENT_SIZE(PAGE) * (PAGE) + (LOFFSET) % PAGE_CONTENT_SIZE(PAGE))
+#define FILE_TO_LOGIC_OFFSET(OFFSET, PAGE) ((OFFSET) / (PAGE)*PAGE_CONTENT_SIZE(PAGE) + (OFFSET) % (PAGE))
+#define PAGE_OFFSET(PGNO, PAGE)            (((PGNO)-1) * (PAGE))
+#define OFFSET_PGNO(OFFSET, PAGE)          ((OFFSET) / (PAGE) + 1)
+#define LOGIC_TO_FILE_SIZE(LSIZE, PAGE)    OFFSET_PGNO(LOGIC_TO_FILE_OFFSET(LSIZE, PAGE), PAGE) * (PAGE)
+
 // tsdbUtil.c ==============================================================================================
 // TSDBROW
 #define TSDBROW_TS(ROW)                       (((ROW)->type == 0) ? (ROW)->pTSRow->ts : (ROW)->pBlockData->aTSKEY[(ROW)->iRow])

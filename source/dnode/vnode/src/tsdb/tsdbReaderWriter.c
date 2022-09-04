@@ -16,13 +16,6 @@
 #include "tsdb.h"
 
 // =============== PAGE-WISE FILE ===============
-#define PAGE_CONTENT_SIZE(PAGE) ((PAGE) - sizeof(TSCKSUM))
-#define LOGIC_TO_FILE_OFFSET(OFFSET, PAGE) \
-  ((OFFSET) / PAGE_CONTENT_SIZE(PAGE) * (PAGE) + (OFFSET) % PAGE_CONTENT_SIZE(PAGE))
-#define FILE_TO_LOGIC_OFFSET(OFFSET, PAGE) ((OFFSET) / (PAGE)*PAGE_CONTENT_SIZE(PAGE) + (OFFSET) % (PAGE))
-#define PAGE_OFFSET(PGNO, PAGE)            (((PGNO)-1) * (PAGE))
-#define OFFSET_PGNO(OFFSET, PAGE)          ((OFFSET) / (PAGE) + 1)
-
 static int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **ppFD) {
   int32_t  code = 0;
   STsdbFD *pFD;

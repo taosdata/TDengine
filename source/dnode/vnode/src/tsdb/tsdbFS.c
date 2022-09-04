@@ -15,8 +15,6 @@
 
 #include "tsdb.h"
 
-#define LOGIC_TO_FILE_SIZE(LSIZE, PAGE) (0)  // todo
-
 // =================================================================================================
 static int32_t tsdbEncodeFS(uint8_t *p, STsdbFS *pFS) {
   int32_t  n = 0;
