@@ -598,8 +598,8 @@ typedef struct {
   int32_t   flag;
   TdFilePtr pFD;
   int64_t   pgno;
-  int32_t   nBuf;
   uint8_t  *pBuf;
+  int64_t   szFile;
 } STsdbFD;
 
 struct SDataFWriter {
@@ -609,7 +609,7 @@ struct SDataFWriter {
   STsdbFD *pHeadFD;
   STsdbFD *pDataFD;
   STsdbFD *pSmaFD;
-  STsdbFD *pLastFD;
+  STsdbFD *pSstFD;
 
   SHeadFile fHead;
   SDataFile fData;
