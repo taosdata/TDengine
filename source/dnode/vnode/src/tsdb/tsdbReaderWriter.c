@@ -155,12 +155,12 @@ static int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_
       }
     }
 
-    int64_t nRead = TMIN(PAGE_CONTENT_SIZE(pFD->szPage) - bOffset, size - n);
-    memcpy(pFD->pBuf + bOffset, pBuf + n, nRead);
+    int64_t nWrite = TMIN(PAGE_CONTENT_SIZE(pFD->szPage) - bOffset, size - n);
+    memcpy(pFD->pBuf + bOffset, pBuf + n, nWrite);
 
     pgno++;
     bOffset = 0;
-    n += nRead;
+    n += nWrite;
   } while (n < size);
 
 _exit:
@@ -169,12 +169,12 @@ _exit:
 
 static int32_t tsdbReadFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size) {
   int32_t code = 0;
-  int64_t n;
+  int64_t n = 0;
   int64_t fOffset = LOGIC_TO_FILE_OFFSET(offset, pFD->szPage);
   int64_t pgno = OFFSET_PGNO(fOffset, pFD->szPage);
   int32_t szPgCont = PAGE_CONTENT_SIZE(pFD->szPage);
 
-  ASSERT(pgno);
+  ASSERT(pgno && pgno <= pFD->szFile);
   if (pFD->pgno == pgno) {
     int64_t bOff = fOffset % pFD->szPage;
     int64_t nRead = TMIN(szPgCont - bOff, size);
