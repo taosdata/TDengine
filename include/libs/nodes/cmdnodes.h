@@ -82,6 +82,8 @@ typedef struct SDatabaseOptions {
   bool        walRetentionSizeIsSet;
   bool        walRollPeriodIsSet;
   int32_t     sstTrigger;
+  int32_t     tablePrefix;
+  int32_t     tableSuffix;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {

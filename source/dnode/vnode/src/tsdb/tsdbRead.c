@@ -337,12 +337,15 @@ static int32_t initFilesetIterator(SFilesetIter* pIter, SArray* aDFileSet,
       tsdbError("failed to prepare the last block iterator, code:%d %s", tstrerror(code), pReader->idStr);
       return code;
     }
-
-    SLastBlockReader* pLReader = pIter->pLastBlockReader;
-    pLReader->order = pReader->order;
-    pLReader->window = pReader->window;
-    pLReader->verRange = pReader->verRange;
   }
+
+  SLastBlockReader* pLReader = pIter->pLastBlockReader;
+  pLReader->order = pReader->order;
+  pLReader->window = pReader->window;
+  pLReader->verRange = pReader->verRange;
+
+  pLReader->uid = 0;
+  tMergeTreeClose(&pLReader->mergeTree);
 
   tsdbDebug("init fileset iterator, total files:%d %s", pIter->numOfFiles, pReader->idStr);
   return TSDB_CODE_SUCCESS;
@@ -1375,7 +1378,9 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
 static int32_t doMergeFileBlockAndLastBlock(SLastBlockReader* pLastBlockReader, STsdbReader* pReader,
                                             STableBlockScanInfo* pBlockScanInfo, SBlockData* pBlockData,
                                             bool mergeBlockData) {
-  int64_t tsLastBlock = getCurrentKeyInLastBlock(pLastBlockReader);
+  SFileBlockDumpInfo* pDumpInfo = &pReader->status.fBlockDumpInfo;
+  // SBlockData* pLastBlockData = &pLastBlockReader->lastBlockData;
+  int64_t     tsLastBlock = getCurrentKeyInLastBlock(pLastBlockReader);
 
   STSRow*    pTSRow = NULL;
   SRowMerger merge = {0};
@@ -1385,7 +1390,7 @@ static int32_t doMergeFileBlockAndLastBlock(SLastBlockReader* pLastBlockReader, 
   doMergeRowsInLastBlock(pLastBlockReader, pBlockScanInfo, tsLastBlock, &merge);
 
   // merge with block data if ts == key
-  if (mergeBlockData) {
+  if (mergeBlockData && (tsLastBlock == pBlockData->aTSKEY[pDumpInfo->rowIndex])) {
     doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pReader, &merge);
   }
 
