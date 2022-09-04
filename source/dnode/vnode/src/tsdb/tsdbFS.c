@@ -15,11 +15,16 @@
 
 #include "tsdb.h"
 
+#define LOGIC_TO_FILE_SIZE(LSIZE, PAGE) (0)  // todo
+
 // =================================================================================================
 static int32_t tsdbEncodeFS(uint8_t *p, STsdbFS *pFS) {
   int32_t  n = 0;
   int8_t   hasDel = pFS->pDelFile ? 1 : 0;
   uint32_t nSet = taosArrayGetSize(pFS->aDFileSet);
+
+  // version
+  n += tPutI8(p ? p + n : p, 0);
 
   // SDelFile
   n += tPutI8(p ? p + n : p, hasDel);
@@ -292,7 +297,7 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
-    if (size != pSet->pHeadF->size) {
+    if (size != LOGIC_TO_FILE_SIZE(pSet->pHeadF->size, TSDB_DEFAULT_PAGE_SIZE)) {
       code = TSDB_CODE_FILE_CORRUPTED;
       goto _err;
     }
@@ -303,10 +308,10 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
-    if (size < pSet->pDataF->size) {
+    if (size < LOGIC_TO_FILE_SIZE(pSet->pDataF->size, TSDB_DEFAULT_PAGE_SIZE)) {
       code = TSDB_CODE_FILE_CORRUPTED;
       goto _err;
-    } else if (size > pSet->pDataF->size) {
+    } else if (size > LOGIC_TO_FILE_SIZE(pSet->pDataF->size, TSDB_DEFAULT_PAGE_SIZE)) {
       code = tsdbDFileRollback(pTsdb, pSet, TSDB_DATA_FILE);
       if (code) goto _err;
     }
@@ -317,10 +322,10 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
-    if (size < pSet->pSmaF->size) {
+    if (size < LOGIC_TO_FILE_SIZE(pSet->pSmaF->size, TSDB_DEFAULT_PAGE_SIZE)) {
       code = TSDB_CODE_FILE_CORRUPTED;
       goto _err;
-    } else if (size > pSet->pSmaF->size) {
+    } else if (size > LOGIC_TO_FILE_SIZE(pSet->pSmaF->size, TSDB_DEFAULT_PAGE_SIZE)) {
       code = tsdbDFileRollback(pTsdb, pSet, TSDB_SMA_FILE);
       if (code) goto _err;
     }
@@ -332,7 +337,7 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
         code = TAOS_SYSTEM_ERROR(errno);
         goto _err;
       }
-      if (size != pSet->aSstF[iSst]->size) {
+      if (size != LOGIC_TO_FILE_SIZE(pSet->aSstF[iSst]->size, TSDB_DEFAULT_PAGE_SIZE)) {
         code = TSDB_CODE_FILE_CORRUPTED;
         goto _err;
       }
@@ -364,10 +369,12 @@ static int32_t tsdbRecoverFS(STsdb *pTsdb, uint8_t *pData, int64_t nData) {
   int32_t  code = 0;
   int8_t   hasDel;
   uint32_t nSet;
-  int32_t  n;
+  int32_t  n = 0;
+
+  // version
+  n += tGetI8(pData + n, NULL);
 
   // SDelFile
-  n = 0;
   n += tGetI8(pData + n, &hasDel);
   if (hasDel) {
     pTsdb->fs.pDelFile = (SDelFile *)taosMemoryMalloc(sizeof(SDelFile));

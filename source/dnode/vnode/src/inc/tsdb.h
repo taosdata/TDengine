@@ -67,11 +67,12 @@ typedef struct SBlockCol     SBlockCol;
 typedef struct SVersionRange SVersionRange;
 typedef struct SLDataIter    SLDataIter;
 
-#define TSDB_FILE_DLMT        ((uint32_t)0xF00AFA0F)
-#define TSDB_MAX_SUBBLOCKS    8
-#define TSDB_MAX_SST_FILE     16
-#define TSDB_DEFAULT_SST_FILE 8
-#define TSDB_FHDR_SIZE        512
+#define TSDB_FILE_DLMT         ((uint32_t)0xF00AFA0F)
+#define TSDB_MAX_SUBBLOCKS     8
+#define TSDB_MAX_SST_FILE      16
+#define TSDB_DEFAULT_SST_FILE  8
+#define TSDB_FHDR_SIZE         512
+#define TSDB_DEFAULT_PAGE_SIZE 4096
 
 #define HAS_NONE  ((int8_t)0x1)
 #define HAS_NULL  ((int8_t)0x2)
@@ -578,20 +579,6 @@ struct SRowMerger {
   SArray   *pArray;  // SArray<SColVal>
 };
 
-struct SDelFWriter {
-  STsdb    *pTsdb;
-  SDelFile  fDel;
-  TdFilePtr pWriteH;
-
-  uint8_t *aBuf[1];
-};
-
-struct STsdbReadSnap {
-  SMemTable *pMem;
-  SMemTable *pIMem;
-  STsdbFS    fs;
-};
-
 typedef struct {
   char     *path;
   int32_t   szPage;
@@ -601,6 +588,19 @@ typedef struct {
   uint8_t  *pBuf;
   int64_t   szFile;
 } STsdbFD;
+
+struct SDelFWriter {
+  STsdb   *pTsdb;
+  SDelFile fDel;
+  STsdbFD *pWriteH;
+  uint8_t *aBuf[1];
+};
+
+struct STsdbReadSnap {
+  SMemTable *pMem;
+  SMemTable *pIMem;
+  STsdbFS    fs;
+};
 
 struct SDataFWriter {
   STsdb    *pTsdb;
