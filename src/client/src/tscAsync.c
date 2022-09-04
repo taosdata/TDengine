@@ -347,7 +347,6 @@ bool tscSupportAutoBatch(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
   SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
   
-  
   // only support insert statement.
   if (!TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT)) {
     return false;
