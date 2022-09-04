@@ -107,6 +107,37 @@ if $data30 != 12 then
   return -1
 endi
 
+print =============== show vnodes
+sql show vnodes 1
+if $rows != 9 then
+  return -1
+endi
+
+if $data(4)[1] != 1 then
+  return -1
+endi
+
+if $data(4)[2] != leader then
+  return -1
+endi
+
+if $data(4)[3] != d2 then
+  return -1
+endi
+
+if $data(4)[4] != 1 then
+  return -1
+endi
+
+if $data(4)[5] != localhost:7100 then
+  return -1
+endi
+
+sql show vnodes 'localhost:7100'
+if $rows != 9 then
+  return -1
+endi
+
 print =============== drop database
 sql drop database d2
 sql drop database d3

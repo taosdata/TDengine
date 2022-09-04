@@ -777,6 +777,7 @@ SNode* nodesCloneNode(const SNode* pNode) {
       code = physiSessionCopy((const SSessionWinodwPhysiNode*)pNode, (SSessionWinodwPhysiNode*)pDst);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
       code = physiPartitionCopy((const SPartitionPhysiNode*)pNode, (SPartitionPhysiNode*)pDst);
       break;
     default:

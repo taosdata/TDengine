@@ -44,7 +44,7 @@ For example, the following SQL statement creates a stream and automatically crea
 
 ```sql
 CREATE STREAM avg_vol_s INTO avg_vol AS
-SELECT _wstartts, count(*), avg(voltage) FROM meters PARTITION BY tbname INTERVAL(1m) SLIDING(30s);
+SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname INTERVAL(1m) SLIDING(30s);
 ```
 
 ## Delete a Stream

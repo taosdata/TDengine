@@ -1,5 +1,5 @@
 ---
-title: 转义字符说明
+title: 转义字符
 sidebar_label: 转义字符
 description: TDengine 中使用转义字符的详细规则
 ---

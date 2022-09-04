@@ -1,4 +1,5 @@
 add_executable(tmq_demo tmqDemo.c)
+add_dependencies(tmq_demo taos)
 add_executable(tmq_sim tmqSim.c)
 add_executable(create_table createTable.c)
 add_executable(tmq_taosx_ci tmq_taosx_ci.c)

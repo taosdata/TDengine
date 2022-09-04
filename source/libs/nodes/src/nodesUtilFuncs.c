@@ -322,6 +322,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SStreamStateWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return makeNode(type, sizeof(SPartitionPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
+      return makeNode(type, sizeof(SStreamPartitionPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC:
       return makeNode(type, sizeof(SIndefRowsFuncPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
@@ -951,7 +953,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pPhyNode->pStateKey);
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_PARTITION: {
+    case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION: {
       SPartitionPhysiNode* pPhyNode = (SPartitionPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pExprs);

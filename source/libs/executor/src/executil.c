@@ -938,15 +938,17 @@ SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     STargetNode* pNode = (STargetNode*)nodesListGetNode(pNodeList, i);
-    SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
+    if (nodeType(pNode->pExpr) == QUERY_NODE_COLUMN) {
+      SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
 
-    SColMatchInfo c = {0};
-    c.output = true;
-    c.colId = pColNode->colId;
-    c.srcSlotId = pColNode->slotId;
-    c.matchType = type;
-    c.targetSlotId = pNode->slotId;
-    taosArrayPush(pList, &c);
+      SColMatchInfo c = {0};
+      c.output = true;
+      c.colId = pColNode->colId;
+      c.srcSlotId = pColNode->slotId;
+      c.matchType = type;
+      c.targetSlotId = pNode->slotId;
+      taosArrayPush(pList, &c);
+    }
   }
 
   *numOfOutputCols = 0;
