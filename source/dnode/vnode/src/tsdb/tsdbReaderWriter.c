@@ -14,6 +14,9 @@
  */
 
 #include "tsdb.h"
+
+#define TSDB_DEFAULT_PAGE_SIZE 4096
+
 // =============== PAGE-WISE FILE ===============
 static int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t opt, STsdbFD **ppFD) {
   int32_t  code = 0;
@@ -163,7 +166,7 @@ int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pS
   int32_t       code = 0;
   int32_t       flag;
   int64_t       n;
-  int32_t       szPage = 4096;
+  int32_t       szPage = TSDB_DEFAULT_PAGE_SIZE;
   SDataFWriter *pWriter = NULL;
   char          fname[TSDB_FILENAME_LEN];
   char          hdr[TSDB_FHDR_SIZE] = {0};
@@ -699,7 +702,7 @@ _err:
 int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pSet) {
   int32_t       code = 0;
   SDataFReader *pReader;
-  int32_t       szPage = 4096;
+  int32_t       szPage = TSDB_DEFAULT_PAGE_SIZE;
   char          fname[TSDB_FILENAME_LEN];
 
   // alloc
@@ -711,7 +714,6 @@ int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pS
   pReader->pTsdb = pTsdb;
   pReader->pSet = pSet;
 
-  // open impl
   // head
   tsdbHeadFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pHeadF, fname);
   code = tsdbOpenFile(fname, szPage, TD_FILE_READ, &pReader->pHeadFD);
@@ -730,7 +732,7 @@ int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pS
   // sst
   for (int32_t iSst = 0; iSst < pSet->nSstF; iSst++) {
     tsdbSstFileName(pTsdb, pSet->diskId, pSet->fid, pSet->aSstF[iSst], fname);
-    code = tsdbOpenFile(fname, szPage, TD_FILE_READ, &pReader->aLastFD[iSst]);
+    code = tsdbOpenFile(fname, szPage, TD_FILE_READ, &pReader->aSstFD[iSst]);
     if (code) goto _err;
   }
 
@@ -758,7 +760,7 @@ int32_t tsdbDataFReaderClose(SDataFReader **ppReader) {
 
   // sst
   for (int32_t iSst = 0; iSst < (*ppReader)->pSet->nSstF; iSst++) {
-    tsdbCloseFile(&(*ppReader)->aLastFD[iSst]);
+    tsdbCloseFile(&(*ppReader)->aSstFD[iSst]);
   }
 
   for (int32_t iBuf = 0; iBuf < sizeof((*ppReader)->aBuf) / sizeof(uint8_t *); iBuf++) {
@@ -855,13 +857,13 @@ int32_t tsdbReadSstBlk(SDataFReader *pReader, int32_t iSst, SArray *aSstBlk) {
   if (code) goto _err;
 
   // // seek
-  // if (taosLSeekFile(pReader->aLastFD[iSst], offset, SEEK_SET) < 0) {
+  // if (taosLSeekFile(pReader->aSstFD[iSst], offset, SEEK_SET) < 0) {
   //   code = TAOS_SYSTEM_ERROR(errno);
   //   goto _err;
   // }
 
   // read
-  n = tsdbReadFile(pReader->aLastFD[iSst], offset, pReader->aBuf[0], size);
+  n = tsdbReadFile(pReader->aSstFD[iSst], offset, pReader->aBuf[0], size);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -1020,7 +1022,7 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
 
   tBlockDataClear(pBlockData);
 
-  STsdbFD *pFD = fromLast ? pReader->aLastFD[0] : pReader->pDataFD;  // (todo)
+  STsdbFD *pFD = fromLast ? pReader->aSstFD[0] : pReader->pDataFD;  // (todo)
 
   // todo: realloc pReader->aBuf[0]
 
@@ -1192,7 +1194,7 @@ int32_t tsdbReadSstBlockEx(SDataFReader *pReader, int32_t iSst, SSstBlk *pSstBlk
   int32_t code = 0;
 
   // read
-  tsdbReadFile(pReader->aLastFD[iSst], pSstBlk->bInfo.offset, pReader->aBuf[0], pSstBlk->bInfo.szBlock);
+  tsdbReadFile(pReader->aSstFD[iSst], pSstBlk->bInfo.offset, pReader->aBuf[0], pSstBlk->bInfo.szBlock);
 
   // decmpr
   code = tDecmprBlockData(pReader->aBuf[0], pSstBlk->bInfo.szBlock, pBlockData, &pReader->aBuf[1]);

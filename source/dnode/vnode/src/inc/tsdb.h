@@ -623,9 +623,8 @@ struct SDataFReader {
   STsdbFD   *pHeadFD;
   STsdbFD   *pDataFD;
   STsdbFD   *pSmaFD;
-  STsdbFD   *aLastFD[TSDB_MAX_SST_FILE];
-
-  uint8_t *aBuf[3];
+  STsdbFD   *aSstFD[TSDB_MAX_SST_FILE];
+  uint8_t   *aBuf[3];
 };
 
 typedef struct {
