@@ -221,7 +221,7 @@ bool tLDataIterNextRow(SLDataIter *pIter) {
 
   if (pBlockData->nRow == 0 && pIter->pSstBlk != NULL) {  // current block not loaded yet
     pBlockData = getNextBlock(pIter);
-    code = tsdbReadSstBlockEx(pIter->pReader, pIter->iSst, pIter->pSstBlk, pBlockData);
+    code = tsdbReadSstBlock(pIter->pReader, pIter->iSst, pIter->pSstBlk, pBlockData);
     if (code != TSDB_CODE_SUCCESS) {
       goto _exit;
     }
@@ -245,7 +245,7 @@ bool tLDataIterNextRow(SLDataIter *pIter) {
 
     if (iBlockL != pIter->iSstBlk) {
       pBlockData = getNextBlock(pIter);
-      code = tsdbReadSstBlockEx(pIter->pReader, pIter->iSst, pIter->pSstBlk, pBlockData);
+      code = tsdbReadSstBlock(pIter->pReader, pIter->iSst, pIter->pSstBlk, pBlockData);
       if (code) {
         goto _exit;
       }

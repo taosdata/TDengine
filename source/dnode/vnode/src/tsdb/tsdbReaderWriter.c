@@ -1095,18 +1095,25 @@ _err:
   return code;
 }
 
-int32_t tsdbReadSstBlockEx(SDataFReader *pReader, int32_t iSst, SSstBlk *pSstBlk, SBlockData *pBlockData) {
+int32_t tsdbReadSstBlock(SDataFReader *pReader, int32_t iSst, SSstBlk *pSstBlk, SBlockData *pBlockData) {
   int32_t code = 0;
+
+  // alloc
+  code = tRealloc(&pReader->aBuf[0], pSstBlk->bInfo.szBlock);
+  if (code) goto _err;
 
   // read
   code = tsdbReadFile(pReader->aSstFD[iSst], pSstBlk->bInfo.offset, pReader->aBuf[0], pSstBlk->bInfo.szBlock);
-  if (code) goto _exit;
+  if (code) goto _err;
 
   // decmpr
   code = tDecmprBlockData(pReader->aBuf[0], pSstBlk->bInfo.szBlock, pBlockData, &pReader->aBuf[1]);
-  if (code) goto _exit;
+  if (code) goto _err;
 
-_exit:
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb read sst block failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
