@@ -38,7 +38,7 @@ typedef struct SSmaEnv       SSmaEnv;
 typedef struct SSmaStat      SSmaStat;
 typedef struct STSmaStat     STSmaStat;
 typedef struct SRSmaStat     SRSmaStat;
-typedef struct SSmaKey       SSmaKey;
+typedef struct SRSmaRef      SRSmaRef;
 typedef struct SRSmaInfo     SRSmaInfo;
 typedef struct SRSmaInfoItem SRSmaInfoItem;
 typedef struct SRSmaFS       SRSmaFS;
@@ -55,10 +55,21 @@ struct SSmaEnv {
 
 #define SMA_ENV_FLG_CLOSE ((int8_t)0x1)
 
+struct SRSmaRef {
+  int64_t refId;  // for SRSmaStat
+  int64_t suid;
+};
+
 typedef struct {
   int8_t  inited;
   int32_t rsetId;
   void   *tmrHandle;  // shared by all fetch tasks
+  /**
+   * @brief key: void* of SRSmaInfoItem, value: SRSmaRef
+   *  N.B. Although there is a very small possibility that "void*" point to different objects while with the same
+   * address after release/renew, the functionality is not affected as it just used to fetch the rsma results.
+   */
+  SHashObj *refHash;  // shared by all vgroups
 } SSmaMgmt;
 
 #define SMA_ENV_LOCK(env)  (&(env)->lock)
@@ -80,15 +91,15 @@ struct SQTaskFile {
 };
 
 struct SQTaskFReader {
-  SSma      *pSma;
-  SQTaskFile fTask;
-  TdFilePtr  pReadH;
+  SSma     *pSma;
+  int64_t   version;
+  TdFilePtr pReadH;
 };
 struct SQTaskFWriter {
-  SSma      *pSma;
-  SQTaskFile fTask;
-  TdFilePtr  pWriteH;
-  char      *fname;
+  SSma     *pSma;
+  int64_t   version;
+  TdFilePtr pWriteH;
+  char     *fname;
 };
 
 struct SRSmaFS {
@@ -124,6 +135,7 @@ struct SSmaStat {
 #define RSMA_TRIGGER_STAT(r) (&(r)->triggerStat)
 #define RSMA_COMMIT_STAT(r)  (&(r)->commitStat)
 #define RSMA_REF_ID(r)       ((r)->refId)
+#define RSMA_FS(r)           (&(r)->fs)
 #define RSMA_FS_LOCK(r)      (&(r)->lock)
 
 struct SRSmaInfoItem {
@@ -138,7 +150,6 @@ struct SRSmaInfoItem {
 struct SRSmaInfo {
   STSchema *pTSchema;
   int64_t   suid;
-  int64_t   refId;     // refId of SRSmaStat
   int64_t   lastRecv;  // ms
   int8_t    assigned;  // 0 idle, 1 assgined for exec
   int8_t    delFlag;
@@ -197,7 +208,9 @@ int32_t tdUnRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo);
 void   *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree);
 int32_t tdRSmaFSOpen(SSma *pSma, int64_t version);
 void    tdRSmaFSClose(SRSmaFS *fs);
-int32_t tdRSmaFSUpsertQFile(SRSmaFS *fs, SQTaskFile *pTaskF);
+int32_t tdRSmaFSRef(SSma *pSma, SRSmaStat *pStat, int64_t version);
+void    tdRSmaFSUnRef(SSma *pSma, SRSmaStat *pStat, int64_t version);
+int32_t tdRSmaFSUpsertQTaskFile(SRSmaFS *pFS, SQTaskFile *qTaskFile);
 int32_t tdRSmaRestore(SSma *pSma, int8_t type, int64_t committedVer);
 int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);
 int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type);

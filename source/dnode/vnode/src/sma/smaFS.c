@@ -18,7 +18,8 @@
 // =================================================================================================
 
 static int32_t tdFetchQTaskInfoFiles(SSma *pSma, int64_t version, SArray **output);
-
+static int32_t tdQTaskInfCmprFn1(const void *p1, const void *p2);
+static int32_t tdQTaskInfCmprFn2(const void *p1, const void *p2);
 /**
  * @brief Open RSma FS from qTaskInfo files
  *
@@ -32,7 +33,6 @@ int32_t tdRSmaFSOpen(SSma *pSma, int64_t version) {
   SSmaEnv   *pEnv = SMA_RSMA_ENV(pSma);
   SRSmaStat *pStat = NULL;
   SArray    *output = NULL;
-  SRSmaFS   *fs = NULL;
 
   if (!pEnv) {
     return TSDB_CODE_SUCCESS;
@@ -43,14 +43,13 @@ int32_t tdRSmaFSOpen(SSma *pSma, int64_t version) {
   }
 
   pStat = (SRSmaStat *)SMA_ENV_STAT(pEnv);
-  fs = &pStat->fs;
 
   for (int32_t i = 0; i < taosArrayGetSize(output); ++i) {
     int32_t vid = 0;
     int64_t version = -1;
     sscanf((const char *)taosArrayGetP(output, i), "v%dqinfo.v%" PRIi64, &vid, &version);
     SQTaskFile qTaskFile = {.version = version, .nRef = 1};
-    if ((terrno = tdRSmaFSUpsertQFile(fs, &qTaskFile)) < 0) {
+    if ((terrno = tdRSmaFSUpsertQTaskFile(RSMA_FS(pStat), &qTaskFile)) < 0) {
       goto _end;
     }
     smaInfo("vgId:%d, open fs, version:%" PRIi64 ", ref:%" PRIi64, TD_VID(pVnode), qTaskFile.version, qTaskFile.nRef);
@@ -62,7 +61,7 @@ _end:
     taosMemoryFreeClear(ptr);
   }
   taosArrayDestroy(output);
-  
+
   if (terrno != 0) {
     smaError("vgId:%d, open rsma fs failed since %s", TD_VID(pVnode), terrstr());
     return TSDB_CODE_FAILED;
@@ -72,8 +71,56 @@ _end:
 
 void tdRSmaFSClose(SRSmaFS *fs) { taosArrayDestroy(fs->aQTaskInf); }
 
+static int32_t tdQTaskInfCmprFn1(const void *p1, const void *p2) {
+  if (*(int64_t *)p1 < ((SQTaskFile *)p2)->version) {
+    return -1;
+  } else if (*(int64_t *)p1 > ((SQTaskFile *)p2)->version) {
+    return 1;
+  }
+  return 0;
+}
+
+int32_t tdRSmaFSRef(SSma *pSma, SRSmaStat *pStat, int64_t version) {
+  SArray     *aQTaskInf = RSMA_FS(pStat)->aQTaskInf;
+  SQTaskFile *pTaskF = NULL;
+  int32_t     oldVal = 0;
+
+  taosRLockLatch(RSMA_FS_LOCK(pStat));
+  if ((pTaskF = taosArraySearch(aQTaskInf, &version, tdQTaskInfCmprFn1, TD_EQ))) {
+    oldVal = atomic_fetch_add_32(&pTaskF->nRef, 1);
+    ASSERT(oldVal > 0);
+  }
+  taosRUnLockLatch(RSMA_FS_LOCK(pStat));
+  return oldVal;
+}
+
+void tdRSmaFSUnRef(SSma *pSma, SRSmaStat *pStat, int64_t version) {
+  SVnode     *pVnode = pSma->pVnode;
+  SArray     *aQTaskInf = RSMA_FS(pStat)->aQTaskInf;
+  char        qTaskFullName[TSDB_FILENAME_LEN];
+  SQTaskFile *pTaskF = NULL;
+  int32_t     idx = -1;
+
+  taosWLockLatch(RSMA_FS_LOCK(pStat));
+  if ((idx = taosArraySearchIdx(aQTaskInf, &version, tdQTaskInfCmprFn1, TD_EQ)) >= 0) {
+    ASSERT(idx < taosArrayGetSize(aQTaskInf));
+    pTaskF = taosArrayGet(aQTaskInf, idx);
+    if (atomic_sub_fetch_32(&pTaskF->nRef, 1) <= 0) {
+      tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pTaskF->version, tfsGetPrimaryPath(pVnode->pTfs), qTaskFullName);
+      if (taosRemoveFile(qTaskFullName) < 0) {
+        smaWarn("vgId:%d, failed to remove %s since %s", TD_VID(pVnode), qTaskFullName,
+                tstrerror(TAOS_SYSTEM_ERROR(errno)));
+      } else {
+        smaDebug("vgId:%d, success to remove %s", TD_VID(pVnode), qTaskFullName);
+      }
+      taosArrayRemove(aQTaskInf, idx);
+    }
+  }
+  taosWUnLockLatch(RSMA_FS_LOCK(pStat));
+}
+
 /**
- * @brief Fetch qtaskfiles no more than version
+ * @brief Fetch qtaskfiles LE than version
  *
  * @param pSma
  * @param version
@@ -100,7 +147,7 @@ static int32_t tdFetchQTaskInfoFiles(SSma *pSma, int64_t version, SArray **outpu
     return TSDB_CODE_FAILED;
   }
 
-  if ((pDir = taosOpenDir(dir)) == NULL) {
+  if (!(pDir = taosOpenDir(dir))) {
     regfree(&regex);
     terrno = TAOS_SYSTEM_ERROR(errno);
     smaDebug("vgId:%d, fetch qtask files, open dir %s failed since %s", TD_VID(pVnode), dir, terrstr());
@@ -110,7 +157,7 @@ static int32_t tdFetchQTaskInfoFiles(SSma *pSma, int64_t version, SArray **outpu
   int32_t    dirLen = strlen(dir);
   char      *dirEnd = POINTER_SHIFT(dir, dirLen);
   regmatch_t regMatch[2];
-  while ((pDirEntry = taosReadDir(pDir)) != NULL) {
+  while ((pDirEntry = taosReadDir(pDir))) {
     char *entryName = taosGetDirEntryName(pDirEntry);
     if (!entryName) {
       continue;
@@ -140,6 +187,7 @@ static int32_t tdFetchQTaskInfoFiles(SSma *pSma, int64_t version, SArray **outpu
           terrno = TSDB_CODE_OUT_OF_MEMORY;
           goto _end;
         }
+      } else {
       }
     } else if (code == REG_NOMATCH) {
       // not match
@@ -154,14 +202,13 @@ static int32_t tdFetchQTaskInfoFiles(SSma *pSma, int64_t version, SArray **outpu
       goto _end;
     }
   }
-
 _end:
   taosCloseDir(&pDir);
   regfree(&regex);
   return terrno == 0 ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED;
 }
 
-static int32_t tdQTaskFileCmprFn(const void *p1, const void *p2) {
+static int32_t tdQTaskFileCmprFn2(const void *p1, const void *p2) {
   if (((SQTaskFile *)p1)->version < ((SQTaskFile *)p2)->version) {
     return -1;
   } else if (((SQTaskFile *)p1)->version > ((SQTaskFile *)p2)->version) {
@@ -171,15 +218,15 @@ static int32_t tdQTaskFileCmprFn(const void *p1, const void *p2) {
   return 0;
 }
 
-int32_t tdRSmaFSUpsertQFile(SRSmaFS *pFS, SQTaskFile *qTaskFile) {
+int32_t tdRSmaFSUpsertQTaskFile(SRSmaFS *pFS, SQTaskFile *qTaskFile) {
   int32_t code = 0;
-  int32_t idx = taosArraySearchIdx(pFS->aQTaskInf, qTaskFile, tdQTaskFileCmprFn, TD_GE);
+  int32_t idx = taosArraySearchIdx(pFS->aQTaskInf, qTaskFile, tdQTaskFileCmprFn2, TD_GE);
 
   if (idx < 0) {
     idx = taosArrayGetSize(pFS->aQTaskInf);
   } else {
     SQTaskFile *pTaskF = (SQTaskFile *)taosArrayGet(pFS->aQTaskInf, idx);
-    int32_t     c = tdQTaskFileCmprFn(pTaskF, qTaskFile);
+    int32_t     c = tdQTaskFileCmprFn2(pTaskF, qTaskFile);
     if (c == 0) {
       pTaskF->nRef = qTaskFile->nRef;
       pTaskF->version = qTaskFile->version;
