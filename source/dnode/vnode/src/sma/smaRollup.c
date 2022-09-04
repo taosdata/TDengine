@@ -1635,7 +1635,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
       atomic_val_compare_exchange_8(&pItem->triggerStat, TASK_TRIGGER_STAT_ACTIVE, TASK_TRIGGER_STAT_INACTIVE);
   switch (fetchTriggerStat) {
     case TASK_TRIGGER_STAT_ACTIVE: {
-      smaInfo("vgId:%d, rsma fetch task planned for level:%" PRIi8 " suid:%" PRIi64 " since stat is active",
+      smaDebug("vgId:%d, rsma fetch task planned for level:%" PRIi8 " suid:%" PRIi64 " since stat is active",
               SMA_VID(pSma), pItem->level, pRSmaInfo->suid);
       // async process
       pItem->fetchLevel = pItem->level;
@@ -1704,7 +1704,7 @@ static int32_t tdRSmaFetchAllResult(SSma *pSma, SRSmaInfo *pInfo) {
                 SMA_VID(pSma), pInfo->suid, i, pItem->nSkipped, pItem->maxDelay);
       } else if (((curMs - pInfo->lastRecv) < RSMA_FETCH_ACTIVE_MAX)) {
         ++pItem->nSkipped;
-        smaInfo("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " curMs:%" PRIi64 " lastRecv:%" PRIi64 ", fetch skipped ",
+        smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " curMs:%" PRIi64 " lastRecv:%" PRIi64 ", fetch skipped ",
                  SMA_VID(pSma), pInfo->suid, i, curMs, pInfo->lastRecv);
         continue;
       } else {

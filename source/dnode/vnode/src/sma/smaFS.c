@@ -33,6 +33,8 @@ int32_t tdRSmaFSOpen(SSma *pSma, int64_t version) {
   SSmaEnv   *pEnv = SMA_RSMA_ENV(pSma);
   SRSmaStat *pStat = NULL;
   SArray    *output = NULL;
+  
+  terrno = TSDB_CODE_SUCCESS;
 
   if (!pEnv) {
     return TSDB_CODE_SUCCESS;
@@ -62,7 +64,7 @@ _end:
   }
   taosArrayDestroy(output);
 
-  if (terrno != 0) {
+  if (terrno != TSDB_CODE_SUCCESS) {
     smaError("vgId:%d, open rsma fs failed since %s", TD_VID(pVnode), terrstr());
     return TSDB_CODE_FAILED;
   }
@@ -138,6 +140,11 @@ static int32_t tdFetchQTaskInfoFiles(SSma *pSma, int64_t version, SArray **outpu
 
   tdGetVndDirName(TD_VID(pVnode), tfsGetPrimaryPath(pVnode->pTfs), VNODE_RSMA_DIR, true, dir);
 
+  if (!taosCheckExistFile(dir)) {
+    smaDebug("vgId:%d, fetch qtask files, no need as dir %s not exist", TD_VID(pVnode), dir);
+    return TSDB_CODE_SUCCESS;
+  }
+
   // Resource allocation and init
   if ((code = regcomp(&regex, pattern, REG_EXTENDED)) != 0) {
     terrno = TSDB_CODE_RSMA_REGEX_MATCH;
@@ -150,7 +157,7 @@ static int32_t tdFetchQTaskInfoFiles(SSma *pSma, int64_t version, SArray **outpu
   if (!(pDir = taosOpenDir(dir))) {
     regfree(&regex);
     terrno = TAOS_SYSTEM_ERROR(errno);
-    smaDebug("vgId:%d, fetch qtask files, open dir %s failed since %s", TD_VID(pVnode), dir, terrstr());
+    smaError("vgId:%d, fetch qtask files, open dir %s failed since %s", TD_VID(pVnode), dir, terrstr());
     return TSDB_CODE_FAILED;
   }
 
