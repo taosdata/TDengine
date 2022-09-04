@@ -1304,11 +1304,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     pTransInst->cfp(pTransInst->parent, pResp, NULL);
     return 0;
   }
-  /*
-   *  no retry
-   *  1. query conn
-   *  2. rpc thread already receive quit msg
-   */
+
   STransConnCtx* pCtx = pMsg->ctx;
   int32_t        code = pResp->code;
 

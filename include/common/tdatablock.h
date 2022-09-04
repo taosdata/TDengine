@@ -184,7 +184,8 @@ static FORCE_INLINE void colDataAppendDouble(SColumnInfoData* pColumnInfoData, u
 int32_t getJsonValueLen(const char* data);
 
 int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, bool isNull);
-int32_t colDataAppendNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, uint32_t numOfRows);
+int32_t colDataAppendNItems(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData,
+                            uint32_t numOfRows);
 int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int32_t* capacity,
                         const SColumnInfoData* pSource, int32_t numOfRow2);
 int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* pSource, int32_t numOfRows,
@@ -225,15 +226,16 @@ size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
 int32_t blockDataTrimFirstNRows(SSDataBlock* pBlock, size_t n);
 int32_t blockDataKeepFirstNRows(SSDataBlock* pBlock, size_t n);
 
-int32_t      assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src);
-int32_t      copyDataBlock(SSDataBlock* dst, const SSDataBlock* src);
+int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src);
+int32_t copyDataBlock(SSDataBlock* dst, const SSDataBlock* src);
 
 SSDataBlock* createDataBlock();
 void*        blockDataDestroy(SSDataBlock* pBlock);
 void         blockDataFreeRes(SSDataBlock* pBlock);
 SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData);
+SSDataBlock* createSpecialDataBlock(EStreamType type);
 
-int32_t      blockDataAppendColInfo(SSDataBlock* pBlock, SColumnInfoData* pColInfoData);
+int32_t blockDataAppendColInfo(SSDataBlock* pBlock, SColumnInfoData* pColInfoData);
 
 SColumnInfoData  createColumnInfoData(int16_t type, int32_t bytes, int16_t colId);
 SColumnInfoData* bdGetColumnInfoData(const SSDataBlock* pBlock, int32_t index);
@@ -248,7 +250,6 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** dumpBuf);
 
 int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataBlocks, STSchema* pTSchema, int32_t vgId,
                                     tb_uid_t suid);
-
 
 char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId);
 

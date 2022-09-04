@@ -287,6 +287,9 @@ struct SVnodeCfg {
   SVnodeStats vndStats;
   uint32_t    hashBegin;
   uint32_t    hashEnd;
+  int16_t     sstTrigger;
+  int16_t     hashPrefix;
+  int16_t     hashSuffix;
 };
 
 typedef struct {
