@@ -784,6 +784,9 @@ typedef struct {
   int64_t walRetentionSize;
   int32_t walRollPeriod;
   int64_t walSegmentSize;
+  int32_t sstTrigger;
+  int16_t hashPrefix;
+  int16_t hashSuffix;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -805,6 +808,7 @@ typedef struct {
   int8_t  strict;
   int8_t  cacheLast;
   int8_t  replications;
+  int32_t sstTrigger;
 } SAlterDbReq;
 
 int32_t tSerializeSAlterDbReq(void* buf, int32_t bufLen, SAlterDbReq* pReq);
@@ -1066,6 +1070,7 @@ typedef struct {
 typedef struct {
   int32_t vgId;
   int32_t syncState;
+  int64_t cacheUsage;
   int64_t numOfTables;
   int64_t numOfTimeSeries;
   int64_t totalStorage;
@@ -1190,6 +1195,9 @@ typedef struct {
   int64_t  walRetentionSize;
   int32_t  walRollPeriod;
   int64_t  walSegmentSize;
+  int16_t  sstTrigger;
+  int16_t  hashPrefix;
+  int16_t  hashSuffix;
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
@@ -2069,9 +2077,9 @@ int32_t tDeserializeSVCreateTbBatchRsp(void* buf, int32_t bufLen, SVCreateTbBatc
 
 // TDMT_VND_DROP_TABLE =================
 typedef struct {
-  char*  name;
-  uint64_t suid;        // for tmq in wal format
-  int8_t igNotExists;
+  char*    name;
+  uint64_t suid;  // for tmq in wal format
+  int8_t   igNotExists;
 } SVDropTbReq;
 
 typedef struct {

@@ -211,9 +211,7 @@ IdxFstFile* idxFileCreate(void* wrt) {
   return cw;
 }
 void idxFileDestroy(IdxFstFile* cw) {
-  // free wrt object: close fd or free mem
   idxFileFlush(cw);
-  // idxFileCtxDestroy((IFileCtx *)(cw->wrt));
   taosMemoryFree(cw);
 }
 
@@ -222,10 +220,8 @@ int idxFileWrite(IdxFstFile* write, uint8_t* buf, uint32_t len) {
     return 0;
   }
   // update checksum
-  // write data to file/socket or mem
   IFileCtx* ctx = write->wrt;
-
-  int nWrite = ctx->write(ctx, buf, len);
+  int       nWrite = ctx->write(ctx, buf, len);
   assert(nWrite == len);
   write->count += len;
 

@@ -347,6 +347,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     SVgObj *pVgroup = mndAcquireVgroup(pMnode, pVload->vgId);
     if (pVgroup != NULL) {
       if (pVload->syncState == TAOS_SYNC_STATE_LEADER) {
+        pVgroup->cacheUsage = pVload->cacheUsage;
         pVgroup->numOfTables = pVload->numOfTables;
         pVgroup->numOfTimeSeries = pVload->numOfTimeSeries;
         pVgroup->totalStorage = pVload->totalStorage;
@@ -853,8 +854,8 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   }
 
   int32_t code = -1;
-  SSdb *pSdb = pMnode->pSdb;
-  void *pIter = NULL;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
   while (1) {
     SDnodeObj *pDnode = NULL;
     pIter = sdbFetch(pSdb, SDB_DNODE, pIter, (void **)&pDnode);
@@ -877,7 +878,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
     sdbRelease(pSdb, pDnode);
   }
-  
+
   if (code == -1) {
     terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
   }

@@ -134,7 +134,6 @@ class TDTestCase:
         os.system("%s -i ./taosdumptest/tmp -y" % binPath)
 
         tdSql.execute("use test")
-        tdSql.error("show vnodes '' ")
         tdSql.query("show stables")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 'stb')

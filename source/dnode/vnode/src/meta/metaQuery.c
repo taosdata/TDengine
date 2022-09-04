@@ -129,9 +129,15 @@ _err:
 
 bool metaIsTableExist(SMeta *pMeta, tb_uid_t uid) {
   // query uid.idx
+  metaRLock(pMeta);
+
   if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), NULL, NULL) < 0) {
+    metaULock(pMeta);
+
     return false;
   }
+
+  metaULock(pMeta);
 
   return true;
 }
@@ -182,9 +188,14 @@ tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name) {
 }
 
 int metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName) {
+  int         code = 0;
   SMetaReader mr = {0};
   metaReaderInit(&mr, (SMeta *)meta, 0);
-  metaGetTableEntryByUid(&mr, uid);
+  code = metaGetTableEntryByUid(&mr, uid);
+  if (code < 0) {
+    metaReaderClear(&mr);
+    return -1;
+  }
 
   STR_TO_VARSTR(tbName, mr.me.name);
   metaReaderClear(&mr);
@@ -279,6 +290,38 @@ _query:
       pSchema = tCloneSSchemaWrapper(&me.stbEntry.schemaRow);
       tDecoderClear(&dc);
       goto _exit;
+    }
+    { // Traverse to find the previous qualified data
+      TBC      *pCur;
+      tdbTbcOpen(pMeta->pTbDb, &pCur, NULL);
+      STbDbKey key = {.version = sver, .uid = INT64_MAX};
+      int c = 0;
+      tdbTbcMoveTo(pCur, &key, sizeof(key), &c);
+      if(c < 0){
+        tdbTbcMoveToPrev(pCur);
+      }
+
+      void *pKey = NULL;
+      void *pVal = NULL;
+      int   vLen = 0, kLen = 0;
+      while(1){
+        int32_t ret = tdbTbcPrev(pCur, &pKey, &kLen, &pVal, &vLen);
+        if (ret < 0) break;
+
+        STbDbKey *tmp = (STbDbKey*)pKey;
+        if(tmp->uid != uid){
+          continue;
+        }
+        SDecoder   dcNew = {0};
+        SMetaEntry meNew = {0};
+        tDecoderInit(&dcNew, pVal, vLen);
+        metaDecodeEntry(&dcNew, &meNew);
+        pSchema = tCloneSSchemaWrapper(&meNew.stbEntry.schemaRow);
+        tDecoderClear(&dcNew);
+        tdbTbcClose(pCur);
+        goto _exit;
+      }
+      tdbTbcClose(pCur);
     }
   } else if (me.type == TSDB_CHILD_TABLE) {
     uid = me.ctbEntry.suid;
