@@ -71,8 +71,8 @@ typedef struct SStreamTaskReader  SStreamTaskReader;
 typedef struct SStreamTaskWriter  SStreamTaskWriter;
 typedef struct SStreamStateReader SStreamStateReader;
 typedef struct SStreamStateWriter SStreamStateWriter;
-typedef struct SRsmaSnapReader    SRsmaSnapReader;
-typedef struct SRsmaSnapWriter    SRsmaSnapWriter;
+typedef struct SRSmaSnapReader    SRSmaSnapReader;
+typedef struct SRSmaSnapWriter    SRSmaSnapWriter;
 typedef struct SSnapDataHdr       SSnapDataHdr;
 
 #define VNODE_META_DIR  "meta"
@@ -248,14 +248,14 @@ int32_t tqOffsetSnapWrite(STqOffsetWriter* pWriter, uint8_t* pData, uint32_t nDa
 // SStreamTaskReader ======================================
 // SStreamStateWriter =====================================
 // SStreamStateReader =====================================
-// SRsmaSnapReader ========================================
-int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRsmaSnapReader** ppReader);
-int32_t rsmaSnapReaderClose(SRsmaSnapReader** ppReader);
-int32_t rsmaSnapRead(SRsmaSnapReader* pReader, uint8_t** ppData);
-// SRsmaSnapWriter ========================================
-int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRsmaSnapWriter** ppWriter);
-int32_t rsmaSnapWrite(SRsmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
-int32_t rsmaSnapWriterClose(SRsmaSnapWriter** ppWriter, int8_t rollback);
+// SRSmaSnapReader ========================================
+int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapReader** ppReader);
+int32_t rsmaSnapReaderClose(SRSmaSnapReader** ppReader);
+int32_t rsmaSnapRead(SRSmaSnapReader* pReader, uint8_t** ppData);
+// SRSmaSnapWriter ========================================
+int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapWriter** ppWriter);
+int32_t rsmaSnapWrite(SRSmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
+int32_t rsmaSnapWriterClose(SRSmaSnapWriter** ppWriter, int8_t rollback);
 
 typedef struct {
   int8_t  streamType;  // sma or other
