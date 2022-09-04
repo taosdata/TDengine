@@ -188,13 +188,15 @@ static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pStat) {
 
   for (int32_t i = 0; i < taosArrayGetSize(pFS->aQTaskInf);) {
     SQTaskFile *pTaskF = taosArrayGet(pFS->aQTaskInf, i);
-    if (atomic_sub_fetch_32(&pTaskF->nRef, 1) <= 0) {
+    int32_t     oldVal = atomic_fetch_sub_32(&pTaskF->nRef, 1);
+    if ((oldVal <= 1) && (pTaskF->version < committed)) {
       tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), pTaskF->version, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFullName);
       if (taosRemoveFile(qTaskInfoFullName) < 0) {
-        smaWarn("vgId:%d, cleanup qinf, failed to remove %s since %s", TD_VID(pVnode), qTaskInfoFullName,
-                tstrerror(TAOS_SYSTEM_ERROR(errno)));
+        smaWarn("vgId:%d, cleanup qinf, committed %" PRIi64 ", failed to remove %s since %s", TD_VID(pVnode), committed,
+                qTaskInfoFullName, tstrerror(TAOS_SYSTEM_ERROR(errno)));
       } else {
-        smaDebug("vgId:%d, cleanup qinf, success to remove %s", TD_VID(pVnode), qTaskInfoFullName);
+        smaDebug("vgId:%d, cleanup qinf, committed %" PRIi64 ", success to remove %s", TD_VID(pVnode), committed,
+                 qTaskInfoFullName);
       }
       taosArrayRemove(pFS->aQTaskInf, i);
       continue;
