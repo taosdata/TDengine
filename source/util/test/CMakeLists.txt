@@ -76,3 +76,11 @@ add_test(
     NAME taosbsearchTest
     COMMAND taosbsearchTest
 )
+
+# trbtreeTest
+add_executable(rbtreeTest "trbtreeTest.cpp")
+target_link_libraries(rbtreeTest os util gtest_main)   
+add_test(
+    NAME rbtreeTest
+    COMMAND rbtreeTest
+)

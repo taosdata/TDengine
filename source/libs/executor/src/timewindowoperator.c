@@ -622,7 +622,8 @@ static void doInterpUnclosedTimeWindow(SOperatorInfo* pOperatorInfo, int32_t num
     if (pr->closed) {
       ASSERT(isResultRowInterpolated(pr, RESULT_ROW_START_INTERP) &&
              isResultRowInterpolated(pr, RESULT_ROW_END_INTERP));
-      tdListPopHead(pResultRowInfo->openWindow);
+      SListNode* pNode = tdListPopHead(pResultRowInfo->openWindow);
+      taosMemoryFree(pNode);
       continue;
     }
 
@@ -651,7 +652,8 @@ static void doInterpUnclosedTimeWindow(SOperatorInfo* pOperatorInfo, int32_t num
 
     if (isResultRowInterpolated(pResult, RESULT_ROW_END_INTERP)) {
       closeResultRow(pr);
-      tdListPopHead(pResultRowInfo->openWindow);
+      SListNode* pNode = tdListPopHead(pResultRowInfo->openWindow);
+      taosMemoryFree(pNode);
     } else {  // the remains are can not be closed yet.
       break;
     }
@@ -1731,6 +1733,10 @@ void destroyIntervalOperatorInfo(void* param) {
   SIntervalAggOperatorInfo* pInfo = (SIntervalAggOperatorInfo*)param;
   cleanupBasicInfo(&pInfo->binfo);
   cleanupAggSup(&pInfo->aggSup);
+  cleanupExprSupp(&pInfo->scalarSupp);
+
+  tdListFree(pInfo->binfo.resultRowInfo.openWindow);
+
   pInfo->pRecycledPages = taosArrayDestroy(pInfo->pRecycledPages);
   pInfo->pInterpCols = taosArrayDestroy(pInfo->pInterpCols);
   taosArrayDestroyEx(pInfo->pPrevValues, freeItem);

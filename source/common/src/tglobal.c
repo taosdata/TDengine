@@ -129,10 +129,6 @@ int32_t tsMinIntervalTime = 1;
 int32_t tsQueryBufferSize = -1;
 int64_t tsQueryBufferSizeBytes = -1;
 
-// tsdb config
-// For backward compatibility
-bool tsdbForceKeepFile = false;
-
 int32_t  tsDiskCfgNum = 0;
 SDiskCfg tsDiskCfg[TFS_MAX_DISKS] = {0};
 

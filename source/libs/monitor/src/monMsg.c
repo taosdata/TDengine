@@ -510,6 +510,7 @@ int32_t tSerializeSMonVloadInfo(void *buf, int32_t bufLen, SMonVloadInfo *pInfo)
     SVnodeLoad *pLoad = taosArrayGet(pInfo->pVloads, i);
     if (tEncodeI32(&encoder, pLoad->vgId) < 0) return -1;
     if (tEncodeI32(&encoder, pLoad->syncState) < 0) return -1;
+    if (tEncodeI64(&encoder, pLoad->cacheUsage) < 0) return -1;
     if (tEncodeI64(&encoder, pLoad->numOfTables) < 0) return -1;
     if (tEncodeI64(&encoder, pLoad->numOfTimeSeries) < 0) return -1;
     if (tEncodeI64(&encoder, pLoad->totalStorage) < 0) return -1;
@@ -544,6 +545,7 @@ int32_t tDeserializeSMonVloadInfo(void *buf, int32_t bufLen, SMonVloadInfo *pInf
     SVnodeLoad load = {0};
     if (tDecodeI32(&decoder, &load.vgId) < 0) return -1;
     if (tDecodeI32(&decoder, &load.syncState) < 0) return -1;
+    if (tDecodeI64(&decoder, &load.cacheUsage) < 0) return -1;
     if (tDecodeI64(&decoder, &load.numOfTables) < 0) return -1;
     if (tDecodeI64(&decoder, &load.numOfTimeSeries) < 0) return -1;
     if (tDecodeI64(&decoder, &load.totalStorage) < 0) return -1;
@@ -594,7 +596,6 @@ int32_t tDeserializeSMonMloadInfo(void *buf, int32_t bufLen, SMonMloadInfo *pInf
   return 0;
 }
 
-
 int32_t tSerializeSQnodeLoad(void *buf, int32_t bufLen, SQnodeLoad *pInfo) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
@@ -639,5 +640,3 @@ int32_t tDeserializeSQnodeLoad(void *buf, int32_t bufLen, SQnodeLoad *pInfo) {
   tDecoderClear(&decoder);
   return 0;
 }
-
-
