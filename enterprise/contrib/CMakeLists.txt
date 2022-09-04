@@ -29,6 +29,10 @@ IF ((NOT BUILD_WITH_CFG_GRANTS) AND (NOT EXISTS ${TD_SOURCE_DIR}/enterprise/cont
         cat("${TD_SOURCE_DIR}/enterprise/cmake/grant-lib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 ENDIF ()
 
+IF (NOT EXISTS ${TD_SOURCE_DIR}/enterprise/src/plugins/taosx)
+        cat("${TD_SOURCE_DIR}/enterprise/cmake/taosx_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+ENDIF ()
+
 # download dependencies
 configure_file(${CONTRIB_TMP_FILE} "${TD_SOURCE_DIR}/enterprise/contrib/deps-download/CMakeLists.txt")
 execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
