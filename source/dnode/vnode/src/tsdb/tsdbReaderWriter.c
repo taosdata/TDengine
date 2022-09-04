@@ -1095,19 +1095,6 @@ _err:
   return code;
 }
 
-int32_t tsdbReadSstBlock(SDataFReader *pReader, int32_t iSst, SSstBlk *pSstBlk, SBlockData *pBlockData) {
-  int32_t code = 0;
-
-  code = tsdbReadBlockDataImpl(pReader, &pSstBlk->bInfo, 1, pBlockData);
-  if (code) goto _err;
-
-  return code;
-
-_err:
-  tsdbError("vgId:%d tsdb read last block failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
-  return code;
-}
-
 int32_t tsdbReadSstBlockEx(SDataFReader *pReader, int32_t iSst, SSstBlk *pSstBlk, SBlockData *pBlockData) {
   int32_t code = 0;
 

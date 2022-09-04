@@ -92,9 +92,6 @@ typedef struct {
   SArray      *aDelData;  // SArray<SDelData>
 } SCommitter;
 
-extern int32_t tsdbReadSstBlockEx(SDataFReader *pReader, int32_t iSst, SSstBlk *aSstBlk,
-                                  SBlockData *pBlockData);  // todo
-
 static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter);
 static int32_t tsdbCommitData(SCommitter *pCommitter);
 static int32_t tsdbCommitDel(SCommitter *pCommitter);

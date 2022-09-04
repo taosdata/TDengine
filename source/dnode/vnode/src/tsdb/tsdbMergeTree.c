@@ -114,8 +114,6 @@ void tLDataIterClose(SLDataIter *pIter) {
   taosMemoryFree(pIter);
 }
 
-extern int32_t tsdbReadSstBlockEx(SDataFReader *pReader, int32_t iSst, SSstBlk *pSstBlk, SBlockData *pBlockData);
-
 void tLDataIterNextBlock(SLDataIter *pIter) {
   int32_t step = pIter->backward ? -1 : 1;
   pIter->iSstBlk += step;
