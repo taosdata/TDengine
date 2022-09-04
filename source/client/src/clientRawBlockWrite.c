@@ -765,6 +765,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
     }
     taosArrayPush(pRequest->tableList, &pName);
 
+    pCreateReq->flags |= TD_CREATE_IF_NOT_EXISTS;
     // change tag cid to new cid
     if (pCreateReq->type == TSDB_CHILD_TABLE) {
       STableMeta* pTableMeta = NULL;
