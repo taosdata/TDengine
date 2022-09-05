@@ -534,7 +534,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pR
   }
 
   tqUpdateTbUidList(pVnode->pTq, tbUids, true);
-  if (tdUpdateTbUidList(pVnode->pSma, pStore) < 0) {
+  if (tdUpdateTbUidList(pVnode->pSma, pStore, true) < 0) {
     goto _exit;
   }
   tdUidStoreFree(pStore);
@@ -692,6 +692,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq
   SEncoder         encoder = {0};
   int32_t          ret;
   SArray          *tbUids = NULL;
+  STbUidStore     *pStore = NULL;
 
   pRsp->msgType = TDMT_VND_DROP_TABLE_RSP;
   pRsp->pCont = NULL;
@@ -715,9 +716,10 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq
   for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
     SVDropTbReq *pDropTbReq = req.pReqs + iReq;
     SVDropTbRsp  dropTbRsp = {0};
+    tb_uid_t     tbUid = 0;
 
     /* code */
-    ret = metaDropTable(pVnode->pMeta, version, pDropTbReq, tbUids);
+    ret = metaDropTable(pVnode->pMeta, version, pDropTbReq, tbUids, VND_IS_RSMA(pVnode) ? &tbUid : NULL);
     if (ret < 0) {
       if (pDropTbReq->igNotExists && terrno == TSDB_CODE_VND_TABLE_NOT_EXIST) {
         dropTbRsp.code = TSDB_CODE_SUCCESS;
@@ -726,15 +728,18 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq
       }
     } else {
       dropTbRsp.code = TSDB_CODE_SUCCESS;
+      if (tbUid > 0) tdFetchTbUidList(pVnode->pSma, &pStore, pDropTbReq->suid, tbUid);
     }
 
     taosArrayPush(rsp.pArray, &dropTbRsp);
   }
 
   tqUpdateTbUidList(pVnode->pTq, tbUids, false);
+  tdUpdateTbUidList(pVnode->pSma, pStore, false);
 
 _exit:
   taosArrayDestroy(tbUids);
+  tdUidStoreFree(pStore);
   tDecoderClear(&decoder);
   tEncodeSize(tEncodeSVDropTbBatchRsp, &rsp, pRsp->contLen, ret);
   pRsp->pCont = rpcMallocCont(pRsp->contLen);
