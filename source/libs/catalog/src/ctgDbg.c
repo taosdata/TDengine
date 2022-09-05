@@ -367,18 +367,22 @@ void ctgdShowDBCache(SCatalog* pCtg, SHashObj *dbHash) {
     int32_t stbNum = dbCache->stbCache ? taosHashGetSize(dbCache->stbCache) : 0;
     int32_t vgVersion = CTG_DEFAULT_INVALID_VERSION;
     int32_t hashMethod = -1;
+    int16_t hashPrefix = 0;
+    int16_t hashSuffix = 0;
     int32_t vgNum = 0;
 
     if (dbCache->vgCache.vgInfo) {
       vgVersion = dbCache->vgCache.vgInfo->vgVersion;
       hashMethod = dbCache->vgCache.vgInfo->hashMethod;
+      hashPrefix = dbCache->vgCache.vgInfo->hashPrefix;
+      hashSuffix = dbCache->vgCache.vgInfo->hashSuffix;
       if (dbCache->vgCache.vgInfo->vgHash) {
         vgNum = taosHashGetSize(dbCache->vgCache.vgInfo->vgHash);
       }
     }
     
-    ctgDebug("[%d] db [%.*s][0x%"PRIx64"] %s: metaNum:%d, stbNum:%d, vgVersion:%d, hashMethod:%d, vgNum:%d",
-      i, (int32_t)len, dbFName, dbCache->dbId, dbCache->deleted?"deleted":"", metaNum, stbNum, vgVersion, hashMethod, vgNum);
+    ctgDebug("[%d] db [%.*s][0x%"PRIx64"] %s: metaNum:%d, stbNum:%d, vgVersion:%d, hashMethod:%d, prefix:%d, suffix:%d, vgNum:%d",
+      i, (int32_t)len, dbFName, dbCache->dbId, dbCache->deleted?"deleted":"", metaNum, stbNum, vgVersion, hashMethod, hashPrefix, hashSuffix, vgNum);
 
     pIter = taosHashIterate(dbHash, pIter);
   }
