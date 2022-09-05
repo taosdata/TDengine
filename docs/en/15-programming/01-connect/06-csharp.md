@@ -58,22 +58,9 @@ Replace  <DSN\> with real TDengine cloud DSN. To obtain the real value, please l
 
 ## Connect
 
-``` XML
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net5.0</TargetFramework>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="TDengine.Connector" Version="3.0.1" />
-  </ItemGroup>
-
-</Project>
-```
 
 ```C#
-//{{#include docs/examples/csharp/cloud-example/Connect.cs}}
+{{#include docs/examples/csharp/cloud-example/connect/Program.cs}}
 ```
+
+The client connection is then established. For how to write data and query data, please refer to <https://docs.tdengine.com/cloud/data-in/insert-data/> and <https://docs.tdengine.com/cloud/data-out/query-data/>.

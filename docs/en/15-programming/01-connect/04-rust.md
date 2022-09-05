@@ -63,5 +63,5 @@ Copy following code to `main.rs`.
 {{#include docs/examples/rust/cloud-example/src/main.rs}}
 ```
 
-Then you can execute `cargo run` to test the connection. 
+Then you can execute `cargo run` to test the connection.  For how to write data and query data, please refer to <https://docs.tdengine.com/cloud/data-in/insert-data/> and <https://docs.tdengine.com/cloud/data-out/query-data/>.
 

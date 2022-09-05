@@ -10,7 +10,7 @@ import TabItem from '@theme/TabItem';
 ## Install Connector
 
 ```bash
-npm i td2.0-rest-connector
+npm install @tdengine/rest
 ```
 ## Config
 
@@ -57,3 +57,5 @@ To obtain the value of cloud token and URL, please log in [TDengine Cloud](https
 ```javascript
 {{#include docs/examples/node/connect.js}}
 ```
+
+For how to write data and query data, please refer to <https://docs.tdengine.com/cloud/data-in/insert-data/> and <https://docs.tdengine.com/cloud/data-out/query-data/>.
