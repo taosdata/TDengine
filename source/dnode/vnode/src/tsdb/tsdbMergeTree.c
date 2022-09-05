@@ -53,6 +53,8 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
   (*pIter)->pReader = pReader;
   (*pIter)->iStt = iStt;
   (*pIter)->backward = backward;
+  (*pIter)->verRange = *pRange;
+  (*pIter)->timeWindow = *pTimeWindow;
   (*pIter)->aSttBlk = taosArrayInit(0, sizeof(SSttBlk));
   if ((*pIter)->aSttBlk == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
