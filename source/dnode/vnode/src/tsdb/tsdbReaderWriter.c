@@ -1304,7 +1304,7 @@ _err:
 int32_t tsdbWriteSstBlk(SDataFWriter *pWriter, SArray *aSstBlk) {
   int32_t   code = 0;
   SSstFile *pSstFile = &pWriter->fSst[pWriter->wSet.nSstF - 1];
-  int64_t   size;
+  int64_t   size = 0;
   int64_t   n;
 
   // check
