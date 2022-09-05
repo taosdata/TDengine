@@ -231,8 +231,8 @@ static bool rpcGenUID(uint32_t *first, uint32_t *second) {
     }
   }
 
-  *first = (hashId >> 32) & 0xFFFFFFFF;
-  *second = hashId & 0xFFFFFFFF;
+  *first = (id >> 32) & 0xFFFFFFFF;
+  *second = id & 0xFFFFFFFF;
 
   return true;
 }
