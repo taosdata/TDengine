@@ -467,6 +467,7 @@ enum {
 #define SNODE_HANDLE   -2
 #define VNODE_HANDLE   -3
 #define BNODE_HANDLE   -4
+#define CLIENT_HANDLE   -5
 
 #define TSDB_CONFIG_OPTION_LEN 32
 #define TSDB_CONFIG_VALUE_LEN  64

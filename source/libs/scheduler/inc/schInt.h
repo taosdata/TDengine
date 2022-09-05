@@ -151,6 +151,7 @@ typedef struct SSchedulerMgmt {
   SSchStat        stat;
   SRWLatch        hbLock;
   SHashObj       *hbConnections;
+  void           *queryMgmt;
 } SSchedulerMgmt;
 
 typedef struct SSchCallbackParamHeader {
@@ -237,6 +238,7 @@ typedef struct SSchJobAttr {
   bool         queryJob;
   bool         needFetch;
   bool         needFlowCtrl;
+  bool         localExec;
 } SSchJobAttr;
 
 typedef struct {
@@ -302,6 +304,7 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_IS_DATA_BIND_QRY_TASK(task) ((task)->plan->subplanType == SUBPLAN_TYPE_SCAN)
 #define SCH_IS_DATA_BIND_TASK(task) (((task)->plan->subplanType == SUBPLAN_TYPE_SCAN) || ((task)->plan->subplanType == SUBPLAN_TYPE_MODIFY))
 #define SCH_IS_LEAF_TASK(_job, _task) (((_task)->level->level + 1) == (_job)->levelNum)
+#define SCH_IS_DATA_MERGE_TASK(task) (!SCH_IS_DATA_BIND_TASK(task))
 
 #define SCH_SET_TASK_STATUS(task, st) atomic_store_8(&(task)->status, st)
 #define SCH_GET_TASK_STATUS(task) atomic_load_8(&(task)->status)

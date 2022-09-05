@@ -540,6 +540,20 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
+
+int32_t buildClientPolicyNodeList(SRequestObj* pRequest, SArray** pNodeList) {
+  *pNodeList = taosArrayInit(1, sizeof(SQueryNodeLoad));
+  SQueryNodeLoad load = {0};
+  load.addr.nodeId = CLIENT_HANDLE;
+
+  taosArrayPush(*pNodeList, &load);
+
+  tscDebug("0x%" PRIx64 " client policy", pRequest->requestId);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray* pMnodeList, SMetaData* pResultMeta) {
   SArray* pDbVgList = NULL;
   SArray* pQnodeList = NULL;
@@ -583,6 +597,10 @@ int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray
       }
 
       code = buildQnodePolicyNodeList(pRequest, pNodeList, pMnodeList, pQnodeList);
+      break;
+    }
+    case QUERY_POLICY_CLIENT: {
+      code = buildClientPolicyNodeList(pRequest, pNodeList);
       break;
     }
     default:
@@ -645,6 +663,10 @@ int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray*
       code = buildQnodePolicyNodeList(pRequest, pNodeList, pMnodeList, pQnodeList);
       break;
     }
+    case QUERY_POLICY_CLIENT: {
+      code = buildClientPolicyNodeList(pRequest, pNodeList);
+      break;
+    }    
     default:
       tscError("unknown query policy: %d", tsQueryPolicy);
       return TSDB_CODE_TSC_APP_ERROR;
@@ -667,6 +689,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
                            .requestObjRefId = pRequest->self};
   SSchedulerReq    req = {
          .syncReq = true,
+         .localReq = (tsQueryPolicy == CLIENT_HANDLE),
          .pConn = &conn,
          .pNodeList = pNodeList,
          .pDag = pDag,
@@ -1042,6 +1065,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
             .pTrans = pAppInfo->pTransporter, .requestId = pRequest->requestId, .requestObjRefId = pRequest->self};
         SSchedulerReq req = {
             .syncReq = false,
+            .localReq = (tsQueryPolicy == CLIENT_HANDLE),
             .pConn = &conn,
             .pNodeList = pNodeList,
             .pDag = pDag,

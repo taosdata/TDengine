@@ -29,6 +29,7 @@ enum {
   NODE_TYPE_QNODE,
   NODE_TYPE_SNODE,
   NODE_TYPE_MNODE,
+  NODE_TYPE_CLIENT,
 };
 
 typedef struct SQWorkerCfg {
@@ -55,7 +56,7 @@ typedef struct {
   uint64_t numOfErrors;
 } SQWorkerStat;
 
-int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qWorkerMgmt, const SMsgCb *pMsgCb);
+int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const SMsgCb *pMsgCb);
 
 int32_t qWorkerAbortPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg);
 

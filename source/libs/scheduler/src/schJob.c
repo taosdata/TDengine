@@ -719,6 +719,7 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   }
 
   pJob->attr.explainMode = pReq->pDag->explainInfo.mode;
+  pJob->attr.localExec = pReq->localReq;
   pJob->conn = *pReq->pConn;
   if (pReq->sql) {
     pJob->sql = strdup(pReq->sql);

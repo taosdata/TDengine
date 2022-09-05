@@ -29,7 +29,7 @@ extern "C" {
 #include "executor.h"
 #include "trpc.h"
 
-#define QW_DEFAULT_SCHEDULER_NUMBER 10000
+#define QW_DEFAULT_SCHEDULER_NUMBER 100
 #define QW_DEFAULT_TASK_NUMBER      10000
 #define QW_DEFAULT_SCH_TASK_NUMBER  10000
 #define QW_DEFAULT_SHORT_RUN_TIMES  2
@@ -93,7 +93,7 @@ typedef struct SQWMsg {
   void          *node;
   int32_t        code;
   int32_t        msgType;
-  char          *msg;
+  void          *msg;
   int32_t        msgLen;
   SQWMsgInfo     msgInfo;
   SRpcHandleInfo connInfo;

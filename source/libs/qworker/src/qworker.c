@@ -512,11 +512,6 @@ int32_t qwAbortPrerocessQuery(QW_FPARAMS_DEF) {
 
 int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   int32_t        code = 0;
-  bool           queryRsped = false;
-  SSubplan      *plan = NULL;
-  SQWPhaseInput  input = {0};
-  qTaskInfo_t    pTaskInfo = NULL;
-  DataSinkHandle sinkHandle = NULL;
   SQWTaskCtx    *ctx = NULL;
 
   QW_ERR_JRET(qwRegisterQueryBrokenLinkArg(QW_FPARAMS(), &qwMsg->connInfo));
@@ -578,19 +573,12 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
     QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
   }
 
-  // QW_ERR_JRET(qwBuildAndSendQueryRsp(&qwMsg->connInfo, code));
-  // QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
-
-  // queryRsped = true;
-
   ctx->level = plan->level;
   atomic_store_ptr(&ctx->taskHandle, pTaskInfo);
   atomic_store_ptr(&ctx->sinkHandle, sinkHandle);
 
-  if (pTaskInfo && sinkHandle) {
-    qwSaveTbVersionInfo(pTaskInfo, ctx);
-    QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, NULL));
-  }
+  qwSaveTbVersionInfo(pTaskInfo, ctx);
+  QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, NULL));
 
 _return:
 
@@ -599,11 +587,6 @@ _return:
   input.code = code;
   input.msgType = qwMsg->msgType;
   code = qwHandlePostPhaseEvents(QW_FPARAMS(), QW_PHASE_POST_QUERY, &input, NULL);
-
-  // if (!queryRsped) {
-  //  qwBuildAndSendQueryRsp(&qwMsg->connInfo, code);
-  //  QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
-  //}
 
   QW_RET(TSDB_CODE_SUCCESS);
 }
@@ -1000,8 +983,8 @@ _return:
   QW_RET(TSDB_CODE_SUCCESS);
 }
 
-int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qWorkerMgmt, const SMsgCb *pMsgCb) {
-  if (NULL == qWorkerMgmt || pMsgCb->mgmt == NULL) {
+int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, void **qWorkerMgmt, const SMsgCb *pMsgCb) {
+  if (NULL == qWorkerMgmt || (pMsgCb && pMsgCb->mgmt == NULL)) {
     qError("invalid param to init qworker");
     QW_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
@@ -1024,22 +1007,9 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qW
     QW_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  if (cfg) {
-    mgmt->cfg = *cfg;
-    if (0 == mgmt->cfg.maxSchedulerNum) {
-      mgmt->cfg.maxSchedulerNum = QW_DEFAULT_SCHEDULER_NUMBER;
-    }
-    if (0 == mgmt->cfg.maxTaskNum) {
-      mgmt->cfg.maxTaskNum = QW_DEFAULT_TASK_NUMBER;
-    }
-    if (0 == mgmt->cfg.maxSchTaskNum) {
-      mgmt->cfg.maxSchTaskNum = QW_DEFAULT_SCH_TASK_NUMBER;
-    }
-  } else {
-    mgmt->cfg.maxSchedulerNum = QW_DEFAULT_SCHEDULER_NUMBER;
-    mgmt->cfg.maxTaskNum = QW_DEFAULT_TASK_NUMBER;
-    mgmt->cfg.maxSchTaskNum = QW_DEFAULT_SCH_TASK_NUMBER;
-  }
+  mgmt->cfg.maxSchedulerNum = QW_DEFAULT_SCHEDULER_NUMBER;
+  mgmt->cfg.maxTaskNum = QW_DEFAULT_TASK_NUMBER;
+  mgmt->cfg.maxSchTaskNum = QW_DEFAULT_SCH_TASK_NUMBER;
 
   mgmt->schHash = taosHashInit(mgmt->cfg.maxSchedulerNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false,
                                HASH_ENTRY_LOCK);
@@ -1064,7 +1034,7 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qW
 
   mgmt->nodeType = nodeType;
   mgmt->nodeId = nodeId;
-  mgmt->msgCb = *pMsgCb;
+  mgmt->msgCb = pMsgCb ? *pMsgCb : NULL;
 
   mgmt->refId = taosAddRef(gQwMgmt.qwRef, mgmt);
   if (mgmt->refId < 0) {
@@ -1140,3 +1110,51 @@ int32_t qWorkerGetStat(SReadHandle *handle, void *qWorkerMgmt, SQWorkerStat *pSt
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t qWorkerProcessLocalQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
+  int32_t        code = 0;
+  SQWTaskCtx    *ctx = NULL;
+  SSubplan      *plan = (SSubplan *)qwMsg->msg;
+  SQWPhaseInput  input = {0};
+  qTaskInfo_t    pTaskInfo = NULL;
+  DataSinkHandle sinkHandle = NULL;
+
+  QW_ERR_JRET(qwAddTaskCtx(QW_FPARAMS()));
+
+  QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
+
+  QW_ERR_JRET(qwAddTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_INIT));
+
+  ctx->taskType = qwMsg->msgInfo.taskType;
+  ctx->explain = qwMsg->msgInfo.explain;
+  ctx->needFetch = qwMsg->msgInfo.needFetch;
+  ctx->msgType = qwMsg->msgType;
+
+  code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, NULL, OPTR_EXEC_MODEL_BATCH);
+  if (code) {
+    QW_TASK_ELOG("qCreateExecTask failed, code:%x - %s", code, tstrerror(code));
+    QW_ERR_JRET(code);
+  }
+
+  if (NULL == sinkHandle || NULL == pTaskInfo) {
+    QW_TASK_ELOG("create task result error, taskHandle:%p, sinkHandle:%p", pTaskInfo, sinkHandle);
+    QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+  }
+
+  ctx->level = plan->level;
+  atomic_store_ptr(&ctx->taskHandle, pTaskInfo);
+  atomic_store_ptr(&ctx->sinkHandle, sinkHandle);
+
+  QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, NULL));
+
+_return:
+
+  if (ctx) {
+    QW_UPDATE_RSP_CODE(ctx, code);
+    qwReleaseTaskCtx(mgmt, ctx);
+  }
+
+  QW_RET(code);
+}
+
+

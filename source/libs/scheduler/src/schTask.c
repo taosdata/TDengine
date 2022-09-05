@@ -228,7 +228,6 @@ int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode)
   SCH_RET(errCode);
 }
 
-// Note: no more task error processing, handled in function internal
 int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
   bool    moved = false;
   int32_t code = 0;
@@ -819,6 +818,48 @@ int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId *pEpId, SArray *pStatusList) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask) {
+  SSubplan *plan = pTask->plan;
+  int32_t code = 0;
+
+  if (NULL == pTask->msg) {  // TODO add more detailed reason for failure
+    code = qSubPlanToString(plan, &pTask->msg, &pTask->msgLen);
+    if (TSDB_CODE_SUCCESS != code) {
+      SCH_TASK_ELOG("failed to create physical plan, code:%s, msg:%p, len:%d", tstrerror(code), pTask->msg,
+                    pTask->msgLen);
+      SCH_ERR_RET(code);
+    } else {
+      SCH_TASK_DLOGL("physical plan len:%d, %s", pTask->msgLen, pTask->msg);
+    }
+  }
+
+  SCH_ERR_RET(schSetTaskCandidateAddrs(pJob, pTask));
+
+  if (SCH_IS_QUERY_JOB(pJob)) {
+    SCH_ERR_RET(schEnsureHbConnection(pJob, pTask));
+  }
+  
+  SCH_RET(schBuildAndSendMsg(pJob, pTask, NULL, plan->msgType));
+}
+
+int32_t schLaunchLocalTask(SSchJob *pJob, SSchTask *pTask) {
+  //SCH_ERR_JRET(schSetTaskCandidateAddrs(pJob, pTask));
+  if (NULL == schMgmt.queryMgmt) {
+    SCH_ERR_RET(qWorkerInit(NODE_TYPE_CLIENT, CLIENT_HANDLE, (void **)&schMgmt.queryMgmt, NULL));
+  }
+  
+  SQWMsg qwMsg = {0};
+  qwMsg.msgInfo.taskType = TASK_TYPE_TEMP;
+  qwMsg.msgInfo.explain = SCH_IS_EXPLAIN_JOB(pJob);
+  qwMsg.msgInfo.needFetch = SCH_TASK_NEED_FETCH(pTask);
+  qwMsg.msg = pTask->plan;
+  qwMsg.msgType = pTask->plan->msgType;
+  
+  SCH_ERR_RET(qWorkerProcessLocalQuery((SQWorker*)schMgmt.queryMgmt, schMgmt.sId, pJob->queryId, pTask->taskId, pJob->refId, pTask->execId, &qwMsg));
+
+  SCH_RET(schProcessOnTaskSuccess(pJob, pTask));
+}
+
 int32_t schLaunchTaskImpl(void *param) {
   SSchTaskCtx *pCtx = (SSchTaskCtx *)param;
   SSchJob *pJob = schAcquireJob(pCtx->jobRid);
@@ -852,26 +893,11 @@ int32_t schLaunchTaskImpl(void *param) {
     SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_EXEC);
   }
 
-  SSubplan *plan = pTask->plan;
-
-  if (NULL == pTask->msg) {  // TODO add more detailed reason for failure
-    code = qSubPlanToString(plan, &pTask->msg, &pTask->msgLen);
-    if (TSDB_CODE_SUCCESS != code) {
-      SCH_TASK_ELOG("failed to create physical plan, code:%s, msg:%p, len:%d", tstrerror(code), pTask->msg,
-                    pTask->msgLen);
-      SCH_ERR_JRET(code);
-    } else {
-      SCH_TASK_DLOGL("physical plan len:%d, %s", pTask->msgLen, pTask->msg);
-    }
+  if (pJob->attr.localExec && SCH_IS_QUERY_JOB(pJob) && SCH_IS_DATA_MERGE_TASK(pTask)) {
+    SCH_ERR_JRET(schLaunchLocalTask(pJob, pTask));
+  } else {
+    SCH_ERR_JRET(schLaunchRemoteTask(pJob, pTask));
   }
-
-  SCH_ERR_JRET(schSetTaskCandidateAddrs(pJob, pTask));
-
-  if (SCH_IS_QUERY_JOB(pJob)) {
-    SCH_ERR_JRET(schEnsureHbConnection(pJob, pTask));
-  }
-
-  SCH_ERR_JRET(schBuildAndSendMsg(pJob, pTask, NULL, plan->msgType));
 
 _return:
 
@@ -892,7 +918,6 @@ _return:
 }
 
 int32_t schAsyncLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {  
-
   SSchTaskCtx *param = taosMemoryCalloc(1, sizeof(SSchTaskCtx));
   if (NULL == param) {
     SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
