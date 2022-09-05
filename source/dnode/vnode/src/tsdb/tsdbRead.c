@@ -226,16 +226,13 @@ static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, const STableK
     return NULL;
   }
 
+  int32_t step = ASCENDING_TRAVERSE(pTsdbReader->order)? 1:-1;
   for (int32_t j = 0; j < numOfTables; ++j) {
     STableBlockScanInfo info = {.lastKey = 0, .uid = idList[j].uid};
     if (ASCENDING_TRAVERSE(pTsdbReader->order)) {
-      info.lastKey = pTsdbReader->window.skey;
-//      if (info.lastKey == INT64_MIN || info.lastKey < pTsdbReader->window.skey) {
-//        info.lastKey = pTsdbReader->window.skey - step;
-//      }
-      ASSERT(info.lastKey >= pTsdbReader->window.skey && info.lastKey <= pTsdbReader->window.ekey);
+      info.lastKey = pTsdbReader->window.skey - step;
     } else {
-      info.lastKey = pTsdbReader->window.ekey;
+      info.lastKey = pTsdbReader->window.ekey - step;
     }
 
     taosHashPut(pTableMap, &info.uid, sizeof(uint64_t), &info, sizeof(info));
@@ -3555,7 +3552,7 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
   initFilesetIterator(&pReader->status.fileIter, pReader->pReadSnap->fs.aDFileSet, pReader);
   resetDataBlockIterator(&pReader->status.blockIter, pReader->order);
 
-  int64_t ts = ASCENDING_TRAVERSE(pReader->order)?pReader->window.skey:pReader->window.ekey;
+  int64_t ts = ASCENDING_TRAVERSE(pReader->order)?pReader->window.skey-1:pReader->window.ekey+1;
   resetDataBlockScanInfo(pReader->status.pTableMap, ts);
 
   int32_t         code = 0;
