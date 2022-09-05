@@ -235,7 +235,7 @@ static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, const STableK
 
       ASSERT(info.lastKey >= pTsdbReader->window.skey && info.lastKey <= pTsdbReader->window.ekey);
     } else {
-      info.lastKey = pTsdbReader->window.skey;
+      info.lastKey = pTsdbReader->window.ekey;
     }
 
     taosHashPut(pTableMap, &info.uid, sizeof(uint64_t), &info, sizeof(info));
@@ -1430,6 +1430,10 @@ static int32_t mergeFileBlockAndLastBlock(STsdbReader* pReader, SLastBlockReader
 
         tRowMergerInit(&merge, &fRow, pReader->pSchema);
         doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pReader, &merge);
+
+        TSDBROW fRow1 = tMergeTreeGetRow(&pLastBlockReader->mergeTree);
+        tRowMerge(&merge, &fRow1);
+
         doMergeRowsInLastBlock(pLastBlockReader, pBlockScanInfo, ts, &merge);
 
         int32_t code = tRowMergerGetRow(&merge, &pTSRow);
@@ -1850,6 +1854,8 @@ static bool isValidFileBlockRow(SBlockData* pBlockData, SFileBlockDumpInfo* pDum
 static bool outOfTimeWindow(int64_t ts, STimeWindow* pWindow) { return (ts > pWindow->ekey) || (ts < pWindow->skey); }
 
 static bool nextRowFromLastBlocks(SLastBlockReader* pLastBlockReader, STableBlockScanInfo* pBlockScanInfo) {
+  int32_t step = ASCENDING_TRAVERSE(pLastBlockReader->order)? 1:-1;
+
   while (1) {
     bool hasVal = tMergeTreeNext(&pLastBlockReader->mergeTree);
     if (!hasVal) {
@@ -1859,6 +1865,7 @@ static bool nextRowFromLastBlocks(SLastBlockReader* pLastBlockReader, STableBloc
     TSDBROW row = tMergeTreeGetRow(&pLastBlockReader->mergeTree);
     TSDBKEY k = TSDBROW_KEY(&row);
     if (!hasBeenDropped(pBlockScanInfo->delSkyline, &pBlockScanInfo->lastBlockDelIndex, &k, pLastBlockReader->order)) {
+      pBlockScanInfo->lastKey = k.ts + step;
       return true;
     }
   }
@@ -1932,9 +1939,17 @@ static bool initLastBlockReader(SLastBlockReader* pLastBlockReader, STableBlockS
 
   initMemDataIterator(pBlockScanInfo, pReader);
   pLastBlockReader->uid = pBlockScanInfo->uid;
+
+  STimeWindow w = pLastBlockReader->window;
+  if (ASCENDING_TRAVERSE(pLastBlockReader->order)) {
+    w.skey = pBlockScanInfo->lastKey;
+  } else {
+    w.ekey = pBlockScanInfo->lastKey;
+  }
+
   int32_t code =
       tMergeTreeOpen(&pLastBlockReader->mergeTree, (pLastBlockReader->order == TSDB_ORDER_DESC), pReader->pFileReader,
-          pReader->suid, pBlockScanInfo->uid, &pLastBlockReader->window, &pLastBlockReader->verRange);
+          pReader->suid, pBlockScanInfo->uid, &w, &pLastBlockReader->verRange);
   if (code != TSDB_CODE_SUCCESS) {
     return false;
   }
