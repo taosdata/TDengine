@@ -249,7 +249,7 @@ static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, const STableK
   return pTableMap;
 }
 
-static void resetDataBlockScanInfo(SHashObj* pTableMap) {
+static void resetDataBlockScanInfo(SHashObj* pTableMap, int64_t ts) {
   STableBlockScanInfo* p = NULL;
 
   while ((p = taosHashIterate(pTableMap, p)) != NULL) {
@@ -260,6 +260,7 @@ static void resetDataBlockScanInfo(SHashObj* pTableMap) {
     }
 
     p->delSkyline = taosArrayDestroy(p->delSkyline);
+    p->lastKey = ts;
   }
 }
 
@@ -3550,11 +3551,12 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
   tsdbDataFReaderClose(&pReader->pFileReader);
 
   int32_t numOfTables = taosHashGetSize(pReader->status.pTableMap);
-  tsdbDataFReaderClose(&pReader->pFileReader);
 
   initFilesetIterator(&pReader->status.fileIter, pReader->pReadSnap->fs.aDFileSet, pReader);
   resetDataBlockIterator(&pReader->status.blockIter, pReader->order);
-  resetDataBlockScanInfo(pReader->status.pTableMap);
+
+  int64_t ts = ASCENDING_TRAVERSE(pReader->order)?pReader->window.skey:pReader->window.ekey;
+  resetDataBlockScanInfo(pReader->status.pTableMap, ts);
 
   int32_t         code = 0;
   SDataBlockIter* pBlockIter = &pReader->status.blockIter;
