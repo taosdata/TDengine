@@ -988,6 +988,10 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
 
   if (hdr.szBlkCol > 0) {
     int64_t offset = pBlkInfo->offset + pBlkInfo->szKey;
+
+    code = tRealloc(&pReader->aBuf[0], hdr.szBlkCol);
+    if (code) goto _err;
+
     code = tsdbReadFile(pFD, offset, pReader->aBuf[0], hdr.szBlkCol);
     if (code) goto _err;
   }
@@ -1028,6 +1032,9 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
         // decode from binary
         int64_t offset = pBlkInfo->offset + pBlkInfo->szKey + hdr.szBlkCol + pBlockCol->offset;
         int32_t size = pBlockCol->szBitmap + pBlockCol->szOffset + pBlockCol->szValue;
+
+        code = tRealloc(&pReader->aBuf[1], size);
+        if (code) goto _err;
 
         code = tsdbReadFile(pFD, offset, pReader->aBuf[1], size);
         if (code) goto _err;
