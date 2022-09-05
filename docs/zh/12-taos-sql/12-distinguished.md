@@ -1,6 +1,6 @@
 ---
-sidebar_label: 时序数据特色查询
-title: 时序数据特色查询
+sidebar_label: 特色查询
+title: 特色查询
 description: TDengine 提供的时序数据特有的查询功能
 ---
 

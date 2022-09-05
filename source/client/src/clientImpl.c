@@ -728,7 +728,7 @@ int32_t handleSubmitExecRes(SRequestObj* pRequest, void* res, SCatalog* pCatalog
       tFreeSTableMetaRsp(blk->pMeta);
       taosMemoryFreeClear(blk->pMeta);
     }
-    
+
     if (NULL == blk->tblFName || 0 == blk->tblFName[0]) {
       continue;
     }
@@ -850,6 +850,8 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
 void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   SRequestObj* pRequest = (SRequestObj*)param;
   pRequest->code = code;
+
+  pRequest->metric.resultReady = taosGetTimestampUs();
 
   if (pResult) {
     memcpy(&pRequest->body.resInfo.execRes, pResult, sizeof(*pResult));
@@ -1029,6 +1031,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
       } else {
         pRequest->body.subplanNum = pDag->numOfSubplans;
       }
+
+      pRequest->metric.planEnd = taosGetTimestampUs();
 
       if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
         SArray* pNodeList = NULL;
@@ -1668,7 +1672,12 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
       break;
     }
   }
-  if (!needConvert) return TSDB_CODE_SUCCESS;
+
+  if (!needConvert) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  tscDebug("start to convert form json format string");
 
   char*   p = (char*)pResultInfo->pData;
   int32_t dataLen = estimateJsonLen(pResultInfo, numOfCols, numOfRows);

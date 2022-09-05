@@ -1,6 +1,6 @@
 ---
 sidebar_label: 索引
-title: 使用索引
+title: 索引
 description: 索引功能的使用细节
 ---
 

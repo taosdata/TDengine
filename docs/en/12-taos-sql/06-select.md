@@ -52,11 +52,6 @@ window_clause: {
   | STATE_WINDOW(col)
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
 
-changes_option: {
-    DURATION duration_val
-  | ROWS rows_val
-}
-
 group_by_clause:
     GROUP BY expr [, expr] ... HAVING condition
 
@@ -126,7 +121,6 @@ SELECT DISTINCT col_name [, col_name ...] FROM tb_name;
 
 1. Configuration parameter `maxNumOfDistinctRes` in `taos.cfg` is used to control the number of rows to output. The minimum configurable value is 100,000, the maximum configurable value is 100,000,000, the default value is 1,000,000. If the actual number of rows exceeds the value of this parameter, only the number of rows specified by this parameter will be output.
 2. It can't be guaranteed that the results selected by using `DISTINCT` on columns of `FLOAT` or `DOUBLE` are exactly unique because of the precision errors in floating point numbers.
-3. `DISTINCT` can't be used in the sub-query of a nested query statement, and can't be used together with aggregate functions, `GROUP BY` or `JOIN` in the same SQL statement.
 
 :::
 

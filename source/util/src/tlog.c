@@ -97,7 +97,7 @@ int32_t tqDebugFlag = 135;
 int32_t fsDebugFlag = 135;
 int32_t metaDebugFlag = 135;
 int32_t udfDebugFlag = 135;
-int32_t smaDebugFlag = 135;
+int32_t smaDebugFlag = 131;
 int32_t idxDebugFlag = 135;
 
 int64_t dbgEmptyW = 0;
@@ -446,7 +446,10 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
   }
 
   if (dflag & DEBUG_SCREEN) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
     write(1, buffer, (uint32_t)len);
+#pragma GCC diagnostic pop
   }
 }
 

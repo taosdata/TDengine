@@ -234,6 +234,9 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.walRetentionSize = pDb->cfg.walRetentionSize;
   createReq.walRollPeriod = pDb->cfg.walRollPeriod;
   createReq.walSegmentSize = pDb->cfg.walSegmentSize;
+  createReq.sstTrigger = pDb->cfg.sstTrigger;
+  createReq.hashPrefix = pDb->cfg.hashPrefix;
+  createReq.hashSuffix = pDb->cfg.hashSuffix;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SReplica  *pReplica = &createReq.replicas[v];
@@ -694,6 +697,9 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
     colDataAppendNULL(pColInfo, numOfRows);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->cacheUsage, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppendNULL(pColInfo, numOfRows);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -791,32 +797,43 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     if (pShow->pIter == NULL) break;
 
     for (int32_t i = 0; i < pVgroup->replica && numOfRows < rows; ++i) {
-      SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
+      SVnodeGid       *pVgid = &pVgroup->vnodeGid[i];
+      SColumnInfoData *pColInfo = NULL;
       cols = 0;
 
-      SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->vgId, false);
 
-      SName name = {0};
-      char  db[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      tNameFromString(&name, pVgroup->dbName, T_NAME_ACCT | T_NAME_DB);
-      tNameGetDbName(&name, varDataVal(db));
-      varDataSetLen(db, strlen(varDataVal(db)));
-
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)db, false);
-
-      uint32_t val = 0;
-      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&val, false);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->replica, false);
 
       char buf[20] = {0};
       STR_TO_VARSTR(buf, syncStr(pVgid->role));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataAppend(pColInfo, numOfRows, (const char *)buf, false);
 
+      const char *dbname = mndGetDbStr(pVgroup->dbName);
+      char        b1[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      if (dbname != NULL) {
+        STR_WITH_MAXSIZE_TO_VARSTR(b1, dbname, TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE);
+      } else {
+        STR_WITH_MAXSIZE_TO_VARSTR(b1, "NULL", TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE);
+      }
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->replica, false);  // onlines
+      colDataAppend(pColInfo, numOfRows, (const char *)b1, false);
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pVgid->dnodeId, false);
+
+      SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
+      char       b2[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
+      if (pDnode != NULL) {
+        STR_WITH_MAXSIZE_TO_VARSTR(b2, pDnode->ep, TSDB_EP_LEN + VARSTR_HEADER_SIZE);
+      } else {
+        STR_WITH_MAXSIZE_TO_VARSTR(b2, "NULL", TSDB_EP_LEN + VARSTR_HEADER_SIZE);
+      }
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)b2, false);
 
       numOfRows++;
     }

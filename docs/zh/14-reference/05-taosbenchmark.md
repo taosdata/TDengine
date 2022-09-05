@@ -405,37 +405,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 订阅子表或者普通表的配置参数在 `specified_table_query` 中设置。
 
-- **threads** : 执行 SQL 的线程数，默认为 1。
-
-- **interval** : 执行订阅的时间间隔，单位为秒，默认为 0。
-
-- **restart** : "yes" 表示开始新的订阅，"no" 表示继续之前的订阅，默认值为 "no"。
-
-- **keepProgress** : "yes" 表示保留订阅进度，"no" 表示不保留，默认值为 "no"。
-
-- **resubAfterConsume** : "yes" 表示取消之前的订阅然后再次订阅， "no" 表示继续之前的订阅，默认值为 "no"。
+- **threads/concurrent** : 执行 SQL 的线程数，默认为 1。
 
 - **sqls** ：
   - **sql** : 执行的 SQL 命令，必填。
-  - **result** : 保存查询结果的文件，未指定则不保存。
-
-#### 订阅超级表的配置参数
-
-订阅超级表的配置参数在 `super_table_query` 中设置。
-
-- **stblname** : 要订阅的超级表名称，必填。
-
-- **threads** : 执行 SQL 的线程数，默认为 1。
-
-- **interval** : 执行订阅的时间间隔，单位为秒，默认为 0。
-
-- **restart** : "yes" 表示开始新的订阅，"no" 表示继续之前的订阅，默认值为 "no"。
-
-- **keepProgress** : "yes" 表示保留订阅进度，"no" 表示不保留，默认值为 "no"。
-
-- **resubAfterConsume** : "yes" 表示取消之前的订阅然后再次订阅， "no" 表示继续之前的订阅，默认值为 "no"。
-
-- **sqls** ：
-  - **sql** : 执行的 SQL 命令，必填；对于超级表的查询 SQL，在 SQL 命令中保留 "xxxx"，程序会自动将其替换为超级表的所有子表名。
-    替换为超级表中所有的子表名。
-  - **result** : 保存查询结果的文件，未指定则不保存。

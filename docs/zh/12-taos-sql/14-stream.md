@@ -44,7 +44,7 @@ window_clause: {
 
 ```sql
 CREATE STREAM avg_vol_s INTO avg_vol AS
-SELECT _wstartts, count(*), avg(voltage) FROM meters PARTITION BY tbname INTERVAL(1m) SLIDING(30s);
+SELECT _wstart, count(*), avg(voltage) FROM meters PARTITION BY tbname INTERVAL(1m) SLIDING(30s);
 ```
 
 ## 流式计算的 partition
@@ -58,7 +58,7 @@ SELECT _wstartts, count(*), avg(voltage) FROM meters PARTITION BY tbname INTERVA
 ## 删除流式计算
 
 ```sql
-DROP STREAM [IF NOT EXISTS] stream_name;
+DROP STREAM [IF EXISTS] stream_name;
 ```
 
 仅删除流式计算任务，由流式计算写入的数据不会被删除。

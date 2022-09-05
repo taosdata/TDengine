@@ -42,6 +42,7 @@ void commit_cb(tmq_t *tmq, int32_t code, void *param) {
 
 JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqConfNewImp(JNIEnv *env, jobject jobj) {
   tmq_conf_t *conf = tmq_conf_new();
+  jniGetGlobalMethod(env);
   return (jlong)conf;
 }
 
