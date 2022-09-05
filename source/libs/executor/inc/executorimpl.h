@@ -881,7 +881,7 @@ void    initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLi
 void    doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfoData* pTimeWindowData, int32_t offset,
                          int32_t forwardStep, int32_t numOfTotal, int32_t numOfOutput);
 
-int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, int32_t numOfOutput, SArray* pColList, char** pNextStart);
+int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pColList, char** pNextStart);
 void updateLoadRemoteInfo(SLoadRemoteDataInfo *pInfo, int32_t numOfRows, int32_t dataLen, int64_t startTs,
                           SOperatorInfo* pOperator);
 

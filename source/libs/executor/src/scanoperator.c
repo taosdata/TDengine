@@ -2539,7 +2539,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
       }
 
       char* pStart = pRsp->data;
-      extractDataBlockFromFetchRsp(pInfo->pRes, pRsp->data, pOperator->exprSupp.numOfExprs, pInfo->scanCols, &pStart);
+      extractDataBlockFromFetchRsp(pInfo->pRes, pRsp->data, pInfo->scanCols, &pStart);
       updateLoadRemoteInfo(&pInfo->loadInfo, pRsp->numOfRows, pRsp->compLen, startTs, pOperator);
 
       // todo log the filter info
