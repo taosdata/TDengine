@@ -62,7 +62,7 @@ int32_t smaInit() {
     }
 
     int32_t type = (8 == POINTER_BYTES) ? TSDB_DATA_TYPE_UBIGINT : TSDB_DATA_TYPE_UINT;
-    smaMgmt.refHash = taosHashInit(1, taosGetDefaultHashFunction(type), true, HASH_ENTRY_LOCK);
+    smaMgmt.refHash = taosHashInit(64, taosGetDefaultHashFunction(type), true, HASH_ENTRY_LOCK);
     if (!smaMgmt.refHash) {
       taosCloseRef(smaMgmt.rsetId);
       atomic_store_8(&smaMgmt.inited, 0);
@@ -107,6 +107,7 @@ void smaCleanUp() {
   if (old == 1) {
     taosCloseRef(smaMgmt.rsetId);
     taosHashCleanup(smaMgmt.refHash);
+    smaMgmt.refHash = NULL;
     taosTmrCleanUp(smaMgmt.tmrHandle);
     smaInfo("sma mgmt env is cleaned up, rsetId:%d, tmrHandle:%p", smaMgmt.rsetId, smaMgmt.tmrHandle);
     atomic_store_8(&smaMgmt.inited, 0);
@@ -220,7 +221,7 @@ static void tRSmaInfoHashFreeNode(void *data) {
     if ((pItem = RSMA_INFO_ITEM((SRSmaInfo *)pRSmaInfo, 1)) && pItem->level) {
       taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES);
     }
-    tdFreeRSmaInfo(NULL, pRSmaInfo, true);
+    tdFreeRSmaInfo(pRSmaInfo->pSma, pRSmaInfo, true);
   }
 }
 
