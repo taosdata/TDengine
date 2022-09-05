@@ -4,9 +4,10 @@ title: Connect with Python Connector
 description: Connect to TDengine cloud service using Python connector
 ---
 
+<!-- exclude -->
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-
+<!-- exclude-end -->
 ## Install Connector
 
 First, you need to install the `taospy` module version >= `2.6.2`. Run the command below in your terminal.
