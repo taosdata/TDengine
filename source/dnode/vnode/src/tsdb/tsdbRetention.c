@@ -60,7 +60,7 @@ int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
     if (expLevel < 0) {
       taosMemoryFree(pSet->pHeadF);
       taosMemoryFree(pSet->pDataF);
-      taosMemoryFree(pSet->aSstF[0]);
+      taosMemoryFree(pSet->aSttF[0]);
       taosMemoryFree(pSet->pSmaF);
       taosArrayRemove(fs.aDFileSet, iSet);
       iSet--;
