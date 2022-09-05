@@ -226,13 +226,13 @@ int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pS
                               .pHeadF = &pWriter->fHead,
                               .pDataF = &pWriter->fData,
                               .pSmaF = &pWriter->fSma,
-                              .nSstF = pSet->nSstF};
+                              .nSttF = pSet->nSttF};
   pWriter->fHead = *pSet->pHeadF;
   pWriter->fData = *pSet->pDataF;
   pWriter->fSma = *pSet->pSmaF;
-  for (int8_t iSst = 0; iSst < pSet->nSstF; iSst++) {
-    pWriter->wSet.aSstF[iSst] = &pWriter->fSst[iSst];
-    pWriter->fSst[iSst] = *pSet->aSstF[iSst];
+  for (int8_t iStt = 0; iStt < pSet->nSttF; iStt++) {
+    pWriter->wSet.aSttF[iStt] = &pWriter->fStt[iStt];
+    pWriter->fStt[iStt] = *pSet->aSttF[iStt];
   }
 
   // head
@@ -276,15 +276,15 @@ int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pS
     pWriter->fSma.size += TSDB_FHDR_SIZE;
   }
 
-  // sst
-  ASSERT(pWriter->fSst[pSet->nSstF - 1].size == 0);
+  // stt
+  ASSERT(pWriter->fStt[pSet->nSttF - 1].size == 0);
   flag = TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC;
-  tsdbSstFileName(pTsdb, pWriter->wSet.diskId, pWriter->wSet.fid, &pWriter->fSst[pSet->nSstF - 1], fname);
-  code = tsdbOpenFile(fname, szPage, flag, &pWriter->pSstFD);
+  tsdbSttFileName(pTsdb, pWriter->wSet.diskId, pWriter->wSet.fid, &pWriter->fStt[pSet->nSttF - 1], fname);
+  code = tsdbOpenFile(fname, szPage, flag, &pWriter->pSttFD);
   if (code) goto _err;
-  code = tsdbWriteFile(pWriter->pSstFD, 0, hdr, TSDB_FHDR_SIZE);
+  code = tsdbWriteFile(pWriter->pSttFD, 0, hdr, TSDB_FHDR_SIZE);
   if (code) goto _err;
-  pWriter->fSst[pWriter->wSet.nSstF - 1].size += TSDB_FHDR_SIZE;
+  pWriter->fStt[pWriter->wSet.nSttF - 1].size += TSDB_FHDR_SIZE;
 
   *ppWriter = pWriter;
   return code;
@@ -312,14 +312,14 @@ int32_t tsdbDataFWriterClose(SDataFWriter **ppWriter, int8_t sync) {
     code = tsdbFsyncFile((*ppWriter)->pSmaFD);
     if (code) goto _err;
 
-    code = tsdbFsyncFile((*ppWriter)->pSstFD);
+    code = tsdbFsyncFile((*ppWriter)->pSttFD);
     if (code) goto _err;
   }
 
   tsdbCloseFile(&(*ppWriter)->pHeadFD);
   tsdbCloseFile(&(*ppWriter)->pDataFD);
   tsdbCloseFile(&(*ppWriter)->pSmaFD);
-  tsdbCloseFile(&(*ppWriter)->pSstFD);
+  tsdbCloseFile(&(*ppWriter)->pSttFD);
 
   for (int32_t iBuf = 0; iBuf < sizeof((*ppWriter)->aBuf) / sizeof(uint8_t *); iBuf++) {
     tFree((*ppWriter)->aBuf[iBuf]);
@@ -357,10 +357,10 @@ int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter) {
   code = tsdbWriteFile(pWriter->pSmaFD, 0, hdr, TSDB_FHDR_SIZE);
   if (code) goto _err;
 
-  // sst ==============
+  // stt ==============
   memset(hdr, 0, TSDB_FHDR_SIZE);
-  tPutSstFile(hdr, &pWriter->fSst[pWriter->wSet.nSstF - 1]);
-  code = tsdbWriteFile(pWriter->pSstFD, 0, hdr, TSDB_FHDR_SIZE);
+  tPutSttFile(hdr, &pWriter->fStt[pWriter->wSet.nSttF - 1]);
+  code = tsdbWriteFile(pWriter->pSttFD, 0, hdr, TSDB_FHDR_SIZE);
   if (code) goto _err;
 
   return code;
@@ -454,22 +454,22 @@ _err:
   return code;
 }
 
-int32_t tsdbWriteSstBlk(SDataFWriter *pWriter, SArray *aSstBlk) {
+int32_t tsdbWriteSttBlk(SDataFWriter *pWriter, SArray *aSttBlk) {
   int32_t   code = 0;
-  SSstFile *pSstFile = &pWriter->fSst[pWriter->wSet.nSstF - 1];
+  SSttFile *pSttFile = &pWriter->fStt[pWriter->wSet.nSttF - 1];
   int64_t   size;
   int64_t   n;
 
   // check
-  if (taosArrayGetSize(aSstBlk) == 0) {
-    pSstFile->offset = pSstFile->size;
+  if (taosArrayGetSize(aSttBlk) == 0) {
+    pSttFile->offset = pSttFile->size;
     goto _exit;
   }
 
   // size
   size = 0;
-  for (int32_t iBlockL = 0; iBlockL < taosArrayGetSize(aSstBlk); iBlockL++) {
-    size += tPutSstBlk(NULL, taosArrayGet(aSstBlk, iBlockL));
+  for (int32_t iBlockL = 0; iBlockL < taosArrayGetSize(aSttBlk); iBlockL++) {
+    size += tPutSttBlk(NULL, taosArrayGet(aSttBlk, iBlockL));
   }
 
   // alloc
@@ -478,21 +478,21 @@ int32_t tsdbWriteSstBlk(SDataFWriter *pWriter, SArray *aSstBlk) {
 
   // encode
   n = 0;
-  for (int32_t iBlockL = 0; iBlockL < taosArrayGetSize(aSstBlk); iBlockL++) {
-    n += tPutSstBlk(pWriter->aBuf[0] + n, taosArrayGet(aSstBlk, iBlockL));
+  for (int32_t iBlockL = 0; iBlockL < taosArrayGetSize(aSttBlk); iBlockL++) {
+    n += tPutSttBlk(pWriter->aBuf[0] + n, taosArrayGet(aSttBlk, iBlockL));
   }
 
   // write
-  code = tsdbWriteFile(pWriter->pSstFD, pSstFile->size, pWriter->aBuf[0], size);
+  code = tsdbWriteFile(pWriter->pSttFD, pSttFile->size, pWriter->aBuf[0], size);
   if (code) goto _err;
 
   // update
-  pSstFile->offset = pSstFile->size;
-  pSstFile->size += size;
+  pSttFile->offset = pSttFile->size;
+  pSttFile->size += size;
 
 _exit:
-  tsdbTrace("vgId:%d tsdb write sst block, loffset:%" PRId64 " size:%" PRId64, TD_VID(pWriter->pTsdb->pVnode),
-            pSstFile->offset, size);
+  tsdbTrace("vgId:%d tsdb write stt block, loffset:%" PRId64 " size:%" PRId64, TD_VID(pWriter->pTsdb->pVnode),
+            pSttFile->offset, size);
   return code;
 
 _err:
@@ -546,7 +546,7 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock
   ASSERT(pBlockData->nRow > 0);
 
   if (toLast) {
-    pBlkInfo->offset = pWriter->fSst[pWriter->wSet.nSstF - 1].size;
+    pBlkInfo->offset = pWriter->fStt[pWriter->wSet.nSttF - 1].size;
   } else {
     pBlkInfo->offset = pWriter->fData.size;
   }
@@ -558,7 +558,7 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock
   if (code) goto _err;
 
   // write =================
-  STsdbFD *pFD = toLast ? pWriter->pSstFD : pWriter->pDataFD;
+  STsdbFD *pFD = toLast ? pWriter->pSttFD : pWriter->pDataFD;
 
   pBlkInfo->szKey = aBufN[3] + aBufN[2];
   pBlkInfo->szBlock = aBufN[0] + aBufN[1] + aBufN[2] + aBufN[3];
@@ -585,7 +585,7 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock
 
   // update info
   if (toLast) {
-    pWriter->fSst[pWriter->wSet.nSstF - 1].size += pBlkInfo->szBlock;
+    pWriter->fStt[pWriter->wSet.nSttF - 1].size += pBlkInfo->szBlock;
   } else {
     pWriter->fData.size += pBlkInfo->szBlock;
   }
@@ -664,9 +664,9 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
   taosCloseFile(&pOutFD);
   taosCloseFile(&PInFD);
 
-  // sst
-  tsdbSstFileName(pTsdb, pSetFrom->diskId, pSetFrom->fid, pSetFrom->aSstF[0], fNameFrom);
-  tsdbSstFileName(pTsdb, pSetTo->diskId, pSetTo->fid, pSetTo->aSstF[0], fNameTo);
+  // stt
+  tsdbSttFileName(pTsdb, pSetFrom->diskId, pSetFrom->fid, pSetFrom->aSttF[0], fNameFrom);
+  tsdbSttFileName(pTsdb, pSetTo->diskId, pSetTo->fid, pSetTo->aSttF[0], fNameTo);
 
   pOutFD = taosOpenFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
   if (pOutFD == NULL) {
@@ -680,7 +680,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
     goto _err;
   }
 
-  n = taosFSendFile(pOutFD, PInFD, 0, pSetFrom->aSstF[0]->size);
+  n = taosFSendFile(pOutFD, PInFD, 0, pSetFrom->aSttF[0]->size);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -750,10 +750,10 @@ int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pS
   code = tsdbOpenFile(fname, szPage, TD_FILE_READ, &pReader->pSmaFD);
   if (code) goto _err;
 
-  // sst
-  for (int32_t iSst = 0; iSst < pSet->nSstF; iSst++) {
-    tsdbSstFileName(pTsdb, pSet->diskId, pSet->fid, pSet->aSstF[iSst], fname);
-    code = tsdbOpenFile(fname, szPage, TD_FILE_READ, &pReader->aSstFD[iSst]);
+  // stt
+  for (int32_t iStt = 0; iStt < pSet->nSttF; iStt++) {
+    tsdbSttFileName(pTsdb, pSet->diskId, pSet->fid, pSet->aSttF[iStt], fname);
+    code = tsdbOpenFile(fname, szPage, TD_FILE_READ, &pReader->aSttFD[iStt]);
     if (code) goto _err;
   }
 
@@ -779,10 +779,10 @@ int32_t tsdbDataFReaderClose(SDataFReader **ppReader) {
   // sma
   tsdbCloseFile(&(*ppReader)->pSmaFD);
 
-  // sst
-  for (int32_t iSst = 0; iSst < TSDB_MAX_SST_FILE; iSst++) {
-    if ((*ppReader)->aSstFD[iSst]) {
-      tsdbCloseFile(&(*ppReader)->aSstFD[iSst]);
+  // stt
+  for (int32_t iStt = 0; iStt < TSDB_MAX_STT_FILE; iStt++) {
+    if ((*ppReader)->aSttFD[iStt]) {
+      tsdbCloseFile(&(*ppReader)->aSttFD[iStt]);
     }
   }
 
@@ -835,13 +835,13 @@ _err:
   return code;
 }
 
-int32_t tsdbReadSstBlk(SDataFReader *pReader, int32_t iSst, SArray *aSstBlk) {
+int32_t tsdbReadSttBlk(SDataFReader *pReader, int32_t iStt, SArray *aSttBlk) {
   int32_t   code = 0;
-  SSstFile *pSstFile = pReader->pSet->aSstF[iSst];
-  int64_t   offset = pSstFile->offset;
-  int64_t   size = pSstFile->size - offset;
+  SSttFile *pSttFile = pReader->pSet->aSttF[iStt];
+  int64_t   offset = pSttFile->offset;
+  int64_t   size = pSttFile->size - offset;
 
-  taosArrayClear(aSstBlk);
+  taosArrayClear(aSttBlk);
   if (size == 0) return code;
 
   // alloc
@@ -849,16 +849,16 @@ int32_t tsdbReadSstBlk(SDataFReader *pReader, int32_t iSst, SArray *aSstBlk) {
   if (code) goto _err;
 
   // read
-  code = tsdbReadFile(pReader->aSstFD[iSst], offset, pReader->aBuf[0], size);
+  code = tsdbReadFile(pReader->aSttFD[iStt], offset, pReader->aBuf[0], size);
   if (code) goto _err;
 
   // decode
   int64_t n = 0;
   while (n < size) {
-    SSstBlk sstBlk;
-    n += tGetSstBlk(pReader->aBuf[0] + n, &sstBlk);
+    SSttBlk sttBlk;
+    n += tGetSttBlk(pReader->aBuf[0] + n, &sttBlk);
 
-    if (taosArrayPush(aSstBlk, &sstBlk) == NULL) {
+    if (taosArrayPush(aSttBlk, &sttBlk) == NULL) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _err;
     }
@@ -868,7 +868,7 @@ int32_t tsdbReadSstBlk(SDataFReader *pReader, int32_t iSst, SArray *aSstBlk) {
   return code;
 
 _err:
-  tsdbError("vgId:%d read sst blk failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d read stt blk failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -1107,25 +1107,25 @@ _err:
   return code;
 }
 
-int32_t tsdbReadSstBlock(SDataFReader *pReader, int32_t iSst, SSstBlk *pSstBlk, SBlockData *pBlockData) {
+int32_t tsdbReadSttBlock(SDataFReader *pReader, int32_t iStt, SSttBlk *pSttBlk, SBlockData *pBlockData) {
   int32_t code = 0;
 
   // alloc
-  code = tRealloc(&pReader->aBuf[0], pSstBlk->bInfo.szBlock);
+  code = tRealloc(&pReader->aBuf[0], pSttBlk->bInfo.szBlock);
   if (code) goto _err;
 
   // read
-  code = tsdbReadFile(pReader->aSstFD[iSst], pSstBlk->bInfo.offset, pReader->aBuf[0], pSstBlk->bInfo.szBlock);
+  code = tsdbReadFile(pReader->aSttFD[iStt], pSttBlk->bInfo.offset, pReader->aBuf[0], pSttBlk->bInfo.szBlock);
   if (code) goto _err;
 
   // decmpr
-  code = tDecmprBlockData(pReader->aBuf[0], pSstBlk->bInfo.szBlock, pBlockData, &pReader->aBuf[1]);
+  code = tDecmprBlockData(pReader->aBuf[0], pSttBlk->bInfo.szBlock, pBlockData, &pReader->aBuf[1]);
   if (code) goto _err;
 
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb read sst block failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d tsdb read stt block failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
