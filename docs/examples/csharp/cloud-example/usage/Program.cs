@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using TDengineDriver;
 using TDengineWS.Impl;
 using System.Collections.Generic;

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using TDengineWS.Impl;
 using TDengineDriver;
 using System.Runtime.InteropServices;
