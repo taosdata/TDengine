@@ -765,23 +765,25 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
     }
     taosArrayPush(pRequest->tableList, &pName);
 
+    pCreateReq->flags |= TD_CREATE_IF_NOT_EXISTS;
     // change tag cid to new cid
-    if(pCreateReq->type == TSDB_CHILD_TABLE){
+    if (pCreateReq->type == TSDB_CHILD_TABLE) {
       STableMeta* pTableMeta = NULL;
       SName       sName = {0};
       toName(pTscObj->acctId, pRequest->pDb, pCreateReq->ctb.name, &sName);
       code = catalogGetTableMeta(pCatalog, &conn, &sName, &pTableMeta);
-      if(code != TSDB_CODE_SUCCESS){
+      if (code != TSDB_CODE_SUCCESS) {
         uError("taosCreateTable:catalogGetTableMeta failed. table name: %s", pCreateReq->ctb.name);
         goto end;
       }
 
-      for(int32_t i = 0; i < taosArrayGetSize(pCreateReq->ctb.tagName); i++){
+      for (int32_t i = 0; i < taosArrayGetSize(pCreateReq->ctb.tagName); i++) {
         char* tName = taosArrayGet(pCreateReq->ctb.tagName, i);
-        for(int32_t j = pTableMeta->tableInfo.numOfColumns; j < pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags; j++){
-          SSchema *tag = &pTableMeta->schema[j];
-          if(strcmp(tag->name, tName) == 0 && tag->type != TSDB_DATA_TYPE_JSON){
-            tTagSetCid((STag *)pCreateReq->ctb.pTag, i, tag->colId);
+        for (int32_t j = pTableMeta->tableInfo.numOfColumns;
+             j < pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags; j++) {
+          SSchema* tag = &pTableMeta->schema[j];
+          if (strcmp(tag->name, tName) == 0 && tag->type != TSDB_DATA_TYPE_JSON) {
+            tTagSetCid((STag*)pCreateReq->ctb.pTag, i, tag->colId);
           }
         }
       }
@@ -1322,12 +1324,12 @@ end:
   return code;
 }
 
-static int32_t tmqWriteRaw(TAOS* taos, void* data, int32_t dataLen) {
-  int32_t   code = TSDB_CODE_SUCCESS;
-  SHashObj* pVgHash = NULL;
-  SQuery*   pQuery = NULL;
-  SMqRspObj rspObj = {0};
-  SDecoder  decoder = {0};
+static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SHashObj*   pVgHash = NULL;
+  SQuery*     pQuery = NULL;
+  SMqRspObj   rspObj = {0};
+  SDecoder    decoder = {0};
   STableMeta* pTableMeta = NULL;
 
   terrno = TSDB_CODE_SUCCESS;
@@ -1405,7 +1407,7 @@ static int32_t tmqWriteRaw(TAOS* taos, void* data, int32_t dataLen) {
     }
 
     code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
-    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST){
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
       uError("WriteRaw:catalogGetTableMeta table not exist. table name: %s", tbName);
       code = TSDB_CODE_SUCCESS;
       continue;
@@ -1466,7 +1468,7 @@ static int32_t tmqWriteRaw(TAOS* taos, void* data, int32_t dataLen) {
     }
 
     // pSW->pSchema should be same as pTableMeta->schema
-//    ASSERT(pSW->nCols == pTableMeta->tableInfo.numOfColumns);
+    //    ASSERT(pSW->nCols == pTableMeta->tableInfo.numOfColumns);
     uint64_t suid = (TSDB_NORMAL_TABLE == pTableMeta->tableType ? 0 : pTableMeta->suid);
     uint64_t uid = pTableMeta->uid;
     int16_t  sver = pTableMeta->sversion;
@@ -1494,10 +1496,10 @@ static int32_t tmqWriteRaw(TAOS* taos, void* data, int32_t dataLen) {
       int32_t offset = 0;
       for (int32_t k = 0; k < pTableMeta->tableInfo.numOfColumns; k++) {
         const SSchema* pColumn = &pTableMeta->schema[k];
-        int32_t* index = taosHashGet(schemaHash, pColumn->name, strlen(pColumn->name));
-        if(!index){
+        int32_t*       index = taosHashGet(schemaHash, pColumn->name, strlen(pColumn->name));
+        if (!index) {
           tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NULL, NULL, false, offset, k);
-        }else{
+        } else {
           char* colData = rspObj.resInfo.row[*index];
           if (!colData) {
             tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NULL, NULL, false, offset, k);
@@ -1668,7 +1670,7 @@ int32_t tmq_write_raw(TAOS* taos, tmq_raw_data raw) {
   } else if (raw.raw_type == TDMT_VND_DELETE) {
     return taosDeleteData(taos, raw.raw, raw.raw_len);
   } else if (raw.raw_type == RES_TYPE__TMQ) {
-    return tmqWriteRaw(taos, raw.raw, raw.raw_len);
+    return tmqWriteRawDataImpl(taos, raw.raw, raw.raw_len);
   }
   return TSDB_CODE_INVALID_PARA;
 }

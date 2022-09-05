@@ -816,7 +816,86 @@ int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t version, char* msg, int32_t msg
   return streamMetaAddSerializedTask(pTq->pStreamMeta, version, msg, msgLen);
 }
 
-int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* pReq, int64_t ver) {
+int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
+  bool        failed = false;
+  SDecoder*   pCoder = &(SDecoder){0};
+  SDeleteRes* pRes = &(SDeleteRes){0};
+
+  pRes->uidList = taosArrayInit(0, sizeof(tb_uid_t));
+  if (pRes->uidList == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    failed = true;
+  }
+
+  tDecoderInit(pCoder, pReq, len);
+  tDecodeDeleteRes(pCoder, pRes);
+  tDecoderClear(pCoder);
+
+  int32_t sz = taosArrayGetSize(pRes->uidList);
+  if (sz == 0) {
+    taosArrayDestroy(pRes->uidList);
+    return 0;
+  }
+  SSDataBlock* pDelBlock = createSpecialDataBlock(STREAM_DELETE_DATA);
+  blockDataEnsureCapacity(pDelBlock, sz);
+  pDelBlock->info.rows = sz;
+  pDelBlock->info.version = ver;
+
+  for (int32_t i = 0; i < sz; i++) {
+    // start key column
+    SColumnInfoData* pStartCol = taosArrayGet(pDelBlock->pDataBlock, START_TS_COLUMN_INDEX);
+    colDataAppend(pStartCol, i, (const char*)&pRes->skey, false);  // end key column
+    SColumnInfoData* pEndCol = taosArrayGet(pDelBlock->pDataBlock, END_TS_COLUMN_INDEX);
+    colDataAppend(pEndCol, i, (const char*)&pRes->ekey, false);
+    // uid column
+    SColumnInfoData* pUidCol = taosArrayGet(pDelBlock->pDataBlock, UID_COLUMN_INDEX);
+    int64_t*         pUid = taosArrayGet(pRes->uidList, i);
+    colDataAppend(pUidCol, i, (const char*)pUid, false);
+
+    colDataAppendNULL(taosArrayGet(pDelBlock->pDataBlock, GROUPID_COLUMN_INDEX), i);
+    colDataAppendNULL(taosArrayGet(pDelBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX), i);
+    colDataAppendNULL(taosArrayGet(pDelBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX), i);
+  }
+
+  taosArrayDestroy(pRes->uidList);
+
+  void* pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pTq->pStreamMeta->pTasks, pIter);
+    if (pIter == NULL) break;
+    SStreamTask* pTask = *(SStreamTask**)pIter;
+    if (pTask->taskLevel != TASK_LEVEL__SOURCE) continue;
+
+    qDebug("delete req enqueue stream task: %d, ver: %" PRId64, pTask->taskId, ver);
+
+    SStreamDataBlock* pStreamBlock = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
+    pStreamBlock->type = STREAM_INPUT__DATA_BLOCK;
+    pStreamBlock->blocks = taosArrayInit(0, sizeof(SSDataBlock));
+    SSDataBlock block = {0};
+    assignOneDataBlock(&block, pDelBlock);
+    block.info.type = STREAM_DELETE_DATA;
+    taosArrayPush(pStreamBlock->blocks, &block);
+
+    if (!failed) {
+      if (streamTaskInput(pTask, (SStreamQueueItem*)pStreamBlock) < 0) {
+        qError("stream task input del failed, task id %d", pTask->taskId);
+        continue;
+      }
+
+      if (streamSchedExec(pTask) < 0) {
+        qError("stream task launch failed, task id %d", pTask->taskId);
+        continue;
+      }
+    } else {
+      streamTaskInputFail(pTask);
+    }
+  }
+  blockDataDestroy(pDelBlock);
+
+  return 0;
+}
+
+int32_t tqProcessSubmitReq(STQ* pTq, SSubmitReq* pReq, int64_t ver) {
   void*              pIter = NULL;
   bool               failed = false;
   SStreamDataSubmit* pSubmit = NULL;

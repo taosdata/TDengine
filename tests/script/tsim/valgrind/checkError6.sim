@@ -158,6 +158,8 @@ print =============== restart
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start -v
 
+sleep 1000
+
 sql select avg(tbcol) as c from stb
 sql select avg(tbcol) as c from stb where ts <= 1601481840000
 sql select avg(tbcol) as c from stb where tgcol < 5 and ts <= 1601481840000

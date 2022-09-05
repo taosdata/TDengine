@@ -994,6 +994,7 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     SVnodeLoad *pload = taosArrayGet(pReq->pVloads, i);
     if (tEncodeI32(&encoder, pload->vgId) < 0) return -1;
     if (tEncodeI32(&encoder, pload->syncState) < 0) return -1;
+    if (tEncodeI64(&encoder, pload->cacheUsage) < 0) return -1;
     if (tEncodeI64(&encoder, pload->numOfTables) < 0) return -1;
     if (tEncodeI64(&encoder, pload->numOfTimeSeries) < 0) return -1;
     if (tEncodeI64(&encoder, pload->totalStorage) < 0) return -1;
@@ -1063,6 +1064,7 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     SVnodeLoad vload = {0};
     if (tDecodeI32(&decoder, &vload.vgId) < 0) return -1;
     if (tDecodeI32(&decoder, &vload.syncState) < 0) return -1;
+    if (tDecodeI64(&decoder, &vload.cacheUsage) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.numOfTables) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.numOfTimeSeries) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.totalStorage) < 0) return -1;
@@ -2025,6 +2027,8 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   if (tEncodeI32(&encoder, pReq->walRollPeriod) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->walSegmentSize) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->sstTrigger) < 0) return -1;
+  if (tEncodeI16(&encoder, pReq->hashPrefix) < 0) return -1;
+  if (tEncodeI16(&encoder, pReq->hashSuffix) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->ignoreExist) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->numOfRetensions) < 0) return -1;
   for (int32_t i = 0; i < pReq->numOfRetensions; ++i) {
@@ -2072,6 +2076,8 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
   if (tDecodeI32(&decoder, &pReq->walRollPeriod) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->walSegmentSize) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->sstTrigger) < 0) return -1;
+  if (tDecodeI16(&decoder, &pReq->hashPrefix) < 0) return -1;
+  if (tDecodeI16(&decoder, &pReq->hashSuffix) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->ignoreExist) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->numOfRetensions) < 0) return -1;
   pReq->pRetensions = taosArrayInit(pReq->numOfRetensions, sizeof(SRetention));
@@ -3766,6 +3772,9 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   if (tEncodeI64(&encoder, pReq->walRetentionSize) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->walRollPeriod) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->walSegmentSize) < 0) return -1;
+  if (tEncodeI16(&encoder, pReq->sstTrigger) < 0) return -1;
+  if (tEncodeI16(&encoder, pReq->hashPrefix) < 0) return -1;
+  if (tEncodeI16(&encoder, pReq->hashSuffix) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -3838,6 +3847,9 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   if (tDecodeI64(&decoder, &pReq->walRetentionSize) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->walRollPeriod) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->walSegmentSize) < 0) return -1;
+  if (tDecodeI16(&decoder, &pReq->sstTrigger) < 0) return -1;
+  if (tDecodeI16(&decoder, &pReq->hashPrefix) < 0) return -1;
+  if (tDecodeI16(&decoder, &pReq->hashSuffix) < 0) return -1;
 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);

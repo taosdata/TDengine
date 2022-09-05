@@ -1672,7 +1672,12 @@ static int32_t doConvertJson(SReqResultInfo* pResultInfo, int32_t numOfCols, int
       break;
     }
   }
-  if (!needConvert) return TSDB_CODE_SUCCESS;
+
+  if (!needConvert) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  tscDebug("start to convert form json format string");
 
   char*   p = (char*)pResultInfo->pData;
   int32_t dataLen = estimateJsonLen(pResultInfo, numOfCols, numOfRows);

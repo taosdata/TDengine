@@ -29,6 +29,7 @@ target_sources(
     # sma
     "src/sma/smaEnv.c"
     "src/sma/smaUtil.c"
+    "src/sma/smaFS.c"
     "src/sma/smaOpen.c"
     "src/sma/smaCommit.c"
     "src/sma/smaRollup.c"
@@ -49,6 +50,10 @@ target_sources(
     "src/tsdb/tsdbSnapshot.c"
     "src/tsdb/tsdbCacheRead.c"
     "src/tsdb/tsdbRetention.c"
+    "src/tsdb/tsdbDiskData.c"
+    "src/tsdb/tsdbCompress.c"
+    "src/tsdb/tsdbCompact.c"
+    "src/tsdb/tsdbMergeTree.c"
 
     # tq
     "src/tq/tq.c"

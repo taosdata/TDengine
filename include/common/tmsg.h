@@ -785,6 +785,8 @@ typedef struct {
   int32_t walRollPeriod;
   int64_t walSegmentSize;
   int32_t sstTrigger;
+  int16_t hashPrefix;
+  int16_t hashSuffix;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -1068,6 +1070,7 @@ typedef struct {
 typedef struct {
   int32_t vgId;
   int32_t syncState;
+  int64_t cacheUsage;
   int64_t numOfTables;
   int64_t numOfTimeSeries;
   int64_t totalStorage;
@@ -1192,6 +1195,9 @@ typedef struct {
   int64_t  walRetentionSize;
   int32_t  walRollPeriod;
   int64_t  walSegmentSize;
+  int16_t  sstTrigger;
+  int16_t  hashPrefix;
+  int16_t  hashSuffix;
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);

@@ -83,7 +83,7 @@ void generateInformationSchema(MockCatalogService* mcs) {
       .done();
   mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_VNODES, TSDB_SYSTEM_TABLE, 2)
       .addColumn("dnode_id", TSDB_DATA_TYPE_INT)
-      .addColumn("dnode_endpoint", TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN)
+      .addColumn("dnode_ep", TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN)
       .done();
 }
 
