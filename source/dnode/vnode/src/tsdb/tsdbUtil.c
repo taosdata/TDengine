@@ -214,7 +214,7 @@ int32_t tCmprBlockIdx(void const *lhs, void const *rhs) {
 
 int32_t tCmprBlockL(void const *lhs, void const *rhs) {
   SBlockIdx *lBlockIdx = (SBlockIdx *)lhs;
-  SSstBlk   *rBlockL = (SSstBlk *)rhs;
+  SSttBlk   *rBlockL = (SSttBlk *)rhs;
 
   if (lBlockIdx->suid < rBlockL->suid) {
     return -1;
@@ -311,41 +311,41 @@ bool tDataBlkHasSma(SDataBlk *pDataBlk) {
   return pDataBlk->smaInfo.size > 0;
 }
 
-// SSstBlk ======================================================
-int32_t tPutSstBlk(uint8_t *p, void *ph) {
+// SSttBlk ======================================================
+int32_t tPutSttBlk(uint8_t *p, void *ph) {
   int32_t  n = 0;
-  SSstBlk *pSstBlk = (SSstBlk *)ph;
+  SSttBlk *pSttBlk = (SSttBlk *)ph;
 
-  n += tPutI64(p ? p + n : p, pSstBlk->suid);
-  n += tPutI64(p ? p + n : p, pSstBlk->minUid);
-  n += tPutI64(p ? p + n : p, pSstBlk->maxUid);
-  n += tPutI64v(p ? p + n : p, pSstBlk->minKey);
-  n += tPutI64v(p ? p + n : p, pSstBlk->maxKey);
-  n += tPutI64v(p ? p + n : p, pSstBlk->minVer);
-  n += tPutI64v(p ? p + n : p, pSstBlk->maxVer);
-  n += tPutI32v(p ? p + n : p, pSstBlk->nRow);
-  n += tPutI64v(p ? p + n : p, pSstBlk->bInfo.offset);
-  n += tPutI32v(p ? p + n : p, pSstBlk->bInfo.szBlock);
-  n += tPutI32v(p ? p + n : p, pSstBlk->bInfo.szKey);
+  n += tPutI64(p ? p + n : p, pSttBlk->suid);
+  n += tPutI64(p ? p + n : p, pSttBlk->minUid);
+  n += tPutI64(p ? p + n : p, pSttBlk->maxUid);
+  n += tPutI64v(p ? p + n : p, pSttBlk->minKey);
+  n += tPutI64v(p ? p + n : p, pSttBlk->maxKey);
+  n += tPutI64v(p ? p + n : p, pSttBlk->minVer);
+  n += tPutI64v(p ? p + n : p, pSttBlk->maxVer);
+  n += tPutI32v(p ? p + n : p, pSttBlk->nRow);
+  n += tPutI64v(p ? p + n : p, pSttBlk->bInfo.offset);
+  n += tPutI32v(p ? p + n : p, pSttBlk->bInfo.szBlock);
+  n += tPutI32v(p ? p + n : p, pSttBlk->bInfo.szKey);
 
   return n;
 }
 
-int32_t tGetSstBlk(uint8_t *p, void *ph) {
+int32_t tGetSttBlk(uint8_t *p, void *ph) {
   int32_t  n = 0;
-  SSstBlk *pSstBlk = (SSstBlk *)ph;
+  SSttBlk *pSttBlk = (SSttBlk *)ph;
 
-  n += tGetI64(p + n, &pSstBlk->suid);
-  n += tGetI64(p + n, &pSstBlk->minUid);
-  n += tGetI64(p + n, &pSstBlk->maxUid);
-  n += tGetI64v(p + n, &pSstBlk->minKey);
-  n += tGetI64v(p + n, &pSstBlk->maxKey);
-  n += tGetI64v(p + n, &pSstBlk->minVer);
-  n += tGetI64v(p + n, &pSstBlk->maxVer);
-  n += tGetI32v(p + n, &pSstBlk->nRow);
-  n += tGetI64v(p + n, &pSstBlk->bInfo.offset);
-  n += tGetI32v(p + n, &pSstBlk->bInfo.szBlock);
-  n += tGetI32v(p + n, &pSstBlk->bInfo.szKey);
+  n += tGetI64(p + n, &pSttBlk->suid);
+  n += tGetI64(p + n, &pSttBlk->minUid);
+  n += tGetI64(p + n, &pSttBlk->maxUid);
+  n += tGetI64v(p + n, &pSttBlk->minKey);
+  n += tGetI64v(p + n, &pSttBlk->maxKey);
+  n += tGetI64v(p + n, &pSttBlk->minVer);
+  n += tGetI64v(p + n, &pSttBlk->maxVer);
+  n += tGetI32v(p + n, &pSttBlk->nRow);
+  n += tGetI64v(p + n, &pSttBlk->bInfo.offset);
+  n += tGetI32v(p + n, &pSttBlk->bInfo.szBlock);
+  n += tGetI32v(p + n, &pSttBlk->bInfo.szKey);
 
   return n;
 }

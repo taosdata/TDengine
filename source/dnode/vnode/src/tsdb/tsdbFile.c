@@ -53,22 +53,22 @@ static int32_t tGetDataFile(uint8_t *p, SDataFile *pDataFile) {
   return n;
 }
 
-int32_t tPutSstFile(uint8_t *p, SSstFile *pSstFile) {
+int32_t tPutSttFile(uint8_t *p, SSttFile *pSttFile) {
   int32_t n = 0;
 
-  n += tPutI64v(p ? p + n : p, pSstFile->commitID);
-  n += tPutI64v(p ? p + n : p, pSstFile->size);
-  n += tPutI64v(p ? p + n : p, pSstFile->offset);
+  n += tPutI64v(p ? p + n : p, pSttFile->commitID);
+  n += tPutI64v(p ? p + n : p, pSttFile->size);
+  n += tPutI64v(p ? p + n : p, pSttFile->offset);
 
   return n;
 }
 
-static int32_t tGetSstFile(uint8_t *p, SSstFile *pSstFile) {
+static int32_t tGetSttFile(uint8_t *p, SSttFile *pSttFile) {
   int32_t n = 0;
 
-  n += tGetI64v(p + n, &pSstFile->commitID);
-  n += tGetI64v(p + n, &pSstFile->size);
-  n += tGetI64v(p + n, &pSstFile->offset);
+  n += tGetI64v(p + n, &pSttFile->commitID);
+  n += tGetI64v(p + n, &pSttFile->size);
+  n += tGetI64v(p + n, &pSttFile->offset);
 
   return n;
 }
@@ -102,9 +102,9 @@ void tsdbDataFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SDataFile *pDataF,
            TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), fid, pDataF->commitID, ".data");
 }
 
-void tsdbSstFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSstFile *pSstF, char fname[]) {
+void tsdbSttFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSttFile *pSttF, char fname[]) {
   snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%df%dver%" PRId64 "%s", tfsGetDiskPath(pTsdb->pVnode->pTfs, did),
-           TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), fid, pSstF->commitID, ".sst");
+           TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), fid, pSttF->commitID, ".stt");
 }
 
 void tsdbSmaFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSmaFile *pSmaF, char fname[]) {
@@ -194,10 +194,10 @@ int32_t tPutDFileSet(uint8_t *p, SDFileSet *pSet) {
   n += tPutDataFile(p ? p + n : p, pSet->pDataF);
   n += tPutSmaFile(p ? p + n : p, pSet->pSmaF);
 
-  // sst
-  n += tPutU8(p ? p + n : p, pSet->nSstF);
-  for (int32_t iSst = 0; iSst < pSet->nSstF; iSst++) {
-    n += tPutSstFile(p ? p + n : p, pSet->aSstF[iSst]);
+  // stt
+  n += tPutU8(p ? p + n : p, pSet->nSttF);
+  for (int32_t iStt = 0; iStt < pSet->nSttF; iStt++) {
+    n += tPutSttFile(p ? p + n : p, pSet->aSttF[iStt]);
   }
 
   return n;
@@ -234,15 +234,15 @@ int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet) {
   pSet->pSmaF->nRef = 1;
   n += tGetSmaFile(p + n, pSet->pSmaF);
 
-  // sst
-  n += tGetU8(p + n, &pSet->nSstF);
-  for (int32_t iSst = 0; iSst < pSet->nSstF; iSst++) {
-    pSet->aSstF[iSst] = (SSstFile *)taosMemoryCalloc(1, sizeof(SSstFile));
-    if (pSet->aSstF[iSst] == NULL) {
+  // stt
+  n += tGetU8(p + n, &pSet->nSttF);
+  for (int32_t iStt = 0; iStt < pSet->nSttF; iStt++) {
+    pSet->aSttF[iStt] = (SSttFile *)taosMemoryCalloc(1, sizeof(SSttFile));
+    if (pSet->aSttF[iStt] == NULL) {
       return -1;
     }
-    pSet->aSstF[iSst]->nRef = 1;
-    n += tGetSstFile(p + n, pSet->aSstF[iSst]);
+    pSet->aSttF[iStt]->nRef = 1;
+    n += tGetSttFile(p + n, pSet->aSttF[iStt]);
   }
 
   return n;
