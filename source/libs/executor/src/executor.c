@@ -30,8 +30,6 @@ static void cleanupRefPool() {
   taosCloseRef(ref);
 }
 
-static FORCE_INLINE void streamInputBlockDataDestory(void* pBlock) { blockDataDestroy((SSDataBlock*)pBlock); }
-
 static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, char* id) {
   ASSERT(pOperator != NULL);
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
@@ -55,7 +53,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     // prevent setting a different type of block
     pInfo->validBlockIndex = 0;
     if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
-      taosArrayClearP(pInfo->pBlockLists, streamInputBlockDataDestory);
+      taosArrayClearP(pInfo->pBlockLists, taosMemoryFree);
     } else {
       taosArrayClear(pInfo->pBlockLists);
     }
@@ -98,6 +96,8 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     return TSDB_CODE_SUCCESS;
   }
 }
+
+static FORCE_INLINE void streamInputBlockDataDestory(void* pBlock) { blockDataDestroy((SSDataBlock*)pBlock); }
 
 void tdCleanupStreamInputDataBlock(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
