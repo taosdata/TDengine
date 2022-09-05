@@ -1934,7 +1934,7 @@ static bool initLastBlockReader(SLastBlockReader* pLastBlockReader, STableBlockS
   pLastBlockReader->uid = pBlockScanInfo->uid;
   int32_t code =
       tMergeTreeOpen(&pLastBlockReader->mergeTree, (pLastBlockReader->order == TSDB_ORDER_DESC), pReader->pFileReader,
-                     pBlockScanInfo->uid, &pLastBlockReader->window, &pLastBlockReader->verRange);
+          pReader->suid, pBlockScanInfo->uid, &pLastBlockReader->window, &pLastBlockReader->verRange);
   if (code != TSDB_CODE_SUCCESS) {
     return false;
   }
@@ -2537,22 +2537,24 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
         bool hasNext = blockIteratorNext(&pReader->status.blockIter);
         if (hasNext) {  // check for the next block in the block accessed order list
           initBlockDumpInfo(pReader, pBlockIter);
-        } else if (hasDataInLastBlock(pReader->status.fileIter.pLastBlockReader)) {
-          // data blocks in current file are exhausted, let's try the next file now
-          tBlockDataReset(&pReader->status.fileBlockData);
-          resetDataBlockIterator(pBlockIter, pReader->order);
-          goto _begin;
         } else {
-          code = initForFirstBlockInFile(pReader, pBlockIter);
-
-          // error happens or all the data files are completely checked
-          if ((code != TSDB_CODE_SUCCESS) || (pReader->status.loadFromFile == false)) {
-            return code;
-          }
-
-          // this file does not have blocks, let's start check the last block file
-          if (pBlockIter->numOfBlocks == 0) {
+          if (pReader->status.pCurrentFileset->nSstF > 0) {
+            // data blocks in current file are exhausted, let's try the next file now
+            tBlockDataReset(&pReader->status.fileBlockData);
+            resetDataBlockIterator(pBlockIter, pReader->order);
             goto _begin;
+          } else {
+            code = initForFirstBlockInFile(pReader, pBlockIter);
+
+            // error happens or all the data files are completely checked
+            if ((code != TSDB_CODE_SUCCESS) || (pReader->status.loadFromFile == false)) {
+              return code;
+            }
+
+            // this file does not have blocks, let's start check the last block file
+            if (pBlockIter->numOfBlocks == 0) {
+              goto _begin;
+            }
           }
         }
       }
