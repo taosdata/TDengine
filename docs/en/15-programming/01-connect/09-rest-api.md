@@ -4,9 +4,10 @@ title: REST API
 description: Connect to TDengine Cloud Service through RESTful API 
 ---
 
+<!-- exclude -->
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-
+<!-- exclude-end -->
 ## Config
 
 Run this command in your terminal to save the TDengine cloud token and URL as variables:

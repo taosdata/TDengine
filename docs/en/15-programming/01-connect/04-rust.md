@@ -3,9 +3,10 @@ sidebar_label: Rust
 title: Connect with Rust Connector
 description: Connect to TDengine cloud service using Rust connector
 ---
+<!-- exclude -->
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-
+<!-- exclude-end -->
 ## Create Project
 
 ```

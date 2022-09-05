@@ -4,8 +4,10 @@ sidebar_label: TDengine CLI
 description: Instructions and tips for using the TDengine CLI to connect TDengine Cloud
 ---
 
+<!-- exclude -->
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
+<!-- exclude-end -->
 
 The TDengine command-line interface (hereafter referred to as `TDengine CLI`) is the most simplest way for users to manipulate and interact with TDengine instances.
 

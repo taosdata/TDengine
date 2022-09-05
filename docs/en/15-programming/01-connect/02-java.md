@@ -4,9 +4,10 @@ title: Connect with Java Connector
 description: Connect to TDengine cloud service using Java connector
 ---
 
+<!-- exclude -->
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-
+<!-- exclude-end -->
 ## Add Dependency
 
 
@@ -14,11 +15,7 @@ import TabItem from '@theme/TabItem';
 <TabItem value="maven" label="Maven">
 
 ```xml title="pom.xml"
-<dependency>
-  <groupId>com.taosdata.jdbc</groupId>
-  <artifactId>taos-jdbcdriver</artifactId>
-  <version>2.0.39</version>
-</dependency>
+{{#include docs/examples/java/pom.xml:dep}}
 ```
 
 </TabItem>
@@ -26,7 +23,7 @@ import TabItem from '@theme/TabItem';
 
 ```groovy title="build.gradle"
 dependencies {
-  implementation 'com.taosdata.jdbc:taos-jdbcdriver:2.0.39'
+  implementation 'com.taosdata.jdbc:taos-jdbcdriver:3.0.0.0'
 }
 ```
 
@@ -68,7 +65,7 @@ Alternatively, you can set environment variable in your IDE's run configurations
 :::note
 Replace  <jdbcURL\> with real JDBC URL, it will seems like: `jdbc:TAOS-RS://example.com?usessl=true&token=xxxx`.
 
-To obtain the value of JDBC URL, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Connector" and then select "Java".
+To obtain the value of JDBC URL, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Data Insert" on the left menu.
 :::
 <!-- exclude-end -->
 ## Connect
@@ -79,3 +76,4 @@ Code bellow get JDBC URL from environment variables first and then create a `Con
 {{#include docs/examples/java/src/main/java/com/taos/example/ConnectCloudExample.java:connect}}
 ```
 
+The client connection is then established. For how to write data and query data, please refer to <https://docs.tdengine.com/cloud/data-in/insert-data/> and <https://docs.tdengine.com/cloud/data-out/query-data/>.
