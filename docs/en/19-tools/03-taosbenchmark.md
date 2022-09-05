@@ -11,12 +11,14 @@ taosBenchmark (formerly taosdemo ) is a tool for testing the performance of TDen
 
 ## Installation
 
-There are two ways to install taosBenchmark:
+Download [taosTools](https://tdengine.com/assets-download/cloud/taosTools-2.1.3-Linux-x64.tar.gz).
 
-- Installing the official TDengine installer will automatically install taosBenchmark. Please refer to [TDengine installation](/operation/pkg-install) for details.
-
-- Compile taos-tools separately and install them. Please refer to the [taos-tools](https://github.com/taosdata/taos-tools) repository for details.
-
+Decompress the package and install.
+```
+tar -xzf taosTools-2.1.3-Linux-x64.tar.gz
+cd taosTools-2.1.3-Linux-x64.tar.gz
+sudo ./install-taostools.sh
+```
 ## Run
 
 ### Configuration and running methods
@@ -32,6 +34,7 @@ taosBenchmark supports the complete performance testing of TDengine by providing
 Execute the following commands to quickly experience taosBenchmark's default configuration-based write performance testing of TDengine.
 
 ```bash
+export TDENGINE_CLOUD_DSN="<DSN>"
 taosBenchmark
 ```
 
@@ -39,7 +42,7 @@ When run without parameters, taosBenchmark connects to the TDengine cluster spec
 
 ### Run with command-line configuration parameters
 
-The `-f <json file>` argument cannot be used when running taosBenchmark with command-line parameters and controlling its behavior. Users must specify all configuration parameters from the command-line. The following is an example of testing taosBenchmark writing performance using the command-line approach.
+The `-f <json_file>` argument cannot be used when running taosBenchmark with command-line parameters and controlling its behavior. Users must specify all configuration parameters from the command-line. The following is an example of testing taosBenchmark writing performance using the command-line approach.
 
 ```bash
 taosBenchmark -I stmt -n 200 -t 100
@@ -54,7 +57,7 @@ A sample configuration file is provided in the taosBenchmark installation packag
 Use the following command-line to run taosBenchmark and control its behavior via a configuration file.
 
 ```bash
-taosBenchmark -f <json file>
+taosBenchmark -f json-file
 ```
 
 **Sample configuration files**
