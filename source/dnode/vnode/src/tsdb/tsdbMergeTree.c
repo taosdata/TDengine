@@ -40,8 +40,8 @@ static SBlockData *getNextBlock(SLDataIter *pIter) {
   return getCurrentBlock(pIter);
 }
 
-int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t iStt, int8_t backward, uint64_t uid,
-                       STimeWindow *pTimeWindow, SVersionRange *pRange) {
+int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t iStt, int8_t backward, uint64_t suid,
+    uint64_t uid, STimeWindow *pTimeWindow, SVersionRange *pRange) {
   int32_t code = 0;
   *pIter = taosMemoryCalloc(1, sizeof(SLDataIter));
   if (*pIter == NULL) {
@@ -50,11 +50,11 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
   }
 
   (*pIter)->uid = uid;
-  (*pIter)->timeWindow = *pTimeWindow;
-  (*pIter)->verRange = *pRange;
   (*pIter)->pReader = pReader;
   (*pIter)->iStt = iStt;
   (*pIter)->backward = backward;
+  (*pIter)->verRange = *pRange;
+  (*pIter)->timeWindow = *pTimeWindow;
   (*pIter)->aSttBlk = taosArrayInit(0, sizeof(SSttBlk));
   if ((*pIter)->aSttBlk == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -83,6 +83,10 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
   if (!backward) {  // asc
     for (int32_t i = 0; i < size; ++i) {
       SSttBlk *p = taosArrayGet((*pIter)->aSttBlk, i);
+      if (p->suid != suid) {
+        continue;
+      }
+
       if (p->minUid <= uid && p->maxUid >= uid) {
         index = i;
         break;
@@ -91,6 +95,10 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
   } else {  // desc
     for (int32_t i = size - 1; i >= 0; --i) {
       SSttBlk *p = taosArrayGet((*pIter)->aSttBlk, i);
+      if (p->suid != suid) {
+        continue;
+      }
+
       if (p->minUid <= uid && p->maxUid >= uid) {
         index = i;
         break;
@@ -130,9 +138,31 @@ void tLDataIterNextBlock(SLDataIter *pIter) {
       break;
     }
 
+    // check uid firstly
     if (p->minUid <= pIter->uid && p->maxUid >= pIter->uid) {
-      index = i;
-      break;
+      if ((!pIter->backward) && p->minKey > pIter->timeWindow.ekey) {
+        break;
+      }
+
+      if (pIter->backward && p->maxKey < pIter->timeWindow.skey) {
+        break;
+      }
+
+      // check time range secondly
+      if (p->minKey <= pIter->timeWindow.ekey && p->maxKey >= pIter->timeWindow.skey) {
+        if ((!pIter->backward) && p->minVer > pIter->verRange.maxVer) {
+          break;
+        }
+
+        if (pIter->backward && p->maxVer < pIter->verRange.minVer) {
+          break;
+        }
+
+        if (p->minVer <= pIter->verRange.maxVer && p->maxVer >= pIter->verRange.minVer) {
+          index = i;
+          break;
+        }
+      }
     }
   }
 
@@ -191,14 +221,6 @@ static void findNextValidRow(SLDataIter *pIter) {
     if (ver > pIter->verRange.maxVer) {
       continue;
     }
-
-    //  todo handle delete soon
-#if 0
-    TSDBKEY k = {.ts = ts, .version = ver};
-        if (hasBeenDropped(pBlockScanInfo->delSkyline, &pBlockScanInfo->lastBlockDelIndex, &k, pLastBlockReader->order)) {
-          continue;
-        }
-#endif
 
     hasVal = true;
     break;
@@ -290,7 +312,7 @@ static FORCE_INLINE int32_t tLDataIterCmprFn(const void *p1, const void *p2) {
   }
 }
 
-int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t uid,
+int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
                        STimeWindow *pTimeWindow, SVersionRange *pVerRange) {
   pMTree->backward = backward;
   pMTree->pIter = NULL;
@@ -304,7 +326,7 @@ int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFRead
 
   struct SLDataIter *pIterList[TSDB_DEFAULT_STT_FILE] = {0};
   for (int32_t i = 0; i < pFReader->pSet->nSttF; ++i) {  // open all last file
-    code = tLDataIterOpen(&pIterList[i], pFReader, i, pMTree->backward, uid, pTimeWindow, pVerRange);
+    code = tLDataIterOpen(&pIterList[i], pFReader, i, pMTree->backward, suid, uid, pTimeWindow, pVerRange);
     if (code != TSDB_CODE_SUCCESS) {
       goto _end;
     }
