@@ -140,7 +140,7 @@ static int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_
       code = tsdbWriteFilePage(pFD);
       if (code) goto _exit;
 
-      if (pgno < pFD->szFile) {
+      if (pgno <= pFD->szFile) {
         code = tsdbReadFilePage(pFD, pgno);
         if (code) goto _exit;
       } else {
