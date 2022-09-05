@@ -80,3 +80,5 @@ Copy code bellow to your editor and run it.
 ```python
 {{#include docs/examples/python/develop_tutorial.py:connect}}
 ```
+
+For more sample code please refer to <https://docs.tdengine.com/cloud/data-in/insert-data/> and <https://docs.tdengine.com/cloud/data-in/insert-data/>.
