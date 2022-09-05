@@ -28,28 +28,28 @@ async fn backup(consumer: Consumer, mut writer: ZFile, id: usize) -> Result<()> 
     while let Some((offset, message)) = stream.try_next().await? {
         match message {
             MessageSet::Meta(meta) => {
-                // dbg!(meta.as_json_meta().await?);
-                writer.write_meta(&meta.as_raw_meta().await?).await.unwrap();
+                dbg!(meta.as_json_meta().await?);
+                writer.write_meta(&meta.as_raw_meta().await?).await?;
             }
             MessageSet::Data(data) => {
-                writer.start_raw_block().await.unwrap();
+                writer.start_raw_block().await?;
                 while let Some(block) = data.fetch_raw_block().await.unwrap() {
                     // dbg!(&block);
-                    writer.write_raw_block(&block).await.unwrap();
+                    writer.write_raw_block(&block).await?;
                     rows += block.nrows();
                     log::info!(
                         "[{id}] table {} rows: {}",
-                        block.table_name().unwrap(),
+                        block.table_name().unwrap_or_default(),
                         block.nrows()
                     );
                 }
-                writer.finish_raw_block().await.unwrap();
+                writer.finish_raw_block().await?;
             }
         }
-        writer.flush().await.unwrap();
+        writer.flush().await?;
         consumer.commit(offset).await?;
     }
-    writer.shutdown().await.unwrap();
+    writer.shutdown().await?;
     log::info!("[{id}] total backup {} rows", rows);
     Ok(())
 }

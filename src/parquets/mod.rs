@@ -130,9 +130,9 @@ pub async fn query_to_parquet(mut from: Dsn, to: Dsn, force: bool) -> Result<()>
 
     log::info!("sql: {sql}, fields: {}", rs.num_of_fields());
 
-    let file = to.fragment.expect("parquet file must be input");
-    if std::path::Path::new(&file).exists() && !force {
-        anyhow::bail!("Parquet file {} exists, please check or use `-y`", file);
+    let filename = to.fragment.expect("parquet file must be input");
+    if std::path::Path::new(&filename).exists() && !force {
+        anyhow::bail!("Parquet file {} exists, please check or use `-y`", filename);
     }
 
     let schema = Arc::new(fields_to_arrow(rs.fields(), rs.precision()));
@@ -141,21 +141,27 @@ pub async fn query_to_parquet(mut from: Dsn, to: Dsn, force: bool) -> Result<()>
     let props = WriterProperties::builder()
         .set_compression(parquet::basic::Compression::ZSTD)
         .build();
-    let file = std::fs::File::create(&file).unwrap();
+    let file = std::fs::File::create(&filename).unwrap();
 
     let mut writer = ArrowWriter::try_new(file, schema, Some(props)).unwrap();
 
-    let mut rows = rs.blocks();
+    let mut blocks = rs.blocks();
 
-    while let Some(row) = rows.try_next().await? {
+    let mut rows = 0;
+    while let Some(row) = blocks.try_next().await? {
         let columns = row.columns();
         let batch = RecordBatch::try_new(
             schema_ref.clone(),
             columns.map(column_to_arrow).collect_vec(),
         )?;
         writer.write(&batch)?;
+        rows += row.nrows();
     }
     writer.close().unwrap();
+
+    let (blocks, rows) = rs.summary();
+
+    log::info!("write {rows} rows(in {blocks} blocks) to parquet: {}", filename);
 
     Ok(())
 }
