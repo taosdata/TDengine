@@ -148,7 +148,7 @@ int32_t tsdbDFileRollback(STsdb *pTsdb, SDFileSet *pSet, EDataFileT ftype) {
   }
 
   // ftruncate
-  if (taosFtruncateFile(pFD, size) < 0) {
+  if (taosFtruncateFile(pFD, LOGIC_TO_FILE_SIZE(size, TSDB_DEFAULT_PAGE_SIZE)) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }

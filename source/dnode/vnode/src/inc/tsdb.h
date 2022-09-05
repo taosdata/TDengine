@@ -65,12 +65,14 @@ typedef struct SBlockInfo    SBlockInfo;
 typedef struct SSmaInfo      SSmaInfo;
 typedef struct SBlockCol     SBlockCol;
 typedef struct SVersionRange SVersionRange;
+typedef struct SLDataIter    SLDataIter;
 
 #define TSDB_FILE_DLMT         ((uint32_t)0xF00AFA0F)
 #define TSDB_MAX_SUBBLOCKS     8
-#define TSDB_MAX_LAST_FILE     16
-#define TSDB_DEFAULT_LAST_FILE 8
+#define TSDB_MAX_SST_FILE      16
+#define TSDB_DEFAULT_SST_FILE  8
 #define TSDB_FHDR_SIZE         512
+#define TSDB_DEFAULT_PAGE_SIZE 4096
 
 #define HAS_NONE  ((int8_t)0x1)
 #define HAS_NULL  ((int8_t)0x2)
@@ -81,6 +83,14 @@ typedef struct SVersionRange SVersionRange;
 
 #define TSDBKEY_MIN ((TSDBKEY){.ts = TSKEY_MIN, .version = VERSION_MIN})
 #define TSDBKEY_MAX ((TSDBKEY){.ts = TSKEY_MAX, .version = VERSION_MAX})
+
+#define PAGE_CONTENT_SIZE(PAGE) ((PAGE) - sizeof(TSCKSUM))
+#define LOGIC_TO_FILE_OFFSET(LOFFSET, PAGE) \
+  ((LOFFSET) / PAGE_CONTENT_SIZE(PAGE) * (PAGE) + (LOFFSET) % PAGE_CONTENT_SIZE(PAGE))
+#define FILE_TO_LOGIC_OFFSET(OFFSET, PAGE) ((OFFSET) / (PAGE)*PAGE_CONTENT_SIZE(PAGE) + (OFFSET) % (PAGE))
+#define PAGE_OFFSET(PGNO, PAGE)            (((PGNO)-1) * (PAGE))
+#define OFFSET_PGNO(OFFSET, PAGE)          ((OFFSET) / (PAGE) + 1)
+#define LOGIC_TO_FILE_SIZE(LSIZE, PAGE)    OFFSET_PGNO(LOGIC_TO_FILE_OFFSET(LSIZE, PAGE), PAGE) * (PAGE)
 
 // tsdbUtil.c ==============================================================================================
 // TSDBROW
@@ -195,7 +205,6 @@ int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol
                         uint8_t **ppBuf);
 int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, int32_t nVal, SColData *pColData,
                           uint8_t **ppBuf);
-int32_t tsdbReadAndCheck(TdFilePtr pFD, int64_t offset, uint8_t **ppOut, int32_t size, int8_t toCheck);
 // tsdbMemTable ==============================================================================================
 // SMemTable
 int32_t  tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
@@ -563,7 +572,7 @@ struct SDFileSet {
   SDataFile *pDataF;
   SSmaFile  *pSmaF;
   uint8_t    nSstF;
-  SSstFile  *aSstF[TSDB_MAX_LAST_FILE];
+  SSstFile  *aSstF[TSDB_MAX_SST_FILE];
 };
 
 struct SRowIter {
@@ -578,29 +587,21 @@ struct SRowMerger {
   SArray   *pArray;  // SArray<SColVal>
 };
 
+typedef struct {
+  char     *path;
+  int32_t   szPage;
+  int32_t   flag;
+  TdFilePtr pFD;
+  int64_t   pgno;
+  uint8_t  *pBuf;
+  int64_t   szFile;
+} STsdbFD;
+
 struct SDelFWriter {
-  STsdb    *pTsdb;
-  SDelFile  fDel;
-  TdFilePtr pWriteH;
-
+  STsdb   *pTsdb;
+  SDelFile fDel;
+  STsdbFD *pWriteH;
   uint8_t *aBuf[1];
-};
-
-struct SDataFWriter {
-  STsdb    *pTsdb;
-  SDFileSet wSet;
-
-  TdFilePtr pHeadFD;
-  TdFilePtr pDataFD;
-  TdFilePtr pSmaFD;
-  TdFilePtr pLastFD;
-
-  SHeadFile fHead;
-  SDataFile fData;
-  SSmaFile  fSma;
-  SSstFile  fSst[TSDB_MAX_LAST_FILE];
-
-  uint8_t *aBuf[4];
 };
 
 struct STsdbReadSnap {
@@ -609,15 +610,31 @@ struct STsdbReadSnap {
   STsdbFS    fs;
 };
 
+struct SDataFWriter {
+  STsdb    *pTsdb;
+  SDFileSet wSet;
+
+  STsdbFD *pHeadFD;
+  STsdbFD *pDataFD;
+  STsdbFD *pSmaFD;
+  STsdbFD *pSstFD;
+
+  SHeadFile fHead;
+  SDataFile fData;
+  SSmaFile  fSma;
+  SSstFile  fSst[TSDB_MAX_SST_FILE];
+
+  uint8_t *aBuf[4];
+};
+
 struct SDataFReader {
   STsdb     *pTsdb;
   SDFileSet *pSet;
-  TdFilePtr  pHeadFD;
-  TdFilePtr  pDataFD;
-  TdFilePtr  pSmaFD;
-  TdFilePtr  aLastFD[TSDB_MAX_LAST_FILE];
-
-  uint8_t *aBuf[3];
+  STsdbFD   *pHeadFD;
+  STsdbFD   *pDataFD;
+  STsdbFD   *pSmaFD;
+  STsdbFD   *aSstFD[TSDB_MAX_SST_FILE];
+  uint8_t   *aBuf[3];
 };
 
 typedef struct {
@@ -627,15 +644,16 @@ typedef struct {
 } SRowInfo;
 
 typedef struct SMergeTree {
-  int8_t             backward;
-  SRBTree            rbt;
-  SArray            *pIterList;
-  struct SLDataIter *pIter;
+  int8_t      backward;
+  SRBTree     rbt;
+  SArray     *pIterList;
+  SLDataIter *pIter;
 } SMergeTree;
 
-int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader* pFReader, uint64_t uid, STimeWindow* pTimeWindow, SVersionRange* pVerRange);
-void tMergeTreeAddIter(SMergeTree *pMTree, struct SLDataIter *pIter);
-bool tMergeTreeNext(SMergeTree *pMTree);
+int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t uid,
+                       STimeWindow *pTimeWindow, SVersionRange *pVerRange);
+void    tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
+bool    tMergeTreeNext(SMergeTree *pMTree);
 TSDBROW tMergeTreeGetRow(SMergeTree *pMTree);
 void    tMergeTreeClose(SMergeTree *pMTree);
 
