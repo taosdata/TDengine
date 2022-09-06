@@ -2,7 +2,6 @@
 //!
 //!
 
-use std::io::prelude::*;
 use std::io::Result as IoResult;
 use std::ops::Deref;
 use std::ops::DerefMut;
@@ -10,7 +9,6 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use chrono::Local;
-use futures::FutureExt;
 use taos::*;
 use tokio::fs::File;
 use tokio::io::AsyncRead;
@@ -35,7 +33,7 @@ pub struct ZFile {
     level: Level,
     current_size: usize,
     max_file_size: u64,
-    version: Version,
+    // version: Version,
 }
 
 async fn new_z_file(
@@ -67,7 +65,7 @@ impl ZFile {
             level: compression_level,
             current_size: 0,
             max_file_size,
-            version: Version::CURRENT,
+            // version: Version::CURRENT,
         })
     }
 

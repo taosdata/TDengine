@@ -147,7 +147,7 @@ pub async fn query_to_parquet(mut from: Dsn, to: Dsn, force: bool) -> Result<()>
 
     let mut blocks = rs.blocks();
 
-    let mut rows = 0;
+    // let mut rows = 0;
     while let Some(row) = blocks.try_next().await? {
         let columns = row.columns();
         let batch = RecordBatch::try_new(
@@ -155,7 +155,7 @@ pub async fn query_to_parquet(mut from: Dsn, to: Dsn, force: bool) -> Result<()>
             columns.map(column_to_arrow).collect_vec(),
         )?;
         writer.write(&batch)?;
-        rows += row.nrows();
+        // rows += row.nrows();
     }
     writer.close().unwrap();
 

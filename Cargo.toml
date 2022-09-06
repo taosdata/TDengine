@@ -10,7 +10,7 @@ exclude = ["/docs", "TODO.md", "*.json", ".vscode"]
 
 [dependencies]
 anyhow = "1"
-arrow = "21.0.0"
+arrow = "22.0.0"
 async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
 bitflags = "1"
@@ -21,7 +21,7 @@ config = "0.13.1"
 csv-async = { version = "1.2.4", features = ["tokio"] }
 futures = "0.3"
 log = "0.4"
-parquet = { version = "21.0.0" }
+parquet = "22.0.0"
 pretty_env_logger = "0.4"
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
@@ -33,7 +33,7 @@ zstd = "0.11.2"
 
 actix-web = "4"
 serde_json = "1.0"
-sqlx = { version = "*", features = ["runtime-tokio-native-tls", "sqlite", "chrono"] }
+sqlx = { version = "0.6", features = ["runtime-tokio-native-tls", "sqlite", "chrono"] }
 utoipa = { version = "2.0.0", features = ["actix_extras", "chrono"] }
 utoipa-swagger-ui = { version = "2.0.0", features = ["actix-web"] }
 
@@ -45,11 +45,12 @@ procfs = "0.14.0"
 psutil = { version = "3.2.0", default-features = false, features = ["cpu", "process"] }
 
 [build-dependencies]
-sqlx = { version = "*", features = ["runtime-tokio-native-tls", "sqlite", "chrono"] }
+sqlx = { version = "0.6", features = ["runtime-tokio-native-tls", "sqlite", "chrono"] }
 dotenv = "*"
 
-[patch.crates-io]
-zip = { git = "https://github.com/zip-rs/zip.git" }
+# [patch.crates-io]
+# # zip = { git = "https://github.com/zip-rs/zip.git" }
+# zip = "0.6.2"
 
 [profile.release]
 codegen-units = 1
