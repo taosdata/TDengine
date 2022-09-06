@@ -1823,7 +1823,7 @@ int32_t doTeardownUdf(UdfcFuncHandle handle) {
   udfcRunUdfUvTask(task, UV_TASK_DISCONNECT);
 
   fnInfo("tear down udf. udf name: %s, udf func handle: %p", session->udfName, handle);
-  if (session->udfUvPipe->data != NULL) {
+  if (session->udfUvPipe != NULL && session->udfUvPipe->data != NULL) {
     SClientUvConn *conn = session->udfUvPipe->data;
     conn->session = NULL;
   }
