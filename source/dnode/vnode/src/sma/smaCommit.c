@@ -182,6 +182,7 @@ static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pStat) {
   SVnode  *pVnode = pSma->pVnode;
   SRSmaFS *pFS = RSMA_FS(pStat);
   int64_t  committed = pStat->commitAppliedVer;
+  int64_t  fsMaxVer = -1;
   char     qTaskInfoFullName[TSDB_FILENAME_LEN];
 
   taosWLockLatch(RSMA_FS_LOCK(pStat));
@@ -204,10 +205,20 @@ static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pStat) {
     ++i;
   }
 
-  SQTaskFile qFile = {.nRef = 1, .padding = 0, .version = committed, .size = 0};
-  if (tdRSmaFSUpsertQTaskFile(pFS, &qFile) < 0) {
-    taosWUnLockLatch(RSMA_FS_LOCK(pStat));
-    return TSDB_CODE_FAILED;
+  if (taosArrayGetSize(pFS->aQTaskInf) > 0) {
+    fsMaxVer = ((SQTaskFile *)taosArrayGetLast(pFS->aQTaskInf))->version;
+  }
+
+  if (fsMaxVer < committed) {
+    SQTaskFile qFile = {.nRef = 1, .padding = 0, .version = committed, .size = 0};
+    if (taosArrayPush(pFS->aQTaskInf, &qFile) < 0) {
+      taosWUnLockLatch(RSMA_FS_LOCK(pStat));
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return TSDB_CODE_FAILED;
+    }
+  } else {
+    smaDebug("vgId:%d, update qinf, no need as committed %" PRIi64 " not larger than fsMaxVer %" PRIi64, TD_VID(pVnode),
+            committed, fsMaxVer);
   }
 
   taosWUnLockLatch(RSMA_FS_LOCK(pStat));
@@ -365,7 +376,7 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SRSmaStat     *pRSmaStat = (SRSmaStat *)SMA_ENV_STAT(pEnv);
+  SRSmaStat *pRSmaStat = (SRSmaStat *)SMA_ENV_STAT(pEnv);
 
   // step 1: merge qTaskInfo and iQTaskInfo
   // lock
