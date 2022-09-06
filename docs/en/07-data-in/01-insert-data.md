@@ -42,6 +42,11 @@ For more details about `INSERT` please refer to [INSERT](https://docs.tdengine.c
 
 ## Connector Examples
 
+:::note
+Before executing the sample code in this section, you need to firstly establish connection to TDegnine cloud service, please refer to [Connect to TDengine Cloud Service](../../programming/connect/).
+
+:::
+
 <Tabs>
 <TabItem value="python" label="Python">
 
