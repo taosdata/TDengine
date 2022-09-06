@@ -644,7 +644,6 @@ typedef struct {
 } SRowInfo;
 
 typedef struct SSttBlockLoadInfo {
-    int32_t    sttFileIndex;
     SBlockData blockData[2];
     SArray    *aSttBlk;
     int32_t    blockIndex[2];  // to denote the loaded block in the corresponding position.

@@ -90,22 +90,23 @@ static SBlockData* loadBlockIfMissing(SLDataIter *pIter) {
   int32_t code = 0;
 
   SSttBlockLoadInfo* pInfo = pIter->pBlockLoadInfo;
-  if (pInfo->blockIndex[0]  == pIter->iStt) {
+  if (pInfo->blockIndex[0]  == pIter->iSttBlk) {
     return &pInfo->blockData[0];
   }
 
-  if (pInfo->blockIndex[1] == pIter->iStt) {
+  if (pInfo->blockIndex[1] == pIter->iSttBlk) {
     return &pInfo->blockData[1];
   }
 
   pInfo->currentLoadBlockIndex ^= 1;
   if (pIter->pSttBlk != NULL) {  // current block not loaded yet
     code = tsdbReadSttBlock(pIter->pReader, pIter->iStt, pIter->pSttBlk, &pInfo->blockData[pInfo->currentLoadBlockIndex]);
+    tsdbDebug("read last block, index:%d, last file index:%d", pIter->iSttBlk, pIter->iStt);
     if (code != TSDB_CODE_SUCCESS) {
       goto _exit;
     }
 
-    pInfo->blockIndex[pInfo->currentLoadBlockIndex] = pIter->iStt;
+    pInfo->blockIndex[pInfo->currentLoadBlockIndex] = pIter->iSttBlk;
     pIter->iRow = (pIter->backward) ? pInfo->blockData[pInfo->currentLoadBlockIndex].nRow : -1;
   }
 
@@ -136,24 +137,11 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
   (*pIter)->timeWindow = *pTimeWindow;
 
   (*pIter)->pBlockLoadInfo = pBlockLoadInfo;
-
-  if (pBlockLoadInfo->aSttBlk == NULL) {
-    // loaded into the common shared objects
-    pBlockLoadInfo->aSttBlk = taosArrayInit(0, sizeof(SSttBlk));
-    if (pBlockLoadInfo->aSttBlk == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _exit;
-    }
-
+  if (taosArrayGetSize(pBlockLoadInfo->aSttBlk) == 0) {
     code = tsdbReadSttBlk(pReader, iStt, pBlockLoadInfo->aSttBlk);
     if (code) {
       goto _exit;
     }
-  }
-
-  code = tsdbReadSttBlk(pReader, iStt, pBlockLoadInfo->aSttBlk);
-  if (code) {
-    goto _exit;
   }
 
   size_t size = taosArrayGetSize(pBlockLoadInfo->aSttBlk);
