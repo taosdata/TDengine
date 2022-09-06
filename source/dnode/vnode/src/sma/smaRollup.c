@@ -1342,29 +1342,31 @@ static int32_t tdRSmaQTaskInfoIterNextBlock(SRSmaQTaskInfoIter *pIter, bool *isF
     return TSDB_CODE_FAILED;
   }
 
-  if (tdReadTFile(pTFile, pIter->qBuf, nBytes) != nBytes) {
+  if (tdReadTFile(pTFile, pIter->pBuf, nBytes) != nBytes) {
     return TSDB_CODE_FAILED;
   }
 
   int32_t infoLen = 0;
-  taosDecodeFixedI32(pIter->qBuf, &infoLen);
+  taosDecodeFixedI32(pIter->pBuf, &infoLen);
   if (infoLen > nBytes) {
     if (infoLen <= RSMA_QTASKINFO_BUFSIZE) {
       terrno = TSDB_CODE_RSMA_FILE_CORRUPTED;
       smaError("iterate rsma qtaskinfo file %s failed since %s", TD_TFILE_FULL_NAME(pIter->pTFile), terrstr());
       return TSDB_CODE_FAILED;
     }
-    pIter->nAlloc = infoLen;
-    void *pBuf = taosMemoryRealloc(pIter->pBuf, infoLen);
-    if (!pBuf) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return TSDB_CODE_FAILED;
+    if (pIter->nAlloc < infoLen) {
+      pIter->nAlloc = infoLen;
+      void *pBuf = taosMemoryRealloc(pIter->pBuf, infoLen);
+      if (!pBuf) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return TSDB_CODE_FAILED;
+      }
+      pIter->pBuf = pBuf;
     }
-    pIter->pBuf = pBuf;
-    pIter->qBuf = pIter->pBuf;
+
     nBytes = infoLen;
 
-    if (tdSeekTFile(pTFile, pIter->offset, SEEK_SET)) {
+    if (tdSeekTFile(pTFile, pIter->offset, SEEK_SET) < 0) {
       return TSDB_CODE_FAILED;
     }
 
@@ -1373,6 +1375,7 @@ static int32_t tdRSmaQTaskInfoIterNextBlock(SRSmaQTaskInfoIter *pIter, bool *isF
     }
   }
 
+  pIter->qBuf = pIter->pBuf;
   pIter->offset += nBytes;
   pIter->nBytes = nBytes;
   pIter->nBufPos = 0;
