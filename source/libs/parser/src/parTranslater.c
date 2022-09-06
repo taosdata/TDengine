@@ -6603,11 +6603,32 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
   }
   pReq->colId = pSchema->colId;
 
+  SValueNode *pVal = NULL;
+  
   SDataType targetDt = schemaToDataType(pTableMeta->tableInfo.precision, pSchema);
-  if (DEAL_RES_ERROR == translateValueImpl(pCxt, pStmt->pVal, targetDt, true)) {
+  pCxt->errCode = createTagValFromExpr(pCxt, targetDt, (SNode*)pStmt->pVal, &pVal);
+  if (pCxt->errCode) {
     return pCxt->errCode;
   }
 
+/*  
+  if (QUERY_NODE_FUNCTION == pStmt->pVal->node.type) {
+    pCxt->errCode = getFuncInfo(pCxt, (SFunctionNode*)pStmt->pVal);
+    if (pCxt->errCode) {
+      return pCxt->errCode;
+    }
+    
+    if (DEAL_RES_ERROR == translateFunctionImpl(pCxt, (SFunctionNode**)&pStmt->pVal)) {
+      return pCxt->errCode;
+    }
+  } else if (DEAL_RES_ERROR == translateValueImpl(pCxt, pStmt->pVal, targetDt, true)) {
+    return pCxt->errCode;
+  }
+*/
+
+  nodesDestroyNode((SNode*)pStmt->pVal);
+
+  pStmt->pVal = pVal;
   pReq->tagType = targetDt.type;
   if (targetDt.type == TSDB_DATA_TYPE_JSON) {
     if (pStmt->pVal->literal &&
