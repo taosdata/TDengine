@@ -994,6 +994,7 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     SVnodeLoad *pload = taosArrayGet(pReq->pVloads, i);
     if (tEncodeI32(&encoder, pload->vgId) < 0) return -1;
     if (tEncodeI32(&encoder, pload->syncState) < 0) return -1;
+    if (tEncodeI64(&encoder, pload->cacheUsage) < 0) return -1;
     if (tEncodeI64(&encoder, pload->numOfTables) < 0) return -1;
     if (tEncodeI64(&encoder, pload->numOfTimeSeries) < 0) return -1;
     if (tEncodeI64(&encoder, pload->totalStorage) < 0) return -1;
@@ -1063,6 +1064,7 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     SVnodeLoad vload = {0};
     if (tDecodeI32(&decoder, &vload.vgId) < 0) return -1;
     if (tDecodeI32(&decoder, &vload.syncState) < 0) return -1;
+    if (tDecodeI64(&decoder, &vload.cacheUsage) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.numOfTables) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.numOfTimeSeries) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.totalStorage) < 0) return -1;
@@ -2461,6 +2463,8 @@ int32_t tSerializeSUseDbRspImp(SEncoder *pEncoder, const SUseDbRsp *pRsp) {
   if (tEncodeI64(pEncoder, pRsp->uid) < 0) return -1;
   if (tEncodeI32(pEncoder, pRsp->vgVersion) < 0) return -1;
   if (tEncodeI32(pEncoder, pRsp->vgNum) < 0) return -1;
+  if (tEncodeI16(pEncoder, pRsp->hashPrefix) < 0) return -1;
+  if (tEncodeI16(pEncoder, pRsp->hashSuffix) < 0) return -1;
   if (tEncodeI8(pEncoder, pRsp->hashMethod) < 0) return -1;
 
   for (int32_t i = 0; i < pRsp->vgNum; ++i) {
@@ -2512,6 +2516,8 @@ int32_t tDeserializeSUseDbRspImp(SDecoder *pDecoder, SUseDbRsp *pRsp) {
   if (tDecodeI64(pDecoder, &pRsp->uid) < 0) return -1;
   if (tDecodeI32(pDecoder, &pRsp->vgVersion) < 0) return -1;
   if (tDecodeI32(pDecoder, &pRsp->vgNum) < 0) return -1;
+  if (tDecodeI16(pDecoder, &pRsp->hashPrefix) < 0) return -1;
+  if (tDecodeI16(pDecoder, &pRsp->hashSuffix) < 0) return -1;
   if (tDecodeI8(pDecoder, &pRsp->hashMethod) < 0) return -1;
 
   if (pRsp->vgNum <= 0) {

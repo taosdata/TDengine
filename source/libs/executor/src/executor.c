@@ -97,6 +97,8 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
   }
 }
 
+static FORCE_INLINE void streamInputBlockDataDestory(void* pBlock) { blockDataDestroy((SSDataBlock*)pBlock); }
+
 void tdCleanupStreamInputDataBlock(qTaskInfo_t tinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   if (!pTaskInfo || !pTaskInfo->pRoot || pTaskInfo->pRoot->numOfDownstream <= 0) {
@@ -107,11 +109,7 @@ void tdCleanupStreamInputDataBlock(qTaskInfo_t tinfo) {
   if (pOptrInfo->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     SStreamScanInfo* pInfo = pOptrInfo->info;
     if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
-      for (int32_t i = 0; i < taosArrayGetSize(pInfo->pBlockLists); ++i) {
-        SSDataBlock* p = *(SSDataBlock**)taosArrayGet(pInfo->pBlockLists, i);
-        taosArrayDestroy(p->pDataBlock);
-        taosMemoryFreeClear(p);
-      }
+      taosArrayClearP(pInfo->pBlockLists, streamInputBlockDataDestory);
     } else {
       ASSERT(0);
     }
@@ -733,7 +731,6 @@ int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* s
   pCond->type = TIMEWINDOW_RANGE_CONTAINED;
   pCond->startVersion = -1;
   pCond->endVersion = sContext->snapVersion;
-  pCond->schemaVersion = sContext->snapVersion;
 
   for (int32_t i = 0; i < pCond->numOfCols; ++i) {
     pCond->colList[i].type = mtInfo.schema->pSchema[i].type;

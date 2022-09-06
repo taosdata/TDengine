@@ -1171,6 +1171,8 @@ int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUs
   pRsp->vgVersion = pDb->vgVersion;
   pRsp->vgNum = taosArrayGetSize(pRsp->pVgroupInfos);
   pRsp->hashMethod = pDb->cfg.hashMethod;
+  pRsp->hashPrefix = pDb->cfg.hashPrefix;
+  pRsp->hashSuffix = pDb->cfg.hashSuffix;
   return 0;
 }
 
@@ -1303,6 +1305,8 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
     usedbRsp.vgVersion = pDb->vgVersion;
     usedbRsp.vgNum = (int32_t)taosArrayGetSize(usedbRsp.pVgroupInfos);
     usedbRsp.hashMethod = pDb->cfg.hashMethod;
+    usedbRsp.hashPrefix = pDb->cfg.hashPrefix;
+    usedbRsp.hashSuffix = pDb->cfg.hashSuffix;
 
     taosArrayPush(batchUseRsp.pArray, &usedbRsp);
     mndReleaseDb(pMnode, pDb);

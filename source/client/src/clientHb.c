@@ -73,6 +73,8 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
 
       vgInfo->vgVersion = rsp->vgVersion;
       vgInfo->hashMethod = rsp->hashMethod;
+      vgInfo->hashPrefix = rsp->hashPrefix;
+      vgInfo->hashSuffix = rsp->hashSuffix;
       vgInfo->vgHash = taosHashInit(rsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
       if (NULL == vgInfo->vgHash) {
         taosMemoryFree(vgInfo);
