@@ -2795,6 +2795,8 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
   // All null data column, return directly.
   if (pInput->colDataAggIsSet && (pInput->pColumnDataAgg[0]->numOfNull == pInput->totalRows)) {
     ASSERT(pInputCol->hasNull == true);
+    // save selectivity value for column consisted of all null values
+    firstlastSaveTupleData(pCtx->pSrcBlock, pInput->startRowIndex, pCtx, pInfo);
     return 0;
   }
 
@@ -2871,7 +2873,10 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
     }
   }
 #endif
-
+  if (numOfElems == 0) {
+    // save selectivity value for column consisted of all null values
+    firstlastSaveTupleData(pCtx->pSrcBlock, pInput->startRowIndex, pCtx, pInfo);
+  }
   SET_VAL(pResInfo, numOfElems, 1);
   return TSDB_CODE_SUCCESS;
 }
@@ -2892,6 +2897,8 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   // All null data column, return directly.
   if (pInput->colDataAggIsSet && (pInput->pColumnDataAgg[0]->numOfNull == pInput->totalRows)) {
     ASSERT(pInputCol->hasNull == true);
+    // save selectivity value for column consisted of all null values
+    firstlastSaveTupleData(pCtx->pSrcBlock, pInput->startRowIndex, pCtx, pInfo);
     return 0;
   }
 
@@ -2952,7 +2959,10 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
     }
   }
 #endif
-
+  if (numOfElems == 0) {
+    // save selectivity value for column consisted of all null values
+    firstlastSaveTupleData(pCtx->pSrcBlock, pInput->startRowIndex, pCtx, pInfo);
+  }
   SET_VAL(pResInfo, numOfElems, 1);
   return TSDB_CODE_SUCCESS;
 }
