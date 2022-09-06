@@ -435,7 +435,7 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
         continue;
       }
     }
-    if (cliAppCb(pConn, &transMsg, pMsg) != 0) {
+    if (!REQUEST_NO_RESP(&pMsg->msg) && cliAppCb(pConn, &transMsg, pMsg) != 0) {
       return;
     }
     destroyCmsg(pMsg);
