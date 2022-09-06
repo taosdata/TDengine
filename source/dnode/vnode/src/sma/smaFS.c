@@ -49,7 +49,7 @@ int32_t tdRSmaFSOpen(SSma *pSma, int64_t version) {
   for (int32_t i = 0; i < taosArrayGetSize(output); ++i) {
     int32_t vid = 0;
     int64_t version = -1;
-    sscanf((const char *)taosArrayGetP(output, i), "v%dqinfo.v%" PRIi64, &vid, &version);
+    sscanf((const char *)taosArrayGetP(output, i), "v%dqinf.v%" PRIi64, &vid, &version);
     SQTaskFile qTaskFile = {.version = version, .nRef = 1};
     if ((terrno = tdRSmaFSUpsertQTaskFile(RSMA_FS(pStat), &qTaskFile)) < 0) {
       goto _end;
