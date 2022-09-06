@@ -930,7 +930,7 @@ _cleanup:
   free(colKVs);
 
   if (r == fromIndex) {
-    tscError("buffer can not fit one line");
+    tscDebug("buffer can not fit one line");
     *cTableSqlLen = 0;
   } else {
     *cTableSqlLen = totalLen;
@@ -2608,6 +2608,12 @@ int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* smlData, SSmlLinesInf
     return ret;
   }
   tscDebug("SML:0x%"PRIx64" Parse fields finished, num of fields:%d", info->id, smlData->fieldNum);
+  if (smlData->fieldNum == 0) {
+    tscDebug("SML:0x%"PRIx64" Parse fields error, no field in line", info->id);
+    taosHashCleanup(keyHashTable);
+    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+  }
+  
   taosHashCleanup(keyHashTable);
 
   //Parse timestamp
