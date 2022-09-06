@@ -125,17 +125,17 @@ static void uvWorkAfterTask(uv_work_t* req, int status);
 static void uvWalkCb(uv_handle_t* handle, void* arg);
 static void uvFreeCb(uv_handle_t* handle);
 
-static void uvStartSendRespImpl(SSvrMsg* smsg);
+static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg);
+
 static void uvPrepareSendData(SSvrMsg* msg, uv_buf_t* wb);
 static void uvStartSendResp(SSvrMsg* msg);
 
 static void uvNotifyLinkBrokenToApp(SSvrConn* conn);
 
-static void destroySmsg(SSvrMsg* smsg);
-// check whether already read complete packet
-static SSvrConn* createConn(void* hThrd);
-static void      destroyConn(SSvrConn* conn, bool clear /*clear handle or not*/);
-static void      destroyConnRegArg(SSvrConn* conn);
+static FORCE_INLINE void      destroySmsg(SSvrMsg* smsg);
+static FORCE_INLINE SSvrConn* createConn(void* hThrd);
+static FORCE_INLINE void      destroyConn(SSvrConn* conn, bool clear /*clear handle or not*/);
+static FORCE_INLINE void      destroyConnRegArg(SSvrConn* conn);
 
 static int reallocConnRef(SSvrConn* conn);
 
@@ -413,7 +413,7 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   wb->len = len;
 }
 
-static void uvStartSendRespImpl(SSvrMsg* smsg) {
+static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg) {
   SSvrConn* pConn = smsg->pConn;
   if (pConn->broken) {
     return;
@@ -447,7 +447,7 @@ static void uvStartSendResp(SSvrMsg* smsg) {
   return;
 }
 
-static void destroySmsg(SSvrMsg* smsg) {
+static FORCE_INLINE void destroySmsg(SSvrMsg* smsg) {
   if (smsg == NULL) {
     return;
   }
@@ -812,7 +812,7 @@ void* transWorkerThread(void* arg) {
   return NULL;
 }
 
-static SSvrConn* createConn(void* hThrd) {
+static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   SWorkThrd* pThrd = hThrd;
 
   SSvrConn* pConn = (SSvrConn*)taosMemoryCalloc(1, sizeof(SSvrConn));
@@ -842,7 +842,7 @@ static SSvrConn* createConn(void* hThrd) {
   return pConn;
 }
 
-static void destroyConn(SSvrConn* conn, bool clear) {
+static FORCE_INLINE void destroyConn(SSvrConn* conn, bool clear) {
   if (conn == NULL) {
     return;
   }
@@ -854,7 +854,7 @@ static void destroyConn(SSvrConn* conn, bool clear) {
     }
   }
 }
-static void destroyConnRegArg(SSvrConn* conn) {
+static FORCE_INLINE void destroyConnRegArg(SSvrConn* conn) {
   if (conn->regArg.init == 1) {
     transFreeMsg(conn->regArg.msg.pCont);
     conn->regArg.init = 0;

@@ -69,11 +69,9 @@ typedef struct SCliThrd {
   SAsyncPool*   asyncPool;
   uv_prepare_t* prepare;
   void*         pool;  // conn pool
-
+  // timer handles
   SArray* timerList;
-
   // msg queue
-
   queue         msg;
   TdThreadMutex msgMtx;
   SDelayQueue*  delayQueue;
@@ -108,7 +106,7 @@ static void cliReadTimeoutCb(uv_timer_t* handle);
 // register timer in each thread to clear expire conn
 // static void cliTimeoutCb(uv_timer_t* handle);
 // alloc buffer for recv
-static void cliAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
+static FORCE_INLINE void cliAllocRecvBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
 // callback after recv nbytes from socket
 static void cliRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf);
 // callback after send data to socket
@@ -132,10 +130,10 @@ static void      cliSend(SCliConn* pConn);
 static void      cliDestroyConnMsgs(SCliConn* conn, bool destroy);
 
 // cli util func
-static bool cliIsEpsetUpdated(int32_t code, STransConnCtx* pCtx);
-static void cliMayCvtFqdnToIp(SEpSet* pEpSet, SCvtAddr* pCvtAddr);
+static FORCE_INLINE bool cliIsEpsetUpdated(int32_t code, STransConnCtx* pCtx);
+static FORCE_INLINE void cliMayCvtFqdnToIp(SEpSet* pEpSet, SCvtAddr* pCvtAddr);
 
-static int32_t cliBuildExceptResp(SCliMsg* pMsg, STransMsg* resp);
+static FORCE_INLINE int32_t cliBuildExceptResp(SCliMsg* pMsg, STransMsg* resp);
 
 // process data read from server, add decompress etc later
 static void cliHandleResp(SCliConn* conn);
@@ -150,12 +148,10 @@ static void cliHandleUpdate(SCliMsg* pMsg, SCliThrd* pThrd);
 static void (*cliAsyncHandle[])(SCliMsg* pMsg, SCliThrd* pThrd) = {cliHandleReq, cliHandleQuit, cliHandleRelease, NULL,
                                                                    cliHandleUpdate};
 
-static void cliSendQuit(SCliThrd* thrd);
-static void destroyUserdata(STransMsg* userdata);
+static FORCE_INLINE void destroyUserdata(STransMsg* userdata);
+static FORCE_INLINE void destroyCmsg(void* cmsg);
+static FORCE_INLINE int  cliRBChoseIdx(STrans* pTransInst);
 
-static int cliRBChoseIdx(STrans* pTransInst);
-
-static void destroyCmsg(void* cmsg);
 static void transDestroyConnCtx(STransConnCtx* ctx);
 // thread obj
 static SCliThrd* createThrdObj();
@@ -885,26 +881,23 @@ SCliConn* cliGetConn(SCliMsg* pMsg, SCliThrd* pThrd, bool* ignore) {
   }
   return conn;
 }
-void cliMayCvtFqdnToIp(SEpSet* pEpSet, SCvtAddr* pCvtAddr) {
+FORCE_INLINE void cliMayCvtFqdnToIp(SEpSet* pEpSet, SCvtAddr* pCvtAddr) {
   if (pCvtAddr->cvt == false) {
     return;
   }
-  for (int i = 0; i < pEpSet->numOfEps && pEpSet->numOfEps == 1; i++) {
-    if (strncmp(pEpSet->eps[i].fqdn, pCvtAddr->fqdn, TSDB_FQDN_LEN) == 0) {
-      memset(pEpSet->eps[i].fqdn, 0, TSDB_FQDN_LEN);
-      memcpy(pEpSet->eps[i].fqdn, pCvtAddr->ip, TSDB_FQDN_LEN);
-    }
+  if (pEpSet->numOfEps == 1 && strncmp(pEpSet->eps[0].fqdn, pCvtAddr->fqdn, TSDB_FQDN_LEN) == 0) {
+    memset(pEpSet->eps[0].fqdn, 0, TSDB_FQDN_LEN);
+    memcpy(pEpSet->eps[0].fqdn, pCvtAddr->ip, TSDB_FQDN_LEN);
   }
 }
 
-bool cliIsEpsetUpdated(int32_t code, STransConnCtx* pCtx) {
+FORCE_INLINE bool cliIsEpsetUpdated(int32_t code, STransConnCtx* pCtx) {
   if (code != 0) return false;
   if (pCtx->retryCnt == 0) return false;
   if (transEpSetIsEqual(&pCtx->epSet, &pCtx->origEpSet)) return false;
   return true;
 }
-
-int32_t cliBuildExceptResp(SCliMsg* pMsg, STransMsg* pResp) {
+FORCE_INLINE int32_t cliBuildExceptResp(SCliMsg* pMsg, STransMsg* pResp) {
   if (pMsg == NULL) return -1;
 
   memset(pResp, 0, sizeof(STransMsg));
@@ -1128,14 +1121,15 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   return cli;
 }
 
-static void destroyUserdata(STransMsg* userdata) {
+FORCE_INLINE void destroyUserdata(STransMsg* userdata) {
   if (userdata->pCont == NULL) {
     return;
   }
   transFreeMsg(userdata->pCont);
   userdata->pCont = NULL;
 }
-static void destroyCmsg(void* arg) {
+
+FORCE_INLINE void destroyCmsg(void* arg) {
   SCliMsg* pMsg = arg;
   if (pMsg == NULL) {
     return;
@@ -1220,7 +1214,7 @@ void cliWalkCb(uv_handle_t* handle, void* arg) {
   }
 }
 
-int cliRBChoseIdx(STrans* pTransInst) {
+FORCE_INLINE int cliRBChoseIdx(STrans* pTransInst) {
   int8_t index = pTransInst->index;
   if (pTransInst->numOfThreads == 0) {
     return -1;
@@ -1230,7 +1224,7 @@ int cliRBChoseIdx(STrans* pTransInst) {
   }
   return index % pTransInst->numOfThreads;
 }
-static void doDelayTask(void* param) {
+static FORCE_INLINE void doDelayTask(void* param) {
   STaskArg* arg = param;
   SCliMsg*  pMsg = arg->param1;
   SCliThrd* pThrd = arg->param2;
@@ -1264,13 +1258,13 @@ static void cliSchedMsgToNextNode(SCliMsg* pMsg, SCliThrd* pThrd) {
   transDQSched(pThrd->delayQueue, doDelayTask, arg, TRANS_RETRY_INTERVAL);
 }
 
-void cliCompareAndSwap(int8_t* val, int8_t exp, int8_t newVal) {
+FORCE_INLINE void cliCompareAndSwap(int8_t* val, int8_t exp, int8_t newVal) {
   if (*val != exp) {
     *val = newVal;
   }
 }
 
-bool cliTryExtractEpSet(STransMsg* pResp, SEpSet* dst) {
+FORCE_INLINE bool cliTryExtractEpSet(STransMsg* pResp, SEpSet* dst) {
   if ((pResp == NULL || pResp->info.hasEpSet == 0)) {
     return false;
   }
@@ -1402,7 +1396,7 @@ void transUnrefCliHandle(void* handle) {
     cliDestroyConn((SCliConn*)handle, true);
   }
 }
-SCliThrd* transGetWorkThrdFromHandle(int64_t handle, bool* validHandle) {
+static FORCE_INLINE SCliThrd* transGetWorkThrdFromHandle(int64_t handle, bool* validHandle) {
   SCliThrd*  pThrd = NULL;
   SExHandle* exh = transAcquireExHandle(transGetRefMgt(), handle);
   if (exh == NULL) {
