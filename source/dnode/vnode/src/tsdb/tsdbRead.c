@@ -228,9 +228,11 @@ static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, const STableK
   for (int32_t j = 0; j < numOfTables; ++j) {
     STableBlockScanInfo info = {.lastKey = 0, .uid = idList[j].uid};
     if (ASCENDING_TRAVERSE(pTsdbReader->order)) {
-      info.lastKey = pTsdbReader->window.skey - 1;
+      int64_t skey = pTsdbReader->window.skey;
+      info.lastKey = (skey > INT64_MIN)? (skey - 1):skey;
     } else {
-      info.lastKey = pTsdbReader->window.ekey + 1;
+      int64_t ekey = pTsdbReader->window.ekey;
+      info.lastKey = (ekey < INT64_MAX)? (ekey + 1):ekey;
     }
 
     taosHashPut(pTableMap, &info.uid, sizeof(uint64_t), &info, sizeof(info));
@@ -342,10 +344,12 @@ static int32_t initFilesetIterator(SFilesetIter* pIter, SArray* aDFileSet, STsdb
   pLReader->uid = 0;
   tMergeTreeClose(&pLReader->mergeTree);
 
-  pLReader->pInfo = tCreateLastBlockLoadInfo();
   if (pLReader->pInfo == NULL) {
-    tsdbDebug("init fileset iterator failed, code:%s %s", tstrerror(terrno), pReader->idStr);
-    return terrno;
+    pLReader->pInfo = tCreateLastBlockLoadInfo();
+    if (pLReader->pInfo == NULL) {
+      tsdbDebug("init fileset iterator failed, code:%s %s", tstrerror(terrno), pReader->idStr);
+      return terrno;
+    }
   }
 
   tsdbDebug("init fileset iterator, total files:%d %s", pIter->numOfFiles, pReader->idStr);
@@ -1892,7 +1896,7 @@ static bool initLastBlockReader(SLastBlockReader* pLBlockReader, STableBlockScan
 
   int32_t code =
       tMergeTreeOpen(&pLBlockReader->mergeTree, (pLBlockReader->order == TSDB_ORDER_DESC), pReader->pFileReader,
-          pReader->suid, pScanInfo->uid, &w, &pLBlockReader->verRange, pLBlockReader->pInfo);
+                     pReader->suid, pScanInfo->uid, &w, &pLBlockReader->verRange, pLBlockReader->pInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return false;
   }

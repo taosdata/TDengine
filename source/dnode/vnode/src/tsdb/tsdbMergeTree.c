@@ -177,6 +177,7 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
   (*pIter)->iSttBlk = index;
   if (index != -1) {
     (*pIter)->pSttBlk = taosArrayGet(pBlockLoadInfo->aSttBlk, (*pIter)->iSttBlk);
+    (*pIter)->iRow = ((*pIter)->backward) ? (*pIter)->pSttBlk->nRow : -1;
   }
 
 _exit:
@@ -306,7 +307,6 @@ bool tLDataIterNextRow(SLDataIter *pIter) {
 
   int32_t iBlockL = pIter->iSttBlk;
   SBlockData *pBlockData = loadBlockIfMissing(pIter);
-
   pIter->iRow += step;
 
   while (1) {
@@ -323,6 +323,7 @@ bool tLDataIterNextRow(SLDataIter *pIter) {
 
     if (iBlockL != pIter->iSttBlk) {
       pBlockData = loadBlockIfMissing(pIter);
+      pIter->iRow += step;
     }
   }
 
