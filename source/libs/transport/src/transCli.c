@@ -430,12 +430,12 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
 
     if (pCtx == NULL || pCtx->pSem == NULL) {
       if (transMsg.info.ahandle == NULL) {
-        destroyCmsg(pMsg);
+        if (REQUEST_NO_RESP(&pMsg->msg)) destroyCmsg(pMsg);
         once = true;
         continue;
       }
     }
-    if (!REQUEST_NO_RESP(&pMsg->msg) && cliAppCb(pConn, &transMsg, pMsg) != 0) {
+    if (cliAppCb(pConn, &transMsg, pMsg) != 0) {
       return;
     }
     destroyCmsg(pMsg);
