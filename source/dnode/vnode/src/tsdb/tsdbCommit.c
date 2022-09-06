@@ -14,13 +14,8 @@
  */
 
 #include "tsdb.h"
-typedef struct {
-  int64_t   suid;
-  int64_t   uid;
-  STSchema *pTSchema;
-} SSkmInfo;
 
-typedef enum { MEMORY_DATA_ITER = 0, LAST_DATA_ITER } EDataIterT;
+typedef enum { MEMORY_DATA_ITER = 0, STT_DATA_ITER } EDataIterT;
 
 typedef struct {
   SRBTreeNode n;
@@ -99,7 +94,7 @@ static int32_t tsdbCommitCache(SCommitter *pCommitter);
 static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno);
 static int32_t tsdbNextCommitRow(SCommitter *pCommitter);
 
-static int32_t tRowInfoCmprFn(const void *p1, const void *p2) {
+int32_t tRowInfoCmprFn(const void *p1, const void *p2) {
   SRowInfo *pInfo1 = (SRowInfo *)p1;
   SRowInfo *pInfo2 = (SRowInfo *)p2;
 
@@ -325,22 +320,22 @@ _err:
   return code;
 }
 
-static int32_t tsdbCommitterUpdateTableSchema(SCommitter *pCommitter, int64_t suid, int64_t uid) {
+int32_t tsdbUpdateTableSchema(SMeta *pMeta, int64_t suid, int64_t uid, SSkmInfo *pSkmInfo) {
   int32_t code = 0;
 
   if (suid) {
-    if (pCommitter->skmTable.suid == suid) {
-      pCommitter->skmTable.uid = uid;
+    if (pSkmInfo->suid == suid) {
+      pSkmInfo->uid = uid;
       goto _exit;
     }
   } else {
-    if (pCommitter->skmTable.uid == uid) goto _exit;
+    if (pSkmInfo->uid == uid) goto _exit;
   }
 
-  pCommitter->skmTable.suid = suid;
-  pCommitter->skmTable.uid = uid;
-  tTSchemaDestroy(pCommitter->skmTable.pTSchema);
-  code = metaGetTbTSchemaEx(pCommitter->pTsdb->pVnode->pMeta, suid, uid, -1, &pCommitter->skmTable.pTSchema);
+  pSkmInfo->suid = suid;
+  pSkmInfo->uid = uid;
+  tTSchemaDestroy(pSkmInfo->pTSchema);
+  code = metaGetTbTSchemaEx(pMeta, suid, uid, -1, &pSkmInfo->pTSchema);
   if (code) goto _exit;
 
 _exit:
@@ -432,7 +427,7 @@ static int32_t tsdbOpenCommitIter(SCommitter *pCommitter) {
       int8_t iIter = 0;
       for (int32_t iStt = 0; iStt < pReader->pSet->nSttF; iStt++) {
         pIter = &pCommitter->aDataIter[iIter];
-        pIter->type = LAST_DATA_ITER;
+        pIter->type = STT_DATA_ITER;
         pIter->iStt = iStt;
 
         code = tsdbReadSttBlk(pCommitter->dReader.pReader, iStt, pIter->aSttBlk);
@@ -1046,7 +1041,7 @@ static int32_t tsdbNextCommitRow(SCommitter *pCommitter) {
           break;
         }
       }
-    } else if (pCommitter->pIter->type == LAST_DATA_ITER) {  // last file
+    } else if (pCommitter->pIter->type == STT_DATA_ITER) {  // last file
       pIter->iRow++;
       if (pIter->iRow < pIter->bData.nRow) {
         pIter->r.uid = pIter->bData.uid ? pIter->bData.uid : pIter->bData.aUid[pIter->iRow];
@@ -1437,7 +1432,7 @@ static int32_t tsdbCommitFileDataImpl(SCommitter *pCommitter) {
     tMapDataReset(&pCommitter->dWriter.mBlock);
 
     // impl
-    code = tsdbCommitterUpdateTableSchema(pCommitter, id.suid, id.uid);
+    code = tsdbUpdateTableSchema(pCommitter->pTsdb->pVnode->pMeta, id.suid, id.uid, &pCommitter->skmTable);
     if (code) goto _err;
     code = tBlockDataInit(&pCommitter->dReader.bData, id.suid, id.uid, pCommitter->skmTable.pTSchema);
     if (code) goto _err;

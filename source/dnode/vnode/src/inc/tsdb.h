@@ -650,6 +650,12 @@ typedef struct SMergeTree {
   SLDataIter *pIter;
 } SMergeTree;
 
+typedef struct {
+  int64_t   suid;
+  int64_t   uid;
+  STSchema *pTSchema;
+} SSkmInfo;
+
 int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
                        STimeWindow *pTimeWindow, SVersionRange *pVerRange);
 void    tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);

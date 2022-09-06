@@ -1053,6 +1053,29 @@ _err:
   return code;
 }
 
+int32_t tsdbReadDataBlockEx(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockData *pBlockData) {
+  int32_t     code = 0;
+  SBlockInfo *pBlockInfo = &pDataBlk->aSubBlock[0];
+
+  // alloc
+  code = tRealloc(&pReader->aBuf[0], pBlockInfo->szBlock);
+  if (code) goto _err;
+
+  // read
+  code = tsdbReadFile(pReader->pDataFD, pBlockInfo->offset, pReader->aBuf[0], pBlockInfo->szBlock);
+  if (code) goto _err;
+
+  // decmpr
+  code = tDecmprBlockData(pReader->aBuf[0], pBlockInfo->szBlock, pBlockData, &pReader->aBuf[1]);
+  if (code) goto _err;
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb read data block ex failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
 int32_t tsdbReadDataBlock(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockData *pBlockData) {
   int32_t code = 0;
 
