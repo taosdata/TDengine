@@ -1701,16 +1701,16 @@ static int32_t tdRSmaFetchAllResult(SSma *pSma, SRSmaInfo *pInfo) {
 
       int64_t curMs = taosGetTimestampMs();
       if ((pItem->nSkipped * pItem->maxDelay) > RSMA_FETCH_DELAY_MAX) {
-        smaInfo("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nSkipped:%" PRIi8 " maxDelay:%d, fetch executed",
-                SMA_VID(pSma), pInfo->suid, i, pItem->nSkipped, pItem->maxDelay);
+        smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nSkipped:%" PRIi8 " maxDelay:%d, fetch executed",
+                 SMA_VID(pSma), pInfo->suid, i, pItem->nSkipped, pItem->maxDelay);
       } else if (((curMs - pInfo->lastRecv) < RSMA_FETCH_ACTIVE_MAX)) {
         ++pItem->nSkipped;
-        smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " curMs:%" PRIi64 " lastRecv:%" PRIi64 ", fetch skipped ",
+        smaTrace("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " curMs:%" PRIi64 " lastRecv:%" PRIi64 ", fetch skipped ",
                  SMA_VID(pSma), pInfo->suid, i, curMs, pInfo->lastRecv);
         continue;
       } else {
-        smaInfo("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " curMs:%" PRIi64 " lastRecv:%" PRIi64 ", fetch executed ",
-                SMA_VID(pSma), pInfo->suid, i, curMs, pInfo->lastRecv);
+        smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " curMs:%" PRIi64 " lastRecv:%" PRIi64 ", fetch executed ",
+                 SMA_VID(pSma), pInfo->suid, i, curMs, pInfo->lastRecv);
       }
 
       pItem->nSkipped = 0;
