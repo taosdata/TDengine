@@ -72,7 +72,7 @@ struct SSchema;
 typedef struct {
   int16_t type;
   int16_t bytes;
-  int16_t numOfRows;
+  int32_t numOfRows;
   char* data;
 } tExprOperandInfo;
 
