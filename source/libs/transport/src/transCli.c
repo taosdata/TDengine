@@ -430,6 +430,7 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
 
     if (pCtx == NULL || pCtx->pSem == NULL) {
       if (transMsg.info.ahandle == NULL) {
+        destroyCmsg(pMsg);
         once = true;
         continue;
       }
@@ -973,6 +974,8 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
       return;
     }
   }
+  STraceId* trace = &pMsg->msg.info.traceId;
+  tGTrace("%s conn %p ready", pTransInst->label, conn);
 }
 static void cliAsyncCb(uv_async_t* handle) {
   SAsyncItem* item = handle->data;
@@ -1294,7 +1297,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   STrans*   pTransInst = pThrd->pTransInst;
 
   if (pMsg == NULL || pMsg->ctx == NULL) {
-    tTrace("%s conn %p handle resp", pTransInst->label, pConn);
+    tDebug("%s conn %p handle resp", pTransInst->label, pConn);
     pTransInst->cfp(pTransInst->parent, pResp, NULL);
     return 0;
   }
