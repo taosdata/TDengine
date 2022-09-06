@@ -1453,17 +1453,24 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
     return TSDB_CODE_SUCCESS;
   }
 
+  int64_t fsMaxVer = tdRSmaFSMaxVer(pSma, pRSmaStat);
+  if (pRSmaStat->commitAppliedVer <= fsMaxVer) {
+    smaDebug("vgId:%d, rsma persist, no need as applied %" PRIi64 " not larger than fsMaxVer %" PRIi64, vid,
+            pRSmaStat->commitAppliedVer, fsMaxVer);
+    return TSDB_CODE_SUCCESS;
+  }
+
   STFile tFile = {0};
 #if 0
   if (pRSmaStat->commitAppliedVer > 0) {
     char qTaskInfoFName[TSDB_FILENAME_LEN];
     tdRSmaQTaskInfoGetFileName(vid, pRSmaStat->commitAppliedVer, qTaskInfoFName);
     if (tdInitTFile(&tFile, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFName) < 0) {
-      smaError("vgId:%d, rsma persit, init %s failed since %s", vid, qTaskInfoFName, terrstr());
+      smaError("vgId:%d, rsma persist, init %s failed since %s", vid, qTaskInfoFName, terrstr());
       goto _err;
     }
     if (tdCreateTFile(&tFile, true, TD_FTYPE_RSMA_QTASKINFO) < 0) {
-      smaError("vgId:%d, rsma persit, create %s failed since %s", vid, TD_TFILE_FULL_NAME(&tFile), terrstr());
+      smaError("vgId:%d, rsma persist, create %s failed since %s", vid, TD_TFILE_FULL_NAME(&tFile), terrstr());
       goto _err;
     }
     smaDebug("vgId:%d, rsma, serialize qTaskInfo, file %s created", vid, TD_TFILE_FULL_NAME(&tFile));
@@ -1513,11 +1520,11 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
         char qTaskInfoFName[TSDB_FILENAME_LEN];
         tdRSmaQTaskInfoGetFileName(vid, pRSmaStat->commitAppliedVer, qTaskInfoFName);
         if (tdInitTFile(&tFile, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFName) < 0) {
-          smaError("vgId:%d, rsma persit, init %s failed since %s", vid, qTaskInfoFName, terrstr());
+          smaError("vgId:%d, rsma persist, init %s failed since %s", vid, qTaskInfoFName, terrstr());
           goto _err;
         }
         if (tdCreateTFile(&tFile, true, TD_FTYPE_RSMA_QTASKINFO) < 0) {
-          smaError("vgId:%d, rsma persit, create %s failed since %s", vid, TD_TFILE_FULL_NAME(&tFile), terrstr());
+          smaError("vgId:%d, rsma persist, create %s failed since %s", vid, TD_TFILE_FULL_NAME(&tFile), terrstr());
           goto _err;
         }
         smaDebug("vgId:%d, rsma, table %" PRIi64 " serialize qTaskInfo, file %s created", vid, pRSmaInfo->suid,
@@ -1561,7 +1568,7 @@ int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
   }
   return TSDB_CODE_SUCCESS;
 _err:
-  smaError("vgId:%d, rsma persit failed since %s", vid, terrstr());
+  smaError("vgId:%d, rsma persist failed since %s", vid, terrstr());
   if (isFileCreated) {
     tdRemoveTFile(&tFile);
     tdDestroyTFile(&tFile);

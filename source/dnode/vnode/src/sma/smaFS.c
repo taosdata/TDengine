@@ -96,6 +96,18 @@ int32_t tdRSmaFSRef(SSma *pSma, SRSmaStat *pStat, int64_t version) {
   return oldVal;
 }
 
+int64_t tdRSmaFSMaxVer(SSma *pSma, SRSmaStat *pStat) {
+  SArray *aQTaskInf = RSMA_FS(pStat)->aQTaskInf;
+  int64_t version = -1;
+
+  taosRLockLatch(RSMA_FS_LOCK(pStat));
+  if (taosArrayGetSize(aQTaskInf) > 0) {
+    version = ((SQTaskFile *)taosArrayGetLast(aQTaskInf))->version;
+  }
+  taosRUnLockLatch(RSMA_FS_LOCK(pStat));
+  return version;
+}
+
 void tdRSmaFSUnRef(SSma *pSma, SRSmaStat *pStat, int64_t version) {
   SVnode     *pVnode = pSma->pVnode;
   SArray     *aQTaskInf = RSMA_FS(pStat)->aQTaskInf;
