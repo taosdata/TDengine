@@ -278,11 +278,11 @@ class PlannerTestBaseImpl {
   }
 
   void dump(DumpModule module) {
+    cout << "========================================== " << sqlNo_ << " sql : [" << stmtEnv_.sql_ << "]" << endl;
+
     if (DUMP_MODULE_NOTHING == module) {
       return;
     }
-
-    cout << "========================================== " << sqlNo_ << " sql : [" << stmtEnv_.sql_ << "]" << endl;
 
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_PARSER == module) {
       if (res_.prepareAst_.empty()) {
@@ -343,6 +343,7 @@ class PlannerTestBaseImpl {
     cxt.pMsg = stmtEnv_.msgBuf_.data();
     cxt.msgLen = stmtEnv_.msgBuf_.max_size();
     cxt.svrVer = "3.0.0.0";
+    cxt.enableSysInfo = true;
     if (prepare) {
       SStmtCallback stmtCb = {0};
       cxt.pStmtCb = &stmtCb;

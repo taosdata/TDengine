@@ -46,8 +46,8 @@ size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
     rowSize += pCtx[i].resDataInfo.interBufSize;
   }
 
-  rowSize +=
-      (numOfOutput * sizeof(bool));  // expand rowSize to mark if col is null for top/bottom result(doSaveTupleData)
+  rowSize += (numOfOutput * sizeof(bool));
+  // expand rowSize to mark if col is null for top/bottom result(saveTupleData)
   return rowSize;
 }
 
@@ -83,7 +83,7 @@ int32_t resultrowComparAsc(const void* p1, const void* p2) {
 
 static int32_t resultrowComparDesc(const void* p1, const void* p2) { return resultrowComparAsc(p2, p1); }
 
-void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int32_t order) {
+void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, int32_t order) {
   if (pGroupResInfo->pRows != NULL) {
     taosArrayDestroy(pGroupResInfo->pRows);
   }
@@ -92,9 +92,10 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int
   void* pData = NULL;
   pGroupResInfo->pRows = taosArrayInit(10, POINTER_BYTES);
 
-  size_t keyLen = 0;
-  while ((pData = taosHashIterate(pHashmap, pData)) != NULL) {
-    void* key = taosHashGetKey(pData, &keyLen);
+  size_t  keyLen = 0;
+  int32_t iter = 0;
+  while ((pData = tSimpleHashIterate(pHashmap, pData, &iter)) != NULL) {
+    void* key = tSimpleHashGetKey(pData, &keyLen);
 
     SResKeyPos* p = taosMemoryMalloc(keyLen + sizeof(SResultRowPosition));
 
@@ -348,7 +349,7 @@ static int32_t createResultData(SDataType* pType, int32_t numOfRows, SScalarPara
 
   int32_t code = colInfoDataEnsureCapacity(pColumnData, numOfRows);
   if (code != TSDB_CODE_SUCCESS) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    terrno = code;
     taosMemoryFree(pColumnData);
     return terrno;
   }
@@ -366,6 +367,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
   SScalarParam output = {0};
 
   tagFilterAssist ctx = {0};
+
   ctx.colHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), false, HASH_NO_LOCK);
   if (ctx.colHash == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -473,6 +475,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     qError("failed to create result, reason:%s", tstrerror(code));
+    terrno = code;
     goto end;
   }
 
@@ -935,15 +938,17 @@ SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     STargetNode* pNode = (STargetNode*)nodesListGetNode(pNodeList, i);
-    SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
+    if (nodeType(pNode->pExpr) == QUERY_NODE_COLUMN) {
+      SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
 
-    SColMatchInfo c = {0};
-    c.output = true;
-    c.colId = pColNode->colId;
-    c.srcSlotId = pColNode->slotId;
-    c.matchType = type;
-    c.targetSlotId = pNode->slotId;
-    taosArrayPush(pList, &c);
+      SColMatchInfo c = {0};
+      c.output = true;
+      c.colId = pColNode->colId;
+      c.srcSlotId = pColNode->slotId;
+      c.matchType = type;
+      c.targetSlotId = pNode->slotId;
+      taosArrayPush(pList, &c);
+    }
   }
 
   *numOfOutputCols = 0;
@@ -1175,7 +1180,6 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     SqlFunctionCtx* pCtx = &pFuncCtx[i];
 
     pCtx->functionId = -1;
-    pCtx->curBufPage = -1;
     pCtx->pExpr = pExpr;
 
     if (pExpr->pExpr->nodeType == QUERY_NODE_FUNCTION) {
@@ -1188,7 +1192,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
           fmGetFuncExecFuncs(pCtx->functionId, &pCtx->fpSet);
         } else {
           char* udfName = pExpr->pExpr->_function.pFunctNode->functionName;
-          strncpy(pCtx->udfName, udfName, strlen(udfName));
+          strncpy(pCtx->udfName, udfName, TSDB_FUNC_NAME_LEN);
           fmGetUdafExecFuncs(pCtx->functionId, &pCtx->fpSet);
         }
         pCtx->fpSet.getEnv(pExpr->pExpr->_function.pFunctNode, &env);
@@ -1216,10 +1220,10 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     pCtx->start.key = INT64_MIN;
     pCtx->end.key = INT64_MIN;
     pCtx->numOfParams = pExpr->base.numOfParams;
-    pCtx->increase = false;
     pCtx->isStream = false;
 
     pCtx->param = pFunct->pParam;
+    pCtx->saveHandle.currentPage = -1;
   }
 
   for (int32_t i = 1; i < numOfOutput; ++i) {

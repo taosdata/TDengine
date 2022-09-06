@@ -73,6 +73,8 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
 
       vgInfo->vgVersion = rsp->vgVersion;
       vgInfo->hashMethod = rsp->hashMethod;
+      vgInfo->hashPrefix = rsp->hashPrefix;
+      vgInfo->hashSuffix = rsp->hashSuffix;
       vgInfo->vgHash = taosHashInit(rsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
       if (NULL == vgInfo->vgHash) {
         taosMemoryFree(vgInfo);
@@ -145,7 +147,7 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
 }
 
 static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
-  SClientHbReq *pReq = taosHashGet(pAppHbMgr->activeInfo, &pRsp->connKey, sizeof(SClientHbKey));
+  SClientHbReq *pReq = taosHashAcquire(pAppHbMgr->activeInfo, &pRsp->connKey, sizeof(SClientHbKey));
   if (NULL == pReq) {
     tscWarn("pReq to get activeInfo, may be dropped, refId:%" PRIx64 ", type:%d", pRsp->connKey.tscRid,
             pRsp->connKey.connType);
@@ -259,6 +261,8 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
         break;
     }
   }
+
+  taosHashRelease(pAppHbMgr->activeInfo, pReq);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -914,10 +918,11 @@ int hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, int64_t clusterId, in
 }
 
 void hbDeregisterConn(SAppHbMgr *pAppHbMgr, SClientHbKey connKey) {
-  SClientHbReq *pReq = taosHashGet(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
+  SClientHbReq *pReq = taosHashAcquire(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
   if (pReq) {
     tFreeClientHbReq(pReq);
     taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
+    taosHashRelease(pAppHbMgr->activeInfo, pReq);
   }
 
   if (NULL == pReq) {

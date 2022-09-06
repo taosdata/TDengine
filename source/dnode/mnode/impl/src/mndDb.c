@@ -30,7 +30,7 @@
 #include "systable.h"
 
 #define DB_VER_NUMBER   1
-#define DB_RESERVE_SIZE 64
+#define DB_RESERVE_SIZE 58
 
 static SSdbRaw *mndDbActionEncode(SDbObj *pDb);
 static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
@@ -124,6 +124,9 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT64(pRaw, dataPos, pDb->cfg.walRetentionSize, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.walRollPeriod, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pDb->cfg.walSegmentSize, _OVER)
+  SDB_SET_INT16(pRaw, dataPos, pDb->cfg.sstTrigger, _OVER)
+  SDB_SET_INT16(pRaw, dataPos, pDb->cfg.hashPrefix, _OVER)
+  SDB_SET_INT16(pRaw, dataPos, pDb->cfg.hashSuffix, _OVER)
 
   SDB_SET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
@@ -207,6 +210,9 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pDb->cfg.walRetentionSize, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pDb->cfg.walRollPeriod, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pDb->cfg.walSegmentSize, _OVER)
+  SDB_GET_INT16(pRaw, dataPos, &pDb->cfg.sstTrigger, _OVER)
+  SDB_GET_INT16(pRaw, dataPos, &pDb->cfg.hashPrefix, _OVER)
+  SDB_GET_INT16(pRaw, dataPos, &pDb->cfg.hashSuffix, _OVER)
 
   SDB_GET_RESERVE(pRaw, dataPos, DB_RESERVE_SIZE, _OVER)
   taosInitRWLatch(&pDb->lock);
@@ -254,6 +260,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   pOld->cfg.strict = pNew->cfg.strict;
   pOld->cfg.cacheLast = pNew->cfg.cacheLast;
   pOld->cfg.replications = pNew->cfg.replications;
+  pOld->cfg.sstTrigger = pNew->cfg.sstTrigger;
   taosWUnLockLatch(&pOld->lock);
   return 0;
 }
@@ -330,6 +337,9 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->walRetentionSize < TSDB_DB_MIN_WAL_RETENTION_SIZE) return -1;
   if (pCfg->walRollPeriod < TSDB_DB_MIN_WAL_ROLL_PERIOD) return -1;
   if (pCfg->walSegmentSize < TSDB_DB_MIN_WAL_SEGMENT_SIZE) return -1;
+  if (pCfg->sstTrigger < TSDB_MIN_SST_TRIGGER || pCfg->sstTrigger > TSDB_MAX_SST_TRIGGER) return -1;
+  if (pCfg->hashPrefix < TSDB_MIN_HASH_PREFIX || pCfg->hashPrefix > TSDB_MAX_HASH_PREFIX) return -1;
+  if (pCfg->hashSuffix < TSDB_MIN_HASH_SUFFIX || pCfg->hashSuffix > TSDB_MAX_HASH_SUFFIX) return -1;
 
   terrno = 0;
   return terrno;
@@ -358,11 +368,14 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->numOfRetensions < 0) pCfg->numOfRetensions = 0;
   if (pCfg->schemaless < 0) pCfg->schemaless = TSDB_DB_SCHEMALESS_OFF;
   if (pCfg->walRetentionPeriod < 0 && pCfg->walRetentionPeriod != -1)
-    pCfg->walRetentionPeriod = TSDB_DEFAULT_DB_WAL_RETENTION_PERIOD;
+    pCfg->walRetentionPeriod = TSDB_REPS_DEF_DB_WAL_RET_PERIOD;
   if (pCfg->walRetentionSize < 0 && pCfg->walRetentionSize != -1)
-    pCfg->walRetentionSize = TSDB_DEFAULT_DB_WAL_RETENTION_SIZE;
-  if (pCfg->walRollPeriod < 0) pCfg->walRollPeriod = TSDB_DEFAULT_DB_WAL_ROLL_PERIOD;
+    pCfg->walRetentionSize = TSDB_REPS_DEF_DB_WAL_RET_SIZE;
+  if (pCfg->walRollPeriod < 0) pCfg->walRollPeriod = TSDB_REPS_DEF_DB_WAL_ROLL_PERIOD;
   if (pCfg->walSegmentSize < 0) pCfg->walSegmentSize = TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE;
+  if (pCfg->sstTrigger <= 0) pCfg->sstTrigger = TSDB_DEFAULT_SST_TRIGGER;
+  if (pCfg->hashPrefix < 0) pCfg->hashPrefix = TSDB_DEFAULT_HASH_PREFIX;
+  if (pCfg->hashSuffix < 0) pCfg->hashSuffix = TSDB_DEFAULT_HASH_SUFFIX;
 }
 
 static int32_t mndSetCreateDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroups) {
@@ -479,6 +492,9 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
       .walRetentionSize = pCreate->walRetentionSize,
       .walRollPeriod = pCreate->walRollPeriod,
       .walSegmentSize = pCreate->walSegmentSize,
+      .sstTrigger = pCreate->sstTrigger,
+      .hashPrefix = pCreate->hashPrefix,
+      .hashSuffix = pCreate->hashSuffix,
   };
 
   dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
@@ -1155,6 +1171,8 @@ int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUs
   pRsp->vgVersion = pDb->vgVersion;
   pRsp->vgNum = taosArrayGetSize(pRsp->pVgroupInfos);
   pRsp->hashMethod = pDb->cfg.hashMethod;
+  pRsp->hashPrefix = pDb->cfg.hashPrefix;
+  pRsp->hashSuffix = pDb->cfg.hashSuffix;
   return 0;
 }
 
@@ -1287,6 +1305,8 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
     usedbRsp.vgVersion = pDb->vgVersion;
     usedbRsp.vgNum = (int32_t)taosArrayGetSize(usedbRsp.pVgroupInfos);
     usedbRsp.hashMethod = pDb->cfg.hashMethod;
+    usedbRsp.hashPrefix = pDb->cfg.hashPrefix;
+    usedbRsp.hashSuffix = pDb->cfg.hashSuffix;
 
     taosArrayPush(batchUseRsp.pArray, &usedbRsp);
     mndReleaseDb(pMnode, pDb);
@@ -1536,6 +1556,24 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     STR_WITH_MAXSIZE_TO_VARSTR(buf, "NULL", bytes);
   }
 
+  const char *precStr = NULL;
+  switch (pDb->cfg.precision) {
+    case TSDB_TIME_PRECISION_MILLI:
+      precStr = TSDB_TIME_PRECISION_MILLI_STR;
+      break;
+    case TSDB_TIME_PRECISION_MICRO:
+      precStr = TSDB_TIME_PRECISION_MICRO_STR;
+      break;
+    case TSDB_TIME_PRECISION_NANO:
+      precStr = TSDB_TIME_PRECISION_NANO_STR;
+      break;
+    default:
+      precStr = "none";
+      break;
+  }
+  char precVstr[10] = {0};
+  STR_WITH_SIZE_TO_VARSTR(precVstr, precStr, 2);
+
   char *statusStr = "ready";
   if (objStatus == SDB_STATUS_CREATING) {
     statusStr = "creating";
@@ -1546,7 +1584,6 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
       statusStr = "unsynced";
     }
   }
-
   char statusVstr[24] = {0};
   STR_WITH_SIZE_TO_VARSTR(statusVstr, statusStr, strlen(statusStr));
 
@@ -1557,6 +1594,8 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
         colDataAppend(pColInfo, rows, buf, false);
       } else if (i == 3) {
         colDataAppend(pColInfo, rows, (const char *)&numOfTables, false);
+      } else if (i == 14) {
+        colDataAppend(pColInfo, rows, precVstr, false);
       } else if (i == 15) {
         colDataAppend(pColInfo, rows, statusVstr, false);
       } else {
@@ -1621,23 +1660,6 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.compression, false);
 
-    const char *precStr = NULL;
-    switch (pDb->cfg.precision) {
-      case TSDB_TIME_PRECISION_MILLI:
-        precStr = TSDB_TIME_PRECISION_MILLI_STR;
-        break;
-      case TSDB_TIME_PRECISION_MICRO:
-        precStr = TSDB_TIME_PRECISION_MICRO_STR;
-        break;
-      case TSDB_TIME_PRECISION_NANO:
-        precStr = TSDB_TIME_PRECISION_NANO_STR;
-        break;
-      default:
-        precStr = "none";
-        break;
-    }
-    char precVstr[10] = {0};
-    STR_WITH_SIZE_TO_VARSTR(precVstr, precStr, 2);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)precVstr, false);
 
@@ -1682,6 +1704,9 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.walSegmentSize, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.sstTrigger, false);
   }
 
   taosMemoryFree(buf);
@@ -1731,7 +1756,7 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     SDbObj infoschemaDb = {0};
     setInformationSchemaDbCfg(&infoschemaDb);
     size_t numOfTables = 0;
-    getInfosDbMeta(NULL, &numOfTables);
+    getVisibleInfosTablesNum(sysinfo, &numOfTables);
     mndDumpDbInfoData(pMnode, pBlock, &infoschemaDb, pShow, numOfRows, numOfTables, true, 0, 1);
 
     numOfRows += 1;

@@ -39,7 +39,8 @@ static void idxGenLRUKey(char* buf, const char* path, int32_t blockId) {
 }
 static int idxFileCtxDoWrite(IFileCtx* ctx, uint8_t* buf, int len) {
   if (ctx->type == TFILE) {
-    assert(len == taosWriteFile(ctx->file.pFile, buf, len));
+    int nwr = taosWriteFile(ctx->file.pFile, buf, len);
+    assert(nwr == len);
   } else {
     memcpy(ctx->mem.buf + ctx->offset, buf, len);
   }
@@ -210,9 +211,7 @@ IdxFstFile* idxFileCreate(void* wrt) {
   return cw;
 }
 void idxFileDestroy(IdxFstFile* cw) {
-  // free wrt object: close fd or free mem
   idxFileFlush(cw);
-  // idxFileCtxDestroy((IFileCtx *)(cw->wrt));
   taosMemoryFree(cw);
 }
 
@@ -221,10 +220,8 @@ int idxFileWrite(IdxFstFile* write, uint8_t* buf, uint32_t len) {
     return 0;
   }
   // update checksum
-  // write data to file/socket or mem
   IFileCtx* ctx = write->wrt;
-
-  int nWrite = ctx->write(ctx, buf, len);
+  int       nWrite = ctx->write(ctx, buf, len);
   assert(nWrite == len);
   write->count += len;
 

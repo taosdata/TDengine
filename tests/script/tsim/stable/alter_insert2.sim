@@ -3,7 +3,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
-print ======== step1 
+print ======== step1
 sql create database d4
 sql use d4
 sql create table tb (ts timestamp, a int, b smallint, c tinyint, d int, e bigint, f float, g double, h binary(10))

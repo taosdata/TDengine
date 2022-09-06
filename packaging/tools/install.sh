@@ -33,6 +33,7 @@ adapterName="taosadapter"
 benchmarkName="taosBenchmark"
 dumpName="taosdump"
 demoName="taosdemo"
+xname="taosx"
 
 data_dir=${dataDir}
 log_dir=${logDir}
@@ -199,6 +200,7 @@ function install_bin() {
   ${csudo}rm -f ${bin_link_dir}/${demoName} || :
   ${csudo}rm -f ${bin_link_dir}/${benchmarkName} || :
   ${csudo}rm -f ${bin_link_dir}/${dumpName} || :
+  ${csudo}rm -f ${bin_link_dir}/${xname} || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
   ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
 
@@ -212,6 +214,7 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${demoName} || :
   [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${benchmarkName} || :
   [ -x ${install_main_dir}/bin/${dumpName} ] && ${csudo}ln -s ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${dumpName} || :
+  [ -x ${install_main_dir}/bin/${xname} ] && ${csudo}ln -s ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${xname} || :
   [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -s ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
   [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :

@@ -254,6 +254,7 @@ enum tmq_res_t {
   TMQ_RES_INVALID = -1,
   TMQ_RES_DATA = 1,
   TMQ_RES_TABLE_META = 2,
+  TMQ_RES_TAOSX = 3,
 };
 
 typedef struct tmq_raw_data {
