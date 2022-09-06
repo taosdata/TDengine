@@ -668,55 +668,56 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
 
       pl = ltmp;
       pt = transl;
+      int32_t i;
 
       switch (left.type) {
       case TSDB_DATA_TYPE_TINYINT:
-        for (int16_t i = 0; i < left.numOfRows; i++) {
+        for (i = 0; i < left.numOfRows; i++) {
           *((int64_t *) pt + i) = (int64_t)(*((int8_t *) pl + i));
         }
         break;
       case TSDB_DATA_TYPE_SMALLINT:
-        for (int16_t i = 0; i < left.numOfRows; i++) {
+        for (i = 0; i < left.numOfRows; i++) {
           *((int64_t *) pt + i) = (int64_t)(*((int16_t *) pl + i));
         }
         break;
       case TSDB_DATA_TYPE_INT:
-        for (int16_t i = 0; i < left.numOfRows; i++) {
+        for (i = 0; i < left.numOfRows; i++) {
           *((int64_t *) pt + i) = (int64_t)(*((int32_t *) pl + i));
         }
         break;
       case TSDB_DATA_TYPE_BIGINT:
-        for (int16_t i = 0; i < left.numOfRows; i++) {
+        for (i = 0; i < left.numOfRows; i++) {
           *((int64_t *) pt + i) = (int64_t)(*((int64_t *) pl + i));
         }
         break;
       case TSDB_DATA_TYPE_UTINYINT:
-        for (int16_t i = 0; i < left.numOfRows; i++) {
+        for (i = 0; i < left.numOfRows; i++) {
           *((int64_t *) pt + i) = (int64_t)(*((uint8_t *) pl + i));
         }
         break;
       case TSDB_DATA_TYPE_USMALLINT:
-        for (int16_t i = 0; i < left.numOfRows; i++) {
+        for (i = 0; i < left.numOfRows; i++) {
           *((int64_t *) pt + i) = (int64_t)(*((uint16_t *) pl + i));
         }
         break;
       case TSDB_DATA_TYPE_UINT:
-        for (int16_t i = 0; i < left.numOfRows; i++) {
+        for (i = 0; i < left.numOfRows; i++) {
           *((int64_t *) pt + i) = (int64_t)(*((uint32_t *) pl + i));
         }
         break;
       case TSDB_DATA_TYPE_UBIGINT:
-        for (int16_t i = 0; i < left.numOfRows; i++) {
+        for (i = 0; i < left.numOfRows; i++) {
           *((int64_t *) pt + i) = (int64_t)(*((uint64_t *) pl + i));
         }
         break;
       case TSDB_DATA_TYPE_FLOAT:
-        for (int16_t i = 0; i < left.numOfRows; i++) {
+        for (i = 0; i < left.numOfRows; i++) {
           *((int64_t *) pt + i) = (int64_t)(*((float *) pl + i));
         }
         break;
       case TSDB_DATA_TYPE_DOUBLE:
-        for (int16_t i = 0; i < left.numOfRows; i++) {
+        for (i = 0; i < left.numOfRows; i++) {
           *((int64_t *) pt + i) = (int64_t)(*((double *) pl + i));
         }
         break;
@@ -766,55 +767,56 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
 
       pr = rtmp;
       pt = transr;
+      int32_t i;
 
       switch (right.type) {
       case TSDB_DATA_TYPE_TINYINT:
-        for (int16_t i = 0; i < right.numOfRows; i++) {
+        for (i = 0; i < right.numOfRows; i++) {
           *((int64_t *) pt + i) = (int64_t)(*((int8_t *) pr + i));
         }
         break;
       case TSDB_DATA_TYPE_SMALLINT:
-        for (int16_t i = 0; i < right.numOfRows; i++) {
+        for (i = 0; i < right.numOfRows; i++) {
           *((int64_t *) pt + i) = (int64_t)(*((int16_t *) pr + i));
         }
         break;
       case TSDB_DATA_TYPE_INT:
-        for (int16_t i = 0; i < right.numOfRows; i++) {
+        for (i = 0; i < right.numOfRows; i++) {
           *((int64_t *) pt + i) = (int64_t)(*((int32_t *) pr + i));
         }
         break;
       case TSDB_DATA_TYPE_BIGINT:
-        for (int16_t i = 0; i < right.numOfRows; i++) {
+        for (i = 0; i < right.numOfRows; i++) {
           *((int64_t *) pt + i) = (int64_t)(*((int64_t *) pr + i));
         }
         break;
       case TSDB_DATA_TYPE_UTINYINT:
-        for (int16_t i = 0; i < right.numOfRows; i++) {
+        for (i = 0; i < right.numOfRows; i++) {
           *((int64_t *) pt + i) = (int64_t)(*((uint8_t *) pr + i));
         }
         break;
       case TSDB_DATA_TYPE_USMALLINT:
-        for (int16_t i = 0; i < right.numOfRows; i++) {
+        for (i = 0; i < right.numOfRows; i++) {
           *((int64_t *) pt + i) = (int64_t)(*((uint16_t *) pr + i));
         }
         break;
       case TSDB_DATA_TYPE_UINT:
-        for (int16_t i = 0; i < right.numOfRows; i++) {
+        for (i = 0; i < right.numOfRows; i++) {
           *((int64_t *) pt + i) = (int64_t)(*((uint32_t *) pr + i));
         }
         break;
       case TSDB_DATA_TYPE_UBIGINT:
-        for (int16_t i = 0; i < right.numOfRows; i++) {
+        for (i = 0; i < right.numOfRows; i++) {
           *((int64_t *) pt + i) = (int64_t)(*((uint64_t *) pr + i));
         }
         break;
       case TSDB_DATA_TYPE_FLOAT:
-        for (int16_t i = 0; i < right.numOfRows; i++) {
+        for (i = 0; i < right.numOfRows; i++) {
           *((int64_t *) pt + i) = (int64_t)(*((float *) pr + i));
         }
         break;
       case TSDB_DATA_TYPE_DOUBLE:
-        for (int16_t i = 0; i < right.numOfRows; i++) {
+        for (i = 0; i < right.numOfRows; i++) {
           *((int64_t *) pt + i) = (int64_t)(*((double *) pr + i));
         }
         break;
