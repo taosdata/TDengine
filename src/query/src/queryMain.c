@@ -687,7 +687,7 @@ static int compareLongQuery(const void* p1, const void* p2) {
 }
 
 // callback for taosCacheRefresh
-static void cbFoundItem(void* handle, void* param1) {
+static void cbFoundLongQuery(void* handle, void* param1) {
   SQInfo * qInfo = *(SQInfo**) handle;
   if(qInfo == NULL) return ;
   SArray* qids = (SArray*) param1;
@@ -699,7 +699,7 @@ static void cbFoundItem(void* handle, void* param1) {
   SMemTable* imem = qInfo->query.memRef.snapshot.imem;
   if(mem == NULL || T_REF_VAL_GET(mem) == 0)  
      usedMem = false;
-  if(imem == NULL || T_REF_VAL_GET(mem) == 0) 
+  if(imem == NULL || T_REF_VAL_GET(imem) == 0)
      usedIMem = false ;
 
   if(!usedMem && !usedIMem) 
@@ -720,7 +720,7 @@ void* qObtainLongQuery(void* param){
   SArray* qids = taosArrayInit(4, sizeof(int64_t*));
   if(qids == NULL) return NULL;
   // Get each item
-  taosCacheRefresh(qMgmt->qinfoPool, cbFoundItem, qids);
+  taosCacheRefresh(qMgmt->qinfoPool, cbFoundLongQuery, qids);
   
   size_t cnt = taosArrayGetSize(qids);
   if(cnt == 0) {
