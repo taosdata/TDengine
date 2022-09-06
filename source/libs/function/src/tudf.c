@@ -1805,6 +1805,7 @@ int32_t doTeardownUdf(UdfcFuncHandle handle) {
 
   if (session->udfUvPipe == NULL) {
     fnError("tear down udf. pipe to udfd does not exist. udf name: %s", session->udfName);
+    taosMemoryFree(session);
     return TSDB_CODE_UDF_PIPE_NO_PIPE;
   }
 
@@ -1823,6 +1824,7 @@ int32_t doTeardownUdf(UdfcFuncHandle handle) {
   udfcRunUdfUvTask(task, UV_TASK_DISCONNECT);
 
   fnInfo("tear down udf. udf name: %s, udf func handle: %p", session->udfName, handle);
+  //TODO: synchronization refactor between libuv event loop and request thread
   if (session->udfUvPipe != NULL && session->udfUvPipe->data != NULL) {
     SClientUvConn *conn = session->udfUvPipe->data;
     conn->session = NULL;
