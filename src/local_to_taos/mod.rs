@@ -40,7 +40,13 @@ async fn restore(
             Ok(message) => match message {
                 MessageSet::Meta(meta) => {
                     // dbg!(&meta);
-                    taos.write_raw_meta(meta).await?;
+                    if let Err(err) = taos.write_raw_meta(meta).await {
+                        if err.to_string().contains("0x032C") {
+                            // tokio::time::sleep(Duration::from_nanos(1000)).await;
+                        } else {
+                            Err(err).context("create table error")?;
+                        }
+                    };
                 }
                 MessageSet::Data(data) => {
                     for mut raw in data {
@@ -55,7 +61,7 @@ async fn restore(
                                     dbg!(&meta);
                                     if let Err(err) = taos.exec(format!("{}", meta)).await {
                                         if err.to_string().contains("0x032C") {
-                                            tokio::time::sleep(Duration::from_nanos(1000)).await;
+                                            // tokio::time::sleep(Duration::from_nanos(1000)).await;
                                         } else {
                                             Err(err).context("create table error")?;
                                         }
@@ -71,7 +77,7 @@ async fn restore(
                             }
                         };
                     }
-                    log::debug!("rows: {}", rows);
+                    log::debug!("[{id}] current rows: {}", rows);
                     // taos.write_raw_data(data[0]).await?
                 }
             },
@@ -92,8 +98,12 @@ async fn restore(
     drop(taos);
     drop(reader);
 
-    // barrier.wait().await;
-    log::info!("[{}] totally write {} rows", id, rows);
+    log::info!(
+        "[{}] totally write {} rows from file {}",
+        id,
+        rows,
+        path.display()
+    );
     Ok(())
 }
 
