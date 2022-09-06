@@ -251,6 +251,7 @@ class PlannerTestBaseImpl {
     string         splitLogicPlan_;
     string         scaledLogicPlan_;
     string         physiPlan_;
+    string         physiPlanMsg_;
     vector<string> physiSubplans_;
   };
 
@@ -274,6 +275,7 @@ class PlannerTestBaseImpl {
     res_.splitLogicPlan_.clear();
     res_.scaledLogicPlan_.clear();
     res_.physiPlan_.clear();
+    res_.physiPlanMsg_.clear();
     res_.physiSubplans_.clear();
   }
 
@@ -321,6 +323,7 @@ class PlannerTestBaseImpl {
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_PHYSICAL == module) {
       cout << "+++++++++++++++++++++physical plan : " << endl;
       cout << res_.physiPlan_ << endl;
+      cout << "json len: " << res_.physiPlan_.length() << ", msg len: " << res_.physiPlanMsg_.length() << endl;
     }
 
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_SUBPLAN == module) {
@@ -408,6 +411,7 @@ class PlannerTestBaseImpl {
       SNode* pSubplan;
       FOREACH(pSubplan, ((SNodeListNode*)pNode)->pNodeList) { res_.physiSubplans_.push_back(toString(pSubplan)); }
     }
+    res_.physiPlanMsg_ = toMsg((SNode*)(*pPlan));
   }
 
   void setPlanContext(SQuery* pQuery, SPlanContext* pCxt) {
@@ -448,6 +452,15 @@ class PlannerTestBaseImpl {
     int32_t len = 0;
     DO_WITH_THROW(nodesNodeToString, pRoot, false, &pStr, &len)
     string str(pStr);
+    taosMemoryFreeClear(pStr);
+    return str;
+  }
+
+  string toMsg(const SNode* pRoot) {
+    char*   pStr = NULL;
+    int32_t len = 0;
+    DO_WITH_THROW(nodesNodeToMsg, pRoot, &pStr, &len)
+    string str(pStr, len);
     taosMemoryFreeClear(pStr);
     return str;
   }
