@@ -27,9 +27,9 @@ struct STsdbSnapReader {
   int32_t       fid;
   SDataFReader* pDataFReader;
   SArray*       aBlockIdx;  // SArray<SBlockIdx>
-  SArray*       aSstBlk;    // SArray<SSstBlk>
+  SArray*       aSstBlk;    // SArray<SSttBlk>
   SBlockIdx*    pBlockIdx;
-  SSstBlk*      pSstBlk;
+  SSttBlk*      pSstBlk;
 
   int32_t    iBlockIdx;
   int32_t    iBlockL;
@@ -64,7 +64,7 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
       code = tsdbReadBlockIdx(pReader->pDataFReader, pReader->aBlockIdx);
       if (code) goto _err;
 
-      code = tsdbReadSstBlk(pReader->pDataFReader, 0, pReader->aSstBlk);
+      code = tsdbReadSttBlk(pReader->pDataFReader, 0, pReader->aSstBlk);
       if (code) goto _err;
 
       // init
@@ -87,7 +87,7 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
           break;
         }
 
-        pReader->pSstBlk = (SSstBlk*)taosArrayGet(pReader->aSstBlk, pReader->iBlockL);
+        pReader->pSstBlk = (SSttBlk*)taosArrayGet(pReader->aSstBlk, pReader->iBlockL);
         if (pReader->pSstBlk->minVer <= pReader->ever && pReader->pSstBlk->maxVer >= pReader->sver) {
           // TODO
           break;
@@ -151,7 +151,7 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
           // next
           pReader->iBlockL++;
           if (pReader->iBlockL < taosArrayGetSize(pReader->aSstBlk)) {
-            pReader->pSstBlk = (SSstBlk*)taosArrayGetSize(pReader->aSstBlk);
+            pReader->pSstBlk = (SSttBlk*)taosArrayGetSize(pReader->aSstBlk);
           } else {
             pReader->pSstBlk = NULL;
           }
@@ -298,7 +298,7 @@ int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, int8_t type
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
-  pReader->aSstBlk = taosArrayInit(0, sizeof(SSstBlk));
+  pReader->aSstBlk = taosArrayInit(0, sizeof(SSttBlk));
   if (pReader->aSstBlk == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -431,7 +431,7 @@ struct STsdbSnapWriter {
   SBlockData*   pBlockData;
   int32_t       iRow;
   SBlockData    bDataR;
-  SArray*       aSstBlk;  // SArray<SSstBlk>
+  SArray*       aSstBlk;  // SArray<SSttBlk>
   int32_t       iBlockL;
   SBlockData    lDataR;
 
@@ -443,7 +443,7 @@ struct STsdbSnapWriter {
 
   SMapData mBlockW;     // SMapData<SDataBlk>
   SArray*  aBlockIdxW;  // SArray<SBlockIdx>
-  SArray*  aBlockLW;    // SArray<SSstBlk>
+  SArray*  aBlockLW;    // SArray<SSttBlk>
 
   // for del file
   SDelFReader* pDelFReader;
@@ -845,7 +845,7 @@ static int32_t tsdbSnapWriteDataEnd(STsdbSnapWriter* pWriter) {
 
   // write remain stuff
   if (taosArrayGetSize(pWriter->aBlockLW) > 0) {
-    code = tsdbWriteSstBlk(pWriter->pDataFWriter, pWriter->aBlockIdxW);
+    code = tsdbWriteSttBlk(pWriter->pDataFWriter, pWriter->aBlockIdxW);
     if (code) goto _err;
   }
 
@@ -911,7 +911,7 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
       code = tsdbReadBlockIdx(pWriter->pDataFReader, pWriter->aBlockIdx);
       if (code) goto _err;
 
-      code = tsdbReadSstBlk(pWriter->pDataFReader, 0, pWriter->aSstBlk);
+      code = tsdbReadSttBlk(pWriter->pDataFReader, 0, pWriter->aSstBlk);
       if (code) goto _err;
     } else {
       ASSERT(pWriter->pDataFReader == NULL);
@@ -931,25 +931,25 @@ static int32_t tsdbSnapWriteData(STsdbSnapWriter* pWriter, uint8_t* pData, uint3
     // write
     SHeadFile fHead;
     SDataFile fData;
-    SSstFile  fLast;
+    SSttFile  fLast;
     SSmaFile  fSma;
-    SDFileSet wSet = {.pHeadF = &fHead, .pDataF = &fData, .aSstF[0] = &fLast, .pSmaF = &fSma};
+    SDFileSet wSet = {.pHeadF = &fHead, .pDataF = &fData, .aSttF[0] = &fLast, .pSmaF = &fSma};
 
     if (pSet) {
       wSet.diskId = pSet->diskId;
       wSet.fid = fid;
-      wSet.nSstF = 1;
+      wSet.nSttF = 1;
       fHead = (SHeadFile){.commitID = pWriter->commitID, .offset = 0, .size = 0};
       fData = *pSet->pDataF;
-      fLast = (SSstFile){.commitID = pWriter->commitID, .size = 0};
+      fLast = (SSttFile){.commitID = pWriter->commitID, .size = 0};
       fSma = *pSet->pSmaF;
     } else {
       wSet.diskId = (SDiskID){.level = 0, .id = 0};
       wSet.fid = fid;
-      wSet.nSstF = 1;
+      wSet.nSttF = 1;
       fHead = (SHeadFile){.commitID = pWriter->commitID, .offset = 0, .size = 0};
       fData = (SDataFile){.commitID = pWriter->commitID, .size = 0};
-      fLast = (SSstFile){.commitID = pWriter->commitID, .size = 0, .offset = 0};
+      fLast = (SSttFile){.commitID = pWriter->commitID, .size = 0, .offset = 0};
       fSma = (SSmaFile){.commitID = pWriter->commitID, .size = 0};
     }
 
@@ -1147,7 +1147,7 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWr
   code = tBlockDataCreate(&pWriter->bDataR);
   if (code) goto _err;
 
-  pWriter->aSstBlk = taosArrayInit(0, sizeof(SSstBlk));
+  pWriter->aSstBlk = taosArrayInit(0, sizeof(SSttBlk));
   if (pWriter->aSstBlk == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -1161,7 +1161,7 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWr
   code = tBlockDataCreate(&pWriter->bDataW);
   if (code) goto _err;
 
-  pWriter->aBlockLW = taosArrayInit(0, sizeof(SSstBlk));
+  pWriter->aBlockLW = taosArrayInit(0, sizeof(SSttBlk));
   if (pWriter->aBlockLW == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
