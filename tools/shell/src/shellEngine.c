@@ -1105,6 +1105,7 @@ int32_t shellExecute() {
 #ifdef WEBSOCKET
   if (!shell.args.restful && !shell.args.cloud) {
 #endif
+  printfIntroduction();
 	shellGetGrantInfo();
 #ifdef WEBSOCKET
   }

@@ -36,5 +36,7 @@ void shellAutoExit();
 // callback autotab module
 void callbackAutoTab(char* sqlstr, TAOS* pSql, bool usedb);
 
+// introduction
+void printfIntroduction();
 
 #endif

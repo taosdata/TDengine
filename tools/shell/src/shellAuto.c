@@ -328,8 +328,8 @@ int      cntDel    = 0;   // delete byte count after next press tab
 
 // show auto tab introduction
 void printfIntroduction() {
-  printf("   *********************  How to Use TAB in TAOS Shell ******************************\n"); 
-  printf("   *   Taos shell supports pressing TAB key to complete word. You can try it.       *\n"); 
+  printf("   ****************************  How to Use TAB Key  ********************************\n"); 
+  printf("   *   TDengine Command Line supports pressing TAB key to complete word.            *\n"); 
   printf("   *   Press TAB key anywhere, You'll get surprise.                                 *\n");
   printf("   *   KEYBOARD SHORTCUT:                                                           *\n");
   printf("   *    [ TAB ]        ......  Complete the word or show help if no input           *\n");
@@ -582,8 +582,6 @@ bool shellAutoInit() {
   GenerateVarType(WT_VAR_TBACTION, tb_actions, sizeof(tb_actions) /sizeof(char *));
   GenerateVarType(WT_VAR_DATATYPE, data_types, sizeof(data_types) /sizeof(char *));
   GenerateVarType(WT_VAR_KEYTAGS,  key_tags,   sizeof(key_tags)   /sizeof(char *));
-
-  printfIntroduction();
 
   return true;
 }
