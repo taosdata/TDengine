@@ -1992,6 +1992,313 @@ void syncAppendEntriesReplyLog2(char* s, const SyncAppendEntriesReply* pMsg) {
   }
 }
 
+// ---- message process SyncHeartbeat----
+SyncHeartbeat* syncHeartbeatBuild(int32_t vgId) {
+  uint32_t       bytes = sizeof(SyncHeartbeat);
+  SyncHeartbeat* pMsg = taosMemoryMalloc(bytes);
+  memset(pMsg, 0, bytes);
+  pMsg->bytes = bytes;
+  pMsg->vgId = vgId;
+  pMsg->msgType = TDMT_SYNC_HEARTBEAT;
+  return pMsg;
+}
+
+void syncHeartbeatDestroy(SyncHeartbeat* pMsg) {
+  if (pMsg != NULL) {
+    taosMemoryFree(pMsg);
+  }
+}
+
+void syncHeartbeatSerialize(const SyncHeartbeat* pMsg, char* buf, uint32_t bufLen) {
+  ASSERT(pMsg->bytes <= bufLen);
+  memcpy(buf, pMsg, pMsg->bytes);
+}
+
+void syncHeartbeatDeserialize(const char* buf, uint32_t len, SyncHeartbeat* pMsg) {
+  memcpy(pMsg, buf, len);
+  ASSERT(len == pMsg->bytes);
+}
+
+char* syncHeartbeatSerialize2(const SyncHeartbeat* pMsg, uint32_t* len) {
+  char* buf = taosMemoryMalloc(pMsg->bytes);
+  ASSERT(buf != NULL);
+  syncHeartbeatSerialize(pMsg, buf, pMsg->bytes);
+  if (len != NULL) {
+    *len = pMsg->bytes;
+  }
+  return buf;
+}
+
+SyncHeartbeat* syncHeartbeatDeserialize2(const char* buf, uint32_t len) {
+  uint32_t       bytes = *((uint32_t*)buf);
+  SyncHeartbeat* pMsg = taosMemoryMalloc(bytes);
+  ASSERT(pMsg != NULL);
+  syncHeartbeatDeserialize(buf, len, pMsg);
+  ASSERT(len == pMsg->bytes);
+  return pMsg;
+}
+
+void syncHeartbeat2RpcMsg(const SyncHeartbeat* pMsg, SRpcMsg* pRpcMsg) {
+  memset(pRpcMsg, 0, sizeof(*pRpcMsg));
+  pRpcMsg->msgType = pMsg->msgType;
+  pRpcMsg->contLen = pMsg->bytes;
+  pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
+  syncHeartbeatSerialize(pMsg, pRpcMsg->pCont, pRpcMsg->contLen);
+}
+
+void syncHeartbeatFromRpcMsg(const SRpcMsg* pRpcMsg, SyncHeartbeat* pMsg) {
+  syncHeartbeatDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
+}
+
+SyncHeartbeat* syncHeartbeatFromRpcMsg2(const SRpcMsg* pRpcMsg) {
+  SyncHeartbeat* pMsg = syncHeartbeatDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  ASSERT(pMsg != NULL);
+  return pMsg;
+}
+
+cJSON* syncHeartbeat2Json(const SyncHeartbeat* pMsg) {
+  char   u64buf[128] = {0};
+  cJSON* pRoot = cJSON_CreateObject();
+
+  if (pMsg != NULL) {
+    cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
+    cJSON_AddNumberToObject(pRoot, "vgId", pMsg->vgId);
+    cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
+
+    cJSON* pSrcId = cJSON_CreateObject();
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->srcId.addr);
+    cJSON_AddStringToObject(pSrcId, "addr", u64buf);
+    {
+      uint64_t u64 = pMsg->srcId.addr;
+      cJSON*   pTmp = pSrcId;
+      char     host[128] = {0};
+      uint16_t port;
+      syncUtilU642Addr(u64, host, sizeof(host), &port);
+      cJSON_AddStringToObject(pTmp, "addr_host", host);
+      cJSON_AddNumberToObject(pTmp, "addr_port", port);
+    }
+    cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
+    cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
+
+    cJSON* pDestId = cJSON_CreateObject();
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->destId.addr);
+    cJSON_AddStringToObject(pDestId, "addr", u64buf);
+    {
+      uint64_t u64 = pMsg->destId.addr;
+      cJSON*   pTmp = pDestId;
+      char     host[128] = {0};
+      uint16_t port;
+      syncUtilU642Addr(u64, host, sizeof(host), &port);
+      cJSON_AddStringToObject(pTmp, "addr_host", host);
+      cJSON_AddNumberToObject(pTmp, "addr_port", port);
+    }
+    cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
+    cJSON_AddItemToObject(pRoot, "destId", pDestId);
+
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->term);
+    cJSON_AddStringToObject(pRoot, "term", u64buf);
+
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->privateTerm);
+    cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
+
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->commitIndex);
+    cJSON_AddStringToObject(pRoot, "commitIndex", u64buf);
+  }
+
+  cJSON* pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SyncHeartbeat", pRoot);
+  return pJson;
+}
+
+char* syncHeartbeat2Str(const SyncHeartbeat* pMsg) {
+  cJSON* pJson = syncHeartbeat2Json(pMsg);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
+void syncHeartbeatPrint(const SyncHeartbeat* pMsg) {
+  char* serialized = syncHeartbeat2Str(pMsg);
+  printf("syncHeartbeatPrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void syncHeartbeatPrint2(char* s, const SyncHeartbeat* pMsg) {
+  char* serialized = syncHeartbeat2Str(pMsg);
+  printf("syncHeartbeatPrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void syncHeartbeatLog(const SyncHeartbeat* pMsg) {
+  char* serialized = syncHeartbeat2Str(pMsg);
+  sTrace("syncHeartbeatLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  taosMemoryFree(serialized);
+}
+
+void syncHeartbeatLog2(char* s, const SyncHeartbeat* pMsg) {
+  if (gRaftDetailLog) {
+    char* serialized = syncHeartbeat2Str(pMsg);
+    sTrace("syncHeartbeatLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
+}
+
+// ---- message process SyncHeartbeatReply----
+SyncHeartbeatReply* syncHeartbeatReplyBuild(int32_t vgId) {
+  uint32_t            bytes = sizeof(SyncHeartbeatReply);
+  SyncHeartbeatReply* pMsg = taosMemoryMalloc(bytes);
+  memset(pMsg, 0, bytes);
+  pMsg->bytes = bytes;
+  pMsg->vgId = vgId;
+  pMsg->msgType = TDMT_SYNC_HEARTBEAT_REPLY;
+  return pMsg;
+}
+
+void syncHeartbeatReplyDestroy(SyncHeartbeatReply* pMsg) {
+  if (pMsg != NULL) {
+    taosMemoryFree(pMsg);
+  }
+}
+
+void syncHeartbeatReplySerialize(const SyncHeartbeatReply* pMsg, char* buf, uint32_t bufLen) {
+  ASSERT(pMsg->bytes <= bufLen);
+  memcpy(buf, pMsg, pMsg->bytes);
+}
+
+void syncHeartbeatReplyDeserialize(const char* buf, uint32_t len, SyncHeartbeatReply* pMsg) {
+  memcpy(pMsg, buf, len);
+  ASSERT(len == pMsg->bytes);
+}
+
+char* syncHeartbeatReplySerialize2(const SyncHeartbeatReply* pMsg, uint32_t* len) {
+  char* buf = taosMemoryMalloc(pMsg->bytes);
+  ASSERT(buf != NULL);
+  syncHeartbeatReplySerialize(pMsg, buf, pMsg->bytes);
+  if (len != NULL) {
+    *len = pMsg->bytes;
+  }
+  return buf;
+}
+
+SyncHeartbeatReply* syncHeartbeatReplyDeserialize2(const char* buf, uint32_t len) {
+  uint32_t            bytes = *((uint32_t*)buf);
+  SyncHeartbeatReply* pMsg = taosMemoryMalloc(bytes);
+  ASSERT(pMsg != NULL);
+  syncHeartbeatReplyDeserialize(buf, len, pMsg);
+  ASSERT(len == pMsg->bytes);
+  return pMsg;
+}
+
+void syncHeartbeatReply2RpcMsg(const SyncHeartbeatReply* pMsg, SRpcMsg* pRpcMsg) {
+  memset(pRpcMsg, 0, sizeof(*pRpcMsg));
+  pRpcMsg->msgType = pMsg->msgType;
+  pRpcMsg->contLen = pMsg->bytes;
+  pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
+  syncHeartbeatReplySerialize(pMsg, pRpcMsg->pCont, pRpcMsg->contLen);
+}
+
+void syncHeartbeatReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncHeartbeatReply* pMsg) {
+  syncHeartbeatReplyDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
+}
+
+SyncHeartbeatReply* syncHeartbeatReplyFromRpcMsg2(const SRpcMsg* pRpcMsg) {
+  SyncHeartbeatReply* pMsg = syncHeartbeatReplyDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  ASSERT(pMsg != NULL);
+  return pMsg;
+}
+
+cJSON* syncHeartbeatReply2Json(const SyncHeartbeatReply* pMsg) {
+  char   u64buf[128] = {0};
+  cJSON* pRoot = cJSON_CreateObject();
+
+  if (pMsg != NULL) {
+    cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
+    cJSON_AddNumberToObject(pRoot, "vgId", pMsg->vgId);
+    cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
+
+    cJSON* pSrcId = cJSON_CreateObject();
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->srcId.addr);
+    cJSON_AddStringToObject(pSrcId, "addr", u64buf);
+    {
+      uint64_t u64 = pMsg->srcId.addr;
+      cJSON*   pTmp = pSrcId;
+      char     host[128] = {0};
+      uint16_t port;
+      syncUtilU642Addr(u64, host, sizeof(host), &port);
+      cJSON_AddStringToObject(pTmp, "addr_host", host);
+      cJSON_AddNumberToObject(pTmp, "addr_port", port);
+    }
+    cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
+    cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
+
+    cJSON* pDestId = cJSON_CreateObject();
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->destId.addr);
+    cJSON_AddStringToObject(pDestId, "addr", u64buf);
+    {
+      uint64_t u64 = pMsg->destId.addr;
+      cJSON*   pTmp = pDestId;
+      char     host[128] = {0};
+      uint16_t port;
+      syncUtilU642Addr(u64, host, sizeof(host), &port);
+      cJSON_AddStringToObject(pTmp, "addr_host", host);
+      cJSON_AddNumberToObject(pTmp, "addr_port", port);
+    }
+    cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
+    cJSON_AddItemToObject(pRoot, "destId", pDestId);
+
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->privateTerm);
+    cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
+
+    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->term);
+    cJSON_AddStringToObject(pRoot, "term", u64buf);
+
+    cJSON_AddStringToObject(pRoot, "matchIndex", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->startTime);
+    cJSON_AddStringToObject(pRoot, "startTime", u64buf);
+  }
+
+  cJSON* pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SyncHeartbeatReply", pRoot);
+  return pJson;
+}
+
+char* syncHeartbeatReply2Str(const SyncHeartbeatReply* pMsg) {
+  cJSON* pJson = syncHeartbeatReply2Json(pMsg);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
+void syncHeartbeatReplyPrint(const SyncHeartbeatReply* pMsg) {
+  char* serialized = syncHeartbeatReply2Str(pMsg);
+  printf("syncHeartbeatReplyPrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void syncHeartbeatReplyPrint2(char* s, const SyncHeartbeatReply* pMsg) {
+  char* serialized = syncHeartbeatReply2Str(pMsg);
+  printf("syncHeartbeatReplyPrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void syncHeartbeatReplyLog(const SyncHeartbeatReply* pMsg) {
+  char* serialized = syncHeartbeatReply2Str(pMsg);
+  sTrace("syncHeartbeatReplyLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  taosMemoryFree(serialized);
+}
+
+void syncHeartbeatReplyLog2(char* s, const SyncHeartbeatReply* pMsg) {
+  if (gRaftDetailLog) {
+    char* serialized = syncHeartbeatReply2Str(pMsg);
+    sTrace("syncHeartbeatReplyLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
+}
+
 // ---- message process SyncApplyMsg----
 SyncApplyMsg* syncApplyMsgBuild(uint32_t dataLen) {
   uint32_t      bytes = sizeof(SyncApplyMsg) + dataLen;
