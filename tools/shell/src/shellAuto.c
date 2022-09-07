@@ -58,7 +58,7 @@ typedef struct {
 
 
 SWords shellCommands[] = {
-  {"alter database <db_name> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword>", 0, 0, NULL},
+  {"alter database <db_name> <alter_db_options> <anyword> <alter_db_options> <anyword> <alter_db_options> <anyword> <alter_db_options> <anyword> <alter_db_options> <anyword>", 0, 0, NULL},
   {"alter dnode <dnode_id> balance ", 0, 0, NULL},
   {"alter dnode <dnode_id> resetlog;", 0, 0, NULL},
   {"alter dnode <dnode_id> debugFlag 141;", 0, 0, NULL},
@@ -76,7 +76,7 @@ SWords shellCommands[] = {
   {"alter user <user_name> privilege read", 0, 0, NULL},
   {"alter user <user_name> privilege write", 0, 0, NULL},
   {"create table <anyword> using <stb_name> tags(", 0, 0, NULL},
-  {"create database ", 0, 0, NULL},
+  {"create database <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword> <db_options> <anyword>", 0, 0, NULL},
   {"create table <anyword> as ", 0, 0, NULL},
   {"create dnode ", 0, 0, NULL},
   {"create topic", 0, 0, NULL},
@@ -84,9 +84,7 @@ SWords shellCommands[] = {
   {"create user <anyword> pass", 0, 0, NULL},
   {"compact vnode in", 0, 0, NULL},
   {"describe <all_table>", 0, 0, NULL},
-#ifdef TD_ENTERPRISE
   {"delete from <all_table> where", 0, 0, NULL},
-#endif
   {"drop database <db_name>", 0, 0, NULL},
   {"drop table <all_table> ", 0, 0, NULL},
   {"drop dnode <dnode_id>", 0, 0, NULL},
@@ -223,24 +221,69 @@ char * tb_actions[] = {
 };
 
 char * db_options[] = {
-  "blocks",
-  "cachelast",
-  "comp",
-  "keep",
-  "replica",
-  "quorum",
+  "keep 3650",
+  "replica 1",
+  "replica 3",
+  "precision \'ms\'",
+  "precision \'us\'",
+  "precision \'ns\'",
+  "strict \'off\'",
+  "strict \'on\'",
+  "buffer ",
+  "cachemodel \'none\' ",
+  "cachemodel \'last_row\' ",
+  "cachemodel \'last_value\' ",
+  "cachemodel \'both\' ",
+  "cachesize 1 ",
+  "comp 0 ",
+  "comp 1 ",
+  "comp 2 ",
+  "duration ",
+  "wal_fsync_period 3000",
+  "maxrows 4096",
+  "minrows 100",
+  "pages 256",
+  "pagesize  4",
+  "retentions",
+  "wal_level 1",
+  "wal_level 2",
+  "vgroups",
+  "single_stable 0",
+  "single_stable 1",
+  "wal_retention_period",
+  "wal_roll_period",
+  "wal_retention_size",
+  "wal_segment_size"
 };
+
+char * alter_db_options[] = {
+  "keep 3650",
+  "cachemodel \'none\' ",
+  "cachemodel \'last_row\' ",
+  "cachemodel \'last_value\' ",
+  "cachemodel \'both\' ",
+  "cachesize 1",
+  "wal_fsync_period 3000",
+  "wal_level 1",
+  "wal_level 2"
+};
+
 
 char * data_types[] = {
   "timestamp",
   "int",
+  "int unsigned",
+  "varchar(16)",
   "float",
   "double",
   "binary(16)",
   "nchar(16)",
   "bigint",
+  "bigint unsigned",
   "smallint",
+  "smallint unsigned",
   "tinyint",
+  "tinyint unsigned",
   "bool",
   "json"
 };
@@ -273,10 +316,11 @@ bool    waitAutoFill    = false;
 #define WT_VAR_KEYWORD  7
 #define WT_VAR_TBACTION 8
 #define WT_VAR_DBOPTION 9
-#define WT_VAR_DATATYPE 10
-#define WT_VAR_KEYTAGS  11
-#define WT_VAR_ANYWORD  12
-#define WT_VAR_CNT      13
+#define WT_VAR_ALTER_DBOPTION 10
+#define WT_VAR_DATATYPE 11
+#define WT_VAR_KEYTAGS  12
+#define WT_VAR_ANYWORD  13
+#define WT_VAR_CNT      14
 
 #define WT_FROM_DB_MAX  4  // max get content from db
 #define WT_FROM_DB_CNT  (WT_FROM_DB_MAX + 1)
@@ -301,6 +345,7 @@ char varTypes[WT_VAR_CNT][64] = {
   "<keyword>",
   "<tb_actions>",
   "<db_options>",
+  "<alter_db_options>",
   "<data_types>",
   "<key_tags>",
   "<anyword>"
@@ -579,6 +624,7 @@ bool shellAutoInit() {
   GenerateVarType(WT_VAR_FUNC,     functions,  sizeof(functions)  /sizeof(char *));
   GenerateVarType(WT_VAR_KEYWORD,  keywords,   sizeof(keywords)   /sizeof(char *));
   GenerateVarType(WT_VAR_DBOPTION, db_options, sizeof(db_options) /sizeof(char *));
+  GenerateVarType(WT_VAR_ALTER_DBOPTION, alter_db_options, sizeof(alter_db_options) /sizeof(char *));
   GenerateVarType(WT_VAR_TBACTION, tb_actions, sizeof(tb_actions) /sizeof(char *));
   GenerateVarType(WT_VAR_DATATYPE, data_types, sizeof(data_types) /sizeof(char *));
   GenerateVarType(WT_VAR_KEYTAGS,  key_tags,   sizeof(key_tags)   /sizeof(char *));
