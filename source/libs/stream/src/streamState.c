@@ -112,6 +112,29 @@ int32_t streamStateDel(SStreamState* pState, const SWinKey* key) {
   return tdbTbDelete(pState->pStateDb, key, sizeof(SWinKey), &pState->txn);
 }
 
+int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
+  // todo refactor
+  int32_t size = *pVLen;
+  if (streamStateGet(pState, key, pVal, pVLen) == 0) {
+    return 0;
+  }
+  void* tmp = taosMemoryCalloc(1, size);
+  if (streamStatePut(pState, key, &tmp, size) == 0) {
+    taosMemoryFree(tmp);
+    int32_t code = streamStateGet(pState, key, pVal, pVLen);
+    ASSERT(code == 0);
+    return code;
+  }
+  taosMemoryFree(tmp);
+  return -1;
+}
+
+int32_t streamStateReleaseBuf(SStreamState* pState, const SWinKey* key, void* pVal) {
+  // todo refactor
+  streamFreeVal(pVal);
+  return 0;
+}
+
 SStreamStateCur* streamStateGetCur(SStreamState* pState, const SWinKey* key) {
   SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
   if (pCur == NULL) return NULL;
