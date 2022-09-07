@@ -309,6 +309,10 @@ static void findNextValidRow(SLDataIter *pIter) {
   // mostly we only need to find the start position for a given table
   if ((((i == 0) && (!pIter->backward)) || (i == pBlockData->nRow - 1 && pIter->backward)) && pBlockData->aUid != NULL) {
     i = binarySearchForStartRowIndex((uint64_t*)pBlockData->aUid, pBlockData->nRow, pIter->uid, pIter->backward);
+    if (i == -1) {
+      pIter->iRow = -1;
+      return;
+    }
   }
 
   for (; i < pBlockData->nRow && i >= 0; i += step) {
