@@ -23,9 +23,9 @@ void simpleTest() {
   
   ASSERT_EQ(getTotalBufSize(pBuf), 1024);
   
-  SIDList list = getDataBufPagesIdList(pBuf, groupId);
+  SIDList list = getDataBufPagesIdList(pBuf);
   ASSERT_EQ(taosArrayGetSize(list), 1);
-  ASSERT_EQ(getNumOfBufGroupId(pBuf), 1);
+  //ASSERT_EQ(getNumOfBufGroupId(pBuf), 1);
 
   releaseBufPage(pBuf, pBufPage);
 
@@ -98,7 +98,7 @@ void writeDownTest() {
   SFilePage* pBufPagex = static_cast<SFilePage*>(getBufPage(pBuf, writePageId));
   ASSERT_EQ(*(int32_t*)pBufPagex->data, nx);
 
-  SArray* pa = getDataBufPagesIdList(pBuf, groupId);
+  SArray* pa = getDataBufPagesIdList(pBuf);
   ASSERT_EQ(taosArrayGetSize(pa), 5);
 
   destroyDiskbasedBuf(pBuf);
@@ -152,7 +152,7 @@ void recyclePageTest() {
 
   SFilePage* pBufPagex1 = static_cast<SFilePage*>(getBufPage(pBuf, 1));
 
-  SArray* pa = getDataBufPagesIdList(pBuf, groupId);
+  SArray* pa = getDataBufPagesIdList(pBuf);
   ASSERT_EQ(taosArrayGetSize(pa), 6);
 
   destroyDiskbasedBuf(pBuf);

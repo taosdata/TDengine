@@ -554,6 +554,8 @@ typedef struct {
 int32_t streamStatePut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
 int32_t streamStateGet(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen);
 int32_t streamStateDel(SStreamState* pState, const SWinKey* key);
+int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen);
+int32_t streamStateReleaseBuf(SStreamState* pState, const SWinKey* key, void* pVal);
 void    streamFreeVal(void* val);
 
 SStreamStateCur* streamStateGetCur(SStreamState* pState, const SWinKey* key);
