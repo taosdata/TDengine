@@ -155,6 +155,7 @@ int32_t tsdbGetTableSchema(SVnode *pVnode, int64_t uid, STSchema **pSchema, int6
 
 void   tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity);
 size_t tsdbCacheGetCapacity(SVnode *pVnode);
+size_t tsdbCacheGetUsage(SVnode *pVnode);
 
 // tq
 typedef struct SMetaTableInfo {
@@ -288,6 +289,8 @@ struct SVnodeCfg {
   uint32_t    hashBegin;
   uint32_t    hashEnd;
   int16_t     sstTrigger;
+  int16_t     hashPrefix;
+  int16_t     hashSuffix;
 };
 
 typedef struct {

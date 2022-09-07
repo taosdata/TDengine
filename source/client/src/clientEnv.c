@@ -488,7 +488,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
  */
 uint64_t generateRequestId() {
   static uint64_t hashId = 0;
-  static int32_t  requestSerialId = 0;
+  static uint32_t requestSerialId = 0;
 
   if (hashId == 0) {
     char    uid[64] = {0};
@@ -507,7 +507,8 @@ uint64_t generateRequestId() {
   while (true) {
     int64_t  ts = taosGetTimestampMs();
     uint64_t pid = taosGetPId();
-    int32_t  val = atomic_add_fetch_32(&requestSerialId, 1);
+    uint32_t val = atomic_add_fetch_32(&requestSerialId, 1);
+    if (val >= 0xFFFF) atomic_store_32(&requestSerialId, 0);
 
     id = ((hashId & 0x0FFF) << 52) | ((pid & 0x0FFF) << 40) | ((ts & 0xFFFFFF) << 16) | (val & 0xFFFF);
     if (id) {

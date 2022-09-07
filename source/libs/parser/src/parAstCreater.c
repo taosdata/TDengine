@@ -836,6 +836,8 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   updateWalOptionsDefault(pOptions);
   pOptions->walSegmentSize = TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE;
   pOptions->sstTrigger = TSDB_DEFAULT_SST_TRIGGER;
+  pOptions->tablePrefix = TSDB_DEFAULT_HASH_PREFIX;
+  pOptions->tableSuffix = TSDB_DEFAULT_HASH_SUFFIX;
   return (SNode*)pOptions;
 }
 
@@ -868,6 +870,8 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->walRollPeriod = -1;
   pOptions->walSegmentSize = -1;
   pOptions->sstTrigger = -1;
+  pOptions->tablePrefix = -1;
+  pOptions->tableSuffix = -1;
   return (SNode*)pOptions;
 }
 
@@ -953,6 +957,12 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
       break;
     case DB_OPTION_SST_TRIGGER:
       pDbOptions->sstTrigger = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      break;
+    case DB_OPTION_TABLE_PREFIX:
+      pDbOptions->tablePrefix = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      break;
+    case DB_OPTION_TABLE_SUFFIX:
+      pDbOptions->tableSuffix = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     default:
       break;

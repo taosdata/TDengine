@@ -218,6 +218,8 @@ void ctgTestBuildDBVgroup(SDBVgInfo **pdbVgroup) {
   ctgTestCurrentVgVersion = dbVgroup->vgVersion;
 
   dbVgroup->hashMethod = 0;
+  dbVgroup->hashPrefix = 0;
+  dbVgroup->hashSuffix = 0;
   dbVgroup->vgHash = taosHashInit(ctgTestVgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
 
   vgNum = ctgTestGetVgNumFromVgVersion(dbVgroup->vgVersion);

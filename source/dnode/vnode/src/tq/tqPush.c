@@ -213,20 +213,25 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
 #endif
 
 int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
-  if (vnodeIsRoleLeader(pTq->pVnode) && msgType == TDMT_VND_SUBMIT) {
-    if (taosHashGetSize(pTq->pStreamMeta->pTasks) == 0) return 0;
+  if (vnodeIsRoleLeader(pTq->pVnode)) {
+    if (msgType == TDMT_VND_SUBMIT) {
+      if (taosHashGetSize(pTq->pStreamMeta->pTasks) == 0) return 0;
 
-    void* data = taosMemoryMalloc(msgLen);
-    if (data == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      tqError("failed to copy data for stream since out of memory");
-      return -1;
+      void* data = taosMemoryMalloc(msgLen);
+      if (data == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        tqError("failed to copy data for stream since out of memory");
+        return -1;
+      }
+      memcpy(data, msg, msgLen);
+      SSubmitReq* pReq = (SSubmitReq*)data;
+      pReq->version = ver;
+
+      tqProcessSubmitReq(pTq, data, ver);
     }
-    memcpy(data, msg, msgLen);
-    SSubmitReq* pReq = (SSubmitReq*)data;
-    pReq->version = ver;
-
-    tqProcessStreamTrigger(pTq, data, ver);
+    if (msgType == TDMT_VND_DELETE) {
+      tqProcessDelReq(pTq, POINTER_SHIFT(msg, sizeof(SMsgHead)), msgLen - sizeof(SMsgHead), ver);
+    }
   }
 
   return 0;
