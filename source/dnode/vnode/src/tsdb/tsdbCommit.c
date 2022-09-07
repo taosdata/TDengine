@@ -551,13 +551,12 @@ _err:
   return code;
 }
 
-static int32_t tsdbCommitDataBlock(SCommitter *pCommitter) {
-  int32_t     code = 0;
-  SBlockData *pBlockData = &pCommitter->dWriter.bData;
-  SDataBlk    dataBlk;
+int32_t tsdbWriteDataBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SMapData *mDataBlk, int8_t cmprAlg) {
+  int32_t code = 0;
 
-  ASSERT(pBlockData->nRow > 0);
+  if (pBlockData->nRow == 0) return code;
 
+  SDataBlk dataBlk;
   tDataBlkReset(&dataBlk);
 
   // info
@@ -585,13 +584,12 @@ static int32_t tsdbCommitDataBlock(SCommitter *pCommitter) {
 
   // write
   dataBlk.nSubBlock++;
-  code = tsdbWriteBlockData(pCommitter->dWriter.pWriter, pBlockData, &dataBlk.aSubBlock[dataBlk.nSubBlock - 1],
-                            ((dataBlk.nSubBlock == 1) && !dataBlk.hasDup) ? &dataBlk.smaInfo : NULL,
-                            pCommitter->cmprAlg, 0);
+  code = tsdbWriteBlockData(pWriter, pBlockData, &dataBlk.aSubBlock[dataBlk.nSubBlock - 1],
+                            ((dataBlk.nSubBlock == 1) && !dataBlk.hasDup) ? &dataBlk.smaInfo : NULL, cmprAlg, 0);
   if (code) goto _err;
 
   // put SDataBlk
-  code = tMapDataPutItem(&pCommitter->dWriter.mBlock, &dataBlk, tPutDataBlk);
+  code = tMapDataPutItem(mDataBlk, &dataBlk, tPutDataBlk);
   if (code) goto _err;
 
   // clear
@@ -600,16 +598,15 @@ static int32_t tsdbCommitDataBlock(SCommitter *pCommitter) {
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb commit data block failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d tsdb commit data block failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
-static int32_t tsdbCommitLastBlock(SCommitter *pCommitter) {
-  int32_t     code = 0;
-  SSttBlk     sstBlk;
-  SBlockData *pBlockData = &pCommitter->dWriter.bDatal;
+int32_t tsdbWriteSttBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SArray *aSttBlk, int8_t cmprAlg) {
+  int32_t code = 0;
+  SSttBlk sstBlk;
 
-  ASSERT(pBlockData->nRow > 0);
+  if (pBlockData->nRow == 0) return code;
 
   // info
   sstBlk.suid = pBlockData->suid;
@@ -628,11 +625,11 @@ static int32_t tsdbCommitLastBlock(SCommitter *pCommitter) {
   sstBlk.maxUid = pBlockData->uid ? pBlockData->uid : pBlockData->aUid[pBlockData->nRow - 1];
 
   // write
-  code = tsdbWriteBlockData(pCommitter->dWriter.pWriter, pBlockData, &sstBlk.bInfo, NULL, pCommitter->cmprAlg, 1);
+  code = tsdbWriteBlockData(pWriter, pBlockData, &sstBlk.bInfo, NULL, cmprAlg, 1);
   if (code) goto _err;
 
   // push SSttBlk
-  if (taosArrayPush(pCommitter->dWriter.aSttBlk, &sstBlk) == NULL) {
+  if (taosArrayPush(aSttBlk, &sstBlk) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
@@ -643,7 +640,7 @@ static int32_t tsdbCommitLastBlock(SCommitter *pCommitter) {
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb commit last block failed since %s", TD_VID(pCommitter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d tsdb commit last block failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -1120,15 +1117,14 @@ static int32_t tsdbCommitAheadBlock(SCommitter *pCommitter, SDataBlk *pDataBlk) 
     }
 
     if (pBlockData->nRow >= pCommitter->maxRow) {
-      code = tsdbCommitDataBlock(pCommitter);
+      code =
+          tsdbWriteDataBlock(pCommitter->dWriter.pWriter, pBlockData, &pCommitter->dWriter.mBlock, pCommitter->cmprAlg);
       if (code) goto _err;
     }
   }
 
-  if (pBlockData->nRow) {
-    code = tsdbCommitDataBlock(pCommitter);
-    if (code) goto _err;
-  }
+  code = tsdbWriteDataBlock(pCommitter->dWriter.pWriter, pBlockData, &pCommitter->dWriter.mBlock, pCommitter->cmprAlg);
+  if (code) goto _err;
 
   return code;
 
@@ -1189,7 +1185,7 @@ static int32_t tsdbCommitMergeBlock(SCommitter *pCommitter, SDataBlk *pDataBlk) 
     }
 
     if (pBDataW->nRow >= pCommitter->maxRow) {
-      code = tsdbCommitDataBlock(pCommitter);
+      code = tsdbWriteDataBlock(pCommitter->dWriter.pWriter, pBDataW, &pCommitter->dWriter.mBlock, pCommitter->cmprAlg);
       if (code) goto _err;
     }
   }
@@ -1206,15 +1202,13 @@ static int32_t tsdbCommitMergeBlock(SCommitter *pCommitter, SDataBlk *pDataBlk) 
     }
 
     if (pBDataW->nRow >= pCommitter->maxRow) {
-      code = tsdbCommitDataBlock(pCommitter);
+      code = tsdbWriteDataBlock(pCommitter->dWriter.pWriter, pBDataW, &pCommitter->dWriter.mBlock, pCommitter->cmprAlg);
       if (code) goto _err;
     }
   }
 
-  if (pBDataW->nRow) {
-    code = tsdbCommitDataBlock(pCommitter);
-    if (code) goto _err;
-  }
+  code = tsdbWriteDataBlock(pCommitter->dWriter.pWriter, pBDataW, &pCommitter->dWriter.mBlock, pCommitter->cmprAlg);
+  if (code) goto _err;
 
   return code;
 
@@ -1302,10 +1296,8 @@ static int32_t tsdbInitLastBlockIfNeed(SCommitter *pCommitter, TABLEID id) {
   SBlockData *pBDatal = &pCommitter->dWriter.bDatal;
   if (pBDatal->suid || pBDatal->uid) {
     if ((pBDatal->suid != id.suid) || (id.suid == 0)) {
-      if (pBDatal->nRow) {
-        code = tsdbCommitLastBlock(pCommitter);
-        if (code) goto _exit;
-      }
+      code = tsdbWriteSttBlock(pCommitter->dWriter.pWriter, pBDatal, pCommitter->dWriter.aSttBlk, pCommitter->cmprAlg);
+      if (code) goto _exit;
       tBlockDataReset(pBDatal);
     }
   }
@@ -1337,7 +1329,7 @@ static int32_t tsdbAppendLastBlock(SCommitter *pCommitter) {
     if (code) goto _err;
 
     if (pBDatal->nRow >= pCommitter->maxRow) {
-      code = tsdbCommitLastBlock(pCommitter);
+      code = tsdbWriteSttBlock(pCommitter->dWriter.pWriter, pBDatal, pCommitter->dWriter.aSttBlk, pCommitter->cmprAlg);
       if (code) goto _err;
     }
   }
@@ -1389,10 +1381,11 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, TABLEID id) {
 
     if (pBData->nRow >= pCommitter->maxRow) {
       if (pCommitter->toLastOnly) {
-        code = tsdbCommitLastBlock(pCommitter);
+        code = tsdbWriteSttBlock(pCommitter->dWriter.pWriter, pBData, pCommitter->dWriter.aSttBlk, pCommitter->cmprAlg);
         if (code) goto _err;
       } else {
-        code = tsdbCommitDataBlock(pCommitter);
+        code =
+            tsdbWriteDataBlock(pCommitter->dWriter.pWriter, pBData, &pCommitter->dWriter.mBlock, pCommitter->cmprAlg);
         if (code) goto _err;
       }
     }
@@ -1400,7 +1393,7 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, TABLEID id) {
 
   if (!pCommitter->toLastOnly && pBData->nRow) {
     if (pBData->nRow > pCommitter->minRow) {
-      code = tsdbCommitDataBlock(pCommitter);
+      code = tsdbWriteDataBlock(pCommitter->dWriter.pWriter, pBData, &pCommitter->dWriter.mBlock, pCommitter->cmprAlg);
       if (code) goto _err;
     } else {
       code = tsdbAppendLastBlock(pCommitter);
@@ -1466,10 +1459,9 @@ static int32_t tsdbCommitFileDataImpl(SCommitter *pCommitter) {
   code = tsdbMoveCommitData(pCommitter, id);
   if (code) goto _err;
 
-  if (pCommitter->dWriter.bDatal.nRow > 0) {
-    code = tsdbCommitLastBlock(pCommitter);
-    if (code) goto _err;
-  }
+  code = tsdbWriteSttBlock(pCommitter->dWriter.pWriter, &pCommitter->dWriter.bDatal, pCommitter->dWriter.aSttBlk,
+                           pCommitter->cmprAlg);
+  if (code) goto _err;
 
   return code;
 

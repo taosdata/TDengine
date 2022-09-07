@@ -1074,6 +1074,9 @@ _err:
 }
 #endif
 
+extern int32_t tsdbWriteDataBlock(SDataFWriter* pWriter, SBlockData* pBlockData, SMapData* mDataBlk, int8_t cmprAlg);
+extern int32_t tsdbWriteSttBlock(SDataFWriter* pWriter, SBlockData* pBlockData, SArray* aSttBlk, int8_t cmprAlg);
+
 static int32_t tsdbSnapNextTableData(STsdbSnapWriter* pWriter) {
   int32_t code = 0;
 
@@ -1179,18 +1182,66 @@ static int32_t tsdbSnapWriteCloseFile(STsdbSnapWriter* pWriter) {
 
   ASSERT(pWriter->dWriter.pWriter);
 
-  // (todo)
+  // todo: end current commit table
+  for (; pWriter->dReader.iRow < pWriter->dReader.bData.nRow; pWriter->dReader.iRow++) {
+    TSDBROW row = tsdbRowFromBlockData(&pWriter->dReader.bData, pWriter->dReader.iRow);
+    code = tBlockDataAppendRow(&pWriter->dWriter.bData, &row, NULL, pWriter->dReader.pBlockIdx->uid);
+    if (code) goto _err;
+  }
+
+  for (; pWriter->dReader.iDataBlk < pWriter->dReader.mDataBlk.nItem; pWriter->dReader.iDataBlk++) {
+    SDataBlk dataBlk;
+    tMapDataGetItemByIdx(&pWriter->dReader.mDataBlk, pWriter->dReader.iDataBlk, &dataBlk, tGetDataBlk);
+
+    code = tMapDataPutItem(&pWriter->dWriter.mDataBlk, &dataBlk, tPutDataBlk);
+    if (code) goto _err;
+  }
+
+  if (pWriter->dWriter.mDataBlk.nItem) {
+    SBlockIdx blockIdx = *pWriter->dReader.pBlockIdx;
+    code = tsdbWriteDataBlk(pWriter->dWriter.pWriter, &pWriter->dWriter.mDataBlk, &blockIdx);
+    if (code) goto _err;
+
+    if (taosArrayPush(pWriter->dWriter.aBlockIdx, &blockIdx) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
+  }
 
   // copy remain table data
   TABLEID id = {.suid = INT64_MAX, .uid = INT64_MAX};
   code = tsdbSnapWriteCopyData(pWriter, &id);
-  if (code) goto _exit;
+  if (code) goto _err;
 
-  if (pWriter->dWriter.sData.nRow > 0) {
-    // TODO: write the last block
+  code =
+      tsdbWriteSttBlock(pWriter->dWriter.pWriter, &pWriter->dWriter.sData, pWriter->dWriter.aSttBlk, pWriter->cmprAlg);
+  if (code) goto _err;
+
+  // Indices
+  code = tsdbWriteBlockIdx(pWriter->dWriter.pWriter, pWriter->dWriter.aBlockIdx);
+  if (code) goto _err;
+
+  code = tsdbWriteSttBlk(pWriter->dWriter.pWriter, pWriter->dWriter.aSttBlk);
+  if (code) goto _err;
+
+  code = tsdbUpdateDFileSetHeader(pWriter->dWriter.pWriter);
+  if (code) goto _err;
+
+  code = tsdbFSUpsertFSet(&pWriter->fs, &pWriter->dWriter.pWriter->wSet);
+  if (code) goto _err;
+
+  code = tsdbDataFWriterClose(&pWriter->dWriter.pWriter, 1);
+  if (code) goto _err;
+
+  if (pWriter->dReader.pReader) {
+    code = tsdbDataFReaderClose(&pWriter->dReader.pReader);
+    if (code) goto _err;
   }
 
 _exit:
+  return code;
+
+_err:
   return code;
 }
 
