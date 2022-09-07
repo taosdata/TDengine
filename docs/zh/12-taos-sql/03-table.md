@@ -23,10 +23,7 @@ create_subtable_clause: {
 }
 
 create_definition:
-    col_name column_definition
-
-column_definition:
-    type_name [comment 'string_value']
+    col_name column_type
 
 table_options:
     table_option ...

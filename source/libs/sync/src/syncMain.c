@@ -2766,8 +2766,6 @@ const char* syncStr(ESyncState state) {
 }
 
 int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry) {
-  SyncLeaderTransfer* pSyncLeaderTransfer = syncLeaderTransferFromRpcMsg2(pRpcMsg);
-
   if (ths->state != TAOS_SYNC_STATE_FOLLOWER) {
     syncNodeEventLog(ths, "I am not follower, can not do leader transfer");
     return 0;
@@ -2798,6 +2796,8 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
       return 0;
     }
   */
+
+  SyncLeaderTransfer* pSyncLeaderTransfer = syncLeaderTransferFromRpcMsg2(pRpcMsg);
 
   do {
     char logBuf[128];
