@@ -1175,10 +1175,40 @@ _err:
   return code;
 }
 
+static int32_t tsdbSnapMoveWriteDelData(STsdbSnapWriter* pWriter, TABLEID* pId) {
+  int32_t code = 0;
+
+  while (true) {
+    if (pWriter->iDelIdx >= taosArrayGetSize(pWriter->aDelIdxR)) break;
+
+    SDelIdx* pDelIdx = (SDelIdx*)taosArrayGet(pWriter->aDelIdxR, pWriter->iDelIdx);
+
+    if (tTABLEIDCmprFn(pDelIdx, pId) >= 0) break;
+
+    code = tsdbReadDelData(pWriter->pDelFReader, pDelIdx, pWriter->aDelData);
+    if (code) goto _exit;
+
+    SDelIdx delIdx = *pDelIdx;
+    code = tsdbWriteDelData(pWriter->pDelFWriter, pWriter->aDelData, &delIdx);
+    if (code) goto _exit;
+
+    if (taosArrayPush(pWriter->aDelIdxW, &delIdx) == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _exit;
+    }
+
+    pWriter->iDelIdx++;
+  }
+
+_exit:
+  return code;
+}
+
 static int32_t tsdbSnapWriteDel(STsdbSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t code = 0;
   STsdb*  pTsdb = pWriter->pTsdb;
 
+  // Open del file if not opened yet
   if (pWriter->pDelFWriter == NULL) {
     SDelFile* pDelFile = pWriter->fs.pDelFile;
 
@@ -1189,38 +1219,28 @@ static int32_t tsdbSnapWriteDel(STsdbSnapWriter* pWriter, uint8_t* pData, uint32
 
       code = tsdbReadDelIdx(pWriter->pDelFReader, pWriter->aDelIdxR);
       if (code) goto _err;
+    } else {
+      taosArrayClear(pWriter->aDelIdxR);
     }
+    pWriter->iDelIdx = 0;
 
     // writer
-    SDelFile delFile = {.commitID = pWriter->commitID, .offset = 0, .size = 0};
+    SDelFile delFile = {.commitID = pWriter->commitID};
     code = tsdbDelFWriterOpen(&pWriter->pDelFWriter, &delFile, pTsdb);
     if (code) goto _err;
+    taosArrayClear(pWriter->aDelIdxW);
   }
 
-  // process the del data
-  TABLEID id = *(TABLEID*)(pData + sizeof(SSnapDataHdr));
+  SSnapDataHdr* pHdr = (SSnapDataHdr*)pData;
+  TABLEID       id = *(TABLEID*)pHdr->data;
 
-  while (true) {
-    if (pWriter->iDelIdx >= taosArrayGetSize(pWriter->aDelIdxR)) break;
-    if (tTABLEIDCmprFn(taosArrayGet(pWriter->aDelIdxR, pWriter->iDelIdx), &id) >= 0) break;
+  ASSERT(pHdr->size + sizeof(SSnapDataHdr) == nData);
 
-    SDelIdx* pDelIdx = (SDelIdx*)taosArrayGet(pWriter->aDelIdxR, pWriter->iDelIdx);
+  // Move write data < id
+  code = tsdbSnapMoveWriteDelData(pWriter, &id);
+  if (code) goto _err;
 
-    code = tsdbReadDelData(pWriter->pDelFReader, pDelIdx, pWriter->aDelData);
-    if (code) goto _err;
-
-    SDelIdx delIdx = *pDelIdx;
-    code = tsdbWriteDelData(pWriter->pDelFWriter, pWriter->aDelData, &delIdx);
-    if (code) goto _err;
-
-    if (taosArrayPush(pWriter->aDelIdxW, &delIdx) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _err;
-    }
-
-    pWriter->iDelIdx++;
-  }
-
+  // Merge incoming data with current
   if (pWriter->iDelIdx < taosArrayGetSize(pWriter->aDelIdxR) &&
       tTABLEIDCmprFn(taosArrayGet(pWriter->aDelIdxR, pWriter->iDelIdx), &id) == 0) {
     SDelIdx* pDelIdx = (SDelIdx*)taosArrayGet(pWriter->aDelIdxR, pWriter->iDelIdx);
@@ -1269,21 +1289,9 @@ static int32_t tsdbSnapWriteDelEnd(STsdbSnapWriter* pWriter) {
 
   if (pWriter->pDelFWriter == NULL) goto _exit;
 
-  for (; pWriter->iDelIdx < taosArrayGetSize(pWriter->aDelIdxR); pWriter->iDelIdx++) {
-    SDelIdx* pDelIdx = (SDelIdx*)taosArrayGet(pWriter->aDelIdxR, pWriter->iDelIdx);
-
-    code = tsdbReadDelData(pWriter->pDelFReader, pDelIdx, pWriter->aDelData);
-    if (code) goto _err;
-
-    SDelIdx delIdx = *pDelIdx;
-    code = tsdbWriteDelData(pWriter->pDelFWriter, pWriter->aDelData, &delIdx);
-    if (code) goto _err;
-
-    if (taosArrayPush(pWriter->aDelIdxR, &delIdx) == NULL) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _err;
-    }
-  }
+  TABLEID id = {.suid = INT64_MAX, .uid = INT64_MAX};
+  code = tsdbSnapMoveWriteDelData(pWriter, &id);
+  if (code) goto _err;
 
   code = tsdbUpdateDelFileHdr(pWriter->pDelFWriter);
   if (code) goto _err;

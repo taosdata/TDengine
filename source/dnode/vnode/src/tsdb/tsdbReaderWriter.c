@@ -1170,8 +1170,8 @@ int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile, STsdb *pTsdb
   pDelFWriter->fDel = *pFile;
 
   tsdbDelFileName(pTsdb, pFile, fname);
-  code =
-      tsdbOpenFile(fname, TSDB_DEFAULT_PAGE_SIZE, TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE, &pDelFWriter->pWriteH);
+  int32_t flag = TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE;
+  code = tsdbOpenFile(fname, TSDB_DEFAULT_PAGE_SIZE, flag, &pDelFWriter->pWriteH);
   if (code) goto _err;
 
   // update header
