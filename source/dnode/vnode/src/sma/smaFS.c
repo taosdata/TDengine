@@ -49,7 +49,7 @@ int32_t tdRSmaFSOpen(SSma *pSma, int64_t version) {
   for (int32_t i = 0; i < taosArrayGetSize(output); ++i) {
     int32_t vid = 0;
     int64_t version = -1;
-    sscanf((const char *)taosArrayGetP(output, i), "v%dqinfo.v%" PRIi64, &vid, &version);
+    sscanf((const char *)taosArrayGetP(output, i), "v%dqinf.v%" PRIi64, &vid, &version);
     SQTaskFile qTaskFile = {.version = version, .nRef = 1};
     if ((terrno = tdRSmaFSUpsertQTaskFile(RSMA_FS(pStat), &qTaskFile)) < 0) {
       goto _end;
@@ -94,6 +94,18 @@ int32_t tdRSmaFSRef(SSma *pSma, SRSmaStat *pStat, int64_t version) {
   }
   taosRUnLockLatch(RSMA_FS_LOCK(pStat));
   return oldVal;
+}
+
+int64_t tdRSmaFSMaxVer(SSma *pSma, SRSmaStat *pStat) {
+  SArray *aQTaskInf = RSMA_FS(pStat)->aQTaskInf;
+  int64_t version = -1;
+
+  taosRLockLatch(RSMA_FS_LOCK(pStat));
+  if (taosArrayGetSize(aQTaskInf) > 0) {
+    version = ((SQTaskFile *)taosArrayGetLast(aQTaskInf))->version;
+  }
+  taosRUnLockLatch(RSMA_FS_LOCK(pStat));
+  return version;
 }
 
 void tdRSmaFSUnRef(SSma *pSma, SRSmaStat *pStat, int64_t version) {
