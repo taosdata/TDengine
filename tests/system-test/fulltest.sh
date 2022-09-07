@@ -333,7 +333,7 @@ python3 ./test.py -f 7-tmq/stbTagFilter-1ctb.py
 python3 ./test.py -f 7-tmq/dataFromTsdbNWal.py
 python3 ./test.py -f 7-tmq/dataFromTsdbNWal-multiCtb.py
 python3 ./test.py -f 7-tmq/tmq_taosx.py
-# python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
+python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
 
 #------------querPolicy  2-----------
 
