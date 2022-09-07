@@ -586,7 +586,7 @@ int idxFlushCacheToTFile(SIndex* sIdx, void* cache, bool quit) {
 
   int ret = idxGenTFile(sIdx, pCache, result);
   if (ret != 0) {
-    indexError("failed to merge, time cost: %" PRId64 "ms", cost / 1000);
+    indexError("failed to merge");
   } else {
     int64_t cost = taosGetTimestampUs() - st;
     indexInfo("success to merge , time cost: %" PRId64 "ms", cost / 1000);
