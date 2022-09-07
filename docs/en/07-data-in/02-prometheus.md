@@ -16,9 +16,9 @@ In your TDengine cloud instance, click "Explorer" on the left panel, then click 
 
 Supposed that you use Linux system with architecture amd64:
 1. Download
-  ```
-  wget https://github.com/prometheus/prometheus/releases/download/v2.37.0/prometheus-2.37.0.linux-amd64.tar.gz
-  ```
+    ```
+    wget https://github.com/prometheus/prometheus/releases/download/v2.37.0/prometheus-2.37.0.linux-amd64.tar.gz
+    ```
 2. Decompress and rename
    ```
    tar xvfz prometheus-*.tar.gz && mv prometheus-2.37.0.linux-amd64 prometheus
