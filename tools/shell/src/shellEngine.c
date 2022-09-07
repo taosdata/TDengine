@@ -19,6 +19,7 @@
 #define _XOPEN_SOURCE
 #define _DEFAULT_SOURCE
 #include "shellInt.h"
+#include "shellAuto.h"
 
 static bool    shellIsEmptyCommand(const char *cmd);
 static int32_t shellRunSingleCommand(char *command);
@@ -193,6 +194,9 @@ void shellRunSingleCommandImp(char *command) {
     fprintf(stdout, "Database changed.\r\n\r\n");
     fflush(stdout);
 
+    // call back auto tab module
+    callbackAutoTab(command, pSql, true);
+
     taos_free_result(pSql);
 
     return;
@@ -217,6 +221,9 @@ void shellRunSingleCommandImp(char *command) {
     taos_free_result(pSql);
     et = taosGetTimestampUs();
     printf("Query OK, %d of %d rows affected (%.6fs)\r\n", num_rows_affacted, num_rows_affacted, (et - st) / 1E6);
+
+    // call auto tab
+    callbackAutoTab(command, pSql, false);    
   }
 
   printf("\r\n");

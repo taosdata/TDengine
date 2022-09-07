@@ -13,23 +13,28 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_THREAD_H_
-#define _TD_UTIL_THREAD_H_
+#ifndef __SHELL_AUTO__
+#define __SHELL_AUTO__
 
-#include "os.h"
+#define TAB_KEY 0x09
 
-#ifdef __cplusplus
-extern "C" {
+// press tab key
+void pressTabKey(SShellCmd* cmd);
+
+// press othr key
+void pressOtherKey(char c);
+
+// init shell auto funciton , shell start call once 
+bool shellAutoInit();
+
+// set conn
+void shellSetConn(TAOS* conn);
+
+// exit shell auto funciton, shell exit call once
+void shellAutoExit();
+
+// callback autotab module
+void callbackAutoTab(char* sqlstr, TAOS* pSql, bool usedb);
+
+
 #endif
-
-TdThread* taosCreateThread(void* (*__start_routine)(void*), void* param);
-bool       taosDestroyThread(TdThread* pthread);
-bool       taosThreadRunning(TdThread* pthread);
-
-typedef void *(*ThreadFp)(void *param);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_UTIL_THREAD_H_*/
