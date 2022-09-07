@@ -262,7 +262,7 @@ int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pS
 int32_t tsdbDataFWriterClose(SDataFWriter **ppWriter, int8_t sync);
 int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter);
 int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SArray *aBlockIdx);
-int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *pMapData, SBlockIdx *pBlockIdx);
+int32_t tsdbWriteDataBlk(SDataFWriter *pWriter, SMapData *mDataBlk, SBlockIdx *pBlockIdx);
 int32_t tsdbWriteSttBlk(SDataFWriter *pWriter, SArray *aSttBlk);
 int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlockInfo *pBlkInfo, SSmaInfo *pSmaInfo,
                            int8_t cmprAlg, int8_t toLast);
@@ -272,7 +272,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo);
 int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pSet);
 int32_t tsdbDataFReaderClose(SDataFReader **ppReader);
 int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx);
-int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *pMapData);
+int32_t tsdbReadDataBlk(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *mDataBlk);
 int32_t tsdbReadSttBlk(SDataFReader *pReader, int32_t iStt, SArray *aSttBlk);
 int32_t tsdbReadBlockSma(SDataFReader *pReader, SDataBlk *pBlock, SArray *aColumnDataAgg);
 int32_t tsdbReadDataBlock(SDataFReader *pReader, SDataBlk *pBlock, SBlockData *pBlockData);

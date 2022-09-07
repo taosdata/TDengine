@@ -377,7 +377,7 @@ static int32_t tsdbCommitterNextTableData(SCommitter *pCommitter) {
     pCommitter->dReader.pBlockIdx =
         (SBlockIdx *)taosArrayGet(pCommitter->dReader.aBlockIdx, pCommitter->dReader.iBlockIdx);
 
-    code = tsdbReadBlock(pCommitter->dReader.pReader, pCommitter->dReader.pBlockIdx, &pCommitter->dReader.mBlock);
+    code = tsdbReadDataBlk(pCommitter->dReader.pReader, pCommitter->dReader.pBlockIdx, &pCommitter->dReader.mBlock);
     if (code) goto _exit;
 
     ASSERT(pCommitter->dReader.mBlock.nItem > 0);
@@ -493,7 +493,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
     pCommitter->dReader.iBlockIdx = 0;
     if (taosArrayGetSize(pCommitter->dReader.aBlockIdx) > 0) {
       pCommitter->dReader.pBlockIdx = (SBlockIdx *)taosArrayGet(pCommitter->dReader.aBlockIdx, 0);
-      code = tsdbReadBlock(pCommitter->dReader.pReader, pCommitter->dReader.pBlockIdx, &pCommitter->dReader.mBlock);
+      code = tsdbReadDataBlk(pCommitter->dReader.pReader, pCommitter->dReader.pBlockIdx, &pCommitter->dReader.mBlock);
       if (code) goto _err;
     } else {
       pCommitter->dReader.pBlockIdx = NULL;
@@ -688,7 +688,7 @@ static int32_t tsdbMoveCommitData(SCommitter *pCommitter, TABLEID toTable) {
 
   while (pCommitter->dReader.pBlockIdx && tTABLEIDCmprFn(pCommitter->dReader.pBlockIdx, &toTable) < 0) {
     SBlockIdx blockIdx = *pCommitter->dReader.pBlockIdx;
-    code = tsdbWriteBlock(pCommitter->dWriter.pWriter, &pCommitter->dReader.mBlock, &blockIdx);
+    code = tsdbWriteDataBlk(pCommitter->dWriter.pWriter, &pCommitter->dReader.mBlock, &blockIdx);
     if (code) goto _err;
 
     if (taosArrayPush(pCommitter->dWriter.aBlockIdx, &blockIdx) == NULL) {
@@ -1451,7 +1451,7 @@ static int32_t tsdbCommitFileDataImpl(SCommitter *pCommitter) {
     // end
     if (pCommitter->dWriter.mBlock.nItem > 0) {
       SBlockIdx blockIdx = {.suid = id.suid, .uid = id.uid};
-      code = tsdbWriteBlock(pCommitter->dWriter.pWriter, &pCommitter->dWriter.mBlock, &blockIdx);
+      code = tsdbWriteDataBlk(pCommitter->dWriter.pWriter, &pCommitter->dWriter.mBlock, &blockIdx);
       if (code) goto _err;
 
       if (taosArrayPush(pCommitter->dWriter.aBlockIdx, &blockIdx) == NULL) {
