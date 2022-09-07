@@ -644,19 +644,19 @@ typedef struct {
 } SRowInfo;
 
 typedef struct SSttBlockLoadInfo {
-    SBlockData blockData[2];
-    SArray    *aSttBlk;
-    int32_t    blockIndex[2];  // to denote the loaded block in the corresponding position.
-    int32_t    currentLoadBlockIndex;
+  SBlockData blockData[2];
+  SArray    *aSttBlk;
+  int32_t    blockIndex[2];  // to denote the loaded block in the corresponding position.
+  int32_t    currentLoadBlockIndex;
 } SSttBlockLoadInfo;
 
 typedef struct SMergeTree {
-  int8_t      backward;
-  SRBTree     rbt;
-  SArray     *pIterList;
-  SLDataIter *pIter;
-  bool        destroyLoadInfo;
-  SSttBlockLoadInfo* pLoadInfo;
+  int8_t             backward;
+  SRBTree            rbt;
+  SArray            *pIterList;
+  SLDataIter        *pIter;
+  bool               destroyLoadInfo;
+  SSttBlockLoadInfo *pLoadInfo;
 } SMergeTree;
 
 typedef struct {
@@ -666,15 +666,15 @@ typedef struct {
 } SSkmInfo;
 
 int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
-                       STimeWindow *pTimeWindow, SVersionRange *pVerRange, void* pLoadInfo);
+                       STimeWindow *pTimeWindow, SVersionRange *pVerRange, void *pLoadInfo);
 void    tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
 bool    tMergeTreeNext(SMergeTree *pMTree);
 TSDBROW tMergeTreeGetRow(SMergeTree *pMTree);
 void    tMergeTreeClose(SMergeTree *pMTree);
 
-SSttBlockLoadInfo* tCreateLastBlockLoadInfo();
-void  resetLastBlockLoadInfo(SSttBlockLoadInfo* pLoadInfo);
-void* destroyLastBlockLoadInfo(SSttBlockLoadInfo* pLoadInfo);
+SSttBlockLoadInfo *tCreateLastBlockLoadInfo();
+void               resetLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
+void              *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 
 // ========== inline functions ==========
 static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
