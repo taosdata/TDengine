@@ -11,7 +11,7 @@ taosBenchmark (formerly taosdemo ) is a tool for testing the performance of TDen
 
 ## Installation
 
-Download [taosTools](https://tdengine.com/assets-download/cloud/taosTools-2.1.3-Linux-x64.tar.gz).
+To use taosBenchmark, you need to download and install [taosTools](https://tdengine.com/assets-download/cloud/taosTools-2.1.3-Linux-x64.tar.gz). Before installing taosTools, please firstly download and install [TDengine CLI](../cli/#installation).
 
 Decompress the package and install.
 ```
