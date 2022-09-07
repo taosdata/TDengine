@@ -1124,7 +1124,27 @@ _exit:
 
 static int32_t tsdbSnapWriteTableDataStart(STsdbSnapWriter* pWriter, TABLEID* pId) {
   int32_t code = 0;
-  // TODO
+
+  code = tsdbSnapWriteCopyData(pWriter, pId);
+  if (code) goto _err;
+
+  pWriter->id.suid = pId->suid;
+  pWriter->id.uid = pId->uid;
+
+  code = tsdbUpdateTableSchema(pWriter->pTsdb->pVnode->pMeta, pId->suid, pId->uid, &pWriter->skmTable);
+  if (code) goto _err;
+
+  // Reader (todo)
+  ASSERT(pWriter->dReader.pBlockIdx == NULL || tTABLEIDCmprFn(pWriter->dReader.pBlockIdx, pId) >= 0);
+
+  // Writer
+  tMapDataReset(&pWriter->dWriter.mDataBlk);
+  code = tBlockDataInit(&pWriter->dWriter.bData, pId->suid, pId->uid, pWriter->skmTable.pTSchema);
+  if (code) goto _err;
+
+  return code;
+
+_err:
   return code;
 }
 
@@ -1177,6 +1197,9 @@ static int32_t tsdbSnapWriteTableDataEnd(STsdbSnapWriter* pWriter) {
       goto _err;
     }
   }
+
+  pWriter->id.suid = 0;
+  pWriter->id.uid = 0;
 
   return code;
 
@@ -1296,18 +1319,10 @@ static int32_t tsdbSnapWriteRowData(STsdbSnapWriter* pWriter, int32_t iRow) {
   if (id.suid != pWriter->id.suid || id.uid != pWriter->id.uid) {
     code = tsdbSnapWriteTableDataEnd(pWriter);
     if (code) goto _err;
-
-    pWriter->id.suid = 0;
-    pWriter->id.uid = 0;
   }
 
   // Start new table data write if need
   if (pWriter->id.suid == 0 && pWriter->id.uid == 0) {
-    // Copy table data ahead
-    code = tsdbSnapWriteCopyData(pWriter, &id);
-    if (code) goto _err;
-
-    // Start new table data
     code = tsdbSnapWriteTableDataStart(pWriter, &id);
     if (code) goto _err;
   }
@@ -1355,7 +1370,9 @@ static int32_t tsdbSnapWriteRowData(STsdbSnapWriter* pWriter, int32_t iRow) {
         if (code) goto _err;
 
         if (pWriter->dWriter.bData.nRow >= pWriter->maxRow) {
-          // TODO: write data block
+          code = tsdbWriteDataBlock(pWriter->dWriter.pWriter, &pWriter->dWriter.bData, &pWriter->dWriter.mDataBlk,
+                                    pWriter->cmprAlg);
+          if (code) goto _err;
         }
       } else {
         code = tsdbReadDataBlockEx(pWriter->dReader.pReader, &dataBlk, &pWriter->dReader.bData);
@@ -1374,7 +1391,9 @@ static int32_t tsdbSnapWriteRowData(STsdbSnapWriter* pWriter, int32_t iRow) {
   if (code) goto _err;
 
   if (pWriter->dWriter.sData.nRow >= pWriter->maxRow) {
-    // TODO: write sst block
+    code = tsdbWriteSttBlock(pWriter->dWriter.pWriter, &pWriter->dWriter.sData, pWriter->dWriter.aSttBlk,
+                             pWriter->cmprAlg);
+    if (code) goto _err;
   }
 
 _exit:
