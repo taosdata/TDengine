@@ -1429,6 +1429,9 @@ static int32_t doMergeFileBlockAndLastBlock(SLastBlockReader* pLastBlockReader, 
       return TSDB_CODE_SUCCESS;
     } else {
       tRowMergerInit(&merge, &fRow, pReader->pSchema);
+
+      TSDBROW fRow1 = tMergeTreeGetRow(&pLastBlockReader->mergeTree);
+      tRowMerge(&merge, &fRow1);
       doMergeRowsInLastBlock(pLastBlockReader, pBlockScanInfo, tsLastBlock, &merge);
 
       // merge with block data if ts == key
@@ -3122,11 +3125,16 @@ int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, S
     SColumnInfoData* pCol = taosArrayGet(pResBlock->pDataBlock, i);
     SColData*        pData = tBlockDataGetColDataByIdx(pBlockData, j);
 
+    if (pData->cid < pCol->info.colId) {
+      j += 1;
+      continue;
+    }
+
     if (pData->cid == pCol->info.colId) {
       tColDataGetValue(pData, rowIndex, &cv);
       doCopyColVal(pCol, outputRowIndex, i, &cv, pSupInfo);
       j += 1;
-    } else {  // the specified column does not exist in file block, fill with null data
+    } else if (pData->cid > pCol->info.colId) {  // the specified column does not exist in file block, fill with null data
       colDataAppendNULL(pCol, outputRowIndex);
     }
 
