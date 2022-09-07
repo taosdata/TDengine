@@ -100,10 +100,10 @@ taos -E $TDENGINE_CLOUD_DSN
 
 ## Using TDengine CLI
 
-TDengine CLI will display a welcome message and version information if it successfully connected to the TDengine service. If it fails, TDengine CLI will print an error message. See [FAQ](/train-faq/faq) to solve the problem of terminal connection failure to the server. The TDengine CLI prompts as follows:
+TDengine CLI will display a welcome message and version information if it successfully connected to the TDengine service. If it fails, TDengine CLI will print an error message. The TDengine CLI prompts as follows:
 
 ```
-Welcome to the TDengine shell from Linux, Client Version:2.6.0.4
+Welcome to the TDengine shell from Linux, Client Version:3.0.0.0
 Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.
 
 Successfully connect to cloud.tdengine.com:8085 in restful mode

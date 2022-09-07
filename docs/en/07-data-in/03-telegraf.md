@@ -8,6 +8,10 @@ Telegraf is an open-source, metrics collection software. Telegraf can collect th
 
 Telegraf's data can be written to TDengine by simply adding the output configuration of Telegraf to the URL corresponding to taosAdapter and modifying several configuration items. The presence of Telegraf data in TDengine can take advantage of TDengine's efficient storage query performance and clustering capabilities for time-series data.
 
+## Prerequisiteis
+
+Before telegraf can write data into TDengine cloud service, you need to firstly manually create a database. Log in TDengine Cloud, click "Explorer" on the left navigation bar, then click the "+" button besides "Databases" to add a database named as "telegraf" using all default parameters.
+
 ## Install Telegraf
 
 Supposed that you use Ubuntu system:
@@ -62,8 +66,6 @@ telegraf --config telegraf.conf
 ```
 
 ## Verify
-
-- Log in TDengine Cloud, click "Explorer" on the left navigation bar, then click the "+" button besides "Databases" to add a database named as "telegraf" using all default parameters.
 
 - Check weather database "telegraf" exist by executing:
 
