@@ -357,7 +357,7 @@ void checkBrokenQueries(STscObj *pTscObj) {
       pthread_mutex_lock(&pSql->subState.mutex);
       if (pSql->pSubs) {
         // have sub sql
-        for (int i = 0; i < numOfSub; i++) {
+        for (int i = 0; i < pSql->subState.numOfSub; i++) {
           SSqlObj *pSubSql = pSql->pSubs[i];
           if(pSubSql) {
             tscInfo("PROBE 0x%" PRIx64 " sub sql app is 0x%" PRIx64, pSql->self, pSubSql->self);
