@@ -174,7 +174,10 @@ pub async fn tmq_to_local(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> R
     let mut task_id = 0;
 
     for (topic_id, topic) in config.topics.iter().enumerate() {
-        let jobs = if jobs == 0 || jobs >= topic.vgroups {
+        if jobs == 0 && topic.vgroups == 0 {
+            anyhow::bail!("unknown vgroups, use a thread number larger than 0 with -j");
+        }
+        let jobs = if jobs == 0 || jobs > topic.vgroups {
             topic.vgroups
         } else {
             jobs

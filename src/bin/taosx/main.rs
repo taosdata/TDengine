@@ -16,6 +16,10 @@ pub(crate) struct GlobalOpts {
     #[clap(short, long, value_parser, default_value = "0", global = true)]
     jobs: usize,
 
+    /// Enable debug will set the mod path as `file:line`.
+    #[clap(short, long, global = true)]
+    debug: bool,
+
     /// Be careful to use this, we suggest only use it when failed at first time.
     ///
     /// We'll warn you various kind of risks before really running a task.
@@ -69,9 +73,10 @@ async fn main() -> Result<()> {
 
     let mut builder = pretty_env_logger::formatted_timed_builder();
     builder.filter_level(args.globals.verbose.log_level_filter());
+    let debug = args.globals.debug;
     builder
         .format_module_path(true)
-        .format(|buf, record| -> std::result::Result<(), std::io::Error> {
+        .format(move |buf, record| -> std::result::Result<(), std::io::Error> {
             fn colored_level<'a>(
                 style: &'a mut pretty_env_logger::env_logger::fmt::Style,
                 level: Level,
@@ -88,11 +93,19 @@ async fn main() -> Result<()> {
             let level = colored_level(&mut style, record.level());
             let mut mod_path = buf.style();
 
-            let mod_path = mod_path.set_bold(true).value(format!(
-                "{}:{}",
-                record.file().unwrap_or("unknown"),
-                record.line().unwrap_or(0),
-            ));
+            let mod_path = if debug {
+                mod_path.set_bold(true).value(format!(
+                    "{}:{}",
+                    record.file().unwrap_or("unknown"),
+                    record.line().unwrap_or(0),
+                ))
+            } else {
+                mod_path.set_bold(true).value(format!(
+                    "{}",
+                    record.module_path().unwrap_or_default(),
+                ))
+            };
+
             use std::io::Write;
             writeln!(
                 buf,

@@ -45,8 +45,12 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                     "SELECT `vgroups` FROM information_schema.ins_databases WHERE name='{}'",
                     topic.db_name()
                 ))
-                .await?
-                .expect("database not exists");
+                // .await?
+                // .expect("database may not exist");
+                .await
+                .ok()
+                .unwrap_or_default()
+                .unwrap_or(0);
 
             let (_, sql): ((), String) = source
                 .query_one(format!("SHOW CREATE DATABASE `{}`", topic.db_name()))
@@ -75,8 +79,12 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                 .query_one(format!(
                     "select `vgroups` from information_schema.ins_databases where name='{database}'"
                 ))
-                .await?
-                .expect("database not exists");
+                // .await?
+                // .expect("database not exists");
+                .await
+                .ok()
+                .unwrap_or_default()
+                .unwrap_or(0);
 
             let (_, sql): ((), String) = source
                 .query_one(format!("SHOW CREATE DATABASE `{database}`"))
