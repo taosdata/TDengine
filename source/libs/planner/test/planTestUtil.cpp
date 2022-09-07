@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 
 #include "cmdnodes.h"
 #include "mockCatalogService.h"
@@ -323,7 +324,6 @@ class PlannerTestBaseImpl {
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_PHYSICAL == module) {
       cout << "+++++++++++++++++++++physical plan : " << endl;
       cout << res_.physiPlan_ << endl;
-      cout << "json len: " << res_.physiPlan_.length() << ", msg len: " << res_.physiPlanMsg_.length() << endl;
     }
 
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_SUBPLAN == module) {
@@ -412,6 +412,7 @@ class PlannerTestBaseImpl {
       FOREACH(pSubplan, ((SNodeListNode*)pNode)->pNodeList) { res_.physiSubplans_.push_back(toString(pSubplan)); }
     }
     res_.physiPlanMsg_ = toMsg((SNode*)(*pPlan));
+    cout << "json len: " << res_.physiPlan_.length() << ", msg len: " << res_.physiPlanMsg_.length() << endl;
   }
 
   void setPlanContext(SQuery* pQuery, SPlanContext* pCxt) {
@@ -450,7 +451,12 @@ class PlannerTestBaseImpl {
   string toString(const SNode* pRoot) {
     char*   pStr = NULL;
     int32_t len = 0;
+
+    // auto start = chrono::steady_clock::now();
     DO_WITH_THROW(nodesNodeToString, pRoot, false, &pStr, &len)
+    // cout << "nodesNodeToString: "
+    //      << chrono::duration_cast<chrono::nanoseconds>(chrono::steady_clock::now() - start).count() << endl;
+
     string str(pStr);
     taosMemoryFreeClear(pStr);
     return str;
@@ -459,7 +465,24 @@ class PlannerTestBaseImpl {
   string toMsg(const SNode* pRoot) {
     char*   pStr = NULL;
     int32_t len = 0;
+
+    // auto start = chrono::steady_clock::now();
     DO_WITH_THROW(nodesNodeToMsg, pRoot, &pStr, &len)
+    // cout << "nodesNodeToMsg: "
+    //      << chrono::duration_cast<chrono::nanoseconds>(chrono::steady_clock::now() - start).count() << endl;
+
+    SNode*  pNode = NULL;
+    char*   pNewStr = NULL;
+    int32_t newlen = 0;
+    DO_WITH_THROW(nodesMsgToNode, pStr, len, &pNode)
+    DO_WITH_THROW(nodesNodeToMsg, pNode, &pNewStr, &newlen)
+    if (newlen != len || 0 != memcmp(pStr, pNewStr, len)) {
+      cout << "nodesNodeToMsg error!!!!!!!!!!!!!! len = " << len << ", newlen = " << newlen << endl;
+      DO_WITH_THROW(nodesNodeToString, pNode, false, &pNewStr, &newlen)
+      cout << "nodesNodeToString " << pNewStr << endl;
+    }
+    taosMemoryFreeClear(pNewStr);
+
     string str(pStr, len);
     taosMemoryFreeClear(pStr);
     return str;
