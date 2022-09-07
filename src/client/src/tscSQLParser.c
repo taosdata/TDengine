@@ -8481,7 +8481,15 @@ static bool check_expr_in_groupby_colum(SGroupbyExpr* pGroupbyExpr, SExprInfo* p
     return false;
   for (int32_t k = 0; k < pGroupbyExpr->numOfGroupCols ; ++k) {
     pIndex = taosArrayGet(pGroupbyExpr->columnInfo, k);
-    if (!strcmp(pIndex->name,&pExpr->base.colInfo.name[1])){ // notes:first char is dot, skip one char.
+
+    // find last dot
+    char * name = strrchr(pExpr->base.colInfo.name, '.');
+    if(name)
+      name += 1;
+    else
+      name = pExpr->base.colInfo.name;
+
+    if (!strcmp(pIndex->name, name)){
       return true;
     }
   }
