@@ -120,6 +120,92 @@ static SBlockData* loadBlockIfMissing(SLDataIter *pIter) {
   return NULL;
 }
 
+// find the earliest block that contains the required records
+static FORCE_INLINE int32_t findEarliestIndex(int32_t index, uint64_t uid, const SSttBlk* pBlockList, int32_t backward) {
+  int32_t i = index;
+  int32_t step = backward? 1:-1;
+  while (uid >= pBlockList[i].minUid && uid <= pBlockList[i].maxUid && i >= 0) {
+    i += step;
+  }
+  return i - step;
+}
+
+static int32_t binarySearchForStartBlock(SSttBlk*pBlockList, int32_t num, uint64_t uid, int32_t backward) {
+  int32_t midPos = -1;
+  if (num <= 0) {
+    return -1;
+  }
+
+  int32_t firstPos = 0;
+  int32_t lastPos = num - 1;
+
+  // find the first position which is bigger than the key
+  if ((uid > pBlockList[lastPos].maxUid) || (uid < pBlockList[firstPos].minUid)) {
+    return -1;
+  }
+
+  while (1) {
+    if (uid >= pBlockList[firstPos].minUid && uid <= pBlockList[firstPos].maxUid) {
+      return findEarliestIndex(firstPos, uid, pBlockList, backward);
+    }
+
+    if (uid > pBlockList[lastPos].maxUid || uid < pBlockList[firstPos].minUid) {
+      return -1;
+    }
+
+    int32_t numOfRows = lastPos - firstPos + 1;
+    midPos = (numOfRows >> 1u) + firstPos;
+
+    if (uid < pBlockList[midPos].minUid) {
+      lastPos = midPos - 1;
+    } else if (uid > pBlockList[midPos].maxUid) {
+      firstPos = midPos + 1;
+    } else {
+      return findEarliestIndex(midPos, uid, pBlockList, backward);
+    }
+  }
+}
+
+static FORCE_INLINE int32_t findEarliestRow(int32_t index, uint64_t uid, const uint64_t* uidList, int32_t backward) {
+  int32_t i = index;
+  int32_t step = backward? 1:-1;
+  while (uid == uidList[i] && i >= 0) {
+    i += step;
+  }
+  return i - step;
+}
+
+static int32_t binarySearchForStartRowIndex(uint64_t* uidList, int32_t num, uint64_t uid, int32_t backward) {
+  int32_t firstPos = 0;
+  int32_t lastPos = num - 1;
+
+  // find the first position which is bigger than the key
+  if ((uid > uidList[lastPos]) || (uid < uidList[firstPos])) {
+    return -1;
+  }
+
+  while (1) {
+    if (uid == uidList[firstPos]) {
+      return findEarliestRow(firstPos, uid, uidList, backward);
+    }
+
+    if (uid > uidList[lastPos] || uid < uidList[firstPos]) {
+      return -1;
+    }
+
+    int32_t numOfRows = lastPos - firstPos + 1;
+    int32_t midPos = (numOfRows >> 1u) + firstPos;
+
+    if (uid < uidList[midPos]) {
+      lastPos = midPos - 1;
+    } else if (uid > uidList[midPos]) {
+      firstPos = midPos + 1;
+    } else {
+      return findEarliestRow(midPos, uid, uidList, backward);
+    }
+  }
+}
+
 int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t iStt, int8_t backward, uint64_t suid,
                        uint64_t uid, STimeWindow *pTimeWindow, SVersionRange *pRange, SSttBlockLoadInfo* pBlockLoadInfo) {
   int32_t code = 0;
@@ -147,33 +233,7 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
   size_t size = taosArrayGetSize(pBlockLoadInfo->aSttBlk);
 
   // find the start block
-  int32_t index = -1;
-  if (!backward) {  // asc
-    for (int32_t i = 0; i < size; ++i) {
-      SSttBlk *p = taosArrayGet(pBlockLoadInfo->aSttBlk, i);
-      if (p->suid != suid) {
-        continue;
-      }
-
-      if (p->minUid <= uid && p->maxUid >= uid) {
-        index = i;
-        break;
-      }
-    }
-  } else {  // desc
-    for (int32_t i = size - 1; i >= 0; --i) {
-      SSttBlk *p = taosArrayGet(pBlockLoadInfo->aSttBlk, i);
-      if (p->suid != suid) {
-        continue;
-      }
-
-      if (p->minUid <= uid && p->maxUid >= uid) {
-        index = i;
-        break;
-      }
-    }
-  }
-
+  int32_t index = binarySearchForStartBlock(pBlockLoadInfo->aSttBlk->pData, size, uid, backward);
   (*pIter)->iSttBlk = index;
   if (index != -1) {
     (*pIter)->pSttBlk = taosArrayGet(pBlockLoadInfo->aSttBlk, (*pIter)->iSttBlk);
@@ -193,7 +253,7 @@ void tLDataIterNextBlock(SLDataIter *pIter) {
   pIter->iSttBlk += step;
 
   int32_t index = -1;
-  size_t  size = taosArrayGetSize(pIter->pBlockLoadInfo->aSttBlk);
+  size_t  size = pIter->pBlockLoadInfo->aSttBlk->size;//taosArrayGetSize(pIter->pBlockLoadInfo->aSttBlk);
   for (int32_t i = pIter->iSttBlk; i < size && i >= 0; i += step) {
     SSttBlk *p = taosArrayGet(pIter->pBlockLoadInfo->aSttBlk, i);
     if ((!pIter->backward) && p->minUid > pIter->uid) {
@@ -232,9 +292,8 @@ void tLDataIterNextBlock(SLDataIter *pIter) {
     }
   }
 
-  if (index == -1) {
-    pIter->pSttBlk = NULL;
-  } else {
+  pIter->pSttBlk = NULL;
+  if (index != -1) {
     pIter->pSttBlk = (SSttBlk *)taosArrayGet(pIter->pBlockLoadInfo->aSttBlk, pIter->iSttBlk);
   }
 }
@@ -247,18 +306,23 @@ static void findNextValidRow(SLDataIter *pIter) {
 
   SBlockData *pBlockData = loadBlockIfMissing(pIter);
 
+  // mostly we only need to find the start position for a given table
+  if ((((i == 0) && (!pIter->backward)) || (i == pBlockData->nRow - 1 && pIter->backward)) && pBlockData->aUid != NULL) {
+    i = binarySearchForStartRowIndex((uint64_t*)pBlockData->aUid, pBlockData->nRow, pIter->uid, pIter->backward);
+  }
+
   for (; i < pBlockData->nRow && i >= 0; i += step) {
     if (pBlockData->aUid != NULL) {
       if (!pIter->backward) {
-        if (pBlockData->aUid[i] < pIter->uid) {
+        /*if (pBlockData->aUid[i] < pIter->uid) {
           continue;
-        } else if (pBlockData->aUid[i] > pIter->uid) {
+        } else */if (pBlockData->aUid[i] > pIter->uid) {
           break;
         }
       } else {
-        if (pBlockData->aUid[i] > pIter->uid) {
+        /*if (pBlockData->aUid[i] > pIter->uid) {
           continue;
-        } else if (pBlockData->aUid[i] < pIter->uid) {
+        } else */if (pBlockData->aUid[i] < pIter->uid) {
           break;
         }
       }
