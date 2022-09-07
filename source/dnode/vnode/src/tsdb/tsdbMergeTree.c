@@ -124,7 +124,7 @@ static SBlockData* loadBlockIfMissing(SLDataIter *pIter) {
 static FORCE_INLINE int32_t findEarliestIndex(int32_t index, uint64_t uid, const SSttBlk* pBlockList, int32_t num, int32_t backward) {
   int32_t i = index;
   int32_t step = backward? 1:-1;
-  while (uid >= pBlockList[i].minUid && uid <= pBlockList[i].maxUid && i >= 0 && i < num) {
+  while (i >= 0 && i < num && uid >= pBlockList[i].minUid && uid <= pBlockList[i].maxUid) {
     i += step;
   }
   return i - step;
@@ -169,7 +169,7 @@ static int32_t binarySearchForStartBlock(SSttBlk*pBlockList, int32_t num, uint64
 static FORCE_INLINE int32_t findEarliestRow(int32_t index, uint64_t uid, const uint64_t* uidList, int32_t num, int32_t backward) {
   int32_t i = index;
   int32_t step = backward? 1:-1;
-  while (uid == uidList[i] && i >= 0 && i < num) {
+  while (i >= 0 && i < num && uid == uidList[i]) {
     i += step;
   }
   return i - step;
