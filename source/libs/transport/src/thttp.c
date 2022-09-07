@@ -126,22 +126,22 @@ _OVER:
   return code;
 }
 
-static void destroyHttpClient(SHttpClient* cli) {
+static FORCE_INLINE void destroyHttpClient(SHttpClient* cli) {
   taosMemoryFree(cli->wbuf);
   taosMemoryFree(cli->rbuf);
   taosMemoryFree(cli->addr);
   taosMemoryFree(cli);
 }
-static void clientCloseCb(uv_handle_t* handle) {
+static FORCE_INLINE void clientCloseCb(uv_handle_t* handle) {
   SHttpClient* cli = handle->data;
   destroyHttpClient(cli);
 }
-static void clientAllocBuffCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
+static FORCE_INLINE void clientAllocBuffCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   SHttpClient* cli = handle->data;
   buf->base = cli->rbuf;
   buf->len = HTTP_RECV_BUF_SIZE;
 }
-static void clientRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
+static FORCE_INLINE void clientRecvCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
   SHttpClient* cli = handle->data;
   if (nread < 0) {
     uError("http-report recv error:%s", uv_err_name(nread));
@@ -173,7 +173,7 @@ static void clientConnCb(uv_connect_t* req, int32_t status) {
   uv_write(&cli->req, (uv_stream_t*)&cli->tcp, cli->wbuf, 2, clientSentCb);
 }
 
-static int32_t taosBuildDstAddr(const char* server, uint16_t port, struct sockaddr_in* dest) {
+static FORCE_INLINE int32_t taosBuildDstAddr(const char* server, uint16_t port, struct sockaddr_in* dest) {
   uint32_t ip = taosGetIpv4FromFqdn(server);
   if (ip == 0xffffffff) {
     terrno = TAOS_SYSTEM_ERROR(errno);
