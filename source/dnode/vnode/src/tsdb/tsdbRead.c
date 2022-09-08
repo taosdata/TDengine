@@ -3120,8 +3120,8 @@ int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, S
   }
 
   SColVal cv = {0};
-  int32_t numOfInputCols = taosArrayGetSize(pBlockData->aIdx);
-  int32_t numOfOutputCols = blockDataGetNumOfCols(pResBlock);
+  int32_t numOfInputCols = pBlockData->aIdx->size;
+  int32_t numOfOutputCols = pResBlock->pDataBlock->size;
 
   while (i < numOfOutputCols && j < numOfInputCols) {
     SColumnInfoData* pCol = TARRAY_GET_ELEM(pResBlock->pDataBlock, i);
