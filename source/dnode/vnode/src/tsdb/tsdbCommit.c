@@ -71,7 +71,7 @@ typedef struct {
     SDataIter *pIter;
     SRBTree    rbt;
     SDataIter  dataIter;
-    SDataIter  aDataIter[TSDB_MAX_STT_FILE];
+    SDataIter  aDataIter[TSDB_MAX_STT_TRIGGER];
     int8_t     toLastOnly;
   };
   struct {
@@ -787,7 +787,7 @@ static int32_t tsdbCommitDataStart(SCommitter *pCommitter) {
   if (code) goto _exit;
 
   // merger
-  for (int32_t iStt = 0; iStt < TSDB_MAX_STT_FILE; iStt++) {
+  for (int32_t iStt = 0; iStt < TSDB_MAX_STT_TRIGGER; iStt++) {
     SDataIter *pIter = &pCommitter->aDataIter[iStt];
     pIter->aSttBlk = taosArrayInit(0, sizeof(SSttBlk));
     if (pIter->aSttBlk == NULL) {
@@ -829,7 +829,7 @@ static void tsdbCommitDataEnd(SCommitter *pCommitter) {
   tBlockDataDestroy(&pCommitter->dReader.bData, 1);
 
   // merger
-  for (int32_t iStt = 0; iStt < TSDB_MAX_STT_FILE; iStt++) {
+  for (int32_t iStt = 0; iStt < TSDB_MAX_STT_TRIGGER; iStt++) {
     SDataIter *pIter = &pCommitter->aDataIter[iStt];
     taosArrayDestroy(pIter->aSttBlk);
     tBlockDataDestroy(&pIter->bData, 1);

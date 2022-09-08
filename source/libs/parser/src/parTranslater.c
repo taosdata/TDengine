@@ -3770,7 +3770,7 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
         checkDbRangeOption(pCxt, "walSegmentSize", pOptions->walSegmentSize, TSDB_DB_MIN_WAL_SEGMENT_SIZE, INT32_MAX);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbRangeOption(pCxt, "sstTrigger", pOptions->sstTrigger, TSDB_MIN_SST_TRIGGER, TSDB_MAX_SST_TRIGGER);
+    code = checkDbRangeOption(pCxt, "sstTrigger", pOptions->sstTrigger, TSDB_MIN_STT_TRIGGER, TSDB_MAX_STT_TRIGGER);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbRangeOption(pCxt, "tablePrefix", pOptions->tablePrefix, TSDB_MIN_HASH_PREFIX, TSDB_MAX_HASH_PREFIX);
@@ -6606,7 +6606,7 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
   SDataType targetDt = schemaToDataType(pTableMeta->tableInfo.precision, pSchema);
 
   if (QUERY_NODE_VALUE != pStmt->pVal->node.type) {
-    SValueNode *pVal = NULL;
+    SValueNode* pVal = NULL;
     pCxt->errCode = createTagValFromExpr(pCxt, targetDt, (SNode*)pStmt->pVal, &pVal);
     if (pCxt->errCode) {
       return pCxt->errCode;

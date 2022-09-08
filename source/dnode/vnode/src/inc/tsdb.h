@@ -69,7 +69,6 @@ typedef struct SLDataIter    SLDataIter;
 
 #define TSDB_FILE_DLMT         ((uint32_t)0xF00AFA0F)
 #define TSDB_MAX_SUBBLOCKS     8
-#define TSDB_MAX_STT_FILE      16
 #define TSDB_FHDR_SIZE         512
 #define TSDB_DEFAULT_PAGE_SIZE 4096
 
@@ -571,7 +570,7 @@ struct SDFileSet {
   SDataFile *pDataF;
   SSmaFile  *pSmaF;
   uint8_t    nSttF;
-  SSttFile  *aSttF[TSDB_MAX_STT_FILE];
+  SSttFile  *aSttF[TSDB_MAX_STT_TRIGGER];
 };
 
 struct SRowIter {
@@ -621,7 +620,7 @@ struct SDataFWriter {
   SHeadFile fHead;
   SDataFile fData;
   SSmaFile  fSma;
-  SSttFile  fStt[TSDB_MAX_STT_FILE];
+  SSttFile  fStt[TSDB_MAX_STT_TRIGGER];
 
   uint8_t *aBuf[4];
 };
@@ -632,7 +631,7 @@ struct SDataFReader {
   STsdbFD   *pHeadFD;
   STsdbFD   *pDataFD;
   STsdbFD   *pSmaFD;
-  STsdbFD   *aSttFD[TSDB_MAX_STT_FILE];
+  STsdbFD   *aSttFD[TSDB_MAX_STT_TRIGGER];
   uint8_t   *aBuf[3];
 };
 
