@@ -84,6 +84,8 @@ typedef struct SLDataIter    SLDataIter;
 #define TSDBKEY_MIN ((TSDBKEY){.ts = TSKEY_MIN, .version = VERSION_MIN})
 #define TSDBKEY_MAX ((TSDBKEY){.ts = TSKEY_MAX, .version = VERSION_MAX})
 
+#define TABLE_SAME_SCHEMA(SUID1, UID1, SUID2, UID2) ((SUID1) ? (SUID1) == (SUID2) : (UID1) == (UID2))
+
 #define PAGE_CONTENT_SIZE(PAGE) ((PAGE) - sizeof(TSCKSUM))
 #define LOGIC_TO_FILE_OFFSET(LOFFSET, PAGE) \
   ((LOFFSET) / PAGE_CONTENT_SIZE(PAGE) * (PAGE) + (LOFFSET) % PAGE_CONTENT_SIZE(PAGE))
