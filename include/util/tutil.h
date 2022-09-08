@@ -69,7 +69,18 @@ static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *tar
   memcpy(target, buf, TSDB_PASSWORD_LEN);
 }
 
-#define taosGetTbHashVal(tbname, tblen, method, prefix, suffix) MurmurHash3_32((tbname), (tblen))
+FORCE_INLINE int32_t taosGetTbHashVal(const char *tbname, int32_t tblen, int32_t method, int32_t prefix,
+                                      int32_t suffix) {
+  if (prefix == 0 && suffix == 0) {
+    return MurmurHash3_32(tbname, tblen);
+  } else {
+    if (tblen <= (prefix + suffix)) {
+      return MurmurHash3_32(tbname, tblen);
+    } else {
+      return MurmurHash3_32(tbname + prefix, tblen - prefix - suffix);
+    }
+  }
+}
 
 #ifdef __cplusplus
 }
