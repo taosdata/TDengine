@@ -39,7 +39,7 @@ struct SVSnapReader {
   SStreamStateReader *pStreamStateReader;
   // rsma
   int8_t           rsmaDone;
-  SRsmaSnapReader *pRsmaReader;
+  SRSmaSnapReader *pRsmaReader;
 };
 
 int32_t vnodeSnapReaderOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapReader **ppReader) {
@@ -241,7 +241,7 @@ struct SVSnapWriter {
   SStreamTaskWriter  *pStreamTaskWriter;
   SStreamStateWriter *pStreamStateWriter;
   // rsma
-  SRsmaSnapWriter *pRsmaSnapWriter;
+  SRSmaSnapWriter *pRsmaSnapWriter;
 };
 
 int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter) {

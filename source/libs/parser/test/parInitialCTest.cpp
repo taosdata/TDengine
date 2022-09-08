@@ -111,10 +111,13 @@ TEST_F(ParserInitialCTest, createDatabase) {
     expect.numOfVgroups = TSDB_DEFAULT_VN_PER_DB;
     expect.numOfStables = TSDB_DEFAULT_DB_SINGLE_STABLE;
     expect.schemaless = TSDB_DEFAULT_DB_SCHEMALESS;
-    expect.walRetentionPeriod = TSDB_DEFAULT_DB_WAL_RETENTION_PERIOD;
-    expect.walRetentionSize = TSDB_DEFAULT_DB_WAL_RETENTION_SIZE;
-    expect.walRollPeriod = TSDB_DEFAULT_DB_WAL_ROLL_PERIOD;
+    expect.walRetentionPeriod = TSDB_REP_DEF_DB_WAL_RET_PERIOD;
+    expect.walRetentionSize = TSDB_REP_DEF_DB_WAL_RET_SIZE;
+    expect.walRollPeriod = TSDB_REP_DEF_DB_WAL_ROLL_PERIOD;
     expect.walSegmentSize = TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE;
+    expect.sstTrigger = TSDB_DEFAULT_SST_TRIGGER;
+    expect.hashPrefix = TSDB_DEFAULT_HASH_PREFIX;
+    expect.hashSuffix = TSDB_DEFAULT_HASH_SUFFIX;
   };
 
   auto setDbBufferFunc = [&](int32_t buffer) { expect.buffer = buffer; };
@@ -155,6 +158,9 @@ TEST_F(ParserInitialCTest, createDatabase) {
   auto setDbWalRetentionSize = [&](int32_t walRetentionSize) { expect.walRetentionSize = walRetentionSize; };
   auto setDbWalRollPeriod = [&](int32_t walRollPeriod) { expect.walRollPeriod = walRollPeriod; };
   auto setDbWalSegmentSize = [&](int32_t walSegmentSize) { expect.walSegmentSize = walSegmentSize; };
+  auto setDbSstTrigger = [&](int32_t sstTrigger) { expect.sstTrigger = sstTrigger; };
+  auto setDbHashPrefix = [&](int32_t hashPrefix) { expect.hashPrefix = hashPrefix; };
+  auto setDbHashSuffix = [&](int32_t hashSuffix) { expect.hashSuffix = hashSuffix; };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_DATABASE_STMT);
@@ -185,7 +191,9 @@ TEST_F(ParserInitialCTest, createDatabase) {
     ASSERT_EQ(req.walRetentionSize, expect.walRetentionSize);
     ASSERT_EQ(req.walRollPeriod, expect.walRollPeriod);
     ASSERT_EQ(req.walSegmentSize, expect.walSegmentSize);
-    // ASSERT_EQ(req.schemaless, expect.schemaless);
+    ASSERT_EQ(req.sstTrigger, expect.sstTrigger);
+    ASSERT_EQ(req.hashPrefix, expect.hashPrefix);
+    ASSERT_EQ(req.hashSuffix, expect.hashSuffix);
     ASSERT_EQ(req.ignoreExist, expect.ignoreExist);
     ASSERT_EQ(req.numOfRetensions, expect.numOfRetensions);
     if (expect.numOfRetensions > 0) {
@@ -233,6 +241,9 @@ TEST_F(ParserInitialCTest, createDatabase) {
   setDbWalRetentionSize(-1);
   setDbWalRollPeriod(10);
   setDbWalSegmentSize(20);
+  setDbSstTrigger(16);
+  setDbHashPrefix(3);
+  setDbHashSuffix(4);
   run("CREATE DATABASE IF NOT EXISTS wxy_db "
       "BUFFER 64 "
       "CACHEMODEL 'last_value' "
@@ -256,7 +267,10 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "WAL_RETENTION_PERIOD -1 "
       "WAL_RETENTION_SIZE -1 "
       "WAL_ROLL_PERIOD 10 "
-      "WAL_SEGMENT_SIZE 20");
+      "WAL_SEGMENT_SIZE 20 "
+      "SST_TRIGGER 16 "
+      "TABLE_PREFIX 3"
+      "TABLE_SUFFIX 4");
   clearCreateDbReq();
 
   setCreateDbReqFunc("wxy_db", 1);
@@ -265,6 +279,14 @@ TEST_F(ParserInitialCTest, createDatabase) {
   run("CREATE DATABASE IF NOT EXISTS wxy_db "
       "DURATION 100m "
       "KEEP 1440m,300h,400d ");
+  clearCreateDbReq();
+
+  setCreateDbReqFunc("wxy_db", 1);
+  setDbReplicaFunc(3);
+  setDbWalRetentionPeriod(TSDB_REPS_DEF_DB_WAL_RET_PERIOD);
+  setDbWalRetentionSize(TSDB_REPS_DEF_DB_WAL_RET_SIZE);
+  setDbWalRollPeriod(TSDB_REPS_DEF_DB_WAL_ROLL_PERIOD);
+  run("CREATE DATABASE IF NOT EXISTS wxy_db REPLICA 3");
   clearCreateDbReq();
 }
 
@@ -568,15 +590,13 @@ TEST_F(ParserInitialCTest, createStream) {
     memset(&expect, 0, sizeof(SCMCreateStreamReq));
   };
 
-  auto setCreateStreamReqFunc = [&](const char* pStream, const char* pSrcDb, const char* pSql,
-                                    const char* pDstStb = nullptr, int8_t igExists = 0,
-                                    int8_t triggerType = STREAM_TRIGGER_AT_ONCE, int64_t maxDelay = 0,
-                                    int64_t watermark = 0, int8_t igExpired = 0) {
+  auto setCreateStreamReqFunc = [&](const char* pStream, const char* pSrcDb, const char* pSql, const char* pDstStb,
+                                    int8_t igExists = 0, int8_t triggerType = STREAM_TRIGGER_AT_ONCE,
+                                    int64_t maxDelay = 0, int64_t watermark = 0,
+                                    int8_t igExpired = STREAM_DEFAULT_IGNORE_EXPIRED) {
     snprintf(expect.name, sizeof(expect.name), "0.%s", pStream);
     snprintf(expect.sourceDB, sizeof(expect.sourceDB), "0.%s", pSrcDb);
-    if (NULL != pDstStb) {
-      snprintf(expect.targetStbFullName, sizeof(expect.targetStbFullName), "0.test.%s", pDstStb);
-    }
+    snprintf(expect.targetStbFullName, sizeof(expect.targetStbFullName), "0.test.%s", pDstStb);
     expect.igExists = igExists;
     expect.sql = strdup(pSql);
     expect.triggerType = triggerType;
@@ -603,25 +623,16 @@ TEST_F(ParserInitialCTest, createStream) {
     tFreeSCMCreateStreamReq(&req);
   });
 
-  setCreateStreamReqFunc("s1", "test", "create stream s1 as select count(*) from t1 interval(10s)");
-  run("CREATE STREAM s1 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
-  clearCreateStreamReq();
-
-  setCreateStreamReqFunc("s1", "test", "create stream if not exists s1 as select count(*) from t1 interval(10s)",
-                         nullptr, 1);
-  run("CREATE STREAM IF NOT EXISTS s1 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
-  clearCreateStreamReq();
-
   setCreateStreamReqFunc("s1", "test", "create stream s1 into st1 as select count(*) from t1 interval(10s)", "st1");
   run("CREATE STREAM s1 INTO st1 AS SELECT COUNT(*) FROM t1 INTERVAL(10S)");
   clearCreateStreamReq();
 
   setCreateStreamReqFunc("s1", "test",
-                         "create stream if not exists s1 trigger max_delay 20s watermark 10s ignore expired into st1 "
+                         "create stream if not exists s1 trigger max_delay 20s watermark 10s ignore expired 0 into st1 "
                          "as select count(*) from t1 interval(10s)",
                          "st1", 1, STREAM_TRIGGER_MAX_DELAY, 20 * MILLISECOND_PER_SECOND, 10 * MILLISECOND_PER_SECOND,
-                         1);
-  run("CREATE STREAM IF NOT EXISTS s1 TRIGGER MAX_DELAY 20s WATERMARK 10s IGNORE EXPIRED INTO st1 AS SELECT COUNT(*) "
+                         0);
+  run("CREATE STREAM IF NOT EXISTS s1 TRIGGER MAX_DELAY 20s WATERMARK 10s IGNORE EXPIRED 0 INTO st1 AS SELECT COUNT(*) "
       "FROM t1 INTERVAL(10S)");
   clearCreateStreamReq();
 }
@@ -629,7 +640,8 @@ TEST_F(ParserInitialCTest, createStream) {
 TEST_F(ParserInitialCTest, createStreamSemanticCheck) {
   useDb("root", "test");
 
-  run("CREATE STREAM s1 AS SELECT PERCENTILE(c1, 30) FROM t1 INTERVAL(10S)", TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC);
+  run("CREATE STREAM s1 INTO st1 AS SELECT PERCENTILE(c1, 30) FROM t1 INTERVAL(10S)",
+      TSDB_CODE_PAR_STREAM_NOT_ALLOWED_FUNC);
 }
 
 TEST_F(ParserInitialCTest, createTable) {

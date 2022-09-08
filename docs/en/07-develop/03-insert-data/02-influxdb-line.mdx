@@ -21,15 +21,15 @@ In the InfluxDB Line protocol format, a single line of text is used to represent
 measurement,tag_set field_set timestamp
 ```
 
-- `measurement` will be used as the name of the STable
-- `tag_set` will be used as tags, with format like `<tag_key>=<tag_value>,<tag_key>=<tag_value>`
-- `field_set`will be used as data columns, with format like `<field_key>=<field_value>,<field_key>=<field_value>`
+- `measurement` will be used as the name of the STable Enter a comma (,) between `measurement` and `tag_set`.
+- `tag_set` will be used as tags, with format like `<tag_key>=<tag_value>,<tag_key>=<tag_value>` Enter a space between `tag_set` and `field_set`.
+- `field_set`will be used as data columns, with format like `<field_key>=<field_value>,<field_key>=<field_value>` Enter a space between `field_set` and `timestamp`.
 - `timestamp`  is the primary key timestamp corresponding to this row of data
 
 For example:
 
 ```
-meters,location=California.LoSangeles,groupid=2 current=13.4,voltage=223,phase=0.29 1648432611249500
+meters,location=California.LosAngeles,groupid=2 current=13.4,voltage=223,phase=0.29 1648432611249500
 ```
 
 :::note
@@ -41,7 +41,6 @@ meters,location=California.LoSangeles,groupid=2 current=13.4,voltage=223,phase=0
 :::
 
 For more details please refer to [InfluxDB Line Protocol](https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/) and [TDengine Schemaless](/reference/schemaless/#Schemaless-Line-Protocol)
-
 
 ## Examples
 

@@ -123,7 +123,7 @@ void createNewTable(TAOS* pConn, int32_t index) {
   }
   taos_free_result(pRes);
 
-  for(int32_t i = 0; i < 100000; i += 20) {
+  for(int32_t i = 0; i < 3280; i += 20) {
     char sql[1024] = {0};
     sprintf(sql,
             "insert into tu%d values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
@@ -679,30 +679,28 @@ TEST(testCase, projection_query_tables) {
   TAOS_RES* pRes = taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "explain verbose true select _wstart,count(*),a from st1 partition by a interval(1s)");
-  printResult(pRes);
-//  pRes = taos_query(pConn, "create stable st1 (ts timestamp, k int) tags(a int)");
-//  if (taos_errno(pRes) != 0) {
-//    printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
-//  }
-//  taos_free_result(pRes);
-//
-//  pRes = taos_query(pConn, "create stable st2 (ts timestamp, k int) tags(a int)");
-//  if (taos_errno(pRes) != 0) {
-//    printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
-//  }
-//  taos_free_result(pRes);
-//
-//  pRes = taos_query(pConn, "create table tu using st1 tags(1)");
-//  if (taos_errno(pRes) != 0) {
-//    printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
-//  }
-//  taos_free_result(pRes);
-//
-//  for(int32_t i = 0; i < 1; ++i) {
-//    printf("create table :%d\n", i);
-//    createNewTable(pConn, i);
-//  }
+  pRes = taos_query(pConn, "create stable st1 (ts timestamp, k int) tags(a int)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create stable st2 (ts timestamp, k int) tags(a int)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create table tu using st1 tags(1)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
+  }
+  taos_free_result(pRes);
+
+  for(int32_t i = 0; i < 2; ++i) {
+    printf("create table :%d\n", i);
+    createNewTable(pConn, i);
+  }
 //
 //  pRes = taos_query(pConn, "select * from tu");
 //  if (taos_errno(pRes) != 0) {

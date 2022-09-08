@@ -179,6 +179,7 @@ typedef struct {
   char    name[TSDB_CLUSTER_ID_LEN];
   int64_t createdTime;
   int64_t updateTime;
+  int32_t upTime;
 } SClusterObj;
 
 typedef struct {
@@ -304,11 +305,14 @@ typedef struct {
   int8_t  hashMethod;  // default is 1
   int8_t  cacheLast;
   int8_t  schemaless;
+  int16_t hashPrefix;
+  int16_t hashSuffix;
+  int16_t sstTrigger;
   int32_t numOfRetensions;
   SArray* pRetensions;
   int32_t walRetentionPeriod;
-  int64_t walRetentionSize;
   int32_t walRollPeriod;
+  int64_t walRetentionSize;
   int64_t walSegmentSize;
 } SDbCfg;
 
@@ -339,6 +343,7 @@ typedef struct {
   uint32_t  hashEnd;
   char      dbName[TSDB_DB_FNAME_LEN];
   int64_t   dbUid;
+  int64_t   cacheUsage;
   int64_t   numOfTables;
   int64_t   numOfTimeSeries;
   int64_t   totalStorage;
@@ -636,6 +641,7 @@ typedef struct {
 
 int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
 int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj);
+void    tFreeStreamObj(SStreamObj* pObj);
 
 typedef struct {
   char    streamName[TSDB_STREAM_FNAME_LEN];

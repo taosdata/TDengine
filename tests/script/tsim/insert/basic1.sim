@@ -21,7 +21,7 @@ sql create table stb_2 (ts timestamp, i int) tags (j int)
 sql create stable stb_3 (ts timestamp, i int) tags (j int)
 
 sql show stables
-if $rows != 4 then 
+if $rows != 4 then
   return -1
 endi
 
@@ -30,7 +30,7 @@ sql create table c1 using stb tags(true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 
 sql create table c2 using stb tags(false, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 2', 'child tbl 2', '2022-02-25 18:00:00.000', 10, 20, 30, 40)
 
 sql show tables
-if $rows != 2 then 
+if $rows != 2 then
   return -1
 endi
 
@@ -39,12 +39,12 @@ sql insert into c1 values(now+0s, true, -1, -2, -3, -4, -6.0, -7.0, 'child tbl 1
 
 print =============== query data
 sql select * from c1
-print rows: $rows 
+print rows: $rows
 print $data00  $data01
-print $data10  $data11 
+print $data10  $data11
 print $data20  $data21
 print $data30  $data31
-if $rows != 4 then 
+if $rows != 4 then
   return -1
 endi
 
@@ -53,17 +53,17 @@ if $data01 != 1 then
   return -1
 endi
 
-if $data02 != -1 then 
+if $data02 != -1 then
   return -1
 endi
 
-if $data03 != -2 then 
+if $data03 != -2 then
   return -1
 endi
 
 print =============== query data from st, but not support select * from super table, waiting fix
 sql select * from stb
-if $rows != 4 then 
+if $rows != 4 then
   return -1
 endi
 
@@ -73,12 +73,12 @@ system sh/exec.sh -n dnode1 -s start
 
 print =============== query data
 sql select * from c1
-print rows: $rows 
+print rows: $rows
 print $data00  $data01
-print $data10  $data11 
+print $data10  $data11
 print $data20  $data21
 print $data30  $data31
-if $rows != 4 then 
+if $rows != 4 then
   return -1
 endi
 
@@ -86,17 +86,17 @@ if $data01 != 1 then
   return -1
 endi
 
-if $data02 != -1 then 
+if $data02 != -1 then
   return -1
 endi
 
-if $data03 != -2 then 
+if $data03 != -2 then
   return -1
 endi
 
 print =============== query data from st, but not support select * from super table, waiting fix
 sql select * from stb
-if $rows != 4 then 
+if $rows != 4 then
   return -1
 endi
 

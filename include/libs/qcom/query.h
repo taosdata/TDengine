@@ -116,6 +116,8 @@ typedef struct STableMeta {
 
 typedef struct SDBVgInfo {
   int32_t   vgVersion;
+  int16_t   hashPrefix;
+  int16_t   hashSuffix;
   int8_t    hashMethod;
   int32_t   numOfTable;  // DB's table num, unit is TSDB_TABLE_NUM_UNIT
   SHashObj* vgHash;      // key:vgId, value:SVgroupInfo
@@ -215,6 +217,7 @@ void initQueryModuleMsgHandle();
 const SSchema* tGetTbnameColumnSchema();
 bool           tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags);
 
+int32_t queryCreateCTableMetaFromMsg(STableMetaRsp *msg, SCTableMeta *pMeta);
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
 char*   jobTaskStatusStr(int32_t status);
 

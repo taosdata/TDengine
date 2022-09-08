@@ -1,103 +1,99 @@
 ---
 sidebar_label: Docker
-title: 通过 Docker 快速体验 TDengine
+title: Quick Install on Docker
 ---
-:::info
-如果您希望对 TDengine 贡献代码或对内部实现感兴趣，请参考我们的 [TDengine GitHub 主页](https://github.com/taosdata/TDengine) 下载源码构建和安装.
-:::
 
-本节首先介绍如何通过 Docker 快速体验 TDengine，然后介绍如何在 Docker 环境下体验 TDengine 的写入和查询功能。
+This document describes how to install TDengine in a Docker container and perform queries and inserts. To get started with TDengine in a non-containerized environment, see [Quick Install](../../get-started/package). If you want to view the source code, build TDengine yourself, or contribute to the project, see the [TDengine GitHub repository](https://github.com/taosdata/TDengine).
 
-## 启动 TDengine
+## Run TDengine
 
-如果已经安装了 docker， 只需执行下面的命令。
+If Docker is already installed on your computer, run the following command:
 
 ```shell
-docker run -d -p 6030:6030 -p 6041/6041 -p 6043-6049/6043-6049 -p 6043-6049:6043-6049/udp tdengine/tdengine
+docker run -d -p 6030:6030 -p 6041:6041 -p 6043-6049:6043-6049 -p 6043-6049:6043-6049/udp tdengine/tdengine
 ```
 
-注意：TDengine 3.0 服务端仅使用 6030 TCP 端口。6041 为 taosAdapter 所使用提供 REST 服务端口。6043-6049 为 taosAdapter 提供第三方应用接入所使用端口，可根据需要选择是否打开。
+Note that TDengine Server uses TCP port 6030. Port 6041 is used by taosAdapter for the REST API service. Ports 6043 through 6049 are used by taosAdapter for other connectors. You can open these ports as needed.
 
-确定该容器已经启动并且在正常运行
+Run the following command to ensure that your container is running:
 
 ```shell
 docker ps
 ```
 
-进入该容器并执行 bash
+Enter the container and open the bash shell:
 
 ```shell
 docker exec -it <container name> bash
 ```
 
-然后就可以执行相关的 Linux 命令操作和访问 TDengine
+You can now access TDengine or run other Linux commands.
 
-## 运行 TDengine CLI
+Note: For information about installing docker, see the [official documentation](https://docs.docker.com/get-docker/).
 
-进入容器，执行 taos 
+## Insert Data into TDengine
 
-```
-$ taos
-Welcome to the TDengine shell from Linux, Client Version:3.0.0.0
-Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.
+You can use the `taosBenchmark` tool included with TDengine to write test data into your deployment.
 
-Server is Community Edition.
-
-taos> 
-
-```
-
-## 写入数据
-
-可以使用 TDengine 的自带工具 taosBenchmark 快速体验 TDengine 的写入。
-
-进入容器，启动 taosBenchmark：
+To do so, run the following command:
 
    ```bash
    $ taosBenchmark
    
    ```
 
-   该命令将在数据库 test 下面自动创建一张超级表 meters，该超级表下有 1 万张表，表名为 "d0" 到 "d9999"，每张表有 1 万条记录，每条记录有 (ts, current, voltage, phase) 四个字段，时间戳从 "2017-07-14 10:40:00 000" 到 "2017-07-14 10:40:09 999"，每张表带有标签 location 和 groupId，groupId 被设置为 1 到 10， location 被设置为 "San Francisco" 或者 "Los Angeles"等城市名称。
+This command creates the `meters` supertable in the `test` database. In the `meters` supertable, it then creates 10,000 subtables named `d0` to `d9999`. Each table has 10,000 rows and each row has four columns: `ts`, `current`, `voltage`, and `phase`. The timestamps of the data in these columns range from 2017-07-14 10:40:00 000 to 2017-07-14 10:40:09 999. Each table is randomly assigned a `groupId` tag from 1 to 10 and a `location` tag of either `Campbell`, `Cupertino`, `Los Angeles`, `Mountain View`, `Palo Alto`, `San Diego`, `San Francisco`, `San Jose`, `Santa Clara` or `Sunnyvale`.
 
-   这条命令很快完成 1 亿条记录的插入。具体时间取决于硬件性能。
+   The `taosBenchmark` command creates a deployment with 100 million data points that you can use for testing purposes. The time required depends on the hardware specifications of the local system.
 
-   taosBenchmark 命令本身带有很多选项，配置表的数目、记录条数等等，您可以设置不同参数进行体验，请执行 `taosBenchmark --help` 详细列出。taosBenchmark 详细使用方法请参照 [taosBenchmark 参考手册](../../reference/taosbenchmark)。
+   You can customize the test deployment that taosBenchmark creates by specifying command-line parameters. For information about command-line parameters, run the `taosBenchmark --help` command. For more information about taosBenchmark, see [taosBenchmark](/reference/taosbenchmark).
 
-## 体验查询
+## Open the TDengine CLI
 
-使用上述 taosBenchmark 插入数据后，可以在 TDengine CLI 输入查询命令，体验查询速度。。
+On the container, run the following command to open the TDengine CLI: 
 
-查询超级表下记录总条数：
+```
+$ taos
 
-```sql
-taos> select count(*) from test.meters;
+taos> 
+
 ```
 
-查询 1 亿条记录的平均值、最大值、最小值等：
+## Query Data in TDengine
+
+After using taosBenchmark to create your test deployment, you can run queries in the TDengine CLI to test its performance. For example:
+
+From the TDengine CLI query the number of rows in the `meters` supertable:
 
 ```sql
-taos> select avg(current), max(voltage), min(phase) from test.meters;
+select count(*) from test.meters;
 ```
 
-查询 location="San Francisco" 的记录总条数：
+Query the average, maximum, and minimum values of all 100 million rows of data:
 
 ```sql
-taos> select count(*) from test.meters where location="San Francisco";
+select avg(current), max(voltage), min(phase) from test.meters;
 ```
 
-查询 groupId=10 的所有记录的平均值、最大值、最小值等：
+Query the number of rows whose `location` tag is `San Francisco`:
 
 ```sql
-taos> select avg(current), max(voltage), min(phase) from test.meters where groupId=10;
+select count(*) from test.meters where location="San Francisco";
 ```
 
-对表 d10 按 10s 进行平均值、最大值和最小值聚合统计：
+Query the average, maximum, and minimum values of all rows whose `groupId` tag is `10`:
 
 ```sql
-taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
+select avg(current), max(voltage), min(phase) from test.meters where groupId=10;
 ```
 
-## 其它
+Query the average, maximum, and minimum values for table `d10` in 1 second intervals:
 
-更多关于在 Docker 环境下使用 TDengine 的细节，请参考 [在 Docker 下使用 TDengine](../../reference/docker)
+```sql
+select first(ts), avg(current), max(voltage), min(phase) from test.d10 interval(1s);
+```
+In the query above you are selecting the first timestamp (ts) in the interval, another way of selecting this would be _wstart which will give the start of the time window. For more information about windowed queries, see [Time-Series Extensions](../../taos-sql/distinguished/).
+
+## Additional Information
+
+For more information about deploying TDengine in a Docker environment, see [Using TDengine in Docker](../../reference/docker).

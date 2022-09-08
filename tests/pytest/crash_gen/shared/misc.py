@@ -46,7 +46,7 @@ class Logging:
 
     @classmethod
     def _get_datetime(cls):
-        return datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S.%f')[:-1]
+        return datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-1]
 
     @classmethod
     def getLogger(cls):

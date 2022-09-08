@@ -551,6 +551,79 @@ class TDTestCase:
         tdSql.checkData(0, 0, 15)
         tdSql.checkData(1, 0, 15)
 
+        tdLog.printNoPrefix("==========step9:test multi-interp cases")
+        tdSql.query(f"select interp(c0),interp(c1),interp(c2),interp(c3) from {dbname}.{tbname} range('2020-02-09 00:00:05', '2020-02-13 00:00:05') every(1d) fill(null)")
+        tdSql.checkRows(5)
+        tdSql.checkCols(4)
+
+        for i in range (tdSql.queryCols):
+          tdSql.checkData(0, i, None)
+          tdSql.checkData(1, i, None)
+          tdSql.checkData(2, i, 15)
+          tdSql.checkData(3, i, None)
+          tdSql.checkData(4, i, None)
+
+        tdSql.query(f"select interp(c0),interp(c1),interp(c2),interp(c3) from {dbname}.{tbname} range('2020-02-09 00:00:05', '2020-02-13 00:00:05') every(1d) fill(value, 1)")
+        tdSql.checkRows(5)
+        tdSql.checkCols(4)
+
+        for i in range (tdSql.queryCols):
+          tdSql.checkData(0, i, 1)
+          tdSql.checkData(1, i, 1)
+          tdSql.checkData(2, i, 15)
+          tdSql.checkData(3, i, 1)
+          tdSql.checkData(4, i, 1)
+
+        tdSql.query(f"select interp(c0),interp(c1),interp(c2),interp(c3) from {dbname}.{tbname} range('2020-02-09 00:00:05', '2020-02-13 00:00:05') every(1d) fill(prev)")
+        tdSql.checkRows(5)
+        tdSql.checkCols(4)
+
+        for i in range (tdSql.queryCols):
+          tdSql.checkData(0, i, 5)
+          tdSql.checkData(1, i, 5)
+          tdSql.checkData(2, i, 15)
+          tdSql.checkData(3, i, 15)
+          tdSql.checkData(4, i, 15)
+
+        tdSql.query(f"select interp(c0),interp(c1),interp(c2),interp(c3) from {dbname}.{tbname} range('2020-02-09 00:00:05', '2020-02-13 00:00:05') every(1d) fill(next)")
+        tdSql.checkRows(3)
+        tdSql.checkCols(4)
+
+        for i in range (tdSql.queryCols):
+          tdSql.checkData(0, i, 15)
+          tdSql.checkData(1, i, 15)
+          tdSql.checkData(2, i, 15)
+
+        tdSql.query(f"select interp(c0),interp(c1),interp(c2),interp(c3) from {dbname}.{tbname} range('2020-02-09 00:00:05', '2020-02-13 00:00:05') every(1d) fill(linear)")
+        tdSql.checkRows(1)
+        tdSql.checkCols(4)
+
+        for i in range (tdSql.queryCols):
+            tdSql.checkData(0, i, 15)
+
+        tdLog.printNoPrefix("==========step10:test error cases")
+
+        tdSql.error(f"select interp(c0) from {dbname}.{tbname}")
+        tdSql.error(f"select interp(c0) from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-15 00:00:05')")
+        tdSql.error(f"select interp(c0) from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-15 00:00:05') every(1d)")
+        tdSql.error(f"select interp(c0) from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-15 00:00:05') fill(null)")
+        tdSql.error(f"select interp(c0) from {dbname}.{tbname} every(1s) fill(null)")
+        tdSql.error(f"select interp(c0) from {dbname}.{tbname} where ts >= '2020-02-10 00:00:05' and ts <= '2020-02-15 00:00:05' every(1s) fill(null)")
+
+        # input can only be numerical types
+        tdSql.error(f"select interp(ts) from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-15 00:00:05') every(1d) fill(null)")
+        tdSql.error(f"select interp(c6) from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-15 00:00:05') every(1d) fill(null)")
+        tdSql.error(f"select interp(c7) from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-15 00:00:05') every(1d) fill(null)")
+        tdSql.error(f"select interp(c8) from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-15 00:00:05') every(1d) fill(null)")
+
+        # input can only be columns
+        tdSql.error(f"select interp(1) from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-15 00:00:05') every(1d) fill(null)")
+        tdSql.error(f"select interp(1.5) from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-15 00:00:05') every(1d) fill(null)")
+        tdSql.error(f"select interp(true) from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-15 00:00:05') every(1d) fill(null)")
+        tdSql.error(f"select interp(false) from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-15 00:00:05') every(1d) fill(null)")
+        tdSql.error(f"select interp('abcd') from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-15 00:00:05') every(1d) fill(null)")
+        tdSql.error(f"select interp('中文字符') from {dbname}.{tbname} range('2020-02-10 00:00:05', '2020-02-15 00:00:05') every(1d) fill(null)")
+
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")

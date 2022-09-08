@@ -18,6 +18,7 @@ script_dir=$(dirname $(readlink -f "$0"))
 
 clientName="taos"
 serverName="taosd"
+udfdName="udfd"
 configFile="taos.cfg"
 productName="TDengine"
 emailName="taosdata.com"
@@ -32,6 +33,7 @@ adapterName="taosadapter"
 benchmarkName="taosBenchmark"
 dumpName="taosdump"
 demoName="taosdemo"
+xname="taosx"
 
 data_dir=${dataDir}
 log_dir=${logDir}
@@ -192,11 +194,13 @@ function install_bin() {
   # Remove links
   ${csudo}rm -f ${bin_link_dir}/${clientName} || :
   ${csudo}rm -f ${bin_link_dir}/${serverName} || :
+  ${csudo}rm -f ${bin_link_dir}/${udfdName} || :
   ${csudo}rm -f ${bin_link_dir}/${adapterName} || :
   ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
   ${csudo}rm -f ${bin_link_dir}/${demoName} || :
   ${csudo}rm -f ${bin_link_dir}/${benchmarkName} || :
   ${csudo}rm -f ${bin_link_dir}/${dumpName} || :
+  ${csudo}rm -f ${bin_link_dir}/${xname} || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
   ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
 
@@ -205,10 +209,12 @@ function install_bin() {
   #Make link
   [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName} || :
   [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} || :
+  [ -x ${install_main_dir}/bin/${udfdName} ] && ${csudo}ln -s ${install_main_dir}/bin/${udfdName} ${bin_link_dir}/${udfdName} || :
   [ -x ${install_main_dir}/bin/${adapterName} ] && ${csudo}ln -s ${install_main_dir}/bin/${adapterName} ${bin_link_dir}/${adapterName} || :
   [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${demoName} || :
   [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${benchmarkName} || :
   [ -x ${install_main_dir}/bin/${dumpName} ] && ${csudo}ln -s ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${dumpName} || :
+  [ -x ${install_main_dir}/bin/${xname} ] && ${csudo}ln -s ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${xname} || :
   [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -s ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
   [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
@@ -742,7 +748,7 @@ function is_version_compatible() {
   fi
 
   exist_version=$(${installDir}/bin/${serverName} -V | head -1 | cut -d ' ' -f 3)
-  vercomp $exist_version "2.0.16.0"
+  vercomp $exist_version "3.0.0.0"
   case $? in
   2)
     prompt_force=1

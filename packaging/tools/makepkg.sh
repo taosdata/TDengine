@@ -80,11 +80,14 @@ else
       ${build_dir}/bin/taosBenchmark \
       ${build_dir}/bin/TDinsight.sh \
       $tdinsight_caches"
+  [ -f ${build_dir}/bin/taosx ] && taosx_bin="${build_dir}/bin/taosx"
 
   bin_files="${build_dir}/bin/${serverName} \
       ${build_dir}/bin/${clientName} \
       ${taostools_bin_files} \
+      ${taosx_bin} \
       ${build_dir}/bin/taosadapter \
+      ${build_dir}/bin/udfd \
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
       ${script_dir}/startPre.sh \
@@ -318,7 +321,7 @@ if [ "$verMode" == "cluster" ]; then
 fi
 
 # Copy release note
-cp ${script_dir}/release_note ${install_dir}
+# cp ${script_dir}/release_note ${install_dir}
 
 # exit 1
 

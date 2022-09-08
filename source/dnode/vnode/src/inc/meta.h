@@ -23,8 +23,9 @@
 extern "C" {
 #endif
 
-typedef struct SMetaIdx SMetaIdx;
-typedef struct SMetaDB  SMetaDB;
+typedef struct SMetaIdx   SMetaIdx;
+typedef struct SMetaDB    SMetaDB;
+typedef struct SMetaCache SMetaCache;
 
 // metaDebug ==================
 // clang-format off
@@ -60,6 +61,12 @@ static FORCE_INLINE tb_uid_t metaGenerateUid(SMeta* pMeta) { return tGenIdPI64()
 // metaTable ==================
 int metaHandleEntry(SMeta* pMeta, const SMetaEntry* pME);
 
+// metaCache ==================
+int32_t metaCacheOpen(SMeta* pMeta);
+void    metaCacheClose(SMeta* pMeta);
+int32_t metaCacheUpsert(SMeta* pMeta, SMetaInfo* pInfo);
+int32_t metaCacheDrop(SMeta* pMeta, int64_t uid);
+
 struct SMeta {
   TdThreadRwlock lock;
 
@@ -84,6 +91,8 @@ struct SMeta {
   TTB* pStreamDb;
 
   SMetaIdx* pIdx;
+
+  SMetaCache* pCache;
 };
 
 typedef struct {
@@ -92,6 +101,12 @@ typedef struct {
 } STbDbKey;
 
 #pragma pack(push, 1)
+typedef struct {
+  tb_uid_t suid;
+  int64_t  version;
+  int32_t  skmVer;
+} SUidIdxVal;
+
 typedef struct {
   tb_uid_t uid;
   int32_t  sver;

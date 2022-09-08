@@ -27,7 +27,6 @@
 
 #include "executorimpl.h"
 #include "executor.h"
-#include "stub.h"
 #include "taos.h"
 #include "tdatablock.h"
 #include "tdef.h"
@@ -196,7 +195,7 @@ int32_t docomp(const void* p1, const void* p2, void* param) {
 }
 }  // namespace
 
-#if 1
+#if 0
 TEST(testCase, inMem_sort_Test) {
   SBlockOrderInfo oi = {0};
   oi.order = TSDB_ORDER_ASC;
@@ -382,7 +381,7 @@ TEST(testCase, ordered_merge_sort_Test) {
     }
 
     void* v = tsortGetValue(pTupleHandle, 0);
-    printf("%d: %d\n", row, *(int32_t*) v);
+//    printf("%d: %d\n", row, *(int32_t*) v);
     ASSERT_EQ(row++, *(int32_t*) v);
 
   }

@@ -167,6 +167,9 @@ static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream) {
 
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream) {
   mTrace("stream:%s, perform delete action", pStream->name);
+  taosWLockLatch(&pStream->lock);
+  tFreeStreamObj(pStream);
+  taosWUnLockLatch(&pStream->lock);
   return 0;
 }
 
@@ -493,10 +496,17 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
 
   stbObj.uid = pStream->targetStbUid;
 
-  if (mndAddStbToTrans(pMnode, pTrans, pDb, &stbObj) < 0) goto _OVER;
+  if (mndAddStbToTrans(pMnode, pTrans, pDb, &stbObj) < 0) {
+    mndFreeStb(&stbObj);
+    goto _OVER;
+  }
+
+  tFreeSMCreateStbReq(&createReq);
+  mndFreeStb(&stbObj);
 
   return 0;
 _OVER:
+  tFreeSMCreateStbReq(&createReq);
   mndReleaseStb(pMnode, pStb);
   mndReleaseDb(pMnode, pDb);
   return -1;
@@ -621,6 +631,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   SStreamObj        *pStream = NULL;
   SDbObj            *pDb = NULL;
   SCMCreateStreamReq createStreamReq = {0};
+  SStreamObj         streamObj = {0};
 
   if (tDeserializeSCMCreateStreamReq(pReq->pCont, pReq->contLen, &createStreamReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -649,7 +660,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 
   // build stream obj from request
-  SStreamObj streamObj = {0};
   if (mndBuildStreamObjFromCreateReq(pMnode, &streamObj, &createStreamReq) < 0) {
     /*ASSERT(0);*/
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
@@ -715,6 +725,7 @@ _OVER:
   mndReleaseDb(pMnode, pDb);
 
   tFreeSCMCreateStreamReq(&createStreamReq);
+  tFreeStreamObj(&streamObj);
   return code;
 }
 

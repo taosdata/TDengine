@@ -18,7 +18,7 @@
         <dependency>
             <groupId>com.taosdata.jdbc</groupId>
             <artifactId>taos-jdbcdriver</artifactId>
-            <version>2.0.18</version>
+            <version>3.0.0</version>
         </dependency>
         <!-- druid -->
         <dependency>
@@ -53,7 +53,7 @@
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
-            <version>2.14.1</version>
+            <version>2.17.1</version>
         </dependency>
         <!-- proxool -->
         <dependency>

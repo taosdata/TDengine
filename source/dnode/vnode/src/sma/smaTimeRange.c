@@ -20,6 +20,10 @@
 #define SMA_STORAGE_MINUTES_DAY  1440
 #define SMA_STORAGE_SPLIT_FACTOR 14400  // least records in tsma file
 
+static int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg);
+static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg);
+static int32_t tdProcessTSmaGetDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
+
 // TODO: Who is responsible for resource allocate and release?
 int32_t tdProcessTSmaInsert(SSma *pSma, int64_t indexUid, const char *msg) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -59,7 +63,7 @@ int32_t smaGetTSmaDays(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *
  * @param days unit is minute
  * @return int32_t
  */
-int32_t tdProcessTSmaGetDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days) {
+static int32_t tdProcessTSmaGetDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days) {
   SDecoder coder = {0};
   tDecoderInit(&coder, pCont, contLen);
 
@@ -106,7 +110,7 @@ _err:
  * @param pMsg
  * @return int32_t
  */
-int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg) {
+static int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg) {
   SSmaCfg *pCfg = (SSmaCfg *)pMsg;
 
   if (TD_VID(pSma->pVnode) == pCfg->dstVgId) {
@@ -145,7 +149,7 @@ int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg) {
  * @param msg
  * @return int32_t
  */
-int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
+static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
   const SArray *pDataBlocks = (const SArray *)msg;
   // TODO: destroy SSDataBlocks(msg)
   if (!pDataBlocks) {
@@ -175,7 +179,7 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
   }
 
   tdRefSmaStat(pSma, pStat);
-  pTsmaStat = SMA_TSMA_STAT(pStat);
+  pTsmaStat = SMA_STAT_TSMA(pStat);
 
   if (!pTsmaStat->pTSma) {
     STSma *pTSma = metaGetSmaInfoByIndex(SMA_META(pSma), indexUid);
@@ -201,9 +205,8 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
   }
 
   SBatchDeleteReq deleteReq;
-  SSubmitReq     *pSubmitReq =
-      tdBlockToSubmit(pSma->pVnode, (const SArray *)msg, pTsmaStat->pTSchema, true, pTsmaStat->pTSma->dstTbUid,
-                      pTsmaStat->pTSma->dstTbName, pTsmaStat->pTSma->dstVgId, &deleteReq);
+  SSubmitReq     *pSubmitReq = tqBlockToSubmit(pSma->pVnode, (const SArray *)msg, pTsmaStat->pTSchema, true,
+                                               pTsmaStat->pTSma->dstTbUid, pTsmaStat->pTSma->dstTbName, &deleteReq);
 
   if (!pSubmitReq) {
     smaError("vgId:%d, failed to gen submit blk while tsma insert for smaIndex %" PRIi64 " since %s", SMA_VID(pSma),

@@ -30,7 +30,7 @@ taosAdapter 提供以下功能：
 
 ### 安装 taosAdapter
 
-taosAdapter 从 TDengine v2.4.0.0 版本开始成为 TDengine 服务端软件 的一部分，如果您使用 TDengine server 您不需要任何额外的步骤来安装 taosAdapter。您可以从[涛思数据官方网站](https://taosdata.com/cn/all-downloads/)下载 TDengine server（taosAdapter 包含在 v2.4.0.0 及以上版本）安装包。如果需要将 taosAdapter 分离部署在 TDengine server 之外的服务器上，则应该在该服务器上安装完整的 TDengine 来安装 taosAdapter。如果您需要使用源代码编译生成 taosAdapter，您可以参考[构建 taosAdapter](https://github.com/taosdata/taosadapter/blob/3.0/BUILD-CN.md)文档。
+taosAdapter 是 TDengine 服务端软件 的一部分，如果您使用 TDengine server 您不需要任何额外的步骤来安装 taosAdapter。您可以从[涛思数据官方网站](https://taosdata.com/cn/all-downloads/)下载 TDengine server 安装包。如果需要将 taosAdapter 分离部署在 TDengine server 之外的服务器上，则应该在该服务器上安装完整的 TDengine 来安装 taosAdapter。如果您需要使用源代码编译生成 taosAdapter，您可以参考[构建 taosAdapter](https://github.com/taosdata/taosadapter/blob/3.0/BUILD-CN.md)文档。
 
 ### start/stop taosAdapter
 
@@ -156,7 +156,7 @@ AllowWebSockets
 ## 功能列表
 
 - RESTful 接口
-  [https://docs.taosdata.com/reference/rest-api/](https://docs.taosdata.com/reference/rest-api/)
+  [RESTful API](../../connector/rest-api)
 - 兼容 InfluxDB v1 写接口
   [https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/](https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/)
 - 兼容 OpenTSDB JSON 和 telnet 格式写入
@@ -179,7 +179,7 @@ AllowWebSockets
 
 ### TDengine RESTful 接口
 
-您可以使用任何支持 http 协议的客户端通过访问 RESTful 接口地址 `http://<fqdn>:6041/rest/sql` 来写入数据到 TDengine 或从 TDengine 中查询数据。细节请参考[官方文档](/reference/rest-api/)。
+您可以使用任何支持 http 协议的客户端通过访问 RESTful 接口地址 `http://<fqdn>:6041/rest/sql` 来写入数据到 TDengine 或从 TDengine 中查询数据。细节请参考[官方文档](../../connector/rest-api/)。
 
 ### InfluxDB
 

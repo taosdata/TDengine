@@ -17,7 +17,7 @@
 #include "tmsg.h"
 #include "tq.h"
 
-int32_t tdBuildDeleteReq(SVnode* pVnode, const char* stbFullName, const SSDataBlock* pDataBlock,
+int32_t tqBuildDeleteReq(SVnode* pVnode, const char* stbFullName, const SSDataBlock* pDataBlock,
                          SBatchDeleteReq* deleteReq) {
   ASSERT(pDataBlock->info.type == STREAM_DELETE_RESULT);
   int32_t          totRow = pDataBlock->info.rows;
@@ -25,8 +25,7 @@ int32_t tdBuildDeleteReq(SVnode* pVnode, const char* stbFullName, const SSDataBl
   SColumnInfoData* pGidCol = taosArrayGet(pDataBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   for (int32_t row = 0; row < totRow; row++) {
     int64_t ts = *(int64_t*)colDataGetData(pTsCol, row);
-    /*int64_t     groupId = *(int64_t*)colDataGetData(pGidCol, row);*/
-    int64_t groupId = 0;
+    int64_t groupId = *(int64_t*)colDataGetData(pGidCol, row);
     char*   name = buildCtbNameByGroupId(stbFullName, groupId);
     tqDebug("stream delete msg: groupId :%ld, name: %s", groupId, name);
     SMetaReader mr = {0};
@@ -49,8 +48,8 @@ int32_t tdBuildDeleteReq(SVnode* pVnode, const char* stbFullName, const SSDataBl
   return 0;
 }
 
-SSubmitReq* tdBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchema* pTSchema, bool createTb,
-                            int64_t suid, const char* stbFullName, int32_t vgId, SBatchDeleteReq* pDeleteReq) {
+SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchema* pTSchema, bool createTb,
+                            int64_t suid, const char* stbFullName, SBatchDeleteReq* pDeleteReq) {
   SSubmitReq* ret = NULL;
   SArray*     schemaReqs = NULL;
   SArray*     schemaReqSz = NULL;
@@ -69,9 +68,10 @@ SSubmitReq* tdBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
       SSDataBlock* pDataBlock = taosArrayGet(pBlocks, i);
       if (pDataBlock->info.type == STREAM_DELETE_RESULT) {
         int32_t padding1 = 0;
-        void*   padding2 = taosMemoryMalloc(1);
+        void*   padding2 = NULL;
         taosArrayPush(schemaReqSz, &padding1);
         taosArrayPush(schemaReqs, &padding2);
+        continue;
       }
 
       STagVal tagVal = {
@@ -139,8 +139,7 @@ SSubmitReq* tdBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
       continue;
     }
     int32_t rows = pDataBlock->info.rows;
-    // TODO min
-    int32_t rowSize = pDataBlock->info.rowSize;
+    /*int32_t rowSize = pDataBlock->info.rowSize;*/
     int32_t maxLen = TD_ROW_MAX_BYTES_FROM_SCHEMA(pTSchema);
 
     int32_t schemaLen = 0;
@@ -151,9 +150,8 @@ SSubmitReq* tdBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
   }
 
   // assign data
-  // TODO
   ret = rpcMallocCont(cap);
-  ret->header.vgId = vgId;
+  ret->header.vgId = pVnode->config.vgId;
   ret->length = sizeof(SSubmitReq);
   ret->numOfBlocks = htonl(sz);
 
@@ -162,13 +160,12 @@ SSubmitReq* tdBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
     SSDataBlock* pDataBlock = taosArrayGet(pBlocks, i);
     if (pDataBlock->info.type == STREAM_DELETE_RESULT) {
       pDeleteReq->suid = suid;
-      tdBuildDeleteReq(pVnode, stbFullName, pDataBlock, pDeleteReq);
+      tqBuildDeleteReq(pVnode, stbFullName, pDataBlock, pDeleteReq);
       continue;
     }
 
     blkHead->numOfRows = htonl(pDataBlock->info.rows);
     blkHead->sversion = htonl(pTSchema->version);
-    // TODO
     blkHead->suid = htobe64(suid);
     // uid is assigned by vnode
     blkHead->uid = 0;
@@ -234,34 +231,35 @@ void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
 
   ASSERT(pTask->tbSink.pTSchema);
   deleteReq.deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq));
-  SSubmitReq* pReq = tdBlockToSubmit(pVnode, pRes, pTask->tbSink.pTSchema, true, pTask->tbSink.stbUid,
-                                     pTask->tbSink.stbFullName, pVnode->config.vgId, &deleteReq);
+  SSubmitReq* submitReq = tqBlockToSubmit(pVnode, pRes, pTask->tbSink.pTSchema, true, pTask->tbSink.stbUid,
+                                          pTask->tbSink.stbFullName, &deleteReq);
 
   tqDebug("vgId:%d, task %d convert blocks over, put into write-queue", TD_VID(pVnode), pTask->taskId);
 
-  int32_t code;
-  int32_t len;
-  tEncodeSize(tEncodeSBatchDeleteReq, &deleteReq, len, code);
-  if (code < 0) {
-    //
-    ASSERT(0);
-  }
-  SEncoder encoder;
-  void*    buf = rpcMallocCont(len + sizeof(SMsgHead));
-  void*    abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-  tEncoderInit(&encoder, abuf, len);
-  tEncodeSBatchDeleteReq(&encoder, &deleteReq);
-  tEncoderClear(&encoder);
-
-  ((SMsgHead*)buf)->vgId = pVnode->config.vgId;
-
   if (taosArrayGetSize(deleteReq.deleteReqs) != 0) {
+    int32_t code;
+    int32_t len;
+    tEncodeSize(tEncodeSBatchDeleteReq, &deleteReq, len, code);
+    if (code < 0) {
+      //
+      ASSERT(0);
+    }
+    SEncoder encoder;
+    void*    serializedDeleteReq = rpcMallocCont(len + sizeof(SMsgHead));
+    void*    abuf = POINTER_SHIFT(serializedDeleteReq, sizeof(SMsgHead));
+    tEncoderInit(&encoder, abuf, len);
+    tEncodeSBatchDeleteReq(&encoder, &deleteReq);
+    tEncoderClear(&encoder);
+
+    ((SMsgHead*)serializedDeleteReq)->vgId = pVnode->config.vgId;
+
     SRpcMsg msg = {
         .msgType = TDMT_VND_BATCH_DEL,
-        .pCont = buf,
+        .pCont = serializedDeleteReq,
         .contLen = len + sizeof(SMsgHead),
     };
     if (tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg) != 0) {
+      rpcFreeCont(serializedDeleteReq);
       tqDebug("failed to put into write-queue since %s", terrstr());
     }
   }
@@ -271,11 +269,12 @@ void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
   // build write msg
   SRpcMsg msg = {
       .msgType = TDMT_VND_SUBMIT,
-      .pCont = pReq,
-      .contLen = ntohl(pReq->length),
+      .pCont = submitReq,
+      .contLen = ntohl(submitReq->length),
   };
 
   if (tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg) != 0) {
+    rpcFreeCont(submitReq);
     tqDebug("failed to put into write-queue since %s", terrstr());
   }
 }

@@ -361,7 +361,7 @@ class TDTestCase:
         tdSql.error(
                 f"insert into {dbname}.sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
-        self.check_avg(f"select avg(c1), avg(c2), avg(c3) , avg(c4), avg(c5) ,avg(c6) from {dbname}.sub1_bound " , f" select sum(c1)/count(c1), sum(c2)/count(c2) ,sum(c3)/count(c3), sum(c4)/count(c4), sum(c5)/count(c5) ,sum(c6)/count(c6) from {dbname}.sub1_bound ")
+        #self.check_avg(f"select avg(c1), avg(c2), avg(c3) , avg(c4), avg(c5) ,avg(c6) from {dbname}.sub1_bound " , f" select sum(c1)/count(c1), sum(c2)/count(c2) ,sum(c3)/count(c3), sum(c4)/count(c4), sum(c5)/count(c5) ,sum(c6)/count(c6) from {dbname}.sub1_bound ")
 
 
         # check basic elem for table per row
@@ -372,7 +372,7 @@ class TDTestCase:
         tdSql.checkData(0,2,14042.142857143)
         tdSql.checkData(0,3,53.571428571)
         tdSql.checkData(0,4,5.828571332045761e+37)
-        # tdSql.checkData(0,5,None)
+        tdSql.checkData(0,5,None)
 
 
         # check  + - * / in functions
@@ -382,7 +382,7 @@ class TDTestCase:
         tdSql.checkData(0,2,14042.142857143)
         tdSql.checkData(0,3,26.785714286)
         tdSql.checkData(0,4,2.9142856660228804e+37)
-        # tdSql.checkData(0,5,None)
+        tdSql.checkData(0,5,None)
 
 
 

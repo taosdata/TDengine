@@ -374,7 +374,7 @@ sql_error insert into st_smallint_e7  values (now, "123abc")
 sql_error insert into st_smallint_e9  values (now, abc)
 sql_error insert into st_smallint_e10 values (now, "abc")
 sql_error insert into st_smallint_e11 values (now, " ")
-sql insert into st_smallint_e12 values (now, '')
+sql_error insert into st_smallint_e12 values (now, '')
 
 sql_error insert into st_smallint_e13 using mt_smallint tags (033) values (now, 32768)
 sql insert into st_smallint_e14_1 using mt_smallint tags (033) values (now, -32768)
@@ -387,7 +387,7 @@ sql_error insert into st_smallint_e20 using mt_smallint tags (033) values (now, 
 sql_error insert into st_smallint_e22 using mt_smallint tags (033) values (now, abc)
 sql_error insert into st_smallint_e23 using mt_smallint tags (033) values (now, "abc")
 sql_error insert into st_smallint_e24 using mt_smallint tags (033) values (now, " ")
-sql insert into st_smallint_e25_1 using mt_smallint tags (033) values (now, '')
+sql_error insert into st_smallint_e25_1 using mt_smallint tags (033) values (now, '')
 
 sql_error insert into st_smallint_e13 using mt_smallint tags (32768)      values (now, -033)
 sql insert into st_smallint_e14 using mt_smallint tags (-32768)     values (now, -033)

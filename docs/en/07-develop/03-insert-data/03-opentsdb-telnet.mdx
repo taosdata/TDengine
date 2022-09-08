@@ -17,19 +17,19 @@ import CTelnet from "./_c_opts_telnet.mdx";
 
 A single line of text is used in OpenTSDB line protocol to represent one row of data. OpenTSDB employs a single column data model, so each line can only contain a single data column. There can be multiple tags. Each line contains 4 parts as below:
 
-```
+```txt
 <metric> <timestamp> <value> <tagk_1>=<tagv_1>[ <tagk_n>=<tagv_n>]
 ```
 
 - `metric` will be used as the STable name.
 - `timestamp` is the timestamp of current row of data. The time precision will be determined automatically based on the length of the timestamp. Second and millisecond time precision are supported.
-- `value` is a metric which must be a numeric value, the corresponding column name is "_value".
+- `value` is a metric which must be a numeric value, The corresponding column name is "value".
 - The last part is the tag set separated by spaces, all tags will be converted to nchar type automatically.
 
 For example:
 
 ```txt
-meters.current 1648432611250 11.3 location=California.LoSangeles groupid=3
+meters.current 1648432611250 11.3 location=California.LosAngeles groupid=3
 ```
 
 Please refer to [OpenTSDB Telnet API](http://opentsdb.net/docs/build/html/api_telnet/put.html) for more details.
@@ -63,7 +63,7 @@ Please refer to [OpenTSDB Telnet API](http://opentsdb.net/docs/build/html/api_te
 taos> use test;
 Database changed.
 
-taos> show STables;
+taos> show stables;
               name              |      created_time       | columns |  tags  |   tables    |
 ============================================================================================
  meters.current                 | 2022-03-30 17:04:10.877 |       2 |      2 |           2 |
@@ -73,8 +73,8 @@ Query OK, 2 row(s) in set (0.002544s)
 taos> select tbname, * from `meters.current`;
              tbname             |           _ts            |           _value           | groupid |            location            |
 ==================================================================================================================================
- t_0e7bcfa21a02331c06764f275... | 2022-03-28 09:56:51.249 |              10.800000000 | 3       | California.LoSangeles                |
- t_0e7bcfa21a02331c06764f275... | 2022-03-28 09:56:51.250 |              11.300000000 | 3       | California.LoSangeles                |
+ t_0e7bcfa21a02331c06764f275... | 2022-03-28 09:56:51.249 |              10.800000000 | 3       | California.LosAngeles                |
+ t_0e7bcfa21a02331c06764f275... | 2022-03-28 09:56:51.250 |              11.300000000 | 3       | California.LosAngeles                |
  t_7e7b26dd860280242c6492a16... | 2022-03-28 09:56:51.249 |              10.300000000 | 2       | California.SanFrancisco               |
  t_7e7b26dd860280242c6492a16... | 2022-03-28 09:56:51.250 |              12.600000000 | 2       | California.SanFrancisco               |
 Query OK, 4 row(s) in set (0.005399s)

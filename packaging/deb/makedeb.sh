@@ -45,6 +45,7 @@ mkdir -p ${pkg_dir}${install_home_path}/include
 mkdir -p ${pkg_dir}${install_home_path}/script
 
 cp ${compile_dir}/../packaging/cfg/taos.cfg         ${pkg_dir}${install_home_path}/cfg
+cp ${compile_dir}/../packaging/cfg/taosd.service    ${pkg_dir}${install_home_path}/cfg
 if [ -f "${compile_dir}/test/cfg/taosadapter.toml" ]; then
     cp ${compile_dir}/test/cfg/taosadapter.toml		${pkg_dir}${install_home_path}/cfg || :
 fi
@@ -60,6 +61,7 @@ cp ${compile_dir}/../packaging/tools/set_core.sh    ${pkg_dir}${install_home_pat
 cp ${compile_dir}/../packaging/tools/taosd-dump-cfg.gdb    ${pkg_dir}${install_home_path}/bin
 
 cp ${compile_dir}/build/bin/taosd                   ${pkg_dir}${install_home_path}/bin
+cp ${compile_dir}/build/bin/udfd                   ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosBenchmark           ${pkg_dir}${install_home_path}/bin
 
 if [ -f "${compile_dir}/build/bin/taosadapter" ]; then

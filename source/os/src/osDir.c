@@ -133,6 +133,7 @@ int32_t taosMulMkDir(const char *dirname) {
       code = mkdir(temp, 0755);
 #endif
       if (code < 0 && errno != EEXIST) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
         return code;
       }
       *pos = TD_DIRSEP[0];
@@ -146,6 +147,7 @@ int32_t taosMulMkDir(const char *dirname) {
     code = mkdir(temp, 0755);
 #endif
     if (code < 0 && errno != EEXIST) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
       return code;
     }
   }
@@ -155,6 +157,66 @@ int32_t taosMulMkDir(const char *dirname) {
     return 0;
   }
 
+  return code;
+}
+
+int32_t taosMulModeMkDir(const char *dirname, int mode) {
+  if (dirname == NULL) return -1;
+  char    temp[1024];
+  char   *pos = temp;
+  int32_t code = 0;
+#ifdef WINDOWS
+  taosRealPath(dirname, temp, sizeof(temp));
+  if (temp[1] == ':') pos += 3;
+#else
+  strcpy(temp, dirname);
+#endif
+
+  if (taosDirExist(temp)) {
+    chmod(temp, mode);
+    return code;
+  }
+
+  if (strncmp(temp, TD_DIRSEP, 1) == 0) {
+    pos += 1;
+  } else if (strncmp(temp, "." TD_DIRSEP, 2) == 0) {
+    pos += 2;
+  }
+
+  for (; *pos != '\0'; pos++) {
+    if (*pos == TD_DIRSEP[0]) {
+      *pos = '\0';
+#ifdef WINDOWS
+      code = _mkdir(temp, mode);
+#else
+      code = mkdir(temp, mode);
+#endif
+      if (code < 0 && errno != EEXIST) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        return code;
+      }
+      *pos = TD_DIRSEP[0];
+    }
+  }
+
+  if (*(pos - 1) != TD_DIRSEP[0]) {
+#ifdef WINDOWS
+    code = _mkdir(temp, mode);
+#else
+    code = mkdir(temp, mode);
+#endif
+    if (code < 0 && errno != EEXIST) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return code;
+    }
+  }
+
+  if (code < 0 && errno == EEXIST) {
+    chmod(temp, mode);
+    return 0;
+  }
+
+  chmod(temp, mode);
   return code;
 }
 

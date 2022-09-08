@@ -42,15 +42,15 @@ typedef struct SMemTable     SMemTable;
 typedef struct STbDataIter   STbDataIter;
 typedef struct SMapData      SMapData;
 typedef struct SBlockIdx     SBlockIdx;
-typedef struct SBlock        SBlock;
-typedef struct SBlockL       SBlockL;
+typedef struct SDataBlk      SDataBlk;
+typedef struct SSttBlk       SSttBlk;
 typedef struct SColData      SColData;
-typedef struct SBlockDataHdr SBlockDataHdr;
+typedef struct SDiskDataHdr  SDiskDataHdr;
 typedef struct SBlockData    SBlockData;
 typedef struct SDelFile      SDelFile;
 typedef struct SHeadFile     SHeadFile;
 typedef struct SDataFile     SDataFile;
-typedef struct SLastFile     SLastFile;
+typedef struct SSttFile      SSttFile;
 typedef struct SSmaFile      SSmaFile;
 typedef struct SDFileSet     SDFileSet;
 typedef struct SDataFWriter  SDataFWriter;
@@ -61,9 +61,18 @@ typedef struct SRowIter      SRowIter;
 typedef struct STsdbFS       STsdbFS;
 typedef struct SRowMerger    SRowMerger;
 typedef struct STsdbReadSnap STsdbReadSnap;
+typedef struct SBlockInfo    SBlockInfo;
+typedef struct SSmaInfo      SSmaInfo;
+typedef struct SBlockCol     SBlockCol;
+typedef struct SVersionRange SVersionRange;
+typedef struct SLDataIter    SLDataIter;
 
-#define TSDB_MAX_SUBBLOCKS 8
-#define TSDB_FHDR_SIZE     512
+#define TSDB_FILE_DLMT         ((uint32_t)0xF00AFA0F)
+#define TSDB_MAX_SUBBLOCKS     8
+#define TSDB_MAX_STT_FILE      16
+#define TSDB_DEFAULT_STT_FILE  8
+#define TSDB_FHDR_SIZE         512
+#define TSDB_DEFAULT_PAGE_SIZE 4096
 
 #define HAS_NONE  ((int8_t)0x1)
 #define HAS_NULL  ((int8_t)0x2)
@@ -74,6 +83,14 @@ typedef struct STsdbReadSnap STsdbReadSnap;
 
 #define TSDBKEY_MIN ((TSDBKEY){.ts = TSKEY_MIN, .version = VERSION_MIN})
 #define TSDBKEY_MAX ((TSDBKEY){.ts = TSKEY_MAX, .version = VERSION_MAX})
+
+#define PAGE_CONTENT_SIZE(PAGE) ((PAGE) - sizeof(TSCKSUM))
+#define LOGIC_TO_FILE_OFFSET(LOFFSET, PAGE) \
+  ((LOFFSET) / PAGE_CONTENT_SIZE(PAGE) * (PAGE) + (LOFFSET) % PAGE_CONTENT_SIZE(PAGE))
+#define FILE_TO_LOGIC_OFFSET(OFFSET, PAGE) ((OFFSET) / (PAGE)*PAGE_CONTENT_SIZE(PAGE) + (OFFSET) % (PAGE))
+#define PAGE_OFFSET(PGNO, PAGE)            (((PGNO)-1) * (PAGE))
+#define OFFSET_PGNO(OFFSET, PAGE)          ((OFFSET) / (PAGE) + 1)
+#define LOGIC_TO_FILE_SIZE(LSIZE, PAGE)    OFFSET_PGNO(LOGIC_TO_FILE_OFFSET(LSIZE, PAGE), PAGE) * (PAGE)
 
 // tsdbUtil.c ==============================================================================================
 // TSDBROW
@@ -107,16 +124,20 @@ int32_t tTABLEIDCmprFn(const void *p1, const void *p2);
 int32_t tPutBlockCol(uint8_t *p, void *ph);
 int32_t tGetBlockCol(uint8_t *p, void *ph);
 int32_t tBlockColCmprFn(const void *p1, const void *p2);
-// SBlock
-void    tBlockReset(SBlock *pBlock);
-int32_t tPutBlock(uint8_t *p, void *ph);
-int32_t tGetBlock(uint8_t *p, void *ph);
-int32_t tBlockCmprFn(const void *p1, const void *p2);
-bool    tBlockHasSma(SBlock *pBlock);
+// SDataBlk
+void    tDataBlkReset(SDataBlk *pBlock);
+int32_t tPutDataBlk(uint8_t *p, void *ph);
+int32_t tGetDataBlk(uint8_t *p, void *ph);
+int32_t tDataBlkCmprFn(const void *p1, const void *p2);
+bool    tDataBlkHasSma(SDataBlk *pDataBlk);
+// SSttBlk
+int32_t tPutSttBlk(uint8_t *p, void *ph);
+int32_t tGetSttBlk(uint8_t *p, void *ph);
 // SBlockIdx
 int32_t tPutBlockIdx(uint8_t *p, void *ph);
 int32_t tGetBlockIdx(uint8_t *p, void *ph);
 int32_t tCmprBlockIdx(void const *lhs, void const *rhs);
+int32_t tCmprBlockL(void const *lhs, void const *rhs);
 // SColdata
 void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn);
 void    tColDataReset(SColData *pColData);
@@ -131,20 +152,25 @@ int32_t tGetColData(uint8_t *p, SColData *pColData);
 #define tBlockDataLastRow(PBLOCKDATA)  tsdbRowFromBlockData(PBLOCKDATA, (PBLOCKDATA)->nRow - 1)
 #define tBlockDataFirstKey(PBLOCKDATA) TSDBROW_KEY(&tBlockDataFirstRow(PBLOCKDATA))
 #define tBlockDataLastKey(PBLOCKDATA)  TSDBROW_KEY(&tBlockDataLastRow(PBLOCKDATA))
-int32_t   tBlockDataInit(SBlockData *pBlockData);
+
+int32_t   tBlockDataCreate(SBlockData *pBlockData);
+void      tBlockDataDestroy(SBlockData *pBlockData, int8_t deepClear);
+int32_t   tBlockDataInit(SBlockData *pBlockData, int64_t suid, int64_t uid, STSchema *pTSchema);
+int32_t   tBlockDataInitEx(SBlockData *pBlockData, SBlockData *pBlockDataFrom);
 void      tBlockDataReset(SBlockData *pBlockData);
-int32_t   tBlockDataSetSchema(SBlockData *pBlockData, STSchema *pTSchema);
-int32_t   tBlockDataCorrectSchema(SBlockData *pBlockData, SBlockData *pBlockDataFrom);
-void      tBlockDataClearData(SBlockData *pBlockData);
-void      tBlockDataClear(SBlockData *pBlockData, int8_t deepClear);
-int32_t   tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData, SColData **ppColData);
-int32_t   tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema);
-int32_t   tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlockData *pBlockData);
-int32_t   tBlockDataCopy(SBlockData *pBlockDataSrc, SBlockData *pBlockDataDest);
+int32_t   tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTSchema, int64_t uid);
+void      tBlockDataClear(SBlockData *pBlockData);
 SColData *tBlockDataGetColDataByIdx(SBlockData *pBlockData, int32_t idx);
 void      tBlockDataGetColData(SBlockData *pBlockData, int16_t cid, SColData **ppColData);
-int32_t   tPutBlockData(uint8_t *p, SBlockData *pBlockData);
-int32_t   tGetBlockData(uint8_t *p, SBlockData *pBlockData);
+int32_t   tBlockDataCopy(SBlockData *pBlockDataSrc, SBlockData *pBlockDataDest);
+int32_t   tBlockDataMerge(SBlockData *pBlockData1, SBlockData *pBlockData2, SBlockData *pBlockData);
+int32_t   tBlockDataAddColData(SBlockData *pBlockData, int32_t iColData, SColData **ppColData);
+int32_t   tCmprBlockData(SBlockData *pBlockData, int8_t cmprAlg, uint8_t **ppOut, int32_t *szOut, uint8_t *aBuf[],
+                         int32_t aBufN[]);
+int32_t   tDecmprBlockData(uint8_t *pIn, int32_t szIn, SBlockData *pBlockData, uint8_t *aBuf[]);
+// SDiskDataHdr
+int32_t tPutDiskDataHdr(uint8_t *p, void *ph);
+int32_t tGetDiskDataHdr(uint8_t *p, void *ph);
 // SDelIdx
 int32_t tPutDelIdx(uint8_t *p, void *ph);
 int32_t tGetDelIdx(uint8_t *p, void *ph);
@@ -157,6 +183,7 @@ int32_t tGetDelData(uint8_t *p, void *ph);
 void    tMapDataReset(SMapData *pMapData);
 void    tMapDataClear(SMapData *pMapData);
 int32_t tMapDataPutItem(SMapData *pMapData, void *pItem, int32_t (*tPutItemFn)(uint8_t *, void *));
+int32_t tMapDataCopy(SMapData *pFrom, SMapData *pTo);
 void    tMapDataGetItemByIdx(SMapData *pMapData, int32_t idx, void *pItem, int32_t (*tGetItemFn)(uint8_t *, void *));
 int32_t tMapDataSearch(SMapData *pMapData, void *pSearchItem, int32_t (*tGetItemFn)(uint8_t *, void *),
                        int32_t (*tItemCmprFn)(const void *, const void *), void *pItem);
@@ -168,13 +195,24 @@ void    tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *m
 int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t now);
 int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SArray *aSkyline);
 void    tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg);
+int32_t tPutColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg);
+int32_t tGetColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg);
+int32_t tsdbCmprData(uint8_t *pIn, int32_t szIn, int8_t type, int8_t cmprAlg, uint8_t **ppOut, int32_t nOut,
+                     int32_t *szOut, uint8_t **ppBuf);
+int32_t tsdbDecmprData(uint8_t *pIn, int32_t szIn, int8_t type, int8_t cmprAlg, uint8_t **ppOut, int32_t szOut,
+                       uint8_t **ppBuf);
+int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol, uint8_t **ppOut, int32_t nOut,
+                        uint8_t **ppBuf);
+int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, int32_t nVal, SColData *pColData,
+                          uint8_t **ppBuf);
 // tsdbMemTable ==============================================================================================
 // SMemTable
-int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
-void    tsdbMemTableDestroy(SMemTable *pMemTable);
-void    tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid, STbData **ppTbData);
-void    tsdbRefMemTable(SMemTable *pMemTable);
-void    tsdbUnrefMemTable(SMemTable *pMemTable);
+int32_t  tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
+void     tsdbMemTableDestroy(SMemTable *pMemTable);
+STbData *tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid);
+void     tsdbRefMemTable(SMemTable *pMemTable);
+void     tsdbUnrefMemTable(SMemTable *pMemTable);
+SArray  *tsdbMemTableGetTbDataArray(SMemTable *pMemTable);
 // STbDataIter
 int32_t  tsdbTbDataIterCreate(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter **ppIter);
 void    *tsdbTbDataIterDestroy(STbDataIter *pIter);
@@ -190,7 +228,7 @@ bool    tsdbDelFileIsSame(SDelFile *pDelFile1, SDelFile *pDelFile2);
 int32_t tsdbDFileRollback(STsdb *pTsdb, SDFileSet *pSet, EDataFileT ftype);
 int32_t tPutHeadFile(uint8_t *p, SHeadFile *pHeadFile);
 int32_t tPutDataFile(uint8_t *p, SDataFile *pDataFile);
-int32_t tPutLastFile(uint8_t *p, SLastFile *pLastFile);
+int32_t tPutSttFile(uint8_t *p, SSttFile *pSttFile);
 int32_t tPutSmaFile(uint8_t *p, SSmaFile *pSmaFile);
 int32_t tPutDelFile(uint8_t *p, SDelFile *pDelFile);
 int32_t tGetDelFile(uint8_t *p, SDelFile *pDelFile);
@@ -199,7 +237,7 @@ int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet);
 
 void tsdbHeadFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SHeadFile *pHeadF, char fname[]);
 void tsdbDataFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SDataFile *pDataF, char fname[]);
-void tsdbLastFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SLastFile *pLastF, char fname[]);
+void tsdbSttFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSttFile *pSttF, char fname[]);
 void tsdbSmaFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSmaFile *pSmaF, char fname[]);
 // SDelFile
 void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]);
@@ -223,36 +261,38 @@ int32_t tsdbFSUpsertDelFile(STsdbFS *pFS, SDelFile *pDelFile);
 int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pSet);
 int32_t tsdbDataFWriterClose(SDataFWriter **ppWriter, int8_t sync);
 int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter);
-int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SArray *aBlockIdx, uint8_t **ppBuf);
-int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *pMapData, uint8_t **ppBuf, SBlockIdx *pBlockIdx);
-int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, uint8_t **ppBuf1, uint8_t **ppBuf2,
-                           SBlockIdx *pBlockIdx, SBlock *pBlock, int8_t cmprAlg);
+int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SArray *aBlockIdx);
+int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *pMapData, SBlockIdx *pBlockIdx);
+int32_t tsdbWriteSttBlk(SDataFWriter *pWriter, SArray *aSttBlk);
+int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlockInfo *pBlkInfo, SSmaInfo *pSmaInfo,
+                           int8_t cmprAlg, int8_t toLast);
 
 int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo);
 // SDataFReader
 int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pSet);
 int32_t tsdbDataFReaderClose(SDataFReader **ppReader);
-int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx, uint8_t **ppBuf);
-int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *pMapData, uint8_t **ppBuf);
-int32_t tsdbReadColData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBlock, int16_t *aColId, int32_t nCol,
-                        SBlockData *pBlockData, uint8_t **ppBuf1, uint8_t **ppBuf2);
-int32_t tsdbReadBlockData(SDataFReader *pReader, SBlockIdx *pBlockIdx, SBlock *pBlock, SBlockData *pBlockData,
-                          uint8_t **ppBuf1, uint8_t **ppBuf2);
-int32_t tsdbReadBlockSma(SDataFReader *pReader, SBlock *pBlock, SArray *aColumnDataAgg, uint8_t **ppBuf);
+int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx);
+int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *pMapData);
+int32_t tsdbReadSttBlk(SDataFReader *pReader, int32_t iStt, SArray *aSttBlk);
+int32_t tsdbReadBlockSma(SDataFReader *pReader, SDataBlk *pBlock, SArray *aColumnDataAgg);
+int32_t tsdbReadDataBlock(SDataFReader *pReader, SDataBlk *pBlock, SBlockData *pBlockData);
+int32_t tsdbReadSttBlock(SDataFReader *pReader, int32_t iStt, SSttBlk *pSttBlk, SBlockData *pBlockData);
 // SDelFWriter
 int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile, STsdb *pTsdb);
 int32_t tsdbDelFWriterClose(SDelFWriter **ppWriter, int8_t sync);
-int32_t tsdbWriteDelData(SDelFWriter *pWriter, SArray *aDelData, uint8_t **ppBuf, SDelIdx *pDelIdx);
-int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SArray *aDelIdx, uint8_t **ppBuf);
+int32_t tsdbWriteDelData(SDelFWriter *pWriter, SArray *aDelData, SDelIdx *pDelIdx);
+int32_t tsdbWriteDelIdx(SDelFWriter *pWriter, SArray *aDelIdx);
 int32_t tsdbUpdateDelFileHdr(SDelFWriter *pWriter);
 // SDelFReader
-int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile, STsdb *pTsdb, uint8_t **ppBuf);
+int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile, STsdb *pTsdb);
 int32_t tsdbDelFReaderClose(SDelFReader **ppReader);
-int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData, uint8_t **ppBuf);
-int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx, uint8_t **ppBuf);
+int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData);
+int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx);
 // tsdbRead.c ==============================================================================================
 int32_t tsdbTakeReadSnap(STsdb *pTsdb, STsdbReadSnap **ppSnap);
 void    tsdbUntakeReadSnap(STsdb *pTsdb, STsdbReadSnap *pSnap);
+// tsdbMerge.c ==============================================================================================
+int32_t tsdbMerge(STsdb *pTsdb);
 
 #define TSDB_CACHE_NO(c)       ((c).cacheLast == 0)
 #define TSDB_CACHE_LAST_ROW(c) (((c).cacheLast & 1) > 0)
@@ -260,7 +300,7 @@ void    tsdbUntakeReadSnap(STsdb *pTsdb, STsdbReadSnap *pSnap);
 
 // tsdbCache
 int32_t tsdbOpenCache(STsdb *pTsdb);
-void    tsdbCloseCache(SLRUCache *pCache);
+void    tsdbCloseCache(STsdb *pTsdb);
 int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row, STsdb *pTsdb);
 int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, STSRow *row, bool dup);
 int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHandle **h);
@@ -277,13 +317,6 @@ size_t tsdbCacheGetCapacity(SVnode *pVnode);
 int32_t tsdbCacheLastArray2Row(SArray *pLastArray, STSRow **ppRow, STSchema *pSchema);
 
 // structs =======================
-typedef struct {
-  int   minFid;
-  int   midFid;
-  int   maxFid;
-  TSKEY minKey;
-} SRtn;
-
 struct STsdbFS {
   SDelFile *pDelFile;
   SArray   *aDFileSet;  // SArray<SDFileSet>
@@ -298,11 +331,17 @@ struct STsdb {
   SMemTable     *imem;
   STsdbFS        fs;
   SLRUCache     *lruCache;
+  TdThreadMutex  lruMutex;
 };
 
 struct TSDBKEY {
   int64_t version;
   TSKEY   ts;
+};
+
+struct SVersionRange {
+  uint64_t minVer;
+  uint64_t maxVer;
 };
 
 typedef struct SMemSkipListNode SMemSkipListNode;
@@ -311,30 +350,23 @@ struct SMemSkipListNode {
   SMemSkipListNode *forwards[0];
 };
 typedef struct SMemSkipList {
-  uint32_t          seed;
   int64_t           size;
+  uint32_t          seed;
   int8_t            maxLevel;
   int8_t            level;
   SMemSkipListNode *pHead;
   SMemSkipListNode *pTail;
 } SMemSkipList;
 
-struct SDelDataInfo {
-  tb_uid_t suid;
-  tb_uid_t uid;
-};
-
 struct STbData {
   tb_uid_t     suid;
   tb_uid_t     uid;
   TSKEY        minKey;
   TSKEY        maxKey;
-  int64_t      minVersion;
-  int64_t      maxVersion;
-  int32_t      maxSkmVer;
   SDelData    *pHead;
   SDelData    *pTail;
   SMemSkipList sl;
+  STbData     *next;
 };
 
 struct SMemTable {
@@ -344,11 +376,13 @@ struct SMemTable {
   volatile int32_t nRef;
   TSKEY            minKey;
   TSKEY            maxKey;
-  int64_t          minVersion;
-  int64_t          maxVersion;
   int64_t          nRow;
   int64_t          nDel;
-  SArray          *aTbData;  // SArray<STbData*>
+  struct {
+    int32_t   nTbData;
+    int32_t   nBucket;
+    STbData **aBucket;
+  };
 };
 
 struct TSDBROW {
@@ -379,63 +413,51 @@ struct SMapData {
   uint8_t *pData;
 };
 
-typedef struct {
+struct SBlockCol {
   int16_t cid;
   int8_t  type;
   int8_t  smaOn;
-  int8_t  flag;  // HAS_NONE|HAS_NULL|HAS_VALUE
-  int32_t offset;
-  int32_t szBitmap;  // bitmap size
-  int32_t szOffset;  // size of offset, only for variant-length data type
-  int32_t szValue;   // compressed column value size
+  int8_t  flag;      // HAS_NONE|HAS_NULL|HAS_VALUE
   int32_t szOrigin;  // original column value size (only save for variant data type)
-} SBlockCol;
-
-typedef struct {
-  int32_t nRow;
-  int8_t  cmprAlg;
-  int64_t offset;      // block data offset
-  int32_t szBlockCol;  // SBlockCol size
-  int32_t szVersion;   // VERSION size
-  int32_t szTSKEY;     // TSKEY size
-  int32_t szBlock;     // total block size
-  int64_t sOffset;     // sma offset
-  int32_t nSma;        // sma size
-} SSubBlock;
-
-struct SBlock {
-  TSDBKEY   minKey;
-  TSDBKEY   maxKey;
-  int64_t   minVersion;
-  int64_t   maxVersion;
-  int32_t   nRow;
-  int8_t    last;
-  int8_t    hasDup;
-  int8_t    nSubBlock;
-  SSubBlock aSubBlock[TSDB_MAX_SUBBLOCKS];
+  int32_t szBitmap;  // bitmap size, 0 only for flag == HAS_VAL
+  int32_t szOffset;  // offset size, 0 only for non-variant-length type
+  int32_t szValue;   // value size, 0 when flag == (HAS_NULL | HAS_NONE)
+  int32_t offset;
 };
 
-struct SBlockL {
-  struct {
-    int64_t uid;
-    int64_t version;
-    TSKEY   ts;
-  } minKey;
-  struct {
-    int64_t uid;
-    int64_t version;
-    TSKEY   ts;
-  } maxKey;
-  int64_t minVer;
-  int64_t maxVer;
-  int32_t nRow;
-  int8_t  cmprAlg;
-  int64_t offset;
+struct SBlockInfo {
+  int64_t offset;  // block data offset
   int32_t szBlock;
-  int32_t szBlockCol;
-  int32_t szUid;
-  int32_t szVer;
-  int32_t szTSKEY;
+  int32_t szKey;
+};
+
+struct SSmaInfo {
+  int64_t offset;
+  int32_t size;
+};
+
+struct SDataBlk {
+  TSDBKEY    minKey;
+  TSDBKEY    maxKey;
+  int64_t    minVer;
+  int64_t    maxVer;
+  int32_t    nRow;
+  int8_t     hasDup;
+  int8_t     nSubBlock;
+  SBlockInfo aSubBlock[TSDB_MAX_SUBBLOCKS];
+  SSmaInfo   smaInfo;
+};
+
+struct SSttBlk {
+  int64_t    suid;
+  int64_t    minUid;
+  int64_t    maxUid;
+  TSKEY      minKey;
+  TSKEY      maxKey;
+  int64_t    minVer;
+  int64_t    maxVer;
+  int32_t    nRow;
+  SBlockInfo bInfo;
 };
 
 struct SColData {
@@ -450,19 +472,20 @@ struct SColData {
   uint8_t *pData;
 };
 
+// (SBlockData){.suid = 0, .uid = 0}: block data not initialized
+// (SBlockData){.suid = suid, .uid = uid}: block data for ONE child table int .data file
+// (SBlockData){.suid = suid, .uid = 0}: block data for N child tables int .last file
+// (SBlockData){.suid = 0, .uid = uid}: block data for 1 normal table int .last/.data file
 struct SBlockData {
-  int32_t  nRow;
-  int64_t *aVersion;
-  TSKEY   *aTSKEY;
+  int64_t  suid;      // 0 means normal table block data, otherwise child table block data
+  int64_t  uid;       // 0 means block data in .last file, otherwise in .data file
+  int32_t  nRow;      // number of rows
+  int64_t *aUid;      // uids of each row, only exist in block data in .last file (uid == 0)
+  int64_t *aVersion;  // versions of each row
+  TSKEY   *aTSKEY;    // timestamp of each row
   SArray  *aIdx;      // SArray<int32_t>
   SArray  *aColData;  // SArray<SColData>
 };
-
-// ================== TSDB global config
-extern bool tsdbForceKeepFile;
-
-#define TSDB_FS_ITER_FORWARD  TSDB_ORDER_ASC
-#define TSDB_FS_ITER_BACKWARD TSDB_ORDER_DESC
 
 struct TABLEID {
   tb_uid_t suid;
@@ -491,13 +514,18 @@ struct SDelIdx {
   int64_t  size;
 };
 
-#pragma pack(push, 1)
-struct SBlockDataHdr {
+struct SDiskDataHdr {
   uint32_t delimiter;
+  uint32_t fmtVer;
   int64_t  suid;
   int64_t  uid;
+  int32_t  szUid;
+  int32_t  szVer;
+  int32_t  szKey;
+  int32_t  szBlkCol;
+  int32_t  nRow;
+  int8_t   cmprAlg;
 };
-#pragma pack(pop)
 
 struct SDelFile {
   volatile int32_t nRef;
@@ -522,11 +550,12 @@ struct SDataFile {
   int64_t size;
 };
 
-struct SLastFile {
+struct SSttFile {
   volatile int32_t nRef;
 
   int64_t commitID;
   int64_t size;
+  int64_t offset;
 };
 
 struct SSmaFile {
@@ -541,8 +570,9 @@ struct SDFileSet {
   int32_t    fid;
   SHeadFile *pHeadF;
   SDataFile *pDataF;
-  SLastFile *pLastF;
   SSmaFile  *pSmaF;
+  uint8_t    nSttF;
+  SSttFile  *aSttF[TSDB_MAX_STT_FILE];
 };
 
 struct SRowIter {
@@ -557,25 +587,21 @@ struct SRowMerger {
   SArray   *pArray;  // SArray<SColVal>
 };
 
+typedef struct {
+  char     *path;
+  int32_t   szPage;
+  int32_t   flag;
+  TdFilePtr pFD;
+  int64_t   pgno;
+  uint8_t  *pBuf;
+  int64_t   szFile;
+} STsdbFD;
+
 struct SDelFWriter {
-  STsdb    *pTsdb;
-  SDelFile  fDel;
-  TdFilePtr pWriteH;
-};
-
-struct SDataFWriter {
-  STsdb    *pTsdb;
-  SDFileSet wSet;
-
-  TdFilePtr pHeadFD;
-  TdFilePtr pDataFD;
-  TdFilePtr pLastFD;
-  TdFilePtr pSmaFD;
-
-  SHeadFile fHead;
-  SDataFile fData;
-  SLastFile fLast;
-  SSmaFile  fSma;
+  STsdb   *pTsdb;
+  SDelFile fDel;
+  STsdbFD *pWriteH;
+  uint8_t *aBuf[1];
 };
 
 struct STsdbReadSnap {
@@ -583,6 +609,66 @@ struct STsdbReadSnap {
   SMemTable *pIMem;
   STsdbFS    fs;
 };
+
+struct SDataFWriter {
+  STsdb    *pTsdb;
+  SDFileSet wSet;
+
+  STsdbFD *pHeadFD;
+  STsdbFD *pDataFD;
+  STsdbFD *pSmaFD;
+  STsdbFD *pSttFD;
+
+  SHeadFile fHead;
+  SDataFile fData;
+  SSmaFile  fSma;
+  SSttFile  fStt[TSDB_MAX_STT_FILE];
+
+  uint8_t *aBuf[4];
+};
+
+struct SDataFReader {
+  STsdb     *pTsdb;
+  SDFileSet *pSet;
+  STsdbFD   *pHeadFD;
+  STsdbFD   *pDataFD;
+  STsdbFD   *pSmaFD;
+  STsdbFD   *aSttFD[TSDB_MAX_STT_FILE];
+  uint8_t   *aBuf[3];
+};
+
+typedef struct {
+  int64_t suid;
+  int64_t uid;
+  TSDBROW row;
+} SRowInfo;
+
+typedef struct SSttBlockLoadInfo {
+    SBlockData blockData[2];
+    SArray    *aSttBlk;
+    int32_t    blockIndex[2];  // to denote the loaded block in the corresponding position.
+    int32_t    currentLoadBlockIndex;
+} SSttBlockLoadInfo;
+
+typedef struct SMergeTree {
+  int8_t      backward;
+  SRBTree     rbt;
+  SArray     *pIterList;
+  SLDataIter *pIter;
+  bool        destroyLoadInfo;
+  SSttBlockLoadInfo* pLoadInfo;
+} SMergeTree;
+
+int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
+                       STimeWindow *pTimeWindow, SVersionRange *pVerRange, void* pLoadInfo);
+void    tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
+bool    tMergeTreeNext(SMergeTree *pMTree);
+TSDBROW tMergeTreeGetRow(SMergeTree *pMTree);
+void    tMergeTreeClose(SMergeTree *pMTree);
+
+SSttBlockLoadInfo* tCreateLastBlockLoadInfo();
+void  resetLastBlockLoadInfo(SSttBlockLoadInfo* pLoadInfo);
+void* destroyLastBlockLoadInfo(SSttBlockLoadInfo* pLoadInfo);
 
 // ========== inline functions ==========
 static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {

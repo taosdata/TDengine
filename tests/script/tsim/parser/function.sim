@@ -70,6 +70,7 @@ if $data00 != @15-08-18 00:00:00.000@ then
   return -1
 endi
 if $data01 != 2.068333156 then
+  print expect 2.068333156, actual: $data01
   return -1
 endi
 if $data02 != 2.063999891 then
@@ -128,6 +129,7 @@ if $data03 != 2 then
   return -1
 endi
 if $data11 != 2.077099980 then
+  print expect 2.077099980, actual: $data11
   return -1
 endi
 if $data12 != 2.077000022 then

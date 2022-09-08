@@ -11,10 +11,10 @@ conn: taos.TaosConnection = taos.connect(host="localhost",
 server_version = conn.server_info
 print("server_version", server_version)
 client_version = conn.client_info
-print("client_version", client_version)  # 2.4.0.16
+print("client_version", client_version)  # 3.0.0.0
 
 conn.close()
 
 # possible output:
-# 2.4.0.16
-# 2.4.0.16
+# 3.0.0.0
+# 3.0.0.0

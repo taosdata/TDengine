@@ -166,6 +166,7 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
 
   // ref page one more time so the page will not be release
   tdbRefPage(pPage);
+  tdbDebug("pcache/mdirty page %p/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id);
 
   // Set page as dirty
   pPage->isDirty = 1;
@@ -501,7 +502,7 @@ static int tdbPagerWritePageToDB(SPager *pPager, SPage *pPage) {
   i64 offset;
   int ret;
 
-  offset = pPage->pageSize * (TDB_PAGE_PGNO(pPage) - 1);
+  offset = (i64)pPage->pageSize * (TDB_PAGE_PGNO(pPage) - 1);
   if (tdbOsLSeek(pPager->fd, offset, SEEK_SET) < 0) {
     ASSERT(0);
     return -1;

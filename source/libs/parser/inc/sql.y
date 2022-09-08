@@ -207,6 +207,9 @@ db_options(A) ::= db_options(B) WAL_RETENTION_SIZE NK_MINUS(D) NK_INTEGER(C).   
                                                                                   }
 db_options(A) ::= db_options(B) WAL_ROLL_PERIOD NK_INTEGER(C).                    { A = setDatabaseOption(pCxt, B, DB_OPTION_WAL_ROLL_PERIOD, &C); }
 db_options(A) ::= db_options(B) WAL_SEGMENT_SIZE NK_INTEGER(C).                   { A = setDatabaseOption(pCxt, B, DB_OPTION_WAL_SEGMENT_SIZE, &C); }
+db_options(A) ::= db_options(B) SST_TRIGGER NK_INTEGER(C).                        { A = setDatabaseOption(pCxt, B, DB_OPTION_SST_TRIGGER, &C); }
+db_options(A) ::= db_options(B) TABLE_PREFIX NK_INTEGER(C).                       { A = setDatabaseOption(pCxt, B, DB_OPTION_TABLE_PREFIX, &C); }
+db_options(A) ::= db_options(B) TABLE_SUFFIX NK_INTEGER(C).                       { A = setDatabaseOption(pCxt, B, DB_OPTION_TABLE_SUFFIX, &C); }
 
 alter_db_options(A) ::= alter_db_option(B).                                       { A = createAlterDatabaseOptions(pCxt); A = setAlterDatabaseOption(pCxt, A, &B); }
 alter_db_options(A) ::= alter_db_options(B) alter_db_option(C).                   { A = setAlterDatabaseOption(pCxt, B, &C); }
@@ -223,6 +226,7 @@ alter_db_option(A) ::= KEEP variable_list(B).                                   
 //alter_db_option(A) ::= REPLICA NK_INTEGER(B).                                     { A.type = DB_OPTION_REPLICA; A.val = B; }
 //alter_db_option(A) ::= STRICT NK_STRING(B).                                       { A.type = DB_OPTION_STRICT; A.val = B; }
 alter_db_option(A) ::= WAL_LEVEL NK_INTEGER(B).                                   { A.type = DB_OPTION_WAL; A.val = B; }
+alter_db_option(A) ::= SST_TRIGGER NK_INTEGER(B).                                 { A.type = DB_OPTION_SST_TRIGGER; A.val = B; }
 
 %type integer_list                                                                { SNodeList* }
 %destructor integer_list                                                          { nodesDestroyList($$); }
@@ -410,6 +414,8 @@ cmd ::= SHOW TABLE DISTRIBUTED full_table_name(A).                              
 cmd ::= SHOW CONSUMERS.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CONSUMERS_STMT); }
 cmd ::= SHOW SUBSCRIPTIONS.                                                       { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT); }
 cmd ::= SHOW TAGS FROM table_name_cond(A) from_db_opt(B).                         { pCxt->pRootNode = createShowStmtWithCond(pCxt, QUERY_NODE_SHOW_TAGS_STMT, B, A, OP_TYPE_EQUAL); }
+cmd ::= SHOW VNODES NK_INTEGER(A).                                                { pCxt->pRootNode = createShowVnodesStmt(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &A), NULL); }
+cmd ::= SHOW VNODES NK_STRING(A).                                                 { pCxt->pRootNode = createShowVnodesStmt(pCxt, NULL, createValueNode(pCxt, TSDB_DATA_TYPE_VARCHAR, &A)); }
 
 db_name_cond_opt(A) ::= .                                                         { A = createDefaultDatabaseCondValue(pCxt); }
 db_name_cond_opt(A) ::= db_name(B) NK_DOT.                                        { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
@@ -495,18 +501,15 @@ bufsize_opt(A) ::= BUFSIZE NK_INTEGER(B).                                       
 
 /************************************************ create/drop stream **************************************************/
 cmd ::= CREATE STREAM not_exists_opt(E) stream_name(A)
-  stream_options(B) into_opt(C) AS query_expression(D).                           { pCxt->pRootNode = createCreateStreamStmt(pCxt, E, &A, C, B, D); }
+  stream_options(B) INTO full_table_name(C) AS query_expression(D).               { pCxt->pRootNode = createCreateStreamStmt(pCxt, E, &A, C, B, D); }
 cmd ::= DROP STREAM exists_opt(A) stream_name(B).                                 { pCxt->pRootNode = createDropStreamStmt(pCxt, A, &B); }
-
-into_opt(A) ::= .                                                                 { A = NULL; }
-into_opt(A) ::= INTO full_table_name(B).                                          { A = B; }
 
 stream_options(A) ::= .                                                           { A = createStreamOptions(pCxt); }
 stream_options(A) ::= stream_options(B) TRIGGER AT_ONCE.                          { ((SStreamOptions*)B)->triggerType = STREAM_TRIGGER_AT_ONCE; A = B; }
 stream_options(A) ::= stream_options(B) TRIGGER WINDOW_CLOSE.                     { ((SStreamOptions*)B)->triggerType = STREAM_TRIGGER_WINDOW_CLOSE; A = B; }
 stream_options(A) ::= stream_options(B) TRIGGER MAX_DELAY duration_literal(C).    { ((SStreamOptions*)B)->triggerType = STREAM_TRIGGER_MAX_DELAY; ((SStreamOptions*)B)->pDelay = releaseRawExprNode(pCxt, C); A = B; }
 stream_options(A) ::= stream_options(B) WATERMARK duration_literal(C).            { ((SStreamOptions*)B)->pWatermark = releaseRawExprNode(pCxt, C); A = B; }
-stream_options(A) ::= stream_options(B) IGNORE EXPIRED.                           { ((SStreamOptions*)B)->ignoreExpired = true; A = B; }
+stream_options(A) ::= stream_options(B) IGNORE EXPIRED NK_INTEGER(C).             { ((SStreamOptions*)B)->ignoreExpired = taosStr2Int8(C.z, NULL, 10); A = B; }
 
 /************************************************ kill connection/query ***********************************************/
 cmd ::= KILL CONNECTION NK_INTEGER(A).                                            { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_CONNECTION_STMT, &A); }
@@ -1000,4 +1003,4 @@ null_ordering_opt(A) ::= NULLS LAST.                                            
 
 %fallback ABORT AFTER ATTACH BEFORE BEGIN BITAND BITNOT BITOR BLOCKS CHANGE COMMA COMPACT CONCAT CONFLICT COPY DEFERRED DELIMITERS DETACH DIVIDE DOT EACH END FAIL 
   FILE FOR GLOB ID IMMEDIATE IMPORT INITIALLY INSTEAD ISNULL KEY NK_BITNOT NK_SEMI NOTNULL OF PLUS PRIVILEGE RAISE REPLACE RESTRICT ROW SEMI STAR STATEMENT STRING 
-  TIMES UPDATE VALUES VARIABLE VIEW VNODES WAL.
+  TIMES UPDATE VALUES VARIABLE VIEW WAL.

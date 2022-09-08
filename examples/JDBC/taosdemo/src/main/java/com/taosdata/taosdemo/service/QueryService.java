@@ -1,7 +1,5 @@
 package com.taosdata.taosdemo.service;
 
-import com.taosdata.jdbc.utils.SqlSyntaxValidator;
-
 import javax.sql.DataSource;
 import java.sql.*;
 import java.util.ArrayList;
@@ -23,10 +21,6 @@ public class QueryService {
         Boolean[] ret = new Boolean[sqls.length];
         for (int i = 0; i < sqls.length; i++) {
             ret[i] = true;
-            if (!SqlSyntaxValidator.isValidForExecuteQuery(sqls[i])) {
-                ret[i] = false;
-                continue;
-            }
             try (Connection conn = dataSource.getConnection(); Statement stmt = conn.createStatement()) {
                 stmt.executeQuery(sqls[i]);
             } catch (SQLException e) {

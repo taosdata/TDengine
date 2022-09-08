@@ -50,7 +50,7 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
 
   int32_t transId = sdbGetIdFromRaw(pMnode->pSdb, pRaw);
   pMgmt->errCode = cbMeta.code;
-  mDebug("trans:%d, is proposed, saved:%d code:0x%x, apply index:%" PRId64 " term:%" PRIu64 " config:%" PRId64
+  mInfo("trans:%d, is proposed, saved:%d code:0x%x, apply index:%" PRId64 " term:%" PRIu64 " config:%" PRId64
          " role:%s raw:%p",
          transId, pMgmt->transId, cbMeta.code, cbMeta.index, cbMeta.term, cbMeta.lastConfigIndex, syncStr(cbMeta.state),
          pRaw);
@@ -88,7 +88,7 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
 }
 
 int32_t mndSyncGetSnapshot(struct SSyncFSM *pFsm, SSnapshot *pSnapshot, void *pReaderParam, void **ppReader) {
-  mDebug("start to read snapshot from sdb in atomic way");
+  mInfo("start to read snapshot from sdb in atomic way");
   SMnode *pMnode = pFsm->data;
   return sdbStartRead(pMnode->pSdb, (SSdbIter **)ppReader, &pSnapshot->lastApplyIndex, &pSnapshot->lastApplyTerm,
                       &pSnapshot->lastConfigIndex);
@@ -136,13 +136,13 @@ void mndReConfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbM
 }
 
 int32_t mndSnapshotStartRead(struct SSyncFSM *pFsm, void *pParam, void **ppReader) {
-  mDebug("start to read snapshot from sdb");
+  mInfo("start to read snapshot from sdb");
   SMnode *pMnode = pFsm->data;
   return sdbStartRead(pMnode->pSdb, (SSdbIter **)ppReader, NULL, NULL, NULL);
 }
 
 int32_t mndSnapshotStopRead(struct SSyncFSM *pFsm, void *pReader) {
-  mDebug("stop to read snapshot from sdb");
+  mInfo("stop to read snapshot from sdb");
   SMnode *pMnode = pFsm->data;
   return sdbStopRead(pMnode->pSdb, pReader);
 }
@@ -174,12 +174,12 @@ int32_t mndSnapshotDoWrite(struct SSyncFSM *pFsm, void *pWriter, void *pBuf, int
 void mndLeaderTransfer(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   SMnode *pMnode = pFsm->data;
   atomic_store_8(&(pMnode->syncMgmt.leaderTransferFinish), 1);
-  mDebug("vgId:1, mnode leader transfer finish");
+  mInfo("vgId:1, mnode leader transfer finish");
 }
 
 static void mndBecomeFollower(struct SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
-  mDebug("vgId:1, become follower and post sem");
+  mInfo("vgId:1, become follower and post sem");
 
   taosWLockLatch(&pMnode->syncMgmt.lock);
   if (pMnode->syncMgmt.transId != 0) {
@@ -190,7 +190,7 @@ static void mndBecomeFollower(struct SSyncFSM *pFsm) {
 }
 
 static void mndBecomeLeader(struct SSyncFSM *pFsm) {
-  mDebug("vgId:1, become leader");
+  mInfo("vgId:1, become leader");
   SMnode *pMnode = pFsm->data;
 }
 
@@ -284,7 +284,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
     return -1;
   } else {
     pMgmt->transId = transId;
-    mDebug("trans:%d, will be proposed", pMgmt->transId);
+    mInfo("trans:%d, will be proposed", pMgmt->transId);
     taosWUnLockLatch(&pMgmt->lock);
   }
 
@@ -314,7 +314,7 @@ void mndSyncStart(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   syncSetMsgCb(pMgmt->sync, &pMnode->msgCb);
   syncStart(pMgmt->sync);
-  mDebug("mnode sync started, id:%" PRId64 " standby:%d", pMgmt->sync, pMgmt->standby);
+  mInfo("mnode sync started, id:%" PRId64 " standby:%d", pMgmt->sync, pMgmt->standby);
 }
 
 void mndSyncStop(SMnode *pMnode) {

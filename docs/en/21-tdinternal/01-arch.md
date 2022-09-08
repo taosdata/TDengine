@@ -12,6 +12,7 @@ The design of TDengine is based on the assumption that any hardware or software 
 Logical structure diagram of TDengine's distributed architecture is as follows:
 
 ![TDengine Database architecture diagram](structure.webp)
+
 <center> Figure 1: TDengine architecture diagram </center>
 
 A complete TDengine system runs on one or more physical nodes. Logically, it includes data node (dnode), TDengine client driver (TAOSC) and application (app). There are one or more data nodes in the system, which form a cluster. The application interacts with the TDengine cluster through TAOSC's API. The following is a brief introduction to each logical unit.
@@ -38,15 +39,16 @@ A complete TDengine system runs on one or more physical nodes. Logically, it inc
 
 **Cluster external connection**: TDengine cluster can accommodate a single, multiple or even thousands of data nodes. The application only needs to initiate a connection to any data node in the cluster. The network parameter required for connection is the End Point (FQDN plus configured port number) of a data node. When starting the application taos through CLI, the FQDN of the data node can be specified through the option `-h`, and the configured port number can be specified through `-p`. If the port is not configured, the system configuration parameter “serverPort” of TDengine will be adopted.
 
-**Inter-cluster communication**: Data nodes connect with each other through TCP/UDP. When a data node starts, it will obtain the EP information of the dnode where the mnode is located, and then establish a connection with the mnode in the system to exchange information. There are three steps to obtain EP information of the mnode: 
+**Inter-cluster communication**: Data nodes connect with each other through TCP/UDP. When a data node starts, it will obtain the EP information of the dnode where the mnode is located, and then establish a connection with the mnode in the system to exchange information. There are three steps to obtain EP information of the mnode:
 
-1. Check whether the mnodeEpList file exists, if it does not exist or cannot be opened normally to obtain EP information of the mnode, skip to the second step; 
+1. Check whether the mnodeEpList file exists, if it does not exist or cannot be opened normally to obtain EP information of the mnode, skip to the second step;
 2. Check the system configuration file taos.cfg to obtain node configuration parameters “firstEp” and “secondEp” (the node specified by these two parameters can be a normal node without mnode, in this case, the node will try to redirect to the mnode node when connected). If these two configuration parameters do not exist or do not exist in taos.cfg, or are invalid, skip to the third step;
 3. Set your own EP as a mnode EP and run it independently. After obtaining the mnode EP list, the data node initiates the connection. It will successfully join the working cluster after connection. If not successful, it will try the next item in the mnode EP list. If all attempts are made, but the connection still fails, sleep for a few seconds before trying again.
 
 **The choice of MNODE**: TDengine logically has a management node, but there is no separate execution code. The server-side only has one set of execution code, taosd. So which data node will be the management node? This is determined automatically by the system without any manual intervention. The principle is as follows: when a data node starts, it will check its End Point and compare it with the obtained mnode EP List. If its EP exists in it, the data node shall start the mnode module and become a mnode. If your own EP is not in the mnode EP List, the mnode module will not start. During the system operation, due to load balancing, downtime and other reasons, mnode may migrate to the new dnode, totally transparently and without manual intervention. The modification of configuration parameters is the decision made by mnode itself according to resources usage.
 
-**Add new data nodes:** After the system has a data node, it has become a working system. There are two steps to add a new node into the cluster. 
+**Add new data nodes:** After the system has a data node, it has become a working system. There are two steps to add a new node into the cluster.
+
 - Step1: Connect to the existing working data node using TDengine CLI, and then add the End Point of the new data node with the command "create dnode"
 - Step 2: In the system configuration parameter file taos.cfg of the new data node, set the “firstEp” and “secondEp” parameters to the EP of any two data nodes in the existing cluster. Please refer to the user tutorial for detailed steps. In this way, the cluster will be established step by step.
 
@@ -57,6 +59,7 @@ A complete TDengine system runs on one or more physical nodes. Logically, it inc
 To explain the relationship between vnode, mnode, TAOSC and application and their respective roles, the following is an analysis of a typical data writing process.
 
 ![typical process of TDengine Database](message.webp)
+
 <center> Figure 2: Typical process of TDengine </center>
 
 1. Application initiates a request to insert data through JDBC, ODBC, or other APIs.
@@ -121,16 +124,17 @@ The load balancing process does not require any manual intervention, and it is t
 
 If a database has N replicas, a virtual node group has N virtual nodes. But only one is the Leader and all others are slaves. When the application writes a new record to system, only the Leader vnode can accept the writing request. If a follower vnode receives a writing request, the system will notifies TAOSC to redirect.
 
-###  Leader vnode Writing Process
+### Leader vnode Writing Process
 
 Leader Vnode uses a writing process as follows:
 
 ![TDengine Database Leader Writing Process](write_master.webp)
+
 <center> Figure 3: TDengine Leader writing process </center>
 
 1. Leader vnode receives the application data insertion request, verifies, and moves to next step;
 2. If the system configuration parameter `“walLevel”` is greater than 0, vnode will write the original request packet into database log file WAL. If walLevel is set to 2 and fsync is set to 0, TDengine will make WAL data written immediately to ensure that even system goes down, all data can be recovered from database log file;
-3.  If there are multiple replicas, vnode will forward data packet to follower vnodes in the same virtual node group, and the forwarded packet has a version number with data;
+3. If there are multiple replicas, vnode will forward data packet to follower vnodes in the same virtual node group, and the forwarded packet has a version number with data;
 4. Write into memory and add the record to “skip list”;
 5. Leader vnode returns a confirmation message to the application, indicating a successful write.
 6. If any of Step 2, 3 or 4 fails, the error will directly return to the application.
@@ -140,6 +144,7 @@ Leader Vnode uses a writing process as follows:
 For a follower vnode, the write process as follows:
 
 ![TDengine Database Follower Writing Process](write_slave.webp)
+
 <center> Figure 4: TDengine Follower Writing Process </center>
 
 1. Follower vnode receives a data insertion request forwarded by Leader vnode;
@@ -212,6 +217,7 @@ When data is written to disk, the system decideswhether to compress the data bas
 By default, TDengine saves all data in /var/lib/taos directory, and the data files of each vnode are saved in a different directory under this directory. In order to expand the storage space, minimize the bottleneck of file reading and improve the data throughput rate, TDengine can configure the system parameter “dataDir” to allow multiple mounted hard disks to be used by system at the same time. In addition, TDengine also provides the function of tiered data storage, i.e. storage on different storage media according to the time stamps of data files. For example, the latest data is stored on SSD, the data older than a week is stored on local hard disk, and data older than four weeks is stored on network storage device. This reduces storage costs and ensures efficient data access. The movement of data on different storage media is automatically done by the system and is completely transparent to applications. Tiered storage of data is also configured through the system parameter “dataDir”.
 
 dataDir format is as follows:
+
 ```
 dataDir data_path [tier_level]
 ```
@@ -270,6 +276,7 @@ For the data collected by device D1001, the number of records per hour is counte
 TDengine creates a separate table for each data collection point, but in practical applications, it is often necessary to aggregate data from different data collection points. In order to perform aggregation operations efficiently, TDengine introduces the concept of STable (super table). STable is used to represent a specific type of data collection point. It is a table set containing multiple tables. The schema of each table in the set is the same, but each table has its own static tag. There can be multiple tags which can be added, deleted and modified at any time. Applications can aggregate or statistically operate on all or a subset of tables under a STABLE by specifying tag filters. This greatly simplifies the development of applications. The process is shown in the following figure:
 
 ![TDengine Database Diagram of multi-table aggregation query](multi_tables.webp)
+
 <center> Figure 5: Diagram of multi-table aggregation query </center>
 
 1. Application sends a query condition to system;
@@ -279,9 +286,8 @@ TDengine creates a separate table for each data collection point, but in practic
 5. Each vnode first finds the set of tables within its own node that meet the tag filters from memory, then scans the stored time-series data, completes corresponding aggregation calculations, and returns result to TAOSC;
 6. TAOSC finally aggregates the results returned by multiple data nodes and send them back to application.
 
-Since TDengine stores tag data and time-series data separately in vnode, by filtering tag data in memory, the set of tables that need to participate in aggregation operation is first found, which reduces the volume of data to be scanned and improves aggregation speed. At the same time, because the data is distributed in multiple vnodes/dnodes, the aggregation operation is carried out concurrently in multiple vnodes, which further improves the aggregation speed. Aggregation functions for ordinary tables and most operations are applicable to STables. The syntax is exactly the same. Please see TAOS SQL for details.
+Since TDengine stores tag data and time-series data separately in vnode, by filtering tag data in memory, the set of tables that need to participate in aggregation operation is first found, which reduces the volume of data to be scanned and improves aggregation speed. At the same time, because the data is distributed in multiple vnodes/dnodes, the aggregation operation is carried out concurrently in multiple vnodes, which further improves the aggregation speed. Aggregation functions for ordinary tables and most operations are applicable to STables. The syntax is exactly the same. Please see TDengine SQL for details.
 
 ### Precomputation
 
 In order to effectively improve the performance of query processing, based-on the unchangeable feature of IoT data, statistical information of data stored in data block is recorded in the head of data block, including max value, min value, and sum. We call it a precomputing unit. If the query processing involves all the data of a whole data block, the pre-calculated results are directly used, and no need to read the data block contents at all. Since the amount of pre-calculated data is much smaller than the actual size of data block stored on disk, for query processing with disk IO as bottleneck, the use of pre-calculated results can greatly reduce the pressure of reading IO and accelerate the query process. The precomputation mechanism is similar to the BRIN (Block Range Index) of PostgreSQL.
-

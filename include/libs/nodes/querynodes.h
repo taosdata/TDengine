@@ -53,7 +53,15 @@ typedef struct SExprNode {
   bool      orderAlias;
 } SExprNode;
 
-typedef enum EColumnType { COLUMN_TYPE_COLUMN = 1, COLUMN_TYPE_TAG, COLUMN_TYPE_TBNAME } EColumnType;
+typedef enum EColumnType {
+  COLUMN_TYPE_COLUMN = 1,
+  COLUMN_TYPE_TAG,
+  COLUMN_TYPE_TBNAME,
+  COLUMN_TYPE_WINDOW_START,
+  COLUMN_TYPE_WINDOW_END,
+  COLUMN_TYPE_WINDOW_DURATION,
+  COLUMN_TYPE_GROUP_KEY
+} EColumnType;
 
 typedef struct SColumnNode {
   SExprNode   node;  // QUERY_NODE_COLUMN
@@ -270,6 +278,7 @@ typedef struct SSelectStmt {
   bool        hasLastRowFunc;
   bool        hasTimeLineFunc;
   bool        hasUdaf;
+  bool        hasStateKey;
   bool        onlyHasKeepOrderFunc;
   bool        groupSort;
 } SSelectStmt;
@@ -293,6 +302,7 @@ typedef enum ESqlClause {
   SQL_CLAUSE_WHERE,
   SQL_CLAUSE_PARTITION_BY,
   SQL_CLAUSE_WINDOW,
+  SQL_CLAUSE_FILL,
   SQL_CLAUSE_GROUP_BY,
   SQL_CLAUSE_HAVING,
   SQL_CLAUSE_DISTINCT,
@@ -420,6 +430,9 @@ void    nodesValueNodeToVariant(const SValueNode* pNode, SVariant* pVal);
 
 char*   nodesGetFillModeString(EFillMode mode);
 int32_t nodesMergeConds(SNode** pDst, SNodeList** pSrc);
+
+const char* operatorTypeStr(EOperatorType type);
+const char* logicConditionTypeStr(ELogicConditionType type);
 
 #ifdef __cplusplus
 }
