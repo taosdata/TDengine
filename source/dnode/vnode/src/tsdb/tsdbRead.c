@@ -70,6 +70,8 @@ typedef struct SIOCostSummary {
   double  smaLoadTime;
   int64_t lastBlockLoad;
   double  lastBlockLoadTime;
+  int64_t composedBlocks;
+  double  buildComposedBlockTime;
 } SIOCostSummary;
 
 typedef struct SBlockLoadSuppInfo {
@@ -2076,13 +2078,16 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
   blockDataUpdateTsWindow(pResBlock, 0);
 
   setComposedBlockFlag(pReader, true);
-  int64_t et = taosGetTimestampUs();
+  double el = (taosGetTimestampUs() - st)/1000.0;
+
+  pReader->cost.buildComposedBlockTime += el;
+  pReader->cost.composedBlocks += 1;
 
   if (pResBlock->info.rows > 0) {
     tsdbDebug("%p uid:%" PRIu64 ", composed data block created, brange:%" PRIu64 "-%" PRIu64
               " rows:%d, elapsed time:%.2f ms %s",
               pReader, pBlockScanInfo->uid, pResBlock->info.window.skey, pResBlock->info.window.ekey,
-              pResBlock->info.rows, (et - st) / 1000.0, pReader->idStr);
+              pResBlock->info.rows, el, pReader->idStr);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -3374,14 +3379,14 @@ void tsdbReaderClose(STsdbReader* pReader) {
 
   SIOCostSummary* pCost = &pReader->cost;
 
-  tsdbDebug("%p :io-cost summary: head-file:%" PRIu64 ", head-file time:%.2f ms, SMA:%" PRId64
-            " SMA-time:%.2f ms, fileBlocks:%" PRId64
-            ", fileBlocks-time:%.2f ms, "
-            "build in-memory-block-time:%.2f ms, lastBlocks:%" PRId64
-            ", lastBlocks-time:%.2f ms, STableBlockScanInfo size:%.2f Kb %s",
-            pReader, pCost->headFileLoad, pCost->headFileLoadTime, pCost->smaDataLoad, pCost->smaLoadTime,
-            pCost->numOfBlocks, pCost->blockLoadTime, pCost->buildmemBlock, pCost->lastBlockLoad,
-            pCost->lastBlockLoadTime, numOfTables * sizeof(STableBlockScanInfo) / 1000.0, pReader->idStr);
+  tsdbDebug(
+      "%p :io-cost summary: head-file:%" PRIu64 ", head-file time:%.2f ms, SMA:%" PRId64
+      " SMA-time:%.2f ms, fileBlocks:%" PRId64 ", fileBlocks-load-time:%.2f ms, "
+      "build in-memory-block-time:%.2f ms, lastBlocks:%" PRId64 ", lastBlocks-time:%.2f ms, composed-blocks:%" PRId64
+      ", composed-blocks-time:%.2fms, STableBlockScanInfo size:%.2f Kb %s",
+      pReader, pCost->headFileLoad, pCost->headFileLoadTime, pCost->smaDataLoad, pCost->smaLoadTime, pCost->numOfBlocks,
+      pCost->blockLoadTime, pCost->buildmemBlock, pCost->lastBlockLoad, pCost->lastBlockLoadTime, pCost->composedBlocks,
+      pCost->buildComposedBlockTime, numOfTables * sizeof(STableBlockScanInfo) / 1000.0, pReader->idStr);
 
   taosMemoryFree(pReader->idStr);
   taosMemoryFree(pReader->pSchema);
