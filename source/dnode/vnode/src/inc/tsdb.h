@@ -648,6 +648,8 @@ typedef struct SSttBlockLoadInfo {
     SArray    *aSttBlk;
     int32_t    blockIndex[2];  // to denote the loaded block in the corresponding position.
     int32_t    currentLoadBlockIndex;
+    int32_t    loadBlocks;
+    double     elapsedTime;
 } SSttBlockLoadInfo;
 
 typedef struct SMergeTree {
@@ -657,10 +659,11 @@ typedef struct SMergeTree {
   SLDataIter *pIter;
   bool        destroyLoadInfo;
   SSttBlockLoadInfo* pLoadInfo;
+  const char *idStr;
 } SMergeTree;
 
 int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
-                       STimeWindow *pTimeWindow, SVersionRange *pVerRange, void* pLoadInfo);
+                       STimeWindow *pTimeWindow, SVersionRange *pVerRange, void* pLoadInfo, const char* idStr);
 void    tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
 bool    tMergeTreeNext(SMergeTree *pMTree);
 TSDBROW tMergeTreeGetRow(SMergeTree *pMTree);
@@ -668,6 +671,7 @@ void    tMergeTreeClose(SMergeTree *pMTree);
 
 SSttBlockLoadInfo* tCreateLastBlockLoadInfo();
 void  resetLastBlockLoadInfo(SSttBlockLoadInfo* pLoadInfo);
+void  getLastBlockLoadInfo(SSttBlockLoadInfo* pLoadInfo, int64_t* blocks, double* el);
 void* destroyLastBlockLoadInfo(SSttBlockLoadInfo* pLoadInfo);
 
 // ========== inline functions ==========
