@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnd.h"
 #include "tutil.h"
+#include "vnd.h"
 
 const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                    .dbname = "",
@@ -48,7 +48,8 @@ const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                        },
                                    .hashBegin = 0,
                                    .hashEnd = 0,
-                                   .hashMethod = 0};
+                                   .hashMethod = 0,
+                                   .sttTrigger = TSDB_DEFAULT_STT_FILE};
 
 int vnodeCheckCfg(const SVnodeCfg *pCfg) {
   // TODO
@@ -107,7 +108,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "wal.retentionSize", pCfg->walCfg.retentionSize) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.segSize", pCfg->walCfg.segSize) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.level", pCfg->walCfg.level) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "sstTrigger", pCfg->sstTrigger) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "sstTrigger", pCfg->sttTrigger) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashBegin", pCfg->hashBegin) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashEnd", pCfg->hashEnd) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashMethod", pCfg->hashMethod) < 0) return -1;
@@ -209,7 +210,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "wal.level", pCfg->walCfg.level, code);
   if (code < 0) return -1;
-  tjsonGetNumberValue(pJson, "sstTrigger", pCfg->sstTrigger, code);
+  tjsonGetNumberValue(pJson, "sstTrigger", pCfg->sttTrigger, code);
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "hashBegin", pCfg->hashBegin, code);
   if (code < 0) return -1;
