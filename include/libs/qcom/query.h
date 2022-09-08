@@ -116,6 +116,8 @@ typedef struct STableMeta {
 
 typedef struct SDBVgInfo {
   int32_t   vgVersion;
+  int16_t   hashPrefix;
+  int16_t   hashSuffix;
   int8_t    hashMethod;
   int32_t   numOfTable;  // DB's table num, unit is TSDB_TABLE_NUM_UNIT
   SHashObj* vgHash;      // key:vgId, value:SVgroupInfo

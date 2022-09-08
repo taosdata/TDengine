@@ -1171,6 +1171,8 @@ int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUs
   pRsp->vgVersion = pDb->vgVersion;
   pRsp->vgNum = taosArrayGetSize(pRsp->pVgroupInfos);
   pRsp->hashMethod = pDb->cfg.hashMethod;
+  pRsp->hashPrefix = pDb->cfg.hashPrefix;
+  pRsp->hashSuffix = pDb->cfg.hashSuffix;
   return 0;
 }
 
@@ -1303,6 +1305,8 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
     usedbRsp.vgVersion = pDb->vgVersion;
     usedbRsp.vgNum = (int32_t)taosArrayGetSize(usedbRsp.pVgroupInfos);
     usedbRsp.hashMethod = pDb->cfg.hashMethod;
+    usedbRsp.hashPrefix = pDb->cfg.hashPrefix;
+    usedbRsp.hashSuffix = pDb->cfg.hashSuffix;
 
     taosArrayPush(batchUseRsp.pArray, &usedbRsp);
     mndReleaseDb(pMnode, pDb);
@@ -1588,6 +1592,8 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, i);
       if (i == 0) {
         colDataAppend(pColInfo, rows, buf, false);
+      } else if (i == 1) {
+        colDataAppend(pColInfo, rows, (const char *)&pDb->createdTime, false);
       } else if (i == 3) {
         colDataAppend(pColInfo, rows, (const char *)&numOfTables, false);
       } else if (i == 14) {

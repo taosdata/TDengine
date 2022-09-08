@@ -420,6 +420,7 @@ typedef enum {
 typedef struct {
   SFSLASTNEXTROWSTATES state;  // [input]
   STsdb               *pTsdb;  // [input]
+  tb_uid_t             suid;
   tb_uid_t             uid;
   int32_t              nFileSet;
   int32_t              iFileSet;
@@ -454,9 +455,9 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
       code = tsdbDataFReaderOpen(&state->pDataFReader, state->pTsdb, pFileSet);
       if (code) goto _err;
 
-      tMergeTreeOpen(&state->mergeTree, 1, state->pDataFReader, state->uid,
+      tMergeTreeOpen(&state->mergeTree, 1, state->pDataFReader, state->suid, state->uid,
                      &(STimeWindow){.skey = TSKEY_MIN, .ekey = TSKEY_MAX},
-                     &(SVersionRange){.minVer = 0, .maxVer = UINT64_MAX});
+                     &(SVersionRange){.minVer = 0, .maxVer = UINT64_MAX}, NULL);
       bool hasVal = tMergeTreeNext(&state->mergeTree);
       if (!hasVal) {
         state->state = SFSLASTNEXTROW_FILESET;
@@ -796,7 +797,7 @@ static bool tsdbKeyDeleted(TSDBKEY *key, SArray *pSkyline, int64_t *iSkyline) {
     if (key->ts > pItemBack->ts) {
       return false;
     } else if (key->ts >= pItemFront->ts && key->ts <= pItemBack->ts) {
-      if ((key->version <= pItemFront->version || key->ts == pItemBack->ts && key->version <= pItemBack->version)) {
+      if (key->version <= pItemFront->version || (key->ts == pItemBack->ts && key->version <= pItemBack->version)) {
         return true;
       } else {
         return false;
@@ -890,6 +891,7 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
   pIter->fsLastState.state = (SFSLASTNEXTROWSTATES)SFSNEXTROW_FS;
   pIter->fsLastState.pTsdb = pTsdb;
   pIter->fsLastState.aDFileSet = pIter->pReadSnap->fs.aDFileSet;
+  pIter->fsLastState.suid = suid;
   pIter->fsLastState.uid = uid;
 
   pIter->fsState.state = SFSNEXTROW_FS;
