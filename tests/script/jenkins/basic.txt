@@ -221,6 +221,7 @@
 ./test.sh -f tsim/table/describe.sim
 ./test.sh -f tsim/table/double.sim
 ./test.sh -f tsim/table/float.sim
+./test.sh -f tsim/table/hash.sim
 ./test.sh -f tsim/table/int.sim
 ./test.sh -f tsim/table/limit.sim
 ./test.sh -f tsim/table/smallint.sim

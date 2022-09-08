@@ -589,7 +589,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
       }
 
       tMapDataReset(&state->blockMap);
-      code = tsdbReadBlock(state->pDataFReader, state->pBlockIdx, &state->blockMap);
+      code = tsdbReadDataBlk(state->pDataFReader, state->pBlockIdx, &state->blockMap);
       if (code) goto _err;
 
       state->nBlock = state->blockMap.nItem;
