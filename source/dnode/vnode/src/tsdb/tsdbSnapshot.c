@@ -51,7 +51,7 @@ struct STsdbSnapReader {
   SDataFReader* pDataFReader;
   SFDataIter*   pIter;
   SRBTree       rbt;
-  SFDataIter    aFDataIter[TSDB_MAX_STT_FILE + 1];
+  SFDataIter    aFDataIter[TSDB_MAX_STT_TRIGGER + 1];
   SBlockData    bData;
   SSkmInfo      skmTable;
   // for del file
