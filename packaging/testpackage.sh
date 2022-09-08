@@ -234,7 +234,7 @@ if [[ ${packgeName} =~ "Lite" ]]  ||   ([[ ${packgeName} =~ "x64" ]] && [[ ${pac
     cd ${installPath}
     wgetFile taosTools-2.1.3-Linux-x64.tar.gz .
     tar xf taosTools-2.1.3-Linux-x64.tar.gz
-    cd taosTools-2.1.2 && bash install-taostools.sh
+    cd taosTools-2.1.3 && bash install-taostools.sh
 elif  ([[ ${packgeName} =~ "arm64" ]] && [[ ${packgeName} =~ "client" ]]);then
     echoColor G "===== install taos-tools arm when package is arm64-client ====="
     cd ${installPath}
