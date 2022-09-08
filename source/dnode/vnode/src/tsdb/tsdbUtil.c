@@ -1050,19 +1050,23 @@ int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
   }
 
   // get value
-  SValue value;
+//  SValue value;
   if (IS_VAR_DATA_TYPE(pColData->type)) {
     if (iVal + 1 < pColData->nVal) {
-      value.nData = pColData->aOffset[iVal + 1] - pColData->aOffset[iVal];
+      pColVal->value.nData = pColData->aOffset[iVal + 1] - pColData->aOffset[iVal];
     } else {
-      value.nData = pColData->nData - pColData->aOffset[iVal];
+      pColVal->value.nData = pColData->nData - pColData->aOffset[iVal];
     }
 
-    value.pData = pColData->pData + pColData->aOffset[iVal];
+    pColVal->value.pData = pColData->pData + pColData->aOffset[iVal];
   } else {
-    tGetValue(pColData->pData + tDataTypes[pColData->type].bytes * iVal, &value, pColData->type);
+    tGetValue(pColData->pData + tDataTypes[pColData->type].bytes * iVal, &pColVal->value, pColData->type);
   }
-  *pColVal = COL_VAL_VALUE(pColData->cid, pColData->type, value);
+
+  pColVal->cid = pColData->cid;
+  pColVal->type = pColData->type;
+//  pColVal->value = value;
+//  *pColVal = COL_VAL_VALUE(pColData->cid, pColData->type, value);
 
 _exit:
   return code;
