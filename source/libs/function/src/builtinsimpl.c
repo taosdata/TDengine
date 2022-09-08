@@ -2795,6 +2795,8 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
   // All null data column, return directly.
   if (pInput->colDataAggIsSet && (pInput->pColumnDataAgg[0]->numOfNull == pInput->totalRows)) {
     ASSERT(pInputCol->hasNull == true);
+    // save selectivity value for column consisted of all null values
+    firstlastSaveTupleData(pCtx->pSrcBlock, pInput->startRowIndex, pCtx, pInfo);
     return 0;
   }
 
@@ -2871,7 +2873,10 @@ int32_t firstFunction(SqlFunctionCtx* pCtx) {
     }
   }
 #endif
-
+  if (numOfElems == 0) {
+    // save selectivity value for column consisted of all null values
+    firstlastSaveTupleData(pCtx->pSrcBlock, pInput->startRowIndex, pCtx, pInfo);
+  }
   SET_VAL(pResInfo, numOfElems, 1);
   return TSDB_CODE_SUCCESS;
 }
@@ -2892,6 +2897,8 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   // All null data column, return directly.
   if (pInput->colDataAggIsSet && (pInput->pColumnDataAgg[0]->numOfNull == pInput->totalRows)) {
     ASSERT(pInputCol->hasNull == true);
+    // save selectivity value for column consisted of all null values
+    firstlastSaveTupleData(pCtx->pSrcBlock, pInput->startRowIndex, pCtx, pInfo);
     return 0;
   }
 
@@ -2952,7 +2959,10 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
     }
   }
 #endif
-
+  if (numOfElems == 0) {
+    // save selectivity value for column consisted of all null values
+    firstlastSaveTupleData(pCtx->pSrcBlock, pInput->startRowIndex, pCtx, pInfo);
+  }
   SET_VAL(pResInfo, numOfElems, 1);
   return TSDB_CODE_SUCCESS;
 }
@@ -4701,7 +4711,7 @@ int32_t stateCountFunction(SqlFunctionCtx* pCtx) {
       colDataAppendNULL(pOutput, i);
       // handle selectivity
       if (pCtx->subsidiaries.num > 0) {
-        appendSelectivityValue(pCtx, i, i);
+        appendSelectivityValue(pCtx, i, pCtx->offset + numOfElems - 1);
       }
       continue;
     }
@@ -4714,11 +4724,11 @@ int32_t stateCountFunction(SqlFunctionCtx* pCtx) {
     } else {
       pInfo->count = 0;
     }
-    colDataAppend(pOutput, i, (char*)&output, false);
+    colDataAppend(pOutput, pCtx->offset + numOfElems - 1, (char*)&output, false);
 
     // handle selectivity
     if (pCtx->subsidiaries.num > 0) {
-      appendSelectivityValue(pCtx, i, i);
+      appendSelectivityValue(pCtx, i, pCtx->offset + numOfElems - 1);
     }
   }
 

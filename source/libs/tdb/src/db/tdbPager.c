@@ -502,7 +502,7 @@ static int tdbPagerWritePageToDB(SPager *pPager, SPage *pPage) {
   i64 offset;
   int ret;
 
-  offset = pPage->pageSize * (TDB_PAGE_PGNO(pPage) - 1);
+  offset = (i64)pPage->pageSize * (TDB_PAGE_PGNO(pPage) - 1);
   if (tdbOsLSeek(pPager->fd, offset, SEEK_SET) < 0) {
     ASSERT(0);
     return -1;

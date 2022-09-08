@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndDb.h"
+#include "mndCluster.h"
 #include "mndDnode.h"
 #include "mndOffset.h"
 #include "mndPrivilege.h"
@@ -1592,6 +1593,8 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
       SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, i);
       if (i == 0) {
         colDataAppend(pColInfo, rows, buf, false);
+      } else if (i == 1) {
+        colDataAppend(pColInfo, rows, (const char *)&pDb->createdTime, false);
       } else if (i == 3) {
         colDataAppend(pColInfo, rows, (const char *)&numOfTables, false);
       } else if (i == 14) {
@@ -1712,18 +1715,18 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
   taosMemoryFree(buf);
 }
 
-static void setInformationSchemaDbCfg(SDbObj *pDbObj) {
+static void setInformationSchemaDbCfg(SMnode *pMnode, SDbObj *pDbObj) {
   tstrncpy(pDbObj->name, TSDB_INFORMATION_SCHEMA_DB, tListLen(pDbObj->name));
-  pDbObj->createdTime = 0;
+  pDbObj->createdTime = mndGetClusterCreateTime(pMnode);
   pDbObj->cfg.numOfVgroups = 0;
   pDbObj->cfg.strict = 1;
   pDbObj->cfg.replications = 1;
   pDbObj->cfg.precision = TSDB_TIME_PRECISION_MILLI;
 }
 
-static void setPerfSchemaDbCfg(SDbObj *pDbObj) {
+static void setPerfSchemaDbCfg(SMnode *pMnode, SDbObj *pDbObj) {
   tstrncpy(pDbObj->name, TSDB_PERFORMANCE_SCHEMA_DB, tListLen(pDbObj->name));
-  pDbObj->createdTime = 0;
+  pDbObj->createdTime = mndGetClusterCreateTime(pMnode);
   pDbObj->cfg.numOfVgroups = 0;
   pDbObj->cfg.strict = 1;
   pDbObj->cfg.replications = 1;
@@ -1754,7 +1757,7 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   // Append the information_schema database into the result.
   if (!pShow->sysDbRsp) {
     SDbObj infoschemaDb = {0};
-    setInformationSchemaDbCfg(&infoschemaDb);
+    setInformationSchemaDbCfg(pMnode, &infoschemaDb);
     size_t numOfTables = 0;
     getVisibleInfosTablesNum(sysinfo, &numOfTables);
     mndDumpDbInfoData(pMnode, pBlock, &infoschemaDb, pShow, numOfRows, numOfTables, true, 0, 1);
@@ -1762,7 +1765,7 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     numOfRows += 1;
 
     SDbObj perfschemaDb = {0};
-    setPerfSchemaDbCfg(&perfschemaDb);
+    setPerfSchemaDbCfg(pMnode, &perfschemaDb);
     numOfTables = 0;
     getPerfDbMeta(NULL, &numOfTables);
     mndDumpDbInfoData(pMnode, pBlock, &perfschemaDb, pShow, numOfRows, numOfTables, true, 0, 1);
