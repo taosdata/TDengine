@@ -1059,7 +1059,50 @@ int32_t tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
 
     pColVal->value.pData = pColData->pData + pColData->aOffset[iVal];
   } else {
-    tGetValue(pColData->pData + tDataTypes[pColData->type].bytes * iVal, &pColVal->value, pColData->type);
+    int32_t n = 0;
+    uint8_t* p = pColData->pData + tDataTypes[pColData->type].bytes * iVal;
+
+//    if (IS_VAR_DATA_TYPE(pColData->type)) {
+//      n = tGetBinary(p, &pColVal->value.pData, pColVal->value.pData ? &pColVal->value.nData : NULL);
+//    } else {
+      switch (pColData->type) {
+        case TSDB_DATA_TYPE_BOOL:
+        case TSDB_DATA_TYPE_TINYINT:
+          pColVal->value.i8 = *(int8_t*)p;
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+          pColVal->value.i16 = *(int16_t*)p;
+          break;
+        case TSDB_DATA_TYPE_INT:
+          pColVal->value.i32 = *(int32_t*)p;
+          break;
+        case TSDB_DATA_TYPE_TIMESTAMP:
+        case TSDB_DATA_TYPE_BIGINT:
+          pColVal->value.i64 = *(int64_t*)p;
+          break;
+        case TSDB_DATA_TYPE_FLOAT:
+          n += tGetFloat((uint8_t*)p, &pColVal->value.f);
+          break;
+        case TSDB_DATA_TYPE_DOUBLE:
+          n += tGetDouble((uint8_t*)p, &pColVal->value.d);
+          break;
+        case TSDB_DATA_TYPE_UTINYINT:
+          pColVal->value.u8 = *(uint8_t*)p;
+          break;
+        case TSDB_DATA_TYPE_USMALLINT:
+          pColVal->value.u16 = *(uint16_t*)p;
+          break;
+        case TSDB_DATA_TYPE_UINT:
+          pColVal->value.u32 = *(uint32_t*)p;
+          break;
+        case TSDB_DATA_TYPE_UBIGINT:
+          pColVal->value.u64 = *(uint64_t*)p;
+          break;
+        default:
+          ASSERT(0);
+      }
+//    }
+//    tGetValue(pColData->pData + tDataTypes[pColData->type].bytes * iVal, &pColVal->value, pColData->type);
   }
 
   pColVal->cid = pColData->cid;
