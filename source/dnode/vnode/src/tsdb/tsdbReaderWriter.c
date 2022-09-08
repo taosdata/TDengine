@@ -418,21 +418,21 @@ _err:
   return code;
 }
 
-int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *mBlock, SBlockIdx *pBlockIdx) {
+int32_t tsdbWriteDataBlk(SDataFWriter *pWriter, SMapData *mDataBlk, SBlockIdx *pBlockIdx) {
   int32_t    code = 0;
   SHeadFile *pHeadFile = &pWriter->fHead;
   int64_t    size;
   int64_t    n;
 
-  ASSERT(mBlock->nItem > 0);
+  ASSERT(mDataBlk->nItem > 0);
 
   // alloc
-  size = tPutMapData(NULL, mBlock);
+  size = tPutMapData(NULL, mDataBlk);
   code = tRealloc(&pWriter->aBuf[0], size);
   if (code) goto _err;
 
   // build
-  n = tPutMapData(pWriter->aBuf[0], mBlock);
+  n = tPutMapData(pWriter->aBuf[0], mDataBlk);
 
   // write
   code = tsdbWriteFile(pWriter->pHeadFD, pHeadFile->size, pWriter->aBuf[0], size);
@@ -446,7 +446,7 @@ int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *mBlock, SBlockIdx *pBloc
   tsdbTrace("vgId:%d, write block, file ID:%d commit ID:%d suid:%" PRId64 " uid:%" PRId64 " offset:%" PRId64
             " size:%" PRId64 " nItem:%d",
             TD_VID(pWriter->pTsdb->pVnode), pWriter->wSet.fid, pHeadFile->commitID, pBlockIdx->suid, pBlockIdx->uid,
-            pBlockIdx->offset, pBlockIdx->size, mBlock->nItem);
+            pBlockIdx->offset, pBlockIdx->size, mDataBlk->nItem);
   return code;
 
 _err:
@@ -872,7 +872,7 @@ _err:
   return code;
 }
 
-int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *mBlock) {
+int32_t tsdbReadDataBlk(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *mDataBlk) {
   int32_t code = 0;
   int64_t offset = pBlockIdx->offset;
   int64_t size = pBlockIdx->size;
@@ -886,7 +886,7 @@ int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *mBl
   if (code) goto _err;
 
   // decode
-  int64_t n = tGetMapData(pReader->aBuf[0], mBlock);
+  int64_t n = tGetMapData(pReader->aBuf[0], mDataBlk);
   if (n < 0) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -1053,6 +1053,29 @@ _err:
   return code;
 }
 
+int32_t tsdbReadDataBlockEx(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockData *pBlockData) {
+  int32_t     code = 0;
+  SBlockInfo *pBlockInfo = &pDataBlk->aSubBlock[0];
+
+  // alloc
+  code = tRealloc(&pReader->aBuf[0], pBlockInfo->szBlock);
+  if (code) goto _err;
+
+  // read
+  code = tsdbReadFile(pReader->pDataFD, pBlockInfo->offset, pReader->aBuf[0], pBlockInfo->szBlock);
+  if (code) goto _err;
+
+  // decmpr
+  code = tDecmprBlockData(pReader->aBuf[0], pBlockInfo->szBlock, pBlockData, &pReader->aBuf[1]);
+  if (code) goto _err;
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d tsdb read data block ex failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
 int32_t tsdbReadDataBlock(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockData *pBlockData) {
   int32_t code = 0;
 
@@ -1147,8 +1170,8 @@ int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile, STsdb *pTsdb
   pDelFWriter->fDel = *pFile;
 
   tsdbDelFileName(pTsdb, pFile, fname);
-  code =
-      tsdbOpenFile(fname, TSDB_DEFAULT_PAGE_SIZE, TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE, &pDelFWriter->pWriteH);
+  int32_t flag = TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE;
+  code = tsdbOpenFile(fname, TSDB_DEFAULT_PAGE_SIZE, flag, &pDelFWriter->pWriteH);
   if (code) goto _err;
 
   // update header
