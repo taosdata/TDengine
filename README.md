@@ -85,6 +85,16 @@ taosx run \
   -t 'taos://root:taosdata@another:6030/db2'
 ```
 
+It's able to synchronize a table to another cluster database.
+
+```bash
+taosx run \
+  -f 'tmq://root@taosdata@localhost:6030/db1.table_name' \
+  -t 'taos://root:taosdata@another:6030/db2'
+```
+
+Note that `table_name` could be super table, or child table, or normal table.
+
 ### Full backup
 
 It will backup whole database `db1` in `this` cluster to directory `/path/to/backups/of/one`.
@@ -103,6 +113,14 @@ With local backup directory, you can restore it to any database in any cluster a
 taosx run \
   -f 'local:/path/to/backups/of/one' \
   -t 'taos://root:taosdata@another:6030/db1'
+```
+
+Single (s)table backup is like:
+
+```bash
+taosx run \
+  -f 'tmq://this/db1.table1' \
+  -t 'local:/path/to/backups/of/one'
 ```
 
 ### Incremental backup
@@ -353,4 +371,3 @@ When there's error, the response body is:
 [CSV]: https://www.ietf.org/rfc/rfc4180.txt
 [SwaggerUI]: https://swagger.io/tools/swagger-ui/
 [oas3]: https://spec.openapis.org/oas/v3.1.0
-
