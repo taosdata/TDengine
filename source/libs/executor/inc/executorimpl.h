@@ -591,6 +591,24 @@ typedef struct SMergeAlignedIntervalAggOperatorInfo {
   SNode*       pCondition;
 } SMergeAlignedIntervalAggOperatorInfo;
 
+typedef struct SStreamIntervalOperatorInfo {
+  // SOptrBasicInfo should be first, SAggSupporter should be second for stream encode
+  SOptrBasicInfo     binfo;              // basic info
+  SAggSupporter      aggSup;             // aggregate supporter
+  SExprSupp          scalarSupp;         // supporter for perform scalar function
+  SGroupResInfo      groupResInfo;       // multiple results build supporter
+  SInterval          interval;           // interval info
+  int32_t            primaryTsIndex;     // primary time stamp slot id from result of downstream operator.
+  STimeWindowAggSupp twAggSup;
+  bool               invertible;
+  bool               ignoreExpiredData;
+  SArray*            pRecycledPages;
+  SArray*            pDelWins;           // SWinRes
+  int32_t            delIndex;
+  SSDataBlock*       pDelRes;
+  bool               isFinal;
+} SStreamIntervalOperatorInfo;
+
 typedef struct SStreamFinalIntervalOperatorInfo {
   // SOptrBasicInfo should be first, SAggSupporter should be second for stream encode
   SOptrBasicInfo     binfo;           // basic info
@@ -909,8 +927,7 @@ void    initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLi
 void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfoData* pTimeWindowData, int32_t offset,
                       int32_t forwardStep, int32_t numOfTotal, int32_t numOfOutput);
 
-int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, int32_t numOfOutput, SArray* pColList,
-                                     char** pNextStart);
+int32_t extractDataBlockFromFetchRsp(SSDataBlock* pRes, char* pData, SArray* pColList, char** pNextStart);
 void    updateLoadRemoteInfo(SLoadRemoteDataInfo* pInfo, int32_t numOfRows, int32_t dataLen, int64_t startTs,
                              SOperatorInfo* pOperator);
 
@@ -1004,6 +1021,8 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
                                                   SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
                                                        SExecTaskInfo* pTaskInfo, int32_t numOfChild);
+SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream,
+                                                SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
                                                 SExecTaskInfo* pTaskInfo);

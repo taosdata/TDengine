@@ -148,6 +148,7 @@ struct SRSmaInfoItem {
 };
 
 struct SRSmaInfo {
+  SSma     *pSma;
   STSchema *pTSchema;
   int64_t   suid;
   int64_t   lastRecv;  // ms

@@ -214,7 +214,7 @@ int32_t tCmprBlockIdx(void const *lhs, void const *rhs) {
 
 int32_t tCmprBlockL(void const *lhs, void const *rhs) {
   SBlockIdx *lBlockIdx = (SBlockIdx *)lhs;
-  SSstBlk   *rBlockL = (SSstBlk *)rhs;
+  SSttBlk   *rBlockL = (SSttBlk *)rhs;
 
   if (lBlockIdx->suid < rBlockL->suid) {
     return -1;
@@ -311,41 +311,41 @@ bool tDataBlkHasSma(SDataBlk *pDataBlk) {
   return pDataBlk->smaInfo.size > 0;
 }
 
-// SSstBlk ======================================================
-int32_t tPutSstBlk(uint8_t *p, void *ph) {
+// SSttBlk ======================================================
+int32_t tPutSttBlk(uint8_t *p, void *ph) {
   int32_t  n = 0;
-  SSstBlk *pSstBlk = (SSstBlk *)ph;
+  SSttBlk *pSttBlk = (SSttBlk *)ph;
 
-  n += tPutI64(p ? p + n : p, pSstBlk->suid);
-  n += tPutI64(p ? p + n : p, pSstBlk->minUid);
-  n += tPutI64(p ? p + n : p, pSstBlk->maxUid);
-  n += tPutI64v(p ? p + n : p, pSstBlk->minKey);
-  n += tPutI64v(p ? p + n : p, pSstBlk->maxKey);
-  n += tPutI64v(p ? p + n : p, pSstBlk->minVer);
-  n += tPutI64v(p ? p + n : p, pSstBlk->maxVer);
-  n += tPutI32v(p ? p + n : p, pSstBlk->nRow);
-  n += tPutI64v(p ? p + n : p, pSstBlk->bInfo.offset);
-  n += tPutI32v(p ? p + n : p, pSstBlk->bInfo.szBlock);
-  n += tPutI32v(p ? p + n : p, pSstBlk->bInfo.szKey);
+  n += tPutI64(p ? p + n : p, pSttBlk->suid);
+  n += tPutI64(p ? p + n : p, pSttBlk->minUid);
+  n += tPutI64(p ? p + n : p, pSttBlk->maxUid);
+  n += tPutI64v(p ? p + n : p, pSttBlk->minKey);
+  n += tPutI64v(p ? p + n : p, pSttBlk->maxKey);
+  n += tPutI64v(p ? p + n : p, pSttBlk->minVer);
+  n += tPutI64v(p ? p + n : p, pSttBlk->maxVer);
+  n += tPutI32v(p ? p + n : p, pSttBlk->nRow);
+  n += tPutI64v(p ? p + n : p, pSttBlk->bInfo.offset);
+  n += tPutI32v(p ? p + n : p, pSttBlk->bInfo.szBlock);
+  n += tPutI32v(p ? p + n : p, pSttBlk->bInfo.szKey);
 
   return n;
 }
 
-int32_t tGetSstBlk(uint8_t *p, void *ph) {
+int32_t tGetSttBlk(uint8_t *p, void *ph) {
   int32_t  n = 0;
-  SSstBlk *pSstBlk = (SSstBlk *)ph;
+  SSttBlk *pSttBlk = (SSttBlk *)ph;
 
-  n += tGetI64(p + n, &pSstBlk->suid);
-  n += tGetI64(p + n, &pSstBlk->minUid);
-  n += tGetI64(p + n, &pSstBlk->maxUid);
-  n += tGetI64v(p + n, &pSstBlk->minKey);
-  n += tGetI64v(p + n, &pSstBlk->maxKey);
-  n += tGetI64v(p + n, &pSstBlk->minVer);
-  n += tGetI64v(p + n, &pSstBlk->maxVer);
-  n += tGetI32v(p + n, &pSstBlk->nRow);
-  n += tGetI64v(p + n, &pSstBlk->bInfo.offset);
-  n += tGetI32v(p + n, &pSstBlk->bInfo.szBlock);
-  n += tGetI32v(p + n, &pSstBlk->bInfo.szKey);
+  n += tGetI64(p + n, &pSttBlk->suid);
+  n += tGetI64(p + n, &pSttBlk->minUid);
+  n += tGetI64(p + n, &pSttBlk->maxUid);
+  n += tGetI64v(p + n, &pSttBlk->minKey);
+  n += tGetI64v(p + n, &pSttBlk->maxKey);
+  n += tGetI64v(p + n, &pSttBlk->minVer);
+  n += tGetI64v(p + n, &pSttBlk->maxVer);
+  n += tGetI32v(p + n, &pSttBlk->nRow);
+  n += tGetI64v(p + n, &pSttBlk->bInfo.offset);
+  n += tGetI32v(p + n, &pSttBlk->bInfo.szBlock);
+  n += tGetI32v(p + n, &pSttBlk->bInfo.szKey);
 
   return n;
 }
@@ -1548,7 +1548,7 @@ int32_t tCmprBlockData(SBlockData *pBlockData, int8_t cmprAlg, uint8_t **ppOut, 
       if (code) goto _exit;
 
       blockCol.offset = aBufN[0];
-      aBufN[0] = aBufN[0] + blockCol.szBitmap + blockCol.szOffset + blockCol.szValue + sizeof(TSCKSUM);
+      aBufN[0] = aBufN[0] + blockCol.szBitmap + blockCol.szOffset + blockCol.szValue;
     }
 
     code = tRealloc(&aBuf[1], hdr.szBlkCol + tPutBlockCol(NULL, &blockCol));
@@ -1556,15 +1556,8 @@ int32_t tCmprBlockData(SBlockData *pBlockData, int8_t cmprAlg, uint8_t **ppOut, 
     hdr.szBlkCol += tPutBlockCol(aBuf[1] + hdr.szBlkCol, &blockCol);
   }
 
-  aBufN[1] = 0;
-  if (hdr.szBlkCol > 0) {
-    aBufN[1] = hdr.szBlkCol + sizeof(TSCKSUM);
-
-    code = tRealloc(&aBuf[1], aBufN[1]);
-    if (code) goto _exit;
-
-    taosCalcChecksumAppend(0, aBuf[1], aBufN[1]);
-  }
+  // SBlockCol
+  aBufN[1] = hdr.szBlkCol;
 
   // uid + version + tskey
   aBufN[2] = 0;
@@ -1585,16 +1578,11 @@ int32_t tCmprBlockData(SBlockData *pBlockData, int8_t cmprAlg, uint8_t **ppOut, 
   if (code) goto _exit;
   aBufN[2] += hdr.szKey;
 
-  aBufN[2] += sizeof(TSCKSUM);
-  code = tRealloc(&aBuf[2], aBufN[2]);
-  if (code) goto _exit;
-
   // hdr
   aBufN[3] = tPutDiskDataHdr(NULL, &hdr);
   code = tRealloc(&aBuf[3], aBufN[3]);
   if (code) goto _exit;
   tPutDiskDataHdr(aBuf[3], &hdr);
-  taosCalcChecksumAppend(taosCalcChecksum(0, aBuf[3], aBufN[3]), aBuf[2], aBufN[2]);
 
   // aggragate
   if (ppOut) {
@@ -1626,10 +1614,6 @@ int32_t tDecmprBlockData(uint8_t *pIn, int32_t szIn, SBlockData *pBlockData, uin
 
   // SDiskDataHdr
   n += tGetDiskDataHdr(pIn + n, &hdr);
-  if (!taosCheckChecksumWhole(pIn, n + hdr.szUid + hdr.szVer + hdr.szKey + sizeof(TSCKSUM))) {
-    code = TSDB_CODE_FILE_CORRUPTED;
-    goto _exit;
-  }
   ASSERT(hdr.delimiter == TSDB_FILE_DLMT);
 
   pBlockData->suid = hdr.suid;
@@ -1657,7 +1641,7 @@ int32_t tDecmprBlockData(uint8_t *pIn, int32_t szIn, SBlockData *pBlockData, uin
   code = tsdbDecmprData(pIn + n, hdr.szKey, TSDB_DATA_TYPE_TIMESTAMP, hdr.cmprAlg, (uint8_t **)&pBlockData->aTSKEY,
                         sizeof(TSKEY) * hdr.nRow, &aBuf[0]);
   if (code) goto _exit;
-  n = n + hdr.szKey + sizeof(TSCKSUM);
+  n += hdr.szKey;
 
   // loop to decode each column data
   if (hdr.szBlkCol == 0) goto _exit;
@@ -1679,8 +1663,8 @@ int32_t tDecmprBlockData(uint8_t *pIn, int32_t szIn, SBlockData *pBlockData, uin
         if (code) goto _exit;
       }
     } else {
-      code = tsdbDecmprColData(pIn + n + hdr.szBlkCol + sizeof(TSCKSUM) + blockCol.offset, &blockCol, hdr.cmprAlg,
-                               hdr.nRow, pColData, &aBuf[0]);
+      code = tsdbDecmprColData(pIn + n + hdr.szBlkCol + blockCol.offset, &blockCol, hdr.cmprAlg, hdr.nRow, pColData,
+                               &aBuf[0]);
       if (code) goto _exit;
     }
   }
@@ -2062,12 +2046,6 @@ int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol
   }
   size += pBlockCol->szValue;
 
-  // checksum
-  size += sizeof(TSCKSUM);
-  code = tRealloc(ppOut, nOut + size);
-  if (code) goto _exit;
-  taosCalcChecksumAppend(0, *ppOut + nOut, size);
-
 _exit:
   return code;
 }
@@ -2075,12 +2053,6 @@ _exit:
 int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, int32_t nVal, SColData *pColData,
                           uint8_t **ppBuf) {
   int32_t code = 0;
-
-  int32_t size = pBlockCol->szBitmap + pBlockCol->szOffset + pBlockCol->szValue + sizeof(TSCKSUM);
-  if (!taosCheckChecksumWhole(pIn, size)) {
-    code = TSDB_CODE_FILE_CORRUPTED;
-    goto _exit;
-  }
 
   ASSERT(pColData->cid == pBlockCol->cid);
   ASSERT(pColData->type == pBlockCol->type);
@@ -2149,40 +2121,6 @@ int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, in
     if (code) goto _exit;
   }
   p += pBlockCol->szValue;
-
-_exit:
-  return code;
-}
-
-int32_t tsdbReadAndCheck(TdFilePtr pFD, int64_t offset, uint8_t **ppOut, int32_t size, int8_t toCheck) {
-  int32_t code = 0;
-
-  // alloc
-  code = tRealloc(ppOut, size);
-  if (code) goto _exit;
-
-  // seek
-  int64_t n = taosLSeekFile(pFD, offset, SEEK_SET);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _exit;
-  }
-
-  // read
-  n = taosReadFile(pFD, *ppOut, size);
-  if (n < 0) {
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto _exit;
-  } else if (n < size) {
-    code = TSDB_CODE_FILE_CORRUPTED;
-    goto _exit;
-  }
-
-  // check
-  if (toCheck && !taosCheckChecksumWhole(*ppOut, size)) {
-    code = TSDB_CODE_FILE_CORRUPTED;
-    goto _exit;
-  }
 
 _exit:
   return code;
