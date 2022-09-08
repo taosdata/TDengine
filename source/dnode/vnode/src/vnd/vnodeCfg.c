@@ -49,7 +49,8 @@ const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                    .hashBegin = 0,
                                    .hashEnd = 0,
                                    .hashMethod = 0,
-                                   .sttTrigger = TSDB_DEFAULT_STT_FILE};
+                                   .sttTrigger = TSDB_DEFAULT_STT_FILE,
+                                   .tsdbPageSize = TSDB_DEFAULT_PAGE_SIZE};
 
 int vnodeCheckCfg(const SVnodeCfg *pCfg) {
   // TODO
@@ -132,6 +133,9 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
     tjsonAddStringToObject(pNodeInfo, "nodeFqdn", (pCfg->syncCfg.nodeInfo)[i].nodeFqdn);
     tjsonAddItemToArray(pNodeInfoArr, pNodeInfo);
   }
+
+  // add tsdb page size config
+  if (tjsonAddIntegerToObject(pJson, "tsdbPageSize", pCfg->tsdbPageSize) < 0) return -1;
 
   return 0;
 }
@@ -249,6 +253,8 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     tjsonGetNumberValue(pNodeInfo, "nodePort", (pCfg->syncCfg.nodeInfo)[i].nodePort, code);
     tjsonGetStringValue(pNodeInfo, "nodeFqdn", (pCfg->syncCfg.nodeInfo)[i].nodeFqdn);
   }
+
+  tjsonGetNumberValue(pJson, "tsdbPageSize", pCfg->tsdbPageSize, code);
 
   return 0;
 }

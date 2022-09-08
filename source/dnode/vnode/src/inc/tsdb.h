@@ -67,10 +67,9 @@ typedef struct SBlockCol     SBlockCol;
 typedef struct SVersionRange SVersionRange;
 typedef struct SLDataIter    SLDataIter;
 
-#define TSDB_FILE_DLMT         ((uint32_t)0xF00AFA0F)
-#define TSDB_MAX_SUBBLOCKS     8
-#define TSDB_FHDR_SIZE         512
-#define TSDB_DEFAULT_PAGE_SIZE 4096
+#define TSDB_FILE_DLMT     ((uint32_t)0xF00AFA0F)
+#define TSDB_MAX_SUBBLOCKS 8
+#define TSDB_FHDR_SIZE     512
 
 #define HAS_NONE  ((int8_t)0x1)
 #define HAS_NULL  ((int8_t)0x2)
