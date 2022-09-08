@@ -1961,12 +1961,11 @@ static bool hasDataInLastBlock(SLastBlockReader* pLastBlockReader) { return pLas
 int32_t mergeRowsInFileBlocks(SBlockData* pBlockData, STableBlockScanInfo* pBlockScanInfo, int64_t key,
                               STsdbReader* pReader) {
   SFileBlockDumpInfo* pDumpInfo = &pReader->status.fBlockDumpInfo;
-
-  TSDBROW fRow = tsdbRowFromBlockData(pBlockData, pDumpInfo->rowIndex);
-
   if (tryCopyDistinctRowFromFileBlock(pReader, pBlockData, key, pDumpInfo)) {
     return TSDB_CODE_SUCCESS;
   } else {
+    TSDBROW fRow = tsdbRowFromBlockData(pBlockData, pDumpInfo->rowIndex);
+
     STSRow*    pTSRow = NULL;
     SRowMerger merge = {0};
 
@@ -1989,13 +1988,19 @@ static int32_t buildComposedDataBlockImpl(STsdbReader* pReader, STableBlockScanI
                                           SBlockData* pBlockData, SLastBlockReader* pLastBlockReader) {
   SFileBlockDumpInfo* pDumpInfo = &pReader->status.fBlockDumpInfo;
 
-  int64_t  key = (pBlockData->nRow > 0) ? pBlockData->aTSKEY[pDumpInfo->rowIndex] : INT64_MIN;
-  TSDBROW* pRow = getValidMemRow(&pBlockScanInfo->iter, pBlockScanInfo->delSkyline, pReader);
-  TSDBROW* piRow = getValidMemRow(&pBlockScanInfo->iiter, pBlockScanInfo->delSkyline, pReader);
-
+  int64_t key = (pBlockData->nRow > 0) ? pBlockData->aTSKEY[pDumpInfo->rowIndex] : INT64_MIN;
   if (pBlockScanInfo->iter.hasVal && pBlockScanInfo->iiter.hasVal) {
     return doMergeMultiLevelRows(pReader, pBlockScanInfo, pBlockData, pLastBlockReader);
   } else {
+    TSDBROW *pRow = NULL, *piRow = NULL;
+    if (pBlockScanInfo->iter.hasVal) {
+      pRow = getValidMemRow(&pBlockScanInfo->iter, pBlockScanInfo->delSkyline, pReader);
+    }
+
+    if (pBlockScanInfo->iiter.hasVal) {
+      piRow = getValidMemRow(&pBlockScanInfo->iiter, pBlockScanInfo->delSkyline, pReader);
+    }
+
     // imem + file + last block
     if (pBlockScanInfo->iiter.hasVal) {
       return doMergeBufAndFileRows(pReader, pBlockScanInfo, piRow, &pBlockScanInfo->iiter, key, pLastBlockReader);
