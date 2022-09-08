@@ -411,7 +411,7 @@ typedef enum EStreamScanMode {
   STREAM_SCAN_FROM_READERHANDLE = 1,
   STREAM_SCAN_FROM_RES,
   STREAM_SCAN_FROM_UPDATERES,
-  STREAM_SCAN_FROM_DELETERES,
+  STREAM_SCAN_FROM_DELETE_DATA,
   STREAM_SCAN_FROM_DATAREADER_RETRIEVE,
   STREAM_SCAN_FROM_DATAREADER_RANGE,
 } EStreamScanMode;
@@ -794,6 +794,7 @@ typedef struct SStreamPartitionOperatorInfo {
   void*                 parIte;
   SSDataBlock*          pInputDataBlock;
   int32_t               tsColIndex;
+  SSDataBlock*          pDelRes;
 } SStreamPartitionOperatorInfo;
 
 typedef struct STimeSliceOperatorInfo {
@@ -1108,6 +1109,13 @@ void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsCol
 bool    groupbyTbname(SNodeList* pGroupList);
 int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* groupKey);
 void*   destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput);
+int32_t buildDataBlockFromGroupRes(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup,
+                                   SGroupResInfo* pGroupResInfo);
+int32_t setOutputBuf(STimeWindow* win, SResultRow** pResult, int64_t tableGroupId, SqlFunctionCtx* pCtx,
+                           int32_t numOfOutput, int32_t* rowEntryInfoOffset, SAggSupporter* pAggSup,
+                           SExecTaskInfo* pTaskInfo);
+int32_t releaseOutputBuf(SExecTaskInfo* pTaskInfo, SWinKey* pKey, SResultRow* pResult);
+int32_t saveOutput(SExecTaskInfo* pTaskInfo, SWinKey* pKey, SResultRow* pResult, int32_t resSize);
 
 #ifdef __cplusplus
 }

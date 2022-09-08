@@ -6604,7 +6604,17 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
   pReq->colId = pSchema->colId;
 
   SDataType targetDt = schemaToDataType(pTableMeta->tableInfo.precision, pSchema);
-  if (DEAL_RES_ERROR == translateValueImpl(pCxt, pStmt->pVal, targetDt, true)) {
+
+  if (QUERY_NODE_VALUE != pStmt->pVal->node.type) {
+    SValueNode *pVal = NULL;
+    pCxt->errCode = createTagValFromExpr(pCxt, targetDt, (SNode*)pStmt->pVal, &pVal);
+    if (pCxt->errCode) {
+      return pCxt->errCode;
+    }
+
+    nodesDestroyNode((SNode*)pStmt->pVal);
+    pStmt->pVal = pVal;
+  } else if (DEAL_RES_ERROR == translateValueImpl(pCxt, pStmt->pVal, targetDt, true)) {
     return pCxt->errCode;
   }
 

@@ -19,12 +19,19 @@ import subprocess
 # from this import d
 import time
 
+
+if( len(sys.argv)>1 ):
+    serverHost=sys.argv[1]
+else:
+    serverHost="localhost"
+
+
 # install taospy
 
 out = subprocess.getoutput("pip3 show taospy|grep Version| awk -F ':' '{print $2}' ")
 print("taospy version %s "%out)
 if (out == "" ):
-    os.system("pip install git+https://github.com/taosdata/taos-connector-python.git")
+    os.system("pip3 install git+https://github.com/taosdata/taos-connector-python.git")
     print("install taos python connector")
 else:
     os.system("pip3 install --upgrade  taospy  ")
@@ -32,19 +39,19 @@ else:
 
 
 # start taosd prepare 
-os.system("rm -rf /var/lib/taos/*")
-os.system("systemctl restart taosd ")
+# os.system("rm -rf /var/lib/taos/*")
+# os.system("systemctl restart taosd ")
 
 # wait a moment ,at least 5 seconds
 time.sleep(5)
 
 # prepare data by taosBenchmark 
 
-os.system("taosBenchmark -y -n 100 -t 100")
+os.system("taosBenchmark -y -n 100 -t 100 -h %s "%serverHost )
 
 import taos
 
-conn = taos.connect(host="localhost",
+conn = taos.connect(host="%s"%serverHost,
                                          user="root",
                                          password="taosdata",
                                          database="test",
@@ -80,15 +87,15 @@ os.system("rm -rf /tmp/dumpdata/*")
 # dump data out 
 print("taosdump dump out data")
 
-os.system("taosdump -o /tmp/dumpdata -D test -y ")
+os.system("taosdump -o /tmp/dumpdata -D test -y -h %s  "%serverHost)
 
 # drop database of test
 print("drop database test")
-os.system(" taos -s ' drop database test ;' ")
+os.system(" taos -s ' drop database test ;'  -h %s  "%serverHost)
 
 # dump data in 
 print("taosdump dump data in")
-os.system("taosdump -i /tmp/dumpdata  -y ")
+os.system("taosdump -i /tmp/dumpdata  -y  -h %s  "%serverHost)
 
 result = conn.query("SELECT count(*) from test.meters")
 
