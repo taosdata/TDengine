@@ -7,7 +7,9 @@
  *      See COPYRIGHT in top-level directory.
  */
 #ifndef WINDOWS
+#if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
   #pragma GCC diagnostic push
+#endif
   #pragma GCC diagnostic ignored "-Wchar-subscripts"
 #endif
 
@@ -233,5 +235,7 @@ INLINE void updateLossyCompElement_Float(unsigned char* diffBytes, unsigned char
 }
 
 #ifndef WINDOWS
+#if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
   #pragma GCC diagnostic pop
+#endif
 #endif

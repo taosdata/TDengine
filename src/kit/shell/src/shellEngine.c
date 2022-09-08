@@ -27,6 +27,7 @@
 #include "tglobal.h"
 #include "tsclient.h"
 #include "cJSON.h"
+#include "shellAuto.h"
 
 #include <regex.h>
 
@@ -72,8 +73,7 @@ void shellInit(SShellArguments *_args) {
     _args->user = TSDB_DEFAULT_USER;
   }
 
-  if (_args->restful) {
-    _args->database = calloc(1, 128);
+  if (_args->restful || _args->cloud) {
     if (wsclient_handshake()) {
       exit(EXIT_FAILURE);
     }
@@ -159,7 +159,7 @@ static int32_t shellRunSingleCommand(TAOS *con, char *command) {
 
   // Analyse the command.
   if (regex_match(command, "^[ \t]*(quit|q|exit)[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
-    if (args.restful) {
+    if (args.restful || args.cloud) {
       close(args.socket);
     } else {
       taos_close(con);
@@ -309,7 +309,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     printMode = true;  // When output to a file, the switch does not work.
   }
 
-  if (args.restful) {
+  if (args.restful || args.cloud) {
     wsclient_query(command);
     return;
   }
@@ -324,9 +324,15 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
 
   int64_t oresult = atomic_load_64(&result);
 
-  if (regex_match(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
+  if (regex_match(command, "^\\s*use\\s+([a-zA-Z0-9_]+|`.+`)\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
     fprintf(stdout, "Database changed.\n\n");
     fflush(stdout);
+
+#ifndef WINDOWS
+    // call back auto tab module
+    callbackAutoTab(command, pSql, true);
+#endif    
+
 
     atomic_store_64(&result, 0);
     freeResultWithRid(oresult);
@@ -366,6 +372,11 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     int num_rows_affacted = taos_affected_rows(pSql);
     et = taosGetTimestampUs();
     printf("Query OK, %d of %d row(s) in database (%.6fs)\n", num_rows_affacted, num_rows_affacted, (et - st) / 1E6);
+
+#ifndef WINDOWS
+    // call auto tab
+    callbackAutoTab(command, pSql, false);
+#endif
   }
 
   printf("\n");
@@ -1153,18 +1164,39 @@ int taos_base64_encode(unsigned char *source, size_t sourcelen, char *target, si
   return 1;
 }
 
-char *last_strstr(const char *haystack, const char *needle) {
-    if (*needle == '\0')
-        return (char *) haystack;
-
-    char *res = NULL;
-    for (;;) {
-        char *p = strstr(haystack, needle);
-        if (p == NULL) break;
-        res = p;
-        haystack = p + 1;
+int parse_cloud_dsn() {
+    if (args.cloudDsn == NULL) {
+        fprintf(stderr, "Cannot read cloud service info\n");
+        return 1;
+    } else {
+        char *start = strstr(args.cloudDsn, "http://");
+        if (start != NULL) {
+            args.cloudHost = start + strlen("http://");
+        } else {
+            start = strstr(args.cloudDsn, "https://");
+            if (start != NULL) {
+                args.cloudHost = start + strlen("https://");
+            } else {
+                args.cloudHost = args.cloudDsn;
+            }
+        }
+        char *port = strstr(args.cloudHost, ":");
+        if (port == NULL) {
+            fprintf(stderr, "Invalid format in TDengine cloud dsn: %s\n", args.cloudDsn);
+            return 1;
+        }
+        char *token = strstr(port + strlen(":"), "?token=");
+        if ((token == NULL) ||
+            (strlen(token + strlen("?token=")) == 0)) {
+            fprintf(stderr, "Invalid format in TDengine cloud dsn: %s\n", args.cloudDsn);
+            return -1;
+        }
+        port[0] = '\0';
+        args.cloudPort = port + strlen(":");
+        token[0] = '\0';
+        args.cloudToken = token + strlen("?token=");
     }
-    return res;
+    return 0;
 }
 
 int wsclient_handshake() {
@@ -1180,12 +1212,12 @@ int wsclient_handshake() {
     key_nonce[i] = rand() & 0xff;
   }
   taos_base64_encode(key_nonce, 16, websocket_key, 256);
-  if (args.token) {
-    snprintf(request_header, 1024,
-             "GET /rest/ws?token=%s HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nHost: "
-             "%s:%d\r\nSec-WebSocket-Key: "
-             "%s\r\nSec-WebSocket-Version: 13\r\n\r\n",
-             args.token, args.host, args.port, websocket_key);
+  if (args.cloud) {
+        snprintf(request_header, 1024,
+                 "GET /rest/ws?token=%s HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nHost: "
+                 "%s:%s\r\nSec-WebSocket-Key: "
+                 "%s\r\nSec-WebSocket-Version: 13\r\n\r\n",
+                args.cloudToken, args.cloudHost, args.cloudPort, websocket_key);
   } else {
     snprintf(request_header, 1024,
              "GET /rest/ws HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nHost: %s:%d\r\nSec-WebSocket-Key: "
@@ -1286,9 +1318,9 @@ int wsclient_send_sql(char *command, WS_ACTION_TYPE type, int id) {
   switch (type) {
     case WS_CONN:
       cJSON_AddStringToObject(json, "action", "conn");
-      cJSON_AddStringToObject(_args, "user", "root");
-      cJSON_AddStringToObject(_args, "password", "taosdata");
-      cJSON_AddStringToObject(_args, "db", "");
+      cJSON_AddStringToObject(_args, "user", args.user);
+      cJSON_AddStringToObject(_args, "password", args.password);
+      cJSON_AddStringToObject(_args, "db", args.database);
 
       break;
     case WS_QUERY:
@@ -1341,6 +1373,12 @@ int wsclient_conn() {
   }
   if (code->valueint == 0) {
     cJSON_Delete(root);
+    if (args.cloud) {
+        fprintf(stdout, "Successfully connect to %s:%s in restful mode\n\n", args.cloudHost, args.cloudPort);
+    } else {
+        fprintf(stdout, "Successfully connect to %s:%d in restful mode\n\n", args.host, args.port);
+    }
+
     return 0;
   } else {
     cJSON *message = cJSON_GetObjectItem(root, "message");

@@ -192,10 +192,10 @@ print dnode1 ==> $dnode1Role
 print dnode3 ==> $dnode3Role
 print dnode4 ==> $dnode4Role
 
-if $dnode1Role != master then
+if $dnode1Role != leader then
   return -1
 endi
-if $dnode3Role != slave then
+if $dnode3Role != follower then
   return -1
 endi
 
@@ -236,7 +236,7 @@ print dnode1 ==> $dnode1Role
 print dnode3 ==> $dnode3Role
 print dnode4 ==> $dnode4Role
 
-if $dnode1Role != master then
+if $dnode1Role != leader then
   return -1
 endi
 
@@ -274,11 +274,11 @@ $dnode4Role = $data2_4
 print dnode1 ==> $dnode1Role
 print dnode4 ==> $dnode4Role
 
-if $dnode1Role != master then
+if $dnode1Role != leader then
   return -1
 endi
 
-if $dnode4Role != slave then
+if $dnode4Role != follower then
   return -1
 endi
 

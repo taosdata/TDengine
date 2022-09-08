@@ -30,22 +30,22 @@ class ClusterTestcase:
         tdSql.execute("use %s" % ctest.dbName)
         tdSql.query("show vgroups")
         for i in range(10):
-            tdSql.checkData(i, 5, "master")
+            tdSql.checkData(i, 5, "leader")
 
         tdSql.execute("alter database %s replica 2" % ctest.dbName)    
         tdLog.sleep(30)
         tdSql.query("show vgroups")
         for i in range(10):
-            tdSql.checkData(i, 5, "master")
-            tdSql.checkData(i, 7, "slave")
+            tdSql.checkData(i, 5, "leader")
+            tdSql.checkData(i, 7, "follower")
             
         tdSql.execute("alter database %s replica 3" % ctest.dbName)
         tdLog.sleep(30)
         tdSql.query("show vgroups")
         for i in range(10):
-            tdSql.checkData(i, 5, "master")
-            tdSql.checkData(i, 7, "slave")
-            tdSql.checkData(i, 9, "slave")
+            tdSql.checkData(i, 5, "leader")
+            tdSql.checkData(i, 7, "follower")
+            tdSql.checkData(i, 9, "follower")
         
 ct = ClusterTestcase()
 ct.run()

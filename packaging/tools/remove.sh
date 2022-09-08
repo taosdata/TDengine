@@ -16,12 +16,16 @@ serverName="taosd"
 clientName="taos"
 uninstallScript="rmtaos"
 productName="TDengine"
+adapterName="taosadapter"
+benchmarkName="taosBenchmark"
+dumpName="taosdump"
+demoName="taosdemo"
 
 #install main path
 install_main_dir=${installDir}
-data_link_dir=${installDir}/data
-log_link_dir=${installDir}/log
-cfg_link_dir=${installDir}/cfg
+data_link_dir="${installDir}/data"
+log_link_dir="${installDir}/log"
+cfg_link_dir="${installDir}/cfg"
 bin_link_dir="/usr/bin"
 local_bin_link_dir="/usr/local/bin"
 lib_link_dir="/usr/lib"
@@ -31,7 +35,7 @@ install_nginxd_dir="/usr/local/nginxd"
 
 service_config_dir="/etc/systemd/system"
 taos_service_name=${serverName}
-taosadapter_service_name="taosadapter"
+taosadapter_service_name=${adapterName}
 tarbitrator_service_name="tarbitratord"
 nginx_service_name="nginxd"
 csudo=""
@@ -59,22 +63,8 @@ else
   service_mod=2
 fi
 
-function kill_taosadapter() {
-  pid=$(ps -ef | grep "taosadapter" | grep -v "grep" | awk '{print $2}')
-  if [ -n "$pid" ]; then
-    ${csudo}kill -9 $pid || :
-  fi
-}
-
-function kill_taosd() {
-  pid=$(ps -ef | grep ${serverName} | grep -v "grep" | awk '{print $2}')
-  if [ -n "$pid" ]; then
-    ${csudo}kill -9 $pid || :
-  fi
-}
-
-function kill_tarbitrator() {
-  pid=$(ps -ef | grep "tarbitrator" | grep -v "grep" | awk '{print $2}')
+function kill_process() {
+  pid=$(ps -ef | grep "$1" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
     ${csudo}kill -9 $pid || :
   fi
@@ -84,14 +74,13 @@ function clean_bin() {
   # Remove link
   ${csudo}rm -f ${bin_link_dir}/${clientName} || :
   ${csudo}rm -f ${bin_link_dir}/${serverName} || :
-  ${csudo}rm -f ${bin_link_dir}/taosadapter || :
-  ${csudo}rm -f ${bin_link_dir}/taosBenchmark || :
-  ${csudo}rm -f ${bin_link_dir}/taosdemo || :
-  ${csudo}rm -f ${bin_link_dir}/taosdump || :
+  ${csudo}rm -f ${bin_link_dir}/${adapterName} || :
+  ${csudo}rm -f ${bin_link_dir}/${benchmarkName} || :
+  ${csudo}rm -f ${bin_link_dir}/${demoName} || :
+  ${csudo}rm -f ${bin_link_dir}/${dumpName} || :
   ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
   ${csudo}rm -f ${bin_link_dir}/tarbitrator || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
-  ${csudo}rm -f ${bin_link_dir}/run_taosd_and_taosadapter.sh || :
   ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
 }
 
@@ -133,9 +122,9 @@ function clean_service_on_systemd() {
   ${csudo}systemctl disable ${taos_service_name} &>/dev/null || echo &>/dev/null
   ${csudo}rm -f ${taosd_service_config}
 
-  taosadapter_service_config="${service_config_dir}/taosadapter.service"
+  taosadapter_service_config="${service_config_dir}/${adapterName}.service"
   if systemctl is-active --quiet ${taosadapter_service_name}; then
-    echo "${productName} taosAdapter is running, stopping it..."
+    echo "${productName} ${adapterName} is running, stopping it..."
     ${csudo}systemctl stop ${taosadapter_service_name} &>/dev/null || echo &>/dev/null
   fi
   ${csudo}systemctl disable ${taosadapter_service_name} &>/dev/null || echo &>/dev/null
@@ -210,9 +199,9 @@ function clean_service() {
   elif ((${service_mod} == 1)); then
     clean_service_on_sysvinit
   else
-    kill_taosadapter
-    kill_taosd
-    kill_tarbitrator
+    kill_process ${adapterName}
+    kill_process ${serverName}
+    kill_process "tarbitrator"
   fi
 }
 

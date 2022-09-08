@@ -178,7 +178,7 @@ endi
 print ===============  step8 - monitor dbs
 #system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'show dnodes;show mnodes;' 127.0.0.1:7111/admin/sqls
 #print 24-> $system_content
-#if $system_content != @[{"status":"succ","head":["IP","created time","open vnodes","free vnodes","status","balance state"],"data":[["127.0.0.1","2018-09-04 #11:16:13.985",1,3,"ready","balanced"]],"rows":1},{"status":"succ","head":["IP","created time","status","role"],"data":[["127.0.0.1","2018-09-04 11:16:13.371","serving","master"]],"rows":1}]@ then
+#if $system_content != @[{"status":"succ","head":["IP","created time","open vnodes","free vnodes","status","balance state"],"data":[["127.0.0.1","2018-09-04 #11:16:13.985",1,3,"ready","balanced"]],"rows":1},{"status":"succ","head":["IP","created time","status","role"],"data":[["127.0.0.1","2018-09-04 11:16:13.371","serving","leader"]],"rows":1}]@ then
 #  return -1
 #	endi
 

@@ -38,7 +38,7 @@ pthread_t* taosCreateThread( void *(*__start_routine) (void *), void* param) {
 }
 
 // destory thread 
-bool taosDestoryThread(pthread_t* pthread) {
+bool taosDestroyThread(pthread_t* pthread) {
   if(pthread == NULL) return false;
   if(taosThreadRunning(pthread)) {
     pthread_cancel(*pthread);

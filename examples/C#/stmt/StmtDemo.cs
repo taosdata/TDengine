@@ -543,7 +543,7 @@ namespace TDengineDriver
         public static void ExitProgram()
         {
             TDengine.Cleanup();
-            System.Environment.Exit(0);
+            System.Environment.Exit(1);
         }
     }
 }

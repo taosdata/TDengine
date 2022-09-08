@@ -986,7 +986,9 @@ static SMemRow getSMemRowInTableMem(STableCheckInfo* pCheckInfo, int32_t order, 
       return rmem;
     } else {
       pCheckInfo->chosen = CHECKINFO_CHOSEN_BOTH;
-      extraRow = rimem;
+      if (extraRow) {
+        *extraRow = rimem;
+      }
       return rmem;
     }
   } else {
@@ -1298,7 +1300,7 @@ static int32_t offsetSkipBlock(STsdbQueryHandle* q, SBlockInfo* pBlockInfo, int6
             range.from = i;
           }
         }
-        range.to = 0;
+        range.to = sblock;
         taosArrayPush(pArray, &range);
         range.from = -1;
         break;
@@ -1314,7 +1316,7 @@ static int32_t offsetSkipBlock(STsdbQueryHandle* q, SBlockInfo* pBlockInfo, int6
       if(range.from == -1) {
         range.from = i;
       } else {
-        if(range.to + 1 != i) {
+        if(range.to - 1 != i) {
           // add the previous
           taosArrayPush(pArray, &range);
           range.from = i;
@@ -1359,15 +1361,16 @@ static void shrinkBlocksByQuery(STsdbQueryHandle *pQueryHandle, STableCheckInfo 
   SBlockIdx  *compIndex = pQueryHandle->rhelper.pBlkIdx;
   bool order = ASCENDING_TRAVERSE(pQueryHandle->order);
 
+  TSKEY s = TSKEY_INITIAL_VAL, e = TSKEY_INITIAL_VAL;
   if (order) {
     assert(pCheckInfo->lastKey <= pQueryHandle->window.ekey && pQueryHandle->window.skey <= pQueryHandle->window.ekey);
+    s = pQueryHandle->window.skey;
+    e = pQueryHandle->window.ekey;
   } else {
     assert(pCheckInfo->lastKey >= pQueryHandle->window.ekey && pQueryHandle->window.skey >= pQueryHandle->window.ekey);
+    e = pQueryHandle->window.skey;
+    s = pQueryHandle->window.ekey;
   }
-
-  TSKEY s = TSKEY_INITIAL_VAL, e = TSKEY_INITIAL_VAL;
-  s = MIN(pCheckInfo->lastKey, pQueryHandle->window.ekey);
-  e = MAX(pCheckInfo->lastKey, pQueryHandle->window.ekey);
 
   // discard the unqualified data block based on the query time window
   int32_t start = binarySearchForBlock(pCompInfo->blocks, compIndex->numOfBlocks, s, TSDB_ORDER_ASC);
@@ -1653,7 +1656,9 @@ static int32_t loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SBlock* pBlock,
 
   if (asc) {
     // query ended in/started from current block
-    if (pQueryHandle->window.ekey < pBlock->keyLast || pCheckInfo->lastKey > pBlock->keyFirst) {
+    if ((pQueryHandle->window.ekey < pBlock->keyLast || pCheckInfo->lastKey > pBlock->keyFirst )
+         && pCheckInfo->lastKey <= pBlock->keyLast) {
+      // if mem lastKey > block lastKey , should deal with handleDatamergeIfNeed
       if ((code = doLoadFileDataBlock(pQueryHandle, pBlock, pCheckInfo, cur->slot)) != TSDB_CODE_SUCCESS) {
         *exists = false;
         return code;
@@ -1669,10 +1674,9 @@ static int32_t loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SBlock* pBlock,
         cur->pos = 0;
       }
 
-      assert(pCheckInfo->lastKey <= pBlock->keyLast);
       doMergeTwoLevelData(pQueryHandle, pCheckInfo, pBlock);
     } else {  // the whole block is loaded in to buffer
-      cur->pos = asc? 0:(pBlock->numOfRows - 1);
+      cur->pos = 0;
       code = handleDataMergeIfNeeded(pQueryHandle, pBlock, pCheckInfo);
     }
   } else {  //desc order, query ended in current block
@@ -1692,7 +1696,7 @@ static int32_t loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SBlock* pBlock,
       assert(pCheckInfo->lastKey >= pBlock->keyFirst);
       doMergeTwoLevelData(pQueryHandle, pCheckInfo, pBlock);
     } else {
-      cur->pos = asc? 0:(pBlock->numOfRows-1);
+      cur->pos = pBlock->numOfRows - 1;
       code = handleDataMergeIfNeeded(pQueryHandle, pBlock, pCheckInfo);
     }
   }
@@ -2587,10 +2591,10 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
 
   while (numOfTotal < cnt) {
     int32_t pos = pTree->pNode[0].index;
-    int32_t index = sup.blockIndexArray[pos]++;
+    int32_t idx = sup.blockIndexArray[pos]++;
 
     STableBlockInfo* pBlocksInfo = sup.pDataBlockInfo[pos];
-    pQueryHandle->pDataBlockInfo[numOfTotal++] = pBlocksInfo[index];
+    pQueryHandle->pDataBlockInfo[numOfTotal++] = pBlocksInfo[idx];
 
     // set data block index overflow, in order to disable the offset comparator
     if (sup.blockIndexArray[pos] >= sup.numOfBlocksPerTable[pos]) {
@@ -3329,7 +3333,7 @@ static bool loadDataBlockFromTableSeq(STsdbQueryHandle* pQueryHandle) {
   size_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   assert(numOfTables > 0);
 
-  int64_t stime = taosGetTimestampUs();
+  int64_t lastTime = taosGetTimestampUs();
 
   while(pQueryHandle->activeIndex < numOfTables) {
     if (loadBlockOfActiveTable(pQueryHandle)) {
@@ -3347,7 +3351,7 @@ static bool loadDataBlockFromTableSeq(STsdbQueryHandle* pQueryHandle) {
 
     terrno = TSDB_CODE_SUCCESS;
 
-    int64_t elapsedTime = taosGetTimestampUs() - stime;
+    int64_t elapsedTime = taosGetTimestampUs() - lastTime;
     pQueryHandle->cost.checkForNextTime += elapsedTime;
   }
 
@@ -3366,8 +3370,8 @@ bool tsdbNextDataBlock(TsdbQueryHandleT pHandle) {
     return false;
   }
 
-  int64_t stime = taosGetTimestampUs();
-  int64_t elapsedTime = stime;
+  int64_t lastTime = taosGetTimestampUs();
+  int64_t elapsedTime = lastTime;
 
   // TODO refactor: remove "type"
   if (pQueryHandle->type == TSDB_QUERY_TYPE_LAST) {
@@ -3394,7 +3398,7 @@ bool tsdbNextDataBlock(TsdbQueryHandleT pHandle) {
       }
 
       if (exists) {
-        pQueryHandle->cost.checkForNextTime += (taosGetTimestampUs() - stime);
+        pQueryHandle->cost.checkForNextTime += (taosGetTimestampUs() - lastTime);
         return exists;
       }
 
@@ -3406,7 +3410,7 @@ bool tsdbNextDataBlock(TsdbQueryHandleT pHandle) {
     bool ret = doHasDataInBuffer(pQueryHandle);
     terrno = TSDB_CODE_SUCCESS;
 
-    elapsedTime = taosGetTimestampUs() - stime;
+    elapsedTime = taosGetTimestampUs() - lastTime;
     pQueryHandle->cost.checkForNextTime += elapsedTime;
     return ret;
   }
@@ -3755,7 +3759,7 @@ int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT* pQueryHandle, SDataSta
     return TSDB_CODE_SUCCESS;
   }
 
-  int64_t stime = taosGetTimestampUs();
+  int64_t lastTime = taosGetTimestampUs();
   int     statisStatus = tsdbLoadBlockStatis(&pHandle->rhelper, pBlockInfo->compBlock);
   if (statisStatus < TSDB_STATIS_OK) {
     return terrno;
@@ -3789,7 +3793,7 @@ int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT* pQueryHandle, SDataSta
     }
   }
 
-  int64_t elapsed = taosGetTimestampUs() - stime;
+  int64_t elapsed = taosGetTimestampUs() - lastTime;
   pHandle->cost.statisInfoLoadTime += elapsed;
 
   *pBlockStatis = pHandle->statis;

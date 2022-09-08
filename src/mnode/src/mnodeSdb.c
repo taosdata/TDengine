@@ -331,7 +331,7 @@ int32_t sdbUpdateSync(void *pMnodes) {
   mDebug("vgId:1, update sync config, pMnodes:%p", pMnodes);
 
   SSyncCfg syncCfg = {0};
-  int32_t  index = 0;
+  int32_t  idx = 0;
 
   if (pMinfos == NULL) {
     mDebug("vgId:1, mInfos not input, use mInfos in sdb, numOfMnodes:%d", syncCfg.replica);
@@ -342,29 +342,29 @@ int32_t sdbUpdateSync(void *pMnodes) {
       pIter = mnodeGetNextMnode(pIter, &pMnode);
       if (pMnode == NULL) break;
 
-      syncCfg.nodeInfo[index].nodeId = pMnode->mnodeId;
+      syncCfg.nodeInfo[idx].nodeId = pMnode->mnodeId;
 
       SDnodeObj *pDnode = mnodeGetDnode(pMnode->mnodeId);
       if (pDnode != NULL) {
-        syncCfg.nodeInfo[index].nodePort = pDnode->dnodePort + TSDB_PORT_SYNC;
-        tstrncpy(syncCfg.nodeInfo[index].nodeFqdn, pDnode->dnodeFqdn, TSDB_FQDN_LEN);
-        index++;
+        syncCfg.nodeInfo[idx].nodePort = pDnode->dnodePort + TSDB_PORT_SYNC;
+        tstrncpy(syncCfg.nodeInfo[idx].nodeFqdn, pDnode->dnodeFqdn, TSDB_FQDN_LEN);
+        idx++;
       }
 
       mnodeDecDnodeRef(pDnode);
       mnodeDecMnodeRef(pMnode);
     }
-    syncCfg.replica = index;
+    syncCfg.replica = idx;
   } else {
     mDebug("vgId:1, mInfos input, numOfMnodes:%d", pMinfos->mnodeNum);
 
-    for (index = 0; index < pMinfos->mnodeNum; ++index) {
-      SMInfo *node = &pMinfos->mnodeInfos[index];
-      syncCfg.nodeInfo[index].nodeId = node->mnodeId;
-      taosGetFqdnPortFromEp(node->mnodeEp, syncCfg.nodeInfo[index].nodeFqdn, &syncCfg.nodeInfo[index].nodePort);
-      syncCfg.nodeInfo[index].nodePort += TSDB_PORT_SYNC;
+    for (idx = 0; idx < pMinfos->mnodeNum; ++idx) {
+      SMInfo *node = &pMinfos->mnodeInfos[idx];
+      syncCfg.nodeInfo[idx].nodeId = node->mnodeId;
+      taosGetFqdnPortFromEp(node->mnodeEp, syncCfg.nodeInfo[idx].nodeFqdn, &syncCfg.nodeInfo[idx].nodePort);
+      syncCfg.nodeInfo[idx].nodePort += TSDB_PORT_SYNC;
     }
-    syncCfg.replica = index;
+    syncCfg.replica = idx;
     mnodeUpdateMnodeEpSet(pMnodes);
   }
 

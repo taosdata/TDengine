@@ -26,7 +26,7 @@ extern "C" {
 // create new thread
 pthread_t* taosCreateThread( void *(*__start_routine) (void *), void* param);
 // destory thread 
-bool taosDestoryThread(pthread_t* pthread);
+bool taosDestroyThread(pthread_t* pthread);
 // thread running return true
 bool taosThreadRunning(pthread_t* pthread);
 

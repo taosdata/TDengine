@@ -60,40 +60,40 @@ void calc_i32_i32_add(void *left, void *right, int32_t numLeft, int32_t numRight
   }
 }
 
-typedef double (*_arithmetic_getVectorDoubleValue_fn_t)(void *src, int32_t index);
+typedef double (*_arithmetic_getVectorDoubleValue_fn_t)(void *src, int32_t idx);
 
-double getVectorDoubleValue_TINYINT(void *src, int32_t index) {
-  return (double)*((int8_t *)src + index);
+double getVectorDoubleValue_TINYINT(void *src, int32_t idx) {
+  return (double)*((int8_t *)src + idx);
 }
-double getVectorDoubleValue_UTINYINT(void *src, int32_t index) {
-  return (double)*((uint8_t *)src + index);
+double getVectorDoubleValue_UTINYINT(void *src, int32_t idx) {
+  return (double)*((uint8_t *)src + idx);
 }
-double getVectorDoubleValue_SMALLINT(void *src, int32_t index) {
-  return (double)*((int16_t *)src + index);
+double getVectorDoubleValue_SMALLINT(void *src, int32_t idx) {
+  return (double)*((int16_t *)src + idx);
 }
-double getVectorDoubleValue_USMALLINT(void *src, int32_t index) {
-  return (double)*((uint16_t *)src + index);
+double getVectorDoubleValue_USMALLINT(void *src, int32_t idx) {
+  return (double)*((uint16_t *)src + idx);
 }
-double getVectorDoubleValue_INT(void *src, int32_t index) {
-  return (double)*((int32_t *)src + index);
+double getVectorDoubleValue_INT(void *src, int32_t idx) {
+  return (double)*((int32_t *)src + idx);
 }
-double getVectorDoubleValue_UINT(void *src, int32_t index) {
-  return (double)*((uint32_t *)src + index);
+double getVectorDoubleValue_UINT(void *src, int32_t idx) {
+  return (double)*((uint32_t *)src + idx);
 }
-double getVectorDoubleValue_BIGINT(void *src, int32_t index) {
-  return (double)*((int64_t *)src + index);
+double getVectorDoubleValue_BIGINT(void *src, int32_t idx) {
+  return (double)*((int64_t *)src + idx);
 }
-double getVectorDoubleValue_UBIGINT(void *src, int32_t index) {
-  return (double)*((uint64_t *)src + index);
+double getVectorDoubleValue_UBIGINT(void *src, int32_t idx) {
+  return (double)*((uint64_t *)src + idx);
 }
-double getVectorDoubleValue_FLOAT(void *src, int32_t index) {
-  return (double)*((float *)src + index);
+double getVectorDoubleValue_FLOAT(void *src, int32_t idx) {
+  return (double)*((float *)src + idx);
 }
-double getVectorDoubleValue_DOUBLE(void *src, int32_t index) {
-  return (double)*((double *)src + index);
+double getVectorDoubleValue_DOUBLE(void *src, int32_t idx) {
+  return (double)*((double *)src + idx);
 }
-int64_t getVectorTimestampValue(void *src, int32_t index) {
-  return (int64_t)*((int64_t *)src + index);
+int64_t getVectorTimestampValue(void *src, int32_t idx) {
+  return (int64_t)*((int64_t *)src + idx);
 }
 _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFn(int32_t srcType) {
     _arithmetic_getVectorDoubleValue_fn_t p = NULL;
@@ -124,40 +124,40 @@ _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFn(int32_t srcType) {
 }
 
 
-typedef void* (*_arithmetic_getVectorValueAddr_fn_t)(void *src, int32_t index);
+typedef void* (*_arithmetic_getVectorValueAddr_fn_t)(void *src, int32_t idx);
 
-void* getVectorValueAddr_BOOL(void *src, int32_t index) {
-  return (void*)((bool *)src + index);
+void* getVectorValueAddr_BOOL(void *src, int32_t idx) {
+  return (void*)((bool *)src + idx);
 }
-void* getVectorValueAddr_TINYINT(void *src, int32_t index) {
-  return (void*)((int8_t *)src + index);
+void* getVectorValueAddr_TINYINT(void *src, int32_t idx) {
+  return (void*)((int8_t *)src + idx);
 }
-void* getVectorValueAddr_UTINYINT(void *src, int32_t index) {
-  return (void*)((uint8_t *)src + index);
+void* getVectorValueAddr_UTINYINT(void *src, int32_t idx) {
+  return (void*)((uint8_t *)src + idx);
 }
-void* getVectorValueAddr_SMALLINT(void *src, int32_t index) {
-  return (void*)((int16_t *)src + index);
+void* getVectorValueAddr_SMALLINT(void *src, int32_t idx) {
+  return (void*)((int16_t *)src + idx);
 }
-void* getVectorValueAddr_USMALLINT(void *src, int32_t index) {
-  return (void*)((uint16_t *)src + index);
+void* getVectorValueAddr_USMALLINT(void *src, int32_t idx) {
+  return (void*)((uint16_t *)src + idx);
 }
-void* getVectorValueAddr_INT(void *src, int32_t index) {
-  return (void*)((int32_t *)src + index);
+void* getVectorValueAddr_INT(void *src, int32_t idx) {
+  return (void*)((int32_t *)src + idx);
 }
-void* getVectorValueAddr_UINT(void *src, int32_t index) {
-  return (void*)((uint32_t *)src + index);
+void* getVectorValueAddr_UINT(void *src, int32_t idx) {
+  return (void*)((uint32_t *)src + idx);
 }
-void* getVectorValueAddr_BIGINT(void *src, int32_t index) {
-  return (void*)((int64_t *)src + index);
+void* getVectorValueAddr_BIGINT(void *src, int32_t idx) {
+  return (void*)((int64_t *)src + idx);
 }
-void* getVectorValueAddr_UBIGINT(void *src, int32_t index) {
-  return (void*)((uint64_t *)src + index);
+void* getVectorValueAddr_UBIGINT(void *src, int32_t idx) {
+  return (void*)((uint64_t *)src + idx);
 }
-void* getVectorValueAddr_FLOAT(void *src, int32_t index) {
-  return (void*)((float *)src + index);
+void* getVectorValueAddr_FLOAT(void *src, int32_t idx) {
+  return (void*)((float *)src + idx);
 }
-void* getVectorValueAddr_DOUBLE(void *src, int32_t index) {
-  return (void*)((double *)src + index);
+void* getVectorValueAddr_DOUBLE(void *src, int32_t idx) {
+  return (void*)((double *)src + idx);
 }
 
 _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFn(int32_t srcType) {
@@ -474,34 +474,34 @@ void vectorRemainder(void *left, int32_t len1, int32_t _left_type, void *right, 
   }
 }
 
-typedef int64_t (*_arithmetic_getVectorBigintValue_fn_t)(void *src, int32_t index);
+typedef int64_t (*_arithmetic_getVectorBigintValue_fn_t)(void *src, int32_t idx);
 
-int64_t getVectorBigintValue_BOOL(void *src, int32_t index) {
-  return (int64_t)*((bool *)src + index);
+int64_t getVectorBigintValue_BOOL(void *src, int32_t idx) {
+  return (int64_t)*((bool *)src + idx);
 }
-int64_t getVectorBigintValue_TINYINT(void *src, int32_t index) {
-  return (int64_t)*((int8_t *)src + index);
+int64_t getVectorBigintValue_TINYINT(void *src, int32_t idx) {
+  return (int64_t)*((int8_t *)src + idx);
 }
-int64_t getVectorBigintValue_UTINYINT(void *src, int32_t index) {
-  return (int64_t)*((uint8_t *)src + index);
+int64_t getVectorBigintValue_UTINYINT(void *src, int32_t idx) {
+  return (int64_t)*((uint8_t *)src + idx);
 }
-int64_t getVectorBigintValue_SMALLINT(void *src, int32_t index) {
-  return (int64_t)*((int16_t *)src + index);
+int64_t getVectorBigintValue_SMALLINT(void *src, int32_t idx) {
+  return (int64_t)*((int16_t *)src + idx);
 }
-int64_t getVectorBigintValue_USMALLINT(void *src, int32_t index) {
-  return (int64_t)*((uint16_t *)src + index);
+int64_t getVectorBigintValue_USMALLINT(void *src, int32_t idx) {
+  return (int64_t)*((uint16_t *)src + idx);
 }
-int64_t getVectorBigintValue_INT(void *src, int32_t index) {
-  return (int64_t)*((int32_t *)src + index);
+int64_t getVectorBigintValue_INT(void *src, int32_t idx) {
+  return (int64_t)*((int32_t *)src + idx);
 }
-int64_t getVectorBigintValue_UINT(void *src, int32_t index) {
-  return (int64_t)*((uint32_t *)src + index);
+int64_t getVectorBigintValue_UINT(void *src, int32_t idx) {
+  return (int64_t)*((uint32_t *)src + idx);
 }
-int64_t getVectorBigintValue_BIGINT(void *src, int32_t index) {
-  return (int64_t)*((int64_t *)src + index);
+int64_t getVectorBigintValue_BIGINT(void *src, int32_t idx) {
+  return (int64_t)*((int64_t *)src + idx);
 }
-int64_t getVectorBigintValue_UBIGINT(void *src, int32_t index) {
-  return (int64_t)*((uint64_t *)src + index);
+int64_t getVectorBigintValue_UBIGINT(void *src, int32_t idx) {
+  return (int64_t)*((uint64_t *)src + idx);
 }
 
 _arithmetic_getVectorBigintValue_fn_t getVectorBigintValueFn(int32_t srcType) {

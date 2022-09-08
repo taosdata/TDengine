@@ -50,26 +50,37 @@ ELSE ()
 
   IF (TD_LINUX)
       include(ExternalProject)
+      set(_upx_prefix "$ENV{HOME}/.taos/externals/upx")
+      ExternalProject_Add(upx
+          PREFIX              "${_upx_prefix}"
+          URL                 https://github.com/upx/upx/releases/download/v3.96/upx-3.96-${PLATFORM_ARCH_STR}_linux.tar.xz
+          CONFIGURE_COMMAND   ""
+          BUILD_COMMAND       ""
+          INSTALL_COMMAND     ""
+          )
+
       ExternalProject_Add(taosadapter
           PREFIX        "taosadapter"
           SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/taosadapter
           BUILD_ALWAYS         off
-          DEPENDS             taos
+          DEPENDS             taos upx
           BUILD_IN_SOURCE     1
           CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
           PATCH_COMMAND
           COMMAND     git clean -f -d
           BUILD_COMMAND
+          COMMAND cmake -E echo "building taosadapter ..."
           COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../inc CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -ldflags "-s -w -X github.com/taosdata/taosadapter/version.Version=${taos_version} -X github.com/taosdata/taosadapter/version.CommitID=${taosadapter_commit_sha1}"
           COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../inc CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib  go build -a -o taosadapter-debug -ldflags "-X github.com/taosdata/taosadapter/version.Version=${taos_version} -X github.com/taosdata/taosadapter/version.CommitID=${taosadapter_commit_sha1}"
           INSTALL_COMMAND
-          COMMAND curl -sL https://github.com/upx/upx/releases/download/v3.96/upx-3.96-${PLATFORM_ARCH_STR}_linux.tar.xz -o upx.tar.xz && tar -xvJf upx.tar.xz -C ${CMAKE_BINARY_DIR} --strip-components 1 > /dev/null && ${CMAKE_BINARY_DIR}/upx taosadapter || :
+          COMMAND ${_upx_prefix}/src/upx/upx taosadapter
           COMMAND cmake -E copy taosadapter ${CMAKE_BINARY_DIR}/build/bin
           COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
           COMMAND cmake -E copy ./example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/
           COMMAND cmake -E copy ./taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/
           COMMAND cmake -E copy taosadapter-debug ${CMAKE_BINARY_DIR}/build/bin
           )
+      unset(_upx_prefix)
   ELSEIF (TD_DARWIN)
       include(ExternalProject)
       ExternalProject_Add(taosadapter

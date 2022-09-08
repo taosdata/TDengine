@@ -91,7 +91,6 @@ else
       ${build_dir}/bin/tarbitrator\
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
-      ${script_dir}/run_taosd_and_taosadapter.sh \
       ${script_dir}/startPre.sh \
       ${script_dir}/taosd-dump-cfg.gdb"
 fi
@@ -158,7 +157,6 @@ if [ $adapterName != "taosadapter" ]; then
   sed -i "s/taosadapter/${adapterName}/g" ${install_dir}/cfg/$adapterName.service
   # !!! do not change taosadaptor here
   mv ${install_dir}/bin/taosadapter ${install_dir}/bin/${adapterName}
-  mv ${install_dir}/bin/run_taosd_and_taosadapter.sh ${install_dir}/bin/run_${serverName}_and_${adapterName}.sh
   mv ${install_dir}/bin/taosd-dump-cfg.gdb ${install_dir}/bin/${serverName}-dump-cfg.gdb
 fi
 

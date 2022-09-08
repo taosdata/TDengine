@@ -68,6 +68,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_TIME_STAMP,       "Client and server's t
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_NOT_READY,                "Database not ready")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_FQDN_ERROR,               "Unable to resolve FQDN")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_VERSION,          "Invalid app version")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_SHORTCUT,                 "Shortcut")
 
 //common & util
 TAOS_DEFINE_ERROR(TSDB_CODE_COM_OPS_NOT_SUPPORT,          "Operation not supported")
@@ -123,6 +124,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_VALUE_OUT_OF_RANGE,       "Value out of range")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_PROTOCOL_TYPE,    "Invalid line protocol type")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_PRECISION_TYPE,   "Invalid timestamp precision type")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_RES_TOO_MANY,             "Result set too large to be output")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_TOO_MANY_SML_LINES,       "Too many lines in batch")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SEND_DATA_FAILED,         "Client send request data failed")
 
 // mnode
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_MSG_NOT_PROCESSED,        "Message not processed")

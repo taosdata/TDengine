@@ -5,7 +5,7 @@ set -e
 pgrep taosd || taosd >> /dev/null 2>&1 &
 pgrep taosadapter || taosadapter >> /dev/null 2>&1 &
 
-cd ../../docs-examples/rust
+cd ../../docs/examples/rust
 
 cargo  run -p nativeexample --example connect
 cargo  run -p restexample --example connect

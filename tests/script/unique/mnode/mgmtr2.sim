@@ -20,7 +20,7 @@ print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
 
-if $dnode1Role != master then
+if $dnode1Role != leader then
   return -1
 endi
 if $dnode2Role != null then
@@ -72,10 +72,10 @@ print dnode1 ==> $dnode1Role
 print dnode2 ==> $dnode2Role
 print dnode3 ==> $dnode3Role
 
-if $dnode1Role != master then
+if $dnode1Role != leader then
   goto step4
 endi
-if $dnode2Role != slave then
+if $dnode2Role != follower then
   goto step4
 endi
 if $dnode3Role != null then

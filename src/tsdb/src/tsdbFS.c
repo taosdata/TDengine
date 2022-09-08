@@ -1217,13 +1217,13 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
   bool      isOneFSetFinish = true;
   int       lastFType = -1;
   // one fileset ends when (1) the array ends or (2) encounter different fid
-  for (size_t index = 0; index < fArraySize; ++index) {
+  for (size_t idx = 0; idx < fArraySize; ++idx) {
     int         tvid = -1, tfid = -1;
     TSDB_FILE_T ttype = TSDB_FILE_MAX;
     uint32_t    tversion = -1;
     char        bname[TSDB_FILENAME_LEN] = "\0";
 
-    pf = taosArrayGet(fArray, index);
+    pf = taosArrayGet(fArray, idx);
     tfsbasename(pf, bname);
     tsdbParseDFilename(bname, &tvid, &tfid, &ttype, &tversion); 
     ASSERT(tvid == REPO_ID(pRepo));
@@ -1237,7 +1237,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
 
     lastFType = ttype;
 
-    if (index == 0) {
+    if (idx == 0) {
       memset(&fset, 0, sizeof(SDFileSet));
       TSDB_FSET_SET_CLOSED(&fset);
       nDFiles = 1;
@@ -1249,7 +1249,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
         ++nDFiles;
         pDFile->f = *pf;
         // (1) the array ends
-        if (index == fArraySize - 1) {
+        if (idx == fArraySize - 1) {
           if (tsdbIsDFileSetValid(nDFiles)) {
             tsdbInfo("vgId:%d DFileSet %d is fetched, nDFiles=%" PRIu8, REPO_ID(pRepo), fset.fid, nDFiles);
             isOneFSetFinish = true;

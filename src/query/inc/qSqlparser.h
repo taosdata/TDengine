@@ -97,9 +97,11 @@ typedef struct SIntervalVal {
   SStrToken          offset;
 } SIntervalVal;
 
+typedef struct tSqlExpr tSqlExprTimestamp;
+
 typedef struct SRangeVal {
-  void          *start;
-  void          *end;
+  tSqlExprTimestamp *start;
+  tSqlExprTimestamp *end;
 } SRangeVal;
 
 typedef struct SSessionWindowVal {

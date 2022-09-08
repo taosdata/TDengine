@@ -217,10 +217,10 @@ namespace Utils
                 }
             }
         }
-        public static void ExitProgram()
+        public static void ExitProgram(int i = 1)
         {
             TDengine.Cleanup();
-            System.Environment.Exit(0);
+            System.Environment.Exit(i);
         }
     }
 }

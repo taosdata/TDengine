@@ -117,7 +117,7 @@ node qremove(HuffmanTree* huffmanTree)
 /**
  * @out1 should be set to 0.
  * @out2 should be 0 as well.
- * @index: the index of the byte
+ * @idx: the idx of the byte
  * */
 void build_code(HuffmanTree *huffmanTree, node n, int len, unsigned long out1, unsigned long out2)
 {
@@ -136,8 +136,8 @@ void build_code(HuffmanTree *huffmanTree, node n, int len, unsigned long out1, u
 		huffmanTree->cout[n->c] = (unsigned char)len;
 		return;
 	}
-	int index = len >> 6; //=len/64
-	if(index == 0)
+	int idx = len >> 6; //=len/64
+	if(idx == 0)
 	{
 		out1 = out1 << 1;
 		out1 = out1 | 0;
@@ -164,13 +164,13 @@ void build_code(HuffmanTree *huffmanTree, node n, int len, unsigned long out1, u
  * */
 void init(HuffmanTree* huffmanTree, int *s, size_t length)
 {
-	size_t i, index;
+	size_t i, idx;
 	size_t *freq = (size_t *)malloc(huffmanTree->allNodes*sizeof(size_t));
 	memset(freq, 0, huffmanTree->allNodes*sizeof(size_t));
 	for(i = 0;i < length;i++)
 	{
-		index = s[i];
-		freq[index]++;
+		idx = s[i];
+		freq[idx]++;
 	}
 
 	for (i = 0; i < huffmanTree->allNodes; i++)

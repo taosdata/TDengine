@@ -29,7 +29,11 @@ installDir="/usr/local/taos"
 productName="TDengine"
 emailName="taosdata.com"
 uninstallScript="rmtaos"
+adapterName="taosadapter"
+demoName="taosdemo"
+benchmarkName="taosBenchmark"
 
+# Dynamic directory
 if [ "$osType" != "Darwin" ]; then
   data_dir=${dataDir}
   log_dir=${logDir}
@@ -125,14 +129,14 @@ if [ "$osType" != "Darwin" ]; then
   fi
 fi
 
-function kill_taosadapter() {
-  pid=$(ps -ef | grep "taosadapter" | grep -v "grep" | awk '{print $2}')
+function kill_adapter() {
+  pid=$(ps -ef | grep "${adapterName}" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
     ${csudo}kill -9 $pid || :
   fi
 }
 
-function kill_taosd() {
+function kill_server() {
   ps -ef | grep ${serverName}
   pid=$(ps -ef | grep -w ${serverName} | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
@@ -168,40 +172,36 @@ function install_bin() {
   # Remove links
   ${csudo}rm -f ${bin_link_dir}/${clientName} || :
   ${csudo}rm -f ${bin_link_dir}/${serverName} || :
-  ${csudo}rm -f ${bin_link_dir}/taosadapter || :
-  ${csudo}rm -f ${bin_link_dir}/taosdemo || :
-  ${csudo}rm -f ${bin_link_dir}/taosdump || :
+  ${csudo}rm -f ${bin_link_dir}/${adapterName} || :
+  ${csudo}rm -f ${bin_link_dir}/${demoName} || :
 
   if [ "$osType" != "Darwin" ]; then
     ${csudo}rm -f ${bin_link_dir}/perfMonitor || :
     ${csudo}rm -f ${bin_link_dir}/set_core || :
-    ${csudo}rm -f ${bin_link_dir}/run_taosd_and_taosadapter.sh || :
     ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
 
     ${csudo}cp -r ${binary_dir}/build/bin/${clientName} ${install_main_dir}/bin || :
-    [ -f ${binary_dir}/build/bin/taosBenchmark ] && ${csudo}cp -r ${binary_dir}/build/bin/taosBenchmark ${install_main_dir}/bin || :
-    [ -f ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -sf ${install_main_dir}/bin/taosBenchmark ${install_main_dir}/bin/taosdemo || :
-    [ -f ${binary_dir}/build/bin/taosdump ] && ${csudo}cp -r ${binary_dir}/build/bin/taosdump ${install_main_dir}/bin || :
-    [ -f ${binary_dir}/build/bin/taosadapter ] && ${csudo}cp -r ${binary_dir}/build/bin/taosadapter ${install_main_dir}/bin || :
+    [ -f ${binary_dir}/build/bin/${benchmarkName} ] && ${csudo}cp -r ${binary_dir}/build/bin/${benchmarkName} ${install_main_dir}/bin || :
+    [ -f ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -sf ${install_main_dir}/bin/${benchmarkName} ${install_main_dir}/bin/${demoName} || :
+    #    [ -f ${binary_dir}/build/bin/taosdump ] && ${csudo}cp -r ${binary_dir}/build/bin/taosdump ${install_main_dir}/bin || :
+    [ -f ${binary_dir}/build/bin/${adapterName} ] && ${csudo}cp -r ${binary_dir}/build/bin/${adapterName} ${install_main_dir}/bin || :
     ${csudo}cp -r ${binary_dir}/build/bin/${serverName} ${install_main_dir}/bin || :
     ${csudo}cp -r ${binary_dir}/build/bin/tarbitrator ${install_main_dir}/bin || :
 
     ${csudo}cp -r ${script_dir}/taosd-dump-cfg.gdb ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/remove.sh ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/set_core.sh ${install_main_dir}/bin
-    ${csudo}cp -r ${script_dir}/run_taosd_and_taosadapter.sh ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/startPre.sh ${install_main_dir}/bin
 
     ${csudo}chmod 0555 ${install_main_dir}/bin/*
     #Make link
     [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName} || :
     [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} || :
-    [ -x ${install_main_dir}/bin/taosadapter ] && ${csudo}ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter || :
-    [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
-    [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo}ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
+    [ -x ${install_main_dir}/bin/${adapterName} ] && ${csudo}ln -s ${install_main_dir}/bin/${adapterName} ${bin_link_dir}/${adapterName} || :
+    #    [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
+    [ -x ${install_main_dir}/bin/${demoName} ] && ${csudo}ln -s ${install_main_dir}/bin/${demoName} ${bin_link_dir}/${demoName} || :
     [ -x ${install_main_dir}/bin/perfMonitor ] && ${csudo}ln -s ${install_main_dir}/bin/perfMonitor ${bin_link_dir}/perfMonitor || :
     [ -x ${install_main_dir}/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
-    [ -x ${install_main_dir}/run_taosd_and_taosadapter.sh ] && ${csudo}ln -s ${install_main_dir}/bin/run_taosd_and_taosadapter.sh ${bin_link_dir}/run_taosd_and_taosadapter.sh || :
     [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
   else
 
@@ -212,9 +212,9 @@ function install_bin() {
     #Make link
     [ -x ${install_main_dir}/bin/${clientName} ] || [ -x ${install_main_2_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName} || ${csudo}ln -s ${install_main_2_dir}/bin/${clientName} || :
     [ -x ${install_main_dir}/bin/${serverName} ] || [ -x ${install_main_2_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} || ${csudo}ln -s ${install_main_2_dir}/bin/${serverName} || :
-    [ -x ${install_main_dir}/bin/taosadapter ] || [ -x ${install_main_2_dir}/bin/taosadapter ] && ${csudo}ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter || ${csudo}ln -s ${install_main_2_dir}/bin/taosadapter || :
-    [ -x ${install_main_dir}/bin/taosdump ] || [ -x ${install_main_2_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || ln -s ${install_main_2_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
-    [ -x ${install_main_dir}/bin/taosdemo ] || [ -x ${install_main_2_dir}/bin/taosdemo ] && ${csudo}ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || ln -s ${install_main_2_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
+    [ -x ${install_main_dir}/bin/${adapterName} ] || [ -x ${install_main_2_dir}/bin/${adapterName} ] && ${csudo}ln -s ${install_main_dir}/bin/${adapterName} ${bin_link_dir}/${adapterName} || ${csudo}ln -s ${install_main_2_dir}/bin/${adapterName} || :
+    #    [ -x ${install_main_dir}/bin/taosdump ] || [ -x ${install_main_2_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || ln -s ${install_main_2_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
+    [ -x ${install_main_dir}/bin/${demoName} ] || [ -x ${install_main_2_dir}/bin/${demoName} ] && ${csudo}ln -s ${install_main_dir}/bin/${demoName} ${bin_link_dir}/${demoName} || ln -s ${install_main_2_dir}/bin/${demoName} ${bin_link_dir}/${demoName} || :
   fi
 }
 
@@ -380,23 +380,23 @@ function install_config() {
   fi
 }
 
-function install_taosadapter_config() {
-  if [ ! -f "${cfg_install_dir}/taosadapter.toml" ]; then
+function install_adapter_config() {
+  if [ ! -f "${cfg_install_dir}/${adapterName}.toml" ]; then
     ${csudo}mkdir -p ${cfg_install_dir}
-    [ -f ${binary_dir}/test/cfg/taosadapter.toml ] &&
-      ${csudo}cp ${binary_dir}/test/cfg/taosadapter.toml ${cfg_install_dir}
-    [ -f ${cfg_install_dir}/taosadapter.toml ] &&
-      ${csudo}chmod 644 ${cfg_install_dir}/taosadapter.toml
-    [ -f ${binary_dir}/test/cfg/taosadapter.toml ] &&
-      ${csudo}cp -f ${binary_dir}/test/cfg/taosadapter.toml \
-        ${cfg_install_dir}/taosadapter.toml.${verNumber}
-    [ -f ${cfg_install_dir}/taosadapter.toml ] &&
-      ${csudo}ln -s ${cfg_install_dir}/taosadapter.toml \
-        ${install_main_dir}/cfg/taosadapter.toml
+    [ -f ${binary_dir}/test/cfg/${adapterName}.toml ] &&
+      ${csudo}cp ${binary_dir}/test/cfg/${adapterName}.toml ${cfg_install_dir}
+    [ -f ${cfg_install_dir}/${adapterName}.toml ] &&
+      ${csudo}chmod 644 ${cfg_install_dir}/${adapterName}.toml
+    [ -f ${binary_dir}/test/cfg/${adapterName}.toml ] &&
+      ${csudo}cp -f ${binary_dir}/test/cfg/${adapterName}.toml \
+        ${cfg_install_dir}/${adapterName}.toml.${verNumber}
+    [ -f ${cfg_install_dir}/${adapterName}.toml ] &&
+      ${csudo}ln -s ${cfg_install_dir}/${adapterName}.toml \
+        ${install_main_dir}/cfg/${adapterName}.toml
   else
-    if [ -f "${binary_dir}/test/cfg/taosadapter.toml" ]; then
-      ${csudo}cp -f ${binary_dir}/test/cfg/taosadapter.toml \
-        ${cfg_install_dir}/taosadapter.toml.${verNumber}
+    if [ -f "${binary_dir}/test/cfg/${adapterName}.toml" ]; then
+      ${csudo}cp -f ${binary_dir}/test/cfg/${adapterName}.toml \
+        ${cfg_install_dir}/${adapterName}.toml.${verNumber}
     fi
   fi
 }
@@ -529,10 +529,10 @@ function install_service_on_systemd() {
   ${csudo}systemctl enable ${serverName}
 }
 
-function install_taosadapter_service() {
+function install_adapter_service() {
   if ((${service_mod} == 0)); then
-    [ -f ${binary_dir}/test/cfg/taosadapter.service ] &&
-      ${csudo}cp ${binary_dir}/test/cfg/taosadapter.service \
+    [ -f ${binary_dir}/test/cfg/${adapterName}.service ] &&
+      ${csudo}cp ${binary_dir}/test/cfg/${adapterName}.service \
         ${service_config_dir}/ || :
     ${csudo}systemctl daemon-reload
   fi
@@ -544,11 +544,11 @@ function install_service() {
   elif ((${service_mod} == 1)); then
     install_service_on_sysvinit
   else
-    kill_taosd
+    kill_server
   fi
 }
 
-function update_TDengine() {
+function update_Product() {
   echo -e "${GREEN}Start to update ${productName}...${NC}"
   # Stop the service if running
 
@@ -558,8 +558,8 @@ function update_TDengine() {
     elif ((${service_mod} == 1)); then
       ${csudo}service ${serverName} stop || :
     else
-      kill_taosadapter
-      kill_taosd
+      kill_adapter
+      kill_server
     fi
     sleep 1
   fi
@@ -574,23 +574,23 @@ function update_TDengine() {
   install_bin
 
   install_service
-  install_taosadapter_service
+  install_adapter_service
 
   install_config
-  install_taosadapter_config
+  install_adapter_config
 
   echo
   echo -e "\033[44;32;1m${productName} is updated successfully!${NC}"
   echo
 
   echo -e "${GREEN_DARK}To configure ${productName} ${NC}: edit ${configDir}/${configFile}"
-  echo -e "${GREEN_DARK}To configure Taos Adapter (if has) ${NC}: edit ${configDir}/taosadapter.toml"
+  echo -e "${GREEN_DARK}To configure ${adapterName} (if has) ${NC}: edit ${configDir}/${adapterName}.toml"
   if ((${service_mod} == 0)); then
     echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
   elif ((${service_mod} == 1)); then
     echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}service ${serverName} start${NC}"
   else
-    echo -e "${GREEN_DARK}To start Taos Adapter (if has)${NC}: taosadapter &${NC}"
+    echo -e "${GREEN_DARK}To start ${adapterName} (if has)${NC}: ${adapterName} &${NC}"
     echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${serverName}${NC}"
   fi
 
@@ -599,7 +599,7 @@ function update_TDengine() {
   echo -e "\033[44;32;1m${productName} is updated successfully!${NC}"
 }
 
-function install_TDengine() {
+function install_Product() {
   # Start to install
   echo -e "${GREEN}Start to install ${productName}...${NC}"
 
@@ -614,23 +614,23 @@ function install_TDengine() {
   install_bin
 
   install_service
-  install_taosadapter_service
+  install_adapter_service
 
   install_config
-  install_taosadapter_config
+  install_adapter_config
 
   # Ask if to start the service
   echo
   echo -e "\033[44;32;1m${productName} is installed successfully!${NC}"
   echo
   echo -e "${GREEN_DARK}To configure ${productName} ${NC}: edit ${configDir}/${configFile}"
-  echo -e "${GREEN_DARK}To configure taosadapter (if has) ${NC}: edit ${configDir}/taosadapter.toml"
+  echo -e "${GREEN_DARK}To configure ${adapterName} (if has) ${NC}: edit ${configDir}/${adapterName}.toml"
   if ((${service_mod} == 0)); then
     echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
   elif ((${service_mod} == 1)); then
     echo -e "${GREEN_DARK}To start ${productName}    ${NC}: ${csudo}service ${serverName} start${NC}"
   else
-    echo -e "${GREEN_DARK}To start Taos Adapter (if has)${NC}: taosadapter &${NC}"
+    echo -e "${GREEN_DARK}To start ${adapterName} (if has)${NC}: ${adapterName} &${NC}"
     echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ./${serverName}${NC}"
   fi
 
@@ -644,14 +644,14 @@ echo source directory: $1
 echo binary directory: $2
 if [ "$osType" != "Darwin" ]; then
   if [ -x ${bin_dir}/${clientName} ]; then
-    update_TDengine
+    update_Product
   else
-    install_TDengine
+    install_Product
   fi
 else
   if [ -x ${bin_dir}/${clientName} ] || [ -x ${bin_2_dir}/${clientName} ]; then
-    update_TDengine
+    update_Product
   else
-    install_TDengine
+    install_Product
   fi
 fi

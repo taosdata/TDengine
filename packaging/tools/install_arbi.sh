@@ -7,6 +7,9 @@ set -e
 #set -x
 
 # -----------------------Variables definition---------------------
+productName="TDengine"
+emailName="taosdata.com"
+
 script_dir=$(dirname $(readlink -f "$0"))
 
 bin_link_dir="/usr/bin"
@@ -73,17 +76,26 @@ elif echo $osinfo | grep -qwi "debian"; then
 elif echo $osinfo | grep -qwi "Kylin"; then
   #  echo "This is Kylin system"
   os_type=1
+elif echo $osinfo | grep -qwi "Red"; then
+  #  echo "This is Red Hat system"
+  os_type=1
 elif echo $osinfo | grep -qwi "centos"; then
   #  echo "This is centos system"
   os_type=2
 elif echo $osinfo | grep -qwi "fedora"; then
   #  echo "This is fedora system"
   os_type=2
+elif echo $osinfo | grep -qwi "Linx"; then
+  #  echo "This is Linx system"
+  os_type=1
+  service_mod=0
+  initd_mod=0
+  service_config_dir="/etc/systemd/system"
 else
   echo " osinfo: ${osinfo}"
   echo " This is an officially unverified linux system,"
   echo " if there are any problems with the installation and operation, "
-  echo " please feel free to contact taosdata.com for support."
+  echo " please feel free to contact ${emailName} for support."
   os_type=1
 fi
 
@@ -241,7 +253,7 @@ function install_service_on_systemd() {
   tarbitratord_service_config="${service_config_dir}/tarbitratord.service"
 
   ${csudo}bash -c "echo '[Unit]'                                  >> ${tarbitratord_service_config}"
-  ${csudo}bash -c "echo 'Description=TDengine arbitrator service' >> ${tarbitratord_service_config}"
+  ${csudo}bash -c "echo 'Description=${productName} arbitrator service' >> ${tarbitratord_service_config}"
   ${csudo}bash -c "echo 'After=network-online.target'             >> ${tarbitratord_service_config}"
   ${csudo}bash -c "echo 'Wants=network-online.target'             >> ${tarbitratord_service_config}"
   ${csudo}bash -c "echo                                           >> ${tarbitratord_service_config}"
@@ -273,9 +285,9 @@ function install_service() {
   fi
 }
 
-function update_TDengine() {
+function update_Product() {
   # Start to update
-  echo -e "${GREEN}Start to update TDengine's arbitrator ...${NC}"
+  echo -e "${GREEN}Start to update ${productName}'s arbitrator ...${NC}"
   # Stop the service if running
   if pidof tarbitrator &>/dev/null; then
     if ((${service_mod} == 0)); then
@@ -303,12 +315,12 @@ function update_TDengine() {
     echo -e "${GREEN_DARK}To start arbitrator     ${NC}: ./tarbitrator${NC}"
   fi
   echo
-  echo -e "\033[44;32;1mTDengine's arbitrator is updated successfully!${NC}"
+  echo -e "\033[44;32;1m${productName}'s arbitrator is updated successfully!${NC}"
 }
 
-function install_TDengine() {
+function install_Product() {
   # Start to install
-  echo -e "${GREEN}Start to install TDengine's arbitrator ...${NC}"
+  echo -e "${GREEN}Start to install ${productName}'s arbitrator ...${NC}"
 
   install_main_path
   #install_header
@@ -325,7 +337,7 @@ function install_TDengine() {
     echo -e "${GREEN_DARK}To start arbitrator     ${NC}: tarbitrator${NC}"
   fi
 
-  echo -e "\033[44;32;1mTDengine's arbitrator is installed successfully!${NC}"
+  echo -e "\033[44;32;1m${productName}'s arbitrator is installed successfully!${NC}"
   echo
 }
 
@@ -333,7 +345,7 @@ function install_TDengine() {
 # Install server and client
 if [ -x ${bin_dir}/tarbitrator ]; then
   update_flag=1
-  update_TDengine
+  update_Product
 else
-  install_TDengine
+  install_Product
 fi

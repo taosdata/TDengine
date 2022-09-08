@@ -268,6 +268,12 @@ int32_t  fsDebugFlag = 135;
 
 int8_t tsClientMerge = 0;
 
+// probe alive connection
+int32_t tsProbeSeconds     =  5 * 60; // start probe link alive after tsProbeSeconds from starting query
+int32_t tsProbeKillSeconds = 10 * 60; // start kill query after tsProbeKillSeconds from last alive time
+int32_t tsProbeInterval    = 40;      // 40 * 1.5s = 60 s interval time
+
+
 #ifdef TD_TSZ
 //
 // lossy compress 6
@@ -397,10 +403,10 @@ bool taosCfgDynamicOptions(char *msg) {
   return false;
 }
 
-void taosAddDataDir(int index, char *v1, int level, int primary) {
-  tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
-  tsDiskCfg[index].level = level;
-  tsDiskCfg[index].primary = primary;
+void taosAddDataDir(int idx, char *v1, int level, int primary) {
+  tstrncpy(tsDiskCfg[idx].dir, v1, TSDB_FILENAME_LEN);
+  tsDiskCfg[idx].level = level;
+  tsDiskCfg[idx].primary = primary;
   uTrace("dataDir:%s, level:%d primary:%d is configured", v1, level, primary);
 }
 
@@ -627,7 +633,7 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "tcpConnTimout";
+  cfg.option = "tcpConnTimeout";
   cfg.ptr = &tsTcpConnTimeout;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
@@ -1729,6 +1735,39 @@ static void doInitGlobalConfig(void) {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = (1 << 24);
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  // probeSeconds
+  cfg.option = "probeSeconds";
+  cfg.ptr = &tsProbeSeconds;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 100000;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  // probeKillSeconds
+  cfg.option = "probeKillSeconds";
+  cfg.ptr = &tsProbeKillSeconds;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 100000;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  // probeInterval
+  cfg.option = "probeInterval";
+  cfg.ptr = &tsProbeInterval;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = 100000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);

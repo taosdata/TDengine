@@ -127,6 +127,10 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 9.1)
 
+        tdSql.query("select last(col6)/10 from test1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0.91)
+
         tdSql.query("select last(col7) from test1")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, True)
