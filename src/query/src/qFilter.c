@@ -2786,6 +2786,10 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SDataStatis *pDataStatis, int32_t
         info->blkUnitRes[k] = -1;
         rmUnit = 1;
         continue;
+      } else {
+        // when there are values and nulls in this block, no unit can produce all true
+        // or all false. so no unit can be removed
+        continue;
       }
     }
 
