@@ -101,13 +101,12 @@ static bool allSubqueryDone(SSqlObj *pParentSql) {
 
 bool subAndCheckDone(SSqlObj *pSql, SSqlObj *pParentSql, int idx) {
   SSubqueryState *subState = &pParentSql->subState;
-  assert(idx < subState->numOfSub);
 
   pthread_mutex_lock(&subState->mutex);
-
-  tscDebug("0x%"PRIx64" subquery:0x%"PRIx64", idx:%d state set to 1", pParentSql->self, pSql->self, idx);
-  subState->states[idx] = 1;
-
+  if (idx < subState->numOfSub) {
+    tscDebug("0x%"PRIx64" subquery:0x%"PRIx64", index:%d state set to 1", pParentSql->self, pSql->self, idx);
+    subState->states[idx] = 1;
+  }
   bool done = allSubqueryDone(pParentSql);
   if (!done) {
     tscDebug("0x%"PRIx64" sub:%p,%d completed, total:%d", pParentSql->self, pSql, idx, pParentSql->subState.numOfSub);
