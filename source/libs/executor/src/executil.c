@@ -475,7 +475,6 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     qError("failed to create result, reason:%s", tstrerror(code));
-    terrno = code;
     goto end;
   }
 

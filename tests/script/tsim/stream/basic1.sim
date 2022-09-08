@@ -5,7 +5,7 @@ sleep 50
 sql connect
 
 print =============== create database
-sql create database test vgroups 1
+sql create database test vgroups 1;
 sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
@@ -13,7 +13,7 @@ endi
 
 print $data00 $data01 $data02
 
-sql use test
+sql use test;
 
 
 sql create table t1(ts timestamp, a int, b int , c int, d double);
