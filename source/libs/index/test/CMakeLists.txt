@@ -5,6 +5,7 @@ IF(NOT TD_DARWIN)
   add_executable(idxUtilUT "")
   add_executable(idxJsonUT "")
   add_executable(idxFstUtilUT "")
+  add_executable(idxBench "")
 
   target_sources(idxTest
     PRIVATE 
@@ -31,6 +32,10 @@ IF(NOT TD_DARWIN)
   target_sources(idxFstUtilUT
    PRIVATE 
    "fstUtilUT.cc" 
+  )
+  target_sources(idxBench
+   PRIVATE 
+   "indexBench.cc" 
   )
  
   target_include_directories (idxTest
@@ -80,6 +85,16 @@ IF(NOT TD_DARWIN)
    "${TD_SOURCE_DIR}/include/libs/index" 
    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
   ) 
+  target_include_directories (idxJsonUT
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/index" 
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  ) 
+  target_include_directories (idxBench
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/index" 
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  ) 
 
   target_link_libraries (idxTest
     os  
@@ -102,11 +117,7 @@ IF(NOT TD_DARWIN)
     gtest_main
     index
   )
-  target_include_directories (idxJsonUT
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/index" 
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-  ) 
+
   target_link_libraries (idxTest
     os  
     util
@@ -151,6 +162,13 @@ IF(NOT TD_DARWIN)
     gtest_main
     index
   )
+  target_link_libraries (idxBench
+    os  
+    util
+    common
+    gtest_main
+    index
+  )
   
   add_test(
     NAME idxJsonUT
@@ -173,5 +191,9 @@ IF(NOT TD_DARWIN)
   add_test(
     NAME idxFstUT 
     COMMAND idxFstUT 
+  )
+  add_test(
+    NAME idxBench
+    COMMAND idxBench
   )
 ENDIF ()
