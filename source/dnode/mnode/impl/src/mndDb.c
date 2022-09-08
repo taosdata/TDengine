@@ -513,6 +513,12 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
     return -1;
   }
 
+  if (dbObj.cfg.hashPrefix > 0) {
+    int32_t dbLen = strlen(dbObj.name) + 1;
+    mInfo("db:%s, hashPrefix adjust from %d to %d", dbObj.name, dbObj.cfg.hashPrefix, dbObj.cfg.hashPrefix + dbLen);
+    dbObj.cfg.hashPrefix += dbLen;
+  }
+
   SVgObj *pVgroups = NULL;
   if (mndAllocVgroup(pMnode, &dbObj, &pVgroups) != 0) {
     mError("db:%s, failed to create since %s", pCreate->db, terrstr());
@@ -1710,6 +1716,16 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.sstTrigger, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    int16_t hashPrefix = pDb->cfg.hashPrefix;
+    if (hashPrefix > 0) {
+      hashPrefix = pDb->cfg.hashPrefix - strlen(pDb->name) - 1;
+    }
+    colDataAppend(pColInfo, rows, (const char *)&hashPrefix, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.hashSuffix, false);
   }
 
   taosMemoryFree(buf);
