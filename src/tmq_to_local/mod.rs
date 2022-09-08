@@ -28,7 +28,7 @@ async fn backup(consumer: Consumer, mut writer: ZFile, id: usize) -> Result<()> 
     while let Some((offset, message)) = stream.try_next().await? {
         match message {
             MessageSet::Meta(meta) => {
-                dbg!(meta.as_json_meta().await?);
+                //dbg!(meta.as_json_meta().await?);
                 writer.write_meta(&meta.as_raw_meta().await?).await?;
             }
             MessageSet::Data(data) => {
