@@ -3124,7 +3124,7 @@ int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, S
   int32_t numOfOutputCols = blockDataGetNumOfCols(pResBlock);
 
   while (i < numOfOutputCols && j < numOfInputCols) {
-    SColumnInfoData* pCol = taosArrayGet(pResBlock->pDataBlock, i);
+    SColumnInfoData* pCol = TARRAY_GET_ELEM(pResBlock->pDataBlock, i);
     SColData*        pData = tBlockDataGetColDataByIdx(pBlockData, j);
 
     if (pData->cid < pCol->info.colId) {

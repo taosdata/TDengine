@@ -104,7 +104,6 @@ int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type) {
       case TSDB_DATA_TYPE_BIGINT:
         pValue->i64 = *(int64_t*)p;
         n += sizeof(int64_t);
-//        n += tGetI64(p, &pValue->i64);
         break;
       case TSDB_DATA_TYPE_FLOAT:
         n += tGetFloat(p, &pValue->f);
@@ -127,7 +126,6 @@ int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type) {
       case TSDB_DATA_TYPE_UBIGINT:
         pValue->u64 = *(uint64_t*)p;
         n += sizeof(uint64_t);
-//        n += tGetU64(p, &pValue->u64);
         break;
       default:
         ASSERT(0);
