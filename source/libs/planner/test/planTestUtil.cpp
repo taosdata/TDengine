@@ -452,10 +452,12 @@ class PlannerTestBaseImpl {
     char*   pStr = NULL;
     int32_t len = 0;
 
-    // auto start = chrono::steady_clock::now();
+    auto start = chrono::steady_clock::now();
     DO_WITH_THROW(nodesNodeToString, pRoot, false, &pStr, &len)
-    // cout << "nodesNodeToString: "
-    //      << chrono::duration_cast<chrono::nanoseconds>(chrono::steady_clock::now() - start).count() << endl;
+    if (QUERY_NODE_PHYSICAL_PLAN == nodeType(pRoot)) {
+      cout << "nodesNodeToString: "
+           << chrono::duration_cast<chrono::microseconds>(chrono::steady_clock::now() - start).count() << "us" << endl;
+    }
 
     string str(pStr);
     taosMemoryFreeClear(pStr);
@@ -466,10 +468,10 @@ class PlannerTestBaseImpl {
     char*   pStr = NULL;
     int32_t len = 0;
 
-    // auto start = chrono::steady_clock::now();
+    auto start = chrono::steady_clock::now();
     DO_WITH_THROW(nodesNodeToMsg, pRoot, &pStr, &len)
-    // cout << "nodesNodeToMsg: "
-    //      << chrono::duration_cast<chrono::nanoseconds>(chrono::steady_clock::now() - start).count() << endl;
+    cout << "nodesNodeToMsg: "
+         << chrono::duration_cast<chrono::microseconds>(chrono::steady_clock::now() - start).count() << "us" << endl;
 
     SNode*  pNode = NULL;
     char*   pNewStr = NULL;
