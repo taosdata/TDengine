@@ -248,6 +248,12 @@
 ./test.sh -f tsim/stream/windowClose.sim
 ./test.sh -f tsim/stream/ignoreExpiredData.sim
 ./test.sh -f tsim/stream/sliding.sim
+#./test.sh -f tsim/stream/partitionbyColumnInterval.sim
+#./test.sh -f tsim/stream/partitionbyColumnSession.sim
+#./test.sh -f tsim/stream/partitionbyColumnState.sim
+#./test.sh -f tsim/stream/deleteInterval.sim
+#./test.sh -f tsim/stream/deleteSession.sim
+#./test.sh -f tsim/stream/deleteState.sim
 
 # ---- transaction ----
 ./test.sh -f tsim/trans/lossdata1.sim
