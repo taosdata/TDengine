@@ -67,6 +67,16 @@ void resetLastBlockLoadInfo(SSttBlockLoadInfo* pLoadInfo) {
     pLoadInfo[i].blockIndex[1] = -1;
 
     taosArrayClear(pLoadInfo[i].aSttBlk);
+
+    pLoadInfo[i].elapsedTime = 0;
+    pLoadInfo[i].loadBlocks = 0;
+  }
+}
+
+void getLastBlockLoadInfo(SSttBlockLoadInfo* pLoadInfo, int64_t* blocks, double* el) {
+  for(int32_t i = 0; i < TSDB_DEFAULT_STT_FILE; ++i) {
+    *el += pLoadInfo[i].elapsedTime;
+    *blocks += pLoadInfo[i].loadBlocks;
   }
 }
 
@@ -86,7 +96,7 @@ void* destroyLastBlockLoadInfo(SSttBlockLoadInfo* pLoadInfo) {
   return NULL;
 }
 
-static SBlockData* loadBlockIfMissing(SLDataIter *pIter) {
+static SBlockData* loadLastBlock(SLDataIter *pIter, const char* idStr) {
   int32_t code = 0;
 
   SSttBlockLoadInfo* pInfo = pIter->pBlockLoadInfo;
@@ -100,8 +110,13 @@ static SBlockData* loadBlockIfMissing(SLDataIter *pIter) {
 
   pInfo->currentLoadBlockIndex ^= 1;
   if (pIter->pSttBlk != NULL) {  // current block not loaded yet
+    int64_t st = taosGetTimestampUs();
     code = tsdbReadSttBlock(pIter->pReader, pIter->iStt, pIter->pSttBlk, &pInfo->blockData[pInfo->currentLoadBlockIndex]);
-    tsdbDebug("read last block, index:%d, last file index:%d", pIter->iSttBlk, pIter->iStt);
+    double el = (taosGetTimestampUs() - st)/ 1000.0;
+    pInfo->elapsedTime += el;
+    pInfo->loadBlocks += 1;
+
+    tsdbDebug("read last block, index:%d, last file index:%d, elapsed time:%.2f ms, %s", pIter->iSttBlk, pIter->iStt, el, idStr);
     if (code != TSDB_CODE_SUCCESS) {
       goto _exit;
     }
@@ -245,9 +260,8 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
   size_t size = taosArrayGetSize(pBlockLoadInfo->aSttBlk);
 
   // find the start block
-  int32_t index = binarySearchForStartBlock(pBlockLoadInfo->aSttBlk->pData, size, uid, backward);
-  (*pIter)->iSttBlk = index;
-  if (index != -1) {
+  (*pIter)->iSttBlk = binarySearchForStartBlock(pBlockLoadInfo->aSttBlk->pData, size, uid, backward);
+  if ((*pIter)->iSttBlk != -1) {
     (*pIter)->pSttBlk = taosArrayGet(pBlockLoadInfo->aSttBlk, (*pIter)->iSttBlk);
     (*pIter)->iRow = ((*pIter)->backward) ? (*pIter)->pSttBlk->nRow : -1;
   }
@@ -265,7 +279,7 @@ void tLDataIterNextBlock(SLDataIter *pIter) {
   pIter->iSttBlk += step;
 
   int32_t index = -1;
-  size_t  size = pIter->pBlockLoadInfo->aSttBlk->size;//taosArrayGetSize(pIter->pBlockLoadInfo->aSttBlk);
+  size_t  size = pIter->pBlockLoadInfo->aSttBlk->size;
   for (int32_t i = pIter->iSttBlk; i < size && i >= 0; i += step) {
     SSttBlk *p = taosArrayGet(pIter->pBlockLoadInfo->aSttBlk, i);
     if ((!pIter->backward) && p->minUid > pIter->uid) {
@@ -310,13 +324,13 @@ void tLDataIterNextBlock(SLDataIter *pIter) {
   }
 }
 
-static void findNextValidRow(SLDataIter *pIter) {
+static void findNextValidRow(SLDataIter *pIter, const char* idStr) {
   int32_t step = pIter->backward ? -1 : 1;
 
   bool        hasVal = false;
   int32_t     i = pIter->iRow;
 
-  SBlockData *pBlockData = loadBlockIfMissing(pIter);
+  SBlockData *pBlockData = loadLastBlock(pIter, idStr);
 
   // mostly we only need to find the start position for a given table
   if ((((i == 0) && (!pIter->backward)) || (i == pBlockData->nRow - 1 && pIter->backward)) && pBlockData->aUid != NULL) {
@@ -376,7 +390,7 @@ static void findNextValidRow(SLDataIter *pIter) {
   pIter->iRow = (hasVal) ? i : -1;
 }
 
-bool tLDataIterNextRow(SLDataIter *pIter) {
+bool tLDataIterNextRow(SLDataIter *pIter, const char* idStr) {
   int32_t code = 0;
   int32_t step = pIter->backward ? -1 : 1;
 
@@ -386,11 +400,11 @@ bool tLDataIterNextRow(SLDataIter *pIter) {
   }
 
   int32_t iBlockL = pIter->iSttBlk;
-  SBlockData *pBlockData = loadBlockIfMissing(pIter);
+  SBlockData *pBlockData = loadLastBlock(pIter, idStr);
   pIter->iRow += step;
 
   while (1) {
-    findNextValidRow(pIter);
+    findNextValidRow(pIter, idStr);
 
     if (pIter->iRow >= pBlockData->nRow || pIter->iRow < 0) {
       tLDataIterNextBlock(pIter);
@@ -402,7 +416,7 @@ bool tLDataIterNextRow(SLDataIter *pIter) {
     }
 
     if (iBlockL != pIter->iSttBlk) {
-      pBlockData = loadBlockIfMissing(pIter);
+      pBlockData = loadLastBlock(pIter, idStr);
       pIter->iRow += step;
     }
   }
@@ -445,13 +459,15 @@ static FORCE_INLINE int32_t tLDataIterCmprFn(const void *p1, const void *p2) {
 }
 
 int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
-                       STimeWindow *pTimeWindow, SVersionRange *pVerRange, void* pBlockLoadInfo) {
+                       STimeWindow *pTimeWindow, SVersionRange *pVerRange, void* pBlockLoadInfo, const char* idStr) {
   pMTree->backward = backward;
   pMTree->pIter = NULL;
   pMTree->pIterList = taosArrayInit(4, POINTER_BYTES);
   if (pMTree->pIterList == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+
+  pMTree->idStr = idStr;
 
   tRBTreeCreate(&pMTree->rbt, tLDataIterCmprFn);
   int32_t code = TSDB_CODE_SUCCESS;
@@ -475,7 +491,7 @@ int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFRead
       goto _end;
     }
 
-    bool hasVal = tLDataIterNextRow(pIter);
+    bool hasVal = tLDataIterNextRow(pIter, pMTree->idStr);
     if (hasVal) {
       taosArrayPush(pMTree->pIterList, &pIter);
       tMergeTreeAddIter(pMTree, pIter);
@@ -498,7 +514,7 @@ bool tMergeTreeNext(SMergeTree *pMTree) {
   if (pMTree->pIter) {
     SLDataIter *pIter = pMTree->pIter;
 
-    bool hasVal = tLDataIterNextRow(pIter);
+    bool hasVal = tLDataIterNextRow(pIter, pMTree->idStr);
     if (!hasVal) {
       pMTree->pIter = NULL;
     }

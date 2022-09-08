@@ -367,6 +367,9 @@ static bool filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader) {
     return false;
   }
 
+  SIOCostSummary* pSum = &pReader->cost;
+  getLastBlockLoadInfo(pIter->pLastBlockReader->pInfo, &pSum->lastBlockLoad, &pReader->cost.lastBlockLoadTime);
+
   pIter->pLastBlockReader->uid = 0;
   tMergeTreeClose(&pIter->pLastBlockReader->mergeTree);
   resetLastBlockLoadInfo(pIter->pLastBlockReader->pInfo);
@@ -1436,11 +1439,6 @@ static int32_t doMergeFileBlockAndLastBlock(SLastBlockReader* pLastBlockReader, 
       tRowMerge(&merge, &fRow1);
       doMergeRowsInLastBlock(pLastBlockReader, pBlockScanInfo, tsLastBlock, &merge);
 
-      // merge with block data if ts == key
-      if (mergeBlockData && (tsLastBlock == pBlockData->aTSKEY[pDumpInfo->rowIndex])) {
-        doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pReader, &merge);
-      }
-
       int32_t code = tRowMergerGetRow(&merge, &pTSRow);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -1454,9 +1452,10 @@ static int32_t doMergeFileBlockAndLastBlock(SLastBlockReader* pLastBlockReader, 
   } else {  // not merge block data
     tRowMergerInit(&merge, &fRow, pReader->pSchema);
     doMergeRowsInLastBlock(pLastBlockReader, pBlockScanInfo, tsLastBlock, &merge);
+    ASSERT(mergeBlockData);
 
     // merge with block data if ts == key
-    if (mergeBlockData && (tsLastBlock == pBlockData->aTSKEY[pDumpInfo->rowIndex])) {
+    if (tsLastBlock == pBlockData->aTSKEY[pDumpInfo->rowIndex]) {
       doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pReader, &merge);
     }
 
@@ -1944,7 +1943,7 @@ static bool initLastBlockReader(SLastBlockReader* pLBlockReader, STableBlockScan
 
   int32_t code =
       tMergeTreeOpen(&pLBlockReader->mergeTree, (pLBlockReader->order == TSDB_ORDER_DESC), pReader->pFileReader,
-                     pReader->suid, pScanInfo->uid, &w, &pLBlockReader->verRange, pLBlockReader->pInfo);
+                     pReader->suid, pScanInfo->uid, &w, &pLBlockReader->verRange, pLBlockReader->pInfo, pReader->idStr);
   if (code != TSDB_CODE_SUCCESS) {
     return false;
   }
@@ -1984,8 +1983,6 @@ int32_t mergeRowsInFileBlocks(SBlockData* pBlockData, STableBlockScanInfo* pBloc
     tRowMergerClear(&merge);
     return TSDB_CODE_SUCCESS;
   }
-
-  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t buildComposedDataBlockImpl(STsdbReader* pReader, STableBlockScanInfo* pBlockScanInfo,
@@ -2080,8 +2077,8 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
   setComposedBlockFlag(pReader, true);
   double el = (taosGetTimestampUs() - st)/1000.0;
 
-  pReader->cost.buildComposedBlockTime += el;
   pReader->cost.composedBlocks += 1;
+  pReader->cost.buildComposedBlockTime += el;
 
   if (pResBlock->info.rows > 0) {
     tsdbDebug("%p uid:%" PRIu64 ", composed data block created, brange:%" PRIu64 "-%" PRIu64
@@ -3369,15 +3366,18 @@ void tsdbReaderClose(STsdbReader* pReader) {
   tsdbUntakeReadSnap(pReader->pTsdb, pReader->pReadSnap);
 
   taosMemoryFree(pReader->status.uidCheckInfo.tableUidList);
+  SIOCostSummary* pCost = &pReader->cost;
 
   SFilesetIter* pFilesetIter = &pReader->status.fileIter;
   if (pFilesetIter->pLastBlockReader != NULL) {
-    tMergeTreeClose(&pFilesetIter->pLastBlockReader->mergeTree);
-    pFilesetIter->pLastBlockReader->pInfo = destroyLastBlockLoadInfo(pFilesetIter->pLastBlockReader->pInfo);
-    taosMemoryFree(pFilesetIter->pLastBlockReader);
-  }
+    SLastBlockReader* pLReader = pFilesetIter->pLastBlockReader;
+    tMergeTreeClose(&pLReader->mergeTree);
 
-  SIOCostSummary* pCost = &pReader->cost;
+    getLastBlockLoadInfo(pLReader->pInfo, &pCost->lastBlockLoad, &pCost->lastBlockLoadTime);
+
+    pLReader->pInfo = destroyLastBlockLoadInfo(pLReader->pInfo);
+    taosMemoryFree(pLReader);
+  }
 
   tsdbDebug(
       "%p :io-cost summary: head-file:%" PRIu64 ", head-file time:%.2f ms, SMA:%" PRId64
