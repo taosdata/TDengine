@@ -135,6 +135,6 @@ int main() {
   } else {
     std::cout << "succ to setup index" << std::endl;
   }
-  BenchWrite(idx, 100, 10000);
+  // BenchWrite(idx, 100, 10000);
   return 1;
 }
