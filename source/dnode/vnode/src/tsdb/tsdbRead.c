@@ -914,7 +914,6 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
 
       colIndex += 1;
       i += 1;
-      ASSERT(rowIndex == remain);
     } else {  // the specified column does not exist in file block, fill with null data
       colDataAppendNNULL(pColData, 0, remain);
       i += 1;
