@@ -82,8 +82,6 @@ int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
       code = tsdbFSUpsertFSet(&fs, &fSet);
       if (code) goto _err;
     }
-
-    /* code */
   }
 
   // do change fs

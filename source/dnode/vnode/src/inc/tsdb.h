@@ -89,7 +89,18 @@ typedef struct SLDataIter    SLDataIter;
 #define FILE_TO_LOGIC_OFFSET(OFFSET, PAGE) ((OFFSET) / (PAGE)*PAGE_CONTENT_SIZE(PAGE) + (OFFSET) % (PAGE))
 #define PAGE_OFFSET(PGNO, PAGE)            (((PGNO)-1) * (PAGE))
 #define OFFSET_PGNO(OFFSET, PAGE)          ((OFFSET) / (PAGE) + 1)
-#define LOGIC_TO_FILE_SIZE(LSIZE, PAGE)    OFFSET_PGNO(LOGIC_TO_FILE_OFFSET(LSIZE, PAGE), PAGE) * (PAGE)
+
+static FORCE_INLINE int64_t tsdbLogicToFileSize(int64_t lSize, int32_t szPage) {
+  int64_t fOffSet = LOGIC_TO_FILE_OFFSET(lSize, szPage);
+  int64_t pgno = OFFSET_PGNO(fOffSet, szPage);
+  int32_t szPageCont = PAGE_CONTENT_SIZE(szPage);
+
+  if (fOffSet % szPageCont == 0) {
+    pgno--;
+  }
+
+  return pgno * szPage;
+}
 
 // tsdbUtil.c ==============================================================================================
 // TSDBROW
