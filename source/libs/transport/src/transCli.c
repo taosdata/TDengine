@@ -203,8 +203,6 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
       pMsg = transQueueGet(&conn->cliMsgs, i);                            \
       if (pMsg->ctx != NULL && (uint64_t)pMsg->ctx->ahandle == ahandle) { \
         break;                                                            \
-      } else if (pMsg->msg.info.ahandle == (void*)0x9527) {               \
-        break;                                                            \
       }                                                                   \
     }                                                                     \
     if (i == sz) {                                                        \
