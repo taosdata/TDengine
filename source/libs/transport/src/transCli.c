@@ -1445,9 +1445,13 @@ int transReleaseCliHandle(void* handle) {
   STransMsg tmsg = {.info.handle = handle, .info.ahandle = (void*)0x9527};
   TRACE_SET_MSGID(&tmsg.info.traceId, tGenIdPI64());
 
+  STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
+  pCtx->ahandle = tmsg.info.ahandle;
+
   SCliMsg* cmsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   cmsg->msg = tmsg;
   cmsg->type = Release;
+  cmsg->ctx = pCtx;
 
   STraceId* trace = &tmsg.info.traceId;
   tGDebug("send release request at thread:%08" PRId64 "", pThrd->pid);
