@@ -425,7 +425,7 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
                transMsg.info.ahandle);
       }
     } else {
-      transMsg.info.ahandle = pCtx ? pCtx->ahandle : NULL;
+      transMsg.info.ahandle = (pMsg->type != Release && pCtx) ? pCtx->ahandle : NULL;
     }
 
     if (pCtx == NULL || pCtx->pSem == NULL) {
@@ -934,7 +934,9 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
     // persist conn already release by server
     STransMsg resp;
     cliBuildExceptResp(pMsg, &resp);
-    pTransInst->cfp(pTransInst->parent, &resp, NULL);
+    if (pMsg->type != Release) {
+      pTransInst->cfp(pTransInst->parent, &resp, NULL);
+    }
     destroyCmsg(pMsg);
     return;
   }
