@@ -160,7 +160,7 @@ static int32_t tlvEncodeObjArray(STlvEncoder* pEncoder, int16_t type, FToMsg fun
     int32_t start = pEncoder->offset;
     pEncoder->offset += sizeof(STlv);
     for (size_t i = 0; TSDB_CODE_SUCCESS == code && i < num; ++i) {
-      code = tlvEncodeObj(pEncoder, 0, func, pArray + i * itemSize);
+      code = tlvEncodeObj(pEncoder, 0, func, (const char*)pArray + i * itemSize);
     }
     if (TSDB_CODE_SUCCESS == code) {
       STlv* pTlv = (STlv*)(pEncoder->pBuf + start);
@@ -264,7 +264,7 @@ static int32_t tlvDecodeObjArray(STlvDecoder* pDecoder, FToObject func, void* pA
   int32_t code = TSDB_CODE_SUCCESS;
   int32_t i = 0;
   STlv*   pTlv = NULL;
-  tlvForEach(pDecoder, pTlv, code) { code = tlvDecodeObjFromTlv(pTlv, func, pArray + itemSize * i++); }
+  tlvForEach(pDecoder, pTlv, code) { code = tlvDecodeObjFromTlv(pTlv, func, (char*)pArray + itemSize * i++); }
   return code;
 }
 
