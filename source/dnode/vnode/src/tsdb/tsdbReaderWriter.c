@@ -780,7 +780,7 @@ int32_t tsdbDataFReaderClose(SDataFReader **ppReader) {
   tsdbCloseFile(&(*ppReader)->pSmaFD);
 
   // stt
-  for (int32_t iStt = 0; iStt < TSDB_MAX_STT_FILE; iStt++) {
+  for (int32_t iStt = 0; iStt < TSDB_MAX_STT_TRIGGER; iStt++) {
     if ((*ppReader)->aSttFD[iStt]) {
       tsdbCloseFile(&(*ppReader)->aSttFD[iStt]);
     }

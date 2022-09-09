@@ -60,6 +60,8 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
 
   snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
 
+  info.config = vnodeCfgDefault;
+
   // load vnode info
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
