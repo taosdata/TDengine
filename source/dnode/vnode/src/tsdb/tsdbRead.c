@@ -845,7 +845,6 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
   bool    asc = ASCENDING_TRAVERSE(pReader->order);
   int32_t step = asc ? 1 : -1;
 
-  int32_t rowIndex = 0;
   if (asc && pReader->window.skey <= pBlock->minKey.ts) {
     pDumpInfo->rowIndex = 0;
   } else if (!asc && pReader->window.ekey >= pBlock->maxKey.ts) {
@@ -863,12 +862,19 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
     remain = pReader->capacity;
   }
 
+  int32_t rowIndex = 0;
+
   int32_t i = 0;
   SColumnInfoData* pColData = taosArrayGet(pResBlock->pDataBlock, i);
   if (pColData->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-    for (int32_t j = pDumpInfo->rowIndex; rowIndex < remain; j += step) {
-      colDataAppend(pColData, rowIndex++, (const char*)&pBlockData->aTSKEY[j], false);
+    if (asc) {
+      memcpy(pColData->pData, &pBlockData->aTSKEY[pDumpInfo->rowIndex], remain);
+    } else {
+      for (int32_t j = pDumpInfo->rowIndex; rowIndex < remain; j += step) {
+        colDataAppendInt64(pColData, rowIndex++, &pBlockData->aTSKEY[j]);
+      }
     }
+
     i += 1;
   }
 
@@ -882,10 +888,30 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
     if (pData->cid < pColData->info.colId) {
       colIndex += 1;
     } else if (pData->cid == pColData->info.colId) {
-      for (int32_t j = pDumpInfo->rowIndex; rowIndex < remain; j += step) {
-        tColDataGetValue(pData, j, &cv);
-        doCopyColVal(pColData, rowIndex++, i, &cv, pSupInfo);
+      if (pData->flag == HAS_NONE || pData->flag == HAS_NULL) {
+        colDataAppendNNULL(pColData, 0, remain);
+      } else {
+        if (IS_NUMERIC_TYPE(pColData->info.type) && asc) {
+          uint8_t* p = pData->pData + tDataTypes[pData->type].bytes * pDumpInfo->rowIndex;
+          memcpy(pColData->pData, p, remain);
+
+          // null value exists, check one-by-one
+          if (pData->flag != HAS_VALUE) {
+            for (int32_t j = pDumpInfo->rowIndex; rowIndex < remain; j += step, rowIndex++) {
+              uint8_t v = GET_BIT2(pData->pBitMap, j);
+              if (v == 0 || v == 1) {
+                colDataSetNull_f(pColData->nullbitmap, rowIndex);
+              }
+            }
+          }
+        } else {
+          for (int32_t j = pDumpInfo->rowIndex; rowIndex < remain; j += step) {
+            tColDataGetValue(pData, j, &cv);
+            doCopyColVal(pColData, rowIndex++, i, &cv, pSupInfo);
+          }
+        }
       }
+
       colIndex += 1;
       i += 1;
       ASSERT(rowIndex == remain);
