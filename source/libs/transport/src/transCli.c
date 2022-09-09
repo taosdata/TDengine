@@ -196,22 +196,24 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
 #define CONN_GET_HOST_THREAD(conn) (conn ? ((SCliConn*)conn)->hostThrd : NULL)
 #define CONN_GET_INST_LABEL(conn)  (((STrans*)(((SCliThrd*)(conn)->hostThrd)->pTransInst))->label)
 
-#define CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle)                                         \
-  do {                                                                                    \
-    int i = 0, sz = transQueueSize(&conn->cliMsgs);                                       \
-    for (; i < sz; i++) {                                                                 \
-      pMsg = transQueueGet(&conn->cliMsgs, i);                                            \
-      if (pMsg != NULL && pMsg->ctx != NULL && (uint64_t)pMsg->ctx->ahandle == ahandle) { \
-        break;                                                                            \
-      }                                                                                   \
-    }                                                                                     \
-    if (i == sz) {                                                                        \
-      pMsg = NULL;                                                                        \
-      tDebug("msg not found, %" PRIu64 "", ahandle);                                      \
-    } else {                                                                              \
-      pMsg = transQueueRm(&conn->cliMsgs, i);                                             \
-      tDebug("msg found, %" PRIu64 "", ahandle);                                          \
-    }                                                                                     \
+#define CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle)                         \
+  do {                                                                    \
+    int i = 0, sz = transQueueSize(&conn->cliMsgs);                       \
+    for (; i < sz; i++) {                                                 \
+      pMsg = transQueueGet(&conn->cliMsgs, i);                            \
+      if (pMsg->ctx != NULL && (uint64_t)pMsg->ctx->ahandle == ahandle) { \
+        break;                                                            \
+      } else if (pMsg->msg.info.ahandle == (void*)0x9527) {               \
+        break;                                                            \
+      }                                                                   \
+    }                                                                     \
+    if (i == sz) {                                                        \
+      pMsg = NULL;                                                        \
+      tDebug("msg not found, %" PRIu64 "", ahandle);                      \
+    } else {                                                              \
+      pMsg = transQueueRm(&conn->cliMsgs, i);                             \
+      tDebug("msg found, %" PRIu64 "", ahandle);                          \
+    }                                                                     \
   } while (0)
 #define CONN_GET_NEXT_SENDMSG(conn)                 \
   do {                                              \
