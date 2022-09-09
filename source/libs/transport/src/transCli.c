@@ -1440,7 +1440,7 @@ int transReleaseCliHandle(void* handle) {
     return -1;
   }
 
-  STransMsg tmsg = {.info.handle = handle};
+  STransMsg tmsg = {.info.handle = handle, .info.ahandle = (void*)0x9527};
   TRACE_SET_MSGID(&tmsg.info.traceId, tGenIdPI64());
 
   SCliMsg* cmsg = taosMemoryCalloc(1, sizeof(SCliMsg));
