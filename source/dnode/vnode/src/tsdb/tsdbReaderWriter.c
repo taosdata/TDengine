@@ -209,7 +209,7 @@ int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pS
   int32_t       code = 0;
   int32_t       flag;
   int64_t       n;
-  int32_t       szPage = TSDB_DEFAULT_PAGE_SIZE;
+  int32_t       szPage = pTsdb->pVnode->config.tsdbPageSize;
   SDataFWriter *pWriter = NULL;
   char          fname[TSDB_FILENAME_LEN];
   char          hdr[TSDB_FHDR_SIZE] = {0};
@@ -723,7 +723,7 @@ _err:
 int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pSet) {
   int32_t       code = 0;
   SDataFReader *pReader;
-  int32_t       szPage = TSDB_DEFAULT_PAGE_SIZE;
+  int32_t       szPage = pTsdb->pVnode->config.tsdbPageSize;
   char          fname[TSDB_FILENAME_LEN];
 
   // alloc
@@ -1170,8 +1170,8 @@ int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile, STsdb *pTsdb
   pDelFWriter->fDel = *pFile;
 
   tsdbDelFileName(pTsdb, pFile, fname);
-  int32_t flag = TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE;
-  code = tsdbOpenFile(fname, TSDB_DEFAULT_PAGE_SIZE, flag, &pDelFWriter->pWriteH);
+  code = tsdbOpenFile(fname, pTsdb->pVnode->config.tsdbPageSize, TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE,
+                      &pDelFWriter->pWriteH);
   if (code) goto _err;
 
   // update header
@@ -1338,7 +1338,7 @@ int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile, STsdb *pTsdb
   pDelFReader->fDel = *pFile;
 
   tsdbDelFileName(pTsdb, pFile, fname);
-  code = tsdbOpenFile(fname, TSDB_DEFAULT_PAGE_SIZE, TD_FILE_READ, &pDelFReader->pReadH);
+  code = tsdbOpenFile(fname, pTsdb->pVnode->config.tsdbPageSize, TD_FILE_READ, &pDelFReader->pReadH);
   if (code) goto _err;
 
   *ppReader = pDelFReader;
