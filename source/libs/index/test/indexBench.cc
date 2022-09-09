@@ -128,13 +128,13 @@ int BenchWrite(Idx *idx, int batchSize, int limit) {
 int BenchRead(Idx *idx) { return 0; }
 
 int main() {
-  Idx *idx = new Idx;
-  if (idx->SetUp(true) != 0) {
-    std::cout << "failed to setup index" << std::endl;
-    return 0;
-  } else {
-    std::cout << "succ to setup index" << std::endl;
-  }
-  // BenchWrite(idx, 100, 10000);
+  // Idx *idx = new Idx;
+  // if (idx->SetUp(true) != 0) {
+  //   std::cout << "failed to setup index" << std::endl;
+  //   return 0;
+  // } else {
+  //   std::cout << "succ to setup index" << std::endl;
+  // }
+  //  BenchWrite(idx, 100, 10000);
   return 1;
 }
