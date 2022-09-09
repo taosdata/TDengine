@@ -264,7 +264,7 @@ typedef struct SSchJob {
   SHashObj          *taskList;
   SHashObj          *execTasks; // executing and executed tasks, key:taskid, value:SQueryTask*
   SHashObj          *flowCtrl;  // key is ep, element is SSchFlowControl
-
+  
   SExplainCtx       *explainCtx;
   int8_t             status;  
   SQueryNodeAddr     resNode;
@@ -305,6 +305,7 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_IS_DATA_BIND_TASK(task) (((task)->plan->subplanType == SUBPLAN_TYPE_SCAN) || ((task)->plan->subplanType == SUBPLAN_TYPE_MODIFY))
 #define SCH_IS_LEAF_TASK(_job, _task) (((_task)->level->level + 1) == (_job)->levelNum)
 #define SCH_IS_DATA_MERGE_TASK(task) (!SCH_IS_DATA_BIND_TASK(task))
+#define SCH_IS_LOCAL_EXEC_TASK(_job, _task) ((_job)->attr.localExec && SCH_IS_QUERY_JOB(_job) && SCH_IS_DATA_MERGE_TASK(_task))
 
 #define SCH_SET_TASK_STATUS(task, st) atomic_store_8(&(task)->status, st)
 #define SCH_GET_TASK_STATUS(task) atomic_load_8(&(task)->status)
@@ -503,6 +504,7 @@ void    schDirectPostJobRes(SSchedulerReq* pReq, int32_t errCode);
 int32_t schHandleJobFailure(SSchJob *pJob, int32_t errCode);
 int32_t schHandleJobDrop(SSchJob *pJob, int32_t errCode);
 bool    schChkCurrentOp(SSchJob *pJob, int32_t op, int8_t sync);
+int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rspCode);
 
 extern SSchDebug gSCHDebug;
 

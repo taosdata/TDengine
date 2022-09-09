@@ -83,22 +83,6 @@ typedef struct SQWDebug {
 
 extern SQWDebug gQWDebug;
 
-typedef struct SQWMsgInfo {
-  int8_t taskType;
-  int8_t explain;
-  int8_t needFetch;
-} SQWMsgInfo;
-
-typedef struct SQWMsg {
-  void          *node;
-  int32_t        code;
-  int32_t        msgType;
-  void          *msg;
-  int32_t        msgLen;
-  SQWMsgInfo     msgInfo;
-  SRpcHandleInfo connInfo;
-} SQWMsg;
-
 typedef struct SQWHbParam {
   bool    inUse;
   int32_t qwrId;
@@ -133,6 +117,7 @@ typedef struct SQWTaskCtx {
   int8_t   taskType;
   int8_t   explain;
   int8_t   needFetch;
+  int8_t   localExec;
   int32_t  msgType;
   int32_t  fetchType;
   int32_t  execId;
@@ -150,6 +135,7 @@ typedef struct SQWTaskCtx {
 
   int8_t events[QW_EVENT_MAX];
 
+  SArray   *explainRes;
   void     *taskHandle;
   void     *sinkHandle;
   STbVerInfo tbInfo;

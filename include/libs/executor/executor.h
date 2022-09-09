@@ -29,6 +29,13 @@ typedef void* DataSinkHandle;
 struct SRpcMsg;
 struct SSubplan;
 
+typedef int32_t (*localFetchFp)(void *handle, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId, int32_t eId, void** pRsp);
+
+typedef struct {
+  void *handle;
+  localFetchFp fp;
+} SLocalFetch;
+
 typedef struct {
   void*   tqReader;
   void*   meta;
@@ -127,7 +134,7 @@ int32_t qGetQueryTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* table
  * @param handle
  * @return
  */
-int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds);
+int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, SLocalFetch *pLocal);
 int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pBlock, uint64_t* useconds);
 
 /**

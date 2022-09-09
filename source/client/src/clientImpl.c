@@ -365,7 +365,7 @@ int32_t updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList) {
 }
 
 bool qnodeRequired(SRequestObj* pRequest) {
-  if (QUERY_POLICY_VNODE == tsQueryPolicy) {
+  if (QUERY_POLICY_VNODE == tsQueryPolicy || QUERY_POLICY_CLIENT == tsQueryPolicy) {
     return false;
   }
 
@@ -689,7 +689,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
                            .requestObjRefId = pRequest->self};
   SSchedulerReq    req = {
          .syncReq = true,
-         .localReq = (tsQueryPolicy == CLIENT_HANDLE),
+         .localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT),
          .pConn = &conn,
          .pNodeList = pNodeList,
          .pDag = pDag,
@@ -1065,7 +1065,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
             .pTrans = pAppInfo->pTransporter, .requestId = pRequest->requestId, .requestObjRefId = pRequest->self};
         SSchedulerReq req = {
             .syncReq = false,
-            .localReq = (tsQueryPolicy == CLIENT_HANDLE),
+            .localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT),
             .pConn = &conn,
             .pNodeList = pNodeList,
             .pDag = pDag,

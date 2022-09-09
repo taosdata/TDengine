@@ -20,6 +20,7 @@
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
+#include "qworker.h"
 
 void schFreeTask(SSchJob *pJob, SSchTask *pTask) {
   schDeregisterTaskHb(pJob, pTask);
@@ -89,6 +90,10 @@ _return:
 }
 
 int32_t schRecordTaskSucceedNode(SSchJob *pJob, SSchTask *pTask) {
+  if (SCH_IS_LOCAL_EXEC_TASK(pJob, pTask)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
   SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
   if (NULL == addr) {
     SCH_TASK_ELOG("taosArrayGet candidate addr failed, idx:%d, size:%d", pTask->candidateIdx,
@@ -292,6 +297,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
         .execId = pTask->execId,
         .addr = pTask->succeedAddr,
         .fetchMsgType = SCH_FETCH_TYPE(pTask),
+        .localExec = SCH_IS_LOCAL_EXEC_TASK(pJob, pTask),
     };
     qSetSubplanExecutionNode(parent->plan, pTask->plan->id.groupId, &source);
     SCH_UNLOCK(SCH_WRITE, &parent->planLock);
@@ -847,15 +853,21 @@ int32_t schLaunchLocalTask(SSchJob *pJob, SSchTask *pTask) {
   if (NULL == schMgmt.queryMgmt) {
     SCH_ERR_RET(qWorkerInit(NODE_TYPE_CLIENT, CLIENT_HANDLE, (void **)&schMgmt.queryMgmt, NULL));
   }
-  
+
+  SArray *explainRes = NULL;
   SQWMsg qwMsg = {0};
   qwMsg.msgInfo.taskType = TASK_TYPE_TEMP;
   qwMsg.msgInfo.explain = SCH_IS_EXPLAIN_JOB(pJob);
   qwMsg.msgInfo.needFetch = SCH_TASK_NEED_FETCH(pTask);
   qwMsg.msg = pTask->plan;
   qwMsg.msgType = pTask->plan->msgType;
-  
-  SCH_ERR_RET(qWorkerProcessLocalQuery((SQWorker*)schMgmt.queryMgmt, schMgmt.sId, pJob->queryId, pTask->taskId, pJob->refId, pTask->execId, &qwMsg));
+  qwMsg.connInfo.handle = pJob->conn.pTrans;
+
+  if (SCH_IS_EXPLAIN_JOB(pJob)) {
+    explainRes = taosArrayInit(pJob->taskNum, POINTER_BYTES);
+  }
+    
+  SCH_ERR_RET(qWorkerProcessLocalQuery(schMgmt.queryMgmt, schMgmt.sId, pJob->queryId, pTask->taskId, pJob->refId, pTask->execId, &qwMsg, explainRes));
 
   SCH_RET(schProcessOnTaskSuccess(pJob, pTask));
 }
@@ -878,7 +890,8 @@ int32_t schLaunchTaskImpl(void *param) {
   pTask->retryTimes++;
   pTask->waitRetry = false;
 
-  SCH_TASK_DLOG("start to launch task, execId %d, retry %d", pTask->execId, pTask->retryTimes);
+  SCH_TASK_DLOG("start to launch %s task, execId %d, retry %d", SCH_IS_LOCAL_EXEC_TASK(pJob, pTask) ? "LOCAL" : "REMOTE", 
+                pTask->execId, pTask->retryTimes);
 
   SCH_LOG_TASK_START_TS(pTask);
 
@@ -893,7 +906,7 @@ int32_t schLaunchTaskImpl(void *param) {
     SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_EXEC);
   }
 
-  if (pJob->attr.localExec && SCH_IS_QUERY_JOB(pJob) && SCH_IS_DATA_MERGE_TASK(pTask)) {
+  if (SCH_IS_LOCAL_EXEC_TASK(pJob, pTask)) {
     SCH_ERR_JRET(schLaunchLocalTask(pJob, pTask));
   } else {
     SCH_ERR_JRET(schLaunchRemoteTask(pJob, pTask));
@@ -986,6 +999,25 @@ void schDropTaskInHashList(SSchJob *pJob, SHashObj *list) {
   }
 }
 
+int32_t schExecRemoteFetch(SSchJob *pJob, SSchTask *pTask) {
+  SCH_RET(schBuildAndSendMsg(pJob, pJob->fetchTask, &pJob->resNode, SCH_FETCH_TYPE(pJob->fetchTask)));
+}
+
+int32_t schExecLocalFetch(SSchJob *pJob, SSchTask *pTask) {
+  void  *pRsp = NULL;
+  SArray *explainRes = NULL;
+
+  if (SCH_IS_EXPLAIN_JOB(pJob)) {
+    explainRes = taosArrayInit(pJob->taskNum, POINTER_BYTES);
+  }
+
+  SCH_ERR_RET(qWorkerProcessLocalFetch(schMgmt.queryMgmt, schMgmt.sId, pJob->queryId, pTask->taskId, pJob->refId, pTask->execId, &pRsp, explainRes));
+  
+  SCH_ERR_RET(schProcessFetchRsp(pJob, pTask, pRsp, TSDB_CODE_SUCCESS));
+
+  return TSDB_CODE_SUCCESS;
+}
+
 // Note: no more error processing, handled in function internal
 int32_t schLaunchFetchTask(SSchJob *pJob) {
   int32_t code = 0;
@@ -996,7 +1028,11 @@ int32_t schLaunchFetchTask(SSchJob *pJob) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SCH_ERR_JRET(schBuildAndSendMsg(pJob, pJob->fetchTask, &pJob->resNode, SCH_FETCH_TYPE(pJob->fetchTask)));
+  if (SCH_IS_LOCAL_EXEC_TASK(pJob, pJob->fetchTask)) {
+    SCH_ERR_JRET(schExecLocalFetch(pJob, pJob->fetchTask));
+  } else {
+    SCH_ERR_JRET(schExecRemoteFetch(pJob, pJob->fetchTask));
+  }
 
   return TSDB_CODE_SUCCESS;
 

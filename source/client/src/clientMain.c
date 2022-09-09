@@ -76,8 +76,6 @@ void taos_cleanup(void) {
 
   cleanupTaskQueue();
 
-  qWorkerDestroy(&tscQueryMgmt);
-
   taosConvDestroy();
 
   tscInfo("all local resources released");

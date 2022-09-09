@@ -450,10 +450,15 @@ static void freeBlock(void* param) {
   blockDataDestroy(pBlock);
 }
 
-int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds) {
+int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, SLocalFetch* pLocal) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   int64_t        threadId = taosGetSelfPthreadId();
 
+  if (pLocal) {
+    pTaskInfo->localFetch.handle = pLocal->handle;
+    pTaskInfo->localFetch.fp = pLocal->fp;
+  }
+  
   taosArrayClearEx(pResList, freeBlock);
 
   int64_t curOwner = 0;
