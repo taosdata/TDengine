@@ -779,7 +779,13 @@ void cliSend(SCliConn* pConn) {
 
   uv_buf_t    wb = uv_buf_init((char*)pHead, msgLen);
   uv_write_t* req = transReqQueuePush(&pConn->wreqQueue);
-  uv_write(req, (uv_stream_t*)pConn->stream, &wb, 1, cliSendCb);
+
+  int status = uv_write(req, (uv_stream_t*)pConn->stream, &wb, 1, cliSendCb);
+  if (status != 0) {
+    tGError("%s conn %p failed to sent msg:%s, errmsg:%s", CONN_GET_INST_LABEL(pConn), pConn, TMSG_INFO(pMsg->msgType),
+            uv_err_name(status));
+    cliHandleExcept(pConn);
+  }
   return;
 _RETURN:
   return;
