@@ -3034,23 +3034,37 @@ static bool overlapWithTimeWindow(SQueryAttr* pQueryAttr, SDataBlockInfo* pBlock
       }
     }
   } else {
-    getAlignQueryTimeWindow(pQueryAttr, pBlockInfo->window.ekey, sk, ek, &w);
+    int64_t ekey = pBlockInfo->window.ekey;
+    getAlignQueryTimeWindow(pQueryAttr, ekey, sk, ek, &w);
     assert(w.skey <= pBlockInfo->window.ekey);
-
     if (w.skey > pBlockInfo->window.skey) {
       return true;
     }
 
+    while(w.skey < pBlockInfo->window.ekey) {
+      // add one slding
+      if (pQueryAttr->interval.slidingUnit == 'n' || pQueryAttr->interval.slidingUnit == 'y')
+        ekey = taosTimeAdd(ekey, pQueryAttr->interval.sliding, pQueryAttr->interval.slidingUnit, pQueryAttr->precision);
+      else
+        ekey += pQueryAttr->interval.sliding;
+      // get align
+      getAlignQueryTimeWindow(pQueryAttr, ekey, sk, ek, &w);
+    }
+
     while(1) {
-      getNextTimeWindow(pQueryAttr, &w);
       if (w.ekey < pBlockInfo->window.skey) {
         break;
       }
 
-      assert(w.skey < pBlockInfo->window.skey);
-      if (w.ekey < pBlockInfo->window.ekey && w.ekey >= pBlockInfo->window.skey) {
+      // window start point in block window ragne return true
+      if (w.skey >= pBlockInfo->window.skey && w.skey <= pBlockInfo->window.ekey) {
         return true;
       }
+      // window end point in block window ragne return true
+      if (w.ekey <= pBlockInfo->window.ekey && w.ekey >= pBlockInfo->window.skey) {
+        return true;
+      }
+      getNextTimeWindow(pQueryAttr, &w);
     }
   }
 
