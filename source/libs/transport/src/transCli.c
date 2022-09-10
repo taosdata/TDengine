@@ -376,8 +376,10 @@ void cliHandleResp(SCliConn* conn) {
     return;
   }
 
-  if (cliAppCb(conn, &transMsg, pMsg) != 0) {
-    return;
+  if (pMsg->type != Release) {
+    if (cliAppCb(conn, &transMsg, pMsg) != 0) {
+      return;
+    }
   }
   destroyCmsg(pMsg);
 
@@ -435,8 +437,10 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
         continue;
       }
     }
-    if (cliAppCb(pConn, &transMsg, pMsg) != 0) {
-      return;
+    if (pMsg->type != Release) {
+      if (cliAppCb(pConn, &transMsg, pMsg) != 0) {
+        return;
+      }
     }
     destroyCmsg(pMsg);
     tTrace("%s conn %p start to destroy, ref:%d", CONN_GET_INST_LABEL(pConn), pConn, T_REF_VAL_GET(pConn));
@@ -1457,7 +1461,7 @@ int transReleaseCliHandle(void* handle) {
   tGDebug("send release request at thread:%08" PRId64 "", pThrd->pid);
 
   if (0 != transAsyncSend(pThrd->asyncPool, &cmsg->q)) {
-    taosMemoryFree(cmsg);
+    destroyCmsg(cmsg);
     return -1;
   }
   return 0;
