@@ -162,7 +162,7 @@ static void cliWalkCb(uv_handle_t* handle, void* arg);
 static void cliReleaseUnfinishedMsg(SCliConn* conn) {
   for (int i = 0; i < transQueueSize(&conn->cliMsgs); i++) {
     SCliMsg* msg = transQueueGet(&conn->cliMsgs, i);
-    if (msg != NULL && msg->ctx != NULL) {
+    if (msg != NULL && msg->ctx != NULL && msg->ctx->ahandle != (void*)0x9527) {
       if (conn->ctx.freeFunc != NULL && msg->ctx->ahandle != NULL) {
         conn->ctx.freeFunc(msg->ctx->ahandle);
       }
