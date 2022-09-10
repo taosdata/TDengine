@@ -66,24 +66,6 @@ To subscribe the data from a created topic, the client program needs to follow t
 
 To create a consumer, you must use the APIs provided by TDengine connectors. Below is the sample code of using connectors of different languages.
 
-
-You configure the following parameters when creating a consumer:
-
-|            Parameter            |  Type   | Description                                                 | Remarks                                        |
-| :----------------------------: | :-----: | -------------------------------------------------------- | ------------------------------------------- |
-|        `td.connect.ip`         | string  | Used in establishing a connection; same as `taos_connect`                          |                                             |
-|        `td.connect.user`         | string  | Used in establishing a connection; same as `taos_connect`                          |                                             |
-|        `td.connect.pass`         | string  | Used in establishing a connection; same as `taos_connect`                          |                                             |
-|        `td.connect.port`         | string  | Used in establishing a connection; same as `taos_connect`                          |                                             |
-|           `group.id`           | string  | Consumer group ID; consumers with the same ID are in the same group                        | **Required**. Maximum length: 192.                 |
-|          `client.id`           | string  | Client ID                                                | Maximum length: 192.                             |
-|      `auto.offset.reset`       |  enum   | Initial offset for the consumer group                                     | Specify `earliest`, `latest`, or `none`(default) |
-|      `enable.auto.commit`      | boolean | Commit automatically                                             | Specify `true` or `false`.                   |
-|   `auto.commit.interval.ms`    | integer | Interval for automatic commits, in milliseconds                           |
-| `enable.heartbeat.background`  | boolean | Backend heartbeat; if enabled, the consumer does not go offline even if it has not polled for a long time |                                             |
-| `experimental.snapshot.enable` | boolean | Specify whether to consume messages from the WAL or from TSBS                    |                                             |
-|     `msg.with.table.name`      | boolean | Specify whether to deserialize table names from messages                                 |
-
 2. Subscribe to a Topic
 
 A single consumer can subscribe to multiple topics.
