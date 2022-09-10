@@ -821,7 +821,6 @@ int32_t getEndPosInDataBlock(STsdbReader* pReader, SBlockData* pBlockData, SData
     endPos = 0;
   } else {
     endPos = doBinarySearchKey(pBlockData->aTSKEY, pBlock->nRow, pos, pReader->window.ekey, pReader->order);
-    assert(endPos != -1);
   }
 
   return endPos;
@@ -856,7 +855,13 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
   }
 
   // time window check
-  int32_t endIndex = getEndPosInDataBlock(pReader, pBlockData, pBlock, pDumpInfo->rowIndex) + step;
+  int32_t endIndex = getEndPosInDataBlock(pReader, pBlockData, pBlock, pDumpInfo->rowIndex);
+  if (endIndex == -1) {
+    setBlockAllDumped(pDumpInfo, pReader->window.ekey, pReader->order);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  endIndex += step;
   int32_t remain = asc ? (endIndex - pDumpInfo->rowIndex) : (pDumpInfo->rowIndex - endIndex);
   if (remain > pReader->capacity) { // output buffer check
     remain = pReader->capacity;
