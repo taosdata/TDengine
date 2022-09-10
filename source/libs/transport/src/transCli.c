@@ -376,7 +376,7 @@ void cliHandleResp(SCliConn* conn) {
     return;
   }
 
-  if (pMsg->type != Release) {
+  if (pMsg && pMsg->type != Release) {
     if (cliAppCb(conn, &transMsg, pMsg) != 0) {
       return;
     }
@@ -437,7 +437,7 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
         continue;
       }
     }
-    if (pMsg->type != Release) {
+    if (pMsg && pMsg->type != Release) {
       if (cliAppCb(pConn, &transMsg, pMsg) != 0) {
         return;
       }
