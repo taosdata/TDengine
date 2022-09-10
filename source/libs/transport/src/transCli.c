@@ -1438,11 +1438,11 @@ SCliThrd* transGetWorkThrd(STrans* trans, int64_t handle, bool* validHandle) {
     return ((SCliObj*)trans->tcphandle)->pThreadObj[idx];
   }
   SCliThrd* pThrd = transGetWorkThrdFromHandle(handle, validHandle);
-  if (*validHandle == true && pThrd == NULL) {
-    int idx = cliRBChoseIdx(trans);
-    if (idx < 0) return NULL;
-    pThrd = ((SCliObj*)trans->tcphandle)->pThreadObj[idx];
-  }
+  // if (pThrd == NULL) {
+  //   int idx = cliRBChoseIdx(trans);
+  //   if (idx < 0) return NULL;
+  //   pThrd = ((SCliObj*)trans->tcphandle)->pThreadObj[idx];
+  // }
   return pThrd;
 }
 int transReleaseCliHandle(void* handle) {
@@ -1484,7 +1484,7 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
 
   bool      valid = false;
   SCliThrd* pThrd = transGetWorkThrd(pTransInst, (int64_t)pReq->info.handle, &valid);
-  if (pThrd == NULL && valid == false) {
+  if (pThrd == NULL) {
     transFreeMsg(pReq->pCont);
     transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
     return TSDB_CODE_RPC_BROKEN_LINK;
