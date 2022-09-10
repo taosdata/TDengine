@@ -290,6 +290,7 @@ bool cliMaySendCachedMsg(SCliConn* conn) {
     SCliMsg* pCliMsg = NULL;
     CONN_GET_NEXT_SENDMSG(conn);
     cliSend(conn);
+    return true;
   }
   return false;
 _RETURN:
