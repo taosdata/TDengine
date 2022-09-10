@@ -289,8 +289,12 @@ bool cliMaySendCachedMsg(SCliConn* conn) {
   if (!transQueueEmpty(&conn->cliMsgs)) {
     SCliMsg* pCliMsg = NULL;
     CONN_GET_NEXT_SENDMSG(conn);
-    cliSend(conn);
-    return true;
+    if (pCliMsg == NULL)
+      return false;
+    else {
+      cliSend(conn);
+      return true;
+    }
   }
   return false;
 _RETURN:
@@ -707,6 +711,9 @@ static bool cliHandleNoResp(SCliConn* conn) {
       if (cliMaySendCachedMsg(conn) == false) {
         SCliThrd* thrd = conn->hostThrd;
         addConnToPool(thrd->pool, conn);
+        res = false;
+      } else {
+        res = true;
       }
     }
   }
