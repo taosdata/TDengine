@@ -1419,37 +1419,37 @@ void transUnrefCliHandle(void* handle) {
     cliDestroyConn((SCliConn*)handle, true);
   }
 }
-static FORCE_INLINE SCliThrd* transGetWorkThrdFromHandle(int64_t handle, bool* validHandle) {
+static FORCE_INLINE SCliThrd* transGetWorkThrdFromHandle(STrans* trans, int64_t handle) {
   SCliThrd*  pThrd = NULL;
   SExHandle* exh = transAcquireExHandle(transGetRefMgt(), handle);
   if (exh == NULL) {
     return NULL;
   }
 
-  *validHandle = true;
+  if (exh->pThrd == NULL && trans != NULL) {
+    int idx = cliRBChoseIdx(trans);
+    if (idx < 0) return NULL;
+    exh->pThrd = ((SCliObj*)trans->tcphandle)->pThreadObj[idx];
+  }
+
   pThrd = exh->pThrd;
   transReleaseExHandle(transGetRefMgt(), handle);
   return pThrd;
 }
-SCliThrd* transGetWorkThrd(STrans* trans, int64_t handle, bool* validHandle) {
+SCliThrd* transGetWorkThrd(STrans* trans, int64_t handle) {
   if (handle == 0) {
     int idx = cliRBChoseIdx(trans);
     if (idx < 0) return NULL;
     return ((SCliObj*)trans->tcphandle)->pThreadObj[idx];
   }
-  SCliThrd* pThrd = transGetWorkThrdFromHandle(handle, validHandle);
-  // if (pThrd == NULL) {
-  //   int idx = cliRBChoseIdx(trans);
-  //   if (idx < 0) return NULL;
-  //   pThrd = ((SCliObj*)trans->tcphandle)->pThreadObj[idx];
-  // }
+  SCliThrd* pThrd = transGetWorkThrdFromHandle(trans, handle);
   return pThrd;
 }
 int transReleaseCliHandle(void* handle) {
   int  idx = -1;
   bool valid = false;
 
-  SCliThrd* pThrd = transGetWorkThrdFromHandle((int64_t)handle, &valid);
+  SCliThrd* pThrd = transGetWorkThrdFromHandle(NULL, (int64_t)handle);
   if (pThrd == NULL) {
     return -1;
   }
@@ -1482,8 +1482,7 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
     return -1;
   }
 
-  bool      valid = false;
-  SCliThrd* pThrd = transGetWorkThrd(pTransInst, (int64_t)pReq->info.handle, &valid);
+  SCliThrd* pThrd = transGetWorkThrd(pTransInst, (int64_t)pReq->info.handle);
   if (pThrd == NULL) {
     transFreeMsg(pReq->pCont);
     transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
@@ -1527,9 +1526,8 @@ int transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransMs
     return -1;
   }
 
-  bool      valid = false;
-  SCliThrd* pThrd = transGetWorkThrd(pTransInst, (int64_t)pReq->info.handle, &valid);
-  if (pThrd == NULL && valid == false) {
+  SCliThrd* pThrd = transGetWorkThrd(pTransInst, (int64_t)pReq->info.handle);
+  if (pThrd == NULL) {
     transFreeMsg(pReq->pCont);
     transReleaseExHandle(transGetInstMgt(), (int64_t)shandle);
     return TSDB_CODE_RPC_BROKEN_LINK;
@@ -1613,6 +1611,7 @@ int64_t transAllocHandle() {
   SExHandle* exh = taosMemoryCalloc(1, sizeof(SExHandle));
   exh->refId = transAddExHandle(transGetRefMgt(), exh);
   tDebug("pre alloc refId %" PRId64 "", exh->refId);
+
   return exh->refId;
 }
 #endif
