@@ -314,12 +314,12 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
   if (tdRSmaPersistExecImpl(pRSmaStat, RSMA_INFO_HASH(pRSmaStat)) < 0) {
     return TSDB_CODE_FAILED;
   }
-  smaInfo("vgId:%d, rsma commit, operator state commited, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
+  smaInfo("vgId:%d, rsma commit, operator state committed, TID:%p", SMA_VID(pSma), (void *)taosGetSelfPthreadId());
 
 #if 0  // consuming task of qTaskInfo clone 
   // step 4:  swap queue/qall and iQueue/iQall
   // lock
-  // taosWLockLatch(SMA_ENV_LOCK(pEnv));
+  taosWLockLatch(SMA_ENV_LOCK(pEnv));
 
   ASSERT(RSMA_INFO_HASH(pRSmaStat));
 
@@ -335,7 +335,7 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
   }
 
   // unlock
-  // taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
+  taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
 #endif
 
   return TSDB_CODE_SUCCESS;
@@ -380,25 +380,26 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
 
   // step 1: merge qTaskInfo and iQTaskInfo
   // lock
-  // taosWLockLatch(SMA_ENV_LOCK(pEnv));
+  if (1 == atomic_val_compare_exchange_8(&pRSmaStat->delFlag, 1, 0)) {
+    taosWLockLatch(SMA_ENV_LOCK(pEnv));
 
-  void *pIter = NULL;
-  while ((pIter = taosHashIterate(RSMA_INFO_HASH(pRSmaStat), pIter))) {
-    tb_uid_t  *pSuid = (tb_uid_t *)taosHashGetKey(pIter, NULL);
-    SRSmaInfo *pRSmaInfo = *(SRSmaInfo **)pIter;
-    if (RSMA_INFO_IS_DEL(pRSmaInfo)) {
-      int32_t refVal = T_REF_VAL_GET(pRSmaInfo);
-      if (refVal == 0) {
-        taosHashRemove(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(*pSuid));
-      } else {
-        smaDebug(
-            "vgId:%d, rsma async post commit, not free rsma info since ref is %d although already deleted for "
-            "table:%" PRIi64,
-            SMA_VID(pSma), refVal, *pSuid);
+    void *pIter = NULL;
+    while ((pIter = taosHashIterate(RSMA_INFO_HASH(pRSmaStat), pIter))) {
+      tb_uid_t  *pSuid = (tb_uid_t *)taosHashGetKey(pIter, NULL);
+      SRSmaInfo *pRSmaInfo = *(SRSmaInfo **)pIter;
+      if (RSMA_INFO_IS_DEL(pRSmaInfo)) {
+        int32_t refVal = T_REF_VAL_GET(pRSmaInfo);
+        if (refVal == 0) {
+          taosHashRemove(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(*pSuid));
+        } else {
+          smaDebug(
+              "vgId:%d, rsma async post commit, not free rsma info since ref is %d although already deleted for "
+              "table:%" PRIi64,
+              SMA_VID(pSma), refVal, *pSuid);
+        }
+
+        continue;
       }
-
-      continue;
-    }
 #if 0
     if (pRSmaInfo->taskInfo[0]) {
       if (pRSmaInfo->iTaskInfo[0]) {
@@ -413,10 +414,11 @@ static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma) {
     taosHashPut(RSMA_INFO_HASH(pRSmaStat), pSuid, sizeof(tb_uid_t), pIter, sizeof(pIter));
     smaDebug("vgId:%d, rsma async post commit, migrated from iRsmaInfoHash for table:%" PRIi64, SMA_VID(pSma), *pSuid);
 #endif
-  }
+    }
 
-  // unlock
-  // taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
+    // unlock
+    taosWUnLockLatch(SMA_ENV_LOCK(pEnv));
+  }
 
   tdUpdateQTaskInfoFiles(pSma, pRSmaStat);
 
