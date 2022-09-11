@@ -819,4 +819,8 @@
 #1,,docs-examples-test, ./test_R.sh
 1,,develop-test,python3 ./test.py -f 2-query/function_state.py
 1,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/demo.py
-3,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestInspect.py 
+3,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestBasic.py
++3,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpDbNtb.py
++3,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpDbStb.py
++3,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpManyCols.py
++3,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestInspect.py
