@@ -62,7 +62,7 @@ taos>
 
 ## 体验查询
 
-使用上述 taosBenchmark 插入数据后，可以在 TDengine CLI 输入查询命令，体验查询速度。。
+使用上述 taosBenchmark 插入数据后，可以在 TDengine CLI 输入查询命令，体验查询速度。
 
 查询超级表下记录总条数：
 
