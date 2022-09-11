@@ -11,13 +11,11 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
 import os
 from util.log import *
 from util.cases import *
 from util.sql import *
 from util.dnodes import *
-import subprocess
 
 
 class TDTestCase:
@@ -37,8 +35,12 @@ class TDTestCase:
 
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
+        elif ("src" in selfPath):
+            projPath = selfPath[:selfPath.find("src")]
+        elif ("/tools/" in selfPath):
+            projPath = selfPath[:selfPath.find("/tools/")]
         else:
-            projPath = selfPath[:selfPath.find("tests")]
+            tdLog.exit("path: %s is not supported" % selfPath)
 
         buildPath = ""
         for root, dirs, files in os.walk(projPath):
@@ -53,7 +55,7 @@ class TDTestCase:
         tdSql.prepare()
 
         tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db  days 11 keep 3649 blocks 8 ")
+        tdSql.execute("create database db  keep 3649 ")
 
         tdSql.execute("use db")
         tdSql.execute(
@@ -91,7 +93,16 @@ class TDTestCase:
         os.system("%staosdump -i %s -T 1 -g" % (binPath, self.tmpdir))
 
         tdSql.query("show databases")
-        tdSql.checkRows(1)
+        dbresult = tdSql.queryResult
+
+        found = False
+        for i in range(len(dbresult)):
+            print("Found db: %s" % dbresult[i][0])
+            if (dbresult[i][0] == "db"):
+                found = True
+                break
+
+        assert found == True
 
         tdSql.execute("use db")
         tdSql.query("show stables")
