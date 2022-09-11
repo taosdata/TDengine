@@ -4965,7 +4965,7 @@ int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaI
         }
       }
 
-      if (!pQueryInfo->stableQuery && TSDB_COL_IS_TAG(pSource->base.colInfo.flag)) {
+      if (!UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo) && TSDB_COL_IS_TAG(pSource->base.colInfo.flag)) {
         pse->colInfo.flag = (pSource->base.colInfo.flag) & (~TSDB_COL_TAG);
       } else {
         pse->colInfo.flag = pSource->base.colInfo.flag;

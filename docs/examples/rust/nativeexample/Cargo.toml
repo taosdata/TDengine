@@ -6,5 +6,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 libtaos = { version = "0.4.3" }
-tokio = { version = "*", features = ["rt", "macros", "rt-multi-thread"] }
-bstr = { version = "*" }
+tokio = { version = "1", features = ["rt", "macros", "rt-multi-thread"] }
+bstr = { version = "0.2" }
