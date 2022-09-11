@@ -758,43 +758,51 @@ static int doBinarySearchKey(TSKEY* keyList, int num, int pos, TSKEY key, int or
   s = pos;
 
   // check
-  assert(pos >= 0 && pos < num);
+  assert(pos >=0 && pos < num);
   assert(num > 0);
 
   if (order == TSDB_ORDER_ASC) {
     // find the first position which is smaller than the key
-    e = num - 1;
-    if (key < keyList[pos]) return -1;
+    e  = num - 1;
+    if (key < keyList[pos])
+      return -1;
     while (1) {
       // check can return
-      if (key >= keyList[e]) return e;
-      if (key <= keyList[s]) return s;
-      if (e - s <= 1) return s;
+      if (key >= keyList[e])
+        return e;
+      if (key <= keyList[s])
+        return s;
+      if (e - s <= 1)
+        return s;
 
       // change start or end position
-      int mid = s + (e - s + 1) / 2;
+      int mid = s + (e - s + 1)/2;
       if (keyList[mid] > key)
         e = mid;
-      else if (keyList[mid] < key)
+      else if(keyList[mid] < key)
         s = mid;
       else
         return mid;
     }
-  } else {  // DESC
+  } else { // DESC
     // find the first position which is bigger than the key
-    e = 0;
-    if (key > keyList[pos]) return -1;
+    e  = 0;
+    if (key > keyList[pos])
+      return -1;
     while (1) {
       // check can return
-      if (key <= keyList[e]) return e;
-      if (key >= keyList[s]) return s;
-      if (s - e <= 1) return s;
+      if (key <= keyList[e])
+        return e;
+      if (key >= keyList[s])
+        return s;
+      if (s - e <= 1)
+        return s;
 
       // change start or end position
-      int mid = s - (s - e + 1) / 2;
+      int mid = s - (s - e + 1)/2;
       if (keyList[mid] < key)
         e = mid;
-      else if (keyList[mid] > key)
+      else if(keyList[mid] > key)
         s = mid;
       else
         return mid;
@@ -805,7 +813,7 @@ static int doBinarySearchKey(TSKEY* keyList, int num, int pos, TSKEY key, int or
 int32_t getEndPosInDataBlock(STsdbReader* pReader, SBlockData* pBlockData, SDataBlk* pBlock, int32_t pos) {
   // NOTE: reverse the order to find the end position in data block
   int32_t endPos = -1;
-  bool    asc = ASCENDING_TRAVERSE(pReader->order);
+  bool asc = ASCENDING_TRAVERSE(pReader->order);
 
   if (asc && pReader->window.ekey >= pBlock->maxKey.ts) {
     endPos = pBlock->nRow - 1;
@@ -841,8 +849,8 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
   } else if (!asc && pReader->window.ekey >= pBlock->maxKey.ts) {
     pDumpInfo->rowIndex = pBlock->nRow - 1;
   } else {
-    int32_t pos = asc ? pBlock->nRow - 1 : 0;
-    int32_t order = (pReader->order == TSDB_ORDER_ASC) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC;
+    int32_t pos = asc? pBlock->nRow-1:0;
+    int32_t order = (pReader->order == TSDB_ORDER_ASC)? TSDB_ORDER_DESC:TSDB_ORDER_ASC;
     pDumpInfo->rowIndex = doBinarySearchKey(pBlockData->aTSKEY, pBlock->nRow, pos, pReader->window.skey, order);
   }
 
@@ -855,13 +863,13 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
 
   endIndex += step;
   int32_t remain = asc ? (endIndex - pDumpInfo->rowIndex) : (pDumpInfo->rowIndex - endIndex);
-  if (remain > pReader->capacity) {  // output buffer check
+  if (remain > pReader->capacity) { // output buffer check
     remain = pReader->capacity;
   }
 
   int32_t rowIndex = 0;
 
-  int32_t          i = 0;
+  int32_t i = 0;
   SColumnInfoData* pColData = taosArrayGet(pResBlock->pDataBlock, i);
   if (pColData->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
     if (asc) {
@@ -930,7 +938,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
     int64_t ts = pBlockData->aTSKEY[pDumpInfo->rowIndex];
     setBlockAllDumped(pDumpInfo, ts, pReader->order);
   } else {
-    int64_t k = asc ? pBlock->maxKey.ts : pBlock->minKey.ts;
+    int64_t k = asc? pBlock->maxKey.ts:pBlock->minKey.ts;
     setBlockAllDumped(pDumpInfo, k, pReader->order);
   }
 
@@ -940,8 +948,8 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
   int32_t unDumpedRows = asc ? pBlock->nRow - pDumpInfo->rowIndex : pDumpInfo->rowIndex + 1;
   tsdbDebug("%p copy file block to sdatablock, global index:%d, table index:%d, brange:%" PRId64 "-%" PRId64
             ", rows:%d, remain:%d, minVer:%" PRId64 ", maxVer:%" PRId64 ", elapsed time:%.2f ms, %s",
-            pReader, pBlockIter->index, pBlockInfo->tbBlockIdx, pBlock->minKey.ts, pBlock->maxKey.ts, remain,
-            unDumpedRows, pBlock->minVer, pBlock->maxVer, elapsedTime, pReader->idStr);
+            pReader, pBlockIter->index, pBlockInfo->tbBlockIdx, pBlock->minKey.ts, pBlock->maxKey.ts, remain, unDumpedRows,
+            pBlock->minVer, pBlock->maxVer, elapsedTime, pReader->idStr);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2234,7 +2242,7 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
   if (pBlockInfo != NULL) {
     pBlockScanInfo = taosHashGet(pReader->status.pTableMap, &pBlockInfo->uid, sizeof(pBlockInfo->uid));
     SDataBlk* pBlock = getCurrentBlock(&pReader->status.blockIter);
-    TSDBKEY   keyInBuf = getCurrentKeyInBuf(pBlockScanInfo, pReader);
+    TSDBKEY keyInBuf = getCurrentKeyInBuf(pBlockScanInfo, pReader);
 
     // it is a clean block, load it directly
     if (isCleanFileDataBlock(pReader, pBlockInfo, pBlock, pBlockScanInfo, keyInBuf, pLastBlockReader)) {
@@ -2248,6 +2256,7 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
   SFileBlockDumpInfo* pDumpInfo = &pReader->status.fBlockDumpInfo;
   SBlockData*         pBlockData = &pReader->status.fileBlockData;
   int32_t             step = ASCENDING_TRAVERSE(pReader->order) ? 1 : -1;
+
 
   while (1) {
     // todo check the validate of row in file block
@@ -2290,7 +2299,7 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
     }
   }
 
-_end:
+  _end:
   pResBlock->info.uid = pBlockScanInfo->uid;
   blockDataUpdateTsWindow(pResBlock, 0);
 
