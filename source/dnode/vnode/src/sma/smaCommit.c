@@ -210,15 +210,18 @@ static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pStat) {
   }
 
   if (fsMaxVer < committed) {
-    SQTaskFile qFile = {.nRef = 1, .padding = 0, .version = committed, .size = 0};
-    if (taosArrayPush(pFS->aQTaskInf, &qFile) < 0) {
-      taosWUnLockLatch(RSMA_FS_LOCK(pStat));
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return TSDB_CODE_FAILED;
+    tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), committed, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFullName);
+    if (taosCheckExistFile(qTaskInfoFullName)) {
+      SQTaskFile qFile = {.nRef = 1, .padding = 0, .version = committed, .size = 0};
+      if (taosArrayPush(pFS->aQTaskInf, &qFile) < 0) {
+        taosWUnLockLatch(RSMA_FS_LOCK(pStat));
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return TSDB_CODE_FAILED;
+      }
     }
   } else {
     smaDebug("vgId:%d, update qinf, no need as committed %" PRIi64 " not larger than fsMaxVer %" PRIi64, TD_VID(pVnode),
-            committed, fsMaxVer);
+             committed, fsMaxVer);
   }
 
   taosWUnLockLatch(RSMA_FS_LOCK(pStat));
