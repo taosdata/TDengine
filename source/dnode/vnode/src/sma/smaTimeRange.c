@@ -178,7 +178,6 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
     return TSDB_CODE_FAILED;
   }
 
-  tdRefSmaStat(pSma, pStat);
   pTsmaStat = SMA_STAT_TSMA(pStat);
 
   if (!pTsmaStat->pTSma) {
@@ -230,9 +229,7 @@ static int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char 
     goto _err;
   }
 
-  tdUnRefSmaStat(pSma, pStat);
   return TSDB_CODE_SUCCESS;
 _err:
-  tdUnRefSmaStat(pSma, pStat);
   return TSDB_CODE_FAILED;
 }
