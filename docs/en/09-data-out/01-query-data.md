@@ -226,4 +226,15 @@ Get all rows and print each row:
 ```
 
 </TabItem>
+
+<TabItem value="C#" label="C#">
+
+In this example, we use query method to execute SQL and get a result object.
+
+```C#
+{{#include docs/examples/csharp/cloud-example/inout/Program.cs:query}}
+```
+
+</TabItem>
+
 </Tabs>

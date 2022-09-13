@@ -4,4 +4,6 @@ cloud-example/usage/bin
 cloud-example/usage/obj
 cloud-example/stmt/bin
 cloud-example/stmt/obj
+cloud-example/inout/bin
+cloud-example/inout/obj
 .vs

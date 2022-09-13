@@ -1,4 +1,4 @@
-const { options, connect } = require("td2.0-rest-connector");
+const { options, connect } = require("@tdengine/client");
 
 function checkError(result) {
   if (result.getErrCode() !== undefined) {
