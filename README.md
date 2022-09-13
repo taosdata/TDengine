@@ -1,6 +1,6 @@
 # taosX User Manual
 
-taosX is an easy-to-use, high-performance, feature-rich TDengine data integration tool. It works like a streaming data platform that supports offline data import/export and real-time data synchronization from or to TDengine. It's built for performance, reliability, productivity, observability and ergonomics.
+taosX is an easy-to-use, high-performance, feature-rich TDengine data integration tool. It works like a streaming data platform that supports offline data import/export and real-time data replication from or to TDengine. It's built for performance, reliability, productivity, observability and ergonomics.
 
 ## Features
 
@@ -15,7 +15,7 @@ taosX is an easy-to-use, high-performance, feature-rich TDengine data integratio
 
 ## Use scenarios
 
-1st, for TDengine database replication(or synchronization).
+1st, for TDengine database replication.
 
 - Synchronize database or stable from one to another TDengine cluster.
 
@@ -69,7 +69,7 @@ cargo install --path .
 
 ### Database replication
 
-It will synchronize all data and meta changes from database `db1` in local cluster to target database `db2` in `another` cluster.
+It will replicate all data and meta changes from database `db1` in local cluster to target database `db2` in `another` cluster.
 
 ```bash
 taosx run \
@@ -85,7 +85,7 @@ taosx run \
   -t 'taos://root:taosdata@another:6030/db2'
 ```
 
-It's able to synchronize a table to another cluster database.
+It's able to replicate a table to another cluster database.
 
 ```bash
 taosx run \
@@ -183,9 +183,9 @@ A common DSN is basically constructed as this:
 
 ```text
 # url-like
-<driver>[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
+<driver>[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<object>][?<p1>=<v1>[&<p2>=<v2>]]
 |------|------------|---|-----------|-----------|------|------|------------|-----------------------|
-|driver|   protocol |   | username  | password  | host | port |  database  |  params               |
+|driver|   protocol |   | username  | password  | host | port |  object  |  params               |
 
 # or path-like
 <driver>[+protocol]:<path>[?<p1>=<v1>]
@@ -206,9 +206,9 @@ For different parts:
 - **password**: the password of the username. **Optional**.
 - **host**: address host to the datasource. **Optional**.
 - **port**: address port to the datasource. **Optional**.
-- **database**: database name or collection name in the datasource. **Optional**.
-- **params**: a key-value map for any other informations to the datasource. **Optional**.
-- **path**: a local file or directory path, or a path-like string for the data source.
+- **object**: Possibly one of: 1) database name, 2) [TMQ] topic name 3) table expression: `database.table` or 4) any other collection name of the datasource. **Optional**.
+- **params**: a key-value map for any other information to the datasource. **Optional**. The available parameters may depend on drivers or source / target positions.
+- **path**: a file or directory path, or a path-like string for the data source.
 
 For example, a legacy TDengine connection DSN with default protocol is:
 
@@ -244,26 +244,30 @@ A TDengine DSN string could be written as:
 taos[+ws]://<username>:<password>@<host>:<port>/<database>[?<params>]
 ```
 
-In a TDengine query connection DSN, the **driver** will always be `taos`, the **protocol** is optional (but only websocket protocol is supported, you can choose to use `ws` (for `http`) or `wss`(for `https`)). The **username** will be default to `root`, and the **password** default to `taosdata`. The **host** and **port** is default to `localhost:6030` for native protocol, and `localhost:80` or `localhost:443` for websocket based on the **protocol** previously selected (`80` for `ws` and `443` for `wss`). When **database** is declared, it will be the default database for every connection built from the DSN, if the database not exist, it will cause error: `Database not specified or not avaliable`. The **params** key-value pairs contain more complex options:
+In a TDengine query connection DSN, the **driver** will always be `taos`, the **protocol** is optional (but only websocket protocol is supported, you can choose to use `ws` (for `http`) or `wss`(for `https`)). The **username** will be default to `root`, and the **password** default to `taosdata`. The **host** and **port** is default to `localhost:6030` for native protocol, and `localhost:80` or `localhost:443` for websocket based on the **protocol** previously selected (`80` for `ws` and `443` for `wss`). When **database** is declared, it will be the default database for every connection built from the DSN, if the database not exist, it will cause error: `Database not specified or not avaliable`. The **params** key-value pairs contain more complex options, users could check the documentations of each scenario:
 
 - **configDir**: path to TDengine client configuration file, it will use `/etc/taos/` as default. For eg. `taos://?configDir=/custom/path/to/taos/`.
 - **token**: use `token` in the **params** part for TDengine cloud service instead of **username** and **password** authentication, be careful to use this along with specified **protocol**(`ws` or `wss`).
+- **query**: a query SQL string, such as `SELECT * FROM meters`. This will be used as a table data source, eg. `taos://localhost:6030/test?query=SELECT * FROM meters` will use the query results as table data source, which can be exported as CSV or Parquet.
 
 ### 2. TDengine DSN for subscription
 
-Subscription is a bit different, you can use a subscription like this:
+It's recommended to read [TMQ] documentation first on the official website.
+
+Subscription is a bit different from legacy TDengine connection, you can use a subscription like this:
 
 ```text
 tmq[+ws]://<username>:<password>@<host>:<port>/<topics>[?<params>]
 ```
 
-In this kind of DSN, the **driver** must be set as `tmq`. Instead of **database**, subscription DSN contains **topics** part, which is a comma(`,`)-separated **topic** string list. A **topic** could be created by sql: `CREATE TOPIC topic1 AS SELECT * FROM db1.tb1`. Other parts is nearly the same to previous secion - **TDengine DSN for query**. Additional subscription parameters could be set in **params** part:
+In this kind of DSN, the **driver** must be set as `tmq`. Subscription DSN use **topics** part, which is a comma(`,`)-separated **topic** string list - so that you can subscribe multiple topics in a single subscription. A **topic** could be created by sql: `CREATE TOPIC topic1 AS SELECT * FROM db1.tb1`. Other parts is nearly the same to previous section - **TDengine DSN for query**. Additional subscription parameters could be set in **params** part:
 
 - **`group.id`**: the group id string of a subscription, which is **required**.
 - **`client.id`**: the client id of a subscription, which can be used to track a subscription client.
 - **`enable.auto.commit`**: you can set this to `true` when you want to auto commit the consumer.
-- **`auto.commit.interval.ms`**: set this value to a integer along with **enable.auto.commit** topion.
-- **`auto.offset.reset`**: possible values: `none`, `earliest`, `latest` to control the initial subscription posiiton, that means the parameter is not work when the **group.id** has been subscribed once. Default is `none`, usually means `earliest`.
+- **`auto.commit.interval.ms`**: set this value to a integer along with **enable.auto.commit** option.
+- **`auto.offset.reset`**: possible values: `none`, `earliest`, `latest` to control the initial subscription position, that means the parameter is not work when the **group.id** has been subscribed once. Default is `none`, usually means `earliest`.
+- **`timeout`**: possible values: `never`, `none` or human-readable time duration string like `1d` for one day, `24h` for 24 hours, `5m` for 5 minutes. By default, the timeout value is `500ms`. When use `timeout=never`, taosx will wait for a usable message forever and never stop the subscription until any error caused.
 
 So if you want to subscribe a topic, the DSN may be:
 
@@ -281,14 +285,13 @@ local:/path/to/backups?max-file-size=1G
 
 You can use `max-file-size` option to control a single backup file size, by default it's 1G.
 
-In a backup location directory, the files structure will be:
+More useful parameters will be added in next release.
+
+After backup done, for a backup location directory, the files structure will be:
 
 ```text
 test-dump-abc2
-├── abc2-0-1661847087.z
 ├── abc2-0-1661847159.z
-├── abc2-0.sql
-├── abc2-1-1661847087.z
 ├── abc2-1-1661847159.z
 └── local.toml
 ```
@@ -373,3 +376,4 @@ When there's error, the response body is:
 [CSV]: https://www.ietf.org/rfc/rfc4180.txt
 [SwaggerUI]: https://swagger.io/tools/swagger-ui/
 [oas3]: https://spec.openapis.org/oas/v3.1.0
+[TMQ]: https://docs.taosdata.com/develop/tmq/
