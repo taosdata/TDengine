@@ -4872,8 +4872,8 @@ void destroyMAIOperatorInfo(void* param) {
 }
 
 static SResultRow* doSetSingleOutputTupleBuf(SResultRowInfo* pResultRowInfo, SAggSupporter* pSup) {
-    SResultRow* pResult = getNewResultRow(pSup->pResultBuf, &pSup->currentPageId, pSup->resultRowSize);
-    pResultRowInfo->cur = (SResultRowPosition){.pageId = pResult->pageId, .offset = pResult->offset};
+  SResultRow* pResult = getNewResultRow(pSup->pResultBuf, &pSup->currentPageId, pSup->resultRowSize);
+  pResultRowInfo->cur = (SResultRowPosition){.pageId = pResult->pageId, .offset = pResult->offset};
   return pResult;
 }
 
@@ -4998,15 +4998,23 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
       break;
     }
 
-    if (pMiaInfo->groupId != pBlock->info.groupId && pMiaInfo->groupId != 0) {
-      // if there are unclosed time window, close it firstly.
-      ASSERT(pMiaInfo->curTs != INT64_MIN);
-      finalizeResultRows(pIaInfo->aggSup.pResultBuf, &pResultRowInfo->cur, pSup, pRes, pTaskInfo);
+    if (pMiaInfo->groupId == 0) {
+      if (pMiaInfo->groupId != pBlock->info.groupId) {
+        pMiaInfo->groupId = pBlock->info.groupId;
+      }
+    } else {
+      if (pMiaInfo->groupId != pBlock->info.groupId) {
+        // if there are unclosed time window, close it firstly.
+        ASSERT(pMiaInfo->curTs != INT64_MIN);
+        finalizeResultRows(pIaInfo->aggSup.pResultBuf, &pResultRowInfo->cur, pSup, pRes, pTaskInfo);
 
-      pMiaInfo->prefetchedBlock = pBlock;
-      pMiaInfo->curTs = INT64_MIN;
-      pMiaInfo->groupId = 0;
-      break;
+        pMiaInfo->prefetchedBlock = pBlock;
+        pMiaInfo->curTs = INT64_MIN;
+        pMiaInfo->groupId = 0;
+        break;
+      } else  {
+        // continue
+      }
     }
 
     getTableScanInfo(pOperator, &pIaInfo->inputOrder, &scanFlag);
