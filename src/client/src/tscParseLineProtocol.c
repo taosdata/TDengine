@@ -82,26 +82,32 @@ typedef struct {
   };
 } SSchemaAction;
 
+static int32_t smlFindNearestPowerOf2(int32_t length, uint8_t type) {
+  int32_t result = 1;
+  while (result <= length) {
+    result *= 2;
+  }
+  if (type == TSDB_DATA_TYPE_BINARY && result > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE){
+    result = TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE;
+  } else if (type == TSDB_DATA_TYPE_NCHAR && result > (TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE){
+    result = (TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
+  }
+
+  if (type == TSDB_DATA_TYPE_NCHAR){
+    result = result * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
+  }else if (type == TSDB_DATA_TYPE_BINARY){
+    result = result + VARSTR_HEADER_SIZE;
+  }
+  return result;
+}
+
 static int32_t getFieldBytesFromSmlKv(TAOS_SML_KV* kv, int32_t* bytes, uint64_t id) {
   if (!IS_VAR_DATA_TYPE(kv->type)) {
     *bytes = tDataTypes[kv->type].bytes;
   } else {
-    if (kv->type == TSDB_DATA_TYPE_NCHAR) {
-//      char* ucs = malloc(kv->length * TSDB_NCHAR_SIZE + 1);
-//      int32_t bytesNeeded = 0;
-//      bool succ = taosMbsToUcs4(kv->value, kv->length, ucs, kv->length * TSDB_NCHAR_SIZE, &bytesNeeded);
-//      if (!succ) {
-//        free(ucs);
-//        tscError("SML:0x%"PRIx64" convert nchar string to UCS4_LE failed:%s", id, kv->value);
-//        return TSDB_CODE_TSC_INVALID_VALUE;
-//      }
-//      free(ucs);
-//      *bytes =  bytesNeeded + VARSTR_HEADER_SIZE;
-      *bytes = kv->length * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
-    } else if (kv->type == TSDB_DATA_TYPE_BINARY) {
-      *bytes = kv->length + VARSTR_HEADER_SIZE;
-    }
+    *bytes = smlFindNearestPowerOf2(kv->length, kv->type);
   }
+
   return 0;
 }
 
