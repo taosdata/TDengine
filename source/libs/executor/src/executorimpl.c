@@ -3445,8 +3445,7 @@ static bool isWstartColumnExist(SFillOperatorInfo* pInfo) {
   }
   for (int32_t i = 0; i < pInfo->numOfNotFillExpr; ++i) {
     SExprInfo* exprInfo = pInfo->pNotFillExprInfo + i;
-    if (exprInfo->pExpr->nodeType == QUERY_NODE_COLUMN &&
-        exprInfo->base.numOfParams == 1 &&
+    if (exprInfo->pExpr->nodeType == QUERY_NODE_COLUMN && exprInfo->base.numOfParams == 1 &&
         exprInfo->base.pParam[0].pCol->colType == COLUMN_TYPE_WINDOW_START) {
       return true;
     }
@@ -3462,7 +3461,8 @@ static int32_t createWStartTsAsNotFillExpr(SFillOperatorInfo* pInfo, SFillPhysiN
       return TSDB_CODE_QRY_SYS_ERROR;
     }
 
-    SExprInfo* notFillExprs = taosMemoryRealloc(pInfo->pNotFillExprInfo, (pInfo->numOfNotFillExpr + 1) * sizeof(SExprInfo));
+    SExprInfo* notFillExprs =
+        taosMemoryRealloc(pInfo->pNotFillExprInfo, (pInfo->numOfNotFillExpr + 1) * sizeof(SExprInfo));
     if (notFillExprs == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -3473,7 +3473,7 @@ static int32_t createWStartTsAsNotFillExpr(SFillOperatorInfo* pInfo, SFillPhysiN
     pInfo->pNotFillExprInfo = notFillExprs;
     return TSDB_CODE_SUCCESS;
   }
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3513,8 +3513,8 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
                                                  &numOfOutputCols, COL_MATCH_FROM_SLOT_ID);
 
   code = initFillInfo(pInfo, pExprInfo, pInfo->numOfExpr, pInfo->pNotFillExprInfo, pInfo->numOfNotFillExpr,
-                              (SNodeListNode*)pPhyFillNode->pValues, pPhyFillNode->timeRange, pResultInfo->capacity,
-                              pTaskInfo->id.str, pInterval, type, order);
+                      (SNodeListNode*)pPhyFillNode->pValues, pPhyFillNode->timeRange, pResultInfo->capacity,
+                      pTaskInfo->id.str, pInterval, type, order);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -4461,6 +4461,9 @@ int32_t setOutputBuf(STimeWindow* win, SResultRow** pResult, int64_t tableGroupI
   };
   char*   value = NULL;
   int32_t size = pAggSup->resultRowSize;
+  /*if (streamStateGet(pTaskInfo->streamInfo.pState, &key, (void**)&value, &size) < 0) {*/
+  /*value = taosMemoryCalloc(1, size);*/
+  /*}*/
   if (streamStateAddIfNotExist(pTaskInfo->streamInfo.pState, &key, (void**)&value, &size) < 0) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
@@ -4474,6 +4477,7 @@ int32_t setOutputBuf(STimeWindow* win, SResultRow** pResult, int64_t tableGroupI
 
 int32_t releaseOutputBuf(SExecTaskInfo* pTaskInfo, SWinKey* pKey, SResultRow* pResult) {
   streamStateReleaseBuf(pTaskInfo->streamInfo.pState, pKey, pResult);
+  /*taosMemoryFree((*(void**)pResult));*/
   return TSDB_CODE_SUCCESS;
 }
 

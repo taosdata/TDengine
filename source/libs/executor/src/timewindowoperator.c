@@ -5704,7 +5704,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
     maxTs = TMAX(maxTs, pBlock->info.window.ekey);
     doStreamIntervalAggImpl(pOperator, &pInfo->binfo.resultRowInfo, pBlock, MAIN_SCAN, pUpdatedMap);
     // new disc buf
-    // doStreamIntervalAggImpl2(pOperator, pBlock, pBlock->info.groupId, pUpdatedMap);
+    /*doStreamIntervalAggImpl2(pOperator, pBlock, pBlock->info.groupId, pUpdatedMap);*/
   }
   pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, maxTs);
 
