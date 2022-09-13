@@ -289,8 +289,8 @@ static int compareRowData(const void* a, const void* b, const void* userData) {
   char*              in2 = NULL;
   SRowCompSupporter* supporter = (SRowCompSupporter*)userData;
   if (supporter->colData != NULL) {
-    in1 = supporter->colData + supporter->colBytes * TARRAY_ELEM_IDX(supporter->resultRows, pRow1);
-    in2 = supporter->colData + supporter->colBytes * TARRAY_ELEM_IDX(supporter->resultRows, pRow2);
+    in1 = supporter->colData + supporter->colBytes * pRow1->groupIndex;
+    in2 = supporter->colData + supporter->colBytes * pRow2->groupIndex;
   } else {
     SQueryRuntimeEnv* pRuntimeEnv = supporter->pRuntimeEnv;
 
@@ -318,6 +318,7 @@ static int32_t getColDataFromGroupRes(SGroupResInfo* pGroupResInfo, SQueryRuntim
   int32_t numOfResult = 0;
   for (int32_t i = 0; i < numRows; ++i) {
     SResultRow* row = taosArrayGetP(pGroupResInfo->pRows, i);
+    row->groupIndex = i;
     tFilePage*  page = getResBufPage(pRuntimeEnv->pResultBuf, row->pageId);
     int32_t     rowsToCopy = 1;
     char*       out = colData + numOfResult * colBytes;
