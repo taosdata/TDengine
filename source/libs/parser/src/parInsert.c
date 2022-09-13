@@ -1134,6 +1134,9 @@ static int32_t parseTableOptions(SInsertParseContext* pCxt) {
         return buildSyntaxErrMsg(&pCxt->msg, "Invalid option ttl", sToken.z);
       }
       pCxt->createTblReq.ttl = taosStr2Int32(sToken.z, NULL, 10);
+      if (pCxt->createTblReq.ttl < 0) {
+        return buildSyntaxErrMsg(&pCxt->msg, "Invalid option ttl", sToken.z);
+      }
     } else if (TK_COMMENT == sToken.type) {
       pCxt->pSql += index;
       NEXT_TOKEN(pCxt->pSql, sToken);
