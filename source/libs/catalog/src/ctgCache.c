@@ -1586,8 +1586,8 @@ int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
   dbCache = NULL;
 
   strncpy(vgVersion.dbFName, dbFName, sizeof(vgVersion.dbFName));
-  CTG_ERR_RET(ctgMetaRentUpdate(&msg->pCtg->dbRent, &vgVersion, vgVersion.dbId, sizeof(SDbVgVersion),
-                                ctgDbVgVersionSortCompare, ctgDbVgVersionSearchCompare));
+  CTG_ERR_JRET(ctgMetaRentUpdate(&msg->pCtg->dbRent, &vgVersion, vgVersion.dbId, sizeof(SDbVgVersion),
+                                 ctgDbVgVersionSortCompare, ctgDbVgVersionSearchCompare));
 
 _return:
 
@@ -1634,7 +1634,7 @@ int32_t ctgOpDropDbVgroup(SCtgCacheOperation *operation) {
     goto _return;
   }
 
-  CTG_ERR_RET(ctgWLockVgInfo(pCtg, dbCache));
+  CTG_ERR_JRET(ctgWLockVgInfo(pCtg, dbCache));
 
   ctgFreeVgInfo(dbCache->vgCache.vgInfo);
   dbCache->vgCache.vgInfo = NULL;
