@@ -826,6 +826,7 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->keep[2] = TSDB_DEFAULT_KEEP;
   pOptions->pages = TSDB_DEFAULT_PAGES_PER_VNODE;
   pOptions->pagesize = TSDB_DEFAULT_PAGESIZE_PER_VNODE;
+  pOptions->tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE;
   pOptions->precision = TSDB_DEFAULT_PRECISION;
   pOptions->replica = TSDB_DEFAULT_DB_REPLICA;
   pOptions->strict = TSDB_DEFAULT_DB_STRICT;
@@ -858,6 +859,7 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->keep[2] = -1;
   pOptions->pages = -1;
   pOptions->pagesize = -1;
+  pOptions->tsdbPageSize = -1;
   pOptions->precision = -1;
   pOptions->replica = -1;
   pOptions->strict = -1;
@@ -918,6 +920,9 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
     case DB_OPTION_PAGESIZE:
       pDbOptions->pagesize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
+    case DB_OPTION_TSDB_PAGESIZE:
+      pDbOptions->tsdbPageSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      break;
     case DB_OPTION_PRECISION:
       COPY_STRING_FORM_STR_TOKEN(pDbOptions->precisionStr, (SToken*)pVal);
       break;
@@ -955,7 +960,7 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
     case DB_OPTION_WAL_SEGMENT_SIZE:
       pDbOptions->walSegmentSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
-    case DB_OPTION_SST_TRIGGER:
+    case DB_OPTION_STT_TRIGGER:
       pDbOptions->sstTrigger = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_TABLE_PREFIX:

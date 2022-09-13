@@ -787,6 +787,7 @@ typedef struct {
   int32_t sstTrigger;
   int16_t hashPrefix;
   int16_t hashSuffix;
+  int32_t tsdbPageSize;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
