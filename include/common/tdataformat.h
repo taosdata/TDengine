@@ -38,9 +38,9 @@ typedef struct STagVal       STagVal;
 typedef struct STag          STag;
 typedef struct SColData      SColData;
 
-#define HAS_NONE  ((int8_t)0x1)
-#define HAS_NULL  ((int8_t)0x2)
-#define HAS_VALUE ((int8_t)0x4)
+#define HAS_NONE  ((uint8_t)0x1)
+#define HAS_NULL  ((uint8_t)0x2)
+#define HAS_VALUE ((uint8_t)0x4)
 
 // bitmap ================================
 const static uint8_t BIT2_MAP[4][4] = {{0b00000000, 0b00000001, 0b00000010, 0},
