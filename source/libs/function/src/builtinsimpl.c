@@ -5447,8 +5447,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         numOfElems++;
 
         if (pInfo->p.key == st.key) {
-          numOfElems = 0;
-          goto _twa_over;
+          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
@@ -5467,8 +5466,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         numOfElems++;
 
         if (pInfo->p.key == st.key) {
-          numOfElems = 0;
-          goto _twa_over;
+          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
@@ -5486,8 +5484,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         numOfElems++;
 
         if (pInfo->p.key == st.key) {
-          numOfElems = 0;
-          goto _twa_over;
+          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
@@ -5505,8 +5502,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         numOfElems++;
 
         if (pInfo->p.key == st.key) {
-          numOfElems = 0;
-          goto _twa_over;
+          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
@@ -5524,8 +5520,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         numOfElems++;
 
         if (pInfo->p.key == st.key) {
-          numOfElems = 0;
-          goto _twa_over;
+          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
@@ -5543,8 +5538,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         numOfElems++;
 
         if (pInfo->p.key == st.key) {
-          numOfElems = 0;
-          goto _twa_over;
+          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
@@ -5562,8 +5556,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         numOfElems++;
 
         if (pInfo->p.key == st.key) {
-          numOfElems = 0;
-          goto _twa_over;
+          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
@@ -5581,8 +5574,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         numOfElems++;
 
         if (pInfo->p.key == st.key) {
-          numOfElems = 0;
-          goto _twa_over;
+          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
@@ -5600,8 +5592,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         numOfElems++;
 
         if (pInfo->p.key == st.key) {
-          numOfElems = 0;
-          goto _twa_over;
+          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
@@ -5619,8 +5610,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         numOfElems++;
 
         if (pInfo->p.key == st.key) {
-          numOfElems = 0;
-          goto _twa_over;
+          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
         }
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
