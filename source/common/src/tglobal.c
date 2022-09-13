@@ -91,7 +91,7 @@ bool tsSmlDataFormat =
 // query
 int32_t tsQueryPolicy = 1;
 int32_t tsQuerySmaOptimize = 0;
-int32_t tsQueryRsmaTolerance = 1000;  // the tolerance time (ms) to judge from which rsma level to query.
+int32_t tsQueryRsmaTolerance = 1000;  // the tolerance time (ms) to judge from which level to query rsma data.
 bool    tsQueryPlannerTrace = false;
 
 /*
