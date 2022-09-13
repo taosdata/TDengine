@@ -77,7 +77,7 @@ class TDTestCase:
         tdSql.checkData(4, 3, "TAG")
         tdSql.checkData(5, 0, "location")
         tdSql.checkData(5, 1, "VARCHAR")
-        tdSql.checkData(5, 2, 16)
+        tdSql.checkData(5, 2, 24)
         tdSql.checkData(5, 3, "TAG")
 
         tdSql.query("select count(*) from test.meters where groupid >= 0")
