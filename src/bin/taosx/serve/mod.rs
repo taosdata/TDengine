@@ -57,6 +57,7 @@ impl Cli {
                 task::get_task_by_id,
                 task::replicate,
                 task::subscribe,
+                metrics::metrics_exporter
             ),
             tags(
                 (name = "tasks", description = "Task management endpoints")
@@ -82,10 +83,17 @@ impl Cli {
         // // Make instance variable of ApiDoc so all worker threads gets the same instance.
         let openapi = ApiDoc::openapi();
 
+        let metrics_recorder = metrics::Metrics::default().init()?;
+        let handle = metrics_recorder.handle();
+        ::metrics::set_boxed_recorder(Box::new(metrics_recorder))?;
+
+        let recorder = Data::new(handle);
+
         let server = HttpServer::new(move || {
             // This factory closure is called on each worker thread independently.
             App::new()
                 .wrap(Logger::default())
+                .app_data(recorder.clone())
                 .configure(task::configure(store.clone()))
                 .service(
                     SwaggerUi::new("/swagger-ui/{_:.*}")

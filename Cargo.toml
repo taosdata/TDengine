@@ -25,7 +25,7 @@ parquet = "22.0.0"
 pretty_env_logger = "0.4"
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
-taos = { version = "0.2.5" }
+taos = { version = "0.2.10" }
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7" }
 toml = "0.5.9"
@@ -37,9 +37,9 @@ sqlx = { version = "0.6", features = ["runtime-tokio-native-tls", "sqlite", "chr
 utoipa = { version = "2.0.0", features = ["actix_extras", "chrono"] }
 utoipa-swagger-ui = { version = "2.0.0", features = ["actix-web"] }
 
-lru = "0.7.5"
+# lru = "0.7.5"
 metrics = "0.20.1"
-metrics-exporter-prometheus = "0.11.0"
+metrics-exporter-prometheus = { version = "0.11.0", default-features = false, features = ["push-gateway"] }
 palaver = "0.2.8"
 procfs = "0.14.0"
 psutil = { version = "3.2.0", default-features = false, features = ["cpu", "process"] }
