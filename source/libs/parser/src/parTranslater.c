@@ -1283,6 +1283,36 @@ static int32_t rewriteCountStar(STranslateContext* pCxt, SFunctionNode* pCount) 
   return code;
 }
 
+static bool isCountTbname(SFunctionNode* pFunc) {
+  if (FUNCTION_TYPE_COUNT != pFunc->funcType || 1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return false;
+  }
+  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  return (QUERY_NODE_FUNCTION == nodeType(pPara) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pPara)->funcType);
+}
+
+// count(tbname) is rewritten as count(ts) for scannning optimization
+static int32_t rewriteCountTbname(STranslateContext* pCxt, SFunctionNode* pCount) {
+  SFunctionNode* pTbname = (SFunctionNode*)nodesListGetNode(pCount->pParameterList, 0);
+  const char*    pTableAlias = NULL;
+  if (LIST_LENGTH(pTbname->pParameterList) > 0) {
+    pTableAlias = ((SValueNode*)nodesListGetNode(pTbname->pParameterList, 0))->literal;
+  }
+  STableNode* pTable = NULL;
+  int32_t     code = findTable(pCxt, pTableAlias, &pTable);
+  if (TSDB_CODE_SUCCESS == code) {
+    SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+    if (NULL == pCol) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol);
+      NODES_DESTORY_LIST(pCount->pParameterList);
+      code = nodesListMakeAppend(&pCount->pParameterList, (SNode*)pCol);
+    }
+  }
+  return code;
+}
+
 static bool hasInvalidFuncNesting(SNodeList* pParameterList) {
   bool hasInvalidFunc = false;
   nodesWalkExprs(pParameterList, haveVectorFunction, &hasInvalidFunc);
@@ -1317,6 +1347,9 @@ static int32_t translateAggFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
 
   if (isCountStar(pFunc)) {
     return rewriteCountStar(pCxt, pFunc);
+  }
+  if (isCountTbname(pFunc)) {
+    return rewriteCountTbname(pCxt, pFunc);
   }
   return TSDB_CODE_SUCCESS;
 }
