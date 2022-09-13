@@ -81,7 +81,7 @@ class TDTestCase:
             'binary':self.binary_val,
             'nchar':self.nchar_val
                     }
-        self.run_time = 2
+        
     def insert_base_data(self,col_type,tbname,rows,base_data):
         for i in range(rows):
             if col_type.lower() == 'tinyint':
