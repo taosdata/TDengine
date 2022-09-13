@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using TDengineDriver;
 using TDengineWS.Impl;
 using System.Collections.Generic;
@@ -45,7 +45,7 @@ namespace Cloud.Examples
                     }
                     // ANCHOR_END: insert
                     string selectTable = "select * from test.meters";
-                    IntPtr res = LibTaosWS.WSQueryTimeout(conn, selectTable, 5000);
+                    res = LibTaosWS.WSQueryTimeout(conn, selectTable, 5000);
                     ValidQueryExecution(res);
 
                     // get meta info of the retrieved data as List
@@ -68,13 +68,6 @@ namespace Cloud.Examples
             {
                 throw new Exception($"get connection failed,reason:{LibTaosWS.WSErrorStr(conn)},code:{LibTaosWS.WSErrorNo(conn)}");
             }
-            sum(1, 2);
-            void sum(int i, int j)
-            {
-                Console.WriteLine("{0} + {1} = {2}", i, j, i + j);
-            }
-
-
         }
 
     }
