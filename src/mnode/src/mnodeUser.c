@@ -100,8 +100,8 @@ static int32_t mnodeUserActionDecode(SSdbRow *pRow) {
 
   // check old format
   if(tsUserUpdateSizeOld == 0) {
-    //int32_t nUpdateSizeOld = (int32_t)((int8_t *)old.updateEnd - (int8_t *)&old);
-    tsUserUpdateSizeOld = (int32_t)((SUserObjOld*)0)->updateEnd;
+    SUserObjOld old;
+    tsUserUpdateSizeOld = (int32_t)((int8_t *)old.updateEnd - (int8_t *)&old);
   }
 
   if (pRow->rowSize == tsUserUpdateSizeOld) {
