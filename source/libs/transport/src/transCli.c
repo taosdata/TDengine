@@ -151,8 +151,7 @@ static void (*cliAsyncHandle[])(SCliMsg* pMsg, SCliThrd* pThrd) = {cliHandleReq,
 static FORCE_INLINE void destroyUserdata(STransMsg* userdata);
 static FORCE_INLINE void destroyCmsg(void* cmsg);
 static FORCE_INLINE int  cliRBChoseIdx(STrans* pTransInst);
-
-static void transDestroyConnCtx(STransConnCtx* ctx);
+static FORCE_INLINE void transDestroyConnCtx(STransConnCtx* ctx);
 // thread obj
 static SCliThrd* createThrdObj();
 static void      destroyThrdObj(SCliThrd* pThrd);
@@ -1124,7 +1123,7 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   return cli;
 }
 
-FORCE_INLINE void destroyUserdata(STransMsg* userdata) {
+static FORCE_INLINE void destroyUserdata(STransMsg* userdata) {
   if (userdata->pCont == NULL) {
     return;
   }
@@ -1132,7 +1131,7 @@ FORCE_INLINE void destroyUserdata(STransMsg* userdata) {
   userdata->pCont = NULL;
 }
 
-FORCE_INLINE void destroyCmsg(void* arg) {
+static FORCE_INLINE void destroyCmsg(void* arg) {
   SCliMsg* pMsg = arg;
   if (pMsg == NULL) {
     return;
