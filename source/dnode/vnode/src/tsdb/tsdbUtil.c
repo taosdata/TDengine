@@ -940,7 +940,7 @@ void tBlockDataDestroy(SBlockData *pBlockData, int8_t deepClear) {
   tFree((uint8_t *)pBlockData->aVersion);
   tFree((uint8_t *)pBlockData->aTSKEY);
   taosArrayDestroy(pBlockData->aIdx);
-  taosArrayDestroyEx(pBlockData->aColData, deepClear ? tColDataClear : NULL);
+  taosArrayDestroyEx(pBlockData->aColData, deepClear ? tColDataDestroy : NULL);
   pBlockData->aUid = NULL;
   pBlockData->aVersion = NULL;
   pBlockData->aTSKEY = NULL;

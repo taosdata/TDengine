@@ -681,7 +681,7 @@ int32_t tGetTSRow(uint8_t *p, STSRow2 **ppRow) {
   return n;
 }
 
-// STSchema
+// STSchema ========================================
 int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t ncols, STSchema **ppTSchema) {
   *ppTSchema = (STSchema *)taosMemoryMalloc(sizeof(STSchema) + sizeof(STColumn) * ncols);
   if (*ppTSchema == NULL) {
@@ -721,9 +721,7 @@ void tTSchemaDestroy(STSchema *pTSchema) {
   if (pTSchema) taosMemoryFree(pTSchema);
 }
 
-// STSRowBuilder
-
-// STag
+// STag ========================================
 static int tTagValCmprFn(const void *p1, const void *p2) {
   if (((STagVal *)p1)->cid < ((STagVal *)p2)->cid) {
     return -1;
@@ -1176,6 +1174,14 @@ STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder) {
 #endif
 
 // SColData ========================================
+void tColDataDestroy(void *ph) {
+  SColData *pColData = (SColData *)ph;
+
+  tFree(pColData->pBitMap);
+  tFree((uint8_t *)pColData->aOffset);
+  tFree(pColData->pData);
+}
+
 void tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn) {
   pColData->cid = cid;
   pColData->type = type;
@@ -1187,14 +1193,6 @@ void tColDataReset(SColData *pColData) {
   pColData->nVal = 0;
   pColData->flag = 0;
   pColData->nData = 0;
-}
-
-void tColDataClear(void *ph) {
-  SColData *pColData = (SColData *)ph;
-
-  tFree(pColData->pBitMap);
-  tFree((uint8_t *)pColData->aOffset);
-  tFree(pColData->pData);
 }
 
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
