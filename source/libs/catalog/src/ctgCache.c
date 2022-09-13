@@ -1710,13 +1710,13 @@ int32_t ctgOpDropStbMeta(SCtgCacheOperation *operation) {
   SCtgDBCache *dbCache = NULL;
   ctgGetDBCache(pCtg, msg->dbFName, &dbCache);
   if (NULL == dbCache) {
-    return TSDB_CODE_SUCCESS;
+    goto _return;
   }
 
   if (msg->dbId && (dbCache->dbId != msg->dbId)) {
     ctgDebug("dbId already modified, dbFName:%s, current:0x%" PRIx64 ", dbId:0x%" PRIx64 ", stb:%s, suid:0x%" PRIx64,
              msg->dbFName, dbCache->dbId, msg->dbId, msg->stbName, msg->suid);
-    return TSDB_CODE_SUCCESS;
+    goto _return;
   }
 
   if (taosHashRemove(dbCache->stbCache, &msg->suid, sizeof(msg->suid))) {
