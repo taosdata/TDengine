@@ -91,6 +91,7 @@ bool tsSmlDataFormat =
 // query
 int32_t tsQueryPolicy = 1;
 int32_t tsQuerySmaOptimize = 0;
+int32_t tsQueryRsmaTolerance = 1000;  // the tolerance time (ms) to judge from which rsma level to query.
 bool    tsQueryPlannerTrace = false;
 
 /*
@@ -419,6 +420,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "ttlUnit", tsTtlUnit, 1, 86400 * 365, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "ttlPushInterval", tsTtlPushInterval, 1, 100000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "uptimeInterval", tsUptimeInterval, 1, 100000, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "queryRsmaTolerance", tsQueryRsmaTolerance, 0, 900000, 0) != 0) return -1;
 
   if (cfgAddBool(pCfg, "udf", tsStartUdfd, 0) != 0) return -1;
   GRANT_CFG_ADD;
@@ -713,6 +715,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsTtlUnit = cfgGetItem(pCfg, "ttlUnit")->i32;
   tsTtlPushInterval = cfgGetItem(pCfg, "ttlPushInterval")->i32;
   tsUptimeInterval = cfgGetItem(pCfg, "uptimeInterval")->i32;
+  tsQueryRsmaTolerance = cfgGetItem(pCfg, "queryRsmaTolerance")->i32;
 
   tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
 
@@ -972,6 +975,8 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         qDebugFlag = cfgGetItem(pCfg, "qDebugFlag")->i32;
       } else if (strcasecmp("queryPlannerTrace", name) == 0) {
         tsQueryPlannerTrace = cfgGetItem(pCfg, "queryPlannerTrace")->bval;
+      } else if (strcasecmp("queryRsmaTolerance", name) == 0) {
+        tsQueryRsmaTolerance = cfgGetItem(pCfg, "queryRsmaTolerance")->i32;
       }
       break;
     }

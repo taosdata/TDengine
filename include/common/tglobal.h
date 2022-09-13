@@ -94,6 +94,7 @@ extern int64_t tsQueryBufferSizeBytes;  // maximum allowed usage buffer size in 
 // query client
 extern int32_t tsQueryPolicy;
 extern int32_t tsQuerySmaOptimize;
+extern int32_t tsQueryRsmaTolerance;
 extern bool    tsQueryPlannerTrace;
 
 // client
