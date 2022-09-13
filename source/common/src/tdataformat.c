@@ -1174,6 +1174,126 @@ STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder) {
 #endif
 
 // SColData ========================================
+static FORCE_INLINE int32_t tColDataPutValue(SColData *pColData, SColVal *pColVal) {
+  int32_t code = 0;
+
+  if (IS_VAR_DATA_TYPE(pColData->type)) {
+    code = tRealloc((uint8_t **)(&pColData->aOffset), sizeof(int32_t) * (pColData->nVal + 1));
+    if (code) goto _exit;
+    pColData->aOffset[pColData->nVal] = pColData->nData;
+
+    // value
+    if ((!pColVal->isNone) && (!pColVal->isNull)) {
+      code = tRealloc(&pColData->pData, pColData->nData + pColVal->value.nData);
+      if (code) goto _exit;
+      memcpy(pColData->pData + pColData->nData, pColVal->value.pData, pColVal->value.nData);
+      pColData->nData += pColVal->value.nData;
+    }
+  } else {
+    code = tRealloc(&pColData->pData, pColData->nData + tDataTypes[pColData->type].bytes);
+    if (code) goto _exit;
+    pColData->nData += tPutValue(pColData->pData + pColData->nData, &pColVal->value, pColVal->type);
+  }
+
+_exit:
+  return code;
+}
+static FORCE_INLINE int32_t tColDataAppendValue0(SColData *pColData, SColVal *pColVal) {
+  int32_t code = 0;
+
+  if (pColVal->isNone) {
+    pColData->flag = HAS_NONE;
+  } else if (pColVal->isNull) {
+    pColData->flag = HAS_NULL;
+  } else {
+    pColData->flag = HAS_VALUE;
+    code = tColDataPutValue(pColData, pColVal);
+    if (code) goto _exit;
+  }
+  pColData->nVal++;
+
+_exit:
+  return code;
+}
+static FORCE_INLINE int32_t tColDataAppendValue1(SColData *pColData, SColVal *pColVal) {  // HAS_NONE
+  int32_t code = 0;
+
+  if (pColVal->isNone) {
+  } else if (pColVal->isNull) {
+  } else {
+  }
+  pColData->nVal++;
+
+  return code;
+}
+static FORCE_INLINE int32_t tColDataAppendValue2(SColData *pColData, SColVal *pColVal) {  // HAS_NULL
+  int32_t code = 0;
+
+  if (pColVal->isNone) {
+  } else if (pColVal->isNull) {
+  } else {
+  }
+  pColData->nVal++;
+
+  return code;
+}
+static FORCE_INLINE int32_t tColDataAppendValue3(SColData *pColData, SColVal *pColVal) {  // HAS_NONE | HAS_NULL
+  int32_t code = 0;
+
+  if (pColVal->isNone) {
+  } else if (pColVal->isNull) {
+  } else {
+  }
+  pColData->nVal++;
+
+  return code;
+}
+static FORCE_INLINE int32_t tColDataAppendValue4(SColData *pColData, SColVal *pColVal) {  // HAS_VALUE
+  int32_t code = 0;
+
+  if (pColVal->isNone) {
+  } else if (pColVal->isNull) {
+  } else {
+  }
+  pColData->nVal++;
+
+  return code;
+}
+static FORCE_INLINE int32_t tColDataAppendValue5(SColData *pColData, SColVal *pColVal) {  // HAS_VALUE | HAS_NONE
+  int32_t code = 0;
+
+  if (pColVal->isNone) {
+  } else if (pColVal->isNull) {
+  } else {
+  }
+  pColData->nVal++;
+
+  return code;
+}
+static FORCE_INLINE int32_t tColDataAppendValue6(SColData *pColData, SColVal *pColVal) {  // HAS_VALUE | HAS_NULL
+  int32_t code = 0;
+
+  if (pColVal->isNone) {
+  } else if (pColVal->isNull) {
+  } else {
+  }
+  pColData->nVal++;
+
+  return code;
+}
+static FORCE_INLINE int32_t tColDataAppendValue7(SColData *pColData,
+                                                 SColVal  *pColVal) {  // HAS_VALUE | HAS_NULL | HAS_NONE
+  int32_t code = 0;
+
+  if (pColVal->isNone) {
+  } else if (pColVal->isNull) {
+  } else {
+  }
+  pColData->nVal++;
+
+  return code;
+}
+
 void tColDataDestroy(void *ph) {
   SColData *pColData = (SColData *)ph;
 
