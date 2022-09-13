@@ -1,11 +1,11 @@
 use anyhow::Result;
-use libtaos::*;
+use taos::*;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let dsn = std::env::var("TDENGINE_CLOUD_DSN")?;
-    let cfg = TaosCfg::from_dsn(dsn)?;
-    let conn = cfg.connect()?;
+    let mut dsn = std::env::var("TDENGINE_CLOUD_DSN").parse()?;
+    let builder = TaosBuilder::from_dsn(dsn)?;
+    let conn = builder.build()?;
     //ANCHOR: insert
 conn.exec("DROP DATABASE IF EXISTS power").await?;
 conn.exec("CREATE DATABASE power").await?;
@@ -18,18 +18,20 @@ power.d1002 USING power.meters TAGS(California.SanFrancisco, 3) VALUES ('2018-10
 let result = conn.query("SELECT ts, current FROM power.meters LIMIT 2").await?;
     // ANCHOR_END: query
     // ANCHOR: meta
-let meta: Vec<ColumnMeta> = result.column_meta;
-for column in meta {
-    println!("name:{} bytes: {}", column.name, column.bytes)
+let fields = result.fields();
+for column in fields {
+    println!("name:{} bytes: {}", column.name(), column.bytes());
 }
 // name:ts bytes: 8
 // name:current bytes: 4
     // ANCHOR_END: meta
     // ANCHOR: iter
-let rows: Vec<Vec<Field>> = result.rows;
-for row in rows {
-    println!("{} {}", row[0].as_timestamp().unwrap(), row[1].as_float().unwrap());
-}
+    let mut rows = result.rows();
+    while let Some(row) = rows.try_next().await? {
+        for (name, value) in row {
+            println!("got value of {}: {}", name, value);
+        }
+    }
 // 2018-10-03 14:38:05.000 10.3
 // 2018-10-03 14:38:15.000 12.6
     // ANCHOR_END: iter

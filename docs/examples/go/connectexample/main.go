@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	_ "github.com/taosdata/driver-go/v2/taosRestful"
+	_ "github.com/taosdata/driver-go/v3/taosRestful"
 )
 
 func main() {

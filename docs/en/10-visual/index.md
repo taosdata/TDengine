@@ -1,6 +1,6 @@
 ---
 sidebar_label: Visualization
-sidebar_title: Visualization
+title: Visualization
 description: View TDengine in visual ways.
 ---
 

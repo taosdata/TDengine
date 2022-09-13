@@ -1,7 +1,7 @@
 ---
 sidebar_label: taosDump
 title: Dump Data Using taosDump
-description: Introduces how to dump data from TDengine into files using taosDump
+description: Dump data from TDengine into files using taosDump
 ---
 
 # taosDump
@@ -18,11 +18,7 @@ Users should not use taosdump to back up raw data, environment settings, hardwar
 
 ## Installation
 
-There are two ways to install taosdump:
-
-- Install the taosTools official installer. Please find taosTools from [All download links](https://www.tdengine.com/all-downloads) page and download and install it.
-
-- Compile taos-tools separately and install it. Please refer to the [taos-tools](https://github.com/taosdata/taos-tools) repository for details.
+Please refer to [Install taosTools](https://docs.tdengine.com/cloud/tools/taosdump/#installation).
 
 ## Common usage scenarios
 
@@ -32,7 +28,7 @@ There are two ways to install taosdump:
 2. backup multiple specified databases: use `-D db1,db2,... ` parameters;
 3. back up some super or normal tables in the specified database: use `-dbname stbname1 stbname2 tbname1 tbname2 ... ` parameters. Note that the first parameter of this input sequence is the database name, and only one database is supported. The second and subsequent parameters are the names of super or normal tables in that database, separated by spaces.
 4. back up the system log database: TDengine clusters usually contain a system database named `log`. The data in this database is the data that TDengine runs itself, and the taosdump will not back up the log database by default. If users need to back up the log database, users can use the `-a` or `-allow-sys` command-line parameter. 
-5. Loose mode backup: taosdump version 1.4.1 onwards provides `-n` and `-L` parameters for backing up data without using escape characters and "loose" mode, which can reduce the number of backups if table names, column names, tag names do not use escape characters. This can also reduce the backup data time and backup data footprint. If you are unsure about using `-n` and `-L` conditions, please use the default parameters for "strict" mode backup. See the [official documentation](/taos-sql/escape) for a description of escaped characters.
+5. Loose mode backup: taosdump version 1.4.1 onwards provides `-n` and `-L` parameters for backing up data without using escape characters and "loose" mode, which can reduce the number of backups if table names, column names, tag names do not use escape characters. This can also reduce the backup data time and backup data footprint. If you are unsure about using `-n` and `-L` conditions, please use the default parameters for "strict" mode backup. See the [official documentation](https://docs.tdengine.com/taos-sql/escape/) for a description of escaped characters.
 
 <!-- exclude -->
 :::tip
