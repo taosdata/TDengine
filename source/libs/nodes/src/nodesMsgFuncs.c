@@ -130,6 +130,9 @@ static int32_t tlvEncodeBool(STlvEncoder* pEncoder, int16_t type, bool value) {
 }
 
 static int32_t tlvEncodeCStr(STlvEncoder* pEncoder, int16_t type, const char* pValue) {
+  if (NULL == pValue) {
+    return TSDB_CODE_SUCCESS;
+  }
   return tlvEncodeImpl(pEncoder, type, pValue, strlen(pValue));
 }
 
