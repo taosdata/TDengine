@@ -237,7 +237,8 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.sstTrigger = pDb->cfg.sstTrigger;
   createReq.hashPrefix = pDb->cfg.hashPrefix;
   createReq.hashSuffix = pDb->cfg.hashSuffix;
-
+createReq.tsdbPageSize = pDb->cfg.tsdbPageSize;
+  
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SReplica  *pReplica = &createReq.replicas[v];
     SVnodeGid *pVgid = &pVgroup->vnodeGid[v];

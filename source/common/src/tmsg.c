@@ -3782,6 +3782,7 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   if (tEncodeI16(&encoder, pReq->sstTrigger) < 0) return -1;
   if (tEncodeI16(&encoder, pReq->hashPrefix) < 0) return -1;
   if (tEncodeI16(&encoder, pReq->hashSuffix) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->tsdbPageSize) < 0) return -1;
 
   tEndEncode(&encoder);
 
@@ -3857,6 +3858,7 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   if (tDecodeI16(&decoder, &pReq->sstTrigger) < 0) return -1;
   if (tDecodeI16(&decoder, &pReq->hashPrefix) < 0) return -1;
   if (tDecodeI16(&decoder, &pReq->hashSuffix) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->tsdbPageSize) < 0) return -1;
 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);

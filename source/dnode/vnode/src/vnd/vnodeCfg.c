@@ -115,6 +115,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "hashMethod", pCfg->hashMethod) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashPrefix", pCfg->hashPrefix) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashSuffix", pCfg->hashSuffix) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "tsdbPageSize", pCfg->tsdbPageSize) < 0) return -1;
 
   if (tjsonAddIntegerToObject(pJson, "syncCfg.replicaNum", pCfg->syncCfg.replicaNum) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "syncCfg.myIndex", pCfg->syncCfg.myIndex) < 0) return -1;
@@ -215,7 +216,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   tjsonGetNumberValue(pJson, "wal.level", pCfg->walCfg.level, code);
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "sstTrigger", pCfg->sttTrigger, code);
-  if (code < 0) return -1;
+  if (code < 0) pCfg->sttTrigger = TSDB_DEFAULT_SST_TRIGGER;
   tjsonGetNumberValue(pJson, "hashBegin", pCfg->hashBegin, code);
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "hashEnd", pCfg->hashEnd, code);
@@ -223,9 +224,11 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   tjsonGetNumberValue(pJson, "hashMethod", pCfg->hashMethod, code);
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "hashPrefix", pCfg->hashPrefix, code);
-  if (code < 0) return -1;
+  if (code < 0) pCfg->hashPrefix = TSDB_DEFAULT_HASH_PREFIX;
   tjsonGetNumberValue(pJson, "hashSuffix", pCfg->hashSuffix, code);
-  if (code < 0) return -1;
+  if (code < 0) pCfg->hashSuffix = TSDB_DEFAULT_HASH_SUFFIX;
+  tjsonGetNumberValue(pJson, "tsdbPageSize", pCfg->tsdbPageSize, code);
+  if (code < 0) pCfg->tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE;
 
   tjsonGetNumberValue(pJson, "syncCfg.replicaNum", pCfg->syncCfg.replicaNum, code);
   if (code < 0) return -1;

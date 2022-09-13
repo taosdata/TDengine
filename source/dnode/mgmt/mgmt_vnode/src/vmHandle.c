@@ -173,6 +173,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->hashMethod = pCreate->hashMethod;
   pCfg->hashPrefix = pCreate->hashPrefix;
   pCfg->hashSuffix = pCreate->hashSuffix;
+  pCfg->tsdbPageSize = pCreate->tsdbPageSize;
 
   pCfg->standby = pCfg->standby;
   pCfg->syncCfg.myIndex = pCreate->selfIndex;
@@ -222,9 +223,11 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  dInfo("vgId:%d, start to create vnode, tsma:%d standby:%d cacheLast:%d cacheLastSize:%d sstTrigger:%d",
-        createReq.vgId, createReq.isTsma, createReq.standby, createReq.cacheLast, createReq.cacheLastSize,
-        createReq.sstTrigger);
+  dInfo(
+      "vgId:%d, start to create vnode, tsma:%d standby:%d cacheLast:%d cacheLastSize:%d sstTrigger:%d "
+      "tsdbPageSize:%d",
+      createReq.vgId, createReq.isTsma, createReq.standby, createReq.cacheLast, createReq.cacheLastSize,
+      createReq.sstTrigger, createReq.tsdbPageSize);
   dInfo("vgId:%d, hashMethod:%d begin:%u end:%u prefix:%d surfix:%d", createReq.vgId, createReq.hashMethod,
         createReq.hashBegin, createReq.hashEnd, createReq.hashPrefix, createReq.hashSuffix);
   vmGenerateVnodeCfg(&createReq, &vnodeCfg);
