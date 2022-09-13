@@ -93,11 +93,23 @@ static int32_t mnodeUserActionEncode(SSdbRow *pRow) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t tsUserUpdateSizeOld = 0;
 static int32_t mnodeUserActionDecode(SSdbRow *pRow) {
   SUserObj *pUser = (SUserObj *)calloc(1, sizeof(SUserObj));
   if (pUser == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
-  memcpy(pUser, pRow->rowData, tsUserUpdateSize);
+  // check old format
+  if(tsUserUpdateSizeOld == 0) {
+    //int32_t nUpdateSizeOld = (int32_t)((int8_t *)old.updateEnd - (int8_t *)&old);
+    tsUserUpdateSizeOld = (int32_t)((SUserObjOld*)0)->updateEnd;
+  }
+
+  if (pRow->rowSize == tsUserUpdateSizeOld) {
+    memcpy(pUser, pRow->rowData, tsUserUpdateSizeOld);
+  } else {
+    memcpy(pUser, pRow->rowData, tsUserUpdateSize);
+  }
+
   pRow->pObj = pUser;
   return TSDB_CODE_SUCCESS;
 }
