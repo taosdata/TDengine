@@ -1009,7 +1009,7 @@ void tBlockDataClear(SBlockData *pBlockData) {
   pBlockData->nRow = 0;
   for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockData->aIdx); iColData++) {
     SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
-    tColDataReset(pColData);
+    tColDataClear(pColData);
   }
 }
 
