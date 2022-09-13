@@ -78,3 +78,5 @@ Code bellow get JDBC URL from environment variables first and then create a `Con
 ```
 
 The client connection is then established. For how to write data and query data, please refer to <https://docs.tdengine.com/cloud/data-in/insert-data/> and <https://docs.tdengine.com/cloud/data-out/query-data/>.
+
+For more details about how to write or query data via REST API, please check [REST API](https://docs.tdengine.com/cloud/programming/connector/rest-api/).

@@ -65,3 +65,5 @@ Replace  <DSN\> with real TDengine cloud DSN. To obtain the real value, please l
 ```
 
 The client connection is then established. For how to write data and query data, please refer to <https://docs.tdengine.com/cloud/data-in/insert-data/> and <https://docs.tdengine.com/cloud/data-out/query-data/>.
+
+For more details about how to write or query data via REST API, please check [REST API](https://docs.tdengine.com/cloud/programming/connector/rest-api/).
