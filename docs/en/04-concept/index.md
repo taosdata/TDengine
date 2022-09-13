@@ -14,11 +14,11 @@ In order to explain the basic concepts and provide some sample code, the TDengin
       <th colSpan="2">Tags</th>
     </tr>
     <tr>
-      <th>Current</th>
-      <th>Voltage</th>
-      <th>Phase</th>
-      <th>Location</th>
-      <th>Group ID</th>
+      <th>current</th>
+      <th>voltage</th>
+      <th>phase</th>
+      <th>location</th>
+      <th>groupid</th>
     </tr>
   </thead>
   <tbody>
@@ -99,7 +99,7 @@ In order to explain the basic concepts and provide some sample code, the TDengin
 <a href="#model_table1">Table 1: Smart meter example data</a>
 </div>
 
-Each row contains the device ID, timestamp, collected metrics (current, voltage, phase as above), and static tags (location and groupId in Table 1) associated with the devices. Each smart meter generates a row (measurement) in a pre-defined time interval or triggered by an external event. The device produces a sequence of measurements with associated timestamps.
+Each row contains the device ID, timestamp, collected metrics (`current`, `voltage`, `phase` as above), and static tags (`location` and `groupid` in Table 1) associated with the devices. Each smart meter generates a row (measurement) in a pre-defined time interval or triggered by an external event. The device produces a sequence of measurements with associated timestamps.
 
 ## Metric
 
@@ -107,7 +107,7 @@ Metric refers to the physical quantity collected by sensors, equipment or other 
 
 ## Label/Tag
 
-Label/Tag refers to the static properties of sensors, equipment or other types of data collection devices, which do not change with time, such as device model, color, fixed location of the device, etc. The data type can be any type. Although static, TDengine allows users to add, delete or update tag values at any time. Unlike the collected metric data, the amount of tag data stored does not change over time. In the meters example, `Location` and `Group ID` are the tags.
+Label/Tag refers to the static properties of sensors, equipment or other types of data collection devices, which do not change with time, such as device model, color, fixed location of the device, etc. The data type can be any type. Although static, TDengine allows users to add, delete or update tag values at any time. Unlike the collected metric data, the amount of tag data stored does not change over time. In the meters example, `location` and `groupid` are the tags.
 
 ## Data Collection Point
 
@@ -126,7 +126,7 @@ To make full use of time-series data characteristics, TDengine adopts a strategy
 
 If the metric data of multiple DCPs are traditionally written into a single table, due to uncontrollable network delays, the timing of the data from different DCPs arriving at the server cannot be guaranteed, write operations must be protected by locks, and metric data from one DCP cannot be guaranteed to be continuously stored together. **One table for one data collection point can ensure the best performance of insert and query of a single data collection point to the greatest possible extent.**
 
-TDengine suggests using DCP ID as the table name (like D1001 in the above table). Each DCP may collect one or multiple metrics (like the current, voltage, phase as above). Each metric has a corresponding column in the table. The data type for a column can be int, float, string and others. In addition, the first column in the table must be a timestamp. TDengine uses the timestamp as the index, and won’t build the index on any metrics stored. Column wise storage is used.
+TDengine suggests using DCP ID as the table name (like d1001 in the above table). Each DCP may collect one or multiple metrics (like the `current`, `voltage`, `phase` as above). Each metric has a corresponding column in the table. The data type for a column can be int, float, string and others. In addition, the first column in the table must be a timestamp. TDengine uses the timestamp as the index, and won’t build the index on any metrics stored. Column wise storage is used.
 
 Complex devices, such as connected cars, may have multiple DCPs. In this case, multiple tables are created for a single device, one table per DCP.
 
@@ -155,7 +155,7 @@ The relationship between a STable and the subtables created based on this STable
 
 Queries can be executed on both a table (subtable) and a STable. For a query on a STable, TDengine will treat the data in all its subtables as a whole data set for processing. TDengine will first find the subtables that meet the tag filter conditions, then scan the time-series data of these subtables to perform aggregation operation, which reduces the number of data sets to be scanned which in turn greatly improves the performance of data aggregation across multiple DCPs. In essence, querying a supertable is a very efficient aggregate query on multiple DCPs of the same type.
 
-In TDengine, it is recommended to use a subtable instead of a regular table for a DCP. In the smart meters example, we can create subtables like d1001, d1002, d1003, and d1004 under super table meters.
+In TDengine, it is recommended to use a subtable instead of a regular table for a DCP. In the smart meters example, we can create subtables like d1001, d1002, d1003, and d1004 under super table `meters`.
 
 To better understand the data model using metrics, tags, super table and subtable, please refer to the diagram below which demonstrates the data model of the smart meters example.
 
