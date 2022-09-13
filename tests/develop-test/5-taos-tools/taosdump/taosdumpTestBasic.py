@@ -21,7 +21,7 @@ from util.dnodes import *
 class TDTestCase:
     def caseDescription(self):
         '''
-        case1<sdsang>: [TD-12526] taosdump supports int
+        case1<sdsang>: [TD-18291] taosdump basic test
         '''
         return
 
@@ -57,23 +57,29 @@ class TDTestCase:
         tdSql.prepare()
 
         tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db  keep 3649")
+        tdSql.execute("create database db  keep 3649 ")
 
         tdSql.execute("use db")
         tdSql.execute(
-            "create table st(ts timestamp, c1 INT) tags(ntag INT)")
-        tdSql.execute("create table t1 using st tags(1)")
-        tdSql.execute("insert into t1 values(1640000000000, 1)")
-        tdSql.execute("create table t2 using st tags(2147483647)")
-        tdSql.execute("insert into t2 values(1640000000000, 2147483647)")
-        tdSql.execute("create table t3 using st tags(-2147483647)")
-        tdSql.execute("insert into t3 values(1640000000000, -2147483647)")
-        tdSql.execute("create table t4 using st tags(NULL)")
-        tdSql.execute("insert into t4 values(1640000000000, NULL)")
+            "create table st(ts timestamp, c1 INT, c2 BOOL, c3 TINYINT, c4 SMALLINT, c5 BIGINT, c6 FLOAT, c7 DOUBLE, c8 TIMESTAMP, c9 BINARY(10), c10 NCHAR(10), c11 TINYINT UNSIGNED, c12 SMALLINT UNSIGNED, c13 INT UNSIGNED, c14 BIGINT UNSIGNED) tags(n1 INT, w2 BOOL, t3 TINYINT, t4 SMALLINT, t5 BIGINT, t6 FLOAT, t7 DOUBLE, t8 TIMESTAMP, t9 BINARY(10), t10 NCHAR(10), t11 TINYINT UNSIGNED, t12 SMALLINT UNSIGNED, t13 INT UNSIGNED, t14 BIGINT UNSIGNED)")
+        tdSql.execute(
+            "create table t1 using st tags(1, true, 1, 1, 1, 1.0, 1.0, 1, '1', '一', 1, 1, 1, 1)")
+        tdSql.execute(
+            "insert into t1 values(1640000000000, 1, true, 1, 1, 1, 1.0, 1.0, 1, '1', '一', 1, 1, 1, 1)")
+        tdSql.execute(
+            "create table t2 using st tags(NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)")
+        tdSql.execute(
+            "insert into t2 values(1640000000000, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)")
+        tdSql.execute(
+                "create table db.nt1 (ts timestamp, c1 INT, c2 BOOL, c3 TINYINT, c4 SMALLINT, c5 BIGINT, c6 FLOAT, c7 DOUBLE, c8 TIMESTAMP, c9 BINARY(10), c10 NCHAR(10), c11 TINYINT UNSIGNED, c12 SMALLINT UNSIGNED, c13 INT UNSIGNED, c14 BIGINT UNSIGNED)")
+        tdSql.execute(
+            "insert into nt1 values(1640000000000, 1, true, 1, 1, 1, 1.0, 1.0, 1, '1', '一', 1, 1, 1, 1)")
+        tdSql.execute(
+            "insert into nt1 values(1640000000000, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)")
 
 #        sys.exit(1)
 
-        binPath = self.getPath()
+        binPath = self.getPath("taosdump")
         if (binPath == ""):
             tdLog.exit("taosdump not found!")
         else:
@@ -87,11 +93,11 @@ class TDTestCase:
             os.makedirs(self.tmpdir)
 
         os.system(
-            "%s --databases db -o %s -T 1" %
+            "%s -D db -o %s -T 1" %
             (binPath, self.tmpdir))
 
-#        sys.exit(1)
         tdSql.execute("drop database db")
+#        sys.exit(1)
 
         os.system("%s -i %s -T 1" % (binPath, self.tmpdir))
 
@@ -113,31 +119,8 @@ class TDTestCase:
         tdSql.checkData(0, 0, 'st')
 
         tdSql.query("show tables")
-        tdSql.checkRows(4)
+        tdSql.checkRows(3)
 
-        tdSql.query("select * from st where ntag = 1")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, 1)
-        tdSql.checkData(0, 2, 1)
-
-        tdSql.query("select * from st where ntag = 2147483647")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, 2147483647)
-        tdSql.checkData(0, 2, 2147483647)
-
-        tdSql.query("select * from st where ntag = -2147483647")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 1640000000000)
-        tdSql.checkData(0, 1, -2147483647)
-        tdSql.checkData(0, 2, -2147483647)
-
-        tdSql.query("select * from st where ntag is null")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, 0)
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(0, 2, None)
 
     def stop(self):
         tdSql.close()

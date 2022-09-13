@@ -97,9 +97,9 @@ static int32_t getFieldBytesFromSmlKv(TAOS_SML_KV* kv, int32_t* bytes, uint64_t 
 //      }
 //      free(ucs);
 //      *bytes =  bytesNeeded + VARSTR_HEADER_SIZE;
-      *bytes = kv->length * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
+      *bytes = (kv->length == 0 ? 1 : kv->length) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
     } else if (kv->type == TSDB_DATA_TYPE_BINARY) {
-      *bytes = kv->length + VARSTR_HEADER_SIZE;
+      *bytes = (kv->length == 0 ? 1 : kv->length) + VARSTR_HEADER_SIZE;
     }
   }
   return 0;
