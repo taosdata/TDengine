@@ -44,11 +44,36 @@ enum {
 )
 // clang-format on
 
+typedef struct {
+  TSKEY    ts;
+  uint64_t groupId;
+} SWinKey;
+
+static inline int SWinKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
+  SWinKey* pWin1 = (SWinKey*)pKey1;
+  SWinKey* pWin2 = (SWinKey*)pKey2;
+
+  if (pWin1->groupId > pWin2->groupId) {
+    return 1;
+  } else if (pWin1->groupId < pWin2->groupId) {
+    return -1;
+  }
+
+  if (pWin1->ts > pWin2->ts) {
+    return 1;
+  } else if (pWin1->ts < pWin2->ts) {
+    return -1;
+  }
+
+  return 0;
+}
+
 enum {
   TMQ_MSG_TYPE__DUMMY = 0,
   TMQ_MSG_TYPE__POLL_RSP,
   TMQ_MSG_TYPE__POLL_META_RSP,
   TMQ_MSG_TYPE__EP_RSP,
+  TMQ_MSG_TYPE__TAOSX_RSP,
   TMQ_MSG_TYPE__END_RSP,
 };
 
@@ -105,7 +130,6 @@ typedef struct SDataBlockInfo {
   uint32_t    capacity;
   // TODO: optimize and remove following
   int64_t     version;    // used for stream, and need serialization
-  int64_t     ts;         // used for stream, and need serialization
   int32_t     childId;    // used for stream, do not serialize
   EStreamType type;       // used for stream, do not serialize
   STimeWindow calWin;     // used for stream, do not serialize
@@ -181,7 +205,7 @@ typedef struct SColumn {
   int16_t slotId;
 
   char    name[TSDB_COL_NAME_LEN];
-  int8_t  flag;  // column type: normal column, tag, or user-input column (integer/float/string)
+  int16_t colType;  // column type: normal column, tag, or window column
   int16_t type;
   int32_t bytes;
   uint8_t precision;

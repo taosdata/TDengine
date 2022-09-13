@@ -1,6 +1,7 @@
 ---
 sidebar_label: 函数
 title: 函数
+description: TDengine 支持的函数列表
 toc_max_heading_level: 4
 ---
 
@@ -613,6 +614,7 @@ SELECT APERCENTILE(field_name, P[, algo_type]) FROM { tb_name | stb_name } [WHER
 **说明**：
 - P值范围是[0,100]，当为0时等同于MIN，为100时等同于MAX。
 - algo_type 取值为 "default" 或 "t-digest"。 输入为 "default" 时函数使用基于直方图算法进行计算。输入为 "t-digest" 时使用t-digest算法计算分位数的近似结果。如果不指定 algo_type 则使用 "default" 算法。
+- "t-digest"算法的近似结果对于输入数据顺序敏感，对超级表查询时不同的输入排序结果可能会有微小的误差。
 
 ### AVG
 
@@ -916,7 +918,7 @@ SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **返回数据类型**：同应用的字段。
 
-**适用数据类型**：数值类型。
+**适用数据类型**：数值类型，时间戳类型。
 
 **适用于**：表和超级表。
 
@@ -931,7 +933,7 @@ SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
 
 **返回数据类型**：同应用的字段。
 
-**适用数据类型**：数值类型。
+**适用数据类型**：数值类型，时间戳类型。
 
 **适用于**：表和超级表。
 
@@ -1166,7 +1168,7 @@ SELECT stateDuration(field_name, oper, val, unit) FROM { tb_name | stb_name } [W
 
 **参数范围**：
 
-- oper : "LT" (小于)、"GT"（大于）、"LE"（小于等于）、"GE"（大于等于）、"NE"（不等于）、"EQ"（等于），不区分大小写。
+- oper : `'LT'` (小于)、`'GT'`（大于）、`'LE'`（小于等于）、`'GE'`（大于等于）、`'NE'`（不等于）、`'EQ'`（等于），不区分大小写，但需要用`''`包括。
 - val : 数值型
 - unit : 时间长度的单位，可取值时间单位： 1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)。如果省略，默认为当前数据库精度。
 

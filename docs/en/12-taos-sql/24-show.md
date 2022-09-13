@@ -3,17 +3,7 @@ sidebar_label: SHOW Statement
 title: SHOW Statement for Metadata
 ---
 
-In addition to running SELECT statements on INFORMATION_SCHEMA, you can also use SHOW to obtain system metadata, information, and status.
-
-## SHOW ACCOUNTS
-
-```sql
-SHOW ACCOUNTS;
-```
-
-Shows information about tenants on the system.
-
-Note: TDengine Enterprise Edition only.
+`SHOW` command can be used to get brief system information. To get details about metatadata, information, and status in the system, please use `select` to query the tables in database `INFORMATION_SCHEMA`. 
 
 ## SHOW APPS
 
@@ -194,7 +184,7 @@ Shows information about streams in the system.
 SHOW SUBSCRIPTIONS;
 ```
 
-Shows all subscriptions in the current database.
+Shows all subscriptions in the system.
 
 ## SHOW TABLES
 

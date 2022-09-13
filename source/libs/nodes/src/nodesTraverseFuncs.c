@@ -537,7 +537,8 @@ static EDealRes dispatchPhysiPlan(SNode* pNode, ETraversalOrder order, FNodeWalk
       }
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_PARTITION: {
+    case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION: {
       SPartitionPhysiNode* pPart = (SPartitionPhysiNode*)pNode;
       res = walkPhysiNode((SPhysiNode*)pNode, order, walker, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {

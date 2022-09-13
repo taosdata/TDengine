@@ -210,6 +210,8 @@ void taosHashSetEqualFp(SHashObj *pHashObj, _equal_fn_t fp);
  */
 void taosHashSetFreeFp(SHashObj *pHashObj, _hash_free_fn_t fp);
 
+int64_t taosHashGetCompTimes(SHashObj *pHashObj);
+
 #ifdef __cplusplus
 }
 #endif

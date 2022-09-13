@@ -99,6 +99,7 @@ static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const
         memcpy(val, (uint16_t *)&len, VARSTR_HEADER_SIZE);
         type = TSDB_DATA_TYPE_VARCHAR;
         term = indexTermCreate(suid, ADD_VALUE, type, key, nKey, val, len);
+        taosMemoryFree(val);
       } else if (pTagVal->nData == 0) {
         term = indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_VARCHAR, key, nKey, pTagVal->pData, 0);
       }
@@ -115,6 +116,7 @@ static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const
       indexMultiTermAdd(terms, term);
     }
   }
+  taosArrayDestroy(pTagVals);
   indexJsonPut(pMeta->pTagIvtIdx, terms, tuid);
   indexMultiTermDestroy(terms);
 #endif
@@ -242,6 +244,7 @@ int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq, SArray *tb
   // check if super table exists
   rc = tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &pData, &nData);
   if (rc < 0 || *(tb_uid_t *)pData != pReq->suid) {
+    tdbFree(pData);
     terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
     return -1;
   }
@@ -307,7 +310,7 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   int64_t     oversion;
   SDecoder    dc = {0};
   int32_t     ret;
-  int32_t     c;
+  int32_t     c = -2;
 
   tdbTbcOpen(pMeta->pUidIdx, &pUidIdxc, &pMeta->txn);
   ret = tdbTbcMoveTo(pUidIdxc, &pReq->suid, sizeof(tb_uid_t), &c);
@@ -367,7 +370,7 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   return 0;
 }
 
-int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
+int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMetaRsp **pMetaRsp) {
   SMetaEntry  me = {0};
   SMetaReader mr = {0};
 
@@ -413,6 +416,27 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
     me.ctbEntry.suid = pReq->ctb.suid;
     me.ctbEntry.pTags = pReq->ctb.pTag;
 
+#ifdef TAG_FILTER_DEBUG
+    SArray *pTagVals = NULL;
+    int32_t code = tTagToValArray((STag *)pReq->ctb.pTag, &pTagVals);
+    for (int i = 0; i < taosArrayGetSize(pTagVals); i++) {
+      STagVal *pTagVal = (STagVal *)taosArrayGet(pTagVals, i);
+
+      if (IS_VAR_DATA_TYPE(pTagVal->type)) {
+        char *buf = taosMemoryCalloc(pTagVal->nData + 1, 1);
+        memcpy(buf, pTagVal->pData, pTagVal->nData);
+        metaDebug("metaTag table:%s varchar index:%d cid:%d type:%d value:%s", pReq->name, i, pTagVal->cid,
+                  pTagVal->type, buf);
+        taosMemoryFree(buf);
+      } else {
+        double val = 0;
+        GET_TYPED_DATA(val, double, pTagVal->type, &pTagVal->i64);
+        metaDebug("metaTag table:%s number index:%d cid:%d type:%d value:%f", pReq->name, i, pTagVal->cid,
+                  pTagVal->type, val);
+      }
+    }
+#endif
+
     ++pMeta->pVnode->config.vndStats.numOfCTables;
   } else {
     me.ntbEntry.ctime = pReq->ctime;
@@ -423,9 +447,25 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
     me.ntbEntry.ncid = me.ntbEntry.schemaRow.pSchema[me.ntbEntry.schemaRow.nCols - 1].colId + 1;
 
     ++pMeta->pVnode->config.vndStats.numOfNTables;
+    pMeta->pVnode->config.vndStats.numOfNTimeSeries += me.ntbEntry.schemaRow.nCols - 1;
   }
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
+
+  if (pMetaRsp) {
+    *pMetaRsp = taosMemoryCalloc(1, sizeof(STableMetaRsp));
+
+    if (*pMetaRsp) {
+      if (me.type == TSDB_CHILD_TABLE) {
+        (*pMetaRsp)->tableType = TSDB_CHILD_TABLE;
+        (*pMetaRsp)->tuid = pReq->uid;
+        (*pMetaRsp)->suid = pReq->ctb.suid;
+        strcpy((*pMetaRsp)->tbName, pReq->name);
+      } else {
+        metaUpdateMetaRsp(pReq->uid, pReq->name, &pReq->ntb.schemaRow, *pMetaRsp);
+      }
+    }
+  }
 
   metaDebug("vgId:%d, table:%s uid %" PRId64 " is created, type:%" PRId8, TD_VID(pMeta->pVnode), pReq->name, pReq->uid,
             pReq->type);
@@ -437,7 +477,7 @@ _err:
   return -1;
 }
 
-int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUids) {
+int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUids, tb_uid_t *tbUid) {
   void    *pData = NULL;
   int      nData = 0;
   int      rc = 0;
@@ -457,6 +497,10 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUi
 
   if ((type == TSDB_CHILD_TABLE || type == TSDB_NORMAL_TABLE) && tbUids) {
     taosArrayPush(tbUids, &uid);
+  }
+
+  if ((type == TSDB_CHILD_TABLE) && tbUid) {
+    *tbUid = uid;
   }
 
   tdbFree(pData);
@@ -516,6 +560,9 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
   SDecoder   dc = {0};
 
   rc = tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData);
+  if (rc < 0) {
+    return -1;
+  }
   int64_t version = ((SUidIdxVal *)pData)[0].version;
 
   tdbTbGet(pMeta->pTbDb, &(STbDbKey){.version = version, .uid = uid}, sizeof(STbDbKey), &pData, &nData);
@@ -562,6 +609,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
     // drop schema.db (todo)
 
     --pMeta->pVnode->config.vndStats.numOfNTables;
+    pMeta->pVnode->config.vndStats.numOfNTimeSeries -= e.ntbEntry.schemaRow.nCols - 1;
   } else if (e.type == TSDB_SUPER_TABLE) {
     tdbTbDelete(pMeta->pSuidIdx, &e.uid, sizeof(tb_uid_t), &pMeta->txn);
     // drop schema.db (todo)
@@ -664,6 +712,8 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
       pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].flags = pAlterTbReq->flags;
       pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].colId = entry.ntbEntry.ncid++;
       strcpy(pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].name, pAlterTbReq->colName);
+
+      ++pMeta->pVnode->config.vndStats.numOfNTimeSeries;
       break;
     case TSDB_ALTER_TABLE_DROP_COLUMN:
       if (pColumn == NULL) {
@@ -684,6 +734,8 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         memmove(pColumn, pColumn + 1, tlen);
       }
       pSchema->nCols--;
+
+      --pMeta->pVnode->config.vndStats.numOfNTimeSeries;
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
       if (pColumn == NULL) {

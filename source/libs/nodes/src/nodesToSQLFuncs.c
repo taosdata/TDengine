@@ -135,7 +135,12 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
         NODES_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
       }
 
-      *len += snprintf(buf + *len, bufSize - *len, "%s", t);
+      int32_t tlen = strlen(t);
+      if (tlen > 32) {
+        *len += snprintf(buf + *len, bufSize - *len, "%.*s...%s", 32, t, t + tlen - 1);
+      } else {
+        *len += snprintf(buf + *len, bufSize - *len, "%s", t);
+      }
       taosMemoryFree(t);
 
       return TSDB_CODE_SUCCESS;
@@ -199,12 +204,17 @@ int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len) {
       SNodeListNode *pListNode = (SNodeListNode *)pNode;
       SNode         *node = NULL;
       bool           first = true;
+      int32_t        num = 0;
 
       *len += snprintf(buf + *len, bufSize - *len, "(");
 
       FOREACH(node, pListNode->pNodeList) {
         if (!first) {
           *len += snprintf(buf + *len, bufSize - *len, ", ");
+          if (++num >= 10) {
+            *len += snprintf(buf + *len, bufSize - *len, "...");
+            break;
+          }
         }
         NODES_ERR_RET(nodesNodeToSQL(node, buf, bufSize, len));
         first = false;

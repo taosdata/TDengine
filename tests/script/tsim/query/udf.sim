@@ -9,7 +9,7 @@ system sh/cfg.sh -n dnode1 -c udf -v 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
-print ======== step1 udf 
+print ======== step1 udf
 system sh/compile_udf.sh
 sql create database udf vgroups 3;
 sql use udf;

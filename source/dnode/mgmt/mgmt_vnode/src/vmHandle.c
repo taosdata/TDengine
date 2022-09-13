@@ -167,9 +167,12 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->walCfg.segSize = pCreate->walSegmentSize;
   pCfg->walCfg.level = pCreate->walLevel;
 
+  pCfg->sttTrigger = pCreate->sstTrigger;
   pCfg->hashBegin = pCreate->hashBegin;
   pCfg->hashEnd = pCreate->hashEnd;
   pCfg->hashMethod = pCreate->hashMethod;
+  pCfg->hashPrefix = pCreate->hashPrefix;
+  pCfg->hashSuffix = pCreate->hashSuffix;
 
   pCfg->standby = pCfg->standby;
   pCfg->syncCfg.myIndex = pCreate->selfIndex;
@@ -219,8 +222,11 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  dDebug("vgId:%d, start to create vnode, tsma:%d standby:%d cacheLast:%d cacheLastSize:%d", createReq.vgId,
-         createReq.isTsma, createReq.standby, createReq.cacheLast, createReq.cacheLastSize);
+  dInfo("vgId:%d, start to create vnode, tsma:%d standby:%d cacheLast:%d cacheLastSize:%d sstTrigger:%d",
+        createReq.vgId, createReq.isTsma, createReq.standby, createReq.cacheLast, createReq.cacheLastSize,
+        createReq.sstTrigger);
+  dInfo("vgId:%d, hashMethod:%d begin:%u end:%u prefix:%d surfix:%d", createReq.vgId, createReq.hashMethod,
+        createReq.hashBegin, createReq.hashEnd, createReq.hashPrefix, createReq.hashSuffix);
   vmGenerateVnodeCfg(&createReq, &vnodeCfg);
 
   if (vmTsmaAdjustDays(&vnodeCfg, &createReq) < 0) {

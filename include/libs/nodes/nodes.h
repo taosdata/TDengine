@@ -183,12 +183,12 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_DNODE_VARIABLES_STMT,
   QUERY_NODE_SHOW_TRANSACTIONS_STMT,
   QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT,
+  QUERY_NODE_SHOW_VNODES_STMT,
   QUERY_NODE_SHOW_CREATE_DATABASE_STMT,
   QUERY_NODE_SHOW_CREATE_TABLE_STMT,
   QUERY_NODE_SHOW_CREATE_STABLE_STMT,
   QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT,
   QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT,
-  QUERY_NODE_SHOW_VNODES_STMT,
   QUERY_NODE_SHOW_SCORES_STMT,
   QUERY_NODE_KILL_CONNECTION_STMT,
   QUERY_NODE_KILL_QUERY_STMT,
@@ -244,6 +244,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE,
   QUERY_NODE_PHYSICAL_PLAN_PARTITION,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION,
   QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC,
   QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC,
   QUERY_NODE_PHYSICAL_PLAN_DISPATCH,
@@ -318,6 +319,9 @@ int32_t     nodesStringToNode(const char* pStr, SNode** pNode);
 
 int32_t nodesListToString(const SNodeList* pList, bool format, char** pStr, int32_t* pLen);
 int32_t nodesStringToList(const char* pStr, SNodeList** pList);
+
+int32_t nodesNodeToMsg(const SNode* pNode, char** pMsg, int32_t* pLen);
+int32_t nodesMsgToNode(const char* pStr, int32_t len, SNode** pNode);
 
 int32_t nodesNodeToSQL(SNode* pNode, char* buf, int32_t bufSize, int32_t* len);
 char*   nodesGetNameFromColumnNode(SNode* pNode);

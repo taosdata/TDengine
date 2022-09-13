@@ -368,6 +368,7 @@ _exit:
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->vgId = TD_VID(pVnode);
   pLoad->syncState = syncGetMyRole(pVnode->sync);
+  pLoad->cacheUsage = tsdbCacheGetUsage(pVnode);
   pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
   pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta);
   pLoad->totalStorage = (int64_t)3 * 1073741824;
@@ -424,8 +425,8 @@ int32_t vnodeGetCtbIdList(SVnode *pVnode, int64_t suid, SArray *list) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t vnodeGetStbIdList(SVnode* pVnode, int64_t suid, SArray* list) {
-  SMStbCursor* pCur = metaOpenStbCursor(pVnode->pMeta, suid);
+int32_t vnodeGetStbIdList(SVnode *pVnode, int64_t suid, SArray *list) {
+  SMStbCursor *pCur = metaOpenStbCursor(pVnode->pMeta, suid);
   if (!pCur) {
     return TSDB_CODE_FAILED;
   }
@@ -467,9 +468,13 @@ static int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
   STSchema *pTSchema = metaGetTbTSchema(pVnode->pMeta, suid, -1);
   // metaGetTbTSchemaEx(pVnode->pMeta, suid, suid, -1, &pTSchema);
 
-  *num = pTSchema->numOfCols;
+  if (pTSchema) {
+    *num = pTSchema->numOfCols;
 
-  taosMemoryFree(pTSchema);
+    taosMemoryFree(pTSchema);
+  } else {
+    *num = 2;
+  }
 
   return TSDB_CODE_SUCCESS;
 }

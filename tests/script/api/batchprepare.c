@@ -2598,7 +2598,6 @@ void runAll(TAOS *taos) {
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   runCaseList(taos);
 
-#if 0
   strcpy(gCaseCtrl.caseCatalog, "Micro DB precision Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.precision = TIME_PRECISION_MICRO;
@@ -2654,7 +2653,6 @@ void runAll(TAOS *taos) {
   gCaseCtrl.bindColNum = 6;
   runCaseList(taos);
   gCaseCtrl.bindColNum = 0;
-#endif
 
 /*
   strcpy(gCaseCtrl.caseCatalog, "Bind Col Type Test");

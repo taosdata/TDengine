@@ -159,6 +159,7 @@ if $data01 != 10 then
   return -1
 endi
 if $data02 != 4.500000000 then
+  print expect 4.500000000, actual: $data02
   return -1
 endi
 if $data03 != 4.500000000 then

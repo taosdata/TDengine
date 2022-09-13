@@ -37,9 +37,9 @@ TEST_F(PlanOtherTest, createStream) {
 TEST_F(PlanOtherTest, createStreamUseSTable) {
   useDb("root", "test");
 
-  run("CREATE STREAM IF NOT EXISTS s1 as SELECT COUNT(*) FROM st1 INTERVAL(10s)");
+  run("CREATE STREAM IF NOT EXISTS s1 into st1 as SELECT COUNT(*) FROM st1 INTERVAL(10s)");
 
-  run("CREATE STREAM IF NOT EXISTS s1 as SELECT COUNT(*) FROM st1 PARTITION BY TBNAME INTERVAL(10s)");
+  run("CREATE STREAM IF NOT EXISTS s1 into st1 as SELECT COUNT(*) FROM st1 PARTITION BY TBNAME INTERVAL(10s)");
 }
 
 TEST_F(PlanOtherTest, createSmaIndex) {

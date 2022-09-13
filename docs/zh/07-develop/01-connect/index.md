@@ -1,6 +1,6 @@
 ---
 title: 建立连接
-description: "本节介绍如何使用连接器建立与 TDengine 的连接，给出连接器安装、连接的简单说明。"
+description: 使用连接器建立与 TDengine 的连接，以及连接器的安装和连接
 ---
 
 import Tabs from "@theme/Tabs";
@@ -33,7 +33,7 @@ TDengine 提供了丰富的应用程序开发接口，为了便于用户快速�
 关键不同点在于：
 
 1. 使用 REST 连接，用户无需安装客户端驱动程序 taosc，具有跨平台易用的优势，但性能要下降 30%左右。
-2. 使用原生连接可以体验 TDengine 的全部功能，如[参数绑定接口](/reference/connector/cpp#参数绑定-api)、[订阅](/reference/connector/cpp#订阅和消费-api)等等。
+2. 使用原生连接可以体验 TDengine 的全部功能，如[参数绑定接口](../../connector/cpp/#参数绑定-api)、[订阅](../../connector/cpp/#订阅和消费-api)等等。
 
 ## 安装客户端驱动 taosc
 

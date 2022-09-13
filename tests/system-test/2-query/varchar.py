@@ -14,43 +14,44 @@ class TDTestCase:
         tdSql.init(conn.cursor())
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
+        dbname = "db"
         tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table")
         tdSql.execute(
-            '''create table stb1
+            f'''create table {dbname}.stb1
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 varchar(16),c9 nchar(32), c10 timestamp)
             tags (t1 int)
             '''
         )
         tdSql.execute(
-            '''
-            create table t1
+            f'''
+            create table {dbname}.t1
             (ts timestamp, c1 int, c2 bigint, c3 smallint, c4 tinyint, c5 float, c6 double, c7 bool, c8 varchar(16),c9 nchar(32), c10 timestamp)
             '''
         )
         for i in range(4):
-            tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
+            tdSql.execute(f'create table {dbname}.ct{i+1} using {dbname}.stb1 tags ( {i+1} )')
 
         tdLog.printNoPrefix("==========step2:insert data")
         for i in range(9):
             tdSql.execute(
 
-                f"insert into ct1 values ( now()-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'varchar{i}', 'nchar{i}', now()+{1*i}a )"
+                f"insert into {dbname}.ct1 values ( now()-{i*10}s, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'varchar{i}', 'nchar{i}', now()+{1*i}a )"
             )
             tdSql.execute(
-                f"insert into ct4 values ( now()-{i*90}d, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'varchar{i}', 'nchar{i}', now()+{1*i}a )"
+                f"insert into {dbname}.ct4 values ( now()-{i*90}d, {1*i}, {11111*i}, {111*i}, {11*i}, {1.11*i}, {11.11*i}, {i%2}, 'varchar{i}', 'nchar{i}', now()+{1*i}a )"
             )
 
-        tdSql.execute("insert into ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'varchar0', 'nchar0', now()+8a )")
-        tdSql.execute("insert into ct1 values (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'varchar9', 'nchar9', now()+9a )")
+        tdSql.execute(f"insert into {dbname}.ct1 values (now()-45s, 0, 0, 0, 0, 0, 0, 0, 'varchar0', 'nchar0', now()+8a )")
+        tdSql.execute(f"insert into {dbname}.ct1 values (now()+10s, 9, -99999, -999, -99, -9.99, -99.99, 1, 'varchar9', 'nchar9', now()+9a )")
 
-        tdSql.execute("insert into ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
-        tdSql.execute("insert into ct4 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
-        tdSql.execute("insert into ct4 values (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) ")
+        tdSql.execute(f"insert into {dbname}.ct4 values (now()-810d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+        tdSql.execute(f"insert into {dbname}.ct4 values (now()-400d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL ) ")
+        tdSql.execute(f"insert into {dbname}.ct4 values (now()+90d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL  ) ")
 
         tdSql.execute(
-            f'''insert into t1 values
+            f'''insert into {dbname}.t1 values
             ( '2020-04-21 01:01:01.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( '2020-10-21 01:01:01.000', 1, 11111, 111, 11, 1.11, 11.11, 1, "varchar1", "nchar1", now()+1a )
             ( '2020-12-31 01:01:01.000', 2, 22222, 222, 22, 2.22, 22.22, 0, "varchar2", "nchar2", now()+2a )
@@ -70,7 +71,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step3: cast on varchar")
 
-        tdSql.query("select c8 from ct1")
+        tdSql.query(f"select c8 from {dbname}.ct1")
         for i in range(tdSql.queryRows):
             tdSql.checkData(i,0, data_ct1_c8[i])
 

@@ -207,6 +207,7 @@ class ParserTestBaseImpl {
     pCxt->db = caseEnv_.db_.c_str();
     pCxt->pUser = caseEnv_.user_.c_str();
     pCxt->isSuperUser = caseEnv_.user_ == "root";
+    pCxt->enableSysInfo = true;
     pCxt->pSql = stmtEnv_.sql_.c_str();
     pCxt->sqlLen = stmtEnv_.sql_.length();
     pCxt->pMsg = stmtEnv_.msgBuf_.data();

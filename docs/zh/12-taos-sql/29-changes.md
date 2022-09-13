@@ -1,6 +1,6 @@
 ---
-sidebar_label: 3.0 版本语法变更
-title: 3.0 版本语法变更
+sidebar_label: 语法变更
+title: 语法变更
 description: "TDengine 3.0 版本的语法变更说明"
 ---
 

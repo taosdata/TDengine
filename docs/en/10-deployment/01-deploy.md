@@ -39,18 +39,18 @@ To get the hostname on any host, the command `hostname -f` can be executed.
 
 On the physical machine running the application, ping the dnode that is running taosd. If the dnode is not accessible, the application cannot connect to taosd. In this case, verify the DNS and hosts settings on the physical node running the application.
 
-The end point of each dnode is the output hostname and port, such as h1.taosdata.com:6030.
+The end point of each dnode is the output hostname and port, such as h1.tdengine.com:6030.
 
 ### Step 5
 
-Modify the TDengine configuration file `/etc/taos/taos.cfg` on each node. Assuming the first dnode of TDengine cluster is "h1.taosdata.com:6030", its `taos.cfg` is configured as following.
+Modify the TDengine configuration file `/etc/taos/taos.cfg` on each node. Assuming the first dnode of TDengine cluster is "h1.tdengine.com:6030", its `taos.cfg` is configured as following.
 
 ```c
 // firstEp is the end point to connect to when any dnode starts
-firstEp               h1.taosdata.com:6030
+firstEp               h1.tdengine.com:6030
 
 // must be configured to the FQDN of the host where the dnode is launched
-fqdn                  h1.taosdata.com
+fqdn                  h1.tdengine.com
 
 // the port used by the dnode, default is 6030
 serverPort            6030
@@ -76,13 +76,13 @@ The first dnode can be started following the instructions in [Get Started](/get-
 taos> show dnodes;
 id | endpoint | vnodes | support_vnodes | status | create_time | note |
 ============================================================================================================================================
-1 | h1.taosdata.com:6030 | 0 | 1024 | ready | 2022-07-16 10:50:42.673 | |
+1 | h1.tdengine.com:6030 | 0 | 1024 | ready | 2022-07-16 10:50:42.673 | |
 Query OK, 1 rows affected (0.007984s)
 
 
 ```
 
-From the above output, it is shown that the end point of the started dnode is "h1.taosdata.com:6030", which is the `firstEp` of the cluster.
+From the above output, it is shown that the end point of the started dnode is "h1.tdengine.com:6030", which is the `firstEp` of the cluster.
 
 ## Add DNODE
 
@@ -90,7 +90,7 @@ There are a few steps necessary to add other dnodes in the cluster.
 
 Second, we can start `taosd` as instructed in [Get Started](/get-started/).
 
-Then, on the first dnode i.e. h1.taosdata.com in our example, use TDengine CLI `taos` to execute the following command:
+Then, on the first dnode i.e. h1.tdengine.com in our example, use TDengine CLI `taos` to execute the following command:
 
 ```sql
 CREATE DNODE "h2.taos.com:6030";
@@ -98,7 +98,7 @@ CREATE DNODE "h2.taos.com:6030";
 
 This adds the end point of the new dnode (from Step 4) into the end point list of the cluster. In the command "fqdn:port" should be quoted using double quotes. Change `"h2.taos.com:6030"` to the end point of your new dnode. 
 
-Then on the first dnode h1.taosdata.com, execute `show dnodes` in `taos`
+Then on the first dnode h1.tdengine.com, execute `show dnodes` in `taos`
 
 ```sql
 SHOW DNODES;
@@ -114,7 +114,9 @@ The above process can be repeated to add more dnodes in the cluster.
 
 Any node that is in the cluster and online can be the firstEp of new nodes.
 Nodes use the firstEp parameter only when joining a cluster for the first time. After a node has joined the cluster, it stores the latest mnode in its end point list and no longer makes use of firstEp.
-However, firstEp is used by clients that connect to the cluster. For example, if you run `taos shell` without arguments, it connects to the firstEp by default.
+
+However, firstEp is used by clients that connect to the cluster. For example, if you run TDengine CLI `taos` without arguments, it connects to the firstEp by default.
+
 Two dnodes that are launched without a firstEp value operate independently of each other. It is not possible to add one dnode to the other dnode and form a cluster. It is also not possible to form two independent clusters into a new cluster.
 
 :::

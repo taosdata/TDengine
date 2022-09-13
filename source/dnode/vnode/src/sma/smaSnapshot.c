@@ -15,11 +15,13 @@
 
 #include "sma.h"
 
-static int32_t rsmaSnapReadQTaskInfo(SRsmaSnapReader* pReader, uint8_t** ppData);
-static int32_t rsmaSnapWriteQTaskInfo(SRsmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
+static int32_t rsmaSnapReadQTaskInfo(SRSmaSnapReader* pReader, uint8_t** ppData);
+static int32_t rsmaSnapWriteQTaskInfo(SRSmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
+static int32_t rsmaQTaskInfSnapReaderOpen(SRSmaSnapReader* pReader, int64_t version);
+static int32_t rsmaQTaskInfSnapReaderClose(SQTaskFReader** ppReader);
 
-// SRsmaSnapReader ========================================
-struct SRsmaSnapReader {
+// SRSmaSnapReader ========================================
+struct SRSmaSnapReader {
   SSma*   pSma;
   int64_t sver;
   int64_t ever;
@@ -33,13 +35,13 @@ struct SRsmaSnapReader {
   SQTaskFReader* pQTaskFReader;
 };
 
-int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRsmaSnapReader** ppReader) {
+int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapReader** ppReader) {
   int32_t          code = 0;
   SVnode*          pVnode = pSma->pVnode;
-  SRsmaSnapReader* pReader = NULL;
+  SRSmaSnapReader* pReader = NULL;
 
   // alloc
-  pReader = (SRsmaSnapReader*)taosMemoryCalloc(1, sizeof(*pReader));
+  pReader = (SRSmaSnapReader*)taosMemoryCalloc(1, sizeof(*pReader));
   if (pReader == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -48,7 +50,7 @@ int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRsmaSnapRead
   pReader->sver = sver;
   pReader->ever = ever;
 
-  // rsma1/rsma2
+  // open rsma1/rsma2
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pSma->pRSmaTsdb[i]) {
       code = tsdbSnapReaderOpen(pSma->pRSmaTsdb[i], sver, ever, i == 0 ? SNAP_DATA_RSMA1 : SNAP_DATA_RSMA2,
@@ -59,51 +61,112 @@ int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRsmaSnapRead
     }
   }
 
-  // qtaskinfo
-  // 1. add ref to qtaskinfo.v${ever} if exists and then start to replicate
-  char qTaskInfoFullName[TSDB_FILENAME_LEN];
-  tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), ever, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFullName);
-
-  if (!taosCheckExistFile(qTaskInfoFullName)) {
-    smaInfo("vgId:%d, vnode snapshot rsma reader for qtaskinfo not need as %s not exists", TD_VID(pVnode),
-            qTaskInfoFullName);
-  } else {
-    pReader->pQTaskFReader = taosMemoryCalloc(1, sizeof(SQTaskFReader));
-    if (!pReader->pQTaskFReader) {
-      code = TSDB_CODE_OUT_OF_MEMORY;
-      goto _err;
-    }
-
-    TdFilePtr qTaskF = taosOpenFile(qTaskInfoFullName, TD_FILE_READ);
-    if (!qTaskF) {
-      code = TAOS_SYSTEM_ERROR(errno);
-      goto _err;
-    }
-    pReader->pQTaskFReader->pReadH = qTaskF;
-#if 0
-    SQTaskFile* pQTaskF = &pReader->pQTaskFReader->fTask;
-    pQTaskF->nRef = 1;
-#endif
+  // open qtaskinfo
+  if ((code = rsmaQTaskInfSnapReaderOpen(pReader, ever)) < 0) {
+    goto _err;
   }
 
   *ppReader = pReader;
-  smaInfo("vgId:%d, vnode snapshot rsma reader opened %s succeed", TD_VID(pVnode), qTaskInfoFullName);
+
   return TSDB_CODE_SUCCESS;
 _err:
-  smaError("vgId:%d, vnode snapshot rsma reader opened failed since %s", TD_VID(pVnode), tstrerror(code));
+  smaError("vgId:%d, vnode snapshot rsma reader open failed since %s", TD_VID(pVnode), tstrerror(code));
   return TSDB_CODE_FAILED;
 }
 
-static int32_t rsmaSnapReadQTaskInfo(SRsmaSnapReader* pReader, uint8_t** ppBuf) {
+static int32_t rsmaQTaskInfSnapReaderOpen(SRSmaSnapReader* pReader, int64_t version) {
+  int32_t    code = 0;
+  SSma*      pSma = pReader->pSma;
+  SVnode*    pVnode = pSma->pVnode;
+  SSmaEnv*   pEnv = NULL;
+  SRSmaStat* pStat = NULL;
+
+  if (!(pEnv = SMA_RSMA_ENV(pSma))) {
+    smaInfo("vgId:%d, vnode snapshot rsma reader for qtaskinfo version %" PRIi64 " not need as env is NULL",
+            TD_VID(pVnode), version);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pStat = (SRSmaStat*)SMA_ENV_STAT(pEnv);
+
+  int32_t ref = tdRSmaFSRef(pReader->pSma, pStat, version);
+  if (ref < 1) {
+    smaInfo("vgId:%d, vnode snapshot rsma reader for qtaskinfo version %" PRIi64 " not need as ref is %d",
+            TD_VID(pVnode), version, ref);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char qTaskInfoFullName[TSDB_FILENAME_LEN];
+  tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), version, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFullName);
+
+  if (!taosCheckExistFile(qTaskInfoFullName)) {
+    tdRSmaFSUnRef(pSma, pStat, version);
+    smaInfo("vgId:%d, vnode snapshot rsma reader for qtaskinfo version %" PRIi64 " not need as %s not exists",
+            TD_VID(pVnode), qTaskInfoFullName);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pReader->pQTaskFReader = taosMemoryCalloc(1, sizeof(SQTaskFReader));
+  if (!pReader->pQTaskFReader) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _end;
+  }
+
+  TdFilePtr fp = taosOpenFile(qTaskInfoFullName, TD_FILE_READ);
+  if (!fp) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    taosMemoryFreeClear(pReader->pQTaskFReader);
+    goto _end;
+  }
+
+  pReader->pQTaskFReader->pReadH = fp;
+  pReader->pQTaskFReader->pSma = pSma;
+  pReader->pQTaskFReader->version = pReader->ever;
+
+_end:
+  if (code < 0) {
+    tdRSmaFSUnRef(pSma, pStat, version);
+    smaError("vgId:%d, vnode snapshot rsma reader open %s succeed", TD_VID(pVnode), qTaskInfoFullName);
+    return TSDB_CODE_FAILED;
+  }
+
+  smaInfo("vgId:%d, vnode snapshot rsma reader open %s succeed", TD_VID(pVnode), qTaskInfoFullName);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t rsmaQTaskInfSnapReaderClose(SQTaskFReader** ppReader) {
+  if (!(*ppReader)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SSma*      pSma = (*ppReader)->pSma;
+  SRSmaStat* pStat = SMA_RSMA_STAT(pSma);
+  int64_t    version = (*ppReader)->version;
+
+  taosCloseFile(&(*ppReader)->pReadH);
+  tdRSmaFSUnRef(pSma, pStat, version);
+  taosMemoryFreeClear(*ppReader);
+  smaInfo("vgId:%d, vnode snapshot rsma reader closed for qTaskInfo version %" PRIi64, SMA_VID(pSma), version);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t rsmaSnapReadQTaskInfo(SRSmaSnapReader* pReader, uint8_t** ppBuf) {
   int32_t        code = 0;
   SSma*          pSma = pReader->pSma;
   int64_t        n = 0;
   uint8_t*       pBuf = NULL;
   SQTaskFReader* qReader = pReader->pQTaskFReader;
 
+  if (!qReader) {
+    *ppBuf = NULL;
+    smaInfo("vgId:%d, vnode snapshot rsma reader qtaskinfo, qTaskReader is NULL", SMA_VID(pSma));
+    return 0;
+  }
+
   if (!qReader->pReadH) {
     *ppBuf = NULL;
-    smaInfo("vgId:%d, vnode snapshot rsma reader qtaskinfo, readh is empty", SMA_VID(pSma));
+    smaInfo("vgId:%d, vnode snapshot rsma reader qtaskinfo, readh is NULL", SMA_VID(pSma));
     return 0;
   }
 
@@ -153,7 +216,7 @@ _err:
   return code;
 }
 
-int32_t rsmaSnapRead(SRsmaSnapReader* pReader, uint8_t** ppData) {
+int32_t rsmaSnapRead(SRSmaSnapReader* pReader, uint8_t** ppData) {
   int32_t code = 0;
 
   *ppData = NULL;
@@ -205,9 +268,9 @@ _err:
   return code;
 }
 
-int32_t rsmaSnapReaderClose(SRsmaSnapReader** ppReader) {
+int32_t rsmaSnapReaderClose(SRSmaSnapReader** ppReader) {
   int32_t          code = 0;
-  SRsmaSnapReader* pReader = *ppReader;
+  SRSmaSnapReader* pReader = *ppReader;
 
   for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
     if (pReader->pDataReader[i]) {
@@ -215,11 +278,7 @@ int32_t rsmaSnapReaderClose(SRsmaSnapReader** ppReader) {
     }
   }
 
-  if (pReader->pQTaskFReader) {
-    taosCloseFile(&pReader->pQTaskFReader->pReadH);
-    taosMemoryFreeClear(pReader->pQTaskFReader);
-    smaInfo("vgId:%d, vnode snapshot rsma reader closed for qTaskInfo", SMA_VID(pReader->pSma));
-  }
+  rsmaQTaskInfSnapReaderClose(&pReader->pQTaskFReader);
 
   smaInfo("vgId:%d, vnode snapshot rsma reader closed", SMA_VID(pReader->pSma));
 
@@ -227,8 +286,8 @@ int32_t rsmaSnapReaderClose(SRsmaSnapReader** ppReader) {
   return code;
 }
 
-// SRsmaSnapWriter ========================================
-struct SRsmaSnapWriter {
+// SRSmaSnapWriter ========================================
+struct SRSmaSnapWriter {
   SSma*   pSma;
   int64_t sver;
   int64_t ever;
@@ -244,13 +303,13 @@ struct SRsmaSnapWriter {
   SQTaskFWriter* pQTaskFWriter;
 };
 
-int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRsmaSnapWriter** ppWriter) {
+int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapWriter** ppWriter) {
   int32_t          code = 0;
-  SRsmaSnapWriter* pWriter = NULL;
+  SRSmaSnapWriter* pWriter = NULL;
   SVnode*          pVnode = pSma->pVnode;
 
   // alloc
-  pWriter = (SRsmaSnapWriter*)taosMemoryCalloc(1, sizeof(*pWriter));
+  pWriter = (SRSmaSnapWriter*)taosMemoryCalloc(1, sizeof(*pWriter));
   if (pWriter == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -301,9 +360,9 @@ _err:
   return code;
 }
 
-int32_t rsmaSnapWriterClose(SRsmaSnapWriter** ppWriter, int8_t rollback) {
+int32_t rsmaSnapWriterClose(SRSmaSnapWriter** ppWriter, int8_t rollback) {
   int32_t          code = 0;
-  SRsmaSnapWriter* pWriter = *ppWriter;
+  SRSmaSnapWriter* pWriter = *ppWriter;
   SVnode*          pVnode = pWriter->pSma->pVnode;
 
   if (rollback) {
@@ -332,7 +391,7 @@ int32_t rsmaSnapWriterClose(SRsmaSnapWriter** ppWriter, int8_t rollback) {
               pWriter->pQTaskFWriter->fname, qTaskInfoFullName);
 
       // rsma restore
-      if ((code = tdRsmaRestore(pWriter->pSma, RSMA_RESTORE_SYNC, pWriter->ever)) < 0) {
+      if ((code = tdRSmaRestore(pWriter->pSma, RSMA_RESTORE_SYNC, pWriter->ever)) < 0) {
         goto _err;
       }
       smaInfo("vgId:%d, vnode snapshot rsma writer restore from %s succeed", SMA_VID(pWriter->pSma), qTaskInfoFullName);
@@ -349,7 +408,7 @@ _err:
   return code;
 }
 
-int32_t rsmaSnapWrite(SRsmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
+int32_t rsmaSnapWrite(SRSmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t       code = 0;
   SSnapDataHdr* pHdr = (SSnapDataHdr*)pData;
 
@@ -377,7 +436,7 @@ _err:
   return code;
 }
 
-static int32_t rsmaSnapWriteQTaskInfo(SRsmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
+static int32_t rsmaSnapWriteQTaskInfo(SRSmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData) {
   int32_t        code = 0;
   SQTaskFWriter* qWriter = pWriter->pQTaskFWriter;
 

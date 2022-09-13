@@ -19,6 +19,7 @@
 #include "tdb.h"
 
 #include "tlog.h"
+#include "trbtree.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -256,6 +257,7 @@ typedef struct {
 #pragma pack(pop)
 
 struct SPage {
+  SRBTreeNode    node;  // must be the first field for pageCmpFn to work
   tdb_spinlock_t lock;
   int            pageSize;
   u8            *pData;
@@ -280,13 +282,13 @@ struct SPage {
 
 static inline i32 tdbRefPage(SPage *pPage) {
   i32 nRef = atomic_add_fetch_32(&((pPage)->nRef), 1);
-  tdbTrace("ref page %d, nRef %d", pPage->id, nRef);
+  // tdbTrace("ref page %p/%d, nRef %d", pPage, pPage->id, nRef);
   return nRef;
 }
 
 static inline i32 tdbUnrefPage(SPage *pPage) {
   i32 nRef = atomic_sub_fetch_32(&((pPage)->nRef), 1);
-  tdbTrace("unref page %d, nRef %d", pPage->id, nRef);
+  // tdbTrace("unref page %p/%d, nRef %d", pPage, pPage->id, nRef);
   return nRef;
 }
 
@@ -389,6 +391,7 @@ struct SPager {
   SPgno    dbFileSize;
   SPgno    dbOrigSize;
   SPage   *pDirty;
+  SRBTree  rbt;
   u8       inTran;
   SPager  *pNext;      // used by TDB
   SPager  *pHashNext;  // used by TDB

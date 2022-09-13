@@ -1,6 +1,7 @@
 ---
 sidebar_label: Prometheus
 title: Prometheus 
+description: 使用 Prometheus 访问 TDengine
 ---
 
 import Prometheus from "../14-reference/_prometheus.mdx"

@@ -19,11 +19,12 @@
 #include "tchecksum.h"
 #include "tcoding.h"
 
-static void fstPackDeltaIn(IdxFstFile* wrt, CompiledAddr nodeAddr, CompiledAddr transAddr, uint8_t nBytes) {
+static FORCE_INLINE void fstPackDeltaIn(IdxFstFile* wrt, CompiledAddr nodeAddr, CompiledAddr transAddr,
+                                        uint8_t nBytes) {
   CompiledAddr deltaAddr = (transAddr == EMPTY_ADDRESS) ? EMPTY_ADDRESS : nodeAddr - transAddr;
   idxFilePackUintIn(wrt, deltaAddr, nBytes);
 }
-static uint8_t fstPackDetla(IdxFstFile* wrt, CompiledAddr nodeAddr, CompiledAddr transAddr) {
+static FORCE_INLINE uint8_t fstPackDetla(IdxFstFile* wrt, CompiledAddr nodeAddr, CompiledAddr transAddr) {
   uint8_t nBytes = packDeltaSize(nodeAddr, transAddr);
   fstPackDeltaIn(wrt, nodeAddr, transAddr, nBytes);
   return nBytes;
@@ -39,7 +40,7 @@ FstUnFinishedNodes* fstUnFinishedNodesCreate() {
   fstUnFinishedNodesPushEmpty(nodes, false);
   return nodes;
 }
-static void unFinishedNodeDestroyElem(void* elem) {
+static void FORCE_INLINE unFinishedNodeDestroyElem(void* elem) {
   FstBuilderNodeUnfinished* b = (FstBuilderNodeUnfinished*)elem;
   fstBuilderNodeDestroy(b->node);
   taosMemoryFree(b->last);

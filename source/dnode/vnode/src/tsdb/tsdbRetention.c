@@ -60,7 +60,7 @@ int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
     if (expLevel < 0) {
       taosMemoryFree(pSet->pHeadF);
       taosMemoryFree(pSet->pDataF);
-      taosMemoryFree(pSet->pLastF);
+      taosMemoryFree(pSet->aSttF[0]);
       taosMemoryFree(pSet->pSmaF);
       taosArrayRemove(fs.aDFileSet, iSet);
       iSet--;
@@ -82,8 +82,6 @@ int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
       code = tsdbFSUpsertFSet(&fs, &fSet);
       if (code) goto _err;
     }
-
-    /* code */
   }
 
   // do change fs

@@ -48,6 +48,7 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_KEEP,
   DB_OPTION_PAGES,
   DB_OPTION_PAGESIZE,
+  DB_OPTION_TSDB_PAGESIZE,
   DB_OPTION_PRECISION,
   DB_OPTION_REPLICA,
   DB_OPTION_STRICT,
@@ -59,7 +60,10 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_WAL_RETENTION_PERIOD,
   DB_OPTION_WAL_RETENTION_SIZE,
   DB_OPTION_WAL_ROLL_PERIOD,
-  DB_OPTION_WAL_SEGMENT_SIZE
+  DB_OPTION_WAL_SEGMENT_SIZE,
+  DB_OPTION_STT_TRIGGER,
+  DB_OPTION_TABLE_PREFIX,
+  DB_OPTION_TABLE_SUFFIX
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {
@@ -170,6 +174,7 @@ SNode* createShowCreateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* createShowCreateTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
 SNode* createShowTableDistributedStmt(SAstCreateContext* pCxt, SNode* pRealTable);
 SNode* createShowDnodeVariablesStmt(SAstCreateContext* pCxt, SNode* pDnodeId);
+SNode* createShowVnodesStmt(SAstCreateContext* pCxt, SNode* pDnodeId, SNode* pDnodeEndpoint);
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword, int8_t sysinfo);
 SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t alterType, const SToken* pVal);
 SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName);

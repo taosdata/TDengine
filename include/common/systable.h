@@ -22,54 +22,58 @@ extern "C" {
 #ifndef TDENGINE_SYSTABLE_H
 #define TDENGINE_SYSTABLE_H
 
-#define TSDB_INFORMATION_SCHEMA_DB            "information_schema"
-#define TSDB_INS_TABLE_DNODES                 "ins_dnodes"
-#define TSDB_INS_TABLE_MNODES                 "ins_mnodes"
-#define TSDB_INS_TABLE_MODULES                "ins_modules"
-#define TSDB_INS_TABLE_QNODES                 "ins_qnodes"
-#define TSDB_INS_TABLE_BNODES                 "ins_bnodes"
-#define TSDB_INS_TABLE_SNODES                 "ins_snodes"
-#define TSDB_INS_TABLE_CLUSTER                "ins_cluster"
-#define TSDB_INS_TABLE_DATABASES              "ins_databases"
-#define TSDB_INS_TABLE_FUNCTIONS              "ins_functions"
-#define TSDB_INS_TABLE_INDEXES                "ins_indexes"
-#define TSDB_INS_TABLE_STABLES                "ins_stables"
-#define TSDB_INS_TABLE_TABLES                 "ins_tables"
-#define TSDB_INS_TABLE_TAGS                   "ins_tags"
-#define TSDB_INS_TABLE_TABLE_DISTRIBUTED      "ins_table_distributed"
-#define TSDB_INS_TABLE_USERS                  "ins_users"
-#define TSDB_INS_TABLE_LICENCES               "ins_grants"
-#define TSDB_INS_TABLE_VGROUPS                "ins_vgroups"
-#define TSDB_INS_TABLE_VNODES                 "ins_vnodes"
-#define TSDB_INS_TABLE_CONFIGS                "ins_configs"
-#define TSDB_INS_TABLE_DNODE_VARIABLES        "ins_dnode_variables"
+#define TSDB_INFORMATION_SCHEMA_DB       "information_schema"
+#define TSDB_INS_TABLE_DNODES            "ins_dnodes"
+#define TSDB_INS_TABLE_MNODES            "ins_mnodes"
+#define TSDB_INS_TABLE_MODULES           "ins_modules"
+#define TSDB_INS_TABLE_QNODES            "ins_qnodes"
+#define TSDB_INS_TABLE_BNODES            "ins_bnodes"
+#define TSDB_INS_TABLE_SNODES            "ins_snodes"
+#define TSDB_INS_TABLE_CLUSTER           "ins_cluster"
+#define TSDB_INS_TABLE_DATABASES         "ins_databases"
+#define TSDB_INS_TABLE_FUNCTIONS         "ins_functions"
+#define TSDB_INS_TABLE_INDEXES           "ins_indexes"
+#define TSDB_INS_TABLE_STABLES           "ins_stables"
+#define TSDB_INS_TABLE_TABLES            "ins_tables"
+#define TSDB_INS_TABLE_TAGS              "ins_tags"
+#define TSDB_INS_TABLE_TABLE_DISTRIBUTED "ins_table_distributed"
+#define TSDB_INS_TABLE_USERS             "ins_users"
+#define TSDB_INS_TABLE_LICENCES          "ins_grants"
+#define TSDB_INS_TABLE_VGROUPS           "ins_vgroups"
+#define TSDB_INS_TABLE_VNODES            "ins_vnodes"
+#define TSDB_INS_TABLE_CONFIGS           "ins_configs"
+#define TSDB_INS_TABLE_DNODE_VARIABLES   "ins_dnode_variables"
+#define TSDB_INS_TABLE_SUBSCRIPTIONS     "ins_subscriptions"
+#define TSDB_INS_TABLE_TOPICS            "ins_topics"
+#define TSDB_INS_TABLE_STREAMS           "ins_streams"
 
 #define TSDB_PERFORMANCE_SCHEMA_DB     "performance_schema"
 #define TSDB_PERFS_TABLE_SMAS          "perf_smas"
 #define TSDB_PERFS_TABLE_CONNECTIONS   "perf_connections"
 #define TSDB_PERFS_TABLE_QUERIES       "perf_queries"
-#define TSDB_PERFS_TABLE_TOPICS        "perf_topics"
 #define TSDB_PERFS_TABLE_CONSUMERS     "perf_consumers"
-#define TSDB_PERFS_TABLE_SUBSCRIPTIONS "perf_subscriptions"
 #define TSDB_PERFS_TABLE_OFFSETS       "perf_offsets"
 #define TSDB_PERFS_TABLE_TRANS         "perf_trans"
-#define TSDB_PERFS_TABLE_STREAMS       "perf_streams"
 #define TSDB_PERFS_TABLE_APPS          "perf_apps"
 
 typedef struct SSysDbTableSchema {
   const char*   name;
   const int32_t type;
   const int32_t bytes;
+  const bool    sysInfo;
 } SSysDbTableSchema;
 
 typedef struct SSysTableMeta {
   const char*              name;
   const SSysDbTableSchema* schema;
   const int32_t            colNum;
+  const bool               sysInfo;
 } SSysTableMeta;
 
 void getInfosDbMeta(const SSysTableMeta** pInfosTableMeta, size_t* size);
 void getPerfDbMeta(const SSysTableMeta** pPerfsTableMeta, size_t* size);
+void getVisibleInfosTablesNum(bool sysInfo, size_t* size);
+bool invisibleColumn(bool sysInfo, int8_t tableType, int8_t flags);
 
 #ifdef __cplusplus
 }
