@@ -223,7 +223,7 @@ Query OK, 2 row(s) in set (0.003128s)
 $ taosBenchmark
 ```
 
-该命令将在数据库 `test` 下面自动创建一张超级表 `meters`，该超级表下有 1 万张表，表名为 `d0` 到 `d9999`，每张表有 1 万条记录，每条记录有 `ts`、`current`、`voltage`、`phase` 四个字段，时间戳从 2017-07-14 10:40:00 000 到 2017-07-14 10:40:09 999，每张表带有标签 `location` 和 `groupId`，groupId 被设置为 1 到 10，location 被设置为 `Campbell`、`Cupertino`、`Los Angeles`、`Mountain View`、`Palo Alto`、`San Diego`、`San Francisco`、`San Jose`、`Santa Clara` 或者 `Sunnyvale`。
+该命令将在数据库 `test` 下面自动创建一张超级表 `meters`，该超级表下有 1 万张表，表名为 `d0` 到 `d9999`，每张表有 1 万条记录，每条记录有 `ts`、`current`、`voltage`、`phase` 四个字段，时间戳从 2017-07-14 10:40:00 000 到 2017-07-14 10:40:09 999，每张表带有标签 `location` 和 `groupId`，groupId 被设置为 1 到 10，location 被设置为 `California.Campbell`、`California.Cupertino`、`California.LosAngeles`、`California.MountainView`、`California.PaloAlto`、`California.SanDiego`、`California.SanFrancisco`、`California.SanJose`、`California.SantaClara` 或者 `California.Sunnyvale`。
 
 这条命令很快完成 1 亿条记录的插入。具体时间取决于硬件性能，即使在一台普通的 PC 服务器往往也仅需十几秒。
 
@@ -245,10 +245,10 @@ SELECT COUNT(*) FROM test.meters;
 SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters;
 ```
 
-查询 location = "San Francisco" 的记录总条数：
+查询 location = "California.SanFrancisco" 的记录总条数：
 
 ```sql
-SELECT COUNT(*) FROM test.meters WHERE location = "San Francisco";
+SELECT COUNT(*) FROM test.meters WHERE location = "Calaifornia.SanFrancisco";
 ```
 
 查询 groupId = 10 的所有记录的平均值、最大值、最小值等：
