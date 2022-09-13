@@ -374,10 +374,12 @@ void cliHandleResp(SCliConn* conn) {
 
   if (pCtx == NULL && CONN_NO_PERSIST_BY_APP(conn)) {
     tDebug("%s except, conn %p read while cli ignore it", CONN_GET_INST_LABEL(conn), conn);
+    transFreeCont(transMsg.pCont);
     return;
   }
   if (CONN_RELEASE_BY_SERVER(conn) && transMsg.info.ahandle == NULL) {
     tDebug("%s except, conn %p read while cli ignore it", CONN_GET_INST_LABEL(conn), conn);
+    transFreeCont(transMsg.pCont);
     return;
   }
 
