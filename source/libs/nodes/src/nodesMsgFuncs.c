@@ -237,6 +237,11 @@ static int32_t tlvDecodeCStr(STlv* pTlv, char* pValue) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t tlvDecodeCStrP(STlv* pTlv, char** pValue) {
+  *pValue = strndup(pTlv->value, pTlv->len);
+  return NULL == *pValue ? TSDB_CODE_OUT_OF_MEMORY : TSDB_CODE_SUCCESS;
+}
+
 static int32_t tlvDecodeDynBinary(STlv* pTlv, void** pValue) {
   *pValue = taosMemoryMalloc(pTlv->len);
   if (NULL == *pValue) {
@@ -461,7 +466,7 @@ static int32_t msgToColumnNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { VALUE_CODE_EXPR_BASE = 1, VALUE_CODE_IS_NULL, VALUE_CODE_DATUM };
+enum { VALUE_CODE_EXPR_BASE = 1, VALUE_CODE_LITERAL, VALUE_CODE_IS_NULL, VALUE_CODE_DATUM };
 
 static int32_t datumToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SValueNode* pNode = (const SValueNode*)pObj;
@@ -512,6 +517,9 @@ static int32_t valueNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SValueNode* pNode = (const SValueNode*)pObj;
 
   int32_t code = tlvEncodeObj(pEncoder, VALUE_CODE_EXPR_BASE, exprNodeToMsg, pNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, VALUE_CODE_LITERAL, pNode->literal);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, VALUE_CODE_IS_NULL, pNode->isNull);
   }
@@ -607,6 +615,9 @@ static int32_t msgToValueNode(STlvDecoder* pDecoder, void* pObj) {
     switch (pTlv->type) {
       case VALUE_CODE_EXPR_BASE:
         code = tlvDecodeObjFromTlv(pTlv, msgToExprNode, &pNode->node);
+        break;
+      case VALUE_CODE_LITERAL:
+        code = tlvDecodeCStrP(pTlv, &pNode->literal);
         break;
       case VALUE_CODE_IS_NULL:
         code = tlvDecodeBool(pTlv, &pNode->isNull);

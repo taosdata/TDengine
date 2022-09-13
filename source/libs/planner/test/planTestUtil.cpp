@@ -487,6 +487,7 @@ class PlannerTestBaseImpl {
       DO_WITH_THROW(nodesNodeToString, pNode, false, &pNewStr, &newlen)
       cout << "new node: " << pNewStr << endl;
     }
+    nodesDestroyNode(pNode);
     taosMemoryFreeClear(pNewStr);
 
     string str(pStr, len);
