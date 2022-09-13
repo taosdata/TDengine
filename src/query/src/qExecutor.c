@@ -360,6 +360,7 @@ static void sortGroupResByOrderList(SGroupResInfo* pGroupResInfo, SQueryRuntimeE
                                .colBytes = bytes,
                                .resultRows = pGroupResInfo->pRows};
   taosArraySortPWithExt(pGroupResInfo->pRows, compareRowData, &support);
+  free(colData);
 }
 
 // setup the output buffer for each operator
