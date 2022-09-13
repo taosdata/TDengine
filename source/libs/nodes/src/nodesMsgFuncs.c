@@ -367,6 +367,10 @@ enum {
   COLUMN_CODE_TABLE_TYPE,
   COLUMN_CODE_COLUMN_ID,
   COLUMN_CODE_COLUMN_TYPE,
+  COLUMN_CODE_DB_NAME,
+  COLUMN_CODE_TABLE_NAME,
+  COLUMN_CODE_TABLE_ALIAS,
+  COLUMN_CODE_COL_NAME,
   COLUMN_CODE_DATABLOCK_ID,
   COLUMN_CODE_SLOT_ID
 };
@@ -386,6 +390,18 @@ static int32_t columnNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeEnum(pEncoder, COLUMN_CODE_COLUMN_TYPE, pNode->colType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, COLUMN_CODE_DB_NAME, pNode->dbName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, COLUMN_CODE_TABLE_NAME, pNode->tableName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, COLUMN_CODE_TABLE_ALIAS, pNode->tableAlias);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, COLUMN_CODE_COL_NAME, pNode->colName);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI16(pEncoder, COLUMN_CODE_DATABLOCK_ID, pNode->dataBlockId);
@@ -418,6 +434,18 @@ static int32_t msgToColumnNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case COLUMN_CODE_COLUMN_TYPE:
         code = tlvDecodeEnum(pTlv, &pNode->colType, sizeof(pNode->colType));
+        break;
+      case COLUMN_CODE_DB_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->dbName);
+        break;
+      case COLUMN_CODE_TABLE_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->tableName);
+        break;
+      case COLUMN_CODE_TABLE_ALIAS:
+        code = tlvDecodeCStr(pTlv, pNode->tableAlias);
+        break;
+      case COLUMN_CODE_COL_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->colName);
         break;
       case COLUMN_CODE_DATABLOCK_ID:
         code = tlvDecodeI16(pTlv, &pNode->dataBlockId);
