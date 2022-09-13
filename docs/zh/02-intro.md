@@ -48,7 +48,7 @@ TDengine 的主要功能如下：
    - 多种[数据导出](../operation/export)方式
 9. 工具
    - 提供[交互式命令行程序（CLI）](../reference/taos-shell)，便于管理集群，检查系统状态，做即席查询
-   - 提供压力测试工具[taosBenchmark](../reference/taosbenchmark)，用于测试 TDengine 的性能
+   - 提供压力测试工具 [taosBenchmark](../reference/taosbenchmark)，用于测试 TDengine 的性能
 10. 编程
     - 提供各种语言的[连接器（Connector）](../connector): 如 [C/C++](../connector/cpp)、[Java](../connector/java)、[Go](../connector/go)、[Node.js](../connector/node)、[Rust](../connector/rust)、[Python](../connector/python)、[C#](../connector/csharp) 等
     - 支持 [REST 接口](../connector/rest-api/)
