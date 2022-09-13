@@ -9,6 +9,9 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
 <!-- exclude-end -->
+
+In this section we will explain how to write into TDengine cloud service using REST API or schemaless protocols over REST interface.
+
 ## REST API
 
 ### Config
@@ -49,14 +52,14 @@ Following command below show how to insert data into the table `d1001` of the da
 ```bash
 curl -L \
   -d "INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31)" \
-  $TDENGINE_CLOUD_URL/rest/sql/test?token=<cloud_token>
+  $TDENGINE_CLOUD_URL/rest/sql/test?token=$TDENGINE_CLOUD_TOKEN
 ```
 
 ## Schemaless
 
 ### InfluxDB Line Protocol
 
-You can use any client that supports the http protocol to access the RESTful interface address `http://<cloud_url>/influxdb/v1/write` to write data in InfluxDB compatible format to TDengine. The EndPoint is as follows:
+You can use any client that supports the http protocol to access the RESTful interface address `<cloud_url>/influxdb/v1/write` to write data in InfluxDB compatible format to TDengine. The EndPoint is as follows:
 
 ```text
 /influxdb/v1/write?db=<db_name>&token=<cloud_token>
@@ -71,7 +74,7 @@ Note: InfluxDB token authorization is not supported at present. Only Basic autho
 
 ### OpenTSDB Json and Telnet Protocol
 
-You can use any client that supports the http protocol to access the RESTful interface address `http://<cloud_url>/opentsdb/v1/put` to write data in OpenTSDB compatible format to TDengine. The EndPoint is as follows:
+You can use any client that supports the http protocol to access the RESTful interface address `<cloud_url>/opentsdb/v1/put` to write data in OpenTSDB compatible format to TDengine. The EndPoint is as follows:
 
 ```text
 /opentsdb/v1/put/json/<db>?token=<cloud_token>
