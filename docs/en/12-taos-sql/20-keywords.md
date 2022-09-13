@@ -238,6 +238,7 @@ There are about 200 keywords reserved by TDengine, they can't be used as the nam
 - TOPICS
 - TRIGGER
 - TSERIES
+- TTL
 
 ### U
 
@@ -253,6 +254,7 @@ There are about 200 keywords reserved by TDengine, they can't be used as the nam
 
 ### V
 
+- VALUE
 - VALUES
 - VARIABLE
 - VARIABLES
