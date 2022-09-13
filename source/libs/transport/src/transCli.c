@@ -395,7 +395,7 @@ void cliHandleResp(SCliConn* conn) {
   }
 
   if (CONN_NO_PERSIST_BY_APP(conn)) {
-    addConnToPool(pThrd->pool, conn);
+    return addConnToPool(pThrd->pool, conn);
   }
 
   uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
