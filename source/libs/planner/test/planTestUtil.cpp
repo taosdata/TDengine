@@ -480,8 +480,12 @@ class PlannerTestBaseImpl {
     DO_WITH_THROW(nodesNodeToMsg, pNode, &pNewStr, &newlen)
     if (newlen != len || 0 != memcmp(pStr, pNewStr, len)) {
       cout << "nodesNodeToMsg error!!!!!!!!!!!!!! len = " << len << ", newlen = " << newlen << endl;
+      taosMemoryFreeClear(pNewStr);
+      DO_WITH_THROW(nodesNodeToString, pRoot, false, &pNewStr, &newlen)
+      cout << "orac node: " << pNewStr << endl;
+      taosMemoryFreeClear(pNewStr);
       DO_WITH_THROW(nodesNodeToString, pNode, false, &pNewStr, &newlen)
-      cout << "nodesNodeToString " << pNewStr << endl;
+      cout << "new node: " << pNewStr << endl;
     }
     taosMemoryFreeClear(pNewStr);
 

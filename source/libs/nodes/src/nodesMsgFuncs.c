@@ -24,7 +24,7 @@
 
 typedef struct STlv {
   int16_t type;
-  int16_t len;
+  int32_t len;
   char    value[0];
 } STlv;
 
@@ -70,7 +70,7 @@ static void endTlvEncode(STlvEncoder* pEncoder, char** pMsg, int32_t* pLen) {
   // nodesWarn("encode tlv count = %d, tl size = %d", pEncoder->tlvCount, sizeof(STlv) * pEncoder->tlvCount);
 }
 
-static int32_t tlvEncodeImpl(STlvEncoder* pEncoder, int16_t type, const void* pValue, int16_t len) {
+static int32_t tlvEncodeImpl(STlvEncoder* pEncoder, int16_t type, const void* pValue, int32_t len) {
   int32_t tlvLen = sizeof(STlv) + len;
   if (pEncoder->offset + tlvLen > pEncoder->allocSize) {
     void* pNewBuf = taosMemoryRealloc(pEncoder->pBuf, pEncoder->allocSize * 2);
@@ -187,7 +187,7 @@ static int32_t tlvGetNextTlv(STlvDecoder* pDecoder, STlv** pTlv) {
 
 static bool tlvDecodeEnd(STlvDecoder* pDecoder) { return pDecoder->offset == pDecoder->bufSize; }
 
-static int32_t tlvDecodeImpl(STlv* pTlv, void* pValue, int16_t len) {
+static int32_t tlvDecodeImpl(STlv* pTlv, void* pValue, int32_t len) {
   if (pTlv->len != len) {
     return TSDB_CODE_FAILED;
   }
@@ -710,6 +710,7 @@ static int32_t msgToLogicConditionNode(STlvDecoder* pDecoder, void* pObj) {
 
 enum {
   FUNCTION_CODE_EXPR_BASE = 1,
+  FUNCTION_CODE_FUNCTION_NAME,
   FUNCTION_CODE_FUNCTION_ID,
   FUNCTION_CODE_FUNCTION_TYPE,
   FUNCTION_CODE_PARAMETERS,
@@ -720,6 +721,9 @@ static int32_t functionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SFunctionNode* pNode = (const SFunctionNode*)pObj;
 
   int32_t code = tlvEncodeObj(pEncoder, FUNCTION_CODE_EXPR_BASE, exprNodeToMsg, pNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeCStr(pEncoder, FUNCTION_CODE_FUNCTION_NAME, pNode->functionName);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeI32(pEncoder, FUNCTION_CODE_FUNCTION_ID, pNode->funcId);
   }
@@ -745,6 +749,9 @@ static int32_t msgToFunctionNode(STlvDecoder* pDecoder, void* pObj) {
     switch (pTlv->type) {
       case FUNCTION_CODE_EXPR_BASE:
         code = tlvDecodeObjFromTlv(pTlv, msgToExprNode, &pNode->node);
+        break;
+      case FUNCTION_CODE_FUNCTION_NAME:
+        code = tlvDecodeCStr(pTlv, pNode->functionName);
         break;
       case FUNCTION_CODE_FUNCTION_ID:
         code = tlvDecodeI32(pTlv, &pNode->funcId);
