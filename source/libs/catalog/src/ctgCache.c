@@ -2001,7 +2001,6 @@ void ctgCleanupCacheQueue(void) {
           ctgDebug("process [%s] operation", gCtgCacheOperation[op->opId].name);
           (*gCtgCacheOperation[op->opId].func)(op);
           stopQueue = true;
-          taosMemoryFree(op->data);
           CTG_RT_STAT_INC(numOfOpDequeue, 1);
         } else {
           taosMemoryFree(op->data);
