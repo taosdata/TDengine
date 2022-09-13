@@ -279,7 +279,7 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
       goto _err;
     }
 
-    if (size != pTsdb->fs.pDelFile->size) {
+    if (size != tsdbLogicToFileSize(pTsdb->fs.pDelFile->size, pTsdb->pVnode->config.tsdbPageSize)) {
       code = TSDB_CODE_FILE_CORRUPTED;
       goto _err;
     }
