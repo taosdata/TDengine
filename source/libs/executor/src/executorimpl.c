@@ -3534,7 +3534,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       STagScanPhysiNode* pScanPhyNode = (STagScanPhysiNode*)pPhyNode;
       int32_t code = getTableList(pHandle->meta, pHandle->vnode, pScanPhyNode, pTagCond, pTagIndexCond, pTableListInfo);
       if (code != TSDB_CODE_SUCCESS) {
-        pTaskInfo->code = terrno;
+        pTaskInfo->code = code;
         qError("failed to getTableList, code: %s", tstrerror(code));
         return NULL;
       }
