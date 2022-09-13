@@ -247,8 +247,9 @@ void *tSimpleHashGet(SSHashObj *pHashObj, const void *key, size_t keyLen) {
 }
 
 int32_t tSimpleHashRemove(SSHashObj *pHashObj, const void *key, size_t keyLen) {
+  int32_t code = TSDB_CODE_FAILED;
   if (!pHashObj || !key) {
-    return TSDB_CODE_FAILED;
+    return code;
   }
 
   uint32_t hashVal = (*pHashObj->hashFp)(key, (uint32_t)keyLen);
@@ -266,13 +267,14 @@ int32_t tSimpleHashRemove(SSHashObj *pHashObj, const void *key, size_t keyLen) {
       }
       FREE_HASH_NODE(pNode);
       atomic_sub_fetch_64(&pHashObj->size, 1);
+      code = TSDB_CODE_SUCCESS;
       break;
     }
     pPrev = pNode;
     pNode = pNode->next;
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t tSimpleHashIterateRemove(SSHashObj *pHashObj, const void *key, size_t keyLen, void **pIter, int32_t *iter) {
