@@ -278,7 +278,6 @@ typedef struct SRowCompSupporter {
   __compar_fn_t     comFunc;
   char*             colData;
   int32_t           colBytes;
-  SArray*           resultRows;
 } SRowCompSupporter;
 
 static int compareRowData(const void* a, const void* b, const void* userData) {
@@ -357,8 +356,7 @@ static void sortGroupResByOrderList(SGroupResInfo* pGroupResInfo, SQueryRuntimeE
                                .dataOffset = dataOffset,
                                .comFunc = getComparFunc(type, 0),
                                .colData = colData,
-                               .colBytes = bytes,
-                               .resultRows = pGroupResInfo->pRows};
+                               .colBytes = bytes};
   taosArraySortPWithExt(pGroupResInfo->pRows, compareRowData, &support);
   free(colData);
 }
