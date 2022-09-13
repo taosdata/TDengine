@@ -227,8 +227,6 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code < 0) pCfg->hashPrefix = TSDB_DEFAULT_HASH_PREFIX;
   tjsonGetNumberValue(pJson, "hashSuffix", pCfg->hashSuffix, code);
   if (code < 0) pCfg->hashSuffix = TSDB_DEFAULT_HASH_SUFFIX;
-  tjsonGetNumberValue(pJson, "tsdbPageSize", pCfg->tsdbPageSize, code);
-  if (code < 0) pCfg->tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE;
 
   tjsonGetNumberValue(pJson, "syncCfg.replicaNum", pCfg->syncCfg.replicaNum, code);
   if (code < 0) return -1;
@@ -258,6 +256,7 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   }
 
   tjsonGetNumberValue(pJson, "tsdbPageSize", pCfg->tsdbPageSize, code);
+  if (code < 0) pCfg->tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE * 1024;
 
   return 0;
 }

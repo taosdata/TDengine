@@ -173,7 +173,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->hashMethod = pCreate->hashMethod;
   pCfg->hashPrefix = pCreate->hashPrefix;
   pCfg->hashSuffix = pCreate->hashSuffix;
-  pCfg->tsdbPageSize = pCreate->tsdbPageSize;
+  pCfg->tsdbPageSize = pCreate->tsdbPageSize * 1024;
 
   pCfg->standby = pCfg->standby;
   pCfg->syncCfg.myIndex = pCreate->selfIndex;
