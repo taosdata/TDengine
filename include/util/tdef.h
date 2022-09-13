@@ -359,9 +359,15 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_SCHEMALESS_ON           1
 #define TSDB_DB_SCHEMALESS_OFF          0
 #define TSDB_DEFAULT_DB_SCHEMALESS      TSDB_DB_SCHEMALESS_OFF
-#define TSDB_MIN_SST_TRIGGER            1
-#define TSDB_MAX_SST_TRIGGER            128
+#define TSDB_MIN_STT_TRIGGER            1
+#define TSDB_MAX_STT_TRIGGER            16
 #define TSDB_DEFAULT_SST_TRIGGER        8
+#define TSDB_MIN_HASH_PREFIX            0
+#define TSDB_MAX_HASH_PREFIX            128
+#define TSDB_DEFAULT_HASH_PREFIX        0
+#define TSDB_MIN_HASH_SUFFIX            0
+#define TSDB_MAX_HASH_SUFFIX            128
+#define TSDB_DEFAULT_HASH_SUFFIX        0
 
 #define TSDB_DB_MIN_WAL_RETENTION_PERIOD -1
 #define TSDB_REP_DEF_DB_WAL_RET_PERIOD   0

@@ -38,6 +38,8 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
 
   pOut->dbVgroup->vgVersion = usedbRsp->vgVersion;
   pOut->dbVgroup->hashMethod = usedbRsp->hashMethod;
+  pOut->dbVgroup->hashPrefix = usedbRsp->hashPrefix;
+  pOut->dbVgroup->hashSuffix = usedbRsp->hashSuffix;
 
   qDebug("Got %d vgroup for db %s", usedbRsp->vgNum, usedbRsp->db);
 

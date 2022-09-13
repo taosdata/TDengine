@@ -92,7 +92,7 @@ int smlProcess_telnet_Test() {
 int smlProcess_json1_Test() {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db");
   taos_free_result(pRes);
 
   pRes = taos_query(taos, "use sml_db");
@@ -112,7 +112,7 @@ int smlProcess_json1_Test() {
       "    },"
       "    {"
       "        \"metric\": \"sys.cpu.nice\","
-      "        \"timestamp\": 1346846400,"
+      "        \"timestamp\": 1662344042,"
       "        \"value\": 9,"
       "        \"tags\": {"
       "           \"host\": \"web02\","
@@ -141,7 +141,7 @@ int smlProcess_json2_Test() {
       "{"
       "    \"metric\": \"meter_current0\","
       "    \"timestamp\": {"
-      "        \"value\"  : 1346846400,"
+      "        \"value\"  : 1662344042,"
       "        \"type\"   : \"s\""
       "    },"
       "    \"value\": {"
@@ -181,7 +181,7 @@ int smlProcess_json3_Test() {
       "{"
       "    \"metric\": \"meter_current1\","
       "    \"timestamp\": {"
-      "        \"value\"  : 1346846400,"
+      "        \"value\"  : 1662344042,"
       "        \"type\"   : \"s\""
       "    },"
       "    \"value\": {"
@@ -249,7 +249,7 @@ int smlProcess_json4_Test() {
       "{"
       "    \"metric\": \"meter_current2\","
       "    \"timestamp\": {"
-      "        \"value\"  : 1346846500000,"
+      "        \"value\"  : 1662344042000,"
       "        \"type\"   : \"ms\""
       "    },"
       "    \"value\": \"ni\","

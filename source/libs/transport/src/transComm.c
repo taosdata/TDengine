@@ -287,10 +287,10 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
     STransCtxVal* sVal = (STransCtxVal*)iter;
     key = taosHashGetKey(sVal, &klen);
 
-    STransCtxVal* dVal = taosHashGet(dst->args, key, klen);
-    if (dVal) {
-      dst->freeFunc(dVal->val);
-    }
+    // STransCtxVal* dVal = taosHashGet(dst->args, key, klen);
+    // if (dVal) {
+    //   dst->freeFunc(dVal->val);
+    // }
     taosHashPut(dst->args, key, klen, sVal, sizeof(*sVal));
     iter = taosHashIterate(src->args, iter);
   }
@@ -424,7 +424,7 @@ void transQueueDestroy(STransQueue* queue) {
   taosArrayDestroy(queue->q);
 }
 
-static int32_t timeCompare(const HeapNode* a, const HeapNode* b) {
+static FORCE_INLINE int32_t timeCompare(const HeapNode* a, const HeapNode* b) {
   SDelayTask* arg1 = container_of(a, SDelayTask, node);
   SDelayTask* arg2 = container_of(b, SDelayTask, node);
   if (arg1->execTime > arg2->execTime) {

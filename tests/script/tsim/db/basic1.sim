@@ -133,10 +133,10 @@ if $data(4)[5] != localhost:7100 then
   return -1
 endi
 
-#sql show vnodes 'localhost:7100'
-#if $rows != 9 then
-#  return -1
-#endi
+sql show vnodes 'localhost:7100'
+if $rows != 9 then
+  return -1
+endi
 
 print =============== drop database
 sql drop database d2

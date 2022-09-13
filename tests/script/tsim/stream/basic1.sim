@@ -5,7 +5,7 @@ sleep 50
 sql connect
 
 print =============== create database
-sql create database test vgroups 1
+sql create database test vgroups 1;
 sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
@@ -13,7 +13,7 @@ endi
 
 print $data00 $data01 $data02
 
-sql use test
+sql use test;
 
 
 sql create table t1(ts timestamp, a int, b int , c int, d double);
@@ -585,6 +585,40 @@ sql select count(*) from streamt3;
 # row 0
 if $data00 != 5 then
   print =====data00=$data00
+  goto loop3
+endi
+
+#max,min selectivity
+sql create database test3  vgroups 1;
+sql use test3;
+sql create stable st(ts timestamp, a int, b int , c int) tags(ta int,tb int,tc int);
+sql create table ts1 using st tags(1,1,1);
+sql create stream stream_t3 trigger at_once into streamtST3 as select ts, min(a) c6, a, b, c, ta, tb, tc from ts1 interval(10s) ;
+
+sql insert into ts1 values(1648791211000,1,2,3);
+sleep 50
+sql insert into ts1 values(1648791222001,2,2,3);
+sleep 50
+
+$loop_count = 0
+loop3:
+sql select * from streamtST3;
+
+sleep 300
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+# row 0
+if $data02 != 1 then
+  print =====data02=$data02
+  goto loop3
+endi
+
+# row 1
+if $data12 != 2 then
+  print =====data12=$data12
   goto loop3
 endi
 

@@ -87,9 +87,7 @@ struct SqlFunctionCtx;
 
 size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void   initResultRowInfo(SResultRowInfo* pResultRowInfo);
-
-void initResultRow(SResultRow* pResultRow);
-void closeResultRow(SResultRow* pResultRow);
+void   closeResultRow(SResultRow* pResultRow);
 
 struct SResultRowEntryInfo* getResultEntryInfo(const SResultRow* pRow, int32_t index, const int32_t* offset);
 
@@ -128,6 +126,7 @@ SArray*  extractPartitionColInfo(SNodeList* pNodeList);
 SArray*  extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
                              int32_t type);
 
+void createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode);
 SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* numOfExprs);
 
 SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowEntryInfoOffset);

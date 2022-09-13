@@ -235,6 +235,8 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.walRollPeriod = pDb->cfg.walRollPeriod;
   createReq.walSegmentSize = pDb->cfg.walSegmentSize;
   createReq.sstTrigger = pDb->cfg.sstTrigger;
+  createReq.hashPrefix = pDb->cfg.hashPrefix;
+  createReq.hashSuffix = pDb->cfg.hashSuffix;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SReplica  *pReplica = &createReq.replicas[v];
@@ -693,6 +695,9 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppendNULL(pColInfo, numOfRows);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->cacheUsage, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppendNULL(pColInfo, numOfRows);

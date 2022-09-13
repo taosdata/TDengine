@@ -156,8 +156,8 @@ python3 ./test.py -f 2-query/sin.py
 python3 ./test.py -f 2-query/sin.py -R
 python3 ./test.py -f 2-query/smaTest.py
 python3 ./test.py -f 2-query/smaTest.py -R
-python3 ./test.py -f 2-query/sml.py
-python3 ./test.py -f 2-query/sml.py -R
+#python3 ./test.py -f 2-query/sml.py
+#python3 ./test.py -f 2-query/sml.py -R
 python3 ./test.py -f 2-query/spread.py
 python3 ./test.py -f 2-query/spread.py -R
 python3 ./test.py -f 2-query/sqrt.py
@@ -333,7 +333,7 @@ python3 ./test.py -f 7-tmq/stbTagFilter-1ctb.py
 python3 ./test.py -f 7-tmq/dataFromTsdbNWal.py
 python3 ./test.py -f 7-tmq/dataFromTsdbNWal-multiCtb.py
 python3 ./test.py -f 7-tmq/tmq_taosx.py
-# python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
+python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
 
 #------------querPolicy  2-----------
 
@@ -512,6 +512,6 @@ python3 ./test.py -f 2-query/count_partition.py -Q 3
 python3 ./test.py -f 2-query/max_partition.py -Q 3
 python3 ./test.py -f 2-query/last_row.py -Q 3
 python3 ./test.py -f 2-query/tsbsQuery.py -Q 3
-python3 ./test.py -f 2-query/sml.py -Q 3
+#python3 ./test.py -f 2-query/sml.py -Q 3
 python3 ./test.py -f 2-query/interp.py -Q 3
 

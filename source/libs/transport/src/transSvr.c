@@ -125,17 +125,17 @@ static void uvWorkAfterTask(uv_work_t* req, int status);
 static void uvWalkCb(uv_handle_t* handle, void* arg);
 static void uvFreeCb(uv_handle_t* handle);
 
-static void uvStartSendRespImpl(SSvrMsg* smsg);
+static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg);
+
 static void uvPrepareSendData(SSvrMsg* msg, uv_buf_t* wb);
 static void uvStartSendResp(SSvrMsg* msg);
 
 static void uvNotifyLinkBrokenToApp(SSvrConn* conn);
 
-static void destroySmsg(SSvrMsg* smsg);
-// check whether already read complete packet
-static SSvrConn* createConn(void* hThrd);
-static void      destroyConn(SSvrConn* conn, bool clear /*clear handle or not*/);
-static void      destroyConnRegArg(SSvrConn* conn);
+static FORCE_INLINE void      destroySmsg(SSvrMsg* smsg);
+static FORCE_INLINE SSvrConn* createConn(void* hThrd);
+static FORCE_INLINE void      destroyConn(SSvrConn* conn, bool clear /*clear handle or not*/);
+static FORCE_INLINE void      destroyConnRegArg(SSvrConn* conn);
 
 static int reallocConnRef(SSvrConn* conn);
 
@@ -413,7 +413,7 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   wb->len = len;
 }
 
-static void uvStartSendRespImpl(SSvrMsg* smsg) {
+static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg) {
   SSvrConn* pConn = smsg->pConn;
   if (pConn->broken) {
     return;
@@ -447,7 +447,7 @@ static void uvStartSendResp(SSvrMsg* smsg) {
   return;
 }
 
-static void destroySmsg(SSvrMsg* smsg) {
+static FORCE_INLINE void destroySmsg(SSvrMsg* smsg) {
   if (smsg == NULL) {
     return;
   }
@@ -812,7 +812,7 @@ void* transWorkerThread(void* arg) {
   return NULL;
 }
 
-static SSvrConn* createConn(void* hThrd) {
+static FORCE_INLINE SSvrConn* createConn(void* hThrd) {
   SWorkThrd* pThrd = hThrd;
 
   SSvrConn* pConn = (SSvrConn*)taosMemoryCalloc(1, sizeof(SSvrConn));
@@ -842,7 +842,7 @@ static SSvrConn* createConn(void* hThrd) {
   return pConn;
 }
 
-static void destroyConn(SSvrConn* conn, bool clear) {
+static FORCE_INLINE void destroyConn(SSvrConn* conn, bool clear) {
   if (conn == NULL) {
     return;
   }
@@ -854,7 +854,7 @@ static void destroyConn(SSvrConn* conn, bool clear) {
     }
   }
 }
-static void destroyConnRegArg(SSvrConn* conn) {
+static FORCE_INLINE void destroyConnRegArg(SSvrConn* conn) {
   if (conn->regArg.init == 1) {
     transFreeMsg(conn->regArg.msg.pCont);
     conn->regArg.init = 0;
@@ -907,7 +907,7 @@ static void uvDestroyConn(uv_handle_t* handle) {
 }
 static void uvPipeListenCb(uv_stream_t* handle, int status) {
   if (status != 0) {
-    tError("server failed to init pipe");
+    tError("server failed to init pipe, errmsg: %s", uv_err_name(status));
     return;
   }
 
@@ -945,7 +945,10 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   uv_loop_init(srv->loop);
 
   int ret = uv_pipe_init(srv->loop, &srv->pipeListen, 0);
-  assert(ret == 0);
+  if (ret != 0) {
+    tError("failed to init pipe, errmsg: %s", uv_err_name(ret));
+    goto End;
+  }
 
 #ifdef WINDOWS
   char pipeName[64];
@@ -956,10 +959,16 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
            taosGetSelfPthreadId());
 #endif
   ret = uv_pipe_bind(&srv->pipeListen, pipeName);
-  assert(ret == 0);
+  if (ret != 0) {
+    tError("failed to bind pipe, errmsg: %s", uv_err_name(ret));
+    goto End;
+  }
 
   ret = uv_listen((uv_stream_t*)&srv->pipeListen, SOMAXCONN, uvPipeListenCb);
-  assert(ret == 0);
+  if (ret != 0) {
+    tError("failed to listen pipe, errmsg: %s", uv_err_name(ret));
+    goto End;
+  }
 
   for (int i = 0; i < srv->numOfThreads; i++) {
     SWorkThrd* thrd = (SWorkThrd*)taosMemoryCalloc(1, sizeof(SWorkThrd));
@@ -1082,12 +1091,12 @@ void transCloseServer(void* arg) {
   if (srv->inited) {
     uv_async_send(srv->pAcceptAsync);
     taosThreadJoin(srv->thread, NULL);
-  }
-  SRV_RELEASE_UV(srv->loop);
+    SRV_RELEASE_UV(srv->loop);
 
-  for (int i = 0; i < srv->numOfThreads; i++) {
-    sendQuitToWorkThrd(srv->pThreadObj[i]);
-    destroyWorkThrd(srv->pThreadObj[i]);
+    for (int i = 0; i < srv->numOfThreads; i++) {
+      sendQuitToWorkThrd(srv->pThreadObj[i]);
+      destroyWorkThrd(srv->pThreadObj[i]);
+    }
   }
 
   taosMemoryFree(srv->pThreadObj);

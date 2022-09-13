@@ -3483,6 +3483,8 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->walRollPeriod = pStmt->pOptions->walRollPeriod;
   pReq->walSegmentSize = pStmt->pOptions->walSegmentSize;
   pReq->sstTrigger = pStmt->pOptions->sstTrigger;
+  pReq->hashPrefix = pStmt->pOptions->tablePrefix;
+  pReq->hashSuffix = pStmt->pOptions->tableSuffix;
   pReq->ignoreExist = pStmt->ignoreExists;
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
@@ -3768,7 +3770,13 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
         checkDbRangeOption(pCxt, "walSegmentSize", pOptions->walSegmentSize, TSDB_DB_MIN_WAL_SEGMENT_SIZE, INT32_MAX);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbRangeOption(pCxt, "sstTrigger", pOptions->sstTrigger, TSDB_MIN_SST_TRIGGER, TSDB_MAX_SST_TRIGGER);
+    code = checkDbRangeOption(pCxt, "sstTrigger", pOptions->sstTrigger, TSDB_MIN_STT_TRIGGER, TSDB_MAX_STT_TRIGGER);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbRangeOption(pCxt, "tablePrefix", pOptions->tablePrefix, TSDB_MIN_HASH_PREFIX, TSDB_MAX_HASH_PREFIX);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbRangeOption(pCxt, "tableSuffix", pOptions->tableSuffix, TSDB_MIN_HASH_SUFFIX, TSDB_MAX_HASH_SUFFIX);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkOptionsDependency(pCxt, pDbName, pOptions);
@@ -5856,7 +5864,7 @@ static int32_t rewriteShowVnodes(STranslateContext* pCxt, SQuery* pQuery) {
     if (NULL != pShow->pDnodeId) {
       code = createOperatorNode(OP_TYPE_EQUAL, "dnode_id", pShow->pDnodeId, &pStmt->pWhere);
     } else {
-      code = createOperatorNode(OP_TYPE_EQUAL, "dnode_endpoint", pShow->pDnodeEndpoint, &pStmt->pWhere);
+      code = createOperatorNode(OP_TYPE_EQUAL, "dnode_ep", pShow->pDnodeEndpoint, &pStmt->pWhere);
     }
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -6596,7 +6604,17 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
   pReq->colId = pSchema->colId;
 
   SDataType targetDt = schemaToDataType(pTableMeta->tableInfo.precision, pSchema);
-  if (DEAL_RES_ERROR == translateValueImpl(pCxt, pStmt->pVal, targetDt, true)) {
+
+  if (QUERY_NODE_VALUE != pStmt->pVal->node.type) {
+    SValueNode* pVal = NULL;
+    pCxt->errCode = createTagValFromExpr(pCxt, targetDt, (SNode*)pStmt->pVal, &pVal);
+    if (pCxt->errCode) {
+      return pCxt->errCode;
+    }
+
+    nodesDestroyNode((SNode*)pStmt->pVal);
+    pStmt->pVal = pVal;
+  } else if (DEAL_RES_ERROR == translateValueImpl(pCxt, pStmt->pVal, targetDt, true)) {
     return pCxt->errCode;
   }
 

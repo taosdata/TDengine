@@ -418,31 +418,17 @@ typedef enum {
 } SFSLASTNEXTROWSTATES;
 
 typedef struct {
-  SFSLASTNEXTROWSTATES state;         // [input]
-  STsdb               *pTsdb;         // [input]
-  SBlockIdx           *pBlockIdxExp;  // [input]
-  STSchema            *pTSchema;      // [input]
+  SFSLASTNEXTROWSTATES state;  // [input]
+  STsdb               *pTsdb;  // [input]
   tb_uid_t             suid;
   tb_uid_t             uid;
   int32_t              nFileSet;
   int32_t              iFileSet;
   SArray              *aDFileSet;
   SDataFReader        *pDataFReader;
-  SArray              *aBlockL;
-  SBlockL             *pBlockL;
-  SBlockData          *pBlockDataL;
-  SBlockData           blockDataL;
-  int32_t              nRow;
-  int32_t              iRow;
   TSDBROW              row;
-  /*
-  SArray    *aBlockIdx;
-  SBlockIdx *pBlockIdx;
-  SMapData   blockMap;
-  int32_t    nBlock;
-  int32_t    iBlock;
-  SBlock     block;
-  */
+
+  SMergeTree mergeTree;
 } SFSLastNextRowIter;
 
 static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
@@ -451,11 +437,8 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
 
   switch (state->state) {
     case SFSLASTNEXTROW_FS:
-      // state->aDFileSet = state->pTsdb->pFS->cState->aDFileSet;
       state->nFileSet = taosArrayGetSize(state->aDFileSet);
       state->iFileSet = state->nFileSet;
-
-      state->pBlockDataL = NULL;
 
     case SFSLASTNEXTROW_FILESET: {
       SDFileSet *pFileSet = NULL;
@@ -463,10 +446,7 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
       if (--state->iFileSet >= 0) {
         pFileSet = (SDFileSet *)taosArrayGet(state->aDFileSet, state->iFileSet);
       } else {
-        if (state->pBlockDataL) {
-          tBlockDataDestroy(state->pBlockDataL, 1);
-          state->pBlockDataL = NULL;
-        }
+        // tMergeTreeClose(&state->mergeTree);
 
         *ppRow = NULL;
         return code;
@@ -475,68 +455,24 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
       code = tsdbDataFReaderOpen(&state->pDataFReader, state->pTsdb, pFileSet);
       if (code) goto _err;
 
-      if (!state->aBlockL) {
-        state->aBlockL = taosArrayInit(0, sizeof(SBlockL));
-      } else {
-        taosArrayClear(state->aBlockL);
-      }
-
-      code = tsdbReadBlockL(state->pDataFReader, state->aBlockL);
-      if (code) goto _err;
-
-      // SBlockL *pBlockL = (SBlockL *)taosArrayGet(state->aBlockL, state->iBlockL);
-
-      state->pBlockL = taosArraySearch(state->aBlockL, state->pBlockIdxExp, tCmprBlockL, TD_EQ);
-      if (!state->pBlockL) {
+      tMergeTreeOpen(&state->mergeTree, 1, state->pDataFReader, state->suid, state->uid,
+                     &(STimeWindow){.skey = TSKEY_MIN, .ekey = TSKEY_MAX},
+                     &(SVersionRange){.minVer = 0, .maxVer = UINT64_MAX}, NULL, NULL);
+      bool hasVal = tMergeTreeNext(&state->mergeTree);
+      if (!hasVal) {
+        state->state = SFSLASTNEXTROW_FILESET;
+        // tMergeTreeClose(&state->mergeTree);
         goto _next_fileset;
       }
-
-      int64_t suid = state->pBlockL->suid;
-      int64_t uid = state->pBlockL->maxUid;
-
-      if (!state->pBlockDataL) {
-        state->pBlockDataL = &state->blockDataL;
-
-        tBlockDataCreate(state->pBlockDataL);
-      }
-      code = tBlockDataInit(state->pBlockDataL, suid, suid ? 0 : uid, state->pTSchema);
-      if (code) goto _err;
-    }
-    case SFSLASTNEXTROW_BLOCKDATA:
-      code = tsdbReadLastBlock(state->pDataFReader, state->pBlockL, state->pBlockDataL);
-      if (code) goto _err;
-
-      state->nRow = state->blockDataL.nRow;
-      state->iRow = state->nRow - 1;
-
-      if (!state->pBlockDataL->uid) {
-        while (state->pBlockIdxExp->uid != state->pBlockDataL->aUid[state->iRow]) {
-          --state->iRow;
-        }
-      }
-
       state->state = SFSLASTNEXTROW_BLOCKROW;
+    }
     case SFSLASTNEXTROW_BLOCKROW:
-      if (state->pBlockDataL->uid) {
-        if (state->iRow >= 0) {
-          state->row = tsdbRowFromBlockData(state->pBlockDataL, state->iRow);
-          *ppRow = &state->row;
-
-          if (--state->iRow < 0) {
-            state->state = SFSLASTNEXTROW_FILESET;
-          }
-        }
-      } else {
-        if (state->iRow >= 0 && state->pBlockIdxExp->uid == state->pBlockDataL->aUid[state->iRow]) {
-          state->row = tsdbRowFromBlockData(state->pBlockDataL, state->iRow);
-          *ppRow = &state->row;
-
-          if (--state->iRow < 0 || state->pBlockIdxExp->uid != state->pBlockDataL->aUid[state->iRow]) {
-            state->state = SFSLASTNEXTROW_FILESET;
-          }
-        }
+      state->row = tMergeTreeGetRow(&state->mergeTree);
+      *ppRow = &state->row;
+      bool hasVal = tMergeTreeNext(&state->mergeTree);
+      if (!hasVal) {
+        state->state = SFSLASTNEXTROW_FILESET;
       }
-
       return code;
     default:
       ASSERT(0);
@@ -548,15 +484,6 @@ _err:
     tsdbDataFReaderClose(&state->pDataFReader);
     state->pDataFReader = NULL;
   }
-  if (state->aBlockL) {
-    taosArrayDestroy(state->aBlockL);
-    state->aBlockL = NULL;
-  }
-  if (state->pBlockDataL) {
-    tBlockDataDestroy(state->pBlockDataL, 1);
-    state->pBlockDataL = NULL;
-  }
-
   *ppRow = NULL;
 
   return code;
@@ -573,14 +500,6 @@ int32_t clearNextRowFromFSLast(void *iter) {
   if (state->pDataFReader) {
     tsdbDataFReaderClose(&state->pDataFReader);
     state->pDataFReader = NULL;
-  }
-  if (state->aBlockL) {
-    taosArrayDestroy(state->aBlockL);
-    state->aBlockL = NULL;
-  }
-  if (state->pBlockDataL) {
-    tBlockDataDestroy(state->pBlockDataL, 1);
-    state->pBlockDataL = NULL;
   }
 
   return code;
@@ -609,7 +528,7 @@ typedef struct SFSNextRowIter {
   SMapData         blockMap;
   int32_t          nBlock;
   int32_t          iBlock;
-  SBlock           block;
+  SDataBlk         block;
   SBlockData       blockData;
   SBlockData      *pBlockData;
   int32_t          nRow;
@@ -670,7 +589,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
       }
 
       tMapDataReset(&state->blockMap);
-      code = tsdbReadBlock(state->pDataFReader, state->pBlockIdx, &state->blockMap);
+      code = tsdbReadDataBlk(state->pDataFReader, state->pBlockIdx, &state->blockMap);
       if (code) goto _err;
 
       state->nBlock = state->blockMap.nItem;
@@ -684,13 +603,13 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
     }
     case SFSNEXTROW_BLOCKDATA:
       if (state->iBlock >= 0) {
-        SBlock block = {0};
+        SDataBlk block = {0};
 
-        tBlockReset(&block);
+        tDataBlkReset(&block);
         // tBlockDataReset(&state->blockData);
         tBlockDataReset(state->pBlockData);
 
-        tMapDataGetItemByIdx(&state->blockMap, state->iBlock, &block, tGetBlock);
+        tMapDataGetItemByIdx(&state->blockMap, state->iBlock, &block, tGetDataBlk);
         /* code = tsdbReadBlockData(state->pDataFReader, &state->blockIdx, &block, &state->blockData, NULL, NULL); */
         tBlockDataReset(state->pBlockData);
         code = tBlockDataInit(state->pBlockData, state->suid, state->uid, state->pTSchema);
@@ -878,7 +797,7 @@ static bool tsdbKeyDeleted(TSDBKEY *key, SArray *pSkyline, int64_t *iSkyline) {
     if (key->ts > pItemBack->ts) {
       return false;
     } else if (key->ts >= pItemFront->ts && key->ts <= pItemBack->ts) {
-      if ((key->version <= pItemFront->version || key->ts == pItemBack->ts && key->version <= pItemBack->version)) {
+      if (key->version <= pItemFront->version || (key->ts == pItemBack->ts && key->version <= pItemBack->version)) {
         return true;
       } else {
         return false;
@@ -972,8 +891,6 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
   pIter->fsLastState.state = (SFSLASTNEXTROWSTATES)SFSNEXTROW_FS;
   pIter->fsLastState.pTsdb = pTsdb;
   pIter->fsLastState.aDFileSet = pIter->pReadSnap->fs.aDFileSet;
-  pIter->fsLastState.pBlockIdxExp = &pIter->idx;
-  pIter->fsLastState.pTSchema = pTSchema;
   pIter->fsLastState.suid = suid;
   pIter->fsLastState.uid = uid;
 
@@ -1372,25 +1289,33 @@ int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHand
   // getTableCacheKeyS(uid, "l", key, &keyLen);
   getTableCacheKey(uid, 1, key, &keyLen);
   LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
-  if (h) {
-  } else {
-    SArray *pLastArray = NULL;
-    code = mergeLast(uid, pTsdb, &pLastArray);
-    // if table's empty or error, return code of -1
-    // if (code < 0 || pRow == NULL) {
-    if (code < 0 || pLastArray == NULL) {
-      *handle = NULL;
-      return 0;
-    }
-
-    _taos_lru_deleter_t deleter = deleteTableCacheLast;
-    LRUStatus           status =
-        taosLRUCacheInsert(pCache, key, keyLen, pLastArray, pLastArray->capacity, deleter, NULL, TAOS_LRU_PRIORITY_LOW);
-    if (status != TAOS_LRU_STATUS_OK) {
-      code = -1;
-    }
+  if (!h) {
+    taosThreadMutexLock(&pTsdb->lruMutex);
 
     h = taosLRUCacheLookup(pCache, key, keyLen);
+    if (!h) {
+      SArray *pLastArray = NULL;
+      code = mergeLast(uid, pTsdb, &pLastArray);
+      // if table's empty or error, return code of -1
+      // if (code < 0 || pRow == NULL) {
+      if (code < 0 || pLastArray == NULL) {
+        *handle = NULL;
+        return 0;
+      }
+
+      _taos_lru_deleter_t deleter = deleteTableCacheLast;
+      LRUStatus status = taosLRUCacheInsert(pCache, key, keyLen, pLastArray, pLastArray->capacity, deleter, NULL,
+                                            TAOS_LRU_PRIORITY_LOW);
+      if (status != TAOS_LRU_STATUS_OK) {
+        code = -1;
+      }
+
+      taosThreadMutexUnlock(&pTsdb->lruMutex);
+
+      h = taosLRUCacheLookup(pCache, key, keyLen);
+    } else {
+      taosThreadMutexUnlock(&pTsdb->lruMutex);
+    }
   }
 
   *handle = h;
@@ -1411,3 +1336,5 @@ void tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity) {
 }
 
 size_t tsdbCacheGetCapacity(SVnode *pVnode) { return taosLRUCacheGetCapacity(pVnode->pTsdb->lruCache); }
+
+size_t tsdbCacheGetUsage(SVnode *pVnode) { return taosLRUCacheGetUsage(pVnode->pTsdb->lruCache); }

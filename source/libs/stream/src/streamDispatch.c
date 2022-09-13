@@ -243,6 +243,36 @@ FAIL:
   return 0;
 }
 
+int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, SSDataBlock* pDataBlock, int32_t vgSz,
+                                int64_t groupId) {
+  char*   ctbName = buildCtbNameByGroupId(pTask->shuffleDispatcher.stbFullName, groupId);
+  SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
+
+  // TODO: get hash function by hashMethod
+  uint32_t hashValue = MurmurHash3_32(ctbName, strlen(ctbName));
+  taosMemoryFree(ctbName);
+  bool found = false;
+  // TODO: optimize search
+  int32_t j;
+  for (j = 0; j < vgSz; j++) {
+    SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, j);
+    ASSERT(pVgInfo->vgId > 0);
+    if (hashValue >= pVgInfo->hashBegin && hashValue <= pVgInfo->hashEnd) {
+      if (streamAddBlockToDispatchMsg(pDataBlock, &pReqs[j]) < 0) {
+        return -1;
+      }
+      if (pReqs[j].blockNum == 0) {
+        atomic_add_fetch_32(&pTask->shuffleDispatcher.waitingRspCnt, 1);
+      }
+      pReqs[j].blockNum++;
+      found = true;
+      break;
+    }
+  }
+  ASSERT(found);
+  return 0;
+}
+
 int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pData) {
   int32_t code = -1;
   int32_t blockNum = taosArrayGetSize(pData->blocks);
@@ -317,20 +347,10 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
 
     for (int32_t i = 0; i < blockNum; i++) {
       SSDataBlock* pDataBlock = taosArrayGet(pData->blocks, i);
-      char*        ctbName = buildCtbNameByGroupId(pTask->shuffleDispatcher.stbFullName, pDataBlock->info.groupId);
 
-      // TODO: get hash function by hashMethod
-      uint32_t hashValue = MurmurHash3_32(ctbName, strlen(ctbName));
-
-      taosMemoryFree(ctbName);
-
-      bool found = false;
-      // TODO: optimize search
-      int32_t j;
-      for (j = 0; j < vgSz; j++) {
-        SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, j);
-        ASSERT(pVgInfo->vgId > 0);
-        if (hashValue >= pVgInfo->hashBegin && hashValue <= pVgInfo->hashEnd) {
+      // TODO: do not use broadcast
+      if (pDataBlock->info.type == STREAM_DELETE_RESULT) {
+        for (int32_t j = 0; j < vgSz; j++) {
           if (streamAddBlockToDispatchMsg(pDataBlock, &pReqs[j]) < 0) {
             goto FAIL_SHUFFLE_DISPATCH;
           }
@@ -338,11 +358,13 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
             atomic_add_fetch_32(&pTask->shuffleDispatcher.waitingRspCnt, 1);
           }
           pReqs[j].blockNum++;
-          found = true;
-          break;
         }
+        continue;
       }
-      ASSERT(found);
+
+      if (streamSearchAndAddBlock(pTask, pReqs, pDataBlock, vgSz, pDataBlock->info.groupId) < 0) {
+        goto FAIL_SHUFFLE_DISPATCH;
+      }
     }
 
     for (int32_t i = 0; i < vgSz; i++) {

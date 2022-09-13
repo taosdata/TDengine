@@ -51,11 +51,11 @@ int64_t tGenIdPI64(void) {
   int64_t id;
 
   while (true) {
-    int64_t  ts = taosGetTimestampMs();
+    int64_t  ts = taosGetTimestampMs() >> 8;
     uint64_t pid = taosGetPId();
     int32_t  val = atomic_add_fetch_32(&tUUIDSerialNo, 1);
 
-    id = ((tUUIDHashId & 0x07FF) << 52) | ((pid & 0x0FFF) << 40) | ((ts & 0xFFFFFF) << 16) | (val & 0xFFFF);
+    id = ((tUUIDHashId & 0x07FF) << 52) | ((pid & 0x0F) << 48) | ((ts & 0x3FFFFFF) << 20) | (val & 0xFFFFF);
     if (id) {
       break;
     }

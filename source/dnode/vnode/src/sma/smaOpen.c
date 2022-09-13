@@ -150,7 +150,7 @@ int32_t smaOpen(SVnode *pVnode) {
     }
 
     // restore the rsma
-    if (tdRsmaRestore(pSma, RSMA_RESTORE_REBOOT, pVnode->state.committed) < 0) {
+    if (tdRSmaRestore(pSma, RSMA_RESTORE_REBOOT, pVnode->state.committed) < 0) {
       goto _err;
     }
   }
@@ -181,8 +181,8 @@ int32_t smaClose(SSma *pSma) {
  * @param committedVer
  * @return int32_t
  */
-int32_t tdRsmaRestore(SSma *pSma, int8_t type, int64_t committedVer) {
+int32_t tdRSmaRestore(SSma *pSma, int8_t type, int64_t committedVer) {
   ASSERT(VND_IS_RSMA(pSma->pVnode));
 
-  return tdProcessRSmaRestoreImpl(pSma, type, committedVer);
+  return tdRSmaProcessRestoreImpl(pSma, type, committedVer);
 }

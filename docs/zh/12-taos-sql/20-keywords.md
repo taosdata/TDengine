@@ -6,7 +6,8 @@ description: TDengine 保留关键字的详细列表
 
 ## 保留关键字
 
-目前 TDengine 有将近 200 个内部保留关键字，这些关键字无论大小写均不可以用作库名、表名、STable 名、数据列名及标签列名等。这些关键字列表如下：
+目前 TDengine 有将近 200 个内部保留关键字，这些关键字无论大小写如果需要用作库名、表名、STable 名、数据列名及标签列名等，需要使用符合``将关键字括起来使用，例如`ADD`。
+关键字列表如下：
 
 ### A
 
@@ -239,6 +240,7 @@ description: TDengine 保留关键字的详细列表
 - TOPICS
 - TRIGGER
 - TSERIES
+- TTL
 
 ### U
 
