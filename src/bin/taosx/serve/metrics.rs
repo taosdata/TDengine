@@ -1,10 +1,10 @@
+use actix_web::{get, Responder};
 use metrics::{describe_gauge, gauge, register_gauge};
-use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusRecorder};
-use std::{collections::HashSet, net::SocketAddr, time::Duration};
+use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle, PrometheusRecorder};
+use std::{collections::HashSet,  time::Duration};
 
 #[derive(Debug, Default)]
 pub struct Metrics {
-    listen: Option<SocketAddr>,
     push: Option<String>,
     push_interval: Option<Duration>,
     interval: Option<u16>,
@@ -97,20 +97,24 @@ impl Metrics {
         let interval = self.interval();
         let dur = Duration::from_secs(interval as u64);
 
-        if let Some(listen) = self.listen {
-            exporter = exporter.with_http_listener(listen);
-        }
-        if let Some(push) = self.push {
+        // if let Some(listen) = self.listen {
+        //     exporter = exporter.with_http_listener(listen);
+        // }
+        let recorder = if let Some(push) = self.push {
             let interval = self.push_interval.unwrap_or(Duration::from_secs(30));
             exporter = exporter.with_push_gateway(push, interval)?;
-        }
 
-        let (recorder, exporter) = exporter.build()?;
-        tokio::spawn(exporter);
+            let (recorder, exporter) = exporter.build()?;
+            tokio::spawn(exporter);
+            recorder
+        } else {
+            exporter.build_recorder()
+        };
+
+        // let recorder = exporter.build_recorder();
         process_metrics_init();
         std::thread::spawn(move || loop {
             let _ = process_metrics();
-            metrics::increment_counter!("up seconds");
             std::thread::sleep(dur);
         });
         Ok(recorder)
@@ -119,4 +123,15 @@ impl Metrics {
     fn interval(&self) -> u16 {
         self.interval.unwrap_or(1)
     }
+}
+/// Metrics like node-exporter.
+#[utoipa::path(
+    responses(
+        (status = 200, description = "Task found from storage", body = String),
+    )
+)]
+#[get("/metrics")]
+async fn metrics_exporter(handle: actix_web::web::Data<PrometheusHandle>) -> impl Responder {
+    let output = handle.render();
+    output
 }

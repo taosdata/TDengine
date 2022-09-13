@@ -15,6 +15,8 @@ use tokio::{runtime::Runtime, sync::RwLock};
 use tokio_util::sync::CancellationToken;
 use utoipa::*;
 
+use super::metrics::metrics_exporter;
+
 static MIGRATOR: Migrator = sqlx::migrate!(); // defaults to "./migrations"
 
 // const TASK_SELECT: &str = "select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks";
@@ -244,6 +246,7 @@ pub(super) fn configure(store: Data<TaskController>) -> impl FnOnce(&mut Service
             .service(replicate)
             .service(subscribe)
             .service(get_task_by_id)
+            .service(metrics_exporter)
             // .service(update_task)
             ;
     }
