@@ -73,7 +73,7 @@ It will synchronize all data and meta changes from database `db1` in local clust
 
 ```bash
 taosx run \
-  -f 'tmq:///db1?group.id=another' \
+  -f 'tmq://root:taosdata@localhost:6030/db1?group.id=another' \
   -t 'taos://root:taosdata@another:6030/db2'
 ```
 
@@ -81,7 +81,7 @@ By default, it will stop when there's no new data in some time(`500ms` eg.). Use
 
 ```bash
 taosx run \
-  -f 'tmq:///db1?group.id=another&timeout=0' \
+  -f 'tmq://root:taosdata@localhost:6030/db1?group.id=another&timeout=0' \
   -t 'taos://root:taosdata@another:6030/db2'
 ```
 
@@ -89,7 +89,7 @@ It's able to synchronize a table to another cluster database.
 
 ```bash
 taosx run \
-  -f 'tmq://root@taosdata@localhost:6030/db1.table_name' \
+  -f 'tmq://root:taosdata@localhost:6030/db1.table_name' \
   -t 'taos://root:taosdata@another:6030/db2'
 ```
 
@@ -161,7 +161,7 @@ Select from table `meters` of database `test` in local cluster to a single `mete
 
 ```bash
 taosx run \
-  -f 'taos:///test?query=select * from meters' \
+  -f 'taos://root:taosdata@localhost:6030/test?query=select * from meters' \
   -t 'csv:./meters.csv'
 ```
 
@@ -169,9 +169,11 @@ Or to a single parquet file:
 
 ```bash
 taosx run \
-  -f 'taos:///test?query=select * from meters' \
+  -f 'taos://root:taosdata@localhost:6030/test?query=select * from meters' \
   -t 'parquet:./meters.parquet'
 ```
+
+The parameter `query` only works in these two scenarios, and should be a fetchable SQL(like `SELECT`).
 
 ## Advanced Usage
 
@@ -317,7 +319,7 @@ A task schema might be:
   "created_at": "2022-02-02T02:02:02+08:00",
   "last_modified_at": "2022-02-02T02:02:02+08:00",
   "completed": false,
-  "from": "tmq:///test",
+  "from": "tmq://root:taosdata@localhost:6030/test",
   "to": "local:/path/to/backup/test",
   "finished_at": "2022-02-02T02:02:02+08:00",
   "status": "cancelled",
@@ -340,7 +342,7 @@ To create a new task, use the schema:
 ```json
 {
   "stream_type": "backup",
-  "from": "tmq:///test",
+  "from": "tmq://root:taosdata@localhost:6030/test",
   "to": "local:./backups-test"
 }
 ```
@@ -351,7 +353,7 @@ And the POST response body is:
 {
   "id": 3,
   "stream_type": "backup",
-  "from": "tmq:///test",
+  "from": "tmq://root:taosdata@localhost:6030/test",
   "to": "local:./backups-test",
   "created_at": "2022-08-30T20:45:10.815742654+08:00",
   "status": "created"
