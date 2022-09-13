@@ -854,6 +854,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   pRequest->metric.resultReady = taosGetTimestampUs();
 
   if (pResult) {
+    destroyQueryExecRes(&pRequest->body.resInfo.execRes);
     memcpy(&pRequest->body.resInfo.execRes, pResult, sizeof(*pResult));
   }
 

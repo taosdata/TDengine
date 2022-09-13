@@ -5436,6 +5436,8 @@ void tFreeSSubmitRsp(SSubmitRsp *pRsp) {
     for (int32_t i = 0; i < pRsp->nBlocks; ++i) {
       SSubmitBlkRsp *sRsp = pRsp->pBlocks + i;
       taosMemoryFree(sRsp->tblFName);
+      tFreeSTableMetaRsp(sRsp->pMeta);
+      taosMemoryFree(sRsp->pMeta);
     }
 
     taosMemoryFree(pRsp->pBlocks);
