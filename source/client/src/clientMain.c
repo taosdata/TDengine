@@ -184,7 +184,7 @@ void taos_free_result(TAOS_RES *res) {
     SRequestObj *pRequest = (SRequestObj *)res;
     tscDebug("0x%" PRIx64 " taos_free_result start to free query", pRequest->requestId);
     destroyRequest(pRequest);
-  } else if (TD_RES_TMQ_TAOSX(res)) {
+  } else if (TD_RES_TMQ_METADATA(res)) {
     SMqTaosxRspObj *pRsp = (SMqTaosxRspObj *)res;
     if (pRsp->rsp.blockData) taosArrayDestroyP(pRsp->rsp.blockData, taosMemoryFree);
     if (pRsp->rsp.blockDataLen) taosArrayDestroy(pRsp->rsp.blockDataLen);

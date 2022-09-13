@@ -1465,7 +1465,7 @@ SMqRspObj* tmqBuildRspFromWrapper(SMqPollRspWrapper* pWrapper) {
 
 SMqTaosxRspObj* tmqBuildTaosxRspFromWrapper(SMqPollRspWrapper* pWrapper) {
   SMqTaosxRspObj* pRspObj = taosMemoryCalloc(1, sizeof(SMqTaosxRspObj));
-  pRspObj->resType = RES_TYPE__TAOSX;
+  pRspObj->resType = RES_TYPE__TMQ_METADATA;
   tstrncpy(pRspObj->topic, pWrapper->topicHandle->topicName, TSDB_TOPIC_FNAME_LEN);
   tstrncpy(pRspObj->db, pWrapper->topicHandle->db, TSDB_DB_FNAME_LEN);
   pRspObj->vgId = pWrapper->vgHandle->vgId;
@@ -1649,7 +1649,7 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
           continue;
         }
         // build rsp
-        SMqRspObj* pRsp = tmqBuildRspFromWrapper(pollRspWrapper);
+        SMqTaosxRspObj* pRsp = tmqBuildTaosxRspFromWrapper(pollRspWrapper);
         taosFreeQitem(pollRspWrapper);
         return pRsp;
       } else {
@@ -1769,11 +1769,11 @@ tmq_res_t tmq_get_res_type(TAOS_RES* res) {
   } else if (TD_RES_TMQ_META(res)) {
     SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)res;
     if (pMetaRspObj->metaRsp.resMsgType == TDMT_VND_DELETE) {
-      return TMQ_RES_TAOSX;
+      return TMQ_RES_DATA;
     }
     return TMQ_RES_TABLE_META;
-  } else if (TD_RES_TMQ_TAOSX(res)) {
-    return TMQ_RES_DATA;
+  } else if (TD_RES_TMQ_METADATA(res)) {
+    return TMQ_RES_METADATA;
   } else {
     return TMQ_RES_INVALID;
   }
