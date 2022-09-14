@@ -4723,9 +4723,8 @@ int32_t tSerializeSVDeleteReq(void *buf, int32_t bufLen, SVDeleteReq *pReq) {
   if (tEncodeU64(&encoder, pReq->queryId) < 0) return -1;
   if (tEncodeU64(&encoder, pReq->taskId) < 0) return -1;
   if (tEncodeU32(&encoder, pReq->sqlLen) < 0) return -1;
-  if (tEncodeU32(&encoder, pReq->phyLen) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
-  if (tEncodeCStr(&encoder, pReq->msg) < 0) return -1;
+  if (tEncodeBinary(&encoder, pReq->msg, pReq->phyLen) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -4755,13 +4754,12 @@ int32_t tDeserializeSVDeleteReq(void *buf, int32_t bufLen, SVDeleteReq *pReq) {
   if (tDecodeU64(&decoder, &pReq->queryId) < 0) return -1;
   if (tDecodeU64(&decoder, &pReq->taskId) < 0) return -1;
   if (tDecodeU32(&decoder, &pReq->sqlLen) < 0) return -1;
-  if (tDecodeU32(&decoder, &pReq->phyLen) < 0) return -1;
   pReq->sql = taosMemoryCalloc(1, pReq->sqlLen + 1);
   if (NULL == pReq->sql) return -1;
-  pReq->msg = taosMemoryCalloc(1, pReq->phyLen + 1);
-  if (NULL == pReq->msg) return -1;
   if (tDecodeCStrTo(&decoder, pReq->sql) < 0) return -1;
-  if (tDecodeCStrTo(&decoder, pReq->msg) < 0) return -1;
+  uint64_t msgLen = 0;
+  if (tDecodeBinaryAlloc(&decoder, (void **)&pReq->msg, &msgLen) < 0) return -1;
+  pReq->phyLen = msgLen;
 
   tEndDecode(&decoder);
 

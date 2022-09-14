@@ -860,7 +860,7 @@ int32_t schLaunchTaskImpl(void *param) {
   SSubplan *plan = pTask->plan;
 
   if (NULL == pTask->msg) {  // TODO add more detailed reason for failure
-    code = qSubPlanToString(plan, &pTask->msg, &pTask->msgLen);
+    code = qSubPlanToMsg(plan, &pTask->msg, &pTask->msgLen);
     if (TSDB_CODE_SUCCESS != code) {
       SCH_TASK_ELOG("failed to create physical plan, code:%s, msg:%p, len:%d", tstrerror(code), pTask->msg,
                     pTask->msgLen);
