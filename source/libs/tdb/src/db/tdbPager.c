@@ -185,10 +185,10 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   // ref page one more time so the page will not be release
   tdbRefPage(pPage);
   tdbDebug("pcache/mdirty page %p/%d/%d", pPage, TDB_PAGE_PGNO(pPage), pPage->id);
-  /*
+
   // Set page as dirty
   pPage->isDirty = 1;
-
+  /*
   // Add page to dirty list(TODO: NOT use O(n^2) algorithm)
   for (ppPage = &pPager->pDirty; (*ppPage) && TDB_PAGE_PGNO(*ppPage) < TDB_PAGE_PGNO(pPage);
        ppPage = &((*ppPage)->pDirtyNext)) {
@@ -260,6 +260,7 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
 
     pPage->isDirty = 0;
 
+    // tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
 
@@ -345,14 +346,18 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
   }
   */
   // 3, release the dirty pages
-  for (pPage = pPager->pDirty; pPage; pPage = pPager->pDirty) {
-    pPager->pDirty = pPage->pDirtyNext;
-    pPage->pDirtyNext = NULL;
+  SRBTreeIter  iter = tRBTreeIterCreate(&pPager->rbt, 1);
+  SRBTreeNode *pNode = NULL;
+  while ((pNode = tRBTreeIterNext(&iter)) != NULL) {
+    pPage = (SPage *)pNode;
 
     pPage->isDirty = 0;
 
+    // tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
+
+  tRBTreeCreate(&pPager->rbt, pageCmpFn);
 
   // 4, remove the journal file
   tdbOsClose(pPager->jfd);
