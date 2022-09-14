@@ -1,21 +1,10 @@
 use std::{path::Path, sync::Arc};
 
 use anyhow::{bail, Context, Result};
-use chrono::Local;
-use serde::{Deserialize, Serialize};
 use taos::*;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
-use crate::taoz::ZCodec;
-
-#[derive(Debug, Deserialize, Serialize)]
-pub(crate) struct Topic {
-    name: String,
-    database: String,
-    sql: String,
-    vgroups: usize,
-    table: Option<String>,
-}
+use crate::{taoz::ZCodec, tmq_to_local::LocalConfig};
 
 async fn restore(
     id: usize,
@@ -107,50 +96,6 @@ async fn restore(
     Ok(())
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-pub(crate) struct LocalConfig {
-    pub(crate) created_at: chrono::DateTime<Local>,
-    pub(crate) last_modified: chrono::DateTime<Local>,
-    pub(crate) group_id: String,
-    pub(crate) client_id: String,
-    pub(crate) topics: Vec<Topic>,
-}
-
-impl LocalConfig {
-    // pub fn new(
-    //     topics: Vec<Topic>,
-    //     group_id: impl Into<String>,
-    //     client_id: impl Into<String>,
-    // ) -> Self {
-    //     Self {
-    //         created_at: Local::now(),
-    //         last_modified: Local::now(),
-    //         group_id: group_id.into(),
-    //         client_id: client_id.into(),
-    //         topics,
-    //     }
-    // }
-    pub fn from_path(path: impl AsRef<Path>) -> Result<Self> {
-        let path = path.as_ref();
-        let config = config::Config::builder()
-            .add_source(config::File::with_name(&path.display().to_string()))
-            .build()?;
-        let config: LocalConfig = config.try_deserialize()?;
-        Ok(config)
-    }
-
-    // pub fn write_to(&self, path: impl AsRef<Path>) -> Result<()> {
-    //     let path = path.as_ref();
-    //     let bytes = toml::to_vec(self)?;
-    //     std::fs::write(path, bytes)?;
-    //     Ok(())
-    // }
-}
-
-// pub async fn local_to_taos_validate(_from: Dsn, _to: Dsn) -> Result<()> {
-//     Ok(())
-// }
-
 pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> Result<()> {
     if from.fragment.is_none() {
         anyhow::bail!(
@@ -212,7 +157,7 @@ pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> 
             if !global_taos.database_exists(&target).await? {
                 if &topic.database != target {
                     let sql = topic
-                        .sql
+                        .database_sql
                         .replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS")
                         .replace(&format!("`{}`", topic.database), &format!("`{target}`"));
                     global_taos.exec(sql).await?;
@@ -227,7 +172,7 @@ pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> 
                 global_taos
                     .exec(
                         topic
-                            .sql
+                            .database_sql
                             .replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS"),
                     )
                     .await?;
@@ -236,6 +181,20 @@ pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> 
                     "the database has already exists, please be sure to override it by force"
                 );
             }
+        }
+        if let Some(table) = topic.table.as_ref() {
+            // schema rebuild
+            let taos = target.build()?;
+            if let Some(target) = target_database.as_ref() {
+                taos.exec(format!("use {}", target)).await?;
+            } else {
+                taos.exec(format!("use {}", topic.database)).await?;
+            }
+
+            if let Some(sql) = table.stable_sql.as_deref() {
+                taos.exec(sql.replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS")).await?;
+            }
+            taos.exec(table.table_sql.replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")).await?;
         }
 
         let mut dir_entry = tokio::fs::read_dir(path).await?;
@@ -259,8 +218,9 @@ pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> 
             } else {
                 taos.exec(format!("use {}", topic.database)).await?;
             }
+
             // let barrier = barrier.clone();
-            let table = topic.table.clone();
+            let table = topic.table.as_ref().map(|t| t.table.clone());
             let handle =
                 tokio::spawn(async move { restore(task_id, path.path(), taos, table, sem).await });
             handles.push(handle);
