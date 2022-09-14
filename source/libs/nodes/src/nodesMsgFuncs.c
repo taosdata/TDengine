@@ -254,6 +254,11 @@ static int32_t tlvDecodeDynBinary(STlv* pTlv, void** pValue) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t tlvDecodeBinary(STlv* pTlv, void* pValue) {
+  memcpy(pValue, pTlv->value, pTlv->len);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t tlvDecodeObjFromTlv(STlv* pTlv, FToObject func, void* pObj) {
   STlvDecoder decoder = {.bufSize = pTlv->len, .offset = 0, .pBuf = pTlv->value};
   return func(&decoder, pObj);
@@ -469,7 +474,15 @@ static int32_t msgToColumnNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { VALUE_CODE_EXPR_BASE = 1, VALUE_CODE_LITERAL, VALUE_CODE_IS_NULL, VALUE_CODE_DATUM };
+enum {
+  VALUE_CODE_EXPR_BASE = 1,
+  VALUE_CODE_LITERAL,
+  VALUE_CODE_IS_DURATION,
+  VALUE_CODE_TRANSLATE,
+  VALUE_CODE_NOT_RESERVED,
+  VALUE_CODE_IS_NULL,
+  VALUE_CODE_DATUM
+};
 
 static int32_t datumToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SValueNode* pNode = (const SValueNode*)pObj;
@@ -524,9 +537,18 @@ static int32_t valueNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
     code = tlvEncodeCStr(pEncoder, VALUE_CODE_LITERAL, pNode->literal);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeBool(pEncoder, VALUE_CODE_IS_NULL, pNode->isNull);
+    code = tlvEncodeBool(pEncoder, VALUE_CODE_IS_DURATION, pNode->isDuration);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, VALUE_CODE_TRANSLATE, pNode->translate);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, VALUE_CODE_NOT_RESERVED, pNode->notReserved);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, VALUE_CODE_IS_NULL, pNode->isNull);
+  }
+  if (TSDB_CODE_SUCCESS == code && !pNode->isNull) {
     code = datumToMsg(pNode, pEncoder);
   }
 
@@ -590,12 +612,18 @@ static int32_t msgToDatum(STlv* pTlv, void* pObj) {
       break;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
-    case TSDB_DATA_TYPE_VARBINARY:
-      code = tlvDecodeDynBinary(pTlv, (void**)&pNode->datum.p);
+    case TSDB_DATA_TYPE_VARBINARY: {
+      pNode->datum.p = taosMemoryCalloc(1, pNode->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
+      if (NULL == pNode->datum.p) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        break;
+      }
+      code = tlvDecodeBinary(pTlv, pNode->datum.p);
       if (TSDB_CODE_SUCCESS == code) {
-        varDataSetLen(pNode->datum.p, pNode->node.resType.bytes - VARSTR_HEADER_SIZE);
+        varDataSetLen(pNode->datum.p, pTlv->len - VARSTR_HEADER_SIZE);
       }
       break;
+    }
     case TSDB_DATA_TYPE_JSON:
       code = tlvDecodeDynBinary(pTlv, (void**)&pNode->datum.p);
       break;
@@ -621,6 +649,15 @@ static int32_t msgToValueNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case VALUE_CODE_LITERAL:
         code = tlvDecodeCStrP(pTlv, &pNode->literal);
+        break;
+      case VALUE_CODE_IS_DURATION:
+        code = tlvDecodeBool(pTlv, &pNode->isDuration);
+        break;
+      case VALUE_CODE_TRANSLATE:
+        code = tlvDecodeBool(pTlv, &pNode->translate);
+        break;
+      case VALUE_CODE_NOT_RESERVED:
+        code = tlvDecodeBool(pTlv, &pNode->notReserved);
         break;
       case VALUE_CODE_IS_NULL:
         code = tlvDecodeBool(pTlv, &pNode->isNull);
