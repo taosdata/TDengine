@@ -1470,11 +1470,11 @@ SMqTaosxRspObj* tmqBuildTaosxRspFromWrapper(SMqPollRspWrapper* pWrapper) {
   tstrncpy(pRspObj->db, pWrapper->topicHandle->db, TSDB_DB_FNAME_LEN);
   pRspObj->vgId = pWrapper->vgHandle->vgId;
   pRspObj->resIter = -1;
-  memcpy(&pRspObj->rsp, &pWrapper->dataRsp, sizeof(SMqTaosxRspObj));
+  memcpy(&pRspObj->rsp, &pWrapper->taosxRsp, sizeof(STaosxRsp));
 
   pRspObj->resInfo.totalRows = 0;
   pRspObj->resInfo.precision = TSDB_TIME_PRECISION_MILLI;
-  if (!pWrapper->dataRsp.withSchema) {
+  if (!pWrapper->taosxRsp.withSchema) {
     setResSchemaInfo(&pRspObj->resInfo, pWrapper->topicHandle->schema.pSchema, pWrapper->topicHandle->schema.nCols);
   }
 
@@ -1786,6 +1786,9 @@ const char* tmq_get_topic_name(TAOS_RES* res) {
   } else if (TD_RES_TMQ_META(res)) {
     SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)res;
     return strchr(pMetaRspObj->topic, '.') + 1;
+  } else if (TD_RES_TMQ_METADATA(res)) {
+    SMqTaosxRspObj* pRspObj = (SMqTaosxRspObj*)res;
+    return strchr(pRspObj->topic, '.') + 1;
   } else {
     return NULL;
   }
@@ -1798,6 +1801,9 @@ const char* tmq_get_db_name(TAOS_RES* res) {
   } else if (TD_RES_TMQ_META(res)) {
     SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)res;
     return strchr(pMetaRspObj->db, '.') + 1;
+  } else if (TD_RES_TMQ_METADATA(res)) {
+    SMqTaosxRspObj* pRspObj = (SMqTaosxRspObj*)res;
+    return strchr(pRspObj->db, '.') + 1;
   } else {
     return NULL;
   }
@@ -1810,6 +1816,9 @@ int32_t tmq_get_vgroup_id(TAOS_RES* res) {
   } else if (TD_RES_TMQ_META(res)) {
     SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)res;
     return pMetaRspObj->vgId;
+  } else if (TD_RES_TMQ_META(res)) {
+    SMqTaosxRspObj* pRspObj = (SMqTaosxRspObj*)res;
+    return pRspObj->vgId;
   } else {
     return -1;
   }

@@ -54,12 +54,12 @@ static void msg_process(TAOS_RES* msg) {
   printf("db: %s\n", tmq_get_db_name(msg));
   printf("vg: %d\n", tmq_get_vgroup_id(msg));
   TAOS *pConn = use_db();
-  if (tmq_get_res_type(msg) == TMQ_RES_TABLE_META) {
+  if (tmq_get_res_type(msg) == TMQ_RES_TABLE_META || tmq_get_res_type(msg) == TMQ_RES_METADATA) {
     char* result = tmq_get_json_meta(msg);
     if (result) {
       printf("meta result: %s\n", result);
     }
-    if(g_fp){
+    if(g_fp && result){
       taosFprintfFile(g_fp, result);
       taosFprintfFile(g_fp, "\n");
     }
