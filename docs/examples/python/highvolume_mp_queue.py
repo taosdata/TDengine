@@ -65,7 +65,7 @@
 #
 # # ANCHOR: MockDataSource
 # class MockDataSource:
-#     location = ["LosAngeles", "SanDiego", "Hollywood", "Compton", "San Francisco"]
+#     location = ["California.LosAngeles", "California.SanDiego", "California.SanJose", "California.Campbell", "California.SanFrancisco"]
 #     current = [8.8, 10.7, 9.9, 8.9, 9.4]
 #     voltage = [119, 116, 111, 113, 118]
 #     phase = [0.32, 0.34, 0.33, 0.329, 0.141]
