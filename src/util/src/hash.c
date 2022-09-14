@@ -611,7 +611,6 @@ void taosHashClear(SHashObj *pHashObj) {
   for (int32_t i = 0; i < pHashObj->capacity; ++i) {
     SHashEntry *pEntry = pHashObj->hashList[i];
     if (pEntry->num == 0) {
-      assert(pEntry->next == NULL);
       continue;
     }
 

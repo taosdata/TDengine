@@ -330,7 +330,7 @@ void checkBrokenQueries(STscObj *pTscObj) {
   SSqlObj *pSql = pTscObj->sqlList;
   while (pSql) {
     // avoid sqlobj may not be correctly removed from sql list
-    if (pSql->sqlstr == NULL) {
+    if (pSql->sqlstr == NULL || pSql->signature != pSql) {
       pSql = pSql->next;
       continue;
     }
@@ -3392,7 +3392,6 @@ int tscRenewTableMeta(SSqlObj *pSql) {
   pthread_mutex_lock(&rootSql->mtxSubs);
   tscFreeSubobj(rootSql);
   pthread_mutex_unlock(&rootSql->mtxSubs);
-  tfree(rootSql->pSubs);
   tscResetSqlCmd(&rootSql->cmd, true, rootSql->self);
 
   code = getMultiTableMetaFromMnode(rootSql, pNameList, vgroupList, NULL, tscTableMetaCallBack, true);

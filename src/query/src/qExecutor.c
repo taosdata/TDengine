@@ -9946,7 +9946,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
 
     pTableqinfo->pGroupList = taosArrayInit(numOfGroups, POINTER_BYTES);
     pTableqinfo->numOfTables = pTableGroupInfo->numOfTables;
-    pTableqinfo->map = taosHashInit(pTableGroupInfo->numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+    pTableqinfo->map = taosHashInit(pTableGroupInfo->numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   }
 
   pQInfo->pBuf = calloc(pTableGroupInfo->numOfTables, sizeof(STableQueryInfo));
@@ -10146,10 +10146,13 @@ static void doDestroyTableQueryInfo(STableGroupInfo* pTableqinfoGroupInfo) {
   }
 
   taosArrayDestroy(&pTableqinfoGroupInfo->pGroupList);
-  taosHashCleanup(pTableqinfoGroupInfo->map);
+
+  SHashObj *pmap = pTableqinfoGroupInfo->map;
+  if (pmap == atomic_val_compare_exchange_ptr(&pTableqinfoGroupInfo->map, pmap, NULL)) {
+    taosHashCleanup(pmap);
+  }
 
   pTableqinfoGroupInfo->pGroupList = NULL;
-  pTableqinfoGroupInfo->map = NULL;
   pTableqinfoGroupInfo->numOfTables = 0;
 }
 
