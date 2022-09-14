@@ -225,61 +225,66 @@ char *tstrstr(char *src, char *dst, bool ignoreInEsc) {
 }
 
 char* strtolower(char *dst, const char *src) {
-  if (src == NULL || dst == NULL) {
-    return dst;
-  }
-  char* const ret = dst;
-  while (*src) {
-    char ch = *(src++);
-    ch += (ch >= 'A' && ch <= 'Z') ? 'a' - 'A' : 0;
-    *(dst++) = ch;
-         
-    if (ch == '\'' || ch == '"') {
-      char prev = ch;
-      while (*src) {
-        const char next = *(src++);
-        *(dst++) = next;
-        if (prev != '\\' && next == ch) break;
-        prev = next;
+  int esc = 0;
+  char quote = 0, *p = dst, c;
+
+  assert(dst != NULL);
+
+  for (c = *src++; c; c = *src++) {
+    if (esc) {
+      esc = 0;
+    } else if (quote) {
+      if (c == '\\') {
+        esc = 1;
+      } else if (c == quote) {
+        quote = 0;
       }
-    } else if (ch == '`') {
-      while (*src) {
-        const char next = *(src++);
-        *(dst++) = next;
-        if (next == ch) break;
-      }
+    } else if (c >= 'A' && c <= 'Z') {
+      c -= 'A' - 'a';
+    } else if (c == '\'' || c == '"') {
+      quote = c;
     }
+    *p++ = c;
   }
-  *(dst) = 0;
-  return ret;
+
+  *p = 0;
+  return dst;
 }
 
 char* strntolower(char *dst, const char *src, int32_t n) {
+  int esc = 0, inEsc = 0;
+  char quote = 0, *p = dst, c;
+
   assert(dst != NULL);
-  char* const end = dst + n;
-  while (dst != end) {
-    char ch = *(src++);
-    ch += (ch >= 'A' && ch <= 'Z') ? 'a' - 'A' : 0;
-    *(dst++) = ch;
-         
-    if (ch == '\'' || ch == '"') {
-      char prev = ch;
-      while (dst != end) {
-        const char next = *(src++);
-        *(dst++) = next;
-        if (prev != '\\' && next == ch) break;
-        prev = next;
-      }
-    } else if (ch == '`') {
-      while (dst != end) {
-        const char next = *(src++);
-        *(dst++) = next;
-        if (next == ch) break;
-      }
-    }
+  if (n == 0) {
+    *p = 0;
+    return dst;
   }
-  *(dst) = 0;
-  return dst - n;
+  for (c = *src++; n-- > 0; c = *src++) {
+    if (esc) {
+      esc = 0;
+    } else if (quote) {
+      if (c == '\\') {
+        esc = 1;
+      } else if (c == quote) {
+        quote = 0;
+      }
+    } else if (inEsc) {
+      if (c == '`') {
+        inEsc = 0;
+      }
+    } else if (c >= 'A' && c <= 'Z') {
+      c -= 'A' - 'a';
+    } else if (inEsc == 0 && (c == '\'' || c == '"')) {
+      quote = c;
+    } else if (c == '`' && quote == 0) {
+      inEsc = 1;
+    }
+    *p++ = c;
+  }
+
+  *p = 0;
+  return dst;
 }
 
 char* strntolower_s(char *dst, const char *src, int32_t n) {
