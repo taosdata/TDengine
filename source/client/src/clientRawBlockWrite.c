@@ -39,10 +39,10 @@ static char* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sch
   //  sprintf(uid, "%"PRIi64, id);
   //  cJSON* id_ = cJSON_CreateString(uid);
   //  cJSON_AddItemToObject(json, "id", id_);
-  cJSON* tableName = cJSON_CreateString(name);
-  cJSON_AddItemToObject(json, "tableName", tableName);
   cJSON* tableType = cJSON_CreateString(t == TSDB_NORMAL_TABLE ? "normal" : "super");
   cJSON_AddItemToObject(json, "tableType", tableType);
+  cJSON* tableName = cJSON_CreateString(name);
+  cJSON_AddItemToObject(json, "tableName", tableName);
   //  cJSON* version = cJSON_CreateNumber(1);
   //  cJSON_AddItemToObject(json, "version", version);
 
@@ -112,10 +112,10 @@ static char* buildAlterSTableJson(void* alterData, int32_t alterDataLen) {
   //  cJSON_AddItemToObject(json, "uid", uid);
   SName name = {0};
   tNameFromString(&name, req.name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-  cJSON* tableName = cJSON_CreateString(name.tname);
-  cJSON_AddItemToObject(json, "tableName", tableName);
   cJSON* tableType = cJSON_CreateString("super");
   cJSON_AddItemToObject(json, "tableType", tableType);
+  cJSON* tableName = cJSON_CreateString(name.tname);
+  cJSON_AddItemToObject(json, "tableName", tableName);
 
   cJSON* alterType = cJSON_CreateNumber(req.alterType);
   cJSON_AddItemToObject(json, "alterType", alterType);
@@ -417,10 +417,10 @@ static char* processAlterTable(SMqMetaRsp* metaRsp) {
   cJSON_AddItemToObject(json, "type", type);
   //  cJSON* uid = cJSON_CreateNumber(id);
   //  cJSON_AddItemToObject(json, "uid", uid);
-  cJSON* tableName = cJSON_CreateString(vAlterTbReq.tbName);
-  cJSON_AddItemToObject(json, "tableName", tableName);
   cJSON* tableType = cJSON_CreateString(vAlterTbReq.action == TSDB_ALTER_TABLE_UPDATE_TAG_VAL ? "child" : "normal");
   cJSON_AddItemToObject(json, "tableType", tableType);
+  cJSON* tableName = cJSON_CreateString(vAlterTbReq.tbName);
+  cJSON_AddItemToObject(json, "tableName", tableName);
   cJSON* alterType = cJSON_CreateNumber(vAlterTbReq.action);
   cJSON_AddItemToObject(json, "alterType", alterType);
 
@@ -528,10 +528,10 @@ static char* processDropSTable(SMqMetaRsp* metaRsp) {
   }
   cJSON* type = cJSON_CreateString("drop");
   cJSON_AddItemToObject(json, "type", type);
-  cJSON* tableName = cJSON_CreateString(req.name);
-  cJSON_AddItemToObject(json, "tableName", tableName);
   cJSON* tableType = cJSON_CreateString("super");
   cJSON_AddItemToObject(json, "tableType", tableType);
+  cJSON* tableName = cJSON_CreateString(req.name);
+  cJSON_AddItemToObject(json, "tableName", tableName);
 
   string = cJSON_PrintUnformatted(json);
 

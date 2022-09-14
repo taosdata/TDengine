@@ -31,10 +31,9 @@ class TDTestCase:
         while True:
             dst = queryFile.readline()
             src = consumeFile.readline()
-
-            if dst:
+            if src:
                 if dst != src:
-                    tdLog.exit("compare error: %s != %s"%src, dst)
+                    tdLog.exit("compare error: %s != %s"%(src, dst))
             else:
                 break
         return
@@ -42,7 +41,7 @@ class TDTestCase:
     def checkDropData(self):
         tdSql.execute('use db_taosx')
         tdSql.query("show tables")
-        tdSql.checkRows(2)
+        tdSql.checkRows(6)
         tdSql.query("select * from jt order by i")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 1)
@@ -52,7 +51,7 @@ class TDTestCase:
 
         tdSql.execute('use abc1')
         tdSql.query("show tables")
-        tdSql.checkRows(2)
+        tdSql.checkRows(6)
         tdSql.query("select * from jt order by i")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 1)
