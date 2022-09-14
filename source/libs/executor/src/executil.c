@@ -33,6 +33,17 @@ void initResultRowInfo(SResultRowInfo* pResultRowInfo) {
 
 void closeResultRow(SResultRow* pResultRow) { pResultRow->closed = true; }
 
+void resetResultRow(SResultRow* pResultRow, size_t entrySize) {
+  pResultRow->numOfRows = 0;
+  pResultRow->closed = false;
+  pResultRow->endInterp = false;
+  pResultRow->startInterp = false;
+
+  if (entrySize > 0) {
+    memset(pResultRow->pEntryInfo, 0, entrySize);
+  }
+}
+
 // TODO refactor: use macro
 SResultRowEntryInfo* getResultEntryInfo(const SResultRow* pRow, int32_t index, const int32_t* offset) {
   assert(index >= 0 && offset != NULL);
@@ -799,9 +810,15 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
     taosMemoryFreeClear(pColInfoData);
   }
 
-  for (int i = 0; i < taosArrayGetSize(res); i++) {
+  size_t numOfTables = taosArrayGetSize(res);
+  for (int i = 0; i < numOfTables; i++) {
     STableKeyInfo info = {.uid = *(uint64_t*)taosArrayGet(res, i), .groupId = 0};
-    taosArrayPush(pListInfo->pTableList, &info);
+    void* p = taosArrayPush(pListInfo->pTableList, &info);
+    if (p == NULL) {
+      taosArrayDestroy(res);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
     qDebug("tagfilter get uid:%ld", info.uid);
   }
 

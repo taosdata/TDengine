@@ -430,12 +430,14 @@ int32_t schHandleRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32
 
   code = schDoTaskRedirect(pJob, pTask, pData, rspCode);
   taosMemoryFree(pData->pData);
+  taosMemoryFree(pData->pEpSet);
 
   SCH_RET(code);
 
 _return:
 
   taosMemoryFree(pData->pData);
+  taosMemoryFree(pData->pEpSet);
 
   SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 }
@@ -860,7 +862,7 @@ int32_t schLaunchTaskImpl(void *param) {
   SSubplan *plan = pTask->plan;
 
   if (NULL == pTask->msg) {  // TODO add more detailed reason for failure
-    code = qSubPlanToString(plan, &pTask->msg, &pTask->msgLen);
+    code = qSubPlanToMsg(plan, &pTask->msg, &pTask->msgLen);
     if (TSDB_CODE_SUCCESS != code) {
       SCH_TASK_ELOG("failed to create physical plan, code:%s, msg:%p, len:%d", tstrerror(code), pTask->msg,
                     pTask->msgLen);
