@@ -1034,6 +1034,7 @@ int32_t tsdbFSCommit2(STsdb *pTsdb, STsdbFS *pFSNew) {
       goto _err;
     }
 
+    iOld++;
     iNew++;
     continue;
   }
