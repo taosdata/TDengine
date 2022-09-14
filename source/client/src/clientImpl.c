@@ -1369,7 +1369,7 @@ int32_t doProcessMsgFromServer(void* param) {
   updateTargetEpSet(pSendInfo, pTscObj, pMsg, pEpSet);
 
   SDataBuf buf = {
-      .msgType = pMsg->msgType, .len = pMsg->contLen, .pData = NULL, .handle = pMsg->info.handle, .pEpSet = pEpSet};
+      .msgType = pMsg->msgType, .len = pMsg->contLen, .pData = NULL, .handle = pMsg->info.handle, .pEpSet = NULL};
 
   if (pMsg->contLen > 0) {
     buf.pData = taosMemoryCalloc(1, pMsg->contLen);
@@ -1384,6 +1384,8 @@ int32_t doProcessMsgFromServer(void* param) {
   pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
   rpcFreeCont(pMsg->pCont);
   destroySendMsgInfo(pSendInfo);
+
+  taosMemoryFree(arg->pEpset);
   taosMemoryFree(arg);
   return TSDB_CODE_SUCCESS;
 }
