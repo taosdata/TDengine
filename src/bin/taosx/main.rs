@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 use clap::{Parser, Subcommand};
 use log::Level;
 use pretty_env_logger::env_logger::fmt::{Color, StyledValue};
@@ -121,7 +121,7 @@ async fn main() -> Result<()> {
         match cmd {
             Commands::Run(cmd) => cmd.run_with(args.globals).await?,
             Commands::Serve(cli) => cli.run_with(args.globals).await?,
-            Commands::External(_) => todo!(),
+            Commands::External(_) => bail!("unknown subcommand"),
         }
     } else {
         //  service mode
