@@ -134,8 +134,7 @@ int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) 
   schedMsg.thandle = execParam;
   schedMsg.msg = code;
 
-  taosScheduleTask(&pTaskQueue, &schedMsg);
-  return 0;
+  return taosScheduleTask(&pTaskQueue, &schedMsg);
 }
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
@@ -472,5 +471,3 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
 
   return TSDB_CODE_SUCCESS;
 }
-
-

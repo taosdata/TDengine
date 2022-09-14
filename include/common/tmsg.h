@@ -1201,6 +1201,7 @@ typedef struct {
   int16_t  sstTrigger;
   int16_t  hashPrefix;
   int16_t  hashSuffix;
+  int32_t  tsdbPageSize;
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
