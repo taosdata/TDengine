@@ -23,6 +23,7 @@ namespace TDengineExample
             CheckRes(conn, res, "failed to insert data");
             int affectedRows = TDengine.AffectRows(res);
             Console.WriteLine("affectedRows " + affectedRows);
+            TDengine.FreeResult(res);
             ExitProgram(conn, 0);
         }
 

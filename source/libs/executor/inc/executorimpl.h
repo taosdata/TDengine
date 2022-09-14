@@ -459,10 +459,11 @@ typedef struct SPartitionDataInfo {
   SArray*  rowIds;
 } SPartitionDataInfo;
 
-typedef struct STimeWindowSupp {
+typedef struct STimeWindowAggSupp {
   int8_t          calTrigger;
   int64_t         waterMark;
   TSKEY           maxTs;
+  TSKEY           minTs;
   SColumnInfoData timeWindowData;  // query time window info for scalar function execution.
 } STimeWindowAggSupp;
 
@@ -584,11 +585,12 @@ typedef struct SIntervalAggOperatorInfo {
 typedef struct SMergeAlignedIntervalAggOperatorInfo {
   SIntervalAggOperatorInfo* intervalAggOperatorInfo;
 
-  bool         hasGroupId;
+//  bool         hasGroupId;
   uint64_t     groupId;  // current groupId
   int64_t      curTs;    // current ts
   SSDataBlock* prefetchedBlock;
   SNode*       pCondition;
+  SResultRow*  pResultRow;
 } SMergeAlignedIntervalAggOperatorInfo;
 
 typedef struct SStreamIntervalOperatorInfo {
@@ -648,7 +650,6 @@ typedef struct SAggOperatorInfo {
 } SAggOperatorInfo;
 
 typedef struct SProjectOperatorInfo {
-  // SOptrBasicInfo should be first, SAggSupporter should be second for stream encode
   SOptrBasicInfo binfo;
   SAggSupporter  aggSup;
   SNode*         pFilterNode;  // filter info, which is push down by optimizer
@@ -690,7 +691,6 @@ typedef struct SFillOperatorInfo {
 } SFillOperatorInfo;
 
 typedef struct SGroupbyOperatorInfo {
-  // SOptrBasicInfo should be first, SAggSupporter should be second for stream encode
   SOptrBasicInfo binfo;
   SAggSupporter  aggSup;
 
@@ -737,7 +737,6 @@ typedef struct SWindowRowsSup {
 } SWindowRowsSup;
 
 typedef struct SSessionAggOperatorInfo {
-  // SOptrBasicInfo should be first, SAggSupporter should be second for stream encode
   SOptrBasicInfo binfo;
   SAggSupporter  aggSup;
 
@@ -826,7 +825,6 @@ typedef struct SStateWindowOperatorInfo {
   SStateKeys         stateKey;
   int32_t            tsSlotId;  // primary timestamp column slot id
   STimeWindowAggSupp twAggSup;
-  //  bool             reptScan;
   const SNode* pCondition;
 } SStateWindowOperatorInfo;
 
@@ -847,24 +845,6 @@ typedef struct SStreamStateAggOperatorInfo {
   bool                ignoreExpiredData;
 } SStreamStateAggOperatorInfo;
 
-typedef struct SSortedMergeOperatorInfo {
-  // SOptrBasicInfo should be first, SAggSupporter should be second for stream encode
-  SOptrBasicInfo binfo;
-  SAggSupporter  aggSup;
-
-  SArray*        pSortInfo;
-  int32_t        numOfSources;
-  SSortHandle*   pSortHandle;
-  int32_t        bufPageSize;
-  uint32_t       sortBufSize;  // max buffer size for in-memory sort
-  int32_t        resultRowFactor;
-  bool           hasGroupVal;
-  SDiskbasedBuf* pTupleStore;  // keep the final results
-  int32_t        numOfResPerPage;
-  char**         groupVal;
-  SArray*        groupInfo;
-} SSortedMergeOperatorInfo;
-
 typedef struct SSortOperatorInfo {
   SOptrBasicInfo binfo;
   uint32_t       sortBufSize;  // max buffer size for in-memory sort
@@ -872,11 +852,10 @@ typedef struct SSortOperatorInfo {
   SSortHandle*   pSortHandle;
   SArray*        pColMatchInfo;  // for index map from table scan output
   int32_t        bufPageSize;
-
-  int64_t    startTs;      // sort start time
-  uint64_t   sortElapsed;  // sort elapsed time, time to flush to disk not included.
-  SLimitInfo limitInfo;
-  SNode*     pCondition;
+  int64_t        startTs;      // sort start time
+  uint64_t       sortElapsed;  // sort elapsed time, time to flush to disk not included.
+  SLimitInfo     limitInfo;
+  SNode*         pCondition;
 } SSortOperatorInfo;
 
 typedef struct STagFilterOperatorInfo {
@@ -908,7 +887,6 @@ SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, 
                                    __optr_decode_fn_t decode, __optr_explain_fn_t explain);
 
 int32_t operatorDummyOpenFn(SOperatorInfo* pOperator);
-void    operatorDummyCloseFn(void* param, int32_t numOfCols);
 int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t num);
 
 void    initBasicInfo(SOptrBasicInfo* pInfo, SSDataBlock* pBlock);
@@ -943,7 +921,6 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int
                                SSDataBlock* pBlock, const char* idStr);
 
 void cleanupAggSup(SAggSupporter* pAggSup);
-void destroyBasicOperatorInfo(void* param, int32_t numOfOutput);
 void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
 void setTbNameColData(void* pMeta, const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId);
 
@@ -1090,10 +1067,8 @@ void               appendOneRow(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEn
 void               printDataBlock(SSDataBlock* pBlock, const char* flag);
 uint64_t calGroupIdByData(SPartitionBySupporter* pParSup, SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t rowId);
 
-int32_t finalizeResultRowIntoResultDataBlock(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition,
-                                             SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, int32_t numOfExprs,
-                                             const int32_t* rowCellOffset, SSDataBlock* pBlock,
-                                             SExecTaskInfo* pTaskInfo);
+int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition,
+                                             SExprSupp* pSup, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
                                 STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,

@@ -3,11 +3,11 @@ import time
 
 class MockDataSource:
     samples = [
-        "8.8,119,0.32,LosAngeles,0",
-        "10.7,116,0.34,SanDiego,1",
-        "9.9,111,0.33,Hollywood,2",
-        "8.9,113,0.329,Compton,3",
-        "9.4,118,0.141,San Francisco,4"
+        "8.8,119,0.32,California.LosAngeles,0",
+        "10.7,116,0.34,California.SanDiego,1",
+        "9.9,111,0.33,California.SanJose,2",
+        "8.9,113,0.329,California.Campbell,3",
+        "9.4,118,0.141,California.SanFrancisco,4"
     ]
 
     def __init__(self, tb_name_prefix, table_count):

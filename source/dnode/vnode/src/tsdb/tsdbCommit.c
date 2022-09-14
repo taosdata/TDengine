@@ -45,7 +45,7 @@ typedef struct {
   int32_t minRow;
   int32_t maxRow;
   int8_t  cmprAlg;
-  int8_t  maxLast;
+  int8_t  sttTrigger;
   SArray *aTbDataP;  // memory
   STsdbFS fs;        // disk
   // --------------
@@ -66,7 +66,7 @@ typedef struct {
     SDataIter *pIter;
     SRBTree    rbt;
     SDataIter  dataIter;
-    SDataIter  aDataIter[TSDB_MAX_STT_FILE];
+    SDataIter  aDataIter[TSDB_MAX_STT_TRIGGER];
     int8_t     toLastOnly;
   };
   struct {
@@ -423,7 +423,7 @@ static int32_t tsdbOpenCommitIter(SCommitter *pCommitter) {
   pCommitter->toLastOnly = 0;
   SDataFReader *pReader = pCommitter->dReader.pReader;
   if (pReader) {
-    if (pReader->pSet->nSttF >= pCommitter->maxLast) {
+    if (pReader->pSet->nSttF >= pCommitter->sttTrigger) {
       int8_t iIter = 0;
       for (int32_t iStt = 0; iStt < pReader->pSet->nSttF; iStt++) {
         pIter = &pCommitter->aDataIter[iIter];
@@ -510,11 +510,11 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   SSttFile  fStt = {.commitID = pCommitter->commitID};
   SDFileSet wSet = {.fid = pCommitter->commitFid, .pHeadF = &fHead, .pDataF = &fData, .pSmaF = &fSma};
   if (pRSet) {
-    ASSERT(pRSet->nSttF <= pCommitter->maxLast);
+    ASSERT(pRSet->nSttF <= pCommitter->sttTrigger);
     fData = *pRSet->pDataF;
     fSma = *pRSet->pSmaF;
     wSet.diskId = pRSet->diskId;
-    if (pRSet->nSttF < pCommitter->maxLast) {
+    if (pRSet->nSttF < pCommitter->sttTrigger) {
       for (int32_t iStt = 0; iStt < pRSet->nSttF; iStt++) {
         wSet.aSttF[iStt] = pRSet->aSttF[iStt];
       }
@@ -750,7 +750,7 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
   pCommitter->minRow = pTsdb->pVnode->config.tsdbCfg.minRows;
   pCommitter->maxRow = pTsdb->pVnode->config.tsdbCfg.maxRows;
   pCommitter->cmprAlg = pTsdb->pVnode->config.tsdbCfg.compression;
-  pCommitter->maxLast = TSDB_DEFAULT_STT_FILE;  // TODO: make it as a config
+  pCommitter->sttTrigger = pTsdb->pVnode->config.sttTrigger;
   pCommitter->aTbDataP = tsdbMemTableGetTbDataArray(pTsdb->imem);
   if (pCommitter->aTbDataP == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -780,7 +780,7 @@ static int32_t tsdbCommitDataStart(SCommitter *pCommitter) {
   if (code) goto _exit;
 
   // merger
-  for (int32_t iStt = 0; iStt < TSDB_MAX_STT_FILE; iStt++) {
+  for (int32_t iStt = 0; iStt < TSDB_MAX_STT_TRIGGER; iStt++) {
     SDataIter *pIter = &pCommitter->aDataIter[iStt];
     pIter->aSttBlk = taosArrayInit(0, sizeof(SSttBlk));
     if (pIter->aSttBlk == NULL) {
@@ -822,7 +822,7 @@ static void tsdbCommitDataEnd(SCommitter *pCommitter) {
   tBlockDataDestroy(&pCommitter->dReader.bData, 1);
 
   // merger
-  for (int32_t iStt = 0; iStt < TSDB_MAX_STT_FILE; iStt++) {
+  for (int32_t iStt = 0; iStt < TSDB_MAX_STT_TRIGGER; iStt++) {
     SDataIter *pIter = &pCommitter->aDataIter[iStt];
     taosArrayDestroy(pIter->aSttBlk);
     tBlockDataDestroy(&pIter->bData, 1);

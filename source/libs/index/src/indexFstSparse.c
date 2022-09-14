@@ -15,7 +15,7 @@
 
 #include "indexFstSparse.h"
 
-static void sparSetUtil(int32_t *buf, int32_t cap) {
+static FORCE_INLINE void sparSetInitBuf(int32_t *buf, int32_t cap) {
   for (int32_t i = 0; i < cap; i++) {
     buf[i] = -1;
   }
@@ -28,8 +28,8 @@ FstSparseSet *sparSetCreate(int32_t sz) {
 
   ss->dense = (int32_t *)taosMemoryMalloc(sz * sizeof(int32_t));
   ss->sparse = (int32_t *)taosMemoryMalloc(sz * sizeof(int32_t));
-  sparSetUtil(ss->dense, sz);
-  sparSetUtil(ss->sparse, sz);
+  sparSetInitBuf(ss->dense, sz);
+  sparSetInitBuf(ss->sparse, sz);
 
   ss->cap = sz;
 
@@ -90,7 +90,7 @@ void sparSetClear(FstSparseSet *ss) {
   if (ss == NULL) {
     return;
   }
-  sparSetUtil(ss->dense, ss->cap);
-  sparSetUtil(ss->sparse, ss->cap);
+  sparSetInitBuf(ss->dense, ss->cap);
+  sparSetInitBuf(ss->sparse, ss->cap);
   ss->size = 0;
 }

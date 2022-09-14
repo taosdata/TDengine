@@ -1129,11 +1129,14 @@ static int32_t parseTableOptions(SInsertParseContext* pCxt) {
     NEXT_TOKEN_KEEP_SQL(pCxt->pSql, sToken, index);
     if (TK_TTL == sToken.type) {
       pCxt->pSql += index;
-      NEXT_TOKEN(pCxt->pSql, sToken);
+      NEXT_TOKEN_WITH_PREV(pCxt->pSql, sToken);
       if (TK_NK_INTEGER != sToken.type) {
         return buildSyntaxErrMsg(&pCxt->msg, "Invalid option ttl", sToken.z);
       }
       pCxt->createTblReq.ttl = taosStr2Int32(sToken.z, NULL, 10);
+      if (pCxt->createTblReq.ttl < 0) {
+        return buildSyntaxErrMsg(&pCxt->msg, "Invalid option ttl", sToken.z);
+      }
     } else if (TK_COMMENT == sToken.type) {
       pCxt->pSql += index;
       NEXT_TOKEN(pCxt->pSql, sToken);
@@ -1740,7 +1743,7 @@ static int32_t skipTableOptions(SInsertParseSyntaxCxt* pCxt) {
     NEXT_TOKEN_KEEP_SQL(pCxt->pSql, sToken, index);
     if (TK_TTL == sToken.type || TK_COMMENT == sToken.type) {
       pCxt->pSql += index;
-      NEXT_TOKEN(pCxt->pSql, sToken);
+      NEXT_TOKEN_WITH_PREV(pCxt->pSql, sToken);
     } else {
       break;
     }

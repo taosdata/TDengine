@@ -67,12 +67,9 @@ typedef struct SBlockCol     SBlockCol;
 typedef struct SVersionRange SVersionRange;
 typedef struct SLDataIter    SLDataIter;
 
-#define TSDB_FILE_DLMT         ((uint32_t)0xF00AFA0F)
-#define TSDB_MAX_SUBBLOCKS     8
-#define TSDB_MAX_STT_FILE      16
-#define TSDB_DEFAULT_STT_FILE  8
-#define TSDB_FHDR_SIZE         512
-#define TSDB_DEFAULT_PAGE_SIZE 4096
+#define TSDB_FILE_DLMT     ((uint32_t)0xF00AFA0F)
+#define TSDB_MAX_SUBBLOCKS 8
+#define TSDB_FHDR_SIZE     512
 
 #define HAS_NONE  ((int8_t)0x1)
 #define HAS_NULL  ((int8_t)0x2)
@@ -92,7 +89,18 @@ typedef struct SLDataIter    SLDataIter;
 #define FILE_TO_LOGIC_OFFSET(OFFSET, PAGE) ((OFFSET) / (PAGE)*PAGE_CONTENT_SIZE(PAGE) + (OFFSET) % (PAGE))
 #define PAGE_OFFSET(PGNO, PAGE)            (((PGNO)-1) * (PAGE))
 #define OFFSET_PGNO(OFFSET, PAGE)          ((OFFSET) / (PAGE) + 1)
-#define LOGIC_TO_FILE_SIZE(LSIZE, PAGE)    OFFSET_PGNO(LOGIC_TO_FILE_OFFSET(LSIZE, PAGE), PAGE) * (PAGE)
+
+static FORCE_INLINE int64_t tsdbLogicToFileSize(int64_t lSize, int32_t szPage) {
+  int64_t fOffSet = LOGIC_TO_FILE_OFFSET(lSize, szPage);
+  int64_t pgno = OFFSET_PGNO(fOffSet, szPage);
+  int32_t szPageCont = PAGE_CONTENT_SIZE(szPage);
+
+  if (fOffSet % szPageCont == 0) {
+    pgno--;
+  }
+
+  return pgno * szPage;
+}
 
 // tsdbUtil.c ==============================================================================================
 // TSDBROW
@@ -574,7 +582,7 @@ struct SDFileSet {
   SDataFile *pDataF;
   SSmaFile  *pSmaF;
   uint8_t    nSttF;
-  SSttFile  *aSttF[TSDB_MAX_STT_FILE];
+  SSttFile  *aSttF[TSDB_MAX_STT_TRIGGER];
 };
 
 struct SRowIter {
@@ -624,7 +632,7 @@ struct SDataFWriter {
   SHeadFile fHead;
   SDataFile fData;
   SSmaFile  fSma;
-  SSttFile  fStt[TSDB_MAX_STT_FILE];
+  SSttFile  fStt[TSDB_MAX_STT_TRIGGER];
 
   uint8_t *aBuf[4];
 };
@@ -635,7 +643,7 @@ struct SDataFReader {
   STsdbFD   *pHeadFD;
   STsdbFD   *pDataFD;
   STsdbFD   *pSmaFD;
-  STsdbFD   *aSttFD[TSDB_MAX_STT_FILE];
+  STsdbFD   *aSttFD[TSDB_MAX_STT_TRIGGER];
   uint8_t   *aBuf[3];
 };
 
