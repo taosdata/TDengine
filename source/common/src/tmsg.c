@@ -3344,7 +3344,13 @@ int32_t tDeserializeSSTbHbRsp(void *buf, int32_t bufLen, SSTbHbRsp *pRsp) {
   return 0;
 }
 
-void tFreeSTableMetaRsp(void *pRsp) { taosMemoryFreeClear(((STableMetaRsp *)pRsp)->pSchemas); }
+void tFreeSTableMetaRsp(void *pRsp) { 
+  if (NULL == pRsp) {
+    return;
+  }
+  
+  taosMemoryFreeClear(((STableMetaRsp *)pRsp)->pSchemas); 
+}
 
 void tFreeSTableIndexRsp(void *info) {
   if (NULL == info) {
