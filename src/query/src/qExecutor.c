@@ -6169,6 +6169,7 @@ SOperatorInfo *createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
         goto _clean;
       }
 
+      bool found = false;
       for (int32_t i = 0; i < numOfOutput; ++i) {
         SColumnInfoData col = {{0}};
         col.info.colId = pExpr[i].base.colInfo.colId;
@@ -6176,8 +6177,9 @@ SOperatorInfo *createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
         col.info.type  = pExpr[i].base.resType;
         taosArrayPush(pDataBlock->pDataBlock, &col);
 
-        if (col.info.colId == pOrderVal->orderColId) {
+        if (!found && col.info.colId == pOrderVal->orderColId) {
           pInfo->colIndex = i;
+          found = true;
         }
       }
 
