@@ -414,6 +414,9 @@ int32_t hbGetQueryBasicInfo(SClientHbKey *connKey, SClientHbReq *req) {
   int32_t code = hbBuildQueryDesc(hbBasic, pTscObj);
   if (code) {
     releaseTscObj(connKey->tscRid);
+    if (hbBasic->queryDesc) {
+      taosArrayDestroyEx(hbBasic->queryDesc, tFreeClientHbQueryDesc);
+    }
     taosMemoryFree(hbBasic);
     return code;
   }

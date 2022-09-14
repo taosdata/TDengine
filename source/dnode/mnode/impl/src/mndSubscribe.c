@@ -900,6 +900,7 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
     // iter all vnode to delete handle
     if (taosHashGetSize(pSub->consumerHash) != 0) {
       sdbRelease(pSdb, pSub);
+      terrno = TSDB_CODE_MND_IN_REBALANCE;
       return -1;
     }
     int32_t sz = taosArrayGetSize(pSub->unassignedVgs);

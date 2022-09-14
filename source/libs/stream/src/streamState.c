@@ -35,6 +35,10 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask) {
     goto _err;
   }
 
+  if (tdbTbOpen("func.state.db", sizeof(STupleKey), -1, STupleKeyCmpr, pState->db, &pState->pFuncStateDb) < 0) {
+    goto _err;
+  }
+
   if (streamStateBegin(pState) < 0) {
     goto _err;
   }
@@ -44,8 +48,9 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask) {
   return pState;
 
 _err:
-  if (pState->pStateDb) tdbTbClose(pState->pStateDb);
-  if (pState->db) tdbClose(pState->db);
+  tdbTbClose(pState->pStateDb);
+  tdbTbClose(pState->pFuncStateDb);
+  tdbClose(pState->db);
   taosMemoryFree(pState);
   return NULL;
 }
@@ -53,6 +58,7 @@ _err:
 void streamStateClose(SStreamState* pState) {
   tdbCommit(pState->db, &pState->txn);
   tdbTbClose(pState->pStateDb);
+  tdbTbClose(pState->pFuncStateDb);
   tdbClose(pState->db);
 
   taosMemoryFree(pState);
@@ -99,6 +105,17 @@ int32_t streamStateAbort(SStreamState* pState) {
     return -1;
   }
   return 0;
+}
+
+int32_t streamStateFuncPut(SStreamState* pState, const STupleKey* key, const void* value, int32_t vLen) {
+  return tdbTbUpsert(pState->pFuncStateDb, key, sizeof(STupleKey), value, vLen, &pState->txn);
+}
+int32_t streamStateFuncGet(SStreamState* pState, const STupleKey* key, void** pVal, int32_t* pVLen) {
+  return tdbTbGet(pState->pFuncStateDb, key, sizeof(STupleKey), pVal, pVLen);
+}
+
+int32_t streamStateFuncDel(SStreamState* pState, const STupleKey* key) {
+  return tdbTbDelete(pState->pFuncStateDb, key, sizeof(STupleKey), &pState->txn);
 }
 
 int32_t streamStatePut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen) {
