@@ -177,39 +177,6 @@ void *tdFreeSmaEnv(SSmaEnv *pSmaEnv) {
   return NULL;
 }
 
-int32_t tdRefSmaStat(SSma *pSma, SSmaStat *pStat) {
-  if (!pStat) return 0;
-
-  int ref = T_REF_INC(pStat);
-  smaDebug("vgId:%d, ref sma stat:%p, val:%d", SMA_VID(pSma), pStat, ref);
-  return 0;
-}
-
-int32_t tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat) {
-  if (!pStat) return 0;
-
-  int ref = T_REF_DEC(pStat);
-  smaDebug("vgId:%d, unref sma stat:%p, val:%d", SMA_VID(pSma), pStat, ref);
-  return 0;
-}
-
-int32_t tdRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo) {
-  if (!pRSmaInfo) return 0;
-
-  int ref = T_REF_INC(pRSmaInfo);
-  smaDebug("vgId:%d, ref rsma info:%p, val:%d", SMA_VID(pSma), pRSmaInfo, ref);
-  return 0;
-}
-
-int32_t tdUnRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo) {
-  if (!pRSmaInfo) return 0;
-
-  int ref = T_REF_DEC(pRSmaInfo);
-  smaDebug("vgId:%d, unref rsma info:%p, val:%d", SMA_VID(pSma), pRSmaInfo, ref);
-
-  return 0;
-}
-
 static void tRSmaInfoHashFreeNode(void *data) {
   SRSmaInfo     *pRSmaInfo = NULL;
   SRSmaInfoItem *pItem = NULL;
@@ -492,6 +459,8 @@ static int32_t tdRsmaStopExecutor(const SSma *pSma) {
         taosThreadJoin(pthread[i], NULL);
       }
     }
+
+    smaInfo("vgId:%d, rsma executor stopped, number:%d", SMA_VID(pSma), tsNumOfVnodeRsmaThreads);
   }
   return 0;
 }

@@ -459,10 +459,11 @@ typedef struct SPartitionDataInfo {
   SArray*  rowIds;
 } SPartitionDataInfo;
 
-typedef struct STimeWindowSupp {
+typedef struct STimeWindowAggSupp {
   int8_t          calTrigger;
   int64_t         waterMark;
   TSKEY           maxTs;
+  TSKEY           minTs;
   SColumnInfoData timeWindowData;  // query time window info for scalar function execution.
 } STimeWindowAggSupp;
 

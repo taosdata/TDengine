@@ -279,7 +279,7 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
       goto _err;
     }
 
-    if (size != pTsdb->fs.pDelFile->size) {
+    if (size != tsdbLogicToFileSize(pTsdb->fs.pDelFile->size, pTsdb->pVnode->config.tsdbPageSize)) {
       code = TSDB_CODE_FILE_CORRUPTED;
       goto _err;
     }
@@ -295,7 +295,7 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
-    if (size != LOGIC_TO_FILE_SIZE(pSet->pHeadF->size, TSDB_DEFAULT_PAGE_SIZE)) {
+    if (size != tsdbLogicToFileSize(pSet->pHeadF->size, pTsdb->pVnode->config.tsdbPageSize)) {
       code = TSDB_CODE_FILE_CORRUPTED;
       goto _err;
     }
@@ -306,10 +306,10 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
-    if (size < LOGIC_TO_FILE_SIZE(pSet->pDataF->size, TSDB_DEFAULT_PAGE_SIZE)) {
+    if (size < tsdbLogicToFileSize(pSet->pDataF->size, pTsdb->pVnode->config.tsdbPageSize)) {
       code = TSDB_CODE_FILE_CORRUPTED;
       goto _err;
-    } else if (size > LOGIC_TO_FILE_SIZE(pSet->pDataF->size, TSDB_DEFAULT_PAGE_SIZE)) {
+    } else if (size > tsdbLogicToFileSize(pSet->pDataF->size, pTsdb->pVnode->config.tsdbPageSize)) {
       code = tsdbDFileRollback(pTsdb, pSet, TSDB_DATA_FILE);
       if (code) goto _err;
     }
@@ -320,10 +320,10 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
-    if (size < LOGIC_TO_FILE_SIZE(pSet->pSmaF->size, TSDB_DEFAULT_PAGE_SIZE)) {
+    if (size < tsdbLogicToFileSize(pSet->pSmaF->size, pTsdb->pVnode->config.tsdbPageSize)) {
       code = TSDB_CODE_FILE_CORRUPTED;
       goto _err;
-    } else if (size > LOGIC_TO_FILE_SIZE(pSet->pSmaF->size, TSDB_DEFAULT_PAGE_SIZE)) {
+    } else if (size > tsdbLogicToFileSize(pSet->pSmaF->size, pTsdb->pVnode->config.tsdbPageSize)) {
       code = tsdbDFileRollback(pTsdb, pSet, TSDB_SMA_FILE);
       if (code) goto _err;
     }
@@ -335,7 +335,7 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
         code = TAOS_SYSTEM_ERROR(errno);
         goto _err;
       }
-      if (size != LOGIC_TO_FILE_SIZE(pSet->aSttF[iStt]->size, TSDB_DEFAULT_PAGE_SIZE)) {
+      if (size != tsdbLogicToFileSize(pSet->aSttF[iStt]->size, pTsdb->pVnode->config.tsdbPageSize)) {
         code = TSDB_CODE_FILE_CORRUPTED;
         goto _err;
       }

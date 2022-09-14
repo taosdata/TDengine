@@ -67,12 +67,9 @@ typedef struct SBlockCol     SBlockCol;
 typedef struct SVersionRange SVersionRange;
 typedef struct SLDataIter    SLDataIter;
 
-#define TSDB_FILE_DLMT         ((uint32_t)0xF00AFA0F)
-#define TSDB_MAX_SUBBLOCKS     8
-#define TSDB_MAX_STT_FILE      16
-#define TSDB_DEFAULT_STT_FILE  8
-#define TSDB_FHDR_SIZE         512
-#define TSDB_DEFAULT_PAGE_SIZE 4096
+#define TSDB_FILE_DLMT     ((uint32_t)0xF00AFA0F)
+#define TSDB_MAX_SUBBLOCKS 8
+#define TSDB_FHDR_SIZE     512
 
 #define HAS_NONE  ((int8_t)0x1)
 #define HAS_NULL  ((int8_t)0x2)
@@ -84,13 +81,26 @@ typedef struct SLDataIter    SLDataIter;
 #define TSDBKEY_MIN ((TSDBKEY){.ts = TSKEY_MIN, .version = VERSION_MIN})
 #define TSDBKEY_MAX ((TSDBKEY){.ts = TSKEY_MAX, .version = VERSION_MAX})
 
+#define TABLE_SAME_SCHEMA(SUID1, UID1, SUID2, UID2) ((SUID1) ? (SUID1) == (SUID2) : (UID1) == (UID2))
+
 #define PAGE_CONTENT_SIZE(PAGE) ((PAGE) - sizeof(TSCKSUM))
 #define LOGIC_TO_FILE_OFFSET(LOFFSET, PAGE) \
   ((LOFFSET) / PAGE_CONTENT_SIZE(PAGE) * (PAGE) + (LOFFSET) % PAGE_CONTENT_SIZE(PAGE))
 #define FILE_TO_LOGIC_OFFSET(OFFSET, PAGE) ((OFFSET) / (PAGE)*PAGE_CONTENT_SIZE(PAGE) + (OFFSET) % (PAGE))
 #define PAGE_OFFSET(PGNO, PAGE)            (((PGNO)-1) * (PAGE))
 #define OFFSET_PGNO(OFFSET, PAGE)          ((OFFSET) / (PAGE) + 1)
-#define LOGIC_TO_FILE_SIZE(LSIZE, PAGE)    OFFSET_PGNO(LOGIC_TO_FILE_OFFSET(LSIZE, PAGE), PAGE) * (PAGE)
+
+static FORCE_INLINE int64_t tsdbLogicToFileSize(int64_t lSize, int32_t szPage) {
+  int64_t fOffSet = LOGIC_TO_FILE_OFFSET(lSize, szPage);
+  int64_t pgno = OFFSET_PGNO(fOffSet, szPage);
+  int32_t szPageCont = PAGE_CONTENT_SIZE(szPage);
+
+  if (fOffSet % szPageCont == 0) {
+    pgno--;
+  }
+
+  return pgno * szPage;
+}
 
 // tsdbUtil.c ==============================================================================================
 // TSDBROW
@@ -262,7 +272,7 @@ int32_t tsdbDataFWriterOpen(SDataFWriter **ppWriter, STsdb *pTsdb, SDFileSet *pS
 int32_t tsdbDataFWriterClose(SDataFWriter **ppWriter, int8_t sync);
 int32_t tsdbUpdateDFileSetHeader(SDataFWriter *pWriter);
 int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SArray *aBlockIdx);
-int32_t tsdbWriteBlock(SDataFWriter *pWriter, SMapData *pMapData, SBlockIdx *pBlockIdx);
+int32_t tsdbWriteDataBlk(SDataFWriter *pWriter, SMapData *mDataBlk, SBlockIdx *pBlockIdx);
 int32_t tsdbWriteSttBlk(SDataFWriter *pWriter, SArray *aSttBlk);
 int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlockInfo *pBlkInfo, SSmaInfo *pSmaInfo,
                            int8_t cmprAlg, int8_t toLast);
@@ -272,7 +282,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo);
 int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pSet);
 int32_t tsdbDataFReaderClose(SDataFReader **ppReader);
 int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx);
-int32_t tsdbReadBlock(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *pMapData);
+int32_t tsdbReadDataBlk(SDataFReader *pReader, SBlockIdx *pBlockIdx, SMapData *mDataBlk);
 int32_t tsdbReadSttBlk(SDataFReader *pReader, int32_t iStt, SArray *aSttBlk);
 int32_t tsdbReadBlockSma(SDataFReader *pReader, SDataBlk *pBlock, SArray *aColumnDataAgg);
 int32_t tsdbReadDataBlock(SDataFReader *pReader, SDataBlk *pBlock, SBlockData *pBlockData);
@@ -572,7 +582,7 @@ struct SDFileSet {
   SDataFile *pDataF;
   SSmaFile  *pSmaF;
   uint8_t    nSttF;
-  SSttFile  *aSttF[TSDB_MAX_STT_FILE];
+  SSttFile  *aSttF[TSDB_MAX_STT_TRIGGER];
 };
 
 struct SRowIter {
@@ -622,7 +632,7 @@ struct SDataFWriter {
   SHeadFile fHead;
   SDataFile fData;
   SSmaFile  fSma;
-  SSttFile  fStt[TSDB_MAX_STT_FILE];
+  SSttFile  fStt[TSDB_MAX_STT_TRIGGER];
 
   uint8_t *aBuf[4];
 };
@@ -633,7 +643,7 @@ struct SDataFReader {
   STsdbFD   *pHeadFD;
   STsdbFD   *pDataFD;
   STsdbFD   *pSmaFD;
-  STsdbFD   *aSttFD[TSDB_MAX_STT_FILE];
+  STsdbFD   *aSttFD[TSDB_MAX_STT_TRIGGER];
   uint8_t   *aBuf[3];
 };
 
@@ -644,31 +654,41 @@ typedef struct {
 } SRowInfo;
 
 typedef struct SSttBlockLoadInfo {
-    SBlockData blockData[2];
-    SArray    *aSttBlk;
-    int32_t    blockIndex[2];  // to denote the loaded block in the corresponding position.
-    int32_t    currentLoadBlockIndex;
+  SBlockData blockData[2];
+  SArray    *aSttBlk;
+  int32_t    blockIndex[2];  // to denote the loaded block in the corresponding position.
+  int32_t    currentLoadBlockIndex;
+  int32_t    loadBlocks;
+  double     elapsedTime;
 } SSttBlockLoadInfo;
 
 typedef struct SMergeTree {
-  int8_t      backward;
-  SRBTree     rbt;
-  SArray     *pIterList;
-  SLDataIter *pIter;
-  bool        destroyLoadInfo;
-  SSttBlockLoadInfo* pLoadInfo;
+  int8_t             backward;
+  SRBTree            rbt;
+  SArray            *pIterList;
+  SLDataIter        *pIter;
+  bool               destroyLoadInfo;
+  SSttBlockLoadInfo *pLoadInfo;
+  const char        *idStr;
 } SMergeTree;
 
+typedef struct {
+  int64_t   suid;
+  int64_t   uid;
+  STSchema *pTSchema;
+} SSkmInfo;
+
 int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
-                       STimeWindow *pTimeWindow, SVersionRange *pVerRange, void* pLoadInfo);
+                       STimeWindow *pTimeWindow, SVersionRange *pVerRange, void *pLoadInfo, const char *idStr);
 void    tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
 bool    tMergeTreeNext(SMergeTree *pMTree);
 TSDBROW tMergeTreeGetRow(SMergeTree *pMTree);
 void    tMergeTreeClose(SMergeTree *pMTree);
 
-SSttBlockLoadInfo* tCreateLastBlockLoadInfo();
-void  resetLastBlockLoadInfo(SSttBlockLoadInfo* pLoadInfo);
-void* destroyLastBlockLoadInfo(SSttBlockLoadInfo* pLoadInfo);
+SSttBlockLoadInfo *tCreateLastBlockLoadInfo();
+void               resetLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
+void               getLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, int64_t *blocks, double *el);
+void              *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 
 // ========== inline functions ==========
 static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {

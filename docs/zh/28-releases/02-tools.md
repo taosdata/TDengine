@@ -9,7 +9,3 @@ import Release from "/components/ReleaseV3";
 ## 2.1.3
 
 <Release type="tools" version="2.1.3" />
-
-## 2.1.2
-
-<Release type="tools" version="2.1.2" />
