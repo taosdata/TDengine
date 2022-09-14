@@ -2771,7 +2771,6 @@ static SSqlObj* createSmlQueryObj(TAOS* taos, int32_t affected_rows, int32_t cod
   pNew->pTscObj = taos;
   pNew->fp = NULL;
 
-  tsem_init(&pNew->rspSem, 0, 0);
   registerSqlObj(pNew);
 
   pNew->res.numOfRows = affected_rows;

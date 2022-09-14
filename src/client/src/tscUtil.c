@@ -1721,7 +1721,10 @@ SSqlObj* tscAllocSqlObj() {
     if (!pNew) {
         return NULL;
     }
-    pthread_mutex_init(&pNew->subState.mutex, NULL);
+    int rc = tsem_init(&pNew->rspSem, 0, 0);
+    assert(rc == 0 && "tsem_init failure");
+    rc = pthread_mutex_init(&pNew->subState.mutex, NULL);
+    assert(rc == 0 && "pthread_mutex_init failure");
     return pNew;
 }
 
@@ -3761,7 +3764,6 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, __async_cb_func_t fp, void* param, in
 
   SSqlCmd* pCmd = &pNew->cmd;
   pCmd->command = cmd;
-  tsem_init(&pNew->rspSem, 0 ,0);
 
   if (tscAddQueryInfo(pCmd) != TSDB_CODE_SUCCESS) {
     tscFreeSqlObj(pNew);
@@ -3840,7 +3842,6 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pNew->signature = pNew;
   pNew->sqlstr    = strdup(pSql->sqlstr);
   pNew->rootObj   = pSql->rootObj;
-  tsem_init(&pNew->rspSem, 0, 0);
 
   SSqlCmd* pnCmd  = &pNew->cmd;
   memcpy(pnCmd, pCmd, sizeof(SSqlCmd));
@@ -4237,8 +4238,6 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       pNew->rootObj   = pSql->rootObj;
 
       pNew->cmd.resColumnId = TSDB_RES_COL_ID;
-
-      tsem_init(&pNew->rspSem, 0, 0);
 
       SRetrieveSupport* ps = calloc(1, sizeof(SRetrieveSupport));  // todo use object id
       if (ps == NULL) {

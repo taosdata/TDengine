@@ -718,7 +718,6 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const c
   pSql->fetchFp = tscCreateStream;
   pSql->cmd.resColumnId = TSDB_RES_COL_ID;
 
-  tsem_init(&pSql->rspSem, 0, 0);
   registerSqlObj(pSql);
 
   tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);

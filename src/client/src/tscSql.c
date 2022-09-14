@@ -158,8 +158,6 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   pSql->param     = param;
   pSql->cmd.command = TSDB_SQL_CONNECT;
 
-  tsem_init(&pSql->rspSem, 0, 0);
-
   if (TSDB_CODE_SUCCESS != tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscReleaseRpc(pRpcObj);
@@ -307,10 +305,6 @@ void taos_close(TAOS *taos) {
 
       tscDebug("0x%"PRIx64" HB is freed", pHb->self);
       taosReleaseRef(tscObjRef, pHb->self);
-#ifdef __APPLE__
-      // to satisfy later tsem_destroy in taos_free_result
-      tsem_init(&pHb->rspSem, 0, 0);
-#endif // __APPLE__
       taos_free_result(pHb);
     }
   }
@@ -353,7 +347,6 @@ TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen, int64_t*
     return NULL;
   }
   
-  tsem_init(&pSql->rspSem, 0, 0);
   doAsyncQuery(pObj, pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
 
   if (res != NULL) {
