@@ -2,14 +2,22 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use taos::*;
 
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub(crate) struct TopicTable {
+    pub(crate) stable: Option<String>,
+    pub(crate) stable_sql: Option<String>,
+    pub(crate) table: String,
+    pub(crate) table_sql: String,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub(crate) struct Topic {
     pub(crate) name: String,
     pub(crate) database: String,
     pub(crate) vgroups: usize,
-    pub(crate) sql: String,
-    /// the topic is for single table
-    pub(crate) table: Option<String>,
+    pub(crate) database_sql: String,
+    #[serde(flatten)]
+    pub(crate) table: Option<TopicTable>,
 }
 
 /// Parse input dsn, returns subscription dsn and a list of topics.
@@ -52,7 +60,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                 .unwrap_or_default()
                 .unwrap_or(0);
 
-            let (_, sql): ((), String) = source
+            let (_, database_sql): ((), String) = source
                 .query_one(format!("SHOW CREATE DATABASE `{}`", topic.db_name()))
                 .await?
                 .unwrap();
@@ -61,7 +69,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                 vec![Topic {
                     name: topic.name().to_string(),
                     database: topic.db_name().to_string(),
-                    sql,
+                    database_sql,
                     vgroups,
                     table: None,
                 }],
@@ -86,7 +94,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                 .unwrap_or_default()
                 .unwrap_or(0);
 
-            let (_, sql): ((), String) = source
+            let (_, database_sql): ((), String) = source
                 .query_one(format!("SHOW CREATE DATABASE `{database}`"))
                 .await?
                 .unwrap();
@@ -95,7 +103,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                 vec![Topic {
                     name: topic.to_string(),
                     database: database.to_string(),
-                    sql,
+                    database_sql,
                     vgroups,
                     table: None,
                 }],
@@ -127,7 +135,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                             .await?
                             .expect("database not exists");
 
-                        let (_, sql): ((), String) = source
+                        let (_, database_sql): ((), String) = source
                             .query_one(format!("SHOW CREATE DATABASE `{}`", topic.db_name()))
                             .await?
                             .unwrap();
@@ -136,7 +144,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                             vec![Topic {
                                 name: topic.name().to_string(),
                                 database: topic.db_name().to_string(),
-                                sql,
+                                database_sql,
                                 vgroups,
                                 table: None,
                             }],
@@ -157,7 +165,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                             .await?
                             .expect("database not exists");
 
-                        let (_, sql): ((), String) = source
+                        let (_, database_sql): ((), String) = source
                             .query_one(format!("SHOW CREATE DATABASE `{database}`"))
                             .await?
                             .unwrap();
@@ -166,7 +174,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                             vec![Topic {
                                 name: topic,
                                 database: database.to_string(),
-                                sql,
+                                database_sql,
                                 vgroups,
                                 table: None,
                             }],
@@ -174,15 +182,39 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                     }
                 }
                 // check if is table
-                let table_exists: Option<String> = source
+                let table_exists: Option<(String, Option<String>)> = source
                     .query_one(format!(
-                        "select table_name from information_schema.ins_tables where db_name = '{}' and table_name = '{}'",
+                        "select table_name, stable_name from information_schema.ins_tables where db_name = '{}' and table_name = '{}'",
                         database, table
                     ))
                     .await?;
-                if table_exists.is_some() {
+                if let Some((table, stable)) = table_exists {
                     let topic = format!("x_{}_{}", database, table);
+
                     if let Some(topic) = source_topics.iter().find(|t| t.name() == topic) {
+                        let (_, sql): ((), String) = source
+                            .query_one(format!("SHOW CREATE TABLE `{}`.`{}`", database, table))
+                            .await?
+                            .unwrap();
+
+                        // let mut tags = Vec::new();
+                        let stable_sql = if let Some(stable) = stable.as_deref() {
+                            let (_, sql): ((), _) = source
+                                .query_one(format!("SHOW CREATE STABLE `{database}`.`{stable}`"))
+                                .await?
+                                .unwrap();
+                            Some(sql)
+                        } else {
+                            None
+                        };
+
+                        let topic_table = TopicTable {
+                            table,
+                            table_sql: sql,
+                            stable,
+                            stable_sql,
+                        };
+
                         databases.push(topic.db_name().to_string());
                         let vgroups = source
                             .query_one(format!(
@@ -192,7 +224,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                             .await?
                             .expect("database not exists");
 
-                        let (_, sql): ((), String) = source
+                        let (_, database_sql): ((), String) = source
                             .query_one(format!("SHOW CREATE DATABASE `{}`", topic.db_name()))
                             .await?
                             .unwrap();
@@ -201,18 +233,40 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                             vec![Topic {
                                 name: topic.name().to_string(),
                                 database: topic.db_name().to_string(),
-                                sql,
+                                database_sql,
                                 vgroups,
-                                table: Some(table.to_string()),
+                                table: Some(topic_table),
                             }],
                         ));
                     } else {
+                        let (_, sql): ((), String) = source
+                            .query_one(format!("SHOW CREATE TABLE `{}`.`{}`", database, &table))
+                            .await?
+                            .unwrap();
+                        let stable_sql = if let Some(stable) = stable.as_deref() {
+                            let (_, sql): ((), _) = source
+                                .query_one(format!("SHOW CREATE STABLE `{database}`.`{stable}`"))
+                                .await?
+                                .unwrap();
+                            Some(sql)
+                        } else {
+                            None
+                        };
+
                         source
                             .exec(format!(
                                 "create topic {topic} as select * from `{database}`.`{table}`"
                             ))
                             .await
                             .context(format!("create topic for stable {database}"))?;
+
+                        let topic_table = TopicTable {
+                            table,
+                            table_sql: sql,
+                            stable,
+                            stable_sql,
+                        };
+
                         databases.push(database.to_string());
                         let vgroups = source
                             .query_one(format!(
@@ -222,18 +276,19 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                             .await?
                             .expect("database not exists");
 
-                        let (_, sql): ((), String) = source
+                        let (_, database_sql): ((), String) = source
                             .query_one(format!("SHOW CREATE DATABASE `{database}`"))
                             .await?
                             .unwrap();
+
                         return Ok((
                             from,
                             vec![Topic {
                                 name: topic,
                                 database: database.to_string(),
-                                sql,
+                                database_sql,
                                 vgroups,
-                                table: Some(table.to_string()),
+                                table: Some(topic_table),
                             }],
                         ));
                     }
@@ -267,7 +322,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
             out.push(Topic {
                 name: topic.name().to_string(),
                 database: topic.db_name().to_string(),
-                sql,
+                database_sql: sql,
                 vgroups,
                 table: None,
             });
@@ -302,7 +357,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                     out.push(Topic {
                         name: topic.to_string(),
                         database: topic.to_string(),
-                        sql,
+                        database_sql: sql,
                         vgroups,
                         table: None,
                     });

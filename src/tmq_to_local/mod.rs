@@ -109,10 +109,15 @@ pub async fn tmq_to_local(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> R
     }
     let path: &Path = to.fragment.as_ref().unwrap().as_ref();
     if !path.exists() {
+        log::info!("create directory for backup: {}", path.display());
         std::fs::create_dir_all(path)?;
+    } else {
+        log::info!("use existing directory for backup: {}", path.display());
     }
+
     let config_path = path.join("local.toml");
     let config = if config_path.exists() {
+        log::info!("read configuration in: {}", config_path.display());
         let mut config = LocalConfig::from_path(&config_path)?;
         config.last_modified = Local::now();
 
@@ -162,18 +167,21 @@ pub async fn tmq_to_local(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> R
     to.params = to_params;
 
     let tmq = TmqBuilder::from_dsn(&from)?;
+    log::info!("TMQ builder created");
 
     if to.fragment.is_none() {
         anyhow::bail!("invalid backup DSN: {}", to);
     }
 
+    log::info!("write to config file");
     config.write_to(config_path)?;
+    log::info!("write to config file done");
 
     let mut handles = Vec::new();
 
     let mut task_id = 0;
 
-    for (topic_id, topic) in config.topics.iter().enumerate() {
+    for (_, topic) in config.topics.iter().enumerate() {
         if jobs == 0 && topic.vgroups == 0 {
             anyhow::bail!("unknown vgroups, use a thread number larger than 0 with -j");
         }
@@ -183,12 +191,8 @@ pub async fn tmq_to_local(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> R
             jobs
         };
 
-        std::fs::write(
-            path.join(format!("{}-{}.sql", topic.name, topic_id)),
-            &topic.sql,
-        )?;
-
         let mut consumers = Vec::with_capacity(jobs);
+        log::info!("create {jobs} consumers for topic {}", topic.name);
         for _ in 0..jobs {
             let mut consumer = tmq.build()?;
             consumer.subscribe([&topic.name]).await?;

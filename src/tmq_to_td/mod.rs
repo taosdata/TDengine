@@ -122,7 +122,7 @@ pub async fn tmq_to_td(from: Dsn, mut to: Dsn, jobs: usize) -> Result<()> {
         for _ in 0..jobs {
             let consumer = consumers.pop().unwrap();
             let taos = target.build()?;
-            let table = topic.table.clone();
+            let table = topic.table.as_ref().map(|t| t.table.clone());
             let handle = tokio::spawn(async move { sync(task_id, consumer, taos, table).await });
             handles.push(handle);
             task_id += 1;
