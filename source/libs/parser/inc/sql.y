@@ -534,7 +534,8 @@ dnode_list(A) ::= dnode_list(B) DNODE NK_INTEGER(C).                            
 cmd ::= DELETE FROM full_table_name(A) where_clause_opt(B).                       { pCxt->pRootNode = createDeleteStmt(pCxt, A, B); }
 
 /************************************************ select **************************************************************/
-cmd ::= query_expression(A).                                                      { pCxt->pRootNode = A; }
+cmd ::= query_or_subquery.
+
 
 /************************************************ insert **************************************************************/
 cmd ::= INSERT INTO full_table_name(A) 
@@ -935,28 +936,12 @@ every_opt(A) ::= .                                                              
 every_opt(A) ::= EVERY NK_LP duration_literal(B) NK_RP.                           { A = releaseRawExprNode(pCxt, B); }
 
 /************************************************ query_expression ****************************************************/
-query_expression(A) ::= 
-  query_expression_body(B) 
-    order_by_clause_opt(C) slimit_clause_opt(D) limit_clause_opt(E).              { 
-                                                                                    A = addOrderByClause(pCxt, B, C);
-                                                                                    A = addSlimitClause(pCxt, A, D);
-                                                                                    A = addLimitClause(pCxt, A, E);
-                                                                                  }
+query_expression ::= query_specification order_by_clause_opt slimit_clause_opt limit_clause_opt.
+query_expression ::= union_query_expression.
+union_query_expression ::= query_or_subquery UNION query_or_subquery.
 
-query_expression_body(A) ::= query_primary(B).                                    { A = B; }
-query_expression_body(A) ::=
-  query_expression_body(B) UNION ALL query_expression_body(D).                    { A = createSetOperator(pCxt, SET_OP_TYPE_UNION_ALL, B, D); }
-query_expression_body(A) ::=
-  query_expression_body(B) UNION query_expression_body(D).                        { A = createSetOperator(pCxt, SET_OP_TYPE_UNION, B, D); }
-
-query_primary(A) ::= query_specification(B).                                      { A = B; }
-query_primary(A) ::=
-  NK_LP query_expression_body(B) 
-    order_by_clause_opt(C) slimit_clause_opt(D) limit_clause_opt(E) NK_RP.        { 
-                                                                                    A = addOrderByClause(pCxt, B, C);
-                                                                                    A = addSlimitClause(pCxt, A, D);
-                                                                                    A = addLimitClause(pCxt, A, E);
-                                                                                  }
+query_or_subquery ::= query_expression.
+query_or_subquery ::= subquery.
 
 %type order_by_clause_opt                                                         { SNodeList* }
 %destructor order_by_clause_opt                                                   { nodesDestroyList($$); }
@@ -975,6 +960,7 @@ limit_clause_opt(A) ::= LIMIT NK_INTEGER(C) NK_COMMA NK_INTEGER(B).             
 
 /************************************************ subquery ************************************************************/
 subquery(A) ::= NK_LP(B) query_expression(C) NK_RP(D).                            { A = createRawExprNodeExt(pCxt, &B, &D, C); }
+
 
 /************************************************ search_condition ****************************************************/
 search_condition(A) ::= common_expression(B).                                     { A = releaseRawExprNode(pCxt, B); }
