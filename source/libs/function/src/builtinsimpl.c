@@ -5398,8 +5398,8 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
 
   int32_t i = pInput->startRowIndex;
   if (pCtx->start.key != INT64_MIN) {
-    ASSERT((pCtx->start.key < tsList[i] && pCtx->order == TSDB_ORDER_ASC) ||
-           (pCtx->start.key > tsList[i] && pCtx->order == TSDB_ORDER_DESC));
+    //ASSERT((pCtx->start.key < tsList[i] && pCtx->order == TSDB_ORDER_ASC) ||
+    //       (pCtx->start.key > tsList[i] && pCtx->order == TSDB_ORDER_DESC));
 
     ASSERT(last->key == INT64_MIN);
     for (; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
@@ -5447,6 +5447,10 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         numOfElems++;
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
+        if (pInfo->p.key == st.key) {
+          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+        }
+
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -5462,6 +5466,10 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         numOfElems++;
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
+        if (pInfo->p.key == st.key) {
+          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+        }
+
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -5476,6 +5484,10 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         numOfElems++;
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
+        if (pInfo->p.key == st.key) {
+          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+        }
+
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -5490,6 +5502,10 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         numOfElems++;
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
+        if (pInfo->p.key == st.key) {
+          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+        }
+
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -5504,6 +5520,10 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         numOfElems++;
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
+        if (pInfo->p.key == st.key) {
+          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+        }
+
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -5518,6 +5538,10 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         numOfElems++;
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
+        if (pInfo->p.key == st.key) {
+          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+        }
+
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -5532,6 +5556,10 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         numOfElems++;
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
+        if (pInfo->p.key == st.key) {
+          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+        }
+
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -5546,6 +5574,10 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         numOfElems++;
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
+        if (pInfo->p.key == st.key) {
+          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+        }
+
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -5560,6 +5592,10 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         numOfElems++;
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
+        if (pInfo->p.key == st.key) {
+          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+        }
+
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -5574,6 +5610,10 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
         numOfElems++;
 
         INIT_INTP_POINT(st, tsList[i], val[i]);
+        if (pInfo->p.key == st.key) {
+          return TSDB_CODE_FUNC_DUP_TIMESTAMP;
+        }
+
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
