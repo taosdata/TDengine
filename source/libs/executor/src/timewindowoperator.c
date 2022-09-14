@@ -4959,6 +4959,12 @@ static void doMergeAlignedIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultR
                    pBlock->info.rows, pSup->numOfExprs);
 }
 
+static void cleanupAfterGroupResultGen(SMergeAlignedIntervalAggOperatorInfo* pMiaInfo, SSDataBlock* pRes) {
+  pRes->info.groupId = pMiaInfo->groupId;
+  pMiaInfo->curTs = INT64_MIN;
+  pMiaInfo->groupId = 0;
+}
+
 static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
@@ -4987,8 +4993,8 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
       // close last unclosed time window
       if (pMiaInfo->curTs != INT64_MIN) {
         finalizeResultRows(pIaInfo->aggSup.pResultBuf, &pResultRowInfo->cur, pSup, pRes, pTaskInfo);
-        pMiaInfo->curTs = INT64_MIN;
-        pRes->info.groupId = pMiaInfo->groupId;
+        resetResultRow(pMiaInfo->pResultRow, pIaInfo->aggSup.resultRowSize - sizeof(SResultRow));
+        cleanupAfterGroupResultGen(pMiaInfo, pRes);
       }
 
       doSetOperatorCompleted(pOperator);
@@ -5004,11 +5010,10 @@ static void doMergeAlignedIntervalAgg(SOperatorInfo* pOperator) {
         // if there are unclosed time window, close it firstly.
         ASSERT(pMiaInfo->curTs != INT64_MIN);
         finalizeResultRows(pIaInfo->aggSup.pResultBuf, &pResultRowInfo->cur, pSup, pRes, pTaskInfo);
-        pMiaInfo->prefetchedBlock = pBlock;
+        resetResultRow(pMiaInfo->pResultRow, pIaInfo->aggSup.resultRowSize - sizeof(SResultRow));
 
-        pRes->info.groupId = pMiaInfo->groupId;
-        pMiaInfo->curTs = INT64_MIN;
-        pMiaInfo->groupId = 0;
+        pMiaInfo->prefetchedBlock = pBlock;
+        cleanupAfterGroupResultGen(pMiaInfo, pRes);
         break;
       } else  {
         // continue
