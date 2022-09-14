@@ -308,6 +308,7 @@ typedef struct {
   int16_t hashPrefix;
   int16_t hashSuffix;
   int16_t sstTrigger;
+  int32_t tsdbPageSize;
   int32_t numOfRetensions;
   SArray* pRetensions;
   int32_t walRetentionPeriod;

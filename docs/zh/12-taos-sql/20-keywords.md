@@ -256,6 +256,7 @@ description: TDengine 保留关键字的详细列表
 
 ### V
 
+- VALUE
 - VALUES
 - VARIABLE
 - VARIABLES

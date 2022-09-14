@@ -123,7 +123,7 @@ void createNewTable(TAOS* pConn, int32_t index) {
   }
   taos_free_result(pRes);
 
-  for(int32_t i = 0; i < 3280; i += 20) {
+  for(int32_t i = 0; i < 10000; i += 20) {
     char sql[1024] = {0};
     sprintf(sql,
             "insert into tu%d values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"

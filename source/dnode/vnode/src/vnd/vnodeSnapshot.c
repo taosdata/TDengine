@@ -354,7 +354,8 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       code = metaSnapWrite(pWriter->pMetaSnapWriter, pData, nData);
       if (code) goto _err;
     } break;
-    case SNAP_DATA_TSDB: {
+    case SNAP_DATA_TSDB:
+    case SNAP_DATA_DEL: {
       // tsdb
       if (pWriter->pTsdbSnapWriter == NULL) {
         code = tsdbSnapWriterOpen(pVnode->pTsdb, pWriter->sver, pWriter->ever, &pWriter->pTsdbSnapWriter);

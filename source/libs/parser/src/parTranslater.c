@@ -1283,6 +1283,36 @@ static int32_t rewriteCountStar(STranslateContext* pCxt, SFunctionNode* pCount) 
   return code;
 }
 
+static bool isCountTbname(SFunctionNode* pFunc) {
+  if (FUNCTION_TYPE_COUNT != pFunc->funcType || 1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return false;
+  }
+  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  return (QUERY_NODE_FUNCTION == nodeType(pPara) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pPara)->funcType);
+}
+
+// count(tbname) is rewritten as count(ts) for scannning optimization
+static int32_t rewriteCountTbname(STranslateContext* pCxt, SFunctionNode* pCount) {
+  SFunctionNode* pTbname = (SFunctionNode*)nodesListGetNode(pCount->pParameterList, 0);
+  const char*    pTableAlias = NULL;
+  if (LIST_LENGTH(pTbname->pParameterList) > 0) {
+    pTableAlias = ((SValueNode*)nodesListGetNode(pTbname->pParameterList, 0))->literal;
+  }
+  STableNode* pTable = NULL;
+  int32_t     code = findTable(pCxt, pTableAlias, &pTable);
+  if (TSDB_CODE_SUCCESS == code) {
+    SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
+    if (NULL == pCol) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, -1, pCol);
+      NODES_DESTORY_LIST(pCount->pParameterList);
+      code = nodesListMakeAppend(&pCount->pParameterList, (SNode*)pCol);
+    }
+  }
+  return code;
+}
+
 static bool hasInvalidFuncNesting(SNodeList* pParameterList) {
   bool hasInvalidFunc = false;
   nodesWalkExprs(pParameterList, haveVectorFunction, &hasInvalidFunc);
@@ -1317,6 +1347,9 @@ static int32_t translateAggFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
 
   if (isCountStar(pFunc)) {
     return rewriteCountStar(pCxt, pFunc);
+  }
+  if (isCountTbname(pFunc)) {
+    return rewriteCountTbname(pCxt, pFunc);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -3485,6 +3518,7 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
   pReq->sstTrigger = pStmt->pOptions->sstTrigger;
   pReq->hashPrefix = pStmt->pOptions->tablePrefix;
   pReq->hashSuffix = pStmt->pOptions->tableSuffix;
+  pReq->tsdbPageSize = pStmt->pOptions->tsdbPageSize;
   pReq->ignoreExist = pStmt->ignoreExists;
   return buildCreateDbRetentions(pStmt->pOptions->pRetentions, pReq);
 }
@@ -3730,6 +3764,10 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
                               TSDB_MAX_PAGESIZE_PER_VNODE);
   }
   if (TSDB_CODE_SUCCESS == code) {
+    code = checkDbRangeOption(pCxt, "tsdbPagesize", pOptions->tsdbPageSize, TSDB_MIN_TSDB_PAGESIZE,
+                              TSDB_MAX_TSDB_PAGESIZE);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = checkDbPrecisionOption(pCxt, pOptions);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -3770,7 +3808,7 @@ static int32_t checkDatabaseOptions(STranslateContext* pCxt, const char* pDbName
         checkDbRangeOption(pCxt, "walSegmentSize", pOptions->walSegmentSize, TSDB_DB_MIN_WAL_SEGMENT_SIZE, INT32_MAX);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkDbRangeOption(pCxt, "sstTrigger", pOptions->sstTrigger, TSDB_MIN_SST_TRIGGER, TSDB_MAX_SST_TRIGGER);
+    code = checkDbRangeOption(pCxt, "sstTrigger", pOptions->sstTrigger, TSDB_MIN_STT_TRIGGER, TSDB_MAX_STT_TRIGGER);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkDbRangeOption(pCxt, "tablePrefix", pOptions->tablePrefix, TSDB_MIN_HASH_PREFIX, TSDB_MAX_HASH_PREFIX);
@@ -6606,7 +6644,7 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
   SDataType targetDt = schemaToDataType(pTableMeta->tableInfo.precision, pSchema);
 
   if (QUERY_NODE_VALUE != pStmt->pVal->node.type) {
-    SValueNode *pVal = NULL;
+    SValueNode* pVal = NULL;
     pCxt->errCode = createTagValFromExpr(pCxt, targetDt, (SNode*)pStmt->pVal, &pVal);
     if (pCxt->errCode) {
       return pCxt->errCode;

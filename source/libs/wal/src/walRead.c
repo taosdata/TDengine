@@ -168,6 +168,9 @@ static int32_t walReadChangeFile(SWalReader *pReader, int64_t fileFirstVer) {
   }
 
   pReader->pIdxFile = pIdxFile;
+
+  pReader->curFileFirstVer = fileFirstVer;
+
   return 0;
 }
 
@@ -372,7 +375,7 @@ int32_t walFetchHead(SWalReader *pRead, int64_t ver, SWalCkHead *pHead) {
 int32_t walSkipFetchBody(SWalReader *pRead, const SWalCkHead *pHead) {
   int64_t code;
 
-//  ASSERT(pRead->curVersion == pHead->head.version);
+  //  ASSERT(pRead->curVersion == pHead->head.version);
 
   code = taosLSeekFile(pRead->pLogFile, pHead->head.bodyLen, SEEK_CUR);
   if (code < 0) {
@@ -415,7 +418,8 @@ int32_t walFetchBody(SWalReader *pRead, SWalCkHead **ppHead) {
   }
 
   if (walValidBodyCksum(*ppHead) != 0) {
-    wError("vgId:%d, wal fetch body error, index:%" PRId64 ", since body checksum not passed", pRead->pWal->cfg.vgId, ver);
+    wError("vgId:%d, wal fetch body error, index:%" PRId64 ", since body checksum not passed", pRead->pWal->cfg.vgId,
+           ver);
     pRead->curInvalid = 1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;

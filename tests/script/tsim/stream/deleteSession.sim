@@ -16,7 +16,7 @@ sql drop database if exists test;
 sql create database test  vgroups 1;
 sql use test;
 sql create table t1(ts timestamp, a int, b int , c int, d double);
-sql create stream streams0 trigger at_once into streamt as select  _wstart c1, count(*) c2, max(a) c3 from t1 interval(10s);
+sql create stream streams0 trigger at_once into streamt as select  _wstart c1, count(*) c2, max(a) c3 from t1 session(ts, 5s);
 
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 sleep 200
@@ -186,14 +186,12 @@ endi
 
 sql drop stream if exists streams2;
 sql drop database if exists test2;
-sql drop database if exists test;
 sql create database test2  vgroups 4;
-sql create database test  vgroups 1;
 sql use test2;
 sql create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
-sql create stream streams2 trigger at_once into test.streamt2 as select  _wstart c1, count(*) c2, max(a) c3 from st interval(10s);
+sql create stream streams2 trigger at_once into test.streamt2 as select  _wstart c1, count(*) c2, max(a) c3 from st session(ts,5s);
 
 sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
 sql insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);
@@ -413,79 +411,118 @@ if $data12 != 3 then
   goto loop14
 endi
 
-return 1
-
+sql drop stream if exists streams1;
+sql drop stream if exists streams2;
 sql drop stream if exists streams3;
 sql drop database if exists test3;
 sql drop database if exists test;
-sql create database test3  vgroups 4;
-sql create database test  vgroups 1;
+sql create database test3 vgroups 4;
+sql create database test vgroups 1;
 sql use test3;
 sql create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
-sql create stream streams3 trigger at_once into test.streamt3 as select  _wstart c1, count(*) c2, max(a) c3 from st interval(10s);
+sql create stream streams3 trigger at_once into test.streamt3 as select  _wstart c1, count(*) c2, max(a) c3 from st session(ts,5s);
 
-sql insert into t1 values(1648791213000,NULL,NULL,NULL,NULL);
-sql insert into t2 values(1648791213000,NULL,NULL,NULL,NULL);
+sql insert into t1 values(1648791210000,1,1,1,NULL);
+sql insert into t1 values(1648791210001,2,2,2,NULL);
+sql insert into t2 values(1648791213001,3,3,3,NULL);
+sql insert into t2 values(1648791213003,4,4,4,NULL);
+sql insert into t1 values(1648791216000,5,5,5,NULL);
+sql insert into t1 values(1648791216002,6,6,6,NULL);
+sql insert into t1 values(1648791216004,7,7,7,NULL);
+sql insert into t2 values(1648791218001,8,8,8,NULL);
+sql insert into t2 values(1648791218003,9,9,9,NULL);
+sql insert into t1 values(1648791222000,10,10,10,NULL);
+sql insert into t1 values(1648791222003,11,11,11,NULL);
+sql insert into t1 values(1648791222005,12,12,12,NULL);
+
+sql insert into t1 values(1648791232005,13,13,13,NULL);
+sql insert into t2 values(1648791242005,14,14,14,NULL);
 
 $loop_count = 0
 
-sql delete from t1;
-
-loop15:
+loop19:
 sleep 200
-sql select * from test.streamt2 order by c1, c2, c3;
+sql select * from test.streamt3 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1
 endi
 
-if $rows != 1 then
+if $rows != 3 then
   print =====rows=$rows
-  goto loop15
+  goto loop19
 endi
+
+sql delete from t2 where ts >= 1648791213001 and ts <= 1648791218003;
 
 $loop_count = 0
 
-sql delete from t1 where ts > 100;
-
-loop16:
+loop20:
 sleep 200
-sql select * from test.streamt2 order by c1, c2, c3;
+sql select * from test.streamt3 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
   return -1
 endi
 
-if $rows != 1 then
+if $rows != 5 then
   print =====rows=$rows
-  goto loop16
+  goto loop20
 endi
 
-$loop_count = 0
-
-sql delete from st;
-
-loop17:
-sleep 200
-sql select * from test.streamt2 order by c1, c2, c3;
-
-$loop_count = $loop_count + 1
-if $loop_count == 10 then
-  return -1
+if $data01 != 2 then
+  print =====data01=$data01
+  goto loop20
 endi
 
-if $rows != 0 then
-  print =====rows=$rows
-  goto loop17
+if $data02 != 2 then
+  print =====data02=$data02
+  goto loop20
 endi
 
+if $data11 != 3 then
+  print =====data11=$data11
+  goto loop20
+endi
 
+if $data12 != 7 then
+  print =====data12=$data12
+  goto loop20
+endi
 
+if $data21 != 3 then
+  print =====data21=$data21
+  goto loop20
+endi
 
+if $data22 != 12 then
+  print =====data22=$data22
+  goto loop20
+endi
+
+if $data31 != 1 then
+  print =====data31=$data31
+  goto loop20
+endi
+
+if $data32 != 13 then
+  print =====data32=$data32
+  goto loop20
+endi
+
+if $data41 != 1 then
+  print =====data41=$data41
+  goto loop20
+endi
+
+if $data42 != 14 then
+  print =====data42=$data42
+  goto loop20
+endi
 
 $loop_all = $loop_all + 1
 print ============loop_all=$loop_all

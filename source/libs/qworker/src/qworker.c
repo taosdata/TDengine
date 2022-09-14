@@ -575,7 +575,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
 
   // QW_TASK_DLOGL("subplan json string, len:%d, %s", qwMsg->msgLen, qwMsg->msg);
 
-  code = qStringToSubplan(qwMsg->msg, &plan);
+  code = qMsgToSubplan(qwMsg->msg, qwMsg->msgLen, &plan);
   if (TSDB_CODE_SUCCESS != code) {
     code = TSDB_CODE_INVALID_MSG;
     QW_TASK_ELOG("task physical plan to subplan failed, code:%x - %s", code, tstrerror(code));
@@ -1007,7 +1007,7 @@ int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SDeleteRes *pRes) {
   DataSinkHandle sinkHandle = NULL;
   SQWTaskCtx     ctx = {0};
 
-  code = qStringToSubplan(qwMsg->msg, &plan);
+  code = qMsgToSubplan(qwMsg->msg, qwMsg->msgLen, &plan);
   if (TSDB_CODE_SUCCESS != code) {
     code = TSDB_CODE_INVALID_MSG;
     QW_TASK_ELOG("task physical plan to subplan failed, code:%x - %s", code, tstrerror(code));

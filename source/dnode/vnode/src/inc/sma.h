@@ -113,8 +113,9 @@ struct SRSmaStat {
   volatile int64_t nBufItems;         // number of items in queue buffer
   SRWLatch         lock;              // r/w lock for rsma fs(e.g. qtaskinfo)
   volatile int32_t nFetchAll;         // active number of fetch all
-  int8_t           triggerStat;       // shared by fetch tasks
-  int8_t           commitStat;        // 0 not in committing, 1 in committing
+  volatile int8_t  triggerStat;       // shared by fetch tasks
+  volatile int8_t  commitStat;        // 0 not in committing, 1 in committing
+  volatile int8_t  delFlag;           // 0 no deleted SRSmaInfo, 1 has deleted SRSmaInfo
   SRSmaFS          fs;                // for recovery/snapshot r/w
   SHashObj        *infoHash;          // key: suid, value: SRSmaInfo
   tsem_t           notEmpty;          // has items in queue buffer
@@ -142,7 +143,7 @@ struct SRSmaInfoItem {
   int8_t   level : 4;
   int8_t   fetchLevel : 4;
   int8_t   triggerStat;
-  uint16_t nSkipped;
+  uint16_t nScanned;
   int32_t  maxDelay;  // ms
   tmr_h    tmrId;
 };
@@ -196,16 +197,21 @@ typedef enum {
 int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType);
 void    tdDestroySmaEnv(SSmaEnv *pSmaEnv);
 void   *tdFreeSmaEnv(SSmaEnv *pSmaEnv);
-int32_t tdRefSmaStat(SSma *pSma, SSmaStat *pStat);
-int32_t tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat);
 int32_t tdLockSma(SSma *pSma);
 int32_t tdUnLockSma(SSma *pSma);
 void   *tdAcquireSmaRef(int32_t rsetId, int64_t refId);
 int32_t tdReleaseSmaRef(int32_t rsetId, int64_t refId);
 
+static FORCE_INLINE void tdRefSmaStat(SSma *pSma, SSmaStat *pStat) {
+  int32_t ref = T_REF_INC(pStat);
+  smaDebug("vgId:%d, ref sma stat:%p, val:%d", SMA_VID(pSma), pStat, ref);
+}
+static FORCE_INLINE void tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat) {
+  int32_t ref = T_REF_DEC(pStat);
+  smaDebug("vgId:%d, unref sma stat:%p, val:%d", SMA_VID(pSma), pStat, ref);
+}
+
 // rsma
-int32_t tdRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo);
-int32_t tdUnRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo);
 void   *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree);
 int32_t tdRSmaFSOpen(SSma *pSma, int64_t version);
 void    tdRSmaFSClose(SRSmaFS *fs);
@@ -218,9 +224,17 @@ int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
 int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type);
 int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash);
 int32_t tdRSmaProcessRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer);
+void    tdRSmaQTaskInfoGetFileName(int32_t vid, int64_t version, char *outputName);
+void    tdRSmaQTaskInfoGetFullName(int32_t vid, int64_t version, const char *path, char *outputName);
 
-void tdRSmaQTaskInfoGetFileName(int32_t vid, int64_t version, char *outputName);
-void tdRSmaQTaskInfoGetFullName(int32_t vid, int64_t version, const char *path, char *outputName);
+static FORCE_INLINE void tdRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo) {
+  int32_t ref = T_REF_INC(pRSmaInfo);
+  smaDebug("vgId:%d, ref rsma info:%p, val:%d", SMA_VID(pSma), pRSmaInfo, ref);
+}
+static FORCE_INLINE void tdUnRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo) {
+  int32_t ref = T_REF_DEC(pRSmaInfo);
+  smaDebug("vgId:%d, unref rsma info:%p, val:%d", SMA_VID(pSma), pRSmaInfo, ref);
+}
 
 // smaFileUtil ================
 

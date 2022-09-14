@@ -52,9 +52,13 @@ int32_t qSetSubplanExecutionNode(SSubplan* pSubplan, int32_t groupId, SDownstrea
 
 void qClearSubplanExecutionNode(SSubplan* pSubplan);
 
-// Convert to subplan to string for the scheduler to send to the executor
+// Convert to subplan to display string for the scheduler to send to the executor
 int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen);
 int32_t qStringToSubplan(const char* pStr, SSubplan** pSubplan);
+
+// Convert to subplan to msg for the scheduler to send to the executor
+int32_t qSubPlanToMsg(const SSubplan* pSubplan, char** pStr, int32_t* pLen);
+int32_t qMsgToSubplan(const char* pStr, int32_t len, SSubplan** pSubplan);
 
 char*       qQueryPlanToString(const SQueryPlan* pPlan);
 SQueryPlan* qStringToQueryPlan(const char* pStr);

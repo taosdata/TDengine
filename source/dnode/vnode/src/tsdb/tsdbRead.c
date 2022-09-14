@@ -16,7 +16,7 @@
 #include "osDef.h"
 #include "tsdb.h"
 
-#define ASCENDING_TRAVERSE(o)  (o == TSDB_ORDER_ASC)
+#define ASCENDING_TRAVERSE(o) (o == TSDB_ORDER_ASC)
 
 typedef enum {
   EXTERNAL_ROWS_PREV = 0x1,
@@ -83,11 +83,11 @@ typedef struct SBlockLoadSuppInfo {
 } SBlockLoadSuppInfo;
 
 typedef struct SLastBlockReader {
-  STimeWindow   window;
-  SVersionRange verRange;
-  int32_t       order;
-  uint64_t      uid;
-  SMergeTree    mergeTree;
+  STimeWindow        window;
+  SVersionRange      verRange;
+  int32_t            order;
+  uint64_t           uid;
+  SMergeTree         mergeTree;
   SSttBlockLoadInfo* pInfo;
 } SLastBlockReader;
 
@@ -234,10 +234,10 @@ static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, const STableK
     STableBlockScanInfo info = {.lastKey = 0, .uid = idList[j].uid};
     if (ASCENDING_TRAVERSE(pTsdbReader->order)) {
       int64_t skey = pTsdbReader->window.skey;
-      info.lastKey = (skey > INT64_MIN)? (skey - 1):skey;
+      info.lastKey = (skey > INT64_MIN) ? (skey - 1) : skey;
     } else {
       int64_t ekey = pTsdbReader->window.ekey;
-      info.lastKey = (ekey < INT64_MAX)? (ekey + 1):ekey;
+      info.lastKey = (ekey < INT64_MAX) ? (ekey + 1) : ekey;
     }
 
     taosHashPut(pTableMap, &info.uid, sizeof(uint64_t), &info, sizeof(info));
@@ -604,7 +604,7 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
     STableBlockScanInfo* pScanInfo = taosHashGet(pReader->status.pTableMap, &pBlockIdx->uid, sizeof(int64_t));
 
     tMapDataReset(&pScanInfo->mapData);
-    tsdbReadBlock(pReader->pFileReader, pBlockIdx, &pScanInfo->mapData);
+    tsdbReadDataBlk(pReader->pFileReader, pBlockIdx, &pScanInfo->mapData);
 
     sizeInDisk += pScanInfo->mapData.nData;
     for (int32_t j = 0; j < pScanInfo->mapData.nItem; ++j) {
@@ -2142,7 +2142,7 @@ static bool initLastBlockReader(SLastBlockReader* pLBlockReader, STableBlockScan
   initMemDataIterator(pScanInfo, pReader);
   pLBlockReader->uid = pScanInfo->uid;
 
-  int32_t step = ASCENDING_TRAVERSE(pLBlockReader->order)? 1:-1;
+  int32_t     step = ASCENDING_TRAVERSE(pLBlockReader->order) ? 1 : -1;
   STimeWindow w = pLBlockReader->window;
   if (ASCENDING_TRAVERSE(pLBlockReader->order)) {
     w.skey = pScanInfo->lastKey + step;
@@ -2810,6 +2810,7 @@ static STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* ret
   if (VND_IS_RSMA(pVnode)) {
     int8_t  level = 0;
     int64_t now = taosGetTimestamp(pVnode->config.tsdbCfg.precision);
+    int64_t offset = TSDB_TICK_PER_SECOND(pVnode->config.tsdbCfg.precision);
 
     for (int8_t i = 0; i < TSDB_RETENTION_MAX; ++i) {
       SRetention* pRetention = retentions + level;
@@ -2819,7 +2820,7 @@ static STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* ret
         }
         break;
       }
-      if ((now - pRetention->keep) <= winSKey) {
+      if ((now - pRetention->keep) <= (winSKey + offset)) {
         break;
       }
       ++level;
@@ -3845,7 +3846,7 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
   initFilesetIterator(&pReader->status.fileIter, pReader->pReadSnap->fs.aDFileSet, pReader);
   resetDataBlockIterator(&pReader->status.blockIter, pReader->order);
 
-  int64_t ts = ASCENDING_TRAVERSE(pReader->order)?pReader->window.skey-1:pReader->window.ekey+1;
+  int64_t ts = ASCENDING_TRAVERSE(pReader->order) ? pReader->window.skey - 1 : pReader->window.ekey + 1;
   resetDataBlockScanInfo(pReader->status.pTableMap, ts);
 
   int32_t         code = 0;
