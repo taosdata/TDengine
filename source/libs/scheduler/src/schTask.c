@@ -138,11 +138,6 @@ int32_t schUpdateTaskExecNode(SSchJob *pJob, SSchTask *pTask, void *handle, int3
     return TSDB_CODE_SUCCESS;
   }
 
-  if ((execId != pTask->execId) || pTask->waitRetry) {  // ignore it
-    SCH_TASK_DLOG("handle not updated since execId %d is already not current execId %d, waitRetry %d", execId, pTask->execId, pTask->waitRetry);
-    return TSDB_CODE_SUCCESS;
-  }
-
   SSchNodeInfo *nodeInfo = taosHashGet(pTask->execNodes, &execId, sizeof(execId));
   if (NULL == nodeInfo) {  // ignore it
     SCH_TASK_DLOG("handle not updated since execId %d already not exist, current execId %d, waitRetry %d", execId, pTask->execId, pTask->waitRetry);
@@ -160,10 +155,15 @@ int32_t schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, v
   if (dropExecNode) {
     SCH_RET(schDropTaskExecNode(pJob, pTask, handle, execId));
   }
-
-  SCH_SET_TASK_HANDLE(pTask, handle);
-
+  
   schUpdateTaskExecNode(pJob, pTask, handle, execId);
+
+  if ((execId != pTask->execId) || pTask->waitRetry) {  // ignore it
+    SCH_TASK_DLOG("handle not updated since execId %d is already not current execId %d, waitRetry %d", execId, pTask->execId, pTask->waitRetry);
+    SCH_ERR_RET(TSDB_CODE_SCH_IGNORE_ERROR);
+  }
+  
+  SCH_SET_TASK_HANDLE(pTask, handle);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -349,7 +349,7 @@ int32_t schDoTaskRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32
   pTask->waitRetry = true;
   schDropTaskOnExecNode(pJob, pTask);
   taosHashClear(pTask->execNodes);
-  SCH_ERR_JRET(schRemoveTaskFromExecList(pJob, pTask));
+  schRemoveTaskFromExecList(pJob, pTask);
   schDeregisterTaskHb(pJob, pTask);
   atomic_sub_fetch_32(&pTask->level->taskLaunchedNum, 1);
   taosMemoryFreeClear(pTask->msg);
@@ -593,7 +593,7 @@ int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bo
 int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask) {
   atomic_sub_fetch_32(&pTask->level->taskLaunchedNum, 1);
 
-  SCH_ERR_RET(schRemoveTaskFromExecList(pJob, pTask));
+  schRemoveTaskFromExecList(pJob, pTask);
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_INIT);
 
   if (SCH_TASK_NEED_FLOW_CTRL(pJob, pTask)) {
@@ -739,8 +739,7 @@ _return:
 int32_t schRemoveTaskFromExecList(SSchJob *pJob, SSchTask *pTask) {
   int32_t code = taosHashRemove(pJob->execTasks, &pTask->taskId, sizeof(pTask->taskId));
   if (code) {
-    SCH_TASK_ELOG("task failed to rm from execTask list, code:%x", code);
-    SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+    SCH_TASK_WLOG("task already not in execTask list, code:%x", code);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -829,6 +828,11 @@ int32_t schLaunchTaskImpl(void *param) {
   }
   
   SSchTask *pTask = pCtx->pTask;
+
+  if (pCtx->asyncLaunch) {
+    SCH_LOCK_TASK(pTask);
+  }
+  
   int8_t  status = 0;
   int32_t code = 0;
 
@@ -875,8 +879,6 @@ int32_t schLaunchTaskImpl(void *param) {
 
 _return:
 
-  taosMemoryFree(param);
-
   if (pJob->taskNum >= SCH_MIN_AYSNC_EXEC_NUM) {
     if (code) {
       code = schProcessOnTaskFailure(pJob, pTask, code);
@@ -886,7 +888,13 @@ _return:
     }
   }
 
+  if (pCtx->asyncLaunch) {
+    SCH_UNLOCK_TASK(pTask);
+  }
+
   schReleaseJob(pJob->refId);
+
+  taosMemoryFree(param);
 
   SCH_RET(code);
 }
@@ -902,6 +910,7 @@ int32_t schAsyncLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
   param->pTask = pTask;
 
   if (pJob->taskNum >= SCH_MIN_AYSNC_EXEC_NUM) {
+    param->asyncLaunch = true;
     taosAsyncExec(schLaunchTaskImpl, param, NULL);
   } else {
     SCH_ERR_RET(schLaunchTaskImpl(param));
