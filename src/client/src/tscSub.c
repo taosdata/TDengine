@@ -132,11 +132,6 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
 
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
-  if (tsem_init(&pSql->rspSem, 0, 0) == -1) {
-    line = __LINE__;
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto fail;
-  }
 
   pSql->param = pSub;
   pSql->maxRetry = TSDB_MAX_REPLICA;
@@ -442,10 +437,6 @@ SSqlObj* recreateSqlObj(SSub* pSub) {
 
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
-  if (tsem_init(&pSql->rspSem, 0, 0) == -1) {
-    tscFreeSqlObj(pSql);
-    return NULL;
-  }
 
   pSql->param = pSub;
   pSql->maxRetry = TSDB_MAX_REPLICA;

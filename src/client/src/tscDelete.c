@@ -153,7 +153,6 @@ SSqlObj *tscCreateSTableSubDelete(SSqlObj *pSql, SVgroupMsg* pVgroupMsg, SRetrie
   // update vgroup id
   writeMsgVgId(pNewCmd->payload ,pVgroupMsg->vgId);
 
-  tsem_init(&pNew->rspSem, 0, 0);
   registerSqlObj(pNew);
   tscDebug("0x%"PRIx64":CDEL new sub insertion: %p", pSql->self, pNew);
 
