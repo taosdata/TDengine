@@ -1204,7 +1204,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         pBuf->tuplePos = saveTupleData(pCtx, index, pCtx->pSrcBlock);
       }
     } else {
-      if (IS_SIGNED_NUMERIC_TYPE(type) || IS_TIMESTAMP_TYPE(type)) {
+      if (IS_SIGNED_NUMERIC_TYPE(type)) {
         int64_t prev = 0;
         GET_TYPED_DATA(prev, int64_t, type, &pBuf->v);
 
@@ -1263,7 +1263,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
   int32_t start = pInput->startRowIndex;
   int32_t numOfRows = pInput->numOfRows;
 
-  if (IS_SIGNED_NUMERIC_TYPE(type) || IS_TIMESTAMP_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
+  if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
     if (type == TSDB_DATA_TYPE_TINYINT || type == TSDB_DATA_TYPE_BOOL) {
       int8_t* pData = (int8_t*)pCol->pData;
       int8_t* val = (int8_t*)&pBuf->v;
@@ -1357,7 +1357,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
 
         numOfElems += 1;
       }
-    } else if (type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_TIMESTAMP) {
+    } else if (type == TSDB_DATA_TYPE_BIGINT) {
       int64_t* pData = (int64_t*)pCol->pData;
       int64_t* val = (int64_t*)&pBuf->v;
 
