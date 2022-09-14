@@ -1423,9 +1423,7 @@ static int32_t parseDataFromFile(SInsertParseContext* pCxt, SToken filePath, STa
 }
 
 static void destroyInsertParseContextForTable(SInsertParseContext* pCxt) {
-  if (!pCxt->pComCxt->async) {
-    taosMemoryFreeClear(pCxt->pTableMeta);
-  }
+  taosMemoryFreeClear(pCxt->pTableMeta);
   destroyBoundColumnInfo(&pCxt->tags);
   tdDestroySVCreateTbReq(&pCxt->createTblReq);
 }

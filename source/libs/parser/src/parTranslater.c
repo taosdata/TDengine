@@ -5960,12 +5960,6 @@ typedef struct SVgroupCreateTableBatch {
   char               dbName[TSDB_DB_NAME_LEN];
 } SVgroupCreateTableBatch;
 
-static void destroyCreateTbReq(SVCreateTbReq* pReq) {
-  taosMemoryFreeClear(pReq->name);
-  taosMemoryFreeClear(pReq->comment);
-  taosMemoryFreeClear(pReq->ntb.schemaRow.pSchema);
-}
-
 static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* pStmt, const SVgroupInfo* pVgroupInfo,
                                         SVgroupCreateTableBatch* pBatch) {
   char  dbFName[TSDB_DB_FNAME_LEN] = {0};
@@ -5980,7 +5974,7 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
   if (pStmt->pOptions->commentNull == false) {
     req.comment = strdup(pStmt->pOptions->comment);
     if (NULL == req.comment) {
-      destroyCreateTbReq(&req);
+      tdDestroySVCreateTbReq(&req);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
     req.commentLen = strlen(pStmt->pOptions->comment);
@@ -5991,7 +5985,7 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
   req.ntb.schemaRow.version = 1;
   req.ntb.schemaRow.pSchema = taosMemoryCalloc(req.ntb.schemaRow.nCols, sizeof(SSchema));
   if (NULL == req.name || NULL == req.ntb.schemaRow.pSchema) {
-    destroyCreateTbReq(&req);
+    tdDestroySVCreateTbReq(&req);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   if (pStmt->ignoreExists) {
@@ -6007,7 +6001,7 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
   strcpy(pBatch->dbName, pStmt->dbName);
   pBatch->req.pArray = taosArrayInit(1, sizeof(struct SVCreateTbReq));
   if (NULL == pBatch->req.pArray) {
-    destroyCreateTbReq(&req);
+    tdDestroySVCreateTbReq(&req);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   taosArrayPush(pBatch->req.pArray, &req);
@@ -6052,16 +6046,7 @@ static void destroyCreateTbReqBatch(void* data) {
   size_t                   size = taosArrayGetSize(pTbBatch->req.pArray);
   for (int32_t i = 0; i < size; ++i) {
     SVCreateTbReq* pTableReq = taosArrayGet(pTbBatch->req.pArray, i);
-    taosMemoryFreeClear(pTableReq->name);
-    taosMemoryFreeClear(pTableReq->comment);
-
-    if (pTableReq->type == TSDB_NORMAL_TABLE) {
-      taosMemoryFreeClear(pTableReq->ntb.schemaRow.pSchema);
-    } else if (pTableReq->type == TSDB_CHILD_TABLE) {
-      taosMemoryFreeClear(pTableReq->ctb.pTag);
-      taosMemoryFreeClear(pTableReq->ctb.name);
-      taosArrayDestroy(pTableReq->ctb.tagName);
-    }
+    tdDestroySVCreateTbReq(pTableReq);
   }
 
   taosArrayDestroy(pTbBatch->req.pArray);
@@ -6422,6 +6407,8 @@ static int32_t rewriteCreateSubTable(STranslateContext* pCxt, SCreateSubTableCla
   if (TSDB_CODE_SUCCESS == code) {
     addCreateTbReqIntoVgroup(pCxt->pParseCxt->acctId, pVgroupHashmap, pStmt, pTag, pSuperTableMeta->uid,
                              pStmt->useTableName, &info, tagName, pSuperTableMeta->tableInfo.numOfTags);
+  } else {
+    taosMemoryFree(pTag);
   }
 
   taosArrayDestroy(tagName);
