@@ -4207,7 +4207,7 @@ int32_t doInitSubState(SSqlObj* pSql, int32_t numOfSubqueries) {
   //assert(pSql->subState.numOfSub == 0 && pSql->pSubs == NULL && pSql->subState.states == NULL);  
   tscFreeSubobj(pSql);
   
-  pSql->pSubs = calloc(pSql->subState.numOfSub, POINTER_BYTES);
+  pSql->pSubs = calloc(numOfSubqueries, POINTER_BYTES);
   pSql->subState.states = calloc(pSql->subState.numOfSub, sizeof(int8_t));
 
   int32_t code = pthread_mutex_init(&pSql->subState.mutex, NULL);
