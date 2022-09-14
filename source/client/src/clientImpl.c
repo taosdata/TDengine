@@ -1036,7 +1036,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
 
       pRequest->metric.planEnd = taosGetTimestampUs();
       if (code == TSDB_CODE_SUCCESS) {
-        tscDebug("0x%" PRIx64 " create query plan success, elapsed time:%.2f ms, %0x" PRIx64, pRequest->self,
+        tscDebug("0x%" PRIx64 " create query plan success, elapsed time:%.2f ms, 0x%" PRIx64, pRequest->self,
                  (pRequest->metric.planEnd - st)/1000.0, pRequest->requestId);
       }
 
