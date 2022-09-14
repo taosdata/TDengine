@@ -58,7 +58,7 @@ static int32_t tsdbGnrtCurrent(STsdb *pTsdb, STsdbFS *pFS, char *fname) {
   taosCalcChecksumAppend(0, pData, size);
 
   // create and write
-  pFD = taosOpenFile(fname, TD_FILE_WRITE | TD_FILE_CREATE);
+  pFD = taosOpenFile(fname, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
   if (pFD == NULL) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -1033,7 +1033,7 @@ int32_t tsdbFSCommit2(STsdb *pTsdb, STsdbFS *pFSNew) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _err;
     }
-    iOld++;
+
     iNew++;
     continue;
   }
