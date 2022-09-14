@@ -1,8 +1,8 @@
 # taosX User Manual
 
-taosX is an easy-to-use, high-performance, feature-rich TDengine data integration tool. It works like a streaming data platform that supports offline data import/export and real-time data replication from or to TDengine. It's built for performance, reliability, productivity, observability and ergonomics.
+taosX is an easy-to-use, feature-rich TDengine data pipeline tool. It's a bridge between a data source and data sink. It supports offline data import/export and real-time data replication from or to a TDengine instance. It's built for performance, reliability, productivity, observability and ergonomics.
 
-## Features
+## Highlights 
 
 - Easy to use command line interface.
 - Simple but flexible configuration(s).
@@ -10,27 +10,27 @@ taosX is an easy-to-use, high-performance, feature-rich TDengine data integratio
 - High-throughout with massive data.
 - Modular and plugin system easy to extend, for different data sources/sinks.
 - Streaming data aggregation.
-- Fearless service running for long term.
+- Resilient service running for long term.
 - Helpful metrics for monitoring.
 
-## Use scenarios
+## Features and Use scenarios
 
 1st, for TDengine database replication.
 
-- Synchronize database or stable from one to another TDengine cluster.
+- Synchronize database or (s)tables from one to another TDengine instance.
 
 2nd, for TDengine logical backup and restore.
 
-- TDengine database/tables full backup.
-- TDengine database/tables incremental backup.
-- TDengine database/tables restore from backups.
+- TDengine database/(s)tables full backup.
+- TDengine database/(s)tables incremental backup.
+- TDengine database/(s)tables restore from backups.
 
-3rd, for streaming data integration.
+3rd, for data subscription.
 
-- Subscription (with aggregations) from TDengine.
-- Synchronization from different data sources to TDengine(will support soon).
+- Subscribe topics from one or multiple TDengine instances
+- Write all the subscribed data into one TDengine instance
 
-3rd, for offline data integration.
+3rd, for offline data backup/restore.
 
 - Export from TDengine to CSV/Parquet files.
 - Import CSV/Parquet file to TDengine tables(will support soon).
