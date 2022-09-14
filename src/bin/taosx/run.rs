@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use taos::*;
 
 use taosx::{local_to_taos, query_to_csv, query_to_parquet, tmq_to_local, tmq_to_td};
@@ -77,7 +77,7 @@ impl Cli {
             ("tmq", "local") => {
                 tmq_to_local(args.from, args.to, args.jobs, opts.yes_i_really_mean_it).await?;
             }
-            ("local", "taos") => {
+            ("local", "taos" | "tmq") => {
                 local_to_taos(args.from, args.to, args.jobs, opts.yes_i_really_mean_it).await?;
             }
             ("taos", "csv") => {
@@ -86,28 +86,10 @@ impl Cli {
             ("taos", "parquet") => {
                 query_to_parquet(args.from, args.to, opts.yes_i_really_mean_it).await?;
             }
-            // ("tmq", "csv") => {
-            //     // tmq table to csv, write table records to csv format.
-            //     todo!()
-            // }
-            // ("tmq", "parquet") => {
-            //     // tmq table to parquet
-            //     todo!()
-            // }
-            // ("csv", "taos") => {
-            //     // CSV to TDengine
-            //     todo!()
-            // }
-            // ("parquet", "taos") => {
-            //     // parquet to TDengine
-            //     todo!()
-            // }
-            // ("taos", "local") => {
-            //     todo!()
-            // }
-            (_, _) => panic!(
-                "unsupported source or dest: from {} to {}",
-                args.from, args.to
+            (_, _) => bail!(
+                "unsupported source or dest: from `{}` to `{}`",
+                args.from,
+                args.to
             ),
         }
 
