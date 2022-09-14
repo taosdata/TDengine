@@ -387,7 +387,6 @@ typedef struct SSqlObj {
   SSqlRes          res;
 
   SSubqueryState   subState;
-  pthread_mutex_t  mtxSubs;        // avoid double access pSubs after failure
   struct SSqlObj **pSubs;
   struct SSqlObj  *rootObj;
 
@@ -438,6 +437,8 @@ typedef struct SSqlStream {
   void (*callback)(void *);  // Callback function when stream is stopped from client level
   struct SSqlStream *prev, *next;
 } SSqlStream;
+
+SSqlObj* tscAllocSqlObj();
 
 void tscSetStreamDestTable(SSqlStream* pStream, const char* dstTable);
 

@@ -558,7 +558,7 @@ static int32_t getSuperTableMetaFromLocalCache(TAOS* taos, char* tableName, STab
   int32_t     code = 0;
   STableMeta* tableMeta = NULL;
 
-  SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
+  SSqlObj* pSql = tscAllocSqlObj();
   if (pSql == NULL) {
     tscError("SML:0x%" PRIx64 " failed to allocate memory, reason:%s", info->id, strerror(errno));
     code = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -2763,7 +2763,7 @@ static int32_t convertPrecisionType(int precision, SMLTimeStampType *tsType) {
 
 //make a dummy SSqlObj
 static SSqlObj* createSmlQueryObj(TAOS* taos, int32_t affected_rows, int32_t code) {
-  SSqlObj *pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
+  SSqlObj *pNew = tscAllocSqlObj();
   if (pNew == NULL) {
     return NULL;
   }

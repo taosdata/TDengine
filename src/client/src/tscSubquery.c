@@ -708,10 +708,6 @@ void freeJoinSubqueryObj(SSqlObj* pSql) {
     pSql->pSubs[i] = NULL;
   }
 
-  if (pSql->subState.states) {
-    pthread_mutex_destroy(&pSql->subState.mutex);
-  }
-  
   tfree(pSql->subState.states);
   pSql->subState.numOfSub = 0;
 }
@@ -901,7 +897,6 @@ bool tscReparseSql(SSqlObj *sql, int32_t code){
   }
 
   tscFreeSubobj(sql);      
-  tfree(sql->pSubs);
 
   sql->res.code = TSDB_CODE_SUCCESS;
   sql->retry++;
@@ -3014,7 +3009,6 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
       }
 
       tscFreeSubobj(userSql);      
-      tfree(userSql->pSubs);
 
       userSql->res.code = TSDB_CODE_SUCCESS;
       userSql->retry++;

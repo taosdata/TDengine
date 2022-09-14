@@ -117,7 +117,7 @@ void writeMsgVgId(char * payload, int32_t vgId) {
 SSqlObj *tscCreateSTableSubDelete(SSqlObj *pSql, SVgroupMsg* pVgroupMsg, SRetrieveSupport *trsupport) {
   // Init
   SSqlCmd* pCmd = &pSql->cmd;
-  SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
+  SSqlObj* pNew = tscAllocSqlObj();
   if (pNew == NULL) {
     tscError("0x%"PRIx64":CDEL new subdelete failed.", pSql->self);
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
