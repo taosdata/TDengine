@@ -1399,7 +1399,12 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   arg->msg = *pMsg;
   arg->pEpset = tEpSet;
 
-  taosAsyncExec(doProcessMsgFromServer, arg, NULL);
+  if (0 != taosAsyncExec(doProcessMsgFromServer, arg, NULL)) {
+    tscError("failed to sched msg to tsc, tsc ready to quit");
+    rpcFreeCont(pMsg->pCont);
+    taosMemoryFree(arg->pEpset);
+    taosMemoryFree(arg);
+  }
 }
 
 TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, const char* db, uint16_t port) {
