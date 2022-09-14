@@ -430,12 +430,14 @@ int32_t schHandleRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32
 
   code = schDoTaskRedirect(pJob, pTask, pData, rspCode);
   taosMemoryFree(pData->pData);
+  taosMemoryFree(pData->pEpSet);
 
   SCH_RET(code);
 
 _return:
 
   taosMemoryFree(pData->pData);
+  taosMemoryFree(pData->pEpSet);
 
   SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 }

@@ -1384,6 +1384,7 @@ int32_t doProcessMsgFromServer(void* param) {
   pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
   rpcFreeCont(pMsg->pCont);
   destroySendMsgInfo(pSendInfo);
+
   taosMemoryFree(arg);
   return TSDB_CODE_SUCCESS;
 }
