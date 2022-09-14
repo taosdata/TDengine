@@ -35,6 +35,8 @@ TEST_F(PlanOptimizeTest, scanPath) {
 
   run("SELECT LAST(c1) FROM t1 WHERE ts BETWEEN '2022-7-29 11:10:10' AND '2022-7-30 11:10:10' INTERVAL(10S) "
       "FILL(LINEAR)");
+
+  run("SELECT COUNT(TBNAME) FROM t1");
 }
 
 TEST_F(PlanOptimizeTest, pushDownCondition) {
