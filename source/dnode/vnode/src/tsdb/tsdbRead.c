@@ -3507,45 +3507,47 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
     goto _err;
   }
 
-  code = tsdbTakeReadSnap(pReader->pTsdb, &pReader->pReadSnap);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _err;
-  }
-
-  if (pReader->type == TIMEWINDOW_RANGE_CONTAINED) {
-    SDataBlockIter* pBlockIter = &pReader->status.blockIter;
-
-    initFilesetIterator(&pReader->status.fileIter, pReader->pReadSnap->fs.aDFileSet, pReader);
-    resetDataBlockIterator(&pReader->status.blockIter, pReader->order);
-
-    // no data in files, let's try buffer in memory
-    if (pReader->status.fileIter.numOfFiles == 0) {
-      pReader->status.loadFromFile = false;
-    } else {
-      code = initForFirstBlockInFile(pReader, pBlockIter);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
-    }
-  } else {
-    STsdbReader*    pPrevReader = pReader->innerReader[0];
-    SDataBlockIter* pBlockIter = &pPrevReader->status.blockIter;
-
-    code = tsdbTakeReadSnap(pPrevReader->pTsdb, &pPrevReader->pReadSnap);
+  if (numOfTables > 0) {
+    code = tsdbTakeReadSnap(pReader->pTsdb, &pReader->pReadSnap);
     if (code != TSDB_CODE_SUCCESS) {
       goto _err;
     }
 
-    initFilesetIterator(&pPrevReader->status.fileIter, pPrevReader->pReadSnap->fs.aDFileSet, pPrevReader);
-    resetDataBlockIterator(&pPrevReader->status.blockIter, pPrevReader->order);
+    if (pReader->type == TIMEWINDOW_RANGE_CONTAINED) {
+      SDataBlockIter* pBlockIter = &pReader->status.blockIter;
 
-    // no data in files, let's try buffer in memory
-    if (pPrevReader->status.fileIter.numOfFiles == 0) {
-      pPrevReader->status.loadFromFile = false;
+      initFilesetIterator(&pReader->status.fileIter, pReader->pReadSnap->fs.aDFileSet, pReader);
+      resetDataBlockIterator(&pReader->status.blockIter, pReader->order);
+
+      // no data in files, let's try buffer in memory
+      if (pReader->status.fileIter.numOfFiles == 0) {
+        pReader->status.loadFromFile = false;
+      } else {
+        code = initForFirstBlockInFile(pReader, pBlockIter);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
+      }
     } else {
-      code = initForFirstBlockInFile(pPrevReader, pBlockIter);
+      STsdbReader*    pPrevReader = pReader->innerReader[0];
+      SDataBlockIter* pBlockIter = &pPrevReader->status.blockIter;
+
+      code = tsdbTakeReadSnap(pPrevReader->pTsdb, &pPrevReader->pReadSnap);
       if (code != TSDB_CODE_SUCCESS) {
-        return code;
+        goto _err;
+      }
+
+      initFilesetIterator(&pPrevReader->status.fileIter, pPrevReader->pReadSnap->fs.aDFileSet, pPrevReader);
+      resetDataBlockIterator(&pPrevReader->status.blockIter, pPrevReader->order);
+
+      // no data in files, let's try buffer in memory
+      if (pPrevReader->status.fileIter.numOfFiles == 0) {
+        pPrevReader->status.loadFromFile = false;
+      } else {
+        code = initForFirstBlockInFile(pPrevReader, pBlockIter);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       }
     }
   }
@@ -3602,6 +3604,10 @@ void tsdbReaderClose(STsdbReader* pReader) {
 
     pLReader->pInfo = destroyLastBlockLoadInfo(pLReader->pInfo);
     taosMemoryFree(pLReader);
+  }
+
+  if (pReader->innerReader[0] != 0) {
+    tsdbUntakeReadSnap(pReader->innerReader[0]->pTsdb, pReader->innerReader[0]->pReadSnap);
   }
 
   tsdbDebug(
