@@ -1024,6 +1024,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
 
       SAppInstInfo* pAppInfo = getAppInfo(pRequest);
       SQueryPlan*   pDag = NULL;
+
+      int64_t st = taosGetTimestampUs();
       code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
       if (code) {
         tscError("0x%" PRIx64 " failed to create query plan, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
@@ -1033,6 +1035,10 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
       }
 
       pRequest->metric.planEnd = taosGetTimestampUs();
+      if (code == TSDB_CODE_SUCCESS) {
+        tscDebug("0x%" PRIx64 " create query plan success, elapsed time:%.2f ms, %0x" PRIx64, pRequest->self,
+                 (pRequest->metric.planEnd - st)/1000.0, pRequest->requestId);
+      }
 
       if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
         SArray* pNodeList = NULL;
