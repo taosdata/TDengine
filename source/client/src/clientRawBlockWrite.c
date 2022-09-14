@@ -701,12 +701,6 @@ typedef struct SVgroupCreateTableBatch {
 
 static void destroyCreateTbReqBatch(void* data) {
   SVgroupCreateTableBatch* pTbBatch = (SVgroupCreateTableBatch*)data;
-  size_t                   size = taosArrayGetSize(pTbBatch->req.pArray);
-  for (int32_t i = 0; i < size; ++i) {
-    SVCreateTbReq* pTableReq = taosArrayGet(pTbBatch->req.pArray, i);
-    tdDestroySVCreateTbReq(pTableReq);
-  }
-
   taosArrayDestroy(pTbBatch->req.pArray);
 }
 
