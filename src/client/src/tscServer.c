@@ -2708,7 +2708,7 @@ static void createHbObj(STscObj* pObj) {
     return;
   }
 
-  SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
+  SSqlObj *pSql = tscAllocSqlObj();
   if (NULL == pSql) return;
 
   pSql->fp = tscProcessHeartBeatRsp;
@@ -2977,7 +2977,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
 void tscTableMetaCallBack(void *param, TAOS_RES *res, int code);
 
 static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, bool autocreate) {
-  SSqlObj *pNew = calloc(1, sizeof(SSqlObj));
+  SSqlObj *pNew = tscAllocSqlObj();
   if (NULL == pNew) {
     tscError("0x%"PRIx64" malloc failed for new sqlobj to get table meta", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -3043,7 +3043,7 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
 }
 
 int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVgroupNameList, SArray* pUdfList, __async_cb_func_t fp, bool metaClone) {
-  SSqlObj *pNew = calloc(1, sizeof(SSqlObj));
+  SSqlObj *pNew = tscAllocSqlObj();
   if (NULL == pNew) {
     tscError("0x%"PRIx64" failed to allocate sqlobj to get multiple table meta", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -3180,7 +3180,7 @@ int tscGetTableMetaEx(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, bool create
 }
 
 int32_t tscGetUdfFromNode(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
-  SSqlObj *pNew = calloc(1, sizeof(SSqlObj));
+  SSqlObj *pNew = tscAllocSqlObj();
   if (NULL == pNew) {
     tscError("%p malloc failed for new sqlobj to get user-defined functions", pSql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -3291,10 +3291,7 @@ int tscRenewTableMeta(SSqlObj *pSql) {
   pSql->rootObj->retryReason = pSql->retryReason;
 
   SSqlObj *rootSql = pSql->rootObj;
-  pthread_mutex_lock(&rootSql->mtxSubs);
   tscFreeSubobj(rootSql);
-  pthread_mutex_unlock(&rootSql->mtxSubs);
-  tfree(rootSql->pSubs);
   tscResetSqlCmd(&rootSql->cmd, true, rootSql->self);
 
   code = getMultiTableMetaFromMnode(rootSql, pNameList, vgroupList, NULL, tscTableMetaCallBack, true);
@@ -3321,7 +3318,7 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
   if (allVgroupInfoRetrieved(pQueryInfo)) {
     return TSDB_CODE_SUCCESS;
   }
-  SSqlObj *pNew = calloc(1, sizeof(SSqlObj));
+  SSqlObj *pNew = tscAllocSqlObj();
   pNew->pTscObj = pSql->pTscObj;
   pNew->signature = pNew;
 

@@ -1656,8 +1656,9 @@ void tscFreeSqlResult(SSqlObj* pSql) {
 }
 
 void tscFreeSubobj(SSqlObj* pSql) {
+  pthread_mutex_lock(&pSql->subState.mutex);
   if (pSql->subState.numOfSub == 0) {
-    return;
+    goto _out;
   }
 
   tscDebug("0x%"PRIx64" start to free sub SqlObj, numOfSub:%d", pSql->self, pSql->subState.numOfSub);
@@ -1673,12 +1674,12 @@ void tscFreeSubobj(SSqlObj* pSql) {
     pSql->pSubs[i] = NULL;
   }
 
-  if (pSql->subState.states) {
-    pthread_mutex_destroy(&pSql->subState.mutex);
-  }
-
+  tfree(pSql->pSubs);
   tfree(pSql->subState.states);
   pSql->subState.numOfSub = 0;
+
+_out:
+  pthread_mutex_unlock(&pSql->subState.mutex);
 }
 
 /**
@@ -1715,6 +1716,15 @@ void tscFreeMetaSqlObj(int64_t *rid){
   }
 }
 
+SSqlObj* tscAllocSqlObj() {
+    SSqlObj *pNew = calloc(1, sizeof(SSqlObj));
+    if (!pNew) {
+        return NULL;
+    }
+    pthread_mutex_init(&pNew->subState.mutex, NULL);
+    return pNew;
+}
+
 void tscFreeSqlObj(SSqlObj* pSql) {
   if (pSql == NULL || pSql->signature != pSql) {
     return;
@@ -1738,17 +1748,11 @@ void tscFreeSqlObj(SSqlObj* pSql) {
 
   tscFreeSubobj(pSql);
 
-  if (pSql && (pSql == pSql->rootObj)) {
-    pthread_mutex_destroy(&pSql->mtxSubs);
-  }
-
   pSql->signature = NULL;
   pSql->fp = NULL;
   tfree(pSql->sqlstr);
   tfree(pSql->pBuf);
 
-  tfree(pSql->pSubs);
-  pSql->subState.numOfSub = 0;
   pSql->self = 0;
 
   tscFreeSqlResult(pSql);
@@ -1759,6 +1763,7 @@ void tscFreeSqlObj(SSqlObj* pSql) {
 
   tscDebug("0x%"PRIx64" addr:%p free completed", sid, pSql);
 
+  pthread_mutex_destroy(&pSql->subState.mutex);
   tsem_destroy(&pSql->rspSem);
   memset(pSql, 0, sizeof(*pSql));
   free(pSql);
@@ -3744,7 +3749,7 @@ void registerSqlObj(SSqlObj* pSql) {
 }
 
 SSqlObj* createSimpleSubObj(SSqlObj* pSql, __async_cb_func_t fp, void* param, int32_t cmd) {
-  SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
+  SSqlObj* pNew = tscAllocSqlObj();
   if (pNew == NULL) {
     tscError("0x%"PRIx64" new subquery failed, tableIndex:%d", pSql->self, 0);
     return NULL;
@@ -3821,7 +3826,7 @@ static void doSetSqlExprAndResultFieldInfo(SQueryInfo* pNewQueryInfo, int64_t ui
 SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t fp, void* param, int32_t cmd, SSqlObj* pPrevSql) {
   SSqlCmd* pCmd = &pSql->cmd;
 
-  SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
+  SSqlObj* pNew = tscAllocSqlObj();
   if (pNew == NULL) {
     tscError("0x%"PRIx64" new subquery failed, tableIndex:%d", pSql->self, tableIndex);
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -4124,10 +4129,7 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
     }
 
     tscFreeSubobj(pParentSql);
-    tfree(pParentSql->pSubs);
-
     tscFreeSubobj(rootObj);
-    tfree(rootObj->pSubs);
 
     rootObj->res.code = TSDB_CODE_SUCCESS;
     rootObj->retry++;
@@ -4220,7 +4222,7 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       pSql->cmd.active = pSub;
       pSql->cmd.command = TSDB_SQL_SELECT;
 
-      SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
+      SSqlObj* pNew = tscAllocSqlObj();
       if (pNew == NULL) {
         code = TSDB_CODE_TSC_OUT_OF_MEMORY;
         goto _error;
@@ -4573,7 +4575,6 @@ void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp) {
   tfree(pSql->subState.states);
   pSql->subState.numOfSub = 0;
   pthread_mutex_unlock(&pSql->subState.mutex);
-  pthread_mutex_destroy(&pSql->subState.mutex);
 
   pSql->fp = fp;
 

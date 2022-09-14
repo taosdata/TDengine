@@ -611,7 +611,7 @@ static int32_t tscRebuildDDLForSubTable(SSqlObj *pSql, const char *tableName, ch
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableMeta *    pMeta = pTableMetaInfo->pTableMeta;
 
-  SSqlObj *pInterSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
+  SSqlObj *pInterSql = tscAllocSqlObj();
   if (pInterSql == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -763,7 +763,7 @@ static int32_t tscProcessShowCreateDatabase(SSqlObj *pSql) {
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-  SSqlObj *pInterSql = (SSqlObj *)calloc(1, sizeof(SSqlObj)); 
+  SSqlObj *pInterSql = tscAllocSqlObj();
   if (pInterSql == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }  
