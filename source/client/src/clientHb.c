@@ -173,7 +173,8 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
       pTscObj->pAppInfo->totalDnodes = pRsp->query->totalDnodes;
       pTscObj->pAppInfo->onlineDnodes = pRsp->query->onlineDnodes;
       pTscObj->connId = pRsp->query->connId;
-      tscTrace("conn %p hb rsp, dnodes %d/%d", pTscObj->connId, pTscObj->pAppInfo->onlineDnodes, pTscObj->pAppInfo->totalDnodes);
+      tscTrace("conn %p hb rsp, dnodes %d/%d", pTscObj->connId, pTscObj->pAppInfo->onlineDnodes,
+               pTscObj->pAppInfo->totalDnodes);
 
       if (pRsp->query->killRid) {
         tscDebug("request rid %" PRIx64 " need to be killed now", pRsp->query->killRid);
@@ -297,7 +298,8 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
 
   if (code != 0) {
     (*pInst)->onlineDnodes = ((*pInst)->totalDnodes ? 0 : -1);
-    tscDebug("hb rsp error %s, update server status %d/%d", tstrerror(code), (*pInst)->onlineDnodes, (*pInst)->totalDnodes);
+    tscDebug("hb rsp error %s, update server status %d/%d", tstrerror(code), (*pInst)->onlineDnodes,
+             (*pInst)->totalDnodes);
   }
 
   if (rspNum) {
@@ -654,6 +656,8 @@ int32_t hbGatherAppInfo(void) {
 
   for (int32_t i = 0; i < sz; ++i) {
     SAppHbMgr *pAppHbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, i);
+    if (pAppHbMgr == NULL) continue;
+
     uint64_t   clusterId = pAppHbMgr->pAppInstInfo->clusterId;
     SAppHbReq *pApp = taosHashGet(clientHbMgr.appSummary, &clusterId, sizeof(clusterId));
     if (NULL == pApp) {
@@ -691,15 +695,20 @@ static void *hbThreadFunc(void *param) {
       hbGatherAppInfo();
     }
 
+    SArray *mgr = taosArrayInit(sz, sizeof(void *));
     for (int i = 0; i < sz; i++) {
       SAppHbMgr *pAppHbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, i);
+      if (pAppHbMgr == NULL) {
+        continue;
+      }
 
       int32_t connCnt = atomic_load_32(&pAppHbMgr->connKeyCnt);
       if (connCnt == 0) {
         continue;
       }
       SClientHbBatchReq *pReq = hbGatherAllInfo(pAppHbMgr);
-      if (pReq == NULL) {
+      if (pReq == NULL || taosArrayGetP(clientHbMgr.appHbMgrs, i) == NULL) {
+        tFreeClientHbBatchReq(pReq);
         continue;
       }
       int   tlen = tSerializeSClientHbBatchReq(NULL, 0, pReq);
@@ -726,7 +735,7 @@ static void *hbThreadFunc(void *param) {
       pInfo->msgInfo.len = tlen;
       pInfo->msgType = TDMT_MND_HEARTBEAT;
       pInfo->param = strdup(pAppHbMgr->key);
-      pInfo->paramFreeFp = taosMemoryFree;      
+      pInfo->paramFreeFp = taosMemoryFree;
       pInfo->requestId = generateRequestId();
       pInfo->requestObjRefId = 0;
 
@@ -738,7 +747,11 @@ static void *hbThreadFunc(void *param) {
       // hbClearReqInfo(pAppHbMgr);
 
       atomic_add_fetch_32(&pAppHbMgr->reportCnt, 1);
+      taosArrayPush(mgr, &pAppHbMgr);
     }
+
+    taosArrayDestroy(clientHbMgr.appHbMgrs);
+    clientHbMgr.appHbMgrs = mgr;
 
     taosThreadMutexUnlock(&clientHbMgr.lock);
 
@@ -831,7 +844,7 @@ void hbRemoveAppHbMrg(SAppHbMgr **pAppHbMgr) {
     if (pItem == *pAppHbMgr) {
       hbFreeAppHbMgr(*pAppHbMgr);
       *pAppHbMgr = NULL;
-      taosArrayRemove(clientHbMgr.appHbMgrs, i);
+      taosArraySet(clientHbMgr.appHbMgrs, i, NULL);
       break;
     }
   }
@@ -856,7 +869,15 @@ int hbMgrInit() {
 
   clientHbMgr.appSummary = taosHashInit(10, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   clientHbMgr.appHbMgrs = taosArrayInit(0, sizeof(void *));
-  taosThreadMutexInit(&clientHbMgr.lock, NULL);
+
+  TdThreadMutexAttr attr = {0};
+  taosThreadMutexAttrSetType(&attr, PTHREAD_MUTEX_RECURSIVE);
+
+  int ret = taosThreadMutexAttrInit(&attr);
+  assert(ret == 0);
+
+  taosThreadMutexInit(&clientHbMgr.lock, &attr);
+  taosThreadMutexAttrDestroy(&attr);
 
   // init handle funcs
   hbMgrInitHandle();
