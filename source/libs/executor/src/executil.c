@@ -33,6 +33,17 @@ void initResultRowInfo(SResultRowInfo* pResultRowInfo) {
 
 void closeResultRow(SResultRow* pResultRow) { pResultRow->closed = true; }
 
+void resetResultRow(SResultRow* pResultRow, size_t entrySize) {
+  pResultRow->numOfRows = 0;
+  pResultRow->closed = false;
+  pResultRow->endInterp = false;
+  pResultRow->startInterp = false;
+
+  if (entrySize > 0) {
+    memset(pResultRow->pEntryInfo, 0, entrySize);
+  }
+}
+
 // TODO refactor: use macro
 SResultRowEntryInfo* getResultEntryInfo(const SResultRow* pRow, int32_t index, const int32_t* offset) {
   assert(index >= 0 && offset != NULL);

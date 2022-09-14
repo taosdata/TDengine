@@ -1293,8 +1293,9 @@ static void doCopyResultToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SR
   }
 }
 
-int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition,
-                                             SExprSupp* pSup, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo) {
+// todo refactor. SResultRow has direct pointer in miainfo
+int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
+                           SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo) {
   SFilePage*  page = getBufPage(pBuf, resultRowPosition->pageId);
   SResultRow* pRow = (SResultRow*)((char*)page + resultRowPosition->offset);
 

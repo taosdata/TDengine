@@ -4886,14 +4886,8 @@ static int32_t setSingleOutputTupleBuf(SResultRowInfo* pResultRowInfo, STimeWind
     }
   }
 
-  // set time window for current result ,todo extract method
+  // set time window for current result
   (*pResult)->win = (*win);
-  (*pResult)->numOfRows = 0;
-  (*pResult)->closed = false;
-  (*pResult)->endInterp = false;
-  (*pResult)->startInterp = false;
-  memset((*pResult)->pEntryInfo, 0, pAggSup->resultRowSize - sizeof(SResultRow));
-
   setResultRowInitCtx((*pResult), pExprSup->pCtx, pExprSup->numOfExprs, pExprSup->rowEntryInfoOffset);
   return TSDB_CODE_SUCCESS;
 }
@@ -4916,6 +4910,7 @@ static void doMergeAlignedIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultR
   if (miaInfo->curTs != INT64_MIN) {
     if (ts != miaInfo->curTs) {
       finalizeResultRows(iaInfo->aggSup.pResultBuf, &pResultRowInfo->cur, pSup, pResultBlock, pTaskInfo);
+      resetResultRow(miaInfo->pResultRow, iaInfo->aggSup.resultRowSize - sizeof(SResultRow));
       miaInfo->curTs = ts;
     }
   } else {
@@ -4944,6 +4939,7 @@ static void doMergeAlignedIntervalAggImpl(SOperatorInfo* pOperatorInfo, SResultR
                      pBlock->info.rows, pSup->numOfExprs);
 
     finalizeResultRows(iaInfo->aggSup.pResultBuf, &pResultRowInfo->cur, pSup, pResultBlock, pTaskInfo);
+    resetResultRow(miaInfo->pResultRow, iaInfo->aggSup.resultRowSize - sizeof(SResultRow));
     miaInfo->curTs = tsCols[currPos];
 
     currWin.skey = miaInfo->curTs;
