@@ -1457,11 +1457,11 @@ static int32_t (*tColDataAppendValueImpl[])(SColData *pColData, SColVal *pColVal
     tColDataAppendValue0,  // 0
     tColDataAppendValue1,  // HAS_NONE
     tColDataAppendValue2,  // HAS_NULL
-    tColDataAppendValue3,  // HAS_NULL | HAS_NONE
+    tColDataAppendValue3,  // HAS_NULL|HAS_NONE
     tColDataAppendValue4,  // HAS_VALUE
-    tColDataAppendValue5,  // HAS_VALUE | HAS_NONE
-    tColDataAppendValue6,  // HAS_VALUE | HAS_NULL
-    tColDataAppendValue7   // HAS_VALUE | HAS_NULL | HAS_NONE
+    tColDataAppendValue5,  // HAS_VALUE|HAS_NONE
+    tColDataAppendValue6,  // HAS_VALUE|HAS_NULL
+    tColDataAppendValue7   // HAS_VALUE|HAS_NULL|HAS_NONE
 };
 int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal) {
   int32_t code = 0;
