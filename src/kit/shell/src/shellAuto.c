@@ -74,6 +74,7 @@ SWords shellCommands[] = {
   {"alter local tmrDebugFlag 143;", 0, 0, NULL},
   {"alter topic", 0, 0, NULL},
   {"alter user <user_name> pass", 0, 0, NULL},
+  {"alter user <user_name> tags", 0, 0, NULL},
   {"alter user <user_name> privilege read", 0, 0, NULL},
   {"alter user <user_name> privilege write", 0, 0, NULL},
   {"create table <anyword> using <stb_name> tags(", 0, 0, NULL},
@@ -82,7 +83,7 @@ SWords shellCommands[] = {
   {"create dnode ", 0, 0, NULL},
   {"create topic", 0, 0, NULL},
   {"create function ", 0, 0, NULL},
-  {"create user <anyword> pass", 0, 0, NULL},
+  {"create user <anyword> pass <anyword> tags", 0, 0, NULL},
   {"compact vnode in", 0, 0, NULL},
   {"describe <all_table>", 0, 0, NULL},
 #ifdef TD_ENTERPRISE
@@ -124,7 +125,7 @@ SWords shellCommands[] = {
   {"show variables;", 0, 0, NULL},
   {"show vgroups;", 0, 0, NULL},
   {"insert into <tb_name> values(", 0, 0, NULL},
-  {"insert into <tb_name> using <stb_name> tags(", 0, 0, NULL},
+  {"insert into <tb_name> using <stb_name> tags( <anyword> ) values(", 0, 0, NULL},
   {"use <db_name>", 0, 0, NULL},
   {"quit", 0, 0, NULL}
 };
@@ -359,7 +360,8 @@ void showHelp() {
     alter local resetlog; \n\
     alter local DebugFlag 143; \n\
     alter topic <topic_name>\n\
-    alter user <user_name> pass\n\
+    alter user <user_name> pass <password>;\n\
+    alter user <user_name> tags <privileges>;\n\
     alter user <user_name> privilege read ;\n\
     alter user <user_name> privilege write ;\n\
   ----- C ----- \n\
@@ -370,6 +372,7 @@ void showHelp() {
     create topic <top_name>\n\
     create function <function_name>\n\
     create user <user_name> pass <password>;\n\
+    create user <user_name> pass <password> tags <privileges>;\n\
     compact vnode in (vgid,vgid,vgid);\n\
   ----- D ----- \n\
     describe <all_table> ;\n\

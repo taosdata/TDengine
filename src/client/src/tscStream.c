@@ -232,8 +232,6 @@ static void tscProcessStreamQueryCallback(void *param, TAOS_RES *tres, int numOf
 
     tscFreeSqlResult(pStream->pSql);
     tscFreeSubobj(pStream->pSql);
-    tfree(pStream->pSql->pSubs);
-    pStream->pSql->subState.numOfSub = 0;
 
     pTableMetaInfo->vgroupList = tscVgroupInfoClear(pTableMetaInfo->vgroupList);
     tscSetRetryTimer(pStream, pStream->pSql, retryDelay);
@@ -610,8 +608,6 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
 
     tscFreeSqlResult(pSql);
     tscFreeSubobj(pSql);    
-    tfree(pSql->pSubs);
-    pSql->subState.numOfSub = 0;
     pTableMetaInfo->vgroupList = tscVgroupInfoClear(pTableMetaInfo->vgroupList);
     tscSetNextLaunchTimer(pStream, pSql);
   }

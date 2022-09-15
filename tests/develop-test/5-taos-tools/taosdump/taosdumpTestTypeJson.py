@@ -11,13 +11,11 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
 import os
 from util.log import *
 from util.cases import *
 from util.sql import *
 from util.dnodes import *
-import subprocess
 
 
 class TDTestCase:
@@ -37,8 +35,12 @@ class TDTestCase:
 
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
+        elif ("src" in selfPath):
+            projPath = selfPath[:selfPath.find("src")]
+        elif ("/tools/" in selfPath):
+            projPath = selfPath[:selfPath.find("/tools/")]
         else:
-            projPath = selfPath[:selfPath.find("tests")]
+            tdLog.exit("path: %s is not supported" % selfPath)
 
         buildPath = ""
         for root, dirs, files in os.walk(projPath):
@@ -53,7 +55,7 @@ class TDTestCase:
         tdSql.prepare()
 
         tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db  days 11 keep 3649 blocks 8 ")
+        tdSql.execute("create database db  keep 3649 ")
 
         tdSql.execute("use db")
         tdSql.execute(
@@ -93,7 +95,16 @@ class TDTestCase:
         os.system("%staosdump -i %s -g" % (binPath, self.tmpdir))
 
         tdSql.query("show databases")
-        tdSql.checkRows(1)
+        dbresult = tdSql.queryResult
+
+        found = False
+        for i in range(len(dbresult)):
+            print("Found db: %s" % dbresult[i][0])
+            if (dbresult[i][0] == "db"):
+                found = True
+                break
+
+        assert found == True
 
         tdSql.execute("use db")
         tdSql.query("show stables")
@@ -102,11 +113,24 @@ class TDTestCase:
 
         tdSql.query("show tables")
         tdSql.checkRows(3)
-        tdSql.checkData(0, 0, 't3')
+
+        dbresult = tdSql.queryResult
+        print(dbresult)
+        for i in range(len(dbresult)):
+            assert ((dbresult[i][0] == "t1") or (dbresult[i][0] == "t2") or (dbresult[i][0] == "t3"))
 
         tdSql.query("select jtag->'location' from st")
         tdSql.checkRows(3)
-        tdSql.checkData(0, 0, "\"beijing\"")
+
+        dbresult = tdSql.queryResult
+        print(dbresult)
+        found = False
+        for i in range(len(dbresult)):
+            if (dbresult[i][0] == "\"beijing\""):
+                found = True
+                break
+
+        assert found == True
 
         tdSql.query("select * from st where jtag contains 'location'")
         tdSql.checkRows(1)
@@ -115,9 +139,16 @@ class TDTestCase:
 
         tdSql.query("select jtag from st")
         tdSql.checkRows(3)
-        tdSql.checkData(0, 0, "{\"location\":\"beijing\"}")
-        tdSql.checkData(1, 0, None)
-        tdSql.checkData(2, 0, None)
+
+        dbresult = tdSql.queryResult
+        print(dbresult)
+        found = False
+        for i in range(len(dbresult)):
+            if (dbresult[i][0] == "{\"location\":\"beijing\"}"):
+                found = True
+                break
+
+        assert found == True
 
     def stop(self):
         tdSql.close()

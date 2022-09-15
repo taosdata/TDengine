@@ -185,6 +185,7 @@ enum _mgmt_table {
 
 #define TSDB_ALTER_USER_PASSWD     0x1
 #define TSDB_ALTER_USER_PRIVILEGES 0x2
+#define TSDB_ALTER_USER_TAGS       0x4
 
 #define TSDB_KILL_MSG_LEN          30
 
@@ -362,6 +363,7 @@ typedef struct {
   char      acctId[TSDB_ACCT_ID_LEN];
   char      serverVersion[TSDB_VERSION_LEN];
   char      clusterId[TSDB_CLUSTER_ID_LEN];
+  char      tags[TSDB_TAGS_LEN];
   int8_t    writeAuth;
   int8_t    superAuth;
   int8_t    reserved1;
@@ -400,6 +402,7 @@ typedef struct {
   int8_t extend;
   char   user[TSDB_USER_LEN];
   char   pass[TSDB_PASS_LEN];
+  char   tags[TSDB_TAGS_LEN];
   int8_t privilege;
   int8_t flag;
 } SCreateUserMsg, SAlterUserMsg;

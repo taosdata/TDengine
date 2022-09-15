@@ -235,6 +235,7 @@ typedef struct SShowInfo {
 typedef struct SUserInfo {
   SStrToken          user;
   SStrToken          passwd;
+  SStrToken          tags;   // format like tag1,tag2,tag3 ... splite with ','
   SStrToken          privilege;
   int16_t            type;
 } SUserInfo;
@@ -358,9 +359,9 @@ void setShowOptions(SSqlInfo *pInfo, int32_t type, SStrToken* prefix, SStrToken*
 void setCreateDbInfo(SSqlInfo *pInfo, int32_t type, SStrToken *pToken, SCreateDbInfo *pDB, SStrToken *pIgExists);
 
 void setCreateAcctSql(SSqlInfo *pInfo, int32_t type, SStrToken *pName, SStrToken *pPwd, SCreateAcctInfo *pAcctInfo);
-void setCreateUserSql(SSqlInfo *pInfo, SStrToken *pName, SStrToken *pPasswd);
+void setCreateUserSql(SSqlInfo *pInfo, SStrToken *pName, SStrToken *pPasswd, SStrToken *pTags);
 void setKillSql(SSqlInfo *pInfo, int32_t type, SStrToken *ip);
-void setAlterUserSql(SSqlInfo *pInfo, int16_t type, SStrToken *pName, SStrToken* pPwd, SStrToken *pPrivilege);
+void setAlterUserSql(SSqlInfo *pInfo, int16_t type, SStrToken *pName, SStrToken* pPwd, SStrToken *pPrivilege, SStrToken *pTags);
 
 void setCompactVnodeSql(SSqlInfo *pInfo, int32_t type, SArray *pParam);
 
