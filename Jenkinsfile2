@@ -174,7 +174,7 @@ pipeline {
         stage ('build docs') {
             when {
                 allOf {
-                    { expression { env.CHANGE_BRANCH =~ /docs\// }}
+                    expression { env.CHANGE_BRANCH =~ /docs\// }
                 }
             }
             agent {label "docusaurus"}
