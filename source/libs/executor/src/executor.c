@@ -480,6 +480,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds) {
   if (ret != TSDB_CODE_SUCCESS) {
     pTaskInfo->code = ret;
     cleanUpUdfs();
+
     qDebug("%s task abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
     atomic_store_64(&pTaskInfo->owner, 0);
 
@@ -512,8 +513,8 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds) {
   }
 
   cleanUpUdfs();
-  uint64_t total = pTaskInfo->pRoot->resultInfo.totalRows;
 
+  uint64_t total = pTaskInfo->pRoot->resultInfo.totalRows;
   qDebug("%s task suspended, %d rows in %d blocks returned, total:%" PRId64 " rows, in sinkNode:%d, elapsed:%.2f ms",
          GET_TASKID(pTaskInfo), current, (int32_t)taosArrayGetSize(pResList), total, 0, el / 1000.0);
 
