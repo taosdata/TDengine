@@ -33,6 +33,8 @@ TDengine is an open source, high-performance, cloud native [time-series database
 
 - **[Open Source](https://tdengine.com/tdengine/open-source-time-series-database/)**: TDengine’s core modules, including cluster feature, are all available under open source licenses. It has gathered 18.8k stars on GitHub. There is an active developer community, and over 139k running instances worldwide.
 
+For a full list of TDengine competitive advantages, please [check here](https://tdengine.com/tdengine/)
+
 # Documentation
 
 For user manual, system design and architecture, please refer to [TDengine Documentation](https://docs.tdengine.com) ([TDengine 文档](https://docs.taosdata.com))
