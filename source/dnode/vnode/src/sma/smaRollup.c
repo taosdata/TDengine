@@ -19,7 +19,7 @@
 #define RSMA_QTASKINFO_HEAD_LEN    (sizeof(int32_t) + sizeof(int8_t) + sizeof(int64_t))  // len + type + suid
 #define RSMA_QTASKEXEC_SMOOTH_SIZE (100)                                                 // cnt
 #define RSMA_SUBMIT_BATCH_SIZE     (1024)                                                // cnt
-#define RSMA_FETCH_DELAY_MAX       (900000)                                              // ms
+#define RSMA_FETCH_DELAY_MAX       (120000)                                              // ms
 #define RSMA_FETCH_ACTIVE_MAX      (1000)                                                // ms
 #define RSMA_FETCH_INTERVAL        (5000)                                                // ms
 
@@ -302,7 +302,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
       return TSDB_CODE_FAILED;
     }
     SRSmaInfoItem *pItem = &(pRSmaInfo->items[idx]);
-    pItem->triggerStat = TASK_TRIGGER_STAT_INACTIVE;
+    pItem->triggerStat = TASK_TRIGGER_STAT_ACTIVE;  // fetch the data when reboot
     if (param->maxdelay[idx] < TSDB_MIN_ROLLUP_MAX_DELAY) {
       int64_t msInterval =
           convertTimeFromPrecisionToUnit(pRetention[idx + 1].freq, pTsdbCfg->precision, TIME_UNIT_MILLISECOND);
@@ -320,7 +320,9 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
     SRSmaRef rsmaRef = {.refId = pStat->refId, .suid = pRSmaInfo->suid};
     taosHashPut(smaMgmt.refHash, &pItem, POINTER_BYTES, &rsmaRef, sizeof(rsmaRef));
 
-    taosTmrReset(tdRSmaFetchTrigger, pItem->maxDelay, pItem, smaMgmt.tmrHandle, &pItem->tmrId);
+    pItem->fetchLevel = pItem->level;
+    taosTmrReset(tdRSmaFetchTrigger, RSMA_FETCH_INTERVAL, pItem, smaMgmt.tmrHandle, &pItem->tmrId);
+    
 
     smaInfo("vgId:%d, item:%p table:%" PRIi64 " level:%" PRIi8 " maxdelay:%" PRIi64 " watermark:%" PRIi64
             ", finally maxdelay:%" PRIi32,
@@ -470,6 +472,7 @@ int32_t tdProcessRSmaDrop(SSma *pSma, SVDropStbReq *pReq) {
   }
 
   // set del flag for data in mem
+  atomic_store_8(&pRSmaStat->delFlag, 1);
   RSMA_INFO_SET_DEL(pRSmaInfo);
   tdUnRefRSmaInfo(pSma, pRSmaInfo);
 
@@ -939,25 +942,25 @@ static SRSmaInfo *tdAcquireRSmaInfoBySuid(SSma *pSma, int64_t suid) {
     return NULL;
   }
 
-  // taosRLockLatch(SMA_ENV_LOCK(pEnv));
+  taosRLockLatch(SMA_ENV_LOCK(pEnv));
   pRSmaInfo = taosHashGet(RSMA_INFO_HASH(pStat), &suid, sizeof(tb_uid_t));
   if (pRSmaInfo && (pRSmaInfo = *(SRSmaInfo **)pRSmaInfo)) {
     if (RSMA_INFO_IS_DEL(pRSmaInfo)) {
-      // taosRUnLockLatch(SMA_ENV_LOCK(pEnv));
+      taosRUnLockLatch(SMA_ENV_LOCK(pEnv));
       return NULL;
     }
     if (!pRSmaInfo->taskInfo[0]) {
       if (tdRSmaInfoClone(pSma, pRSmaInfo) < 0) {
-        // taosRUnLockLatch(SMA_ENV_LOCK(pEnv));
+        taosRUnLockLatch(SMA_ENV_LOCK(pEnv));
         return NULL;
       }
     }
     tdRefRSmaInfo(pSma, pRSmaInfo);
-    // taosRUnLockLatch(SMA_ENV_LOCK(pEnv));
+    taosRUnLockLatch(SMA_ENV_LOCK(pEnv));
     ASSERT(pRSmaInfo->suid == suid);
     return pRSmaInfo;
   }
-  // taosRUnLockLatch(SMA_ENV_LOCK(pEnv));
+  taosRUnLockLatch(SMA_ENV_LOCK(pEnv));
 
   return NULL;
 }
@@ -1709,21 +1712,23 @@ static int32_t tdRSmaFetchAllResult(SSma *pSma, SRSmaInfo *pInfo) {
         continue;
       }
 
-      int64_t curMs = taosGetTimestampMs();
-      if ((pItem->nSkipped * pItem->maxDelay) > RSMA_FETCH_DELAY_MAX) {
-        smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nSkipped:%" PRIi8 " maxDelay:%d, fetch executed",
-                 SMA_VID(pSma), pInfo->suid, i, pItem->nSkipped, pItem->maxDelay);
-      } else if (((curMs - pInfo->lastRecv) < RSMA_FETCH_ACTIVE_MAX)) {
-        ++pItem->nSkipped;
-        smaTrace("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " curMs:%" PRIi64 " lastRecv:%" PRIi64 ", fetch skipped ",
-                 SMA_VID(pSma), pInfo->suid, i, curMs, pInfo->lastRecv);
-        continue;
+      if ((++pItem->nScanned * pItem->maxDelay) > RSMA_FETCH_DELAY_MAX) {
+        smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nScanned:%" PRIi8 " maxDelay:%d, fetch executed",
+                 SMA_VID(pSma), pInfo->suid, i, pItem->nScanned, pItem->maxDelay);
       } else {
-        smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " curMs:%" PRIi64 " lastRecv:%" PRIi64 ", fetch executed ",
-                 SMA_VID(pSma), pInfo->suid, i, curMs, pInfo->lastRecv);
+        int64_t curMs = taosGetTimestampMs();
+        if ((curMs - pInfo->lastRecv) < RSMA_FETCH_ACTIVE_MAX) {
+          smaTrace("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " curMs:%" PRIi64 " lastRecv:%" PRIi64 ", fetch skipped ",
+                   SMA_VID(pSma), pInfo->suid, i, curMs, pInfo->lastRecv);
+          atomic_store_8(&pItem->triggerStat, TASK_TRIGGER_STAT_ACTIVE);  // restore the active stat
+          continue;
+        } else {
+          smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " curMs:%" PRIi64 " lastRecv:%" PRIi64 ", fetch executed ",
+                   SMA_VID(pSma), pInfo->suid, i, curMs, pInfo->lastRecv);
+        }
       }
 
-      pItem->nSkipped = 0;
+      pItem->nScanned = 0;
 
       if ((terrno = qSetMultiStreamInput(taskInfo, &dataBlock, 1, STREAM_INPUT__DATA_BLOCK)) < 0) {
         goto _err;
@@ -1734,12 +1739,12 @@ static int32_t tdRSmaFetchAllResult(SSma *pSma, SRSmaInfo *pInfo) {
       }
 
       tdCleanupStreamInputDataBlock(taskInfo);
-      smaInfo("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nSkipped:%" PRIi8 " maxDelay:%d, fetch finished",
-              SMA_VID(pSma), pInfo->suid, i, pItem->nSkipped, pItem->maxDelay);
+      smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nScanned:%" PRIi8 " maxDelay:%d, fetch finished",
+               SMA_VID(pSma), pInfo->suid, i, pItem->nScanned, pItem->maxDelay);
     } else {
-      smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nSkipped:%" PRIi8
+      smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nScanned:%" PRIi8
                " maxDelay:%d, fetch not executed as fetch level is %" PRIi8,
-               SMA_VID(pSma), pInfo->suid, i, pItem->nSkipped, pItem->maxDelay, pItem->fetchLevel);
+               SMA_VID(pSma), pInfo->suid, i, pItem->nScanned, pItem->maxDelay, pItem->fetchLevel);
     }
   }
 
@@ -1829,6 +1834,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
             bool    occupied = (batchMax <= 1);
             if (batchMax > 1) {
               batchMax = 100 / batchMax;
+              batchMax = TMAX(batchMax, 4);
             }
             while (occupied || (++batchCnt < batchMax)) {    // greedy mode
               taosReadAllQitems(pInfo->queue, pInfo->qall);  // queue has mutex lock
@@ -1838,13 +1844,15 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
                 smaDebug("vgId:%d, batchSize:%d, execType:%" PRIi8, SMA_VID(pSma), qallItemSize, type);
               }
 
-              int8_t oldStat = atomic_val_compare_exchange_8(RSMA_COMMIT_STAT(pRSmaStat), 0, 2);
-              if (oldStat == 0 ||
-                  ((oldStat == 2) && atomic_load_8(RSMA_TRIGGER_STAT(pRSmaStat)) < TASK_TRIGGER_STAT_PAUSED)) {
-                atomic_fetch_add_32(&pRSmaStat->nFetchAll, 1);
-                tdRSmaFetchAllResult(pSma, pInfo);
-                if (0 == atomic_sub_fetch_32(&pRSmaStat->nFetchAll, 1)) {
-                  atomic_store_8(RSMA_COMMIT_STAT(pRSmaStat), 0);
+              if (RSMA_INFO_ITEM(pInfo, 0)->fetchLevel || RSMA_INFO_ITEM(pInfo, 1)->fetchLevel) {
+                int8_t oldStat = atomic_val_compare_exchange_8(RSMA_COMMIT_STAT(pRSmaStat), 0, 2);
+                if (oldStat == 0 ||
+                    ((oldStat == 2) && atomic_load_8(RSMA_TRIGGER_STAT(pRSmaStat)) < TASK_TRIGGER_STAT_PAUSED)) {
+                  atomic_fetch_add_32(&pRSmaStat->nFetchAll, 1);
+                  tdRSmaFetchAllResult(pSma, pInfo);
+                  if (0 == atomic_sub_fetch_32(&pRSmaStat->nFetchAll, 1)) {
+                    atomic_store_8(RSMA_COMMIT_STAT(pRSmaStat), 0);
+                  }
                 }
               }
 
@@ -1917,7 +1925,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
       tsem_wait(&pRSmaStat->notEmpty);
 
       if ((pEnv->flag & SMA_ENV_FLG_CLOSE) && (atomic_load_64(&pRSmaStat->nBufItems) <= 0)) {
-        smaInfo("vgId:%d, exec task end, flag:%" PRIi8 ", nBufItems:%" PRIi64, SMA_VID(pSma), pEnv->flag,
+        smaDebug("vgId:%d, exec task end, flag:%" PRIi8 ", nBufItems:%" PRIi64, SMA_VID(pSma), pEnv->flag,
                 atomic_load_64(&pRSmaStat->nBufItems));
         break;
       }

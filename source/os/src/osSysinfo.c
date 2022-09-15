@@ -344,7 +344,7 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
   *numOfCores = si.dwNumberOfProcessors;
   return 0;
 #elif defined(_TD_DARWIN_64)
-  char buf[16];
+  char    buf[16];
   int32_t done = 0;
   int32_t code = -1;
 

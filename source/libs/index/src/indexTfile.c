@@ -323,10 +323,6 @@ static int32_t tfSearchCompareFunc(void* reader, SIndexTerm* tem, SIdxTRslt* tr,
   while ((rt = stmStNextWith(st, NULL)) != NULL) {
     FstSlice* s = &rt->data;
     char*     ch = (char*)fstSliceData(s, NULL);
-    // if (0 != strncmp(ch, tem->colName, tem->nColName)) {
-    //  swsResultDestroy(rt);
-    //  break;
-    //}
 
     TExeCond cond = cmpFn(ch, p, tem->colType);
     if (MATCH == cond) {
@@ -1034,7 +1030,8 @@ static void tfileGenFileName(char* filename, uint64_t suid, const char* col, int
   sprintf(filename, "%" PRIu64 "-%s-%" PRId64 ".tindex", suid, col, version);
   return;
 }
-static void tfileGenFileFullName(char* fullname, const char* path, uint64_t suid, const char* col, int64_t version) {
+static void FORCE_INLINE tfileGenFileFullName(char* fullname, const char* path, uint64_t suid, const char* col,
+                                              int64_t version) {
   char filename[128] = {0};
   tfileGenFileName(filename, suid, col, version);
   sprintf(fullname, "%s/%s", path, filename);

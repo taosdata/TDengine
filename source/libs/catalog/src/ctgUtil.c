@@ -99,7 +99,16 @@ char *ctgTaskTypeStr(CTG_TASK_TYPE type) {
 }
 
 void ctgFreeQNode(SCtgQNode *node) {
-  //TODO
+  if (NULL == node) {
+    return;
+  }
+
+  if (node->op) {
+    taosMemoryFree(node->op->data);
+    taosMemoryFree(node->op);
+  }
+  
+  taosMemoryFree(node);
 }
 
 void ctgFreeSTableIndex(void *info) {
