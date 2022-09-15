@@ -873,7 +873,6 @@ int hbMgrInit() {
 
   TdThreadMutexAttr attr = {0};
   taosThreadMutexAttrSetType(&attr, PTHREAD_MUTEX_RECURSIVE);
-
   int ret = taosThreadMutexAttrInit(&attr);
   assert(ret == 0);
 
