@@ -231,7 +231,7 @@ class TDTestCase:
             if platform.system().lower() == 'windows':
                 os.system('ps -a | grep taos | awk \'{print $2}\' | xargs kill -9')
             else:
-                os.system('pkill taos')
+                os.system('pkill -9 taos')
 
     def stop(self):
         tdSql.close()
