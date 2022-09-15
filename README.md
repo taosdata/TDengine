@@ -15,7 +15,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/taosdata/TDengine/badge.svg?branch=develop)](https://coveralls.io/github/taosdata/TDengine?branch=develop)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/4201/badge)](https://bestpractices.coreinfrastructure.org/projects/4201)
 
-English | [简体中文](README-CN.md) | We are hiring, check [here](https://tdengine.com/careers)
+English | [简体中文](README-CN.md) | [Lean more about TSDB](https://tdengine.com/tsdb)
 
 # What is TDengine？
 
@@ -319,6 +319,7 @@ TDengine provides abundant developing tools for users to develop on TDengine. Fo
 
 Please follow the [contribution guidelines](CONTRIBUTING.md) to contribute to the project.
 
-# Join TDengine WeChat Group
+# Join TDengine User Community
 
-Add WeChat “tdengine” to join the group，you can communicate with other users.
+- Join [TDengine Discord Channel](https://discord.com/invite/VZdSuUg4pS?utm_id=discord)
+- Join wechat group by adding WeChat “tdengine”
