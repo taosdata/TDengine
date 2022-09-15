@@ -29,6 +29,8 @@
 #include "trpc.h"
 // clang-foramt on
 
+SArray* udfdResidentFuncs;
+
 typedef struct SUdfdContext {
   uv_loop_t * loop;
   uv_pipe_t   ctrlPipe;
@@ -576,9 +578,9 @@ int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
     uv_dlsym(&udf->lib, finishFuncName, (void **)(&udf->aggFinishFunc));
     char mergeFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
     char *mergeSuffix = "_merge";
-    strncpy(finishFuncName, processFuncName, sizeof(finishFuncName));
-    strncat(finishFuncName, mergeSuffix, strlen(mergeSuffix));
-    uv_dlsym(&udf->lib, finishFuncName, (void **)(&udf->aggMergeFunc));
+    strncpy(mergeFuncName, processFuncName, sizeof(mergeFuncName));
+    strncat(mergeFuncName, mergeSuffix, strlen(mergeSuffix));
+    uv_dlsym(&udf->lib, mergeFuncName, (void **)(&udf->aggMergeFunc));
   }
   return 0;
 }
@@ -941,6 +943,14 @@ void udfdConnectMnodeThreadFunc(void *args) {
   }
 }
 
+int32_t udfdInitResidentFuncs() {
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t udfdDeinitResidentFuncs() {
+  return TSDB_CODE_SUCCESS;
+}
+
 int main(int argc, char *argv[]) {
   if (!taosCheckSystemIsLittleEnd()) {
     printf("failed to start since on non-little-end machines\n");
@@ -978,6 +988,8 @@ int main(int argc, char *argv[]) {
     return -5;
   }
 
+  udfdInitResidentFuncs();
+
   uv_thread_t mnodeConnectThread;
   uv_thread_create(&mnodeConnectThread, udfdConnectMnodeThreadFunc, NULL);
 
@@ -986,5 +998,6 @@ int main(int argc, char *argv[]) {
   removeListeningPipe();
   udfdCloseClientRpc();
 
+  udfdDeinitResidentFuncs();
   return 0;
 }

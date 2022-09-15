@@ -40,6 +40,10 @@ DLL_EXPORT int32_t udf1(SUdfDataBlock* block, SUdfColumn *resultCol) {
       udfColDataSet(resultCol, i, (char *)&luckyNum, false);
     }
   }
+  TAOS* taos = taos_connect("127.0.0.1", "root", "taosdata", "gpd", 6030);
+  taos_query(taos, "create st (ts timestamp, f int) tags(t int)");
+  taos_query(taos, "insert into t using st tags(1) values(now, 1) ");
+  taos_query(taos, "select * from gpd.t");
   //to simulate actual processing delay by udf
 #ifdef LINUX
   usleep(1 * 1000);   // usleep takes sleep time in us (1 millionth of a second)
