@@ -196,7 +196,7 @@ AllowWebSockets
 - `u` TDengine 用户名
 - `p` TDengine 密码
 
-注意： 目前不支持 InfluxDB 的 token 验证方式只支持 Basic 验证和查询参数验证。
+注意： 目前不支持 InfluxDB 的 token 验证方式，仅支持 Basic 验证和查询参数验证。
 
 ### OpenTSDB
 
