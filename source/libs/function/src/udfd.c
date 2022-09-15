@@ -29,7 +29,7 @@
 #include "trpc.h"
 // clang-foramt on
 
-SArray* udfdResidentFuncs;
+SArray* udfdResidentFuncs = NULL;
 
 typedef struct SUdfdContext {
   uv_loop_t * loop;
@@ -69,6 +69,7 @@ typedef struct SUdf {
   EUdfState  state;
   uv_mutex_t lock;
   uv_cond_t  condReady;
+  bool resident;
 
   char    name[TSDB_FUNC_NAME_LEN];
   int8_t  funcType;
@@ -201,6 +202,14 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     code = udfdLoadUdf(setup->udfName, udf);
     if (udf->initFunc) {
       udf->initFunc();
+    }
+    udf->resident = false;
+    for (int32_t i = 0; i < taosArrayGetSize(udfdResidentFuncs); ++i) {
+      char* funcName = taosArrayGet(udfdResidentFuncs, i);
+      if (strcmp(setup->udfName, funcName) == 0) {
+        udf->resident = true;
+        break;
+      }
     }
     udf->state = UDF_STATE_READY;
     uv_cond_broadcast(&udf->condReady);
@@ -347,7 +356,7 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
 
   uv_mutex_lock(&global.udfsMutex);
   udf->refCount--;
-  if (udf->refCount == 0) {
+  if (udf->refCount == 0 && !udf->resident) {
     unloadUdf = true;
     taosHashRemove(global.udfsHash, udf->name, strlen(udf->name));
   }
@@ -944,10 +953,28 @@ void udfdConnectMnodeThreadFunc(void *args) {
 }
 
 int32_t udfdInitResidentFuncs() {
+  udfdResidentFuncs = taosArrayInit(2, TSDB_FUNC_NAME_LEN);
+  char gpd[TSDB_FUNC_NAME_LEN] = "gpd";
+  taosArrayPush(udfdResidentFuncs, gpd);
+  char gpdBatch[TSDB_FUNC_NAME_LEN] = "gpdbatch";
+  taosArrayPush(udfdResidentFuncs, gpdBatch);
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t udfdDeinitResidentFuncs() {
+  for (int32_t i = 0; i < taosArrayGetSize(udfdResidentFuncs); ++i) {
+    char* funcName = taosArrayGet(udfdResidentFuncs, i);
+    SUdf** udfInHash =  taosHashGet(global.udfsHash, funcName, strlen(funcName));
+    if (udfInHash) {
+      taosHashRemove(global.udfsHash, funcName, strlen(funcName));
+      SUdf* udf = *udfInHash;
+      if (udf->destroyFunc) {
+        (udf->destroyFunc)();
+      }
+      uv_dlclose(&udf->lib);
+      taosMemoryFree(udf);
+    }
+  }
   return TSDB_CODE_SUCCESS;
 }
 
