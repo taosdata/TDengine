@@ -13,7 +13,7 @@ import TabItem from '@theme/TabItem';
 
 First, you need to install the `taospy` module version >= `2.6.2`. Run the command below in your terminal.
 
-<Tabs defaultValue="pip">
+<Tabs defaultValue="pip" groupID="package">
 <TabItem value="pip" label="pip">
 
 ```
@@ -90,13 +90,28 @@ For more details about how to write or query data via REST API, please check [RE
 
 **Step 1: Install**
 
-For the users who are familiar with Jupyter to program in Python, both TDengine Python connector and Jupyter need to be ready in your environment. If you have not done yet, please use below commands to install them.
+For the users who are familiar with Jupyter to program in Python, both TDengine Python connector and Jupyter need to be ready in your environment. If you have not done yet, please use the commands below to install them.
+
+<Tabs defaultValue="pip" groupID="package">
+<TabItem value="pip" label="pip">
 
 ```bash
 pip install jupyterlab
-pip install notebook
 pip3 install -U taospy
 ```
+
+You'll need to have Python3 installed.
+
+</TabItem>
+<TabItem value="conda" label="conda">
+
+```
+conda install -c conda-forge jupyterlab
+conda install -c conda-forge taospy
+```
+
+</TabItem>
+</Tabs>
 
 **Step 2: Configure**
 
@@ -105,12 +120,12 @@ In order for Jupyter to connect to TDengine cloud service, before launching Jupy
 ```bash
 export TDENGINE_CLOUD_TOKEN="<token>"
 export TDENGINE_CLOUD_URL="<url>"
-jupyter notebook
+jupyter lab
 ```
 
 **Step 3: Connect**
 
-Once jupyter notebook is launched, Jupyter notebook service is automatically connected and shown in your browser. You can create a new Python file and copy the sample code below and run it.
+Once jupyter lab is launched, Jupyter lab service is automatically connected and shown in your browser. You can create a new notebook and copy the sample code below and run it.
 
 ```python
 {{#include docs/examples/python/develop_tutorial.py:connect}}
