@@ -629,24 +629,35 @@ _err:
 
 int32_t tsdbGetNRowsInTbData(STbData *pTbData) { return pTbData->sl.size; }
 
-int32_t tsdbRefMemTable(SMemTable *pMemTable, STsdbReader *pReader) {
+int32_t tsdbRefMemTable(SMemTable *pMemTable, void *pQueryHandle, SQueryNode **ppNode) {
   int32_t code = 0;
 
   int32_t nRef = atomic_fetch_add_32(&pMemTable->nRef, 1);
   ASSERT(nRef > 0);
 
-  // register handle (todo)
-  if (pReader) {
+  // register handle
+  *ppNode = taosMemoryMalloc(sizeof(SQueryNode));
+  if (*ppNode == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
   }
+  (*ppNode)->pQueryHandle = pQueryHandle;
+  (*ppNode)->pNext = pMemTable->qList;
+  (*ppNode)->ppNext = &pMemTable->qList;
+  pMemTable->qList = *ppNode;
 
+_exit:
   return code;
 }
 
-int32_t tsdbUnrefMemTable(SMemTable *pMemTable, STsdbReader *pReader) {
+int32_t tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode) {
   int32_t code = 0;
 
-  // unregister handle (todo)
-  if (pReader) {
+  // unregister handle
+  if (pNode) {
+    pNode->pNext->ppNext = pNode->ppNext;
+    *pNode->ppNext = pNode->pNext;
+    taosMemoryFree(pNode);
   }
 
   int32_t nRef = atomic_sub_fetch_32(&pMemTable->nRef, 1);

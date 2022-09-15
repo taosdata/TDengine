@@ -3879,12 +3879,12 @@ int32_t tsdbTakeReadSnap(STsdbReader* pReader, STsdbReadSnap** ppSnap) {
 
   // take snapshot
   if (pTsdb->mem && (pRange->minVer <= pTsdb->mem->maxVer && pRange->maxVer >= pTsdb->mem->minVer)) {
-    tsdbRefMemTable(pTsdb->mem, pReader);
+    tsdbRefMemTable(pTsdb->mem, pReader, &(*ppSnap)->pNode);
     (*ppSnap)->pMem = pTsdb->mem;
   }
 
   if (pTsdb->imem && (pRange->minVer <= pTsdb->imem->maxVer && pRange->maxVer >= pTsdb->imem->minVer)) {
-    tsdbRefMemTable(pTsdb->imem, pReader);
+    tsdbRefMemTable(pTsdb->imem, pReader, &(*ppSnap)->pINode);
     (*ppSnap)->pIMem = pTsdb->imem;
   }
 
@@ -3912,11 +3912,11 @@ void tsdbUntakeReadSnap(STsdbReader* pReader, STsdbReadSnap* pSnap) {
 
   if (pSnap) {
     if (pSnap->pMem) {
-      tsdbUnrefMemTable(pSnap->pMem, pReader);
+      tsdbUnrefMemTable(pSnap->pMem, pSnap->pNode);
     }
 
     if (pSnap->pIMem) {
-      tsdbUnrefMemTable(pSnap->pIMem, pReader);
+      tsdbUnrefMemTable(pSnap->pIMem, pSnap->pINode);
     }
 
     tsdbFSUnref(pTsdb, &pSnap->fs);

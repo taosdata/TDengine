@@ -65,6 +65,7 @@ typedef struct SSmaInfo      SSmaInfo;
 typedef struct SBlockCol     SBlockCol;
 typedef struct SVersionRange SVersionRange;
 typedef struct SLDataIter    SLDataIter;
+typedef struct SQueryNode    SQueryNode;
 
 #define TSDB_FILE_DLMT     ((uint32_t)0xF00AFA0F)
 #define TSDB_MAX_SUBBLOCKS 8
@@ -206,8 +207,8 @@ int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, in
 int32_t  tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
 void     tsdbMemTableDestroy(SMemTable *pMemTable);
 STbData *tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid);
-int32_t  tsdbRefMemTable(SMemTable *pMemTable, STsdbReader *pReader);
-int32_t  tsdbUnrefMemTable(SMemTable *pMemTable, STsdbReader *pReader);
+int32_t  tsdbRefMemTable(SMemTable *pMemTable, void *pQueryHandle, SQueryNode **ppNode);
+int32_t  tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode);
 SArray  *tsdbMemTableGetTbDataArray(SMemTable *pMemTable);
 // STbDataIter
 int32_t  tsdbTbDataIterCreate(STbData *pTbData, TSDBKEY *pFrom, int8_t backward, STbDataIter **ppIter);
@@ -365,6 +366,12 @@ struct STbData {
   STbData     *next;
 };
 
+struct SQueryNode {
+  SQueryNode  *pNext;
+  SQueryNode **ppNext;
+  void        *pQueryHandle;
+};
+
 struct SMemTable {
   SRWLatch         latch;
   STsdb           *pTsdb;
@@ -381,7 +388,7 @@ struct SMemTable {
     int32_t   nBucket;
     STbData **aBucket;
   };
-  STsdbReader *pReaderList;
+  SQueryNode *qList;
 };
 
 struct TSDBROW {
@@ -592,9 +599,11 @@ struct SDelFWriter {
 };
 
 struct STsdbReadSnap {
-  SMemTable *pMem;
-  SMemTable *pIMem;
-  STsdbFS    fs;
+  SMemTable  *pMem;
+  SQueryNode *pNode;
+  SMemTable  *pIMem;
+  SQueryNode *pINode;
+  STsdbFS     fs;
 };
 
 struct SDataFWriter {
