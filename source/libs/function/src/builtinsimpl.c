@@ -4780,7 +4780,7 @@ int32_t stateDurationFunction(SqlFunctionCtx* pCtx) {
       colDataAppendNULL(pOutput, i);
       // handle selectivity
       if (pCtx->subsidiaries.num > 0) {
-        appendSelectivityValue(pCtx, i, i);
+        appendSelectivityValue(pCtx, i, pCtx->offset + numOfElems - 1);
       }
       continue;
     }
@@ -4797,11 +4797,11 @@ int32_t stateDurationFunction(SqlFunctionCtx* pCtx) {
     } else {
       pInfo->durationStart = 0;
     }
-    colDataAppend(pOutput, i, (char*)&output, false);
+    colDataAppend(pOutput, pCtx->offset + numOfElems - 1, (char*)&output, false);
 
     // handle selectivity
     if (pCtx->subsidiaries.num > 0) {
-      appendSelectivityValue(pCtx, i, i);
+      appendSelectivityValue(pCtx, i, pCtx->offset + numOfElems - 1);
     }
   }
 
