@@ -506,13 +506,13 @@ void waitForQueryRsp(void *param, TAOS_RES *tres, int code);
 /**
  * The initialization of async insertion auto batch feature.
  * 
- * @param batchLen  When user submit an insert statement to `taos_query_ra`, the statement will be buffered
+ * @param batchSize  When user submit an insert statement to `taos_query_ra`, the statement will be buffered
  *                  asynchronously in the execution queue instead of executing it. If the number of the buffered
- *                  statements reach batchLen, all the statements in the queue will be merged and sent to vnodes.
- * @param timeout   The statements will be sent to vnodes no more than timeout milliseconds. But the actual time
+ *                  statements reach batchSize, all the statements in the queue will be merged and sent to vnodes.
+ * @param timeoutMs   The statements will be sent to vnodes no more than timeoutMs milliseconds. But the actual time
  *                  vnodes received the statements depends on the network quality.
  */
-void tscInitAsyncDispatcher(int32_t batchLen, int64_t timeout);
+void tscInitAsyncDispatcher(int32_t batchSize, int32_t timeoutMs);
 
 /**
  * Destroy the async auto batch dispatcher.

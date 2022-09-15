@@ -2210,7 +2210,7 @@ int32_t tscMergeKVPayLoadSqlObj(SArray* statements, SSqlObj **result) {
     SSqlObj *pSql = *((SSqlObj**) taosArrayGet(statements, i));
     SSqlCmd *pCmd = &pSql->cmd;
     SInsertStatementParam* pInsertParam = &pCmd->insertParam;
-
+    
     assert(pInsertParam->payloadType == PAYLOAD_TYPE_KV);
     
     // merge all the data blocks by vgroup id.

@@ -217,7 +217,7 @@ void taos_init_imp(void) {
     tscDebug("Local End Point is:%s", tsLocalEp);
     
     if (tsAsyncBatchEnable) {
-      tscInitAsyncDispatcher(tsAsyncBatchLen, tsAsyncBatchTimeout);
+      tscInitAsyncDispatcher(tsAsyncBatchSize, tsAsyncBatchTimeout);
     }
   }
 

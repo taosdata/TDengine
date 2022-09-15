@@ -230,9 +230,8 @@ char* strtolower(char *dst, const char *src) {
   }
   char* const ret = dst;
   while (*src) {
-    char ch = *(src++);
-    ch += (ch >= 'A' && ch <= 'Z') ? 'a' - 'A' : 0;
-    *(dst++) = ch;
+    const char ch = *(src++);
+    *(dst++) = (ch >= 'A' && ch <= 'Z') ? ch - 'A' + 'a' : ch;
          
     if (ch == '\'' || ch == '"') {
       char prev = ch;
@@ -258,10 +257,9 @@ char* strntolower(char *dst, const char *src, int32_t n) {
   assert(dst != NULL);
   char* const end = dst + n;
   while (dst != end) {
-    char ch = *(src++);
-    ch += (ch >= 'A' && ch <= 'Z') ? 'a' - 'A' : 0;
-    *(dst++) = ch;
-         
+    const char ch = *(src++);
+    *(dst++) = (ch >= 'A' && ch <= 'Z') ? ch - 'A' + 'a' : ch;
+    
     if (ch == '\'' || ch == '"') {
       char prev = ch;
       while (dst != end) {
