@@ -11,8 +11,8 @@ After TDengine starts, it automatically writes many metrics in specific interval
 
 To deploy TDinsight, we need
 - a single-node TDengine server or a multi-node TDengine cluster and a [Grafana] server are required. This dashboard requires TDengine 3.0.1.0 and above, with the monitoring feature enabled. For detailed configuration, please refer to [TDengine monitoring configuration](../config/#monitoring-parameters).
-- taosAdapter has been instaleld and running, please refer to [taosAdapter](../../taosadapter).
-- taosKeeper has been installed and running, please refer to  [taosKeeper](../../taoskeeper).
+- taosAdapter has been instaleld and running, please refer to [taosAdapter](../taosadapter).
+- taosKeeper has been installed and running, please refer to  [taosKeeper](../taoskeeper).
 
 Please record
 - The endpoint of taosAdapter REST service, for example `http://tdengine.local:6041`
