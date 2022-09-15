@@ -128,10 +128,10 @@ _return:
 
 int32_t schProcessExplainRsp(SSchJob *pJob, SSchTask *pTask, SExplainRsp *rsp) {
   SRetrieveTableRsp *pRsp = NULL;
-  SCH_ERR_JRET(qExplainUpdateExecInfo(pJob->explainCtx, rsp, pTask->plan->id.groupId, &pRsp));
+  SCH_ERR_RET(qExplainUpdateExecInfo(pJob->explainCtx, rsp, pTask->plan->id.groupId, &pRsp));
   
   if (pRsp) {
-    SCH_ERR_JRET(schProcessOnExplainDone(pJob, pTask, pRsp));
+    SCH_ERR_RET(schProcessOnExplainDone(pJob, pTask, pRsp));
   }
 
   return TSDB_CODE_SUCCESS;
@@ -366,7 +366,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
 
       SExplainRsp rsp = {0};
       if (tDeserializeSExplainRsp(msg, msgSize, &rsp)) {
-        taosMemoryFree(rsp.subplanInfo);
+        tFreeSExplainRsp(&rsp);
         SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
 

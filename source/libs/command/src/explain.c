@@ -56,7 +56,7 @@ void qExplainFreeCtx(SExplainCtx *pCtx) {
         int32_t num = taosArrayGetSize(group->nodeExecInfo);
         for (int32_t i = 0; i < num; ++i) {
           SExplainRsp *rsp = taosArrayGet(group->nodeExecInfo, i);
-          taosMemoryFreeClear(rsp->subplanInfo);
+          tFreeSExplainRsp(rsp);
         }
       }
 
@@ -1723,7 +1723,7 @@ int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainRsp *pRspMsg, int32_t 
   SExplainGroup *group = taosHashGet(ctx->groupHash, &groupId, sizeof(groupId));
   if (NULL == group) {
     qError("group %d not in groupHash", groupId);
-    taosMemoryFreeClear(pRspMsg->subplanInfo);
+    tFreeSExplainRsp(pRspMsg);
     QRY_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
 
@@ -1732,7 +1732,7 @@ int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainRsp *pRspMsg, int32_t 
     group->nodeExecInfo = taosArrayInit(group->nodeNum, sizeof(SExplainRsp));
     if (NULL == group->nodeExecInfo) {
       qError("taosArrayInit %d explainExecInfo failed", group->nodeNum);
-      taosMemoryFreeClear(pRspMsg->subplanInfo);
+      tFreeSExplainRsp(pRspMsg);
       taosWUnLockLatch(&group->lock);
 
       QRY_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -1742,7 +1742,7 @@ int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainRsp *pRspMsg, int32_t 
   } else if (taosArrayGetSize(group->nodeExecInfo) >= group->nodeNum) {
     qError("group execInfo already full, size:%d, nodeNum:%d", (int32_t)taosArrayGetSize(group->nodeExecInfo),
            group->nodeNum);
-    taosMemoryFreeClear(pRspMsg->subplanInfo);
+    tFreeSExplainRsp(pRspMsg);
     taosWUnLockLatch(&group->lock);
 
     QRY_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
@@ -1751,13 +1751,14 @@ int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainRsp *pRspMsg, int32_t 
   if (group->physiPlanExecNum != pRspMsg->numOfPlans) {
     qError("physiPlanExecNum %d mismatch with others %d in group %d", pRspMsg->numOfPlans, group->physiPlanExecNum,
            groupId);
-    taosMemoryFreeClear(pRspMsg->subplanInfo);
+    tFreeSExplainRsp(pRspMsg);
     taosWUnLockLatch(&group->lock);
 
     QRY_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
 
   taosArrayPush(group->nodeExecInfo, pRspMsg);
+ 
   groupDone = (taosArrayGetSize(group->nodeExecInfo) >= group->nodeNum);
 
   taosWUnLockLatch(&group->lock);

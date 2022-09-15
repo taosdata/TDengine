@@ -58,7 +58,17 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
       QW_ERR_RET(qGetExplainExecInfo(taskHandle, execInfoList));
 
       if (ctx->localExec) {
-
+        SExplainLocalRsp localRsp = {0};
+        localRsp.rsp.numOfPlans = taosArrayGetSize(execInfoList);
+        SExplainExecInfo *pExec = taosMemoryCalloc(localRsp.rsp.numOfPlans, sizeof(SExplainExecInfo));
+        memcpy(pExec, taosArrayGet(execInfoList, 0), localRsp.rsp.numOfPlans * sizeof(SExplainExecInfo));
+        localRsp.rsp.subplanInfo = pExec;
+        localRsp.qId = qId;
+        localRsp.tId = tId;
+        localRsp.rId = rId;
+        localRsp.eId = eId;
+        taosArrayPush(ctx->explainRes, &localRsp);
+        taosArrayDestroy(execInfoList);
       } else {
         SRpcHandleInfo connInfo = ctx->ctrlConnInfo;
         connInfo.ahandle = NULL;
@@ -84,7 +94,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
   int32_t        execNum = 0;
   qTaskInfo_t    taskHandle = ctx->taskHandle;
   DataSinkHandle sinkHandle = ctx->sinkHandle;
-  SLocalFetch    localFetch = {(void*)mgmt, qWorkerProcessLocalFetch};
+  SLocalFetch    localFetch = {(void*)mgmt, qWorkerProcessLocalFetch, ctx->explainRes};
 
   SArray *pResList = taosArrayInit(4, POINTER_BYTES);
   while (true) {

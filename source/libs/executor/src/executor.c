@@ -455,8 +455,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, SL
   int64_t        threadId = taosGetSelfPthreadId();
 
   if (pLocal) {
-    pTaskInfo->localFetch.handle = pLocal->handle;
-    pTaskInfo->localFetch.fp = pLocal->fp;
+    memcpy(&pTaskInfo->localFetch, pLocal, sizeof(*pLocal));
   }
   
   taosArrayClearEx(pResList, freeBlock);

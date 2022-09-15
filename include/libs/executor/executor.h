@@ -29,11 +29,12 @@ typedef void* DataSinkHandle;
 struct SRpcMsg;
 struct SSubplan;
 
-typedef int32_t (*localFetchFp)(void *handle, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId, int32_t eId, void** pRsp);
+typedef int32_t (*localFetchFp)(void *, uint64_t, uint64_t, uint64_t, int64_t, int32_t, void**, SArray*);
 
 typedef struct {
-  void *handle;
+  void        *handle;
   localFetchFp fp;
+  SArray      *explainRes;
 } SLocalFetch;
 
 typedef struct {

@@ -4334,7 +4334,7 @@ int32_t tDeserializeSExplainRsp(void *buf, int32_t bufLen, SExplainRsp *pRsp) {
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->numOfPlans) < 0) return -1;
   if (pRsp->numOfPlans > 0) {
-    pRsp->subplanInfo = taosMemoryMalloc(pRsp->numOfPlans * sizeof(SExplainExecInfo));
+    pRsp->subplanInfo = taosMemoryCalloc(pRsp->numOfPlans, sizeof(SExplainExecInfo));
     if (pRsp->subplanInfo == NULL) return -1;
   }
   for (int32_t i = 0; i < pRsp->numOfPlans; ++i) {
@@ -4342,7 +4342,7 @@ int32_t tDeserializeSExplainRsp(void *buf, int32_t bufLen, SExplainRsp *pRsp) {
     if (tDecodeDouble(&decoder, &pRsp->subplanInfo[i].totalCost) < 0) return -1;
     if (tDecodeU64(&decoder, &pRsp->subplanInfo[i].numOfRows) < 0) return -1;
     if (tDecodeU32(&decoder, &pRsp->subplanInfo[i].verboseLen) < 0) return -1;
-    if (tDecodeBinary(&decoder, (uint8_t **)&pRsp->subplanInfo[i].verboseInfo, &pRsp->subplanInfo[i].verboseLen) < 0)
+    if (tDecodeBinaryAlloc(&decoder, &pRsp->subplanInfo[i].verboseInfo, NULL) < 0)
       return -1;
   }
 
@@ -4350,6 +4350,19 @@ int32_t tDeserializeSExplainRsp(void *buf, int32_t bufLen, SExplainRsp *pRsp) {
 
   tDecoderClear(&decoder);
   return 0;
+}
+
+void tFreeSExplainRsp(SExplainRsp *pRsp) {
+  if (NULL == pRsp) {
+    return;
+  }
+
+  for (int32_t i = 0; i < pRsp->numOfPlans; ++i) {
+    SExplainExecInfo *pExec = pRsp->subplanInfo + i;
+    taosMemoryFree(pExec->verboseInfo);
+  }
+
+  taosMemoryFreeClear(pRsp->subplanInfo);
 }
 
 int32_t tSerializeSSchedulerHbReq(void *buf, int32_t bufLen, SSchedulerHbReq *pReq) {

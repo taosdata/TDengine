@@ -505,6 +505,7 @@ int32_t schHandleJobFailure(SSchJob *pJob, int32_t errCode);
 int32_t schHandleJobDrop(SSchJob *pJob, int32_t errCode);
 bool    schChkCurrentOp(SSchJob *pJob, int32_t op, int8_t sync);
 int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rspCode);
+int32_t schProcessExplainRsp(SSchJob *pJob, SSchTask *pTask, SExplainRsp *rsp);
 
 extern SSchDebug gSCHDebug;
 

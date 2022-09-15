@@ -824,6 +824,53 @@ int32_t schProcessOnTaskStatusRsp(SQueryNodeEpId *pEpId, SArray *pStatusList) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t schHandleExplainRes(SArray *pExplainRes) {
+  int32_t code = 0;
+  int32_t resNum = taosArrayGetSize(pExplainRes);
+  if (resNum <= 0) {
+    goto _return;
+  }
+
+  SSchTask              *pTask = NULL;
+  SSchJob               *pJob = NULL;
+
+  for (int32_t i = 0; i < resNum; ++i) {
+    SExplainLocalRsp* localRsp = taosArrayGet(pExplainRes, i);
+
+    qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ", begin to handle LOCAL explain rsp msg");
+
+    SCH_ERR_JRET(schProcessOnCbBegin(&pJob, &pTask, localRsp->qId, localRsp->rId, localRsp->tId));
+    
+    code = schProcessExplainRsp(pJob, pTask, &localRsp->rsp);
+
+    if (pTask) {
+      SCH_UNLOCK_TASK(pTask);
+    }
+    
+    if (pJob) {
+      schReleaseJob(pJob->refId);
+    }
+
+    qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ", end to handle LOCAL explain rsp msg");
+
+    SCH_ERR_JRET(code);
+
+    localRsp->rsp.numOfPlans = 0;
+    localRsp->rsp.subplanInfo = NULL;
+  }
+
+_return:
+
+  for (int32_t i = 0; i < resNum; ++i) {
+    SExplainLocalRsp* localRsp = taosArrayGet(pExplainRes, i);
+    tFreeSExplainRsp(&localRsp->rsp);
+  }
+
+  taosArrayDestroy(pExplainRes);
+
+  SCH_RET(code);
+}
+
 int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask) {
   SSubplan *plan = pTask->plan;
   int32_t code = 0;
@@ -864,10 +911,14 @@ int32_t schLaunchLocalTask(SSchJob *pJob, SSchTask *pTask) {
   qwMsg.connInfo.handle = pJob->conn.pTrans;
 
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
-    explainRes = taosArrayInit(pJob->taskNum, POINTER_BYTES);
+    explainRes = taosArrayInit(pJob->taskNum, sizeof(SExplainLocalRsp));
   }
     
   SCH_ERR_RET(qWorkerProcessLocalQuery(schMgmt.queryMgmt, schMgmt.sId, pJob->queryId, pTask->taskId, pJob->refId, pTask->execId, &qwMsg, explainRes));
+
+  if (SCH_IS_EXPLAIN_JOB(pJob)) {
+    SCH_ERR_RET(schHandleExplainRes(explainRes));
+  }
 
   SCH_RET(schProcessOnTaskSuccess(pJob, pTask));
 }
@@ -1008,10 +1059,14 @@ int32_t schExecLocalFetch(SSchJob *pJob, SSchTask *pTask) {
   SArray *explainRes = NULL;
 
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
-    explainRes = taosArrayInit(pJob->taskNum, POINTER_BYTES);
+    explainRes = taosArrayInit(pJob->taskNum, sizeof(SExplainLocalRsp));
   }
 
   SCH_ERR_RET(qWorkerProcessLocalFetch(schMgmt.queryMgmt, schMgmt.sId, pJob->queryId, pTask->taskId, pJob->refId, pTask->execId, &pRsp, explainRes));
+
+  if (SCH_IS_EXPLAIN_JOB(pJob)) {
+    SCH_ERR_RET(schHandleExplainRes(explainRes));
+  }
   
   SCH_ERR_RET(schProcessFetchRsp(pJob, pTask, pRsp, TSDB_CODE_SUCCESS));
 

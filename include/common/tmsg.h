@@ -1412,6 +1412,14 @@ typedef struct {
   SExplainExecInfo* subplanInfo;
 } SExplainRsp;
 
+typedef struct {
+  SExplainRsp rsp;
+  uint64_t qId; 
+  uint64_t tId; 
+  int64_t rId; 
+  int32_t eId;
+} SExplainLocalRsp;
+
 typedef struct STableScanAnalyzeInfo {
   uint64_t totalRows;
   uint64_t totalCheckedRows;
@@ -1426,6 +1434,7 @@ typedef struct STableScanAnalyzeInfo {
 
 int32_t tSerializeSExplainRsp(void* buf, int32_t bufLen, SExplainRsp* pRsp);
 int32_t tDeserializeSExplainRsp(void* buf, int32_t bufLen, SExplainRsp* pRsp);
+void tFreeSExplainRsp(SExplainRsp *pRsp);
 
 typedef struct {
   char    fqdn[TSDB_FQDN_LEN];  // end point, hostname:port
