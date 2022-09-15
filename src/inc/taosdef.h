@@ -89,6 +89,9 @@ extern const int32_t TYPE_BYTES[16];
 #define TSDB_PASS_LEN                   16
 
 #define SHELL_MAX_PASSWORD_LEN          20
+// user set query tags max len
+#define TSDB_TAGS_LEN                   256
+
 #define TSDB_TRUE   1
 #define TSDB_FALSE  0
 #define TSDB_OK     0

@@ -11,13 +11,11 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
 import os
 from util.log import *
 from util.cases import *
 from util.sql import *
 from util.dnodes import *
-import subprocess
 
 
 class TDTestCase:
@@ -32,27 +30,34 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
         self.tmpdir = "tmp"
 
-    def getBuildPath(self):
+    def getPath(self, tool="taosdump"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
             projPath = selfPath[:selfPath.find("community")]
+        elif ("src" in selfPath):
+            projPath = selfPath[:selfPath.find("src")]
+        elif ("/tools/" in selfPath):
+            projPath = selfPath[:selfPath.find("/tools/")]
         else:
-            projPath = selfPath[:selfPath.find("tests")]
+            tdLog.exit("path: %s is not supported" % selfPath)
 
+        paths = []
         for root, dirs, files in os.walk(projPath):
-            if ("taosdump" in files):
+            if ((tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
+                    paths.append(os.path.join(root, tool))
                     break
-        return buildPath
+        if (len(paths) == 0):
+                return ""
+        return paths[0]
 
     def run(self):
         tdSql.prepare()
 
         tdSql.execute("drop database if exists db")
-        tdSql.execute("create database db  days 11 keep 3649 blocks 8 ")
+        tdSql.execute("create database db  keep 3649 ")
 
         tdSql.execute("use db")
         tdSql.execute(
@@ -69,14 +74,12 @@ class TDTestCase:
         tdSql.execute("create table t4 using st tags(NULL)")
         tdSql.execute("insert into t4 values(1640000000000, NULL)")
 
-#        sys.exit(1)
-
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
+        binPath = self.getPath()
+        if (binPath == ""):
             tdLog.exit("taosdump not found!")
         else:
-            tdLog.info("taosdump found in %s" % buildPath)
-        binPath = buildPath + "/build/bin/"
+            tdLog.info("taosdump found: %s" % binPath)
+
 
         if not os.path.exists(self.tmpdir):
             os.makedirs(self.tmpdir)
@@ -86,16 +89,25 @@ class TDTestCase:
             os.makedirs(self.tmpdir)
 
         os.system(
-            "%staosdump --databases db -o %s -T 1" %
+            "%s --databases db -o %s -T 1" %
             (binPath, self.tmpdir))
 
 #        sys.exit(1)
         tdSql.execute("drop database db")
 
-        os.system("%staosdump -i %s -T 1" % (binPath, self.tmpdir))
+        os.system("%s -i %s -T 1" % (binPath, self.tmpdir))
 
         tdSql.query("show databases")
-        tdSql.checkRows(1)
+        dbresult = tdSql.queryResult
+
+        found = False
+        for i in range(len(dbresult)):
+            print("Found db: %s" % dbresult[i][0])
+            if (dbresult[i][0] == "db"):
+                found = True
+                break
+
+        assert found == True
 
         tdSql.execute("use db")
         tdSql.query("show stables")

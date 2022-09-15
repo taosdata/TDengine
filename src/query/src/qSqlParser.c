@@ -1473,7 +1473,19 @@ void setCompactVnodeSql(SSqlInfo *pInfo, int32_t type, SArray *pParam) {
  pInfo->list = pParam; 
 }
 
-void setCreateUserSql(SSqlInfo *pInfo, SStrToken *pName, SStrToken *pPasswd) {
+bool removeSingleQuota(SStrToken* pStr) {
+  char * p1 = pStr->z;
+  char * p2 = pStr->z + pStr->n - 1;
+  if (pStr->n > 2 && *p1 == '\'' && *p2 == '\'') {
+    pStr->z ++;
+    pStr->n -= 2;
+    return true;
+  }
+
+  return false;
+}
+
+void setCreateUserSql(SSqlInfo *pInfo, SStrToken *pName, SStrToken *pPasswd, SStrToken *pTags) {
   pInfo->type = TSDB_SQL_CREATE_USER;
   if (pInfo->pMiscInfo == NULL) {
     pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
@@ -1483,9 +1495,14 @@ void setCreateUserSql(SSqlInfo *pInfo, SStrToken *pName, SStrToken *pPasswd) {
   
   pInfo->pMiscInfo->user.user = *pName;
   pInfo->pMiscInfo->user.passwd = *pPasswd;
+  // set tags if have
+  if (pTags) {
+    pInfo->pMiscInfo->user.tags = *pTags;
+    removeSingleQuota(&pInfo->pMiscInfo->user.tags);
+  }
 }
 
-void setAlterUserSql(SSqlInfo *pInfo, int16_t type, SStrToken *pName, SStrToken* pPwd, SStrToken *pPrivilege) {
+void setAlterUserSql(SSqlInfo *pInfo, int16_t type, SStrToken *pName, SStrToken* pPwd, SStrToken *pPrivilege, SStrToken *pTags) {
   pInfo->type = TSDB_SQL_ALTER_USER;
   if (pInfo->pMiscInfo == NULL) {
     pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
@@ -1507,6 +1524,14 @@ void setAlterUserSql(SSqlInfo *pInfo, int16_t type, SStrToken *pName, SStrToken*
     pUser->privilege = *pPrivilege;
   } else {
     pUser->privilege.type = TSDB_DATA_TYPE_NULL;
+  }
+
+  // tags
+  if (pTags != NULL) {
+    pUser->tags = *pTags;
+    removeSingleQuota(&pUser->tags);
+  } else {
+    pUser->tags.type = TSDB_DATA_TYPE_NULL;
   }
 }
 

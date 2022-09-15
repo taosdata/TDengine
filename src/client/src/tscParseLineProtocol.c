@@ -97,9 +97,9 @@ static int32_t getFieldBytesFromSmlKv(TAOS_SML_KV* kv, int32_t* bytes, uint64_t 
 //      }
 //      free(ucs);
 //      *bytes =  bytesNeeded + VARSTR_HEADER_SIZE;
-      *bytes = kv->length * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
+      *bytes = (kv->length == 0 ? 1 : kv->length) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
     } else if (kv->type == TSDB_DATA_TYPE_BINARY) {
-      *bytes = kv->length + VARSTR_HEADER_SIZE;
+      *bytes = (kv->length == 0 ? 1 : kv->length) + VARSTR_HEADER_SIZE;
     }
   }
   return 0;
@@ -2608,7 +2608,7 @@ int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* smlData, SSmlLinesInf
     return ret;
   }
   tscDebug("SML:0x%"PRIx64" Parse fields finished, num of fields:%d", info->id, smlData->fieldNum);
-  if (smlData->fieldNum == 0) {
+  if (smlData->fieldNum <= 1) {
     tscDebug("SML:0x%"PRIx64" Parse fields error, no field in line", info->id);
     taosHashCleanup(keyHashTable);
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;

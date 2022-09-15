@@ -34,6 +34,320 @@ static void tscAsyncQueryRowsForNextVnode(void *param, TAOS_RES *tres, int numOf
  */
 static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows);
 
+// like select * from st1 ,  st2  where ... format
+static inline int32_t likeBlanksCommaBlans(char * str) {
+  char *p = str;
+  int32_t cnt1 = 0; //  ' ' count
+  int32_t cnt2 = 0; //  ','  count
+
+  while (*p != 0) {
+    if(*p == ' ')
+      cnt1++;
+    else if(*p == ',')
+      cnt2++;
+    else
+      return cnt2 == 0 ? 0 : cnt1 + cnt2;
+    p++;
+  }
+
+  return 0;
+}
+
+
+// return tbname start , put tbname end to args pe
+static char *searchTBName(char *from_end, char **pend) {
+  char *p = from_end;
+  // remove pre blanks
+  while(*p == ' ') {
+    ++p;
+  }
+  char *tbname = p;
+
+  if(*p == 0)
+    return NULL;
+
+  // goto next blank
+  while(1) {
+    p++;
+
+    if(*p == ' ') {
+      // if following not have ,  this is end
+
+      // format like  select * from stb1  ,   stb2  , stb3 where ...
+      int32_t len = likeBlanksCommaBlans(p);
+      if(len > 0) {
+        p += len;
+        continue;
+      }
+
+      // tbname is end
+      if(pend)
+        *pend = p;
+
+      return tbname;
+    } else if(*p == ';' || *p == 0) {
+      // sql end flag '\0' or ';' end
+      if(pend)
+       *pend = p;
+
+      return tbname;
+    }
+  }
+
+  return NULL;
+}
+
+// return names min pointer
+static inline char *searchEndPart(char *tbname_end) {
+  char* names[] = {
+    " group ",
+    " order ",
+    " interval(",
+    " interval (",
+    " session(",
+    " session (",
+    " state_window(",
+    " state_window (",
+    " slimit ",
+    " slimit(",
+    " limit ",
+    " limit(",
+    " sliding ",
+    " fill(",
+    " fill ("
+    " >>",
+    ";"
+  };
+
+  int32_t count = sizeof(names)/sizeof(char *);
+  char * p = NULL;
+  for(int32_t i = 0; i < count; i++) {
+    char * p1 = strstr(tbname_end, names[i]);
+    if (p1) {
+      if (p == NULL || p1 < p)
+        p = p1;
+    }
+  }
+
+  if(p == NULL) {
+    // move string end
+    p = tbname_end + strlen(tbname_end);
+  }
+
+  return p;
+}
+
+// get brackets context and set context to pend
+static inline char *bracketsString(char *select, char **pend){
+  char *p = select;
+  int32_t cnt = 0;
+  while (*p) {
+    if(*p == '(') {
+      // left bracket
+      cnt++;
+    } else if(*p == ')') {
+      // right bracket
+      cnt--;
+    }
+
+    if(cnt < 0) {
+      // this is end
+      if(pend)
+        *pend = p;
+      // copy str to new
+       int len = p - 1 - select;
+       if(len == 0)
+          return NULL;
+       len += 1; // string end
+       char *str = (char *)malloc(len);
+       strncpy(str, select, len);
+       str[len] = 0;
+
+       return str;
+    }
+    ++p;
+  }
+
+  return NULL;
+}
+
+//
+// return new malloc buffer, NULL is need not insert or failed tags example is 'tags=3'
+// sql part :
+//   select * from       st         where age=1      order by ts;
+//   -------------       ---         -----------      -----------
+//   select part     tbname part   condition part      end part
+//
+static inline char *insertTags(char *sql, char *tags) {
+  char *p = sql;
+  // remove pre blanks
+  while(*p == ' ') {
+    ++p;
+  }
+
+  // filter not query sql
+  if(strncmp(p, "select ", 7) != 0) {
+    return NULL;
+  }
+
+  // specail check
+  char *from  = strstr(p, " from ");
+  char *block = strstr(p, " _block_dist() ");
+  if (from == NULL || block != NULL) {
+    return NULL;
+  }
+
+  char *select = strstr(p + 7, "select "); // sub select sql
+  char *union_all = strstr(p + 7, " union all ");
+
+  // need append tags filter
+  int32_t bufLen = strlen(sql) + 1 + TSDB_TAGS_LEN;
+  char *buf = malloc(bufLen);
+  memset(buf, 0, bufLen);
+
+  // case1 if have sub select, tags only append to sub select sql
+  if(select && union_all) {
+    // union all like select * from t1 union all select * from t2 union all select * from ....
+    size_t len = strlen(sql) + 10;
+    // part1
+    char *part1 = (char *)malloc(len);
+    memset(part1, 0, len);
+    strncpy(part1, p, union_all - p);
+    char *p1 = insertTags(part1, tags);
+    free(part1);
+    if(p1 == NULL) {
+      free(buf);
+      return NULL;
+    }
+
+    // part2
+    char *part2 = union_all + sizeof(" union all ") - 1;
+    char *p2 = insertTags(part2, tags);
+    if(p2 == NULL) {
+      free(buf);
+      free(p1);
+      return NULL;
+    }
+
+    // combine p1 + union all +  p2
+    len = strlen(p1) + strlen(p2) + 32;
+    char *all = (char *)malloc(len);
+    strcpy(all, p1);
+    strcat(all, " union all ");
+    strcat(all, p2);
+
+    free(p1);
+    free(p2);
+    free(buf);
+
+    return all;
+  }
+  else if(select) {
+    char *part1_end = select - 1;
+    char *part2 = NULL;
+    char *part3_start = 0;
+    char *sub_sql = bracketsString(select, &part3_start);
+    if (sub_sql == NULL) {
+      // unknown format, can not insert tags
+      tscError("TAGS found sub select sql but can not parse brackets format. select=%s sql=%s", select, sql);
+      free(buf);
+      return NULL;
+    }
+
+    // nest call
+    part2 = insertTags(sub_sql, tags);
+    free(sub_sql);
+    if (part2 == NULL) {
+      // unknown format, can not insert tags
+      tscError("TAGS insertTags sub select sql failed. subsql=%s sql=%s", sub_sql, sql);
+      free(buf);
+      return NULL;
+    }
+
+    // new string is part1 + part2 + part 3
+    strncpy(buf, p, part1_end - p + 1);
+    strcat(buf, part2);
+    strcat(buf, part3_start);
+
+    // return ok 1
+    //      like select * from (select * from st where age>1) where age == 2;
+    //   after-> select * from (select * from st where (tags=3) and (age>1) ) where age == 2;
+    return buf;
+  }
+
+  char *tbname_end = NULL;
+  char *tbname = searchTBName(from + sizeof(" from ") - 1, &tbname_end);
+  if(tbname == NULL || tbname_end == NULL) {
+    // unexpect string format
+    free(buf);
+    return NULL;
+  }
+
+  // condition part
+  char *where = strstr(tbname_end, " where ");
+  char *end_part  = searchEndPart(tbname_end);
+  if(end_part == NULL) {
+    // invalid sql
+    free(buf);
+    return NULL;
+  }
+
+  // case2 no condition part
+  if(where == NULL) {
+    strncpy(buf, p, end_part - p);
+    strcat(buf, " where ");
+    strcat(buf, tags);
+    strcat(buf, end_part);
+
+    // return ok 2
+    //      like select * from st order by ts;
+    //   after-> select * from st where tags=3 order by ts;
+    return buf;
+  }
+
+  // case3 found condition part
+  char *cond_part = where + sizeof("where ");
+  strncpy(buf, p, cond_part - p); // where before part(include where )
+  strcat(buf, "(");
+  int32_t cond_len = end_part - cond_part;
+  // cat cond part
+  strncat(buf, cond_part, cond_len);
+  strcat(buf, ") and (");
+  // cat tags part
+  strcat(buf, tags);
+  strcat(buf, ")");
+  // cat end part
+  strcat(buf, end_part);
+
+  // return ok 3
+  //      like select * from st where age=1 order by ts;
+  //   after-> select * from st where (age=1) and (tags=3) order by ts;
+  return buf;
+}
+
+// if return true success, false is not append privilege sql
+bool appendTagsFilter(SSqlObj* pSql) {
+  // valid tags
+  STscObj * pTscObj = pSql->pTscObj;
+  if(pTscObj->tags[0] == 0) {
+    tscDebug("TAGS 0x%" PRIx64 " tags empty. user=%s", pSql->self, pTscObj->user);
+    return false;
+  }
+
+  char * p = insertTags(pSql->sqlstr, pTscObj->tags);
+  if(p == NULL) {
+    return false;
+  }
+
+  // replace new
+  char * old = pSql->sqlstr;
+  pSql->sqlstr = p;
+  tscDebug("TAGS 0x%" PRIx64 " replace sqlstr ok. old=%s new=%s tags=%s", pSql->self, old, p, pTscObj->tags);
+  free(old);
+
+  return true;
+}
+
 void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* param, const char* sqlstr, size_t sqlLen) {
   SSqlCmd* pCmd = &pSql->cmd;
 
@@ -59,6 +373,8 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
   }
 
   strntolower(pSql->sqlstr, sqlstr, (int32_t)sqlLen);
+
+  appendTagsFilter(pSql);
 
   tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
   pCmd->resColumnId = TSDB_RES_COL_ID;

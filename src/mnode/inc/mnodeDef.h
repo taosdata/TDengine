@@ -202,6 +202,20 @@ typedef struct SDbObj {
   pthread_mutex_t  mutex;
 } SDbObj;
 
+// old tags
+typedef struct SUserObjOld {
+  char              user[TSDB_USER_LEN];
+  char              pass[TSDB_KEY_LEN];
+  char              acct[TSDB_USER_LEN];
+  int64_t           createdTime;
+  int8_t            superAuth;
+  int8_t            writeAuth;
+  int8_t            reserved[10];
+  int8_t            updateEnd[4];
+  int32_t           refCount;
+  struct SAcctObj * pAcct;
+} SUserObjOld;
+
 typedef struct SUserObj {
   char              user[TSDB_USER_LEN];
   char              pass[TSDB_KEY_LEN];
@@ -210,6 +224,7 @@ typedef struct SUserObj {
   int8_t            superAuth;
   int8_t            writeAuth;
   int8_t            reserved[10];
+  char              tags[TSDB_TAGS_LEN];
   int8_t            updateEnd[4];
   int32_t           refCount;
   struct SAcctObj * pAcct;
