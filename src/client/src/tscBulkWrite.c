@@ -149,10 +149,9 @@ SArray* dispatcherPollAll(SAsyncBulkWriteDispatcher* dispatcher) {
   if (!atomic_load_32(&dispatcher->bufferSize)) {
     return NULL;
   }
-
+  
   pthread_mutex_lock(&dispatcher->mutex);
-
-  SArray* statements = taosArrayInit(atomic_load_32(&dispatcher->bufferSize), sizeof(SSqlObj*));
+  SArray* statements = taosArrayInit(0, sizeof(SSqlObj*));
   if (statements == NULL) {
     pthread_mutex_unlock(&dispatcher->mutex);
     tscError("failed to poll all items: out of memory");
@@ -160,7 +159,7 @@ SArray* dispatcherPollAll(SAsyncBulkWriteDispatcher* dispatcher) {
   }
 
   // get all the sql statements from the buffer.
-  while (atomic_load_32(&dispatcher->bufferSize)) {
+  while (true) {
     SListNode* node = tdListPopHead(dispatcher->buffer);
     if (!node) {
       break;
@@ -172,10 +171,9 @@ SArray* dispatcherPollAll(SAsyncBulkWriteDispatcher* dispatcher) {
     listNodeFree(node);
     atomic_fetch_sub_32(&dispatcher->bufferSize, 1);
     atomic_fetch_sub_32(&dispatcher->currentSize, statementGetInsertionRows(item));
-
     taosArrayPush(statements, &item);
   }
-
+  
   pthread_mutex_unlock(&dispatcher->mutex);
   return statements;
 }
@@ -285,8 +283,7 @@ SAsyncBulkWriteDispatcher* createAsyncBulkWriteDispatcher(int32_t batchSize, int
   pthread_mutex_init(&dispatcher->mutex, NULL);
 
   // init background thread.
-  dispatcher->background = taosCreateThread(dispatcherTimeoutCallback, dispatcher);
-  if (!dispatcher->background) {
+  if (pthread_create(&dispatcher->background, NULL, dispatcherTimeoutCallback, dispatcher)) {
     tdListFree(dispatcher->buffer);
     tfree(dispatcher);
     return NULL;
@@ -299,18 +296,19 @@ void destroyAsyncDispatcher(SAsyncBulkWriteDispatcher* dispatcher) {
   if (dispatcher == NULL) {
     return;
   }
-
+  
+  // mark shutdown.
   atomic_store_8(&dispatcher->shutdown, true);
-
+  
+  // make sure the timeout thread exit.
+  pthread_join(dispatcher->background, NULL);
+  
   // poll and send all the statements in the buffer.
   while (atomic_load_32(&dispatcher->bufferSize)) {
     SArray* statements = dispatcherPollAll(dispatcher);
     dispatcherExecute(statements);
   }
-
-  // make sure the thread exit.
-  taosDestroyThread(dispatcher->background);
-
+  
   // destroy the buffer.
   tdListFree(dispatcher->buffer);
 
@@ -374,4 +372,55 @@ bool dispatcherTryBatching(SAsyncBulkWriteDispatcher* dispatcher, SSqlObj* pSql)
     dispatcherExecute(statements);
   }
   return true;
+}
+
+/**
+ * Destroy the SAsyncBulkWriteDispatcher create by SThreadLocalDispatcher.
+ * @param arg 
+ */
+static void destroyDispatcher(void* arg) {
+  SAsyncBulkWriteDispatcher* dispatcher = arg;
+  if (!dispatcher) {
+    return;
+  }
+  
+  destroyAsyncDispatcher(dispatcher);
+}
+
+SThreadLocalDispatcher* createThreadLocalDispatcher(int32_t batchSize, int32_t timeoutMs) {
+  SThreadLocalDispatcher* dispatcher = calloc(1, sizeof(SThreadLocalDispatcher));
+  if (!dispatcher) {
+    return NULL;
+  }
+
+  dispatcher->batchSize = batchSize;
+  dispatcher->timeoutMs = timeoutMs;
+
+  if (pthread_key_create(&dispatcher->key, destroyDispatcher)) {
+    free(dispatcher);
+    return NULL;
+  }
+  return dispatcher;
+}
+
+SAsyncBulkWriteDispatcher* dispatcherThreadLocal(SThreadLocalDispatcher* dispatcher) {
+  SAsyncBulkWriteDispatcher* value = pthread_getspecific(dispatcher->key);
+  if (value) {
+    return value;
+  }
+
+  value = createAsyncBulkWriteDispatcher(dispatcher->batchSize, dispatcher->timeoutMs);
+  if (value) {
+    pthread_setspecific(dispatcher->key, value);
+    return value;
+  }
+
+  return NULL;
+}
+
+void destroyThreadLocalDispatcher(SThreadLocalDispatcher* dispatcher) {
+  if (dispatcher) {
+    pthread_key_delete(dispatcher->key);
+    free(dispatcher);
+  }
 }

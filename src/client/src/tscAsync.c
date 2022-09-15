@@ -397,10 +397,13 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
     return;
   }
   
-  if (tscDispatcher != NULL && dispatcherTryBatching(tscDispatcher, pSql)) {
-    taosReleaseRef(tscObjRef, pSql->self);
-    tscDebug("sql obj %p has been buffer in insert buffer", pSql);
-    return;
+  if (tscDispatcher != NULL) {
+    SAsyncBulkWriteDispatcher* dispatcher = dispatcherThreadLocal(tscDispatcher);
+    if (dispatcherTryBatching(dispatcher, pSql)) {
+      taosReleaseRef(tscObjRef, pSql->self);
+      tscDebug("sql obj %p has been buffer in insert buffer", pSql);
+      return;
+    }
   }
   
   SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);

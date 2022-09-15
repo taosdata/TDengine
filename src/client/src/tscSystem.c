@@ -50,7 +50,7 @@ void      *tscRpcCache;            // cache to keep rpc obj
 int32_t    tscNumOfThreads = 1;     // num of rpc threads
 char       tscLogFileName[] = "taoslog";
 int        tscLogFileNum = 10;
-SAsyncBulkWriteDispatcher* tscDispatcher = NULL;
+SThreadLocalDispatcher * tscDispatcher = NULL;
 
 static pthread_mutex_t rpcObjMutex; // mutex to protect open the rpc obj concurrently
 static pthread_once_t  tscinit = PTHREAD_ONCE_INIT;
@@ -60,20 +60,20 @@ static pthread_mutex_t setConfMutex = PTHREAD_MUTEX_INITIALIZER;
 static volatile int tscInitRes = 0;
 
 /**
- * Init the taosc async bulk write dispatcher.
+ * Init the thread local async bulk write dispatcher.
  * 
  * @param batchSize  the batchSize of async bulk write dispatcher.
  * @param timeoutMs  the timeout of batching in milliseconds.
  */
 void tscInitAsyncDispatcher(int32_t batchSize, int32_t timeoutMs) {
-  tscDispatcher = createAsyncBulkWriteDispatcher(batchSize, timeoutMs);
+  tscDispatcher = createThreadLocalDispatcher(batchSize, timeoutMs);
 }
 
 /**
- * Destroy the taosc async bulk write dispatcher.
+ * Destroy the thread local async bulk write dispatcher.
  */
 void tscDestroyAsyncDispatcher() {
-  destroyAsyncDispatcher(tscDispatcher);
+  destroyThreadLocalDispatcher(tscDispatcher);
   tscDispatcher = NULL;
 }
 

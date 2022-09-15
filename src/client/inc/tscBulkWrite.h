@@ -16,23 +16,29 @@
 #ifndef TDENGINE_TSCBULKWRITE_H
 #define TDENGINE_TSCBULKWRITE_H
 
+#include <pthread.h>
+#include <stdlib.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "tlist.h"
 #include "tarray.h"
+#include "tlist.h"
 #include "tthread.h"
 
+/**
+ * SAsyncBulkWriteDispatcher is an async batching dispatcher(for writing), it can buffer insertion statements, batch
+ * and merge them into single statement.
+ */
 typedef struct SAsyncBulkWriteDispatcher {
-  // the mpmc queue to store the insertion statements. equivalent to SList<SSqlObj*>.
+  // the buffer to store the insertion statements. equivalent to SList<SSqlObj*>.
   SList* buffer;
 
   // the mutex to protect the buffer.
   pthread_mutex_t mutex;
 
   // the background thread to manage batching timeout.
-  pthread_t* background;
+  pthread_t background;
 
   // the maximum number of insertion rows in a batch.
   int32_t batchSize;
@@ -55,6 +61,7 @@ typedef struct SAsyncBulkWriteDispatcher {
 
 // forward declaration.
 typedef struct SSqlObj SSqlObj;
+
 /**
  * Merge the statements into single SSqlObj.
  *
@@ -124,6 +131,44 @@ bool tscSupportBulkInsertion(SSqlObj* pSql);
  * @return     if offer success, returns true.
  */
 bool dispatcherTryBatching(SAsyncBulkWriteDispatcher* dispatcher, SSqlObj* pSql);
+
+/**
+ * A thread local version of SAsyncBulkWriteDispatcher.
+ */
+typedef struct SThreadLocalDispatcher {
+  pthread_key_t key;
+
+  // the maximum number of insertion rows in a batch.
+  int32_t batchSize;
+
+  // the batching timeout in milliseconds.
+  int32_t timeoutMs;
+
+} SThreadLocalDispatcher;
+
+/**
+ * Create a thread local SAsyncBulkWriteDispatcher variable.
+ *
+ * @param batchSize     the batchSize of SAsyncBulkWriteDispatcher.
+ * @param timeoutMs     the timeoutMs of SAsyncBulkWriteDispatcher.
+ * @return the thread local SAsyncBulkWriteDispatcher.
+ */
+SThreadLocalDispatcher* createThreadLocalDispatcher(int32_t batchSize, int32_t timeoutMs);
+
+/**
+ * Destroy the thread local SAsyncBulkWriteDispatcher variable.
+ * (will destroy all the instances of SAsyncBulkWriteDispatcher in the thread local variable)
+ *
+ * @param dispatcher  the thread local SAsyncBulkWriteDispatcher variable.
+ */
+void destroyThreadLocalDispatcher(SThreadLocalDispatcher* dispatcher);
+
+/**
+ * Get the thread local instance of SAsyncBulkWriteDispatcher.
+ * @param dispatcher  the thread local SAsyncBulkWriteDispatcher variable.
+ * @return the thread local SAsyncBulkWriteDispatcher.
+ */
+SAsyncBulkWriteDispatcher* dispatcherThreadLocal(SThreadLocalDispatcher* dispatcher);
 
 #ifdef __cplusplus
 }
