@@ -3047,6 +3047,11 @@ static bool overlapWithTimeWindow(SQueryAttr* pQueryAttr, SDataBlockInfo* pBlock
         ekey = taosTimeAdd(ekey, pQueryAttr->interval.sliding, pQueryAttr->interval.slidingUnit, pQueryAttr->precision);
       else
         ekey += pQueryAttr->interval.sliding;
+      // not in range sk~ek, break
+      if (!(ekey >= sk && ekey <= ek)) {
+        break;
+      }
+
       // get align
       getAlignQueryTimeWindow(pQueryAttr, ekey, sk, ek, &w);
     }
@@ -3056,7 +3061,7 @@ static bool overlapWithTimeWindow(SQueryAttr* pQueryAttr, SDataBlockInfo* pBlock
         break;
       }
 
-      // window start point in block window ragne return true
+      // window start point in block window range return true
       if (w.skey >= pBlockInfo->window.skey && w.skey <= pBlockInfo->window.ekey) {
         return true;
       }
