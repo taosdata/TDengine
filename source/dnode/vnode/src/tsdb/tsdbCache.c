@@ -847,7 +847,7 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
 
   tb_uid_t suid = getTableSuidByUid(uid, pTsdb);
 
-  tsdbTakeReadSnap(pTsdb, &pIter->pReadSnap);
+  tsdbTakeReadSnap(pTsdb, &pIter->pReadSnap, NULL);
 
   STbData *pMem = NULL;
   if (pIter->pReadSnap->pMem) {
@@ -941,7 +941,7 @@ static int32_t nextRowIterClose(CacheNextRowIter *pIter) {
     taosArrayDestroy(pIter->pSkyline);
   }
 
-  tsdbUntakeReadSnap(pIter->pTsdb, pIter->pReadSnap);
+  tsdbUntakeReadSnap(pIter->pTsdb, pIter->pReadSnap, NULL);
 
 _err:
   return code;
