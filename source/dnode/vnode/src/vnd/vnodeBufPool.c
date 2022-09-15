@@ -26,9 +26,9 @@ int vnodeOpenBufPool(SVnode *pVnode, int64_t size) {
 
   ASSERT(pVnode->pPool == NULL);
 
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < VNODE_BUF_POOL_SEG; i++) {
     // create pool
-    ret = vnodeBufPoolCreate(pVnode, size, &pPool);
+    ret = vnodeBufPoolCreate(pVnode, size / VNODE_BUF_POOL_SEG, &pPool);
     if (ret < 0) {
       vError("vgId:%d, failed to open vnode buffer pool since %s", TD_VID(pVnode), tstrerror(terrno));
       vnodeCloseBufPool(pVnode);

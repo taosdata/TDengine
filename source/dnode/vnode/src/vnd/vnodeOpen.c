@@ -96,7 +96,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
 
   // open buffer pool
-  if (vnodeOpenBufPool(pVnode, pVnode->config.isHeap ? 0 : pVnode->config.szBuf / 3) < 0) {
+  if (vnodeOpenBufPool(pVnode, pVnode->config.szBuf) < 0) {
     vError("vgId:%d, failed to open vnode buffer pool since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }

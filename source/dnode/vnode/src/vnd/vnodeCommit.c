@@ -73,7 +73,7 @@ int vnodeBegin(SVnode *pVnode) {
 
 int vnodeShouldCommit(SVnode *pVnode) {
   if (pVnode->inUse) {
-    return pVnode->inUse->size > pVnode->config.szBuf / 3;
+    return pVnode->inUse->size > pVnode->config.szBuf / VNODE_BUF_POOL_SEG;
   }
   return false;
 }
@@ -236,7 +236,7 @@ int vnodeCommit(SVnode *pVnode) {
 
   // preCommit
   // smaSyncPreCommit(pVnode->pSma);
-  if(smaAsyncPreCommit(pVnode->pSma) < 0){
+  if (smaAsyncPreCommit(pVnode->pSma) < 0) {
     ASSERT(0);
     return -1;
   }
