@@ -3925,3 +3925,20 @@ void tsdbUntakeReadSnap(STsdbReader* pReader, STsdbReadSnap* pSnap) {
 
   tsdbTrace("vgId:%d, untake read snapshot", TD_VID(pTsdb->pVnode));
 }
+
+int32_t tsdbSetQueryReseek(void* pQHandle) {
+  int32_t code = 0;
+
+  // lock handle
+
+  // check state (is already in reseek state, skip below)
+
+  // save all state for further restore
+
+  // unref read snapshot
+  // tsdbUntakeReadSnap();
+
+  // unlock handle
+
+  return code;
+}

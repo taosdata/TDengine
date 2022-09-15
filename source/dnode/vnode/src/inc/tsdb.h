@@ -207,7 +207,7 @@ int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, in
 int32_t  tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
 void     tsdbMemTableDestroy(SMemTable *pMemTable);
 STbData *tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid);
-int32_t  tsdbRefMemTable(SMemTable *pMemTable, void *pQueryHandle, SQueryNode **ppNode);
+int32_t  tsdbRefMemTable(SMemTable *pMemTable, void *pQHandle, SQueryNode **ppNode);
 int32_t  tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode);
 SArray  *tsdbMemTableGetTbDataArray(SMemTable *pMemTable);
 // STbDataIter
@@ -369,7 +369,7 @@ struct STbData {
 struct SQueryNode {
   SQueryNode  *pNext;
   SQueryNode **ppNext;
-  void        *pQueryHandle;
+  void        *pQHandle;
 };
 
 struct SMemTable {

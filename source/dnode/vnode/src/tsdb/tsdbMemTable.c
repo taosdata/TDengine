@@ -631,19 +631,19 @@ _err:
 
 int32_t tsdbGetNRowsInTbData(STbData *pTbData) { return pTbData->sl.size; }
 
-int32_t tsdbRefMemTable(SMemTable *pMemTable, void *pQueryHandle, SQueryNode **ppNode) {
+int32_t tsdbRefMemTable(SMemTable *pMemTable, void *pQHandle, SQueryNode **ppNode) {
   int32_t code = 0;
 
   int32_t nRef = atomic_fetch_add_32(&pMemTable->nRef, 1);
   ASSERT(nRef > 0);
 
-  // register handle
+  // register handle (todo: take concurrency in consideration)
   *ppNode = taosMemoryMalloc(sizeof(SQueryNode));
   if (*ppNode == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-  (*ppNode)->pQueryHandle = pQueryHandle;
+  (*ppNode)->pQHandle = pQHandle;
   (*ppNode)->pNext = pMemTable->qList.pNext;
   (*ppNode)->ppNext = &pMemTable->qList.pNext;
   pMemTable->qList.pNext->ppNext = &(*ppNode)->pNext;
@@ -656,7 +656,7 @@ _exit:
 int32_t tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode) {
   int32_t code = 0;
 
-  // unregister handle
+  // unregister handle (todo: take concurrency in consideration)
   if (pNode) {
     pNode->pNext->ppNext = pNode->ppNext;
     *pNode->ppNext = pNode->pNext;
@@ -707,4 +707,32 @@ SArray *tsdbMemTableGetTbDataArray(SMemTable *pMemTable) {
 
 _exit:
   return aTbDataP;
+}
+
+extern int32_t tsdbSetQueryReseek(void *pQHandle);
+
+int32_t tsdbRecycleMemTable(SMemTable *pMemTable) {
+  int32_t code = 0;
+
+  SQueryNode *pNode = pMemTable->qList.pNext;
+  while (1) {
+    ASSERT(pNode != &pMemTable->qList);
+    SQueryNode *pNextNode = pNode->pNext;
+
+    if (pNextNode == &pMemTable->qList) {
+      code = tsdbSetQueryReseek(pNode->pQHandle);
+      if (code) goto _exit;
+      break;
+    } else {
+      code = tsdbSetQueryReseek(pNode->pQHandle);
+      if (code) goto _exit;
+      pNode = pMemTable->qList.pNext;
+      ASSERT(pNode == pNextNode);
+    }
+  }
+
+  // NOTE: Take care here, pMemTable is destroyed
+
+_exit:
+  return code;
 }
