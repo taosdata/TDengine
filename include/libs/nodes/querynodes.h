@@ -315,6 +315,8 @@ typedef struct SDeleteStmt {
   SNode*      pFromTable;  // FROM clause
   SNode*      pWhere;      // WHERE clause
   SNode*      pCountFunc;  // count the number of rows affected
+  SNode*      pFirstFunc;  // the start timestamp when the data was actually deleted
+  SNode*      pLastFunc;   // the end timestamp when the data was actually deleted
   SNode*      pTagCond;    // pWhere divided into pTagCond and timeRange
   STimeWindow timeRange;
   uint8_t     precision;
