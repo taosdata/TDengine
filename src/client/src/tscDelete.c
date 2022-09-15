@@ -202,7 +202,7 @@ int32_t executeDelete(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
     return TSDB_CODE_FAILED;
   }
 
-  ret = doInitSubState(pSql, numOfSub);
+  ret = doReInitSubState(pSql, numOfSub);
   if (ret != 0) {
     tscAsyncResultOnError(pSql);
     return ret;

@@ -4207,30 +4207,19 @@ static void tscSubqueryCompleteCallback(void* param, TAOS_RES* tres, int code) {
   taos_fetch_rows_a(tres, tscSubqueryRetrieveCallback, param);
 }
 
-int32_t doInitSubState(SSqlObj* pSql, int32_t numOfSubqueries) {
-  //bug fix. Above doInitSubState level, the loop invocation with the same SSqlObj will be fail.
-  //assert(pSql->subState.numOfSub == 0 && pSql->pSubs == NULL && pSql->subState.states == NULL);  
-  if(pSql->pSubs) {
-    free(pSql->pSubs);
-    pSql->pSubs = NULL;
-  }
-  
-  if(pSql->subState.states) {
-    free(pSql->subState.states);
-    pSql->subState.states = NULL;
-  }
-  
+int32_t doReInitSubState(SSqlObj* pSql, int32_t numOfSubqueries) {
+  tscFreeSubobj(pSql);
+
+  pthread_mutex_lock(&pSql->subState.mutex);
+  int32_t code = TSDB_CODE_SUCCESS;
   pSql->subState.numOfSub = numOfSubqueries;
-  
   pSql->pSubs = calloc(pSql->subState.numOfSub, POINTER_BYTES);
   pSql->subState.states = calloc(pSql->subState.numOfSub, sizeof(int8_t));
-
-  int32_t code = pthread_mutex_init(&pSql->subState.mutex, NULL);
-  if (pSql->pSubs == NULL || pSql->subState.states == NULL || code != 0) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  if (pSql->pSubs == NULL || pSql->subState.states == NULL) {
+    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
-
-  return TSDB_CODE_SUCCESS;
+  pthread_mutex_unlock(&pSql->subState.mutex);
+  return code;
 }
 
 // do execute the query according to the query execution plan
@@ -4255,7 +4244,7 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
 
   // upstream may be freed before retry
   if (pQueryInfo->pUpstream && taosArrayGetSize(pQueryInfo->pUpstream) > 0) {  // nest query. do execute it firstly
-    code = doInitSubState(pSql, (int32_t) taosArrayGetSize(pQueryInfo->pUpstream));
+    code = doReInitSubState(pSql, (int32_t) taosArrayGetSize(pQueryInfo->pUpstream));
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
