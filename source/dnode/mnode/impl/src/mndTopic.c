@@ -713,7 +713,6 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   mndReleaseTopic(pMnode, pTopic);
 
   if (code != 0) {
-    terrno = code;
     mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
     return -1;
   }
