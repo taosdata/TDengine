@@ -104,7 +104,7 @@ SELECT location, groupid, current FROM d1001 LIMIT 2;
 
 ### 结果去重
 
-`DISINTCT` 关键字可以对结果集中的一列或多列进行去重，去除的列既可以是标签列也可以是数据列。
+`DISTINCT` 关键字可以对结果集中的一列或多列进行去重，去除的列既可以是标签列也可以是数据列。
 
 对标签列去重：
 
