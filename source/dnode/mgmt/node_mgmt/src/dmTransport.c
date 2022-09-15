@@ -270,7 +270,7 @@ int32_t dmInitClient(SDnode *pDnode) {
 
   SRpcInit rpcInit = {0};
   rpcInit.label = "DND-C";
-  rpcInit.numOfThreads = 1;
+  rpcInit.numOfThreads = 4;
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
