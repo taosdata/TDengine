@@ -842,26 +842,37 @@ int32_t schHandleExplainRes(SArray *pExplainRes) {
   for (int32_t i = 0; i < resNum; ++i) {
     SExplainLocalRsp* localRsp = taosArrayGet(pExplainRes, i);
 
-    qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ", begin to handle LOCAL explain rsp msg");
+    qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ", begin to handle LOCAL explain rsp msg", localRsp->qId, localRsp->tId);
 
-    SCH_ERR_JRET(schProcessOnCbBegin(&pJob, &pTask, localRsp->qId, localRsp->rId, localRsp->tId));
-    
-    code = schProcessExplainRsp(pJob, pTask, &localRsp->rsp);
-
-    if (pTask) {
-      SCH_UNLOCK_TASK(pTask);
+    pJob = schAcquireJob(localRsp->rId);
+    if (NULL == pJob) {
+      qWarn("QID:0x%" PRIx64 ",TID:0x%" PRIx64 "job no exist, may be dropped, refId:0x%" PRIx64, localRsp->qId, localRsp->tId, localRsp->rId);
+      SCH_ERR_JRET(TSDB_CODE_QRY_JOB_NOT_EXIST);
     }
-    
-    if (pJob) {
+
+    int8_t status = 0;
+    if (schJobNeedToStop(pJob, &status)) {
+      SCH_TASK_DLOG("will not do further processing cause of job status %s", jobTaskStatusStr(status));
       schReleaseJob(pJob->refId);
+      SCH_ERR_JRET(TSDB_CODE_SCH_IGNORE_ERROR);
     }
+    
+    code = schGetTaskInJob(pJob, localRsp->tId, &pTask);
 
-    qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ", end to handle LOCAL explain rsp msg");
+    if (TSDB_CODE_SUCCESS == code) {
+      code = schProcessExplainRsp(pJob, pTask, &localRsp->rsp);
+    }
+    
+    schReleaseJob(pJob->refId);
+
+    qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ", end to handle LOCAL explain rsp msg, code:%x", localRsp->qId, localRsp->tId, code);
 
     SCH_ERR_JRET(code);
 
     localRsp->rsp.numOfPlans = 0;
     localRsp->rsp.subplanInfo = NULL;
+    pTask = NULL;
+    pJob = NULL;
   }
 
 _return:
