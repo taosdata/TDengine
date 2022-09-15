@@ -355,7 +355,7 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 - Compared to the non-nested query, the functionality that can be used in the outer query has the following restrictions:
   - Functions
     - If the result set returned by the inner query doesn't contain timestamp column, then functions relying on timestamp can't be used in the outer query, like INTERP,DERIVATIVE, IRATE, LAST_ROW, FIRST, LAST, TWA, STATEDURATION, TAIL, UNIQUE.
-    - If the result set returned by the inner query are not valid time series, then functions relying on time series can't be used in the outer query, like LEASTSQUARES, ELAPSED, INTERP, DERIVATIVE, IRATE, TWA, DIFF, STATECOUNT, STATEDURATION, CSUM, MAVG, TAIL, UNIQUE. 
+    - If the result set returned by the inner query are not sorted in order by timestamp, then functions relying on data ordered by timestamp can't be used in the outer query, like LEASTSQUARES, ELAPSED, INTERP, DERIVATIVE, IRATE, TWA, DIFF, STATECOUNT, STATEDURATION, CSUM, MAVG, TAIL, UNIQUE. 
     - Functions that need to scan the data twice can't be used in the outer query, like PERCENTILE.
 
 :::
