@@ -629,16 +629,32 @@ _err:
 
 int32_t tsdbGetNRowsInTbData(STbData *pTbData) { return pTbData->sl.size; }
 
-void tsdbRefMemTable(SMemTable *pMemTable) {
+int32_t tsdbRefMemTable(SMemTable *pMemTable, STsdbReader *pReader) {
+  int32_t code = 0;
+
   int32_t nRef = atomic_fetch_add_32(&pMemTable->nRef, 1);
   ASSERT(nRef > 0);
+
+  // register handle (todo)
+  if (pReader) {
+  }
+
+  return code;
 }
 
-void tsdbUnrefMemTable(SMemTable *pMemTable) {
+int32_t tsdbUnrefMemTable(SMemTable *pMemTable, STsdbReader *pReader) {
+  int32_t code = 0;
+
+  // unregister handle (todo)
+  if (pReader) {
+  }
+
   int32_t nRef = atomic_sub_fetch_32(&pMemTable->nRef, 1);
   if (nRef == 0) {
     tsdbMemTableDestroy(pMemTable);
   }
+
+  return code;
 }
 
 static FORCE_INLINE int32_t tbDataPCmprFn(const void *p1, const void *p2) {

@@ -3354,7 +3354,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
     goto _err;
   }
 
-  code = tsdbTakeReadSnap(pReader->pTsdb, &pReader->pReadSnap);
+  code = tsdbTakeReadSnap(pReader, &pReader->pReadSnap);
   if (code != TSDB_CODE_SUCCESS) {
     goto _err;
   }
@@ -3378,7 +3378,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
     STsdbReader*    pPrevReader = pReader->innerReader[0];
     SDataBlockIter* pBlockIter = &pPrevReader->status.blockIter;
 
-    code = tsdbTakeReadSnap(pPrevReader->pTsdb, &pPrevReader->pReadSnap);
+    code = tsdbTakeReadSnap(pPrevReader, &pPrevReader->pReadSnap);
     if (code != TSDB_CODE_SUCCESS) {
       goto _err;
     }
@@ -3435,7 +3435,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
     tsdbDataFReaderClose(&pReader->pFileReader);
   }
 
-  tsdbUntakeReadSnap(pReader->pTsdb, pReader->pReadSnap);
+  tsdbUntakeReadSnap(pReader, pReader->pReadSnap);
 
   taosMemoryFree(pReader->status.uidCheckInfo.tableUidList);
   SIOCostSummary* pCost = &pReader->cost;
@@ -3858,8 +3858,10 @@ int32_t tsdbGetTableSchema(SVnode* pVnode, int64_t uid, STSchema** pSchema, int6
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tsdbTakeReadSnap(STsdb* pTsdb, STsdbReadSnap** ppSnap) {
-  int32_t code = 0;
+int32_t tsdbTakeReadSnap(STsdbReader* pReader, STsdbReadSnap** ppSnap) {
+  int32_t        code = 0;
+  STsdb*         pTsdb = pReader->pTsdb;
+  SVersionRange* pRange = &pReader->verRange;
 
   // alloc
   *ppSnap = (STsdbReadSnap*)taosMemoryCalloc(1, sizeof(STsdbReadSnap));
@@ -3876,15 +3878,14 @@ int32_t tsdbTakeReadSnap(STsdb* pTsdb, STsdbReadSnap** ppSnap) {
   }
 
   // take snapshot
-  (*ppSnap)->pMem = pTsdb->mem;
-  (*ppSnap)->pIMem = pTsdb->imem;
-
-  if ((*ppSnap)->pMem) {
-    tsdbRefMemTable((*ppSnap)->pMem);
+  if (pTsdb->mem && (pRange->minVer <= pTsdb->mem->maxVer && pRange->maxVer >= pTsdb->mem->minVer)) {
+    tsdbRefMemTable(pTsdb->mem, pReader);
+    (*ppSnap)->pMem = pTsdb->mem;
   }
 
-  if ((*ppSnap)->pIMem) {
-    tsdbRefMemTable((*ppSnap)->pIMem);
+  if (pTsdb->imem && (pRange->minVer <= pTsdb->imem->maxVer && pRange->maxVer >= pTsdb->imem->minVer)) {
+    tsdbRefMemTable(pTsdb->imem, pReader);
+    (*ppSnap)->pIMem = pTsdb->imem;
   }
 
   // fs
@@ -3906,14 +3907,16 @@ _exit:
   return code;
 }
 
-void tsdbUntakeReadSnap(STsdb* pTsdb, STsdbReadSnap* pSnap) {
+void tsdbUntakeReadSnap(STsdbReader* pReader, STsdbReadSnap* pSnap) {
+  STsdb* pTsdb = pReader->pTsdb;
+
   if (pSnap) {
     if (pSnap->pMem) {
-      tsdbUnrefMemTable(pSnap->pMem);
+      tsdbUnrefMemTable(pSnap->pMem, pReader);
     }
 
     if (pSnap->pIMem) {
-      tsdbUnrefMemTable(pSnap->pIMem);
+      tsdbUnrefMemTable(pSnap->pIMem, pReader);
     }
 
     tsdbFSUnref(pTsdb, &pSnap->fs);
