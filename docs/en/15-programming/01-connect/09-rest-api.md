@@ -40,9 +40,9 @@ $env:TDENGINE_CLOUD_URL="<url>"
 </TabItem>
 </Tabs>
 
-## Connect
+## Usage
 
-Please copy the code below to your editor and run it.
+The TDengine REST API is based on standard HTTP protocol and provides an easy way to access TDengine. As an example, the code below is to construct an HTTP request with the URL, the token and an SQL command and run it with the command line utility `curl`.
 
 ```bash
 curl -L \
