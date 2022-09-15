@@ -58,6 +58,8 @@ int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
     taosMemoryFree(pMemTable);
     goto _err;
   }
+  pMemTable->qList.pNext = &pMemTable->qList;
+  pMemTable->qList.ppNext = &pMemTable->qList.pNext;
   vnodeBufPoolRef(pMemTable->pPool);
 
   *ppMemTable = pMemTable;
@@ -642,9 +644,10 @@ int32_t tsdbRefMemTable(SMemTable *pMemTable, void *pQueryHandle, SQueryNode **p
     goto _exit;
   }
   (*ppNode)->pQueryHandle = pQueryHandle;
-  (*ppNode)->pNext = pMemTable->qList;
-  (*ppNode)->ppNext = &pMemTable->qList;
-  pMemTable->qList = *ppNode;
+  (*ppNode)->pNext = pMemTable->qList.pNext;
+  (*ppNode)->ppNext = &pMemTable->qList.pNext;
+  pMemTable->qList.pNext->ppNext = &(*ppNode)->pNext;
+  pMemTable->qList.pNext = *ppNode;
 
 _exit:
   return code;

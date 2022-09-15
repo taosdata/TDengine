@@ -388,7 +388,7 @@ struct SMemTable {
     int32_t   nBucket;
     STbData **aBucket;
   };
-  SQueryNode *qList;
+  SQueryNode qList;
 };
 
 struct TSDBROW {
