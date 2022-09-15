@@ -29,6 +29,17 @@ conda install -c conda-forge taospy
 ```
 
 </TabItem>
+<TabItem value="jupyter" label="Jupyter">
+
+For the users who are familiar with Jupyter to program in Python, both TDengine Python connector and Jupyter need to be ready in your environment.
+
+```bash
+pip install jupyterlab
+pip install notebook
+pip3 install -U taospy
+```
+
+</TabItem>
 </Tabs>
 
 ## Config
@@ -57,6 +68,17 @@ set TDENGINE_CLOUD_URL="<url>"
 ```powershell
 $env:TDENGINE_CLOUD_TOKEN="<token>"
 $env:TDENGINE_CLOUD_URL="<url>"
+```
+
+</TabItem>
+<TabItem value="Jupyter" label="Jupyter">
+
+In order for Jupyter to connect to TDengine cloud service, before launching Jupypter, the environment setting must be performed. We use Linux bash as example.
+
+```bash
+export TDENGINE_CLOUD_TOKEN="<token>"
+export TDENGINE_CLOUD_URL="<url>"
+jupyter notebook
 ```
 
 </TabItem>
