@@ -174,7 +174,6 @@ pipeline {
         stage ('build docs') {
             when {
                 allOf {
-                    changeRequest()
                     { expression { env.CHANGE_BRANCH =~ /docs\// }}
                 }
             }
@@ -195,7 +194,6 @@ pipeline {
             options { skipDefaultCheckout() }
             when {
                 allOf {
-                    changeRequest()
                     not { expression { env.CHANGE_BRANCH =~ /docs\// }}
                 }
             }
@@ -247,7 +245,6 @@ pipeline {
             options { skipDefaultCheckout() }
             when {
                 allOf {
-                    changeRequest()
                     not { expression { env.CHANGE_BRANCH =~ /docs\// }}
                 }
             }
