@@ -218,12 +218,12 @@ def pre_test_win(){
         if (env.CHANGE_URL =~ /\/TDengine\//) {
             bat '''
                 cd %WIN_INTERNAL_ROOT%
-                git pull
+                git pull ''' + env.CHANGE_TARGET + '''
             '''
             bat '''
                 cd %WIN_COMMUNITY_ROOT%
                 git remote prune origin
-                git pull
+                git pull ''' + env.CHANGE_TARGET + '''
             '''
             bat '''
                 cd %WIN_COMMUNITY_ROOT%
@@ -236,7 +236,7 @@ def pre_test_win(){
         } else if (env.CHANGE_URL =~ /\/TDinternal\//) {
             bat '''
                 cd %WIN_INTERNAL_ROOT%
-                git pull
+                git pull ''' + env.CHANGE_TARGET + '''
             '''
             bat '''
                 cd %WIN_INTERNAL_ROOT%
