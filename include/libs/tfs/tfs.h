@@ -70,7 +70,7 @@ void tfsUpdateSize(STfs *pTfs);
 SDiskSize tfsGetSize(STfs *pTfs);
 
 /**
- * @brief Get level of multi-tier storage
+ * @brief Get level of multi-tier storage.
  *
  * @param pTfs
  * @return int32_t

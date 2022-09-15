@@ -1033,7 +1033,7 @@ int32_t tsdbFSCommit2(STsdb *pTsdb, STsdbFS *pFSNew) {
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _err;
     }
-    
+    iOld++;
     iNew++;
     continue;
   }
