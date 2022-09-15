@@ -100,13 +100,25 @@ pub async fn tmq_to_td(from: Dsn, mut to: Dsn, jobs: usize) -> Result<()> {
 
     let mut handles = Vec::new();
     let mut task_id = 0;
-    let target = TaosBuilder::from_dsn(to)?;
+    let target = TaosBuilder::from_dsn(&to)?;
     for topic in topics {
         let jobs = if jobs == 0 || jobs >= topic.vgroups {
             topic.vgroups
         } else {
             jobs
         };
+        if let Some(table) = topic.table.as_ref() {
+            // schema rebuild
+            let taos = target.build()?;
+            if to.database.is_none() {
+                taos.exec(format!("use {}", topic.database)).await?;
+            }
+
+            if let Some(sql) = table.stable_sql.as_deref() {
+                taos.exec(sql.replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS")).await?;
+            }
+            taos.exec(table.table_sql.replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")).await?;
+        }
         // dbg!(&topic);
 
         // let mut from = from.clone();
