@@ -151,7 +151,7 @@ SArray* dispatcherPollAll(SAsyncBulkWriteDispatcher* dispatcher) {
   }
   
   pthread_mutex_lock(&dispatcher->mutex);
-  SArray* statements = taosArrayInit(0, sizeof(SSqlObj*));
+  SArray* statements = taosArrayInit(atomic_load_32(&dispatcher->bufferSize), sizeof(SSqlObj*));
   if (statements == NULL) {
     pthread_mutex_unlock(&dispatcher->mutex);
     tscError("failed to poll all items: out of memory");
@@ -166,8 +166,7 @@ SArray* dispatcherPollAll(SAsyncBulkWriteDispatcher* dispatcher) {
     }
 
     // get the SSqlObj* from the node.
-    SSqlObj* item;
-    memcpy(&item, node->data, sizeof(SSqlObj*));
+    SSqlObj* item = *((SSqlObj **) node->data);
     listNodeFree(node);
     atomic_fetch_sub_32(&dispatcher->bufferSize, 1);
     atomic_fetch_sub_32(&dispatcher->currentSize, statementGetInsertionRows(item));

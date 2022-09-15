@@ -16,8 +16,6 @@
 #ifndef TDENGINE_TSCBULKWRITE_H
 #define TDENGINE_TSCBULKWRITE_H
 
-#include <pthread.h>
-#include <stdlib.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
