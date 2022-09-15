@@ -844,7 +844,7 @@ void hbRemoveAppHbMrg(SAppHbMgr **pAppHbMgr) {
     if (pItem == *pAppHbMgr) {
       hbFreeAppHbMgr(*pAppHbMgr);
       *pAppHbMgr = NULL;
-      taosArraySet(clientHbMgr.appHbMgrs, i, NULL);
+      taosArraySet(clientHbMgr.appHbMgrs, i, pAppHbMgr);
       break;
     }
   }
