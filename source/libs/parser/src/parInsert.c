@@ -1129,7 +1129,7 @@ static int32_t parseTableOptions(SInsertParseContext* pCxt) {
     NEXT_TOKEN_KEEP_SQL(pCxt->pSql, sToken, index);
     if (TK_TTL == sToken.type) {
       pCxt->pSql += index;
-      NEXT_TOKEN(pCxt->pSql, sToken);
+      NEXT_TOKEN_WITH_PREV(pCxt->pSql, sToken);
       if (TK_NK_INTEGER != sToken.type) {
         return buildSyntaxErrMsg(&pCxt->msg, "Invalid option ttl", sToken.z);
       }
@@ -1423,9 +1423,7 @@ static int32_t parseDataFromFile(SInsertParseContext* pCxt, SToken filePath, STa
 }
 
 static void destroyInsertParseContextForTable(SInsertParseContext* pCxt) {
-  if (!pCxt->pComCxt->async) {
-    taosMemoryFreeClear(pCxt->pTableMeta);
-  }
+  taosMemoryFreeClear(pCxt->pTableMeta);
   destroyBoundColumnInfo(&pCxt->tags);
   tdDestroySVCreateTbReq(&pCxt->createTblReq);
 }
@@ -1745,7 +1743,7 @@ static int32_t skipTableOptions(SInsertParseSyntaxCxt* pCxt) {
     NEXT_TOKEN_KEEP_SQL(pCxt->pSql, sToken, index);
     if (TK_TTL == sToken.type || TK_COMMENT == sToken.type) {
       pCxt->pSql += index;
-      NEXT_TOKEN(pCxt->pSql, sToken);
+      NEXT_TOKEN_WITH_PREV(pCxt->pSql, sToken);
     } else {
       break;
     }

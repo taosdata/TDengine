@@ -248,9 +248,12 @@ int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, S
   char*   ctbName = buildCtbNameByGroupId(pTask->shuffleDispatcher.stbFullName, groupId);
   SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
 
-  // TODO: get hash function by hashMethod
-  uint32_t hashValue = MurmurHash3_32(ctbName, strlen(ctbName));
+  /*uint32_t hashValue = MurmurHash3_32(ctbName, strlen(ctbName));*/
+  SUseDbRsp* pDbInfo = &pTask->shuffleDispatcher.dbInfo;
+  uint32_t   hashValue =
+      taosGetTbHashVal(ctbName, strlen(ctbName), pDbInfo->hashMethod, pDbInfo->hashPrefix, pDbInfo->hashSuffix);
   taosMemoryFree(ctbName);
+
   bool found = false;
   // TODO: optimize search
   int32_t j;

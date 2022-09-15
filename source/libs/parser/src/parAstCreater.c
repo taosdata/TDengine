@@ -1303,7 +1303,7 @@ SNode* createShowStmtWithCond(SAstCreateContext* pCxt, ENodeType type, SNode* pD
                               EOperatorType tableCondType) {
   CHECK_PARSER_STATUS(pCxt);
   if (needDbShowStmt(type) && NULL == pDbName) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "db not specified");
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "database not specified");
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
     return NULL;
   }
@@ -1787,10 +1787,10 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, int64_t privileges, SToken* pDb
   return (SNode*)pStmt;
 }
 
-SNode* createCountFuncForDelete(SAstCreateContext* pCxt) {
+SNode* createFuncForDelete(SAstCreateContext* pCxt, const char* pFuncName) {
   SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   CHECK_OUT_OF_MEM(pFunc);
-  strcpy(pFunc->functionName, "count");
+  strcpy(pFunc->functionName, pFuncName);
   if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pFunc->pParameterList, createPrimaryKeyCol(pCxt, NULL))) {
     nodesDestroyNode((SNode*)pFunc);
     CHECK_OUT_OF_MEM(NULL);
@@ -1804,8 +1804,10 @@ SNode* createDeleteStmt(SAstCreateContext* pCxt, SNode* pTable, SNode* pWhere) {
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->pFromTable = pTable;
   pStmt->pWhere = pWhere;
-  pStmt->pCountFunc = createCountFuncForDelete(pCxt);
-  if (NULL == pStmt->pCountFunc) {
+  pStmt->pCountFunc = createFuncForDelete(pCxt, "count");
+  pStmt->pFirstFunc = createFuncForDelete(pCxt, "first");
+  pStmt->pLastFunc = createFuncForDelete(pCxt, "last");
+  if (NULL == pStmt->pCountFunc || NULL == pStmt->pFirstFunc || NULL == pStmt->pLastFunc) {
     nodesDestroyNode((SNode*)pStmt);
     CHECK_OUT_OF_MEM(NULL);
   }
