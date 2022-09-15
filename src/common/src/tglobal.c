@@ -121,15 +121,14 @@ float tsStreamComputDelayRatio = 0.1f;
 int32_t tsProjectExecInterval = 10000;   // every 10sec, the projection will be executed once
 int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 
-// The async insertion auto batch feature.
-// When user submit an insert statement to `taos_query_ra`, the statement will be buffered asynchronously in the 
-// execution queue instead of executing it. If the number of the buffered statements reach `tsAsyncBatchLen`, all
-// the statements in the queue will be merged and sent to vnodes.
+// The async insertion batching feature.
+// When user submit an insert statement to `taos_query_ra`, the statement will be buffered asynchronously instead of executing it. 
+// If the number of the buffered statements reach `tsAsyncBatchSize`, all the statements in the queue will be merged and sent to vnodes.
 // The statements will be sent to vnodes no more than `tsAsyncBatchTimeout` milliseconds. But the actual time vnodes
 // received the statements depends on the network quality.
 bool    tsAsyncBatchEnable = true;
-int32_t tsAsyncBatchSize = 128;
-int64_t tsAsyncBatchTimeout = 50;
+int32_t tsAsyncBatchSize = 256;
+int64_t tsAsyncBatchTimeout = 5;
 
 // the maximum allowed query buffer size during query processing for each data node.
 // -1 no limit (default)
@@ -1833,6 +1832,37 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
+
+  cfg.option = "asyncBatchEnable";
+  cfg.ptr = &tsAsyncBatchEnable;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "asyncBatchSize";
+  cfg.ptr = &tsAsyncBatchSize;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 1;
+  cfg.maxValue = 65536;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "asyncBatchTimeout";
+  cfg.ptr = &tsAsyncBatchTimeout;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 0;
+  cfg.maxValue = 65536;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM);
 #else
   // if TD_TSZ macro define, have 5 count configs, so must add 5

@@ -232,7 +232,10 @@ void dispatcherExecute(SArray* statements) {
   taosArrayDestroy(&statements);
 }
 
-void* dispatcherTimeoutCallback(void* arg) {
+/**
+ * The thread to manage batching timeout.
+ */
+static void* dispatcherTimeoutCallback(void* arg) {
   SAsyncBulkWriteDispatcher* dispatcher = arg;
   setThreadName("tscBackground");
 

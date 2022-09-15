@@ -78,7 +78,7 @@ SArray* dispatcherPollAll(SAsyncBulkWriteDispatcher* dispatcher);
  *
  * @param dispatcher  the async bulk write dispatcher.
  * @param pSql        the sql object to offer.
- * @return int32_t    if offer success, return the current size of the buffer. otherwise returns -1.
+ * @return            if offer success, return the current size of the buffer. otherwise returns -1.
  */
 int32_t dispatcherTryOffer(SAsyncBulkWriteDispatcher* dispatcher, SSqlObj* pSql);
 
@@ -88,11 +88,6 @@ int32_t dispatcherTryOffer(SAsyncBulkWriteDispatcher* dispatcher, SSqlObj* pSql)
  * @param statements the array of sql statement. a.k.a SArray<SSqlObj*>.
  */
 void dispatcherExecute(SArray* statements);
-
-/**
- * The thread to manage batching timeout.
- */
-void* dispatcherTimeoutCallback(void* arg);
 
 /**
  * Create the async bulk write dispatcher.
