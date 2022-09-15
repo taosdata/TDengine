@@ -229,7 +229,7 @@ int tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt) {
   return 0;
 }
 
-void tdbPageCopy(SPage *pFromPage, SPage *pToPage) {
+void tdbPageCopy(SPage *pFromPage, SPage *pToPage, int deepCopyOvfl) {
   int delta, nFree;
 
   pToPage->pFreeStart = pToPage->pPageHdr + (pFromPage->pFreeStart - pFromPage->pPageHdr);
@@ -250,8 +250,15 @@ void tdbPageCopy(SPage *pFromPage, SPage *pToPage) {
 
   // Copy the overflow cells
   for (int iOvfl = 0; iOvfl < pFromPage->nOverflow; iOvfl++) {
+    SCell *pNewCell = pFromPage->apOvfl[iOvfl];
+    if (deepCopyOvfl) {
+      int szCell = (*pFromPage->xCellSize)(pFromPage, pFromPage->apOvfl[iOvfl], 0, NULL, NULL);
+      pNewCell = (SCell *)tdbOsMalloc(szCell);
+      memcpy(pNewCell, pFromPage->apOvfl[iOvfl], szCell);
+    }
+
+    pToPage->apOvfl[iOvfl] = pNewCell;
     pToPage->aiOvfl[iOvfl] = pFromPage->aiOvfl[iOvfl];
-    pToPage->apOvfl[iOvfl] = pFromPage->apOvfl[iOvfl];
   }
   pToPage->nOverflow = pFromPage->nOverflow;
 }

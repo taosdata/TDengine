@@ -333,7 +333,7 @@ void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell
 int  tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl);
 int  tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt);
 int  tdbPageUpdateCell(SPage *pPage, int idx, SCell *pCell, int szCell, TXN *pTxn, SBTree *pBt);
-void tdbPageCopy(SPage *pFromPage, SPage *pToPage);
+void tdbPageCopy(SPage *pFromPage, SPage *pToPage, int copyOvflCells);
 int  tdbPageCapacity(int pageSize, int amHdrSize);
 
 static inline SCell *tdbPageGetCell(SPage *pPage, int idx) {

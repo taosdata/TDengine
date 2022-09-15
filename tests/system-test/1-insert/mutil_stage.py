@@ -1,4 +1,5 @@
 from datetime import datetime
+from platform import platform
 import time
 
 from typing import List, Any, Tuple
@@ -83,6 +84,8 @@ class TDTestCase:
 
     def del_old_datadir(self, filename):
         cmd = f"sed -i '/^dataDir/d' {filename}"
+        if platform.system().lower() == 'darwin':
+            cmd = f"sed -i '' '/^dataDir/d' {filename}"
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
