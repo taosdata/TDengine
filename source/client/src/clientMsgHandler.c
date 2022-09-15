@@ -47,6 +47,7 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
 int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pMsg->pEpSet);
     taosMemoryFree(pMsg->pData);
     setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
@@ -72,6 +73,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   /*assert(connectRsp.epSet.numOfEps > 0);*/
   if (connectRsp.epSet.numOfEps == 0) {
+    taosMemoryFree(pMsg->pEpSet);
     taosMemoryFree(pMsg->pData);
     setErrno(pRequest, TSDB_CODE_MND_APP_ERROR);
     tsem_post(&pRequest->body.rspSem);
