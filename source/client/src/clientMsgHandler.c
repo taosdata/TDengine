@@ -34,6 +34,7 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
     removeMeta(pRequest->pTscObj, pRequest->targetTableList);
   }
 
+  taosMemoryFree(pMsg->pEpSet);
   taosMemoryFree(pMsg->pData);
   if (pRequest->body.queryFp != NULL) {
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);
@@ -62,6 +63,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if (delta > timestampDeltaLimit) {
     code = TSDB_CODE_TIME_UNSYNCED;
     tscError("time diff:%ds is too big", delta);
+    taosMemoryFree(pMsg->pEpSet);
     taosMemoryFree(pMsg->pData);
     setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
@@ -114,6 +116,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
            pTscObj->pAppInfo->numOfConns);
 
   taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
   tsem_post(&pRequest->body.rspSem);
   return 0;
 }
@@ -137,6 +140,7 @@ int32_t processCreateDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   // todo rsp with the vnode id list
   SRequestObj* pRequest = param;
   taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
   }
@@ -173,6 +177,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
     setErrno(pRequest, code);
 
     if (pRequest->body.queryFp != NULL) {
@@ -220,6 +225,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   setConnectionDB(pRequest->pTscObj, db);
   taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
 
   if (pRequest->body.queryFp != NULL) {
     pRequest->body.queryFp(pRequest->body.param, pRequest, pRequest->code);
@@ -237,7 +243,7 @@ int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
     setErrno(pRequest, code);
   } else {
     SMCreateStbRsp createRsp = {0};
-    SDecoder      coder = {0};
+    SDecoder       coder = {0};
     tDecoderInit(&coder, pMsg->pData, pMsg->len);
     tDecodeSMCreateStbRsp(&coder, &createRsp);
     tDecoderClear(&coder);
@@ -246,6 +252,7 @@ int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
     pRequest->body.resInfo.execRes.res = createRsp.pMeta;
   }
 
+  taosMemoryFree(pMsg->pEpSet);
   taosMemoryFree(pMsg->pData);
 
   if (pRequest->body.queryFp != NULL) {
@@ -262,7 +269,7 @@ int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
         code = ret;
       }
     }
-    
+
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);
   } else {
     tsem_post(&pRequest->body.rspSem);
@@ -284,6 +291,7 @@ int32_t processDropDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
 
   if (pRequest->body.queryFp != NULL) {
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);
@@ -309,6 +317,7 @@ int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
 
   if (pRequest->body.queryFp != NULL) {
     SExecResult* pRes = &pRequest->body.resInfo.execRes;
@@ -420,6 +429,7 @@ int32_t processShowVariablesRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
 
   if (pRequest->body.queryFp != NULL) {
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);

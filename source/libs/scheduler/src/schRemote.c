@@ -384,8 +384,7 @@ _return:
   taosMemoryFreeClear(msg);
 
   SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
-}
-
+} 
 int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
   int32_t                code = 0;
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;

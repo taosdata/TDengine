@@ -1077,6 +1077,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     tsem_destroy(&pParam->rspSem);
     taosMemoryFree(pParam);
     taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
     terrno = TSDB_CODE_TMQ_CONSUMER_CLOSED;
     return -1;
   }
@@ -1115,6 +1116,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
             tmqEpoch);
     tsem_post(&tmq->rspSem);
     taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
     return 0;
   }
 
@@ -1128,6 +1130,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   SMqPollRspWrapper* pRspWrapper = taosAllocateQitem(sizeof(SMqPollRspWrapper), DEF_QITEM);
   if (pRspWrapper == NULL) {
     taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
     tscWarn("msg discard from vgId:%d, epoch %d since out of memory", vgId, epoch);
     goto CREATE_MSG_FAIL;
   }
@@ -1164,6 +1167,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
 
   taosWriteQitem(tmq->mqueue, pRspWrapper);
   tsem_post(&tmq->rspSem);
