@@ -77,7 +77,7 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 
   return TSDB_CODE_SUCCESS;
 }
-\
+
 int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
   int32_t        code = 0;
   bool           qcontinue = true;
