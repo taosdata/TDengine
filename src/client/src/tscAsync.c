@@ -37,26 +37,6 @@ static void tscAsyncQueryRowsForNextVnode(void *param, TAOS_RES *tres, int numOf
  */
 static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows);
 
-static SAsyncBulkWriteDispatcher* tscDispatcher;
-
-/**
- * Init the taosc async bulk write dispatcher.
- * 
- * @param batchSize  the batchSize of async bulk write dispatcher.
- * @param timeoutMs  the timeout of batching in milliseconds.
- */
-void tscInitAsyncDispatcher(int32_t batchSize, int32_t timeoutMs) {
-  tscDispatcher = createAsyncBulkWriteDispatcher(batchSize, timeoutMs);
-}
-
-/**
- * Destroy the taosc async bulk write dispatcher.
- */
-void tscDestroyAsyncDispatcher() {
-  destroyAsyncDispatcher(tscDispatcher);
-  tscDispatcher = NULL;
-}
-
 void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* param, const char* sqlstr, size_t sqlLen) {
   SSqlCmd* pCmd = &pSql->cmd;
 

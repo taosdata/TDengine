@@ -26,6 +26,7 @@
 #include "tconfig.h"
 #include "ttimezone.h"
 #include "qScript.h"
+#include "tscBulkWrite.h"
 
 // global, not configurable
 #define TSC_VAR_NOT_RELEASE 1
@@ -49,6 +50,7 @@ void      *tscRpcCache;            // cache to keep rpc obj
 int32_t    tscNumOfThreads = 1;     // num of rpc threads
 char       tscLogFileName[] = "taoslog";
 int        tscLogFileNum = 10;
+SAsyncBulkWriteDispatcher* tscDispatcher = NULL;
 
 static pthread_mutex_t rpcObjMutex; // mutex to protect open the rpc obj concurrently
 static pthread_once_t  tscinit = PTHREAD_ONCE_INIT;
@@ -56,6 +58,24 @@ static pthread_mutex_t setConfMutex = PTHREAD_MUTEX_INITIALIZER;
 
 // pthread_once can not return result code, so result code is set to a global variable.
 static volatile int tscInitRes = 0;
+
+/**
+ * Init the taosc async bulk write dispatcher.
+ * 
+ * @param batchSize  the batchSize of async bulk write dispatcher.
+ * @param timeoutMs  the timeout of batching in milliseconds.
+ */
+void tscInitAsyncDispatcher(int32_t batchSize, int32_t timeoutMs) {
+  tscDispatcher = createAsyncBulkWriteDispatcher(batchSize, timeoutMs);
+}
+
+/**
+ * Destroy the taosc async bulk write dispatcher.
+ */
+void tscDestroyAsyncDispatcher() {
+  destroyAsyncDispatcher(tscDispatcher);
+  tscDispatcher = NULL;
+}
 
 void tscCheckDiskUsage(void *UNUSED_PARAM(para), void *UNUSED_PARAM(param)) {
   taosGetDisk();

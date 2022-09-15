@@ -15,6 +15,7 @@
 
 #include "osAtomic.h"
 
+#include "tsclient.h"
 #include "tscBulkWrite.h"
 #include "tscSubquery.h"
 #include "tscLog.h"
@@ -35,7 +36,21 @@ typedef struct {
   Runnable runnable[];
 } BatchCallBackContext;
 
-void tscReturnsError(SSqlObj *pSql, int code) {
+/**
+ * Get the number of insertion row in the sql statement.
+ *
+ * @param pSql      the sql statement.
+ * @return int32_t  the number of insertion row.
+ */
+inline static int32_t statementGetInsertionRows(SSqlObj* pSql) { return pSql->cmd.insertParam.numOfRows; }
+
+/**
+ * Return the error result to the callback function, and release the sql object.
+ *
+ * @param pSql  the sql object.
+ * @param code  the error code of the error result.
+ */
+inline static void tscReturnsError(SSqlObj *pSql, int code) {
   if (pSql == NULL) {
     return;
   }
@@ -44,7 +59,14 @@ void tscReturnsError(SSqlObj *pSql, int code) {
   tscAsyncResultOnError(pSql);
 }
 
-void batchResultCallback(void* param, TAOS_RES* tres, int32_t code) {
+/**
+ * Proxy function to perform sequentially insert operation.
+ *
+ * @param param     the context of `batchResultCallback`.
+ * @param tres      the result object.
+ * @param code      the error code.
+ */
+static void batchResultCallback(void* param, TAOS_RES* tres, int32_t code) {
   BatchCallBackContext* context = param;
   SSqlObj*              res = tres;
 

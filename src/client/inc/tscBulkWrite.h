@@ -22,7 +22,6 @@ extern "C" {
 
 #include "tlist.h"
 #include "tarray.h"
-#include "tsclient.h"
 #include "tthread.h"
 
 typedef struct SAsyncBulkWriteDispatcher {
@@ -54,26 +53,8 @@ typedef struct SAsyncBulkWriteDispatcher {
   volatile bool shutdown;
 } SAsyncBulkWriteDispatcher;
 
-
-
-
-/**
- * Return the error result to the callback function, and release the sql object.
- *
- * @param pSql  the sql object.
- * @param code  the error code of the error result.
- */
-void tscReturnsError(SSqlObj* pSql, int code);
-
-/**
- * Proxy function to perform sequentially insert operation.
- *
- * @param param     the context of `batchResultCallback`.
- * @param tres      the result object.
- * @param code      the error code.
- */
-void batchResultCallback(void* param, TAOS_RES* tres, int32_t code);
-
+// forward declaration.
+typedef struct SSqlObj SSqlObj;
 /**
  * Merge the statements into single SSqlObj.
  *
@@ -83,14 +64,6 @@ void batchResultCallback(void* param, TAOS_RES* tres, int32_t code);
  * @return              the merged SSqlObj.
  */
 int32_t dispatcherStatementMerge(SArray* statements, SSqlObj** result);
-
-/**
- * Get the number of insertion row in the sql statement.
- *
- * @param pSql      the sql statement.
- * @return int32_t  the number of insertion row.
- */
-inline static int32_t statementGetInsertionRows(SSqlObj* pSql) { return pSql->cmd.insertParam.numOfRows; }
 
 /**
  * Poll all the SSqlObj* in the dispatcher's buffer.

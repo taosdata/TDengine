@@ -544,6 +544,9 @@ extern SHashObj  *tscVgroupMap;
 extern SHashObj  *tscTableMetaMap;
 extern SCacheObj *tscVgroupListBuf;
 
+// forward declaration.
+typedef struct SAsyncBulkWriteDispatcher SAsyncBulkWriteDispatcher;
+extern SAsyncBulkWriteDispatcher* tscDispatcher;
 extern int   tscObjRef;
 extern void *tscTmr;
 extern void *tscQhandle;
