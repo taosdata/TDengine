@@ -903,7 +903,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
           // null value exists, check one-by-one
           if (pData->flag != HAS_VALUE) {
             for (int32_t j = pDumpInfo->rowIndex; rowIndex < remain; j += step, rowIndex++) {
-              uint8_t v = GET_BIT2(pData->pBitMap, j);
+              uint8_t v = tColDataGetBitValue(pData, j);
               if (v == 0 || v == 1) {
                 colDataSetNull_f(pColData->nullbitmap, rowIndex);
               }
