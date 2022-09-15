@@ -727,6 +727,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pFromTable);
       nodesDestroyNode(pStmt->pWhere);
       nodesDestroyNode(pStmt->pCountFunc);
+      nodesDestroyNode(pStmt->pFirstFunc);
+      nodesDestroyNode(pStmt->pLastFunc);
       nodesDestroyNode(pStmt->pTagCond);
       break;
     }
@@ -791,6 +793,8 @@ void nodesDestroyNode(SNode* pNode) {
       destroyVgDataBlockArray(pLogicNode->pDataBlocks);
       // pVgDataBlocks is weak reference
       nodesDestroyNode(pLogicNode->pAffectedRows);
+      nodesDestroyNode(pLogicNode->pStartTs);
+      nodesDestroyNode(pLogicNode->pEndTs);
       taosMemoryFreeClear(pLogicNode->pVgroupList);
       nodesDestroyList(pLogicNode->pInsertCols);
       break;
@@ -997,6 +1001,8 @@ void nodesDestroyNode(SNode* pNode) {
       SDataDeleterNode* pSink = (SDataDeleterNode*)pNode;
       destroyDataSinkNode((SDataSinkNode*)pSink);
       nodesDestroyNode(pSink->pAffectedRows);
+      nodesDestroyNode(pSink->pStartTs);
+      nodesDestroyNode(pSink->pEndTs);
       break;
     }
     case QUERY_NODE_PHYSICAL_SUBPLAN: {

@@ -44,7 +44,6 @@ typedef struct SMapData      SMapData;
 typedef struct SBlockIdx     SBlockIdx;
 typedef struct SDataBlk      SDataBlk;
 typedef struct SSttBlk       SSttBlk;
-typedef struct SColData      SColData;
 typedef struct SDiskDataHdr  SDiskDataHdr;
 typedef struct SBlockData    SBlockData;
 typedef struct SDelFile      SDelFile;
@@ -70,10 +69,6 @@ typedef struct SLDataIter    SLDataIter;
 #define TSDB_FILE_DLMT     ((uint32_t)0xF00AFA0F)
 #define TSDB_MAX_SUBBLOCKS 8
 #define TSDB_FHDR_SIZE     512
-
-#define HAS_NONE  ((int8_t)0x1)
-#define HAS_NULL  ((int8_t)0x2)
-#define HAS_VALUE ((int8_t)0x4)
 
 #define VERSION_MIN 0
 #define VERSION_MAX INT64_MAX
@@ -148,15 +143,6 @@ int32_t tPutBlockIdx(uint8_t *p, void *ph);
 int32_t tGetBlockIdx(uint8_t *p, void *ph);
 int32_t tCmprBlockIdx(void const *lhs, void const *rhs);
 int32_t tCmprBlockL(void const *lhs, void const *rhs);
-// SColdata
-void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn);
-void    tColDataReset(SColData *pColData);
-void    tColDataClear(void *ph);
-int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
-int32_t tColDataGetValue(SColData *pColData, int32_t iRow, SColVal *pColVal);
-int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest);
-int32_t tPutColData(uint8_t *p, SColData *pColData);
-int32_t tGetColData(uint8_t *p, SColData *pColData);
 // SBlockData
 #define tBlockDataFirstRow(PBLOCKDATA) tsdbRowFromBlockData(PBLOCKDATA, 0)
 #define tBlockDataLastRow(PBLOCKDATA)  tsdbRowFromBlockData(PBLOCKDATA, (PBLOCKDATA)->nRow - 1)
@@ -471,18 +457,6 @@ struct SSttBlk {
   int64_t    maxVer;
   int32_t    nRow;
   SBlockInfo bInfo;
-};
-
-struct SColData {
-  int16_t  cid;
-  int8_t   type;
-  int8_t   smaOn;
-  int32_t  nVal;
-  uint8_t  flag;
-  uint8_t *pBitMap;
-  int32_t *aOffset;
-  int32_t  nData;
-  uint8_t *pData;
 };
 
 // (SBlockData){.suid = 0, .uid = 0}: block data not initialized
