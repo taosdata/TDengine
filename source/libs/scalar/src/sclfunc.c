@@ -1153,7 +1153,8 @@ int32_t toJsonFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
       memcpy(tmp, varDataVal(input), varDataLen(input));
       tmp[varDataLen(input)] = 0;
       if(parseJsontoTagData(tmp, pTagVals, &pTag, NULL)){
-        tTagNew(pTagVals, 1, true, &pTag);
+        taosArrayDestroy(pTagVals);
+        return TSDB_CODE_FAILED;
       }
     }
 

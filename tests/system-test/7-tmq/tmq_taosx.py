@@ -38,10 +38,13 @@ class TDTestCase:
                 break
         return
 
-    def checkDropData(self):
+    def checkDropData(self, drop):
         tdSql.execute('use db_taosx')
         tdSql.query("show tables")
-        tdSql.checkRows(6)
+        if drop:
+            tdSql.checkRows(10)
+        else:
+            tdSql.checkRows(15)
         tdSql.query("select * from jt order by i")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 1)
@@ -49,15 +52,72 @@ class TDTestCase:
         tdSql.checkData(0, 2, '{"k1":1,"k2":"hello"}')
         tdSql.checkData(1, 2, None)
 
+        tdSql.query("select * from sttb order by ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 13)
+        tdSql.checkData(1, 1, 16)
+        tdSql.checkData(0, 2, 22)
+        tdSql.checkData(1, 2, 25)
+        tdSql.checkData(0, 5, "sttb3")
+        tdSql.checkData(1, 5, "sttb4")
+
+        tdSql.query("select * from stt order by ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, 21)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(1, 2, 21)
+        tdSql.checkData(0, 5, "stt3")
+        tdSql.checkData(1, 5, "stt4")
+
         tdSql.execute('use abc1')
         tdSql.query("show tables")
-        tdSql.checkRows(6)
+        if drop:
+            tdSql.checkRows(10)
+        else:
+            tdSql.checkRows(15)
         tdSql.query("select * from jt order by i")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 1)
         tdSql.checkData(1, 1, 11)
         tdSql.checkData(0, 2, '{"k1":1,"k2":"hello"}')
         tdSql.checkData(1, 2, None)
+
+        tdSql.query("select * from sttb order by ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 13)
+        tdSql.checkData(1, 1, 16)
+        tdSql.checkData(0, 2, 22)
+        tdSql.checkData(1, 2, 25)
+        tdSql.checkData(0, 5, "sttb3")
+        tdSql.checkData(1, 5, "sttb4")
+
+        tdSql.query("select * from stt order by ts")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, 21)
+        tdSql.checkData(0, 2, 2)
+        tdSql.checkData(1, 2, 21)
+        tdSql.checkData(0, 5, "stt3")
+        tdSql.checkData(1, 5, "stt4")
+
+        return
+
+    def checkDataTable(self):
+        tdSql.execute('use db_taosx')
+        tdSql.query("select * from meters_summary")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 120)
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, "San Francisco")
+
+        tdSql.execute('use abc1')
+        tdSql.query("select * from meters_summary")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 120)
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(0, 3, "San Francisco")
+
         return
 
     def checkData(self):
@@ -144,6 +204,19 @@ class TDTestCase:
 
         self.checkJson(cfgPath, "tmq_taosx_tmp")
         self.checkData()
+        self.checkDropData(False)
+
+        return
+
+    def checkWal1VgroupTable(self):
+        buildPath = tdCom.getBuildPath()
+        cfgPath = tdCom.getClientCfgPath()
+        cmdStr = '%s/build/bin/tmq_taosx_ci -c %s -sv 1 -dv 1 -t'%(buildPath, cfgPath)
+        tdLog.info(cmdStr)
+        os.system(cmdStr)
+
+        self.checkJson(cfgPath, "tmq_taosx_tmp")
+        self.checkDataTable()
 
         return
 
@@ -154,6 +227,7 @@ class TDTestCase:
         os.system(cmdStr)
 
         self.checkData()
+        self.checkDropData(False)
 
         return
 
@@ -163,7 +237,7 @@ class TDTestCase:
         tdLog.info(cmdStr)
         os.system(cmdStr)
 
-        self.checkDropData()
+        self.checkDropData(True)
 
         return
 
@@ -176,6 +250,19 @@ class TDTestCase:
 
         self.checkJson(cfgPath, "tmq_taosx_tmp_snapshot")
         self.checkData()
+        self.checkDropData(False)
+
+        return
+
+    def checkSnapshot1VgroupTable(self):
+        buildPath = tdCom.getBuildPath()
+        cfgPath = tdCom.getClientCfgPath()
+        cmdStr = '%s/build/bin/tmq_taosx_ci -c %s -sv 1 -dv 1 -s -t'%(buildPath, cfgPath)
+        tdLog.info(cmdStr)
+        os.system(cmdStr)
+
+        self.checkJson(cfgPath, "tmq_taosx_tmp_snapshot")
+        self.checkDataTable()
 
         return
 
@@ -186,6 +273,7 @@ class TDTestCase:
         os.system(cmdStr)
 
         self.checkData()
+        self.checkDropData(False)
 
         return
 
@@ -195,7 +283,7 @@ class TDTestCase:
         tdLog.info(cmdStr)
         os.system(cmdStr)
 
-        self.checkDropData()
+        self.checkDropData(True)
 
         return
 
@@ -203,6 +291,9 @@ class TDTestCase:
         tdSql.prepare()
         self.checkWal1Vgroup()
         self.checkSnapshot1Vgroup()
+
+        self.checkWal1VgroupTable()
+        self.checkSnapshot1VgroupTable()
 
         self.checkWalMultiVgroups()
         self.checkSnapshotMultiVgroups()

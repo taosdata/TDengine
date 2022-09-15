@@ -6633,12 +6633,7 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
         break;
       }
     } while (0);
-    for (int i = 0; i < taosArrayGetSize(pTagVals); ++i) {
-      STagVal* p = (STagVal*)taosArrayGet(pTagVals, i);
-      if (IS_VAR_DATA_TYPE(p->type)) {
-        taosMemoryFree(p->pData);
-      }
-    }
+
     taosArrayDestroy(pTagVals);
     if (code != TSDB_CODE_SUCCESS) {
       return code;

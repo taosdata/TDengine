@@ -362,12 +362,19 @@ static char* processCreateTable(SMqMetaRsp* metaRsp) {
   }
 
 _exit:
+  for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
+    pCreateReq = req.pReqs + iReq;
+    taosMemoryFreeClear(pCreateReq->comment);
+    if (pCreateReq->type == TSDB_CHILD_TABLE) {
+      taosArrayDestroy(pCreateReq->ctb.tagName);
+    }
+  }
   tDecoderClear(&decoder);
   return string;
 }
 
 static char* processAutoCreateTable(STaosxRsp* rsp) {
-  if(rsp->createTableNum == 0) return NULL;
+  if(rsp->createTableNum == 0) return strdup("");
 
   SDecoder*          decoder = taosMemoryCalloc(rsp->createTableNum, sizeof(SDecoder));
   SVCreateTbReq*     pCreateReq = taosMemoryCalloc(rsp->createTableNum, sizeof(SVCreateTbReq));
@@ -873,6 +880,14 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
   code = pRequest->code;
 
 end:
+  for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
+    pCreateReq = req.pReqs + iReq;
+    taosMemoryFreeClear(pCreateReq->comment);
+    if (pCreateReq->type == TSDB_CHILD_TABLE) {
+      taosArrayDestroy(pCreateReq->ctb.tagName);
+    }
+  }
+
   taosHashCleanup(pVgroupHashmap);
   destroyRequest(pRequest);
   tDecoderClear(&coder);
@@ -1621,6 +1636,9 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   code = pRequest->code;
 
 end:
+  tDeleteSMqDataRsp(&rspObj.rsp);
+  rspObj.resInfo.pRspMsg = NULL;
+  doFreeReqResultInfo(&rspObj.resInfo);
   tDecoderClear(&decoder);
   qDestroyQuery(pQuery);
   destroyRequest(pRequest);
@@ -1629,7 +1647,7 @@ end:
   return code;
 }
 
-static int32_t tmqWriteRaqMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) {
+static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   int32_t     code = TSDB_CODE_SUCCESS;
   SHashObj*   pVgHash = NULL;
   SQuery*     pQuery = NULL;
@@ -1711,6 +1729,33 @@ static int32_t tmqWriteRaqMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       goto end;
     }
 
+    // find schema data info
+    int32_t schemaLen = 0;
+    void* schemaData = NULL;
+    for(int j = 0; j < rspObj.rsp.createTableNum; j++){
+      void** dataTmp = taosArrayGet(rspObj.rsp.createTableReq, j);
+      int32_t* lenTmp = taosArrayGet(rspObj.rsp.createTableLen, j);
+
+      SDecoder           decoderTmp = {0};
+      SVCreateTbReq*     pCreateReq;
+
+      tDecoderInit(&decoderTmp, *dataTmp, *lenTmp);
+      if (tDecodeSVCreateTbReq(&decoderTmp, pCreateReq) < 0) {
+        tDecoderClear(&decoderTmp);
+        goto end;
+      }
+
+      ASSERT (pCreateReq->type == TSDB_CHILD_TABLE);
+      if(strcmp(tbName, pCreateReq->name) == 0){
+        schemaLen = *lenTmp;
+        schemaData = *dataTmp;
+        strcpy(pName.tname, pCreateReq->ctb.name);
+        tDecoderClear(&decoderTmp);
+        break;
+      }
+      tDecoderClear(&decoderTmp);
+    }
+
     code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST) {
       uError("WriteRaw:catalogGetTableMeta table not exist. table name: %s", tbName);
@@ -1737,32 +1782,6 @@ static int32_t tmqWriteRaqMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
     int32_t rows = rspObj.resInfo.numOfRows;
     int32_t extendedRowSize = rowSize + TD_ROW_HEAD_LEN - sizeof(TSKEY) + nVar * sizeof(VarDataOffsetT) +
                               (int32_t)TD_BITMAP_BYTES(pTableMeta->tableInfo.numOfColumns - 1);
-
-    // find schema data info
-    int32_t schemaLen = 0;
-    void* schemaData = NULL;
-    for(int j = 0; j < rspObj.rsp.createTableNum; j++){
-      void** dataTmp = taosArrayGet(rspObj.rsp.createTableReq, j);
-      int32_t* lenTmp = taosArrayGet(rspObj.rsp.createTableLen, j);
-
-      SDecoder           decoderTmp = {0};
-      SVCreateTbReq*     pCreateReq;
-
-      tDecoderInit(&decoderTmp, *dataTmp, *lenTmp);
-      if (tDecodeSVCreateTbReq(&decoderTmp, pCreateReq) < 0) {
-        tDecoderClear(&decoderTmp);
-        goto end;
-      }
-
-      ASSERT (pCreateReq->type == TSDB_CHILD_TABLE);
-      if(strcmp(tbName, pCreateReq->name) == 0){
-        schemaLen = *lenTmp;
-        schemaData = *dataTmp;
-        tDecoderClear(&decoderTmp);
-        break;
-      }
-      tDecoderClear(&decoderTmp);
-    }
 
     int32_t submitLen = sizeof(SSubmitBlk) + schemaLen + rows * extendedRowSize;
 
@@ -1912,6 +1931,9 @@ static int32_t tmqWriteRaqMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   code = pRequest->code;
 
   end:
+  tDeleteSTaosxRsp(&rspObj.rsp);
+  rspObj.resInfo.pRspMsg = NULL;
+  doFreeReqResultInfo(&rspObj.resInfo);
   tDecoderClear(&decoder);
   qDestroyQuery(pQuery);
   destroyRequest(pRequest);
@@ -2003,7 +2025,7 @@ int32_t tmq_get_raw(TAOS_RES* res, tmq_raw_data* raw) {
 }
 
 void tmq_free_raw(tmq_raw_data raw) {
-  if (raw.raw_type == RES_TYPE__TMQ) {
+  if (raw.raw_type == RES_TYPE__TMQ || raw.raw_type == RES_TYPE__TMQ_METADATA) {
     taosMemoryFree(raw.raw);
   }
 }
@@ -2030,7 +2052,7 @@ int32_t tmq_write_raw(TAOS* taos, tmq_raw_data raw) {
   } else if (raw.raw_type == RES_TYPE__TMQ) {
     return tmqWriteRawDataImpl(taos, raw.raw, raw.raw_len);
   } else if (raw.raw_type == RES_TYPE__TMQ_METADATA) {
-    return tmqWriteRaqMetaDataImpl(taos, raw.raw, raw.raw_len);
+    return tmqWriteRawMetaDataImpl(taos, raw.raw, raw.raw_len);
   }
   return TSDB_CODE_INVALID_PARA;
 }
