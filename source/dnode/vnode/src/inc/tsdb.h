@@ -384,6 +384,8 @@ struct SMemTable {
   STsdb           *pTsdb;
   SVBufPool       *pPool;
   volatile int32_t nRef;
+  int64_t          minVer;
+  int64_t          maxVer;
   TSKEY            minKey;
   TSKEY            maxKey;
   int64_t          nRow;
@@ -393,6 +395,7 @@ struct SMemTable {
     int32_t   nBucket;
     STbData **aBucket;
   };
+  STsdbReader *pReaderList;
 };
 
 struct TSDBROW {

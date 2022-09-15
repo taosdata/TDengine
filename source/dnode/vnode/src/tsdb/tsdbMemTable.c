@@ -44,6 +44,8 @@ int32_t tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable) {
   pMemTable->pTsdb = pTsdb;
   pMemTable->pPool = pTsdb->pVnode->inUse;
   pMemTable->nRef = 1;
+  pMemTable->minVer = VERSION_MAX;
+  pMemTable->maxVer = VERSION_MIN;
   pMemTable->minKey = TSKEY_MAX;
   pMemTable->maxKey = TSKEY_MIN;
   pMemTable->nRow = 0;
@@ -130,6 +132,10 @@ int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitMsgIter *pMsgI
     goto _err;
   }
 
+  // update
+  pMemTable->minVer = TMIN(pMemTable->minVer, version);
+  pMemTable->maxVer = TMAX(pMemTable->maxVer, version);
+
   return code;
 
 _err:
@@ -179,6 +185,8 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
   }
 
   pMemTable->nDel++;
+  pMemTable->minVer = TMIN(pMemTable->minVer, version);
+  pMemTable->maxVer = TMIN(pMemTable->maxVer, version);
 
   if (TSDB_CACHE_LAST_ROW(pMemTable->pTsdb->pVnode->config) && tsdbKeyCmprFn(&lastKey, &pTbData->maxKey) >= 0) {
     tsdbCacheDeleteLastrow(pTsdb->lruCache, pTbData->uid, eKey);
@@ -219,7 +227,6 @@ void *tsdbTbDataIterDestroy(STbDataIter *pIter) {
   if (pIter) {
     taosMemoryFree(pIter);
   }
-
   return NULL;
 }
 
