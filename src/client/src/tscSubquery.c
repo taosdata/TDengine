@@ -695,6 +695,12 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
 }
 
 void freeJoinSubqueryObj(SSqlObj* pSql) {
+  if (pSql->subState.numOfSub == 0) {
+    return;
+  }  
+
+  pthread_mutex_lock(&pSql->subState.mutex);
+
   for (int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
     SSqlObj* pSub = pSql->pSubs[i];
     if (pSub == NULL) {
@@ -707,13 +713,13 @@ void freeJoinSubqueryObj(SSqlObj* pSql) {
     taos_free_result(pSub);
     pSql->pSubs[i] = NULL;
   }
-
-  if (pSql->subState.states) {
-    pthread_mutex_destroy(&pSql->subState.mutex);
-  }
   
   tfree(pSql->subState.states);
   pSql->subState.numOfSub = 0;
+
+  pthread_mutex_unlock(&pSql->subState.mutex);
+
+  pthread_mutex_destroy(&pSql->subState.mutex);  
 }
 
 static int32_t quitAllSubquery(SSqlObj* pSqlSub, SSqlObj* pSqlObj, SJoinSupporter* pSupporter) {
@@ -901,7 +907,6 @@ bool tscReparseSql(SSqlObj *sql, int32_t code){
   }
 
   tscFreeSubobj(sql);      
-  tfree(sql->pSubs);
 
   sql->res.code = TSDB_CODE_SUCCESS;
   sql->retry++;
@@ -2180,7 +2185,6 @@ void tscHandleMasterJoinQuery(SSqlObj* pSql) {
   assert((pQueryInfo->type & TSDB_QUERY_TYPE_SUBQUERY) == 0);
 
   int32_t code = TSDB_CODE_SUCCESS;
-  pSql->subState.numOfSub = pQueryInfo->numOfTables;
 
   if (pSql->subState.states == NULL) {
     pSql->subState.states = calloc(pSql->subState.numOfSub, sizeof(*pSql->subState.states));
@@ -2191,6 +2195,8 @@ void tscHandleMasterJoinQuery(SSqlObj* pSql) {
     
     pthread_mutex_init(&pSql->subState.mutex, NULL);
   }
+
+  pSql->subState.numOfSub = pQueryInfo->numOfTables;
 
   memset(pSql->subState.states, 0, sizeof(*pSql->subState.states) * pSql->subState.numOfSub);
   tscDebug("0x%"PRIx64" reset all sub states to 0, start subquery, total:%d", pSql->self, pQueryInfo->numOfTables);
@@ -2251,7 +2257,12 @@ void tscHandleMasterJoinQuery(SSqlObj* pSql) {
 }
 
 void doCleanupSubqueries(SSqlObj *pSql, int32_t numOfSubs) {
-  assert(numOfSubs <= pSql->subState.numOfSub && numOfSubs >= 0);
+  pthread_mutex_lock(&pSql->subState.mutex);
+  if (numOfSubs > pSql->subState.numOfSub || numOfSubs <= 0 || pSql->subState.numOfSub <= 0) {
+    pthread_mutex_unlock(&pSql->subState.mutex);
+    return;
+  }
+
   
   for(int32_t i = 0; i < numOfSubs; ++i) {
     SSqlObj* pSub = pSql->pSubs[i];
@@ -2261,6 +2272,7 @@ void doCleanupSubqueries(SSqlObj *pSql, int32_t numOfSubs) {
     
     taos_free_result(pSub);
   }
+  pthread_mutex_unlock(&pSql->subState.mutex);
 }
 
 void tscLockByThread(int64_t *lockedBy) {
@@ -2365,8 +2377,10 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
   if (code != TSDB_CODE_SUCCESS) {
     tscFreeFirstRoundSup(&param);
     taos_free_result(pSql);
+    pthread_mutex_lock(&pParent->subState.mutex);
     pParent->subState.numOfSub = 0;
     tfree(pParent->pSubs);    
+    pthread_mutex_unlock(&pParent->subState.mutex);
     pParent->res.code = code;
     tscAsyncResultOnError(pParent);
     return;
@@ -2469,9 +2483,11 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
   tscFreeFirstRoundSup(&param);
 
   taos_free_result(pSql);
+  pthread_mutex_lock(&pParent->subState.mutex);
   pParent->subState.numOfSub = 0;
   tfree(pParent->pSubs);    
-
+  pthread_mutex_unlock(&pParent->subState.mutex);
+  
   if (resRows == 0) {
     pParent->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
     (*pParent->fp)(pParent->param, pParent, 0);
@@ -2493,8 +2509,10 @@ void tscFirstRoundCallback(void* param, TAOS_RES* tres, int code) {
 
     tscFreeFirstRoundSup(&param);
     taos_free_result(pSql);
+    pthread_mutex_lock(&parent->subState.mutex);
     parent->subState.numOfSub = 0;
     tfree(parent->pSubs);
+    pthread_mutex_unlock(&parent->subState.mutex);
     parent->res.code = c;
     tscAsyncResultOnError(parent);
     return;
@@ -3014,7 +3032,6 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
       }
 
       tscFreeSubobj(userSql);      
-      tfree(userSql->pSubs);
 
       userSql->res.code = TSDB_CODE_SUCCESS;
       userSql->retry++;
@@ -3382,7 +3399,9 @@ static bool needRetryInsert(SSqlObj* pParentObj, int32_t numOfSub) {
 }
 
 static void doFreeInsertSupporter(SSqlObj* pSqlObj) {
-  assert(pSqlObj != NULL && pSqlObj->subState.numOfSub > 0);
+  if (pSqlObj == NULL || pSqlObj->subState.numOfSub <= 0) {
+    return;
+  }
 
   for(int32_t i = 0; i < pSqlObj->subState.numOfSub; ++i) {
     SSqlObj* pSql = pSqlObj->pSubs[i];
