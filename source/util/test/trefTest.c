@@ -94,7 +94,7 @@ void *openRefSpace(void *param) {
   pSpace->rsetId = taosOpenRef(50, myfree);
 
   if (pSpace->rsetId < 0) {
-    printf("failed to open ref, reson:%s\n", tstrerror(pSpace->rsetId));
+    printf("failed to open ref, reason:%s\n", tstrerror(pSpace->rsetId));
     return NULL;
   } 
 
