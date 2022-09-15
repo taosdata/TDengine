@@ -790,10 +790,20 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
         if (mndCheckDbConflict(pNew->dbname1, pTrans)) conflict = true;
         if (mndCheckDbConflict(pNew->dbname2, pTrans)) conflict = true;
       }
+      if (pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
+        if (mndCheckDbConflict(pNew->dbname2, pTrans)) conflict = true; // for stb
+      }
     }
 
-    mError("trans:%d, can't execute since conflict with trans:%d, db1:%s db2:%s", pNew->id, pTrans->id, pTrans->dbname1,
-           pTrans->dbname2);
+    if (conflict) {
+      mError("trans:%d, db1:%s db2:%s type:%d, can't execute since conflict with trans:%d db1:%s db2:%s type:%d",
+             pNew->id, pNew->dbname1, pNew->dbname2, pNew->conflict, pTrans->id, pTrans->dbname1, pTrans->dbname2,
+             pTrans->conflict);
+    } else {
+      mDebug("trans:%d, db1:%s db2:%s type:%d, not conflict with trans:%d db1:%s db2:%s type:%d", pNew->id,
+             pNew->dbname1, pNew->dbname2, pNew->conflict, pTrans->id, pTrans->dbname1, pTrans->dbname2,
+             pTrans->conflict);
+    }
     sdbRelease(pMnode->pSdb, pTrans);
   }
 
