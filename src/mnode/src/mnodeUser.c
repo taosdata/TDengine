@@ -132,9 +132,9 @@ static int32_t mnodeUserActionRestored() {
   if (numOfRows <= 0 && dnodeIsFirstDeploy()) {
     mInfo("dnode first deploy, create root user");
     SAcctObj *pAcct = mnodeGetAcct(TSDB_DEFAULT_USER);
-    mnodeCreateUser(pAcct, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS, NULL);
-    mnodeCreateUser(pAcct, "monitor", tsInternalPass, NULL);
-    mnodeCreateUser(pAcct, "_"TSDB_DEFAULT_USER, tsInternalPass, NULL);
+    mnodeCreateUser(pAcct, TSDB_DEFAULT_USER, TSDB_DEFAULT_PASS, NULL, NULL);
+    mnodeCreateUser(pAcct, "monitor", tsInternalPass, NULL, NULL);
+    mnodeCreateUser(pAcct, "_"TSDB_DEFAULT_USER, tsInternalPass, NULL, NULL);
     mnodeDecAcctRef(pAcct);
   }
 
@@ -229,7 +229,7 @@ static int32_t mnodeUpdateUser(SUserObj *pUser, void *pMsg) {
   return code;
 }
 
-int32_t mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass, void *pMsg) {
+int32_t mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass, char *tags, void *pMsg) {
   int32_t code = acctCheck(pAcct, ACCT_GRANT_USER);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -259,6 +259,10 @@ int32_t mnodeCreateUser(SAcctObj *pAcct, char *name, char *pass, void *pMsg) {
   tstrncpy(pUser->user, name, TSDB_USER_LEN);
   taosEncryptPass((uint8_t*) pass, strlen(pass), pUser->pass);
   strcpy(pUser->acct, pAcct->user);
+  if (tags) {
+    strcpy(pUser->tags, tags);
+  }
+
   pUser->createdTime = taosGetTimestampMs();
   pUser->superAuth = 0;
   pUser->writeAuth = 1;
@@ -335,6 +339,14 @@ static int32_t mnodeGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   strcpy(pSchema[cols].name, "account");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
+
+  // tags
+  pShow->bytes[cols] = TSDB_USER_LEN + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "tags");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
 
   pMeta->numOfColumns = htons(cols);
   strcpy(pMeta->tableFname, "show users");
@@ -417,6 +429,11 @@ static int32_t mnodeRetrieveUsers(SShowObj *pShow, char *data, int32_t rows, voi
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pUser->acct, pShow->bytes[cols]);
     cols++;
 
+    // tags
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pUser->tags, pShow->bytes[cols]);
+    cols++;
+
     numOfRows++;
     mnodeDecUserRef(pUser);
   }
@@ -450,7 +467,7 @@ static int32_t mnodeProcessCreateUserMsg(SMnodeMsg *pMsg) {
   
   if (pOperUser->superAuth) {
     SCreateUserMsg *pCreate = pMsg->rpcMsg.pCont;
-    return mnodeCreateUser(pOperUser->pAcct, pCreate->user, pCreate->pass, pMsg);
+    return mnodeCreateUser(pOperUser->pAcct, pCreate->user, pCreate->pass, pCreate->tags, pMsg);
   } else {
     mError("user:%s, no rights to create user", pOperUser->user);
     return TSDB_CODE_MND_NO_RIGHTS;
@@ -534,6 +551,36 @@ static int32_t mnodeProcessAlterUserMsg(SMnodeMsg *pMsg) {
       code = mnodeUpdateUser(pUser, pMsg);
     } else {
       mError("user:%s, no rights to alter user", pOperUser->user);
+      code = TSDB_CODE_MND_NO_RIGHTS;
+    }
+  // ALTER TAGS
+  } else if ((pAlter->flag & TSDB_ALTER_USER_TAGS) != 0) {
+    // check has right
+    bool hasRight = false;
+    if (strcmp(pUser->user, TSDB_DEFAULT_USER) == 0) {
+      hasRight = false;
+    } else if (strcmp(pUser->user, pUser->acct) == 0) {
+      hasRight = false;
+    } else if (strcmp(pOperUser->user, TSDB_DEFAULT_USER) == 0) {
+      hasRight = true;
+    } else if (strcmp(pUser->user, pOperUser->user) == 0) {
+      hasRight = false;
+    } else if (pOperUser->superAuth) {
+      if (strcmp(pUser->user, TSDB_DEFAULT_USER) == 0) {
+        hasRight = false;
+      } else if (strcmp(pOperUser->acct, pUser->acct) != 0) {
+        hasRight = false;
+      } else {
+        hasRight = true;
+      }
+    }
+
+    // set tags new values
+    if (hasRight) {
+      strcpy(pUser->tags, pAlter->tags);
+      code = mnodeUpdateUser(pUser, pMsg);
+    } else {
+      mError("user:%s, no rights to alter user tags", pOperUser->user);
       code = TSDB_CODE_MND_NO_RIGHTS;
     }
   } else {
