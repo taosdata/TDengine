@@ -2665,7 +2665,9 @@ enum {
   PHY_DELETER_CODE_TABLE_FNAME,
   PHY_DELETER_CODE_TS_COL_NAME,
   PHY_DELETER_CODE_DELETE_TIME_RANGE,
-  PHY_DELETER_CODE_AFFECTED_ROWS
+  PHY_DELETER_CODE_AFFECTED_ROWS,
+  PHY_DELETER_CODE_START_TS,
+  PHY_DELETER_CODE_END_TS
 };
 
 static int32_t physiDeleteNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2689,6 +2691,12 @@ static int32_t physiDeleteNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_DELETER_CODE_AFFECTED_ROWS, nodeToMsg, pNode->pAffectedRows);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_DELETER_CODE_START_TS, nodeToMsg, pNode->pStartTs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_DELETER_CODE_END_TS, nodeToMsg, pNode->pEndTs);
   }
 
   return code;
@@ -2721,6 +2729,12 @@ static int32_t msgToPhysiDeleteNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_DELETER_CODE_AFFECTED_ROWS:
         code = msgToNodeFromTlv(pTlv, (void**)&pNode->pAffectedRows);
+        break;
+      case PHY_DELETER_CODE_START_TS:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pStartTs);
+        break;
+      case PHY_DELETER_CODE_END_TS:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pEndTs);
         break;
       default:
         break;

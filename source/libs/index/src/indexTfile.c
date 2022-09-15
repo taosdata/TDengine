@@ -323,10 +323,6 @@ static int32_t tfSearchCompareFunc(void* reader, SIndexTerm* tem, SIdxTRslt* tr,
   while ((rt = stmStNextWith(st, NULL)) != NULL) {
     FstSlice* s = &rt->data;
     char*     ch = (char*)fstSliceData(s, NULL);
-    // if (0 != strncmp(ch, tem->colName, tem->nColName)) {
-    //  swsResultDestroy(rt);
-    //  break;
-    //}
 
     TExeCond cond = cmpFn(ch, p, tem->colType);
     if (MATCH == cond) {
