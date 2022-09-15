@@ -3,7 +3,7 @@ title: Introduction
 toc_max_heading_level: 2
 ---
 
-TDengine is an [open source](https://tdengine.com/tdengine/open-source-time-series-database/), [high-performance](https://tdengine.com/tdengine/high-performance-time-series-database/), cloud native [time-series database](https://tdengine.com/tsdb/) optimized for Internet of Things (IoT), Connected Cars, and Industrial IoT. Its code, including its cluster feature is open source under GNU AGPL v3.0. Besides the database engine, it provides [caching](../develop/cache), [stream processing](../develop/stream), [data subscription](../develop/tmq) and other functionalities to reduce the system complexity and cost of development and operation.
+TDengine is an [open source](https://tdengine.com/tdengine/open-source-time-series-database/), [high-performance](https://tdengine.com/tdengine/high-performance-time-series-database/), [cloud native](https://tdengine.com/tdengine/cloud-native-time-series-database/) [time-series database](https://tdengine.com/tsdb/) optimized for Internet of Things (IoT), Connected Cars, and Industrial IoT. Its code, including its cluster feature is open source under GNU AGPL v3.0. Besides the database engine, it provides [caching](../develop/cache), [stream processing](../develop/stream), [data subscription](../develop/tmq) and other functionalities to reduce the system complexity and cost of development and operation.
 
 This section introduces the major features, competitive advantages, typical use-cases and benchmarks to help you get a high level overview of TDengine.
 
