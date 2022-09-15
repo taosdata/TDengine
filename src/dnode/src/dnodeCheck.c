@@ -229,12 +229,12 @@ static void dnodeAllocCheckItem() {
 }
 
 void dnodeCleanupCheck() {
-  for (ECheckItemType index = 0; index < TSDB_CHECK_ITEM_MAX; ++index) {
-    if (tsCheckItem[index].enable && tsCheckItem[index].stopFp) {
-      (*tsCheckItem[index].stopFp)();
+  for (ECheckItemType idx = 0; idx < TSDB_CHECK_ITEM_MAX; ++idx) {
+    if (tsCheckItem[idx].enable && tsCheckItem[idx].stopFp) {
+      (*tsCheckItem[idx].stopFp)();
     }
-    if (tsCheckItem[index].cleanUpFp) {
-      (*tsCheckItem[index].cleanUpFp)();
+    if (tsCheckItem[idx].cleanUpFp) {
+      (*tsCheckItem[idx].cleanUpFp)();
     }
   }
 }
@@ -242,19 +242,19 @@ void dnodeCleanupCheck() {
 int32_t dnodeInitCheck() {
   dnodeAllocCheckItem();
 
-  for (ECheckItemType index = 0; index < TSDB_CHECK_ITEM_MAX; ++index) {
-    if (tsCheckItem[index].initFp) {
-      if ((*tsCheckItem[index].initFp)() != 0) {
-        dError("failed to init check item:%s", tsCheckItem[index].name);
+  for (ECheckItemType idx = 0; idx < TSDB_CHECK_ITEM_MAX; ++idx) {
+    if (tsCheckItem[idx].initFp) {
+      if ((*tsCheckItem[idx].initFp)() != 0) {
+        dError("failed to init check item:%s", tsCheckItem[idx].name);
         return -1;
       }
     }
   }
 
-  for (ECheckItemType index = 0; index < TSDB_CHECK_ITEM_MAX; ++index) {
-    if (tsCheckItem[index].enable && tsCheckItem[index].startFp) {
-      if ((*tsCheckItem[index].startFp)() != 0) {
-        dError("failed to check item:%s", tsCheckItem[index].name);
+  for (ECheckItemType idx = 0; idx < TSDB_CHECK_ITEM_MAX; ++idx) {
+    if (tsCheckItem[idx].enable && tsCheckItem[idx].startFp) {
+      if ((*tsCheckItem[idx].startFp)() != 0) {
+        dError("failed to check item:%s", tsCheckItem[idx].name);
         exit(-1);
       }
     }

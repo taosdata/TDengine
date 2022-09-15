@@ -386,6 +386,7 @@ typedef struct SSqlObj {
   SSqlRes          res;
 
   SSubqueryState   subState;
+  pthread_mutex_t  mtxSubs;      // avoid double access pSubs after failure
   struct SSqlObj **pSubs;
   struct SSqlObj  *rootObj;
 
@@ -396,6 +397,10 @@ typedef struct SSqlObj {
   int32_t          retryReason;  // previous error code
   struct SSqlObj  *prev, *next;
   int64_t          self;
+
+  // connect alive
+  int64_t          lastAlive;
+  void *           pPrevContext;  
 } SSqlObj;
 
 typedef struct SSqlStream {

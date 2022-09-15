@@ -425,9 +425,9 @@ int WCSPatternMatch(const uint32_t *patterStr, const uint32_t *str, size_t size,
         return TSDB_PATTERN_MATCH;
       }
 
-      uint32_t accept[3] = {towupper(c), towlower(c), 0};
+      uint32_t accept_array[3] = {towupper(c), towlower(c), 0};
       while (1) {
-        size_t n = taosWcscspn(str, accept);
+        size_t n = taosWcscspn(str, accept_array);
 
         str += n;
         if (str[0] == 0 || (n >= size)) {

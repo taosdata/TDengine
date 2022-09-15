@@ -196,11 +196,26 @@ class TDTestCase:
 
         self._conn.schemaless_insert([
                                 "sts,t1=abc,t2=ab\"c,t3=ab\\,c,t4=ab\\=c,t5=ab\\ c c1=3i64,c3=L\"passitagin\",c2=true,c4=5f64,c5=5f64,c6=\"abc\" 1626006833640000000",
-                                "sts,t1=abc c1=3i64,c2=false,c3=L\"{\\\"date\\\":\\\"2020-01-01 08:00:00.000\\\",\\\"temperature\\\":20}\",c6=\"ab\\\\c\" 1626006833640000000"
+                                "sts,t1=abc c1=3i64,c2=false,c3=L\"{\\\"date\\\":\\\"2020-01-01 08:00:00.000\\\",\\\"temperature\\\":20}\",c6=\"ab\\\\c\" 1626006833640000000",
+                                "type_json5,__deviceId__=10 index=0,jsonAttri$j=\"{\\\"jsonC\\\":\\\"0\\\"}\" 1626006833640000001"
                                 ], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
 
         tdSql.query('select tbname from sts')
         tdSql.checkRows(2)
+
+        tdSql.query("select * from sts")
+        tdSql.checkData(1, 2, '''{"date":"2020-01-01 08:00:00.000","temperature":20}''')
+
+        tdSql.query("select * from type_json5")
+        tdSql.checkData(0, 2, '''{"jsonC":"0"}''')
+        try:
+            self._conn.schemaless_insert([
+                                    "measurement,host=host1 field1=12i,field2=2.0,fieldKey=\"Launch\" 1654078242716",
+                                    "measurement,host=host1"
+                                    ], TDSmlProtocolType.LINE.value, TDSmlTimestampType.MILLI_SECOND.value)
+            tdLog.exit("%s failed: no exception happen here" % __file__)           
+        except Exception as e:
+            pass
 
     def stop(self):
         tdSql.close()

@@ -22,7 +22,7 @@
 #include "vnodeMain.h"
 #include "vnodeStatus.h"
 
-uint32_t vnodeGetFileInfo(int32_t vgId, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fver) {
+uint32_t vnodeGetFileInfo(int32_t vgId, char *name, uint32_t *idx, uint32_t eindex, int64_t *size, uint64_t *fver) {
   SVnodeObj *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) {
     vError("vgId:%d, vnode not found while get file info", vgId);
@@ -30,7 +30,7 @@ uint32_t vnodeGetFileInfo(int32_t vgId, char *name, uint32_t *index, uint32_t ei
   }
 
   *fver = pVnode->fversion;
-  uint32_t ret = tsdbGetFileInfo(pVnode->tsdb, name, index, eindex, size);
+  uint32_t ret = tsdbGetFileInfo(pVnode->tsdb, name, idx, eindex, size);
 
   vnodeRelease(pVnode);
   return ret;

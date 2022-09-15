@@ -77,24 +77,25 @@ int32_t dnodeInitShell() {
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_RETRIEVE_FUNC] = dnodeDispatchToMReadQueue;
 
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_NETWORK_TEST]   = dnodeSendStartupStep;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_PROBE_CONN] = dnodeResponseProbeMsg;
 
   int32_t numOfThreads = (int32_t)((tsNumOfCores * tsNumOfThreadsPerCore) / 2.0);
   if (numOfThreads < 1) {
     numOfThreads = 1;
   }
 
-  SRpcInit rpcInit;
-  memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localPort    = tsDnodeShellPort;
-  rpcInit.label        = "SHELL";
-  rpcInit.numOfThreads = numOfThreads;
-  rpcInit.cfp          = dnodeProcessMsgFromShell;
-  rpcInit.sessions     = tsMaxShellConns;
-  rpcInit.connType     = TAOS_CONN_SERVER;
-  rpcInit.idleTime     = tsShellActivityTimer * 1000;
-  rpcInit.afp          = dnodeRetrieveUserAuthInfo;
+  SRpcInit rpcInital;
+  memset(&rpcInital, 0, sizeof(rpcInital));
+  rpcInital.localPort    = tsDnodeShellPort;
+  rpcInital.label        = "SHELL";
+  rpcInital.numOfThreads = numOfThreads;
+  rpcInital.cfp          = dnodeProcessMsgFromShell;
+  rpcInital.sessions     = tsMaxShellConns;
+  rpcInital.connType     = TAOS_CONN_SERVER;
+  rpcInital.idleTime     = tsShellActivityTimer * 1000;
+  rpcInital.afp          = dnodeRetrieveUserAuthInfo;
 
-  tsShellRpc = rpcOpen(&rpcInit);
+  tsShellRpc = rpcOpen(&rpcInital);
   if (tsShellRpc == NULL) {
     dError("failed to init shell rpc server");
     return -1;
@@ -258,10 +259,10 @@ SDnodeStatisInfo dnodeGetStatisInfo() {
   return info;
 }
 
-int32_t dnodeGetHttpStatusInfo(int32_t index) {
+int32_t dnodeGetHttpStatusInfo(int32_t idx) {
   int32_t httpStatus = 0;
 #ifdef HTTP_EMBEDDED
-    httpStatus = httpGetStatusCodeCount(index);
+    httpStatus = httpGetStatusCodeCount(idx);
 #endif
   return httpStatus;
 }

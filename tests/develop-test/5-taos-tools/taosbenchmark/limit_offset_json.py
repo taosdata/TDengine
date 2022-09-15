@@ -56,8 +56,6 @@ class TDTestCase:
         tdSql.checkData(0, 0, 8)
         tdSql.query("select count(*) from db.stb")
         tdSql.checkData(0, 0, 40)
-        tdSql.query("select distinct(c1) from db.stb")
-        tdSql.checkData(0, 0, None)
         tdSql.query("select distinct(c3) from db.stb")
         tdSql.checkData(0, 0, None)
         tdSql.query("select distinct(c4) from db.stb")

@@ -17,8 +17,7 @@
             "cache": 16,
             "blocks": 8,
             "precision": "ms",
-            "update": 0,
-            "maxtablesPerVnode": 1000
+            "update": 0
         },
         "super_tables": [{
             "name": "stb01",

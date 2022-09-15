@@ -89,7 +89,6 @@ class JoinPerf:
             "minRows": 100,
             "maxRows": 4096,
             "comp": 2,
-            "walLevel": 1,
             "cachelast": 0,
             "quorum": 1,
             "fsync": 3000,

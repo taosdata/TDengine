@@ -195,28 +195,28 @@ print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2  $data5_2  $data6_2  $dat
 print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $data7_3  $data8_3  $data9_3
 print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4  $data5_4  $data6_4  $data7_4  $data8_4  $data9_4
 
-if $data5_4 != master then
+if $data5_4 != leader then
   sleep 2000
   goto wait_dnode1_vgroup_slave
 endi
-if $data5_3 != slave then
+if $data5_3 != follower then
   sleep 2000
   goto wait_dnode1_vgroup_slave
 endi
-if $data5_2 != master then
+if $data5_2 != leader then
   sleep 2000
   goto wait_dnode1_vgroup_slave
 endi
 
-if $data7_4 != slave then
+if $data7_4 != follower then
   sleep 2000
   goto wait_dnode1_vgroup_slave
 endi
-if $data7_3 != master then
+if $data7_3 != leader then
   sleep 2000
   goto wait_dnode1_vgroup_slave
 endi
-if $data7_2 != slave then
+if $data7_2 != follower then
   sleep 2000
   goto wait_dnode1_vgroup_slave
 endi

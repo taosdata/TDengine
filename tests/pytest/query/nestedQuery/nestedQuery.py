@@ -2233,10 +2233,10 @@ class TDTestCase:
         sql = "select * from ( select ts , "
         for i in range(4094):
             sql += "c%d , " % (i)
-        sql += "c4094 from d0 "  
+        sql += "c4094 from d0 "
         sql += " %s )" % random.choice(order_where)
         sql += " %s ;" % random.choice(order_desc_where)
-        tdLog.info(len(sql))      
+        tdLog.info(len(sql))
         tdSql.query(sql)
         tdSql.checkCols(4096)
         tdSql.checkRows(1000)

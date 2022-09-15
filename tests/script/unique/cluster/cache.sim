@@ -57,9 +57,9 @@ endi
 #sql create table sys.st as select avg(taosd), avg(system) from sys.cpu interval(30s)
 
 sql show log.vgroups
-if $data05 != master then
+if $data05 != leader then
   return -1
 endi
-if $data15 != master then
+if $data15 != leader then
   return -1
 endi

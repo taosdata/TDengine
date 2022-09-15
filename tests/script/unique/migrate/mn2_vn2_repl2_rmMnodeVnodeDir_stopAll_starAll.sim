@@ -169,28 +169,28 @@ $d1v2status = $data7_4
 $d1v3status = $data7_2
 $d1v4status = $data7_3
 
-if $d2v2status != master then
+if $d2v2status != leader then
   sleep 2000
   goto wait_dnode1_vgroup_slave
 endi
-if $d2v3status != master then
+if $d2v3status != leader then
   sleep 2000
   goto wait_dnode1_vgroup_slave
 endi
-if $d2v4status != master then
+if $d2v4status != leader then
   sleep 2000
   goto wait_dnode1_vgroup_slave
 endi
 
-if $d1v2status != slave then
+if $d1v2status != follower then
   sleep 2000
   goto wait_dnode1_vgroup_slave
 endi
-if $d1v3status != slave then
+if $d1v3status != follower then
   sleep 2000
   goto wait_dnode1_vgroup_slave
 endi
-if $d1v4status != slave then
+if $d1v4status != follower then
   sleep 2000
   goto wait_dnode1_vgroup_slave
 endi

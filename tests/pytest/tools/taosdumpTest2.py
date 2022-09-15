@@ -63,6 +63,7 @@ class TDTestCase:
             os.makedirs("./taosdumptest/tmp")
         else:
             print("directory exists")
+            os.system("rm -rf ./taosdumptest/tmp/*")
 
         tdSql.prepare()
 
@@ -87,6 +88,7 @@ class TDTestCase:
 
         os.system("rm ./taosdumptest/tmp/*.sql")
         os.system("rm ./taosdumptest/tmp/*.avro*")
+        os.system("rm -rf ./taosdumptest/taosdump.*")
         os.system(
             "%s --databases db -o ./taosdumptest/tmp " %
             binPath)
@@ -122,6 +124,7 @@ class TDTestCase:
 
         os.system("rm ./taosdumptest/tmp/*.sql")
         os.system("rm ./taosdumptest/tmp/*.avro*")
+        os.system("rm -rf ./taosdumptest/tmp/taosdump.*")
         os.system("%s -D test -o ./taosdumptest/tmp -y" % binPath)
 
         tdSql.execute("drop database test")

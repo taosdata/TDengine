@@ -343,7 +343,7 @@ int32_t tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg) {
 #endif
 }
 
-uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t eindex, int64_t *size) {
+uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *sindex, uint32_t eindex, int64_t *size) {
   // TODO
   return 0;
 #if 0

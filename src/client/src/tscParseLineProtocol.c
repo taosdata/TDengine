@@ -930,7 +930,7 @@ _cleanup:
   free(colKVs);
 
   if (r == fromIndex) {
-    tscError("buffer can not fit one line");
+    tscDebug("buffer can not fit one line");
     *cTableSqlLen = 0;
   } else {
     *cTableSqlLen = totalLen;
@@ -1028,7 +1028,7 @@ static int32_t applyDataPointsWithSqlInsert(TAOS* taos, TAOS_SML_DATA_POINT* poi
 
         if (info->numBatches >= MAX_SML_SQL_INSERT_BATCHES) {
           tscError("SML:0x%"PRIx64" Apply points failed. exceeds max sql insert batches", info->id);
-          code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+          code = TSDB_CODE_TSC_TOO_MANY_SML_LINES;
           goto cleanup;
         }
 
@@ -1047,7 +1047,7 @@ static int32_t applyDataPointsWithSqlInsert(TAOS* taos, TAOS_SML_DATA_POINT* poi
   tscDebug("SML:0x%"PRIx64" sql: %s" , info->id, batch->sql);
   if (info->numBatches >= MAX_SML_SQL_INSERT_BATCHES) {
     tscError("SML:0x%"PRIx64" Apply points failed. exceeds max sql insert batches", info->id);
-    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    code = TSDB_CODE_TSC_TOO_MANY_SML_LINES;
     goto cleanup;
   }
   bool batchesExecuted[MAX_SML_SQL_INSERT_BATCHES] = {false};
@@ -1966,14 +1966,14 @@ int32_t convertSmlTimeStamp(TAOS_SML_KV *pVal, char *value,
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t parseSmlTimeStamp(TAOS_SML_KV **pTS, const char **index, SSmlLinesInfo* info) {
+static int32_t parseSmlTimeStamp(TAOS_SML_KV **pTS, const char **idx, SSmlLinesInfo* info) {
   const char *start, *cur;
   int32_t ret = TSDB_CODE_SUCCESS;
   int len = 0;
   char key[] = "ts";
   char *value = NULL;
 
-  start = cur = *index;
+  start = cur = *idx;
   *pTS = calloc(1, sizeof(TAOS_SML_KV));
 
   while(*cur != '\0') {
@@ -2013,8 +2013,8 @@ bool checkDuplicateKey(char *key, SHashObj *pHash, SSmlLinesInfo* info) {
   return false;
 }
 
-static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash, SSmlLinesInfo* info) {
-  const char *cur = *index;
+static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **idx, SHashObj *pHash, SSmlLinesInfo* info) {
+  const char *cur = *idx;
   char key[TSDB_COL_NAME_LEN + 1];  // +1 to avoid key[len] over write
   int16_t len = 0;
 
@@ -2048,16 +2048,17 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
   memcpy(pKV->key, key, len + 1);
   addEscapeCharToString(pKV->key, len);
   tscDebug("SML:0x%"PRIx64" Key:%s|len:%d", info->id, pKV->key, len);
-  *index = cur + 1;
+  *idx = cur + 1;
   return TSDB_CODE_SUCCESS;
 }
 
 
-static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
+static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
                           bool *is_last_kv, SSmlLinesInfo* info, bool isTag) {
   const char *start, *cur;
   int32_t     ret = TSDB_CODE_SUCCESS;
   char       *value = NULL;
+  int32_t     bufSize = TSDB_FUNC_BUF_SIZE;
   int16_t     len = 0;
 
   bool   kv_done = false;
@@ -2077,7 +2078,12 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
     val_rqoute
   } val_state;
 
-  start = cur = *index;
+  value = malloc(bufSize);
+  if (value == NULL) {
+    ret = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    goto error;
+  }
+  start = cur = *idx;
   tag_state = tag_common;
   val_state = val_common;
 
@@ -2095,22 +2101,20 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
 
           back_slash = false;
           cur++;
-          len++;
           break;
         }
 
         if (*cur == '"') {
-          if (cur == *index) {
+          if (cur == *idx) {
             tag_state = tag_lqoute;
           }
           cur += 1;
-          len += 1;
           break;
         } else if (*cur == 'L') {
-          line_len = strlen(*index);
+          line_len = strlen(*idx);
 
           /* common character at the end */
-          if (cur + 1 >= *index + line_len) {
+          if (cur + 1 >= *idx + line_len) {
             *is_last_kv = true;
             kv_done = true;
             break;
@@ -2118,11 +2122,10 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
 
           if (*(cur + 1) == '"') {
             /* string starts here */
-            if (cur + 1 == *index + 1) {
+            if (cur + 1 == *idx + 1) {
               tag_state = tag_lqoute;
             }
             cur += 2;
-            len += 2;
             break;
           }
         }
@@ -2131,8 +2134,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
         case '\\':
           back_slash = true;
           cur++;
-          len++;
-          break;
+          continue;
         case ',':
           kv_done = true;
           break;
@@ -2146,7 +2148,6 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
 
         default:
           cur++;
-          len++;
         }
 
         break;
@@ -2160,7 +2161,6 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
 
           back_slash = false;
           cur++;
-          len++;
           break;
         } else if (double_quote == true) {
           if (*cur != ' ' && *cur != ',' && *cur != '\0') {
@@ -2182,13 +2182,11 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
         case '\\':
           back_slash = true;
           cur++;
-          len++;
-          break;
+          continue;
 
         case '"':
           double_quote = true;
           cur++;
-          len++;
           break;
 
         case '\0':
@@ -2199,7 +2197,6 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
 
         default:
           cur++;
-          len++;
         }
 
         break;
@@ -2217,14 +2214,13 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
             goto error;
           }
 
-	  back_slash = false;
-	  cur++;
-	  len++;
+          back_slash = false;
+          cur++;
           break;
         }
 
         if (*cur == '"') {
-          if (cur == *index) {
+          if (cur == *idx) {
             val_state = val_lqoute;
           } else {
             if (*(cur - 1) != '\\') {
@@ -2235,13 +2231,12 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
           }
 
           cur += 1;
-          len += 1;
           break;
         } else if (*cur == 'L') {
-          line_len = strlen(*index);
+          line_len = strlen(*idx);
 
           /* common character at the end */
-          if (cur + 1 >= *index + line_len) {
+          if (cur + 1 >= *idx + line_len) {
             *is_last_kv = true;
             kv_done = true;
             break;
@@ -2249,15 +2244,13 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
 
           if (*(cur + 1) == '"') {
             /* string starts here */
-            if (cur + 1 == *index + 1) {
+            if (cur + 1 == *idx + 1) {
               val_state = val_lqoute;
               cur += 2;
-              len += 2;
             } else {
               /* MUST at the end of string */
-              if (cur + 2 >= *index + line_len) {
+              if (cur + 2 >= *idx + line_len) {
                 cur += 2;
-                len += 2;
                 *is_last_kv = true;
                 kv_done = true;
               } else {
@@ -2271,7 +2264,6 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
                   }
 
                   cur += 2;
-                  len += 2;
                   kv_done = true;
                 }
               }
@@ -2284,8 +2276,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
         case '\\':
           back_slash = true;
           cur++;
-          len++;
-          break;
+          continue;
 
         case ',':
           kv_done = true;
@@ -2300,7 +2291,6 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
 
         default:
           cur++;
-          len++;
         }
 
         break;
@@ -2311,10 +2301,11 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
             ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
             goto error;
           }
-
+          if (*cur == '"') {
+            start++;
+          }
           back_slash = false;
           cur++;
-          len++;
           break;
         } else if (double_quote == true) {
           if (*cur != ' ' && *cur != ',' && *cur != '\0') {
@@ -2336,13 +2327,11 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
         case '\\':
           back_slash = true;
           cur++;
-          len++;
-          break;
+          continue;
 
         case '"':
           double_quote = true;
           cur++;
-          len++;
           break;
 
         case '\0':
@@ -2353,7 +2342,6 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
 
         default:
           cur++;
-          len++;
         }
 
         break;
@@ -2362,42 +2350,54 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
       }
     }
 
+    if (start < cur) {
+      if (bufSize <= len + (cur - start)) {
+        bufSize *= 2;
+        char *tmp = realloc(value, bufSize);
+        if (tmp == NULL) {
+            ret = TSDB_CODE_TSC_OUT_OF_MEMORY;
+            goto error;
+        }
+        value = tmp;
+      }
+      memcpy(value + len, start, cur - start);  // [start, cur)
+      len += cur - start;
+      start = cur;
+    }
+
     if (kv_done == true) {
       break;
     }
   }
 
   if (len == 0 || ret != TSDB_CODE_SUCCESS) {
-    free(pKV->key);
-    pKV->key = NULL;
-    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+    ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+    goto error;
   }
 
-  value = calloc(len + 1, 1);
-  memcpy(value, start, len);
   value[len] = '\0';
   if (!convertSmlValueType(pKV, value, len, info, isTag)) {
     tscError("SML:0x%"PRIx64" Failed to convert sml value string(%s) to any type",
             info->id, value);
-    free(value);
     ret = TSDB_CODE_TSC_INVALID_VALUE;
     goto error;
   }
   free(value);
 
-  *index = (*cur == '\0') ? cur : cur + 1;
+  *idx = (*cur == '\0') ? cur : cur + 1;
   return ret;
 
 error:
-  //free previous alocated key field
+  //free previous alocated buffer and key field
+  free(value);
   free(pKV->key);
   pKV->key = NULL;
   return ret;
 }
 
-static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index,
+static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **idx,
                                    uint8_t *has_tags, SSmlLinesInfo* info) {
-  const char *cur = *index;
+  const char *cur = *idx;
   int16_t len = 0;
 
   pSml->stableName = calloc(TSDB_TABLE_NAME_LEN + TS_BACKQUOTE_CHAR_SIZE, 1);
@@ -2441,7 +2441,7 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
   addEscapeCharToString(pSml->stableName, len);
-  *index = cur + 1;
+  *idx = cur + 1;
   tscDebug("SML:0x%"PRIx64" Stable name in measurement:%s|len:%d", info->id, pSml->stableName, len);
 
   return TSDB_CODE_SUCCESS;
@@ -2464,10 +2464,10 @@ int32_t isValidChildTableName(const char *pTbName, int16_t len, SSmlLinesInfo* i
 
 
 static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
-                               const char **index, bool isField,
+                               const char **idx, bool isField,
                                TAOS_SML_DATA_POINT* smlData, SHashObj *pHash,
                                SSmlLinesInfo* info) {
-  const char *cur = *index;
+  const char *cur = *idx;
   int32_t ret = TSDB_CODE_SUCCESS;
   TAOS_SML_KV *pkv;
   bool is_last_kv = false;
@@ -2555,7 +2555,7 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
 error:
   return ret;
 done:
-  *index = cur;
+  *idx = cur;
   return ret;
 }
 
@@ -2575,13 +2575,13 @@ static void moveTimeStampToFirstKv(TAOS_SML_DATA_POINT** smlData, TAOS_SML_KV *t
 }
 
 int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* smlData, SSmlLinesInfo* info) {
-  const char* index = sql;
+  const char* idx = sql;
   int32_t ret = TSDB_CODE_SUCCESS;
   uint8_t has_tags = 0;
   TAOS_SML_KV *timestamp = NULL;
   SHashObj *keyHashTable = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
 
-  ret = parseSmlMeasurement(smlData, &index, &has_tags, info);
+  ret = parseSmlMeasurement(smlData, &idx, &has_tags, info);
   if (ret) {
     tscError("SML:0x%"PRIx64" Unable to parse measurement", info->id);
     taosHashCleanup(keyHashTable);
@@ -2591,7 +2591,7 @@ int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* smlData, SSmlLinesInf
 
   //Parse Tags
   if (has_tags) {
-    ret = parseSmlKvPairs(&smlData->tags, &smlData->tagNum, &index, false, smlData, keyHashTable, info);
+    ret = parseSmlKvPairs(&smlData->tags, &smlData->tagNum, &idx, false, smlData, keyHashTable, info);
     if (ret) {
       tscError("SML:0x%"PRIx64" Unable to parse tag", info->id);
       taosHashCleanup(keyHashTable);
@@ -2601,17 +2601,23 @@ int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* smlData, SSmlLinesInf
   tscDebug("SML:0x%"PRIx64" Parse tags finished, num of tags:%d", info->id, smlData->tagNum);
 
   //Parse fields
-  ret = parseSmlKvPairs(&smlData->fields, &smlData->fieldNum, &index, true, smlData, keyHashTable, info);
+  ret = parseSmlKvPairs(&smlData->fields, &smlData->fieldNum, &idx, true, smlData, keyHashTable, info);
   if (ret) {
     tscError("SML:0x%"PRIx64" Unable to parse field", info->id);
     taosHashCleanup(keyHashTable);
     return ret;
   }
   tscDebug("SML:0x%"PRIx64" Parse fields finished, num of fields:%d", info->id, smlData->fieldNum);
+  if (smlData->fieldNum <= 1) {
+    tscDebug("SML:0x%"PRIx64" Parse fields error, no field in line", info->id);
+    taosHashCleanup(keyHashTable);
+    return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
+  }
+  
   taosHashCleanup(keyHashTable);
 
   //Parse timestamp
-  ret = parseSmlTimeStamp(&timestamp, &index, info);
+  ret = parseSmlTimeStamp(&timestamp, &idx, info);
   if (ret) {
     tscError("SML:0x%"PRIx64" Unable to parse timestamp", info->id);
     return ret;

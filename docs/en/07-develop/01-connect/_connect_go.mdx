@@ -1,0 +1,17 @@
+#### Unified Database Access Interface
+
+```go title="Native Connection"
+{{#include docs/examples/go/connect/cgoexample/main.go}}
+```
+
+```go title="REST Connection"
+{{#include docs/examples/go/connect/restexample/main.go}}
+```
+
+#### Advanced Features
+
+The af package of driver-go can also be used to establish connection, with this way some advanced features of TDengine, like parameter binding and subscription, can be used.
+
+```go title="Establish native connection using af package"
+{{#include docs/examples/go/connect/afconn/main.go}}
+```

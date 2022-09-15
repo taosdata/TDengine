@@ -28,13 +28,13 @@ static void    tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rm
 static int     tsdbAddTableIntoIndex(STsdbMeta *pMeta, STable *pTable, bool refSuper);
 static int     tsdbRemoveTableFromIndex(STsdbMeta *pMeta, STable *pTable);
 static int     tsdbInitTableCfg(STableCfg *config, ETableType type, uint64_t uid, int32_t tid);
-static int     tsdbTableSetSchema(STableCfg *config, STSchema *pSchema, bool dup);
-static int     tsdbTableSetName(STableCfg *config, char *name, bool dup);
-static int     tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool dup);
-static int     tsdbTableSetSName(STableCfg *config, char *sname, bool dup);
+static int     tsdbTableSetSchema(STableCfg *config, STSchema *pSchema, bool duplicate);
+static int     tsdbTableSetName(STableCfg *config, char *name, bool duplicate);
+static int     tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool duplicate);
+static int     tsdbTableSetSName(STableCfg *config, char *sname, bool duplicate);
 static int     tsdbTableSetSuperUid(STableCfg *config, uint64_t uid);
-static int     tsdbTableSetTagValue(STableCfg *config, SKVRow row, bool dup);
-static int     tsdbTableSetStreamSql(STableCfg *config, char *sql, bool dup);
+static int     tsdbTableSetTagValue(STableCfg *config, SKVRow row, bool duplicate);
+static int     tsdbTableSetStreamSql(STableCfg *config, char *sql, bool duplicate);
 static int     tsdbEncodeTableName(void **buf, tstr *name);
 static void *  tsdbDecodeTableName(void *buf, tstr **name);
 static int     tsdbEncodeTable(void **buf, STable *pTable);
@@ -1236,8 +1236,8 @@ static int tsdbInitTableCfg(STableCfg *config, ETableType type, uint64_t uid, in
   return 0;
 }
 
-static int tsdbTableSetSchema(STableCfg *config, STSchema *pSchema, bool dup) {
-  if (dup) {
+static int tsdbTableSetSchema(STableCfg *config, STSchema *pSchema, bool duplicate) {
+  if (duplicate) {
     config->schema = tdDupSchema(pSchema);
     if (config->schema == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -1249,8 +1249,8 @@ static int tsdbTableSetSchema(STableCfg *config, STSchema *pSchema, bool dup) {
   return 0;
 }
 
-static int tsdbTableSetName(STableCfg *config, char *name, bool dup) {
-  if (dup) {
+static int tsdbTableSetName(STableCfg *config, char *name, bool duplicate) {
+  if (duplicate) {
     config->name = strdup(name);
     if (config->name == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -1263,13 +1263,13 @@ static int tsdbTableSetName(STableCfg *config, char *name, bool dup) {
   return 0;
 }
 
-static int tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool dup) {
+static int tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool duplicate) {
   if (config->type != TSDB_CHILD_TABLE) {
     terrno = TSDB_CODE_TDB_INVALID_CREATE_TB_MSG;
     return -1;
   }
 
-  if (dup) {
+  if (duplicate) {
     config->tagSchema = tdDupSchema(pSchema);
     if (config->tagSchema == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -1281,13 +1281,13 @@ static int tsdbTableSetTagSchema(STableCfg *config, STSchema *pSchema, bool dup)
   return 0;
 }
 
-static int tsdbTableSetSName(STableCfg *config, char *sname, bool dup) {
+static int tsdbTableSetSName(STableCfg *config, char *sname, bool duplicate) {
   if (config->type != TSDB_CHILD_TABLE) {
     terrno = TSDB_CODE_TDB_INVALID_CREATE_TB_MSG;
     return -1;
   }
 
-  if (dup) {
+  if (duplicate) {
     config->sname = strdup(sname);
     if (config->sname == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -1309,13 +1309,13 @@ static int tsdbTableSetSuperUid(STableCfg *config, uint64_t uid) {
   return 0;
 }
 
-static int tsdbTableSetTagValue(STableCfg *config, SKVRow row, bool dup) {
+static int tsdbTableSetTagValue(STableCfg *config, SKVRow row, bool duplicate) {
   if (config->type != TSDB_CHILD_TABLE) {
     terrno = TSDB_CODE_TDB_INVALID_CREATE_TB_MSG;
     return -1;
   }
 
-  if (dup) {
+  if (duplicate) {
     config->tagValues = tdKVRowDup(row);
     if (config->tagValues == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -1328,13 +1328,13 @@ static int tsdbTableSetTagValue(STableCfg *config, SKVRow row, bool dup) {
   return 0;
 }
 
-static int tsdbTableSetStreamSql(STableCfg *config, char *sql, bool dup) {
+static int tsdbTableSetStreamSql(STableCfg *config, char *sql, bool duplicate) {
   if (config->type != TSDB_STREAM_TABLE) {
     terrno = TSDB_CODE_TDB_INVALID_CREATE_TB_MSG;
     return -1;
   }
 
-  if (dup) {
+  if (duplicate) {
     config->sql = strdup(sql);
     if (config->sql == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;

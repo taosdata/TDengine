@@ -304,14 +304,14 @@ bool isNEleNull(SDataCol *pCol, int nEle) {
   return true;
 }
 
-static FORCE_INLINE void dataColSetNullAt(SDataCol *pCol, int index) {
+static FORCE_INLINE void dataColSetNullAt(SDataCol *pCol, int idx) {
   if (IS_VAR_DATA_TYPE(pCol->type)) {
-    pCol->dataOff[index] = pCol->len;
+    pCol->dataOff[idx] = pCol->len;
     char *ptr = POINTER_SHIFT(pCol->pData, pCol->len);
     setVardataNull(ptr, pCol->type);
     pCol->len += varDataTLen(ptr);
   } else {
-    setNull(POINTER_SHIFT(pCol->pData, TYPE_BYTES[pCol->type] * index), pCol->type, pCol->bytes);
+    setNull(POINTER_SHIFT(pCol->pData, TYPE_BYTES[pCol->type] * idx), pCol->type, pCol->bytes);
     pCol->len += TYPE_BYTES[pCol->type];
   }
 }

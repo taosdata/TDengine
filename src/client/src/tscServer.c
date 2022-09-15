@@ -281,6 +281,114 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
   }
 }
 
+// if return true, send probe connection msg to sever ok
+bool sendProbeConnMsg(SSqlObj* pSql, int64_t stime, bool *pReqOver) {
+  if(stime == 0) {
+    // not start , no need probe
+    tscInfo("PROBE 0x%" PRIx64 " not start, no need probe.", pSql->self);
+    return true;
+  }
+
+  int64_t start = MAX(stime, pSql->lastAlive);
+  int32_t diff = (int32_t)(taosGetTimestampMs() - start);
+  if (diff < tsProbeSeconds * 1000) {
+    // exec time short , need not probe alive
+    tscInfo("PROBE 0x%" PRIx64 " not arrived probe time. cfg timeout=%ds, no need probe. lastAlive=%" PRId64 " stime=%" PRId64, \
+                      pSql->self, tsProbeSeconds, pSql->lastAlive, pSql->stime);
+    return true;
+  }
+
+  if (diff > tsProbeKillSeconds * 1000) {
+    // need kill query
+    tscInfo("PROBE 0x%" PRIx64 " kill query by probe. because arrived kill time. time=%ds cfg timeout=%ds lastAlive=%" PRId64 " stime=%" PRId64, \
+                    pSql->self, diff/1000, tsProbeKillSeconds, pSql->lastAlive, pSql->stime);
+
+    return false;
+  }
+
+  if (pSql->pPrevContext == NULL) {
+    // last connect info save uncompletely, so can't probe
+    tscInfo("PROBE 0x%" PRIx64 " save last connect info uncompletely. prev context is null", pSql->self);
+    return true;
+  }
+
+  if(pSql->rpcRid == -1) {
+    // cancel or reponse ok from server, so need not probe
+    tscInfo("PROBE 0x%" PRIx64 " rpcRid is -1, response ok. no need probe.", pSql->self);
+    return true;
+  }
+  
+  bool ret = rpcSendProbe(pSql->rpcRid, pSql->pPrevContext, pReqOver);
+  if (!(*pReqOver))
+    tscInfo("PROBE 0x%" PRIx64 " send probe msg, ret=%d rpcRid=0x%" PRIx64, pSql->self, ret, pSql->rpcRid);
+  return ret;
+}
+
+// check have broken link queries than killed
+void checkBrokenQueries(STscObj *pTscObj) {
+  tscDebug("PROBE checkBrokenQueries pTscObj=%p pTscObj->rid=0x%" PRIx64, pTscObj, pTscObj->rid);
+  SSqlObj *pSql = pTscObj->sqlList;
+  while (pSql) {
+    // avoid sqlobj may not be correctly removed from sql list
+    if (pSql->sqlstr == NULL) {
+      pSql = pSql->next;
+      continue;
+    }
+
+    bool kill = false;
+    bool reqOver = false;
+    int32_t numOfSub = pSql->subState.numOfSub;
+    tscInfo("PROBE 0x%" PRIx64 " start checking sql alive, numOfSub=%d sql=%s stime=%" PRId64 " alive=%" PRId64 " rpcRid=0x%" PRIx64 \
+                      ,pSql->self, numOfSub, pSql->sqlstr == NULL ? "" : pSql->sqlstr, pSql->stime, pSql->lastAlive, pSql->rpcRid);
+    if (numOfSub == 0) {
+      // no sub sql
+      if(!sendProbeConnMsg(pSql, pSql->stime, &reqOver)) {
+        // need kill
+        tscInfo("PROBE 0x%" PRIx64 " need break link done. rpcRid=0x%" PRIx64, pSql->self, pSql->rpcRid);
+        kill = true;
+      }
+
+      if (reqOver) {
+        // current request is finished over, so upate alive to now
+        pSql->lastAlive = taosGetTimestampMs();
+      }
+    } else {
+      // lock subs
+      pthread_mutex_lock(&pSql->subState.mutex);
+      if (pSql->pSubs) {
+        // have sub sql
+        for (int i = 0; i < pSql->subState.numOfSub; i++) {
+          SSqlObj *pSubSql = pSql->pSubs[i];
+          if(pSubSql) {
+            tscInfo("PROBE 0x%" PRIx64 " sub sql app is 0x%" PRIx64, pSql->self, pSubSql->self);
+            if(!sendProbeConnMsg(pSubSql, pSql->stime, &reqOver)) {
+              // need kill
+              tscInfo("PROBE 0x%" PRIx64 " i=%d sub app=0x%" PRIx64 " need break link done. rpcRid=0x%" PRIx64, pSql->self, i, pSubSql->self, pSubSql->rpcRid);
+              kill = true;
+              break;
+            }
+
+            if (reqOver) {
+              // current request is finished over, so upate alive to now
+              pSubSql->lastAlive = taosGetTimestampMs();
+            }
+          }
+        }
+      }
+      // unlock
+      pthread_mutex_unlock(&pSql->subState.mutex);
+    }
+
+    // kill query
+    if(kill) {
+      taos_stop_query(pSql);
+    }
+    
+    // move next
+    pSql = pSql->next;
+  }
+} 
+
 void tscProcessActivityTimer(void *handle, void *tmrId) {
   int64_t rid = (int64_t) handle;
   STscObj *pObj = taosAcquireRef(tscRefId, rid);
@@ -295,6 +403,18 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
   }
 
   assert(pHB->self == pObj->hbrid);
+
+  // check queries already death
+  static int activetyCnt = 0;
+  if (++activetyCnt > tsProbeInterval) { // 1.5s * 40 = 60s interval call check queries alive
+    activetyCnt = 0;
+
+    // call check if have query doing
+    if(pObj->sqlList) {
+      // have queries executing
+      checkBrokenQueries(pObj);
+    }
+  }
 
   pHB->retry = 0;
   int32_t code = tscBuildAndSendRequest(pHB, NULL);
@@ -333,8 +453,14 @@ int tscSendMsgToServer(SSqlObj *pSql) {
       .code    = 0
   };
   
-  rpcSendRequest(pObj->pRpcObj->pDnodeConn, &pSql->epSet, &rpcMsg, &pSql->rpcRid);
-  return TSDB_CODE_SUCCESS;
+  if(rpcSendRequest(pObj->pRpcObj->pDnodeConn, &pSql->epSet, &rpcMsg, &pSql->rpcRid) != BOOL_FALSE) {
+    if(pSql->cmd.command == TSDB_SQL_SELECT )
+      rpcSaveSendInfo(pSql->rpcRid, &pSql->pPrevContext);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  tscError("0x%"PRIx64" rpc send data failed. msg=%s", pSql->self, taosMsg[pSql->cmd.msgType]);
+  return TSDB_CODE_TSC_SEND_DATA_FAILED;
 }
 
 // handle three situation
@@ -740,13 +866,13 @@ static char *doSerializeTableInfo(SQueryTableMsg *pQueryMsg, SSqlObj *pSql, STab
     
     int32_t vgId = -1;
     if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-      int32_t index = pTableMetaInfo->vgroupIndex;
-      assert(index >= 0);
+      int32_t idx = pTableMetaInfo->vgroupIndex;
+      assert(idx >= 0);
 
       SVgroupMsg* pVgroupInfo = NULL;
       if (pTableMetaInfo->vgroupList && pTableMetaInfo->vgroupList->numOfVgroups > 0) {
-        assert(index < pTableMetaInfo->vgroupList->numOfVgroups);
-        pVgroupInfo = &pTableMetaInfo->vgroupList->vgroups[index];
+        assert(idx < pTableMetaInfo->vgroupList->numOfVgroups);
+        pVgroupInfo = &pTableMetaInfo->vgroupList->vgroups[idx];
       } else {
         tscError("0x%"PRIx64" No vgroup info found", pSql->self);
         
@@ -756,7 +882,7 @@ static char *doSerializeTableInfo(SQueryTableMsg *pQueryMsg, SSqlObj *pSql, STab
 
       vgId = pVgroupInfo->vgId;
       tscSetDnodeEpSet(&pSql->epSet, pVgroupInfo);
-      tscDebug("0x%"PRIx64" query on stable, vgIndex:%d, numOfVgroups:%d", pSql->self, index, pTableMetaInfo->vgroupList->numOfVgroups);
+      tscDebug("0x%"PRIx64" query on stable, vgIndex:%d, numOfVgroups:%d", pSql->self, idx, pTableMetaInfo->vgroupList->numOfVgroups);
     } else {
       vgId = pTableMeta->vgId;
 
@@ -778,11 +904,11 @@ static char *doSerializeTableInfo(SQueryTableMsg *pQueryMsg, SSqlObj *pSql, STab
     pQueryMsg->numOfTables = htonl(1);  // set the number of tables
     pMsg += sizeof(STableIdInfo);
   } else { // it is a subquery of the super table query, this EP info is acquired from vgroupInfo
-    int32_t index = pTableMetaInfo->vgroupIndex;
+    int32_t idx = pTableMetaInfo->vgroupIndex;
     int32_t numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
-    assert(index >= 0 && index < numOfVgroups);
+    assert(idx >= 0 && idx < numOfVgroups);
 
-    SVgroupTableInfo* pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, index);
+    SVgroupTableInfo* pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, idx);
 
     // set the vgroup info 
     tscSetDnodeEpSet(&pSql->epSet, &pTableIdList->vgInfo);
@@ -792,7 +918,7 @@ static char *doSerializeTableInfo(SQueryTableMsg *pQueryMsg, SSqlObj *pSql, STab
     pQueryMsg->numOfTables = htonl(numOfTables);  // set the number of tables
 
     tscDebug("0x%"PRIx64" query on stable, vgId:%d, numOfTables:%d, vgIndex:%d, numOfVgroups:%d", pSql->self,
-             pTableIdList->vgInfo.vgId, numOfTables, index, numOfVgroups);
+             pTableIdList->vgInfo.vgId, numOfTables, idx, numOfVgroups);
 
     // serialize each table id info
     for(int32_t i = 0; i < numOfTables; ++i) {
@@ -2557,18 +2683,18 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   
   SFieldInfo* pFieldInfo = &pQueryInfo->fieldsInfo;
   
-  SColumnIndex index = {0};
+  SColumnIndex idx = {0};
   pSchema = pMetaMsg->schema;
 
   uint64_t uid = pTableMetaInfo->pTableMeta->id.uid;
   for (int16_t i = 0; i < pMetaMsg->numOfColumns; ++i, ++pSchema) {
-    index.columnIndex = i;
+    idx.columnIndex = i;
     tscColumnListInsert(pQueryInfo->colList, i, uid, pSchema);
     
     TAOS_FIELD f = tscCreateField(pSchema->type, pSchema->name, pSchema->bytes);
     SInternalField* pInfo = tscFieldInfoAppend(pFieldInfo, &f);
     
-    pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &index,
+    pInfo->pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &idx,
                      pTableSchema[i].type, pTableSchema[i].bytes, getNewResColId(pCmd), pTableSchema[i].bytes, false);
   }
   
@@ -3165,7 +3291,9 @@ int tscRenewTableMeta(SSqlObj *pSql) {
   pSql->rootObj->retryReason = pSql->retryReason;
 
   SSqlObj *rootSql = pSql->rootObj;
+  pthread_mutex_lock(&rootSql->mtxSubs);
   tscFreeSubobj(rootSql);
+  pthread_mutex_unlock(&rootSql->mtxSubs);
   tfree(rootSql->pSubs);
   tscResetSqlCmd(&rootSql->cmd, true, rootSql->self);
 

@@ -146,7 +146,7 @@ if $dnode4Vtatus != offline then
   sleep 2000
   goto wait_dnode4_vgroup_offline
 endi
-if $dnode3Vtatus != master then
+if $dnode3Vtatus != leader then
   sleep 2000
   goto wait_dnode4_vgroup_offline
 endi
@@ -210,7 +210,7 @@ print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $dat
 $dnode4Vtatus = $data5_2
 $dnode3Vtatus = $data7_2
 
-if $dnode4Vtatus != slave then
+if $dnode4Vtatus != follower then
   sleep 2000
   goto wait_dnode4_vgroup_slave
 endi
@@ -243,7 +243,7 @@ print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $dat
 $dnode4Vtatus = $data5_2
 $dnode3Vtatus = $data7_2
 
-if $dnode4Vtatus != master then
+if $dnode4Vtatus != leader then
   sleep 2000
   goto wait_dnode4_vgroup_master
 endi
@@ -317,7 +317,7 @@ print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $dat
 $dnode4Vtatus = $data5_2
 $dnode3Vtatus = $data7_2
 
-if $dnode4Vtatus != slave then
+if $dnode4Vtatus != follower then
   sleep 2000
   goto wait_dnode4_vgroup_slave_2
 endi
@@ -350,7 +350,7 @@ print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $dat
 $dnode4Vtatus = $data5_2
 $dnode3Vtatus = $data7_2
 
-if $dnode4Vtatus != master then
+if $dnode4Vtatus != leader then
   sleep 2000
   goto wait_dnode4_vgroup_master_2
 endi
@@ -440,7 +440,7 @@ print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $dat
 $dnode4Vtatus = $data5_2
 $dnode3Vtatus = $data7_2
 
-if $dnode4Vtatus != slave then
+if $dnode4Vtatus != follower then
   sleep 2000
   goto wait_dnode4_vgroup_slave_3
 endi
@@ -473,7 +473,7 @@ print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $dat
 $dnode4Vtatus = $data5_2
 $dnode3Vtatus = $data7_2
 
-if $dnode4Vtatus != master then
+if $dnode4Vtatus != leader then
   sleep 2000
   goto wait_dnode4_vgroup_master_3
 endi

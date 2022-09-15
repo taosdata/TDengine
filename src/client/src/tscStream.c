@@ -424,8 +424,8 @@ static void tscSetNextLaunchTimer(SSqlStream *pStream, SSqlObj *pSql) {
       return;
     }
   } else {
-    int64_t stime = taosTimeTruncate(pStream->stime - 1, &pStream->interval, pStream->precision);
-    if (stime >= pStream->etime) {
+    int64_t startTime = taosTimeTruncate(pStream->stime - 1, &pStream->interval, pStream->precision);
+    if (startTime >= pStream->etime) {
       tscDebug("0x%"PRIx64" stream:%p, stime:%" PRId64 " is larger than end time: %" PRId64 ", stop the stream", pStream->pSql->self, pStream,
                pStream->stime, pStream->etime);
       // TODO : How to terminate stream here
@@ -505,7 +505,7 @@ static int32_t tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int64_t tscGetStreamStartTimestamp(SSqlObj *pSql, SSqlStream *pStream, int64_t stime) {
+static int64_t tscGetStreamStartTimestamp(SSqlObj *pSql, SSqlStream *pStream, int64_t startTime) {
   SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
   
   if (pStream->isProject) {
@@ -513,31 +513,31 @@ static int64_t tscGetStreamStartTimestamp(SSqlObj *pSql, SSqlStream *pStream, in
     pStream->interval.interval = tsProjectExecInterval;
     pStream->interval.sliding = tsProjectExecInterval;
 
-    if (stime != INT64_MIN) {  // first projection start from the latest event timestamp
-      assert(stime >= pQueryInfo->window.skey);
-      stime += 1;  // exclude the last records from table
+    if (startTime != INT64_MIN) {  // first projection start from the latest event timestamp
+      assert(startTime >= pQueryInfo->window.skey);
+      startTime += 1;  // exclude the last records from table
     } else {
-      stime = pQueryInfo->window.skey;
+      startTime = pQueryInfo->window.skey;
     }
   } else {             // timewindow based aggregation stream
-    if (stime == INT64_MIN) {  // no data in meter till now
+    if (startTime == INT64_MIN) {  // no data in meter till now
       if (pQueryInfo->window.skey != INT64_MIN) {
-        stime = pQueryInfo->window.skey;
+        startTime = pQueryInfo->window.skey;
       } else {
-        return stime;
+        return startTime;
       }
 
-      stime = taosTimeTruncate(stime, &pStream->interval, pStream->precision);
+      startTime = taosTimeTruncate(startTime, &pStream->interval, pStream->precision);
     } else {
-      int64_t newStime = taosTimeTruncate(stime, &pStream->interval, pStream->precision);
-      if (newStime != stime) {
-        tscWarn("0x%"PRIx64" stream:%p, last timestamp:%" PRId64 ", reset to:%" PRId64, pSql->self, pStream, stime, newStime);
-        stime = newStime;
+      int64_t newStime = taosTimeTruncate(startTime, &pStream->interval, pStream->precision);
+      if (newStime != startTime) {
+        tscWarn("0x%"PRIx64" stream:%p, last timestamp:%" PRId64 ", reset to:%" PRId64, pSql->self, pStream, startTime, newStime);
+        startTime = newStime;
       }
     }
   }
 
-  return stime;
+  return startTime;
 }
 
 static int64_t tscGetLaunchTimestamp(const SSqlStream *pStream) {
@@ -668,7 +668,7 @@ void cbParseSql(void* param, TAOS_RES* res, int code) {
 }
 
 TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const char *sqlstr, void (*fp)(void *, TAOS_RES *, TAOS_ROW),
-                              int64_t stime, void *param, void (*callback)(void *), void* cqhandle) {
+                              int64_t startTime, void *param, void (*callback)(void *), void* cqhandle) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) return NULL;
 
@@ -697,7 +697,7 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const c
   }
 
   pStream->ltime = INT64_MIN;
-  pStream->stime = stime;
+  pStream->stime = startTime;
   pStream->fp = fp;
   pStream->callback = callback;
   pStream->param = param;
@@ -747,8 +747,8 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const c
 }
 
 TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *, TAOS_RES *, TAOS_ROW),
-                              int64_t stime, void *param, void (*callback)(void *)) {  
-  return taos_open_stream_withname(taos, "", sqlstr, fp, stime, param, callback, NULL);
+                              int64_t startTime, void *param, void (*callback)(void *)) {  
+  return taos_open_stream_withname(taos, "", sqlstr, fp, startTime, param, callback, NULL);
 }
 
 void taos_close_stream(TAOS_STREAM *handle) {

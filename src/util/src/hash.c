@@ -215,7 +215,7 @@ int32_t taosHashGetSize(const SHashObj *pHashObj) {
   if (!pHashObj) {
     return 0;
   }
-  return (int32_t)atomic_load_64(&pHashObj->size);
+  return (int32_t)atomic_load_64((int32_t *)&pHashObj->size);
 }
 
 static FORCE_INLINE bool taosHashTableEmpty(const SHashObj *pHashObj) {

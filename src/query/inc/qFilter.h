@@ -39,10 +39,11 @@ extern "C" {
 enum {
   FLD_TYPE_COLUMN = 1,
   FLD_TYPE_VALUE = 2,  
-  FLD_TYPE_MAX = 3,
-  FLD_DESC_NO_FREE = 4,
-  FLD_DATA_NO_FREE = 8,
-  FLD_DATA_IS_HASH = 16,
+  FLD_TYPE_EXPR = 3,
+  FLD_TYPE_MAX = 4,
+  FLD_DESC_NO_FREE = 16,
+  FLD_DATA_NO_FREE = 32,
+  FLD_DATA_IS_HASH = 64,
 };
 
 enum {
@@ -182,6 +183,7 @@ typedef struct SFilterGroupCtx {
   uint32_t         colNum;
   uint32_t        *colIdx;
   SFilterColInfo  *colInfo;
+  bool             hasExpr;
 } SFilterGroupCtx;
 
 typedef struct SFilterColCtx {
@@ -206,6 +208,8 @@ typedef struct SFilterComUnit {
   void *colData;
   void *valData;
   void *valData2;
+  void *expr;
+  void *exprData;
   uint16_t colId;
   uint16_t dataSize;
   uint8_t dataType;
@@ -289,7 +293,10 @@ typedef struct SFilterInfo {
 #define FILTER_GET_VAL_FIELD_TYPE(fi) (((tVariant *)((fi)->desc))->nType)
 #define FILTER_GET_VAL_FIELD_DATA(fi) ((char *)(fi)->data)
 #define FILTER_GET_JSON_VAL_FIELD_DATA(fi) ((char *)(fi)->desc)
-#define FILTER_GET_TYPE(fl) ((fl) & FLD_TYPE_MAX)
+#define FILTER_GET_TYPE(fl) ((fl) & 0xF)
+#define FILTER_GET_FIELD_DESC(fi) ((fi)->desc)
+#define FILTER_GET_EXPR_TYPE(i, id) (((tExprNode*)(FILTER_GET_FIELD_DESC(FILTER_GET_FIELD(i, id))))->resultType)
+#define FILTER_GET_EXPR_SIZE(i, id) (((tExprNode*)(FILTER_GET_FIELD_DESC(FILTER_GET_FIELD(i, id))))->resultBytes)
 
 #define FILTER_GROUP_UNIT(i, g, uid) ((i)->units + (g)->unitIdxs[uid])
 #define FILTER_UNIT_LEFT_FIELD(i, u) FILTER_GET_FIELD(i, (u)->left)

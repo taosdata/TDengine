@@ -365,7 +365,6 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
 
     pthread_mutex_lock(&pQInfo->lock);
 
-    assert(pQInfo->rspContext == NULL);
     if (pQInfo->dataReady == QUERY_RESULT_READY) {
       *buildRes = true;
       qDebug("QInfo:0x%"PRIx64" retrieve result info, rowsize:%d, rows:%d, code:%s", pQInfo->qId, pQueryAttr->resultRowSize,
@@ -642,7 +641,7 @@ void** qReleaseQInfo(void* pMgmt, void* pQInfo, bool freeHandle) {
 
 //kill by qid
 int32_t qKillQueryByQId(void* pMgmt, int64_t qId, int32_t waitMs, int32_t waitCount) {
-  int32_t error = TSDB_CODE_SUCCESS;
+  int32_t err = TSDB_CODE_SUCCESS;
   void** handle = qAcquireQInfo(pMgmt, qId);
   if(handle == NULL) return terrno;
 
@@ -658,13 +657,13 @@ int32_t qKillQueryByQId(void* pMgmt, int64_t qId, int32_t waitMs, int32_t waitCo
   while (pQInfo->owner != 0) {
     taosMsleep(waitMs);
     if(loop++ > waitCount){
-      error = TSDB_CODE_FAILED;
+      err = TSDB_CODE_FAILED;
       break;
     }
   }
 
   qReleaseQInfo(pMgmt, (void **)&handle, true);
-  return error;
+  return err;
 }
 
 // local struct
@@ -688,7 +687,7 @@ static int compareLongQuery(const void* p1, const void* p2) {
 }
 
 // callback for taosCacheRefresh
-static void cbFoundItem(void* handle, void* param1) {
+static void cbFoundLongQuery(void* handle, void* param1) {
   SQInfo * qInfo = *(SQInfo**) handle;
   if(qInfo == NULL) return ;
   SArray* qids = (SArray*) param1;
@@ -700,7 +699,7 @@ static void cbFoundItem(void* handle, void* param1) {
   SMemTable* imem = qInfo->query.memRef.snapshot.imem;
   if(mem == NULL || T_REF_VAL_GET(mem) == 0)  
      usedMem = false;
-  if(imem == NULL || T_REF_VAL_GET(mem) == 0) 
+  if(imem == NULL || T_REF_VAL_GET(imem) == 0)
      usedIMem = false ;
 
   if(!usedMem && !usedIMem) 
@@ -721,7 +720,7 @@ void* qObtainLongQuery(void* param){
   SArray* qids = taosArrayInit(4, sizeof(int64_t*));
   if(qids == NULL) return NULL;
   // Get each item
-  taosCacheRefresh(qMgmt->qinfoPool, cbFoundItem, qids);
+  taosCacheRefresh(qMgmt->qinfoPool, cbFoundLongQuery, qids);
   
   size_t cnt = taosArrayGetSize(qids);
   if(cnt == 0) {

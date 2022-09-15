@@ -13,7 +13,7 @@ system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
 
-print ========= start dnode1 as master
+print ========= start dnode1 as leader
 system sh/exec.sh -n dnode1 -s start
 sql connect
 sleep 2000

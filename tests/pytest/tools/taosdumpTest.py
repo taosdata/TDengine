@@ -58,6 +58,13 @@ class TDTestCase:
         else:
             print("directory exists")
 
+        for i in range(1, 9):
+            if not os.path.exists("./taosdumptest/tmp%d" % i):
+                os.makedirs("./taosdumptest/tmp%d" % i)
+            else:
+                os.system("rm -rf ./taosdumptest/tmp%d" % i)
+                os.makedirs("./taosdumptest/tmp%d" % i)
+
         if not os.path.exists("./taosdumptest/tmp2"):
             os.makedirs("./taosdumptest/tmp2")
         tdSql.execute("drop database if exists db")
