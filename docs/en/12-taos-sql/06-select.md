@@ -348,19 +348,15 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 
 :::info
 
-- Only one layer of nesting is allowed, that means no sub query is allowed within a sub query
-- The result set returned by the inner query will be used as a "virtual table" by the outer query. The "virtual table" can be renamed using `AS` keyword for easy reference in the outer query.
-- Sub query is not allowed in continuous query.
+- The result of a nested query is returned as a virtual table used by the outer query. It's recommended to give an alias to this table for the convenience of using it in the outer query.
 - JOIN operation is allowed between tables/STables inside both inner and outer queries. Join operation can be performed on the result set of the inner query.
-- UNION operation is not allowed in either inner query or outer query.
-- The functions that can be used in the inner query are the same as those that can be used in a non-nested query.
+- The features that can be used in the inner query are the same as those that can be used in a non-nested query.
   - `ORDER BY` inside the inner query is unnecessary and will slow down the query performance significantly. It is best to avoid the use of `ORDER BY` inside the inner query.
 - Compared to the non-nested query, the functionality that can be used in the outer query has the following restrictions:
   - Functions
-    - If the result set returned by the inner query doesn't contain timestamp column, then functions relying on timestamp can't be used in the outer query, like `TOP`, `BOTTOM`, `FIRST`, `LAST`, `DIFF`.
-    - Functions that need to scan the data twice can't be used in the outer query, like `STDDEV`, `PERCENTILE`.
-  - `IN` operator is not allowed in the outer query but can be used in the inner query.
-  - `GROUP BY` is not supported in the outer query.
+    - If the result set returned by the inner query doesn't contain timestamp column, then functions relying on timestamp can't be used in the outer query, like INTERP,DERIVATIVE, IRATE, LAST_ROW, FIRST, LAST, TWA, STATEDURATION, TAIL, UNIQUE.
+    - If the result set returned by the inner query are not valid time series, then functions relying on time series can't be used in the outer query, like LEASTSQUARES, ELAPSED, INTERP, DERIVATIVE, IRATE, TWA, DIFF, STATECOUNT, STATEDURATION, CSUM, MAVG, TAIL, UNIQUE. 
+    - Functions that need to scan the data twice can't be used in the outer query, like PERCENTILE.
 
 :::
 

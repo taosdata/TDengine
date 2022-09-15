@@ -5,11 +5,11 @@ title: Time-Series Extensions
 
 As a purpose-built database for storing and processing time-series data, TDengine provides time-series-specific extensions to standard SQL.
 
-These extensions include tag-partitioned queries and windowed queries.
+These extensions include partitioned queries and windowed queries.
 
-## Tag-Partitioned Queries
+## Partitioned Queries
 
-When you query a supertable, you may need to partition the supertable by tag and perform additional operations on a specific partition. In this case, you can use the following SQL clause:
+When you query a supertable, you may need to partition the supertable by some dimensions and perform additional operations on a specific partition. In this case, you can use the following SQL clause:
 
 ```sql
 PARTITION BY part_list
@@ -17,22 +17,24 @@ PARTITION BY part_list
 
 part_list can be any scalar expression, such as a column, constant, scalar function, or a combination of the preceding items.
 
-A PARTITION BY clause with a tag is processed as follows:
+A PARTITION BY clause is processed as follows:
 
-- The PARTITION BY clause must occur after the WHERE clause and cannot be used with a JOIN clause.
-- The PARTITION BY clause partitions the super table by the specified tag group, and the specified calculation is performed on each partition. The calculation performed is determined by the rest of the statement - a window clause, GROUP BY clause, or SELECT clause.
-- You can use PARTITION BY together with a window clause or GROUP BY clause. In this case, the window or GROUP BY clause takes effect on every partition. For example, the following statement partitions the table by the location tag, performs downsampling over a 10 minute window, and returns the maximum value:
+- The PARTITION BY clause must occur after the WHERE clause
+- The PARTITION BY caluse partitions the data according to the specified dimentions, then perform computation on each partition. The performed computation is determined by the rest of the statement - a window clause, GROUP BY clause, or SELECT clause.
+- The PARTITION BY clause can be used together with a window clause or GROUP BY clause. In this case, the window or GROUP BY clause takes effect on every partition. For example, the following statement partitions the table by the location tag, performs downsampling over a 10 minute window, and returns the maximum value:
 
 ```sql
 select max(current) from meters partition by location interval(10m)
 ```
+
+The most common usage of PARTITION BY is partitioning the data in subtables by tags then perform computation when querying data in a supertable. More specifically, `PARTITION BY TBNAME` partitions the data of each subtable into a single timeline, and this method facilitates the statistical analysis in many use cases of processing timeseries data.
 
 ## Windowed Queries
 
 Aggregation by time window is supported in TDengine. For example, in the case where temperature sensors report the temperature every seconds, the average temperature for every 10 minutes can be retrieved by performing a query with a time window. Window related clauses are used to divide the data set to be queried into subsets and then aggregation is performed across the subsets. There are three kinds of windows: time window, status window, and session window. There are two kinds of time windows: sliding window and flip time/tumbling window. The query syntax is as follows:
 
 ```sql
-SELECT function_list FROM tb_name
+SELECT select_list FROM tb_name
   [WHERE where_condition]
   [SESSION(ts_col, tol_val)]
   [STATE_WINDOW(col)]
@@ -41,12 +43,6 @@ SELECT function_list FROM tb_name
 ```
 
 The following restrictions apply:
-
-### Restricted Functions
-
-- Aggregate functions and select functions can be used in `function_list`, with each function having only one output. For example COUNT, AVG, SUM, STDDEV, LEASTSQUARES, PERCENTILE, MIN, MAX, FIRST, LAST. Functions having multiple outputs, such as DIFF or arithmetic operations can't be used.
-- `LAST_ROW` can't be used together with window aggregate.
-- Scalar functions, like CEIL/FLOOR, can't be used with window aggregate.
 
 ### Other Rules
 
@@ -82,7 +78,7 @@ These pseudocolumns occur after the aggregation clause.
 
 1. A huge volume of interpolation output may be returned using `FILL`, so it's recommended to specify the time range when using `FILL`. The maximum number of interpolation values that can be returned in a single query is 10,000,000.
 2. The result set is in ascending order of timestamp when you aggregate by time window.
-3. If aggregate by window is used on STable, the aggregate function is performed on all the rows matching the filter conditions. If `GROUP BY` is not used in the query, the result set will be returned in ascending order of timestamp; otherwise the result set is not exactly in the order of ascending timestamp in each group.
+3. If aggregate by window is used on STable, the aggregate function is performed on all the rows matching the filter conditions. If `PARTITION BY` is not used in the query, the result set will be returned in strict ascending order of timestamp; otherwise the result set is not exactly in the order of ascending timestamp in each group.
 
 :::
 
@@ -112,9 +108,9 @@ When using time windows, note the following:
 Please note that the `timezone` parameter should be configured to be the same value in the `taos.cfg` configuration file on client side and server side.
 - The result set is in ascending order of timestamp when you aggregate by time window.
 
-### Status Window
+### State Window
 
-In case of using integer, bool, or string to represent the status of a device at any given moment, continuous rows with the same status belong to a status window. Once the status changes, the status window closes. As shown in the following figure, there are two status windows according to status, [2019-04-28 14:22:07，2019-04-28 14:22:10] and [2019-04-28 14:22:11，2019-04-28 14:22:12]. Status window is not applicable to STable for now.
+In case of using integer, bool, or string to represent the status of a device at any given moment, continuous rows with the same status belong to a status window. Once the status changes, the status window closes. As shown in the following figure, there are two state windows according to status, [2019-04-28 14:22:07，2019-04-28 14:22:10] and [2019-04-28 14:22:11，2019-04-28 14:22:12]. 
 
 ![TDengine Database Status Window](./timewindow-3.webp)
 
@@ -130,7 +126,7 @@ The primary key, i.e. timestamp, is used to determine which session window a row
 
 ![TDengine Database Session Window](./timewindow-2.webp)
 
-If the time interval between two continuous rows are within the time interval specified by `tol_value` they belong to the same session window; otherwise a new session window is started automatically. Session window is not supported on STable for now.
+If the time interval between two continuous rows are within the time interval specified by `tol_value` they belong to the same session window; otherwise a new session window is started automatically. 
 
 ```
 
