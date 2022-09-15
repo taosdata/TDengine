@@ -33,6 +33,7 @@ typedef int32_t (*localFetchFp)(void *, uint64_t, uint64_t, uint64_t, int64_t, i
 
 typedef struct {
   void        *handle;
+  bool         localExec;
   localFetchFp fp;
   SArray      *explainRes;
 } SLocalFetch;

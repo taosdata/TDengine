@@ -94,7 +94,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
   int32_t        execNum = 0;
   qTaskInfo_t    taskHandle = ctx->taskHandle;
   DataSinkHandle sinkHandle = ctx->sinkHandle;
-  SLocalFetch    localFetch = {(void*)mgmt, qWorkerProcessLocalFetch, ctx->explainRes};
+  SLocalFetch    localFetch = {(void*)mgmt, ctx->localExec, qWorkerProcessLocalFetch, ctx->explainRes};
 
   SArray *pResList = taosArrayInit(4, POINTER_BYTES);
   while (true) {

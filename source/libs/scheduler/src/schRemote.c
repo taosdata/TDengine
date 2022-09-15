@@ -371,6 +371,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
       }
 
       SCH_ERR_JRET(schProcessExplainRsp(pJob, pTask, &rsp));
+
+      taosMemoryFreeClear(msg);
       break;
     }
     case TDMT_SCH_FETCH_RSP:

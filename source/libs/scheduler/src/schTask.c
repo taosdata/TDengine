@@ -898,7 +898,8 @@ int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask) {
                     pTask->msgLen);
       SCH_ERR_RET(code);
     } else {
-      SCH_TASK_DLOGL("physical plan len:%d, %s", pTask->msgLen, pTask->msg);
+      //binary msg
+      //SCH_TASK_DLOGL("physical plan len:%d, %s", pTask->msgLen, pTask->msg);
     }
   }
 

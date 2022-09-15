@@ -1778,12 +1778,6 @@ void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
 static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTaskInfo, int32_t sourceIndex) {
   size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
 
-  SResFetchReq* pMsg = taosMemoryCalloc(1, sizeof(SResFetchReq));
-  if (NULL == pMsg) {
-    pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    return pTaskInfo->code;
-  }
-
   SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, sourceIndex);
   SSourceDataInfo*       pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, sourceIndex);
 
@@ -1797,7 +1791,14 @@ static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInf
     SDataBuf pBuf = {0};
     int32_t code = (*pTaskInfo->localFetch.fp)(pTaskInfo->localFetch.handle, pSource->schedId, pTaskInfo->id.queryId, pSource->taskId, 0, pSource->execId, &pBuf.pData, pTaskInfo->localFetch.explainRes);
     loadRemoteDataCallback(pWrapper, &pBuf, code);
+    taosMemoryFree(pWrapper);
   } else {
+    SResFetchReq* pMsg = taosMemoryCalloc(1, sizeof(SResFetchReq));
+    if (NULL == pMsg) {
+      pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      return pTaskInfo->code;
+    }
+
     qDebug("%s build fetch msg and send to vgId:%d, ep:%s, taskId:0x%" PRIx64 ", execId:%d, %d/%" PRIzu,
            GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->addr.epSet.eps[0].fqdn, pSource->taskId, pSource->execId,
            sourceIndex, totalSources);
@@ -4051,7 +4052,7 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   destroyOperatorInfo(pTaskInfo->pRoot);
   cleanupTableSchemaInfo(&pTaskInfo->schemaInfo);
 
-  if (!pTaskInfo->localFetch.fp) {
+  if (!pTaskInfo->localFetch.localExec) {
     nodesDestroyNode((SNode*)pTaskInfo->pSubplan);
   }
   

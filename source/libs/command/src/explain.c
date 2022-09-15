@@ -28,7 +28,7 @@ void qExplainFreeResNode(SExplainResNode *resNode) {
     return;
   }
 
-  taosMemoryFreeClear(resNode->pExecInfo);
+  taosArrayDestroy(resNode->pExecInfo);
 
   SNode *node = NULL;
   FOREACH(node, resNode->pChildren) { qExplainFreeResNode((SExplainResNode *)node); }
@@ -58,6 +58,7 @@ void qExplainFreeCtx(SExplainCtx *pCtx) {
           SExplainRsp *rsp = taosArrayGet(group->nodeExecInfo, i);
           tFreeSExplainRsp(rsp);
         }
+        taosArrayDestroy(group->nodeExecInfo);
       }
 
       pIter = taosHashIterate(pCtx->groupHash, pIter);
@@ -66,6 +67,7 @@ void qExplainFreeCtx(SExplainCtx *pCtx) {
 
   taosHashCleanup(pCtx->groupHash);
   taosArrayDestroy(pCtx->rows);
+  taosMemoryFreeClear(pCtx->tbuf);
   taosMemoryFree(pCtx);
 }
 
