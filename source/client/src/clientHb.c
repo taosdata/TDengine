@@ -855,6 +855,7 @@ void appHbMgrCleanup(void) {
   int sz = taosArrayGetSize(clientHbMgr.appHbMgrs);
   for (int i = 0; i < sz; i++) {
     SAppHbMgr *pTarget = taosArrayGetP(clientHbMgr.appHbMgrs, i);
+    if (pTarget == NULL) continue;
     hbFreeAppHbMgr(pTarget);
   }
 }
