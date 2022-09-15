@@ -707,6 +707,7 @@ static void *hbThreadFunc(void *param) {
 
       int32_t connCnt = atomic_load_32(&pAppHbMgr->connKeyCnt);
       if (connCnt == 0) {
+        taosArrayPush(mgr, &pAppHbMgr);
         continue;
       }
       SClientHbBatchReq *pReq = hbGatherAllInfo(pAppHbMgr);
@@ -720,6 +721,7 @@ static void *hbThreadFunc(void *param) {
         terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
         tFreeClientHbBatchReq(pReq);
         // hbClearReqInfo(pAppHbMgr);
+        taosArrayPush(mgr, &pAppHbMgr);
         break;
       }
 
@@ -731,6 +733,7 @@ static void *hbThreadFunc(void *param) {
         tFreeClientHbBatchReq(pReq);
         // hbClearReqInfo(pAppHbMgr);
         taosMemoryFree(buf);
+        taosArrayPush(mgr, &pAppHbMgr);
         break;
       }
       pInfo->fp = hbAsyncCallBack;
