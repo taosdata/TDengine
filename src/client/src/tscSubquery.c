@@ -2177,20 +2177,19 @@ void tscHandleMasterJoinQuery(SSqlObj* pSql) {
   assert((pQueryInfo->type & TSDB_QUERY_TYPE_SUBQUERY) == 0);
 
   int32_t code = TSDB_CODE_SUCCESS;
-  pSql->subState.numOfSub = pQueryInfo->numOfTables;
 
+  pthread_mutex_lock(&pSql->subState.mutex);
+  pSql->subState.numOfSub = pQueryInfo->numOfTables;
   if (pSql->subState.states == NULL) {
     pSql->subState.states = calloc(pSql->subState.numOfSub, sizeof(*pSql->subState.states));
     if (pSql->subState.states == NULL) {
       code = TSDB_CODE_TSC_OUT_OF_MEMORY;
       goto _error;
     }
-    
-    pthread_mutex_init(&pSql->subState.mutex, NULL);
   }
-
   memset(pSql->subState.states, 0, sizeof(*pSql->subState.states) * pSql->subState.numOfSub);
   tscDebug("0x%"PRIx64" reset all sub states to 0, start subquery, total:%d", pSql->self, pQueryInfo->numOfTables);
+  pthread_mutex_unlock(&pSql->subState.mutex);
 
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     SJoinSupporter *pSupporter = tscCreateJoinSupporter(pSql, i);
@@ -2762,8 +2761,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
 
   int32_t numOfSub = (pTableMetaInfo->pVgroupTables == NULL) ? pTableMetaInfo->vgroupList->numOfVgroups
                                                              : (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
-
-  int32_t ret = doInitSubState(pSql, numOfSub);
+  int32_t ret = doReInitSubState(pSql, numOfSub);
   if (ret != 0) {
     tscAsyncResultOnError(pSql);
     return ret;
@@ -3613,7 +3611,6 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
     tscDebug("0x%"PRIx64" sub:%p launch sub insert, orderOfSub:%d", pSql->self, pSub, j);
     tscBuildAndSendRequest(pSub, NULL);
   }
-
   return TSDB_CODE_SUCCESS;
 
   _error:
