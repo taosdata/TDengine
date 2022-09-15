@@ -3158,23 +3158,42 @@ static bool overlapWithTimeWindow(SQueryAttr* pQueryAttr, SDataBlockInfo* pBlock
       }
     }
   } else {
-    getAlignQueryTimeWindow(pQueryAttr, pBlockInfo->window.ekey, sk, ek, &w);
+    int64_t ekey = pBlockInfo->window.ekey;
+    getAlignQueryTimeWindow(pQueryAttr, ekey, sk, ek, &w);
     assert(w.skey <= pBlockInfo->window.ekey);
-
     if (w.skey > pBlockInfo->window.skey) {
       return true;
     }
 
-    while (1) {
-      getNextTimeWindow(pQueryAttr, &w);
+    while(w.skey < pBlockInfo->window.ekey) {
+      // add one slding
+      if (pQueryAttr->interval.slidingUnit == 'n' || pQueryAttr->interval.slidingUnit == 'y')
+        ekey = taosTimeAdd(ekey, pQueryAttr->interval.sliding, pQueryAttr->interval.slidingUnit, pQueryAttr->precision);
+      else
+        ekey += pQueryAttr->interval.sliding;
+      // not in range sk~ek, break
+      if (!(ekey >= sk && ekey <= ek)) {
+        break;
+      }
+
+      // get align
+      getAlignQueryTimeWindow(pQueryAttr, ekey, sk, ek, &w);
+    }
+
+    while(1) {
       if (w.ekey < pBlockInfo->window.skey) {
         break;
       }
 
-      assert(w.skey < pBlockInfo->window.skey);
-      if (w.ekey < pBlockInfo->window.ekey && w.ekey >= pBlockInfo->window.skey) {
+      // window start point in block window range return true
+      if (w.skey >= pBlockInfo->window.skey && w.skey <= pBlockInfo->window.ekey) {
         return true;
       }
+      // window end point in block window ragne return true
+      if (w.ekey <= pBlockInfo->window.ekey && w.ekey >= pBlockInfo->window.skey) {
+        return true;
+      }
+      getNextTimeWindow(pQueryAttr, &w);
     }
   }
 
@@ -6313,15 +6332,19 @@ SOperatorInfo* createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
       goto _clean;
     }
 
-    for (int32_t i = 0; i < numOfOutput; ++i) {
-      SColumnInfoData col = {{0}};
-      col.info.colId = pExpr[i].base.colInfo.colId;
-      col.info.bytes = pExpr[i].base.resBytes;
-      col.info.type = pExpr[i].base.resType;
-      taosArrayPush(pDataBlock->pDataBlock, &col);
 
-      if (col.info.colId == pOrderVal->orderColId) {
-        pInfo->colIndex = i;
+      bool found = false;
+      for (int32_t i = 0; i < numOfOutput; ++i) {
+        SColumnInfoData col = {{0}};
+        col.info.colId = pExpr[i].base.colInfo.colId;
+        col.info.bytes = pExpr[i].base.resBytes;
+        col.info.type  = pExpr[i].base.resType;
+        taosArrayPush(pDataBlock->pDataBlock, &col);
+
+        if (!found && col.info.colId == pOrderVal->orderColId) {
+          pInfo->colIndex = i;
+          found = true;
+        }
       }
     }
 
@@ -10140,8 +10163,8 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
 
     pTableqinfo->pGroupList = taosArrayInit(numOfGroups, POINTER_BYTES);
     pTableqinfo->numOfTables = pTableGroupInfo->numOfTables;
-    pTableqinfo->map =
-        taosHashInit(pTableGroupInfo->numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+
+    pTableqinfo->map = taosHashInit(pTableGroupInfo->numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   }
 
   pQInfo->pBuf = calloc(pTableGroupInfo->numOfTables, sizeof(STableQueryInfo));
@@ -10342,10 +10365,13 @@ static void doDestroyTableQueryInfo(STableGroupInfo* pTableqinfoGroupInfo) {
   }
 
   taosArrayDestroy(&pTableqinfoGroupInfo->pGroupList);
-  taosHashCleanup(pTableqinfoGroupInfo->map);
+
+  SHashObj *pmap = pTableqinfoGroupInfo->map;
+  if (pmap == atomic_val_compare_exchange_ptr(&pTableqinfoGroupInfo->map, pmap, NULL)) {
+    taosHashCleanup(pmap);
+  }
 
   pTableqinfoGroupInfo->pGroupList = NULL;
-  pTableqinfoGroupInfo->map = NULL;
   pTableqinfoGroupInfo->numOfTables = 0;
 }
 
