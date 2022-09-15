@@ -168,7 +168,7 @@ Query OK, 8 row(s) in set (0.001154s)
 
 ## 删除数据节点
 
-然后启动 CLI 程序 taos，执行：
+启动 CLI 程序 taos，执行：
 
 ```sql
 DROP DNODE "fqdn:port";
