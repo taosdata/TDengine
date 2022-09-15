@@ -128,7 +128,7 @@ int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 // The statements will be sent to vnodes no more than `tsAsyncBatchTimeout` milliseconds. But the actual time vnodes
 // received the statements depends on the network quality.
 bool    tsAsyncBatchEnable = true;
-int32_t tsAsyncBatchLen = 128;
+int32_t tsAsyncBatchSize = 128;
 int64_t tsAsyncBatchTimeout = 50;
 
 // the maximum allowed query buffer size during query processing for each data node.
