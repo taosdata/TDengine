@@ -399,6 +399,8 @@ static int32_t logicVnodeModifCopy(const SVnodeModifyLogicNode* pSrc, SVnodeModi
   COPY_SCALAR_FIELD(modifyType);
   COPY_SCALAR_FIELD(msgType);
   CLONE_NODE_FIELD(pAffectedRows);
+  CLONE_NODE_FIELD(pStartTs);
+  CLONE_NODE_FIELD(pEndTs);
   COPY_SCALAR_FIELD(tableId);
   COPY_SCALAR_FIELD(stableId);
   COPY_SCALAR_FIELD(tableType);
@@ -778,6 +780,7 @@ SNode* nodesCloneNode(const SNode* pNode) {
       code = physiSessionCopy((const SSessionWinodwPhysiNode*)pNode, (SSessionWinodwPhysiNode*)pDst);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
       code = physiPartitionCopy((const SPartitionPhysiNode*)pNode, (SPartitionPhysiNode*)pDst);
       break;
     default:

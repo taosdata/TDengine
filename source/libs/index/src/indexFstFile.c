@@ -30,14 +30,14 @@ typedef struct {
 
 static void deleteDataBlockFromLRU(const void* key, size_t keyLen, void* value) { taosMemoryFree(value); }
 
-static void idxGenLRUKey(char* buf, const char* path, int32_t blockId) {
+static FORCE_INLINE void idxGenLRUKey(char* buf, const char* path, int32_t blockId) {
   char* p = buf;
   SERIALIZE_STR_VAR_TO_BUF(p, path, strlen(path));
   SERIALIZE_VAR_TO_BUF(p, '_', char);
   idxInt2str(blockId, p, 0);
   return;
 }
-static int idxFileCtxDoWrite(IFileCtx* ctx, uint8_t* buf, int len) {
+static FORCE_INLINE int idxFileCtxDoWrite(IFileCtx* ctx, uint8_t* buf, int len) {
   if (ctx->type == TFILE) {
     int nwr = taosWriteFile(ctx->file.pFile, buf, len);
     assert(nwr == len);
@@ -47,7 +47,7 @@ static int idxFileCtxDoWrite(IFileCtx* ctx, uint8_t* buf, int len) {
   ctx->offset += len;
   return len;
 }
-static int idxFileCtxDoRead(IFileCtx* ctx, uint8_t* buf, int len) {
+static FORCE_INLINE int idxFileCtxDoRead(IFileCtx* ctx, uint8_t* buf, int len) {
   int nRead = 0;
   if (ctx->type == TFILE) {
 #ifdef USE_MMAP
@@ -111,7 +111,7 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
   } while (len > 0);
   return total;
 }
-static int idxFileCtxGetSize(IFileCtx* ctx) {
+static FORCE_INLINE int idxFileCtxGetSize(IFileCtx* ctx) {
   if (ctx->type == TFILE) {
     int64_t file_size = 0;
     taosStatFile(ctx->file.buf, &file_size, NULL);
@@ -119,7 +119,7 @@ static int idxFileCtxGetSize(IFileCtx* ctx) {
   }
   return 0;
 }
-static int idxFileCtxDoFlush(IFileCtx* ctx) {
+static FORCE_INLINE int idxFileCtxDoFlush(IFileCtx* ctx) {
   if (ctx->type == TFILE) {
     taosFsyncFile(ctx->file.pFile);
   } else {
@@ -211,9 +211,7 @@ IdxFstFile* idxFileCreate(void* wrt) {
   return cw;
 }
 void idxFileDestroy(IdxFstFile* cw) {
-  // free wrt object: close fd or free mem
   idxFileFlush(cw);
-  // idxFileCtxDestroy((IFileCtx *)(cw->wrt));
   taosMemoryFree(cw);
 }
 
@@ -222,10 +220,8 @@ int idxFileWrite(IdxFstFile* write, uint8_t* buf, uint32_t len) {
     return 0;
   }
   // update checksum
-  // write data to file/socket or mem
   IFileCtx* ctx = write->wrt;
-
-  int nWrite = ctx->write(ctx, buf, len);
+  int       nWrite = ctx->write(ctx, buf, len);
   assert(nWrite == len);
   write->count += len;
 

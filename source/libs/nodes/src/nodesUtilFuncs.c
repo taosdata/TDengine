@@ -322,6 +322,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SStreamStateWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
       return makeNode(type, sizeof(SPartitionPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
+      return makeNode(type, sizeof(SStreamPartitionPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC:
       return makeNode(type, sizeof(SIndefRowsFuncPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC:
@@ -725,6 +727,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pFromTable);
       nodesDestroyNode(pStmt->pWhere);
       nodesDestroyNode(pStmt->pCountFunc);
+      nodesDestroyNode(pStmt->pFirstFunc);
+      nodesDestroyNode(pStmt->pLastFunc);
       nodesDestroyNode(pStmt->pTagCond);
       break;
     }
@@ -789,6 +793,8 @@ void nodesDestroyNode(SNode* pNode) {
       destroyVgDataBlockArray(pLogicNode->pDataBlocks);
       // pVgDataBlocks is weak reference
       nodesDestroyNode(pLogicNode->pAffectedRows);
+      nodesDestroyNode(pLogicNode->pStartTs);
+      nodesDestroyNode(pLogicNode->pEndTs);
       taosMemoryFreeClear(pLogicNode->pVgroupList);
       nodesDestroyList(pLogicNode->pInsertCols);
       break;
@@ -951,7 +957,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pPhyNode->pStateKey);
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_PARTITION: {
+    case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION: {
       SPartitionPhysiNode* pPhyNode = (SPartitionPhysiNode*)pNode;
       destroyPhysiNode((SPhysiNode*)pPhyNode);
       nodesDestroyList(pPhyNode->pExprs);
@@ -994,6 +1001,8 @@ void nodesDestroyNode(SNode* pNode) {
       SDataDeleterNode* pSink = (SDataDeleterNode*)pNode;
       destroyDataSinkNode((SDataSinkNode*)pSink);
       nodesDestroyNode(pSink->pAffectedRows);
+      nodesDestroyNode(pSink->pStartTs);
+      nodesDestroyNode(pSink->pEndTs);
       break;
     }
     case QUERY_NODE_PHYSICAL_SUBPLAN: {

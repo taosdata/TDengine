@@ -45,8 +45,8 @@ enum {
 // clang-format on
 
 typedef struct {
-  TSKEY    ts;
   uint64_t groupId;
+  TSKEY    ts;
 } SWinKey;
 
 static inline int SWinKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
@@ -62,6 +62,37 @@ static inline int SWinKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, i
   if (pWin1->ts > pWin2->ts) {
     return 1;
   } else if (pWin1->ts < pWin2->ts) {
+    return -1;
+  }
+
+  return 0;
+}
+
+typedef struct {
+  uint64_t groupId;
+  TSKEY    ts;
+  int32_t  exprIdx;
+} STupleKey;
+
+static inline int STupleKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
+  STupleKey* pTuple1 = (STupleKey*)pKey1;
+  STupleKey* pTuple2 = (STupleKey*)pKey2;
+
+  if (pTuple1->groupId > pTuple2->groupId) {
+    return 1;
+  } else if (pTuple1->groupId < pTuple2->groupId) {
+    return -1;
+  }
+
+  if (pTuple1->ts > pTuple2->ts) {
+    return 1;
+  } else if (pTuple1->ts < pTuple2->ts) {
+    return -1;
+  }
+
+  if (pTuple1->exprIdx > pTuple2->exprIdx) {
+    return 1;
+  } else if (pTuple1->exprIdx < pTuple2->exprIdx) {
     return -1;
   }
 
@@ -184,7 +215,6 @@ typedef struct SQueryTableDataCond {
   STimeWindow  twindows;
   int64_t      startVersion;
   int64_t      endVersion;
-  int64_t      schemaVersion;
 } SQueryTableDataCond;
 
 int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock);

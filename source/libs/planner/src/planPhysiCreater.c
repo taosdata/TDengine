@@ -1323,8 +1323,9 @@ static int32_t createSortPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
 
 static int32_t createPartitionPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren,
                                         SPartitionLogicNode* pPartLogicNode, SPhysiNode** pPhyNode) {
-  SPartitionPhysiNode* pPart =
-      (SPartitionPhysiNode*)makePhysiNode(pCxt, (SLogicNode*)pPartLogicNode, QUERY_NODE_PHYSICAL_PLAN_PARTITION);
+  SPartitionPhysiNode* pPart = (SPartitionPhysiNode*)makePhysiNode(
+      pCxt, (SLogicNode*)pPartLogicNode,
+      pCxt->pPlanCxt->streamQuery ? QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION : QUERY_NODE_PHYSICAL_PLAN_PARTITION);
   if (NULL == pPart) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -1669,6 +1670,12 @@ static int32_t createDataDeleter(SPhysiPlanContext* pCxt, SVnodeModifyLogicNode*
 
   int32_t code = setNodeSlotId(pCxt, pRoot->pOutputDataBlockDesc->dataBlockId, -1, pModify->pAffectedRows,
                                &pDeleter->pAffectedRows);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setNodeSlotId(pCxt, pRoot->pOutputDataBlockDesc->dataBlockId, -1, pModify->pStartTs, &pDeleter->pStartTs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setNodeSlotId(pCxt, pRoot->pOutputDataBlockDesc->dataBlockId, -1, pModify->pEndTs, &pDeleter->pEndTs);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     pDeleter->sink.pInputDataBlockDesc = (SDataBlockDescNode*)nodesCloneNode((SNode*)pRoot->pOutputDataBlockDesc);
     if (NULL == pDeleter->sink.pInputDataBlockDesc) {

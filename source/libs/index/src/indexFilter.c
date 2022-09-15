@@ -27,6 +27,44 @@
 #define SIF_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
 #define SIF_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
 // clang-format on
+
+typedef union {
+  uint8_t  u8;
+  uint16_t u16;
+  uint32_t u32;
+  uint64_t u64;
+
+  int8_t  i8;
+  int16_t i16;
+  int32_t i32;
+  int64_t i64;
+
+  double d;
+  float  f;
+} SDataTypeBuf;
+
+#define SIF_DATA_CONVERT(type, val, dst)       \
+  do {                                         \
+    if (type == TSDB_DATA_TYPE_DOUBLE)         \
+      dst = GET_DOUBLE_VAL(val);               \
+    else if (type == TSDB_DATA_TYPE_BIGINT)    \
+      dst = *(int64_t *)val;                   \
+    else if (type == TSDB_DATA_TYPE_INT)       \
+      dst = *(int32_t *)val;                   \
+    else if (type == TSDB_DATA_TYPE_SMALLINT)  \
+      dst = *(int16_t *)val;                   \
+    else if (type == TSDB_DATA_TYPE_TINYINT)   \
+      dst = *(int8_t *)val;                    \
+    else if (type == TSDB_DATA_TYPE_UTINYINT)  \
+      dst = *(uint8_t *)val;                   \
+    else if (type == TSDB_DATA_TYPE_USMALLINT) \
+      dst = *(uint16_t *)val;                  \
+    else if (type == TSDB_DATA_TYPE_UINT)      \
+      dst = *(uint32_t *)val;                  \
+    else if (type == TSDB_DATA_TYPE_UBIGINT)   \
+      dst = *(uint64_t *)val;                  \
+  } while (0);
+
 typedef struct SIFParam {
   SHashObj *pFilter;
 
@@ -48,10 +86,9 @@ typedef struct SIFCtx {
   SHashObj     *pRes;    /* element is SIFParam */
   bool          noExec;  // true: just iterate condition tree, and add hint to executor plan
   SIndexMetaArg arg;
-  // SIdxFltStatus st;
 } SIFCtx;
 
-static int32_t sifGetFuncFromSql(EOperatorType src, EIndexQueryType *dst) {
+static FORCE_INLINE int32_t sifGetFuncFromSql(EOperatorType src, EIndexQueryType *dst) {
   if (src == OP_TYPE_GREATER_THAN) {
     *dst = QUERY_GREATER_THAN;
   } else if (src == OP_TYPE_GREATER_EQUAL) {
@@ -73,15 +110,9 @@ static int32_t sifGetFuncFromSql(EOperatorType src, EIndexQueryType *dst) {
 }
 
 typedef int32_t (*sif_func_t)(SIFParam *left, SIFParam *rigth, SIFParam *output);
-
 static sif_func_t sifNullFunc = NULL;
-// typedef struct SIFWalkParm
-// construct tag filter operator later
-// static void destroyTagFilterOperatorInfo(void *param) {
-//  STagFilterOperatorInfo *pInfo = (STagFilterOperatorInfo *)param;
-//}
 
-static void sifFreeParam(SIFParam *param) {
+static FORCE_INLINE void sifFreeParam(SIFParam *param) {
   if (param == NULL) return;
 
   taosArrayDestroy(param->result);
@@ -91,7 +122,7 @@ static void sifFreeParam(SIFParam *param) {
   param->pFilter = NULL;
 }
 
-static int32_t sifGetOperParamNum(EOperatorType ty) {
+static FORCE_INLINE int32_t sifGetOperParamNum(EOperatorType ty) {
   if (OP_TYPE_IS_NULL == ty || OP_TYPE_IS_NOT_NULL == ty || OP_TYPE_IS_TRUE == ty || OP_TYPE_IS_NOT_TRUE == ty ||
       OP_TYPE_IS_FALSE == ty || OP_TYPE_IS_NOT_FALSE == ty || OP_TYPE_IS_UNKNOWN == ty ||
       OP_TYPE_IS_NOT_UNKNOWN == ty || OP_TYPE_MINUS == ty) {
@@ -99,14 +130,14 @@ static int32_t sifGetOperParamNum(EOperatorType ty) {
   }
   return 2;
 }
-static int32_t sifValidOp(EOperatorType ty) {
+static FORCE_INLINE int32_t sifValidOp(EOperatorType ty) {
   if ((ty >= OP_TYPE_ADD && ty <= OP_TYPE_BIT_OR) || (ty == OP_TYPE_IN || ty == OP_TYPE_NOT_IN) ||
       (ty == OP_TYPE_LIKE || ty == OP_TYPE_NOT_LIKE || ty == OP_TYPE_MATCH || ty == OP_TYPE_NMATCH)) {
     return -1;
   }
   return 0;
 }
-static int32_t sifValidColumn(SColumnNode *cn) {
+static FORCE_INLINE int32_t sifValidColumn(SColumnNode *cn) {
   // add more check
   if (cn == NULL) {
     return TSDB_CODE_QRY_INVALID_INPUT;
@@ -117,7 +148,7 @@ static int32_t sifValidColumn(SColumnNode *cn) {
   return TSDB_CODE_SUCCESS;
 }
 
-static SIdxFltStatus sifMergeCond(ELogicConditionType type, SIdxFltStatus ls, SIdxFltStatus rs) {
+static FORCE_INLINE SIdxFltStatus sifMergeCond(ELogicConditionType type, SIdxFltStatus ls, SIdxFltStatus rs) {
   // enh rule later
   if (type == LOGIC_COND_TYPE_AND) {
     if (ls == SFLT_NOT_INDEX || rs == SFLT_NOT_INDEX) {
@@ -135,7 +166,7 @@ static SIdxFltStatus sifMergeCond(ELogicConditionType type, SIdxFltStatus ls, SI
   return SFLT_NOT_INDEX;
 }
 
-static int32_t sifGetValueFromNode(SNode *node, char **value) {
+static FORCE_INLINE int32_t sifGetValueFromNode(SNode *node, char **value) {
   // covert data From snode;
   SValueNode *vn = (SValueNode *)node;
 
@@ -173,7 +204,7 @@ static int32_t sifGetValueFromNode(SNode *node, char **value) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
+static FORCE_INLINE int32_t sifInitJsonParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
   SOperatorNode *nd = (SOperatorNode *)node;
   assert(nodeType(node) == QUERY_NODE_OPERATOR);
   SColumnNode *l = (SColumnNode *)nd->pLeft;
@@ -323,30 +354,30 @@ static int32_t sifExecFunction(SFunctionNode *node, SIFCtx *ctx, SIFParam *outpu
   return TSDB_CODE_QRY_INVALID_INPUT;
 }
 
-typedef int (*Filter)(void *a, void *b, int16_t dtype);
+typedef int (*FilterFunc)(void *a, void *b, int16_t dtype);
 
-int sifGreaterThan(void *a, void *b, int16_t dtype) {
+static FORCE_INLINE int sifGreaterThan(void *a, void *b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
   return tDoCompare(func, QUERY_GREATER_THAN, a, b);
 }
-int sifGreaterEqual(void *a, void *b, int16_t dtype) {
+static FORCE_INLINE int sifGreaterEqual(void *a, void *b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
   return tDoCompare(func, QUERY_GREATER_EQUAL, a, b);
 }
-int sifLessEqual(void *a, void *b, int16_t dtype) {
+static FORCE_INLINE int sifLessEqual(void *a, void *b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
   return tDoCompare(func, QUERY_LESS_EQUAL, a, b);
 }
-int sifLessThan(void *a, void *b, int16_t dtype) {
+static FORCE_INLINE int sifLessThan(void *a, void *b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
   return (int)tDoCompare(func, QUERY_LESS_THAN, a, b);
 }
-int sifEqual(void *a, void *b, int16_t dtype) {
+static FORCE_INLINE int sifEqual(void *a, void *b, int16_t dtype) {
   __compar_fn_t func = getComparFunc(dtype, 0);
   //__compar_fn_t func = idxGetCompar(dtype);
   return (int)tDoCompare(func, QUERY_TERM, a, b);
 }
-static Filter sifGetFilterFunc(EIndexQueryType type, bool *reverse) {
+static FORCE_INLINE FilterFunc sifGetFilterFunc(EIndexQueryType type, bool *reverse) {
   if (type == QUERY_LESS_EQUAL || type == QUERY_LESS_THAN) {
     *reverse = true;
   } else {
@@ -365,42 +396,6 @@ static Filter sifGetFilterFunc(EIndexQueryType type, bool *reverse) {
   }
   return NULL;
 }
-typedef union {
-  uint8_t  u8;
-  uint16_t u16;
-  uint32_t u32;
-  uint64_t u64;
-
-  int8_t  i8;
-  int16_t i16;
-  int32_t i32;
-  int64_t i64;
-
-  double d;
-  float  f;
-} SDataTypeBuf;
-
-#define SIF_DATA_CONVERT(type, val, dst)       \
-  do {                                         \
-    if (type == TSDB_DATA_TYPE_DOUBLE)         \
-      dst = GET_DOUBLE_VAL(val);               \
-    else if (type == TSDB_DATA_TYPE_BIGINT)    \
-      dst = *(int64_t *)val;                   \
-    else if (type == TSDB_DATA_TYPE_INT)       \
-      dst = *(int32_t *)val;                   \
-    else if (type == TSDB_DATA_TYPE_SMALLINT)  \
-      dst = *(int16_t *)val;                   \
-    else if (type == TSDB_DATA_TYPE_TINYINT)   \
-      dst = *(int8_t *)val;                    \
-    else if (type == TSDB_DATA_TYPE_UTINYINT)  \
-      dst = *(uint8_t *)val;                   \
-    else if (type == TSDB_DATA_TYPE_USMALLINT) \
-      dst = *(uint16_t *)val;                  \
-    else if (type == TSDB_DATA_TYPE_UINT)      \
-      dst = *(uint32_t *)val;                  \
-    else if (type == TSDB_DATA_TYPE_UBIGINT)   \
-      dst = *(uint64_t *)val;                  \
-  } while (0);
 
 static void sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typedata, SMetaFltParam *param) {
   int8_t ltype = left->colValType, rtype = right->colValType;
@@ -474,8 +469,8 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
     indexMultiTermQueryAdd(mtm, tm, qtype);
     ret = indexJsonSearch(arg->ivtIdx, mtm, output->result);
   } else {
-    bool   reverse;
-    Filter filterFunc = sifGetFilterFunc(qtype, &reverse);
+    bool       reverse;
+    FilterFunc filterFunc = sifGetFilterFunc(qtype, &reverse);
 
     SMetaFltParam param = {.suid = arg->suid,
                            .cid = left->colId,
@@ -502,72 +497,72 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
   return ret;
 }
 
-static int32_t sifLessThanFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
+static FORCE_INLINE int32_t sifLessThanFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_LOWER_THAN;
   return sifDoIndex(left, right, id, output);
 }
-static int32_t sifLessEqualFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
+static FORCE_INLINE int32_t sifLessEqualFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_LOWER_EQUAL;
   return sifDoIndex(left, right, id, output);
 }
 
-static int32_t sifGreaterThanFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
+static FORCE_INLINE int32_t sifGreaterThanFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_GREATER_THAN;
   return sifDoIndex(left, right, id, output);
 }
-static int32_t sifGreaterEqualFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
+static FORCE_INLINE int32_t sifGreaterEqualFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_GREATER_EQUAL;
   return sifDoIndex(left, right, id, output);
 }
 
-static int32_t sifEqualFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
+static FORCE_INLINE int32_t sifEqualFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_EQUAL;
   return sifDoIndex(left, right, id, output);
 }
-static int32_t sifNotEqualFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
+static FORCE_INLINE int32_t sifNotEqualFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_NOT_EQUAL;
   return sifDoIndex(left, right, id, output);
 }
-static int32_t sifInFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
+static FORCE_INLINE int32_t sifInFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_IN;
   return sifDoIndex(left, right, id, output);
 }
-static int32_t sifNotInFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
+static FORCE_INLINE int32_t sifNotInFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_NOT_IN;
   return sifDoIndex(left, right, id, output);
 }
-static int32_t sifLikeFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
+static FORCE_INLINE int32_t sifLikeFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_LIKE;
   return sifDoIndex(left, right, id, output);
 }
-static int32_t sifNotLikeFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
+static FORCE_INLINE int32_t sifNotLikeFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_NOT_LIKE;
   return sifDoIndex(left, right, id, output);
 }
 
-static int32_t sifMatchFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
+static FORCE_INLINE int32_t sifMatchFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_MATCH;
   return sifDoIndex(left, right, id, output);
 }
-static int32_t sifNotMatchFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
+static FORCE_INLINE int32_t sifNotMatchFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_NMATCH;
   return sifDoIndex(left, right, id, output);
 }
-static int32_t sifJsonContains(SIFParam *left, SIFParam *right, SIFParam *output) {
+static FORCE_INLINE int32_t sifJsonContains(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_JSON_CONTAINS;
   return sifDoIndex(left, right, id, output);
 }
-static int32_t sifJsonGetValue(SIFParam *left, SIFParam *rigth, SIFParam *output) {
+static FORCE_INLINE int32_t sifJsonGetValue(SIFParam *left, SIFParam *rigth, SIFParam *output) {
   // return 0
   return 0;
 }
 
-static int32_t sifDefaultFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
+static FORCE_INLINE int32_t sifDefaultFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   // add more except
   return TSDB_CODE_QRY_INVALID_INPUT;
 }
 
-static int32_t sifGetOperFn(int32_t funcId, sif_func_t *func, SIdxFltStatus *status) {
+static FORCE_INLINE int32_t sifGetOperFn(int32_t funcId, sif_func_t *func, SIdxFltStatus *status) {
   // impl later
   *status = SFLT_ACCURATE_INDEX;
   switch (funcId) {
@@ -693,11 +688,8 @@ static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *ou
     for (int32_t m = 0; m < node->pParameterList->length; m++) {
       if (node->condType == LOGIC_COND_TYPE_AND) {
         taosArrayAddAll(output->result, params[m].result);
-        // taosArrayDestroy(params[m].result);
-        //  params[m].result = NULL;
       } else if (node->condType == LOGIC_COND_TYPE_OR) {
         taosArrayAddAll(output->result, params[m].result);
-        // params[m].result = NULL;
       } else if (node->condType == LOGIC_COND_TYPE_NOT) {
         // taosArrayAddAll(output->result, params[m].result);
       }

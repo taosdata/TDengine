@@ -126,7 +126,7 @@ SELECT COS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 SELECT FLOOR(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**: The rounded down value of a specific field  
+**Description**: The rounded down value of a specific field
  **More explanations**: The restrictions are same as those of the `CEIL` function.
 
 #### LOG
@@ -173,7 +173,7 @@ SELECT POW(field_name, power) FROM { tb_name | stb_name } [WHERE clause]
 SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**: The rounded value of a specific field.  
+**Description**: The rounded value of a specific field.
  **More explanations**: The restrictions are same as those of the `CEIL` function.
 
 
@@ -434,7 +434,7 @@ SELECT TO_ISO8601(ts[, timezone]) FROM { tb_name | stb_name } [WHERE clause];
 **More explanations**:
 
 - You can specify a time zone in the following format: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]。 For example, TO_ISO8601(1, "+00:00").
-- If the input is a UNIX timestamp, the precision of the returned value is determined by the digits of the input timestamp 
+- If the input is a UNIX timestamp, the precision of the returned value is determined by the digits of the input timestamp
 - If the input is a column of TIMESTAMP type, the precision of the returned value is same as the precision set for the current data base in use
 
 
@@ -613,6 +613,7 @@ SELECT APERCENTILE(field_name, P[, algo_type]) FROM { tb_name | stb_name } [WHER
 **Explanations**：
 - _P_ is in range [0,100], when _P_ is 0, the result is same as using function MIN; when _P_ is 100, the result is same as function MAX.
 - `algo_type` can only be input as `default` or `t-digest` Enter `default` to use a histogram-based algorithm. Enter `t-digest` to use the t-digest algorithm to calculate the approximation of the quantile. `default` is used by default.
+- The approximation result of `t-digest` algorithm is sensitive to input data order. For example, when querying STable with different input data order there might be minor differences in calculated results.
 
 ### AVG
 
@@ -768,14 +769,14 @@ SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_nam
 
 **Explanations**：
 - bin_type: parameter to indicate the bucket type, valid inputs are: "user_input", "linear_bin", "log_bin"。
-- bin_description: parameter to describe how to generate buckets，can be in the following JSON formats for each bin_type respectively:       
-    - "user_input": "[1, 3, 5, 7]": 
+- bin_description: parameter to describe how to generate buckets，can be in the following JSON formats for each bin_type respectively:
+    - "user_input": "[1, 3, 5, 7]":
        User specified bin values.
-       
+
     - "linear_bin": "{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
        "start" - bin starting point.       "width" - bin offset.       "count" - number of bins generated.       "infinity" - whether to add（-inf, inf）as start/end point in generated set of bins.
        The above "linear_bin" descriptor generates a set of bins: [-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf].
- 
+
     - "log_bin": "{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
        "start" - bin starting point.       "factor" - exponential factor of bin offset.       "count" - number of bins generated.       "infinity" - whether to add（-inf, inf）as start/end point in generated range of bins.
        The above "linear_bin" descriptor generates a set of bins: [-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf].
@@ -861,9 +862,9 @@ SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] RA
 
 - `INTERP` is used to get the value that matches the specified time slice from a column. If no such value exists an interpolation value will be returned based on `FILL` parameter.
 - The input data of `INTERP` is the value of the specified column and a `where` clause can be used to filter the original data. If no `where` condition is specified then all original data is the input.
-- The output time range of `INTERP` is specified by `RANGE(timestamp1,timestamp2)` parameter, with timestamp1<=timestamp2. timestamp1 is the starting point of the output time range and must be specified. timestamp2 is the ending point of the output time range and must be specified. 
-- The number of rows in the result set of `INTERP` is determined by the parameter `EVERY`. Starting from timestamp1, one interpolation is performed for every time interval specified `EVERY` parameter. 
-- Interpolation is performed based on `FILL` parameter. 
+- The output time range of `INTERP` is specified by `RANGE(timestamp1,timestamp2)` parameter, with timestamp1<=timestamp2. timestamp1 is the starting point of the output time range and must be specified. timestamp2 is the ending point of the output time range and must be specified.
+- The number of rows in the result set of `INTERP` is determined by the parameter `EVERY`. Starting from timestamp1, one interpolation is performed for every time interval specified `EVERY` parameter.
+- Interpolation is performed based on `FILL` parameter.
 - `INTERP` can only be used to interpolate in single timeline. So it must be used with `partition by tbname` when it's used on a STable.
 
 ### LAST
@@ -967,7 +968,7 @@ SELECT SAMPLE(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
 
 **Applicable table types**: standard tables and supertables
 
-**More explanations**: 
+**More explanations**:
 
 This function cannot be used in expression calculation.
 - Must be used with `PARTITION BY tbname` when it's used on a STable to force the result on each single timeline
@@ -1045,10 +1046,10 @@ SELECT CSUM(field_name) FROM { tb_name | stb_name } [WHERE clause]
 
 **Applicable table types**: standard tables and supertables
 
-**More explanations**: 
-  
+**More explanations**:
+
 - Arithmetic operation can't be performed on the result of `csum` function
-- Can only be used with aggregate functions This function can be used with supertables and standard tables. 
+- Can only be used with aggregate functions This function can be used with supertables and standard tables.
 - Must be used with `PARTITION BY tbname` when it's used on a STable to force the result on each single timeline
 
 
@@ -1066,8 +1067,8 @@ SELECT DERIVATIVE(field_name, time_interval, ignore_negative) FROM tb_name [WHER
 
 **Applicable table types**: standard tables and supertables
 
-**More explanation**: 
-  
+**More explanation**:
+
 - It can be used together with `PARTITION BY tbname` against a STable.
 - It can be used together with a selected column. For example: select \_rowts, DERIVATIVE() from。
 
@@ -1085,7 +1086,7 @@ SELECT {DIFF(field_name, ignore_negative) | DIFF(field_name)} FROM tb_name [WHER
 
 **Applicable table types**: standard tables and supertables
 
-**More explanation**: 
+**More explanation**:
 
 - The number of result rows is the number of rows subtracted by one, no output for the first row
 - It can be used together with a selected column. For example: select \_rowts, DIFF() from。
@@ -1122,9 +1123,9 @@ SELECT MAVG(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
 
 **Applicable table types**: standard tables and supertables
 
-**More explanations**: 
-  
-- Arithmetic operation can't be performed on the result of `MAVG`. 
+**More explanations**:
+
+- Arithmetic operation can't be performed on the result of `MAVG`.
 - Can only be used with data columns, can't be used with tags. - Can't be used with aggregate functions.
 - Must be used with `PARTITION BY tbname` when it's used on a STable to force the result on each single timeline
 

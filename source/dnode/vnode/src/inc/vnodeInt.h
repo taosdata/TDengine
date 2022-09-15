@@ -36,6 +36,7 @@
 #include "tlosertree.h"
 #include "tlrucache.h"
 #include "tmsgcb.h"
+#include "trbtree.h"
 #include "tref.h"
 #include "tskiplist.h"
 #include "tstream.h"
@@ -70,8 +71,8 @@ typedef struct SStreamTaskReader  SStreamTaskReader;
 typedef struct SStreamTaskWriter  SStreamTaskWriter;
 typedef struct SStreamStateReader SStreamStateReader;
 typedef struct SStreamStateWriter SStreamStateWriter;
-typedef struct SRsmaSnapReader    SRsmaSnapReader;
-typedef struct SRsmaSnapWriter    SRsmaSnapWriter;
+typedef struct SRSmaSnapReader    SRSmaSnapReader;
+typedef struct SRSmaSnapWriter    SRSmaSnapWriter;
 typedef struct SSnapDataHdr       SSnapDataHdr;
 
 #define VNODE_META_DIR  "meta"
@@ -102,8 +103,8 @@ int             metaCommit(SMeta* pMeta);
 int             metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int             metaAlterSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int             metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq, SArray* tbUidList);
-int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq, STableMetaRsp **pMetaRsp);
-int             metaDropTable(SMeta* pMeta, int64_t version, SVDropTbReq* pReq, SArray* tbUids);
+int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq, STableMetaRsp** pMetaRsp);
+int             metaDropTable(SMeta* pMeta, int64_t version, SVDropTbReq* pReq, SArray* tbUids, int64_t* tbUid);
 int             metaTtlDropTable(SMeta* pMeta, int64_t ttl, SArray* tbUids);
 int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq, STableMetaRsp* pMetaRsp);
 SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, bool isinline);
@@ -173,7 +174,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
 // tq-stream
 int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessTaskDropReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
-int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* data, int64_t ver);
+int32_t tqProcessSubmitReq(STQ* pTq, SSubmitReq* data, int64_t ver);
+int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver);
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec);
 int32_t tqProcessTaskRecoverReq(STQ* pTq, SRpcMsg* pMsg);
@@ -206,7 +208,7 @@ int32_t tdProcessRSmaCreate(SSma* pSma, SVCreateStbReq* pReq);
 int32_t tdProcessRSmaSubmit(SSma* pSma, void* pMsg, int32_t inputType);
 int32_t tdProcessRSmaDrop(SSma* pSma, SVDropStbReq* pReq);
 int32_t tdFetchTbUidList(SSma* pSma, STbUidStore** ppStore, tb_uid_t suid, tb_uid_t uid);
-int32_t tdUpdateTbUidList(SSma* pSma, STbUidStore* pUidStore);
+int32_t tdUpdateTbUidList(SSma* pSma, STbUidStore* pUidStore, bool isAdd);
 void    tdUidStoreDestory(STbUidStore* pStore);
 void*   tdUidStoreFree(STbUidStore* pStore);
 
@@ -246,14 +248,14 @@ int32_t tqOffsetSnapWrite(STqOffsetWriter* pWriter, uint8_t* pData, uint32_t nDa
 // SStreamTaskReader ======================================
 // SStreamStateWriter =====================================
 // SStreamStateReader =====================================
-// SRsmaSnapReader ========================================
-int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRsmaSnapReader** ppReader);
-int32_t rsmaSnapReaderClose(SRsmaSnapReader** ppReader);
-int32_t rsmaSnapRead(SRsmaSnapReader* pReader, uint8_t** ppData);
-// SRsmaSnapWriter ========================================
-int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRsmaSnapWriter** ppWriter);
-int32_t rsmaSnapWrite(SRsmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
-int32_t rsmaSnapWriterClose(SRsmaSnapWriter** ppWriter, int8_t rollback);
+// SRSmaSnapReader ========================================
+int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapReader** ppReader);
+int32_t rsmaSnapReaderClose(SRSmaSnapReader** ppReader);
+int32_t rsmaSnapRead(SRSmaSnapReader* pReader, uint8_t** ppData);
+// SRSmaSnapWriter ========================================
+int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapWriter** ppWriter);
+int32_t rsmaSnapWrite(SRSmaSnapWriter* pWriter, uint8_t* pData, uint32_t nData);
+int32_t rsmaSnapWriterClose(SRSmaSnapWriter** ppWriter, int8_t rollback);
 
 typedef struct {
   int8_t  streamType;  // sma or other

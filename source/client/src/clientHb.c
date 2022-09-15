@@ -73,6 +73,8 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
 
       vgInfo->vgVersion = rsp->vgVersion;
       vgInfo->hashMethod = rsp->hashMethod;
+      vgInfo->hashPrefix = rsp->hashPrefix;
+      vgInfo->hashSuffix = rsp->hashSuffix;
       vgInfo->vgHash = taosHashInit(rsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
       if (NULL == vgInfo->vgHash) {
         taosMemoryFree(vgInfo);
@@ -412,6 +414,9 @@ int32_t hbGetQueryBasicInfo(SClientHbKey *connKey, SClientHbReq *req) {
   int32_t code = hbBuildQueryDesc(hbBasic, pTscObj);
   if (code) {
     releaseTscObj(connKey->tscRid);
+    if (hbBasic->queryDesc) {
+      taosArrayDestroyEx(hbBasic->queryDesc, tFreeClientHbQueryDesc);
+    }
     taosMemoryFree(hbBasic);
     return code;
   }

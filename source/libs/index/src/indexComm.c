@@ -81,28 +81,28 @@ __compar_fn_t idxGetCompar(int8_t type) {
   }
   return getComparFunc(type, 0);
 }
-static TExeCond tCompareLessThan(void* a, void* b, int8_t type) {
+static FORCE_INLINE TExeCond tCompareLessThan(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
   return tCompare(func, QUERY_LESS_THAN, a, b, type);
 }
-static TExeCond tCompareLessEqual(void* a, void* b, int8_t type) {
+static FORCE_INLINE TExeCond tCompareLessEqual(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
   return tCompare(func, QUERY_LESS_EQUAL, a, b, type);
 }
-static TExeCond tCompareGreaterThan(void* a, void* b, int8_t type) {
+static FORCE_INLINE TExeCond tCompareGreaterThan(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
   return tCompare(func, QUERY_GREATER_THAN, a, b, type);
 }
-static TExeCond tCompareGreaterEqual(void* a, void* b, int8_t type) {
+static FORCE_INLINE TExeCond tCompareGreaterEqual(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
   return tCompare(func, QUERY_GREATER_EQUAL, a, b, type);
 }
 
-static TExeCond tCompareContains(void* a, void* b, int8_t type) {
+static FORCE_INLINE TExeCond tCompareContains(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
   return tCompare(func, QUERY_TERM, a, b, type);
 }
-static TExeCond tCompareEqual(void* a, void* b, int8_t type) {
+static FORCE_INLINE TExeCond tCompareEqual(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
   return tCompare(func, QUERY_TERM, a, b, type);
 }
@@ -178,9 +178,9 @@ TExeCond tDoCompare(__compar_fn_t func, int8_t comparType, void* a, void* b) {
   // optime later
   int32_t ret = func(a, b);
   switch (comparType) {
-    case QUERY_LESS_THAN: {
+    case QUERY_LESS_THAN:
       if (ret < 0) return MATCH;
-    } break;
+      break;
     case QUERY_LESS_EQUAL: {
       if (ret <= 0) return MATCH;
       break;

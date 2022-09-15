@@ -125,6 +125,9 @@ int32_t     metaTbCursorNext(SMTbCursor *pTbCur);
 // typedef struct STsdb STsdb;
 typedef struct STsdbReader STsdbReader;
 
+#define TSDB_DEFAULT_STT_FILE  8
+#define TSDB_DEFAULT_PAGE_SIZE 4096
+
 #define TIMEWINDOW_RANGE_CONTAINED 1
 #define TIMEWINDOW_RANGE_EXTERNAL  2
 
@@ -155,6 +158,7 @@ int32_t tsdbGetTableSchema(SVnode *pVnode, int64_t uid, STSchema **pSchema, int6
 
 void   tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity);
 size_t tsdbCacheGetCapacity(SVnode *pVnode);
+size_t tsdbCacheGetUsage(SVnode *pVnode);
 
 // tq
 typedef struct SMetaTableInfo {
@@ -287,6 +291,10 @@ struct SVnodeCfg {
   SVnodeStats vndStats;
   uint32_t    hashBegin;
   uint32_t    hashEnd;
+  int16_t     sttTrigger;
+  int16_t     hashPrefix;
+  int16_t     hashSuffix;
+  int32_t     tsdbPageSize;
 };
 
 typedef struct {

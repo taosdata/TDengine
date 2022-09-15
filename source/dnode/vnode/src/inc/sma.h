@@ -38,9 +38,10 @@ typedef struct SSmaEnv       SSmaEnv;
 typedef struct SSmaStat      SSmaStat;
 typedef struct STSmaStat     STSmaStat;
 typedef struct SRSmaStat     SRSmaStat;
-typedef struct SSmaKey       SSmaKey;
+typedef struct SRSmaRef      SRSmaRef;
 typedef struct SRSmaInfo     SRSmaInfo;
 typedef struct SRSmaInfoItem SRSmaInfoItem;
+typedef struct SRSmaFS       SRSmaFS;
 typedef struct SQTaskFile    SQTaskFile;
 typedef struct SQTaskFReader SQTaskFReader;
 typedef struct SQTaskFWriter SQTaskFWriter;
@@ -54,10 +55,21 @@ struct SSmaEnv {
 
 #define SMA_ENV_FLG_CLOSE ((int8_t)0x1)
 
+struct SRSmaRef {
+  int64_t refId;  // for SRSmaStat
+  int64_t suid;
+};
+
 typedef struct {
   int8_t  inited;
   int32_t rsetId;
   void   *tmrHandle;  // shared by all fetch tasks
+  /**
+   * @brief key: void* of SRSmaInfoItem, value: SRSmaRef
+   *  N.B. Although there is a very small possibility that "void*" point to different objects while with the same
+   * address after release/renew, the functionality is not affected as it just used to fetch the rsma results.
+   */
+  SHashObj *refHash;  // shared by all vgroups
 } SSmaMgmt;
 
 #define SMA_ENV_LOCK(env)  (&(env)->lock)
@@ -73,20 +85,25 @@ struct STSmaStat {
 
 struct SQTaskFile {
   volatile int32_t nRef;
-  int64_t          commitID;
+  int32_t          padding;
+  int64_t          version;
   int64_t          size;
 };
 
 struct SQTaskFReader {
-  SSma      *pSma;
-  SQTaskFile fTask;
-  TdFilePtr  pReadH;
+  SSma     *pSma;
+  int64_t   version;
+  TdFilePtr pReadH;
 };
 struct SQTaskFWriter {
-  SSma      *pSma;
-  SQTaskFile fTask;
-  TdFilePtr  pWriteH;
-  char      *fname;
+  SSma     *pSma;
+  int64_t   version;
+  TdFilePtr pWriteH;
+  char     *fname;
+};
+
+struct SRSmaFS {
+  SArray *aQTaskInf;  // array of SQTaskFile
 };
 
 struct SRSmaStat {
@@ -96,9 +113,10 @@ struct SRSmaStat {
   volatile int64_t nBufItems;         // number of items in queue buffer
   SRWLatch         lock;              // r/w lock for rsma fs(e.g. qtaskinfo)
   volatile int32_t nFetchAll;         // active number of fetch all
-  int8_t           triggerStat;       // shared by fetch tasks
-  int8_t           commitStat;        // 0 not in committing, 1 in committing
-  SArray          *aTaskFile;         // qTaskFiles committed recently(for recovery/snapshot r/w)
+  volatile int8_t  triggerStat;       // shared by fetch tasks
+  volatile int8_t  commitStat;        // 0 not in committing, 1 in committing
+  volatile int8_t  delFlag;           // 0 no deleted SRSmaInfo, 1 has deleted SRSmaInfo
+  SRSmaFS          fs;                // for recovery/snapshot r/w
   SHashObj        *infoHash;          // key: suid, value: SRSmaInfo
   tsem_t           notEmpty;          // has items in queue buffer
 };
@@ -118,21 +136,22 @@ struct SSmaStat {
 #define RSMA_TRIGGER_STAT(r) (&(r)->triggerStat)
 #define RSMA_COMMIT_STAT(r)  (&(r)->commitStat)
 #define RSMA_REF_ID(r)       ((r)->refId)
+#define RSMA_FS(r)           (&(r)->fs)
 #define RSMA_FS_LOCK(r)      (&(r)->lock)
 
 struct SRSmaInfoItem {
   int8_t   level : 4;
   int8_t   fetchLevel : 4;
   int8_t   triggerStat;
-  uint16_t nSkipped;
+  uint16_t nScanned;
   int32_t  maxDelay;  // ms
   tmr_h    tmrId;
 };
 
 struct SRSmaInfo {
+  SSma     *pSma;
   STSchema *pTSchema;
   int64_t   suid;
-  int64_t   refId;     // refId of SRSmaStat
   int64_t   lastRecv;  // ms
   int8_t    assigned;  // 0 idle, 1 assgined for exec
   int8_t    delFlag;
@@ -164,14 +183,6 @@ enum {
 };
 
 enum {
-  RSMA_ROLE_CREATE = 0,
-  RSMA_ROLE_DROP = 1,
-  RSMA_ROLE_SUBMIT = 2,
-  RSMA_ROLE_FETCH = 3,
-  RSMA_ROLE_ITERATE = 4,
-};
-
-enum {
   RSMA_RESTORE_REBOOT = 1,
   RSMA_RESTORE_SYNC = 2,
 };
@@ -182,88 +193,48 @@ typedef enum {
   RSMA_EXEC_COMMIT = 3,    // triggered by commit
 } ERsmaExecType;
 
-void  tdDestroySmaEnv(SSmaEnv *pSmaEnv);
-void *tdFreeSmaEnv(SSmaEnv *pSmaEnv);
-
-int32_t tdDropTSma(SSma *pSma, char *pMsg);
-int32_t tdDropTSmaData(SSma *pSma, int64_t indexUid);
-int32_t tdInsertRSmaData(SSma *pSma, char *msg);
-
-int32_t tdRefSmaStat(SSma *pSma, SSmaStat *pStat);
-int32_t tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat);
-int32_t tdRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo);
-int32_t tdUnRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo);
-
+// sma
+int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType);
+void    tdDestroySmaEnv(SSmaEnv *pSmaEnv);
+void   *tdFreeSmaEnv(SSmaEnv *pSmaEnv);
+int32_t tdLockSma(SSma *pSma);
+int32_t tdUnLockSma(SSma *pSma);
 void   *tdAcquireSmaRef(int32_t rsetId, int64_t refId);
 int32_t tdReleaseSmaRef(int32_t rsetId, int64_t refId);
 
-int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType);
-
-int32_t tdLockSma(SSma *pSma);
-int32_t tdUnLockSma(SSma *pSma);
-
-static FORCE_INLINE int8_t tdSmaStat(STSmaStat *pTStat) {
-  if (pTStat) {
-    return atomic_load_8(&pTStat->state);
-  }
-  return TSDB_SMA_STAT_UNKNOWN;
+static FORCE_INLINE void tdRefSmaStat(SSma *pSma, SSmaStat *pStat) {
+  int32_t ref = T_REF_INC(pStat);
+  smaDebug("vgId:%d, ref sma stat:%p, val:%d", SMA_VID(pSma), pStat, ref);
+}
+static FORCE_INLINE void tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat) {
+  int32_t ref = T_REF_DEC(pStat);
+  smaDebug("vgId:%d, unref sma stat:%p, val:%d", SMA_VID(pSma), pStat, ref);
 }
 
-static FORCE_INLINE bool tdSmaStatIsOK(STSmaStat *pTStat, int8_t *state) {
-  if (!pTStat) {
-    return false;
-  }
+// rsma
+void   *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree);
+int32_t tdRSmaFSOpen(SSma *pSma, int64_t version);
+void    tdRSmaFSClose(SRSmaFS *fs);
+int32_t tdRSmaFSRef(SSma *pSma, SRSmaStat *pStat, int64_t version);
+void    tdRSmaFSUnRef(SSma *pSma, SRSmaStat *pStat, int64_t version);
+int64_t tdRSmaFSMaxVer(SSma *pSma, SRSmaStat *pStat);
+int32_t tdRSmaFSUpsertQTaskFile(SRSmaFS *pFS, SQTaskFile *qTaskFile);
+int32_t tdRSmaRestore(SSma *pSma, int8_t type, int64_t committedVer);
+int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);
+int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type);
+int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash);
+int32_t tdRSmaProcessRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer);
+void    tdRSmaQTaskInfoGetFileName(int32_t vid, int64_t version, char *outputName);
+void    tdRSmaQTaskInfoGetFullName(int32_t vid, int64_t version, const char *path, char *outputName);
 
-  if (state) {
-    *state = atomic_load_8(&pTStat->state);
-    return *state == TSDB_SMA_STAT_OK;
-  }
-  return atomic_load_8(&pTStat->state) == TSDB_SMA_STAT_OK;
+static FORCE_INLINE void tdRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo) {
+  int32_t ref = T_REF_INC(pRSmaInfo);
+  smaDebug("vgId:%d, ref rsma info:%p, val:%d", SMA_VID(pSma), pRSmaInfo, ref);
 }
-
-static FORCE_INLINE bool tdSmaStatIsExpired(STSmaStat *pTStat) {
-  return pTStat ? (atomic_load_8(&pTStat->state) & TSDB_SMA_STAT_EXPIRED) : true;
+static FORCE_INLINE void tdUnRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo) {
+  int32_t ref = T_REF_DEC(pRSmaInfo);
+  smaDebug("vgId:%d, unref rsma info:%p, val:%d", SMA_VID(pSma), pRSmaInfo, ref);
 }
-
-static FORCE_INLINE bool tdSmaStatIsDropped(STSmaStat *pTStat) {
-  return pTStat ? (atomic_load_8(&pTStat->state) & TSDB_SMA_STAT_DROPPED) : true;
-}
-
-static FORCE_INLINE void tdSmaStatSetOK(STSmaStat *pTStat) {
-  if (pTStat) {
-    atomic_store_8(&pTStat->state, TSDB_SMA_STAT_OK);
-  }
-}
-
-static FORCE_INLINE void tdSmaStatSetExpired(STSmaStat *pTStat) {
-  if (pTStat) {
-    atomic_or_fetch_8(&pTStat->state, TSDB_SMA_STAT_EXPIRED);
-  }
-}
-
-static FORCE_INLINE void tdSmaStatSetDropped(STSmaStat *pTStat) {
-  if (pTStat) {
-    atomic_or_fetch_8(&pTStat->state, TSDB_SMA_STAT_DROPPED);
-  }
-}
-
-void           tdRSmaQTaskInfoGetFileName(int32_t vid, int64_t version, char *outputName);
-void           tdRSmaQTaskInfoGetFullName(int32_t vid, int64_t version, const char *path, char *outputName);
-int32_t        tdCloneRSmaInfo(SSma *pSma, SRSmaInfo *pInfo);
-void           tdFreeQTaskInfo(qTaskInfo_t *taskHandle, int32_t vgId, int32_t level);
-static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType);
-void          *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType);
-void          *tdFreeRSmaInfo(SSma *pSma, SRSmaInfo *pInfo, bool isDeepFree);
-int32_t        tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash);
-int32_t        tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type);
-
-int32_t tdProcessRSmaCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, const char *tbName);
-int32_t tdProcessRSmaRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer);
-int32_t tdRsmaRestore(SSma *pSma, int8_t type, int64_t committedVer);
-
-int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg);
-int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg);
-int32_t tdProcessTSmaGetDaysImpl(SVnodeCfg *pCfg, void *pCont, uint32_t contLen, int32_t *days);
 
 // smaFileUtil ================
 

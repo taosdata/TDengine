@@ -28,6 +28,8 @@ static int32_t tdInitSmaEnv(SSma *pSma, int8_t smaType, SSmaEnv **ppEnv);
 static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pSma);
 static int32_t tdRsmaStartExecutor(const SSma *pSma);
 static int32_t tdRsmaStopExecutor(const SSma *pSma);
+static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType);
+static void   *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType);
 static void   *tdFreeTSmaStat(STSmaStat *pStat);
 static void    tdDestroyRSmaStat(void *pRSmaStat);
 
@@ -59,12 +61,23 @@ int32_t smaInit() {
       return TSDB_CODE_FAILED;
     }
 
+    int32_t type = (8 == POINTER_BYTES) ? TSDB_DATA_TYPE_UBIGINT : TSDB_DATA_TYPE_UINT;
+    smaMgmt.refHash = taosHashInit(64, taosGetDefaultHashFunction(type), true, HASH_ENTRY_LOCK);
+    if (!smaMgmt.refHash) {
+      taosCloseRef(smaMgmt.rsetId);
+      atomic_store_8(&smaMgmt.inited, 0);
+      smaError("failed to init sma tmr hanle since %s", terrstr());
+      return TSDB_CODE_FAILED;
+    }
+
     // init fetch timer handle
     smaMgmt.tmrHandle = taosTmrInit(10000, 100, 10000, "RSMA");
     if (!smaMgmt.tmrHandle) {
       taosCloseRef(smaMgmt.rsetId);
+      taosHashCleanup(smaMgmt.refHash);
+      smaMgmt.refHash = NULL;
       atomic_store_8(&smaMgmt.inited, 0);
-      smaError("failed to init sma tmr hanle since %s", terrstr());
+      smaError("failed to init sma tmr handle since %s", terrstr());
       return TSDB_CODE_FAILED;
     }
 
@@ -93,6 +106,8 @@ void smaCleanUp() {
 
   if (old == 1) {
     taosCloseRef(smaMgmt.rsetId);
+    taosHashCleanup(smaMgmt.refHash);
+    smaMgmt.refHash = NULL;
     taosTmrCleanUp(smaMgmt.tmrHandle);
     smaInfo("sma mgmt env is cleaned up, rsetId:%d, tmrHandle:%p", smaMgmt.rsetId, smaMgmt.tmrHandle);
     atomic_store_8(&smaMgmt.inited, 0);
@@ -162,37 +177,19 @@ void *tdFreeSmaEnv(SSmaEnv *pSmaEnv) {
   return NULL;
 }
 
-int32_t tdRefSmaStat(SSma *pSma, SSmaStat *pStat) {
-  if (!pStat) return 0;
+static void tRSmaInfoHashFreeNode(void *data) {
+  SRSmaInfo     *pRSmaInfo = NULL;
+  SRSmaInfoItem *pItem = NULL;
 
-  int ref = T_REF_INC(pStat);
-  smaDebug("vgId:%d, ref sma stat:%p, val:%d", SMA_VID(pSma), pStat, ref);
-  return 0;
-}
-
-int32_t tdUnRefSmaStat(SSma *pSma, SSmaStat *pStat) {
-  if (!pStat) return 0;
-
-  int ref = T_REF_DEC(pStat);
-  smaDebug("vgId:%d, unref sma stat:%p, val:%d", SMA_VID(pSma), pStat, ref);
-  return 0;
-}
-
-int32_t tdRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo) {
-  if (!pRSmaInfo) return 0;
-
-  int ref = T_REF_INC(pRSmaInfo);
-  smaDebug("vgId:%d, ref rsma info:%p, val:%d", SMA_VID(pSma), pRSmaInfo, ref);
-  return 0;
-}
-
-int32_t tdUnRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo) {
-  if (!pRSmaInfo) return 0;
-
-  int ref = T_REF_DEC(pRSmaInfo);
-  smaDebug("vgId:%d, unref rsma info:%p, val:%d", SMA_VID(pSma), pRSmaInfo, ref);
-
-  return 0;
+  if ((pRSmaInfo = *(SRSmaInfo **)data)) {
+    if ((pItem = RSMA_INFO_ITEM((SRSmaInfo *)pRSmaInfo, 0)) && pItem->level) {
+      taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES);
+    }
+    if ((pItem = RSMA_INFO_ITEM((SRSmaInfo *)pRSmaInfo, 1)) && pItem->level) {
+      taosHashRemove(smaMgmt.refHash, &pItem, POINTER_BYTES);
+    }
+    tdFreeRSmaInfo(pRSmaInfo->pSma, pRSmaInfo, true);
+  }
 }
 
 static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pSma) {
@@ -240,8 +237,14 @@ static int32_t tdInitSmaStat(SSmaStat **pSmaStat, int8_t smaType, const SSma *pS
       if (!RSMA_INFO_HASH(pRSmaStat)) {
         return TSDB_CODE_FAILED;
       }
+      taosHashSetFreeFp(RSMA_INFO_HASH(pRSmaStat), tRSmaInfoHashFreeNode);
 
       if (tdRsmaStartExecutor(pSma) < 0) {
+        return TSDB_CODE_FAILED;
+      }
+
+      if (!(RSMA_FS(pRSmaStat)->aQTaskInf = taosArrayInit(1, sizeof(SQTaskFile)))) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
         return TSDB_CODE_FAILED;
       }
     } else if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
@@ -278,14 +281,6 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
     tsem_destroy(&(pStat->notEmpty));
 
     // step 2: destroy the rsma info and associated fetch tasks
-    if (taosHashGetSize(RSMA_INFO_HASH(pStat)) > 0) {
-      void *infoHash = taosHashIterate(RSMA_INFO_HASH(pStat), NULL);
-      while (infoHash) {
-        SRSmaInfo *pSmaInfo = *(SRSmaInfo **)infoHash;
-        tdFreeRSmaInfo(pSma, pSmaInfo, true);
-        infoHash = taosHashIterate(RSMA_INFO_HASH(pStat), infoHash);
-      }
-    }
     taosHashCleanup(RSMA_INFO_HASH(pStat));
 
     // step 3: wait for all triggered fetch tasks to finish
@@ -307,12 +302,15 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
     // step 4:
     tdRsmaStopExecutor(pSma);
 
-    // step 5: free pStat
+    // step 5:
+    tdRSmaFSClose(RSMA_FS(pStat));
+
+    // step 6: free pStat
     taosMemoryFreeClear(pStat);
   }
 }
 
-void *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType) {
+static void *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType) {
   tdDestroySmaState(pSmaStat, smaType);
   if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
     taosMemoryFreeClear(pSmaStat);
@@ -329,7 +327,7 @@ void *tdFreeSmaState(SSmaStat *pSmaStat, int8_t smaType) {
  * @return int32_t
  */
 
-int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
+static int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
   if (pSmaStat) {
     if (smaType == TSDB_SMA_TYPE_TIME_RANGE) {
       tdDestroyTSmaStat(SMA_STAT_TSMA(pSmaStat));
@@ -337,7 +335,7 @@ int32_t tdDestroySmaState(SSmaStat *pSmaStat, int8_t smaType) {
       SRSmaStat *pRSmaStat = &pSmaStat->rsmaStat;
       int32_t    vid = SMA_VID(pRSmaStat->pSma);
       int64_t    refId = RSMA_REF_ID(pRSmaStat);
-      if (taosRemoveRef(smaMgmt.rsetId, RSMA_REF_ID(pRSmaStat)) < 0) {
+      if (taosRemoveRef(smaMgmt.rsetId, refId) < 0) {
         smaError("vgId:%d, remove refId:%" PRIi64 " from rsmaRef:%" PRIi32 " failed since %s", vid, refId,
                  smaMgmt.rsetId, terrstr());
       } else {
@@ -461,6 +459,8 @@ static int32_t tdRsmaStopExecutor(const SSma *pSma) {
         taosThreadJoin(pthread[i], NULL);
       }
     }
+
+    smaInfo("vgId:%d, rsma executor stopped, number:%d", SMA_VID(pSma), tsNumOfVnodeRsmaThreads);
   }
   return 0;
 }

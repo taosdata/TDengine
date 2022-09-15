@@ -489,7 +489,7 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild, TXN
   }
 
   // Copy the root page content to the child page
-  tdbPageCopy(pRoot, pChild);
+  tdbPageCopy(pRoot, pChild, 0);
 
   // Reinitialize the root page
   zArg.flags = TDB_BTREE_ROOT;
@@ -742,7 +742,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     for (int i = 0; i < nOlds; i++) {
       tdbPageCreate(pOlds[0]->pageSize, &pOldsCopy[i], tdbDefaultMalloc, NULL);
       tdbBtreeInitPage(pOldsCopy[i], &iarg, 0);
-      tdbPageCopy(pOlds[i], pOldsCopy[i]);
+      tdbPageCopy(pOlds[i], pOldsCopy[i], 0);
     }
     iNew = 0;
     nNewCells = 0;
@@ -840,7 +840,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     i8 flags = TDB_BTREE_ROOT | TDB_BTREE_PAGE_IS_LEAF(pNews[0]);
     // copy content to the parent page
     tdbBtreeInitPage(pParent, &(SBtreeInitPageArg){.flags = flags, .pBt = pBt}, 0);
-    tdbPageCopy(pNews[0], pParent);
+    tdbPageCopy(pNews[0], pParent, 1);
   }
 
   for (int i = 0; i < 3; i++) {

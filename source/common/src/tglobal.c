@@ -63,7 +63,7 @@ int32_t tsNumOfVnodeWriteThreads = 2;
 int32_t tsNumOfVnodeSyncThreads = 2;
 int32_t tsNumOfVnodeRsmaThreads = 2;
 int32_t tsNumOfQnodeQueryThreads = 4;
-int32_t tsNumOfQnodeFetchThreads = 4;
+int32_t tsNumOfQnodeFetchThreads = 1;
 int32_t tsNumOfSnodeSharedThreads = 2;
 int32_t tsNumOfSnodeUniqueThreads = 2;
 
@@ -128,10 +128,6 @@ int32_t tsMinIntervalTime = 1;
 // positive value (in MB)
 int32_t tsQueryBufferSize = -1;
 int64_t tsQueryBufferSizeBytes = -1;
-
-// tsdb config
-// For backward compatibility
-bool tsdbForceKeepFile = false;
 
 int32_t  tsDiskCfgNum = 0;
 SDiskCfg tsDiskCfg[TFS_MAX_DISKS] = {0};
@@ -389,9 +385,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfQnodeQueryThreads = TMAX(tsNumOfQnodeQueryThreads, 4);
   if (cfgAddInt32(pCfg, "numOfQnodeQueryThreads", tsNumOfQnodeQueryThreads, 1, 1024, 0) != 0) return -1;
 
-  tsNumOfQnodeFetchThreads = tsNumOfCores / 2;
-  tsNumOfQnodeFetchThreads = TMAX(tsNumOfQnodeFetchThreads, 4);
-  if (cfgAddInt32(pCfg, "numOfQnodeFetchThreads", tsNumOfQnodeFetchThreads, 1, 1024, 0) != 0) return -1;
+//  tsNumOfQnodeFetchThreads = tsNumOfCores / 2;
+//  tsNumOfQnodeFetchThreads = TMAX(tsNumOfQnodeFetchThreads, 4);
+//  if (cfgAddInt32(pCfg, "numOfQnodeFetchThreads", tsNumOfQnodeFetchThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfSnodeSharedThreads = tsNumOfCores / 4;
   tsNumOfSnodeSharedThreads = TRANGE(tsNumOfSnodeSharedThreads, 2, 4);
@@ -531,6 +527,7 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
     pItem->stype = stype;
   }
 
+/*
   pItem = cfgGetItem(tsCfg, "numOfQnodeFetchThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     tsNumOfQnodeFetchThreads = numOfCores / 2;
@@ -538,6 +535,7 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
     pItem->i32 = tsNumOfQnodeFetchThreads;
     pItem->stype = stype;
   }
+*/
 
   pItem = cfgGetItem(tsCfg, "numOfSnodeSharedThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
@@ -695,7 +693,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsNumOfVnodeSyncThreads = cfgGetItem(pCfg, "numOfVnodeSyncThreads")->i32;
   tsNumOfVnodeRsmaThreads = cfgGetItem(pCfg, "numOfVnodeRsmaThreads")->i32;
   tsNumOfQnodeQueryThreads = cfgGetItem(pCfg, "numOfQnodeQueryThreads")->i32;
-  tsNumOfQnodeFetchThreads = cfgGetItem(pCfg, "numOfQnodeFetchThreads")->i32;
+//  tsNumOfQnodeFetchThreads = cfgGetItem(pCfg, "numOfQnodeFetchThreads")->i32;
   tsNumOfSnodeSharedThreads = cfgGetItem(pCfg, "numOfSnodeSharedThreads")->i32;
   tsNumOfSnodeUniqueThreads = cfgGetItem(pCfg, "numOfSnodeUniqueThreads")->i32;
   tsRpcQueueMemoryAllowed = cfgGetItem(pCfg, "rpcQueueMemoryAllowed")->i64;
@@ -943,8 +941,10 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         tsNumOfVnodeRsmaThreads = cfgGetItem(pCfg, "numOfVnodeRsmaThreads")->i32;
       } else if (strcasecmp("numOfQnodeQueryThreads", name) == 0) {
         tsNumOfQnodeQueryThreads = cfgGetItem(pCfg, "numOfQnodeQueryThreads")->i32;
+/*        
       } else if (strcasecmp("numOfQnodeFetchThreads", name) == 0) {
         tsNumOfQnodeFetchThreads = cfgGetItem(pCfg, "numOfQnodeFetchThreads")->i32;
+*/
       } else if (strcasecmp("numOfSnodeSharedThreads", name) == 0) {
         tsNumOfSnodeSharedThreads = cfgGetItem(pCfg, "numOfSnodeSharedThreads")->i32;
       } else if (strcasecmp("numOfSnodeUniqueThreads", name) == 0) {
@@ -1133,7 +1133,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
   taosSetAllDebugFlag(cfgGetItem(pCfg, "debugFlag")->i32, false);
 
-  if (taosMulMkDir(tsLogDir) != 0) {
+  if (taosMulModeMkDir(tsLogDir, 0777) != 0) {
     uError("failed to create dir:%s since %s", tsLogDir, terrstr());
     cfgCleanup(pCfg);
     return -1;

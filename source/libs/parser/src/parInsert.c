@@ -1129,11 +1129,14 @@ static int32_t parseTableOptions(SInsertParseContext* pCxt) {
     NEXT_TOKEN_KEEP_SQL(pCxt->pSql, sToken, index);
     if (TK_TTL == sToken.type) {
       pCxt->pSql += index;
-      NEXT_TOKEN(pCxt->pSql, sToken);
+      NEXT_TOKEN_WITH_PREV(pCxt->pSql, sToken);
       if (TK_NK_INTEGER != sToken.type) {
         return buildSyntaxErrMsg(&pCxt->msg, "Invalid option ttl", sToken.z);
       }
       pCxt->createTblReq.ttl = taosStr2Int32(sToken.z, NULL, 10);
+      if (pCxt->createTblReq.ttl < 0) {
+        return buildSyntaxErrMsg(&pCxt->msg, "Invalid option ttl", sToken.z);
+      }
     } else if (TK_COMMENT == sToken.type) {
       pCxt->pSql += index;
       NEXT_TOKEN(pCxt->pSql, sToken);
@@ -1420,9 +1423,7 @@ static int32_t parseDataFromFile(SInsertParseContext* pCxt, SToken filePath, STa
 }
 
 static void destroyInsertParseContextForTable(SInsertParseContext* pCxt) {
-  if (!pCxt->pComCxt->async) {
-    taosMemoryFreeClear(pCxt->pTableMeta);
-  }
+  taosMemoryFreeClear(pCxt->pTableMeta);
   destroyBoundColumnInfo(&pCxt->tags);
   tdDestroySVCreateTbReq(&pCxt->createTblReq);
 }
@@ -1742,7 +1743,7 @@ static int32_t skipTableOptions(SInsertParseSyntaxCxt* pCxt) {
     NEXT_TOKEN_KEEP_SQL(pCxt->pSql, sToken, index);
     if (TK_TTL == sToken.type || TK_COMMENT == sToken.type) {
       pCxt->pSql += index;
-      NEXT_TOKEN(pCxt->pSql, sToken);
+      NEXT_TOKEN_WITH_PREV(pCxt->pSql, sToken);
     } else {
       break;
     }
@@ -2312,7 +2313,7 @@ static int32_t smlBoundColumnData(SArray* cols, SParsedDataColInfo* pColList, SS
     SToken   sToken = {.n = kv->keyLen, .z = (char*)kv->key};
     col_id_t t = lastColIdx + 1;
     col_id_t index = ((t == 0 && !isTag) ? 0 : findCol(&sToken, t, nCols, pSchema));
-    uDebug("SML, index:%d, t:%d, ncols:%d, kv->name:%s", index, t, nCols, kv->key);
+    uDebug("SML, index:%d, t:%d, ncols:%d", index, t, nCols);
     if (index < 0 && t > 0) {
       index = findCol(&sToken, 0, t, pSchema);
       isOrdered = false;
@@ -2533,9 +2534,7 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
         if (p) kv = *p;
       }
 
-      if (!kv || kv->length == 0) {
-        MemRowAppend(&pBuf, NULL, 0, &param);
-      } else {
+      if (kv){
         int32_t colLen = kv->length;
         if (pColSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
           //          uError("SML:data before:%" PRId64 ", precision:%d", kv->i, pTableMeta->tableInfo.precision);
@@ -2548,6 +2547,8 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
         } else {
           MemRowAppend(&pBuf, &(kv->value), colLen, &param);
         }
+      }else{
+        pBuilder->hasNone = true;
       }
 
       if (PRIMARYKEY_TIMESTAMP_COL_ID == pColSchema->colId) {
