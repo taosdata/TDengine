@@ -2096,8 +2096,10 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
 
     // it is a clean block, load it directly
     if (isCleanFileDataBlock(pReader, pBlockInfo, pBlock, pBlockScanInfo, keyInBuf, pLastBlockReader)) {
-      copyBlockDataToSDataBlock(pReader, pBlockScanInfo);
-      goto _end;
+      if (pReader->order == TSDB_ORDER_ASC || (pReader->order == TSDB_ORDER_DESC && (!hasDataInLastBlock(pLastBlockReader)))) {
+        copyBlockDataToSDataBlock(pReader, pBlockScanInfo);
+        goto _end;
+      }
     }
   } else {  // file blocks not exist
     pBlockScanInfo = pReader->status.pTableIter;
