@@ -1592,6 +1592,38 @@ void tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal) {
   tColDataGetValueImpl[pColData->flag](pColData, iVal, pColVal);
 }
 
+uint8_t tColDataGetBitValue(SColData *pColData, int32_t iVal) {
+  uint8_t v;
+  switch (pColData->flag) {
+    case HAS_NONE:
+      v = 0;
+      break;
+    case HAS_NULL:
+      v = 1;
+      break;
+    case (HAS_NULL | HAS_NONE):
+      v = GET_BIT1(pColData->pBitMap, iVal);
+      break;
+    case HAS_VALUE:
+      v = 2;
+      break;
+    case (HAS_VALUE | HAS_NONE):
+      v = GET_BIT1(pColData->pBitMap, iVal);
+      if (v) v = 2;
+      break;
+    case (HAS_VALUE | HAS_NULL):
+      v = GET_BIT1(pColData->pBitMap, iVal) + 1;
+      break;
+    case (HAS_VALUE | HAS_NULL | HAS_NONE):
+      v = GET_BIT2(pColData->pBitMap, iVal);
+      break;
+    default:
+      ASSERT(0);
+      break;
+  }
+  return v;
+}
+
 int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest) {
   int32_t code = 0;
   int32_t size;
