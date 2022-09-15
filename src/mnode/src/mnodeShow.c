@@ -343,6 +343,9 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
   memcpy(pConnectRsp->serverVersion, version, TSDB_VERSION_LEN);
   pConnectRsp->writeAuth = pUser->writeAuth;
   pConnectRsp->superAuth = pUser->superAuth;
+  strcpy(pConnectRsp->tags, pUser->tags);
+  if(pUser->tags[0])
+    mInfo("TAGS server response to client. user=%s tags=%s", pUser->user, pUser->tags);
   
   mnodeGetMnodeEpSetForShell(&pConnectRsp->epSet, false);
 

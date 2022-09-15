@@ -1261,8 +1261,6 @@ static void insertBatchClean(STscStmt* pStmt) {
   taosHashClear(pCmd->insertParam.pTableBlockHashList);
   tscFreeSqlResult(pSql);
   tscFreeSubobj(pSql);
-  tfree(pSql->pSubs);
-  pSql->subState.numOfSub = 0;
 }
 
 static int insertBatchStmtExecute(STscStmt* pStmt) {

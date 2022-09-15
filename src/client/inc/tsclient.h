@@ -336,6 +336,7 @@ typedef struct STscObj {
   char               user[TSDB_USER_LEN];
   char               pass[TSDB_PASS_LEN];
   char               acctId[TSDB_ACCT_ID_LEN];
+  char               tags[TSDB_TAGS_LEN];
   char               db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   char               sversion[TSDB_VERSION_LEN];
   char               clusterId[TSDB_CLUSTER_ID_LEN];
