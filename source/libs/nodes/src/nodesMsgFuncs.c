@@ -23,11 +23,15 @@
 #define tlvForEach(pDecoder, pTlv, code) \
   while (TSDB_CODE_SUCCESS == code && TSDB_CODE_SUCCESS == (code = tlvGetNextTlv(pDecoder, &pTlv)) && NULL != pTlv)
 
+#pragma pack(push, 1)
+
 typedef struct STlv {
   int16_t type;
   int32_t len;
   char    value[0];
-} __attribute__((packed, aligned(1))) STlv;
+} STlv;
+
+#pragma pack(pop)
 
 typedef struct STlvEncoder {
   int32_t allocSize;
