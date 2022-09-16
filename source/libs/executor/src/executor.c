@@ -265,6 +265,15 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
 
 int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  STableListInfo* pListInfo = &pTaskInfo->tableqinfoList;
+
+  if (isAdd) {
+    qDebug("add %d tables id into query list, %s", (int32_t) taosArrayGetSize(tableIdList), pTaskInfo->id.str);
+  }
+
+  if (pListInfo->map == NULL) {
+    pListInfo->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  }
 
   // traverse to the stream scanner node to add this table id
   SOperatorInfo* pInfo = pTaskInfo->pRoot;
@@ -311,13 +320,19 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
         }
       }
 
-      taosArrayPush(pTaskInfo->tableqinfoList.pTableList, &keyInfo);
-      if (pTaskInfo->tableqinfoList.map == NULL) {
-        pTaskInfo->tableqinfoList.map =
-            taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+      bool exists = false;
+      for (int32_t k = 0; k < taosArrayGetSize(pListInfo->pTableList); ++k) {
+        STableKeyInfo* pKeyInfo = taosArrayGet(pListInfo->pTableList, k);
+        if (pKeyInfo->uid == keyInfo.uid) {
+          qWarn("ignore duplicated query table uid:%" PRIu64 " added, %s", pKeyInfo->uid, pTaskInfo->id.str);
+          exists = true;
+        }
       }
 
-      taosHashPut(pTaskInfo->tableqinfoList.map, uid, sizeof(uid), &keyInfo.groupId, sizeof(keyInfo.groupId));
+      if (!exists) {
+        taosArrayPush(pTaskInfo->tableqinfoList.pTableList, &keyInfo);
+        taosHashPut(pTaskInfo->tableqinfoList.map, uid, sizeof(uid), &keyInfo.groupId, sizeof(keyInfo.groupId));
+      }
     }
 
     if (keyBuf != NULL) {

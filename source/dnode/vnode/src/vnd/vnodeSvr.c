@@ -533,6 +533,7 @@ static int32_t vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pR
     taosArrayPush(rsp.pArray, &cRsp);
   }
 
+  vDebug("vgId:%d, add %d new created tables into query table list", TD_VID(pVnode), (int32_t)taosArrayGetSize(tbUids));
   tqUpdateTbUidList(pVnode->pTq, tbUids, true);
   if (tdUpdateTbUidList(pVnode->pSma, pStore, true) < 0) {
     goto _exit;
@@ -888,7 +889,6 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
 
         taosArrayPush(newTbUids, &createTbReq.uid);
       }
-      taosArrayPush(newTbUids, &createTbReq.uid);
 
       submitBlkRsp.uid = createTbReq.uid;
       submitBlkRsp.tblFName = taosMemoryMalloc(strlen(pVnode->config.dbname) + strlen(createTbReq.name) + 2);
@@ -919,6 +919,11 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
     submitRsp.affectedRows += submitBlkRsp.affectedRows;
     taosArrayPush(submitRsp.pArray, &submitBlkRsp);
   }
+
+  if (taosArrayGetSize(newTbUids) > 0) {
+    vDebug("vgId:%d, add %d table into query table list in handling submit", TD_VID(pVnode), (int32_t)taosArrayGetSize(newTbUids));
+  }
+
   tqUpdateTbUidList(pVnode->pTq, newTbUids, true);
 
 _exit:
