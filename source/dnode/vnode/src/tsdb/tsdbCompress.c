@@ -36,6 +36,9 @@ typedef struct {
     struct {
       int8_t  i_copy;
       int32_t i_n;
+      int64_t i_prev;
+      int32_t i_selector;
+      int32_t i_nele;
     };
     // Float ----
     struct {
@@ -188,38 +191,72 @@ _copy_exit:
 
 // Integer =====================================================
 #define SIMPLE8B_MAX ((uint64_t)1152921504606846974LL)
+static const char    bit_per_integer[] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 30, 60};
+static const int32_t selector_to_elems[] = {240, 120, 60, 30, 20, 15, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1};
+static const char    bit_to_selector[] = {0,  2,  3,  4,  5,  6,  7,  8,  9,  10, 10, 11, 11, 12, 12, 12,
+                                          13, 13, 13, 13, 13, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 15,
+                                          15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
+                                          15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15};
 
 static int32_t tCompI64(SCompressor *pCmprsor, int64_t val) {
   int32_t code = 0;
-#if 0
 
-  // raw copy
-  if (pCmprsor->rawCopy) {
-    memcpy(pCmprsor->pBuf + pCmprsor->nBuf, &val, sizeof(val));
-    pCmprsor->nBuf += sizeof(val);
-    pCmprsor->nVal++;
-    goto _exit;
+  if (pCmprsor->i_copy == 1) goto _copy_cmpr;
+
+  if (!I64_SAFE_ADD(val, pCmprsor->i_prev)) {
+    // TODO
+    goto _copy_cmpr;
   }
 
-  if (!I64_SAFE_ADD(val, pCmprsor->prevVal)) {
-    pCmprsor->rawCopy = 1;
-    // TODO: decompress and copy
-    pCmprsor->nVal++;
-    goto _exit;
+  int64_t  diff = val - pCmprsor->i_prev;
+  uint64_t vZigzag = ZIGZAGE(int64_t, diff);
+
+  if (vZigzag >= SIMPLE8B_MAX) {
+    // TODO
+    goto _copy_cmpr;
   }
 
-  int64_t diff = val - pCmprsor->prevVal;
-  uint8_t zigzag = ZIGZAGE(int64_t, diff);
-
-  if (zigzag >= SIMPLE8B_MAX) {
-    pCmprsor->rawCopy = 1;
-    // TODO: decompress and copy
-    pCmprsor->nVal++;
-    goto _exit;
+  int64_t nBit;
+  if (vZigzag) {
+    nBit = 64 - BUILDIN_CLZL(vZigzag);
+  } else {
+    nBit = 0;
   }
 
-_exit:
-#endif
+  if (pCmprsor->i_nele + 1 <= selector_to_elems[pCmprsor->i_selector] &&
+      pCmprsor->i_nele + 1 <= selector_to_elems[bit_to_selector[nBit]]) {
+    if (pCmprsor->i_selector < bit_to_selector[nBit]) {
+      pCmprsor->i_selector = bit_to_selector[nBit];
+    }
+    pCmprsor->i_nele++;
+  } else {
+    while (pCmprsor->i_nele < selector_to_elems[pCmprsor->i_selector]) {
+      pCmprsor->i_selector++;
+    }
+    pCmprsor->i_nele = selector_to_elems[pCmprsor->i_selector];
+
+    code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0] + sizeof(uint64_t));
+    if (code) return code;
+
+    uint64_t *bp = pCmprsor->aBuf[0] + pCmprsor->nBuf[0];
+    pCmprsor->nBuf[0] += sizeof(uint64_t);
+    bp[0] = pCmprsor->i_selector;
+    for (int32_t iVal = 0; iVal < pCmprsor->i_nele; iVal++) {
+      /* code */
+    }
+
+    // reset and continue
+  }
+
+  return code;
+
+_copy_cmpr:
+  code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0] + tDataTypes[pCmprsor->type].bytes);
+  if (code) return code;
+
+  memcpy(pCmprsor->aBuf[0] + pCmprsor->nBuf[0], NULL /* todo */, tDataTypes[pCmprsor->type].bytes);
+  pCmprsor->nBuf[0] += tDataTypes[pCmprsor->type].bytes;
+
   return code;
 }
 
@@ -294,8 +331,8 @@ static int32_t tCompDouble(SCompressor *pCmprsor, double d) {
 
   int32_t clz, ctz;
   if (diff) {
-    clz = BUILDIN_CLZ(diff);
-    ctz = BUILDIN_CTZ(diff);
+    clz = BUILDIN_CLZL(diff);
+    ctz = BUILDIN_CTZL(diff);
   } else {
     clz = sizeof(uint64_t);
     ctz = sizeof(uint64_t);
