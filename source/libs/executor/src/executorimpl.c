@@ -3645,6 +3645,11 @@ static void cleanupTableSchemaInfo(SSchemaInfo* pSchemaInfo) {
   tDeleteSSchemaWrapper(pSchemaInfo->qsw);
 }
 
+static void cleanupStreamInfo(SStreamTaskInfo* pStreamInfo) {
+  tDeleteSSchemaWrapper(pStreamInfo->schema);
+  cleanupQueryTableDataCond(&pStreamInfo->tableCond);
+}
+
 static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
   taosArrayClear(pTableListInfo->pGroupList);
   SArray* sortSupport = taosArrayInit(16, sizeof(uint64_t));
@@ -4338,6 +4343,7 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   doDestroyTableList(&pTaskInfo->tableqinfoList);
   destroyOperatorInfo(pTaskInfo->pRoot);
   cleanupTableSchemaInfo(&pTaskInfo->schemaInfo);
+  cleanupStreamInfo(&pTaskInfo->streamInfo);
 
   nodesDestroyNode((SNode*)pTaskInfo->pSubplan);
 

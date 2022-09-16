@@ -343,8 +343,8 @@ SMqConsumerEp *tCloneSMqConsumerEp(const SMqConsumerEp *pConsumerEpOld) {
   return pConsumerEpNew;
 }
 
-void tDeleteSMqConsumerEp(SMqConsumerEp *pConsumerEp) {
-  //
+void tDeleteSMqConsumerEp(void *data) {
+  SMqConsumerEp *pConsumerEp = (SMqConsumerEp*)data;
   taosArrayDestroyP(pConsumerEp->vgs, (FDelete)tDeleteSMqVgEp);
 }
 

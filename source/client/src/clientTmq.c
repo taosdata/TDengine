@@ -1816,7 +1816,7 @@ int32_t tmq_get_vgroup_id(TAOS_RES* res) {
   } else if (TD_RES_TMQ_META(res)) {
     SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)res;
     return pMetaRspObj->vgId;
-  } else if (TD_RES_TMQ_META(res)) {
+  } else if (TD_RES_TMQ_METADATA(res)) {
     SMqTaosxRspObj* pRspObj = (SMqTaosxRspObj*)res;
     return pRspObj->vgId;
   } else {
@@ -1832,7 +1832,14 @@ const char* tmq_get_table_name(TAOS_RES* res) {
       return NULL;
     }
     return (const char*)taosArrayGetP(pRspObj->rsp.blockTbName, pRspObj->resIter);
-  }
+  } else if (TD_RES_TMQ_METADATA(res)) {
+    SMqTaosxRspObj* pRspObj = (SMqTaosxRspObj*)res;
+      if (!pRspObj->rsp.withTbName || pRspObj->rsp.blockTbName == NULL || pRspObj->resIter < 0 ||
+          pRspObj->resIter >= pRspObj->rsp.blockNum) {
+        return NULL;
+      }
+      return (const char*)taosArrayGetP(pRspObj->rsp.blockTbName, pRspObj->resIter);
+    }
   return NULL;
 }
 

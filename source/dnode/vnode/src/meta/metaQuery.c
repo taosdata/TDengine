@@ -319,8 +319,12 @@ _query:
         pSchema = tCloneSSchemaWrapper(&meNew.stbEntry.schemaRow);
         tDecoderClear(&dcNew);
         tdbTbcClose(pCur);
+        tdbFree(pKey);
+        tdbFree(pVal);
         goto _exit;
       }
+      tdbFree(pKey);
+      tdbFree(pVal);
       tdbTbcClose(pCur);
     }
   } else if (me.type == TSDB_CHILD_TABLE) {
@@ -347,11 +351,13 @@ _query:
   tDecoderClear(&dc);
 
 _exit:
+  tDecoderClear(&dc);
   metaULock(pMeta);
   tdbFree(pData);
   return pSchema;
 
 _err:
+  tDecoderClear(&dc);
   metaULock(pMeta);
   tdbFree(pData);
   return NULL;
@@ -382,11 +388,9 @@ int metaTtlSmaller(SMeta *pMeta, uint64_t ttl, SArray *uidList) {
     }
     ttlKey = *(STtlIdxKey *)pKey;
     taosArrayPush(uidList, &ttlKey.uid);
+    tdbFree(pKey);
   }
   tdbTbcClose(pCur);
-
-  tdbFree(pKey);
-
   return 0;
 }
 

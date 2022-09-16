@@ -219,8 +219,6 @@ static char* processAlterStb(SMqMetaRsp* metaRsp) {
     goto _err;
   }
   string = buildAlterSTableJson(req.alterOriData, req.alterOriDataLen);
-  tDecoderClear(&coder);
-  return string;
 
 _err:
   tDecoderClear(&coder);
@@ -397,6 +395,10 @@ static char* processAutoCreateTable(STaosxRsp* rsp) {
 _exit:
   for(int i = 0; i < rsp->createTableNum; i++){
     tDecoderClear(&decoder[i]);
+    taosMemoryFreeClear(pCreateReq[i].comment);
+    if (pCreateReq[i].type == TSDB_CHILD_TABLE) {
+      taosArrayDestroy(pCreateReq[i].ctb.tagName);
+    }
   }
   taosMemoryFree(decoder);
   taosMemoryFree(pCreateReq);
@@ -512,6 +514,7 @@ static char* processAlterTable(SMqMetaRsp* metaRsp) {
   string = cJSON_PrintUnformatted(json);
 
 _exit:
+  cJSON_Delete(json);
   tDecoderClear(&decoder);
   return string;
 }
@@ -543,6 +546,7 @@ static char* processDropSTable(SMqMetaRsp* metaRsp) {
   string = cJSON_PrintUnformatted(json);
 
 _exit:
+  cJSON_Delete(json);
   tDecoderClear(&decoder);
   return string;
 }
@@ -583,6 +587,7 @@ static char* processDropTable(SMqMetaRsp* metaRsp) {
   string = cJSON_PrintUnformatted(json);
 
 _exit:
+  cJSON_Delete(json);
   tDecoderClear(&decoder);
   return string;
 }
@@ -688,6 +693,7 @@ static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
     goto end;
   }
 
+  pRequest->syncQuery = true;
   if (!pRequest->pDb) {
     code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
     goto end;
@@ -920,7 +926,7 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
-
+  pRequest->syncQuery = true;
   if (!pRequest->pDb) {
     code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
     goto end;
@@ -1093,6 +1099,7 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
     goto end;
   }
 
+  pRequest->syncQuery = true;
   if (!pRequest->pDb) {
     code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
     goto end;
@@ -1212,6 +1219,7 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
     goto end;
   }
 
+  pRequest->syncQuery = true;
   if (!pRequest->pDb) {
     uError("WriteRaw:not use db");
     code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
@@ -1399,6 +1407,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
     return terrno;
   }
 
+  pRequest->syncQuery = true;
   rspObj.resIter = -1;
   rspObj.resType = RES_TYPE__TMQ;
 
@@ -1664,6 +1673,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
     return terrno;
   }
 
+  pRequest->syncQuery = true;
   rspObj.resIter = -1;
   rspObj.resType = RES_TYPE__TMQ_METADATA;
 
@@ -1739,23 +1749,29 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
       int32_t* lenTmp = taosArrayGet(rspObj.rsp.createTableLen, j);
 
       SDecoder           decoderTmp = {0};
-      SVCreateTbReq*     pCreateReq;
+      SVCreateTbReq      pCreateReq = {0};
 
       tDecoderInit(&decoderTmp, *dataTmp, *lenTmp);
-      if (tDecodeSVCreateTbReq(&decoderTmp, pCreateReq) < 0) {
+      if (tDecodeSVCreateTbReq(&decoderTmp, &pCreateReq) < 0) {
         tDecoderClear(&decoderTmp);
+        taosMemoryFreeClear(pCreateReq.comment);
+        taosArrayDestroy(pCreateReq.ctb.tagName);
         goto end;
       }
 
-      ASSERT (pCreateReq->type == TSDB_CHILD_TABLE);
-      if(strcmp(tbName, pCreateReq->name) == 0){
+      ASSERT (pCreateReq.type == TSDB_CHILD_TABLE);
+      if(strcmp(tbName, pCreateReq.name) == 0){
         schemaLen = *lenTmp;
         schemaData = *dataTmp;
-        strcpy(pName.tname, pCreateReq->ctb.name);
+        strcpy(pName.tname, pCreateReq.ctb.name);
         tDecoderClear(&decoderTmp);
+        taosMemoryFreeClear(pCreateReq.comment);
+        taosArrayDestroy(pCreateReq.ctb.tagName);
         break;
       }
       tDecoderClear(&decoderTmp);
+      taosMemoryFreeClear(pCreateReq.comment);
+      taosArrayDestroy(pCreateReq.ctb.tagName);
     }
 
     code = catalogGetTableMeta(pCatalog, &conn, &pName, &pTableMeta);
@@ -1884,6 +1900,8 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
     subReq->length += sizeof(SSubmitBlk) + schemaLen + totalLen;
     subReq->numOfBlocks++;
     taosMemoryFreeClear(pTableMeta);
+    rspObj.resInfo.pRspMsg = NULL;
+    doFreeReqResultInfo(&rspObj.resInfo);
   }
 
   pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
