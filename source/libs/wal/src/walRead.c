@@ -56,6 +56,18 @@ SWalReader *walOpenReader(SWal *pWal, SWalFilterCond *cond) {
   /*if (pReader->cond.enableRef) {*/
   /* taosHashPut(pWal->pRefHash, &pReader->readerId, sizeof(int64_t), &pReader, sizeof(void *));*/
   /*}*/
+#if 0
+  pReader->pCache = taosLRUCacheInit(20 * 1024 * 1024, 1, .5);
+  if (pReader->pCache == NULL) {
+    terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
+    taosMemoryFree(pReader);
+    return NULL;
+  }
+
+  taosLRUCacheSetStrictCapacity(pReader->pCache, false);
+
+  taosThreadMutexInit(&pReader->lruMutex, NULL);
+#endif
 
   return pReader;
 }
@@ -67,6 +79,11 @@ void walCloseReader(SWalReader *pReader) {
   /*taosHashRemove(pReader->pWal->pRefHash, &pReader->readerId, sizeof(int64_t));*/
   /*}*/
   taosMemoryFreeClear(pReader->pHead);
+#if 0
+  taosLRUCacheEraseUnrefEntries(pReader->pCache);
+  taosLRUCacheCleanup(pReader->pCache);
+  taosThreadMutexDestroy(&pReader->lruMutex);
+#endif
   taosMemoryFree(pReader);
 }
 
@@ -449,6 +466,11 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
 
   taosThreadMutexLock(&pReader->mutex);
 
+  if (!pReader->curInvalid && pReader->curVersion - 1 == ver) {
+    taosThreadMutexUnlock(&pReader->mutex);
+    return 0;
+  }
+
   if (pReader->curInvalid || pReader->curVersion != ver) {
     if (walReadSeekVer(pReader, ver) < 0) {
       wError("vgId:%d, unexpected wal log, index:%" PRId64 ", since %s", pReader->pWal->cfg.vgId, ver, terrstr());
@@ -533,9 +555,59 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
     taosThreadMutexUnlock(&pReader->mutex);
     return -1;
   }
-  pReader->curVersion++;
+  pReader->curInvalid = 0;
+  ++pReader->curVersion;
 
   taosThreadMutexUnlock(&pReader->mutex);
 
   return 0;
 }
+
+#if 0
+static void deleteWalCacheEntry(const void *key, size_t keyLen, void *value) { taosMemoryFree(value); }
+
+int32_t walReadVerCached(SWalReader *pReader, int64_t ver) {
+  SLRUCache *pCache = pReader->pCache;
+  LRUHandle *h = taosLRUCacheLookup(pCache, &ver, sizeof(ver));
+  if (!h) {
+    taosThreadMutexLock(&pReader->lruMutex);
+    h = taosLRUCacheLookup(pCache, &ver, sizeof(ver));
+    if (!h) {
+      int32_t code = walReadVer(pReader, ver);
+      if (code != 0) {
+        taosThreadMutexUnlock(&pReader->lruMutex);
+        return code;
+      }
+
+      int         entryLen = sizeof(SWalCkHead) + pReader->pHead->head.bodyLen;
+      SWalCkHead *walHead = taosMemoryMalloc(entryLen);
+      memcpy(walHead, pReader->pHead, entryLen);
+
+      _taos_lru_deleter_t deleter = deleteWalCacheEntry;
+      LRUStatus           status =
+          taosLRUCacheInsert(pCache, &ver, sizeof(ver), walHead, entryLen, deleter, &h, TAOS_LRU_PRIORITY_LOW);
+      if (status != TAOS_LRU_STATUS_OK) {
+        code = -1;
+      }
+
+      taosThreadMutexUnlock(&pReader->lruMutex);
+
+      // h = taosLRUCacheLookup(pCache, &ver, sizeof(ver));
+      if (!h) {
+        ASSERT(0);
+        return 0;
+      }
+    } else {
+      taosThreadMutexUnlock(&pReader->lruMutex);
+    }
+  }
+
+  SWalCkHead *walHead = (SWalCkHead *)taosLRUCacheValue(pCache, h);
+  memcpy(pReader->pHead, walHead, sizeof(SWalCkHead) + walHead->head.bodyLen);
+  taosLRUCacheRelease(pCache, h, false);
+
+  pReader->curInvalid = 1;
+
+  return 0;
+}
+#endif

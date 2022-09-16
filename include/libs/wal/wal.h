@@ -19,7 +19,9 @@
 #include "tarray.h"
 #include "tdef.h"
 #include "tlog.h"
+#include "tlrucache.h"
 #include "tmsg.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -149,6 +151,10 @@ typedef struct {
   SWalFilterCond cond;
   // TODO remove it
   SWalCkHead *pHead;
+#if 0
+  SLRUCache    *pCache;
+  TdThreadMutex lruMutex;
+#endif
 } SWalReader;
 
 // module initialization
@@ -191,6 +197,9 @@ void        walCloseReader(SWalReader *pRead);
 int32_t     walReadVer(SWalReader *pRead, int64_t ver);
 int32_t     walReadSeekVer(SWalReader *pRead, int64_t ver);
 int32_t     walNextValidMsg(SWalReader *pRead);
+#if 0
+int32_t     walReadVerCached(SWalReader *pRead, int64_t ver);
+#endif
 
 // only for tq usage
 void    walSetReaderCapacity(SWalReader *pRead, int32_t capacity);
