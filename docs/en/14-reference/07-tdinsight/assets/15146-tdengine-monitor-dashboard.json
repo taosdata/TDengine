@@ -211,7 +211,7 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Leader MNode",
+      "title": "Master MNode",
       "transformations": [
         {
           "id": "filterByValue",
@@ -221,7 +221,7 @@
                 "config": {
                   "id": "regex",
                   "options": {
-                    "value": "leader"
+                    "value": "master"
                   }
                 },
                 "fieldName": "role"
@@ -300,7 +300,7 @@
       ],
       "timeFrom": null,
       "timeShift": null,
-      "title": "Leader MNode Create Time",
+      "title": "Master MNode Create Time",
       "transformations": [
         {
           "id": "filterByValue",
@@ -310,7 +310,7 @@
                 "config": {
                   "id": "regex",
                   "options": {
-                    "value": "leader"
+                    "value": "master"
                   }
                 },
                 "fieldName": "role"

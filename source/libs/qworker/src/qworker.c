@@ -9,12 +9,18 @@
 #include "tcommon.h"
 #include "tmsg.h"
 #include "tname.h"
+#include "tdatablock.h"
 
 SQWorkerMgmt gQwMgmt = {
     .lock = 0,
     .qwRef = -1,
     .qwNum = 0,
 };
+
+static void freeBlock(void* param) {
+  SSDataBlock* pBlock = *(SSDataBlock**)param;
+  blockDataDestroy(pBlock);
+}
 
 int32_t qwProcessHbLinkBroken(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
   int32_t         code = 0;
@@ -88,6 +94,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
     // if *taskHandle is NULL, it's killed right now
     if (taskHandle) {
       qwDbgSimulateSleep();
+
       code = qExecTaskOpt(taskHandle, pResList, &useconds);
       if (code) {
         if (code != TSDB_CODE_OPS_NOT_SUPPORT) {
@@ -150,8 +157,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
   }
 
 _return:
-
-  taosArrayDestroy(pResList);
+  taosArrayDestroyEx(pResList, freeBlock);
   QW_RET(code);
 }
 
@@ -559,7 +565,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
 
   // QW_TASK_DLOGL("subplan json string, len:%d, %s", qwMsg->msgLen, qwMsg->msg);
 
-  code = qStringToSubplan(qwMsg->msg, &plan);
+  code = qMsgToSubplan(qwMsg->msg, qwMsg->msgLen, &plan);
   if (TSDB_CODE_SUCCESS != code) {
     code = TSDB_CODE_INVALID_MSG;
     QW_TASK_ELOG("task physical plan to subplan failed, code:%x - %s", code, tstrerror(code));
@@ -915,13 +921,13 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
 
   void *pIter = taosHashIterate(mgmt->schHash, NULL);
   while (pIter) {
-    SQWSchStatus *sch = (SQWSchStatus *)pIter;
-    if (NULL == sch->hbConnInfo.handle) {
+    SQWSchStatus *sch1 = (SQWSchStatus *)pIter;
+    if (NULL == sch1->hbConnInfo.handle) {
       uint64_t *sId = taosHashGetKey(pIter, NULL);
       QW_TLOG("cancel send hb to sch %" PRIx64 " cause of no connection handle", *sId);
 
-      if (sch->hbBrokenTs > 0 && ((currentMs - sch->hbBrokenTs) > QW_SCH_TIMEOUT_MSEC) &&
-          taosHashGetSize(sch->tasksHash) <= 0) {
+      if (sch1->hbBrokenTs > 0 && ((currentMs - sch1->hbBrokenTs) > QW_SCH_TIMEOUT_MSEC) &&
+          taosHashGetSize(sch1->tasksHash) <= 0) {
         taosArrayPush(pExpiredSch, sId);
       }
 
@@ -968,7 +974,7 @@ int32_t qwProcessDelete(QW_FPARAMS_DEF, SQWMsg *qwMsg, SDeleteRes *pRes) {
   DataSinkHandle sinkHandle = NULL;
   SQWTaskCtx     ctx = {0};
 
-  code = qStringToSubplan(qwMsg->msg, &plan);
+  code = qMsgToSubplan(qwMsg->msg, qwMsg->msgLen, &plan);
   if (TSDB_CODE_SUCCESS != code) {
     code = TSDB_CODE_INVALID_MSG;
     QW_TASK_ELOG("task physical plan to subplan failed, code:%x - %s", code, tstrerror(code));

@@ -855,6 +855,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   pRequest->metric.resultReady = taosGetTimestampUs();
 
   if (pResult) {
+    destroyQueryExecRes(&pRequest->body.resInfo.execRes);
     memcpy(&pRequest->body.resInfo.execRes, pResult, sizeof(*pResult));
   }
 
@@ -1385,6 +1386,7 @@ int32_t doProcessMsgFromServer(void* param) {
   pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
   rpcFreeCont(pMsg->pCont);
   destroySendMsgInfo(pSendInfo);
+
   taosMemoryFree(arg);
   return TSDB_CODE_SUCCESS;
 }
@@ -1400,7 +1402,12 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   arg->msg = *pMsg;
   arg->pEpset = tEpSet;
 
-  taosAsyncExec(doProcessMsgFromServer, arg, NULL);
+  if (0 != taosAsyncExec(doProcessMsgFromServer, arg, NULL)) {
+    tscError("failed to sched msg to tsc, tsc ready to quit");
+    rpcFreeCont(pMsg->pCont);
+    taosMemoryFree(arg->pEpset);
+    taosMemoryFree(arg);
+  }
 }
 
 TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, const char* db, uint16_t port) {

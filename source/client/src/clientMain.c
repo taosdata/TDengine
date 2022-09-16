@@ -870,11 +870,13 @@ static void fetchCallback(void *pResult, void *param, int32_t code) {
 
   if (code != TSDB_CODE_SUCCESS) {
     pRequest->code = code;
+    taosMemoryFreeClear(pResultInfo->pData);
     pRequest->body.fetchFp(pRequest->body.param, pRequest, 0);
     return;
   }
 
   if (pRequest->code != TSDB_CODE_SUCCESS) {
+    taosMemoryFreeClear(pResultInfo->pData);
     pRequest->body.fetchFp(pRequest->body.param, pRequest, 0);
     return;
   }

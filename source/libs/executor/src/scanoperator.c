@@ -617,19 +617,28 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
   // if scan table by table
   if (pInfo->scanMode == TABLE_SCAN__TABLE_ORDER) {
-    if (pInfo->noTable) return NULL;
+    if (pInfo->noTable) {
+      return NULL;
+    }
+
+    int32_t numOfTables = taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList);
+
     while (1) {
       SSDataBlock* result = doTableScanGroup(pOperator);
       if (result) {
         return result;
       }
+
       // if no data, switch to next table and continue scan
       pInfo->currentTable++;
-      if (pInfo->currentTable >= taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList)) {
+      if (pInfo->currentTable >= numOfTables) {
         return NULL;
       }
+
       STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, pInfo->currentTable);
       tsdbSetTableId(pInfo->dataReader, pTableInfo->uid);
+      qDebug("set uid:%" PRIu64 " into scanner, total tables:%d, index:%d %s", pTableInfo->uid, numOfTables, pInfo->currentTable, pTaskInfo->id.str);
+
       tsdbReaderReset(pInfo->dataReader, &pInfo->cond);
       pInfo->scanTimes = 0;
     }

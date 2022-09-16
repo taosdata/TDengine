@@ -127,7 +127,7 @@ SELECT COS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 SELECT FLOOR(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**功能说明**：获得指定字段的向下取整数的结果。  
+**功能说明**：获得指定字段的向下取整数的结果。
  其他使用说明参见 CEIL 函数描述。
 
 #### LOG
@@ -174,7 +174,7 @@ SELECT POW(field_name, power) FROM { tb_name | stb_name } [WHERE clause]
 SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**功能说明**：获得指定字段的四舍五入的结果。  
+**功能说明**：获得指定字段的四舍五入的结果。
  其他使用说明参见 CEIL 函数描述。
 
 
@@ -435,7 +435,7 @@ SELECT TO_ISO8601(ts[, timezone]) FROM { tb_name | stb_name } [WHERE clause];
 **使用说明**：
 
 - timezone 参数允许输入的时区格式为: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]。例如，TO_ISO8601(1, "+00:00")。
-- 如果输入是表示 UNIX 时间戳的整形，返回格式精度由时间戳的位数决定; 
+- 如果输入是表示 UNIX 时间戳的整形，返回格式精度由时间戳的位数决定;
 - 如果输入是 TIMESTAMP 类型的列，返回格式的时间戳精度与当前 DATABASE 设置的时间精度一致。
 
 
@@ -770,14 +770,14 @@ SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_nam
 
 **详细说明**：
 - bin_type 用户指定的分桶类型, 有效输入类型为"user_input“, ”linear_bin", "log_bin"。
-- bin_description 描述如何生成分桶区间，针对三种桶类型，分别为以下描述格式(均为 JSON 格式字符串)：       
-    - "user_input": "[1, 3, 5, 7]" 
+- bin_description 描述如何生成分桶区间，针对三种桶类型，分别为以下描述格式(均为 JSON 格式字符串)：
+    - "user_input": "[1, 3, 5, 7]"
        用户指定 bin 的具体数值。
-       
+
     - "linear_bin": "{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
        "start" 表示数据起始点，"width" 表示每次 bin 偏移量, "count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
        生成区间为[-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf]。
- 
+
     - "log_bin": "{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
        "start" 表示数据起始点，"factor" 表示按指数递增的因子，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
        生成区间为[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf]。
@@ -918,7 +918,7 @@ SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **返回数据类型**：同应用的字段。
 
-**适用数据类型**：数值类型，时间戳类型。
+**适用数据类型**：数值类型。
 
 **适用于**：表和超级表。
 
@@ -933,7 +933,7 @@ SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
 
 **返回数据类型**：同应用的字段。
 
-**适用数据类型**：数值类型，时间戳类型。
+**适用数据类型**：数值类型。
 
 **适用于**：表和超级表。
 
@@ -969,7 +969,7 @@ SELECT SAMPLE(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
 
 **适用于**：表和超级表。
 
-**使用说明**： 
+**使用说明**：
 
 - 不能参与表达式计算；该函数可以应用在普通表和超级表上；
 - 使用在超级表上的时候，需要搭配 PARTITION by tbname 使用，将结果强制规约到单个时间线。
@@ -1047,10 +1047,10 @@ SELECT CSUM(field_name) FROM { tb_name | stb_name } [WHERE clause]
 
 **适用于**：表和超级表。
 
-**使用说明**： 
-  
+**使用说明**：
+
 - 不支持 +、-、*、/ 运算，如 csum(col1) + csum(col2)。
-- 只能与聚合（Aggregation）函数一起使用。 该函数可以应用在普通表和超级表上。 
+- 只能与聚合（Aggregation）函数一起使用。 该函数可以应用在普通表和超级表上。
 - 使用在超级表上的时候，需要搭配 PARTITION BY tbname使用，将结果强制规约到单个时间线。
 
 
@@ -1068,8 +1068,8 @@ SELECT DERIVATIVE(field_name, time_interval, ignore_negative) FROM tb_name [WHER
 
 **适用于**：表和超级表。
 
-**使用说明**: 
-  
+**使用说明**:
+
 - DERIVATIVE 函数可以在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）。
 - 可以与选择相关联的列一起使用。 例如: select \_rowts, DERIVATIVE() from。
 
@@ -1087,7 +1087,7 @@ SELECT {DIFF(field_name, ignore_negative) | DIFF(field_name)} FROM tb_name [WHER
 
 **适用于**：表和超级表。
 
-**使用说明**: 
+**使用说明**:
 
 - 输出结果行数是范围内总行数减一，第一行没有结果输出。
 - 可以与选择相关联的列一起使用。 例如: select \_rowts, DIFF() from。
@@ -1124,9 +1124,9 @@ SELECT MAVG(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
 
 **适用于**：表和超级表。
 
-**使用说明**： 
-  
-- 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1); 
+**使用说明**：
+
+- 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1);
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；
 - 使用在超级表上的时候，需要搭配 PARTITION BY tbname使用，将结果强制规约到单个时间线。
 

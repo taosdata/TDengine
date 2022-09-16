@@ -283,8 +283,9 @@ typedef struct SSchJob {
 } SSchJob;
 
 typedef struct SSchTaskCtx {
-  int64_t  jobRid;
+  int64_t   jobRid;
   SSchTask *pTask;
+  bool      asyncLaunch;
 } SSchTaskCtx;
 
 extern SSchedulerMgmt schMgmt;

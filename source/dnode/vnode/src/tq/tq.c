@@ -852,7 +852,7 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
   tDecoderClear(pCoder);
 
   int32_t sz = taosArrayGetSize(pRes->uidList);
-  if (sz == 0) {
+  if (sz == 0 || pRes->affectedRows == 0) {
     taosArrayDestroy(pRes->uidList);
     return 0;
   }

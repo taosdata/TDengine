@@ -137,7 +137,8 @@ class TDTestCase:
         tdSql.execute(f"create table {dbname}.child_table2 using  {dbname}.super_table1 tags(1) comment ''")
         tdSql.execute(f"create table {dbname}.child_table3 using  {dbname}.super_table1 tags(1) comment 'child'")
         tdSql.execute(f"insert into {dbname}.child_table4 using  {dbname}.super_table1 tags(1) values(now, 1)")
-
+        tdSql.execute(f"insert into {dbname}.child_table5 using  {dbname}.super_table1 tags(1) ttl 23 comment '' values(now, 1)")
+        tdSql.error(f"insert into {dbname}.child_table6 using  {dbname}.super_table1 tags(1) ttl -23 comment '' values(now, 1)")
 
         tdSql.query("select * from information_schema.ins_tables where table_name like 'child_table1'")
         tdSql.checkData(0, 0, 'child_table1')
@@ -159,6 +160,11 @@ class TDTestCase:
         tdSql.checkData(0, 0, 'child_table4')
         tdSql.checkData(0, 7, 0)
         tdSql.checkData(0, 8, None)
+
+        tdSql.query("select * from information_schema.ins_tables where table_name like 'child_table5'")
+        tdSql.checkData(0, 0, 'child_table5')
+        tdSql.checkData(0, 7, 23)
+        tdSql.checkData(0, 8, '')
 
 
         tdSql.execute(f"alter table {dbname}.child_table1 comment 'nihao'")
