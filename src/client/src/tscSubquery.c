@@ -75,7 +75,7 @@ static void subquerySetState(SSqlObj *pSql, SSubqueryState *subState, int idx, i
   pthread_mutex_unlock(&subState->mutex);
 }
 
-static bool allSubqueryDone(SSqlObj *pParentSql) {
+static bool allSubqueryDoneWithoutLock(SSqlObj *pParentSql) {
   bool done = true;
   SSubqueryState *subState = &pParentSql->subState;
 
@@ -107,15 +107,13 @@ bool subAndCheckDone(SSqlObj *pSql, SSqlObj *pParentSql, int idx) {
     tscDebug("0x%"PRIx64" subquery:0x%"PRIx64", index:%d state set to 1", pParentSql->self, pSql->self, idx);
     subState->states[idx] = 1;
   }
-  bool done = allSubqueryDone(pParentSql);
+  bool done = allSubqueryDoneWithoutLock(pParentSql);
   if (!done) {
     tscDebug("0x%"PRIx64" sub:%p,%d completed, total:%d", pParentSql->self, pSql, idx, pParentSql->subState.numOfSub);
   }
   pthread_mutex_unlock(&subState->mutex);
   return done;
 }
-
-
 
 static int64_t doTSBlockIntersect(SSqlObj* pSql, STimeWindow * win) {
   SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd);
@@ -695,6 +693,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
 }
 
 void freeJoinSubqueryObj(SSqlObj* pSql) {
+  pthread_mutex_lock(&pSql->subState.mutex);
   for (int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
     SSqlObj* pSub = pSql->pSubs[i];
     if (pSub == NULL) {
@@ -707,9 +706,10 @@ void freeJoinSubqueryObj(SSqlObj* pSql) {
     taos_free_result(pSub);
     pSql->pSubs[i] = NULL;
   }
-
+  tfree(pSql->pSubs);
   tfree(pSql->subState.states);
   pSql->subState.numOfSub = 0;
+  pthread_mutex_unlock(&pSql->subState.mutex);
 }
 
 static int32_t quitAllSubquery(SSqlObj* pSqlSub, SSqlObj* pSqlObj, SJoinSupporter* pSupporter) {
@@ -1832,8 +1832,6 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
       continue;
     }
 
-
-
     SSqlRes* pRes1 = &pSql1->res;
     if (pRes1->row >= pRes1->numOfRows && !pRes1->completed) {
       subquerySetState(pSql1, &pSql->subState, i, 0);
@@ -2031,39 +2029,32 @@ static void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code);
 int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter *pSupporter) {
   SSqlCmd *   pCmd = &pSql->cmd;
   SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
-  
+
   pSql->res.qId = 0x1;
   assert(pSql->res.numOfRows == 0);
 
-  if (pSql->pSubs == NULL) {
-    pSql->pSubs = calloc(pSql->subState.numOfSub, POINTER_BYTES);
-    if (pSql->pSubs == NULL) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
-    }
-  }
-  
   SSqlObj *pNew = createSubqueryObj(pSql, tableIndex, tscJoinQueryCallback, pSupporter, TSDB_SQL_SELECT, NULL);
   if (pNew == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
-  
+
   pSql->pSubs[tableIndex] = pNew;
-  
+
   if (QUERY_IS_JOIN_QUERY(pQueryInfo->type)) {
     addGroupInfoForSubquery(pSql, pNew, 0, tableIndex);
-    
+
     // refactor as one method
     SQueryInfo *pNewQueryInfo = tscGetQueryInfo(&pNew->cmd);
     assert(pNewQueryInfo != NULL);
 
     pSupporter->colList = pNewQueryInfo->colList;
     pNewQueryInfo->colList = NULL;
-    
+
     pSupporter->exprList = pNewQueryInfo->exprList;
     pNewQueryInfo->exprList = NULL;
-    
+
     pSupporter->fieldsInfo = pNewQueryInfo->fieldsInfo;
-  
+
     // this data needs to be transfer to support struct
     memset(&pNewQueryInfo->fieldsInfo, 0, sizeof(SFieldInfo));
     if (tscTagCondCopy(&pSupporter->tagCond, &pNewQueryInfo->tagCond) != 0) {
@@ -2176,27 +2167,17 @@ void tscHandleMasterJoinQuery(SSqlObj* pSql) {
 
   int32_t code = TSDB_CODE_SUCCESS;
 
-  pthread_mutex_lock(&pSql->subState.mutex);
-  pSql->subState.numOfSub = pQueryInfo->numOfTables;
-  if (pSql->subState.states == NULL) {
-    pSql->subState.states = calloc(pSql->subState.numOfSub, sizeof(*pSql->subState.states));
-    if (pSql->subState.states == NULL) {
-      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-      goto _error;
-    }
-  }
-  memset(pSql->subState.states, 0, sizeof(*pSql->subState.states) * pSql->subState.numOfSub);
-  tscDebug("0x%"PRIx64" reset all sub states to 0, start subquery, total:%d", pSql->self, pQueryInfo->numOfTables);
-  pthread_mutex_unlock(&pSql->subState.mutex);
+  code = doReInitSubState(pSql, pQueryInfo->numOfTables);
+  assert (code == TSDB_CODE_SUCCESS && "Out of memory");
 
-  for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
+  for (int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
     SJoinSupporter *pSupporter = tscCreateJoinSupporter(pSql, i);
     if (pSupporter == NULL) {  // failed to create support struct, abort current query
       tscError("0x%"PRIx64" tableIndex:%d, failed to allocate join support object, abort further query", pSql->self, i);
       code = TSDB_CODE_TSC_OUT_OF_MEMORY;
       goto _error;
     }
-    
+
     code = tscCreateJoinSubquery(pSql, i, pSupporter);
     if (code != TSDB_CODE_SUCCESS) {  // failed to create subquery object, quit query
       tscDestroyJoinSupporter(pSupporter);
@@ -2359,8 +2340,7 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
   if (code != TSDB_CODE_SUCCESS) {
     tscFreeFirstRoundSup(&param);
     taos_free_result(pSql);
-    pParent->subState.numOfSub = 0;
-    tfree(pParent->pSubs);    
+    tscFreeSubobj(pParent);
     pParent->res.code = code;
     tscAsyncResultOnError(pParent);
     return;
@@ -2463,8 +2443,7 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
   tscFreeFirstRoundSup(&param);
 
   taos_free_result(pSql);
-  pParent->subState.numOfSub = 0;
-  tfree(pParent->pSubs);    
+  tscFreeSubobj(pParent);
 
   if (resRows == 0) {
     pParent->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
@@ -2487,8 +2466,7 @@ void tscFirstRoundCallback(void* param, TAOS_RES* tres, int code) {
 
     tscFreeFirstRoundSup(&param);
     taos_free_result(pSql);
-    parent->subState.numOfSub = 0;
-    tfree(parent->pSubs);
+    tscFreeSubobj(parent);
     parent->res.code = c;
     tscAsyncResultOnError(parent);
     return;
@@ -2653,13 +2631,10 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
       pSql->self, pNew->self, 0, pTableMetaInfo->vgroupIndex, pTableMetaInfo->vgroupList->numOfVgroups, pNewQueryInfo->type,
       tscNumOfExprs(pNewQueryInfo), idx+1, pNewQueryInfo->fieldsInfo.numOfOutput, tNameGetTableName(&pTableMetaInfo->name));
 
-  pSql->pSubs = calloc(1, POINTER_BYTES);
-  if (pSql->pSubs == NULL) {
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+  int32_t code = doReInitSubState(pSql, 1);
+  if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
-
-  pSql->subState.numOfSub = 1;
 
   pSql->pSubs[0] = pNew;
 
