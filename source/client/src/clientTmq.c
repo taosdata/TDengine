@@ -841,7 +841,7 @@ void tmqFreeImpl(void* handle) {
   int32_t sz = taosArrayGetSize(tmq->clientTopics);
   for (int32_t i = 0; i < sz; i++) {
     SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
-    if (pTopic->schema.nCols) taosMemoryFree(pTopic->schema.pSchema);
+    if (pTopic->schema.nCols) taosMemoryFreeClear(pTopic->schema.pSchema);
     int32_t vgSz = taosArrayGetSize(pTopic->vgs);
     taosArrayDestroy(pTopic->vgs);
   }
@@ -1218,6 +1218,8 @@ bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
     SMqClientTopic topic = {0};
     SMqSubTopicEp* pTopicEp = taosArrayGet(pRsp->topics, i);
     topic.schema = pTopicEp->schema;
+    pTopicEp->schema.nCols = 0;
+    pTopicEp->schema.pSchema = NULL;
     tstrncpy(topic.topicName, pTopicEp->topic, TSDB_TOPIC_FNAME_LEN);
     tstrncpy(topic.db, pTopicEp->db, TSDB_DB_FNAME_LEN);
 
@@ -1251,7 +1253,7 @@ bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
     int32_t sz = taosArrayGetSize(tmq->clientTopics);
     for (int32_t i = 0; i < sz; i++) {
       SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
-      if (pTopic->schema.nCols) taosMemoryFree(pTopic->schema.pSchema);
+      if (pTopic->schema.nCols) taosMemoryFreeClear(pTopic->schema.pSchema);
       int32_t vgSz = taosArrayGetSize(pTopic->vgs);
       taosArrayDestroy(pTopic->vgs);
     }
