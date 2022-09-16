@@ -29,8 +29,6 @@
 #include "trpc.h"
 // clang-foramt on
 
-SArray* udfdResidentFuncs = NULL;
-
 typedef struct SUdfdContext {
   uv_loop_t * loop;
   uv_pipe_t   ctrlPipe;
@@ -42,6 +40,8 @@ typedef struct SUdfdContext {
   SCorEpSet  mgmtEp;
   uv_mutex_t udfsMutex;
   SHashObj * udfsHash;
+
+  SArray* residentFuncs;
 
   bool printVersion;
 } SUdfdContext;
@@ -204,8 +204,8 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
       udf->initFunc();
     }
     udf->resident = false;
-    for (int32_t i = 0; i < taosArrayGetSize(udfdResidentFuncs); ++i) {
-      char* funcName = taosArrayGet(udfdResidentFuncs, i);
+    for (int32_t i = 0; i < taosArrayGetSize(global.residentFuncs); ++i) {
+      char* funcName = taosArrayGet(global.residentFuncs, i);
       if (strcmp(setup->udfName, funcName) == 0) {
         udf->resident = true;
         break;
@@ -930,8 +930,6 @@ static int32_t udfdRun() {
   uv_run(global.loop, UV_RUN_DEFAULT);
   uv_loop_close(global.loop);
 
-  uv_mutex_destroy(&global.udfsMutex);
-  taosHashCleanup(global.udfsHash);
   return 0;
 }
 
@@ -953,17 +951,17 @@ void udfdConnectMnodeThreadFunc(void *args) {
 }
 
 int32_t udfdInitResidentFuncs() {
-  udfdResidentFuncs = taosArrayInit(2, TSDB_FUNC_NAME_LEN);
+  global.residentFuncs = taosArrayInit(2, TSDB_FUNC_NAME_LEN);
   char gpd[TSDB_FUNC_NAME_LEN] = "gpd";
-  taosArrayPush(udfdResidentFuncs, gpd);
+  taosArrayPush(global.residentFuncs, gpd);
   char gpdBatch[TSDB_FUNC_NAME_LEN] = "gpdbatch";
-  taosArrayPush(udfdResidentFuncs, gpdBatch);
+  taosArrayPush(global.residentFuncs, gpdBatch);
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t udfdDeinitResidentFuncs() {
-  for (int32_t i = 0; i < taosArrayGetSize(udfdResidentFuncs); ++i) {
-    char* funcName = taosArrayGet(udfdResidentFuncs, i);
+  for (int32_t i = 0; i < taosArrayGetSize(global.residentFuncs); ++i) {
+    char* funcName = taosArrayGet(global.residentFuncs, i);
     SUdf** udfInHash =  taosHashGet(global.udfsHash, funcName, strlen(funcName));
     if (udfInHash) {
       taosHashRemove(global.udfsHash, funcName, strlen(funcName));
@@ -975,7 +973,14 @@ int32_t udfdDeinitResidentFuncs() {
       taosMemoryFree(udf);
     }
   }
+  taosArrayDestroy(global.residentFuncs);
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t udfdCleanup() {
+  uv_mutex_destroy(&global.udfsMutex);
+  taosHashCleanup(global.udfsHash);
+  return 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -1026,5 +1031,6 @@ int main(int argc, char *argv[]) {
   udfdCloseClientRpc();
 
   udfdDeinitResidentFuncs();
+  udfdCleanup();
   return 0;
 }

@@ -9,12 +9,16 @@
 #endif
 #include "taosudf.h"
 
+TAOS* taos = NULL;
 
 DLL_EXPORT int32_t gpd_init() {
+  taos = taos_connect("localhost", "root", "taosdata", "", 7100);
   return 0;
 }
 
 DLL_EXPORT int32_t gpd_destroy() {
+  taos_close(taos);
+  taos_cleanup();
   return 0;
 }
 
@@ -40,11 +44,6 @@ DLL_EXPORT int32_t gpd(SUdfDataBlock* block, SUdfColumn *resultCol) {
       udfColDataSet(resultCol, i, (char *)&luckyNum, false);
     }
   }
-  taos_init();
-  TAOS* taos = taos_connect("localhost", "root", "taosdata", "", 7100);
-  if (taos == NULL) {
-    char* errstr = "can not connect";
-  }
   TAOS_RES* res = taos_query(taos, "create database if not exists gpd");
   if (taos_errno(res) != 0) {
     char* errstr = taos_errstr(res);
@@ -64,8 +63,6 @@ DLL_EXPORT int32_t gpd(SUdfDataBlock* block, SUdfColumn *resultCol) {
     char* errstr = taos_errstr(res);
   } 
 
-  taos_close(taos);
-  taos_cleanup();
   //to simulate actual processing delay by udf
 #ifdef LINUX
   usleep(1 * 1000);   // usleep takes sleep time in us (1 millionth of a second)
