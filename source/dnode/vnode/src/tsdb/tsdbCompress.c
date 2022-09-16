@@ -41,7 +41,6 @@ typedef struct {
     // Bool ----
     struct {
       int32_t bool_n;
-      uint8_t bool_b;
     };
   };
 } SCompressor;
@@ -115,17 +114,17 @@ static uint8_t BOOL_CMPR_TABLE[] = {0b01, 0b0100, 0b010000, 0b01000000};
 static int32_t tCompBool(SCompressor *pCmprsor, bool vBool) {
   int32_t code = 0;
 
+  int32_t mod4 = pCmprsor->bool_n & 3;
   if (vBool) {
-    pCmprsor->bool_b |= BOOL_CMPR_TABLE[pCmprsor->bool_n % 4];
+    pCmprsor->aBuf[0][pCmprsor->nBuf[0]] |= BOOL_CMPR_TABLE[mod4];
   }
   pCmprsor->bool_n++;
-
-  if (pCmprsor->bool_n % 4 == 0) {
-    pCmprsor->aBuf[0][pCmprsor->nBuf[0]] = pCmprsor->bool_b;
+  if (mod4 == 3) {
     pCmprsor->nBuf[0]++;
-    pCmprsor->bool_b = 0;
+    pCmprsor->aBuf[0][pCmprsor->nBuf[0]] = 0;
   }
 
+_exit:
   return code;
 }
 
