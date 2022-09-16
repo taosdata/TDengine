@@ -18,7 +18,7 @@ from taostest import TDCase, T
 import taos
 from taostest.util.remote import Remote
 from taostest.util.common import TDCom
-class StaticSynchronism(TDCase):
+class StaticFullSync(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.remote: Remote = Remote(self.logger)
@@ -30,8 +30,6 @@ class StaticSynchronism(TDCase):
                 self.firstEP.append(self.taosd_setting['spec']['config']['firstEP'])
             if env_setting["name"].lower() == 'taosx':
                 self.taosx_setting = env_setting
-            if env_setting["name"].lower() == 'taosAdapter':
-                self.taosadapter_setting = env_setting
         self.taosd_num = len(self.firstEP)
         for i in range(self.taosd_num-1):
             self.source_taosd_list.append(self.firstEP[i].split(':'))
@@ -73,7 +71,7 @@ class StaticSynchronism(TDCase):
             self.write_json(f'{self.test_root}/cases/taosx/basic.json',self.get_json(f'{self.test_root}/cases/taosx/basic.json',host,int(port),self.dbname[source],self.stbname[source],self.tbname_m[source]))
             self.remote.put(taosBenchmark_fqdn[0],f'{self.test_root}/cases/taosx/basic.json','/tmp/')
             self.remote.cmd(taosBenchmark_fqdn[0],f'taosBenchmark -f /tmp/basic.json')
-    def full_sync_db(self):
+    def full_sync_db_stb(self,source_type):
         for source_task in ['','+ws']:
             for target_task in ['','+ws']:
                 for source in range(len(self.source_taosd_list)):
@@ -83,23 +81,35 @@ class StaticSynchronism(TDCase):
                     taosd_master.execute(f'use {self.dbname[source]}')
                     master_count_rows = taosd_master.query(f'select count(*) from {self.stbname[source]}').fetch_all_into_dict()
                     master_sum = taosd_master.query(f'select sum(voltage) from {self.stbname[source]}').fetch_all_into_dict()
-                    if source_task.lower() == '+ws' and target_task.lower() == '+ws':
-                        self.remote.cmd(self.taosx_setting['fqdn'][0],f"taosx run -f 'tmq{source_task}://root:taosdata@{self.source_taosd_list[source][0]}:{int(self.source_taosd_list[source][1])+11}/{self.dbname[source]}?group.id={group_id}&timeout={self.timeout}' -t 'taos{target_task}://root:taosdata@{self.target_taosd[0]}:{int(self.target_taosd[1])+11}/{self.target_dbname}'")
-                    elif source_task.lower() == '+ws' and target_task.lower() == '':
-                        self.remote.cmd(self.taosx_setting['fqdn'][0],f"taosx run -f 'tmq{source_task}://root:taosdata@{self.source_taosd_list[source][0]}:{int(self.source_taosd_list[source][1])+11}/{self.dbname[source]}?group.id={group_id}&timeout={self.timeout}' -t 'taos{target_task}://root:taosdata@{self.target_taosd[0]}:{int(self.target_taosd[1])}/{self.target_dbname}'")
-                    elif source_task.lower() == '' and target_task.lower() == '':
-                        self.remote.cmd(self.taosx_setting['fqdn'][0],f"taosx run -f 'tmq{source_task}://root:taosdata@{self.source_taosd_list[source][0]}:{self.source_taosd_list[source][1]}/{self.dbname[source]}?group.id={group_id}&timeout={self.timeout}' -t 'taos{target_task}://root:taosdata@{self.target_taosd[0]}:{self.target_taosd[1]}/{self.target_dbname}'")
-                    elif source_task.lower() == '' and target_task.lower() == '+ws':
-                        self.remote.cmd(self.taosx_setting['fqdn'][0],f"taosx run -f 'tmq{source_task}://root:taosdata@{self.source_taosd_list[source][0]}:{int(self.source_taosd_list[source][1])}/{self.dbname[source]}?group.id={group_id}&timeout={self.timeout}' -t 'taos{target_task}://root:taosdata@{self.target_taosd[0]}:{int(self.target_taosd[1])+11}/{self.target_dbname}'")
+                    if source_type == 'db':
+                        if source_task.lower() == '+ws' and target_task.lower() == '+ws':
+                            self.remote.cmd(self.taosx_setting['fqdn'][0],f"taosx run -f 'tmq{source_task}://root:taosdata@{self.source_taosd_list[source][0]}:{int(self.source_taosd_list[source][1])+11}/{self.dbname[source]}?group.id={group_id}&timeout={self.timeout}' -t 'taos{target_task}://root:taosdata@{self.target_taosd[0]}:{int(self.target_taosd[1])+11}/{self.target_dbname}'")
+                        elif source_task.lower() == '+ws' and target_task.lower() == '':
+                            self.remote.cmd(self.taosx_setting['fqdn'][0],f"taosx run -f 'tmq{source_task}://root:taosdata@{self.source_taosd_list[source][0]}:{int(self.source_taosd_list[source][1])+11}/{self.dbname[source]}?group.id={group_id}&timeout={self.timeout}' -t 'taos{target_task}://root:taosdata@{self.target_taosd[0]}:{int(self.target_taosd[1])}/{self.target_dbname}'")
+                        elif source_task.lower() == '' and target_task.lower() == '':
+                            self.remote.cmd(self.taosx_setting['fqdn'][0],f"taosx run -f 'tmq{source_task}://root:taosdata@{self.source_taosd_list[source][0]}:{self.source_taosd_list[source][1]}/{self.dbname[source]}?group.id={group_id}&timeout={self.timeout}' -t 'taos{target_task}://root:taosdata@{self.target_taosd[0]}:{self.target_taosd[1]}/{self.target_dbname}'")
+                        elif source_task.lower() == '' and target_task.lower() == '+ws':
+                            self.remote.cmd(self.taosx_setting['fqdn'][0],f"taosx run -f 'tmq{source_task}://root:taosdata@{self.source_taosd_list[source][0]}:{int(self.source_taosd_list[source][1])}/{self.dbname[source]}?group.id={group_id}&timeout={self.timeout}' -t 'taos{target_task}://root:taosdata@{self.target_taosd[0]}:{int(self.target_taosd[1])+11}/{self.target_dbname}'")
+                    elif source_type == 'stable':
+                        if source_task.lower() == '+ws' and target_task.lower() == '+ws':
+                            self.remote.cmd(self.taosx_setting['fqdn'][0],f"taosx run -f 'tmq{source_task}://root:taosdata@{self.source_taosd_list[source][0]}:{int(self.source_taosd_list[source][1])+11}/{self.dbname[source]}.{self.stbname[source]}?group.id={group_id}&timeout={self.timeout}' -t 'taos{target_task}://root:taosdata@{self.target_taosd[0]}:{int(self.target_taosd[1])+11}/{self.target_dbname}'")
+                        elif source_task.lower() == '+ws' and target_task.lower() == '':
+                            self.remote.cmd(self.taosx_setting['fqdn'][0],f"taosx run -f 'tmq{source_task}://root:taosdata@{self.source_taosd_list[source][0]}:{int(self.source_taosd_list[source][1])+11}/{self.dbname[source]}.{self.stbname[source]}?group.id={group_id}&timeout={self.timeout}' -t 'taos{target_task}://root:taosdata@{self.target_taosd[0]}:{int(self.target_taosd[1])}/{self.target_dbname}'")
+                        elif source_task.lower() == '' and target_task.lower() == '':
+                            self.remote.cmd(self.taosx_setting['fqdn'][0],f"taosx run -f 'tmq{source_task}://root:taosdata@{self.source_taosd_list[source][0]}:{self.source_taosd_list[source][1]}/{self.dbname[source]}.{self.stbname[source]}?group.id={group_id}&timeout={self.timeout}' -t 'taos{target_task}://root:taosdata@{self.target_taosd[0]}:{self.target_taosd[1]}/{self.target_dbname}'")
+                        elif source_task.lower() == '' and target_task.lower() == '+ws':
+                            self.remote.cmd(self.taosx_setting['fqdn'][0],f"taosx run -f 'tmq{source_task}://root:taosdata@{self.source_taosd_list[source][0]}:{int(self.source_taosd_list[source][1])}/{self.dbname[source]}.{self.stbname[source]}?group.id={group_id}&timeout={self.timeout}' -t 'taos{target_task}://root:taosdata@{self.target_taosd[0]}:{int(self.target_taosd[1])+11}/{self.target_dbname}'")
                     taosd_backup.execute(f'use {self.target_dbname}')
                     backup_count_rows = taosd_master.query(f'select count(*) from {self.stbname[source]}').fetch_all_into_dict()
                     backup_sum = taosd_backup.query(f'select sum(voltage) from {self.stbname[source]}').fetch_all_into_dict()
                     self.tdSql.checkEqual(master_count_rows[0]['count(*)'],backup_count_rows[0]['count(*)'])
                     self.tdSql.checkEqual(master_sum[0]['sum(voltage)'],backup_sum[0]['sum(voltage)'])
                     taosd_backup.execute(f'drop database {self.target_dbname}')
+    
     def run(self):
         self.data_insert()
-        self.full_sync_db()
+        self.full_sync_db_stb('db')
+        self.full_sync_db_stb('stable')
         
         pass
 
