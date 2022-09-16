@@ -1,7 +1,7 @@
 ---
-sidebar_label: TDengine 发布历史
-title: TDengine 发布历史
-description: TDengine 发布历史、Release Notes 及下载链接
+sidebar_label: TDengine
+title: TDengine
+description: TDengine release history, Release Notes and download links.
 ---
 
 import Release from "/components/ReleaseV3";
