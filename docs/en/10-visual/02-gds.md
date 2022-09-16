@@ -15,11 +15,9 @@ You can learn more about using the Data Studio with TDengine refer [GitHub](http
 
 ## Connector Configuration
 
-Please copy the following shell commands to export `TDENGINE_CLOUD_URL` and `TDENGINE_CLOUD_TOKEN` for the data source installation.
+![TDengine Cloud Config Page](./gds/gds_cloud_login.webp)
 
-### URL
-
-_**Necessary configuration**_
+- URL, Necessary configuration
 
 For "TDengine Cloud", you can get this URL from your cloud instance information page. Indeed, this URL's instance must be in active status. The following is a "TDengine Cloud" URL example.
 
@@ -28,9 +26,8 @@ For "TDengine Cloud", you can get this URL from your cloud instance information 
 http://gw.us-east-1.aws.cloud.tdengine.com:80
 ```
 
-### TDengine Cloud Token
+- TDengine Cloud Token, Necessary configuration
 
-_**Necessary configuration**_
 This token is from your TDengine cloud, which should correspond with an active instance URL.
 The following is a "TDengine Cloud" token example.
 
@@ -38,24 +35,18 @@ The following is a "TDengine Cloud" token example.
 9da2fda0b141e3c85064cdcca90ea9357c9bd790
 ```
 
-### database
-
-_**Necessary configuration**_
+- database _**Necessary configuration**_
 
 The database name that contains the table(no matter if it is a normal table, a super table or a child table) is the one you want to query for data and make reports on.
 In the example, we suggest we want to access a database named `test`.
 
-### table
-
-_**Necessary configuration**_
+- table _**Necessary configuration**_
 
 The name of the table you want to connect to and query its data to make a report. In this example, we will create a report for table `meters`.
 
 **Notice** Currently, the maximum number of retrieved records is 1000000 rows.
 
-### Query range start date & end date
-
-_**Optional configurations**_
+- Query range start date & end date _**Optional configurations**_
 
 There are two text fields on our connector config page. Generally, these are two date filter conditions which are used to limit the amount of retrieved data, and the date should be entered in `YYYY-MM-DD HH:MM:SS` format.
 e.g.
