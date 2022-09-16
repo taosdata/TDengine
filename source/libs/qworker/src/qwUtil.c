@@ -454,8 +454,10 @@ void qwDestroySchStatus(SQWSchStatus *pStatus) { taosHashCleanup(pStatus->tasksH
 
 void qwDestroyImpl(void *pMgmt) {
   SQWorker *mgmt = (SQWorker *)pMgmt;
-
-  qDebug("start to destroy qworker, type:%d, id:%d, handle:%p", mgmt->nodeType, mgmt->nodeId, mgmt);  
+  int8_t nodeType = mgmt->nodeType;
+  int32_t nodeId = mgmt->nodeId;
+  
+  qDebug("start to destroy qworker, type:%d, id:%d, handle:%p", nodeType, nodeId, mgmt);  
 
   taosTmrStop(mgmt->hbTimer);
   mgmt->hbTimer = NULL;
@@ -489,7 +491,7 @@ void qwDestroyImpl(void *pMgmt) {
 
   qwCloseRef();
 
-  qDebug("qworker destroyed, type:%d, id:%d, handle:%p", mgmt->nodeType, mgmt->nodeId, mgmt);  
+  qDebug("qworker destroyed, type:%d, id:%d, handle:%p", nodeType, nodeId, mgmt);  
 }
 
 int32_t qwOpenRef(void) {
