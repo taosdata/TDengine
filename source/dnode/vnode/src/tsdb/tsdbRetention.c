@@ -16,19 +16,9 @@
 #include "tsdb.h"
 
 static bool tsdbShouldDoRetention(STsdb *pTsdb, int64_t now) {
-  STsdbKeepCfg *keepCfg = &pTsdb->keepCfg;
-
-  if ((keepCfg->keep0 == keepCfg->keep1) && (keepCfg->keep1 == keepCfg->keep2)) {
-    return false;
-  }
-
-  if (tfsGetLevel(pTsdb->pVnode->pTfs) <= 1) {
-    return false;
-  }
-
   for (int32_t iSet = 0; iSet < taosArrayGetSize(pTsdb->fs.aDFileSet); iSet++) {
     SDFileSet *pSet = (SDFileSet *)taosArrayGet(pTsdb->fs.aDFileSet, iSet);
-    int32_t    expLevel = tsdbFidLevel(pSet->fid, keepCfg, now);
+    int32_t    expLevel = tsdbFidLevel(pSet->fid, &pTsdb->keepCfg, now);
     SDiskID    did;
 
     if (expLevel == pSet->diskId.level) continue;
