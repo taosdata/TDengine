@@ -3,7 +3,7 @@ title: Introduction
 toc_max_heading_level: 2
 ---
 
-TDengine is an open source, high-performance, cloud native [time-series database](https://tdengine.com/tsdb/) optimized for Internet of Things (IoT), Connected Cars, and Industrial IoT. Its code, including its cluster feature is open source under GNU AGPL v3.0. Besides the database engine, it provides [caching](../develop/cache), [stream processing](../develop/stream), [data subscription](../develop/tmq) and other functionalities to reduce the system complexity and cost of development and operation.
+TDengine is an [open source](https://tdengine.com/tdengine/open-source-time-series-database/), [high-performance](https://tdengine.com/tdengine/high-performance-time-series-database/), [cloud native](https://tdengine.com/tdengine/cloud-native-time-series-database/) [time-series database](https://tdengine.com/tsdb/) optimized for Internet of Things (IoT), Connected Cars, and Industrial IoT. Its code, including its cluster feature is open source under GNU AGPL v3.0. Besides the database engine, it provides [caching](../develop/cache), [stream processing](../develop/stream), [data subscription](../develop/tmq) and other functionalities to reduce the system complexity and cost of development and operation.
 
 This section introduces the major features, competitive advantages, typical use-cases and benchmarks to help you get a high level overview of TDengine.
 
@@ -43,7 +43,7 @@ For more details on features, please read through the entire documentation.
 
 ## Competitive Advantages
 
-By making full use of [characteristics of time series data](https://tdengine.com/tsdb/characteristics-of-time-series-data/), TDengine differentiates itself from other time series databases, with the following advantages.
+By making full use of [characteristics of time series data](https://tdengine.com/tsdb/characteristics-of-time-series-data/), TDengine differentiates itself from other [time series databases](https://tdengine.com/tsdb), with the following advantages.
 
 - **[High-Performance](https://tdengine.com/tdengine/high-performance-time-series-database/)**: TDengine is the only time-series database to solve the high cardinality issue to support billions of data collection points while out performing other time-series databases for data ingestion, querying and data compression.
 
@@ -127,3 +127,8 @@ As a high-performance, scalable and SQL supported time-series database, TDengine
 - [TDengine vs OpenTSDB](https://tdengine.com/2019/09/12/710.html)
 - [TDengine vs Cassandra](https://tdengine.com/2019/09/12/708.html)
 - [TDengine vs InfluxDB](https://tdengine.com/2019/09/12/706.html)
+
+## More readings
+- [Introduction to Time-Series Database](https://tdengine.com/tsdb/)
+- [Introduction to TDengine competitive advantages](https://tdengine.com/tdengine/)
+ 
