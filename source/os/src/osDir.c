@@ -31,6 +31,15 @@ typedef struct TdDir {
   HANDLE     hFind;
 } TdDir;
 
+enum
+  {
+    WRDE_NOSPACE = 1,		/* Ran out of memory.  */
+    WRDE_BADCHAR,		/* A metachar appears in the wrong place.  */
+    WRDE_BADVAL,		/* Undefined var reference with WRDE_UNDEF.  */
+    WRDE_CMDSUB,		/* Command substitution with WRDE_NOCMD.  */
+    WRDE_SYNTAX			/* Shell syntax error.  */
+  };
+
 int wordexp(char *words, wordexp_t *pwordexp, int flags) {
   pwordexp->we_offs = 0;
   pwordexp->we_wordc = 1;
