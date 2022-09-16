@@ -162,6 +162,5 @@ pipeline {
         LOGDIR = '/var/data/jenkins/workspace/log'
     }
     stages {
-
     }
 }
