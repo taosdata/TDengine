@@ -599,6 +599,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
     goto end;
   }
 
+  pRequest->syncQuery = true;
   if (!pRequest->pDb) {
     code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
     goto end;
@@ -767,6 +768,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
     goto end;
   }
 
+  pRequest->syncQuery = true;
   if (!pRequest->pDb) {
     code = TSDB_CODE_PAR_DB_NOT_SPECIFIED;
     goto end;

@@ -309,39 +309,39 @@ int buildDatabase(TAOS* pConn, TAOS_RES* pRes){
     taos_free_result(pRes);
   }
 
-//  pRes = taos_query(pConn,
-//                    "create stable if not exists stt (ts timestamp, c1 int, c2 float, c3 binary(16)) tags(t1 int, t3 "
-//                    "nchar(8), t4 bool)");
-//  if (taos_errno(pRes) != 0) {
-//    printf("failed to create super table stt, reason:%s\n", taos_errstr(pRes));
-//    return -1;
-//  }
-//  taos_free_result(pRes);
-//
-//  pRes = taos_query(pConn,
-//                    "create stable if not exists sttb (ts timestamp, c1 int, c2 float, c3 binary(16)) tags(t1 int, t3 "
-//                    "nchar(8), t4 bool)");
-//  if (taos_errno(pRes) != 0) {
-//    printf("failed to create super table sttb, reason:%s\n", taos_errstr(pRes));
-//    return -1;
-//  }
-//  taos_free_result(pRes);
-//
-//  pRes = taos_query(pConn, "create table if not exists stt1 using stt tags(2, \"stt1\", true) sttb1 using sttb tags(4, \"sttb1\", true) "
-//                    "stt2 using stt tags(43, \"stt2\", false) sttb2 using sttb tags(54, \"sttb2\", true)");
-//  if (taos_errno(pRes) != 0) {
-//    printf("failed to create child table stt1, reason:%s\n", taos_errstr(pRes));
-//    return -1;
-//  }
-//  taos_free_result(pRes);
-//
-//  pRes = taos_query(pConn, "insert into stt3 using stt tags(23, \"stt3\", true) values(now + 1s, 1, 2, 'stt3') sttb3 using sttb tags(4, \"sttb3\", true) values(now + 2s, 13, 22, 'sttb3') "
-//                           "stt4 using stt tags(433, \"stt4\", false) values(now + 3s, 21, 21, 'stt4') sttb4 using sttb tags(543, \"sttb4\", true) values(now + 4s, 16, 25, 'sttb4')");
-//  if (taos_errno(pRes) != 0) {
-//    printf("failed to create child table stt1, reason:%s\n", taos_errstr(pRes));
-//    return -1;
-//  }
-//  taos_free_result(pRes);
+  pRes = taos_query(pConn,
+                    "create stable if not exists stt (ts timestamp, c1 int, c2 float, c3 binary(16)) tags(t1 int, t3 "
+                    "nchar(8), t4 bool)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create super table stt, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn,
+                    "create stable if not exists sttb (ts timestamp, c1 int, c2 float, c3 binary(16)) tags(t1 int, t3 "
+                    "nchar(8), t4 bool)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create super table sttb, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create table if not exists stt1 using stt tags(2, \"stt1\", true) sttb1 using sttb tags(4, \"sttb1\", true) "
+                    "stt2 using stt tags(43, \"stt2\", false) sttb2 using sttb tags(54, \"sttb2\", true)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create child table stt1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "insert into stt3 using stt tags(23, \"stt3\", true) values(now + 1s, 1, 2, 'stt3') sttb3 using sttb tags(4, \"sttb3\", true) values(now + 2s, 13, 22, 'sttb3') "
+                           "stt4 using stt tags(433, \"stt4\", false) values(now + 3s, 21, 21, 'stt4') sttb4 using sttb tags(543, \"sttb4\", true) values(now + 4s, 16, 25, 'sttb4')");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create child table stt1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
 
   return 0;
 }

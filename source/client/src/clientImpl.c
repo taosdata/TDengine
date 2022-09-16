@@ -189,6 +189,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
     tscError("%d failed to add to request container, reqId:0x%" PRIx64 ", conn:%d, %s", (*pRequest)->self,
              (*pRequest)->requestId, pTscObj->id, sql);
 
+    taosMemoryFree(param);
     destroyRequest(*pRequest);
     *pRequest = NULL;
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
