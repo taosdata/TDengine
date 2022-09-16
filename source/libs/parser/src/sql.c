@@ -4369,9 +4369,7 @@ static YYACTIONTYPE yy_reduce(
       case 470: /* query_simple ::= query_specification */ yytestcase(yyruleno==470);
       case 471: /* query_simple ::= union_query_expression */ yytestcase(yyruleno==471);
       case 474: /* query_simple_or_subquery ::= query_simple */ yytestcase(yyruleno==474);
-      case 475: /* query_simple_or_subquery ::= subquery */ yytestcase(yyruleno==475);
       case 476: /* query_or_subquery ::= query_expression */ yytestcase(yyruleno==476);
-      case 477: /* query_or_subquery ::= subquery */ yytestcase(yyruleno==477);
 { yylhsminor.yy776 = yymsp[0].minor.yy776; }
   yymsp[0].minor.yy776 = yylhsminor.yy776;
         break;
@@ -4432,6 +4430,8 @@ static YYACTIONTYPE yy_reduce(
       case 315: /* signed_literal ::= literal_func */ yytestcase(yyruleno==315);
       case 381: /* star_func_para ::= expression */ yytestcase(yyruleno==381);
       case 436: /* select_item ::= common_expression */ yytestcase(yyruleno==436);
+      case 475: /* query_simple_or_subquery ::= subquery */ yytestcase(yyruleno==475);
+      case 477: /* query_or_subquery ::= subquery */ yytestcase(yyruleno==477);
       case 489: /* search_condition ::= common_expression */ yytestcase(yyruleno==489);
 { yylhsminor.yy776 = releaseRawExprNode(pCxt, yymsp[0].minor.yy776); }
   yymsp[0].minor.yy776 = yylhsminor.yy776;

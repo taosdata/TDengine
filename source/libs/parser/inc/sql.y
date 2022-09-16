@@ -952,10 +952,10 @@ union_query_expression(A) ::=
   query_simple_or_subquery(B) UNION query_simple_or_subquery(C).                  { A = createSetOperator(pCxt, SET_OP_TYPE_UNION, B, C); }
 
 query_simple_or_subquery(A) ::= query_simple(B).                                  { A = B; }
-query_simple_or_subquery(A) ::= subquery(B).                                      { A = B; }
+query_simple_or_subquery(A) ::= subquery(B).                                      { A = releaseRawExprNode(pCxt, B); }
 
 query_or_subquery(A) ::= query_expression(B).                                     { A = B; }
-query_or_subquery(A) ::= subquery(B).                                             { A = B; }
+query_or_subquery(A) ::= subquery(B).                                             { A = releaseRawExprNode(pCxt, B); }
 
 %type order_by_clause_opt                                                         { SNodeList* }
 %destructor order_by_clause_opt                                                   { nodesDestroyList($$); }
