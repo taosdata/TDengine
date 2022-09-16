@@ -67,9 +67,21 @@ class TDTestCase:
         tdSql.checkRows(self.tbnum - int(self.tbnum/2))
         tdSql.execute('drop database db')
 
+    def ttl_check_insert(self):
+        tdSql.prepare()
+        tdSql.execute(f'create table {self.stbname} (ts timestamp,c0 int) tags(t0 int)')
+        for i in range(self.tbnum):
+            tdSql.execute(f'insert into {self.stbname}_{i} using {self.stbname} tags({i}) ttl {self.ttl_param} values(now,1)')
+        tdSql.query(f'show tables')
+        tdSql.checkRows(self.tbnum)
+        sleep(self.updatecfgDict['ttlUnit']*self.ttl_param+self.updatecfgDict['ttlPushInterval'])
+        tdSql.query(f'show tables')
+        tdSql.checkRows(0)
+        tdSql.execute('drop database db')
     def run(self):
         self.ttl_check_ntb()
         self.ttl_check_ctb()
+        self.ttl_check_insert()
 
     def stop(self):
         tdSql.close()
