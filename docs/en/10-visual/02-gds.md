@@ -13,6 +13,8 @@ You can learn more about using the Data Studio with TDengine refer [GitHub](http
 
 [Current connector](https://datastudio.google.com/data?search=TDengine) support two kinds of data source, one is "TDengine Server" and another is "TDengine Cloud". Choose "TDengine Cloud" and click "NEXT".
 
+![Data Studio Data Source Selection](./gds/gds_data_source.webp)
+
 ## Connector Configuration
 
 ![TDengine Cloud Config Page](./gds/gds_cloud_login.webp)
