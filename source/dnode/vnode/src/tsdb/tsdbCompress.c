@@ -36,13 +36,17 @@ typedef struct {
     struct {
       /* data */
     };
-    // Binary ----
-    struct {
-      /* data */
-    };
     // Float ----
     struct {
-      /* data */
+      int32_t  f_n;
+      uint32_t f_prev;
+      uint8_t *f_flag_p;
+    };
+    // Double ----
+    struct {
+      int32_t  d_n;
+      uint64_t d_prev;
+      uint8_t *d_flag_p;
     };
     // Bool ----
     struct {
@@ -94,7 +98,7 @@ static int32_t tCompSetCopyMode(SCompressor *pCmprsor) {
         vZigzag |= (((uint64_t)pCmprsor->aBuf[0][n]) << (sizeof(int64_t) * i));
         n++;
       }
-      int64_t delta_of_delta = ZIGZAGD(int64_t, vZigzag);
+      delta_of_delta = ZIGZAGD(int64_t, vZigzag);
       delPrev = delta_of_delta + delPrev;
       valPrev = delPrev + valPrev;
     }
@@ -215,9 +219,116 @@ _exit:
 }
 
 // Float =====================================================
-static int32_t tCompFloat() {
+static int32_t tCompFloat(SCompressor *pCmprsor, float f) {
   int32_t code = 0;
-  // TODO
+
+  union {
+    float    f;
+    uint32_t u;
+  } val = {.f = f};
+
+  uint32_t diff = val.u ^ pCmprsor->f_prev;
+  pCmprsor->f_prev = val.u;
+
+  int32_t clz, ctz;
+  if (diff) {
+    clz = BUILDIN_CLZ(diff);
+    ctz = BUILDIN_CTZ(diff);
+  } else {
+    clz = sizeof(uint32_t);
+    ctz = sizeof(uint32_t);
+  }
+
+  if (pCmprsor->f_n & 0x1 == 0) {
+    code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0] + 9 /* sizeof(float) * 2 + 1 */);
+    if (code) return code;
+
+    pCmprsor->f_flag_p = &pCmprsor->aBuf[0][pCmprsor->nBuf[0]];
+    pCmprsor->nBuf[0]++;
+
+    if (clz < ctz) {
+      uint8_t nBytes = sizeof(uint32_t) - ctz / BITS_PER_BYTE;
+      pCmprsor->f_flag_p[0] = (0x08 | (nBytes - 1));
+      diff >>= (32 - nBytes * BITS_PER_BYTE);
+    } else {
+      uint8_t nBytes = sizeof(uint32_t) - clz / BITS_PER_BYTE;
+      pCmprsor->f_flag_p[0] = nBytes - 1;
+    }
+  } else {
+    if (clz < ctz) {
+      uint8_t nBytes = sizeof(uint32_t) - ctz / BITS_PER_BYTE;
+      pCmprsor->f_flag_p[0] |= ((0x08 | (nBytes - 1)) << 4);
+      diff >>= (32 - nBytes * BITS_PER_BYTE);
+    } else {
+      uint8_t nBytes = sizeof(uint32_t) - clz / BITS_PER_BYTE;
+      pCmprsor->f_flag_p[0] |= ((nBytes - 1) << 4);
+    }
+  }
+
+  while (diff) {
+    pCmprsor->aBuf[0][pCmprsor->nBuf[0]] = (diff & 0xff);
+    pCmprsor->nBuf[0]++;
+    diff >>= BITS_PER_BYTE;
+  }
+
+  pCmprsor->f_n++;
+  return code;
+}
+
+// Double =====================================================
+static int32_t tCompDouble(SCompressor *pCmprsor, double d) {
+  int32_t code = 0;
+
+  union {
+    double   d;
+    uint64_t u;
+  } val = {.d = d};
+
+  uint64_t diff = val.u ^ pCmprsor->d_prev;
+  pCmprsor->d_prev = val.u;
+
+  int32_t clz, ctz;
+  if (diff) {
+    clz = BUILDIN_CLZ(diff);
+    ctz = BUILDIN_CTZ(diff);
+  } else {
+    clz = sizeof(uint64_t);
+    ctz = sizeof(uint64_t);
+  }
+
+  if (pCmprsor->d_n & 0x1 == 0) {
+    code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0] + 17 /* sizeof(double) * 2 + 1 */);
+    if (code) return code;
+
+    pCmprsor->d_flag_p = &pCmprsor->aBuf[0][pCmprsor->nBuf[0]];
+    pCmprsor->nBuf[0]++;
+
+    if (clz < ctz) {
+      uint8_t nBytes = sizeof(uint64_t) - ctz / BITS_PER_BYTE;
+      pCmprsor->d_flag_p[0] = (0x08 | (nBytes - 1));
+      diff >>= (64 - nBytes * BITS_PER_BYTE);
+    } else {
+      uint8_t nBytes = sizeof(uint64_t) - clz / BITS_PER_BYTE;
+      pCmprsor->d_flag_p[0] = nBytes - 1;
+    }
+  } else {
+    if (clz < ctz) {
+      uint8_t nBytes = sizeof(uint64_t) - ctz / BITS_PER_BYTE;
+      pCmprsor->d_flag_p[0] |= ((0x08 | (nBytes - 1)) << 4);
+      diff >>= (64 - nBytes * BITS_PER_BYTE);
+    } else {
+      uint8_t nBytes = sizeof(uint64_t) - clz / BITS_PER_BYTE;
+      pCmprsor->d_flag_p[0] |= ((nBytes - 1) << 4);
+    }
+  }
+
+  while (diff) {
+    pCmprsor->aBuf[0][pCmprsor->nBuf[0]] = (diff & 0xff);
+    pCmprsor->nBuf[0]++;
+    diff >>= BITS_PER_BYTE;
+  }
+
+  pCmprsor->d_n++;
   return code;
 }
 
