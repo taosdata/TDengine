@@ -2168,7 +2168,9 @@ void tscHandleMasterJoinQuery(SSqlObj* pSql) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   code = doReInitSubState(pSql, pQueryInfo->numOfTables);
-  assert (code == TSDB_CODE_SUCCESS && "Out of memory");
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
   for (int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
     SJoinSupporter *pSupporter = tscCreateJoinSupporter(pSql, i);
@@ -2226,16 +2228,23 @@ void tscHandleMasterJoinQuery(SSqlObj* pSql) {
 }
 
 void doCleanupSubqueries(SSqlObj *pSql, int32_t numOfSubs) {
-  assert(numOfSubs <= pSql->subState.numOfSub && numOfSubs >= 0);
-  
+  pthread_mutex_lock(&pSql->subState.mutex);
+  if (numOfSubs > pSql->subState.numOfSub || numOfSubs <= 0 || pSql->subState.numOfSub <= 0) {
+      goto _out;
+  }
+
   for(int32_t i = 0; i < numOfSubs; ++i) {
     SSqlObj* pSub = pSql->pSubs[i];
-    assert(pSub != NULL);
+    pSql->pSubs[i] = NULL;
+    if (!pSub) continue;
 
     tscFreeRetrieveSup(&pSub->param);
     
     taos_free_result(pSub);
   }
+
+_out:
+  pthread_mutex_unlock(&pSql->subState.mutex);
 }
 
 void tscLockByThread(int64_t *lockedBy) {
@@ -3349,12 +3358,12 @@ static bool needRetryInsert(SSqlObj* pParentObj, int32_t numOfSub) {
 }
 
 static void doFreeInsertSupporter(SSqlObj* pSqlObj) {
-  assert(pSqlObj != NULL && pSqlObj->subState.numOfSub > 0);
-
+  pthread_mutex_lock(&pSqlObj->subState.mutex);
   for(int32_t i = 0; i < pSqlObj->subState.numOfSub; ++i) {
     SSqlObj* pSql = pSqlObj->pSubs[i];
     tfree(pSql->param);
   }
+  pthread_mutex_unlock(&pSqlObj->subState.mutex);
 }
 
 static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows) {

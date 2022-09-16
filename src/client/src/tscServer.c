@@ -330,7 +330,7 @@ void checkBrokenQueries(STscObj *pTscObj) {
   SSqlObj *pSql = pTscObj->sqlList;
   while (pSql) {
     // avoid sqlobj may not be correctly removed from sql list
-    if (pSql->sqlstr == NULL) {
+    if (pSql->sqlstr == NULL || pSql->signature != pSql) {
       pSql = pSql->next;
       continue;
     }
@@ -1475,11 +1475,15 @@ int32_t tscBuildUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pAlterMsg->privilege = (char)pCmd->count;
   } else if (pUser->type == TSDB_ALTER_USER_PASSWD) {
     strncpy(pAlterMsg->pass, pUser->passwd.z, pUser->passwd.n);
+  } else if (pUser->type == TSDB_ALTER_USER_TAGS) {
+    // copy tags
+    strncpy(pAlterMsg->tags, pUser->tags.z, pUser->tags.n);
   } else { // create user password info
     strncpy(pAlterMsg->pass, pUser->passwd.z, pUser->passwd.n);
+    strncpy(pAlterMsg->tags, pUser->tags.z, pUser->tags.n);
   }
 
-  if (pUser->type == TSDB_ALTER_USER_PASSWD || pUser->type == TSDB_ALTER_USER_PRIVILEGES) {
+  if (pUser->type == TSDB_ALTER_USER_PASSWD || pUser->type == TSDB_ALTER_USER_PRIVILEGES || pUser->type == TSDB_ALTER_USER_TAGS) {
     pCmd->msgType = TSDB_MSG_TYPE_CM_ALTER_USER;
   } else {
     pCmd->msgType = TSDB_MSG_TYPE_CM_CREATE_USER;
@@ -2866,7 +2870,11 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   pObj->writeAuth = pConnect->writeAuth;
   pObj->superAuth = pConnect->superAuth;
   pObj->connId = htonl(pConnect->connId);
-  tstrncpy(pObj->clusterId, pConnect->clusterId, sizeof(pObj->clusterId));  
+  tstrncpy(pObj->clusterId, pConnect->clusterId, sizeof(pObj->clusterId));
+  if (pConnect->tags[0] != 0) {
+    strcpy(pObj->tags, pConnect->tags);
+    tscInfo("TAGS client received . user=%s tags=%s", pObj->user, pObj->tags);
+  }
   
   createHbObj(pObj);
 

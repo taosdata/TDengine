@@ -862,6 +862,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       const char* msg3 = "name too long";
       const char* msg5 = "invalid user rights";
       const char* msg7 = "not support options";
+      const char* msg8 = "tags filter length must over 3 bytes.";
 
       pCmd->command = pInfo->type;
 
@@ -900,7 +901,11 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
           } else {
             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
           }
-        } else {
+        } else if (pUser->type == TSDB_ALTER_USER_TAGS) {
+          SStrToken* pTags = &pUser->tags;
+          if(pTags->n < 4)
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
+       } else {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
         }
       }
@@ -10471,6 +10476,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
   const char* msg7 = "derivative/twa/rate/irate/diff/tail/stateCount/stateDuration requires timestamp column exists in subquery";
   const char* msg8 = "condition missing for join query";
   const char* msg9 = "not support 3 level select";
+  const char* msg10 = "limit user forbid query normal or child table, you can query from stable.";
 
   int32_t  code = TSDB_CODE_SUCCESS;
   SSqlCmd* pCmd = &pSql->cmd;
@@ -10654,6 +10660,11 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     }
 
     bool isSTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
+
+    // if have tags, only support query on super table
+    if( !isSTable && pSql->pTscObj->tags[0] !=0) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg10);
+    }
 
     int32_t type = isSTable? TSDB_QUERY_TYPE_STABLE_QUERY:TSDB_QUERY_TYPE_TABLE_QUERY;
     TSDB_QUERY_SET_TYPE(pQueryInfo->type, type);
