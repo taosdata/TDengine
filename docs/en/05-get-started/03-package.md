@@ -111,7 +111,7 @@ Note: TDengine only supports Windows Server 2016/2019 and Windows 10/11 on the W
 </Tabs>
 
 :::info
-For information about TDengine releases, see [Release History](../../releases).
+For information about TDengine releases, see [Release History](../../releases/tdengine).
 :::
 
 :::note
