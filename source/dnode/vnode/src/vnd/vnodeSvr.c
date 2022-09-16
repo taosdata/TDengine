@@ -885,6 +885,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
         if (NULL != submitBlkRsp.pMeta) {
           vnodeUpdateMetaRsp(pVnode, submitBlkRsp.pMeta);
         }
+
+        taosArrayPush(newTbUids, &createTbReq.uid);
       }
       taosArrayPush(newTbUids, &createTbReq.uid);
 
