@@ -25,17 +25,17 @@ namespace Cloud.Examples
 
                     // create database under database named 'test'
                     IntPtr res = LibTaosWS.WSQuery(conn, createTable);
-                    ValidQueryExecution(res);
+                    ValidUpdateExecution(res);
                     // Free the query result every time when used up it.
                     LibTaosWS.WSFreeResult(res);
 
                     // insert data into the table created in previous step.
                     res = LibTaosWS.WSQuery(conn, insertData);
-                    ValidQueryExecution(res);
+                    ValidUpdateExecution(res);
                     // Free the query result every time when used up it.
                     LibTaosWS.WSFreeResult(res);
-                    // ANCHOR: query
-                    void ValidQueryExecution(IntPtr res)
+                    
+                    void ValidUpdateExecution(IntPtr res)
                     {
                         int code = LibTaosWS.WSErrorNo(res);
                         if (code != 0)
@@ -44,18 +44,28 @@ namespace Cloud.Examples
                         }
                     }
                     // ANCHOR_END: insert
+
+                    // ANCHOR: query
                     string selectTable = "select * from test.meters";
                     res = LibTaosWS.WSQueryTimeout(conn, selectTable, 5000);
                     ValidQueryExecution(res);
 
                     // get meta info of the retrieved data as List
                     List<TDengineMeta> metas = LibTaosWS.WSGetFields(res);
-
+                    Console.WriteLine(metas.Count);
                     // get data of the retrieved data as List.
                     List<object> dataSet = LibTaosWS.WSGetData(res);
-
+                    Console.WriteLine(dataSet.Count);
                     // Free the query result every time when used up it.
                     LibTaosWS.WSFreeResult(res);
+                    void ValidQueryExecution(IntPtr res)
+                    {
+                        int code = LibTaosWS.WSErrorNo(res);
+                        if (code != 0)
+                        {
+                            throw new Exception($"execute SQL failed: reason: {LibTaosWS.WSErrorStr(res)}, code:{code}");
+                        }
+                    }
                     // ANCHOR_END: query
                 }
                 finally
