@@ -21,7 +21,6 @@ extern "C" {
 #endif
 
 #include "tarray.h"
-#include "tlist.h"
 #include "tthread.h"
 
 /**
@@ -29,11 +28,14 @@ extern "C" {
  * and merge them into single statement.
  */
 typedef struct SAsyncBulkWriteDispatcher {
-  // the buffer to store the insertion statements. equivalent to SList<SSqlObj*>.
-  SList* buffer;
+  // the buffer to store the insertion statements. equivalent to SArray<SSqlObj*>.
+  SArray* buffer;
 
   // the mutex to protect the buffer.
   pthread_mutex_t mutex;
+  
+  // the cond to signal to background thread.
+  pthread_cond_t cond;
 
   // the background thread to manage batching timeout.
   pthread_t background;
@@ -131,9 +133,10 @@ bool tscSupportBulkInsertion(SSqlObj* pSql);
 bool dispatcherTryBatching(SAsyncBulkWriteDispatcher* dispatcher, SSqlObj* pSql);
 
 /**
- * A thread local version of SAsyncBulkWriteDispatcher.
+ * A holder of SAsyncBulkWriteDispatcher. Call dispatcherAcquire(...) to get the SAsyncBulkWriteDispatcher
+ * instance. This holder will manage the life cycle of SAsyncBulkWriteDispatcher.
  */
-typedef struct SThreadLocalDispatcher {
+typedef struct SDispatcherHolder {
   pthread_key_t key;
 
   // the maximum number of insertion rows in a batch.
@@ -141,32 +144,40 @@ typedef struct SThreadLocalDispatcher {
 
   // the batching timeout in milliseconds.
   int32_t timeoutMs;
+  
+  // specifies whether the dispatcher is thread local, if the dispatcher is not
+  // thread local, we will use the global dispatcher below.
+  bool isThreadLocal;
+  
+  // the global dispatcher, if thread local enabled, global will be set to NULL.
+  SAsyncBulkWriteDispatcher * global;
 
-} SThreadLocalDispatcher;
+} SDispatcherHolder;
 
 /**
- * Create a thread local SAsyncBulkWriteDispatcher variable.
+ * Create a holder of SAsyncBulkWriteDispatcher.
  *
  * @param batchSize     the batchSize of SAsyncBulkWriteDispatcher.
  * @param timeoutMs     the timeoutMs of SAsyncBulkWriteDispatcher.
- * @return the thread local SAsyncBulkWriteDispatcher.
+ * @param isThreadLocal specifies whether the dispatcher is thread local.
+ * @return the SAsyncBulkWriteDispatcher holder.
  */
-SThreadLocalDispatcher* createThreadLocalDispatcher(int32_t batchSize, int32_t timeoutMs);
+SDispatcherHolder* createDispatcherHolder(int32_t batchSize, int32_t timeoutMs, bool isThreadLocal);
 
 /**
- * Destroy the thread local SAsyncBulkWriteDispatcher variable.
+ * Destroy the holder of SAsyncBulkWriteDispatcher.
  * (will destroy all the instances of SAsyncBulkWriteDispatcher in the thread local variable)
  *
- * @param dispatcher  the thread local SAsyncBulkWriteDispatcher variable.
+ * @param holder  the holder of SAsyncBulkWriteDispatcher.
  */
-void destroyThreadLocalDispatcher(SThreadLocalDispatcher* dispatcher);
+void destroyDispatcherHolder(SDispatcherHolder* holder);
 
 /**
- * Get the thread local instance of SAsyncBulkWriteDispatcher.
- * @param dispatcher  the thread local SAsyncBulkWriteDispatcher variable.
- * @return the thread local SAsyncBulkWriteDispatcher.
+ * Get an instance of SAsyncBulkWriteDispatcher.
+ * @param holder  the holder of SAsyncBulkWriteDispatcher.
+ * @return the SAsyncBulkWriteDispatcher instance.
  */
-SAsyncBulkWriteDispatcher* dispatcherThreadLocal(SThreadLocalDispatcher* dispatcher);
+SAsyncBulkWriteDispatcher* dispatcherAcquire(SDispatcherHolder* holder);
 
 #ifdef __cplusplus
 }

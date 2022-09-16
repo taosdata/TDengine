@@ -91,8 +91,9 @@ extern float   tsStreamComputDelayRatio;  // the delayed computing ration of the
 extern int32_t tsProjectExecInterval;
 extern int64_t tsMaxRetentWindow;
 extern bool    tsAsyncBatchEnable;
+extern bool    tsAsyncBatchThreadLocal;
 extern int32_t tsAsyncBatchSize;
-extern int64_t tsAsyncBatchTimeout;
+extern int32_t tsAsyncBatchTimeout;
 
 // db parameters in client
 extern int32_t tsCacheBlockSize;

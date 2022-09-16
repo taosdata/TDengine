@@ -127,8 +127,9 @@ int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 // The statements will be sent to vnodes no more than `tsAsyncBatchTimeout` milliseconds. But the actual time vnodes
 // received the statements depends on the network quality.
 bool    tsAsyncBatchEnable = true;
+bool    tsAsyncBatchThreadLocal = false;    // if thread local enable, each thread will allocate a dispatcher.
 int32_t tsAsyncBatchSize = 256;
-int64_t tsAsyncBatchTimeout = 5;
+int32_t tsAsyncBatchTimeout = 5;
 
 // the maximum allowed query buffer size during query processing for each data node.
 // -1 no limit (default)
@@ -1842,13 +1843,23 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
+  
+  cfg.option = "asyncBatchThreadLocal";
+  cfg.ptr = &tsAsyncBatchThreadLocal;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
 
   cfg.option = "asyncBatchSize";
   cfg.ptr = &tsAsyncBatchSize;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
   cfg.minValue = 1;
-  cfg.maxValue = 65536;
+  cfg.maxValue = 65535;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
@@ -1858,7 +1869,7 @@ static void doInitGlobalConfig(void) {
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
   cfg.minValue = 1;
-  cfg.maxValue = 65536;
+  cfg.maxValue = 2048;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);

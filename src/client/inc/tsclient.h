@@ -509,8 +509,9 @@ void waitForQueryRsp(void *param, TAOS_RES *tres, int code);
  * 
  * @param batchSize  the batchSize of async bulk write dispatcher.
  * @param timeoutMs  the timeout of batching in milliseconds.
+ * @param isThreadLocal specifies whether the dispatcher is thread local.
  */
-void tscInitAsyncDispatcher(int32_t batchSize, int32_t timeoutMs);
+void tscInitAsyncDispatcher(int32_t batchSize, int32_t timeoutMs, bool isThreadLocal);
 
 /**
  * Destroy the async auto batch dispatcher.
@@ -546,8 +547,8 @@ extern SHashObj  *tscTableMetaMap;
 extern SCacheObj *tscVgroupListBuf;
 
 // forward declaration.
-typedef struct SThreadLocalDispatcher    SThreadLocalDispatcher;
-extern SThreadLocalDispatcher           *tscDispatcher;
+typedef struct SDispatcherHolder    SDispatcherHolder;
+extern SDispatcherHolder           *tscDispatcher;
 extern int   tscObjRef;
 extern void *tscTmr;
 extern void *tscQhandle;
