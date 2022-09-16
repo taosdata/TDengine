@@ -291,25 +291,25 @@ _query:
       tDecoderClear(&dc);
       goto _exit;
     }
-    { // Traverse to find the previous qualified data
-      TBC      *pCur;
+    {  // Traverse to find the previous qualified data
+      TBC *pCur;
       tdbTbcOpen(pMeta->pTbDb, &pCur, NULL);
       STbDbKey key = {.version = sver, .uid = INT64_MAX};
-      int c = 0;
+      int      c = 0;
       tdbTbcMoveTo(pCur, &key, sizeof(key), &c);
-      if(c < 0){
+      if (c < 0) {
         tdbTbcMoveToPrev(pCur);
       }
 
       void *pKey = NULL;
       void *pVal = NULL;
       int   vLen = 0, kLen = 0;
-      while(1){
+      while (1) {
         int32_t ret = tdbTbcPrev(pCur, &pKey, &kLen, &pVal, &vLen);
         if (ret < 0) break;
 
-        STbDbKey *tmp = (STbDbKey*)pKey;
-        if(tmp->uid != uid){
+        STbDbKey *tmp = (STbDbKey *)pKey;
+        if (tmp->uid != uid) {
           continue;
         }
         SDecoder   dcNew = {0};
@@ -359,7 +359,8 @@ _err:
 
 int metaTtlSmaller(SMeta *pMeta, uint64_t ttl, SArray *uidList) {
   TBC *pCur;
-  int  ret = tdbTbcOpen(pMeta->pTtlIdx, &pCur, NULL);
+  metaRLock(pMeta);
+  int ret = tdbTbcOpen(pMeta->pTtlIdx, &pCur, NULL);
   if (ret < 0) {
     return ret;
   }
@@ -384,6 +385,7 @@ int metaTtlSmaller(SMeta *pMeta, uint64_t ttl, SArray *uidList) {
     taosArrayPush(uidList, &ttlKey.uid);
   }
   tdbTbcClose(pCur);
+  metaULock(pMeta);
 
   tdbFree(pKey);
 
