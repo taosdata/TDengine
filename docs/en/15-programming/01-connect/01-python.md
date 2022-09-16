@@ -13,7 +13,7 @@ import TabItem from '@theme/TabItem';
 
 First, you need to install the `taospy` module version >= `2.6.2`. Run the command below in your terminal.
 
-<Tabs defaultValue="pip">
+<Tabs defaultValue="pip" groupID="package">
 <TabItem value="pip" label="pip">
 
 ```
@@ -76,7 +76,7 @@ To obtain the value of cloud token and URL, please log in [TDengine Cloud](https
 
 ## Connect
 
-Copy code bellow to your editor and run it.
+Copy code bellow to your editor and run it. If you are using jupyter, assuming you have followed the guide about Jupyter in previous secions, you can copy the code into Jupyter editor in your browser.
 
 ```python
 {{#include docs/examples/python/develop_tutorial.py:connect}}
@@ -85,3 +85,48 @@ Copy code bellow to your editor and run it.
 For how to write data and query data, please refer to <https://docs.tdengine.com/cloud/data-in/insert-data/> and <https://docs.tdengine.com/cloud/data-out/query-data/>.
 
 For more details about how to write or query data via REST API, please check [REST API](https://docs.tdengine.com/cloud/programming/connector/rest-api/).
+
+## Jupyter
+
+**Step 1: Install**
+
+For the users who are familiar with Jupyter to program in Python, both TDengine Python connector and Jupyter need to be ready in your environment. If you have not done yet, please use the commands below to install them.
+
+<Tabs defaultValue="pip" groupID="package">
+<TabItem value="pip" label="pip">
+
+```bash
+pip install jupyterlab
+pip3 install -U taospy
+```
+
+You'll need to have Python3 installed.
+
+</TabItem>
+<TabItem value="conda" label="conda">
+
+```
+conda install -c conda-forge jupyterlab
+conda install -c conda-forge taospy
+```
+
+</TabItem>
+</Tabs>
+
+**Step 2: Configure**
+
+In order for Jupyter to connect to TDengine cloud service, before launching Jupypter, the environment setting must be performed. We use Linux bash as example.
+
+```bash
+export TDENGINE_CLOUD_TOKEN="<token>"
+export TDENGINE_CLOUD_URL="<url>"
+jupyter lab
+```
+
+**Step 3: Connect**
+
+Once jupyter lab is launched, Jupyter lab service is automatically connected and shown in your browser. You can create a new notebook and copy the sample code below and run it.
+
+```python
+{{#include docs/examples/python/develop_tutorial.py:connect}}
+```
