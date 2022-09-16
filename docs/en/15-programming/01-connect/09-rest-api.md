@@ -54,7 +54,7 @@ curl -L \
 
 ### InfluxDB Line Protocol
 
-You can use any client that supports the http protocol to access the RESTful interface address `http://<fqdn>:6041/influxdb/v1/write` to write data in InfluxDB compatible format to TDengine. The EndPoint is as follows:
+You can use any client that supports the http protocol to access the RESTful interface address `${TDENGINE_CLOUD_URL}/influxdb/v1/write` to write data in InfluxDB compatible format to TDengine. The EndPoint is as follows:
 
 ```text
 /influxdb/v1/write?db=<DB_NAME>&token=${TDENGINE_CLOUD_TOKEN}
@@ -69,7 +69,7 @@ Note: InfluxDB token authorization is not supported at present. Only Basic autho
 
 ### OpenTSDB Json and Telnet Protocol
 
-You can use any client that supports the http protocol to access the RESTful interface address `http://<fqdn>:6041/opentsdb/v1/put` to write data in OpenTSDB compatible format to TDengine. The EndPoint is as follows:
+You can use any client that supports the http protocol to access the RESTful interface address `${TDENGINE_CLOUD_URL}/opentsdb/v1/put` to write data in OpenTSDB compatible format to TDengine. The EndPoint is as follows:
 
 ```text
 /opentsdb/v1/put/json/<db>?token=${TDENGINE_CLOUD_TOKEN}
