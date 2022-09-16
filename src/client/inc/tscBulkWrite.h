@@ -31,11 +31,14 @@ typedef struct SAsyncBulkWriteDispatcher {
   // the buffer to store the insertion statements. equivalent to SArray<SSqlObj*>.
   SArray* buffer;
 
-  // the mutex to protect the buffer.
+  // the mutex to protect the dispatcher.
   pthread_mutex_t mutex;
   
   // the cond to signal to background thread.
-  pthread_cond_t cond;
+  pthread_cond_t timeout;
+  
+  // the cond to signal to background thread.
+  pthread_cond_t notFull;
 
   // the background thread to manage batching timeout.
   pthread_t background;
@@ -73,24 +76,7 @@ typedef struct SSqlObj SSqlObj;
 int32_t dispatcherStatementMerge(SArray* statements, SSqlObj** result);
 
 /**
- * Poll all the SSqlObj* in the dispatcher's buffer.
- *
- * @param dispatcher    the dispatcher.
- * @return              the items in the dispatcher, SArray<SSqlObj*>.
- */
-SArray* dispatcherPollAll(SAsyncBulkWriteDispatcher* dispatcher);
-
-/**
- * @brief Try to offer the SSqlObj* to the dispatcher.
- *
- * @param dispatcher  the async bulk write dispatcher.
- * @param pSql        the sql object to offer.
- * @return            if offer success, return the current size of the buffer. otherwise returns -1.
- */
-int32_t dispatcherTryOffer(SAsyncBulkWriteDispatcher* dispatcher, SSqlObj* pSql);
-
-/**
- * @brief Merge the sql statements and execute the merged sql statement.
+ * Merge the sql statements and execute the merged sql statement.
  *
  * @param statements the array of sql statement. a.k.a SArray<SSqlObj*>.
  */
@@ -117,11 +103,12 @@ void destroyAsyncDispatcher(SAsyncBulkWriteDispatcher* dispatcher);
  * 1. auto batch feature on the sql object must be enabled.
  * 2. must be an `insert into ... value ...` statement.
  * 3. the payload type must be kv payload.
- *
+ * 
+ * @param dispatcher the async dispatcher.
  * @param pSql the sql object to check.
  * @return returns true if the sql object supports auto batch.
  */
-bool tscSupportBulkInsertion(SSqlObj* pSql);
+bool tscSupportBulkInsertion(SAsyncBulkWriteDispatcher* dispatcher, SSqlObj* pSql);
 
 /**
  * Try to offer the SSqlObj* to the buffer. If the number of row reach `asyncBatchSize`, the function
@@ -174,6 +161,7 @@ void destroyDispatcherHolder(SDispatcherHolder* holder);
 
 /**
  * Get an instance of SAsyncBulkWriteDispatcher.
+ * 
  * @param holder  the holder of SAsyncBulkWriteDispatcher.
  * @return the SAsyncBulkWriteDispatcher instance.
  */
