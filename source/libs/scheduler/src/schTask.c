@@ -21,6 +21,7 @@
 #include "tref.h"
 #include "trpc.h"
 #include "qworker.h"
+#include "tglobal.h"
 
 void schFreeTask(SSchJob *pJob, SSchTask *pTask) {
   schDeregisterTaskHb(pJob, pTask);
@@ -897,9 +898,12 @@ int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask) {
       SCH_TASK_ELOG("failed to create physical plan, code:%s, msg:%p, len:%d", tstrerror(code), pTask->msg,
                     pTask->msgLen);
       SCH_ERR_RET(code);
-    } else {
-      //binary msg
-      //SCH_TASK_DLOGL("physical plan len:%d, %s", pTask->msgLen, pTask->msg);
+    } else if (tsQueryPlannerTrace) {
+      char *msg = NULL;
+      int32_t msgLen = 0;
+      qSubPlanToString(plan, &msg, &msgLen);
+      SCH_TASK_DLOGL("physical plan len:%d, %s", msgLen, msg);
+      taosMemoryFree(msg);
     }
   }
 
