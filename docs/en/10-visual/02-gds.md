@@ -3,45 +3,83 @@ sidebar_label: TDengine Google Data Studio Connector
 title: TDengine Cloud Use Google Data Studio
 ---
 
-TDengine can be easily accessed by [Google Data Studio](https://datastudio.google.com/data?search=TDengine) by its partner connector, and quickly build interactive reports and dashboards with Data Studio’s web based reporting tools.
+TDengine can be easily accessed by Google Data Studio use its [partner connector](https://datastudio.google.com/data?search=TDengine), and can quickly build interactive reports and dashboards with Data Studio’s web based reporting tools.
 
 The whole process does not require any code development. And you can Share your reports and dashboards with individuals, teams, or the world. Collaborate in real time. Embed your report on any web page.
 
-You can learn more about using the TDengine plugin on [GitHub](https://github.com/taosdata/grafanaplugin/blob/master/README.md).
+You can learn more about using the Data Studio with TDengine refer [GitHub](https://github.com/taosdata/gds-connector/blob/master/README.md).
 
-## Install Grafanafa
+## Choose Data Source
 
-TDengine currently supports Grafana versions 7.5 and above. Users can go to the Grafana official website to download the installation package and execute the installation according to the current operating system. The download address is as follows: <https://grafana.com/grafana/download>.
+[Current connector](https://datastudio.google.com/data?search=TDengine) support two kinds of data source, one is "TDengine Server" and another is "TDengine Cloud". Choose "TDengine Cloud" and click "NEXT".
 
-## Install TDengine plugin
+## Connector Configuration
 
 Please copy the following shell commands to export `TDENGINE_CLOUD_URL` and `TDENGINE_CLOUD_TOKEN` for the data source installation.
 
-```bash
-export TDENGINE_CLOUD_TOKEN="<token>"
-export TDENGINE_CLOUD_URL="<url>"
+### URL
+
+_**Necessary configuration**_
+
+For "TDengine Cloud", you can get this URL from your cloud instance information page. Indeed, this URL's instance must be in active status. The following is a "TDengine Cloud" URL example.
+
+``` bash
+# For TDengine Cloud 
+http://gw.us-east-1.aws.cloud.tdengine.com:80
 ```
 
-Run below script from Linux terminal to install TDengine data source plugin.
+### TDengine Cloud Token
 
-```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/taosdata/grafanaplugin/master/install.sh)"
+_**Necessary configuration**_
+This token is from your TDengine cloud, which should correspond with an active instance URL.
+The following is a "TDengine Cloud" token example.
+
+``` bash
+9da2fda0b141e3c85064cdcca90ea9357c9bd790
 ```
 
-After that completed, please restart grafana-server.
+### database
 
-```bash
-sudo systemctl restart grafana-server.service
+_**Necessary configuration**_
+
+The database name that contains the table(no matter if it is a normal table, a super table or a child table) is the one you want to query for data and make reports on.
+In the example, we suggest we want to access a database named `test`.
+
+### table
+
+_**Necessary configuration**_
+
+The name of the table you want to connect to and query its data to make a report. In this example, we will create a report for table `meters`.
+
+**Notice** Currently, the maximum number of retrieved records is 1000000 rows.
+
+### Query range start date & end date
+
+_**Optional configurations**_
+
+There are two text fields on our connector config page. Generally, these are two date filter conditions which are used to limit the amount of retrieved data, and the date should be entered in `YYYY-MM-DD HH:MM:SS` format.
+e.g.
+
+``` bash
+2022-05-12 18:24:15
 ```
 
-## Verify plugin
+The `start date` defines the beginning timestamp of the query result. In other words, records earlier than this `start date` will not be retrieved.
 
-Users can log in to the Grafana server (initial username/password: admin/admin) directly through the URL `http://localhost:3000`. Click `Configuration -> Data Sources` on the left side. Then click `Test` button to verify if TDengine data source works. You should see a success message if the test worked.
+The `end time` indicates the end timestamp of the query result. Which means that records later than this `end date` will not be retrieved.
+These conditions are used in SQL statement's where clause like:
 
-![Verify TDengine data source](./grafana/verifying-tdengine-datasource.webp)
+``` SQL
+-- select * from table_name where ts >= start_date and ts <= end_date
+select * from test.demo where ts >= '2022-05-10 18:24:15' and ts<='2022-05-12 18:24:15'
+```
 
-## Use Grafana
+Indeed, through these filters, you can improve the data loading speed in your report.
 
-Please add new dashboard or import exist dashboard to illustrate the data you store in the TDengine.
+After configuration done, click "connect" button,now you have connect to your "TDengine Cloud" with specified database and table.
 
-And refer to the [documentation](https://docs.tdengine.com/third-party/grafana#create-dashboard) for more details.
+## Create Report or Dashboard
+
+Unlock the power of your data with interactive dashboards and beautiful reports with the data stored in TDengine.
+
+And refer to [documentation](https://docs.tdengine.com/third-party/google-data-studio/) for more details.
