@@ -34,7 +34,8 @@ typedef struct {
     };
     // Integer ----
     struct {
-      /* data */
+      int8_t  i_copy;
+      int32_t i_n;
     };
     // Float ----
     struct {
@@ -51,6 +52,10 @@ typedef struct {
     // Bool ----
     struct {
       int32_t bool_n;
+    };
+    // Binary ----
+    struct {
+      int32_t b_n;
     };
   };
 } SCompressor;
@@ -337,9 +342,13 @@ static int32_t tCompBinary(SCompressor *pCmprsor, const uint8_t *pData, int32_t 
   int32_t code = 0;
 
   if (nData) {
+    code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0] + nData);
+    if (code) return code;
+
     memcpy(pCmprsor->aBuf[0] + pCmprsor->nBuf[0], pData, nData);
     pCmprsor->nBuf[0] += nData;
   }
+  pCmprsor->b_n++;
 
   return code;
 }
@@ -418,6 +427,9 @@ int32_t tCompressorReset(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg) {
     case TSDB_DATA_TYPE_BOOL:
       pCmprsor->bool_n = 0;
       pCmprsor->aBuf[0][0] = 0;
+      break;
+    case TSDB_DATA_TYPE_BINARY:
+      pCmprsor->b_n = 0;
       break;
     default:
       break;
