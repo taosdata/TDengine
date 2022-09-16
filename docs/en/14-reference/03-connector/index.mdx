@@ -39,14 +39,14 @@ Comparing the connector support for TDengine functional features as follows.
 
 ### Using the native interface (taosc)
 
-| **Functional Features** | **Java** | **Python** | **Go** | **C#** | **Node.js** | **Rust** |
-| -------------- | -------- | ---------- | ------ | ------ | ----------- | -------- |
-| **Connection Management** | Support | Support | Support | Support | Support | Support |
-| **Regular Query** | Support | Support | Support | Support | Support | Support |
-| **Parameter Binding** | Support | Support | Support | Support | Support | Support |
-| ** TMQ **      | Support     | Support       | Support   | Support   | Support        | Support     |
-| **Schemaless** | Support | Support | Support | Support | Support | Support |
-| **DataFrame** | Not Supported | Support | Not Supported | Not Supported | Not Supported | Not Supported |
+| **Functional Features**       | **Java**      | **Python** | **Go**        | **C#**        | **Node.js**   | **Rust**      |
+| ----------------------------- | ------------- | ---------- | ------------- | ------------- | ------------- | ------------- |
+| **Connection Management**     | Support       | Support    | Support       | Support       | Support       | Support       |
+| **Regular Query**             | Support       | Support    | Support       | Support       | Support       | Support       |
+| **Parameter Binding**         | Support       | Support    | Support       | Support       | Support       | Support       |
+| **Subscription (TMQ)**        | Support       | Support    | Support       | Support       | Support       | Support       |
+| **Schemaless**                | Support       | Support    | Support       | Support       | Support       | Support       |
+| **DataFrame**                 | Not Supported | Support    | Not Supported | Not Supported | Not Supported | Not Supported |
 
 :::info
 The different database framework specifications for various programming languages do not mean that all C/C++ interfaces need a wrapper.
@@ -54,16 +54,15 @@ The different database framework specifications for various programming language
 
 ### Use HTTP Interfaces (REST or WebSocket)
 
-| **Functional Features** | **Java** | **Python** | **Go** | **C# (not supported yet)** | **Node.js** | **Rust** |
-| ------------------------------ | -------- | ---------- | -------- | ------------------ | ----------- | -------- |
-| **Connection Management** | Support | Support | Support | N/A | Support | Support |
-| **Regular Query** | Support | Support | Support | N/A | Support | Support |
-| **Continous Query ** | Support | Support | Support | N/A | Support | Support |
-| **Parameter Binding**                   | Not supported   | Not supported   | Not supported | N/A                | Not supported      | Support     |
-| ** TMQ **                      | Not supported   | Not supported   | Not supported | N/A                | Not supported      | Support     |
-| **Schemaless**                 | Not supported | Not supported   | Not supported | N/A                | Not supported      | Not supported |
-| **Bulk Pulling (based on WebSocket) **| Support | Support | Not Supported | N/A | Not Supported | Supported |
-| **DataFrame** | Not supported | Support | Not supported | N/A | Not supported | Not supported |
+| **Functional Features**                | **Java**      | **Python**      | **Go**        | **C#**        | **Node.js**   | **Rust**      |
+| -------------------------------------- | ------------- | --------------- | ------------- | ------------- | ------------- | ------------- |
+| **Connection Management**              | Support       | Support         | Support       | Support       | Support       | Support       |
+| **Regular Query**                      | Support       | Support         | Support       | Support       | Support       | Support       |
+| **Parameter Binding**                  | Not supported | Not supported   | Not supported | Support       | Not supported | Support       |
+| **Subscription (TMQ) **                | Not supported | Not supported   | Not supported | Not supported | Not supported | Support       |
+| **Schemaless**                         | Not supported | Not supported   | Not supported | Not supported | Not supported | Not supported |
+| **Bulk Pulling (based on WebSocket) ** | Support       | Support         | Not Supported | support       | Not Supported | Supported     |
+| **DataFrame**                          | Not supported | Support         | Not supported | Not supported | Not supported | Not supported |
 
 :::warning
 

@@ -64,6 +64,7 @@ typedef struct SDatabaseOptions {
   int64_t     keep[3];
   int32_t     pages;
   int32_t     pagesize;
+  int32_t     tsdbPageSize;
   char        precisionStr[3];
   int8_t      precision;
   int8_t      replica;

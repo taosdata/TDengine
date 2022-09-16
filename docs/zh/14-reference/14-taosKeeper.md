@@ -79,7 +79,7 @@ password = "taosdata"
 
 # 需要被监控的 taosAdapter
 [taosAdapter]
-address = ["127.0.0.1:6041","192.168.1.95:6041"]
+address = ["127.0.0.1:6041"]
 
 [metrics]
 # 监控指标前缀
@@ -92,7 +92,7 @@ cluster = "production"
 database = "log"
 
 # 指定需要监控的普通表
-tables = ["normal_table"]
+tables = []
 ```
 
 ### 获取监控指标

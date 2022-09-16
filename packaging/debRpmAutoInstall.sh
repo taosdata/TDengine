@@ -11,3 +11,5 @@ expect "*one:"
 send  "\r"
 expect "*skip:"
 send  "\r" 
+
+expect eof

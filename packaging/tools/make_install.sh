@@ -609,14 +609,20 @@ function update_TDengine() {
   echo
 
   echo -e "${GREEN_DARK}To configure ${productName} ${NC}: edit ${configDir}/${configFile}"
-  echo -e "${GREEN_DARK}To configure Taos Adapter (if has) ${NC}: edit ${configDir}/taosadapter.toml"
+  [ -f ${configDir}/taosadapter.toml ] && [ -f ${installDir}/bin/taosadapter ] && \
+    echo -e "${GREEN_DARK}To configure Taos Adapter ${NC}: edit ${configDir}/taosadapter.toml"
   if ((${service_mod} == 0)); then
     echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
+    [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
+      echo -e "${GREEN_DARK}To start Taos Adatper ${NC}: ${csudo}systemctl start taosadapter ${NC}"
   elif ((${service_mod} == 1)); then
     echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}service ${serverName} start${NC}"
+    [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
+      echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: ${csudo}service taosadapter start${NC}"
   else
-    echo -e "${GREEN_DARK}To start Taos Adapter (if has)${NC}: taosadapter &${NC}"
     echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${serverName}${NC}"
+    [ -f ${installDir}/bin/taosadapter ] && \
+      echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: taosadapter &${NC}"
   fi
 
   echo -e "${GREEN_DARK}To access ${productName}    ${NC}: use ${GREEN_UNDERLINE}${clientName}${NC} in shell${NC}"
@@ -649,14 +655,20 @@ function install_TDengine() {
   echo -e "\033[44;32;1m${productName} is installed successfully!${NC}"
   echo
   echo -e "${GREEN_DARK}To configure ${productName} ${NC}: edit ${configDir}/${configFile}"
-  echo -e "${GREEN_DARK}To configure taosadapter (if has) ${NC}: edit ${configDir}/taosadapter.toml"
+  [ -f ${configDir}/taosadapter.toml ] && [ -f ${installDir}/bin/taosadapter ] && \
+    echo -e "${GREEN_DARK}To configure Taos Adapter ${NC}: edit ${configDir}/taosadapter.toml"
   if ((${service_mod} == 0)); then
     echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
+    [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
+      echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: ${csudo}systemctl start taosadapter ${NC}"
   elif ((${service_mod} == 1)); then
     echo -e "${GREEN_DARK}To start ${productName}    ${NC}: ${csudo}service ${serverName} start${NC}"
+    [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
+      echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: ${csudo}service taosadapter start${NC}"
   else
-    echo -e "${GREEN_DARK}To start Taos Adapter (if has)${NC}: taosadapter &${NC}"
     echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ./${serverName}${NC}"
+    [ -f ${installDir}/bin/taosadapter ] && \
+      echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: taosadapter &${NC}"
   fi
 
   echo -e "${GREEN_DARK}To access ${productName}    ${NC}: use ${GREEN_UNDERLINE}${clientName}${NC} in shell${NC}"
