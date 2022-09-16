@@ -90,7 +90,9 @@ SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
       }
 
       SArray *tagName = taosArrayInit(1, TSDB_COL_NAME_LEN);
-      taosArrayPush(tagName, "group_id");
+      char     tagNameStr[TSDB_COL_NAME_LEN] = {0};
+      strcpy(tagNameStr, "group_id");
+      taosArrayPush(tagName, tagNameStr);
 
 //      STag* pTag = NULL;
 //      taosArrayClear(tagArray);

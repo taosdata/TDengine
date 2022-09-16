@@ -3647,7 +3647,6 @@ static void cleanupTableSchemaInfo(SSchemaInfo* pSchemaInfo) {
 
 static void cleanupStreamInfo(SStreamTaskInfo* pStreamInfo) {
   tDeleteSSchemaWrapper(pStreamInfo->schema);
-  cleanupQueryTableDataCond(&pStreamInfo->tableCond);
 }
 
 static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
