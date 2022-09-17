@@ -5,6 +5,7 @@ pub mod taoz;
 mod tmq;
 mod tmq_to_local;
 mod tmq_to_td;
+mod transform;
 
 use taos::{Dsn, IntoDsn};
 
@@ -13,6 +14,7 @@ pub use local_to_taos::local_to_taos;
 pub use parquets::*;
 pub use tmq_to_local::tmq_to_local;
 pub use tmq_to_td::tmq_to_td;
+pub use transform::Action;
 
 #[derive(clap::ValueEnum, Clone, Debug)]
 enum Compression {
@@ -30,6 +32,7 @@ enum Compression {
 #[derive(Debug, Default)]
 pub struct TaskOpts {
     pub from: Dsn,
+    pub transform: Vec<Action>,
     pub to: Dsn,
     pub jobs: usize,
     pub compression_level: Option<usize>,
@@ -69,6 +72,7 @@ impl TaskOpts {
     pub async fn run(self) -> Result<(), anyhow::Error> {
         let Self {
             from,
+            transform,
             to,
             jobs,
             compression_level: _,
@@ -78,7 +82,7 @@ impl TaskOpts {
         {
             match (from.driver.as_str(), to.driver.as_str()) {
                 ("tmq", "taos") => {
-                    tmq_to_td(from, to, jobs).await?;
+                    tmq_to_td(from, transform, to, jobs).await?;
                 }
                 ("tmq", "local") => {
                     tmq_to_local(from, to, jobs, force).await?;

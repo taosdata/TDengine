@@ -130,7 +130,7 @@ pub async fn query_to_parquet(mut from: Dsn, to: Dsn, force: bool) -> Result<()>
 
     log::info!("sql: {sql}, fields: {}", rs.num_of_fields());
 
-    let filename = to.fragment.expect("parquet file must be input");
+    let filename = to.path.expect("parquet file must be input");
     if std::path::Path::new(&filename).exists() && !force {
         anyhow::bail!("Parquet file {} exists, please check or use `-y`", filename);
     }
@@ -225,7 +225,7 @@ async fn test() -> Result<()> {
 
     query_to_parquet(from, to.clone(), true).await?;
 
-    std::fs::remove_file(&to.fragment.unwrap())?;
+    std::fs::remove_file(&to.path.unwrap())?;
 
     client.exec(format!("drop database {db}")).await?;
     Ok(())

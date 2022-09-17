@@ -8,7 +8,7 @@ pub async fn query_to_csv(mut from: Dsn, to: Dsn) -> Result<()> {
     let mut rs = taos.query(sql).await?;
     let names = rs.filed_names();
 
-    let file = to.fragment.expect("csv file not found");
+    let file = to.path.expect("csv file not found");
     let file = tokio::fs::File::create(file).await?;
     let mut csv = csv_async::AsyncWriter::from_writer(file);
 

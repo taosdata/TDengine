@@ -33,7 +33,7 @@ pub(crate) struct Topic {
 ///     4.4            if the `table` is child table or normal, create a topic named `database_table` as select * from table.
 ///     4.5            else, bail unexpected input topics error to upstream.
 pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
-    let database = from.database.take().ok_or(RawError::new(
+    let database = from.subject.take().ok_or(RawError::new(
         Code::Failed,
         format!("requires topic or database in source dsn: {from}"),
     ))?;

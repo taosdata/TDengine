@@ -97,14 +97,14 @@ async fn restore(
 }
 
 pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> Result<()> {
-    if from.fragment.is_none() {
+    if from.path.is_none() {
         anyhow::bail!(
             "invalid local dsn: {}\nPlease use a local path DSN like `local:./path/to/backup`",
             from
         );
     }
     let continuous = from.params.contains_key("continue");
-    let path: &Path = from.fragment.as_ref().unwrap().as_ref();
+    let path: &Path = from.path.as_ref().unwrap().as_ref();
     if !path.exists() {
         anyhow::bail!("invalid backup dsn `{}`: directory not exist", from);
     }
@@ -119,7 +119,7 @@ pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> 
     let config = LocalConfig::from_path(&config_path)?;
 
     // check database
-    if let Some(target) = to.database.as_mut() {
+    if let Some(target) = to.subject.as_mut() {
         let databases: Vec<_> = config
             .topics
             .iter()
@@ -142,7 +142,7 @@ pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> 
         }
     }
 
-    let target_database = to.database.take();
+    let target_database = to.subject.take();
     let target = TaosBuilder::from_dsn(&to)?;
     let global_taos = target.build()?;
 

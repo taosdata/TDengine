@@ -101,13 +101,13 @@ pub async fn tmq_to_local(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> R
     // let (mut from, mut from_params) = from.split_params();
     let to_params = to.drain_params();
 
-    if to.fragment.is_none() {
+    if to.path.is_none() {
         anyhow::bail!(
             "invalid local backup dsn: {}\nPlease use a local path DSN like `local:./path/to/backup`",
             to
         );
     }
-    let path: &Path = to.fragment.as_ref().unwrap().as_ref();
+    let path: &Path = to.path.as_ref().unwrap().as_ref();
     if !path.exists() {
         log::info!("create directory for backup: {}", path.display());
         std::fs::create_dir_all(path)?;
@@ -169,7 +169,7 @@ pub async fn tmq_to_local(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> R
     let tmq = TmqBuilder::from_dsn(&from)?;
     log::info!("TMQ builder created");
 
-    if to.fragment.is_none() {
+    if to.path.is_none() {
         anyhow::bail!("invalid backup DSN: {}", to);
     }
 

@@ -1,7 +1,7 @@
 use anyhow::{bail, Result};
 use taos::*;
 
-use taosx::{local_to_taos, query_to_csv, query_to_parquet, tmq_to_local, tmq_to_td};
+use taosx::{local_to_taos, query_to_csv, query_to_parquet, tmq_to_local, tmq_to_td, Action};
 
 use clap::Parser;
 
@@ -18,14 +18,13 @@ pub(super) struct Cli {
     ///
     /// └── a) database input: `taos://localhost:6030/database`, this will output stable schemas and child tables.
     ///
-    /// └── b) table input: `taos://host:port/database?from=Stb1&select=c1,c2,c3`, this will be queried as:
-    ///       'select c1,c2,c3 from `database`.'
+    /// └── b) table input: `taos://host:port/db?query=select c1,c2,c3 from stb1`, this will be queried by sql `select c1,c2,c3 from stb1` and output as a plain table.
     ///
     /// ─ Local backup, use as `local:./path`.
     ///
     /// ─ CSV: `csv:/path/to/file.csv`.
     ///
-    /// ─ Parquet: `parquet:/path/to/*.parq`.
+    /// ─ Parquet: `parquet:/path/to/*.parquet`.
     ///
     #[clap(short, long, value_parser)]
     from: Dsn,
@@ -33,6 +32,20 @@ pub(super) struct Cli {
     /// Output DSN.
     #[clap(short, long, value_parser)]
     to: Dsn,
+
+    /// Transformer actions.
+    ///
+    /// Supported action format:
+    ///
+    /// - 'add-tag:tag1=value1': add a tag named `tag1`, and valued `value1`.
+    ///
+    /// - 'rename-table:prefix:v1_': rename all tables as `v1_{{ name }}`
+    ///
+    /// - 'rename-super-table:suffix:_stb': rename all super tables as suffixed '_stb'
+    ///
+    /// - 'rename-child-table:template:prefix_{{ name }}_stb': rename all super tables with prefix 'prefix_' and suffix '_stb'
+    #[clap(short = 'T', long)]
+    transform: Vec<Action>,
 
     // /// Algorithm
     // #[clap(short, long, value_enum, default_value = "zstd")]
@@ -72,7 +85,7 @@ impl Cli {
 
         match (args.from.driver.as_str(), args.to.driver.as_str()) {
             ("tmq", "taos") => {
-                tmq_to_td(args.from, args.to, args.jobs).await?;
+                tmq_to_td(args.from, args.transform, args.to, args.jobs).await?;
             }
             ("tmq", "local") => {
                 tmq_to_local(args.from, args.to, args.jobs, opts.yes_i_really_mean_it).await?;

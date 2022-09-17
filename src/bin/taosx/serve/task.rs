@@ -355,6 +355,7 @@ impl TryFrom<NewTask> for taosx::TaskOpts {
         } = value;
         Ok(Self {
             from: from.parse()?,
+            transform: Vec::new(),
             to: to.parse()?,
             jobs,
             compression_level,
@@ -574,8 +575,8 @@ impl Cluster {
                 .and_then(|s| s.parse().ok())
                 .map(|addr| vec![addr])
                 .unwrap_or_default(),
-            fragment: None,
-            database: database,
+            path: None,
+            subject: database,
             params: Default::default(),
         }
     }
