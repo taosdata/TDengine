@@ -161,8 +161,8 @@ inline static SArray* dispatcherPollAll(SAsyncBulkWriteDispatcher* dispatcher) {
     return NULL;
   }
   
+  dispatcher->currentSize = 0;
   atomic_store_32(&dispatcher->bufferSize, 0);
-  atomic_store_32(&dispatcher->currentSize, 0);
   taosArrayClear(dispatcher->buffer);
   return statements;
 }
@@ -195,14 +195,14 @@ inline static bool dispatcherTryOffer(SAsyncBulkWriteDispatcher* dispatcher, SSq
   // usually not happen, unless taos_query_a(...) after taos_close(...).
   if (atomic_load_8(&dispatcher->shutdown)) {
     pthread_mutex_unlock(&dispatcher->mutex);
-    return -1;
+    return false;
   }
   
   // the buffer is full.
-  while (atomic_load_32(&dispatcher->currentSize) >= dispatcher->batchSize) {
+  while (dispatcher->currentSize >= dispatcher->batchSize) {
     if (pthread_cond_wait(&dispatcher->notFull, &dispatcher->mutex)) {
       pthread_mutex_unlock(&dispatcher->mutex);
-      return -1;
+      return false;
     }
   }
 
@@ -210,18 +210,17 @@ inline static bool dispatcherTryOffer(SAsyncBulkWriteDispatcher* dispatcher, SSq
   tscDebug("sql obj %p has been write to insert buffer", pSql);
 
   atomic_fetch_add_32(&dispatcher->bufferSize, 1);
-  int32_t numOfRows = statementGetInsertionRows(pSql);
-  int32_t currentSize = atomic_add_fetch_32(&dispatcher->currentSize, numOfRows);
+  dispatcher->currentSize += statementGetInsertionRows(pSql);
   
   // the dispatcher has been shutdown or reach batch size.
-  if (atomic_load_8(&dispatcher->shutdown) || currentSize >= dispatcher->batchSize) {
+  if (atomic_load_8(&dispatcher->shutdown) || dispatcher->currentSize >= dispatcher->batchSize) {
     SArray* statements = dispatcherPollAll(dispatcher);
     dispatcherExecute(statements);
     taosArrayDestroy(&statements);
     pthread_cond_broadcast(&dispatcher->notFull);
   }
   pthread_mutex_unlock(&dispatcher->mutex);
-  return currentSize;
+  return true;
 }
 
 void dispatcherExecute(SArray* statements) {
@@ -338,12 +337,12 @@ SAsyncBulkWriteDispatcher* createAsyncBulkWriteDispatcher(int32_t batchSize, int
   if (!dispatcher) {
     return NULL;
   }
-
+  
+  dispatcher->currentSize = 0;
   dispatcher->batchSize = batchSize;
   dispatcher->timeoutMs = timeoutMs;
 
   atomic_store_32(&dispatcher->bufferSize, 0);
-  atomic_store_32(&dispatcher->currentSize, 0);
   atomic_store_8(&dispatcher->shutdown, false);
   atomic_store_8(&dispatcher->exclusive, false);
 

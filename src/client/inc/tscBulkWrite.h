@@ -48,13 +48,13 @@ typedef struct SAsyncBulkWriteDispatcher {
 
   // the batching timeout in milliseconds.
   int32_t timeoutMs;
-
+  
+  // the number of insertion rows in the buffer.
+  int32_t currentSize;
+  
   // the number of item in the buffer.
   volatile int32_t bufferSize;
-
-  // the number of insertion rows in the buffer.
-  volatile int32_t currentSize;
-
+  
   // while executing timeout task, the buffer will set exclusive for writing.
   volatile bool exclusive;
 
