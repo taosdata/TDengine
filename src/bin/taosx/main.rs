@@ -35,18 +35,6 @@ enum Commands {
     External(Vec<String>),
 }
 
-// #[derive(clap::ValueEnum, Clone, Debug)]
-// enum Algorithm {
-//     Brotli,
-//     Bzip2,
-//     Deflate,
-//     Gzip,
-//     Lzma,
-//     Xz,
-//     Zlib,
-//     Zstd,
-// }
-
 /// TDengine streaming data transfer tool.
 ///
 /// Service mode:

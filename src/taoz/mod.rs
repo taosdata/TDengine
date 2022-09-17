@@ -198,7 +198,6 @@ where
 mod tests {
     use std::sync::{Arc, Mutex};
 
-    use futures::TryFutureExt;
     use taos::TBuilder;
 
     use super::*;

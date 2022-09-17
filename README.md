@@ -2,7 +2,7 @@
 
 taosX is an easy-to-use, feature-rich TDengine data pipeline tool. It's a bridge between a data source and data sink. It supports offline data import/export and real-time data replication from or to a TDengine instance. It's built for performance, reliability, productivity, observability and ergonomics.
 
-## Highlights 
+## Highlights
 
 - Easy to use command line interface.
 - Simple but flexible configuration(s).
@@ -17,7 +17,7 @@ taosX is an easy-to-use, feature-rich TDengine data pipeline tool. It's a bridge
 
 1st, for TDengine database replication.
 
-- Synchronize database or (s)tables from one to another TDengine instance.
+- Replicate database or (s)tables from one to another TDengine instance.
 
 2nd, for TDengine logical backup and restore.
 
@@ -73,16 +73,16 @@ It will replicate all data and meta changes from database `db1` in local cluster
 
 ```bash
 taosx run \
-  -f 'tmq://root:taosdata@localhost:6030/db1?group.id=another' \
-  -t 'taos://root:taosdata@another:6030/db2'
+  -f 'tmq://root:taosdata@localhost:6030/db1' \
+  -t 'taos://root:taosdata@another.com:6030/db2'
 ```
 
-By default, it will stop when there's no new data in some time(`500ms` eg.). Use `timeout=0` to run it forever.
+By default, it will stop when there's no new data in some period of time(`500ms` eg.). Use `timeout=never` to run it forever.
 
 ```bash
 taosx run \
-  -f 'tmq://root:taosdata@localhost:6030/db1?group.id=another&timeout=0' \
-  -t 'taos://root:taosdata@another:6030/db2'
+  -f 'tmq://root:taosdata@localhost:6030/db1?timeout=never' \
+  -t 'taos://root:taosdata@another.com:6030/db2'
 ```
 
 It's able to replicate a table to another cluster database.
@@ -90,7 +90,7 @@ It's able to replicate a table to another cluster database.
 ```bash
 taosx run \
   -f 'tmq://root:taosdata@localhost:6030/db1.table_name' \
-  -t 'taos://root:taosdata@another:6030/db2'
+  -t 'taos://root:taosdata@another.com:6030/db2'
 ```
 
 Note that `table_name` could be super table, or child table, or normal table.
@@ -102,7 +102,7 @@ It will backup whole database `db1` in `this` cluster to directory `/path/to/bac
 ```bash
 taosx run \
   -f 'tmq://this/db1' \
-  -t 'local:/path/to/backups/of/one'
+  -t 'local:/path/to/backup/directory'
 ```
 
 Like replication, it will stop when there's no new data in some time(`500ms` eg.). Use `timeout=0` to run it forever or customize the timeout parameter by a human-readable duration: `timeout=5s`.
@@ -112,14 +112,14 @@ With local backup directory, you can restore it to any database in any cluster a
 ```bash
 taosx run \
   -f 'local:/path/to/backups/of/one' \
-  -t 'taos://root:taosdata@another:6030/db1'
+  -t 'taos://root:taosdata@another.com:6030/db1'
 ```
 
 Single (s)table backup is like:
 
 ```bash
 taosx run \
-  -f 'tmq://this/db1.table1' \
+  -f 'tmq://this.com/db1.table1' \
   -t 'local:/path/to/backups/of/one'
 ```
 
@@ -129,7 +129,7 @@ Incremental backup could be performed on an existing full backup and generate th
 
 ```bash
 taosx run \
-  -f 'tmq://this/db1' \
+  -f 'tmq://this.com/db1' \
   -t 'local:/path/to/backups/of/one'
 ```
 
@@ -184,7 +184,7 @@ A common DSN is basically constructed as this:
 ```text
 # url-like
 <driver>[+<protocol>]://[[<username>:<password>@]<host>:<port>][/<object>][?<p1>=<v1>[&<p2>=<v2>]]
-|------|------------|---|-----------|-----------|------|------|------------|-----------------------|
+|------|------------|---|-----------|-----------|------|------|----------|-----------------------|
 |driver|   protocol |   | username  | password  | host | port |  object  |  params               |
 
 # or path-like
@@ -206,7 +206,7 @@ For different parts:
 - **password**: the password of the username. **Optional**.
 - **host**: address host to the datasource. **Optional**.
 - **port**: address port to the datasource. **Optional**.
-- **object**: Possibly one of: 1) database name, 2) [TMQ] topic name 3) table expression: `database.table` or 4) any other collection name of the datasource. **Optional**.
+- **object**: Possibly one of: 1) database name(s), 2) data [subscription] topic name(s) 3) table expression: `database.table`. **Optional**.
 - **params**: a key-value map for any other information to the datasource. **Optional**. The available parameters may depend on drivers or source / target positions.
 - **path**: a file or directory path, or a path-like string for the data source.
 
@@ -219,7 +219,7 @@ taos://root:taosdata@localhost:6030/test
 A TDengine subscription DSN with websocket protocol is:
 
 ```text
-tmq+ws://root:taosdata@localhost:6041/topic1?group.id=name1
+tmq+ws://root:taosdata@localhost:6041/topic1
 ```
 
 A CSV file with path:
@@ -231,12 +231,14 @@ csv:./path/to/file.csv
 taosX use path-like DSN to configure a backup location with some options:
 
 ```text
-local:./directory/to/backup/?max-file-size=1G
+local:./path/relative/to/current/work/directory
+local:~/path/under/home
+local:/absolute/path
 ```
 
-There're three kinds of DSN you should know before using taosX.
+### Supported drivers
 
-### 1. TDengine DSN for query and write
+#### 1. **taos**: query or write with TDengine
 
 A TDengine DSN string could be written as:
 
@@ -250,9 +252,9 @@ In a TDengine query connection DSN, the **driver** will always be `taos`, the **
 - **token**: use `token` in the **params** part for TDengine cloud service instead of **username** and **password** authentication, be careful to use this along with specified **protocol**(`ws` or `wss`).
 - **query**: a query SQL string, such as `SELECT * FROM meters`. This will be used as a table data source, eg. `taos://localhost:6030/test?query=SELECT * FROM meters` will use the query results as table data source, which can be exported as CSV or Parquet.
 
-### 2. TDengine DSN for subscription
+#### 2. **tmq**: subscription with TDengine
 
-It's recommended to read [TMQ] documentation first on the official website.
+It's recommended to read [Data subscription] documentation first on the official website.
 
 Subscription is a bit different from legacy TDengine connection, you can use a subscription like this:
 
@@ -260,7 +262,7 @@ Subscription is a bit different from legacy TDengine connection, you can use a s
 tmq[+ws]://<username>:<password>@<host>:<port>/<topics>[?<params>]
 ```
 
-In this kind of DSN, the **driver** must be set as `tmq`. Subscription DSN use **topics** part, which is a comma(`,`)-separated **topic** string list - so that you can subscribe multiple topics in a single subscription. A **topic** could be created by sql: `CREATE TOPIC topic1 AS SELECT * FROM db1.tb1`. Other parts is nearly the same to previous section - **TDengine DSN for query**. Additional subscription parameters could be set in **params** part:
+In this kind of DSN, the **driver** must be set as `tmq`. Subscription DSN use **topics** part, which is a comma(`,`)-separated **topic** string list - so that you can subscribe multiple topics in a single subscription. Other parts is nearly the same to previous section - **TDengine DSN for query**. Additional subscription parameters could be set in **params** part:
 
 - **`group.id`**: the group id string of a subscription, which is **required**.
 - **`client.id`**: the client id of a subscription, which can be used to track a subscription client.
@@ -275,7 +277,7 @@ So if you want to subscribe a topic, the DSN may be:
 'tmq://root:taosdata@localhost:6030/topic1?group.id=gid1&client.id=any-string'
 ```
 
-### 3. TDengine backup location DSN
+#### 3. **local**: backup to or restore from local directory
 
 taosX use path-like DSN for backup/restore, and use **local** as driver name:
 
@@ -294,6 +296,160 @@ test-dump-abc2
 ├── abc2-0-1661847159.z
 ├── abc2-1-1661847159.z
 └── local.toml
+```
+
+#### 4. **csv**: export as CSV file
+
+taosX could export query result into single CSV file. The DSN format is:
+
+```text
+csv:./local/path/to/file.csv
+csv:~/home/nested/path/to/any/file
+csv:/absolute/path/to/file.ext
+```
+
+Combine query DSN with this, such as:
+
+```bash
+taosx run \
+  -f 'taos://root:taosdata@localhost:6030/test?query=SELECT * FROM meters' \
+  -t 'csv:./meters.csv'
+```
+
+#### 5. **parquet**: export as Parquet file
+
+taosX could export query result into single Parquet file. The DSN format is:
+
+```text
+parquet:./local/path/to/file.parquet
+```
+
+Combine query DSN with this, such as:
+
+```bash
+taosx run \
+  -f 'taos://root:taosdata@localhost:6030/test?query=SELECT * FROM meters' \
+  -t 'parquet:./meters.parquet'
+```
+
+We strongly recommend to use Parquet for time-series data sharing and storing purpose, which has better reading performance and much smaller size.
+
+### Transformation
+
+For more specific use cases, taosX support two kind of transformation actions:
+
+- **Add tags**
+
+    For M:1 data collection scenario (for example, many edge nodes push data to a central node), taosX could automatically add one or more identity tags while data transferring.
+
+    The syntax is:
+
+    ```text
+    add-tag:<name>[(<len>)]=<value>
+    ```
+
+    For example, to add tag `area` with value `A1`:
+
+    ```text
+    add-tag:area=A1
+    ```
+
+    The tag data type is `VARCHAR` with default length `100`. Customize the length like this:
+
+    ```text
+    add-tag:area(2)=A1
+    ```
+
+- **Rename tables**
+
+    taosX could rename the table names before write to target TDengine. The syntax is:
+
+    ```text
+    <rename-table-kind>:<rename-type>:<rename-item>
+    ```
+
+    Supported *rename-table-kind` list:
+    * **rename-table**: rename all three kinds of tables: super table, child table or normal table.
+    * **rename-super-table**: rename super table only.
+    * **rename-child-table**: rename child table only.
+
+    Supported *rename-type* and *rename-item* expression:
+    * **`template:words_{name}_surrounded`**: new table name will use the template `words_{name}_surrounded` and replace `{name}` as real table name.
+    * **`prefix:some_prefix_`**: is a short wrapper on template `some_prefix_{name}`.
+    * **`suffix:_some_suffix`**: is a short wrapper on template `{name}_some_suffix`.
+
+Here's a example shows how to use transformation.
+
+Suppose we have three TDengine cluster in three location: A, B, C. Each location has the same stable `devices`, with same or not child tables, in database `test`:
+
+```sql
+CREATE STABLE `devices` (ts TIMESTAMP, val INT) TAGS (id VARCHAR(16));
+
+# in A, B, and C
+CREATE TABLE `d0` using `devices` TAGS ("d0");
+# in B
+CREATE TABLE `d1` using `devices` TAGS ("d1");
+```
+
+Run taosX for each location, replicate all three databases into central TDengine cluster:
+
+```bash
+# A
+taosX run \
+  -f 'tmq://root:taosdata@hostA:6030/test' \
+  -t 'taos://root:taosdata@center:6030/test' \
+  -T 'add-tag:location:A' \
+  -T 'rename-child-table:prefix:A'
+# B
+taosX run \
+  -f 'tmq://root:taosdata@hostB:6030/test' \
+  -t 'taos://root:taosdata@center:6030/test' \
+  -T 'add-tag:location:B' \
+  -T 'rename-child-table:prefix:B'
+# C
+taosX run \
+  -f 'tmq://root:taosdata@hostC:6030/test' \
+  -t 'taos://root:taosdata@center:6030/test' \
+  -T 'add-tag:location:C' \
+  -T 'rename-child-table:prefix:C'
+```
+
+Then in central cluster database `test`, will have stable `meters` like this:
+
+```sql
+taos> show stables;
+          stable_name           |
+=================================
+ devices                        |
+Query OK, 1 rows in database (0.003971s)
+
+taos> show tables;
+           table_name           |
+=================================
+ Ad0                            |
+ Bd0                            |
+ Bd1                            |
+ Cd0                            |
+Query OK, 4 rows in database (0.005446s)
+
+taos> desc `devices`;
+             field              |         type         |   length    |   note   |
+=================================================================================
+ ts                             | TIMESTAMP            |           8 |          |
+ val                            | INT                  |           4 |          |
+ id                             | VARCHAR              |          16 | TAG      |
+ location                       | VARCHAR              |           1 | TAG      |
+Query OK, 4 rows in database (0.002262s)
+
+taos> select distinct tbname, id, location from devices order by
+tbname;
+             tbname             |        id        | location |
+===============================================================
+ Ad0                            | d0               | A        |
+ Bd0                            | d0               | B        |
+ Bd0                            | d1               | B        |
+ Cd0                            | d0               | C        |
+Query OK, 4 rows in database (0.007300s)
 ```
 
 ## Service mode
