@@ -264,11 +264,11 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
 }
 
 int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  SExecTaskInfo*  pTaskInfo = (SExecTaskInfo*)tinfo;
   STableListInfo* pListInfo = &pTaskInfo->tableqinfoList;
 
   if (isAdd) {
-    qDebug("add %d tables id into query list, %s", (int32_t) taosArrayGetSize(tableIdList), pTaskInfo->id.str);
+    qDebug("add %d tables id into query list, %s", (int32_t)taosArrayGetSize(tableIdList), pTaskInfo->id.str);
   }
 
   if (pListInfo->map == NULL) {
@@ -321,6 +321,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
       }
 
       bool exists = false;
+#if 0
       for (int32_t k = 0; k < taosArrayGetSize(pListInfo->pTableList); ++k) {
         STableKeyInfo* pKeyInfo = taosArrayGet(pListInfo->pTableList, k);
         if (pKeyInfo->uid == keyInfo.uid) {
@@ -328,6 +329,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
           exists = true;
         }
       }
+#endif
 
       if (!exists) {
         taosArrayPush(pTaskInfo->tableqinfoList.pTableList, &keyInfo);
