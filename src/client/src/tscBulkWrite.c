@@ -445,7 +445,7 @@ bool tscSupportBulkInsertion(SAsyncBulkWriteDispatcher* dispatcher, SSqlObj* pSq
   return true;
 }
 
-bool dispatcherTryBatching(SAsyncBulkWriteDispatcher* dispatcher, SSqlObj* pSql) {
+bool dispatcherTryDispatch(SAsyncBulkWriteDispatcher* dispatcher, SSqlObj* pSql) {
   if (atomic_load_8(&dispatcher->shutdown)) {
     return false;
   }

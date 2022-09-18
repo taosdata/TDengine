@@ -111,13 +111,13 @@ void destroyAsyncDispatcher(SAsyncBulkWriteDispatcher* dispatcher);
 bool tscSupportBulkInsertion(SAsyncBulkWriteDispatcher* dispatcher, SSqlObj* pSql);
 
 /**
- * Try to offer the SSqlObj* to the buffer. If the number of row reach `asyncBatchSize`, the function
+ * Try to offer the SSqlObj* to the dispatcher. If the number of row reach `batchSize`, the function
  * will merge the SSqlObj* in the buffer and send them to the vnodes.
  *
  * @param pSql the insert statement to offer.
  * @return     if offer success, returns true.
  */
-bool dispatcherTryBatching(SAsyncBulkWriteDispatcher* dispatcher, SSqlObj* pSql);
+bool dispatcherTryDispatch(SAsyncBulkWriteDispatcher* dispatcher, SSqlObj* pSql);
 
 /**
  * A holder of SAsyncBulkWriteDispatcher. Call dispatcherAcquire(...) to get the SAsyncBulkWriteDispatcher
