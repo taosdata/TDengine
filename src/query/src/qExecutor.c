@@ -1925,7 +1925,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo* pIn
   STimeWindow w = TSWINDOW_INITIALIZER;
 
   char*   key = NULL;
-  int16_t num = 0;
+  int32_t num = 0;
   int32_t type = 0;
   for (int32_t j = 0; j < pSDataBlock->info.rows; ++j) {
     buildGroupbyKeyBuf(pSDataBlock, pInfo, j, &key);
