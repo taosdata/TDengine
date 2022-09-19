@@ -1822,7 +1822,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
 
   while (true) {
     // step 1: rsma exec - consume data in buffer queue for all suids
-    if (type == RSMA_EXEC_OVERFLOW || type == RSMA_EXEC_COMMIT) {
+    if (type == RSMA_EXEC_OVERFLOW) {
       void *pIter = NULL;
       while ((pIter = taosHashIterate(infoHash, pIter))) {
         SRSmaInfo *pInfo = *(SRSmaInfo **)pIter;
@@ -1878,42 +1878,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
           atomic_val_compare_exchange_8(&pInfo->assigned, 1, 0);
         }
       }
-      if (type == RSMA_EXEC_COMMIT) {
-        if (atomic_load_64(&pRSmaStat->nBufItems) <= 0) {
-          break;
-        } else {
-          // commit should wait for all items be consumed
-          continue;
-        }
-      }
-    }
-#if 0
-    else if (type == RSMA_EXEC_COMMIT) {
-      while (pIter) {
-        SRSmaInfo *pInfo = *(SRSmaInfo **)pIter;
-        if (taosQueueItemSize(pInfo->iQueue)) {
-          if (atomic_val_compare_exchange_8(&pInfo->assigned, 0, 1) == 0) {
-            taosReadAllQitems(pInfo->iQueue, pInfo->iQall);  // queue has mutex lock
-            int32_t qallItemSize = taosQallItemSize(pInfo->iQall);
-            if (qallItemSize > 0) {
-              atomic_fetch_sub_64(&pRSmaStat->nBufItems, qallItemSize);
-              nIdle = 0;
-
-              // batch exec
-              tdRSmaBatchExec(pSma, pInfo, pInfo->qall, pSubmitArr, type);
-            }
-
-            // tdRSmaFetchAllResult(pSma, pInfo, pSubmitArr);
-            atomic_val_compare_exchange_8(&pInfo->assigned, 1, 0);
-          }
-        }
-        ASSERT(taosQueueItemSize(pInfo->iQueue) == 0);
-        pIter = taosHashIterate(infoHash, pIter);
-      }
-      break;
-    }
-#endif
-    else {
+    } else {
       ASSERT(0);
     }
 
