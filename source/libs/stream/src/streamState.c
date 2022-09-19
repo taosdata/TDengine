@@ -18,14 +18,19 @@
 #include "tcommon.h"
 #include "ttimer.h"
 
-SStreamState* streamStateOpen(char* path, SStreamTask* pTask) {
+SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath) {
   SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
   if (pState == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
+
   char statePath[300];
-  sprintf(statePath, "%s/%d", path, pTask->taskId);
+  if (!specPath) {
+    sprintf(statePath, "%s/%d", path, pTask->taskId);
+  } else {
+    memcpy(statePath, path, 300);
+  }
   if (tdbOpen(statePath, 4096, 256, &pState->db) < 0) {
     goto _err;
   }

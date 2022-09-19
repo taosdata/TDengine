@@ -760,7 +760,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask) {
 
   // expand executor
   if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
-    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask);
+    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false);
     if (pTask->pState == NULL) {
       return -1;
     }
@@ -774,7 +774,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask) {
     pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);
     ASSERT(pTask->exec.executor);
   } else if (pTask->taskLevel == TASK_LEVEL__AGG) {
-    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask);
+    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false);
     if (pTask->pState == NULL) {
       return -1;
     }
