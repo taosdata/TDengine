@@ -490,8 +490,12 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     mndReleaseConsumer(pMnode, pConsumerOld);
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) {
       ASSERT(0);
+      tDeleteSMqConsumerObj(pConsumerNew);
+      taosMemoryFree(pConsumerNew);
       goto REB_FAIL;
     }
+    tDeleteSMqConsumerObj(pConsumerNew);
+    taosMemoryFree(pConsumerNew);
   }
 
   // 3.3 set removed consumer
@@ -509,8 +513,12 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     mndReleaseConsumer(pMnode, pConsumerOld);
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) {
       ASSERT(0);
+      tDeleteSMqConsumerObj(pConsumerNew);
+      taosMemoryFree(pConsumerNew);
       goto REB_FAIL;
     }
+    tDeleteSMqConsumerObj(pConsumerNew);
+    taosMemoryFree(pConsumerNew);
   }
 #if 0
   if (consumerNum) {

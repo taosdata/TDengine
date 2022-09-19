@@ -93,6 +93,7 @@ static void toDataCacheEntry(SDataDeleterHandle* pHandle, const SInputData* pInp
   strcpy(pRes->tableName, pHandle->pDeleter->tableFName);
   strcpy(pRes->tsColName, pHandle->pDeleter->tsColName);
   pRes->affectedRows = *(int64_t*)pColRes->pData;
+
   if (pRes->affectedRows) {
     pRes->skey = *(int64_t*)pColSKey->pData;
     pRes->ekey = *(int64_t*)pColEKey->pData;
@@ -101,6 +102,8 @@ static void toDataCacheEntry(SDataDeleterHandle* pHandle, const SInputData* pInp
     pRes->skey = pHandle->pDeleter->deleteTimeRange.skey;
     pRes->ekey = pHandle->pDeleter->deleteTimeRange.ekey;
   }
+
+  qDebug("delete %ld rows, from %ld to %ld", pRes->affectedRows, pRes->skey, pRes->ekey);
 
   pBuf->useSize += pEntry->dataLen;
 

@@ -147,6 +147,7 @@ int32_t tqOffsetCommitFile(STqOffsetStore* pStore) {
       taosHashCancelIterate(pStore->pHash, pIter);
       return -1;
     }
+    taosMemoryFree(buf);
   }
   // close and rename file
   taosCloseFile(&pFile);
