@@ -148,7 +148,7 @@ int taos_errno(TAOS_RES *res) {
     return terrno;
   }
 
-  if (TD_RES_TMQ(res)) {
+  if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
     return 0;
   }
 
@@ -162,7 +162,7 @@ const char *taos_errstr(TAOS_RES *res) {
     return (const char *)tstrerror(terrno);
   }
 
-  if (TD_RES_TMQ(res)) {
+  if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
     return "success";
   }
 
@@ -264,7 +264,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     return doFetchRows(pRequest, true, true);
 #endif
 
-  } else if (TD_RES_TMQ(res)) {
+  } else if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
     SMqRspObj      *msg = ((SMqRspObj *)res);
     SReqResultInfo *pResultInfo;
     if (msg->resIter == -1) {
@@ -437,7 +437,7 @@ const char *taos_data_type(int type) {
 const char *taos_get_client_info() { return version; }
 
 int taos_affected_rows(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res)) {
+  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res)) {
     return 0;
   }
 
@@ -454,7 +454,7 @@ int taos_result_precision(TAOS_RES *res) {
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
     return pRequest->body.resInfo.precision;
-  } else if (TD_RES_TMQ(res)) {
+  } else if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
     SReqResultInfo *info = tmqGetCurResInfo(res);
     return info->precision;
   }
@@ -487,7 +487,7 @@ int taos_select_db(TAOS *taos, const char *db) {
 }
 
 void taos_stop_query(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res)) {
+  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res)) {
     return;
   }
 
@@ -559,7 +559,7 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
     (*rows) = pResultInfo->row;
     (*numOfRows) = pResultInfo->numOfRows;
     return pRequest->code;
-  } else if (TD_RES_TMQ(res)) {
+  } else if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
     SReqResultInfo *pResultInfo = tmqGetNextResInfo(res, true);
     if (pResultInfo == NULL) return -1;
 
@@ -578,7 +578,7 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
     return 0;
   }
 
-  if (TD_RES_TMQ(res)) {
+  if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
     SReqResultInfo *pResultInfo = tmqGetNextResInfo(res, false);
     if (pResultInfo == NULL) {
       (*numOfRows) = 0;

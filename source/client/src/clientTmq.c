@@ -515,6 +515,10 @@ int32_t tmqCommitMsgImpl(tmq_t* tmq, const TAOS_RES* msg, int8_t async, tmq_comm
     SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)msg;
     topic = pMetaRspObj->topic;
     vgId = pMetaRspObj->vgId;
+  } else if(TD_RES_TMQ_METADATA(msg)) {
+    SMqTaosxRspObj* pRspObj = (SMqTaosxRspObj*)msg;
+    topic = pRspObj->topic;
+    vgId = pRspObj->vgId;
   } else {
     return TSDB_CODE_TMQ_INVALID_MSG;
   }
