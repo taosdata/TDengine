@@ -473,10 +473,11 @@ class PlannerTestBaseImpl {
     cout << "nodesNodeToMsg: "
          << chrono::duration_cast<chrono::microseconds>(chrono::steady_clock::now() - start).count() << "us" << endl;
 
+    string  copyStr(pStr, len);
     SNode*  pNode = NULL;
     char*   pNewStr = NULL;
     int32_t newlen = 0;
-    DO_WITH_THROW(nodesMsgToNode, pStr, len, &pNode)
+    DO_WITH_THROW(nodesMsgToNode, copyStr.c_str(), len, &pNode)
     DO_WITH_THROW(nodesNodeToMsg, pNode, &pNewStr, &newlen)
     if (newlen != len || 0 != memcmp(pStr, pNewStr, len)) {
       cout << "nodesNodeToMsg error!!!!!!!!!!!!!! len = " << len << ", newlen = " << newlen << endl;
