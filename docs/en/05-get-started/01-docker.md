@@ -3,7 +3,11 @@ sidebar_label: Docker
 title: Quick Install on Docker
 ---
 
-This document describes how to install TDengine in a Docker container and perform queries and inserts. To get started with TDengine in a non-containerized environment, see [Quick Install](../../get-started/package). If you want to view the source code, build TDengine yourself, or contribute to the project, see the [TDengine GitHub repository](https://github.com/taosdata/TDengine).
+This document describes how to install TDengine in a Docker container and perform queries and inserts.
+
+- To get started with TDengine in a non-containerized environment, see [Quick Install from Package](../../get-started/package).
+- For a fully managed solution, see the [TDengine Cloud documentation](/cloud/).
+- If you want to view the source code, build TDengine yourself, or contribute to the project, see the [TDengine GitHub repository](https://github.com/taosdata/TDengine).
 
 ## Run TDengine
 

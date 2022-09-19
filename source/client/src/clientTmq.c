@@ -845,7 +845,7 @@ void tmqFreeImpl(void* handle) {
   int32_t sz = taosArrayGetSize(tmq->clientTopics);
   for (int32_t i = 0; i < sz; i++) {
     SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
-    if (pTopic->schema.nCols) taosMemoryFree(pTopic->schema.pSchema);
+    if (pTopic->schema.nCols) taosMemoryFreeClear(pTopic->schema.pSchema);
     int32_t vgSz = taosArrayGetSize(pTopic->vgs);
     taosArrayDestroy(pTopic->vgs);
   }
@@ -1081,6 +1081,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
     tsem_destroy(&pParam->rspSem);
     taosMemoryFree(pParam);
     taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
     terrno = TSDB_CODE_TMQ_CONSUMER_CLOSED;
     return -1;
   }
@@ -1119,6 +1120,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
             tmqEpoch);
     tsem_post(&tmq->rspSem);
     taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
     return 0;
   }
 
@@ -1132,6 +1134,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   SMqPollRspWrapper* pRspWrapper = taosAllocateQitem(sizeof(SMqPollRspWrapper), DEF_QITEM);
   if (pRspWrapper == NULL) {
     taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
     tscWarn("msg discard from vgId:%d, epoch %d since out of memory", vgId, epoch);
     goto CREATE_MSG_FAIL;
   }
@@ -1168,6 +1171,7 @@ int32_t tmqPollCb(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
 
   taosWriteQitem(tmq->mqueue, pRspWrapper);
   tsem_post(&tmq->rspSem);
@@ -1222,6 +1226,8 @@ bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
     SMqClientTopic topic = {0};
     SMqSubTopicEp* pTopicEp = taosArrayGet(pRsp->topics, i);
     topic.schema = pTopicEp->schema;
+    pTopicEp->schema.nCols = 0;
+    pTopicEp->schema.pSchema = NULL;
     tstrncpy(topic.topicName, pTopicEp->topic, TSDB_TOPIC_FNAME_LEN);
     tstrncpy(topic.db, pTopicEp->db, TSDB_DB_FNAME_LEN);
 
@@ -1255,7 +1261,7 @@ bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
     int32_t sz = taosArrayGetSize(tmq->clientTopics);
     for (int32_t i = 0; i < sz; i++) {
       SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
-      if (pTopic->schema.nCols) taosMemoryFree(pTopic->schema.pSchema);
+      if (pTopic->schema.nCols) taosMemoryFreeClear(pTopic->schema.pSchema);
       int32_t vgSz = taosArrayGetSize(pTopic->vgs);
       taosArrayDestroy(pTopic->vgs);
     }
