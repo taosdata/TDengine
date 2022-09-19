@@ -55,7 +55,7 @@ class StreamComputingTest(TDCase):
         self.offset = 1000
         self.interation = 10
         self.range_count = 5
-        self.vgroups = 10
+        self.vgroups = 1
         self.des_table_suffix = "_output"
         self.stream_suffix = "_stream"
         
@@ -542,7 +542,7 @@ class StreamComputingTest(TDCase):
             else:
                 self.tdCom.check_query_data(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.tb_source_select_str}  from {tbname} state_window({state_window_col_name})')
 
-    def at_once_session(self, session, ignore_expired=False):
+    def at_once_session(self, session, ignore_expired=None):
         # self.update = False
         self.case_name = sys._getframe().f_code.co_name
         self.prepare_data(session=session)
@@ -614,7 +614,7 @@ class StreamComputingTest(TDCase):
             #         else:
             #             self.tdCom.check_query_data(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.tb_source_select_str}  from {tbname} session(ts, {self.dataDict["session"]}s)')
 
-    def window_close_interval(self, interval, watermark=None, ignore_expired=False):
+    def window_close_interval(self, interval, watermark=None, ignore_expired=None):
         self.case_name = sys._getframe().f_code.co_name
         if watermark is not None:
             self.case_name = "watermark" + sys._getframe().f_code.co_name
@@ -1085,7 +1085,7 @@ class StreamComputingTest(TDCase):
         #         self.tdCom.check_stream(f'select `{string_function}(c3)`, `{string_function}(c4)`, `{string_function}(c5)` from output_{string_function}_stb;', f'select {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_stb;', 4)
 
 
-    def partitionby_interval(self, interval=None, partition_by_elm="tbname", ignore_expired=False):
+    def partitionby_interval(self, interval=None, partition_by_elm="tbname", ignore_expired=None):
         self.case_name = sys._getframe().f_code.co_name
         self.prepare_data(interval=interval)
         self.tdCom.write_latency(self.case_name)
@@ -1152,7 +1152,7 @@ class StreamComputingTest(TDCase):
                     else:
                         self.tdCom.check_query_data(f'select {self.stb_filter_des_select_elm} from {self.stb_name}{self.des_table_suffix} order by c1,c2,c3;', f'select {self.stb_filter_des_select_elm}  from {self.stb_name} partition by {partition_by_elm} order by c1,c2,c3;')
 
-    def partition_tag_by_interval(self, interval=None, partition_by_elm="tag", ignore_expired=False):
+    def partition_tag_by_interval(self, interval=None, partition_by_elm="tag", ignore_expired=None):
         self.case_name = sys._getframe().f_code.co_name
         self.prepare_data(interval=interval)
         self.tdCom.write_latency(self.case_name)
@@ -1382,46 +1382,46 @@ class StreamComputingTest(TDCase):
     
 
     def run(self):
-        self.create_none_db_stream()
-        self.create_none_source_tb_stream()
-        self.create_none_source_tb_tag_stream()
-        self.create_none_source_tb_col_stream()
-        self.create_error_source_sql_stream()
-        self.insert_after_restart()
-        # ! TD-18123
-        # self.insert_after_recreate_source_table()
-        self.query_after_drop_stream_db()
+        # self.create_none_db_stream()
+        # self.create_none_source_tb_stream()
+        # self.create_none_source_tb_tag_stream()
+        # self.create_none_source_tb_col_stream()
+        # self.create_error_source_sql_stream()
+        # self.insert_after_restart()
+        # # ! TD-18123
+        # # self.insert_after_recreate_source_table()
+        # self.query_after_drop_stream_db()
 
-        # self.vgroups = 10
-        self.data_filter()
-        self.life_cycle()
-        self.scalar_function()
-        self.stream_tandem()
-        self.udf_test()
-        self.udaf_test(interval=10)
-        self.at_once_interval(interval=random.randint(10, 15))
-        # self.alter_source_table(interval=random.randint(10, 15))
-        self.at_once_state_window(state_window="c1")
-        # self.at_once_session(session=random.randint(10, 15))
-        self.at_once_session(session=random.randint(10, 15), ignore_expired=True)
-        self.window_close_interval(interval=random.randint(10, 15), watermark=None)
-        self.window_close_interval(interval=random.randint(10, 15), watermark=None, ignore_expired=True)
-        self.window_close_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20))
-        self.window_close_state_window(state_window="c1")
-        self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s")
-        # * in this case, when vgroups = 10, max_delay must be set upper than 4, root cause not found 
-        self.watermark_max_delay_interval(interval=random.choice([15]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s")
+        # # self.vgroups = 10
+        # self.data_filter()
+        # self.life_cycle()
+        # self.scalar_function()
+        # self.stream_tandem()
+        # # self.udf_test/()
+        # # self.udaf_test(interval=10)
+        # self.at_once_interval(interval=random.randint(10, 15))
+        # # self.alter_source_table(interval=random.randint(10, 15))
+        # self.at_once_state_window(state_window="c1")
+        # # self.at_once_session(session=random.randint(10, 15))
+        # self.at_once_session(session=random.randint(10, 15), ignore_expired=0)
+        # self.window_close_interval(interval=random.randint(10, 15), watermark=None)
+        # self.window_close_interval(interval=random.randint(10, 15), watermark=None, ignore_expired=0)
+        # self.window_close_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20))
+        # self.window_close_state_window(state_window="c1")
+        # self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s")
+        # # * in this case, when vgroups = 10, max_delay must be set upper than 4, root cause not found 
+        # self.watermark_max_delay_interval(interval=random.choice([15]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s")
 
-        self.watermark_window_close_session(session=random.randint(10, 15), watermark=None)
-        self.watermark_window_close_session(session=random.randint(10, 15), watermark=random.randint(20, 30))
-        self.watermark_max_delay_session(session=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s")
-        self.watermark_max_delay_session(session=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s")
-        self.partitionby_interval(interval=None, partition_by_elm="tbname")
-        self.partitionby_interval(interval=None, partition_by_elm="tbname", ignore_expired=True)
-        self.partitionby_interval(interval=10, partition_by_elm="tbname")
-        self.partitionby_interval(interval=10, partition_by_elm="tbname", ignore_expired=True)
-        self.partitionby_interval(interval=10, partition_by_elm="t1")
-        self.partition_tag_by_interval(interval=10, partition_by_elm="t1")
+        # self.watermark_window_close_session(session=random.randint(10, 15), watermark=None)
+        # self.watermark_window_close_session(session=random.randint(10, 15), watermark=random.randint(20, 30))
+        # self.watermark_max_delay_session(session=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s")
+        # self.watermark_max_delay_session(session=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s")
+        # self.partitionby_interval(interval=None, partition_by_elm="tbname")
+        # self.partitionby_interval(interval=None, partition_by_elm="tbname", ignore_expired=0)
+        # self.partitionby_interval(interval=10, partition_by_elm="tbname")
+        # self.partitionby_interval(interval=10, partition_by_elm="tbname", ignore_expired=0)
+        # self.partitionby_interval(interval=10, partition_by_elm="t1")
+        # self.partition_tag_by_interval(interval=10, partition_by_elm="t1")
 
         # TODO to be supported
         # self.partitionby_interval(interval=None, partition_by_elm="t1")
@@ -1429,8 +1429,8 @@ class StreamComputingTest(TDCase):
         # self.partitionby_interval(interval=10, partition_by_elm="c1")
         # self.partitionby_interval(interval=10, partition_by_elm="abs(t1)")
         # self.partitionby_interval(interval=None, partition_by_elm="abs(t1)")
-        # self.partitionby_interval(interval=10, partition_by_elm="abs(c1)")
-        # self.partitionby_interval(interval=None, partition_by_elm="abs(c1)")
+        self.partitionby_interval(interval=10, partition_by_elm="abs(c1)")
+        self.partitionby_interval(interval=None, partition_by_elm="abs(c1)")
 
     def cleanup(self):
         pass
