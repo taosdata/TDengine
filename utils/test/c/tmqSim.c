@@ -653,15 +653,15 @@ static int32_t meta_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIn
     int32_t code = tmq_get_raw(msg, &raw);
 	
     if(code == TSDB_CODE_SUCCESS){
-	  int retCode = queryDB(pInfo->taos, "use metadb");
-	  if (retCode != 0) {
-		taosFprintfFile(g_fp, "error when use metadb\n");
-		taosCloseFile(&g_fp);
-		exit(-1);
-	  }	  
-	  taosFprintfFile(g_fp, "raw:%p\n", &raw);
-	
-      tmq_write_raw(pInfo->taos, raw);
+//	  int retCode = queryDB(pInfo->taos, "use metadb");
+//	  if (retCode != 0) {
+//		taosFprintfFile(g_fp, "error when use metadb\n");
+//		taosCloseFile(&g_fp);
+//		exit(-1);
+//	  }
+//	  taosFprintfFile(g_fp, "raw:%p\n", &raw);
+//
+//      tmq_write_raw(pInfo->taos, raw);
     }
 	
     char* result = tmq_get_json_meta(msg);
