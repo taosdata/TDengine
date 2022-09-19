@@ -1786,6 +1786,7 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 10000000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
 
   cfg.option = "sortWhenGroupBy";
   cfg.ptr = &tsSortWhenGroupBy;
