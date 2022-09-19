@@ -637,7 +637,8 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
       STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, pInfo->currentTable);
       tsdbSetTableId(pInfo->dataReader, pTableInfo->uid);
-      qDebug("set uid:%" PRIu64 " into scanner, total tables:%d, index:%d %s", pTableInfo->uid, numOfTables, pInfo->currentTable, pTaskInfo->id.str);
+      qDebug("set uid:%" PRIu64 " into scanner, total tables:%d, index:%d %s", pTableInfo->uid, numOfTables,
+             pInfo->currentTable, pTaskInfo->id.str);
 
       tsdbReaderReset(pInfo->dataReader, &pInfo->cond);
       pInfo->scanTimes = 0;
@@ -1332,6 +1333,7 @@ static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock
     bool closedWin = isClosed && isSignleIntervalWindow(pInfo) &&
                      isDeletedWindow(&win, pBlock->info.groupId, pInfo->windowSup.pIntervalAggSup);
     if ((update || closedWin) && out) {
+      qDebug("stream update check not pass, update %d, closedWin %d", update, closedWin);
       uint64_t gpId = closedWin && pInfo->partitionSup.needCalc
                           ? calGroupIdByData(&pInfo->partitionSup, pInfo->pPartScalarSup, pBlock, rowId)
                           : 0;
