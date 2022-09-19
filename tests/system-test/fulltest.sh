@@ -32,7 +32,7 @@ python3 ./test.py -f 1-insert/block_wise.py
 python3 ./test.py -f 1-insert/create_retentions.py
 python3 ./test.py -f 1-insert/table_param_ttl.py
 python3 ./test.py -f 1-insert/mutil_stage.py
-
+python3 ./test.py -f 1-insert/table_param_ttl.py -R
 python3 ./test.py -f 1-insert/update_data_muti_rows.py
 python3 ./test.py -f 1-insert/db_tb_name_check.py
 
