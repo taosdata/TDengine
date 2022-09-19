@@ -388,8 +388,8 @@ int metaTtlSmaller(SMeta *pMeta, uint64_t ttl, SArray *uidList) {
     }
     ttlKey = *(STtlIdxKey *)pKey;
     taosArrayPush(uidList, &ttlKey.uid);
-    tdbFree(pKey);
   }
+  tdbFree(pKey);
   tdbTbcClose(pCur);
   return 0;
 }
