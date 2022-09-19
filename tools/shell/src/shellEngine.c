@@ -1060,6 +1060,7 @@ int32_t shellExecute() {
   }
 #endif
 
+  shellSetConn(shell.conn);
   shellReadHistory();
 
   if (pArgs->commands != NULL || pArgs->file[0] != 0) {
