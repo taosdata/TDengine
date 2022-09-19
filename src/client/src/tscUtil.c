@@ -1749,6 +1749,29 @@ SSqlObj* tscAllocSqlObj() {
     return pNew;
 }
 
+SSqlObj* tscAcquireRefOfSubobj(SSqlObj* pSql, int32_t idx) {
+    assert (pSql != NULL);
+    SSqlObj *pSub = NULL;
+
+    pthread_mutex_lock(&pSql->subState.mutex);
+    if (idx < 0 ||
+        idx >= pSql->subState.numOfSub ||
+        !pSql->pSubs[idx]) {
+        goto _out;
+    }
+    pSub = taosAcquireRef(tscObjRef, pSql->pSubs[idx]->self);
+    assert (pSql->pSubs[idx] == pSub && "Refcounted subquery obj mismatch");
+
+_out:
+    pthread_mutex_unlock(&pSql->subState.mutex);
+    return pSub;
+}
+
+void tscReleaseRefOfSubobj(SSqlObj* pSub) {
+    assert (pSub != NULL && pSub->self != 0 && "Subquery obj not refcounted");
+    taosReleaseRef(tscObjRef, pSub->self);
+}
+
 void tscFreeSqlObj(SSqlObj* pSql) {
   if (pSql == NULL || pSql->signature != pSql) {
     return;
@@ -4209,14 +4232,16 @@ int32_t doReInitSubState(SSqlObj* pSql, int32_t numOfSubqueries) {
   tscFreeSubobj(pSql);
   int32_t code = TSDB_CODE_SUCCESS;
 
-  pthread_mutex_lock(&pSql->subState.mutex);
+  { pthread_mutex_lock(&pSql->subState.mutex);
+
   pSql->pSubs = calloc(numOfSubqueries, POINTER_BYTES);
   pSql->subState.states = calloc(numOfSubqueries, sizeof(int8_t));
   if (pSql->pSubs == NULL || pSql->subState.states == NULL) {
     code = TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   pSql->subState.numOfSub = numOfSubqueries;
-  pthread_mutex_unlock(&pSql->subState.mutex);
+
+  pthread_mutex_unlock(&pSql->subState.mutex); }
   return code;
 }
 
@@ -4247,6 +4272,9 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       goto _error;
     }
 
+    int errflag = 0;
+    { pthread_mutex_lock(&pSql->subState.mutex);
+
     for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
       SQueryInfo* pSub = taosArrayGetP(pQueryInfo->pUpstream, i);
 
@@ -4256,7 +4284,8 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       SSqlObj* pNew = tscAllocSqlObj();
       if (pNew == NULL) {
         code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-        goto _error;
+        errflag = 1;
+        break;
       }
 
       pNew->pTscObj   = pSql->pTscObj;
@@ -4272,19 +4301,23 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       SRetrieveSupport* ps = calloc(1, sizeof(SRetrieveSupport));  // todo use object id
       if (ps == NULL) {
         tscFreeSqlObj(pNew);
-        goto _error;
+        errflag = 1;
+        break;
       }
 
       ps->pParentSql = pSql;
       ps->subqueryIndex = i;
-
       pNew->param = ps;
+
+      registerSqlObj(pNew);
+
       pSql->pSubs[i] = pNew;
 
       SSqlCmd* pCmd = &pNew->cmd;
       pCmd->command = TSDB_SQL_SELECT;
       if ((code = tscAddQueryInfo(pCmd)) != TSDB_CODE_SUCCESS) {
-        goto _error;
+        errflag = 1;
+        break;
       }
 
       SQueryInfo* pNewQueryInfo = tscGetQueryInfo(pCmd);
@@ -4294,9 +4327,12 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       numOfInit++;
     }
 
+    pthread_mutex_unlock(&pSql->subState.mutex); }
+    if (errflag) { goto _error; }
+
     for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
-      SSqlObj* psub = pSql->pSubs[i];
-      registerSqlObj(psub);
+      SSqlObj* psub = tscAcquireRefOfSubobj(pSql, i);  // ACQ REF
+      if (!psub) continue;
 
       // create sub query to handle the sub query.
       SQueryInfo* pq = tscGetQueryInfo(&psub->cmd);
@@ -4306,6 +4342,8 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
         psub->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
       }
       executeQuery(psub, pq);
+
+      tscReleaseRefOfSubobj(psub); // REL REF
     }
 
     return;

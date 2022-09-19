@@ -747,7 +747,9 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
   pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
 
   tscLockByThread(&pSql->squeryLock);
-  
+
+  { pthread_mutex_lock(&pSql->subState.mutex);
+
   for (int i = 0; i < pSql->subState.numOfSub; ++i) {
     // NOTE: pSub may have been released already here
     SSqlObj *pSub = pSql->pSubs[i];
@@ -766,6 +768,8 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
     tscAsyncResultOnError(pSubObj);
     // taosRelekaseRef(tscObjRef, pSubObj->self);
   }
+
+  pthread_mutex_unlock(&pSql->subState.mutex); }
 
   if (pSql->subState.numOfSub <= 0) {
     tscAsyncResultOnError(pSql);

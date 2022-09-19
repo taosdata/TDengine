@@ -83,7 +83,6 @@ void tscUpdateSubscriptionProgress(void* sub, int64_t uid, TSKEY ts) {
   }
 }
 
-
 static void asyncCallback(void *param, TAOS_RES *tres, int code) {
   assert(param != NULL);
   SSub *pSub = ((SSub *)param);

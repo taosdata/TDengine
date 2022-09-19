@@ -440,6 +440,8 @@ typedef struct SSqlStream {
 } SSqlStream;
 
 SSqlObj* tscAllocSqlObj();
+SSqlObj* tscAcquireRefOfSubobj(SSqlObj *pSql, int32_t idx);
+void tscReleaseRefOfSubobj(SSqlObj *pSql);
 
 void tscSetStreamDestTable(SSqlStream* pStream, const char* dstTable);
 

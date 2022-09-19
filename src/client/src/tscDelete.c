@@ -210,7 +210,10 @@ int32_t executeDelete(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
   tscDebug("0x%"PRIx64":CDEL retrieved query data from %d vnode(s)", pSql->self, pSql->subState.numOfSub);
   pRes->code = TSDB_CODE_SUCCESS;
   
-  int32_t i;
+  int32_t i = 0;
+
+  { pthread_mutex_lock(&pSql->subState.mutex);
+
   for (i = 0; i < pSql->subState.numOfSub; ++i) {
     // vgroup
     SVgroupMsg* pVgroupMsg = &pTableMetaInfo->vgroupList->vgroups[i];
@@ -238,6 +241,8 @@ int32_t executeDelete(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
     tscError("0x%"PRIx64":CDEL failed to prepare subdelete structure and launch subqueries", pSql->self);
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
+
+  pthread_mutex_unlock(&pSql->subState.mutex); }
 
   if (pRes->code != TSDB_CODE_SUCCESS) {
     doCleanupSubqueries(pSql);
