@@ -621,7 +621,7 @@ static SResultRow* doSetResultOutBufByKey(SQueryRuntimeEnv* pRuntimeEnv, SResult
   }
 
   // too many time window in query
-  if (pResultRowInfo->size > MAX_INTERVAL_TIME_WINDOW) {
+  if (pResultRowInfo->size > tsMaxSqlGroups) {
     longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_TOO_MANY_TIMEWINDOW);
   }
 
@@ -7607,7 +7607,7 @@ static SSDataBlock* hashGroupbyAggregate(void* param, bool* newgroup) {
   }
 
   initGroupResInfo(&pRuntimeEnv->groupResInfo, &pInfo->binfo.resultRowInfo);
-  if (!pRuntimeEnv->pQueryAttr->stableQuery) {
+  if (!pRuntimeEnv->pQueryAttr->stableQuery && tsSortWhenGroupBy) {
     sortGroupResByOrderList(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pInfo->binfo.pRes, pInfo->binfo.pCtx);
   }
 
