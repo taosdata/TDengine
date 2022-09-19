@@ -303,7 +303,7 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
     buf = strndup(INDEX_DATA_NULL_STR, (int32_t)strlen(INDEX_DATA_NULL_STR));
     len = (int32_t)strlen(INDEX_DATA_NULL_STR);
   } else {
-    const char* emptyStr = " ";
+    static const char* emptyStr = " ";
     buf = strndup(emptyStr, (int32_t)strlen(emptyStr));
     len = (int32_t)strlen(emptyStr);
   }
@@ -585,6 +585,12 @@ int idxFlushCacheToTFile(SIndex* sIdx, void* cache, bool quit) {
   idxTRsltDestroy(tr);
 
   int ret = idxGenTFile(sIdx, pCache, result);
+  if (ret != 0) {
+    indexError("failed to merge");
+  } else {
+    int64_t cost = taosGetTimestampUs() - st;
+    indexInfo("success to merge , time cost: %" PRId64 "ms", cost / 1000);
+  }
   idxDestroyFinalRslt(result);
 
   idxCacheDestroyImm(pCache);
@@ -595,12 +601,6 @@ int idxFlushCacheToTFile(SIndex* sIdx, void* cache, bool quit) {
   tfileReaderUnRef(pReader);
   idxCacheUnRef(pCache);
 
-  int64_t cost = taosGetTimestampUs() - st;
-  if (ret != 0) {
-    indexError("failed to merge, time cost: %" PRId64 "ms", cost / 1000);
-  } else {
-    indexInfo("success to merge , time cost: %" PRId64 "ms", cost / 1000);
-  }
   atomic_store_32(&pCache->merging, 0);
   if (quit) {
     idxPost(sIdx);

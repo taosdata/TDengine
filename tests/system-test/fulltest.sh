@@ -2,7 +2,7 @@
 set -e
 set -x
 
-python3 ./test.py -f 0-others/taosShell.py
+#python3 ./test.py -f 0-others/taosShell.py
 python3 ./test.py -f 0-others/taosShellError.py
 python3 ./test.py -f 0-others/taosShellNetChk.py
 python3 ./test.py -f 0-others/telemetry.py
@@ -333,7 +333,7 @@ python3 ./test.py -f 7-tmq/stbTagFilter-1ctb.py
 python3 ./test.py -f 7-tmq/dataFromTsdbNWal.py
 python3 ./test.py -f 7-tmq/dataFromTsdbNWal-multiCtb.py
 python3 ./test.py -f 7-tmq/tmq_taosx.py
-# python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
+python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
 
 #------------querPolicy  2-----------
 

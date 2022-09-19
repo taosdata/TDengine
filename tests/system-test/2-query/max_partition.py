@@ -181,7 +181,7 @@ class TDTestCase:
         # bug need fix
         tdSql.checkData(0,1,None)
 
-        tdSql.query(f"select c1 , twa(c1) from {dbname}.stb partition by c1 order by c1")
+        tdSql.query(f"select c1 , twa(c1) from {dbname}.sub_stb_1 partition by c1 order by c1")
         tdSql.checkRows(11)
         tdSql.checkData(0,1,None)
 

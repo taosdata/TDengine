@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnd.h"
 #include "tutil.h"
+#include "vnd.h"
 
 const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                    .dbname = "",
@@ -48,7 +48,9 @@ const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
                                        },
                                    .hashBegin = 0,
                                    .hashEnd = 0,
-                                   .hashMethod = 0};
+                                   .hashMethod = 0,
+                                   .sttTrigger = TSDB_DEFAULT_STT_FILE,
+                                   .tsdbPageSize = TSDB_DEFAULT_PAGE_SIZE};
 
 int vnodeCheckCfg(const SVnodeCfg *pCfg) {
   // TODO
@@ -107,12 +109,13 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "wal.retentionSize", pCfg->walCfg.retentionSize) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.segSize", pCfg->walCfg.segSize) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.level", pCfg->walCfg.level) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "sstTrigger", pCfg->sstTrigger) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "sstTrigger", pCfg->sttTrigger) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashBegin", pCfg->hashBegin) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashEnd", pCfg->hashEnd) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashMethod", pCfg->hashMethod) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashPrefix", pCfg->hashPrefix) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashSuffix", pCfg->hashSuffix) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "tsdbPageSize", pCfg->tsdbPageSize) < 0) return -1;
 
   if (tjsonAddIntegerToObject(pJson, "syncCfg.replicaNum", pCfg->syncCfg.replicaNum) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "syncCfg.myIndex", pCfg->syncCfg.myIndex) < 0) return -1;
@@ -131,6 +134,9 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
     tjsonAddStringToObject(pNodeInfo, "nodeFqdn", (pCfg->syncCfg.nodeInfo)[i].nodeFqdn);
     tjsonAddItemToArray(pNodeInfoArr, pNodeInfo);
   }
+
+  // add tsdb page size config
+  if (tjsonAddIntegerToObject(pJson, "tsdbPageSize", pCfg->tsdbPageSize) < 0) return -1;
 
   return 0;
 }
@@ -209,8 +215,8 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "wal.level", pCfg->walCfg.level, code);
   if (code < 0) return -1;
-  tjsonGetNumberValue(pJson, "sstTrigger", pCfg->sstTrigger, code);
-  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "sstTrigger", pCfg->sttTrigger, code);
+  if (code < 0) pCfg->sttTrigger = TSDB_DEFAULT_SST_TRIGGER;
   tjsonGetNumberValue(pJson, "hashBegin", pCfg->hashBegin, code);
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "hashEnd", pCfg->hashEnd, code);
@@ -218,9 +224,9 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   tjsonGetNumberValue(pJson, "hashMethod", pCfg->hashMethod, code);
   if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "hashPrefix", pCfg->hashPrefix, code);
-  if (code < 0) return -1;
+  if (code < 0) pCfg->hashPrefix = TSDB_DEFAULT_HASH_PREFIX;
   tjsonGetNumberValue(pJson, "hashSuffix", pCfg->hashSuffix, code);
-  if (code < 0) return -1;
+  if (code < 0) pCfg->hashSuffix = TSDB_DEFAULT_HASH_SUFFIX;
 
   tjsonGetNumberValue(pJson, "syncCfg.replicaNum", pCfg->syncCfg.replicaNum, code);
   if (code < 0) return -1;
@@ -248,6 +254,9 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     tjsonGetNumberValue(pNodeInfo, "nodePort", (pCfg->syncCfg.nodeInfo)[i].nodePort, code);
     tjsonGetStringValue(pNodeInfo, "nodeFqdn", (pCfg->syncCfg.nodeInfo)[i].nodeFqdn);
   }
+
+  tjsonGetNumberValue(pJson, "tsdbPageSize", pCfg->tsdbPageSize, code);
+  if (code < 0) pCfg->tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE * 1024;
 
   return 0;
 }

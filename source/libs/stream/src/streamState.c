@@ -35,6 +35,10 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask) {
     goto _err;
   }
 
+  if (tdbTbOpen("func.state.db", sizeof(STupleKey), -1, STupleKeyCmpr, pState->db, &pState->pFuncStateDb) < 0) {
+    goto _err;
+  }
+
   if (streamStateBegin(pState) < 0) {
     goto _err;
   }
@@ -44,8 +48,9 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask) {
   return pState;
 
 _err:
-  if (pState->pStateDb) tdbTbClose(pState->pStateDb);
-  if (pState->db) tdbClose(pState->db);
+  tdbTbClose(pState->pStateDb);
+  tdbTbClose(pState->pFuncStateDb);
+  tdbClose(pState->db);
   taosMemoryFree(pState);
   return NULL;
 }
@@ -53,6 +58,7 @@ _err:
 void streamStateClose(SStreamState* pState) {
   tdbCommit(pState->db, &pState->txn);
   tdbTbClose(pState->pStateDb);
+  tdbTbClose(pState->pFuncStateDb);
   tdbClose(pState->db);
 
   taosMemoryFree(pState);
@@ -101,6 +107,17 @@ int32_t streamStateAbort(SStreamState* pState) {
   return 0;
 }
 
+int32_t streamStateFuncPut(SStreamState* pState, const STupleKey* key, const void* value, int32_t vLen) {
+  return tdbTbUpsert(pState->pFuncStateDb, key, sizeof(STupleKey), value, vLen, &pState->txn);
+}
+int32_t streamStateFuncGet(SStreamState* pState, const STupleKey* key, void** pVal, int32_t* pVLen) {
+  return tdbTbGet(pState->pFuncStateDb, key, sizeof(STupleKey), pVal, pVLen);
+}
+
+int32_t streamStateFuncDel(SStreamState* pState, const STupleKey* key) {
+  return tdbTbDelete(pState->pFuncStateDb, key, sizeof(STupleKey), &pState->txn);
+}
+
 int32_t streamStatePut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen) {
   return tdbTbUpsert(pState->pStateDb, key, sizeof(SWinKey), value, vLen, &pState->txn);
 }
@@ -110,6 +127,29 @@ int32_t streamStateGet(SStreamState* pState, const SWinKey* key, void** pVal, in
 
 int32_t streamStateDel(SStreamState* pState, const SWinKey* key) {
   return tdbTbDelete(pState->pStateDb, key, sizeof(SWinKey), &pState->txn);
+}
+
+int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
+  // todo refactor
+  int32_t size = *pVLen;
+  if (streamStateGet(pState, key, pVal, pVLen) == 0) {
+    return 0;
+  }
+  void* tmp = taosMemoryCalloc(1, size);
+  if (streamStatePut(pState, key, &tmp, size) == 0) {
+    taosMemoryFree(tmp);
+    int32_t code = streamStateGet(pState, key, pVal, pVLen);
+    ASSERT(code == 0);
+    return code;
+  }
+  taosMemoryFree(tmp);
+  return -1;
+}
+
+int32_t streamStateReleaseBuf(SStreamState* pState, const SWinKey* key, void* pVal) {
+  // todo refactor
+  streamFreeVal(pVal);
+  return 0;
 }
 
 SStreamStateCur* streamStateGetCur(SStreamState* pState, const SWinKey* key) {

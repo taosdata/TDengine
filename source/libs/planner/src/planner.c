@@ -123,6 +123,21 @@ int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
 
 int32_t qStringToSubplan(const char* pStr, SSubplan** pSubplan) { return nodesStringToNode(pStr, (SNode**)pSubplan); }
 
+int32_t qSubPlanToMsg(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
+  if (SUBPLAN_TYPE_MODIFY == pSubplan->subplanType && NULL == pSubplan->pNode) {
+    SDataInserterNode* insert = (SDataInserterNode*)pSubplan->pDataSink;
+    *pLen = insert->size;
+    *pStr = insert->pData;
+    insert->pData = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+  return nodesNodeToMsg((const SNode*)pSubplan, pStr, pLen);
+}
+
+int32_t qMsgToSubplan(const char* pStr, int32_t len, SSubplan** pSubplan) {
+  return nodesMsgToNode(pStr, len, (SNode**)pSubplan);
+}
+
 char* qQueryPlanToString(const SQueryPlan* pPlan) {
   char*   pStr = NULL;
   int32_t len = 0;

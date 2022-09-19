@@ -490,8 +490,12 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     mndReleaseConsumer(pMnode, pConsumerOld);
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) {
       ASSERT(0);
+      tDeleteSMqConsumerObj(pConsumerNew);
+      taosMemoryFree(pConsumerNew);
       goto REB_FAIL;
     }
+    tDeleteSMqConsumerObj(pConsumerNew);
+    taosMemoryFree(pConsumerNew);
   }
 
   // 3.3 set removed consumer
@@ -509,8 +513,12 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
     mndReleaseConsumer(pMnode, pConsumerOld);
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) {
       ASSERT(0);
+      tDeleteSMqConsumerObj(pConsumerNew);
+      taosMemoryFree(pConsumerNew);
       goto REB_FAIL;
     }
+    tDeleteSMqConsumerObj(pConsumerNew);
+    taosMemoryFree(pConsumerNew);
   }
 #if 0
   if (consumerNum) {
@@ -900,6 +908,7 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
     // iter all vnode to delete handle
     if (taosHashGetSize(pSub->consumerHash) != 0) {
       sdbRelease(pSdb, pSub);
+      terrno = TSDB_CODE_MND_IN_REBALANCE;
       return -1;
     }
     int32_t sz = taosArrayGetSize(pSub->unassignedVgs);

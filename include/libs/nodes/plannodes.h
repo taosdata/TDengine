@@ -151,6 +151,8 @@ typedef struct SVnodeModifyLogicNode {
   SArray*          pDataBlocks;
   SVgDataBlocks*   pVgDataBlocks;
   SNode*           pAffectedRows;  // SColumnNode
+  SNode*           pStartTs;       // SColumnNode
+  SNode*           pEndTs;         // SColumnNode
   uint64_t         tableId;
   uint64_t         stableId;
   int8_t           tableType;  // table type
@@ -525,6 +527,8 @@ typedef struct SDataDeleterNode {
   char          tsColName[TSDB_COL_NAME_LEN];
   STimeWindow   deleteTimeRange;
   SNode*        pAffectedRows;
+  SNode*        pStartTs;
+  SNode*        pEndTs;
 } SDataDeleterNode;
 
 typedef struct SSubplan {

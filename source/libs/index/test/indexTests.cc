@@ -271,20 +271,20 @@ void validateFst() {
   }
   delete m;
 }
+
 static std::string logDir = TD_TMP_DIR_PATH "log";
+static void        initLog() {
+         const char*   defaultLogFileNamePrefix = "taoslog";
+         const int32_t maxLogFileNum = 10;
 
-static void initLog() {
-  const char*   defaultLogFileNamePrefix = "taoslog";
-  const int32_t maxLogFileNum = 10;
+         tsAsyncLog = 0;
+         idxDebugFlag = 143;
+         strcpy(tsLogDir, logDir.c_str());
+         taosRemoveDir(tsLogDir);
+         taosMkDir(tsLogDir);
 
-  tsAsyncLog = 0;
-  idxDebugFlag = 143;
-  strcpy(tsLogDir, logDir.c_str());
-  taosRemoveDir(tsLogDir);
-  taosMkDir(tsLogDir);
-
-  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
-    printf("failed to open log file in directory:%s\n", tsLogDir);
+         if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
+           printf("failed to open log file in directory:%s\n", tsLogDir);
   }
 }
 class IndexEnv : public ::testing::Test {
