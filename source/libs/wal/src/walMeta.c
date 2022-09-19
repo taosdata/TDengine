@@ -268,7 +268,7 @@ int walRollFileInfo(SWal* pWal) {
 char* walMetaSerialize(SWal* pWal) {
   char buf[30];
   ASSERT(pWal->fileInfoSet);
-  int    sz = pWal->fileInfoSet->size;
+  int    sz = taosArrayGetSize(pWal->fileInfoSet);
   cJSON* pRoot = cJSON_CreateObject();
   cJSON* pMeta = cJSON_CreateObject();
   cJSON* pFiles = cJSON_CreateArray();
