@@ -46,7 +46,7 @@ SELECT select_list FROM tb_name
 
 ### 窗口子句的规则
 
-- 窗口子句位于数据切分子句之后，GROUP BY 子句之前，且不可以和 GROUP BY 子句一起使用。
+- 窗口子句位于数据切分子句之后，不可以和 GROUP BY 子句一起使用。
 - 窗口子句将数据按窗口进行切分，对每个窗口进行 SELECT 列表中的表达式的计算，SELECT 列表中的表达式只能包含：
   - 常量。
   - _wstart伪列、_wend伪列和_wduration伪列。
@@ -71,7 +71,7 @@ FILL 语句指定某一窗口区间数据缺失的情况下的填充模式。填
 
 1. 使用 FILL 语句的时候可能生成大量的填充输出，务必指定查询的时间区间。针对每次查询，系统可返回不超过 1 千万条具有插值的结果。
 2. 在时间维度聚合中，返回的结果中时间序列严格单调递增。
-3. 如果查询对象是超级表，则聚合函数会作用于该超级表下满足值过滤条件的所有表的数据。如果查询中没有使用 PARTITION BY 语句，则返回的结果按照时间序列严格单调递增；如果查询中使用了 PARTITION BY 语句分组，则返回结果中每个 PARTITION 内不按照时间序列严格单调递增。
+3. 如果查询对象是超级表，则聚合函数会作用于该超级表下满足值过滤条件的所有表的数据。如果查询中没有使用 PARTITION BY 语句，则返回的结果按照时间序列严格单调递增；如果查询中使用了 PARTITION BY 语句分组，则返回结果中每个 PARTITION 内按照时间序列严格单调递增。
 
 :::
 
@@ -111,6 +111,12 @@ SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
 
 ```
 SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status);
+```
+
+仅关心 status 为 2 时的状态窗口的信息。例如：
+
+```
+SELECT * FROM (SELECT COUNT(*) AS cnt, FIRST(ts) AS fst, status FROM temp_tb_1 STATE_WINDOW(status)) t WHERE status = 2;
 ```
 
 ### 会话窗口
