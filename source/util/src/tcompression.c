@@ -1002,32 +1002,38 @@ int32_t tsDecompressDoubleLossyImp(const char *input, int32_t compressedSize, co
 #define I64_SAFE_ADD(a, b) (((a) >= 0 && (b) <= INT64_MAX - (b)) || ((a) < 0 && (b) >= INT64_MIN - (a)))
 typedef struct SCompressor SCompressor;
 
+static int32_t tCompBool(SCompressor *pCmprsor, const void *pData, int32_t nData);
+static int32_t tCompInt(SCompressor *pCmprsor, const void *pData, int32_t nData);
+static int32_t tCompFloat(SCompressor *pCmprsor, const void *pData, int32_t nData);
+static int32_t tCompDouble(SCompressor *pCmprsor, const void *pData, int32_t nData);
+static int32_t tCompTimestamp(SCompressor *pCmprsor, const void *pData, int32_t nData);
+static int32_t tCompBinary(SCompressor *pCmprsor, const void *pData, int32_t nData);
 static struct {
   int8_t  type;
   int32_t bytes;
   int8_t  isVarLen;
   int32_t (*cmprFn)(SCompressor *, const void *, int32_t nData);
 } DATA_TYPE_INFO[] = {
-    {TSDB_DATA_TYPE_NULL, 0, 0},        // TSDB_DATA_TYPE_NULL
-    {TSDB_DATA_TYPE_BOOL, 1, 0},        // TSDB_DATA_TYPE_BOOL
-    {TSDB_DATA_TYPE_TINYINT, 1, 0},     // TSDB_DATA_TYPE_TINYINT
-    {TSDB_DATA_TYPE_SMALLINT, 2, 0},    // TSDB_DATA_TYPE_SMALLINT
-    {TSDB_DATA_TYPE_INT, 4, 0},         // TSDB_DATA_TYPE_INT
-    {TSDB_DATA_TYPE_BIGINT, 8, 0},      // TSDB_DATA_TYPE_BIGINT
-    {TSDB_DATA_TYPE_FLOAT, 4, 0},       // TSDB_DATA_TYPE_FLOAT
-    {TSDB_DATA_TYPE_DOUBLE, 8, 0},      // TSDB_DATA_TYPE_DOUBLE
-    {TSDB_DATA_TYPE_VARCHAR, 1, 1},     // TSDB_DATA_TYPE_VARCHAR
-    {TSDB_DATA_TYPE_TIMESTAMP, 8, 0},   // pTSDB_DATA_TYPE_TIMESTAMP
-    {TSDB_DATA_TYPE_NCHAR, 1, 1},       // TSDB_DATA_TYPE_NCHAR
-    {TSDB_DATA_TYPE_UTINYINT, 1, 0},    // TSDB_DATA_TYPE_UTINYINT
-    {TSDB_DATA_TYPE_USMALLINT, 2, 0},   // TSDB_DATA_TYPE_USMALLINT
-    {TSDB_DATA_TYPE_UINT, 4, 0},        // TSDB_DATA_TYPE_UINT
-    {TSDB_DATA_TYPE_UBIGINT, 8, 0},     // TSDB_DATA_TYPE_UBIGINT
-    {TSDB_DATA_TYPE_JSON, 1, 1},        // TSDB_DATA_TYPE_JSON
-    {TSDB_DATA_TYPE_VARBINARY, 1, 1},   // TSDB_DATA_TYPE_VARBINARY
-    {TSDB_DATA_TYPE_DECIMAL, 1, 1},     // TSDB_DATA_TYPE_DECIMAL
-    {TSDB_DATA_TYPE_BLOB, 1, 1},        // TSDB_DATA_TYPE_BLOB
-    {TSDB_DATA_TYPE_MEDIUMBLOB, 1, 1},  // TSDB_DATA_TYPE_MEDIUMBLOB
+    {TSDB_DATA_TYPE_NULL, 0, 0, NULL},                 // TSDB_DATA_TYPE_NULL
+    {TSDB_DATA_TYPE_BOOL, 1, 0, tCompBool},            // TSDB_DATA_TYPE_BOOL
+    {TSDB_DATA_TYPE_TINYINT, 1, 0, tCompInt},          // TSDB_DATA_TYPE_TINYINT
+    {TSDB_DATA_TYPE_SMALLINT, 2, 0, tCompInt},         // TSDB_DATA_TYPE_SMALLINT
+    {TSDB_DATA_TYPE_INT, 4, 0, tCompInt},              // TSDB_DATA_TYPE_INT
+    {TSDB_DATA_TYPE_BIGINT, 8, 0, tCompInt},           // TSDB_DATA_TYPE_BIGINT
+    {TSDB_DATA_TYPE_FLOAT, 4, 0, tCompFloat},          // TSDB_DATA_TYPE_FLOAT
+    {TSDB_DATA_TYPE_DOUBLE, 8, 0, tCompDouble},        // TSDB_DATA_TYPE_DOUBLE
+    {TSDB_DATA_TYPE_VARCHAR, 1, 1, tCompBinary},       // TSDB_DATA_TYPE_VARCHAR
+    {TSDB_DATA_TYPE_TIMESTAMP, 8, 0, tCompTimestamp},  // pTSDB_DATA_TYPE_TIMESTAMP
+    {TSDB_DATA_TYPE_NCHAR, 1, 1, tCompBinary},         // TSDB_DATA_TYPE_NCHAR
+    {TSDB_DATA_TYPE_UTINYINT, 1, 0, tCompInt},         // TSDB_DATA_TYPE_UTINYINT
+    {TSDB_DATA_TYPE_USMALLINT, 2, 0, tCompInt},        // TSDB_DATA_TYPE_USMALLINT
+    {TSDB_DATA_TYPE_UINT, 4, 0, tCompInt},             // TSDB_DATA_TYPE_UINT
+    {TSDB_DATA_TYPE_UBIGINT, 8, 0, tCompInt},          // TSDB_DATA_TYPE_UBIGINT
+    {TSDB_DATA_TYPE_JSON, 1, 1, tCompBinary},          // TSDB_DATA_TYPE_JSON
+    {TSDB_DATA_TYPE_VARBINARY, 1, 1, tCompBinary},     // TSDB_DATA_TYPE_VARBINARY
+    {TSDB_DATA_TYPE_DECIMAL, 1, 1, tCompBinary},       // TSDB_DATA_TYPE_DECIMAL
+    {TSDB_DATA_TYPE_BLOB, 1, 1, tCompBinary},          // TSDB_DATA_TYPE_BLOB
+    {TSDB_DATA_TYPE_MEDIUMBLOB, 1, 1, tCompBinary},    // TSDB_DATA_TYPE_MEDIUMBLOB
 };
 
 struct SCompressor {
@@ -1124,10 +1130,12 @@ static int32_t tCompSetCopyMode(SCompressor *pCmprsor) {
 
   return code;
 }
-static int32_t tCompTimestamp(SCompressor *pCmprsor, int64_t ts) {
+static int32_t tCompTimestamp(SCompressor *pCmprsor, const void *pData, int32_t nData) {
   int32_t code = 0;
 
+  int64_t ts = *(int64_t *)pData;
   ASSERT(pCmprsor->type == TSDB_DATA_TYPE_TIMESTAMP);
+  ASSERT(nData == 8);
 
   if (pCmprsor->aBuf[0][0] == 1) {
     if (pCmprsor->nVal == 0) {
@@ -1572,9 +1580,15 @@ int32_t tCompressorReset(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg, int
 int32_t tCompGen(SCompressor *pCmprsor, const uint8_t **ppData, int64_t *nData) {
   int32_t code = 0;
 
+  if (pCmprsor->nVal == 0) {
+    *ppData = NULL;
+    *nData = 0;
+    return code;
+  }
+
   if (pCmprsor->cmprAlg == TWO_STAGE_COMP /*|| IS_VAR_DATA_TYPE(pCmprsor->type)*/) {
     code = tRealloc(&pCmprsor->aBuf[1], pCmprsor->nBuf[0] + 1);
-    if (code) goto _exit;
+    if (code) return code;
 
     int64_t ret = LZ4_compress_default(pCmprsor->aBuf[0], pCmprsor->aBuf[1] + 1, pCmprsor->nBuf[0], pCmprsor->nBuf[0]);
     if (ret) {
@@ -1593,12 +1607,9 @@ int32_t tCompGen(SCompressor *pCmprsor, const uint8_t **ppData, int64_t *nData) 
     *nData = pCmprsor->nBuf[0];
   }
 
-_exit:
   return code;
 }
 
-int32_t tCompress(SCompressor *pCmprsor, void *pData, int64_t nData) {
-  int32_t code = 0;
-  // TODO
-  return code;
+int32_t tCompress(SCompressor *pCmprsor, const void *pData, int64_t nData) {
+  return DATA_TYPE_INFO[pCmprsor->type].cmprFn(pCmprsor, pData, nData);
 }
