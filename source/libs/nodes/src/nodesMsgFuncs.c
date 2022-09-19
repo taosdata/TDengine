@@ -17,6 +17,18 @@
 #include "plannodes.h"
 #include "tdatablock.h"
 
+#ifndef htonll
+
+#define htonll(x)                                                                                   \
+  (((int64_t)x & 0x00000000000000ff) << 7 * 8) | (((int64_t)x & 0x000000000000ff00) << 5 * 8) |     \
+      (((int64_t)x & 0x0000000000ff0000) << 3 * 8) | (((int64_t)x & 0x00000000ff000000) << 1 * 8) | \
+      (((int64_t)x & 0x000000ff00000000) >> 1 * 8) | (((int64_t)x & 0x0000ff0000000000) >> 3 * 8) | \
+      (((int64_t)x & 0x00ff000000000000) >> 5 * 8) | (((int64_t)x & 0xff00000000000000) >> 7 * 8)
+
+#define ntohll(x) htonll(x)
+
+#endif
+
 #define NODES_MSG_DEFAULT_LEN 1024
 #define TLV_TYPE_ARRAY_ELEM   0
 
@@ -86,8 +98,8 @@ static int32_t tlvEncodeImpl(STlvEncoder* pEncoder, int16_t type, const void* pV
     pEncoder->allocSize = pEncoder->allocSize * 2;
   }
   STlv* pTlv = (STlv*)(pEncoder->pBuf + pEncoder->offset);
-  pTlv->type = type;
-  pTlv->len = len;
+  pTlv->type = htons(type);
+  pTlv->len = htonl(len);
   memcpy(pTlv->value, pValue, len);
   pEncoder->offset += tlvLen;
   ++(pEncoder->tlvCount);
@@ -117,26 +129,32 @@ static int32_t tlvEncodeValueI8(STlvEncoder* pEncoder, int8_t value) {
 }
 
 static int32_t tlvEncodeI16(STlvEncoder* pEncoder, int16_t type, int16_t value) {
+  value = htons(value);
   return tlvEncodeImpl(pEncoder, type, &value, sizeof(value));
 }
 
 static int32_t tlvEncodeValueI16(STlvEncoder* pEncoder, int16_t value) {
+  value = htons(value);
   return tlvEncodeValueImpl(pEncoder, &value, sizeof(value));
 }
 
 static int32_t tlvEncodeI32(STlvEncoder* pEncoder, int16_t type, int32_t value) {
+  value = htonl(value);
   return tlvEncodeImpl(pEncoder, type, &value, sizeof(value));
 }
 
 static int32_t tlvEncodeValueI32(STlvEncoder* pEncoder, int32_t value) {
+  value = htonl(value);
   return tlvEncodeValueImpl(pEncoder, &value, sizeof(value));
 }
 
 static int32_t tlvEncodeI64(STlvEncoder* pEncoder, int16_t type, int64_t value) {
+  value = htonll(value);
   return tlvEncodeImpl(pEncoder, type, &value, sizeof(value));
 }
 
 static int32_t tlvEncodeValueI64(STlvEncoder* pEncoder, int64_t value) {
+  value = htonll(value);
   return tlvEncodeValueImpl(pEncoder, &value, sizeof(value));
 }
 
@@ -149,34 +167,44 @@ static int32_t tlvEncodeValueU8(STlvEncoder* pEncoder, uint8_t value) {
 }
 
 static int32_t tlvEncodeU16(STlvEncoder* pEncoder, int16_t type, uint16_t value) {
+  value = htons(value);
   return tlvEncodeImpl(pEncoder, type, &value, sizeof(value));
 }
 
 static int32_t tlvEncodeValueU16(STlvEncoder* pEncoder, uint16_t value) {
+  value = htons(value);
   return tlvEncodeValueImpl(pEncoder, &value, sizeof(value));
 }
 
 static int32_t tlvEncodeU64(STlvEncoder* pEncoder, int16_t type, uint64_t value) {
+  value = htonll(value);
   return tlvEncodeImpl(pEncoder, type, &value, sizeof(value));
 }
 
 static int32_t tlvEncodeValueU64(STlvEncoder* pEncoder, uint64_t value) {
+  value = htonll(value);
   return tlvEncodeValueImpl(pEncoder, &value, sizeof(value));
 }
 
 static int32_t tlvEncodeDouble(STlvEncoder* pEncoder, int16_t type, double value) {
-  return tlvEncodeImpl(pEncoder, type, &value, sizeof(value));
+  int64_t temp = *(int64_t*)&value;
+  temp = htonll(temp);
+  return tlvEncodeImpl(pEncoder, type, &temp, sizeof(temp));
 }
 
 static int32_t tlvEncodeValueDouble(STlvEncoder* pEncoder, double value) {
-  return tlvEncodeValueImpl(pEncoder, &value, sizeof(value));
+  int64_t temp = *(int64_t*)&value;
+  temp = htonll(temp);
+  return tlvEncodeValueImpl(pEncoder, &temp, sizeof(temp));
 }
 
 static int32_t tlvEncodeEnum(STlvEncoder* pEncoder, int16_t type, int32_t value) {
+  value = htonl(value);
   return tlvEncodeImpl(pEncoder, type, &value, sizeof(value));
 }
 
 static int32_t tlvEncodeValueEnum(STlvEncoder* pEncoder, int32_t value) {
+  value = htonl(value);
   return tlvEncodeValueImpl(pEncoder, &value, sizeof(value));
 }
 
@@ -197,7 +225,7 @@ static int32_t tlvEncodeCStr(STlvEncoder* pEncoder, int16_t type, const char* pV
 
 static int32_t tlvEncodeValueCStr(STlvEncoder* pEncoder, const char* pValue) {
   int16_t len = strlen(pValue);
-  int32_t code = tlvEncodeValueImpl(pEncoder, &len, sizeof(len));
+  int32_t code = tlvEncodeValueI16(pEncoder, len);
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeValueImpl(pEncoder, pValue, len);
   }
@@ -218,8 +246,8 @@ static int32_t tlvEncodeObj(STlvEncoder* pEncoder, int16_t type, FToMsg func, co
   int32_t code = func(pObj, pEncoder);
   if (TSDB_CODE_SUCCESS == code) {
     STlv* pTlv = (STlv*)(pEncoder->pBuf + start);
-    pTlv->type = type;
-    pTlv->len = pEncoder->offset - start - sizeof(STlv);
+    pTlv->type = htons(type);
+    pTlv->len = htonl(pEncoder->offset - start - sizeof(STlv));
   }
   ++(pEncoder->tlvCount);
   return code;
@@ -236,8 +264,8 @@ static int32_t tlvEncodeObjArray(STlvEncoder* pEncoder, int16_t type, FToMsg fun
     }
     if (TSDB_CODE_SUCCESS == code) {
       STlv* pTlv = (STlv*)(pEncoder->pBuf + start);
-      pTlv->type = type;
-      pTlv->len = pEncoder->offset - start - sizeof(STlv);
+      pTlv->type = htons(type);
+      pTlv->len = htonl(pEncoder->offset - start - sizeof(STlv));
     }
   }
   return code;
@@ -259,6 +287,8 @@ static int32_t tlvGetNextTlv(STlvDecoder* pDecoder, STlv** pTlv) {
   }
 
   *pTlv = (STlv*)(pDecoder->pBuf + pDecoder->offset);
+  (*pTlv)->type = ntohs((*pTlv)->type);
+  (*pTlv)->len = ntohl((*pTlv)->len);
   if ((*pTlv)->len + pDecoder->offset > pDecoder->bufSize) {
     return TSDB_CODE_FAILED;
   }
@@ -291,22 +321,52 @@ static int32_t tlvDecodeValueI8(STlvDecoder* pDecoder, int8_t* pValue) {
   return tlvDecodeValueImpl(pDecoder, pValue, sizeof(*pValue));
 }
 
-static int32_t tlvDecodeI16(STlv* pTlv, int16_t* pValue) { return tlvDecodeImpl(pTlv, pValue, sizeof(*pValue)); }
+static int32_t tlvDecodeI16(STlv* pTlv, int16_t* pValue) {
+  int32_t code = tlvDecodeImpl(pTlv, pValue, sizeof(*pValue));
+  if (TSDB_CODE_SUCCESS == code) {
+    *pValue = ntohs(*pValue);
+  }
+  return code;
+}
 
 static int32_t tlvDecodeValueI16(STlvDecoder* pDecoder, int16_t* pValue) {
-  return tlvDecodeValueImpl(pDecoder, pValue, sizeof(*pValue));
+  int32_t code = tlvDecodeValueImpl(pDecoder, pValue, sizeof(*pValue));
+  if (TSDB_CODE_SUCCESS == code) {
+    *pValue = ntohs(*pValue);
+  }
+  return code;
 }
 
-static int32_t tlvDecodeI32(STlv* pTlv, int32_t* pValue) { return tlvDecodeImpl(pTlv, pValue, sizeof(*pValue)); }
+static int32_t tlvDecodeI32(STlv* pTlv, int32_t* pValue) {
+  int32_t code = tlvDecodeImpl(pTlv, pValue, sizeof(*pValue));
+  if (TSDB_CODE_SUCCESS == code) {
+    *pValue = ntohl(*pValue);
+  }
+  return code;
+}
 
 static int32_t tlvDecodeValueI32(STlvDecoder* pDecoder, int32_t* pValue) {
-  return tlvDecodeValueImpl(pDecoder, pValue, sizeof(*pValue));
+  int32_t code = tlvDecodeValueImpl(pDecoder, pValue, sizeof(*pValue));
+  if (TSDB_CODE_SUCCESS == code) {
+    *pValue = ntohl(*pValue);
+  }
+  return code;
 }
 
-static int32_t tlvDecodeI64(STlv* pTlv, int64_t* pValue) { return tlvDecodeImpl(pTlv, pValue, sizeof(*pValue)); }
+static int32_t tlvDecodeI64(STlv* pTlv, int64_t* pValue) {
+  int32_t code = tlvDecodeImpl(pTlv, pValue, sizeof(*pValue));
+  if (TSDB_CODE_SUCCESS == code) {
+    *pValue = ntohll(*pValue);
+  }
+  return code;
+}
 
 static int32_t tlvDecodeValueI64(STlvDecoder* pDecoder, int64_t* pValue) {
-  return tlvDecodeValueImpl(pDecoder, pValue, sizeof(*pValue));
+  int32_t code = tlvDecodeValueImpl(pDecoder, pValue, sizeof(*pValue));
+  if (TSDB_CODE_SUCCESS == code) {
+    *pValue = ntohll(*pValue);
+  }
+  return code;
 }
 
 static int32_t tlvDecodeU8(STlv* pTlv, uint8_t* pValue) { return tlvDecodeImpl(pTlv, pValue, sizeof(*pValue)); }
@@ -315,22 +375,54 @@ static int32_t tlvDecodeValueU8(STlvDecoder* pDecoder, uint8_t* pValue) {
   return tlvDecodeValueImpl(pDecoder, pValue, sizeof(*pValue));
 }
 
-static int32_t tlvDecodeU16(STlv* pTlv, uint16_t* pValue) { return tlvDecodeImpl(pTlv, pValue, sizeof(*pValue)); }
+static int32_t tlvDecodeU16(STlv* pTlv, uint16_t* pValue) {
+  int32_t code = tlvDecodeImpl(pTlv, pValue, sizeof(*pValue));
+  if (TSDB_CODE_SUCCESS == code) {
+    *pValue = ntohs(*pValue);
+  }
+  return code;
+}
 
 static int32_t tlvDecodeValueU16(STlvDecoder* pDecoder, uint16_t* pValue) {
-  return tlvDecodeValueImpl(pDecoder, pValue, sizeof(*pValue));
+  int32_t code = tlvDecodeValueImpl(pDecoder, pValue, sizeof(*pValue));
+  if (TSDB_CODE_SUCCESS == code) {
+    *pValue = ntohs(*pValue);
+  }
+  return code;
 }
 
-static int32_t tlvDecodeU64(STlv* pTlv, uint64_t* pValue) { return tlvDecodeImpl(pTlv, pValue, sizeof(*pValue)); }
+static int32_t tlvDecodeU64(STlv* pTlv, uint64_t* pValue) {
+  int32_t code = tlvDecodeImpl(pTlv, pValue, sizeof(*pValue));
+  if (TSDB_CODE_SUCCESS == code) {
+    *pValue = ntohll(*pValue);
+  }
+  return code;
+}
 
 static int32_t tlvDecodeValueU64(STlvDecoder* pDecoder, uint64_t* pValue) {
-  return tlvDecodeValueImpl(pDecoder, pValue, sizeof(*pValue));
+  int32_t code = tlvDecodeValueImpl(pDecoder, pValue, sizeof(*pValue));
+  if (TSDB_CODE_SUCCESS == code) {
+    *pValue = ntohll(*pValue);
+  }
+  return code;
 }
 
-static int32_t tlvDecodeDouble(STlv* pTlv, double* pValue) { return tlvDecodeImpl(pTlv, pValue, sizeof(*pValue)); }
+static int32_t tlvDecodeDouble(STlv* pTlv, double* pValue) {
+  int64_t temp = 0;
+  int32_t code = tlvDecodeI64(pTlv, &temp);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pValue = *(double*)&temp;
+  }
+  return code;
+}
 
 static int32_t tlvDecodeValueDouble(STlvDecoder* pDecoder, double* pValue) {
-  return tlvDecodeValueImpl(pDecoder, pValue, sizeof(*pValue));
+  int64_t temp = 0;
+  int32_t code = tlvDecodeValueI64(pDecoder, &temp);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pValue = *(double*)&temp;
+  }
+  return code;
 }
 
 static int32_t convertIntegerType(int32_t value, void* pValue, int16_t len) {
@@ -2462,33 +2554,54 @@ static int32_t msgToPhysiWindowNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum {
-  PHY_INTERVAL_CODE_WINDOW = 1,
-  PHY_INTERVAL_CODE_INTERVAL,
-  PHY_INTERVAL_CODE_OFFSET,
-  PHY_INTERVAL_CODE_SLIDING,
-  PHY_INTERVAL_CODE_INTERVAL_UNIT,
-  PHY_INTERVAL_CODE_SLIDING_UNIT
-};
+enum { PHY_INTERVAL_CODE_WINDOW = 1, PHY_INTERVAL_CODE_INLINE_ATTRS };
+
+static int32_t physiIntervalNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SIntervalPhysiNode* pNode = (const SIntervalPhysiNode*)pObj;
+
+  int32_t code = tlvEncodeValueI64(pEncoder, pNode->interval);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI64(pEncoder, pNode->offset);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI64(pEncoder, pNode->sliding);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI8(pEncoder, pNode->intervalUnit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI8(pEncoder, pNode->slidingUnit);
+  }
+
+  return code;
+}
 
 static int32_t physiIntervalNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SIntervalPhysiNode* pNode = (const SIntervalPhysiNode*)pObj;
 
   int32_t code = tlvEncodeObj(pEncoder, PHY_INTERVAL_CODE_WINDOW, physiWindowNodeToMsg, &pNode->window);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI64(pEncoder, PHY_INTERVAL_CODE_INTERVAL, pNode->interval);
+    code = tlvEncodeObj(pEncoder, PHY_INTERVAL_CODE_INLINE_ATTRS, physiIntervalNodeInlineToMsg, pNode);
+  }
+
+  return code;
+}
+
+static int32_t msgToPhysiIntervalNodeInline(STlvDecoder* pDecoder, void* pObj) {
+  SIntervalPhysiNode* pNode = (SIntervalPhysiNode*)pObj;
+
+  int32_t code = tlvDecodeValueI64(pDecoder, &pNode->interval);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueI64(pDecoder, &pNode->offset);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI64(pEncoder, PHY_INTERVAL_CODE_OFFSET, pNode->offset);
+    code = tlvDecodeValueI64(pDecoder, &pNode->sliding);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI64(pEncoder, PHY_INTERVAL_CODE_SLIDING, pNode->sliding);
+    code = tlvDecodeValueI8(pDecoder, &pNode->intervalUnit);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI8(pEncoder, PHY_INTERVAL_CODE_INTERVAL_UNIT, pNode->intervalUnit);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI8(pEncoder, PHY_INTERVAL_CODE_SLIDING_UNIT, pNode->slidingUnit);
+    code = tlvDecodeValueI8(pDecoder, &pNode->slidingUnit);
   }
 
   return code;
@@ -2504,20 +2617,8 @@ static int32_t msgToPhysiIntervalNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_INTERVAL_CODE_WINDOW:
         code = tlvDecodeObjFromTlv(pTlv, msgToPhysiWindowNode, &pNode->window);
         break;
-      case PHY_INTERVAL_CODE_INTERVAL:
-        code = tlvDecodeI64(pTlv, &pNode->interval);
-        break;
-      case PHY_INTERVAL_CODE_OFFSET:
-        code = tlvDecodeI64(pTlv, &pNode->offset);
-        break;
-      case PHY_INTERVAL_CODE_SLIDING:
-        code = tlvDecodeI64(pTlv, &pNode->sliding);
-        break;
-      case PHY_INTERVAL_CODE_INTERVAL_UNIT:
-        code = tlvDecodeI8(pTlv, &pNode->intervalUnit);
-        break;
-      case PHY_INTERVAL_CODE_SLIDING_UNIT:
-        code = tlvDecodeI8(pTlv, &pNode->slidingUnit);
+      case PHY_INTERVAL_CODE_INLINE_ATTRS:
+        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiIntervalNodeInline, pNode);
         break;
       default:
         break;
