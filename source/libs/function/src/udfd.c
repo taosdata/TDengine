@@ -951,11 +951,19 @@ void udfdConnectMnodeThreadFunc(void *args) {
 }
 
 int32_t udfdInitResidentFuncs() {
+  if (strlen(tsUdfdResFuncs) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   global.residentFuncs = taosArrayInit(2, TSDB_FUNC_NAME_LEN);
-  char gpd[TSDB_FUNC_NAME_LEN] = "gpd";
-  taosArrayPush(global.residentFuncs, gpd);
-  char gpdBatch[TSDB_FUNC_NAME_LEN] = "gpdbatch";
-  taosArrayPush(global.residentFuncs, gpdBatch);
+  char* pSave = tsUdfdResFuncs;
+  char* token;
+  while ((token = strtok_r(pSave, ",", &pSave)) != NULL) {
+    char func[TSDB_FUNC_NAME_LEN] = {0};
+    strncpy(func, token, strlen(token));
+    taosArrayPush(global.residentFuncs, func);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
