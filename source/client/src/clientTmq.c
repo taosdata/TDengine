@@ -1658,8 +1658,14 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
           rspWrapper = NULL;
           continue;
         }
+
         // build rsp
-        SMqTaosxRspObj* pRsp = tmqBuildTaosxRspFromWrapper(pollRspWrapper);
+        void* pRsp = NULL;
+        if(pollRspWrapper->taosxRsp.createTableNum == 0){
+          pRsp = tmqBuildRspFromWrapper(pollRspWrapper);
+        }else{
+          pRsp = tmqBuildTaosxRspFromWrapper(pollRspWrapper);
+        }
         taosFreeQitem(pollRspWrapper);
         return pRsp;
       } else {

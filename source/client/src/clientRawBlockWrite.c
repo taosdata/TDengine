@@ -372,7 +372,7 @@ _exit:
 }
 
 static char* processAutoCreateTable(STaosxRsp* rsp) {
-  if(rsp->createTableNum == 0) return strdup("");
+  ASSERT(rsp->createTableNum != 0);
 
   SDecoder*          decoder = taosMemoryCalloc(rsp->createTableNum, sizeof(SDecoder));
   SVCreateTbReq*     pCreateReq = taosMemoryCalloc(rsp->createTableNum, sizeof(SVCreateTbReq));
