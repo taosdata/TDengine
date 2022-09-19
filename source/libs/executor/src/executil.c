@@ -989,7 +989,8 @@ SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
 
     if (pNode->output) {
       (*numOfOutputCols) += 1;
-    } else {
+    } else if (info != NULL) {
+      // select distinct tbname from stb where tbname='abc';
       info->output = false;
     }
   }
