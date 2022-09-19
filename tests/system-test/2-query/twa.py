@@ -124,7 +124,7 @@ class TDTestCase:
         tdSql.checkData(0,1,4.500000000)
 
         # mixup with other functions
-        tdSql.query(f"select twa(c1),twa(c2),max(c1),elapsed(ts) from {dbname}.stb1 ")
+        tdSql.query(f"select twa(c1),twa(c2),max(c1),elapsed(ts) from {dbname}.ct1 ")
         tdSql.checkData(0,0,1.000000000)
         tdSql.checkData(0,1,11111.000000000)
         tdSql.checkData(0,2,1)
