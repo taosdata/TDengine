@@ -353,8 +353,8 @@ void checkBrokenQueries(STscObj *pTscObj) {
         pSql->lastAlive = taosGetTimestampMs();
       }
     } else {
-      // lock subs
-      pthread_mutex_lock(&pSql->subState.mutex);
+      { pthread_mutex_lock(&pSql->subState.mutex);
+
       if (pSql->pSubs) {
         // have sub sql
         for (int i = 0; i < pSql->subState.numOfSub; i++) {
@@ -375,8 +375,8 @@ void checkBrokenQueries(STscObj *pTscObj) {
           }
         }
       }
-      // unlock
-      pthread_mutex_unlock(&pSql->subState.mutex);
+
+      pthread_mutex_unlock(&pSql->subState.mutex); }
     }
 
     // kill query
