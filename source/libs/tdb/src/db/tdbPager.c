@@ -260,7 +260,7 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
 
     pPage->isDirty = 0;
 
-    // tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
+    tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
 
@@ -353,7 +353,7 @@ int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
 
     pPage->isDirty = 0;
 
-    // tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
+    tRBTreeDrop(&pPager->rbt, (SRBTreeNode *)pPage);
     tdbPCacheRelease(pPager->pCache, pPage, pTxn);
   }
 
