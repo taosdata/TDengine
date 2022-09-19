@@ -2462,33 +2462,54 @@ static int32_t msgToPhysiWindowNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum {
-  PHY_INTERVAL_CODE_WINDOW = 1,
-  PHY_INTERVAL_CODE_INTERVAL,
-  PHY_INTERVAL_CODE_OFFSET,
-  PHY_INTERVAL_CODE_SLIDING,
-  PHY_INTERVAL_CODE_INTERVAL_UNIT,
-  PHY_INTERVAL_CODE_SLIDING_UNIT
-};
+enum { PHY_INTERVAL_CODE_WINDOW = 1, PHY_INTERVAL_CODE_INLINE_ATTRS };
+
+static int32_t physiIntervalNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SIntervalPhysiNode* pNode = (const SIntervalPhysiNode*)pObj;
+
+  int32_t code = tlvEncodeValueI64(pEncoder, pNode->interval);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI64(pEncoder, pNode->offset);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI64(pEncoder, pNode->sliding);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI8(pEncoder, pNode->intervalUnit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeValueI8(pEncoder, pNode->slidingUnit);
+  }
+
+  return code;
+}
 
 static int32_t physiIntervalNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SIntervalPhysiNode* pNode = (const SIntervalPhysiNode*)pObj;
 
   int32_t code = tlvEncodeObj(pEncoder, PHY_INTERVAL_CODE_WINDOW, physiWindowNodeToMsg, &pNode->window);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI64(pEncoder, PHY_INTERVAL_CODE_INTERVAL, pNode->interval);
+    code = tlvEncodeObj(pEncoder, PHY_INTERVAL_CODE_INLINE_ATTRS, physiIntervalNodeInlineToMsg, pNode);
+  }
+
+  return code;
+}
+
+static int32_t msgToPhysiIntervalNodeInline(STlvDecoder* pDecoder, void* pObj) {
+  SIntervalPhysiNode* pNode = (SIntervalPhysiNode*)pObj;
+
+  int32_t code = tlvDecodeValueI64(pDecoder, &pNode->interval);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvDecodeValueI64(pDecoder, &pNode->offset);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI64(pEncoder, PHY_INTERVAL_CODE_OFFSET, pNode->offset);
+    code = tlvDecodeValueI64(pDecoder, &pNode->sliding);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI64(pEncoder, PHY_INTERVAL_CODE_SLIDING, pNode->sliding);
+    code = tlvDecodeValueI8(pDecoder, &pNode->intervalUnit);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI8(pEncoder, PHY_INTERVAL_CODE_INTERVAL_UNIT, pNode->intervalUnit);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI8(pEncoder, PHY_INTERVAL_CODE_SLIDING_UNIT, pNode->slidingUnit);
+    code = tlvDecodeValueI8(pDecoder, &pNode->slidingUnit);
   }
 
   return code;
@@ -2504,20 +2525,8 @@ static int32_t msgToPhysiIntervalNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_INTERVAL_CODE_WINDOW:
         code = tlvDecodeObjFromTlv(pTlv, msgToPhysiWindowNode, &pNode->window);
         break;
-      case PHY_INTERVAL_CODE_INTERVAL:
-        code = tlvDecodeI64(pTlv, &pNode->interval);
-        break;
-      case PHY_INTERVAL_CODE_OFFSET:
-        code = tlvDecodeI64(pTlv, &pNode->offset);
-        break;
-      case PHY_INTERVAL_CODE_SLIDING:
-        code = tlvDecodeI64(pTlv, &pNode->sliding);
-        break;
-      case PHY_INTERVAL_CODE_INTERVAL_UNIT:
-        code = tlvDecodeI8(pTlv, &pNode->intervalUnit);
-        break;
-      case PHY_INTERVAL_CODE_SLIDING_UNIT:
-        code = tlvDecodeI8(pTlv, &pNode->slidingUnit);
+      case PHY_INTERVAL_CODE_INLINE_ATTRS:
+        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiIntervalNodeInline, pNode);
         break;
       default:
         break;
