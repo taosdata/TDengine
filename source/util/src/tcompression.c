@@ -815,24 +815,24 @@ int32_t tsCompressFloatImp(const char *const input, const int32_t nelements, cha
     uint32_t predicted = prev_value;
     uint32_t diff = curr.bits ^ predicted;
 
-    int32_t leading_zeros = FLOAT_BYTES * BITS_PER_BYTE;
-    int32_t trailing_zeros = leading_zeros;
+    int32_t clz = FLOAT_BYTES * BITS_PER_BYTE;
+    int32_t ctz = clz;
 
     if (diff) {
-      trailing_zeros = BUILDIN_CTZ(diff);
-      leading_zeros = BUILDIN_CLZ(diff);
+      ctz = BUILDIN_CTZ(diff);
+      clz = BUILDIN_CLZ(diff);
     }
 
     uint8_t nbytes = 0;
     uint8_t flag;
 
-    if (trailing_zeros > leading_zeros) {
-      nbytes = (uint8_t)(FLOAT_BYTES - trailing_zeros / BITS_PER_BYTE);
+    if (ctz > clz) {
+      nbytes = (uint8_t)(FLOAT_BYTES - ctz / BITS_PER_BYTE);
 
       if (nbytes > 0) nbytes--;
       flag = ((uint8_t)1 << 3) | nbytes;
     } else {
-      nbytes = (uint8_t)(FLOAT_BYTES - leading_zeros / BITS_PER_BYTE);
+      nbytes = (uint8_t)(FLOAT_BYTES - clz / BITS_PER_BYTE);
       if (nbytes > 0) nbytes--;
       flag = nbytes;
     }
@@ -1041,7 +1041,7 @@ typedef struct {
     };
     // Binary ----
     struct {
-      int32_t b_n;
+      int32_t binary_n;
     };
   };
 } SCompressor;
@@ -1100,7 +1100,7 @@ static int32_t tCompSetCopyMode(SCompressor *pCmprsor) {
     memcpy(pCmprsor->aBuf[0] + 1, pCmprsor->aBuf[1], pCmprsor->nBuf[1]);
     pCmprsor->nBuf[0] = 1 + pCmprsor->nBuf[1];
   }
-  pCmprsor->aBuf[0][0] = MODE_NOCOMPRESS;
+  pCmprsor->aBuf[0][0] = 0;
 
   return code;
 }
@@ -1109,7 +1109,7 @@ static int32_t tCompTimestamp(SCompressor *pCmprsor, int64_t ts) {
 
   ASSERT(pCmprsor->type == TSDB_DATA_TYPE_TIMESTAMP);
 
-  if (pCmprsor->aBuf[0][0] == MODE_COMPRESS) {
+  if (pCmprsor->aBuf[0][0] == 1) {
     if (pCmprsor->ts_n == 0) {
       pCmprsor->ts_prev_val = ts;
       pCmprsor->ts_prev_delta = -ts;
@@ -1259,43 +1259,47 @@ static int32_t tCompFloat(SCompressor *pCmprsor, float f) {
     clz = BUILDIN_CLZ(diff);
     ctz = BUILDIN_CTZ(diff);
   } else {
-    clz = sizeof(uint32_t);
-    ctz = sizeof(uint32_t);
+    clz = 32;
+    ctz = 32;
   }
 
-  if (pCmprsor->f_n & 0x1 == 0) {
-    code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0] + 9 /* sizeof(float) * 2 + 1 */);
-    if (code) return code;
+  uint8_t nBytes;
+  if (clz < ctz) {
+    nBytes = sizeof(uint32_t) - ctz / BITS_PER_BYTE;
+    if (nBytes) diff >>= (32 - nBytes * BITS_PER_BYTE);
+  } else {
+    nBytes = sizeof(uint32_t) - clz / BITS_PER_BYTE;
+  }
+  if (nBytes == 0) nBytes++;
+
+  if ((pCmprsor->f_n & 0x1) == 0) {
+    if (pCmprsor->autoAlloc) {
+      code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0] + 9);
+      if (code) return code;
+    }
 
     pCmprsor->f_flag_p = &pCmprsor->aBuf[0][pCmprsor->nBuf[0]];
     pCmprsor->nBuf[0]++;
 
     if (clz < ctz) {
-      uint8_t nBytes = sizeof(uint32_t) - ctz / BITS_PER_BYTE;
       pCmprsor->f_flag_p[0] = (0x08 | (nBytes - 1));
-      diff >>= (32 - nBytes * BITS_PER_BYTE);
     } else {
-      uint8_t nBytes = sizeof(uint32_t) - clz / BITS_PER_BYTE;
       pCmprsor->f_flag_p[0] = nBytes - 1;
     }
   } else {
     if (clz < ctz) {
-      uint8_t nBytes = sizeof(uint32_t) - ctz / BITS_PER_BYTE;
       pCmprsor->f_flag_p[0] |= ((0x08 | (nBytes - 1)) << 4);
-      diff >>= (32 - nBytes * BITS_PER_BYTE);
     } else {
-      uint8_t nBytes = sizeof(uint32_t) - clz / BITS_PER_BYTE;
       pCmprsor->f_flag_p[0] |= ((nBytes - 1) << 4);
     }
   }
-
-  while (diff) {
+  for (; nBytes; nBytes--) {
     pCmprsor->aBuf[0][pCmprsor->nBuf[0]] = (diff & 0xff);
     pCmprsor->nBuf[0]++;
     diff >>= BITS_PER_BYTE;
   }
-
   pCmprsor->f_n++;
+
   return code;
 }
 
@@ -1316,43 +1320,47 @@ static int32_t tCompDouble(SCompressor *pCmprsor, double d) {
     clz = BUILDIN_CLZL(diff);
     ctz = BUILDIN_CTZL(diff);
   } else {
-    clz = sizeof(uint64_t);
-    ctz = sizeof(uint64_t);
+    clz = 64;
+    ctz = 64;
   }
 
-  if (pCmprsor->d_n & 0x1 == 0) {
-    code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0] + 17 /* sizeof(double) * 2 + 1 */);
-    if (code) return code;
+  uint8_t nBytes;
+  if (clz < ctz) {
+    nBytes = sizeof(uint64_t) - ctz / BITS_PER_BYTE;
+    if (nBytes) diff >>= (64 - nBytes * BITS_PER_BYTE);
+  } else {
+    nBytes = sizeof(uint64_t) - clz / BITS_PER_BYTE;
+  }
+  if (nBytes == 0) nBytes++;
+
+  if ((pCmprsor->d_n & 0x1) == 0) {
+    if (pCmprsor->autoAlloc) {
+      code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0] + 17);
+      if (code) return code;
+    }
 
     pCmprsor->d_flag_p = &pCmprsor->aBuf[0][pCmprsor->nBuf[0]];
     pCmprsor->nBuf[0]++;
 
     if (clz < ctz) {
-      uint8_t nBytes = sizeof(uint64_t) - ctz / BITS_PER_BYTE;
       pCmprsor->d_flag_p[0] = (0x08 | (nBytes - 1));
-      diff >>= (64 - nBytes * BITS_PER_BYTE);
     } else {
-      uint8_t nBytes = sizeof(uint64_t) - clz / BITS_PER_BYTE;
       pCmprsor->d_flag_p[0] = nBytes - 1;
     }
   } else {
     if (clz < ctz) {
-      uint8_t nBytes = sizeof(uint64_t) - ctz / BITS_PER_BYTE;
       pCmprsor->d_flag_p[0] |= ((0x08 | (nBytes - 1)) << 4);
-      diff >>= (64 - nBytes * BITS_PER_BYTE);
     } else {
-      uint8_t nBytes = sizeof(uint64_t) - clz / BITS_PER_BYTE;
       pCmprsor->d_flag_p[0] |= ((nBytes - 1) << 4);
     }
   }
-
-  while (diff) {
+  for (; nBytes; nBytes--) {
     pCmprsor->aBuf[0][pCmprsor->nBuf[0]] = (diff & 0xff);
     pCmprsor->nBuf[0]++;
     diff >>= BITS_PER_BYTE;
   }
-
   pCmprsor->d_n++;
+
   return code;
 }
 
@@ -1361,13 +1369,15 @@ static int32_t tCompBinary(SCompressor *pCmprsor, const uint8_t *pData, int32_t 
   int32_t code = 0;
 
   if (nData) {
-    code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0] + nData);
-    if (code) return code;
+    if (pCmprsor->autoAlloc) {
+      code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0] + nData);
+      if (code) return code;
+    }
 
     memcpy(pCmprsor->aBuf[0] + pCmprsor->nBuf[0], pData, nData);
     pCmprsor->nBuf[0] += nData;
   }
-  pCmprsor->b_n++;
+  pCmprsor->binary_n++;
 
   return code;
 }
@@ -1379,19 +1389,21 @@ static int32_t tCompBool(SCompressor *pCmprsor, bool vBool) {
   int32_t code = 0;
 
   int32_t mod4 = pCmprsor->bool_n & 3;
+  if (mod4 == 0) {
+    pCmprsor->nBuf[0]++;
+
+    if (pCmprsor->autoAlloc) {
+      code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0]);
+      if (code) return code;
+    }
+
+    pCmprsor->aBuf[0][pCmprsor->nBuf[0] - 1] = 0;
+  }
   if (vBool) {
-    pCmprsor->aBuf[0][pCmprsor->nBuf[0]] |= BOOL_CMPR_TABLE[mod4];
+    pCmprsor->aBuf[0][pCmprsor->nBuf[0] - 1] |= BOOL_CMPR_TABLE[mod4];
   }
   pCmprsor->bool_n++;
-  if (mod4 == 3) {
-    pCmprsor->nBuf[0]++;
-    pCmprsor->aBuf[0][pCmprsor->nBuf[0]] = 0;
 
-    code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0]);
-    if (code) goto _exit;
-  }
-
-_exit:
   return code;
 }
 
@@ -1444,16 +1456,30 @@ int32_t tCompressorReset(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg, int
       pCmprsor->ts_prev_val = 0;
       pCmprsor->ts_prev_delta = 0;
       pCmprsor->ts_flag_p = NULL;
-      pCmprsor->aBuf[0][0] = MODE_COMPRESS;
+      pCmprsor->aBuf[0][0] = 1;  // For timestamp, 1 means compressed, 0 otherwise
       pCmprsor->nBuf[0] = 1;
-      pCmprsor->nBuf[1] = 0;
       break;
     case TSDB_DATA_TYPE_BOOL:
       pCmprsor->bool_n = 0;
-      pCmprsor->aBuf[0][0] = 0;
+      pCmprsor->nBuf[0] = 0;
       break;
     case TSDB_DATA_TYPE_BINARY:
-      pCmprsor->b_n = 0;
+      pCmprsor->binary_n = 0;
+      pCmprsor->nBuf[0] = 0;
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      pCmprsor->f_n = 0;
+      pCmprsor->f_prev = 0;
+      pCmprsor->f_flag_p = NULL;
+      pCmprsor->aBuf[0][0] = 0;  // 0 means compressed, 1 otherwise (for backward compatibility)
+      pCmprsor->nBuf[0] = 1;
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      pCmprsor->d_n = 0;
+      pCmprsor->d_prev = 0;
+      pCmprsor->d_flag_p = NULL;
+      pCmprsor->aBuf[0][0] = 0;  // 0 means compressed, 1 otherwise (for backward compatibility)
+      pCmprsor->nBuf[0] = 1;
       break;
     default:
       break;
