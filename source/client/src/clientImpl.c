@@ -438,6 +438,7 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
   }
   pResInfo->fields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
   pResInfo->userFields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
+  ASSERT(numOfCols == pResInfo->numOfCols);
 
   for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
     pResInfo->fields[i].bytes = pSchema[i].bytes;
@@ -854,6 +855,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   pRequest->metric.resultReady = taosGetTimestampUs();
 
   if (pResult) {
+    destroyQueryExecRes(&pRequest->body.resInfo.execRes);
     memcpy(&pRequest->body.resInfo.execRes, pResult, sizeof(*pResult));
   }
 
@@ -1390,6 +1392,7 @@ int32_t doProcessMsgFromServer(void* param) {
   pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
   rpcFreeCont(pMsg->pCont);
   destroySendMsgInfo(pSendInfo);
+
   taosMemoryFree(arg);
   return TSDB_CODE_SUCCESS;
 }
