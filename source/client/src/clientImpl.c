@@ -438,6 +438,7 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
   }
   pResInfo->fields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
   pResInfo->userFields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
+  ASSERT(numOfCols == pResInfo->numOfCols);
 
   for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
     pResInfo->fields[i].bytes = pSchema[i].bytes;
