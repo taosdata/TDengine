@@ -290,11 +290,8 @@ inline static void dispatcherSleepUntil(SAsyncBulkWriteDispatcher* dispatcher, s
   if (durationMillis(current, timeout) <= 0) {
     return;
   }
-  
-  if (pthread_mutex_timedlock(&dispatcher->mutex, &timeout)) {
-    return;
-  }
 
+  pthread_mutex_lock(&dispatcher->mutex);
   while (true) {
     // notified by dispatcherShutdown(...).
     if (atomic_load_8(&dispatcher->shutdown)) {
