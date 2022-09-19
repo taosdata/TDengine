@@ -32,6 +32,7 @@ The database name that contains the table(no matter if it is a normal table, a s
 #### table
 
 The name of the table that you wish to connect to in order to query its data and run a report.
+
 **Notice** The maximum amount of records that may currently be retrieved is 1000000 rows.
 
 ### Optional config
