@@ -1046,9 +1046,12 @@ struct SCompressor {
     };
     // Integer ----
     struct {
-      int64_t i_prev;
-      int32_t i_selector;
-      int32_t i_nele;
+      int64_t  i_prev;
+      int32_t  i_selector;
+      int32_t  i_start;
+      int32_t  i_end;
+      uint64_t i_aZigzag[241];
+      int8_t   i_aBitN[241];
     };
     // Float ----
     struct {
@@ -1190,9 +1193,9 @@ static int32_t tCompTimestamp(SCompressor *pCmprsor, int64_t ts) {
 
 // Integer =====================================================
 #define SIMPLE8B_MAX ((uint64_t)1152921504606846974LL)
-static const char    bit_per_integer[] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 30, 60};
-static const int32_t selector_to_elems[] = {240, 120, 60, 30, 20, 15, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1};
-static const char    bit_to_selector[] = {0,  2,  3,  4,  5,  6,  7,  8,  9,  10, 10, 11, 11, 12, 12, 12,
+static const char    BIT_PER_INTEGER[] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 30, 60};
+static const int32_t SELECTOR_TO_ELEMS[] = {240, 120, 60, 30, 20, 15, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1};
+static const char    BIT_TO_SELECTOR[] = {0,  2,  3,  4,  5,  6,  7,  8,  9,  10, 10, 11, 11, 12, 12, 12,
                                           13, 13, 13, 13, 13, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 15,
                                           15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
                                           15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15};
@@ -1227,60 +1230,64 @@ static int32_t tCompInt(SCompressor *pCmprsor, const void *pData, int32_t nData)
       case TSDB_DATA_TYPE_UINT:
         val = *(uint32_t *)pData;
         break;
-      // case TSDB_DATA_TYPE_UBIGINT:
-      //   val = *(int64_t *)pData;
-      //   break;
+      case TSDB_DATA_TYPE_UBIGINT:
+        val = *(int64_t *)pData;
+        break;
       default:
         ASSERT(0);
         break;
     }
 
-    if (!I64_SAFE_ADD(val, pCmprsor->i_prev)) {
+    if (!I64_SAFE_ADD(val, -pCmprsor->i_prev)) {
       // TODO
       goto _copy_cmpr;
     }
 
     int64_t  diff = val - pCmprsor->i_prev;
     uint64_t vZigzag = ZIGZAG_ENCODE(int64_t, diff);
-
     if (vZigzag >= SIMPLE8B_MAX) {
       // TODO
       goto _copy_cmpr;
     }
 
-    int64_t nBit;
-    if (vZigzag) {
-      nBit = 64 - BUILDIN_CLZL(vZigzag);
-    } else {
-      nBit = 0;
-    }
+    int8_t nBit = (vZigzag) ? (64 - BUILDIN_CLZL(vZigzag)) : 0;
+    pCmprsor->i_prev = val;
 
-    if (pCmprsor->i_nele + 1 <= selector_to_elems[pCmprsor->i_selector] &&
-        pCmprsor->i_nele + 1 <= selector_to_elems[bit_to_selector[nBit]]) {
-      if (pCmprsor->i_selector < bit_to_selector[nBit]) {
-        pCmprsor->i_selector = bit_to_selector[nBit];
+    while (1) {
+      int32_t nEle = pCmprsor->i_end - pCmprsor->i_start;
+
+      if (nEle + 1 <= SELECTOR_TO_ELEMS[pCmprsor->i_selector] && nEle + 1 <= SELECTOR_TO_ELEMS[BIT_TO_SELECTOR[nBit]]) {
+        if (pCmprsor->i_selector < BIT_TO_SELECTOR[nBit]) {
+          pCmprsor->i_selector = BIT_TO_SELECTOR[nBit];
+        }
+        pCmprsor->i_end = (pCmprsor->i_end + 1) % 241;
+        pCmprsor->i_aZigzag[pCmprsor->i_end] = vZigzag;
+        pCmprsor->i_aBitN[pCmprsor->i_end] = nBit;
+        break;
+      } else {
+        while (nEle < SELECTOR_TO_ELEMS[pCmprsor->i_selector]) {
+          pCmprsor->i_selector++;
+        }
+        nEle = SELECTOR_TO_ELEMS[pCmprsor->i_selector];
+
+        code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0] + sizeof(uint64_t));
+        if (code) return code;
+
+        // uint64_t *bp = (uint64_t *)(pCmprsor->aBuf[0] + pCmprsor->nBuf[0]);
+        // pCmprsor->nBuf[0] += sizeof(uint64_t);
+        // bp[0] = pCmprsor->i_selector;
+        // for (int32_t iVal = 0; iVal < pCmprsor->i_nele; iVal++) {
+        //   /* code */
+        // }
+
+        // reset and continue
+        pCmprsor->i_selector = 0;
+        for (int32_t iVal = pCmprsor->i_start; iVal < pCmprsor->i_end; iVal++) {
+          if (pCmprsor->i_selector < BIT_TO_SELECTOR[pCmprsor->i_aBitN[iVal]]) {
+            pCmprsor->i_selector = BIT_TO_SELECTOR[pCmprsor->i_aBitN[iVal]];
+          }
+        }
       }
-      pCmprsor->i_nele++;
-      pCmprsor->i_prev = val;
-    } else {
-      while (pCmprsor->i_nele < selector_to_elems[pCmprsor->i_selector]) {
-        pCmprsor->i_selector++;
-      }
-      pCmprsor->i_nele = selector_to_elems[pCmprsor->i_selector];
-
-      code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0] + sizeof(uint64_t));
-      if (code) return code;
-
-      uint64_t *bp = (uint64_t *)(pCmprsor->aBuf[0] + pCmprsor->nBuf[0]);
-      pCmprsor->nBuf[0] += sizeof(uint64_t);
-      bp[0] = pCmprsor->i_selector;
-      for (int32_t iVal = 0; iVal < pCmprsor->i_nele; iVal++) {
-        /* code */
-      }
-
-      // reset and continue
-      pCmprsor->i_nele = 0;
-      pCmprsor->i_selector = 0;
     }
   } else {
   _copy_cmpr:
@@ -1546,7 +1553,8 @@ int32_t tCompressorReset(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg, int
     case TSDB_DATA_TYPE_UBIGINT:
       pCmprsor->i_prev = 0;
       pCmprsor->i_selector = 0;
-      pCmprsor->i_nele = 0;
+      pCmprsor->i_start = 0;
+      pCmprsor->i_end = 0;
       pCmprsor->aBuf[0][0] = 0;  // 0 means compressed, 1 otherwise (for backward compatibility)
       pCmprsor->nBuf[0] = 1;
       break;
