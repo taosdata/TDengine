@@ -665,11 +665,11 @@ static int32_t meta_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIn
     }
 	
     char* result = tmq_get_json_meta(msg);
-    if(result){
+    if(result && strcmp(result, "") != 0){
   	  //printf("meta result: %s\n", result);
   	  taosFprintfFile(pInfo->pConsumeMetaFile, "%s\n", result);
-  	  taosMemoryFree(result);
     }
+    tmq_free_json_meta(result);
   }
 
   totalRows++;
@@ -818,8 +818,12 @@ void loop_consume(SThreadInfo* pInfo) {
 	  	tmq_res_t msgType = tmq_get_res_type(tmqMsg);
 		if (msgType == TMQ_RES_TABLE_META) {
  		  totalRows += meta_msg_process(tmqMsg, pInfo, totalMsgs);
-		} else if (msgType == TMQ_RES_DATA)
-          totalRows += data_msg_process(tmqMsg, pInfo, totalMsgs);
+		} else if (msgType == TMQ_RES_DATA){
+                  totalRows += data_msg_process(tmqMsg, pInfo, totalMsgs);
+                } else if (msgType == TMQ_RES_METADATA){
+                  meta_msg_process(tmqMsg, pInfo, totalMsgs);
+                  totalRows += data_msg_process(tmqMsg, pInfo, totalMsgs);
+                }
       }
 
       taos_free_result(tmqMsg);
