@@ -248,6 +248,7 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
     return 0;
   }
 
+  // loop to write the dirty pages to file
   SRBTreeIter  iter = tRBTreeIterCreate(&pPager->rbt, 1);
   SRBTreeNode *pNode = NULL;
   while ((pNode = tRBTreeIterNext(&iter)) != NULL) {
@@ -257,6 +258,15 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
       ASSERT(0);
       return -1;
     }
+  }
+
+  tdbTrace("tdbttl commit:%p, %d/%d", pPager, pPager->dbOrigSize, pPager->dbFileSize);
+  pPager->dbOrigSize = pPager->dbFileSize;
+
+  // release the page
+  iter = tRBTreeIterCreate(&pPager->rbt, 1);
+  while ((pNode = tRBTreeIterNext(&iter)) != NULL) {
+    pPage = (SPage *)pNode;
 
     pPage->isDirty = 0;
 
@@ -265,29 +275,6 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
   }
 
   tRBTreeCreate(&pPager->rbt, pageCmpFn);
-  /*
-  // loop to write the dirty pages to file
-  for (pPage = pPager->pDirty; pPage; pPage = pPage->pDirtyNext) {
-    // TODO: update the page footer
-    ret = tdbPagerWritePageToDB(pPager, pPage);
-    if (ret < 0) {
-      ASSERT(0);
-      return -1;
-    }
-  }
-
-  // release the page
-  for (pPage = pPager->pDirty; pPage; pPage = pPager->pDirty) {
-    pPager->pDirty = pPage->pDirtyNext;
-    pPage->pDirtyNext = NULL;
-
-    pPage->isDirty = 0;
-
-    tdbPCacheRelease(pPager->pCache, pPage, pTxn);
-  }
-  */
-  tdbTrace("tdbttl commit:%p, %d", pPager, pPager->dbOrigSize);
-  pPager->dbOrigSize = pPager->dbFileSize;
 
   // sync the db file
   tdbOsFSync(pPager->fd);
