@@ -17,6 +17,8 @@
 #include "plannodes.h"
 #include "tdatablock.h"
 
+#ifndef htonll
+
 #define htonll(x)                                                                                   \
   (((int64_t)x & 0x00000000000000ff) << 7 * 8) | (((int64_t)x & 0x000000000000ff00) << 5 * 8) |     \
       (((int64_t)x & 0x0000000000ff0000) << 3 * 8) | (((int64_t)x & 0x00000000ff000000) << 1 * 8) | \
@@ -24,6 +26,8 @@
       (((int64_t)x & 0x00ff000000000000) >> 5 * 8) | (((int64_t)x & 0xff00000000000000) >> 7 * 8)
 
 #define ntohll(x) htonll(x)
+
+#endif
 
 #define NODES_MSG_DEFAULT_LEN 1024
 #define TLV_TYPE_ARRAY_ELEM   0
