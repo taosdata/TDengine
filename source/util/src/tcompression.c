@@ -1193,9 +1193,9 @@ static int32_t tCompTimestamp(SCompressor *pCmprsor, int64_t ts) {
 
 // Integer =====================================================
 #define SIMPLE8B_MAX ((uint64_t)1152921504606846974LL)
-static const char    BIT_PER_INTEGER[] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 30, 60};
+static const uint8_t BIT_PER_INTEGER[] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 30, 60};
 static const int32_t SELECTOR_TO_ELEMS[] = {240, 120, 60, 30, 20, 15, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1};
-static const char    BIT_TO_SELECTOR[] = {0,  2,  3,  4,  5,  6,  7,  8,  9,  10, 10, 11, 11, 12, 12, 12,
+static const uint8_t BIT_TO_SELECTOR[] = {0,  2,  3,  4,  5,  6,  7,  8,  9,  10, 10, 11, 11, 12, 12, 12,
                                           13, 13, 13, 13, 13, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 15,
                                           15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
                                           15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15};
@@ -1254,7 +1254,7 @@ static int32_t tCompInt(SCompressor *pCmprsor, const void *pData, int32_t nData)
     pCmprsor->i_prev = val;
 
     while (1) {
-      int32_t nEle = pCmprsor->i_end - pCmprsor->i_start;
+      int32_t nEle = (pCmprsor->i_end + 241 - pCmprsor->i_start) % 241;
 
       if (nEle + 1 <= SELECTOR_TO_ELEMS[pCmprsor->i_selector] && nEle + 1 <= SELECTOR_TO_ELEMS[BIT_TO_SELECTOR[nBit]]) {
         if (pCmprsor->i_selector < BIT_TO_SELECTOR[nBit]) {
@@ -1270,19 +1270,23 @@ static int32_t tCompInt(SCompressor *pCmprsor, const void *pData, int32_t nData)
         }
         nEle = SELECTOR_TO_ELEMS[pCmprsor->i_selector];
 
-        code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0] + sizeof(uint64_t));
-        if (code) return code;
+        if (pCmprsor->autoAlloc) {
+          code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf[0] + sizeof(uint64_t));
+          if (code) return code;
+        }
 
-        // uint64_t *bp = (uint64_t *)(pCmprsor->aBuf[0] + pCmprsor->nBuf[0]);
-        // pCmprsor->nBuf[0] += sizeof(uint64_t);
-        // bp[0] = pCmprsor->i_selector;
-        // for (int32_t iVal = 0; iVal < pCmprsor->i_nele; iVal++) {
-        //   /* code */
-        // }
+        uint64_t *bp = (uint64_t *)(pCmprsor->aBuf[0] + pCmprsor->nBuf[0]);
+        pCmprsor->nBuf[0] += sizeof(uint64_t);
+        bp[0] = pCmprsor->i_selector;
+        uint8_t bits = BIT_PER_INTEGER[pCmprsor->i_selector];
+        for (int32_t iVal = 0; iVal < nEle; iVal++) {
+          bp[0] |= ((pCmprsor->i_aZigzag[pCmprsor->i_start] & ((((uint64_t)1) << bits) - 1)) << (bits * iVal + 4));
+          pCmprsor->i_start = (pCmprsor->i_start + 1) % 241;
+        }
 
         // reset and continue
         pCmprsor->i_selector = 0;
-        for (int32_t iVal = pCmprsor->i_start; iVal < pCmprsor->i_end; iVal++) {
+        for (int32_t iVal = pCmprsor->i_start; iVal < pCmprsor->i_end; iVal = (iVal + 1) % 241) {
           if (pCmprsor->i_selector < BIT_TO_SELECTOR[pCmprsor->i_aBitN[iVal]]) {
             pCmprsor->i_selector = BIT_TO_SELECTOR[pCmprsor->i_aBitN[iVal]];
           }
