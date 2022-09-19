@@ -384,8 +384,10 @@ static int walFindCurMetaVer(SWal* pWal) {
     int   code = regexec(&walMetaRegexPattern, name, 0, NULL, 0);
     if (code == 0) {
       sscanf(name, "meta-ver%d", &metaVer);
+      wDebug("vgId:%d, wal find current meta: %s is the meta file, ver %d", pWal->cfg.vgId, name, metaVer);
       break;
     }
+    wDebug("vgId:%d, wal find current meta: %s is not meta file", pWal->cfg.vgId, name);
   }
   taosCloseDir(&pDir);
   regfree(&walMetaRegexPattern);
