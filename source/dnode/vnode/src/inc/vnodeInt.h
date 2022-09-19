@@ -58,6 +58,7 @@ typedef struct STQ                STQ;
 typedef struct SVState            SVState;
 typedef struct SVBufPool          SVBufPool;
 typedef struct SQWorker           SQHandle;
+typedef struct STrimDbHandle      STrimDbHandle;
 typedef struct STsdbKeepCfg       STsdbKeepCfg;
 typedef struct SMetaSnapReader    SMetaSnapReader;
 typedef struct SMetaSnapWriter    SMetaSnapWriter;
@@ -301,6 +302,9 @@ struct STsdbKeepCfg {
   int32_t keep1;
   int32_t keep2;
 };
+struct STrimDbHandle {
+  volatile int8_t state;  // 0 not in trim, 1 in trim
+};
 
 struct SVnode {
   char*         path;
@@ -325,6 +329,7 @@ struct SVnode {
   bool          restored;
   tsem_t        syncSem;
   SQHandle*     pQuery;
+  STrimDbHandle trimDbH;
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)

@@ -57,6 +57,16 @@ static bool tsdbShouldDoRetention(STsdb *pTsdb, int64_t now) {
   return false;
 }
 
+/**
+ * @brief Data migration between multi-tier storage, including remove expired data.
+ *  1) firstly, remove expired DFileSet;
+ *  2) partition the tsdbFS by the expLevel and fileSize(e.g. 500G, configurable), and migrate DFileSet groups between multi-tier storage;
+ *  3) update the tsdbFS and CURRENT in the same transaction;
+ *  4) finish
+ * @param pTsdb
+ * @param now
+ * @return int32_t
+ */
 int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
   int32_t code = 0;
 
