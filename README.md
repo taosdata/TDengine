@@ -336,7 +336,7 @@ We strongly recommend to use Parquet for time-series data sharing and storing pu
 
 ### Transformation
 
-For more specific use cases, taosX support two kind of transformation actions:
+taosX support two kind of transformation actions in data replication:
 
 - **Add tags**
 
@@ -368,15 +368,17 @@ For more specific use cases, taosX support two kind of transformation actions:
     <rename-table-kind>:<rename-type>:<rename-item>
     ```
 
-    Supported *rename-table-kind` list:
-    * **rename-table**: rename all three kinds of tables: super table, child table or normal table.
-    * **rename-super-table**: rename super table only.
-    * **rename-child-table**: rename child table only.
+    Supported *rename-table-kind* list:
+
+    - **rename-table**: rename all three kinds of tables: super table, child table or normal table.
+    - **rename-super-table**: rename super table only.
+    - **rename-child-table**: rename child table only.
 
     Supported *rename-type* and *rename-item* expression:
-    * **`template:words_{name}_surrounded`**: new table name will use the template `words_{name}_surrounded` and replace `{name}` as real table name.
-    * **`prefix:some_prefix_`**: is a short wrapper on template `some_prefix_{name}`.
-    * **`suffix:_some_suffix`**: is a short wrapper on template `{name}_some_suffix`.
+
+    - **`template:words_{name}_surrounded`**: new table name will use the template `words_{name}_surrounded` and replace `{name}` as real table name.
+    - **`prefix:some_prefix_`**: is a short wrapper on template `some_prefix_{name}`.
+    - **`suffix:_some_suffix`**: is a short wrapper on template `{name}_some_suffix`.
 
 Here's a example shows how to use transformation.
 
