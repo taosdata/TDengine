@@ -462,6 +462,7 @@ typedef struct SPartitionDataInfo {
 typedef struct STimeWindowAggSupp {
   int8_t          calTrigger;
   int64_t         waterMark;
+  int64_t         deleteMark;
   TSKEY           maxTs;
   TSKEY           minTs;
   SColumnInfoData timeWindowData;  // query time window info for scalar function execution.
@@ -1090,7 +1091,7 @@ int32_t setOutputBuf(STimeWindow* win, SResultRow** pResult, int64_t tableGroupI
                            int32_t numOfOutput, int32_t* rowEntryInfoOffset, SAggSupporter* pAggSup,
                            SExecTaskInfo* pTaskInfo);
 int32_t releaseOutputBuf(SExecTaskInfo* pTaskInfo, SWinKey* pKey, SResultRow* pResult);
-int32_t saveOutput(SExecTaskInfo* pTaskInfo, SWinKey* pKey, SResultRow* pResult, int32_t resSize);
+int32_t saveOutputBuf(SExecTaskInfo* pTaskInfo, SWinKey* pKey, SResultRow* pResult, int32_t resSize);
 
 #ifdef __cplusplus
 }

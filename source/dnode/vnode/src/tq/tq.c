@@ -141,11 +141,8 @@ int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
   ASSERT(taosArrayGetSize(pRsp->blockData) == pRsp->blockNum);
   ASSERT(taosArrayGetSize(pRsp->blockDataLen) == pRsp->blockNum);
 
-  if (pRsp->withSchema) {
-    ASSERT(taosArrayGetSize(pRsp->blockSchema) == pRsp->blockNum);
-  } else {
-    ASSERT(taosArrayGetSize(pRsp->blockSchema) == 0);
-  }
+  ASSERT(!pRsp->withSchema);
+  ASSERT(taosArrayGetSize(pRsp->blockSchema) == 0);
 
   if (pRsp->reqOffset.type == TMQ_OFFSET__LOG) {
     if (pRsp->blockNum > 0) {

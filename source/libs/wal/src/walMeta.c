@@ -424,6 +424,7 @@ int walLoadMeta(SWal* pWal) {
   // find existing meta file
   int metaVer = walFindCurMetaVer(pWal);
   if (metaVer == -1) {
+    wDebug("vgId:%d wal find meta ver %d", pWal->cfg.vgId, metaVer);
     return -1;
   }
   char fnameStr[WAL_FILE_LEN];
