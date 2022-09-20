@@ -57,7 +57,9 @@ select * from test.demo where ts >= '2022-05-10 18:24:15' and ts<='2022-05-12 18
 ```
 
 In fact, you can speed up the data loading in your report by using these filters.
+
 ![TDengine Cloud Config Page](./gds/gds_cloud_login.webp)
+
 Click "CONNECT" once configuration is complete, then you can connect to your "TDengine Cloud" with the given database and table.
 
 ## Create Report or Dashboard
