@@ -4026,8 +4026,9 @@ _return:
   FLT_RET(code);
 }
 
-bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnDataAgg *statis, int16_t numOfCols) {
+bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnDataAgg *statis, int16_t numOfCols, int32_t* pResultStatus) {
   if (NULL == info) {
+    *pResultStatus = FILTER_RESULT_ALL_QUALIFIED;
     return false;
   }
 
@@ -4051,12 +4052,26 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnData
     taosMemoryFree(output.columnData);
 
     taosArrayDestroy(pList);
+    int32_t numOfQualified = 0;
+
+    for(int32_t i = 0; i < output.numOfRows; ++i) {
+      if ((*p)[i] == 1) {
+        ++numOfQualified;
+      }
+    }
+
+    if (numOfQualified == output.numOfRows) {
+      *pResultStatus = FILTER_RESULT_ALL_QUALIFIED;
+    } else if (numOfQualified == 0) {
+      *pResultStatus = FILTER_RESULT_NONE_QUALIFIED;
+    } else {
+      *pResultStatus = FILTER_RESULT_PARTIAL_QUALIFIED;
+    }
     return false;
+  } else {
+    return (*info->func)(info, pSrc->info.rows, p, statis, numOfCols);
   }
-
-  return (*info->func)(info, pSrc->info.rows, p, statis, numOfCols);
 }
-
 
 typedef struct SClassifyConditionCxt {
   bool hasPrimaryKey;

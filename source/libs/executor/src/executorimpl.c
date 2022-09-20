@@ -1115,7 +1115,7 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
   }
 }
 
-static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep);
+static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep, int32_t status);
 
 void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColMatchInfo) {
   if (pFilterNode == NULL || pBlock->info.rows == 0) {
@@ -1143,18 +1143,18 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColM
     int8_t* rowRes = NULL;
 
   // todo the keep seems never to be True??
-  bool keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols);
+  int32_t status = 0;
+  bool keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols, &status);
   filterFreeInfo(filter);
 
     int64_t st3 = taosGetTimestampUs();
     pError("do filter, el: %d us", st3-st2);
 
-    extractQualifiedTupleByFilterResult(pBlock, rowRes, keep);
+    extractQualifiedTupleByFilterResult(pBlock, rowRes, keep, status);
 
     int64_t st4 = taosGetTimestampUs();
 
     pError("extract result filter, el: %d us", st4-st3);
-
 
     if (pColMatchInfo != NULL) {
     for (int32_t i = 0; i < taosArrayGetSize(pColMatchInfo); ++i) {
@@ -1172,13 +1172,34 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColM
   taosMemoryFree(rowRes);
 }
 
-void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep) {
+void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep, int32_t status) {
   if (keep) {
     return;
   }
 
-  if (rowRes != NULL) {
-    int32_t      totalRows = pBlock->info.rows;
+  int32_t totalRows = pBlock->info.rows;
+
+  if (status == FILTER_RESULT_ALL_QUALIFIED) {
+    SSDataBlock* px = createOneDataBlock(pBlock, true);
+
+    size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pSrc = taosArrayGet(px->pDataBlock, i);
+      SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
+
+      // it is a reserved column for scalar function, and no data in this column yet.
+      if (pDst->pData == NULL || pSrc->pData == NULL) {
+        continue;
+      }
+
+      colInfoDataCleanup(pDst, pBlock->info.rows);
+      colDataAssign(pDst, pSrc, totalRows, NULL);
+    }
+
+    blockDataDestroy(px);  // fix memory leak
+  } else if (status == FILTER_RESULT_NONE_QUALIFIED) {
+      pBlock->info.rows = 0;
+  } else {
     SSDataBlock* px = createOneDataBlock(pBlock, true);
 
     size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -1214,9 +1235,6 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
     }
 
     blockDataDestroy(px);  // fix memory leak
-  } else {
-    // do nothing
-    pBlock->info.rows = 0;
   }
 }
 
