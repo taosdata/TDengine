@@ -19,28 +19,27 @@ The current [connector](https://datastudio.google.com/data?search=TDengine) supp
 
 #### URL
 
-```bash
-"<url>"
-```
-<!-- exclude -->
-:::note
-Replace <url\> with cloud URL.
-To obtain the URL, please login [TDengine Cloud](https://cloud.tdengine.com) and click "Visualize" and then select "Google Data Studio".
+TDengine Cloud URL.
 
-:::
+<!---```bash--->
+<!---<cloud_url>--->
+<!---```--->
+
+<!-- exclude -->
+To obtain the URL, please login [TDengine Cloud](https://cloud.tdengine.com) and click "Visualize" and then select "Google Data Studio".
 <!-- exclude-end -->
 
 #### TDengine Cloud Token
 
-```bash
-"<token>"
-```
+
+!---```bash--->
+!---<cloud_token>--->
+!---```--->
+
 <!-- exclude -->
-:::note
-Replace  <token\> with cloud token .
+
 To obtain the value of cloud token, please login [TDengine Cloud](https://cloud.tdengine.com) and click "Visualize" and then select "Google Data Studio".
 
-:::
 <!-- exclude-end -->
 
 #### database
