@@ -185,7 +185,7 @@ int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
 
-SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchema* pSchema, bool createTb, int64_t suid,
+SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchema* pSchema, SSchemaWrapper* pTagSchemaWrapper, bool createTb, int64_t suid,
                             const char* stbFullName, SBatchDeleteReq* pDeleteReq);
 
 // sma
