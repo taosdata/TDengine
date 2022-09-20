@@ -208,6 +208,7 @@ typedef struct SExprSupp {
   int32_t         numOfExprs;  // the number of scalar expression in group operator
   SqlFunctionCtx* pCtx;
   int32_t*        rowEntryInfoOffset;  // offset value for each row result cell info
+  SFilterInfo*    pFilterInfo;
 } SExprSupp;
 
 typedef struct SOperatorInfo {

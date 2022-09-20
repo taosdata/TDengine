@@ -1124,22 +1124,39 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColM
 
   SFilterInfo* filter = NULL;
 
+  int64_t st = taosGetTimestampUs();
+
+  pError("start filter")
   // todo move to the initialization function
   int32_t code = filterInitFromNode((SNode*)pFilterNode, &filter, 0);
+
+  int64_t st1 = taosGetTimestampUs();
+  pError("init completed, el: %d us", st1-st);
 
   size_t             numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   SFilterColumnParam param1 = {.numOfCols = numOfCols, .pDataBlock = pBlock->pDataBlock};
   code = filterSetDataFromSlotId(filter, &param1);
 
-  int8_t* rowRes = NULL;
+    int64_t st2 = taosGetTimestampUs();
+    pError("set data from slotid, el: %d us", st2-st1);
+
+    int8_t* rowRes = NULL;
 
   // todo the keep seems never to be True??
   bool keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols);
   filterFreeInfo(filter);
 
-  extractQualifiedTupleByFilterResult(pBlock, rowRes, keep);
+    int64_t st3 = taosGetTimestampUs();
+    pError("do filter, el: %d us", st3-st2);
 
-  if (pColMatchInfo != NULL) {
+    extractQualifiedTupleByFilterResult(pBlock, rowRes, keep);
+
+    int64_t st4 = taosGetTimestampUs();
+
+    pError("extract result filter, el: %d us", st4-st3);
+
+
+    if (pColMatchInfo != NULL) {
     for (int32_t i = 0; i < taosArrayGetSize(pColMatchInfo); ++i) {
       SColMatchInfo* pInfo = taosArrayGet(pColMatchInfo, i);
       if (pInfo->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
