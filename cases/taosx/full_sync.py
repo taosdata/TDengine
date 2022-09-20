@@ -11,11 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
-
-import json
 import os
-import threading
-import time
 from taostest import TDCase, T
 import taos
 from taostest.util.remote import Remote
@@ -48,7 +44,8 @@ class StaticFullSync(TDCase):
         self.tb_num = 1000
         self.row_num = 10000
         self.start_timestamp = "2020-10-01 00:00:00.000"
-        
+        self.drop_flag = 'yes'
+        self.child_table_exist_flag = 'no'
         # param for taosBenchmark with ntb check
         self.ntb_dbname = ['test1','test2']
         self.ntb_name_m = ['nd','nt']
@@ -57,35 +54,13 @@ class StaticFullSync(TDCase):
         # param for taosx
         self.timeout = '1s'
         self.target_dbname = 'target'
-
-    def get_json(self, json_path, host, port, dbname, stbname, tbname_m):
-        dict = {}
-        with open(json_path, 'rb') as file:
-            params = json.load(file)
-            params['host'] = host
-            params['port'] = port
-            params['databases'][0]['dbinfo']['name'] = dbname
-            params['databases'][0]['super_tables'][0]['name'] = stbname
-            params['databases'][0]['super_tables'][0]['childtable_count'] = self.tb_num
-            params['databases'][0]['super_tables'][0]['insert_rows'] = self.row_num
-            params['databases'][0]['super_tables'][0]['childtable_prefix'] = tbname_m
-            params['databases'][0]['super_tables'][0]['start_timestamp'] = self.start_timestamp
-            dict = params
-        file.close()
-        return dict
-
-    def write_json(self, json_path, dict):
-        with open(json_path, 'w') as r:
-            json.dump(dict, r)
-        r.close()
-
-    def data_insert(self,source_taosd_list,dbname,stbname,tbname_m):
+    def data_insert(self,source_taosd_list,dbname,stbname,tbname_m,tb_num,row_num,start_timestamp,drop_flag,child_table_exist_flag):
         taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
         for source in range(len(source_taosd_list)):
             host = source_taosd_list[source][0]
             port = source_taosd_list[source][1]
-            self.write_json(f'{self.test_root}/cases/taosx/basic.json', self.get_json(f'{self.test_root}/cases/taosx/basic.json',
-                            host, int(port), dbname[source], stbname[source], tbname_m[source]))
+            self.tdTaosx.write_json(f'{self.test_root}/cases/taosx/basic.json', self.tdTaosx.get_json(f'{self.test_root}/cases/taosx/basic.json',
+                            host, int(port), dbname[source], stbname[source], tbname_m[source],tb_num,row_num,start_timestamp,drop_flag,child_table_exist_flag))
             self.remote.put(
                 taosBenchmark_fqdn[0], f'{self.test_root}/cases/taosx/basic.json', '/tmp/')
             self.remote.cmd(
@@ -230,7 +205,7 @@ class StaticFullSync(TDCase):
                         master_sum[source][0]['sum(c1)'], backup_sum[source][0]['sum(c1)'])
                 taosd_backup.execute(f'drop database {self.target_dbname}')
     def run(self):
-        self.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m)
+        self.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag)
         self.full_sync_db_stb('db')
         self.full_sync_db_stb('stable')
         self.full_sync_ctb()
