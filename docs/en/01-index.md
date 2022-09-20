@@ -9,7 +9,7 @@ This is the documentation structure for TDengine Cloud.
 
 1. The [Introduction](./intro) provides an overview of the features, capabilities and competitive advantages of TDengine Cloud.
 
-2. [Concepts](./concept) introduces the key concepts in TDengine like metric, tag, supter table, sub-table and more. You can not skip this part if you are new to TDengine. 
+2. The [Concepts](./concept) section introduces the key concepts in TDengine like metric, tag, supter table, sub-table and more. You can not skip this part if you are new to TDengine. 
 
 3. In the [Data In](./data-in) section we show you a number of ways for you to get your data into TDengine.
 
