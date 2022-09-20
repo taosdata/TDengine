@@ -19,11 +19,15 @@ The current [connector](https://datastudio.google.com/data?search=TDengine) supp
 
 #### URL
 
-Get this URL from your cloud instance information page. Indeed, this URL's instance must be in active status.
+```bash
+TDENGINE_CLOUD_URL="<url>"
+```
 
 #### TDengine Cloud Token
 
-This token comes from your TDengine cloud and should be associated with an instance URL that is currently operational.
+```bash
+TDENGINE_CLOUD_TOKEN="<token>"
+```
 
 #### database
 
