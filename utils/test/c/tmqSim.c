@@ -653,23 +653,23 @@ static int32_t meta_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIn
     int32_t code = tmq_get_raw(msg, &raw);
 	
     if(code == TSDB_CODE_SUCCESS){
-	  int retCode = queryDB(pInfo->taos, "use metadb");
-	  if (retCode != 0) {
-		taosFprintfFile(g_fp, "error when use metadb\n");
-		taosCloseFile(&g_fp);
-		exit(-1);
-	  }	  
-	  taosFprintfFile(g_fp, "raw:%p\n", &raw);
-	
-      tmq_write_raw(pInfo->taos, raw);
+//	  int retCode = queryDB(pInfo->taos, "use metadb");
+//	  if (retCode != 0) {
+//		taosFprintfFile(g_fp, "error when use metadb\n");
+//		taosCloseFile(&g_fp);
+//		exit(-1);
+//	  }
+//	  taosFprintfFile(g_fp, "raw:%p\n", &raw);
+//
+//      tmq_write_raw(pInfo->taos, raw);
     }
 	
     char* result = tmq_get_json_meta(msg);
-    if(result){
+    if(result && strcmp(result, "") != 0){
   	  //printf("meta result: %s\n", result);
   	  taosFprintfFile(pInfo->pConsumeMetaFile, "%s\n", result);
-  	  taosMemoryFree(result);
     }
+    tmq_free_json_meta(result);
   }
 
   totalRows++;
@@ -818,8 +818,12 @@ void loop_consume(SThreadInfo* pInfo) {
 	  	tmq_res_t msgType = tmq_get_res_type(tmqMsg);
 		if (msgType == TMQ_RES_TABLE_META) {
  		  totalRows += meta_msg_process(tmqMsg, pInfo, totalMsgs);
-		} else if (msgType == TMQ_RES_DATA)
-          totalRows += data_msg_process(tmqMsg, pInfo, totalMsgs);
+		} else if (msgType == TMQ_RES_DATA){
+                  totalRows += data_msg_process(tmqMsg, pInfo, totalMsgs);
+                } else if (msgType == TMQ_RES_METADATA){
+                  meta_msg_process(tmqMsg, pInfo, totalMsgs);
+                  totalRows += data_msg_process(tmqMsg, pInfo, totalMsgs);
+                }
       }
 
       taos_free_result(tmqMsg);
