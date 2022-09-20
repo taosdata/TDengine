@@ -1613,3 +1613,276 @@ int32_t tCompGen(SCompressor *pCmprsor, const uint8_t **ppData, int64_t *nData) 
 int32_t tCompress(SCompressor *pCmprsor, const void *pData, int64_t nData) {
   return DATA_TYPE_INFO[pCmprsor->type].cmprFn(pCmprsor, pData, nData);
 }
+
+/*************************************************************************
+ *                  REGULAR COMPRESSION
+ *************************************************************************/
+// Timestamp =====================================================
+int32_t tsCompressTimestamp(const char *const input, int32_t inputSize, const int32_t nelements, char *const output,
+                            int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize) {
+  if (algorithm == ONE_STAGE_COMP) {
+    return tsCompressTimestampImp(input, nelements, output);
+  } else if (algorithm == TWO_STAGE_COMP) {
+    int32_t len = tsCompressTimestampImp(input, nelements, buffer);
+    return tsCompressStringImp(buffer, len, output, outputSize);
+  } else {
+    assert(0);
+    return -1;
+  }
+}
+
+int32_t tsDecompressTimestamp(const char *const input, int32_t compressedSize, const int32_t nelements,
+                              char *const output, int32_t outputSize, char algorithm, char *const buffer,
+                              int32_t bufferSize) {
+  if (algorithm == ONE_STAGE_COMP) {
+    return tsDecompressTimestampImp(input, nelements, output);
+  } else if (algorithm == TWO_STAGE_COMP) {
+    if (tsDecompressStringImp(input, compressedSize, buffer, bufferSize) < 0) return -1;
+    return tsDecompressTimestampImp(buffer, nelements, output);
+  } else {
+    assert(0);
+    return -1;
+  }
+}
+
+// Float =====================================================
+int32_t tsCompressFloat(const char *const input, int32_t inputSize, const int32_t nelements, char *const output,
+                        int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize) {
+#ifdef TD_TSZ
+  // lossy mode
+  if (lossyFloat) {
+    return tsCompressFloatLossyImp(input, nelements, output);
+    // lossless mode
+  } else {
+#endif
+    if (algorithm == ONE_STAGE_COMP) {
+      return tsCompressFloatImp(input, nelements, output);
+    } else if (algorithm == TWO_STAGE_COMP) {
+      int32_t len = tsCompressFloatImp(input, nelements, buffer);
+      return tsCompressStringImp(buffer, len, output, outputSize);
+    } else {
+      assert(0);
+      return -1;
+    }
+#ifdef TD_TSZ
+  }
+#endif
+}
+
+int32_t tsDecompressFloat(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output,
+                          int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize) {
+#ifdef TD_TSZ
+  if (HEAD_ALGO(input[0]) == ALGO_SZ_LOSSY) {
+    // decompress lossy
+    return tsDecompressFloatLossyImp(input, compressedSize, nelements, output);
+  } else {
+#endif
+    // decompress lossless
+    if (algorithm == ONE_STAGE_COMP) {
+      return tsDecompressFloatImp(input, nelements, output);
+    } else if (algorithm == TWO_STAGE_COMP) {
+      if (tsDecompressStringImp(input, compressedSize, buffer, bufferSize) < 0) return -1;
+      return tsDecompressFloatImp(buffer, nelements, output);
+    } else {
+      assert(0);
+      return -1;
+    }
+#ifdef TD_TSZ
+  }
+#endif
+}
+
+// Double =====================================================
+int32_t tsCompressDouble(const char *const input, int32_t inputSize, const int32_t nelements, char *const output,
+                         int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize) {
+#ifdef TD_TSZ
+  if (lossyDouble) {
+    // lossy mode
+    return tsCompressDoubleLossyImp(input, nelements, output);
+  } else {
+#endif
+    // lossless mode
+    if (algorithm == ONE_STAGE_COMP) {
+      return tsCompressDoubleImp(input, nelements, output);
+    } else if (algorithm == TWO_STAGE_COMP) {
+      int32_t len = tsCompressDoubleImp(input, nelements, buffer);
+      return tsCompressStringImp(buffer, len, output, outputSize);
+    } else {
+      assert(0);
+      return -1;
+    }
+#ifdef TD_TSZ
+  }
+#endif
+}
+
+int32_t tsDecompressDouble(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output,
+                           int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize) {
+#ifdef TD_TSZ
+  if (HEAD_ALGO(input[0]) == ALGO_SZ_LOSSY) {
+    // decompress lossy
+    return tsDecompressDoubleLossyImp(input, compressedSize, nelements, output);
+  } else {
+#endif
+    // decompress lossless
+    if (algorithm == ONE_STAGE_COMP) {
+      return tsDecompressDoubleImp(input, nelements, output);
+    } else if (algorithm == TWO_STAGE_COMP) {
+      if (tsDecompressStringImp(input, compressedSize, buffer, bufferSize) < 0) return -1;
+      return tsDecompressDoubleImp(buffer, nelements, output);
+    } else {
+      assert(0);
+      return -1;
+    }
+#ifdef TD_TSZ
+  }
+#endif
+}
+
+// Binary =====================================================
+int32_t tsCompressString(const char *const input, int32_t inputSize, const int32_t nelements, char *const output,
+                         int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize) {
+  return tsCompressStringImp(input, inputSize, output, outputSize);
+}
+
+int32_t tsDecompressString(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output,
+                           int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize) {
+  return tsDecompressStringImp(input, compressedSize, output, outputSize);
+}
+
+// Bool =====================================================
+int32_t tsCompressBool(const char *const input, int32_t inputSize, const int32_t nelements, char *const output,
+                       int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize) {
+  if (algorithm == ONE_STAGE_COMP) {
+    return tsCompressBoolImp(input, nelements, output);
+  } else if (algorithm == TWO_STAGE_COMP) {
+    int32_t len = tsCompressBoolImp(input, nelements, buffer);
+    return tsCompressStringImp(buffer, len, output, outputSize);
+  } else {
+    assert(0);
+    return -1;
+  }
+}
+
+int32_t tsDecompressBool(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output,
+                         int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize) {
+  if (algorithm == ONE_STAGE_COMP) {
+    return tsDecompressBoolImp(input, nelements, output);
+  } else if (algorithm == TWO_STAGE_COMP) {
+    if (tsDecompressStringImp(input, compressedSize, buffer, bufferSize) < 0) return -1;
+    return tsDecompressBoolImp(buffer, nelements, output);
+  } else {
+    assert(0);
+    return -1;
+  }
+}
+
+// Tinyint =====================================================
+int32_t tsCompressTinyint(const char *const input, int32_t inputSize, const int32_t nelements, char *const output,
+                          int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize) {
+  if (algorithm == ONE_STAGE_COMP) {
+    return tsCompressINTImp(input, nelements, output, TSDB_DATA_TYPE_TINYINT);
+  } else if (algorithm == TWO_STAGE_COMP) {
+    int32_t len = tsCompressINTImp(input, nelements, buffer, TSDB_DATA_TYPE_TINYINT);
+    return tsCompressStringImp(buffer, len, output, outputSize);
+  } else {
+    assert(0);
+    return -1;
+  }
+}
+
+int32_t tsDecompressTinyint(const char *const input, int32_t compressedSize, const int32_t nelements,
+                            char *const output, int32_t outputSize, char algorithm, char *const buffer,
+                            int32_t bufferSize) {
+  if (algorithm == ONE_STAGE_COMP) {
+    return tsDecompressINTImp(input, nelements, output, TSDB_DATA_TYPE_TINYINT);
+  } else if (algorithm == TWO_STAGE_COMP) {
+    if (tsDecompressStringImp(input, compressedSize, buffer, bufferSize) < 0) return -1;
+    return tsDecompressINTImp(buffer, nelements, output, TSDB_DATA_TYPE_TINYINT);
+  } else {
+    assert(0);
+    return -1;
+  }
+}
+
+// Smallint =====================================================
+int32_t tsCompressSmallint(const char *const input, int32_t inputSize, const int32_t nelements, char *const output,
+                           int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize) {
+  if (algorithm == ONE_STAGE_COMP) {
+    return tsCompressINTImp(input, nelements, output, TSDB_DATA_TYPE_SMALLINT);
+  } else if (algorithm == TWO_STAGE_COMP) {
+    int32_t len = tsCompressINTImp(input, nelements, buffer, TSDB_DATA_TYPE_SMALLINT);
+    return tsCompressStringImp(buffer, len, output, outputSize);
+  } else {
+    assert(0);
+    return -1;
+  }
+}
+
+int32_t tsDecompressSmallint(const char *const input, int32_t compressedSize, const int32_t nelements,
+                             char *const output, int32_t outputSize, char algorithm, char *const buffer,
+                             int32_t bufferSize) {
+  if (algorithm == ONE_STAGE_COMP) {
+    return tsDecompressINTImp(input, nelements, output, TSDB_DATA_TYPE_SMALLINT);
+  } else if (algorithm == TWO_STAGE_COMP) {
+    if (tsDecompressStringImp(input, compressedSize, buffer, bufferSize) < 0) return -1;
+    return tsDecompressINTImp(buffer, nelements, output, TSDB_DATA_TYPE_SMALLINT);
+  } else {
+    assert(0);
+    return -1;
+  }
+}
+
+// Int =====================================================
+int32_t tsCompressInt(const char *const input, int32_t inputSize, const int32_t nelements, char *const output,
+                      int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize) {
+  if (algorithm == ONE_STAGE_COMP) {
+    return tsCompressINTImp(input, nelements, output, TSDB_DATA_TYPE_INT);
+  } else if (algorithm == TWO_STAGE_COMP) {
+    int32_t len = tsCompressINTImp(input, nelements, buffer, TSDB_DATA_TYPE_INT);
+    return tsCompressStringImp(buffer, len, output, outputSize);
+  } else {
+    assert(0);
+    return -1;
+  }
+}
+
+int32_t tsDecompressInt(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output,
+                        int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize) {
+  if (algorithm == ONE_STAGE_COMP) {
+    return tsDecompressINTImp(input, nelements, output, TSDB_DATA_TYPE_INT);
+  } else if (algorithm == TWO_STAGE_COMP) {
+    if (tsDecompressStringImp(input, compressedSize, buffer, bufferSize) < 0) return -1;
+    return tsDecompressINTImp(buffer, nelements, output, TSDB_DATA_TYPE_INT);
+  } else {
+    assert(0);
+    return -1;
+  }
+}
+
+// Bigint =====================================================
+int32_t tsCompressBigint(const char *const input, int32_t inputSize, const int32_t nelements, char *const output,
+                         int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize) {
+  if (algorithm == ONE_STAGE_COMP) {
+    return tsCompressINTImp(input, nelements, output, TSDB_DATA_TYPE_BIGINT);
+  } else if (algorithm == TWO_STAGE_COMP) {
+    int32_t len = tsCompressINTImp(input, nelements, buffer, TSDB_DATA_TYPE_BIGINT);
+    return tsCompressStringImp(buffer, len, output, outputSize);
+  } else {
+    assert(0);
+    return -1;
+  }
+}
+
+int32_t tsDecompressBigint(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output,
+                           int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize) {
+  if (algorithm == ONE_STAGE_COMP) {
+    return tsDecompressINTImp(input, nelements, output, TSDB_DATA_TYPE_BIGINT);
+  } else if (algorithm == TWO_STAGE_COMP) {
+    if (tsDecompressStringImp(input, compressedSize, buffer, bufferSize) < 0) return -1;
+    return tsDecompressINTImp(buffer, nelements, output, TSDB_DATA_TYPE_BIGINT);
+  } else {
+    assert(0);
+    return -1;
+  }
+}
