@@ -878,12 +878,18 @@ int hbMgrInit() {
   clientHbMgr.appHbMgrs = taosArrayInit(0, sizeof(void *));
 
   TdThreadMutexAttr attr = {0};
-  taosThreadMutexAttrSetType(&attr, PTHREAD_MUTEX_RECURSIVE);
+
   int ret = taosThreadMutexAttrInit(&attr);
   assert(ret == 0);
 
-  taosThreadMutexInit(&clientHbMgr.lock, &attr);
-  taosThreadMutexAttrDestroy(&attr);
+  ret = taosThreadMutexAttrSetType(&attr, PTHREAD_MUTEX_RECURSIVE);
+  assert(ret == 0);
+
+  ret = taosThreadMutexInit(&clientHbMgr.lock, &attr);
+  assert(ret == 0);
+
+  ret = taosThreadMutexAttrDestroy(&attr);
+  assert(ret == 0);
 
   // init handle funcs
   hbMgrInitHandle();
