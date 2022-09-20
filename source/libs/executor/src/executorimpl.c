@@ -1135,35 +1135,34 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColM
   }
 
   int64_t st1 = taosGetTimestampUs();
-  pError("init completed, el: %d us", st1-st);
+//  pError("init completed, el: %d us", st1 - st);
 
   size_t             numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   SFilterColumnParam param1 = {.numOfCols = numOfCols, .pDataBlock = pBlock->pDataBlock};
   code = filterSetDataFromSlotId(filter, &param1);
 
-    int64_t st2 = taosGetTimestampUs();
-    pError("set data from slotid, el: %d us", st2-st1);
+  int64_t st2 = taosGetTimestampUs();
+//  pError("set data from slotid, el: %d us", st2 - st1);
 
-    int8_t* rowRes = NULL;
+  int8_t* rowRes = NULL;
 
   // todo the keep seems never to be True??
   int32_t status = 0;
-  bool keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols, &status);
+  bool    keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols, &status);
 
   if (pFilterInfo == NULL) {
     filterFreeInfo(filter);
   }
 
-    int64_t st3 = taosGetTimestampUs();
-    pError("do filter, el: %d us", st3-st2);
+  int64_t st3 = taosGetTimestampUs();
 
-    extractQualifiedTupleByFilterResult(pBlock, rowRes, keep, status);
+  extractQualifiedTupleByFilterResult(pBlock, rowRes, keep, status);
 
-    int64_t st4 = taosGetTimestampUs();
+  int64_t st4 = taosGetTimestampUs();
 
-    pError("extract result filter, el: %d us", st4-st3);
+  pError("extract result filter, el: %d us, rows:%d", st4 - st3, pBlock->info.rows);
 
-    if (pColMatchInfo != NULL) {
+  if (pColMatchInfo != NULL) {
     for (int32_t i = 0; i < taosArrayGetSize(pColMatchInfo); ++i) {
       SColMatchInfo* pInfo = taosArrayGet(pColMatchInfo, i);
       if (pInfo->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
@@ -1205,7 +1204,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
 
     blockDataDestroy(px);  // fix memory leak
   } else if (status == FILTER_RESULT_NONE_QUALIFIED) {
-      pBlock->info.rows = 0;
+    pBlock->info.rows = 0;
   } else {
     SSDataBlock* px = createOneDataBlock(pBlock, true);
 
