@@ -18,14 +18,19 @@
 #include "tcommon.h"
 #include "ttimer.h"
 
-SStreamState* streamStateOpen(char* path, SStreamTask* pTask) {
+SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath) {
   SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
   if (pState == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
+
   char statePath[300];
-  sprintf(statePath, "%s/%d", path, pTask->taskId);
+  if (!specPath) {
+    sprintf(statePath, "%s/%d", path, pTask->taskId);
+  } else {
+    memcpy(statePath, path, 300);
+  }
   if (tdbOpen(statePath, 4096, 256, &pState->db) < 0) {
     goto _err;
   }
@@ -135,15 +140,9 @@ int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void*
   if (streamStateGet(pState, key, pVal, pVLen) == 0) {
     return 0;
   }
-  void* tmp = taosMemoryCalloc(1, size);
-  if (streamStatePut(pState, key, &tmp, size) == 0) {
-    taosMemoryFree(tmp);
-    int32_t code = streamStateGet(pState, key, pVal, pVLen);
-    ASSERT(code == 0);
-    return code;
-  }
-  taosMemoryFree(tmp);
-  return -1;
+  *pVal = tdbRealloc(NULL, size);
+  memset(*pVal, 0, size);
+  return 0;
 }
 
 int32_t streamStateReleaseBuf(SStreamState* pState, const SWinKey* key, void* pVal) {
@@ -191,9 +190,14 @@ SStreamStateCur* streamStateSeekKeyNext(SStreamState* pState, const SWinKey* key
   if (pCur == NULL) {
     return NULL;
   }
+  if (tdbTbcOpen(pState->pStateDb, &pCur->pCur, NULL) < 0) {
+    taosMemoryFree(pCur);
+    return NULL;
+  }
 
   int32_t c;
   if (tdbTbcMoveTo(pCur->pCur, key, sizeof(SWinKey), &c) < 0) {
+    tdbTbcClose(pCur->pCur);
     taosMemoryFree(pCur);
     return NULL;
   }
@@ -212,9 +216,14 @@ SStreamStateCur* streamStateSeekKeyPrev(SStreamState* pState, const SWinKey* key
   if (pCur == NULL) {
     return NULL;
   }
+  if (tdbTbcOpen(pState->pStateDb, &pCur->pCur, NULL) < 0) {
+    taosMemoryFree(pCur);
+    return NULL;
+  }
 
   int32_t c;
   if (tdbTbcMoveTo(pCur->pCur, key, sizeof(SWinKey), &c) < 0) {
+    tdbTbcClose(pCur->pCur);
     taosMemoryFree(pCur);
     return NULL;
   }

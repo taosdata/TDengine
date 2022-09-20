@@ -243,14 +243,15 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp
       }
       if (pHandle->fetchMeta) {
         SSubmitBlk* pBlk = pReader->pBlock;
-        if (pBlk->schemaLen > 0) {
+        int32_t schemaLen = htonl(pBlk->schemaLen);
+        if (schemaLen > 0) {
           if (pRsp->createTableNum == 0) {
             pRsp->createTableLen = taosArrayInit(0, sizeof(int32_t));
             pRsp->createTableReq = taosArrayInit(0, sizeof(void*));
           }
-          void* createReq = taosMemoryCalloc(1, pBlk->schemaLen);
-          memcpy(createReq, pBlk->data, pBlk->schemaLen);
-          taosArrayPush(pRsp->createTableLen, &pBlk->schemaLen);
+          void* createReq = taosMemoryCalloc(1, schemaLen);
+          memcpy(createReq, pBlk->data, schemaLen);
+          taosArrayPush(pRsp->createTableLen, &schemaLen);
           taosArrayPush(pRsp->createTableReq, &createReq);
           pRsp->createTableNum++;
         }
@@ -277,14 +278,15 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp
       }
       if (pHandle->fetchMeta) {
         SSubmitBlk* pBlk = pReader->pBlock;
-        if (pBlk->schemaLen > 0) {
+        int32_t schemaLen = htonl(pBlk->schemaLen);
+        if (schemaLen > 0) {
           if (pRsp->createTableNum == 0) {
             pRsp->createTableLen = taosArrayInit(0, sizeof(int32_t));
             pRsp->createTableReq = taosArrayInit(0, sizeof(void*));
           }
-          void* createReq = taosMemoryCalloc(1, pBlk->schemaLen);
-          memcpy(createReq, pBlk->data, pBlk->schemaLen);
-          taosArrayPush(pRsp->createTableLen, &pBlk->schemaLen);
+          void* createReq = taosMemoryCalloc(1, schemaLen);
+          memcpy(createReq, pBlk->data, schemaLen);
+          taosArrayPush(pRsp->createTableLen, &schemaLen);
           taosArrayPush(pRsp->createTableReq, &createReq);
           pRsp->createTableNum++;
         }
