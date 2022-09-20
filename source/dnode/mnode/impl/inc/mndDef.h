@@ -540,7 +540,7 @@ typedef struct {
 } SMqConsumerEp;
 
 SMqConsumerEp* tCloneSMqConsumerEp(const SMqConsumerEp* pEp);
-void           tDeleteSMqConsumerEp(SMqConsumerEp* pEp);
+void           tDeleteSMqConsumerEp(void* pEp);
 int32_t        tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp* pEp);
 void*          tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp);
 
