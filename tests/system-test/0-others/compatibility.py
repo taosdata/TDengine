@@ -76,7 +76,6 @@ class TDTestCase:
 
 
     def run(self):
-        print(f"buildpath:{self.getBuildPath()}")
         bPath=self.getBuildPath()
         cPath=self.getCfgPath()
         dbname = "test"
@@ -85,7 +84,6 @@ class TDTestCase:
         tableNumbers=100
         recordNumbers1=100
         recordNumbers2=1000
-        # print(tdSql)
         tdsqlF=tdCom.newTdSql()
         print(tdsqlF)
         tdsqlF.query(f"SELECT SERVER_VERSION();")
@@ -111,24 +109,32 @@ class TDTestCase:
         self.buildTaosd(bPath)
         tdDnodes.start(1)
         sleep(1)
-        tdsql_new=tdCom.newTdSql()
-        print(tdsql_new)
+        tdsql=tdCom.newTdSql()
+        print(tdsql)
 
 
-        tdsql_new.query(f"SELECT SERVER_VERSION();")
-        nowServerVersion=tdsql_new.queryResult[0][0]
+        tdsql.query(f"SELECT SERVER_VERSION();")
+        nowServerVersion=tdsql.queryResult[0][0]
         tdLog.info(f"New server version is {nowServerVersion}")
-        tdsql_new.query(f"SELECT CLIENT_VERSION();")
-        nowClientVersion=tdsql_new.queryResult[0][0]
+        tdsql.query(f"SELECT CLIENT_VERSION();")
+        nowClientVersion=tdsql.queryResult[0][0]
         tdLog.info(f"New client version is {nowClientVersion}")
 
         tdLog.printNoPrefix(f"==========step3:prepare and check data in new version-{nowServerVersion}")
-        tdsql_new.query(f"select count(*) from {stb}")
-        tdsql_new.checkData(0,0,tableNumbers*recordNumbers1)        
+        tdsql.query(f"select count(*) from {stb}")
+        tdsql.checkData(0,0,tableNumbers*recordNumbers1)        
         os.system(f"taosBenchmark -t {tableNumbers} -n {recordNumbers2} -y  ")
-        tdsql_new.query(f"select count(*) from {stb}")
-        tdsql_new.checkData(0,0,tableNumbers*recordNumbers2)
+        tdsql.query(f"select count(*) from {stb}")
+        tdsql.checkData(0,0,tableNumbers*recordNumbers2)
 
+        tdsql=tdCom.newTdSql()
+        tdLog.printNoPrefix(f"==========step4:verify backticks in taos Sql-TD18542")
+        tdsql.execute("create database db")
+        tdsql.execute("use db")
+        tdsql.execute("create stable db.stb1 (ts timestamp, c1 int) tags (t1 int);")
+        tdsql.execute("insert into db.ct1 using db.stb1 TAGS(9) values(now(),11);")
+        tdsql.error(" insert into `db.ct2` using db.stb1 TAGS(9) values(now(),11);")
+        tdsql.error(" insert into db.`db.ct2` using db.stb1 TAGS(9) values(now(),11);")
 
     def stop(self):
         tdSql.close()
