@@ -1598,6 +1598,8 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
     subReq->length += sizeof(SSubmitBlk) + schemaLen + totalLen;
     subReq->numOfBlocks++;
     taosMemoryFreeClear(pTableMeta);
+    rspObj.resInfo.pRspMsg = NULL;
+    doFreeReqResultInfo(&rspObj.resInfo);
   }
 
   pQuery = (SQuery*)nodesMakeNode(QUERY_NODE_QUERY);
