@@ -1660,6 +1660,7 @@ void tscFreeSubobj(SSqlObj* pSql) {
   if (pSql->subState.numOfSub == 0) {
     goto _out;
   }
+  pSql->subState.version ++;
 
   tscDebug("0x%"PRIx64" start to free sub SqlObj, numOfSub:%d", pSql->self, pSql->subState.numOfSub);
 
@@ -1727,12 +1728,13 @@ SSqlObj* tscAllocSqlObj() {
     return pNew;
 }
 
-SSqlObj* tscAcquireRefOfSubobj(SSqlObj* pSql, int32_t idx) {
+SSqlObj* tscAcquireRefOfSubobj(SSqlObj* pSql, int32_t idx, uint32_t stateVersion) {
     assert (pSql != NULL);
     SSqlObj *pSub = NULL;
 
-    pthread_mutex_lock(&pSql->subState.mutex);
-    if (idx < 0 ||
+    { pthread_mutex_lock(&pSql->subState.mutex);
+    if (stateVersion != tscGetVersionOfSubStateWithoutLock(pSql) ||
+        idx < 0 ||
         idx >= pSql->subState.numOfSub ||
         !pSql->pSubs[idx]) {
         goto _out;
@@ -1741,13 +1743,23 @@ SSqlObj* tscAcquireRefOfSubobj(SSqlObj* pSql, int32_t idx) {
     assert (pSql->pSubs[idx] == pSub && "Refcounted subquery obj mismatch");
 
 _out:
-    pthread_mutex_unlock(&pSql->subState.mutex);
+    pthread_mutex_unlock(&pSql->subState.mutex); }
     return pSub;
 }
 
 void tscReleaseRefOfSubobj(SSqlObj* pSub) {
     assert (pSub != NULL && pSub->self != 0 && "Subquery obj not refcounted");
     taosReleaseRef(tscObjRef, pSub->self);
+}
+
+uint32_t tscGetVersionOfSubStateWithoutLock(SSqlObj *pSql) {
+    return pSql->subState.version;
+}
+
+void tscResetAllSubStates(SSqlObj* pSql) {
+    pthread_mutex_lock(&pSql->subState.mutex);
+    memset(pSql->subState.states, 0, sizeof(pSql->subState.states[0]) * pSql->subState.numOfSub);
+    pthread_mutex_unlock(&pSql->subState.mutex);
 }
 
 void tscFreeSqlObj(SSqlObj* pSql) {
@@ -4203,6 +4215,7 @@ int32_t doReInitSubState(SSqlObj* pSql, int32_t numOfSubqueries) {
     code = TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   pSql->subState.numOfSub = numOfSubqueries;
+  pSql->subState.version ++;
 
   pthread_mutex_unlock(&pSql->subState.mutex); }
   return code;
@@ -4229,6 +4242,7 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       goto _error;
     }
 
+    uint32_t stateVersion = 0;
     int errflag = 0;
     { pthread_mutex_lock(&pSql->subState.mutex);
 
@@ -4284,12 +4298,23 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       numOfInit++;
     }
 
+    stateVersion = tscGetVersionOfSubStateWithoutLock(pSql);
+
     pthread_mutex_unlock(&pSql->subState.mutex); }
-    if (errflag) { goto _error; }
+    if (errflag) {
+        goto _error;
+    }
 
     for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
-      SSqlObj* psub = tscAcquireRefOfSubobj(pSql, i);  // ACQ REF
-      if (!psub) continue;
+      SSqlObj* psub = tscAcquireRefOfSubobj(pSql, i, stateVersion);  // ACQ ref
+      if (!psub) {
+        if (stateVersion == tscGetVersionOfSubStateWithoutLock(pSql)) {
+            continue;
+        }
+        tscError("0x%"PRIx64"subqueries objs reset unexpectedly. numOfSub:%d", pSql->self, pSql->subState.numOfSub);
+        code = TSDB_CODE_FAILED;
+        goto _error;
+      }
 
       // create sub query to handle the sub query.
       SQueryInfo* pq = tscGetQueryInfo(&psub->cmd);
@@ -4300,7 +4325,7 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       }
       executeQuery(psub, pq);
 
-      tscReleaseRefOfSubobj(psub); // REL REF
+      tscReleaseRefOfSubobj(psub); // REL ref
     }
 
     return;

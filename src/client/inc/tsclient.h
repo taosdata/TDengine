@@ -359,6 +359,7 @@ typedef struct SSubqueryState {
   int8_t  *states;
   int32_t  numOfSub;            // the number of total sub-queries
   uint64_t numOfRetrievedRows;  // total number of points in this query
+  uint32_t version;
 } SSubqueryState;
 
 typedef struct SSqlObj {
@@ -434,8 +435,10 @@ typedef struct SSqlStream {
 } SSqlStream;
 
 SSqlObj* tscAllocSqlObj();
-SSqlObj* tscAcquireRefOfSubobj(SSqlObj *pSql, int32_t idx);
+uint32_t tscGetVersionOfSubStateWithoutLock(SSqlObj *pSql);
+SSqlObj* tscAcquireRefOfSubobj(SSqlObj *pSql, int32_t idx, uint32_t stateVersion);
 void tscReleaseRefOfSubobj(SSqlObj *pSql);
+void tscResetAllSubStates(SSqlObj* pSql);
 
 void tscSetStreamDestTable(SSqlStream* pStream, const char* dstTable);
 
