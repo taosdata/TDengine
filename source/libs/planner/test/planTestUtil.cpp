@@ -41,6 +41,7 @@ using namespace testing;
 
 enum DumpModule {
   DUMP_MODULE_NOTHING = 1,
+  DUMP_MODULE_SQL,
   DUMP_MODULE_PARSER,
   DUMP_MODULE_LOGIC,
   DUMP_MODULE_OPTIMIZED,
@@ -56,10 +57,13 @@ int32_t    g_skipSql = 0;
 int32_t    g_limitSql = 0;
 int32_t    g_logLevel = 131;
 int32_t    g_queryPolicy = QUERY_POLICY_VNODE;
+bool       g_useNodeAllocator = false;
 
 void setDumpModule(const char* pModule) {
   if (NULL == pModule) {
     g_dumpModule = DUMP_MODULE_ALL;
+  } else if (0 == strncasecmp(pModule, "sql", strlen(pModule))) {
+    g_dumpModule = DUMP_MODULE_SQL;
   } else if (0 == strncasecmp(pModule, "parser", strlen(pModule))) {
     g_dumpModule = DUMP_MODULE_PARSER;
   } else if (0 == strncasecmp(pModule, "logic", strlen(pModule))) {
@@ -79,10 +83,11 @@ void setDumpModule(const char* pModule) {
   }
 }
 
-void setSkipSqlNum(const char* pNum) { g_skipSql = stoi(pNum); }
-void setLimitSqlNum(const char* pNum) { g_limitSql = stoi(pNum); }
-void setLogLevel(const char* pLogLevel) { g_logLevel = stoi(pLogLevel); }
-void setQueryPolicy(const char* pQueryPolicy) { g_queryPolicy = stoi(pQueryPolicy); }
+void setSkipSqlNum(const char* pArg) { g_skipSql = stoi(pArg); }
+void setLimitSqlNum(const char* pArg) { g_limitSql = stoi(pArg); }
+void setLogLevel(const char* pArg) { g_logLevel = stoi(pArg); }
+void setQueryPolicy(const char* pArg) { g_queryPolicy = stoi(pArg); }
+void setUseNodeAllocator(const char* pArg) { g_useNodeAllocator = stoi(pArg); }
 
 int32_t getLogLevel() { return g_logLevel; }
 
@@ -124,6 +129,12 @@ class PlannerTestBaseImpl {
   }
 
   void runImpl(const string& sql, int32_t queryPolicy) {
+    SNodeAllocator* pAllocator = NULL;
+    if (g_useNodeAllocator) {
+      nodesCreateNodeAllocator(32 * 1024, &pAllocator);
+      nodesResetThreadLevelAllocator(pAllocator);
+    }
+
     reset();
     tsQueryPolicy = queryPolicy;
     try {
@@ -155,8 +166,13 @@ class PlannerTestBaseImpl {
       dump(g_dumpModule);
     } catch (...) {
       dump(DUMP_MODULE_ALL);
+      nodesDestroyNodeAllocator(pAllocator);
+      nodesResetThreadLevelAllocator(NULL);
       throw;
     }
+
+    nodesDestroyNodeAllocator(pAllocator);
+    nodesResetThreadLevelAllocator(NULL);
   }
 
   void prepare(const string& sql) {
@@ -216,6 +232,8 @@ class PlannerTestBaseImpl {
       doCreatePhysiPlan(&cxt, pLogicPlan, &pPlan);
       unique_ptr<SQueryPlan, void (*)(SQueryPlan*)> plan(pPlan, (void (*)(SQueryPlan*))nodesDestroyNode);
 
+      checkPlanMsg((SNode*)pPlan);
+
       dump(g_dumpModule);
     } catch (...) {
       dump(DUMP_MODULE_ALL);
@@ -252,7 +270,6 @@ class PlannerTestBaseImpl {
     string         splitLogicPlan_;
     string         scaledLogicPlan_;
     string         physiPlan_;
-    string         physiPlanMsg_;
     vector<string> physiSubplans_;
   };
 
@@ -276,16 +293,15 @@ class PlannerTestBaseImpl {
     res_.splitLogicPlan_.clear();
     res_.scaledLogicPlan_.clear();
     res_.physiPlan_.clear();
-    res_.physiPlanMsg_.clear();
     res_.physiSubplans_.clear();
   }
 
   void dump(DumpModule module) {
-    cout << "========================================== " << sqlNo_ << " sql : [" << stmtEnv_.sql_ << "]" << endl;
-
     if (DUMP_MODULE_NOTHING == module) {
       return;
     }
+
+    cout << "========================================== " << sqlNo_ << " sql : [" << stmtEnv_.sql_ << "]" << endl;
 
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_PARSER == module) {
       if (res_.prepareAst_.empty()) {
@@ -411,8 +427,6 @@ class PlannerTestBaseImpl {
       SNode* pSubplan;
       FOREACH(pSubplan, ((SNodeListNode*)pNode)->pNodeList) { res_.physiSubplans_.push_back(toString(pSubplan)); }
     }
-    res_.physiPlanMsg_ = toMsg((SNode*)(*pPlan));
-    cout << "json len: " << res_.physiPlan_.length() << ", msg len: " << res_.physiPlanMsg_.length() << endl;
   }
 
   void setPlanContext(SQuery* pQuery, SPlanContext* pCxt) {
@@ -451,27 +465,16 @@ class PlannerTestBaseImpl {
   string toString(const SNode* pRoot) {
     char*   pStr = NULL;
     int32_t len = 0;
-
-    auto start = chrono::steady_clock::now();
     DO_WITH_THROW(nodesNodeToString, pRoot, false, &pStr, &len)
-    if (QUERY_NODE_PHYSICAL_PLAN == nodeType(pRoot)) {
-      cout << "nodesNodeToString: "
-           << chrono::duration_cast<chrono::microseconds>(chrono::steady_clock::now() - start).count() << "us" << endl;
-    }
-
     string str(pStr);
     taosMemoryFreeClear(pStr);
     return str;
   }
 
-  string toMsg(const SNode* pRoot) {
+  void checkPlanMsg(const SNode* pRoot) {
     char*   pStr = NULL;
     int32_t len = 0;
-
-    auto start = chrono::steady_clock::now();
     DO_WITH_THROW(nodesNodeToMsg, pRoot, &pStr, &len)
-    cout << "nodesNodeToMsg: "
-         << chrono::duration_cast<chrono::microseconds>(chrono::steady_clock::now() - start).count() << "us" << endl;
 
     string  copyStr(pStr, len);
     SNode*  pNode = NULL;
@@ -491,9 +494,7 @@ class PlannerTestBaseImpl {
     nodesDestroyNode(pNode);
     taosMemoryFreeClear(pNewStr);
 
-    string str(pStr, len);
     taosMemoryFreeClear(pStr);
-    return str;
   }
 
   caseEnv caseEnv_;

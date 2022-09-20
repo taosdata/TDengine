@@ -275,6 +275,12 @@ typedef struct SNodeList {
   SListCell* pTail;
 } SNodeList;
 
+typedef struct SNodeAllocator SNodeAllocator;
+
+int32_t nodesCreateNodeAllocator(int32_t chunkSize, SNodeAllocator** pAllocator);
+void    nodesDestroyNodeAllocator(SNodeAllocator* pAllocator);
+void    nodesResetThreadLevelAllocator(SNodeAllocator* pAllocator);
+
 SNode* nodesMakeNode(ENodeType type);
 void   nodesDestroyNode(SNode* pNode);
 
