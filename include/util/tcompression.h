@@ -83,6 +83,9 @@ static FORCE_INLINE int32_t tsDecompressDoubleLossy(const char *const input, int
 
 #endif
 
+/*************************************************************************
+ *                  REGULAR COMPRESSION
+ *************************************************************************/
 int32_t tsCompressTimestamp(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
                             int32_t nBuf);
 int32_t tsDecompressTimestamp(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg,
@@ -119,6 +122,17 @@ int32_t tsCompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32
                          int32_t nBuf);
 int32_t tsDecompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
                            int32_t nBuf);
+
+/*************************************************************************
+ *                  STREAM COMPRESSION
+ *************************************************************************/
+typedef struct SCompressor SCompressor;
+
+int32_t tCompressorCreate(SCompressor **ppCmprsor);
+int32_t tCompressorDestroy(SCompressor *pCmprsor);
+int32_t tCompressorReset(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg, int8_t autoAlloc);
+int32_t tCompGen(SCompressor *pCmprsor, const uint8_t **ppData, int64_t *nData);
+int32_t tCompress(SCompressor *pCmprsor, const void *pData, int64_t nData);
 
 #ifdef __cplusplus
 }

@@ -1000,7 +1000,6 @@ int32_t tsDecompressDoubleLossyImp(const char *input, int32_t compressedSize, co
  *                  STREAM COMPRESSION
  *************************************************************************/
 #define I64_SAFE_ADD(a, b) (((a) >= 0 && (b) <= INT64_MAX - (b)) || ((a) < 0 && (b) >= INT64_MIN - (a)))
-typedef struct SCompressor SCompressor;
 
 static int32_t tCompBool(SCompressor *pCmprsor, const void *pData, int32_t nData);
 static int32_t tCompInt(SCompressor *pCmprsor, const void *pData, int32_t nData);
