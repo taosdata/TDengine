@@ -32,9 +32,9 @@ To obtain the URL, please login [TDengine Cloud](https://cloud.tdengine.com) and
 #### TDengine Cloud Token
 
 
-!---```bash--->
-!---<cloud_token>--->
-!---```--->
+<!---```bash--->
+<!---<cloud_token>--->
+<!---```--->
 
 <!-- exclude -->
 
