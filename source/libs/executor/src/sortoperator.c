@@ -216,7 +216,7 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
       return NULL;
     }
 
-    doFilter(pInfo->pCondition, pBlock, pInfo->pColMatchInfo);
+    doFilter(pInfo->pCondition, pBlock, pInfo->pColMatchInfo, NULL);
     if (blockDataGetNumOfRows(pBlock) == 0) {
       continue;
     }
