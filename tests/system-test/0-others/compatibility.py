@@ -129,12 +129,22 @@ class TDTestCase:
 
         tdsql=tdCom.newTdSql()
         tdLog.printNoPrefix(f"==========step4:verify backticks in taos Sql-TD18542")
+        tdsql.execute("drop database if exists db")
         tdsql.execute("create database db")
         tdsql.execute("use db")
         tdsql.execute("create stable db.stb1 (ts timestamp, c1 int) tags (t1 int);")
-        tdsql.execute("insert into db.ct1 using db.stb1 TAGS(9) values(now(),11);")
+        tdsql.execute("insert into db.ct1 using db.stb1 TAGS(1) values(now(),11);")
         tdsql.error(" insert into `db.ct2` using db.stb1 TAGS(9) values(now(),11);")
         tdsql.error(" insert into db.`db.ct2` using db.stb1 TAGS(9) values(now(),11);")
+        tdsql.execute("insert into `db`.ct3 using db.stb1 TAGS(3) values(now(),13);")
+        tdsql.query("select * from db.ct3")
+        tdsql.checkData(0,1,13)
+        tdsql.execute("insert into db.`ct4` using db.stb1 TAGS(4) values(now(),14);")
+        tdsql.query("select * from db.ct4")
+        tdsql.checkData(0,1,14)
+        tdsql.query("describe  information_schema.ins_databases;")
+        # for i in  tdsql.queryResult[i][0]:
+        #     tdsql.checkData(0,1,13)
 
     def stop(self):
         tdSql.close()

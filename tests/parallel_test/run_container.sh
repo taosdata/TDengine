@@ -93,7 +93,7 @@ if [ ! -d "${TMP_DIR}/thread_volume/$thread_no/$exec_dir" ]; then
     cp -rf ${REPDIR}/tests/$subdir ${TMP_DIR}/thread_volume/$thread_no/
 fi
 
-if [ ! -d "${SOURCEDIR}/${packageName}" ]; then
+if [ ! -f "${SOURCEDIR}/${packageName}" ]; then
      wget -P  ${SOURCEDIR} https://taosdata.com/assets-download/3.0/${packageName}
 fi
 
