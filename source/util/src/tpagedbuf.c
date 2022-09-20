@@ -284,7 +284,6 @@ static char* evacOneDataPage(SDiskbasedBuf* pBuf) {
 
   // all pages are referenced by user, try to allocate new space
   if (pn == NULL) {
-    assert(0);
     int32_t prev = pBuf->inMemPages;
 
     // increase by 50% of previous mem pages
@@ -304,7 +303,6 @@ static char* evacOneDataPage(SDiskbasedBuf* pBuf) {
     bufPage = flushPageToDisk(pBuf, d);
   }
 
-  ASSERT((bufPage != NULL) || terrno != TSDB_CODE_SUCCESS);
   return bufPage;
 }
 
@@ -377,12 +375,6 @@ void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t* pageId) {
   char* availablePage = NULL;
   if (NO_IN_MEM_AVAILABLE_PAGES(pBuf)) {
     availablePage = evacOneDataPage(pBuf);
-
-    // Failed to allocate a new buffer page, and there is an error occurs.
-    if (availablePage == NULL) {
-      assert(0);
-      return NULL;
-    }
   }
 
   SPageInfo* pi = NULL;
