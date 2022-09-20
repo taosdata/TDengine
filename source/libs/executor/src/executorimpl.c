@@ -1126,7 +1126,7 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColM
 
   int64_t st = taosGetTimestampUs();
 
-  pError("start filter");
+//  pError("start filter");
 
   // todo move to the initialization function
   int32_t code = 0;
@@ -1160,7 +1160,7 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColM
 
   int64_t st4 = taosGetTimestampUs();
 
-  pError("extract result filter, el: %d us, rows:%d, status:%d", st4 - st3, pBlock->info.rows, status);
+//  pError("extract result filter, el: %d us, rows:%d, status:%d", st4 - st3, pBlock->info.rows, status);
 
   if (pColMatchInfo != NULL) {
     for (int32_t i = 0; i < taosArrayGetSize(pColMatchInfo); ++i) {
