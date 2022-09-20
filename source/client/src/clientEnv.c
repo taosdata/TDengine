@@ -349,6 +349,7 @@ void doDestroyRequest(void *p) {
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->dbList);
   taosArrayDestroy(pRequest->targetTableList);
+  nodesDestroyNodeAllocator(pRequest->pNodeAllocator);
 
   destroyQueryExecRes(&pRequest->body.resInfo.execRes);
 

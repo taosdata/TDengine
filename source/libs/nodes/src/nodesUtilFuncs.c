@@ -58,9 +58,9 @@ static SNodeMemChunk* callocNodeChunk(SNodeAllocator* pAllocator) {
   return pNewChunk;
 }
 
-static void* nodesCalloc(int32_t num, int32_t size) {
+static void* nodesCallocImpl(int32_t size) {
   if (NULL == pNodeAllocator) {
-    return taosMemoryCalloc(num, size);
+    return taosMemoryCalloc(1, size);
   }
 
   if (pNodeAllocator->pCurrChunk->usedSize + size > pNodeAllocator->pCurrChunk->availableSize) {
@@ -73,9 +73,19 @@ static void* nodesCalloc(int32_t num, int32_t size) {
   return p;
 }
 
+static void* nodesCalloc(int32_t num, int32_t size) {
+  void* p = nodesCallocImpl(num * size + 1);
+  if (NULL == p) {
+    return NULL;
+  }
+  *(char*)p = (NULL != pNodeAllocator) ? 1 : 0;
+  return (char*)p + 1;
+}
+
 static void nodesFree(void* p) {
-  if (NULL == pNodeAllocator) {
-    taosMemoryFree(p);
+  char* ptr = (char*)p - 1;
+  if (0 == *ptr) {
+    taosMemoryFree(ptr);
   }
   return;
 }
