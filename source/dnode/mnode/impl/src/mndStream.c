@@ -671,7 +671,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
   }
-  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb);
+  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb); // hack way
   mDebug("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
 
   // create stb for stream

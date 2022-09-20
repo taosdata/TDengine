@@ -141,11 +141,8 @@ int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
   ASSERT(taosArrayGetSize(pRsp->blockData) == pRsp->blockNum);
   ASSERT(taosArrayGetSize(pRsp->blockDataLen) == pRsp->blockNum);
 
-  if (pRsp->withSchema) {
-    ASSERT(taosArrayGetSize(pRsp->blockSchema) == pRsp->blockNum);
-  } else {
-    ASSERT(taosArrayGetSize(pRsp->blockSchema) == 0);
-  }
+  ASSERT(!pRsp->withSchema);
+  ASSERT(taosArrayGetSize(pRsp->blockSchema) == 0);
 
   if (pRsp->reqOffset.type == TMQ_OFFSET__LOG) {
     if (pRsp->blockNum > 0) {
@@ -760,7 +757,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask) {
 
   // expand executor
   if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
-    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask);
+    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false);
     if (pTask->pState == NULL) {
       return -1;
     }
@@ -774,7 +771,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask) {
     pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);
     ASSERT(pTask->exec.executor);
   } else if (pTask->taskLevel == TASK_LEVEL__AGG) {
-    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask);
+    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false);
     if (pTask->pState == NULL) {
       return -1;
     }
@@ -832,7 +829,7 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
   tDecoderClear(pCoder);
 
   int32_t sz = taosArrayGetSize(pRes->uidList);
-  if (sz == 0) {
+  if (sz == 0 || pRes->affectedRows == 0) {
     taosArrayDestroy(pRes->uidList);
     return 0;
   }

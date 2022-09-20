@@ -184,6 +184,7 @@ db_options(A) ::= db_options(B) KEEP integer_list(C).                           
 db_options(A) ::= db_options(B) KEEP variable_list(C).                            { A = setDatabaseOption(pCxt, B, DB_OPTION_KEEP, C); }
 db_options(A) ::= db_options(B) PAGES NK_INTEGER(C).                              { A = setDatabaseOption(pCxt, B, DB_OPTION_PAGES, &C); }
 db_options(A) ::= db_options(B) PAGESIZE NK_INTEGER(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_PAGESIZE, &C); }
+db_options(A) ::= db_options(B) TSDB_PAGESIZE NK_INTEGER(C).                      { A = setDatabaseOption(pCxt, B, DB_OPTION_TSDB_PAGESIZE, &C); }
 db_options(A) ::= db_options(B) PRECISION NK_STRING(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_PRECISION, &C); }
 db_options(A) ::= db_options(B) REPLICA NK_INTEGER(C).                            { A = setDatabaseOption(pCxt, B, DB_OPTION_REPLICA, &C); }
 db_options(A) ::= db_options(B) STRICT NK_STRING(C).                              { A = setDatabaseOption(pCxt, B, DB_OPTION_STRICT, &C); }
@@ -207,7 +208,7 @@ db_options(A) ::= db_options(B) WAL_RETENTION_SIZE NK_MINUS(D) NK_INTEGER(C).   
                                                                                   }
 db_options(A) ::= db_options(B) WAL_ROLL_PERIOD NK_INTEGER(C).                    { A = setDatabaseOption(pCxt, B, DB_OPTION_WAL_ROLL_PERIOD, &C); }
 db_options(A) ::= db_options(B) WAL_SEGMENT_SIZE NK_INTEGER(C).                   { A = setDatabaseOption(pCxt, B, DB_OPTION_WAL_SEGMENT_SIZE, &C); }
-db_options(A) ::= db_options(B) SST_TRIGGER NK_INTEGER(C).                        { A = setDatabaseOption(pCxt, B, DB_OPTION_SST_TRIGGER, &C); }
+db_options(A) ::= db_options(B) STT_TRIGGER NK_INTEGER(C).                        { A = setDatabaseOption(pCxt, B, DB_OPTION_STT_TRIGGER, &C); }
 db_options(A) ::= db_options(B) TABLE_PREFIX NK_INTEGER(C).                       { A = setDatabaseOption(pCxt, B, DB_OPTION_TABLE_PREFIX, &C); }
 db_options(A) ::= db_options(B) TABLE_SUFFIX NK_INTEGER(C).                       { A = setDatabaseOption(pCxt, B, DB_OPTION_TABLE_SUFFIX, &C); }
 
@@ -226,7 +227,7 @@ alter_db_option(A) ::= KEEP variable_list(B).                                   
 //alter_db_option(A) ::= REPLICA NK_INTEGER(B).                                     { A.type = DB_OPTION_REPLICA; A.val = B; }
 //alter_db_option(A) ::= STRICT NK_STRING(B).                                       { A.type = DB_OPTION_STRICT; A.val = B; }
 alter_db_option(A) ::= WAL_LEVEL NK_INTEGER(B).                                   { A.type = DB_OPTION_WAL; A.val = B; }
-alter_db_option(A) ::= SST_TRIGGER NK_INTEGER(B).                                 { A.type = DB_OPTION_SST_TRIGGER; A.val = B; }
+alter_db_option(A) ::= STT_TRIGGER NK_INTEGER(B).                                 { A.type = DB_OPTION_STT_TRIGGER; A.val = B; }
 
 %type integer_list                                                                { SNodeList* }
 %destructor integer_list                                                          { nodesDestroyList($$); }
@@ -451,7 +452,7 @@ sma_stream_opt(A) ::= stream_options(B) WATERMARK duration_literal(C).          
 sma_stream_opt(A) ::= stream_options(B) MAX_DELAY duration_literal(C).            { ((SStreamOptions*)B)->pDelay = releaseRawExprNode(pCxt, C); A = B; }
 
 /************************************************ create/drop topic ***************************************************/
-cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) AS query_expression(C).      { pCxt->pRootNode = createCreateTopicStmtUseQuery(pCxt, A, &B, C); }
+cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) AS query_or_subquery(C).     { pCxt->pRootNode = createCreateTopicStmtUseQuery(pCxt, A, &B, C); }
 cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) AS DATABASE db_name(C).      { pCxt->pRootNode = createCreateTopicStmtUseDb(pCxt, A, &B, &C, false); }
 cmd ::= CREATE TOPIC not_exists_opt(A) topic_name(B) 
   WITH META AS DATABASE db_name(C).                                               { pCxt->pRootNode = createCreateTopicStmtUseDb(pCxt, A, &B, &C, true); }
@@ -470,7 +471,7 @@ cmd ::= DESCRIBE full_table_name(A).                                            
 cmd ::= RESET QUERY CACHE.                                                        { pCxt->pRootNode = createResetQueryCacheStmt(pCxt); }
 
 /************************************************ explain *************************************************************/
-cmd ::= EXPLAIN analyze_opt(A) explain_options(B) query_expression(C).            { pCxt->pRootNode = createExplainStmt(pCxt, A, B, C); }
+cmd ::= EXPLAIN analyze_opt(A) explain_options(B) query_or_subquery(C).           { pCxt->pRootNode = createExplainStmt(pCxt, A, B, C); }
 
 %type analyze_opt                                                                 { bool }
 %destructor analyze_opt                                                           { }
@@ -501,7 +502,7 @@ bufsize_opt(A) ::= BUFSIZE NK_INTEGER(B).                                       
 
 /************************************************ create/drop stream **************************************************/
 cmd ::= CREATE STREAM not_exists_opt(E) stream_name(A)
-  stream_options(B) INTO full_table_name(C) AS query_expression(D).               { pCxt->pRootNode = createCreateStreamStmt(pCxt, E, &A, C, B, D); }
+  stream_options(B) INTO full_table_name(C) AS query_or_subquery(D).              { pCxt->pRootNode = createCreateStreamStmt(pCxt, E, &A, C, B, D); }
 cmd ::= DROP STREAM exists_opt(A) stream_name(B).                                 { pCxt->pRootNode = createDropStreamStmt(pCxt, A, &B); }
 
 stream_options(A) ::= .                                                           { A = createStreamOptions(pCxt); }
@@ -534,12 +535,12 @@ dnode_list(A) ::= dnode_list(B) DNODE NK_INTEGER(C).                            
 cmd ::= DELETE FROM full_table_name(A) where_clause_opt(B).                       { pCxt->pRootNode = createDeleteStmt(pCxt, A, B); }
 
 /************************************************ select **************************************************************/
-cmd ::= query_expression(A).                                                      { pCxt->pRootNode = A; }
+cmd ::= query_or_subquery(A).                                                     { pCxt->pRootNode = A; }
 
 /************************************************ insert **************************************************************/
 cmd ::= INSERT INTO full_table_name(A) 
-  NK_LP col_name_list(B) NK_RP query_expression(C).                               { pCxt->pRootNode = createInsertStmt(pCxt, A, B, C); }
-cmd ::= INSERT INTO full_table_name(A) query_expression(B).                       { pCxt->pRootNode = createInsertStmt(pCxt, A, NULL, B); }
+  NK_LP col_name_list(B) NK_RP query_or_subquery(C).                              { pCxt->pRootNode = createInsertStmt(pCxt, A, B, C); }
+cmd ::= INSERT INTO full_table_name(A) query_or_subquery(B).                      { pCxt->pRootNode = createInsertStmt(pCxt, A, NULL, B); }
 
 /************************************************ literal *************************************************************/
 literal(A) ::= NK_INTEGER(B).                                                     { A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_UBIGINT, &B)); }
@@ -935,28 +936,26 @@ every_opt(A) ::= .                                                              
 every_opt(A) ::= EVERY NK_LP duration_literal(B) NK_RP.                           { A = releaseRawExprNode(pCxt, B); }
 
 /************************************************ query_expression ****************************************************/
-query_expression(A) ::= 
-  query_expression_body(B) 
-    order_by_clause_opt(C) slimit_clause_opt(D) limit_clause_opt(E).              { 
+query_expression(A) ::= query_simple(B) 
+  order_by_clause_opt(C) slimit_clause_opt(D) limit_clause_opt(E).                {
                                                                                     A = addOrderByClause(pCxt, B, C);
                                                                                     A = addSlimitClause(pCxt, A, D);
                                                                                     A = addLimitClause(pCxt, A, E);
                                                                                   }
 
-query_expression_body(A) ::= query_primary(B).                                    { A = B; }
-query_expression_body(A) ::=
-  query_expression_body(B) UNION ALL query_expression_body(D).                    { A = createSetOperator(pCxt, SET_OP_TYPE_UNION_ALL, B, D); }
-query_expression_body(A) ::=
-  query_expression_body(B) UNION query_expression_body(D).                        { A = createSetOperator(pCxt, SET_OP_TYPE_UNION, B, D); }
+query_simple(A) ::= query_specification(B).                                       { A = B; }
+query_simple(A) ::= union_query_expression(B).                                    { A = B; }
 
-query_primary(A) ::= query_specification(B).                                      { A = B; }
-query_primary(A) ::=
-  NK_LP query_expression_body(B) 
-    order_by_clause_opt(C) slimit_clause_opt(D) limit_clause_opt(E) NK_RP.        { 
-                                                                                    A = addOrderByClause(pCxt, B, C);
-                                                                                    A = addSlimitClause(pCxt, A, D);
-                                                                                    A = addLimitClause(pCxt, A, E);
-                                                                                  }
+union_query_expression(A) ::=
+  query_simple_or_subquery(B) UNION ALL query_simple_or_subquery(C).              { A = createSetOperator(pCxt, SET_OP_TYPE_UNION_ALL, B, C); }
+union_query_expression(A) ::=
+  query_simple_or_subquery(B) UNION query_simple_or_subquery(C).                  { A = createSetOperator(pCxt, SET_OP_TYPE_UNION, B, C); }
+
+query_simple_or_subquery(A) ::= query_simple(B).                                  { A = B; }
+query_simple_or_subquery(A) ::= subquery(B).                                      { A = releaseRawExprNode(pCxt, B); }
+
+query_or_subquery(A) ::= query_expression(B).                                     { A = B; }
+query_or_subquery(A) ::= subquery(B).                                             { A = releaseRawExprNode(pCxt, B); }
 
 %type order_by_clause_opt                                                         { SNodeList* }
 %destructor order_by_clause_opt                                                   { nodesDestroyList($$); }

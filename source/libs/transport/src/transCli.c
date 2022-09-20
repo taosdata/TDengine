@@ -374,10 +374,12 @@ void cliHandleResp(SCliConn* conn) {
 
   if (pCtx == NULL && CONN_NO_PERSIST_BY_APP(conn)) {
     tDebug("%s except, conn %p read while cli ignore it", CONN_GET_INST_LABEL(conn), conn);
+    transFreeMsg(transMsg.pCont);
     return;
   }
   if (CONN_RELEASE_BY_SERVER(conn) && transMsg.info.ahandle == NULL) {
     tDebug("%s except, conn %p read while cli ignore it", CONN_GET_INST_LABEL(conn), conn);
+    transFreeMsg(transMsg.pCont);
     return;
   }
 
@@ -393,7 +395,7 @@ void cliHandleResp(SCliConn* conn) {
   }
 
   if (CONN_NO_PERSIST_BY_APP(conn)) {
-    addConnToPool(pThrd->pool, conn);
+    return addConnToPool(pThrd->pool, conn);
   }
 
   uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
@@ -1496,9 +1498,7 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
   pCtx->ahandle = pReq->info.ahandle;
   pCtx->msgType = pReq->msgType;
 
-  if (ctx != NULL) {
-    pCtx->appCtx = *ctx;
-  }
+  if (ctx != NULL) pCtx->appCtx = *ctx;
 
   SCliMsg* cliMsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   cliMsg->ctx = pCtx;

@@ -268,7 +268,7 @@ int walRollFileInfo(SWal* pWal) {
 char* walMetaSerialize(SWal* pWal) {
   char buf[30];
   ASSERT(pWal->fileInfoSet);
-  int    sz = pWal->fileInfoSet->size;
+  int    sz = taosArrayGetSize(pWal->fileInfoSet);
   cJSON* pRoot = cJSON_CreateObject();
   cJSON* pMeta = cJSON_CreateObject();
   cJSON* pFiles = cJSON_CreateArray();
@@ -384,8 +384,10 @@ static int walFindCurMetaVer(SWal* pWal) {
     int   code = regexec(&walMetaRegexPattern, name, 0, NULL, 0);
     if (code == 0) {
       sscanf(name, "meta-ver%d", &metaVer);
+      wDebug("vgId:%d, wal find current meta: %s is the meta file, ver %d", pWal->cfg.vgId, name, metaVer);
       break;
     }
+    wDebug("vgId:%d, wal find current meta: %s is not meta file", pWal->cfg.vgId, name);
   }
   taosCloseDir(&pDir);
   regfree(&walMetaRegexPattern);
@@ -422,6 +424,7 @@ int walLoadMeta(SWal* pWal) {
   // find existing meta file
   int metaVer = walFindCurMetaVer(pWal);
   if (metaVer == -1) {
+    wDebug("vgId:%d wal find meta ver %d", pWal->cfg.vgId, metaVer);
     return -1;
   }
   char fnameStr[WAL_FILE_LEN];

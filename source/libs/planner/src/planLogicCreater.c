@@ -1373,7 +1373,19 @@ static int32_t createDeleteAggLogicNode(SLogicPlanContext* pCxt, SDeleteStmt* pD
 
   int32_t code = nodesListMakeStrictAppend(&pAgg->pAggFuncs, nodesCloneNode(pDelete->pCountFunc));
   if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListStrictAppend(pAgg->pAggFuncs, nodesCloneNode(pDelete->pFirstFunc));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListStrictAppend(pAgg->pAggFuncs, nodesCloneNode(pDelete->pLastFunc));
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExpr(pAgg->pAggFuncs, &pDelete->pCountFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteExpr(pAgg->pAggFuncs, &pDelete->pFirstFunc);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteExpr(pAgg->pAggFuncs, &pDelete->pLastFunc);
   }
   // set the output
   if (TSDB_CODE_SUCCESS == code) {
@@ -1405,7 +1417,9 @@ static int32_t createVnodeModifLogicNodeByDelete(SLogicPlanContext* pCxt, SDelet
   strcpy(pModify->tsColName, pRealTable->pMeta->schema->name);
   pModify->deleteTimeRange = pDelete->timeRange;
   pModify->pAffectedRows = nodesCloneNode(pDelete->pCountFunc);
-  if (NULL == pModify->pAffectedRows) {
+  pModify->pStartTs = nodesCloneNode(pDelete->pFirstFunc);
+  pModify->pEndTs = nodesCloneNode(pDelete->pLastFunc);
+  if (NULL == pModify->pAffectedRows || NULL == pModify->pStartTs || NULL == pModify->pEndTs) {
     nodesDestroyNode((SNode*)pModify);
     return TSDB_CODE_OUT_OF_MEMORY;
   }

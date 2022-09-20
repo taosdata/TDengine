@@ -104,7 +104,7 @@ SELECT location, groupid, current FROM d1001 LIMIT 2;
 
 ### 结果去重
 
-`DISINTCT` 关键字可以对结果集中的一列或多列进行去重，去除的列既可以是标签列也可以是数据列。
+`DISTINCT` 关键字可以对结果集中的一列或多列进行去重，去除的列既可以是标签列也可以是数据列。
 
 对标签列去重：
 
@@ -136,6 +136,8 @@ taos> SELECT ts, ts AS primary_key_ts FROM d1001;
 但是针对`first(*)`、`last(*)`、`last_row(*)`不支持针对单列的重命名。
 
 ### 伪列
+
+**伪列**: 伪列的行为表现与普通数据列相似但其并不实际存储在表中。可以查询伪列，但不能对其做插入、更新和删除的操作。伪列有点像没有参数的函数。下面介绍是可用的伪列：
 
 **TBNAME**
 `TBNAME` 可以视为超级表中一个特殊的标签，代表子表的表名。
@@ -356,7 +358,7 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 - 与非嵌套的查询语句相比，外层查询所能支持的功能特性存在如下限制：
   - 计算函数部分：
     - 如果内层查询的结果数据未提供时间戳，那么计算过程隐式依赖时间戳的函数在外层会无法正常工作。例如：INTERP, DERIVATIVE, IRATE, LAST_ROW, FIRST, LAST, TWA, STATEDURATION, TAIL, UNIQUE。
-    - 如果内层查询的结果数据不是有效的时间序列，那么计算过程依赖数据为时间序列的函数在外层会无法正常工作。例如：LEASTSQUARES, ELAPSED, INTERP, DERIVATIVE, IRATE, TWA, DIFF, STATECOUNT, STATEDURATION, CSUM, MAVG, TAIL, UNIQUE。
+    - 如果内层查询的结果数据不是按时间戳有序，那么计算过程依赖数据按时间有序的函数在外层会无法正常工作。例如：LEASTSQUARES, ELAPSED, INTERP, DERIVATIVE, IRATE, TWA, DIFF, STATECOUNT, STATEDURATION, CSUM, MAVG, TAIL, UNIQUE。
     - 计算过程需要两遍扫描的函数，在外层查询中无法正常工作。例如：此类函数包括：PERCENTILE。
 
 :::

@@ -400,6 +400,9 @@ int tsem_init(tsem_t *psem, int flags, unsigned int count) {
 }
 
 int tsem_destroy(tsem_t *psem) {
+  if (psem == NULL || *psem == NULL) return -1;
+  dispatch_release(*psem);
+  *psem = NULL;
   return 0;
 }
 
@@ -421,13 +424,7 @@ int tsem_timewait(tsem_t *psem, int64_t nanosecs) {
   return 0;
 }
 
-bool taosCheckPthreadValid(TdThread thread) {
-  int32_t ret = taosThreadKill(thread, 0);
-  if (ret == ESRCH) return false;
-  if (ret == EINVAL) return false;
-  // alive
-  return true;
-}
+bool taosCheckPthreadValid(TdThread thread) { return thread != 0; }
 
 int64_t taosGetSelfPthreadId() {
   TdThread thread = taosThreadSelf();
