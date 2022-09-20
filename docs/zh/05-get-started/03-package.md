@@ -73,6 +73,7 @@ install.sh 安装脚本在执行过程中，会通过命令行交互界面询问
 </TabItem>
 
 <TabItem value="apt-get" label="apt-get">
+
 可以使用 `apt-get` 工具从官方仓库安装。
 
 **配置包仓库**

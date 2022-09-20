@@ -617,19 +617,29 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
   // if scan table by table
   if (pInfo->scanMode == TABLE_SCAN__TABLE_ORDER) {
-    if (pInfo->noTable) return NULL;
+    if (pInfo->noTable) {
+      return NULL;
+    }
+
+    int32_t numOfTables = taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList);
+
     while (1) {
       SSDataBlock* result = doTableScanGroup(pOperator);
       if (result) {
         return result;
       }
+
       // if no data, switch to next table and continue scan
       pInfo->currentTable++;
-      if (pInfo->currentTable >= taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList)) {
+      if (pInfo->currentTable >= numOfTables) {
         return NULL;
       }
+
       STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, pInfo->currentTable);
       tsdbSetTableId(pInfo->dataReader, pTableInfo->uid);
+      qDebug("set uid:%" PRIu64 " into scanner, total tables:%d, index:%d %s", pTableInfo->uid, numOfTables,
+             pInfo->currentTable, pTaskInfo->id.str);
+
       tsdbReaderReset(pInfo->dataReader, &pInfo->cond);
       pInfo->scanTimes = 0;
     }
@@ -1321,8 +1331,9 @@ static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock
     // must check update info first.
     bool update = updateInfoIsUpdated(pInfo->pUpdateInfo, pBlock->info.uid, tsCol[rowId]);
     bool closedWin = isClosed && isSignleIntervalWindow(pInfo) &&
-                     isDeletedWindow(&win, pBlock->info.groupId, pInfo->windowSup.pIntervalAggSup);
+                     isDeletedStreamWindow(&win, pBlock->info.groupId, pInfo->pTableScanOp, &pInfo->twAggSup);
     if ((update || closedWin) && out) {
+      qDebug("stream update check not pass, update %d, closedWin %d", update, closedWin);
       uint64_t gpId = closedWin && pInfo->partitionSup.needCalc
                           ? calGroupIdByData(&pInfo->partitionSup, pInfo->pPartScalarSup, pBlock, rowId)
                           : 0;
@@ -1769,6 +1780,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
       qDebug("tmqsnap change get data uid:%ld", mtInfo.uid);
       qStreamPrepareScan(pTaskInfo, &pTaskInfo->streamInfo.prepareStatus, pInfo->sContext->subType);
     }
+    tDeleteSSchemaWrapper(mtInfo.schema);
     qDebug("tmqsnap stream scan tsdb return null");
     return NULL;
   } else if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_META) {
@@ -1920,11 +1932,6 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
 
   pInfo->pTagCond = pTagCond;
   pInfo->pGroupTags = pTableScanNode->pGroupTags;
-  pInfo->twAggSup = (STimeWindowAggSupp){
-      .waterMark = pTableScanNode->watermark,
-      .calTrigger = pTableScanNode->triggerType,
-      .maxTs = INT64_MIN,
-  };
 
   int32_t numOfCols = 0;
   pInfo->pColMatchInfo = extractColMatchInfo(pScanPhyNode->pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID);
@@ -1974,7 +1981,6 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
 
     pInfo->pUpdateInfo = NULL;
     pInfo->pTableScanOp = pTableScanOp;
-    pInfo->interval = pTSInfo->pdInfo.interval;
 
     pInfo->readHandle = *pHandle;
     pInfo->tableUid = pScanPhyNode->uid;
