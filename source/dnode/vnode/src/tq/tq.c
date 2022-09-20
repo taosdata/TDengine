@@ -51,6 +51,20 @@ void tqCleanUp() {
   }
 }
 
+static void destroySTqHandle(void* data) {
+  STqHandle* pData = (STqHandle*)data;
+  qDestroyTask(pData->execHandle.task);
+  if (pData->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
+  } else if (pData->execHandle.subType == TOPIC_SUB_TYPE__DB) {
+    tqCloseReader(pData->execHandle.pExecReader);
+    walCloseReader(pData->pWalReader);
+    taosHashCleanup(pData->execHandle.execDb.pFilterOutTbUid);
+  } else if (pData->execHandle.subType == TOPIC_SUB_TYPE__TABLE){
+    walCloseReader(pData->pWalReader);
+    tqCloseReader(pData->execHandle.pExecReader);
+  }
+}
+
 STQ* tqOpen(const char* path, SVnode* pVnode) {
   STQ* pTq = taosMemoryCalloc(1, sizeof(STQ));
   if (pTq == NULL) {
@@ -61,6 +75,8 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
   pTq->pVnode = pVnode;
 
   pTq->pHandle = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
+
+  taosHashSetFreeFp(pTq->pHandle, destroySTqHandle);
 
   pTq->pPushMgr = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
 
@@ -141,11 +157,8 @@ int32_t tqSendDataRsp(STQ* pTq, const SRpcMsg* pMsg, const SMqPollReq* pReq, con
   ASSERT(taosArrayGetSize(pRsp->blockData) == pRsp->blockNum);
   ASSERT(taosArrayGetSize(pRsp->blockDataLen) == pRsp->blockNum);
 
-  if (pRsp->withSchema) {
-    ASSERT(taosArrayGetSize(pRsp->blockSchema) == pRsp->blockNum);
-  } else {
-    ASSERT(taosArrayGetSize(pRsp->blockSchema) == 0);
-  }
+  ASSERT(!pRsp->withSchema);
+  ASSERT(taosArrayGetSize(pRsp->blockSchema) == 0);
 
   if (pRsp->reqOffset.type == TMQ_OFFSET__LOG) {
     if (pRsp->blockNum > 0) {
@@ -520,6 +533,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     int64_t fetchVer = fetchOffsetNew.version + 1;
     pCkHead = taosMemoryMalloc(sizeof(SWalCkHead) + 2048);
     if (pCkHead == NULL) {
+      tDeleteSTaosxRsp(&taosxRsp);
       return -1;
     }
 
@@ -580,14 +594,17 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         if (tqSendMetaPollRsp(pTq, pMsg, pReq, &metaRsp) < 0) {
           code = -1;
           taosMemoryFree(pCkHead);
+          tDeleteSTaosxRsp(&taosxRsp);
           return code;
         }
         code = 0;
         if (pCkHead) taosMemoryFree(pCkHead);
+        tDeleteSTaosxRsp(&taosxRsp);
         return code;
       }
     }
   }
+  tDeleteSTaosxRsp(&taosxRsp);
   return 0;
 }
 
@@ -760,7 +777,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask) {
 
   // expand executor
   if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
-    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask);
+    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false);
     if (pTask->pState == NULL) {
       return -1;
     }
@@ -774,7 +791,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask) {
     pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);
     ASSERT(pTask->exec.executor);
   } else if (pTask->taskLevel == TASK_LEVEL__AGG) {
-    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask);
+    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false);
     if (pTask->pState == NULL) {
       return -1;
     }
