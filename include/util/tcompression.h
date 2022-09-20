@@ -83,46 +83,42 @@ static FORCE_INLINE int32_t tsDecompressDoubleLossy(const char *const input, int
 
 #endif
 
-int32_t tsCompressTimestamp(const char *const input, int32_t inputSize, const int32_t nelements, char *const output,
-                            int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize);
-
-int32_t tsDecompressTimestamp(const char *const input, int32_t compressedSize, const int32_t nelements,
-                              char *const output, int32_t outputSize, char algorithm, char *const buffer,
-                              int32_t bufferSize);
-int32_t tsCompressFloat(const char *const input, int32_t inputSize, const int32_t nelements, char *const output,
-                        int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize);
-int32_t tsDecompressFloat(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output,
-                          int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize);
-int32_t tsCompressDouble(const char *const input, int32_t inputSize, const int32_t nelements, char *const output,
-                         int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize);
-int32_t tsDecompressDouble(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output,
-                           int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize);
-int32_t tsCompressString(const char *const input, int32_t inputSize, const int32_t nelements, char *const output,
-                         int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize);
-int32_t tsDecompressString(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output,
-                           int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize);
-int32_t tsCompressBool(const char *const input, int32_t inputSize, const int32_t nelements, char *const output,
-                       int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize);
-int32_t tsDecompressBool(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output,
-                         int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize);
-int32_t tsCompressTinyint(const char *const input, int32_t inputSize, const int32_t nelements, char *const output,
-                          int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize);
-int32_t tsDecompressTinyint(const char *const input, int32_t compressedSize, const int32_t nelements,
-                            char *const output, int32_t outputSize, char algorithm, char *const buffer,
-                            int32_t bufferSize);
-int32_t tsCompressSmallint(const char *const input, int32_t inputSize, const int32_t nelements, char *const output,
-                           int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize);
-int32_t tsDecompressSmallint(const char *const input, int32_t compressedSize, const int32_t nelements,
-                             char *const output, int32_t outputSize, char algorithm, char *const buffer,
-                             int32_t bufferSize);
-int32_t tsCompressInt(const char *const input, int32_t inputSize, const int32_t nelements, char *const output,
-                      int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize);
-int32_t tsDecompressInt(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output,
-                        int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize);
-int32_t tsCompressBigint(const char *const input, int32_t inputSize, const int32_t nelements, char *const output,
-                         int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize);
-int32_t tsDecompressBigint(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output,
-                           int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize);
+int32_t tsCompressTimestamp(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                            int32_t nBuf);
+int32_t tsDecompressTimestamp(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg,
+                              void *pBuf, int32_t nBuf);
+int32_t tsCompressFloat(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                        int32_t nBuf);
+int32_t tsDecompressFloat(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                          int32_t nBuf);
+int32_t tsCompressDouble(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                         int32_t nBuf);
+int32_t tsDecompressDouble(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                           int32_t nBuf);
+int32_t tsCompressString(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                         int32_t nBuf);
+int32_t tsDecompressString(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                           int32_t nBuf);
+int32_t tsCompressBool(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                       int32_t nBuf);
+int32_t tsDecompressBool(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                         int32_t nBuf);
+int32_t tsCompressTinyint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                          int32_t nBuf);
+int32_t tsDecompressTinyint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                            int32_t nBuf);
+int32_t tsCompressSmallint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                           int32_t nBuf);
+int32_t tsDecompressSmallint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg,
+                             void *pBuf, int32_t nBuf);
+int32_t tsCompressInt(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                      int32_t nBuf);
+int32_t tsDecompressInt(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                        int32_t nBuf);
+int32_t tsCompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                         int32_t nBuf);
+int32_t tsDecompressBigint(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                           int32_t nBuf);
 
 #ifdef __cplusplus
 }
