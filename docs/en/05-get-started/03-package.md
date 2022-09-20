@@ -7,7 +7,11 @@ import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import PkgListV3 from "/components/PkgListV3";
 
-For information about installing TDengine on Docker, see [Quick Install on Docker](../../get-started/docker). If you want to view the source code, build TDengine yourself, or contribute to the project, see the [TDengine GitHub repository](https://github.com/taosdata/TDengine).
+This document describes how to install TDengine on Linux and Windows and perform queries and inserts.
+
+- To get started with TDengine on Docker, see [Quick Install on Docker](../../get-started/docker).
+- For a fully managed solution, see the [TDengine Cloud documentation](/cloud/).
+- If you want to view the source code, build TDengine yourself, or contribute to the project, see the [TDengine GitHub repository](https://github.com/taosdata/TDengine).
 
 The full package of TDengine includes the TDengine Server (`taosd`), TDengine Client (`taosc`), taosAdapter for connecting with third-party systems and providing a RESTful interface, a command-line interface (CLI, taos), and some tools. Note that taosAdapter supports Linux only. In addition to connectors for multiple languages, TDengine also provides a [REST API](../../reference/rest-api) through [taosAdapter](../../reference/taosadapter).
 
@@ -111,7 +115,7 @@ Note: TDengine only supports Windows Server 2016/2019 and Windows 10/11 on the W
 </Tabs>
 
 :::info
-For information about TDengine releases, see [Release History](../../releases).
+For information about TDengine releases, see [Release History](../../releases/tdengine).
 :::
 
 :::note
