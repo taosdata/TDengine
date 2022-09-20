@@ -10081,7 +10081,7 @@ int32_t loadAllTableMeta(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   size_t    tableMetaCapacity = 0;
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
 
-  pCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  pCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
 
   tableNameList = taosArrayInit(4, sizeof(SName));
   size_t size = taosArrayGetSize(pInfo->list);

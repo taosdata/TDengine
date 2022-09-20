@@ -1647,7 +1647,10 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool clearCachedMeta, uint64_t id) {
   pCmd->insertParam.tagData.dataLen = 0;
 
   tscFreeQueryInfo(pCmd, clearCachedMeta, id);
-  pCmd->pTableMetaMap = tscCleanupTableMetaMap(pCmd->pTableMetaMap);
+  SHashObj *pmap = pCmd->pTableMetaMap;
+  if (pmap == atomic_val_compare_exchange_ptr(&pCmd->pTableMetaMap, pmap, NULL)) {
+    tscCleanupTableMetaMap(pCmd->pTableMetaMap);
+  }
   taosReleaseRef(tscObjRef, id);
 }
 
