@@ -304,7 +304,6 @@ void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
   };
 
   if (tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg) != 0) {
-    rpcFreeCont(submitReq);
     tqDebug("failed to put into write-queue since %s", terrstr());
   }
 }
