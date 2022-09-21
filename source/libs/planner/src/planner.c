@@ -52,7 +52,7 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   if (TSDB_CODE_SUCCESS == code) {
     dumpQueryPlan(*pPlan);
   }
-  code = nodesReleaseAllocator(pCxt->allocatorId);
+  nodesReleaseAllocator(pCxt->allocatorId);
 
   nodesDestroyNode((SNode*)pLogicSubplan);
   nodesDestroyNode((SNode*)pLogicPlan);

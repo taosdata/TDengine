@@ -188,7 +188,7 @@ int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCatalogReq(pCxt, &metaCache, pCatalogReq);
   }
-  code = nodesReleaseAllocator(pCxt->allocatorId);
+  nodesReleaseAllocator(pCxt->allocatorId);
   destoryParseMetaCache(&metaCache, true);
   terrno = code;
   return code;
@@ -208,7 +208,7 @@ int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCata
       code = analyseSemantic(pCxt, pQuery, &metaCache);
     }
   }
-  code = nodesReleaseAllocator(pCxt->allocatorId);
+  nodesReleaseAllocator(pCxt->allocatorId);
   destoryParseMetaCache(&metaCache, false);
   terrno = code;
   return code;
