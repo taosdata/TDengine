@@ -69,15 +69,26 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
 
     if (agree) {
       // term
-      SSyncRaftEntry* pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, index);
-      ASSERT(pEntry != NULL);
-
+      SSyncRaftEntry* pEntry = NULL;
+      SLRUCache*      pCache = pSyncNode->pLogStore->pCache;
+      LRUHandle*      h = taosLRUCacheLookup(pCache, &index, sizeof(index));
+      if (h) {
+        pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
+      } else {
+        pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, index);
+        ASSERT(pEntry != NULL);
+      }
       // cannot commit, even if quorum agree. need check term!
       if (pEntry->term <= pSyncNode->pRaftStore->currentTerm) {
         // update commit index
         newCommitIndex = index;
 
-        syncEntryDestory(pEntry);
+        if (h) {
+          taosLRUCacheRelease(pCache, h, false);
+        } else {
+          syncEntryDestory(pEntry);
+        }
+
         break;
       } else {
         do {
@@ -88,7 +99,11 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
         } while (0);
       }
 
-      syncEntryDestory(pEntry);
+      if (h) {
+        taosLRUCacheRelease(pCache, h, false);
+      } else {
+        syncEntryDestory(pEntry);
+      }
     }
   }
 
