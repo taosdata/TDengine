@@ -99,14 +99,14 @@ else
    end 
 end
 
-res = driver.query(conn,"SELECT COUNT(*) count, AVG(degree) AS av, MAX(degree), MIN(degree) FROM thermometer WHERE location='beijing' or location='tianjin' GROUP BY location, type")
+res = driver.query(conn,"SELECT COUNT(*) cnt, AVG(degree) AS av, MAX(degree), MIN(degree) FROM thermometer WHERE location='beijing' or location='tianjin' GROUP BY location, type")
 if res.code ~=0 then
    print("select from super table--- failed:"..res.error)
    return
 else
    print("select from super table--- pass")
    for i = 1, #(res.item) do
-      print("res:"..res.item[i].count)
+      print("res:"..res.item[i].cnt)
    end
 end
 
@@ -127,30 +127,13 @@ end
 
 driver.query_a(conn,"INSERT INTO therm1 VALUES ('2019-09-01 00:00:00.005', 100),('2019-09-01 00:00:00.006', 101),('2019-09-01 00:00:00.007', 102)", async_query_callback)
 
+driver.query(conn,"CREATE STREAM avg_therm_s INTO avg_degree AS SELECT _wstart, count(*), avg(degree) FROM thermometer INTERVAL(2s)")
 
-function stream_callback(t)
-   print("------------------------")
-   print("continuous query result:")
-   for key, value in pairs(t) do
-      print("key:"..key..", value:"..value)
-   end
-end
-
-local stream
-res = driver.open_stream(conn,"SELECT COUNT(*) as count, AVG(degree) as avg, MAX(degree) as max, MIN(degree) as min FROM thermometer interval(2s) sliding(2s);)",0, stream_callback)
-if res.code ~=0 then
-   print("open stream--- failed:"..res.error)
-   return
-else
-   print("open stream--- pass")
-   stream = res.stream
-end
-
-print("From now on we start continous insert in an definite (infinite if you want) loop.")
+print("From now on we start continous insert in an definite loop, pls wait for about 30 seconds and check stream table for result.")
 local loop_index = 0
 while loop_index < 30 do
    local t = os.time()*1000
-   local v = loop_index
+   local v = math.random(20)
    res = driver.query(conn,string.format("INSERT INTO therm1 VALUES (%d, %d)",t,v))
 
    if res.code ~=0 then
@@ -162,7 +145,5 @@ while loop_index < 30 do
    os.execute("sleep " .. 1)
    loop_index = loop_index + 1
 end
-
-driver.close_stream(stream)
-
+driver.query(conn,"DROP STREAM IF EXISTS avg_therm_s")
 driver.close(conn)
