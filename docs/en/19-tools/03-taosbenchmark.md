@@ -16,20 +16,33 @@ taosBenchmark (formerly taosdemo ) is a tool for testing the performance of TDen
 To use taosBenchmark, you need to download and install [taosTools](https://tdengine.com/assets-download/cloud/taosTools-2.1.3-Linux-x64.tar.gz). Before installing taosTools, please firstly download and install [TDengine CLI](https://docs.tdengine.com/cloud/tools/cli/#installation).
 
 Decompress the package and install.
+
 ```
 tar -xzf taosTools-2.1.3-Linux-x64.tar.gz
 cd taosTools-2.1.3-Linux-x64.tar.gz
 sudo ./install-taostools.sh
 ```
 ## Run
-
 ### Configuration and running methods
 
-TaosBenchmark needs to be executed on the terminal of the operating system, it supports two configuration methods: [Command-line arguments](#command-line-arguments-in-detail) and [JSON configuration file](#configuration-file-parameters-in-detail). These two methods are mutually exclusive. Users can use `-f <json file>` to specify a configuration file. When running taosBenchmark with command-line arguments to control its behavior, users should use other parameters for configuration, but not the `-f` parameter. In addition, taosBenchmark offers a special way of running without parameters.
+Run this command in your Linux terminal to save cloud DSN as variable:
 
-taosBenchmark supports the complete performance testing of TDengine by providing functionally to write, query, and subscribe. These three functions are mutually exclusive, users can only select one of them each time taosBenchmark runs. The query and subscribe functionalities are only configurable using a json configuration file by specifying the parameter `filetype`, while write can be performed through both the command-line and a configuration file. If you want to test the performance of queries or data subscriptionm configure taosBenchmark with the configuration file. You can modify the value of the `filetype` parameter to specify the function that you want to test.
+```bash
+export TDENGINE_CLOUD_DSN="<DSN>"
+```
 
-**Make sure that the TDengine cluster is running correctly before running taosBenchmark. **
+<!-- exclude -->
+:::note
+To obtain the value of cloud DSN, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Tools" and then select "taosBenchmark".
+
+:::
+<!-- exclude-end -->
+
+Users can use `-f <json file>` to specify a configuration file.
+
+taosBenchmark supports the complete performance testing of TDengine by providing functionally to write, query, and subscribe. These three functions are mutually exclusive, users can only select one of them each time taosBenchmark runs. The query and subscribe functionalities are only configurable using a json configuration file by specifying the parameter `filetype`, while write can be performed through both the command-line and a configuration file. If you want to test the performance of queries configure taosBenchmark with the configuration file. You can modify the value of the `filetype` parameter to specify the function that you want to test.
+
+**Make sure that the TDengine cluster is running correctly before running taosBenchmark.**
 
 ### Run with the configuration file
 
@@ -41,7 +54,7 @@ Use the following command-line to run taosBenchmark and control its behavior via
 taosBenchmark -f json-file
 ```
 
-**Sample configuration files**
+### Sample configuration files
 
 #### Configuration file examples
 
@@ -180,162 +193,13 @@ taosBenchmark -f json-file
 
 ```
 
-#### Subscription JSON configuration example
-
-```json
-{
-	"filetype": "subscribe",
-	"cfgdir": "/etc/taos",
-	"host": "127.0.0.1",
-	"port": 6030,
-	"user": "root",
-	"password": "taosdata",
-	"databases": "test",
-	"specified_table_query": {
-		"concurrent": 1,
-		"mode": "sync",
-		"interval": 1000,
-		"restart": "yes",
-		"keepProgress": "yes",
-		"resubAfterConsume": 10,
-		"sqls": [
-			{
-				"sql": "select avg(current) from meters where location = 'beijing';",
-				"result": "./subscribe_res0.txt"
-			}
-		]
-	},
-	"super_table_query": {
-		"stblname": "meters",
-		"threads": 1,
-		"mode": "sync",
-		"interval": 1000,
-		"restart": "yes",
-		"keepProgress": "yes",
-		"sqls": [
-			{
-				"sql": "select phase from xxxx where groupid > 3;",
-				"result": "./subscribe_res1.txt"
-			}
-		]
-	}
-}
-
-```
-
-## Command-line argument in detailed
-
-- **-f/--file <json file\>** :
-  specify the configuration file to use. This file includes All parameters. Users should not use this parameter with other parameters on the command-line. There is no default value.
-
-- **-c/--config-dir <dir\>** :
-  specify the directory where the TDengine cluster configuration file. The default path is `/etc/taos`.
-
-- **-h/--host <host\>** :
-  Specify the FQDN of the TDengine server to connect to. The default value is localhost.
-
-- **-P/--port <port\>** :
-  The port number of the TDengine server to connect to, the default value is 6030.
-
-- **-I/--interface <insertMode\>** :
-  Insert mode. Options are taosc, rest, stmt, sml, sml-rest, corresponding to normal write, restful interface writing, parameter binding interface writing, schemaless interface writing, RESTful schemaless interface writing (provided by taosAdapter). The default value is taosc.
-
-- **-u/--user <user\>** :
-  User name to connect to the TDengine server. Default is root.
-
-- **-p/--password <passwd\>** :
-  The default password to connect to the TDengine server is `taosdata`.
-
-- **-o/--output <file\>** :
-  specify the path of the result output file, the default value is `. /output.txt`.
-
-- **-T/--thread <threadNum\>** :
-  The number of threads to insert data. Default is 8.
-
-- **-B/--interlace-rows <rowNum\>** :
-  Enables interleaved insertion mode and specifies the number of rows of data to be inserted into each child table. Interleaved insertion mode means inserting the number of rows specified by this parameter into each sub-table and repeating the process until all sub-tables have been inserted. The default value is 0, i.e., data is inserted into one sub-table before the next sub-table is inserted.
-
-- **-i/--insert-interval <timeInterval\>** :
-  Specify the insert interval in `ms` for interleaved insert mode. The default value is 0. It only works if `-B/--interlace-rows` is greater than 0. After inserting interlaced rows for each child table, the data insertion thread will wait for the interval specified by this value before proceeding to the next round of writes.
-
-- **-r/--rec-per-req <rowNum\>** :
-  Writing the number of rows of records per request to TDengine, the default value is 30000.
-
-- **-t/--tables <tableNum\>** :
-  Specify the number of sub-tables. The default is 10000.
-
-- **-S/--timestampstep <stepLength\>** :
-  Timestamp step for inserting data in each child table in ms, default is 1.
-
-- **-n/--records <recordNum\>** :
-  The default value of the number of records inserted in each sub-table is 10000.
-
-- **-b/--data-type <colType\>** :
-  specify the type of the data columns of the super table. It defaults to three columns of type FLOAT, INT, and FLOAT if not used.
-
-- **-l/--columns <colNum\>** :
-  specify the number of columns in the super table. If both this parameter and `-b/--data-type` is set, the final result number of columns is the greater of the two. If the number specified by this parameter is greater than the number of columns specified by `-b/--data-type`, the unspecified column type defaults to INT, for example: `-l 5 -b float,double`, then the final column is `FLOAT,DOUBLE,INT,INT,INT`. If the number of columns specified is less than or equal to the number of columns specified by `-b/--data-type`, then the result is the column and type specified by `-b/--data-type`, e.g.: `-l 3 -b float,double,float,bigint`. The last column is `FLOAT,DOUBLE, FLOAT,BIGINT`.
-
-- **-A/--tag-type <tagType\>** :
-  The tag column type of the super table. nchar and binary types can both set the length, for example:
-
-```
-taosBenchmark -A INT,DOUBLE,NCHAR,BINARY(16)
-```
-
-If users did not set tag type, the default is two tags, whose types are INT and BINARY(16).
-Note: In some shells, such as bash, "()" needs to be escaped, so the above command should be
-
-```
-taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
-```
-
-- **-w/--binwidth <length\>**:
-  specify the default length for nchar and binary types. The default value is 64.
-
-- **-m/--table-prefix <tablePrefix\>** :
-  The prefix of the sub-table name, the default value is "d".
-
-- **-E/--escape-character** :
-  Switch parameter specifying whether to use escape characters in the super table and sub-table names. By default is not used.
-
-- **-C/--chinese** :
-  specify whether to use Unicode Chinese characters in nchar and binary, the default is no.
-
-- **-N/--normal-table** :
-  This parameter indicates that taosBenchmark will create only normal tables instead of super tables. The default value is false. It can be used if the insert mode is taosc, stmt, and rest.
-
-- **-M/--random** :
-  This parameter indicates writing data with random values. The default is false. If users use this parameter, taosBenchmark will generate the random values. For tag/data columns of numeric type, the value is a random value within the range of values of that type. For NCHAR and BINARY type tag columns/data columns, the value is the random string within the specified length range.
-
-- **-x/--aggr-func** :
-  Switch parameter to indicate query aggregation function after insertion. The default is false.
-
-- **-y/--answer-yes** :
-  Switch parameter that requires the user to confirm at the prompt to continue. The default value is false.
-
-- **-O/--disorder <Percentage\>** :
-  Specify the percentage probability of disordered data, with a value range of [0,50]. The default is 0, i.e., there is no disordered data.
-
-- **-R/--disorder-range <timeRange\>** :
-  Specify the timestamp range for the disordered data. It leads the resulting disorder timestamp as the ordered timestamp minus a random value in this range. Valid only if the percentage of disordered data specified by `-O/--disorder` is greater than 0.
-
-- **-F/--prepare_rand <Num\>** :
-  Specify the number of unique values in the generated random data. A value of 1 means that all data are equal. The default value is 10000.
-
-- **-V/--version** :
-  Show version information only. Users should not use it with other parameters.
-
-- **-? /--help** :
-  Show help information and exit. Users should not use it with other parameters.
-
 ## Configuration file parameters in detailed
 
 ### General configuration parameters
 
 The parameters listed in this section apply to all function modes.
 
-- **filetype** : The function to be tested, with optional values `insert`, `query` and `subscribe`. These correspond to the insert, query, and subscribe functions, respectively. Users can specify only one of these in each configuration file.
+- **filetype** : The function to be tested, with optional values `insert`, `query`. These correspond to the insert and query, respectively. Users can specify only one of these in each configuration file.
 **cfgdir**: specify the TDengine cluster configuration file's directory. The default path is /etc/taos.
 
 - **host**: Specify the FQDN of the TDengine server to connect. The default value is `localhost`.
@@ -508,49 +372,6 @@ The configuration parameters of the super table query are set in `super_table_qu
 - **query_interval** : The query interval in seconds, the default value is 0.
 
 - **threads**: The number of threads to execute the query SQL, the default value is 1.
-
-- **sqls**:
-  - **sql**: The SQL command to be executed. For the query SQL of super table, keep "xxxx" in the SQL command. The program will automatically replace it with all the sub-table names of the super table.
-    Replace it with all the sub-table names in the super table.
-  - **result**: The file to save the query result. If not specified, taosBenchmark will not save result.
-
-### Subscription scenario configuration parameters
-
-`filetype` must be set to `subscribe` in the subscription scenario. See [General Configuration Parameters](#General Configuration Parameters) for details of this and other general parameters
-
-#### Configuration parameters for executing the specified subscription statement
-
-The configuration parameters for subscribing to a sub-table or a generic table are set in `specified_table_query`.
-
-- **threads**: The number of threads to execute SQL, default is 1.
-
-- **interval**: The time interval to execute the subscription, in seconds, default is 0.
-
-- **restart** : "yes" means start a new subscription, "no" means continue the previous subscription, the default value is "no".
-
-- **keepProgress**: "yes" means keep the progress of the subscription, "no" means don't keep it, and the default value is "no".
-
-- **resubAfterConsume**: "yes" means cancel the previous subscription and then subscribe again, "no" means continue the previous subscription, and the default value is "no".
-
-- **sqls**:
-  - **sql** : The SQL command to be executed, required.
-  - **result**: The file to save the query result. If not specified, taosBenchmark will not save result.
-
-#### Configuration parameters for subscribing to supertables
-
-The configuration parameters for subscribing to a super table are set in `super_table_query`.
-
-- **stblname**: The name of the super table to subscribe.
-
-- **threads**: The number of threads to execute SQL, default is 1.
-
-- **interval**: The time interval to execute the subscription, in seconds, default is 0.
-
-- **restart** : "yes" means start a new subscription, "no" means continue the previous subscription, the default value is "no".
-
-- **keepProgress**: "yes" means keep the progress of the subscription, "no" means don't keep it, and the default value is "no".
-
-- **resubAfterConsume**: "yes" means cancel the previous subscription and then subscribe again, "no" means continue the previous subscription, and the default value is "no".
 
 - **sqls**:
   - **sql**: The SQL command to be executed. For the query SQL of super table, keep "xxxx" in the SQL command. The program will automatically replace it with all the sub-table names of the super table.
