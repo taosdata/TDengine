@@ -1046,6 +1046,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
         pRequest->body.subplanNum = pDag->numOfSubplans;
       }
 
+      nodesResetAllocator(-1);
+
       pRequest->metric.planEnd = taosGetTimestampUs();
 
       if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {

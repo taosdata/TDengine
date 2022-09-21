@@ -728,7 +728,6 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
              pRequest->requestId);
     launchAsyncQuery(pRequest, pQuery, pResultMeta);
     qDestroyQuery(pQuery);
-    nodesResetAllocator(-1);
   } else {
     destorySqlParseWrapper(pWrapper);
     qDestroyQuery(pQuery);
@@ -811,6 +810,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
 
   SCatalogReq catalogReq = {.forceUpdate = updateMetaForce, .qNodeRequired = qnodeRequired(pRequest)};
   code = qParseSqlSyntax(pCxt, &pQuery, &catalogReq);
+  nodesResetAllocator(-1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -849,7 +849,6 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
                                 &pRequest->body.queryJob);
   pCxt = NULL;
   if (code == TSDB_CODE_SUCCESS) {
-    nodesResetAllocator(-1);
     return;
   }
 
@@ -857,7 +856,6 @@ _error:
   tscError("0x%" PRIx64 " error happens, code:%d - %s, reqId:0x%" PRIx64, pRequest->self, code, tstrerror(code),
            pRequest->requestId);
   taosMemoryFree(pCxt);
-  nodesResetAllocator(-1);
 
   terrno = code;
   pRequest->code = code;
