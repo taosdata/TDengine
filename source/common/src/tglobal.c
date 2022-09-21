@@ -58,7 +58,7 @@ int32_t tsNumOfMnodeFetchThreads = 1;
 int32_t tsNumOfMnodeReadThreads = 1;
 int32_t tsNumOfVnodeQueryThreads = 4;
 int32_t tsNumOfVnodeStreamThreads = 2;
-int32_t tsNumOfVnodeFetchThreads = 4;
+int32_t tsNumOfVnodeFetchThreads = 1;
 int32_t tsNumOfVnodeWriteThreads = 2;
 int32_t tsNumOfVnodeSyncThreads = 2;
 int32_t tsNumOfVnodeRsmaThreads = 2;
@@ -162,8 +162,8 @@ int32_t tsMqRebalanceInterval = 2;
 int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushInterval = 86400;
 int32_t tsGrantHBInterval = 60;
-int32_t tsUptimeInterval = 300;  // seconds
-char    tsUdfdResFuncs[1024] = ""; // udfd resident funcs that teardown when udfd exits
+int32_t tsUptimeInterval = 300;     // seconds
+char    tsUdfdResFuncs[1024] = "";  // udfd resident funcs that teardown when udfd exits
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
@@ -366,9 +366,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfVnodeStreamThreads = TMAX(tsNumOfVnodeStreamThreads, 4);
   if (cfgAddInt32(pCfg, "numOfVnodeStreamThreads", tsNumOfVnodeStreamThreads, 4, 1024, 0) != 0) return -1;
 
-  tsNumOfVnodeFetchThreads = tsNumOfCores / 4;
-  tsNumOfVnodeFetchThreads = TMAX(tsNumOfVnodeFetchThreads, 4);
-  if (cfgAddInt32(pCfg, "numOfVnodeFetchThreads", tsNumOfVnodeFetchThreads, 4, 1024, 0) != 0) return -1;
+  tsNumOfVnodeFetchThreads = 1;
+  if (cfgAddInt32(pCfg, "numOfVnodeFetchThreads", tsNumOfVnodeFetchThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfVnodeWriteThreads = tsNumOfCores;
   tsNumOfVnodeWriteThreads = TMAX(tsNumOfVnodeWriteThreads, 1);

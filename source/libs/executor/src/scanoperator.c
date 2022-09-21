@@ -1602,26 +1602,30 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       } break;
       case STREAM_DELETE_DATA: {
         printDataBlock(pBlock, "stream scan delete recv");
+        SSDataBlock* pDelBlock = NULL;
         if (pInfo->tqReader) {
-          SSDataBlock* pDelBlock = createSpecialDataBlock(STREAM_DELETE_DATA);
+          pDelBlock = createSpecialDataBlock(STREAM_DELETE_DATA);
           filterDelBlockByUid(pDelBlock, pBlock, pInfo);
-          pBlock = pDelBlock;
+        } else {
+          pDelBlock = pBlock;
         }
-        printDataBlock(pBlock, "stream scan delete recv filtered");
         if (!isIntervalWindow(pInfo) && !isSessionWindow(pInfo) && !isStateWindow(pInfo)) {
-          generateDeleteResultBlock(pInfo, pBlock, pInfo->pDeleteDataRes);
+          generateDeleteResultBlock(pInfo, pDelBlock, pInfo->pDeleteDataRes);
           pInfo->pDeleteDataRes->info.type = STREAM_DELETE_RESULT;
-          printDataBlock(pBlock, "stream scan delete result");
+          printDataBlock(pDelBlock, "stream scan delete result");
           return pInfo->pDeleteDataRes;
         } else {
           pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
           pInfo->updateResIndex = 0;
-          generateScanRange(pInfo, pBlock, pInfo->pUpdateRes);
+          generateScanRange(pInfo, pDelBlock, pInfo->pUpdateRes);
           prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex);
           copyDataBlock(pInfo->pDeleteDataRes, pInfo->pUpdateRes);
           pInfo->pDeleteDataRes->info.type = STREAM_DELETE_DATA;
           pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
-          printDataBlock(pBlock, "stream scan delete data");
+          printDataBlock(pDelBlock, "stream scan delete data");
+          if (pInfo->tqReader) {
+            blockDataDestroy(pDelBlock);
+          }
           return pInfo->pDeleteDataRes;
         }
       } break;
