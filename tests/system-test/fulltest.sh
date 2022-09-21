@@ -17,6 +17,7 @@ python3 ./test.py -f 0-others/udf_cfg2.py
 python3 ./test.py -f 0-others/sysinfo.py
 python3 ./test.py -f 0-others/user_control.py
 python3 ./test.py -f 0-others/fsync.py
+python3 ./test.py  -f 0-others/compatibility.py   
 
 python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
 python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
