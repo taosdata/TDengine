@@ -153,14 +153,14 @@ int32_t nodesCreateAllocator(int32_t chunkSize, int64_t* pRefId) {
 }
 
 void nodesDestroyAllocator(int64_t refId) {
-  if (refId < 0) {
+  if (refId <= 0) {
     return;
   }
   taosReleaseRef(allocatorReqRefPool, refId);
 }
 
 void nodesResetAllocator(int64_t refId) {
-  if (refId < 0) {
+  if (refId <= 0) {
     pNodeAllocator = NULL;
   } else {
     pNodeAllocator = taosAcquireRef(allocatorReqRefPool, refId);
@@ -169,7 +169,7 @@ void nodesResetAllocator(int64_t refId) {
 }
 
 int64_t nodesIncAllocatorRefCount(int64_t refId) {
-  if (refId < 0) {
+  if (refId <= 0) {
     return -1;
   }
   SNodeAllocator* pAllocator = taosAcquireRef(allocatorReqRefPool, refId);

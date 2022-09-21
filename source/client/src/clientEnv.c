@@ -288,6 +288,7 @@ void *createRequest(uint64_t connId, int32_t type) {
 
   pRequest->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
   pRequest->type = type;
+  pRequest->allocatorRefId = -1;
 
   pRequest->pDb = getDbOfConnection(pTscObj);
   pRequest->pTscObj = pTscObj;
