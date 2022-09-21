@@ -1687,6 +1687,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     while (1) {
       if (pInfo->tqReader->pMsg == NULL) {
         if (pInfo->validBlockIndex >= totBlockNum) {
+          updateInfoDestoryColseWinSBF(pInfo->pUpdateInfo);
           return NULL;
         }
 
