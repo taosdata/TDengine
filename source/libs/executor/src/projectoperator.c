@@ -294,7 +294,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       }
 
       // do apply filter
-      doFilter(pProjectInfo->pFilterNode, pFinalRes, NULL);
+      doFilter(pProjectInfo->pFilterNode, pFinalRes, NULL, NULL);
 
       // when apply the limit/offset for each group, pRes->info.rows may be 0, due to limit constraint.
       if (pFinalRes->info.rows > 0 || (pOperator->status == OP_EXEC_DONE)) {
@@ -303,7 +303,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     } else {
       // do apply filter
       if (pRes->info.rows > 0) {
-        doFilter(pProjectInfo->pFilterNode, pRes, NULL);
+        doFilter(pProjectInfo->pFilterNode, pRes, NULL, NULL);
         if (pRes->info.rows == 0) {
           continue;
         }
@@ -496,7 +496,7 @@ SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator) {
       }
     }
 
-    doFilter(pIndefInfo->pCondition, pInfo->pRes, NULL);
+    doFilter(pIndefInfo->pCondition, pInfo->pRes, NULL, NULL);
     size_t rows = pInfo->pRes->info.rows;
     if (rows > 0 || pOperator->status == OP_EXEC_DONE) {
       break;
@@ -598,7 +598,7 @@ SSDataBlock* doGenerateSourceData(SOperatorInfo* pOperator) {
   }
 
   pRes->info.rows = 1;
-  doFilter(pProjectInfo->pFilterNode, pRes, NULL);
+  doFilter(pProjectInfo->pFilterNode, pRes, NULL, NULL);
 
   /*int32_t status = */ doIngroupLimitOffset(&pProjectInfo->limitInfo, 0, pRes, pOperator);
 

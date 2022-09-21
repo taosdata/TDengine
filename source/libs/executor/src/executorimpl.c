@@ -1115,29 +1115,52 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
   }
 }
 
-static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep);
+static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep, int32_t status);
 
-void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColMatchInfo) {
+void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColMatchInfo, SFilterInfo* pFilterInfo) {
   if (pFilterNode == NULL || pBlock->info.rows == 0) {
     return;
   }
 
-  SFilterInfo* filter = NULL;
+  SFilterInfo* filter = pFilterInfo;
+
+  int64_t st = taosGetTimestampUs();
+
+//  pError("start filter");
 
   // todo move to the initialization function
-  int32_t code = filterInitFromNode((SNode*)pFilterNode, &filter, 0);
+  int32_t code = 0;
+  if (filter == NULL) {
+    code = filterInitFromNode((SNode*)pFilterNode, &filter, 0);
+  }
+
+  int64_t st1 = taosGetTimestampUs();
+//  pError("init completed, el: %d us", st1 - st);
 
   size_t             numOfCols = taosArrayGetSize(pBlock->pDataBlock);
   SFilterColumnParam param1 = {.numOfCols = numOfCols, .pDataBlock = pBlock->pDataBlock};
   code = filterSetDataFromSlotId(filter, &param1);
 
+  int64_t st2 = taosGetTimestampUs();
+//  pError("set data from slotid, el: %d us", st2 - st1);
+
   int8_t* rowRes = NULL;
 
   // todo the keep seems never to be True??
-  bool keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols);
-  filterFreeInfo(filter);
+  int32_t status = 0;
+  bool    keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols, &status);
 
-  extractQualifiedTupleByFilterResult(pBlock, rowRes, keep);
+  if (pFilterInfo == NULL) {
+    filterFreeInfo(filter);
+  }
+
+  int64_t st3 = taosGetTimestampUs();
+
+  extractQualifiedTupleByFilterResult(pBlock, rowRes, keep, status);
+
+  int64_t st4 = taosGetTimestampUs();
+
+//  pError("extract result filter, el: %d us, rows:%d, status:%d", st4 - st3, pBlock->info.rows, status);
 
   if (pColMatchInfo != NULL) {
     for (int32_t i = 0; i < taosArrayGetSize(pColMatchInfo); ++i) {
@@ -1155,13 +1178,34 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColM
   taosMemoryFree(rowRes);
 }
 
-void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep) {
+void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep, int32_t status) {
   if (keep) {
     return;
   }
 
-  if (rowRes != NULL) {
-    int32_t      totalRows = pBlock->info.rows;
+  int32_t totalRows = pBlock->info.rows;
+
+  if (status == FILTER_RESULT_ALL_QUALIFIED) {
+    SSDataBlock* px = createOneDataBlock(pBlock, true);
+
+    size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* pSrc = taosArrayGet(px->pDataBlock, i);
+      SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
+
+      // it is a reserved column for scalar function, and no data in this column yet.
+      if (pDst->pData == NULL || pSrc->pData == NULL) {
+        continue;
+      }
+
+      colInfoDataCleanup(pDst, pBlock->info.rows);
+      colDataAssign(pDst, pSrc, totalRows, NULL);
+    }
+
+    blockDataDestroy(px);  // fix memory leak
+  } else if (status == FILTER_RESULT_NONE_QUALIFIED) {
+    pBlock->info.rows = 0;
+  } else {
     SSDataBlock* px = createOneDataBlock(pBlock, true);
 
     size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -1197,9 +1241,6 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
     }
 
     blockDataDestroy(px);  // fix memory leak
-  } else {
-    // do nothing
-    pBlock->info.rows = 0;
   }
 }
 
@@ -2421,7 +2462,7 @@ static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
   while (1) {
     doBuildResultDatablock(pOperator, pInfo, &pAggInfo->groupResInfo, pAggInfo->aggSup.pResultBuf);
-    doFilter(pAggInfo->pCondition, pInfo->pRes, NULL);
+    doFilter(pAggInfo->pCondition, pInfo->pRes, NULL, NULL);
 
     if (!hasRemainResults(&pAggInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
@@ -2815,7 +2856,7 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
       break;
     }
 
-    doFilter(pInfo->pCondition, fillResult, pInfo->pColMatchColInfo);
+    doFilter(pInfo->pCondition, fillResult, pInfo->pColMatchColInfo, NULL);
     if (fillResult->info.rows > 0) {
       break;
     }
