@@ -1574,7 +1574,7 @@ int32_t tCompressorReset(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg) {
   return code;
 }
 
-int32_t tCompGen(SCompressor *pCmprsor, const uint8_t **ppData, int64_t *nData) {
+int32_t tCompGen(SCompressor *pCmprsor, const uint8_t **ppData, int32_t *nData) {
   int32_t code = 0;
 
   if (pCmprsor->nVal == 0) {
