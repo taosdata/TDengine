@@ -257,6 +257,10 @@ int walCheckAndRepairIdx(SWal* pWal) {
     }
 
     taosFStatFile(pIdxFile, &fsize, NULL);
+    if (fsize == (pFileInfo->lastVer - pFileInfo->firstVer + 1) * sizeof(SWalIdxEntry)) {
+      taosCloseFile(&pIdxFile);
+      continue;
+    }
 
     int32_t left = fsize % sizeof(SWalIdxEntry);
     int64_t offset = taosLSeekFile(pIdxFile, -left, SEEK_END);
@@ -267,7 +271,7 @@ int walCheckAndRepairIdx(SWal* pWal) {
     }
     offset -= sizeof(SWalIdxEntry);
 
-    SWalIdxEntry idxEntry = {0};
+    SWalIdxEntry idxEntry = {.ver = pFileInfo->firstVer};
     while (1) {
       if (offset < 0) {
         taosLSeekFile(pIdxFile, 0, SEEK_SET);
@@ -306,7 +310,8 @@ int walCheckAndRepairIdx(SWal* pWal) {
         if (idxEntry.ver != ckHead.head.version) {
           // todo truncate this idx also
           taosCloseFile(&pLogFile);
-          wError("vgId:%d, invalid repair case", pWal->cfg.vgId);
+          wError("vgId:%d, invalid repair case, log seek to %ld to find ver %ld, actual ver %ld", pWal->cfg.vgId,
+                 idxEntry.offset, idxEntry.ver, ckHead.head.version);
           return -1;
         }
         idxEntry.ver = ckHead.head.version + 1;
