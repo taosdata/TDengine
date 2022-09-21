@@ -202,8 +202,8 @@ elif [[ ${packgeName} =~ "tar" ]];then
         cd  ${oriInstallPath}/${originTdpPath}  && tar xf ${subFile}
     fi
 
-    cd  ${oriInstallPath}/${originTdpPath} && tree  >  ${installPath}/base_${originversion}_checkfile
-    cd ${installPath}/${tdPath}   && tree > ${installPath}/now_${version}_checkfile
+    cd  ${oriInstallPath}/${originTdpPath} && tree -I "driver" >  ${installPath}/base_${originversion}_checkfile
+    cd ${installPath}/${tdPath}   && tree -I "driver" > ${installPath}/now_${version}_checkfile
     
     cd ${installPath} 
     diff  ${installPath}/base_${originversion}_checkfile   ${installPath}/now_${version}_checkfile  > ${installPath}/diffFile.log
