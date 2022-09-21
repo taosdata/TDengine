@@ -47,7 +47,7 @@ class TDTestQuery(TDCase):
         return case_description
 
     #basic_param
-    db = "stable_alltype_first"
+    db = "stable_first"
     service_host = ""
     table_list = ['stable_1','stable_2',]
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
@@ -274,7 +274,7 @@ class TDTestQuery(TDCase):
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
                                       
-                        for i in (1,2,3,4,6,7,8,9,21,):                      
+                        for i in (1,2,3,4,21,):                      
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s %s;'  % (func,self.table,interval_fill,time_window_new)
@@ -295,6 +295,23 @@ class TDTestQuery(TDCase):
                             self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
+                            sql= sql + sql2
+                                      
+                        for i in (6,7,8,9,):                      
+                            time_window_new = tdWhere.time_window_new(i)
+                            self.logger.info("\n\n\n====right case========case1=====time num = %d======interval======\n\n\n" %i)
+                            sql1 = 'select %s from %s %s %s;'  % (func,self.table,interval_fill,time_window_new)
+
+                            sql2 = "select %s from %s where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            sql= sql + sql2
+
+                            sql2 = "select * from (select %s from %s where %s %s %s %s %s);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            sql= sql + sql2
+
+                            sql2 = "select %s from (select * from %s order by ts) where %s %s %s %s %s;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
                             sql= sql + sql2
                                                 
                         for i in range(11,21):                        
@@ -818,7 +835,7 @@ class TDTestQuery(TDCase):
                             self.tdSql.error(sql2)
                             sql= sql + sql2
                         
-                        for i in (1,2,3,4,6,7,8,9,21):                        
+                        for i in (1,2,3,4,21):                        
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s %s order by ts;'  % (func,self.table,interval_fill,time_window_new)                           
@@ -843,6 +860,35 @@ class TDTestQuery(TDCase):
                             self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
+                            sql= sql + sql2
+
+                            sql2 = "select %s from (select * from %s where  %s %s %s %s %s ) order by ts" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
+
+                            sql2 = "select %s from (select * from %s where  %s %s %s %s %s order by ts ) order by ts" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
+                        
+                        for i in (6,7,8,9,):                        
+                            time_window_new = tdWhere.time_window_new(i)
+                            self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
+                            sql1 = 'select %s from %s %s %s order by ts;'  % (func,self.table,interval_fill,time_window_new)                           
+
+                            sql2 = "select %s from %s where  %s %s %s %s %s order by ts" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            sql= sql + sql2
+
+                            sql2 = "select %s from (select * from %s where  %s %s %s %s %s order by ts)" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
+                            
+                            sql2 = "select * from (select %s from %s where  %s %s %s %s %s order by ts)" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            sql= sql + sql2
+
+                            sql2 = "select %s from (select * from %s order by ts) where  %s %s %s %s %s order by ts" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s %s ) order by ts" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -992,7 +1038,7 @@ class TDTestQuery(TDCase):
                             self.tdSql.error(sql2)
                             sql= sql + sql2
                         
-                        for i in (1,2,3,4,6,7,8,9,21,):                        
+                        for i in (1,2,3,4,21,):                        
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s %s order by ts desc;'  % (func,self.table,interval_fill,time_window_new)                                                
@@ -1013,6 +1059,31 @@ class TDTestQuery(TDCase):
                             self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
+                            sql= sql + sql2
+
+                            sql2 = "select %s from (select * from %s where  %s %s %s %s %s ) order by ts desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
+
+                            sql2 = "select %s from (select * from %s where  %s %s %s %s %s order by ts desc ) order by ts desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdSql.error(sql2)
+                            sql= sql + sql2
+                            
+                        for i in (6,7,8,9,):                        
+                            time_window_new = tdWhere.time_window_new(i)
+                            self.logger.info("\n\n\n====right case========case2=====time num = %d======interval======\n\n\n" %i)
+                            sql1 = 'select %s from %s %s %s order by ts desc;'  % (func,self.table,interval_fill,time_window_new)                                                
+
+                            sql2 = "select %s from %s where  %s %s %s %s %s order by ts desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            sql= sql + sql2
+
+                            sql2 = "select * from (select %s from %s where  %s %s %s %s %s order by ts desc);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            sql= sql + sql2
+
+                            sql2 = "select %s from (select * from %s order by ts) where  %s %s %s %s %s order by ts desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s %s ) order by ts desc;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -1481,7 +1552,7 @@ class TDTestQuery(TDCase):
                             self.tdCreateData.explain_sql(sql2)
                             sql= sql + sql2
                         
-                        for i in (1,2,3,4,6,7,8,9,21,):                        
+                        for i in (1,2,3,4,21,):                        
                             time_window_new = tdWhere.time_window_new(i)
                             self.logger.info("\n\n\n=====right case========case3====time num = %d======interval======\n\n\n" %i)
                             sql1 = 'select %s from %s %s %s order by ts;'  % (func,self.table,interval_fill,time_window_new)
@@ -1502,6 +1573,23 @@ class TDTestQuery(TDCase):
                             self.tdCreateData.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
                             cur1.execute(sql2)
                             self.tdCreateData.explain_sql(sql2)
+                            sql= sql + sql2
+                        
+                        for i in (6,7,8,9,):                        
+                            time_window_new = tdWhere.time_window_new(i)
+                            self.logger.info("\n\n\n=====right case========case3====time num = %d======interval======\n\n\n" %i)
+                            sql1 = 'select %s from %s %s %s order by ts;'  % (func,self.table,interval_fill,time_window_new)
+                            
+                            sql2 = "select %s from %s where %s  %s %s %s %s order by ts limit 10;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            sql= sql + sql2
+
+                            sql2 = "select * from (select %s from %s where %s  %s %s %s %s order by ts limit 10);" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
+                            sql= sql + sql2
+
+                            sql2 = "select %s from (select * from %s order by ts ) where %s  %s %s %s %s order by ts limit 10;" %(func,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
+                            self.tdCreateData.ignore_error_check(self.service_host,self.db,sql1,sql2)
                             sql= sql + sql2
                                                     
                         for i in range(11,21):                        

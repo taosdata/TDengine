@@ -1007,7 +1007,38 @@ class TDCreateData():
             #return self.tdSql.checkEqual(list1,self.tdSql.getData(i2,j2))
             return self.tdSql.checkEqual(list1,list2)
 
-
+    
+    def ignore_error_check(self,service_host,db,sql1,sql2):            
+        rows = -1;
+        case_common = self.case_sql_subprocess_execute(service_host,db)
+        cur1 = case_common[1]
+        
+        try:
+            self.tdSql.query(sql1,queryTimes=1)
+            self.tdSql.query(sql2,queryTimes=1)            
+            rows = self.tdSql.query(sql1).row_count   
+            if rows>=0:
+                rows_1 = rows 
+                rows_2 = self.tdSql.query(sql2).row_count 
+                if (rows_1 == 0) and (rows_2 == 0):
+                    self.logger.info(("=====sql1.rows:'%s',=====sql2.rows:'%s'") %(rows_1,rows_2))
+                    self.explain_sql(sql2) 
+                    cur1.execute(sql2)           
+                elif (rows_1 > 0 and rows_1 <= 10) and (rows_2 > 0 and rows_2 <= 10):
+                    self.logger.info(("=====sql1.rows:'%s',=====sql2.rows:'%s'") %(rows_1,rows_2))
+                    self.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                    self.data_matrix_equal('%s' %sql1 ,1,int('%d' %rows_1),1,1,'%s' %sql2 ,1,int('%d' %rows_2),1,1)
+                    self.explain_sql(sql2)    
+                    cur1.execute(sql2)      
+                elif (rows_1 > 10 ) and (rows_2 > 10 ) and (rows_1 == rows_2) :
+                    self.logger.info(("=====sql1.rows:'%s',=====sql2.rows:'%s'") %(rows_1,rows_2))
+                    self.data_matrix_equal('%s' %sql1 ,1,10,1,1,'%s' %sql2 ,1,10,1,1)
+                    self.explain_sql(sql2)
+                    cur1.execute(sql2)
+        except:
+            self.tdSql.error(sql1)
+            self.tdSql.error(sql2)
+            self.logger.info("sql1 is not support :=====%s; sql2 is not support :=====%s; " %(sql1,sql2))
 
     def check_one_row_one_col_value(self, sql, row, col, oper, value, throw=True) -> bool:
         # oper : LT (小于)、GT（大于）、LE（小于等于）、GE（大于等于）、NE（不等于）、EQ（等于）。不区分大小写 val : 数值型
