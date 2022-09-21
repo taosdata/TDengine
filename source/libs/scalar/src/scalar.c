@@ -1242,6 +1242,7 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
       colInfoDataEnsureCapacity(pDst->columnData, res->numOfRows);
       colDataAssign(pDst->columnData, res->columnData, res->numOfRows, NULL);
       pDst->numOfRows = res->numOfRows;
+      pDst->numOfQualified = res->numOfQualified;
     }
 
     sclFreeParam(res);
