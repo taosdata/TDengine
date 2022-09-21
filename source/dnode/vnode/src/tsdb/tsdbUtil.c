@@ -1082,9 +1082,8 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
       pColVal = tRowIterNext(&rIter);
     }
   }
-
-_exit:
   pBlockData->nRow++;
+
   return code;
 
 _err:

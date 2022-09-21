@@ -342,6 +342,7 @@ static int32_t (*tDiskColAddValImpl[])(SDiskCol *pDiskCol, SColVal *pColVal) = {
 struct SDiskData {
   int64_t      suid;
   int64_t      uid;
+  int32_t      nRow;
   uint8_t      cmprAlg;
   SCompressor *pUidC;
   SCompressor *pVerC;
@@ -355,6 +356,7 @@ int32_t tDiskDataInit(SDiskData *pDiskData, STSchema *pTSchema, TABLEID *pId, ui
 
   pDiskData->suid = pId->suid;
   pDiskData->uid = pId->uid;
+  pDiskData->nRow = 0;
   pDiskData->cmprAlg = cmprAlg;
 
   if (pDiskData->pUidC == NULL) {
@@ -443,7 +445,7 @@ int32_t tDiskDataAddRow(SDiskData *pDiskData, TSDBROW *pRow, STSchema *pTSchema,
 
   // TSKEY
   TSKEY ts = TSDBROW_TS(pRow);
-  code = tCompress(pDiskData->pVerC, &ts, sizeof(int64_t));
+  code = tCompress(pDiskData->pKeyC, &ts, sizeof(int64_t));
   if (code) goto _exit;
 
   SRowIter iter = {0};
@@ -458,7 +460,8 @@ int32_t tDiskDataAddRow(SDiskData *pDiskData, TSDBROW *pRow, STSchema *pTSchema,
     }
 
     if (pColVal == NULL || pColVal->cid > pDiskCol->cid) {
-      code = tDiskColAddValImpl[pDiskCol->flag](pDiskCol, &COL_VAL_NONE(pDiskCol->cid, pDiskCol->type));
+      SColVal cv = COL_VAL_NONE(pDiskCol->cid, pDiskCol->type);
+      code = tDiskColAddValImpl[pDiskCol->flag](pDiskCol, &cv);
       if (code) goto _exit;
     } else {
       code = tDiskColAddValImpl[pDiskCol->flag](pDiskCol, pColVal);
@@ -466,6 +469,7 @@ int32_t tDiskDataAddRow(SDiskData *pDiskData, TSDBROW *pRow, STSchema *pTSchema,
       pColVal = tRowIterNext(&iter);
     }
   }
+  pDiskData->nRow++;
 
 _exit:
   return code;
