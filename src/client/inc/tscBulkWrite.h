@@ -23,6 +23,9 @@ extern "C" {
 #include "tarray.h"
 #include "tthread.h"
 
+// forward declaration.
+typedef struct SSqlObj SSqlObj;
+
 /**
  * SAsyncBulkWriteDispatcher is an async batching dispatcher(for writing), it can buffer insertion statements, batch
  * and merge them into single statement.
@@ -51,15 +54,10 @@ typedef struct SAsyncBulkWriteDispatcher {
   
   // the number of insertion rows in the buffer.
   int32_t currentSize;
-  
-  // the number of item in the buffer.
-  volatile int32_t bufferSize;
-  
-  // while executing timeout task, the buffer will set exclusive for writing.
-  volatile bool exclusive;
 
   // whether the dispatcher is shutdown.
   volatile bool shutdown;
+  
 } SAsyncBulkWriteDispatcher;
 
 // forward declaration.

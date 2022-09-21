@@ -151,7 +151,7 @@ int32_t dispatcherStatementMerge(SArray* statements, SSqlObj** result) {
  * @return              the items in the dispatcher, SArray<SSqlObj*>.
  */
 inline static SArray* dispatcherPollAll(SAsyncBulkWriteDispatcher* dispatcher) {
-  if (!atomic_load_32(&dispatcher->bufferSize)) {
+  if (!taosArrayGetSize(dispatcher->buffer)) {
     return NULL;
   }
   
@@ -162,7 +162,6 @@ inline static SArray* dispatcherPollAll(SAsyncBulkWriteDispatcher* dispatcher) {
   }
   
   dispatcher->currentSize = 0;
-  atomic_store_32(&dispatcher->bufferSize, 0);
   taosArrayClear(dispatcher->buffer);
   return statements;
 }
@@ -207,10 +206,8 @@ inline static bool dispatcherTryOffer(SAsyncBulkWriteDispatcher* dispatcher, SSq
   }
 
   taosArrayPush(dispatcher->buffer, pSql);
-  tscDebug("sql obj %p has been write to insert buffer", pSql);
-
-  atomic_fetch_add_32(&dispatcher->bufferSize, 1);
   dispatcher->currentSize += statementGetInsertionRows(pSql);
+  tscDebug("sql obj %p has been write to insert buffer", pSql);
   
   // the dispatcher has been shutdown or reach batch size.
   if (atomic_load_8(&dispatcher->shutdown) || dispatcher->currentSize >= dispatcher->batchSize) {
@@ -315,10 +312,8 @@ static void* dispatcherTimeoutCallback(void* arg) {
     struct timespec current;
     clock_gettime(CLOCK_REALTIME, &current);
     struct timespec timeout = afterMillis(current, dispatcher->timeoutMs);
-
-    atomic_store_8(&dispatcher->exclusive, true);
+    
     SArray* statements = dispatcherLockPollAll(dispatcher);
-    atomic_store_8(&dispatcher->exclusive, false);
     dispatcherExecute(statements);
     taosArrayDestroy(&statements);
     
@@ -338,10 +333,8 @@ SAsyncBulkWriteDispatcher* createAsyncBulkWriteDispatcher(int32_t batchSize, int
   dispatcher->currentSize = 0;
   dispatcher->batchSize = batchSize;
   dispatcher->timeoutMs = timeoutMs;
-
-  atomic_store_32(&dispatcher->bufferSize, 0);
+  
   atomic_store_8(&dispatcher->shutdown, false);
-  atomic_store_8(&dispatcher->exclusive, false);
 
   // init the buffer.
   dispatcher->buffer = taosArrayInit(batchSize, sizeof(SSqlObj*));
@@ -392,8 +385,12 @@ void destroyAsyncDispatcher(SAsyncBulkWriteDispatcher* dispatcher) {
   dispatcherShutdown(dispatcher);
 
   // poll and send all the statements in the buffer.
-  while (atomic_load_32(&dispatcher->bufferSize)) {
+  while (true) {
     SArray* statements = dispatcherLockPollAll(dispatcher);
+    if (!statements) {
+      break ;
+    }
+    
     dispatcherExecute(statements);
     taosArrayDestroy(&statements);
   }
@@ -449,11 +446,6 @@ bool dispatcherTryDispatch(SAsyncBulkWriteDispatcher* dispatcher, SSqlObj* pSql)
 
   // the sql object doesn't support bulk insertion.
   if (!tscSupportBulkInsertion(dispatcher, pSql)) {
-    return false;
-  }
-
-  // the buffer is exclusive.
-  if (atomic_load_8(&dispatcher->exclusive)) {
     return false;
   }
 

@@ -2224,13 +2224,13 @@ static void extractTableNameList(SSqlObj *pSql, SInsertStatementParam *pInsertPa
  */
 int32_t tscMergeKVPayLoadSqlObj(SArray* statements, SSqlObj **result) {
   // statement array is empty.
-  if (statements == NULL || taosArrayGetSize(statements) == 0) {
+  if (!statements || !taosArrayGetSize(statements)) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
   
   // a.k.a SHashObj<int64_t, STableDataBlocks*>, the key value represents vgroup id.
   SHashObj*              pVnodeDataBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
-  if (pVnodeDataBlockHashList == NULL) {
+  if (!pVnodeDataBlockHashList) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   
@@ -2307,7 +2307,7 @@ int32_t tscMergeKVPayLoadSqlObj(SArray* statements, SSqlObj **result) {
       // copy the data into vgroup data blocks.
       memcpy(dataBuf->pData + dataBuf->size, tableBlock->pData + tableBlock->headerSize, tableBlock->size - tableBlock->headerSize);
       dataBuf->size += tableBlock->size - tableBlock->headerSize;
-      dataBuf->numOfTables += 1;
+      dataBuf->numOfTables += tableBlock->numOfTables;
       tscDestroyDataBlock(pSql, tableBlock, false);
     }
     
