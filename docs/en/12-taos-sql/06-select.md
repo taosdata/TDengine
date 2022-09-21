@@ -66,9 +66,9 @@ order_expr:
 
 A query can be performed on some or all columns. Data and tag columns can all be included in the SELECT list.
 
-## Wildcards
+### Wildcards
 
-You can use an asterisk (\*) as a wildcard character to indicate all columns. For standard tables, the asterisk indicates only data columns. For supertables and subtables, tag columns are also included.
+You can use an asterisk (\*) as a wildcard character to indicate all columns. For normal tables or sub-tables, the asterisk indicates only data columns. For supertables, tag columns are also included when using asterisk (\*).
 
 ```sql
 SELECT * FROM d1001;
@@ -135,6 +135,8 @@ taos> SELECT ts, ts AS primary_key_ts FROM d1001;
 `AS` can't be used together with `first(*)`, `last(*)`, or `last_row(*)`.
 
 ### Pseudocolumns
+
+**Pseudocolumn:** A pseudo-column behaves like a table column but is not actually stored in the table. You can select from pseudo-columns, but you cannot insert, update, or delete their values. A pseudo-column is also similar to a function without arguments. This section describes these pseudo-columns:
 
 **TBNAME**
 The TBNAME pseudocolumn in a supertable contains the names of subtables within the supertable.

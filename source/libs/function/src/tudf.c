@@ -961,6 +961,7 @@ void releaseUdfFuncHandle(char* udfName) {
   strcpy(key.udfName, udfName);
   SUdfcFuncStub *foundStub = taosArraySearch(gUdfdProxy.udfStubs, &key, compareUdfcFuncSub, TD_EQ);
   if (!foundStub) {
+    uv_mutex_unlock(&gUdfdProxy.udfStubsMutex);
     return;
   }
   if (foundStub->refCount > 0) {

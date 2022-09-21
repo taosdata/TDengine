@@ -1059,7 +1059,7 @@ end:
   for (int i = 0; i < taosArrayGetSize(pTagVals); ++i) {
     STagVal* p = (STagVal*)taosArrayGet(pTagVals, i);
     if (IS_VAR_DATA_TYPE(p->type)) {
-      taosMemoryFree(p->pData);
+      taosMemoryFreeClear(p->pData);
     }
   }
   taosArrayDestroy(pTagVals);
@@ -2040,7 +2040,7 @@ end:
   for (int i = 0; i < taosArrayGetSize(pTagArray); ++i) {
     STagVal* p = (STagVal*)taosArrayGet(pTagArray, i);
     if (p->type == TSDB_DATA_TYPE_NCHAR) {
-      taosMemoryFree(p->pData);
+      taosMemoryFreeClear(p->pData);
     }
   }
   taosArrayDestroy(pTagArray);

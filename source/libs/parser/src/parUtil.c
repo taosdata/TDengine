@@ -410,6 +410,12 @@ end:
   if (retCode == TSDB_CODE_SUCCESS) {
     tTagNew(pTagVals, 1, true, ppTag);
   }
+  for (int i = 0; i < taosArrayGetSize(pTagVals); ++i) {
+    STagVal* p = (STagVal*)taosArrayGet(pTagVals, i);
+    if (IS_VAR_DATA_TYPE(p->type)) {
+      taosMemoryFreeClear(p->pData);
+    }
+  }
   cJSON_Delete(root);
   return retCode;
 }

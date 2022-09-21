@@ -2,3 +2,11 @@ bin
 obj
 .vs
 *.sln
+wsConnect/obj
+wsInsert/obj
+wsQuery/obj
+wsStmt/obj
+wsConnect/bin
+wsInsert/bin
+wsQuery/bin
+wsStmt/bin
