@@ -1331,7 +1331,7 @@ static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock
     // must check update info first.
     bool update = updateInfoIsUpdated(pInfo->pUpdateInfo, pBlock->info.uid, tsCol[rowId]);
     bool closedWin = isClosed && isSignleIntervalWindow(pInfo) &&
-                     isDeletedWindow(&win, pBlock->info.groupId, pInfo->windowSup.pIntervalAggSup);
+                     isDeletedStreamWindow(&win, pBlock->info.groupId, pInfo->pTableScanOp, &pInfo->twAggSup);
     if ((update || closedWin) && out) {
       qDebug("stream update check not pass, update %d, closedWin %d", update, closedWin);
       uint64_t gpId = closedWin && pInfo->partitionSup.needCalc
@@ -1480,6 +1480,40 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   }
 }
 
+static int32_t filterDelBlockByUid(SSDataBlock* pDst, const SSDataBlock* pSrc, SStreamScanInfo* pInfo) {
+  STqReader* pReader = pInfo->tqReader;
+  int32_t    rows = pSrc->info.rows;
+  blockDataEnsureCapacity(pDst, rows);
+
+  SColumnInfoData* pSrcStartCol = taosArrayGet(pSrc->pDataBlock, START_TS_COLUMN_INDEX);
+  uint64_t*        startCol = (uint64_t*)pSrcStartCol->pData;
+  SColumnInfoData* pSrcEndCol = taosArrayGet(pSrc->pDataBlock, END_TS_COLUMN_INDEX);
+  uint64_t*        endCol = (uint64_t*)pSrcEndCol->pData;
+  SColumnInfoData* pSrcUidCol = taosArrayGet(pSrc->pDataBlock, UID_COLUMN_INDEX);
+  uint64_t*        uidCol = (uint64_t*)pSrcUidCol->pData;
+
+  SColumnInfoData* pDstStartCol = taosArrayGet(pDst->pDataBlock, START_TS_COLUMN_INDEX);
+  SColumnInfoData* pDstEndCol = taosArrayGet(pDst->pDataBlock, END_TS_COLUMN_INDEX);
+  SColumnInfoData* pDstUidCol = taosArrayGet(pDst->pDataBlock, UID_COLUMN_INDEX);
+  int32_t          j = 0;
+  for (int32_t i = 0; i < rows; i++) {
+    if (taosHashGet(pReader->tbIdHash, &uidCol[i], sizeof(uint64_t))) {
+      colDataAppend(pDstStartCol, j, (const char*)&startCol[i], false);
+      colDataAppend(pDstEndCol, j, (const char*)&endCol[i], false);
+      colDataAppend(pDstUidCol, j, (const char*)&uidCol[i], false);
+
+      colDataAppendNULL(taosArrayGet(pDst->pDataBlock, GROUPID_COLUMN_INDEX), j);
+      colDataAppendNULL(taosArrayGet(pDst->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX), j);
+      colDataAppendNULL(taosArrayGet(pDst->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX), j);
+      j++;
+    }
+  }
+  pDst->info = pSrc->info;
+  pDst->info.rows = j;
+
+  return 0;
+}
+
 static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   // NOTE: this operator does never check if current status is done or not
   SExecTaskInfo*   pTaskInfo = pOperator->pTaskInfo;
@@ -1568,6 +1602,12 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       } break;
       case STREAM_DELETE_DATA: {
         printDataBlock(pBlock, "stream scan delete recv");
+        if (pInfo->tqReader) {
+          SSDataBlock* pDelBlock = createSpecialDataBlock(STREAM_DELETE_DATA);
+          filterDelBlockByUid(pDelBlock, pBlock, pInfo);
+          pBlock = pDelBlock;
+        }
+        printDataBlock(pBlock, "stream scan delete recv filtered");
         if (!isIntervalWindow(pInfo) && !isSessionWindow(pInfo) && !isStateWindow(pInfo)) {
           generateDeleteResultBlock(pInfo, pBlock, pInfo->pDeleteDataRes);
           pInfo->pDeleteDataRes->info.type = STREAM_DELETE_RESULT;
@@ -1647,6 +1687,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     while (1) {
       if (pInfo->tqReader->pMsg == NULL) {
         if (pInfo->validBlockIndex >= totBlockNum) {
+          updateInfoDestoryColseWinSBF(pInfo->pUpdateInfo);
           return NULL;
         }
 
@@ -1780,6 +1821,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
       qDebug("tmqsnap change get data uid:%ld", mtInfo.uid);
       qStreamPrepareScan(pTaskInfo, &pTaskInfo->streamInfo.prepareStatus, pInfo->sContext->subType);
     }
+    tDeleteSSchemaWrapper(mtInfo.schema);
     qDebug("tmqsnap stream scan tsdb return null");
     return NULL;
   } else if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_META) {
@@ -1931,11 +1973,6 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
 
   pInfo->pTagCond = pTagCond;
   pInfo->pGroupTags = pTableScanNode->pGroupTags;
-  pInfo->twAggSup = (STimeWindowAggSupp){
-      .waterMark = pTableScanNode->watermark,
-      .calTrigger = pTableScanNode->triggerType,
-      .maxTs = INT64_MIN,
-  };
 
   int32_t numOfCols = 0;
   pInfo->pColMatchInfo = extractColMatchInfo(pScanPhyNode->pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID);
@@ -1985,7 +2022,6 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
 
     pInfo->pUpdateInfo = NULL;
     pInfo->pTableScanOp = pTableScanOp;
-    pInfo->interval = pTSInfo->pdInfo.interval;
 
     pInfo->readHandle = *pHandle;
     pInfo->tableUid = pScanPhyNode->uid;

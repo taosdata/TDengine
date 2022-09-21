@@ -38,6 +38,9 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
     SArray*                    blocks = pMerged->reqs;
     qDebug("task %d %p set submit input (merged), batch num: %d", pTask->taskId, pTask, (int32_t)blocks->size);
     qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_INPUT__MERGED_SUBMIT);
+  } else if (pItem->type == STREAM_INPUT__REF_DATA_BLOCK) {
+    const SStreamRefDataBlock* pRefBlock = (const SStreamRefDataBlock*)data;
+    qSetMultiStreamInput(exec, pRefBlock->pBlock, 1, STREAM_INPUT__DATA_BLOCK);
   } else {
     ASSERT(0);
   }

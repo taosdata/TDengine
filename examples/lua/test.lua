@@ -9,6 +9,50 @@ local config = {
    max_packet_size = 1024 * 1024 
 }
 
+function dump(obj)
+    local getIndent, quoteStr, wrapKey, wrapVal, dumpObj
+    getIndent = function(level)
+        return string.rep("\t", level)
+    end
+    quoteStr = function(str)
+        return '"' .. string.gsub(str, '"', '\\"') .. '"'
+    end
+    wrapKey = function(val)
+        if type(val) == "number" then
+            return "[" .. val .. "]"
+        elseif type(val) == "string" then
+            return "[" .. quoteStr(val) .. "]"
+        else
+            return "[" .. tostring(val) .. "]"
+        end
+    end
+    wrapVal = function(val, level)
+        if type(val) == "table" then
+            return dumpObj(val, level)
+        elseif type(val) == "number" then
+            return val
+        elseif type(val) == "string" then
+            return quoteStr(val)
+        else
+            return tostring(val)
+        end
+    end
+    dumpObj = function(obj, level)
+        if type(obj) ~= "table" then
+            return wrapVal(obj)
+        end
+        level = level + 1
+        local tokens = {}
+        tokens[#tokens + 1] = "{"
+        for k, v in pairs(obj) do
+            tokens[#tokens + 1] = getIndent(level) .. wrapKey(k) .. " = " .. wrapVal(v, level) .. ","
+        end
+        tokens[#tokens + 1] = getIndent(level - 1) .. "}"
+        return table.concat(tokens, "\n")
+    end
+    return dumpObj(obj, 0)
+end
+
 local conn
 local res = driver.connect(config)
 if res.code ~=0 then
@@ -37,7 +81,7 @@ else
    print("select db--- pass.")
 end
 
-res = driver.query(conn,"create table m1 (ts timestamp, speed int,owner binary(20))")
+res = driver.query(conn,"create table m1 (ts timestamp, speed int, owner binary(20), mark nchar(30))")
 if res.code ~=0 then
    print("create table---failed: "..res.error)
    return
@@ -45,7 +89,7 @@ else
    print("create table--- pass.")
 end
 
-res = driver.query(conn,"insert into m1 values ('2019-09-01 00:00:00.001',0,'robotspace'), ('2019-09-01 00:00:00.002',1,'Hilink'),('2019-09-01 00:00:00.003',2,'Harmony')")
+res = driver.query(conn,"insert into m1 values ('2019-09-01 00:00:00.001', 0, 'robotspace', '世界人民大团结万岁'), ('2019-09-01 00:00:00.002', 1, 'Hilink', '⾾⾿⿀⿁⿂⿃⿄⿅⿆⿇⿈⿉⿊⿋⿌⿍⿎⿏⿐⿑⿒⿓⿔⿕'),('2019-09-01 00:00:00.003', 2, 'Harmony', '₠₡₢₣₤₥₦₧₨₩₪₫€₭₮₯₰₱₲₳₴₵')")
 if res.code ~=0 then
    print("insert records failed: "..res.error)
    return
@@ -64,21 +108,25 @@ if res.code ~=0 then
    return
 else
     if (#(res.item) == 3) then
-	print("select--- pass")
+        print("select--- pass")
+	print(res.item[1].mark)
+	print(res.item[2].mark)
+	print(res.item[3].mark)
+
     else
 	print("select--- failed: expect 3 affected records, actually received "..#(res.item))
     end
 
 end
 
-res = driver.query(conn,"CREATE TABLE thermometer (ts timestamp, degree double) TAGS(location binary(20), type int)")
+res = driver.query(conn,"create table thermometer (ts timestamp, degree double) tags(location binary(20), type int)")
 if res.code ~=0 then
    print(res.error)
    return
 else
    print("create super table--- pass")
 end
-res = driver.query(conn,"CREATE TABLE therm1 USING thermometer TAGS ('beijing', 1)")
+res = driver.query(conn,"create table therm1 using thermometer tags ('beijing', 1)")
 if res.code ~=0 then
    print(res.error)
    return
@@ -86,7 +134,7 @@ else
    print("create table--- pass")
 end
 
-res = driver.query(conn,"INSERT INTO therm1 VALUES ('2019-09-01 00:00:00.001', 20),('2019-09-01 00:00:00.002', 21)")
+res = driver.query(conn,"insert into therm1 values ('2019-09-01 00:00:00.001', 20),('2019-09-01 00:00:00.002', 21)")
 
 if res.code ~=0 then
    print(res.error)
@@ -99,7 +147,7 @@ else
    end 
 end
 
-res = driver.query(conn,"SELECT COUNT(*) cnt, AVG(degree) AS av, MAX(degree), MIN(degree) FROM thermometer WHERE location='beijing' or location='tianjin' GROUP BY location, type")
+res = driver.query(conn,"select count(*) as cnt, avg(degree) as av, max(degree), min(degree) from thermometer where location='beijing' or location='tianjin' group by location, type")
 if res.code ~=0 then
    print("select from super table--- failed:"..res.error)
    return
@@ -127,11 +175,11 @@ end
 
 driver.query_a(conn,"INSERT INTO therm1 VALUES ('2019-09-01 00:00:00.005', 100),('2019-09-01 00:00:00.006', 101),('2019-09-01 00:00:00.007', 102)", async_query_callback)
 
-driver.query(conn,"CREATE STREAM avg_therm_s INTO avg_degree AS SELECT _wstart, count(*), avg(degree) FROM thermometer INTERVAL(2s)")
+res = driver.query(conn, "create stream stream_avg_degree into avg_degree as select avg(degree) from thermometer interval(5s) sliding(1s)")
 
-print("From now on we start continous insert in an definite loop, pls wait for about 30 seconds and check stream table for result.")
+print("From now on we start continous insert in an definite loop, pls wait for about 10 seconds and check stream table for result.")
 local loop_index = 0
-while loop_index < 30 do
+while loop_index < 10 do
    local t = os.time()*1000
    local v = math.random(20)
    res = driver.query(conn,string.format("INSERT INTO therm1 VALUES (%d, %d)",t,v))

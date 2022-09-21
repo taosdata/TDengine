@@ -189,9 +189,23 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
     tscError("%d failed to add to request container, reqId:0x%" PRIx64 ", conn:%d, %s", (*pRequest)->self,
              (*pRequest)->requestId, pTscObj->id, sql);
 
+    taosMemoryFree(param);
     destroyRequest(*pRequest);
     *pRequest = NULL;
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  (*pRequest)->allocatorRefId = -1;
+  if (tsQueryUseNodeAllocator && !qIsInsertValuesSql((*pRequest)->sqlstr, (*pRequest)->sqlLen)) {
+    if (TSDB_CODE_SUCCESS !=
+        nodesCreateAllocator((*pRequest)->requestId, tsQueryNodeChunkSize, &((*pRequest)->allocatorRefId))) {
+      tscError("%d failed to create node allocator, reqId:0x%" PRIx64 ", conn:%d, %s", (*pRequest)->self,
+               (*pRequest)->requestId, pTscObj->id, sql);
+
+      destroyRequest(*pRequest);
+      *pRequest = NULL;
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
   }
 
   tscDebugL("0x%" PRIx64 " SQL: %s, reqId:0x%" PRIx64, (*pRequest)->self, (*pRequest)->sqlstr, (*pRequest)->requestId);
@@ -1022,7 +1036,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
                           .pMsg = pRequest->msgBuf,
                           .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                           .pUser = pRequest->pTscObj->user,
-                          .sysInfo = pRequest->pTscObj->sysInfo};
+                          .sysInfo = pRequest->pTscObj->sysInfo,
+                          .allocatorId = pRequest->allocatorRefId};
 
       SAppInstInfo* pAppInfo = getAppInfo(pRequest);
       SQueryPlan*   pDag = NULL;
@@ -1047,6 +1062,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
             .pConn = &conn,
             .pNodeList = pNodeList,
             .pDag = pDag,
+            .allocatorRefId = pRequest->allocatorRefId,
             .sql = pRequest->sqlstr,
             .startTs = pRequest->metric.start,
             .execFp = schedulerExecCb,

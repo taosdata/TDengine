@@ -51,6 +51,20 @@ void tqCleanUp() {
   }
 }
 
+static void destroySTqHandle(void* data) {
+  STqHandle* pData = (STqHandle*)data;
+  qDestroyTask(pData->execHandle.task);
+  if (pData->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
+  } else if (pData->execHandle.subType == TOPIC_SUB_TYPE__DB) {
+    tqCloseReader(pData->execHandle.pExecReader);
+    walCloseReader(pData->pWalReader);
+    taosHashCleanup(pData->execHandle.execDb.pFilterOutTbUid);
+  } else if (pData->execHandle.subType == TOPIC_SUB_TYPE__TABLE) {
+    walCloseReader(pData->pWalReader);
+    tqCloseReader(pData->execHandle.pExecReader);
+  }
+}
+
 STQ* tqOpen(const char* path, SVnode* pVnode) {
   STQ* pTq = taosMemoryCalloc(1, sizeof(STQ));
   if (pTq == NULL) {
@@ -61,6 +75,8 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
   pTq->pVnode = pVnode;
 
   pTq->pHandle = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
+
+  taosHashSetFreeFp(pTq->pHandle, destroySTqHandle);
 
   pTq->pPushMgr = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
 
@@ -517,6 +533,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     int64_t fetchVer = fetchOffsetNew.version + 1;
     pCkHead = taosMemoryMalloc(sizeof(SWalCkHead) + 2048);
     if (pCkHead == NULL) {
+      tDeleteSTaosxRsp(&taosxRsp);
       return -1;
     }
 
@@ -577,14 +594,17 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         if (tqSendMetaPollRsp(pTq, pMsg, pReq, &metaRsp) < 0) {
           code = -1;
           taosMemoryFree(pCkHead);
+          tDeleteSTaosxRsp(&taosxRsp);
           return code;
         }
         code = 0;
         if (pCkHead) taosMemoryFree(pCkHead);
+        tDeleteSTaosxRsp(&taosxRsp);
         return code;
       }
     }
   }
+  tDeleteSTaosxRsp(&taosxRsp);
   return 0;
 }
 
@@ -644,7 +664,10 @@ int32_t tqProcessVgChangeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLe
       tqError("vgId:%d, build new consumer handle %s for consumer %d, but old consumerId is %ld", req.vgId, req.subKey,
               req.newConsumerId, req.oldConsumerId);
     }
-    ASSERT(req.newConsumerId != -1);
+    if (req.newConsumerId == -1) {
+      tqError("vgId:%d, tq invalid rebalance request, new consumerId %ld", req.vgId, req.newConsumerId);
+      return 0;
+    }
     STqHandle tqHandle = {0};
     pHandle = &tqHandle;
     /*taosInitRWLatch(&pExec->lock);*/
@@ -856,6 +879,9 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
 
   taosArrayDestroy(pRes->uidList);
 
+  int32_t* pRef = taosMemoryMalloc(sizeof(int32_t));
+  *pRef = 1;
+
   void* pIter = NULL;
   while (1) {
     pIter = taosHashIterate(pTq->pStreamMeta->pTasks, pIter);
@@ -865,6 +891,33 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
 
     qDebug("delete req enqueue stream task: %d, ver: %" PRId64, pTask->taskId, ver);
 
+    if (!failed) {
+      SStreamRefDataBlock* pRefBlock = taosAllocateQitem(sizeof(SStreamRefDataBlock), DEF_QITEM);
+      pRefBlock->type = STREAM_INPUT__REF_DATA_BLOCK;
+      pRefBlock->pBlock = pDelBlock;
+      pRefBlock->dataRef = pRef;
+      atomic_add_fetch_32(pRefBlock->dataRef, 1);
+
+      if (streamTaskInput(pTask, (SStreamQueueItem*)pRefBlock) < 0) {
+        qError("stream task input del failed, task id %d", pTask->taskId);
+        continue;
+      }
+      if (streamSchedExec(pTask) < 0) {
+        qError("stream task launch failed, task id %d", pTask->taskId);
+        continue;
+      }
+    } else {
+      streamTaskInputFail(pTask);
+    }
+  }
+  int32_t ref = atomic_sub_fetch_32(pRef, 1);
+  ASSERT(ref >= 0);
+  if (ref == 0) {
+    taosMemoryFree(pDelBlock);
+    taosMemoryFree(pRef);
+  }
+
+#if 0
     SStreamDataBlock* pStreamBlock = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
     pStreamBlock->type = STREAM_INPUT__DATA_BLOCK;
     pStreamBlock->blocks = taosArrayInit(0, sizeof(SSDataBlock));
@@ -888,6 +941,7 @@ int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
     }
   }
   blockDataDestroy(pDelBlock);
+#endif
 
   return 0;
 }
@@ -1025,6 +1079,7 @@ int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg) {
   SDecoder           decoder;
   tDecoderInit(&decoder, msgBody, msgLen);
   tDecodeStreamRetrieveReq(&decoder, &req);
+  tDecoderClear(&decoder);
   int32_t      taskId = req.dstTaskId;
   SStreamTask* pTask = streamMetaGetTask(pTq->pStreamMeta, taskId);
   if (pTask) {
@@ -1033,6 +1088,7 @@ int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg) {
         .code = 0,
     };
     streamProcessRetrieveReq(pTask, &req, &rsp);
+    tDeleteStreamRetrieveReq(&req);
     return 0;
   } else {
     return -1;

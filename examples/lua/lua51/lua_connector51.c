@@ -35,7 +35,7 @@ static int l_connect(lua_State *L){
   }
   
   lua_getfield(L, 1, "port");
-  if (lua_isnumber(L,-1)){
+  if (lua_isnumber(L, -1)){
     port = lua_tonumber(L, -1);
     //printf("port = %d\n", port);
   }
@@ -136,19 +136,15 @@ static int l_query(lua_State *L){
 	lua_pushstring(L,fields[i].name);
 	int32_t* length = taos_fetch_lengths(result);
 	switch (fields[i].type) {
-	case TSDB_DATA_TYPE_UTINYINT:
 	case TSDB_DATA_TYPE_TINYINT:
 	  lua_pushinteger(L,*((char *)row[i]));
 	  break;
-	case TSDB_DATA_TYPE_USMALLINT:
 	case TSDB_DATA_TYPE_SMALLINT:
 	  lua_pushinteger(L,*((short *)row[i]));
 	  break;
-	case TSDB_DATA_TYPE_UINT:
 	case TSDB_DATA_TYPE_INT:
 	  lua_pushinteger(L,*((int *)row[i]));
 	  break;
-	case TSDB_DATA_TYPE_UBIGINT:
 	case TSDB_DATA_TYPE_BIGINT:
 	  lua_pushinteger(L,*((int64_t *)row[i]));
 	  break;
@@ -158,7 +154,6 @@ static int l_query(lua_State *L){
 	case TSDB_DATA_TYPE_DOUBLE:
 	  lua_pushnumber(L,*((double *)row[i]));
 	  break;
-	case TSDB_DATA_TYPE_JSON:
 	case TSDB_DATA_TYPE_BINARY:
 	case TSDB_DATA_TYPE_NCHAR:
 	  //printf("type:%d, max len:%d, current len:%d\n",fields[i].type, fields[i].bytes, length[i]);
