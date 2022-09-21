@@ -65,6 +65,7 @@ void taos_cleanup(void) {
 
   fmFuncMgtDestroy();
   qCleanupKeywordsTable();
+  nodesDestroyAllocatorSet();
 
   id = clientConnRefPool;
   clientConnRefPool = -1;
