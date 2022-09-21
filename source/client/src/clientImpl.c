@@ -197,7 +197,8 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
 
   (*pRequest)->allocatorRefId = -1;
   if (tsQueryUseNodeAllocator && !qIsInsertValuesSql((*pRequest)->sqlstr, (*pRequest)->sqlLen)) {
-    if (TSDB_CODE_SUCCESS != nodesCreateAllocator(tsQueryNodeChunkSize, &((*pRequest)->allocatorRefId))) {
+    if (TSDB_CODE_SUCCESS !=
+        nodesCreateAllocator((*pRequest)->requestId, tsQueryNodeChunkSize, &((*pRequest)->allocatorRefId))) {
       tscError("%d failed to create node allocator, reqId:0x%" PRIx64 ", conn:%d, %s", (*pRequest)->self,
                (*pRequest)->requestId, pTscObj->id, sql);
 
@@ -1035,7 +1036,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
                           .pMsg = pRequest->msgBuf,
                           .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                           .pUser = pRequest->pTscObj->user,
-                          .sysInfo = pRequest->pTscObj->sysInfo};
+                          .sysInfo = pRequest->pTscObj->sysInfo,
+                          .allocatorId = pRequest->allocatorRefId};
 
       SAppInstInfo* pAppInfo = getAppInfo(pRequest);
       SQueryPlan*   pDag = NULL;
@@ -1048,8 +1050,6 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
       } else {
         pRequest->body.subplanNum = pDag->numOfSubplans;
       }
-
-      nodesResetAllocator(-1);
 
       pRequest->metric.planEnd = taosGetTimestampUs();
       if (code == TSDB_CODE_SUCCESS) {
