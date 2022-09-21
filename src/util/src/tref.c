@@ -195,7 +195,6 @@ int taosRemoveRef(int rsetId, int64_t rid)
   return taosDecRefCount(rsetId, rid, 1);
 }
 
-// if rid is 0, return the first p in hash list, otherwise, return the next after current rid
 void *taosAcquireRef(int rsetId, int64_t rid)
 {
   int       hash;
