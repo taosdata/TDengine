@@ -143,7 +143,7 @@ void shellCheckConnectMode() {
 				shell.args.port = 6041;
 			}
 			shell.args.dsn = taosMemoryCalloc(1, 1024);
-			snprintf(shell.args.dsn, 1024, "ws://%s:%d/rest/ws",
+			snprintf(shell.args.dsn, 1024, "ws://%s:%d",
 					shell.args.host, shell.args.port);
 		}
 		shell.args.cloud = false;
