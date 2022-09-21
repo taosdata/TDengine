@@ -48,7 +48,7 @@ class TDTestCase:
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
-            cfgPath = buildPath + "/../community/sim/dnode1/cfg/"
+            cfgPath = buildPath + "/../sim/dnode1/cfg/"
         else:
             cfgPath = buildPath + "/../sim/dnode1/cfg/"
 
@@ -143,9 +143,12 @@ class TDTestCase:
         tdsql.query("select * from db.ct4")
         tdsql.checkData(0,1,14)
         tdsql.query("describe  information_schema.ins_databases;")
-        # for i in  tdsql.queryResult[i][0]:
-        #     tdsql.checkData(0,1,13)
-
+        qRows=tdsql.queryRows   
+        for i in  range(qRows) :
+            if tdsql.queryResult[i][0]=="retentions" :
+                return True
+            else:
+                return False
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
