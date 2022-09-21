@@ -1,11 +1,11 @@
-#include <stdio.h>
 #include <math.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include "lua.h"
+#include "taos.h"
 #include "lauxlib.h"
+#include "lua.h"
 #include "lualib.h"
-#include <taos.h>
 
 struct cb_param{
   lua_State* state;
@@ -60,7 +60,6 @@ static int l_connect(lua_State *L){
 
   lua_settop(L,0);
 
-  taos_init();
   
   lua_newtable(L);
   int table_index = lua_gettop(L);
@@ -137,19 +136,15 @@ static int l_query(lua_State *L){
 	lua_pushstring(L,fields[i].name);
 	int32_t* length = taos_fetch_lengths(result);
 	switch (fields[i].type) {
-	case TSDB_DATA_TYPE_UTINYINT:
 	case TSDB_DATA_TYPE_TINYINT:
 	  lua_pushinteger(L,*((char *)row[i]));
 	  break;
-	case TSDB_DATA_TYPE_USMALLINT:
 	case TSDB_DATA_TYPE_SMALLINT:
 	  lua_pushinteger(L,*((short *)row[i]));
 	  break;
-	case TSDB_DATA_TYPE_UINT:
 	case TSDB_DATA_TYPE_INT:
 	  lua_pushinteger(L,*((int *)row[i]));
 	  break;
-	case TSDB_DATA_TYPE_UBIGINT:
 	case TSDB_DATA_TYPE_BIGINT:
 	  lua_pushinteger(L,*((int64_t *)row[i]));
 	  break;
@@ -159,7 +154,6 @@ static int l_query(lua_State *L){
 	case TSDB_DATA_TYPE_DOUBLE:
 	  lua_pushnumber(L,*((double *)row[i]));
 	  break;
-	case TSDB_DATA_TYPE_JSON:
 	case TSDB_DATA_TYPE_BINARY:
 	case TSDB_DATA_TYPE_NCHAR:
 	  //printf("type:%d, max len:%d, current len:%d\n",fields[i].type, fields[i].bytes, length[i]);
@@ -241,67 +235,6 @@ static int l_async_query(lua_State *L){
   return 1;
 }
 
-void stream_cb(void *param, TAOS_RES *result, TAOS_ROW row){
-  struct cb_param* p = (struct cb_param*) param;
-  TAOS_FIELD *fields = taos_fetch_fields(result);
-  int         numFields = taos_num_fields(result);
-
-  // printf("\nnumfields:%d\n", numFields);
-  //printf("\n\r-----------------------------------------------------------------------------------\n");
-
-  lua_State *L = p->state;
-  lua_rawgeti(L, LUA_REGISTRYINDEX, p->callback);
-
-  lua_newtable(L);
-
-  for (int i = 0; i < numFields; ++i) {
-    if (row[i] == NULL) {
-      continue;
-    }
-
-    lua_pushstring(L,fields[i].name);
-
-    switch (fields[i].type) {
-    case TSDB_DATA_TYPE_TINYINT:
-      lua_pushinteger(L,*((char *)row[i]));
-      break;
-    case TSDB_DATA_TYPE_SMALLINT:
-      lua_pushinteger(L,*((short *)row[i]));
-      break;
-    case TSDB_DATA_TYPE_INT:
-      lua_pushinteger(L,*((int *)row[i]));
-      break;
-    case TSDB_DATA_TYPE_BIGINT:
-      lua_pushinteger(L,*((int64_t *)row[i]));
-      break;
-    case TSDB_DATA_TYPE_FLOAT:
-      lua_pushnumber(L,*((float *)row[i]));
-      break;
-    case TSDB_DATA_TYPE_DOUBLE:
-      lua_pushnumber(L,*((double *)row[i]));
-      break;
-    case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_NCHAR:
-      lua_pushstring(L,(char *)row[i]);
-      break;
-    case TSDB_DATA_TYPE_TIMESTAMP:
-      lua_pushinteger(L,*((int64_t *)row[i]));
-      break;
-    case TSDB_DATA_TYPE_BOOL:
-      lua_pushinteger(L,*((char *)row[i]));
-      break;
-    default:
-      lua_pushnil(L);
-      break;
-    }
-
-    lua_settable(L, -3);
-  }
-
-  lua_call(L, 1, 0);
-
-  //  printf("-----------------------------------------------------------------------------------\n\r");
-}
 
 static int l_close(lua_State *L){
   TAOS *taos= (TAOS*)lua_topointer(L,1);
