@@ -1587,7 +1587,7 @@ TAOS_STMT* taos_stmt_init(TAOS* taos) {
   }
   pStmt->taos = pObj;
 
-  SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
+  SSqlObj* pSql = tscAllocSqlObj();
 
   if (pSql == NULL) {
     free(pStmt);
@@ -1604,7 +1604,6 @@ TAOS_STMT* taos_stmt_init(TAOS* taos) {
     return NULL;
   }
 
-  tsem_init(&pSql->rspSem, 0, 0);
   pSql->signature   = pSql;
   pSql->pTscObj     = pObj;
   pSql->maxRetry    = TSDB_MAX_REPLICA;

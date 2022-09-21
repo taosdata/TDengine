@@ -360,8 +360,6 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
   pSql->fetchFp   = fp;
   pSql->rootObj   = pSql;
 
-  pthread_mutex_init(&pSql->mtxSubs, NULL);
-
   registerSqlObj(pSql);
 
   pSql->sqlstr = calloc(1, sqlLen + 1);
@@ -424,7 +422,7 @@ TAOS_RES * taos_query_ra(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, v
   
   nPrintTsc("%s", sqlstr);
   
-  SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
+  SSqlObj *pSql = tscAllocSqlObj();
   if (pSql == NULL) {
     tscError("failed to malloc sqlObj");
     tscQueueAsyncError(fp, param, TSDB_CODE_TSC_OUT_OF_MEMORY);

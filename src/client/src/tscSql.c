@@ -149,7 +149,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
 
   pthread_mutex_init(&pObj->mutex, NULL);
 
-  SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
+  SSqlObj *pSql = tscAllocSqlObj();
   if (NULL == pSql) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscReleaseRpc(pRpcObj);
@@ -163,8 +163,6 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   pSql->fp        = fp;
   pSql->param     = param;
   pSql->cmd.command = TSDB_SQL_CONNECT;
-
-  tsem_init(&pSql->rspSem, 0, 0);
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -305,10 +303,6 @@ void taos_close(TAOS *taos) {
 
       tscDebug("0x%"PRIx64" HB is freed", pHb->self);
       taosReleaseRef(tscObjRef, pHb->self);
-#ifdef __APPLE__
-      // to satisfy later tsem_destroy in taos_free_result
-      tsem_init(&pHb->rspSem, 0, 0);
-#endif // __APPLE__
       taos_free_result(pHb);
     }
   }
@@ -363,14 +357,13 @@ TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen, int64_t*
 
   nPrintTsc("%s", sqlstr);
 
-  SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
+  SSqlObj* pSql = tscAllocSqlObj();
   if (pSql == NULL) {
     tscError("failed to malloc sqlObj");
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return NULL;
   }
   
-  tsem_init(&pSql->rspSem, 0, 0);
   doAsyncQuery(pObj, pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
 
   if (res != NULL) {
@@ -754,7 +747,9 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
   pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
 
   tscLockByThread(&pSql->squeryLock);
-  
+
+  { pthread_mutex_lock(&pSql->subState.mutex);
+
   for (int i = 0; i < pSql->subState.numOfSub; ++i) {
     // NOTE: pSub may have been released already here
     SSqlObj *pSub = pSql->pSubs[i];
@@ -773,6 +768,8 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
     tscAsyncResultOnError(pSubObj);
     // taosRelekaseRef(tscObjRef, pSubObj->self);
   }
+
+  pthread_mutex_unlock(&pSql->subState.mutex); }
 
   if (pSql->subState.numOfSub <= 0) {
     tscAsyncResultOnError(pSql);
@@ -1047,7 +1044,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
     return TSDB_CODE_TSC_DISCONNECTED;
   }
 
-  SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
+  SSqlObj* pSql = tscAllocSqlObj();
 
   pSql->pTscObj  = taos;
   pSql->signature = pSql;
@@ -1165,7 +1162,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
+  SSqlObj* pSql = tscAllocSqlObj();
   tscAllocPayload(&pSql->cmd, 1024);
 
   pSql->pTscObj   = taos;
