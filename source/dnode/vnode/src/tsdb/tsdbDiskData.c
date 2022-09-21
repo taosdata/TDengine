@@ -17,8 +17,6 @@
 
 typedef struct SDiskDataBuilder SDiskDataBuilder;
 typedef struct SDiskColBuilder  SDiskColBuilder;
-typedef struct SDiskCol         SDiskCol;
-typedef struct SDiskData        SDiskData;
 
 struct SDiskColBuilder {
   int16_t      cid;
@@ -43,21 +41,6 @@ struct SDiskDataBuilder {
   int32_t      nBuilder;
   SArray      *aBuilder;
   uint8_t     *aBuf[2];
-};
-
-struct SDiskCol {
-  SBlockCol      bCol;
-  const uint8_t *pBit;
-  const uint8_t *pOff;
-  const uint8_t *pVal;
-};
-
-struct SDiskData {
-  SDiskDataHdr   hdr;
-  const uint8_t *pUid;
-  const uint8_t *pVer;
-  const uint8_t *pKey;
-  SArray        *aDiskCol;  // SArray<SDiskCol>
 };
 
 // SDiskColBuilder ================================================
@@ -147,9 +130,13 @@ static int32_t tDiskColAddValue(SDiskColBuilder *pBuilder, SColVal *pColVal) {
     code = tCompress(pBuilder->pOffC, &pBuilder->offset, sizeof(int32_t));
     if (code) goto _exit;
     pBuilder->offset += pColVal->value.nData;
+
+    code = tCompress(pBuilder->pValC, pColVal->value.pData, pColVal->value.nData);
+    if (code) goto _exit;
+  } else {
+    code = tCompress(pBuilder->pValC, &pColVal->value.val, tDataTypes[pColVal->type].bytes);
+    if (code) goto _exit;
   }
-  code = tCompress(pBuilder->pValC, pColVal->value.pData, pColVal->value.nData /*TODO*/);
-  if (code) goto _exit;
 
 _exit:
   return code;

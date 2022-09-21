@@ -607,6 +607,93 @@ _err:
   return code;
 }
 
+int32_t tsdbWriteDiskData(SDataFWriter *pWriter, SDiskData *pDiskData, SBlockInfo *pBlkInfo) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  STsdbFD *pFD = pWriter->pDataFD;  // todo
+  int64_t  offset = pWriter->fData.size;
+
+  // hdr
+  int32_t n = tPutDiskDataHdr(NULL, &pDiskData->hdr);
+  code = tRealloc(&pWriter->aBuf[0], n);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  tPutDiskDataHdr(pWriter->aBuf[0], &pDiskData->hdr);
+
+  code = tsdbWriteFile(pFD, offset, pWriter->aBuf[0], n);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  offset += n;
+
+  // uid + ver + key
+  if (pDiskData->hdr.szUid) {
+    code = tsdbWriteFile(pFD, offset, pDiskData->pUid, pDiskData->hdr.szUid);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    offset += pDiskData->hdr.szUid;
+  }
+
+  code = tsdbWriteFile(pFD, offset, pDiskData->pVer, pDiskData->hdr.szVer);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  offset += pDiskData->hdr.szVer;
+
+  code = tsdbWriteFile(pFD, offset, pDiskData->pKey, pDiskData->hdr.szKey);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  offset += pDiskData->hdr.szKey;
+
+  // SBlockCol
+  if (pDiskData->hdr.szBlkCol) {
+    code = tRealloc(&pWriter->aBuf[0], pDiskData->hdr.szBlkCol);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    n = 0;
+    for (int32_t iDiskCol = 0; iDiskCol < taosArrayGetSize(pDiskData->aDiskCol); iDiskCol++) {
+      SDiskCol *pDiskCol = (SDiskCol *)taosArrayGet(pDiskData->aDiskCol, iDiskCol);
+
+      n += tPutBlockCol(pWriter->aBuf[0] + n, &pDiskCol->bCol);
+    }
+
+    ASSERT(n == pDiskData->hdr.szBlkCol);
+
+    code = tsdbWriteFile(pFD, offset, pWriter->aBuf[0], pDiskData->hdr.szBlkCol);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    offset += pDiskData->hdr.szBlkCol;
+  }
+
+  // pData
+  for (int32_t iDiskCol = 0; iDiskCol < taosArrayGetSize(pDiskData->aDiskCol); iDiskCol++) {
+    SDiskCol *pDiskCol = (SDiskCol *)taosArrayGet(pDiskData->aDiskCol, iDiskCol);
+
+    if (pDiskCol->bCol.flag == HAS_NULL) continue;
+
+    if (pDiskCol->bCol.szBitmap) {
+      code = tsdbWriteFile(pFD, offset, pDiskCol->pBit, pDiskCol->bCol.szBitmap);
+      TSDB_CHECK_CODE(code, lino, _exit);
+      offset += pDiskCol->bCol.szBitmap;
+    }
+
+    if (pDiskCol->bCol.szOffset) {
+      code = tsdbWriteFile(pFD, offset, pDiskCol->pOff, pDiskCol->bCol.szOffset);
+      TSDB_CHECK_CODE(code, lino, _exit);
+      offset += pDiskCol->bCol.szOffset;
+    }
+
+    if (pDiskCol->bCol.szValue) {
+      code = tsdbWriteFile(pFD, offset, pDiskCol->pVal, pDiskCol->bCol.szValue);
+      TSDB_CHECK_CODE(code, lino, _exit);
+      offset += pDiskCol->bCol.szValue;
+    }
+  }
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+  } else {
+    tsdbDebug("vgId:%d %s", TD_VID(pWriter->pTsdb->pVnode), __func__);
+  }
+  return code;
+}
+
 int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
   int32_t   code = 0;
   int64_t   n;

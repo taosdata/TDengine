@@ -32,6 +32,12 @@ extern "C" {
 #define tsdbTrace(...) do { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TSD ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
+#define TSDB_CHECK_CODE(CODE, LINO, LABEL) \
+  if (CODE) {                              \
+    LINO = __LINE__;                       \
+    goto LABEL;                            \
+  }
+
 typedef struct TSDBROW       TSDBROW;
 typedef struct TABLEID       TABLEID;
 typedef struct TSDBKEY       TSDBKEY;
@@ -65,6 +71,8 @@ typedef struct SSmaInfo      SSmaInfo;
 typedef struct SBlockCol     SBlockCol;
 typedef struct SVersionRange SVersionRange;
 typedef struct SLDataIter    SLDataIter;
+typedef struct SDiskCol      SDiskCol;
+typedef struct SDiskData     SDiskData;
 
 #define TSDB_FILE_DLMT     ((uint32_t)0xF00AFA0F)
 #define TSDB_MAX_SUBBLOCKS 8
@@ -651,6 +659,21 @@ typedef struct {
   int64_t   uid;
   STSchema *pTSchema;
 } SSkmInfo;
+
+struct SDiskCol {
+  SBlockCol      bCol;
+  const uint8_t *pBit;
+  const uint8_t *pOff;
+  const uint8_t *pVal;
+};
+
+struct SDiskData {
+  SDiskDataHdr   hdr;
+  const uint8_t *pUid;
+  const uint8_t *pVer;
+  const uint8_t *pKey;
+  SArray        *aDiskCol;  // SArray<SDiskCol>
+};
 
 int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
                        STimeWindow *pTimeWindow, SVersionRange *pVerRange, void *pLoadInfo, const char *idStr);
