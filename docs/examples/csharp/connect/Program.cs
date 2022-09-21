@@ -16,7 +16,7 @@ namespace TDengineExample
             var conn = TDengine.Connect(host, username, password, dbname, port);
             if (conn == IntPtr.Zero)
             {
-                Console.WriteLine("Connect to TDengine failed");
+                throw new Exception("Connect to TDengine failed");
             }
             else
             {
