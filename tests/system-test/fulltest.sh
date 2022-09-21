@@ -35,6 +35,7 @@ python3 ./test.py -f 1-insert/mutil_stage.py
 python3 ./test.py -f 1-insert/table_param_ttl.py -R
 python3 ./test.py -f 1-insert/update_data_muti_rows.py
 python3 ./test.py -f 1-insert/db_tb_name_check.py
+python3 ./test.py -f 1-insert/database_pre_suf.py
 
 python3 ./test.py -f 2-query/abs.py
 python3 ./test.py -f 2-query/abs.py -R
@@ -156,8 +157,8 @@ python3 ./test.py -f 2-query/sin.py
 python3 ./test.py -f 2-query/sin.py -R
 python3 ./test.py -f 2-query/smaTest.py
 python3 ./test.py -f 2-query/smaTest.py -R
-#python3 ./test.py -f 2-query/sml.py
-#python3 ./test.py -f 2-query/sml.py -R
+python3 ./test.py -f 2-query/sml.py
+python3 ./test.py -f 2-query/sml.py -R
 python3 ./test.py -f 2-query/spread.py
 python3 ./test.py -f 2-query/spread.py -R
 python3 ./test.py -f 2-query/sqrt.py
@@ -512,6 +513,6 @@ python3 ./test.py -f 2-query/count_partition.py -Q 3
 python3 ./test.py -f 2-query/max_partition.py -Q 3
 python3 ./test.py -f 2-query/last_row.py -Q 3
 python3 ./test.py -f 2-query/tsbsQuery.py -Q 3
-#python3 ./test.py -f 2-query/sml.py -Q 3
+python3 ./test.py -f 2-query/sml.py -Q 3
 python3 ./test.py -f 2-query/interp.py -Q 3
 

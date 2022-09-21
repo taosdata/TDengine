@@ -3391,6 +3391,10 @@ static void cleanupTableSchemaInfo(SSchemaInfo* pSchemaInfo) {
   tDeleteSSchemaWrapper(pSchemaInfo->qsw);
 }
 
+static void cleanupStreamInfo(SStreamTaskInfo* pStreamInfo) {
+  tDeleteSSchemaWrapper(pStreamInfo->schema);
+}
+
 static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
   taosArrayClear(pTableListInfo->pGroupList);
   SArray* sortSupport = taosArrayInit(16, sizeof(uint64_t));
@@ -4084,6 +4088,7 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   doDestroyTableList(&pTaskInfo->tableqinfoList);
   destroyOperatorInfo(pTaskInfo->pRoot);
   cleanupTableSchemaInfo(&pTaskInfo->schemaInfo);
+  cleanupStreamInfo(&pTaskInfo->streamInfo);
 
   nodesDestroyNode((SNode*)pTaskInfo->pSubplan);
 
@@ -4207,9 +4212,8 @@ int32_t setOutputBuf(STimeWindow* win, SResultRow** pResult, int64_t tableGroupI
   };
   char*   value = NULL;
   int32_t size = pAggSup->resultRowSize;
-  /*if (streamStateGet(pTaskInfo->streamInfo.pState, &key, (void**)&value, &size) < 0) {*/
-  /*value = taosMemoryCalloc(1, size);*/
-  /*}*/
+
+  tSimpleHashPut(pAggSup->pResultRowHashTable, &key, sizeof(SWinKey), NULL, 0);
   if (streamStateAddIfNotExist(pTaskInfo->streamInfo.pState, &key, (void**)&value, &size) < 0) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
@@ -4227,7 +4231,7 @@ int32_t releaseOutputBuf(SExecTaskInfo* pTaskInfo, SWinKey* pKey, SResultRow* pR
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t saveOutput(SExecTaskInfo* pTaskInfo, SWinKey* pKey, SResultRow* pResult, int32_t resSize) {
+int32_t saveOutputBuf(SExecTaskInfo* pTaskInfo, SWinKey* pKey, SResultRow* pResult, int32_t resSize) {
   streamStatePut(pTaskInfo->streamInfo.pState, pKey, pResult, resSize);
   return TSDB_CODE_SUCCESS;
 }
@@ -4300,8 +4304,9 @@ int32_t buildDataBlockFromGroupRes(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock
         }
       }
     }
-    releaseOutputBuf(pTaskInfo, &key, pRow);
+
     pBlock->info.rows += pRow->numOfRows;
+    releaseOutputBuf(pTaskInfo, &key, pRow);
   }
   blockDataUpdateTsWindow(pBlock, 0);
   return TSDB_CODE_SUCCESS;

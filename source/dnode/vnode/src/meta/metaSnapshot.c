@@ -353,6 +353,8 @@ int32_t buildSnapContext(SMeta* pMeta, int64_t snapVersion, int64_t suid, int8_t
     metaDebug("tmqsnap init idVersion uid:%" PRIi64 " version:%" PRIi64 " index:%d", *uid, idData->version, idData->index);
   }
 
+  tdbFree(pKey);
+  tdbFree(pVal);
   return TDB_CODE_SUCCESS;
 }
 
@@ -528,6 +530,7 @@ int32_t getMetafromSnapShot(SSnapContext* ctx, void **pBuf, int32_t *contLen, in
           }
         }
       }
+      taosArrayDestroy(pTagVals);
     }
 //    SIdInfo* sidInfo = (SIdInfo*)taosHashGet(ctx->idVersion, &me.ctbEntry.suid, sizeof(tb_uid_t));
 //    if(sidInfo->version >= idInfo->version){
