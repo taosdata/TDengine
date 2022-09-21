@@ -6,6 +6,9 @@ description: TDengine release history, Release Notes and download links.
 
 import Release from "/components/ReleaseV3";
 
+## 3.0.1.2
+
+<Release type="tdengine" version="3.0.1.2" />
 
 ## 3.0.1.1
 
