@@ -278,8 +278,14 @@ typedef struct SNodeList {
 typedef struct SNodeAllocator SNodeAllocator;
 
 int32_t nodesCreateNodeAllocator(int32_t chunkSize, SNodeAllocator** pAllocator);
-void    nodesDestroyNodeAllocator(SNodeAllocator* pAllocator);
+void    nodesDestroyNodeAllocator(void* pAllocator);
 void    nodesResetThreadLevelAllocator(SNodeAllocator* pAllocator);
+
+int32_t nodesAllocatorInit();
+int32_t nodesCreateAllocator(int32_t chunkSize, int64_t* pRefId);
+void    nodesDestroyAllocator(int64_t refId);
+void    nodesResetAllocator(int64_t refId);
+int64_t nodesIncAllocatorRefCount(int64_t refId);
 
 SNode* nodesMakeNode(ENodeType type);
 void   nodesDestroyNode(SNode* pNode);

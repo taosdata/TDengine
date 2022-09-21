@@ -194,8 +194,9 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
+  (*pRequest)->allocatorRefId = -1;
   if (tsQueryUseNodeAllocator && !qIsInsertValuesSql((*pRequest)->sqlstr, (*pRequest)->sqlLen)) {
-    if (TSDB_CODE_SUCCESS != nodesCreateNodeAllocator(tsQueryNodeChunkSize, &((*pRequest)->pNodeAllocator))) {
+    if (TSDB_CODE_SUCCESS != nodesCreateAllocator(tsQueryNodeChunkSize, &((*pRequest)->allocatorRefId))) {
       tscError("%d failed to create node allocator, reqId:0x%" PRIx64 ", conn:%d, %s", (*pRequest)->self,
                (*pRequest)->requestId, pTscObj->id, sql);
 
@@ -1058,6 +1059,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
             .pConn = &conn,
             .pNodeList = pNodeList,
             .pDag = pDag,
+            .allocatorRefId = pRequest->allocatorRefId,
             .sql = pRequest->sqlstr,
             .startTs = pRequest->metric.start,
             .execFp = schedulerExecCb,

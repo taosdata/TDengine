@@ -21,6 +21,7 @@
 #include "taoserror.h"
 #include "tdatablock.h"
 #include "thash.h"
+#include "tref.h"
 
 typedef struct SNodeMemChunk {
   int32_t               availableSize;
@@ -30,6 +31,7 @@ typedef struct SNodeMemChunk {
 } SNodeMemChunk;
 
 typedef struct SNodeAllocator {
+  int64_t        self;
   int32_t        chunkSize;
   int32_t        chunkNum;
   SNodeMemChunk* pCurrChunk;
@@ -37,6 +39,22 @@ typedef struct SNodeAllocator {
 } SNodeAllocator;
 
 static threadlocal SNodeAllocator* pNodeAllocator;
+static int32_t                     allocatorReqRefPool = -1;
+
+int32_t nodesAllocatorInit() {
+  if (allocatorReqRefPool >= 0) {
+    nodesWarn("nodes already initialized");
+    return TSDB_CODE_SUCCESS;
+  }
+
+  allocatorReqRefPool = taosOpenRef(40960, nodesDestroyNodeAllocator);
+  if (allocatorReqRefPool < 0) {
+    nodesError("init nodes failed");
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
 
 static SNodeMemChunk* callocNodeChunk(SNodeAllocator* pAllocator) {
   SNodeMemChunk* pNewChunk = taosMemoryCalloc(1, sizeof(SNodeMemChunk) + pAllocator->chunkSize);
@@ -103,10 +121,12 @@ int32_t nodesCreateNodeAllocator(int32_t chunkSize, SNodeAllocator** pAllocator)
   return TSDB_CODE_SUCCESS;
 }
 
-void nodesDestroyNodeAllocator(SNodeAllocator* pAllocator) {
-  if (NULL == pAllocator) {
+void nodesDestroyNodeAllocator(void* p) {
+  if (NULL == p) {
     return;
   }
+
+  SNodeAllocator* pAllocator = p;
 
   nodesDebug("alloc chunkNum: %d, chunkTotakSize: %d", pAllocator->chunkNum,
              pAllocator->chunkNum * pAllocator->chunkSize);
@@ -121,6 +141,40 @@ void nodesDestroyNodeAllocator(SNodeAllocator* pAllocator) {
 }
 
 void nodesResetThreadLevelAllocator(SNodeAllocator* pAllocator) { pNodeAllocator = pAllocator; }
+
+int32_t nodesCreateAllocator(int32_t chunkSize, int64_t* pRefId) {
+  SNodeAllocator* pAllocator = NULL;
+  int32_t         code = nodesCreateNodeAllocator(chunkSize, &pAllocator);
+  if (TSDB_CODE_SUCCESS == code) {
+    pAllocator->self = taosAddRef(allocatorReqRefPool, pAllocator);
+    *pRefId = pAllocator->self;
+  }
+  return code;
+}
+
+void nodesDestroyAllocator(int64_t refId) {
+  if (refId < 0) {
+    return;
+  }
+  taosReleaseRef(allocatorReqRefPool, refId);
+}
+
+void nodesResetAllocator(int64_t refId) {
+  if (refId < 0) {
+    pNodeAllocator = NULL;
+  } else {
+    pNodeAllocator = taosAcquireRef(allocatorReqRefPool, refId);
+    taosReleaseRef(allocatorReqRefPool, refId);
+  }
+}
+
+int64_t nodesIncAllocatorRefCount(int64_t refId) {
+  if (refId < 0) {
+    return -1;
+  }
+  SNodeAllocator* pAllocator = taosAcquireRef(allocatorReqRefPool, refId);
+  return pAllocator->self;
+}
 
 static SNode* makeNode(ENodeType type, int32_t size) {
   SNode* p = nodesCalloc(1, size);

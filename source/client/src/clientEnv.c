@@ -349,7 +349,7 @@ void doDestroyRequest(void *p) {
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->dbList);
   taosArrayDestroy(pRequest->targetTableList);
-  nodesDestroyNodeAllocator(pRequest->pNodeAllocator);
+  nodesDestroyAllocator(pRequest->allocatorRefId);
 
   destroyQueryExecRes(&pRequest->body.resInfo.execRes);
 
@@ -412,6 +412,7 @@ void taos_init_imp(void) {
 
   initTaskQueue();
   fmFuncMgtInit();
+  nodesAllocatorInit();
 
   clientConnRefPool = taosOpenRef(200, destroyTscObj);
   clientReqRefPool = taosOpenRef(40960, doDestroyRequest);

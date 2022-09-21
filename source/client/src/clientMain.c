@@ -700,7 +700,7 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
 
   pRequest->metric.ctgEnd = taosGetTimestampUs();
 
-  nodesResetThreadLevelAllocator(pRequest->pNodeAllocator);
+  nodesResetAllocator(pRequest->allocatorRefId);
 
   if (code == TSDB_CODE_SUCCESS) {
     code = qAnalyseSqlSemantic(pWrapper->pCtx, &pWrapper->catalogReq, pResultMeta, pQuery);
@@ -728,11 +728,11 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
              pRequest->requestId);
     launchAsyncQuery(pRequest, pQuery, pResultMeta);
     qDestroyQuery(pQuery);
-    nodesResetThreadLevelAllocator(NULL);
+    nodesResetAllocator(-1);
   } else {
     destorySqlParseWrapper(pWrapper);
     qDestroyQuery(pQuery);
-    nodesResetThreadLevelAllocator(NULL);
+    nodesResetAllocator(-1);
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
       tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
@@ -805,7 +805,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   }
 
   SQuery *pQuery = NULL;
-  nodesResetThreadLevelAllocator(pRequest->pNodeAllocator);
+  nodesResetAllocator(pRequest->allocatorRefId);
 
   pRequest->metric.syntaxStart = taosGetTimestampUs();
 
@@ -849,7 +849,7 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
                                 &pRequest->body.queryJob);
   pCxt = NULL;
   if (code == TSDB_CODE_SUCCESS) {
-    nodesResetThreadLevelAllocator(NULL);
+    nodesResetAllocator(-1);
     return;
   }
 
@@ -857,7 +857,7 @@ _error:
   tscError("0x%" PRIx64 " error happens, code:%d - %s, reqId:0x%" PRIx64, pRequest->self, code, tstrerror(code),
            pRequest->requestId);
   taosMemoryFree(pCxt);
-  nodesResetThreadLevelAllocator(NULL);
+  nodesResetAllocator(-1);
 
   terrno = code;
   pRequest->code = code;
