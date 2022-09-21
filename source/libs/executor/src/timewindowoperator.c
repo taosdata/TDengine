@@ -5655,7 +5655,6 @@ static void doStreamIntervalAggImpl2(SOperatorInfo* pOperatorInfo, SSDataBlock* 
   TSKEY*          tsCols = NULL;
   SResultRow*     pResult = NULL;
   int32_t         forwardRows = 0;
-  int32_t         aa = 4;
 
   ASSERT(pSDataBlock->pDataBlock != NULL);
   SColumnInfoData* pColDataInfo = taosArrayGet(pSDataBlock->pDataBlock, pInfo->primaryTsIndex);

@@ -479,6 +479,9 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     tqInitDataRsp(&dataRsp, pReq, pHandle->execHandle.subType);
     tqScanData(pTq, pHandle, &dataRsp, &fetchOffsetNew);
 
+#if 1
+
+#endif
     if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
       code = -1;
     }

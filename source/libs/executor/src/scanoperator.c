@@ -920,6 +920,17 @@ _error:
 }
 
 static void doClearBufferedBlocks(SStreamScanInfo* pInfo) {
+  if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
+    size_t total = taosArrayGetSize(pInfo->pBlockLists);
+    for (int32_t i = 0; i < total; i++) {
+      SSDataBlock* p = taosArrayGetP(pInfo->pBlockLists, i);
+      taosArrayDestroy(p->pDataBlock);
+      taosMemoryFree(p);
+    }
+  }
+  taosArrayClear(pInfo->pBlockLists);
+  pInfo->validBlockIndex = 0;
+#if 0
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
 
   pInfo->validBlockIndex = 0;
@@ -928,6 +939,7 @@ static void doClearBufferedBlocks(SStreamScanInfo* pInfo) {
     blockDataDestroy(p);
   }
   taosArrayClear(pInfo->pBlockLists);
+#endif
 }
 
 static bool isSessionWindow(SStreamScanInfo* pInfo) {
@@ -1576,9 +1588,10 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
 
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
   // TODO: refactor
+FETCH_NEXT_BLOCK:
   if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
     if (pInfo->validBlockIndex >= total) {
-      /*doClearBufferedBlocks(pInfo);*/
+      doClearBufferedBlocks(pInfo);
       /*pOperator->status = OP_EXEC_DONE;*/
       return NULL;
     }
@@ -1613,7 +1626,11 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
           generateDeleteResultBlock(pInfo, pDelBlock, pInfo->pDeleteDataRes);
           pInfo->pDeleteDataRes->info.type = STREAM_DELETE_RESULT;
           printDataBlock(pDelBlock, "stream scan delete result");
-          return pInfo->pDeleteDataRes;
+          if (pInfo->pDeleteDataRes->info.rows > 0) {
+            return pInfo->pDeleteDataRes;
+          } else {
+            goto FETCH_NEXT_BLOCK;
+          }
         } else {
           pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
           pInfo->updateResIndex = 0;
@@ -1626,7 +1643,11 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
           if (pInfo->tqReader) {
             blockDataDestroy(pDelBlock);
           }
-          return pInfo->pDeleteDataRes;
+          if (pInfo->pDeleteDataRes->info.rows > 0) {
+            return pInfo->pDeleteDataRes;
+          } else {
+            goto FETCH_NEXT_BLOCK;
+          }
         }
       } break;
       default:
@@ -1691,6 +1712,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     while (1) {
       if (pInfo->tqReader->pMsg == NULL) {
         if (pInfo->validBlockIndex >= totBlockNum) {
+          doClearBufferedBlocks(pInfo);
           return NULL;
         }
 
