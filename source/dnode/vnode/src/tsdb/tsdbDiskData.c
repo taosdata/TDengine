@@ -22,6 +22,7 @@ struct SDiskCol {
   int16_t      cid;
   int8_t       type;
   int8_t       flag;
+  uint8_t      cmprAlg;
   int32_t      nVal;
   uint8_t     *pBitMap;
   int32_t      offset;
@@ -30,16 +31,41 @@ struct SDiskCol {
 };
 
 // SDiskCol ================================================
-static int32_t tDiskColReset(SDiskCol *pDiskCol, int16_t cid, int8_t type, uint8_t cmprAlg) {
+static int32_t tDiskColInit(SDiskCol *pDiskCol, int16_t cid, int8_t type, uint8_t cmprAlg) {
   int32_t code = 0;
 
   pDiskCol->cid = cid;
   pDiskCol->type = type;
   pDiskCol->flag = 0;
+  pDiskCol->cmprAlg = cmprAlg;
   pDiskCol->nVal = 0;
+  pDiskCol->offset = 0;
 
-  tCompressorReset(pDiskCol->pOffC, TSDB_DATA_TYPE_INT, cmprAlg, 1);
-  tCompressorReset(pDiskCol->pValC, type, cmprAlg, 1);
+  if (IS_VAR_DATA_TYPE(type)) {
+    if (pDiskCol->pOffC == NULL) {
+      code = tCompressorCreate(&pDiskCol->pOffC);
+      if (code) return code;
+    }
+    code = tCompressorReset(pDiskCol->pOffC, TSDB_DATA_TYPE_INT, cmprAlg);
+    if (code) return code;
+  }
+
+  if (pDiskCol->pValC == NULL) {
+    code = tCompressorCreate(&pDiskCol->pValC);
+    if (code) return code;
+  }
+  code = tCompressorReset(pDiskCol->pValC, type, cmprAlg);
+  if (code) return code;
+
+  return code;
+}
+
+static int32_t tDiskColClear(SDiskCol *pDiskCol) {
+  int32_t code = 0;
+
+  tFree(pDiskCol->pBitMap);
+  if (pDiskCol->pOffC) tCompressorDestroy(pDiskCol->pOffC);
+  if (pDiskCol->pValC) tCompressorDestroy(pDiskCol->pValC);
 
   return code;
 }
@@ -324,26 +350,78 @@ struct SDiskData {
   SArray      *aDiskCol;
 };
 
-int32_t tDiskDataCreate(SDiskData *pDiskData) {
-  int32_t code = 0;
-  // TODO
-  return code;
-}
-
-int32_t tDiskDataDestroy(SDiskData *pDiskData) {
-  int32_t code = 0;
-  // TODO
-  return code;
-}
-
-int32_t tDiskDataReset(SDiskData *pDiskData, STSchema *pTSchema, TABLEID *pId, uint8_t cmprAlg) {
+int32_t tDiskDataInit(SDiskData *pDiskData, STSchema *pTSchema, TABLEID *pId, uint8_t cmprAlg) {
   int32_t code = 0;
 
   pDiskData->suid = pId->suid;
   pDiskData->uid = pId->uid;
   pDiskData->cmprAlg = cmprAlg;
 
+  if (pDiskData->pUidC == NULL) {
+    code = tCompressorCreate(&pDiskData->pUidC);
+    if (code) return code;
+  }
+  code = tCompressorReset(pDiskData->pUidC, TSDB_DATA_TYPE_BIGINT, cmprAlg);
+  if (code) return code;
+
+  if (pDiskData->pVerC == NULL) {
+    code = tCompressorCreate(&pDiskData->pVerC);
+    if (code) return code;
+  }
+  code = tCompressorReset(pDiskData->pVerC, TSDB_DATA_TYPE_BIGINT, cmprAlg);
+  if (code) return code;
+
+  if (pDiskData->pKeyC == NULL) {
+    code = tCompressorCreate(&pDiskData->pKeyC);
+    if (code) return code;
+  }
+  code = tCompressorReset(pDiskData->pKeyC, TSDB_DATA_TYPE_TIMESTAMP, cmprAlg);
+  if (code) return code;
+
+  if (pDiskData->aDiskCol == NULL) {
+    pDiskData->aDiskCol = taosArrayInit(pTSchema->numOfCols - 1, sizeof(SDiskCol));
+    if (pDiskData->aDiskCol == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      return code;
+    }
+  }
+
+  pDiskData->nDiskCol = 0;
   for (int32_t iCol = 1; iCol < pTSchema->numOfCols; iCol++) {
+    STColumn *pTColumn = &pTSchema->columns[iCol];
+
+    if (pDiskData->nDiskCol >= taosArrayGetSize(pDiskData->aDiskCol)) {
+      SDiskCol dc = (SDiskCol){0};
+      if (taosArrayPush(pDiskData->aDiskCol, &dc) == NULL) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        return code;
+      }
+    }
+
+    SDiskCol *pDiskCol = (SDiskCol *)taosArrayGet(pDiskData->aDiskCol, pDiskData->nDiskCol);
+
+    code = tDiskColInit(pDiskCol, pTColumn->colId, pTColumn->type, cmprAlg);
+    if (code) return code;
+
+    pDiskData->nDiskCol++;
+  }
+
+  return code;
+}
+
+int32_t tDiskDataDestroy(SDiskData *pDiskData) {
+  int32_t code = 0;
+
+  if (pDiskData->pUidC) tCompressorDestroy(pDiskData->pUidC);
+  if (pDiskData->pVerC) tCompressorDestroy(pDiskData->pVerC);
+  if (pDiskData->pKeyC) tCompressorDestroy(pDiskData->pKeyC);
+
+  if (pDiskData->aDiskCol) {
+    for (int32_t iDiskCol = 0; iDiskCol < taosArrayGetSize(pDiskData->aDiskCol); iDiskCol++) {
+      SDiskCol *pDiskCol = (SDiskCol *)taosArrayGet(pDiskData->aDiskCol, iDiskCol);
+      tDiskColClear(pDiskCol);
+    }
+    taosArrayDestroy(pDiskData->aDiskCol);
   }
 
   return code;

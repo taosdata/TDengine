@@ -1508,24 +1508,22 @@ _exit:
 int32_t tCompressorDestroy(SCompressor *pCmprsor) {
   int32_t code = 0;
 
-  if (pCmprsor) {
-    int32_t nBuf = sizeof(pCmprsor->aBuf) / sizeof(pCmprsor->aBuf[0]);
-    for (int32_t iBuf = 0; iBuf < nBuf; iBuf++) {
-      tFree(pCmprsor->aBuf[iBuf]);
-    }
-
-    taosMemoryFree(pCmprsor);
+  int32_t nBuf = sizeof(pCmprsor->aBuf) / sizeof(pCmprsor->aBuf[0]);
+  for (int32_t iBuf = 0; iBuf < nBuf; iBuf++) {
+    tFree(pCmprsor->aBuf[iBuf]);
   }
+
+  taosMemoryFree(pCmprsor);
 
   return code;
 }
 
-int32_t tCompressorReset(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg, int8_t autoAlloc) {
+int32_t tCompressorReset(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg) {
   int32_t code = 0;
 
   pCmprsor->type = type;
   pCmprsor->cmprAlg = cmprAlg;
-  pCmprsor->autoAlloc = autoAlloc;
+  pCmprsor->autoAlloc = 1;
   pCmprsor->nVal = 0;
 
   switch (type) {
