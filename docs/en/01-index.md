@@ -9,7 +9,7 @@ This is the documentation structure for TDengine Cloud.
 
 1. The [Introduction](./intro) provides an overview of the features, capabilities and competitive advantages of TDengine Cloud.
 
-2. The [Concepts](./concepts) section introduces some of the novel ideas that allow TDengine to exploit the characteristics of time series data to increase compute performance and also to make storage very efficient.
+2. The [Concepts](./concept) section introduces some of the novel ideas that allow TDengine to exploit the characteristics of time series data to increase compute performance and also to make storage very efficient.
 
 3. In the [Data In](./data-in) section we show you a number of ways for you to get your data into TDengine.
 
