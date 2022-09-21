@@ -1475,19 +1475,19 @@ void vectorMathMinus(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pO
 
 void vectorAssign(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
   SColumnInfoData *pOutputCol = pOut->columnData;
-
   pOut->numOfRows = pLeft->numOfRows;
 
-//  if (IS_HELPER_NULL(pRight->columnData, 0)) {
   if(colDataIsNull_s(pRight->columnData, 0)){
-    for (int32_t i = 0; i < pOut->numOfRows; ++i) {
-      colDataAppend(pOutputCol, i, NULL, true);
-    }
+    colDataAppendNNULL(pOutputCol, 0, pOut->numOfRows);
   } else {
+    char* d = colDataGetData(pRight->columnData, 0);
     for (int32_t i = 0; i < pOut->numOfRows; ++i) {
-      colDataAppend(pOutputCol, i, colDataGetData(pRight->columnData, 0), false);
+      colDataAppend(pOutputCol, i, d, false);
     }
   }
+
+  ASSERT(pRight->numOfQualified == 1 || pRight->numOfQualified == 0);
+  pOut->numOfQualified = pRight->numOfQualified * pOut->numOfRows;
 }
 
 void vectorConcat(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
