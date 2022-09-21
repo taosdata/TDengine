@@ -117,7 +117,7 @@ void writeMsgVgId(char * payload, int32_t vgId) {
 SSqlObj *tscCreateSTableSubDelete(SSqlObj *pSql, SVgroupMsg* pVgroupMsg, SRetrieveSupport *trsupport) {
   // Init
   SSqlCmd* pCmd = &pSql->cmd;
-  SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
+  SSqlObj* pNew = tscAllocSqlObj();
   if (pNew == NULL) {
     tscError("0x%"PRIx64":CDEL new subdelete failed.", pSql->self);
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -153,7 +153,6 @@ SSqlObj *tscCreateSTableSubDelete(SSqlObj *pSql, SVgroupMsg* pVgroupMsg, SRetrie
   // update vgroup id
   writeMsgVgId(pNewCmd->payload ,pVgroupMsg->vgId);
 
-  tsem_init(&pNew->rspSem, 0, 0);
   registerSqlObj(pNew);
   tscDebug("0x%"PRIx64":CDEL new sub insertion: %p", pSql->self, pNew);
 
@@ -196,24 +195,26 @@ int32_t executeDelete(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
     return TSDB_CODE_VND_INVALID_VGROUP_ID;
   }
   
-  SSubqueryState *pState = &pSql->subState;
   int32_t numOfSub = pTableMetaInfo->vgroupList->numOfVgroups;
   if(numOfSub == 0) {
     tscInfo(":CDEL SQL:%p tablename=%s numOfVgroups is zero, maybe empty table.", pSql, pTableMetaInfo->name.tname);
     return TSDB_CODE_FAILED;
   }
 
-  ret = doInitSubState(pSql, numOfSub);
-  if (ret != 0) {
+  ret = doReInitSubState(pSql, numOfSub);
+  if (ret != TSDB_CODE_SUCCESS) {
     tscAsyncResultOnError(pSql);
     return ret;
   }
 
-  tscDebug("0x%"PRIx64":CDEL retrieved query data from %d vnode(s)", pSql->self, pState->numOfSub);
+  tscDebug("0x%"PRIx64":CDEL retrieved query data from %d vnode(s)", pSql->self, pSql->subState.numOfSub);
   pRes->code = TSDB_CODE_SUCCESS;
   
-  int32_t i;
-  for (i = 0; i < pState->numOfSub; ++i) {
+  int32_t i = 0;
+
+  { pthread_mutex_lock(&pSql->subState.mutex);
+
+  for (i = 0; i < pSql->subState.numOfSub; ++i) {
     // vgroup
     SVgroupMsg* pVgroupMsg = &pTableMetaInfo->vgroupList->vgroups[i];
 
@@ -235,23 +236,20 @@ int32_t executeDelete(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
     }
     pSql->pSubs[i] = pNew;
   }
-  
-  if (i < pState->numOfSub) {
+
+  if (i < pSql->subState.numOfSub) {
     tscError("0x%"PRIx64":CDEL failed to prepare subdelete structure and launch subqueries", pSql->self);
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    
-    doCleanupSubqueries(pSql, i);
-    return pRes->code;   // free all allocated resource
   }
-  
-  if (pRes->code == TSDB_CODE_TSC_QUERY_CANCELLED) {
-    doCleanupSubqueries(pSql, i);
+
+  pthread_mutex_unlock(&pSql->subState.mutex); }
+
+  if (pRes->code != TSDB_CODE_SUCCESS) {
+    doCleanupSubqueries(pSql);
     return pRes->code;
   }
 
   // send sub sql
   doConcurrentlySendSubQueries(pSql);
-  //return TSDB_CODE_TSC_QUERY_CANCELLED;
-
   return TSDB_CODE_SUCCESS;
 }

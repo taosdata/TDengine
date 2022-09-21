@@ -353,8 +353,8 @@ void checkBrokenQueries(STscObj *pTscObj) {
         pSql->lastAlive = taosGetTimestampMs();
       }
     } else {
-      // lock subs
-      pthread_mutex_lock(&pSql->subState.mutex);
+      { pthread_mutex_lock(&pSql->subState.mutex);
+
       if (pSql->pSubs) {
         // have sub sql
         for (int i = 0; i < pSql->subState.numOfSub; i++) {
@@ -375,8 +375,8 @@ void checkBrokenQueries(STscObj *pTscObj) {
           }
         }
       }
-      // unlock
-      pthread_mutex_unlock(&pSql->subState.mutex);
+
+      pthread_mutex_unlock(&pSql->subState.mutex); }
     }
 
     // kill query
@@ -2564,7 +2564,7 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
   }
 
   if (pParentCmd->pTableMetaMap == NULL) {
-    pParentCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+    pParentCmd->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   }
 
   for (int32_t i = 0; i < pMultiMeta->numOfTables; i++) {
@@ -2810,7 +2810,7 @@ static void createHbObj(STscObj* pObj) {
     return;
   }
 
-  SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
+  SSqlObj *pSql = tscAllocSqlObj();
   if (NULL == pSql) return;
 
   pSql->fp = tscProcessHeartBeatRsp;
@@ -3083,7 +3083,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
 void tscTableMetaCallBack(void *param, TAOS_RES *res, int code);
 
 static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, bool autocreate) {
-  SSqlObj *pNew = calloc(1, sizeof(SSqlObj));
+  SSqlObj *pNew = tscAllocSqlObj();
   if (NULL == pNew) {
     tscError("0x%"PRIx64" malloc failed for new sqlobj to get table meta", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -3149,7 +3149,7 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
 }
 
 int32_t getMultiTableMetaFromMnode(SSqlObj *pSql, SArray* pNameList, SArray* pVgroupNameList, SArray* pUdfList, __async_cb_func_t fp, bool metaClone) {
-  SSqlObj *pNew = calloc(1, sizeof(SSqlObj));
+  SSqlObj *pNew = tscAllocSqlObj();
   if (NULL == pNew) {
     tscError("0x%"PRIx64" failed to allocate sqlobj to get multiple table meta", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -3286,7 +3286,7 @@ int tscGetTableMetaEx(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, bool create
 }
 
 int32_t tscGetUdfFromNode(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
-  SSqlObj *pNew = calloc(1, sizeof(SSqlObj));
+  SSqlObj *pNew = tscAllocSqlObj();
   if (NULL == pNew) {
     tscError("%p malloc failed for new sqlobj to get user-defined functions", pSql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -3391,15 +3391,16 @@ int tscRenewTableMeta(SSqlObj *pSql) {
   tscResetSqlCmd(pCmd, true, pSql->self);
 
   SSqlCmd* pCmd2 = &pSql->rootObj->cmd;
-  pCmd2->pTableMetaMap = tscCleanupTableMetaMap(pCmd2->pTableMetaMap);
-  pCmd2->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  SHashObj *pmap = pCmd2->pTableMetaMap;
+  if (pmap == atomic_val_compare_exchange_ptr(&pCmd2->pTableMetaMap, pmap, NULL)) {
+    tscCleanupTableMetaMap(pCmd2->pTableMetaMap);
+  }
+  pCmd2->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
 
   pSql->rootObj->retryReason = pSql->retryReason;
 
   SSqlObj *rootSql = pSql->rootObj;
-  pthread_mutex_lock(&rootSql->mtxSubs);
   tscFreeSubobj(rootSql);
-  pthread_mutex_unlock(&rootSql->mtxSubs);
   tscResetSqlCmd(&rootSql->cmd, true, rootSql->self);
 
   code = getMultiTableMetaFromMnode(rootSql, pNameList, vgroupList, NULL, tscTableMetaCallBack, true);
@@ -3426,7 +3427,7 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
   if (allVgroupInfoRetrieved(pQueryInfo)) {
     return TSDB_CODE_SUCCESS;
   }
-  SSqlObj *pNew = calloc(1, sizeof(SSqlObj));
+  SSqlObj *pNew = tscAllocSqlObj();
   pNew->pTscObj = pSql->pTscObj;
   pNew->signature = pNew;
 

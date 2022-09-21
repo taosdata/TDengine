@@ -83,7 +83,6 @@ void tscUpdateSubscriptionProgress(void* sub, int64_t uid, TSKEY ts) {
   }
 }
 
-
 static void asyncCallback(void *param, TAOS_RES *tres, int code) {
   assert(param != NULL);
   SSub *pSub = ((SSub *)param);
@@ -117,7 +116,7 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
     goto fail;
   }
 
-  pSql = calloc(1, sizeof(SSqlObj));
+  pSql = tscAllocSqlObj();
   if (pSql == NULL) {
     line = __LINE__;
     code = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -132,11 +131,6 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
 
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
-  if (tsem_init(&pSql->rspSem, 0, 0) == -1) {
-    line = __LINE__;
-    code = TAOS_SYSTEM_ERROR(errno);
-    goto fail;
-  }
 
   pSql->param = pSub;
   pSql->maxRetry = TSDB_MAX_REPLICA;
@@ -432,7 +426,7 @@ TAOS_SUB *taos_subscribe(TAOS *taos, int restart, const char* topic, const char 
 }
 
 SSqlObj* recreateSqlObj(SSub* pSub) {
-  SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
+  SSqlObj* pSql = tscAllocSqlObj();
   if (pSql == NULL) {
     return NULL;
   }
@@ -442,10 +436,6 @@ SSqlObj* recreateSqlObj(SSub* pSub) {
 
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
-  if (tsem_init(&pSql->rspSem, 0, 0) == -1) {
-    tscFreeSqlObj(pSql);
-    return NULL;
-  }
 
   pSql->param = pSub;
   pSql->maxRetry = TSDB_MAX_REPLICA;
