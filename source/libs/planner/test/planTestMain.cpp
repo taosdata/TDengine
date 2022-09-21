@@ -32,6 +32,7 @@ class PlannerEnv : public testing::Environment {
     generateMetaData();
     initLog(TD_TMP_DIR_PATH "td");
     initCfg();
+    nodesInitAllocatorSet();
   }
 
   virtual void TearDown() {
@@ -39,6 +40,7 @@ class PlannerEnv : public testing::Environment {
     qCleanupKeywordsTable();
     fmFuncMgtDestroy();
     taosCloseLog();
+    nodesDestroyAllocatorSet();
   }
 
   PlannerEnv() {}

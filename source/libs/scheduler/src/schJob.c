@@ -673,7 +673,7 @@ void schFreeJobImpl(void *job) {
   destroyQueryExecRes(&pJob->execRes);
 
   qDestroyQueryPlan(pJob->pDag);
-  nodesDestroyAllocator(pJob->allocatorRefId);
+  nodesReleaseAllocatorWeakRef(pJob->allocatorRefId);
 
   taosMemoryFreeClear(pJob->userRes.execRes);
   taosMemoryFreeClear(pJob->fetchRes);
@@ -725,7 +725,7 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
     pJob->sql = strdup(pReq->sql);
   }
   pJob->pDag = pReq->pDag;
-  pJob->allocatorRefId = nodesIncAllocatorRefCount(pReq->allocatorRefId);
+  pJob->allocatorRefId = nodesMakeAllocatorWeakRef(pReq->allocatorRefId);
   pJob->chkKillFp = pReq->chkKillFp;
   pJob->chkKillParam = pReq->chkKillParam;
   pJob->userRes.execFp = pReq->execFp;

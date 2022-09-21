@@ -129,10 +129,10 @@ class PlannerTestBaseImpl {
   }
 
   void runImpl(const string& sql, int32_t queryPolicy) {
-    SNodeAllocator* pAllocator = NULL;
+    int64_t allocatorId = 0;
     if (g_useNodeAllocator) {
-      nodesCreateNodeAllocator(32 * 1024, &pAllocator);
-      nodesResetThreadLevelAllocator(pAllocator);
+      nodesCreateAllocator(sqlNo_, 32 * 1024, &allocatorId);
+      nodesAcquireAllocator(allocatorId);
     }
 
     reset();
@@ -166,13 +166,13 @@ class PlannerTestBaseImpl {
       dump(g_dumpModule);
     } catch (...) {
       dump(DUMP_MODULE_ALL);
-      nodesDestroyNodeAllocator(pAllocator);
-      nodesResetThreadLevelAllocator(NULL);
+      nodesReleaseAllocator(allocatorId);
+      nodesDestroyAllocator(allocatorId);
       throw;
     }
 
-    nodesDestroyNodeAllocator(pAllocator);
-    nodesResetThreadLevelAllocator(NULL);
+    nodesReleaseAllocator(allocatorId);
+    nodesDestroyAllocator(allocatorId);
   }
 
   void prepare(const string& sql) {

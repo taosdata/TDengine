@@ -177,15 +177,18 @@ int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery) {
 
 int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq) {
   SParseMetaCache metaCache = {0};
-  int32_t         code = TSDB_CODE_SUCCESS;
-  if (qIsInsertValuesSql(pCxt->pSql, pCxt->sqlLen)) {
-    code = parseInsertSyntax(pCxt, pQuery, &metaCache);
-  } else {
-    code = parseSqlSyntax(pCxt, pQuery, &metaCache);
+  int32_t         code = nodesAcquireAllocator(pCxt->allocatorId);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (qIsInsertValuesSql(pCxt->pSql, pCxt->sqlLen)) {
+      code = parseInsertSyntax(pCxt, pQuery, &metaCache);
+    } else {
+      code = parseSqlSyntax(pCxt, pQuery, &metaCache);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCatalogReq(pCxt, &metaCache, pCatalogReq);
   }
+  code = nodesReleaseAllocator(pCxt->allocatorId);
   destoryParseMetaCache(&metaCache, true);
   terrno = code;
   return code;
@@ -194,7 +197,10 @@ int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq
 int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCatalogReq,
                             const struct SMetaData* pMetaData, SQuery* pQuery) {
   SParseMetaCache metaCache = {0};
-  int32_t         code = putMetaDataToCache(pCatalogReq, pMetaData, &metaCache, NULL == pQuery->pRoot);
+  int32_t         code = nodesAcquireAllocator(pCxt->allocatorId);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = putMetaDataToCache(pCatalogReq, pMetaData, &metaCache, NULL == pQuery->pRoot);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL == pQuery->pRoot) {
       code = parseInsertSql(pCxt, &pQuery, &metaCache);
@@ -202,6 +208,7 @@ int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCata
       code = analyseSemantic(pCxt, pQuery, &metaCache);
     }
   }
+  code = nodesReleaseAllocator(pCxt->allocatorId);
   destoryParseMetaCache(&metaCache, false);
   terrno = code;
   return code;

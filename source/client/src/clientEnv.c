@@ -413,7 +413,7 @@ void taos_init_imp(void) {
 
   initTaskQueue();
   fmFuncMgtInit();
-  nodesAllocatorInit();
+  nodesInitAllocatorSet();
 
   clientConnRefPool = taosOpenRef(200, destroyTscObj);
   clientReqRefPool = taosOpenRef(40960, doDestroyRequest);

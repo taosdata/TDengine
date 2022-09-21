@@ -33,7 +33,10 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   SLogicSubplan*   pLogicSubplan = NULL;
   SQueryLogicPlan* pLogicPlan = NULL;
 
-  int32_t code = createLogicPlan(pCxt, &pLogicSubplan);
+  int32_t code = nodesAcquireAllocator(pCxt->allocatorId);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createLogicPlan(pCxt, &pLogicSubplan);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = optimizeLogicPlan(pCxt, pLogicSubplan);
   }
@@ -49,6 +52,7 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   if (TSDB_CODE_SUCCESS == code) {
     dumpQueryPlan(*pPlan);
   }
+  code = nodesReleaseAllocator(pCxt->allocatorId);
 
   nodesDestroyNode((SNode*)pLogicSubplan);
   nodesDestroyNode((SNode*)pLogicPlan);
