@@ -53,6 +53,15 @@ SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   SSyncLogStore* pLogStore = taosMemoryMalloc(sizeof(SSyncLogStore));
   ASSERT(pLogStore != NULL);
 
+  pLogStore->pCache = taosLRUCacheInit(10 * 1024 * 1024, 1, .5);
+  if (pLogStore->pCache == NULL) {
+    terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
+    taosMemoryFree(pLogStore);
+    return NULL;
+  }
+
+  taosLRUCacheSetStrictCapacity(pLogStore->pCache, false);
+
   pLogStore->data = taosMemoryMalloc(sizeof(SSyncLogStoreData));
   ASSERT(pLogStore->data != NULL);
 
@@ -102,6 +111,10 @@ void logStoreDestory(SSyncLogStore* pLogStore) {
     taosThreadMutexDestroy(&(pData->mutex));
 
     taosMemoryFree(pLogStore->data);
+
+    taosLRUCacheEraseUnrefEntries(pLogStore->pCache);
+    taosLRUCacheCleanup(pLogStore->pCache);
+
     taosMemoryFree(pLogStore);
   }
 }
@@ -243,7 +256,7 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
 static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncRaftEntry** ppEntry) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  int32_t            code;
+  int32_t            code = 0;
 
   *ppEntry = NULL;
 
@@ -257,6 +270,7 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
   taosThreadMutexLock(&(pData->mutex));
 
   code = walReadVer(pWalHandle, index);
+  // code = walReadVerCached(pWalHandle, index);
   if (code != 0) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
@@ -412,6 +426,7 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
     ASSERT(pWalHandle != NULL);
 
     int32_t code = walReadVer(pWalHandle, index);
+    // int32_t code = walReadVerCached(pWalHandle, index);
     if (code != 0) {
       int32_t     err = terrno;
       const char* errStr = tstrerror(err);
