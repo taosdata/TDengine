@@ -208,8 +208,6 @@ static void tscProcessStreamQueryCallback(void *param, TAOS_RES *tres, int numOf
 
     tscFreeSqlResult(pSql);
     tscFreeSubobj(pSql);
-    tfree(pSql->pSubs);
-    pSql->subState.numOfSub = 0;
 
     pSql->parseRetry = 0;
     int32_t code = tsParseSql(pSql, true);
@@ -332,8 +330,6 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
 
     tscFreeSqlResult(pSql);
     tscFreeSubobj(pSql);    
-    tfree(pSql->pSubs);
-    pSql->subState.numOfSub = 0;
     pTableMetaInfo->vgroupList = tscVgroupInfoClear(pTableMetaInfo->vgroupList);
     tscSetNextLaunchTimer(pStream, pSql);
   }
@@ -677,7 +673,7 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const c
     return NULL;
   }
 
-  SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
+  SSqlObj *pSql = tscAllocSqlObj();
   if (pSql == NULL) {
     return NULL;
   }
@@ -722,7 +718,6 @@ TAOS_STREAM *taos_open_stream_withname(TAOS *taos, const char* dstTable, const c
   pSql->fetchFp = tscCreateStream;
   pSql->cmd.resColumnId = TSDB_RES_COL_ID;
 
-  tsem_init(&pSql->rspSem, 0, 0);
   registerSqlObj(pSql);
 
   tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
