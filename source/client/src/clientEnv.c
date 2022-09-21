@@ -288,6 +288,7 @@ void *createRequest(uint64_t connId, int32_t type) {
 
   pRequest->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
   pRequest->type = type;
+  pRequest->allocatorRefId = -1;
 
   pRequest->pDb = getDbOfConnection(pTscObj);
   pRequest->pTscObj = pTscObj;
@@ -349,6 +350,7 @@ void doDestroyRequest(void *p) {
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->dbList);
   taosArrayDestroy(pRequest->targetTableList);
+  nodesDestroyAllocator(pRequest->allocatorRefId);
 
   destroyQueryExecRes(&pRequest->body.resInfo.execRes);
 
@@ -411,6 +413,7 @@ void taos_init_imp(void) {
 
   initTaskQueue();
   fmFuncMgtInit();
+  nodesAllocatorInit();
 
   clientConnRefPool = taosOpenRef(200, destroyTscObj);
   clientReqRefPool = taosOpenRef(40960, doDestroyRequest);

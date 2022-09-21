@@ -700,6 +700,8 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
 
   pRequest->metric.ctgEnd = taosGetTimestampUs();
 
+  nodesResetAllocator(pRequest->allocatorRefId);
+
   if (code == TSDB_CODE_SUCCESS) {
     code = qAnalyseSqlSemantic(pWrapper->pCtx, &pWrapper->catalogReq, pResultMeta, pQuery);
     pRequest->stableQuery = pQuery->stableQuery;
@@ -729,6 +731,7 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
   } else {
     destorySqlParseWrapper(pWrapper);
     qDestroyQuery(pQuery);
+    nodesResetAllocator(-1);
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
       tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
@@ -801,11 +804,13 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   }
 
   SQuery *pQuery = NULL;
+  nodesResetAllocator(pRequest->allocatorRefId);
 
   pRequest->metric.syntaxStart = taosGetTimestampUs();
 
   SCatalogReq catalogReq = {.forceUpdate = updateMetaForce, .qNodeRequired = qnodeRequired(pRequest)};
   code = qParseSqlSyntax(pCxt, &pQuery, &catalogReq);
+  nodesResetAllocator(-1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
