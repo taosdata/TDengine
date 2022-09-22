@@ -15,8 +15,7 @@
 
 #include "tsdb.h"
 
-typedef struct SDiskDataBuilder SDiskDataBuilder;
-typedef struct SDiskColBuilder  SDiskColBuilder;
+typedef struct SDiskColBuilder SDiskColBuilder;
 
 struct SDiskColBuilder {
   int16_t      cid;
@@ -45,6 +44,19 @@ struct SDiskDataBuilder {
 };
 
 // SDiskColBuilder ================================================
+#define tDiskColBuilderCreate() \
+  (SDiskColBuilder) { 0 }
+
+static int32_t tDiskColBuilderDestroy(SDiskColBuilder *pBuilder) {
+  int32_t code = 0;
+
+  tFree(pBuilder->pBitMap);
+  if (pBuilder->pOffC) tCompressorDestroy(pBuilder->pOffC);
+  if (pBuilder->pValC) tCompressorDestroy(pBuilder->pValC);
+
+  return code;
+}
+
 static int32_t tDiskColBuilderInit(SDiskColBuilder *pBuilder, int16_t cid, int8_t type, uint8_t cmprAlg) {
   int32_t code = 0;
 
@@ -70,16 +82,6 @@ static int32_t tDiskColBuilderInit(SDiskColBuilder *pBuilder, int16_t cid, int8_
   }
   code = tCompressorInit(pBuilder->pValC, type, cmprAlg);
   if (code) return code;
-
-  return code;
-}
-
-static int32_t tDiskColBuilderClear(SDiskColBuilder *pBuilder) {
-  int32_t code = 0;
-
-  tFree(pBuilder->pBitMap);
-  if (pBuilder->pOffC) tCompressorDestroy(pBuilder->pOffC);
-  if (pBuilder->pValC) tCompressorDestroy(pBuilder->pValC);
 
   return code;
 }
@@ -419,7 +421,7 @@ void *tDiskDataBuilderDestroy(SDiskDataBuilder *pBuilder) {
   if (pBuilder->aBuilder) {
     for (int32_t iBuilder = 0; iBuilder < taosArrayGetSize(pBuilder->aBuilder); iBuilder++) {
       SDiskColBuilder *pDCBuilder = (SDiskColBuilder *)taosArrayGet(pBuilder->aBuilder, iBuilder);
-      tDiskColBuilderClear(pDCBuilder);
+      tDiskColBuilderDestroy(pDCBuilder);
     }
     taosArrayDestroy(pBuilder->aBuilder);
   }
@@ -466,7 +468,7 @@ int32_t tDiskDataBuilderInit(SDiskDataBuilder *pBuilder, STSchema *pTSchema, TAB
     STColumn *pTColumn = &pTSchema->columns[iCol];
 
     if (pBuilder->nBuilder >= taosArrayGetSize(pBuilder->aBuilder)) {
-      SDiskColBuilder dc = {0};
+      SDiskColBuilder dc = tDiskColBuilderCreate();
       if (taosArrayPush(pBuilder->aBuilder, &dc) == NULL) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         return code;
@@ -491,51 +493,51 @@ int32_t tDiskDataBuilderAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSche
 
   // uid
   if (pBuilder->uid && pBuilder->uid != pId->uid) {
+    ASSERT(!pBuilder->calcSma);
     for (int32_t iRow = 0; iRow < pBuilder->nRow; iRow++) {
       code = tCompress(pBuilder->pUidC, &pBuilder->uid, sizeof(int64_t));
-      if (code) goto _exit;
+      if (code) return code;
     }
     pBuilder->uid = 0;
   }
   if (pBuilder->uid == 0) {
     code = tCompress(pBuilder->pUidC, &pId->uid, sizeof(int64_t));
-    if (code) goto _exit;
+    if (code) return code;
   }
 
   // version
   int64_t version = TSDBROW_VERSION(pRow);
   code = tCompress(pBuilder->pVerC, &version, sizeof(int64_t));
-  if (code) goto _exit;
+  if (code) return code;
 
   // TSKEY
   TSKEY ts = TSDBROW_TS(pRow);
   code = tCompress(pBuilder->pKeyC, &ts, sizeof(int64_t));
-  if (code) goto _exit;
+  if (code) return code;
 
   SRowIter iter = {0};
   tRowIterInit(&iter, pRow, pTSchema);
 
   SColVal *pColVal = tRowIterNext(&iter);
-  for (int32_t iDiskColBuilder = 0; iDiskColBuilder < pBuilder->nBuilder; iDiskColBuilder++) {
-    SDiskColBuilder *pDiskColBuilder = (SDiskColBuilder *)taosArrayGet(pBuilder->aBuilder, iDiskColBuilder);
+  for (int32_t iBuilder = 0; iBuilder < pBuilder->nBuilder; iBuilder++) {
+    SDiskColBuilder *pDCBuilder = (SDiskColBuilder *)taosArrayGet(pBuilder->aBuilder, iBuilder);
 
-    while (pColVal && pColVal->cid < pDiskColBuilder->cid) {
+    while (pColVal && pColVal->cid < pDCBuilder->cid) {
       pColVal = tRowIterNext(&iter);
     }
 
-    if (pColVal == NULL || pColVal->cid > pDiskColBuilder->cid) {
-      SColVal cv = COL_VAL_NONE(pDiskColBuilder->cid, pDiskColBuilder->type);
-      code = tDiskColAddValImpl[pDiskColBuilder->flag](pDiskColBuilder, &cv);
-      if (code) goto _exit;
+    if (pColVal == NULL || pColVal->cid > pDCBuilder->cid) {
+      SColVal cv = COL_VAL_NONE(pDCBuilder->cid, pDCBuilder->type);
+      code = tDiskColAddValImpl[pDCBuilder->flag](pDCBuilder, &cv);
+      if (code) return code;
     } else {
-      code = tDiskColAddValImpl[pDiskColBuilder->flag](pDiskColBuilder, pColVal);
-      if (code) goto _exit;
+      code = tDiskColAddValImpl[pDCBuilder->flag](pDCBuilder, pColVal);
+      if (code) return code;
       pColVal = tRowIterNext(&iter);
     }
   }
   pBuilder->nRow++;
 
-_exit:
   return code;
 }
 
@@ -601,9 +603,7 @@ int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, SDiskData *pDiskData) {
       return code;
     }
 
-    if (pDCBuilder->flag != HAS_NULL) {
-      pDiskData->hdr.szBlkCol += tPutBlockCol(NULL, &dCol.bCol);
-    }
+    pDiskData->hdr.szBlkCol += tPutBlockCol(NULL, &dCol.bCol);
   }
 
   return code;

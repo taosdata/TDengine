@@ -38,41 +38,42 @@ extern "C" {
     goto LABEL;                            \
   }
 
-typedef struct TSDBROW       TSDBROW;
-typedef struct TABLEID       TABLEID;
-typedef struct TSDBKEY       TSDBKEY;
-typedef struct SDelData      SDelData;
-typedef struct SDelIdx       SDelIdx;
-typedef struct STbData       STbData;
-typedef struct SMemTable     SMemTable;
-typedef struct STbDataIter   STbDataIter;
-typedef struct SMapData      SMapData;
-typedef struct SBlockIdx     SBlockIdx;
-typedef struct SDataBlk      SDataBlk;
-typedef struct SSttBlk       SSttBlk;
-typedef struct SDiskDataHdr  SDiskDataHdr;
-typedef struct SBlockData    SBlockData;
-typedef struct SDelFile      SDelFile;
-typedef struct SHeadFile     SHeadFile;
-typedef struct SDataFile     SDataFile;
-typedef struct SSttFile      SSttFile;
-typedef struct SSmaFile      SSmaFile;
-typedef struct SDFileSet     SDFileSet;
-typedef struct SDataFWriter  SDataFWriter;
-typedef struct SDataFReader  SDataFReader;
-typedef struct SDelFWriter   SDelFWriter;
-typedef struct SDelFReader   SDelFReader;
-typedef struct SRowIter      SRowIter;
-typedef struct STsdbFS       STsdbFS;
-typedef struct SRowMerger    SRowMerger;
-typedef struct STsdbReadSnap STsdbReadSnap;
-typedef struct SBlockInfo    SBlockInfo;
-typedef struct SSmaInfo      SSmaInfo;
-typedef struct SBlockCol     SBlockCol;
-typedef struct SVersionRange SVersionRange;
-typedef struct SLDataIter    SLDataIter;
-typedef struct SDiskCol      SDiskCol;
-typedef struct SDiskData     SDiskData;
+typedef struct TSDBROW          TSDBROW;
+typedef struct TABLEID          TABLEID;
+typedef struct TSDBKEY          TSDBKEY;
+typedef struct SDelData         SDelData;
+typedef struct SDelIdx          SDelIdx;
+typedef struct STbData          STbData;
+typedef struct SMemTable        SMemTable;
+typedef struct STbDataIter      STbDataIter;
+typedef struct SMapData         SMapData;
+typedef struct SBlockIdx        SBlockIdx;
+typedef struct SDataBlk         SDataBlk;
+typedef struct SSttBlk          SSttBlk;
+typedef struct SDiskDataHdr     SDiskDataHdr;
+typedef struct SBlockData       SBlockData;
+typedef struct SDelFile         SDelFile;
+typedef struct SHeadFile        SHeadFile;
+typedef struct SDataFile        SDataFile;
+typedef struct SSttFile         SSttFile;
+typedef struct SSmaFile         SSmaFile;
+typedef struct SDFileSet        SDFileSet;
+typedef struct SDataFWriter     SDataFWriter;
+typedef struct SDataFReader     SDataFReader;
+typedef struct SDelFWriter      SDelFWriter;
+typedef struct SDelFReader      SDelFReader;
+typedef struct SRowIter         SRowIter;
+typedef struct STsdbFS          STsdbFS;
+typedef struct SRowMerger       SRowMerger;
+typedef struct STsdbReadSnap    STsdbReadSnap;
+typedef struct SBlockInfo       SBlockInfo;
+typedef struct SSmaInfo         SSmaInfo;
+typedef struct SBlockCol        SBlockCol;
+typedef struct SVersionRange    SVersionRange;
+typedef struct SLDataIter       SLDataIter;
+typedef struct SDiskCol         SDiskCol;
+typedef struct SDiskData        SDiskData;
+typedef struct SDiskDataBuilder SDiskDataBuilder;
 
 #define TSDB_FILE_DLMT     ((uint32_t)0xF00AFA0F)
 #define TSDB_MAX_SUBBLOCKS 8
@@ -302,7 +303,7 @@ int32_t tsdbMerge(STsdb *pTsdb);
 #define TSDB_CACHE_LAST_ROW(c) (((c).cacheLast & 1) > 0)
 #define TSDB_CACHE_LAST(c)     (((c).cacheLast & 2) > 0)
 
-// tsdbCache
+// tsdbCache ==============================================================================================
 int32_t tsdbOpenCache(STsdb *pTsdb);
 void    tsdbCloseCache(STsdb *pTsdb);
 int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row, STsdb *pTsdb);
@@ -319,6 +320,15 @@ void   tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity);
 size_t tsdbCacheGetCapacity(SVnode *pVnode);
 
 int32_t tsdbCacheLastArray2Row(SArray *pLastArray, STSRow **ppRow, STSchema *pSchema);
+
+// tsdbDiskData ==============================================================================================
+int32_t tDiskDataBuilderCreate(SDiskDataBuilder **ppBuilder);
+void   *tDiskDataBuilderDestroy(SDiskDataBuilder *pBuilder);
+int32_t tDiskDataBuilderInit(SDiskDataBuilder *pBuilder, STSchema *pTSchema, TABLEID *pId, uint8_t cmprAlg,
+                             uint8_t calcSma);
+int32_t tDiskDataBuilderAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSchema *pTSchema, TABLEID *pId);
+int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, SDiskData *pDiskData);
+int32_t tDiskDataDestroy(SDiskData *pDiskData);
 
 // structs =======================
 struct STsdbFS {
