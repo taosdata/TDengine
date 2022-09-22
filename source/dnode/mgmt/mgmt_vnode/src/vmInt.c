@@ -406,7 +406,7 @@ static int32_t vmStartVnodes(SVnodeMgmt *pMgmt) {
       taosThreadJoin(pThread->thread, NULL);
       taosThreadClear(&pThread->thread);
     }
-    taosMemoryFree(pThread->pCfgs);
+    taosMemoryFree(pThread->ppVnodes);
   }
   taosMemoryFree(threads);
 
