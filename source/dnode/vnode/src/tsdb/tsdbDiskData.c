@@ -143,96 +143,12 @@ static int32_t tGnrtDiskCol(SDiskColBuilder *pBuilder, SDiskCol *pDiskCol) {
   return code;
 }
 
-static FORCE_INLINE void tDiskColUpdateSmaBool(SDiskColBuilder *pBuilder, SColVal *pColVal) {
-  // TODO
-}
-static FORCE_INLINE void tDiskColUpdateSmaTinyint(SDiskColBuilder *pBuilder, SColVal *pColVal) {
-  int8_t val = *(int8_t *)&pColVal->value.val;
-  pBuilder->sma.sum += val;
-  if (!pBuilder->minSet || pBuilder->sma.min > val) pBuilder->sma.min = val;
-  if (!pBuilder->maxSet || pBuilder->sma.max < val) pBuilder->sma.max = val;
-}
-static FORCE_INLINE void tDiskColUpdateSmaSmallint(SDiskColBuilder *pBuilder, SColVal *pColVal) {
-  int16_t val = *(int16_t *)&pColVal->value.val;
-  pBuilder->sma.sum += val;
-  if (!pBuilder->minSet || pBuilder->sma.min > val) pBuilder->sma.min = val;
-  if (!pBuilder->maxSet || pBuilder->sma.max < val) pBuilder->sma.max = val;
-}
-static FORCE_INLINE void tDiskColUpdateSmaInt(SDiskColBuilder *pBuilder, SColVal *pColVal) {
-  int32_t val = *(int32_t *)&pColVal->value.val;
-  pBuilder->sma.sum += val;
-  if (!pBuilder->minSet || pBuilder->sma.min > val) pBuilder->sma.min = val;
-  if (!pBuilder->maxSet || pBuilder->sma.max < val) pBuilder->sma.max = val;
-}
-static FORCE_INLINE void tDiskColUpdateBigint(SDiskColBuilder *pBuilder, SColVal *pColVal) {
-  int64_t val = *(int64_t *)&pColVal->value.val;
-  pBuilder->sma.sum += val;
-  if (!pBuilder->minSet || pBuilder->sma.min > val) pBuilder->sma.min = val;
-  if (!pBuilder->maxSet || pBuilder->sma.max < val) pBuilder->sma.max = val;
-}
-static FORCE_INLINE void tDiskColUpdateFloat(SDiskColBuilder *pBuilder, SColVal *pColVal) {
-  float val = *(float *)&pColVal->value.val;
-  *(double *)&pBuilder->sma.sum += val;
-  if (!pBuilder->minSet || *(double *)&pBuilder->sma.min > val) *(double *)&pBuilder->sma.min = val;
-  if (!pBuilder->maxSet || *(double *)&pBuilder->sma.max < val) *(double *)&pBuilder->sma.max = val;
-}
-static FORCE_INLINE void tDiskColUpdateDouble(SDiskColBuilder *pBuilder, SColVal *pColVal) {
-  double val = *(double *)&pColVal->value.val;
-  *(double *)&pBuilder->sma.sum += val;
-  if (!pBuilder->minSet || *(double *)&pBuilder->sma.min > val) *(double *)&pBuilder->sma.min = val;
-  if (!pBuilder->maxSet || *(double *)&pBuilder->sma.max < val) *(double *)&pBuilder->sma.max = val;
-}
-static FORCE_INLINE void tDiskColUpdateUTinyint(SDiskColBuilder *pBuilder, SColVal *pColVal) {
-  uint8_t val = *(uint8_t *)&pColVal->value.val;
-  pBuilder->sma.sum += val;
-  if (!pBuilder->minSet || pBuilder->sma.min > val) pBuilder->sma.min = val;
-  if (!pBuilder->maxSet || pBuilder->sma.max < val) pBuilder->sma.max = val;
-}
-static FORCE_INLINE void tDiskColUpdateUSmallint(SDiskColBuilder *pBuilder, SColVal *pColVal) {
-  uint16_t val = *(uint16_t *)&pColVal->value.val;
-  pBuilder->sma.sum += val;
-  if (!pBuilder->minSet || pBuilder->sma.min > val) pBuilder->sma.min = val;
-  if (!pBuilder->maxSet || pBuilder->sma.max < val) pBuilder->sma.max = val;
-}
-static FORCE_INLINE void tDiskColUpdateUInt(SDiskColBuilder *pBuilder, SColVal *pColVal) {
-  uint32_t val = *(uint32_t *)&pColVal->value.val;
-  pBuilder->sma.sum += val;
-  if (!pBuilder->minSet || pBuilder->sma.min > val) pBuilder->sma.min = val;
-  if (!pBuilder->maxSet || pBuilder->sma.max < val) pBuilder->sma.max = val;
-}
-static FORCE_INLINE void tDiskColUpdateUBigint(SDiskColBuilder *pBuilder, SColVal *pColVal) {
-  uint64_t val = *(uint64_t *)&pColVal->value.val;
-  pBuilder->sma.sum += val;
-  if (!pBuilder->minSet || pBuilder->sma.min > val) pBuilder->sma.min = val;
-  if (!pBuilder->maxSet || pBuilder->sma.max < val) pBuilder->sma.max = val;
-}
-static void (*tDiskColUpdateSmaImpl[])(SDiskColBuilder *pBuilder, SColVal *pColVal) = {
-    NULL,                       // TSDB_DATA_TYPE_NULL
-    tDiskColUpdateSmaBool,      // TSDB_DATA_TYPE_BOOL
-    tDiskColUpdateSmaTinyint,   // TSDB_DATA_TYPE_TINYINT
-    tDiskColUpdateSmaSmallint,  // TSDB_DATA_TYPE_SMALLINT
-    tDiskColUpdateSmaInt,       // TSDB_DATA_TYPE_INT
-    tDiskColUpdateBigint,       // TSDB_DATA_TYPE_BIGINT
-    tDiskColUpdateFloat,        // TSDB_DATA_TYPE_FLOAT
-    tDiskColUpdateDouble,       // TSDB_DATA_TYPE_DOUBLE
-    NULL,                       // TSDB_DATA_TYPE_VARCHAR
-    tDiskColUpdateBigint,       // TSDB_DATA_TYPE_TIMESTAMP
-    NULL,                       // TSDB_DATA_TYPE_NCHAR
-    tDiskColUpdateUTinyint,     // TSDB_DATA_TYPE_UTINYINT
-    tDiskColUpdateUSmallint,    // TSDB_DATA_TYPE_USMALLINT
-    tDiskColUpdateUInt,         // TSDB_DATA_TYPE_UINT
-    tDiskColUpdateUBigint,      // TSDB_DATA_TYPE_UBIGINT
-    NULL,                       // TSDB_DATA_TYPE_JSON
-    NULL,                       // TSDB_DATA_TYPE_VARBINARY
-    NULL,                       // TSDB_DATA_TYPE_DECIMAL
-    NULL,                       // TSDB_DATA_TYPE_BLOB
-    NULL,                       // TSDB_DATA_TYPE_MEDIUMBLOB
-};
+extern void (*tSmaUpdateImpl[])(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet, uint8_t *maxSet);
 static FORCE_INLINE void tDiskColUpdateSma(SDiskColBuilder *pBuilder, SColVal *pColVal) {
   if (pColVal->isNone || pColVal->isNull) {
     pBuilder->sma.numOfNull++;
   } else {
-    tDiskColUpdateSmaImpl[pBuilder->type](pBuilder, pColVal);
+    tSmaUpdateImpl[pBuilder->type](&pBuilder->sma, pColVal, &pBuilder->minSet, &pBuilder->maxSet);
   }
 }
 
