@@ -325,7 +325,7 @@ The charset that takes effect is UTF-8.
 | Applicable    | Server Only                                                    |
 | Meaning     | Maximum number of vnodes per dnode |
 | Value Range | 0-4096                                     |
-| Default Value | 256                                                    |
+| Default Value | 2x the CPU cores                                                    |
 
 ## Time Parameters
 
