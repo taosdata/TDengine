@@ -23,7 +23,7 @@ This is the documentation structure for TDengine Cloud.
 
 8. TDengine provides sophisticated [Data Replication](./replication) features. You can replicate from Cloud to a private instance and vice versa. You can replicate between Cloud providers regardless of region and you can also replicate between edge instances and Cloud or edge instances and private centralized instances.
 
-9. The [Developer Guide](./develop) is a must read if you are developing IoT or Big Data applications for time series data. In this section we introduce the database connection, data modeling, data ingestion, query, stream processing, cache, data subscription, user-defined functions (coming soon), and other functionality in detail. Sample code is provided for a variety of programming languages. In most cases, you can just copy and paste the sample code, make a few changes to accommodate your application, and it will work.
+9. The [Developer Guide](./programming) is a must read if you are developing IoT or Big Data applications for time series data. In this section we introduce the database connection, data modeling, data ingestion, query, stream processing, cache, data subscription, user-defined functions (coming soon), and other functionality in detail. Sample code is provided for a variety of programming languages. In most cases, you can just copy and paste the sample code, make a few changes to accommodate your application, and it will work.
 
 10. The [TDengine SQL](./taos-sql) section provides comprehensive information about both standard SQL as well as TDengine's extensions for easy time series analysis.
 
