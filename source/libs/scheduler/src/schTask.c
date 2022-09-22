@@ -20,6 +20,7 @@
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
+#include "tglobal.h"
 
 void schFreeTask(SSchJob *pJob, SSchTask *pTask) {
   schDeregisterTaskHb(pJob, pTask);
@@ -870,8 +871,12 @@ int32_t schLaunchTaskImpl(void *param) {
       SCH_TASK_ELOG("failed to create physical plan, code:%s, msg:%p, len:%d", tstrerror(code), pTask->msg,
                     pTask->msgLen);
       SCH_ERR_JRET(code);
-    } else {
-      SCH_TASK_DLOGL("physical plan len:%d, %s", pTask->msgLen, pTask->msg);
+    } else if (tsQueryPlannerTrace) {
+      char *msg = NULL;
+      int32_t msgLen = 0;
+      qSubPlanToString(plan, &msg, &msgLen);
+      SCH_TASK_DLOGL("physical plan len:%d, %s", msgLen, msg);
+      taosMemoryFree(msg);
     }
   }
 

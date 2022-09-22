@@ -681,6 +681,8 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
   };
 
   int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob);
+
+  destroyQueryExecRes(&pRequest->body.resInfo.execRes);
   memcpy(&pRequest->body.resInfo.execRes, &res, sizeof(res));
 
   if (code != TSDB_CODE_SUCCESS) {
