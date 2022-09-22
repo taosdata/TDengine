@@ -1475,19 +1475,19 @@ void vectorMathMinus(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pO
 
 void vectorAssign(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
   SColumnInfoData *pOutputCol = pOut->columnData;
-
   pOut->numOfRows = pLeft->numOfRows;
 
-//  if (IS_HELPER_NULL(pRight->columnData, 0)) {
   if(colDataIsNull_s(pRight->columnData, 0)){
-    for (int32_t i = 0; i < pOut->numOfRows; ++i) {
-      colDataAppend(pOutputCol, i, NULL, true);
-    }
+    colDataAppendNNULL(pOutputCol, 0, pOut->numOfRows);
   } else {
+    char* d = colDataGetData(pRight->columnData, 0);
     for (int32_t i = 0; i < pOut->numOfRows; ++i) {
-      colDataAppend(pOutputCol, i, colDataGetData(pRight->columnData, 0), false);
+      colDataAppend(pOutputCol, i, d, false);
     }
   }
+
+  ASSERT(pRight->numOfQualified == 1 || pRight->numOfQualified == 0);
+  pOut->numOfQualified = pRight->numOfQualified * pOut->numOfRows;
 }
 
 void vectorConcat(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
@@ -1646,37 +1646,59 @@ void vectorBitOr(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, 
   doReleaseVec(pRightCol, rightConvert);
 }
 
-#define VEC_COM_INNER(pCol, index1, index2)    \
-  for (; i < pCol->numOfRows && i >= 0; i += step) {\
-    if (IS_HELPER_NULL(pLeft->columnData, index1) || IS_HELPER_NULL(pRight->columnData, index2)) {\
-      bool  res = false;\
-      colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);\
-      continue;\
-    }\
-    char *pLeftData = colDataGetData(pLeft->columnData, index1);\
-    char *pRightData = colDataGetData(pRight->columnData, index2);\
-    int64_t leftOut = 0;\
-    int64_t rightOut = 0;\
-    bool freeLeft = false;\
-    bool freeRight = false;\
-    bool isJsonnull = false;\
-    bool result = convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight),\
-                                      &pLeftData, &pRightData, &leftOut, &rightOut, &isJsonnull, &freeLeft, &freeRight);\
-    if(isJsonnull){\
-      ASSERT(0);\
-    }\
-    if(!pLeftData || !pRightData){\
-      result = false;\
-    }\
-    if(!result){\
-      colDataAppendInt8(pOut->columnData, i, (int8_t*)&result);\
-    }else{\
-      bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);\
-      colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);\
-    }\
-    if(freeLeft) taosMemoryFreeClear(pLeftData);\
-    if(freeRight) taosMemoryFreeClear(pRightData);\
+int32_t doVectorCompareImpl(int32_t numOfRows, SScalarParam *pOut, int32_t startIndex, int32_t step, __compar_fn_t fp,
+                         SScalarParam *pLeft, SScalarParam *pRight, int32_t optr) {
+  int32_t num = 0;
+
+  for (int32_t i = startIndex; i < numOfRows && i >= 0; i += step) {
+    int32_t leftIndex = (i >= pLeft->numOfRows)? 0:i;
+    int32_t rightIndex = (i >= pRight->numOfRows)? 0:i;
+
+    if (IS_HELPER_NULL(pLeft->columnData, leftIndex) || IS_HELPER_NULL(pRight->columnData, rightIndex)) {
+      bool res = false;
+      colDataAppendInt8(pOut->columnData, i, (int8_t *)&res);
+      continue;
+    }
+
+    char *  pLeftData = colDataGetData(pLeft->columnData, leftIndex);
+    char *  pRightData = colDataGetData(pRight->columnData, rightIndex);
+    int64_t leftOut = 0;
+    int64_t rightOut = 0;
+    bool    freeLeft = false;
+    bool    freeRight = false;
+    bool    isJsonnull = false;
+
+    bool    result = convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData,
+                                   &leftOut, &rightOut, &isJsonnull, &freeLeft, &freeRight);
+    if (isJsonnull) {
+      ASSERT(0);
+    }
+
+    if (!pLeftData || !pRightData) {
+      result = false;
+    }
+
+    if (!result) {
+      colDataAppendInt8(pOut->columnData, i, (int8_t *)&result);
+    } else {
+      bool res = filterDoCompare(fp, optr, pLeftData, pRightData);
+      colDataAppendInt8(pOut->columnData, i, (int8_t *)&res);
+      if (res) {
+        ++num;
+      }
+    }
+
+    if (freeLeft) {
+      taosMemoryFreeClear(pLeftData);
+    }
+
+    if (freeRight) {
+      taosMemoryFreeClear(pRightData);
+    }
   }
+
+  return num;
+}
 
 void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord, int32_t optr) {
   int32_t       i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
@@ -1704,16 +1726,12 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
       char *pLeftData = colDataGetData(pLeft->columnData, i);
       bool  res = filterDoCompare(fp, optr, pLeftData, pRight->pHashFilter);
       colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
+      if (res) {
+        pOut->numOfQualified++;
+      }
     }
-    return;
-  }
-
-  if (pLeft->numOfRows == pRight->numOfRows) {
-    VEC_COM_INNER(pLeft, i, i)
-  } else if (pRight->numOfRows == 1) {
-    VEC_COM_INNER(pLeft, i, 0)
-  } else if (pLeft->numOfRows == 1) {
-    VEC_COM_INNER(pRight, 0, i)
+  } else {  // normal compare
+    pOut->numOfQualified = doVectorCompareImpl(pOut->numOfRows, pOut, i, step, fp, pLeft, pRight, optr);
   }
 }
 

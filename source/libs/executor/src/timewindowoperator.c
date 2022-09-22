@@ -1115,7 +1115,7 @@ static bool compareVal(const char* v, const SStateKeys* pKey) {
     if (varDataLen(v) != varDataLen(pKey->pData)) {
       return false;
     } else {
-      return strncmp(varDataVal(v), varDataVal(pKey->pData), varDataLen(v)) == 0;
+      return memcmp(varDataVal(v), varDataVal(pKey->pData), varDataLen(v)) == 0;
     }
   } else {
     return memcmp(pKey->pData, v, pKey->bytes) == 0;
@@ -2075,7 +2075,7 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
     }
   }
 
-  pSliceInfo->fillLastPoint = isLastRow ? true : false;
+  pSliceInfo->fillLastPoint = isLastRow;
 }
 
 static void genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp* pExprSup, SSDataBlock* pResBlock) {
@@ -2294,15 +2294,6 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
   SSDataBlock*            pResBlock = pSliceInfo->pRes;
   SExprSupp*              pSup = &pOperator->exprSupp;
 
-  //  if (pOperator->status == OP_RES_TO_RETURN) {
-  //    //    doBuildResultDatablock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pIntervalInfo->pRes);
-  //    if (pResBlock->info.rows == 0 || !hasRemainResults(&pSliceInfo->groupResInfo)) {
-  //      doSetOperatorCompleted(pOperator);
-  //    }
-  //
-  //    return pResBlock;
-  //  }
-
   int32_t        order = TSDB_ORDER_ASC;
   SInterval*     pInterval = &pSliceInfo->interval;
   SOperatorInfo* downstream = pOperator->pDownstream[0];
@@ -2432,6 +2423,9 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
                 break;
               }
             }
+          } else {
+            // store ts value as start, and calculate interp value when processing next block
+            doKeepLinearInfo(pSliceInfo, pBlock, i, true);
           }
         } else {  // non-linear interpolation
           if (i < pBlock->info.rows - 1) {
@@ -2510,6 +2504,9 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
                   break;
                 }
               }
+            } else {  // it is the last row of current block
+              // store ts value as start, and calculate interp value when processing next block
+              doKeepLinearInfo(pSliceInfo, pBlock, i, true);
             }
           } else {  // non-linear interpolation
             pSliceInfo->current =
@@ -2614,6 +2611,10 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode
   pInfo->win = pInterpPhyNode->timeRange;
   pInfo->interval.interval = pInterpPhyNode->interval;
   pInfo->current = pInfo->win.skey;
+
+  STableScanInfo* pScanInfo = (STableScanInfo*)downstream->info;
+  pScanInfo->cond.twindows = pInfo->win;
+  pScanInfo->cond.type = TIMEWINDOW_RANGE_EXTERNAL;
 
   pOperator->name = "TimeSliceOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC;
