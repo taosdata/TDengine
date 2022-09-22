@@ -4293,6 +4293,13 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
     { pthread_mutex_lock(&pSql->subState.mutex);
 
     for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
+      if (pSql->pSubs[i] != NULL) {
+        tscError("0x%"PRIx64"some of subquery objs already set. numOfSub:%d, i: %d", pSql->self, pSql->subState.numOfSub, i);
+        code = TSDB_CODE_FAILED;
+        errflag = 1;
+        break;
+      }
+
       SQueryInfo* pSub = taosArrayGetP(pQueryInfo->pUpstream, i);
 
       pSql->cmd.active = pSub;
@@ -4329,6 +4336,7 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
       registerSqlObj(pNew);
 
       pSql->pSubs[i] = pNew;
+      pSql->subState.version ++;
 
       SSqlCmd* pCmd = &pNew->cmd;
       pCmd->command = TSDB_SQL_SELECT;
