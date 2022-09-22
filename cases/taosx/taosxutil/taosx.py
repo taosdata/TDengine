@@ -14,13 +14,36 @@
 
 
 
+import json
 import threading
 from taostest.util.remote import Remote
-
+from taostest import TDCase, T
 class Runtaosx():
     def __init__(self,logger):
         self.logger = logger
         self.remote: Remote = Remote(self.logger)
+    def get_json(self,json_path,host,port,dbname,stbname,tbname_m,tb_num,start_timestamp,row_num,drop_flag,child_table_exist):
+        dict = {}
+        with open(json_path,'rb') as file:
+            params = json.load(file)
+            params['host'] = host
+            params['port'] = port
+            params['databases'][0]['dbinfo']['name'] = dbname
+            params['databases'][0]['dbinfo']['drop'] = drop_flag
+            params['databases'][0]['super_tables'][0]['name'] = stbname
+            params['databases'][0]['super_tables'][0]['childtable_count'] = tb_num
+            params['databases'][0]['super_tables'][0]['child_table_exists'] = child_table_exist
+            params['databases'][0]['super_tables'][0]['insert_rows'] = row_num
+            params['databases'][0]['super_tables'][0]['childtable_prefix'] = tbname_m
+            params['databases'][0]['super_tables'][0]['start_timestamp'] = start_timestamp
+            dict = params
+        file.close()
+        return dict
+    def write_json(self, json_path, dict):
+        with open(json_path, 'w') as r:
+            json.dump(dict, r)
+        r.close()
+    
     def run_taosx_db_from_native_to_native(self,thread_list,taosx_setting,source_task,target_task,source_taosd_list,target_taosd,dbname,target_dbname,source,group_id,timeout):
         thread_list.append(threading.Thread(target=self.remote.cmd, args=(
                                 taosx_setting['fqdn'][0], f"taosx run \
