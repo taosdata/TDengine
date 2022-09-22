@@ -55,7 +55,7 @@ namespace Examples
 
             // Free result after use.
             LibTaosWS.WSFreeResult(wsRes);
-            
+
             // close connection.
             LibTaosWS.WSClose(wsConn);
         }
