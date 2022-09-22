@@ -173,16 +173,16 @@ function async_query_callback(res)
    end
 end
 
-driver.query_a(conn,"insert into therm1 values ('2019-09-01 00:00:00.005', 100),('2019-09-01 00:00:00.006', 101),('2019-09-01 00:00:00.007', 102)", async_query_callback)
+driver.query_a(conn,"INSERT INTO therm1 VALUES ('2019-09-01 00:00:00.005', 100),('2019-09-01 00:00:00.006', 101),('2019-09-01 00:00:00.007', 102)", async_query_callback)
 
 res = driver.query(conn, "create stream stream_avg_degree into avg_degree as select avg(degree) from thermometer interval(5s) sliding(1s)")
 
-print("From now on we start continous insertion in an definite (infinite if you want) loop.")
+print("From now on we start continous insert in an definite loop, pls wait for about 10 seconds and check stream table for result.")
 local loop_index = 0
-while loop_index < 30 do
+while loop_index < 10 do
    local t = os.time()*1000
-   local v = loop_index
-   res = driver.query(conn,string.format("insert into therm1 values (%d, %d)",t,v))
+   local v = math.random(20)
+   res = driver.query(conn,string.format("INSERT INTO therm1 VALUES (%d, %d)",t,v))
 
    if res.code ~=0 then
       print("continous insertion--- failed:" .. res.error)
@@ -190,17 +190,8 @@ while loop_index < 30 do
    else
       --print("insert successfully, affected:"..res.affected)
    end
-   local res1 = driver.query(conn, string.format("select last(*) from avg_degree"))
-   if res1.code ~=0 then
-      print("select failed: "..res1.error)
-      return
-   else
---      print(dump(res1))
-      if(#res1.item > 0) then print("avg_degree: " .. res1.item[1]["last(avg(degree))"]) end
-   end
-
    os.execute("sleep " .. 1)
    loop_index = loop_index + 1
 end
-
+driver.query(conn,"DROP STREAM IF EXISTS avg_therm_s")
 driver.close(conn)

@@ -65,6 +65,7 @@ void taos_cleanup(void) {
 
   fmFuncMgtDestroy();
   qCleanupKeywordsTable();
+  nodesDestroyAllocatorSet();
 
   id = clientConnRefPool;
   clientConnRefPool = -1;
@@ -775,7 +776,8 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt) {
                            .enableSysInfo = pTscObj->sysInfo,
                            .async = true,
                            .svrVer = pTscObj->sVer,
-                           .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes)};
+                           .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
+                           .allocatorId = pRequest->allocatorRefId};
   return TSDB_CODE_SUCCESS;
 }
 
