@@ -47,7 +47,7 @@ namespace Examples
             }
             else
             {
-                Console.WriteLine("{0} success affect {2} rows, cost {1} nanoseconds", desc, LibTaosWS.WSTakeTiming(wsRes),LibTaosWS.WSAffectRows(wsRes));
+                Console.WriteLine("{0} success affect {2} rows, cost {1} nanoseconds", desc, LibTaosWS.WSTakeTiming(wsRes), LibTaosWS.WSAffectRows(wsRes));
             }
         }
     }
