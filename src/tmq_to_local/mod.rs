@@ -4,7 +4,7 @@ use anyhow::Result;
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
-use taos::{Consumer, *};
+use taos::{sync::MessageSet, Consumer, *};
 
 use crate::{
     taoz::ZFile,
@@ -32,6 +32,22 @@ async fn backup(consumer: Consumer, mut writer: ZFile, id: usize) -> Result<()> 
                 writer.write_meta(&meta.as_raw_meta().await?).await?;
             }
             MessageSet::Data(data) => {
+                writer.start_raw_block().await?;
+                while let Some(block) = data.fetch_raw_block().await.unwrap() {
+                    // dbg!(&block);
+                    writer.write_raw_block(&block).await?;
+                    rows += block.nrows();
+                    log::info!(
+                        "[{id}] table {} rows: {}",
+                        block.table_name().unwrap_or_default(),
+                        block.nrows()
+                    );
+                }
+                writer.finish_raw_block().await?;
+            }
+            MessageSet::MetaData(meta, data) => {
+                writer.write_meta(&meta.as_raw_meta().await?).await?;
+
                 writer.start_raw_block().await?;
                 while let Some(block) = data.fetch_raw_block().await.unwrap() {
                     // dbg!(&block);

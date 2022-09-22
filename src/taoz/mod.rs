@@ -258,6 +258,7 @@ mod tests {
                         }
                         writer.finish_data_async().await.unwrap();
                     }
+                    _ => unreachable!(),
                 }
                 writer.flush().await.unwrap();
                 tmq.commit(offset).await?;
@@ -317,6 +318,7 @@ mod tests {
                         println!("rows: {}", rows);
                         // taos.write_raw_data(data[0]).await?
                     }
+                    _ => unreachable!()
                 },
                 Err(err) => {
                     dbg!(&err);

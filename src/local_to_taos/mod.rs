@@ -69,6 +69,7 @@ async fn restore(
                     log::debug!("[{id}] current rows: {}", rows);
                     // taos.write_raw_data(data[0]).await?
                 }
+                _ => unreachable!()
             },
             Err(err) => {
                 if err.kind() == std::io::ErrorKind::UnexpectedEof {

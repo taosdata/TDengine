@@ -40,182 +40,7 @@ async fn sync(
                     dbg!(&meta);
 
                     for action in &actions {
-                        match action {
-                            Action::Select(_) => {
-                                bail!("unsupported transform action: {:?}", action)
-                            }
-                            Action::AddTag(action) => {
-                                // dbg!(action);
-                                let len = match action.len {
-                                    0 => 100,
-                                    16374.. => 16374,
-                                    a => a,
-                                };
-                                let field = Field::new(&action.name, Ty::VarChar, len as u32);
-                                match &mut meta {
-                                    JsonMeta::Create(create) => match create {
-                                        MetaCreate::Super {
-                                            table_name: _,
-                                            columns: _,
-                                            tags,
-                                        } => {
-                                            tags.push(field);
-                                        }
-                                        MetaCreate::Child {
-                                            table_name: _,
-                                            using: _,
-                                            tags,
-                                            tag_num: _,
-                                        } => {
-                                            let value = match &action.opts {
-                                                crate::transform::AddTagOpts::Value { value } => {
-                                                    serde_json::json!(format!("\"{value}\""))
-                                                }
-                                                crate::transform::AddTagOpts::Template {
-                                                    template: _,
-                                                } => bail!(
-                                                    "unsupported transform action: {:?}",
-                                                    action
-                                                ),
-                                            };
-                                            tags.push(TagWithValue { field, value });
-                                        }
-                                        _ => (),
-                                    },
-                                    _ => (),
-                                }
-                            }
-                            Action::RenameTable(action) => match &mut meta {
-                                JsonMeta::Create(create) => match create {
-                                    MetaCreate::Super {
-                                        table_name,
-                                        columns: _,
-                                        tags: _,
-                                    } => {
-                                        let s = action.apply(table_name);
-                                        table_name.clear();
-                                        table_name.extend(s.chars());
-                                    }
-                                    MetaCreate::Child {
-                                        table_name,
-                                        using,
-                                        tags: _,
-                                        tag_num: _,
-                                    } => {
-                                        // change child table name and super table name.
-                                        let s = action.apply(table_name);
-                                        table_name.clear();
-                                        table_name.extend(s.chars());
-
-                                        let s = action.apply(&using);
-                                        using.clear();
-                                        using.extend(s.chars());
-                                    }
-                                    MetaCreate::Normal {
-                                        table_name,
-                                        columns: _,
-                                    } => {
-                                        let s = action.apply(table_name);
-                                        table_name.clear();
-                                        table_name.extend(s.chars());
-                                    }
-                                },
-                                JsonMeta::Alter(alter) => {
-                                    let new = action.apply(&alter.table_name);
-                                    alter.table_name.clear();
-                                    alter.table_name.extend(new.chars());
-                                }
-                                JsonMeta::Drop(drop) => match drop {
-                                    MetaDrop::Super { table_name } => {
-                                        action.apply_in_place(table_name)
-                                    }
-                                    MetaDrop::Other { table_name_list } => {
-                                        for name in table_name_list {
-                                            action.apply_in_place(name);
-                                        }
-                                    }
-                                },
-                            },
-                            Action::RenameChildTable(action) => match &mut meta {
-                                JsonMeta::Create(create) => match create {
-                                    MetaCreate::Child {
-                                        table_name,
-                                        using: _,
-                                        tags: _,
-                                        tag_num: _,
-                                    } => {
-                                        // dbg!(action, &meta);
-                                        let s = action.apply(table_name);
-                                        table_name.clear();
-                                        table_name.extend(s.chars());
-                                    }
-                                    _ => (),
-                                },
-                                JsonMeta::Alter(_) => (),
-                                JsonMeta::Drop(drop) => match drop {
-                                    MetaDrop::Super { table_name: _ } => (),
-                                    MetaDrop::Other { table_name_list } => {
-                                        // todo(@zitsen): normal or child?
-                                        for name in table_name_list {
-                                            action.apply_in_place(name);
-                                        }
-                                    }
-                                },
-                            },
-                            Action::RenameSuperTable(action) => match &mut meta {
-                                JsonMeta::Create(create) => match create {
-                                    MetaCreate::Super {
-                                        table_name,
-                                        columns: _,
-                                        tags: _,
-                                    } => {
-                                        let s = action.apply(table_name);
-                                        table_name.clear();
-                                        table_name.extend(s.chars());
-                                    }
-                                    MetaCreate::Child {
-                                        table_name: _,
-                                        using,
-                                        tags: _,
-                                        tag_num: _,
-                                    } => {
-                                        let s = action.apply(&using);
-                                        using.clear();
-                                        using.extend(s.chars());
-                                    }
-                                    _ => (),
-                                },
-                                JsonMeta::Alter(alter) => match alter.alter_type {
-                                    taos::AlterType::AddTag => {
-                                        action.apply_in_place(&mut alter.table_name)
-                                    }
-                                    taos::AlterType::DropTag => {
-                                        action.apply_in_place(&mut alter.table_name)
-                                    }
-                                    taos::AlterType::RenameTag => {
-                                        action.apply_in_place(&mut alter.table_name)
-                                    }
-                                    taos::AlterType::SetTagValue => {
-                                        action.apply_in_place(&mut alter.table_name)
-                                    }
-                                    taos::AlterType::AddColumn => (),
-                                    taos::AlterType::DropColumn => (),
-                                    taos::AlterType::ModifyColumnLength => (),
-                                    taos::AlterType::ModifyTagLength => {
-                                        action.apply_in_place(&mut alter.table_name)
-                                    }
-                                    taos::AlterType::ModifyTableOption => (),
-                                    taos::AlterType::RenameColumn => (),
-                                },
-                                JsonMeta::Drop(drop) => match drop {
-                                    MetaDrop::Super { table_name } => {
-                                        // todo(@zitsen): normal or child?
-                                        action.apply_in_place(table_name)
-                                    }
-                                    _ => (),
-                                },
-                            },
-                        }
+                        action.mutate_meta(&mut meta)?;
                     }
                     dbg!(&meta);
                     let sql = meta.to_string();
@@ -234,6 +59,78 @@ async fn sync(
                 }
             }
             MessageSet::Data(data) => {
+                while let Some(mut raw) = data.fetch_raw_block().await? {
+                    if let Some(name) = table.as_ref() {
+                        raw.with_table_name(name);
+                    }
+                    rows += raw.nrows();
+                    log::debug!(
+                        "[{id}] write {} rows(total {}) with {} columns",
+                        raw.nrows(),
+                        rows,
+                        raw.ncols()
+                    );
+                    if let Err(err) = taos.write_raw_block(&raw).await {
+                        if err.to_string().contains("[0x2603]") {
+                            // table not exists
+                            if let Some(meta) = raw.to_create() {
+                                if let Err(err) = taos.exec(format!("{}", meta)).await {
+                                    if err.to_string().contains("0x032C") {
+                                        tokio::time::sleep(Duration::from_nanos(1000)).await;
+                                    } else {
+                                        Err(err).context("create table error")?;
+                                    }
+                                };
+                                taos.write_raw_block(&raw)
+                                    .await
+                                    .context("write table data failed")?;
+                            } else {
+                                Err(err).context("write table failed")?;
+                            }
+                        } else {
+                            Err(err).context("write table failed")?;
+                        }
+                    };
+                }
+            }
+            MessageSet::MetaData(meta, data) => {
+                // log::debug!("[{id}] meta: {}", meta.as_json_meta().await?);
+                if actions.is_empty() {
+                    if let Err(err) = taos.write_raw_meta(meta.as_raw_meta().await?).await {
+                        let errstr = err.to_string();
+                        if errstr.contains("[0x032C]") {
+                            log::warn!("there's a same object is creating and expected to be done in some time, so we'll continue");
+                            // tokio::time::sleep(Duration::from_nanos(1000)).await;
+                        } else if errstr.contains("[0x03C7]") {
+                            log::warn!("write raw meta error with stable, but we'll continue");
+                            // tokio::time::sleep(Duration::from_nanos(1000)).await;
+                        } else {
+                            Err(err).context("write raw meta error")?;
+                        }
+                    }
+                } else {
+                    let mut meta = meta.as_json_meta().await?;
+                    dbg!(&meta);
+
+                    for action in &actions {
+                        action.mutate_meta(&mut meta)?;
+                    }
+                    dbg!(&meta);
+                    let sql = meta.to_string();
+                    if let Err(err) = taos.exec(&sql).await {
+                        let errstr = err.to_string();
+                        if errstr.contains("[0x032C]") {
+                            log::warn!("there's a same object is creating and expected to be done in some time, so we'll continue");
+                            // tokio::time::sleep(Duration::from_nanos(1000)).await;
+                        } else if errstr.contains("[0x03C7]") {
+                            log::warn!("write raw meta error with stable, but we'll continue");
+                            // tokio::time::sleep(Duration::from_nanos(1000)).await;
+                        } else {
+                            Err(err).context("write raw meta error")?;
+                        }
+                    }
+                }
+
                 while let Some(mut raw) = data.fetch_raw_block().await? {
                     if let Some(name) = table.as_ref() {
                         raw.with_table_name(name);
