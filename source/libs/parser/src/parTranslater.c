@@ -264,6 +264,8 @@ static bool beforeHaving(ESqlClause clause) { return clause < SQL_CLAUSE_HAVING;
 
 static bool afterHaving(ESqlClause clause) { return clause > SQL_CLAUSE_HAVING; }
 
+static bool beforeWindow(ESqlClause clause) { return clause < SQL_CLAUSE_WINDOW; }
+
 static bool hasSameTableAlias(SArray* pTables) {
   if (taosArrayGetSize(pTables) < 2) {
     return false;
@@ -1476,7 +1478,7 @@ static int32_t translateWindowPseudoColumnFunc(STranslateContext* pCxt, SFunctio
   if (!isSelectStmt(pCxt->pCurrStmt) || NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pWindow) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_PC);
   }
-  if (beforeHaving(pCxt->currClause)) {
+  if (beforeWindow(pCxt->currClause)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_PC, "There mustn't be %s",
                                    pFunc->functionName);
   }
