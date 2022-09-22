@@ -2450,28 +2450,26 @@ static void smlInsertCallback(void *param, void *res, int32_t code) {
   int32_t rows = taos_affected_rows(pRequest);
 
   uDebug("SML:0x%" PRIx64 " result. code:%d, msg:%s", info->id, pRequest->code, pRequest->msgBuf);
-  // lock
-  taosThreadSpinLock(&info->params->lock);
-  info->params->cnt++;
-  if (code != TSDB_CODE_SUCCESS) {
-    info->params->request->code = code;
-    info->params->request->body.resInfo.numOfRows += rows;
-  }else{
-    info->params->request->body.resInfo.numOfRows += info->affectedRows;
-  }
-  taosThreadSpinUnlock(&info->params->lock);
-  // unlock
-
-  uDebug("SML:0x%" PRIx64 " insert finished, code: %d, rows: %d, total: %d", info->id, code, rows, info->affectedRows);
   Params *pParam = info->params;
+  // lock
+  taosThreadSpinLock(&pParam->lock);
+  pParam->cnt++;
+  if (code != TSDB_CODE_SUCCESS) {
+    pParam->request->code = code;
+    pParam->request->body.resInfo.numOfRows += rows;
+  }else{
+    pParam->request->body.resInfo.numOfRows += info->affectedRows;
+  }
+  if (pParam->cnt == pParam->total) {
+    tsem_post(&pParam->sem);
+  }
+  taosThreadSpinUnlock(&pParam->lock);
+  // unlock
+  uDebug("SML:0x%" PRIx64 " insert finished, code: %d, rows: %d, total: %d", info->id, code, rows, info->affectedRows);
   info->cost.endTime = taosGetTimestampUs();
   info->cost.code = code;
   smlPrintStatisticInfo(info);
   smlDestroyInfo(info);
-
-  if (info->params->cnt == info->params->total) {
-    tsem_post(&pParam->sem);
-  }
 }
 
 /**
