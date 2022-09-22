@@ -91,7 +91,7 @@ static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
 
   mInfo("mnode:%d, will be created when deploying, raw:%p", mnodeObj.id, pRaw);
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, NULL);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, NULL, "create-mnode");
   if (pTrans == NULL) {
     mError("mnode:%d, failed to create since %s", mnodeObj.id, terrstr());
     return -1;
@@ -362,7 +362,7 @@ static int32_t mndCreateMnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
   mnodeObj.createdTime = taosGetTimestampMs();
   mnodeObj.updateTime = mnodeObj.createdTime;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "create-mnode");
   if (pTrans == NULL) goto _OVER;
   mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to create mnode:%d", pTrans->id, pCreate->dnodeId);
@@ -571,7 +571,7 @@ static int32_t mndDropMnode(SMnode *pMnode, SRpcMsg *pReq, SMnodeObj *pObj) {
   int32_t code = -1;
   STrans *pTrans = NULL;
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq);
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "drop-mnode");
   if (pTrans == NULL) goto _OVER;
   mndTransSetSerial(pTrans);
   mInfo("trans:%d, used to drop mnode:%d", pTrans->id, pObj->id);

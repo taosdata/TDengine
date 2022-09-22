@@ -235,7 +235,7 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
 
   mDebug("cluster:%" PRId64 ", will be created when deploying, raw:%p", clusterObj.id, pRaw);
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-cluster");
   if (pTrans == NULL) {
     mError("cluster:%" PRId64 ", failed to create since %s", clusterObj.id, terrstr());
     return -1;
@@ -316,7 +316,7 @@ static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
   }
 
   mTrace("update cluster uptime to %" PRId64, clusterObj.upTime);
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-uptime");
   if (pTrans == NULL) return -1;
 
   SSdbRaw *pCommitRaw = mndClusterActionEncode(&clusterObj);

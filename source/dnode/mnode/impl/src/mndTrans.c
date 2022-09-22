@@ -25,7 +25,7 @@
 
 #define TRANS_VER_NUMBER   1
 #define TRANS_ARRAY_SIZE   8
-#define TRANS_RESERVE_SIZE 64
+#define TRANS_RESERVE_SIZE 48
 
 static SSdbRaw *mndTransActionEncode(STrans *pTrans);
 static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw);
@@ -223,6 +223,7 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
     SDB_SET_BINARY(pRaw, dataPos, pTrans->param, pTrans->paramLen, _OVER)
   }
 
+  SDB_SET_BINARY(pRaw, dataPos, pTrans->opername, TSDB_TRANS_OPER_LEN, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, TRANS_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -420,6 +421,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
     SDB_GET_BINARY(pRaw, dataPos, pTrans->param, pTrans->paramLen, _OVER);
   }
 
+  SDB_GET_BINARY(pRaw, dataPos, pTrans->opername, TSDB_TRANS_OPER_LEN, _OVER);
   SDB_GET_RESERVE(pRaw, dataPos, TRANS_RESERVE_SIZE, _OVER)
 
   terrno = 0;
@@ -599,12 +601,17 @@ void mndReleaseTrans(SMnode *pMnode, STrans *pTrans) {
   sdbRelease(pSdb, pTrans);
 }
 
-STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, const SRpcMsg *pReq) {
+STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, const SRpcMsg *pReq,
+                       const char *opername) {
   STrans *pTrans = taosMemoryCalloc(1, sizeof(STrans));
   if (pTrans == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to create transaction since %s", terrstr());
     return NULL;
+  }
+
+  if (opername != NULL) {
+    tstrncpy(pTrans->opername, opername, TSDB_TRANS_OPER_LEN);
   }
 
   pTrans->id = sdbGetMaxId(pMnode->pSdb, SDB_TRANS);
@@ -1586,6 +1593,11 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     STR_WITH_MAXSIZE_TO_VARSTR(stage, mndTransStr(pTrans->stage), pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)stage, false);
+
+    char opername[TSDB_TRANS_OPER_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(opername, pTrans->opername, pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)opername, false);
 
     char dbname[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(dbname, mndGetDbStr(pTrans->dbname), pShow->pMeta->pSchemas[cols].bytes);
