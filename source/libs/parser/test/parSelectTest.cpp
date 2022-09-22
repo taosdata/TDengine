@@ -445,4 +445,11 @@ TEST_F(ParserSelectTest, withoutFromSemanticCheck) {
   run("SELECT TBNAME", TSDB_CODE_PAR_INVALID_TBNAME);
 }
 
+TEST_F(ParserSelectTest, joinSemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT * FROM (SELECT tag1, SUM(c1) s FROM st1 GROUP BY tag1) t1, st1 t2 where t1.tag1 = t2.tag1",
+      TSDB_CODE_PAR_NOT_SUPPORT_JOIN);
+}
+
 }  // namespace ParserTest
