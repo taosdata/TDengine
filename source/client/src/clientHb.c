@@ -274,13 +274,13 @@ static int32_t hbAsyncCallBack(void *param, SDataBuf *pMsg, int32_t code) {
   SClientHbBatchRsp pRsp = {0};
   if (TSDB_CODE_SUCCESS == code) {
     tDeserializeSClientHbBatchRsp(pMsg->pData, pMsg->len, &pRsp);
-  }
 
-  int32_t now = taosGetTimestampSec();
-  int32_t delta = abs(now - pRsp.svrTimestamp);
-  if (delta > timestampDeltaLimit) {
-    code = TSDB_CODE_TIME_UNSYNCED;
-    tscError("time diff: %ds is too big", delta);
+    int32_t now = taosGetTimestampSec();
+    int32_t delta = abs(now - pRsp.svrTimestamp);
+    if (delta > timestampDeltaLimit) {
+      code = TSDB_CODE_TIME_UNSYNCED;
+      tscError("time diff: %ds is too big", delta);
+    }
   }
 
   int32_t rspNum = taosArrayGetSize(pRsp.rsps);
