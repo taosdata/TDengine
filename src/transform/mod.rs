@@ -2,6 +2,7 @@ use std::{hash::Hash, str::FromStr};
 
 use linked_hash_map::LinkedHashMap as HashMap;
 use serde::{Deserialize, Serialize};
+use taos::{Field, JsonMeta, MetaCreate, MetaDrop, TagWithValue, Ty};
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Clone)]
 #[serde(untagged)]
@@ -412,6 +413,174 @@ impl Action {
             Action::RenameChildTable(_) => ActionType::RenameChildTable,
             Action::RenameSuperTable(_) => ActionType::RenameSuperTable,
         }
+    }
+
+    pub fn mutate_meta(&self, meta: &mut JsonMeta) -> anyhow::Result<()> {
+        let action = self;
+        match action {
+            Action::Select(_) => {
+                anyhow::bail!("unsupported transform action: {:?}", action);
+            }
+            Action::AddTag(action) => {
+                // dbg!(action);
+                let len = match action.len {
+                    0 => 100,
+                    16374.. => 16374,
+                    a => a,
+                };
+                let field = Field::new(&action.name, Ty::VarChar, len as u32);
+                match meta {
+                    JsonMeta::Create(create) => match create {
+                        MetaCreate::Super {
+                            table_name: _,
+                            columns: _,
+                            tags,
+                        } => {
+                            tags.push(field);
+                        }
+                        MetaCreate::Child {
+                            table_name: _,
+                            using: _,
+                            tags,
+                            tag_num: _,
+                        } => {
+                            let value = match &action.opts {
+                                crate::transform::AddTagOpts::Value { value } => {
+                                    serde_json::json!(format!("\"{value}\""))
+                                }
+                                crate::transform::AddTagOpts::Template { template: _ } => {
+                                    anyhow::bail!("unsupported transform action: {:?}", action)
+                                }
+                            };
+                            tags.push(TagWithValue { field, value });
+                        }
+                        _ => (),
+                    },
+                    _ => (),
+                }
+            }
+            Action::RenameTable(action) => match meta {
+                JsonMeta::Create(create) => match create {
+                    MetaCreate::Super {
+                        table_name,
+                        columns: _,
+                        tags: _,
+                    } => {
+                        let s = action.apply(table_name);
+                        table_name.clear();
+                        table_name.extend(s.chars());
+                    }
+                    MetaCreate::Child {
+                        table_name,
+                        using,
+                        tags: _,
+                        tag_num: _,
+                    } => {
+                        // change child table name and super table name.
+                        let s = action.apply(table_name);
+                        table_name.clear();
+                        table_name.extend(s.chars());
+
+                        let s = action.apply(&using);
+                        using.clear();
+                        using.extend(s.chars());
+                    }
+                    MetaCreate::Normal {
+                        table_name,
+                        columns: _,
+                    } => {
+                        let s = action.apply(table_name);
+                        table_name.clear();
+                        table_name.extend(s.chars());
+                    }
+                },
+                JsonMeta::Alter(alter) => {
+                    let new = action.apply(&alter.table_name);
+                    alter.table_name.clear();
+                    alter.table_name.extend(new.chars());
+                }
+                JsonMeta::Drop(drop) => match drop {
+                    MetaDrop::Super { table_name } => action.apply_in_place(table_name),
+                    MetaDrop::Other { table_name_list } => {
+                        for name in table_name_list {
+                            action.apply_in_place(name);
+                        }
+                    }
+                },
+            },
+            Action::RenameChildTable(action) => match meta {
+                JsonMeta::Create(create) => match create {
+                    MetaCreate::Child {
+                        table_name,
+                        using: _,
+                        tags: _,
+                        tag_num: _,
+                    } => {
+                        // dbg!(action, &meta);
+                        let s = action.apply(table_name);
+                        table_name.clear();
+                        table_name.extend(s.chars());
+                    }
+                    _ => (),
+                },
+                JsonMeta::Alter(_) => (),
+                JsonMeta::Drop(drop) => match drop {
+                    MetaDrop::Super { table_name: _ } => (),
+                    MetaDrop::Other { table_name_list } => {
+                        // todo(@zitsen): normal or child?
+                        for name in table_name_list {
+                            action.apply_in_place(name);
+                        }
+                    }
+                },
+            },
+            Action::RenameSuperTable(action) => match meta {
+                JsonMeta::Create(create) => match create {
+                    MetaCreate::Super {
+                        table_name,
+                        columns: _,
+                        tags: _,
+                    } => {
+                        let s = action.apply(table_name);
+                        table_name.clear();
+                        table_name.extend(s.chars());
+                    }
+                    MetaCreate::Child {
+                        table_name: _,
+                        using,
+                        tags: _,
+                        tag_num: _,
+                    } => {
+                        let s = action.apply(&using);
+                        using.clear();
+                        using.extend(s.chars());
+                    }
+                    _ => (),
+                },
+                JsonMeta::Alter(alter) => match alter.alter_type {
+                    taos::AlterType::AddTag => action.apply_in_place(&mut alter.table_name),
+                    taos::AlterType::DropTag => action.apply_in_place(&mut alter.table_name),
+                    taos::AlterType::RenameTag => action.apply_in_place(&mut alter.table_name),
+                    taos::AlterType::SetTagValue => action.apply_in_place(&mut alter.table_name),
+                    taos::AlterType::AddColumn => (),
+                    taos::AlterType::DropColumn => (),
+                    taos::AlterType::ModifyColumnLength => (),
+                    taos::AlterType::ModifyTagLength => {
+                        action.apply_in_place(&mut alter.table_name)
+                    }
+                    taos::AlterType::ModifyTableOption => (),
+                    taos::AlterType::RenameColumn => (),
+                },
+                JsonMeta::Drop(drop) => match drop {
+                    MetaDrop::Super { table_name } => {
+                        // todo(@zitsen): normal or child?
+                        action.apply_in_place(table_name)
+                    }
+                    _ => (),
+                },
+            },
+        }
+        Ok(())
     }
 }
 

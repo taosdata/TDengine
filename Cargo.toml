@@ -25,7 +25,7 @@ parquet = "22.0.0"
 pretty_env_logger = "0.4"
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
-taos = { version = "0.2.12" }
+taos = { version = "0.3" }
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7" }
 toml = "0.5.9"
