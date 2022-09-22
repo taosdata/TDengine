@@ -1994,7 +1994,7 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
     }
   }
 
-  pSliceInfo->fillLastPoint = isLastRow ? true : false;
+  pSliceInfo->fillLastPoint = isLastRow;
 }
 
 static void genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp* pExprSup, SSDataBlock* pResBlock) {
@@ -2342,6 +2342,9 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
                 break;
               }
             }
+          } else {
+            // store ts value as start, and calculate interp value when processing next block
+            doKeepLinearInfo(pSliceInfo, pBlock, i, true);
           }
         } else {  // non-linear interpolation
           if (i < pBlock->info.rows - 1) {
@@ -2420,6 +2423,9 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
                   break;
                 }
               }
+            } else {  // it is the last row of current block
+              // store ts value as start, and calculate interp value when processing next block
+              doKeepLinearInfo(pSliceInfo, pBlock, i, true);
             }
           } else {  // non-linear interpolation
             pSliceInfo->current =

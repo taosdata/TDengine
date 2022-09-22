@@ -3329,7 +3329,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
 
   if (pCond->type == TIMEWINDOW_RANGE_EXTERNAL) {
     // update the SQueryTableDataCond to create inner reader
-    int32_t     order = pCond->order;
+    int32_t order = pCond->order;
     if (order == TSDB_ORDER_ASC) {
       pCond->twindows.ekey = window.skey;
       pCond->twindows.skey = INT64_MIN;
@@ -3353,6 +3353,8 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
       pCond->twindows.skey = INT64_MIN;
       pCond->twindows.ekey = window.ekey;
     }
+    pCond->order = order;
+
     code = tsdbReaderCreate(pVnode, pCond, &pReader->innerReader[1], 1, idstr);
     if (code != TSDB_CODE_SUCCESS) {
       goto _err;
@@ -3373,8 +3375,10 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
     }
   }
 
+  STsdbReader* p = pReader->innerReader[0] != NULL? pReader->innerReader[0]:pReader;
+
   int32_t numOfTables = taosArrayGetSize(pTableList);
-  pReader->status.pTableMap = createDataBlockScanInfo(pReader, pTableList->pData, numOfTables);
+  pReader->status.pTableMap = createDataBlockScanInfo(p, pTableList->pData, numOfTables);
   if (pReader->status.pTableMap == NULL) {
     tsdbReaderClose(pReader);
     *ppReader = NULL;
@@ -3541,8 +3545,9 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
   if (pReader->innerReader[0] != NULL && pReader->step == 0) {
     bool ret = doTsdbNextDataBlock(pReader->innerReader[0]);
     resetDataBlockScanInfo(pReader->innerReader[0]->status.pTableMap, pReader->innerReader[0]->window.ekey);
+    pReader->step = EXTERNAL_ROWS_PREV;
+
     if (ret) {
-      pReader->step = EXTERNAL_ROWS_PREV;
       return ret;
     }
   }
@@ -3559,8 +3564,8 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
   if (pReader->innerReader[1] != NULL && pReader->step == EXTERNAL_ROWS_MAIN) {
     resetDataBlockScanInfo(pReader->innerReader[1]->status.pTableMap, pReader->window.ekey);
     bool ret1 = doTsdbNextDataBlock(pReader->innerReader[1]);
+    pReader->step = EXTERNAL_ROWS_NEXT;
     if (ret1) {
-      pReader->step = EXTERNAL_ROWS_NEXT;
       return ret1;
     }
   }
