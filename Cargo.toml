@@ -10,7 +10,7 @@ exclude = ["/docs", "TODO.md", "*.json", ".vscode"]
 
 [dependencies]
 anyhow = "1"
-arrow = "22.0.0"
+arrow = "23.0.0"
 async-compression = { version = "*", features = ["all"] }
 async-trait = "0.1"
 bitflags = "1"
@@ -18,24 +18,24 @@ chrono = "0.4"
 clap = { version = "3.2", features = ["default", "derive"] }
 clap-verbosity-flag = "1"
 config = "0.13.1"
+convert_case = "0.6.0"
 csv-async = { version = "1.2.4", features = ["tokio"] }
 futures = "0.3"
+itertools = "0.10.4"
+lazy_static = "1.4"
+linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
 log = "0.4"
-parquet = "22.0.0"
+parquet = "23.0.0"
 pretty_env_logger = "0.4"
+regex = "1"
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
 taos = { version = "0.3" }
+thiserror = "1"
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7" }
 toml = "0.5.9"
 zstd = "0.11.2"
-linked-hash-map = { version = "0.5.6", features = ["serde_impl"] }
-thiserror = "1"
-regex = "1"
-lazy_static = "1.4"
-itertools = "0.10.4"
-convert_case = "0.6.0"
 
 actix-web = "4"
 serde_json = "1.0"
@@ -52,11 +52,7 @@ psutil = { version = "3.2.0", default-features = false, features = ["cpu", "proc
 
 [build-dependencies]
 sqlx = { version = "0.6", features = ["runtime-tokio-native-tls", "sqlite", "chrono"] }
-dotenv = "*"
-
-# [patch.crates-io]
-# # zip = { git = "https://github.com/zip-rs/zip.git" }
-# zip = "0.6.2"
+dotenv = "0.15.0"
 
 [profile.release]
 codegen-units = 1
