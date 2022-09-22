@@ -1518,7 +1518,7 @@ int32_t tCompressorDestroy(SCompressor *pCmprsor) {
   return code;
 }
 
-int32_t tCompressorReset(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg) {
+int32_t tCompressorInit(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg) {
   int32_t code = 0;
 
   pCmprsor->type = type;

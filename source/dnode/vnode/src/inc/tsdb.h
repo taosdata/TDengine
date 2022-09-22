@@ -665,6 +665,7 @@ struct SDiskCol {
   const uint8_t *pBit;
   const uint8_t *pOff;
   const uint8_t *pVal;
+  SColumnDataAgg agg;
 };
 
 struct SDiskData {
