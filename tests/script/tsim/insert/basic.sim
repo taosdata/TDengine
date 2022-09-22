@@ -12,7 +12,7 @@ $tb = $tbPrefix . $i
 print =============== step1
 sql drop database -x step1
 step1:
-sql create database $db
+sql create database $db vgroups 2
 sql use $db
 sql create table $tb (ts timestamp, speed int)
 
