@@ -1115,7 +1115,7 @@ static bool compareVal(const char* v, const SStateKeys* pKey) {
     if (varDataLen(v) != varDataLen(pKey->pData)) {
       return false;
     } else {
-      return strncmp(varDataVal(v), varDataVal(pKey->pData), varDataLen(v)) == 0;
+      return memcmp(varDataVal(v), varDataVal(pKey->pData), varDataLen(v)) == 0;
     }
   } else {
     return memcmp(pKey->pData, v, pKey->bytes) == 0;
@@ -1695,6 +1695,7 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   }
   nodesDestroyNode((SNode*)pInfo->pPhyNode);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
+  cleanupGroupResInfo(&pInfo->groupResInfo);
 
   taosMemoryFreeClear(param);
 }
@@ -2074,7 +2075,7 @@ static void doKeepLinearInfo(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlo
     }
   }
 
-  pSliceInfo->fillLastPoint = isLastRow ? true : false;
+  pSliceInfo->fillLastPoint = isLastRow;
 }
 
 static void genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp* pExprSup, SSDataBlock* pResBlock) {
@@ -2293,15 +2294,6 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
   SSDataBlock*            pResBlock = pSliceInfo->pRes;
   SExprSupp*              pSup = &pOperator->exprSupp;
 
-  //  if (pOperator->status == OP_RES_TO_RETURN) {
-  //    //    doBuildResultDatablock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pIntervalInfo->pRes);
-  //    if (pResBlock->info.rows == 0 || !hasRemainResults(&pSliceInfo->groupResInfo)) {
-  //      doSetOperatorCompleted(pOperator);
-  //    }
-  //
-  //    return pResBlock;
-  //  }
-
   int32_t        order = TSDB_ORDER_ASC;
   SInterval*     pInterval = &pSliceInfo->interval;
   SOperatorInfo* downstream = pOperator->pDownstream[0];
@@ -2431,6 +2423,9 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
                 break;
               }
             }
+          } else {
+            // store ts value as start, and calculate interp value when processing next block
+            doKeepLinearInfo(pSliceInfo, pBlock, i, true);
           }
         } else {  // non-linear interpolation
           if (i < pBlock->info.rows - 1) {
@@ -2509,6 +2504,9 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
                   break;
                 }
               }
+            } else {  // it is the last row of current block
+              // store ts value as start, and calculate interp value when processing next block
+              doKeepLinearInfo(pSliceInfo, pBlock, i, true);
             }
           } else {  // non-linear interpolation
             pSliceInfo->current =
@@ -2613,6 +2611,10 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode
   pInfo->win = pInterpPhyNode->timeRange;
   pInfo->interval.interval = pInterpPhyNode->interval;
   pInfo->current = pInfo->win.skey;
+
+  STableScanInfo* pScanInfo = (STableScanInfo*)downstream->info;
+  pScanInfo->cond.twindows = pInfo->win;
+  pScanInfo->cond.type = TIMEWINDOW_RANGE_EXTERNAL;
 
   pOperator->name = "TimeSliceOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC;
@@ -3073,6 +3075,7 @@ void processPullOver(SSDataBlock* pBlock, SHashObj* pMap) {
         taosArrayRemove(chArray, index);
         if (taosArrayGetSize(chArray) == 0) {
           // pull data is over
+          taosArrayDestroy(chArray);
           taosHashRemove(pMap, &winRes, sizeof(SWinKey));
         }
       }
@@ -3109,9 +3112,6 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
   SStreamFinalIntervalOperatorInfo* pInfo = pOperator->info;
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
-  SArray*        pUpdated = taosArrayInit(4, POINTER_BYTES);
-  _hash_fn_t     hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
-  SHashObj*      pUpdatedMap = taosHashInit(1024, hashFn, false, HASH_NO_LOCK);
   TSKEY          maxTs = INT64_MIN;
   TSKEY          minTs = INT64_MAX;
 
@@ -3175,6 +3175,9 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
     }
   }
 
+  SArray*    pUpdated = taosArrayInit(4, POINTER_BYTES);
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  SHashObj*  pUpdatedMap = taosHashInit(1024, hashFn, false, HASH_NO_LOCK);
   while (1) {
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     if (pBlock == NULL) {
@@ -5755,8 +5758,6 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   SHashObj*  pUpdatedMap = taosHashInit(1024, hashFn, false, HASH_NO_LOCK);
 
-  SStreamState* pState = pTaskInfo->streamInfo.pState;
-
   while (1) {
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     if (pBlock == NULL) {
@@ -5805,36 +5806,6 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   }
   pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, maxTs);
   pInfo->twAggSup.minTs = TMIN(pInfo->twAggSup.minTs, minTs);
-
-#if 0
-  if (pState) {
-    printf(">>>>>>>> stream read backend\n");
-    SWinKey key = {
-        .ts = 1,
-        .groupId = 2,
-    };
-    char*   val = NULL;
-    int32_t sz;
-    if (streamStateGet(pState, &key, (void**)&val, &sz) < 0) {
-      ASSERT(0);
-    }
-    printf("stream read %s %d\n", val, sz);
-    streamFreeVal(val);
-
-    SStreamStateCur* pCur = streamStateGetCur(pState, &key);
-    ASSERT(pCur);
-    while (streamStateCurNext(pState, pCur) == 0) {
-      SWinKey     key1;
-      const void* val1;
-      if (streamStateGetKVByCur(pCur, &key1, &val1, &sz) < 0) {
-        break;
-      }
-      printf("stream iter key groupId:%d ts:%d, value %s %d\n", key1.groupId, key1.ts, val1, sz);
-    }
-    streamStateFreeCur(pCur);
-  }
-#endif
-
   pOperator->status = OP_RES_TO_RETURN;
   closeStreamIntervalWindow(pInfo->aggSup.pResultRowHashTable, &pInfo->twAggSup, &pInfo->interval, NULL, pUpdatedMap,
                             pOperator);

@@ -11,11 +11,10 @@ namespace TMQExample
         {
             IntPtr conn = GetConnection();
             string topic = "topic_example";
-            Console.WriteLine($"create topic if not exist {topic} as select * from meters");
             //create topic 
             IntPtr res = TDengine.Query(conn, $"create topic if not exists {topic} as select * from meters");
-           
-            if (res == IntPtr.Zero)
+
+            if (TDengine.ErrorNo(res) != 0 )
             {
                 throw new Exception($"create topic failed, reason:{TDengine.Error(res)}");
             }
@@ -26,7 +25,7 @@ namespace TMQExample
                 TDConnectUser = "root",
                 TDConnectPasswd = "taosdata",
                 MsgWithTableName = "true",
-                TDConnectIp = "127.0.0.1",                
+                TDConnectIp = "127.0.0.1",
             };
 
             // create consumer 
@@ -65,14 +64,12 @@ namespace TMQExample
             List<string> topics = consumer.Subscription();
             topics.ForEach(t => Console.WriteLine("topic name:{0}", t));
 
-
             // unsubscribe
             consumer.Unsubscribe();
 
             // close consumer after use.Otherwise will lead memory leak.
             consumer.Close();
             TDengine.Close(conn);
-
 
         }
 
@@ -86,8 +83,7 @@ namespace TMQExample
             var conn = TDengine.Connect(host, username, password, dbname, port);
             if (conn == IntPtr.Zero)
             {
-                Console.WriteLine("Connect to TDengine failed");
-                System.Environment.Exit(0);
+                throw new Exception("Connect to TDengine failed");
             }
             else
             {
