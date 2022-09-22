@@ -1115,7 +1115,7 @@ static bool compareVal(const char* v, const SStateKeys* pKey) {
     if (varDataLen(v) != varDataLen(pKey->pData)) {
       return false;
     } else {
-      return strncmp(varDataVal(v), varDataVal(pKey->pData), varDataLen(v)) == 0;
+      return memcmp(varDataVal(v), varDataVal(pKey->pData), varDataLen(v)) == 0;
     }
   } else {
     return memcmp(pKey->pData, v, pKey->bytes) == 0;
