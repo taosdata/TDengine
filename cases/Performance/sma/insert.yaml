@@ -1,7 +1,7 @@
 case1:
   json_file1:
     json_info:
-      host: "vm83"
+      host: "127.0.0.1"
       port: 6030
       thread_count: 100
       create_table_thread_count: 32
@@ -76,7 +76,7 @@ case1:
 case2:
   json_file1:
     json_info:
-      host: "vm83"
+      host: "127.0.0.1"
       port: 6030
       thread_count: 100
       create_table_thread_count: 32
@@ -150,7 +150,7 @@ case2:
 case3:
   json_file1:
     json_info:
-      host: "vm83"
+      host: "127.0.0.1"
       port: 6030
       thread_count: 100
       create_table_thread_count: 32
@@ -225,7 +225,7 @@ case3:
 case4:
   json_file1:
     json_info:
-      host: "vm83"
+      host: "127.0.0.1"
       port: 6030
       thread_count: 100
       create_table_thread_count: 32
@@ -299,7 +299,7 @@ case4:
 case5:
   json_file1:
     json_info:
-      host: "vm83"
+      host: "127.0.0.1"
       port: 6030
       thread_count: 100
       create_table_thread_count: 32
@@ -374,7 +374,7 @@ case5:
 case6:
   json_file1:
     json_info:
-      host: "vm83"
+      host: "127.0.0.1"
       port: 6030
       thread_count: 100
       create_table_thread_count: 32
