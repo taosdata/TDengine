@@ -56,7 +56,9 @@ inline static void tscReturnsError(SSqlObj* pSql, int code) {
   }
 
   pSql->res.code = code;
-  tscAsyncResultOnError(pSql);
+  if (pSql->fp) {
+    pSql->fp(pSql->param, pSql, code);
+  }
 }
 
 /**
