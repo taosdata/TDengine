@@ -40,6 +40,8 @@ TEST_F(PlanGroupByTest, basic) {
   run("SELECT COUNT(*) FROM st1 GROUP BY c1");
 
   run("SELECT SUM(c1) FROM st1 GROUP BY c2 HAVING SUM(c1) IS NOT NULL");
+
+  run("SELECT AVG(c1) FROM st1");
 }
 
 TEST_F(PlanGroupByTest, withPartitionBy) {

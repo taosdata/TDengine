@@ -617,7 +617,7 @@ static bool pushDownCondOptIsPriKey(SNode* pNode, SNodeList* pTableCols) {
     return false;
   }
   SColumnNode* pCol = (SColumnNode*)pNode;
-  if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId) {
+  if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId || TSDB_SYSTEM_TABLE == pCol->tableType) {
     return false;
   }
   return pushDownCondOptBelongThisTable(pNode, pTableCols);
