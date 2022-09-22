@@ -1695,6 +1695,7 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   }
   nodesDestroyNode((SNode*)pInfo->pPhyNode);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
+  cleanupGroupResInfo(&pInfo->groupResInfo);
 
   taosMemoryFreeClear(param);
 }
@@ -3073,6 +3074,7 @@ void processPullOver(SSDataBlock* pBlock, SHashObj* pMap) {
         taosArrayRemove(chArray, index);
         if (taosArrayGetSize(chArray) == 0) {
           // pull data is over
+          taosArrayDestroy(chArray);
           taosHashRemove(pMap, &winRes, sizeof(SWinKey));
         }
       }
@@ -3109,9 +3111,6 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
   SStreamFinalIntervalOperatorInfo* pInfo = pOperator->info;
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
-  SArray*        pUpdated = taosArrayInit(4, POINTER_BYTES);
-  _hash_fn_t     hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
-  SHashObj*      pUpdatedMap = taosHashInit(1024, hashFn, false, HASH_NO_LOCK);
   TSKEY          maxTs = INT64_MIN;
   TSKEY          minTs = INT64_MAX;
 
@@ -3175,6 +3174,9 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
     }
   }
 
+  SArray*    pUpdated = taosArrayInit(4, POINTER_BYTES);
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  SHashObj*  pUpdatedMap = taosHashInit(1024, hashFn, false, HASH_NO_LOCK);
   while (1) {
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     if (pBlock == NULL) {
@@ -5755,8 +5757,6 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   SHashObj*  pUpdatedMap = taosHashInit(1024, hashFn, false, HASH_NO_LOCK);
 
-  SStreamState* pState = pTaskInfo->streamInfo.pState;
-
   while (1) {
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     if (pBlock == NULL) {
@@ -5805,36 +5805,6 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   }
   pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, maxTs);
   pInfo->twAggSup.minTs = TMIN(pInfo->twAggSup.minTs, minTs);
-
-#if 0
-  if (pState) {
-    printf(">>>>>>>> stream read backend\n");
-    SWinKey key = {
-        .ts = 1,
-        .groupId = 2,
-    };
-    char*   val = NULL;
-    int32_t sz;
-    if (streamStateGet(pState, &key, (void**)&val, &sz) < 0) {
-      ASSERT(0);
-    }
-    printf("stream read %s %d\n", val, sz);
-    streamFreeVal(val);
-
-    SStreamStateCur* pCur = streamStateGetCur(pState, &key);
-    ASSERT(pCur);
-    while (streamStateCurNext(pState, pCur) == 0) {
-      SWinKey     key1;
-      const void* val1;
-      if (streamStateGetKVByCur(pCur, &key1, &val1, &sz) < 0) {
-        break;
-      }
-      printf("stream iter key groupId:%d ts:%d, value %s %d\n", key1.groupId, key1.ts, val1, sz);
-    }
-    streamStateFreeCur(pCur);
-  }
-#endif
-
   pOperator->status = OP_RES_TO_RETURN;
   closeStreamIntervalWindow(pInfo->aggSup.pResultRowHashTable, &pInfo->twAggSup, &pInfo->interval, NULL, pUpdatedMap,
                             pOperator);

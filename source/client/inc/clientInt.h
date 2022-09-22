@@ -250,6 +250,7 @@ typedef struct SRequestObj {
   bool                 inRetry;
   uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;
+  int64_t              allocatorRefId;
 } SRequestObj;
 
 typedef struct SSyncQueryParam {

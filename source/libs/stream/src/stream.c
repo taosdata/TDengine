@@ -182,7 +182,7 @@ int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, S
          pReq->upstreamTaskId);
 
   streamTaskEnqueue(pTask, pReq, pRsp);
-  tFreeStreamDispatchReq(pReq);
+  tDeleteStreamDispatchReq(pReq);
 
   if (exec) {
     if (streamTryExec(pTask) < 0) {

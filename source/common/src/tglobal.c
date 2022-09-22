@@ -93,6 +93,8 @@ int32_t tsQueryPolicy = 1;
 int32_t tsQuerySmaOptimize = 0;
 int32_t tsQueryRsmaTolerance = 1000;  // the tolerance time (ms) to judge from which level to query rsma data.
 bool    tsQueryPlannerTrace = false;
+int32_t tsQueryNodeChunkSize = 32 * 1024;
+bool    tsQueryUseNodeAllocator = true;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -286,6 +288,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "queryPolicy", tsQueryPolicy, 1, 3, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "querySmaOptimize", tsQuerySmaOptimize, 0, 1, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "queryPlannerTrace", tsQueryPlannerTrace, true) != 0) return -1;
+  if (cfgAddInt32(pCfg, "queryNodeChunkSize", tsQueryNodeChunkSize, 1024, 128 * 1024, true) != 0) return -1;
+  if (cfgAddBool(pCfg, "queryUseNodeAllocator", tsQueryUseNodeAllocator, true) != 0) return -1;
   if (cfgAddString(pCfg, "smlChildTableName", "", 1) != 0) return -1;
   if (cfgAddString(pCfg, "smlTagName", tsSmlTagName, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
@@ -647,6 +651,8 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsQueryPolicy = cfgGetItem(pCfg, "queryPolicy")->i32;
   tsQuerySmaOptimize = cfgGetItem(pCfg, "querySmaOptimize")->i32;
   tsQueryPlannerTrace = cfgGetItem(pCfg, "queryPlannerTrace")->bval;
+  tsQueryNodeChunkSize = cfgGetItem(pCfg, "queryNodeChunkSize")->i32;
+  tsQueryUseNodeAllocator = cfgGetItem(pCfg, "queryUseNodeAllocator")->bval;
   return 0;
 }
 
@@ -982,6 +988,10 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         qDebugFlag = cfgGetItem(pCfg, "qDebugFlag")->i32;
       } else if (strcasecmp("queryPlannerTrace", name) == 0) {
         tsQueryPlannerTrace = cfgGetItem(pCfg, "queryPlannerTrace")->bval;
+      } else if (strcasecmp("queryNodeChunkSize", name) == 0) {
+        tsQueryNodeChunkSize = cfgGetItem(pCfg, "queryNodeChunkSize")->i32;
+      } else if (strcasecmp("queryUseNodeAllocator", name) == 0) {
+        tsQueryUseNodeAllocator = cfgGetItem(pCfg, "queryUseNodeAllocator")->bval;
       } else if (strcasecmp("queryRsmaTolerance", name) == 0) {
         tsQueryRsmaTolerance = cfgGetItem(pCfg, "queryRsmaTolerance")->i32;
       }
