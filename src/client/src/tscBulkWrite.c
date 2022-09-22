@@ -431,6 +431,11 @@ bool tscSupportBulkInsertion(SAsyncBulkWriteDispatcher* dispatcher, SSqlObj* pSq
     return false;
   }
   
+  // no schema attached.
+  if (pInsertParam->schemaAttached) {
+    return false;
+  }
+  
   // too many insertion rows, fail back to normal insertion.
   if (statementGetInsertionRows(pSql) >= dispatcher->batchSize) {
     return false;

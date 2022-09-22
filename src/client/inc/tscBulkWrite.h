@@ -101,6 +101,7 @@ void destroyAsyncDispatcher(SAsyncBulkWriteDispatcher* dispatcher);
  * 1. auto batch feature on the sql object must be enabled.
  * 2. must be an `insert into ... value ...` statement.
  * 3. the payload type must be kv payload.
+ * 4. no schema attached.
  * 
  * @param dispatcher the async dispatcher.
  * @param pSql the sql object to check.
