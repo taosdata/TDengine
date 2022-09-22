@@ -11,11 +11,17 @@ namespace TDengineExample
         static void Main()
         {
             IntPtr conn = GetConnection();
-            QueryAsyncCallback queryAsyncCallback = new QueryAsyncCallback(QueryCallback);
-            TDengine.QueryAsync(conn, "select * from meters", queryAsyncCallback, IntPtr.Zero);
-            Thread.Sleep(2000);
-            TDengine.Close(conn);
-            TDengine.Cleanup();
+            try
+            {
+                QueryAsyncCallback queryAsyncCallback = new QueryAsyncCallback(QueryCallback);
+                TDengine.QueryAsync(conn, "select * from meters", queryAsyncCallback, IntPtr.Zero);
+                Thread.Sleep(2000);
+            }
+            finally
+            {
+                TDengine.Close(conn);
+            }
+
         }
 
         static void QueryCallback(IntPtr param, IntPtr taosRes, int code)
@@ -27,11 +33,11 @@ namespace TDengineExample
             }
             else
             {
-                Console.WriteLine($"async query data failed, failed code {code}");
+                throw new Exception($"async query data failed,code:{code},reason:{TDengine.Error(taosRes)}");
             }
         }
 
-               // Iteratively call this interface until "numOfRows" is no greater than 0.
+        // Iteratively call this interface until "numOfRows" is no greater than 0.
         static void FetchRawBlockCallback(IntPtr param, IntPtr taosRes, int numOfRows)
         {
             if (numOfRows > 0)
@@ -43,7 +49,7 @@ namespace TDengineExample
 
                 for (int i = 0; i < dataList.Count; i++)
                 {
-                    if (i != 0 && (i+1) % metaList.Count == 0)
+                    if (i != 0 && (i + 1) % metaList.Count == 0)
                     {
                         Console.WriteLine("{0}\t|", dataList[i]);
                     }
@@ -63,7 +69,7 @@ namespace TDengineExample
                 }
                 else
                 {
-                    Console.WriteLine($"FetchRawBlockCallback callback error, error code {numOfRows}");
+                    throw new Exception($"FetchRawBlockCallback callback error, error code {numOfRows}");
                 }
                 TDengine.FreeResult(taosRes);
             }
@@ -79,8 +85,7 @@ namespace TDengineExample
             var conn = TDengine.Connect(host, username, password, dbname, port);
             if (conn == IntPtr.Zero)
             {
-                Console.WriteLine("Connect to TDengine failed");
-                Environment.Exit(0);
+                throw new Exception("Connect to TDengine failed");
             }
             else
             {

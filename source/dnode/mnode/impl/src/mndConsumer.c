@@ -197,11 +197,12 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
       SMqConsumerLostMsg *pLostMsg = rpcMallocCont(sizeof(SMqConsumerLostMsg));
 
       pLostMsg->consumerId = pConsumer->consumerId;
-      SRpcMsg *pRpcMsg = taosMemoryCalloc(1, sizeof(SRpcMsg));
-      pRpcMsg->msgType = TDMT_MND_MQ_CONSUMER_LOST;
-      pRpcMsg->pCont = pLostMsg;
-      pRpcMsg->contLen = sizeof(SMqConsumerLostMsg);
-      tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, pRpcMsg);
+      SRpcMsg pRpcMsg = {
+          .msgType = TDMT_MND_MQ_CONSUMER_LOST,
+          .pCont = pLostMsg,
+          .contLen = sizeof(SMqConsumerLostMsg),
+      };
+      tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &pRpcMsg);
     }
     if (status == MQ_CONSUMER_STATUS__LOST_REBD || status == MQ_CONSUMER_STATUS__READY) {
       // do nothing
@@ -280,11 +281,12 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
     SMqConsumerRecoverMsg *pRecoverMsg = rpcMallocCont(sizeof(SMqConsumerRecoverMsg));
 
     pRecoverMsg->consumerId = consumerId;
-    SRpcMsg *pRpcMsg = taosMemoryCalloc(1, sizeof(SRpcMsg));
-    pRpcMsg->msgType = TDMT_MND_MQ_CONSUMER_RECOVER;
-    pRpcMsg->pCont = pRecoverMsg;
-    pRpcMsg->contLen = sizeof(SMqConsumerRecoverMsg);
-    tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, pRpcMsg);
+    SRpcMsg pRpcMsg = {
+        .msgType = TDMT_MND_MQ_CONSUMER_RECOVER,
+        .pCont = pRecoverMsg,
+        .contLen = sizeof(SMqConsumerRecoverMsg),
+    };
+    tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &pRpcMsg);
   }
 
   mndReleaseConsumer(pMnode, pConsumer);
@@ -318,11 +320,12 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
     SMqConsumerRecoverMsg *pRecoverMsg = rpcMallocCont(sizeof(SMqConsumerRecoverMsg));
 
     pRecoverMsg->consumerId = consumerId;
-    SRpcMsg *pRpcMsg = taosMemoryCalloc(1, sizeof(SRpcMsg));
-    pRpcMsg->msgType = TDMT_MND_MQ_CONSUMER_RECOVER;
-    pRpcMsg->pCont = pRecoverMsg;
-    pRpcMsg->contLen = sizeof(SMqConsumerRecoverMsg);
-    tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, pRpcMsg);
+    SRpcMsg pRpcMsg = {
+        .msgType = TDMT_MND_MQ_CONSUMER_RECOVER,
+        .pCont = pRecoverMsg,
+        .contLen = sizeof(SMqConsumerRecoverMsg),
+    };
+    tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &pRpcMsg);
   }
 #endif
 
@@ -487,6 +490,7 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     pConsumerNew = tNewSMqConsumerObj(consumerId, cgroup);
     tstrncpy(pConsumerNew->clientId, subscribe.clientId, 256);
     pConsumerNew->updateType = CONSUMER_UPDATE__MODIFY;
+    taosArrayDestroy(pConsumerNew->rebNewTopics);
     pConsumerNew->rebNewTopics = newSub;
     subscribe.topicNames = NULL;
 
