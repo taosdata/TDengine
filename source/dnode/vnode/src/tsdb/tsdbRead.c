@@ -2673,8 +2673,11 @@ static STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* ret
                                   int8_t* pLevel) {
   if (VND_IS_RSMA(pVnode)) {
     int8_t  level = 0;
-    int64_t now = taosGetTimestamp(pVnode->config.tsdbCfg.precision);
-    int64_t offset = TSDB_TICK_PER_SECOND(pVnode->config.tsdbCfg.precision);
+    int8_t  precision = pVnode->config.tsdbCfg.precision;
+    int64_t now = taosGetTimestamp(precision);
+    int64_t offset = tsQueryRsmaTolerance * ((precision == TSDB_TIME_PRECISION_MILLI)   ? 1
+                                             : (precision == TSDB_TIME_PRECISION_MICRO) ? 1000
+                                                                                        : 1000000);
 
     for (int8_t i = 0; i < TSDB_RETENTION_MAX; ++i) {
       SRetention* pRetention = retentions + level;
