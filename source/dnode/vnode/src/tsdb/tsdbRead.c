@@ -895,7 +895,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
     if (pData->cid < pColData->info.colId) {
       colIndex += 1;
     } else if (pData->cid == pColData->info.colId) {
-      if (((pData->flag & HAS_NONE) == HAS_NONE) || ((pData->flag & HAS_NULL) == HAS_NULL)) {
+      if (pData->flag == HAS_NONE || pData->flag == HAS_NULL || pData->flag == (HAS_NULL|HAS_NONE)) {
         colDataAppendNNULL(pColData, 0, remain);
       } else {
         if (IS_NUMERIC_TYPE(pColData->info.type) && asc) {
