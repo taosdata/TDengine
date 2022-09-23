@@ -224,6 +224,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
     if (taosDecodeSSchemaWrapper(buf, &pTopic->schema) == NULL) {
       goto TOPIC_DECODE_OVER;
     }
+    taosMemoryFree(buf);
   } else {
     pTopic->schema.nCols = 0;
     pTopic->schema.version = 0;
@@ -266,6 +267,11 @@ static int32_t mndTopicActionInsert(SSdb *pSdb, SMqTopicObj *pTopic) {
 
 static int32_t mndTopicActionDelete(SSdb *pSdb, SMqTopicObj *pTopic) {
   mTrace("topic:%s, perform delete action", pTopic->name);
+  taosMemoryFreeClear(pTopic->sql);
+  taosMemoryFreeClear(pTopic->ast);
+  taosMemoryFreeClear(pTopic->physicalPlan);
+  if (pTopic->schema.nCols) taosMemoryFreeClear(pTopic->schema.pSchema);
+  taosArrayDestroy(pTopic->ntbColIds);
   return 0;
 }
 
@@ -347,6 +353,7 @@ static int32_t extractTopicTbInfo(SNode *pAst, SMqTopicObj *pTopic) {
       }
     }
   }
+  nodesDestroyList(pNodeList);
   return 0;
 }
 
@@ -416,6 +423,8 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       taosMemoryFree(topicObj.sql);
       return -1;
     }
+    nodesDestroyNode(pAst);
+    nodesDestroyNode((SNode *)pPlan);
   } else if (pCreate->subType == TOPIC_SUB_TYPE__TABLE) {
     SStbObj *pStb = mndAcquireStb(pMnode, pCreate->subStbName);
     if (pStb == NULL) {
@@ -431,7 +440,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   /*topicObj.withTbName = 1;*/
   /*topicObj.withSchema = 1;*/
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-topic");
   if (pTrans == NULL) {
     mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
     taosMemoryFreeClear(topicObj.ast);
@@ -512,6 +521,10 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   }
 
   taosMemoryFreeClear(topicObj.physicalPlan);
+  taosMemoryFreeClear(topicObj.sql);
+  taosMemoryFreeClear(topicObj.ast);
+  taosArrayDestroy(topicObj.ntbColIds);
+  if (topicObj.schema.nCols) taosMemoryFreeClear(topicObj.schema.pSchema);
   mndTransDrop(pTrans);
   return TSDB_CODE_ACTION_IN_PROGRESS;
 }
@@ -650,7 +663,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "drop-topic");
   mndTransSetDbName(pTrans, pTopic->db, NULL);
   if (pTrans == NULL) {
     mError("topic:%s, failed to drop since %s", pTopic->name, terrstr());
@@ -713,7 +726,6 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   mndReleaseTopic(pMnode, pTopic);
 
   if (code != 0) {
-    terrno = code;
     mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
     return -1;
   }

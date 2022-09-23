@@ -247,7 +247,8 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
       pExpr->userAlias[len] = '\0';
     }
   }
-  taosMemoryFreeClear(pNode);
+  pRawExpr->pNode = NULL;
+  nodesDestroyNode(pNode);
   return pRealizedExpr;
 }
 
@@ -826,6 +827,7 @@ SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->keep[2] = TSDB_DEFAULT_KEEP;
   pOptions->pages = TSDB_DEFAULT_PAGES_PER_VNODE;
   pOptions->pagesize = TSDB_DEFAULT_PAGESIZE_PER_VNODE;
+  pOptions->tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE;
   pOptions->precision = TSDB_DEFAULT_PRECISION;
   pOptions->replica = TSDB_DEFAULT_DB_REPLICA;
   pOptions->strict = TSDB_DEFAULT_DB_STRICT;
@@ -858,6 +860,7 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
   pOptions->keep[2] = -1;
   pOptions->pages = -1;
   pOptions->pagesize = -1;
+  pOptions->tsdbPageSize = -1;
   pOptions->precision = -1;
   pOptions->replica = -1;
   pOptions->strict = -1;
@@ -918,6 +921,9 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
     case DB_OPTION_PAGESIZE:
       pDbOptions->pagesize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
+    case DB_OPTION_TSDB_PAGESIZE:
+      pDbOptions->tsdbPageSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
+      break;
     case DB_OPTION_PRECISION:
       COPY_STRING_FORM_STR_TOKEN(pDbOptions->precisionStr, (SToken*)pVal);
       break;
@@ -955,7 +961,7 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
     case DB_OPTION_WAL_SEGMENT_SIZE:
       pDbOptions->walSegmentSize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
-    case DB_OPTION_SST_TRIGGER:
+    case DB_OPTION_STT_TRIGGER:
       pDbOptions->sstTrigger = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_TABLE_PREFIX:
@@ -1298,7 +1304,7 @@ SNode* createShowStmtWithCond(SAstCreateContext* pCxt, ENodeType type, SNode* pD
                               EOperatorType tableCondType) {
   CHECK_PARSER_STATUS(pCxt);
   if (needDbShowStmt(type) && NULL == pDbName) {
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "db not specified");
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "database not specified");
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
     return NULL;
   }
@@ -1782,10 +1788,10 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, int64_t privileges, SToken* pDb
   return (SNode*)pStmt;
 }
 
-SNode* createCountFuncForDelete(SAstCreateContext* pCxt) {
+SNode* createFuncForDelete(SAstCreateContext* pCxt, const char* pFuncName) {
   SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   CHECK_OUT_OF_MEM(pFunc);
-  strcpy(pFunc->functionName, "count");
+  strcpy(pFunc->functionName, pFuncName);
   if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pFunc->pParameterList, createPrimaryKeyCol(pCxt, NULL))) {
     nodesDestroyNode((SNode*)pFunc);
     CHECK_OUT_OF_MEM(NULL);
@@ -1799,8 +1805,10 @@ SNode* createDeleteStmt(SAstCreateContext* pCxt, SNode* pTable, SNode* pWhere) {
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->pFromTable = pTable;
   pStmt->pWhere = pWhere;
-  pStmt->pCountFunc = createCountFuncForDelete(pCxt);
-  if (NULL == pStmt->pCountFunc) {
+  pStmt->pCountFunc = createFuncForDelete(pCxt, "count");
+  pStmt->pFirstFunc = createFuncForDelete(pCxt, "first");
+  pStmt->pLastFunc = createFuncForDelete(pCxt, "last");
+  if (NULL == pStmt->pCountFunc || NULL == pStmt->pFirstFunc || NULL == pStmt->pLastFunc) {
     nodesDestroyNode((SNode*)pStmt);
     CHECK_OUT_OF_MEM(NULL);
   }

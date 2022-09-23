@@ -7,7 +7,11 @@ import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 import PkgListV3 from "/components/PkgListV3";
 
-For information about installing TDengine on Docker, see [Quick Install on Docker](../../get-started/docker). If you want to view the source code, build TDengine yourself, or contribute to the project, see the [TDengine GitHub repository](https://github.com/taosdata/TDengine).
+This document describes how to install TDengine on Linux and Windows and perform queries and inserts.
+
+- To get started with TDengine on Docker, see [Quick Install on Docker](../../get-started/docker).
+- For a fully managed solution, see the [TDengine Cloud documentation](/cloud/).
+- If you want to view the source code, build TDengine yourself, or contribute to the project, see the [TDengine GitHub repository](https://github.com/taosdata/TDengine).
 
 The full package of TDengine includes the TDengine Server (`taosd`), TDengine Client (`taosc`), taosAdapter for connecting with third-party systems and providing a RESTful interface, a command-line interface (CLI, taos), and some tools. Note that taosAdapter supports Linux only. In addition to connectors for multiple languages, TDengine also provides a [REST API](../../reference/rest-api) through [taosAdapter](../../reference/taosadapter).
 
@@ -111,7 +115,7 @@ Note: TDengine only supports Windows Server 2016/2019 and Windows 10/11 on the W
 </Tabs>
 
 :::info
-For information about TDengine releases, see [Release History](../../releases).
+For information about TDengine releases, see [Release History](../../releases/tdengine).
 :::
 
 :::note
@@ -221,7 +225,7 @@ Start TDengine service and execute `taosBenchmark` (formerly named `taosdemo`) i
 taosBenchmark
 ```
 
-This command creates the `meters` supertable in the `test` database. In the `meters` supertable, it then creates 10,000 subtables named `d0` to `d9999`. Each table has 10,000 rows and each row has four columns: `ts`, `current`, `voltage`, and `phase`. The timestamps of the data in these columns range from 2017-07-14 10:40:00 000 to 2017-07-14 10:40:09 999. Each table is randomly assigned a `groupId` tag from 1 to 10 and a `location` tag of either `Campbell`, `Cupertino`, `Los Angeles`, `Mountain View`, `Palo Alto`, `San Diego`, `San Francisco`, `San Jose`, `Santa Clara` or `Sunnyvale`.
+This command creates the `meters` supertable in the `test` database. In the `meters` supertable, it then creates 10,000 subtables named `d0` to `d9999`. Each table has 10,000 rows and each row has four columns: `ts`, `current`, `voltage`, and `phase`. The timestamps of the data in these columns range from 2017-07-14 10:40:00 000 to 2017-07-14 10:40:09 999. Each table is randomly assigned a `groupId` tag from 1 to 10 and a `location` tag of either `California.Campbell`, `California.Cupertino`, `California.LosAngeles`, `California.MountainView`, `California.PaloAlto`, `California.SanDiego`, `California.SanFrancisco`, `California.SanJose`, `California.SantaClara` or `California.Sunnyvale`.
 
 The `taosBenchmark` command creates a deployment with 100 million data points that you can use for testing purposes. The time required to create the deployment depends on your hardware. On most modern servers, the deployment is created in ten to twenty seconds.
 
@@ -243,10 +247,10 @@ Query the average, maximum, and minimum values of all 100 million rows of data:
 SELECT AVG(current), MAX(voltage), MIN(phase) FROM test.meters;
 ```
 
-Query the number of rows whose `location` tag is `San Francisco`:
+Query the number of rows whose `location` tag is `California.SanFrancisco`:
 
 ```sql
-SELECT COUNT(*) FROM test.meters WHERE location = "San Francisco";
+SELECT COUNT(*) FROM test.meters WHERE location = "California.SanFrancisco";
 ```
 
 Query the average, maximum, and minimum values of all rows whose `groupId` tag is `10`:

@@ -53,7 +53,7 @@ int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
   if (code) goto _err;
 
   for (int32_t iSet = 0; iSet < taosArrayGetSize(fs.aDFileSet); iSet++) {
-    SDFileSet *pSet = (SDFileSet *)taosArrayGet(pTsdb->fs.aDFileSet, iSet);
+    SDFileSet *pSet = (SDFileSet *)taosArrayGet(fs.aDFileSet, iSet);
     int32_t    expLevel = tsdbFidLevel(pSet->fid, &pTsdb->keepCfg, now);
     SDiskID    did;
 
@@ -65,6 +65,7 @@ int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
       taosArrayRemove(fs.aDFileSet, iSet);
       iSet--;
     } else {
+      if (expLevel == 0) continue;
       if (tfsAllocDisk(pTsdb->pVnode->pTfs, expLevel, &did) < 0) {
         code = terrno;
         goto _exit;

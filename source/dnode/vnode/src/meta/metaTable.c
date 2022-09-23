@@ -244,6 +244,7 @@ int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq, SArray *tb
   // check if super table exists
   rc = tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &pData, &nData);
   if (rc < 0 || *(tb_uid_t *)pData != pReq->suid) {
+    tdbFree(pData);
     terrno = TSDB_CODE_TDB_STB_NOT_EXIST;
     return -1;
   }
@@ -309,7 +310,7 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   int64_t     oversion;
   SDecoder    dc = {0};
   int32_t     ret;
-  int32_t     c;
+  int32_t     c = -2;
 
   tdbTbcOpen(pMeta->pUidIdx, &pUidIdxc, &pMeta->txn);
   ret = tdbTbcMoveTo(pUidIdxc, &pReq->suid, sizeof(tb_uid_t), &c);
@@ -361,8 +362,9 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   // update uid index
   metaUpdateUidIdx(pMeta, &nStbEntry);
 
-  if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
   metaULock(pMeta);
+
+  if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
   tDecoderClear(&dc);
   tdbTbcClose(pTbDbc);
   tdbTbcClose(pUidIdxc);
@@ -921,6 +923,8 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
     taosArrayDestroy(pTagArray);
   }
 
+  metaWLock(pMeta);
+
   // save to table.db
   metaSaveToTbDb(pMeta, &ctbEntry);
 
@@ -934,6 +938,8 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   SCtbIdxKey ctbIdxKey = {.suid = ctbEntry.ctbEntry.suid, .uid = uid};
   tdbTbUpsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), ctbEntry.ctbEntry.pTags,
               ((STag *)(ctbEntry.ctbEntry.pTags))->len, &pMeta->txn);
+
+  metaULock(pMeta);
 
   tDecoderClear(&dc1);
   tDecoderClear(&dc2);
@@ -1191,10 +1197,11 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   const void    *pTagData = NULL;  //
   int32_t        nTagData = 0;
   SDecoder       dc = {0};
-
+  int32_t        ret = 0;
   // get super table
   if (tdbTbGet(pMeta->pUidIdx, &pCtbEntry->ctbEntry.suid, sizeof(tb_uid_t), &pData, &nData) != 0) {
-    return -1;
+    ret = -1;
+    goto end;
   }
   tbDbKey.uid = pCtbEntry->ctbEntry.suid;
   tbDbKey.version = ((SUidIdxVal *)pData)[0].version;
@@ -1220,17 +1227,20 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
     // nTagData = ((const STag *)pCtbEntry->ctbEntry.pTags)->len;
     pTagData = pCtbEntry->ctbEntry.pTags;
     nTagData = ((const STag *)pCtbEntry->ctbEntry.pTags)->len;
-    return metaSaveJsonVarToIdx(pMeta, pCtbEntry, pTagColumn);
+    ret = metaSaveJsonVarToIdx(pMeta, pCtbEntry, pTagColumn);
+    goto end;
   }
   if (metaCreateTagIdxKey(pCtbEntry->ctbEntry.suid, pTagColumn->colId, pTagData, nTagData, pTagColumn->type,
                           pCtbEntry->uid, &pTagIdxKey, &nTagIdxKey) < 0) {
-    return -1;
+    ret = -1;
+    goto end;
   }
   tdbTbUpsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, &pMeta->txn);
+end:
   metaDestroyTagIdxKey(pTagIdxKey);
   tDecoderClear(&dc);
   tdbFree(pData);
-  return 0;
+  return ret;
 }
 
 static int metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME) {

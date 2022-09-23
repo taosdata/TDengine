@@ -254,7 +254,8 @@ typedef struct SSchJob {
   SRequestConnInfo   conn;
   SArray            *nodeList;   // qnode/vnode list, SArray<SQueryNodeLoad>
   SArray            *levels;    // starting from 0. SArray<SSchLevel>
-  SQueryPlan        *pDag;  
+  SQueryPlan        *pDag;
+  int64_t            allocatorRefId;
 
   SArray            *dataSrcTasks; // SArray<SQueryTask*>
   int32_t            levelIdx;
@@ -283,8 +284,9 @@ typedef struct SSchJob {
 } SSchJob;
 
 typedef struct SSchTaskCtx {
-  int64_t  jobRid;
+  int64_t   jobRid;
   SSchTask *pTask;
+  bool      asyncLaunch;
 } SSchTaskCtx;
 
 extern SSchedulerMgmt schMgmt;

@@ -5,15 +5,23 @@ sidebar_label: TDinsight
 
 TDinsight is a solution for monitoring TDengine using the builtin native monitoring database and [Grafana].
 
-After TDengine starts, it will automatically create a monitoring database `log`. TDengine will automatically write many metrics in specific intervals into the `log` database. The metrics may include the server's CPU, memory, hard disk space, network bandwidth, number of requests, disk read/write speed, slow queries, other information like important system operations (user login, database creation, database deletion, etc.), and error alarms. With [Grafana] and [TDengine Data Source Plugin](https://github.com/taosdata/grafanaplugin/releases), TDinsight can visualize cluster status, node information, insertion and query requests, resource usage, vnode, dnode, and mnode status, exception alerts and many other metrics. This is very convenient for developers who want to monitor TDengine cluster status in real-time. This article will guide users to install the Grafana server, automatically install the TDengine data source plug-in, and deploy the TDinsight visualization panel using the `TDinsight.sh` installation script.
+After TDengine starts, it automatically writes many metrics in specific intervals into a designated database. The metrics may include the server's CPU, memory, hard disk space, network bandwidth, number of requests, disk read/write speed, slow queries, other information like important system operations (user login, database creation, database deletion, etc.), and error alarms. With [Grafana] and [TDengine Data Source Plugin](https://github.com/taosdata/grafanaplugin/releases), TDinsight can visualize cluster status, node information, insertion and query requests, resource usage, vnode, dnode, and mnode status, exception alerts and many other metrics. This is very convenient for developers who want to monitor TDengine cluster status in real-time. This article will guide users to install the Grafana server, automatically install the TDengine data source plug-in, and deploy the TDinsight visualization panel using the `TDinsight.sh` installation script.
 
 ## System Requirements
 
-To deploy TDinsight, a single-node TDengine server or a multi-node TDengine cluster and a [Grafana] server are required. This dashboard requires TDengine 2.3.3.0 and above, with the `log` database enabled (`monitor = 1`).
+To deploy TDinsight, we need
+- a single-node TDengine server or a multi-node TDengine cluster and a [Grafana] server are required. This dashboard requires TDengine 3.0.1.0 and above, with the monitoring feature enabled. For detailed configuration, please refer to [TDengine monitoring configuration](../config/#monitoring-parameters).
+- taosAdapter has been instaleld and running, please refer to [taosAdapter](../taosadapter).
+- taosKeeper has been installed and running, please refer to  [taosKeeper](../taoskeeper).
+
+Please record
+- The endpoint of taosAdapter REST service, for example `http://tdengine.local:6041`
+- Authentication of taosAdapter, e.g. user name and password
+- The database name used by taosKeeper to store monitoring data
 
 ## Installing Grafana
 
-We recommend using the latest [Grafana] version 7 or 8 here. You can install Grafana on any [supported operating system](https://grafana.com/docs/grafana/latest/installation/requirements/#supported-operating-systems) by following the [official Grafana documentation Instructions](https://grafana.com/docs/grafana/latest/installation/) to install [Grafana].
+We recommend using the latest [Grafana] version 8 or 9 here. You can install Grafana on any [supported operating system](https://grafana.com/docs/grafana/latest/installation/requirements/#supported-operating-systems) by following the [official Grafana documentation Instructions](https://grafana.com/docs/grafana/latest/installation/) to install [Grafana].
 
 ### Installing Grafana on Debian or Ubuntu
 
@@ -71,7 +79,7 @@ chmod +x TDinsight.sh
 ./TDinsight.sh
 ```
 
-This script will automatically download the latest [Grafana TDengine data source plugin](https://github.com/taosdata/grafanaplugin/releases/latest) and [TDinsight dashboard](https://grafana.com/grafana/dashboards/15167) with configurable parameters for command-line options to the [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) configuration file to automate deployment and updates, etc. With the alert setting options provided by this script, you can also get built-in support for AliCloud SMS alert notifications.
+This script will automatically download the latest [Grafana TDengine data source plugin](https://github.com/taosdata/grafanaplugin/releases/latest) and [TDinsight dashboard](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsightV3.json) with configurable parameters for command-line options to the [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) configuration file to automate deployment and updates, etc. With the alert setting options provided by this script, you can also get built-in support for AliCloud SMS alert notifications.
 
 Assume you use TDengine and Grafana's default services on the same host. Run `. /TDinsight.sh` and open the Grafana browser window to see the TDinsight dashboard.
 
@@ -106,18 +114,6 @@ Install and configure TDinsight dashboard in Grafana on Ubuntu 18.04/20.04 syste
 
 -E, --external-notifier <string>            Apply external notifier uid to TDinsight dashboard.
 
-Alibaba Cloud SMS as Notifier:
--s, --sms-enabled                           To enable tdengine-datasource plugin builtin Alibaba Cloud SMS webhook.
--N, --sms-notifier-name <string>            Provisioning notifier name.[default: TDinsight Builtin SMS]
--U, --sms-notifier-uid <string>             Provisioning notifier uid, use lowercase notifier name by default.
--D, --sms-notifier-is-default               Set notifier as default.
--I, --sms-access-key-id <string>            Alibaba Cloud SMS access key id
--K, --sms-access-key-secret <string>        Alibaba Cloud SMS access key secret
--S, --sms-sign-name <string>                Sign name
--C, --sms-template-code <string>            Template code
--T, --sms-template-param <string>           Template param, a escaped JSON string like '{"alarm_level":"%s","time":"%s","name":"%s","content":"%s"}'
--B, --sms-phone-numbers <string>            Comma-separated numbers list, eg "189xxxxxxxx,132xxxxxxxx"
--L, --sms-listen-addr <string>              [default: 127.0.0.1:9100]
 ```
 
 Most command-line options can take effect the same as environment variables.
@@ -136,17 +132,6 @@ Most command-line options can take effect the same as environment variables.
 | -t | --tdinsight-title | TDINSIGHT_DASHBOARD_TITLE | TDinsight dashboard title. [Default: TDinsight] | -e | -tdinsight-title
 | -e | --tdinsight-editable | TDINSIGHT_DASHBOARD_EDITABLE | If the dashboard is configured to be editable. [Default: false] | -e | --external
 | -E | --external-notifier | EXTERNAL_NOTIFIER | Apply the external notifier uid to the TDinsight dashboard.                                | -s
-| -s | --sms-enabled | SMS_ENABLED | Enable the tdengine-datasource plugin built into Alibaba Cloud SMS webhook.                    | -s
-| -N | --sms-notifier-name | SMS_NOTIFIER_NAME | The name of the provisioning notifier. [Default: `TDinsight Builtin SMS`] | -U
-| -U | --sms-notifier-uid | SMS_NOTIFIER_UID | "Notification Channel" `uid`, lowercase of the program name is used by default, other characters are replaced by "-". |-sms
-| -D | --sms-notifier-is-default | SMS_NOTIFIER_IS_DEFAULT | Set built-in SMS notification to default value.                                                |-sms-notifier-is-default
-| -I | --sms-access-key-id | SMS_ACCESS_KEY_ID | Alibaba Cloud SMS access key id |
-| -K | --sms-access-key-secret | SMS_ACCESS_KEY_SECRET | AliCloud SMS-access-secret-key |
-| -S | --sms-sign-name | SMS_SIGN_NAME | Signature |
-| -C | --sms-template-code | SMS_TEMPLATE_CODE | Template code |
-| -T | --sms-template-param | SMS_TEMPLATE_PARAM | JSON template for template parameters |
-| -B | --sms-phone-numbers | SMS_PHONE_NUMBERS | A comma-separated list of phone numbers, e.g. `"189xxxxxxxx,132xxxxxxxx"` |
-| -L | --sms-listen-addr | SMS_LISTEN_ADDR | Built-in SMS webhook listener address, default is `127.0.0.1:9100` |
 
 Suppose you start a TDengine database on host `tdengine` with HTTP API port `6041`, user `root1`, and password `pass5ord`. Execute the script.
 
@@ -166,24 +151,10 @@ Use the `uid` value obtained above as `-E` input.
 sudo ./TDinsight.sh -a http://tdengine:6041 -u root1 -p pass5ord -E existing-notifier
 ```
 
-If you want to use the [Alibaba Cloud SMS](https://www.aliyun.com/product/sms) service as a notification channel, you should enable it with the `-s` flag add the following parameters.
-
-- `-N`: Notification Channel name, default is `TDinsight Builtin SMS`.
-- `-U`: Channel uid, default is lowercase of `name`, any other character is replaced with -, for the default `-N`, its uid is `tdinsight-builtin-sms`.
-- `-I`: Alibaba Cloud SMS access key id.
-- `-K`: Alibaba Cloud SMS access secret key.
-- `-S`: Alibaba Cloud SMS signature.
-- `-C`: Alibaba Cloud SMS template id.
-- `-T`: Alibaba Cloud SMS template parameters, for JSON format template, example is as follows `'{"alarm_level":"%s", "time":"%s", "name":"%s", "content":"%s"}'`. There are four parameters: alarm level, time, name and alarm content.
-- `-B`: a list of phone numbers, separated by a comma `,`.
-
 If you want to monitor multiple TDengine clusters, you need to set up numerous TDinsight dashboards. Setting up non-default TDinsight requires some changes: the `-n` `-i` `-t` options need to be changed to non-default names, and `-N` and `-L` should also be changed if using the built-in SMS alerting feature.
 
 ```bash
 sudo . /TDengine.sh -n TDengine-Env1 -a http://another:6041 -u root -p taosdata -i tdinsight-env1 -t 'TDinsight Env1'
-# If using built-in SMS notifications
-sudo . /TDengine.sh -n TDengine-Env1 -a http://another:6041 -u root -p taosdata -i tdinsight-env1 -t 'TDinsight Env1' \
-  -s -N 'Env1 SMS' -I xx -K xx -S xx -C SMS_XX -T '' -B 00000000000 -L 127.0.0.01:10611
 ```
 
 Please note that the configuration data source, notification channel, and dashboard are not changeable on the front end. You should update the configuration again via this script or manually change the configuration file in the `/etc/grafana/provisioning` directory (this is the default directory for Grafana, use the `-P` option to change it as needed).
@@ -249,21 +220,23 @@ Save and test. It will report 'TDengine Data source is working' under normal cir
 
 ### Importing dashboards
 
-Point to **+** / **Create** - **import** (or `/dashboard/import` url).
+In the page of configuring data source, click **Dashboards** tab.
 
 ![TDengine Database TDinsight Import Dashboard and Configuration](./assets/import_dashboard.webp)
 
-Type the dashboard ID `15167` in the **Import via grafana.com** location and **Load**.
+Choose `TDengine for 3.x` and click `import`.
 
-![TDengine Database TDinsight Import via grafana.com](./assets/import-dashboard-15167.webp)
+After the importing is done, `TDinsight for 3.x` dashboard is available on the page of `search dashboards by name`.
 
-Once the import is complete, the full page view of TDinsight is shown below.
+![TDengine Database TDinsight Import via grafana.com](./assets/import_dashboard_view.webp)
 
-![TDengine Database TDinsight show](./assets/TDinsight-full.webp)
+In the `TDinsight for 3.x` dashboard, choose the database used by taosKeeper to store monitoring data, you can see the monitoring result.
+
+![TDengine Database TDinsight 选择数据库](./assets/select_dashboard_db.webp)
 
 ## TDinsight dashboard details
 
-The TDinsight dashboard is designed to provide the usage and status of TDengine-related resources [dnodes, mnodes, vnodes](../../taos-sql/node/) or databases.
+The TDinsight dashboard is designed to provide the usage and status of TDengine-related resources, e.g. dnodes, mnodes, vnodes and databases.
 
 Details of the metrics are as follows.
 
@@ -285,7 +258,6 @@ This section contains the current information and status of the cluster, the ale
 - **Measuring Points Used**: The number of measuring points used to enable the alert rule (no data available in the community version, healthy by default).
 - **Grants Expire Time**: the expiration time of the enterprise version of the enabled alert rule (no data available for the community version, healthy by default).
 - **Error Rate**: Aggregate error rate (average number of errors per second) for alert-enabled clusters.
-- **Variables**: `show variables` table display.
 
 ### DNodes Status
 
@@ -294,7 +266,6 @@ This section contains the current information and status of the cluster, the ale
 - **DNodes Status**: simple table view of `show dnodes`.
 - **DNodes Lifetime**: the time elapsed since the dnode was created.
 - **DNodes Number**: the number of DNodes changes.
-- **Offline Reason**: if any dnode status is offline, the reason for offline is shown as a pie chart.
 
 ### MNode Overview
 
@@ -309,7 +280,6 @@ This section contains the current information and status of the cluster, the ale
 
 1. **Requests Rate(Inserts per Second)**: average number of inserts per second.
 2. **Requests (Selects)**: number of query requests and change rate (count of second).
-3. **Requests (HTTP)**: number of HTTP requests and request rate (count of second).
 
 ### Database
 
@@ -319,9 +289,8 @@ Database usage, repeated for each value of the variable `$database` i.e. multipl
 
 1. **STables**: number of super tables.
 2. **Total Tables**: number of all tables.
-3. **Sub Tables**: the number of all super table subtables.
-4. **Tables**: graph of all normal table numbers over time.
-5. **Tables Number Foreach VGroups**: The number of tables contained in each VGroups.
+3. **Tables**: number of normal tables.
+4. **Table number for each vgroup**: number of tables per vgroup.
 
 ### DNode Resource Usage
 
@@ -356,12 +325,11 @@ Currently, only the number of logins per minute is reported.
 
 Support monitoring taosAdapter request statistics and status details. Includes.
 
-1. **http_request**: contains the total number of requests, the number of failed requests, and the number of requests being processed
-2. **top 3 request endpoint**: data of the top 3 requests by endpoint group
-3. **Memory Used**: taosAdapter memory usage
-4. **latency_quantile(ms)**: quantile of (1, 2, 5, 9, 99) stages
-5. **top 3 failed request endpoint**: data of the top 3 failed requests by endpoint grouping
-6. **CPU Used**: taosAdapter CPU usage
+1. **http_request_inflight**: number of real-time requests.
+2. **http_request_total**: number of total requests.
+3. **http_request_fail**: number of failed requets.
+4. **CPU Used**: CPU usage of taosAdapter.
+5. **Memory Used**: Memory usage of taosAdapter.
 
 ## Upgrade
 
@@ -403,13 +371,6 @@ services:
       TDENGINE_API: ${TDENGINE_API}
       TDENGINE_USER: ${TDENGINE_USER}
       TDENGINE_PASS: ${TDENGINE_PASS}
-      SMS_ACCESS_KEY_ID: ${SMS_ACCESS_KEY_ID}
-      SMS_ACCESS_KEY_SECRET: ${SMS_ACCESS_KEY_SECRET}
-      SMS_SIGN_NAME: ${SMS_SIGN_NAME}
-      SMS_TEMPLATE_CODE: ${SMS_TEMPLATE_CODE}
-      SMS_TEMPLATE_PARAM: '${SMS_TEMPLATE_PARAM}'
-      SMS_PHONE_NUMBERS: $SMS_PHONE_NUMBERS
-      SMS_LISTEN_ADDR: ${SMS_LISTEN_ADDR}
     ports:
       - 3000:3000
 volumes:

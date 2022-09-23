@@ -207,7 +207,6 @@ static int32_t countTrailingSpaces(const SValueNode* pVal, bool isLtrim) {
   }
 
   return numOfSpaces;
-
 }
 
 void static addTimezoneParam(SNodeList* pList) {
@@ -311,22 +310,6 @@ static int32_t translateInOutStr(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateMinMax(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
-    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
-  }
-
-  uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-  if (!IS_TIMESTAMP_TYPE(paraType) && !IS_NUMERIC_TYPE(paraType) && !IS_NULL_TYPE(paraType)) {
-    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
-  } else if (IS_NULL_TYPE(paraType)) {
-    paraType = TSDB_DATA_TYPE_BIGINT;
-  }
-
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[paraType].bytes, .type = paraType};
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t translateTrimStr(SFunctionNode* pFunc, char* pErrBuf, int32_t len, bool isLtrim) {
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -338,7 +321,7 @@ static int32_t translateTrimStr(SFunctionNode* pFunc, char* pErrBuf, int32_t len
   }
 
   int32_t numOfSpaces = 0;
-  SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 0);
+  SNode*  pParamNode1 = nodesListGetNode(pFunc->pParameterList, 0);
   // for select trim functions with constant value from table,
   // need to set the proper result result schema bytes to avoid
   // trailing garbage characters
@@ -346,7 +329,6 @@ static int32_t translateTrimStr(SFunctionNode* pFunc, char* pErrBuf, int32_t len
     SValueNode* pValue = (SValueNode*)pParamNode1;
     numOfSpaces = countTrailingSpaces(pValue, isLtrim);
   }
-
 
   int32_t resBytes = pPara1->resType.bytes - numOfSpaces;
   pFunc->node.resType = (SDataType){.bytes = resBytes, .type = pPara1->resType.type};
@@ -2076,7 +2058,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "min",
     .type = FUNCTION_TYPE_MIN,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC,
-    .translateFunc = translateMinMax,
+    .translateFunc = translateInOutNum,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = minmaxFunctionSetup,
@@ -2091,7 +2073,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "max",
     .type = FUNCTION_TYPE_MAX,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED | FUNC_MGT_SELECT_FUNC,
-    .translateFunc = translateMinMax,
+    .translateFunc = translateInOutNum,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = minmaxFunctionSetup,
@@ -2157,7 +2139,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "avg",
     .type = FUNCTION_TYPE_AVG,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
     .translateFunc = translateInNumOutDou,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getAvgFuncEnv,

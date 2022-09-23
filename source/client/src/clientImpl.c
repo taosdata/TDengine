@@ -189,9 +189,23 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
     tscError("%d failed to add to request container, reqId:0x%" PRIx64 ", conn:%d, %s", (*pRequest)->self,
              (*pRequest)->requestId, pTscObj->id, sql);
 
+    taosMemoryFree(param);
     destroyRequest(*pRequest);
     *pRequest = NULL;
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  (*pRequest)->allocatorRefId = -1;
+  if (tsQueryUseNodeAllocator && !qIsInsertValuesSql((*pRequest)->sqlstr, (*pRequest)->sqlLen)) {
+    if (TSDB_CODE_SUCCESS !=
+        nodesCreateAllocator((*pRequest)->requestId, tsQueryNodeChunkSize, &((*pRequest)->allocatorRefId))) {
+      tscError("%d failed to create node allocator, reqId:0x%" PRIx64 ", conn:%d, %s", (*pRequest)->self,
+               (*pRequest)->requestId, pTscObj->id, sql);
+
+      destroyRequest(*pRequest);
+      *pRequest = NULL;
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
   }
 
   tscDebugL("0x%" PRIx64 " SQL: %s, reqId:0x%" PRIx64, (*pRequest)->self, (*pRequest)->sqlstr, (*pRequest)->requestId);
@@ -438,6 +452,7 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
   }
   pResInfo->fields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
   pResInfo->userFields = taosMemoryCalloc(numOfCols, sizeof(TAOS_FIELD));
+  ASSERT(numOfCols == pResInfo->numOfCols);
 
   for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
     pResInfo->fields[i].bytes = pSchema[i].bytes;
@@ -680,6 +695,8 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
   };
 
   int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob);
+
+  destroyQueryExecRes(&pRequest->body.resInfo.execRes);
   memcpy(&pRequest->body.resInfo.execRes, &res, sizeof(res));
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -854,6 +871,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   pRequest->metric.resultReady = taosGetTimestampUs();
 
   if (pResult) {
+    destroyQueryExecRes(&pRequest->body.resInfo.execRes);
     memcpy(&pRequest->body.resInfo.execRes, pResult, sizeof(*pResult));
   }
 
@@ -1020,7 +1038,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
                           .pMsg = pRequest->msgBuf,
                           .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                           .pUser = pRequest->pTscObj->user,
-                          .sysInfo = pRequest->pTscObj->sysInfo};
+                          .sysInfo = pRequest->pTscObj->sysInfo,
+                          .allocatorId = pRequest->allocatorRefId};
 
       SAppInstInfo* pAppInfo = getAppInfo(pRequest);
       SQueryPlan*   pDag = NULL;
@@ -1045,6 +1064,7 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
             .pConn = &conn,
             .pNodeList = pNodeList,
             .pDag = pDag,
+            .allocatorRefId = pRequest->allocatorRefId,
             .sql = pRequest->sqlstr,
             .startTs = pRequest->metric.start,
             .execFp = schedulerExecCb,
@@ -1384,6 +1404,7 @@ int32_t doProcessMsgFromServer(void* param) {
   pSendInfo->fp(pSendInfo->param, &buf, pMsg->code);
   rpcFreeCont(pMsg->pCont);
   destroySendMsgInfo(pSendInfo);
+
   taosMemoryFree(arg);
   return TSDB_CODE_SUCCESS;
 }
@@ -1399,7 +1420,12 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   arg->msg = *pMsg;
   arg->pEpset = tEpSet;
 
-  taosAsyncExec(doProcessMsgFromServer, arg, NULL);
+  if (0 != taosAsyncExec(doProcessMsgFromServer, arg, NULL)) {
+    tscError("failed to sched msg to tsc, tsc ready to quit");
+    rpcFreeCont(pMsg->pCont);
+    taosMemoryFree(arg->pEpset);
+    taosMemoryFree(arg);
+  }
 }
 
 TAOS* taos_connect_auth(const char* ip, const char* user, const char* auth, const char* db, uint16_t port) {

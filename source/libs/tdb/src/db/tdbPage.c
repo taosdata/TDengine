@@ -80,6 +80,7 @@ int tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg)
   ASSERT(xFree);
 
   for (int iOvfl = 0; iOvfl < pPage->nOverflow; iOvfl++) {
+    tdbDebug("tdbPage/destroy/free ovfl cell: %p/%p", pPage->apOvfl[iOvfl], pPage);
     tdbOsFree(pPage->apOvfl[iOvfl]);
   }
 
@@ -152,7 +153,7 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
     pNewCell = (SCell *)tdbOsMalloc(szCell);
     memcpy(pNewCell, pCell, szCell);
 
-    tdbDebug("tdbPage/new ovfl cell: %p", pNewCell);
+    tdbDebug("tdbPage/insert/new ovfl cell: %p/%p", pNewCell, pPage);
 
     pPage->apOvfl[iOvfl] = pNewCell;
     pPage->aiOvfl[iOvfl] = idx;
@@ -202,7 +203,7 @@ int tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt) {
     if (pPage->aiOvfl[iOvfl] == idx) {
       // remove the over flow cell
       tdbOsFree(pPage->apOvfl[iOvfl]);
-      tdbDebug("tdbPage/free ovfl cell: %p", pPage->apOvfl[iOvfl]);
+      tdbDebug("tdbPage/drop/free ovfl cell: %p", pPage->apOvfl[iOvfl]);
       for (; (++iOvfl) < pPage->nOverflow;) {
         pPage->aiOvfl[iOvfl - 1] = pPage->aiOvfl[iOvfl] - 1;
         pPage->apOvfl[iOvfl - 1] = pPage->apOvfl[iOvfl];
@@ -229,7 +230,7 @@ int tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt) {
   return 0;
 }
 
-void tdbPageCopy(SPage *pFromPage, SPage *pToPage) {
+void tdbPageCopy(SPage *pFromPage, SPage *pToPage, int deepCopyOvfl) {
   int delta, nFree;
 
   pToPage->pFreeStart = pToPage->pPageHdr + (pFromPage->pFreeStart - pFromPage->pPageHdr);
@@ -250,8 +251,16 @@ void tdbPageCopy(SPage *pFromPage, SPage *pToPage) {
 
   // Copy the overflow cells
   for (int iOvfl = 0; iOvfl < pFromPage->nOverflow; iOvfl++) {
+    SCell *pNewCell = pFromPage->apOvfl[iOvfl];
+    if (deepCopyOvfl) {
+      int szCell = (*pFromPage->xCellSize)(pFromPage, pFromPage->apOvfl[iOvfl], 0, NULL, NULL);
+      pNewCell = (SCell *)tdbOsMalloc(szCell);
+      memcpy(pNewCell, pFromPage->apOvfl[iOvfl], szCell);
+      tdbDebug("tdbPage/copy/new ovfl cell: %p/%p/%p", pNewCell, pToPage, pFromPage);
+    }
+
+    pToPage->apOvfl[iOvfl] = pNewCell;
     pToPage->aiOvfl[iOvfl] = pFromPage->aiOvfl[iOvfl];
-    pToPage->apOvfl[iOvfl] = pFromPage->apOvfl[iOvfl];
   }
   pToPage->nOverflow = pFromPage->nOverflow;
 }

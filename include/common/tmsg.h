@@ -787,6 +787,7 @@ typedef struct {
   int32_t sstTrigger;
   int16_t hashPrefix;
   int16_t hashSuffix;
+  int32_t tsdbPageSize;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -1200,6 +1201,7 @@ typedef struct {
   int16_t  sstTrigger;
   int16_t  hashPrefix;
   int16_t  hashSuffix;
+  int32_t  tsdbPageSize;
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
@@ -2954,7 +2956,7 @@ static FORCE_INLINE void* tDecodeSMqSubTopicEp(void* buf, SMqSubTopicEp* pTopicE
 }
 
 static FORCE_INLINE void tDeleteSMqSubTopicEp(SMqSubTopicEp* pSubTopicEp) {
-  // taosMemoryFree(pSubTopicEp->schema.pSchema);
+  if (pSubTopicEp->schema.nCols) taosMemoryFreeClear(pSubTopicEp->schema.pSchema);
   taosArrayDestroy(pSubTopicEp->vgs);
 }
 
