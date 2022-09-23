@@ -834,6 +834,8 @@ static int32_t mndProcessTtlTimer(SRpcMsg *pReq) {
   int32_t           reqLen = tSerializeSVDropTtlTableReq(NULL, 0, &ttlReq);
   int32_t           contLen = reqLen + sizeof(SMsgHead);
 
+  mInfo("start to process ttl timer");
+
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
