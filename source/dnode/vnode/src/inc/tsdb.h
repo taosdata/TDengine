@@ -698,6 +698,7 @@ struct SDiskDataBuilder {
   int32_t      nBuilder;
   SArray      *aBuilder;  // SArray<SDiskColBuilder>
   uint8_t     *aBuf[2];
+  SDiskData    dd;
 };
 
 int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
