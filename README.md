@@ -321,7 +321,11 @@ TDengine provides abundant developing tools for users to develop on TDengine. Fo
 
 Please follow the [contribution guidelines](CONTRIBUTING.md) to contribute to the project.
 
-# Join TDengine User Community
+# Join the TDengine Community
 
-- Join [TDengine Discord Channel](https://discord.com/invite/VZdSuUg4pS?utm_id=discord)
-- Join wechat group by adding WeChat “tdengine”
+For more information about TDengine, you can follow us on social media and join our Discord server:
+
+- [Discord](https://discord.com/invite/VZdSuUg4pS)
+- [Twitter](https://twitter.com/TaosData)
+- [LinkedIn](https://www.linkedin.com/company/tdengine/)
+- [YouTube](https://www.youtube.com/channel/UCmp-1U6GS_3V3hjir6Uq5DQ)
