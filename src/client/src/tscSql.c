@@ -766,14 +766,14 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
     }
 
     tscAsyncResultOnError(pSubObj);
-    // taosRelekaseRef(tscObjRef, pSubObj->self);
   }
 
-  pthread_mutex_unlock(&pSql->subState.mutex); }
 
   if (pSql->subState.numOfSub <= 0) {
     tscAsyncResultOnError(pSql);
   }
+
+  pthread_mutex_unlock(&pSql->subState.mutex); }
 
   tscUnlockByThread(&pSql->squeryLock);
 
