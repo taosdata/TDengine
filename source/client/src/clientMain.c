@@ -26,6 +26,7 @@
 #include "tref.h"
 #include "trpc.h"
 #include "version.h"
+#include "qworker.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
