@@ -113,7 +113,7 @@ def pre_test(){
     git clean -dfx
     mkdir debug
     cd debug
-    cmake .. > /dev/null
+    cmake .. -DBUILD_TEST=true > /dev/null
     make > /dev/null
     make install > /dev/null
     cd ${WKC}/tests
