@@ -335,6 +335,8 @@ python3 ./test.py -f 7-tmq/dataFromTsdbNWal-multiCtb.py
 python3 ./test.py -f 7-tmq/tmq_taosx.py
 python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py
 
+python3 ./test.py -f 99-TDcase/TD-19201.py
+
 #------------querPolicy  2-----------
 
 python3 ./test.py -f 2-query/between.py  -Q 2
@@ -514,4 +516,3 @@ python3 ./test.py -f 2-query/last_row.py -Q 3
 python3 ./test.py -f 2-query/tsbsQuery.py -Q 3
 python3 ./test.py -f 2-query/sml.py -Q 3
 python3 ./test.py -f 2-query/interp.py -Q 3
-
