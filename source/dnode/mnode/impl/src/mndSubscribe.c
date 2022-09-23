@@ -658,7 +658,7 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pReq) {
   SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, dropReq.cgroup, dropReq.topic);
   if (pSub == NULL) {
     if (dropReq.igNotExists) {
-      mDebug("cgroup:%s on topic:%s, not exist, ignore not exist is set", dropReq.cgroup, dropReq.topic);
+      mInfo("cgroup:%s on topic:%s, not exist, ignore not exist is set", dropReq.cgroup, dropReq.topic);
       return 0;
     } else {
       terrno = TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST;
@@ -681,7 +681,7 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  mDebug("trans:%d, used to drop cgroup:%s on topic %s", pTrans->id, dropReq.cgroup, dropReq.topic);
+  mInfo("trans:%d, used to drop cgroup:%s on topic %s", pTrans->id, dropReq.cgroup, dropReq.topic);
 
   if (mndDropOffsetBySubKey(pMnode, pTrans, pSub->key) < 0) {
     ASSERT(0);
