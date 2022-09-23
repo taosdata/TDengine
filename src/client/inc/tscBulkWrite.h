@@ -35,12 +35,15 @@ typedef struct SAsyncBulkWriteDispatcher {
   SArray* buffer;
 
   // the mutex to protect the dispatcher.
-  pthread_mutex_t mutex;
+  pthread_mutex_t bufferMutex;
+  
+  // the mutex to sleep the background thread.
+  pthread_mutex_t sleepMutex;
   
   // the cond to signal to background thread.
   pthread_cond_t timeout;
   
-  // the cond to signal to background thread.
+  // the cond to signal when buffer not full.
   pthread_cond_t notFull;
 
   // the background thread to manage batching timeout.
