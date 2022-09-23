@@ -149,26 +149,4 @@ rm -rf  temp1.data
 if  [ ${dockerLatest} == 'y' ]  ;then
   docker tag tdengine/tdengine-${dockername}:${version} tdengine/tdengine-${dockername}:latest
   docker push tdengine/tdengine-${dockername}:latest
-  echo ">>>>>>>>>>>>> check whether  tdengine/tdengine-${dockername}:latest has been published correctly"
-  docker run -d --name doctestla -p 7030-7049:6030-6049 -p 7030-7049:6030-6049/udp   tdengine/tdengine-${dockername}:latest 
-  sleep 2
-  curl -u root:taosdata -d 'show variables;'  127.0.0.1:7041/rest/sql >  temp2.data
-  version_latest=` cat temp2.data |jq .data| jq '.[]' |grep "version" -A 2 -B 1  | jq ".[1]" `
-  echo "${version_latest}" 
-  if [ "${version_latest}" == "\"${version}\"" ] ; then
-      echo  "docker version is right "
-  else 
-      echo  "docker version is wrong "
-      exit 1 
-  fi
 fi
-rm -rf  temp2.data
-
-if [ -n "$(docker ps -aq)" ] ;then 
-  echo "delte docker process"
-  docker stop $(docker ps -aq)
-  docker rm $(docker ps -aq)
-fi
-
-cd ${scriptDir}
-rm -f ${pkgFile}

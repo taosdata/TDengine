@@ -59,9 +59,9 @@ enum {
 #define SHOW_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
 
-#define TD_RES_QUERY(res)     (*(int8_t*)res == RES_TYPE__QUERY)
-#define TD_RES_TMQ(res)       (*(int8_t*)res == RES_TYPE__TMQ)
-#define TD_RES_TMQ_META(res)  (*(int8_t*)res == RES_TYPE__TMQ_META)
+#define TD_RES_QUERY(res)        (*(int8_t*)res == RES_TYPE__QUERY)
+#define TD_RES_TMQ(res)          (*(int8_t*)res == RES_TYPE__TMQ)
+#define TD_RES_TMQ_META(res)     (*(int8_t*)res == RES_TYPE__TMQ_META)
 #define TD_RES_TMQ_METADATA(res) (*(int8_t*)res == RES_TYPE__TMQ_METADATA)
 
 typedef struct SAppInstInfo SAppInstInfo;
@@ -250,6 +250,8 @@ typedef struct SRequestObj {
   bool                 inRetry;
   uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;
+  int64_t              allocatorRefId;
+  SQuery*              pQuery;
 } SRequestObj;
 
 typedef struct SSyncQueryParam {

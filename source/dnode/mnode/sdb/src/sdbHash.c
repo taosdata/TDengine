@@ -83,7 +83,7 @@ const char *sdbStatusName(ESdbStatus status) {
 }
 
 void sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper) {
-#if 0
+#if 1
   EKeyType keyType = pSdb->keyTypes[pRow->type];
 
   if (keyType == SDB_KEY_BINARY) {

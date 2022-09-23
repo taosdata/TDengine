@@ -146,7 +146,7 @@ static FORCE_INLINE void clientRecvCb(uv_stream_t* handle, ssize_t nread, const 
   if (nread < 0) {
     uError("http-report recv error:%s", uv_err_name(nread));
   } else {
-    uTrace("http-report succ to recv %d bytes, just ignore it", nread);
+    uTrace("http-report succ to recv %d bytes", nread);
   }
   uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
 }
@@ -160,7 +160,16 @@ static void clientSentCb(uv_write_t* req, int32_t status) {
   } else {
     uTrace("http-report succ to send data");
   }
-  uv_read_start((uv_stream_t*)&cli->tcp, clientAllocBuffCb, clientRecvCb);
+  status = uv_read_start((uv_stream_t*)&cli->tcp, clientAllocBuffCb, clientRecvCb);
+  if (status != 0) {
+    terrno = TAOS_SYSTEM_ERROR(status);
+    uError("http-report failed to recv data,reason:%s, dst:%s:%d", uv_strerror(status), cli->addr, cli->port);
+    if (!uv_is_closing((uv_handle_t*)&cli->tcp)) {
+      uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
+    } else {
+      destroyHttpClient(cli);
+    }
+  }
 }
 static void clientConnCb(uv_connect_t* req, int32_t status) {
   SHttpClient* cli = req->data;
@@ -170,7 +179,16 @@ static void clientConnCb(uv_connect_t* req, int32_t status) {
     uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
     return;
   }
-  uv_write(&cli->req, (uv_stream_t*)&cli->tcp, cli->wbuf, 2, clientSentCb);
+  status = uv_write(&cli->req, (uv_stream_t*)&cli->tcp, cli->wbuf, 2, clientSentCb);
+  if (0 != status) {
+    terrno = TAOS_SYSTEM_ERROR(status);
+    uError("http-report failed to send data,reason:%s, dst:%s:%d", uv_strerror(status), cli->addr, cli->port);
+    if (!uv_is_closing((uv_handle_t*)&cli->tcp)) {
+      uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
+    } else {
+      destroyHttpClient(cli);
+    }
+  }
 }
 
 static FORCE_INLINE int32_t taosBuildDstAddr(const char* server, uint16_t port, struct sockaddr_in* dest) {
@@ -220,13 +238,22 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   uv_tcp_init(loop, &cli->tcp);
   // set up timeout to avoid stuck;
   int32_t fd = taosCreateSocketWithTimeout(5);
-  uv_tcp_open((uv_tcp_t*)&cli->tcp, fd);
 
-  int32_t ret = uv_tcp_connect(&cli->conn, &cli->tcp, (const struct sockaddr*)&dest, clientConnCb);
+  int ret = uv_tcp_open((uv_tcp_t*)&cli->tcp, fd);
   if (ret != 0) {
-    uError("http-report failed to connect to server, reason:%s, dst:%s:%d", uv_strerror(ret), cli->addr, cli->port);
+    uError("http-report failed to open socket, reason:%s, dst:%s:%d", uv_strerror(ret), cli->addr, cli->port);
     destroyHttpClient(cli);
     uv_stop(loop);
+    terrno = TAOS_SYSTEM_ERROR(ret);
+  } else {
+    ret = uv_tcp_connect(&cli->conn, &cli->tcp, (const struct sockaddr*)&dest, clientConnCb);
+    if (ret != 0) {
+      uError("http-report failed to connect to http-server, reason:%s, dst:%s:%d", uv_strerror(ret), cli->addr,
+             cli->port);
+      destroyHttpClient(cli);
+      uv_stop(loop);
+      terrno = TAOS_SYSTEM_ERROR(ret);
+    }
   }
 
   uv_run(loop, UV_RUN_DEFAULT);

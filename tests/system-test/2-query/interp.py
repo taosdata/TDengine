@@ -595,11 +595,11 @@ class TDTestCase:
           tdSql.checkData(2, i, 15)
 
         tdSql.query(f"select interp(c0),interp(c1),interp(c2),interp(c3) from {dbname}.{tbname} range('2020-02-09 00:00:05', '2020-02-13 00:00:05') every(1d) fill(linear)")
-        tdSql.checkRows(1)
+        tdSql.checkRows(3)
         tdSql.checkCols(4)
 
         for i in range (tdSql.queryCols):
-            tdSql.checkData(0, i, 15)
+            tdSql.checkData(0, i, 13)
 
         tdLog.printNoPrefix("==========step10:test error cases")
 
