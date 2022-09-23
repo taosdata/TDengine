@@ -174,6 +174,8 @@ _migrate_loop:
   // reset
   maxFid = INT32_MIN;
   fSize = 0;
+  tsdbFSDestroy(&fs);
+  tsdbFSDestroy(&fsLatest);
 
   code = tsdbFSCopy(pTsdb, &fs);
   if (code) goto _exit;
@@ -275,9 +277,9 @@ _merge_fs:
   }
   taosThreadRwlockUnlock(&pTsdb->rwLock);
 
-  tsdbFSDestroy(&fs);
-
 _exit:
+  tsdbFSDestroy(&fs);
+  tsdbFSDestroy(&fsLatest);
   if (code != 0) {
     tsdbError("vgId:%d, tsdb do retention(migrate) failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
     ASSERT(0);

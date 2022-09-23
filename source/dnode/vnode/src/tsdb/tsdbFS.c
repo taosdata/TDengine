@@ -250,7 +250,7 @@ _err:
 
 void tsdbFSDestroy(STsdbFS *pFS) {
   if (pFS->pDelFile) {
-    taosMemoryFree(pFS->pDelFile);
+    taosMemoryFreeClear(pFS->pDelFile);
   }
 
   for (int32_t iSet = 0; iSet < taosArrayGetSize(pFS->aDFileSet); iSet++) {
@@ -263,7 +263,7 @@ void tsdbFSDestroy(STsdbFS *pFS) {
     }
   }
 
-  taosArrayDestroy(pFS->aDFileSet);
+  pFS->aDFileSet = taosArrayDestroy(pFS->aDFileSet);
 }
 
 static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
