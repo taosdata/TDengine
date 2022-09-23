@@ -19,7 +19,7 @@
 static int32_t sdbCreateDir(SSdb *pSdb);
 
 SSdb *sdbInit(SSdbOpt *pOption) {
-  mDebug("start to init sdb in %s", pOption->path);
+  mInfo("start to init sdb in %s", pOption->path);
 
   SSdb *pSdb = taosMemoryCalloc(1, sizeof(SSdb));
   if (pSdb == NULL) {
@@ -175,7 +175,7 @@ void sdbGetCommitInfo(SSdb *pSdb, int64_t *index, int64_t *term, int64_t *config
   *index = pSdb->commitIndex;
   *term = pSdb->commitTerm;
   *config = pSdb->commitConfig;
-#if 0
+#if 1
   mTrace("mnode current info, apply index:%" PRId64 " term:%" PRId64 " config:%" PRId64 ", commit index:%" PRId64
          " term:%" PRId64 " config:%" PRId64,
          pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, *index, *term, *config);
