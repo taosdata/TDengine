@@ -764,9 +764,9 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
     }
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE: {
       SExchangePhysiNode *pExchNode = (SExchangePhysiNode *)pNode;
-      SExplainGroup      *group = taosHashGet(ctx->groupHash, &pExchNode->srcGroupId, sizeof(pExchNode->srcGroupId));
+      SExplainGroup      *group = taosHashGet(ctx->groupHash, &pExchNode->srcStartGroupId, sizeof(pExchNode->srcStartGroupId));
       if (NULL == group) {
-        qError("exchange src group %d not in groupHash", pExchNode->srcGroupId);
+        qError("exchange src group %d not in groupHash", pExchNode->srcStartGroupId);
         QRY_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
       }
 
@@ -801,7 +801,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         }      
       }
 
-      QRY_ERR_RET(qExplainAppendGroupResRows(ctx, pExchNode->srcGroupId, level + 1));
+      QRY_ERR_RET(qExplainAppendGroupResRows(ctx, pExchNode->srcStartGroupId, level + 1));
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_SORT: {
