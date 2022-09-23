@@ -313,13 +313,9 @@ uint32_t taosInetAddr(const char *ipAddr) {
 #endif
 }
 const char *taosInetNtoa(struct in_addr ipInt) {
-#ifdef WINDOWS
   // not thread safe, only for debug usage while print log
-  static char tmpDstStr[16];
+  char tmpDstStr[16];
   return inet_ntop(AF_INET, &ipInt, tmpDstStr, INET6_ADDRSTRLEN);
-#else
-  return inet_ntoa(ipInt);
-#endif
 }
 
 #ifndef SIGPIPE
@@ -670,7 +666,7 @@ int taosGetLocalIp(const char *eth, char *ip) {
     return -1;
   }
   memcpy(&sin, &ifr.ifr_addr, sizeof(sin));
-  snprintf(ip, 64, "%s", inet_ntoa(sin.sin_addr));
+  snprintf(ip, 64, "%s", taosInetNtoa(sin.sin_addr));
   taosCloseSocketNoCheck1(fd);
 #endif
   return 0;

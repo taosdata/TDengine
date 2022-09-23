@@ -415,23 +415,15 @@ class TDDnode:
                     i += 1
                     if i > 50:
                         break
-                tailCmdStr = 'tail -f '
-                popen = subprocess.Popen(
-                    tailCmdStr + logFile,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    shell=True)
-                pid = popen.pid
-                # print('Popen.pid:' + str(pid))
-                timeout = time.time() + 60 * 2
-                while True:
-                    line = popen.stdout.readline().strip()
-                    if bkey in line:
-                        popen.kill()
-                        break
-                    if time.time() > timeout:
-                        tdLog.exit('wait too long for taosd start')
-                tdLog.debug("the dnode:%d has been started." % (self.index))
+                with open(logFile) as f:
+                    timeout = time.time() + 60 * 2
+                    while True:
+                        line = f.readline().encode('utf-8')
+                        if bkey in line:
+                            break
+                        if time.time() > timeout:
+                            tdLog.exit('wait too long for taosd start')
+                    tdLog.debug("the dnode:%d has been started." % (self.index))
             else:
                 tdLog.debug(
                     "wait 10 seconds for the dnode:%d to start." %
@@ -480,9 +472,9 @@ class TDDnode:
             toBeKilled = "valgrind.bin"
 
         if self.running != 0:
-            psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % toBeKilled
+            psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs" % toBeKilled
             processID = subprocess.check_output(
-                psCmd, shell=True).decode("utf-8")
+                psCmd, shell=True).decode("utf-8").strip()
 
             onlyKillOnceWindows = 0
             while(processID):
@@ -492,7 +484,7 @@ class TDDnode:
                     onlyKillOnceWindows = 1
                 time.sleep(1)
                 processID = subprocess.check_output(
-                    psCmd, shell=True).decode("utf-8")
+                    psCmd, shell=True).decode("utf-8").strip()
             if not platform.system().lower() == 'windows':
                 for port in range(6030, 6041):
                     fuserCmd = "fuser -k -n tcp %d > /dev/null" % port
@@ -516,11 +508,11 @@ class TDDnode:
 
         if self.running != 0:
             if platform.system().lower() == 'windows':
-                psCmd = "for /f %%a in ('wmic process where \"name='taosd.exe' and CommandLine like '%%dnode%d%%'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' )" % (self.index)
+                psCmd = "for /f %%a in ('wmic process where \"name='taosd.exe' and CommandLine like '%%dnode%d%%'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)" % (self.index)
             else:
-                psCmd = "ps -ef|grep -w %s| grep dnode%d|grep -v grep | awk '{print $2}'" % (toBeKilled,self.index)
+                psCmd = "ps -ef|grep -w %s| grep dnode%d|grep -v grep | awk '{print $2}' | xargs" % (toBeKilled,self.index)
             processID = subprocess.check_output(
-                psCmd, shell=True).decode("utf-8")
+                psCmd, shell=True).decode("utf-8").strip()
 
             onlyKillOnceWindows = 0
             while(processID):
@@ -530,7 +522,7 @@ class TDDnode:
                     onlyKillOnceWindows = 1
                 time.sleep(1)
                 processID = subprocess.check_output(
-                    psCmd, shell=True).decode("utf-8")
+                    psCmd, shell=True).decode("utf-8").strip()
             if self.valgrind:
                 time.sleep(2)
 
@@ -547,9 +539,9 @@ class TDDnode:
             toBeKilled = "valgrind.bin"
 
         if self.running != 0:
-            psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % toBeKilled
+            psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs" % toBeKilled
             processID = subprocess.check_output(
-                psCmd, shell=True).decode("utf-8")
+                psCmd, shell=True).decode("utf-8").strip()
 
             onlyKillOnceWindows = 0
             while(processID):
@@ -559,7 +551,7 @@ class TDDnode:
                     onlyKillOnceWindows = 1
                 time.sleep(1)
                 processID = subprocess.check_output(
-                    psCmd, shell=True).decode("utf-8")
+                    psCmd, shell=True).decode("utf-8").strip()
             for port in range(6030, 6041):
                 fuserCmd = "fuser -k -n tcp %d" % port
                 os.system(fuserCmd)
@@ -704,15 +696,15 @@ class TDDnodes:
         for i in range(len(self.dnodes)):
             self.dnodes[i].stop()
 
-        psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}'"
-        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+        psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
+        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
         if processID:
             cmd = "sudo systemctl stop taosd"
             os.system(cmd)
         # if os.system(cmd) != 0 :
         # tdLog.exit(cmd)
-        psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}'"
-        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+        psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
+        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
         while(processID):
             if platform.system().lower() == 'windows':
                 killCmd = "kill -9 %s > nul 2>&1" % processID
@@ -721,11 +713,11 @@ class TDDnodes:
             os.system(killCmd)
             time.sleep(1)
             processID = subprocess.check_output(
-                psCmd, shell=True).decode("utf-8")
+                psCmd, shell=True).decode("utf-8").strip()
 
         if self.killValgrind == 1:
-            psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}'"
-            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+            psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}' | xargs"
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
             while(processID):
                 if platform.system().lower() == 'windows':
                     killCmd = "kill -TERM %s > nul 2>&1" % processID
@@ -734,7 +726,7 @@ class TDDnodes:
                 os.system(killCmd)
                 time.sleep(1)
                 processID = subprocess.check_output(
-                    psCmd, shell=True).decode("utf-8")
+                    psCmd, shell=True).decode("utf-8").strip()
 
         # if os.system(cmd) != 0 :
         # tdLog.exit(cmd)
