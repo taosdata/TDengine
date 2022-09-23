@@ -1589,7 +1589,7 @@ void tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg) {
   for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
     tColDataGetValue(pColData, iVal, &cv);
 
-    if (cv.isNone || cv.isNull) {
+    if (!COL_VAL_IS_VALUE(&cv)) {
       pColAgg->numOfNull++;
     } else {
       tSmaUpdateImpl[pColData->type](pColAgg, &cv, &minSet, &maxSet);
