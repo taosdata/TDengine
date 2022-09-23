@@ -1733,6 +1733,92 @@ static int32_t msgToDownstreamSourceNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
+enum { WHEN_THEN_CODE_EXPR_BASE = 1, WHEN_THEN_CODE_WHEN, WHEN_THEN_CODE_THEN };
+
+static int32_t whenThenNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SWhenThenNode* pNode = (const SWhenThenNode*)pObj;
+
+  int32_t code = tlvEncodeObj(pEncoder, WHEN_THEN_CODE_EXPR_BASE, exprNodeToMsg, pNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, WHEN_THEN_CODE_WHEN, nodeToMsg, pNode->pWhen);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, WHEN_THEN_CODE_THEN, nodeToMsg, pNode->pThen);
+  }
+
+  return code;
+}
+
+static int32_t msgToWhenThenNode(STlvDecoder* pDecoder, void* pObj) {
+  SWhenThenNode* pNode = (SWhenThenNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case WHEN_THEN_CODE_EXPR_BASE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToExprNode, &pNode->node);
+        break;
+      case WHEN_THEN_CODE_WHEN:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pWhen);
+        break;
+      case WHEN_THEN_CODE_THEN:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pThen);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
+enum { CASE_WHEN_CODE_EXPR_BASE = 1, CASE_WHEN_CODE_CASE, CASE_WHEN_CODE_ELSE, CASE_WHEN_CODE_WHEN_THEN_LIST };
+
+static int32_t caseWhenNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SCaseWhenNode* pNode = (const SCaseWhenNode*)pObj;
+
+  int32_t code = tlvEncodeObj(pEncoder, CASE_WHEN_CODE_EXPR_BASE, exprNodeToMsg, pNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, CASE_WHEN_CODE_CASE, nodeToMsg, pNode->pCase);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, CASE_WHEN_CODE_ELSE, nodeToMsg, pNode->pElse);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, CASE_WHEN_CODE_WHEN_THEN_LIST, nodeListToMsg, pNode->pWhenThenList);
+  }
+
+  return code;
+}
+
+static int32_t msgToCaseWhenNode(STlvDecoder* pDecoder, void* pObj) {
+  SCaseWhenNode* pNode = (SCaseWhenNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case CASE_WHEN_CODE_EXPR_BASE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToExprNode, &pNode->node);
+        break;
+      case CASE_WHEN_CODE_CASE:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pCase);
+        break;
+      case CASE_WHEN_CODE_ELSE:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pElse);
+        break;
+      case CASE_WHEN_CODE_WHEN_THEN_LIST:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pWhenThenList);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
 enum {
   PHY_NODE_CODE_OUTPUT_DESC = 1,
   PHY_NODE_CODE_CONDITIONS,
@@ -2294,7 +2380,8 @@ static int32_t msgToPhysiAggNode(STlvDecoder* pDecoder, void* pObj) {
 
 enum {
   PHY_EXCHANGE_CODE_BASE_NODE = 1,
-  PHY_EXCHANGE_CODE_SRC_GROUP_ID,
+  PHY_EXCHANGE_CODE_SRC_START_GROUP_ID,
+  PHY_EXCHANGE_CODE_SRC_END_GROUP_ID,
   PHY_EXCHANGE_CODE_SINGLE_CHANNEL,
   PHY_EXCHANGE_CODE_SRC_ENDPOINTS
 };
@@ -2304,7 +2391,10 @@ static int32_t physiExchangeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
 
   int32_t code = tlvEncodeObj(pEncoder, PHY_EXCHANGE_CODE_BASE_NODE, physiNodeToMsg, &pNode->node);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI32(pEncoder, PHY_EXCHANGE_CODE_SRC_GROUP_ID, pNode->srcGroupId);
+    code = tlvEncodeI32(pEncoder, PHY_EXCHANGE_CODE_SRC_START_GROUP_ID, pNode->srcStartGroupId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_EXCHANGE_CODE_SRC_END_GROUP_ID, pNode->srcEndGroupId);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_EXCHANGE_CODE_SINGLE_CHANNEL, pNode->singleChannel);
@@ -2326,8 +2416,11 @@ static int32_t msgToPhysiExchangeNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_EXCHANGE_CODE_BASE_NODE:
         code = tlvDecodeObjFromTlv(pTlv, msgToPhysiNode, &pNode->node);
         break;
-      case PHY_EXCHANGE_CODE_SRC_GROUP_ID:
-        code = tlvDecodeI32(pTlv, &pNode->srcGroupId);
+      case PHY_EXCHANGE_CODE_SRC_START_GROUP_ID:
+        code = tlvDecodeI32(pTlv, &pNode->srcStartGroupId);
+        break;
+      case PHY_EXCHANGE_CODE_SRC_END_GROUP_ID:
+        code = tlvDecodeI32(pTlv, &pNode->srcEndGroupId);
         break;
       case PHY_EXCHANGE_CODE_SINGLE_CHANNEL:
         code = tlvDecodeBool(pTlv, &pNode->singleChannel);
@@ -3434,8 +3527,15 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
       code = slotDescNodeToMsg(pObj, pEncoder);
       break;
     case QUERY_NODE_DOWNSTREAM_SOURCE:
-      return downstreamSourceNodeToMsg(pObj, pEncoder);
+      code = downstreamSourceNodeToMsg(pObj, pEncoder);
+      break;
     case QUERY_NODE_LEFT_VALUE:
+      break;
+    case QUERY_NODE_WHEN_THEN:
+      code = whenThenNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_CASE_WHEN:
+      code = caseWhenNodeToMsg(pObj, pEncoder);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
@@ -3563,8 +3663,14 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       code = msgToSlotDescNode(pDecoder, pObj);
       break;
     case QUERY_NODE_DOWNSTREAM_SOURCE:
-      return msgToDownstreamSourceNode(pDecoder, pObj);
+      code = msgToDownstreamSourceNode(pDecoder, pObj);
     case QUERY_NODE_LEFT_VALUE:
+      break;
+    case QUERY_NODE_WHEN_THEN:
+      code = msgToWhenThenNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_CASE_WHEN:
+      code = msgToCaseWhenNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
     case QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN:
