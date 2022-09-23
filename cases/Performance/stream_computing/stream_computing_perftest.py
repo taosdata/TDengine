@@ -106,7 +106,7 @@ class StreamComputingPerfTest(TDCase):
                     query_sql = cfg[cases][json_file]["stream_info"]["source_sql"]
                     target_db = target_tb.split(".")[0]
                     # self.tdSql.execute(f'create database if not exists {target_db} minrows 1 vgroups 1')
-                    self.tdSql.execute(f'create database if not exists {target_db} minrows 1 vgroups {cfg[cases][json_file]["db_info"]["vgroups"]}')
+                    self.tdSql.execute(f'create database if not exists {target_db} vgroups {cfg[cases][json_file]["db_info"]["vgroups"]}')
                     # self.tdSql.execute(f'create database if not exists perf_db2 minrows 1 vgroups 1')
                     # interval=cfg[cases][json_file]["stream_info"]["interval"]
 
@@ -137,12 +137,9 @@ class StreamComputingPerfTest(TDCase):
                 db = jfile.setDBinfo(name=cfg[cases][json_file]["db_info"]["db_name"],
                                      drop=cfg[cases][json_file]["db_info"]["drop"],
                                      replica=cfg[cases][json_file]["db_info"]["replica"],
-                                     cache=cfg[cases][json_file]["db_info"]["cache"],
-                                     blocks=cfg[cases][json_file]["db_info"]["blocks"],
                                      precision=cfg[cases][json_file]["db_info"]["precision"],
                                      keep=cfg[cases][json_file]["db_info"]["keep"],
                                      comp=cfg[cases][json_file]["db_info"]["comp"],
-                                     update=cfg[cases][json_file]["db_info"]["update"],
                                      vgroups=cfg[cases][json_file]["db_info"]["vgroups"]
                                      )
                 stb = jfile.setStbinfo(name=cfg[cases][json_file]["stb_info"]["stb_name"],
@@ -157,21 +154,26 @@ class StreamComputingPerfTest(TDCase):
                                        interlace_rows=cfg[cases][json_file]["stb_info"]["interlace_rows"],
                                        line_protocol=cfg[cases][json_file]["stb_info"]["line_protocol"],
                                        batch_create_tbl_num=cfg[cases][json_file]["stb_info"]["batch_create_tbl_num"])
+                database1 = jfile.setDatabases(dbinfo=db, super_tables=[stb])
                 if "stream_info" in cfg[cases][json_file]:
                     if "watermark" in cfg[cases][json_file]["stream_info"]:
                         watermark = cfg[cases][json_file]["stream_info"]["watermark"]
                     else:
                         watermark = None
-                    stream = jfile.setStreaminfo(stream_name=cfg[cases][json_file]["stream_info"]["stream_name"],
+                    stream = jfile.setStreams(stream_name=cfg[cases][json_file]["stream_info"]["stream_name"],
                                                 stream_stb=cfg[cases][json_file]["stream_info"]["stream_stb"],
                                                 trigger_mode=cfg[cases][json_file]["stream_info"]["trigger_mode"],
                                                 watermark=watermark,
                                                 source_sql=cfg[cases][json_file]["stream_info"]["source_sql"],
                                                 drop=cfg[cases][json_file]["stream_info"]["drop"])
-                    database1 = jfile.setDatabases(dbinfo=db, streams=[stream], super_tables=[stb])
+                    json_info = jfile.setJsoninfo(host=cfg[cases][json_file]["json_info"]["host"], databases=[database1],
+                                            thread_count=cfg[cases][json_file]["json_info"]["thread_count"],
+                                            result_file=cfg[cases][json_file]["json_info"]["result_file"],
+                                            streams=stream,
+                                            num_of_records_per_req=cfg[cases][json_file]["json_info"][
+                                                "num_of_records_per_req"])
                 else:
-                    database1 = jfile.setDatabases(dbinfo=db, streams=None, super_tables=[stb])
-                json_info = jfile.setJsoninfo(host=cfg[cases][json_file]["json_info"]["host"], databases=[database1],
+                    json_info = jfile.setJsoninfo(host=cfg[cases][json_file]["json_info"]["host"], databases=[database1],
                                             thread_count=cfg[cases][json_file]["json_info"]["thread_count"],
                                             result_file=cfg[cases][json_file]["json_info"]["result_file"],
                                             num_of_records_per_req=cfg[cases][json_file]["json_info"][
@@ -198,7 +200,7 @@ class StreamComputingPerfTest(TDCase):
                 pass
             # self.tdCom.drop_all_streams()
             # self.tdCom.drop_all_db()
-            self.tdCom.createDb(dbname=db['name'], minrows=1, vgroups=cfg[cases][json_file]["db_info"]["vgroups"])
+            self.tdCom.createDb(dbname=db['name'], vgroups=cfg[cases][json_file]["db_info"]["vgroups"])
             column_elm_list = [{"type": "int", "count": 2}, {"type": "double", "count": 2}, {"type": "timestamp", "count": 1}]
             tag_elm_list = [{"type": "int", "count": 1}, {"type": "varchar", "count": 1, "len": 16}]
             self.tdCom.create_stable(dbname=db['name'], column_elm_list=column_elm_list, tag_elm_list=tag_elm_list, default_column_index_start_num=0, default_tag_index_start_num=0)
@@ -222,9 +224,9 @@ class StreamComputingPerfTest(TDCase):
             Insert_file.taosBenchmark_id_insert_result(result_filename)
 
             # get node_info and process_info
-            env_setting = self.get_component_by_name("prometheus")
-            Insert_file.get_process_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
-            Insert_file.get_node_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
+            # env_setting = self.get_component_by_name("prometheus")
+            # Insert_file.get_process_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
+            # Insert_file.get_node_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
             self.tdSql.execute(f'use {db["name"]}')
             if "stream_info" in cfg[cases][json_file]:
                 query_sql = f'select max(cast(`now` as bigint)) from {cfg[cases][json_file]["stream_info"]["stream_stb"]};'
