@@ -1292,7 +1292,7 @@ static bool doCheckforDatablockOverlap(STableBlockScanInfo* pBlockScanInfo, cons
               return true;
             }
           } else {
-            if (pnext->ts >= pBlock->minKey.ts && pnext->version >= pBlock->minVer) {
+            if (pnext->ts >= pBlock->minKey.ts) {
               return true;
             }
           }
