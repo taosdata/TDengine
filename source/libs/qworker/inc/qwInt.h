@@ -191,6 +191,7 @@ typedef struct SQWorker {
   SHashObj   *ctxHash;  // key: queryId+taskId, value: SQWTaskCtx
   SMsgCb      msgCb;
   SQWStat     stat;
+  int32_t    *destroyed;
 } SQWorker;
 
 typedef struct SQWorkerMgmt {

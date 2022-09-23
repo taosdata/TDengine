@@ -1046,7 +1046,8 @@ static int32_t doCreateExchangePhysiNode(SPhysiPlanContext* pCxt, SExchangeLogic
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  pExchange->srcGroupId = pExchangeLogicNode->srcGroupId;
+  pExchange->srcStartGroupId = pExchangeLogicNode->srcStartGroupId;
+  pExchange->srcEndGroupId = pExchangeLogicNode->srcEndGroupId;
   *pPhyNode = (SPhysiNode*)pExchange;
 
   return TSDB_CODE_SUCCESS;
@@ -1425,7 +1426,8 @@ static int32_t createExchangePhysiNodeByMerge(SMergePhysiNode* pMerge) {
   if (NULL == pExchange) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  pExchange->srcGroupId = pMerge->srcGroupId;
+  pExchange->srcStartGroupId = pMerge->srcGroupId;
+  pExchange->srcEndGroupId = pMerge->srcGroupId;
   pExchange->singleChannel = true;
   pExchange->node.pParent = (SPhysiNode*)pMerge;
   pExchange->node.pOutputDataBlockDesc = (SDataBlockDescNode*)nodesCloneNode((SNode*)pMerge->node.pOutputDataBlockDesc);

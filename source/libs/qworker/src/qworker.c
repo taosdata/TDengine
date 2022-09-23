@@ -1105,10 +1105,17 @@ void qWorkerDestroy(void **qWorkerMgmt) {
     return;
   }
 
+  int32_t destroyed = 0;
   SQWorker *mgmt = *qWorkerMgmt;
-
+  mgmt->destroyed = &destroyed;
+  
   if (taosRemoveRef(gQwMgmt.qwRef, mgmt->refId)) {
     qError("remove qw from ref list failed, refId:%" PRIx64, mgmt->refId);
+    return;
+  }
+
+  while (0 == destroyed) {
+    taosMsleep(2);
   }
 }
 
