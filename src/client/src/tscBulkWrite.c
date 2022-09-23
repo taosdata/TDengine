@@ -251,8 +251,8 @@ _error:
   tscError("send async batch sql obj failed, reason: %s", tstrerror(code));
 
   // handling the failures.
-  for (int i = 0; i < taosArrayGetSize(statements); ++i) {
-    SSqlObj* item = *((SSqlObj**)taosArrayGet(statements, i));
+  for (size_t i = 0; i < taosArrayGetSize(statements); ++i) {
+    SSqlObj* item = taosArrayGetP(statements, i);
     tscReturnsError(item, code);
   }
 }

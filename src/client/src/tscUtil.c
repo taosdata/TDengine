@@ -2316,7 +2316,7 @@ static size_t writeSSubmitBlkBuilder(SSubmitBlkBuilder* builder, SSubmitBlk* tar
   uint32_t dataLen = 0;
   taosArraySort(builder->rows, compareSMemRow);
   for (int i = 0; i < taosArrayGetSize(builder->rows); ++i) {
-    char* pRow = *(char**) (taosArrayGet(builder->rows, i));
+    char* pRow = taosArrayGetP(builder->rows, i);
     memcpy(POINTER_SHIFT(target->data, dataLen), pRow, memRowTLen(pRow));
     dataLen += memRowTLen(pRow);
   }
@@ -2920,9 +2920,11 @@ int32_t tscMergeTableDataBlocks(SSqlObj *pSql, SInsertStatementParam *pInsertPar
   initialSize = initialSize > 128 ? 128 : initialSize;
   
   void*     pVnodeDataBlockHashList = taosHashInit(initialSize, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
-  SArray*   pTableDataBlockList = taosArrayInit(taosHashGetSize(pInsertParam->pTableBlockHashList), POINTER_BYTES);
   SArray*   pVnodeDataBlockList = taosArrayInit(8, POINTER_BYTES);
-
+  
+  // speed up hash iteration.
+  SArray*   pTableDataBlockList = taosArrayInit(taosHashGetSize(pInsertParam->pTableBlockHashList), POINTER_BYTES);
+  
   STableDataBlocks** p = taosHashIterate(pInsertParam->pTableBlockHashList, NULL);
 
   STableDataBlocks* pOneTableBlock = *p;
