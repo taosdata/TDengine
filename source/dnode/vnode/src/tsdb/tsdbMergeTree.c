@@ -320,6 +320,7 @@ void tLDataIterNextBlock(SLDataIter *pIter) {
 
   pIter->pSttBlk = NULL;
   if (index != -1) {
+    pIter->iSttBlk = index;
     pIter->pSttBlk = (SSttBlk *)taosArrayGet(pIter->pBlockLoadInfo->aSttBlk, pIter->iSttBlk);
   }
 }

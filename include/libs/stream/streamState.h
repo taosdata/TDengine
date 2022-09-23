@@ -34,7 +34,7 @@ typedef struct {
   TXN          txn;
 } SStreamState;
 
-SStreamState* streamStateOpen(char* path, SStreamTask* pTask);
+SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath);
 void          streamStateClose(SStreamState* pState);
 int32_t       streamStateBegin(SStreamState* pState);
 int32_t       streamStateCommit(SStreamState* pState);

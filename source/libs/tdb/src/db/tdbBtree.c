@@ -841,6 +841,10 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     // copy content to the parent page
     tdbBtreeInitPage(pParent, &(SBtreeInitPageArg){.flags = flags, .pBt = pBt}, 0);
     tdbPageCopy(pNews[0], pParent, 1);
+
+    if (!TDB_BTREE_PAGE_IS_LEAF(pNews[0])) {
+      ((SIntHdr *)(pParent->pData))->pgno = ((SIntHdr *)(pNews[0]->pData))->pgno;
+    }
   }
 
   for (int i = 0; i < 3; i++) {

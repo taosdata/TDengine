@@ -1446,6 +1446,7 @@ size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize) {
   int32_t payloadSize = pageSize - blockDataGetSerialMetaSize(numOfCols);
   int32_t rowSize = pBlock->info.rowSize;
   int32_t nRows = payloadSize / rowSize;
+  ASSERT(nRows >= 1);
 
   // the true value must be less than the value of nRows
   int32_t additional = 0;
