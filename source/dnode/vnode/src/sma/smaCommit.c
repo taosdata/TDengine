@@ -295,12 +295,17 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
   }
 
   /**
-   * @brief step 3: consume the SubmitReq in buffer
+   * @brief step 3: commit should wait for all SubmitReq in buffer be consumed
    *  1) This is high cost task and should not put in asyncPreCommit originally.
    *  2) But, if put in asyncCommit, would trigger taskInfo cloning frequently.
    */
-  if (tdRSmaProcessExecImpl(pSma, RSMA_EXEC_COMMIT) < 0) {
-    return TSDB_CODE_FAILED;
+  nLoops = 0;
+  while (atomic_load_64(&pRSmaStat->nBufItems) > 0) {
+    ++nLoops;
+    if (nLoops > 1000) {
+      sched_yield();
+      nLoops = 0;
+    }
   }
 
   smaInfo("vgId:%d, rsma commit, wait for all items to be consumed, TID:%p", SMA_VID(pSma),

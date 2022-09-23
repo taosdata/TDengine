@@ -5,11 +5,11 @@
     <TargetFramework>net6.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <StartupObject>TDengineExample.QueryExample</StartupObject>
+    <StartupObject>TMQExample.SubscribeDemo</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="TDengine.Connector" Version="3.0.0" />
+    <PackageReference Include="TDengine.Connector" Version="3.0.1" />
   </ItemGroup>
 
 </Project>

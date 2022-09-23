@@ -68,7 +68,7 @@ A query can be performed on some or all columns. Data and tag columns can all be
 
 ### Wildcards
 
-You can use an asterisk (\*) as a wildcard character to indicate all columns. For standard tables, the asterisk indicates only data columns. For supertables and subtables, tag columns are also included.
+You can use an asterisk (\*) as a wildcard character to indicate all columns. For normal tables or sub-tables, the asterisk indicates only data columns. For supertables, tag columns are also included when using asterisk (\*).
 
 ```sql
 SELECT * FROM d1001;

@@ -778,12 +778,12 @@ class TDTestCase:
         tdSql.execute(f"flush database table_numeric_max_min")
 
         tdSql.query(f"select MAX(q_float) from stable_1_2")
-        #max_val = tdSql.getData(0, 0)
-        print(max_val)
+        max_val = tdSql.getData(0, 0)
+        #print(max_val)
 
         tdSql.query(f"select ts,q_float from stable_1_2 order by q_float desc limit 5")
-        #first_val = tdSql.getData(0, 1)
-        print(first_val)
+        first_val = tdSql.getData(0, 1)
+        #print(first_val)
 
         tdSql.checkEqual(max_val, first_val)
 

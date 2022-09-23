@@ -22,6 +22,7 @@ extern "C" {
 
 #include "cJSON.h"
 #include "tdef.h"
+#include "tlrucache.h"
 #include "tmsgcb.h"
 
 extern bool gRaftDetailLog;
@@ -153,7 +154,8 @@ typedef struct SSyncFSM {
 // abstract definition of log store in raft
 // SWal implements it
 typedef struct SSyncLogStore {
-  void* data;
+  SLRUCache* pCache;
+  void*      data;
 
   // append one log entry
   int32_t (*appendEntry)(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);

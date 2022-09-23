@@ -74,6 +74,7 @@ typedef struct {
   TdThread     thread;
   SVnodeMgmt  *pMgmt;
   SWrapperCfg *pCfgs;
+  SVnodeObj  **ppVnodes;
 } SVnodeThread;
 
 // vmInt.c

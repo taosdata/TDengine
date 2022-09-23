@@ -5,7 +5,7 @@
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
-#include "taos.h"
+#include <taos.h>
 
 struct cb_param{
   lua_State* state;
@@ -60,6 +60,8 @@ static int l_connect(lua_State *L){
 
   lua_settop(L,0);
 
+  taos_init();
+  
   lua_newtable(L);
   int table_index = lua_gettop(L);
 
