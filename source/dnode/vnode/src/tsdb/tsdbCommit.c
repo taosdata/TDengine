@@ -1550,7 +1550,7 @@ static int32_t tsdbCommitFileDataImpl(SCommitter *pCommitter) {
   code = tsdbMoveCommitData(pCommitter, id);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbCommitSttBlk(pCommitter->dWriter.pWriter, &pCommitter->dWriter.pBuilder, pCommitter->dWriter.aSttBlk);
+  code = tsdbCommitSttBlk(pCommitter->dWriter.pWriter, pCommitter->dWriter.pBuilder, pCommitter->dWriter.aSttBlk);
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
