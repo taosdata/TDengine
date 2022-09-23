@@ -34,20 +34,6 @@ struct SDiskColBuilder {
   uint8_t       *aBuf[1];
 };
 
-struct SDiskDataBuilder {
-  int64_t      suid;
-  int64_t      uid;
-  int32_t      nRow;
-  uint8_t      cmprAlg;
-  uint8_t      calcSma;
-  SCompressor *pUidC;
-  SCompressor *pVerC;
-  SCompressor *pKeyC;
-  int32_t      nBuilder;
-  SArray      *aBuilder;  // SArray<SDiskColBuilder>
-  uint8_t     *aBuf[2];
-};
-
 // SDiskColBuilder ================================================
 #define tDiskColBuilderCreate() \
   (SDiskColBuilder) { 0 }

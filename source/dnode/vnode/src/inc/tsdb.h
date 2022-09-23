@@ -686,6 +686,20 @@ struct SDiskData {
   SArray        *aDiskCol;  // SArray<SDiskCol>
 };
 
+struct SDiskDataBuilder {
+  int64_t      suid;
+  int64_t      uid;
+  int32_t      nRow;
+  uint8_t      cmprAlg;
+  uint8_t      calcSma;
+  SCompressor *pUidC;
+  SCompressor *pVerC;
+  SCompressor *pKeyC;
+  int32_t      nBuilder;
+  SArray      *aBuilder;  // SArray<SDiskColBuilder>
+  uint8_t     *aBuf[2];
+};
+
 int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
                        STimeWindow *pTimeWindow, SVersionRange *pVerRange, void *pLoadInfo, const char *idStr);
 void    tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
