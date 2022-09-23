@@ -206,26 +206,31 @@ void shellRunSingleCommandWebsocketImp(char *command) {
     printMode = true;  // When output to a file, the switch does not work.
   }
 
-  if (!shell.ws_conn && shell_conn_ws_server(0)) {
-    return;
-  }
-
   shell.stop_query = false;
-  st = taosGetTimestampUs();
+  WS_RES* res;
 
-  WS_RES* res = ws_query_timeout(shell.ws_conn, command, shell.args.timeout);
-  int code = ws_errno(res);
-  if (code != 0) {
-    et = taosGetTimestampUs();
-    fprintf(stderr, "\nDB: error: %s (%.6fs)\n", ws_errstr(res), (et - st)/1E6);
-    if (code == TSDB_CODE_WS_SEND_TIMEOUT || code == TSDB_CODE_WS_RECV_TIMEOUT) {
-      fprintf(stderr, "Hint: use -t to increase the timeout in seconds\n");
-    } else if (code == TSDB_CODE_WS_INTERNAL_ERRO || code == TSDB_CODE_WS_CLOSED) {
-      fprintf(stderr, "TDengine server is down, will try to reconnect\n");
-      shell.ws_conn = NULL;
+  for (int reconnectNum = 0; reconnectNum < 2; reconnectNum++) {
+    if (!shell.ws_conn && shell_conn_ws_server(0)) {
+      return;
     }
-    ws_free_result(res);
-    return;
+    st = taosGetTimestampUs();
+
+    res = ws_query_timeout(shell.ws_conn, command, shell.args.timeout);
+    int code = ws_errno(res);
+    if (code != 0 && !shell.stop_query) {
+      et = taosGetTimestampUs();
+      fprintf(stderr, "\nDB: error: %s (%.6fs)\n", ws_errstr(res), (et - st)/1E6);
+      if (code == TSDB_CODE_WS_SEND_TIMEOUT || code == TSDB_CODE_WS_RECV_TIMEOUT) {
+        fprintf(stderr, "Hint: use -t to increase the timeout in seconds\n");
+      } else if (code == TSDB_CODE_WS_INTERNAL_ERRO || code == TSDB_CODE_WS_CLOSED) {
+        fprintf(stderr, "TDengine server is down, will try to reconnect\n");
+        shell.ws_conn = NULL;
+      }
+      ws_free_result(res);
+      if (reconnectNum == 0) continue;
+      return;
+    }
+    break;
   }
 
   double execute_time = ws_take_timing(res)/1E6;

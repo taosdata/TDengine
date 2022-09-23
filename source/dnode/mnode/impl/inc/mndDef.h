@@ -171,6 +171,7 @@ typedef struct {
   int32_t     stopFunc;
   int32_t     paramLen;
   void*       param;
+  char        opername[TSDB_TRANS_OPER_LEN];
   SArray*     pRpcArray;
 } STrans;
 

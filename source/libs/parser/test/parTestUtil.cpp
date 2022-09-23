@@ -119,12 +119,18 @@ class ParserTestBaseImpl {
     TEST_INTERFACE_ASYNC_API
   };
 
-  static void _destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request) {
+  static void destoryParseContext(SParseContext* pCxt) {
+    taosArrayDestroy(pCxt->pTableMetaPos);
+    taosArrayDestroy(pCxt->pTableVgroupPos);
+    delete pCxt;
+  }
+
+  static void destoryParseMetaCacheWarpper(SParseMetaCache* pMetaCache, bool request) {
     destoryParseMetaCache(pMetaCache, request);
     delete pMetaCache;
   }
 
-  static void _destroyQuery(SQuery** pQuery) {
+  static void destroyQuery(SQuery** pQuery) {
     if (nullptr == pQuery) {
       return;
     }
@@ -303,10 +309,10 @@ class ParserTestBaseImpl {
       setParseContext(sql, &cxt);
 
       if (qIsInsertValuesSql(cxt.pSql, cxt.sqlLen)) {
-        unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), _destroyQuery);
+        unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), destroyQuery);
         doParseInsertSql(&cxt, query.get(), nullptr);
       } else {
-        unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), _destroyQuery);
+        unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), destroyQuery);
         doParse(&cxt, query.get());
         SQuery* pQuery = *(query.get());
 
@@ -335,7 +341,7 @@ class ParserTestBaseImpl {
       SParseContext cxt = {0};
       setParseContext(sql, &cxt);
 
-      unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), _destroyQuery);
+      unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), destroyQuery);
       doParseSql(&cxt, query.get());
       SQuery* pQuery = *(query.get());
 
@@ -354,26 +360,26 @@ class ParserTestBaseImpl {
   void runAsyncInternalFuncs(const string& sql, int32_t expect, ParserStage checkStage) {
     reset(expect, checkStage, TEST_INTERFACE_ASYNC_INTERNAL);
     try {
-      SParseContext cxt = {0};
-      setParseContext(sql, &cxt, true);
+      unique_ptr<SParseContext, function<void(SParseContext*)> > cxt(new SParseContext(), destoryParseContext);
+      setParseContext(sql, cxt.get(), true);
 
-      unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), _destroyQuery);
+      unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), destroyQuery);
       bool                                    request = true;
       unique_ptr<SParseMetaCache, function<void(SParseMetaCache*)> > metaCache(
-          new SParseMetaCache(), bind(_destoryParseMetaCache, _1, cref(request)));
-      bool isInsertValues = qIsInsertValuesSql(cxt.pSql, cxt.sqlLen);
+          new SParseMetaCache(), bind(destoryParseMetaCacheWarpper, _1, cref(request)));
+      bool isInsertValues = qIsInsertValuesSql(cxt->pSql, cxt->sqlLen);
       if (isInsertValues) {
-        doParseInsertSyntax(&cxt, query.get(), metaCache.get());
+        doParseInsertSyntax(cxt.get(), query.get(), metaCache.get());
       } else {
-        doParse(&cxt, query.get());
-        doCollectMetaKey(&cxt, *(query.get()), metaCache.get());
+        doParse(cxt.get(), query.get());
+        doCollectMetaKey(cxt.get(), *(query.get()), metaCache.get());
       }
 
       SQuery* pQuery = *(query.get());
 
       unique_ptr<SCatalogReq, void (*)(SCatalogReq*)> catalogReq(new SCatalogReq(),
                                                                  MockCatalogService::destoryCatalogReq);
-      doBuildCatalogReq(&cxt, metaCache.get(), catalogReq.get());
+      doBuildCatalogReq(cxt.get(), metaCache.get(), catalogReq.get());
 
       string err;
       thread t1([&]() {
@@ -386,13 +392,13 @@ class ParserTestBaseImpl {
           doPutMetaDataToCache(catalogReq.get(), metaData.get(), metaCache.get(), isInsertValues);
 
           if (isInsertValues) {
-            doParseInsertSql(&cxt, query.get(), metaCache.get());
+            doParseInsertSql(cxt.get(), query.get(), metaCache.get());
           } else {
-            doAuthenticate(&cxt, pQuery, metaCache.get());
+            doAuthenticate(cxt.get(), pQuery, metaCache.get());
 
-            doTranslate(&cxt, pQuery, metaCache.get());
+            doTranslate(cxt.get(), pQuery, metaCache.get());
 
-            doCalculateConstant(&cxt, pQuery);
+            doCalculateConstant(cxt.get(), pQuery);
           }
         } catch (const TerminateFlag& e) {
           // success and terminate
@@ -423,13 +429,13 @@ class ParserTestBaseImpl {
   void runAsyncApis(const string& sql, int32_t expect, ParserStage checkStage) {
     reset(expect, checkStage, TEST_INTERFACE_ASYNC_API);
     try {
-      SParseContext cxt = {0};
-      setParseContext(sql, &cxt);
+      unique_ptr<SParseContext, function<void(SParseContext*)> > cxt(new SParseContext(), destoryParseContext);
+      setParseContext(sql, cxt.get());
 
       unique_ptr<SCatalogReq, void (*)(SCatalogReq*)> catalogReq(new SCatalogReq(),
                                                                  MockCatalogService::destoryCatalogReq);
-      unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), _destroyQuery);
-      doParseSqlSyntax(&cxt, query.get(), catalogReq.get());
+      unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), destroyQuery);
+      doParseSqlSyntax(cxt.get(), query.get(), catalogReq.get());
       SQuery* pQuery = *(query.get());
 
       string err;
@@ -438,7 +444,7 @@ class ParserTestBaseImpl {
           unique_ptr<SMetaData, void (*)(SMetaData*)> metaData(new SMetaData(), MockCatalogService::destoryMetaData);
           doGetAllMeta(catalogReq.get(), metaData.get());
 
-          doAnalyseSqlSemantic(&cxt, catalogReq.get(), metaData.get(), pQuery);
+          doAnalyseSqlSemantic(cxt.get(), catalogReq.get(), metaData.get(), pQuery);
         } catch (const TerminateFlag& e) {
           // success and terminate
         } catch (const runtime_error& e) {

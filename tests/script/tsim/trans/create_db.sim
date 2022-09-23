@@ -56,7 +56,7 @@ if $data[0][2] != redoAction then
   return -1
 endi
 
-if $data[0][3] != d1 then
+if $data[0][4] != d1 then
   return -1
 endi
 
@@ -120,7 +120,7 @@ if $system_content != Windows_NT then
     return -1
   endi
 
-  if $data[0][3] != d2 then
+  if $data[0][4] != d2 then
     return -1
   endi
 
