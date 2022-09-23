@@ -61,7 +61,8 @@ void    mndCleanupTrans(SMnode *pMnode);
 STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId);
 void    mndReleaseTrans(SMnode *pMnode, STrans *pTrans);
 
-STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, const SRpcMsg *pReq);
+STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, const SRpcMsg *pReq,
+                       const char *opername);
 void    mndTransDrop(STrans *pTrans);
 int32_t mndTransAppendRedolog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendUndolog(STrans *pTrans, SSdbRaw *pRaw);

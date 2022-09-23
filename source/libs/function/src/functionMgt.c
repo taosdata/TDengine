@@ -26,11 +26,6 @@ typedef struct SFuncMgtService {
   SHashObj* pFuncNameHashTable;
 } SFuncMgtService;
 
-typedef struct SUdfInfo {
-  SDataType outputDt;
-  int8_t    funcType;
-} SUdfInfo;
-
 static SFuncMgtService gFunMgtService;
 static TdThreadOnce    functionHashTableInit = PTHREAD_ONCE_INIT;
 static int32_t         initFunctionCode = 0;

@@ -60,6 +60,9 @@ TEST_F(ParserSelectTest, expression) {
   run("SELECT ts > 0, c1 between 10 and 20 and c2 = 'qaz' FROM t1");
 
   run("SELECT c1 | 10, c2 & 20, c4 | c5 FROM t1");
+
+  run("SELECT CASE WHEN ts > '2020-1-1 10:10:10' THEN c1 + 10 ELSE c1 - 10 END FROM t1 "
+      "WHERE CASE c1 WHEN c3 + 20 THEN c3 - 1 WHEN c3 + 10 THEN c3 - 2 ELSE 10 END > 0");
 }
 
 TEST_F(ParserSelectTest, condition) {
@@ -312,6 +315,8 @@ TEST_F(ParserSelectTest, subquery) {
   run("SELECT _C0 FROM (SELECT _ROWTS, ts FROM st1s1)");
 
   run("SELECT ts FROM (SELECT t1.ts FROM st1s1 t1)");
+
+  run("(((SELECT t1.ts FROM st1s1 t1)))");
 }
 
 TEST_F(ParserSelectTest, subquerySemanticCheck) {
@@ -443,6 +448,13 @@ TEST_F(ParserSelectTest, withoutFromSemanticCheck) {
 
   run("SELECT c1", TSDB_CODE_PAR_INVALID_COLUMN);
   run("SELECT TBNAME", TSDB_CODE_PAR_INVALID_TBNAME);
+}
+
+TEST_F(ParserSelectTest, joinSemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT * FROM (SELECT tag1, SUM(c1) s FROM st1 GROUP BY tag1) t1, st1 t2 where t1.tag1 = t2.tag1",
+      TSDB_CODE_PAR_NOT_SUPPORT_JOIN);
 }
 
 }  // namespace ParserTest

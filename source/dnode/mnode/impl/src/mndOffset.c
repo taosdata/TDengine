@@ -181,7 +181,7 @@ static int32_t mndProcessCommitOffsetReq(SRpcMsg *pMsg) {
 
   tDecodeSMqCMCommitOffsetReq(&decoder, &commitOffsetReq);
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg, "commit-offset");
 
   for (int32_t i = 0; i < commitOffsetReq.num; i++) {
     SMqOffset *pOffset = &commitOffsetReq.offsets[i];
