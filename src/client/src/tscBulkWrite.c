@@ -131,17 +131,23 @@ int32_t dispatcherStatementMerge(SArray* statements, SSqlObj** result) {
 
   // merge the statements into single one.
   tscDebug("start to merge %zu sql objs", count);
-  int32_t code = tscMergeKVPayLoadSqlObj(statements, result);
+  SSqlObj *pSql = *((SSqlObj**)taosArrayGet(statements, 0));
+  SSqlObj *pNew = createSimpleSubObj(pSql, batchResultCallback, context, TSDB_SQL_INSERT);
+  if (!pNew) {
+    free(context);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  
+  int32_t code = tscMergeKVPayLoadSqlObj(statements, pNew);
   if (code != TSDB_CODE_SUCCESS) {
     const char* msg = tstrerror(code);
     tscDebug("failed to merge sql objects: %s", msg);
     free(context);
-  } else {
-    // set the merged sql object callback.
-    (*result)->fp = batchResultCallback;
-    (*result)->fetchFp = (*result)->fp;
-    (*result)->param = context;
+    taosReleaseRef(tscObjRef, pNew->self);
+    return code;
   }
+  
+  *result = pNew;
   return code;
 }
 
