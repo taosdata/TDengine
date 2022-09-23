@@ -624,7 +624,6 @@ static int64_t tsdbFSendFile(TdFilePtr pOutFD, TdFilePtr pInFD, int64_t size, in
   int64_t offset = 0;
   int64_t nBytes = 0;
   int64_t startMs = 0;
-  int64_t endMs = 0;
   int64_t cost = 0;
   while ((offset + speed) < size) {
     startMs = taosGetTimestampMs();
