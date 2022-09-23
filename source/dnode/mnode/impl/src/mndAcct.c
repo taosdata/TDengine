@@ -79,14 +79,14 @@ static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mDebug("acct:%s, will be created when deploying, raw:%p", acctObj.acct, pRaw);
+  mInfo("acct:%s, will be created when deploying, raw:%p", acctObj.acct, pRaw);
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-acct");
   if (pTrans == NULL) {
     mError("acct:%s, failed to create since %s", acctObj.acct, terrstr());
     return -1;
   }
-  mDebug("trans:%d, used to create acct:%s", pTrans->id, acctObj.acct);
+  mInfo("trans:%d, used to create acct:%s", pTrans->id, acctObj.acct);
 
   if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
     mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());

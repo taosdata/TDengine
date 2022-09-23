@@ -2337,6 +2337,7 @@ int32_t tSerializeSClientHbBatchReq(void* buf, int32_t bufLen, const SClientHbBa
 int32_t tDeserializeSClientHbBatchReq(void* buf, int32_t bufLen, SClientHbBatchReq* pReq);
 
 static FORCE_INLINE void tFreeClientHbBatchReq(void* pReq) {
+  if (pReq == NULL) return;
   SClientHbBatchReq* req = (SClientHbBatchReq*)pReq;
   taosArrayDestroyEx(req->reqs, tFreeClientHbReq);
   taosMemoryFree(pReq);

@@ -544,7 +544,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "create-db");
   if (pTrans == NULL) goto _OVER;
   // mndTransSetSerial(pTrans);
-  mDebug("trans:%d, used to create db:%s", pTrans->id, pCreate->db);
+  mInfo("trans:%d, used to create db:%s", pTrans->id, pCreate->db);
 
   mndTransSetDbName(pTrans, dbObj.name, NULL);
   mndTransSetOper(pTrans, MND_OPER_CREATE_DB);
@@ -580,7 +580,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mDebug("db:%s, start to create, vgroups:%d", createReq.db, createReq.numOfVgroups);
+  mInfo("db:%s, start to create, vgroups:%d", createReq.db, createReq.numOfVgroups);
   if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_DB, NULL) != 0) {
     goto _OVER;
   }
@@ -588,7 +588,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   pDb = mndAcquireDb(pMnode, createReq.db);
   if (pDb != NULL) {
     if (createReq.ignoreExist) {
-      mDebug("db:%s, already exist, ignore exist is set", createReq.db);
+      mInfo("db:%s, already exist, ignore exist is set", createReq.db);
       code = 0;
       goto _OVER;
     } else {
@@ -597,7 +597,7 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
     }
   } else if (terrno == TSDB_CODE_SDB_OBJ_CREATING) {
     if (mndSetRpcInfoForDbTrans(pMnode, pReq, MND_OPER_CREATE_DB, createReq.db) == 0) {
-      mDebug("db:%s, is creating and response after trans finished", createReq.db);
+      mInfo("db:%s, is creating and response after trans finished", createReq.db);
       code = TSDB_CODE_ACTION_IN_PROGRESS;
       goto _OVER;
     } else {
@@ -775,7 +775,7 @@ static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
 static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *pNew) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "alter-db");
   if (pTrans == NULL) return -1;
-  mDebug("trans:%d, used to alter db:%s", pTrans->id, pOld->name);
+  mInfo("trans:%d, used to alter db:%s", pTrans->id, pOld->name);
 
   int32_t code = -1;
   mndTransSetDbName(pTrans, pOld->name, NULL);
@@ -802,7 +802,7 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mDebug("db:%s, start to alter", alterReq.db);
+  mInfo("db:%s, start to alter", alterReq.db);
 
   pDb = mndAcquireDb(pMnode, alterReq.db);
   if (pDb == NULL) {
@@ -1030,7 +1030,7 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "drop-db");
   if (pTrans == NULL) goto _OVER;
 
-  mDebug("trans:%d, used to drop db:%s", pTrans->id, pDb->name);
+  mInfo("trans:%d, used to drop db:%s", pTrans->id, pDb->name);
   mndTransSetDbName(pTrans, pDb->name, NULL);
 
   if (mndCheckTopicExist(pMnode, pDb) < 0) goto _OVER;
@@ -1079,7 +1079,7 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mDebug("db:%s, start to drop", dropReq.db);
+  mInfo("db:%s, start to drop", dropReq.db);
 
   pDb = mndAcquireDb(pMnode, dropReq.db);
   if (pDb == NULL) {
@@ -1306,11 +1306,11 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
     int32_t numOfTable = mndGetDBTableNum(pDb, pMnode);
 
     if (pDbVgVersion->vgVersion >= pDb->vgVersion && numOfTable == pDbVgVersion->numOfTable) {
-      mDebug("db:%s, version and numOfTable not changed", pDbVgVersion->dbFName);
+      mInfo("db:%s, version and numOfTable not changed", pDbVgVersion->dbFName);
       mndReleaseDb(pMnode, pDb);
       continue;
     } else {
-      mDebug("db:%s, vgroup version changed from %d to %d", pDbVgVersion->dbFName, pDbVgVersion->vgVersion,
+      mInfo("db:%s, vgroup version changed from %d to %d", pDbVgVersion->dbFName, pDbVgVersion->vgVersion,
              pDb->vgVersion);
     }
 
@@ -1363,7 +1363,7 @@ static int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mDebug("db:%s, start to compact", compactReq.db);
+  mInfo("db:%s, start to compact", compactReq.db);
 
   pDb = mndAcquireDb(pMnode, compactReq.db);
   if (pDb == NULL) {
@@ -1413,7 +1413,7 @@ static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb) {
     if (code != 0) {
       mError("vgId:%d, failed to send vnode-trim request to vnode since 0x%x", pVgroup->vgId, code);
     } else {
-      mDebug("vgId:%d, send vnode-trim request to vnode, time:%d", pVgroup->vgId, trimReq.timestamp);
+      mInfo("vgId:%d, send vnode-trim request to vnode, time:%d", pVgroup->vgId, trimReq.timestamp);
     }
     sdbRelease(pSdb, pVgroup);
   }
@@ -1432,7 +1432,7 @@ static int32_t mndProcessTrimDbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mDebug("db:%s, start to trim", trimReq.db);
+  mInfo("db:%s, start to trim", trimReq.db);
 
   pDb = mndAcquireDb(pMnode, trimReq.db);
   if (pDb == NULL) {

@@ -404,7 +404,7 @@ static bool mndBuildDnodesArrayFp(SMnode *pMnode, void *pObj, void *p1, void *p2
   pDnode->numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
   pDnode->memUsed = mndGetVnodesMemory(pMnode, pDnode->id);
 
-  mDebug("dnode:%d, vnodes:%d supportVnodes:%d isMnode:%d online:%d memory avail:%" PRId64 " used:%" PRId64, pDnode->id,
+  mInfo("dnode:%d, vnodes:%d supportVnodes:%d isMnode:%d online:%d memory avail:%" PRId64 " used:%" PRId64, pDnode->id,
          pDnode->numOfVnodes, pDnode->numOfSupportVnodes, isMnode, online, pDnode->memAvail, pDnode->memUsed);
 
   if (isMnode) {
@@ -855,7 +855,7 @@ int32_t mndAddVnodeToVgroup(SMnode *pMnode, SVgObj *pVgroup, SArray *pArray) {
   taosArraySort(pArray, (__compar_fn_t)mndCompareDnodeVnodes);
   for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
     SDnodeObj *pDnode = taosArrayGet(pArray, i);
-    mDebug("dnode:%d, equivalent vnodes:%d", pDnode->id, pDnode->numOfVnodes);
+    mInfo("dnode:%d, equivalent vnodes:%d", pDnode->id, pDnode->numOfVnodes);
   }
 
   SVnodeGid *pVgid = &pVgroup->vnodeGid[pVgroup->replica];
@@ -905,7 +905,7 @@ int32_t mndRemoveVnodeFromVgroup(SMnode *pMnode, SVgObj *pVgroup, SArray *pArray
   taosArraySort(pArray, (__compar_fn_t)mndCompareDnodeVnodes);
   for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
     SDnodeObj *pDnode = taosArrayGet(pArray, i);
-    mDebug("dnode:%d, equivalent vnodes:%d", pDnode->id, pDnode->numOfVnodes);
+    mInfo("dnode:%d, equivalent vnodes:%d", pDnode->id, pDnode->numOfVnodes);
   }
 
   int32_t code = -1;
@@ -1174,7 +1174,7 @@ int32_t mndSetMoveVgroupsInfoToTrans(SMnode *pMnode, STrans *pTrans, int32_t del
 
 static int32_t mndAddIncVgroupReplicaToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup,
                                              int32_t newDnodeId) {
-  mDebug("vgId:%d, will add 1 vnode, replica:%d dnode:%d", pVgroup->vgId, pVgroup->replica, newDnodeId);
+  mInfo("vgId:%d, will add 1 vnode, replica:%d dnode:%d", pVgroup->vgId, pVgroup->replica, newDnodeId);
 
   SVnodeGid *pGid = &pVgroup->vnodeGid[pVgroup->replica];
   pVgroup->replica++;
@@ -1190,7 +1190,7 @@ static int32_t mndAddIncVgroupReplicaToTrans(SMnode *pMnode, STrans *pTrans, SDb
 
 static int32_t mndAddDecVgroupReplicaFromTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup,
                                                int32_t delDnodeId) {
-  mDebug("vgId:%d, will remove 1 vnode, replica:%d dnode:%d", pVgroup->vgId, pVgroup->replica, delDnodeId);
+  mInfo("vgId:%d, will remove 1 vnode, replica:%d dnode:%d", pVgroup->vgId, pVgroup->replica, delDnodeId);
 
   SVnodeGid *pGid = NULL;
   SVnodeGid  delGid = {0};
@@ -1226,7 +1226,7 @@ static int32_t mndRedistributeVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb,
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "red-vgroup");
   if (pTrans == NULL) goto _OVER;
   mndTransSetSerial(pTrans);
-  mDebug("trans:%d, used to redistribute vgroup, vgId:%d", pTrans->id, pVgroup->vgId);
+  mInfo("trans:%d, used to redistribute vgroup, vgId:%d", pTrans->id, pVgroup->vgId);
 
   SVgObj newVg = {0};
   memcpy(&newVg, pVgroup, sizeof(SVgObj));
@@ -1609,7 +1609,7 @@ static int32_t mndSplitVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SVgObj
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "split-vgroup");
   if (pTrans == NULL) goto _OVER;
   mndTransSetSerial(pTrans);
-  mDebug("trans:%d, used to split vgroup, vgId:%d", pTrans->id, pVgroup->vgId);
+  mInfo("trans:%d, used to split vgroup, vgId:%d", pTrans->id, pVgroup->vgId);
 
   SVgObj newVg1 = {0};
   memcpy(&newVg1, pVgroup, sizeof(SVgObj));
@@ -1666,7 +1666,7 @@ static int32_t mndProcessSplitVgroupMsg(SRpcMsg *pReq) {
   SVgObj *pVgroup = NULL;
   SDbObj *pDb = NULL;
 
-  mDebug("vgId:%d, start to split", vgId);
+  mInfo("vgId:%d, start to split", vgId);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_SPLIT_VGROUP) != 0) {
     goto _OVER;
   }
@@ -1777,13 +1777,13 @@ static int32_t mndBalanceVgroup(SMnode *pMnode, SRpcMsg *pReq, SArray *pArray) {
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "balance-vgroup");
   if (pTrans == NULL) goto _OVER;
   mndTransSetSerial(pTrans);
-  mDebug("trans:%d, used to balance vgroup", pTrans->id);
+  mInfo("trans:%d, used to balance vgroup", pTrans->id);
 
   while (1) {
     taosArraySort(pArray, (__compar_fn_t)mndCompareDnodeVnodes);
     for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
       SDnodeObj *pDnode = taosArrayGet(pArray, i);
-      mDebug("dnode:%d, equivalent vnodes:%d support:%d, score:%f", pDnode->id, pDnode->numOfVnodes,
+      mInfo("dnode:%d, equivalent vnodes:%d support:%d, score:%f", pDnode->id, pDnode->numOfVnodes,
              pDnode->numOfSupportVnodes, (float)pDnode->numOfVnodes / pDnode->numOfSupportVnodes);
     }
 
@@ -1792,7 +1792,7 @@ static int32_t mndBalanceVgroup(SMnode *pMnode, SRpcMsg *pReq, SArray *pArray) {
 
     float srcScore = (float)(pSrc->numOfVnodes - 1) / pSrc->numOfSupportVnodes;
     float dstScore = (float)(pDst->numOfVnodes + 1) / pDst->numOfSupportVnodes;
-    mDebug("trans:%d, after balance, src dnode:%d score:%f, dst dnode:%d score:%f", pTrans->id, pSrc->id, srcScore,
+    mInfo("trans:%d, after balance, src dnode:%d score:%f, dst dnode:%d score:%f", pTrans->id, pSrc->id, srcScore,
            pDst->id, dstScore);
 
     if (srcScore > dstScore - 0.000001) {
@@ -1803,20 +1803,20 @@ static int32_t mndBalanceVgroup(SMnode *pMnode, SRpcMsg *pReq, SArray *pArray) {
         numOfVgroups++;
         continue;
       } else {
-        mDebug("trans:%d, no vgroup need to balance from dnode:%d to dnode:%d", pTrans->id, pSrc->id, pDst->id);
+        mInfo("trans:%d, no vgroup need to balance from dnode:%d to dnode:%d", pTrans->id, pSrc->id, pDst->id);
         break;
       }
     } else {
-      mDebug("trans:%d, no vgroup need to balance any more", pTrans->id);
+      mInfo("trans:%d, no vgroup need to balance any more", pTrans->id);
       break;
     }
   }
 
   if (numOfVgroups <= 0) {
-    mDebug("no need to balance vgroup");
+    mInfo("no need to balance vgroup");
     code = 0;
   } else {
-    mDebug("start to balance vgroup, numOfVgroups:%d", numOfVgroups);
+    mInfo("start to balance vgroup, numOfVgroups:%d", numOfVgroups);
     if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
     code = TSDB_CODE_ACTION_IN_PROGRESS;
   }
@@ -1865,7 +1865,7 @@ static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq) {
   if (pArray == NULL) goto _OVER;
 
   if (taosArrayGetSize(pArray) < 2) {
-    mDebug("no need to balance vgroup since dnode num less than 2");
+    mInfo("no need to balance vgroup since dnode num less than 2");
     code = 0;
   } else {
     code = mndBalanceVgroup(pMnode, pReq, pArray);
