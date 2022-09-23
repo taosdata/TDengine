@@ -705,12 +705,12 @@ int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
     tsdbRowGetColVal(pRow, pTSchema, jCol++, pColVal);
 
     if (key.version > pMerger->version) {
-      if (!pColVal->isNone) {
+      if (!COL_VAL_IS_NONE(pColVal)) {
         taosArraySet(pMerger->pArray, iCol, pColVal);
       }
     } else if (key.version < pMerger->version) {
       SColVal *tColVal = (SColVal *)taosArrayGet(pMerger->pArray, iCol);
-      if (tColVal->isNone && !pColVal->isNone) {
+      if (COL_VAL_IS_NONE(tColVal) && !COL_VAL_IS_NONE(pColVal)) {
         taosArraySet(pMerger->pArray, iCol, pColVal);
       }
     } else {
@@ -776,12 +776,12 @@ int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow) {
     tsdbRowGetColVal(pRow, pMerger->pTSchema, iCol, pColVal);
 
     if (key.version > pMerger->version) {
-      if (!pColVal->isNone) {
+      if (!COL_VAL_IS_NONE(pColVal)) {
         taosArraySet(pMerger->pArray, iCol, pColVal);
       }
     } else if (key.version < pMerger->version) {
       SColVal *tColVal = (SColVal *)taosArrayGet(pMerger->pArray, iCol);
-      if (tColVal->isNone && !pColVal->isNone) {
+      if (COL_VAL_IS_NONE(tColVal) && !COL_VAL_IS_NONE(pColVal)) {
         taosArraySet(pMerger->pArray, iCol, pColVal);
       }
     } else {
