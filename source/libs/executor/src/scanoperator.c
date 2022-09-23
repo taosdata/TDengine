@@ -1315,10 +1315,14 @@ void appendOneRow(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t*
   SColumnInfoData* pEndTsCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
   SColumnInfoData* pUidCol = taosArrayGet(pBlock->pDataBlock, UID_COLUMN_INDEX);
   SColumnInfoData* pGpCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
+  SColumnInfoData* pCalStartCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
+  SColumnInfoData* pCalEndCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
   colDataAppend(pStartTsCol, pBlock->info.rows, (const char*)pStartTs, false);
   colDataAppend(pEndTsCol, pBlock->info.rows, (const char*)pEndTs, false);
   colDataAppend(pUidCol, pBlock->info.rows, (const char*)pUid, false);
   colDataAppend(pGpCol, pBlock->info.rows, (const char*)pGp, false);
+  colDataAppendNULL(pCalStartCol, pBlock->info.rows);
+  colDataAppendNULL(pCalEndCol, pBlock->info.rows);
   pBlock->info.rows++;
 }
 
@@ -1622,6 +1626,7 @@ FETCH_NEXT_BLOCK:
         } else {
           pDelBlock = pBlock;
         }
+        printDataBlock(pBlock, "stream scan delete recv filtered");
         if (!isIntervalWindow(pInfo) && !isSessionWindow(pInfo) && !isStateWindow(pInfo)) {
           generateDeleteResultBlock(pInfo, pDelBlock, pInfo->pDeleteDataRes);
           pInfo->pDeleteDataRes->info.type = STREAM_DELETE_RESULT;
@@ -1709,9 +1714,11 @@ FETCH_NEXT_BLOCK:
 
     int32_t totBlockNum = taosArrayGetSize(pInfo->pBlockLists);
 
+  NEXT_SUBMIT_BLK:
     while (1) {
       if (pInfo->tqReader->pMsg == NULL) {
         if (pInfo->validBlockIndex >= totBlockNum) {
+          updateInfoDestoryColseWinSBF(pInfo->pUpdateInfo);
           doClearBufferedBlocks(pInfo);
           return NULL;
         }
@@ -1784,7 +1791,12 @@ FETCH_NEXT_BLOCK:
     }
 
     qDebug("scan rows: %d", pBlockInfo->rows);
-    return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
+    if (pBlockInfo->rows > 0) {
+      return pInfo->pRes;
+    } else {
+      goto NEXT_SUBMIT_BLK;
+    }
+    /*return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;*/
   } else {
     ASSERT(0);
     return NULL;

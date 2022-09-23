@@ -193,6 +193,8 @@ static int64_t       getCurrentKeyInLastBlock(SLastBlockReader* pLastBlockReader
 static bool          hasDataInLastBlock(SLastBlockReader* pLastBlockReader);
 static int32_t       doBuildDataBlock(STsdbReader* pReader);
 static TSDBKEY       getCurrentKeyInBuf(STableBlockScanInfo* pScanInfo, STsdbReader* pReader);
+static bool          hasDataInFileBlock(const SBlockData* pBlockData, const SFileBlockDumpInfo* pDumpInfo);
+static bool          hasDataInLastBlock(SLastBlockReader* pLastBlockReader);
 
 static bool outOfTimeWindow(int64_t ts, STimeWindow* pWindow) { return (ts > pWindow->ekey) || (ts < pWindow->skey); }
 
@@ -893,7 +895,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
     if (pData->cid < pColData->info.colId) {
       colIndex += 1;
     } else if (pData->cid == pColData->info.colId) {
-      if (pData->flag == HAS_NONE || pData->flag == HAS_NULL) {
+      if (pData->flag == HAS_NONE || pData->flag == HAS_NULL || pData->flag == (HAS_NULL|HAS_NONE)) {
         colDataAppendNNULL(pColData, 0, remain);
       } else {
         if (IS_NUMERIC_TYPE(pColData->info.type) && asc) {
@@ -1537,7 +1539,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
       minKey = k.ts;
     }
 
-    if (minKey > key && pBlockData->nRow > 0) {
+    if (minKey > key && hasDataInFileBlock(pBlockData, pDumpInfo)) {
       minKey = key;
     }
   } else {
@@ -1550,7 +1552,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
       minKey = k.ts;
     }
 
-    if (minKey < key && pBlockData->nRow > 0) {
+    if (minKey < key && hasDataInFileBlock(pBlockData, pDumpInfo)) {
       minKey = key;
     }
   }
@@ -1688,7 +1690,7 @@ static int32_t mergeFileBlockAndLastBlock(STsdbReader* pReader, SLastBlockReader
                                           STableBlockScanInfo* pBlockScanInfo, SBlockData* pBlockData) {
   SFileBlockDumpInfo* pDumpInfo = &pReader->status.fBlockDumpInfo;
 
-  if (pBlockData->nRow > 0) {
+  if (hasDataInFileBlock(pBlockData, pDumpInfo)) {
     // no last block available, only data block exists
     if (!hasDataInLastBlock(pLastBlockReader)) {
       return mergeRowsInFileBlocks(pBlockData, pBlockScanInfo, key, pReader);
@@ -1753,7 +1755,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     tsLast = getCurrentKeyInLastBlock(pLastBlockReader);
   }
 
-  int64_t key = pBlockData->aTSKEY[pDumpInfo->rowIndex];
+  int64_t key = hasDataInFileBlock(pBlockData, pDumpInfo)? pBlockData->aTSKEY[pDumpInfo->rowIndex]:INT64_MIN;
 
   TSDBKEY k = TSDBROW_KEY(pRow);
   TSDBKEY ik = TSDBROW_KEY(piRow);
@@ -1769,7 +1771,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
       minKey = ik.ts;
     }
 
-    if (minKey > key && pBlockData->nRow > 0) {
+    if (minKey > key && hasDataInFileBlock(pBlockData, pDumpInfo)) {
       minKey = key;
     }
 
@@ -1786,7 +1788,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
       minKey = ik.ts;
     }
 
-    if (minKey < key && pBlockData->nRow > 0) {
+    if (minKey < key && hasDataInFileBlock(pBlockData, pDumpInfo)) {
       minKey = key;
     }
 
@@ -2021,6 +2023,13 @@ static int64_t getCurrentKeyInLastBlock(SLastBlockReader* pLastBlockReader) {
 }
 
 static bool hasDataInLastBlock(SLastBlockReader* pLastBlockReader) { return pLastBlockReader->mergeTree.pIter != NULL; }
+bool hasDataInFileBlock(const SBlockData* pBlockData, const SFileBlockDumpInfo* pDumpInfo) {
+  if (pBlockData->nRow > 0) {
+    ASSERT(pBlockData->nRow == pDumpInfo->totalRows);
+  }
+
+  return pBlockData->nRow > 0 && (!pDumpInfo->allDumped);
+}
 
 int32_t mergeRowsInFileBlocks(SBlockData* pBlockData, STableBlockScanInfo* pBlockScanInfo, int64_t key,
                               STsdbReader* pReader) {
@@ -2052,7 +2061,7 @@ static int32_t buildComposedDataBlockImpl(STsdbReader* pReader, STableBlockScanI
                                           SBlockData* pBlockData, SLastBlockReader* pLastBlockReader) {
   SFileBlockDumpInfo* pDumpInfo = &pReader->status.fBlockDumpInfo;
 
-  int64_t key = (pBlockData->nRow > 0) ? pBlockData->aTSKEY[pDumpInfo->rowIndex] : INT64_MIN;
+  int64_t key = (pBlockData->nRow > 0 && (!pDumpInfo->allDumped)) ? pBlockData->aTSKEY[pDumpInfo->rowIndex] : INT64_MIN;
   if (pBlockScanInfo->iter.hasVal && pBlockScanInfo->iiter.hasVal) {
     return doMergeMultiLevelRows(pReader, pBlockScanInfo, pBlockData, pLastBlockReader);
   } else {
@@ -2664,8 +2673,11 @@ static STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* ret
                                   int8_t* pLevel) {
   if (VND_IS_RSMA(pVnode)) {
     int8_t  level = 0;
-    int64_t now = taosGetTimestamp(pVnode->config.tsdbCfg.precision);
-    int64_t offset = TSDB_TICK_PER_SECOND(pVnode->config.tsdbCfg.precision);
+    int8_t  precision = pVnode->config.tsdbCfg.precision;
+    int64_t now = taosGetTimestamp(precision);
+    int64_t offset = tsQueryRsmaTolerance * ((precision == TSDB_TIME_PRECISION_MILLI)   ? 1
+                                             : (precision == TSDB_TIME_PRECISION_MICRO) ? 1000
+                                                                                        : 1000000);
 
     for (int8_t i = 0; i < TSDB_RETENTION_MAX; ++i) {
       SRetention* pRetention = retentions + level;
@@ -3290,9 +3302,31 @@ void* tsdbGetIvtIdx(SMeta* pMeta) {
 
 uint64_t getReaderMaxVersion(STsdbReader* pReader) { return pReader->verRange.maxVer; }
 
+
+static int32_t doOpenReaderImpl(STsdbReader* pReader) {
+  SDataBlockIter* pBlockIter = &pReader->status.blockIter;
+
+  initFilesetIterator(&pReader->status.fileIter, pReader->pReadSnap->fs.aDFileSet, pReader);
+  resetDataBlockIterator(&pReader->status.blockIter, pReader->order);
+
+  // no data in files, let's try buffer in memory
+  if (pReader->status.fileIter.numOfFiles == 0) {
+    pReader->status.loadFromFile = false;
+    return TSDB_CODE_SUCCESS;
+  } else {
+    return initForFirstBlockInFile(pReader, pBlockIter);
+  }
+}
+
 // ====================================== EXPOSED APIs ======================================
 int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTableList, STsdbReader** ppReader,
                        const char* idstr) {
+  STimeWindow window = pCond->twindows;
+  if (pCond->type == TIMEWINDOW_RANGE_EXTERNAL) {
+    pCond->twindows.skey += 1;
+    pCond->twindows.ekey -= 1;
+  }
+
   int32_t code = tsdbReaderCreate(pVnode, pCond, ppReader, 4096, idstr);
   if (code != TSDB_CODE_SUCCESS) {
     goto _err;
@@ -3300,21 +3334,20 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
 
   // check for query time window
   STsdbReader* pReader = *ppReader;
-  if (isEmptyQueryTimeWindow(&pReader->window)) {
+  if (isEmptyQueryTimeWindow(&pReader->window) && pCond->type == TIMEWINDOW_RANGE_CONTAINED) {
     tsdbDebug("%p query window not overlaps with the data set, no result returned, %s", pReader, pReader->idStr);
     return TSDB_CODE_SUCCESS;
   }
 
   if (pCond->type == TIMEWINDOW_RANGE_EXTERNAL) {
     // update the SQueryTableDataCond to create inner reader
-    STimeWindow w = pCond->twindows;
-    int32_t     order = pCond->order;
+    int32_t order = pCond->order;
     if (order == TSDB_ORDER_ASC) {
-      pCond->twindows.ekey = pCond->twindows.skey;
+      pCond->twindows.ekey = window.skey;
       pCond->twindows.skey = INT64_MIN;
       pCond->order = TSDB_ORDER_DESC;
     } else {
-      pCond->twindows.skey = pCond->twindows.ekey;
+      pCond->twindows.skey = window.ekey;
       pCond->twindows.ekey = INT64_MAX;
       pCond->order = TSDB_ORDER_ASC;
     }
@@ -3326,12 +3359,14 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
     }
 
     if (order == TSDB_ORDER_ASC) {
-      pCond->twindows.skey = w.ekey;
+      pCond->twindows.skey = window.ekey;
       pCond->twindows.ekey = INT64_MAX;
     } else {
       pCond->twindows.skey = INT64_MIN;
-      pCond->twindows.ekey = w.ekey;
+      pCond->twindows.ekey = window.ekey;
     }
+    pCond->order = order;
+
     code = tsdbReaderCreate(pVnode, pCond, &pReader->innerReader[1], 1, idstr);
     if (code != TSDB_CODE_SUCCESS) {
       goto _err;
@@ -3340,20 +3375,22 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
 
   // NOTE: the endVersion in pCond is the data version not schema version, so pCond->endVersion is not correct here.
   if (pCond->suid != 0) {
-    pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pReader->suid, /*pCond->endVersion*/ -1);
+    pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pReader->suid,  -1);
     if (pReader->pSchema == NULL) {
       tsdbError("failed to get table schema, suid:%"PRIu64", ver:%"PRId64" , %s", pReader->suid, -1, pReader->idStr);
     }
   } else if (taosArrayGetSize(pTableList) > 0) {
     STableKeyInfo* pKey = taosArrayGet(pTableList, 0);
-    pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pKey->uid, /*pCond->endVersion*/ -1);
+    pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pKey->uid, -1);
     if (pReader->pSchema == NULL) {
       tsdbError("failed to get table schema, uid:%"PRIu64", ver:%"PRId64" , %s", pKey->uid, -1, pReader->idStr);
     }
   }
 
+  STsdbReader* p = pReader->innerReader[0] != NULL? pReader->innerReader[0]:pReader;
+
   int32_t numOfTables = taosArrayGetSize(pTableList);
-  pReader->status.pTableMap = createDataBlockScanInfo(pReader, pTableList->pData, numOfTables);
+  pReader->status.pTableMap = createDataBlockScanInfo(p, pTableList->pData, numOfTables);
   if (pReader->status.pTableMap == NULL) {
     tsdbReaderClose(pReader);
     *ppReader = NULL;
@@ -3368,40 +3405,36 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
   }
 
   if (pReader->type == TIMEWINDOW_RANGE_CONTAINED) {
-    SDataBlockIter* pBlockIter = &pReader->status.blockIter;
-
-    initFilesetIterator(&pReader->status.fileIter, pReader->pReadSnap->fs.aDFileSet, pReader);
-    resetDataBlockIterator(&pReader->status.blockIter, pReader->order);
-
-    // no data in files, let's try buffer in memory
-    if (pReader->status.fileIter.numOfFiles == 0) {
-      pReader->status.loadFromFile = false;
-    } else {
-      code = initForFirstBlockInFile(pReader, pBlockIter);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
+    code = doOpenReaderImpl(pReader);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
     }
   } else {
-    STsdbReader*    pPrevReader = pReader->innerReader[0];
-    SDataBlockIter* pBlockIter = &pPrevReader->status.blockIter;
+    STsdbReader* pPrevReader = pReader->innerReader[0];
+    STsdbReader* pNextReader = pReader->innerReader[1];
 
-    code = tsdbTakeReadSnap(pPrevReader->pTsdb, &pPrevReader->pReadSnap, pReader->idStr);
+    // we need only one row
+    pPrevReader->capacity = 1;
+    pPrevReader->status.pTableMap = pReader->status.pTableMap;
+    pPrevReader->pReadSnap = pReader->pReadSnap;
+
+    pNextReader->capacity = 1;
+    pNextReader->status.pTableMap = pReader->status.pTableMap;
+    pNextReader->pReadSnap = pReader->pReadSnap;
+
+    code = doOpenReaderImpl(pPrevReader);
     if (code != TSDB_CODE_SUCCESS) {
-      goto _err;
+      return code;
     }
 
-    initFilesetIterator(&pPrevReader->status.fileIter, pPrevReader->pReadSnap->fs.aDFileSet, pPrevReader);
-    resetDataBlockIterator(&pPrevReader->status.blockIter, pPrevReader->order);
+    code = doOpenReaderImpl(pNextReader);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
 
-    // no data in files, let's try buffer in memory
-    if (pPrevReader->status.fileIter.numOfFiles == 0) {
-      pPrevReader->status.loadFromFile = false;
-    } else {
-      code = initForFirstBlockInFile(pPrevReader, pBlockIter);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
+    code = doOpenReaderImpl(pReader);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
     }
   }
 
@@ -3416,6 +3449,19 @@ _err:
 void tsdbReaderClose(STsdbReader* pReader) {
   if (pReader == NULL) {
     return;
+  }
+
+  {
+    if (pReader->innerReader[0] != NULL) {
+      pReader->innerReader[0]->status.pTableMap = NULL;
+      pReader->innerReader[0]->pReadSnap = NULL;
+
+      pReader->innerReader[1]->status.pTableMap = NULL;
+      pReader->innerReader[1]->pReadSnap = NULL;
+
+      tsdbReaderClose(pReader->innerReader[0]);
+      tsdbReaderClose(pReader->innerReader[1]);
+    }
   }
 
   SBlockLoadSuppInfo* pSupInfo = &pReader->suppInfo;
@@ -3508,32 +3554,32 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
     return false;
   }
 
-  if (pReader->innerReader[0] != NULL) {
+  if (pReader->innerReader[0] != NULL && pReader->step == 0) {
     bool ret = doTsdbNextDataBlock(pReader->innerReader[0]);
+    resetDataBlockScanInfo(pReader->innerReader[0]->status.pTableMap, pReader->innerReader[0]->window.ekey);
+    pReader->step = EXTERNAL_ROWS_PREV;
+
     if (ret) {
-      pReader->step = EXTERNAL_ROWS_PREV;
       return ret;
     }
-
-    tsdbReaderClose(pReader->innerReader[0]);
-    pReader->innerReader[0] = NULL;
   }
 
-  pReader->step = EXTERNAL_ROWS_MAIN;
+  if (pReader->step == EXTERNAL_ROWS_PREV) {
+    pReader->step = EXTERNAL_ROWS_MAIN;
+  }
+
   bool ret = doTsdbNextDataBlock(pReader);
   if (ret) {
     return ret;
   }
 
-  if (pReader->innerReader[1] != NULL) {
+  if (pReader->innerReader[1] != NULL && pReader->step == EXTERNAL_ROWS_MAIN) {
+    resetDataBlockScanInfo(pReader->innerReader[1]->status.pTableMap, pReader->window.ekey);
     bool ret1 = doTsdbNextDataBlock(pReader->innerReader[1]);
+    pReader->step = EXTERNAL_ROWS_NEXT;
     if (ret1) {
-      pReader->step = EXTERNAL_ROWS_NEXT;
       return ret1;
     }
-
-    tsdbReaderClose(pReader->innerReader[1]);
-    pReader->innerReader[1] = NULL;
   }
 
   return false;
