@@ -483,7 +483,8 @@ void setResPrecision(SReqResultInfo* pResInfo, int32_t precision) {
 
 int32_t buildVnodePolicyNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray* pMnodeList, SArray* pDbVgList) {
   SArray* nodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
-
+  char *policy = (tsQueryPolicy == QUERY_POLICY_VNODE) ? "vnode" : "client";
+  
   int32_t dbNum = taosArrayGetSize(pDbVgList);
   for (int32_t i = 0; i < dbNum; ++i) {
     SArray* pVg = taosArrayGetP(pDbVgList, i);
@@ -504,20 +505,20 @@ int32_t buildVnodePolicyNodeList(SRequestObj* pRequest, SArray** pNodeList, SArr
 
   int32_t vnodeNum = taosArrayGetSize(nodeList);
   if (vnodeNum > 0) {
-    tscDebug("0x%" PRIx64 " vnode policy, use vnode list, num:%d", pRequest->requestId, vnodeNum);
+    tscDebug("0x%" PRIx64 " %s policy, use vnode list, num:%d", pRequest->requestId, policy, vnodeNum);
     goto _return;
   }
 
   int32_t mnodeNum = taosArrayGetSize(pMnodeList);
   if (mnodeNum <= 0) {
-    tscDebug("0x%" PRIx64 " vnode policy, empty node list", pRequest->requestId);
+    tscDebug("0x%" PRIx64 " %s policy, empty node list", pRequest->requestId, policy);
     goto _return;
   }
 
   void* pData = taosArrayGet(pMnodeList, 0);
   taosArrayAddBatch(nodeList, pData, mnodeNum);
 
-  tscDebug("0x%" PRIx64 " vnode policy, use mnode list, num:%d", pRequest->requestId, mnodeNum);
+  tscDebug("0x%" PRIx64 " %s policy, use mnode list, num:%d", pRequest->requestId, policy, mnodeNum);
 
 _return:
 
@@ -555,27 +556,14 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
-
-int32_t buildClientPolicyNodeList(SRequestObj* pRequest, SArray** pNodeList) {
-  *pNodeList = taosArrayInit(1, sizeof(SQueryNodeLoad));
-  SQueryNodeLoad load = {0};
-  load.addr.nodeId = CLIENT_HANDLE;
-
-  taosArrayPush(*pNodeList, &load);
-
-  tscDebug("0x%" PRIx64 " client policy", pRequest->requestId);
-
-  return TSDB_CODE_SUCCESS;
-}
-
-
 int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray* pMnodeList, SMetaData* pResultMeta) {
   SArray* pDbVgList = NULL;
   SArray* pQnodeList = NULL;
   int32_t code = 0;
 
   switch (tsQueryPolicy) {
-    case QUERY_POLICY_VNODE: {
+    case QUERY_POLICY_VNODE:
+    case QUERY_POLICY_CLIENT: {
       if (pResultMeta) {
         pDbVgList = taosArrayInit(4, POINTER_BYTES);
 
@@ -614,10 +602,6 @@ int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray
       code = buildQnodePolicyNodeList(pRequest, pNodeList, pMnodeList, pQnodeList);
       break;
     }
-    case QUERY_POLICY_CLIENT: {
-      code = buildClientPolicyNodeList(pRequest, pNodeList);
-      break;
-    }
     default:
       tscError("unknown query policy: %d", tsQueryPolicy);
       return TSDB_CODE_TSC_APP_ERROR;
@@ -640,7 +624,8 @@ int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray*
   int32_t code = 0;
 
   switch (tsQueryPolicy) {
-    case QUERY_POLICY_VNODE: {
+    case QUERY_POLICY_VNODE:
+    case QUERY_POLICY_CLIENT: {
       int32_t dbNum = taosArrayGetSize(pRequest->dbList);
       if (dbNum > 0) {
         SCatalog*     pCtg = NULL;
@@ -678,10 +663,6 @@ int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray*
       code = buildQnodePolicyNodeList(pRequest, pNodeList, pMnodeList, pQnodeList);
       break;
     }
-    case QUERY_POLICY_CLIENT: {
-      code = buildClientPolicyNodeList(pRequest, pNodeList);
-      break;
-    }    
     default:
       tscError("unknown query policy: %d", tsQueryPolicy);
       return TSDB_CODE_TSC_APP_ERROR;
