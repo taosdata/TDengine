@@ -698,7 +698,7 @@ TEST(testCase, projection_query_tables) {
   }
   taos_free_result(pRes);
 
-  for (int32_t i = 0; i < 500; ++i) {
+  for (int32_t i = 0; i < 3000; ++i) {
     pRes = taos_query(pConn,
                       "SELECT max(usage_user), max(usage_system), max(usage_idle), max(usage_nice), max(usage_iowait), "
                       "max(usage_irq), max(usage_softirq), max(usage_steal), max(usage_guest), "
