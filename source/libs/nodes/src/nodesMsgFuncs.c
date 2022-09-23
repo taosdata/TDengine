@@ -2294,7 +2294,8 @@ static int32_t msgToPhysiAggNode(STlvDecoder* pDecoder, void* pObj) {
 
 enum {
   PHY_EXCHANGE_CODE_BASE_NODE = 1,
-  PHY_EXCHANGE_CODE_SRC_GROUP_ID,
+  PHY_EXCHANGE_CODE_SRC_START_GROUP_ID,
+  PHY_EXCHANGE_CODE_SRC_END_GROUP_ID,
   PHY_EXCHANGE_CODE_SINGLE_CHANNEL,
   PHY_EXCHANGE_CODE_SRC_ENDPOINTS
 };
@@ -2304,7 +2305,10 @@ static int32_t physiExchangeNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
 
   int32_t code = tlvEncodeObj(pEncoder, PHY_EXCHANGE_CODE_BASE_NODE, physiNodeToMsg, &pNode->node);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tlvEncodeI32(pEncoder, PHY_EXCHANGE_CODE_SRC_GROUP_ID, pNode->srcGroupId);
+    code = tlvEncodeI32(pEncoder, PHY_EXCHANGE_CODE_SRC_START_GROUP_ID, pNode->srcStartGroupId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeI32(pEncoder, PHY_EXCHANGE_CODE_SRC_END_GROUP_ID, pNode->srcEndGroupId);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_EXCHANGE_CODE_SINGLE_CHANNEL, pNode->singleChannel);
@@ -2326,8 +2330,11 @@ static int32_t msgToPhysiExchangeNode(STlvDecoder* pDecoder, void* pObj) {
       case PHY_EXCHANGE_CODE_BASE_NODE:
         code = tlvDecodeObjFromTlv(pTlv, msgToPhysiNode, &pNode->node);
         break;
-      case PHY_EXCHANGE_CODE_SRC_GROUP_ID:
-        code = tlvDecodeI32(pTlv, &pNode->srcGroupId);
+      case PHY_EXCHANGE_CODE_SRC_START_GROUP_ID:
+        code = tlvDecodeI32(pTlv, &pNode->srcStartGroupId);
+        break;
+      case PHY_EXCHANGE_CODE_SRC_END_GROUP_ID:
+        code = tlvDecodeI32(pTlv, &pNode->srcEndGroupId);
         break;
       case PHY_EXCHANGE_CODE_SINGLE_CHANNEL:
         code = tlvDecodeBool(pTlv, &pNode->singleChannel);

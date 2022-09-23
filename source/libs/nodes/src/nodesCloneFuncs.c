@@ -414,7 +414,8 @@ static int32_t logicVnodeModifCopy(const SVnodeModifyLogicNode* pSrc, SVnodeModi
 
 static int32_t logicExchangeCopy(const SExchangeLogicNode* pSrc, SExchangeLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
-  COPY_SCALAR_FIELD(srcGroupId);
+  COPY_SCALAR_FIELD(srcStartGroupId);
+  COPY_SCALAR_FIELD(srcEndGroupId);
   return TSDB_CODE_SUCCESS;
 }
 
