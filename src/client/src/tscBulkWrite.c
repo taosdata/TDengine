@@ -100,7 +100,7 @@ static void batchResultCallback(void* param, TAOS_RES* tres, int32_t code) {
   }
 
   taosReleaseRef(tscObjRef, res->self);
-  free(param);
+  free(context);
 }
 
 int32_t dispatcherStatementMerge(SArray* statements, SSqlObj** result) {
@@ -124,30 +124,32 @@ int32_t dispatcherStatementMerge(SArray* statements, SSqlObj** result) {
   // initialize the callback context.
   context->count = count;
   for (size_t i = 0; i < count; ++i) {
-    SSqlObj* statement = *((SSqlObj**)taosArrayGet(statements, i));
+    SSqlObj* statement = taosArrayGetP(statements, i);
     context->runnable[i].fp = statement->fp;
     context->runnable[i].param = statement->param;
   }
 
   // merge the statements into single one.
   tscDebug("start to merge %zu sql objs", count);
-  SSqlObj *pSql = *((SSqlObj**)taosArrayGet(statements, 0));
-  SSqlObj *pNew = createSimpleSubObj(pSql, batchResultCallback, context, TSDB_SQL_INSERT);
-  if (!pNew) {
-    free(context);
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
-  }
-  
-  int32_t code = tscMergeKVPayLoadSqlObj(statements, pNew);
+  SSqlObj *pFirst = taosArrayGetP(statements, 0);
+  int32_t code = tscMergeKVPayLoadSqlObj(statements, pFirst);
   if (code != TSDB_CODE_SUCCESS) {
     const char* msg = tstrerror(code);
     tscDebug("failed to merge sql objects: %s", msg);
     free(context);
-    taosReleaseRef(tscObjRef, pNew->self);
+    taosReleaseRef(tscObjRef, pFirst->self);
     return code;
   }
   
-  *result = pNew;
+  pFirst->fp = batchResultCallback;
+  pFirst->param = context;
+  pFirst->fetchFp = pFirst->fp;
+  *result = pFirst;
+  
+  for (int i = 1; i < count; ++i) {
+    SSqlObj *pSql = taosArrayGetP(statements, i);
+    taosReleaseRef(tscObjRef, pSql->self);
+  }
   return code;
 }
 
