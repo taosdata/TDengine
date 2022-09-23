@@ -2016,7 +2016,11 @@ static void doKeepPrevRows(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock
 
       pkey->isNull = false;
       char* val = colDataGetData(pColInfoData, rowIndex);
-      memcpy(pkey->pData, val, pkey->bytes);
+      if (!IS_VAR_DATA_TYPE(pkey->type)) {
+        memcpy(pkey->pData, val, pkey->bytes);
+      } else {
+        memcpy(pkey->pData, val, varDataLen(val));
+      }
     }
   }
 
@@ -2034,7 +2038,11 @@ static void doKeepNextRows(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock
 
       pkey->isNull = false;
       char* val = colDataGetData(pColInfoData, rowIndex);
-      memcpy(pkey->pData, val, pkey->bytes);
+      if (!IS_VAR_DATA_TYPE(pkey->type)) {
+        memcpy(pkey->pData, val, pkey->bytes);
+      } else {
+        memcpy(pkey->pData, val, varDataLen(val));
+      }
     }
   }
 
