@@ -264,6 +264,8 @@ static bool beforeHaving(ESqlClause clause) { return clause < SQL_CLAUSE_HAVING;
 
 static bool afterHaving(ESqlClause clause) { return clause > SQL_CLAUSE_HAVING; }
 
+static bool beforeWindow(ESqlClause clause) { return clause < SQL_CLAUSE_WINDOW; }
+
 static bool hasSameTableAlias(SArray* pTables) {
   if (taosArrayGetSize(pTables) < 2) {
     return false;
@@ -1476,6 +1478,10 @@ static int32_t translateWindowPseudoColumnFunc(STranslateContext* pCxt, SFunctio
   if (!isSelectStmt(pCxt->pCurrStmt) || NULL == ((SSelectStmt*)pCxt->pCurrStmt)->pWindow) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_PC);
   }
+  if (beforeWindow(pCxt->currClause)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_WINDOW_PC, "There mustn't be %s",
+                                   pFunc->functionName);
+  }
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1807,6 +1813,59 @@ static EDealRes translateLogicCond(STranslateContext* pCxt, SLogicConditionNode*
   return DEAL_RES_CONTINUE;
 }
 
+static int32_t createCastFunc(STranslateContext* pCxt, SNode* pExpr, SDataType dt, SNode** pCast) {
+  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (NULL == pFunc) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  strcpy(pFunc->functionName, "cast");
+  pFunc->node.resType = dt;
+  if (TSDB_CODE_SUCCESS != nodesListMakeAppend(&pFunc->pParameterList, pExpr)) {
+    nodesDestroyNode((SNode*)pFunc);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (TSDB_CODE_SUCCESS != getFuncInfo(pCxt, pFunc)) {
+    nodesClearList(pFunc->pParameterList);
+    pFunc->pParameterList = NULL;
+    nodesDestroyNode((SNode*)pFunc);
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)pExpr)->aliasName);
+  }
+  *pCast = (SNode*)pFunc;
+  return TSDB_CODE_SUCCESS;
+}
+
+static EDealRes translateWhenThen(STranslateContext* pCxt, SWhenThenNode* pWhenThen) {
+  pWhenThen->node.resType = ((SExprNode*)pWhenThen->pThen)->resType;
+  return DEAL_RES_CONTINUE;
+}
+
+static EDealRes translateCaseWhen(STranslateContext* pCxt, SCaseWhenNode* pCaseWhen) {
+  bool   first = true;
+  SNode* pNode = NULL;
+  FOREACH(pNode, pCaseWhen->pWhenThenList) {
+    if (first) {
+      pCaseWhen->node.resType = ((SExprNode*)pNode)->resType;
+    } else if (!dataTypeEqual(&pCaseWhen->node.resType, &((SExprNode*)pNode)->resType)) {
+      SWhenThenNode* pWhenThen = (SWhenThenNode*)pNode;
+      SNode*         pCastFunc = NULL;
+      if (TSDB_CODE_SUCCESS != createCastFunc(pCxt, pWhenThen->pThen, pCaseWhen->node.resType, &pCastFunc)) {
+        return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "CASE WHEN data type mismatch");
+      }
+      pWhenThen->pThen = pCastFunc;
+      pWhenThen->node.resType = pCaseWhen->node.resType;
+    }
+  }
+  if (NULL != pCaseWhen->pElse && !dataTypeEqual(&pCaseWhen->node.resType, &((SExprNode*)pCaseWhen->pElse)->resType)) {
+    SNode* pCastFunc = NULL;
+    if (TSDB_CODE_SUCCESS != createCastFunc(pCxt, pCaseWhen->pElse, pCaseWhen->node.resType, &pCastFunc)) {
+      return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, "CASE WHEN data type mismatch");
+    }
+    pCaseWhen->pElse = pCastFunc;
+    ((SExprNode*)pCaseWhen->pElse)->resType = pCaseWhen->node.resType;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
 static EDealRes doTranslateExpr(SNode** pNode, void* pContext) {
   STranslateContext* pCxt = (STranslateContext*)pContext;
   switch (nodeType(*pNode)) {
@@ -1822,6 +1881,10 @@ static EDealRes doTranslateExpr(SNode** pNode, void* pContext) {
       return translateLogicCond(pCxt, (SLogicConditionNode*)*pNode);
     case QUERY_NODE_TEMP_TABLE:
       return translateExprSubquery(pCxt, ((STempTableNode*)*pNode)->pSubquery);
+    case QUERY_NODE_WHEN_THEN:
+      return translateWhenThen(pCxt, (SWhenThenNode*)*pNode);
+    case QUERY_NODE_CASE_WHEN:
+      return translateCaseWhen(pCxt, (SCaseWhenNode*)*pNode);
     default:
       break;
   }
@@ -2213,6 +2276,17 @@ static int32_t setTableCacheLastMode(STranslateContext* pCxt, SSelectStmt* pSele
   return code;
 }
 
+static int32_t checkJoinTable(STranslateContext* pCxt, SJoinTableNode* pJoinTable) {
+  if ((QUERY_NODE_TEMP_TABLE == nodeType(pJoinTable->pLeft) &&
+       !isTimeLineQuery(((STempTableNode*)pJoinTable->pLeft)->pSubquery)) ||
+      (QUERY_NODE_TEMP_TABLE == nodeType(pJoinTable->pRight) &&
+       !isTimeLineQuery(((STempTableNode*)pJoinTable->pRight)->pSubquery))) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SUPPORT_JOIN,
+                                   "Join requires valid time series input");
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pTable)) {
@@ -2258,6 +2332,9 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
       code = translateTable(pCxt, pJoinTable->pLeft);
       if (TSDB_CODE_SUCCESS == code) {
         code = translateTable(pCxt, pJoinTable->pRight);
+      }
+      if (TSDB_CODE_SUCCESS == code) {
+        code = checkJoinTable(pCxt, pJoinTable);
       }
       if (TSDB_CODE_SUCCESS == code) {
         pJoinTable->table.precision = calcJoinTablePrecision(pJoinTable);
@@ -3206,27 +3283,6 @@ static SNode* createSetOperProject(const char* pTableAlias, SNode* pNode) {
   strcpy(pCol->node.aliasName, pCol->colName);
   strcpy(pCol->node.userAlias, ((SExprNode*)pNode)->userAlias);
   return (SNode*)pCol;
-}
-
-static int32_t createCastFunc(STranslateContext* pCxt, SNode* pExpr, SDataType dt, SNode** pCast) {
-  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
-  if (NULL == pFunc) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  strcpy(pFunc->functionName, "cast");
-  pFunc->node.resType = dt;
-  if (TSDB_CODE_SUCCESS != nodesListMakeAppend(&pFunc->pParameterList, pExpr)) {
-    nodesDestroyNode((SNode*)pFunc);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  if (TSDB_CODE_SUCCESS != getFuncInfo(pCxt, pFunc)) {
-    nodesClearList(pFunc->pParameterList);
-    pFunc->pParameterList = NULL;
-    nodesDestroyNode((SNode*)pFunc);
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)pExpr)->aliasName);
-  }
-  *pCast = (SNode*)pFunc;
-  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateSetOperProject(STranslateContext* pCxt, SSetOperator* pSetOperator) {

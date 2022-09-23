@@ -149,15 +149,21 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   walLoadMeta(pWal);
 
   if (walCheckAndRepairMeta(pWal) < 0) {
+    wError("vgId:%d cannot open wal since repair meta file failed", pWal->cfg.vgId);
     taosHashCleanup(pWal->pRefHash);
     taosRemoveRef(tsWal.refSetId, pWal->refId);
     taosThreadMutexDestroy(&pWal->mutex);
     taosArrayDestroy(pWal->fileInfoSet);
-    taosMemoryFree(pWal);
     return NULL;
   }
 
   if (walCheckAndRepairIdx(pWal) < 0) {
+    wError("vgId:%d cannot open wal since repair idx file failed", pWal->cfg.vgId);
+    taosHashCleanup(pWal->pRefHash);
+    taosRemoveRef(tsWal.refSetId, pWal->refId);
+    taosThreadMutexDestroy(&pWal->mutex);
+    taosArrayDestroy(pWal->fileInfoSet);
+    return NULL;
   }
 
   wDebug("vgId:%d, wal:%p is opened, level:%d fsyncPeriod:%d", pWal->cfg.vgId, pWal, pWal->cfg.level,
