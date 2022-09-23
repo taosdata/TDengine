@@ -632,6 +632,7 @@ int32_t qWorkerProcessDeleteMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, SD
 
   QW_ERR_JRET(qwProcessDelete(QW_FPARAMS(), &qwMsg, pRes));
 
+  taosMemoryFreeClear(req.msg);
   QW_SCH_TASK_DLOG("processDelete end, node:%p", node);
 
 _return:

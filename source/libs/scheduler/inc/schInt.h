@@ -256,7 +256,8 @@ typedef struct SSchJob {
   SRequestConnInfo   conn;
   SArray            *nodeList;   // qnode/vnode list, SArray<SQueryNodeLoad>
   SArray            *levels;    // starting from 0. SArray<SSchLevel>
-  SQueryPlan        *pDag;  
+  SQueryPlan        *pDag;
+  int64_t            allocatorRefId;
 
   SArray            *dataSrcTasks; // SArray<SQueryTask*>
   int32_t            levelIdx;

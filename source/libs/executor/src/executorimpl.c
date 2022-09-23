@@ -81,11 +81,6 @@ static UNUSED_FUNC void* u_realloc(void* p, size_t __size) {
 
 int32_t getMaximumIdleDurationSec() { return tsShellActivityTimer * 2; }
 
-static int32_t getExprFunctionId(SExprInfo* pExprInfo) {
-  assert(pExprInfo != NULL && pExprInfo->pExpr != NULL && pExprInfo->pExpr->nodeType == TEXPR_UNARYEXPR_NODE);
-  return 0;
-}
-
 static void setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExpr, SSDataBlock* pBlock);
 
 static void releaseQueryBuf(size_t numOfTables);
@@ -1115,7 +1110,7 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
   }
 }
 
-static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep);
+static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, bool keep, int32_t status);
 
 void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColMatchInfo) {
   if (pFilterNode == NULL || pBlock->info.rows == 0) {
@@ -1126,18 +1121,17 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColM
 
   // todo move to the initialization function
   int32_t code = filterInitFromNode((SNode*)pFilterNode, &filter, 0);
-
-  size_t             numOfCols = taosArrayGetSize(pBlock->pDataBlock);
-  SFilterColumnParam param1 = {.numOfCols = numOfCols, .pDataBlock = pBlock->pDataBlock};
+  SFilterColumnParam param1 = {.numOfCols = taosArrayGetSize(pBlock->pDataBlock), .pDataBlock = pBlock->pDataBlock};
   code = filterSetDataFromSlotId(filter, &param1);
 
-  int8_t* rowRes = NULL;
+  SColumnInfoData* p = NULL;
+  int32_t status = 0;
 
   // todo the keep seems never to be True??
-  bool keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols);
+  bool keep = filterExecute(filter, pBlock, &p, NULL, param1.numOfCols, &status);
   filterFreeInfo(filter);
 
-  extractQualifiedTupleByFilterResult(pBlock, rowRes, keep);
+  extractQualifiedTupleByFilterResult(pBlock, p, keep, status);
 
   if (pColMatchInfo != NULL) {
     for (int32_t i = 0; i < taosArrayGetSize(pColMatchInfo); ++i) {
@@ -1152,16 +1146,22 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColM
     }
   }
 
-  taosMemoryFree(rowRes);
+  colDataDestroy(p);
+  taosMemoryFree(p);
 }
 
-void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep) {
+void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, bool keep, int32_t status) {
   if (keep) {
     return;
   }
 
-  if (rowRes != NULL) {
-    int32_t      totalRows = pBlock->info.rows;
+  int32_t totalRows = pBlock->info.rows;
+
+  if (status == FILTER_RESULT_ALL_QUALIFIED) {
+    // here nothing needs to be done
+  } else if (status == FILTER_RESULT_NONE_QUALIFIED) {
+    pBlock->info.rows = 0;
+  } else {
     SSDataBlock* px = createOneDataBlock(pBlock, true);
 
     size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
@@ -1177,7 +1177,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
 
       int32_t numOfRows = 0;
       for (int32_t j = 0; j < totalRows; ++j) {
-        if (rowRes[j] == 0) {
+        if (((int8_t*)p->pData)[j] == 0) {
           continue;
         }
 
@@ -1189,6 +1189,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
         numOfRows += 1;
       }
 
+      // todo this value can be assigned directly
       if (pBlock->info.rows == totalRows) {
         pBlock->info.rows = numOfRows;
       } else {
@@ -1197,13 +1198,10 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
     }
 
     blockDataDestroy(px);  // fix memory leak
-  } else {
-    // do nothing
-    pBlock->info.rows = 0;
   }
 }
 
-void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfOutput, uint64_t groupId) {
+  void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfOutput, uint64_t groupId) {
   // for simple group by query without interval, all the tables belong to one group result.
   SExecTaskInfo*    pTaskInfo = pOperator->pTaskInfo;
   SAggOperatorInfo* pAggInfo = pOperator->info;
@@ -3358,6 +3356,10 @@ static void cleanupTableSchemaInfo(SSchemaInfo* pSchemaInfo) {
   tDeleteSSchemaWrapper(pSchemaInfo->qsw);
 }
 
+static void cleanupStreamInfo(SStreamTaskInfo* pStreamInfo) {
+  tDeleteSSchemaWrapper(pStreamInfo->schema);
+}
+
 static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
   taosArrayClear(pTableListInfo->pGroupList);
   SArray* sortSupport = taosArrayInit(16, sizeof(uint64_t));
@@ -4051,6 +4053,7 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   doDestroyTableList(&pTaskInfo->tableqinfoList);
   destroyOperatorInfo(pTaskInfo->pRoot);
   cleanupTableSchemaInfo(&pTaskInfo->schemaInfo);
+  cleanupStreamInfo(&pTaskInfo->streamInfo);
 
   if (!pTaskInfo->localFetch.localExec) {
     nodesDestroyNode((SNode*)pTaskInfo->pSubplan);
@@ -4176,9 +4179,8 @@ int32_t setOutputBuf(STimeWindow* win, SResultRow** pResult, int64_t tableGroupI
   };
   char*   value = NULL;
   int32_t size = pAggSup->resultRowSize;
-  /*if (streamStateGet(pTaskInfo->streamInfo.pState, &key, (void**)&value, &size) < 0) {*/
-  /*value = taosMemoryCalloc(1, size);*/
-  /*}*/
+
+  tSimpleHashPut(pAggSup->pResultRowHashTable, &key, sizeof(SWinKey), NULL, 0);
   if (streamStateAddIfNotExist(pTaskInfo->streamInfo.pState, &key, (void**)&value, &size) < 0) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
@@ -4196,7 +4198,7 @@ int32_t releaseOutputBuf(SExecTaskInfo* pTaskInfo, SWinKey* pKey, SResultRow* pR
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t saveOutput(SExecTaskInfo* pTaskInfo, SWinKey* pKey, SResultRow* pResult, int32_t resSize) {
+int32_t saveOutputBuf(SExecTaskInfo* pTaskInfo, SWinKey* pKey, SResultRow* pResult, int32_t resSize) {
   streamStatePut(pTaskInfo->streamInfo.pState, pKey, pResult, resSize);
   return TSDB_CODE_SUCCESS;
 }
@@ -4252,10 +4254,10 @@ int32_t buildDataBlockFromGroupRes(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock
 
       pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
       if (pCtx[j].fpSet.finalize) {
-        int32_t code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
-        if (TAOS_FAILED(code)) {
-          qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(code));
-          T_LONG_JMP(pTaskInfo->env, code);
+        int32_t code1 = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
+        if (TAOS_FAILED(code1)) {
+          qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(code1));
+          T_LONG_JMP(pTaskInfo->env, code1);
         }
       } else if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_select_value") == 0) {
         // do nothing, todo refactor
@@ -4269,8 +4271,9 @@ int32_t buildDataBlockFromGroupRes(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock
         }
       }
     }
-    releaseOutputBuf(pTaskInfo, &key, pRow);
+
     pBlock->info.rows += pRow->numOfRows;
+    releaseOutputBuf(pTaskInfo, &key, pRow);
   }
   blockDataUpdateTsWindow(pBlock, 0);
   return TSDB_CODE_SUCCESS;

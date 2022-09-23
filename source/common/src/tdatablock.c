@@ -1278,7 +1278,9 @@ int32_t assignOneDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
     colDataAssign(pDst, pSrc, src->info.rows, &src->info);
   }
 
+  uint32_t cap = dst->info.capacity;
   dst->info = src->info;
+  dst->info.capacity = cap;
   return 0;
 }
 
@@ -1302,8 +1304,9 @@ int32_t copyDataBlock(SSDataBlock* dst, const SSDataBlock* src) {
 
     colDataAssign(pDst, pSrc, src->info.rows, &src->info);
   }
-
+  uint32_t cap = dst->info.capacity;
   dst->info = src->info;
+  dst->info.capacity = cap;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1333,6 +1336,8 @@ SSDataBlock* createSpecialDataBlock(EStreamType type) {
   // group id
   taosArrayPush(pBlock->pDataBlock, &infoData);
 
+  infoData.info.type = TSDB_DATA_TYPE_TIMESTAMP;
+  infoData.info.bytes = sizeof(TSKEY);
   // calculate start ts
   taosArrayPush(pBlock->pDataBlock, &infoData);
   // calculate end ts
@@ -1446,6 +1451,7 @@ size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize) {
   int32_t payloadSize = pageSize - blockDataGetSerialMetaSize(numOfCols);
   int32_t rowSize = pBlock->info.rowSize;
   int32_t nRows = payloadSize / rowSize;
+  ASSERT(nRows >= 1);
 
   // the true value must be less than the value of nRows
   int32_t additional = 0;
@@ -2279,4 +2285,3 @@ const char* blockDecode(SSDataBlock* pBlock, const char* pData) {
   ASSERT(pStart - pData == dataLen);
   return pStart;
 }
-

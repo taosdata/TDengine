@@ -2965,7 +2965,7 @@ static FORCE_INLINE void* tDecodeSMqSubTopicEp(void* buf, SMqSubTopicEp* pTopicE
 }
 
 static FORCE_INLINE void tDeleteSMqSubTopicEp(SMqSubTopicEp* pSubTopicEp) {
-  // taosMemoryFree(pSubTopicEp->schema.pSchema);
+  if (pSubTopicEp->schema.nCols) taosMemoryFreeClear(pSubTopicEp->schema.pSchema);
   taosArrayDestroy(pSubTopicEp->vgs);
 }
 

@@ -666,12 +666,12 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "create-stream");
   if (pTrans == NULL) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
   }
-  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb);
+  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb); // hack way
   mDebug("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
 
   // create stb for stream
@@ -759,7 +759,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "drop-stream");
   if (pTrans == NULL) {
     mError("stream:%s, failed to drop since %s", dropReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);

@@ -68,6 +68,7 @@ typedef struct SSchedulerReq {
   SRequestConnInfo     *pConn;
   SArray               *pNodeList;
   SQueryPlan           *pDag;
+  int64_t               allocatorRefId;
   const char           *sql;
   int64_t               startTs;
   schedulerExecFp       execFp;

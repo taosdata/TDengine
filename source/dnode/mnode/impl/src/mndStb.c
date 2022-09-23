@@ -800,7 +800,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
   SStbObj stbObj = {0};
   int32_t code = -1;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "create-stb");
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to create stb:%s", pTrans->id, pCreate->name);
@@ -1187,6 +1187,7 @@ static int32_t mndCheckAlterColForTopic(SMnode *pMnode, const char *stbFullName,
       if (pCol->colId > 0 && pCol->colId == colId) {
         sdbRelease(pSdb, pTopic);
         nodesDestroyNode(pAst);
+        nodesDestroyList(pNodeList);
         terrno = TSDB_CODE_MND_FIELD_CONFLICT_WITH_TOPIC;
         mError("topic:%s, check colId:%d conflicted", pTopic->name, pCol->colId);
         return -1;
@@ -1197,6 +1198,7 @@ static int32_t mndCheckAlterColForTopic(SMnode *pMnode, const char *stbFullName,
   NEXT:
     sdbRelease(pSdb, pTopic);
     nodesDestroyNode(pAst);
+    nodesDestroyList(pNodeList);
   }
   return 0;
 }
@@ -1228,6 +1230,7 @@ static int32_t mndCheckAlterColForStream(SMnode *pMnode, const char *stbFullName
       if (pCol->colId > 0 && pCol->colId == colId) {
         sdbRelease(pSdb, pStream);
         nodesDestroyNode(pAst);
+        nodesDestroyList(pNodeList);
         terrno = TSDB_CODE_MND_STREAM_MUST_BE_DELETED;
         mError("stream:%s, check colId:%d conflicted", pStream->name, pCol->colId);
         return -1;
@@ -1238,6 +1241,7 @@ static int32_t mndCheckAlterColForStream(SMnode *pMnode, const char *stbFullName
   NEXT:
     sdbRelease(pSdb, pStream);
     nodesDestroyNode(pAst);
+    nodesDestroyList(pNodeList);
   }
   return 0;
 }
@@ -1275,6 +1279,7 @@ static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, 
       if ((pCol->colId) > 0 && (pCol->colId == colId)) {
         sdbRelease(pSdb, pSma);
         nodesDestroyNode(pAst);
+        nodesDestroyList(pNodeList);
         terrno = TSDB_CODE_MND_FIELD_CONFLICT_WITH_TSMA;
         mError("tsma:%s, check colId:%d conflicted", pSma->name, pCol->colId);
         return -1;
@@ -1285,6 +1290,7 @@ static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, 
   NEXT:
     sdbRelease(pSdb, pSma);
     nodesDestroyNode(pAst);
+    nodesDestroyList(pNodeList);
   }
   return 0;
 }
@@ -1774,8 +1780,8 @@ static int32_t mndBuildSMAlterStbRsp(SDbObj *pDb, SStbObj *pObj, void **pCont, i
   return 0;
 }
 
-int32_t mndBuildSMCreateStbRsp(SMnode *pMnode, char* dbFName, char* stbFName, void **pCont, int32_t *pLen) {
-  int32_t       ret = -1;
+int32_t mndBuildSMCreateStbRsp(SMnode *pMnode, char *dbFName, char *stbFName, void **pCont, int32_t *pLen) {
+  int32_t ret = -1;
   SDbObj *pDb = mndAcquireDb(pMnode, dbFName);
   if (NULL == pDb) {
     return -1;
@@ -1785,11 +1791,11 @@ int32_t mndBuildSMCreateStbRsp(SMnode *pMnode, char* dbFName, char* stbFName, vo
   if (NULL == pObj) {
     goto _OVER;
   }
-  
-  SEncoder      ec = {0};
-  uint32_t      contLen = 0;
+
+  SEncoder       ec = {0};
+  uint32_t       contLen = 0;
   SMCreateStbRsp stbRsp = {0};
-  SName         name = {0};
+  SName          name = {0};
   tNameFromString(&name, pObj->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
   stbRsp.pMeta = taosMemoryCalloc(1, sizeof(STableMetaRsp));
@@ -1821,12 +1827,12 @@ int32_t mndBuildSMCreateStbRsp(SMnode *pMnode, char* dbFName, char* stbFName, vo
   *pLen = contLen;
 
   ret = 0;
-  
+
 _OVER:
   if (pObj) {
     mndReleaseStb(pMnode, pObj);
   }
-  
+
   if (pDb) {
     mndReleaseDb(pMnode, pDb);
   }
@@ -1834,11 +1840,10 @@ _OVER:
   return ret;
 }
 
-
 static int32_t mndAlterStbImp(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb, bool needRsp,
                               void *alterOriData, int32_t alterOriDataLen) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "alter-stb");
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to alter stb:%s", pTrans->id, pStb->name);
@@ -2037,7 +2042,7 @@ static int32_t mndSetDropStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
 
 static int32_t mndDropStb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SStbObj *pStb) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB_INSIDE, pReq, "drop-stb");
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to drop stb:%s", pTrans->id, pStb->name);
@@ -2091,6 +2096,7 @@ static int32_t mndCheckDropStbForTopic(SMnode *pMnode, const char *stbFullName, 
       if (pCol->tableId == suid) {
         sdbRelease(pSdb, pTopic);
         nodesDestroyNode(pAst);
+        nodesDestroyList(pNodeList);
         return -1;
       } else {
         goto NEXT;
@@ -2099,6 +2105,7 @@ static int32_t mndCheckDropStbForTopic(SMnode *pMnode, const char *stbFullName, 
   NEXT:
     sdbRelease(pSdb, pTopic);
     nodesDestroyNode(pAst);
+    nodesDestroyList(pNodeList);
   }
   return 0;
 }
@@ -2136,6 +2143,7 @@ static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName,
       if (pCol->tableId == suid) {
         sdbRelease(pSdb, pStream);
         nodesDestroyNode(pAst);
+        nodesDestroyList(pNodeList);
         return -1;
       } else {
         goto NEXT;
@@ -2144,6 +2152,7 @@ static int32_t mndCheckDropStbForStream(SMnode *pMnode, const char *stbFullName,
   NEXT:
     sdbRelease(pSdb, pStream);
     nodesDestroyNode(pAst);
+    nodesDestroyList(pNodeList);
   }
   return 0;
 }

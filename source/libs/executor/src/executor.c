@@ -49,6 +49,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
 
     SStreamScanInfo* pInfo = pOperator->info;
 
+#if 0
     // TODO: if a block was set but not consumed,
     // prevent setting a different type of block
     pInfo->validBlockIndex = 0;
@@ -57,6 +58,10 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     } else {
       taosArrayClear(pInfo->pBlockLists);
     }
+#endif
+
+    ASSERT(pInfo->validBlockIndex == 0);
+    ASSERT(taosArrayGetSize(pInfo->pBlockLists) == 0);
 
     if (type == STREAM_INPUT__MERGED_SUBMIT) {
       // ASSERT(numOfBlocks > 1);
@@ -79,7 +84,9 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     } else if (type == STREAM_INPUT__DATA_BLOCK) {
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
+        taosArrayPush(pInfo->pBlockLists, &pDataBlock);
 
+#if 0
         // TODO optimize
         SSDataBlock* p = createOneDataBlock(pDataBlock, false);
         p->info = pDataBlock->info;
@@ -87,6 +94,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
         taosArrayClear(p->pDataBlock);
         taosArrayAddAll(p->pDataBlock, pDataBlock->pDataBlock);
         taosArrayPush(pInfo->pBlockLists, &p);
+#endif
       }
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
     } else {
@@ -100,6 +108,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
 static FORCE_INLINE void streamInputBlockDataDestory(void* pBlock) { blockDataDestroy((SSDataBlock*)pBlock); }
 
 void tdCleanupStreamInputDataBlock(qTaskInfo_t tinfo) {
+#if 0
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   if (!pTaskInfo || !pTaskInfo->pRoot || pTaskInfo->pRoot->numOfDownstream <= 0) {
     return;
@@ -116,6 +125,7 @@ void tdCleanupStreamInputDataBlock(qTaskInfo_t tinfo) {
   } else {
     ASSERT(0);
   }
+#endif
 }
 
 int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type) {
@@ -264,11 +274,11 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
 }
 
 int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  SExecTaskInfo*  pTaskInfo = (SExecTaskInfo*)tinfo;
   STableListInfo* pListInfo = &pTaskInfo->tableqinfoList;
 
   if (isAdd) {
-    qDebug("add %d tables id into query list, %s", (int32_t) taosArrayGetSize(tableIdList), pTaskInfo->id.str);
+    qDebug("add %d tables id into query list, %s", (int32_t)taosArrayGetSize(tableIdList), pTaskInfo->id.str);
   }
 
   if (pListInfo->map == NULL) {
@@ -321,6 +331,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
       }
 
       bool exists = false;
+#if 0
       for (int32_t k = 0; k < taosArrayGetSize(pListInfo->pTableList); ++k) {
         STableKeyInfo* pKeyInfo = taosArrayGet(pListInfo->pTableList, k);
         if (pKeyInfo->uid == keyInfo.uid) {
@@ -328,6 +339,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
           exists = true;
         }
       }
+#endif
 
       if (!exists) {
         taosArrayPush(pTaskInfo->tableqinfoList.pTableList, &keyInfo);
@@ -878,6 +890,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     tsdbReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pTaskInfo->tableqinfoList.pTableList,
                    &pInfo->dataReader, NULL);
 
+    cleanupQueryTableDataCond(&pTaskInfo->streamInfo.tableCond);
     strcpy(pTaskInfo->streamInfo.tbName, mtInfo.tbName);
     tDeleteSSchemaWrapper(pTaskInfo->streamInfo.schema);
     pTaskInfo->streamInfo.schema = mtInfo.schema;

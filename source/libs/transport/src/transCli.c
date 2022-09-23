@@ -1498,9 +1498,7 @@ int transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STran
   pCtx->ahandle = pReq->info.ahandle;
   pCtx->msgType = pReq->msgType;
 
-  if (ctx != NULL) {
-    pCtx->appCtx = *ctx;
-  }
+  if (ctx != NULL) pCtx->appCtx = *ctx;
 
   SCliMsg* cliMsg = taosMemoryCalloc(1, sizeof(SCliMsg));
   cliMsg->ctx = pCtx;

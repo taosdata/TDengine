@@ -1059,7 +1059,7 @@ end:
   for (int i = 0; i < taosArrayGetSize(pTagVals); ++i) {
     STagVal* p = (STagVal*)taosArrayGet(pTagVals, i);
     if (IS_VAR_DATA_TYPE(p->type)) {
-      taosMemoryFree(p->pData);
+      taosMemoryFreeClear(p->pData);
     }
   }
   taosArrayDestroy(pTagVals);
@@ -1537,6 +1537,9 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
       autoCreateTbl = true;
     } else if (!existedUsing) {
       CHECK_CODE(getTableMeta(pCxt, tbNum, &name, dbFName));
+      if (TSDB_SUPER_TABLE == pCxt->pTableMeta->tableType) {
+        return buildInvalidOperationMsg(&pCxt->msg, "insert data into super table is not supported");
+      }
     }
 
     STableDataBlocks* dataBuf = NULL;
@@ -2040,7 +2043,7 @@ end:
   for (int i = 0; i < taosArrayGetSize(pTagArray); ++i) {
     STagVal* p = (STagVal*)taosArrayGet(pTagArray, i);
     if (p->type == TSDB_DATA_TYPE_NCHAR) {
-      taosMemoryFree(p->pData);
+      taosMemoryFreeClear(p->pData);
     }
   }
   taosArrayDestroy(pTagArray);
@@ -2534,7 +2537,7 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
         if (p) kv = *p;
       }
 
-      if (kv){
+      if (kv) {
         int32_t colLen = kv->length;
         if (pColSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
           //          uError("SML:data before:%" PRId64 ", precision:%d", kv->i, pTableMeta->tableInfo.precision);
@@ -2547,7 +2550,7 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
         } else {
           MemRowAppend(&pBuf, &(kv->value), colLen, &param);
         }
-      }else{
+      } else {
         pBuilder->hasNone = true;
       }
 
