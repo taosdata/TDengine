@@ -15,13 +15,13 @@ settings:
             debugFlag: 135
             supportVnodes: 1024
   - name: taosd
-    fqdn: [BCC-2]
+    fqdn: [node226]
     spec:
       version: 3.0.1.0  # 默认最新版
       config: # common config for all dnodes
-        firstEP: BCC-2:6030
+        firstEP: node226:6030
       dnodes:
-        - endpoint: BCC-2:6030
+        - endpoint: node226:6030
           config_dir: /root/data/taosd
           config: # will write into taos.cfg
             serverPort: '6030'
@@ -54,12 +54,12 @@ settings:
         logDir: /root/data/taosd
         debugFlag: 131
   - name: taospy
-    fqdn: [BCC-2]
+    fqdn: [node226]
     spec:
       version: 2.2.0
       client_version: 3.0.1.0
       config:
-        firstEP: BCC-2:6030
+        firstEP: node226:6030
         logDir: /root/data/taosd
         debugFlag: 131
   - name: taospy
@@ -86,7 +86,7 @@ settings:
         logDir: /root/data/taosd
         debugFlag: 135
   - name: taosAdapter
-    fqdn: [BCC-2]
+    fqdn: [node226]
     spec:
       version: 3.0.1.0
       config_file: /root/data/taosd/taosadaper.toml
@@ -96,7 +96,7 @@ settings:
         log:
           path: /root/data/taosd
       taos_config:
-        firstEP: BCC-2:6030
+        firstEP: node226:6030
         logDir: /root/data/taosd
         debugFlag: 135
   - name: taosAdapter

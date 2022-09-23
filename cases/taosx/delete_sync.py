@@ -13,6 +13,7 @@
 
 import os
 import threading
+import time
 from taostest import TDCase, T
 import taos
 from taostest.util.remote import Remote
@@ -102,6 +103,7 @@ class DeleteFyns(TDCase):
                     thread_list[source].start()
                     taosd_master = taos.connect(host=self.source_taosd_list[source][0],port=int(self.source_taosd_list[source][1]))
                     taosd_master.execute(f'delete from {self.dbname[source]}.{self.stbname[source]} where ts <= "{self.delete_timestamp}" ')
+                    time.sleep(0.05)
                 for thread in thread_list:
                     thread.join()
                 backup_count_rows = []

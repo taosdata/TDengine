@@ -38,12 +38,13 @@ class AddSync(TDCase):
             self.source_taosd_list.append(self.firstEP[i].split(':'))
         self.target_taosd = self.firstEP[-1].split(':')
         self.test_root = os.environ['TEST_ROOT']
+        self.taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
         #param for taosBenchmark
         self.dbname = ['db1','db2']
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
-        self.tb_num = 1000
-        self.row_num = 10000
+        self.tb_num = 100
+        self.row_num = 1000
         self.drop_flag = 'yes'
         self.start_timestamp = "2020-10-01 00:00:00.000"
         self.child_table_exist_flag = 'no'
@@ -57,41 +58,41 @@ class AddSync(TDCase):
         self.timeout = '10s'
         self.target_dbname = 'target'
     
-    def get_json(self,json_path,host,port,dbname,stbname,tbname_m,start_timestamp,row_num,drop_flag,child_table_exist):
-        dict = {}
-        with open(json_path,'rb') as file:
-            params = json.load(file)
-            params['host'] = host
-            params['port'] = port
-            params['databases'][0]['dbinfo']['name'] = dbname
-            params['databases'][0]['dbinfo']['drop'] = drop_flag
-            params['databases'][0]['super_tables'][0]['name'] = stbname
-            params['databases'][0]['super_tables'][0]['childtable_count'] = self.tb_num
-            params['databases'][0]['super_tables'][0]['child_table_exists'] = child_table_exist
-            params['databases'][0]['super_tables'][0]['insert_rows'] = row_num
-            params['databases'][0]['super_tables'][0]['childtable_prefix'] = tbname_m
-            params['databases'][0]['super_tables'][0]['start_timestamp'] = start_timestamp
-            dict = params
-        file.close()
-        return dict
-    def write_json(self,json_path,dict):
-        with open(json_path,'w') as r:
-            json.dump(dict,r)
-        r.close()
-    def data_insert(self,start_timestamp,row_num,drop_flag,child_table_exist_flag):
-        taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
-        thread_list = []
-        for source in range(len(self.source_taosd_list)):
-            host = self.source_taosd_list[source][0]
-            port = self.source_taosd_list[source][1]
-            self.write_json(f'{self.test_root}/cases/taosx/basic.json',self.get_json(f'{self.test_root}/cases/taosx/basic.json',host,int(port),self.dbname[source],self.stbname[source],self.tbname_m[source],start_timestamp,row_num,drop_flag,child_table_exist_flag))
-            self.remote.put(taosBenchmark_fqdn[0],f'{self.test_root}/cases/taosx/basic.json','/tmp/basic{source}')
-        for source in range(len(self.source_taosd_list)):   
-            thread_list.append(threading.Thread(target=self.remote.cmd,args=(
-                taosBenchmark_fqdn[0], f'taosBenchmark -f /tmp/basic{source}/basic.json')))
-            thread_list[source].start()   
-        for thread in thread_list:
-            thread.join() 
+    # def get_json(self,json_path,host,port,dbname,stbname,tbname_m,start_timestamp,row_num,drop_flag,child_table_exist):
+    #     dict = {}
+    #     with open(json_path,'rb') as file:
+    #         params = json.load(file)
+    #         params['host'] = host
+    #         params['port'] = port
+    #         params['databases'][0]['dbinfo']['name'] = dbname
+    #         params['databases'][0]['dbinfo']['drop'] = drop_flag
+    #         params['databases'][0]['super_tables'][0]['name'] = stbname
+    #         params['databases'][0]['super_tables'][0]['childtable_count'] = self.tb_num
+    #         params['databases'][0]['super_tables'][0]['child_table_exists'] = child_table_exist
+    #         params['databases'][0]['super_tables'][0]['insert_rows'] = row_num
+    #         params['databases'][0]['super_tables'][0]['childtable_prefix'] = tbname_m
+    #         params['databases'][0]['super_tables'][0]['start_timestamp'] = start_timestamp
+    #         dict = params
+    #     file.close()
+    #     return dict
+    # def write_json(self,json_path,dict):
+    #     with open(json_path,'w') as r:
+    #         json.dump(dict,r)
+    #     r.close()
+    # def data_insert(self,start_timestamp,row_num,drop_flag,child_table_exist_flag):
+    #     taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
+    #     thread_list = []
+    #     for source in range(len(self.source_taosd_list)):
+    #         host = self.source_taosd_list[source][0]
+    #         port = self.source_taosd_list[source][1]
+    #         self.write_json(f'{self.test_root}/cases/taosx/basic.json',self.get_json(f'{self.test_root}/cases/taosx/basic.json',host,int(port),self.dbname[source],self.stbname[source],self.tbname_m[source],start_timestamp,row_num,drop_flag,child_table_exist_flag))
+    #         self.remote.put(taosBenchmark_fqdn[0],f'{self.test_root}/cases/taosx/basic.json','/tmp/basic{source}')
+    #     for source in range(len(self.source_taosd_list)):   
+    #         thread_list.append(threading.Thread(target=self.remote.cmd,args=(
+    #             taosBenchmark_fqdn[0], f'taosBenchmark -f /tmp/basic{source}/basic.json')))
+    #         thread_list[source].start()   
+    #     for thread in thread_list:
+    #         thread.join() 
     def data_insert_ntb(self,source_taosd_list,dbname,ntbname_m,tb_num,row_num):
         taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
         for source in range(len(source_taosd_list)):
@@ -128,7 +129,8 @@ class AddSync(TDCase):
                         elif source_task.lower() == '' and target_task.lower() == '+ws':
                             self.tdTaosx.run_taosx_stb_from_native_to_ws(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.target_taosd,self.dbname,self.stbname,self.target_dbname,source,group_id,self.timeout)
                     thread_list[source].start()
-                self.data_insert(self.add_start_timestamp,self.add_row_num,self.add_drop_flag,self.add_child_table_exist_flag)
+                self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.add_row_num,self.add_start_timestamp,self.add_drop_flag,self.add_child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root)
+                # self.tdTaosx.data_insert(self.add_start_timestamp,self.add_row_num,self.add_drop_flag,self.add_child_table_exist_flag)
                 for thread in thread_list:
                     thread.join()
                 backup_count_rows = []
@@ -165,7 +167,8 @@ class AddSync(TDCase):
                     elif source_task.lower() == '' and target_task.lower() == '+ws':
                         self.tdTaosx.run_taosx_tb_from_native_to_ws(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.target_taosd,self.dbname,self.tbname_m,self.target_dbname,source,group_id,self.timeout)
                     thread_list[source].start()
-                self.data_insert(self.add_ctb_start_timestamp,self.add_row_num,self.add_drop_flag,self.add_child_table_exist_flag)
+                self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.add_row_num,self.add_ctb_start_timestamp,self.add_drop_flag,self.add_child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root)
+                # self.data_insert(self.add_ctb_start_timestamp,self.add_row_num,self.add_drop_flag,self.add_child_table_exist_flag)
                 for thread in thread_list:
                     thread.join()
                 backup_count_rows = []
@@ -190,7 +193,7 @@ class AddSync(TDCase):
 
         pass
     def run(self):
-        self.data_insert(self.start_timestamp,self.row_num,self.drop_flag,self.child_table_exist_flag)
+        self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root)
         self.add_sync_db_stb('db')
         self.add_sync_db_stb('stable')
         self.add_sync_ctb()
@@ -207,4 +210,4 @@ class AddSync(TDCase):
         return "Jiacy"
 
     def tags(self):
-        return T.Taosx.Import
+        return T.Write.TaosSql.Update

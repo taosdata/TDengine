@@ -17,7 +17,6 @@
 import json
 import threading
 from taostest.util.remote import Remote
-from taostest import TDCase, T
 class Runtaosx():
     def __init__(self,logger):
         self.logger = logger
@@ -43,7 +42,21 @@ class Runtaosx():
         with open(json_path, 'w') as r:
             json.dump(dict, r)
         r.close()
-    
+    def data_insert(self,source_taosd_list,dbname,stbname,tbname_m,tb_num,row_num,start_timestamp,drop_flag,child_table_exist_flag,taosBenchmark_fqdn,test_root):
+        thread_list = []
+        for source in range(len(source_taosd_list)):
+            host = source_taosd_list[source][0]
+            port = source_taosd_list[source][1]
+            self.write_json(f'{test_root}/cases/taosx/basic{source}.json', self.get_json(f'{test_root}/cases/taosx/basic.json',
+                            host, int(port), dbname[source], stbname[source], tbname_m[source],tb_num,start_timestamp,row_num,drop_flag,child_table_exist_flag))
+            self.remote.put(
+                taosBenchmark_fqdn[0], f'{test_root}/cases/taosx/basic{source}.json', f'/tmp/basic{source}')
+        for source in range(len(source_taosd_list)):   
+            thread_list.append(threading.Thread(target=self.remote.cmd,args=(
+                taosBenchmark_fqdn[0], f'taosBenchmark -f /tmp/basic{source}/basic{source}.json')))
+            thread_list[source].start()   
+        for thread in thread_list:
+            thread.join() 
     def run_taosx_db_from_native_to_native(self,thread_list,taosx_setting,source_task,target_task,source_taosd_list,target_taosd,dbname,target_dbname,source,group_id,timeout):
         thread_list.append(threading.Thread(target=self.remote.cmd, args=(
                                 taosx_setting['fqdn'][0], f"taosx run \
@@ -64,6 +77,7 @@ class Runtaosx():
                                 taosx_setting['fqdn'][0], f"taosx run \
                                     -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])+11}/{dbname[source]}?group.id={group_id}&timeout={timeout}'\
                                     -t 'taos{target_task}://root:taosdata@{target_taosd[0]}:{int(target_taosd[1])+11}/{target_dbname}'")))
+
     def run_taosx_stb_from_native_to_native(self,thread_list,taosx_setting,source_task,target_task,source_taosd_list,target_taosd,dbname,tbname,target_dbname,source,group_id,timeout):
         thread_list.append(threading.Thread(target=self.remote.cmd, args=(
                                 taosx_setting['fqdn'][0], f"taosx run \
@@ -84,6 +98,7 @@ class Runtaosx():
                                 taosx_setting['fqdn'][0], f"taosx run \
                                     -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])+11}/{dbname[source]}.{tbname[source]}?group.id={group_id}&timeout={timeout}'\
                                     -t 'taos{target_task}://root:taosdata@{target_taosd[0]}:{int(target_taosd[1])+11}/{target_dbname}'")))
+    
     def run_taosx_tb_from_native_to_native(self,thread_list,taosx_setting,source_task,target_task,source_taosd_list,target_taosd,dbname,tbname,target_dbname,source,group_id,timeout):
         thread_list.append(threading.Thread(target=self.remote.cmd, args=(
                                 taosx_setting['fqdn'][0], f"taosx run \
@@ -104,3 +119,26 @@ class Runtaosx():
                                 taosx_setting['fqdn'][0], f"taosx run \
                                     -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])+11}/{dbname[source]}.{tbname[source]}0?group.id={group_id}&timeout={timeout}'\
                                     -t 'taos{target_task}://root:taosdata@{target_taosd[0]}:{int(target_taosd[1])+11}/{target_dbname}'")))
+    
+    def run_taosx_rename_db_from_native_to_native(self,thread_list,taosx_setting,source_task,target_task,source_taosd_list,target_taosd,dbname,target_dbname,source,group_id,timeout,rename_str):
+        thread_list.append(threading.Thread(target=self.remote.cmd, args=(
+                                taosx_setting['fqdn'][0], f"taosx run \
+                                    -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])}/{dbname[source]}?group.id={group_id}&timeout={timeout}'\
+                                    -t 'taos{target_task}://root:taosdata@{target_taosd[0]}:{int(target_taosd[1])}/{target_dbname}' {rename_str}")))
+    def run_taosx_rename_db_from_native_to_ws(self,thread_list,taosx_setting,source_task,target_task,source_taosd_list,target_taosd,dbname,target_dbname,source,group_id,timeout,rename_str):
+        thread_list.append(threading.Thread(target=self.remote.cmd, args=(
+                                taosx_setting['fqdn'][0], f"taosx run \
+                                    -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])}/{dbname[source]}?group.id={group_id}&timeout={timeout}'\
+                                    -t 'taos{target_task}://root:taosdata@{target_taosd[0]}:{int(target_taosd[1])+11}/{target_dbname}' {rename_str}")))
+    def run_taosx_rename_db_from_ws_to_native(self,thread_list,taosx_setting,source_task,target_task,source_taosd_list,target_taosd,dbname,target_dbname,source,group_id,timeout,rename_str):
+        thread_list.append(threading.Thread(target=self.remote.cmd, args=(
+                                taosx_setting['fqdn'][0], f"taosx run \
+                                    -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])+11}/{dbname[source]}?group.id={group_id}&timeout={timeout}'\
+                                    -t 'taos{target_task}://root:taosdata@{target_taosd[0]}:{int(target_taosd[1])}/{target_dbname}'\
+                                        {rename_str}")))
+    def run_taosx_rename_db_from_ws_to_ws(self,thread_list,taosx_setting,source_task,target_task,source_taosd_list,target_taosd,dbname,target_dbname,source,group_id,timeout,rename_str):
+        thread_list.append(threading.Thread(target=self.remote.cmd, args=(
+                                taosx_setting['fqdn'][0], f"taosx run \
+                                    -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])+11}/{dbname[source]}?group.id={group_id}&timeout={timeout}'\
+                                    -t 'taos{target_task}://root:taosdata@{target_taosd[0]}:{int(target_taosd[1])+11}/{target_dbname}'\
+                                        {rename_str}")))
