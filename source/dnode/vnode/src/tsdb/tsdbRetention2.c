@@ -245,7 +245,7 @@ _wait_commit_end:
       SDFileSet fSet = *pSet;
       fSet.diskId = did;
 
-      code = tsdbDFileSetCopy(pTsdb, pSet, &fSet);
+      code = tsdbDFileSetCopy(pTsdb, pSet, &fSet, maxSpeed);
       if (code) goto _exit;
 
       code = tsdbFSUpsertFSet(&fs, &fSet);

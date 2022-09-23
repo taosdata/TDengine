@@ -607,7 +607,43 @@ _err:
   return code;
 }
 
-int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
+/**
+ * @brief send file with limited speed(rough control)
+ *
+ * @param pFileOut
+ * @param pFileIn
+ * @param size
+ * @param speed 0 no limit, unit: B/s
+ * @return int64_t
+ */
+static int64_t tsdbFSendFile(TdFilePtr pOutFD, TdFilePtr pInFD, int64_t size, int32_t speed) {
+  if (speed <= 0) {
+    return taosFSendFile(pOutFD, pInFD, 0, size);
+  }
+
+  int64_t offset = 0;
+  int64_t nBytes = 0;
+  int64_t startMs = 0;
+  int64_t endMs = 0;
+  int64_t cost = 0;
+  while ((offset + speed) < size) {
+    startMs = taosGetTimestampMs();
+    nBytes += taosFSendFile(pOutFD, pInFD, &offset, speed);
+    cost = taosGetTimestampMs() - startMs;
+
+    if (cost < 0) {
+      taosMsleep(1000);
+    } else if (cost < 1000) {
+      taosMsleep(1000 - cost);
+    }
+  }
+  if (offset < size) {
+    nBytes += taosFSendFile(pOutFD, pInFD, &offset, size - offset);
+  }
+  return nBytes;
+}
+
+int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo, int32_t maxSpeed) {
   int32_t   code = 0;
   int64_t   n;
   int64_t   size;
@@ -616,6 +652,12 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
   int32_t   szPage = pTsdb->pVnode->config.szPage;
   char      fNameFrom[TSDB_FILENAME_LEN];
   char      fNameTo[TSDB_FILENAME_LEN];
+  int32_t   speed = 0;
+
+  if (atomic_load_8(&pTsdb->trimHdl.limitSpeed)) {
+    ASSERT(maxSpeed > 0);
+    speed = maxSpeed;
+  }
 
   // head
   tsdbHeadFileName(pTsdb, pSetFrom->diskId, pSetFrom->fid, pSetFrom->pHeadF, fNameFrom);
@@ -630,7 +672,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
-  n = taosFSendFile(pOutFD, PInFD, 0, tsdbLogicToFileSize(pSetFrom->pHeadF->size, szPage));
+  n = tsdbFSendFile(pOutFD, PInFD, tsdbLogicToFileSize(pSetFrom->pHeadF->size, szPage), speed);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -651,7 +693,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
-  n = taosFSendFile(pOutFD, PInFD, 0, LOGIC_TO_FILE_OFFSET(pSetFrom->pDataF->size, szPage));
+  n = tsdbFSendFile(pOutFD, PInFD, LOGIC_TO_FILE_OFFSET(pSetFrom->pDataF->size, szPage), speed);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -672,7 +714,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
-  n = taosFSendFile(pOutFD, PInFD, 0, tsdbLogicToFileSize(pSetFrom->pSmaF->size, szPage));
+  n = tsdbFSendFile(pOutFD, PInFD, tsdbLogicToFileSize(pSetFrom->pSmaF->size, szPage), speed);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -694,7 +736,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
-    n = taosFSendFile(pOutFD, PInFD, 0, tsdbLogicToFileSize(pSetFrom->aSttF[iStt]->size, szPage));
+    n = tsdbFSendFile(pOutFD, PInFD, tsdbLogicToFileSize(pSetFrom->aSttF[iStt]->size, szPage), speed);
     if (n < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
