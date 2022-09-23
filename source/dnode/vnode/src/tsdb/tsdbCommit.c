@@ -139,7 +139,7 @@ int32_t tsdbBegin(STsdb *pTsdb) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s fail at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -180,7 +180,7 @@ int32_t tsdbCommit(STsdb *pTsdb) {
 _exit:
   if (code) {
     tsdbEndCommit(&commith, code);
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s fail at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -222,7 +222,7 @@ static int32_t tsdbCommitDelStart(SCommitter *pCommitter) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d, %s failed at %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s fail at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   } else {
     tsdbDebug("vgId:%d, commit del start", TD_VID(pTsdb->pVnode));
   }
@@ -280,7 +280,8 @@ static int32_t tsdbCommitTableDel(SCommitter *pCommitter, STbData *pTbData, SDel
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d, %s failed at %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s fail at line %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -313,7 +314,8 @@ static int32_t tsdbCommitDelEnd(SCommitter *pCommitter) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d, %s failed at %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s fail at line %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -464,7 +466,8 @@ static int32_t tsdbOpenCommitIter(SCommitter *pCommitter) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s fail at line %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -547,7 +550,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s fail at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -599,7 +602,7 @@ int32_t tsdbWriteDataBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SMapDa
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s fail at line %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -642,7 +645,7 @@ int32_t tsdbWriteSttBlock(SDataFWriter *pWriter, SBlockData *pBlockData, SArray 
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s fail at line %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -678,7 +681,8 @@ static int32_t tsdbCommitFileDataEnd(SCommitter *pCommitter) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s fail at line %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -703,7 +707,8 @@ static int32_t tsdbMoveCommitData(SCommitter *pCommitter, TABLEID toTable) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s fail at line %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -729,7 +734,7 @@ static int32_t tsdbCommitFileData(SCommitter *pCommitter) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s fail at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
     tsdbDataFReaderClose(&pCommitter->dReader.pReader);
     tsdbDataFWriterClose(&pCommitter->dWriter.pWriter, 0);
   }
@@ -767,7 +772,7 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s fail at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -820,7 +825,8 @@ static int32_t tsdbCommitDataStart(SCommitter *pCommitter) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s fail at line %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -874,7 +880,7 @@ static int32_t tsdbCommitData(SCommitter *pCommitter) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s fail at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -960,7 +966,7 @@ static int32_t tsdbCommitDel(SCommitter *pCommitter) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s fail at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   } else {
     tsdbDebug("vgId:%d commit del done, nDel:%" PRId64, TD_VID(pTsdb->pVnode), pMemTable->nDel);
   }
@@ -1000,7 +1006,7 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s fail at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   } else {
     tsdbInfo("vgId:%d tsdb end commit", TD_VID(pTsdb->pVnode));
   }
@@ -1094,7 +1100,8 @@ static int32_t tsdbNextCommitRow(SCommitter *pCommitter) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s fail at line %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -1141,7 +1148,8 @@ static int32_t tsdbCommitAheadBlock(SCommitter *pCommitter, SDataBlk *pDataBlk) 
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s fail at line %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -1227,7 +1235,8 @@ static int32_t tsdbCommitMergeBlock(SCommitter *pCommitter, SDataBlk *pDataBlk) 
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s fail at line %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -1301,7 +1310,8 @@ static int32_t tsdbMergeTableData(SCommitter *pCommitter, TABLEID id) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s fail at line %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -1328,7 +1338,8 @@ static int32_t tsdbInitLastBlockIfNeed(SCommitter *pCommitter, TABLEID id) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s fail at line %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -1357,7 +1368,8 @@ static int32_t tsdbAppendLastBlock(SCommitter *pCommitter) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s fail at line %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -1426,7 +1438,8 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, TABLEID id) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s fail at line %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
@@ -1488,7 +1501,8 @@ static int32_t tsdbCommitFileDataImpl(SCommitter *pCommitter) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d %s fail at line %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino,
+              tstrerror(code));
   }
   return code;
 }
