@@ -247,7 +247,8 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
       pExpr->userAlias[len] = '\0';
     }
   }
-  taosMemoryFreeClear(pNode);
+  pRawExpr->pNode = NULL;
+  nodesDestroyNode(pNode);
   return pRealizedExpr;
 }
 

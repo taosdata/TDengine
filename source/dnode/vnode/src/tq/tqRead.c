@@ -80,6 +80,13 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont *pHead){
       void* buf = taosMemoryMalloc(tlen);
       if (NULL == buf) {
         taosArrayDestroy(reqNew.pArray);
+        for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
+          pCreateReq = req.pReqs + iReq;
+          taosMemoryFreeClear(pCreateReq->comment);
+          if (pCreateReq->type == TSDB_CHILD_TABLE) {
+            taosArrayDestroy(pCreateReq->ctb.tagName);
+          }
+        }
         goto end;
       }
       SEncoder coderNew = {0};
@@ -90,6 +97,14 @@ bool isValValidForTable(STqHandle* pHandle, SWalCont *pHead){
       pHead->bodyLen = tlen + sizeof(SMsgHead);
       taosMemoryFree(buf);
       taosArrayDestroy(reqNew.pArray);
+    }
+
+    for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
+      pCreateReq = req.pReqs + iReq;
+      taosMemoryFreeClear(pCreateReq->comment);
+      if (pCreateReq->type == TSDB_CHILD_TABLE) {
+        taosArrayDestroy(pCreateReq->ctb.tagName);
+      }
     }
   } else if (msgType == TDMT_VND_ALTER_TABLE) {
     SVAlterTbReq   req = {0};

@@ -2581,6 +2581,20 @@ static int32_t syncNodeEqNoop(SSyncNode* ths) {
   return ret;
 }
 
+static void deleteCacheEntry(const void* key, size_t keyLen, void* value) { taosMemoryFree(value); }
+
+static int32_t syncCacheEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry, LRUHandle** h) {
+  int       code = 0;
+  int       entryLen = sizeof(*pEntry) + pEntry->dataLen;
+  LRUStatus status = taosLRUCacheInsert(pLogStore->pCache, &pEntry->index, sizeof(pEntry->index), pEntry, entryLen,
+                                        deleteCacheEntry, h, TAOS_LRU_PRIORITY_LOW);
+  if (status != TAOS_LRU_STATUS_OK) {
+    code = -1;
+  }
+
+  return code;
+}
+
 static int32_t syncNodeAppendNoop(SSyncNode* ths) {
   int32_t ret = 0;
 
@@ -2589,13 +2603,21 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
   SSyncRaftEntry* pEntry = syncEntryBuildNoop(term, index, ths->vgId);
   ASSERT(pEntry != NULL);
 
+  LRUHandle* h = NULL;
+  syncCacheEntry(ths->pLogStore, pEntry, &h);
+
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
     int32_t code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
     ASSERT(code == 0);
     syncNodeReplicate(ths, false);
   }
 
-  syncEntryDestory(pEntry);
+  if (h) {
+    taosLRUCacheRelease(ths->pLogStore->pCache, h, false);
+  } else {
+    syncEntryDestory(pEntry);
+  }
+
   return ret;
 }
 
@@ -2654,6 +2676,9 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg, SyncI
   SSyncRaftEntry* pEntry = syncEntryBuild2((SyncClientRequest*)pMsg, term, index);
   ASSERT(pEntry != NULL);
 
+  LRUHandle* h = NULL;
+  syncCacheEntry(ths->pLogStore, pEntry, &h);
+
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
     // append entry
     code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
@@ -2685,7 +2710,12 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg, SyncI
     }
   }
 
-  syncEntryDestory(pEntry);
+  if (h) {
+    taosLRUCacheRelease(ths->pLogStore->pCache, h, false);
+  } else {
+    syncEntryDestory(pEntry);
+  }
+
   return ret;
 }
 
@@ -2973,9 +3003,15 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
     for (SyncIndex i = beginIndex; i <= endIndex; ++i) {
       if (i != SYNC_INDEX_INVALID) {
         SSyncRaftEntry* pEntry;
-        code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, i, &pEntry);
-        ASSERT(code == 0);
-        ASSERT(pEntry != NULL);
+        SLRUCache*      pCache = ths->pLogStore->pCache;
+        LRUHandle*      h = taosLRUCacheLookup(pCache, &i, sizeof(i));
+        if (h) {
+          pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
+        } else {
+          code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, i, &pEntry);
+          ASSERT(code == 0);
+          ASSERT(pEntry != NULL);
+        }
 
         SRpcMsg rpcMsg;
         syncEntry2OriginalRpc(pEntry, &rpcMsg);
@@ -3058,7 +3094,11 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
         }
 
         rpcFreeCont(rpcMsg.pCont);
-        syncEntryDestory(pEntry);
+        if (h) {
+          taosLRUCacheRelease(pCache, h, false);
+        } else {
+          syncEntryDestory(pEntry);
+        }
       }
     }
   }

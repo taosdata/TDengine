@@ -676,6 +676,18 @@ static void vnodeLeaderTransfer(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsm
 
 static void vnodeRestoreFinish(struct SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
+
+  do {
+    int32_t itemSize = tmsgGetQueueSize(&pVnode->msgCb, pVnode->config.vgId, APPLY_QUEUE);
+    if (itemSize == 0) {
+      vInfo("vgId:%d, apply queue is empty, restore finish", pVnode->config.vgId);
+      break;
+    } else {
+      vInfo("vgId:%d, restore not finish since %d items in apply queue", pVnode->config.vgId);
+      taosMsleep(10);
+    }
+  } while (true);
+
   pVnode->restored = true;
   vDebug("vgId:%d, sync restore finished", pVnode->config.vgId);
 }
