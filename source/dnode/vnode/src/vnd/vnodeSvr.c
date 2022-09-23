@@ -417,24 +417,29 @@ void *vnodeProcessTrimReqFunc(void *param) {
   setThreadName("vnode-trim");
 
   // process
-  code = tsdbDoRetention(pVnode->pTsdb, pReq->trimReq.timestamp);
+  code = tsdbDoRetention(pVnode->pTsdb, pReq->trimReq.timestamp, pReq->trimReq.maxSpeed);
   if (code) goto _exit;
 
-  code = smaDoRetention(pVnode->pSma, pReq->trimReq.timestamp);
+  code = smaDoRetention(pVnode->pSma, pReq->trimReq.timestamp, pReq->trimReq.maxSpeed);
   if (code) goto _exit;
-
 _exit:
-  vInfo("vgId:%d, trim vnode thread finished, time:%d", TD_VID(pVnode), pReq->trimReq.timestamp);
   oldVal = atomic_val_compare_exchange_8(&pVnode->trimDbH.state, 1, 0);
   ASSERT(oldVal == 1);
   taosMemoryFree(pReq);
+  if (code) {
+    vError("vgId:%d, trim vnode thread failed since %s, time:%" PRIi64, TD_VID(pVnode), tstrerror(code),
+           pReq->trimReq.timestamp);
+  } else {
+    vInfo("vgId:%d, trim vnode thread finished, time:%" PRIi64, TD_VID(pVnode), pReq->trimReq.timestamp);
+  }
+
   return NULL;
 }
 
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   int32_t        code = 0;
   SVndTrimDbReq *pVndTrimReq = taosMemoryMalloc(sizeof(SVndTrimDbReq));
-  STrimDbHandle *pHandle = &pVnode->trimDbH;
+  SVTrimDbHdl   *pHandle = &pVnode->trimDbH;
 
   if (!pVndTrimReq) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -450,7 +455,7 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, 
   }
 
   if (atomic_val_compare_exchange_8(&pHandle->state, 0, 1) != 0) {
-    vInfo("vgId:%d, trim vnode request will not be processed since duplicated req, time:%d", TD_VID(pVnode),
+    vInfo("vgId:%d, trim vnode request will not be processed since duplicated req, time:%" PRIi64, TD_VID(pVnode),
           pVndTrimReq->trimReq.timestamp);
     taosMemoryFree(pVndTrimReq);
     goto _exit;

@@ -58,6 +58,7 @@ typedef struct SDelFWriter   SDelFWriter;
 typedef struct SDelFReader   SDelFReader;
 typedef struct SRowIter      SRowIter;
 typedef struct STsdbFS       STsdbFS;
+typedef struct STsdbTrimHdl  STsdbTrimHdl;
 typedef struct SRowMerger    SRowMerger;
 typedef struct STsdbReadSnap STsdbReadSnap;
 typedef struct SBlockInfo    SBlockInfo;
@@ -243,6 +244,7 @@ int32_t tsdbFSClose(STsdb *pTsdb);
 int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS);
 void    tsdbFSDestroy(STsdbFS *pFS);
 int32_t tDFileSetCmprFn(const void *p1, const void *p2);
+int32_t tsdbFSUpdDel(STsdb *pTsdb, STsdbFS *pFS, STsdbFS *pFSNew, int32_t maxFid);
 int32_t tsdbFSCommit1(STsdb *pTsdb, STsdbFS *pFS);
 int32_t tsdbFSCommit2(STsdb *pTsdb, STsdbFS *pFS);
 int32_t tsdbFSRef(STsdb *pTsdb, STsdbFS *pFS);
@@ -318,6 +320,12 @@ struct STsdbFS {
   SArray   *aDFileSet;  // SArray<SDFileSet>
 };
 
+struct STsdbTrimHdl {
+  volatile int8_t  state;  // 0 idle 1 in use
+  volatile int32_t maxRetentFid;
+  volatile int32_t minCommitFid;
+};
+
 struct STsdb {
   char          *path;
   SVnode        *pVnode;
@@ -326,6 +334,7 @@ struct STsdb {
   SMemTable     *mem;
   SMemTable     *imem;
   STsdbFS        fs;
+  STsdbTrimHdl   trimHdl;
   SLRUCache     *lruCache;
   TdThreadMutex  lruMutex;
 };
@@ -558,6 +567,9 @@ struct SDFileSet {
   uint8_t    nSttF;
   SSttFile  *aSttF[TSDB_MAX_STT_TRIGGER];
 };
+
+#define SET_DFSET_EXPIRED(d) ((d)->diskId.id = -1)
+#define IS_DFSET_EXPIRED(d)  ((d)->diskId.id == -1)
 
 struct SRowIter {
   TSDBROW  *pRow;

@@ -873,7 +873,8 @@ int32_t tSerializeSTrimDbReq(void* buf, int32_t bufLen, STrimDbReq* pReq);
 int32_t tDeserializeSTrimDbReq(void* buf, int32_t bufLen, STrimDbReq* pReq);
 
 typedef struct {
-  int32_t timestamp;
+  int64_t timestamp;  // unit: millisecond
+  int32_t maxSpeed;   // 0 no limit, unit: bit/s
 } SVTrimDbReq;
 
 int32_t tSerializeSVTrimDbReq(void* buf, int32_t bufLen, SVTrimDbReq* pReq);
