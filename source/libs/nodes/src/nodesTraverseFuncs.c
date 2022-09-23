@@ -146,6 +146,25 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
     case QUERY_NODE_TARGET:
       res = walkExpr(((STargetNode*)pNode)->pExpr, order, walker, pContext);
       break;
+    case QUERY_NODE_WHEN_THEN: {
+      SWhenThenNode* pWhenThen = (SWhenThenNode*)pNode;
+      res = walkExpr(pWhenThen->pWhen, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pWhenThen->pThen, order, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_CASE_WHEN: {
+      SCaseWhenNode* pCaseWhen = (SCaseWhenNode*)pNode;
+      res = walkExpr(pCaseWhen->pCase, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pCaseWhen->pElse, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExprs(pCaseWhen->pWhenThenList, order, walker, pContext);
+      }
+      break;
+    }
     default:
       break;
   }
@@ -291,6 +310,25 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
     case QUERY_NODE_TARGET:
       res = rewriteExpr(&(((STargetNode*)pNode)->pExpr), order, rewriter, pContext);
       break;
+    case QUERY_NODE_WHEN_THEN: {
+      SWhenThenNode* pWhenThen = (SWhenThenNode*)pNode;
+      res = rewriteExpr(&pWhenThen->pWhen, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pWhenThen->pThen, order, rewriter, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_CASE_WHEN: {
+      SCaseWhenNode* pCaseWhen = (SCaseWhenNode*)pNode;
+      res = rewriteExpr(&pCaseWhen->pCase, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pCaseWhen->pElse, order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExprs(pCaseWhen->pWhenThenList, order, rewriter, pContext);
+      }
+      break;
+    }
     default:
       break;
   }

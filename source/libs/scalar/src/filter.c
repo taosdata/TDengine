@@ -3067,15 +3067,16 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
-static FORCE_INLINE bool filterExecuteImplAll(void *info, int32_t numOfRows, SColumnInfoData* p, SColumnDataAgg *statis, int16_t numOfCols) {
+static FORCE_INLINE bool filterExecuteImplAll(void *info, int32_t numOfRows, SColumnInfoData* p, SColumnDataAgg *statis, int16_t numOfCols, int32_t* numOfQualified) {
   return true;
 }
 
-static FORCE_INLINE bool filterExecuteImplEmpty(void *info, int32_t numOfRows, SColumnInfoData* p, SColumnDataAgg *statis, int16_t numOfCols) {
+static FORCE_INLINE bool filterExecuteImplEmpty(void *info, int32_t numOfRows, SColumnInfoData* p, SColumnDataAgg *statis, int16_t numOfCols, int32_t* numOfQualified) {
   return false;
 }
 
-static FORCE_INLINE bool filterExecuteImplIsNull(void *pinfo, int32_t numOfRows, SColumnInfoData* pRes, SColumnDataAgg *statis, int16_t numOfCols) {
+static FORCE_INLINE bool filterExecuteImplIsNull(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes,
+                                                 SColumnDataAgg *statis, int16_t numOfCols, int32_t *numOfQualified) {
   SFilterInfo *info = (SFilterInfo *)pinfo;
   bool all = true;
 
@@ -3097,7 +3098,9 @@ static FORCE_INLINE bool filterExecuteImplIsNull(void *pinfo, int32_t numOfRows,
 
   return all;
 }
-static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows, SColumnInfoData* pRes, SColumnDataAgg *statis, int16_t numOfCols) {
+
+static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes,
+                                                  SColumnDataAgg *statis, int16_t numOfCols, int32_t *numOfQualified) {
   SFilterInfo *info = (SFilterInfo *)pinfo;
   bool all = true;
 
@@ -3120,7 +3123,7 @@ static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows
   return all;
 }
 
-bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, SColumnInfoData* pRes, SColumnDataAgg *statis, int16_t numOfCols) {
+bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, SColumnInfoData* pRes, SColumnDataAgg *statis, int16_t numOfCols, int32_t* numOfQualified) {
   SFilterInfo *info = (SFilterInfo *)pinfo;
   bool all = true;
   uint16_t dataSize = info->cunits[0].dataSize;
@@ -3136,8 +3139,9 @@ bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, SColumnInfoData* pRe
   int8_t* p = (int8_t*) pRes->pData;
 
   for (int32_t i = 0; i < numOfRows; ++i) {
-    void *colData = colDataGetData((SColumnInfoData *)info->cunits[0].colData, i);
     SColumnInfoData* pData = info->cunits[0].colData;
+
+    void *colData = colDataGetData(pData, i);
     if (colData == NULL || colDataIsNull_s(pData, i)) {
       all = false;
       continue;
@@ -3147,13 +3151,16 @@ bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, SColumnInfoData* pRe
 
     if (p[i] == 0) {
       all = false;
+    } else {
+      (*numOfQualified)++;
     }
   }
 
   return all;
 }
 
-bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData* pRes, SColumnDataAgg *statis, int16_t numOfCols) {
+bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes, SColumnDataAgg *statis,
+                           int16_t numOfCols, int32_t *numOfQualified) {
   SFilterInfo *info = (SFilterInfo *)pinfo;
   bool all = true;
 
@@ -3195,8 +3202,8 @@ bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData* pRes
   return all;
 }
 
-
-bool filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData* pRes, SColumnDataAgg *statis, int16_t numOfCols) {
+bool filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes, SColumnDataAgg *statis, int16_t numOfCols,
+                       int32_t *numOfQualified) {
   SFilterInfo *info = (SFilterInfo *)pinfo;
   bool all = true;
 
@@ -4048,7 +4055,7 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData** p, SC
     *p = output.columnData;
     output.numOfRows = pSrc->info.rows;
 
-    bool keep = (*info->func)(info, pSrc->info.rows, *p, statis, numOfCols);
+    bool keep = (*info->func)(info, pSrc->info.rows, *p, statis, numOfCols, &output.numOfQualified);
 
     // todo this should be return during filter procedure
     int32_t num = 0;
