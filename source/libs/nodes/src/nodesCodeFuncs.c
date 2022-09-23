@@ -81,6 +81,10 @@ const char* nodesNodeName(ENodeType type) {
       return "IndexOptions";
     case QUERY_NODE_LEFT_VALUE:
       return "LeftValue";
+    case QUERY_NODE_WHEN_THEN:
+      return "WhenThen";
+    case QUERY_NODE_CASE_WHEN:
+      return "CaseWhen";
     case QUERY_NODE_SET_OPERATOR:
       return "SetOperator";
     case QUERY_NODE_SELECT_STMT:
@@ -3917,6 +3921,75 @@ static int32_t jsonToDatabaseOptions(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkWhenThenWhen = "When";
+static const char* jkWhenThenThen = "Then";
+
+static int32_t whenThenNodeToJson(const void* pObj, SJson* pJson) {
+  const SWhenThenNode* pNode = (const SWhenThenNode*)pObj;
+
+  int32_t code = exprNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkWhenThenWhen, nodeToJson, pNode->pWhen);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkWhenThenThen, nodeToJson, pNode->pThen);
+  }
+
+  return code;
+}
+
+static int32_t jsonToWhenThenNode(const SJson* pJson, void* pObj) {
+  SWhenThenNode* pNode = (SWhenThenNode*)pObj;
+
+  int32_t code = jsonToExprNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkWhenThenWhen, &pNode->pWhen);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkWhenThenThen, &pNode->pThen);
+  }
+
+  return code;
+}
+
+static const char* jkCaseWhenCase = "Case";
+static const char* jkCaseWhenWhenThenList = "WhenThenList";
+static const char* jkCaseWhenElse = "Else";
+
+static int32_t caseWhenNodeToJson(const void* pObj, SJson* pJson) {
+  const SCaseWhenNode* pNode = (const SCaseWhenNode*)pObj;
+
+  int32_t code = exprNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkCaseWhenCase, nodeToJson, pNode->pCase);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodeListToJson(pJson, jkCaseWhenWhenThenList, pNode->pWhenThenList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkCaseWhenElse, nodeToJson, pNode->pElse);
+  }
+
+  return code;
+}
+
+static int32_t jsonToCaseWhenNode(const SJson* pJson, void* pObj) {
+  SCaseWhenNode* pNode = (SCaseWhenNode*)pObj;
+
+  int32_t code = jsonToExprNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkCaseWhenCase, &pNode->pCase);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkCaseWhenWhenThenList, &pNode->pWhenThenList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkCaseWhenElse, &pNode->pElse);
+  }
+
+  return code;
+}
+
 static const char* jkDataBlockDescDataBlockId = "DataBlockId";
 static const char* jkDataBlockDescSlots = "Slots";
 static const char* jkDataBlockTotalRowSize = "TotalRowSize";
@@ -4399,6 +4472,10 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return databaseOptionsToJson(pObj, pJson);
     case QUERY_NODE_LEFT_VALUE:
       return TSDB_CODE_SUCCESS;  // SLeftValueNode has no fields to serialize.
+    case QUERY_NODE_WHEN_THEN:
+      return whenThenNodeToJson(pObj, pJson);
+    case QUERY_NODE_CASE_WHEN:
+      return caseWhenNodeToJson(pObj, pJson);
     case QUERY_NODE_SET_OPERATOR:
       return setOperatorToJson(pObj, pJson);
     case QUERY_NODE_SELECT_STMT:
@@ -4562,6 +4639,10 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToDatabaseOptions(pJson, pObj);
     case QUERY_NODE_LEFT_VALUE:
       return TSDB_CODE_SUCCESS;  // SLeftValueNode has no fields to deserialize.
+    case QUERY_NODE_WHEN_THEN:
+      return jsonToWhenThenNode(pJson, pObj);
+    case QUERY_NODE_CASE_WHEN:
+      return jsonToCaseWhenNode(pJson, pObj);
     case QUERY_NODE_SET_OPERATOR:
       return jsonToSetOperator(pJson, pObj);
     case QUERY_NODE_SELECT_STMT:
