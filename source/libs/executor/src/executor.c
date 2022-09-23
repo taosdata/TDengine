@@ -84,15 +84,17 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     } else if (type == STREAM_INPUT__DATA_BLOCK) {
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
+        taosArrayPush(pInfo->pBlockLists, &pDataBlock);
 
+#if 0
         // TODO optimize
         SSDataBlock* p = createOneDataBlock(pDataBlock, false);
-        /*qError("alloc p i, %d %p", i, p);*/
         p->info = pDataBlock->info;
 
         taosArrayClear(p->pDataBlock);
         taosArrayAddAll(p->pDataBlock, pDataBlock->pDataBlock);
         taosArrayPush(pInfo->pBlockLists, &p);
+#endif
       }
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
     } else {

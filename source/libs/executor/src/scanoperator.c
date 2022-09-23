@@ -920,6 +920,7 @@ _error:
 }
 
 static void doClearBufferedBlocks(SStreamScanInfo* pInfo) {
+#if 0
   if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
     size_t total = taosArrayGetSize(pInfo->pBlockLists);
     for (int32_t i = 0; i < total; i++) {
@@ -928,6 +929,7 @@ static void doClearBufferedBlocks(SStreamScanInfo* pInfo) {
       taosMemoryFree(p);
     }
   }
+#endif
   taosArrayClear(pInfo->pBlockLists);
   pInfo->validBlockIndex = 0;
 #if 0
