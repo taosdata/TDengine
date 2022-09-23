@@ -61,12 +61,12 @@ SSdb *sdbInit(SSdbOpt *pOption) {
   pSdb->commitConfig = -1;
   pSdb->pMnode = pOption->pMnode;
   taosThreadMutexInit(&pSdb->filelock, NULL);
-  mDebug("sdb init successfully");
+  mInfo("sdb init success");
   return pSdb;
 }
 
 void sdbCleanup(SSdb *pSdb) {
-  mDebug("start to cleanup sdb");
+  mInfo("start to cleanup sdb");
 
   sdbWriteFile(pSdb, 0);
 
@@ -103,12 +103,12 @@ void sdbCleanup(SSdb *pSdb) {
     pSdb->hashObjs[i] = NULL;
     memset(&pSdb->locks[i], 0, sizeof(pSdb->locks[i]));
 
-    mDebug("sdb table:%s is cleaned up", sdbTableName(i));
+    mInfo("sdb table:%s is cleaned up", sdbTableName(i));
   }
 
   taosThreadMutexDestroy(&pSdb->filelock);
   taosMemoryFree(pSdb);
-  mDebug("sdb is cleaned up");
+  mInfo("sdb is cleaned up");
 }
 
 int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
@@ -139,7 +139,7 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
 
   pSdb->maxId[sdbType] = 0;
   pSdb->hashObjs[sdbType] = hash;
-  mDebug("sdb table:%s is initialized", sdbTableName(sdbType));
+  mInfo("sdb table:%s is initialized", sdbTableName(sdbType));
 
   return 0;
 }
