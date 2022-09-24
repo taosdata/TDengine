@@ -79,6 +79,7 @@ extern "C" {
 #include <linux/sysctl.h>
 #include <math.h>
 #include <poll.h>
+#include <sys/prctl.h>
 
 #ifdef __cplusplus
 }
