@@ -1,5 +1,5 @@
 ---
-sidebar_label: Schemaless - OpenTSDB JSON Protocol
+sidebar_label: OpenTSDB JSON Protocol
 title: Schemaless - OpenTSDB JSON Protocol
 description: Insert data in OpenTSDB JSON Protocol
 ---
