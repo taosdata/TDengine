@@ -256,7 +256,7 @@
 23,,script,./test.sh -f general/db/nosuchfile.sim
 23,,pytest,python3 ./test.py -f stream/history.py
 23,,pytest,python3 ./test.py -f insert/metadataUpdate.py
-22,,script,./test.sh -f unique/http/opentsdb.sim
+#22,,script,./test.sh -f unique/http/opentsdb.sim
 22,,script,./test.sh -f unique/cluster/cache.sim
 22,,script,./test.sh -f unique/arbitrator/dn3_mn1_full_createTableFail.sim
 22,,script,./test.sh -f general/parser/select_from_cache_disk.sim
