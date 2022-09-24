@@ -78,6 +78,7 @@ extern "C" {
 #include <error.h>
 #include <math.h>
 #include <poll.h>
+#include <sys/prctl.h>
 
 #define TAOS_OS_FUNC_LZ4
   #define BUILDIN_CLZL(val) __builtin_clzll(val)
