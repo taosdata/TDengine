@@ -29,6 +29,7 @@ DB_CODE_DB_NOT_EXIST            = 22;
 DB_CODE_EMPTY_DATA              = 23;
 DB_CODE_STABLE_MIN_TAGS         = 24;
 DB_CODE_STABLE_MAX_TAGS         = 25;
+DB_CODE_TABLE_COL_NCHAR_NULL    = 26;
 
 var DbUtil = new function() {
 
@@ -43,13 +44,13 @@ var DbUtil = new function() {
 		7 : "please confirm the action, it couldn't be recovered",
 		8 : "execute error, affect rows is 0",
 		9 : "input table name is null",
-		10: "column number must be less then 32",
-		11: "column number must be larger then 1",
+		10: "column number must be less than 32",
+		11: "column number must be larger than 1",
 		12: "first column name can't be null",
 		13: "data type can't be null",
 		14: "data name can't be null",
-		15: "binary column length should large then 0, such as col_name(10)",
-		16: "column num must large then 1",
+		15: "binary column length should large than 0, such as col_name(10)",
+		16: "column num must larger than 1",
 		17: "cache rows is not valid",
 		18: "server is not running",
 		19: "invalid sql format",
@@ -57,8 +58,9 @@ var DbUtil = new function() {
 		21: "db not selected",
 		22: "db not exist",
 		23: "result set is null",
-		24: "tag number must be larger then 1",
-		25:	"tag number must be less then 31",
+		24: "tag number must be larger than 1",
+		25: "tag number must be less than 31",
+		26: "nchar column length should large than 0, such as col_name(10)",
 	};
 
 	this.ErrorDialog = function(msg) 
@@ -226,7 +228,7 @@ var DbUtil = new function() {
 				return true;
 				break;
 			default:
-				return false; 
+				return true;
 		}
 
 	}
@@ -269,28 +271,51 @@ var DbUtil = new function() {
 		
 		return true;
 	}
+
+	this.CheckResponse = function(d) {
+		console.log("response: ", d)
+		if (d == null || d.code == null) {
+			DbUtil.Error(DB_CODE_INVALID_FORMAT);
+			return false;
+		}
+		if (d.code !== 0) {
+			DbUtil.ErrorDialog(d.desc);
+			return false;
+		}
+		d.head = _.map(d.column_meta, function(h) {
+			return h[0]
+		});
+		return true
+	}
+
+	this.needEscape = function()
+	{
+		var version = DbSession.GetServerVersion();
+		var arrVer = version.split('.');
+		if (arrVer == null || !Array.isArray(arrVer)) {
+			return false;
+		}
+
+		if (!isNaN(parseInt(arrVer[1])) && !isNaN(parseInt(arrVer[2]))) {
+			if (parseInt(arrVer[1]) >= 3 && parseInt(arrVer[2]) >= 0) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	this.processEscape = function(str)
+	{
+		var reg = new RegExp("\\n", "g");
+		str = str.replace(reg, "\\n");
+
+		reg = new RegExp("\\r", "g");
+		str = str.replace(reg, "\\r");
+
+		reg = new RegExp("\\t", "g");
+		str = str.replace(reg, "\\t");
+
+		return str
+	}
 };
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

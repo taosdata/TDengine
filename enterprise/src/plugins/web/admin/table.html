@@ -35,12 +35,14 @@
 					<li><a href="dbs.html">DBs</a></li>
 					<li><a href="stables.html">Stables</a></li>
 					<li class="active"><a href="tables.html">Tables</a></li>
+					<li><a href="udfs.html">Udfs</a></li>
 					<li><a href="users.html">Users</a></li>
 					<li id="dnodeLiId" style="display:none"><a href="dnodes.html">DNodes</a></li>
 					<li id="monitorLiId" style="display:none"><a href="monitor.html">Monitor</a></li>
 					<li><a href="usage.html">Usage</a></li>
 					<li><a href="query.html">Queries</a></li>
 					<li><a href="shell.html">Shell</a></li>
+					<li style="display:none" id="jupyterLi"><a href="jupyter.html">Jupyter</a></li>
 				</ul>
 				<ul class="nav navbar-nav navbar-right">
 					<li><a href="userInfo.html" id="user"></a></li>
@@ -123,6 +125,7 @@
 		DbSession.ValidSession();
 		var dbSTableName = DbUtil.GetUrlFirstPara();
 		if (dbSTableName != null && dbSTableName != "") {
+			dbStableName = decodeURIComponent(dbStableName);
 			$('#isUScheckbox').attr("checked", "checked");
 			$('#stableSelect').removeAttr("disabled");
 			dbQueryStables(dbSTableName);
@@ -162,6 +165,11 @@
 				dbColumnNames[i] = dbGetBinaryName(name);
 				dbColumnLengths[i] = dbGetBinaryLength(name);
 			}
+			if (dbColumnTypes[i] == "nchar") {
+				var name = dbColumnNames[i];
+				dbColumnNames[i] = dbGetNcharName(name);
+				dbColumnLengths[i] = dbGetNcharLength(name);
+			}
 		}
 
 		dbTagTypes.length = 0;
@@ -175,6 +183,11 @@
 				var name = dbTagNames[i];
 				dbTagNames[i] = dbGetBinaryName(name);
 				dbTagLengths[i] = dbGetBinaryLength(name);
+			}
+			if (dbTagTypes[i] == "nchar") {
+				var name = dbTagNames[i];
+				dbTagNames[i] = dbGetNcharName(name);
+				dbTagLengths[i] = dbGetNcharLength(name);
 			}
 		}
 
@@ -242,6 +255,9 @@
 			if (columnType == "binary" && columnLength != 0) {
 				columnName = columnName + "(" + columnLength + ")";
 			}
+			if (columnType == "nchar" && columnLength != 0) {
+				columnName = columnName + "(" + columnLength + ")";
+			}
 			
 			$('#dbGroupType' + i).text(columnType);
 			$('#dbGroupName' + i).val(columnName);
@@ -254,9 +270,9 @@
 	*/ 
 	function dbAddColumn(index)
 	{
-		if (dbColumnIndex >= 30) {
-			return DbUtil.Error(DB_CODE_TABLE_MAX_COLUMNS);
-		}
+		// if (dbColumnIndex >= 30) { 
+		// 	return DbUtil.Error(DB_CODE_TABLE_MAX_COLUMNS);
+		// }
 		
 		dbFetchCtrlValue();
 
@@ -284,6 +300,7 @@
 			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'double\')">double</a></li>'
 			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'binary\')">binary</a></li>'
 			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'timestamp\')">timestamp</a></li>'
+			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'nchar\')">nchar</a></li>'
 			+ '	</ul>'
 			+ '</div>'
 			+ '<input id="dbGroupName' + dbColumnIndex + '" type="text" class="form-control"  placeholder="column name" aria-label="...">'
@@ -316,6 +333,7 @@
 			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'double\')">double</a></li>'
 			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'binary\')">binary</a></li>'
 			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'timestamp\')">timestamp</a></li>'
+			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'nchar\')">nchar</a></li>'
 			+ '	</ul>'
 			+ '</div>'
 			+ '<input disabled id="dbGroupName' + dbColumnIndex + '" type="text" class="form-control" value="'+ name +'"  placeholder="column name" aria-label="...">'
@@ -398,6 +416,7 @@
 	* double
 	* binary
 	* timestamp
+	* nchar
 	*/ 
 	function dbSetColumnType(index, type)
 	{
@@ -454,6 +473,15 @@
 						columnType = columnType + "(" + columnLength + ")";
 					}
 				}
+				if (columnType == "nchar")
+				{
+					if (columnLength <= 0) {
+						return DbUtil.Error(DB_CODE_TABLE_COL_NCHAR_NULL);
+					}
+					else {
+						columnType = columnType + "(" + columnLength + ")";
+					}
+				}
 				sql = sql + ", " + columnName + " " + columnType;
 			}
 			sql += ")";
@@ -488,9 +516,9 @@
 				
 		$.ajax({
 			type: "post",
-			url: "admin/sql",
+			url: "rest/sql",
 			headers: {
-				'Authorization' : "Taosd " + DbSession.GetToken()
+				'Authorization' : DbSession.GetToken()
 			},
 			data: sql,
 			dataType: "json",
@@ -549,7 +577,11 @@
 
 	function handleUSselectChange(){
 		if($('#stableSelect').val()!="0"){
-			useStable($('#stableSelect').val());
+			if (DbUtil.needEscape() == true) {
+				useStable("`" + $('#stableSelect').val() + "`");
+			} else {
+				useStable($('#stableSelect').val());
+			}
 		} else {
 			removeStable();	
 		}
@@ -582,9 +614,9 @@
 	function useStable(stableName){
 		$.ajax({
 			type: "post",
-			url: "admin/sql",
+			url: "rest/sql",
 			headers: {
-				'Authorization' : "Taosd " + DbSession.GetToken()
+				'Authorization' : DbSession.GetToken()
 			},
 			data: "DESCRIBE " + DbSession.GetDb() + "." + stableName,
 			dataType: "json",
@@ -620,9 +652,9 @@
 	{
 		$.ajax({
 			type: "post",
-			url: "admin/sql",
+			url: "rest/sql",
 			headers: {
-				'Authorization' : "Taosd " + DbSession.GetToken()
+				'Authorization' : DbSession.GetToken()
 			},
 			data: "show " + DbSession.GetDb() +".stables",
 			dataType: "json",
@@ -703,6 +735,7 @@
 	================================================== -->
 	<!-- Placed at the end of the document so the pages load faster -->
 	<script src="js/jquery-2.0.2.min.js"></script>
+	<script type="text/javascript" src="js/lodash.core.min.js"></script>
 	<script src="bootstrap-3.3.7-dist/js/bootstrap.min.js"></script>
 </body>
 </html>

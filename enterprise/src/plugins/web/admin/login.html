@@ -9,7 +9,7 @@
 	<title>TDengine</title>
 	<link rel="icon" href="images/db.png">
 	<link type="text/css" href="bootstrap-3.3.7-dist/css/bootstrap.min.css" rel="stylesheet">
-	<link type="text/css" href="css/login.css" rel="stylesheet">	
+	<link type="text/css" href="css/login.css" rel="stylesheet">
 	<script type="text/javascript" src="js/dbSession.js"></script>
 	<script type="text/javascript" src="js/dbCache.js"></script>
 	<script type="text/javascript" src="js/dbUtil.js"></script>
@@ -26,7 +26,7 @@
 			<button class="btn btn-lg btn-primary btn-block" onclick="dbLogin()">Login</button>
 		</div>
 	</div> 
-	
+
 	<div class="modal" id="infoDialog" tabindex="-1" role="dialog" aria-labelledby="infoModalLabel" aria-hidden="true">
 		<div class="modal-dialog" style="width: 350px;">
 			<div class="modal-content">
@@ -43,33 +43,35 @@
 			</div>
 		</div>
 	</div>
-	
+
 	<script type="text/javascript">
-	
+
 	function dbOnLoad() {
 		DbSession.Clear();
 	}
-	
+
 	var username;
 	var password;
-	
+
 	function dbLogin() {
 		username = $.trim($('#inputUser').val());
 		password = $.trim($('#inputPassword').val());
 		if (username == null || password == null || username == "" || password == "") {
 			return DbUtil.Error(DB_CODE_NULL_USER_OR_PWD);
 		}
-		
+
 		$.ajax({
 			type: "post",
 			//url: "admin/login/" + username + "/" + password,
-			url: "admin/login",
+			url: "rest/sql",
 			headers: {
 				'Authorization' : "Basic " + DbBase64.encode(username + ":" + password)
 			},
+			data: "select 1",
 			dataType: "json",
 			success: dbLoginCb,
-			error: function(msg) { 
+			error: function(msg) {
+				console.error("login error: ", msg);
 				if (msg != null && msg.responseJSON != null) {
 					dbLoginCb(msg.responseJSON);
 				} else if (msg != null) {
@@ -77,37 +79,62 @@
 				} else {
 					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
 				}
-			}		
-		});		
+			}
+		});
 	}
-	
+
 	function dbLoginCb(d)
 	{
-		if (d == null || d.status == null) {
+		console.log(d);
+		if (d == null || d.code == null) {
 			DbUtil.Error(DB_CODE_INVALID_FORMAT);
 			return;
-		} 
-		if (d.status == "error") {
+		}
+		if (d.code != 0) {
 			DbUtil.ErrorDialog(d.desc);
 		}
-		else if (d.status == "succ") {
-			DbSession.SetToken(d.desc);
+		else {
+			DbSession.SetToken("Basic " + DbBase64.encode(username + ":" + password));
 			DbSession.SetUser(username);
 			var date = new Date();
 			DbSession.SetDate(date.toLocaleString());
+			$.ajax({
+				type: "post",
+				url: "rest/sql",
+				headers: {
+					'Authorization' : "Basic " + DbBase64.encode(username + ":" + password)
+				},
+				data: "select server_version()",
+				dataType: "json",
+				success: serverVersionCb,
+				error: function(msg) {
+					if (msg != null && msg.responseJSON != null) {
+						dbLoginCb(msg.responseJSON);
+					} else if (msg != null) {
+						DbUtil.ErrorWithMsg(DB_CODE_INVALID_FORMAT, msg);
+					} else {
+						DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
+					}
+				}
+			});
 			DbUtil.GotoPage("home.html");
-		}	
-		else{
-			DbUtil.Error(DB_CODE_INVALID_FORMAT);
 		}
 	}
-	
+
+	function serverVersionCb(d)
+	{
+		if (DbUtil.CheckResponse(d)) {
+		  DbSession.SetServerVersion(d.data[0]);
+		}
+	}
+
 	</script>
-	
+
 	<!-- Bootstrap core JavaScript
 	================================================== -->
 	<!-- Placed at the end of the document so the pages load faster -->
 	<script type="text/javascript" src="js/jquery-2.0.2.min.js"></script>
+	<script type="text/javascript" src="js/lodash.core.min.js"></script>
 	<script type="text/javascript" src="bootstrap-3.3.7-dist/js/bootstrap.min.js"></script>
 </body>
 </html>
