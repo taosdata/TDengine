@@ -12,9 +12,7 @@ import TabItem from '@theme/TabItem';
 
 In this section we will explain how to write into TDengine cloud service using REST API.
 
-## REST API
-
-### Config
+## Config
 
 Run this command in your terminal to save the TDengine cloud token and URL as variables:
 
@@ -45,7 +43,7 @@ $env:TDENGINE_CLOUD_URL="<url>"
 </TabItem>
 </Tabs>
 
-### Insert
+## Insert
 
 Following command below show how to insert data into the table `d1001` of the database `test` via the command line utility `curl`.
 
