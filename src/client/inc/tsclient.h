@@ -41,6 +41,11 @@ extern "C" {
 struct SSqlInfo;
 struct SLocalMerger;
 
+typedef enum {
+  TAOS_REQ_FROM_SHELL,
+  TAOS_REQ_FROM_HTTP
+} SReqOrigin;
+
 // data source from sql string or from file
 enum {
   DATA_FROM_SQL_STRING = 1,
@@ -361,6 +366,7 @@ typedef struct STscObj {
   SRpcCorEpSet      *tscCorMgmtEpSet;
   pthread_mutex_t    mutex;
   int32_t            numOfObj; // number of sqlObj from this tscObj
+  SReqOrigin         from;
 } STscObj;
 
 typedef struct SSubqueryState {

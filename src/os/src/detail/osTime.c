@@ -293,6 +293,63 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
   return 0;
 }
 
+int64_t convertTimePrecision(int64_t timeStamp, int32_t fromPrecision, int32_t toPrecision) {
+  assert(fromPrecision == TSDB_TIME_PRECISION_MILLI ||
+         fromPrecision == TSDB_TIME_PRECISION_MICRO ||
+         fromPrecision == TSDB_TIME_PRECISION_NANO);
+  assert(toPrecision == TSDB_TIME_PRECISION_MILLI ||
+         toPrecision == TSDB_TIME_PRECISION_MICRO ||
+         toPrecision == TSDB_TIME_PRECISION_NANO);
+  double tempResult = (double)timeStamp;
+  switch(fromPrecision) {
+    case TSDB_TIME_PRECISION_MILLI: {
+      switch (toPrecision) {
+        case TSDB_TIME_PRECISION_MILLI:
+          return timeStamp;
+        case TSDB_TIME_PRECISION_MICRO:
+          tempResult *= 1000;
+          timeStamp *= 1000;
+          goto end_;
+        case TSDB_TIME_PRECISION_NANO:
+          tempResult *= 1000000;
+          timeStamp *= 1000000;
+          goto end_;
+      }
+    } // end from milli
+    case TSDB_TIME_PRECISION_MICRO: {
+      switch (toPrecision) {
+        case TSDB_TIME_PRECISION_MILLI:
+          return timeStamp / 1000;
+        case TSDB_TIME_PRECISION_MICRO:
+          return timeStamp;
+        case TSDB_TIME_PRECISION_NANO:
+          tempResult *= 1000;
+          timeStamp *= 1000;
+          goto end_;
+      }
+    } //end from micro
+    case TSDB_TIME_PRECISION_NANO: {
+      switch (toPrecision) {
+        case TSDB_TIME_PRECISION_MILLI:
+          return timeStamp / 1000000;
+        case TSDB_TIME_PRECISION_MICRO:
+          return timeStamp / 1000;
+        case TSDB_TIME_PRECISION_NANO:
+          return timeStamp;
+      }
+    } //end from nano
+    default: {
+      assert(0);
+      return timeStamp;  // only to pass windows compilation
+    }
+  } //end switch fromPrecision
+end_:
+  if (tempResult >= (double)INT64_MAX) return INT64_MAX;
+  if (tempResult <= (double)INT64_MIN) return INT64_MIN + 1;  // INT64_MIN means NULL
+  return timeStamp;
+}
+
+
 int32_t parseLocaltimeWithDst(char* timestr, int64_t* time, int32_t timePrec) {
   *time = 0;
   struct tm tm = {0};

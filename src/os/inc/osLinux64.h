@@ -81,6 +81,7 @@ extern "C" {
 #endif
 #include <linux/sysctl.h>
 #include <math.h>
+#include <sys/prctl.h>
 
 #ifdef __cplusplus
 }

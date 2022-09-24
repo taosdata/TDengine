@@ -75,6 +75,7 @@ int32_t* taosGetErrno();
 
 //client
 #define TSDB_CODE_TSC_INVALID_SQL               TAOS_DEF_ERROR_CODE(0, 0x0200)  //"Invalid SQL statement")
+#define TSDB_CODE_TSC_INVALID_OPERATION         TSDB_CODE_TSC_INVALID_SQL
 #define TSDB_CODE_TSC_INVALID_QHANDLE           TAOS_DEF_ERROR_CODE(0, 0x0201)  //"Invalid qhandle")
 #define TSDB_CODE_TSC_INVALID_TIME_STAMP        TAOS_DEF_ERROR_CODE(0, 0x0202)  //"Invalid combination of client/service time")
 #define TSDB_CODE_TSC_INVALID_VALUE             TAOS_DEF_ERROR_CODE(0, 0x0203)  //"Invalid value in client")
@@ -393,6 +394,8 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_HTTP_OP_TAG_VALUE_TOO_LONG    TAOS_DEF_ERROR_CODE(0, 0x11A4)  //"tag value can not more than 64")
 #define TSDB_CODE_HTTP_OP_VALUE_NULL            TAOS_DEF_ERROR_CODE(0, 0x11A5)  //"value not find")
 #define TSDB_CODE_HTTP_OP_VALUE_TYPE            TAOS_DEF_ERROR_CODE(0, 0x11A6)  //"value type should be boolean number or string")
+
+#define TSDB_CODE_HTTP_REQUEST_JSON_ERROR       TAOS_DEF_ERROR_CODE(0, 0x1F00)  //"http request json error"
 
 // odbc
 #define TSDB_CODE_ODBC_OOM                      TAOS_DEF_ERROR_CODE(0, 0x2100)  //"out of memory")

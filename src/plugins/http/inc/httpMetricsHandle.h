@@ -12,26 +12,16 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#ifndef TDENGINE_HTTPMETRICSHANDLE_H
+#define TDENGINE_HTTPMETRICSHANDLE_H
 
-#ifndef TDENGINE_HTTP_H
-#define TDENGINE_HTTP_H
+#include "http.h"
+#include "httpInt.h"
+#include "httpUtil.h"
+#include "httpResp.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+void metricsInitHandle(HttpServer* httpServer);
 
-#include <stdint.h>
+bool metricsProcessRequest(struct HttpContext* httpContext);
 
-int64_t httpGetReqCount();
-int32_t httpGetStatusCodeCount(int index);
-int32_t httpClearStatusCodeCount(int index);
-int32_t httpInitSystem();
-int32_t httpStartSystem();
-void httpStopSystem();
-void httpCleanUpSystem();
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif
+#endif  // TDENGINE_HTTPMETRICHANDLE_H

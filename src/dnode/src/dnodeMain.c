@@ -159,6 +159,7 @@ int32_t dnodeInitSystem() {
   dnodeSetRunStatus(TSDB_RUN_STATUS_RUNING);
   moduleStart();
 
+  tsDnodeStartTime = taosGetTimestampMs();
   dnodeReportStep("TDengine", "initialized successfully", 1);
   dInfo("TDengine is initialized successfully");
 

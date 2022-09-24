@@ -38,4 +38,9 @@ void MD5Init(MD5_CTX *mdContext);
 void MD5Update(MD5_CTX *mdContext, uint8_t *inBuf, unsigned int inLen);
 void MD5Final(MD5_CTX *mdContext);
 
+#define T_MD5_CTX MD5_CTX
+#define tMD5Init MD5Init
+#define tMD5Update MD5Update
+#define tMD5Final MD5Final
+
 #endif

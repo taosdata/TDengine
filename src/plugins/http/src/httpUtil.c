@@ -21,12 +21,24 @@
 #include "httpResp.h"
 #include "httpSql.h"
 #include "httpUtil.h"
+#include "ttoken.h"
 
 bool httpCheckUsedbSql(char *sql) {
   if (strstr(sql, "use ") != NULL) {
     return true;
   }
   return false;
+}
+
+bool httpCheckAlterSql(char *sql) {
+  int32_t index = 0;
+
+  do {
+    SStrToken t0 = tStrGetToken(sql, &index, false);
+    if (t0.type != TK_LP) {
+      return t0.type == TK_ALTER;
+    }
+  } while (1);
 }
 
 void httpTimeToString(int32_t t, char *buf, int32_t buflen) {
@@ -338,10 +350,10 @@ int32_t httpShrinkTableName(HttpContext *pContext, int32_t pos, char *name) {
     return pos;
   }
 
-  MD5_CTX context;
-  MD5Init(&context);
-  MD5Update(&context, (uint8_t *)name, (uint32_t)len);
-  MD5Final(&context);
+  T_MD5_CTX context;
+  tMD5Init(&context);
+  tMD5Update(&context, (uint8_t *)name, (uint32_t)len);
+  tMD5Final(&context);
 
   int32_t table_name = httpAddToSqlCmdBuffer(
       pContext, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", context.digest[0],
