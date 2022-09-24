@@ -13,8 +13,8 @@
 * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef TDENGINE_TSCDATABLOCKMERGE_H
-#define TDENGINE_TSCDATABLOCKMERGE_H
+#ifndef TDENGINE_TSCBATCHMERGE_H
+#define TDENGINE_TSCBATCHMERGE_H
 
 #include "hash.h"
 #include "taosmsg.h"
@@ -260,14 +260,15 @@ SName** buildSTableNameListBuilder(STableNameListBuilder* builder, size_t* numOf
  * Merge the KV-PayLoad SQL objects into single one. 
  * The statements here must be an insertion statement and no schema attached.
  * 
- * @param statements    the array of statements. a.k.a SArray<SSqlObj*>.
- * @param result        the returned result. result is not null!
- * @return              the status code. usually TSDB_CODE_SUCCESS.
+ * @param polls  the array of SSqlObj*.
+ * @param nPolls the number of SSqlObj* in the array.
+ * @param result the returned result. result is not null!
+ * @return       the status code.
  */
-int32_t tscMergeKVPayLoadSqlObj(SArray* statements, SSqlObj *result);
+int32_t tscMergeSSqlObjs(SSqlObj** polls, size_t nPolls, SSqlObj *result);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_TSCDATABLOCKMERGE_H
+#endif  // TDENGINE_TSCBATCHMERGE_H

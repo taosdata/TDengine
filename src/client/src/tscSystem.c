@@ -14,19 +14,19 @@
  */
 
 #include "os.h"
+#include "qScript.h"
 #include "taosmsg.h"
+#include "tconfig.h"
+#include "tglobal.h"
+#include "tnote.h"
 #include "tref.h"
 #include "trpc.h"
-#include "tnote.h"
-#include "ttimer.h"
-#include "tsched.h"
+#include "tscBatchWrite.h"
 #include "tscLog.h"
+#include "tsched.h"
 #include "tsclient.h"
-#include "tglobal.h"
-#include "tconfig.h"
+#include "ttimer.h"
 #include "ttimezone.h"
-#include "qScript.h"
-#include "tscBulkWrite.h"
 
 // global, not configurable
 #define TSC_VAR_NOT_RELEASE 1
@@ -50,7 +50,7 @@ void      *tscRpcCache;            // cache to keep rpc obj
 int32_t    tscNumOfThreads = 1;     // num of rpc threads
 char       tscLogFileName[] = "taoslog";
 int        tscLogFileNum = 10;
-SDispatcherHolder * tscDispatcher = NULL;
+SDispatcherManager *tscDispatcherManager = NULL;
 
 static pthread_mutex_t rpcObjMutex; // mutex to protect open the rpc obj concurrently
 static pthread_once_t  tscinit = PTHREAD_ONCE_INIT;
@@ -59,16 +59,16 @@ static pthread_mutex_t setConfMutex = PTHREAD_MUTEX_INITIALIZER;
 // pthread_once can not return result code, so result code is set to a global variable.
 static volatile int tscInitRes = 0;
 
-void tscInitAsyncDispatcher(int32_t batchSize, int32_t timeoutMs, bool isThreadLocal) {
+void tscInitDispatcherManager(int32_t batchSize, int32_t timeoutMs, bool isThreadLocal) {
   if (tsAsyncBatchEnable) {
-    tscDispatcher = createDispatcherHolder(batchSize, timeoutMs, isThreadLocal);
+    tscDispatcherManager = createDispatcherManager(batchSize, timeoutMs, isThreadLocal);
   }
 }
 
-void tscDestroyAsyncDispatcher() {
-  if (tscDispatcher) {
-    destroyDispatcherHolder(tscDispatcher);
-    tscDispatcher = NULL;
+void tscDestroyDispatcherManager() {
+  if (tscDispatcherManager) {
+    destroyDispatcherManager(tscDispatcherManager);
+    tscDispatcherManager = NULL;
   }
 }
 
@@ -230,8 +230,8 @@ void taos_init_imp(void) {
 #endif
     tscDebug("starting to initialize client ...");
     tscDebug("Local End Point is:%s", tsLocalEp);
-    
-    tscInitAsyncDispatcher(tsAsyncBatchSize, tsAsyncBatchTimeout, tsAsyncBatchThreadLocal);
+
+    tscInitDispatcherManager(tsAsyncBatchSize, tsAsyncBatchTimeout, tsAsyncBatchThreadLocal);
   }
 
   taosSetCoreDump();
@@ -297,7 +297,7 @@ void taos_cleanup(void) {
     scriptEnvPoolCleanup();
     #endif
     if (tsAsyncBatchEnable) {
-      tscDestroyAsyncDispatcher();
+      tscDestroyDispatcherManager();
     }
   }
 

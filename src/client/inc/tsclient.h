@@ -511,18 +511,18 @@ int32_t taos_unused_session(TAOS* taos);
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code);
 
 /**
- * Init the taosc async bulk write dispatcher.
+ * Init the manager of async batch write dispatcher.
  * 
- * @param batchSize  the batchSize of async bulk write dispatcher.
- * @param timeoutMs  the timeout of batching in milliseconds.
+ * @param batchSize     the batchSize of async batch write dispatcher.
+ * @param timeoutMs     the timeout of batching in milliseconds.
  * @param isThreadLocal specifies whether the dispatcher is thread local.
  */
-void tscInitAsyncDispatcher(int32_t batchSize, int32_t timeoutMs, bool isThreadLocal);
+void tscInitDispatcherManager(int32_t batchSize, int32_t timeoutMs, bool isThreadLocal);
 
 /**
- * Destroy the async auto batch dispatcher.
+ * Destroy the manager of async batch write dispatcher.
  */
-void tscDestroyAsyncDispatcher();
+void tscDestroyDispatcherManager();
 
 void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, __async_cb_func_t fp, void *param, const char *sqlstr, size_t sqlLen);
 
@@ -553,8 +553,8 @@ extern SHashObj  *tscTableMetaMap;
 extern SCacheObj *tscVgroupListBuf;
 
 // forward declaration.
-typedef struct SDispatcherHolder    SDispatcherHolder;
-extern SDispatcherHolder           *tscDispatcher;
+typedef struct SDispatcherManager    SDispatcherManager;
+extern SDispatcherManager           *tscDispatcherManager;
 extern int   tscObjRef;
 extern void *tscTmr;
 extern void *tscQhandle;

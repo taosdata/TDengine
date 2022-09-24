@@ -13,7 +13,7 @@
 * along with this program. If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "tscDataBlockMerge.h"
+#include "tscBatchMerge.h"
 
 /**
  * A util function to compare two SName.
@@ -456,9 +456,9 @@ bool insertSTableNameListBuilder(STableNameListBuilder* builder, SName* name) {
   return taosArrayPush(builder->tableNames, &name);
 }
 
-int32_t tscMergeKVPayLoadSqlObj(SArray* statements, SSqlObj* result) {
+int32_t tscMergeSSqlObjs(SSqlObj** polls, size_t nPolls, SSqlObj* result) {
   // statement array is empty.
-  if (!statements || !taosArrayGetSize(statements)) {
+  if (!polls || !nPolls) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
@@ -474,8 +474,8 @@ int32_t tscMergeKVPayLoadSqlObj(SArray* statements, SSqlObj* result) {
   }
 
   // append the existing data blocks to builder.
-  for (size_t i = 0; i < taosArrayGetSize(statements); ++i) {
-    SSqlObj *pSql = taosArrayGetP(statements, i);
+  for (size_t i = 0; i < nPolls; ++i) {
+    SSqlObj *pSql = polls[i];
     SInsertStatementParam* pInsertParam = &pSql->cmd.insertParam;
     if (!pInsertParam->pDataBlocks) {
       continue;

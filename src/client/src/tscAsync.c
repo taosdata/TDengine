@@ -22,11 +22,11 @@
 #include "qTableMeta.h"
 #include "tnote.h"
 #include "trpc.h"
+#include "tscBatchWrite.h"
 #include "tscLog.h"
 #include "tscSubquery.h"
 #include "tscUtil.h"
 #include "tsclient.h"
-#include "tscBulkWrite.h"
 
 static void tscAsyncQueryRowsForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
 
@@ -395,8 +395,8 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
     return;
   }
   
-  if (tscDispatcher != NULL) {
-    SAsyncBulkWriteDispatcher* dispatcher = dispatcherAcquire(tscDispatcher);
+  if (tscDispatcherManager != NULL) {
+    SAsyncBatchWriteDispatcher * dispatcher = dispatcherAcquire(tscDispatcherManager);
     if (dispatcherTryDispatch(dispatcher, pSql)) {
       taosReleaseRef(tscObjRef, pSql->self);
       tscDebug("sql obj %p has been buffer in insert buffer", pSql);

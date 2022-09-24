@@ -15,11 +15,11 @@
 
 #include "osAtomic.h"
 
-#include "tscDataBlockMerge.h"
-#include "tscBulkWrite.h"
-#include "tscLog.h"
+#include "tscBatchMerge.h"
+#include "tscBatchWrite.h"
 #include "tscSubquery.h"
 #include "tsclient.h"
+#include "tscLog.h"
 
 /**
  * Represents the callback function and its context.
@@ -27,15 +27,15 @@
 typedef struct {
   __async_cb_func_t fp;
   void*             param;
-} Runnable;
+} SCallbackHandler;
 
 /**
  * The context of `batchResultCallback`.
  */
 typedef struct {
-  size_t   count;
-  Runnable runnable[];
-} BatchCallBackContext;
+  size_t           nHandlers;
+  SCallbackHandler handler[];
+} SBatchCallbackContext;
 
 /**
  * Get the number of insertion row in the sql statement.
@@ -70,8 +70,8 @@ inline static void tscReturnsError(SSqlObj* pSql, int code) {
  * @param code      the error code.
  */
 static void batchResultCallback(void* param, TAOS_RES* tres, int32_t code) {
-  BatchCallBackContext* context = param;
-  SSqlObj*              res = tres;
+  SBatchCallbackContext*  context = param;
+  SSqlObj*                res = tres;
 
   // handle corner case [context == null].
   if (context == NULL) {
@@ -90,32 +90,27 @@ static void batchResultCallback(void* param, TAOS_RES* tres, int32_t code) {
   }
 
   // handle results.
-  tscDebug("async batch result callback, number of item: %zu", context->count);
-  for (int i = 0; i < context->count; ++i) {
+  tscDebug("async batch result callback, number of item: %zu", context->nHandlers);
+  for (int i = 0; i < context->nHandlers; ++i) {
     // the result object is shared by many sql objects.
     // therefore, we need to increase the ref count.
     taosAcquireRef(tscObjRef, res->self);
 
-    Runnable* runnable = &context->runnable[i];
-    runnable->fp(runnable->param, res, res == NULL ? code : taos_errno(res));
+    SCallbackHandler* handler = &context->handler[i];
+    handler->fp(handler->param, res, code);
   }
 
   taosReleaseRef(tscObjRef, res->self);
   free(context);
 }
 
-int32_t dispatcherStatementMerge(SArray* statements, SSqlObj** result) {
-  if (statements == NULL) {
+int32_t dispatcherBatchMerge(SSqlObj** polls, size_t nPolls, SSqlObj** result) {
+  if (!polls || !nPolls) {
     return TSDB_CODE_SUCCESS;
   }
-
-  size_t count = taosArrayGetSize(statements);
-  if (count == 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-
+  
   // create the callback context.
-  BatchCallBackContext* context = calloc(1, sizeof(BatchCallBackContext) + count * sizeof(Runnable));
+  SBatchCallbackContext* context = calloc(1, sizeof(SBatchCallbackContext) + nPolls * sizeof(SCallbackHandler));
   if (context == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -123,17 +118,17 @@ int32_t dispatcherStatementMerge(SArray* statements, SSqlObj** result) {
   tscDebug("create batch call back context: %p", context);
 
   // initialize the callback context.
-  context->count = count;
-  for (size_t i = 0; i < count; ++i) {
-    SSqlObj* statement = taosArrayGetP(statements, i);
-    context->runnable[i].fp = statement->fp;
-    context->runnable[i].param = statement->param;
+  context->nHandlers = nPolls;
+  for (size_t i = 0; i < nPolls; ++i) {
+    SSqlObj* pSql = polls[i];
+    context->handler[i].fp = pSql->fp;
+    context->handler[i].param = pSql->param;
   }
 
   // merge the statements into single one.
-  tscDebug("start to merge %zu sql objs", count);
-  SSqlObj *pFirst = taosArrayGetP(statements, 0);
-  int32_t code = tscMergeKVPayLoadSqlObj(statements, pFirst);
+  tscDebug("start to merge %zu sql objs", nPolls);
+  SSqlObj *pFirst = polls[0];
+  int32_t code = tscMergeSSqlObjs(polls, nPolls, pFirst);
   if (code != TSDB_CODE_SUCCESS) {
     const char* msg = tstrerror(code);
     tscDebug("failed to merge sql objects: %s", msg);
@@ -147,8 +142,8 @@ int32_t dispatcherStatementMerge(SArray* statements, SSqlObj** result) {
   pFirst->fetchFp = pFirst->fp;
   *result = pFirst;
   
-  for (int i = 1; i < count; ++i) {
-    SSqlObj *pSql = taosArrayGetP(statements, i);
+  for (int i = 1; i < nPolls; ++i) {
+    SSqlObj *pSql = polls[i];
     taosReleaseRef(tscObjRef, pSql->self);
   }
   return code;
@@ -159,36 +154,43 @@ int32_t dispatcherStatementMerge(SArray* statements, SSqlObj** result) {
  * you need to notify dispatcher->notFull by yourself.
  *
  * @param dispatcher    the dispatcher.
- * @return              the items in the dispatcher, SArray<SSqlObj*>.
+ * @param nPolls        the number of polled SSqlObj*.
+ * @return              all the SSqlObj* in the buffer.
  */
-inline static SArray* dispatcherPollAll(SAsyncBulkWriteDispatcher* dispatcher) {
-  if (!taosArrayGetSize(dispatcher->buffer)) {
+inline static SSqlObj** dispatcherPollAll(SAsyncBatchWriteDispatcher* dispatcher, size_t* nPolls) {
+  if (!dispatcher->bufferSize) {
+    *nPolls = 0;
     return NULL;
   }
   
-  SArray* statements = taosArrayDup(dispatcher->buffer);
-  if (statements == NULL) {
+  SSqlObj** clone = malloc(sizeof(SSqlObj*) * dispatcher->bufferSize);
+  if (clone == NULL) {
     tscError("failed to poll all items: out of memory");
+    *nPolls = 0;
     return NULL;
   }
+  memcpy(clone, dispatcher->buffer, sizeof(SSqlObj*) * dispatcher->bufferSize);
   
+  *nPolls = dispatcher->bufferSize;
   dispatcher->currentSize = 0;
-  taosArrayClear(dispatcher->buffer);
-  return statements;
+  dispatcher->bufferSize = 0;
+  return clone;
 }
 
 /**
  * Poll all the SSqlObj* in the dispatcher's buffer.
  *
  * @param dispatcher    the dispatcher.
- * @return              the items in the dispatcher, SArray<SSqlObj*>.
+ * @param nPolls        the number of polled SSqlObj*.
+ * @return              all the SSqlObj* in the buffer.
  */
-inline static SArray* dispatcherLockPollAll(SAsyncBulkWriteDispatcher* dispatcher) {
+inline static SSqlObj** dispatcherLockPollAll(SAsyncBatchWriteDispatcher* dispatcher, size_t* nPolls) {
+  SSqlObj** polls = NULL;
   pthread_mutex_lock(&dispatcher->bufferMutex);
-  SArray* statements = dispatcherPollAll(dispatcher);
+  polls = dispatcherPollAll(dispatcher, nPolls);
   pthread_cond_broadcast(&dispatcher->notFull);
   pthread_mutex_unlock(&dispatcher->bufferMutex);
-  return statements;
+  return polls;
 }
 
 /**
@@ -198,7 +200,7 @@ inline static SArray* dispatcherLockPollAll(SAsyncBulkWriteDispatcher* dispatche
  * @param pSql        the sql object to offer.
  * @return            return whether offer success.
  */
-inline static bool dispatcherTryOffer(SAsyncBulkWriteDispatcher* dispatcher, SSqlObj* pSql) {
+inline static bool dispatcherTryOffer(SAsyncBatchWriteDispatcher* dispatcher, SSqlObj* pSql) {
   pthread_mutex_lock(&dispatcher->bufferMutex);
   
   // if dispatcher is shutdown, must fail back to normal insertion.
@@ -216,44 +218,51 @@ inline static bool dispatcherTryOffer(SAsyncBulkWriteDispatcher* dispatcher, SSq
     }
   }
 
-  taosArrayPush(dispatcher->buffer, pSql);
+  dispatcher->buffer[dispatcher->bufferSize++] = pSql;
   dispatcher->currentSize += statementGetInsertionRows(pSql);
   tscDebug("sql obj %p has been write to insert buffer", pSql);
   
-  // the dispatcher has been shutdown or reach batch size.
-  if (atomic_load_8(&dispatcher->shutdown) || dispatcher->currentSize >= dispatcher->batchSize) {
-    SArray* statements = dispatcherPollAll(dispatcher);
-    dispatcherExecute(statements);
-    taosArrayDestroy(&statements);
-    pthread_cond_broadcast(&dispatcher->notFull);
+  if (dispatcher->currentSize < dispatcher->batchSize) {
+    pthread_mutex_unlock(&dispatcher->bufferMutex);
+    return true;
   }
+  
+  // the dispatcher reaches batch size.
+  size_t nPolls = 0;
+  SSqlObj** polls = dispatcherPollAll(dispatcher, &nPolls);
+  pthread_cond_broadcast(&dispatcher->notFull);
   pthread_mutex_unlock(&dispatcher->bufferMutex);
+  
+  if (polls) {
+    dispatcherExecute(polls, nPolls);
+    free(polls);
+  }
   return true;
 }
 
-void dispatcherExecute(SArray* statements) {
+void dispatcherExecute(SSqlObj** polls, size_t nPolls) {
   int32_t code = TSDB_CODE_SUCCESS;
   // no item in the buffer (items has been taken by other threads).
-  if (!statements || !taosArrayGetSize(statements)) {
+  if (!polls || !nPolls) {
     return;
   }
 
   // merge the statements into single one.
   SSqlObj* merged = NULL;
-  code = dispatcherStatementMerge(statements, &merged);
+  code = dispatcherBatchMerge(polls, nPolls, &merged);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
 
-  tscDebug("merging %zu sql objs into %p", taosArrayGetSize(statements), merged);
+  tscDebug("merging %zu sql objs into %p", nPolls, merged);
   tscHandleMultivnodeInsert(merged);
   return;
 _error:
   tscError("send async batch sql obj failed, reason: %s", tstrerror(code));
 
   // handling the failures.
-  for (size_t i = 0; i < taosArrayGetSize(statements); ++i) {
-    SSqlObj* item = taosArrayGetP(statements, i);
+  for (size_t i = 0; i < nPolls; ++i) {
+    SSqlObj* item = polls[i];
     tscReturnsError(item, code);
   }
 }
@@ -277,77 +286,69 @@ static inline void afterMillis(struct timespec *t, int32_t millis) {
  * @param dispatcher the dispatcher thread to sleep.
  * @param timeout    the timeout in CLOCK_REALTIME.
  */
-inline static void dispatcherSleepUntil(SAsyncBulkWriteDispatcher* dispatcher, struct timespec* timeout) {
-  pthread_mutex_lock(&dispatcher->sleepMutex);
+inline static void timeoutManagerSleepUntil(SDispatcherTimeoutManager* manager, struct timespec* timeout) {
+  pthread_mutex_lock(&manager->sleepMutex);
   while (true) {
     // notified by dispatcherShutdown(...).
-    if (atomic_load_8(&dispatcher->shutdown)) {
+    if (isShutdownSDispatcherTimeoutManager(manager)) {
       break;
     }
-    if (pthread_cond_timedwait(&dispatcher->timeout, &dispatcher->sleepMutex, timeout)) {
+    if (pthread_cond_timedwait(&manager->timeout, &manager->sleepMutex, timeout)) {
       fflush(stdout);
       break;
     }
   }
-  pthread_mutex_unlock(&dispatcher->sleepMutex);
+  pthread_mutex_unlock(&manager->sleepMutex);
 }
 
 /**
  * The thread to manage batching timeout.
  */
-static void* dispatcherTimeoutCallback(void* arg) {
-  SAsyncBulkWriteDispatcher* dispatcher = arg;
+static void* timeoutManagerCallback(void* arg) {
+  SDispatcherTimeoutManager* manager = arg;
   setThreadName("tscAsyncBackground");
 
-  while (!atomic_load_8(&dispatcher->shutdown)) {
+  while (!isShutdownSDispatcherTimeoutManager(manager)) {
     struct timespec timeout;
     clock_gettime(CLOCK_REALTIME, &timeout);
-    afterMillis(&timeout, dispatcher->timeoutMs);
+    afterMillis(&timeout, manager->timeoutMs);
     
-    SArray* statements = dispatcherLockPollAll(dispatcher);
-    dispatcherExecute(statements);
-    taosArrayDestroy(&statements);
+    size_t nPolls = 0;
+    SSqlObj** polls = dispatcherLockPollAll(manager->dispatcher, &nPolls);
+    
+    if (polls) {
+      dispatcherExecute(polls, nPolls);
+      free(polls);
+    }
     
     // Similar to scheduleAtFixedRate in Java, if the execution time exceed
     // `timeoutMs` milliseconds, then there will be no sleep.
-    dispatcherSleepUntil(dispatcher, &timeout);
+    timeoutManagerSleepUntil(manager, &timeout);
   }
   return NULL;
 }
 
-SAsyncBulkWriteDispatcher* createAsyncBulkWriteDispatcher(int32_t batchSize, int32_t timeoutMs) {
-  SAsyncBulkWriteDispatcher* dispatcher = calloc(1, sizeof(SAsyncBulkWriteDispatcher));
+SAsyncBatchWriteDispatcher* createSAsyncBatchWriteDispatcher(int32_t batchSize, int32_t timeoutMs) {
+  SAsyncBatchWriteDispatcher* dispatcher = calloc(1, sizeof(SAsyncBatchWriteDispatcher) + batchSize * sizeof(SSqlObj*));
   if (!dispatcher) {
     return NULL;
   }
   
   dispatcher->currentSize = 0;
+  dispatcher->bufferSize = 0;
   dispatcher->batchSize = batchSize;
-  dispatcher->timeoutMs = timeoutMs;
-  
   atomic_store_8(&dispatcher->shutdown, false);
-
-  // init the buffer.
-  dispatcher->buffer = taosArrayInit(batchSize, sizeof(SSqlObj*));
-  if (!dispatcher->buffer) {
-    tfree(dispatcher);
-    return NULL;
-  }
-
+  
   // init the mutex and the cond.
   pthread_mutex_init(&dispatcher->bufferMutex, NULL);
-  pthread_mutex_init(&dispatcher->sleepMutex, NULL);
-  pthread_cond_init(&dispatcher->timeout, NULL);
   pthread_cond_init(&dispatcher->notFull, NULL);
 
-  // init background thread.
-  if (pthread_create(&dispatcher->background, NULL, dispatcherTimeoutCallback, dispatcher)) {
+  // init timeout manager.
+  dispatcher->timeoutManager = createSDispatcherTimeoutManager(dispatcher, timeoutMs);
+  if (!dispatcher->timeoutManager) {
     pthread_mutex_destroy(&dispatcher->bufferMutex);
-    pthread_mutex_destroy(&dispatcher->sleepMutex);
-    pthread_cond_destroy(&dispatcher->timeout);
     pthread_cond_destroy(&dispatcher->notFull);
-    taosArrayDestroy(&dispatcher->buffer);
-    tfree(dispatcher);
+    free(dispatcher);
     return NULL;
   }
 
@@ -359,18 +360,14 @@ SAsyncBulkWriteDispatcher* createAsyncBulkWriteDispatcher(int32_t batchSize, int
  * 
  * @param dispatcher the dispatcher.
  */
-inline static void dispatcherShutdown(SAsyncBulkWriteDispatcher* dispatcher) {
-  // mark shutdown, signal shutdown to timeout thread.
-  pthread_mutex_lock(&dispatcher->sleepMutex);
+inline static void dispatcherShutdown(SAsyncBatchWriteDispatcher* dispatcher) {
   atomic_store_8(&dispatcher->shutdown, true);
-  pthread_cond_broadcast(&dispatcher->timeout);
-  pthread_mutex_unlock(&dispatcher->sleepMutex);
-  
-  // make sure the timeout thread exit.
-  pthread_join(dispatcher->background, NULL);
+  if (dispatcher->timeoutManager) {
+    shutdownSDispatcherTimeoutManager(dispatcher->timeoutManager);
+  }
 }
 
-void destroyAsyncDispatcher(SAsyncBulkWriteDispatcher* dispatcher) {
+void destroySAsyncBatchWriteDispatcher(SAsyncBatchWriteDispatcher* dispatcher) {
   if (dispatcher == NULL) {
     return;
   }
@@ -379,28 +376,25 @@ void destroyAsyncDispatcher(SAsyncBulkWriteDispatcher* dispatcher) {
 
   // poll and send all the statements in the buffer.
   while (true) {
-    SArray* statements = dispatcherLockPollAll(dispatcher);
-    if (!statements) {
+    size_t nPolls = 0;
+    SSqlObj** polls = dispatcherLockPollAll(dispatcher, &nPolls);
+    if (!polls) {
       break ;
     }
-    
-    dispatcherExecute(statements);
-    taosArrayDestroy(&statements);
+    dispatcherExecute(polls, nPolls);
+    free(polls);
   }
-
-  // destroy the buffer.
-  taosArrayDestroy(&dispatcher->buffer);
-
+  // destroy the timeout manager.
+  destroySDispatcherTimeoutManager(dispatcher->timeoutManager);
+  
   // destroy the mutex.
   pthread_mutex_destroy(&dispatcher->bufferMutex);
-  pthread_mutex_destroy(&dispatcher->sleepMutex);
-  pthread_cond_destroy(&dispatcher->timeout);
   pthread_cond_destroy(&dispatcher->notFull);
-
+  
   free(dispatcher);
 }
 
-bool tscSupportBulkInsertion(SAsyncBulkWriteDispatcher* dispatcher, SSqlObj* pSql) {
+bool dispatcherCanDispatch(SAsyncBatchWriteDispatcher* dispatcher, SSqlObj* pSql) {
   if (pSql == NULL || !pSql->enableBatch) {
     return false;
   }
@@ -438,13 +432,13 @@ bool tscSupportBulkInsertion(SAsyncBulkWriteDispatcher* dispatcher, SSqlObj* pSq
   return true;
 }
 
-bool dispatcherTryDispatch(SAsyncBulkWriteDispatcher* dispatcher, SSqlObj* pSql) {
+bool dispatcherTryDispatch(SAsyncBatchWriteDispatcher* dispatcher, SSqlObj* pSql) {
   if (atomic_load_8(&dispatcher->shutdown)) {
     return false;
   }
 
   // the sql object doesn't support bulk insertion.
-  if (!tscSupportBulkInsertion(dispatcher, pSql)) {
+  if (!dispatcherCanDispatch(dispatcher, pSql)) {
     return false;
   }
 
@@ -453,20 +447,20 @@ bool dispatcherTryDispatch(SAsyncBulkWriteDispatcher* dispatcher, SSqlObj* pSql)
 }
 
 /**
- * Destroy the SAsyncBulkWriteDispatcher create by SDispatcherHolder.
- * @param arg the thread local SAsyncBulkWriteDispatcher.
+ * Destroy the SAsyncBatchWriteDispatcher create by SDispatcherManager.
+ * @param arg the thread local SAsyncBatchWriteDispatcher.
  */
 static void destroyDispatcher(void* arg) {
-  SAsyncBulkWriteDispatcher* dispatcher = arg;
+  SAsyncBatchWriteDispatcher* dispatcher = arg;
   if (!dispatcher) {
     return;
   }
 
-  destroyAsyncDispatcher(dispatcher);
+  destroySAsyncBatchWriteDispatcher(dispatcher);
 }
 
-SDispatcherHolder* createDispatcherHolder(int32_t batchSize, int32_t timeoutMs, bool isThreadLocal) {
-  SDispatcherHolder* dispatcher = calloc(1, sizeof(SDispatcherHolder));
+SDispatcherManager* createDispatcherManager(int32_t batchSize, int32_t timeoutMs, bool isThreadLocal) {
+  SDispatcherManager* dispatcher = calloc(1, sizeof(SDispatcherManager));
   if (!dispatcher) {
     return NULL;
   }
@@ -481,7 +475,7 @@ SDispatcherHolder* createDispatcherHolder(int32_t batchSize, int32_t timeoutMs, 
       return NULL;
     }
   } else {
-    dispatcher->global = createAsyncBulkWriteDispatcher(batchSize, timeoutMs);
+    dispatcher->global = createSAsyncBatchWriteDispatcher(batchSize, timeoutMs);
     if (!dispatcher->global) {
       free(dispatcher);
       return NULL;
@@ -490,32 +484,85 @@ SDispatcherHolder* createDispatcherHolder(int32_t batchSize, int32_t timeoutMs, 
   return dispatcher;
 }
 
-SAsyncBulkWriteDispatcher* dispatcherAcquire(SDispatcherHolder* holder) {
-  if (!holder->isThreadLocal) {
-    return holder->global;
+SAsyncBatchWriteDispatcher* dispatcherAcquire(SDispatcherManager* manager) {
+  if (!manager->isThreadLocal) {
+    return manager->global;
   }
 
-  SAsyncBulkWriteDispatcher* value = pthread_getspecific(holder->key);
+  SAsyncBatchWriteDispatcher* value = pthread_getspecific(manager->key);
   if (value) {
     return value;
   }
 
-  value = createAsyncBulkWriteDispatcher(holder->batchSize, holder->timeoutMs);
+  value = createSAsyncBatchWriteDispatcher(manager->batchSize, manager->timeoutMs);
   if (value) {
-    pthread_setspecific(holder->key, value);
+    pthread_setspecific(manager->key, value);
     return value;
   }
 
   return NULL;
 }
 
-void destroyDispatcherHolder(SDispatcherHolder* holder) {
-  if (holder) {
-    if (holder->isThreadLocal) {
-      pthread_key_delete(holder->key);
+void destroyDispatcherManager(SDispatcherManager* manager) {
+  if (manager) {
+    if (manager->isThreadLocal) {
+      pthread_key_delete(manager->key);
     } else {
-      destroyAsyncDispatcher(holder->global);
+      destroySAsyncBatchWriteDispatcher(manager->global);
     }
-    free(holder);
+    free(manager);
   }
+}
+
+SDispatcherTimeoutManager* createSDispatcherTimeoutManager(SAsyncBatchWriteDispatcher* dispatcher, int32_t timeoutMs) {
+  SDispatcherTimeoutManager* manager = calloc(1, sizeof(SDispatcherTimeoutManager));
+  if (!manager) {
+    return NULL;
+  }
+  
+  manager->timeoutMs = timeoutMs;
+  manager->dispatcher = dispatcher;
+  atomic_store_8(&manager->shutdown, false);
+  
+  pthread_mutex_init(&manager->sleepMutex, NULL);
+  pthread_cond_init(&manager->timeout, NULL);
+  
+  // init background thread.
+  if (pthread_create(&manager->background, NULL, timeoutManagerCallback, manager)) {
+    pthread_mutex_destroy(&manager->sleepMutex);
+    pthread_cond_destroy(&manager->timeout);
+    free(manager);
+    return NULL;
+  }
+  return manager;
+}
+
+void destroySDispatcherTimeoutManager(SDispatcherTimeoutManager* manager) {
+  if (!manager) {
+    return;
+  }
+
+  shutdownSDispatcherTimeoutManager(manager);
+  manager->dispatcher->timeoutManager = NULL;
+  
+  pthread_mutex_destroy(&manager->sleepMutex);
+  pthread_cond_destroy(&manager->timeout);
+  free(manager);
+}
+
+void shutdownSDispatcherTimeoutManager(SDispatcherTimeoutManager* manager) {
+  // mark shutdown, signal shutdown to timeout thread.
+  pthread_mutex_lock(&manager->sleepMutex);
+  atomic_store_8(&manager->shutdown, true);
+  pthread_cond_broadcast(&manager->timeout);
+  pthread_mutex_unlock(&manager->sleepMutex);
+
+  // make sure the timeout thread exit.
+  pthread_join(manager->background, NULL);
+}
+bool isShutdownSDispatcherTimeoutManager(SDispatcherTimeoutManager* manager) {
+  if (!manager) {
+    return true;
+  }
+  return atomic_load_8(&manager->shutdown);
 }
