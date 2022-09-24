@@ -1,5 +1,5 @@
 ---
-sidebar_label: Schemaless - OpenTSDB Telnet Protocol
+sidebar_label: OpenTSDB Telnet Protocol
 title: Schemaless - OpenTSDB Telnet Protocol
 description: Insert data in OpenTSDB Telnet Protocol
 ---

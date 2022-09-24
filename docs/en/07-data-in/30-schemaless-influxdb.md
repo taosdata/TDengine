@@ -1,5 +1,5 @@
 ---
-sidebar_label: Schemaless - InfluxDB Line Protocol
+sidebar_label: InfluxDB Line Protocol
 title: Schemaless - InfluxDB Line Protocol
 description: Insert data in Schemaless Line Protocol
 ---

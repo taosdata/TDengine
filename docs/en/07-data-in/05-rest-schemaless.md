@@ -55,3 +55,4 @@ curl -L \
   $TDENGINE_CLOUD_URL/rest/sql/test?token=$TDENGINE_CLOUD_TOKEN
 ```
 
+Please refer to [REST-API](https://docs.tdengine.com/reference/rest-api/) for detailed documentation.
