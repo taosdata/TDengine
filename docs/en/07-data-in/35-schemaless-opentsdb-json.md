@@ -1,7 +1,7 @@
 ---
-sidebar_label: REST
-title: REST
-description: Insert data using REST API
+sidebar_label: Schemaless - OpenTSDB JSON Protocol
+title: Schemaless - OpenTSDB JSON Protocol
+description: Insert data in OpenTSDB JSON Protocol
 ---
 
 <!-- exclude -->
@@ -10,11 +10,9 @@ import TabItem from '@theme/TabItem';
 
 <!-- exclude-end -->
 
-In this section we will explain how to write into TDengine cloud service using REST API.
+In this section we will explain how to write into TDengine cloud service using schemaless OpenTSDB JSON protocols over REST interface.
 
-## REST API
-
-### Config
+## Config
 
 Run this command in your terminal to save the TDengine cloud token and URL as variables:
 
@@ -47,11 +45,8 @@ $env:TDENGINE_CLOUD_URL="<url>"
 
 ### Insert
 
-Following command below show how to insert data into the table `d1001` of the database `test` via the command line utility `curl`.
+You can use any client that supports the http protocol to access the RESTful interface address `<cloud_url>/opentsdb/v1/put` to write data in OpenTSDB compatible format to TDengine. The EndPoint is as follows:
 
-```bash
-curl -L \
-  -d "INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31)" \
-  $TDENGINE_CLOUD_URL/rest/sql/test?token=$TDENGINE_CLOUD_TOKEN
+```text
+/opentsdb/v1/put/json/<db>?token=<cloud_token>
 ```
-
