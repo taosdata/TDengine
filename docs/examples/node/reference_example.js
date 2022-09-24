@@ -1,4 +1,4 @@
-const { options, connect } = require("td2.0-rest-connector");
+const { options, connect } = require("@tdengine/rest");
 options.url = process.env.TDENGINE_CLOUD_URL;
 options.query = { token: process.env.TDENGINE_CLOUD_TOKEN };
 

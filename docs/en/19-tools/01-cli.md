@@ -14,14 +14,14 @@ The TDengine command-line interface (hereafter referred to as `TDengine CLI`) is
 
 ## Installation
 
-To run TDengine CLI to access TDengine cloud, please install [TDengine client installation package](https://tdengine.com/assets-download/cloud/TDengine-client-3.0.0.1202209031045-Linux-x64.tar.gz) first.
+To run TDengine CLI to access TDengine cloud, please install [TDengine client installation package](https://tdengine.com/assets-download/cloud/TDengine-client-3.0.1.1202209201802-Linux-x64.tar.gz) first.
 
 ## Config
 
 <Tabs defaultValue="linux" groupId="sys">
 <TabItem value="linux" label="Config on Linux">
 
-Run this command in your Linux terminal to save your URL and token as variable:
+Run this command in your Linux terminal to save cloud DSN as variable:
 
 ```bash
 export TDENGINE_CLOUD_DSN="<DSN>"
@@ -30,7 +30,7 @@ export TDENGINE_CLOUD_DSN="<DSN>"
 </TabItem>
 <TabItem value="windows" label="Config on Windows (coming soon)">
 
-Run this command in your Windows terminal to save your URL and token as variable:
+Run this command in your Windows terminal to save cloud DSN as variable:
 
 ```bash
 set TDENGINE_CLOUD_DSN="<DSN>"
@@ -39,7 +39,7 @@ set TDENGINE_CLOUD_DSN="<DSN>"
 </TabItem>
 <TabItem value="mac" label="Config on Mac (coming soon)" groupId="sys">
 
-Run this command in your Mac terminal to save your URL and token as variable:
+Run this command in your Mac terminal to save cloud DSN as variable:
 
 ```bash
 export TDENGINE_CLOUD_DSN="<DSN>"
@@ -47,6 +47,15 @@ export TDENGINE_CLOUD_DSN="<DSN>"
 
 </TabItem>
 </Tabs>
+
+<!-- exclude -->
+:::note
+To obtain the value of cloud DSN, please log in [TDengine Cloud](https://cloud.tdengine.com) and click "Tools" and then select "TDengine CLI".
+
+:::
+<!-- exclude-end -->
+
+
 
 ## Connect 
 

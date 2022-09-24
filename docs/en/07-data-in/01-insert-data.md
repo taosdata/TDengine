@@ -86,8 +86,17 @@ In this example, we use `exec` method to execute SQL. `exec` is designed for som
 ```
 
 </TabItem>
+
+<TabItem value="C#" label="C#">
+
+```C#
+{{#include docs/examples/csharp/cloud-example/inout/Program.cs:insert}}
+```
+
+</TabItem>
+
 </Tabs>
 
-:::note 
+:::note
 `Use` statement is not applicable for cloud service since REST API is stateless.
 :::

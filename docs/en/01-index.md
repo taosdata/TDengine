@@ -9,21 +9,25 @@ This is the documentation structure for TDengine Cloud.
 
 1. The [Introduction](./intro) provides an overview of the features, capabilities and competitive advantages of TDengine Cloud.
 
-2. In [Get Started](./get-started) you will see a tutorial that introduces some of the novel concepts in TDengine, its architecture and also some information on the sample database that you can use to get an idea of the sheer speed of TDengine Cloud. Note that the sample database has 100 million rows to reflect a real world database. Please read the concepts section carefully since TDengine uses these concepts as the foundation to create extremely high-performing IoT and Big Data time-series applications.
+2. The [Concepts](./concept) section introduces some of the novel ideas that allow TDengine to exploit the characteristics of time series data to increase compute performance and also to make storage very efficient.
 
-3. The [Developer Guide](./develop) is a must read if you are developing IoT or Big Data applications for time series data. In this section we introduce the database connection, data modeling, data ingestion, query, stream processing, cache, data subscription, user-defined functions (coming soon), and other functionality in detail. Sample code is provided for a variety of programming languages. In most cases, you can just copy and paste the sample code, make a few changes to accommodate your application, and it will work.
+3. In the [Data In](./data-in) section we show you a number of ways for you to get your data into TDengine.
 
-4. In the [Data In](./data-in) section we show you a number of ways for you to get your data into TDengine.
+4. TDengine Cloud believes in giving you extremely easy access to your data and in the [Data Out](./data-out) section we show you a number of ways to get data out of TDengine and into your analysis and visualization applications.
 
-5. TDengine Cloud believes in giving you extremely easy access to your data and in the [Data Out](./data-out) section we show you a number of ways to get data out of TDengine and into your analysis and visualization applications.
+5. The [Visualization](./visual) section shows you how you can visualize the data that you store in TDengine, as well as how you can visualize and monitor the status of your TDengine Cloud instance(s) and databases.
 
-6. The [Visualization](./visual) section shows you how you can visualize the data that you store in TDengine, as well as how you can visualize and monitor the status of your TDengine Cloud instance(s) and databases.
+6. Data [Subscription](./tmq) is an advanced and useful feature of TDengine. It is similar to asynchronous publish/subscribe where a message published to a topic is immediately received by all subscribers to that topic. TDengine Subscriptions allow you to create event driven applications without having to install an external pub/sub messaging system.
 
-7. The [TDengine SQL](./taos-sql) section provides comprehensive information about both standard SQL as well as TDengine's extensions for easy time series analysis.
+7. [Stream Processing](./stream) is another extremely useful feature of TDengine Cloud that obviates the need to install external stream processing systems like Kafka or Flink. TDengine's Stream Processing feature allows you to process incoming data streams in real time and push data to tables based on rules that you can define easily.  
 
-8. In [Connector](./programming/connector), you can choose between Python, Java, Go, Rust and Node.js, to easily connect to TDengine to ingest and query data in your preferred development language.
+8. TDengine provides sophisticated [Data Replication](./replication) features. You can replicate from Cloud to a private instance and vice versa. You can replicate between Cloud providers regardless of region and you can also replicate between edge instances and Cloud or edge instances and private centralized instances.
 
-9. The [Tools](./tools) section introduces the Taos CLI which gives you shell access to easily perform ad hoc queries on your instances and databases. Additionally, taosBenchmark is introduced. It is a tool that can help you generate large amounts of data very easily with simple configurations and test the performance of TDengine Cloud.
+9. The [Developer Guide](./programming) is a must read if you are developing IoT or Big Data applications for time series data. In this section we introduce the database connection, data modeling, data ingestion, query, stream processing, cache, data subscription, user-defined functions (coming soon), and other functionality in detail. Sample code is provided for a variety of programming languages. In most cases, you can just copy and paste the sample code, make a few changes to accommodate your application, and it will work.
+
+10. The [TDengine SQL](./taos-sql) section provides comprehensive information about both standard SQL as well as TDengine's extensions for easy time series analysis.
+
+11. The [Tools](./tools) section introduces the Taos CLI which gives you shell access to easily perform ad hoc queries on your instances and databases. Additionally, taosBenchmark is introduced. It is a tool that can help you generate large amounts of data very easily with simple configurations and test the performance of TDengine Cloud.
 
 <!-- 10. Finally, in the [FAQ](./faq) section, we try to preemptively answer questions that we anticipate. Of course, we will continue to add to this section all the time. -->
 
