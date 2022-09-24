@@ -15,6 +15,7 @@
 
 #include "osAtomic.h"
 
+#include "tscDataBlockMerge.h"
 #include "tscBulkWrite.h"
 #include "tscLog.h"
 #include "tscSubquery.h"
