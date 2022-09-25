@@ -299,7 +299,7 @@ wtest.bat -f unique/dnode/remove2.sim
 wtest.bat -f unique/dnode/vnode_clean.sim
 
 wtest.bat -f unique/http/admin.sim
-wtest.bat -f unique/http/opentsdb.sim
+#wtest.bat -f unique/http/opentsdb.sim
 
 wtest.bat -f unique/import/replica2.sim
 wtest.bat -f unique/import/replica3.sim

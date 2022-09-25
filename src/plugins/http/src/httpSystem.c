@@ -30,6 +30,7 @@
 #include "httpGcHandle.h"
 #include "httpRestHandle.h"
 #include "httpTgHandle.h"
+#include "httpMetricsHandle.h"
 
 #ifndef _ADMIN
 void adminInitHandle(HttpServer* pServer) {}
@@ -52,7 +53,7 @@ int32_t httpInitSystem() {
   gcInitHandle(&tsHttpServer);
   tgInitHandle(&tsHttpServer);
   opInitHandle(&tsHttpServer);
-
+  metricsInitHandle(&tsHttpServer);
   return 0;
 }
 
@@ -119,4 +120,10 @@ void httpCleanUpSystem() {
   tsHttpServer.status = HTTP_SERVER_CLOSED;
 }
 
-int32_t httpGetReqCount() { return atomic_exchange_32(&tsHttpServer.requestNum, 0); }
+int64_t httpGetReqCount() { return atomic_exchange_64(&tsHttpServer.requestNum, 0); }
+int32_t httpGetStatusCodeCount(int index) {
+  return atomic_load_32(&tsHttpServer.statusCodeErrs[index]);
+}
+int32_t httpClearStatusCodeCount(int index) {
+  return atomic_exchange_32(&tsHttpServer.statusCodeErrs[index], 0);
+}

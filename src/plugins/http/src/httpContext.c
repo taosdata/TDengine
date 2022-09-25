@@ -67,6 +67,8 @@ static void httpDestroyContext(void *data) {
     pContext->parser = NULL;
   }
 
+  pthread_mutex_destroy(&pContext->ctxMutex);
+
   tfree(pContext);
 }
 
@@ -118,15 +120,18 @@ HttpContext *httpCreateContext(SOCKET fd) {
   pContext->lastAccessTime = taosGetTimestampSec();
   pContext->state = HTTP_CONTEXT_STATE_READY;
   pContext->parser = httpCreateParser(pContext);
+  pContext->error = false;
 
   TSDB_CACHE_PTR_TYPE handleVal = (TSDB_CACHE_PTR_TYPE)pContext;
   HttpContext **ppContext = taosCachePut(tsHttpServer.contextCache, &handleVal, sizeof(TSDB_CACHE_PTR_TYPE), &pContext,
-                                         sizeof(TSDB_CACHE_PTR_TYPE), 3000);
+                                         sizeof(TSDB_CACHE_PTR_TYPE), tsHttpKeepAlive);
   pContext->ppContext = ppContext;
   httpDebug("context:%p, fd:%d, is created, data:%p", pContext, fd, ppContext);
 
   // set the ref to 0
   taosCacheRelease(tsHttpServer.contextCache, (void **)&ppContext, false);
+
+  pthread_mutex_init(&pContext->ctxMutex, NULL);
 
   return pContext;
 }
@@ -188,11 +193,12 @@ void httpCloseContextByApp(HttpContext *pContext) {
   pContext->parsed = false;
   bool keepAlive = true;
 
-  if (parser && parser->httpVersion == HTTP_VERSION_10 && parser->keepAlive != HTTP_KEEPALIVE_ENABLE) {
+  if (pContext->error == true) {
+    keepAlive = false;
+  } else if (parser && parser->httpVersion == HTTP_VERSION_10 && parser->keepAlive != HTTP_KEEPALIVE_ENABLE) {
     keepAlive = false;
   } else if (parser && parser->httpVersion != HTTP_VERSION_10 && parser->keepAlive == HTTP_KEEPALIVE_DISABLE) {
     keepAlive = false;
-  } else {
   }
 
   if (keepAlive) {

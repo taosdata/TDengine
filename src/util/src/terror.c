@@ -406,6 +406,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_TAG_VALUE_TOO_LONG,   "tag value can not mor
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_VALUE_NULL,           "value not find")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_VALUE_TYPE,           "value type should be boolean, number or string")
 
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_REQUEST_JSON_ERROR,      "http request json error")
+
 // odbc
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_OOM,                     "out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_CHAR_NOT_NUM,       "convertion not a valid literal input")

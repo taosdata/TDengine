@@ -37,11 +37,12 @@
 #define HTTP_BUFFER_SIZE            8388608
 #define HTTP_STEP_SIZE              4096    //http message get process step by step
 #define HTTP_METHOD_SCANNER_SIZE    7       //http method fp size
-#define HTTP_GC_TARGET_SIZE         512
+#define HTTP_GC_TARGET_SIZE         16384
 #define HTTP_WRITE_RETRY_TIMES      500
 #define HTTP_WRITE_WAIT_TIME_MS     5
 #define HTTP_PASSWORD_LEN           TSDB_UNI_LEN
 #define HTTP_SESSION_ID_LEN         (TSDB_USER_LEN + HTTP_PASSWORD_LEN)
+#define HTTP_STATUS_CODE_NUM        63
 
 typedef enum HttpReqType {
   HTTP_REQTYPE_OTHERS = 0,
@@ -140,26 +141,29 @@ typedef enum {
 } EHTTP_CONTEXT_FAILED_CAUSE;
 
 typedef struct HttpContext {
-  int32_t      refCount;
-  SOCKET       fd;
-  uint32_t     accessTimes;
-  uint32_t     lastAccessTime;
-  int32_t      state;
-  uint8_t      reqType;
-  uint8_t      parsed;
-  char         ipstr[22];
-  char         user[TSDB_USER_LEN];  // parsed from auth token or login message
-  char         pass[HTTP_PASSWORD_LEN];
-  TAOS *       taos;
-  void *       ppContext;
-  HttpSession *session;
-  z_stream     gzipStream;
-  HttpParser  *parser;
-  HttpSqlCmd   singleCmd;
-  HttpSqlCmds *multiCmds;
-  JsonBuf *    jsonBuf;
-  HttpEncodeMethod *encodeMethod;
-  HttpDecodeMethod *decodeMethod;
+  int32_t            refCount;
+  SOCKET             fd;
+  uint32_t           accessTimes;
+  uint32_t           lastAccessTime;
+  int32_t            state;
+  uint8_t            reqType;
+  uint8_t            parsed;
+  bool               error;
+  char               ipstr[22];
+  char               user[TSDB_USER_LEN];  // parsed from auth token or login message
+  char               pass[HTTP_PASSWORD_LEN];
+  char               db[/*TSDB_ACCT_ID_LEN + */TSDB_DB_NAME_LEN];
+  TAOS *             taos;
+  void *             ppContext;
+  pthread_mutex_t    ctxMutex;
+  HttpSession       *session;
+  z_stream           gzipStream;
+  HttpParser        *parser;
+  HttpSqlCmd         singleCmd;
+  HttpSqlCmds       *multiCmds;
+  JsonBuf           *jsonBuf;
+  HttpEncodeMethod  *encodeMethod;
+  HttpDecodeMethod  *decodeMethod;
   struct HttpThread *pThread;
 } HttpContext;
 
@@ -184,8 +188,9 @@ typedef struct HttpServer {
   SOCKET            fd;
   int32_t           numOfThreads;
   int32_t           methodScannerLen;
-  int32_t           requestNum;
+  int64_t           requestNum;
   int32_t           status;
+  int32_t           statusCodeErrs[HTTP_STATUS_CODE_NUM];
   pthread_t         thread;
   HttpThread *      pThreads;
   void *            contextCache;

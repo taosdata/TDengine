@@ -35,6 +35,7 @@ bool httpProcessData(HttpContext* pContext) {
   if (!httpAlterContextState(pContext, HTTP_CONTEXT_STATE_READY, HTTP_CONTEXT_STATE_HANDLING)) {
     httpTrace("context:%p, fd:%d, state:%s not in ready state, stop process request", pContext, pContext->fd,
               httpContextStateStr(pContext->state));
+    pContext->error = true;
     httpCloseContextByApp(pContext);
     return false;
   }
@@ -44,15 +45,14 @@ bool httpProcessData(HttpContext* pContext) {
     httpTrace("context:%p, fd:%d, process options request", pContext, pContext->fd);
     httpSendOptionResp(pContext, "process options request success");
   } else {
-    if (!httpDecodeRequest(pContext)) {
-      /*
-       * httpCloseContextByApp has been called when parsing the error
-       */
-      // httpCloseContextByApp(pContext);
-    } else {
+    pthread_mutex_lock(&pContext->ctxMutex);
+
+    if (httpDecodeRequest(pContext)) {
       httpClearParser(pContext->parser);
       httpProcessRequest(pContext);
     }
+
+    pthread_mutex_unlock(&pContext->ctxMutex);
   }
 
   return true;

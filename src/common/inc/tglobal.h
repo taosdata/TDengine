@@ -41,6 +41,7 @@ extern char     tsArbitrator[];
 extern int8_t   tsArbOnline;
 extern int64_t  tsArbOnlineTimestamp;
 extern int32_t  tsDnodeId;
+extern int64_t  tsDnodeStartTime;
 
 // common
 extern int      tsRpcTimer;
@@ -123,6 +124,8 @@ extern int32_t  tsHttpMaxThreads;
 extern int8_t   tsHttpEnableCompress;
 extern int8_t   tsHttpEnableRecordSql;
 extern int8_t   tsTelegrafUseFieldNum;
+extern int8_t   tsHttpDbNameMandatory;
+extern int32_t  tsHttpKeepAlive;
 
 // mqtt
 extern int8_t tsEnableMqttModule;

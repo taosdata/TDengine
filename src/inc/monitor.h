@@ -23,6 +23,12 @@ extern "C" {
 #include <stdint.h>
 
 typedef struct {
+  const char * name;
+  int32_t code;
+  int32_t index;
+} SMonHttpStatus;
+
+typedef struct {
   char *  acctId;
   int64_t currentPointsPerSecond;
   int64_t maxPointsPerSecond;
@@ -54,6 +60,7 @@ void    monCleanupSystem();
 void    monSaveAcctLog(SAcctMonitorObj *pMonObj);
 void    monSaveLog(int32_t level, const char *const format, ...);
 void    monExecuteSQL(char *sql);
+SMonHttpStatus *monGetHttpStatusHashTableEntry(int32_t code);
 
 #ifdef __cplusplus
 }
