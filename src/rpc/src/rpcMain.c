@@ -225,7 +225,6 @@ static bool rpcGenUID(uint32_t *first, uint32_t *second) {
     if (val >= 0xFFFF) {
       atomic_store_32(&tranId, 0);
     }
-
     id = ((hashId & 0x0FFF) << 52) | ((pid & 0x0FFF) << 40) | ((ts & 0xFFFFFF) << 16) | (val & 0xFFFF);
     if (id) {
       break;
