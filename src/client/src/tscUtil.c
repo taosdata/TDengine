@@ -20,6 +20,7 @@
 #include "texpr.h"
 #include "tkey.h"
 #include "tmd5.h"
+#include "tscBatchWrite.h"
 #include "tscGlobalmerge.h"
 #include "tscLog.h"
 #include "tscProfile.h"
@@ -2350,6 +2351,9 @@ void tscCloseTscObj(void *param) {
   tscReleaseRpc(pObj->pRpcObj);
   pthread_mutex_destroy(&pObj->mutex);
   tscReleaseClusterInfo(pObj->clusterId);
+  
+  destroyDispatcherManager(pObj->dispatcherManager);
+  pObj->dispatcherManager = NULL;
 
   tfree(pObj);
 }

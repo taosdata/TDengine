@@ -23,6 +23,7 @@ extern "C" {
 #include "tthread.h"
 
 // forward declaration.
+typedef struct STscObj                   STscObj;
 typedef struct SSqlObj                   SSqlObj;
 typedef struct SDispatcherTimeoutManager SDispatcherTimeoutManager;
 
@@ -33,6 +34,9 @@ typedef struct SDispatcherTimeoutManager SDispatcherTimeoutManager;
  * communications to the server and directly improving the throughput of small object asynchronous writes.
  */
 typedef struct SAsyncBatchWriteDispatcher {
+  // the client object.
+  STscObj* pClient;
+  
   // the timeout manager.
   SDispatcherTimeoutManager* timeoutManager;
 
@@ -75,7 +79,10 @@ typedef struct SDispatcherManager {
   bool isThreadLocal;
 
   // the global dispatcher, if thread local enabled, global will be set to NULL.
-  SAsyncBatchWriteDispatcher* global;
+  SAsyncBatchWriteDispatcher* pGlobal;
+  
+  // the client object.
+  STscObj* pClient;
 
 } SDispatcherManager;
 
@@ -146,12 +153,13 @@ void dispatcherExecute(SSqlObj** polls, size_t nPolls);
 /**
  * Create the async batch write dispatcher.
  *
+ * @param pClient   the client object.
  * @param batchSize When user submit an insert sql to `taos_query_a`, the SSqlObj* will be buffered instead of executing
  * it. If the number of the buffered rows reach `batchSize`, all the SSqlObj* will be merged and sent to vnodes.
  * @param timeout   The SSqlObj* will be sent to vnodes no more than `timeout` milliseconds. But the actual time
  *                  vnodes received the SSqlObj* depends on the network quality.
  */
-SAsyncBatchWriteDispatcher* createSAsyncBatchWriteDispatcher(int32_t batchSize, int32_t timeoutMs);
+SAsyncBatchWriteDispatcher* createSAsyncBatchWriteDispatcher(STscObj* pClient, int32_t batchSize, int32_t timeoutMs);
 
 /**
  * Destroy the async auto batch dispatcher.
@@ -182,13 +190,14 @@ bool dispatcherTryDispatch(SAsyncBatchWriteDispatcher* dispatcher, SSqlObj* pSql
 
 /**
  * Create the manager of SAsyncBatchWriteDispatcher.
- *
+ * 
+ * @param pClient       the client object.
  * @param batchSize     the batchSize of SAsyncBatchWriteDispatcher.
  * @param timeoutMs     the timeoutMs of SAsyncBatchWriteDispatcher.
  * @param isThreadLocal specifies whether the dispatcher is thread local.
  * @return the SAsyncBatchWriteDispatcher manager.
  */
-SDispatcherManager* createDispatcherManager(int32_t batchSize, int32_t timeoutMs, bool isThreadLocal);
+SDispatcherManager* createDispatcherManager(STscObj* pClient, int32_t batchSize, int32_t timeoutMs, bool isThreadLocal);
 
 /**
  * Destroy the SDispatcherManager.

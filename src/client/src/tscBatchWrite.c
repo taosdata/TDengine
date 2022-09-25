@@ -116,6 +116,7 @@ int32_t dispatcherBatchBuilder(SSqlObj** polls, size_t nPolls, SSqlObj** batch) 
   }
 
   tscDebug("create batch call back context: %p", context);
+  
 
   // initialize the callback context.
   context->nHandlers = nPolls;
@@ -328,12 +329,15 @@ static void* timeoutManagerCallback(void* arg) {
   return NULL;
 }
 
-SAsyncBatchWriteDispatcher* createSAsyncBatchWriteDispatcher(int32_t batchSize, int32_t timeoutMs) {
+SAsyncBatchWriteDispatcher* createSAsyncBatchWriteDispatcher(STscObj* pClient, int32_t batchSize, int32_t timeoutMs) {
   SAsyncBatchWriteDispatcher* dispatcher = calloc(1, sizeof(SAsyncBatchWriteDispatcher) + batchSize * sizeof(SSqlObj*));
   if (!dispatcher) {
     return NULL;
   }
+
+  assert(pClient != NULL);
   
+  dispatcher->pClient = pClient;
   dispatcher->currentSize = 0;
   dispatcher->bufferSize = 0;
   dispatcher->batchSize = batchSize;
@@ -459,12 +463,15 @@ static void destroyDispatcher(void* arg) {
   destroySAsyncBatchWriteDispatcher(dispatcher);
 }
 
-SDispatcherManager* createDispatcherManager(int32_t batchSize, int32_t timeoutMs, bool isThreadLocal) {
+SDispatcherManager* createDispatcherManager(STscObj* pClient, int32_t batchSize, int32_t timeoutMs, bool isThreadLocal) {
   SDispatcherManager* dispatcher = calloc(1, sizeof(SDispatcherManager));
   if (!dispatcher) {
     return NULL;
   }
 
+  assert(pClient != NULL);
+  
+  dispatcher->pClient = pClient;
   dispatcher->batchSize = batchSize;
   dispatcher->timeoutMs = timeoutMs;
   dispatcher->isThreadLocal = isThreadLocal;
@@ -475,8 +482,8 @@ SDispatcherManager* createDispatcherManager(int32_t batchSize, int32_t timeoutMs
       return NULL;
     }
   } else {
-    dispatcher->global = createSAsyncBatchWriteDispatcher(batchSize, timeoutMs);
-    if (!dispatcher->global) {
+    dispatcher->pGlobal = createSAsyncBatchWriteDispatcher(pClient, batchSize, timeoutMs);
+    if (!dispatcher->pGlobal) {
       free(dispatcher);
       return NULL;
     }
@@ -486,7 +493,7 @@ SDispatcherManager* createDispatcherManager(int32_t batchSize, int32_t timeoutMs
 
 SAsyncBatchWriteDispatcher* dispatcherAcquire(SDispatcherManager* manager) {
   if (!manager->isThreadLocal) {
-    return manager->global;
+    return manager->pGlobal;
   }
 
   SAsyncBatchWriteDispatcher* value = pthread_getspecific(manager->key);
@@ -494,7 +501,7 @@ SAsyncBatchWriteDispatcher* dispatcherAcquire(SDispatcherManager* manager) {
     return value;
   }
 
-  value = createSAsyncBatchWriteDispatcher(manager->batchSize, manager->timeoutMs);
+  value = createSAsyncBatchWriteDispatcher(manager->pClient, manager->batchSize, manager->timeoutMs);
   if (value) {
     pthread_setspecific(manager->key, value);
     return value;
@@ -507,8 +514,10 @@ void destroyDispatcherManager(SDispatcherManager* manager) {
   if (manager) {
     if (manager->isThreadLocal) {
       pthread_key_delete(manager->key);
-    } else {
-      destroySAsyncBatchWriteDispatcher(manager->global);
+    }
+    
+    if (manager->pGlobal) {
+      destroySAsyncBatchWriteDispatcher(manager->pGlobal);
     }
     free(manager);
   }

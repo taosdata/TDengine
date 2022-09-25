@@ -395,8 +395,8 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
     return;
   }
   
-  if (tscDispatcherManager != NULL) {
-    SAsyncBatchWriteDispatcher * dispatcher = dispatcherAcquire(tscDispatcherManager);
+  if (pObj->dispatcherManager != NULL) {
+    SAsyncBatchWriteDispatcher * dispatcher = dispatcherAcquire(pObj->dispatcherManager);
     if (dispatcherTryDispatch(dispatcher, pSql)) {
       taosReleaseRef(tscObjRef, pSql->self);
       tscDebug("sql obj %p has been buffer in insert buffer", pSql);

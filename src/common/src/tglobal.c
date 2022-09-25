@@ -127,11 +127,10 @@ int8_t tsSortWhenGroupBy = 1;
 int32_t tsProjectExecInterval = 10000;   // every 10sec, the projection will be executed once
 int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 
-// The taosc async insertion batching feature.
-bool    tsAsyncBatchEnable = true;
-bool    tsAsyncBatchThreadLocal = true;    // if thread local enable, each thread will allocate a dispatcher.
-int32_t tsAsyncBatchSize = 96;             // suggest: 64 - 512
-int32_t tsAsyncBatchTimeout = 10;          // suggest: 5 - 200 (unit: milliseconds)
+// The tsc async write batching feature (using ABWD).
+bool    tsWriteBatchThreadLocal = true;    // if thread local enable, each thread will allocate a dispatcher.
+int32_t tsWriteBatchSize = 96;        // suggest: 64 - 512, 0 means disable batching.
+int32_t tsWriteBatchTimeout = 10;     // suggest: 5 - 200 (unit: milliseconds)
 
 // the maximum allowed query buffer size during query processing for each data node.
 // -1 no limit (default)
@@ -1855,41 +1854,31 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
-
-  cfg.option = "asyncBatchEnable";
-  cfg.ptr = &tsAsyncBatchEnable;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosInitConfigOption(cfg);
   
-  cfg.option = "asyncBatchThreadLocal";
-  cfg.ptr = &tsAsyncBatchThreadLocal;
+  cfg.option = "writeBatchThreadLocal";
+  cfg.ptr = &tsWriteBatchThreadLocal;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = 1;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "asyncBatchSize";
-  cfg.ptr = &tsAsyncBatchSize;
+  cfg.option = "writeBatchSize";
+  cfg.ptr = &tsWriteBatchSize;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 1;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
   cfg.maxValue = 4096;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "asyncBatchTimeout";
-  cfg.ptr = &tsAsyncBatchTimeout;
+  cfg.option = "writeBatchTimeout";
+  cfg.ptr = &tsWriteBatchTimeout;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 1;
   cfg.maxValue = 2048;
   cfg.ptrLength = 0;

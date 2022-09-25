@@ -45,6 +45,7 @@ typedef enum {
 
 // forward declaration
 struct SSqlInfo;
+typedef struct SDispatcherManager SDispatcherManager;
 
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int32_t numOfRows);
 typedef void (*_freeSqlSupporter)(void **);
@@ -352,7 +353,8 @@ typedef struct STscObj {
   SRpcCorEpSet      *tscCorMgmtEpSet;
   pthread_mutex_t    mutex;
   int32_t            numOfObj; // number of sqlObj from this tscObj
-      
+  
+  SDispatcherManager*dispatcherManager;
   SReqOrigin         from;
 } STscObj;
 
@@ -510,20 +512,6 @@ int32_t taos_unused_session(TAOS* taos);
 
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code);
 
-/**
- * Init the manager of async batch write dispatcher.
- * 
- * @param batchSize     the batchSize of async batch write dispatcher.
- * @param timeoutMs     the timeout of batching in milliseconds.
- * @param isThreadLocal specifies whether the dispatcher is thread local.
- */
-void tscInitDispatcherManager(int32_t batchSize, int32_t timeoutMs, bool isThreadLocal);
-
-/**
- * Destroy the manager of async batch write dispatcher.
- */
-void tscDestroyDispatcherManager();
-
 void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, __async_cb_func_t fp, void *param, const char *sqlstr, size_t sqlLen);
 
 void tscImportDataFromFile(SSqlObj *pSql);
@@ -552,9 +540,6 @@ extern SHashObj  *tscVgroupMap;
 extern SHashObj  *tscTableMetaMap;
 extern SCacheObj *tscVgroupListBuf;
 
-// forward declaration.
-typedef struct SDispatcherManager    SDispatcherManager;
-extern SDispatcherManager           *tscDispatcherManager;
 extern int   tscObjRef;
 extern void *tscTmr;
 extern void *tscQhandle;
