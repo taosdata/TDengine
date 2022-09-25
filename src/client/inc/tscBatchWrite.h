@@ -126,15 +126,14 @@ bool isShutdownSDispatcherTimeoutManager(SDispatcherTimeoutManager* manager);
 void shutdownSDispatcherTimeoutManager(SDispatcherTimeoutManager* manager);
 
 /**
- * Merge the statements into single SSqlObj.
+ * Merge SSqlObjs into single SSqlObj.
  *
- * @param fp     the callback of SSqlObj.
- * @param param  the parameters of the callback.
  * @param polls  the array of SSqlObj*.
  * @param nPolls the number of SSqlObj* in the array.
+ * @param batch  the merged SSqlObj*.
  * @return       the merged SSqlObj.
  */
-int32_t dispatcherBatchMerge(SSqlObj** polls, size_t nPolls, SSqlObj** result);
+int32_t dispatcherBatchBuilder(SSqlObj** polls, size_t nPolls, SSqlObj** batch);
 
 /**
  * Merge the sql statements and execute the merged sql statement.
@@ -147,11 +146,10 @@ void dispatcherExecute(SSqlObj** polls, size_t nPolls);
 /**
  * Create the async batch write dispatcher.
  *
- * @param batchSize When user submit an insert statement to `taos_query_ra`, the statement will be buffered
- *                  asynchronously in the buffer instead of executing it. If the number of the buffered
- *                  statements reach batchLen, all the statements in the buffer will be merged and sent to vnodes.
- * @param timeout   The statements will be sent to vnodes no more than timeout milliseconds. But the actual time
- *                  vnodes received the statements depends on the network quality.
+ * @param batchSize When user submit an insert sql to `taos_query_a`, the SSqlObj* will be buffered instead of executing
+ * it. If the number of the buffered rows reach `batchSize`, all the SSqlObj* will be merged and sent to vnodes.
+ * @param timeout   The SSqlObj* will be sent to vnodes no more than `timeout` milliseconds. But the actual time
+ *                  vnodes received the SSqlObj* depends on the network quality.
  */
 SAsyncBatchWriteDispatcher* createSAsyncBatchWriteDispatcher(int32_t batchSize, int32_t timeoutMs);
 

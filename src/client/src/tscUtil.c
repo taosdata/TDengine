@@ -1837,32 +1837,36 @@ void tscDestroyBoundColumnInfo(SParsedDataColInfo* pColInfo) {
   tfree(pColInfo->colIdxInfo);
 }
 
+void destroySTableDataBlocks(STableDataBlocks* pDataBlocks) {
+  if (!pDataBlocks) {
+    return;
+  }
+  tfree(pDataBlocks->pData);
+  if (!pDataBlocks->cloned) {
+    tfree(pDataBlocks->params);
+    
+    // free the refcount for metermeta
+    if (pDataBlocks->pTableMeta != NULL) {
+      tfree(pDataBlocks->pTableMeta);
+    }
+
+    tscDestroyBoundColumnInfo(&pDataBlocks->boundColumnInfo);
+  }
+  tfree(pDataBlocks);
+}
+
 void tscDestroyDataBlock(SSqlObj *pSql, STableDataBlocks* pDataBlock, bool removeMeta) {
   if (pDataBlock == NULL) {
     return;
   }
-
-  tfree(pDataBlock->pData);
-
+  
   if (removeMeta) {
     char name[TSDB_TABLE_FNAME_LEN] = {0};
     tNameExtractFullName(&pDataBlock->tableName, name);
-
     taosHashRemove(UTIL_GET_TABLEMETA(pSql), name, strnlen(name, TSDB_TABLE_FNAME_LEN));
   }
 
-  if (!pDataBlock->cloned) {
-    tfree(pDataBlock->params);
-
-    // free the refcount for metermeta
-    if (pDataBlock->pTableMeta != NULL) {
-      tfree(pDataBlock->pTableMeta);
-    }
-
-    tscDestroyBoundColumnInfo(&pDataBlock->boundColumnInfo);
-  }
-
-  tfree(pDataBlock);
+  destroySTableDataBlocks(pDataBlock);
 }
 
 SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, int16_t bytes,
@@ -1889,18 +1893,22 @@ SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint
   return param;
 }
 
+void destroySTableDataBlocksList(SArray* pDataBlocks) {
+  if (!pDataBlocks) {
+    return;
+  }
+  size_t nBlocks = taosArrayGetSize(pDataBlocks);
+  for (size_t i = 0; i < nBlocks; ++i) {
+    STableDataBlocks * pDataBlock = taosArrayGetP(pDataBlocks, i);
+    if (pDataBlock) {
+      destroySTableDataBlocks(pDataBlock);
+    }
+  }
+  taosArrayDestroy(&pDataBlocks);
+}
+
 void*  tscDestroyBlockArrayList(SSqlObj *pSql, SArray* pDataBlockList) {
-  if (pDataBlockList == NULL) {
-    return NULL;
-  }
-
-  size_t size = taosArrayGetSize(pDataBlockList);
-  for (int32_t i = 0; i < size; i++) {
-    void* d = taosArrayGetP(pDataBlockList, i);
-    tscDestroyDataBlock(pSql, d, false);
-  }
-
-  taosArrayDestroy(&pDataBlockList);
+  destroySTableDataBlocksList(pDataBlockList);
   return NULL;
 }
 

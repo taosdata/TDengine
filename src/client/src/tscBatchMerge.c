@@ -171,13 +171,14 @@ size_t writeSSubmitBlkBuilder(SSubmitBlkBuilder* builder, SSubmitBlk* target, si
   taosArraySort(builder->rows, compareSMemRow);
   
   // deep copy all the SMemRow to target.
-  for (int i = 0; i < taosArrayGetSize(builder->rows); ++i) {
+  size_t nMemRows = taosArrayGetSize(builder->rows);
+  for (int i = 0; i < nMemRows; ++i) {
     char* pRow = taosArrayGetP(builder->rows, i);
     memcpy(POINTER_SHIFT(target->data, dataLen), pRow, memRowTLen(pRow));
     dataLen += memRowTLen(pRow);
   }
 
-  *nRows = taosArrayGetSize(builder->rows);
+  *nRows = nMemRows;
 
   target->schemaLen = 0;
   target->dataLen = (int32_t) htonl(dataLen);
@@ -188,7 +189,8 @@ size_t writeSSubmitBlkBuilder(SSubmitBlkBuilder* builder, SSubmitBlk* target, si
 
 size_t nWriteSSubmitBlkBuilder(SSubmitBlkBuilder* builder) {
   size_t dataLen = 0;
-  for (int i = 0; i < taosArrayGetSize(builder->rows); ++i) {
+  size_t nRows = taosArrayGetSize(builder->rows);
+  for (int i = 0; i < nRows; ++i) {
     char* pRow = taosArrayGetP(builder->rows, i);
     dataLen += memRowTLen(pRow);
   }
@@ -485,8 +487,9 @@ int32_t tscMergeSSqlObjs(SSqlObj** polls, size_t nPolls, SSqlObj* result) {
     assert(!pInsertParam->schemaAttached);
 
     // append each vnode data block to the builder.
-    for (size_t j = 0; j < taosArrayGetSize(pInsertParam->pDataBlocks); ++j) {
-      STableDataBlocks * tableBlock = taosArrayGetP(pInsertParam->pDataBlocks, j);
+    size_t nBlocks = taosArrayGetSize(pInsertParam->pDataBlocks);
+    for (size_t j = 0; j < nBlocks; ++j) {
+      STableDataBlocks* tableBlock = taosArrayGetP(pInsertParam->pDataBlocks, j);
       if (!appendSTableDataBlocksListBuilder(builder, tableBlock)) {
         destroySTableDataBlocksListBuilder(builder);
         destroySTableNameListBuilder(nameListBuilder);

@@ -144,6 +144,8 @@ void doRetrieveSubqueryData(SSchedMsg *pMsg);
 SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, int16_t bytes,
                                    uint32_t offset);
 
+void destroySTableDataBlocksList(SArray* pDataBlocks);
+void destroySTableDataBlocks(STableDataBlocks* pDataBlocks);
 void*   tscDestroyBlockArrayList(SSqlObj* pSql, SArray* pDataBlockList);
 void*  tscDestroyUdfArrayList(SArray* pUdfList);
 void*   tscDestroyBlockHashTable(SSqlObj* pSql, SHashObj* pBlockHashTable, bool removeMeta);

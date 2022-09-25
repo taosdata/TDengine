@@ -127,15 +127,11 @@ int8_t tsSortWhenGroupBy = 1;
 int32_t tsProjectExecInterval = 10000;   // every 10sec, the projection will be executed once
 int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 
-// The async insertion batching feature.
-// When user submit an insert statement to `taos_query_ra`, the statement will be buffered asynchronously instead of executing it. 
-// If the number of the buffered statements reach `tsAsyncBatchSize`, all the statements in the queue will be merged and sent to vnodes.
-// The statements will be sent to vnodes no more than `tsAsyncBatchTimeout` milliseconds. But the actual time vnodes
-// received the statements depends on the network quality.
+// The taosc async insertion batching feature.
 bool    tsAsyncBatchEnable = true;
 bool    tsAsyncBatchThreadLocal = true;    // if thread local enable, each thread will allocate a dispatcher.
-int32_t tsAsyncBatchSize = 96;
-int32_t tsAsyncBatchTimeout = 10;
+int32_t tsAsyncBatchSize = 96;             // suggest: 64 - 512
+int32_t tsAsyncBatchTimeout = 10;          // suggest: 5 - 200 (unit: milliseconds)
 
 // the maximum allowed query buffer size during query processing for each data node.
 // -1 no limit (default)

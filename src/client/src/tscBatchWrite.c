@@ -104,7 +104,7 @@ static void batchResultCallback(void* param, TAOS_RES* tres, int32_t code) {
   free(context);
 }
 
-int32_t dispatcherBatchMerge(SSqlObj** polls, size_t nPolls, SSqlObj** result) {
+int32_t dispatcherBatchBuilder(SSqlObj** polls, size_t nPolls, SSqlObj** batch) {
   if (!polls || !nPolls) {
     return TSDB_CODE_SUCCESS;
   }
@@ -124,7 +124,7 @@ int32_t dispatcherBatchMerge(SSqlObj** polls, size_t nPolls, SSqlObj** result) {
     context->handler[i].fp = pSql->fp;
     context->handler[i].param = pSql->param;
   }
-
+  
   // merge the statements into single one.
   tscDebug("start to merge %zu sql objs", nPolls);
   SSqlObj *pFirst = polls[0];
@@ -140,7 +140,7 @@ int32_t dispatcherBatchMerge(SSqlObj** polls, size_t nPolls, SSqlObj** result) {
   pFirst->fp = batchResultCallback;
   pFirst->param = context;
   pFirst->fetchFp = pFirst->fp;
-  *result = pFirst;
+  *batch = pFirst;
   
   for (int i = 1; i < nPolls; ++i) {
     SSqlObj *pSql = polls[i];
@@ -249,7 +249,7 @@ void dispatcherExecute(SSqlObj** polls, size_t nPolls) {
 
   // merge the statements into single one.
   SSqlObj* merged = NULL;
-  code = dispatcherBatchMerge(polls, nPolls, &merged);
+  code = dispatcherBatchBuilder(polls, nPolls, &merged);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -560,6 +560,7 @@ void shutdownSDispatcherTimeoutManager(SDispatcherTimeoutManager* manager) {
   // make sure the timeout thread exit.
   pthread_join(manager->background, NULL);
 }
+
 bool isShutdownSDispatcherTimeoutManager(SDispatcherTimeoutManager* manager) {
   if (!manager) {
     return true;
