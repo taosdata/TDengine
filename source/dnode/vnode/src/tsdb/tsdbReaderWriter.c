@@ -622,13 +622,17 @@ static int64_t tsdbFSendFile(TdFilePtr pOutFD, TdFilePtr pInFD, int64_t size, in
   }
 
   int64_t offset = 0;
+  int64_t tBytes = 0;
   int64_t nBytes = 0;
   int64_t startMs = 0;
   int64_t cost = 0;
   while ((offset + speed) < size) {
     startMs = taosGetTimestampMs();
-    nBytes += taosFSendFile(pOutFD, pInFD, &offset, speed);
+    if ((nBytes = taosFSendFile(pOutFD, pInFD, &offset, speed)) < 0) {
+      return nBytes;
+    }
     cost = taosGetTimestampMs() - startMs;
+    tBytes += nBytes;
 
     if (cost < 0) {
       taosMsleep(1000);
@@ -637,9 +641,12 @@ static int64_t tsdbFSendFile(TdFilePtr pOutFD, TdFilePtr pInFD, int64_t size, in
     }
   }
   if (offset < size) {
-    nBytes += taosFSendFile(pOutFD, pInFD, &offset, size - offset);
+    if ((nBytes = taosFSendFile(pOutFD, pInFD, &offset, size - offset)) < 0) {
+      return nBytes;
+    }
+    tBytes += nBytes;
   }
-  return nBytes;
+  return tBytes;
 }
 
 int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo, int32_t maxSpeed) {
