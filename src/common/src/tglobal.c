@@ -128,9 +128,9 @@ int32_t tsProjectExecInterval = 10000;   // every 10sec, the projection will be 
 int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 
 // The tsc async write batching feature (using ABWD).
-bool    tsWriteBatchThreadLocal = true;    // if thread local enable, each thread will allocate a dispatcher.
-int32_t tsWriteBatchSize = 96;        // suggest: 64 - 512, 0 means disable batching.
-int32_t tsWriteBatchTimeout = 10;     // suggest: 5 - 200 (unit: milliseconds)
+bool    tsWriteBatchThreadLocal = false;    // if thread local enable, each thread will allocate a dispatcher.
+int32_t tsWriteBatchSize = 96;              // suggest: 96 - 512, 0 means disable batching.
+int32_t tsWriteBatchTimeout = 10;           // suggest: 5 - 100 (unit: milliseconds)
 
 // the maximum allowed query buffer size during query processing for each data node.
 // -1 no limit (default)
