@@ -627,6 +627,7 @@ static int32_t downstreamSourceCopy(const SDownstreamSourceNode* pSrc, SDownstre
   COPY_SCALAR_FIELD(schedId);
   COPY_SCALAR_FIELD(execId);
   COPY_SCALAR_FIELD(fetchMsgType);
+  COPY_SCALAR_FIELD(localExec);
   return TSDB_CODE_SUCCESS;
 }
 
