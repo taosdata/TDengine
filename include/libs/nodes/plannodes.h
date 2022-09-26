@@ -165,7 +165,8 @@ typedef struct SVnodeModifyLogicNode {
 
 typedef struct SExchangeLogicNode {
   SLogicNode node;
-  int32_t    srcGroupId;
+  int32_t    srcStartGroupId;
+  int32_t    srcEndGroupId;
 } SExchangeLogicNode;
 
 typedef struct SMergeLogicNode {
@@ -395,11 +396,15 @@ typedef struct SDownstreamSourceNode {
   uint64_t       schedId;
   int32_t        execId;
   int32_t        fetchMsgType;
+  bool           localExec;
 } SDownstreamSourceNode;
 
 typedef struct SExchangePhysiNode {
   SPhysiNode node;
-  int32_t    srcGroupId;  // group id of datasource suplans
+  // for set operators, there will be multiple execution groups under one exchange, and the ids of these execution
+  // groups are consecutive
+  int32_t    srcStartGroupId;
+  int32_t    srcEndGroupId;
   bool       singleChannel;
   SNodeList* pSrcEndPoints;  // element is SDownstreamSource, scheduler fill by calling qSetSuplanExecutionNode
 } SExchangePhysiNode;

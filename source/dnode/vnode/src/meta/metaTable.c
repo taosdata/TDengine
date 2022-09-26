@@ -362,8 +362,9 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   // update uid index
   metaUpdateUidIdx(pMeta, &nStbEntry);
 
-  if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
   metaULock(pMeta);
+
+  if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
   tDecoderClear(&dc);
   tdbTbcClose(pTbDbc);
   tdbTbcClose(pUidIdxc);
@@ -922,6 +923,8 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
     taosArrayDestroy(pTagArray);
   }
 
+  metaWLock(pMeta);
+
   // save to table.db
   metaSaveToTbDb(pMeta, &ctbEntry);
 
@@ -935,6 +938,8 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   SCtbIdxKey ctbIdxKey = {.suid = ctbEntry.ctbEntry.suid, .uid = uid};
   tdbTbUpsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), ctbEntry.ctbEntry.pTags,
               ((STag *)(ctbEntry.ctbEntry.pTags))->len, &pMeta->txn);
+
+  metaULock(pMeta);
 
   tDecoderClear(&dc1);
   tDecoderClear(&dc2);

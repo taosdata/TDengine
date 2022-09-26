@@ -125,6 +125,14 @@ typedef struct {
   SArray* blocks;  // SArray<SSDataBlock>
 } SStreamDataBlock;
 
+// ref data block, for delete
+typedef struct {
+  int8_t       type;
+  int64_t      ver;
+  int32_t*     dataRef;
+  SSDataBlock* pBlock;
+} SStreamRefDataBlock;
+
 typedef struct {
   int8_t type;
 } SStreamCheckpoint;
@@ -339,7 +347,8 @@ static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem
     qDebug("task %d %p submit enqueue %p %p %p", pTask->taskId, pTask, pItem, pSubmitClone, pSubmitClone->data);
     taosWriteQitem(pTask->inputQueue->queue, pSubmitClone);
     // qStreamInput(pTask->exec.executor, pSubmitClone);
-  } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
+  } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE ||
+             pItem->type == STREAM_INPUT__REF_DATA_BLOCK) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
     // qStreamInput(pTask->exec.executor, pItem);
   } else if (pItem->type == STREAM_INPUT__CHECKPOINT) {
@@ -492,7 +501,9 @@ typedef struct {
 
 int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq);
 int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq);
-void    tFreeStreamDispatchReq(SStreamDispatchReq* pReq);
+void    tDeleteStreamRetrieveReq(SStreamRetrieveReq* pReq);
+
+void tDeleteStreamDispatchReq(SStreamDispatchReq* pReq);
 
 int32_t streamSetupTrigger(SStreamTask* pTask);
 

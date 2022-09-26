@@ -64,9 +64,11 @@ typedef bool (*schedulerChkKillFp)(void* param);
 
 typedef struct SSchedulerReq {
   bool                  syncReq;
+  bool                  localReq;
   SRequestConnInfo     *pConn;
   SArray               *pNodeList;
   SQueryPlan           *pDag;
+  int64_t               allocatorRefId;
   const char           *sql;
   int64_t               startTs;
   schedulerExecFp       execFp;
