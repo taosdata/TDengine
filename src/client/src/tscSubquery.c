@@ -3042,6 +3042,7 @@ static bool needRetryInsert(SSqlObj* pParentObj, int32_t numOfSub) {
 
   for (int32_t i = 0; i < numOfSub; ++i) {
     int32_t code = pParentObj->pSubs[i]->res.code;
+    tscDebug("0x%"PRIx64" needRetryInsert, code:%d", pParentObj->self, code);
     if (code == TSDB_CODE_SUCCESS) {
       continue;
     }
@@ -3135,6 +3136,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
     for(int32_t i = 0; i < pParentObj->cmd.numOfTables; ++i) {
       char name[TSDB_TABLE_FNAME_LEN] = {0};
       tNameExtractFullName(pParentObj->cmd.pTableNameList[i], name);
+      tscDebug("0x%"PRIx64" cleanup %s tableMeta in hashTable", pParentObj->self, name);
       taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
     }
 
