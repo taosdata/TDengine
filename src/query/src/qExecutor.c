@@ -5981,6 +5981,7 @@ SOperatorInfo *createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
 
       pDataBlock->pDataBlock = taosArrayInit(numOfOutput, sizeof(SColumnInfoData));
       if (pDataBlock->pDataBlock == NULL) {
+        free(pDataBlock);
         goto _clean;
       }
 
@@ -7759,16 +7760,16 @@ SOperatorInfo* createTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOp
     return NULL;
   }
 
+  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
+  if (pOperator == NULL) {
+    goto _clean;
+  }
+  
   pInfo->pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->rowCellInfoOffset);
   pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
   initResultRowInfo(&pInfo->resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
   if (pInfo->pRes == NULL || pInfo->pCtx == NULL || pInfo->resultRowInfo.pResult == NULL) {
-    goto _clean;
-  }
-
-  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-  if (pOperator == NULL) {
     goto _clean;
   }
 
