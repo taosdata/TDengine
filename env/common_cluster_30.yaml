@@ -13,6 +13,7 @@ settings:
             dataDir: /var/lib/taos
             logDir: /var/log/taos
             debugFlag: 143
+            asyncLog: 0
             numOfLogLines: 300000000
         - endpoint: node221:6030
           config_dir: /etc/taos
@@ -20,6 +21,7 @@ settings:
             dataDir: /var/lib/taos
             logDir: /var/log/taos
             debugFlag: 143
+            asyncLog: 0
             numOfLogLines: 300000000
         - endpoint: node222:6030
           config_dir: /etc/taos
@@ -27,6 +29,7 @@ settings:
             dataDir: /var/lib/taos
             logDir: /var/log/taos
             debugFlag: 143
+            asyncLog: 0
             numOfLogLines: 300000000
 
   - name: taospy
