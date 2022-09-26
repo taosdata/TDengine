@@ -127,15 +127,15 @@ static void *mndThreadFp(void *param) {
       mndPullupTtl(pMnode);
     }
 
-    if (sec % tsTransPullupInterval * 10 == 0) {
+    if (sec % tsTransPullupInterval == 0) {
       mndPullupTrans(pMnode);
     }
 
-    if (sec % tsMqRebalanceInterval * 10 == 0) {
+    if (sec % tsMqRebalanceInterval == 0) {
       mndCalMqRebalance(pMnode);
     }
 
-    if (sec % tsTelemInterval * 10 == (MIN(60, (tsTelemInterval - 1)))) {
+    if (sec % tsTelemInterval == (MIN(60, (tsTelemInterval - 1)))) {
       mndPullupTelem(pMnode);
     }
 
