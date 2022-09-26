@@ -36,7 +36,7 @@ typedef struct SDispatcherTimeoutManager SDispatcherTimeoutManager;
 typedef struct SAsyncBatchWriteDispatcher {
   // the client object.
   STscObj* pClient;
-  
+
   // the timeout manager.
   SDispatcherTimeoutManager* timeoutManager;
 
@@ -80,7 +80,7 @@ typedef struct SDispatcherManager {
 
   // the global dispatcher, if thread local enabled, global will be set to NULL.
   SAsyncBatchWriteDispatcher* pGlobal;
-  
+
   // the client object.
   STscObj* pClient;
 
@@ -110,6 +110,14 @@ typedef struct SDispatcherTimeoutManager {
 } SDispatcherTimeoutManager;
 
 /**
+ * A batch that polls from SAsyncBatchWriteDispatcher::buffer.
+ */
+typedef struct SBatchRequest {
+  size_t   nRequests;
+  SSqlObj* pRequests[];
+} SBatchRequest;
+
+/**
  * Create the dispatcher timeout manager.
  */
 SDispatcherTimeoutManager* createSDispatcherTimeoutManager(SAsyncBatchWriteDispatcher* dispatcher, int32_t timeoutMs);
@@ -135,20 +143,25 @@ void shutdownSDispatcherTimeoutManager(SDispatcherTimeoutManager* manager);
 /**
  * Merge SSqlObjs into single SSqlObj.
  *
- * @param polls  the array of SSqlObj*.
- * @param nPolls the number of SSqlObj* in the array.
- * @param batch  the merged SSqlObj*.
- * @return       the merged SSqlObj.
+ * @param pRequest  the batch request.
+ * @param batch     the batch SSqlObj*.
+ * @return          the status code.
  */
-int32_t dispatcherBatchBuilder(SSqlObj** polls, size_t nPolls, SSqlObj** batch);
+int32_t dispatcherBatchBuilder(SBatchRequest* pRequest, SSqlObj** batch);
+
+/**
+ * Merge the sql statements and execute the merged sql statement asynchronously.
+ *
+ * @param pRequest the batch request. the request will be promised to free after calling this function.
+ */
+void dispatcherAsyncExecute(SBatchRequest* pRequest);
 
 /**
  * Merge the sql statements and execute the merged sql statement.
  *
- * @param polls  the array of SSqlObj*.
- * @param nPolls the number of SSqlObj* in the array.
+ * @param pRequest the batch request. you must call free(pRequest) after calling this function.
  */
-void dispatcherExecute(SSqlObj** polls, size_t nPolls);
+void dispatcherExecute(SBatchRequest* pRequest);
 
 /**
  * Create the async batch write dispatcher.
@@ -190,7 +203,7 @@ bool dispatcherTryDispatch(SAsyncBatchWriteDispatcher* dispatcher, SSqlObj* pSql
 
 /**
  * Create the manager of SAsyncBatchWriteDispatcher.
- * 
+ *
  * @param pClient       the client object.
  * @param batchSize     the batchSize of SAsyncBatchWriteDispatcher.
  * @param timeoutMs     the timeoutMs of SAsyncBatchWriteDispatcher.
