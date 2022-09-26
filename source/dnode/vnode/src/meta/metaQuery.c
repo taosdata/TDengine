@@ -291,25 +291,25 @@ _query:
       tDecoderClear(&dc);
       goto _exit;
     }
-    { // Traverse to find the previous qualified data
-      TBC      *pCur;
+    {  // Traverse to find the previous qualified data
+      TBC *pCur;
       tdbTbcOpen(pMeta->pTbDb, &pCur, NULL);
       STbDbKey key = {.version = sver, .uid = INT64_MAX};
-      int c = 0;
+      int      c = 0;
       tdbTbcMoveTo(pCur, &key, sizeof(key), &c);
-      if(c < 0){
+      if (c < 0) {
         tdbTbcMoveToPrev(pCur);
       }
 
       void *pKey = NULL;
       void *pVal = NULL;
       int   vLen = 0, kLen = 0;
-      while(1){
+      while (1) {
         int32_t ret = tdbTbcPrev(pCur, &pKey, &kLen, &pVal, &vLen);
         if (ret < 0) break;
 
-        STbDbKey *tmp = (STbDbKey*)pKey;
-        if(tmp->uid != uid){
+        STbDbKey *tmp = (STbDbKey *)pKey;
+        if (tmp->uid != uid) {
           continue;
         }
         SDecoder   dcNew = {0};
@@ -662,12 +662,13 @@ int64_t metaGetTbNum(SMeta *pMeta) {
 // N.B. Called by statusReq per second
 int64_t metaGetTimeSeriesNum(SMeta *pMeta) {
   // sum of (number of columns of stable -  1) * number of ctables (excluding timestamp column)
-  if (pMeta->pVnode->config.vndStats.numOfTimeSeries <= 0 || ++pMeta->pVnode->config.vndStats.itvTimeSeries % 60 == 0) {
+  if (pMeta->pVnode->config.vndStats.numOfTimeSeries <= 0 ||
+      ++pMeta->pVnode->config.vndStats.itvTimeSeries % (60 * 5) == 0) {
     int64_t num = 0;
     vnodeGetTimeSeriesNum(pMeta->pVnode, &num);
     pMeta->pVnode->config.vndStats.numOfTimeSeries = num;
 
-    pMeta->pVnode->config.vndStats.itvTimeSeries = 0;
+    pMeta->pVnode->config.vndStats.itvTimeSeries = (TD_VID(pMeta->pVnode) % 100) * 2;
   }
 
   return pMeta->pVnode->config.vndStats.numOfTimeSeries + pMeta->pVnode->config.vndStats.numOfNTimeSeries;

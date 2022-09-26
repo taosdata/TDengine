@@ -26,7 +26,7 @@ SQnode *qndOpen(const SQnodeOpt *pOption) {
     return NULL;
   }
 
-  if (qWorkerInit(NODE_TYPE_QNODE, pQnode->qndId, NULL, (void **)&pQnode->pQuery, &pOption->msgCb)) {
+  if (qWorkerInit(NODE_TYPE_QNODE, pQnode->qndId, (void **)&pQnode->pQuery, &pOption->msgCb)) {
     taosMemoryFreeClear(pQnode);
     return NULL;
   }

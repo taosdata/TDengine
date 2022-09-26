@@ -29,7 +29,7 @@ extern "C" {
 #include "executor.h"
 #include "trpc.h"
 
-#define QW_DEFAULT_SCHEDULER_NUMBER 10000
+#define QW_DEFAULT_SCHEDULER_NUMBER 100
 #define QW_DEFAULT_TASK_NUMBER      10000
 #define QW_DEFAULT_SCH_TASK_NUMBER  10000
 #define QW_DEFAULT_SHORT_RUN_TIMES  2
@@ -83,22 +83,6 @@ typedef struct SQWDebug {
 
 extern SQWDebug gQWDebug;
 
-typedef struct SQWMsgInfo {
-  int8_t taskType;
-  int8_t explain;
-  int8_t needFetch;
-} SQWMsgInfo;
-
-typedef struct SQWMsg {
-  void          *node;
-  int32_t        code;
-  int32_t        msgType;
-  char          *msg;
-  int32_t        msgLen;
-  SQWMsgInfo     msgInfo;
-  SRpcHandleInfo connInfo;
-} SQWMsg;
-
 typedef struct SQWHbParam {
   bool    inUse;
   int32_t qwrId;
@@ -133,6 +117,7 @@ typedef struct SQWTaskCtx {
   int8_t   taskType;
   int8_t   explain;
   int8_t   needFetch;
+  int8_t   localExec;
   int32_t  msgType;
   int32_t  fetchType;
   int32_t  execId;
@@ -150,6 +135,7 @@ typedef struct SQWTaskCtx {
 
   int8_t events[QW_EVENT_MAX];
 
+  SArray   *explainRes;
   void     *taskHandle;
   void     *sinkHandle;
   STbVerInfo tbInfo;

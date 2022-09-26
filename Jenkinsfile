@@ -79,7 +79,7 @@ def pre_test(){
     rm -rf debug
     mkdir debug
     cd debug
-    cmake .. > /dev/null
+    cmake .. -DBUILD_TEST=true > /dev/null
     make -j4> /dev/null
 
     '''
