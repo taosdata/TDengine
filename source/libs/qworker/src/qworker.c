@@ -143,6 +143,8 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
     if (numOfResBlock == 0 || (hasMore == false)) {
       if (numOfResBlock == 0) {
         QW_TASK_DLOG("qExecTask end with empty res, useconds:%" PRIu64, useconds);
+      } else {
+        QW_TASK_DLOG("qExecTask done, useconds:%" PRIu64, useconds);
       }
 
       dsEndPut(sinkHandle, useconds);
