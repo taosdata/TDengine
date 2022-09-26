@@ -509,16 +509,24 @@ void tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minK
   *maxKey = *minKey + minutes * tsTickPerMin[precision] - 1;
 }
 
+/**
+ * @brief get fid level by keep and days.
+ * 
+ * @param fid 
+ * @param pKeepCfg 
+ * @param now millisecond
+ * @return int32_t 
+ */
 int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t now) {
   int32_t aFid[3];
   TSKEY   key;
 
   if (pKeepCfg->precision == TSDB_TIME_PRECISION_MILLI) {
-    now = now * 1000;
+    // now = now * 1000;
   } else if (pKeepCfg->precision == TSDB_TIME_PRECISION_MICRO) {
-    now = now * 1000000l;
+    now = now * 1000l;
   } else if (pKeepCfg->precision == TSDB_TIME_PRECISION_NANO) {
-    now = now * 1000000000l;
+    now = now * 1000000l;
   } else {
     ASSERT(0);
   }
@@ -705,12 +713,12 @@ int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
     tsdbRowGetColVal(pRow, pTSchema, jCol++, pColVal);
 
     if (key.version > pMerger->version) {
-      if (!pColVal->isNone) {
+      if (!COL_VAL_IS_NONE(pColVal)) {
         taosArraySet(pMerger->pArray, iCol, pColVal);
       }
     } else if (key.version < pMerger->version) {
       SColVal *tColVal = (SColVal *)taosArrayGet(pMerger->pArray, iCol);
-      if (tColVal->isNone && !pColVal->isNone) {
+      if (COL_VAL_IS_NONE(tColVal) && !COL_VAL_IS_NONE(pColVal)) {
         taosArraySet(pMerger->pArray, iCol, pColVal);
       }
     } else {
@@ -776,12 +784,12 @@ int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow) {
     tsdbRowGetColVal(pRow, pMerger->pTSchema, iCol, pColVal);
 
     if (key.version > pMerger->version) {
-      if (!pColVal->isNone) {
+      if (!COL_VAL_IS_NONE(pColVal)) {
         taosArraySet(pMerger->pArray, iCol, pColVal);
       }
     } else if (key.version < pMerger->version) {
       SColVal *tColVal = (SColVal *)taosArrayGet(pMerger->pArray, iCol);
-      if (tColVal->isNone && !pColVal->isNone) {
+      if (COL_VAL_IS_NONE(tColVal) && !COL_VAL_IS_NONE(pColVal)) {
         taosArraySet(pMerger->pArray, iCol, pColVal);
       }
     } else {
@@ -1505,7 +1513,7 @@ void tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg) {
   for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
     tColDataGetValue(pColData, iVal, pColVal);
 
-    if (pColVal->isNone || pColVal->isNull) {
+    if (!COL_VAL_IS_VALUE(pColVal)) {
       pColAgg->numOfNull++;
     } else {
       switch (pColData->type) {

@@ -664,6 +664,9 @@ int32_t tsdbFSUpsertFSet(STsdbFS *pFS, SDFileSet *pSet) {
         }
       }
 
+      // update the diskId
+      pDFileSet->diskId = pSet->diskId;
+
       goto _exit;
     }
   }

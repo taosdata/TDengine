@@ -27,6 +27,7 @@
 #include "trpc.h"
 #include "tsched.h"
 #include "ttime.h"
+#include "qworker.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0

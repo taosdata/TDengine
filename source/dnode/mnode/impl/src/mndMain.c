@@ -65,7 +65,7 @@ static void mndPullupTrans(SMnode *pMnode) {
   }
 }
 
-static void mndTtlTimer(SMnode *pMnode) {
+static void mndPullupTtl(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_TTL_TIMER, .pCont = pReq, .contLen = contLen};
@@ -90,7 +90,7 @@ static void mndPullupTelem(SMnode *pMnode) {
   }
 }
 
-static void mndGrantHeartBeat(SMnode *pMnode) {
+static void mndPullupGrant(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
@@ -121,7 +121,7 @@ static void *mndThreadFp(void *param) {
     if (mndGetStop(pMnode)) break;
 
     if (lastTime % (tsTtlPushInterval * 10) == 1) {
-      mndTtlTimer(pMnode);
+      mndPullupTtl(pMnode);
     }
 
     if (lastTime % (tsTransPullupInterval * 10) == 0) {
@@ -137,7 +137,7 @@ static void *mndThreadFp(void *param) {
     }
 
     if (lastTime % (tsGrantHBInterval * 10) == 0) {
-      mndGrantHeartBeat(pMnode);
+      mndPullupGrant(pMnode);
     }
 
     if ((lastTime % (tsUptimeInterval * 10)) == ((tsUptimeInterval - 1) * 10)) {
@@ -300,7 +300,7 @@ static void mndCleanupSteps(SMnode *pMnode, int32_t pos) {
 
   for (int32_t s = pos; s >= 0; s--) {
     SMnodeStep *pStep = taosArrayGet(pMnode->pSteps, s);
-    mDebug("%s will cleanup", pStep->name);
+    mInfo("%s will cleanup", pStep->name);
     if (pStep->cleanupFp != NULL) {
       (*pStep->cleanupFp)(pMnode);
     }
@@ -324,7 +324,7 @@ static int32_t mndExecSteps(SMnode *pMnode) {
       terrno = code;
       return -1;
     } else {
-      mDebug("%s is initialized", pStep->name);
+      mInfo("%s is initialized", pStep->name);
       tmsgReportStartup(pStep->name, "initialized");
     }
   }
@@ -341,7 +341,7 @@ static void mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
 }
 
 SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
-  mDebug("start to open mnode in %s", path);
+  mInfo("start to open mnode in %s", path);
 
   SMnode *pMnode = taosMemoryCalloc(1, sizeof(SMnode));
   if (pMnode == NULL) {
@@ -390,7 +390,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     return NULL;
   }
 
-  mDebug("mnode open successfully ");
+  mInfo("mnode open successfully ");
   return pMnode;
 }
 
@@ -400,24 +400,24 @@ void mndPreClose(SMnode *pMnode) {
     syncLeaderTransfer(pMnode->syncMgmt.sync);
 
     /*
-        mDebug("vgId:1, mnode start leader transfer");
+        mInfo("vgId:1, mnode start leader transfer");
         // wait for leader transfer finish
         while (!atomic_load_8(&(pMnode->syncMgmt.leaderTransferFinish))) {
           taosMsleep(10);
-          mDebug("vgId:1, mnode waiting for leader transfer");
+          mInfo("vgId:1, mnode waiting for leader transfer");
         }
-        mDebug("vgId:1, mnode finish leader transfer");
+        mInfo("vgId:1, mnode finish leader transfer");
     */
   }
 }
 
 void mndClose(SMnode *pMnode) {
   if (pMnode != NULL) {
-    mDebug("start to close mnode");
+    mInfo("start to close mnode");
     mndCleanupSteps(pMnode, -1);
     taosMemoryFreeClear(pMnode->path);
     taosMemoryFreeClear(pMnode);
-    mDebug("mnode is closed");
+    mInfo("mnode is closed");
   }
 }
 

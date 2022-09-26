@@ -319,9 +319,11 @@ int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now, int32_t maxSpeed) {
 _exit:
   pTsdb->trimHdl.maxRetentFid = INT32_MIN;
   if (code != 0) {
-    tsdbError("vgId:%d, tsdb do retention failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+    tsdbError("vgId:%d, tsdb do retention:%d failed since %s", TD_VID(pTsdb->pVnode), retention, tstrerror(code));
     ASSERT(0);
     // tsdbFSRollback(pTsdb->pFS);
+  } else {
+    tsdbInfo("vgId:%d, tsdb do retention:%d succeed", TD_VID(pTsdb->pVnode), retention);
   }
   return code;
 }
