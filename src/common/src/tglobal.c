@@ -273,6 +273,7 @@ int32_t  cqDebugFlag = 131;
 int32_t  fsDebugFlag = 135;
 
 int8_t tsClientMerge = 0;
+int8_t tsCountAlwaysReturnValue = 0;
 
 // probe alive connection
 int32_t tsProbeSeconds     =  5 * 60; // start probe link alive after tsProbeSeconds from starting query
@@ -1682,6 +1683,16 @@ static void doInitGlobalConfig(void) {
 
   cfg.option = "clientMerge";
   cfg.ptr = &tsClientMerge;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "countAlwaysReturnValue";
+  cfg.ptr = &tsCountAlwaysReturnValue;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 0;
