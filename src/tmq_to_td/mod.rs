@@ -37,7 +37,7 @@ async fn sync(
                     }
                 } else {
                     let mut meta = meta.as_json_meta().await?;
-                    dbg!(&meta);
+                    // dbg!(&meta);
 
                     for action in &actions {
                         action.mutate_meta(&mut meta)?;
@@ -61,15 +61,62 @@ async fn sync(
             MessageSet::Data(data) => {
                 while let Some(mut raw) = data.fetch_raw_block().await? {
                     if let Some(name) = table.as_ref() {
-                        raw.with_table_name(name);
+                        if actions.is_empty() {
+                            raw.with_table_name(name);
+                            log::debug!(
+                                "[{id}] write into {name} {} rows(total {}) with {} columns",
+                                raw.nrows(),
+                                rows,
+                                raw.ncols()
+                            );
+                        } else {
+                            let mut name = name.to_string();
+                            for action in &actions {
+                                match action {
+                                    Action::RenameTable(rename)
+                                    | Action::RenameChildTable(rename) => {
+                                        rename.apply_in_place(&mut name)
+                                    }
+                                    _ => (),
+                                }
+                            }
+                            raw.with_table_name(&name);
+                            log::debug!(
+                                "[{id}] write into {name} {} rows(total {}) with {} columns",
+                                raw.nrows(),
+                                rows,
+                                raw.ncols()
+                            );
+                        }
+                    } else if let Some(name) = raw.table_name().as_deref() {
+                        if !actions.is_empty() {
+                            let mut name = name.to_string();
+                            for action in &actions {
+                                match action {
+                                    Action::RenameTable(rename)
+                                    | Action::RenameChildTable(rename) => {
+                                        rename.apply_in_place(&mut name)
+                                    }
+                                    _ => (),
+                                }
+                            }
+                            raw.with_table_name(&name);
+                            log::debug!(
+                                "[{id}] write into {name} {} rows(total {}) with {} columns",
+                                raw.nrows(),
+                                rows,
+                                raw.ncols()
+                            );
+                        }
+                    } else {
+                        log::debug!(
+                            "[{id}] write {} rows(total {}) with {} columns",
+                            raw.nrows(),
+                            rows,
+                            raw.ncols()
+                        );
                     }
                     rows += raw.nrows();
-                    log::debug!(
-                        "[{id}] write {} rows(total {}) with {} columns",
-                        raw.nrows(),
-                        rows,
-                        raw.ncols()
-                    );
                     if let Err(err) = taos.write_raw_block(&raw).await {
                         if err.to_string().contains("[0x2603]") {
                             // table not exists
@@ -107,15 +154,14 @@ async fn sync(
                         } else {
                             Err(err).context("write raw meta error")?;
                         }
+                        continue;
                     }
                 } else {
                     let mut meta = meta.as_json_meta().await?;
-                    dbg!(&meta);
 
                     for action in &actions {
                         action.mutate_meta(&mut meta)?;
                     }
-                    dbg!(&meta);
                     let sql = meta.to_string();
                     if let Err(err) = taos.exec(&sql).await {
                         let errstr = err.to_string();
@@ -133,7 +179,48 @@ async fn sync(
 
                 while let Some(mut raw) = data.fetch_raw_block().await? {
                     if let Some(name) = table.as_ref() {
-                        raw.with_table_name(name);
+                        if actions.is_empty() {
+                            raw.with_table_name(name);
+                        } else {
+                            let mut name = name.to_string();
+                            for action in &actions {
+                                match action {
+                                    Action::RenameTable(rename) => rename.apply_in_place(&mut name),
+                                    Action::RenameChildTable(rename) => {
+                                        rename.apply_in_place(&mut name)
+                                    }
+                                    _ => (),
+                                }
+                            }
+                            raw.with_table_name(name);
+                        }
+                    } else if let Some(name) = raw.table_name().as_deref() {
+                        if !actions.is_empty() {
+                            let mut name = name.to_string();
+                            for action in &actions {
+                                match action {
+                                    Action::RenameTable(rename)
+                                    | Action::RenameChildTable(rename) => {
+                                        rename.apply_in_place(&mut name)
+                                    }
+                                    _ => (),
+                                }
+                            }
+                            raw.with_table_name(&name);
+                            log::debug!(
+                                "[{id}] write into {name} {} rows(total {}) with {} columns",
+                                raw.nrows(),
+                                rows,
+                                raw.ncols()
+                            );
+                        }
+                    } else {
+                        log::debug!(
+                            "[{id}] write {} rows(total {}) with {} columns",
+                            raw.nrows(),
+                            rows,
+                            raw.ncols()
+                        );
                     }
                     rows += raw.nrows();
                     log::debug!(

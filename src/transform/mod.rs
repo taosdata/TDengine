@@ -93,7 +93,7 @@ impl FromStr for AddTag {
 fn parse_add_tag() {
     let errors = [
         ("", AddTagParseError::Empty),
-        ("a", AddTagParseError::Invalid("".to_string())),
+        ("a", AddTagParseError::Invalid("a".to_string())),
     ];
     for (s, e) in errors {
         let ee = AddTag::from_str(s).unwrap_err();
