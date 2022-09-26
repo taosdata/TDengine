@@ -497,7 +497,6 @@ SAsyncBatchWriteDispatcher* dispatcherAcquire(SDispatcherManager* manager) {
   }
 
   SAsyncBatchWriteDispatcher* value = pthread_getspecific(manager->key);
-  printf("acquire thread local");
   if (value) {
     return value;
   }
