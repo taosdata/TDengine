@@ -64,6 +64,7 @@ typedef bool (*schedulerChkKillFp)(void* param);
 
 typedef struct SSchedulerReq {
   bool                  syncReq;
+  bool                  localReq;
   SRequestConnInfo     *pConn;
   SArray               *pNodeList;
   SQueryPlan           *pDag;

@@ -26,6 +26,7 @@
 #include "tref.h"
 #include "trpc.h"
 #include "version.h"
+#include "qworker.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -670,7 +671,6 @@ typedef struct SqlParseWrapper {
   SParseContext *pCtx;
   SCatalogReq    catalogReq;
   SRequestObj   *pRequest;
-  SQuery        *pQuery;
 } SqlParseWrapper;
 
 static void destoryTablesReq(void *p) {
@@ -696,8 +696,8 @@ static void destorySqlParseWrapper(SqlParseWrapper *pWrapper) {
 
 void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
   SqlParseWrapper *pWrapper = (SqlParseWrapper *)param;
-  SQuery          *pQuery = pWrapper->pQuery;
   SRequestObj     *pRequest = pWrapper->pRequest;
+  SQuery          *pQuery = pRequest->pQuery;
 
   pRequest->metric.ctgEnd = taosGetTimestampUs();
 
@@ -726,10 +726,10 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
     tscDebug("0x%" PRIx64 " analysis semantics completed, start async query, reqId:0x%" PRIx64, pRequest->self,
              pRequest->requestId);
     launchAsyncQuery(pRequest, pQuery, pResultMeta);
-    qDestroyQuery(pQuery);
   } else {
     destorySqlParseWrapper(pWrapper);
-    qDestroyQuery(pQuery);
+    qDestroyQuery(pRequest->pQuery);
+    pRequest->pQuery = NULL;
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
       tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
@@ -802,12 +802,10 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     goto _error;
   }
 
-  SQuery *pQuery = NULL;
-
   pRequest->metric.syntaxStart = taosGetTimestampUs();
 
   SCatalogReq catalogReq = {.forceUpdate = updateMetaForce, .qNodeRequired = qnodeRequired(pRequest)};
-  code = qParseSqlSyntax(pCxt, &pQuery, &catalogReq);
+  code = qParseSqlSyntax(pCxt, &pRequest->pQuery, &catalogReq);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -817,9 +815,9 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   if (!updateMetaForce) {
     STscObj            *pTscObj = pRequest->pTscObj;
     SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
-    if (NULL == pQuery->pRoot) {
+    if (NULL == pRequest->pQuery->pRoot) {
       atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertsReq, 1);
-    } else if (QUERY_NODE_SELECT_STMT == pQuery->pRoot->type) {
+    } else if (QUERY_NODE_SELECT_STMT == pRequest->pQuery->pRoot->type) {
       atomic_add_fetch_64((int64_t *)&pActivity->numOfQueryReq, 1);
     }
   }
@@ -831,7 +829,6 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   }
 
   pWrapper->pCtx = pCxt;
-  pWrapper->pQuery = pQuery;
   pWrapper->pRequest = pRequest;
   pWrapper->catalogReq = catalogReq;
 

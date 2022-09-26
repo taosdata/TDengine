@@ -150,6 +150,8 @@ static int32_t tdFetchQTaskInfoFiles(SSma *pSma, int64_t version, SArray **outpu
   regex_t       regex;
   int           code = 0;
 
+  terrno = TSDB_CODE_SUCCESS;
+
   tdGetVndDirName(TD_VID(pVnode), tfsGetPrimaryPath(pVnode->pTfs), VNODE_RSMA_DIR, true, dir);
 
   if (!taosCheckExistFile(dir)) {

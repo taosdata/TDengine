@@ -81,11 +81,6 @@ static UNUSED_FUNC void* u_realloc(void* p, size_t __size) {
 
 int32_t getMaximumIdleDurationSec() { return tsShellActivityTimer * 2; }
 
-static int32_t getExprFunctionId(SExprInfo* pExprInfo) {
-  assert(pExprInfo != NULL && pExprInfo->pExpr != NULL && pExprInfo->pExpr->nodeType == TEXPR_UNARYEXPR_NODE);
-  return 0;
-}
-
 static void setBlockSMAInfo(SqlFunctionCtx* pCtx, SExprInfo* pExpr, SSDataBlock* pBlock);
 
 static void releaseQueryBuf(size_t numOfTables);
@@ -1115,7 +1110,7 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
   }
 }
 
-static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep, int32_t status);
+static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, bool keep, int32_t status);
 
 void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColMatchInfo, SFilterInfo* pFilterInfo) {
   if (pFilterNode == NULL || pBlock->info.rows == 0) {
@@ -1134,33 +1129,17 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColM
     code = filterInitFromNode((SNode*)pFilterNode, &filter, 0);
   }
 
-  int64_t st1 = taosGetTimestampUs();
-//  pError("init completed, el: %d us", st1 - st);
-
-  size_t             numOfCols = taosArrayGetSize(pBlock->pDataBlock);
-  SFilterColumnParam param1 = {.numOfCols = numOfCols, .pDataBlock = pBlock->pDataBlock};
+  SFilterColumnParam param1 = {.numOfCols = taosArrayGetSize(pBlock->pDataBlock), .pDataBlock = pBlock->pDataBlock};
   code = filterSetDataFromSlotId(filter, &param1);
 
-  int64_t st2 = taosGetTimestampUs();
-//  pError("set data from slotid, el: %d us", st2 - st1);
-
-  int8_t* rowRes = NULL;
+  SColumnInfoData* p = NULL;
+  int32_t status = 0;
 
   // todo the keep seems never to be True??
-  int32_t status = 0;
-  bool    keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols, &status);
+  bool keep = filterExecute(filter, pBlock, &p, NULL, param1.numOfCols, &status);
+  filterFreeInfo(filter);
 
-  if (pFilterInfo == NULL) {
-    filterFreeInfo(filter);
-  }
-
-  int64_t st3 = taosGetTimestampUs();
-
-  extractQualifiedTupleByFilterResult(pBlock, rowRes, keep, status);
-
-  int64_t st4 = taosGetTimestampUs();
-
-//  pError("extract result filter, el: %d us, rows:%d, status:%d", st4 - st3, pBlock->info.rows, status);
+  extractQualifiedTupleByFilterResult(pBlock, p, keep, status);
 
   if (pColMatchInfo != NULL) {
     for (int32_t i = 0; i < taosArrayGetSize(pColMatchInfo); ++i) {
@@ -1175,10 +1154,11 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColM
     }
   }
 
-  taosMemoryFree(rowRes);
+  colDataDestroy(p);
+  taosMemoryFree(p);
 }
 
-void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep, int32_t status) {
+void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, bool keep, int32_t status) {
   if (keep) {
     return;
   }
@@ -1186,23 +1166,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
   int32_t totalRows = pBlock->info.rows;
 
   if (status == FILTER_RESULT_ALL_QUALIFIED) {
-    SSDataBlock* px = createOneDataBlock(pBlock, true);
-
-    size_t numOfCols = taosArrayGetSize(pBlock->pDataBlock);
-    for (int32_t i = 0; i < numOfCols; ++i) {
-      SColumnInfoData* pSrc = taosArrayGet(px->pDataBlock, i);
-      SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
-
-      // it is a reserved column for scalar function, and no data in this column yet.
-      if (pDst->pData == NULL || pSrc->pData == NULL) {
-        continue;
-      }
-
-      colInfoDataCleanup(pDst, pBlock->info.rows);
-      colDataAssign(pDst, pSrc, totalRows, NULL);
-    }
-
-    blockDataDestroy(px);  // fix memory leak
+    // here nothing needs to be done
   } else if (status == FILTER_RESULT_NONE_QUALIFIED) {
     pBlock->info.rows = 0;
   } else {
@@ -1221,7 +1185,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
 
       int32_t numOfRows = 0;
       for (int32_t j = 0; j < totalRows; ++j) {
-        if (rowRes[j] == 0) {
+        if (((int8_t*)p->pData)[j] == 0) {
           continue;
         }
 
@@ -1233,6 +1197,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
         numOfRows += 1;
       }
 
+      // todo this value can be assigned directly
       if (pBlock->info.rows == totalRows) {
         pBlock->info.rows = numOfRows;
       } else {
@@ -1244,7 +1209,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
   }
 }
 
-void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfOutput, uint64_t groupId) {
+  void doSetTableGroupOutputBuf(SOperatorInfo* pOperator, int32_t numOfOutput, uint64_t groupId) {
   // for simple group by query without interval, all the tables belong to one group result.
   SExecTaskInfo*    pTaskInfo = pOperator->pTaskInfo;
   SAggOperatorInfo* pAggInfo = pOperator->info;
@@ -1819,49 +1784,57 @@ void qProcessRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
 static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInfo* pTaskInfo, int32_t sourceIndex) {
   size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
 
-  SResFetchReq* pMsg = taosMemoryCalloc(1, sizeof(SResFetchReq));
-  if (NULL == pMsg) {
-    pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    return pTaskInfo->code;
-  }
-
   SDownstreamSourceNode* pSource = taosArrayGet(pExchangeInfo->pSources, sourceIndex);
   SSourceDataInfo*       pDataInfo = taosArrayGet(pExchangeInfo->pSourceDataInfo, sourceIndex);
 
   ASSERT(pDataInfo->status == EX_SOURCE_DATA_NOT_READY);
 
-  qDebug("%s build fetch msg and send to vgId:%d, ep:%s, taskId:0x%" PRIx64 ", execId:%d, %d/%" PRIzu,
-         GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->addr.epSet.eps[0].fqdn, pSource->taskId, pSource->execId,
-         sourceIndex, totalSources);
-
-  pMsg->header.vgId = htonl(pSource->addr.nodeId);
-  pMsg->sId = htobe64(pSource->schedId);
-  pMsg->taskId = htobe64(pSource->taskId);
-  pMsg->queryId = htobe64(pTaskInfo->id.queryId);
-  pMsg->execId = htonl(pSource->execId);
-
-  // send the fetch remote task result reques
-  SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
-  if (NULL == pMsgSendInfo) {
-    taosMemoryFreeClear(pMsg);
-    qError("%s prepare message %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
-    pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    return pTaskInfo->code;
-  }
-
   SFetchRspHandleWrapper* pWrapper = taosMemoryCalloc(1, sizeof(SFetchRspHandleWrapper));
   pWrapper->exchangeId = pExchangeInfo->self;
   pWrapper->sourceIndex = sourceIndex;
 
-  pMsgSendInfo->param = pWrapper;
-  pMsgSendInfo->paramFreeFp = taosMemoryFree;
-  pMsgSendInfo->msgInfo.pData = pMsg;
-  pMsgSendInfo->msgInfo.len = sizeof(SResFetchReq);
-  pMsgSendInfo->msgType = pSource->fetchMsgType;
-  pMsgSendInfo->fp = loadRemoteDataCallback;
+  if (pSource->localExec) {
+    SDataBuf pBuf = {0};
+    int32_t code = (*pTaskInfo->localFetch.fp)(pTaskInfo->localFetch.handle, pSource->schedId, pTaskInfo->id.queryId, pSource->taskId, 0, pSource->execId, &pBuf.pData, pTaskInfo->localFetch.explainRes);
+    loadRemoteDataCallback(pWrapper, &pBuf, code);
+    taosMemoryFree(pWrapper);
+  } else {
+    SResFetchReq* pMsg = taosMemoryCalloc(1, sizeof(SResFetchReq));
+    if (NULL == pMsg) {
+      pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      return pTaskInfo->code;
+    }
 
-  int64_t transporterId = 0;
-  int32_t code = asyncSendMsgToServer(pExchangeInfo->pTransporter, &pSource->addr.epSet, &transporterId, pMsgSendInfo);
+    qDebug("%s build fetch msg and send to vgId:%d, ep:%s, taskId:0x%" PRIx64 ", execId:%d, %d/%" PRIzu,
+           GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->addr.epSet.eps[0].fqdn, pSource->taskId, pSource->execId,
+           sourceIndex, totalSources);
+
+    pMsg->header.vgId = htonl(pSource->addr.nodeId);
+    pMsg->sId = htobe64(pSource->schedId);
+    pMsg->taskId = htobe64(pSource->taskId);
+    pMsg->queryId = htobe64(pTaskInfo->id.queryId);
+    pMsg->execId = htonl(pSource->execId);
+
+    // send the fetch remote task result reques
+    SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+    if (NULL == pMsgSendInfo) {
+      taosMemoryFreeClear(pMsg);
+      qError("%s prepare message %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
+      pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      return pTaskInfo->code;
+    }
+
+    pMsgSendInfo->param = pWrapper;
+    pMsgSendInfo->paramFreeFp = taosMemoryFree;
+    pMsgSendInfo->msgInfo.pData = pMsg;
+    pMsgSendInfo->msgInfo.len = sizeof(SResFetchReq);
+    pMsgSendInfo->msgType = pSource->fetchMsgType;
+    pMsgSendInfo->fp = loadRemoteDataCallback;
+
+    int64_t transporterId = 0;
+    int32_t code = asyncSendMsgToServer(pExchangeInfo->pTransporter, &pSource->addr.epSet, &transporterId, pMsgSendInfo);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3574,7 +3547,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       STableScanInfo* pScanInfo = pOperator->info;
       pTaskInfo->cost.pRecoder = &pScanInfo->readRecorder;
     } else if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == type) {
-      pOperator = createExchangeOperatorInfo(pHandle->pMsgCb->clientRpc, (SExchangePhysiNode*)pPhyNode, pTaskInfo);
+      pOperator = createExchangeOperatorInfo(pHandle ? pHandle->pMsgCb->clientRpc : NULL, (SExchangePhysiNode*)pPhyNode, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN == type) {
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
       if (pHandle->vnode) {
@@ -4090,7 +4063,9 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   cleanupTableSchemaInfo(&pTaskInfo->schemaInfo);
   cleanupStreamInfo(&pTaskInfo->streamInfo);
 
-  nodesDestroyNode((SNode*)pTaskInfo->pSubplan);
+  if (!pTaskInfo->localFetch.localExec) {
+    nodesDestroyNode((SNode*)pTaskInfo->pSubplan);
+  }
 
   taosMemoryFreeClear(pTaskInfo->sql);
   taosMemoryFreeClear(pTaskInfo->id.str);
@@ -4287,10 +4262,10 @@ int32_t buildDataBlockFromGroupRes(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock
 
       pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
       if (pCtx[j].fpSet.finalize) {
-        int32_t code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
-        if (TAOS_FAILED(code)) {
-          qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(code));
-          T_LONG_JMP(pTaskInfo->env, code);
+        int32_t code1 = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
+        if (TAOS_FAILED(code1)) {
+          qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(code1));
+          T_LONG_JMP(pTaskInfo->env, code1);
         }
       } else if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_select_value") == 0) {
         // do nothing, todo refactor

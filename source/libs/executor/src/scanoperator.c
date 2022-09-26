@@ -925,6 +925,19 @@ _error:
 }
 
 static void doClearBufferedBlocks(SStreamScanInfo* pInfo) {
+#if 0
+  if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
+    size_t total = taosArrayGetSize(pInfo->pBlockLists);
+    for (int32_t i = 0; i < total; i++) {
+      SSDataBlock* p = taosArrayGetP(pInfo->pBlockLists, i);
+      taosArrayDestroy(p->pDataBlock);
+      taosMemoryFree(p);
+    }
+  }
+#endif
+  taosArrayClear(pInfo->pBlockLists);
+  pInfo->validBlockIndex = 0;
+#if 0
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
 
   pInfo->validBlockIndex = 0;
@@ -933,6 +946,7 @@ static void doClearBufferedBlocks(SStreamScanInfo* pInfo) {
     blockDataDestroy(p);
   }
   taosArrayClear(pInfo->pBlockLists);
+#endif
 }
 
 static bool isSessionWindow(SStreamScanInfo* pInfo) {
@@ -1308,10 +1322,14 @@ void appendOneRow(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t*
   SColumnInfoData* pEndTsCol = taosArrayGet(pBlock->pDataBlock, END_TS_COLUMN_INDEX);
   SColumnInfoData* pUidCol = taosArrayGet(pBlock->pDataBlock, UID_COLUMN_INDEX);
   SColumnInfoData* pGpCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
+  SColumnInfoData* pCalStartCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
+  SColumnInfoData* pCalEndCol = taosArrayGet(pBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
   colDataAppend(pStartTsCol, pBlock->info.rows, (const char*)pStartTs, false);
   colDataAppend(pEndTsCol, pBlock->info.rows, (const char*)pEndTs, false);
   colDataAppend(pUidCol, pBlock->info.rows, (const char*)pUid, false);
   colDataAppend(pGpCol, pBlock->info.rows, (const char*)pGp, false);
+  colDataAppendNULL(pCalStartCol, pBlock->info.rows);
+  colDataAppendNULL(pCalEndCol, pBlock->info.rows);
   pBlock->info.rows++;
 }
 
@@ -1581,9 +1599,10 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
 
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
   // TODO: refactor
+FETCH_NEXT_BLOCK:
   if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
     if (pInfo->validBlockIndex >= total) {
-      /*doClearBufferedBlocks(pInfo);*/
+      doClearBufferedBlocks(pInfo);
       /*pOperator->status = OP_EXEC_DONE;*/
       return NULL;
     }
@@ -1607,27 +1626,40 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       } break;
       case STREAM_DELETE_DATA: {
         printDataBlock(pBlock, "stream scan delete recv");
+        SSDataBlock* pDelBlock = NULL;
         if (pInfo->tqReader) {
-          SSDataBlock* pDelBlock = createSpecialDataBlock(STREAM_DELETE_DATA);
+          pDelBlock = createSpecialDataBlock(STREAM_DELETE_DATA);
           filterDelBlockByUid(pDelBlock, pBlock, pInfo);
-          pBlock = pDelBlock;
+        } else {
+          pDelBlock = pBlock;
         }
         printDataBlock(pBlock, "stream scan delete recv filtered");
         if (!isIntervalWindow(pInfo) && !isSessionWindow(pInfo) && !isStateWindow(pInfo)) {
-          generateDeleteResultBlock(pInfo, pBlock, pInfo->pDeleteDataRes);
+          generateDeleteResultBlock(pInfo, pDelBlock, pInfo->pDeleteDataRes);
           pInfo->pDeleteDataRes->info.type = STREAM_DELETE_RESULT;
-          printDataBlock(pBlock, "stream scan delete result");
-          return pInfo->pDeleteDataRes;
+          printDataBlock(pDelBlock, "stream scan delete result");
+          if (pInfo->pDeleteDataRes->info.rows > 0) {
+            return pInfo->pDeleteDataRes;
+          } else {
+            goto FETCH_NEXT_BLOCK;
+          }
         } else {
           pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
           pInfo->updateResIndex = 0;
-          generateScanRange(pInfo, pBlock, pInfo->pUpdateRes);
+          generateScanRange(pInfo, pDelBlock, pInfo->pUpdateRes);
           prepareRangeScan(pInfo, pInfo->pUpdateRes, &pInfo->updateResIndex);
           copyDataBlock(pInfo->pDeleteDataRes, pInfo->pUpdateRes);
           pInfo->pDeleteDataRes->info.type = STREAM_DELETE_DATA;
           pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER_RANGE;
-          printDataBlock(pBlock, "stream scan delete data");
-          return pInfo->pDeleteDataRes;
+          printDataBlock(pDelBlock, "stream scan delete data");
+          if (pInfo->tqReader) {
+            blockDataDestroy(pDelBlock);
+          }
+          if (pInfo->pDeleteDataRes->info.rows > 0) {
+            return pInfo->pDeleteDataRes;
+          } else {
+            goto FETCH_NEXT_BLOCK;
+          }
         }
       } break;
       default:
@@ -1689,9 +1721,12 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
 
     int32_t totBlockNum = taosArrayGetSize(pInfo->pBlockLists);
 
+  NEXT_SUBMIT_BLK:
     while (1) {
       if (pInfo->tqReader->pMsg == NULL) {
         if (pInfo->validBlockIndex >= totBlockNum) {
+          updateInfoDestoryColseWinSBF(pInfo->pUpdateInfo);
+          doClearBufferedBlocks(pInfo);
           return NULL;
         }
 
@@ -1763,7 +1798,12 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     }
 
     qDebug("scan rows: %d", pBlockInfo->rows);
-    return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;
+    if (pBlockInfo->rows > 0) {
+      return pInfo->pRes;
+    } else {
+      goto NEXT_SUBMIT_BLK;
+    }
+    /*return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;*/
   } else {
     ASSERT(0);
     return NULL;

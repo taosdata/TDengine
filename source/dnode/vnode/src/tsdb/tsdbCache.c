@@ -272,8 +272,8 @@ int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row, STsdb 
 
         SColVal colVal = {0};
         tTSRowGetVal(row, pTSchema, iCol, &colVal);
-        if (colVal.isNone || colVal.isNull) {
-          if (keyTs == tTsVal1->ts && !tColVal->isNone && !tColVal->isNull) {
+        if (!COL_VAL_IS_VALUE(&colVal)) {
+          if (keyTs == tTsVal1->ts && COL_VAL_IS_VALUE(tColVal)) {
             invalidate = true;
 
             break;
@@ -1062,7 +1062,7 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, STSRow **ppRo
           goto _err;
         }
 
-        if (pColVal->isNone && !setNoneCol) {
+        if (COL_VAL_IS_NONE(pColVal) && !setNoneCol) {
           noneCol = iCol;
           setNoneCol = true;
         }
@@ -1087,9 +1087,9 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, STSRow **ppRo
       SColVal *tColVal = (SColVal *)taosArrayGet(pColArray, iCol);
 
       tsdbRowGetColVal(pRow, pTSchema, iCol, pColVal);
-      if (tColVal->isNone && !pColVal->isNone) {
+      if (COL_VAL_IS_NONE(tColVal) && !COL_VAL_IS_NONE(pColVal)) {
         taosArraySet(pColArray, iCol, pColVal);
-      } else if (tColVal->isNone && pColVal->isNone && !setNoneCol) {
+      } else if (COL_VAL_IS_NONE(tColVal) && COL_VAL_IS_NONE(pColVal) && !setNoneCol) {
         noneCol = iCol;
         setNoneCol = true;
       }
@@ -1161,7 +1161,7 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray) {
           goto _err;
         }
 
-        if ((pColVal->isNone || pColVal->isNull) && !setNoneCol) {
+        if (!COL_VAL_IS_VALUE(pColVal) && !setNoneCol) {
           noneCol = iCol;
           setNoneCol = true;
         }
@@ -1181,9 +1181,9 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray) {
       SColVal *tColVal = (SColVal *)taosArrayGet(pColArray, iCol);
 
       tsdbRowGetColVal(pRow, pTSchema, iCol, pColVal);
-      if ((tColVal->isNone || tColVal->isNull) && (!pColVal->isNone && !pColVal->isNull)) {
+      if (!COL_VAL_IS_VALUE(tColVal) && COL_VAL_IS_VALUE(pColVal)) {
         taosArraySet(pColArray, iCol, &(SLastCol){.ts = rowTs, .colVal = *pColVal});
-      } else if ((tColVal->isNone || tColVal->isNull) && (pColVal->isNone || pColVal->isNull) && !setNoneCol) {
+      } else if (!COL_VAL_IS_VALUE(tColVal) && !COL_VAL_IS_VALUE(pColVal) && !setNoneCol) {
         noneCol = iCol;
         setNoneCol = true;
       }

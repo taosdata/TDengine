@@ -17,7 +17,7 @@ import CSAsyncQuery from "../../07-develop/04-query-data/_cs_async.mdx"
 
 `TDengine.Connector` is a C# language connector provided by TDengine that allows C# developers to develop C# applications that access TDengine cluster data.
 
-The `TDengine.Connector` connector supports connect to TDengine instances via the TDengine client driver (taosc), providing data writing, querying, subscription, schemaless writing, bind interface, etc. The `TDengine.Connector` currently does not provide a REST connection interface. Developers can write their RESTful application by referring to the [REST API](/reference/rest-api/) documentation.
+The `TDengine.Connector` connector supports connect to TDengine instances via the TDengine client driver (taosc), providing data writing, querying, subscription, schemaless writing, bind interface, etc.The `TDengine.Connector` also supports WebSocket and developers can build connection through DSN, which supports data writing, querying, and parameter binding, etc.
 
 This article describes how to install `TDengine.Connector` in a Linux or Windows environment and connect to TDengine clusters via `TDengine.Connector` to perform basic operations such as data writing and querying.
 
@@ -35,12 +35,28 @@ Please refer to [version support list](/reference/connector#version-support)
 
 ## Supported features
 
+<Tabs defaultValue="native">
+
+<TabItem value="native" label="Native Connection">
+
 1. Connection Management
 2. General Query
 3. Continuous Query
 4. Parameter Binding
 5. Subscription
 6. Schemaless
+
+</TabItem>
+
+<TabItem value="rest" label="WebSocket Connection">
+
+1. Connection Management
+2. General Query
+3. Continuous Query
+4. Parameter Binding
+
+</TabItem>
+</Tabs>
 
 ## Installation Steps
 
@@ -74,12 +90,18 @@ cp -r src/ myProject
 cd myProject
 dotnet add exmaple.csproj reference src/TDengine.csproj
 ```
+
 </TabItem>
 </Tabs>
 
 ## Establish a Connection
 
-``` C#
+
+<Tabs defaultValue="native">
+
+<TabItem value="native" label="Native Connection">
+
+``` csharp
 using TDengineDriver;
 
 namespace TDengineExample
@@ -112,13 +134,61 @@ namespace TDengineExample
 
 ```
 
+</TabItem>
+
+<TabItem value="rest" label="WebSocket Connection">
+
+The structure of the DSN description string is as follows:
+
+```text
+[<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
+|------------|---|-----------|-----------|------|------|------------|-----------------------|
+|   protocol |   | username  | password  | host | port |  database  |  params               |
+```
+
+The parameters are described as follows:
+
+* **protocol**: Specify which connection method to use (support http/ws). For example, `ws://localhost:6041` uses Websocket to establish connections. 
+* **username/password**: Username and password used to create connections.
+* **host/port**: Specifies the server and port to establish a connection. Websocket connections default to `localhost:6041`.
+* **database**: Specify the default database to connect to. It's optional.
+* **params**：Optional parameters.
+
+A sample DSN description string is as follows:
+
+```text
+ws://localhost:6041/test
+```
+
+``` csharp
+{{#include docs/examples/csharp/wsConnect/Program.cs}}
+```
+
+</TabItem>
+</Tabs>
+
 ## Usage examples
 
 ### Write data
 
 #### SQL Write
 
+<Tabs defaultValue="native">
+
+<TabItem value="native" label="Native Connection">
+
 <CSInsert />
+
+</TabItem>
+
+<TabItem value="rest" label="WebSocket Connection">
+
+```csharp
+{{#include docs/examples/csharp/wsInsert/Program.cs}}
+```
+
+</TabItem>
+</Tabs>
 
 #### InfluxDB line protocol write
 
@@ -132,11 +202,47 @@ namespace TDengineExample
 
 <CSOpenTSDBJson />
 
+#### Parameter Binding
+
+<Tabs defaultValue="native">
+
+<TabItem value="native" label="Native Connection">
+
+``` csharp
+{{#include docs/examples/csharp/stmtInsert/Program.cs}}
+```
+
+</TabItem>
+
+<TabItem value="rest" label="WebSocket Connection">
+
+```csharp
+{{#include docs/examples/csharp/wsStmt/Program.cs}}
+```
+
+</TabItem>
+</Tabs>
+
 ### Query data
 
 #### Synchronous Query
 
+<Tabs defaultValue="native">
+
+<TabItem value="native" label="Native Connection">
+
 <CSQuery />
+
+</TabItem>
+
+<TabItem value="rest" label="WebSocket Connection">
+
+```csharp
+{{#include docs/examples/csharp/wsQuery/Program.cs}}
+```
+
+</TabItem>
+</Tabs>
 
 #### Asynchronous query
 
@@ -145,18 +251,21 @@ namespace TDengineExample
 ### More sample programs
 
 |Sample program |Sample program description |
-|--------------------------------------------------------------------------------------------------------------------|------------ --------------------------------|
+|--------------------------------------------------------------------------------------------------------------------|--------------------------------------------|
 | [CURD](https://github.com/taosdata/taos-connector-dotnet/blob/3.0/examples/Query/Query.cs)                         | Table creation, data insertion, and query examples with TDengine.Connector    |
 | [JSON Tag](https://github.com/taosdata/taos-connector-dotnet/blob/3.0/examples/JSONTag)                             | Writing and querying JSON tag data with TDengine Connector |
 | [stmt](https://github.com/taosdata/taos-connector-dotnet/tree/3.0/examples/Stmt)                                   | Parameter binding with TDengine Connector |
 | [schemaless](https://github.com/taosdata/taos-connector-dotnet/blob/3.0/examples/schemaless)                       | Schemaless writes with TDengine Connector |
 | [async query](https://github.com/taosdata/taos-connector-dotnet/blob/3.0/examples/AsyncQuery/QueryAsync.cs) | Asynchronous queries with TDengine Connector |
-| [TMQ](https://github.com/taosdata/taos-connector-dotnet/blob/3.0/examples/TMQ/TMQ.cs)      | Data subscription with TDengine Connector |
+| [Subscription](https://github.com/taosdata/taos-connector-dotnet/blob/3.0/examples/TMQ/TMQ.cs)      | Subscription example with TDengine Connector |
+| [Basic WebSocket Usage](https://github.com/taosdata/taos-connector-dotnet/blob/5a4a7cd0dbcda114447cdc6d0c6dedd8e84a52da/examples/WS/WebSocketSample.cs)      | WebSocket basic data in and out with TDengine connector  |
+| [WebSocket Parameter Binding](https://github.com/taosdata/taos-connector-dotnet/blob/5a4a7cd0dbcda114447cdc6d0c6dedd8e84a52da/examples/WS/WebSocketSTMT.cs)      | WebSocket parameter binding example |
 
 ## Important update records
 
 | TDengine.Connector | Description |
 |--------------------|--------------------------------|
+|        3.0.1       | Support WebSocket and Cloud，With function query, insert, and parameter binding|
 |        3.0.0       | Supports TDengine 3.0.0.0. TDengine 2.x is not supported. Added `TDengine.Impl.GetData()` interface to deserialize query results. |
 |        1.0.7       | Fixed TDengine.Query() memory leak. |
 | 1.0.6 | Fix schemaless bug in 1.0.4 and 1.0.5. |

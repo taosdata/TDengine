@@ -183,6 +183,7 @@ typedef struct SExecTaskInfo {
   EOPTR_EXEC_MODEL      execModel;       // operator execution model [batch model|stream model]
   SSubplan*             pSubplan;
   struct SOperatorInfo* pRoot;
+  SLocalFetch      localFetch;
 } SExecTaskInfo;
 
 enum {

@@ -291,6 +291,10 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SLeftValueNode));
     case QUERY_NODE_COLUMN_REF:
       return makeNode(type, sizeof(SColumnDefNode));
+    case QUERY_NODE_WHEN_THEN:
+      return makeNode(type, sizeof(SWhenThenNode));
+    case QUERY_NODE_CASE_WHEN:
+      return makeNode(type, sizeof(SCaseWhenNode));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
@@ -738,7 +742,21 @@ void nodesDestroyNode(SNode* pNode) {
       break;
     }
     case QUERY_NODE_LEFT_VALUE:  // no pointer field
+    case QUERY_NODE_COLUMN_REF:  // no pointer field
       break;
+    case QUERY_NODE_WHEN_THEN: {
+      SWhenThenNode* pStmt = (SWhenThenNode*)pNode;
+      nodesDestroyNode(pStmt->pWhen);
+      nodesDestroyNode(pStmt->pThen);
+      break;
+    }
+    case QUERY_NODE_CASE_WHEN: {
+      SCaseWhenNode* pStmt = (SCaseWhenNode*)pNode;
+      nodesDestroyNode(pStmt->pCase);
+      nodesDestroyNode(pStmt->pElse);
+      nodesDestroyList(pStmt->pWhenThenList);
+      break;
+    }
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pStmt = (SSetOperator*)pNode;
       nodesDestroyList(pStmt->pProjectionList);

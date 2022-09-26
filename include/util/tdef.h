@@ -225,7 +225,8 @@ typedef enum ELogicConditionType {
 #define TSDB_APP_NAME_LEN   TSDB_UNI_LEN
 #define TSDB_TB_COMMENT_LEN 1025
 
-#define TSDB_QUERY_ID_LEN 26
+#define TSDB_QUERY_ID_LEN   26
+#define TSDB_TRANS_OPER_LEN 16
 
 /**
  *  In some scenarios uint16_t (0~65535) is used to store the row len.
@@ -482,6 +483,7 @@ enum {
 #define SNODE_HANDLE   -2
 #define VNODE_HANDLE   -3
 #define BNODE_HANDLE   -4
+#define CLIENT_HANDLE   -5
 
 #define TSDB_CONFIG_OPTION_LEN 32
 #define TSDB_CONFIG_VALUE_LEN  64

@@ -606,6 +606,8 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
     SCL_ERR_JRET(code);
   }
 
+  int32_t numOfQualified = 0;
+
   bool value = false;
   bool complete = true;
   for (int32_t i = 0; i < rowNum; ++i) {
@@ -631,6 +633,9 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
 
     if (complete) {
       colDataAppend(output->columnData, i, (char*) &value, false);
+      if (value) {
+        numOfQualified++;
+      }
     }
   }
 
@@ -639,8 +644,9 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
     output->numOfRows = 0;
   }
 
-_return:
+  output->numOfQualified = numOfQualified;
 
+_return:
   sclFreeParamList(params, paramNum);
   SCL_RET(code);
 }
@@ -1242,6 +1248,7 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
       colInfoDataEnsureCapacity(pDst->columnData, res->numOfRows);
       colDataAssign(pDst->columnData, res->columnData, res->numOfRows, NULL);
       pDst->numOfRows = res->numOfRows;
+      pDst->numOfQualified = res->numOfQualified;
     }
 
     sclFreeParam(res);
@@ -1249,7 +1256,6 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
   }
 
 _return:
-  //nodesDestroyNode(pNode);
   sclFreeRes(ctx.pRes);
   return code;
 }
