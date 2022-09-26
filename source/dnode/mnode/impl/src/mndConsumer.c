@@ -54,13 +54,15 @@ static int32_t mndProcessConsumerLostMsg(SRpcMsg *pMsg);
 static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg);
 
 int32_t mndInitConsumer(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_CONSUMER,
-                     .keyType = SDB_KEY_INT64,
-                     .encodeFp = (SdbEncodeFp)mndConsumerActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndConsumerActionDecode,
-                     .insertFp = (SdbInsertFp)mndConsumerActionInsert,
-                     .updateFp = (SdbUpdateFp)mndConsumerActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndConsumerActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_CONSUMER,
+      .keyType = SDB_KEY_INT64,
+      .encodeFp = (SdbEncodeFp)mndConsumerActionEncode,
+      .decodeFp = (SdbDecodeFp)mndConsumerActionDecode,
+      .insertFp = (SdbInsertFp)mndConsumerActionInsert,
+      .updateFp = (SdbUpdateFp)mndConsumerActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndConsumerActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_SUBSCRIBE, mndProcessSubscribeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_HB, mndProcessMqHbReq);

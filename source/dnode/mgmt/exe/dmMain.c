@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "tconfig.h"
+#include "mnode.h"
 
 #define DM_APOLLO_URL    "The apollo string to use when configuring the server, such as: -a 'jsonFile:./tests/cfg.json', cfg.json text can be '{\"fqdn\":\"td1\"}'."
 #define DM_CFG_DIR       "Configuration directory."
@@ -31,6 +32,7 @@ static struct {
   bool         winServiceMode;
 #endif
   bool         dumpConfig;
+  bool         dumpSdb;
   bool         generateGrant;
   bool         printAuth;
   bool         printVersion;
@@ -82,6 +84,8 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       }
     } else if (strcmp(argv[i], "-a") == 0) {
       tstrncpy(global.apolloUrl, argv[++i], PATH_MAX);
+    } else if (strcmp(argv[i], "-s") == 0) {
+      global.dumpSdb = true;
     } else if (strcmp(argv[i], "-E") == 0) {
       tstrncpy(global.envFile, argv[++i], PATH_MAX);
     } else if (strcmp(argv[i], "-n") == 0) {
@@ -223,6 +227,14 @@ int mainWindows(int argc,char** argv) {
 
   if (global.dumpConfig) {
     dmDumpCfg();
+    taosCleanupCfg();
+    taosCloseLog();
+    taosCleanupArgs();
+    return 0;
+  }
+
+  if (global.dumpSdb) {
+    mndDumpSdb();
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();
