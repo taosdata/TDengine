@@ -219,7 +219,7 @@ extern int32_t  cqDebugFlag;
 extern int32_t  debugFlag;
 
 extern int8_t tsClientMerge;
-extern int8_t tsCountAlwaysReturnValue;
+extern int8_t tsAggAlways;
 
 // probe alive connection
 extern int32_t tsProbeSeconds;

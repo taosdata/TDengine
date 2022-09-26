@@ -338,6 +338,27 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
   return code;
 }
 
+bool qFitAlwaysValue(SQInfo * pQInfo) {
+  // must agg query
+  if (pQInfo->query.simpleAgg)
+    return false;
+  
+  // must not include ts column
+  SSDataBlock* pBlock = pQInfo->runtimeEnv.outputBuf;
+  if (pBlock == NULL || pBlock->pDataBlock == NULL)
+    return false;
+
+  SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, 0);
+  if (pColInfoData == NULL)
+    return false;
+  // must not first column is timestamp  
+  if (pColInfoData->info.type == TSDB_DATA_TYPE_TIMESTAMP)
+    return false;
+
+  // fit ok
+  return true;
+}
+
 int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *contLen, bool* continueExec) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
   int32_t compLen = 0;
@@ -350,6 +371,11 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
 
   int32_t s = GET_NUM_OF_RESULTS(pRuntimeEnv);
+  if (s == 0 && tsAggAlways) {
+    if (qFitAlwaryValue(pQInfo))
+      s = 1;
+  }
+
   size_t size = pQueryAttr->resultRowSize * s;
   size += sizeof(int32_t);
   size += sizeof(STableIdInfo) * taosHashGetSize(pRuntimeEnv->pTableRetrieveTsMap);

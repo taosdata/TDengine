@@ -30,6 +30,7 @@
 #include "qUdf.h"
 #include "tcompare.h"
 #include "hashfunc.h"
+#include "tglobal.h"
 
 #define GET_INPUT_DATA_LIST(x) ((char *)((x)->pInput))
 #define GET_INPUT_DATA(x, y) (GET_INPUT_DATA_LIST(x) + (y) * (x)->inputBytes)
@@ -936,7 +937,7 @@ static void count_function(SQLFunctionCtx *pCtx) {
     }
   }
 
-  if (numOfElem > 0 || tsCountAlwaysReturnValue) {
+  if (numOfElem > 0 || tsAggAlways) {
     GET_RES_INFO(pCtx)->hasResult = DATA_SET_FLAG;
     *((int64_t *)pCtx->pOutput) += numOfElem;
     pCtx->resultInfo->numOfRes = 1;
@@ -1154,6 +1155,11 @@ static void sum_func_merge(SQLFunctionCtx *pCtx) {
     } else {
       SET_DOUBLE_VAL((double *)pCtx->pOutput, *(double *)pCtx->pOutput + pInput->dsum);
     }
+  }
+
+  // support always return value option
+  if(notNullElems == 0 && tsAggAlways) {
+    notNullElems = 1;
   }
 
   SET_VAL(pCtx, notNullElems, 1);
