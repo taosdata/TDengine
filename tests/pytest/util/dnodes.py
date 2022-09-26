@@ -480,6 +480,8 @@ class TDDnode:
             while(processID):
                 if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
                     killCmd = "kill -INT %s > /dev/null 2>&1" % processID
+                    if platform.system().lower() == 'windows':
+                        killCmd = "kill -INT %s > nul 2>&1" % processID
                     os.system(killCmd)
                     onlyKillOnceWindows = 1
                 time.sleep(1)
