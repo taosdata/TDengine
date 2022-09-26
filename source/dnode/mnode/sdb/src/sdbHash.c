@@ -40,6 +40,8 @@ const char *sdbTableName(ESdbType type) {
       return "auth";
     case SDB_ACCT:
       return "acct";
+    case SDB_STREAM_CK:
+      return "stream_ck";
     case SDB_STREAM:
       return "stream";
     case SDB_OFFSET:
