@@ -18,13 +18,13 @@
 /**
  * A util function to compare two SName.
  */
-static int32_t compareSName(const void *x, const void *y) {
-  SName* left = *((SName **) x);
-  SName* right = *((SName **) y);
+static int32_t compareSName(const void *left, const void *right) {
   if (left == right) {
     return 0;
   }
-  return strncmp((const char*) left, (const char*) right, sizeof(SName));
+  SName* x = *(SName** ) left;
+  SName* y = *(SName** ) right;
+  return memcmp(x, y, sizeof(SName));
 }
 
 /**
@@ -67,21 +67,22 @@ inline static SSubmitBlkBuilder* computeIfAbsentSSubmitBlkBuilder(SSubmitMsgBloc
   return blocksBuilder;
 }
 
-SName** buildSTableNameListBuilder(STableNameListBuilder* builder, size_t* numOfTables) {
-  if (!taosArrayGetSize(builder->tableNames)) {
-    *numOfTables = 0;
+SName** buildSTableNameListBuilder(STableNameListBuilder* builder, size_t* nTables) {
+  if (!taosArrayGetSize(builder->pTableNameList)) {
+    *nTables = 0;
     return NULL;
   }
 
   // sort and unique.
-  taosArraySort(builder->tableNames, compareSName);
+  taosArraySort(builder->pTableNameList, compareSName);
   size_t tail = 0;
-  for (size_t i = 1; i < taosArrayGetSize(builder->tableNames); ++i) {
-    SName* last = taosArrayGetP(builder->tableNames, tail);
-    SName* current = taosArrayGetP(builder->tableNames, i);
-    if (compareSName(last, current) != 0) {
+  size_t nNames = taosArrayGetSize(builder->pTableNameList);
+  for (size_t i = 1; i < nNames; ++i) {
+    SName* last = taosArrayGetP(builder->pTableNameList, tail);
+    SName* current = taosArrayGetP(builder->pTableNameList, i);
+    if (memcmp(last, current, sizeof(SName)) != 0) {
       ++tail;
-      taosArraySet(builder->tableNames, tail, &current);
+      taosArraySet(builder->pTableNameList, tail, &current);
     }
   }
 
@@ -97,11 +98,11 @@ SName** buildSTableNameListBuilder(STableNameListBuilder* builder, size_t* numOf
     if (!clone) {
       goto error;
     }
-    memcpy(clone, taosArrayGetP(builder->tableNames, i), sizeof(SName));
+    memcpy(clone, taosArrayGetP(builder->pTableNameList, i), sizeof(SName));
     tableNames[i] = clone;
   }
 
-  *numOfTables = tail + 1;
+  *nTables = tail + 1;
   return tableNames;
 
 error:
@@ -437,8 +438,8 @@ STableNameListBuilder* createSTableNameListBuilder() {
     return NULL;
   }
 
-  builder->tableNames = taosArrayInit(1, sizeof(SName*));
-  if (!builder->tableNames) {
+  builder->pTableNameList = taosArrayInit(1, sizeof(SName*));
+  if (!builder->pTableNameList) {
     free(builder);
     return NULL;
   }
@@ -450,12 +451,12 @@ void destroySTableNameListBuilder(STableNameListBuilder* builder) {
   if (!builder) {
     return;
   }
-  taosArrayDestroy(&builder->tableNames);
+  taosArrayDestroy(&builder->pTableNameList);
   free(builder);
 }
 
 bool insertSTableNameListBuilder(STableNameListBuilder* builder, SName* name) {
-  return taosArrayPush(builder->tableNames, &name);
+  return taosArrayPush(builder->pTableNameList, &name);
 }
 
 int32_t tscMergeSSqlObjs(SSqlObj** polls, size_t nPolls, SSqlObj* result) {
@@ -525,7 +526,12 @@ int32_t tscMergeSSqlObjs(SSqlObj** polls, size_t nPolls, SSqlObj* result) {
     destroySTableNameListBuilder(nameListBuilder);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
-  assert(nTables == nBlocks);
+  
+  if (nTables != nBlocks) {
+    destroySTableDataBlocksListBuilder(builder);
+    destroySTableNameListBuilder(nameListBuilder);
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
 
   // replace table name list.
   if (pInsertParam->pTableNameList) {

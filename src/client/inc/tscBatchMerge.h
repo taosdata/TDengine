@@ -68,7 +68,7 @@ typedef struct STableDataBlocksListBuilder {
  */
 typedef struct STableNameListBuilder {
   // store the unsorted table names, SArray<SName*>.
-  SArray* tableNames;
+  SArray* pTableNameList;
 } STableNameListBuilder;
 
 /**
