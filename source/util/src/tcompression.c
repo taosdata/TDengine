@@ -1191,6 +1191,26 @@ struct SCompressor {
   };
 };
 
+static int32_t tTwoStageComp(SCompressor *pCmprsor, int32_t *szComp) {
+  int32_t code = 0;
+
+  if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf + 1))) {
+    return code;
+  }
+
+  *szComp = LZ4_compress_default(pCmprsor->pBuf, pCmprsor->aBuf[0] + 1, pCmprsor->nBuf, pCmprsor->nBuf);
+  if (*szComp && *szComp < pCmprsor->nBuf) {
+    pCmprsor->aBuf[0][0] = 1;
+    *szComp += 1;
+  } else {
+    pCmprsor->aBuf[0][0] = 0;
+    memcpy(pCmprsor->aBuf[0] + 1, pCmprsor->pBuf, pCmprsor->nBuf);
+    *szComp = pCmprsor->nBuf + 1;
+  }
+
+  return code;
+}
+
 // Timestamp =====================================================
 static int32_t tCompTimestampStart(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg) {
   int32_t code = 0;
@@ -1205,7 +1225,7 @@ static int32_t tCompTimestampStart(SCompressor *pCmprsor, int8_t type, int8_t cm
   return code;
 }
 
-static int32_t tCompSwitchToCopyMode(SCompressor *pCmprsor) {
+static int32_t tCompTSSwitchToCopy(SCompressor *pCmprsor) {
   int32_t code = 0;
 
   if (pCmprsor->nVal == 0) goto _exit;
@@ -1271,14 +1291,14 @@ static int32_t tCompTimestamp(SCompressor *pCmprsor, const void *pData, int32_t 
     }
 
     if (!I64_SAFE_ADD(ts, -pCmprsor->ts_prev_val)) {
-      code = tCompSwitchToCopyMode(pCmprsor);
+      code = tCompTSSwitchToCopy(pCmprsor);
       if (code) return code;
       goto _copy_cmpr;
     }
     int64_t delta = ts - pCmprsor->ts_prev_val;
 
     if (!I64_SAFE_ADD(delta, -pCmprsor->ts_prev_delta)) {
-      code = tCompSwitchToCopyMode(pCmprsor);
+      code = tCompTSSwitchToCopy(pCmprsor);
       if (code) return code;
       goto _copy_cmpr;
     }
@@ -1328,25 +1348,14 @@ static int32_t tCompTimestampEnd(SCompressor *pCmprsor, const uint8_t **ppData, 
   int32_t code = 0;
 
   if (pCmprsor->nBuf >= sizeof(int64_t) * pCmprsor->nVal + 1 && pCmprsor->pBuf[0] == 1) {
-    code = tCompSwitchToCopyMode(pCmprsor);
+    code = tCompTSSwitchToCopy(pCmprsor);
     if (code) return code;
   }
 
   if (pCmprsor->cmprAlg == TWO_STAGE_COMP) {
-    if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf + 1))) {
-      return code;
-    }
-
+    code = tTwoStageComp(pCmprsor, nData);
+    if (code) return code;
     *ppData = pCmprsor->aBuf[0];
-    int32_t szComp = LZ4_compress_default(pCmprsor->pBuf, pCmprsor->aBuf[0] + 1, pCmprsor->nBuf, pCmprsor->nBuf);
-    if (szComp && szComp < pCmprsor->nBuf) {
-      pCmprsor->aBuf[0][0] = 1;
-      *nData = szComp + 1;
-    } else {
-      pCmprsor->aBuf[0][0] = 0;
-      memcpy(pCmprsor->aBuf[0] + 1, pCmprsor->pBuf, pCmprsor->nBuf);
-      *nData = pCmprsor->nBuf + 1;
-    }
   } else if (pCmprsor->cmprAlg == ONE_STAGE_COMP) {
     *ppData = pCmprsor->pBuf;
     *nData = pCmprsor->nBuf;
@@ -1498,20 +1507,9 @@ static int32_t tCompIntEnd(SCompressor *pCmprsor, const uint8_t **ppData, int32_
   }
 
   if (pCmprsor->cmprAlg == TWO_STAGE_COMP) {
-    if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf + 1))) {
-      return code;
-    }
-
+    code = tTwoStageComp(pCmprsor, nData);
+    if (code) return code;
     *ppData = pCmprsor->aBuf[0];
-    int32_t szComp = LZ4_compress_default(pCmprsor->pBuf, pCmprsor->aBuf[0] + 1, pCmprsor->nBuf, pCmprsor->nBuf);
-    if (szComp && szComp < pCmprsor->nBuf) {
-      pCmprsor->aBuf[0][0] = 1;
-      *nData = szComp + 1;
-    } else {
-      pCmprsor->aBuf[0][0] = 0;
-      memcpy(pCmprsor->aBuf[0] + 1, pCmprsor->pBuf, pCmprsor->nBuf);
-      *nData = pCmprsor->nBuf + 1;
-    }
   } else if (pCmprsor->cmprAlg == ONE_STAGE_COMP) {
     *ppData = pCmprsor->pBuf;
     *nData = pCmprsor->nBuf;
@@ -1662,20 +1660,9 @@ static int32_t tCompFloatEnd(SCompressor *pCmprsor, const uint8_t **ppData, int3
   }
 
   if (pCmprsor->cmprAlg == TWO_STAGE_COMP) {
-    if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf + 1))) {
-      return code;
-    }
-
+    code = tTwoStageComp(pCmprsor, nData);
+    if (code) return code;
     *ppData = pCmprsor->aBuf[0];
-    int32_t szComp = LZ4_compress_default(pCmprsor->pBuf, pCmprsor->aBuf[0] + 1, pCmprsor->nBuf, pCmprsor->nBuf);
-    if (szComp && szComp < pCmprsor->nBuf) {
-      pCmprsor->aBuf[0][0] = 1;
-      *nData = szComp + 1;
-    } else {
-      pCmprsor->aBuf[0][0] = 0;
-      memcpy(pCmprsor->aBuf[0] + 1, pCmprsor->pBuf, pCmprsor->nBuf);
-      *nData = pCmprsor->nBuf + 1;
-    }
   } else if (pCmprsor->cmprAlg == ONE_STAGE_COMP) {
     *ppData = pCmprsor->pBuf;
     *nData = pCmprsor->nBuf;
@@ -1826,20 +1813,9 @@ static int32_t tCompDoubleEnd(SCompressor *pCmprsor, const uint8_t **ppData, int
   }
 
   if (pCmprsor->cmprAlg == TWO_STAGE_COMP) {
-    if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf + 1))) {
-      return code;
-    }
-
+    code = tTwoStageComp(pCmprsor, nData);
+    if (code) return code;
     *ppData = pCmprsor->aBuf[0];
-    int32_t szComp = LZ4_compress_default(pCmprsor->pBuf, pCmprsor->aBuf[0] + 1, pCmprsor->nBuf, pCmprsor->nBuf);
-    if (szComp && szComp < pCmprsor->nBuf) {
-      pCmprsor->aBuf[0][0] = 1;
-      *nData = szComp + 1;
-    } else {
-      pCmprsor->aBuf[0][0] = 0;
-      memcpy(pCmprsor->aBuf[0] + 1, pCmprsor->pBuf, pCmprsor->nBuf);
-      *nData = pCmprsor->nBuf + 1;
-    }
   } else if (pCmprsor->cmprAlg == ONE_STAGE_COMP) {
     *ppData = pCmprsor->pBuf;
     *nData = pCmprsor->nBuf;
@@ -1931,21 +1907,9 @@ static int32_t tCompBoolEnd(SCompressor *pCmprsor, const uint8_t **ppData, int32
   int32_t code = 0;
 
   if (pCmprsor->cmprAlg == TWO_STAGE_COMP) {
-    if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf + 1))) {
-      return code;
-    }
-
+    code = tTwoStageComp(pCmprsor, nData);
+    if (code) return code;
     *ppData = pCmprsor->aBuf[0];
-
-    int32_t szComp = LZ4_compress_default(pCmprsor->pBuf, pCmprsor->aBuf[0] + 1, pCmprsor->nBuf, pCmprsor->nBuf);
-    if (szComp && szComp < pCmprsor->nBuf) {
-      pCmprsor->aBuf[0][0] = 1;
-      *nData = szComp + 1;
-    } else {
-      pCmprsor->aBuf[0][0] = 0;
-      memcpy(pCmprsor->aBuf[0] + 1, pCmprsor->pBuf, pCmprsor->nBuf);
-      *nData = pCmprsor->nBuf + 1;
-    }
   } else if (pCmprsor->cmprAlg == ONE_STAGE_COMP) {
     *ppData = pCmprsor->pBuf;
     *nData = pCmprsor->nBuf;
