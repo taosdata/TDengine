@@ -688,6 +688,8 @@ static void vnodeRestoreFinish(struct SSyncFSM *pFsm) {
     }
   } while (true);
 
+  walApplyVer(pVnode->pWal, pVnode->state.applied);
+
   pVnode->restored = true;
   vDebug("vgId:%d, sync restore finished", pVnode->config.vgId);
 }
