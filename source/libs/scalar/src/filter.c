@@ -3786,6 +3786,11 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
     return DEAL_RES_CONTINUE;
   }
 
+  if (QUERY_NODE_CASE_WHEN == nodeType(*pNode) || QUERY_NODE_WHEN_THEN == nodeType(*pNode)) {
+    stat->scalarMode = true;
+    return DEAL_RES_CONTINUE;
+  }
+
   if (QUERY_NODE_OPERATOR == nodeType(*pNode)) {
     SOperatorNode *node = (SOperatorNode *)*pNode;
     if (!FLT_IS_COMPARISON_OPERATOR(node->opType)) {
