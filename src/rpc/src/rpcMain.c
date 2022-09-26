@@ -1177,7 +1177,12 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
 
   terrno = 0;
   SRpcReqContext *pContext;
+
   pConn = rpcProcessMsgHead(pRpc, pRecv, &pContext);
+
+  if (pConn && pConn->chandle != pRecv->chandle) {
+    tError("%s recv chan %p, and send chan %p", pRpc->label, pRecv->chandle, pConn->chandle)
+  }
 
   // deal probe msg
   if (pHead->msgType == TSDB_MSG_TYPE_PROBE_CONN || pHead->msgType == TSDB_MSG_TYPE_PROBE_CONN_RSP) {
@@ -1190,9 +1195,10 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
            pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType], pRecv->ip, pRecv->port, terrno, pRecv->msgLen,
            pHead->sourceId, pHead->destId, pHead->tranId, pHead->code);
   } else {
-    tDebug("%s %p %p, %d received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x", pRpc->label,
-           pConn, (void *)pHead->ahandle, pHead->msgType, pRecv->ip, pRecv->port, terrno, pRecv->msgLen,
-           pHead->sourceId, pHead->destId, pHead->tranId, pHead->code);
+    tDebug(
+        "%s %p %p, %d received from 0x%x:%hu, parse code:0x%x len:%d sig:0x%08x:0x%08x:%d code:0x%x, receive chan:%p",
+        pRpc->label, pConn, (void *)pHead->ahandle, pHead->msgType, pRecv->ip, pRecv->port, terrno, pRecv->msgLen,
+        pHead->sourceId, pHead->destId, pHead->tranId, pHead->code, pRecv->chandle);
   }
 
   int32_t code = terrno;
