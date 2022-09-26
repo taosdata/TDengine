@@ -427,10 +427,47 @@ static int32_t mnodeAllocVgroupIdPool(SVgObj *pInputVgroup) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSid) {
+int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSid, int32_t vgId) {
   SDbObj *pDb = pMsg->pDb;
   pthread_mutex_lock(&pDb->mutex);
-  
+
+  if (vgId > 0) {
+    for (int32_t v = 0; v < pDb->numOfVgroups; ++v) {
+      SVgObj *pVgroup = pDb->vgList[v];
+      if (pVgroup == NULL) {
+        mError("db:%s, vgroup: %d is null", pDb->name, v);
+        pthread_mutex_unlock(&pDb->mutex);
+        return TSDB_CODE_MND_APP_ERROR;
+      }
+
+      if (pVgroup->vgId != (uint32_t)vgId) {  // find the target vgId
+        continue;
+      }
+
+      int32_t sid = taosAllocateId(pVgroup->idPool);
+      if (sid <= 0) {
+        int curMaxId = taosIdPoolMaxSize(pVgroup->idPool);
+        if ((taosUpdateIdPool(pVgroup->idPool, curMaxId + 1) < 0) || ((sid = taosAllocateId(pVgroup->idPool)) <= 0)) {
+          mError("msg:%p, app:%p db:%s, no enough sid in vgId:%d", pMsg, pMsg->rpcMsg.ahandle, pDb->name,
+                 pVgroup->vgId);
+          pthread_mutex_unlock(&pDb->mutex);
+          return TSDB_CODE_MND_APP_ERROR;
+        }
+      }
+      mDebug("vgId:%d, alloc tid:%d", pVgroup->vgId, sid);
+
+      *pSid = sid;
+      *ppVgroup = pVgroup;
+      pDb->vgListIndex = v;
+
+      pthread_mutex_unlock(&pDb->mutex);
+      return TSDB_CODE_SUCCESS;
+    }
+    pthread_mutex_unlock(&pDb->mutex);
+    mError("db:%s, vgroup: %d not exist", pDb->name, vgId);
+    return TSDB_CODE_MND_APP_ERROR;
+  }
+
   for (int32_t v = 0; v < pDb->numOfVgroups; ++v) {
     int vgIndex = (v + pDb->vgListIndex) % pDb->numOfVgroups;
     SVgObj *pVgroup = pDb->vgList[vgIndex];
