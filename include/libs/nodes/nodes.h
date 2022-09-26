@@ -27,9 +27,9 @@ extern "C" {
 
 #define LIST_LENGTH(l) (NULL != (l) ? (l)->length : 0)
 
-#define FOREACH(node, list)                                       \
-  for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); \
-       (NULL != cell ? (node = cell->pNode, true) : (node = NULL, false)); cell = cell->pNext)
+#define FOREACH(node, list)                                               \
+  for (SListCell *cell = (NULL != (list) ? (list)->pHead : NULL), *pNext; \
+       (NULL != cell ? (node = cell->pNode, pNext = cell->pNext, true) : (node = NULL, pNext = NULL, false)); cell = pNext)
 
 #define REPLACE_NODE(newNode) cell->pNode = (SNode*)(newNode)
 
@@ -103,6 +103,8 @@ typedef enum ENodeType {
   QUERY_NODE_STREAM_OPTIONS,
   QUERY_NODE_LEFT_VALUE,
   QUERY_NODE_COLUMN_REF,
+  QUERY_NODE_WHEN_THEN,
+  QUERY_NODE_CASE_WHEN,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -274,6 +276,17 @@ typedef struct SNodeList {
   SListCell* pHead;
   SListCell* pTail;
 } SNodeList;
+
+typedef struct SNodeAllocator SNodeAllocator;
+
+int32_t nodesInitAllocatorSet();
+void    nodesDestroyAllocatorSet();
+int32_t nodesCreateAllocator(int64_t queryId, int32_t chunkSize, int64_t* pAllocatorId);
+int32_t nodesAcquireAllocator(int64_t allocatorId);
+int32_t nodesReleaseAllocator(int64_t allocatorId);
+int64_t nodesMakeAllocatorWeakRef(int64_t allocatorId);
+int64_t nodesReleaseAllocatorWeakRef(int64_t allocatorId);
+void    nodesDestroyAllocator(int64_t allocatorId);
 
 SNode* nodesMakeNode(ENodeType type);
 void   nodesDestroyNode(SNode* pNode);

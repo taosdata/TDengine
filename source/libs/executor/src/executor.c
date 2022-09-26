@@ -49,6 +49,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
 
     SStreamScanInfo* pInfo = pOperator->info;
 
+#if 0
     // TODO: if a block was set but not consumed,
     // prevent setting a different type of block
     pInfo->validBlockIndex = 0;
@@ -57,6 +58,10 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     } else {
       taosArrayClear(pInfo->pBlockLists);
     }
+#endif
+
+    ASSERT(pInfo->validBlockIndex == 0);
+    ASSERT(taosArrayGetSize(pInfo->pBlockLists) == 0);
 
     if (type == STREAM_INPUT__MERGED_SUBMIT) {
       // ASSERT(numOfBlocks > 1);
@@ -79,7 +84,9 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     } else if (type == STREAM_INPUT__DATA_BLOCK) {
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
+        taosArrayPush(pInfo->pBlockLists, &pDataBlock);
 
+#if 0
         // TODO optimize
         SSDataBlock* p = createOneDataBlock(pDataBlock, false);
         p->info = pDataBlock->info;
@@ -87,6 +94,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
         taosArrayClear(p->pDataBlock);
         taosArrayAddAll(p->pDataBlock, pDataBlock->pDataBlock);
         taosArrayPush(pInfo->pBlockLists, &p);
+#endif
       }
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
     } else {
@@ -100,6 +108,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
 static FORCE_INLINE void streamInputBlockDataDestory(void* pBlock) { blockDataDestroy((SSDataBlock*)pBlock); }
 
 void tdCleanupStreamInputDataBlock(qTaskInfo_t tinfo) {
+#if 0
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   if (!pTaskInfo || !pTaskInfo->pRoot || pTaskInfo->pRoot->numOfDownstream <= 0) {
     return;
@@ -116,6 +125,7 @@ void tdCleanupStreamInputDataBlock(qTaskInfo_t tinfo) {
   } else {
     ASSERT(0);
   }
+#endif
 }
 
 int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type) {
@@ -469,10 +479,14 @@ static void freeBlock(void* param) {
   blockDataDestroy(pBlock);
 }
 
-int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds) {
+int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, SLocalFetch* pLocal) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   int64_t        threadId = taosGetSelfPthreadId();
 
+  if (pLocal) {
+    memcpy(&pTaskInfo->localFetch, pLocal, sizeof(*pLocal));
+  }
+  
   taosArrayClearEx(pResList, freeBlock);
 
   int64_t curOwner = 0;

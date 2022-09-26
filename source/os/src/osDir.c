@@ -58,6 +58,24 @@ int wordexp(char *words, wordexp_t *pwordexp, int flags) {
 
 void wordfree(wordexp_t *pwordexp) {}
 
+#elif defined(DARWIN)
+
+#include <dirent.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <wordexp.h>
+
+typedef struct dirent dirent;
+typedef struct dirent TdDirEntry;
+
+typedef struct TdDir {
+  TdDirEntry    dirEntry;
+  TdDirEntry    dirEntry1;
+  TdDirEntryPtr dirEntryPtr;
+  DIR          *pDir;
+} TdDir;
+
 #else
 
 #include <dirent.h>
@@ -343,7 +361,7 @@ char *taosDirName(char *name) {
     name[0] = 0;
   }
   return name;
-#elif defined(_TD_DARWIN_64)
+#else
   char *end = strrchr(name, '/');
   if (end != NULL) {
     *end = '\0';
@@ -351,8 +369,6 @@ char *taosDirName(char *name) {
     name[0] = 0;
   }
   return name;
-#else
-  return dirname(name);
 #endif
 }
 
@@ -362,7 +378,9 @@ char *taosDirEntryBaseName(char *name) {
   _splitpath(name, NULL, NULL, Filename1, Ext1);
   return name + (strlen(name) - strlen(Filename1) - strlen(Ext1));
 #else
-  return (char *)basename(name);
+  char *pPoint = strchr(name, '.');
+  if (pPoint != NULL) pPoint = 0;
+  return name;
 #endif
 }
 
@@ -386,6 +404,13 @@ TdDirPtr taosOpenDir(const char *dirname) {
     return NULL;
   }
   return pDir;
+#elif defined(DARWIN)
+  DIR *pDir = opendir(dirname);
+  if (pDir == NULL) return NULL;
+  TdDirPtr dirPtr = (TdDirPtr)taosMemoryMalloc(sizeof(TdDir));
+  dirPtr->dirEntryPtr = (TdDirEntryPtr)&(dirPtr->dirEntry1);
+  dirPtr->pDir = pDir;
+  return dirPtr;
 #else
   return (TdDirPtr)opendir(dirname);
 #endif
@@ -400,6 +425,12 @@ TdDirEntryPtr taosReadDir(TdDirPtr pDir) {
     return NULL;
   }
   return (TdDirEntryPtr) & (pDir->dirEntry.findFileData);
+#elif defined(DARWIN)
+  if (readdir_r(pDir->pDir, (dirent*)&(pDir->dirEntry), (dirent**)&(pDir->dirEntryPtr)) == 0) {
+    return pDir->dirEntryPtr;
+  } else {
+    return NULL;
+  }
 #else
   return (TdDirEntryPtr)readdir((DIR *)pDir);
 #endif
@@ -433,6 +464,11 @@ int32_t taosCloseDir(TdDirPtr *ppDir) {
   }
 #ifdef WINDOWS
   FindClose((*ppDir)->hFind);
+  taosMemoryFree(*ppDir);
+  *ppDir = NULL;
+  return 0;
+#elif defined(DARWIN)
+  closedir((*ppDir)->pDir);
   taosMemoryFree(*ppDir);
   *ppDir = NULL;
   return 0;

@@ -183,6 +183,7 @@ typedef struct SExecTaskInfo {
   EOPTR_EXEC_MODEL      execModel;       // operator execution model [batch model|stream model]
   SSubplan*             pSubplan;
   struct SOperatorInfo* pRoot;
+  SLocalFetch      localFetch;
 } SExecTaskInfo;
 
 enum {
@@ -989,7 +990,7 @@ SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWi
 SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNode* pPartNode,
                                            SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNode* pPartNode,
+SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStreamPartitionPhysiNode* pPartNode,
                                                  SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pNode, SExecTaskInfo* pTaskInfo);

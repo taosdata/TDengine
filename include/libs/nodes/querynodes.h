@@ -241,6 +241,19 @@ typedef struct SFillNode {
   STimeWindow timeRange;
 } SFillNode;
 
+typedef struct SWhenThenNode {
+  SExprNode node;  // QUERY_NODE_WHEN_THEN
+  SNode*    pWhen;
+  SNode*    pThen;
+} SWhenThenNode;
+
+typedef struct SCaseWhenNode {
+  SExprNode  node;  // QUERY_NODE_CASE_WHEN
+  SNode*     pCase;
+  SNode*     pElse;
+  SNodeList* pWhenThenList;
+} SCaseWhenNode;
+
 typedef struct SSelectStmt {
   ENodeType   type;  // QUERY_NODE_SELECT_STMT
   bool        isDistinct;
@@ -248,6 +261,8 @@ typedef struct SSelectStmt {
   SNode*      pFromTable;
   SNode*      pWhere;
   SNodeList*  pPartitionByList;
+  SNodeList*  pTags;      // for create stream
+  SNode*      pSubtable;  // for create stream
   SNode*      pWindow;
   SNodeList*  pGroupByList;  // SGroupingSetNode
   SNode*      pHaving;

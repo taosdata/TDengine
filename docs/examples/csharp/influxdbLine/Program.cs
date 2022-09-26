@@ -17,8 +17,7 @@ namespace TDengineExample
             IntPtr res = TDengine.SchemalessInsert(conn, lines, lines.Length, (int)TDengineSchemalessProtocol.TSDB_SML_LINE_PROTOCOL, (int)TDengineSchemalessPrecision.TSDB_SML_TIMESTAMP_MILLI_SECONDS);
             if (TDengine.ErrorNo(res) != 0)
             {
-                Console.WriteLine("SchemalessInsert failed since " + TDengine.Error(res));
-                ExitProgram(conn, 1);
+                throw new Exception("SchemalessInsert failed since " + TDengine.Error(res));
             }
             else
             {
@@ -26,7 +25,6 @@ namespace TDengineExample
                 Console.WriteLine($"SchemalessInsert success, affected {affectedRows} rows");
             }
             TDengine.FreeResult(res);
-            ExitProgram(conn, 0);
 
         }
         static IntPtr GetConnection()
@@ -39,9 +37,7 @@ namespace TDengineExample
             var conn = TDengine.Connect(host, username, password, dbname, port);
             if (conn == IntPtr.Zero)
             {
-                Console.WriteLine("Connect to TDengine failed");
-                TDengine.Cleanup();
-                Environment.Exit(1);
+                throw new Exception("Connect to TDengine failed");
             }
             else
             {
@@ -55,23 +51,15 @@ namespace TDengineExample
             IntPtr res = TDengine.Query(conn, "CREATE DATABASE test");
             if (TDengine.ErrorNo(res) != 0)
             {
-                Console.WriteLine("failed to create database, reason: " + TDengine.Error(res));
-                ExitProgram(conn, 1);
+                throw new Exception("failed to create database, reason: " + TDengine.Error(res));
             }
             res = TDengine.Query(conn, "USE test");
             if (TDengine.ErrorNo(res) != 0)
             {
-                Console.WriteLine("failed to change database, reason: " + TDengine.Error(res));
-                ExitProgram(conn, 1);
+                throw new Exception("failed to change database, reason: " + TDengine.Error(res));
             }
         }
 
-        static void ExitProgram(IntPtr conn, int exitCode)
-        {
-            TDengine.Close(conn);
-            TDengine.Cleanup();
-            Environment.Exit(exitCode);
-        }
     }
 
 }

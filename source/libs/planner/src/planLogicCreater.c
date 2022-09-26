@@ -1022,6 +1022,20 @@ static int32_t createPartitionLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pS
     }
   }
 
+  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pTags) {
+    pPartition->pTags = nodesCloneList(pSelect->pTags);
+    if (NULL == pPartition->pTags) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pSubtable) {
+    pPartition->pSubtable = nodesCloneNode(pSelect->pSubtable);
+    if (NULL == pPartition->pSubtable) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     *pLogicNode = (SLogicNode*)pPartition;
   } else {

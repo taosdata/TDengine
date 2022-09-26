@@ -7,8 +7,10 @@ namespace TDengineExample
         static void Main()
         {
             IntPtr conn = GetConnection();
-            PrepareDatabase(conn);
-            string[] lines = {
+            try
+            {
+                PrepareDatabase(conn);
+                string[] lines = {
                 "meters.current 1648432611249 10.3 location=California.SanFrancisco groupid=2",
                 "meters.current 1648432611250 12.6 location=California.SanFrancisco groupid=2",
                 "meters.current 1648432611249 10.8 location=California.LosAngeles groupid=3",
@@ -18,20 +20,22 @@ namespace TDengineExample
                 "meters.voltage 1648432611249 221 location=California.LosAngeles groupid=3",
                 "meters.voltage 1648432611250 217 location=California.LosAngeles groupid=3",
             };
-            IntPtr res = TDengine.SchemalessInsert(conn, lines, lines.Length, (int)TDengineSchemalessProtocol.TSDB_SML_TELNET_PROTOCOL, (int)TDengineSchemalessPrecision.TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
-            if (TDengine.ErrorNo(res) != 0)
-            {
-                Console.WriteLine("SchemalessInsert failed since " + TDengine.Error(res));
-                ExitProgram(conn, 1);
+                IntPtr res = TDengine.SchemalessInsert(conn, lines, lines.Length, (int)TDengineSchemalessProtocol.TSDB_SML_TELNET_PROTOCOL, (int)TDengineSchemalessPrecision.TSDB_SML_TIMESTAMP_NOT_CONFIGURED);
+                if (TDengine.ErrorNo(res) != 0)
+                {
+                    throw new Exception("SchemalessInsert failed since " + TDengine.Error(res));
+                }
+                else
+                {
+                    int affectedRows = TDengine.AffectRows(res);
+                    Console.WriteLine($"SchemalessInsert success, affected {affectedRows} rows");
+                }
+                TDengine.FreeResult(res);
             }
-            else
+            catch
             {
-                int affectedRows = TDengine.AffectRows(res);
-                Console.WriteLine($"SchemalessInsert success, affected {affectedRows} rows");
+                TDengine.Close(conn);
             }
-            TDengine.FreeResult(res);
-            ExitProgram(conn, 0);
-
         }
         static IntPtr GetConnection()
         {
@@ -43,9 +47,7 @@ namespace TDengineExample
             var conn = TDengine.Connect(host, username, password, dbname, port);
             if (conn == IntPtr.Zero)
             {
-                Console.WriteLine("Connect to TDengine failed");
-                TDengine.Cleanup();
-                Environment.Exit(1);
+                throw new Exception("Connect to TDengine failed");
             }
             else
             {
@@ -59,22 +61,13 @@ namespace TDengineExample
             IntPtr res = TDengine.Query(conn, "CREATE DATABASE test");
             if (TDengine.ErrorNo(res) != 0)
             {
-                Console.WriteLine("failed to create database, reason: " + TDengine.Error(res));
-                ExitProgram(conn, 1);
+                throw new Exception("failed to create database, reason: " + TDengine.Error(res));
             }
             res = TDengine.Query(conn, "USE test");
             if (TDengine.ErrorNo(res) != 0)
             {
-                Console.WriteLine("failed to change database, reason: " + TDengine.Error(res));
-                ExitProgram(conn, 1);
+                throw new Exception("failed to change database, reason: " + TDengine.Error(res));
             }
-        }
-
-        static void ExitProgram(IntPtr conn, int exitCode)
-        {
-            TDengine.Close(conn);
-            TDengine.Cleanup();
-            Environment.Exit(exitCode);
         }
     }
 }

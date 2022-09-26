@@ -78,7 +78,6 @@ enum {
   MAIN_SCAN = 0x0u,
   REVERSE_SCAN = 0x1u,  // todo remove it
   REPEAT_SCAN = 0x2u,   // repeat scan belongs to the master scan
-  MERGE_STAGE = 0x20u,
 };
 
 typedef struct SPoint1 {
@@ -156,11 +155,6 @@ typedef struct SqlFunctionCtx {
   char udfName[TSDB_FUNC_NAME_LEN];
 } SqlFunctionCtx;
 
-enum {
-  TEXPR_BINARYEXPR_NODE = 0x1,
-  TEXPR_UNARYEXPR_NODE = 0x2,
-};
-
 typedef struct tExprNode {
   int32_t nodeType;
   union {
@@ -182,8 +176,9 @@ struct SScalarParam {
   SColumnInfoData *columnData;
   SHashObj        *pHashFilter;
   int32_t          hashValueType;
-  void            *param;  // other parameter, such as meta handle from vnode, to extract table name/tag value
+  void            *param; // other parameter, such as meta handle from vnode, to extract table name/tag value
   int32_t          numOfRows;
+  int32_t          numOfQualified; // number of qualified elements in the final results
 };
 
 void    cleanupResultRowEntry(struct SResultRowEntryInfo *pCell);
@@ -201,8 +196,6 @@ int32_t taosGetLinearInterpolationVal(SPoint *point, int32_t outputType, SPoint 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // udf api
-struct SUdfInfo;
-
 /**
  * create udfd proxy, called once in process that call doSetupUdf/callUdfxxx/doTeardownUdf
  * @return error code
@@ -226,6 +219,7 @@ int32_t udfStartUdfd(int32_t startDnodeId);
  * @return
  */
 int32_t udfStopUdfd();
+
 #ifdef __cplusplus
 }
 #endif

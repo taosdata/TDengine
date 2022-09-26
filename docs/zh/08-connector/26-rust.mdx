@@ -116,7 +116,7 @@ DSN 描述字符串基本结构如下：
 - **protocol**: 显示指定以何种方式建立连接，例如：`taos+ws://localhost:6041` 指定以 Websocket 方式建立连接。
 - **username/password**: 用于创建连接的用户名及密码。
 - **host/port**: 指定创建连接的服务器及端口，当不指定服务器地址及端口时（`taos://`），原生连接默认为 `localhost:6030`，Websocket 连接默认为 `localhost:6041` 。
-- **database**: 指定默认连接的数据库名。
+- **database**: 指定默认连接的数据库名，可选参数。
 - **params**：其他可选参数。
 
 一个完整的 DSN 描述字符串示例如下：

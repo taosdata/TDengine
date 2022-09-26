@@ -617,7 +617,7 @@ static bool pushDownCondOptIsPriKey(SNode* pNode, SNodeList* pTableCols) {
     return false;
   }
   SColumnNode* pCol = (SColumnNode*)pNode;
-  if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId) {
+  if (PRIMARYKEY_TIMESTAMP_COL_ID != pCol->colId || TSDB_SYSTEM_TABLE == pCol->tableType) {
     return false;
   }
   return pushDownCondOptBelongThisTable(pNode, pTableCols);
@@ -1615,6 +1615,8 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
   SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0);
   if (QUERY_NODE_LOGIC_PLAN_PARTITION == nodeType(pNode)) {
     TSWAP(((SPartitionLogicNode*)pNode)->pPartitionKeys, pScan->pGroupTags);
+    TSWAP(((SPartitionLogicNode*)pNode)->pTags, pScan->pTags);
+    TSWAP(((SPartitionLogicNode*)pNode)->pSubtable, pScan->pSubtable);
     int32_t code = replaceLogicNode(pLogicSubplan, pNode, (SLogicNode*)pScan);
     if (TSDB_CODE_SUCCESS == code) {
       code = adjustLogicNodeDataRequirement((SLogicNode*)pScan, pNode->resultDataOrder);

@@ -105,11 +105,11 @@ void mndRestoreFinish(struct SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
 
   if (!pMnode->deploy) {
-    mInfo("mnode sync restore finished, and will handle outstanding transactions");
+    mInfo("vgId:1, sync restore finished, and will handle outstanding transactions");
     mndTransPullup(pMnode);
     mndSetRestore(pMnode, true);
   } else {
-    mInfo("mnode sync restore finished");
+    mInfo("vgId:1, sync restore finished");
   }
 }
 
@@ -228,7 +228,7 @@ int32_t mndInitSync(SMnode *pMnode) {
   syncInfo.isStandBy = pMgmt->standby;
   syncInfo.snapshotStrategy = SYNC_STRATEGY_STANDARD_SNAPSHOT;
 
-  mInfo("start to open mnode sync, standby:%d", pMgmt->standby);
+  mInfo("vgId:1, start to open sync, standby:%d", pMgmt->standby);
   if (pMgmt->standby || pMgmt->replica.id > 0) {
     SSyncCfg *pCfg = &syncInfo.syncCfg;
     pCfg->replicaNum = 1;
@@ -236,7 +236,7 @@ int32_t mndInitSync(SMnode *pMnode) {
     SNodeInfo *pNode = &pCfg->nodeInfo[0];
     tstrncpy(pNode->nodeFqdn, pMgmt->replica.fqdn, sizeof(pNode->nodeFqdn));
     pNode->nodePort = pMgmt->replica.port;
-    mInfo("mnode ep:%s:%u", pNode->nodeFqdn, pNode->nodePort);
+    mInfo("vgId:1, ep:%s:%u", pNode->nodeFqdn, pNode->nodePort);
   }
 
   tsem_init(&pMgmt->syncSem, 0, 0);
@@ -255,14 +255,14 @@ int32_t mndInitSync(SMnode *pMnode) {
     setHeartbeatTimerMS(pMgmt->sync, 300);
   */
 
-  mDebug("mnode-sync is opened, id:%" PRId64, pMgmt->sync);
+  mInfo("mnode-sync is opened, id:%" PRId64, pMgmt->sync);
   return 0;
 }
 
 void mndCleanupSync(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   syncStop(pMgmt->sync);
-  mDebug("mnode-sync is stopped, id:%" PRId64, pMgmt->sync);
+  mInfo("mnode-sync is stopped, id:%" PRId64, pMgmt->sync);
 
   tsem_destroy(&pMgmt->syncSem);
   memset(pMgmt, 0, sizeof(SSyncMgmt));
@@ -314,7 +314,7 @@ void mndSyncStart(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   syncSetMsgCb(pMgmt->sync, &pMnode->msgCb);
   syncStart(pMgmt->sync);
-  mInfo("mnode sync started, id:%" PRId64 " standby:%d", pMgmt->sync, pMgmt->standby);
+  mInfo("vgId:1, sync started, id:%" PRId64 " standby:%d", pMgmt->sync, pMgmt->standby);
 }
 
 void mndSyncStop(SMnode *pMnode) {
