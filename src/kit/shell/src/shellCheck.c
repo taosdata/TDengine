@@ -124,7 +124,7 @@ static void *shellCheckThreadFp(void *arg) {
     char *tbname = tbNames[t];
     if (tbname == NULL) break;
 
-    snprintf(sql, SHELL_SQL_LEN, "select * from %s limit 1", tbname);
+    snprintf(sql, SHELL_SQL_LEN, "select count(*) from %s;", tbname);
 
     TAOS_RES *pSql = taos_query(pThread->taos, sql);
     int32_t   code = taos_errno(pSql);

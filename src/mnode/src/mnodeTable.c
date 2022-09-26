@@ -47,6 +47,12 @@
 #define CREATE_CTABLE_RETRY_TIMES 10
 #define CREATE_CTABLE_RETRY_SEC   14
 
+// informal
+#define META_SYNC_TABLE_NAME "_taos_meta_sync_table_name_taos_"
+#define META_SYNC_TABLE_NAME_LEN 32
+static int32_t tsMetaSyncOption = 0;
+// informal
+
 int64_t          tsCTableRid = -1;
 static void *    tsChildTableSdb;
 int64_t          tsSTableRid = -1;
@@ -1618,6 +1624,7 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
     cols++;
 
     numOfRows++;
+    mDebug("stable: %s, uid: %" PRIu64, prefix, pTable->uid);
     mnodeDecTableRef(pTable);
   }
 
@@ -2093,9 +2100,19 @@ static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
     if (pMsg->pTable == NULL) {
       SVgObj *pVgroup = NULL;
       int32_t tid = 0;
-      code = mnodeGetAvailableVgroup(pMsg, &pVgroup, &tid);
+      int32_t vgId = 0;
+
+      if (tsMetaSyncOption) {
+        char *pTbName = strchr(pCreate->tableName, '.');
+        if (pTbName && (pTbName = strchr(pTbName + 1, '.'))) {
+          if (0 == strncmp(META_SYNC_TABLE_NAME, ++pTbName, META_SYNC_TABLE_NAME_LEN)) {
+            vgId = atoi(pTbName + META_SYNC_TABLE_NAME_LEN);
+          }
+        }
+      }
+      code = mnodeGetAvailableVgroup(pMsg, &pVgroup, &tid, vgId);
       if (code != TSDB_CODE_SUCCESS) {
-        mDebug("msg:%p, app:%p table:%s, failed to get available vgroup, reason:%s", pMsg, pMsg->rpcMsg.ahandle,
+        mError("msg:%p, app:%p table:%s, failed to get available vgroup, reason:%s", pMsg, pMsg->rpcMsg.ahandle,
                pCreate->tableName, tstrerror(code));
         return code;
       }
