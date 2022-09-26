@@ -2579,3 +2579,14 @@ static void mndCancelGetNextStb(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
 }
+
+const char *mndGetStbStr(const char *src) {
+  char *posDb = strstr(src, TS_PATH_DELIMITER);
+  if (posDb != NULL) ++posDb;
+  if (posDb == NULL) return src;
+
+  char *posStb = strstr(posDb, TS_PATH_DELIMITER);
+  if (posStb != NULL) ++posStb;
+  if (posStb == NULL) return posDb;
+  return posStb;
+}

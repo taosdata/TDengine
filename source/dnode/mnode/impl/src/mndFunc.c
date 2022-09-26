@@ -38,13 +38,15 @@ static int32_t  mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void     mndCancelGetNextFunc(SMnode *pMnode, void *pIter);
 
 int32_t mndInitFunc(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_FUNC,
-                     .keyType = SDB_KEY_BINARY,
-                     .encodeFp = (SdbEncodeFp)mndFuncActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndFuncActionDecode,
-                     .insertFp = (SdbInsertFp)mndFuncActionInsert,
-                     .updateFp = (SdbUpdateFp)mndFuncActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndFuncActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_FUNC,
+      .keyType = SDB_KEY_BINARY,
+      .encodeFp = (SdbEncodeFp)mndFuncActionEncode,
+      .decodeFp = (SdbDecodeFp)mndFuncActionDecode,
+      .insertFp = (SdbInsertFp)mndFuncActionInsert,
+      .updateFp = (SdbUpdateFp)mndFuncActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndFuncActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_FUNC, mndProcessCreateFuncReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_FUNC, mndProcessDropFuncReq);
