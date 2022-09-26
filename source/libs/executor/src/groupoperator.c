@@ -989,11 +989,11 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
     goto _error;
   }
   int32_t code = TSDB_CODE_SUCCESS;
-  pInfo->partitionSup.pGroupCols = extractPartitionColInfo(pPartNode->pPartitionKeys);
+  pInfo->partitionSup.pGroupCols = extractPartitionColInfo(pPartNode->part.pPartitionKeys);
 
-  if (pPartNode->pExprs != NULL) {
+  if (pPartNode->part.pExprs != NULL) {
     int32_t    num = 0;
-    SExprInfo* pCalExprInfo = createExprInfo(pPartNode->pExprs, NULL, &num);
+    SExprInfo* pCalExprInfo = createExprInfo(pPartNode->part.pExprs, NULL, &num);
     code = initExprSupp(&pInfo->scalarSup, pCalExprInfo, num);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
@@ -1008,7 +1008,7 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
   }
   pInfo->partitionSup.needCalc = true;
 
-  SSDataBlock* pResBlock = createResDataBlock(pPartNode->node.pOutputDataBlockDesc);
+  SSDataBlock* pResBlock = createResDataBlock(pPartNode->part.node.pOutputDataBlockDesc);
   if (!pResBlock) {
     goto _error;
   }
@@ -1022,7 +1022,7 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
   pInfo->pDelRes = createSpecialDataBlock(STREAM_DELETE_RESULT);
 
   int32_t    numOfCols = 0;
-  SExprInfo* pExprInfo = createExprInfo(pPartNode->pTargets, NULL, &numOfCols);
+  SExprInfo* pExprInfo = createExprInfo(pPartNode->part.pTargets, NULL, &numOfCols);
 
   pOperator->name = "StreamPartitionOperator";
   pOperator->blocking = false;
