@@ -6330,6 +6330,7 @@ SOperatorInfo* createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
 
     pDataBlock->pDataBlock = taosArrayInit(numOfOutput, sizeof(SColumnInfoData));
     if (pDataBlock->pDataBlock == NULL) {
+      free(pDataBlock);
       goto _clean;
     }
 
@@ -8521,15 +8522,18 @@ SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperator
     SColIndex* idx = taosArrayGet(pInfo->orderColumnList, i);
     offset += pExpr[idx->colIndex].base.resBytes;
   }
-
-  pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
-
+  
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-
-  if (pInfo->pRes == NULL || pOperator == NULL) {
+  if (pOperator == NULL) {
     goto _clean;
   }
-
+  
+  pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
+  if (pInfo->pRes == NULL) {
+    tfree(pOperator);
+    goto _clean;
+  }
+  
   pOperator->name = "SLimitOperator";
   pOperator->operatorType = OP_SLimit;
   pOperator->blockingOptr = false;
