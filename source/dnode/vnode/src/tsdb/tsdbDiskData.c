@@ -65,12 +65,12 @@ static int32_t tDiskColBuilderInit(SDiskColBuilder *pBuilder, int16_t cid, int8_
 
   if (IS_VAR_DATA_TYPE(type)) {
     if (pBuilder->pOffC == NULL && (code = tCompressorCreate(&pBuilder->pOffC))) return code;
-    code = tCompressorInit(pBuilder->pOffC, TSDB_DATA_TYPE_INT, cmprAlg);
+    code = tCompressStart(pBuilder->pOffC, TSDB_DATA_TYPE_INT, cmprAlg);
     if (code) return code;
   }
 
   if (pBuilder->pValC == NULL && (code = tCompressorCreate(&pBuilder->pValC))) return code;
-  code = tCompressorInit(pBuilder->pValC, type, cmprAlg);
+  code = tCompressStart(pBuilder->pValC, type, cmprAlg);
   if (code) return code;
 
   if (pBuilder->calcSma) {
@@ -116,13 +116,13 @@ static int32_t tGnrtDiskCol(SDiskColBuilder *pBuilder, SDiskCol *pDiskCol) {
 
   // OFFSET
   if (IS_VAR_DATA_TYPE(pBuilder->type)) {
-    code = tCompGen(pBuilder->pOffC, &pDiskCol->pOff, &pDiskCol->bCol.szOffset);
+    code = tCompressEnd(pBuilder->pOffC, &pDiskCol->pOff, &pDiskCol->bCol.szOffset);
     if (code) return code;
   }
 
   // VALUE
   if (pBuilder->flag != (HAS_NULL | HAS_NONE)) {
-    code = tCompGen(pBuilder->pValC, &pDiskCol->pVal, &pDiskCol->bCol.szValue);
+    code = tCompressEnd(pBuilder->pValC, &pDiskCol->pVal, &pDiskCol->bCol.szValue);
     if (code) return code;
   }
 
@@ -457,15 +457,15 @@ int32_t tDiskDataBuilderInit(SDiskDataBuilder *pBuilder, STSchema *pTSchema, TAB
   pBuilder->calcSma = calcSma;
 
   if (pBuilder->pUidC == NULL && (code = tCompressorCreate(&pBuilder->pUidC))) return code;
-  code = tCompressorInit(pBuilder->pUidC, TSDB_DATA_TYPE_BIGINT, cmprAlg);
+  code = tCompressStart(pBuilder->pUidC, TSDB_DATA_TYPE_BIGINT, cmprAlg);
   if (code) return code;
 
   if (pBuilder->pVerC == NULL && (code = tCompressorCreate(&pBuilder->pVerC))) return code;
-  code = tCompressorInit(pBuilder->pVerC, TSDB_DATA_TYPE_BIGINT, cmprAlg);
+  code = tCompressStart(pBuilder->pVerC, TSDB_DATA_TYPE_BIGINT, cmprAlg);
   if (code) return code;
 
   if (pBuilder->pKeyC == NULL && (code = tCompressorCreate(&pBuilder->pKeyC))) return code;
-  code = tCompressorInit(pBuilder->pKeyC, TSDB_DATA_TYPE_TIMESTAMP, cmprAlg);
+  code = tCompressStart(pBuilder->pKeyC, TSDB_DATA_TYPE_TIMESTAMP, cmprAlg);
   if (code) return code;
 
   if (pBuilder->aBuilder == NULL) {
@@ -586,16 +586,16 @@ int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, SDiskData *pDiskData) {
 
   // UID
   if (pBuilder->uid == 0) {
-    code = tCompGen(pBuilder->pUidC, &pDiskData->pUid, &pDiskData->hdr.szUid);
+    code = tCompressEnd(pBuilder->pUidC, &pDiskData->pUid, &pDiskData->hdr.szUid);
     if (code) return code;
   }
 
   // VERSION
-  code = tCompGen(pBuilder->pVerC, &pDiskData->pVer, &pDiskData->hdr.szVer);
+  code = tCompressEnd(pBuilder->pVerC, &pDiskData->pVer, &pDiskData->hdr.szVer);
   if (code) return code;
 
   // TSKEY
-  code = tCompGen(pBuilder->pKeyC, &pDiskData->pKey, &pDiskData->hdr.szKey);
+  code = tCompressEnd(pBuilder->pKeyC, &pDiskData->pKey, &pDiskData->hdr.szKey);
   if (code) return code;
 
   int32_t offset = 0;

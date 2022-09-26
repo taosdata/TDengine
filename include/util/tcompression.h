@@ -130,8 +130,8 @@ typedef struct SCompressor SCompressor;
 
 int32_t tCompressorCreate(SCompressor **ppCmprsor);
 int32_t tCompressorDestroy(SCompressor *pCmprsor);
-int32_t tCompressorInit(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg);
-int32_t tCompGen(SCompressor *pCmprsor, const uint8_t **ppData, int32_t *nData);
+int32_t tCompressStart(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg);
+int32_t tCompressEnd(SCompressor *pCmprsor, const uint8_t **ppData, int32_t *nData);
 int32_t tCompress(SCompressor *pCmprsor, const void *pData, int64_t nData);
 
 #ifdef __cplusplus
