@@ -1101,34 +1101,35 @@ int32_t tsdbFSUpdDel(STsdb *pTsdb, STsdbFS *pFS, STsdbFS *pFSNew, int32_t maxFid
     ASSERT(pSetOld->pHeadF->commitID == pSetNew->pHeadF->commitID);
     ASSERT(pSetOld->pHeadF->size == pSetNew->pHeadF->size);
     ASSERT(pSetOld->pHeadF->offset == pSetNew->pHeadF->offset);
-    ASSERT(!sameDisk);
 
-    // head
-    *pSetOld->pHeadF = *pSetNew->pHeadF;
-    pSetOld->pHeadF->nRef = 1;
+    if (!sameDisk) {
+      // head
+      *pSetOld->pHeadF = *pSetNew->pHeadF;
+      pSetOld->pHeadF->nRef = 1;
 
-    // data
-    ASSERT(pSetOld->pDataF->size == pSetNew->pDataF->size);
-    *pSetOld->pDataF = *pSetNew->pDataF;
-    pSetOld->pDataF->nRef = 1;
+      // data
+      ASSERT(pSetOld->pDataF->size == pSetNew->pDataF->size);
+      *pSetOld->pDataF = *pSetNew->pDataF;
+      pSetOld->pDataF->nRef = 1;
 
-    // sma
-    ASSERT(pSetOld->pSmaF->size == pSetNew->pSmaF->size);
-    *pSetOld->pSmaF = *pSetNew->pSmaF;
-    pSetOld->pSmaF->nRef = 1;
+      // sma
+      ASSERT(pSetOld->pSmaF->size == pSetNew->pSmaF->size);
+      *pSetOld->pSmaF = *pSetNew->pSmaF;
+      pSetOld->pSmaF->nRef = 1;
 
-    // stt
-    ASSERT(pSetOld->nSttF == pSetNew->nSttF);
-    for (int32_t iStt = 0; iStt < pSetOld->nSttF; ++iStt) {
-      ASSERT(pSetOld->aSttF[iStt]->size == pSetNew->aSttF[iStt]->size);
-      ASSERT(pSetOld->aSttF[iStt]->offset == pSetNew->aSttF[iStt]->offset);
+      // stt
+      ASSERT(pSetOld->nSttF == pSetNew->nSttF);
+      for (int32_t iStt = 0; iStt < pSetOld->nSttF; ++iStt) {
+        ASSERT(pSetOld->aSttF[iStt]->size == pSetNew->aSttF[iStt]->size);
+        ASSERT(pSetOld->aSttF[iStt]->offset == pSetNew->aSttF[iStt]->offset);
 
-      *pSetOld->aSttF[iStt] = *pSetNew->aSttF[iStt];
-      pSetOld->aSttF[iStt]->nRef = 1;
+        *pSetOld->aSttF[iStt] = *pSetNew->aSttF[iStt];
+        pSetOld->aSttF[iStt]->nRef = 1;
+      }
+
+      // set diskId
+      pSetOld->diskId = pSetNew->diskId;
     }
-
-    // set diskId
-    pSetOld->diskId = pSetNew->diskId;
 
     iOld++;
     iNew++;

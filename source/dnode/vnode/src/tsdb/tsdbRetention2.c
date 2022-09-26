@@ -17,9 +17,15 @@
 
 enum { RETENTION_NO = 0, RETENTION_EXPIRED = 1, RETENTION_MIGRATE = 2 };
 
+#if 1
 #define MIGRATE_MIN_FSIZE (1048576 << 9)  // 512 MB
 #define MIGRATE_MAX_SPEED (1048576 << 5)  // 32 MB
 #define MIGRATE_MIN_COST  (5)             // second
+#else
+#define MIGRATE_MIN_FSIZE (1048576 << 5)  // 32 MB
+#define MIGRATE_MAX_SPEED (1048576 << 2)  // 4  MB
+#define MIGRATE_MIN_COST  (5)             // second
+#endif
 
 static bool    tsdbShouldDoMigrate(STsdb *pTsdb);
 static int32_t tsdbShouldDoRetention(STsdb *pTsdb, int64_t now);
@@ -103,7 +109,6 @@ _wait_commit_end:
     if (++nLoops > 1000) {
       nLoops = 0;
       sched_yield();
-      printf("%s:%d sche_yield() minCommitFid:%d maxFid:%d\n", __func__, __LINE__, pTsdb->trimHdl.minCommitFid, maxFid);
     }
   }
   if (atomic_val_compare_exchange_8(&pTsdb->trimHdl.state, 0, 1) == 0) {
@@ -160,6 +165,7 @@ _exit:
  */
 static int32_t tsdbProcessMigrate(STsdb *pTsdb, int64_t now, int32_t maxSpeed, int32_t retention) {
   int32_t code = 0;
+  int32_t nBatch = 0;
   int32_t nLoops = 0;
   int32_t maxFid = INT32_MIN;
   int64_t fSize = 0;
@@ -186,6 +192,8 @@ _migrate_loop:
     int32_t    expLevel = tsdbFidLevel(pSet->fid, &pTsdb->keepCfg, now);
     SDiskID    did;
 
+    if (pSet->diskId.level == expLevel) continue;
+
     if (expLevel > 0) {
       ASSERT(pSet->fid > maxFid);
       maxFid = pSet->fid;
@@ -197,6 +205,7 @@ _migrate_loop:
         fSize += pSet->aSttF[iStt]->size;
       }
       if (fSize / MIGRATE_MAX_SPEED > MIGRATE_MIN_COST) {
+        tsdbInfo("vgId:%d migrate loop[%d] with maxFid:%d", TD_VID(pTsdb->pVnode), nBatch, maxFid);
         break;
       }
     }
@@ -209,7 +218,6 @@ _wait_commit_end:
     if (++nLoops > 1000) {
       nLoops = 0;
       sched_yield();
-      printf("%s:%d sche_yield()\n", __func__, __LINE__);
     }
   }
   if (atomic_val_compare_exchange_8(&pTsdb->trimHdl.state, 0, 1) == 0) {
@@ -231,9 +239,14 @@ _wait_commit_end:
 
     if (pSet->fid > maxFid) break;
 
+    tsdbInfo("vgId:%d migrate loop[%d] with maxFid:%d, fid:%d, did:%d, level:%d, expLevel:%d", TD_VID(pTsdb->pVnode),
+             nBatch, maxFid, pSet->fid, pSet->diskId.id, pSet->diskId.level, expLevel);
+
     if (expLevel < 0) {
       SET_DFSET_EXPIRED(pSet);
-    } else if (expLevel > 0) {
+    } else {
+      if (expLevel == pSet->diskId.level) continue;
+
       if (tfsAllocDisk(pTsdb->pVnode->pTfs, expLevel, &did) < 0) {
         code = terrno;
         goto _exit;
@@ -276,6 +289,9 @@ _merge_fs:
     goto _exit;
   }
   taosThreadRwlockUnlock(&pTsdb->rwLock);
+
+  ++nBatch;
+  goto _migrate_loop;
 
 _exit:
   tsdbFSDestroy(&fs);

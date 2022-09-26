@@ -389,7 +389,7 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, 
     goto _exit;
   }
 
-  vInfo("vgId:%d, trim vnode request will be processed, time:%d", pVnode->config.vgId, trimReq.timestamp);
+  vInfo("vgId:%d, trim vnode request will be processed, time:%" PRIi64, pVnode->config.vgId, trimReq.timestamp);
 
   // process
   code = tsdbDoRetention(pVnode->pTsdb, trimReq.timestamp);
@@ -461,7 +461,7 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, 
     goto _exit;
   }
 
-  vInfo("vgId:%d, trim vnode request will be processed, time:%d", TD_VID(pVnode), pVndTrimReq->trimReq.timestamp);
+  vInfo("vgId:%d, trim vnode request will be processed, time:%" PRIi64, TD_VID(pVnode), pVndTrimReq->trimReq.timestamp);
 
   TdThreadAttr thAttr = {0};
   taosThreadAttrInit(&thAttr);

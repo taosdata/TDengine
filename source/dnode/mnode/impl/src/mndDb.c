@@ -1389,7 +1389,7 @@ static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb) {
   SSdb       *pSdb = pMnode->pSdb;
   SVgObj     *pVgroup = NULL;
   void       *pIter = NULL;
-  SVTrimDbReq trimReq = {.timestamp = taosGetTimestampMs(), .maxSpeed = 1048576 << 5}; // TODO: use specified maxSpeed
+  SVTrimDbReq trimReq = {.timestamp = taosGetTimestampMs(), .maxSpeed = 1048576 << 2}; // TODO: use specified maxSpeed
   int32_t     reqLen = tSerializeSVTrimDbReq(NULL, 0, &trimReq);
   int32_t     contLen = reqLen + sizeof(SMsgHead);
 
@@ -1413,7 +1413,7 @@ static int32_t mndTrimDb(SMnode *pMnode, SDbObj *pDb) {
     if (code != 0) {
       mError("vgId:%d, failed to send vnode-trim request to vnode since 0x%x", pVgroup->vgId, code);
     } else {
-      mInfo("vgId:%d, send vnode-trim request to vnode, time:%d", pVgroup->vgId, trimReq.timestamp);
+      mInfo("vgId:%d, send vnode-trim request to vnode, time:%" PRIi64, pVgroup->vgId, trimReq.timestamp);
     }
     sdbRelease(pSdb, pVgroup);
   }
