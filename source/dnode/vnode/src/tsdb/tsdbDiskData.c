@@ -138,7 +138,7 @@ static FORCE_INLINE void tDiskColUpdateSma(SDiskColBuilder *pBuilder, SColVal *p
   }
 }
 
-static int32_t tDiskColPutValue(SDiskColBuilder *pBuilder, SColVal *pColVal) {
+static FORCE_INLINE int32_t tDiskColPutValue(SDiskColBuilder *pBuilder, SColVal *pColVal) {
   int32_t code = 0;
 
   if (IS_VAR_DATA_TYPE(pColVal->type)) {
@@ -155,256 +155,282 @@ static int32_t tDiskColPutValue(SDiskColBuilder *pBuilder, SColVal *pColVal) {
 
   return code;
 }
-static int32_t tDiskColAddVal0(SDiskColBuilder *pBuilder, SColVal *pColVal) {  // 0
+static FORCE_INLINE int32_t tDiskColAddVal00(SDiskColBuilder *pBuilder, SColVal *pColVal) {
+  pBuilder->flag = HAS_VALUE;
+  return tDiskColPutValue(pBuilder, pColVal);
+}
+static FORCE_INLINE int32_t tDiskColAddVal01(SDiskColBuilder *pBuilder, SColVal *pColVal) {
+  pBuilder->flag = HAS_NONE;
+  return 0;
+}
+static FORCE_INLINE int32_t tDiskColAddVal02(SDiskColBuilder *pBuilder, SColVal *pColVal) {
+  pBuilder->flag = HAS_NULL;
+  return 0;
+}
+static FORCE_INLINE int32_t tDiskColAddVal10(SDiskColBuilder *pBuilder, SColVal *pColVal) {
   int32_t code = 0;
 
-  if (COL_VAL_IS_NONE(pColVal)) {
-    pBuilder->flag = HAS_NONE;
-  } else if (COL_VAL_IS_NULL(pColVal)) {
-    pBuilder->flag = HAS_NULL;
-  } else {
-    pBuilder->flag = HAS_VALUE;
-    code = tDiskColPutValue(pBuilder, pColVal);
+  // bit map
+  int32_t nBit = BIT1_SIZE(pBuilder->nVal + 1);
+  code = tRealloc(&pBuilder->pBitMap, nBit);
+  if (code) return code;
+
+  memset(pBuilder->pBitMap, 0, nBit);
+  SET_BIT1(pBuilder->pBitMap, pBuilder->nVal, 1);
+
+  // value
+  pBuilder->flag |= HAS_VALUE;
+
+  SColVal cv = COL_VAL_VALUE(pColVal->cid, pColVal->type, (SValue){0});
+  for (int32_t iVal = 0; iVal < pBuilder->nVal; iVal++) {
+    code = tDiskColPutValue(pBuilder, &cv);
     if (code) return code;
   }
 
-  return code;
+  return tDiskColPutValue(pBuilder, pColVal);
 }
-static int32_t tDiskColAddVal1(SDiskColBuilder *pBuilder, SColVal *pColVal) {  // HAS_NONE
+static FORCE_INLINE int32_t tDiskColAddVal12(SDiskColBuilder *pBuilder, SColVal *pColVal) {
   int32_t code = 0;
 
-  if (!COL_VAL_IS_NONE(pColVal)) {
-    // bit map
-    int32_t nBit = BIT1_SIZE(pBuilder->nVal + 1);
+  int32_t nBit = BIT1_SIZE(pBuilder->nVal + 1);
+  code = tRealloc(&pBuilder->pBitMap, nBit);
+  if (code) return code;
 
-    code = tRealloc(&pBuilder->pBitMap, nBit);
+  memset(pBuilder->pBitMap, 0, nBit);
+  SET_BIT1(pBuilder->pBitMap, pBuilder->nVal, 1);
+
+  pBuilder->flag |= HAS_NULL;
+
+  return code;
+}
+static FORCE_INLINE int32_t tDiskColAddVal20(SDiskColBuilder *pBuilder, SColVal *pColVal) {
+  int32_t code = 0;
+
+  int32_t nBit = BIT1_SIZE(pBuilder->nVal + 1);
+  code = tRealloc(&pBuilder->pBitMap, nBit);
+  if (code) return code;
+
+  pBuilder->flag |= HAS_VALUE;
+
+  memset(pBuilder->pBitMap, 0, nBit);
+  SET_BIT1(pBuilder->pBitMap, pBuilder->nVal, 1);
+
+  SColVal cv = COL_VAL_VALUE(pColVal->cid, pColVal->type, (SValue){0});
+  for (int32_t iVal = 0; iVal < pBuilder->nVal; iVal++) {
+    code = tDiskColPutValue(pBuilder, &cv);
     if (code) return code;
-
-    memset(pBuilder->pBitMap, 0, nBit);
-    SET_BIT1(pBuilder->pBitMap, pBuilder->nVal, 1);
-
-    // value
-    if (COL_VAL_IS_NULL(pColVal)) {
-      pBuilder->flag |= HAS_NULL;
-    } else {
-      pBuilder->flag |= HAS_VALUE;
-
-      SColVal cv = COL_VAL_VALUE(pColVal->cid, pColVal->type, (SValue){0});
-      for (int32_t iVal = 0; iVal < pBuilder->nVal; iVal++) {
-        code = tDiskColPutValue(pBuilder, &cv);
-        if (code) return code;
-      }
-
-      code = tDiskColPutValue(pBuilder, pColVal);
-      if (code) return code;
-    }
   }
 
-  return code;
+  return tDiskColPutValue(pBuilder, pColVal);
 }
-static int32_t tDiskColAddVal2(SDiskColBuilder *pBuilder, SColVal *pColVal) {  // HAS_NULL
+static FORCE_INLINE int32_t tDiskColAddVal21(SDiskColBuilder *pBuilder, SColVal *pColVal) {
   int32_t code = 0;
 
-  if (!COL_VAL_IS_NULL(pColVal)) {
-    int32_t nBit = BIT1_SIZE(pBuilder->nVal + 1);
-    code = tRealloc(&pBuilder->pBitMap, nBit);
-    if (code) goto _exit;
+  int32_t nBit = BIT1_SIZE(pBuilder->nVal + 1);
+  code = tRealloc(&pBuilder->pBitMap, nBit);
+  if (code) return code;
 
-    if (COL_VAL_IS_NONE(pColVal)) {
-      pBuilder->flag |= HAS_NONE;
+  pBuilder->flag |= HAS_NONE;
 
-      memset(pBuilder->pBitMap, 255, nBit);
-      SET_BIT1(pBuilder->pBitMap, pBuilder->nVal, 0);
-    } else {
-      pBuilder->flag |= HAS_VALUE;
+  memset(pBuilder->pBitMap, 255, nBit);
+  SET_BIT1(pBuilder->pBitMap, pBuilder->nVal, 0);
 
-      memset(pBuilder->pBitMap, 0, nBit);
-      SET_BIT1(pBuilder->pBitMap, pBuilder->nVal, 1);
-
-      SColVal cv = COL_VAL_VALUE(pColVal->cid, pColVal->type, (SValue){0});
-      for (int32_t iVal = 0; iVal < pBuilder->nVal; iVal++) {
-        code = tDiskColPutValue(pBuilder, &cv);
-        if (code) goto _exit;
-      }
-
-      code = tDiskColPutValue(pBuilder, pColVal);
-      if (code) goto _exit;
-    }
-  }
-
-_exit:
   return code;
 }
-static int32_t tDiskColAddVal3(SDiskColBuilder *pBuilder, SColVal *pColVal) {  // HAS_NULL|HAS_NONE
+static FORCE_INLINE int32_t tDiskColAddVal30(SDiskColBuilder *pBuilder, SColVal *pColVal) {
   int32_t code = 0;
 
-  if (COL_VAL_IS_NONE(pColVal)) {
-    code = tRealloc(&pBuilder->pBitMap, BIT1_SIZE(pBuilder->nVal + 1));
-    if (code) goto _exit;
+  pBuilder->flag |= HAS_VALUE;
 
-    SET_BIT1(pBuilder->pBitMap, pBuilder->nVal, 0);
-  } else if (COL_VAL_IS_NULL(pColVal)) {
-    code = tRealloc(&pBuilder->pBitMap, BIT1_SIZE(pBuilder->nVal + 1));
-    if (code) goto _exit;
+  uint8_t *pBitMap = NULL;
+  code = tRealloc(&pBitMap, BIT2_SIZE(pBuilder->nVal + 1));
+  if (code) return code;
 
-    SET_BIT1(pBuilder->pBitMap, pBuilder->nVal, 1);
-  } else {
-    pBuilder->flag |= HAS_VALUE;
+  for (int32_t iVal = 0; iVal < pBuilder->nVal; iVal++) {
+    SET_BIT2(pBitMap, iVal, GET_BIT1(pBuilder->pBitMap, iVal));
+  }
+  SET_BIT2(pBitMap, pBuilder->nVal, 2);
 
-    uint8_t *pBitMap = NULL;
-    code = tRealloc(&pBitMap, BIT2_SIZE(pBuilder->nVal + 1));
-    if (code) goto _exit;
+  tFree(pBuilder->pBitMap);
+  pBuilder->pBitMap = pBitMap;
 
-    for (int32_t iVal = 0; iVal < pBuilder->nVal; iVal++) {
-      SET_BIT2(pBitMap, iVal, GET_BIT1(pBuilder->pBitMap, iVal));
-    }
-    SET_BIT2(pBitMap, pBuilder->nVal, 2);
-
-    tFree(pBuilder->pBitMap);
-    pBuilder->pBitMap = pBitMap;
-
-    SColVal cv = COL_VAL_VALUE(pColVal->cid, pColVal->type, (SValue){0});
-    for (int32_t iVal = 0; iVal < pBuilder->nVal; iVal++) {
-      code = tDiskColPutValue(pBuilder, &cv);
-      if (code) goto _exit;
-    }
-
-    code = tDiskColPutValue(pBuilder, pColVal);
-    if (code) goto _exit;
+  SColVal cv = COL_VAL_VALUE(pColVal->cid, pColVal->type, (SValue){0});
+  for (int32_t iVal = 0; iVal < pBuilder->nVal; iVal++) {
+    code = tDiskColPutValue(pBuilder, &cv);
+    if (code) return code;
   }
 
-_exit:
-  return code;
+  return tDiskColPutValue(pBuilder, pColVal);
 }
-static int32_t tDiskColAddVal4(SDiskColBuilder *pBuilder, SColVal *pColVal) {  // HAS_VALUE
+static FORCE_INLINE int32_t tDiskColAddVal31(SDiskColBuilder *pBuilder, SColVal *pColVal) {
   int32_t code = 0;
 
-  if (!COL_VAL_IS_VALUE(pColVal)) {
-    if (COL_VAL_IS_NONE(pColVal)) {
-      pBuilder->flag |= HAS_NONE;
-    } else {
-      pBuilder->flag |= HAS_NULL;
-    }
+  code = tRealloc(&pBuilder->pBitMap, BIT1_SIZE(pBuilder->nVal + 1));
+  if (code) return code;
+  SET_BIT1(pBuilder->pBitMap, pBuilder->nVal, 0);
 
-    int32_t nBit = BIT1_SIZE(pBuilder->nVal + 1);
-    code = tRealloc(&pBuilder->pBitMap, nBit);
-    if (code) goto _exit;
-
-    memset(pBuilder->pBitMap, 255, nBit);
-    SET_BIT1(pBuilder->pBitMap, pBuilder->nVal, 0);
-
-    code = tDiskColPutValue(pBuilder, pColVal);
-    if (code) goto _exit;
-  } else {
-    code = tDiskColPutValue(pBuilder, pColVal);
-    if (code) goto _exit;
-  }
-
-_exit:
   return code;
 }
-static int32_t tDiskColAddVal5(SDiskColBuilder *pBuilder, SColVal *pColVal) {  // HAS_VALUE|HAS_NONE
+static FORCE_INLINE int32_t tDiskColAddVal32(SDiskColBuilder *pBuilder, SColVal *pColVal) {
   int32_t code = 0;
 
-  if (COL_VAL_IS_NULL(pColVal)) {
-    pBuilder->flag |= HAS_NULL;
+  code = tRealloc(&pBuilder->pBitMap, BIT1_SIZE(pBuilder->nVal + 1));
+  if (code) return code;
+  SET_BIT1(pBuilder->pBitMap, pBuilder->nVal, 1);
 
-    uint8_t *pBitMap = NULL;
-    code = tRealloc(&pBitMap, BIT2_SIZE(pBuilder->nVal + 1));
-    if (code) goto _exit;
-
-    for (int32_t iVal = 0; iVal < pBuilder->nVal; iVal++) {
-      SET_BIT2(pBitMap, iVal, GET_BIT1(pBuilder->pBitMap, iVal) ? 2 : 0);
-    }
-    SET_BIT2(pBitMap, pBuilder->nVal, 1);
-
-    tFree(pBuilder->pBitMap);
-    pBuilder->pBitMap = pBitMap;
-  } else {
-    code = tRealloc(&pBuilder->pBitMap, BIT1_SIZE(pBuilder->nVal + 1));
-    if (code) goto _exit;
-
-    if (COL_VAL_IS_NONE(pColVal)) {
-      SET_BIT1(pBuilder->pBitMap, pBuilder->nVal, 0);
-    } else {
-      SET_BIT1(pBuilder->pBitMap, pBuilder->nVal, 1);
-    }
-  }
-  code = tDiskColPutValue(pBuilder, pColVal);
-  if (code) goto _exit;
-
-_exit:
   return code;
 }
-static int32_t tDiskColAddVal6(SDiskColBuilder *pBuilder, SColVal *pColVal) {  // HAS_VALUE|HAS_NULL
+static FORCE_INLINE int32_t tDiskColAddVal40(SDiskColBuilder *pBuilder, SColVal *pColVal) {
+  return tDiskColPutValue(pBuilder, pColVal);
+}
+static FORCE_INLINE int32_t tDiskColAddVal41(SDiskColBuilder *pBuilder, SColVal *pColVal) {
   int32_t code = 0;
 
-  if (COL_VAL_IS_NONE(pColVal)) {
-    pBuilder->flag |= HAS_NONE;
+  pBuilder->flag |= HAS_NONE;
 
-    uint8_t *pBitMap = NULL;
-    code = tRealloc(&pBitMap, BIT2_SIZE(pBuilder->nVal + 1));
-    if (code) goto _exit;
+  int32_t nBit = BIT1_SIZE(pBuilder->nVal + 1);
+  code = tRealloc(&pBuilder->pBitMap, nBit);
+  if (code) return code;
 
-    for (int32_t iVal = 0; iVal < pBuilder->nVal; iVal++) {
-      SET_BIT2(pBitMap, iVal, GET_BIT1(pBuilder->pBitMap, iVal) ? 2 : 1);
-    }
-    SET_BIT2(pBitMap, pBuilder->nVal, 0);
+  memset(pBuilder->pBitMap, 255, nBit);
+  SET_BIT1(pBuilder->pBitMap, pBuilder->nVal, 0);
 
-    tFree(pBuilder->pBitMap);
-    pBuilder->pBitMap = pBitMap;
-  } else {
-    code = tRealloc(&pBuilder->pBitMap, BIT1_SIZE(pBuilder->nVal + 1));
-    if (code) goto _exit;
-
-    if (COL_VAL_IS_NULL(pColVal)) {
-      SET_BIT1(pBuilder->pBitMap, pBuilder->nVal, 0);
-    } else {
-      SET_BIT1(pBuilder->pBitMap, pBuilder->nVal, 1);
-    }
-  }
-  code = tDiskColPutValue(pBuilder, pColVal);
-  if (code) goto _exit;
-
-_exit:
-  return code;
+  return tDiskColPutValue(pBuilder, pColVal);
 }
-static int32_t tDiskColAddVal7(SDiskColBuilder *pBuilder, SColVal *pColVal) {  // HAS_VALUE|HAS_NULL|HAS_NONE
+static FORCE_INLINE int32_t tDiskColAddVal42(SDiskColBuilder *pBuilder, SColVal *pColVal) {
+  int32_t code = 0;
+
+  pBuilder->flag |= HAS_NULL;
+
+  int32_t nBit = BIT1_SIZE(pBuilder->nVal + 1);
+  code = tRealloc(&pBuilder->pBitMap, nBit);
+  if (code) return code;
+
+  memset(pBuilder->pBitMap, 255, nBit);
+  SET_BIT1(pBuilder->pBitMap, pBuilder->nVal, 0);
+
+  return tDiskColPutValue(pBuilder, pColVal);
+}
+static FORCE_INLINE int32_t tDiskColAddVal50(SDiskColBuilder *pBuilder, SColVal *pColVal) {
+  int32_t code = 0;
+
+  code = tRealloc(&pBuilder->pBitMap, BIT1_SIZE(pBuilder->nVal + 1));
+  if (code) return code;
+  SET_BIT1(pBuilder->pBitMap, pBuilder->nVal, 1);
+
+  return tDiskColPutValue(pBuilder, pColVal);
+}
+static FORCE_INLINE int32_t tDiskColAddVal51(SDiskColBuilder *pBuilder, SColVal *pColVal) {
+  int32_t code = 0;
+
+  code = tRealloc(&pBuilder->pBitMap, BIT1_SIZE(pBuilder->nVal + 1));
+  if (code) return code;
+  SET_BIT1(pBuilder->pBitMap, pBuilder->nVal, 0);
+
+  return tDiskColPutValue(pBuilder, pColVal);
+}
+static FORCE_INLINE int32_t tDiskColAddVal52(SDiskColBuilder *pBuilder, SColVal *pColVal) {
+  int32_t code = 0;
+
+  pBuilder->flag |= HAS_NULL;
+
+  uint8_t *pBitMap = NULL;
+  code = tRealloc(&pBitMap, BIT2_SIZE(pBuilder->nVal + 1));
+  if (code) return code;
+
+  for (int32_t iVal = 0; iVal < pBuilder->nVal; iVal++) {
+    SET_BIT2(pBitMap, iVal, GET_BIT1(pBuilder->pBitMap, iVal) ? 2 : 0);
+  }
+  SET_BIT2(pBitMap, pBuilder->nVal, 1);
+
+  tFree(pBuilder->pBitMap);
+  pBuilder->pBitMap = pBitMap;
+
+  return tDiskColPutValue(pBuilder, pColVal);
+}
+static FORCE_INLINE int32_t tDiskColAddVal60(SDiskColBuilder *pBuilder, SColVal *pColVal) {
+  int32_t code = 0;
+
+  code = tRealloc(&pBuilder->pBitMap, BIT1_SIZE(pBuilder->nVal + 1));
+  if (code) return code;
+  SET_BIT1(pBuilder->pBitMap, pBuilder->nVal, 1);
+
+  return tDiskColPutValue(pBuilder, pColVal);
+}
+static FORCE_INLINE int32_t tDiskColAddVal61(SDiskColBuilder *pBuilder, SColVal *pColVal) {
+  int32_t code = 0;
+
+  pBuilder->flag |= HAS_NONE;
+
+  uint8_t *pBitMap = NULL;
+  code = tRealloc(&pBitMap, BIT2_SIZE(pBuilder->nVal + 1));
+  if (code) return code;
+
+  for (int32_t iVal = 0; iVal < pBuilder->nVal; iVal++) {
+    SET_BIT2(pBitMap, iVal, GET_BIT1(pBuilder->pBitMap, iVal) ? 2 : 1);
+  }
+  SET_BIT2(pBitMap, pBuilder->nVal, 0);
+
+  tFree(pBuilder->pBitMap);
+  pBuilder->pBitMap = pBitMap;
+
+  return tDiskColPutValue(pBuilder, pColVal);
+}
+static FORCE_INLINE int32_t tDiskColAddVal62(SDiskColBuilder *pBuilder, SColVal *pColVal) {
+  int32_t code = 0;
+
+  code = tRealloc(&pBuilder->pBitMap, BIT1_SIZE(pBuilder->nVal + 1));
+  if (code) return code;
+  SET_BIT1(pBuilder->pBitMap, pBuilder->nVal, 0);
+
+  return tDiskColPutValue(pBuilder, pColVal);
+}
+static FORCE_INLINE int32_t tDiskColAddVal70(SDiskColBuilder *pBuilder, SColVal *pColVal) {
   int32_t code = 0;
 
   code = tRealloc(&pBuilder->pBitMap, BIT2_SIZE(pBuilder->nVal + 1));
-  if (code) goto _exit;
+  if (code) return code;
+  SET_BIT2(pBuilder->pBitMap, pBuilder->nVal, 2);
 
-  if (COL_VAL_IS_NONE(pColVal)) {
-    SET_BIT2(pBuilder->pBitMap, pBuilder->nVal, 0);
-  } else if (COL_VAL_IS_NULL(pColVal)) {
-    SET_BIT2(pBuilder->pBitMap, pBuilder->nVal, 1);
-  } else {
-    SET_BIT2(pBuilder->pBitMap, pBuilder->nVal, 2);
-  }
-  code = tDiskColPutValue(pBuilder, pColVal);
-  if (code) goto _exit;
-
-_exit:
-  return code;
+  return tDiskColPutValue(pBuilder, pColVal);
 }
-static int32_t (*tDiskColAddValImpl[])(SDiskColBuilder *pBuilder, SColVal *pColVal) = {
-    tDiskColAddVal0,  // 0
-    tDiskColAddVal1,  // HAS_NONE
-    tDiskColAddVal2,  // HAS_NULL
-    tDiskColAddVal3,  // HAS_NULL|HAS_NONE
-    tDiskColAddVal4,  // HAS_VALUE
-    tDiskColAddVal5,  // HAS_VALUE|HAS_NONE
-    tDiskColAddVal6,  // HAS_VALUE|HAS_NULL
-    tDiskColAddVal7,  // HAS_VALUE|HAS_NULL|HAS_NONE
+static FORCE_INLINE int32_t tDiskColAddVal71(SDiskColBuilder *pBuilder, SColVal *pColVal) {
+  int32_t code = 0;
+
+  code = tRealloc(&pBuilder->pBitMap, BIT2_SIZE(pBuilder->nVal + 1));
+  if (code) return code;
+  SET_BIT2(pBuilder->pBitMap, pBuilder->nVal, 0);
+
+  return tDiskColPutValue(pBuilder, pColVal);
+}
+static FORCE_INLINE int32_t tDiskColAddVal72(SDiskColBuilder *pBuilder, SColVal *pColVal) {
+  int32_t code = 0;
+
+  code = tRealloc(&pBuilder->pBitMap, BIT2_SIZE(pBuilder->nVal + 1));
+  if (code) return code;
+  SET_BIT2(pBuilder->pBitMap, pBuilder->nVal, 1);
+
+  return tDiskColPutValue(pBuilder, pColVal);
+}
+static int32_t (*tDiskColAddValImpl[8][3])(SDiskColBuilder *pBuilder, SColVal *pColVal) = {
+    {tDiskColAddVal00, tDiskColAddVal01, tDiskColAddVal02},  // 0
+    {tDiskColAddVal10, NULL, tDiskColAddVal12},              // HAS_NONE
+    {tDiskColAddVal20, tDiskColAddVal21, NULL},              // HAS_NULL
+    {tDiskColAddVal30, tDiskColAddVal31, tDiskColAddVal32},  // HAS_NULL|HAS_NONE
+    {tDiskColAddVal40, tDiskColAddVal41, tDiskColAddVal42},  // HAS_VALUE
+    {tDiskColAddVal50, tDiskColAddVal51, tDiskColAddVal52},  // HAS_VALUE|HAS_NONE
+    {tDiskColAddVal60, tDiskColAddVal61, tDiskColAddVal62},  // HAS_VALUE|HAS_NULL
+    {tDiskColAddVal70, tDiskColAddVal71, tDiskColAddVal72}   // HAS_VALUE|HAS_NULL|HAS_NONE
 };
 static int32_t tDiskColAddVal(SDiskColBuilder *pBuilder, SColVal *pColVal) {
   int32_t code = 0;
 
   if (pBuilder->calcSma) tDiskColUpdateSma(pBuilder, pColVal);
 
-  code = tDiskColAddValImpl[pBuilder->type](pBuilder, pColVal);
-  if (code) return code;
+  if (tDiskColAddValImpl[pBuilder->type][pColVal->type]) {
+    code = tDiskColAddValImpl[pBuilder->type][pColVal->type](pBuilder, pColVal);
+    if (code) return code;
+  }
 
   pBuilder->nVal++;
 
