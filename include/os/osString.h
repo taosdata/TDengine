@@ -77,7 +77,6 @@ int32_t taosWcharsWidth(TdWchar *pWchar, int32_t size);
 int32_t taosMbToWchar(TdWchar *pWchar, const char *pStr, int32_t size);
 int32_t taosMbsToWchars(TdWchar *pWchars, const char *pStrs, int32_t size);
 int32_t taosWcharToMb(char *pStr, TdWchar wchar);
-int32_t taosWcharsToMbs(char *pStrs, TdWchar *pWchars, int32_t size);
 
 char *taosStrCaseStr(const char *str, const char *pattern);
 
