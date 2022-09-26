@@ -910,7 +910,7 @@ int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask) {
   SCH_ERR_RET(schSetTaskCandidateAddrs(pJob, pTask));
 
   if (SCH_IS_QUERY_JOB(pJob)) {
-    SCH_ERR_RET(schEnsureHbConnection(pJob, pTask));
+//    SCH_ERR_RET(schEnsureHbConnection(pJob, pTask));
   }
 
   SCH_RET(schBuildAndSendMsg(pJob, pTask, NULL, plan->msgType));
