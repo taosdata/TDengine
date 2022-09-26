@@ -619,8 +619,8 @@ static int tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg) {
     pBlock->numOfRows = htons(pBlock->numOfRows);
 
     if (pBlock->tid <= 0 || pBlock->tid >= pMeta->maxTables) {
-      tsdbError("vgId:%d failed to get table to insert data, uid %" PRIu64 " tid %d", REPO_ID(pRepo), pBlock->uid,
-                pBlock->tid);
+      tsdbError("vgId:%d failed to get table to insert data, uid %" PRIu64 " tid %d, maxTable: %d", REPO_ID(pRepo), pBlock->uid,
+                pBlock->tid, pMeta->maxTables);
       terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
       return -1;
     }
