@@ -1279,14 +1279,8 @@ static bool doCheckforDatablockOverlap(STableBlockScanInfo* pBlockScanInfo, cons
       if (p->version >= pBlock->minVer) {
         if (i < num - 1) {
           TSDBKEY* pnext = taosArrayGet(pBlockScanInfo->delSkyline, i + 1);
-          //          if (i + 1 == num - 1) {  // pnext is the last point
           if (pnext->ts >= pBlock->minKey.ts) {
             return true;
-            //            }
-            //          } else {
-            //            if (pnext->ts >= pBlock->minKey.ts) {
-            //              return true;
-            //            }
           }
         } else {  // it must be the last point
           ASSERT(p->version == 0);
@@ -1747,7 +1741,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     tsLast = getCurrentKeyInLastBlock(pLastBlockReader);
   }
 
-  int64_t key = hasDataInFileBlock(pBlockData, pDumpInfo) ? pBlockData->aTSKEY[pDumpInfo->rowIndex] : INT64_MIN;
+  int64_t key = hasDataInFileBlock(pBlockData, pDumpInfo)? pBlockData->aTSKEY[pDumpInfo->rowIndex]:INT64_MIN;
 
   TSDBKEY k = TSDBROW_KEY(pRow);
   TSDBKEY ik = TSDBROW_KEY(piRow);
@@ -2015,12 +2009,12 @@ static int64_t getCurrentKeyInLastBlock(SLastBlockReader* pLastBlockReader) {
 }
 
 static bool hasDataInLastBlock(SLastBlockReader* pLastBlockReader) { return pLastBlockReader->mergeTree.pIter != NULL; }
-bool        hasDataInFileBlock(const SBlockData* pBlockData, const SFileBlockDumpInfo* pDumpInfo) {
-         if (pBlockData->nRow > 0) {
-           ASSERT(pBlockData->nRow == pDumpInfo->totalRows);
+bool hasDataInFileBlock(const SBlockData* pBlockData, const SFileBlockDumpInfo* pDumpInfo) {
+  if (pBlockData->nRow > 0) {
+    ASSERT(pBlockData->nRow == pDumpInfo->totalRows);
   }
 
-         return pBlockData->nRow > 0 && (!pDumpInfo->allDumped);
+  return pBlockData->nRow > 0 && (!pDumpInfo->allDumped);
 }
 
 int32_t mergeRowsInFileBlocks(SBlockData* pBlockData, STableBlockScanInfo* pBlockScanInfo, int64_t key,
@@ -3221,8 +3215,8 @@ int32_t doAppendRowFromFileBlock(SSDataBlock* pResBlock, STsdbReader* pReader, S
       tColDataGetValue(pData, rowIndex, &cv);
       doCopyColVal(pCol, outputRowIndex, i, &cv, pSupInfo);
       j += 1;
-    } else if (pData->cid >
-               pCol->info.colId) {  // the specified column does not exist in file block, fill with null data
+    } else if (pData->cid > pCol->info.colId) {
+      // the specified column does not exist in file block, fill with null data
       colDataAppendNULL(pCol, outputRowIndex);
     }
 
