@@ -340,7 +340,7 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
 
 bool qFitAlwaysValue(SQInfo * pQInfo) {
   // must agg query
-  if (pQInfo->query.simpleAgg)
+  if (!pQInfo->query.simpleAgg)
     return false;
   
   // must not include ts column
