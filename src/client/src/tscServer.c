@@ -2567,6 +2567,8 @@ int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
   assert(size < 80*1024);
 
   STableMeta* pMeta = pTableMetaInfo->pTableMeta;
+  tscDebug("0x%"PRIx64" tablemeta tscGetTableMeta uid:%" PRId64, pSql->self, pMeta->id.uid);
+
   if (pMeta->id.uid > 0) {
     // in case of child table, here only get the
     if (pMeta->tableType == TSDB_CHILD_TABLE) {
@@ -2574,6 +2576,7 @@ int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
       if (code != TSDB_CODE_SUCCESS) {
         return getTableMetaFromMnode(pSql, pTableMetaInfo);
       }
+      tscDebug("0x%"PRIx64" tablemeta tscGetTableMeta from local success uid:%" PRId64, pSql->self, pMeta->id.uid);
     }
 
     return TSDB_CODE_SUCCESS;
