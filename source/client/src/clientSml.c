@@ -79,7 +79,7 @@
 #define NCHAR_ADD_LEN  3  // L"nchar"   3 means L" "
 
 #define MAX_RETRY_TIMES 5
-#define LINE_BATCH      20000
+#define LINE_BATCH      2000
 //=================================================================================================
 typedef TSDB_SML_PROTOCOL_TYPE SMLProtocolType;
 
@@ -1532,6 +1532,7 @@ static SSmlHandle* smlBuildSmlInfo(STscObj* pTscObj, SRequestObj* request, SMLPr
     info->pRequest = request;
     info->msgBuf.buf = info->pRequest->msgBuf;
     info->msgBuf.len = ERROR_MSG_BUF_DEFAULT_SIZE;
+    info->pRequest->stmtType = info->pQuery->pRoot->type;
   }
 
   info->exec = smlInitHandle(info->pQuery);
@@ -2331,6 +2332,9 @@ static int32_t smlInsertData(SSmlHandle *info) {
   // launchQueryImpl(info->pRequest, info->pQuery, false, NULL);
   //  info->affectedRows = taos_affected_rows(info->pRequest);
   //  return info->pRequest->code;
+
+  SAppClusterSummary *pActivity = &info->taos->pAppInfo->summary;
+  atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertsReq, 1);
 
   launchAsyncQuery(info->pRequest, info->pQuery, NULL);
   return TSDB_CODE_SUCCESS;
