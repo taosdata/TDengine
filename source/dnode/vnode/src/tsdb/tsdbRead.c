@@ -1287,14 +1287,8 @@ static bool doCheckforDatablockOverlap(STableBlockScanInfo* pBlockScanInfo, cons
       if (p->version >= pBlock->minVer) {
         if (i < num - 1) {
           TSDBKEY* pnext = taosArrayGet(pBlockScanInfo->delSkyline, i + 1);
-//          if (i + 1 == num - 1) {  // pnext is the last point
-            if (pnext->ts >= pBlock->minKey.ts) {
-              return true;
-//            }
-//          } else {
-//            if (pnext->ts >= pBlock->minKey.ts) {
-//              return true;
-//            }
+          if (pnext->ts >= pBlock->minKey.ts) {
+            return true;
           }
         } else {  // it must be the last point
           ASSERT(p->version == 0);
