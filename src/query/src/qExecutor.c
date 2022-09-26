@@ -6874,7 +6874,11 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
       break;
     }
   }
-
+  
+  if (pCtx == NULL) {
+    goto group_finished_exit;
+  }
+  
   TSKEY* tsCols = NULL;
   if (pBlock && pBlock->pDataBlock != NULL) {
     SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, 0);
@@ -6882,10 +6886,6 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
     assert(tsCols[0] == pBlock->info.window.skey && tsCols[pBlock->info.rows - 1] == pBlock->info.window.ekey);
   }
   
-  if (pCtx == NULL || pBlock == NULL) {
-    return false;
-  }
-
   if (pCtx->startTs == INT64_MIN) {
     if (pQueryAttr->range.skey == INT64_MIN) {
       if (NULL == tsCols) {
@@ -6983,8 +6983,8 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
 
     return false;
   }
-
-  int32_t startPos = binarySearchForKey((char*)tsCols, pBlock->info.rows, pCtx->startTs, pQueryAttr->order.order);
+  int32_t nRows = pBlock ? pBlock->info.rows : 0;
+  int32_t startPos = binarySearchForKey((char*) tsCols, nRows, pCtx->startTs, pQueryAttr->order.order);
 
   if (ascQuery && pQueryAttr->fillType != TSDB_FILL_NEXT && pCtx->start.key == INT64_MIN) {
     if (startPos < 0) {
