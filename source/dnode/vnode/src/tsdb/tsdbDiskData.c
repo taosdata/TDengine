@@ -129,15 +129,6 @@ static int32_t tGnrtDiskCol(SDiskColBuilder *pBuilder, SDiskCol *pDiskCol) {
   return code;
 }
 
-extern void (*tSmaUpdateImpl[])(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet, uint8_t *maxSet);
-static FORCE_INLINE void tDiskColUpdateSma(SDiskColBuilder *pBuilder, SColVal *pColVal) {
-  if (!COL_VAL_IS_VALUE(pColVal)) {
-    pBuilder->sma.numOfNull++;
-  } else {
-    tSmaUpdateImpl[pBuilder->type](&pBuilder->sma, pColVal, &pBuilder->minSet, &pBuilder->maxSet);
-  }
-}
-
 static FORCE_INLINE int32_t tDiskColPutValue(SDiskColBuilder *pBuilder, SColVal *pColVal) {
   int32_t code = 0;
 
@@ -422,10 +413,17 @@ static int32_t (*tDiskColAddValImpl[8][3])(SDiskColBuilder *pBuilder, SColVal *p
     {tDiskColAddVal60, tDiskColAddVal61, tDiskColAddVal62},  // HAS_VALUE|HAS_NULL
     {tDiskColAddVal70, tDiskColAddVal71, tDiskColAddVal72}   // HAS_VALUE|HAS_NULL|HAS_NONE
 };
+extern void (*tSmaUpdateImpl[])(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet, uint8_t *maxSet);
 static int32_t tDiskColAddVal(SDiskColBuilder *pBuilder, SColVal *pColVal) {
   int32_t code = 0;
 
-  if (pBuilder->calcSma) tDiskColUpdateSma(pBuilder, pColVal);
+  if (pBuilder->calcSma) {
+    if (COL_VAL_IS_VALUE(pColVal)) {
+      tSmaUpdateImpl[pBuilder->type](&pBuilder->sma, pColVal, &pBuilder->minSet, &pBuilder->maxSet);
+    } else {
+      pBuilder->sma.numOfNull++;
+    }
+  }
 
   if (tDiskColAddValImpl[pBuilder->type][pColVal->type]) {
     code = tDiskColAddValImpl[pBuilder->type][pColVal->type](pBuilder, pColVal);
