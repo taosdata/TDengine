@@ -2016,7 +2016,11 @@ static void doKeepPrevRows(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock
 
       pkey->isNull = false;
       char* val = colDataGetData(pColInfoData, rowIndex);
-      memcpy(pkey->pData, val, pkey->bytes);
+      if (!IS_VAR_DATA_TYPE(pkey->type)) {
+        memcpy(pkey->pData, val, pkey->bytes);
+      } else {
+        memcpy(pkey->pData, val, varDataLen(val));
+      }
     }
   }
 
@@ -2034,7 +2038,11 @@ static void doKeepNextRows(STimeSliceOperatorInfo* pSliceInfo, const SSDataBlock
 
       pkey->isNull = false;
       char* val = colDataGetData(pColInfoData, rowIndex);
-      memcpy(pkey->pData, val, pkey->bytes);
+      if (!IS_VAR_DATA_TYPE(pkey->type)) {
+        memcpy(pkey->pData, val, pkey->bytes);
+      } else {
+        memcpy(pkey->pData, val, varDataLen(val));
+      }
     }
   }
 
@@ -5658,7 +5666,6 @@ static void doStreamIntervalAggImpl2(SOperatorInfo* pOperatorInfo, SSDataBlock* 
   TSKEY*          tsCols = NULL;
   SResultRow*     pResult = NULL;
   int32_t         forwardRows = 0;
-  int32_t         aa = 4;
 
   ASSERT(pSDataBlock->pDataBlock != NULL);
   SColumnInfoData* pColDataInfo = taosArrayGet(pSDataBlock->pDataBlock, pInfo->primaryTsIndex);
