@@ -172,7 +172,7 @@ TEST_F(JsonEnv, testWriteMillonData) {
   {
     std::string colName("voltagefdadfa");
     std::string colVal("abxxxxxxxxxxxx");
-    for (int i = 0; i < 10; i++) {
+    for (int i = 0; i < 100; i++) {
       colVal[i % colVal.size()] = '0' + i % 128;
       for (size_t i = 0; i < 100; i++) {
         SIndexTerm* term = indexTermCreateT(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),

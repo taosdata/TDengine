@@ -120,6 +120,15 @@ int initWriteBatch(WriteBatch *wb, int batchSize) {
 int BenchWrite(Idx *idx, int batchSize, int limit) {
   for (int i = 0; i < limit; i += batchSize) {
     WriteBatch wb;
+
+    SIndexMultiTerm *terms = indexMultiTermCreate();
+    for (int j = 0; j < batchSize; j++) {
+      SIndexTerm *term = indexTermCreateT(1, (SIndexOperOnColumn)operType, dtype, colName.c_str(), colName.size(),
+                                          (const char *)data, dlen);
+
+      indexMultiTermAdd(terms, term);
+    }
+    wb.terms = terms;
     idx->Write(&wb, i);
   }
   return 0;
