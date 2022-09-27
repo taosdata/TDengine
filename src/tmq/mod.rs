@@ -292,8 +292,9 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                             }],
                         ));
                     }
+                } else {
+                    bail!("table does not exist: `{database}`.`{table}`");
                 }
-                bail!("table does not exist: `{database}`.`{table}`");
             } else {
                 bail!("database not exist: {database}");
             }
