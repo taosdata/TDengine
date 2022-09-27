@@ -315,7 +315,7 @@ static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
     return 0;
   }
 
-  mTrace("update cluster uptime to %" PRId64, clusterObj.upTime);
+  mInfo("update cluster uptime to %" PRId64, clusterObj.upTime);
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-uptime");
   if (pTrans == NULL) return -1;
 
