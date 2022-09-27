@@ -1157,11 +1157,6 @@ static void sum_func_merge(SQLFunctionCtx *pCtx) {
     }
   }
 
-  // support always return value option
-  if(notNullElems == 0 && tsAggAlways) {
-    notNullElems = 1;
-  }
-
   SET_VAL(pCtx, notNullElems, 1);
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
 
