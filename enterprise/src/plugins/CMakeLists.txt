@@ -10,6 +10,8 @@ ADD_SUBDIRECTORY(grant)
 ADD_SUBDIRECTORY(storage)
 #ADD_SUBDIRECTORY(module)
 
+ADD_SUBDIRECTORY(web)
+
 IF(TD_BUILD_TAOSA_INTERNAL)
   MESSAGE("")
   MESSAGE("${Green} use taosainternal as httpd ${ColourReset}")
