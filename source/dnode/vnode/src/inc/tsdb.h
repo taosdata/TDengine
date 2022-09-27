@@ -89,9 +89,8 @@ typedef struct SLDataIter    SLDataIter;
 static FORCE_INLINE int64_t tsdbLogicToFileSize(int64_t lSize, int32_t szPage) {
   int64_t fOffSet = LOGIC_TO_FILE_OFFSET(lSize, szPage);
   int64_t pgno = OFFSET_PGNO(fOffSet, szPage);
-  int32_t szPageCont = PAGE_CONTENT_SIZE(szPage);
 
-  if (fOffSet % szPageCont == 0) {
+  if (fOffSet % szPage == 0) {
     pgno--;
   }
 
@@ -287,8 +286,8 @@ int32_t tsdbDelFReaderClose(SDelFReader **ppReader);
 int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData);
 int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx);
 // tsdbRead.c ==============================================================================================
-int32_t tsdbTakeReadSnap(STsdb *pTsdb, STsdbReadSnap **ppSnap, const char* id);
-void    tsdbUntakeReadSnap(STsdb *pTsdb, STsdbReadSnap *pSnap, const char* id);
+int32_t tsdbTakeReadSnap(STsdb *pTsdb, STsdbReadSnap **ppSnap, const char *id);
+void    tsdbUntakeReadSnap(STsdb *pTsdb, STsdbReadSnap *pSnap, const char *id);
 // tsdbMerge.c ==============================================================================================
 int32_t tsdbMerge(STsdb *pTsdb);
 
