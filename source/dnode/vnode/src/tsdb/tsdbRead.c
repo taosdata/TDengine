@@ -3410,10 +3410,14 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
     // we need only one row
     pPrevReader->capacity = 1;
     pPrevReader->status.pTableMap = pReader->status.pTableMap;
+    pPrevReader->pSchema = pReader->pSchema;
+    pPrevReader->pMemSchema = pReader->pMemSchema;
     pPrevReader->pReadSnap = pReader->pReadSnap;
 
     pNextReader->capacity = 1;
     pNextReader->status.pTableMap = pReader->status.pTableMap;
+    pNextReader->pSchema = pReader->pSchema;
+    pNextReader->pMemSchema = pReader->pMemSchema;
     pNextReader->pReadSnap = pReader->pReadSnap;
 
     code = doOpenReaderImpl(pPrevReader);
@@ -3447,11 +3451,19 @@ void tsdbReaderClose(STsdbReader* pReader) {
 
   {
     if (pReader->innerReader[0] != NULL) {
-      pReader->innerReader[0]->status.pTableMap = NULL;
-      pReader->innerReader[0]->pReadSnap = NULL;
+      STsdbReader* p = pReader->innerReader[0];
 
-      pReader->innerReader[1]->status.pTableMap = NULL;
-      pReader->innerReader[1]->pReadSnap = NULL;
+      p->status.pTableMap = NULL;
+      p->pReadSnap = NULL;
+      p->pSchema = NULL;
+      p->pMemSchema = NULL;
+
+      p = pReader->innerReader[1];
+
+      p->status.pTableMap = NULL;
+      p->pReadSnap = NULL;
+      p->pSchema = NULL;
+      p->pMemSchema = NULL;
 
       tsdbReaderClose(pReader->innerReader[0]);
       tsdbReaderClose(pReader->innerReader[1]);
