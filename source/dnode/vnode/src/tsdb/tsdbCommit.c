@@ -992,16 +992,16 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
 
   ASSERT(eno == 0);
 
-  if(inTrim) taosThreadRwlockWrlock(&pTsdb->rwLock);
+  if (inTrim) taosThreadRwlockWrlock(&pTsdb->rwLock);
 
   code = tsdbFSCommit1(pTsdb, &pCommitter->fs);
   if (code) {
-    if(inTrim) taosThreadRwlockUnlock(&pTsdb->rwLock);
+    if (inTrim) taosThreadRwlockUnlock(&pTsdb->rwLock);
     goto _err;
   }
 
   // lock
-  if(!inTrim) taosThreadRwlockWrlock(&pTsdb->rwLock);
+  if (!inTrim) taosThreadRwlockWrlock(&pTsdb->rwLock);
 
   // commit or rollback
   code = tsdbFSCommit2(pTsdb, &pCommitter->fs);

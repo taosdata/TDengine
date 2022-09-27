@@ -717,12 +717,12 @@ _exit:
 
 /**
  * @brief Update or delete DFileSet in pFS according to DFileSet (fid <= maxFid) in pFSNew.
- * 
- * @param pTsdb 
- * @param pFS 
- * @param pFSNew 
+ *
+ * @param pTsdb
+ * @param pFS
+ * @param pFSNew
  * @param maxFid
- * @return int32_t 
+ * @return int32_t
  */
 int32_t tsdbFSUpdDel(STsdb *pTsdb, STsdbFS *pFS, STsdbFS *pFSNew, int32_t maxFid) {
   int32_t code = 0;
@@ -816,7 +816,6 @@ _err:
   tsdbError("vgId:%d, tsdb fs upd/del failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
   return code;
 }
-
 
 int32_t tsdbFSCommit1(STsdb *pTsdb, STsdbFS *pFSNew) {
   int32_t code = 0;
@@ -1151,7 +1150,7 @@ _err:
   return code;
 }
 
-int32_t  tsdbFSRef(STsdb *pTsdb, STsdbFS *pFS) {
+int32_t tsdbFSRef(STsdb *pTsdb, STsdbFS *pFS) {
   int32_t code = 0;
   int32_t nRef;
 
