@@ -1032,12 +1032,7 @@ static struct {
   int32_t (*cmprFn)(SCompressor *, const void *, int32_t nData);
   int32_t (*endFn)(SCompressor *, const uint8_t **, int32_t *);
 } DATA_TYPE_INFO[] = {
-    {.type = TSDB_DATA_TYPE_NULL,
-     .bytes = 0,
-     .isVarLen = 0,
-     .startFn = NULL,
-     .cmprFn = NULL,
-     .endFn = NULL},  // TSDB_DATA_TYPE_NULL
+    {.type = TSDB_DATA_TYPE_NULL, .bytes = 0, .isVarLen = 0, .startFn = NULL, .cmprFn = NULL, .endFn = NULL},
     {.type = TSDB_DATA_TYPE_BOOL,
      .bytes = 1,
      .isVarLen = 0,
@@ -1394,7 +1389,13 @@ static int32_t tCompIntStart(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg)
 
 static int32_t tCompIntSwitchToCopy(SCompressor *pCmprsor) {
   int32_t code = 0;
-  // ASSERT(0);
+
+  if (pCmprsor->nVal == 0) goto _exit;
+
+  // todo
+
+_exit:
+  pCmprsor->pBuf[0] = 1;
   return code;
 }
 
@@ -1404,29 +1405,8 @@ static int32_t tCompInt(SCompressor *pCmprsor, const void *pData, int32_t nData)
   ASSERT(nData == DATA_TYPE_INFO[pCmprsor->type].bytes);
 
   if (pCmprsor->aBuf[0][0] == 0) {
-    int64_t val;
-
-    switch (pCmprsor->type) {
-      case TSDB_DATA_TYPE_TINYINT:
-      case TSDB_DATA_TYPE_UTINYINT:
-        val = *(int8_t *)pData;
-        break;
-      case TSDB_DATA_TYPE_SMALLINT:
-      case TSDB_DATA_TYPE_USMALLINT:
-        val = *(int16_t *)pData;
-        break;
-      case TSDB_DATA_TYPE_INT:
-      case TSDB_DATA_TYPE_UINT:
-        val = *(int32_t *)pData;
-        break;
-      case TSDB_DATA_TYPE_BIGINT:
-      case TSDB_DATA_TYPE_UBIGINT:
-        val = *(int64_t *)pData;
-        break;
-      default:
-        ASSERT(0);
-        break;
-    }
+    int64_t val = 0;
+    memcpy(&val, pData, nData);  // little-endian only
 
     if (!I64_SAFE_ADD(val, -pCmprsor->i_prev)) {
       code = tCompIntSwitchToCopy(pCmprsor);
@@ -1445,16 +1425,16 @@ static int32_t tCompInt(SCompressor *pCmprsor, const void *pData, int32_t nData)
     int8_t nBit = (vZigzag) ? (64 - BUILDIN_CLZL(vZigzag)) : 0;
     pCmprsor->i_prev = val;
 
-    while (1) {
+    for (;;) {
       int32_t nEle = (pCmprsor->i_end + 241 - pCmprsor->i_start) % 241;
 
       if (nEle + 1 <= SELECTOR_TO_ELEMS[pCmprsor->i_selector] && nEle + 1 <= SELECTOR_TO_ELEMS[BIT_TO_SELECTOR[nBit]]) {
         if (pCmprsor->i_selector < BIT_TO_SELECTOR[nBit]) {
           pCmprsor->i_selector = BIT_TO_SELECTOR[nBit];
         }
-        pCmprsor->i_end = (pCmprsor->i_end + 1) % 241;
         pCmprsor->i_aZigzag[pCmprsor->i_end] = vZigzag;
         pCmprsor->i_aBitN[pCmprsor->i_end] = nBit;
+        pCmprsor->i_end = (pCmprsor->i_end + 1) % 241;
         break;
       } else {
         while (nEle < SELECTOR_TO_ELEMS[pCmprsor->i_selector]) {
@@ -1462,9 +1442,8 @@ static int32_t tCompInt(SCompressor *pCmprsor, const void *pData, int32_t nData)
         }
         nEle = SELECTOR_TO_ELEMS[pCmprsor->i_selector];
 
-        if (pCmprsor->autoAlloc) {
-          code = tRealloc(&pCmprsor->pBuf, pCmprsor->nBuf + sizeof(uint64_t));
-          if (code) return code;
+        if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->pBuf, pCmprsor->nBuf + sizeof(uint64_t)))) {
+          return code;
         }
 
         uint64_t *bp = (uint64_t *)(pCmprsor->pBuf + pCmprsor->nBuf);
