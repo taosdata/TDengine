@@ -27,13 +27,11 @@ local_bin_link_dir="/usr/local/bin"
 lib_link_dir="/usr/lib"
 lib64_link_dir="/usr/lib64"
 inc_link_dir="/usr/include"
-install_nginxd_dir="/usr/local/nginxd"
 
 service_config_dir="/etc/systemd/system"
 taos_service_name=${serverName}
 taosadapter_service_name="taosadapter"
 tarbitrator_service_name="tarbitratord"
-nginx_service_name="nginxd"
 csudo=""
 if command -v sudo >/dev/null; then
   csudo="sudo "
@@ -153,18 +151,6 @@ function clean_service_on_systemd() {
   fi
   ${csudo}systemctl disable ${tarbitrator_service_name} &>/dev/null || echo &>/dev/null
   ${csudo}rm -f ${tarbitratord_service_config}
-
-  if [ "$verMode" == "cluster" ]; then
-    nginx_service_config="${service_config_dir}/${nginx_service_name}.service"
-    if [ -d ${install_nginxd_dir} ]; then
-      if systemctl is-active --quiet ${nginx_service_name}; then
-        echo "Nginx for ${productName} is running, stopping it..."
-        ${csudo}systemctl stop ${nginx_service_name} &>/dev/null || echo &>/dev/null
-      fi
-      ${csudo}systemctl disable ${nginx_service_name} &>/dev/null || echo &>/dev/null
-      ${csudo}rm -f ${nginx_service_config}
-    fi
-  fi
 }
 
 function clean_service_on_sysvinit() {
@@ -239,7 +225,6 @@ clean_config
 ${csudo}rm -rf ${data_link_dir} || :
 
 ${csudo}rm -rf ${install_main_dir}
-${csudo}rm -rf ${install_nginxd_dir}
 if [[ -e /etc/os-release ]]; then
   osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
 else
