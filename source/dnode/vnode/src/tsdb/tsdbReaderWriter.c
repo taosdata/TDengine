@@ -635,7 +635,7 @@ static int64_t tsdbFSendFile(STsdb *pTsdb, TdFilePtr pOutFD, TdFilePtr pInFD, in
       goto _send_remain;
     }
     startMs = taosGetTimestampMs();
-    if ((nBytes = taosFSendFile(pOutFD, pInFD, &offset, speed / 10)) < 0) {
+    if ((nBytes = taosFSendFile(pOutFD, pInFD, &offset, speed)) < 0) {
       return nBytes;
     }
     cost = taosGetTimestampMs() - startMs;
