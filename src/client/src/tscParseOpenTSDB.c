@@ -231,7 +231,7 @@ static int32_t parseTelnetTagKey(TAOS_SML_KV *pKV, const char **idx, int32_t sql
     cur++;
     len++;
   }
-  if (len == 0 || cur - *idx < sqlLen) {
+  if (len == 0 || cur - *idx == sqlLen) {
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
   key[len] = '\0';
@@ -427,7 +427,10 @@ static int32_t tscParseTelnetLines(char* data, int32_t len, char* lines[], int n
     char* tmp = data;
     int32_t lenTmp = 0;
     for(int i = 0; i < len; i++){
-      if(data[i] == '\n'){
+      if(data[i] == '\n' || i == len - 1){
+        if(data[i] != '\n' || i == len - 1){
+          lenTmp++;
+        }
         if(lenTmp > 0) {
           code = tscParseTelnetLinesInner(tmp, lenTmp, points, info);
           if(code != TSDB_CODE_SUCCESS){
@@ -458,6 +461,9 @@ int taos_insert_telnet_lines(TAOS* taos, char* data, int32_t len, char* lines[],
   if (data && !lines){
     numLines = 0;
     for(int i = 0; i < len; i++){
+      if(data[i] == '\0'){
+        data[i] = '0';
+      }
       if(data[i] == '\n' || i == len - 1){
         numLines++;
       }

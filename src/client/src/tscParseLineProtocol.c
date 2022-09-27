@@ -577,7 +577,9 @@ static int32_t getSuperTableMetaFromLocalCache(TAOS* taos, char* tableName, STab
   // Check if the table name available or not
   if (tscValidateName(&tableToken, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
-    sprintf(pSql->cmd.payload, "table name is invalid");
+    if(pSql->cmd.payload){
+      sprintf(pSql->cmd.payload, "table name is invalid");
+    }
     taosReleaseRef(tscObjRef, pSql->self);
     return code;
   }
@@ -2674,7 +2676,10 @@ int32_t tscParseLines(char* data, int32_t len, char* lines[], int numLines, SArr
     char* tmp = data;
     int32_t lenTmp = 0;
     for(int i = 0; i < len; i++){
-      if(data[i] == '\n'){
+      if(data[i] == '\n' || i == len - 1){
+        if(data[i] != '\n' || i == len - 1){
+          lenTmp ++;
+        }
         if(lenTmp > 0) {
           code = tscParseLinesInner(tmp, lenTmp, points, info);
           if(code != TSDB_CODE_SUCCESS){
@@ -2705,6 +2710,9 @@ int taos_insert_lines(TAOS* taos, char* data, int len, char* lines[], int numLin
   if (data){
     numLines = 0;
     for(int i = 0; i < len; i++){
+      if(data[i] == '\0'){
+        data[i] = '0';
+      }
       if(data[i] == '\n' || i == len - 1){
         numLines++;
       }
@@ -2736,7 +2744,7 @@ int taos_insert_lines(TAOS* taos, char* data, int len, char* lines[], int numLin
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  tscDebug("SML:0x%"PRIx64" taos_insert_lines begin inserting %d lines, first line: %s", info->id, numLines, lines[0]);
+  tscDebug("SML:0x%"PRIx64" taos_insert_lines begin inserting %d lines", info->id, numLines);
   code = tscParseLines(data, len, lines, numLines, lpPoints, NULL, info);
   size_t numPoints = taosArrayGetSize(lpPoints);
 
