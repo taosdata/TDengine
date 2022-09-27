@@ -54,11 +54,11 @@ SSttBlockLoadInfo* tCreateLastBlockLoadInfo(STSchema* pSchema, int16_t* colList,
     }
 
     pLoadInfo[i].aSttBlk = taosArrayInit(4, sizeof(SSttBlk));
+    pLoadInfo[i].pSchema = pSchema;
+    pLoadInfo[i].colIds = colList;
+    pLoadInfo[i].numOfCols = numOfCols;
   }
 
-  pLoadInfo->pSchema = pSchema;
-  pLoadInfo->colIds = colList;
-  pLoadInfo->numOfCols = numOfCols;
   return pLoadInfo;
 }
 
