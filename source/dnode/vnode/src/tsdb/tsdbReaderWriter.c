@@ -1128,28 +1128,38 @@ _err:
 
 int32_t tsdbReadSttBlock(SDataFReader *pReader, int32_t iStt, SSttBlk *pSttBlk, SBlockData *pBlockData) {
   int32_t code = 0;
+  int32_t lino = 0;
 
   code = tsdbReadBlockDataImpl(pReader, &pSttBlk->bInfo, pBlockData, iStt);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-#if 0
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pReader->pTsdb->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t tsdbReadSttBlockEx(SDataFReader *pReader, int32_t iStt, SSttBlk *pSttBlk, SBlockData *pBlockData) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
   // alloc
   code = tRealloc(&pReader->aBuf[0], pSttBlk->bInfo.szBlock);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // read
   code = tsdbReadFile(pReader->aSttFD[iStt], pSttBlk->bInfo.offset, pReader->aBuf[0], pSttBlk->bInfo.szBlock);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // decmpr
   code = tDecmprBlockData(pReader->aBuf[0], pSttBlk->bInfo.szBlock, pBlockData, &pReader->aBuf[1]);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-#endif
-  return code;
-
-_err:
-  tsdbError("vgId:%d tsdb read stt block failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pReader->pTsdb->pVnode), __func__, lino, tstrerror(code));
+  }
   return code;
 }
 

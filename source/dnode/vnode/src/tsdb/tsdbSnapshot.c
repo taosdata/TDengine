@@ -140,7 +140,7 @@ static int32_t tsdbSnapReadOpenFile(STsdbSnapReader* pReader) {
       if (pSttBlk->minVer > pReader->ever) continue;
       if (pSttBlk->maxVer < pReader->sver) continue;
 
-      code = tsdbReadSttBlock(pReader->pDataFReader, iStt, pSttBlk, &pIter->bData);
+      code = tsdbReadSttBlockEx(pReader->pDataFReader, iStt, pSttBlk, &pIter->bData);
       if (code) goto _err;
 
       for (pIter->iRow = 0; pIter->iRow < pIter->bData.nRow; pIter->iRow++) {
@@ -223,7 +223,7 @@ static int32_t tsdbSnapNextRow(STsdbSnapReader* pReader) {
 
           if (pSttBlk->minVer > pReader->ever || pSttBlk->maxVer < pReader->sver) continue;
 
-          code = tsdbReadSttBlock(pReader->pDataFReader, pIter->iStt, pSttBlk, &pIter->bData);
+          code = tsdbReadSttBlockEx(pReader->pDataFReader, pIter->iStt, pSttBlk, &pIter->bData);
           if (code) goto _err;
 
           pIter->iRow = -1;

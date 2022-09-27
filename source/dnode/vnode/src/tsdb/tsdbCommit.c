@@ -437,7 +437,7 @@ static int32_t tsdbOpenCommitIter(SCommitter *pCommitter) {
 
         pIter->iSttBlk = 0;
         SSttBlk *pSttBlk = (SSttBlk *)taosArrayGet(pIter->aSttBlk, 0);
-        code = tsdbReadSttBlock(pCommitter->dReader.pReader, iStt, pSttBlk, &pIter->bData);
+        code = tsdbReadSttBlockEx(pCommitter->dReader.pReader, iStt, pSttBlk, &pIter->bData);
         if (code) goto _err;
 
         pIter->iRow = 0;
@@ -1049,7 +1049,7 @@ static int32_t tsdbNextCommitRow(SCommitter *pCommitter) {
         if (pIter->iSttBlk < taosArrayGetSize(pIter->aSttBlk)) {
           SSttBlk *pSttBlk = (SSttBlk *)taosArrayGet(pIter->aSttBlk, pIter->iSttBlk);
 
-          code = tsdbReadSttBlock(pCommitter->dReader.pReader, pIter->iStt, pSttBlk, &pIter->bData);
+          code = tsdbReadSttBlockEx(pCommitter->dReader.pReader, pIter->iStt, pSttBlk, &pIter->bData);
           if (code) goto _exit;
 
           pIter->iRow = 0;
