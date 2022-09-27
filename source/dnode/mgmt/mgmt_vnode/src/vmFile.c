@@ -160,7 +160,7 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   int32_t len = 0;
   int32_t maxLen = MAX_CONTENT_LEN;
   char   *content = taosMemoryCalloc(1, maxLen + 1);
-  if (content != NULL) {
+  if (content == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     ret = -1;
     goto _OVER;
@@ -184,11 +184,9 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   }
   len += snprintf(content + len, maxLen - len, "  ]\n");
   len += snprintf(content + len, maxLen - len, "}\n");
-
   terrno = 0;
 
 _OVER:
-
   taosWriteFile(pFile, content, len);
   taosFsyncFile(pFile);
   taosCloseFile(&pFile);
