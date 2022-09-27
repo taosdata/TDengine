@@ -1364,14 +1364,15 @@ static int32_t tsdbInitSttBlockBuilderIfNeed(SCommitter *pCommitter, TABLEID id)
     if (!TABLE_SAME_SCHEMA(pBuilder->suid, pBuilder->uid, id.suid, id.uid)) {
       code = tsdbCommitSttBlk(pCommitter->dWriter.pWriter, pBuilder, pCommitter->dWriter.aSttBlk);
       TSDB_CHECK_CODE(code, lino, _exit);
+
+      tDiskDataBuilderClear(pBuilder);
     }
   }
 
   if (!pBuilder->suid && !pBuilder->uid) {
     ASSERT(pCommitter->skmTable.suid == id.suid);
     ASSERT(pCommitter->skmTable.uid == id.uid);
-    code =
-        tDiskDataBuilderInit(pCommitter->dWriter.pBuilder, pCommitter->skmTable.pTSchema, &id, pCommitter->cmprAlg, 0);
+    code = tDiskDataBuilderInit(pBuilder, pCommitter->skmTable.pTSchema, &id, pCommitter->cmprAlg, 0);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -1388,8 +1389,8 @@ static int32_t tsdbAppendLastBlock(SCommitter *pCommitter) {
   int32_t lino = 0;
 
   SBlockData *pBData = &pCommitter->dWriter.bData;
+  TABLEID     id = {.suid = pBData->suid, .uid = pBData->uid};
 
-  TABLEID id = {.suid = pBData->suid, .uid = pBData->uid};
   code = tsdbInitSttBlockBuilderIfNeed(pCommitter, id);
   TSDB_CHECK_CODE(code, lino, _exit);
 
@@ -1401,6 +1402,9 @@ static int32_t tsdbAppendLastBlock(SCommitter *pCommitter) {
 
     if (pCommitter->dWriter.pBuilder->nRow >= pCommitter->maxRow) {
       code = tsdbCommitSttBlk(pCommitter->dWriter.pWriter, pCommitter->dWriter.pBuilder, pCommitter->dWriter.aSttBlk);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      code = tsdbInitSttBlockBuilderIfNeed(pCommitter, id);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
   }
@@ -1425,7 +1429,8 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, TABLEID id) {
   if (pRowInfo == NULL) goto _exit;
 
   if (pCommitter->toLastOnly) {
-    // init the data if need
+    code = tsdbInitSttBlockBuilderIfNeed(pCommitter, id);
+    TSDB_CHECK_CODE(code, lino, _exit);
 
     while (pRowInfo) {
       STSchema *pTSchema = NULL;
@@ -1448,6 +1453,9 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, TABLEID id) {
 
       if (pCommitter->dWriter.pBuilder->nRow >= pCommitter->maxRow) {
         code = tsdbCommitSttBlk(pCommitter->dWriter.pWriter, pCommitter->dWriter.pBuilder, pCommitter->dWriter.aSttBlk);
+        TSDB_CHECK_CODE(code, lino, _exit);
+
+        code = tsdbInitSttBlockBuilderIfNeed(pCommitter, id);
         TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
