@@ -542,6 +542,7 @@ static int32_t tsdbCommitFileDataStart(SCommitter *pCommitter) {
   taosArrayClear(pCommitter->dWriter.aSttBlk);
   tMapDataReset(&pCommitter->dWriter.mBlock);
   tBlockDataReset(&pCommitter->dWriter.bData);
+  tDiskDataBuilderClear(pCommitter->dWriter.pBuilder);
 
   // open iter
   code = tsdbOpenCommitIter(pCommitter);
@@ -655,21 +656,21 @@ static int32_t tsdbCommitSttBlk(SDataFWriter *pWriter, SDiskDataBuilder *pBuilde
 
   if (pBuilder->nRow == 0) return code;
 
-  SSttBlk sttBlk = {.suid = pBuilder->suid,
-                    .minUid = 0,  // todo
-                    .maxUid = 0,  // todo
-                    .minKey = 0,  // todo
-                    .maxKey = 0,  // todo
-                    .minVer = 0,  // todo
-                    .maxVer = 0,  // todo
-                    .nRow = pBuilder->nRow};
-
   // gnrt
-  // code = tGnrtDiskData(pBuilder, &pBuilder->dd);
+  const SDiskData *pDiskData;
+  const SBlkInfo  *pBlkInfo;
+  code = tGnrtDiskData(pBuilder, &pDiskData, &pBlkInfo);
   TSDB_CHECK_CODE(code, lino, _exit);
 
+  SSttBlk sttBlk = {.suid = pBuilder->suid,
+                    .minUid = pBlkInfo->minUid,
+                    .maxUid = pBlkInfo->maxUid,
+                    .minKey = pBlkInfo->minKey,
+                    .maxKey = pBlkInfo->maxKey,
+                    .minVer = pBlkInfo->minVer,
+                    .maxVer = pBlkInfo->maxVer};
   // write
-  // code = tsdbWriteDiskData(pWriter, &pBuilder->dd);
+  code = tsdbWriteDiskData(pWriter, pDiskData, &sttBlk.bInfo, NULL);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // push
@@ -678,8 +679,8 @@ static int32_t tsdbCommitSttBlk(SDataFWriter *pWriter, SDiskDataBuilder *pBuilde
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  // clear (todo)
-  // tDiskDataBuilderClear(pBuilder);
+  // clear
+  tDiskDataBuilderClear(pBuilder);
 
 _exit:
   if (code) {

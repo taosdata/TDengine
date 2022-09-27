@@ -1454,9 +1454,8 @@ _exit:
 }
 
 // SDiskDataHdr ==============================
-int32_t tPutDiskDataHdr(uint8_t *p, void *ph) {
-  int32_t       n = 0;
-  SDiskDataHdr *pHdr = (SDiskDataHdr *)ph;
+int32_t tPutDiskDataHdr(uint8_t *p, const SDiskDataHdr *pHdr) {
+  int32_t n = 0;
 
   n += tPutU32(p ? p + n : p, pHdr->delimiter);
   n += tPutU32v(p ? p + n : p, pHdr->fmtVer);

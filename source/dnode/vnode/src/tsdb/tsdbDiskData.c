@@ -498,10 +498,12 @@ int32_t tDiskDataBuilderInit(SDiskDataBuilder *pBuilder, STSchema *pTSchema, TAB
   pBuilder->calcSma = calcSma;
   pBuilder->bi = (SBlkInfo){.minUid = INT64_MAX,
                             .maxUid = INT64_MIN,
-                            .minKey = TSDBKEY_MAX,
-                            .maxKey = TSDBKEY_MIN,
+                            .minKey = TSKEY_MAX,
+                            .maxKey = TSKEY_MIN,
                             .minVer = VERSION_MAX,
-                            .maxVer = VERSION_MIN};
+                            .maxVer = VERSION_MIN,
+                            .minTKey = TSDBKEY_MAX,
+                            .maxTKey = TSDBKEY_MIN};
 
   if (pBuilder->pUidC == NULL && (code = tCompressorCreate(&pBuilder->pUidC))) return code;
   code = tCompressStart(pBuilder->pUidC, TSDB_DATA_TYPE_BIGINT, cmprAlg);
@@ -551,6 +553,7 @@ int32_t tDiskDataBuilderClear(SDiskDataBuilder *pBuilder) {
   int32_t code = 0;
   pBuilder->suid = 0;
   pBuilder->uid = 0;
+  pBuilder->nRow = 0;
   return code;
 }
 
@@ -560,7 +563,9 @@ int32_t tDiskDataAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSchema *pTS
   ASSERT(pBuilder->suid || pBuilder->uid);
   ASSERT(pId->suid == pBuilder->suid);
 
-  TSDBKEY key = TSDBROW_KEY(pRow);
+  TSDBKEY kRow = TSDBROW_KEY(pRow);
+  if (tsdbKeyCmprFn(&pBuilder->bi.minTKey, &kRow) > 0) pBuilder->bi.minTKey = kRow;
+  if (tsdbKeyCmprFn(&pBuilder->bi.maxTKey, &kRow) < 0) pBuilder->bi.maxTKey = kRow;
 
   // uid
   if (pBuilder->uid && pBuilder->uid != pId->uid) {
@@ -579,16 +584,16 @@ int32_t tDiskDataAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSchema *pTS
   if (pBuilder->bi.maxUid < pId->uid) pBuilder->bi.maxUid = pId->uid;
 
   // version
-  code = tCompress(pBuilder->pVerC, &key.version, sizeof(int64_t));
+  code = tCompress(pBuilder->pVerC, &kRow.version, sizeof(int64_t));
   if (code) return code;
-  if (pBuilder->bi.minVer > key.version) pBuilder->bi.minVer = key.version;
-  if (pBuilder->bi.maxVer < key.version) pBuilder->bi.maxVer = key.version;
+  if (pBuilder->bi.minVer > kRow.version) pBuilder->bi.minVer = kRow.version;
+  if (pBuilder->bi.maxVer < kRow.version) pBuilder->bi.maxVer = kRow.version;
 
   // TSKEY
-  code = tCompress(pBuilder->pKeyC, &key.ts, sizeof(int64_t));
+  code = tCompress(pBuilder->pKeyC, &kRow.ts, sizeof(int64_t));
   if (code) return code;
-  if (tsdbKeyCmprFn(&pBuilder->bi.minKey, &key) > 0) pBuilder->bi.minKey = key;
-  if (tsdbKeyCmprFn(&pBuilder->bi.maxKey, &key) < 0) pBuilder->bi.maxKey = key;
+  if (pBuilder->bi.minKey > kRow.ts) pBuilder->bi.minKey = kRow.ts;
+  if (pBuilder->bi.maxKey < kRow.ts) pBuilder->bi.maxKey = kRow.ts;
 
   SRowIter iter = {0};
   tRowIterInit(&iter, pRow, pTSchema);

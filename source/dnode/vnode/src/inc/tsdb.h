@@ -74,6 +74,7 @@ typedef struct SLDataIter       SLDataIter;
 typedef struct SDiskCol         SDiskCol;
 typedef struct SDiskData        SDiskData;
 typedef struct SDiskDataBuilder SDiskDataBuilder;
+typedef struct SBlkInfo         SBlkInfo;
 
 #define TSDB_FILE_DLMT     ((uint32_t)0xF00AFA0F)
 #define TSDB_MAX_SUBBLOCKS 8
@@ -173,7 +174,7 @@ int32_t   tCmprBlockData(SBlockData *pBlockData, int8_t cmprAlg, uint8_t **ppOut
                          int32_t aBufN[]);
 int32_t   tDecmprBlockData(uint8_t *pIn, int32_t szIn, SBlockData *pBlockData, uint8_t *aBuf[]);
 // SDiskDataHdr
-int32_t tPutDiskDataHdr(uint8_t *p, void *ph);
+int32_t tPutDiskDataHdr(uint8_t *p, const SDiskDataHdr *pHdr);
 int32_t tGetDiskDataHdr(uint8_t *p, void *ph);
 // SDelIdx
 int32_t tPutDelIdx(uint8_t *p, void *ph);
@@ -270,6 +271,7 @@ int32_t tsdbWriteDataBlk(SDataFWriter *pWriter, SMapData *mDataBlk, SBlockIdx *p
 int32_t tsdbWriteSttBlk(SDataFWriter *pWriter, SArray *aSttBlk);
 int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlockInfo *pBlkInfo, SSmaInfo *pSmaInfo,
                            int8_t cmprAlg, int8_t toLast);
+int32_t tsdbWriteDiskData(SDataFWriter *pWriter, const SDiskData *pDiskData, SBlockInfo *pBlkInfo, SSmaInfo *pSmaInfo);
 
 int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo);
 // SDataFReader
@@ -328,7 +330,6 @@ int32_t tDiskDataBuilderInit(SDiskDataBuilder *pBuilder, STSchema *pTSchema, TAB
                              uint8_t calcSma);
 int32_t tDiskDataBuilderClear(SDiskDataBuilder *pBuilder);
 int32_t tDiskDataAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSchema *pTSchema, TABLEID *pId);
-int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, const SDiskData **ppDiskData, const SBlkInfo *pBlkInfo);
 int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, const SDiskData **ppDiskData, const SBlkInfo **ppBlkInfo);
 
 // structs =======================
@@ -451,14 +452,16 @@ struct SSmaInfo {
   int32_t size;
 };
 
-typedef struct {
+struct SBlkInfo {
   int64_t minUid;
   int64_t maxUid;
-  TSDBKEY minKey;
-  TSDBKEY maxKey;
+  TSKEY   minKey;
+  TSKEY   maxKey;
   int64_t minVer;
   int64_t maxVer;
-} SBlkInfo;
+  TSDBKEY minTKey;
+  TSDBKEY maxTKey;
+};
 
 struct SDataBlk {
   TSDBKEY    minKey;
