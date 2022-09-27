@@ -439,8 +439,8 @@ static int32_t tsdbOpenCommitIter(SCommitter *pCommitter) {
 
         pIter->iSttBlk = 0;
         SSttBlk *pSttBlk = (SSttBlk *)taosArrayGet(pIter->aSttBlk, 0);
-        code = tsdbReadSttBlock(pCommitter->dReader.pReader, iStt, pSttBlk, &pIter->bData);
-        TSDB_CHECK_CODE(code, lino, _exit);
+        code = tsdbReadSttBlockEx(pCommitter->dReader.pReader, iStt, pSttBlk, &pIter->bData);
+        if (code) goto _err;
 
         pIter->iRow = 0;
         pIter->r.suid = pIter->bData.suid;
@@ -1101,8 +1101,8 @@ static int32_t tsdbNextCommitRow(SCommitter *pCommitter) {
         if (pIter->iSttBlk < taosArrayGetSize(pIter->aSttBlk)) {
           SSttBlk *pSttBlk = (SSttBlk *)taosArrayGet(pIter->aSttBlk, pIter->iSttBlk);
 
-          code = tsdbReadSttBlock(pCommitter->dReader.pReader, pIter->iStt, pSttBlk, &pIter->bData);
-          TSDB_CHECK_CODE(code, lino, _exit);
+          code = tsdbReadSttBlockEx(pCommitter->dReader.pReader, pIter->iStt, pSttBlk, &pIter->bData);
+          if (code) goto _exit;
 
           pIter->iRow = 0;
           pIter->r.suid = pIter->bData.suid;
@@ -1369,8 +1369,9 @@ static int32_t tsdbInitSttBlockBuilderIfNeed(SCommitter *pCommitter, TABLEID id)
   if (!pBuilder->suid && !pBuilder->uid) {
     ASSERT(pCommitter->skmTable.suid == id.suid);
     ASSERT(pCommitter->skmTable.uid == id.uid);
-    code = tDiskDataBuilderInit(pBuilder, pCommitter->skmTable.pTSchema, &id, pCommitter->cmprAlg, 0);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    TABLEID tid = {.suid = id.suid, .uid = id.suid ? 0 : id.uid};
+    code = tBlockDataInit(pBDatal, &tid, pCommitter->skmTable.pTSchema, NULL, 0);
+    if (code) goto _exit;
   }
 
 _exit:
@@ -1518,11 +1519,11 @@ static int32_t tsdbCommitFileDataImpl(SCommitter *pCommitter) {
 
     // impl
     code = tsdbUpdateTableSchema(pCommitter->pTsdb->pVnode->pMeta, id.suid, id.uid, &pCommitter->skmTable);
-    TSDB_CHECK_CODE(code, lino, _exit);
-    code = tBlockDataInit(&pCommitter->dReader.bData, id.suid, id.uid, pCommitter->skmTable.pTSchema);
-    TSDB_CHECK_CODE(code, lino, _exit);
-    code = tBlockDataInit(&pCommitter->dWriter.bData, id.suid, id.uid, pCommitter->skmTable.pTSchema);
-    TSDB_CHECK_CODE(code, lino, _exit);
+    if (code) goto _err;
+    code = tBlockDataInit(&pCommitter->dReader.bData, &id, pCommitter->skmTable.pTSchema, NULL, 0);
+    if (code) goto _err;
+    code = tBlockDataInit(&pCommitter->dWriter.bData, &id, pCommitter->skmTable.pTSchema, NULL, 0);
+    if (code) goto _err;
 
     /* merge with data in .data file */
     code = tsdbMergeTableData(pCommitter, id);

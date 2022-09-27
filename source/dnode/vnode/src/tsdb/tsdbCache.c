@@ -457,7 +457,7 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
 
       tMergeTreeOpen(&state->mergeTree, 1, state->pDataFReader, state->suid, state->uid,
                      &(STimeWindow){.skey = TSKEY_MIN, .ekey = TSKEY_MAX},
-                     &(SVersionRange){.minVer = 0, .maxVer = UINT64_MAX}, NULL, NULL);
+                     &(SVersionRange){.minVer = 0, .maxVer = UINT64_MAX}, NULL, NULL, NULL, 0, NULL);
       bool hasVal = tMergeTreeNext(&state->mergeTree);
       if (!hasVal) {
         state->state = SFSLASTNEXTROW_FILESET;
@@ -612,7 +612,8 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
         tMapDataGetItemByIdx(&state->blockMap, state->iBlock, &block, tGetDataBlk);
         /* code = tsdbReadBlockData(state->pDataFReader, &state->blockIdx, &block, &state->blockData, NULL, NULL); */
         tBlockDataReset(state->pBlockData);
-        code = tBlockDataInit(state->pBlockData, state->suid, state->uid, state->pTSchema);
+        TABLEID tid = {.suid = state->suid, .uid = state->uid};
+        code = tBlockDataInit(state->pBlockData, &tid, state->pTSchema, NULL, 0);
         if (code) goto _err;
 
         code = tsdbReadDataBlock(state->pDataFReader, &block, state->pBlockData);
