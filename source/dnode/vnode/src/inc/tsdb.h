@@ -264,7 +264,7 @@ int32_t tsdbWriteSttBlk(SDataFWriter *pWriter, SArray *aSttBlk);
 int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlockInfo *pBlkInfo, SSmaInfo *pSmaInfo,
                            int8_t cmprAlg, int8_t toLast);
 
-int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo, int32_t maxSpeed);
+int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo, int64_t maxSpeed);
 // SDataFReader
 int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pSet);
 int32_t tsdbDataFReaderClose(SDataFReader **ppReader);
@@ -320,8 +320,8 @@ struct STsdbFS {
 };
 
 struct STsdbTrimHdl {
-  volatile int8_t  state;       // 0 idle 1 in use
-  volatile int8_t  limitSpeed;  // 0 no limit, 1 with limit
+  volatile int8_t  state;         // 0 idle 1 in use
+  volatile int8_t  commitInWait;  // 0 not in wait, 1 in wait
   volatile int32_t maxRetentFid;
   volatile int32_t minCommitFid;
 };

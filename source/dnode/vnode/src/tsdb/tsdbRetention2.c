@@ -30,7 +30,7 @@ enum { RETENTION_NO = 0, RETENTION_EXPIRED = 1, RETENTION_MIGRATE = 2 };
 static bool    tsdbShouldDoMigrate(STsdb *pTsdb);
 static int32_t tsdbShouldDoRetention(STsdb *pTsdb, int64_t now);
 static int32_t tsdbProcessExpire(STsdb *pTsdb, int64_t now, int32_t retention);
-static int32_t tsdbProcessMigrate(STsdb *pTsdb, int64_t now, int32_t maxSpeed, int32_t retention);
+static int32_t tsdbProcessMigrate(STsdb *pTsdb, int64_t now, int64_t maxSpeed, int32_t retention);
 
 static bool tsdbShouldDoMigrate(STsdb *pTsdb) {
   if (tfsGetLevel(pTsdb->pVnode->pTfs) < 2) {
@@ -109,6 +109,7 @@ _wait_commit_end:
     if (++nLoops > 1000) {
       nLoops = 0;
       sched_yield();
+      printf("%s:%d wait commit finished\n", __func__, __LINE__);
     }
   }
   if (atomic_val_compare_exchange_8(&pTsdb->trimHdl.state, 0, 1) == 0) {
@@ -163,7 +164,7 @@ _exit:
  * @param retention
  * @return int32_t
  */
-static int32_t tsdbProcessMigrate(STsdb *pTsdb, int64_t now, int32_t maxSpeed, int32_t retention) {
+static int32_t tsdbProcessMigrate(STsdb *pTsdb, int64_t now, int64_t maxSpeed, int32_t retention) {
   int32_t code = 0;
   int32_t nBatch = 0;
   int32_t nLoops = 0;
@@ -182,6 +183,11 @@ _migrate_loop:
   fSize = 0;
   tsdbFSDestroy(&fs);
   tsdbFSDestroy(&fsLatest);
+
+  if (atomic_load_8(&pTsdb->trimHdl.commitInWait) == 1) {
+    atomic_store_32(&pTsdb->trimHdl.maxRetentFid, INT32_MIN);
+    taosMsleep(10);
+  }
 
   code = tsdbFSCopy(pTsdb, &fs);
   if (code) goto _exit;
@@ -315,7 +321,7 @@ _exit:
  * @param maxSpeed
  * @return int32_t
  */
-int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now, int32_t maxSpeed) {
+int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now, int64_t maxSpeed) {
   int32_t code = 0;
   int32_t retention = RETENTION_NO;
 

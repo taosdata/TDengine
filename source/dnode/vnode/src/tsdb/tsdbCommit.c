@@ -763,10 +763,11 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
 
   _wait_retention_end:
     while (atomic_load_32(&pTsdb->trimHdl.maxRetentFid) >= minCommitFid) {
-      atomic_val_compare_exchange_8(&pTsdb->trimHdl.limitSpeed, 1, 0);
+      atomic_val_compare_exchange_8(&pTsdb->trimHdl.commitInWait, 0, 1);
       if (++nLoops > 1000) {
         nLoops = 0;
         sched_yield();
+        printf("%s:%d wait retention to finish\n", __func__, __LINE__);
       }
     }
     if (atomic_val_compare_exchange_8(&pTsdb->trimHdl.state, 0, 1) == 0) {
@@ -779,7 +780,7 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
     } else {
       goto _wait_retention_end;
     }
-    atomic_store_8(&pTsdb->trimHdl.limitSpeed, 1);
+    atomic_store_8(&pTsdb->trimHdl.commitInWait, 0);
   }
 
   code = tsdbFSCopy(pTsdb, &pCommitter->fs);

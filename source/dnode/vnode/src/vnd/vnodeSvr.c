@@ -455,13 +455,14 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, 
   }
 
   if (atomic_val_compare_exchange_8(&pHandle->state, 0, 1) != 0) {
-    vInfo("vgId:%d, trim vnode request will not be processed since duplicated req, time:%" PRIi64, TD_VID(pVnode),
-          pVndTrimReq->trimReq.timestamp);
+    vInfo("vgId:%d, trim vnode request ignored since duplicated req, time:%" PRIi64 ", max speed:%" PRIi64,
+          TD_VID(pVnode), pVndTrimReq->trimReq.timestamp, pVndTrimReq->trimReq.maxSpeed);
     taosMemoryFree(pVndTrimReq);
     goto _exit;
   }
 
-  vInfo("vgId:%d, trim vnode request will be processed, time:%" PRIi64, TD_VID(pVnode), pVndTrimReq->trimReq.timestamp);
+  vInfo("vgId:%d, trim vnode request will be processed, time:%" PRIi64 ", max speed:%" PRIi64, TD_VID(pVnode),
+        pVndTrimReq->trimReq.timestamp, pVndTrimReq->trimReq.maxSpeed);
 
   TdThreadAttr thAttr = {0};
   taosThreadAttrInit(&thAttr);
@@ -474,10 +475,10 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, 
     taosThreadAttrDestroy(&thAttr);
     int8_t oldVal = atomic_val_compare_exchange_8(&pHandle->state, 1, 0);
     ASSERT(oldVal == 1);
-    vError("vgId:%d, failed to create pthread for trim vnode since %s", TD_VID(pVnode), tstrerror(code));
+    vError("vgId:%d, failed to create pthread to trim vnode since %s", TD_VID(pVnode), tstrerror(code));
     goto _exit;
   }
-  vDebug("vgId:%d, success to create pthread for trim vnode", TD_VID(pVnode));
+  vDebug("vgId:%d, success to create pthread to trim vnode", TD_VID(pVnode));
 
   taosThreadAttrDestroy(&thAttr);
 
