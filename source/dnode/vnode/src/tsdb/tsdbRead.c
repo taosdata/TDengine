@@ -865,7 +865,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
   SColumnInfoData* pColData = taosArrayGet(pResBlock->pDataBlock, i);
   if (pColData->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
     if (asc) {
-      memcpy(pColData->pData, &pBlockData->aTSKEY[pDumpInfo->rowIndex], remain);
+      memcpy(pColData->pData, &pBlockData->aTSKEY[pDumpInfo->rowIndex], remain * sizeof(int64_t));
     } else {
       for (int32_t j = pDumpInfo->rowIndex; rowIndex < remain; j += step) {
         colDataAppendInt64(pColData, rowIndex++, &pBlockData->aTSKEY[j]);
@@ -890,7 +890,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
       } else {
         if (IS_NUMERIC_TYPE(pColData->info.type) && asc) {
           uint8_t* p = pData->pData + tDataTypes[pData->type].bytes * pDumpInfo->rowIndex;
-          memcpy(pColData->pData, p, remain);
+          memcpy(pColData->pData, p, remain * tDataTypes[pData->type].bytes);
 
           // null value exists, check one-by-one
           if (pData->flag != HAS_VALUE) {
