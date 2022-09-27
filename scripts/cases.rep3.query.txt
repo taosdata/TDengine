@@ -1,5 +1,6 @@
 # 500 seconds (at most)
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/str/table_str_concat.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/scene_query/jishu/jishu.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/str/split/stable_str_concat_2.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_query/split/stable_query_union_1.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_query/split/stable_query_union_2.py --keep --containers
