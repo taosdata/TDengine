@@ -170,7 +170,7 @@ impl RenameOpts {
             RenameOpts::Template { template } => template
                 .replace("{ ", "{")
                 .replace(" }", "}")
-                .replace("{{name}}", name),
+                .replace("{name}", name),
         }
     }
 

@@ -42,7 +42,7 @@ async fn sync(
                     for action in &actions {
                         action.mutate_meta(&mut meta)?;
                     }
-                    dbg!(&meta);
+                    // dbg!(&meta);
                     let sql = meta.to_string();
                     if let Err(err) = taos.exec(&sql).await {
                         let errstr = err.to_string();
@@ -349,7 +349,12 @@ pub async fn tmq_to_td(from: Dsn, actions: Vec<Action>, mut to: Dsn, jobs: usize
                         bail!("unsupported transform action: {:?}", action)
                     }
                     Action::RenameTable(action) => {
-                        let name = table.stable.as_deref().unwrap();
+                        if let Some(name) = table.stable.as_deref() {
+                            let new = sql.replace(&format!("`{name}`",), &action.apply(name));
+                            sql.clear();
+                            sql.extend(new.chars());
+                        }
+                        let name = &table.table;
                         let new = sql.replace(&format!("`{name}`",), &action.apply(name));
                         sql.clear();
                         sql.extend(new.chars());
