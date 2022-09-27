@@ -178,6 +178,8 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
   SMqConsumerObj *pConsumer;
   void           *pIter = NULL;
 
+  mTrace("start to process mq timer");
+
   // rebalance cannot be parallel
   if (!mndRebTryStart()) {
     mInfo("mq rebalance already in progress, do nothing");
