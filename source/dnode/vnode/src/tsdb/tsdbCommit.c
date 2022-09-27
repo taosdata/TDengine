@@ -994,14 +994,11 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
 
   if(inTrim) taosThreadRwlockWrlock(&pTsdb->rwLock);
 
-  int64_t startTime = taosGetTimestampMs();
   code = tsdbFSCommit1(pTsdb, &pCommitter->fs);
   if (code) {
     if(inTrim) taosThreadRwlockUnlock(&pTsdb->rwLock);
     goto _err;
   }
-  int64_t endTime = taosGetTimestampMs();
-  tsdbInfo("vgId:%d, tsdb end commit - commit1 fsSize:%d cost: %" PRIi64 " ms", TD_VID(pTsdb->pVnode), (int32_t)taosArrayGetSize(pCommitter->fs.aDFileSet), endTime - startTime);
 
   // lock
   if(!inTrim) taosThreadRwlockWrlock(&pTsdb->rwLock);
@@ -1012,7 +1009,6 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
     taosThreadRwlockUnlock(&pTsdb->rwLock);
     goto _err;
   }
-  tsdbInfo("vgId:%d, tsdb end commit - commit2 cost: %" PRIi64 " ms", TD_VID(pTsdb->pVnode), taosGetTimestampMs() - endTime);
 
   pTsdb->imem = NULL;
 
