@@ -98,6 +98,7 @@ extern int32_t tsQueryRsmaTolerance;
 extern bool    tsQueryPlannerTrace;
 extern int32_t tsQueryNodeChunkSize;
 extern bool    tsQueryUseNodeAllocator;
+extern bool    tsKeepColumnName;
 
 // client
 extern int32_t tsMinSlidingTime;

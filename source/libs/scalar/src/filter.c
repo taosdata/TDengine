@@ -3093,6 +3093,8 @@ static FORCE_INLINE bool filterExecuteImplIsNull(void *pinfo, int32_t numOfRows,
 
     if (p[i] == 0) {
       all = false;
+    } else {
+      (*numOfQualified) += 1;
     }
   }
 
@@ -3117,6 +3119,8 @@ static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows
     p[i] = ((colData != NULL) && !colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL));
     if (p[i] == 0) {
       all = false;
+    } else {
+      (*numOfQualified) += 1;
     }
   }
 
@@ -3196,6 +3200,8 @@ bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes
 
     if (p[i] == 0) {
       all = false;
+    } else {
+      (*numOfQualified) += 1;
     }
   }
 
@@ -3269,6 +3275,8 @@ bool filterExecuteImpl(void *pinfo, int32_t numOfRows, SColumnInfoData *pRes, SC
 
     if (p[i] == 0) {
       all = false;
+    } else {
+      (*numOfQualified) += 1;
     }
   }
 

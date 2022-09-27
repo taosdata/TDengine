@@ -40,6 +40,8 @@ int32_t mndBuildSMCreateStbRsp(SMnode *pMnode, char* dbFName, char* stbFName, vo
 void mndExtractDbNameFromStbFullName(const char *stbFullName, char *dst);
 void mndExtractTbNameFromStbFullName(const char *stbFullName, char *dst, int32_t dstSize);
 
+const char *mndGetStbStr(const char *src);
+
 #ifdef __cplusplus
 }
 #endif
