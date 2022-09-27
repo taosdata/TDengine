@@ -1392,7 +1392,40 @@ static int32_t tCompIntSwitchToCopy(SCompressor *pCmprsor) {
 
   if (pCmprsor->nVal == 0) goto _exit;
 
-  // todo
+  int32_t size = DATA_TYPE_INFO[pCmprsor->type].bytes * pCmprsor->nVal + 1;
+  if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->aBuf[0], size))) {
+    return code;
+  }
+
+  int32_t n = 1;
+  int32_t nBuf = 1;
+  int64_t vPrev = 0;
+  for (int32_t iVal = 0; iVal < pCmprsor->nVal;) {
+    uint64_t b;
+    memcpy(&b, pCmprsor->pBuf + n, sizeof(b));
+    n += sizeof(b);
+
+    int32_t i_selector = (b & 0xf);
+    int32_t nEle = SELECTOR_TO_ELEMS[i_selector];
+    uint8_t bits = BIT_PER_INTEGER[i_selector];
+    for (int32_t iEle = 0; iEle < nEle; iEle++) {
+      uint64_t vZigzag = (b >> (bits * iEle + 4)) & (((uint64_t)1 << bits) - 1);
+      int64_t  diff = ZIGZAG_DECODE(int64_t, vZigzag);
+      vPrev = diff + vPrev;
+
+      memcpy(pCmprsor->aBuf[0] + nBuf, &vPrev, DATA_TYPE_INFO[pCmprsor->type].bytes);
+      nBuf += DATA_TYPE_INFO[pCmprsor->type].bytes;
+    }
+    iVal += nEle;
+    ASSERT(iVal <= pCmprsor->nVal);
+  }
+
+  ASSERT(n == pCmprsor->nBuf && nBuf == size);
+
+  uint8_t *pBuf = pCmprsor->pBuf;
+  pCmprsor->pBuf = pCmprsor->aBuf[0];
+  pCmprsor->aBuf[0] = pBuf;
+  pCmprsor->nBuf = size;
 
 _exit:
   pCmprsor->pBuf[0] = 1;
@@ -1479,6 +1512,31 @@ static int32_t tCompInt(SCompressor *pCmprsor, const void *pData, int32_t nData)
 
 static int32_t tCompIntEnd(SCompressor *pCmprsor, const uint8_t **ppData, int32_t *nData) {
   int32_t code = 0;
+
+  for (;;) {
+    int32_t nEle = (pCmprsor->i_end + 241 - pCmprsor->i_start) % 241;
+    if (nEle == 0) break;
+
+    while (nEle < SELECTOR_TO_ELEMS[pCmprsor->i_selector]) {
+      pCmprsor->i_selector++;
+    }
+    nEle = SELECTOR_TO_ELEMS[pCmprsor->i_selector];
+
+    if (pCmprsor->autoAlloc && (code = tRealloc(&pCmprsor->pBuf, pCmprsor->nBuf + sizeof(uint64_t)))) {
+      return code;
+    }
+
+    uint64_t *bp = (uint64_t *)(pCmprsor->pBuf + pCmprsor->nBuf);
+    pCmprsor->nBuf += sizeof(uint64_t);
+    bp[0] = pCmprsor->i_selector;
+    uint8_t bits = BIT_PER_INTEGER[pCmprsor->i_selector];
+    for (int32_t iVal = 0; iVal < nEle; iVal++) {
+      bp[0] |= ((pCmprsor->i_aZigzag[pCmprsor->i_start] & ((((uint64_t)1) << bits) - 1)) << (bits * iVal + 4));
+      pCmprsor->i_start = (pCmprsor->i_start + 1) % 241;
+    }
+
+    pCmprsor->i_selector = 0;
+  }
 
   if (pCmprsor->nBuf >= DATA_TYPE_INFO[pCmprsor->type].bytes * pCmprsor->nVal + 1 && pCmprsor->pBuf[0] == 0) {
     code = tCompIntSwitchToCopy(pCmprsor);
