@@ -175,14 +175,17 @@ SScript *simBuildScriptObj(char *fileName) {
 SScript *simParseScript(char *fileName) {
   TdFilePtr pFile;
   int32_t   tokenLen, lineNum = 0;
-  char      buffer[10*1024], name[128], *token, *rest;
-  SCommand *pCmd;
-  SScript  *script;
+  char      buffer[10 * 1024] = {0};
+  char      name[PATH_MAX] = {9};
+  char     *token = NULL;
+  char     *rest = NULL;
+  SCommand *pCmd = NULL;
+  SScript  *script = NULL;
 
   if ((fileName[0] == '.') || (fileName[0] == '/')) {
-    strcpy(name, fileName);
+    tstrncpy(name, fileName, PATH_MAX);
   } else {
-    sprintf(name, "%s" TD_DIRSEP "%s", simScriptDir, fileName);
+    snprintf(name, PATH_MAX, "%s" TD_DIRSEP "%s", simScriptDir, fileName);
     taosRealPath(name, NULL, sizeof(name));
   }
 
