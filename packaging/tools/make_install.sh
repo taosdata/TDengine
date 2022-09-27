@@ -151,6 +151,7 @@ function install_main_path() {
     ${csudo}mkdir -p ${install_main_dir}/driver
     ${csudo}mkdir -p ${install_main_dir}/examples
     ${csudo}mkdir -p ${install_main_dir}/include
+    ${csudo}mkdir -p ${install_main_dir}/share
     #    ${csudo}mkdir -p ${install_main_dir}/init.d
   else
     ${csudo}rm -rf ${install_main_dir} || ${csudo}rm -rf ${install_main_2_dir} || :
@@ -161,6 +162,7 @@ function install_main_path() {
     ${csudo}mkdir -p ${install_main_dir}/driver || ${csudo}mkdir -p ${install_main_2_dir}/driver
     ${csudo}mkdir -p ${install_main_dir}/examples || ${csudo}mkdir -p ${install_main_2_dir}/examples
     ${csudo}mkdir -p ${install_main_dir}/include || ${csudo}mkdir -p ${install_main_2_dir}/include
+    ${csudo}mkdir -p ${install_main_dir}/share || ${csudo}mkdir -p ${install_main_2_dir}/share
   fi
 }
 
@@ -469,6 +471,16 @@ function install_examples() {
   fi
 }
 
+function install_web() {
+  if [ -d "${binary_dir}/build/share" ]; then
+    if [ "$osType" != "Darwin" ]; then
+      ${csudo}cp -rf ${binary_dir}/build/share/* ${install_main_dir}/share || :
+    else
+      ${csudo}cp -rf ${binary_dir}/build/share/* ${install_main_dir}/share || ${csudo}cp -rf ${binary_dir}/build/share/* ${install_main_2_dir}/share || :
+    fi
+  fi
+}
+
 function clean_service_on_sysvinit() {
   if pidof ${serverName} &>/dev/null; then
     ${csudo}service ${serverName} stop || :
@@ -596,6 +608,7 @@ function update_TDengine() {
   install_lib
   #  install_connector
   install_examples
+  install_web
   install_bin
 
   install_service

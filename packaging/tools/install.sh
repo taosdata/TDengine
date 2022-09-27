@@ -50,8 +50,7 @@ install_main_dir=${installDir}
 bin_dir="${installDir}/bin"
 
 service_config_dir="/etc/systemd/system"
-nginx_port=6060
-nginx_dir="/usr/local/nginxd"
+web_port=6041
 
 # Color setting
 RED='\033[0;31m'
@@ -182,7 +181,7 @@ function install_main_path() {
   ${csudo}mkdir -p ${install_main_dir}/include
   #  ${csudo}mkdir -p ${install_main_dir}/init.d
   if [ "$verMode" == "cluster" ]; then
-    ${csudo}mkdir -p ${nginx_dir}
+    ${csudo}mkdir -p ${install_main_dir}/share
   fi
 
   if [[ -e ${script_dir}/email ]]; then
@@ -218,12 +217,6 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -s ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
   [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
-
-  if [ "$verMode" == "cluster" ]; then
-    ${csudo}cp -r ${script_dir}/nginxd/* ${nginx_dir} && ${csudo}chmod 0555 ${nginx_dir}/*
-    ${csudo}mkdir -p ${nginx_dir}/logs
-    ${csudo}chmod 777 ${nginx_dir}/sbin/nginx
-  fi
 }
 
 function install_lib() {
@@ -574,6 +567,13 @@ function install_examples() {
   fi
 }
 
+function install_web() {
+  if [ -d "${script_dir}/share" ]; then
+    ${csudo}cp -rf ${binary_dir}/share/* ${install_main_dir}/share
+  fi
+}
+
+
 function clean_service_on_sysvinit() {
   if pidof ${serverName} &>/dev/null; then
     ${csudo}service ${serverName} stop || :
@@ -654,16 +654,6 @@ function clean_service_on_systemd() {
   fi
   ${csudo}systemctl disable tarbitratord &>/dev/null || echo &>/dev/null
   ${csudo}rm -f ${tarbitratord_service_config}
-
-  if [ "$verMode" == "cluster" ]; then
-    nginx_service_config="${service_config_dir}/nginxd.service"
-    if systemctl is-active --quiet nginxd; then
-      echo "Nginx for ${productName} is running, stopping it..."
-      ${csudo}systemctl stop nginxd &>/dev/null || echo &>/dev/null
-    fi
-    ${csudo}systemctl disable nginxd &>/dev/null || echo &>/dev/null
-    ${csudo}rm -f ${nginx_service_config}
-  fi
 }
 
 function install_service_on_systemd() {
@@ -677,19 +667,6 @@ function install_service_on_systemd() {
   ${csudo}systemctl enable ${serverName}
 
   ${csudo}systemctl daemon-reload
-
-  if [ "$verMode" == "cluster" ]; then
-    [ -f ${script_dir}/cfg/nginxd.service ] &&
-      ${csudo}cp ${script_dir}/cfg/nginxd.service \
-        ${service_config_dir}/ || :
-    ${csudo}systemctl daemon-reload
-
-    if ! ${csudo}systemctl enable nginxd &>/dev/null; then
-      ${csudo}systemctl daemon-reexec
-      ${csudo}systemctl enable nginxd
-    fi
-    ${csudo}systemctl start nginxd
-  fi
 }
 
 function install_adapter_service() {
@@ -793,19 +770,6 @@ function updateProduct() {
     sleep 1
   fi
 
-  if [ "$verMode" == "cluster" ]; then
-    if pidof nginx &>/dev/null; then
-      if ((${service_mod} == 0)); then
-        ${csudo}systemctl stop nginxd || :
-      elif ((${service_mod} == 1)); then
-        ${csudo}service nginxd stop || :
-      else
-        kill_process nginx
-      fi
-      sleep 1
-    fi
-  fi
-
   install_main_path
 
   install_log
@@ -817,6 +781,7 @@ function updateProduct() {
   fi
 
   install_examples
+  install_web
   if [ -z $1 ]; then
     install_bin
     install_service
@@ -825,18 +790,6 @@ function updateProduct() {
     install_adapter_config
 
     openresty_work=false
-    if [ "$verMode" == "cluster" ]; then
-      # Check if openresty is installed
-      # Check if nginx is installed successfully
-      if type curl &>/dev/null; then
-        if curl -sSf http://127.0.0.1:${nginx_port} &>/dev/null; then
-          echo -e "\033[44;32;1mNginx for ${productName} is updated successfully!${NC}"
-          openresty_work=true
-        else
-          echo -e "\033[44;31;5mNginx for ${productName} does not work! Please try again!\033[0m"
-        fi
-      fi
-    fi
 
     echo
     echo -e "${GREEN_DARK}To configure ${productName} ${NC}: edit ${cfg_install_dir}/${configFile}"
@@ -857,7 +810,7 @@ function updateProduct() {
     fi
 
     if [ ${openresty_work} = 'true' ]; then
-      echo -e "${GREEN_DARK}To access ${productName}    ${NC}: use ${GREEN_UNDERLINE}${clientName} -h $serverFqdn${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
+      echo -e "${GREEN_DARK}To access ${productName}    ${NC}: use ${GREEN_UNDERLINE}${clientName} -h $serverFqdn${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${web_port}${NC}"
     else
       echo -e "${GREEN_DARK}To access ${productName}    ${NC}: use ${GREEN_UNDERLINE}${clientName} -h $serverFqdn${NC} in shell${NC}"
     fi
@@ -906,6 +859,7 @@ function installProduct() {
       install_connector
   fi
   install_examples
+  install_web
 
   if [ -z $1 ]; then # install service and client
     # For installing new
@@ -915,17 +869,6 @@ function installProduct() {
     install_adapter_config
 
     openresty_work=false
-    if [ "$verMode" == "cluster" ]; then
-      # Check if nginx is installed successfully
-      if type curl &>/dev/null; then
-        if curl -sSf http://127.0.0.1:${nginx_port} &>/dev/null; then
-          echo -e "\033[44;32;1mNginx for ${productName} is installed successfully!${NC}"
-          openresty_work=true
-        else
-          echo -e "\033[44;31;5mNginx for ${productName} does not work! Please try again!\033[0m"
-        fi
-      fi
-    fi
 
     install_config
 
