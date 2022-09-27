@@ -1059,6 +1059,11 @@ CSUM(expr)
 
 ```sql
 DERIVATIVE(expr, time_interval, ignore_negative)
+
+ignore_negative: {
+    0
+  | 1
+}
 ```
 
 **功能说明**：统计表中某列数值的单位变化率。其中单位时间区间的长度可以通过 time_interval 参数指定，最小可以是 1 秒（1s）；ignore_negative 参数的值可以是 0 或 1，为 1 时表示忽略负值。
