@@ -49,7 +49,7 @@ target_sources(
     "src/tsdb/tsdbUtil.c"
     "src/tsdb/tsdbSnapshot.c"
     "src/tsdb/tsdbCacheRead.c"
-    "src/tsdb/tsdbRetention2.c"
+    "src/tsdb/tsdbRetention.c"
     "src/tsdb/tsdbDiskData.c"
     "src/tsdb/tsdbCompact.c"
     "src/tsdb/tsdbMergeTree.c"
