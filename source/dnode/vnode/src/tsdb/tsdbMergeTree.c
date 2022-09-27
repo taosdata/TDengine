@@ -28,11 +28,10 @@ struct SLDataIter {
   uint64_t      uid;
   STimeWindow   timeWindow;
   SVersionRange verRange;
-
   SSttBlockLoadInfo* pBlockLoadInfo;
 };
 
-SSttBlockLoadInfo* tCreateLastBlockLoadInfo() {
+SSttBlockLoadInfo* tCreateLastBlockLoadInfo(STSchema* pSchema, int16_t* colList, int32_t numOfCols) {
   SSttBlockLoadInfo* pLoadInfo = taosMemoryCalloc(TSDB_DEFAULT_STT_FILE, sizeof(SSttBlockLoadInfo));
   if (pLoadInfo == NULL) {
     terrno =  TSDB_CODE_OUT_OF_MEMORY;
@@ -57,6 +56,9 @@ SSttBlockLoadInfo* tCreateLastBlockLoadInfo() {
     pLoadInfo[i].aSttBlk = taosArrayInit(4, sizeof(SSttBlk));
   }
 
+  pLoadInfo->pSchema = pSchema;
+  pLoadInfo->colIds = colList;
+  pLoadInfo->numOfCols = numOfCols;
   return pLoadInfo;
 }
 
@@ -111,7 +113,13 @@ static SBlockData* loadLastBlock(SLDataIter *pIter, const char* idStr) {
   pInfo->currentLoadBlockIndex ^= 1;
   if (pIter->pSttBlk != NULL) {  // current block not loaded yet
     int64_t st = taosGetTimestampUs();
-    code = tsdbReadSttBlock(pIter->pReader, pIter->iStt, pIter->pSttBlk, &pInfo->blockData[pInfo->currentLoadBlockIndex]);
+
+    SBlockData* pBlock = &pInfo->blockData[pInfo->currentLoadBlockIndex];
+    TABLEID id = {.suid = pIter->pSttBlk->suid, .uid = 0};
+
+    tBlockDataInit(pBlock, &id, pInfo->pSchema, pInfo->colIds, pInfo->numOfCols);
+    code = tsdbReadSttBlock(pIter->pReader, pIter->iStt, pIter->pSttBlk, pBlock);
+
     double el = (taosGetTimestampUs() - st)/ 1000.0;
     pInfo->elapsedTime += el;
     pInfo->loadBlocks += 1;
@@ -460,7 +468,8 @@ static FORCE_INLINE int32_t tLDataIterCmprFn(const void *p1, const void *p2) {
 }
 
 int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
-                       STimeWindow *pTimeWindow, SVersionRange *pVerRange, void* pBlockLoadInfo, const char* idStr) {
+                       STimeWindow *pTimeWindow, SVersionRange *pVerRange, void* pBlockLoadInfo, STSchema* pSchema,
+                       int16_t* pCols, int32_t numOfCols, const char* idStr) {
   pMTree->backward = backward;
   pMTree->pIter = NULL;
   pMTree->pIterList = taosArrayInit(4, POINTER_BYTES);
@@ -475,9 +484,10 @@ int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFRead
 
   SSttBlockLoadInfo* pLoadInfo = NULL;
   if (pBlockLoadInfo == NULL) {
+    ASSERT(0);
     if (pMTree->pLoadInfo == NULL) {
       pMTree->destroyLoadInfo = true;
-      pMTree->pLoadInfo = tCreateLastBlockLoadInfo();
+      pMTree->pLoadInfo = tCreateLastBlockLoadInfo(pSchema, pCols, numOfCols);
     }
 
     pLoadInfo = pMTree->pLoadInfo;
