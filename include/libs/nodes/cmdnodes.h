@@ -119,6 +119,7 @@ typedef struct SFlushDatabaseStmt {
 typedef struct STrimDatabaseStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
+  int32_t   maxSpeed;
 } STrimDatabaseStmt;
 
 typedef struct STableOptions {
@@ -383,6 +384,8 @@ typedef struct SCreateStreamStmt {
   bool            ignoreExists;
   SStreamOptions* pOptions;
   SNode*          pQuery;
+  SNodeList*      pTags;
+  SNode*          pSubtable;
 } SCreateStreamStmt;
 
 typedef struct SDropStreamStmt {

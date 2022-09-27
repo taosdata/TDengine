@@ -1993,7 +1993,9 @@ enum {
   PHY_TABLE_SCAN_CODE_SCAN = 1,
   PHY_TABLE_SCAN_CODE_INLINE_ATTRS,
   PHY_TABLE_SCAN_CODE_DYN_SCAN_FUNCS,
-  PHY_TABLE_SCAN_CODE_GROUP_TAGS
+  PHY_TABLE_SCAN_CODE_GROUP_TAGS,
+  PHY_TABLE_SCAN_CODE_TAGS,
+  PHY_TABLE_SCAN_CODE_SUBTABLE
 };
 
 static int32_t physiTableScanNodeInlineToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -2061,6 +2063,12 @@ static int32_t physiTableScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) 
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeObj(pEncoder, PHY_TABLE_SCAN_CODE_GROUP_TAGS, nodeListToMsg, pNode->pGroupTags);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_TABLE_SCAN_CODE_TAGS, nodeListToMsg, pNode->pTags);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_TABLE_SCAN_CODE_SUBTABLE, nodeToMsg, pNode->pSubtable);
   }
 
   return code;
@@ -2137,6 +2145,12 @@ static int32_t msgToPhysiTableScanNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_TABLE_SCAN_CODE_GROUP_TAGS:
         code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pGroupTags);
+        break;
+      case PHY_TABLE_SCAN_CODE_TAGS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pTags);
+        break;
+      case PHY_TABLE_SCAN_CODE_SUBTABLE:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pSubtable);
         break;
       default:
         break;
@@ -2914,6 +2928,46 @@ static int32_t msgToPhysiPartitionNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
+enum { PHY_STREAM_PARTITION_CODE_BASE_NODE = 1, PHY_STREAM_PARTITION_CODE_TAGS, PHY_STREAM_PARTITION_CODE_SUBTABLE };
+
+static int32_t physiStreamPartitionNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
+  const SStreamPartitionPhysiNode* pNode = (const SStreamPartitionPhysiNode*)pObj;
+
+  int32_t code = tlvEncodeObj(pEncoder, PHY_STREAM_PARTITION_CODE_BASE_NODE, physiPartitionNodeToMsg, &pNode->part);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_STREAM_PARTITION_CODE_TAGS, nodeListToMsg, pNode->pTags);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeObj(pEncoder, PHY_STREAM_PARTITION_CODE_SUBTABLE, nodeToMsg, pNode->pSubtable);
+  }
+
+  return code;
+}
+
+static int32_t msgToPhysiStreamPartitionNode(STlvDecoder* pDecoder, void* pObj) {
+  SStreamPartitionPhysiNode* pNode = (SStreamPartitionPhysiNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  STlv*   pTlv = NULL;
+  tlvForEach(pDecoder, pTlv, code) {
+    switch (pTlv->type) {
+      case PHY_STREAM_PARTITION_CODE_BASE_NODE:
+        code = tlvDecodeObjFromTlv(pTlv, msgToPhysiPartitionNode, &pNode->part);
+        break;
+      case PHY_STREAM_PARTITION_CODE_TAGS:
+        code = msgToNodeListFromTlv(pTlv, (void**)&pNode->pTags);
+        break;
+      case PHY_STREAM_PARTITION_CODE_SUBTABLE:
+        code = msgToNodeFromTlv(pTlv, (void**)&pNode->pSubtable);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return code;
+}
+
 enum { PHY_INDEF_ROWS_FUNC_CODE_BASE_NODE = 1, PHY_INDEF_ROWS_FUNC_CODE_EXPRS, PHY_INDEF_ROWS_FUNC_CODE_FUNCS };
 
 static int32_t physiIndefRowsFuncNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
@@ -3592,8 +3646,10 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
       code = physiStateWindowNodeToMsg(pObj, pEncoder);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
       code = physiPartitionNodeToMsg(pObj, pEncoder);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
+      code = physiStreamPartitionNodeToMsg(pObj, pEncoder);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC:
       code = physiIndefRowsFuncNodeToMsg(pObj, pEncoder);
@@ -3727,8 +3783,10 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       code = msgToPhysiStateWindowNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
-    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
       code = msgToPhysiPartitionNode(pDecoder, pObj);
+      break;
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION:
+      code = msgToPhysiStreamPartitionNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC:
       code = msgToPhysiIndefRowsFuncNode(pDecoder, pObj);

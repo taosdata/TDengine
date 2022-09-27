@@ -159,7 +159,7 @@ cmd ::= DROP DATABASE exists_opt(A) db_name(B).                                 
 cmd ::= USE db_name(A).                                                           { pCxt->pRootNode = createUseDatabaseStmt(pCxt, &A); }
 cmd ::= ALTER DATABASE db_name(A) alter_db_options(B).                            { pCxt->pRootNode = createAlterDatabaseStmt(pCxt, &A, B); }
 cmd ::= FLUSH DATABASE db_name(A).                                                { pCxt->pRootNode = createFlushDatabaseStmt(pCxt, &A); }
-cmd ::= TRIM DATABASE db_name(A).                                                 { pCxt->pRootNode = createTrimDatabaseStmt(pCxt, &A); }
+cmd ::= TRIM DATABASE db_name(A) speed_opt(B).                                    { pCxt->pRootNode = createTrimDatabaseStmt(pCxt, &A, B); }
 
 %type not_exists_opt                                                              { bool }
 %destructor not_exists_opt                                                        { }
@@ -245,6 +245,11 @@ retention_list(A) ::= retention(B).                                             
 retention_list(A) ::= retention_list(B) NK_COMMA retention(C).                    { A = addNodeToList(pCxt, B, C); }
 
 retention(A) ::= NK_VARIABLE(B) NK_COLON NK_VARIABLE(C).                          { A = createNodeListNodeEx(pCxt, createDurationValueNode(pCxt, &B), createDurationValueNode(pCxt, &C)); }
+
+%type speed_opt                                                                   { int32_t }
+%destructor speed_opt                                                             { }
+speed_opt(A) ::= .                                                                { A = 0; }
+speed_opt(A) ::= MAX_SPEED NK_INTEGER(B).                                         { A = taosStr2Int32(B.z, NULL, 10); }
 
 /************************************************ create/drop table/stable ********************************************/
 cmd ::= CREATE TABLE not_exists_opt(A) full_table_name(B)
@@ -501,8 +506,8 @@ bufsize_opt(A) ::= .                                                            
 bufsize_opt(A) ::= BUFSIZE NK_INTEGER(B).                                         { A = taosStr2Int32(B.z, NULL, 10); }
 
 /************************************************ create/drop stream **************************************************/
-cmd ::= CREATE STREAM not_exists_opt(E) stream_name(A)
-  stream_options(B) INTO full_table_name(C) AS query_or_subquery(D).              { pCxt->pRootNode = createCreateStreamStmt(pCxt, E, &A, C, B, D); }
+cmd ::= CREATE STREAM not_exists_opt(E) stream_name(A) stream_options(B) INTO
+  full_table_name(C) tags_def_opt(F) subtable_opt(G) AS query_or_subquery(D).     { pCxt->pRootNode = createCreateStreamStmt(pCxt, E, &A, C, B, F, G, D); }
 cmd ::= DROP STREAM exists_opt(A) stream_name(B).                                 { pCxt->pRootNode = createDropStreamStmt(pCxt, A, &B); }
 
 stream_options(A) ::= .                                                           { A = createStreamOptions(pCxt); }
@@ -511,6 +516,9 @@ stream_options(A) ::= stream_options(B) TRIGGER WINDOW_CLOSE.                   
 stream_options(A) ::= stream_options(B) TRIGGER MAX_DELAY duration_literal(C).    { ((SStreamOptions*)B)->triggerType = STREAM_TRIGGER_MAX_DELAY; ((SStreamOptions*)B)->pDelay = releaseRawExprNode(pCxt, C); A = B; }
 stream_options(A) ::= stream_options(B) WATERMARK duration_literal(C).            { ((SStreamOptions*)B)->pWatermark = releaseRawExprNode(pCxt, C); A = B; }
 stream_options(A) ::= stream_options(B) IGNORE EXPIRED NK_INTEGER(C).             { ((SStreamOptions*)B)->ignoreExpired = taosStr2Int8(C.z, NULL, 10); A = B; }
+
+subtable_opt(A) ::= .                                                             { A = NULL; }
+subtable_opt(A) ::= SUBTABLE NK_LP expression(B) NK_RP.                           { A = releaseRawExprNode(pCxt, B); }
 
 /************************************************ kill connection/query ***********************************************/
 cmd ::= KILL CONNECTION NK_INTEGER(A).                                            { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_CONNECTION_STMT, &A); }
@@ -909,7 +917,16 @@ where_clause_opt(A) ::= WHERE search_condition(B).                              
 %type partition_by_clause_opt                                                     { SNodeList* }
 %destructor partition_by_clause_opt                                               { nodesDestroyList($$); }
 partition_by_clause_opt(A) ::= .                                                  { A = NULL; }
-partition_by_clause_opt(A) ::= PARTITION BY expression_list(B).                   { A = B; }
+partition_by_clause_opt(A) ::= PARTITION BY partition_list(B).                    { A = B; }
+
+%type partition_list                                                              { SNodeList* }
+%destructor partition_list                                                        { nodesDestroyList($$); }
+partition_list(A) ::= partition_item(B).                                          { A = createNodeList(pCxt, B); }
+partition_list(A) ::= partition_list(B) NK_COMMA partition_item(C).               { A = addNodeToList(pCxt, B, C); }
+
+partition_item(A) ::= expr_or_subquery(B).                                        { A = releaseRawExprNode(pCxt, B); }
+partition_item(A) ::= expr_or_subquery(B) column_alias(C).                        { A = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, B), &C); }
+partition_item(A) ::= expr_or_subquery(B) AS column_alias(C).                     { A = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, B), &C); }
 
 twindow_clause_opt(A) ::= .                                                       { A = NULL; }
 twindow_clause_opt(A) ::=

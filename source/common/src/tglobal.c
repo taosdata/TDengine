@@ -685,7 +685,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsQueryBufferSize = cfgGetItem(pCfg, "queryBufferSize")->i32;
   tsPrintAuth = cfgGetItem(pCfg, "printAuth")->bval;
 
+#if !defined(WINDOWS) && !defined(DARWIN)
   tsMultiProcess = cfgGetItem(pCfg, "multiProcess")->bval;
+#endif
   tsMnodeShmSize = cfgGetItem(pCfg, "mnodeShmSize")->i32;
   tsVnodeShmSize = cfgGetItem(pCfg, "vnodeShmSize")->i32;
   tsQnodeShmSize = cfgGetItem(pCfg, "qnodeShmSize")->i32;
@@ -919,7 +921,9 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         }
         case 'u': {
           if (strcasecmp("multiProcess", name) == 0) {
+          #if !defined(WINDOWS) && !defined(DARWIN)
             tsMultiProcess = cfgGetItem(pCfg, "multiProcess")->bval;
+          #endif
           } else if (strcasecmp("udfDebugFlag", name) == 0) {
             udfDebugFlag = cfgGetItem(pCfg, "udfDebugFlag")->i32;
           }
