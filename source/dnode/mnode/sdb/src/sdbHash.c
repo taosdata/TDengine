@@ -221,14 +221,15 @@ static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
     return terrno;
   }
   SSdbRow *pOldRow = *ppOldRow;
-
   pOldRow->status = pRaw->status;
+
+  atomic_add_fetch_32(&pOldRow->refCount, 1);
   sdbPrintOper(pSdb, pOldRow, "delete");
 
   taosHashRemove(hash, pOldRow->pObj, keySize);
+  pSdb->tableVer[pOldRow->type]++;
   taosThreadRwlockUnlock(pLock);
 
-  pSdb->tableVer[pOldRow->type]++;
   sdbFreeRow(pSdb, pRow, false);
 
   sdbCheckRow(pSdb, pOldRow);
@@ -317,7 +318,7 @@ static void sdbCheckRow(SSdb *pSdb, SSdbRow *pRow) {
   TdThreadRwlock *pLock = &pSdb->locks[pRow->type];
   taosThreadRwlockWrlock(pLock);
 
-  int32_t ref = atomic_load_32(&pRow->refCount);
+  int32_t ref = atomic_sub_fetch_32(&pRow->refCount, 1);
   sdbPrintOper(pSdb, pRow, "check");
   if (ref <= 0 && pRow->status == SDB_STATUS_DROPPED) {
     sdbFreeRow(pSdb, pRow, true);
