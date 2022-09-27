@@ -35,12 +35,14 @@
 					<li><a href="dbs.html">DBs</a></li>
 					<li><a href="stables.html">Stables</a></li>
 					<li><a href="tables.html">Tables</a></li>
+					<li><a href="udfs.html">Udfs</a></li>
 					<li><a href="users.html">Users</a></li>
 					<li id="dnodeLiId" style="display:none"><a href="dnodes.html">DNodes</a></li>
 					<li id="monitorLiId" style="display:none"><a href="monitor.html">Monitor</a></li>
 					<li><a href="usage.html">Usage</a></li>
 					<li class="active"><a href="query.html">Queries</a></li>
 					<li><a href="shell.html">Shell</a></li>
+					<li style="display:none" id="jupyterLi"><a href="jupyter.html">Jupyter</a></li>
 				</ul>
 				<ul class="nav navbar-nav navbar-right">
 					<li><a href="userInfo.html" id="user"></a></li>
@@ -67,11 +69,18 @@
 					<thead id="dbTableHead">
 						<tr>
 							<th style="font-weight: normal">No</th>
-							<th style="font-weight: normal">queryId</th>
+							<th style="font-weight: normal">kill_id</th>
+							<th style="font-weight: normal">query_id</th>
+							<th style="font-weight: normal">conn_id</th>
+							<th style="font-weight: normal">app</th>
+							<th style="font-weight: normal">pid</th>
 							<th style="font-weight: normal">user</th>
-							<th style="font-weight: normal">ip:port</th>
+							<th style="font-weight: normal">endpoint</th>
 							<th style="font-weight: normal">created time</th>
-							<th style="font-weight: normal">time(usecond)</th>
+							<th style="font-weight: normal">time(us)</th>
+							<th style="font-weight: normal">STable query</th>
+							<th style="font-weight: normal">sub queries number</th>
+							<th style="font-weight: normal">sub queries status</th>
 							<th style="font-weight: normal">sql</th>
 							<th style="font-weight: normal">operation</th>
 						</tr>
@@ -167,9 +176,9 @@
 	function dbQuery() {
 		$.ajax({
 			type: "post",
-			url: "admin/sql",
+			url: "rest/sql",
 			headers: {
-				'Authorization' : "Taosd " + DbSession.GetToken()
+				'Authorization' : DbSession.GetToken()
 			},
 			data: "show queries",
 			dataType: "json",
@@ -188,18 +197,8 @@
 	
 	 function dbQueryCb(d)
 	 {
-		if (d == null || d.status == null) {
-			DbUtil.Error(DB_CODE_INVALID_FORMAT);
-			return;
-		} 
-		if (d.status == "error") {
-			DbUtil.HandleError(d);
-		}
-		else if (d.status == "succ") {
+		if (DbUtil.CheckResponse(d)) {
 			DbCache.OnData(d);
-		}	
-		else{
-			DbUtil.Error(DB_CODE_UNKNOWN);
 		}
 	}
 	
@@ -232,7 +231,7 @@
 				row = row + colBegin + oper2 + colEnd + rowEnd;	
 			}
 			else {
-				var oper = oper1Begin + data[0] + oper1End;
+				var oper = oper1Begin + id + oper1End;
 				row = row + colBegin + oper + colEnd + rowEnd;	
 			}
 			
@@ -264,11 +263,11 @@
 	{
 		$.ajax({
 			type: "post",
-			url: "admin/sql",
+			url: "rest/sql",
 			headers: {
-				'Authorization' : "Taosd " + DbSession.GetToken()
+				'Authorization' : DbSession.GetToken()
 			},
-			data: "kill query " + dbQueryId,
+			data: "kill query '" + dbQueryId + "'",
 			dataType: "json",
 			success: dbExecuteKillCb,
 			error: function(msg) { 
@@ -285,19 +284,9 @@
 	
 	function dbExecuteKillCb(d)
 	{
-		if (d == null || d.status == null) {
-			DbUtil.Error(DB_CODE_INVALID_FORMAT);
-			return;
-		} 
-		if (d.status == "error") {
-			DbUtil.HandleError(d);
-		}
-		else if (d.status == "succ") {
+		if (DbUtil.CheckResponse(d)) {
 			dbQueryIdArray[dbQueryId] = true;
 			DbCache.Refresh();
-		}	
-		else{
-			DbUtil.Error(DB_CODE_UNKNOWN);
 		}
 	}
 	
@@ -323,6 +312,7 @@
 	<!-- Placed at the end of the document so the pages load faster -->
 	<script src="js/echarts.common.min.js"></script>
 	<script src="js/jquery-2.0.2.min.js"></script>
+	<script type="text/javascript" src="js/lodash.core.min.js"></script>
 	<script src="bootstrap-3.3.7-dist/js/bootstrap.min.js"></script>
 </body>
 </html>

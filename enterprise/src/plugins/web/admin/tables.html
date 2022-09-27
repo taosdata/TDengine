@@ -31,16 +31,18 @@
 			</div>
 			<!--/.nav-collapse -->
 			<div id="navbar" class="navbar-collapse collapse">
-				<ul class="nav navbar-nav">					
+				<ul class="nav navbar-nav">
 					<li><a href="dbs.html">DBs</a></li>
 					<li><a href="stables.html">Stables</a></li>
 					<li class="active"><a href="tables.html">Tables</a></li>
+					<li><a href="udfs.html">Udfs</a></li>
 					<li><a href="users.html">Users</a></li>
 					<li id="dnodeLiId" style="display:none"><a href="dnodes.html">DNodes</a></li>
 					<li id="monitorLiId" style="display:none"><a href="monitor.html">Monitor</a></li>
 					<li><a href="usage.html">Usage</a></li>
 					<li><a href="query.html">Queries</a></li>
 					<li><a href="shell.html">Shell</a></li>
+					<li style="display:none" id="jupyterLi"><a href="jupyter.html">Jupyter</a></li>
 				</ul>
 				<ul class="nav navbar-nav navbar-right">
 					<li><a href="userInfo.html" id="user"></a></li>
@@ -117,7 +119,7 @@
 			</div><!-- /.modal-content -->
 		</div><!-- /.modal -->
 	</div>
-	
+
 	<div class="modal modalstyle" id="confirmDialog" tabindex="-1" role="dialog" aria-labelledby="confirmModalLabel" aria-hidden="true">
 		<div class="modal-dialog" style="width: 350px;">
 			<div class="modal-content">
@@ -135,7 +137,7 @@
 			</div><!-- /.modal-content -->
 		</div><!-- /.modal -->
 	</div>
-	
+
 	<script type="text/javascript">
 	var dbSTableName = "";
 	function dbOnLoad()
@@ -157,58 +159,66 @@
 			dbUseDbThenShowTable();
 		}
 	}
-		
+
 	//file the head of dbTableHead
 	function dbFillTableHead(data)
 	{
 		var rowBegin = "<tr>";
 		var rowEnd = "</tr>";
-		var colNum = data.head.length;		
+		var colNum = data.head.length;
 		var colBegin = '<th style="font-weight: normal">';
 		var colEnd = "</th>";
-		
+
 		if (data == null || data.head == null) {
 			return;
 		}
-		
+
 		row = rowBegin + colBegin + "No" + colEnd;
 		for (colIndex = 0; colIndex < colNum; colIndex++) {
 			row = row + colBegin + data.head[colIndex] + colEnd;
 		}
 		row = row + colBegin + "operation" + colEnd;
 		row = row + rowEnd;
-		
+
 		$('#dbTableHead').html(row);
 	}
-	
+
 	//file the body of dbTableBody
 	function dbFillTableBody(d)
 	{
 		var rowNum = d.data.length;
 		var rowBegin = "<tr>";
 		var rowEnd = "</tr>";
-		var colNum = d.head.length;		
+		var colNum = d.head.length;
 		var colBegin = "<td>";
 		var colEnd = "</td>";
-		
+
 		var operInfoBegin = '<a class="dboper" onclick="dbInfo(\'';
 		var operInfoEnd = '\')">Info</a>&nbsp&nbsp';
-		
+
 		var operBegin = '<a class="dboper" onclick="dbDelete(\'';
 		var operEnd = '\')">Delete</a>';
-		
+
 		var rowIndex = 0;
 		var bodyContent = "";
 		for (rowIndex = 0; rowIndex < rowNum; ++rowIndex) {
 			var row = rowBegin + colBegin + DbCache.GetRowIndex(rowIndex) + colEnd;
-			var data = d.data[rowIndex]; 	
+			var data = d.data[rowIndex];
 			for (colIndex = 0; colIndex < colNum; colIndex++) {
 				row = row + colBegin + data[colIndex] + colEnd;
 			}
-			
-			var operInfo = operInfoBegin + data[0] + operInfoEnd;
-			var oper = operBegin + data[0] + operEnd;
-			row = row + colBegin + operInfo + oper + colEnd + rowEnd;	
+
+			if (DbUtil.needEscape() == true) {
+				var item = encodeURIComponent(data[0]);
+				item = item.replace(/"/g, '\\"').replace(/'/g, "\\'");
+				var operInfo = operInfoBegin + "`" + item + "`" + operInfoEnd;
+				var oper = operBegin + "`" + item + "`" + operEnd;
+				row = row + colBegin + operInfo + oper + colEnd + rowEnd;
+			} else {
+				var operInfo = operInfoBegin + data[0] + operInfoEnd;
+				var oper = operBegin + data[0] + operEnd;
+				row = row + colBegin + operInfo + oper + colEnd + rowEnd;
+			}
 			bodyContent += row;
 		}
 		for (; rowIndex < DbCache.RowsPerPage(); ++rowIndex) {
@@ -216,13 +226,13 @@
 			for (colIndex = 0; colIndex < colNum; colIndex++) {
 				row = row + colBegin + colEnd;
 			}
-			
-			row = row + colBegin + colEnd + rowEnd;	
+
+			row = row + colBegin + colEnd + rowEnd;
 			bodyContent += row;
 		}
-		
+
 		$('#dbTableBody').html(bodyContent);
-	}		
+	}
 
 	function dbInfo(id)
 	{
@@ -230,28 +240,32 @@
 		DbSession.SetTableList();
 		DbUtil.GotoPage("tableInfo.html?table=" + dbTableName);
 	}
-	
+
 	//while push delete button
 	var dbTableName = "";
 	function dbDelete(id)
-	{		
+	{
 		dbTableName = id;
 		DbUtil.ConfirmDialog(DB_CODE_CONFIRM, "drop table " + DbSession.GetDb() + "." + dbTableName);
-	}	
-	
+	}
+
 	//while confirm delete
 	function dbExecuteDelete()
 	{
+		var tbName = dbTableName;
+		if (DbUtil.needEscape() == true) {
+			tbName = decodeURIComponent(dbTableName);
+		}
 		$.ajax({
 			type: "post",
-			url: "admin/sql",
+			url: "rest/sql",
 			headers: {
-				'Authorization' : "Taosd " + DbSession.GetToken()
+				'Authorization' : DbSession.GetToken()
 			},
-			data: "drop table " + DbSession.GetDb() + "." + dbTableName,
+			data: "drop table " + DbSession.GetDb() + "." + tbName,
 			dataType: "json",
 			success: dbExecuteDeleteCb,
-			error: function(msg) { 
+			error: function(msg) {
 				if (msg != null && msg.responseJSON != null) {
 					dbExecuteDeleteCb(msg.responseJSON);
 				} else if (msg != null) {
@@ -259,16 +273,16 @@
 				} else {
 					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
 				}
-			}		
-		});		
+			}
+		});
 	}
-			
+
 	function dbExecuteDeleteCb(d)
 	{
 		if (d == null || d.status == null) {
 			DbUtil.Error(DB_CODE_INVALID_FORMAT);
 			return;
-		} 
+		}
 		if (d.status == "error") {
 			DbUtil.HandleError(d);
 		}
@@ -282,14 +296,14 @@
 				} else {
 					DbUtil.GotoPage("tables.html");
 				}
-				
+
 			}
-		}	
+		}
 		else{
 			DbUtil.Error(DB_CODE_UNKNOWN);
 		}
 	}
-			
+
 	function dbAdd()
 	{
 		DbUtil.GotoPage("table.html");
@@ -298,14 +312,14 @@
 	function dbQuery() {
 		$.ajax({
 			type: "post",
-			url: "admin/sql",
+			url: "rest/sql",
 			headers: {
-				'Authorization' : "Taosd " + DbSession.GetToken()
+				'Authorization' : DbSession.GetToken()
 			},
-			data: "show " + DbSession.GetDb() +".tables",
+			data: "select * from information_schema.ins_tables where db_name = '" + DbSession.GetDb() +"'",
 			dataType: "json",
 			success: dbQueryCb,
-			error: function(msg) { 
+			error: function(msg) {
 				if (msg != null && msg.responseJSON != null) {
 					dbQueryCb(msg.responseJSON);
 				} else if (msg != null) {
@@ -313,27 +327,17 @@
 				} else {
 					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
 				}
-			}		
-		});		
+			}
+		});
 	}
-	
+
 	function dbQueryCb(d)
 	{
-		if (d == null || d.status == null) {
-			DbUtil.Error(DB_CODE_INVALID_FORMAT);
-			return;
-		} 
-		if (d.status == "error") {
-			DbUtil.HandleError(d);
-		}
-		else if (d.status == "succ") {
+		if (DbUtil.CheckResponse(d)) {
 			DbCache.OnData(d, dbSTableName);
-		}	
-		else{
-			DbUtil.Error(DB_CODE_UNKNOWN);
 		}
 	}
-	
+
 	function dbShowDbName()
 	{
 		var db = DbSession.GetDb();
@@ -346,13 +350,13 @@
 		DbSession.SetCacheFlag();
 		DbUtil.GotoPage("stables.html");
 	}
-	
+
 	function dbGotoDatabase()
 	{
 		DbSession.SetCacheFlag();
 		DbUtil.GotoPage("dbs.html");
 	}
-	
+
 	function dbUseDbThenShowTable()
 	{
 		var db = DbSession.GetDb();
@@ -364,20 +368,20 @@
 			dbUseDb(db);
 		}
 	}
-	
+
 	function dbUseDb(db)
 	{
 		dbShowDbName();
 		dbQuery();
 	}
-	
+
 	function dbGetDefaultDb()
 	{
 		$.ajax({
 			type: "post",
-			url: "admin/sql",
+			url: "rest/sql",
 			headers: {
-				'Authorization' : "Taosd " + DbSession.GetToken()
+				'Authorization' : DbSession.GetToken()
 			},
 			data: "show databases",
 			dataType: "json",
@@ -390,20 +394,13 @@
 				} else {
 					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
 				}
-			}		
+			}
 		});
 	}
-	
+
 	function dbGetDefaultDbCb(d)
 	{
-		if (d == null || d.status == null) {
-			DbUtil.Error(DB_CODE_INVALID_FORMAT);
-			return;
-		} 
-		if (d.status == "error") {
-			DbUtil.HandleError(d);
-		}
-		else if (d.status == "succ") {
+		if (DbUtil.CheckResponse(d)) {
 			if (d.data.length == 0) {
 				DbUtil.ErrorDialog("no database exists.");
 			}
@@ -412,18 +409,16 @@
 				DbSession.SetDb(db);
 				dbUseDb(db);
 			}
-		}	
-		else{
-			DbUtil.Error(DB_CODE_UNKNOWN);
 		}
 	}
-	
+
 	</script>
-	
+
 	<!-- Bootstrap core JavaScript
 	================================================== -->
 	<!-- Placed at the end of the document so the pages load faster -->
 	<script src="js/jquery-2.0.2.min.js"></script>
+	<script type="text/javascript" src="js/lodash.core.min.js"></script>
 	<script src="bootstrap-3.3.7-dist/js/bootstrap.min.js"></script>
 </body>
 </html>
