@@ -419,6 +419,7 @@ int32_t tsdbFSOpen(STsdb *pTsdb) {
   int32_t code = 0;
 
   // open handle
+  pTsdb->fs.version = 0;
   pTsdb->fs.pDelFile = NULL;
   pTsdb->fs.aDFileSet = taosArrayInit(0, sizeof(SDFileSet));
   if (pTsdb->fs.aDFileSet == NULL) {
@@ -534,6 +535,7 @@ int32_t tsdbFSClose(STsdb *pTsdb) {
 int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS) {
   int32_t code = 0;
 
+  pFS->version = pTsdb->fs.version;
   pFS->pDelFile = NULL;
   pFS->aDFileSet = taosArrayInit(taosArrayGetSize(pTsdb->fs.aDFileSet), sizeof(SDFileSet));
   if (pFS->aDFileSet == NULL) {
@@ -746,12 +748,12 @@ int32_t tsdbFSUpdDel(STsdb *pTsdb, STsdbFS *pFS, STsdbFS *pFSNew, int32_t maxFid
 
     if (pSetOld && pSetNew) {
       if (pSetOld->fid == pSetNew->fid) {
-        if (IS_DFSET_EXPIRED(pSetNew)) goto _remove_old;
         goto _merge_migrate;
-      } else if (pSetOld->fid < pSetNew->fid) {
-        ++iOld;
+      } else if (pSetOld->fid > pSetNew->fid) {
+        goto _remove_old;
       } else {
-        ++iNew;
+        ++iOld;
+        ASSERT(0);
       }
       continue;
     } else {
@@ -794,8 +796,8 @@ int32_t tsdbFSUpdDel(STsdb *pTsdb, STsdbFS *pFS, STsdbFS *pFSNew, int32_t maxFid
       pSetOld->diskId = pSetNew->diskId;
     }
 
-    iOld++;
-    iNew++;
+    ++iOld;
+    ++iNew;
     continue;
 
   _remove_old:
@@ -806,7 +808,7 @@ int32_t tsdbFSUpdDel(STsdb *pTsdb, STsdbFS *pFS, STsdbFS *pFSNew, int32_t maxFid
     }
     taosMemoryFree(pSetOld->pSmaF);
     taosArrayRemove(pFS->aDFileSet, iOld);
-    iNew++;
+    ++iNew;
     continue;
   }
 
@@ -850,6 +852,8 @@ int32_t tsdbFSCommit2(STsdb *pTsdb, STsdbFS *pFSNew) {
   int32_t nRef;
   char    fname[TSDB_FILENAME_LEN];
 
+  ++pTsdb->fs.version;
+  
   // del
   if (pFSNew->pDelFile) {
     SDelFile *pDelFile = pTsdb->fs.pDelFile;

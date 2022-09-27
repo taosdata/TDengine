@@ -988,20 +988,32 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
   int32_t    code = 0;
   STsdb     *pTsdb = pCommitter->pTsdb;
   SMemTable *pMemTable = pTsdb->imem;
-  bool       inTrim = atomic_load_8(&pTsdb->pVnode->trimDbH.state);
+  STsdbFS    fsLatest = {0};
 
   ASSERT(eno == 0);
 
-  if (inTrim) taosThreadRwlockWrlock(&pTsdb->rwLock);
+  // lock
+  taosThreadRwlockWrlock(&pTsdb->rwLock);
+  
+  ASSERT(pCommitter->fs.version <= pTsdb->fs.version);
+
+  if (pCommitter->fs.version < pTsdb->fs.version) {
+    if ((code = tsdbFSCopy(pTsdb, &fsLatest))) {
+      taosThreadRwlockUnlock(&pTsdb->rwLock);
+      goto _err;
+    }
+
+    if ((code = tsdbFSUpdDel(pTsdb, &pCommitter->fs, &fsLatest, pTsdb->trimHdl.minCommitFid - 1))) {
+      taosThreadRwlockUnlock(&pTsdb->rwLock);
+      goto _err;
+    }
+  }
 
   code = tsdbFSCommit1(pTsdb, &pCommitter->fs);
   if (code) {
-    if (inTrim) taosThreadRwlockUnlock(&pTsdb->rwLock);
+    taosThreadRwlockUnlock(&pTsdb->rwLock);
     goto _err;
   }
-
-  // lock
-  if (!inTrim) taosThreadRwlockWrlock(&pTsdb->rwLock);
 
   // commit or rollback
   code = tsdbFSCommit2(pTsdb, &pCommitter->fs);

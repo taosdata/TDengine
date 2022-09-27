@@ -17,7 +17,7 @@
 
 enum { RETENTION_NO = 0, RETENTION_EXPIRED = 1, RETENTION_MIGRATE = 2 };
 
-#define MIGRATE_MAX_SPEED (1048576 << 5)  // 32 MB
+#define MIGRATE_MAX_SPEED (1048576 << 4)  // 16 MB, vnode level
 #define MIGRATE_MIN_COST  (5)             // second
 
 static bool    tsdbShouldDoMigrate(STsdb *pTsdb);
@@ -105,8 +105,8 @@ _retention_loop:
   code = tsdbFSCopy(pTsdb, &fs);
   if (code) goto _exit;
 
-  int32_t fsSize = taosArrayGetSize(fs.aDFileSet);
   if (type == RETENTION_MIGRATE) {
+    int32_t fsSize = taosArrayGetSize(fs.aDFileSet);
     for (int32_t iSet = 0; iSet < fsSize; ++iSet) {
       SDFileSet *pSet = (SDFileSet *)taosArrayGet(fs.aDFileSet, iSet);
       int32_t    expLevel = tsdbFidLevel(pSet->fid, &pTsdb->keepCfg, now);
@@ -119,26 +119,35 @@ _retention_loop:
         maxFid = pSet->fid;
         fSize += (pSet->pDataF->size + pSet->pHeadF->size + pSet->pSmaF->size);
         if (fSize / speed > MIGRATE_MIN_COST) {
+          tsdbDebug("vgId:%d migrate loop %d with maxFid:%d", TD_VID(pTsdb->pVnode), nBatch, maxFid);
           break;
         }
         for (int32_t iStt = 0; iStt < pSet->nSttF; ++iStt) {
           fSize += pSet->aSttF[iStt]->size;
         }
         if (fSize / speed > MIGRATE_MIN_COST) {
-          tsdbDebug("vgId:%d migrate loop[%d] with maxFid:%d", TD_VID(pTsdb->pVnode), nBatch, maxFid);
+          tsdbDebug("vgId:%d migrate loop %d with maxFid:%d", TD_VID(pTsdb->pVnode), nBatch, maxFid);
           break;
         }
       }
     }
   } else if (type == RETENTION_EXPIRED) {
-    for (int32_t iSet = 0; iSet < fsSize; ++iSet) {
+    for (int32_t iSet = 0; iSet < taosArrayGetSize(fs.aDFileSet); ++iSet) {
       SDFileSet *pSet = (SDFileSet *)taosArrayGet(fs.aDFileSet, iSet);
       int32_t    expLevel = tsdbFidLevel(pSet->fid, &pTsdb->keepCfg, now);
       SDiskID    did;
 
       if (expLevel < 0) {
-        SET_DFSET_EXPIRED(pSet);
+        ASSERT(pSet->fid > maxFid);
         if (pSet->fid > maxFid) maxFid = pSet->fid;
+        taosMemoryFree(pSet->pHeadF);
+        taosMemoryFree(pSet->pDataF);
+        taosMemoryFree(pSet->pSmaF);
+        for (int32_t iStt = 0; iStt < pSet->nSttF; ++iStt) {
+          taosMemoryFree(pSet->aSttF[iStt]);
+        }
+        taosArrayRemove(fs.aDFileSet, iSet);
+        --iSet;
       } else {
         break;
       }
@@ -167,18 +176,25 @@ _commit_conflict_check:
 
   // migrate
   if (type == RETENTION_MIGRATE) {
-    for (int32_t iSet = 0; iSet < fsSize; ++iSet) {
+    for (int32_t iSet = 0; iSet < taosArrayGetSize(fs.aDFileSet); ++iSet) {
       SDFileSet *pSet = (SDFileSet *)taosArrayGet(fs.aDFileSet, iSet);
       int32_t    expLevel = tsdbFidLevel(pSet->fid, &pTsdb->keepCfg, now);
       SDiskID    did;
 
       if (pSet->fid > maxFid) break;
 
-      tsdbDebug("vgId:%d migrate loop[%d] with maxFid:%d, fid:%d, did:%d, level:%d, expLevel:%d", TD_VID(pTsdb->pVnode),
+      tsdbDebug("vgId:%d migrate loop %d with maxFid:%d, fid:%d, did:%d, level:%d, expLevel:%d", TD_VID(pTsdb->pVnode),
                 nBatch, maxFid, pSet->fid, pSet->diskId.id, pSet->diskId.level, expLevel);
 
       if (expLevel < 0) {
-        SET_DFSET_EXPIRED(pSet);
+        taosMemoryFree(pSet->pHeadF);
+        taosMemoryFree(pSet->pDataF);
+        taosMemoryFree(pSet->pSmaF);
+        for (int32_t iStt = 0; iStt < pSet->nSttF; ++iStt) {
+          taosMemoryFree(pSet->aSttF[iStt]);
+        }
+        taosArrayRemove(fs.aDFileSet, iSet);
+        --iSet;
       } else {
         if (expLevel == pSet->diskId.level) continue;
 

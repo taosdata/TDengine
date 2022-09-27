@@ -322,6 +322,7 @@ int32_t tsdbCacheLastArray2Row(SArray *pLastArray, STSRow **ppRow, STSchema *pSc
 
 // structs =======================
 struct STsdbFS {
+  int64_t   version;
   SDelFile *pDelFile;
   SArray   *aDFileSet;  // SArray<SDFileSet>
 };
@@ -574,9 +575,6 @@ struct SDFileSet {
   uint8_t    nSttF;
   SSttFile  *aSttF[TSDB_MAX_STT_TRIGGER];
 };
-
-#define SET_DFSET_EXPIRED(d) ((d)->diskId.id = -1)
-#define IS_DFSET_EXPIRED(d)  ((d)->diskId.id == -1)
 
 struct SRowIter {
   TSDBROW  *pRow;
