@@ -951,7 +951,7 @@ static int32_t doLoadFileBlockData(STsdbReader* pReader, SDataBlockIter* pBlockI
 
   tBlockDataReset(pBlockData);
   TABLEID tid = {.suid = pReader->suid, .uid = uid};
-  int32_t code = tBlockDataInit(pBlockData, &tid, pReader->pSchema, pReader->suppInfo.colIds, pReader->suppInfo.numOfCols);
+  int32_t code = tBlockDataInit(pBlockData, &tid, pReader->pSchema, &pReader->suppInfo.colIds[1], pReader->suppInfo.numOfCols-1);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
