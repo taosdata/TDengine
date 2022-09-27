@@ -496,6 +496,12 @@ int32_t tDiskDataBuilderInit(SDiskDataBuilder *pBuilder, STSchema *pTSchema, TAB
   pBuilder->nRow = 0;
   pBuilder->cmprAlg = cmprAlg;
   pBuilder->calcSma = calcSma;
+  pBuilder->bi = (SBlkInfo){.minUid = INT64_MAX,
+                            .maxUid = INT64_MIN,
+                            .minKey = TSDBKEY_MAX,
+                            .maxKey = TSDBKEY_MIN,
+                            .minVer = VERSION_MAX,
+                            .maxVer = VERSION_MIN};
 
   if (pBuilder->pUidC == NULL && (code = tCompressorCreate(&pBuilder->pUidC))) return code;
   code = tCompressStart(pBuilder->pUidC, TSDB_DATA_TYPE_BIGINT, cmprAlg);
@@ -554,6 +560,8 @@ int32_t tDiskDataAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSchema *pTS
   ASSERT(pBuilder->suid || pBuilder->uid);
   ASSERT(pId->suid == pBuilder->suid);
 
+  TSDBKEY key = TSDBROW_KEY(pRow);
+
   // uid
   if (pBuilder->uid && pBuilder->uid != pId->uid) {
     ASSERT(pBuilder->suid);
@@ -567,16 +575,20 @@ int32_t tDiskDataAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSchema *pTS
     code = tCompress(pBuilder->pUidC, &pId->uid, sizeof(int64_t));
     if (code) return code;
   }
+  if (pBuilder->bi.minUid > pId->uid) pBuilder->bi.minUid = pId->uid;
+  if (pBuilder->bi.maxUid < pId->uid) pBuilder->bi.maxUid = pId->uid;
 
   // version
-  int64_t version = TSDBROW_VERSION(pRow);
-  code = tCompress(pBuilder->pVerC, &version, sizeof(int64_t));
+  code = tCompress(pBuilder->pVerC, &key.version, sizeof(int64_t));
   if (code) return code;
+  if (pBuilder->bi.minVer > key.version) pBuilder->bi.minVer = key.version;
+  if (pBuilder->bi.maxVer < key.version) pBuilder->bi.maxVer = key.version;
 
   // TSKEY
-  TSKEY ts = TSDBROW_TS(pRow);
-  code = tCompress(pBuilder->pKeyC, &ts, sizeof(int64_t));
+  code = tCompress(pBuilder->pKeyC, &key.ts, sizeof(int64_t));
   if (code) return code;
+  if (tsdbKeyCmprFn(&pBuilder->bi.minKey, &key) > 0) pBuilder->bi.minKey = key;
+  if (tsdbKeyCmprFn(&pBuilder->bi.maxKey, &key) < 0) pBuilder->bi.maxKey = key;
 
   SRowIter iter = {0};
   tRowIterInit(&iter, pRow, pTSchema);
@@ -603,12 +615,13 @@ int32_t tDiskDataAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSchema *pTS
   return code;
 }
 
-int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, const SDiskData **ppDiskData) {
+int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, const SDiskData **ppDiskData, const SBlkInfo **ppBlkInfo) {
   int32_t code = 0;
 
   ASSERT(pBuilder->nRow);
 
   *ppDiskData = NULL;
+  *ppBlkInfo = NULL;
 
   SDiskData *pDiskData = &pBuilder->dd;
   // reset SDiskData
@@ -674,5 +687,6 @@ int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, const SDiskData **ppDiskData) 
   }
 
   *ppDiskData = pDiskData;
+  *ppBlkInfo = &pBuilder->bi;
   return code;
 }

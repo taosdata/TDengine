@@ -328,7 +328,8 @@ int32_t tDiskDataBuilderInit(SDiskDataBuilder *pBuilder, STSchema *pTSchema, TAB
                              uint8_t calcSma);
 int32_t tDiskDataBuilderClear(SDiskDataBuilder *pBuilder);
 int32_t tDiskDataAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSchema *pTSchema, TABLEID *pId);
-int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, const SDiskData **ppDiskData);
+int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, const SDiskData **ppDiskData, const SBlkInfo *pBlkInfo);
+int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, const SDiskData **ppDiskData, const SBlkInfo **ppBlkInfo);
 
 // structs =======================
 struct STsdbFS {
@@ -449,6 +450,15 @@ struct SSmaInfo {
   int64_t offset;
   int32_t size;
 };
+
+typedef struct {
+  int64_t minUid;
+  int64_t maxUid;
+  TSDBKEY minKey;
+  TSDBKEY maxKey;
+  int64_t minVer;
+  int64_t maxVer;
+} SBlkInfo;
 
 struct SDataBlk {
   TSDBKEY    minKey;
@@ -702,6 +712,7 @@ struct SDiskDataBuilder {
   SArray      *aBuilder;  // SArray<SDiskColBuilder>
   uint8_t     *aBuf[2];
   SDiskData    dd;
+  SBlkInfo     bi;
 };
 
 int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
