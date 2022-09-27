@@ -278,7 +278,7 @@ _exit:
     ASSERT(0);
     // tsdbFSRollback(pTsdb->pFS);
   } else {
-    tsdbInfo("vgId:%d, tsdb do retention %d succeed, time:%" PRIi64 "max speed:%" PRIi64, TD_VID(pTsdb->pVnode),
+    tsdbInfo("vgId:%d, tsdb do retention %d succeed, time:%" PRIi64 ", max speed:%" PRIi64, TD_VID(pTsdb->pVnode),
              retention, now, maxSpeed);
   }
   return code;
