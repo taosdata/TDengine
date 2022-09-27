@@ -1305,7 +1305,8 @@ static int32_t tsdbInitLastBlockIfNeed(SCommitter *pCommitter, TABLEID id) {
   if (!pBDatal->suid && !pBDatal->uid) {
     ASSERT(pCommitter->skmTable.suid == id.suid);
     ASSERT(pCommitter->skmTable.uid == id.uid);
-    code = tBlockDataInit(pBDatal, id.suid, id.suid ? 0 : id.uid, pCommitter->skmTable.pTSchema);
+    TABLEID tid = {.suid = id.suid, .uid = id.suid ? 0 : id.uid};
+    code = tBlockDataInit(pBDatal, &tid, pCommitter->skmTable.pTSchema, NULL, 0);
     if (code) goto _exit;
   }
 
@@ -1428,9 +1429,9 @@ static int32_t tsdbCommitFileDataImpl(SCommitter *pCommitter) {
     // impl
     code = tsdbUpdateTableSchema(pCommitter->pTsdb->pVnode->pMeta, id.suid, id.uid, &pCommitter->skmTable);
     if (code) goto _err;
-    code = tBlockDataInit(&pCommitter->dReader.bData, id.suid, id.uid, pCommitter->skmTable.pTSchema);
+    code = tBlockDataInit(&pCommitter->dReader.bData, &id, pCommitter->skmTable.pTSchema, NULL, 0);
     if (code) goto _err;
-    code = tBlockDataInit(&pCommitter->dWriter.bData, id.suid, id.uid, pCommitter->skmTable.pTSchema);
+    code = tBlockDataInit(&pCommitter->dWriter.bData, &id, pCommitter->skmTable.pTSchema, NULL, 0);
     if (code) goto _err;
 
     /* merge with data in .data file */

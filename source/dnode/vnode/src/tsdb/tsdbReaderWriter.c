@@ -926,12 +926,13 @@ _err:
   return code;
 }
 
-static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo, SBlockData *pBlockData) {
+static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo, SBlockData *pBlockData,
+                                     int32_t iStt) {
   int32_t code = 0;
 
   tBlockDataClear(pBlockData);
 
-  STsdbFD *pFD = pReader->pDataFD;
+  STsdbFD *pFD = (iStt < 0) ? pReader->pDataFD : pReader->aSttFD[iStt];
 
   // uid + version + tskey
   code = tRealloc(&pReader->aBuf[0], pBlkInfo->szKey);
@@ -1070,9 +1071,12 @@ _err:
 int32_t tsdbReadDataBlock(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockData *pBlockData) {
   int32_t code = 0;
 
-  code = tsdbReadBlockDataImpl(pReader, &pDataBlk->aSubBlock[0], pBlockData);
+  code = tsdbReadBlockDataImpl(pReader, &pDataBlk->aSubBlock[0], pBlockData, -1);
   if (code) goto _err;
 
+  ASSERT(pDataBlk->nSubBlock == 1);
+
+#if 0
   if (pDataBlk->nSubBlock > 1) {
     SBlockData bData1;
     SBlockData bData2;
@@ -1113,6 +1117,7 @@ int32_t tsdbReadDataBlock(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockData 
     tBlockDataDestroy(&bData1, 1);
     tBlockDataDestroy(&bData2, 1);
   }
+#endif
 
   return code;
 
@@ -1124,6 +1129,10 @@ _err:
 int32_t tsdbReadSttBlock(SDataFReader *pReader, int32_t iStt, SSttBlk *pSttBlk, SBlockData *pBlockData) {
   int32_t code = 0;
 
+  code = tsdbReadBlockDataImpl(pReader, &pSttBlk->bInfo, pBlockData, iStt);
+  if (code) goto _err;
+
+#if 0
   // alloc
   code = tRealloc(&pReader->aBuf[0], pSttBlk->bInfo.szBlock);
   if (code) goto _err;
@@ -1136,6 +1145,7 @@ int32_t tsdbReadSttBlock(SDataFReader *pReader, int32_t iStt, SSttBlk *pSttBlk, 
   code = tDecmprBlockData(pReader->aBuf[0], pSttBlk->bInfo.szBlock, pBlockData, &pReader->aBuf[1]);
   if (code) goto _err;
 
+#endif
   return code;
 
 _err:

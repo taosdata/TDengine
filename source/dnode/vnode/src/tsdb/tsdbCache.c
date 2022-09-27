@@ -612,7 +612,8 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
         tMapDataGetItemByIdx(&state->blockMap, state->iBlock, &block, tGetDataBlk);
         /* code = tsdbReadBlockData(state->pDataFReader, &state->blockIdx, &block, &state->blockData, NULL, NULL); */
         tBlockDataReset(state->pBlockData);
-        code = tBlockDataInit(state->pBlockData, state->suid, state->uid, state->pTSchema);
+        TABLEID tid = {.suid = state->suid, .uid = state->uid};
+        code = tBlockDataInit(state->pBlockData, &tid, state->pTSchema, NULL, 0);
         if (code) goto _err;
 
         code = tsdbReadDataBlock(state->pDataFReader, &block, state->pBlockData);
