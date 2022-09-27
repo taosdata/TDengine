@@ -767,7 +767,7 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
       if (++nLoops > 1000) {
         nLoops = 0;
         sched_yield();
-        printf("%s:%d wait retention to finish\n", __func__, __LINE__);
+        // printf("%s:%d wait retention to finish\n", __func__, __LINE__);
       }
     }
     if (atomic_val_compare_exchange_8(&pTsdb->trimHdl.state, 0, 1) == 0) {

@@ -675,7 +675,6 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo, i
   int32_t   szPage = pTsdb->pVnode->config.szPage;
   char      fNameFrom[TSDB_FILENAME_LEN];
   char      fNameTo[TSDB_FILENAME_LEN];
-  int64_t   fStatSize = 0;
 
   // head
   tsdbHeadFileName(pTsdb, pSetFrom->diskId, pSetFrom->fid, pSetFrom->pHeadF, fNameFrom);
@@ -690,9 +689,6 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo, i
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
-  fStatSize = 0;
-  taosStatFile(fNameFrom, &fStatSize, 0);
-  ASSERT(fStatSize == tsdbLogicToFileSize(pSetFrom->pHeadF->size, szPage));
   n = tsdbFSendFile(pTsdb, pOutFD, PInFD, tsdbLogicToFileSize(pSetFrom->pHeadF->size, szPage), maxSpeed);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
@@ -714,9 +710,6 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo, i
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
-  fStatSize = 0;
-  taosStatFile(fNameFrom, &fStatSize, 0);
-  ASSERT(fStatSize == tsdbLogicToFileSize(pSetFrom->pDataF->size, szPage));
   n = tsdbFSendFile(pTsdb, pOutFD, PInFD, tsdbLogicToFileSize(pSetFrom->pDataF->size, szPage), maxSpeed);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
@@ -738,9 +731,6 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo, i
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
-  fStatSize = 0;
-  taosStatFile(fNameFrom, &fStatSize, 0);
-  ASSERT(fStatSize == tsdbLogicToFileSize(pSetFrom->pSmaF->size, szPage));
   n = tsdbFSendFile(pTsdb, pOutFD, PInFD, tsdbLogicToFileSize(pSetFrom->pSmaF->size, szPage), maxSpeed);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
@@ -763,9 +753,6 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo, i
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
-    fStatSize = 0;
-    taosStatFile(fNameFrom, &fStatSize, 0);
-    ASSERT(fStatSize == tsdbLogicToFileSize(pSetFrom->aSttF[iStt]->size, szPage));
     n = tsdbFSendFile(pTsdb, pOutFD, PInFD, tsdbLogicToFileSize(pSetFrom->aSttF[iStt]->size, szPage), maxSpeed);
     if (n < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
