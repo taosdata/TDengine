@@ -134,7 +134,7 @@ static void *mndThreadFp(void *param) {
       mndCalMqRebalance(pMnode);
     }
 
-    if (sec % tsTelemInterval == (MIN(60, (tsTelemInterval - 1)))) {
+    if (sec % tsTelemInterval == (TMIN(60, (tsTelemInterval - 1)))) {
       mndPullupTelem(pMnode);
     }
 
