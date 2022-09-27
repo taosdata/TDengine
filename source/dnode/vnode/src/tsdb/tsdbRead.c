@@ -951,15 +951,22 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t doLoadFileBlockData(STsdbReader* pReader, SDataBlockIter* pBlockIter, SBlockData* pBlockData) {
+static int32_t doLoadFileBlockData(STsdbReader* pReader, SDataBlockIter* pBlockIter, SBlockData* pBlockData, uint64_t uid) {
   int64_t st = taosGetTimestampUs();
+
+  tBlockDataReset(pBlockData);
+  TABLEID tid = {.suid = pReader->suid, .uid = uid};
+  int32_t code = tBlockDataInit(pBlockData, &tid, pReader->pSchema, pReader->suppInfo.colIds, pReader->suppInfo.numOfCols);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   SFileDataBlockInfo* pBlockInfo = getCurrentBlockInfo(pBlockIter);
   SFileBlockDumpInfo* pDumpInfo = &pReader->status.fBlockDumpInfo;
   ASSERT(pBlockInfo != NULL);
 
   SDataBlk* pBlock = getCurrentBlock(pBlockIter);
-  int32_t   code = tsdbReadDataBlock(pReader->pFileReader, pBlock, pBlockData);
+  code = tsdbReadDataBlock(pReader->pFileReader, pBlock, pBlockData);
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%p error occurs in loading file block, global index:%d, table index:%d, brange:%" PRId64 "-%" PRId64
               ", rows:%d, code:%s %s",
@@ -2455,14 +2462,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
     ASSERT(pBlockIter->numOfBlocks == 0);
     code = buildComposedDataBlock(pReader);
   } else if (fileBlockShouldLoad(pReader, pBlockInfo, pBlock, pScanInfo, keyInBuf, pLastBlockReader)) {
-    tBlockDataReset(&pStatus->fileBlockData);
-    TABLEID tid = {.suid = pReader->suid, .uid = pScanInfo->uid};
-    code = tBlockDataInit(&pStatus->fileBlockData, &tid, pReader->pSchema, NULL, 0);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-
-    code = doLoadFileBlockData(pReader, pBlockIter, &pStatus->fileBlockData);
+    code = doLoadFileBlockData(pReader, pBlockIter, &pStatus->fileBlockData, pScanInfo->uid);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -2936,14 +2936,7 @@ static int32_t checkForNeighborFileBlock(STsdbReader* pReader, STableBlockScanIn
     setFileBlockActiveInBlockIter(pBlockIter, neighborIndex, step);
 
     // 3. load the neighbor block, and set it to be the currently accessed file data block
-    tBlockDataReset(&pStatus->fileBlockData);
-    TABLEID tid = {.suid = pReader->suid, .uid = pFBlock->uid};
-    int32_t code = tBlockDataInit(&pStatus->fileBlockData, &tid, pReader->pSchema, NULL, 0);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-
-    code = doLoadFileBlockData(pReader, pBlockIter, &pStatus->fileBlockData);
+    int32_t code = doLoadFileBlockData(pReader, pBlockIter, &pStatus->fileBlockData, pFBlock->uid);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -3701,15 +3694,7 @@ static SArray* doRetrieveDataBlock(STsdbReader* pReader) {
   SFileDataBlockInfo*  pFBlock = getCurrentBlockInfo(&pStatus->blockIter);
   STableBlockScanInfo* pBlockScanInfo = taosHashGet(pStatus->pTableMap, &pFBlock->uid, sizeof(pFBlock->uid));
 
-  tBlockDataReset(&pStatus->fileBlockData);
-  TABLEID tid = {.suid = pReader->suid, .uid = pBlockScanInfo->uid};
-  int32_t code = tBlockDataInit(&pStatus->fileBlockData, &tid, pReader->pSchema, NULL, 0);
-  if (code != TSDB_CODE_SUCCESS) {
-    terrno = code;
-    return NULL;
-  }
-
-  code = doLoadFileBlockData(pReader, &pStatus->blockIter, &pStatus->fileBlockData);
+  int32_t code = doLoadFileBlockData(pReader, &pStatus->blockIter, &pStatus->fileBlockData, pBlockScanInfo->uid);
   if (code != TSDB_CODE_SUCCESS) {
     tBlockDataDestroy(&pStatus->fileBlockData, 1);
     terrno = code;
