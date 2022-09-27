@@ -125,7 +125,7 @@ _retention_loop:
           fSize += pSet->aSttF[iStt]->size;
         }
         if (fSize / speed > MIGRATE_MIN_COST) {
-          tsdbInfo("vgId:%d migrate loop[%d] with maxFid:%d", TD_VID(pTsdb->pVnode), nBatch, maxFid);
+          tsdbDebug("vgId:%d migrate loop[%d] with maxFid:%d", TD_VID(pTsdb->pVnode), nBatch, maxFid);
           break;
         }
       }
@@ -174,8 +174,8 @@ _commit_conflict_check:
 
       if (pSet->fid > maxFid) break;
 
-      tsdbInfo("vgId:%d migrate loop[%d] with maxFid:%d, fid:%d, did:%d, level:%d, expLevel:%d", TD_VID(pTsdb->pVnode),
-               nBatch, maxFid, pSet->fid, pSet->diskId.id, pSet->diskId.level, expLevel);
+      tsdbDebug("vgId:%d migrate loop[%d] with maxFid:%d, fid:%d, did:%d, level:%d, expLevel:%d", TD_VID(pTsdb->pVnode),
+                nBatch, maxFid, pSet->fid, pSet->diskId.id, pSet->diskId.level, expLevel);
 
       if (expLevel < 0) {
         SET_DFSET_EXPIRED(pSet);
@@ -273,11 +273,13 @@ int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now, int64_t maxSpeed) {
 _exit:
   pTsdb->trimHdl.maxRetentFid = INT32_MIN;
   if (code != 0) {
-    tsdbError("vgId:%d, tsdb do retention %d failed since %s", TD_VID(pTsdb->pVnode), retention, tstrerror(code));
+    tsdbError("vgId:%d, tsdb do retention %d failed since %s, time:%" PRIi64 ", max speed:%" PRIi64,
+              TD_VID(pTsdb->pVnode), retention, tstrerror(code), now, maxSpeed);
     ASSERT(0);
     // tsdbFSRollback(pTsdb->pFS);
   } else {
-    tsdbInfo("vgId:%d, tsdb do retention %d succeed", TD_VID(pTsdb->pVnode), retention);
+    tsdbInfo("vgId:%d, tsdb do retention %d succeed, time:%" PRIi64 "max speed:%" PRIi64, TD_VID(pTsdb->pVnode),
+             retention, now, maxSpeed);
   }
   return code;
 }

@@ -425,14 +425,14 @@ void *vnodeProcessTrimReqFunc(void *param) {
 _exit:
   oldVal = atomic_val_compare_exchange_8(&pVnode->trimDbH.state, 1, 0);
   ASSERT(oldVal == 1);
-  taosMemoryFree(pReq);
   if (code) {
-    vError("vgId:%d, trim vnode thread failed since %s, time:%" PRIi64, TD_VID(pVnode), tstrerror(code),
-           pReq->trimReq.timestamp);
+    vError("vgId:%d, trim vnode thread failed since %s, time:%" PRIi64 ", max speed:%" PRIi64, TD_VID(pVnode),
+           tstrerror(code), pReq->trimReq.timestamp, pReq->trimReq.maxSpeed);
   } else {
-    vInfo("vgId:%d, trim vnode thread finished, time:%" PRIi64, TD_VID(pVnode), pReq->trimReq.timestamp);
+    vInfo("vgId:%d, trim vnode thread finish, time:%" PRIi64 ", max speed:%" PRIi64, TD_VID(pVnode),
+          pReq->trimReq.timestamp, pReq->trimReq.maxSpeed);
   }
-
+  taosMemoryFree(pReq);
   return NULL;
 }
 
