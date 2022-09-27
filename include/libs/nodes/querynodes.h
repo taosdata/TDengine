@@ -261,6 +261,8 @@ typedef struct SSelectStmt {
   SNode*      pFromTable;
   SNode*      pWhere;
   SNodeList*  pPartitionByList;
+  SNodeList*  pTags;      // for create stream
+  SNode*      pSubtable;  // for create stream
   SNode*      pWindow;
   SNodeList*  pGroupByList;  // SGroupingSetNode
   SNode*      pHaving;

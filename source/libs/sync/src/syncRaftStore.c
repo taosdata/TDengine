@@ -46,7 +46,7 @@ SRaftStore *raftStoreOpen(const char *path) {
   ASSERT(pRaftStore->pFile != NULL);
 
   int len = taosReadFile(pRaftStore->pFile, storeBuf, RAFT_STORE_BLOCK_SIZE);
-  ASSERT(len == RAFT_STORE_BLOCK_SIZE);
+  ASSERT(len > 0);
 
   ret = raftStoreDeserialize(pRaftStore, storeBuf, len);
   ASSERT(ret == 0);
