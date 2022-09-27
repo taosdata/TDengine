@@ -2000,16 +2000,23 @@ int32_t tCompressStart(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg) {
   return code;
 }
 
-int32_t tCompressEnd(SCompressor *pCmprsor, const uint8_t **ppData, int32_t *nData) {
+int32_t tCompressEnd(SCompressor *pCmprsor, const uint8_t **ppOut, int32_t *nOut, int32_t *nOrigin) {
   int32_t code = 0;
 
-  *ppData = NULL;
-  *nData = 0;
+  *ppOut = NULL;
+  *nOut = 0;
+  if (nOrigin) {
+    if (DATA_TYPE_INFO[pCmprsor->type].isVarLen) {
+      *nOrigin = pCmprsor->nBuf - 1;
+    } else {
+      *nOrigin = pCmprsor->nVal * DATA_TYPE_INFO[pCmprsor->type].bytes;
+    }
+  }
 
   if (pCmprsor->nVal == 0) return code;
 
   if (DATA_TYPE_INFO[pCmprsor->type].endFn) {
-    return DATA_TYPE_INFO[pCmprsor->type].endFn(pCmprsor, ppData, nData);
+    return DATA_TYPE_INFO[pCmprsor->type].endFn(pCmprsor, ppOut, nOut);
   }
 
   return code;

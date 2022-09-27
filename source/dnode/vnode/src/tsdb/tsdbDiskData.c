@@ -31,8 +31,15 @@ struct SDiskColBuilder {
   SColumnDataAgg sma;
   uint8_t        minSet;
   uint8_t        maxSet;
-  uint8_t       *aBuf[1];
+  uint8_t       *aBuf[2];
 };
+
+// SDiskData ================================================
+static int32_t tDiskDataDestroy(SDiskData *pDiskData) {
+  int32_t code = 0;
+  pDiskData->aDiskCol = taosArrayDestroy(pDiskData->aDiskCol);
+  return code;
+}
 
 // SDiskColBuilder ================================================
 #define tDiskColBuilderCreate() \
@@ -91,7 +98,7 @@ static int32_t tGnrtDiskCol(SDiskColBuilder *pBuilder, SDiskCol *pDiskCol) {
                                      .type = pBuilder->type,
                                      .smaOn = pBuilder->calcSma,
                                      .flag = pBuilder->flag,
-                                     .szOrigin = 0,  // todo
+                                     .szOrigin = 0,
                                      .szBitmap = 0,
                                      .szOffset = 0,
                                      .szValue = 0,
@@ -109,20 +116,27 @@ static int32_t tGnrtDiskCol(SDiskColBuilder *pBuilder, SDiskCol *pDiskCol) {
       nBit = BIT1_SIZE(pBuilder->nVal);
     }
 
-    pDiskCol->bCol.szBitmap = tsCompressTinyint(pBuilder->pBitMap, nBit, nBit, pBuilder->aBuf[0], 0, pBuilder->cmprAlg,
-                                                NULL, 0);  // todo: alloc
+    code = tRealloc(&pBuilder->aBuf[0], nBit + COMP_OVERFLOW_BYTES);
+    if (code) return code;
+
+    code = tRealloc(&pBuilder->aBuf[1], nBit + COMP_OVERFLOW_BYTES);
+    if (code) return code;
+
+    pDiskCol->bCol.szBitmap =
+        tsCompressTinyint(pBuilder->pBitMap, nBit, nBit, pBuilder->aBuf[0], nBit + COMP_OVERFLOW_BYTES,
+                          pBuilder->cmprAlg, pBuilder->aBuf[1], nBit + COMP_OVERFLOW_BYTES);
     pDiskCol->pBit = pBuilder->aBuf[0];
   }
 
   // OFFSET
   if (IS_VAR_DATA_TYPE(pBuilder->type)) {
-    code = tCompressEnd(pBuilder->pOffC, &pDiskCol->pOff, &pDiskCol->bCol.szOffset);
+    code = tCompressEnd(pBuilder->pOffC, &pDiskCol->pOff, &pDiskCol->bCol.szOffset, NULL);
     if (code) return code;
   }
 
   // VALUE
   if (pBuilder->flag != (HAS_NULL | HAS_NONE)) {
-    code = tCompressEnd(pBuilder->pValC, &pDiskCol->pVal, &pDiskCol->bCol.szValue);
+    code = tCompressEnd(pBuilder->pValC, &pDiskCol->pVal, &pDiskCol->bCol.szValue, &pDiskCol->bCol.szOrigin);
     if (code) return code;
   }
 
@@ -425,8 +439,8 @@ static int32_t tDiskColAddVal(SDiskColBuilder *pBuilder, SColVal *pColVal) {
     }
   }
 
-  if (tDiskColAddValImpl[pBuilder->type][pColVal->type]) {
-    code = tDiskColAddValImpl[pBuilder->type][pColVal->type](pBuilder, pColVal);
+  if (tDiskColAddValImpl[pBuilder->flag][pColVal->flag]) {
+    code = tDiskColAddValImpl[pBuilder->flag][pColVal->flag](pBuilder, pColVal);
     if (code) return code;
   }
 
@@ -465,6 +479,7 @@ void *tDiskDataBuilderDestroy(SDiskDataBuilder *pBuilder) {
   for (int32_t iBuf = 0; iBuf < sizeof(pBuilder->aBuf) / sizeof(pBuilder->aBuf[0]); iBuf++) {
     tFree(pBuilder->aBuf[iBuf]);
   }
+  tDiskDataDestroy(&pBuilder->dd);
   taosMemoryFree(pBuilder);
 
   return NULL;
@@ -473,6 +488,8 @@ void *tDiskDataBuilderDestroy(SDiskDataBuilder *pBuilder) {
 int32_t tDiskDataBuilderInit(SDiskDataBuilder *pBuilder, STSchema *pTSchema, TABLEID *pId, uint8_t cmprAlg,
                              uint8_t calcSma) {
   int32_t code = 0;
+
+  ASSERT(pId->suid || pId->uid);
 
   pBuilder->suid = pId->suid;
   pBuilder->uid = pId->uid;
@@ -512,9 +529,9 @@ int32_t tDiskDataBuilderInit(SDiskDataBuilder *pBuilder, STSchema *pTSchema, TAB
       }
     }
 
-    SDiskColBuilder *pDiskColBuilder = (SDiskColBuilder *)taosArrayGet(pBuilder->aBuilder, pBuilder->nBuilder);
+    SDiskColBuilder *pDCBuilder = (SDiskColBuilder *)taosArrayGet(pBuilder->aBuilder, pBuilder->nBuilder);
 
-    code = tDiskColBuilderInit(pDiskColBuilder, pTColumn->colId, pTColumn->type, cmprAlg,
+    code = tDiskColBuilderInit(pDCBuilder, pTColumn->colId, pTColumn->type, cmprAlg,
                                (calcSma && (pTColumn->flags & COL_SMA_ON)));
     if (code) return code;
 
@@ -524,14 +541,22 @@ int32_t tDiskDataBuilderInit(SDiskDataBuilder *pBuilder, STSchema *pTSchema, TAB
   return code;
 }
 
-int32_t tDiskDataBuilderAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSchema *pTSchema, TABLEID *pId) {
+int32_t tDiskDataBuilderClear(SDiskDataBuilder *pBuilder) {
+  int32_t code = 0;
+  pBuilder->suid = 0;
+  pBuilder->uid = 0;
+  return code;
+}
+
+int32_t tDiskDataAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSchema *pTSchema, TABLEID *pId) {
   int32_t code = 0;
 
+  ASSERT(pBuilder->suid || pBuilder->uid);
   ASSERT(pId->suid == pBuilder->suid);
 
   // uid
   if (pBuilder->uid && pBuilder->uid != pId->uid) {
-    ASSERT(!pBuilder->calcSma);
+    ASSERT(pBuilder->suid);
     for (int32_t iRow = 0; iRow < pBuilder->nRow; iRow++) {
       code = tCompress(pBuilder->pUidC, &pBuilder->uid, sizeof(int64_t));
       if (code) return code;
@@ -564,14 +589,13 @@ int32_t tDiskDataBuilderAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSche
       pColVal = tRowIterNext(&iter);
     }
 
-    if (pColVal == NULL || pColVal->cid > pDCBuilder->cid) {
-      SColVal cv = COL_VAL_NONE(pDCBuilder->cid, pDCBuilder->type);
-      code = tDiskColAddVal(pDCBuilder, &cv);
-      if (code) return code;
-    } else {
+    if (pColVal && pColVal->cid == pDCBuilder->cid) {
       code = tDiskColAddVal(pDCBuilder, pColVal);
       if (code) return code;
       pColVal = tRowIterNext(&iter);
+    } else {
+      code = tDiskColAddVal(pDCBuilder, &COL_VAL_NONE(pDCBuilder->cid, pDCBuilder->type));
+      if (code) return code;
     }
   }
   pBuilder->nRow++;
@@ -579,11 +603,14 @@ int32_t tDiskDataBuilderAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSche
   return code;
 }
 
-int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, SDiskData *pDiskData) {
+int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, const SDiskData **ppDiskData) {
   int32_t code = 0;
 
   ASSERT(pBuilder->nRow);
 
+  *ppDiskData = NULL;
+
+  SDiskData *pDiskData = &pBuilder->dd;
   // reset SDiskData
   pDiskData->hdr = (SDiskDataHdr){.delimiter = TSDB_FILE_DLMT,
                                   .fmtVer = 0,
@@ -598,6 +625,22 @@ int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, SDiskData *pDiskData) {
   pDiskData->pUid = NULL;
   pDiskData->pVer = NULL;
   pDiskData->pKey = NULL;
+
+  // UID
+  if (pBuilder->uid == 0) {
+    code = tCompressEnd(pBuilder->pUidC, &pDiskData->pUid, &pDiskData->hdr.szUid, NULL);
+    if (code) return code;
+  }
+
+  // VERSION
+  code = tCompressEnd(pBuilder->pVerC, &pDiskData->pVer, &pDiskData->hdr.szVer, NULL);
+  if (code) return code;
+
+  // TSKEY
+  code = tCompressEnd(pBuilder->pKeyC, &pDiskData->pKey, &pDiskData->hdr.szKey, NULL);
+  if (code) return code;
+
+  // aDiskCol
   if (pDiskData->aDiskCol) {
     taosArrayClear(pDiskData->aDiskCol);
   } else {
@@ -607,20 +650,6 @@ int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, SDiskData *pDiskData) {
       return code;
     }
   }
-
-  // UID
-  if (pBuilder->uid == 0) {
-    code = tCompressEnd(pBuilder->pUidC, &pDiskData->pUid, &pDiskData->hdr.szUid);
-    if (code) return code;
-  }
-
-  // VERSION
-  code = tCompressEnd(pBuilder->pVerC, &pDiskData->pVer, &pDiskData->hdr.szVer);
-  if (code) return code;
-
-  // TSKEY
-  code = tCompressEnd(pBuilder->pKeyC, &pDiskData->pKey, &pDiskData->hdr.szKey);
-  if (code) return code;
 
   int32_t offset = 0;
   for (int32_t iBuilder = 0; iBuilder < pBuilder->nBuilder; iBuilder++) {
@@ -644,12 +673,6 @@ int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, SDiskData *pDiskData) {
     pDiskData->hdr.szBlkCol += tPutBlockCol(NULL, &dCol.bCol);
   }
 
-  return code;
-}
-
-// SDiskData ================================================
-int32_t tDiskDataDestroy(SDiskData *pDiskData) {
-  int32_t code = 0;
-  pDiskData->aDiskCol = taosArrayDestroy(pDiskData->aDiskCol);
+  *ppDiskData = pDiskData;
   return code;
 }

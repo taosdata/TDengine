@@ -665,7 +665,7 @@ static int32_t tsdbCommitSttBlk(SDataFWriter *pWriter, SDiskDataBuilder *pBuilde
                     .nRow = pBuilder->nRow};
 
   // gnrt
-  code = tGnrtDiskData(pBuilder, &pBuilder->dd);
+  // code = tGnrtDiskData(pBuilder, &pBuilder->dd);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // write
@@ -1369,7 +1369,6 @@ static int32_t tsdbInitSttBlockBuilderIfNeed(SCommitter *pCommitter, TABLEID id)
   if (!pBuilder->suid && !pBuilder->uid) {
     ASSERT(pCommitter->skmTable.suid == id.suid);
     ASSERT(pCommitter->skmTable.uid == id.uid);
-    TABLEID tid = {.suid = id.suid, .uid = id.suid ? 0 : id.uid};
     code =
         tDiskDataBuilderInit(pCommitter->dWriter.pBuilder, pCommitter->skmTable.pTSchema, &id, pCommitter->cmprAlg, 0);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -1396,7 +1395,7 @@ static int32_t tsdbAppendLastBlock(SCommitter *pCommitter) {
   for (int32_t iRow = 0; iRow < pBData->nRow; iRow++) {
     TSDBROW row = tsdbRowFromBlockData(pBData, iRow);
 
-    code = tDiskDataBuilderAddRow(pCommitter->dWriter.pBuilder, &row, NULL, &id);
+    code = tDiskDataAddRow(pCommitter->dWriter.pBuilder, &row, NULL, &id);
     TSDB_CHECK_CODE(code, lino, _exit);
 
     if (pCommitter->dWriter.pBuilder->nRow >= pCommitter->maxRow) {
@@ -1435,7 +1434,7 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, TABLEID id) {
         pTSchema = pCommitter->skmRow.pTSchema;
       }
 
-      code = tDiskDataBuilderAddRow(pCommitter->dWriter.pBuilder, &pRowInfo->row, pTSchema, &id);
+      code = tDiskDataAddRow(pCommitter->dWriter.pBuilder, &pRowInfo->row, pTSchema, &id);
       TSDB_CHECK_CODE(code, lino, _exit);
 
       code = tsdbNextCommitRow(pCommitter);

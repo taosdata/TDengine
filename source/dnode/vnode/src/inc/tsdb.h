@@ -326,9 +326,9 @@ int32_t tDiskDataBuilderCreate(SDiskDataBuilder **ppBuilder);
 void   *tDiskDataBuilderDestroy(SDiskDataBuilder *pBuilder);
 int32_t tDiskDataBuilderInit(SDiskDataBuilder *pBuilder, STSchema *pTSchema, TABLEID *pId, uint8_t cmprAlg,
                              uint8_t calcSma);
-int32_t tDiskDataBuilderAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSchema *pTSchema, TABLEID *pId);
-int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, SDiskData *pDiskData);
-int32_t tDiskDataDestroy(SDiskData *pDiskData);
+int32_t tDiskDataBuilderClear(SDiskDataBuilder *pBuilder);
+int32_t tDiskDataAddRow(SDiskDataBuilder *pBuilder, TSDBROW *pRow, STSchema *pTSchema, TABLEID *pId);
+int32_t tGnrtDiskData(SDiskDataBuilder *pBuilder, const SDiskData **ppDiskData);
 
 // structs =======================
 struct STsdbFS {
