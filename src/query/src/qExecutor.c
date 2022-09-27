@@ -6623,7 +6623,7 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
   }
   copyTsColoum(pRes, pInfo->pCtx, pOperator->numOfOutput);
   clearNumOfRes(pInfo->pCtx, pOperator->numOfOutput);
-  return (pInfo->pRes->info.rows > 0) ? pInfo->pRes : NULL;
+  return pInfo->pRes;
 }
 
 static SSDataBlock* doLimit(void* param, bool* newgroup) {

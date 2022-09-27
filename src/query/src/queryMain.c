@@ -359,6 +359,24 @@ bool qFitAlwaysValue(SQInfo * pQInfo) {
   return true;
 }
 
+bool doFillResultWithNull(SQInfo* pQInfo, char * data, size_t numOfRows) {
+  SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
+  SQueryAttr*       pQueryAttr = pRuntimeEnv->pQueryAttr;
+  SSDataBlock* pRes = pRuntimeEnv->outputBuf;
+
+  int32_t numOfCols = pQueryAttr->numOfOutput;
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    int16_t functionId = pQueryAttr->pExpr1[i].base.functionId;
+    // col
+    SColumnInfoData* pCol = taosArrayGet(pRes->pDataBlock, i);
+    if (functionId != TSDB_FUNC_COUNT)
+      setNull(data, pCol->info.type, pCol->info.bytes);
+    data += pCol->info.bytes * numOfRows;
+  }
+
+  return true;
+}
+
 int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *contLen, bool* continueExec) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
   int32_t compLen = 0;
@@ -371,9 +389,12 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
 
   int32_t s = GET_NUM_OF_RESULTS(pRuntimeEnv);
+  bool fillNull = false;
   if (s == 0 && tsAggAlways) {
-    if (qFitAlwaysValue(pQInfo))
+    if (qFitAlwaysValue(pQInfo)) {
       s = 1;
+      fillNull = true;
+    }
   }
 
   size_t size = pQueryAttr->resultRowSize * s;
@@ -404,6 +425,9 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   if (GET_NUM_OF_RESULTS(&(pQInfo->runtimeEnv)) > 0 && pQInfo->code == TSDB_CODE_SUCCESS) {
     doDumpQueryResult(pQInfo, (*pRsp)->data, (*pRsp)->compressed, &compLen);
   } else {
+    if (fillNull) {
+      doFillResultWithNull(pQInfo, (*pRsp)->data, 1);
+    }
     setQueryStatus(pRuntimeEnv, QUERY_OVER);
   }
 

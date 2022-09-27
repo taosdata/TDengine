@@ -937,12 +937,12 @@ static void count_function(SQLFunctionCtx *pCtx) {
     }
   }
 
-  if (numOfElem > 0 || tsAggAlways) {
+  if (numOfElem > 0) {
     GET_RES_INFO(pCtx)->hasResult = DATA_SET_FLAG;
-    *((int64_t *)pCtx->pOutput) += numOfElem;
-    pCtx->resultInfo->numOfRes = 1;
   }
 
+  *((int64_t *)pCtx->pOutput) += numOfElem;
+  SET_VAL(pCtx, numOfElem, 1);
 }
 
 static void count_func_merge(SQLFunctionCtx *pCtx) {
