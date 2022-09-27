@@ -1478,6 +1478,7 @@ void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
 }
 
 static int32_t mndProcessTransTimer(SRpcMsg *pReq) {
+  mTrace("start to process trans timer");
   mndTransPullup(pReq->info.node);
   return 0;
 }

@@ -201,7 +201,7 @@ void *threadFunc(void *param) {
     int64_t t = pInfo->tableBeginIndex;
     for (; t <= pInfo->tableEndIndex;) {
       // int64_t batch = (pInfo->tableEndIndex - t);
-      // batch = MIN(batch, batchNum);
+      // batch = TMIN(batch, batchNum);
 
       int32_t len = sprintf(qstr, "create table");
       for (int32_t i = 0; i < batchNumOfTbl;) {
