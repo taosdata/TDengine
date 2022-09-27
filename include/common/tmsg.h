@@ -866,7 +866,8 @@ int32_t tSerializeSDbCfgReq(void* buf, int32_t bufLen, SDbCfgReq* pReq);
 int32_t tDeserializeSDbCfgReq(void* buf, int32_t bufLen, SDbCfgReq* pReq);
 
 typedef struct {
-  char db[TSDB_DB_FNAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
+  int32_t maxSpeed;
 } STrimDbReq;
 
 int32_t tSerializeSTrimDbReq(void* buf, int32_t bufLen, STrimDbReq* pReq);
@@ -1426,10 +1427,10 @@ typedef struct {
 
 typedef struct {
   SExplainRsp rsp;
-  uint64_t qId; 
-  uint64_t tId; 
-  int64_t rId; 
-  int32_t eId;
+  uint64_t    qId;
+  uint64_t    tId;
+  int64_t     rId;
+  int32_t     eId;
 } SExplainLocalRsp;
 
 typedef struct STableScanAnalyzeInfo {
@@ -1446,7 +1447,7 @@ typedef struct STableScanAnalyzeInfo {
 
 int32_t tSerializeSExplainRsp(void* buf, int32_t bufLen, SExplainRsp* pRsp);
 int32_t tDeserializeSExplainRsp(void* buf, int32_t bufLen, SExplainRsp* pRsp);
-void tFreeSExplainRsp(SExplainRsp *pRsp);
+void    tFreeSExplainRsp(SExplainRsp* pRsp);
 
 typedef struct {
   char    fqdn[TSDB_FQDN_LEN];  // end point, hostname:port
@@ -1729,6 +1730,8 @@ typedef struct {
   int64_t maxDelay;
   int64_t watermark;
   int8_t  igExpired;
+  int32_t numOfTags;
+  SArray* pTags;  // array of SField
 } SCMCreateStreamReq;
 
 typedef struct {

@@ -772,6 +772,8 @@ void nodesDestroyNode(SNode* pNode) {
       nodesDestroyNode(pStmt->pFromTable);
       nodesDestroyNode(pStmt->pWhere);
       nodesDestroyList(pStmt->pPartitionByList);
+      nodesDestroyList(pStmt->pTags);
+      nodesDestroyNode(pStmt->pSubtable);
       nodesDestroyNode(pStmt->pWindow);
       nodesDestroyList(pStmt->pGroupByList);
       nodesDestroyNode(pStmt->pHaving);

@@ -97,9 +97,8 @@ typedef struct SDiskDataBuilder SDiskDataBuilder;
 static FORCE_INLINE int64_t tsdbLogicToFileSize(int64_t lSize, int32_t szPage) {
   int64_t fOffSet = LOGIC_TO_FILE_OFFSET(lSize, szPage);
   int64_t pgno = OFFSET_PGNO(fOffSet, szPage);
-  int32_t szPageCont = PAGE_CONTENT_SIZE(szPage);
 
-  if (fOffSet % szPageCont == 0) {
+  if (fOffSet % szPage == 0) {
     pgno--;
   }
 
