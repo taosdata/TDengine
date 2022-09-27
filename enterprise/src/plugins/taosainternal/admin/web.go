@@ -37,13 +37,13 @@ type Controller struct {
 
 func (ctl *Controller) Init(router gin.IRouter) {
 	api := router.Group("admin")
-	api.GET("info", rest.CheckAuth, ctl.info)
-	api.POST("info", rest.CheckAuth, ctl.info)
-	api.POST("meta", rest.CheckAuth, ctl.meta)
-	api.POST("login", rest.CheckAuth, ctl.login)
-	api.POST("logout", rest.CheckAuth, ctl.logout)
-	api.POST("sql", rest.CheckAuth, ctl.sql)
-	api.POST("sql/:db", rest.CheckAuth, ctl.sql)
+	//api.GET("info", rest.CheckAuth, ctl.info)
+	//api.POST("info", rest.CheckAuth, ctl.info)
+	//api.POST("meta", rest.CheckAuth, ctl.meta)
+	//api.POST("login", rest.CheckAuth, ctl.login)
+	//api.POST("logout", rest.CheckAuth, ctl.logout)
+	//api.POST("sql", rest.CheckAuth, ctl.sql)
+	//api.POST("sql/:db", rest.CheckAuth, ctl.sql)
 	api.POST("result", rest.CheckAuth, ctl.resultFile)
 	api.POST("result/:db", rest.CheckAuth, ctl.resultFile)
 }

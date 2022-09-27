@@ -2,7 +2,6 @@ package admin
 
 import (
 	"encoding/csv"
-	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,7 +11,6 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/taosdata/taosadapter/v3/config"
-	"github.com/taosdata/taosadapter/v3/controller/rest"
 	"github.com/taosdata/taosadapter/v3/db"
 )
 
@@ -33,77 +31,77 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
-// @author: xftan
-// @date: 2021/12/24 13:30
-// @description: test admin/info get
-func TestInfoGet(t *testing.T) {
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodGet, "/admin/info", nil)
-	req.Header.Set("Authorization", "Basic cm9vdDp0YW9zZGF0YQ==")
-	router.ServeHTTP(w, req)
-	assert.Equal(t, 200, w.Code)
-}
-
-// @author: xftan
-// @date: 2021/12/24 13:31
-// @description: test admin/info post
-func TestInfoPost(t *testing.T) {
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/admin/info", nil)
-	req.Header.Set("Authorization", "Basic cm9vdDp0YW9zZGF0YQ==")
-	router.ServeHTTP(w, req)
-	assert.Equal(t, 200, w.Code)
-}
-
-// @author: xftan
-// @date: 2021/12/24 13:31
-// @description: test admin/meta
-func TestMeta(t *testing.T) {
-	w := httptest.NewRecorder()
-	body := strings.NewReader("select * from log.dnodes_info")
-	req, _ := http.NewRequest(http.MethodPost, "/admin/meta", body)
-	req.Header.Set("Authorization", "Basic cm9vdDp0YW9zZGF0YQ==")
-	router.ServeHTTP(w, req)
-	assert.Equal(t, 200, w.Code)
-}
-
-// @author: xftan
-// @date: 2021/12/24 13:31
-// @description: test /admin/login
-func TestLogin(t *testing.T) {
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/admin/login", nil)
-	req.Header.Set("Authorization", "Basic cm9vdDp0YW9zZGF0YQ==")
-	router.ServeHTTP(w, req)
-	assert.Equal(t, 200, w.Code)
-	var data rest.Message
-	err := json.Unmarshal(w.Body.Bytes(), &data)
-	assert.NoError(t, err)
-	assert.Equal(t, "/KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04", data.Desc)
-}
-
-// @author: xftan
-// @date: 2021/12/24 13:31
-// @description: test admin/login
-func TestLogout(t *testing.T) {
-	w := httptest.NewRecorder()
-	req, _ := http.NewRequest(http.MethodPost, "/admin/login", nil)
-	req.Header.Set("Authorization", "Basic cm9vdDp0YW9zZGF0YQ==")
-	router.ServeHTTP(w, req)
-	assert.Equal(t, 200, w.Code)
-}
-
-// @author: xftan
-// @date: 2021/12/24 13:32
-// @description: test admin/sql
-func TestSql(t *testing.T) {
-	w := httptest.NewRecorder()
-	body := strings.NewReader("show databases")
-	req, _ := http.NewRequest(http.MethodPost, "/admin/sql", body)
-	req.Header.Set("Authorization", "Basic cm9vdDp0YW9zZGF0YQ==")
-	router.ServeHTTP(w, req)
-	assert.Equal(t, 200, w.Code)
-}
+//// @author: xftan
+//// @date: 2021/12/24 13:30
+//// @description: test admin/info get
+//func TestInfoGet(t *testing.T) {
+//	w := httptest.NewRecorder()
+//	req, _ := http.NewRequest(http.MethodGet, "/admin/info", nil)
+//	req.Header.Set("Authorization", "Basic cm9vdDp0YW9zZGF0YQ==")
+//	router.ServeHTTP(w, req)
+//	assert.Equal(t, 200, w.Code)
+//}
+//
+//// @author: xftan
+//// @date: 2021/12/24 13:31
+//// @description: test admin/info post
+//func TestInfoPost(t *testing.T) {
+//	w := httptest.NewRecorder()
+//	req, _ := http.NewRequest(http.MethodPost, "/admin/info", nil)
+//	req.Header.Set("Authorization", "Basic cm9vdDp0YW9zZGF0YQ==")
+//	router.ServeHTTP(w, req)
+//	assert.Equal(t, 200, w.Code)
+//}
+//
+//// @author: xftan
+//// @date: 2021/12/24 13:31
+//// @description: test admin/meta
+//func TestMeta(t *testing.T) {
+//	w := httptest.NewRecorder()
+//	body := strings.NewReader("select * from log.dnodes_info")
+//	req, _ := http.NewRequest(http.MethodPost, "/admin/meta", body)
+//	req.Header.Set("Authorization", "Basic cm9vdDp0YW9zZGF0YQ==")
+//	router.ServeHTTP(w, req)
+//	assert.Equal(t, 200, w.Code)
+//}
+//
+//// @author: xftan
+//// @date: 2021/12/24 13:31
+//// @description: test /admin/login
+//func TestLogin(t *testing.T) {
+//	w := httptest.NewRecorder()
+//	req, _ := http.NewRequest(http.MethodPost, "/admin/login", nil)
+//	req.Header.Set("Authorization", "Basic cm9vdDp0YW9zZGF0YQ==")
+//	router.ServeHTTP(w, req)
+//	assert.Equal(t, 200, w.Code)
+//	var data rest.Message
+//	err := json.Unmarshal(w.Body.Bytes(), &data)
+//	assert.NoError(t, err)
+//	assert.Equal(t, "/KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04", data.Desc)
+//}
+//
+//// @author: xftan
+//// @date: 2021/12/24 13:31
+//// @description: test admin/login
+//func TestLogout(t *testing.T) {
+//	w := httptest.NewRecorder()
+//	req, _ := http.NewRequest(http.MethodPost, "/admin/login", nil)
+//	req.Header.Set("Authorization", "Basic cm9vdDp0YW9zZGF0YQ==")
+//	router.ServeHTTP(w, req)
+//	assert.Equal(t, 200, w.Code)
+//}
+//
+//// @author: xftan
+//// @date: 2021/12/24 13:32
+//// @description: test admin/sql
+//func TestSql(t *testing.T) {
+//	w := httptest.NewRecorder()
+//	body := strings.NewReader("show databases")
+//	req, _ := http.NewRequest(http.MethodPost, "/admin/sql", body)
+//	req.Header.Set("Authorization", "Basic cm9vdDp0YW9zZGF0YQ==")
+//	router.ServeHTTP(w, req)
+//	assert.Equal(t, 200, w.Code)
+//}
 
 func TestDownload(t *testing.T) {
 	w := httptest.NewRecorder()
