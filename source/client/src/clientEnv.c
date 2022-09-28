@@ -19,6 +19,7 @@
 #include "functionMgt.h"
 #include "os.h"
 #include "query.h"
+#include "qworker.h"
 #include "scheduler.h"
 #include "tcache.h"
 #include "tglobal.h"
@@ -27,7 +28,6 @@
 #include "trpc.h"
 #include "tsched.h"
 #include "ttime.h"
-#include "qworker.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
