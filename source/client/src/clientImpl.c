@@ -815,7 +815,7 @@ int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog) {
 
 int32_t handleQueryExecRsp(SRequestObj* pRequest) {
   if (NULL == pRequest->body.resInfo.execRes.res) {
-    return TSDB_CODE_SUCCESS;
+    return pRequest->code;
   }
 
   SCatalog*     pCatalog = NULL;
@@ -868,6 +868,7 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
   return code;
 }
 
+//todo refacto the error code  mgmt
 void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   SRequestObj* pRequest = (SRequestObj*)param;
   STscObj* pTscObj = pRequest->pTscObj;
@@ -914,7 +915,10 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   }
 
   pRequest->metric.execEnd = taosGetTimestampUs();
-  code = handleQueryExecRsp(pRequest);
+  int32_t code1 = handleQueryExecRsp(pRequest);
+  if (pRequest->code == TSDB_CODE_SUCCESS && pRequest->code != code1) {
+    pRequest->code = code1;
+  }
 
   // return to client
   pRequest->body.queryFp(pRequest->body.param, pRequest, code);
