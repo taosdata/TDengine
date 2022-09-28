@@ -47,7 +47,7 @@ class TDTestQuery(TDCase):
         return case_description
 
     #basic_param
-    db = "table_alltype_last"
+    db = "table_last"
     service_host = ""
     table_list = ['regular_table_1','stable_1_1','regular_table_2','stable_1_2','stable_2_1']
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
