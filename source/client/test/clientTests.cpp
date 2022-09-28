@@ -52,15 +52,15 @@ void printResult(TAOS_RES* pRes) {
   int32_t n = 0;
   char str[512] = {0};
   while ((pRow = taos_fetch_row(pRes)) != NULL) {
-    int32_t* length = taos_fetch_lengths(pRes);
-    for(int32_t i = 0; i < numOfFields; ++i) {
-      printf("(%d):%d " , i, length[i]);
-    }
-    printf("\n");
-
-    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
-    printf("%s\n", str);
-    memset(str, 0, sizeof(str));
+//    int32_t* length = taos_fetch_lengths(pRes);
+//    for(int32_t i = 0; i < numOfFields; ++i) {
+//      printf("(%d):%d " , i, length[i]);
+//    }
+//    printf("\n");
+//
+//    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
+//    printf("%s\n", str);
+//    memset(str, 0, sizeof(str));
   }
 }
 
@@ -701,6 +701,7 @@ TEST(testCase, projection_query_tables) {
   for (int32_t i = 0; i < 5000; ++i) {
     pRes = taos_query(pConn,
                       "SELECT _wstart as ts,max(usage_user) FROM t_76 WHERE  ts >= 1451618560000 AND ts < 1451622160000 INTERVAL(1m)");
+    printResult(pRes);
     taos_free_result(pRes);
     //    printf("create table :%d\n", i);
     //    createNewTable(pConn, i);
