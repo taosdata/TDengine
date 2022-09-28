@@ -70,11 +70,10 @@ static void deregisterRequest(SRequestObj *pRequest) {
   int32_t currentInst = atomic_sub_fetch_64((int64_t *)&pActivity->currentRequests, 1);
   int32_t num = atomic_sub_fetch_32(&pTscObj->numOfReqs, 1);
 
-  int64_t nowUs = taosGetTimestampUs();
-  int64_t duration = nowUs - pRequest->metric.start;
-  tscDebug("0x%" PRIx64 " free Request from connObj: 0x%" PRIx64 ", reqId:0x%" PRIx64 " elapsed:%" PRIu64
-           " ms, current:%d, app current:%d",
-           pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000, num, currentInst);
+  int64_t duration = taosGetTimestampUs() - pRequest->metric.start;
+  tscDebug("0x%" PRIx64 " free Request from connObj: 0x%" PRIx64 ", reqId:0x%" PRIx64 " elapsed:%.2f ms, "
+           "current:%d, app current:%d",
+           pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000.0, num, currentInst);
 
   if (QUERY_NODE_VNODE_MODIF_STMT == pRequest->stmtType) {
     tscPerf("insert duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
@@ -85,11 +84,12 @@ static void deregisterRequest(SRequestObj *pRequest) {
     atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
   } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
     tscPerf("select duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
-            "us, planner:%" PRId64 "us, exec:%" PRId64 "us",
+            "us, planner:%" PRId64 "us, exec:%" PRId64 "us, reqId:0x%"PRIx64,
             duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart,
             pRequest->metric.ctgEnd - pRequest->metric.ctgStart, pRequest->metric.semanticEnd - pRequest->metric.ctgEnd,
             pRequest->metric.planEnd - pRequest->metric.semanticEnd,
-            pRequest->metric.resultReady - pRequest->metric.planEnd);
+            pRequest->metric.resultReady - pRequest->metric.planEnd, pRequest->requestId);
+
     atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
   }
 
