@@ -1400,7 +1400,7 @@ static int32_t tCompIntSwitchToCopy(SCompressor *pCmprsor) {
   int32_t n = 1;
   int32_t nBuf = 1;
   int64_t vPrev = 0;
-  for (int32_t iVal = 0; iVal < pCmprsor->nVal;) {
+  while (n < pCmprsor->nBuf) {
     uint64_t b;
     memcpy(&b, pCmprsor->pBuf + n, sizeof(b));
     n += sizeof(b);
@@ -1410,14 +1410,18 @@ static int32_t tCompIntSwitchToCopy(SCompressor *pCmprsor) {
     uint8_t bits = BIT_PER_INTEGER[i_selector];
     for (int32_t iEle = 0; iEle < nEle; iEle++) {
       uint64_t vZigzag = (b >> (bits * iEle + 4)) & (((uint64_t)1 << bits) - 1);
-      int64_t  diff = ZIGZAG_DECODE(int64_t, vZigzag);
-      vPrev = diff + vPrev;
+      vPrev = ZIGZAG_DECODE(int64_t, vZigzag) + vPrev;
 
       memcpy(pCmprsor->aBuf[0] + nBuf, &vPrev, DATA_TYPE_INFO[pCmprsor->type].bytes);
       nBuf += DATA_TYPE_INFO[pCmprsor->type].bytes;
     }
-    iVal += nEle;
-    ASSERT(iVal <= pCmprsor->nVal);
+  }
+
+  for (; pCmprsor->i_start != pCmprsor->i_end; pCmprsor->i_start = (pCmprsor->i_start + 1) % 241) {
+    vPrev = ZIGZAG_DECODE(int64_t, pCmprsor->i_aZigzag[pCmprsor->i_start]) + vPrev;
+
+    memcpy(pCmprsor->aBuf[0] + nBuf, &vPrev, DATA_TYPE_INFO[pCmprsor->type].bytes);
+    nBuf += DATA_TYPE_INFO[pCmprsor->type].bytes;
   }
 
   ASSERT(n == pCmprsor->nBuf && nBuf == size);
