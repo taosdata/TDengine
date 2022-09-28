@@ -1069,8 +1069,8 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
 
   ASSERT(hdr.delimiter == TSDB_FILE_DLMT);
   ASSERT(pBlockData->suid == hdr.suid);
-  ASSERT(pBlockData->uid == hdr.uid);
 
+  pBlockData->uid = hdr.uid;
   pBlockData->nRow = hdr.nRow;
 
   // uid
