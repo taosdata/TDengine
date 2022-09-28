@@ -213,6 +213,80 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
 #endif
 
 int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
+  if (msgType == TDMT_VND_SUBMIT) {
+    // lock push mgr to avoid potential msg lost
+    taosWLockLatch(&pTq->pushLock);
+    if (taosHashGetSize(pTq->pPushMgr) != 0) {
+      SArray* cachedKeys = taosArrayInit(0, sizeof(void*));
+      SArray* cachedKeyLens = taosArrayInit(0, sizeof(size_t));
+      void*   data = taosMemoryMalloc(msgLen);
+      if (data == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        tqError("failed to copy data for stream since out of memory");
+        return -1;
+      }
+      memcpy(data, msg, msgLen);
+      SSubmitReq* pReq = (SSubmitReq*)data;
+      pReq->version = ver;
+
+      void* pIter = NULL;
+      while (1) {
+        pIter = taosHashIterate(pTq->pPushMgr, pIter);
+        if (pIter == NULL) break;
+        STqPushEntry*  pPushEntry = *(STqPushEntry**)pIter;
+        STqExecHandle* pExec = &pPushEntry->pHandle->execHandle;
+        qTaskInfo_t    task = pExec->task;
+        SMqDataRsp*    pRsp = &pPushEntry->dataRsp;
+
+        // prepare scan mem data
+        qStreamScanMemData(task, pReq);
+
+        // exec
+        while (1) {
+          SSDataBlock* pDataBlock = NULL;
+          uint64_t     ts = 0;
+          if (qExecTask(task, NULL, &ts) < 0) {
+            ASSERT(0);
+          }
+
+          if (pDataBlock == NULL) {
+            break;
+          }
+
+          tqAddBlockDataToRsp(pDataBlock, pRsp, pExec->numOfCols);
+          pRsp->blockNum++;
+        }
+        if (pRsp->blockNum > 0) {
+          // set offset
+          tqOffsetResetToLog(&pRsp->rspOffset, ver);
+          // remove from hash
+          size_t kLen;
+          void*  key = taosHashGetKey(pPushEntry, &kLen);
+          void*  keyCopy = taosMemoryMalloc(kLen);
+          memcpy(keyCopy, key, kLen);
+
+          taosArrayPush(cachedKeys, &keyCopy);
+          taosArrayPush(cachedKeyLens, &kLen);
+
+          if (taosHashRemove(pTq->pPushMgr, key, kLen) != 0) {
+            ASSERT(0);
+          }
+          tqPushDataRsp(pTq, pPushEntry);
+        }
+      }
+      // delete entry
+      for (int32_t i = 0; i < taosArrayGetSize(cachedKeys); i++) {
+        void*  key = taosArrayGetP(cachedKeys, i);
+        size_t kLen = *(size_t*)taosArrayGet(cachedKeyLens, i);
+        taosHashRemove(pTq->pPushMgr, key, kLen);
+      }
+      taosArrayDestroyP(cachedKeys, (FDelete)taosMemoryFree);
+      taosArrayDestroy(cachedKeyLens);
+    }
+    // unlock
+    taosWUnLockLatch(&pTq->pushLock);
+  }
+
   if (vnodeIsRoleLeader(pTq->pVnode)) {
     if (msgType == TDMT_VND_SUBMIT) {
       if (taosHashGetSize(pTq->pStreamMeta->pTasks) == 0) return 0;

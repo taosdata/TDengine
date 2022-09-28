@@ -145,6 +145,7 @@ typedef struct {
   SMqMetaRsp   metaRsp;        // for tmq fetching meta
   int8_t       returned;
   int64_t      snapshotVer;
+  const SSubmitReq*  pReq;
 
   SSchemaWrapper*     schema;
   char                tbName[TSDB_TABLE_NAME_LEN];

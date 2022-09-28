@@ -1430,6 +1430,41 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   SStreamScanInfo* pInfo = pOperator->info;
 
   qDebug("queue scan called");
+
+  if (pTaskInfo->streamInfo.pReq != NULL) {
+    if (pInfo->tqReader->pMsg == NULL) {
+      pInfo->tqReader->pMsg = pTaskInfo->streamInfo.pReq;
+      const SSubmitReq* pSubmit = pInfo->tqReader->pMsg;
+      if (tqReaderSetDataMsg(pInfo->tqReader, pSubmit, 0) < 0) {
+        qError("submit msg messed up when initing stream submit block %p", pSubmit);
+        pInfo->tqReader->pMsg = NULL;
+        ASSERT(0);
+      }
+    }
+
+    blockDataCleanup(pInfo->pRes);
+    SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
+
+    while (tqNextDataBlock(pInfo->tqReader)) {
+      SSDataBlock block = {0};
+
+      int32_t code = tqRetrieveDataBlock(&block, pInfo->tqReader);
+
+      if (code != TSDB_CODE_SUCCESS || block.info.rows == 0) {
+        continue;
+      }
+
+      setBlockIntoRes(pInfo, &block);
+
+      if (pBlockInfo->rows > 0) {
+        return pInfo->pRes;
+      }
+    }
+
+    pInfo->tqReader->pMsg = NULL;
+    pTaskInfo->streamInfo.pReq = NULL;
+  }
+
   if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
     if (pResult && pResult->info.rows > 0) {
