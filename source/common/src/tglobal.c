@@ -85,8 +85,7 @@ uint16_t tsTelemPort = 80;
 char tsSmlTagName[TSDB_COL_NAME_LEN] = "_tag_null";
 char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table name can be specified in tag value.
                                                      // If set to empty system will generate table name using MD5 hash.
-bool tsSmlDataFormat =
-    true;  // true means that the name and order of cols in each line are the same(only for influx protocol)
+bool tsSmlDataFormat = false;  // true means that the name and order of cols in each line are the same(only for influx protocol)
 
 // query
 int32_t tsQueryPolicy = 1;
