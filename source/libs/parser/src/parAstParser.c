@@ -407,6 +407,10 @@ static int32_t collectMetaKeyFromShowTags(SCollectMetaKeyCxt* pCxt, SShowStmt* p
   if (TSDB_CODE_SUCCESS == code) {
     code = reserveDbVgInfoInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal, pCxt->pMetaCache);
   }
+  if (TSDB_CODE_SUCCESS == code && NULL != pStmt->pTbName) {
+    code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, ((SValueNode*)pStmt->pDbName)->literal,
+                                     ((SValueNode*)pStmt->pTbName)->literal, pCxt->pMetaCache);
+  }
   return code;
 }
 

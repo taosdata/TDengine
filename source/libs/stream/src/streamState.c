@@ -29,7 +29,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath) {
   if (!specPath) {
     sprintf(statePath, "%s/%d", path, pTask->taskId);
   } else {
-    memcpy(statePath, path, 300);
+    strncpy(statePath, path, 300);
   }
   if (tdbOpen(statePath, 4096, 256, &pState->db) < 0) {
     goto _err;

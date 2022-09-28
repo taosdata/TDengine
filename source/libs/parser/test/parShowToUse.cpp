@@ -196,6 +196,12 @@ TEST_F(ParserShowToUseTest, showTableDistributed) {
   run("SHOW TABLE DISTRIBUTED st1");
 }
 
+TEST_F(ParserShowToUseTest, showTags) {
+  useDb("root", "test");
+
+  run("SHOW TAGS FROM st1s1");
+}
+
 // todo SHOW topics
 
 TEST_F(ParserShowToUseTest, showUsers) {
@@ -213,9 +219,9 @@ TEST_F(ParserShowToUseTest, showVariables) {
 TEST_F(ParserShowToUseTest, showVgroups) {
   useDb("root", "test");
 
-  run("SHOW vgroups");
+  run("SHOW VGROUPS");
 
-  run("SHOW test.vgroups");
+  run("SHOW test.VGROUPS");
 }
 
 TEST_F(ParserShowToUseTest, showVnodes) {
