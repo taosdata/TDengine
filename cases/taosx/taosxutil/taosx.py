@@ -142,3 +142,25 @@ class Runtaosx():
                                     -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])+11}/{dbname[source]}?group.id={group_id}&timeout={timeout}'\
                                     -t 'taos{target_task}://root:taosdata@{target_taosd[0]}:{int(target_taosd[1])+11}/{target_dbname}'\
                                         {rename_str}")))
+    def run_taosx_add_tag_from_native_to_native(self,thread_list,taosx_setting,source_task,target_task,source_taosd_list,target_taosd,dbname,target_dbname,source,group_id,timeout,add_tag_str):
+        thread_list.append(threading.Thread(target=self.remote.cmd, args=(
+                                taosx_setting['fqdn'][0], f"taosx run \
+                                    -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])}/{dbname[source]}?group.id={group_id}&timeout={timeout}'\
+                                    -t 'taos{target_task}://root:taosdata@{target_taosd[0]}:{int(target_taosd[1])}/{target_dbname}' {add_tag_str}")))
+    def run_taosx_add_tag_from_native_to_ws(self,thread_list,taosx_setting,source_task,target_task,source_taosd_list,target_taosd,dbname,target_dbname,source,group_id,timeout,add_tag_str):
+        thread_list.append(threading.Thread(target=self.remote.cmd, args=(
+                                taosx_setting['fqdn'][0], f"taosx run \
+                                    -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])}/{dbname[source]}?group.id={group_id}&timeout={timeout}'\
+                                    -t 'taos{target_task}://root:taosdata@{target_taosd[0]}:{int(target_taosd[1])+11}/{target_dbname}' {add_tag_str}")))
+    def run_taosx_add_tag_from_ws_to_native(self,thread_list,taosx_setting,source_task,target_task,source_taosd_list,target_taosd,dbname,target_dbname,source,group_id,timeout,add_tag_str):
+        thread_list.append(threading.Thread(target=self.remote.cmd, args=(
+                                taosx_setting['fqdn'][0], f"taosx run \
+                                    -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])+11}/{dbname[source]}?group.id={group_id}&timeout={timeout}'\
+                                    -t 'taos{target_task}://root:taosdata@{target_taosd[0]}:{int(target_taosd[1])}/{target_dbname}'\
+                                        {add_tag_str}")))
+    def run_taosx_add_tag_from_ws_to_ws(self,thread_list,taosx_setting,source_task,target_task,source_taosd_list,target_taosd,dbname,target_dbname,source,group_id,timeout,add_tag_str):
+        thread_list.append(threading.Thread(target=self.remote.cmd, args=(
+                                taosx_setting['fqdn'][0], f"taosx run \
+                                    -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])+11}/{dbname[source]}?group.id={group_id}&timeout={timeout}'\
+                                    -t 'taos{target_task}://root:taosdata@{target_taosd[0]}:{int(target_taosd[1])+11}/{target_dbname}'\
+                                        {add_tag_str}")))
