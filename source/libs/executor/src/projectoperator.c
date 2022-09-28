@@ -241,8 +241,19 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       // The downstream exec may change the value of the newgroup, so use a local variable instead.
       SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
       if (pBlock == NULL) {
+        if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE && pOperator->status == OP_EXEC_RECV &&
+            pFinalRes->info.rows == 0) {
+          pOperator->status = OP_OPENED;
+          continue;
+        }
+        qDebug("set op close, exec %d, status %d rows %d", pTaskInfo->execModel, pOperator->status,
+               pFinalRes->info.rows);
         doSetOperatorCompleted(pOperator);
         break;
+      }
+      if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
+        qDebug("set status recv");
+        pOperator->status = OP_EXEC_RECV;
       }
 
       // for stream interval
@@ -258,7 +269,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       }
 
       setInfoForNewGroup(pBlock, pLimitInfo, pOperator);
-      if (pTaskInfo->execModel == OPTR_EXEC_MODEL_BATCH && pOperator->status == OP_EXEC_DONE) {
+      if (pOperator->status == OP_EXEC_DONE) {
         break;
       }
 
@@ -302,6 +313,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
       // when apply the limit/offset for each group, pRes->info.rows may be 0, due to limit constraint.
       if (pFinalRes->info.rows > 0 || (pOperator->status == OP_EXEC_DONE)) {
+        qDebug("project return %d rows, status %d", pFinalRes->info.rows, pOperator->status);
         break;
       }
     } else {

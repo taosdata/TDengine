@@ -1603,6 +1603,7 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
       return NULL;
     } else if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__POLL_RSP) {
       SMqPollRspWrapper* pollRspWrapper = (SMqPollRspWrapper*)rspWrapper;
+      tscDebug("consumer %ld actual process poll rsp", tmq->consumerId);
       /*atomic_sub_fetch_32(&tmq->readyRequest, 1);*/
       int32_t consumerEpoch = atomic_load_32(&tmq->epoch);
       if (pollRspWrapper->dataRsp.head.epoch == consumerEpoch) {
@@ -1718,7 +1719,10 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
 
   while (1) {
     tmqHandleAllDelayedTask(tmq);
-    if (tmqPollImpl(tmq, timeout) < 0) return NULL;
+    if (tmqPollImpl(tmq, timeout) < 0) {
+      tscDebug("return since poll err");
+      /*return NULL;*/
+    }
 
     rspObj = tmqHandleAllRsp(tmq, timeout, false);
     if (rspObj) {

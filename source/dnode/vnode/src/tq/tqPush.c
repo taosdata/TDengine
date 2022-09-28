@@ -213,6 +213,8 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
 #endif
 
 int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
+  tqDebug("vgId:%d tq push msg ver %ld", pTq->pVnode->config.vgId, ver);
+
   if (msgType == TDMT_VND_SUBMIT) {
     // lock push mgr to avoid potential msg lost
     taosWLockLatch(&pTq->pushLock);
@@ -257,6 +259,8 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
           pRsp->blockNum++;
         }
 
+        tqDebug("vgId:%d tq handle push, subkey: %s, block num: %d", pTq->pVnode->config.vgId,
+                pPushEntry->pHandle->subKey, pRsp->blockNum);
         if (pRsp->blockNum > 0) {
           // set offset
           tqOffsetResetToLog(&pRsp->rspOffset, ver);

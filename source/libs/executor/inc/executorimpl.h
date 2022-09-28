@@ -193,6 +193,7 @@ enum {
   OP_OPENED = 0x1,
   OP_RES_TO_RETURN = 0x5,
   OP_EXEC_DONE = 0x9,
+  OP_EXEC_RECV = 0x11,
 };
 
 typedef struct SOperatorFpSet {

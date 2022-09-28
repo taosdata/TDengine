@@ -420,6 +420,8 @@ static int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq, int8_t su
     return -1;
   }
 
+  pRsp->withTbName = 0;
+#if 0
   pRsp->withTbName = pReq->withTbName;
   if (pRsp->withTbName) {
     pRsp->blockTbName = taosArrayInit(0, sizeof(void*));
@@ -428,6 +430,7 @@ static int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq, int8_t su
       return -1;
     }
   }
+#endif
 
   if (subType == TOPIC_SUB_TYPE__COLUMN) {
     pRsp->withSchema = false;
