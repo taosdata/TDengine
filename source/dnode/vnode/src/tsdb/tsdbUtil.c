@@ -509,24 +509,16 @@ void tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minK
   *maxKey = *minKey + minutes * tsTickPerMin[precision] - 1;
 }
 
-/**
- * @brief get fid level by keep and days.
- * 
- * @param fid 
- * @param pKeepCfg 
- * @param now millisecond
- * @return int32_t 
- */
 int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t now) {
   int32_t aFid[3];
   TSKEY   key;
 
   if (pKeepCfg->precision == TSDB_TIME_PRECISION_MILLI) {
-    // now = now * 1000;
+    now = now * 1000;
   } else if (pKeepCfg->precision == TSDB_TIME_PRECISION_MICRO) {
-    now = now * 1000l;
-  } else if (pKeepCfg->precision == TSDB_TIME_PRECISION_NANO) {
     now = now * 1000000l;
+  } else if (pKeepCfg->precision == TSDB_TIME_PRECISION_NANO) {
+    now = now * 1000000000l;
   } else {
     ASSERT(0);
   }

@@ -58,7 +58,6 @@ typedef struct STQ                STQ;
 typedef struct SVState            SVState;
 typedef struct SVBufPool          SVBufPool;
 typedef struct SQWorker           SQHandle;
-typedef struct SVTrimDbHdl        SVTrimDbHdl;
 typedef struct STsdbKeepCfg       STsdbKeepCfg;
 typedef struct SMetaSnapReader    SMetaSnapReader;
 typedef struct SMetaSnapWriter    SMetaSnapWriter;
@@ -145,7 +144,7 @@ int         tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepC
 int         tsdbClose(STsdb** pTsdb);
 int32_t     tsdbBegin(STsdb* pTsdb);
 int32_t     tsdbCommit(STsdb* pTsdb);
-int32_t     tsdbDoRetention(STsdb* pTsdb, int64_t now, int64_t maxSpeed);
+int32_t     tsdbDoRetention(STsdb* pTsdb, int64_t now);
 int         tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq* pMsg);
 int         tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq* pMsg, SSubmitRsp* pRsp);
 int32_t     tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock,
@@ -200,7 +199,7 @@ int32_t smaSyncPostCommit(SSma* pSma);
 int32_t smaAsyncPreCommit(SSma* pSma);
 int32_t smaAsyncCommit(SSma* pSma);
 int32_t smaAsyncPostCommit(SSma* pSma);
-int32_t smaDoRetention(SSma* pSma, int64_t now, int64_t maxSpeed);
+int32_t smaDoRetention(SSma* pSma, int64_t now);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
@@ -302,9 +301,6 @@ struct STsdbKeepCfg {
   int32_t keep1;
   int32_t keep2;
 };
-struct SVTrimDbHdl {
-  volatile int8_t state;  // 0 not in trim, 1 in trim
-};
 
 struct SVnode {
   char*         path;
@@ -329,7 +325,6 @@ struct SVnode {
   bool          restored;
   tsem_t        syncSem;
   SQHandle*     pQuery;
-  SVTrimDbHdl   trimDbH;
 };
 
 #define TD_VID(PVNODE) ((PVNODE)->config.vgId)
