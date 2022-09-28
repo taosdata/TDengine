@@ -1320,7 +1320,7 @@ static int32_t tCompTSSwitchToCopy(SCompressor *pCmprsor) {
     }
   }
 
-  ASSERT(n == pCmprsor->nBuf && nBuf == sizeof(int64_t) * pCmprsor->nBuf + 1);
+  ASSERT(n == pCmprsor->nBuf && nBuf == sizeof(int64_t) * pCmprsor->nVal + 1);
 
   uint8_t *pBuf = pCmprsor->pBuf;
   pCmprsor->pBuf = pCmprsor->aBuf[0];
