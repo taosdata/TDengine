@@ -464,6 +464,8 @@ typedef struct SFillPhysiNode {
   EOrder      inputTsOrder;
 } SFillPhysiNode;
 
+typedef SFillPhysiNode SStreamFillPhysiNode;
+
 typedef struct SMultiTableIntervalPhysiNode {
   SIntervalPhysiNode interval;
   SNodeList*         pPartitionKeys;

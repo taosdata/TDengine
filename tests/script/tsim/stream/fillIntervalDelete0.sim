@@ -1,0 +1,375 @@
+$loop_all = 0
+looptest:
+
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sleep 200
+sql connect
+
+sql drop stream if exists streams1;
+sql drop stream if exists streams2;
+sql drop stream if exists streams3;
+sql drop stream if exists streams4;
+sql drop stream if exists streams5;
+sql drop database if exists test1;
+sql create database test1  vgroups 1;
+sql use test1;
+sql create table t1(ts timestamp, a int, b int , c int, d double, s varchar(20));
+sql create stream streams1 trigger at_once  into streamt1 as select  _wstart as ts, max(a), sum(b), count(*) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(NULL);
+sql create stream streams2 trigger at_once  into streamt2 as select  _wstart as ts, max(a), sum(b), count(*) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(value,100,200,300);
+sql create stream streams3 trigger at_once  into streamt3 as select  _wstart as ts, max(a), sum(b), count(*) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(next);
+sql create stream streams4 trigger at_once  into streamt4 as select  _wstart as ts, max(a), sum(b), count(*) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(prev);
+sql create stream streams5 trigger at_once  into streamt5 as select  _wstart as ts, max(a), sum(b), count(*) from t1 where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(linear);
+sql insert into t1 values(1648791213000,1,1,1,1.0,'aaa');
+sleep 200
+
+$loop_count = 0
+
+loop0:
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt1 order by ts;
+
+if $rows != 1 then
+  print =====rows=$rows
+  goto loop0
+endi
+
+sql delete from t1;
+
+$loop_count = 0
+
+loop1:
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt1 order by ts;
+
+if $rows != 0 then
+  print =====rows1=$rows
+  goto loop1
+endi
+
+sql select * from streamt2 order by ts;
+
+if $rows != 0 then
+  print =====rows2=$rows
+  goto loop1
+endi
+
+sql select * from streamt3 order by ts;
+
+if $rows != 0 then
+  print =====rows3=$rows
+  goto loop1
+endi
+
+sql select * from streamt4 order by ts;
+
+if $rows != 0 then
+  print =====rows4=$rows
+  goto loop1
+endi
+
+sql select * from streamt5 order by ts;
+
+if $rows != 0 then
+  print =====rows5=$rows
+  goto loop1
+endi
+
+sql insert into t1 values(1648791210000,4,4,4,4.0,'ddd');
+sql insert into t1 values(1648791215000,2,2,2,2.0,'bbb');
+sql insert into t1 values(1648791217000,3,3,3,3.0,'ccc');
+sql insert into t1 values(1648791219000,5,5,5,5.0,'eee');
+
+$loop_count = 0
+
+loop2:
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt1 order by ts;
+
+if $rows != 10 then
+  print =====rows=$rows
+  goto loop2
+endi
+
+#temp
+system sh/stop_dnodes.sh
+return 1
+
+sql delete from t1 where ts >= 1648791214000;
+
+$loop_count = 0
+
+loop3:
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt1 order by ts;
+
+if $rows != 1 then
+  print =====rows1=$rows
+  goto loop3
+endi
+
+sql select * from streamt2 order by ts;
+
+if $rows != 1 then
+  print =====rows2=$rows
+  goto loop3
+endi
+
+sql select * from streamt3 order by ts;
+
+if $rows != 1 then
+  print =====rows3=$rows
+  goto loop3
+endi
+
+sql select * from streamt4 order by ts;
+
+if $rows != 1 then
+  print =====rows4=$rows
+  goto loop3
+endi
+
+sql select * from streamt5 order by ts;
+
+if $rows != 1 then
+  print =====rows5=$rows
+  goto loop3
+endi
+
+if $data01 != 4 then
+  print =====data01=$data01
+  return -1
+endi
+
+
+
+sql insert into t1 values(1648791213000,5,5,5,5.0,'eee');
+sql insert into t1 values(1648791215000,5,5,5,5.0,'eee');
+sql insert into t1 values(1648791219000,6,6,6,6.0,'fff');
+
+$loop_count = 0
+
+loop4:
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt1 order by ts;
+
+if $rows != 4 then
+  print =====rows=$rows
+  goto loop4
+endi
+
+
+sql delete from t1 where ts <= 1648791216000;
+
+$loop_count = 0
+
+loop5:
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt1 order by ts;
+
+if $rows != 1 then
+  print =====rows1=$rows
+  goto loop5
+endi
+
+sql select * from streamt2 order by ts;
+
+if $rows != 1 then
+  print =====rows2=$rows
+  goto loop5
+endi
+
+sql select * from streamt3 order by ts;
+
+if $rows != 1 then
+  print =====rows3=$rows
+  goto loop5
+endi
+
+sql select * from streamt4 order by ts;
+
+if $rows != 1 then
+  print =====rows4=$rows
+  goto loop5
+endi
+
+sql select * from streamt5 order by ts;
+
+if $rows != 1 then
+  print =====rows5=$rows
+  goto loop5
+endi
+
+if $data01 != 6 then
+  print =====data01=$data01
+  return -1
+endi
+
+
+
+
+sql drop stream if exists streams6;
+sql drop stream if exists streams7;
+sql drop stream if exists streams8;
+sql drop stream if exists streams9;
+sql drop stream if exists streams10;
+sql drop database if exists test6;
+sql create database test6  vgroups 1;
+sql use test6;
+sql create stable st(ts timestamp, a int, b int , c int, d double, s varchar(20)) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(1,1,1);
+sql create stream streams6 trigger at_once  into streamt6 as select  _wstart as ts, max(a), sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(NULL);
+sql create stream streams7 trigger at_once  into streamt7 as select  _wstart as ts, max(a), sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(value,100,200,300);
+sql create stream streams8 trigger at_once  into streamt8 as select  _wstart as ts, max(a), sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(next);
+sql create stream streams9 trigger at_once  into streamt9 as select  _wstart as ts, max(a), sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(prev);
+sql create stream streams10 trigger at_once  into streamt10 as select  _wstart as ts, max(a), sum(b), count(*) from st where ts >= 1648791210000 and ts < 1648791261000 interval(1s) fill(linear);
+
+sql insert into t1 values(1648791210000,1,1,1,1.0,'aaa');
+sql insert into t1 values(1648791217000,1,1,1,1.0,'aaa');
+
+sql insert into t2 values(1648791215000,1,1,1,1.0,'aaa');
+
+sleep 200
+
+$loop_count = 0
+
+loop7:
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt6 order by ts;
+
+if $rows != 8 then
+  print =====rows=$rows
+  goto loop7
+endi
+
+sql delete from t1;
+
+$loop_count = 0
+
+loop8:
+sleep 200
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt6 order by ts;
+
+if $rows != 0 then
+  print =====rows6=$rows
+  goto loop8
+endi
+
+sql select * from streamt7 order by ts;
+
+if $rows != 0 then
+  print =====rows7=$rows
+  goto loop8
+endi
+
+sql select * from streamt8 order by ts;
+
+if $rows != 0 then
+  print =====rows8=$rows
+  goto loop8
+endi
+
+sql select * from streamt9 order by ts;
+
+if $rows != 0 then
+  print =====rows9=$rows
+  goto loop8
+endi
+
+sql select * from streamt10 order by ts;
+
+if $rows != 0 then
+  print =====rows10=$rows
+  goto loop8
+endi
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+sql drop stream if exists streams0;
+sql drop stream if exists streams1;
+sql drop stream if exists streams2;
+sql drop stream if exists streams3;
+sql drop stream if exists streams4;
+sql drop stream if exists streams5;
+sql drop stream if exists streams6;
+sql drop stream if exists streams7;
+sql drop stream if exists streams8;
+
+sql use test1;
+sql select * from t1;
+print $data00
+
+$loop_all = $loop_all + 1
+print ============loop_all=$loop_all
+
+system sh/stop_dnodes.sh
+
+#goto looptest
