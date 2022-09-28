@@ -245,7 +245,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
         while (1) {
           SSDataBlock* pDataBlock = NULL;
           uint64_t     ts = 0;
-          if (qExecTask(task, NULL, &ts) < 0) {
+          if (qExecTask(task, &pDataBlock, &ts) < 0) {
             ASSERT(0);
           }
 
@@ -256,21 +256,19 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
           tqAddBlockDataToRsp(pDataBlock, pRsp, pExec->numOfCols);
           pRsp->blockNum++;
         }
+
         if (pRsp->blockNum > 0) {
           // set offset
           tqOffsetResetToLog(&pRsp->rspOffset, ver);
           // remove from hash
           size_t kLen;
-          void*  key = taosHashGetKey(pPushEntry, &kLen);
+          void*  key = taosHashGetKey(pIter, &kLen);
           void*  keyCopy = taosMemoryMalloc(kLen);
           memcpy(keyCopy, key, kLen);
 
           taosArrayPush(cachedKeys, &keyCopy);
           taosArrayPush(cachedKeyLens, &kLen);
 
-          if (taosHashRemove(pTq->pPushMgr, key, kLen) != 0) {
-            ASSERT(0);
-          }
           tqPushDataRsp(pTq, pPushEntry);
         }
       }
@@ -278,7 +276,9 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
       for (int32_t i = 0; i < taosArrayGetSize(cachedKeys); i++) {
         void*  key = taosArrayGetP(cachedKeys, i);
         size_t kLen = *(size_t*)taosArrayGet(cachedKeyLens, i);
-        taosHashRemove(pTq->pPushMgr, key, kLen);
+        if (taosHashRemove(pTq->pPushMgr, key, kLen) != 0) {
+          ASSERT(0);
+        }
       }
       taosArrayDestroyP(cachedKeys, (FDelete)taosMemoryFree);
       taosArrayDestroy(cachedKeyLens);

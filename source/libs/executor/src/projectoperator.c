@@ -53,7 +53,7 @@ static void destroyIndefinitOperatorInfo(void* param) {
 
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* pProjPhyNode,
                                          SExecTaskInfo* pTaskInfo) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t               code = TSDB_CODE_SUCCESS;
   SProjectOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SProjectOperatorInfo));
   SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -184,7 +184,7 @@ static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SS
   if (pLimitInfo->limit.limit >= 0 && pLimitInfo->numOfOutputRows + pBlock->info.rows >= pLimitInfo->limit.limit) {
     int32_t keepRows = (int32_t)(pLimitInfo->limit.limit - pLimitInfo->numOfOutputRows);
     blockDataKeepFirstNRows(pBlock, keepRows);
-    //TODO: optimize it later when partition by + limit
+    // TODO: optimize it later when partition by + limit
     if ((pLimitInfo->slimit.limit == -1 && pLimitInfo->currentGroupId == 0) ||
         (pLimitInfo->slimit.limit > 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
       doSetOperatorCompleted(pOperator);
@@ -206,6 +206,10 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   blockDataCleanup(pFinalRes);
 
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  if (pTaskInfo->streamInfo.pReq) {
+    pOperator->status = OP_OPENED;
+  }
+
   if (pOperator->status == OP_EXEC_DONE) {
     if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
       pOperator->status = OP_OPENED;
@@ -254,7 +258,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       }
 
       setInfoForNewGroup(pBlock, pLimitInfo, pOperator);
-      if (pOperator->status == OP_EXEC_DONE) {
+      if (pTaskInfo->execModel == OPTR_EXEC_MODEL_BATCH && pOperator->status == OP_EXEC_DONE) {
         break;
       }
 

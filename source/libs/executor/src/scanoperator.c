@@ -1443,6 +1443,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       if (tqReaderSetDataMsg(pInfo->tqReader, pSubmit, 0) < 0) {
         qError("submit msg messed up when initing stream submit block %p", pSubmit);
         pInfo->tqReader->pMsg = NULL;
+        pTaskInfo->streamInfo.pReq = NULL;
         ASSERT(0);
       }
     }
@@ -1468,6 +1469,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
 
     pInfo->tqReader->pMsg = NULL;
     pTaskInfo->streamInfo.pReq = NULL;
+    return NULL;
   }
 
   if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {

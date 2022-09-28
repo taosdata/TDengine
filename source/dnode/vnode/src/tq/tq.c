@@ -65,6 +65,11 @@ static void destroySTqHandle(void* data) {
   }
 }
 
+static void tqPushEntryFree(void* data) {
+  void* p = *(void**)data;
+  taosMemoryFree(p);
+}
+
 STQ* tqOpen(const char* path, SVnode* pVnode) {
   STQ* pTq = taosMemoryCalloc(1, sizeof(STQ));
   if (pTq == NULL) {
@@ -80,7 +85,7 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
 
   taosInitRWLatch(&pTq->pushLock);
   pTq->pPushMgr = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
-  taosHashSetFreeFp(pTq->pPushMgr, taosMemoryFree);
+  taosHashSetFreeFp(pTq->pPushMgr, tqPushEntryFree);
 
   pTq->pCheckInfo = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
 
@@ -548,6 +553,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
       if (pPushEntry != NULL) {
         pPushEntry->pHandle = pHandle;
         pPushEntry->pInfo = pMsg->info;
+        dataRsp.withTbName = 0;
         memcpy(&pPushEntry->dataRsp, &dataRsp, sizeof(SMqDataRsp));
         pPushEntry->rspHead.consumerId = consumerId;
         pPushEntry->rspHead.epoch = reqEpoch;

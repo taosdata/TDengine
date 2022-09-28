@@ -515,7 +515,7 @@ int32_t tmqCommitMsgImpl(tmq_t* tmq, const TAOS_RES* msg, int8_t async, tmq_comm
     SMqMetaRspObj* pMetaRspObj = (SMqMetaRspObj*)msg;
     topic = pMetaRspObj->topic;
     vgId = pMetaRspObj->vgId;
-  } else if(TD_RES_TMQ_METADATA(msg)) {
+  } else if (TD_RES_TMQ_METADATA(msg)) {
     SMqTaosxRspObj* pRspObj = (SMqTaosxRspObj*)msg;
     topic = pRspObj->topic;
     vgId = pRspObj->vgId;
@@ -715,7 +715,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
   int32_t   epoch = tmq->epoch;
   SMqHbReq* pReq = taosMemoryMalloc(sizeof(SMqHbReq));
   if (pReq == NULL) goto OVER;
-  pReq->consumerId = consumerId;
+  pReq->consumerId = htobe64(consumerId);
   pReq->epoch = epoch;
 
   SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
@@ -1661,9 +1661,9 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
 
         // build rsp
         void* pRsp = NULL;
-        if(pollRspWrapper->taosxRsp.createTableNum == 0){
+        if (pollRspWrapper->taosxRsp.createTableNum == 0) {
           pRsp = tmqBuildRspFromWrapper(pollRspWrapper);
-        }else{
+        } else {
           pRsp = tmqBuildTaosxRspFromWrapper(pollRspWrapper);
         }
         taosFreeQitem(pollRspWrapper);
@@ -1850,12 +1850,12 @@ const char* tmq_get_table_name(TAOS_RES* res) {
     return (const char*)taosArrayGetP(pRspObj->rsp.blockTbName, pRspObj->resIter);
   } else if (TD_RES_TMQ_METADATA(res)) {
     SMqTaosxRspObj* pRspObj = (SMqTaosxRspObj*)res;
-      if (!pRspObj->rsp.withTbName || pRspObj->rsp.blockTbName == NULL || pRspObj->resIter < 0 ||
-          pRspObj->resIter >= pRspObj->rsp.blockNum) {
-        return NULL;
-      }
-      return (const char*)taosArrayGetP(pRspObj->rsp.blockTbName, pRspObj->resIter);
+    if (!pRspObj->rsp.withTbName || pRspObj->rsp.blockTbName == NULL || pRspObj->resIter < 0 ||
+        pRspObj->resIter >= pRspObj->rsp.blockNum) {
+      return NULL;
     }
+    return (const char*)taosArrayGetP(pRspObj->rsp.blockTbName, pRspObj->resIter);
+  }
   return NULL;
 }
 
