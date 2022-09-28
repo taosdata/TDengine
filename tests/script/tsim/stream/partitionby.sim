@@ -5,13 +5,14 @@ sleep 50
 sql connect
 
 sql create database test  vgroups 4;
+sql create database test0  vgroups 1;
 sql use test;
 sql create stable st(ts timestamp, a int, b int , c int, d double) tags(ta int,tb int,tc int);
 sql create table ts1 using st tags(1,1,1);
 sql create table ts2 using st tags(2,2,2);
 sql create table ts3 using st tags(3,2,2);
 sql create table ts4 using st tags(4,2,2);
-sql create stream stream_t1 trigger at_once into streamtST1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from st partition by ta,tb,tc interval(10s);
+sql create stream stream_t1 trigger at_once into test0.streamtST1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from st partition by ta,tb,tc interval(10s);
 
 sql insert into ts1 values(1648791213001,1,12,3,1.0);
 sql insert into ts2 values(1648791213001,1,12,3,1.0);
@@ -22,7 +23,7 @@ $loop_count = 0
 
 loop0:
 sleep 300
-sql select * from streamtST1;
+sql select * from test0.streamtST1;
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -33,6 +34,29 @@ if $rows != 4 then
 print =====rows=$rows
 goto loop0
 endi
+
+sql insert into ts1 values(1648791223001,1,12,3,1.0);
+sql insert into ts2 values(1648791223001,1,12,3,1.0);
+
+sql insert into ts3 values(1648791223001,1,12,3,1.0);
+sql insert into ts4 values(1648791223001,1,12,3,1.0);
+sleep 300
+sql delete from st where ts = 1648791223001;
+
+loop00:
+sleep 300
+sql select * from test0.streamtST1;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 4 then
+  print =====rows=$rows
+  goto loop00
+endi
+
 
 print =====loop0
 
