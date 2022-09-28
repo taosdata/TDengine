@@ -213,11 +213,12 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
 #endif
 
 int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
-  tqDebug("vgId:%d tq push msg ver %ld", pTq->pVnode->config.vgId, ver);
+  tqDebug("vgId:%d tq push msg ver %ld, type: %s", pTq->pVnode->config.vgId, ver, TMSG_INFO(msgType));
 
   if (msgType == TDMT_VND_SUBMIT) {
     // lock push mgr to avoid potential msg lost
     taosWLockLatch(&pTq->pushLock);
+    tqDebug("vgId:%d push handle num %d", pTq->pVnode->config.vgId, taosHashGetSize(pTq->pPushMgr));
     if (taosHashGetSize(pTq->pPushMgr) != 0) {
       SArray* cachedKeys = taosArrayInit(0, sizeof(void*));
       SArray* cachedKeyLens = taosArrayInit(0, sizeof(size_t));
@@ -235,10 +236,17 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
       while (1) {
         pIter = taosHashIterate(pTq->pPushMgr, pIter);
         if (pIter == NULL) break;
-        STqPushEntry*  pPushEntry = *(STqPushEntry**)pIter;
-        STqExecHandle* pExec = &pPushEntry->pHandle->execHandle;
+        STqPushEntry* pPushEntry = *(STqPushEntry**)pIter;
+
+        STqHandle* pHandle = taosHashGet(pTq->pHandle, pPushEntry->subKey, strlen(pPushEntry->subKey));
+        if (pHandle == NULL) {
+          tqDebug("vgId:%d cannot find handle %s", pTq->pVnode->config.vgId, pPushEntry->subKey);
+          continue;
+        }
+        STqExecHandle* pExec = &pHandle->execHandle;
         qTaskInfo_t    task = pExec->task;
-        SMqDataRsp*    pRsp = &pPushEntry->dataRsp;
+
+        SMqDataRsp* pRsp = &pPushEntry->dataRsp;
 
         // prepare scan mem data
         qStreamScanMemData(task, pReq);
@@ -259,8 +267,8 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
           pRsp->blockNum++;
         }
 
-        tqDebug("vgId:%d tq handle push, subkey: %s, block num: %d", pTq->pVnode->config.vgId,
-                pPushEntry->pHandle->subKey, pRsp->blockNum);
+        tqDebug("vgId:%d tq handle push, subkey: %s, block num: %d", pTq->pVnode->config.vgId, pPushEntry->subKey,
+                pRsp->blockNum);
         if (pRsp->blockNum > 0) {
           // set offset
           tqOffsetResetToLog(&pRsp->rspOffset, ver);

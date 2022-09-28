@@ -116,7 +116,7 @@ typedef struct {
 typedef struct {
   SMqDataRsp     dataRsp;
   SMqRspHead     rspHead;
-  STqHandle*     pHandle;
+  char           subKey[TSDB_SUBSCRIBE_KEY_LEN];
   SRpcHandleInfo pInfo;
 } STqPushEntry;
 

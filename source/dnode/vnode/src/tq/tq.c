@@ -554,8 +554,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     if (dataRsp.blockNum == 0) {
       STqPushEntry* pPushEntry = taosMemoryCalloc(1, sizeof(STqPushEntry));
       if (pPushEntry != NULL) {
-        pPushEntry->pHandle = pHandle;
         pPushEntry->pInfo = pMsg->info;
+        memcpy(pPushEntry->subKey, pHandle->subKey, TSDB_SUBSCRIBE_KEY_LEN);
         dataRsp.withTbName = 0;
         memcpy(&pPushEntry->dataRsp, &dataRsp, sizeof(SMqDataRsp));
         pPushEntry->rspHead.consumerId = consumerId;
@@ -704,7 +704,14 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
 int32_t tqProcessVgDeleteReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen) {
   SMqVDeleteReq* pReq = (SMqVDeleteReq*)msg;
 
-  int32_t code = taosHashRemove(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
+  taosWLockLatch(&pTq->pushLock);
+  int32_t code = taosHashRemove(pTq->pPushMgr, pReq->subKey, strlen(pReq->subKey));
+  if (code != 0) {
+    tqDebug("vgId:%d, tq remove push handle %s", pTq->pVnode->config.vgId, pReq->subKey);
+  }
+  taosWUnLockLatch(&pTq->pushLock);
+
+  code = taosHashRemove(pTq->pHandle, pReq->subKey, strlen(pReq->subKey));
   if (code != 0) {
     tqError("cannot process tq delete req %s, since no such handle", pReq->subKey);
   }
