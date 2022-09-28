@@ -422,7 +422,7 @@ class TestOpentsdbJsonRestfulInsert(TDCase):
                     {"metric": "st123456", "timestamp": {"value": 1626006933640000000, "type": "ns"}, "value": {"value": 8, "type": "double"}, "tags": {"t1": {"value": 4, "type": "double"}, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}},
                     {"metric": "st123456", "timestamp": {"value": 1626006933641000000, "type": "ns"}, "value": {"value": 9, "type": "double"}, "tags": {"t1": 4, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}}]
         self.tdRest.schemalessApiPost(json.dumps(input_json), url_type="json", precision=None, dbname=self.dbname)
-        self.tdSql.query('select * from information_schema.ins_stables where db_name =  "{self.dbname}"')
+        self.tdSql.query(f'select * from information_schema.ins_stables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
         self.tdSql.query(f'select * from information_schema.ins_tables where db_name =  "{self.dbname}"')
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
