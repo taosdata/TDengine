@@ -2143,7 +2143,7 @@ static bool sysTableFromDnode(const char* pTable) { return 0 == strcmp(pTable, T
 
 static int32_t getTagsTableVgroupListImpl(STranslateContext* pCxt, SName* pTargetName, SName* pName,
                                           SArray** pVgroupList) {
-  if (0 == pTargetName->acctId) {
+  if (0 == pTargetName->type) {
     return getDBVgInfoImpl(pCxt, pName, pVgroupList);
   }
 
@@ -2208,6 +2208,9 @@ static int32_t getTagsTableTargetNameFromCond(STranslateContext* pCxt, SLogicCon
 
   SNode* pNode = NULL;
   FOREACH(pNode, pCond->pParameterList) { getTagsTableTargetObjName(pCxt, pNode, pName); }
+  if ('\0' == pName->dbname[0]) {
+    pName->type = 0;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
