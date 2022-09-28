@@ -26,6 +26,8 @@
 #include "executorimpl.h"
 #include "tcompression.h"
 
+static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list, SNode* pTagCond);
+
 void initResultRowInfo(SResultRowInfo* pResultRowInfo) {
   pResultRowInfo->size = 0;
   pResultRowInfo->cur.pageId = -1;
@@ -407,11 +409,15 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
 
   //  int64_t stt = taosGetTimestampUs();
   tags = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
-  code = metaGetTableTags(metaHandle, suid, uidList, tags);
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("failed to get table tags from meta, reason:%s, suid:%" PRIu64, tstrerror(code), suid);
-    terrno = code;
-    goto end;
+
+  int32_t filter = optimizeTbnameInCond(metaHandle, suid, uidList, pTagCond);
+  if (filter == -1) {
+    code = metaGetTableTags(metaHandle, suid, uidList, tags);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("failed to get table tags from meta, reason:%s, suid:%" PRIu64, tstrerror(code), suid);
+      terrno = code;
+      goto end;
+    }
   }
 
   int32_t rows = taosArrayGetSize(uidList);
@@ -742,6 +748,53 @@ end:
   return code;
 }
 
+static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list, SNode* pTagCond) {
+  if (nodeType(pTagCond) != QUERY_NODE_OPERATOR) {
+    return -1;
+  }
+  SOperatorNode* pNode = (SOperatorNode*)pTagCond;
+  if (pNode->opType != OP_TYPE_IN) {
+    return -1;
+  }
+  if ((pNode->pLeft != NULL && nodeType(pNode->pLeft) == QUERY_NODE_COLUMN &&
+       ((SColumnNode*)pNode->pLeft)->colType == COLUMN_TYPE_TBNAME) &&
+      (pNode->pRight != NULL && nodeType(pNode->pRight) == QUERY_NODE_NODE_LIST)) {
+    SNodeListNode* pList = (SNodeListNode*)pNode->pRight;
+
+    int32_t len = LIST_LENGTH(pList->pNodeList);
+    if (len <= 0) return -1;
+
+    SListCell* cell = pList->pNodeList->pHead;
+
+    SArray* pTbList = taosArrayInit(len, sizeof(void*));
+    for (int i = 0; i < pList->pNodeList->length; i++) {
+      SValueNode* valueNode = (SValueNode*)cell->pNode;
+      if (!IS_VAR_DATA_TYPE(valueNode->node.resType.type)) {
+        taosArrayDestroy(pTbList);
+        return -1;
+      }
+      char* name = varDataVal(valueNode->datum.p);
+      taosArrayPush(pTbList, &name);
+
+      cell = cell->pNext;
+    }
+
+    for (int i = 0; i < taosArrayGetSize(pTbList); i++) {
+      char*    name = taosArrayGetP(pTbList, i);
+      uint64_t uid = 0;
+      if (metaGetTableUidByName(metaHandle, name, &uid) == 0) {
+        taosArrayPush(list, &uid);
+      } else {
+        terrno = 0;
+        qError("failed to get tableIds from by table name: %s", name);
+        taosArrayDestroy(pTbList);
+        return -1;
+      }
+    }
+    taosArrayDestroy(pTbList);
+  }
+  return -1;
+}
 int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond,
                      STableListInfo* pListInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -767,9 +820,6 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
         qError("failed to get tableIds from index, reason:%s, suid:%" PRIu64, tstrerror(code), tableUid);
         code = TDB_CODE_SUCCESS;
       }
-
-      //      int64_t stt1 = taosGetTimestampUs();
-      //      qDebug("generate table list, cost:%ld us", stt1-stt);
     } else if (!pTagCond) {
       vnodeGetCtbIdList(pVnode, pScanNode->suid, res);
     }
@@ -813,7 +863,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
   size_t numOfTables = taosArrayGetSize(res);
   for (int i = 0; i < numOfTables; i++) {
     STableKeyInfo info = {.uid = *(uint64_t*)taosArrayGet(res, i), .groupId = 0};
-    void* p = taosArrayPush(pListInfo->pTableList, &info);
+    void*         p = taosArrayPush(pListInfo->pTableList, &info);
     if (p == NULL) {
       taosArrayDestroy(res);
       return TSDB_CODE_OUT_OF_MEMORY;

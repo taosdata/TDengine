@@ -202,6 +202,21 @@ int metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName) {
 
   return 0;
 }
+int metaGetTableUidByName(void *meta, char *tbName, uint64_t *uid) {
+  int         code = 0;
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, (SMeta *)meta, 0);
+  code = metaGetTableEntryByName(&mr, tbName);
+  if (code < 0) {
+    metaReaderClear(&mr);
+    return -1;
+  }
+  *uid = mr.me.uid;
+
+  metaReaderClear(&mr);
+
+  return 0;
+}
 
 int metaReadNext(SMetaReader *pReader) {
   SMeta *pMeta = pReader->pMeta;
