@@ -27,9 +27,9 @@ extern "C" {
 
 #define LIST_LENGTH(l) (NULL != (l) ? (l)->length : 0)
 
-#define FOREACH(node, list)                                       \
-  for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); \
-       (NULL != cell ? (node = cell->pNode, true) : (node = NULL, false)); cell = cell->pNext)
+#define FOREACH(node, list)                                               \
+  for (SListCell *cell = (NULL != (list) ? (list)->pHead : NULL), *pNext; \
+       (NULL != cell ? (node = cell->pNode, pNext = cell->pNext, true) : (node = NULL, pNext = NULL, false)); cell = pNext)
 
 #define REPLACE_NODE(newNode) cell->pNode = (SNode*)(newNode)
 
@@ -239,6 +239,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_FILL,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL,
   QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION,

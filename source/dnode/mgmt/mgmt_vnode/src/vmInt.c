@@ -58,11 +58,14 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
 
   if (pVnode->path == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFree(pVnode);
     return -1;
   }
 
   if (vmAllocQueue(pMgmt, pVnode) != 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFree(pVnode->path);
+    taosMemoryFree(pVnode);
     return -1;
   }
 
@@ -221,6 +224,7 @@ static void vmCloseVnodes(SVnodeMgmt *pMgmt) {
   SVnodeObj **ppVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
 
   for (int32_t i = 0; i < numOfVnodes; ++i) {
+    if (ppVnodes == NULL || ppVnodes[i] == NULL) continue;
     vmCloseVnode(pMgmt, ppVnodes[i]);
   }
 
@@ -380,7 +384,9 @@ static int32_t vmStartVnodes(SVnodeMgmt *pMgmt) {
   for (int32_t v = 0; v < numOfVnodes; ++v) {
     int32_t       t = v % threadNum;
     SVnodeThread *pThread = &threads[t];
-    pThread->ppVnodes[pThread->vnodeNum++] = ppVnodes[v];
+    if (pThread->ppVnodes != NULL) {
+      pThread->ppVnodes[pThread->vnodeNum++] = ppVnodes[v];
+    }
   }
 
   pMgmt->state.openVnodes = 0;
@@ -411,8 +417,8 @@ static int32_t vmStartVnodes(SVnodeMgmt *pMgmt) {
   taosMemoryFree(threads);
 
   for (int32_t i = 0; i < numOfVnodes; ++i) {
-    SVnodeObj *pVnode = ppVnodes[i];
-    vmReleaseVnode(pMgmt, pVnode);
+    if (ppVnodes == NULL || ppVnodes[i] == NULL) continue;
+    vmReleaseVnode(pMgmt, ppVnodes[i]);
   }
 
   if (ppVnodes != NULL) {

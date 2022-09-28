@@ -509,16 +509,24 @@ void tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minK
   *maxKey = *minKey + minutes * tsTickPerMin[precision] - 1;
 }
 
+/**
+ * @brief get fid level by keep and days.
+ * 
+ * @param fid 
+ * @param pKeepCfg 
+ * @param now millisecond
+ * @return int32_t 
+ */
 int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t now) {
   int32_t aFid[3];
   TSKEY   key;
 
   if (pKeepCfg->precision == TSDB_TIME_PRECISION_MILLI) {
-    now = now * 1000;
+    // now = now * 1000;
   } else if (pKeepCfg->precision == TSDB_TIME_PRECISION_MICRO) {
-    now = now * 1000000l;
+    now = now * 1000l;
   } else if (pKeepCfg->precision == TSDB_TIME_PRECISION_NANO) {
-    now = now * 1000000000l;
+    now = now * 1000000l;
   } else {
     ASSERT(0);
   }
@@ -948,24 +956,47 @@ void tBlockDataDestroy(SBlockData *pBlockData, int8_t deepClear) {
   pBlockData->aColData = NULL;
 }
 
-int32_t tBlockDataInit(SBlockData *pBlockData, int64_t suid, int64_t uid, STSchema *pTSchema) {
+int32_t tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema, int16_t *aCid, int32_t nCid) {
   int32_t code = 0;
 
-  ASSERT(suid || uid);
+  ASSERT(pId->suid || pId->uid);
 
-  pBlockData->suid = suid;
-  pBlockData->uid = uid;
+  pBlockData->suid = pId->suid;
+  pBlockData->uid = pId->uid;
   pBlockData->nRow = 0;
 
   taosArrayClear(pBlockData->aIdx);
-  for (int32_t iColumn = 1; iColumn < pTSchema->numOfCols; iColumn++) {
+  if (aCid) {
+    int32_t   iColumn = 1;
     STColumn *pTColumn = &pTSchema->columns[iColumn];
+    for (int32_t iCid = 0; iCid < nCid; iCid++) {
+      while (pTColumn && pTColumn->colId < aCid[iCid]) {
+        iColumn++;
+        pTColumn = (iColumn < pTSchema->numOfCols) ? &pTSchema->columns[iColumn] : NULL;
+      }
 
-    SColData *pColData;
-    code = tBlockDataAddColData(pBlockData, iColumn - 1, &pColData);
-    if (code) goto _exit;
+      if (pTColumn == NULL) {
+        break;
+      } else if (pTColumn->colId == aCid[iCid]) {
+        SColData *pColData;
+        code = tBlockDataAddColData(pBlockData, taosArrayGetSize(pBlockData->aIdx), &pColData);
+        if (code) goto _exit;
+        tColDataInit(pColData, pTColumn->colId, pTColumn->type, (pTColumn->flags & COL_SMA_ON) ? 1 : 0);
 
-    tColDataInit(pColData, pTColumn->colId, pTColumn->type, (pTColumn->flags & COL_SMA_ON) ? 1 : 0);
+        iColumn++;
+        pTColumn = (iColumn < pTSchema->numOfCols) ? &pTSchema->columns[iColumn] : NULL;
+      }
+    }
+  } else {
+    for (int32_t iColumn = 1; iColumn < pTSchema->numOfCols; iColumn++) {
+      STColumn *pTColumn = &pTSchema->columns[iColumn];
+
+      SColData *pColData;
+      code = tBlockDataAddColData(pBlockData, iColumn - 1, &pColData);
+      if (code) goto _exit;
+
+      tColDataInit(pColData, pTColumn->colId, pTColumn->type, (pTColumn->flags & COL_SMA_ON) ? 1 : 0);
+    }
   }
 
 _exit:

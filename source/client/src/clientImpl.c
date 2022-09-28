@@ -483,8 +483,8 @@ void setResPrecision(SReqResultInfo* pResInfo, int32_t precision) {
 
 int32_t buildVnodePolicyNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray* pMnodeList, SArray* pDbVgList) {
   SArray* nodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
-  char *policy = (tsQueryPolicy == QUERY_POLICY_VNODE) ? "vnode" : "client";
-  
+  char*   policy = (tsQueryPolicy == QUERY_POLICY_VNODE) ? "vnode" : "client";
+
   int32_t dbNum = taosArrayGetSize(pDbVgList);
   for (int32_t i = 0; i < dbNum; ++i) {
     SArray* pVg = taosArrayGetP(pDbVgList, i);
@@ -906,6 +906,8 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
              pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
     pRequest->prevCode = code;
     schedulerFreeJob(&pRequest->body.queryJob, 0);
+    qDestroyQuery(pRequest->pQuery);
+    pRequest->pQuery = NULL;
     doAsyncQuery(pRequest, true);
     return;
   }

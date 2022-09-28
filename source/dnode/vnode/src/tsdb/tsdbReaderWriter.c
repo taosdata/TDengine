@@ -607,7 +607,66 @@ _err:
   return code;
 }
 
-int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
+/**
+ * @brief send file with limited speed(rough control)
+ *
+ * @param pTsdb
+ * @param pFileOut
+ * @param pFileIn
+ * @param size
+ * @param speed 0 no limit, unit: B/s
+ * @return int64_t
+ */
+static int64_t tsdbFSendFile(STsdb *pTsdb, TdFilePtr pOutFD, TdFilePtr pInFD, int64_t size, int64_t speed) {
+  if (speed <= 0) {
+    return taosFSendFile(pOutFD, pInFD, 0, size);
+  }
+
+  int64_t offset = 0;
+  int64_t tBytes = 0;
+  int64_t nBytes = 0;
+  int64_t startMs = 0;
+  int64_t cost = 0;
+
+  while ((offset + nBytes) < size) {
+    if (atomic_load_8(&pTsdb->trimHdl.commitInWait) == 1) {
+      tsdbDebug("vgId:%d sendFile without limit since conflicts, fSize:%" PRIi64 ", maxSpeed:%" PRIi64,
+                TD_VID(pTsdb->pVnode), size, speed);
+      goto _send_remain;
+    }
+    startMs = taosGetTimestampMs();
+    if ((nBytes = taosFSendFile(pOutFD, pInFD, &offset, speed)) < 0) {
+      return nBytes;
+    }
+    cost = taosGetTimestampMs() - startMs;
+    tBytes += nBytes;
+
+    int64_t nSleep = 0;
+    if (cost < 0) {
+      nSleep = 1000;
+    } else if (cost < 1000) {
+      nSleep = 1000 - cost;
+    }
+    if (nSleep > 0) {
+      taosMsleep(nSleep);
+      tsdbDebug("vgId:%d sendFile and msleep:%" PRIi64 ", fSize:%" PRIi64 ", tBytes:%" PRIi64 " maxSpeed:%" PRIi64,
+                TD_VID(pTsdb->pVnode), nSleep, size, tBytes, speed);
+    }
+  }
+
+_send_remain:
+  if (offset < size) {
+    if ((nBytes = taosFSendFile(pOutFD, pInFD, &offset, size - offset)) < 0) {
+      return nBytes;
+    }
+    tBytes += nBytes;
+    tsdbDebug("vgId:%d sendFile remain, fSize:%" PRIi64 ", tBytes:%" PRIi64 " maxSpeed:%" PRIi64, TD_VID(pTsdb->pVnode),
+              size, tBytes, speed);
+  }
+  return tBytes;
+}
+
+int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo, int64_t maxSpeed) {
   int32_t   code = 0;
   int64_t   n;
   int64_t   size;
@@ -620,7 +679,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
   // head
   tsdbHeadFileName(pTsdb, pSetFrom->diskId, pSetFrom->fid, pSetFrom->pHeadF, fNameFrom);
   tsdbHeadFileName(pTsdb, pSetTo->diskId, pSetTo->fid, pSetTo->pHeadF, fNameTo);
-  pOutFD = taosOpenFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+  pOutFD = taosCreateFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
   if (pOutFD == NULL) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -630,7 +689,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
-  n = taosFSendFile(pOutFD, PInFD, 0, tsdbLogicToFileSize(pSetFrom->pHeadF->size, szPage));
+  n = tsdbFSendFile(pTsdb, pOutFD, PInFD, tsdbLogicToFileSize(pSetFrom->pHeadF->size, szPage), maxSpeed);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -641,7 +700,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
   // data
   tsdbDataFileName(pTsdb, pSetFrom->diskId, pSetFrom->fid, pSetFrom->pDataF, fNameFrom);
   tsdbDataFileName(pTsdb, pSetTo->diskId, pSetTo->fid, pSetTo->pDataF, fNameTo);
-  pOutFD = taosOpenFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+  pOutFD = taosCreateFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
   if (pOutFD == NULL) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -651,7 +710,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
-  n = taosFSendFile(pOutFD, PInFD, 0, LOGIC_TO_FILE_OFFSET(pSetFrom->pDataF->size, szPage));
+  n = tsdbFSendFile(pTsdb, pOutFD, PInFD, tsdbLogicToFileSize(pSetFrom->pDataF->size, szPage), maxSpeed);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -662,7 +721,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
   // sma
   tsdbSmaFileName(pTsdb, pSetFrom->diskId, pSetFrom->fid, pSetFrom->pSmaF, fNameFrom);
   tsdbSmaFileName(pTsdb, pSetTo->diskId, pSetTo->fid, pSetTo->pSmaF, fNameTo);
-  pOutFD = taosOpenFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+  pOutFD = taosCreateFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
   if (pOutFD == NULL) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -672,7 +731,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
-  n = taosFSendFile(pOutFD, PInFD, 0, tsdbLogicToFileSize(pSetFrom->pSmaF->size, szPage));
+  n = tsdbFSendFile(pTsdb, pOutFD, PInFD, tsdbLogicToFileSize(pSetFrom->pSmaF->size, szPage), maxSpeed);
   if (n < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -684,7 +743,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
   for (int8_t iStt = 0; iStt < pSetFrom->nSttF; iStt++) {
     tsdbSttFileName(pTsdb, pSetFrom->diskId, pSetFrom->fid, pSetFrom->aSttF[iStt], fNameFrom);
     tsdbSttFileName(pTsdb, pSetTo->diskId, pSetTo->fid, pSetTo->aSttF[iStt], fNameTo);
-    pOutFD = taosOpenFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
+    pOutFD = taosCreateFile(fNameTo, TD_FILE_WRITE | TD_FILE_CREATE | TD_FILE_TRUNC);
     if (pOutFD == NULL) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
@@ -694,7 +753,7 @@ int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
-    n = taosFSendFile(pOutFD, PInFD, 0, tsdbLogicToFileSize(pSetFrom->aSttF[iStt]->size, szPage));
+    n = tsdbFSendFile(pTsdb, pOutFD, PInFD, tsdbLogicToFileSize(pSetFrom->aSttF[iStt]->size, szPage), maxSpeed);
     if (n < 0) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
@@ -926,12 +985,13 @@ _err:
   return code;
 }
 
-static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo, SBlockData *pBlockData) {
+static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo, SBlockData *pBlockData,
+                                     int32_t iStt) {
   int32_t code = 0;
 
   tBlockDataClear(pBlockData);
 
-  STsdbFD *pFD = pReader->pDataFD;
+  STsdbFD *pFD = (iStt < 0) ? pReader->pDataFD : pReader->aSttFD[iStt];
 
   // uid + version + tskey
   code = tRealloc(&pReader->aBuf[0], pBlkInfo->szKey);
@@ -1070,9 +1130,12 @@ _err:
 int32_t tsdbReadDataBlock(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockData *pBlockData) {
   int32_t code = 0;
 
-  code = tsdbReadBlockDataImpl(pReader, &pDataBlk->aSubBlock[0], pBlockData);
+  code = tsdbReadBlockDataImpl(pReader, &pDataBlk->aSubBlock[0], pBlockData, -1);
   if (code) goto _err;
 
+  ASSERT(pDataBlk->nSubBlock == 1);
+
+#if 0
   if (pDataBlk->nSubBlock > 1) {
     SBlockData bData1;
     SBlockData bData2;
@@ -1113,6 +1176,7 @@ int32_t tsdbReadDataBlock(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockData 
     tBlockDataDestroy(&bData1, 1);
     tBlockDataDestroy(&bData2, 1);
   }
+#endif
 
   return code;
 
@@ -1123,23 +1187,38 @@ _err:
 
 int32_t tsdbReadSttBlock(SDataFReader *pReader, int32_t iStt, SSttBlk *pSttBlk, SBlockData *pBlockData) {
   int32_t code = 0;
+  int32_t lino = 0;
+
+  code = tsdbReadBlockDataImpl(pReader, &pSttBlk->bInfo, pBlockData, iStt);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pReader->pTsdb->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t tsdbReadSttBlockEx(SDataFReader *pReader, int32_t iStt, SSttBlk *pSttBlk, SBlockData *pBlockData) {
+  int32_t code = 0;
+  int32_t lino = 0;
 
   // alloc
   code = tRealloc(&pReader->aBuf[0], pSttBlk->bInfo.szBlock);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // read
   code = tsdbReadFile(pReader->aSttFD[iStt], pSttBlk->bInfo.offset, pReader->aBuf[0], pSttBlk->bInfo.szBlock);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // decmpr
   code = tDecmprBlockData(pReader->aBuf[0], pSttBlk->bInfo.szBlock, pBlockData, &pReader->aBuf[1]);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-  return code;
-
-_err:
-  tsdbError("vgId:%d tsdb read stt block failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pReader->pTsdb->pVnode), __func__, lino, tstrerror(code));
+  }
   return code;
 }
 

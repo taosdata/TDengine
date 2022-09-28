@@ -57,7 +57,7 @@ void syncUtilU642Addr(uint64_t u64, char* host, size_t len, uint16_t* port) {
 
   struct in_addr addr;
   addr.s_addr = hostU32;
-  snprintf(host, len, "%s", taosInetNtoa(addr));
+  taosInetNtoa(addr, host, len);
   *port = (uint16_t)((u64 & 0x00000000FFFF0000) >> 16);
 }
 

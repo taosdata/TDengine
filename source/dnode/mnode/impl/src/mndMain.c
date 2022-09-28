@@ -119,28 +119,30 @@ static void *mndThreadFp(void *param) {
     lastTime++;
     taosMsleep(100);
     if (mndGetStop(pMnode)) break;
+    if (lastTime % 10 != 0) continue;
 
-    if (lastTime % (tsTtlPushInterval * 10) == 1) {
+    int64_t sec = lastTime / 10;
+    if (sec % tsTtlPushInterval == 0) {
       mndPullupTtl(pMnode);
     }
 
-    if (lastTime % (tsTransPullupInterval * 10) == 0) {
+    if (sec % tsTransPullupInterval == 0) {
       mndPullupTrans(pMnode);
     }
 
-    if (lastTime % (tsMqRebalanceInterval * 10) == 0) {
+    if (sec % tsMqRebalanceInterval == 0) {
       mndCalMqRebalance(pMnode);
     }
 
-    if (lastTime % (tsTelemInterval * 10) == ((tsTelemInterval - 1) * 10)) {
+    if (sec % tsTelemInterval == (TMIN(60, (tsTelemInterval - 1)))) {
       mndPullupTelem(pMnode);
     }
 
-    if (lastTime % (tsGrantHBInterval * 10) == 0) {
+    if (sec % tsGrantHBInterval == 0) {
       mndPullupGrant(pMnode);
     }
 
-    if ((lastTime % (tsUptimeInterval * 10)) == ((tsUptimeInterval - 1) * 10)) {
+    if (sec % tsUptimeInterval == 0) {
       mndIncreaseUpTime(pMnode);
     }
   }
@@ -399,15 +401,15 @@ void mndPreClose(SMnode *pMnode) {
     atomic_store_8(&(pMnode->syncMgmt.leaderTransferFinish), 0);
     syncLeaderTransfer(pMnode->syncMgmt.sync);
 
-    /*
-        mInfo("vgId:1, mnode start leader transfer");
-        // wait for leader transfer finish
-        while (!atomic_load_8(&(pMnode->syncMgmt.leaderTransferFinish))) {
-          taosMsleep(10);
-          mInfo("vgId:1, mnode waiting for leader transfer");
-        }
-        mInfo("vgId:1, mnode finish leader transfer");
-    */
+#if 0
+    mInfo("vgId:1, mnode start leader transfer");
+    // wait for leader transfer finish
+    while (!atomic_load_8(&(pMnode->syncMgmt.leaderTransferFinish))) {
+      taosMsleep(10);
+      mInfo("vgId:1, mnode waiting for leader transfer");
+    }
+    mInfo("vgId:1, mnode finish leader transfer");
+#endif
   }
 }
 

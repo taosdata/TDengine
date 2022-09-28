@@ -413,13 +413,8 @@ if $data12 != 3 then
   goto loop14
 endi
 
-return 1
 
-sql drop stream if exists streams3;
-sql drop database if exists test3;
-sql drop database if exists test;
 sql create database test3  vgroups 4;
-sql create database test  vgroups 1;
 sql use test3;
 sql create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
@@ -435,7 +430,7 @@ sql delete from t1;
 
 loop15:
 sleep 200
-sql select * from test.streamt2 order by c1, c2, c3;
+sql select * from test.streamt3 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -453,7 +448,7 @@ sql delete from t1 where ts > 100;
 
 loop16:
 sleep 200
-sql select * from test.streamt2 order by c1, c2, c3;
+sql select * from test.streamt3 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
@@ -471,7 +466,7 @@ sql delete from st;
 
 loop17:
 sleep 200
-sql select * from test.streamt2 order by c1, c2, c3;
+sql select * from test.streamt3 order by c1, c2, c3;
 
 $loop_count = $loop_count + 1
 if $loop_count == 10 then
