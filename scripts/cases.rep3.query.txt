@@ -13,6 +13,8 @@ taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_query/stab
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_query/table_query_union.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_query/table_query_null.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_query/table_query.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/alltype/split/stable_alltype_last_row_1.py --keep --containers
+taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/alltype/split/stable_alltype_last_row_2.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/time/split/stable_time_now_1.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/time/split/stable_time_now_2.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/time/split/stable_time_today_1.py --keep --containers
@@ -89,7 +91,6 @@ taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/a
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_count.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_first.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_last.py --keep --containers
-taostest --use=common_cluster_30.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_last_row.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/alltype/table_alltype_mode.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/alltype/table_alltype_tail.py --keep --containers
 taostest --use=common_cluster_30.yaml --case=Query/queryscript/table_function/alltype/table_alltype_unique.py --keep --containers
