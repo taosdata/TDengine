@@ -221,22 +221,31 @@ _commit_conflict_check:
 _merge_fs:
   taosThreadRwlockWrlock(&pTsdb->rwLock);
 
-  if ((code = tsdbFSCopy(pTsdb, &fsLatest))) {
-    taosThreadRwlockUnlock(&pTsdb->rwLock);
-    goto _exit;
+  // 1) prepare fs, merge tsdbFSNew and pTsdb->fs if needed
+  STsdbFS *pTsdbFS = &fs;
+  ASSERT(fs.version <= pTsdb->fs.version);
+
+  if (fs.version < pTsdb->fs.version) {
+    if ((code = tsdbFSCopy(pTsdb, &fsLatest))) {
+      taosThreadRwlockUnlock(&pTsdb->rwLock);
+      goto _exit;
+    }
+
+    if ((code = tsdbFSUpdDel(pTsdb, &fsLatest, &fs, maxFid))) {
+      taosThreadRwlockUnlock(&pTsdb->rwLock);
+      goto _exit;
+    }
+    pTsdbFS = &fsLatest;
   }
-  // 1) merge tsdbFSNew and pTsdb->fs
-  if ((code = tsdbFSUpdDel(pTsdb, &fsLatest, &fs, maxFid))) {
-    taosThreadRwlockUnlock(&pTsdb->rwLock);
-    goto _exit;
-  }
+
   // 2) save CURRENT
-  if ((code = tsdbFSCommit1(pTsdb, &fsLatest))) {
+  if ((code = tsdbFSCommit1(pTsdb, pTsdbFS))) {
     taosThreadRwlockUnlock(&pTsdb->rwLock);
     goto _exit;
   }
+
   // 3) apply the tsdbFS to pTsdb->fs
-  if ((code = tsdbFSCommit2(pTsdb, &fsLatest))) {
+  if ((code = tsdbFSCommit2(pTsdb, pTsdbFS))) {
     taosThreadRwlockUnlock(&pTsdb->rwLock);
     goto _exit;
   }
