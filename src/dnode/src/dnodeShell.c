@@ -226,7 +226,7 @@ void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t tid) {
     int16_t   numOfColumns = htons(pTable->numOfColumns);
     int16_t   numOfTags = htons(pTable->numOfTags);
     int32_t   tableId = htonl(pTable->tid);
-    uint64_t  uid = htobe64(pTable->uid);
+    uint64_t  uid = (uint64_t)htobe64(pTable->uid);
     dInfo("table:%s, numOfColumns:%d numOfTags:%d tid:%d uid:%" PRIu64, pTable->tableFname, numOfColumns, numOfTags, tableId, uid);
 
     return rpcRsp.pCont;
@@ -236,7 +236,7 @@ void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t tid) {
 SStatisInfo dnodeGetStatisInfo() {
   SStatisInfo info = {0};
   if (dnodeGetRunStatus() == TSDB_RUN_STATUS_RUNING) {
-    info.httpReqNum   = httpGetReqCount();
+    info.httpReqNum   = (int32_t)httpGetReqCount();
     info.queryReqNum  = atomic_exchange_32(&tsQueryReqNum, 0);
     info.submitReqNum = atomic_exchange_32(&tsSubmitReqNum, 0);
   }
