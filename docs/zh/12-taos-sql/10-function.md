@@ -868,6 +868,7 @@ INTERP(expr)
 - INTERP 根据 EVERY 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（EVERY 值）进行插值。如果没有指定 EVERY，则默认窗口大小为无穷大，即从 timestamp1 开始只有一个窗口。
 - INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。
 - INTERP 只能在一个时间序列内进行插值，因此当作用于超级表时必须跟 partition by tbname 一起使用。
+- INTERP 可以与伪列 _irowts 一起使用，返回插值点所对应的时间戳(3.0.1.4版本以后支持)。
 
 ### LAST
 

@@ -474,8 +474,8 @@ static FORCE_INLINE int32_t tLDataIterCmprFn(const void *p1, const void *p2) {
 }
 
 int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
-                       STimeWindow *pTimeWindow, SVersionRange *pVerRange, void* pBlockLoadInfo, STSchema* pSchema,
-                       int16_t* pCols, int32_t numOfCols, const char* idStr) {
+                       STimeWindow *pTimeWindow, SVersionRange *pVerRange, SSttBlockLoadInfo *pBlockLoadInfo,
+                       bool destroyLoadInfo, const char *idStr) {
   pMTree->backward = backward;
   pMTree->pIter = NULL;
   pMTree->pIterList = taosArrayInit(4, POINTER_BYTES);
@@ -488,22 +488,12 @@ int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFRead
   tRBTreeCreate(&pMTree->rbt, tLDataIterCmprFn);
   int32_t code = TSDB_CODE_SUCCESS;
 
-  SSttBlockLoadInfo* pLoadInfo = NULL;
-  if (pBlockLoadInfo == NULL) {
-    ASSERT(0);
-    if (pMTree->pLoadInfo == NULL) {
-      pMTree->destroyLoadInfo = true;
-      pMTree->pLoadInfo = tCreateLastBlockLoadInfo(pSchema, pCols, numOfCols);
-    }
-
-    pLoadInfo = pMTree->pLoadInfo;
-  } else {
-    pLoadInfo = pBlockLoadInfo;
-  }
+  pMTree->pLoadInfo = pBlockLoadInfo;
+  pMTree->destroyLoadInfo = destroyLoadInfo;
 
   for (int32_t i = 0; i < pFReader->pSet->nSttF; ++i) {  // open all last file
     struct SLDataIter* pIter = NULL;
-    code = tLDataIterOpen(&pIter, pFReader, i, pMTree->backward, suid, uid, pTimeWindow, pVerRange, &pLoadInfo[i]);
+    code = tLDataIterOpen(&pIter, pFReader, i, pMTree->backward, suid, uid, pTimeWindow, pVerRange, &pMTree->pLoadInfo[i]);
     if (code != TSDB_CODE_SUCCESS) {
       goto _end;
     }
