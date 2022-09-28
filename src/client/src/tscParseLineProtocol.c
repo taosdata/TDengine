@@ -577,7 +577,9 @@ static int32_t getSuperTableMetaFromLocalCache(TAOS* taos, char* tableName, STab
   // Check if the table name available or not
   if (tscValidateName(&tableToken, true, &dbIncluded) != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
-    sprintf(pSql->cmd.payload, "table name is invalid");
+    if(pSql->cmd.payload){
+      sprintf(pSql->cmd.payload, "table name is invalid");
+    }
     taosReleaseRef(tscObjRef, pSql->self);
     return code;
   }
@@ -1966,20 +1968,14 @@ int32_t convertSmlTimeStamp(TAOS_SML_KV *pVal, char *value,
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t parseSmlTimeStamp(TAOS_SML_KV **pTS, const char **idx, SSmlLinesInfo* info) {
-  const char *start, *cur;
+static int32_t parseSmlTimeStamp(TAOS_SML_KV **pTS, const char **idx, int32_t len, SSmlLinesInfo* info) {
+  const char *start;
   int32_t ret = TSDB_CODE_SUCCESS;
-  int len = 0;
   char key[] = "ts";
   char *value = NULL;
 
-  start = cur = *idx;
+  start = *idx;
   *pTS = calloc(1, sizeof(TAOS_SML_KV));
-
-  while(*cur != '\0') {
-    cur++;
-    len++;
-  }
 
   if (len > 0) {
     value = calloc(len + 1, 1);
@@ -2013,12 +2009,12 @@ bool checkDuplicateKey(char *key, SHashObj *pHash, SSmlLinesInfo* info) {
   return false;
 }
 
-static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **idx, SHashObj *pHash, SSmlLinesInfo* info) {
+static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **idx, int32_t sqlLen, SHashObj *pHash, SSmlLinesInfo* info) {
   const char *cur = *idx;
   char key[TSDB_COL_NAME_LEN + 1];  // +1 to avoid key[len] over write
   int16_t len = 0;
 
-  while (*cur != '\0') {
+  while (cur - *idx < sqlLen) {
     if (len > TSDB_COL_NAME_LEN - 1) {
       tscError("SML:0x%"PRIx64" Key field cannot exceeds %d characters", info->id, TSDB_COL_NAME_LEN - 1);
       return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
@@ -2053,7 +2049,7 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **idx, SHashObj *pHash, 
 }
 
 
-static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
+static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx, int32_t sqlLen,
                           bool *is_last_kv, SSmlLinesInfo* info, bool isTag) {
   const char *start, *cur;
   int32_t     ret = TSDB_CODE_SUCCESS;
@@ -2163,13 +2159,13 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
           cur++;
           break;
         } else if (double_quote == true) {
-          if (*cur != ' ' && *cur != ',' && *cur != '\0') {
+          if (*cur != ' ' && *cur != ',' && (cur - *idx < sqlLen)) {
             tscError("SML:0x%"PRIx64" tag value: state(%d), incorrect character(%c) behind closing \"", info->id, tag_state, *cur);
             ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
             goto error;
           }
 
-          if (*cur == ' ' || *cur == '\0') {
+          if (*cur == ' ' || (cur - *idx == sqlLen)) {
             *is_last_kv = true;
           }
 
@@ -2308,13 +2304,13 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
           cur++;
           break;
         } else if (double_quote == true) {
-          if (*cur != ' ' && *cur != ',' && *cur != '\0') {
+          if (*cur != ' ' && *cur != ',' && (cur - *idx < sqlLen)) {
             tscError("SML:0x%"PRIx64" field value: state(%d), incorrect character(%c) behind closing \"", info->id, val_state, *cur);
             ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
             goto error;
           }
 
-          if (*cur == ' ' || *cur == '\0') {
+          if (*cur == ' ' || (cur - *idx == sqlLen)) {
             *is_last_kv = true;
           }
 
@@ -2384,7 +2380,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx,
   }
   free(value);
 
-  *idx = (*cur == '\0') ? cur : cur + 1;
+  *idx = (cur - *idx == sqlLen) ? cur : cur + 1;
   return ret;
 
 error:
@@ -2395,7 +2391,7 @@ error:
   return ret;
 }
 
-static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **idx,
+static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **idx, int32_t sqlLen,
                                    uint8_t *has_tags, SSmlLinesInfo* info) {
   const char *cur = *idx;
   int16_t len = 0;
@@ -2405,7 +2401,7 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **idx,
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  while (*cur != '\0') {
+  while (cur - *idx < sqlLen) {
     if (len > TSDB_TABLE_NAME_LEN - 1) {
       tscError("SML:0x%"PRIx64" Measurement field cannot exceeds %d characters", info->id, TSDB_TABLE_NAME_LEN - 1);
       free(pSml->stableName);
@@ -2464,7 +2460,7 @@ int32_t isValidChildTableName(const char *pTbName, int16_t len, SSmlLinesInfo* i
 
 
 static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
-                               const char **idx, bool isField,
+                               const char **idx, int32_t len, bool isField,
                                TAOS_SML_DATA_POINT* smlData, SHashObj *pHash,
                                SSmlLinesInfo* info) {
   const char *cur = *idx;
@@ -2495,13 +2491,13 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
     addEscapeCharToString(childTableName, (int32_t)(childTableNameLen));
   }
 
-  while (*cur != '\0') {
-    ret = parseSmlKey(pkv, &cur, pHash, info);
+  while (cur - *idx < len) {
+    ret = parseSmlKey(pkv, &cur, len - (cur - *idx), pHash, info);
     if (ret) {
       tscError("SML:0x%"PRIx64" Unable to parse key", info->id);
       goto error;
     }
-    ret = parseSmlValue(pkv, &cur, &is_last_kv, info, !isField);
+    ret = parseSmlValue(pkv, &cur, len - (cur - *idx), &is_last_kv, info, !isField);
     if (ret) {
       tscError("SML:0x%"PRIx64" Unable to parse value", info->id);
       goto error;
@@ -2574,14 +2570,14 @@ static void moveTimeStampToFirstKv(TAOS_SML_DATA_POINT** smlData, TAOS_SML_KV *t
   free(ts);
 }
 
-int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* smlData, SSmlLinesInfo* info) {
+int32_t tscParseLine(const char* sql, int32_t len, TAOS_SML_DATA_POINT* smlData, SSmlLinesInfo* info) {
   const char* idx = sql;
   int32_t ret = TSDB_CODE_SUCCESS;
   uint8_t has_tags = 0;
   TAOS_SML_KV *timestamp = NULL;
   SHashObj *keyHashTable = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
 
-  ret = parseSmlMeasurement(smlData, &idx, &has_tags, info);
+  ret = parseSmlMeasurement(smlData, &idx, len, &has_tags, info);
   if (ret) {
     tscError("SML:0x%"PRIx64" Unable to parse measurement", info->id);
     taosHashCleanup(keyHashTable);
@@ -2591,7 +2587,7 @@ int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* smlData, SSmlLinesInf
 
   //Parse Tags
   if (has_tags) {
-    ret = parseSmlKvPairs(&smlData->tags, &smlData->tagNum, &idx, false, smlData, keyHashTable, info);
+    ret = parseSmlKvPairs(&smlData->tags, &smlData->tagNum, &idx, len - (idx - sql), false, smlData, keyHashTable, info);
     if (ret) {
       tscError("SML:0x%"PRIx64" Unable to parse tag", info->id);
       taosHashCleanup(keyHashTable);
@@ -2601,7 +2597,7 @@ int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* smlData, SSmlLinesInf
   tscDebug("SML:0x%"PRIx64" Parse tags finished, num of tags:%d", info->id, smlData->tagNum);
 
   //Parse fields
-  ret = parseSmlKvPairs(&smlData->fields, &smlData->fieldNum, &idx, true, smlData, keyHashTable, info);
+  ret = parseSmlKvPairs(&smlData->fields, &smlData->fieldNum, &idx, len - (idx - sql), true, smlData, keyHashTable, info);
   if (ret) {
     tscError("SML:0x%"PRIx64" Unable to parse field", info->id);
     taosHashCleanup(keyHashTable);
@@ -2617,7 +2613,7 @@ int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* smlData, SSmlLinesInf
   taosHashCleanup(keyHashTable);
 
   //Parse timestamp
-  ret = parseSmlTimeStamp(&timestamp, &idx, info);
+  ret = parseSmlTimeStamp(&timestamp, &idx, len - (idx - sql), info);
   if (ret) {
     tscError("SML:0x%"PRIx64" Unable to parse timestamp", info->id);
     return ret;
@@ -2652,30 +2648,76 @@ void destroySmlDataPoint(TAOS_SML_DATA_POINT* point) {
   free(point->childTableName);
 }
 
-int32_t tscParseLines(char* lines[], int numLines, SArray* points, SArray* failedLines, SSmlLinesInfo* info) {
-  for (int32_t i = 0; i < numLines; ++i) {
-    TAOS_SML_DATA_POINT point = {0};
-    int32_t code = tscParseLine(lines[i], &point, info);
-    if (code != TSDB_CODE_SUCCESS) {
-      tscError("SML:0x%"PRIx64" data point line parse failed. line %d : %s", info->id, i, lines[i]);
-      destroySmlDataPoint(&point);
-      return code;
-    } else {
-      tscDebug("SML:0x%"PRIx64" data point line parse success. line %d", info->id, i);
-    }
-
-    taosArrayPush(points, &point);
+static int32_t tscParseLinesInner(char* line, int32_t len, SArray* points, SSmlLinesInfo* info){
+  TAOS_SML_DATA_POINT point = {0};
+  int32_t code = tscParseLine(line, len, &point, info);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("SML:0x%"PRIx64" data point line parse failed.", info->id);
+    destroySmlDataPoint(&point);
+    return code;
+  } else {
+    tscDebug("SML:0x%"PRIx64" data point line parse success.", info->id);
   }
+
+  taosArrayPush(points, &point);
   return TSDB_CODE_SUCCESS;
 }
 
-int taos_insert_lines(TAOS* taos, char* lines[], int numLines, SMLProtocolType protocol, SMLTimeStampType tsType, int *affectedRows) {
+int32_t tscParseLines(char* data, int32_t len, char* lines[], int numLines, SArray* points, SArray* failedLines, SSmlLinesInfo* info) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if(!data && lines){
+    for (int32_t i = 0; i < numLines; ++i) {
+      code = tscParseLinesInner(lines[i], strlen(lines[i]), points, info);
+      if(code != TSDB_CODE_SUCCESS){
+        return code;
+      }
+    }
+  }else if(data && !lines){
+    char* tmp = data;
+    int32_t lenTmp = 0;
+    for(int i = 0; i < len; i++){
+      if(data[i] == '\n' || i == len - 1){
+        if(data[i] != '\n' || i == len - 1){
+          lenTmp ++;
+        }
+        if(lenTmp > 0) {
+          code = tscParseLinesInner(tmp, lenTmp, points, info);
+          if(code != TSDB_CODE_SUCCESS){
+            return code;
+          }
+        }
+        if(i < len - 1) {
+          tmp = data + i + 1;
+        }
+        lenTmp = 0;
+      }else{
+        lenTmp ++;
+      }
+    }
+  }
+
+  return code;
+}
+
+int taos_insert_lines(TAOS* taos, char* data, int len, char* lines[], int numLines, SMLProtocolType protocol, SMLTimeStampType tsType, int *affectedRows) {
   int32_t code = 0;
 
   SSmlLinesInfo* info = tcalloc(1, sizeof(SSmlLinesInfo));
   info->id = genLinesSmlId();
   info->tsType = tsType;
   info->protocol = protocol;
+
+  if (data){
+    numLines = 0;
+    for(int i = 0; i < len; i++){
+      if(data[i] == '\0'){
+        data[i] = '0';
+      }
+      if(data[i] == '\n' || i == len - 1){
+        numLines++;
+      }
+    }
+  }
 
   if (numLines <= 0 || numLines > 65536*32) {
     tscError("SML:0x%"PRIx64" taos_insert_lines numLines should be between 1 and 65536*32. numLines: %d", info->id, numLines);
@@ -2684,12 +2726,14 @@ int taos_insert_lines(TAOS* taos, char* lines[], int numLines, SMLProtocolType p
     return code;
   }
 
-  for (int i = 0; i < numLines; ++i) {
-    if (lines[i] == NULL) {
-      tscError("SML:0x%"PRIx64" taos_insert_lines line %d is NULL", info->id, i);
-      tfree(info);
-      code = TSDB_CODE_TSC_APP_ERROR;
-      return code;
+  if(lines){
+    for (int i = 0; i < numLines; ++i) {
+      if (lines[i] == NULL) {
+        tscError("SML:0x%"PRIx64" taos_insert_lines line %d is NULL", info->id, i);
+        tfree(info);
+        code = TSDB_CODE_TSC_APP_ERROR;
+        return code;
+      }
     }
   }
 
@@ -2700,8 +2744,8 @@ int taos_insert_lines(TAOS* taos, char* lines[], int numLines, SMLProtocolType p
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  tscDebug("SML:0x%"PRIx64" taos_insert_lines begin inserting %d lines, first line: %s", info->id, numLines, lines[0]);
-  code = tscParseLines(lines, numLines, lpPoints, NULL, info);
+  tscDebug("SML:0x%"PRIx64" taos_insert_lines begin inserting %d lines", info->id, numLines);
+  code = tscParseLines(data, len, lines, numLines, lpPoints, NULL, info);
   size_t numPoints = taosArrayGetSize(lpPoints);
 
   if (code != 0) {
@@ -2816,13 +2860,46 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
 
   switch (protocol) {
     case TSDB_SML_LINE_PROTOCOL:
-      code = taos_insert_lines(taos, lines, numLines, protocol, tsType, &affected_rows);
+      code = taos_insert_lines(taos, NULL, 0, lines, numLines, protocol, tsType, &affected_rows);
       break;
     case TSDB_SML_TELNET_PROTOCOL:
-      code = taos_insert_telnet_lines(taos, lines, numLines, protocol, tsType, &affected_rows);
+      code = taos_insert_telnet_lines(taos, NULL, 0, lines, numLines, protocol, tsType, &affected_rows);
       break;
     case TSDB_SML_JSON_PROTOCOL:
       code = taos_insert_json_payload(taos, *lines, protocol, tsType, &affected_rows);
+      break;
+    default:
+      code = TSDB_CODE_TSC_INVALID_PROTOCOL_TYPE;
+      break;
+  }
+
+
+  SSqlObj *pSql = createSmlQueryObj(taos, affected_rows, code);
+
+  return (TAOS_RES*)pSql;
+}
+
+TAOS_RES *taos_schemaless_insert_new(TAOS* taos, char* lines, int len, int32_t *totalRows, int protocol, int precision){
+  int code = TSDB_CODE_SUCCESS;
+  int affected_rows = 0;
+  SMLTimeStampType tsType = SML_TIME_STAMP_NOW;
+
+  if (protocol == TSDB_SML_LINE_PROTOCOL) {
+    code = convertPrecisionType(precision, &tsType);
+    if (code != TSDB_CODE_SUCCESS) {
+      return NULL;
+    }
+  }
+
+  switch (protocol) {
+    case TSDB_SML_LINE_PROTOCOL:
+      code = taos_insert_lines(taos, lines, len, NULL, 0, protocol, tsType, &affected_rows);
+      break;
+    case TSDB_SML_TELNET_PROTOCOL:
+      code = taos_insert_telnet_lines(taos, lines, len, NULL, 0, protocol, tsType, &affected_rows);
+      break;
+    case TSDB_SML_JSON_PROTOCOL:
+      code = taos_insert_json_payload(taos, lines, protocol, tsType, &affected_rows);
       break;
     default:
       code = TSDB_CODE_TSC_INVALID_PROTOCOL_TYPE;
