@@ -867,6 +867,7 @@ INTERP(expr)
 - The number of rows in the result set of `INTERP` is determined by the parameter `EVERY`. Starting from timestamp1, one interpolation is performed for every time interval specified `EVERY` parameter.
 - Interpolation is performed based on `FILL` parameter.
 - `INTERP` can only be used to interpolate in single timeline. So it must be used with `partition by tbname` when it's used on a STable.
+- Pseudo column `_irowts` can be used along with `INTERP`to return the timestamps associated with interpolation points(support after version 3.0.1.4).
 
 ### LAST
 
