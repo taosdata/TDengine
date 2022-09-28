@@ -69,6 +69,8 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
   int32_t blkOffset = offset % kBlockSize;
   int32_t blkLeft = kBlockSize - blkOffset;
 
+  if (offset >= ctx->file.size) return 0;
+
   do {
     char key[128] = {0};
     idxGenLRUKey(key, ctx->file.buf, blkId);
@@ -80,24 +82,34 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
       memcpy(buf + total, blk->buf + blkOffset, nread);
       taosLRUCacheRelease(ctx->lru, h, false);
     } else {
-      int32_t cacheMemSize = sizeof(SDataBlock) + kBlockSize;
+      int32_t left = ctx->file.size - offset;
+      if (left < kBlockSize) {
+        nread = TMIN(left, len);
+        int32_t bytes = taosPReadFile(ctx->file.pFile, buf + total, nread, offset);
+        assert(bytes == nread);
 
-      SDataBlock* blk = taosMemoryCalloc(1, cacheMemSize);
-      blk->blockId = blkId;
-      blk->nread = taosPReadFile(ctx->file.pFile, blk->buf, kBlockSize, blkId * kBlockSize);
-      assert(blk->nread <= kBlockSize);
+        total += bytes;
+        return total;
+      } else {
+        int32_t cacheMemSize = sizeof(SDataBlock) + kBlockSize;
 
-      if (blk->nread < kBlockSize && blk->nread < len) {
-        break;
-      }
+        SDataBlock* blk = taosMemoryCalloc(1, cacheMemSize);
+        blk->blockId = blkId;
+        blk->nread = taosPReadFile(ctx->file.pFile, blk->buf, kBlockSize, blkId * kBlockSize);
+        assert(blk->nread <= kBlockSize);
 
-      nread = TMIN(blkLeft, len);
-      memcpy(buf + total, blk->buf + blkOffset, nread);
+        if (blk->nread < kBlockSize && blk->nread < len) {
+          break;
+        }
 
-      LRUStatus s = taosLRUCacheInsert(ctx->lru, key, strlen(key), blk, cacheMemSize, deleteDataBlockFromLRU, NULL,
-                                       TAOS_LRU_PRIORITY_LOW);
-      if (s != TAOS_LRU_STATUS_OK) {
-        return -1;
+        nread = TMIN(blkLeft, len);
+        memcpy(buf + total, blk->buf + blkOffset, nread);
+
+        LRUStatus s = taosLRUCacheInsert(ctx->lru, key, strlen(key), blk, cacheMemSize, deleteDataBlockFromLRU, NULL,
+                                         TAOS_LRU_PRIORITY_LOW);
+        if (s != TAOS_LRU_STATUS_OK) {
+          return -1;
+        }
       }
     }
     total += nread;
@@ -146,9 +158,7 @@ IFileCtx* idxFileCtxCreate(WriterType type, const char* path, bool readOnly, int
     } else {
       ctx->file.pFile = taosOpenFile(path, TD_FILE_READ);
 
-      int64_t size = 0;
       taosFStatFile(ctx->file.pFile, &ctx->file.size, NULL);
-      ctx->file.size = (int)size;
 #ifdef USE_MMAP
       ctx->file.ptr = (char*)tfMmapReadOnly(ctx->file.pFile, ctx->file.size);
 #endif

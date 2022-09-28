@@ -302,6 +302,7 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
         char* p = taosMemoryCalloc(1, strlen(c->colVal) + 1);
         memcpy(p, c->colVal, strlen(c->colVal));
         cond = cmpFn(p + skip, term->colVal, dType);
+        taosMemoryFree(p);
       }
     }
     if (cond == MATCH) {
