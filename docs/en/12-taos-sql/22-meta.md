@@ -114,7 +114,7 @@ Provides information about user-created databases. Similar to SHOW DATABASES.
 | 28  |   stt_trigger   | SMALLINT | The threshold for number of files to trigger file merging |
 | 29  |   table_prefix   | SMALLINT | The prefix length in the table name that is ignored when distributing table to vnode based on table name |
 | 30  |   table_suffix   | SMALLINT | The suffix length in the table name that is ignored when distributing table to vnode based on table name |
-| 31  |   tsdb_pagesize   | INT | Page size for vnode data storage engine, in KB |
+| 31  |   tsdb_pagesize   | INT | The page size for internal storage engine, its unit is KB |
 
 ## INS_FUNCTIONS
 

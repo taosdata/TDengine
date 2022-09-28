@@ -112,10 +112,10 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 | 25  |  wal_retention_size  | INT              | WAL 的保存上限                                   |
 | 26  |   wal_roll_period    | INT              | wal 文件切换时长                                 |
 | 27  |   wal_segment_size   | BIGINT | wal 单个文件大小 |
-| 28  |   stt_trigger   | SMALLINT | 表示落盘文件触发文件合并的个数 |
-| 29  |   table_prefix   | SMALLINT | 表示表名用于计算一致性 HASH 时需要忽略的前缀长度 |
-| 30  |   table_suffix   | SMALLINT | 表示表名用于计算一致性 HASH 时需要忽略的后缀长度 |
-| 31  |   tsdb_pagesize   | INT | 一个 VNODE 中时序数据存储引擎的页大小 |
+| 28  |   stt_trigger   | SMALLINT | 触发文件合并的落盘文件的个数 |
+| 29  |   table_prefix   | SMALLINT | 内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的前缀的长度 |
+| 30  |   table_suffix   | SMALLINT | 内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的后缀的长度 |
+| 31  |   tsdb_pagesize   | INT | 时序数据存储引擎中的页大小 |
 
 ## INS_FUNCTIONS
 
