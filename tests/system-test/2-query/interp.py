@@ -574,7 +574,41 @@ class TDTestCase:
         tdSql.checkData(4, 0, '2020-02-01 00:00:13.000')
         tdSql.checkData(5, 0, '2020-02-01 00:00:15.000')
 
-        return
+        # multiple _irowts
+        tdSql.query(f"select interp(c0),_irowts from {dbname}.{tbname} range('2020-02-01 00:00:04', '2020-02-01 00:00:16') every(1s) fill(linear)")
+        tdSql.checkRows(11)
+        tdSql.checkCols(2)
+
+        tdSql.checkData(0, 1, '2020-02-01 00:00:05.000')
+        tdSql.checkData(1, 1, '2020-02-01 00:00:06.000')
+        tdSql.checkData(2, 1, '2020-02-01 00:00:07.000')
+        tdSql.checkData(3, 1, '2020-02-01 00:00:08.000')
+        tdSql.checkData(4, 1, '2020-02-01 00:00:09.000')
+        tdSql.checkData(5, 1, '2020-02-01 00:00:10.000')
+        tdSql.checkData(6, 1, '2020-02-01 00:00:11.000')
+        tdSql.checkData(7, 1, '2020-02-01 00:00:12.000')
+        tdSql.checkData(8, 1, '2020-02-01 00:00:13.000')
+        tdSql.checkData(9, 1, '2020-02-01 00:00:14.000')
+        tdSql.checkData(10, 1, '2020-02-01 00:00:15.000')
+
+        tdSql.query(f"select _irowts, interp(c0), interp(c0), _irowts from {dbname}.{tbname} range('2020-02-01 00:00:04', '2020-02-01 00:00:16') every(1s) fill(linear)")
+        tdSql.checkRows(11)
+        tdSql.checkCols(4)
+
+        cols = (0, 3)
+        for i in cols:
+          tdSql.checkData(0, i, '2020-02-01 00:00:05.000')
+          tdSql.checkData(1, i, '2020-02-01 00:00:06.000')
+          tdSql.checkData(2, i, '2020-02-01 00:00:07.000')
+          tdSql.checkData(3, i, '2020-02-01 00:00:08.000')
+          tdSql.checkData(4, i, '2020-02-01 00:00:09.000')
+          tdSql.checkData(5, i, '2020-02-01 00:00:10.000')
+          tdSql.checkData(6, i, '2020-02-01 00:00:11.000')
+          tdSql.checkData(7, i, '2020-02-01 00:00:12.000')
+          tdSql.checkData(8, i, '2020-02-01 00:00:13.000')
+          tdSql.checkData(9, i, '2020-02-01 00:00:14.000')
+          tdSql.checkData(10, i, '2020-02-01 00:00:15.000')
+
 
         tdLog.printNoPrefix("==========step9:test intra block interpolation")
         tdSql.execute(f"drop database {dbname}");
