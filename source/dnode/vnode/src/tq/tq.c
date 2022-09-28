@@ -66,7 +66,7 @@ static void destroySTqHandle(void* data) {
 }
 
 static void tqPushEntryFree(void* data) {
-  void* p = *(void**)data;
+  STqPushEntry* p = *(void**)data;
   taosMemoryFree(p);
 }
 
