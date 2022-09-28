@@ -635,7 +635,7 @@ _return:
   input.msgType = qwMsg->msgType;
   code = qwHandlePostPhaseEvents(QW_FPARAMS(), QW_PHASE_POST_QUERY, &input, NULL);
 
-  if (QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
+  if (ctx != NULL && QW_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
     void         *rsp = NULL;
     int32_t       dataLen = 0;
     SOutputData sOutput = {0};
@@ -660,8 +660,7 @@ _return:
     }
   }
 
-
-  QW_RET(TSDB_CODE_SUCCESS);
+  QW_RET(code);
 }
 
 int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
