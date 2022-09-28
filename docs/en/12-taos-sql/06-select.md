@@ -181,6 +181,14 @@ In TDengine, the first column of all tables must be a timestamp. This column is 
 select _rowts, max(current) from meters;
 ```
 
+**\_IROWTS**
+
+The \_IROWTS pseudocolumns can only be used with INTERP FUNCTION. This pseudocolumns can be used to retrieve the corresponding timestamp column associated with the INTERPOLATION results.
+
+```sql
+select _irowts, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(linear);
+```
+
 ## Query Objects
 
 `FROM` can be followed by a number of tables or super tables, or can be followed by a sub-query.
