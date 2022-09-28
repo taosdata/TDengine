@@ -271,6 +271,10 @@ static void getNextTimeWindow(SInterval* pInterval, int32_t precision, int32_t o
   tw->ekey -= 1;
 }
 
+void getNextIntervalWindow(SInterval* pInterval, STimeWindow* tw, int32_t order) {
+  getNextTimeWindow(pInterval, pInterval->precision, order, tw);
+}
+
 void doTimeWindowInterpolation(SArray* pPrevValues, SArray* pDataBlock, TSKEY prevTs, int32_t prevRowIndex, TSKEY curTs,
                                int32_t curRowIndex, TSKEY windowKey, int32_t type, SExprSupp* pSup) {
   SqlFunctionCtx* pCtx = pSup->pCtx;
@@ -3146,20 +3150,21 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
     }
 
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-    if (pInfo->binfo.pRes->info.rows == 0) {
-      pOperator->status = OP_EXEC_DONE;
-      if (!IS_FINAL_OP(pInfo)) {
-        clearFunctionContext(&pOperator->exprSupp);
-        // semi interval operator clear disk buffer
-        clearStreamIntervalOperator(pInfo);
-        qDebug("===stream===clear semi operator");
-      } else {
-        freeAllPages(pInfo->pRecycledPages, pInfo->aggSup.pResultBuf);
-      }
-      return NULL;
+    if (pInfo->binfo.pRes->info.rows != 0) {
+      printDataBlock(pInfo->binfo.pRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi");
+      return pInfo->binfo.pRes;
     }
-    printDataBlock(pInfo->binfo.pRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi");
-    return pInfo->binfo.pRes;
+
+    doSetOperatorCompleted(pOperator);
+    if (!IS_FINAL_OP(pInfo)) {
+      clearFunctionContext(&pOperator->exprSupp);
+      // semi interval operator clear disk buffer
+      clearStreamIntervalOperator(pInfo);
+      qDebug("===stream===clear semi operator");
+    } else {
+      freeAllPages(pInfo->pRecycledPages, pInfo->aggSup.pResultBuf);
+    }
+    return NULL;
   } else {
     if (!IS_FINAL_OP(pInfo)) {
       doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
@@ -3316,7 +3321,13 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
     return pInfo->pPullDataRes;
   }
 
-  // we should send result first.
+  doBuildDeleteResult(pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
+  if (pInfo->pDelRes->info.rows != 0) {
+    // process the rest of the data
+    printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi");
+    return pInfo->pDelRes;
+  }
+
   doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
   if (pInfo->binfo.pRes->info.rows != 0) {
     printDataBlock(pInfo->binfo.pRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi");
@@ -3329,13 +3340,6 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
     printDataBlock(pInfo->pUpdateRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi");
     // process the rest of the data
     return pInfo->pUpdateRes;
-  }
-
-  doBuildDeleteResult(pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
-  if (pInfo->pDelRes->info.rows != 0) {
-    // process the rest of the data
-    printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo) ? "interval final" : "interval semi");
-    return pInfo->pDelRes;
   }
   return NULL;
 }
@@ -5744,19 +5748,18 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_RES_TO_RETURN) {
     doBuildDeleteResult(pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
     if (pInfo->pDelRes->info.rows > 0) {
-      printDataBlock(pInfo->pDelRes, "single interval");
+      printDataBlock(pInfo->pDelRes, "single interval delete");
       return pInfo->pDelRes;
     }
 
     doBuildResult(pOperator, pInfo->binfo.pRes, &pInfo->groupResInfo);
-    // doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-    if (pInfo->binfo.pRes->info.rows == 0 || !hasRemainResults(&pInfo->groupResInfo)) {
-      pOperator->status = OP_EXEC_DONE;
-      qDebug("===stream===single interval is done");
-      freeAllPages(pInfo->pRecycledPages, pInfo->aggSup.pResultBuf);
+    if (pInfo->binfo.pRes->info.rows > 0) {
+      printDataBlock(pInfo->binfo.pRes, "single interval");
+      return pInfo->binfo.pRes;
     }
-    printDataBlock(pInfo->binfo.pRes, "single interval");
-    return pInfo->binfo.pRes->info.rows == 0 ? NULL : pInfo->binfo.pRes;
+
+    doSetOperatorCompleted(pOperator);
+    return NULL;
   }
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
@@ -5823,24 +5826,24 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   }
   taosArraySort(pUpdated, resultrowComparAsc);
 
-  // new disc buf
-  // finalizeUpdatedResult(pOperator->exprSupp.numOfExprs, pInfo->aggSup.pResultBuf, pUpdated,
-  // pSup->rowEntryInfoOffset);
   initMultiResInfoFromArrayList(&pInfo->groupResInfo, pUpdated);
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
   removeDeleteResults(pUpdatedMap, pInfo->pDelWins);
   taosHashCleanup(pUpdatedMap);
+
   doBuildDeleteResult(pInfo->pDelWins, &pInfo->delIndex, pInfo->pDelRes);
   if (pInfo->pDelRes->info.rows > 0) {
-    printDataBlock(pInfo->pDelRes, "single interval");
+    printDataBlock(pInfo->pDelRes, "single interval delete");
     return pInfo->pDelRes;
   }
 
-  // doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-  // new disc buf
   doBuildResult(pOperator, pInfo->binfo.pRes, &pInfo->groupResInfo);
-  printDataBlock(pInfo->binfo.pRes, "single interval");
-  return pInfo->binfo.pRes->info.rows == 0 ? NULL : pInfo->binfo.pRes;
+  if (pInfo->binfo.pRes->info.rows > 0) {
+    printDataBlock(pInfo->binfo.pRes, "single interval");
+    return pInfo->binfo.pRes;
+  }
+
+  return NULL;
 }
 
 void destroyStreamIntervalOperatorInfo(void* param) {
