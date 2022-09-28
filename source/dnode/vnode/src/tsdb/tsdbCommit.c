@@ -1000,26 +1000,26 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
   if (pCommitter->fs.version < pTsdb->fs.version) {
     if ((code = tsdbFSCopy(pTsdb, &fsLatest))) {
       taosThreadRwlockUnlock(&pTsdb->rwLock);
-      goto _err;
+      goto _exit;
     }
 
     if ((code = tsdbFSUpdDel(pTsdb, &pCommitter->fs, &fsLatest, pTsdb->trimHdl.minCommitFid - 1))) {
       taosThreadRwlockUnlock(&pTsdb->rwLock);
-      goto _err;
+      goto _exit;
     }
   }
 
   code = tsdbFSCommit1(pTsdb, &pCommitter->fs);
   if (code) {
     taosThreadRwlockUnlock(&pTsdb->rwLock);
-    goto _err;
+    goto _exit;
   }
 
   // commit or rollback
   code = tsdbFSCommit2(pTsdb, &pCommitter->fs);
   if (code) {
     taosThreadRwlockUnlock(&pTsdb->rwLock);
-    goto _err;
+    goto _exit;
   }
 
   pTsdb->imem = NULL;
@@ -1027,8 +1027,10 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
   // unlock
   taosThreadRwlockUnlock(&pTsdb->rwLock);
 
+_exit:
   tsdbUnrefMemTable(pMemTable);
   tsdbFSDestroy(&pCommitter->fs);
+  tsdbFSDestroy(&fsLatest);
   taosArrayDestroy(pCommitter->aTbDataP);
   atomic_store_32(&pTsdb->trimHdl.minCommitFid, INT32_MAX);
 
@@ -1036,13 +1038,12 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
   //   code = tsdbMerge(pTsdb);
   //   if (code) goto _err;
   // }
-
-  tsdbInfo("vgId:%d, tsdb end commit", TD_VID(pTsdb->pVnode));
-  return code;
-
-_err:
-  atomic_store_32(&pTsdb->trimHdl.minCommitFid, INT32_MAX);
-  tsdbError("vgId:%d, tsdb end commit failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  if(code == 0) {
+    tsdbInfo("vgId:%d, tsdb end commit", TD_VID(pTsdb->pVnode));
+  } else {
+    tsdbError("vgId:%d, tsdb end commit failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  }
+  
   return code;
 }
 
