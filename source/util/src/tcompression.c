@@ -1379,7 +1379,7 @@ static int32_t tCompIntStart(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg)
   pCmprsor->i_end = 0;
   pCmprsor->nBuf = 1;
 
-  code = tRealloc(&pCmprsor->aBuf[0], pCmprsor->nBuf);
+  code = tRealloc(&pCmprsor->pBuf, pCmprsor->nBuf);
   if (code) return code;
 
   pCmprsor->pBuf[0] = 0;
@@ -1437,7 +1437,7 @@ static int32_t tCompInt(SCompressor *pCmprsor, const void *pData, int32_t nData)
 
   ASSERT(nData == DATA_TYPE_INFO[pCmprsor->type].bytes);
 
-  if (pCmprsor->aBuf[0][0] == 0) {
+  if (pCmprsor->pBuf[0] == 0) {
     int64_t val = 0;
     memcpy(&val, pData, nData);  // little-endian only
 
