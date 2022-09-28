@@ -43,6 +43,8 @@ class TestVgroups(TDCase):
                 return vnode_sum
             elif os.environ.get('DATABASE_REPLICAS') == '3':
                 return vnode_sum / 3
+        else:
+            return vnode_sum
     
     def vgroups_check(self):
         """
