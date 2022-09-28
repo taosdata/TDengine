@@ -56,7 +56,7 @@ typedef struct SAsyncBatchWriteDispatcher {
   int32_t bufferSize;
 
   // whether the dispatcher is shutdown.
-  volatile bool shutdown;
+  bool shutdown;
 
   SSqlObj* buffer[];
 } SAsyncBatchWriteDispatcher;
@@ -106,7 +106,7 @@ typedef struct SDispatcherTimeoutManager {
   int32_t timeoutMs;
 
   // whether the timeout manager is shutdown.
-  volatile bool shutdown;
+  bool shutdown;
 } SDispatcherTimeoutManager;
 
 /**
