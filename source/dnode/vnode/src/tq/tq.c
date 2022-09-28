@@ -551,7 +551,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
     tqScanData(pTq, pHandle, &dataRsp, &fetchOffsetNew);
 
 #if 1
-    if (dataRsp.blockNum == 0) {
+    if (dataRsp.blockNum == 0 && dataRsp.rspOffset.type == TMQ_OFFSET__LOG &&
+        dataRsp.reqOffset.version == dataRsp.rspOffset.version) {
       STqPushEntry* pPushEntry = taosMemoryCalloc(1, sizeof(STqPushEntry));
       if (pPushEntry != NULL) {
         pPushEntry->pInfo = pMsg->info;
