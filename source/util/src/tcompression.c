@@ -62,8 +62,8 @@ static const int32_t TEST_NUMBER = 1;
 #define SIMPLE8B_MAX_INT64 ((uint64_t)1152921504606846974LL)
 
 #define safeInt64Add(a, b)  (((a >= 0) && (b <= INT64_MAX - a)) || ((a < 0) && (b >= INT64_MIN - a)))
-#define ZIGZAG_ENCODE(T, v) ((u##T)((v) >> (sizeof(T) * 8 - 1))) ^ (((u##T)(v)) << 1)  // zigzag encode
-#define ZIGZAG_DECODE(T, v) ((v) >> 1) ^ -((T)((v)&1))                                 // zigzag decode
+#define ZIGZAG_ENCODE(T, v) (((u##T)((v) >> (sizeof(T) * 8 - 1))) ^ (((u##T)(v)) << 1))  // zigzag encode
+#define ZIGZAG_DECODE(T, v) (((v) >> 1) ^ -((T)((v)&1)))                                 // zigzag decode
 
 #ifdef TD_TSZ
 bool lossyFloat = false;
@@ -1025,10 +1025,16 @@ static int32_t tCompBinaryStart(SCompressor *pCmprsor, int8_t type, int8_t cmprA
 static int32_t tCompBinary(SCompressor *pCmprsor, const void *pData, int32_t nData);
 static int32_t tCompBinaryEnd(SCompressor *pCmprsor, const uint8_t **ppData, int32_t *nData);
 
-static FORCE_INLINE int64_t tI8ToI64(const void *pData) { return *(int8_t *)pData; }
-static FORCE_INLINE int64_t tI16ToI64(const void *pData) { return *(int16_t *)pData; }
-static FORCE_INLINE int64_t tI32ToI64(const void *pData) { return *(int32_t *)pData; }
-static FORCE_INLINE int64_t tI64ToI64(const void *pData) { return *(int64_t *)pData; }
+static FORCE_INLINE int64_t tGetI64OfI8(const void *pData) { return *(int8_t *)pData; }
+static FORCE_INLINE int64_t tGetI64OfI16(const void *pData) { return *(int16_t *)pData; }
+static FORCE_INLINE int64_t tGetI64OfI32(const void *pData) { return *(int32_t *)pData; }
+static FORCE_INLINE int64_t tGetI64OfI64(const void *pData) { return *(int64_t *)pData; }
+
+static FORCE_INLINE void tPutI64OfI8(int64_t v, void *pData) { *(int8_t *)pData = v; }
+static FORCE_INLINE void tPutI64OfI16(int64_t v, void *pData) { *(int16_t *)pData = v; }
+static FORCE_INLINE void tPutI64OfI32(int64_t v, void *pData) { *(int32_t *)pData = v; }
+static FORCE_INLINE void tPutI64OfI64(int64_t v, void *pData) { *(int64_t *)pData = v; }
+
 static struct {
   int8_t  type;
   int32_t bytes;
@@ -1037,6 +1043,7 @@ static struct {
   int32_t (*cmprFn)(SCompressor *, const void *, int32_t nData);
   int32_t (*endFn)(SCompressor *, const uint8_t **, int32_t *);
   int64_t (*getI64)(const void *pData);
+  void (*putI64)(int64_t v, void *pData);
 } DATA_TYPE_INFO[] = {
     {.type = TSDB_DATA_TYPE_NULL,
      .bytes = 0,
@@ -1044,140 +1051,160 @@ static struct {
      .startFn = NULL,
      .cmprFn = NULL,
      .endFn = NULL,
-     .getI64 = NULL},
+     .getI64 = NULL,
+     .putI64 = NULL},
     {.type = TSDB_DATA_TYPE_BOOL,
      .bytes = 1,
      .isVarLen = 0,
      .startFn = tCompBoolStart,
      .cmprFn = tCompBool,
      .endFn = tCompBoolEnd,
-     .getI64 = NULL},
+     .getI64 = NULL,
+     .putI64 = NULL},
     {.type = TSDB_DATA_TYPE_TINYINT,
      .bytes = 1,
      .isVarLen = 0,
      .startFn = tCompIntStart,
      .cmprFn = tCompInt,
      .endFn = tCompIntEnd,
-     .getI64 = tI8ToI64},
+     .getI64 = tGetI64OfI8,
+     .putI64 = tPutI64OfI8},
     {.type = TSDB_DATA_TYPE_SMALLINT,
      .bytes = 2,
      .isVarLen = 0,
      .startFn = tCompIntStart,
      .cmprFn = tCompInt,
      .endFn = tCompIntEnd,
-     .getI64 = tI16ToI64},
+     .getI64 = tGetI64OfI16,
+     .putI64 = tPutI64OfI16},
     {.type = TSDB_DATA_TYPE_INT,
      .bytes = 4,
      .isVarLen = 0,
      .startFn = tCompIntStart,
      .cmprFn = tCompInt,
      .endFn = tCompIntEnd,
-     .getI64 = tI32ToI64},
+     .getI64 = tGetI64OfI32,
+     .putI64 = tPutI64OfI32},
     {.type = TSDB_DATA_TYPE_BIGINT,
      .bytes = 8,
      .isVarLen = 0,
      .startFn = tCompIntStart,
      .cmprFn = tCompInt,
      .endFn = tCompIntEnd,
-     .getI64 = tI64ToI64},
+     .getI64 = tGetI64OfI64,
+     .putI64 = tPutI64OfI64},
     {.type = TSDB_DATA_TYPE_FLOAT,
      .bytes = 4,
      .isVarLen = 0,
      .startFn = tCompFloatStart,
      .cmprFn = tCompFloat,
      .endFn = tCompFloatEnd,
-     .getI64 = NULL},
+     .getI64 = NULL,
+     .putI64 = NULL},
     {.type = TSDB_DATA_TYPE_DOUBLE,
      .bytes = 8,
      .isVarLen = 0,
      .startFn = tCompDoubleStart,
      .cmprFn = tCompDouble,
      .endFn = tCompDoubleEnd,
-     .getI64 = NULL},
+     .getI64 = NULL,
+     .putI64 = NULL},
     {.type = TSDB_DATA_TYPE_VARCHAR,
      .bytes = 1,
      .isVarLen = 1,
      .startFn = tCompBinaryStart,
      .cmprFn = tCompBinary,
      .endFn = tCompBinaryEnd,
-     .getI64 = NULL},
+     .getI64 = NULL,
+     .putI64 = NULL},
     {.type = TSDB_DATA_TYPE_TIMESTAMP,
      .bytes = 8,
      .isVarLen = 0,
      .startFn = tCompTimestampStart,
      .cmprFn = tCompTimestamp,
      .endFn = tCompTimestampEnd,
-     .getI64 = NULL},
+     .getI64 = NULL,
+     .putI64 = NULL},
     {.type = TSDB_DATA_TYPE_NCHAR,
      .bytes = 1,
      .isVarLen = 1,
      .startFn = tCompBinaryStart,
      .cmprFn = tCompBinary,
      .endFn = tCompBinaryEnd,
-     .getI64 = NULL},
+     .getI64 = NULL,
+     .putI64 = NULL},
     {.type = TSDB_DATA_TYPE_UTINYINT,
      .bytes = 1,
      .isVarLen = 0,
      .startFn = tCompIntStart,
      .cmprFn = tCompInt,
      .endFn = tCompIntEnd,
-     .getI64 = tI8ToI64},
+     .getI64 = tGetI64OfI8,
+     .putI64 = tPutI64OfI8},
     {.type = TSDB_DATA_TYPE_USMALLINT,
      .bytes = 2,
      .isVarLen = 0,
      .startFn = tCompIntStart,
      .cmprFn = tCompInt,
      .endFn = tCompIntEnd,
-     .getI64 = tI16ToI64},
+     .getI64 = tGetI64OfI16,
+     .putI64 = tPutI64OfI16},
     {.type = TSDB_DATA_TYPE_UINT,
      .bytes = 4,
      .isVarLen = 0,
      .startFn = tCompIntStart,
      .cmprFn = tCompInt,
      .endFn = tCompIntEnd,
-     .getI64 = tI32ToI64},
+     .getI64 = tGetI64OfI32,
+     .putI64 = tPutI64OfI32},
     {.type = TSDB_DATA_TYPE_UBIGINT,
      .bytes = 8,
      .isVarLen = 0,
      .startFn = tCompIntStart,
      .cmprFn = tCompInt,
      .endFn = tCompIntEnd,
-     .getI64 = tI64ToI64},
+     .getI64 = tGetI64OfI64,
+     .putI64 = tPutI64OfI64},
     {.type = TSDB_DATA_TYPE_JSON,
      .bytes = 1,
      .isVarLen = 1,
      .startFn = tCompBinaryStart,
      .cmprFn = tCompBinary,
      .endFn = tCompBinaryEnd,
-     .getI64 = NULL},
+     .getI64 = NULL,
+     .putI64 = NULL},
     {.type = TSDB_DATA_TYPE_VARBINARY,
      .bytes = 1,
      .isVarLen = 1,
      .startFn = tCompBinaryStart,
      .cmprFn = tCompBinary,
      .endFn = tCompBinaryEnd,
-     .getI64 = NULL},
+     .getI64 = NULL,
+     .putI64 = NULL},
     {.type = TSDB_DATA_TYPE_DECIMAL,
      .bytes = 1,
      .isVarLen = 1,
      .startFn = tCompBinaryStart,
      .cmprFn = tCompBinary,
      .endFn = tCompBinaryEnd,
-     .getI64 = NULL},
+     .getI64 = NULL,
+     .putI64 = NULL},
     {.type = TSDB_DATA_TYPE_BLOB,
      .bytes = 1,
      .isVarLen = 1,
      .startFn = tCompBinaryStart,
      .cmprFn = tCompBinary,
      .endFn = tCompBinaryEnd,
-     .getI64 = NULL},
+     .getI64 = NULL,
+     .putI64 = NULL},
     {.type = TSDB_DATA_TYPE_MEDIUMBLOB,
      .bytes = 1,
      .isVarLen = 1,
      .startFn = tCompBinaryStart,
      .cmprFn = tCompBinary,
      .endFn = tCompBinaryEnd,
-     .getI64 = NULL},
+     .getI64 = NULL,
+     .putI64 = NULL},
 };
 
 struct SCompressor {
@@ -1443,7 +1470,7 @@ static int32_t tCompIntSwitchToCopy(SCompressor *pCmprsor) {
       uint64_t vZigzag = (b >> (bits * iEle + 4)) & (((uint64_t)1 << bits) - 1);
       vPrev = ZIGZAG_DECODE(int64_t, vZigzag) + vPrev;
 
-      memcpy(pCmprsor->aBuf[0] + nBuf, &vPrev, DATA_TYPE_INFO[pCmprsor->type].bytes);
+      DATA_TYPE_INFO[pCmprsor->type].putI64(vPrev, pCmprsor->aBuf[0] + nBuf);
       nBuf += DATA_TYPE_INFO[pCmprsor->type].bytes;
     }
   }
@@ -1504,8 +1531,22 @@ static int32_t tCompInt(SCompressor *pCmprsor, const void *pData, int32_t nData)
         pCmprsor->i_end = (pCmprsor->i_end + 1) % 241;
         break;
       } else {
-        while (nEle < SELECTOR_TO_ELEMS[pCmprsor->i_selector]) {
-          pCmprsor->i_selector++;
+        if (nEle < SELECTOR_TO_ELEMS[pCmprsor->i_selector]) {
+          int32_t lidx = pCmprsor->i_selector + 1;
+          int32_t ridx = 15;
+          while (lidx <= ridx) {
+            pCmprsor->i_selector = (lidx + ridx) >> 1;
+
+            if (nEle < SELECTOR_TO_ELEMS[pCmprsor->i_selector]) {
+              lidx = pCmprsor->i_selector + 1;
+            } else if (nEle > SELECTOR_TO_ELEMS[pCmprsor->i_selector]) {
+              ridx = pCmprsor->i_selector - 1;
+            } else {
+              break;
+            }
+          }
+
+          if (nEle < SELECTOR_TO_ELEMS[pCmprsor->i_selector]) pCmprsor->i_selector++;
         }
         nEle = SELECTOR_TO_ELEMS[pCmprsor->i_selector];
 
@@ -1551,8 +1592,22 @@ static int32_t tCompIntEnd(SCompressor *pCmprsor, const uint8_t **ppData, int32_
     int32_t nEle = (pCmprsor->i_end + 241 - pCmprsor->i_start) % 241;
     if (nEle == 0) break;
 
-    while (nEle < SELECTOR_TO_ELEMS[pCmprsor->i_selector]) {
-      pCmprsor->i_selector++;
+    if (nEle < SELECTOR_TO_ELEMS[pCmprsor->i_selector]) {
+      int32_t lidx = pCmprsor->i_selector + 1;
+      int32_t ridx = 15;
+      while (lidx <= ridx) {
+        pCmprsor->i_selector = (lidx + ridx) >> 1;
+
+        if (nEle < SELECTOR_TO_ELEMS[pCmprsor->i_selector]) {
+          lidx = pCmprsor->i_selector + 1;
+        } else if (nEle > SELECTOR_TO_ELEMS[pCmprsor->i_selector]) {
+          ridx = pCmprsor->i_selector - 1;
+        } else {
+          break;
+        }
+      }
+
+      if (nEle < SELECTOR_TO_ELEMS[pCmprsor->i_selector]) pCmprsor->i_selector++;
     }
     nEle = SELECTOR_TO_ELEMS[pCmprsor->i_selector];
 
