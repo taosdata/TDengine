@@ -224,10 +224,24 @@ char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
 }
 
 int32_t simExecuteExpression(SScript *script, char *exp) {
-  char   *op1, *op2, *var1, *var2, *var3, *rest;
-  int32_t op1Len, op2Len, var1Len, var2Len, var3Len, val0, val1;
-  char    t0[1024], t1[1024], t2[1024], t3[2048];
-  int32_t result;
+  char   *op1 = NULL;
+  char   *op2 = NULL;
+  char   *var1 = NULL;
+  char   *var2 = NULL;
+  char   *var3 = NULL;
+  char   *rest = NULL;
+  int32_t op1Len = 0;
+  int32_t op2Len = 0;
+  int32_t var1Len = 0;
+  int32_t var2Len = 0;
+  int32_t var3Len = 0;
+  int32_t val0 = 0;
+  int32_t val1 = 0;
+  char    t0[1024] = {0};
+  char    t1[1024] = {0};
+  char    t2[1024] = {0};
+  char    t3[2048] = {0};
+  int32_t result = 0;
 
   rest = paGetToken(exp, &var1, &var1Len);
   rest = paGetToken(rest, &op1, &op1Len);
@@ -241,9 +255,9 @@ int32_t simExecuteExpression(SScript *script, char *exp) {
     t0[var1Len] = 0;
   }
 
-  if (var2[0] == '$')
-    strcpy(t1, simGetVariable(script, var2 + 1, var2Len - 1));
-  else {
+  if (var2[0] == '$') {
+    tstrncpy(t1, simGetVariable(script, var2 + 1, var2Len - 1), 1024);
+  } else {
     memcpy(t1, var2, var2Len);
     t1[var2Len] = 0;
   }
@@ -258,14 +272,21 @@ int32_t simExecuteExpression(SScript *script, char *exp) {
       t2[var3Len] = 0;
     }
 
+    int64_t t1l = atoll(t1);
+    int64_t t2l = atoll(t2);
+
     if (op2[0] == '+') {
-      sprintf(t3, "%lld", atoll(t1) + atoll(t2));
+      sprintf(t3, "%" PRId64, t1l + t2l);
     } else if (op2[0] == '-') {
-      sprintf(t3, "%lld", atoll(t1) - atoll(t2));
+      sprintf(t3, "%" PRId64, t1l - t2l);
     } else if (op2[0] == '*') {
-      sprintf(t3, "%lld", atoll(t1) * atoll(t2));
+      sprintf(t3, "%" PRId64, t1l * t2l);
     } else if (op2[0] == '/') {
-      sprintf(t3, "%lld", atoll(t1) / atoll(t2));
+      if (t2l == 0) {
+        sprintf(t3, "%" PRId64, INT64_MAX);
+      } else {
+        sprintf(t3, "%" PRId64, t1l / t2l);
+      }
     } else if (op2[0] == '.') {
       sprintf(t3, "%s%s", t1, t2);
     }
@@ -636,7 +657,7 @@ bool simCreateTaosdConnect(SScript *script, char *rest) {
 }
 
 bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
-  char       timeStr[30] = {0};
+  char       timeStr[80] = {0};
   time_t     tt;
   struct tm  tp;
   SCmdLine  *line = &script->lines[script->linePos];
@@ -943,7 +964,7 @@ bool simExecuteSqlErrorCmd(SScript *script, char *rest) {
     return true;
   }
 
-  TAOS_RES *pSql = pSql = taos_query(script->taos, rest);
+  TAOS_RES *pSql = taos_query(script->taos, rest);
   int32_t   ret = taos_errno(pSql);
   taos_free_result(pSql);
 
@@ -961,7 +982,7 @@ bool simExecuteSqlErrorCmd(SScript *script, char *rest) {
 }
 
 bool simExecuteLineInsertCmd(SScript *script, char *rest) {
-  char buf[TSDB_MAX_BINARY_LEN];
+  char buf[TSDB_MAX_BINARY_LEN] = {0};
 
   simVisuallizeOption(script, rest, buf);
   rest = buf;
@@ -973,10 +994,7 @@ bool simExecuteLineInsertCmd(SScript *script, char *rest) {
   char *lines[] = {rest};
 #if 0
   int32_t ret = taos_insert_lines(script->taos, lines, 1);
-#else
-  int32_t ret = 0;
-#endif
-  if (ret == TSDB_CODE_SUCCESS) {
+    if (ret == TSDB_CODE_SUCCESS) {
     simDebug("script:%s, taos:%p, %s executed. success.", script->fileName, script->taos, rest);
     script->linePos++;
     return true;
@@ -985,6 +1003,11 @@ bool simExecuteLineInsertCmd(SScript *script, char *rest) {
             tstrerror(ret));
     return false;
   }
+#else
+  simDebug("script:%s, taos:%p, %s executed. success.", script->fileName, script->taos, rest);
+  script->linePos++;
+  return true;
+#endif
 }
 
 bool simExecuteLineInsertErrorCmd(SScript *script, char *rest) {
