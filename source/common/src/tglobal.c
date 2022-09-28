@@ -95,6 +95,7 @@ int32_t tsQueryRsmaTolerance = 1000;  // the tolerance time (ms) to judge from w
 bool    tsQueryPlannerTrace = false;
 int32_t tsQueryNodeChunkSize = 32 * 1024;
 bool    tsQueryUseNodeAllocator = true;
+bool    tsKeepColumnName = false;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -205,7 +206,9 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
     tstrncpy(cfgFile, cfgDir, sizeof(cfgDir));
   }
 
-  if (apolloUrl == NULL || apolloUrl[0] == '\0') cfgGetApollUrl(envCmd, envFile, apolloUrl);
+  if (apolloUrl != NULL && apolloUrl[0] == '\0') {
+    cfgGetApollUrl(envCmd, envFile, apolloUrl);
+  }
 
   if (cfgLoad(pCfg, CFG_STYPE_APOLLO_URL, apolloUrl) != 0) {
     uError("failed to load from apollo url:%s since %s", apolloUrl, terrstr());
@@ -290,6 +293,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "queryPlannerTrace", tsQueryPlannerTrace, true) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryNodeChunkSize", tsQueryNodeChunkSize, 1024, 128 * 1024, true) != 0) return -1;
   if (cfgAddBool(pCfg, "queryUseNodeAllocator", tsQueryUseNodeAllocator, true) != 0) return -1;
+  if (cfgAddBool(pCfg, "keepColumnName", tsKeepColumnName, true) != 0) return -1;
   if (cfgAddString(pCfg, "smlChildTableName", "", 1) != 0) return -1;
   if (cfgAddString(pCfg, "smlTagName", tsSmlTagName, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
@@ -652,6 +656,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsQueryPlannerTrace = cfgGetItem(pCfg, "queryPlannerTrace")->bval;
   tsQueryNodeChunkSize = cfgGetItem(pCfg, "queryNodeChunkSize")->i32;
   tsQueryUseNodeAllocator = cfgGetItem(pCfg, "queryUseNodeAllocator")->bval;
+  tsKeepColumnName = cfgGetItem(pCfg, "keepColumnName")->bval;
   return 0;
 }
 
@@ -685,7 +690,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsQueryBufferSize = cfgGetItem(pCfg, "queryBufferSize")->i32;
   tsPrintAuth = cfgGetItem(pCfg, "printAuth")->bval;
 
+#if !defined(WINDOWS) && !defined(DARWIN)
   tsMultiProcess = cfgGetItem(pCfg, "multiProcess")->bval;
+#endif
   tsMnodeShmSize = cfgGetItem(pCfg, "mnodeShmSize")->i32;
   tsVnodeShmSize = cfgGetItem(pCfg, "vnodeShmSize")->i32;
   tsQnodeShmSize = cfgGetItem(pCfg, "qnodeShmSize")->i32;
@@ -843,6 +850,9 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
       break;
     }
     case 'k': {
+      if (strcasecmp("keepColumnName", name) == 0) {
+        tsKeepColumnName = cfgGetItem(pCfg, "keepColumnName")->bval;
+      }
       break;
     }
     case 'l': {
@@ -919,7 +929,9 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         }
         case 'u': {
           if (strcasecmp("multiProcess", name) == 0) {
+#if !defined(WINDOWS) && !defined(DARWIN)
             tsMultiProcess = cfgGetItem(pCfg, "multiProcess")->bval;
+#endif
           } else if (strcasecmp("udfDebugFlag", name) == 0) {
             udfDebugFlag = cfgGetItem(pCfg, "udfDebugFlag")->i32;
           }
@@ -1122,11 +1134,20 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
   if (tsc) {
     tsLogEmbedded = 0;
-    if (taosAddClientLogCfg(pCfg) != 0) return -1;
+    if (taosAddClientLogCfg(pCfg) != 0) {
+      cfgCleanup(pCfg);
+      return -1;
+    }
   } else {
     tsLogEmbedded = 1;
-    if (taosAddClientLogCfg(pCfg) != 0) return -1;
-    if (taosAddServerLogCfg(pCfg) != 0) return -1;
+    if (taosAddClientLogCfg(pCfg) != 0) {
+      cfgCleanup(pCfg);
+      return -1;
+    }
+    if (taosAddServerLogCfg(pCfg) != 0) {
+      cfgCleanup(pCfg);
+      return -1;
+    }
   }
 
   if (taosLoadCfg(pCfg, envCmd, cfgDir, envFile, apolloUrl) != 0) {

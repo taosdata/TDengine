@@ -834,6 +834,8 @@ static int32_t mndProcessTtlTimer(SRpcMsg *pReq) {
   int32_t           reqLen = tSerializeSVDropTtlTableReq(NULL, 0, &ttlReq);
   int32_t           contLen = reqLen + sizeof(SMsgHead);
 
+  mInfo("start to process ttl timer");
+
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
@@ -2578,4 +2580,15 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 static void mndCancelGetNextStb(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
+}
+
+const char *mndGetStbStr(const char *src) {
+  char *posDb = strstr(src, TS_PATH_DELIMITER);
+  if (posDb != NULL) ++posDb;
+  if (posDb == NULL) return src;
+
+  char *posStb = strstr(posDb, TS_PATH_DELIMITER);
+  if (posStb != NULL) ++posStb;
+  if (posStb == NULL) return posDb;
+  return posStb;
 }
