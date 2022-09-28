@@ -1119,14 +1119,15 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColM
   }
 
   SFilterInfo* filter = pFilterInfo;
-
   int64_t st = taosGetTimestampUs();
 
 //  pError("start filter");
 
   // todo move to the initialization function
   int32_t code = 0;
+  bool needFree = false;
   if (filter == NULL) {
+    needFree = true;
     code = filterInitFromNode((SNode*)pFilterNode, &filter, 0);
   }
 
@@ -1138,7 +1139,10 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColM
 
   // todo the keep seems never to be True??
   bool keep = filterExecute(filter, pBlock, &p, NULL, param1.numOfCols, &status);
-  filterFreeInfo(filter);
+
+  if (needFree) {
+    filterFreeInfo(filter);
+  }
 
   extractQualifiedTupleByFilterResult(pBlock, p, keep, status);
 
