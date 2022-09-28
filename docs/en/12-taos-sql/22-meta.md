@@ -11,7 +11,15 @@ TDengine includes a built-in database named `INFORMATION_SCHEMA` to provide acce
 4. Future versions of TDengine can add new columns to INFORMATION_SCHEMA tables without affecting existing business systems.
 5. It is easier for users coming from other database management systems. For example, Oracle users can query data dictionary tables.
 
-Note: SHOW statements are still supported for the convenience of existing users.
+:::info
+
+- SHOW statements are still supported for the convenience of existing users.
+- Some columns in the system table may be keywords, and you need to use the escape character '\`' when querying, for example, the query database test has several VGROUPs:
+```sql 
+   select `vgroups` from ins_databases where name = 'test';
+``` 
+
+:::
 
 This document introduces the tables of INFORMATION_SCHEMA and their structure.
 
@@ -102,7 +110,11 @@ Provides information about user-created databases. Similar to SHOW DATABASES.
 | 24  | wal_retention_period | INT              | WAL retention period                                   |
 | 25  |  wal_retention_size  | INT              | Maximum WAL size                                   |
 | 26  |   wal_roll_period    | INT              | WAL rotation period                                 |
-| 27  |   wal_segment_size   | WAL file size |
+| 27  |   wal_segment_size   | BIGINT | WAL file size |
+| 28  |   stt_trigger   | SMALLINT | The number of files placed on the disk that trigger file merging |
+| 29  |   table_prefix   | SMALLINT | The table name is used for the prefix length that needs to be ignored when calculating the consistent HASH |
+| 30  |   table_suffix   | SMALLINT | The table name is used for the suffix length that needs to be ignored when calculating the consistent HASH |
+| 31  |   tsdb_pagesize   | INT | Page size for vnode data storage engine, in KB |
 
 ## INS_FUNCTIONS
 
