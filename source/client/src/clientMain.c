@@ -813,7 +813,6 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   pRequest->metric.syntaxEnd = taosGetTimestampUs();
 
   if (!updateMetaForce) {
-    STscObj            *pTscObj = pRequest->pTscObj;
     SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
     if (NULL == pRequest->pQuery->pRoot) {
       atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertsReq, 1);

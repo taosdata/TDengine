@@ -2000,8 +2000,7 @@ static bool initLastBlockReader(SLastBlockReader* pLBlockReader, STableBlockScan
 
   int32_t code =
       tMergeTreeOpen(&pLBlockReader->mergeTree, (pLBlockReader->order == TSDB_ORDER_DESC), pReader->pFileReader,
-                     pReader->suid, pScanInfo->uid, &w, &pLBlockReader->verRange, pLBlockReader->pInfo,
-                     pReader->pSchema, pReader->suppInfo.colIds, pReader->suppInfo.numOfCols, pReader->idStr);
+                     pReader->suid, pScanInfo->uid, &w, &pLBlockReader->verRange, pLBlockReader->pInfo, false, pReader->idStr);
   if (code != TSDB_CODE_SUCCESS) {
     return false;
   }
