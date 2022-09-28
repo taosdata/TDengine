@@ -359,7 +359,7 @@ int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapWrit
 
 _err:
   smaError("vgId:%d, rsma snapshot writer open failed since %s", TD_VID(pSma->pVnode), tstrerror(code));
-  if (pWriter) rsmaSnapWriterClose(pWriter, 0);
+  if (pWriter) rsmaSnapWriterClose(&pWriter, 0);
   *ppWriter = NULL;
   return code;
 }
