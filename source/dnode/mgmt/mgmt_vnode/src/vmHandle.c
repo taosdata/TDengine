@@ -175,7 +175,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->hashSuffix = pCreate->hashSuffix;
   pCfg->tsdbPageSize = pCreate->tsdbPageSize * 1024;
 
-  pCfg->standby = pCfg->standby;
+  pCfg->standby = 0;
   pCfg->syncCfg.myIndex = pCreate->selfIndex;
   pCfg->syncCfg.replicaNum = pCreate->replica;
   memset(&pCfg->syncCfg.nodeInfo, 0, sizeof(pCfg->syncCfg.nodeInfo));

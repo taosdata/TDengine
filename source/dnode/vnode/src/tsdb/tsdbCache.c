@@ -456,10 +456,10 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
       code = tsdbDataFReaderOpen(&state->pDataFReader, state->pTsdb, pFileSet);
       if (code) goto _err;
 
-      struct SSttBlockLoadInfo* pLoadInfo = tCreateLastBlockLoadInfo(state->pTSchema, NULL, 0);
+      SSttBlockLoadInfo* pLoadInfo = tCreateLastBlockLoadInfo(state->pTSchema, NULL, 0);
       tMergeTreeOpen(&state->mergeTree, 1, state->pDataFReader, state->suid, state->uid,
                      &(STimeWindow){.skey = TSKEY_MIN, .ekey = TSKEY_MAX},
-                     &(SVersionRange){.minVer = 0, .maxVer = UINT64_MAX}, pLoadInfo, true, NULL);
+                     &(SVersionRange){.minVer = 0, .maxVer = UINT64_MAX}, pLoadInfo,true, NULL);
       bool hasVal = tMergeTreeNext(&state->mergeTree);
       if (!hasVal) {
         state->state = SFSLASTNEXTROW_FILESET;

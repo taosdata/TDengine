@@ -474,7 +474,8 @@ static FORCE_INLINE int32_t tLDataIterCmprFn(const void *p1, const void *p2) {
 }
 
 int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
-                       STimeWindow *pTimeWindow, SVersionRange *pVerRange, void* pBlockLoadInfo, bool destroyLoadInfo, const char* idStr) {
+                       STimeWindow *pTimeWindow, SVersionRange *pVerRange, SSttBlockLoadInfo *pBlockLoadInfo,
+                       bool destroyLoadInfo, const char *idStr) {
   pMTree->backward = backward;
   pMTree->pIter = NULL;
   pMTree->pIterList = taosArrayInit(4, POINTER_BYTES);

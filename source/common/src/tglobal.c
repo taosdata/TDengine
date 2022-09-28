@@ -85,8 +85,7 @@ uint16_t tsTelemPort = 80;
 char tsSmlTagName[TSDB_COL_NAME_LEN] = "_tag_null";
 char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table name can be specified in tag value.
                                                      // If set to empty system will generate table name using MD5 hash.
-bool tsSmlDataFormat =
-    true;  // true means that the name and order of cols in each line are the same(only for influx protocol)
+bool tsSmlDataFormat = false;  // true means that the name and order of cols in each line are the same(only for influx protocol)
 
 // query
 int32_t tsQueryPolicy = 1;
@@ -206,7 +205,9 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
     tstrncpy(cfgFile, cfgDir, sizeof(cfgDir));
   }
 
-  if (apolloUrl == NULL || apolloUrl[0] == '\0') cfgGetApollUrl(envCmd, envFile, apolloUrl);
+  if (apolloUrl != NULL && apolloUrl[0] == '\0') {
+    cfgGetApollUrl(envCmd, envFile, apolloUrl);
+  }
 
   if (cfgLoad(pCfg, CFG_STYPE_APOLLO_URL, apolloUrl) != 0) {
     uError("failed to load from apollo url:%s since %s", apolloUrl, terrstr());
@@ -1132,11 +1133,20 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
   if (tsc) {
     tsLogEmbedded = 0;
-    if (taosAddClientLogCfg(pCfg) != 0) return -1;
+    if (taosAddClientLogCfg(pCfg) != 0) {
+      cfgCleanup(pCfg);
+      return -1;
+    }
   } else {
     tsLogEmbedded = 1;
-    if (taosAddClientLogCfg(pCfg) != 0) return -1;
-    if (taosAddServerLogCfg(pCfg) != 0) return -1;
+    if (taosAddClientLogCfg(pCfg) != 0) {
+      cfgCleanup(pCfg);
+      return -1;
+    }
+    if (taosAddServerLogCfg(pCfg) != 0) {
+      cfgCleanup(pCfg);
+      return -1;
+    }
   }
 
   if (taosLoadCfg(pCfg, envCmd, cfgDir, envFile, apolloUrl) != 0) {

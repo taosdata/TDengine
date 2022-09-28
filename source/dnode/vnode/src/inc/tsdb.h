@@ -662,7 +662,8 @@ typedef struct {
 } SSkmInfo;
 
 int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
-                       STimeWindow *pTimeWindow, SVersionRange *pVerRange, void *pBlockLoadInfo, bool destroyLoadInfo, const char *idStr);
+                       STimeWindow *pTimeWindow, SVersionRange *pVerRange, SSttBlockLoadInfo *pBlockLoadInfo,
+                       bool destroyLoadInfo, const char *idStr);
 void    tMergeTreeAddIter(SMergeTree *pMTree, SLDataIter *pIter);
 bool    tMergeTreeNext(SMergeTree *pMTree);
 TSDBROW tMergeTreeGetRow(SMergeTree *pMTree);
