@@ -569,7 +569,7 @@ function install_examples() {
 
 function install_web() {
   if [ -d "${script_dir}/share" ]; then
-    ${csudo}cp -rf ${binary_dir}/share/* ${install_main_dir}/share
+    ${csudo}cp -rf ${script_dir}/share/* ${install_main_dir}/share
   fi
 }
 
