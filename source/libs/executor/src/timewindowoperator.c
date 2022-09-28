@@ -2096,7 +2096,7 @@ static void genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
   for (int32_t j = 0; j < pExprSup->numOfExprs; ++j) {
     SExprInfo* pExprInfo = &pExprSup->pExprInfo[j];
 
-    int32_t    dstSlot = pExprInfo->base.resSchema.slotId;
+    int32_t dstSlot = pExprInfo->base.resSchema.slotId;
     SColumnInfoData* pDst = taosArrayGet(pResBlock->pDataBlock, dstSlot);
 
     if (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type)) {
@@ -2104,7 +2104,7 @@ static void genInterpolationResult(STimeSliceOperatorInfo* pSliceInfo, SExprSupp
       continue;
     }
 
-    int32_t    srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
+    int32_t srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
     // SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, srcSlot);
     switch (pSliceInfo->fillType) {
       case TSDB_FILL_NULL: {
@@ -2352,13 +2352,13 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
         for (int32_t j = 0; j < pOperator->exprSupp.numOfExprs; ++j) {
           SExprInfo* pExprInfo = &pOperator->exprSupp.pExprInfo[j];
 
-          int32_t    dstSlot = pExprInfo->base.resSchema.slotId;
+          int32_t dstSlot = pExprInfo->base.resSchema.slotId;
           SColumnInfoData* pDst = taosArrayGet(pResBlock->pDataBlock, dstSlot);
 
           if (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type)) {
             colDataAppend(pDst, pResBlock->info.rows, (char *)&pSliceInfo->current, false);
           } else {
-            int32_t    srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
+            int32_t srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
             SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, srcSlot);
 
             if (colDataIsNull_s(pSrc, i)) {
@@ -2489,13 +2489,13 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
           for (int32_t j = 0; j < pOperator->exprSupp.numOfExprs; ++j) {
             SExprInfo* pExprInfo = &pOperator->exprSupp.pExprInfo[j];
 
-            int32_t    dstSlot = pExprInfo->base.resSchema.slotId;
+            int32_t dstSlot = pExprInfo->base.resSchema.slotId;
             SColumnInfoData* pDst = taosArrayGet(pResBlock->pDataBlock, dstSlot);
 
             if (IS_TIMESTAMP_TYPE(pExprInfo->base.resSchema.type)) {
               colDataAppend(pDst, pResBlock->info.rows, (char *)&pSliceInfo->current, false);
             } else {
-              int32_t    srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
+              int32_t srcSlot = pExprInfo->base.pParam[0].pCol->slotId;
               SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, srcSlot);
 
               if (colDataIsNull_s(pSrc, i)) {
