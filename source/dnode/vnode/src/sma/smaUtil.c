@@ -290,19 +290,19 @@ int32_t tdRemoveTFile(STFile *pTFile) {
 void *tdAcquireSmaRef(int32_t rsetId, int64_t refId) {
   void *pResult = taosAcquireRef(rsetId, refId);
   if (!pResult) {
-    smaWarn("rsma acquire ref for rsetId:%" PRIi64 " refId:%d failed since %s", rsetId, refId, terrstr());
+    smaWarn("rsma acquire ref for rsetId:%d refId:%" PRIi64 " failed since %s", rsetId, refId, terrstr());
   } else {
-    smaDebug("rsma acquire ref for rsetId:%" PRIi64 " refId:%d success", rsetId, refId);
+    smaDebug("rsma acquire ref for rsetId:%d refId:%" PRIi64 " success", rsetId, refId);
   }
   return pResult;
 }
 
 int32_t tdReleaseSmaRef(int32_t rsetId, int64_t refId) {
   if (taosReleaseRef(rsetId, refId) < 0) {
-    smaWarn("rsma release ref for rsetId:%" PRIi64 " refId:%d failed since %s", rsetId, refId, terrstr());
+    smaWarn("rsma release ref for rsetId:%d refId:%" PRIi64 " failed since %s", rsetId, refId, terrstr());
     return TSDB_CODE_FAILED;
   }
-  smaDebug("rsma release ref for rsetId:%" PRIi64 " refId:%d success", rsetId, refId);
+  smaDebug("rsma release ref for rsetId:%d refId:%" PRIi64 " success", rsetId, refId);
 
   return TSDB_CODE_SUCCESS;
 }

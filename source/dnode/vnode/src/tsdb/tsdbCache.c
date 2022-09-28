@@ -420,6 +420,7 @@ typedef enum {
 typedef struct {
   SFSLASTNEXTROWSTATES state;  // [input]
   STsdb               *pTsdb;  // [input]
+  STSchema            *pTSchema;// [input]
   tb_uid_t             suid;
   tb_uid_t             uid;
   int32_t              nFileSet;
@@ -455,9 +456,10 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
       code = tsdbDataFReaderOpen(&state->pDataFReader, state->pTsdb, pFileSet);
       if (code) goto _err;
 
+      SSttBlockLoadInfo* pLoadInfo = tCreateLastBlockLoadInfo(state->pTSchema, NULL, 0);
       tMergeTreeOpen(&state->mergeTree, 1, state->pDataFReader, state->suid, state->uid,
                      &(STimeWindow){.skey = TSKEY_MIN, .ekey = TSKEY_MAX},
-                     &(SVersionRange){.minVer = 0, .maxVer = UINT64_MAX}, NULL, NULL, NULL, 0, NULL);
+                     &(SVersionRange){.minVer = 0, .maxVer = UINT64_MAX}, pLoadInfo,true, NULL);
       bool hasVal = tMergeTreeNext(&state->mergeTree);
       if (!hasVal) {
         state->state = SFSLASTNEXTROW_FILESET;
@@ -892,6 +894,7 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
   pIter->fsLastState.state = (SFSLASTNEXTROWSTATES)SFSNEXTROW_FS;
   pIter->fsLastState.pTsdb = pTsdb;
   pIter->fsLastState.aDFileSet = pIter->pReadSnap->fs.aDFileSet;
+  pIter->fsLastState.pTSchema = pTSchema;
   pIter->fsLastState.suid = suid;
   pIter->fsLastState.uid = uid;
 
