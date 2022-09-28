@@ -698,12 +698,9 @@ TEST(testCase, projection_query_tables) {
   }
   taos_free_result(pRes);
 
-  for (int32_t i = 0; i < 3000; ++i) {
+  for (int32_t i = 0; i < 5000; ++i) {
     pRes = taos_query(pConn,
-                      "SELECT max(usage_user), max(usage_system), max(usage_idle), max(usage_nice), max(usage_iowait), "
-                      "max(usage_irq), max(usage_softirq), max(usage_steal), max(usage_guest), "
-                      "max(usage_guest_nice) FROM cpu WHERE hostname IN ('host_249') AND ts >= 1451648911646 AND ts < "
-                      "1451677711646;");
+                      "SELECT _wstart as ts,max(usage_user) FROM t_76 WHERE  ts >= 1451618560000 AND ts < 1451622160000 INTERVAL(1m)");
     taos_free_result(pRes);
     //    printf("create table :%d\n", i);
     //    createNewTable(pConn, i);
