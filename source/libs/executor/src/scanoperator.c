@@ -2355,24 +2355,25 @@ static bool sysTableIsOperatorCondOnOneTable(SNode* pCond, char* condTable) {
 }
 
 static bool sysTableIsCondOnOneTable(SNode* pCond, char* condTable) {
+  if (pCond == NULL) {
+    return false;
+  }
   if (nodeType(pCond) == QUERY_NODE_LOGIC_CONDITION) {
     SLogicConditionNode* node = (SLogicConditionNode*)pCond;
     if (LOGIC_COND_TYPE_AND == node->condType) {
-      SListCell* cell = node->pParameterList->pHead;
-      for (int32_t i = 0; i < node->pParameterList->length; ++i) {
-        SNode* pChild = cell->pNode;
-        if (QUERY_NODE_OPERATOR == nodeType(pChild)) {
-          if (sysTableIsOperatorCondOnOneTable(pChild, condTable)) {
-            return true;
-          }
+      SNode* pChild = NULL;
+      FOREACH(pChild, node->pParameterList) {
+        if (QUERY_NODE_OPERATOR == nodeType(pChild) && sysTableIsOperatorCondOnOneTable(pChild, condTable)) {
+          return true;
         }
-        cell = cell->pNext;
       }
     }
   }
+
   if (QUERY_NODE_OPERATOR == nodeType(pCond)) {
     return sysTableIsOperatorCondOnOneTable(pCond, condTable);
   }
+
   return false;
 }
 
@@ -2401,8 +2402,8 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
   varDataSetLen(dbname, strlen(varDataVal(dbname)));
 
   char condTableName[TSDB_TABLE_NAME_LEN] = {0};
-  // optimize when sql like where table_name='tablename' and xxx. 
-  if (sysTableIsCondOnOneTable(pInfo->pCondition, condTableName)) {
+  // optimize when sql like where table_name='tablename' and xxx.
+  if (pInfo->pCondition && sysTableIsCondOnOneTable(pInfo->pCondition, condTableName)) {
     char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(tableName, condTableName);
 
