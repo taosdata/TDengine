@@ -1507,7 +1507,7 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
     }
 
     doStreamFillImpl(pOperator);
-    doFilter(pInfo->pCondition, pInfo->pRes, pInfo->pColMatchColInfo);
+    doFilter(pInfo->pCondition, pInfo->pRes, pInfo->pColMatchColInfo, NULL);
     pOperator->resultInfo.totalRows += pInfo->pRes->info.rows;
     if (pInfo->pRes->info.rows > 0) {
       break;
