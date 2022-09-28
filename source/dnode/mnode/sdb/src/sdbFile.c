@@ -514,7 +514,7 @@ static void sdbCloseIter(SSdbIter *pIter) {
   }
 
   if (pIter->name != NULL) {
-    taosRemoveFile(pIter->name);
+    (void)taosRemoveFile(pIter->name);
     taosMemoryFree(pIter->name);
     pIter->name = NULL;
   }
@@ -606,6 +606,7 @@ int32_t sdbStartWrite(SSdb *pSdb, SSdbIter **ppIter) {
   if (pIter->file == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("failed to open %s since %s", pIter->name, terrstr());
+    sdbCloseIter(pIter);
     return -1;
   }
 
@@ -636,9 +637,9 @@ int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, i
     return -1;
   }
 
-  sdbCloseIter(pIter);
   if (sdbReadFile(pSdb) != 0) {
     mError("sdbiter:%p, failed to read from %s since %s", pIter, datafile, terrstr());
+    sdbCloseIter(pIter);
     return -1;
   }
 
@@ -656,6 +657,7 @@ int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, i
   }
 
   mInfo("sdbiter:%p, success applyed to sdb", pIter);
+  sdbCloseIter(pIter);
   return 0;
 }
 

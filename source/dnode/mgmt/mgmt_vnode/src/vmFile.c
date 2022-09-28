@@ -135,6 +135,7 @@ _OVER:
   if (content != NULL) taosMemoryFree(content);
   if (root != NULL) cJSON_Delete(root);
   if (pFile != NULL) taosCloseFile(&pFile);
+  if (*ppCfgs == NULL && pCfgs != NULL) taosMemoryFree(pCfgs);
 
   terrno = code;
   return code;
