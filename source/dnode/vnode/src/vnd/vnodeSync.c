@@ -805,7 +805,7 @@ bool vnodeIsReadyForRead(SVnode *pVnode) {
     return true;
   }
 
-  if (pVnode->restored) {
+  if (!pVnode->restored) {
     vDebug("vgId:%d, vnode restore not finished", pVnode->config.vgId);
     terrno = TSDB_CODE_APP_NOT_READY;
     return false;
