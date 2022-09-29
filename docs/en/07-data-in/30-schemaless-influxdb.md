@@ -57,4 +57,8 @@ Support InfluxDB query parameters as follows.
 - `precision` The time precision used by TDengine
 
 Note: InfluxDB token authorization is not supported at present. Only Basic authorization and query parameter validation are supported.
-Example: curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"
+## Insert Example
+- curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"
+  
+## Query Example with SQL
+- select * from measurement where host=host1
