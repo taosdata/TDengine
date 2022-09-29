@@ -206,12 +206,6 @@ void indexJsonRebuild(SIndexJson* idx, void* iter);
  **/
 bool indexJsonIsRebuild(SIndexJson* idx);
 
-/*
- * init index env
- *
- */
-void indexInit();
-
 /* index filter */
 typedef struct SIndexMetaArg {
   void*    metaEx;
