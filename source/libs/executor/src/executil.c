@@ -770,12 +770,12 @@ static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list
 
   bool                 hasTbnameCond = false;
   SLogicConditionNode* pNode = (SLogicConditionNode*)cond;
-  SNodeListNode*       pList = (SNodeListNode*)pNode->pParameterList;
+  SNodeList*           pList = (SNodeList*)pNode->pParameterList;
 
-  int32_t len = LIST_LENGTH(pList->pNodeList);
+  int32_t len = LIST_LENGTH(pList);
   if (len <= 0) return -1;
 
-  SListCell* cell = pList->pNodeList->pHead;
+  SListCell* cell = pList->pHead;
   for (int i = 0; i < len; i++) {
     if (cell == NULL) break;
     if (optimizeTbnameInCondImpl(metaHandle, suid, list, cell->pNode) == 0) {
