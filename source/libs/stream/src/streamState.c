@@ -29,7 +29,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath) {
   if (!specPath) {
     sprintf(statePath, "%s/%d", path, pTask->taskId);
   } else {
-    memcpy(statePath, path, 300);
+    strncpy(statePath, path, 300);
   }
   if (tdbOpen(statePath, 4096, 256, &pState->db) < 0) {
     goto _err;
@@ -37,6 +37,11 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath) {
 
   // open state storage backend
   if (tdbTbOpen("state.db", sizeof(SWinKey), -1, SWinKeyCmpr, pState->db, &pState->pStateDb) < 0) {
+    goto _err;
+  }
+
+  // todo refactor
+  if (tdbTbOpen("func.state.db", sizeof(SWinKey), -1, SWinKeyCmpr, pState->db, &pState->pFillStateDb) < 0) {
     goto _err;
   }
 
@@ -55,6 +60,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath) {
 _err:
   tdbTbClose(pState->pStateDb);
   tdbTbClose(pState->pFuncStateDb);
+  tdbTbClose(pState->pFillStateDb);
   tdbClose(pState->db);
   taosMemoryFree(pState);
   return NULL;
@@ -64,6 +70,7 @@ void streamStateClose(SStreamState* pState) {
   tdbCommit(pState->db, &pState->txn);
   tdbTbClose(pState->pStateDb);
   tdbTbClose(pState->pFuncStateDb);
+  tdbTbClose(pState->pFillStateDb);
   tdbClose(pState->db);
 
   taosMemoryFree(pState);
@@ -126,12 +133,28 @@ int32_t streamStateFuncDel(SStreamState* pState, const STupleKey* key) {
 int32_t streamStatePut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen) {
   return tdbTbUpsert(pState->pStateDb, key, sizeof(SWinKey), value, vLen, &pState->txn);
 }
+
+// todo refactor
+int32_t streamStateFillPut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen) {
+  return tdbTbUpsert(pState->pFillStateDb, key, sizeof(SWinKey), value, vLen, &pState->txn);
+}
+
 int32_t streamStateGet(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
   return tdbTbGet(pState->pStateDb, key, sizeof(SWinKey), pVal, pVLen);
 }
 
+// todo refactor
+int32_t streamStateFillGet(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
+  return tdbTbGet(pState->pFillStateDb, key, sizeof(SWinKey), pVal, pVLen);
+}
+
 int32_t streamStateDel(SStreamState* pState, const SWinKey* key) {
   return tdbTbDelete(pState->pStateDb, key, sizeof(SWinKey), &pState->txn);
+}
+
+// todo refactor
+int32_t streamStateFillDel(SStreamState* pState, const SWinKey* key) {
+  return tdbTbDelete(pState->pFillStateDb, key, sizeof(SWinKey), &pState->txn);
 }
 
 int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen) {
@@ -165,6 +188,31 @@ SStreamStateCur* streamStateGetCur(SStreamState* pState, const SWinKey* key) {
   return pCur;
 }
 
+SStreamStateCur* streamStateFillGetCur(SStreamState* pState, const SWinKey* key) {
+  SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
+  if (pCur == NULL) return NULL;
+  tdbTbcOpen(pState->pFillStateDb, &pCur->pCur, NULL);
+
+  int32_t c;
+  tdbTbcMoveTo(pCur->pCur, key, sizeof(SWinKey), &c);
+  if (c != 0) {
+    taosMemoryFree(pCur);
+    return NULL;
+  }
+  return pCur;
+}
+
+SStreamStateCur* streamStateGetAndCheckCur(SStreamState* pState, SWinKey* key) {
+  SStreamStateCur* pCur = streamStateFillGetCur(pState, key);
+  if (pCur) {
+    int32_t code = streamStateGetGroupKVByCur(pCur, key, NULL, 0);
+    if (code == 0) {
+      return pCur;
+    }
+  }
+  return NULL;
+}
+
 int32_t streamStateGetKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
   const SWinKey* pKTmp = NULL;
   int32_t        kLen;
@@ -173,6 +221,17 @@ int32_t streamStateGetKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void**
   }
   *pKey = *pKTmp;
   return 0;
+}
+
+int32_t streamStateGetGroupKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
+  uint64_t groupId = pKey->groupId;
+  int32_t  code = streamStateGetKVByCur(pCur, pKey, pVal, pVLen);
+  if (code == 0) {
+    if (pKey->groupId == groupId) {
+      return 0;
+    }
+  }
+  return -1;
 }
 
 int32_t streamStateSeekFirst(SStreamState* pState, SStreamStateCur* pCur) {
@@ -185,12 +244,12 @@ int32_t streamStateSeekLast(SStreamState* pState, SStreamStateCur* pCur) {
   return tdbTbcMoveToLast(pCur->pCur);
 }
 
-SStreamStateCur* streamStateSeekKeyNext(SStreamState* pState, const SWinKey* key) {
+SStreamStateCur* streamStateFillSeekKeyNext(SStreamState* pState, const SWinKey* key) {
   SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
   if (pCur == NULL) {
     return NULL;
   }
-  if (tdbTbcOpen(pState->pStateDb, &pCur->pCur, NULL) < 0) {
+  if (tdbTbcOpen(pState->pFillStateDb, &pCur->pCur, NULL) < 0) {
     taosMemoryFree(pCur);
     return NULL;
   }
@@ -211,12 +270,12 @@ SStreamStateCur* streamStateSeekKeyNext(SStreamState* pState, const SWinKey* key
   return pCur;
 }
 
-SStreamStateCur* streamStateSeekKeyPrev(SStreamState* pState, const SWinKey* key) {
+SStreamStateCur* streamStateFillSeekKeyPrev(SStreamState* pState, const SWinKey* key) {
   SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
   if (pCur == NULL) {
     return NULL;
   }
-  if (tdbTbcOpen(pState->pStateDb, &pCur->pCur, NULL) < 0) {
+  if (tdbTbcOpen(pState->pFillStateDb, &pCur->pCur, NULL) < 0) {
     taosMemoryFree(pCur);
     return NULL;
   }

@@ -892,7 +892,7 @@ SArray *metaGetSmaIdsByTable(SMeta *pMeta, tb_uid_t uid) {
 
     pSmaIdxKey = (SSmaIdxKey *)pCur->pKey;
 
-    if (taosArrayPush(pUids, &pSmaIdxKey->smaUid) < 0) {
+    if (!taosArrayPush(pUids, &pSmaIdxKey->smaUid)) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       metaCloseSmaCursor(pCur);
       taosArrayDestroy(pUids);
@@ -935,7 +935,7 @@ SArray *metaGetSmaTbUids(SMeta *pMeta) {
       }
     }
 
-    if (taosArrayPush(pUids, &uid) < 0) {
+    if (!taosArrayPush(pUids, &uid)) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       metaCloseSmaCursor(pCur);
       taosArrayDestroy(pUids);

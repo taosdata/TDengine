@@ -364,8 +364,6 @@ int32_t raftCfgCreateFile(SSyncCfg *pCfg, SRaftCfgMeta meta, const char *path) {
     int32_t     sysErr = errno;
     const char *sysErrStr = strerror(errno);
     sError("create raft cfg file error, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", err, err, errStr, sysErr, sysErrStr);
-    ASSERT(0);
-
     return -1;
   }
 

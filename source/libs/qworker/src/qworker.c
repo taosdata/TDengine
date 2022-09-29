@@ -107,9 +107,12 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
     QW_TASK_DLOG("start to execTask, loopIdx:%d", i++);
 
     // if *taskHandle is NULL, it's killed right now
+    bool hasMore = false;
+
     if (taskHandle) {
       qwDbgSimulateSleep();
-      code = qExecTaskOpt(taskHandle, pResList, &useconds, &localFetch);
+
+      code = qExecTaskOpt(taskHandle, pResList, &useconds, &hasMore, &localFetch);
       if (code) {
         if (code != TSDB_CODE_OPS_NOT_SUPPORT) {
           QW_TASK_ELOG("qExecTask failed, code:%x - %s", code, tstrerror(code));
@@ -122,20 +125,8 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
 
     ++execNum;
 
-    if (taosArrayGetSize(pResList) == 0) {
-      QW_TASK_DLOG("qExecTask end with empty res, useconds:%" PRIu64, useconds);
-      dsEndPut(sinkHandle, useconds);
-
-      QW_ERR_JRET(qwHandleTaskComplete(QW_FPARAMS(), ctx));
-
-      if (queryStop) {
-        *queryStop = true;
-      }
-
-      break;
-    }
-
-    for (int32_t j = 0; j < taosArrayGetSize(pResList); ++j) {
+    size_t numOfResBlock = taosArrayGetSize(pResList);
+    for (int32_t j = 0; j < numOfResBlock; ++j) {
       SSDataBlock *pRes = taosArrayGetP(pResList, j);
       ASSERT(pRes->info.rows > 0);
 
@@ -147,6 +138,23 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
       }
 
       QW_TASK_DLOG("data put into sink, rows:%d, continueExecTask:%d", pRes->info.rows, qcontinue);
+    }
+
+    if (numOfResBlock == 0 || (hasMore == false)) {
+      if (numOfResBlock == 0) {
+        QW_TASK_DLOG("qExecTask end with empty res, useconds:%" PRIu64, useconds);
+      } else {
+        QW_TASK_DLOG("qExecTask done", "");
+      }
+
+      dsEndPut(sinkHandle, useconds);
+      QW_ERR_JRET(qwHandleTaskComplete(QW_FPARAMS(), ctx));
+
+      if (queryStop) {
+        *queryStop = true;
+      }
+
+      break;
     }
 
     if (!qcontinue) {
