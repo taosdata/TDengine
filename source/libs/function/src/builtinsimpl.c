@@ -6157,7 +6157,10 @@ int32_t groupKeyFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SGroupKeyInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   if (pInfo->hasResult) {
-    colDataAppend(pCol, pBlock->info.rows, pInfo->data, pInfo->isNull ? true : false);
+    int32_t currentRow = pBlock->info.rows;
+    for (; currentRow < pBlock->info.rows + pResInfo->numOfRes; ++currentRow) {
+      colDataAppend(pCol, currentRow, pInfo->data, pInfo->isNull ? true : false);
+    }
   } else {
     pResInfo->numOfRes = 0;
   }
