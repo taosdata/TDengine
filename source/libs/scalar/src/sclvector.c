@@ -1646,8 +1646,8 @@ void vectorBitOr(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, 
   doReleaseVec(pRightCol, rightConvert);
 }
 
-int32_t doVectorCompareImpl(int32_t numOfRows, SScalarParam *pOut, int32_t startIndex, int32_t step, __compar_fn_t fp,
-                         SScalarParam *pLeft, SScalarParam *pRight, int32_t optr) {
+int32_t doVectorCompareImpl(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut, int32_t startIndex, int32_t numOfRows, 
+                             int32_t step, __compar_fn_t fp, int32_t optr) {
   int32_t num = 0;
 
   for (int32_t i = startIndex; i < numOfRows && i >= 0; i += step) {
@@ -1700,12 +1700,14 @@ int32_t doVectorCompareImpl(int32_t numOfRows, SScalarParam *pOut, int32_t start
   return num;
 }
 
-void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord, int32_t optr) {
-  int32_t       i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
+void doVectorCompare(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t startIndex, int32_t numOfRows, 
+                          int32_t _ord, int32_t optr) {
+  int32_t       i = 0;
   int32_t       step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
   int32_t       lType = GET_PARAM_TYPE(pLeft);
   int32_t       rType = GET_PARAM_TYPE(pRight);
   __compar_fn_t fp = NULL;
+  int32_t       compRows = 0;
   
   if (lType == rType) {
     fp = filterGetCompFunc(lType, optr);
@@ -1714,6 +1716,14 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
   }
 
   pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
+
+  if (startIndex < 0) {
+    i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
+    compRows = pOut->numOfRows;
+  } else {
+    compRows = startIndex + numOfRows;
+    i = startIndex;
+  }
 
   if (pRight->pHashFilter != NULL) {
     for (; i >= 0 && i < pLeft->numOfRows; i += step) {
@@ -1731,7 +1741,7 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
       }
     }
   } else {  // normal compare
-    pOut->numOfQualified = doVectorCompareImpl(pOut->numOfRows, pOut, i, step, fp, pLeft, pRight, optr);
+    pOut->numOfQualified = doVectorCompareImpl(pLeft, pRight, pOut, i, compRows, step, fp, optr);
   }
 }
 
@@ -1760,7 +1770,8 @@ void vectorCompare(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
     }
   }
 
-  vectorCompareImpl(param1, param2, pOut, _ord, optr);
+  doVectorCompare(param1, param2, pOut, -1, -1, _ord, optr);
+  
   sclFreeParam(&pLeftOut);
   sclFreeParam(&pRightOut);  
 }
