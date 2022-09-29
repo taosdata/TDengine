@@ -420,7 +420,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
       goto end;
     }
   } else {
-    qInfo("succ to get table from meta, suid:%" PRIu64, suid);
+    qInfo("succ to get table from meta idx, suid:%" PRIu64, suid);
   }
 
   int32_t rows = taosArrayGetSize(uidList);
