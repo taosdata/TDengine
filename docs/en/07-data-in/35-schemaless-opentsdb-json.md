@@ -50,3 +50,8 @@ You can use any client that supports the http protocol to access the RESTful int
 ```text
 /opentsdb/v1/put/json/<db>?token=<cloud_token>
 ```
+### Insert Example
+- curl --request POST http://127.0.0.1:6041/opentsdb/v1/put/json/test --user "root:taosdata" --data-binary "{\"metric\":\"meter_current\",\"timestamp\":1646846400,\"value\":10.3,\"tags\":{\"groupid\":2,\"location\":\"Beijing\",\"id\":\"d1001\"}}"
+  
+### Query Example with SQL
+- select * from meter_current where groupid=2 and location="Beijing" and id="d1001"
