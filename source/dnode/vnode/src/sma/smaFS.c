@@ -54,7 +54,7 @@ int32_t tdRSmaFSOpen(SSma *pSma, int64_t version) {
     if ((terrno = tdRSmaFSUpsertQTaskFile(RSMA_FS(pStat), &qTaskFile)) < 0) {
       goto _end;
     }
-    smaInfo("vgId:%d, open fs, version:%" PRIi64 ", ref:%" PRIi64, TD_VID(pVnode), qTaskFile.version, qTaskFile.nRef);
+    smaInfo("vgId:%d, open fs, version:%" PRIi64 ", ref:%d", TD_VID(pVnode), qTaskFile.version, qTaskFile.nRef);
   }
 
 _end:
@@ -149,6 +149,8 @@ static int32_t tdFetchQTaskInfoFiles(SSma *pSma, int64_t version, SArray **outpu
   const char   *pattern = "v[0-9]+qinf\\.v([0-9]+)?$";
   regex_t       regex;
   int           code = 0;
+
+  terrno = TSDB_CODE_SUCCESS;
 
   tdGetVndDirName(TD_VID(pVnode), tfsGetPrimaryPath(pVnode->pTfs), VNODE_RSMA_DIR, true, dir);
 

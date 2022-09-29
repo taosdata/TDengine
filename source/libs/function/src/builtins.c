@@ -207,7 +207,6 @@ static int32_t countTrailingSpaces(const SValueNode* pVal, bool isLtrim) {
   }
 
   return numOfSpaces;
-
 }
 
 void static addTimezoneParam(SNodeList* pList) {
@@ -322,7 +321,7 @@ static int32_t translateTrimStr(SFunctionNode* pFunc, char* pErrBuf, int32_t len
   }
 
   int32_t numOfSpaces = 0;
-  SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 0);
+  SNode*  pParamNode1 = nodesListGetNode(pFunc->pParameterList, 0);
   // for select trim functions with constant value from table,
   // need to set the proper result result schema bytes to avoid
   // trailing garbage characters
@@ -330,7 +329,6 @@ static int32_t translateTrimStr(SFunctionNode* pFunc, char* pErrBuf, int32_t len
     SValueNode* pValue = (SValueNode*)pParamNode1;
     numOfSpaces = countTrailingSpaces(pValue, isLtrim);
   }
-
 
   int32_t resBytes = pPara1->resType.bytes - numOfSpaces;
   pFunc->node.resType = (SDataType){.bytes = resBytes, .type = pPara1->resType.type};
@@ -2141,7 +2139,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "avg",
     .type = FUNCTION_TYPE_AVG,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
     .translateFunc = translateInNumOutDou,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getAvgFuncEnv,
@@ -3147,6 +3145,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_USER,
     .classification = FUNC_MGT_SYSTEM_INFO_FUNC | FUNC_MGT_SCALAR_FUNC,
     .translateFunc = translateUserFunc,
+  },
+  {
+    .name = "_irowts",
+    .type = FUNCTION_TYPE_IROWTS,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_INTERP_PC_FUNC,
+    .translateFunc = translateTimePseudoColumn,
+    .getEnvFunc   = getTimePseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
   },
 };
 // clang-format on

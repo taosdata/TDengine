@@ -189,9 +189,23 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
     tscError("%d failed to add to request container, reqId:0x%" PRIx64 ", conn:%d, %s", (*pRequest)->self,
              (*pRequest)->requestId, pTscObj->id, sql);
 
+    taosMemoryFree(param);
     destroyRequest(*pRequest);
     *pRequest = NULL;
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  (*pRequest)->allocatorRefId = -1;
+  if (tsQueryUseNodeAllocator && !qIsInsertValuesSql((*pRequest)->sqlstr, (*pRequest)->sqlLen)) {
+    if (TSDB_CODE_SUCCESS !=
+        nodesCreateAllocator((*pRequest)->requestId, tsQueryNodeChunkSize, &((*pRequest)->allocatorRefId))) {
+      tscError("%d failed to create node allocator, reqId:0x%" PRIx64 ", conn:%d, %s", (*pRequest)->self,
+               (*pRequest)->requestId, pTscObj->id, sql);
+
+      destroyRequest(*pRequest);
+      *pRequest = NULL;
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
   }
 
   tscDebugL("0x%" PRIx64 " SQL: %s, reqId:0x%" PRIx64, (*pRequest)->self, (*pRequest)->sqlstr, (*pRequest)->requestId);
@@ -365,7 +379,7 @@ int32_t updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList) {
 }
 
 bool qnodeRequired(SRequestObj* pRequest) {
-  if (QUERY_POLICY_VNODE == tsQueryPolicy) {
+  if (QUERY_POLICY_VNODE == tsQueryPolicy || QUERY_POLICY_CLIENT == tsQueryPolicy) {
     return false;
   }
 
@@ -469,6 +483,7 @@ void setResPrecision(SReqResultInfo* pResInfo, int32_t precision) {
 
 int32_t buildVnodePolicyNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray* pMnodeList, SArray* pDbVgList) {
   SArray* nodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
+  char*   policy = (tsQueryPolicy == QUERY_POLICY_VNODE) ? "vnode" : "client";
 
   int32_t dbNum = taosArrayGetSize(pDbVgList);
   for (int32_t i = 0; i < dbNum; ++i) {
@@ -490,20 +505,20 @@ int32_t buildVnodePolicyNodeList(SRequestObj* pRequest, SArray** pNodeList, SArr
 
   int32_t vnodeNum = taosArrayGetSize(nodeList);
   if (vnodeNum > 0) {
-    tscDebug("0x%" PRIx64 " vnode policy, use vnode list, num:%d", pRequest->requestId, vnodeNum);
+    tscDebug("0x%" PRIx64 " %s policy, use vnode list, num:%d", pRequest->requestId, policy, vnodeNum);
     goto _return;
   }
 
   int32_t mnodeNum = taosArrayGetSize(pMnodeList);
   if (mnodeNum <= 0) {
-    tscDebug("0x%" PRIx64 " vnode policy, empty node list", pRequest->requestId);
+    tscDebug("0x%" PRIx64 " %s policy, empty node list", pRequest->requestId, policy);
     goto _return;
   }
 
   void* pData = taosArrayGet(pMnodeList, 0);
   taosArrayAddBatch(nodeList, pData, mnodeNum);
 
-  tscDebug("0x%" PRIx64 " vnode policy, use mnode list, num:%d", pRequest->requestId, mnodeNum);
+  tscDebug("0x%" PRIx64 " %s policy, use mnode list, num:%d", pRequest->requestId, policy, mnodeNum);
 
 _return:
 
@@ -547,7 +562,8 @@ int32_t buildAsyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray
   int32_t code = 0;
 
   switch (tsQueryPolicy) {
-    case QUERY_POLICY_VNODE: {
+    case QUERY_POLICY_VNODE:
+    case QUERY_POLICY_CLIENT: {
       if (pResultMeta) {
         pDbVgList = taosArrayInit(4, POINTER_BYTES);
 
@@ -608,7 +624,8 @@ int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray*
   int32_t code = 0;
 
   switch (tsQueryPolicy) {
-    case QUERY_POLICY_VNODE: {
+    case QUERY_POLICY_VNODE:
+    case QUERY_POLICY_CLIENT: {
       int32_t dbNum = taosArrayGetSize(pRequest->dbList);
       if (dbNum > 0) {
         SCatalog*     pCtg = NULL;
@@ -668,6 +685,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
                            .requestObjRefId = pRequest->self};
   SSchedulerReq    req = {
          .syncReq = true,
+         .localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT),
          .pConn = &conn,
          .pNodeList = pNodeList,
          .pDag = pDag,
@@ -681,6 +699,8 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
   };
 
   int32_t code = schedulerExecJob(&req, &pRequest->body.queryJob);
+
+  destroyQueryExecRes(&pRequest->body.resInfo.execRes);
   memcpy(&pRequest->body.resInfo.execRes, &res, sizeof(res));
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -795,7 +815,7 @@ int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog) {
 
 int32_t handleQueryExecRsp(SRequestObj* pRequest) {
   if (NULL == pRequest->body.resInfo.execRes.res) {
-    return TSDB_CODE_SUCCESS;
+    return pRequest->code;
   }
 
   SCatalog*     pCatalog = NULL;
@@ -848,10 +868,12 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
   return code;
 }
 
+//todo refacto the error code  mgmt
 void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   SRequestObj* pRequest = (SRequestObj*)param;
-  pRequest->code = code;
+  STscObj* pTscObj = pRequest->pTscObj;
 
+  pRequest->code = code;
   pRequest->metric.resultReady = taosGetTimestampUs();
 
   if (pResult) {
@@ -859,33 +881,32 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
     memcpy(&pRequest->body.resInfo.execRes, pResult, sizeof(*pResult));
   }
 
-  if (TDMT_VND_SUBMIT == pRequest->type || TDMT_VND_DELETE == pRequest->type ||
-      TDMT_VND_CREATE_TABLE == pRequest->type) {
+  int32_t type = pRequest->type;
+  if (TDMT_VND_SUBMIT == type || TDMT_VND_DELETE == type || TDMT_VND_CREATE_TABLE == type) {
     if (pResult) {
       pRequest->body.resInfo.numOfRows = pResult->numOfRows;
-      if (TDMT_VND_SUBMIT == pRequest->type) {
-        STscObj*            pTscObj = pRequest->pTscObj;
+
+      // record the insert rows
+      if (TDMT_VND_SUBMIT == type) {
         SAppClusterSummary* pActivity = &pTscObj->pAppInfo->summary;
         atomic_add_fetch_64((int64_t*)&pActivity->numOfInsertRows, pResult->numOfRows);
       }
     }
 
     schedulerFreeJob(&pRequest->body.queryJob, 0);
-
-    pRequest->metric.execEnd = taosGetTimestampUs();
   }
 
   taosMemoryFree(pResult);
+  tscDebug("0x%" PRIx64 " enter scheduler exec cb, code:%s, reqId:0x%" PRIx64, pRequest->self, tstrerror(code),
+           pRequest->requestId);
 
-  tscDebug("0x%" PRIx64 " enter scheduler exec cb, code:%d - %s, reqId:0x%" PRIx64, pRequest->self, code,
-           tstrerror(code), pRequest->requestId);
-
-  STscObj* pTscObj = pRequest->pTscObj;
   if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code) && pRequest->sqlstr != NULL) {
-    tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%" PRIx64,
-             pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
+    tscDebug("0x%" PRIx64 " client retry to handle the error, code:%s, tryCount:%d, reqId:0x%" PRIx64,
+             pRequest->self, tstrerror(code), pRequest->retry, pRequest->requestId);
     pRequest->prevCode = code;
     schedulerFreeJob(&pRequest->body.queryJob, 0);
+    qDestroyQuery(pRequest->pQuery);
+    pRequest->pQuery = NULL;
     doAsyncQuery(pRequest, true);
     return;
   }
@@ -895,7 +916,11 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
     removeMeta(pTscObj, pRequest->targetTableList);
   }
 
-  handleQueryExecRsp(pRequest);
+  pRequest->metric.execEnd = taosGetTimestampUs();
+  int32_t code1 = handleQueryExecRsp(pRequest);
+  if (pRequest->code == TSDB_CODE_SUCCESS && pRequest->code != code1) {
+    pRequest->code = code1;
+  }
 
   // return to client
   pRequest->body.queryFp(pRequest->body.param, pRequest, code);
@@ -1022,7 +1047,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
                           .pMsg = pRequest->msgBuf,
                           .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                           .pUser = pRequest->pTscObj->user,
-                          .sysInfo = pRequest->pTscObj->sysInfo};
+                          .sysInfo = pRequest->pTscObj->sysInfo,
+                          .allocatorId = pRequest->allocatorRefId};
 
       SAppInstInfo* pAppInfo = getAppInfo(pRequest);
       SQueryPlan*   pDag = NULL;
@@ -1044,9 +1070,11 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
             .pTrans = pAppInfo->pTransporter, .requestId = pRequest->requestId, .requestObjRefId = pRequest->self};
         SSchedulerReq req = {
             .syncReq = false,
+            .localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT),
             .pConn = &conn,
             .pNodeList = pNodeList,
             .pDag = pDag,
+            .allocatorRefId = pRequest->allocatorRefId,
             .sql = pRequest->sqlstr,
             .startTs = pRequest->metric.start,
             .execFp = schedulerExecCb,

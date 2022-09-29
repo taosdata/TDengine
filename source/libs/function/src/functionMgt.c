@@ -26,11 +26,6 @@ typedef struct SFuncMgtService {
   SHashObj* pFuncNameHashTable;
 } SFuncMgtService;
 
-typedef struct SUdfInfo {
-  SDataType outputDt;
-  int8_t    funcType;
-} SUdfInfo;
-
 static SFuncMgtService gFunMgtService;
 static TdThreadOnce    functionHashTableInit = PTHREAD_ONCE_INIT;
 static int32_t         initFunctionCode = 0;
@@ -228,6 +223,8 @@ bool fmIsInterpFunc(int32_t funcId) {
   }
   return FUNCTION_TYPE_INTERP == funcMgtBuiltins[funcId].type;
 }
+
+bool fmIsInterpPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_INTERP_PC_FUNC); }
 
 bool fmIsLastRowFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {

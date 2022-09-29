@@ -705,12 +705,12 @@ int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
     tsdbRowGetColVal(pRow, pTSchema, jCol++, pColVal);
 
     if (key.version > pMerger->version) {
-      if (!pColVal->isNone) {
+      if (!COL_VAL_IS_NONE(pColVal)) {
         taosArraySet(pMerger->pArray, iCol, pColVal);
       }
     } else if (key.version < pMerger->version) {
       SColVal *tColVal = (SColVal *)taosArrayGet(pMerger->pArray, iCol);
-      if (tColVal->isNone && !pColVal->isNone) {
+      if (COL_VAL_IS_NONE(tColVal) && !COL_VAL_IS_NONE(pColVal)) {
         taosArraySet(pMerger->pArray, iCol, pColVal);
       }
     } else {
@@ -776,12 +776,12 @@ int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow) {
     tsdbRowGetColVal(pRow, pMerger->pTSchema, iCol, pColVal);
 
     if (key.version > pMerger->version) {
-      if (!pColVal->isNone) {
+      if (!COL_VAL_IS_NONE(pColVal)) {
         taosArraySet(pMerger->pArray, iCol, pColVal);
       }
     } else if (key.version < pMerger->version) {
       SColVal *tColVal = (SColVal *)taosArrayGet(pMerger->pArray, iCol);
-      if (tColVal->isNone && !pColVal->isNone) {
+      if (COL_VAL_IS_NONE(tColVal) && !COL_VAL_IS_NONE(pColVal)) {
         taosArraySet(pMerger->pArray, iCol, pColVal);
       }
     } else {
@@ -948,24 +948,47 @@ void tBlockDataDestroy(SBlockData *pBlockData, int8_t deepClear) {
   pBlockData->aColData = NULL;
 }
 
-int32_t tBlockDataInit(SBlockData *pBlockData, int64_t suid, int64_t uid, STSchema *pTSchema) {
+int32_t tBlockDataInit(SBlockData *pBlockData, TABLEID *pId, STSchema *pTSchema, int16_t *aCid, int32_t nCid) {
   int32_t code = 0;
 
-  ASSERT(suid || uid);
+  ASSERT(pId->suid || pId->uid);
 
-  pBlockData->suid = suid;
-  pBlockData->uid = uid;
+  pBlockData->suid = pId->suid;
+  pBlockData->uid = pId->uid;
   pBlockData->nRow = 0;
 
   taosArrayClear(pBlockData->aIdx);
-  for (int32_t iColumn = 1; iColumn < pTSchema->numOfCols; iColumn++) {
+  if (aCid) {
+    int32_t   iColumn = 1;
     STColumn *pTColumn = &pTSchema->columns[iColumn];
+    for (int32_t iCid = 0; iCid < nCid; iCid++) {
+      while (pTColumn && pTColumn->colId < aCid[iCid]) {
+        iColumn++;
+        pTColumn = (iColumn < pTSchema->numOfCols) ? &pTSchema->columns[iColumn] : NULL;
+      }
 
-    SColData *pColData;
-    code = tBlockDataAddColData(pBlockData, iColumn - 1, &pColData);
-    if (code) goto _exit;
+      if (pTColumn == NULL) {
+        break;
+      } else if (pTColumn->colId == aCid[iCid]) {
+        SColData *pColData;
+        code = tBlockDataAddColData(pBlockData, taosArrayGetSize(pBlockData->aIdx), &pColData);
+        if (code) goto _exit;
+        tColDataInit(pColData, pTColumn->colId, pTColumn->type, (pTColumn->flags & COL_SMA_ON) ? 1 : 0);
 
-    tColDataInit(pColData, pTColumn->colId, pTColumn->type, (pTColumn->flags & COL_SMA_ON) ? 1 : 0);
+        iColumn++;
+        pTColumn = (iColumn < pTSchema->numOfCols) ? &pTSchema->columns[iColumn] : NULL;
+      }
+    }
+  } else {
+    for (int32_t iColumn = 1; iColumn < pTSchema->numOfCols; iColumn++) {
+      STColumn *pTColumn = &pTSchema->columns[iColumn];
+
+      SColData *pColData;
+      code = tBlockDataAddColData(pBlockData, iColumn - 1, &pColData);
+      if (code) goto _exit;
+
+      tColDataInit(pColData, pTColumn->colId, pTColumn->type, (pTColumn->flags & COL_SMA_ON) ? 1 : 0);
+    }
   }
 
 _exit:
@@ -1505,7 +1528,7 @@ void tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg) {
   for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
     tColDataGetValue(pColData, iVal, pColVal);
 
-    if (pColVal->isNone || pColVal->isNull) {
+    if (!COL_VAL_IS_VALUE(pColVal)) {
       pColAgg->numOfNull++;
     } else {
       switch (pColData->type) {

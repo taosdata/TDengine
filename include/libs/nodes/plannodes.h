@@ -94,6 +94,8 @@ typedef struct SScanLogicNode {
   SArray*       pSmaIndexes;
   SNodeList*    pGroupTags;
   bool          groupSort;
+  SNodeList*    pTags;      // for create stream
+  SNode*        pSubtable;  // for create stream
   int8_t        cacheLastMode;
   bool          hasNormalCols;  // neither tag column nor primary key tag column
   bool          sortPrimaryKey;
@@ -165,7 +167,8 @@ typedef struct SVnodeModifyLogicNode {
 
 typedef struct SExchangeLogicNode {
   SLogicNode node;
-  int32_t    srcGroupId;
+  int32_t    srcStartGroupId;
+  int32_t    srcEndGroupId;
 } SExchangeLogicNode;
 
 typedef struct SMergeLogicNode {
@@ -232,6 +235,8 @@ typedef struct SSortLogicNode {
 typedef struct SPartitionLogicNode {
   SLogicNode node;
   SNodeList* pPartitionKeys;
+  SNodeList* pTags;
+  SNode*     pSubtable;
 } SPartitionLogicNode;
 
 typedef enum ESubplanType {
@@ -331,6 +336,8 @@ typedef struct STableScanPhysiNode {
   SNodeList*     pDynamicScanFuncs;
   SNodeList*     pGroupTags;
   bool           groupSort;
+  SNodeList*     pTags;
+  SNode*         pSubtable;
   int64_t        interval;
   int64_t        offset;
   int64_t        sliding;
@@ -395,11 +402,15 @@ typedef struct SDownstreamSourceNode {
   uint64_t       schedId;
   int32_t        execId;
   int32_t        fetchMsgType;
+  bool           localExec;
 } SDownstreamSourceNode;
 
 typedef struct SExchangePhysiNode {
   SPhysiNode node;
-  int32_t    srcGroupId;  // group id of datasource suplans
+  // for set operators, there will be multiple execution groups under one exchange, and the ids of these execution
+  // groups are consecutive
+  int32_t    srcStartGroupId;
+  int32_t    srcEndGroupId;
   bool       singleChannel;
   SNodeList* pSrcEndPoints;  // element is SDownstreamSource, scheduler fill by calling qSetSuplanExecutionNode
 } SExchangePhysiNode;
@@ -453,6 +464,8 @@ typedef struct SFillPhysiNode {
   EOrder      inputTsOrder;
 } SFillPhysiNode;
 
+typedef SFillPhysiNode SStreamFillPhysiNode;
+
 typedef struct SMultiTableIntervalPhysiNode {
   SIntervalPhysiNode interval;
   SNodeList*         pPartitionKeys;
@@ -490,7 +503,11 @@ typedef struct SPartitionPhysiNode {
   SNodeList* pTargets;
 } SPartitionPhysiNode;
 
-typedef SPartitionPhysiNode SStreamPartitionPhysiNode;
+typedef struct SStreamPartitionPhysiNode {
+  SPartitionPhysiNode part;
+  SNodeList*          pTags;
+  SNode*              pSubtable;
+} SStreamPartitionPhysiNode;
 
 typedef struct SDataSinkNode {
   ENodeType           type;

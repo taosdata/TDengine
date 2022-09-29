@@ -66,9 +66,9 @@ order_expr:
 
 A query can be performed on some or all columns. Data and tag columns can all be included in the SELECT list.
 
-## Wildcards
+### Wildcards
 
-You can use an asterisk (\*) as a wildcard character to indicate all columns. For standard tables, the asterisk indicates only data columns. For supertables and subtables, tag columns are also included.
+You can use an asterisk (\*) as a wildcard character to indicate all columns. For normal tables or sub-tables, the asterisk indicates only data columns. For supertables, tag columns are also included when using asterisk (\*).
 
 ```sql
 SELECT * FROM d1001;
@@ -136,6 +136,8 @@ taos> SELECT ts, ts AS primary_key_ts FROM d1001;
 
 ### Pseudocolumns
 
+**Pseudocolumn:** A pseudo-column behaves like a table column but is not actually stored in the table. You can select from pseudo-columns, but you cannot insert, update, or delete their values. A pseudo-column is also similar to a function without arguments. This section describes these pseudo-columns:
+
 **TBNAME**
 The TBNAME pseudocolumn in a supertable contains the names of subtables within the supertable.
 
@@ -177,6 +179,14 @@ In TDengine, the first column of all tables must be a timestamp. This column is 
 
 ```sql
 select _rowts, max(current) from meters;
+```
+
+**\_IROWTS**
+
+The \_IROWTS pseudocolumn can only be used with INTERP function. This pseudocolumn can be used to retrieve the corresponding timestamp column associated with the interpolation results.
+
+```sql
+select _irowts, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(linear);
 ```
 
 ## Query Objects

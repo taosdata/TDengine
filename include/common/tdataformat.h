@@ -66,9 +66,17 @@ int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type);
 int     tValueCmprFn(const SValue *pValue1, const SValue *pValue2, int8_t type);
 
 // SColVal ================================
-#define COL_VAL_NONE(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .isNone = 1})
-#define COL_VAL_NULL(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .isNull = 1})
+#define CV_FLAG_VALUE ((int8_t)0x0)
+#define CV_FLAG_NONE  ((int8_t)0x1)
+#define CV_FLAG_NULL  ((int8_t)0x2)
+
+#define COL_VAL_NONE(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .flag = CV_FLAG_NONE})
+#define COL_VAL_NULL(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .flag = CV_FLAG_NULL})
 #define COL_VAL_VALUE(CID, TYPE, V) ((SColVal){.cid = (CID), .type = (TYPE), .value = (V)})
+
+#define COL_VAL_IS_NONE(CV)  ((CV)->flag == CV_FLAG_NONE)
+#define COL_VAL_IS_NULL(CV)  ((CV)->flag == CV_FLAG_NULL)
+#define COL_VAL_IS_VALUE(CV) ((CV)->flag == CV_FLAG_VALUE)
 
 // STSRow2 ================================
 #define TSROW_LEN(PROW, V)  tGetI32v((uint8_t *)(PROW)->data, (V) ? &(V) : NULL)
@@ -175,8 +183,7 @@ struct SValue {
 struct SColVal {
   int16_t cid;
   int8_t  type;
-  int8_t  isNone;
-  int8_t  isNull;
+  int8_t  flag;
   SValue  value;
 };
 

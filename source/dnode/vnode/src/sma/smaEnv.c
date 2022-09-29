@@ -278,7 +278,6 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
     smaDebug("vgId:%d, destroy rsma stat %p", SMA_VID(pSma), pRSmaStat);
     // step 1: set rsma trigger stat cancelled
     atomic_store_8(RSMA_TRIGGER_STAT(pStat), TASK_TRIGGER_STAT_CANCELLED);
-    tsem_destroy(&(pStat->notEmpty));
 
     // step 2: destroy the rsma info and associated fetch tasks
     taosHashCleanup(RSMA_INFO_HASH(pStat));
@@ -306,6 +305,7 @@ static void tdDestroyRSmaStat(void *pRSmaStat) {
     tdRSmaFSClose(RSMA_FS(pStat));
 
     // step 6: free pStat
+    tsem_destroy(&(pStat->notEmpty));
     taosMemoryFreeClear(pStat);
   }
 }
@@ -386,7 +386,7 @@ int32_t tdCheckAndInitSmaEnv(SSma *pSma, int8_t smaType) {
       }
       break;
     default:
-      smaError("vgId:%d, undefined smaType:%", SMA_VID(pSma), smaType);
+      smaError("vgId:%d, undefined smaType:%" PRIi8, SMA_VID(pSma), smaType);
       return TSDB_CODE_FAILED;
   }
 

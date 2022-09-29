@@ -167,7 +167,7 @@ uint32_t    ip2uint(const char *const ip_addr);
 void        taosIgnSIGPIPE();
 void        taosSetMaskSIGPIPE();
 uint32_t    taosInetAddr(const char *ipAddr);
-const char *taosInetNtoa(struct in_addr ipInt);
+const char *taosInetNtoa(struct in_addr ipInt, char *dstStr, int32_t len);
 
 #ifdef __cplusplus
 }

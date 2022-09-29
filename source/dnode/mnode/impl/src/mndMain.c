@@ -65,7 +65,7 @@ static void mndPullupTrans(SMnode *pMnode) {
   }
 }
 
-static void mndTtlTimer(SMnode *pMnode) {
+static void mndPullupTtl(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_TTL_TIMER, .pCont = pReq, .contLen = contLen};
@@ -90,7 +90,7 @@ static void mndPullupTelem(SMnode *pMnode) {
   }
 }
 
-static void mndGrantHeartBeat(SMnode *pMnode) {
+static void mndPullupGrant(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
@@ -119,28 +119,30 @@ static void *mndThreadFp(void *param) {
     lastTime++;
     taosMsleep(100);
     if (mndGetStop(pMnode)) break;
+    if (lastTime % 10 != 0) continue;
 
-    if (lastTime % (tsTtlPushInterval * 10) == 1) {
-      mndTtlTimer(pMnode);
+    int64_t sec = lastTime / 10;
+    if (sec % tsTtlPushInterval == 0) {
+      mndPullupTtl(pMnode);
     }
 
-    if (lastTime % (tsTransPullupInterval * 10) == 0) {
+    if (sec % tsTransPullupInterval == 0) {
       mndPullupTrans(pMnode);
     }
 
-    if (lastTime % (tsMqRebalanceInterval * 10) == 0) {
+    if (sec % tsMqRebalanceInterval == 0) {
       mndCalMqRebalance(pMnode);
     }
 
-    if (lastTime % (tsTelemInterval * 10) == ((tsTelemInterval - 1) * 10)) {
+    if (sec % tsTelemInterval == (TMIN(60, (tsTelemInterval - 1)))) {
       mndPullupTelem(pMnode);
     }
 
-    if (lastTime % (tsGrantHBInterval * 10) == 0) {
-      mndGrantHeartBeat(pMnode);
+    if (sec % tsGrantHBInterval == 0) {
+      mndPullupGrant(pMnode);
     }
 
-    if ((lastTime % (tsUptimeInterval * 10)) == ((tsUptimeInterval - 1) * 10)) {
+    if (sec % tsUptimeInterval == 0) {
       mndIncreaseUpTime(pMnode);
     }
   }
@@ -300,7 +302,7 @@ static void mndCleanupSteps(SMnode *pMnode, int32_t pos) {
 
   for (int32_t s = pos; s >= 0; s--) {
     SMnodeStep *pStep = taosArrayGet(pMnode->pSteps, s);
-    mDebug("%s will cleanup", pStep->name);
+    mInfo("%s will cleanup", pStep->name);
     if (pStep->cleanupFp != NULL) {
       (*pStep->cleanupFp)(pMnode);
     }
@@ -324,7 +326,7 @@ static int32_t mndExecSteps(SMnode *pMnode) {
       terrno = code;
       return -1;
     } else {
-      mDebug("%s is initialized", pStep->name);
+      mInfo("%s is initialized", pStep->name);
       tmsgReportStartup(pStep->name, "initialized");
     }
   }
@@ -341,7 +343,7 @@ static void mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
 }
 
 SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
-  mDebug("start to open mnode in %s", path);
+  mInfo("start to open mnode in %s", path);
 
   SMnode *pMnode = taosMemoryCalloc(1, sizeof(SMnode));
   if (pMnode == NULL) {
@@ -390,7 +392,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     return NULL;
   }
 
-  mDebug("mnode open successfully ");
+  mInfo("mnode open successfully ");
   return pMnode;
 }
 
@@ -399,25 +401,25 @@ void mndPreClose(SMnode *pMnode) {
     atomic_store_8(&(pMnode->syncMgmt.leaderTransferFinish), 0);
     syncLeaderTransfer(pMnode->syncMgmt.sync);
 
-    /*
-        mDebug("vgId:1, mnode start leader transfer");
-        // wait for leader transfer finish
-        while (!atomic_load_8(&(pMnode->syncMgmt.leaderTransferFinish))) {
-          taosMsleep(10);
-          mDebug("vgId:1, mnode waiting for leader transfer");
-        }
-        mDebug("vgId:1, mnode finish leader transfer");
-    */
+#if 0
+    mInfo("vgId:1, mnode start leader transfer");
+    // wait for leader transfer finish
+    while (!atomic_load_8(&(pMnode->syncMgmt.leaderTransferFinish))) {
+      taosMsleep(10);
+      mInfo("vgId:1, mnode waiting for leader transfer");
+    }
+    mInfo("vgId:1, mnode finish leader transfer");
+#endif
   }
 }
 
 void mndClose(SMnode *pMnode) {
   if (pMnode != NULL) {
-    mDebug("start to close mnode");
+    mInfo("start to close mnode");
     mndCleanupSteps(pMnode, -1);
     taosMemoryFreeClear(pMnode->path);
     taosMemoryFreeClear(pMnode);
-    mDebug("mnode is closed");
+    mInfo("mnode is closed");
   }
 }
 
