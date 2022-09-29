@@ -122,6 +122,8 @@ SWords shellCommands[] = {
   {"show vgroups;", 0, 0, NULL},
   {"insert into <tb_name> values(", 0, 0, NULL},
   {"insert into <tb_name> using <stb_name> tags(", 0, 0, NULL},
+  {"insert into <tb_name> file ", 0, 0, NULL},
+  {"trim database <db_name>", 0, 0, NULL},
   {"use <db_name>", 0, 0, NULL},
   {"quit", 0, 0, NULL}
 };
@@ -214,58 +216,60 @@ char * functions[] = {
 };
 
 char * tb_actions[] = {
-  "add column",
-  "modify column",
-  "drop column",
-  "change tag",
+  "add column ",
+  "modify column ",
+  "drop column ",
+  "rename column ",
+  "add tag ",
+  "modify tag ",
+  "drop tag ",
+  "rename tag ",
+  "set tag ",
+};
+
+char * tb_options[] = {
+  "comment ",
+  "watermark ",
+  "max_delay ",
+  "ttl ",
+  "rollup(",
+  "sma("
 };
 
 char * db_options[] = {
-  "keep 3650",
-  "replica 1",
-  "replica 3",
-  "precision \'ms\'",
-  "precision \'us\'",
-  "precision \'ns\'",
-  "strict \'off\'",
-  "strict \'on\'",
+  "keep ",
+  "replica ",
+  "replica ",
+  "precision ",
+  "strict ",
+  "strict ",
   "buffer ",
-  "cachemodel \'none\' ",
-  "cachemodel \'last_row\' ",
-  "cachemodel \'last_value\' ",
-  "cachemodel \'both\' ",
-  "cachesize 1 ",
-  "comp 0 ",
-  "comp 1 ",
-  "comp 2 ",
+  "cachemodel ",
+  "cachesize ",
+  "comp ",
   "duration ",
-  "wal_fsync_period 3000",
-  "maxrows 4096",
-  "minrows 100",
-  "pages 256",
-  "pagesize  4",
-  "retentions",
-  "wal_level 1",
-  "wal_level 2",
-  "vgroups",
-  "single_stable 0",
-  "single_stable 1",
-  "wal_retention_period",
-  "wal_roll_period",
-  "wal_retention_size",
-  "wal_segment_size"
+  "wal_fsync_period",
+  "maxrows ",
+  "minrows ",
+  "pages ",
+  "pagesize ",
+  "retentions ",
+  "wal_level ",
+  "wal_level ",
+  "vgroups ",
+  "single_stable ",
+  "wal_retention_period ",
+  "wal_roll_period ",
+  "wal_retention_size ",
+  "wal_segment_size "
 };
 
 char * alter_db_options[] = {
-  "keep 3650",
-  "cachemodel \'none\' ",
-  "cachemodel \'last_row\' ",
-  "cachemodel \'last_value\' ",
-  "cachemodel \'both\' ",
-  "cachesize 1",
-  "wal_fsync_period 3000",
-  "wal_level 1",
-  "wal_level 2"
+  "keep ",
+  "cachemodel ",
+  "cachesize ",
+  "wal_fsync_period ",
+  "wal_level "
 };
 
 
@@ -320,7 +324,8 @@ bool    waitAutoFill    = false;
 #define WT_VAR_DATATYPE 11
 #define WT_VAR_KEYTAGS  12
 #define WT_VAR_ANYWORD  13
-#define WT_VAR_CNT      14
+#define WT_VAR_TBOPTION 14
+#define WT_VAR_CNT      15
 
 #define WT_FROM_DB_MAX  4  // max get content from db
 #define WT_FROM_DB_CNT  (WT_FROM_DB_MAX + 1)
@@ -348,7 +353,8 @@ char varTypes[WT_VAR_CNT][64] = {
   "<alter_db_options>",
   "<data_types>",
   "<key_tags>",
-  "<anyword>"
+  "<anyword>",
+  "<tb_options>"
 };
 
 char varSqls[WT_FROM_DB_CNT][64] = {
@@ -628,6 +634,7 @@ bool shellAutoInit() {
   GenerateVarType(WT_VAR_TBACTION, tb_actions, sizeof(tb_actions) /sizeof(char *));
   GenerateVarType(WT_VAR_DATATYPE, data_types, sizeof(data_types) /sizeof(char *));
   GenerateVarType(WT_VAR_KEYTAGS,  key_tags,   sizeof(key_tags)   /sizeof(char *));
+  GenerateVarType(WT_VAR_TBOPTION, tb_options, sizeof(tb_options) /sizeof(char *));
 
   return true;
 }
@@ -1519,6 +1526,18 @@ bool matchCreateTable(TAOS * con, SShellCmd * cmd) {
       if(strchr(p1 + 1, ')') == NULL && strstr(p1 + 1, "tags") == NULL) {
         // can insert tags keyword
         ret = fillWithType(con, cmd, last, WT_VAR_KEYTAGS);
+      }
+    }
+  }
+
+  // tb options
+  if (!ret) {
+    // find like create talbe st (...) tags(..)  <here is fill tb option area>
+    char * p1 = strchr(ps, ')'); // first ')' end
+    if (p1) {
+      if(strchr(p1 + 1, ')')) { // second ')' end
+        // here is tb options area, can insert option
+        ret = fillWithType(con, cmd, last, WT_VAR_TBOPTION);
       }
     }
   }
