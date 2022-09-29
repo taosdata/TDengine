@@ -210,9 +210,12 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     pOperator->status = OP_OPENED;
   }
 
+  qDebug("enter project");
+
   if (pOperator->status == OP_EXEC_DONE) {
     if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
       pOperator->status = OP_OPENED;
+      qDebug("projection in queue model, set status open and return null");
       return NULL;
     }
 
@@ -241,10 +244,13 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       // The downstream exec may change the value of the newgroup, so use a local variable instead.
       SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
       if (pBlock == NULL) {
-        if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE && pOperator->status == OP_EXEC_RECV &&
-            pFinalRes->info.rows == 0) {
+        if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE && pFinalRes->info.rows == 0) {
           pOperator->status = OP_OPENED;
-          continue;
+          if (pOperator->status == OP_EXEC_RECV) {
+            continue;
+          } else {
+            return NULL;
+          }
         }
         qDebug("set op close, exec %d, status %d rows %d", pTaskInfo->execModel, pOperator->status,
                pFinalRes->info.rows);
