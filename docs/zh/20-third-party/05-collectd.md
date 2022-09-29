@@ -72,3 +72,7 @@ taos> select * from collectd.memory_value limit 10;
 Query OK, 10 row(s) in set (0.010348s)
 ```
 
+:::note
+
+- TDengine 默认生成的子表名是根据规则生成的唯一 ID 值。
+:::
