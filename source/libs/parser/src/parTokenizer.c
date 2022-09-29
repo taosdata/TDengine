@@ -257,6 +257,7 @@ static SKeyword keywordTable[] = {
     {"_QEND",                TK_QEND},
     {"_QSTART",              TK_QSTART},
     {"_ROWTS",               TK_ROWTS},
+    {"_TAGS",                TK_QTAGS},
     {"_WDURATION",           TK_WDURATION},
     {"_WEND",                TK_WEND},
     {"_WSTART",              TK_WSTART},
