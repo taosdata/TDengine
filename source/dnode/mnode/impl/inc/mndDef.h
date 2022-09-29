@@ -165,12 +165,13 @@ typedef struct {
   SEpSet      lastEpset;
   tmsg_t      lastMsgType;
   tmsg_t      originRpcType;
-  char        dbname1[TSDB_TABLE_FNAME_LEN];
-  char        dbname2[TSDB_TABLE_FNAME_LEN];
+  char        dbname[TSDB_TABLE_FNAME_LEN];
+  char        stbname[TSDB_TABLE_FNAME_LEN];
   int32_t     startFunc;
   int32_t     stopFunc;
   int32_t     paramLen;
   void*       param;
+  char        opername[TSDB_TRANS_OPER_LEN];
   SArray*     pRpcArray;
 } STrans;
 
@@ -305,11 +306,15 @@ typedef struct {
   int8_t  hashMethod;  // default is 1
   int8_t  cacheLast;
   int8_t  schemaless;
+  int16_t hashPrefix;
+  int16_t hashSuffix;
+  int16_t sstTrigger;
+  int32_t tsdbPageSize;
   int32_t numOfRetensions;
   SArray* pRetensions;
   int32_t walRetentionPeriod;
-  int64_t walRetentionSize;
   int32_t walRollPeriod;
+  int64_t walRetentionSize;
   int64_t walSegmentSize;
 } SDbCfg;
 
@@ -340,6 +345,7 @@ typedef struct {
   uint32_t  hashEnd;
   char      dbName[TSDB_DB_FNAME_LEN];
   int64_t   dbUid;
+  int64_t   cacheUsage;
   int64_t   numOfTables;
   int64_t   numOfTimeSeries;
   int64_t   totalStorage;
@@ -535,7 +541,7 @@ typedef struct {
 } SMqConsumerEp;
 
 SMqConsumerEp* tCloneSMqConsumerEp(const SMqConsumerEp* pEp);
-void           tDeleteSMqConsumerEp(SMqConsumerEp* pEp);
+void           tDeleteSMqConsumerEp(void* pEp);
 int32_t        tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp* pEp);
 void*          tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp);
 

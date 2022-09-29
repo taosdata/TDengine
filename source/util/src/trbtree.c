@@ -13,179 +13,297 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
+#include "trbtree.h"
 
-typedef int32_t (*tRBTreeCmprFn)(void *, void *);
-
-typedef struct SRBTree     SRBTree;
-typedef struct SRBTreeNode SRBTreeNode;
-typedef struct SRBTreeIter SRBTreeIter;
-
-struct SRBTreeNode {
-  enum { RED, BLACK } color;
-  SRBTreeNode *parent;
-  SRBTreeNode *left;
-  SRBTreeNode *right;
-  uint8_t      payload[];
-};
-
-struct SRBTree {
-  tRBTreeCmprFn cmprFn;
-  SRBTreeNode  *root;
-};
-
-struct SRBTreeIter {
-  SRBTree *pTree;
-};
-
-#define RBTREE_NODE_COLOR(N) ((N) ? (N)->color : BLACK)
-
-// APIs ================================================
-static void tRBTreeRotateLeft(SRBTree *pTree, SRBTreeNode *pNode) {
-  SRBTreeNode *right = pNode->right;
-
-  pNode->right = right->left;
-  if (pNode->right) {
-    pNode->right->parent = pNode;
+static void tRBTreeRotateLeft(SRBTree *pTree, SRBTreeNode *x) {
+  SRBTreeNode *y = x->right;
+  x->right = y->left;
+  if (y->left != pTree->NIL) {
+    y->left->parent = x;
   }
-
-  right->parent = pNode->parent;
-  if (pNode->parent == NULL) {
-    pTree->root = right;
-  } else if (pNode == pNode->parent->left) {
-    pNode->parent->left = right;
+  y->parent = x->parent;
+  if (x->parent == pTree->NIL) {
+    pTree->root = y;
+  } else if (x == x->parent->left) {
+    x->parent->left = y;
   } else {
-    pNode->parent->right = right;
+    x->parent->right = y;
   }
-
-  right->left = pNode;
-  pNode->parent = right;
+  y->left = x;
+  x->parent = y;
 }
 
-static void tRBTreeRotateRight(SRBTree *pTree, SRBTreeNode *pNode) {
-  SRBTreeNode *left = pNode->left;
-
-  pNode->left = left->right;
-  if (pNode->left) {
-    pNode->left->parent = pNode;
+static void tRBTreeRotateRight(SRBTree *pTree, SRBTreeNode *x) {
+  SRBTreeNode *y = x->left;
+  x->left = y->right;
+  if (y->right != pTree->NIL) {
+    y->right->parent = x;
   }
-
-  left->parent = pNode->parent;
-  if (pNode->parent == NULL) {
-    pTree->root = left;
-  } else if (pNode == pNode->parent->left) {
-    pNode->parent->left = left;
+  y->parent = x->parent;
+  if (x->parent == pTree->NIL) {
+    pTree->root = y;
+  } else if (x == x->parent->right) {
+    x->parent->right = y;
   } else {
-    pNode->parent->right = left;
+    x->parent->left = y;
   }
-
-  left->right = pNode;
-  pNode->parent = left;
+  y->right = x;
+  x->parent = y;
 }
 
-#define tRBTreeCreate(compare) \
-  (SRBTree) { .cmprFn = (compare), .root = NULL }
+static void tRBTreePutFix(SRBTree *pTree, SRBTreeNode *z) {
+  while (z->parent->color == RED) {
+    if (z->parent == z->parent->parent->left) {  // z.parent is the left child
 
-SRBTreeNode *tRBTreePut(SRBTree *pTree, SRBTreeNode *pNew) {
-  pNew->left = NULL;
-  pNew->right = NULL;
-  pNew->color = RED;
+      SRBTreeNode *y = z->parent->parent->right;  // uncle of z
 
-  // insert
-  if (pTree->root == NULL) {
-    pNew->parent = NULL;
-    pTree->root = pNew;
-  } else {
-    SRBTreeNode *pNode = pTree->root;
-    while (true) {
-      ASSERT(pNode);
-
-      int32_t c = pTree->cmprFn(pNew->payload, pNode->payload);
-      if (c < 0) {
-        if (pNode->left) {
-          pNode = pNode->left;
-        } else {
-          pNew->parent = pNode;
-          pNode->left = pNew;
-          break;
+      if (y->color == RED) {  // case 1
+        z->parent->color = BLACK;
+        y->color = BLACK;
+        z->parent->parent->color = RED;
+        z = z->parent->parent;
+      } else {                        // case2 or case3
+        if (z == z->parent->right) {  // case2
+          z = z->parent;              // marked z.parent as new z
+          tRBTreeRotateLeft(pTree, z);
         }
-      } else if (c > 0) {
-        if (pNode->right) {
-          pNode = pNode->right;
-        } else {
-          pNew->parent = pNode;
-          pNode->right = pNew;
-          break;
-        }
+        // case3
+        z->parent->color = BLACK;        // made parent black
+        z->parent->parent->color = RED;  // made parent red
+        tRBTreeRotateRight(pTree, z->parent->parent);
+      }
+    } else {                                     // z.parent is the right child
+      SRBTreeNode *y = z->parent->parent->left;  // uncle of z
+
+      if (y->color == RED) {
+        z->parent->color = BLACK;
+        y->color = BLACK;
+        z->parent->parent->color = RED;
+        z = z->parent->parent;
       } else {
-        return NULL;
+        if (z == z->parent->left) {
+          z = z->parent;  // marked z.parent as new z
+          tRBTreeRotateRight(pTree, z);
+        }
+        z->parent->color = BLACK;        // made parent black
+        z->parent->parent->color = RED;  // made parent red
+        tRBTreeRotateLeft(pTree, z->parent->parent);
       }
     }
+  }
+  pTree->root->color = BLACK;
+}
+
+static void tRBTreeTransplant(SRBTree *pTree, SRBTreeNode *u, SRBTreeNode *v) {
+  if (u->parent == pTree->NIL)
+    pTree->root = v;
+  else if (u == u->parent->left)
+    u->parent->left = v;
+  else
+    u->parent->right = v;
+  v->parent = u->parent;
+}
+
+static void tRBTreeDropFix(SRBTree *pTree, SRBTreeNode *x) {
+  while (x != pTree->root && x->color == BLACK) {
+    if (x == x->parent->left) {
+      SRBTreeNode *w = x->parent->right;
+      if (w->color == RED) {
+        w->color = BLACK;
+        x->parent->color = RED;
+        tRBTreeRotateLeft(pTree, x->parent);
+        w = x->parent->right;
+      }
+      if (w->left->color == BLACK && w->right->color == BLACK) {
+        w->color = RED;
+        x = x->parent;
+      } else {
+        if (w->right->color == BLACK) {
+          w->left->color = BLACK;
+          w->color = RED;
+          tRBTreeRotateRight(pTree, w);
+          w = x->parent->right;
+        }
+        w->color = x->parent->color;
+        x->parent->color = BLACK;
+        w->right->color = BLACK;
+        tRBTreeRotateLeft(pTree, x->parent);
+        x = pTree->root;
+      }
+    } else {
+      SRBTreeNode *w = x->parent->left;
+      if (w->color == RED) {
+        w->color = BLACK;
+        x->parent->color = RED;
+        tRBTreeRotateRight(pTree, x->parent);
+        w = x->parent->left;
+      }
+      if (w->right->color == BLACK && w->left->color == BLACK) {
+        w->color = RED;
+        x = x->parent;
+      } else {
+        if (w->left->color == BLACK) {
+          w->right->color = BLACK;
+          w->color = RED;
+          tRBTreeRotateLeft(pTree, w);
+          w = x->parent->left;
+        }
+        w->color = x->parent->color;
+        x->parent->color = BLACK;
+        w->left->color = BLACK;
+        tRBTreeRotateRight(pTree, x->parent);
+        x = pTree->root;
+      }
+    }
+  }
+  x->color = BLACK;
+}
+
+static SRBTreeNode *tRBTreeSuccessor(SRBTree *pTree, SRBTreeNode *pNode) {
+  if (pNode->right != pTree->NIL) {
+    pNode = pNode->right;
+    while (pNode->left != pTree->NIL) {
+      pNode = pNode->left;
+    }
+  } else {
+    while (true) {
+      if (pNode->parent == pTree->NIL || pNode == pNode->parent->left) {
+        pNode = pNode->parent;
+        break;
+      } else {
+        pNode = pNode->parent;
+      }
+    }
+  }
+
+  return pNode;
+}
+
+static SRBTreeNode *tRBTreePredecessor(SRBTree *pTree, SRBTreeNode *pNode) {
+  if (pNode->left != pTree->NIL) {
+    pNode = pNode->left;
+    while (pNode->right != pTree->NIL) {
+      pNode = pNode->right;
+    }
+  } else {
+    while (true) {
+      if (pNode->parent == pTree->NIL || pNode == pNode->parent->right) {
+        pNode = pNode->parent;
+        break;
+      } else {
+        pNode = pNode->parent;
+      }
+    }
+  }
+
+  return pNode;
+}
+
+void tRBTreeCreate(SRBTree *pTree, tRBTreeCmprFn cmprFn) {
+  pTree->cmprFn = cmprFn;
+  pTree->n = 0;
+  pTree->NIL = &pTree->NILNODE;
+  pTree->NIL->color = BLACK;
+  pTree->NIL->parent = NULL;
+  pTree->NIL->left = NULL;
+  pTree->NIL->right = NULL;
+  pTree->root = pTree->NIL;
+  pTree->min = pTree->NIL;
+  pTree->max = pTree->NIL;
+}
+
+SRBTreeNode *tRBTreePut(SRBTree *pTree, SRBTreeNode *z) {
+  SRBTreeNode *y = pTree->NIL;  // variable for the parent of the added node
+  SRBTreeNode *temp = pTree->root;
+
+  while (temp != pTree->NIL) {
+    y = temp;
+
+    int32_t c = pTree->cmprFn(RBTREE_NODE_PAYLOAD(z), RBTREE_NODE_PAYLOAD(temp));
+    if (c < 0) {
+      temp = temp->left;
+    } else if (c > 0) {
+      temp = temp->right;
+    } else {
+      return NULL;
+    }
+  }
+  z->parent = y;
+
+  if (y == pTree->NIL) {
+    pTree->root = z;
+  } else if (pTree->cmprFn(RBTREE_NODE_PAYLOAD(z), RBTREE_NODE_PAYLOAD(y)) < 0) {
+    y->left = z;
+  } else {
+    y->right = z;
+  }
+
+  z->color = RED;
+  z->left = pTree->NIL;
+  z->right = pTree->NIL;
+
+  tRBTreePutFix(pTree, z);
+
+  // update min/max node
+  if (pTree->min == pTree->NIL || pTree->cmprFn(RBTREE_NODE_PAYLOAD(pTree->min), RBTREE_NODE_PAYLOAD(z)) > 0) {
+    pTree->min = z;
+  }
+  if (pTree->max == pTree->NIL || pTree->cmprFn(RBTREE_NODE_PAYLOAD(pTree->max), RBTREE_NODE_PAYLOAD(z)) < 0) {
+    pTree->max = z;
+  }
+  pTree->n++;
+  return z;
+}
+
+void tRBTreeDrop(SRBTree *pTree, SRBTreeNode *z) {
+  SRBTreeNode *y = z;
+  SRBTreeNode *x;
+  ECOLOR       y_orignal_color = y->color;
+
+  // update min/max node
+  if (pTree->min == z) {
+    pTree->min = tRBTreeSuccessor(pTree, pTree->min);
+  }
+  if (pTree->max == z) {
+    pTree->max = tRBTreePredecessor(pTree, pTree->max);
+  }
+
+  // drop impl
+  if (z->left == pTree->NIL) {
+    x = z->right;
+    tRBTreeTransplant(pTree, z, z->right);
+  } else if (z->right == pTree->NIL) {
+    x = z->left;
+    tRBTreeTransplant(pTree, z, z->left);
+  } else {
+    y = tRBTreeSuccessor(pTree, z);
+    y_orignal_color = y->color;
+    x = y->right;
+    if (y->parent == z) {
+      x->parent = z;
+    } else {
+      tRBTreeTransplant(pTree, y, y->right);
+      y->right = z->right;
+      y->right->parent = y;
+    }
+    tRBTreeTransplant(pTree, z, y);
+    y->left = z->left;
+    y->left->parent = y;
+    y->color = z->color;
   }
 
   // fix
-  SRBTreeNode *pNode = pNew;
-  while (pNode->parent && pNode->parent->color == RED) {
-    SRBTreeNode *p = pNode->parent;
-    SRBTreeNode *g = p->parent;
-
-    if (p == g->left) {
-      SRBTreeNode *u = g->right;
-
-      if (RBTREE_NODE_COLOR(u) == RED) {
-        p->color = BLACK;
-        u->color = BLACK;
-        g->color = RED;
-        pNode = g;
-      } else {
-        if (pNode == p->right) {
-          pNode = p;
-          tRBTreeRotateLeft(pTree, pNode);
-        }
-        pNode->parent->color = BLACK;
-        pNode->parent->parent->color = RED;
-        tRBTreeRotateRight(pTree, pNode->parent->parent);
-      }
-    } else {
-      SRBTreeNode *u = g->left;
-
-      if (RBTREE_NODE_COLOR(u) == RED) {
-        p->color = BLACK;
-        u->color = BLACK;
-        g->color = RED;
-      } else {
-        if (pNode == p->left) {
-          pNode = p;
-          tRBTreeRotateRight(pTree, pNode);
-        }
-        pNode->parent->color = BLACK;
-        pNode->parent->parent->color = RED;
-        tRBTreeRotateLeft(pTree, pNode->parent->parent);
-      }
-    }
+  if (y_orignal_color == BLACK) {
+    tRBTreeDropFix(pTree, x);
   }
-
-  pTree->root->color = BLACK;
-  return pNew;
+  pTree->n--;
 }
 
-SRBTreeNode *tRBTreeDrop(SRBTree *pTree, void *pKey) {
-  SRBTreeNode *pNode = pTree->root;
-
-  while (pNode) {
-    int32_t c = pTree->cmprFn(pKey, pNode->payload);
-
-    if (c < 0) {
-      pNode = pNode->left;
-    } else if (c > 0) {
-      pNode = pNode->right;
-    } else {
-      break;
-    }
-  }
+SRBTreeNode *tRBTreeDropByKey(SRBTree *pTree, void *pKey) {
+  SRBTreeNode *pNode = tRBTreeGet(pTree, pKey);
 
   if (pNode) {
-    // TODO
+    tRBTreeDrop(pTree, pNode);
   }
 
   return pNode;
@@ -194,8 +312,8 @@ SRBTreeNode *tRBTreeDrop(SRBTree *pTree, void *pKey) {
 SRBTreeNode *tRBTreeGet(SRBTree *pTree, void *pKey) {
   SRBTreeNode *pNode = pTree->root;
 
-  while (pNode) {
-    int32_t c = pTree->cmprFn(pKey, pNode->payload);
+  while (pNode != pTree->NIL) {
+    int32_t c = pTree->cmprFn(pKey, RBTREE_NODE_PAYLOAD(pNode));
 
     if (c < 0) {
       pNode = pNode->left;
@@ -206,5 +324,23 @@ SRBTreeNode *tRBTreeGet(SRBTree *pTree, void *pKey) {
     }
   }
 
-  return pNode;
+  return (pNode == pTree->NIL) ? NULL : pNode;
+}
+
+// SRBTreeIter ================================================
+SRBTreeNode *tRBTreeIterNext(SRBTreeIter *pIter) {
+  SRBTreeNode *pNode = pIter->pNode;
+
+  if (pIter->pNode != pIter->pTree->NIL) {
+    if (pIter->asc) {
+      // ascend
+      pIter->pNode = tRBTreeSuccessor(pIter->pTree, pIter->pNode);
+    } else {
+      // descend
+      pIter->pNode = tRBTreePredecessor(pIter->pTree, pIter->pNode);
+    }
+  }
+
+_exit:
+  return (pNode == pIter->pTree->NIL) ? NULL : pNode;
 }

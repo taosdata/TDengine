@@ -51,20 +51,20 @@ struct tMemBucket;
 typedef int32_t (*__perc_hash_func_t)(struct tMemBucket *pBucket, const void *value);
 
 typedef struct tMemBucket {
-  int16_t       numOfSlots;
-  int16_t       type;
-  int16_t       bytes;
-  int32_t       total;
-  int32_t       elemPerPage;  // number of elements for each object
-  int32_t       maxCapacity;  // maximum allowed number of elements that can be sort directly to get the result
-  int32_t       bufPageSize;  // disk page size
-  MinMaxEntry   range;        // value range
-  int32_t       times;        // count that has been checked for deciding the correct data value buckets.
-  __compar_fn_t comparFn;
-
-  tMemBucketSlot *     pSlots;
-  SDiskbasedBuf *pBuffer;
-  __perc_hash_func_t   hashFunc;
+  int16_t            numOfSlots;
+  int16_t            type;
+  int16_t            bytes;
+  int32_t            total;
+  int32_t            elemPerPage;  // number of elements for each object
+  int32_t            maxCapacity;  // maximum allowed number of elements that can be sort directly to get the result
+  int32_t            bufPageSize;  // disk page size
+  MinMaxEntry        range;        // value range
+  int32_t            times;        // count that has been checked for deciding the correct data value buckets.
+  __compar_fn_t      comparFn;
+  tMemBucketSlot*    pSlots;
+  SDiskbasedBuf*     pBuffer;
+  __perc_hash_func_t hashFunc;
+  SHashObj*          groupPagesMap; // disk page map for different groups;
 } tMemBucket;
 
 tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval, double maxval);

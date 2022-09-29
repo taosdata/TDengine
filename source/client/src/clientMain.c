@@ -20,6 +20,7 @@
 #include "functionMgt.h"
 #include "os.h"
 #include "query.h"
+#include "qworker.h"
 #include "scheduler.h"
 #include "tglobal.h"
 #include "tmsg.h"
@@ -65,6 +66,7 @@ void taos_cleanup(void) {
 
   fmFuncMgtDestroy();
   qCleanupKeywordsTable();
+  nodesDestroyAllocatorSet();
 
   id = clientConnRefPool;
   clientConnRefPool = -1;
@@ -148,7 +150,7 @@ int taos_errno(TAOS_RES *res) {
     return terrno;
   }
 
-  if (TD_RES_TMQ(res)) {
+  if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
     return 0;
   }
 
@@ -162,7 +164,7 @@ const char *taos_errstr(TAOS_RES *res) {
     return (const char *)tstrerror(terrno);
   }
 
-  if (TD_RES_TMQ(res)) {
+  if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
     return "success";
   }
 
@@ -184,6 +186,19 @@ void taos_free_result(TAOS_RES *res) {
     SRequestObj *pRequest = (SRequestObj *)res;
     tscDebug("0x%" PRIx64 " taos_free_result start to free query", pRequest->requestId);
     destroyRequest(pRequest);
+  } else if (TD_RES_TMQ_METADATA(res)) {
+    SMqTaosxRspObj *pRsp = (SMqTaosxRspObj *)res;
+    if (pRsp->rsp.blockData) taosArrayDestroyP(pRsp->rsp.blockData, taosMemoryFree);
+    if (pRsp->rsp.blockDataLen) taosArrayDestroy(pRsp->rsp.blockDataLen);
+    if (pRsp->rsp.withTbName) taosArrayDestroyP(pRsp->rsp.blockTbName, taosMemoryFree);
+    if (pRsp->rsp.withSchema) taosArrayDestroyP(pRsp->rsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
+    // taosx
+    taosArrayDestroy(pRsp->rsp.createTableLen);
+    taosArrayDestroyP(pRsp->rsp.createTableReq, taosMemoryFree);
+
+    pRsp->resInfo.pRspMsg = NULL;
+    doFreeReqResultInfo(&pRsp->resInfo);
+    taosMemoryFree(pRsp);
   } else if (TD_RES_TMQ(res)) {
     SMqRspObj *pRsp = (SMqRspObj *)res;
     if (pRsp->rsp.blockData) taosArrayDestroyP(pRsp->rsp.blockData, taosMemoryFree);
@@ -251,7 +266,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     return doFetchRows(pRequest, true, true);
 #endif
 
-  } else if (TD_RES_TMQ(res)) {
+  } else if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
     SMqRspObj      *msg = ((SMqRspObj *)res);
     SReqResultInfo *pResultInfo;
     if (msg->resIter == -1) {
@@ -424,7 +439,7 @@ const char *taos_data_type(int type) {
 const char *taos_get_client_info() { return version; }
 
 int taos_affected_rows(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res)) {
+  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res)) {
     return 0;
   }
 
@@ -441,7 +456,7 @@ int taos_result_precision(TAOS_RES *res) {
   if (TD_RES_QUERY(res)) {
     SRequestObj *pRequest = (SRequestObj *)res;
     return pRequest->body.resInfo.precision;
-  } else if (TD_RES_TMQ(res)) {
+  } else if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
     SReqResultInfo *info = tmqGetCurResInfo(res);
     return info->precision;
   }
@@ -474,7 +489,7 @@ int taos_select_db(TAOS *taos, const char *db) {
 }
 
 void taos_stop_query(TAOS_RES *res) {
-  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res)) {
+  if (res == NULL || TD_RES_TMQ(res) || TD_RES_TMQ_META(res) || TD_RES_TMQ_METADATA(res)) {
     return;
   }
 
@@ -546,7 +561,7 @@ int taos_fetch_block_s(TAOS_RES *res, int *numOfRows, TAOS_ROW *rows) {
     (*rows) = pResultInfo->row;
     (*numOfRows) = pResultInfo->numOfRows;
     return pRequest->code;
-  } else if (TD_RES_TMQ(res)) {
+  } else if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
     SReqResultInfo *pResultInfo = tmqGetNextResInfo(res, true);
     if (pResultInfo == NULL) return -1;
 
@@ -565,7 +580,7 @@ int taos_fetch_raw_block(TAOS_RES *res, int *numOfRows, void **pData) {
     return 0;
   }
 
-  if (TD_RES_TMQ(res)) {
+  if (TD_RES_TMQ(res) || TD_RES_TMQ_METADATA(res)) {
     SReqResultInfo *pResultInfo = tmqGetNextResInfo(res, false);
     if (pResultInfo == NULL) {
       (*numOfRows) = 0;
@@ -656,7 +671,6 @@ typedef struct SqlParseWrapper {
   SParseContext *pCtx;
   SCatalogReq    catalogReq;
   SRequestObj   *pRequest;
-  SQuery        *pQuery;
 } SqlParseWrapper;
 
 static void destoryTablesReq(void *p) {
@@ -682,10 +696,11 @@ static void destorySqlParseWrapper(SqlParseWrapper *pWrapper) {
 
 void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
   SqlParseWrapper *pWrapper = (SqlParseWrapper *)param;
-  SQuery          *pQuery = pWrapper->pQuery;
   SRequestObj     *pRequest = pWrapper->pRequest;
+  SQuery          *pQuery = pRequest->pQuery;
 
   pRequest->metric.ctgEnd = taosGetTimestampUs();
+  qDebug("0x%" PRIx64 " start to semantic analysis, reqId:0x%" PRIx64, pRequest->self, pRequest->requestId);
 
   if (code == TSDB_CODE_SUCCESS) {
     code = qAnalyseSqlSemantic(pWrapper->pCtx, &pWrapper->catalogReq, pResultMeta, pQuery);
@@ -709,13 +724,16 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
 
     destorySqlParseWrapper(pWrapper);
 
-    tscDebug("0x%" PRIx64 " analysis semantics completed, start async query, reqId:0x%" PRIx64, pRequest->self,
-             pRequest->requestId);
+    double el = (pRequest->metric.semanticEnd - pRequest->metric.ctgEnd)/1000.0;
+    tscDebug("0x%" PRIx64 " analysis semantics completed, start async query, elapsed time:%.2f ms, reqId:0x%" PRIx64,
+             pRequest->self, el, pRequest->requestId);
+
     launchAsyncQuery(pRequest, pQuery, pResultMeta);
-    qDestroyQuery(pQuery);
   } else {
     destorySqlParseWrapper(pWrapper);
-    qDestroyQuery(pQuery);
+    qDestroyQuery(pRequest->pQuery);
+    pRequest->pQuery = NULL;
+
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
       tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
@@ -762,7 +780,8 @@ int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt) {
                            .enableSysInfo = pTscObj->sysInfo,
                            .async = true,
                            .svrVer = pTscObj->sVer,
-                           .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes)};
+                           .nodeOffline = (pTscObj->pAppInfo->onlineDnodes < pTscObj->pAppInfo->totalDnodes),
+                           .allocatorId = pRequest->allocatorRefId};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -787,12 +806,10 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
     goto _error;
   }
 
-  SQuery *pQuery = NULL;
-
   pRequest->metric.syntaxStart = taosGetTimestampUs();
 
   SCatalogReq catalogReq = {.forceUpdate = updateMetaForce, .qNodeRequired = qnodeRequired(pRequest)};
-  code = qParseSqlSyntax(pCxt, &pQuery, &catalogReq);
+  code = qParseSqlSyntax(pCxt, &pRequest->pQuery, &catalogReq);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -802,9 +819,9 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   if (!updateMetaForce) {
     STscObj            *pTscObj = pRequest->pTscObj;
     SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
-    if (NULL == pQuery->pRoot) {
+    if (NULL == pRequest->pQuery->pRoot) {
       atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertsReq, 1);
-    } else if (QUERY_NODE_SELECT_STMT == pQuery->pRoot->type) {
+    } else if (QUERY_NODE_SELECT_STMT == pRequest->pQuery->pRoot->type) {
       atomic_add_fetch_64((int64_t *)&pActivity->numOfQueryReq, 1);
     }
   }
@@ -816,7 +833,6 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   }
 
   pWrapper->pCtx = pCxt;
-  pWrapper->pQuery = pQuery;
   pWrapper->pRequest = pRequest;
   pWrapper->catalogReq = catalogReq;
 
@@ -857,11 +873,13 @@ static void fetchCallback(void *pResult, void *param, int32_t code) {
 
   if (code != TSDB_CODE_SUCCESS) {
     pRequest->code = code;
+    taosMemoryFreeClear(pResultInfo->pData);
     pRequest->body.fetchFp(pRequest->body.param, pRequest, 0);
     return;
   }
 
   if (pRequest->code != TSDB_CODE_SUCCESS) {
+    taosMemoryFreeClear(pResultInfo->pData);
     pRequest->body.fetchFp(pRequest->body.param, pRequest, 0);
     return;
   }

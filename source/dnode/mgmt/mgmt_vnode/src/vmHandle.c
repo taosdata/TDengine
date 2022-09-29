@@ -167,11 +167,15 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->walCfg.segSize = pCreate->walSegmentSize;
   pCfg->walCfg.level = pCreate->walLevel;
 
+  pCfg->sttTrigger = pCreate->sstTrigger;
   pCfg->hashBegin = pCreate->hashBegin;
   pCfg->hashEnd = pCreate->hashEnd;
   pCfg->hashMethod = pCreate->hashMethod;
+  pCfg->hashPrefix = pCreate->hashPrefix;
+  pCfg->hashSuffix = pCreate->hashSuffix;
+  pCfg->tsdbPageSize = pCreate->tsdbPageSize * 1024;
 
-  pCfg->standby = pCfg->standby;
+  pCfg->standby = 0;
   pCfg->syncCfg.myIndex = pCreate->selfIndex;
   pCfg->syncCfg.replicaNum = pCreate->replica;
   memset(&pCfg->syncCfg.nodeInfo, 0, sizeof(pCfg->syncCfg.nodeInfo));
@@ -219,8 +223,13 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  dDebug("vgId:%d, start to create vnode, tsma:%d standby:%d cacheLast:%d cacheLastSize:%d", createReq.vgId,
-         createReq.isTsma, createReq.standby, createReq.cacheLast, createReq.cacheLastSize);
+  dInfo(
+      "vgId:%d, start to create vnode, tsma:%d standby:%d cacheLast:%d cacheLastSize:%d sstTrigger:%d "
+      "tsdbPageSize:%d",
+      createReq.vgId, createReq.isTsma, createReq.standby, createReq.cacheLast, createReq.cacheLastSize,
+      createReq.sstTrigger, createReq.tsdbPageSize);
+  dInfo("vgId:%d, hashMethod:%d begin:%u end:%u prefix:%d surfix:%d", createReq.vgId, createReq.hashMethod,
+        createReq.hashBegin, createReq.hashEnd, createReq.hashPrefix, createReq.hashSuffix);
   vmGenerateVnodeCfg(&createReq, &vnodeCfg);
 
   if (vmTsmaAdjustDays(&vnodeCfg, &createReq) < 0) {

@@ -1,6 +1,6 @@
 ---
 sidebar_label: 统计数据
-title: 存储统计数据的 Performance_Schema 数据库
+title: 统计数据
 description: Performance_Schema 数据库中存储了系统中的各种统计信息
 ---
 
@@ -62,15 +62,6 @@ TDengine 3.0 版本开始提供一个内置数据库 `performance_schema`，其�
 | 12  |  sub_status  | BINARY(1000) | 子查询状态                   |
 | 13  |     sql      | BINARY(1024) | SQL 语句                     |
 
-## PERF_TOPICS
-
-| #   |  **列名**   | **数据类型** | **说明**                       |
-| --- | :---------: | ------------ | ------------------------------ |
-| 1   | topic_name  | BINARY(192)  | topic 名称                     |
-| 2   |   db_name   | BINARY(64)   | topic 相关的 DB                |
-| 3   | create_time | TIMESTAMP    | topic 的 创建时间              |
-| 4   |     sql     | BINARY(1024) | 创建该 topic 时所用的 SQL 语句 |
-
 ## PERF_CONSUMERS
 
 | #   |    **列名**    | **数据类型** | **说明**                                                    |
@@ -83,15 +74,6 @@ TDengine 3.0 版本开始提供一个内置数据库 `performance_schema`，其�
 | 6   |    up_time     | TIMESTAMP    | 第一次连接 taosd 的时间                                     |
 | 7   | subscribe_time | TIMESTAMP    | 上一次发起订阅的时间                                        |
 | 8   | rebalance_time | TIMESTAMP    | 上一次触发 rebalance 的时间                                 |
-
-## PERF_SUBSCRIPTIONS
-
-| #   |    **列名**    | **数据类型** | **说明**                 |
-| --- | :------------: | ------------ | ------------------------ |
-| 1   |   topic_name   | BINARY(204)  | 被订阅的 topic           |
-| 2   | consumer_group | BINARY(193)  | 订阅者的消费者组         |
-| 3   |   vgroup_id    | INT          | 消费者被分配的 vgroup id |
-| 4   |  consumer_id   | BIGINT       | 消费者的唯一 id          |
 
 ## PERF_TRANS
 
@@ -114,17 +96,3 @@ TDengine 3.0 版本开始提供一个内置数据库 `performance_schema`，其�
 | 2   | create_time | TIMESTAMP    | sma 创建时间                                |
 | 3   | stable_name | BINARY(192)  | sma 所属的超级表名称                        |
 | 4   |  vgroup_id  | INT          | sma 专属的 vgroup 名称                      |
-
-## PERF_STREAMS
-
-| #   |   **列名**   | **数据类型** | **说明**                                |
-| --- | :----------: | ------------ | --------------------------------------- |
-| 1   | stream_name  | BINARY(64)   | 流计算名称                              |
-| 2   | create_time  | TIMESTAMP    | 创建时间                                |
-| 3   |     sql      | BINARY(1024) | 创建流计算时提供的 SQL 语句             |
-| 4   |    status    | BIANRY(20)   | 流当前状态                              |
-| 5   |  source_db   | BINARY(64)   | 源数据库                                |
-| 6   |  target_db   | BIANRY(64)   | 目的数据库                              |
-| 7   | target_table | BINARY(192)  | 流计算写入的目标表                      |
-| 8   |  watermark   | BIGINT       | watermark，详见 SQL 手册流式计算        |
-| 9   |   trigger    | INT          | 计算结果推送模式，详见 SQL 手册流式计算 |

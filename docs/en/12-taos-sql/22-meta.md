@@ -11,7 +11,15 @@ TDengine includes a built-in database named `INFORMATION_SCHEMA` to provide acce
 4. Future versions of TDengine can add new columns to INFORMATION_SCHEMA tables without affecting existing business systems.
 5. It is easier for users coming from other database management systems. For example, Oracle users can query data dictionary tables.
 
-Note: SHOW statements are still supported for the convenience of existing users.
+:::info
+
+- SHOW statements are still supported for the convenience of existing users.
+- Some columns in the system table may be keywords, and you need to use the escape character '\`' when querying, for example, to query the VGROUPS in the database `test`:
+```sql 
+   select `vgroups` from ins_databases where name = 'test';
+``` 
+
+:::
 
 This document introduces the tables of INFORMATION_SCHEMA and their structure.
 
@@ -102,7 +110,11 @@ Provides information about user-created databases. Similar to SHOW DATABASES.
 | 24  | wal_retention_period | INT              | WAL retention period                                   |
 | 25  |  wal_retention_size  | INT              | Maximum WAL size                                   |
 | 26  |   wal_roll_period    | INT              | WAL rotation period                                 |
-| 27  |   wal_segment_size   | WAL file size |
+| 27  |   wal_segment_size   | BIGINT | WAL file size |
+| 28  |   stt_trigger   | SMALLINT | The threshold for number of files to trigger file merging |
+| 29  |   table_prefix   | SMALLINT | The prefix length in the table name that is ignored when distributing table to vnode based on table name |
+| 30  |   table_suffix   | SMALLINT | The suffix length in the table name that is ignored when distributing table to vnode based on table name |
+| 31  |   tsdb_pagesize   | INT | The page size for internal storage engine, its unit is KB |
 
 ## INS_FUNCTIONS
 
@@ -245,3 +257,35 @@ Provides dnode configuration information.
 | 1   | dnode_id | INT          | Dnode ID |
 | 2   |   name   | BINARY(32)   | Parameter   |
 | 3   |  value   | BINARY(64)   | Value |
+
+## INS_TOPICS
+
+| #   |    **Column**    | **Data Type** | **Description**                  |
+| --- | :---------: | ------------ | ------------------------------ |
+| 1   | topic_name  | BINARY(192)  | Topic name                     |
+| 2   |   db_name   | BINARY(64)   | Database for the topic                |
+| 3   | create_time | TIMESTAMP    | Creation time              |
+| 4   |     sql     | BINARY(1024) | SQL statement used to create the topic |
+
+## INS_SUBSCRIPTIONS
+
+| #   |    **Column**    | **Data Type** | **Description**                  |
+| --- | :------------: | ------------ | ------------------------ |
+| 1   |   topic_name   | BINARY(204)  | Subscribed topic           |
+| 2   | consumer_group | BINARY(193)  | Subscribed consumer group         |
+| 3   |   vgroup_id    | INT          | Vgroup ID for the consumer |
+| 4   |  consumer_id   | BIGINT       | Consumer ID          |
+
+## INS_STREAMS
+
+| #   |    **Column**    | **Data Type** | **Description**                  |
+| --- | :----------: | ------------ | --------------------------------------- |
+| 1   | stream_name  | BINARY(64)   | Stream name                              |
+| 2   | create_time  | TIMESTAMP    | Creation time                                |
+| 3   |     sql      | BINARY(1024) | SQL statement used to create the stream             |
+| 4   |    status    | BIANRY(20)   | Current status                              |
+| 5   |  source_db   | BINARY(64)   | Source database                                |
+| 6   |  target_db   | BIANRY(64)   | Target database                              |
+| 7   | target_table | BINARY(192)  | Target table                      |
+| 8   |  watermark   | BIGINT       | Watermark (see stream processing documentation)        |
+| 9   |   trigger    | INT          | Method of triggering the result push (see stream processing documentation) |

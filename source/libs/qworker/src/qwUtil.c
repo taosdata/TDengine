@@ -275,6 +275,7 @@ void qwFreeTaskHandle(qTaskInfo_t *taskHandle) {
   qTaskInfo_t otaskHandle = atomic_load_ptr(taskHandle);
   if (otaskHandle && atomic_val_compare_exchange_ptr(taskHandle, otaskHandle, NULL)) {
     qDestroyTask(otaskHandle);
+    qDebug("task handle destryed");
   }
 }
 
@@ -305,6 +306,7 @@ void qwFreeTaskCtx(SQWTaskCtx *ctx) {
   if (ctx->sinkHandle) {
     dsDestroyDataSinker(ctx->sinkHandle);
     ctx->sinkHandle = NULL;
+    qDebug("sink handle destryed");
   }
 }
 
@@ -452,6 +454,10 @@ void qwDestroySchStatus(SQWSchStatus *pStatus) { taosHashCleanup(pStatus->tasksH
 
 void qwDestroyImpl(void *pMgmt) {
   SQWorker *mgmt = (SQWorker *)pMgmt;
+  int8_t nodeType = mgmt->nodeType;
+  int32_t nodeId = mgmt->nodeId;
+  
+  qDebug("start to destroy qworker, type:%d, id:%d, handle:%p", nodeType, nodeId, mgmt);  
 
   taosTmrStop(mgmt->hbTimer);
   mgmt->hbTimer = NULL;
@@ -479,11 +485,15 @@ void qwDestroyImpl(void *pMgmt) {
   }
   taosHashCleanup(mgmt->schHash);
 
+  *mgmt->destroyed = 1;
+  
   taosMemoryFree(mgmt);
 
   atomic_sub_fetch_32(&gQwMgmt.qwNum, 1);
 
   qwCloseRef();
+
+  qDebug("qworker destroyed, type:%d, id:%d, handle:%p", nodeType, nodeId, mgmt);  
 }
 
 int32_t qwOpenRef(void) {

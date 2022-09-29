@@ -196,6 +196,12 @@ TEST_F(ParserShowToUseTest, showTableDistributed) {
   run("SHOW TABLE DISTRIBUTED st1");
 }
 
+TEST_F(ParserShowToUseTest, showTags) {
+  useDb("root", "test");
+
+  run("SHOW TAGS FROM st1s1");
+}
+
 // todo SHOW topics
 
 TEST_F(ParserShowToUseTest, showUsers) {
@@ -213,12 +219,18 @@ TEST_F(ParserShowToUseTest, showVariables) {
 TEST_F(ParserShowToUseTest, showVgroups) {
   useDb("root", "test");
 
-  run("SHOW vgroups");
+  run("SHOW VGROUPS");
 
-  run("SHOW test.vgroups");
+  run("SHOW test.VGROUPS");
 }
 
-// todo SHOW vnodes
+TEST_F(ParserShowToUseTest, showVnodes) {
+  useDb("root", "test");
+
+  run("SHOW VNODES 1");
+
+  run("SHOW VNODES 'node1:7030'");
+}
 
 TEST_F(ParserShowToUseTest, splitVgroup) {
   useDb("root", "test");
@@ -244,7 +256,10 @@ TEST_F(ParserShowToUseTest, trimDatabase) {
 
   STrimDbReq expect = {0};
 
-  auto setTrimDbReq = [&](const char* pDb) { snprintf(expect.db, sizeof(expect.db), "0.%s", pDb); };
+  auto setTrimDbReq = [&](const char* pDb, int32_t maxSpeed = 0) {
+    snprintf(expect.db, sizeof(expect.db), "0.%s", pDb);
+    expect.maxSpeed = maxSpeed;
+  };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_TRIM_DATABASE_STMT);
@@ -252,10 +267,14 @@ TEST_F(ParserShowToUseTest, trimDatabase) {
     STrimDbReq req = {0};
     ASSERT_EQ(tDeserializeSTrimDbReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
     ASSERT_EQ(std::string(req.db), std::string(expect.db));
+    ASSERT_EQ(req.maxSpeed, expect.maxSpeed);
   });
 
   setTrimDbReq("wxy_db");
   run("TRIM DATABASE wxy_db");
+
+  setTrimDbReq("wxy_db", 100);
+  run("TRIM DATABASE wxy_db MAX_SPEED 100");
 }
 
 TEST_F(ParserShowToUseTest, useDatabase) {

@@ -99,7 +99,16 @@ char *ctgTaskTypeStr(CTG_TASK_TYPE type) {
 }
 
 void ctgFreeQNode(SCtgQNode *node) {
-  //TODO
+  if (NULL == node) {
+    return;
+  }
+
+  if (node->op) {
+    taosMemoryFree(node->op->data);
+    taosMemoryFree(node->op);
+  }
+  
+  taosMemoryFree(node);
 }
 
 void ctgFreeSTableIndex(void *info) {
@@ -848,15 +857,11 @@ int32_t ctgGetVgInfoFromHashValue(SCatalog *pCtg, SDBVgInfo *dbInfo, const SName
     CTG_ERR_RET(TSDB_CODE_TSC_DB_NOT_SELECTED);
   }
 
-  tableNameHashFp fp = NULL;
   SVgroupInfo *vgInfo = NULL;
-
-  CTG_ERR_RET(ctgGetHashFunction(dbInfo->hashMethod, &fp));
-
   char tbFullName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(pTableName, tbFullName);
 
-  uint32_t hashValue = (*fp)(tbFullName, (uint32_t)strlen(tbFullName));
+  uint32_t hashValue = taosGetTbHashVal(tbFullName, (uint32_t)strlen(tbFullName), dbInfo->hashMethod, dbInfo->hashPrefix, dbInfo->hashSuffix);
 
   void *pIter = taosHashIterate(dbInfo->vgHash, NULL);
   while (pIter) {
@@ -919,11 +924,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog *pCtg, SCtgTaskReq* tReq, SDBVgInfo 
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
-  tableNameHashFp fp = NULL;
   SVgroupInfo *vgInfo = NULL;
-
-  CTG_ERR_RET(ctgGetHashFunction(dbInfo->hashMethod, &fp));
-
   int32_t tbNum = taosArrayGetSize(pNames);
 
   if (1 == vgNum) {
@@ -975,7 +976,7 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog *pCtg, SCtgTaskReq* tReq, SDBVgInfo 
     tbNameLen = offset + strlen(pName->tname);
     strcpy(tbFullName + offset, pName->tname);
 
-    uint32_t hashValue = (*fp)(tbFullName, (uint32_t)tbNameLen);
+    uint32_t hashValue = taosGetTbHashVal(tbFullName, (uint32_t)strlen(tbFullName), dbInfo->hashMethod, dbInfo->hashPrefix, dbInfo->hashSuffix);
 
     SVgroupInfo **p = taosArraySearch(pVgList, &hashValue, ctgHashValueComp, TD_EQ);
 

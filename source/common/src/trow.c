@@ -538,12 +538,12 @@ bool tdSTSRowIterGetTpVal(STSRowIter *pIter, col_type_t colType, int32_t offset,
     } else {
       pVal->val = POINTER_SHIFT(TD_ROW_DATA(pRow), offset);
     }
-    return TSDB_CODE_SUCCESS;
+    return true;
   }
 
   if (tdGetBitmapValType(pIter->pBitmap, pIter->colIdx - 1, &pVal->valType, 0) != TSDB_CODE_SUCCESS) {
     pVal->valType = TD_VTYPE_NONE;
-    return terrno;
+    return true;
   }
 
   if (pVal->valType == TD_VTYPE_NORM) {
@@ -620,7 +620,7 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
       ASSERT(pTColumn->colId == PRIMARYKEY_TIMESTAMP_COL_ID);
     } else {
       if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-        if (pColVal && !pColVal->isNone && !pColVal->isNull) {
+        if (pColVal && COL_VAL_IS_VALUE(pColVal)) {
           varDataLen += (pColVal->value.nData + sizeof(VarDataLenT));
           if (maxVarDataLen < (pColVal->value.nData + sizeof(VarDataLenT))) {
             maxVarDataLen = pColVal->value.nData + sizeof(VarDataLenT);
@@ -680,9 +680,9 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
     const void *val = NULL;
     if (iColVal < nColVal) {
       pColVal = (SColVal *)taosArrayGet(pArray, iColVal);
-      if (pColVal->isNone) {
+      if (COL_VAL_IS_NONE(pColVal)) {
         valType = TD_VTYPE_NONE;
-      } else if (pColVal->isNull) {
+      } else if (COL_VAL_IS_NULL(pColVal)) {
         valType = TD_VTYPE_NULL;
       } else if (IS_VAR_DATA_TYPE(pTColumn->type)) {
         varDataSetLen(varBuf, pColVal->value.nData);

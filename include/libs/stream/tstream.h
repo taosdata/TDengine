@@ -16,6 +16,7 @@
 #include "executor.h"
 #include "os.h"
 #include "query.h"
+#include "streamState.h"
 #include "tdatablock.h"
 #include "tdbInt.h"
 #include "tmsg.h"
@@ -123,6 +124,14 @@ typedef struct {
 
   SArray* blocks;  // SArray<SSDataBlock>
 } SStreamDataBlock;
+
+// ref data block, for delete
+typedef struct {
+  int8_t       type;
+  int64_t      ver;
+  int32_t*     dataRef;
+  SSDataBlock* pBlock;
+} SStreamRefDataBlock;
 
 typedef struct {
   int8_t type;
@@ -263,14 +272,6 @@ typedef struct {
   SArray* checkpointVer;
 } SStreamRecoveringState;
 
-// incremental state storage
-typedef struct {
-  SStreamTask* pOwner;
-  TDB*         db;
-  TTB*         pStateDb;
-  TXN          txn;
-} SStreamState;
-
 typedef struct SStreamTask {
   int64_t streamId;
   int32_t taskId;
@@ -346,7 +347,8 @@ static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem
     qDebug("task %d %p submit enqueue %p %p %p", pTask->taskId, pTask, pItem, pSubmitClone, pSubmitClone->data);
     taosWriteQitem(pTask->inputQueue->queue, pSubmitClone);
     // qStreamInput(pTask->exec.executor, pSubmitClone);
-  } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
+  } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE ||
+             pItem->type == STREAM_INPUT__REF_DATA_BLOCK) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
     // qStreamInput(pTask->exec.executor, pItem);
   } else if (pItem->type == STREAM_INPUT__CHECKPOINT) {
@@ -499,7 +501,9 @@ typedef struct {
 
 int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq);
 int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq);
-void    tFreeStreamDispatchReq(SStreamDispatchReq* pReq);
+void    tDeleteStreamRetrieveReq(SStreamRetrieveReq* pReq);
+
+void tDeleteStreamDispatchReq(SStreamDispatchReq* pReq);
 
 int32_t streamSetupTrigger(SStreamTask* pTask);
 
@@ -539,37 +543,6 @@ int32_t streamMetaBegin(SStreamMeta* pMeta);
 int32_t streamMetaCommit(SStreamMeta* pMeta);
 int32_t streamMetaRollBack(SStreamMeta* pMeta);
 int32_t streamLoadTasks(SStreamMeta* pMeta);
-
-SStreamState* streamStateOpen(char* path, SStreamTask* pTask);
-void          streamStateClose(SStreamState* pState);
-int32_t       streamStateBegin(SStreamState* pState);
-int32_t       streamStateCommit(SStreamState* pState);
-int32_t       streamStateAbort(SStreamState* pState);
-
-typedef struct {
-  TBC* pCur;
-} SStreamStateCur;
-
-#if 1
-int32_t streamStatePut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
-int32_t streamStateGet(SStreamState* pState, const SWinKey* key, void** pVal, int32_t* pVLen);
-int32_t streamStateDel(SStreamState* pState, const SWinKey* key);
-void    streamFreeVal(void* val);
-
-SStreamStateCur* streamStateGetCur(SStreamState* pState, const SWinKey* key);
-SStreamStateCur* streamStateSeekKeyNext(SStreamState* pState, const SWinKey* key);
-SStreamStateCur* streamStateSeekKeyPrev(SStreamState* pState, const SWinKey* key);
-void             streamStateFreeCur(SStreamStateCur* pCur);
-
-int32_t streamStateGetKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen);
-
-int32_t streamStateSeekFirst(SStreamState* pState, SStreamStateCur* pCur);
-int32_t streamStateSeekLast(SStreamState* pState, SStreamStateCur* pCur);
-
-int32_t streamStateCurNext(SStreamState* pState, SStreamStateCur* pCur);
-int32_t streamStateCurPrev(SStreamState* pState, SStreamStateCur* pCur);
-
-#endif
 
 #ifdef __cplusplus
 }

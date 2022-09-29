@@ -52,6 +52,7 @@ typedef enum {
 #define QUERY_POLICY_VNODE  1
 #define QUERY_POLICY_HYBRID 2
 #define QUERY_POLICY_QNODE  3
+#define QUERY_POLICY_CLIENT 4
 
 typedef struct STableComInfo {
   uint8_t  numOfTags;     // the number of tags in schema
@@ -116,6 +117,8 @@ typedef struct STableMeta {
 
 typedef struct SDBVgInfo {
   int32_t   vgVersion;
+  int16_t   hashPrefix;
+  int16_t   hashSuffix;
   int8_t    hashMethod;
   int32_t   numOfTable;  // DB's table num, unit is TSDB_TABLE_NUM_UNIT
   SHashObj* vgHash;      // key:vgId, value:SVgroupInfo
@@ -267,43 +270,43 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 #define qFatal(...)                                                                           \
   do {                                                                                        \
     if (qDebugFlag & DEBUG_FATAL) {                                                           \
-      taosPrintLog("QRY FATAL ", DEBUG_FATAL, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+      taosPrintLog("QRY FATAL ", DEBUG_FATAL, qDebugFlag, __VA_ARGS__); \
     }                                                                                         \
   } while (0)
 #define qError(...)                                                                           \
   do {                                                                                        \
     if (qDebugFlag & DEBUG_ERROR) {                                                           \
-      taosPrintLog("QRY ERROR ", DEBUG_ERROR, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+      taosPrintLog("QRY ERROR ", DEBUG_ERROR, qDebugFlag, __VA_ARGS__); \
     }                                                                                         \
   } while (0)
 #define qWarn(...)                                                                          \
   do {                                                                                      \
     if (qDebugFlag & DEBUG_WARN) {                                                          \
-      taosPrintLog("QRY WARN ", DEBUG_WARN, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+      taosPrintLog("QRY WARN ", DEBUG_WARN, qDebugFlag, __VA_ARGS__); \
     }                                                                                       \
   } while (0)
 #define qInfo(...)                                                                     \
   do {                                                                                 \
     if (qDebugFlag & DEBUG_INFO) {                                                     \
-      taosPrintLog("QRY ", DEBUG_INFO, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+      taosPrintLog("QRY ", DEBUG_INFO, qDebugFlag, __VA_ARGS__); \
     }                                                                                  \
   } while (0)
 #define qDebug(...)                                                                     \
   do {                                                                                  \
     if (qDebugFlag & DEBUG_DEBUG) {                                                     \
-      taosPrintLog("QRY ", DEBUG_DEBUG, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+      taosPrintLog("QRY ", DEBUG_DEBUG, qDebugFlag, __VA_ARGS__); \
     }                                                                                   \
   } while (0)
 #define qTrace(...)                                                                     \
   do {                                                                                  \
     if (qDebugFlag & DEBUG_TRACE) {                                                     \
-      taosPrintLog("QRY ", DEBUG_TRACE, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+      taosPrintLog("QRY ", DEBUG_TRACE, qDebugFlag, __VA_ARGS__); \
     }                                                                                   \
   } while (0)
 #define qDebugL(...)                                                                           \
   do {                                                                                         \
     if (qDebugFlag & DEBUG_DEBUG) {                                                            \
-      taosPrintLongString("QRY ", DEBUG_DEBUG, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+      taosPrintLongString("QRY ", DEBUG_DEBUG, qDebugFlag, __VA_ARGS__); \
     }                                                                                          \
   } while (0)
 

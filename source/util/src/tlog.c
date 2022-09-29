@@ -97,7 +97,7 @@ int32_t tqDebugFlag = 135;
 int32_t fsDebugFlag = 135;
 int32_t metaDebugFlag = 135;
 int32_t udfDebugFlag = 135;
-int32_t smaDebugFlag = 135;
+int32_t smaDebugFlag = 131;
 int32_t idxDebugFlag = 135;
 
 int64_t dbgEmptyW = 0;
@@ -429,7 +429,7 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
 }
 
 static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *buffer, int32_t len) {
-  if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL) {
+  if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL && osLogSpaceAvailable()) {
     taosUpdateLogNums(level);
     if (tsAsyncLog) {
       taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
@@ -446,12 +446,14 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
   }
 
   if (dflag & DEBUG_SCREEN) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
     write(1, buffer, (uint32_t)len);
+#pragma GCC diagnostic pop
   }
 }
 
 void taosPrintLog(const char *flags, ELogLevel level, int32_t dflag, const char *format, ...) {
-  if (!osLogSpaceAvailable()) return;
   if (!(dflag & DEBUG_FILE) && !(dflag & DEBUG_SCREEN)) return;
 
   char    buffer[LOG_MAX_LINE_BUFFER_SIZE];

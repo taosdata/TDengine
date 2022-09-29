@@ -40,6 +40,13 @@ TEST_F(PlanBasicTest, whereClause) {
   run("SELECT ts, c1 FROM t1 WHERE ts > NOW AND ts IS NULL AND (c1 > 0 OR c3 < 20)");
 }
 
+TEST_F(PlanBasicTest, caseWhen) {
+  useDb("root", "test");
+
+  run("SELECT CASE WHEN ts > '2020-1-1 10:10:10' THEN c1 + 10 ELSE c1 - 10 END FROM t1 "
+      "WHERE CASE c1 WHEN c2 + 20 THEN c4 - 1 WHEN c2 + 10 THEN c4 - 2 ELSE 10 END > 0");
+}
+
 TEST_F(PlanBasicTest, func) {
   useDb("root", "test");
 
@@ -94,6 +101,8 @@ TEST_F(PlanBasicTest, interpFunc) {
   useDb("root", "test");
 
   run("SELECT INTERP(c1) FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR)");
+
+  run("SELECT _IROWTS, INTERP(c1) FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR)");
 }
 
 TEST_F(PlanBasicTest, lastRowFunc) {

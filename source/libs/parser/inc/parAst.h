@@ -48,6 +48,7 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_KEEP,
   DB_OPTION_PAGES,
   DB_OPTION_PAGESIZE,
+  DB_OPTION_TSDB_PAGESIZE,
   DB_OPTION_PRECISION,
   DB_OPTION_REPLICA,
   DB_OPTION_STRICT,
@@ -59,7 +60,10 @@ typedef enum EDatabaseOptionType {
   DB_OPTION_WAL_RETENTION_PERIOD,
   DB_OPTION_WAL_RETENTION_SIZE,
   DB_OPTION_WAL_ROLL_PERIOD,
-  DB_OPTION_WAL_SEGMENT_SIZE
+  DB_OPTION_WAL_SEGMENT_SIZE,
+  DB_OPTION_STT_TRIGGER,
+  DB_OPTION_TABLE_PREFIX,
+  DB_OPTION_TABLE_SUFFIX
 } EDatabaseOptionType;
 
 typedef enum ETableOptionType {
@@ -115,6 +119,8 @@ SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode
 SNode* createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues);
 SNode* createGroupingSetNode(SAstCreateContext* pCxt, SNode* pNode);
 SNode* createInterpTimeRange(SAstCreateContext* pCxt, SNode* pStart, SNode* pEnd);
+SNode* createWhenThenNode(SAstCreateContext* pCxt, SNode* pWhen, SNode* pThen);
+SNode* createCaseWhenNode(SAstCreateContext* pCxt, SNode* pCase, SNodeList* pWhenThenList, SNode* pElse);
 
 SNode* addWhereClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pWhere);
 SNode* addPartitionByClause(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pPartitionByList);
@@ -141,7 +147,7 @@ SNode* createCreateDatabaseStmt(SAstCreateContext* pCxt, bool ignoreExists, STok
 SNode* createDropDatabaseStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken* pDbName);
 SNode* createAlterDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* pOptions);
 SNode* createFlushDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
-SNode* createTrimDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
+SNode* createTrimDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, int32_t maxSpeed);
 SNode* createDefaultTableOptions(SAstCreateContext* pCxt);
 SNode* createAlterTableOptions(SAstCreateContext* pCxt);
 SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType type, void* pVal);
@@ -170,6 +176,7 @@ SNode* createShowCreateDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName);
 SNode* createShowCreateTableStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pRealTable);
 SNode* createShowTableDistributedStmt(SAstCreateContext* pCxt, SNode* pRealTable);
 SNode* createShowDnodeVariablesStmt(SAstCreateContext* pCxt, SNode* pDnodeId);
+SNode* createShowVnodesStmt(SAstCreateContext* pCxt, SNode* pDnodeId, SNode* pDnodeEndpoint);
 SNode* createCreateUserStmt(SAstCreateContext* pCxt, SToken* pUserName, const SToken* pPassword, int8_t sysinfo);
 SNode* createAlterUserStmt(SAstCreateContext* pCxt, SToken* pUserName, int8_t alterType, const SToken* pVal);
 SNode* createDropUserStmt(SAstCreateContext* pCxt, SToken* pUserName);
@@ -205,7 +212,7 @@ SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool ignoreExists, bool
 SNode* createDropFunctionStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pFuncName);
 SNode* createStreamOptions(SAstCreateContext* pCxt);
 SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, const SToken* pStreamName, SNode* pRealTable,
-                              SNode* pOptions, SNode* pQuery);
+                              SNode* pOptions, SNodeList* pTags, SNode* pSubtable, SNode* pQuery);
 SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pStreamName);
 SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId);
 SNode* createKillQueryStmt(SAstCreateContext* pCxt, const SToken* pQueryId);

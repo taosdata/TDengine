@@ -53,11 +53,6 @@ window_clause: {
   | STATE_WINDOW(col)
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
 
-changes_option: {
-    DURATION duration_val
-  | ROWS rows_val
-}
-
 group_by_clause:
     GROUP BY expr [, expr] ... HAVING condition
 
@@ -74,7 +69,7 @@ order_expr:
 
 ### 通配符
 
-通配符 \* 可以用于代指全部列。对于普通表，结果中只有普通列。对于超级表和子表，还包含了 TAG 列。
+通配符 \* 可以用于代指全部列。对于普通表和子表，结果中只有普通列。对于超级表，还包含了 TAG 列。
 
 ```sql
 SELECT * FROM d1001;
@@ -109,7 +104,7 @@ SELECT location, groupid, current FROM d1001 LIMIT 2;
 
 ### 结果去重
 
-`DISINTCT` 关键字可以对结果集中的一列或多列进行去重，去除的列既可以是标签列也可以是数据列。
+`DISTINCT` 关键字可以对结果集中的一列或多列进行去重，去除的列既可以是标签列也可以是数据列。
 
 对标签列去重：
 
@@ -127,7 +122,6 @@ SELECT DISTINCT col_name [, col_name ...] FROM tb_name;
 
 1. cfg 文件中的配置参数 maxNumOfDistinctRes 将对 DISTINCT 能够输出的数据行数进行限制。其最小值是 100000，最大值是 100000000，默认值是 10000000。如果实际计算结果超出了这个限制，那么会仅输出这个数量范围内的部分。
 2. 由于浮点数天然的精度机制原因，在特定情况下，对 FLOAT 和 DOUBLE 列使用 DISTINCT 并不能保证输出值的完全唯一性。
-3. 在当前版本下，DISTINCT 不能在嵌套查询的子查询中使用，也不能与聚合函数、GROUP BY、或 JOIN 在同一条语句中混用。
 
 :::
 
@@ -142,6 +136,8 @@ taos> SELECT ts, ts AS primary_key_ts FROM d1001;
 但是针对`first(*)`、`last(*)`、`last_row(*)`不支持针对单列的重命名。
 
 ### 伪列
+
+**伪列**: 伪列的行为表现与普通数据列相似但其并不实际存储在表中。可以查询伪列，但不能对其做插入、更新和删除的操作。伪列有点像没有参数的函数。下面介绍是可用的伪列：
 
 **TBNAME**
 `TBNAME` 可以视为超级表中一个特殊的标签，代表子表的表名。
@@ -184,6 +180,14 @@ TDengine 中，所有表的第一列都必须是时间戳类型，且为其主�
 
 ```sql
 select _rowts, max(current) from meters;
+```
+
+**\_IROWTS**
+
+\_irowts 伪列只能与 interp 函数一起使用，用于返回 interp 函数插值结果对应的时间戳列。
+
+```sql
+select _irowts, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(linear);
 ```
 
 ## 查询对象
@@ -355,19 +359,15 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 
 :::info
 
-- 目前仅支持一层嵌套，也即不能在子查询中再嵌入子查询。
-- 内层查询的返回结果将作为“虚拟表”供外层查询使用，此虚拟表可以使用 AS 语法做重命名，以便于外层查询中方便引用。
-- 目前不能在“连续查询”功能中使用子查询。
+- 内层查询的返回结果将作为“虚拟表”供外层查询使用，此虚拟表建议起别名，以便于外层查询中方便引用。
 - 在内层和外层查询中，都支持普通的表间/超级表间 JOIN。内层查询的计算结果也可以再参与数据子表的 JOIN 操作。
-- 目前内层查询、外层查询均不支持 UNION 操作。
 - 内层查询支持的功能特性与非嵌套的查询语句能力是一致的。
   - 内层查询的 ORDER BY 子句一般没有意义，建议避免这样的写法以免无谓的资源消耗。
 - 与非嵌套的查询语句相比，外层查询所能支持的功能特性存在如下限制：
   - 计算函数部分：
-    - 如果内层查询的结果数据未提供时间戳，那么计算过程依赖时间戳的函数在外层会无法正常工作。例如：TOP, BOTTOM, FIRST, LAST, DIFF。
-    - 计算过程需要两遍扫描的函数，在外层查询中无法正常工作。例如：此类函数包括：STDDEV, PERCENTILE。
-  - 外层查询中不支持 IN 算子，但在内层中可以使用。
-  - 外层查询不支持 GROUP BY。
+    - 如果内层查询的结果数据未提供时间戳，那么计算过程隐式依赖时间戳的函数在外层会无法正常工作。例如：INTERP, DERIVATIVE, IRATE, LAST_ROW, FIRST, LAST, TWA, STATEDURATION, TAIL, UNIQUE。
+    - 如果内层查询的结果数据不是按时间戳有序，那么计算过程依赖数据按时间有序的函数在外层会无法正常工作。例如：LEASTSQUARES, ELAPSED, INTERP, DERIVATIVE, IRATE, TWA, DIFF, STATECOUNT, STATEDURATION, CSUM, MAVG, TAIL, UNIQUE。
+    - 计算过程需要两遍扫描的函数，在外层查询中无法正常工作。例如：此类函数包括：PERCENTILE。
 
 :::
 

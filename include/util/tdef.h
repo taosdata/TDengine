@@ -225,7 +225,8 @@ typedef enum ELogicConditionType {
 #define TSDB_APP_NAME_LEN   TSDB_UNI_LEN
 #define TSDB_TB_COMMENT_LEN 1025
 
-#define TSDB_QUERY_ID_LEN 26
+#define TSDB_QUERY_ID_LEN   26
+#define TSDB_TRANS_OPER_LEN 16
 
 /**
  *  In some scenarios uint16_t (0~65535) is used to store the row len.
@@ -300,6 +301,9 @@ typedef enum ELogicConditionType {
 #define TSDB_DEFAULT_PAGES_PER_VNODE    256
 #define TSDB_MIN_PAGESIZE_PER_VNODE     1  // unit KB
 #define TSDB_MAX_PAGESIZE_PER_VNODE     16384
+#define TSDB_DEFAULT_TSDB_PAGESIZE      4
+#define TSDB_MIN_TSDB_PAGESIZE          1  // unit KB
+#define TSDB_MAX_TSDB_PAGESIZE          16384
 #define TSDB_DEFAULT_PAGESIZE_PER_VNODE 4
 #define TSDB_MIN_DAYS_PER_FILE          60  // unit minute
 #define TSDB_MAX_DAYS_PER_FILE          (3650 * 1440)
@@ -359,15 +363,27 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_SCHEMALESS_ON           1
 #define TSDB_DB_SCHEMALESS_OFF          0
 #define TSDB_DEFAULT_DB_SCHEMALESS      TSDB_DB_SCHEMALESS_OFF
+#define TSDB_MIN_STT_TRIGGER            1
+#define TSDB_MAX_STT_TRIGGER            16
+#define TSDB_DEFAULT_SST_TRIGGER        8
+#define TSDB_MIN_HASH_PREFIX            0
+#define TSDB_MAX_HASH_PREFIX            128
+#define TSDB_DEFAULT_HASH_PREFIX        0
+#define TSDB_MIN_HASH_SUFFIX            0
+#define TSDB_MAX_HASH_SUFFIX            128
+#define TSDB_DEFAULT_HASH_SUFFIX        0
 
-#define TSDB_DB_MIN_WAL_RETENTION_PERIOD     -1
-#define TSDB_DEFAULT_DB_WAL_RETENTION_PERIOD (24 * 60 * 60 * 4)
-#define TSDB_DB_MIN_WAL_RETENTION_SIZE       -1
-#define TSDB_DEFAULT_DB_WAL_RETENTION_SIZE   -1
-#define TSDB_DB_MIN_WAL_ROLL_PERIOD          0
-#define TSDB_DEFAULT_DB_WAL_ROLL_PERIOD      (24 * 60 * 60 * 1)
-#define TSDB_DB_MIN_WAL_SEGMENT_SIZE         0
-#define TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE     0
+#define TSDB_DB_MIN_WAL_RETENTION_PERIOD -1
+#define TSDB_REP_DEF_DB_WAL_RET_PERIOD   0
+#define TSDB_REPS_DEF_DB_WAL_RET_PERIOD  (24 * 60 * 60 * 4)
+#define TSDB_DB_MIN_WAL_RETENTION_SIZE   -1
+#define TSDB_REP_DEF_DB_WAL_RET_SIZE     0
+#define TSDB_REPS_DEF_DB_WAL_RET_SIZE    -1
+#define TSDB_DB_MIN_WAL_ROLL_PERIOD      0
+#define TSDB_REP_DEF_DB_WAL_ROLL_PERIOD  0
+#define TSDB_REPS_DEF_DB_WAL_ROLL_PERIOD (24 * 60 * 60 * 1)
+#define TSDB_DB_MIN_WAL_SEGMENT_SIZE     0
+#define TSDB_DEFAULT_DB_WAL_SEGMENT_SIZE 0
 
 #define TSDB_MIN_ROLLUP_MAX_DELAY     1  // unit millisecond
 #define TSDB_MAX_ROLLUP_MAX_DELAY     (15 * 60 * 1000)
@@ -386,7 +402,7 @@ typedef enum ELogicConditionType {
 
 #define TSDB_DEFAULT_EXPLAIN_VERBOSE false
 
-#define TSDB_EXPLAIN_RESULT_ROW_SIZE    (16*1024)
+#define TSDB_EXPLAIN_RESULT_ROW_SIZE    (16 * 1024)
 #define TSDB_EXPLAIN_RESULT_COLUMN_NAME "QUERY_PLAN"
 
 #define TSDB_MAX_FIELD_LEN             16384
@@ -467,6 +483,7 @@ enum {
 #define SNODE_HANDLE   -2
 #define VNODE_HANDLE   -3
 #define BNODE_HANDLE   -4
+#define CLIENT_HANDLE   -5
 
 #define TSDB_CONFIG_OPTION_LEN 32
 #define TSDB_CONFIG_VALUE_LEN  64

@@ -35,7 +35,10 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
   SSyncSnapshotSender *pSender = NULL;
   if (condition) {
     pSender = taosMemoryMalloc(sizeof(SSyncSnapshotSender));
-    ASSERT(pSender != NULL);
+    if (pSender == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return NULL;
+    }
     memset(pSender, 0, sizeof(*pSender));
 
     pSender->start = false;
@@ -583,7 +586,7 @@ static int32_t snapshotReceiverFinish(SSyncSnapshotReceiver *pReceiver, SyncSnap
                                                            &(pReceiver->snapshot));
     if (code != 0) {
       syncNodeErrorLog(pReceiver->pSyncNode, "snapshot stop writer true error");
-      ASSERT(0);
+      // ASSERT(0);
       return -1;
     }
     pReceiver->pWriter = NULL;

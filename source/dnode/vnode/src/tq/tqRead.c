@@ -15,6 +15,176 @@
 
 #include "tq.h"
 
+bool isValValidForTable(STqHandle* pHandle, SWalCont* pHead) {
+  if (pHandle->execHandle.subType != TOPIC_SUB_TYPE__TABLE) {
+    return true;
+  }
+
+  int16_t msgType = pHead->msgType;
+  char*   body = pHead->body;
+  int32_t bodyLen = pHead->bodyLen;
+
+  int64_t  tbSuid = pHandle->execHandle.execTb.suid;
+  int64_t  realTbSuid = 0;
+  SDecoder coder;
+  void*    data = POINTER_SHIFT(body, sizeof(SMsgHead));
+  int32_t  len = bodyLen - sizeof(SMsgHead);
+  tDecoderInit(&coder, data, len);
+
+  if (msgType == TDMT_VND_CREATE_STB || msgType == TDMT_VND_ALTER_STB) {
+    SVCreateStbReq req = {0};
+    if (tDecodeSVCreateStbReq(&coder, &req) < 0) {
+      goto end;
+    }
+    realTbSuid = req.suid;
+  } else if (msgType == TDMT_VND_DROP_STB) {
+    SVDropStbReq req = {0};
+    if (tDecodeSVDropStbReq(&coder, &req) < 0) {
+      goto end;
+    }
+    realTbSuid = req.suid;
+  } else if (msgType == TDMT_VND_CREATE_TABLE) {
+    SVCreateTbBatchReq req = {0};
+    if (tDecodeSVCreateTbBatchReq(&coder, &req) < 0) {
+      goto end;
+    }
+
+    int32_t        needRebuild = 0;
+    SVCreateTbReq* pCreateReq = NULL;
+    for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
+      pCreateReq = req.pReqs + iReq;
+      if (pCreateReq->type == TSDB_CHILD_TABLE && pCreateReq->ctb.suid == tbSuid) {
+        needRebuild++;
+      }
+    }
+    if (needRebuild == 0) {
+      // do nothing
+    } else if (needRebuild == req.nReqs) {
+      realTbSuid = tbSuid;
+    } else {
+      realTbSuid = tbSuid;
+      SVCreateTbBatchReq reqNew = {0};
+      reqNew.pArray = taosArrayInit(req.nReqs, sizeof(struct SVCreateTbReq));
+      for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
+        pCreateReq = req.pReqs + iReq;
+        if (pCreateReq->type == TSDB_CHILD_TABLE && pCreateReq->ctb.suid == tbSuid) {
+          reqNew.nReqs++;
+          taosArrayPush(reqNew.pArray, pCreateReq);
+        }
+      }
+
+      int     tlen;
+      int32_t ret = 0;
+      tEncodeSize(tEncodeSVCreateTbBatchReq, &reqNew, tlen, ret);
+      void* buf = taosMemoryMalloc(tlen);
+      if (NULL == buf) {
+        taosArrayDestroy(reqNew.pArray);
+        for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
+          pCreateReq = req.pReqs + iReq;
+          taosMemoryFreeClear(pCreateReq->comment);
+          if (pCreateReq->type == TSDB_CHILD_TABLE) {
+            taosArrayDestroy(pCreateReq->ctb.tagName);
+          }
+        }
+        goto end;
+      }
+      SEncoder coderNew = {0};
+      tEncoderInit(&coderNew, buf, tlen - sizeof(SMsgHead));
+      tEncodeSVCreateTbBatchReq(&coderNew, &reqNew);
+      tEncoderClear(&coderNew);
+      memcpy(pHead->body + sizeof(SMsgHead), buf, tlen);
+      pHead->bodyLen = tlen + sizeof(SMsgHead);
+      taosMemoryFree(buf);
+      taosArrayDestroy(reqNew.pArray);
+    }
+
+    for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
+      pCreateReq = req.pReqs + iReq;
+      taosMemoryFreeClear(pCreateReq->comment);
+      if (pCreateReq->type == TSDB_CHILD_TABLE) {
+        taosArrayDestroy(pCreateReq->ctb.tagName);
+      }
+    }
+  } else if (msgType == TDMT_VND_ALTER_TABLE) {
+    SVAlterTbReq req = {0};
+
+    if (tDecodeSVAlterTbReq(&coder, &req) < 0) {
+      goto end;
+    }
+
+    SMetaReader mr = {0};
+    metaReaderInit(&mr, pHandle->execHandle.pExecReader->pVnodeMeta, 0);
+
+    if (metaGetTableEntryByName(&mr, req.tbName) < 0) {
+      metaReaderClear(&mr);
+      goto end;
+    }
+    realTbSuid = mr.me.ctbEntry.suid;
+    metaReaderClear(&mr);
+  } else if (msgType == TDMT_VND_DROP_TABLE) {
+    SVDropTbBatchReq req = {0};
+
+    if (tDecodeSVDropTbBatchReq(&coder, &req) < 0) {
+      goto end;
+    }
+
+    int32_t      needRebuild = 0;
+    SVDropTbReq* pDropReq = NULL;
+    for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
+      pDropReq = req.pReqs + iReq;
+
+      if (pDropReq->suid == tbSuid) {
+        needRebuild++;
+      }
+    }
+    if (needRebuild == 0) {
+      // do nothing
+    } else if (needRebuild == req.nReqs) {
+      realTbSuid = tbSuid;
+    } else {
+      realTbSuid = tbSuid;
+      SVDropTbBatchReq reqNew = {0};
+      reqNew.pArray = taosArrayInit(req.nReqs, sizeof(SVDropTbReq));
+      for (int32_t iReq = 0; iReq < req.nReqs; iReq++) {
+        pDropReq = req.pReqs + iReq;
+        if (pDropReq->suid == tbSuid) {
+          reqNew.nReqs++;
+          taosArrayPush(reqNew.pArray, pDropReq);
+        }
+      }
+
+      int     tlen;
+      int32_t ret = 0;
+      tEncodeSize(tEncodeSVDropTbBatchReq, &reqNew, tlen, ret);
+      void* buf = taosMemoryMalloc(tlen);
+      if (NULL == buf) {
+        taosArrayDestroy(reqNew.pArray);
+        goto end;
+      }
+      SEncoder coderNew = {0};
+      tEncoderInit(&coderNew, buf, tlen - sizeof(SMsgHead));
+      tEncodeSVDropTbBatchReq(&coderNew, &reqNew);
+      tEncoderClear(&coderNew);
+      memcpy(pHead->body + sizeof(SMsgHead), buf, tlen);
+      pHead->bodyLen = tlen + sizeof(SMsgHead);
+      taosMemoryFree(buf);
+      taosArrayDestroy(reqNew.pArray);
+    }
+  } else if (msgType == TDMT_VND_DELETE) {
+    SDeleteRes req = {0};
+    if (tDecodeDeleteRes(&coder, &req) < 0) {
+      goto end;
+    }
+    realTbSuid = req.suid;
+  } else {
+    ASSERT(0);
+  }
+
+end:
+  tDecoderClear(&coder);
+  return tbSuid == realTbSuid;
+}
+
 int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** ppCkHead) {
   int32_t code = 0;
   taosThreadMutexLock(&pHandle->pWalReader->mutex);
@@ -53,9 +223,11 @@ int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHea
             code = -1;
             goto END;
           }
-          *fetchOffset = offset;
-          code = 0;
-          goto END;
+          if (isValValidForTable(pHandle, pHead)) {
+            *fetchOffset = offset;
+            code = 0;
+            goto END;
+          }
         }
       }
       code = walSkipFetchBody(pHandle->pWalReader, *ppCkHead);
@@ -142,14 +314,18 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
         return -1;
       }
       void* body = pReader->pWalReader->pHead->head.body;
+#if 0
       if (pReader->pWalReader->pHead->head.msgType != TDMT_VND_SUBMIT) {
         // TODO do filter
         ret->fetchType = FETCH_TYPE__META;
         ret->meta = pReader->pWalReader->pHead->head.body;
         return 0;
       } else {
-        tqReaderSetDataMsg(pReader, body, pReader->pWalReader->pHead->head.version);
+#endif
+      tqReaderSetDataMsg(pReader, body, pReader->pWalReader->pHead->head.version);
+#if 0
       }
+#endif
     }
 
     while (tqNextDataBlock(pReader)) {
@@ -161,6 +337,7 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
         continue;
       }
       ret->fetchType = FETCH_TYPE__DATA;
+      tqDebug("return data rows %d", ret->data.info.rows);
       return 0;
     }
 
@@ -168,14 +345,14 @@ int32_t tqNextBlock(STqReader* pReader, SFetchRet* ret) {
       ret->offset.type = TMQ_OFFSET__LOG;
       ret->offset.version = pReader->ver;
       ASSERT(pReader->ver >= 0);
-      ret->fetchType = FETCH_TYPE__NONE;
+      ret->fetchType = FETCH_TYPE__SEP;
       tqDebug("return offset %" PRId64 ", processed finish", ret->offset.version);
       return 0;
     }
   }
 }
 
-int32_t tqReaderSetDataMsg(STqReader* pReader, SSubmitReq* pMsg, int64_t ver) {
+int32_t tqReaderSetDataMsg(STqReader* pReader, const SSubmitReq* pMsg, int64_t ver) {
   pReader->pMsg = pMsg;
 
   if (tInitSubmitMsgIter(pMsg, &pReader->msgIter) < 0) return -1;
@@ -398,7 +575,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
     if (pIter == NULL) break;
     STqHandle* pExec = (STqHandle*)pIter;
     if (pExec->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
-      int32_t code = qUpdateQualifiedTableId(pExec->execHandle.execCol.task, tbUidList, isAdd);
+      int32_t code = qUpdateQualifiedTableId(pExec->execHandle.task, tbUidList, isAdd);
       ASSERT(code == 0);
     } else if (pExec->execHandle.subType == TOPIC_SUB_TYPE__DB) {
       if (!isAdd) {

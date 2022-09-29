@@ -52,11 +52,6 @@ window_clause: {
   | STATE_WINDOW(col)
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
 
-changes_option: {
-    DURATION duration_val
-  | ROWS rows_val
-}
-
 group_by_clause:
     GROUP BY expr [, expr] ... HAVING condition
 
@@ -71,9 +66,9 @@ order_expr:
 
 A query can be performed on some or all columns. Data and tag columns can all be included in the SELECT list.
 
-## Wildcards
+### Wildcards
 
-You can use an asterisk (\*) as a wildcard character to indicate all columns. For standard tables, the asterisk indicates only data columns. For supertables and subtables, tag columns are also included.
+You can use an asterisk (\*) as a wildcard character to indicate all columns. For normal tables or sub-tables, the asterisk indicates only data columns. For supertables, tag columns are also included when using asterisk (\*).
 
 ```sql
 SELECT * FROM d1001;
@@ -126,7 +121,6 @@ SELECT DISTINCT col_name [, col_name ...] FROM tb_name;
 
 1. Configuration parameter `maxNumOfDistinctRes` in `taos.cfg` is used to control the number of rows to output. The minimum configurable value is 100,000, the maximum configurable value is 100,000,000, the default value is 1,000,000. If the actual number of rows exceeds the value of this parameter, only the number of rows specified by this parameter will be output.
 2. It can't be guaranteed that the results selected by using `DISTINCT` on columns of `FLOAT` or `DOUBLE` are exactly unique because of the precision errors in floating point numbers.
-3. `DISTINCT` can't be used in the sub-query of a nested query statement, and can't be used together with aggregate functions, `GROUP BY` or `JOIN` in the same SQL statement.
 
 :::
 
@@ -141,6 +135,8 @@ taos> SELECT ts, ts AS primary_key_ts FROM d1001;
 `AS` can't be used together with `first(*)`, `last(*)`, or `last_row(*)`.
 
 ### Pseudocolumns
+
+**Pseudocolumn:** A pseudo-column behaves like a table column but is not actually stored in the table. You can select from pseudo-columns, but you cannot insert, update, or delete their values. A pseudo-column is also similar to a function without arguments. This section describes these pseudo-columns:
 
 **TBNAME**
 The TBNAME pseudocolumn in a supertable contains the names of subtables within the supertable.
@@ -183,6 +179,14 @@ In TDengine, the first column of all tables must be a timestamp. This column is 
 
 ```sql
 select _rowts, max(current) from meters;
+```
+
+**\_IROWTS**
+
+The \_IROWTS pseudocolumn can only be used with INTERP function. This pseudocolumn can be used to retrieve the corresponding timestamp column associated with the interpolation results.
+
+```sql
+select _irowts, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(linear);
 ```
 
 ## Query Objects
@@ -354,19 +358,15 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 
 :::info
 
-- Only one layer of nesting is allowed, that means no sub query is allowed within a sub query
-- The result set returned by the inner query will be used as a "virtual table" by the outer query. The "virtual table" can be renamed using `AS` keyword for easy reference in the outer query.
-- Sub query is not allowed in continuous query.
+- The result of a nested query is returned as a virtual table used by the outer query. It's recommended to give an alias to this table for the convenience of using it in the outer query.
 - JOIN operation is allowed between tables/STables inside both inner and outer queries. Join operation can be performed on the result set of the inner query.
-- UNION operation is not allowed in either inner query or outer query.
-- The functions that can be used in the inner query are the same as those that can be used in a non-nested query.
+- The features that can be used in the inner query are the same as those that can be used in a non-nested query.
   - `ORDER BY` inside the inner query is unnecessary and will slow down the query performance significantly. It is best to avoid the use of `ORDER BY` inside the inner query.
 - Compared to the non-nested query, the functionality that can be used in the outer query has the following restrictions:
   - Functions
-    - If the result set returned by the inner query doesn't contain timestamp column, then functions relying on timestamp can't be used in the outer query, like `TOP`, `BOTTOM`, `FIRST`, `LAST`, `DIFF`.
-    - Functions that need to scan the data twice can't be used in the outer query, like `STDDEV`, `PERCENTILE`.
-  - `IN` operator is not allowed in the outer query but can be used in the inner query.
-  - `GROUP BY` is not supported in the outer query.
+    - If the result set returned by the inner query doesn't contain timestamp column, then functions relying on timestamp can't be used in the outer query, like INTERP,DERIVATIVE, IRATE, LAST_ROW, FIRST, LAST, TWA, STATEDURATION, TAIL, UNIQUE.
+    - If the result set returned by the inner query are not sorted in order by timestamp, then functions relying on data ordered by timestamp can't be used in the outer query, like LEASTSQUARES, ELAPSED, INTERP, DERIVATIVE, IRATE, TWA, DIFF, STATECOUNT, STATEDURATION, CSUM, MAVG, TAIL, UNIQUE. 
+    - Functions that need to scan the data twice can't be used in the outer query, like PERCENTILE.
 
 :::
 

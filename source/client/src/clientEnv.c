@@ -19,6 +19,7 @@
 #include "functionMgt.h"
 #include "os.h"
 #include "query.h"
+#include "qworker.h"
 #include "scheduler.h"
 #include "tcache.h"
 #include "tglobal.h"
@@ -69,25 +70,26 @@ static void deregisterRequest(SRequestObj *pRequest) {
   int32_t currentInst = atomic_sub_fetch_64((int64_t *)&pActivity->currentRequests, 1);
   int32_t num = atomic_sub_fetch_32(&pTscObj->numOfReqs, 1);
 
-  int64_t nowUs = taosGetTimestampUs();
-  int64_t duration = nowUs - pRequest->metric.start;
-  tscDebug("0x%" PRIx64 " free Request from connObj: 0x%" PRIx64 ", reqId:0x%" PRIx64 " elapsed:%" PRIu64
-           " ms, current:%d, app current:%d",
-           pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000, num, currentInst);
+  int64_t duration = taosGetTimestampUs() - pRequest->metric.start;
+  tscDebug("0x%" PRIx64 " free Request from connObj: 0x%" PRIx64 ", reqId:0x%" PRIx64 " elapsed:%.2f ms, "
+           "current:%d, app current:%d",
+           pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000.0, num, currentInst);
 
   if (QUERY_NODE_VNODE_MODIF_STMT == pRequest->stmtType) {
-    tscPerf("insert duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64 "us, exec:%" PRId64 "us", 
-            duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart, 
-            pRequest->metric.ctgEnd - pRequest->metric.ctgStart,
-            pRequest->metric.semanticEnd - pRequest->metric.ctgEnd,
+    tscPerf("insert duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
+            "us, exec:%" PRId64 "us",
+            duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart,
+            pRequest->metric.ctgEnd - pRequest->metric.ctgStart, pRequest->metric.semanticEnd - pRequest->metric.ctgEnd,
             pRequest->metric.execEnd - pRequest->metric.semanticEnd);
     atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
   } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
-    tscPerf("select duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64 "us, exec:%" PRId64 "us", 
-            duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart, 
-            pRequest->metric.ctgEnd - pRequest->metric.ctgStart,
-            pRequest->metric.semanticEnd - pRequest->metric.ctgEnd,
-            pRequest->metric.execEnd - pRequest->metric.semanticEnd);
+    tscPerf("select duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
+            "us, planner:%" PRId64 "us, exec:%" PRId64 "us, reqId:0x%"PRIx64,
+            duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart,
+            pRequest->metric.ctgEnd - pRequest->metric.ctgStart, pRequest->metric.semanticEnd - pRequest->metric.ctgEnd,
+            pRequest->metric.planEnd - pRequest->metric.semanticEnd,
+            pRequest->metric.resultReady - pRequest->metric.planEnd, pRequest->requestId);
+
     atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
   }
 
@@ -287,6 +289,7 @@ void *createRequest(uint64_t connId, int32_t type) {
 
   pRequest->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
   pRequest->type = type;
+  pRequest->allocatorRefId = -1;
 
   pRequest->pDb = getDbOfConnection(pTscObj);
   pRequest->pTscObj = pTscObj;
@@ -348,6 +351,8 @@ void doDestroyRequest(void *p) {
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->dbList);
   taosArrayDestroy(pRequest->targetTableList);
+  qDestroyQuery(pRequest->pQuery);
+  nodesDestroyAllocator(pRequest->allocatorRefId);
 
   destroyQueryExecRes(&pRequest->body.resInfo.execRes);
 
@@ -410,6 +415,7 @@ void taos_init_imp(void) {
 
   initTaskQueue();
   fmFuncMgtInit();
+  nodesInitAllocatorSet();
 
   clientConnRefPool = taosOpenRef(200, destroyTscObj);
   clientReqRefPool = taosOpenRef(40960, doDestroyRequest);
@@ -487,7 +493,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
  */
 uint64_t generateRequestId() {
   static uint64_t hashId = 0;
-  static int32_t  requestSerialId = 0;
+  static uint32_t requestSerialId = 0;
 
   if (hashId == 0) {
     char    uid[64] = {0};
@@ -506,7 +512,8 @@ uint64_t generateRequestId() {
   while (true) {
     int64_t  ts = taosGetTimestampMs();
     uint64_t pid = taosGetPId();
-    int32_t  val = atomic_add_fetch_32(&requestSerialId, 1);
+    uint32_t val = atomic_add_fetch_32(&requestSerialId, 1);
+    if (val >= 0xFFFF) atomic_store_32(&requestSerialId, 0);
 
     id = ((hashId & 0x0FFF) << 52) | ((pid & 0x0FFF) << 40) | ((ts & 0xFFFFFF) << 16) | (val & 0xFFFF);
     if (id) {

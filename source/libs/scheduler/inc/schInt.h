@@ -151,6 +151,7 @@ typedef struct SSchedulerMgmt {
   SSchStat        stat;
   SRWLatch        hbLock;
   SHashObj       *hbConnections;
+  void           *queryMgmt;
 } SSchedulerMgmt;
 
 typedef struct SSchCallbackParamHeader {
@@ -235,8 +236,10 @@ typedef struct SSchTask {
 typedef struct SSchJobAttr {
   EExplainMode explainMode;
   bool         queryJob;
+  bool         insertJob;
   bool         needFetch;
   bool         needFlowCtrl;
+  bool         localExec;
 } SSchJobAttr;
 
 typedef struct {
@@ -254,7 +257,8 @@ typedef struct SSchJob {
   SRequestConnInfo   conn;
   SArray            *nodeList;   // qnode/vnode list, SArray<SQueryNodeLoad>
   SArray            *levels;    // starting from 0. SArray<SSchLevel>
-  SQueryPlan        *pDag;  
+  SQueryPlan        *pDag;
+  int64_t            allocatorRefId;
 
   SArray            *dataSrcTasks; // SArray<SQueryTask*>
   int32_t            levelIdx;
@@ -262,7 +266,7 @@ typedef struct SSchJob {
   SHashObj          *taskList;
   SHashObj          *execTasks; // executing and executed tasks, key:taskid, value:SQueryTask*
   SHashObj          *flowCtrl;  // key is ep, element is SSchFlowControl
-
+  
   SExplainCtx       *explainCtx;
   int8_t             status;  
   SQueryNodeAddr     resNode;
@@ -283,8 +287,9 @@ typedef struct SSchJob {
 } SSchJob;
 
 typedef struct SSchTaskCtx {
-  int64_t  jobRid;
+  int64_t   jobRid;
   SSchTask *pTask;
+  bool      asyncLaunch;
 } SSchTaskCtx;
 
 extern SSchedulerMgmt schMgmt;
@@ -302,6 +307,8 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_IS_DATA_BIND_QRY_TASK(task) ((task)->plan->subplanType == SUBPLAN_TYPE_SCAN)
 #define SCH_IS_DATA_BIND_TASK(task) (((task)->plan->subplanType == SUBPLAN_TYPE_SCAN) || ((task)->plan->subplanType == SUBPLAN_TYPE_MODIFY))
 #define SCH_IS_LEAF_TASK(_job, _task) (((_task)->level->level + 1) == (_job)->levelNum)
+#define SCH_IS_DATA_MERGE_TASK(task) (!SCH_IS_DATA_BIND_TASK(task))
+#define SCH_IS_LOCAL_EXEC_TASK(_job, _task) ((_job)->attr.localExec && SCH_IS_QUERY_JOB(_job) && (!SCH_IS_INSERT_JOB(_job)) && (!SCH_IS_DATA_BIND_QRY_TASK(_task)))
 
 #define SCH_SET_TASK_STATUS(task, st) atomic_store_8(&(task)->status, st)
 #define SCH_GET_TASK_STATUS(task) atomic_load_8(&(task)->status)
@@ -324,8 +331,9 @@ extern SSchedulerMgmt schMgmt;
 #define SCH_FETCH_TYPE(_pSrcTask) (SCH_IS_DATA_BIND_QRY_TASK(_pSrcTask) ? TDMT_SCH_FETCH : TDMT_SCH_MERGE_FETCH)
 #define SCH_TASK_NEED_FETCH(_task) ((_task)->plan->subplanType != SUBPLAN_TYPE_MODIFY)
 
-#define SCH_SET_JOB_TYPE(_job, type) do { if ((type) != SUBPLAN_TYPE_MODIFY) { (_job)->attr.queryJob = true; } } while (0)
+#define SCH_SET_JOB_TYPE(_job, type) do { if ((type) != SUBPLAN_TYPE_MODIFY) { (_job)->attr.queryJob = true; } else { (_job)->attr.insertJob = true; } } while (0)
 #define SCH_IS_QUERY_JOB(_job) ((_job)->attr.queryJob) 
+#define SCH_IS_INSERT_JOB(_job) ((_job)->attr.insertJob) 
 #define SCH_JOB_NEED_FETCH(_job) ((_job)->attr.needFetch)
 #define SCH_JOB_NEED_WAIT(_job) (!SCH_IS_QUERY_JOB(_job))
 #define SCH_JOB_NEED_DROP(_job) (SCH_IS_QUERY_JOB(_job))
@@ -500,6 +508,8 @@ void    schDirectPostJobRes(SSchedulerReq* pReq, int32_t errCode);
 int32_t schHandleJobFailure(SSchJob *pJob, int32_t errCode);
 int32_t schHandleJobDrop(SSchJob *pJob, int32_t errCode);
 bool    schChkCurrentOp(SSchJob *pJob, int32_t op, int8_t sync);
+int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rspCode);
+int32_t schProcessExplainRsp(SSchJob *pJob, SSchTask *pTask, SExplainRsp *rsp);
 
 extern SSchDebug gSCHDebug;
 

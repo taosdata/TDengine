@@ -909,11 +909,11 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut, int32_t* 
 int8_t gConvertTypes[TSDB_DATA_TYPE_BLOB+1][TSDB_DATA_TYPE_BLOB+1] = {
 /*         NULL BOOL TINY SMAL INT  BIG  FLOA DOUB VARC TIME NCHA UTIN USMA UINT UBIG JSON VARB DECI BLOB */
 /*NULL*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-/*BOOL*/   0,   0,   0,   3,   4,   5,   6,   7,   7,   9,   7,   0,   12,  13,  14,  0,   7,   0,   0,
+/*BOOL*/   0,   0,   2,   3,   4,   5,   6,   7,   7,   9,   7,   11,  12,  13,  14,  0,   7,   0,   0,
 /*TINY*/   0,   0,   0,   3,   4,   5,   6,   7,   7,   9,   7,   3,   4,   5,   7,   0,   7,   0,   0,
 /*SMAL*/   0,   0,   0,   0,   4,   5,   6,   7,   7,   9,   7,   3,   4,   5,   7,   0,   7,   0,   0,
 /*INT */   0,   0,   0,   0,   0,   5,   6,   7,   7,   9,   7,   4,   4,   5,   7,   0,   7,   0,   0,
-/*BIGI*/   0,   0,   0,   0,   0,   0,   6,   7,   7,   0,   7,   5,   5,   5,   7,   0,   7,   0,   0,
+/*BIGI*/   0,   0,   0,   0,   0,   0,   6,   7,   7,   9,   7,   5,   5,   5,   7,   0,   7,   0,   0,
 /*FLOA*/   0,   0,   0,   0,   0,   0,   0,   7,   7,   6,   7,   6,   6,   6,   6,   0,   7,   0,   0,
 /*DOUB*/   0,   0,   0,   0,   0,   0,   0,   0,   7,   7,   7,   7,   7,   7,   7,   0,   7,   0,   0,
 /*VARC*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   9,   8,   7,   7,   7,   7,   0,   0,   0,   0,
@@ -1475,19 +1475,19 @@ void vectorMathMinus(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pO
 
 void vectorAssign(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
   SColumnInfoData *pOutputCol = pOut->columnData;
-
   pOut->numOfRows = pLeft->numOfRows;
 
-//  if (IS_HELPER_NULL(pRight->columnData, 0)) {
   if(colDataIsNull_s(pRight->columnData, 0)){
-    for (int32_t i = 0; i < pOut->numOfRows; ++i) {
-      colDataAppend(pOutputCol, i, NULL, true);
-    }
+    colDataAppendNNULL(pOutputCol, 0, pOut->numOfRows);
   } else {
+    char* d = colDataGetData(pRight->columnData, 0);
     for (int32_t i = 0; i < pOut->numOfRows; ++i) {
-      colDataAppend(pOutputCol, i, colDataGetData(pRight->columnData, 0), false);
+      colDataAppend(pOutputCol, i, d, false);
     }
   }
+
+  ASSERT(pRight->numOfQualified == 1 || pRight->numOfQualified == 0);
+  pOut->numOfQualified = pRight->numOfQualified * pOut->numOfRows;
 }
 
 void vectorConcat(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
@@ -1646,45 +1646,71 @@ void vectorBitOr(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, 
   doReleaseVec(pRightCol, rightConvert);
 }
 
-#define VEC_COM_INNER(pCol, index1, index2)    \
-  for (; i < pCol->numOfRows && i >= 0; i += step) {\
-    if (IS_HELPER_NULL(pLeft->columnData, index1) || IS_HELPER_NULL(pRight->columnData, index2)) {\
-      bool  res = false;\
-      colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);\
-      continue;\
-    }\
-    char *pLeftData = colDataGetData(pLeft->columnData, index1);\
-    char *pRightData = colDataGetData(pRight->columnData, index2);\
-    int64_t leftOut = 0;\
-    int64_t rightOut = 0;\
-    bool freeLeft = false;\
-    bool freeRight = false;\
-    bool isJsonnull = false;\
-    bool result = convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight),\
-                                      &pLeftData, &pRightData, &leftOut, &rightOut, &isJsonnull, &freeLeft, &freeRight);\
-    if(isJsonnull){\
-      ASSERT(0);\
-    }\
-    if(!pLeftData || !pRightData){\
-      result = false;\
-    }\
-    if(!result){\
-      colDataAppendInt8(pOut->columnData, i, (int8_t*)&result);\
-    }else{\
-      bool  res = filterDoCompare(fp, optr, pLeftData, pRightData);\
-      colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);\
-    }\
-    if(freeLeft) taosMemoryFreeClear(pLeftData);\
-    if(freeRight) taosMemoryFreeClear(pRightData);\
+int32_t doVectorCompareImpl(int32_t numOfRows, SScalarParam *pOut, int32_t startIndex, int32_t step, __compar_fn_t fp,
+                         SScalarParam *pLeft, SScalarParam *pRight, int32_t optr) {
+  int32_t num = 0;
+
+  for (int32_t i = startIndex; i < numOfRows && i >= 0; i += step) {
+    int32_t leftIndex = (i >= pLeft->numOfRows)? 0:i;
+    int32_t rightIndex = (i >= pRight->numOfRows)? 0:i;
+
+    if (IS_HELPER_NULL(pLeft->columnData, leftIndex) || IS_HELPER_NULL(pRight->columnData, rightIndex)) {
+      bool res = false;
+      colDataAppendInt8(pOut->columnData, i, (int8_t *)&res);
+      continue;
+    }
+
+    char *  pLeftData = colDataGetData(pLeft->columnData, leftIndex);
+    char *  pRightData = colDataGetData(pRight->columnData, rightIndex);
+    int64_t leftOut = 0;
+    int64_t rightOut = 0;
+    bool    freeLeft = false;
+    bool    freeRight = false;
+    bool    isJsonnull = false;
+
+    bool    result = convertJsonValue(&fp, optr, GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), &pLeftData, &pRightData,
+                                   &leftOut, &rightOut, &isJsonnull, &freeLeft, &freeRight);
+    if (isJsonnull) {
+      ASSERT(0);
+    }
+
+    if (!pLeftData || !pRightData) {
+      result = false;
+    }
+
+    if (!result) {
+      colDataAppendInt8(pOut->columnData, i, (int8_t *)&result);
+    } else {
+      bool res = filterDoCompare(fp, optr, pLeftData, pRightData);
+      colDataAppendInt8(pOut->columnData, i, (int8_t *)&res);
+      if (res) {
+        ++num;
+      }
+    }
+
+    if (freeLeft) {
+      taosMemoryFreeClear(pLeftData);
+    }
+
+    if (freeRight) {
+      taosMemoryFreeClear(pRightData);
+    }
   }
+
+  return num;
+}
 
 void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord, int32_t optr) {
   int32_t       i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
   int32_t       step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-
-  __compar_fn_t fp = filterGetCompFunc(GET_PARAM_TYPE(pLeft), optr);
-  if(terrno != TSDB_CODE_SUCCESS){
-    return;
+  int32_t       lType = GET_PARAM_TYPE(pLeft);
+  int32_t       rType = GET_PARAM_TYPE(pRight);
+  __compar_fn_t fp = NULL;
+  
+  if (lType == rType) {
+    fp = filterGetCompFunc(lType, optr);
+  } else {
+    fp = filterGetCompFuncEx(lType, rType, optr);
   }
 
   pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
@@ -1700,38 +1726,38 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
       char *pLeftData = colDataGetData(pLeft->columnData, i);
       bool  res = filterDoCompare(fp, optr, pLeftData, pRight->pHashFilter);
       colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
+      if (res) {
+        pOut->numOfQualified++;
+      }
     }
-    return;
-  }
-
-  if (pLeft->numOfRows == pRight->numOfRows) {
-    VEC_COM_INNER(pLeft, i, i)
-  } else if (pRight->numOfRows == 1) {
-    VEC_COM_INNER(pLeft, i, 0)
-  } else if (pLeft->numOfRows == 1) {
-    VEC_COM_INNER(pRight, 0, i)
+  } else {  // normal compare
+    pOut->numOfQualified = doVectorCompareImpl(pOut->numOfRows, pOut, i, step, fp, pLeft, pRight, optr);
   }
 }
 
 void vectorCompare(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord, int32_t optr) {
   SScalarParam pLeftOut = {0}; 
   SScalarParam pRightOut = {0};
-  
-  vectorConvert(pLeft, pRight, &pLeftOut, &pRightOut);
-
   SScalarParam *param1 = NULL; 
   SScalarParam *param2 = NULL;
 
-  if (pLeftOut.columnData != NULL) {
-    param1 = &pLeftOut;
-  } else {
+  if (SCL_NO_NEED_CONVERT_COMPARISION(GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), optr)) {
     param1 = pLeft;
-  }
-
-  if (pRightOut.columnData != NULL) {
-    param2 = &pRightOut;
-  } else {
     param2 = pRight;
+  } else {
+    vectorConvert(pLeft, pRight, &pLeftOut, &pRightOut);
+
+    if (pLeftOut.columnData != NULL) {
+      param1 = &pLeftOut;
+    } else {
+      param1 = pLeft;
+    }
+
+    if (pRightOut.columnData != NULL) {
+      param2 = &pRightOut;
+    } else {
+      param2 = pRight;
+    }
   }
 
   vectorCompareImpl(param1, param2, pOut, _ord, optr);

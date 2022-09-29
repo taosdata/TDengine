@@ -87,6 +87,7 @@ int32_t qmPutRpcMsgToQueue(SQnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
       return 0;
     default:
       terrno = TSDB_CODE_INVALID_PARA;
+      taosFreeQitem(pMsg);
       return -1;
   }
 }

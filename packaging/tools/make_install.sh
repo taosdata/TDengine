@@ -151,6 +151,7 @@ function install_main_path() {
     ${csudo}mkdir -p ${install_main_dir}/driver
     ${csudo}mkdir -p ${install_main_dir}/examples
     ${csudo}mkdir -p ${install_main_dir}/include
+    ${csudo}mkdir -p ${install_main_dir}/share
     #    ${csudo}mkdir -p ${install_main_dir}/init.d
   else
     ${csudo}rm -rf ${install_main_dir} || ${csudo}rm -rf ${install_main_2_dir} || :
@@ -161,6 +162,7 @@ function install_main_path() {
     ${csudo}mkdir -p ${install_main_dir}/driver || ${csudo}mkdir -p ${install_main_2_dir}/driver
     ${csudo}mkdir -p ${install_main_dir}/examples || ${csudo}mkdir -p ${install_main_2_dir}/examples
     ${csudo}mkdir -p ${install_main_dir}/include || ${csudo}mkdir -p ${install_main_2_dir}/include
+    ${csudo}mkdir -p ${install_main_dir}/share || ${csudo}mkdir -p ${install_main_2_dir}/share
   fi
 }
 
@@ -172,6 +174,7 @@ function install_bin() {
   ${csudo}rm -f ${bin_link_dir}/udfd || :
   ${csudo}rm -f ${bin_link_dir}/taosdemo || :
   ${csudo}rm -f ${bin_link_dir}/taosdump || :
+  ${csudo}rm -f ${bin_link_dir}/taosx || :
 
   if [ "$osType" != "Darwin" ]; then
     ${csudo}rm -f ${bin_link_dir}/perfMonitor || :
@@ -184,6 +187,7 @@ function install_bin() {
     [ -f ${binary_dir}/build/bin/taosdump ] && ${csudo}cp -r ${binary_dir}/build/bin/taosdump ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosadapter ] && ${csudo}cp -r ${binary_dir}/build/bin/taosadapter ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/udfd ] && ${csudo}cp -r ${binary_dir}/build/bin/udfd ${install_main_dir}/bin || :
+    [ -f ${binary_dir}/build/bin/taosx ] && ${csudo}cp -r ${binary_dir}/build/bin/taosx ${install_main_dir}/bin || :
     ${csudo}cp -r ${binary_dir}/build/bin/${serverName} ${install_main_dir}/bin || :
 
     ${csudo}cp -r ${script_dir}/taosd-dump-cfg.gdb ${install_main_dir}/bin || :
@@ -199,6 +203,7 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/udfd ] && ${csudo}ln -s ${install_main_dir}/bin/udfd ${bin_link_dir}/udfd || :
     [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
     [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo}ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
+    [ -x ${install_main_dir}/bin/taosx ] && ${csudo}ln -s ${install_main_dir}/bin/taosx ${bin_link_dir}/taosx || :
     [ -x ${install_main_dir}/bin/perfMonitor ] && ${csudo}ln -s ${install_main_dir}/bin/perfMonitor ${bin_link_dir}/perfMonitor || :
     [ -x ${install_main_dir}/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
     [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
@@ -215,6 +220,7 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/udfd ] || [ -x ${install_main_2_dir}/bin/udfd ] && ${csudo}ln -s ${install_main_dir}/bin/udfd ${bin_link_dir}/udfd || ${csudo}ln -s ${install_main_2_dir}/bin/udfd || :
     [ -x ${install_main_dir}/bin/taosdump ] || [ -x ${install_main_2_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || ln -s ${install_main_2_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
     [ -x ${install_main_dir}/bin/taosdemo ] || [ -x ${install_main_2_dir}/bin/taosdemo ] && ${csudo}ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || ln -s ${install_main_2_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
+    [ -x ${install_main_dir}/bin/taosx ] || [ -x ${install_main_2_dir}/bin/taosx ] && ${csudo}ln -s ${install_main_dir}/bin/taosx ${bin_link_dir}/taosx || ln -s ${install_main_2_dir}/bin/taosx ${bin_link_dir}/taosx || :
   fi
 }
 
@@ -381,8 +387,7 @@ function install_header() {
       ${install_main_dir}/include ||
       ${csudo}cp -f ${source_dir}/include/client/taos.h ${source_dir}/include/common/taosdef.h ${source_dir}/include/util/taoserror.h ${source_dir}/include/libs/function/taosudf.h \
         ${install_main_2_dir}/include &&
-      ${csudo}chmod 644 ${install_main_dir}/include/* ||:
-      ${csudo}chmod 644 ${install_main_2_dir}/include/*
+      ${csudo}chmod 644 ${install_main_dir}/include/* || ${csudo}chmod 644 ${install_main_2_dir}/include/*
   fi
 }
 
@@ -463,6 +468,16 @@ function install_examples() {
     ${csudo}cp -rf ${source_dir}/examples/* ${install_main_dir}/examples || :
   else
     ${csudo}cp -rf ${source_dir}/examples/* ${install_main_dir}/examples || ${csudo}cp -rf ${source_dir}/examples/* ${install_main_2_dir}/examples || :
+  fi
+}
+
+function install_web() {
+  if [ -d "${binary_dir}/build/share" ]; then
+    if [ "$osType" != "Darwin" ]; then
+      ${csudo}cp -rf ${binary_dir}/build/share/* ${install_main_dir}/share || :
+    else
+      ${csudo}cp -rf ${binary_dir}/build/share/* ${install_main_dir}/share || ${csudo}cp -rf ${binary_dir}/build/share/* ${install_main_2_dir}/share || :
+    fi
   fi
 }
 
@@ -593,6 +608,7 @@ function update_TDengine() {
   install_lib
   #  install_connector
   install_examples
+  install_web
   install_bin
 
   install_service
@@ -606,14 +622,20 @@ function update_TDengine() {
   echo
 
   echo -e "${GREEN_DARK}To configure ${productName} ${NC}: edit ${configDir}/${configFile}"
-  echo -e "${GREEN_DARK}To configure Taos Adapter (if has) ${NC}: edit ${configDir}/taosadapter.toml"
+  [ -f ${configDir}/taosadapter.toml ] && [ -f ${installDir}/bin/taosadapter ] && \
+    echo -e "${GREEN_DARK}To configure Taos Adapter ${NC}: edit ${configDir}/taosadapter.toml"
   if ((${service_mod} == 0)); then
     echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
+    [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
+      echo -e "${GREEN_DARK}To start Taos Adatper ${NC}: ${csudo}systemctl start taosadapter ${NC}"
   elif ((${service_mod} == 1)); then
     echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}service ${serverName} start${NC}"
+    [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
+      echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: ${csudo}service taosadapter start${NC}"
   else
-    echo -e "${GREEN_DARK}To start Taos Adapter (if has)${NC}: taosadapter &${NC}"
     echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${serverName}${NC}"
+    [ -f ${installDir}/bin/taosadapter ] && \
+      echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: taosadapter &${NC}"
   fi
 
   echo -e "${GREEN_DARK}To access ${productName}    ${NC}: use ${GREEN_UNDERLINE}${clientName}${NC} in shell${NC}"
@@ -646,14 +668,20 @@ function install_TDengine() {
   echo -e "\033[44;32;1m${productName} is installed successfully!${NC}"
   echo
   echo -e "${GREEN_DARK}To configure ${productName} ${NC}: edit ${configDir}/${configFile}"
-  echo -e "${GREEN_DARK}To configure taosadapter (if has) ${NC}: edit ${configDir}/taosadapter.toml"
+  [ -f ${configDir}/taosadapter.toml ] && [ -f ${installDir}/bin/taosadapter ] && \
+    echo -e "${GREEN_DARK}To configure Taos Adapter ${NC}: edit ${configDir}/taosadapter.toml"
   if ((${service_mod} == 0)); then
     echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
+    [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
+      echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: ${csudo}systemctl start taosadapter ${NC}"
   elif ((${service_mod} == 1)); then
     echo -e "${GREEN_DARK}To start ${productName}    ${NC}: ${csudo}service ${serverName} start${NC}"
+    [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
+      echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: ${csudo}service taosadapter start${NC}"
   else
-    echo -e "${GREEN_DARK}To start Taos Adapter (if has)${NC}: taosadapter &${NC}"
     echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ./${serverName}${NC}"
+    [ -f ${installDir}/bin/taosadapter ] && \
+      echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: taosadapter &${NC}"
   fi
 
   echo -e "${GREEN_DARK}To access ${productName}    ${NC}: use ${GREEN_UNDERLINE}${clientName}${NC} in shell${NC}"

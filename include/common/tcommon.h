@@ -45,8 +45,8 @@ enum {
 // clang-format on
 
 typedef struct {
-  TSKEY    ts;
   uint64_t groupId;
+  TSKEY    ts;
 } SWinKey;
 
 static inline int SWinKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
@@ -68,11 +68,43 @@ static inline int SWinKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, i
   return 0;
 }
 
+typedef struct {
+  uint64_t groupId;
+  TSKEY    ts;
+  int32_t  exprIdx;
+} STupleKey;
+
+static inline int STupleKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
+  STupleKey* pTuple1 = (STupleKey*)pKey1;
+  STupleKey* pTuple2 = (STupleKey*)pKey2;
+
+  if (pTuple1->groupId > pTuple2->groupId) {
+    return 1;
+  } else if (pTuple1->groupId < pTuple2->groupId) {
+    return -1;
+  }
+
+  if (pTuple1->ts > pTuple2->ts) {
+    return 1;
+  } else if (pTuple1->ts < pTuple2->ts) {
+    return -1;
+  }
+
+  if (pTuple1->exprIdx > pTuple2->exprIdx) {
+    return 1;
+  } else if (pTuple1->exprIdx < pTuple2->exprIdx) {
+    return -1;
+  }
+
+  return 0;
+}
+
 enum {
   TMQ_MSG_TYPE__DUMMY = 0,
   TMQ_MSG_TYPE__POLL_RSP,
   TMQ_MSG_TYPE__POLL_META_RSP,
   TMQ_MSG_TYPE__EP_RSP,
+  TMQ_MSG_TYPE__TAOSX_RSP,
   TMQ_MSG_TYPE__END_RSP,
 };
 
@@ -84,6 +116,7 @@ enum {
   STREAM_INPUT__DATA_RETRIEVE,
   STREAM_INPUT__GET_RES,
   STREAM_INPUT__CHECKPOINT,
+  STREAM_INPUT__REF_DATA_BLOCK,
   STREAM_INPUT__DESTROY,
 };
 
@@ -129,7 +162,6 @@ typedef struct SDataBlockInfo {
   uint32_t    capacity;
   // TODO: optimize and remove following
   int64_t     version;    // used for stream, and need serialization
-  int64_t     ts;         // used for stream, and need serialization
   int32_t     childId;    // used for stream, do not serialize
   EStreamType type;       // used for stream, do not serialize
   STimeWindow calWin;     // used for stream, do not serialize
@@ -145,6 +177,7 @@ typedef struct SSDataBlock {
 enum {
   FETCH_TYPE__DATA = 1,
   FETCH_TYPE__META,
+  FETCH_TYPE__SEP,
   FETCH_TYPE__NONE,
 };
 

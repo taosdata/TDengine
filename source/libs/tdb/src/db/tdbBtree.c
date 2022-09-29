@@ -489,7 +489,7 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild, TXN
   }
 
   // Copy the root page content to the child page
-  tdbPageCopy(pRoot, pChild);
+  tdbPageCopy(pRoot, pChild, 0);
 
   // Reinitialize the root page
   zArg.flags = TDB_BTREE_ROOT;
@@ -509,7 +509,7 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild, TXN
 static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTxn) {
   int ret;
 
-  int    nOlds;
+  int    nOlds, pageIdx;
   SPage *pOlds[3] = {0};
   SCell *pDivCell[3] = {0};
   int    szDivCell[3];
@@ -742,7 +742,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     for (int i = 0; i < nOlds; i++) {
       tdbPageCreate(pOlds[0]->pageSize, &pOldsCopy[i], tdbDefaultMalloc, NULL);
       tdbBtreeInitPage(pOldsCopy[i], &iarg, 0);
-      tdbPageCopy(pOlds[i], pOldsCopy[i]);
+      tdbPageCopy(pOlds[i], pOldsCopy[i], 0);
     }
     iNew = 0;
     nNewCells = 0;
@@ -782,6 +782,11 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
                                  pBt);
               tdbPageInsertCell(pParent, sIdx++, pNewCell, szNewCell, 0);
               tdbOsFree(pNewCell);
+
+              if (TDB_CELLDECODER_FREE_VAL(&cd)) {
+                tdbFree(cd.pVal);
+                cd.pVal = NULL;
+              }
             }
 
             // move to next new page
@@ -835,7 +840,11 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     i8 flags = TDB_BTREE_ROOT | TDB_BTREE_PAGE_IS_LEAF(pNews[0]);
     // copy content to the parent page
     tdbBtreeInitPage(pParent, &(SBtreeInitPageArg){.flags = flags, .pBt = pBt}, 0);
-    tdbPageCopy(pNews[0], pParent);
+    tdbPageCopy(pNews[0], pParent, 1);
+
+    if (!TDB_BTREE_PAGE_IS_LEAF(pNews[0])) {
+      ((SIntHdr *)(pParent->pData))->pgno = ((SIntHdr *)(pNews[0]->pData))->pgno;
+    }
   }
 
   for (int i = 0; i < 3; i++) {
@@ -844,13 +853,11 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     }
   }
 
-  // TODO: here is not corrent for drop case
-  for (int i = 0; i < nNews; i++) {
-    if (i < nOlds) {
-      tdbPagerReturnPage(pBt->pPager, pOlds[i], pTxn);
-    } else {
-      tdbPagerReturnPage(pBt->pPager, pNews[i], pTxn);
-    }
+  for (pageIdx = 0; pageIdx < nOlds; ++pageIdx) {
+    tdbPagerReturnPage(pBt->pPager, pOlds[pageIdx], pTxn);
+  }
+  for (; pageIdx < nNews; ++pageIdx) {
+    tdbPagerReturnPage(pBt->pPager, pNews[pageIdx], pTxn);
   }
 
   return 0;

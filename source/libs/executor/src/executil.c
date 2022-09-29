@@ -33,6 +33,17 @@ void initResultRowInfo(SResultRowInfo* pResultRowInfo) {
 
 void closeResultRow(SResultRow* pResultRow) { pResultRow->closed = true; }
 
+void resetResultRow(SResultRow* pResultRow, size_t entrySize) {
+  pResultRow->numOfRows = 0;
+  pResultRow->closed = false;
+  pResultRow->endInterp = false;
+  pResultRow->startInterp = false;
+
+  if (entrySize > 0) {
+    memset(pResultRow->pEntryInfo, 0, entrySize);
+  }
+}
+
 // TODO refactor: use macro
 SResultRowEntryInfo* getResultEntryInfo(const SResultRow* pRow, int32_t index, const int32_t* offset) {
   assert(index >= 0 && offset != NULL);
@@ -46,8 +57,8 @@ size_t getResultRowSize(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
     rowSize += pCtx[i].resDataInfo.interBufSize;
   }
 
-  rowSize +=
-      (numOfOutput * sizeof(bool));  // expand rowSize to mark if col is null for top/bottom result(doSaveTupleData)
+  rowSize += (numOfOutput * sizeof(bool));
+  // expand rowSize to mark if col is null for top/bottom result(saveTupleData)
   return rowSize;
 }
 
@@ -83,7 +94,7 @@ int32_t resultrowComparAsc(const void* p1, const void* p2) {
 
 static int32_t resultrowComparDesc(const void* p1, const void* p2) { return resultrowComparAsc(p2, p1); }
 
-void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int32_t order) {
+void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, int32_t order) {
   if (pGroupResInfo->pRows != NULL) {
     taosArrayDestroy(pGroupResInfo->pRows);
   }
@@ -92,9 +103,10 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int
   void* pData = NULL;
   pGroupResInfo->pRows = taosArrayInit(10, POINTER_BYTES);
 
-  size_t keyLen = 0;
-  while ((pData = taosHashIterate(pHashmap, pData)) != NULL) {
-    void* key = taosHashGetKey(pData, &keyLen);
+  size_t  keyLen = 0;
+  int32_t iter = 0;
+  while ((pData = tSimpleHashIterate(pHashmap, pData, &iter)) != NULL) {
+    void* key = tSimpleHashGetKey(pData, &keyLen);
 
     SResKeyPos* p = taosMemoryMalloc(keyLen + sizeof(SResultRowPosition));
 
@@ -348,7 +360,7 @@ static int32_t createResultData(SDataType* pType, int32_t numOfRows, SScalarPara
 
   int32_t code = colInfoDataEnsureCapacity(pColumnData, numOfRows);
   if (code != TSDB_CODE_SUCCESS) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    terrno = code;
     taosMemoryFree(pColumnData);
     return terrno;
   }
@@ -366,6 +378,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
   SScalarParam output = {0};
 
   tagFilterAssist ctx = {0};
+
   ctx.colHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_SMALLINT), false, HASH_NO_LOCK);
   if (ctx.colHash == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -797,9 +810,15 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
     taosMemoryFreeClear(pColInfoData);
   }
 
-  for (int i = 0; i < taosArrayGetSize(res); i++) {
+  size_t numOfTables = taosArrayGetSize(res);
+  for (int i = 0; i < numOfTables; i++) {
     STableKeyInfo info = {.uid = *(uint64_t*)taosArrayGet(res, i), .groupId = 0};
-    taosArrayPush(pListInfo->pTableList, &info);
+    void* p = taosArrayPush(pListInfo->pTableList, &info);
+    if (p == NULL) {
+      taosArrayDestroy(res);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
     qDebug("tagfilter get uid:%ld", info.uid);
   }
 
@@ -935,15 +954,17 @@ SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     STargetNode* pNode = (STargetNode*)nodesListGetNode(pNodeList, i);
-    SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
+    if (nodeType(pNode->pExpr) == QUERY_NODE_COLUMN) {
+      SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
 
-    SColMatchInfo c = {0};
-    c.output = true;
-    c.colId = pColNode->colId;
-    c.srcSlotId = pColNode->slotId;
-    c.matchType = type;
-    c.targetSlotId = pNode->slotId;
-    taosArrayPush(pList, &c);
+      SColMatchInfo c = {0};
+      c.output = true;
+      c.colId = pColNode->colId;
+      c.srcSlotId = pColNode->slotId;
+      c.matchType = type;
+      c.targetSlotId = pNode->slotId;
+      taosArrayPush(pList, &c);
+    }
   }
 
   *numOfOutputCols = 0;
@@ -968,7 +989,8 @@ SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
 
     if (pNode->output) {
       (*numOfOutputCols) += 1;
-    } else {
+    } else if (info != NULL) {
+      // select distinct tbname from stb where tbname='abc';
       info->output = false;
     }
   }
@@ -1007,6 +1029,100 @@ static SColumn* createColumn(int32_t blockId, int32_t slotId, int32_t colId, SDa
   return pCol;
 }
 
+void createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode) {
+  pExp->pExpr = taosMemoryCalloc(1, sizeof(tExprNode));
+  pExp->pExpr->_function.num = 1;
+  pExp->pExpr->_function.functionId = -1;
+
+  int32_t type = nodeType(pTargetNode->pExpr);
+  // it is a project query, or group by column
+  if (type == QUERY_NODE_COLUMN) {
+    pExp->pExpr->nodeType = QUERY_NODE_COLUMN;
+    SColumnNode* pColNode = (SColumnNode*)pTargetNode->pExpr;
+
+    pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
+    pExp->base.numOfParams = 1;
+
+    SDataType* pType = &pColNode->node.resType;
+    pExp->base.resSchema = createResSchema(pType->type, pType->bytes, pTargetNode->slotId, pType->scale,
+                                           pType->precision, pColNode->colName);
+    pExp->base.pParam[0].pCol =
+        createColumn(pColNode->dataBlockId, pColNode->slotId, pColNode->colId, pType, pColNode->colType);
+    pExp->base.pParam[0].type = FUNC_PARAM_TYPE_COLUMN;
+  } else if (type == QUERY_NODE_VALUE) {
+    pExp->pExpr->nodeType = QUERY_NODE_VALUE;
+    SValueNode* pValNode = (SValueNode*)pTargetNode->pExpr;
+
+    pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
+    pExp->base.numOfParams = 1;
+
+    SDataType* pType = &pValNode->node.resType;
+    pExp->base.resSchema = createResSchema(pType->type, pType->bytes, pTargetNode->slotId, pType->scale,
+                                           pType->precision, pValNode->node.aliasName);
+    pExp->base.pParam[0].type = FUNC_PARAM_TYPE_VALUE;
+    nodesValueNodeToVariant(pValNode, &pExp->base.pParam[0].param);
+  } else if (type == QUERY_NODE_FUNCTION) {
+    pExp->pExpr->nodeType = QUERY_NODE_FUNCTION;
+    SFunctionNode* pFuncNode = (SFunctionNode*)pTargetNode->pExpr;
+
+    SDataType* pType = &pFuncNode->node.resType;
+    pExp->base.resSchema = createResSchema(pType->type, pType->bytes, pTargetNode->slotId, pType->scale,
+                                           pType->precision, pFuncNode->node.aliasName);
+
+    pExp->pExpr->_function.functionId = pFuncNode->funcId;
+    pExp->pExpr->_function.pFunctNode = pFuncNode;
+
+    strncpy(pExp->pExpr->_function.functionName, pFuncNode->functionName,
+            tListLen(pExp->pExpr->_function.functionName));
+#if 1
+    // todo refactor: add the parameter for tbname function
+    if (!pFuncNode->pParameterList && (strcmp(pExp->pExpr->_function.functionName, "tbname") == 0)) {
+      pFuncNode->pParameterList = nodesMakeList();
+      ASSERT(LIST_LENGTH(pFuncNode->pParameterList) == 0);
+      SValueNode* res = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+      if (NULL == res) {  // todo handle error
+      } else {
+        res->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_BIGINT};
+        nodesListAppend(pFuncNode->pParameterList, (SNode*)res);
+      }
+    }
+#endif
+
+    int32_t numOfParam = LIST_LENGTH(pFuncNode->pParameterList);
+
+    pExp->base.pParam = taosMemoryCalloc(numOfParam, sizeof(SFunctParam));
+    pExp->base.numOfParams = numOfParam;
+
+    for (int32_t j = 0; j < numOfParam; ++j) {
+      SNode* p1 = nodesListGetNode(pFuncNode->pParameterList, j);
+      if (p1->type == QUERY_NODE_COLUMN) {
+        SColumnNode* pcn = (SColumnNode*)p1;
+
+        pExp->base.pParam[j].type = FUNC_PARAM_TYPE_COLUMN;
+        pExp->base.pParam[j].pCol =
+            createColumn(pcn->dataBlockId, pcn->slotId, pcn->colId, &pcn->node.resType, pcn->colType);
+      } else if (p1->type == QUERY_NODE_VALUE) {
+        SValueNode* pvn = (SValueNode*)p1;
+        pExp->base.pParam[j].type = FUNC_PARAM_TYPE_VALUE;
+        nodesValueNodeToVariant(pvn, &pExp->base.pParam[j].param);
+      }
+    }
+  } else if (type == QUERY_NODE_OPERATOR) {
+    pExp->pExpr->nodeType = QUERY_NODE_OPERATOR;
+    SOperatorNode* pNode = (SOperatorNode*)pTargetNode->pExpr;
+
+    pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
+    pExp->base.numOfParams = 1;
+
+    SDataType* pType = &pNode->node.resType;
+    pExp->base.resSchema = createResSchema(pType->type, pType->bytes, pTargetNode->slotId, pType->scale,
+                                           pType->precision, pNode->node.aliasName);
+    pExp->pExpr->_optrRoot.pRootNode = pTargetNode->pExpr;
+  } else {
+    ASSERT(0);
+  }
+}
+
 SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* numOfExprs) {
   int32_t numOfFuncs = LIST_LENGTH(pNodeList);
   int32_t numOfGroupKeys = 0;
@@ -1030,98 +1146,7 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
     }
 
     SExprInfo* pExp = &pExprs[i];
-
-    pExp->pExpr = taosMemoryCalloc(1, sizeof(tExprNode));
-    pExp->pExpr->_function.num = 1;
-    pExp->pExpr->_function.functionId = -1;
-
-    int32_t type = nodeType(pTargetNode->pExpr);
-    // it is a project query, or group by column
-    if (type == QUERY_NODE_COLUMN) {
-      pExp->pExpr->nodeType = QUERY_NODE_COLUMN;
-      SColumnNode* pColNode = (SColumnNode*)pTargetNode->pExpr;
-
-      pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
-      pExp->base.numOfParams = 1;
-
-      SDataType* pType = &pColNode->node.resType;
-      pExp->base.resSchema = createResSchema(pType->type, pType->bytes, pTargetNode->slotId, pType->scale,
-                                             pType->precision, pColNode->colName);
-      pExp->base.pParam[0].pCol =
-          createColumn(pColNode->dataBlockId, pColNode->slotId, pColNode->colId, pType, pColNode->colType);
-      pExp->base.pParam[0].type = FUNC_PARAM_TYPE_COLUMN;
-    } else if (type == QUERY_NODE_VALUE) {
-      pExp->pExpr->nodeType = QUERY_NODE_VALUE;
-      SValueNode* pValNode = (SValueNode*)pTargetNode->pExpr;
-
-      pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
-      pExp->base.numOfParams = 1;
-
-      SDataType* pType = &pValNode->node.resType;
-      pExp->base.resSchema = createResSchema(pType->type, pType->bytes, pTargetNode->slotId, pType->scale,
-                                             pType->precision, pValNode->node.aliasName);
-      pExp->base.pParam[0].type = FUNC_PARAM_TYPE_VALUE;
-      nodesValueNodeToVariant(pValNode, &pExp->base.pParam[0].param);
-    } else if (type == QUERY_NODE_FUNCTION) {
-      pExp->pExpr->nodeType = QUERY_NODE_FUNCTION;
-      SFunctionNode* pFuncNode = (SFunctionNode*)pTargetNode->pExpr;
-
-      SDataType* pType = &pFuncNode->node.resType;
-      pExp->base.resSchema = createResSchema(pType->type, pType->bytes, pTargetNode->slotId, pType->scale,
-                                             pType->precision, pFuncNode->node.aliasName);
-
-      pExp->pExpr->_function.functionId = pFuncNode->funcId;
-      pExp->pExpr->_function.pFunctNode = pFuncNode;
-
-      strncpy(pExp->pExpr->_function.functionName, pFuncNode->functionName,
-              tListLen(pExp->pExpr->_function.functionName));
-#if 1
-      // todo refactor: add the parameter for tbname function
-      if (!pFuncNode->pParameterList && (strcmp(pExp->pExpr->_function.functionName, "tbname") == 0)) {
-        pFuncNode->pParameterList = nodesMakeList();
-        ASSERT(LIST_LENGTH(pFuncNode->pParameterList) == 0);
-        SValueNode* res = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
-        if (NULL == res) {  // todo handle error
-        } else {
-          res->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_BIGINT};
-          nodesListAppend(pFuncNode->pParameterList, (SNode*)res);
-        }
-      }
-#endif
-
-      int32_t numOfParam = LIST_LENGTH(pFuncNode->pParameterList);
-
-      pExp->base.pParam = taosMemoryCalloc(numOfParam, sizeof(SFunctParam));
-      pExp->base.numOfParams = numOfParam;
-
-      for (int32_t j = 0; j < numOfParam; ++j) {
-        SNode* p1 = nodesListGetNode(pFuncNode->pParameterList, j);
-        if (p1->type == QUERY_NODE_COLUMN) {
-          SColumnNode* pcn = (SColumnNode*)p1;
-
-          pExp->base.pParam[j].type = FUNC_PARAM_TYPE_COLUMN;
-          pExp->base.pParam[j].pCol =
-              createColumn(pcn->dataBlockId, pcn->slotId, pcn->colId, &pcn->node.resType, pcn->colType);
-        } else if (p1->type == QUERY_NODE_VALUE) {
-          SValueNode* pvn = (SValueNode*)p1;
-          pExp->base.pParam[j].type = FUNC_PARAM_TYPE_VALUE;
-          nodesValueNodeToVariant(pvn, &pExp->base.pParam[j].param);
-        }
-      }
-    } else if (type == QUERY_NODE_OPERATOR) {
-      pExp->pExpr->nodeType = QUERY_NODE_OPERATOR;
-      SOperatorNode* pNode = (SOperatorNode*)pTargetNode->pExpr;
-
-      pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
-      pExp->base.numOfParams = 1;
-
-      SDataType* pType = &pNode->node.resType;
-      pExp->base.resSchema = createResSchema(pType->type, pType->bytes, pTargetNode->slotId, pType->scale,
-                                             pType->precision, pNode->node.aliasName);
-      pExp->pExpr->_optrRoot.pRootNode = pTargetNode->pExpr;
-    } else {
-      ASSERT(0);
-    }
+    createExprFromTargetNode(pExp, pTargetNode);
   }
 
   return pExprs;
@@ -1175,7 +1200,6 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     SqlFunctionCtx* pCtx = &pFuncCtx[i];
 
     pCtx->functionId = -1;
-    pCtx->curBufPage = -1;
     pCtx->pExpr = pExpr;
 
     if (pExpr->pExpr->nodeType == QUERY_NODE_FUNCTION) {
@@ -1188,7 +1212,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
           fmGetFuncExecFuncs(pCtx->functionId, &pCtx->fpSet);
         } else {
           char* udfName = pExpr->pExpr->_function.pFunctNode->functionName;
-          strncpy(pCtx->udfName, udfName, strlen(udfName));
+          strncpy(pCtx->udfName, udfName, TSDB_FUNC_NAME_LEN);
           fmGetUdafExecFuncs(pCtx->functionId, &pCtx->fpSet);
         }
         pCtx->fpSet.getEnv(pExpr->pExpr->_function.pFunctNode, &env);
@@ -1216,10 +1240,10 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
     pCtx->start.key = INT64_MIN;
     pCtx->end.key = INT64_MIN;
     pCtx->numOfParams = pExpr->base.numOfParams;
-    pCtx->increase = false;
     pCtx->isStream = false;
 
     pCtx->param = pFunct->pParam;
+    pCtx->saveHandle.currentPage = -1;
   }
 
   for (int32_t i = 1; i < numOfOutput; ++i) {
@@ -1318,7 +1342,7 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   return TSDB_CODE_SUCCESS;
 }
 
-void cleanupQueryTableDataCond(SQueryTableDataCond* pCond) { taosMemoryFree(pCond->colList); }
+void cleanupQueryTableDataCond(SQueryTableDataCond* pCond) { taosMemoryFreeClear(pCond->colList); }
 
 int32_t convertFillType(int32_t mode) {
   int32_t type = TSDB_FILL_NONE;

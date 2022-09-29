@@ -106,6 +106,8 @@ void    mndPostProcessQueryMsg(SRpcMsg *pMsg);
  */
 void mndGenerateMachineCode();
 
+void mndDumpSdb();
+
 #ifdef __cplusplus
 }
 #endif

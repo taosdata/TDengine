@@ -22,6 +22,7 @@
 #include "tbuffer.h"
 #include "tcommon.h"
 #include "tpagedbuf.h"
+#include "tsimplehash.h"
 
 #define T_LONG_JMP(_obj, _c) \
   do {                       \
@@ -86,9 +87,8 @@ struct SqlFunctionCtx;
 
 size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void   initResultRowInfo(SResultRowInfo* pResultRowInfo);
-
-void initResultRow(SResultRow* pResultRow);
-void closeResultRow(SResultRow* pResultRow);
+void   closeResultRow(SResultRow* pResultRow);
+void   resetResultRow(SResultRow* pResultRow, size_t entrySize);
 
 struct SResultRowEntryInfo* getResultEntryInfo(const SResultRow* pRow, int32_t index, const int32_t* offset);
 
@@ -106,7 +106,7 @@ static FORCE_INLINE void setResultBufPageDirty(SDiskbasedBuf* pBuf, SResultRowPo
   setBufPageDirty(pPage, true);
 }
 
-void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int32_t order);
+void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, int32_t order);
 void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
 
 void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
@@ -127,6 +127,7 @@ SArray*  extractPartitionColInfo(SNodeList* pNodeList);
 SArray*  extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
                              int32_t type);
 
+void createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode);
 SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* numOfExprs);
 
 SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowEntryInfoOffset);

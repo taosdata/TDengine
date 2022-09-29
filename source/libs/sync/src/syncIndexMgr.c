@@ -20,7 +20,10 @@
 
 SSyncIndexMgr *syncIndexMgrCreate(SSyncNode *pSyncNode) {
   SSyncIndexMgr *pSyncIndexMgr = taosMemoryMalloc(sizeof(SSyncIndexMgr));
-  ASSERT(pSyncIndexMgr != NULL);
+  if (pSyncIndexMgr == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
   memset(pSyncIndexMgr, 0, sizeof(SSyncIndexMgr));
 
   pSyncIndexMgr->replicas = &(pSyncNode->replicasId);
@@ -163,6 +166,7 @@ int64_t syncIndexMgrGetStartTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pR
     }
   }
   ASSERT(0);
+  return -1;
 }
 
 void syncIndexMgrSetRecvTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, int64_t recvTime) {
@@ -190,6 +194,7 @@ int64_t syncIndexMgrGetRecvTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRa
     }
   }
   ASSERT(0);
+  return -1;
 }
 
 // for debug -------------------
@@ -245,4 +250,5 @@ SyncTerm syncIndexMgrGetTerm(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftI
     }
   }
   ASSERT(0);
+  return -1;
 }

@@ -143,8 +143,11 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
     cpuInfo->user = CompareFileTime(&pre_userTime, &userTime);
     cpuInfo->nice = 0;
   }
-#elif defined(_TD_DARWIN_64)
-  assert(0);
+#elif defined(DARWIN)
+  cpuInfo->idle = 0;
+  cpuInfo->system = 0;
+  cpuInfo->user = 0;
+  cpuInfo->nice = 0;
 #else
   TdFilePtr pFile = taosOpenFile(tsSysCpuFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
@@ -180,8 +183,11 @@ static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
     cpuInfo->cutime = 0;
     cpuInfo->cstime = 0;
 	}
-#elif defined(_TD_DARWIN_64)
-  assert(0);
+#elif defined(DARWIN)
+  cpuInfo->stime = 0;
+  cpuInfo->utime = 0;
+  cpuInfo->cutime = 0;
+  cpuInfo->cstime = 0;
 #else
   TdFilePtr pFile = taosOpenFile(tsProcCpuFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
@@ -344,30 +350,27 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
   *numOfCores = si.dwNumberOfProcessors;
   return 0;
 #elif defined(_TD_DARWIN_64)
-  char   *line = NULL;
-  size_t  size = 0;
+  char    buf[16];
   int32_t done = 0;
   int32_t code = -1;
 
-  TdFilePtr pFile = taosOpenFile("/proc/cpuinfo", TD_FILE_READ | TD_FILE_STREAM);
-  if (pFile == NULL) return false;
-
-  while (done != 3 && (size = taosGetLineFile(pFile, &line)) != -1) {
-    line[size - 1] = '\0';
-    if (((done & 1) == 0) && strncmp(line, "model name", 10) == 0) {
-      const char *v = strchr(line, ':') + 2;
-      tstrncpy(cpuModel, v, maxLen);
-      code = 0;
-      done |= 1;
-    } else if (((done & 2) == 0) && strncmp(line, "cpu cores", 9) == 0) {
-      const char *v = strchr(line, ':') + 2;
-      *numOfCores = atof(v);
-      done |= 2;
-    }
+  TdCmdPtr pCmd = taosOpenCmd("sysctl -n machdep.cpu.brand_string");
+  if (pCmd == NULL) return code;
+  if (taosGetsCmd(pCmd, maxLen, cpuModel) > 0) {
+    code = 0;
+    done |= 1;
   }
+  taosCloseCmd(&pCmd);
 
-  if (line != NULL) taosMemoryFree(line);
-  taosCloseFile(&pFile);
+  pCmd = taosOpenCmd("sysctl -n machdep.cpu.core_count");
+  if (pCmd == NULL) return code;
+  memset(buf, 0, sizeof(buf));
+  if (taosGetsCmd(pCmd, sizeof(buf) - 1, buf) > 0) {
+    code = 0;
+    done |= 2;
+    *numOfCores = atof(buf);
+  }
+  taosCloseCmd(&pCmd);
 
   return code;
 #else
@@ -595,6 +598,7 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
 #else
   struct statvfs info;
   if (statvfs(dataDir, &info)) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   } else {
     diskSize->total = info.f_blocks * info.f_frsize;

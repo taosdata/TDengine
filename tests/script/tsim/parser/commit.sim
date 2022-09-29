@@ -97,6 +97,7 @@ while $loop <= $loops
   endw
   sql select count(*) from $stb
   if $data00 != $totalNum then
+    print expect $totalNum , actual: $data00
     return -1
   endi
   $loop = $loop + 1

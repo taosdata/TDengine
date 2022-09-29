@@ -36,8 +36,13 @@ typedef struct STSRow2       STSRow2;
 typedef struct STSRowBuilder STSRowBuilder;
 typedef struct STagVal       STagVal;
 typedef struct STag          STag;
+typedef struct SColData      SColData;
 
-// bitmap
+#define HAS_NONE  ((uint8_t)0x1)
+#define HAS_NULL  ((uint8_t)0x2)
+#define HAS_VALUE ((uint8_t)0x4)
+
+// bitmap ================================
 const static uint8_t BIT2_MAP[4][4] = {{0b00000000, 0b00000001, 0b00000010, 0},
                                        {0b00000000, 0b00000100, 0b00001000, 2},
                                        {0b00000000, 0b00010000, 0b00100000, 4},
@@ -51,21 +56,29 @@ const static uint8_t BIT2_MAP[4][4] = {{0b00000000, 0b00000001, 0b00000010, 0},
 #define SET_BIT2(p, i, v) ((p)[(i) >> 2] = (p)[(i) >> 2] & N1(BIT2_MAP[(i)&3][3]) | BIT2_MAP[(i)&3][(v)])
 #define GET_BIT2(p, i)    (((p)[(i) >> 2] >> BIT2_MAP[(i)&3][3]) & ((uint8_t)3))
 
-// STSchema
+// STSchema ================================
 int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema **ppTSchema);
 void    tTSchemaDestroy(STSchema *pTSchema);
 
-// SValue
+// SValue ================================
 int32_t tPutValue(uint8_t *p, SValue *pValue, int8_t type);
 int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type);
 int     tValueCmprFn(const SValue *pValue1, const SValue *pValue2, int8_t type);
 
-// SColVal
-#define COL_VAL_NONE(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .isNone = 1})
-#define COL_VAL_NULL(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .isNull = 1})
+// SColVal ================================
+#define CV_FLAG_VALUE ((int8_t)0x0)
+#define CV_FLAG_NONE  ((int8_t)0x1)
+#define CV_FLAG_NULL  ((int8_t)0x2)
+
+#define COL_VAL_NONE(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .flag = CV_FLAG_NONE})
+#define COL_VAL_NULL(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .flag = CV_FLAG_NULL})
 #define COL_VAL_VALUE(CID, TYPE, V) ((SColVal){.cid = (CID), .type = (TYPE), .value = (V)})
 
-// STSRow2
+#define COL_VAL_IS_NONE(CV)  ((CV)->flag == CV_FLAG_NONE)
+#define COL_VAL_IS_NULL(CV)  ((CV)->flag == CV_FLAG_NULL)
+#define COL_VAL_IS_VALUE(CV) ((CV)->flag == CV_FLAG_VALUE)
+
+// STSRow2 ================================
 #define TSROW_LEN(PROW, V)  tGetI32v((uint8_t *)(PROW)->data, (V) ? &(V) : NULL)
 #define TSROW_SVER(PROW, V) tGetI32v((PROW)->data + TSROW_LEN(PROW, NULL), (V) ? &(V) : NULL)
 
@@ -77,7 +90,7 @@ int32_t tTSRowToArray(STSRow2 *pRow, STSchema *pTSchema, SArray **ppArray);
 int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow);
 int32_t tGetTSRow(uint8_t *p, STSRow2 **ppRow);
 
-// STSRowBuilder
+// STSRowBuilder ================================
 #define tsRowBuilderInit() ((STSRowBuilder){0})
 #define tsRowBuilderClear(B)     \
   do {                           \
@@ -86,7 +99,7 @@ int32_t tGetTSRow(uint8_t *p, STSRow2 **ppRow);
     }                            \
   } while (0)
 
-// STag
+// STag ================================
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
 void    tTagFree(STag *pTag);
 bool    tTagIsJson(const void *pTag);
@@ -96,10 +109,20 @@ char   *tTagValToData(const STagVal *pTagVal, bool isJson);
 int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray);
+void    tTagSetCid(const STag *pTag, int16_t iTag, int16_t cid);
 void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);  // TODO: remove
 int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, void *pMsgBuf);
 
-// STRUCT =================
+// SColData ================================
+void    tColDataDestroy(void *ph);
+void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn);
+void    tColDataClear(SColData *pColData);
+int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
+void    tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
+uint8_t tColDataGetBitValue(SColData *pColData, int32_t iVal);
+int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest);
+
+// STRUCT ================================
 struct STColumn {
   col_id_t colId;
   int8_t   type;
@@ -160,9 +183,20 @@ struct SValue {
 struct SColVal {
   int16_t cid;
   int8_t  type;
-  int8_t  isNone;
-  int8_t  isNull;
+  int8_t  flag;
   SValue  value;
+};
+
+struct SColData {
+  int16_t  cid;
+  int8_t   type;
+  int8_t   smaOn;
+  int32_t  nVal;
+  uint8_t  flag;
+  uint8_t *pBitMap;
+  int32_t *aOffset;
+  int32_t  nData;
+  uint8_t *pData;
 };
 
 #pragma pack(push, 1)

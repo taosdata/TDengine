@@ -113,6 +113,8 @@ SDiskSize tfsGetSize(STfs *pTfs) {
   return size;
 }
 
+int32_t tfsGetLevel(STfs *pTfs) { return pTfs->nlevel; }
+
 int32_t tfsAllocDisk(STfs *pTfs, int32_t expLevel, SDiskID *pDiskId) {
   pDiskId->level = expLevel;
   pDiskId->id = -1;

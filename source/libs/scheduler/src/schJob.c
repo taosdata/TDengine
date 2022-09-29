@@ -47,8 +47,7 @@ void schUpdateJobErrCode(SSchJob *pJob, int32_t errCode) {
   return;
 
 _return:
-
-  SCH_JOB_DLOG("job errCode updated to %x - %s", errCode, tstrerror(errCode));
+  SCH_JOB_DLOG("job errCode updated to %s", tstrerror(errCode));
 }
 
 bool schJobDone(SSchJob *pJob) {
@@ -491,7 +490,7 @@ int32_t schProcessOnJobFailure(SSchJob *pJob, int32_t errCode) {
   
   int32_t code = atomic_load_32(&pJob->errCode);
   if (code) {
-    SCH_JOB_DLOG("job failed with error: %s", tstrerror(code));
+    SCH_JOB_DLOG("job failed with error %s", tstrerror(code));
   }
 
   schPostJobRes(pJob, 0);
@@ -673,6 +672,7 @@ void schFreeJobImpl(void *job) {
   destroyQueryExecRes(&pJob->execRes);
 
   qDestroyQueryPlan(pJob->pDag);
+  nodesReleaseAllocatorWeakRef(pJob->allocatorRefId);
 
   taosMemoryFreeClear(pJob->userRes.execRes);
   taosMemoryFreeClear(pJob->fetchRes);
@@ -719,11 +719,13 @@ int32_t schInitJob(int64_t *pJobId, SSchedulerReq *pReq) {
   }
 
   pJob->attr.explainMode = pReq->pDag->explainInfo.mode;
+  pJob->attr.localExec = pReq->localReq;
   pJob->conn = *pReq->pConn;
   if (pReq->sql) {
     pJob->sql = strdup(pReq->sql);
   }
   pJob->pDag = pReq->pDag;
+  pJob->allocatorRefId = nodesMakeAllocatorWeakRef(pReq->allocatorRefId);
   pJob->chkKillFp = pReq->chkKillFp;
   pJob->chkKillParam = pReq->chkKillParam;
   pJob->userRes.execFp = pReq->execFp;

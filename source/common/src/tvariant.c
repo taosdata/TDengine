@@ -155,8 +155,8 @@ void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uin
 void taosVariantDestroy(SVariant *pVar) {
   if (pVar == NULL) return;
 
-  if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR
-     || pVar->nType == TSDB_DATA_TYPE_JSON) {
+  if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR ||
+      pVar->nType == TSDB_DATA_TYPE_JSON) {
     taosMemoryFreeClear(pVar->pz);
     pVar->nLen = 0;
   }
@@ -185,8 +185,8 @@ void taosVariantAssign(SVariant *pDst, const SVariant *pSrc) {
   if (pSrc == NULL || pDst == NULL) return;
 
   pDst->nType = pSrc->nType;
-  if (pSrc->nType == TSDB_DATA_TYPE_BINARY || pSrc->nType == TSDB_DATA_TYPE_NCHAR
-      || pSrc->nType == TSDB_DATA_TYPE_JSON) {
+  if (pSrc->nType == TSDB_DATA_TYPE_BINARY || pSrc->nType == TSDB_DATA_TYPE_NCHAR ||
+      pSrc->nType == TSDB_DATA_TYPE_JSON) {
     int32_t len = pSrc->nLen + TSDB_NCHAR_SIZE;
     char   *p = taosMemoryRealloc(pDst->pz, len);
     assert(p);

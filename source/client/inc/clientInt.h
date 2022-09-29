@@ -52,15 +52,17 @@ enum {
   RES_TYPE__QUERY = 1,
   RES_TYPE__TMQ,
   RES_TYPE__TMQ_META,
+  RES_TYPE__TMQ_METADATA,
 };
 
 #define SHOW_VARIABLES_RESULT_COLS       2
 #define SHOW_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
 #define SHOW_VARIABLES_RESULT_FIELD2_LEN (TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE)
 
-#define TD_RES_QUERY(res)    (*(int8_t*)res == RES_TYPE__QUERY)
-#define TD_RES_TMQ(res)      (*(int8_t*)res == RES_TYPE__TMQ)
-#define TD_RES_TMQ_META(res) (*(int8_t*)res == RES_TYPE__TMQ_META)
+#define TD_RES_QUERY(res)        (*(int8_t*)res == RES_TYPE__QUERY)
+#define TD_RES_TMQ(res)          (*(int8_t*)res == RES_TYPE__TMQ)
+#define TD_RES_TMQ_META(res)     (*(int8_t*)res == RES_TYPE__TMQ_META)
+#define TD_RES_TMQ_METADATA(res) (*(int8_t*)res == RES_TYPE__TMQ_METADATA)
 
 typedef struct SAppInstInfo SAppInstInfo;
 
@@ -101,6 +103,8 @@ typedef struct SQueryExecMetric {
   int64_t ctgStart;     // start to parse, us
   int64_t ctgEnd;       // end to parse, us
   int64_t semanticEnd;
+  int64_t planEnd;
+  int64_t resultReady;
   int64_t execEnd;
   int64_t send;  // start to send to server, us
   int64_t rsp;   // receive response from server, us
@@ -198,8 +202,8 @@ typedef struct {
   int32_t        vgId;
   SSchemaWrapper schema;
   int32_t        resIter;
-  SMqDataRsp     rsp;
   SReqResultInfo resInfo;
+  SMqDataRsp     rsp;
 } SMqRspObj;
 
 typedef struct {
@@ -209,6 +213,17 @@ typedef struct {
   int32_t    vgId;
   SMqMetaRsp metaRsp;
 } SMqMetaRspObj;
+
+typedef struct {
+  int8_t         resType;
+  char           topic[TSDB_TOPIC_FNAME_LEN];
+  char           db[TSDB_DB_FNAME_LEN];
+  int32_t        vgId;
+  SSchemaWrapper schema;
+  int32_t        resIter;
+  SReqResultInfo resInfo;
+  STaosxRsp      rsp;
+} SMqTaosxRspObj;
 
 typedef struct SRequestObj {
   int8_t               resType;  // query or tmq
@@ -235,6 +250,8 @@ typedef struct SRequestObj {
   bool                 inRetry;
   uint32_t             prevCode;  // previous error code: todo refactor, add update flag for catalog
   uint32_t             retry;
+  int64_t              allocatorRefId;
+  SQuery*              pQuery;
 } SRequestObj;
 
 typedef struct SSyncQueryParam {
@@ -369,7 +386,7 @@ void         launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* 
 int32_t      refreshMeta(STscObj* pTscObj, SRequestObj* pRequest);
 int32_t      updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList);
 void         doAsyncQuery(SRequestObj* pRequest, bool forceUpdateMeta);
-int32_t      removeMeta(STscObj* pTscObj, SArray* tbList);  
+int32_t      removeMeta(STscObj* pTscObj, SArray* tbList);
 int32_t      handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);
 int32_t      handleCreateTbExecRes(void* res, SCatalog* pCatalog);
 bool         qnodeRequired(SRequestObj* pRequest);

@@ -38,7 +38,6 @@ static SSdbRow *mndSmaActionDecode(SSdbRaw *pRaw);
 static int32_t  mndSmaActionInsert(SSdb *pSdb, SSmaObj *pSma);
 static int32_t  mndSmaActionDelete(SSdb *pSdb, SSmaObj *pSpSmatb);
 static int32_t  mndSmaActionUpdate(SSdb *pSdb, SSmaObj *pOld, SSmaObj *pNew);
-static int32_t  mndSmaGetVgEpSet(SMnode *pMnode, SDbObj *pDb, SVgEpSet **ppVgEpSet, int32_t *numOfVgroups);
 static int32_t  mndProcessCreateSmaReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropSmaReq(SRpcMsg *pReq);
 static int32_t  mndProcessGetSmaReq(SRpcMsg *pReq);
@@ -588,11 +587,11 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   nodesDestroyNode((SNode *)pPlan);
 
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "create-sma");
   if (pTrans == NULL) goto _OVER;
   mndTransSetDbName(pTrans, pDb->name, NULL);
   mndTransSetSerial(pTrans);
-  mDebug("trans:%d, used to create sma:%s stream:%s", pTrans->id, pCreate->name, streamObj.name);
+  mInfo("trans:%d, used to create sma:%s stream:%s", pTrans->id, pCreate->name, streamObj.name);
 
   if (mndSetCreateSmaRedoLogs(pMnode, pTrans, &smaObj) != 0) goto _OVER;
   if (mndSetCreateSmaVgroupRedoLogs(pMnode, pTrans, &streamObj.fixedSinkVg) != 0) goto _OVER;
@@ -604,8 +603,8 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   if (mndPersistStream(pMnode, pTrans, &streamObj) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
-  mDebug("mndSma: create sma index %s %" PRIi64 " on stb:%" PRIi64 ", dstSuid:%" PRIi64 " dstTb:%s dstVg:%d",
-         pCreate->name, smaObj.uid, smaObj.stbUid, smaObj.dstTbUid, smaObj.dstTbName, smaObj.dstVgId);
+  mInfo("sma:%s, uid:%" PRIi64 " create on stb:%" PRIi64 ", dstSuid:%" PRIi64 " dstTb:%s dstVg:%d", pCreate->name,
+         smaObj.uid, smaObj.stbUid, smaObj.dstTbUid, smaObj.dstTbName, smaObj.dstVgId);
 
   code = 0;
 
@@ -666,7 +665,7 @@ static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mDebug("sma:%s, start to create", createReq.name);
+  mInfo("sma:%s, start to create", createReq.name);
   if (mndCheckCreateSmaReq(&createReq) != 0) {
     goto _OVER;
   }
@@ -690,7 +689,7 @@ static int32_t mndProcessCreateSmaReq(SRpcMsg *pReq) {
   pSma = mndAcquireSma(pMnode, createReq.name);
   if (pSma != NULL) {
     if (createReq.igExists) {
-      mDebug("sma:%s, already exist in sma:%s, ignore exist is set", createReq.name, pSma->name);
+      mInfo("sma:%s, already exist in sma:%s, ignore exist is set", createReq.name, pSma->name);
       code = 0;
       goto _OVER;
     } else {
@@ -800,10 +799,10 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
   pStb = mndAcquireStb(pMnode, pSma->stb);
   if (pStb == NULL) goto _OVER;
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq);
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_DB, pReq, "drop-sma");
   if (pTrans == NULL) goto _OVER;
 
-  mDebug("trans:%d, used to drop sma:%s", pTrans->id, pSma->name);
+  mInfo("trans:%d, used to drop sma:%s", pTrans->id, pSma->name);
   mndTransSetDbName(pTrans, pDb->name, NULL);
   mndTransSetSerial(pTrans);
 
@@ -841,6 +840,7 @@ static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *p
 
 _OVER:
   mndTransDrop(pTrans);
+  mndReleaseStream(pMnode, pStream);
   mndReleaseVgroup(pMnode, pVgroup);
   mndReleaseStb(pMnode, pStb);
   return code;
@@ -929,12 +929,12 @@ static int32_t mndProcessDropSmaReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mDebug("sma:%s, start to drop", dropReq.name);
+  mInfo("sma:%s, start to drop", dropReq.name);
 
   pSma = mndAcquireSma(pMnode, dropReq.name);
   if (pSma == NULL) {
     if (dropReq.igNotExists) {
-      mDebug("sma:%s, not exist, ignore not exist is set", dropReq.name);
+      mInfo("sma:%s, not exist, ignore not exist is set", dropReq.name);
       code = 0;
       goto _OVER;
     } else {
@@ -961,6 +961,7 @@ _OVER:
     mError("sma:%s, failed to drop since %s", dropReq.name, terrstr());
   }
 
+  mndReleaseSma(pMnode, pSma);
   mndReleaseDb(pMnode, pDb);
   return code;
 }

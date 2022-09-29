@@ -5,7 +5,7 @@ print ========= start dnode1 as master
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
-print ======== step1 
+print ======== step1
 sql create database d1 replica 1 duration 7 keep 50
 sql use d1
 sql create table tb (ts timestamp, a int)
