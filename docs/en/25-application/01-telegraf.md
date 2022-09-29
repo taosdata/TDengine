@@ -60,7 +60,6 @@ For the configuration method, add the following text to `/etc/telegraf/telegraf.
   username = "<TDengine's username>"
   password = "<TDengine's password>"
   data_format = "influx"
-  influx_max_line_bytes = 250
 ```
 
 Then restart telegraf:
