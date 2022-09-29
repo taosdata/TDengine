@@ -8,7 +8,7 @@ Telegraf is an open-source, metrics collection software. Telegraf can collect th
 
 Telegraf's data can be written to TDengine by simply adding the output configuration of Telegraf to the URL corresponding to taosAdapter and modifying several configuration items. The presence of Telegraf data in TDengine can take advantage of TDengine's efficient storage query performance and clustering capabilities for time-series data.
 
-## Prerequisiteis
+## Prerequisites
 
 Before telegraf can write data into TDengine cloud service, you need to firstly manually create a database. Log in TDengine Cloud, click "Explorer" on the left navigation bar, then click the "+" button besides "Databases" to add a database named as "telegraf" using all default parameters.
 
@@ -82,6 +82,11 @@ show telegraf.stables;
 
 ![TDengine Cloud show telegraf stables](./telegraf-show-stables.webp)
 
+:::note
 
-
+- Telegraf collects the running status measurements of current system. You can enable [input plugins](https://docs.influxdata.com/telegraf/v1.22/plugins/) to insert [other formats](https://docs.influxdata.com/telegraf/v1.24/data_formats/input/) data to Telegraf then forward to TDengine.
+- TDengine take influxdb format data and create unique ID for table names by the rule.
+The user can configure `smlChildTableName` parameter to generate specified table names if he/she needs. And he/she also need to insert data with specified data format.
+For example, Add `smlChildTableName=tname` in the taos.cfg file. Insert data `st,tname=cpu1,t1=4 c1=3 1626006833639000000` then the table name will be cpu1. If there are multiple lines has same tname but different tag_set, the first line's tag_set will be used to automatically creating table and ignore other lines. Please refer to [TDengine Schemaless](/reference/schemaless/#Schemaless-Line-Protocol)
+:::
 
