@@ -27,6 +27,7 @@
 #include "tcompression.h"
 
 static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list, SNode* pTagCond);
+static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* list, SNode* pTagCond);
 
 void initResultRowInfo(SResultRowInfo* pResultRowInfo) {
   pResultRowInfo->size = 0;
@@ -750,7 +751,43 @@ end:
   return code;
 }
 
-static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list, SNode* pTagCond) {
+static int tableUidCompare(const void* a, const void* b) {
+  uint64_t u1 = *(uint64_t*)a;
+  uint64_t u2 = *(uint64_t*)b;
+  if (u1 == u2) {
+    return 0;
+  }
+  return u1 < u2 ? -1 : 1;
+}
+static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list, SNode* cond) {
+  if (nodeType(cond) == QUERY_NODE_OPERATOR) {
+    return optimizeTbnameInCondImpl(metaHandle, suid, list, cond);
+  }
+
+  if (nodeType(cond) != QUERY_NODE_LOGIC_CONDITION || ((SLogicConditionNode*)cond)->condType != LOGIC_COND_TYPE_AND) {
+    return -1;
+  }
+
+  SLogicConditionNode* pNode = (SLogicConditionNode*)cond;
+  SNodeListNode*       pList = (SNodeListNode*)pNode->pParameterList;
+  int32_t              len = LIST_LENGTH(pList->pNodeList);
+
+  bool hasTbnameCond = false;
+  if (len <= 0) return -1;
+
+  SListCell* cell = pList->pNodeList->pHead;
+  for (int i = 0; i < len; i++) {
+    if (cell && optimizeTbnameInCondImpl(metaHandle, suid, list, cell->pNode) == 0) {
+      hasTbnameCond = true;
+    }
+    cell = cell->pNext;
+  }
+  taosArraySort(list, tableUidCompare);
+  taosArrayRemoveDuplicate(list, tableUidCompare, NULL);
+
+  return hasTbnameCond == true ? 0 : -1;
+}
+static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* list, SNode* pTagCond) {
   if (nodeType(pTagCond) != QUERY_NODE_OPERATOR) {
     return -1;
   }
@@ -777,7 +814,6 @@ static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list
       }
       char* name = varDataVal(valueNode->datum.p);
       taosArrayPush(pTbList, &name);
-
       cell = cell->pNext;
     }
 
