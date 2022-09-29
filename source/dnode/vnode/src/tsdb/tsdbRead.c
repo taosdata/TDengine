@@ -486,7 +486,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
   pReader->pTsdb = getTsdbByRetentions(pVnode, pCond->twindows.skey, pVnode->config.tsdbCfg.retentions, idstr, &level);
   pReader->suid = pCond->suid;
   pReader->order = pCond->order;
-  pReader->capacity = 4096;
+  pReader->capacity = capacity;
   pReader->idStr = (idstr != NULL) ? strdup(idstr) : NULL;
   pReader->verRange = getQueryVerRange(pVnode, pCond, level);
   pReader->type = pCond->type;
@@ -841,14 +841,18 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
   bool    asc = ASCENDING_TRAVERSE(pReader->order);
   int32_t step = asc ? 1 : -1;
 
-  if (asc && pReader->window.skey <= pBlock->minKey.ts) {
-    pDumpInfo->rowIndex = 0;
-  } else if (!asc && pReader->window.ekey >= pBlock->maxKey.ts) {
-    pDumpInfo->rowIndex = pBlock->nRow - 1;
-  } else {
-    int32_t pos = asc ? pBlock->nRow - 1 : 0;
-    int32_t order = (pReader->order == TSDB_ORDER_ASC) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC;
-    pDumpInfo->rowIndex = doBinarySearchKey(pBlockData->aTSKEY, pBlock->nRow, pos, pReader->window.skey, order);
+
+  if ((pDumpInfo->rowIndex == 0 && asc) || (pDumpInfo->rowIndex == pBlock->nRow - 1 && (!asc))) {
+    if (asc && pReader->window.skey <= pBlock->minKey.ts) {
+      //pDumpInfo->rowIndex = 0;
+    } else 
+    if (!asc && pReader->window.ekey >= pBlock->maxKey.ts) {
+      //pDumpInfo->rowIndex = pBlock->nRow - 1;
+    } else {
+      int32_t pos = asc ? pBlock->nRow - 1 : 0;
+      int32_t order = (pReader->order == TSDB_ORDER_ASC) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC;
+      pDumpInfo->rowIndex = doBinarySearchKey(pBlockData->aTSKEY, pBlock->nRow, pos, pReader->window.skey, order);
+    }
   }
 
   // time window check
@@ -932,8 +936,8 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
   pDumpInfo->rowIndex += step * remain;
 
   if (pDumpInfo->rowIndex >= 0 && pDumpInfo->rowIndex < pBlock->nRow) {
-    int64_t ts = pBlockData->aTSKEY[pDumpInfo->rowIndex];
-    setBlockAllDumped(pDumpInfo, ts, pReader->order);
+//    int64_t ts = pBlockData->aTSKEY[pDumpInfo->rowIndex];
+//    setBlockAllDumped(pDumpInfo, ts, pReader->order);
   } else {
     int64_t k = asc ? pBlock->maxKey.ts : pBlock->minKey.ts;
     setBlockAllDumped(pDumpInfo, k, pReader->order);
