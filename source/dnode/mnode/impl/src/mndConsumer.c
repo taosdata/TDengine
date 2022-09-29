@@ -272,6 +272,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
 
   SMqConsumerObj *pConsumer = mndAcquireConsumer(pMnode, consumerId);
   if (pConsumer == NULL) {
+    mError("consumer %ld not exist", consumerId);
     terrno = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
     return -1;
   }

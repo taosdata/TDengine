@@ -146,6 +146,7 @@ typedef struct {
   SMqMetaRsp   metaRsp;        // for tmq fetching meta
   int8_t       returned;
   int64_t      snapshotVer;
+  const SSubmitReq*  pReq;
 
   SSchemaWrapper*     schema;
   char                tbName[TSDB_TABLE_NAME_LEN];
@@ -192,6 +193,7 @@ enum {
   OP_OPENED = 0x1,
   OP_RES_TO_RETURN = 0x5,
   OP_EXEC_DONE = 0x9,
+  OP_EXEC_RECV = 0x11,
 };
 
 typedef struct SOperatorFpSet {

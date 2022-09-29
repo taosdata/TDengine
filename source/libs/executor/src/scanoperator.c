@@ -1435,6 +1435,43 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   SStreamScanInfo* pInfo = pOperator->info;
 
   qDebug("queue scan called");
+
+  if (pTaskInfo->streamInfo.pReq != NULL) {
+    if (pInfo->tqReader->pMsg == NULL) {
+      pInfo->tqReader->pMsg = pTaskInfo->streamInfo.pReq;
+      const SSubmitReq* pSubmit = pInfo->tqReader->pMsg;
+      if (tqReaderSetDataMsg(pInfo->tqReader, pSubmit, 0) < 0) {
+        qError("submit msg messed up when initing stream submit block %p", pSubmit);
+        pInfo->tqReader->pMsg = NULL;
+        pTaskInfo->streamInfo.pReq = NULL;
+        ASSERT(0);
+      }
+    }
+
+    blockDataCleanup(pInfo->pRes);
+    SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
+
+    while (tqNextDataBlock(pInfo->tqReader)) {
+      SSDataBlock block = {0};
+
+      int32_t code = tqRetrieveDataBlock(&block, pInfo->tqReader);
+
+      if (code != TSDB_CODE_SUCCESS || block.info.rows == 0) {
+        continue;
+      }
+
+      setBlockIntoRes(pInfo, &block);
+
+      if (pBlockInfo->rows > 0) {
+        return pInfo->pRes;
+      }
+    }
+
+    pInfo->tqReader->pMsg = NULL;
+    pTaskInfo->streamInfo.pReq = NULL;
+    return NULL;
+  }
+
   if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
     if (pResult && pResult->info.rows > 0) {
@@ -1467,8 +1504,8 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         if (setBlockIntoRes(pInfo, &ret.data) < 0) {
           ASSERT(0);
         }
-        // TODO clean data block
         if (pInfo->pRes->info.rows > 0) {
+          pOperator->status = OP_EXEC_RECV;
           qDebug("queue scan log return %d rows", pInfo->pRes->info.rows);
           return pInfo->pRes;
         }
@@ -1477,18 +1514,19 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         //        pTaskInfo->streamInfo.lastStatus = ret.offset;
         //        pTaskInfo->streamInfo.metaBlk = ret.meta;
         //        return NULL;
-      } else if (ret.fetchType == FETCH_TYPE__NONE) {
+      } else if (ret.fetchType == FETCH_TYPE__NONE ||
+                 (ret.fetchType == FETCH_TYPE__SEP && pOperator->status == OP_EXEC_RECV)) {
         pTaskInfo->streamInfo.lastStatus = ret.offset;
         ASSERT(pTaskInfo->streamInfo.lastStatus.version >= pTaskInfo->streamInfo.prepareStatus.version);
         ASSERT(pTaskInfo->streamInfo.lastStatus.version + 1 == pInfo->tqReader->pWalReader->curVersion);
         char formatBuf[80];
         tFormatOffset(formatBuf, 80, &ret.offset);
         qDebug("queue scan log return null, offset %s", formatBuf);
+        pOperator->status = OP_OPENED;
         return NULL;
-      } else {
-        ASSERT(0);
       }
     }
+#if 0
   } else if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
     if (pResult && pResult->info.rows > 0) {
@@ -1497,6 +1535,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     }
     qDebug("stream scan tsdb return null");
     return NULL;
+#endif
   } else {
     ASSERT(0);
     return NULL;
