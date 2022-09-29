@@ -135,12 +135,14 @@ _OVER:
   if (content != NULL) taosMemoryFree(content);
   if (root != NULL) cJSON_Delete(root);
   if (pFile != NULL) taosCloseFile(&pFile);
+  if (*ppCfgs == NULL && pCfgs != NULL) taosMemoryFree(pCfgs);
 
   terrno = code;
   return code;
 }
 
 int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
+  int32_t ret = 0;
   char file[PATH_MAX] = {0};
   char realfile[PATH_MAX] = {0};
   snprintf(file, sizeof(file), "%s%svnodes.json.bak", pMgmt->path, TD_DIRSEP);
@@ -161,13 +163,16 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   char   *content = taosMemoryCalloc(1, maxLen + 1);
   if (content == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    ret = -1;
+    goto _OVER;
   }
 
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"vnodes\": [\n");
   for (int32_t i = 0; i < numOfVnodes; ++i) {
     SVnodeObj *pVnode = pVnodes[i];
+    if (pVnode == NULL) continue;
+
     len += snprintf(content + len, maxLen - len, "    {\n");
     len += snprintf(content + len, maxLen - len, "      \"vgId\": %d,\n", pVnode->vgId);
     len += snprintf(content + len, maxLen - len, "      \"dropped\": %d,\n", pVnode->dropped);
@@ -180,12 +185,13 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   }
   len += snprintf(content + len, maxLen - len, "  ]\n");
   len += snprintf(content + len, maxLen - len, "}\n");
+  terrno = 0;
 
+_OVER:
   taosWriteFile(pFile, content, len);
   taosFsyncFile(pFile);
   taosCloseFile(&pFile);
   taosMemoryFree(content);
-  terrno = 0;
 
   for (int32_t i = 0; i < numOfVnodes; ++i) {
     SVnodeObj *pVnode = pVnodes[i];
@@ -195,6 +201,8 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   if (pVnodes != NULL) {
     taosMemoryFree(pVnodes);
   }
+
+  if (ret != 0) return -1;
 
   dDebug("successed to write %s, numOfVnodes:%d", realfile, numOfVnodes);
   return taosRenameFile(file, realfile);

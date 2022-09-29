@@ -32,6 +32,8 @@ OpenTSDB 行协议同样采用一行字符串来表示一行数据。OpenTSDB �
 meters.current 1648432611250 11.3 location=California.LosAngeles groupid=3
 ```
 
+- 默认生产的子表名是根据规则生成的唯一ID值。为了让用户可以指定生成的表名，可以通过在taos.cfg里配置 smlChildTableName 参数来指定。
+举例如下：配置 smlChildTableName=tname 插入数据为 meters.current 1648432611250 11.3 tname=cpu1 location=California.LosAngeles groupid=3 则创建的表名为 cpu1，注意如果多行数据 tname 相同，但是后面的 tag_set 不同，则使用第一行自动建表时指定的 tag_set，其他的行会忽略）。
 参考[OpenTSDB Telnet API 文档](http://opentsdb.net/docs/build/html/api_telnet/put.html)。
 
 ## 示例代码
@@ -79,3 +81,6 @@ taos> select tbname, * from `meters.current`;
  t_7e7b26dd860280242c6492a16... | 2022-03-28 09:56:51.250 |              12.600000000 | 2       | California.SanFrancisco               |
 Query OK, 4 row(s) in set (0.005399s)
 ```
+## 查询示例：
+想要查询 location=California.LosAngeles groupid=3 的数据，可以通过如下sql:
+select * from `meters.voltage` where location="California.LosAngeles" and groupid=3

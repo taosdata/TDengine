@@ -254,6 +254,7 @@ const char* nodesNodeName(ENodeType type) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
       return "PhysiStreamSemiInterval";
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL:
       return "PhysiFill";
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
       return "PhysiSessionWindow";
@@ -4635,6 +4636,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
       return physiIntervalNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL:
       return physiFillNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:
@@ -4788,6 +4790,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL:
       return jsonToPhysiIntervalNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL:
       return jsonToPhysiFillNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION:

@@ -46,7 +46,7 @@ int32_t tQWorkerInit(SQWorkerPool *pool) {
 void tQWorkerCleanup(SQWorkerPool *pool) {
   for (int32_t i = 0; i < pool->max; ++i) {
     SQWorker *worker = pool->workers + i;
-    if (worker == NULL) continue;
+    // if (worker == NULL) continue;
     if (taosCheckPthreadValid(worker->thread)) {
       taosQsetThreadResume(pool->qset);
     }
@@ -54,7 +54,7 @@ void tQWorkerCleanup(SQWorkerPool *pool) {
 
   for (int32_t i = 0; i < pool->max; ++i) {
     SQWorker *worker = pool->workers + i;
-    if (worker == NULL) continue;
+    // if (worker == NULL) continue;
     if (taosCheckPthreadValid(worker->thread)) {
       taosThreadJoin(worker->thread, NULL);
       taosThreadClear(&worker->thread);
@@ -138,8 +138,8 @@ STaosQueue *tQWorkerAllocQueue(SQWorkerPool *pool, void *ahandle, FItem fp) {
 }
 
 void tQWorkerFreeQueue(SQWorkerPool *pool, STaosQueue *queue) {
-  taosCloseQueue(queue);
   uDebug("worker:%s, queue:%p is freed", pool->name, queue);
+  taosCloseQueue(queue);
 }
 
 int32_t tWWorkerInit(SWWorkerPool *pool) {
@@ -283,8 +283,8 @@ STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FItems fp) {
 }
 
 void tWWorkerFreeQueue(SWWorkerPool *pool, STaosQueue *queue) {
-  taosCloseQueue(queue);
   uDebug("worker:%s, queue:%p is freed", pool->name, queue);
+  taosCloseQueue(queue);
 }
 
 int32_t tSingleWorkerInit(SSingleWorker *pWorker, const SSingleWorkerCfg *pCfg) {

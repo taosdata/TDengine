@@ -51,15 +51,17 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths);
 int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
 int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
 
-// life cycle
-static void syncFreeNode(void* param);
 // ---------------------------------
+static void syncNodeFreeCb(void *param) {
+    syncNodeClose(param);
+    param = NULL;
+}
 
 int32_t syncInit() {
   int32_t ret = 0;
 
   if (!syncEnvIsStart()) {
-    tsNodeRefId = taosOpenRef(200, syncFreeNode);
+    tsNodeRefId = taosOpenRef(200, syncNodeFreeCb);
     if (tsNodeRefId < 0) {
       sError("failed to init node ref");
       syncCleanUp();
@@ -86,11 +88,15 @@ void syncCleanUp() {
 
 int64_t syncOpen(const SSyncInfo* pSyncInfo) {
   SSyncNode* pSyncNode = syncNodeOpen(pSyncInfo);
-  ASSERT(pSyncNode != NULL);
+  if (pSyncNode == NULL) {
+    sError("failed to open sync node. vgId:%d", pSyncInfo->vgId);
+    return -1;
+  }
 
   pSyncNode->rid = taosAddRef(tsNodeRefId, pSyncNode);
   if (pSyncNode->rid < 0) {
-    syncFreeNode(pSyncNode);
+    syncNodeClose(pSyncNode);
+    pSyncNode = NULL;
     return -1;
   }
 
@@ -136,11 +142,9 @@ void syncStartStandBy(int64_t rid) {
 void syncStop(int64_t rid) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) return;
-
   int32_t vgId = pSyncNode->vgId;
-  syncNodeClose(pSyncNode);
-
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+
   taosRemoveRef(tsNodeRefId, rid);
   sDebug("vgId:%d, sync rid:%" PRId64 " is removed from rsetId:%" PRId64, vgId, rid, tsNodeRefId);
 }
@@ -210,7 +214,7 @@ int32_t syncReconfigBuild(int64_t rid, const SSyncCfg* pNewCfg, SRpcMsg* pRpcMsg
   if (!syncNodeCheckNewConfig(pSyncNode, pNewCfg)) {
     taosReleaseRef(tsNodeRefId, pSyncNode->rid);
     terrno = TSDB_CODE_SYN_NEW_CONFIG_ERROR;
-    sError("syncNodeCheckNewConfig error");
+    sError("invalid new config. vgId:%d", pSyncNode->vgId);
     return -1;
   }
 
@@ -237,7 +241,7 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg) {
   if (!syncNodeCheckNewConfig(pSyncNode, pNewCfg)) {
     taosReleaseRef(tsNodeRefId, pSyncNode->rid);
     terrno = TSDB_CODE_SYN_NEW_CONFIG_ERROR;
-    sError("syncNodeCheckNewConfig error");
+    sError("invalid new config. vgId:%d", pSyncNode->vgId);
     return -1;
   }
 
@@ -941,16 +945,18 @@ _END:
 SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   SSyncInfo* pSyncInfo = (SSyncInfo*)pOldSyncInfo;
 
-  SSyncNode* pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(SSyncNode));
-  ASSERT(pSyncNode != NULL);
-  memset(pSyncNode, 0, sizeof(SSyncNode));
+  SSyncNode* pSyncNode = (SSyncNode*)taosMemoryCalloc(1, sizeof(SSyncNode));
+  if (pSyncNode == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _error;
+  }
 
   int32_t ret = 0;
   if (!taosDirExist((char*)(pSyncInfo->path))) {
     if (taosMkDir(pSyncInfo->path) != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       sError("failed to create dir:%s since %s", pSyncInfo->path, terrstr());
-      return NULL;
+      goto _error;
     }
   }
 
@@ -963,15 +969,21 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
     meta.lastConfigIndex = SYNC_INDEX_INVALID;
     meta.batchSize = pSyncInfo->batchSize;
     ret = raftCfgCreateFile((SSyncCfg*)&(pSyncInfo->syncCfg), meta, pSyncNode->configPath);
-    ASSERT(ret == 0);
-
+    if (ret != 0) {
+        sError("failed to create raft cfg file. configPath: %s", pSyncNode->configPath);
+        goto _error;
+    }
   } else {
     // update syncCfg by raft_config.json
     pSyncNode->pRaftCfg = raftCfgOpen(pSyncNode->configPath);
-    ASSERT(pSyncNode->pRaftCfg != NULL);
+    if (pSyncNode->pRaftCfg == NULL) {
+        sError("failed to open raft cfg file. path:%s", pSyncNode->configPath);
+        goto _error;
+    }
     pSyncInfo->syncCfg = pSyncNode->pRaftCfg->cfg;
 
     raftCfgClose(pSyncNode->pRaftCfg);
+    pSyncNode->pRaftCfg = NULL;
   }
 
   // init by SSyncInfo
@@ -988,11 +1000,17 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
 
   // init raft config
   pSyncNode->pRaftCfg = raftCfgOpen(pSyncNode->configPath);
-  ASSERT(pSyncNode->pRaftCfg != NULL);
+  if (pSyncNode->pRaftCfg == NULL) {
+    sError("failed to open raft cfg file. path:%s", pSyncNode->configPath);
+    goto _error;
+  }
 
   // init internal
   pSyncNode->myNodeInfo = pSyncNode->pRaftCfg->cfg.nodeInfo[pSyncNode->pRaftCfg->cfg.myIndex];
-  syncUtilnodeInfo2raftId(&pSyncNode->myNodeInfo, pSyncNode->vgId, &pSyncNode->myRaftId);
+  if (!syncUtilnodeInfo2raftId(&pSyncNode->myNodeInfo, pSyncNode->vgId, &pSyncNode->myRaftId)) {
+      sError("failed to determine my raft member id. vgId:%d", pSyncNode->vgId);
+      goto _error;
+  }
 
   // init peersNum, peers, peersId
   pSyncNode->peersNum = pSyncNode->pRaftCfg->cfg.replicaNum - 1;
@@ -1004,17 +1022,24 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
     }
   }
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
-    syncUtilnodeInfo2raftId(&pSyncNode->peersNodeInfo[i], pSyncNode->vgId, &pSyncNode->peersId[i]);
+    if (!syncUtilnodeInfo2raftId(&pSyncNode->peersNodeInfo[i], pSyncNode->vgId, &pSyncNode->peersId[i])) {
+       sError("failed to determine raft member id. vgId:%d, peer:%d", pSyncNode->vgId, i);
+       goto _error;
+    }
   }
 
   // init replicaNum, replicasId
   pSyncNode->replicaNum = pSyncNode->pRaftCfg->cfg.replicaNum;
   for (int i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
-    syncUtilnodeInfo2raftId(&pSyncNode->pRaftCfg->cfg.nodeInfo[i], pSyncNode->vgId, &pSyncNode->replicasId[i]);
+    if(!syncUtilnodeInfo2raftId(&pSyncNode->pRaftCfg->cfg.nodeInfo[i], pSyncNode->vgId, &pSyncNode->replicasId[i])) {
+       sError("failed to determine raft member id. vgId:%d, replica:%d", pSyncNode->vgId, i);
+       goto _error;
+    }
   }
 
   // init raft algorithm
   pSyncNode->pFsm = pSyncInfo->pFsm;
+  pSyncInfo->pFsm = NULL;
   pSyncNode->quorum = syncUtilQuorum(pSyncNode->pRaftCfg->cfg.replicaNum);
   pSyncNode->leaderCache = EMPTY_RAFT_ID;
 
@@ -1047,29 +1072,50 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   // init TLA+ server vars
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
   pSyncNode->pRaftStore = raftStoreOpen(pSyncNode->raftStorePath);
-  ASSERT(pSyncNode->pRaftStore != NULL);
+  if (pSyncNode->pRaftStore == NULL) {
+    sError("failed to open raft store. path: %s", pSyncNode->raftStorePath);
+    goto _error;
+  }
 
   // init TLA+ candidate vars
   pSyncNode->pVotesGranted = voteGrantedCreate(pSyncNode);
-  ASSERT(pSyncNode->pVotesGranted != NULL);
+  if (pSyncNode->pVotesGranted == NULL) {
+    sError("failed to create VotesGranted. vgId:%d", pSyncNode->vgId);
+    goto _error;
+  }
   pSyncNode->pVotesRespond = votesRespondCreate(pSyncNode);
-  ASSERT(pSyncNode->pVotesRespond != NULL);
+  if (pSyncNode->pVotesRespond == NULL) {
+    sError("failed to create VotesRespond. vgId:%d", pSyncNode->vgId);
+    goto _error;
+  }
 
   // init TLA+ leader vars
   pSyncNode->pNextIndex = syncIndexMgrCreate(pSyncNode);
-  ASSERT(pSyncNode->pNextIndex != NULL);
+  if (pSyncNode->pNextIndex == NULL) {
+    sError("failed to create SyncIndexMgr. vgId:%d", pSyncNode->vgId);
+    goto _error;
+  }
   pSyncNode->pMatchIndex = syncIndexMgrCreate(pSyncNode);
-  ASSERT(pSyncNode->pMatchIndex != NULL);
+  if (pSyncNode->pMatchIndex == NULL) {
+    sError("failed to create SyncIndexMgr. vgId:%d", pSyncNode->vgId);
+    goto _error;
+  }
 
   // init TLA+ log vars
   pSyncNode->pLogStore = logStoreCreate(pSyncNode);
-  ASSERT(pSyncNode->pLogStore != NULL);
+  if (pSyncNode->pLogStore == NULL) {
+    sError("failed to create SyncLogStore. vgId:%d", pSyncNode->vgId);
+    goto _error;
+  }
 
   SyncIndex commitIndex = SYNC_INDEX_INVALID;
   if (pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
     SSnapshot snapshot = {0};
     int32_t   code = pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
-    ASSERT(code == 0);
+    if (code != 0) {
+       sError("failed to get snapshot info. vgId:%d, code:%d", pSyncNode->vgId, code);
+       goto _error;
+    }
     if (snapshot.lastApplyIndex > commitIndex) {
       commitIndex = snapshot.lastApplyIndex;
       syncNodeEventLog(pSyncNode, "reset commit index by snapshot");
@@ -1132,7 +1178,10 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
 
   // tools
   pSyncNode->pSyncRespMgr = syncRespMgrCreate(pSyncNode, SYNC_RESP_TTL_MS);
-  ASSERT(pSyncNode->pSyncRespMgr != NULL);
+  if (pSyncNode->pSyncRespMgr == NULL) {
+    sError("failed to create SyncRespMgr. vgId:%d", pSyncNode->vgId);
+    goto _error;
+  }
 
   // restore state
   pSyncNode->restoreFinish = false;
@@ -1162,6 +1211,15 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   syncNodeEventLog(pSyncNode, "sync open");
 
   return pSyncNode;
+
+_error:
+  if (pSyncInfo->pFsm) {
+      taosMemoryFree(pSyncInfo->pFsm);
+      pSyncInfo->pFsm = NULL;
+  }
+  syncNodeClose(pSyncNode);
+  pSyncNode = NULL;
+  return NULL;
 }
 
 void syncNodeMaybeUpdateCommitBySnapshot(SSyncNode* pSyncNode) {
@@ -1214,20 +1272,28 @@ void syncNodeStartStandBy(SSyncNode* pSyncNode) {
 
 void syncNodeClose(SSyncNode* pSyncNode) {
   syncNodeEventLog(pSyncNode, "sync close");
-
+  if (pSyncNode == NULL) {
+    return;
+  }
   int32_t ret;
-  ASSERT(pSyncNode != NULL);
 
   ret = raftStoreClose(pSyncNode->pRaftStore);
   ASSERT(ret == 0);
 
   syncRespMgrDestroy(pSyncNode->pSyncRespMgr);
+  pSyncNode->pSyncRespMgr = NULL;
   voteGrantedDestroy(pSyncNode->pVotesGranted);
+  pSyncNode->pVotesGranted = NULL;
   votesRespondDestory(pSyncNode->pVotesRespond);
+  pSyncNode->pVotesRespond = NULL;
   syncIndexMgrDestroy(pSyncNode->pNextIndex);
+  pSyncNode->pNextIndex = NULL;
   syncIndexMgrDestroy(pSyncNode->pMatchIndex);
+  pSyncNode->pMatchIndex = NULL;
   logStoreDestory(pSyncNode->pLogStore);
+  pSyncNode->pLogStore = NULL;
   raftCfgClose(pSyncNode->pRaftCfg);
+  pSyncNode->pRaftCfg = NULL;
 
   syncNodeStopPingTimer(pSyncNode);
   syncNodeStopElectTimer(pSyncNode);
@@ -1249,8 +1315,7 @@ void syncNodeClose(SSyncNode* pSyncNode) {
     pSyncNode->pNewNodeReceiver = NULL;
   }
 
-  // free memory in syncFreeNode
-  // taosMemoryFree(pSyncNode);
+  taosMemoryFree(pSyncNode);
 }
 
 // option
@@ -2534,7 +2599,7 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
           return;
         }
       } else {
-        sError("syncNodeEqHeartbeatTimer FpEqMsg is NULL");
+        sError("vgId:%d, enqueue msg cb ptr (i.e. FpEqMsg) not set.", pSyncNode->vgId);
       }
       syncTimeoutDestroy(pSyncMsg);
 
@@ -2772,14 +2837,6 @@ int32_t syncNodeOnClientRequestBatchCb(SSyncNode* ths, SyncClientRequestBatch* p
   }
 
   return 0;
-}
-
-static void syncFreeNode(void* param) {
-  SSyncNode* pNode = param;
-  // inner object already free
-  // syncNodePrint2((char*)"==syncFreeNode==", pNode);
-
-  taosMemoryFree(pNode);
 }
 
 const char* syncStr(ESyncState state) {
