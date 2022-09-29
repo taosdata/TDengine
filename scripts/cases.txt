@@ -234,7 +234,6 @@ taostest --use=common_insert.yaml --case=restful_insert/db_param_pages.py --keep
 taostest --use=common_insert.yaml --case=restful_insert/db_param_pagesize.py --keep --containers
 taostest --use=common_insert.yaml --case=restful_insert/db_param_precision.py --keep --containers
 taostest --use=common_insert.yaml --case=restful_insert/db_param_single_stable.py --keep --containers
-taostest --use=common_insert.yaml --case=restful_insert/db_param_vgroups.py --keep --containers
 taostest --use=common_insert.yaml --case=restful_insert/db_param_wal.py --keep --containers
 taostest --use=common_insert.yaml --case=restful_insert/disorder_insert.py --keep --containers
 taostest --use=common_insert.yaml --case=restful_insert/double_boundary_check.py --keep --containers
