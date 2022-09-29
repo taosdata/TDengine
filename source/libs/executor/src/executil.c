@@ -829,8 +829,9 @@ static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* 
       }
     }
     taosArrayDestroy(pTbList);
+    return 0;
   }
-  return 0;
+  return -1;
 }
 int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond,
                      STableListInfo* pListInfo) {
