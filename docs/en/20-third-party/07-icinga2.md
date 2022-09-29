@@ -36,11 +36,12 @@ After waiting about 10 seconds, use the TDengine CLI to query TDengine to verify
 
 ```
 taos> show databases;
-              name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
-====================================================================================================================================================================================================================================================================================
- log                            | 2022-04-20 07:19:50.260 |          11 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ms        |      0 | ready      |
- icinga2                        | 2022-04-20 12:11:39.697 |          13 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ns        |      2 | ready      |
-Query OK, 2 row(s) in set (0.001867s)
+              name              |
+=================================
+ information_schema             |
+ performance_schema             |
+ icinga2                        |
+Query OK, 3 row(s) in set (0.001867s)
 
 taos> use icinga2;
 Database changed.
@@ -72,3 +73,8 @@ taos> show stables;
  icinga.service.users.state     | 2022-04-20 12:11:39.704 |       2 |      1 |           1 |
 Query OK, 22 row(s) in set (0.002317s)
 ```
+
+:::note
+
+- TDengine will automatically create unique IDs for sub-table names by the rule.
+:::
