@@ -240,7 +240,7 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
             isWeak, isBlock, msg, numOfMsgs, arrayPos, pMsg->info.handle);
 
     if (!pVnode->restored) {
-      vGError("vgId:%d, msg:%p failed to process since not leader", vgId, pMsg);
+      vGError("vgId:%d, msg:%p failed to process since restore not finished", vgId, pMsg);
       terrno = TSDB_CODE_APP_NOT_READY;
       vnodeHandleProposeError(pVnode, pMsg, TSDB_CODE_APP_NOT_READY);
       rpcFreeCont(pMsg->pCont);
@@ -796,16 +796,3 @@ bool vnodeIsLeader(SVnode *pVnode) {
   return true;
 }
 
-bool vnodeIsReadyForRead(SVnode *pVnode) {
-  if (syncIsReady(pVnode->sync)) {
-    return true;
-  }
-
-  if (syncIsReadyForRead(pVnode->sync)) {
-    return true;
-  }
-
-  vDebug("vgId:%d, vnode not ready for read, state:%s, last:%ld, cmt:%ld", pVnode->config.vgId,
-         syncGetMyRoleStr(pVnode->sync), syncGetLastIndex(pVnode->sync), syncGetCommitIndex(pVnode->sync));
-  return false;
-}
