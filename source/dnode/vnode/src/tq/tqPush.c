@@ -243,6 +243,11 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
           tqDebug("vgId:%d cannot find handle %s", pTq->pVnode->config.vgId, pPushEntry->subKey);
           continue;
         }
+        if (pPushEntry->dataRsp.reqOffset.version > ver) {
+          tqDebug("vgId:%d push entry req version %ld, while push version %ld, skip", pTq->pVnode->config.vgId,
+                  pPushEntry->dataRsp.reqOffset.version, ver);
+          continue;
+        }
         STqExecHandle* pExec = &pHandle->execHandle;
         qTaskInfo_t    task = pExec->task;
 
