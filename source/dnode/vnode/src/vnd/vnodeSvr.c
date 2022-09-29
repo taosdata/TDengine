@@ -316,6 +316,11 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     return 0;
   }
 
+  if (pMsg->msgType == TDMT_VND_CONSUME && !pVnode->restored) {
+    vnodeRedirectRpcMsg(pVnode, pMsg);
+    return 0;
+  }
+
   char   *msgstr = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
 
@@ -808,7 +813,6 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
   SSubmitRsp     submitRsp = {0};
   SSubmitMsgIter msgIter = {0};
   SSubmitBlk    *pBlock;
-  SSubmitRsp     rsp = {0};
   SVCreateTbReq  createTbReq = {0};
   SDecoder       decoder = {0};
   int32_t        nRows;
@@ -921,7 +925,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
   }
 
   if (taosArrayGetSize(newTbUids) > 0) {
-    vDebug("vgId:%d, add %d table into query table list in handling submit", TD_VID(pVnode), (int32_t)taosArrayGetSize(newTbUids));
+    vDebug("vgId:%d, add %d table into query table list in handling submit", TD_VID(pVnode),
+           (int32_t)taosArrayGetSize(newTbUids));
   }
 
   tqUpdateTbUidList(pVnode->pTq, newTbUids, true);
