@@ -250,7 +250,7 @@ _err:
 
 void tsdbFSDestroy(STsdbFS *pFS) {
   if (pFS->pDelFile) {
-    taosMemoryFree(pFS->pDelFile);
+    taosMemoryFreeClear(pFS->pDelFile);
   }
 
   for (int32_t iSet = 0; iSet < taosArrayGetSize(pFS->aDFileSet); iSet++) {
@@ -263,7 +263,7 @@ void tsdbFSDestroy(STsdbFS *pFS) {
     }
   }
 
-  taosArrayDestroy(pFS->aDFileSet);
+  pFS->aDFileSet = taosArrayDestroy(pFS->aDFileSet);
 }
 
 static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
@@ -419,6 +419,7 @@ int32_t tsdbFSOpen(STsdb *pTsdb) {
   int32_t code = 0;
 
   // open handle
+  pTsdb->fs.version = 0;
   pTsdb->fs.pDelFile = NULL;
   pTsdb->fs.aDFileSet = taosArrayInit(0, sizeof(SDFileSet));
   if (pTsdb->fs.aDFileSet == NULL) {
@@ -534,6 +535,7 @@ int32_t tsdbFSClose(STsdb *pTsdb) {
 int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS) {
   int32_t code = 0;
 
+  pFS->version = pTsdb->fs.version;
   pFS->pDelFile = NULL;
   pFS->aDFileSet = taosArrayInit(taosArrayGetSize(pTsdb->fs.aDFileSet), sizeof(SDFileSet));
   if (pFS->aDFileSet == NULL) {
@@ -664,6 +666,9 @@ int32_t tsdbFSUpsertFSet(STsdbFS *pFS, SDFileSet *pSet) {
         }
       }
 
+      // update the diskId
+      pDFileSet->diskId = pSet->diskId;
+
       goto _exit;
     }
   }
@@ -712,6 +717,108 @@ _exit:
   return code;
 }
 
+/**
+ * @brief Update or delete DFileSet in pFS according to DFileSet (fid <= maxFid) in pFSNew.
+ *
+ * @param pTsdb
+ * @param pFS
+ * @param pFSNew
+ * @param maxFid
+ * @return int32_t
+ */
+int32_t tsdbFSUpdDel(STsdb *pTsdb, STsdbFS *pFS, STsdbFS *pFSNew, int32_t maxFid) {
+  int32_t code = 0;
+  int32_t nRef = 0;
+  char    fname[TSDB_FILENAME_LEN];
+
+  int32_t iOld = 0;
+  int32_t iNew = 0;
+  while (true) {
+    int32_t   nOld = taosArrayGetSize(pFS->aDFileSet);
+    int32_t   nNew = taosArrayGetSize(pFSNew->aDFileSet);
+    SDFileSet fSet;
+    int8_t    sameDisk;
+
+    if (iOld >= nOld && iNew >= nNew) break;
+
+    SDFileSet *pSetOld = (iOld < nOld) ? taosArrayGet(pFS->aDFileSet, iOld) : NULL;
+    SDFileSet *pSetNew = (iNew < nNew) ? taosArrayGet(pFSNew->aDFileSet, iNew) : NULL;
+
+    if (pSetNew && (pSetNew->fid > maxFid)) break;
+
+    if (pSetOld && pSetNew) {
+      if (pSetOld->fid == pSetNew->fid) {
+        goto _merge_migrate;
+      } else if (pSetOld->fid > pSetNew->fid) {
+        goto _remove_old;
+      } else {
+        ++iOld;
+        ASSERT(0);
+      }
+      continue;
+    } else {
+      break;
+    }
+
+  _merge_migrate:
+    sameDisk = ((pSetOld->diskId.level == pSetNew->diskId.level) && (pSetOld->diskId.id == pSetNew->diskId.id));
+
+    ASSERT(pSetOld->pHeadF->commitID == pSetNew->pHeadF->commitID);
+    ASSERT(pSetOld->pHeadF->size == pSetNew->pHeadF->size);
+    ASSERT(pSetOld->pHeadF->offset == pSetNew->pHeadF->offset);
+
+    if (!sameDisk) {
+      // head
+      *pSetOld->pHeadF = *pSetNew->pHeadF;
+      pSetOld->pHeadF->nRef = 1;
+
+      // data
+      ASSERT(pSetOld->pDataF->size == pSetNew->pDataF->size);
+      *pSetOld->pDataF = *pSetNew->pDataF;
+      pSetOld->pDataF->nRef = 1;
+
+      // sma
+      ASSERT(pSetOld->pSmaF->size == pSetNew->pSmaF->size);
+      *pSetOld->pSmaF = *pSetNew->pSmaF;
+      pSetOld->pSmaF->nRef = 1;
+
+      // stt
+      ASSERT(pSetOld->nSttF == pSetNew->nSttF);
+      for (int32_t iStt = 0; iStt < pSetOld->nSttF; ++iStt) {
+        ASSERT(pSetOld->aSttF[iStt]->size == pSetNew->aSttF[iStt]->size);
+        ASSERT(pSetOld->aSttF[iStt]->offset == pSetNew->aSttF[iStt]->offset);
+
+        *pSetOld->aSttF[iStt] = *pSetNew->aSttF[iStt];
+        pSetOld->aSttF[iStt]->nRef = 1;
+      }
+
+      // set diskId
+      pSetOld->diskId = pSetNew->diskId;
+    }
+
+    ++iOld;
+    ++iNew;
+    continue;
+
+  _remove_old:
+    taosMemoryFree(pSetOld->pHeadF);
+    taosMemoryFree(pSetOld->pDataF);
+    for (int32_t iStt = 0; iStt < pSetOld->nSttF; ++iStt) {
+      taosMemoryFree(pSetOld->aSttF[iStt]);
+    }
+    taosMemoryFree(pSetOld->pSmaF);
+    taosArrayRemove(pFS->aDFileSet, iOld);
+    ++iNew;
+    continue;
+  }
+
+  return code;
+
+_err:
+  tsdbError("vgId:%d, tsdb fs upd/del failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
 int32_t tsdbFSCommit1(STsdb *pTsdb, STsdbFS *pFSNew) {
   int32_t code = 0;
   char    tfname[TSDB_FILENAME_LEN];
@@ -744,6 +851,8 @@ int32_t tsdbFSCommit2(STsdb *pTsdb, STsdbFS *pFSNew) {
   int32_t code = 0;
   int32_t nRef;
   char    fname[TSDB_FILENAME_LEN];
+
+  ++pTsdb->fs.version;
 
   // del
   if (pFSNew->pDelFile) {
@@ -921,8 +1030,8 @@ int32_t tsdbFSCommit2(STsdb *pTsdb, STsdbFS *pFSNew) {
             *pSetOld->aSttF[iStt] = *pSetNew->aSttF[iStt];
             pSetOld->aSttF[iStt]->nRef = 1;
           } else {
-            ASSERT(pSetOld->aSttF[iStt]->size == pSetOld->aSttF[iStt]->size);
-            ASSERT(pSetOld->aSttF[iStt]->offset == pSetOld->aSttF[iStt]->offset);
+            ASSERT(pSetOld->aSttF[iStt]->size == pSetNew->aSttF[iStt]->size);
+            ASSERT(pSetOld->aSttF[iStt]->offset == pSetNew->aSttF[iStt]->offset);
           }
         }
       }

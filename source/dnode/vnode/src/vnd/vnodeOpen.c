@@ -186,6 +186,17 @@ void vnodePreClose(SVnode *pVnode) {
   }
 }
 
+static void vnodeTrimDbClose(SVnode *pVnode) {
+  int32_t nLoops = 0;
+  while (atomic_load_8(&pVnode->trimDbH.state) != 0) {
+    if (++nLoops > 1000) {
+      vTrace("vgId:%d, wait for trimDb task to finish", TD_VID(pVnode));
+      sched_yield();
+      nLoops = 0;
+    }
+  }
+}
+
 void vnodeClose(SVnode *pVnode) {
   if (pVnode) {
     vnodeCommit(pVnode);
@@ -197,6 +208,7 @@ void vnodeClose(SVnode *pVnode) {
     smaClose(pVnode->pSma);
     metaClose(pVnode->pMeta);
     vnodeCloseBufPool(pVnode);
+    vnodeTrimDbClose(pVnode);
     // destroy handle
     tsem_destroy(&(pVnode->canCommit));
     tsem_destroy(&pVnode->syncSem);

@@ -378,6 +378,7 @@ void vnodeUpdateMetaRsp(SVnode *pVnode, STableMetaRsp *pMetaRsp) {
   pMetaRsp->precision = pVnode->config.tsdbCfg.precision;
 }
 
+#if 0
 static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   int32_t     code = 0;
   SVTrimDbReq trimReq = {0};
@@ -388,7 +389,7 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, 
     goto _exit;
   }
 
-  vInfo("vgId:%d, trim vnode request will be processed, time:%d", pVnode->config.vgId, trimReq.timestamp);
+  vInfo("vgId:%d, trim vnode request will be processed, time:%"PRIi64, pVnode->config.vgId, trimReq.timestamp);
 
   // process
   code = tsdbDoRetention(pVnode->pTsdb, trimReq.timestamp);
@@ -398,6 +399,91 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, 
   if (code) goto _exit;
 
 _exit:
+  return code;
+}
+#endif
+
+typedef struct {
+  SVnode     *pVnode;
+  SVTrimDbReq trimReq;
+} SVndTrimDbReq;
+
+void *vnodeProcessTrimReqFunc(void *param) {
+  int32_t        code = 0;
+  int8_t         oldVal = 0;
+  SVndTrimDbReq *pReq = (SVndTrimDbReq *)param;
+  SVnode        *pVnode = pReq->pVnode;
+
+  setThreadName("vnode-trim");
+
+  // process
+  code = tsdbDoRetention(pVnode->pTsdb, pReq->trimReq.timestamp, pReq->trimReq.maxSpeed);
+  if (code) goto _exit;
+
+  code = smaDoRetention(pVnode->pSma, pReq->trimReq.timestamp, pReq->trimReq.maxSpeed);
+  if (code) goto _exit;
+_exit:
+  oldVal = atomic_val_compare_exchange_8(&pVnode->trimDbH.state, 1, 0);
+  ASSERT(oldVal == 1);
+  if (code) {
+    vError("vgId:%d, trim vnode thread failed since %s, time:%" PRIi64 ", max speed:%" PRIi64, TD_VID(pVnode),
+           tstrerror(code), pReq->trimReq.timestamp, pReq->trimReq.maxSpeed);
+  } else {
+    vInfo("vgId:%d, trim vnode thread finish, time:%" PRIi64 ", max speed:%" PRIi64, TD_VID(pVnode),
+          pReq->trimReq.timestamp, pReq->trimReq.maxSpeed);
+  }
+  taosMemoryFree(pReq);
+  return NULL;
+}
+
+static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  int32_t        code = 0;
+  SVndTrimDbReq *pVndTrimReq = taosMemoryMalloc(sizeof(SVndTrimDbReq));
+  SVTrimDbHdl   *pHandle = &pVnode->trimDbH;
+
+  if (!pVndTrimReq) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  pVndTrimReq->pVnode = pVnode;
+
+  if (tDeserializeSVTrimDbReq(pReq, len, &pVndTrimReq->trimReq) != 0) {
+    taosMemoryFree(pVndTrimReq);
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  if (atomic_val_compare_exchange_8(&pHandle->state, 0, 1) != 0) {
+    vInfo("vgId:%d, trim vnode request ignored since duplicated req, time:%" PRIi64 ", max speed:%" PRIi64,
+          TD_VID(pVnode), pVndTrimReq->trimReq.timestamp, pVndTrimReq->trimReq.maxSpeed);
+    taosMemoryFree(pVndTrimReq);
+    goto _exit;
+  }
+
+  vInfo("vgId:%d, trim vnode request will be processed, time:%" PRIi64 ", max speed:%" PRIi64, TD_VID(pVnode),
+        pVndTrimReq->trimReq.timestamp, pVndTrimReq->trimReq.maxSpeed);
+
+  TdThreadAttr thAttr = {0};
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_DETACHED);
+
+  TdThread tid;
+  if (taosThreadCreate(&tid, &thAttr, vnodeProcessTrimReqFunc, (void *)pVndTrimReq) != 0) {
+    code = TAOS_SYSTEM_ERROR(errno);
+    taosMemoryFree(pVndTrimReq);
+    taosThreadAttrDestroy(&thAttr);
+    int8_t oldVal = atomic_val_compare_exchange_8(&pHandle->state, 1, 0);
+    ASSERT(oldVal == 1);
+    vError("vgId:%d, failed to create pthread to trim vnode since %s", TD_VID(pVnode), tstrerror(code));
+    goto _exit;
+  }
+  vDebug("vgId:%d, success to create pthread to trim vnode", TD_VID(pVnode));
+
+  taosThreadAttrDestroy(&thAttr);
+
+_exit:
+  terrno = code;
   return code;
 }
 
@@ -921,7 +1007,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
   }
 
   if (taosArrayGetSize(newTbUids) > 0) {
-    vDebug("vgId:%d, add %d table into query table list in handling submit", TD_VID(pVnode), (int32_t)taosArrayGetSize(newTbUids));
+    vDebug("vgId:%d, add %d table into query table list in handling submit", TD_VID(pVnode),
+           (int32_t)taosArrayGetSize(newTbUids));
   }
 
   tqUpdateTbUidList(pVnode->pTq, newTbUids, true);
