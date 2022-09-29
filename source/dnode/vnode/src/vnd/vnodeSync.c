@@ -797,18 +797,18 @@ bool vnodeIsLeader(SVnode *pVnode) {
 }
 
 bool vnodeIsReadyForRead(SVnode *pVnode) {
+  if (!pVnode->restored) {
+    vDebug("vgId:%d, vnode restore not finished", pVnode->config.vgId);
+    terrno = TSDB_CODE_APP_NOT_READY;
+    return false;
+  }
+
   if (syncIsReady(pVnode->sync)) {
     return true;
   }
 
   if (syncIsReadyForRead(pVnode->sync)) {
     return true;
-  }
-
-  if (!pVnode->restored) {
-    vDebug("vgId:%d, vnode restore not finished", pVnode->config.vgId);
-    terrno = TSDB_CODE_APP_NOT_READY;
-    return false;
   }
 
   vDebug("vgId:%d, vnode not ready for read, state:%s, last:%ld, cmt:%ld", pVnode->config.vgId,
