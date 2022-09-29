@@ -53,6 +53,10 @@ int vnodeCloseBufPool(SVnode *pVnode) {
     vnodeBufPoolDestroy(pPool);
   }
 
+  if (pVnode->inUse) {
+    vnodeBufPoolDestroy(pVnode->inUse);
+    pVnode->inUse = NULL;
+  }
   vDebug("vgId:%d, vnode buffer pool is closed", TD_VID(pVnode));
 
   return 0;
