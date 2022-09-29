@@ -206,13 +206,18 @@ int metaGetTableUidByName(void *meta, char *tbName, uint64_t *uid) {
   int         code = 0;
   SMetaReader mr = {0};
   metaReaderInit(&mr, (SMeta *)meta, 0);
-  code = metaGetTableEntryByName(&mr, tbName);
-  if (code < 0) {
+
+  SMeta       *pMeta = mr.pMeta;
+  SMetaReader *pReader = &mr;
+
+  // query name.idx
+  if (tdbTbGet(pMeta->pNameIdx, tbName, strlen(tbName) + 1, &pReader->pBuf, &pReader->szBuf) < 0) {
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     metaReaderClear(&mr);
     return -1;
   }
-  *uid = mr.me.uid;
 
+  *uid = *(tb_uid_t *)pReader->pBuf;
   metaReaderClear(&mr);
 
   return 0;

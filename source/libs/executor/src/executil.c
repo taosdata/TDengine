@@ -418,6 +418,8 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
       terrno = code;
       goto end;
     }
+  } else {
+    qInfo("succ to get table from meta, suid:%" PRIu64, suid);
   }
 
   int32_t rows = taosArrayGetSize(uidList);
@@ -785,15 +787,13 @@ static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list
       if (metaGetTableUidByName(metaHandle, name, &uid) == 0) {
         taosArrayPush(list, &uid);
       } else {
+        qWarn("failed to get tableIds from by table name: %s, reason: %s", name, tstrerror(terrno));
         terrno = 0;
-        qError("failed to get tableIds from by table name: %s", name);
-        taosArrayDestroy(pTbList);
-        return -1;
       }
     }
     taosArrayDestroy(pTbList);
   }
-  return -1;
+  return 0;
 }
 int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond,
                      STableListInfo* pListInfo) {
