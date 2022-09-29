@@ -496,16 +496,16 @@ static int32_t vnodeSyncGetSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot) {
   return 0;
 }
 
-static void vnodeSyncReconfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbMeta) {
+static void vnodeSyncReconfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta *cbMeta) {
   SVnode *pVnode = pFsm->data;
 
   SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen};
-  syncGetAndDelRespRpc(pVnode->sync, cbMeta.newCfgSeqNum, &rpcMsg.info);
-  rpcMsg.info.conn.applyIndex = cbMeta.index;
+  syncGetAndDelRespRpc(pVnode->sync, cbMeta->newCfgSeqNum, &rpcMsg.info);
+  rpcMsg.info.conn.applyIndex = cbMeta->index;
 
   const STraceId *trace = (STraceId *)&pMsg->info.traceId;
   vGTrace("vgId:%d, alter vnode replica is confirmed, type:%s contLen:%d seq:%" PRIu64 " handle:%p", TD_VID(pVnode),
-          TMSG_INFO(pMsg->msgType), pMsg->contLen, cbMeta.seqNum, rpcMsg.info.handle);
+          TMSG_INFO(pMsg->msgType), pMsg->contLen, cbMeta->seqNum, rpcMsg.info.handle);
   if (rpcMsg.info.handle != NULL) {
     tmsgSendRsp(&rpcMsg);
   }

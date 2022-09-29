@@ -68,7 +68,7 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
     if (pMgmt->errCode != 0) {
       mError("trans:%d, failed to propose since %s, post sem", transId, tstrerror(pMgmt->errCode));
     } else {
-      mInfo("trans:%d, is proposed and post sem", transId, tstrerror(pMgmt->errCode));
+      mInfo("trans:%d, is proposed and post sem", transId);
     }
     pMgmt->transId = 0;
     taosWUnLockLatch(&pMgmt->lock);
@@ -113,13 +113,13 @@ void mndRestoreFinish(struct SSyncFSM *pFsm) {
   }
 }
 
-void mndReConfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbMeta) {
+void mndReConfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta *cbMeta) {
   SMnode    *pMnode = pFsm->data;
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
 
-  pMgmt->errCode = cbMeta.code;
+  pMgmt->errCode = cbMeta->code;
   mInfo("trans:-1, sync reconfig is proposed, saved:%d code:0x%x, index:%" PRId64 " term:%" PRId64, pMgmt->transId,
-        cbMeta.code, cbMeta.index, cbMeta.term);
+        cbMeta->code, cbMeta->index, cbMeta->term);
 
   taosWLockLatch(&pMgmt->lock);
   if (pMgmt->transId == -1) {
@@ -127,7 +127,7 @@ void mndReConfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbM
       mError("trans:-1, failed to propose sync reconfig since %s, post sem", tstrerror(pMgmt->errCode));
     } else {
       mInfo("trans:-1, sync reconfig is proposed, saved:%d code:0x%x, index:%" PRId64 " term:%" PRId64 " post sem",
-            pMgmt->transId, cbMeta.code, cbMeta.index, cbMeta.term);
+            pMgmt->transId, cbMeta->code, cbMeta->index, cbMeta->term);
     }
     pMgmt->transId = 0;
     tsem_post(&pMgmt->syncSem);
@@ -271,6 +271,11 @@ void mndCleanupSync(SMnode *pMnode) {
 int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   SRpcMsg    req = {.msgType = TDMT_MND_APPLY_MSG, .contLen = sdbGetRawTotalSize(pRaw)};
+  if (req.contLen <= 0) {
+    terrno = TSDB_CODE_APP_ERROR;
+    return -1;
+  }
+
   req.pCont = rpcMallocCont(req.contLen);
   if (req.pCont == NULL) return -1;
   memcpy(req.pCont, pRaw, req.contLen);
@@ -278,7 +283,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
   pMgmt->errCode = 0;
   taosWLockLatch(&pMgmt->lock);
   if (pMgmt->transId != 0) {
-    mError("trans:%d, can't be proposed since trans:%s alrady waiting for confirm", transId, pMgmt->transId);
+    mError("trans:%d, can't be proposed since trans:%d alrady waiting for confirm", transId, pMgmt->transId);
     taosWUnLockLatch(&pMgmt->lock);
     terrno = TSDB_CODE_APP_NOT_READY;
     return -1;

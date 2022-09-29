@@ -2908,7 +2908,7 @@ static int32_t syncNodeConfigChangeFinish(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyn
     cbMeta.newCfgTerm = pFinish->newCfgTerm;
     cbMeta.newCfgSeqNum = pFinish->newCfgSeqNum;
 
-    ths->pFsm->FpReConfigCb(ths->pFsm, pRpcMsg, cbMeta);
+    ths->pFsm->FpReConfigCb(ths->pFsm, pRpcMsg, &cbMeta);
   }
 
   // clear changing
