@@ -95,6 +95,7 @@ void        metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags);
 void        metaReaderClear(SMetaReader *pReader);
 int32_t     metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
 int32_t     metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj *tags);
+int32_t     metaGetTableTagsOpt(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj *tags);
 int32_t     metaReadNext(SMetaReader *pReader);
 const void *metaGetTableTagVal(void *tag, int16_t type, STagVal *tagVal);
 int         metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName);

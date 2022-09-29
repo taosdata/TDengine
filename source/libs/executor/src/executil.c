@@ -420,6 +420,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
       goto end;
     }
   } else {
+    metaGetTableTagsOpt(metaHandle, suid, uidList, tags);
     qInfo("succ to get table from meta idx, suid:%" PRIu64, suid);
   }
 

@@ -1122,6 +1122,20 @@ END:
   return ret;
 }
 
+int32_t metaGetTableTagsOpt(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj *tags) {
+  int32_t sz = uidList ? taosArrayGetSize(uidList) : 0;
+  for (int i = 0; i < sz; i++) {
+    tb_uid_t  *id = taosArrayGet(uidList, i);
+    SCtbIdxKey ctbIdxKey = {.suid = suid, .uid = *id};
+
+    void   *val = NULL;
+    int32_t len = 0;
+    if (0 == tdbTbGet(pMeta->pCtbIdx, &ctbIdxKey, sizeof(SCtbIdxKey), &val, &len)) {
+      taosHashPut(tags, id, sizeof(tb_uid_t), val, len);
+    }
+  }
+  return 0;
+}
 int32_t metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj *tags) {
   SMCtbCursor *pCur = metaOpenCtbCursor(pMeta, suid);
 
