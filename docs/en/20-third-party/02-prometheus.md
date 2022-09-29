@@ -89,3 +89,7 @@ VALUE    TIMESTAMP
 
 ```
 
+:::note
+
+- TDengine will automatically create unique IDs for sub-table names by the rule.
+:::
