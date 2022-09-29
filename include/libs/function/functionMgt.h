@@ -119,9 +119,10 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_WSTART,
   FUNCTION_TYPE_WEND,
   FUNCTION_TYPE_WDURATION,
+  FUNCTION_TYPE_IROWTS,
 
   // internal function
-  FUNCTION_TYPE_SELECT_VALUE,
+  FUNCTION_TYPE_SELECT_VALUE = 3750,
   FUNCTION_TYPE_BLOCK_DIST,       // block distribution aggregate function
   FUNCTION_TYPE_BLOCK_DIST_INFO,  // block distribution pseudo column function
   FUNCTION_TYPE_TO_COLUMN,
@@ -176,7 +177,8 @@ int32_t fmGetFuncInfo(SFunctionNode* pFunc, char* pMsg, int32_t msgLen);
 
 EFuncReturnRows fmGetFuncReturnRows(SFunctionNode* pFunc);
 
-bool fmIsBuiltinFunc(const char* pFunc);
+bool          fmIsBuiltinFunc(const char* pFunc);
+EFunctionType fmGetFuncType(const char* pFunc);
 
 bool fmIsAggFunc(int32_t funcId);
 bool fmIsScalarFunc(int32_t funcId);
@@ -211,6 +213,7 @@ bool fmIsClientPseudoColumnFunc(int32_t funcId);
 bool fmIsMultiRowsFunc(int32_t funcId);
 bool fmIsKeepOrderFunc(int32_t funcId);
 bool fmIsCumulativeFunc(int32_t funcId);
+bool fmIsInterpPseudoColumnFunc(int32_t funcId);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 

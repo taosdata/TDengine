@@ -27,9 +27,9 @@ extern "C" {
 
 #define LIST_LENGTH(l) (NULL != (l) ? (l)->length : 0)
 
-#define FOREACH(node, list)                                       \
-  for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); \
-       (NULL != cell ? (node = cell->pNode, true) : (node = NULL, false)); cell = cell->pNext)
+#define FOREACH(node, list)                                               \
+  for (SListCell *cell = (NULL != (list) ? (list)->pHead : NULL), *pNext; \
+       (NULL != cell ? (node = cell->pNode, pNext = cell->pNext, true) : (node = NULL, pNext = NULL, false)); cell = pNext)
 
 #define REPLACE_NODE(newNode) cell->pNode = (SNode*)(newNode)
 
@@ -103,9 +103,11 @@ typedef enum ENodeType {
   QUERY_NODE_STREAM_OPTIONS,
   QUERY_NODE_LEFT_VALUE,
   QUERY_NODE_COLUMN_REF,
+  QUERY_NODE_WHEN_THEN,
+  QUERY_NODE_CASE_WHEN,
 
   // Statement nodes are used in parser and planner module.
-  QUERY_NODE_SET_OPERATOR,
+  QUERY_NODE_SET_OPERATOR = 100,
   QUERY_NODE_SELECT_STMT,
   QUERY_NODE_VNODE_MODIF_STMT,
   QUERY_NODE_CREATE_DATABASE_STMT,
@@ -183,12 +185,12 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_DNODE_VARIABLES_STMT,
   QUERY_NODE_SHOW_TRANSACTIONS_STMT,
   QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT,
+  QUERY_NODE_SHOW_VNODES_STMT,
   QUERY_NODE_SHOW_CREATE_DATABASE_STMT,
   QUERY_NODE_SHOW_CREATE_TABLE_STMT,
   QUERY_NODE_SHOW_CREATE_STABLE_STMT,
   QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT,
   QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT,
-  QUERY_NODE_SHOW_VNODES_STMT,
   QUERY_NODE_SHOW_SCORES_STMT,
   QUERY_NODE_KILL_CONNECTION_STMT,
   QUERY_NODE_KILL_QUERY_STMT,
@@ -198,7 +200,7 @@ typedef enum ENodeType {
   QUERY_NODE_QUERY,
 
   // logic plan node
-  QUERY_NODE_LOGIC_PLAN_SCAN,
+  QUERY_NODE_LOGIC_PLAN_SCAN = 1000,
   QUERY_NODE_LOGIC_PLAN_JOIN,
   QUERY_NODE_LOGIC_PLAN_AGG,
   QUERY_NODE_LOGIC_PLAN_PROJECT,
@@ -215,7 +217,7 @@ typedef enum ENodeType {
   QUERY_NODE_LOGIC_PLAN,
 
   // physical plan node
-  QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN,
+  QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN = 1100,
   QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN,
@@ -237,6 +239,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_FILL,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL,
   QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION,
@@ -244,6 +247,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_MERGE_STATE,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE,
   QUERY_NODE_PHYSICAL_PLAN_PARTITION,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION,
   QUERY_NODE_PHYSICAL_PLAN_INDEF_ROWS_FUNC,
   QUERY_NODE_PHYSICAL_PLAN_INTERP_FUNC,
   QUERY_NODE_PHYSICAL_PLAN_DISPATCH,
@@ -273,6 +277,17 @@ typedef struct SNodeList {
   SListCell* pHead;
   SListCell* pTail;
 } SNodeList;
+
+typedef struct SNodeAllocator SNodeAllocator;
+
+int32_t nodesInitAllocatorSet();
+void    nodesDestroyAllocatorSet();
+int32_t nodesCreateAllocator(int64_t queryId, int32_t chunkSize, int64_t* pAllocatorId);
+int32_t nodesAcquireAllocator(int64_t allocatorId);
+int32_t nodesReleaseAllocator(int64_t allocatorId);
+int64_t nodesMakeAllocatorWeakRef(int64_t allocatorId);
+int64_t nodesReleaseAllocatorWeakRef(int64_t allocatorId);
+void    nodesDestroyAllocator(int64_t allocatorId);
 
 SNode* nodesMakeNode(ENodeType type);
 void   nodesDestroyNode(SNode* pNode);
@@ -318,6 +333,9 @@ int32_t     nodesStringToNode(const char* pStr, SNode** pNode);
 
 int32_t nodesListToString(const SNodeList* pList, bool format, char** pStr, int32_t* pLen);
 int32_t nodesStringToList(const char* pStr, SNodeList** pList);
+
+int32_t nodesNodeToMsg(const SNode* pNode, char** pMsg, int32_t* pLen);
+int32_t nodesMsgToNode(const char* pStr, int32_t len, SNode** pNode);
 
 int32_t nodesNodeToSQL(SNode* pNode, char* buf, int32_t bufSize, int32_t* len);
 char*   nodesGetNameFromColumnNode(SNode* pNode);

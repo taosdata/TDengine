@@ -21,14 +21,14 @@
 #include "tdatablock.h"
 
 int32_t qExplainGenerateResNode(SPhysiNode *pNode, SExplainGroup *group, SExplainResNode **pRes);
-int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t level);
+int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t level, bool singleChannel);
 
 void qExplainFreeResNode(SExplainResNode *resNode) {
   if (NULL == resNode) {
     return;
   }
 
-  taosMemoryFreeClear(resNode->pExecInfo);
+  taosArrayDestroy(resNode->pExecInfo);
 
   SNode *node = NULL;
   FOREACH(node, resNode->pChildren) { qExplainFreeResNode((SExplainResNode *)node); }
@@ -56,8 +56,9 @@ void qExplainFreeCtx(SExplainCtx *pCtx) {
         int32_t num = taosArrayGetSize(group->nodeExecInfo);
         for (int32_t i = 0; i < num; ++i) {
           SExplainRsp *rsp = taosArrayGet(group->nodeExecInfo, i);
-          taosMemoryFreeClear(rsp->subplanInfo);
+          tFreeSExplainRsp(rsp);
         }
+        taosArrayDestroy(group->nodeExecInfo);
       }
 
       pIter = taosHashIterate(pCtx->groupHash, pIter);
@@ -66,6 +67,7 @@ void qExplainFreeCtx(SExplainCtx *pCtx) {
 
   taosHashCleanup(pCtx->groupHash);
   taosArrayDestroy(pCtx->rows);
+  taosMemoryFreeClear(pCtx->tbuf);
   taosMemoryFree(pCtx);
 }
 
@@ -248,7 +250,7 @@ int32_t qExplainGenerateResChildren(SPhysiNode *pNode, SExplainGroup *group, SNo
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qExplainGenerateResNodeExecInfo(SArray **pExecInfo, SExplainGroup *group) {
+int32_t qExplainGenerateResNodeExecInfo(SPhysiNode *pNode, SArray **pExecInfo, SExplainGroup *group) {
   *pExecInfo = taosArrayInit(group->nodeNum, sizeof(SExplainExecInfo));
   if (NULL == (*pExecInfo)) {
     qError("taosArrayInit %d explainExecInfo failed", group->nodeNum);
@@ -256,17 +258,28 @@ int32_t qExplainGenerateResNodeExecInfo(SArray **pExecInfo, SExplainGroup *group
   }
 
   SExplainRsp *rsp = NULL;
-  for (int32_t i = 0; i < group->nodeNum; ++i) {
-    rsp = taosArrayGet(group->nodeExecInfo, i);
-    /*
-        if (group->physiPlanExecIdx >= rsp->numOfPlans) {
-          qError("physiPlanIdx %d exceed plan num %d", group->physiPlanExecIdx, rsp->numOfPlans);
-          return TSDB_CODE_QRY_APP_ERROR;
-        }
+  if (group->singleChannel) {
+    if (0 == group->physiPlanExecIdx) {
+      group->nodeIdx = 0;
+    }
+    
+    rsp = taosArrayGet(group->nodeExecInfo, group->nodeIdx++);
+    if (group->physiPlanExecIdx >= rsp->numOfPlans) {
+      qError("physiPlanIdx %d exceed plan num %d", group->physiPlanExecIdx, rsp->numOfPlans);
+      return TSDB_CODE_QRY_APP_ERROR;
+    }
+    
+    taosArrayPush(*pExecInfo, rsp->subplanInfo + group->physiPlanExecIdx);
+  } else {
+    for (int32_t i = 0; i < group->nodeNum; ++i) {
+      rsp = taosArrayGet(group->nodeExecInfo, i);
+      if (group->physiPlanExecIdx >= rsp->numOfPlans) {
+        qError("physiPlanIdx %d exceed plan num %d", group->physiPlanExecIdx, rsp->numOfPlans);
+        return TSDB_CODE_QRY_APP_ERROR;
+      }
 
-        taosArrayPush(*pExecInfo, rsp->subplanInfo + group->physiPlanExecIdx);
-    */
-    taosArrayPush(*pExecInfo, rsp->subplanInfo);
+      taosArrayPush(*pExecInfo, rsp->subplanInfo + group->physiPlanExecIdx);
+    }
   }
 
   ++group->physiPlanExecIdx;
@@ -291,12 +304,10 @@ int32_t qExplainGenerateResNode(SPhysiNode *pNode, SExplainGroup *group, SExplai
   resNode->pNode = pNode;
 
   if (group->nodeExecInfo) {
-    QRY_ERR_JRET(qExplainGenerateResNodeExecInfo(&resNode->pExecInfo, group));
+    QRY_ERR_JRET(qExplainGenerateResNodeExecInfo(pNode, &resNode->pExecInfo, group));
   }
 
   QRY_ERR_JRET(qExplainGenerateResChildren(pNode, group, &resNode->pChildren));
-
-  ++group->physiPlanNum;
 
   *pResNode = resNode;
 
@@ -766,9 +777,9 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
     }
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE: {
       SExchangePhysiNode *pExchNode = (SExchangePhysiNode *)pNode;
-      SExplainGroup      *group = taosHashGet(ctx->groupHash, &pExchNode->srcGroupId, sizeof(pExchNode->srcGroupId));
+      SExplainGroup      *group = taosHashGet(ctx->groupHash, &pExchNode->srcStartGroupId, sizeof(pExchNode->srcStartGroupId));
       if (NULL == group) {
-        qError("exchange src group %d not in groupHash", pExchNode->srcGroupId);
+        qError("exchange src group %d not in groupHash", pExchNode->srcStartGroupId);
         QRY_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
       }
 
@@ -803,7 +814,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         }      
       }
 
-      QRY_ERR_RET(qExplainAppendGroupResRows(ctx, pExchNode->srcGroupId, level + 1));
+      QRY_ERR_RET(qExplainAppendGroupResRows(ctx, pExchNode->srcStartGroupId, level + 1, pExchNode->singleChannel));
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_SORT: {
@@ -1535,7 +1546,7 @@ int32_t qExplainResNodeToRows(SExplainResNode *pResNode, SExplainCtx *ctx, int32
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t level) {
+int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t level, bool singleChannel) {
   SExplainResNode *node = NULL;
   int32_t          code = 0;
   SExplainCtx     *ctx = (SExplainCtx *)pCtx;
@@ -1546,13 +1557,10 @@ int32_t qExplainAppendGroupResRows(void *pCtx, int32_t groupId, int32_t level) {
     QRY_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
 
-  QRY_ERR_RET(qExplainGenerateResNode(group->plan->pNode, group, &node));
+  group->singleChannel = singleChannel;
+  group->physiPlanExecIdx = 0;
 
-  if ((EXPLAIN_MODE_ANALYZE == ctx->mode) && (group->physiPlanNum != group->physiPlanExecNum)) {
-    qError("physiPlanNum %d mismatch with physiExecNum %d in group %d", group->physiPlanNum, group->physiPlanExecNum,
-           groupId);
-    QRY_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
-  }
+  QRY_ERR_RET(qExplainGenerateResNode(group->plan->pNode, group, &node));
 
   QRY_ERR_JRET(qExplainResNodeToRows(node, ctx, level));
 
@@ -1578,12 +1586,9 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
 
   SColumnInfoData *pInfoData = taosArrayGet(pBlock->pDataBlock, 0);
 
-  char buf[1024] = {0};
   for (int32_t i = 0; i < rowNum; ++i) {
     SQueryExplainRowInfo *row = taosArrayGet(pCtx->rows, i);
-    varDataCopy(buf, row->buf);
-    ASSERT(varDataTLen(row->buf) == row->len);
-    colDataAppend(pInfoData, i, buf, false);
+    colDataAppend(pInfoData, i, row->buf, false);
   }
 
   pBlock->info.rows = rowNum;
@@ -1718,7 +1723,7 @@ int32_t qExplainAppendPlanRows(SExplainCtx *pCtx) {
 }
 
 int32_t qExplainGenerateRsp(SExplainCtx *pCtx, SRetrieveTableRsp **pRsp) {
-  QRY_ERR_RET(qExplainAppendGroupResRows(pCtx, pCtx->rootGroupId, 0));
+  QRY_ERR_RET(qExplainAppendGroupResRows(pCtx, pCtx->rootGroupId, 0, false));
   QRY_ERR_RET(qExplainAppendPlanRows(pCtx));
   QRY_ERR_RET(qExplainGetRspFromCtx(pCtx, pRsp));
 
@@ -1734,7 +1739,7 @@ int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainRsp *pRspMsg, int32_t 
   SExplainGroup *group = taosHashGet(ctx->groupHash, &groupId, sizeof(groupId));
   if (NULL == group) {
     qError("group %d not in groupHash", groupId);
-    taosMemoryFreeClear(pRspMsg->subplanInfo);
+    tFreeSExplainRsp(pRspMsg);
     QRY_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
 
@@ -1743,7 +1748,7 @@ int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainRsp *pRspMsg, int32_t 
     group->nodeExecInfo = taosArrayInit(group->nodeNum, sizeof(SExplainRsp));
     if (NULL == group->nodeExecInfo) {
       qError("taosArrayInit %d explainExecInfo failed", group->nodeNum);
-      taosMemoryFreeClear(pRspMsg->subplanInfo);
+      tFreeSExplainRsp(pRspMsg);
       taosWUnLockLatch(&group->lock);
 
       QRY_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -1753,7 +1758,7 @@ int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainRsp *pRspMsg, int32_t 
   } else if (taosArrayGetSize(group->nodeExecInfo) >= group->nodeNum) {
     qError("group execInfo already full, size:%d, nodeNum:%d", (int32_t)taosArrayGetSize(group->nodeExecInfo),
            group->nodeNum);
-    taosMemoryFreeClear(pRspMsg->subplanInfo);
+    tFreeSExplainRsp(pRspMsg);
     taosWUnLockLatch(&group->lock);
 
     QRY_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
@@ -1762,13 +1767,14 @@ int32_t qExplainUpdateExecInfo(SExplainCtx *pCtx, SExplainRsp *pRspMsg, int32_t 
   if (group->physiPlanExecNum != pRspMsg->numOfPlans) {
     qError("physiPlanExecNum %d mismatch with others %d in group %d", pRspMsg->numOfPlans, group->physiPlanExecNum,
            groupId);
-    taosMemoryFreeClear(pRspMsg->subplanInfo);
+    tFreeSExplainRsp(pRspMsg);
     taosWUnLockLatch(&group->lock);
 
     QRY_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
 
   taosArrayPush(group->nodeExecInfo, pRspMsg);
+ 
   groupDone = (taosArrayGetSize(group->nodeExecInfo) >= group->nodeNum);
 
   taosWUnLockLatch(&group->lock);

@@ -93,25 +93,25 @@ if $rows != 3 then
 endi
 
 ### slimit + fill
-sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 5 partition by t1 interval(5m) fill(value, -1, -2) slimit 4 soffset 4 limit 0 offset 0
+sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 5 partition by t1 interval(5m) fill(linear) slimit 4 soffset 4 limit 0 offset 0
 if $rows != 0 then
   return -1
 endi
 
-sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 9  partition by t1 interval(5m) fill(value, -1, -2) slimit 4 soffset 4 limit 2 offset 0
-print select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 9 partition by t1 interval(5m) fill(value, -1, -2)  slimit 4 soffset 4 limit 2 offset 0
+sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 9  partition by t1 interval(5m) fill(linear) slimit 4 soffset 4 limit 2 offset 0
+print select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 9 partition by t1 interval(5m) fill(linear)  slimit 4 soffset 4 limit 2 offset 0
 print $rows $data00 $data01 $data02 $data03
 if $rows != 8 then
   return -1
 endi
 
 # desc
-sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 9 partition by t1 interval(5m) fill(value, -1, -2) slimit 4 soffset 4 limit 2 offset 0
+sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 9 partition by t1 interval(5m) fill(linear) slimit 4 soffset 4 limit 2 offset 0
 if $rows != 8 then
   return -1
 endi
 
-sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 9 partition by t1  interval(5m) fill(value, -1, -2) slimit 4 soffset 4 limit 2 offset 598
+sql select max(c1), min(c2), avg(c3), sum(c4), sum(c6), count(c7), first(c8), last(c9) from $stb where ts >= $ts0 and ts <= $tsu and t2 >= 2 and t3 <= 9 partition by t1  interval(5m) fill(linear) slimit 4 soffset 4 limit 2 offset 598
 if $rows != 4 then
   return -1
 endi

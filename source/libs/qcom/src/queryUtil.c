@@ -134,8 +134,7 @@ int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) 
   schedMsg.thandle = execParam;
   schedMsg.msg = code;
 
-  taosScheduleTask(&pTaskQueue, &schedMsg);
-  return 0;
+  return taosScheduleTask(&pTaskQueue, &schedMsg);
 }
 
 void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
@@ -213,15 +212,25 @@ SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* nam
   return s;
 }
 
+void freeSTableMetaRspPointer(void *p) {
+  tFreeSTableMetaRsp(*(void**)p);
+  taosMemoryFreeClear(*(void**)p);
+}
+
 void destroyQueryExecRes(SExecResult* pRes) {
   if (NULL == pRes || NULL == pRes->res) {
     return;
   }
 
   switch (pRes->msgType) {
+    case TDMT_VND_CREATE_TABLE: {
+      taosArrayDestroyEx((SArray*)pRes->res, freeSTableMetaRspPointer);
+      break;
+    }
+    case TDMT_MND_CREATE_STB:
     case TDMT_VND_ALTER_TABLE:
     case TDMT_MND_ALTER_STB: {
-      tFreeSTableMetaRsp((STableMetaRsp*)pRes->res);
+      tFreeSTableMetaRsp(pRes->res);
       taosMemoryFreeClear(pRes->res);
       break;
     }
@@ -462,5 +471,3 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
 
   return TSDB_CODE_SUCCESS;
 }
-
-

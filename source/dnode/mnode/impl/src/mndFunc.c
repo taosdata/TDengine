@@ -38,13 +38,15 @@ static int32_t  mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void     mndCancelGetNextFunc(SMnode *pMnode, void *pIter);
 
 int32_t mndInitFunc(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_FUNC,
-                     .keyType = SDB_KEY_BINARY,
-                     .encodeFp = (SdbEncodeFp)mndFuncActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndFuncActionDecode,
-                     .insertFp = (SdbInsertFp)mndFuncActionInsert,
-                     .updateFp = (SdbUpdateFp)mndFuncActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndFuncActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_FUNC,
+      .keyType = SDB_KEY_BINARY,
+      .encodeFp = (SdbEncodeFp)mndFuncActionEncode,
+      .decodeFp = (SdbDecodeFp)mndFuncActionDecode,
+      .insertFp = (SdbInsertFp)mndFuncActionInsert,
+      .updateFp = (SdbUpdateFp)mndFuncActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndFuncActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_FUNC, mndProcessCreateFuncReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_FUNC, mndProcessDropFuncReq);
@@ -219,10 +221,10 @@ static int32_t mndCreateFunc(SMnode *pMnode, SRpcMsg *pReq, SCreateFuncReq *pCre
   }
   memcpy(func.pCode, pCreate->pCode, func.codeSize);
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq);
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-func");
   if (pTrans == NULL) goto _OVER;
 
-  mDebug("trans:%d, used to create func:%s", pTrans->id, pCreate->name);
+  mInfo("trans:%d, used to create func:%s", pTrans->id, pCreate->name);
 
   SSdbRaw *pRedoRaw = mndFuncActionEncode(&func);
   if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) goto _OVER;
@@ -249,10 +251,10 @@ _OVER:
 
 static int32_t mndDropFunc(SMnode *pMnode, SRpcMsg *pReq, SFuncObj *pFunc) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "drop-func");
   if (pTrans == NULL) goto _OVER;
 
-  mDebug("trans:%d, used to drop user:%s", pTrans->id, pFunc->name);
+  mInfo("trans:%d, used to drop user:%s", pTrans->id, pFunc->name);
 
   SSdbRaw *pRedoRaw = mndFuncActionEncode(pFunc);
   if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) goto _OVER;
@@ -286,7 +288,7 @@ static int32_t mndProcessCreateFuncReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mDebug("func:%s, start to create", createReq.name);
+  mInfo("func:%s, start to create", createReq.name);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_FUNC) != 0) {
     goto _OVER;
   }
@@ -294,7 +296,7 @@ static int32_t mndProcessCreateFuncReq(SRpcMsg *pReq) {
   pFunc = mndAcquireFunc(pMnode, createReq.name);
   if (pFunc != NULL) {
     if (createReq.igExists) {
-      mDebug("func:%s, already exist, ignore exist is set", createReq.name);
+      mInfo("func:%s, already exist, ignore exist is set", createReq.name);
       code = 0;
       goto _OVER;
     } else {
@@ -349,7 +351,7 @@ static int32_t mndProcessDropFuncReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mDebug("func:%s, start to drop", dropReq.name);
+  mInfo("func:%s, start to drop", dropReq.name);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_FUNC) != 0) {
     goto _OVER;
   }
@@ -362,7 +364,7 @@ static int32_t mndProcessDropFuncReq(SRpcMsg *pReq) {
   pFunc = mndAcquireFunc(pMnode, dropReq.name);
   if (pFunc == NULL) {
     if (dropReq.igNotExists) {
-      mDebug("func:%s, not exist, ignore not exist is set", dropReq.name);
+      mInfo("func:%s, not exist, ignore not exist is set", dropReq.name);
       code = 0;
       goto _OVER;
     } else {

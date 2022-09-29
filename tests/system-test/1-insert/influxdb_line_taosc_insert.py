@@ -31,7 +31,7 @@ if platform.system().lower() == 'windows':
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
+        tdSql.init(conn.cursor(), False)
         self._conn = conn
 
     def createDb(self, name="test", db_update_tag=0):
@@ -357,7 +357,7 @@ class TDTestCase:
         """
             normal tags and cols, one for every elm
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
 
@@ -365,7 +365,7 @@ class TDTestCase:
         """
             check all normal type
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         full_type_list = ["f", "F", "false", "False", "t", "T", "true", "True"]
         for t_type in full_type_list:
             input_sql, stb_name = self.genFullTypeSql(c0=t_type, t0=t_type)
@@ -379,7 +379,7 @@ class TDTestCase:
             please test :
             binary_symbols = '\"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal"\'\'"\"'
         '''
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         binary_symbols = '"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal"'
         nchar_symbols = f'L{binary_symbols}'
         input_sql, stb_name = self.genFullTypeSql(c7=binary_symbols, c8=nchar_symbols, t7=binary_symbols, t8=nchar_symbols)
@@ -390,7 +390,7 @@ class TDTestCase:
             test ts list --> ["1626006833639000000", "1626006833639019us", "1626006833640ms", "1626006834s", "1626006822639022"]
             # ! us级时间戳都为0时，数据库中查询显示，但python接口拿到的结果不显示 .000000的情况请确认，目前修改时间处理代码可以通过
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         ts_list = ["1626006833639000000", "1626006833639019us", "1626006833640ms", "1626006834s", "1626006822639022", 0]
         for ts in ts_list:
             input_sql, stb_name = self.genFullTypeSql(ts=ts)
@@ -401,7 +401,7 @@ class TDTestCase:
             check id.index in tags
             eg: t0=**,id=**,t1=**
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_sql, stb_name = self.genFullTypeSql(id_change_tag=True)
         self.resCmp(input_sql, stb_name)
 
@@ -410,7 +410,7 @@ class TDTestCase:
             check id param
             eg: id and ID
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_sql, stb_name = self.genFullTypeSql(id_upper_tag=True)
         self.resCmp(input_sql, stb_name)
         input_sql, stb_name = self.genFullTypeSql(id_change_tag=True, id_upper_tag=True)
@@ -420,7 +420,7 @@ class TDTestCase:
         """
             id not exist
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_sql, stb_name = self.genFullTypeSql(id_noexist_tag=True)
         self.resCmp(input_sql, stb_name)
         query_sql = f"select tbname from {stb_name}"
@@ -436,10 +436,10 @@ class TDTestCase:
             max col count is ??
         """
         for input_sql in [self.genLongSql(127, 1)[0], self.genLongSql(1, 4093)[0]]:
-            tdCom.cleanTb()
+            tdCom.cleanTb(dbname="test")
             self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
         for input_sql in [self.genLongSql(129, 1)[0], self.genLongSql(1, 4095)[0]]:
-            tdCom.cleanTb()
+            tdCom.cleanTb(dbname="test")
             try:
                 self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
             except SchemalessError as err:
@@ -450,7 +450,7 @@ class TDTestCase:
             test illegal id name
             mix "~!@#$¥%^&*()-+|[]、「」【】;:《》<>?"
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         rstr = list("~!@#$¥%^&*()-+|[]、「」【】;:《》<>?")
         for i in rstr:
             stb_name=f"aaa{i}bbb"
@@ -462,7 +462,7 @@ class TDTestCase:
         """
             id is start with num
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_sql = self.genFullTypeSql(tb_name=f"\"1aaabbb\"")[0]
         try:
             self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
@@ -473,7 +473,7 @@ class TDTestCase:
         """
             check now unsupported
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_sql = self.genFullTypeSql(ts="now")[0]
         try:
             self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
@@ -484,7 +484,7 @@ class TDTestCase:
         """
             check date format ts unsupported
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_sql = self.genFullTypeSql(ts="2021-07-21\ 19:01:46.920")[0]
         try:
             self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
@@ -495,7 +495,7 @@ class TDTestCase:
         """
             check ts format like 16260068336390us19
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_sql = self.genFullTypeSql(ts="16260068336390us19")[0]
         try:
             self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
@@ -506,7 +506,7 @@ class TDTestCase:
         """
             check full type tag value limit
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         # i8
         for t1 in ["-128i8", "127i8"]:
             input_sql, stb_name = self.genFullTypeSql(t1=t1)
@@ -602,7 +602,7 @@ class TDTestCase:
         """
             check full type col value limit
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         # i8
         for c1 in ["-128i8", "127i8"]:
             input_sql, stb_name = self.genFullTypeSql(c1=c1)
@@ -699,7 +699,7 @@ class TDTestCase:
         """
             test illegal tag col value
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         # bool
         for i in ["TrUe", "tRue", "trUe", "truE", "FalsE", "fAlse", "faLse", "falSe", "falsE"]:
             input_sql1 = self.genFullTypeSql(t0=i)[0]
@@ -758,7 +758,7 @@ class TDTestCase:
         """
             check duplicate Id Tag Col
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_sql_id = self.genFullTypeSql(id_double_tag=True)[0]
         try:
             self._conn.schemaless_insert([input_sql_id], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
@@ -792,7 +792,7 @@ class TDTestCase:
         """
             case no id when stb exist
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_sql, stb_name = self.genFullTypeSql(tb_name="sub_table_0123456", t0="f", c0="f")
         self.resCmp(input_sql, stb_name)
         input_sql, stb_name = self.genFullTypeSql(stb_name=stb_name, id_noexist_tag=True, t0="f", c0="f")
@@ -805,7 +805,7 @@ class TDTestCase:
         """
             check duplicate insert when stb exist
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
@@ -816,7 +816,7 @@ class TDTestCase:
         """
             check length increase
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
         tb_name = tdCom.getLongName(5, "letters")
@@ -833,7 +833,7 @@ class TDTestCase:
             * col is added without value when update==0
             * col is added with value when update==1
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         for db_update_tag in [0, 1]:
             if db_update_tag == 1 :
@@ -850,7 +850,7 @@ class TDTestCase:
         """
             check column and tag count add
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name, t0="f", c0="f")
         self.resCmp(input_sql, stb_name)
@@ -866,7 +866,7 @@ class TDTestCase:
             condition: stb not change
             insert two table, keep tag unchange, change col
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_sql, stb_name = self.genFullTypeSql(t0="f", c0="f", id_noexist_tag=True)
         self.resCmp(input_sql, stb_name)
         tb_name1 = self.getNoIdTbName(stb_name)
@@ -888,7 +888,7 @@ class TDTestCase:
         """
             every binary and nchar must be length+2
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         stb_name = tdCom.getLongName(7, "letters")
         tb_name = f'{stb_name}_1'
         input_sql = f'{stb_name},id="{tb_name}",t0=t c0=f 1626006833639000000'
@@ -928,7 +928,7 @@ class TDTestCase:
         """
             check nchar length limit
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         stb_name = tdCom.getLongName(7, "letters")
         tb_name = f'{stb_name}_1'
         input_sql = f'{stb_name},id="{tb_name}",t0=t c0=f 1626006833639000000'
@@ -963,7 +963,7 @@ class TDTestCase:
         """
             test batch insert
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         stb_name = tdCom.getLongName(8, "letters")
         # tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 bigint)')
         lines = ["st123456,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
@@ -982,7 +982,7 @@ class TDTestCase:
         """
             test multi insert
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         sql_list = []
         stb_name = tdCom.getLongName(8, "letters")
         # tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 bigint)')
@@ -996,7 +996,7 @@ class TDTestCase:
         """
             test batch error insert
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         stb_name = tdCom.getLongName(8, "letters")
         lines = ["st123456,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
                 f"{stb_name},t2=5f64,t3=L\"ste\" c1=tRue,c2=4i64,c3=\"iam\" 1626056811823316532ns"]
@@ -1068,7 +1068,7 @@ class TDTestCase:
         """
             thread input different stb
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_sql = self.genSqlList()[0]
         self.multiThreadRun(self.genMultiThreadSeq(input_sql))
         tdSql.query(f"show tables;")
@@ -1078,7 +1078,7 @@ class TDTestCase:
         """
             thread input same stb tb, different data, result keep first data
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name)
         self.resCmp(input_sql, stb_name)
@@ -1095,7 +1095,7 @@ class TDTestCase:
         """
             thread input same stb tb, different data, add columes and tags,  result keep first data
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name)
         self.resCmp(input_sql, stb_name)
@@ -1112,7 +1112,7 @@ class TDTestCase:
         """
             thread input same stb tb, different data, minus columes and tags,  result keep first data
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name)
         self.resCmp(input_sql, stb_name)
@@ -1129,7 +1129,7 @@ class TDTestCase:
         """
             thread input same stb, different tb, different data
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
         s_stb_d_tb_list = self.genSqlList(stb_name=stb_name)[4]
@@ -1144,7 +1144,7 @@ class TDTestCase:
         """
             thread input same stb, different tb, different data, add col, mul tag
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
         s_stb_d_tb_a_col_m_tag_list = self.genSqlList(stb_name=stb_name)[5]
@@ -1159,7 +1159,7 @@ class TDTestCase:
         """
             thread input same stb, different tb, different data, add tag, mul col
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
         s_stb_d_tb_a_tag_m_col_list = self.genSqlList(stb_name=stb_name)[6]
@@ -1171,7 +1171,7 @@ class TDTestCase:
         """
             thread input same stb tb, different ts
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name)
         self.resCmp(input_sql, stb_name)
@@ -1186,7 +1186,7 @@ class TDTestCase:
         """
             thread input same stb tb, different ts, add col, mul tag
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name)
         self.resCmp(input_sql, stb_name)
@@ -1205,7 +1205,7 @@ class TDTestCase:
         """
             thread input same stb tb, different ts, add tag, mul col
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         input_sql, stb_name = self.genFullTypeSql(tb_name=tb_name)
         self.resCmp(input_sql, stb_name)
@@ -1226,7 +1226,7 @@ class TDTestCase:
         """
             thread input same stb, different tb, data, ts
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
         s_stb_d_tb_d_ts_list = self.genSqlList(stb_name=stb_name)[10]
@@ -1241,7 +1241,7 @@ class TDTestCase:
         """
             thread input same stb, different tb, data, ts, add col, mul tag
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_sql, stb_name = self.genFullTypeSql()
         self.resCmp(input_sql, stb_name)
         s_stb_d_tb_d_ts_a_col_m_tag_list = self.genSqlList(stb_name=stb_name)[11]

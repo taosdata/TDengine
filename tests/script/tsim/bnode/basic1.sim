@@ -7,24 +7,24 @@ sql connect
 
 print =============== select * from information_schema.ins_dnodes
 sql select * from information_schema.ins_dnodes;
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
-if $data00 != 1 then 
+if $data00 != 1 then
   return -1
 endi
 
 sql select * from information_schema.ins_mnodes;
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
-if $data00 != 1 then 
+if $data00 != 1 then
   return -1
 endi
 
-if $data02 != leader then 
+if $data02 != leader then
   return -1
 endi
 
@@ -33,62 +33,62 @@ sql create dnode $hostname port 7200
 sleep 2000
 
 sql select * from information_schema.ins_dnodes;
-if $rows != 2 then 
+if $rows != 2 then
   return -1
 endi
 
-if $data00 != 1 then 
+if $data00 != 1 then
   return -1
 endi
 
-if $data10 != 2 then 
+if $data10 != 2 then
   return -1
 endi
 
 print $data02
-if $data02 != 0 then 
+if $data02 != 0 then
   return -1
 endi
 
-if $data12 != 0 then 
+if $data12 != 0 then
   return -1
 endi
 
-if $data04 != ready then 
+if $data04 != ready then
   return -1
 endi
 
-if $data14 != ready then 
+if $data14 != ready then
   return -1
 endi
 
 sql select * from information_schema.ins_mnodes;
-if $rows != 1 then 
+if $rows != 1 then
   return -1
 endi
 
-if $data00 != 1 then 
+if $data00 != 1 then
   return -1
 endi
 
-if $data02 != leader then 
+if $data02 != leader then
   return -1
 endi
 
 #print =============== create drop bnode 1
 #sql create bnode on dnode 1
 #sql show bnodes
-#if $rows != 1 then 
+#if $rows != 1 then
 #  return -1
 #endi
-#if $data00 != 1 then 
+#if $data00 != 1 then
 #  return -1
 #endi
 #sql_error create bnode on dnode 1
 #
 #sql drop bnode on dnode 1
 #sql show bnodes
-#if $rows != 0 then 
+#if $rows != 0 then
 #  return -1
 #endi
 #sql_error drop bnode on dnode 1
@@ -96,17 +96,17 @@ endi
 #print =============== create drop bnode 2
 #sql create bnode on dnode 2
 #sql show bnodes
-#if $rows != 1 then 
+#if $rows != 1 then
 #  return -1
 #endi
-#if $data00 != 2 then 
+#if $data00 != 2 then
 #  return -1
 #endi
 #sql_error create bnode on dnode 2
 #
 #sql drop bnode on dnode 2
 #sql show bnodes
-#if $rows != 0 then 
+#if $rows != 0 then
 #  return -1
 #endi
 #sql_error drop bnode on dnode 2
@@ -115,7 +115,7 @@ endi
 #sql create bnode on dnode 1
 #sql create bnode on dnode 2
 #sql show bnodes
-#if $rows != 2 then 
+#if $rows != 2 then
 #  return -1
 #endi
 
@@ -127,7 +127,7 @@ endi
 #
 #sleep 2000
 #sql show bnodes
-#if $rows != 2 then 
+#if $rows != 2 then
 #  return -1
 #endi
 

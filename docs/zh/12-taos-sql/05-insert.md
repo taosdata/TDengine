@@ -1,6 +1,7 @@
 ---
 sidebar_label: 数据写入
 title: 数据写入
+description: 写入数据的详细语法 
 ---
 
 ## 写入语法
@@ -16,6 +17,8 @@ INSERT INTO
         [(field1_name, ...)]
         VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
     ...];
+
+INSERT INTO tb_name [(field1_name, ...)] subquery
 ```
 
 **关于时间戳**
@@ -37,7 +40,7 @@ INSERT INTO
 
 4. FILE 语法表示数据来自于 CSV 文件（英文逗号分隔、英文单引号括住每个值），CSV 文件无需表头。
 
-5. 无论使用哪种语法，均可以在一条 INSERT 语句中同时向多个表插入数据。
+5. `INSERT ... VALUES` 语句和 `INSERT ... FILE` 语句均可以在一条 INSERT 语句中同时向多个表插入数据。
 
 6. INSERT 语句是完整解析后再执行的，对如下语句，不会再出现数据错误但建表成功的情况：
 
@@ -46,6 +49,8 @@ INSERT INTO
    ```
 
 7. 对于向多个子表插入数据的情况，依然会有部分数据写入失败，部分数据写入成功的情况。这是因为多个子表可能分布在不同的 VNODE 上，客户端将 INSERT 语句完整解析后，将数据发往各个涉及的 VNODE 上，每个 VNODE 独立进行写入操作。如果某个 VNODE 因为某些原因（比如网络问题或磁盘故障）导致写入失败，并不会影响其他 VNODE 节点的写入。
+
+8. 可以使用 `INSERT ... subquery` 语句将 TDengine 中的数据插入到指定表中。subquery 可以是任意的查询语句。此语法只能用于子表和普通表，且不支持自动建表。
 
 ## 插入一条记录
 

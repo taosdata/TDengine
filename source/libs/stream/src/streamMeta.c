@@ -14,7 +14,8 @@
  */
 
 #include "executor.h"
-#include "tstream.h"
+#include "streamInc.h"
+#include "ttimer.h"
 
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc) {
   SStreamMeta* pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
@@ -22,17 +23,23 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-  pMeta->path = strdup(path);
+  int32_t len = strlen(path) + 20;
+  char*   streamPath = taosMemoryCalloc(1, len);
+  sprintf(streamPath, "%s/%s", path, "stream");
+  pMeta->path = strdup(streamPath);
   if (tdbOpen(pMeta->path, 16 * 1024, 1, &pMeta->db) < 0) {
     goto _err;
   }
+
+  sprintf(streamPath, "%s/%s", pMeta->path, "checkpoints");
+  mkdir(streamPath, 0755);
+  taosMemoryFree(streamPath);
 
   if (tdbTbOpen("task.db", sizeof(int32_t), -1, NULL, pMeta->db, &pMeta->pTaskDb) < 0) {
     goto _err;
   }
 
-  // open state storage backend
-  if (tdbTbOpen("state.db", sizeof(int32_t), -1, NULL, pMeta->db, &pMeta->pStateDb) < 0) {
+  if (tdbTbOpen("checkpoint.db", sizeof(int32_t), -1, NULL, pMeta->db, &pMeta->pCheckpointDb) < 0) {
     goto _err;
   }
 
@@ -48,16 +55,13 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   pMeta->ahandle = ahandle;
   pMeta->expandFunc = expandFunc;
 
-  if (streamLoadTasks(pMeta) < 0) {
-    goto _err;
-  }
   return pMeta;
 
 _err:
   if (pMeta->path) taosMemoryFree(pMeta->path);
   if (pMeta->pTasks) taosHashCleanup(pMeta->pTasks);
-  if (pMeta->pStateDb) tdbTbClose(pMeta->pStateDb);
   if (pMeta->pTaskDb) tdbTbClose(pMeta->pTaskDb);
+  if (pMeta->pCheckpointDb) tdbTbClose(pMeta->pCheckpointDb);
   if (pMeta->db) tdbClose(pMeta->db);
   taosMemoryFree(pMeta);
   return NULL;
@@ -66,7 +70,7 @@ _err:
 void streamMetaClose(SStreamMeta* pMeta) {
   tdbCommit(pMeta->db, &pMeta->txn);
   tdbTbClose(pMeta->pTaskDb);
-  tdbTbClose(pMeta->pStateDb);
+  tdbTbClose(pMeta->pCheckpointDb);
   tdbClose(pMeta->db);
 
   void* pIter = NULL;
@@ -99,16 +103,19 @@ int32_t streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t startVer, char* 
     goto FAIL;
   }
 
-  taosHashPut(pMeta->pTasks, &pTask->taskId, sizeof(int32_t), &pTask, sizeof(void*));
+  if (taosHashPut(pMeta->pTasks, &pTask->taskId, sizeof(int32_t), &pTask, sizeof(void*)) < 0) {
+    goto FAIL;
+  }
 
   if (tdbTbUpsert(pMeta->pTaskDb, &pTask->taskId, sizeof(int32_t), msg, msgLen, &pMeta->txn) < 0) {
+    taosHashRemove(pMeta->pTasks, &pTask->taskId, sizeof(int32_t));
     ASSERT(0);
-    return -1;
+    goto FAIL;
   }
   return 0;
 
 FAIL:
-  if (pTask) taosMemoryFree(pTask);
+  if (pTask) tFreeSStreamTask(pTask);
   return -1;
 }
 
@@ -158,11 +165,28 @@ int32_t streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId) {
     SStreamTask* pTask = *ppTask;
     taosHashRemove(pMeta->pTasks, &taskId, sizeof(int32_t));
     atomic_store_8(&pTask->taskStatus, TASK_STATUS__DROPPING);
+
+    if (tdbTbDelete(pMeta->pTaskDb, &taskId, sizeof(int32_t), &pMeta->txn) < 0) {
+      /*return -1;*/
+    }
+
+    if (pTask->triggerParam != 0) {
+      taosTmrStop(pTask->timer);
+    }
+
+    while (1) {
+      int8_t schedStatus =
+          atomic_val_compare_exchange_8(&pTask->schedStatus, TASK_SCHED_STATUS__INACTIVE, TASK_SCHED_STATUS__DROPPING);
+      if (schedStatus == TASK_SCHED_STATUS__INACTIVE) {
+        tFreeSStreamTask(pTask);
+        break;
+      } else if (schedStatus == TASK_SCHED_STATUS__DROPPING) {
+        break;
+      }
+      taosMsleep(10);
+    }
   }
 
-  if (tdbTbDelete(pMeta->pTaskDb, &taskId, sizeof(int32_t), &pMeta->txn) < 0) {
-    /*return -1;*/
-  }
   return 0;
 }
 
@@ -241,6 +265,8 @@ int32_t streamLoadTasks(SStreamMeta* pMeta) {
     }
   }
 
+  tdbFree(pKey);
+  tdbFree(pVal);
   if (tdbTbcClose(pCur) < 0) {
     return -1;
   }

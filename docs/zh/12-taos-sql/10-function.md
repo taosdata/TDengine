@@ -1,6 +1,7 @@
 ---
 sidebar_label: 函数
 title: 函数
+description: TDengine 支持的函数列表
 toc_max_heading_level: 4
 ---
 
@@ -13,7 +14,7 @@ toc_max_heading_level: 4
 #### ABS
 
 ```sql
-SELECT ABS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+ABS(expr)
 ```
 
 **功能说明**：获得指定字段的绝对值。
@@ -31,7 +32,7 @@ SELECT ABS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 #### ACOS
 
 ```sql
-SELECT ACOS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+ACOS(expr)
 ```
 
 **功能说明**：获得指定字段的反余弦结果。
@@ -49,7 +50,7 @@ SELECT ACOS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 #### ASIN
 
 ```sql
-SELECT ASIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+ASIN(expr)
 ```
 
 **功能说明**：获得指定字段的反正弦结果。
@@ -68,7 +69,7 @@ SELECT ASIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 #### ATAN
 
 ```sql
-SELECT ATAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+ATAN(expr)
 ```
 
 **功能说明**：获得指定字段的反正切结果。
@@ -87,7 +88,7 @@ SELECT ATAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 #### CEIL
 
 ```sql
-SELECT CEIL(field_name) FROM { tb_name | stb_name } [WHERE clause];
+CEIL(expr)
 ```
 
 **功能说明**：获得指定字段的向上取整数的结果。
@@ -105,7 +106,7 @@ SELECT CEIL(field_name) FROM { tb_name | stb_name } [WHERE clause];
 #### COS
 
 ```sql
-SELECT COS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+COS(expr)
 ```
 
 **功能说明**：获得指定字段的余弦结果。
@@ -123,19 +124,19 @@ SELECT COS(field_name) FROM { tb_name | stb_name } [WHERE clause]
 #### FLOOR
 
 ```sql
-SELECT FLOOR(field_name) FROM { tb_name | stb_name } [WHERE clause];
+FLOOR(expr)
 ```
 
-**功能说明**：获得指定字段的向下取整数的结果。  
+**功能说明**：获得指定字段的向下取整数的结果。
  其他使用说明参见 CEIL 函数描述。
 
 #### LOG
 
 ```sql
-SELECT LOG(field_name[, base]) FROM { tb_name | stb_name } [WHERE clause]
+LOG(expr1[, expr2])
 ```
 
-**功能说明**：获得指定字段对于底数 base 的对数。如果 base 参数省略，则返回指定字段的自然对数值。
+**功能说明**：获得 expr1 对于底数 expr2 的对数。如果 expr2 参数省略，则返回指定字段的自然对数值。
 
 **返回结果类型**：DOUBLE。
 
@@ -151,10 +152,10 @@ SELECT LOG(field_name[, base]) FROM { tb_name | stb_name } [WHERE clause]
 #### POW
 
 ```sql
-SELECT POW(field_name, power) FROM { tb_name | stb_name } [WHERE clause]
+POW(expr1, expr2)
 ```
 
-**功能说明**：获得指定字段的指数为 power 的幂。
+**功能说明**：获得 expr1 的指数为 expr2 的幂。
 
 **返回结果类型**：DOUBLE。
 
@@ -170,17 +171,17 @@ SELECT POW(field_name, power) FROM { tb_name | stb_name } [WHERE clause]
 #### ROUND
 
 ```sql
-SELECT ROUND(field_name) FROM { tb_name | stb_name } [WHERE clause];
+ROUND(expr)
 ```
 
-**功能说明**：获得指定字段的四舍五入的结果。  
+**功能说明**：获得指定字段的四舍五入的结果。
  其他使用说明参见 CEIL 函数描述。
 
 
 #### SIN
 
 ```sql
-SELECT SIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+SIN(expr)
 ```
 
 **功能说明**：获得指定字段的正弦结果。
@@ -198,7 +199,7 @@ SELECT SIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 #### SQRT
 
 ```sql
-SELECT SQRT(field_name) FROM { tb_name | stb_name } [WHERE clause]
+SQRT(expr)
 ```
 
 **功能说明**：获得指定字段的平方根。
@@ -216,7 +217,7 @@ SELECT SQRT(field_name) FROM { tb_name | stb_name } [WHERE clause]
 #### TAN
 
 ```sql
-SELECT TAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+TAN(expr)
 ```
 
 **功能说明**：获得指定字段的正切结果。
@@ -238,7 +239,7 @@ SELECT TAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
 #### CHAR_LENGTH
 
 ```sql
-SELECT CHAR_LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
+CHAR_LENGTH(expr)
 ```
 
 **功能说明**：以字符计数的字符串长度。
@@ -254,7 +255,7 @@ SELECT CHAR_LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
 #### CONCAT
 
 ```sql
-SELECT CONCAT(str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHERE clause]
+CONCAT(expr1, expr2 [, expr] ... )
 ```
 
 **功能说明**：字符串连接函数。
@@ -271,7 +272,7 @@ SELECT CONCAT(str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHER
 #### CONCAT_WS
 
 ```sql
-SELECT CONCAT_WS(separator, str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHERE clause]
+CONCAT_WS(separator_expr, expr1, expr2 [, expr] ...)
 ```
 
 **功能说明**：带分隔符的字符串连接函数。
@@ -288,7 +289,7 @@ SELECT CONCAT_WS(separator, str1|column1, str2|column2, ...) FROM { tb_name | st
 #### LENGTH
 
 ```sql
-SELECT LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
+LENGTH(expr)
 ```
 
 **功能说明**：以字节计数的字符串长度。
@@ -305,7 +306,7 @@ SELECT LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
 #### LOWER
 
 ```sql
-SELECT LOWER(str|column) FROM { tb_name | stb_name } [WHERE clause]
+LOWER(expr)
 ```
 
 **功能说明**：将字符串参数值转换为全小写字母。
@@ -322,7 +323,7 @@ SELECT LOWER(str|column) FROM { tb_name | stb_name } [WHERE clause]
 #### LTRIM
 
 ```sql
-SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
+LTRIM(expr)
 ```
 
 **功能说明**：返回清除左边空格后的字符串。
@@ -339,7 +340,7 @@ SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
 #### RTRIM
 
 ```sql
-SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
+LTRIM(expr)
 ```
 
 **功能说明**：返回清除右边空格后的字符串。
@@ -356,7 +357,7 @@ SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
 #### SUBSTR
 
 ```sql
-SELECT SUBSTR(str,pos[,len]) FROM { tb_name | stb_name } [WHERE clause]
+SUBSTR(expr, pos [,len])
 ```
 
 **功能说明**：从源字符串 str 中的指定位置 pos 开始取一个长度为 len 的子串并返回。如果输入参数 len 被忽略，返回的子串包含从 pos 开始的整个字串。
@@ -373,7 +374,7 @@ SELECT SUBSTR(str,pos[,len]) FROM { tb_name | stb_name } [WHERE clause]
 #### UPPER
 
 ```sql
-SELECT UPPER(str|column) FROM { tb_name | stb_name } [WHERE clause]
+UPPER(expr)
 ```
 
 **功能说明**：将字符串参数值转换为全大写字母。
@@ -394,10 +395,10 @@ SELECT UPPER(str|column) FROM { tb_name | stb_name } [WHERE clause]
 #### CAST
 
 ```sql
-SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
+CAST(expr AS type_name)
 ```
 
-**功能说明**：数据类型转换函数，返回 expression 转换为 type_name 指定的类型后的结果。只适用于 select 子句中。
+**功能说明**：数据类型转换函数，返回 expr 转换为 type_name 指定的类型后的结果。只适用于 select 子句中。
 
 **返回结果类型**：CAST 中指定的类型（type_name)。
 
@@ -418,7 +419,7 @@ SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
 #### TO_ISO8601
 
 ```sql
-SELECT TO_ISO8601(ts[, timezone]) FROM { tb_name | stb_name } [WHERE clause];
+TO_ISO8601(expr [, timezone])
 ```
 
 **功能说明**：将 UNIX 时间戳转换成为 ISO8601 标准的日期时间格式，并附加时区信息。timezone 参数允许用户为输出结果指定附带任意时区信息。如果 timezone 参数省略，输出结果则附带当前客户端的系统时区信息。
@@ -434,14 +435,14 @@ SELECT TO_ISO8601(ts[, timezone]) FROM { tb_name | stb_name } [WHERE clause];
 **使用说明**：
 
 - timezone 参数允许输入的时区格式为: [z/Z, +/-hhmm, +/-hh, +/-hh:mm]。例如，TO_ISO8601(1, "+00:00")。
-- 如果输入是表示 UNIX 时间戳的整形，返回格式精度由时间戳的位数决定; 
+- 如果输入是表示 UNIX 时间戳的整形，返回格式精度由时间戳的位数决定;
 - 如果输入是 TIMESTAMP 类型的列，返回格式的时间戳精度与当前 DATABASE 设置的时间精度一致。
 
 
 #### TO_JSON
 
 ```sql
-SELECT TO_JSON(str_literal) FROM { tb_name | stb_name } [WHERE clause];
+TO_JSON(str_literal)
 ```
 
 **功能说明**: 将字符串常量转换为 JSON 类型。
@@ -458,7 +459,7 @@ SELECT TO_JSON(str_literal) FROM { tb_name | stb_name } [WHERE clause];
 #### TO_UNIXTIMESTAMP
 
 ```sql
-SELECT TO_UNIXTIMESTAMP(datetime_string) FROM { tb_name | stb_name } [WHERE clause];
+TO_UNIXTIMESTAMP(expr)
 ```
 
 **功能说明**：将日期时间格式的字符串转换成为 UNIX 时间戳。
@@ -486,9 +487,7 @@ SELECT TO_UNIXTIMESTAMP(datetime_string) FROM { tb_name | stb_name } [WHERE clau
 #### NOW
 
 ```sql
-SELECT NOW() FROM { tb_name | stb_name } [WHERE clause];
-SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operatior NOW();
-INSERT INTO tb_name VALUES (NOW(), ...);
+NOW()
 ```
 
 **功能说明**：返回客户端当前系统时间。
@@ -511,7 +510,7 @@ INSERT INTO tb_name VALUES (NOW(), ...);
 #### TIMEDIFF
 
 ```sql
-SELECT TIMEDIFF(ts | datetime_string1, ts | datetime_string2 [, time_unit]) FROM { tb_name | stb_name } [WHERE clause];
+TIMEDIFF(expr1, expr2 [, time_unit])
 ```
 
 **功能说明**：计算两个时间戳之间的差值，并近似到时间单位 time_unit 指定的精度。
@@ -534,7 +533,7 @@ SELECT TIMEDIFF(ts | datetime_string1, ts | datetime_string2 [, time_unit]) FROM
 #### TIMETRUNCATE
 
 ```sql
-SELECT TIMETRUNCATE(ts | datetime_string , time_unit) FROM { tb_name | stb_name } [WHERE clause];
+TIMETRUNCATE(expr, time_unit)
 ```
 
 **功能说明**：将时间戳按照指定时间单位 time_unit 进行截断。
@@ -555,7 +554,7 @@ SELECT TIMETRUNCATE(ts | datetime_string , time_unit) FROM { tb_name | stb_name 
 #### TIMEZONE
 
 ```sql
-SELECT TIMEZONE() FROM { tb_name | stb_name } [WHERE clause];
+TIMEZONE()
 ```
 
 **功能说明**：返回客户端当前时区信息。
@@ -570,9 +569,7 @@ SELECT TIMEZONE() FROM { tb_name | stb_name } [WHERE clause];
 #### TODAY
 
 ```sql
-SELECT TODAY() FROM { tb_name | stb_name } [WHERE clause];
-SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operatior TODAY()];
-INSERT INTO tb_name VALUES (TODAY(), ...);
+TODAY()
 ```
 
 **功能说明**：返回客户端当日零时的系统时间。
@@ -599,7 +596,12 @@ TDengine 支持针对数据的聚合查询。提供如下聚合函数。
 ### APERCENTILE
 
 ```sql
-SELECT APERCENTILE(field_name, P[, algo_type]) FROM { tb_name | stb_name } [WHERE clause]
+APERCENTILE(expr, p [, algo_type])
+
+algo_type: {
+    "default"
+  | "t-digest"
+}
 ```
 
 **功能说明**：统计表/超级表中指定列的值的近似百分比分位数，与 PERCENTILE 函数相似，但是返回近似结果。
@@ -611,13 +613,14 @@ SELECT APERCENTILE(field_name, P[, algo_type]) FROM { tb_name | stb_name } [WHER
 **适用于**：表和超级表。
 
 **说明**：
-- P值范围是[0,100]，当为0时等同于MIN，为100时等同于MAX。
+- p值范围是[0,100]，当为0时等同于MIN，为100时等同于MAX。
 - algo_type 取值为 "default" 或 "t-digest"。 输入为 "default" 时函数使用基于直方图算法进行计算。输入为 "t-digest" 时使用t-digest算法计算分位数的近似结果。如果不指定 algo_type 则使用 "default" 算法。
+- "t-digest"算法的近似结果对于输入数据顺序敏感，对超级表查询时不同的输入排序结果可能会有微小的误差。
 
 ### AVG
 
 ```sql
-SELECT AVG(field_name) FROM tb_name [WHERE clause];
+AVG(expr)
 ```
 
 **功能说明**：统计指定字段的平均值。
@@ -632,7 +635,7 @@ SELECT AVG(field_name) FROM tb_name [WHERE clause];
 ### COUNT
 
 ```sql
-SELECT COUNT([*|field_name]) FROM tb_name [WHERE clause];
+COUNT({* | expr})
 ```
 
 **功能说明**：统计指定字段的记录行数。
@@ -652,7 +655,7 @@ SELECT COUNT([*|field_name]) FROM tb_name [WHERE clause];
 ### ELAPSED
 
 ```sql
-SELECT ELAPSED(ts_primary_key [, time_unit]) FROM { tb_name | stb_name } [WHERE clause] [INTERVAL(interval [, offset]) [SLIDING sliding]];
+ELAPSED(ts_primary_key [, time_unit])
 ```
 
 **功能说明**：elapsed函数表达了统计周期内连续的时间长度，和twa函数配合使用可以计算统计曲线下的面积。在通过INTERVAL子句指定窗口的情况下，统计在给定时间范围内的每个窗口内有数据覆盖的时间范围；如果没有INTERVAL子句，则返回整个给定时间范围内的有数据覆盖的时间范围。注意，ELAPSED返回的并不是时间范围的绝对值，而是绝对值除以time_unit所得到的单位个数。
@@ -664,7 +667,7 @@ SELECT ELAPSED(ts_primary_key [, time_unit]) FROM { tb_name | stb_name } [WHERE 
 **适用于**: 表，超级表，嵌套查询的外层查询
 
 **说明**：
-- field_name参数只能是表的第一列，即 TIMESTAMP 类型的主键列。
+- ts_primary_key参数只能是表的第一列，即 TIMESTAMP 类型的主键列。
 - 按time_unit参数指定的时间单位返回，最小是数据库的时间分辨率。time_unit 参数未指定时，以数据库的时间分辨率为时间单位。支持的时间单位 time_unit 如下：
           1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)。
 - 可以和interval组合使用，返回每个时间窗口的时间戳差值。需要特别注意的是，除第一个时间窗口和最后一个时间窗口外，中间窗口的时间戳差值均为窗口长度。
@@ -678,14 +681,14 @@ SELECT ELAPSED(ts_primary_key [, time_unit]) FROM { tb_name | stb_name } [WHERE 
 ### LEASTSQUARES
 
 ```sql
-SELECT LEASTSQUARES(field_name, start_val, step_val) FROM tb_name [WHERE clause];
+LEASTSQUARES(expr, start_val, step_val)
 ```
 
 **功能说明**：统计表中某列的值是主键（时间戳）的拟合直线方程。start_val 是自变量初始值，step_val 是自变量的步长值。
 
 **返回数据类型**：字符串表达式（斜率, 截距）。
 
-**适用数据类型**：field_name 必须是数值类型。
+**适用数据类型**：expr 必须是数值类型。
 
 **适用于**：表。
 
@@ -693,7 +696,7 @@ SELECT LEASTSQUARES(field_name, start_val, step_val) FROM tb_name [WHERE clause]
 ### SPREAD
 
 ```sql
-SELECT SPREAD(field_name) FROM { tb_name | stb_name } [WHERE clause];
+SPREAD(expr)
 ```
 
 **功能说明**：统计表中某列的最大值和最小值之差。
@@ -708,7 +711,7 @@ SELECT SPREAD(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ### STDDEV
 
 ```sql
-SELECT STDDEV(field_name) FROM tb_name [WHERE clause];
+STDDEV(expr)
 ```
 
 **功能说明**：统计表中某列的均方差。
@@ -723,7 +726,7 @@ SELECT STDDEV(field_name) FROM tb_name [WHERE clause];
 ### SUM
 
 ```sql
-SELECT SUM(field_name) FROM tb_name [WHERE clause];
+SUM(expr)
 ```
 
 **功能说明**：统计表/超级表中某列的和。
@@ -738,7 +741,7 @@ SELECT SUM(field_name) FROM tb_name [WHERE clause];
 ### HYPERLOGLOG
 
 ```sql
-SELECT HYPERLOGLOG(field_name) FROM { tb_name | stb_name } [WHERE clause];
+HYPERLOGLOG(expr)
 ```
 
 **功能说明**：
@@ -755,7 +758,7 @@ SELECT HYPERLOGLOG(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ### HISTOGRAM
 
 ```sql
-SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_name [WHERE clause];
+HISTOGRAM(expr，bin_type, bin_description, normalized)
 ```
 
 **功能说明**：统计数据按照用户指定区间的分布。
@@ -768,14 +771,14 @@ SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_nam
 
 **详细说明**：
 - bin_type 用户指定的分桶类型, 有效输入类型为"user_input“, ”linear_bin", "log_bin"。
-- bin_description 描述如何生成分桶区间，针对三种桶类型，分别为以下描述格式(均为 JSON 格式字符串)：       
-    - "user_input": "[1, 3, 5, 7]" 
+- bin_description 描述如何生成分桶区间，针对三种桶类型，分别为以下描述格式(均为 JSON 格式字符串)：
+    - "user_input": "[1, 3, 5, 7]"
        用户指定 bin 的具体数值。
-       
+
     - "linear_bin": "{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
        "start" 表示数据起始点，"width" 表示每次 bin 偏移量, "count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
        生成区间为[-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf]。
- 
+
     - "log_bin": "{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
        "start" 表示数据起始点，"factor" 表示按指数递增的因子，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点和终点，
        生成区间为[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf]。
@@ -785,7 +788,7 @@ SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_nam
 ### PERCENTILE
 
 ```sql
-SELECT PERCENTILE(field_name, P) FROM { tb_name } [WHERE clause];
+PERCENTILE(expr, p)
 ```
 
 **功能说明**：统计表中某列的值百分比分位数。
@@ -806,7 +809,7 @@ SELECT PERCENTILE(field_name, P) FROM { tb_name } [WHERE clause];
 ### BOTTOM
 
 ```sql
-SELECT BOTTOM(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
+BOTTOM(expr, k)
 ```
 
 **功能说明**：统计表/超级表中某列的值最小 _k_ 个非 NULL 值。如果多条数据取值一样，全部取用又会超出 k 条限制时，系统会从相同值中随机选取符合要求的数量返回。
@@ -826,7 +829,7 @@ SELECT BOTTOM(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
 ### FIRST
 
 ```sql
-SELECT FIRST(field_name) FROM { tb_name | stb_name } [WHERE clause];
+FIRST(expr)
 ```
 
 **功能说明**：统计表/超级表中某列的值最先写入的非 NULL 值。
@@ -846,7 +849,7 @@ SELECT FIRST(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ### INTERP
 
 ```sql
-SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] [ RANGE(timestamp1,timestamp2) ] [EVERY(interval)] [FILL ({ VALUE | PREV | NULL | LINEAR | NEXT})];
+INTERP(expr)
 ```
 
 **功能说明**：返回指定时间截面指定列的记录值或插值。
@@ -855,22 +858,22 @@ SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] [ 
 
 **适用数据类型**：数值类型。
 
-**适用于**：表、超级表。
+**适用于**：表和超级表。
 
 **使用说明**
 
 - INTERP 用于在指定时间断面获取指定列的记录值，如果该时间断面不存在符合条件的行数据，那么会根据 FILL 参数的设定进行插值。
 - INTERP 的输入数据为指定列的数据，可以通过条件语句（where 子句）来对原始列数据进行过滤，如果没有指定过滤条件则输入为全部数据。
-- INTERP 的输出时间范围根据 RANGE(timestamp1,timestamp2)字段来指定，需满足 timestamp1<=timestamp2。其中 timestamp1（必选值）为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2（必选值）为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。如果没有指定 RANGE，那么满足过滤条件的输入数据中第一条记录的 timestamp 即为 timestamp1，最后一条记录的 timestamp 即为 timestamp2，同样也满足 timestamp1 <= timestamp2。
+- INTERP 的输出时间范围根据 RANGE(timestamp1,timestamp2)字段来指定，需满足 timestamp1<=timestamp2。其中 timestamp1（必选值）为输出时间范围的起始值，即如果 timestamp1 时刻符合插值条件则 timestamp1 为输出的第一条记录，timestamp2（必选值）为输出时间范围的结束值，即输出的最后一条记录的 timestamp 不能大于 timestamp2。
 - INTERP 根据 EVERY 字段来确定输出时间范围内的结果条数，即从 timestamp1 开始每隔固定长度的时间（EVERY 值）进行插值。如果没有指定 EVERY，则默认窗口大小为无穷大，即从 timestamp1 开始只有一个窗口。
-- INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值，如果没有 FILL 字段则默认不插值，即输出为原始记录值或不输出（原始记录不存在）。
-- INTERP 只能在一个时间序列内进行插值，因此当作用于超级表时必须跟 group by tbname 一起使用，当作用嵌套查询外层时内层子查询不能含 GROUP BY 信息。
-- INTERP 的插值结果不受 ORDER BY timestamp 的影响，ORDER BY timestamp 只影响输出结果的排序。
+- INTERP 根据 FILL 字段来决定在每个符合输出条件的时刻如何进行插值。
+- INTERP 只能在一个时间序列内进行插值，因此当作用于超级表时必须跟 partition by tbname 一起使用。
+- INTERP 可以与伪列 _irowts 一起使用，返回插值点所对应的时间戳(3.0.1.4版本以后支持)。
 
 ### LAST
 
 ```sql
-SELECT LAST(field_name) FROM { tb_name | stb_name } [WHERE clause];
+LAST(expr)
 ```
 
 **功能说明**：统计表/超级表中某列的值最后写入的非 NULL 值。
@@ -891,7 +894,7 @@ SELECT LAST(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ### LAST_ROW
 
 ```sql
-SELECT LAST_ROW(field_name) FROM { tb_name | stb_name };
+LAST_ROW(expr)
 ```
 
 **功能说明**：返回表/超级表的最后一条记录。
@@ -910,7 +913,7 @@ SELECT LAST_ROW(field_name) FROM { tb_name | stb_name };
 ### MAX
 
 ```sql
-SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause];
+MAX(expr)
 ```
 
 **功能说明**：统计表/超级表中某列的值最大值。
@@ -925,7 +928,7 @@ SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ### MIN
 
 ```sql
-SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
+MIN(expr)
 ```
 
 **功能说明**：统计表/超级表中某列的值最小值。
@@ -940,7 +943,7 @@ SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
 ### MODE
 
 ```sql
-SELECT MODE(field_name) FROM tb_name [WHERE clause];
+MODE(expr)
 ```
 
 **功能说明**：返回出现频率最高的值，若存在多个频率相同的最高值，输出NULL。
@@ -955,7 +958,7 @@ SELECT MODE(field_name) FROM tb_name [WHERE clause];
 ### SAMPLE
 
 ```sql
-SELECT SAMPLE(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
+SAMPLE(expr, k)
 ```
 
 **功能说明**： 获取数据的 k 个采样值。参数 k 的合法输入范围是 1≤ k ≤ 1000。
@@ -968,7 +971,7 @@ SELECT SAMPLE(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
 
 **适用于**：表和超级表。
 
-**使用说明**： 
+**使用说明**：
 
 - 不能参与表达式计算；该函数可以应用在普通表和超级表上；
 - 使用在超级表上的时候，需要搭配 PARTITION by tbname 使用，将结果强制规约到单个时间线。
@@ -977,7 +980,7 @@ SELECT SAMPLE(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
 ### TAIL
 
 ```sql
-SELECT TAIL(field_name, k, offset_val) FROM {tb_name | stb_name} [WHERE clause];
+TAIL(expr, k [, offset_rows])
 ```
 
 **功能说明**：返回跳过最后 offset_val 个，然后取连续 k 个记录，不忽略 NULL 值。offset_val 可以不输入。此时返回最后的 k 个记录。当有 offset_val 输入的情况下，该函数功能等效于 `order by ts desc LIMIT k OFFSET offset_val`。
@@ -994,7 +997,7 @@ SELECT TAIL(field_name, k, offset_val) FROM {tb_name | stb_name} [WHERE clause];
 ### TOP
 
 ```sql
-SELECT TOP(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
+TOP(expr, k)
 ```
 
 **功能说明**： 统计表/超级表中某列的值最大 _k_ 个非 NULL 值。如果多条数据取值一样，全部取用又会超出 k 条限制时，系统会从相同值中随机选取符合要求的数量返回。
@@ -1014,7 +1017,7 @@ SELECT TOP(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
 ### UNIQUE
 
 ```sql
-SELECT UNIQUE(field_name) FROM {tb_name | stb_name} [WHERE clause];
+UNIQUE(expr)
 ```
 
 **功能说明**：返回该列的数值首次出现的值。该函数功能与 distinct 相似，但是可以匹配标签和时间戳信息。可以针对除时间列以外的字段进行查询，可以匹配标签和时间戳，其中的标签和时间戳是第一次出现时刻的标签和时间戳。
@@ -1033,7 +1036,7 @@ SELECT UNIQUE(field_name) FROM {tb_name | stb_name} [WHERE clause];
 ### CSUM
 
 ```sql
-SELECT CSUM(field_name) FROM { tb_name | stb_name } [WHERE clause]
+CSUM(expr)
 ```
 
 **功能说明**：累加和（Cumulative sum），输出行与输入行数相同。
@@ -1046,17 +1049,22 @@ SELECT CSUM(field_name) FROM { tb_name | stb_name } [WHERE clause]
 
 **适用于**：表和超级表。
 
-**使用说明**： 
-  
+**使用说明**：
+
 - 不支持 +、-、*、/ 运算，如 csum(col1) + csum(col2)。
-- 只能与聚合（Aggregation）函数一起使用。 该函数可以应用在普通表和超级表上。 
+- 只能与聚合（Aggregation）函数一起使用。 该函数可以应用在普通表和超级表上。
 - 使用在超级表上的时候，需要搭配 PARTITION BY tbname使用，将结果强制规约到单个时间线。
 
 
 ### DERIVATIVE
 
 ```sql
-SELECT DERIVATIVE(field_name, time_interval, ignore_negative) FROM tb_name [WHERE clause];
+DERIVATIVE(expr, time_interval, ignore_negative)
+
+ignore_negative: {
+    0
+  | 1
+}
 ```
 
 **功能说明**：统计表中某列数值的单位变化率。其中单位时间区间的长度可以通过 time_interval 参数指定，最小可以是 1 秒（1s）；ignore_negative 参数的值可以是 0 或 1，为 1 时表示忽略负值。
@@ -1067,15 +1075,20 @@ SELECT DERIVATIVE(field_name, time_interval, ignore_negative) FROM tb_name [WHER
 
 **适用于**：表和超级表。
 
-**使用说明**: 
-  
+**使用说明**:
+
 - DERIVATIVE 函数可以在由 PARTITION BY 划分出单独时间线的情况下用于超级表（也即 PARTITION BY tbname）。
 - 可以与选择相关联的列一起使用。 例如: select \_rowts, DERIVATIVE() from。
 
 ### DIFF
 
 ```sql
-SELECT {DIFF(field_name, ignore_negative) | DIFF(field_name)} FROM tb_name [WHERE clause];
+DIFF(expr [, ignore_negative])
+ 
+ignore_negative: {
+    0
+  | 1
+}
 ```
 
 **功能说明**：统计表中某列的值与前一行对应值的差。 ignore_negative 取值为 0|1 , 可以不填，默认值为 0. 不忽略负值。ignore_negative 为 1 时表示忽略负数。
@@ -1086,7 +1099,7 @@ SELECT {DIFF(field_name, ignore_negative) | DIFF(field_name)} FROM tb_name [WHER
 
 **适用于**：表和超级表。
 
-**使用说明**: 
+**使用说明**:
 
 - 输出结果行数是范围内总行数减一，第一行没有结果输出。
 - 可以与选择相关联的列一起使用。 例如: select \_rowts, DIFF() from。
@@ -1095,7 +1108,7 @@ SELECT {DIFF(field_name, ignore_negative) | DIFF(field_name)} FROM tb_name [WHER
 ### IRATE
 
 ```sql
-SELECT IRATE(field_name) FROM tb_name WHERE clause;
+IRATE(expr)
 ```
 
 **功能说明**：计算瞬时增长率。使用时间区间中最后两个样本数据来计算瞬时增长速率；如果这两个值呈递减关系，那么只取最后一个数用于计算，而不是使用二者差值。
@@ -1110,7 +1123,7 @@ SELECT IRATE(field_name) FROM tb_name WHERE clause;
 ### MAVG
 
 ```sql
-SELECT MAVG(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
+MAVG(expr, k)
 ```
 
 **功能说明**： 计算连续 k 个值的移动平均数（moving average）。如果输入行数小于 k，则无结果输出。参数 k 的合法输入范围是 1≤ k ≤ 1000。
@@ -1123,9 +1136,9 @@ SELECT MAVG(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
 
 **适用于**：表和超级表。
 
-**使用说明**： 
-  
-- 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1); 
+**使用说明**：
+
+- 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1);
 - 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；
 - 使用在超级表上的时候，需要搭配 PARTITION BY tbname使用，将结果强制规约到单个时间线。
 
@@ -1133,7 +1146,7 @@ SELECT MAVG(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
 ### STATECOUNT
 
 ```sql
-SELECT STATECOUNT(field_name, oper, val) FROM { tb_name | stb_name } [WHERE clause];
+STATECOUNT(expr, oper, val)
 ```
 
 **功能说明**：返回满足某个条件的连续记录的个数，结果作为新的一列追加在每行后面。条件根据参数计算，如果条件为 true 则加 1，条件为 false 则重置为-1，如果数据为 NULL，跳过该条数据。
@@ -1160,14 +1173,14 @@ SELECT STATECOUNT(field_name, oper, val) FROM { tb_name | stb_name } [WHERE clau
 ### STATEDURATION
 
 ```sql
-SELECT stateDuration(field_name, oper, val, unit) FROM { tb_name | stb_name } [WHERE clause];
+STATEDURATION(expr, oper, val, unit)
 ```
 
 **功能说明**：返回满足某个条件的连续记录的时间长度，结果作为新的一列追加在每行后面。条件根据参数计算，如果条件为 true 则加上两个记录之间的时间长度（第一个满足条件的记录时间长度记为 0），条件为 false 则重置为-1，如果数据为 NULL，跳过该条数据。
 
 **参数范围**：
 
-- oper : "LT" (小于)、"GT"（大于）、"LE"（小于等于）、"GE"（大于等于）、"NE"（不等于）、"EQ"（等于），不区分大小写。
+- oper : `'LT'` (小于)、`'GT'`（大于）、`'LE'`（小于等于）、`'GE'`（大于等于）、`'NE'`（不等于）、`'EQ'`（等于），不区分大小写，但需要用`''`包括。
 - val : 数值型
 - unit : 时间长度的单位，可取值时间单位： 1b(纳秒), 1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天), 1w(周)。如果省略，默认为当前数据库精度。
 
@@ -1188,7 +1201,7 @@ SELECT stateDuration(field_name, oper, val, unit) FROM { tb_name | stb_name } [W
 ### TWA
 
 ```sql
-SELECT TWA(field_name) FROM tb_name WHERE clause;
+TWA(expr)
 ```
 
 **功能说明**：时间加权平均函数。统计表中某列在一段时间内的时间加权平均。
@@ -1232,7 +1245,7 @@ SELECT SERVER_VERSION();
 ### SERVER_STATUS
 
 ```sql
-SELECT SERVER_VERSION();
+SELECT SERVER_STATUS();
 ```
 
 **说明**：返回服务端当前的状态。

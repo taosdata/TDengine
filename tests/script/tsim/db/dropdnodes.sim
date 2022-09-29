@@ -12,7 +12,7 @@ system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
 
 sleep 2000
-sql connect 
+sql connect
 
 sql create dnode $hostname2
 sleep 2000
@@ -61,13 +61,13 @@ sql show tables
 print $rows
 if $rows != 16 then
   return -1
-endi  
+endi
 
 sql select * from mt
 print $rows
 if $rows != 16 then
   return -1
-endi  
+endi
 
 print ========== step3
 
@@ -82,23 +82,23 @@ sql show tables
 print $rows
 if $rows != 8 then
   return -1
-endi  
+endi
 
 sql select * from mt
 print $rows
 if $rows != 8 then
   return -1
-endi  
+endi
 
 sql select * from db.t5
 if $rows != 1 then
   return -1
-endi  
+endi
 
 sql select * from db.t13
 if $rows != 1 then
   return -1
-endi  
+endi
 
 sql_error select * from db.t1
 sql_error select * from db.t9

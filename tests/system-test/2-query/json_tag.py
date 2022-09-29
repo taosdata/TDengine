@@ -197,7 +197,7 @@ class TDTestCase:
 
         # test where with json tag
         tdSql.query(f"select * from {dbname}.jsons1_1 where jtag is not null")
-        tdSql.query(f"select * from {dbname}.jsons1 where jtag='{{\"tag1\":11,\"tag2\":\"\"}}'")
+        tdSql.error(f"select * from {dbname}.jsons1 where jtag='{{\"tag1\":11,\"tag2\":\"\"}}'")
         tdSql.error(f"select * from {dbname}.jsons1 where jtag->'tag1'={{}}")
 
         # test json error
@@ -338,7 +338,7 @@ class TDTestCase:
         tdSql.query(f"select * from {dbname}.jsons1 where jtag->'tag1' between 1 and 30")
         tdSql.checkRows(3)
         tdSql.query(f"select * from {dbname}.jsons1 where jtag->'tag1' between 'femail' and 'beijing'")
-        tdSql.checkRows(2)
+        tdSql.checkRows(0)
 
         # test with tbname/normal column
         tdSql.query(f"select * from {dbname}.jsons1 where tbname = 'jsons1_1'")

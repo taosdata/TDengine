@@ -34,6 +34,7 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
     removeMeta(pRequest->pTscObj, pRequest->targetTableList);
   }
 
+  taosMemoryFree(pMsg->pEpSet);
   taosMemoryFree(pMsg->pData);
   if (pRequest->body.queryFp != NULL) {
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);
@@ -46,6 +47,7 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
 int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   if (code != TSDB_CODE_SUCCESS) {
+    taosMemoryFree(pMsg->pEpSet);
     taosMemoryFree(pMsg->pData);
     setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
@@ -62,6 +64,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   if (delta > timestampDeltaLimit) {
     code = TSDB_CODE_TIME_UNSYNCED;
     tscError("time diff:%ds is too big", delta);
+    taosMemoryFree(pMsg->pEpSet);
     taosMemoryFree(pMsg->pData);
     setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
@@ -70,6 +73,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   /*assert(connectRsp.epSet.numOfEps > 0);*/
   if (connectRsp.epSet.numOfEps == 0) {
+    taosMemoryFree(pMsg->pEpSet);
     taosMemoryFree(pMsg->pData);
     setErrno(pRequest, TSDB_CODE_MND_APP_ERROR);
     tsem_post(&pRequest->body.rspSem);
@@ -96,6 +100,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
              connectRsp.epSet.eps[i].fqdn, connectRsp.epSet.eps[i].port, pTscObj->id);
   }
 
+  pTscObj->sysInfo = connectRsp.sysInfo;
   pTscObj->connId = connectRsp.connId;
   pTscObj->acctId = connectRsp.acctId;
   tstrncpy(pTscObj->sVer, connectRsp.sVer, tListLen(pTscObj->sVer));
@@ -113,6 +118,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
            pTscObj->pAppInfo->numOfConns);
 
   taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
   tsem_post(&pRequest->body.rspSem);
   return 0;
 }
@@ -136,6 +142,7 @@ int32_t processCreateDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   // todo rsp with the vnode id list
   SRequestObj* pRequest = param;
   taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
   }
@@ -172,6 +179,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   if (code != TSDB_CODE_SUCCESS) {
     taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
     setErrno(pRequest, code);
 
     if (pRequest->body.queryFp != NULL) {
@@ -219,6 +227,7 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   setConnectionDB(pRequest->pTscObj, db);
   taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
 
   if (pRequest->body.queryFp != NULL) {
     pRequest->body.queryFp(pRequest->body.param, pRequest, pRequest->code);
@@ -232,13 +241,37 @@ int32_t processCreateSTableRsp(void* param, SDataBuf* pMsg, int32_t code) {
   assert(pMsg != NULL && param != NULL);
   SRequestObj* pRequest = param;
 
-  taosMemoryFree(pMsg->pData);
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
+  } else {
+    SMCreateStbRsp createRsp = {0};
+    SDecoder       coder = {0};
+    tDecoderInit(&coder, pMsg->pData, pMsg->len);
+    tDecodeSMCreateStbRsp(&coder, &createRsp);
+    tDecoderClear(&coder);
+
+    pRequest->body.resInfo.execRes.msgType = TDMT_MND_CREATE_STB;
+    pRequest->body.resInfo.execRes.res = createRsp.pMeta;
   }
 
+  taosMemoryFree(pMsg->pEpSet);
+  taosMemoryFree(pMsg->pData);
+
   if (pRequest->body.queryFp != NULL) {
-    removeMeta(pRequest->pTscObj, pRequest->tableList);
+    SExecResult* pRes = &pRequest->body.resInfo.execRes;
+
+    if (code == TSDB_CODE_SUCCESS) {
+      SCatalog* pCatalog = NULL;
+      int32_t   ret = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+      if (pRes->res != NULL) {
+        ret = handleCreateTbExecRes(pRes->res, pCatalog);
+      }
+
+      if (ret != TSDB_CODE_SUCCESS) {
+        code = ret;
+      }
+    }
+
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);
   } else {
     tsem_post(&pRequest->body.rspSem);
@@ -260,6 +293,7 @@ int32_t processDropDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
 
   if (pRequest->body.queryFp != NULL) {
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);
@@ -285,6 +319,7 @@ int32_t processAlterStbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
 
   if (pRequest->body.queryFp != NULL) {
     SExecResult* pRes = &pRequest->body.resInfo.execRes;
@@ -396,6 +431,7 @@ int32_t processShowVariablesRsp(void* param, SDataBuf* pMsg, int32_t code) {
   }
 
   taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
 
   if (pRequest->body.queryFp != NULL) {
     pRequest->body.queryFp(pRequest->body.param, pRequest, code);

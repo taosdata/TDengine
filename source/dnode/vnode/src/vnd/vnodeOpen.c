@@ -60,6 +60,8 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
 
   snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
 
+  info.config = vnodeCfgDefault;
+
   // load vnode info
   ret = vnodeLoadInfo(dir, &info);
   if (ret < 0) {
@@ -159,7 +161,6 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   // open sync
   if (vnodeSyncOpen(pVnode, dir)) {
     vError("vgId:%d, failed to open sync since %s", TD_VID(pVnode), tstrerror(terrno));
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
 
@@ -172,6 +173,7 @@ _err:
   if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
   if (pVnode->pSma) smaClose(pVnode->pSma);
   if (pVnode->pMeta) metaClose(pVnode->pMeta);
+  if (pVnode->pPool) vnodeCloseBufPool(pVnode);
 
   tsem_destroy(&(pVnode->canCommit));
   taosMemoryFree(pVnode);

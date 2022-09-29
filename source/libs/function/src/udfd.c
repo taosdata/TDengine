@@ -41,6 +41,8 @@ typedef struct SUdfdContext {
   uv_mutex_t udfsMutex;
   SHashObj * udfsHash;
 
+  SArray* residentFuncs;
+
   bool printVersion;
 } SUdfdContext;
 
@@ -67,6 +69,7 @@ typedef struct SUdf {
   EUdfState  state;
   uv_mutex_t lock;
   uv_cond_t  condReady;
+  bool resident;
 
   char    name[TSDB_FUNC_NAME_LEN];
   int8_t  funcType;
@@ -84,6 +87,7 @@ typedef struct SUdf {
   TUdfAggStartFunc   aggStartFunc;
   TUdfAggProcessFunc aggProcFunc;
   TUdfAggFinishFunc  aggFinishFunc;
+  TUdfAggMergeFunc   aggMergeFunc;
 
   TUdfInitFunc    initFunc;
   TUdfDestroyFunc destroyFunc;
@@ -199,6 +203,14 @@ void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     if (udf->initFunc) {
       udf->initFunc();
     }
+    udf->resident = false;
+    for (int32_t i = 0; i < taosArrayGetSize(global.residentFuncs); ++i) {
+      char* funcName = taosArrayGet(global.residentFuncs, i);
+      if (strcmp(setup->udfName, funcName) == 0) {
+        udf->resident = true;
+        break;
+      }
+    }
     udf->state = UDF_STATE_READY;
     uv_cond_broadcast(&udf->condReady);
     uv_mutex_unlock(&udf->lock);
@@ -271,6 +283,15 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
 
       break;
     }
+    case TSDB_UDF_CALL_AGG_MERGE: {
+      SUdfInterBuf outBuf = {.buf = taosMemoryMalloc(udf->bufSize), .bufLen = udf->bufSize, .numOfResult = 0};
+      code = udf->aggMergeFunc(&call->interBuf, &call->interBuf2, &outBuf);
+      freeUdfInterBuf(&call->interBuf);
+      freeUdfInterBuf(&call->interBuf2);
+      subRsp->resultBuf = outBuf;
+
+      break;
+    }
     case TSDB_UDF_CALL_AGG_FIN: {
       SUdfInterBuf outBuf = {.buf = taosMemoryMalloc(udf->bufSize), .bufLen = udf->bufSize, .numOfResult = 0};
       code = udf->aggFinishFunc(&call->interBuf, &outBuf);
@@ -309,6 +330,10 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
       freeUdfInterBuf(&subRsp->resultBuf);
       break;
     }
+    case TSDB_UDF_CALL_AGG_MERGE: {
+      freeUdfInterBuf(&subRsp->resultBuf);
+      break;
+    }
     case TSDB_UDF_CALL_AGG_FIN: {
       freeUdfInterBuf(&subRsp->resultBuf);
       break;
@@ -331,7 +356,7 @@ void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
 
   uv_mutex_lock(&global.udfsMutex);
   udf->refCount--;
-  if (udf->refCount == 0) {
+  if (udf->refCount == 0 && !udf->resident) {
     unloadUdf = true;
     taosHashRemove(global.udfsHash, udf->name, strlen(udf->name));
   }
@@ -439,7 +464,7 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
       goto _return;
     }
     taosCloseFile(&file);
-    strncpy(udf->path, path, strlen(path));
+    strncpy(udf->path, path, PATH_MAX);
     tFreeSFuncInfo(pFuncInfo);
     taosArrayDestroy(retrieveRsp.pFuncInfos);
     msgInfo->code = 0;
@@ -552,15 +577,19 @@ int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
     uv_dlsym(&udf->lib, processFuncName, (void **)(&udf->aggProcFunc));
     char  startFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
     char *startSuffix = "_start";
-    strncpy(startFuncName, processFuncName, strlen(processFuncName));
+    strncpy(startFuncName, processFuncName, sizeof(startFuncName));
     strncat(startFuncName, startSuffix, strlen(startSuffix));
     uv_dlsym(&udf->lib, startFuncName, (void **)(&udf->aggStartFunc));
     char  finishFuncName[TSDB_FUNC_NAME_LEN + 7] = {0};
     char *finishSuffix = "_finish";
-    strncpy(finishFuncName, processFuncName, strlen(processFuncName));
+    strncpy(finishFuncName, processFuncName, sizeof(finishFuncName));
     strncat(finishFuncName, finishSuffix, strlen(finishSuffix));
     uv_dlsym(&udf->lib, finishFuncName, (void **)(&udf->aggFinishFunc));
-    // TODO: merge
+    char mergeFuncName[TSDB_FUNC_NAME_LEN + 6] = {0};
+    char *mergeSuffix = "_merge";
+    strncpy(mergeFuncName, processFuncName, sizeof(mergeFuncName));
+    strncat(mergeFuncName, mergeSuffix, strlen(mergeSuffix));
+    uv_dlsym(&udf->lib, mergeFuncName, (void **)(&udf->aggMergeFunc));
   }
   return 0;
 }
@@ -901,8 +930,6 @@ static int32_t udfdRun() {
   uv_run(global.loop, UV_RUN_DEFAULT);
   uv_loop_close(global.loop);
 
-  uv_mutex_destroy(&global.udfsMutex);
-  taosHashCleanup(global.udfsHash);
   return 0;
 }
 
@@ -921,6 +948,47 @@ void udfdConnectMnodeThreadFunc(void *args) {
   if (code != 0) {
     fnError("udfd can not connect to mnode");
   }
+}
+
+int32_t udfdInitResidentFuncs() {
+  if (strlen(tsUdfdResFuncs) == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  global.residentFuncs = taosArrayInit(2, TSDB_FUNC_NAME_LEN);
+  char* pSave = tsUdfdResFuncs;
+  char* token;
+  while ((token = strtok_r(pSave, ",", &pSave)) != NULL) {
+    char func[TSDB_FUNC_NAME_LEN] = {0};
+    strncpy(func, token, sizeof(func));
+    taosArrayPush(global.residentFuncs, func);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t udfdDeinitResidentFuncs() {
+  for (int32_t i = 0; i < taosArrayGetSize(global.residentFuncs); ++i) {
+    char* funcName = taosArrayGet(global.residentFuncs, i);
+    SUdf** udfInHash =  taosHashGet(global.udfsHash, funcName, strlen(funcName));
+    if (udfInHash) {
+      taosHashRemove(global.udfsHash, funcName, strlen(funcName));
+      SUdf* udf = *udfInHash;
+      if (udf->destroyFunc) {
+        (udf->destroyFunc)();
+      }
+      uv_dlclose(&udf->lib);
+      taosMemoryFree(udf);
+    }
+  }
+  taosArrayDestroy(global.residentFuncs);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t udfdCleanup() {
+  uv_mutex_destroy(&global.udfsMutex);
+  taosHashCleanup(global.udfsHash);
+  return 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -960,6 +1028,8 @@ int main(int argc, char *argv[]) {
     return -5;
   }
 
+  udfdInitResidentFuncs();
+
   uv_thread_t mnodeConnectThread;
   uv_thread_create(&mnodeConnectThread, udfdConnectMnodeThreadFunc, NULL);
 
@@ -968,5 +1038,7 @@ int main(int argc, char *argv[]) {
   removeListeningPipe();
   udfdCloseClientRpc();
 
+  udfdDeinitResidentFuncs();
+  udfdCleanup();
   return 0;
 }

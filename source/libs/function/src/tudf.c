@@ -81,7 +81,7 @@ static int32_t udfSpawnUdfd(SUdfdData* pData) {
     taosDirName(path);
   #endif
   } else {
-    strncpy(path, tsProcPath, strlen(tsProcPath));
+    strncpy(path, tsProcPath, PATH_MAX);
     taosDirName(path);
   }
 #ifdef WINDOWS
@@ -961,6 +961,7 @@ void releaseUdfFuncHandle(char* udfName) {
   strcpy(key.udfName, udfName);
   SUdfcFuncStub *foundStub = taosArraySearch(gUdfdProxy.udfStubs, &key, compareUdfcFuncSub, TD_EQ);
   if (!foundStub) {
+    uv_mutex_unlock(&gUdfdProxy.udfStubsMutex);
     return;
   }
   if (foundStub->refCount > 0) {
@@ -1183,7 +1184,9 @@ void onUdfcPipeClose(uv_handle_t *handle) {
     QUEUE_REMOVE(&task->procTaskQueue);
     uv_sem_post(&task->taskSem);
   }
-  conn->session->udfUvPipe = NULL;
+  if (conn->session != NULL) {
+    conn->session->udfUvPipe = NULL;
+  }
   taosMemoryFree(conn->readBuf.buf);
   taosMemoryFree(conn);
   taosMemoryFree((uv_pipe_t *) handle);
@@ -1653,6 +1656,8 @@ int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
   int32_t errCode = udfcRunUdfUvTask(task, UV_TASK_CONNECT);
   if (errCode != 0) {
     fnError("failed to connect to pipe. udfName: %s, pipe: %s", udfName, (&gUdfdProxy)->udfdPipeName);
+    taosMemoryFree(task->session);
+    taosMemoryFree(task);
     return TSDB_CODE_UDF_PIPE_CONNECT_ERR;
   }
 
@@ -1803,6 +1808,7 @@ int32_t doTeardownUdf(UdfcFuncHandle handle) {
 
   if (session->udfUvPipe == NULL) {
     fnError("tear down udf. pipe to udfd does not exist. udf name: %s", session->udfName);
+    taosMemoryFree(session);
     return TSDB_CODE_UDF_PIPE_NO_PIPE;
   }
 
@@ -1821,7 +1827,11 @@ int32_t doTeardownUdf(UdfcFuncHandle handle) {
   udfcRunUdfUvTask(task, UV_TASK_DISCONNECT);
 
   fnInfo("tear down udf. udf name: %s, udf func handle: %p", session->udfName, handle);
-
+  //TODO: synchronization refactor between libuv event loop and request thread
+  if (session->udfUvPipe != NULL && session->udfUvPipe->data != NULL) {
+    SClientUvConn *conn = session->udfUvPipe->data;
+    conn->session = NULL;
+  }
   taosMemoryFree(session);
   taosMemoryFree(task);
 

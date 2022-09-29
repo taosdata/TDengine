@@ -9,6 +9,7 @@
 #include "scalar.h"
 #include "tudf.h"
 #include "ttime.h"
+#include "tcompare.h"
 
 int32_t scalarGetOperatorParamNum(EOperatorType type) {
   if (OP_TYPE_IS_NULL == type || OP_TYPE_IS_NOT_NULL == type || OP_TYPE_IS_TRUE == type || OP_TYPE_IS_NOT_TRUE == type
@@ -219,6 +220,82 @@ void sclFreeParamList(SScalarParam *param, int32_t paramNum) {
   taosMemoryFree(param);
 }
 
+void sclDowngradeValueType(SValueNode *valueNode) {
+  switch (valueNode->node.resType.type) {
+    case TSDB_DATA_TYPE_BIGINT: {
+      int8_t i8 = valueNode->datum.i;
+      if (i8 == valueNode->datum.i) {
+        valueNode->node.resType.type = TSDB_DATA_TYPE_TINYINT;
+        *(int8_t*)&valueNode->typeData = i8;
+        break;
+      }
+      int16_t i16 = valueNode->datum.i;
+      if (i16 == valueNode->datum.i) {
+        valueNode->node.resType.type = TSDB_DATA_TYPE_SMALLINT;
+        *(int16_t*)&valueNode->typeData = i16;
+        break;
+      }
+      int32_t i32 = valueNode->datum.i;
+      if (i32 == valueNode->datum.i) {
+        valueNode->node.resType.type = TSDB_DATA_TYPE_INT;
+        *(int32_t*)&valueNode->typeData = i32;
+        break;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT:{
+      uint8_t u8 = valueNode->datum.i;
+      if (u8 == valueNode->datum.i) {
+        int8_t i8 = valueNode->datum.i;
+        if (i8 == valueNode->datum.i) {
+          valueNode->node.resType.type = TSDB_DATA_TYPE_TINYINT;
+          *(int8_t*)&valueNode->typeData = i8;
+        } else {
+          valueNode->node.resType.type = TSDB_DATA_TYPE_UTINYINT;
+          *(uint8_t*)&valueNode->typeData = u8;
+        }
+        break;
+      }
+      uint16_t u16 = valueNode->datum.i;
+      if (u16 == valueNode->datum.i) {
+        int16_t i16 = valueNode->datum.i;
+        if (i16 == valueNode->datum.i) {
+          valueNode->node.resType.type = TSDB_DATA_TYPE_SMALLINT;
+          *(int16_t*)&valueNode->typeData = i16;
+        } else {
+          valueNode->node.resType.type = TSDB_DATA_TYPE_USMALLINT;
+          *(uint16_t*)&valueNode->typeData = u16;
+        }
+        break;
+      }
+      uint32_t u32 = valueNode->datum.i;
+      if (u32 == valueNode->datum.i) {
+        int32_t i32 = valueNode->datum.i;
+        if (i32 == valueNode->datum.i) {
+          valueNode->node.resType.type = TSDB_DATA_TYPE_INT;
+          *(int32_t*)&valueNode->typeData = i32;
+        } else {
+          valueNode->node.resType.type = TSDB_DATA_TYPE_UINT;
+          *(uint32_t*)&valueNode->typeData = u32;
+        }
+        break;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      float f = valueNode->datum.d;
+      if (FLT_EQUAL(f, valueNode->datum.d)) {
+        valueNode->node.resType.type = TSDB_DATA_TYPE_FLOAT;
+        *(float*)&valueNode->typeData = f;
+        break;
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
 int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t *rowNum) {
   switch (nodeType(node)) {
     case QUERY_NODE_LEFT_VALUE: {
@@ -292,6 +369,9 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       }
 
       SColumnInfoData *columnData = (SColumnInfoData *)taosArrayGet(block->pDataBlock, ref->slotId);
+#if TAG_FILTER_DEBUG
+      qDebug("tagfilter column info, slotId:%d, colId:%d, type:%d", ref->slotId, columnData->info.colId, columnData->info.type);
+#endif
       param->numOfRows = block->info.rows;
       param->columnData = columnData;
       break;
@@ -526,6 +606,8 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
     SCL_ERR_JRET(code);
   }
 
+  int32_t numOfQualified = 0;
+
   bool value = false;
   bool complete = true;
   for (int32_t i = 0; i < rowNum; ++i) {
@@ -551,6 +633,9 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
 
     if (complete) {
       colDataAppend(output->columnData, i, (char*) &value, false);
+      if (value) {
+        numOfQualified++;
+      }
     }
   }
 
@@ -559,8 +644,9 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
     output->numOfRows = 0;
   }
 
-_return:
+  output->numOfQualified = numOfQualified;
 
+_return:
   sclFreeParamList(params, paramNum);
   SCL_RET(code);
 }
@@ -672,6 +758,10 @@ EDealRes sclRewriteNonConstOperator(SNode** pNode, SScalarCtx *ctx) {
         return DEAL_RES_ERROR;
       }
     }
+
+    if (SCL_IS_COMPARISON_OPERATOR(node->opType) && SCL_DOWNGRADE_DATETYPE(valueNode->node.resType.type)) {
+      sclDowngradeValueType(valueNode);
+    }    
   }
 
   if (node->pRight && (QUERY_NODE_VALUE == nodeType(node->pRight))) {
@@ -689,6 +779,10 @@ EDealRes sclRewriteNonConstOperator(SNode** pNode, SScalarCtx *ctx) {
         return DEAL_RES_ERROR;
       }
     }
+
+    if (SCL_IS_COMPARISON_OPERATOR(node->opType) && SCL_DOWNGRADE_DATETYPE(valueNode->node.resType.type)) {
+      sclDowngradeValueType(valueNode);
+    }    
   }
 
   if (node->pRight && (QUERY_NODE_NODE_LIST == nodeType(node->pRight))) {
@@ -759,7 +853,7 @@ EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
       memcpy(res->datum.p, output.columnData->pData, len);
     } else if (IS_VAR_DATA_TYPE(type)) {
       //res->datum.p = taosMemoryCalloc(res->node.resType.bytes + VARSTR_HEADER_SIZE + 1, 1);
-      res->datum.p = taosMemoryCalloc(varDataTLen(output.columnData->pData), 1);
+      res->datum.p = taosMemoryCalloc(varDataTLen(output.columnData->pData) + 1, 1);
       res->node.resType.bytes = varDataTLen(output.columnData->pData);
       memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
     } else {
@@ -1154,6 +1248,7 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
       colInfoDataEnsureCapacity(pDst->columnData, res->numOfRows);
       colDataAssign(pDst->columnData, res->columnData, res->numOfRows, NULL);
       pDst->numOfRows = res->numOfRows;
+      pDst->numOfQualified = res->numOfQualified;
     }
 
     sclFreeParam(res);
@@ -1161,7 +1256,6 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
   }
 
 _return:
-  //nodesDestroyNode(pNode);
   sclFreeRes(ctx.pRes);
   return code;
 }

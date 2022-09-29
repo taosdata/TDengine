@@ -80,10 +80,12 @@ else
       ${build_dir}/bin/taosBenchmark \
       ${build_dir}/bin/TDinsight.sh \
       $tdinsight_caches"
+  [ -f ${build_dir}/bin/taosx ] && taosx_bin="${build_dir}/bin/taosx"
 
   bin_files="${build_dir}/bin/${serverName} \
       ${build_dir}/bin/${clientName} \
       ${taostools_bin_files} \
+      ${taosx_bin} \
       ${build_dir}/bin/taosadapter \
       ${build_dir}/bin/udfd \
       ${script_dir}/remove.sh \
@@ -105,7 +107,7 @@ else
 fi
 
 install_files="${script_dir}/install.sh"
-nginx_dir="${top_dir}/../enterprise/src/plugins/web"
+web_dir="${top_dir}/../enterprise/src/plugins/web"
 
 init_file_deb=${script_dir}/../deb/taosd
 init_file_rpm=${script_dir}/../rpm/taosd
@@ -128,10 +130,6 @@ fi
 
 if [ -f "${cfg_dir}/${serverName}.service" ]; then
   cp ${cfg_dir}/${serverName}.service ${install_dir}/cfg || :
-fi
-
-if [ -f "${top_dir}/packaging/cfg/nginxd.service" ]; then
-  cp ${top_dir}/packaging/cfg/nginxd.service ${install_dir}/cfg || :
 fi
 
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
@@ -220,16 +218,6 @@ if [ "$verMode" == "cluster" ]; then
   sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove.sh >>remove_temp.sh
   mv remove_temp.sh ${install_dir}/bin/remove.sh
 
-  mkdir -p ${install_dir}/nginxd && cp -r ${nginx_dir}/* ${install_dir}/nginxd
-  cp ${nginx_dir}/png/taos.png ${install_dir}/nginxd/admin/images/taos.png
-  rm -rf ${install_dir}/nginxd/png
-
-  if [ "$cpuType" == "aarch64" ]; then
-    cp -f ${install_dir}/nginxd/sbin/arm/64bit/nginx ${install_dir}/nginxd/sbin/
-  elif [ "$cpuType" == "aarch32" ]; then
-    cp -f ${install_dir}/nginxd/sbin/arm/32bit/nginx ${install_dir}/nginxd/sbin/
-  fi
-  rm -rf ${install_dir}/nginxd/sbin/arm
 fi
 
 cd ${install_dir}
@@ -285,6 +273,13 @@ if [[ $dbName == "taos" ]]; then
     cp -r ${examples_dir}/nodejs ${install_dir}/examples
     cp -r ${examples_dir}/C# ${install_dir}/examples
     mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
+  fi
+
+  # Add web files
+  if [ -d "${web_dir}/admin" ]; then
+    mkdir -p ${install_dir}/share/
+    cp ${web_dir}/admin ${install_dir}/share/ -r
+    cp ${web_dir}/png/taos.png ${install_dir}/share/admin/images/taos.png
   fi
 fi
 

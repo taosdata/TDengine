@@ -2,7 +2,7 @@
 title: Reference
 ---
 
-The reference guide is a detailed introduction to TDengine including various TDengine connectors in different languages, and the tools that come with TDengine.
+This section describes the TDengine connectors and utilities.
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';

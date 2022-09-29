@@ -39,7 +39,7 @@ struct SVSnapReader {
   SStreamStateReader *pStreamStateReader;
   // rsma
   int8_t           rsmaDone;
-  SRsmaSnapReader *pRsmaReader;
+  SRSmaSnapReader *pRsmaReader;
 };
 
 int32_t vnodeSnapReaderOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapReader **ppReader) {
@@ -241,7 +241,7 @@ struct SVSnapWriter {
   SStreamTaskWriter  *pStreamTaskWriter;
   SStreamStateWriter *pStreamStateWriter;
   // rsma
-  SRsmaSnapWriter *pRsmaSnapWriter;
+  SRSmaSnapWriter *pRsmaSnapWriter;
 };
 
 int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter) {
@@ -354,7 +354,8 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       code = metaSnapWrite(pWriter->pMetaSnapWriter, pData, nData);
       if (code) goto _err;
     } break;
-    case SNAP_DATA_TSDB: {
+    case SNAP_DATA_TSDB:
+    case SNAP_DATA_DEL: {
       // tsdb
       if (pWriter->pTsdbSnapWriter == NULL) {
         code = tsdbSnapWriterOpen(pVnode->pTsdb, pWriter->sver, pWriter->ever, &pWriter->pTsdbSnapWriter);

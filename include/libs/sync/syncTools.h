@@ -423,6 +423,7 @@ typedef struct SyncAppendEntriesReply {
   SyncTerm  privateTerm;
   bool      success;
   SyncIndex matchIndex;
+  int64_t   startTime;
 } SyncAppendEntriesReply;
 
 SyncAppendEntriesReply* syncAppendEntriesReplyBuild(int32_t vgId);
@@ -442,6 +443,70 @@ void syncAppendEntriesReplyPrint(const SyncAppendEntriesReply* pMsg);
 void syncAppendEntriesReplyPrint2(char* s, const SyncAppendEntriesReply* pMsg);
 void syncAppendEntriesReplyLog(const SyncAppendEntriesReply* pMsg);
 void syncAppendEntriesReplyLog2(char* s, const SyncAppendEntriesReply* pMsg);
+
+// ---------------------------------------------
+typedef struct SyncHeartbeat {
+  uint32_t bytes;
+  int32_t  vgId;
+  uint32_t msgType;
+  SRaftId  srcId;
+  SRaftId  destId;
+
+  // private data
+  SyncTerm  term;
+  SyncIndex commitIndex;
+  SyncTerm  privateTerm;
+} SyncHeartbeat;
+
+SyncHeartbeat* syncHeartbeatBuild(int32_t vgId);
+void           syncHeartbeatDestroy(SyncHeartbeat* pMsg);
+void           syncHeartbeatSerialize(const SyncHeartbeat* pMsg, char* buf, uint32_t bufLen);
+void           syncHeartbeatDeserialize(const char* buf, uint32_t len, SyncHeartbeat* pMsg);
+char*          syncHeartbeatSerialize2(const SyncHeartbeat* pMsg, uint32_t* len);
+SyncHeartbeat* syncHeartbeatDeserialize2(const char* buf, uint32_t len);
+void           syncHeartbeat2RpcMsg(const SyncHeartbeat* pMsg, SRpcMsg* pRpcMsg);
+void           syncHeartbeatFromRpcMsg(const SRpcMsg* pRpcMsg, SyncHeartbeat* pMsg);
+SyncHeartbeat* syncHeartbeatFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*         syncHeartbeat2Json(const SyncHeartbeat* pMsg);
+char*          syncHeartbeat2Str(const SyncHeartbeat* pMsg);
+
+// for debug ----------------------
+void syncHeartbeatPrint(const SyncHeartbeat* pMsg);
+void syncHeartbeatPrint2(char* s, const SyncHeartbeat* pMsg);
+void syncHeartbeatLog(const SyncHeartbeat* pMsg);
+void syncHeartbeatLog2(char* s, const SyncHeartbeat* pMsg);
+
+// ---------------------------------------------
+typedef struct SyncHeartbeatReply {
+  uint32_t bytes;
+  int32_t  vgId;
+  uint32_t msgType;
+  SRaftId  srcId;
+  SRaftId  destId;
+
+  // private data
+  SyncTerm term;
+  SyncTerm privateTerm;
+  int64_t  startTime;
+} SyncHeartbeatReply;
+
+SyncHeartbeatReply* syncHeartbeatReplyBuild(int32_t vgId);
+void                syncHeartbeatReplyDestroy(SyncHeartbeatReply* pMsg);
+void                syncHeartbeatReplySerialize(const SyncHeartbeatReply* pMsg, char* buf, uint32_t bufLen);
+void                syncHeartbeatReplyDeserialize(const char* buf, uint32_t len, SyncHeartbeatReply* pMsg);
+char*               syncHeartbeatReplySerialize2(const SyncHeartbeatReply* pMsg, uint32_t* len);
+SyncHeartbeatReply* syncHeartbeatReplyDeserialize2(const char* buf, uint32_t len);
+void                syncHeartbeatReply2RpcMsg(const SyncHeartbeatReply* pMsg, SRpcMsg* pRpcMsg);
+void                syncHeartbeatReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncHeartbeatReply* pMsg);
+SyncHeartbeatReply* syncHeartbeatReplyFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*              syncHeartbeatReply2Json(const SyncHeartbeatReply* pMsg);
+char*               syncHeartbeatReply2Str(const SyncHeartbeatReply* pMsg);
+
+// for debug ----------------------
+void syncHeartbeatReplyPrint(const SyncHeartbeatReply* pMsg);
+void syncHeartbeatReplyPrint2(char* s, const SyncHeartbeatReply* pMsg);
+void syncHeartbeatReplyLog(const SyncHeartbeatReply* pMsg);
+void syncHeartbeatReplyLog2(char* s, const SyncHeartbeatReply* pMsg);
 
 // ---------------------------------------------
 typedef struct SyncApplyMsg {

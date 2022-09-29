@@ -171,7 +171,7 @@ SRaftCfg *raftCfgOpen(const char *path) {
 
   taosLSeekFile(pCfg->pFile, 0, SEEK_SET);
 
-  char buf[1024] = {0};
+  char buf[CONFIG_FILE_LEN] = {0};
   int  len = taosReadFile(pCfg->pFile, buf, sizeof(buf));
   ASSERT(len > 0);
 
@@ -364,8 +364,6 @@ int32_t raftCfgCreateFile(SSyncCfg *pCfg, SRaftCfgMeta meta, const char *path) {
     int32_t     sysErr = errno;
     const char *sysErrStr = strerror(errno);
     sError("create raft cfg file error, err:%d %X, msg:%s, syserr:%d, sysmsg:%s", err, err, errStr, sysErr, sysErrStr);
-    ASSERT(0);
-
     return -1;
   }
 

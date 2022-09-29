@@ -36,40 +36,49 @@ typedef struct STSRow2       STSRow2;
 typedef struct STSRowBuilder STSRowBuilder;
 typedef struct STagVal       STagVal;
 typedef struct STag          STag;
+typedef struct SColData      SColData;
 
-// bitmap
-#define N1(n)        ((1 << (n)) - 1)
-#define BIT1_SIZE(n) (((n)-1) / 8 + 1)
-#define BIT2_SIZE(n) (((n)-1) / 4 + 1)
-#define SET_BIT1(p, i, v)                            \
-  do {                                               \
-    (p)[(i) / 8] &= N1((i) % 8);                     \
-    (p)[(i) / 8] |= (((uint8_t)(v)) << (((i) % 8))); \
-  } while (0)
+#define HAS_NONE  ((uint8_t)0x1)
+#define HAS_NULL  ((uint8_t)0x2)
+#define HAS_VALUE ((uint8_t)0x4)
 
-#define GET_BIT1(p, i) (((p)[(i) / 8] >> ((i) % 8)) & ((uint8_t)1))
-#define SET_BIT2(p, i, v)                                \
-  do {                                                   \
-    p[(i) / 4] &= N1((i) % 4 * 2);                       \
-    (p)[(i) / 4] |= (((uint8_t)(v)) << (((i) % 4) * 2)); \
-  } while (0)
-#define GET_BIT2(p, i) (((p)[(i) / 4] >> (((i) % 4) * 2)) & ((uint8_t)3))
+// bitmap ================================
+const static uint8_t BIT2_MAP[4][4] = {{0b00000000, 0b00000001, 0b00000010, 0},
+                                       {0b00000000, 0b00000100, 0b00001000, 2},
+                                       {0b00000000, 0b00010000, 0b00100000, 4},
+                                       {0b00000000, 0b01000000, 0b10000000, 6}};
 
-// STSchema
+#define N1(n)             ((((uint8_t)1) << (n)) - 1)
+#define BIT1_SIZE(n)      ((((n)-1) >> 3) + 1)
+#define BIT2_SIZE(n)      ((((n)-1) >> 2) + 1)
+#define SET_BIT1(p, i, v) ((p)[(i) >> 3] = (p)[(i) >> 3] & N1((i)&7) | (((uint8_t)(v)) << ((i)&7)))
+#define GET_BIT1(p, i)    (((p)[(i) >> 3] >> ((i)&7)) & ((uint8_t)1))
+#define SET_BIT2(p, i, v) ((p)[(i) >> 2] = (p)[(i) >> 2] & N1(BIT2_MAP[(i)&3][3]) | BIT2_MAP[(i)&3][(v)])
+#define GET_BIT2(p, i)    (((p)[(i) >> 2] >> BIT2_MAP[(i)&3][3]) & ((uint8_t)3))
+
+// STSchema ================================
 int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema **ppTSchema);
 void    tTSchemaDestroy(STSchema *pTSchema);
 
-// SValue
+// SValue ================================
 int32_t tPutValue(uint8_t *p, SValue *pValue, int8_t type);
 int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type);
 int     tValueCmprFn(const SValue *pValue1, const SValue *pValue2, int8_t type);
 
-// SColVal
-#define COL_VAL_NONE(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .isNone = 1})
-#define COL_VAL_NULL(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .isNull = 1})
+// SColVal ================================
+#define CV_FLAG_VALUE ((int8_t)0x0)
+#define CV_FLAG_NONE  ((int8_t)0x1)
+#define CV_FLAG_NULL  ((int8_t)0x2)
+
+#define COL_VAL_NONE(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .flag = CV_FLAG_NONE})
+#define COL_VAL_NULL(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .flag = CV_FLAG_NULL})
 #define COL_VAL_VALUE(CID, TYPE, V) ((SColVal){.cid = (CID), .type = (TYPE), .value = (V)})
 
-// STSRow2
+#define COL_VAL_IS_NONE(CV)  ((CV)->flag == CV_FLAG_NONE)
+#define COL_VAL_IS_NULL(CV)  ((CV)->flag == CV_FLAG_NULL)
+#define COL_VAL_IS_VALUE(CV) ((CV)->flag == CV_FLAG_VALUE)
+
+// STSRow2 ================================
 #define TSROW_LEN(PROW, V)  tGetI32v((uint8_t *)(PROW)->data, (V) ? &(V) : NULL)
 #define TSROW_SVER(PROW, V) tGetI32v((PROW)->data + TSROW_LEN(PROW, NULL), (V) ? &(V) : NULL)
 
@@ -81,7 +90,7 @@ int32_t tTSRowToArray(STSRow2 *pRow, STSchema *pTSchema, SArray **ppArray);
 int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow);
 int32_t tGetTSRow(uint8_t *p, STSRow2 **ppRow);
 
-// STSRowBuilder
+// STSRowBuilder ================================
 #define tsRowBuilderInit() ((STSRowBuilder){0})
 #define tsRowBuilderClear(B)     \
   do {                           \
@@ -90,7 +99,7 @@ int32_t tGetTSRow(uint8_t *p, STSRow2 **ppRow);
     }                            \
   } while (0)
 
-// STag
+// STag ================================
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
 void    tTagFree(STag *pTag);
 bool    tTagIsJson(const void *pTag);
@@ -100,10 +109,20 @@ char   *tTagValToData(const STagVal *pTagVal, bool isJson);
 int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray);
+void    tTagSetCid(const STag *pTag, int16_t iTag, int16_t cid);
 void    debugPrintSTag(STag *pTag, const char *tag, int32_t ln);  // TODO: remove
 int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, void *pMsgBuf);
 
-// STRUCT =================
+// SColData ================================
+void    tColDataDestroy(void *ph);
+void    tColDataInit(SColData *pColData, int16_t cid, int8_t type, int8_t smaOn);
+void    tColDataClear(SColData *pColData);
+int32_t tColDataAppendValue(SColData *pColData, SColVal *pColVal);
+void    tColDataGetValue(SColData *pColData, int32_t iVal, SColVal *pColVal);
+uint8_t tColDataGetBitValue(SColData *pColData, int32_t iVal);
+int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest);
+
+// STRUCT ================================
 struct STColumn {
   col_id_t colId;
   int8_t   type;
@@ -164,14 +183,25 @@ struct SValue {
 struct SColVal {
   int16_t cid;
   int8_t  type;
-  int8_t  isNone;
-  int8_t  isNull;
+  int8_t  flag;
   SValue  value;
+};
+
+struct SColData {
+  int16_t  cid;
+  int8_t   type;
+  int8_t   smaOn;
+  int32_t  nVal;
+  uint8_t  flag;
+  uint8_t *pBitMap;
+  int32_t *aOffset;
+  int32_t  nData;
+  uint8_t *pData;
 };
 
 #pragma pack(push, 1)
 struct STagVal {
-//  char colName[TSDB_COL_NAME_LEN]; // only used for tmq_get_meta
+  //  char colName[TSDB_COL_NAME_LEN]; // only used for tmq_get_meta
   union {
     int16_t cid;
     char   *pKey;

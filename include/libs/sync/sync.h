@@ -22,15 +22,20 @@ extern "C" {
 
 #include "cJSON.h"
 #include "tdef.h"
+#include "tlrucache.h"
 #include "tmsgcb.h"
 
 extern bool gRaftDetailLog;
 
-#define SYNC_RESP_TTL_MS       10000000
-#define SYNC_SPEED_UP_HB_TIMER 400
-#define SYNC_SPEED_UP_AFTER_MS (1000 * 20)
-#define SYNC_SLOW_DOWN_RANGE   100
-#define SYNC_MAX_READ_RANGE    10
+#define SYNC_RESP_TTL_MS             10000000
+#define SYNC_SPEED_UP_HB_TIMER       400
+#define SYNC_SPEED_UP_AFTER_MS       (1000 * 20)
+#define SYNC_SLOW_DOWN_RANGE         100
+#define SYNC_MAX_READ_RANGE          2
+#define SYNC_MAX_PROGRESS_WAIT_MS    4000
+#define SYNC_MAX_START_TIME_RANGE_MS (1000 * 20)
+#define SYNC_MAX_RECV_TIME_RANGE_MS  1200
+#define SYNC_ADD_QUORUM_COUNT        3
 
 #define SYNC_MAX_BATCH_SIZE 1
 #define SYNC_INDEX_BEGIN    0
@@ -149,7 +154,8 @@ typedef struct SSyncFSM {
 // abstract definition of log store in raft
 // SWal implements it
 typedef struct SSyncLogStore {
-  void* data;
+  SLRUCache* pCache;
+  void*      data;
 
   // append one log entry
   int32_t (*appendEntry)(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);

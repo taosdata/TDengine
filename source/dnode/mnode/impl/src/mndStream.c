@@ -167,6 +167,9 @@ static int32_t mndStreamActionInsert(SSdb *pSdb, SStreamObj *pStream) {
 
 static int32_t mndStreamActionDelete(SSdb *pSdb, SStreamObj *pStream) {
   mTrace("stream:%s, perform delete action", pStream->name);
+  taosWLockLatch(&pStream->lock);
+  tFreeStreamObj(pStream);
+  taosWUnLockLatch(&pStream->lock);
   return 0;
 }
 
@@ -263,7 +266,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   SNode      *pAst = NULL;
   SQueryPlan *pPlan = NULL;
 
-  mDebug("stream:%s to create", pCreate->name);
+  mInfo("stream:%s to create", pCreate->name);
   memcpy(pObj->name, pCreate->name, TSDB_STREAM_FNAME_LEN);
   pObj->createTime = taosGetTimestampMs();
   pObj->updateTime = pObj->createTime;
@@ -282,7 +285,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   SDbObj *pSourceDb = mndAcquireDb(pMnode, pCreate->sourceDB);
   if (pSourceDb == NULL) {
     /*ASSERT(0);*/
-    mDebug("stream:%s failed to create, source db %s not exist", pCreate->name, pObj->sourceDb);
+    mInfo("stream:%s failed to create, source db %s not exist", pCreate->name, pObj->sourceDb);
     terrno = TSDB_CODE_MND_DB_NOT_EXIST;
     return -1;
   }
@@ -292,7 +295,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
 
   SDbObj *pTargetDb = mndAcquireDbByStb(pMnode, pObj->targetSTbName);
   if (pTargetDb == NULL) {
-    mDebug("stream:%s failed to create, target db %s not exist", pCreate->name, pObj->targetDb);
+    mInfo("stream:%s failed to create, target db %s not exist", pCreate->name, pObj->targetDb);
     terrno = TSDB_CODE_MND_DB_NOT_EXIST;
     return -1;
   }
@@ -493,10 +496,17 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
 
   stbObj.uid = pStream->targetStbUid;
 
-  if (mndAddStbToTrans(pMnode, pTrans, pDb, &stbObj) < 0) goto _OVER;
+  if (mndAddStbToTrans(pMnode, pTrans, pDb, &stbObj) < 0) {
+    mndFreeStb(&stbObj);
+    goto _OVER;
+  }
+
+  tFreeSMCreateStbReq(&createReq);
+  mndFreeStb(&stbObj);
 
   return 0;
 _OVER:
+  tFreeSMCreateStbReq(&createReq);
   mndReleaseStb(pMnode, pStb);
   mndReleaseDb(pMnode, pDb);
   return -1;
@@ -621,13 +631,14 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   SStreamObj        *pStream = NULL;
   SDbObj            *pDb = NULL;
   SCMCreateStreamReq createStreamReq = {0};
+  SStreamObj         streamObj = {0};
 
   if (tDeserializeSCMCreateStreamReq(pReq->pCont, pReq->contLen, &createStreamReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
 
-  mDebug("stream:%s, start to create, sql:%s", createStreamReq.name, createStreamReq.sql);
+  mInfo("stream:%s, start to create, sql:%s", createStreamReq.name, createStreamReq.sql);
 
   if (mndCheckCreateStreamReq(&createStreamReq) != 0) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
@@ -637,7 +648,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   pStream = mndAcquireStream(pMnode, createStreamReq.name);
   if (pStream != NULL) {
     if (createStreamReq.igExists) {
-      mDebug("stream:%s, already exist, ignore exist is set", createStreamReq.name);
+      mInfo("stream:%s, already exist, ignore exist is set", createStreamReq.name);
       code = 0;
       goto _OVER;
     } else {
@@ -649,20 +660,19 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
   }
 
   // build stream obj from request
-  SStreamObj streamObj = {0};
   if (mndBuildStreamObjFromCreateReq(pMnode, &streamObj, &createStreamReq) < 0) {
     /*ASSERT(0);*/
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_DB_INSIDE, pReq, "create-stream");
   if (pTrans == NULL) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
   }
-  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb);
-  mDebug("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
+  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb); // hack way
+  mInfo("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
 
   // create stb for stream
   if (mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->info.conn.user) < 0) {
@@ -715,6 +725,7 @@ _OVER:
   mndReleaseDb(pMnode, pDb);
 
   tFreeSCMCreateStreamReq(&createStreamReq);
+  tFreeStreamObj(&streamObj);
   return code;
 }
 
@@ -735,7 +746,7 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
 
   if (pStream == NULL) {
     if (dropReq.igNotExists) {
-      mDebug("stream:%s, not exist, ignore not exist is set", dropReq.name);
+      mInfo("stream:%s, not exist, ignore not exist is set", dropReq.name);
       sdbRelease(pMnode->pSdb, pStream);
       return 0;
     } else {
@@ -748,13 +759,13 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "drop-stream");
   if (pTrans == NULL) {
     mError("stream:%s, failed to drop since %s", dropReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
     return -1;
   }
-  mDebug("trans:%d, used to drop stream:%s", pTrans->id, dropReq.name);
+  mInfo("trans:%d, used to drop stream:%s", pTrans->id, dropReq.name);
 
   // drop all tasks
   if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {
@@ -799,7 +810,7 @@ static int32_t mndProcessRecoverStreamReq(SRpcMsg *pReq) {
 
   if (pStream == NULL) {
     if (recoverReq.igNotExists) {
-      mDebug("stream:%s, not exist, ignore not exist is set", recoverReq.name);
+      mInfo("stream:%s, not exist, ignore not exist is set", recoverReq.name);
       sdbRelease(pMnode->pSdb, pStream);
       return 0;
     } else {
@@ -818,7 +829,7 @@ static int32_t mndProcessRecoverStreamReq(SRpcMsg *pReq) {
     sdbRelease(pMnode->pSdb, pStream);
     return -1;
   }
-  mDebug("trans:%d, used to drop stream:%s", pTrans->id, recoverReq.name);
+  mInfo("trans:%d, used to drop stream:%s", pTrans->id, recoverReq.name);
 
   // broadcast to recover all tasks
   if (mndRecoverStreamTasks(pMnode, pTrans, pStream) < 0) {

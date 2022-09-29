@@ -319,7 +319,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
 
   bool multiTarget = pDbObj->cfg.numOfVgroups > 1;
 
-  if (planTotLevel == 2 || externalTargetDB || multiTarget) {
+  if (planTotLevel == 2 || externalTargetDB || multiTarget || pStream->fixedSinkVgId) {
     /*if (true) {*/
     SArray* taskOneLevel = taosArrayInit(0, sizeof(void*));
     taosArrayPush(pStream->tasks, &taskOneLevel);
@@ -423,6 +423,8 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
         return -1;
       }
       mndAddTaskToTaskSet(taskSourceLevel, pTask);
+
+      pTask->triggerParam = 0;
 
       // source
       pTask->taskLevel = TASK_LEVEL__SOURCE;

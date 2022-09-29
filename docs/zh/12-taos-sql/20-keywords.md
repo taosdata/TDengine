@@ -1,11 +1,14 @@
 ---
 sidebar_label: 保留关键字
-title: TDengine 保留关键字
+title: 保留关键字
+description: TDengine 保留关键字的详细列表
 ---
 
 ## 保留关键字
 
-目前 TDengine 有将近 200 个内部保留关键字，这些关键字无论大小写均不可以用作库名、表名、STable 名、数据列名及标签列名等。这些关键字列表如下：
+目前 TDengine 有 200 多个内部保留关键字，这些关键字如果需要用作库名、表名、超级表名、子表名、数据列名及标签列名等，无论大小写，需要使用符号 `` ` `` 将关键字括起来使用，例如 \`ADD\`。
+
+关键字列表如下：
 
 ### A
 
@@ -14,15 +17,20 @@ title: TDengine 保留关键字
 - ACCOUNTS
 - ADD
 - AFTER
+- AGGREGATE
 - ALL
 - ALTER
+- ANALYZE
 - AND
+- APPS
 - AS
 - ASC
+- AT_ONCE
 - ATTACH
 
 ### B
 
+- BALANCE
 - BEFORE
 - BEGIN
 - BETWEEN
@@ -32,19 +40,27 @@ title: TDengine 保留关键字
 - BITNOT
 - BITOR
 - BLOCKS
+- BNODE
+- BNODES
 - BOOL
+- BUFFER
+- BUFSIZE
 - BY
 
 ### C
 
 - CACHE
-- CACHELAST
+- CACHEMODEL
+- CACHESIZE
 - CASCADE
+- CAST
 - CHANGE
+- CLIENT_VERSION
 - CLUSTER
 - COLON
 - COLUMN
 - COMMA
+- COMMENT
 - COMP
 - COMPACT
 - CONCAT
@@ -52,15 +68,18 @@ title: TDengine 保留关键字
 - CONNECTION
 - CONNECTIONS
 - CONNS
+- CONSUMER
+- CONSUMERS
+- CONTAINS
 - COPY
+- COUNT
 - CREATE
-- CTIME
+- CURRENT_USER
 
 ### D
 
 - DATABASE
 - DATABASES
-- DAYS
 - DBS
 - DEFERRED
 - DELETE
@@ -69,18 +88,23 @@ title: TDengine 保留关键字
 - DESCRIBE
 - DETACH
 - DISTINCT
+- DISTRIBUTED
 - DIVIDE
 - DNODE
 - DNODES
 - DOT
 - DOUBLE
 - DROP
+- DURATION
 
 ### E
 
+- EACH
+- ENABLE
 - END
-- EQ
+- EVERY
 - EXISTS
+- EXPIRED
 - EXPLAIN
 
 ### F
@@ -88,18 +112,20 @@ title: TDengine 保留关键字
 - FAIL
 - FILE
 - FILL
+- FIRST
 - FLOAT
+- FLUSH
 - FOR
 - FROM
-- FSYNC
+- FUNCTION
+- FUNCTIONS
 
 ### G
 
-- GE
 - GLOB
+- GRANT
 - GRANTS
 - GROUP
-- GT
 
 ### H
 
@@ -110,15 +136,18 @@ title: TDengine 保留关键字
 - ID
 - IF
 - IGNORE
-- IMMEDIA
+- IMMEDIATE
 - IMPORT
 - IN
-- INITIAL
+- INDEX
+- INDEXES
+- INITIALLY
+- INNER
 - INSERT
 - INSTEAD
 - INT
 - INTEGER
-- INTERVA
+- INTERVAL
 - INTO
 - IS
 - ISNULL
@@ -126,6 +155,7 @@ title: TDengine 保留关键字
 ### J
 
 - JOIN
+- JSON
 
 ### K
 
@@ -135,46 +165,57 @@ title: TDengine 保留关键字
 
 ### L
 
-- LE
+- LAST
+- LAST_ROW
+- LICENCES
 - LIKE
 - LIMIT
 - LINEAR
 - LOCAL
-- LP
-- LSHIFT
-- LT
 
 ### M
 
 - MATCH
+- MAX_DELAY
 - MAXROWS
+- MERGE
+- META
 - MINROWS
 - MINUS
+- MNODE
 - MNODES
 - MODIFY
 - MODULES
 
 ### N
 
-- NE
+- NCHAR
+- NEXT
+- NMATCH
 - NONE
 - NOT
 - NOTNULL
 - NOW
 - NULL
+- NULLS
 
 ### O
 
 - OF
 - OFFSET
+- ON
 - OR
 - ORDER
+- OUTPUTTYPE
 
 ### P
 
-- PARTITION
+- PAGES
+- PAGESIZE
+- PARTITIONS
 - PASS
 - PLUS
+- PORT
 - PPS
 - PRECISION
 - PREV
@@ -182,47 +223,63 @@ title: TDengine 保留关键字
 
 ### Q
 
+- QNODE
+- QNODES
 - QTIME
-- QUERIE
+- QUERIES
 - QUERY
-- QUORUM
 
 ### R
 
 - RAISE
-- REM
+- RANGE
+- RATIO
+- READ
+- REDISTRIBUTE
+- RENAME
 - REPLACE
 - REPLICA
 - RESET
-- RESTRIC
+- RESTRICT
+- RETENTIONS
+- REVOKE
+- ROLLUP
 - ROW
-- RP
-- RSHIFT
 
 ### S
 
+- SCHEMALESS
 - SCORES
 - SELECT
 - SEMI
+- SERVER_STATUS
+- SERVER_VERSION
 - SESSION
 - SET
 - SHOW
-- SLASH
+- SINGLE_STABLE
 - SLIDING
 - SLIMIT
-- SMALLIN
+- SMA
+- SMALLINT
+- SNODE
+- SNODES
 - SOFFSET
-- STable
-- STableS
+- SPLIT
+- STABLE
+- STABLES
 - STAR
 - STATE
-- STATEMEN
-- STATE_WI
+- STATE_WINDOW
+- STATEMENT
 - STORAGE
 - STREAM
 - STREAMS
+- STRICT
 - STRING
+- SUBSCRIPTIONS
 - SYNCDB
+- SYSINFO
 
 ### T
 
@@ -233,19 +290,24 @@ title: TDengine 保留关键字
 - TBNAME
 - TIMES
 - TIMESTAMP
+- TIMEZONE
 - TINYINT
+- TO
+- TODAY
 - TOPIC
 - TOPICS
+- TRANSACTION
+- TRANSACTIONS
 - TRIGGER
+- TRIM
 - TSERIES
+- TTL
 
 ### U
 
-- UMINUS
 - UNION
 - UNSIGNED
 - UPDATE
-- UPLUS
 - USE
 - USER
 - USERS
@@ -253,9 +315,13 @@ title: TDengine 保留关键字
 
 ### V
 
+- VALUE
 - VALUES
+- VARCHAR
 - VARIABLE
 - VARIABLES
+- VERBOSE
+- VGROUP
 - VGROUPS
 - VIEW
 - VNODES
@@ -263,14 +329,26 @@ title: TDengine 保留关键字
 ### W
 
 - WAL
+- WAL_FSYNC_PERIOD
+- WAL_LEVEL
+- WAL_RETENTION_PERIOD
+- WAL_RETENTION_SIZE
+- WAL_ROLL_PERIOD
+- WAL_SEGMENT_SIZE
+- WATERMARK
 - WHERE
+- WINDOW_CLOSE
+- WITH
+- WRITE
 
 ### \_
 
 - \_C0
-- \_QSTART
-- \_QSTOP
+- \_IROWTS
 - \_QDURATION
-- \_WSTART
-- \_WSTOP
+- \_QEND
+- \_QSTART
+- \_ROWTS
 - \_WDURATION
+- \_WEND
+- \_WSTART

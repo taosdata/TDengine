@@ -15,9 +15,12 @@ public class SqlSpeller {
         StringBuilder sb = new StringBuilder();
         sb.append("create database if not exists ").append(map.get("database")).append(" ");
         if (map.containsKey("keep"))
-            sb.append("keep ").append(map.get("keep")).append(" ");
-        if (map.containsKey("days"))
-            sb.append("days ").append(map.get("days")).append(" ");
+            sb.append("keep ");
+        if (map.containsKey("days")) {
+            sb.append(map.get("days")).append("d ");
+        } else {
+            sb.append(" ");
+        }
         if (map.containsKey("replica"))
             sb.append("replica ").append(map.get("replica")).append(" ");
         if (map.containsKey("cache"))
@@ -29,7 +32,7 @@ public class SqlSpeller {
         if (map.containsKey("maxrows"))
             sb.append("maxrows ").append(map.get("maxrows")).append(" ");
         if (map.containsKey("precision"))
-            sb.append("precision ").append(map.get("precision")).append(" ");
+            sb.append("precision '").append(map.get("precision")).append("' ");
         if (map.containsKey("comp"))
             sb.append("comp ").append(map.get("comp")).append(" ");
         if (map.containsKey("walLevel"))
@@ -46,11 +49,13 @@ public class SqlSpeller {
     // create table if not exists xx.xx using xx.xx tags(x,x,x)
     public static String createTableUsingSuperTable(SubTableMeta subTableMeta) {
         StringBuilder sb = new StringBuilder();
-        sb.append("create table if not exists ").append(subTableMeta.getDatabase()).append(".").append(subTableMeta.getName()).append(" ");
-        sb.append("using ").append(subTableMeta.getDatabase()).append(".").append(subTableMeta.getSupertable()).append(" ");
-//        String tagStr = subTableMeta.getTags().stream().filter(Objects::nonNull)
-//                .map(tagValue -> tagValue.getName() + " '" + tagValue.getValue() + "' ")
-//                .collect(Collectors.joining(",", "(", ")"));
+        sb.append("create table if not exists ").append(subTableMeta.getDatabase()).append(".")
+                .append(subTableMeta.getName()).append(" ");
+        sb.append("using ").append(subTableMeta.getDatabase()).append(".").append(subTableMeta.getSupertable())
+                .append(" ");
+        // String tagStr = subTableMeta.getTags().stream().filter(Objects::nonNull)
+        // .map(tagValue -> tagValue.getName() + " '" + tagValue.getValue() + "' ")
+        // .collect(Collectors.joining(",", "(", ")"));
         sb.append("tags ").append(tagValues(subTableMeta.getTags()));
         return sb.toString();
     }
@@ -63,7 +68,7 @@ public class SqlSpeller {
         return sb.toString();
     }
 
-    //f1, f2, f3
+    // f1, f2, f3
     private static String fieldValues(List<FieldValue> fields) {
         return IntStream.range(0, fields.size()).mapToObj(i -> {
             if (i == 0) {
@@ -73,13 +78,13 @@ public class SqlSpeller {
             }
         }).collect(Collectors.joining(",", "(", ")"));
 
-//        return fields.stream()
-//                .filter(Objects::nonNull)
-//                .map(fieldValue -> "'" + fieldValue.getValue() + "'")
-//                .collect(Collectors.joining(",", "(", ")"));
+        // return fields.stream()
+        // .filter(Objects::nonNull)
+        // .map(fieldValue -> "'" + fieldValue.getValue() + "'")
+        // .collect(Collectors.joining(",", "(", ")"));
     }
 
-    //(f1, f2, f3),(f1, f2, f3)
+    // (f1, f2, f3),(f1, f2, f3)
     private static String rowValues(List<RowValue> rowValues) {
         return rowValues.stream().filter(Objects::nonNull)
                 .map(rowValue -> fieldValues(rowValue.getFields()))
@@ -89,8 +94,10 @@ public class SqlSpeller {
     // insert into xx.xxx using xx.xx tags(x,x,x) values(x,x,x),(x,x,x)...
     public static String insertOneTableMultiValuesUsingSuperTable(SubTableValue subTableValue) {
         StringBuilder sb = new StringBuilder();
-        sb.append("insert into ").append(subTableValue.getDatabase()).append(".").append(subTableValue.getName()).append(" ");
-        sb.append("using ").append(subTableValue.getDatabase()).append(".").append(subTableValue.getSupertable()).append(" ");
+        sb.append("insert into ").append(subTableValue.getDatabase()).append(".").append(subTableValue.getName())
+                .append(" ");
+        sb.append("using ").append(subTableValue.getDatabase()).append(".").append(subTableValue.getSupertable())
+                .append(" ");
         sb.append("tags ").append(tagValues(subTableValue.getTags()) + " ");
         sb.append("values ").append(rowValues(subTableValue.getValues()));
         return sb.toString();
@@ -126,7 +133,8 @@ public class SqlSpeller {
     // create table if not exists xx.xx (f1 xx,f2 xx...) tags(t1 xx, t2 xx...)
     public static String createSuperTable(SuperTableMeta tableMetadata) {
         StringBuilder sb = new StringBuilder();
-        sb.append("create table if not exists ").append(tableMetadata.getDatabase()).append(".").append(tableMetadata.getName());
+        sb.append("create table if not exists ").append(tableMetadata.getDatabase()).append(".")
+                .append(tableMetadata.getName());
         String fields = tableMetadata.getFields().stream()
                 .filter(Objects::nonNull).map(field -> field.getName() + " " + field.getType() + " ")
                 .collect(Collectors.joining(",", "(", ")"));
@@ -139,10 +147,10 @@ public class SqlSpeller {
         return sb.toString();
     }
 
-
     public static String createTable(TableMeta tableMeta) {
         StringBuilder sb = new StringBuilder();
-        sb.append("create table if not exists ").append(tableMeta.getDatabase()).append(".").append(tableMeta.getName()).append(" ");
+        sb.append("create table if not exists ").append(tableMeta.getDatabase()).append(".").append(tableMeta.getName())
+                .append(" ");
         String fields = tableMeta.getFields().stream()
                 .filter(Objects::nonNull).map(field -> field.getName() + " " + field.getType() + " ")
                 .collect(Collectors.joining(",", "(", ")"));
@@ -179,16 +187,17 @@ public class SqlSpeller {
     public static String insertMultiTableMultiValuesWithColumns(List<TableValue> tables) {
         StringBuilder sb = new StringBuilder();
         sb.append("insert into ").append(tables.stream().filter(Objects::nonNull)
-                .map(table -> table.getDatabase() + "." + table.getName() + " " + columnNames(table.getColumns()) + " values " + rowValues(table.getValues()))
+                .map(table -> table.getDatabase() + "." + table.getName() + " " + columnNames(table.getColumns())
+                        + " values " + rowValues(table.getValues()))
                 .collect(Collectors.joining(" ")));
         return sb.toString();
     }
 
     public static String insertMultiTableMultiValues(List<TableValue> tables) {
         StringBuilder sb = new StringBuilder();
-        sb.append("insert into ").append(tables.stream().filter(Objects::nonNull).map(table ->
-                table.getDatabase() + "." + table.getName() + " values " + rowValues(table.getValues())
-        ).collect(Collectors.joining(" ")));
+        sb.append("insert into ").append(tables.stream().filter(Objects::nonNull)
+                .map(table -> table.getDatabase() + "." + table.getName() + " values " + rowValues(table.getValues()))
+                .collect(Collectors.joining(" ")));
         return sb.toString();
     }
 }

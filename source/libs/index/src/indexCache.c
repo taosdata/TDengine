@@ -302,6 +302,7 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
         char* p = taosMemoryCalloc(1, strlen(c->colVal) + 1);
         memcpy(p, c->colVal, strlen(c->colVal));
         cond = cmpFn(p + skip, term->colVal, dType);
+        taosMemoryFree(p);
       }
     }
     if (cond == MATCH) {
@@ -566,7 +567,6 @@ int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   taosThreadMutexUnlock(&pCache->mtx);
   idxCacheUnRef(pCache);
   return 0;
-  // encode end
 }
 void idxCacheForceToMerge(void* cache) {
   IndexCache* pCache = cache;
@@ -602,10 +602,10 @@ static int32_t idxQueryMem(MemTable* mem, SIndexTermQuery* query, SIdxTRslt* tr,
   }
 }
 int idxCacheSearch(void* cache, SIndexTermQuery* query, SIdxTRslt* result, STermValueType* s) {
-  int64_t st = taosGetTimestampUs();
   if (cache == NULL) {
     return 0;
   }
+
   IndexCache* pCache = cache;
 
   MemTable *mem = NULL, *imm = NULL;
@@ -615,6 +615,8 @@ int idxCacheSearch(void* cache, SIndexTermQuery* query, SIdxTRslt* result, STerm
   idxMemRef(mem);
   idxMemRef(imm);
   taosThreadMutexUnlock(&pCache->mtx);
+
+  int64_t st = taosGetTimestampUs();
 
   int ret = (mem && mem->mem) ? idxQueryMem(mem, query, result, s) : 0;
   if (ret == 0 && *s != kTypeDeletion) {

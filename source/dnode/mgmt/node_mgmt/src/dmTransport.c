@@ -270,7 +270,7 @@ int32_t dmInitClient(SDnode *pDnode) {
 
   SRpcInit rpcInit = {0};
   rpcInit.label = "DND-C";
-  rpcInit.numOfThreads = 1;
+  rpcInit.numOfThreads = 4;
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
@@ -301,7 +301,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
   SRpcInit rpcInit = {0};
-  strncpy(rpcInit.localFqdn, tsLocalFqdn, strlen(tsLocalFqdn));
+  strncpy(rpcInit.localFqdn, tsLocalFqdn, TSDB_FQDN_LEN);
   rpcInit.localPort = tsServerPort;
   rpcInit.label = "DND-S";
   rpcInit.numOfThreads = tsNumOfRpcThreads;

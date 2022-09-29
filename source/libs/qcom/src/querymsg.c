@@ -38,6 +38,8 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
 
   pOut->dbVgroup->vgVersion = usedbRsp->vgVersion;
   pOut->dbVgroup->hashMethod = usedbRsp->hashMethod;
+  pOut->dbVgroup->hashPrefix = usedbRsp->hashPrefix;
+  pOut->dbVgroup->hashSuffix = usedbRsp->hashSuffix;
 
   qDebug("Got %d vgroup for db %s", usedbRsp->vgNum, usedbRsp->db);
 
@@ -353,6 +355,19 @@ static int32_t queryConvertTableMetaMsg(STableMetaRsp *pMetaMsg) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t queryCreateCTableMetaFromMsg(STableMetaRsp *msg, SCTableMeta *pMeta) {
+  pMeta->vgId = msg->vgId;
+  pMeta->tableType = msg->tableType;
+  pMeta->uid = msg->tuid;
+  pMeta->suid = msg->suid;
+
+  qDebug("ctable %s uid %" PRIx64 " meta returned, type %d vgId:%d db %s suid %" PRIx64 ,
+         msg->tbName, pMeta->uid, pMeta->tableType, pMeta->vgId, msg->dbFName, pMeta->suid);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isStb, STableMeta **pMeta) {
   int32_t total = msg->numOfColumns + msg->numOfTags;

@@ -20,7 +20,7 @@
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
-
+// clang-format off
 int32_t schValidateRspMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
   int32_t lastMsgType = pTask->lastMsgType;
   int32_t taskStatus = SCH_GET_TASK_STATUS(pTask);
@@ -72,6 +72,71 @@ int32_t schValidateRspMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t schProcessFetchRsp(SSchJob *pJob, SSchTask *pTask, char *msg, int32_t rspCode) {
+  SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)msg;
+  int32_t code = 0;
+  
+  SCH_ERR_JRET(rspCode);
+  
+  if (NULL == msg) {
+    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+  
+  if (SCH_IS_EXPLAIN_JOB(pJob)) {
+    if (rsp->completed) {
+      SRetrieveTableRsp *pRsp = NULL;
+      SCH_ERR_JRET(qExecExplainEnd(pJob->explainCtx, &pRsp));
+      if (pRsp) {
+        SCH_ERR_JRET(schProcessOnExplainDone(pJob, pTask, pRsp));
+      }
+  
+      taosMemoryFreeClear(msg);
+  
+      return TSDB_CODE_SUCCESS;
+    }
+  
+    SCH_ERR_JRET(schLaunchFetchTask(pJob));
+  
+    taosMemoryFreeClear(msg);
+  
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  if (pJob->fetchRes) {
+    SCH_TASK_ELOG("got fetch rsp while res already exists, res:%p", pJob->fetchRes);
+    SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
+  }
+  
+  atomic_store_ptr(&pJob->fetchRes, rsp);
+  atomic_add_fetch_32(&pJob->resNumOfRows, htonl(rsp->numOfRows));
+  
+  if (rsp->completed) {
+    SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_SUCC);
+  }
+  
+  SCH_TASK_DLOG("got fetch rsp, rows:%d, complete:%d", htonl(rsp->numOfRows), rsp->completed);
+
+  msg = NULL;
+  schProcessOnDataFetched(pJob);
+
+_return:
+
+  taosMemoryFreeClear(msg);
+
+  SCH_RET(code);
+}
+
+int32_t schProcessExplainRsp(SSchJob *pJob, SSchTask *pTask, SExplainRsp *rsp) {
+  SRetrieveTableRsp *pRsp = NULL;
+  SCH_ERR_RET(qExplainUpdateExecInfo(pJob->explainCtx, rsp, pTask->plan->id.groupId, &pRsp));
+  
+  if (pRsp) {
+    SCH_ERR_RET(schProcessOnExplainDone(pJob, pTask, pRsp));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 // Note: no more task error processing, handled in function internal
 int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDataBuf *pMsg, int32_t rspCode) {
   int32_t code = 0;
@@ -102,15 +167,30 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
         tDecoderInit(&coder, msg, msgSize);
         code = tDecodeSVCreateTbBatchRsp(&coder, &batchRsp);
         if (TSDB_CODE_SUCCESS == code && batchRsp.nRsps > 0) {
+          SCH_LOCK(SCH_WRITE, &pJob->resLock);
+          if (NULL == pJob->execRes.res) {
+            pJob->execRes.res = taosArrayInit(batchRsp.nRsps, POINTER_BYTES);
+            pJob->execRes.msgType = TDMT_VND_CREATE_TABLE;
+          }
+
           for (int32_t i = 0; i < batchRsp.nRsps; ++i) {
             SVCreateTbRsp *rsp = batchRsp.pRsps + i;
+            if (rsp->pMeta) {
+              taosArrayPush((SArray*)pJob->execRes.res, &rsp->pMeta);
+            }
+            
             if (TSDB_CODE_SUCCESS != rsp->code) {
               code = rsp->code;
-              tDecoderClear(&coder);
-              SCH_ERR_JRET(code);
             }
           }
+          SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
+
+          if (taosArrayGetSize((SArray*)pJob->execRes.res) <= 0) {        
+            taosArrayDestroy((SArray*)pJob->execRes.res);
+            pJob->execRes.res = NULL;
+          }
         }
+        
         tDecoderClear(&coder);
         SCH_ERR_JRET(code);
       }
@@ -286,65 +366,20 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
 
       SExplainRsp rsp = {0};
       if (tDeserializeSExplainRsp(msg, msgSize, &rsp)) {
-        taosMemoryFree(rsp.subplanInfo);
+        tFreeSExplainRsp(&rsp);
         SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
 
-      SRetrieveTableRsp *pRsp = NULL;
-      SCH_ERR_JRET(qExplainUpdateExecInfo(pJob->explainCtx, &rsp, pTask->plan->id.groupId, &pRsp));
+      SCH_ERR_JRET(schProcessExplainRsp(pJob, pTask, &rsp));
 
-      if (pRsp) {
-        SCH_ERR_JRET(schProcessOnExplainDone(pJob, pTask, pRsp));
-      }
+      taosMemoryFreeClear(msg);
       break;
     }
     case TDMT_SCH_FETCH_RSP:
     case TDMT_SCH_MERGE_FETCH_RSP: {
-      SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)msg;
-
-      SCH_ERR_JRET(rspCode);
-      if (NULL == msg) {
-        SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
-      }
-
-      if (SCH_IS_EXPLAIN_JOB(pJob)) {
-        if (rsp->completed) {
-          SRetrieveTableRsp *pRsp = NULL;
-          SCH_ERR_JRET(qExecExplainEnd(pJob->explainCtx, &pRsp));
-          if (pRsp) {
-            SCH_ERR_JRET(schProcessOnExplainDone(pJob, pTask, pRsp));
-          }
-
-          taosMemoryFreeClear(msg);
-
-          return TSDB_CODE_SUCCESS;
-        }
-
-        SCH_ERR_JRET(schLaunchFetchTask(pJob));
-
-        taosMemoryFreeClear(msg);
-
-        return TSDB_CODE_SUCCESS;
-      }
-
-      if (pJob->fetchRes) {
-        SCH_TASK_ELOG("got fetch rsp while res already exists, res:%p", pJob->fetchRes);
-        taosMemoryFreeClear(rsp);
-        SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
-      }
-
-      atomic_store_ptr(&pJob->fetchRes, rsp);
-      atomic_add_fetch_32(&pJob->resNumOfRows, htonl(rsp->numOfRows));
-
-      if (rsp->completed) {
-        SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_SUCC);
-      }
-
-      SCH_TASK_DLOG("got fetch rsp, rows:%d, complete:%d", htonl(rsp->numOfRows), rsp->completed);
-
+      code = schProcessFetchRsp(pJob, pTask, msg, rspCode);
       msg = NULL;
-
-      schProcessOnDataFetched(pJob);
+      SCH_ERR_JRET(code);
       break;
     }
     case TDMT_SCH_DROP_TASK_RSP: {
@@ -369,8 +404,7 @@ _return:
   taosMemoryFreeClear(msg);
 
   SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
-}
-
+} 
 int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
   int32_t                code = 0;
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
@@ -381,7 +415,7 @@ int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
          tstrerror(rspCode));
 
   SCH_ERR_JRET(schProcessOnCbBegin(&pJob, &pTask, pParam->queryId, pParam->refId, pParam->taskId));
-
+  
   code = schHandleResponseMsg(pJob, pTask, pParam->execId, pMsg, rspCode);
   pMsg->pData = NULL;
 
@@ -402,7 +436,7 @@ int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
   qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " drop task rsp received, code:0x%x", pParam->queryId, pParam->taskId,
          code);
   if (pMsg) {
-    taosMemoryFree(pMsg->pData);       
+    taosMemoryFree(pMsg->pData);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -415,7 +449,7 @@ int32_t schHandleLinkBrokenCallback(void *param, SDataBuf *pMsg, int32_t code) {
 
   if (head->isHbParam) {
     taosMemoryFree(pMsg->pData);
-    
+
     SSchHbCallbackParam *hbParam = (SSchHbCallbackParam *)param;
     SSchTrans            trans = {.pTrans = hbParam->pTrans, .pHandle = NULL};
     SCH_ERR_RET(schUpdateHbConnection(&hbParam->nodeEpId, &trans));
@@ -1104,7 +1138,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
 
 #if 1
   SSchTrans trans = {.pTrans = pJob->conn.pTrans, .pHandle = SCH_GET_TASK_HANDLE(pTask)};
-  schAsyncSendMsg(pJob, pTask, &trans, addr, msgType, msg, msgSize, persistHandle, (rpcCtx.args ? &rpcCtx : NULL));
+  code = schAsyncSendMsg(pJob, pTask, &trans, addr, msgType, msg, msgSize, persistHandle, (rpcCtx.args ? &rpcCtx : NULL));
   msg = NULL;
   SCH_ERR_JRET(code);
 
@@ -1114,7 +1148,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
 #else
   if (TDMT_VND_SUBMIT != msgType) {
     SSchTrans trans = {.pTrans = pJob->conn.pTrans, .pHandle = SCH_GET_TASK_HANDLE(pTask)};
-    schAsyncSendMsg(pJob, pTask, &trans, addr, msgType, msg, msgSize, persistHandle, (rpcCtx.args ? &rpcCtx : NULL));
+    code = schAsyncSendMsg(pJob, pTask, &trans, addr, msgType, msg, msgSize, persistHandle, (rpcCtx.args ? &rpcCtx : NULL));
     msg = NULL;
     SCH_ERR_JRET(code);
 
@@ -1136,3 +1170,4 @@ _return:
   taosMemoryFreeClear(msg);
   SCH_RET(code);
 }
+// clang-format on

@@ -151,14 +151,14 @@ int64_t taosQueueMemorySize(STaosQueue *queue) {
 
 void *taosAllocateQitem(int32_t size, EQItype itype) {
   STaosQnode *pNode = taosMemoryCalloc(1, sizeof(STaosQnode) + size);
-  pNode->size = size;
-  pNode->itype = itype;
-  pNode->timestamp = taosGetTimestampUs();
-
   if (pNode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
+
+  pNode->size = size;
+  pNode->itype = itype;
+  pNode->timestamp = taosGetTimestampUs();
 
   if (itype == RPC_QITEM) {
     int64_t alloced = atomic_add_fetch_64(&tsRpcQueueMemoryUsed, size);
@@ -298,7 +298,8 @@ int32_t taosGetQitem(STaosQall *qall, void **ppItem) {
   return num;
 }
 
-void taosResetQitems(STaosQall *qall) { qall->current = qall->start; }
+void    taosResetQitems(STaosQall *qall) { qall->current = qall->start; }
+int32_t taosQallItemSize(STaosQall *qall) { return qall->numOfItems; }
 
 STaosQset *taosOpenQset() {
   STaosQset *qset = taosMemoryCalloc(sizeof(STaosQset), 1);

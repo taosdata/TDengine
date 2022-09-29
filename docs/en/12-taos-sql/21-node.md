@@ -1,37 +1,37 @@
 ---
-sidebar_label: 集群管理
-title: 集群管理
+sidebar_label: Cluster
+title: Cluster
 ---
 
-组成 TDengine 集群的物理实体是 dnode (data node 的缩写)，它是一个运行在操作系统之上的进程。在 dnode 中可以建立负责时序数据存储的 vnode (virtual node)，在多节点集群环境下当某个数据库的 replica 为 3 时，该数据库中的每个 vgroup 由 3 个 vnode 组成；当数据库的 replica 为 1 时，该数据库中的每个 vgroup 由 1 个 vnode 组成。如果要想配置某个数据库为多副本，则集群中的 dnode 数量至少为 3。在 dnode 还可以创建 mnode (management node)，单个集群中最多可以创建三个 mnode。在 TDengine 3.0.0.0 中为了支持存算分离，引入了一种新的逻辑节点 qnode (query node)，qnode 和 vnode 既可以共存在一个 dnode 中，也可以完全分离在不同的 dnode 上。
+The physical entities that form TDengine clusters are known as data nodes (dnodes). Each dnode is a process running on the operating system of the physical machine. Dnodes can contain virtual nodes (vnodes), which store time-series data. Virtual nodes are formed into vgroups, which have 1 or 3 vnodes depending on the replica setting. If you want to enable replication on your cluster, it must contain at least three nodes. Dnodes can also contain management nodes (mnodes). Each cluster has up to three mnodes. Finally, dnodes can contain query nodes (qnodes), which compute time-series data, thus separating compute from storage. A single dnode can contain a vnode, qnode, and mnode.
 
-## 创建数据节点
+## Create a Dnode
 
 ```sql
 CREATE DNODE {dnode_endpoint | dnode_host_name PORT port_val}
 ```
 
-其中 `dnode_endpoint` 是形成 `hostname:port`的格式。也可以分开指定 hostname 和 port。
+Enter the dnode_endpoint in hostname:port format. You can also specify the hostname and port as separate parameters.
 
-实际操作中推荐先创建 dnode，再启动相应的 dnode 进程，这样该 dnode 就可以立即根据其配置文件中的 firstEP 加入集群。每个 dnode 在加入成功后都会被分配一个 ID。
+Create the dnode before starting the corresponding dnode process. The dnode can then join the cluster based on the value of the firstEp parameter. Each dnode is assigned an ID after it joins a cluster.
 
-## 查看数据节点
+## View Dnodes
 
 ```sql
 SHOW DNODES;
 ```
 
-可以列出集群中所有的数据节点，所列出的字段有 dnode 的 ID, endpoint, status。
+The preceding SQL command shows all dnodes in the cluster with the ID, endpoint, and status.
 
-## 删除数据节点
+## Delete a DNODE
 
 ```sql
 DROP DNODE {dnode_id | dnode_endpoint}
 ```
 
-可以用 dnoe_id 或 endpoint 两种方式从集群中删除一个 dnode。注意删除 dnode 不等于停止相应的进程。实际中推荐先将一个 dnode 删除之后再停止其所对应的进程。
+You can delete a dnode by its ID or by its endpoint. Note that deleting a dnode does not stop its process. You must stop the process after the dnode is deleted.
 
-## 修改数据节点配置
+## Modify Dnode Configuration
 
 ```sql
 ALTER DNODE dnode_id dnode_option
@@ -62,59 +62,59 @@ dnode_option: {
 }
 ```
 
-上面语法中的这些可修改配置项其配置方式与 dnode 配置文件中的配置方式相同，区别是修改是动态的立即生效，且不需要重启 dnode。
+The parameters that you can modify through this statement are the same as those located in the dnode configuration file. Modifications that you make through this statement take effect immediately, while modifications to the configuration file take effect when the dnode restarts.
 
-## 添加管理节点
+## Add an Mnode
 
 ```sql
 CREATE MNODE ON DNODE dnode_id
 ```
 
-系统启动默认在 firstEP 节点上创建一个 MNODE，用户可以使用此语句创建更多的 MNODE 来提高系统可用性。一个集群最多存在三个 MNODE，一个 DNODE 上只能创建一个 MNODE。
+TDengine automatically creates an mnode on the firstEp node. You can use this statement to create more mnodes for higher system availability. A cluster can have a maximum of three mnodes. Each dnode can contain only one mnode.
 
-## 查看管理节点
+## View Mnodes
 
 ```sql
 SHOW MNODES;
 ```
 
-列出集群中所有的管理节点，包括其 ID，所在 DNODE 以及状态。
+This statement shows all mnodes in the cluster with the ID, dnode, and status.
 
-## 删除管理节点
+## Delete an Mnode
 
 ```sql
 DROP MNODE ON DNODE dnode_id;
 ```
 
-删除 dnode_id 所指定的 DNODE 上的 MNODE。
+This statement deletes the mnode located on the specified dnode.
 
-## 创建查询节点
+## Create a Qnode
 
 ```sql
 CREATE QNODE ON DNODE dnode_id;
 ```
 
-系统启动默认没有 QNODE，用户可以创建 QNODE 来实现计算和存储的分离。一个 DNODE 上只能创建一个 QNODE。一个 DNODE 的 `supportVnodes` 参数如果不为 0，同时又在其上创建上 QNODE，则在该 dnode 中既有负责存储管理的 vnode 又有负责查询计算的 qnode，如果还在该 dnode 上创建了 mnode，则一个 dnode 上最多三种逻辑节点都可以存在。但通过配置也可以使其彻底分离。将一个 dnode 的`supportVnodes`配置为 0，可以选择在其上创建 mnode 或者 qnode 中的一种，这样可以实现三种逻辑节点在物理上的彻底分离。
+TDengine does not automatically create qnodes on startup. You can create qnodes as necessary for compute/storage separation. Each dnode can contain only one qnode. If a qnode is created on a dnode whose supportVnodes parameter is not 0, a vnode and qnode may coexist on the dnode. Each dnode can have a maximum of one vnode, one qnode, and one mnode. However, you can configure your cluster so that vnodes, qnodes, and mnodes are located on separate dnodes. If you set supportVnodes to 0 for a dnode, you can then decide whether to deploy an mnode or a qnode on it. In this way you can physically separate virtual node types.
 
-## 查看查询节点
+## View Qnodes
 
 ```sql
 SHOW QNODES;
 ```
 
-列出集群中所有查询节点，包括 ID，及所在 DNODE。
+This statement shows all qnodes in the cluster with the ID and dnode.
 
-## 删除查询节点
+## Delete a Qnode
 
 ```sql
 DROP QNODE ON DNODE dnode_id;
 ```
 
-删除 ID 为 dnode_id 的 DNODE 上的 QNODE，但并不会影响该 dnode 的状态。
+This statement deletes the mnode located on the specified dnode. This does not affect the status of the dnode.
 
-## 修改客户端配置
+## Modify Client Configuration
 
-如果将客户端也看作广义的集群的一部分，可以通过如下命令动态修改客户端配置参数。
+The client configuration can also be modified in a similar way to other cluster components.
 
 ```sql
 ALTER LOCAL local_option
@@ -129,26 +129,26 @@ local_option: {
 }
 ```
 
-上面语法中的参数与在配置文件中配置客户端的用法相同，但不需要重启客户端，修改后立即生效。
+The parameters that you can modify through this statement are the same as those located in the client configuration file. Modifications that you make through this statement take effect immediately, while modifications to the configuration file take effect when the client restarts.
 
-## 查看客户端配置
+## View Client Configuration
 
 ```sql
 SHOW LOCAL VARIABLES;
 ```
 
-## 合并 vgroup
+## Combine Vgroups
 
 ```sql
 MERGE VGROUP vgroup_no1 vgroup_no2;
 ```
 
-如果在系统实际运行一段时间后，因为不同时间线的数据特征不同导致在 vgroups 之间的数据和负载分布不均衡，可以通过合并或拆分 vgroups 的方式逐步实现负载均衡。
+If load and data are not properly balanced among vgroups due to the data in different tim lines having different characteristics, you can combine or separate vgroups.
 
-## 拆分 vgroup
+## Separate Vgroups
 
 ```sql
 SPLIT VGROUP vgroup_no;
 ```
 
-会创建一个新的 vgroup，并将指定 vgroup 中的数据按照一致性 HASH 迁移一部分到新的 vgroup 中。此过程中，原 vgroup 可以正常提供读写服务。
+This statement creates a new vgroup and migrates part of the data from the original vgroup to the new vgroup with consistent hashing. During this process, the original vgroup can continue to provide services normally.

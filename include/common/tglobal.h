@@ -66,6 +66,7 @@ extern int32_t tsNumOfVnodeStreamThreads;
 extern int32_t tsNumOfVnodeFetchThreads;
 extern int32_t tsNumOfVnodeWriteThreads;
 extern int32_t tsNumOfVnodeSyncThreads;
+extern int32_t tsNumOfVnodeRsmaThreads;
 extern int32_t tsNumOfQnodeQueryThreads;
 extern int32_t tsNumOfQnodeFetchThreads;
 extern int32_t tsNumOfSnodeSharedThreads;
@@ -88,11 +89,16 @@ extern uint16_t tsTelemPort;
 
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
-extern int64_t tsQueryBufferSizeBytes;   // maximum allowed usage buffer size in byte for each data node
+extern int64_t tsQueryBufferSizeBytes;  // maximum allowed usage buffer size in byte for each data node
 
 // query client
 extern int32_t tsQueryPolicy;
 extern int32_t tsQuerySmaOptimize;
+extern int32_t tsQueryRsmaTolerance;
+extern bool    tsQueryPlannerTrace;
+extern int32_t tsQueryNodeChunkSize;
+extern bool    tsQueryUseNodeAllocator;
+extern bool    tsKeepColumnName;
 
 // client
 extern int32_t tsMinSlidingTime;
@@ -118,6 +124,7 @@ extern SDiskCfg tsDiskCfg[];
 
 // udf
 extern bool tsStartUdfd;
+extern char tsUdfdResFuncs[];
 
 // schemaless
 extern char tsSmlChildTableName[];
@@ -130,6 +137,7 @@ extern int32_t tsMqRebalanceInterval;
 extern int32_t tsTtlUnit;
 extern int32_t tsTtlPushInterval;
 extern int32_t tsGrantHBInterval;
+extern int32_t tsUptimeInterval;
 
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
@@ -142,10 +150,10 @@ void    taosCfgDynamicOptions(const char *option, const char *value);
 
 struct SConfig *taosGetCfg();
 
-void    taosSetAllDebugFlag(int32_t flag);
-void    taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal);
+void    taosSetAllDebugFlag(int32_t flag, bool rewrite);
+void    taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal, bool rewrite);
 int32_t taosSetCfg(SConfig *pCfg, char *name);
-void    taosLocalCfgForbiddenToChange(char* name, bool* forbidden);
+void    taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
 
 #ifdef __cplusplus
 }

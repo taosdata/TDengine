@@ -244,7 +244,7 @@ int32_t vmPutMsgToMonitorQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
   if (pMsg == NULL) {
-    rpcFreeCont(pMsg->pCont);
+    rpcFreeCont(pRpc->pCont);
     pRpc->pCont = NULL;
     return -1;
   }

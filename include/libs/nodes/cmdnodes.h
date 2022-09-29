@@ -64,6 +64,7 @@ typedef struct SDatabaseOptions {
   int64_t     keep[3];
   int32_t     pages;
   int32_t     pagesize;
+  int32_t     tsdbPageSize;
   char        precisionStr[3];
   int8_t      precision;
   int8_t      replica;
@@ -78,6 +79,12 @@ typedef struct SDatabaseOptions {
   int32_t     walRetentionSize;
   int32_t     walRollPeriod;
   int32_t     walSegmentSize;
+  bool        walRetentionPeriodIsSet;
+  bool        walRetentionSizeIsSet;
+  bool        walRollPeriodIsSet;
+  int32_t     sstTrigger;
+  int32_t     tablePrefix;
+  int32_t     tableSuffix;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {
@@ -112,6 +119,7 @@ typedef struct SFlushDatabaseStmt {
 typedef struct STrimDatabaseStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
+  int32_t   maxSpeed;
 } STrimDatabaseStmt;
 
 typedef struct STableOptions {
@@ -268,6 +276,12 @@ typedef struct SShowDnodeVariablesStmt {
   SNode*    pDnodeId;
 } SShowDnodeVariablesStmt;
 
+typedef struct SShowVnodesStmt {
+  ENodeType type;
+  SNode*    pDnodeId;
+  SNode*    pDnodeEndpoint;
+} SShowVnodesStmt;
+
 typedef enum EIndexType { INDEX_TYPE_SMA = 1, INDEX_TYPE_FULLTEXT } EIndexType;
 
 typedef struct SIndexOptions {
@@ -370,6 +384,8 @@ typedef struct SCreateStreamStmt {
   bool            ignoreExists;
   SStreamOptions* pOptions;
   SNode*          pQuery;
+  SNodeList*      pTags;
+  SNode*          pSubtable;
 } SCreateStreamStmt;
 
 typedef struct SDropStreamStmt {

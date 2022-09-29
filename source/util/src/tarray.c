@@ -386,10 +386,12 @@ void* taosArrayDestroy(SArray* pArray) {
 }
 
 void taosArrayDestroyP(SArray* pArray, FDelete fp) {
-  for (int32_t i = 0; i < pArray->size; i++) {
-    fp(*(void**)TARRAY_GET_ELEM(pArray, i));
+  if (pArray) {
+    for (int32_t i = 0; i < pArray->size; i++) {
+      fp(*(void**)TARRAY_GET_ELEM(pArray, i));
+    }
+    taosArrayDestroy(pArray);
   }
-  taosArrayDestroy(pArray);
 }
 
 void taosArrayDestroyEx(SArray* pArray, FDelete fp) {

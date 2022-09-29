@@ -121,7 +121,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TSC_CONN_KILLED,              "Connection killed")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_SQL_SYNTAX_ERROR,         "Syntax error in SQL")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_DB_NOT_SELECTED,          "Database not specified or available")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_INVALID_TABLE_NAME,       "Table does not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_TSC_EXCEED_SQL_LIMIT,         "SQL statement too long, check maxSQLLength config")
+TAOS_DEFINE_ERROR(TSDB_CODE_TSC_EXCEED_SQL_LIMIT,         "SQL statement too long")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_FILE_EMPTY,               "File is empty")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_LINE_SYNTAX_ERROR,        "Syntax error in Line")
 TAOS_DEFINE_ERROR(TSDB_CODE_TSC_NO_META_CACHED,           "No table meta cached")
@@ -288,11 +288,13 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_CONSUMER_NOT_READY,       "Consumer not ready")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_SUBSCRIBED,         "Topic subscribed cannot be dropped")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_MUST_BE_DELETED,    "Topic must be dropped first")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_CGROUP_USED,              "Consumer group being used by some consumer")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_IN_REBALANCE,             "Topic being rebalanced")
 
 // mnode-stream
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_ALREADY_EXIST,     "Stream already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_NOT_EXIST,         "Stream not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_STREAM_OPTION,    "Invalid stream option")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_MUST_BE_DELETED,   "Stream must be dropped first")
 
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")
@@ -578,6 +580,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_NUM,         "Invalid function par
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_TYPE,        "Invalid function para type")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_FUNTION_PARA_VALUE,       "Invalid function para value")
 TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_NOT_BUILTIN_FUNTION,      "Not buildin function")
+TAOS_DEFINE_ERROR(TSDB_CODE_FUNC_DUP_TIMESTAMP,            "Duplicate timestamps not allowed in function")
 
 //udf
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_STOPPING,                   "udf is stopping")
@@ -616,10 +619,14 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_FILE_CORRUPTED,            "Rsma file corrupted
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_REMOVE_EXISTS,             "Rsma remove exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_FETCH_MSG_MSSED_UP,        "Rsma fetch msg is messed up")
 TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_EMPTY_INFO,                "Rsma info is empty")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_INVALID_SCHEMA,            "Rsma invalid schema")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_REGEX_MATCH,               "Rsma regex match")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_STREAM_STATE_OPEN,         "Rsma stream state open")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSMA_STREAM_STATE_COMMIT,       "Rsma stream state commit")
 
 //index
 TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_REBUILDING,               "Index is rebuilding")
-TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_REBUILDING,               "Invalid index file")
+TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_INVALID_FILE,             "Index file is invalid")
 
 //tmq
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")

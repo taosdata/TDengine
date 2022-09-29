@@ -145,8 +145,10 @@ int32_t tqOffsetCommitFile(STqOffsetStore* pStore) {
       ASSERT(0);
       tqError("write offset incomplete, len %d, write len %" PRId64, bodyLen, writeLen);
       taosHashCancelIterate(pStore->pHash, pIter);
+      taosMemoryFree(buf);
       return -1;
     }
+    taosMemoryFree(buf);
   }
   // close and rename file
   taosCloseFile(&pFile);

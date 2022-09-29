@@ -49,12 +49,14 @@ typedef struct SParseContext {
   SStmtCallback*   pStmtCb;
   const char*      pUser;
   bool             isSuperUser;
+  bool             enableSysInfo;
   bool             async;
   int8_t           schemalessType;
   const char*      svrVer;
   bool             nodeOffline;
   SArray*          pTableMetaPos;    // sql table pos => catalog data pos
   SArray*          pTableVgroupPos;  // sql table pos => catalog data pos
+  int64_t          allocatorId;
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);

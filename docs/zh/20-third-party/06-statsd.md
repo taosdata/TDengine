@@ -1,6 +1,7 @@
 ---
 sidebar_label: StatsD
 title: StatsD 直接写入
+description: 使用 StatsD 向 TDengine 写入
 ---
 
 import StatsD from "../14-reference/_statsd.mdx"

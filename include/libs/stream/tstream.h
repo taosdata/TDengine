@@ -16,6 +16,7 @@
 #include "executor.h"
 #include "os.h"
 #include "query.h"
+#include "streamState.h"
 #include "tdatablock.h"
 #include "tdbInt.h"
 #include "tmsg.h"
@@ -53,6 +54,7 @@ enum {
   TASK_SCHED_STATUS__WAITING,
   TASK_SCHED_STATUS__ACTIVE,
   TASK_SCHED_STATUS__FAILED,
+  TASK_SCHED_STATUS__DROPPING,
 };
 
 enum {
@@ -123,9 +125,21 @@ typedef struct {
   SArray* blocks;  // SArray<SSDataBlock>
 } SStreamDataBlock;
 
+// ref data block, for delete
+typedef struct {
+  int8_t       type;
+  int64_t      ver;
+  int32_t*     dataRef;
+  SSDataBlock* pBlock;
+} SStreamRefDataBlock;
+
 typedef struct {
   int8_t type;
 } SStreamCheckpoint;
+
+typedef struct {
+  int8_t type;
+} SStreamTaskDestroy;
 
 typedef struct {
   int8_t       type;
@@ -211,7 +225,6 @@ typedef struct {
   void*     vnode;
   FTbSink*  tbSinkFunc;
   STSchema* pTSchema;
-  SHashObj* pHash;  // groupId to tbuid
 } STaskSinkTb;
 
 typedef void FSmaSink(void* vnode, int64_t smaId, const SArray* data);
@@ -308,6 +321,10 @@ typedef struct SStreamTask {
 
   // msg handle
   SMsgCb* pMsgCb;
+
+  // state backend
+  SStreamState* pState;
+
 } SStreamTask;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
@@ -330,7 +347,8 @@ static FORCE_INLINE int32_t streamTaskInput(SStreamTask* pTask, SStreamQueueItem
     qDebug("task %d %p submit enqueue %p %p %p", pTask->taskId, pTask, pItem, pSubmitClone, pSubmitClone->data);
     taosWriteQitem(pTask->inputQueue->queue, pSubmitClone);
     // qStreamInput(pTask->exec.executor, pSubmitClone);
-  } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE) {
+  } else if (pItem->type == STREAM_INPUT__DATA_BLOCK || pItem->type == STREAM_INPUT__DATA_RETRIEVE ||
+             pItem->type == STREAM_INPUT__REF_DATA_BLOCK) {
     taosWriteQitem(pTask->inputQueue->queue, pItem);
     // qStreamInput(pTask->exec.executor, pItem);
   } else if (pItem->type == STREAM_INPUT__CHECKPOINT) {
@@ -483,7 +501,9 @@ typedef struct {
 
 int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq);
 int32_t tDecodeStreamRetrieveReq(SDecoder* pDecoder, SStreamRetrieveReq* pReq);
-void    tFreeStreamDispatchReq(SStreamDispatchReq* pReq);
+void    tDeleteStreamRetrieveReq(SStreamRetrieveReq* pReq);
+
+void tDeleteStreamDispatchReq(SStreamDispatchReq* pReq);
 
 int32_t streamSetupTrigger(SStreamTask* pTask);
 
@@ -503,7 +523,7 @@ typedef struct SStreamMeta {
   char*        path;
   TDB*         db;
   TTB*         pTaskDb;
-  TTB*         pStateDb;
+  TTB*         pCheckpointDb;
   SHashObj*    pTasks;
   SHashObj*    pRecoverStatus;
   void*        ahandle;

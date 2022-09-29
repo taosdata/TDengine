@@ -410,6 +410,12 @@ end:
   if (retCode == TSDB_CODE_SUCCESS) {
     tTagNew(pTagVals, 1, true, ppTag);
   }
+  for (int i = 0; i < taosArrayGetSize(pTagVals); ++i) {
+    STagVal* p = (STagVal*)taosArrayGet(pTagVals, i);
+    if (IS_VAR_DATA_TYPE(p->type)) {
+      taosMemoryFreeClear(p->pData);
+    }
+  }
   cJSON_Delete(root);
   return retCode;
 }
@@ -1124,7 +1130,7 @@ int32_t getTableMetaFromCacheForInsert(SArray* pTableMetaPos, SParseMetaCache* p
   int32_t   reqIndex = *(int32_t*)taosArrayGet(pTableMetaPos, tableNo);
   SMetaRes* pRes = taosArrayGet(pMetaCache->pTableMetaData, reqIndex);
   if (TSDB_CODE_SUCCESS == pRes->code) {
-    *pMeta = pRes->pRes;
+    *pMeta = tableMetaDup(pRes->pRes);
     if (NULL == *pMeta) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -1159,6 +1165,16 @@ void destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request) {
     taosHashCleanup(pMetaCache->pTableMeta);
     taosHashCleanup(pMetaCache->pTableVgroup);
   }
+  SInsertTablesMetaReq* p = taosHashIterate(pMetaCache->pInsertTables, NULL);
+  while (NULL != p) {
+    taosArrayDestroy(p->pTableMetaPos);
+    taosArrayDestroy(p->pTableMetaReq);
+    taosArrayDestroy(p->pTableVgroupPos);
+    taosArrayDestroy(p->pTableVgroupReq);
+
+    p = taosHashIterate(pMetaCache->pInsertTables, p);
+  }  
+  taosHashCleanup(pMetaCache->pInsertTables);
   taosHashCleanup(pMetaCache->pDbVgroup);
   taosHashCleanup(pMetaCache->pDbCfg);
   taosHashCleanup(pMetaCache->pDbInfo);
