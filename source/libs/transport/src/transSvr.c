@@ -326,7 +326,10 @@ void uvOnSendCb(uv_write_t* req, int status) {
   if (status == 0) {
     tTrace("conn %p data already was written on stream", conn);
     if (!transQueueEmpty(&conn->srvMsgs)) {
-      SSvrMsg* msg = transQueuePop(&conn->srvMsgs);
+      SSvrMsg*  msg = transQueuePop(&conn->srvMsgs);
+      STraceId* trace = &msg->msg.info.traceId;
+      tGDebug("conn %p write data out", conn);
+
       destroySmsg(msg);
       // send cached data
       if (!transQueueEmpty(&conn->srvMsgs)) {
