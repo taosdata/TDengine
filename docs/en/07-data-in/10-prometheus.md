@@ -64,3 +64,7 @@ Log in TDengine Cloud, click "Explorer" on the left navigation bar. You will see
 
 ![TDengine prometheus remote_write result](prometheus_data.webp)
 
+:::note
+
+- TDengine will automatically create unique IDs for sub-table names by the rule.
+:::
