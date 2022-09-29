@@ -405,7 +405,10 @@ bool syncIsReadyForRead(int64_t rid) {
 
   // TODO: last not noop?
   SyncIndex lastIndex = syncNodeGetLastIndex(pSyncNode);
-  bool b = (pSyncNode->state == TAOS_SYNC_STATE_LEADER) && (pSyncNode->commitIndex >= lastIndex - SYNC_MAX_READ_RANGE);
+  bool      b = (pSyncNode->state == TAOS_SYNC_STATE_LEADER) && pSyncNode->restoreFinish;
+  if (!b) {
+    b = (pSyncNode->state == TAOS_SYNC_STATE_LEADER) && (pSyncNode->commitIndex >= lastIndex - SYNC_MAX_READ_RANGE);
+  }
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
 
   // if false, set error code
