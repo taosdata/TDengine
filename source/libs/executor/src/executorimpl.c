@@ -1274,8 +1274,8 @@ static void doCopyResultToDataBlock(SExprInfo* pExprInfo, int32_t numOfExprs, SR
     pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
     if (pCtx[j].fpSet.finalize) {
       if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_group_key") == 0) {
-        // for groupkey along with functions output multiple lines(e.g. Histogram)
-        // need to fill groupkey result for each output row.
+        // for groupkey along with functions that output multiple lines(e.g. Histogram)
+        // need to match groupkey result for each output row of that function.
         if (pCtx[j].resultInfo->numOfRes != 0) {
           pCtx[j].resultInfo->numOfRes = pRow->numOfRows;
         }
