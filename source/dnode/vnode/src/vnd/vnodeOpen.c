@@ -161,7 +161,6 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   // open sync
   if (vnodeSyncOpen(pVnode, dir)) {
     vError("vgId:%d, failed to open sync since %s", TD_VID(pVnode), tstrerror(terrno));
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
 
@@ -174,6 +173,7 @@ _err:
   if (pVnode->pTsdb) tsdbClose(&pVnode->pTsdb);
   if (pVnode->pSma) smaClose(pVnode->pSma);
   if (pVnode->pMeta) metaClose(pVnode->pMeta);
+  if (pVnode->pPool) vnodeCloseBufPool(pVnode);
 
   tsem_destroy(&(pVnode->canCommit));
   taosMemoryFree(pVnode);
@@ -183,17 +183,6 @@ _err:
 void vnodePreClose(SVnode *pVnode) {
   if (pVnode) {
     syncLeaderTransfer(pVnode->sync);
-  }
-}
-
-static void vnodeTrimDbClose(SVnode *pVnode) {
-  int32_t nLoops = 0;
-  while (atomic_load_8(&pVnode->trimDbH.state) != 0) {
-    if (++nLoops > 1000) {
-      vTrace("vgId:%d, wait for trimDb task to finish", TD_VID(pVnode));
-      sched_yield();
-      nLoops = 0;
-    }
   }
 }
 
@@ -208,7 +197,6 @@ void vnodeClose(SVnode *pVnode) {
     smaClose(pVnode->pSma);
     metaClose(pVnode->pMeta);
     vnodeCloseBufPool(pVnode);
-    vnodeTrimDbClose(pVnode);
     // destroy handle
     tsem_destroy(&(pVnode->canCommit));
     tsem_destroy(&pVnode->syncSem);

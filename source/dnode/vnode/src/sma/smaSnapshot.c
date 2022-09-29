@@ -70,6 +70,8 @@ int32_t rsmaSnapReaderOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapRead
 
   return TSDB_CODE_SUCCESS;
 _err:
+  if (pReader) rsmaSnapReaderClose(&pReader);
+  *ppReader = NULL;
   smaError("vgId:%d, vnode snapshot rsma reader open failed since %s", TD_VID(pVnode), tstrerror(code));
   return TSDB_CODE_FAILED;
 }
@@ -101,8 +103,8 @@ static int32_t rsmaQTaskInfSnapReaderOpen(SRSmaSnapReader* pReader, int64_t vers
 
   if (!taosCheckExistFile(qTaskInfoFullName)) {
     tdRSmaFSUnRef(pSma, pStat, version);
-    smaInfo("vgId:%d, vnode snapshot rsma reader for qtaskinfo version %" PRIi64 " not need as %s not exists",
-            TD_VID(pVnode), qTaskInfoFullName);
+    smaInfo("vgId:%d, vnode snapshot rsma reader for qtaskinfo version %" PRIi64 " not need as %s not exist",
+            TD_VID(pVnode), version, qTaskInfoFullName);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -336,6 +338,7 @@ int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapWrit
   tdRSmaQTaskInfoGetFullName(TD_VID(pVnode), 0, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFullName);
   TdFilePtr qTaskF = taosCreateFile(qTaskInfoFullName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (!qTaskF) {
+    taosMemoryFree(qWriter);
     code = TAOS_SYSTEM_ERROR(errno);
     smaError("vgId:%d, rsma snapshot writer open %s failed since %s", TD_VID(pSma->pVnode), qTaskInfoFullName,
              tstrerror(code));
@@ -356,6 +359,7 @@ int32_t rsmaSnapWriterOpen(SSma* pSma, int64_t sver, int64_t ever, SRSmaSnapWrit
 
 _err:
   smaError("vgId:%d, rsma snapshot writer open failed since %s", TD_VID(pSma->pVnode), tstrerror(code));
+  if (pWriter) rsmaSnapWriterClose(&pWriter, 0);
   *ppWriter = NULL;
   return code;
 }
@@ -449,11 +453,11 @@ static int32_t rsmaSnapWriteQTaskInfo(SRSmaSnapWriter* pWriter, uint8_t* pData, 
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
+    smaInfo("vgId:%d, vnode snapshot rsma write qtaskinfo %s succeed", SMA_VID(pWriter->pSma), qWriter->fname);
   } else {
     smaInfo("vgId:%d, vnode snapshot rsma write qtaskinfo is not needed", SMA_VID(pWriter->pSma));
   }
 
-  smaInfo("vgId:%d, vnode snapshot rsma write qtaskinfo %s succeed", SMA_VID(pWriter->pSma), qWriter->fname);
 _exit:
   return code;
 
