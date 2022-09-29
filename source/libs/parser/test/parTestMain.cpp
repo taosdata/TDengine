@@ -86,6 +86,7 @@ static void parseArg(int argc, char* argv[]) {
     {"dump", no_argument, NULL, 'd'},
     {"async", required_argument, NULL, 'a'},
     {"skipSql", required_argument, NULL, 's'},
+    {"log", required_argument, NULL, 'l'},
     {0, 0, 0, 0}
   };
   // clang-format on
@@ -99,6 +100,9 @@ static void parseArg(int argc, char* argv[]) {
         break;
       case 's':
         setSkipSqlNum(optarg);
+        break;
+      case 'l':
+        setLogLevel(optarg);
         break;
       default:
         break;

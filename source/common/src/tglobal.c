@@ -85,8 +85,7 @@ uint16_t tsTelemPort = 80;
 char tsSmlTagName[TSDB_COL_NAME_LEN] = "_tag_null";
 char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table name can be specified in tag value.
                                                      // If set to empty system will generate table name using MD5 hash.
-bool tsSmlDataFormat =
-    true;  // true means that the name and order of cols in each line are the same(only for influx protocol)
+bool tsSmlDataFormat = false;  // true means that the name and order of cols in each line are the same(only for influx protocol)
 
 // query
 int32_t tsQueryPolicy = 1;
@@ -95,6 +94,7 @@ int32_t tsQueryRsmaTolerance = 1000;  // the tolerance time (ms) to judge from w
 bool    tsQueryPlannerTrace = false;
 int32_t tsQueryNodeChunkSize = 32 * 1024;
 bool    tsQueryUseNodeAllocator = true;
+bool    tsKeepColumnName = false;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -292,6 +292,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "queryPlannerTrace", tsQueryPlannerTrace, true) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryNodeChunkSize", tsQueryNodeChunkSize, 1024, 128 * 1024, true) != 0) return -1;
   if (cfgAddBool(pCfg, "queryUseNodeAllocator", tsQueryUseNodeAllocator, true) != 0) return -1;
+  if (cfgAddBool(pCfg, "keepColumnName", tsKeepColumnName, true) != 0) return -1;
   if (cfgAddString(pCfg, "smlChildTableName", "", 1) != 0) return -1;
   if (cfgAddString(pCfg, "smlTagName", tsSmlTagName, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
@@ -654,6 +655,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsQueryPlannerTrace = cfgGetItem(pCfg, "queryPlannerTrace")->bval;
   tsQueryNodeChunkSize = cfgGetItem(pCfg, "queryNodeChunkSize")->i32;
   tsQueryUseNodeAllocator = cfgGetItem(pCfg, "queryUseNodeAllocator")->bval;
+  tsKeepColumnName = cfgGetItem(pCfg, "keepColumnName")->bval;
   return 0;
 }
 
@@ -847,6 +849,9 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
       break;
     }
     case 'k': {
+      if (strcasecmp("keepColumnName", name) == 0) {
+        tsKeepColumnName = cfgGetItem(pCfg, "keepColumnName")->bval;
+      }
       break;
     }
     case 'l': {
@@ -923,9 +928,9 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         }
         case 'u': {
           if (strcasecmp("multiProcess", name) == 0) {
-          #if !defined(WINDOWS) && !defined(DARWIN)
+#if !defined(WINDOWS) && !defined(DARWIN)
             tsMultiProcess = cfgGetItem(pCfg, "multiProcess")->bval;
-          #endif
+#endif
           } else if (strcasecmp("udfDebugFlag", name) == 0) {
             udfDebugFlag = cfgGetItem(pCfg, "udfDebugFlag")->i32;
           }

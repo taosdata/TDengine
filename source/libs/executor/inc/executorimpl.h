@@ -34,6 +34,7 @@ extern "C" {
 #include "scalar.h"
 #include "taosdef.h"
 #include "tarray.h"
+#include "tfill.h"
 #include "thash.h"
 #include "tlockfree.h"
 #include "tmsg.h"
@@ -145,6 +146,7 @@ typedef struct {
   SMqMetaRsp   metaRsp;        // for tmq fetching meta
   int8_t       returned;
   int64_t      snapshotVer;
+  const SSubmitReq*  pReq;
 
   SSchemaWrapper*     schema;
   char                tbName[TSDB_TABLE_NAME_LEN];
@@ -191,6 +193,7 @@ enum {
   OP_OPENED = 0x1,
   OP_RES_TO_RETURN = 0x5,
   OP_EXEC_DONE = 0x9,
+  OP_EXEC_RECV = 0x11,
 };
 
 typedef struct SOperatorFpSet {
@@ -798,6 +801,22 @@ typedef struct SStreamPartitionOperatorInfo {
   SSDataBlock*          pDelRes;
 } SStreamPartitionOperatorInfo;
 
+typedef struct SStreamFillOperatorInfo {
+  SStreamFillSupporter* pFillSup;
+  SSDataBlock*      pRes;
+  SSDataBlock*      pSrcBlock;
+  int32_t           srcRowIndex;
+  SSDataBlock*      pPrevSrcBlock;
+  SSDataBlock*      pSrcDelBlock;
+  int32_t           srcDelRowIndex;
+  SSDataBlock*      pDelRes;
+  SNode*            pCondition;
+  SArray*           pColMatchColInfo;
+  int32_t           primaryTsCol;
+  int32_t           primarySrcSlotId;
+  SStreamFillInfo*  pFillInfo;
+} SStreamFillOperatorInfo;
+
 typedef struct STimeSliceOperatorInfo {
   SSDataBlock*         pRes;
   STimeWindow          win;
@@ -1006,6 +1025,8 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream,
 
 SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
                                                 SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysiNode* pPhyFillNode,
+                                            SExecTaskInfo* pTaskInfo);
 
 int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
                               int32_t numOfOutput, SArray* pPseudoList);
@@ -1094,6 +1115,7 @@ int32_t setOutputBuf(STimeWindow* win, SResultRow** pResult, int64_t tableGroupI
                            SExecTaskInfo* pTaskInfo);
 int32_t releaseOutputBuf(SExecTaskInfo* pTaskInfo, SWinKey* pKey, SResultRow* pResult);
 int32_t saveOutputBuf(SExecTaskInfo* pTaskInfo, SWinKey* pKey, SResultRow* pResult, int32_t resSize);
+void    getNextIntervalWindow(SInterval* pInterval, STimeWindow* tw, int32_t order);
 
 #ifdef __cplusplus
 }

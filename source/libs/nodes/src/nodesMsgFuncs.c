@@ -90,12 +90,12 @@ static void endTlvEncode(STlvEncoder* pEncoder, char** pMsg, int32_t* pLen) {
 static int32_t tlvEncodeImpl(STlvEncoder* pEncoder, int16_t type, const void* pValue, int32_t len) {
   int32_t tlvLen = sizeof(STlv) + len;
   if (pEncoder->offset + tlvLen > pEncoder->allocSize) {
-    void* pNewBuf = taosMemoryRealloc(pEncoder->pBuf, pEncoder->allocSize * 2);
+    pEncoder->allocSize = TMAX(pEncoder->allocSize * 2, pEncoder->allocSize + pEncoder->offset + tlvLen);
+    void* pNewBuf = taosMemoryRealloc(pEncoder->pBuf, pEncoder->allocSize);
     if (NULL == pNewBuf) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
     pEncoder->pBuf = pNewBuf;
-    pEncoder->allocSize = pEncoder->allocSize * 2;
   }
   STlv* pTlv = (STlv*)(pEncoder->pBuf + pEncoder->offset);
   pTlv->type = htons(type);
@@ -3633,6 +3633,7 @@ static int32_t specificNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
       code = physiIntervalNodeToMsg(pObj, pEncoder);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL:
       code = physiFillNodeToMsg(pObj, pEncoder);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:
@@ -3770,6 +3771,7 @@ static int32_t msgToSpecificNode(STlvDecoder* pDecoder, void* pObj) {
       code = msgToPhysiIntervalNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL:
       code = msgToPhysiFillNode(pDecoder, pObj);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION:

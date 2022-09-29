@@ -20,13 +20,13 @@
 #include "functionMgt.h"
 #include "os.h"
 #include "query.h"
+#include "qworker.h"
 #include "scheduler.h"
 #include "tglobal.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
 #include "version.h"
-#include "qworker.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -700,6 +700,7 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
   SQuery          *pQuery = pRequest->pQuery;
 
   pRequest->metric.ctgEnd = taosGetTimestampUs();
+  qDebug("0x%" PRIx64 " start to semantic analysis, reqId:0x%" PRIx64, pRequest->self, pRequest->requestId);
 
   if (code == TSDB_CODE_SUCCESS) {
     code = qAnalyseSqlSemantic(pWrapper->pCtx, &pWrapper->catalogReq, pResultMeta, pQuery);
@@ -723,13 +724,16 @@ void retrieveMetaCallback(SMetaData *pResultMeta, void *param, int32_t code) {
 
     destorySqlParseWrapper(pWrapper);
 
-    tscDebug("0x%" PRIx64 " analysis semantics completed, start async query, reqId:0x%" PRIx64, pRequest->self,
-             pRequest->requestId);
+    double el = (pRequest->metric.semanticEnd - pRequest->metric.ctgEnd)/1000.0;
+    tscDebug("0x%" PRIx64 " analysis semantics completed, start async query, elapsed time:%.2f ms, reqId:0x%" PRIx64,
+             pRequest->self, el, pRequest->requestId);
+
     launchAsyncQuery(pRequest, pQuery, pResultMeta);
   } else {
     destorySqlParseWrapper(pWrapper);
     qDestroyQuery(pRequest->pQuery);
     pRequest->pQuery = NULL;
+
     if (NEED_CLIENT_HANDLE_ERROR(code)) {
       tscDebug("0x%" PRIx64 " client retry to handle the error, code:%d - %s, tryCount:%d, reqId:0x%" PRIx64,
                pRequest->self, code, tstrerror(code), pRequest->retry, pRequest->requestId);
@@ -813,7 +817,6 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   pRequest->metric.syntaxEnd = taosGetTimestampUs();
 
   if (!updateMetaForce) {
-    STscObj            *pTscObj = pRequest->pTscObj;
     SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
     if (NULL == pRequest->pQuery->pRoot) {
       atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertsReq, 1);
@@ -860,6 +863,7 @@ static void fetchCallback(void *pResult, void *param, int32_t code) {
   SRequestObj *pRequest = (SRequestObj *)param;
 
   SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
+  pRequest->metric.resultReady = taosGetTimestampUs();
 
   tscDebug("0x%" PRIx64 " enter scheduler fetch cb, code:%d - %s, reqId:0x%" PRIx64, pRequest->self, code,
            tstrerror(code), pRequest->requestId);

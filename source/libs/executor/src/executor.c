@@ -479,14 +479,14 @@ static void freeBlock(void* param) {
   blockDataDestroy(pBlock);
 }
 
-int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, SLocalFetch* pLocal) {
+int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bool* hasMore, SLocalFetch* pLocal) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   int64_t        threadId = taosGetSelfPthreadId();
 
   if (pLocal) {
     memcpy(&pTaskInfo->localFetch, pLocal, sizeof(*pLocal));
   }
-  
+
   taosArrayClearEx(pResList, freeBlock);
 
   int64_t curOwner = 0;
@@ -536,6 +536,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, SL
     }
   }
 
+  *hasMore = (pRes != NULL);
   uint64_t el = (taosGetTimestampUs() - st);
 
   pTaskInfo->cost.elapsedTime += el;
@@ -771,6 +772,14 @@ int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* s
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t qStreamScanMemData(qTaskInfo_t tinfo, const SSubmitReq* pReq) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE);
+  ASSERT(pTaskInfo->streamInfo.pReq == NULL);
+  pTaskInfo->streamInfo.pReq = pReq;
+  return 0;
 }
 
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType) {

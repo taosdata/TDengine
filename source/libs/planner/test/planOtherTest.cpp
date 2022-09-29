@@ -84,6 +84,10 @@ TEST_F(PlanOtherTest, show) {
   run("SHOW TABLE DISTRIBUTED st1");
 
   run("SHOW DNODE 1 VARIABLES");
+
+  run("SHOW TAGS FROM st1s1");
+
+  run("SHOW TABLE TAGS FROM st1");
 }
 
 TEST_F(PlanOtherTest, delete) {

@@ -1022,17 +1022,21 @@ static uint64_t getGroupIdByCol(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts, 
   return calGroupIdByData(&pInfo->partitionSup, pInfo->pPartScalarSup, pPreRes, 0);
 }
 
-static uint64_t getGroupIdByData(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts, int64_t maxVersion) {
-  if (pInfo->partitionSup.needCalc) {
-    return getGroupIdByCol(pInfo, uid, ts, maxVersion);
-  }
-
+static uint64_t getGroupIdByUid(SStreamScanInfo* pInfo, uint64_t uid) {
   SHashObj* map = pInfo->pTableScanOp->pTaskInfo->tableqinfoList.map;
   uint64_t* groupId = taosHashGet(map, &uid, sizeof(int64_t));
   if (groupId) {
     return *groupId;
   }
   return 0;
+}
+
+static uint64_t getGroupIdByData(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts, int64_t maxVersion) {
+  if (pInfo->partitionSup.needCalc) {
+    return getGroupIdByCol(pInfo, uid, ts, maxVersion);
+  }
+
+  return getGroupIdByUid(pInfo, uid);
 }
 
 static bool prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_t* pRowIndex) {
@@ -1081,26 +1085,32 @@ static bool prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_
   return true;
 }
 
-static STimeWindow getSlidingWindow(TSKEY* startTsCol, TSKEY* endTsCol, SInterval* pInterval,
+static STimeWindow getSlidingWindow(TSKEY* startTsCol, TSKEY* endTsCol, uint64_t* gpIdCol, SInterval* pInterval,
                                     SDataBlockInfo* pDataBlockInfo, int32_t* pRowIndex, bool hasGroup) {
   SResultRowInfo dumyInfo;
   dumyInfo.cur.pageId = -1;
   STimeWindow win = getActiveTimeWindow(NULL, &dumyInfo, startTsCol[*pRowIndex], pInterval, TSDB_ORDER_ASC);
   STimeWindow endWin = win;
   STimeWindow preWin = win;
+  uint64_t    groupId = gpIdCol[*pRowIndex];
   while (1) {
     if (hasGroup) {
       (*pRowIndex) += 1;
     } else {
-      (*pRowIndex) += getNumOfRowsInTimeWindow(pDataBlockInfo, startTsCol, *pRowIndex, endWin.ekey, binarySearchForKey,
-                                               NULL, TSDB_ORDER_ASC);
+      while ((groupId == gpIdCol[(*pRowIndex)] && startTsCol[*pRowIndex] < endWin.ekey)) {
+        (*pRowIndex) += 1;
+        if ((*pRowIndex) == pDataBlockInfo->rows) {
+          break;
+        }
+      }
     }
+
     do {
       preWin = endWin;
       getNextTimeWindow(pInterval, &endWin, TSDB_ORDER_ASC);
     } while (endTsCol[(*pRowIndex) - 1] >= endWin.skey);
     endWin = preWin;
-    if (win.ekey == endWin.ekey || (*pRowIndex) == pDataBlockInfo->rows) {
+    if (win.ekey == endWin.ekey || (*pRowIndex) == pDataBlockInfo->rows || groupId != gpIdCol[*pRowIndex]) {
       win.ekey = endWin.ekey;
       return win;
     }
@@ -1235,11 +1245,13 @@ static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pS
   int64_t          version = pSrcBlock->info.version - 1;
   for (int32_t i = 0; i < rows;) {
     uint64_t srcUid = srcUidData[i];
-    uint64_t groupId = getGroupIdByData(pInfo, srcUid, srcStartTsCol[i], version);
-    uint64_t srcGpId = srcGp[i];
-    TSKEY    calStartTs = srcStartTsCol[i];
+    uint64_t groupId = srcGp[i];
+    if (groupId == 0) {
+      groupId = getGroupIdByData(pInfo, srcUid, srcStartTsCol[i], version);
+    }
+    TSKEY calStartTs = srcStartTsCol[i];
     colDataAppend(pCalStartTsCol, pDestBlock->info.rows, (const char*)(&calStartTs), false);
-    STimeWindow win = getSlidingWindow(srcStartTsCol, srcEndTsCol, &pInfo->interval, &pSrcBlock->info, &i,
+    STimeWindow win = getSlidingWindow(srcStartTsCol, srcEndTsCol, srcGp, &pInfo->interval, &pSrcBlock->info, &i,
                                        pInfo->partitionSup.needCalc);
     TSKEY       calEndTs = srcStartTsCol[i - 1];
     colDataAppend(pCalEndTsCol, pDestBlock->info.rows, (const char*)(&calEndTs), false);
@@ -1248,15 +1260,6 @@ static int32_t generateIntervalScanRange(SStreamScanInfo* pInfo, SSDataBlock* pS
     colDataAppend(pEndTsCol, pDestBlock->info.rows, (const char*)(&win.ekey), false);
     colDataAppend(pGpCol, pDestBlock->info.rows, (const char*)(&groupId), false);
     pDestBlock->info.rows++;
-    if (pInfo->partitionSup.needCalc && srcGpId != 0 && groupId != srcGpId) {
-      colDataAppend(pCalStartTsCol, pDestBlock->info.rows, (const char*)(&calStartTs), false);
-      colDataAppend(pCalEndTsCol, pDestBlock->info.rows, (const char*)(&calEndTs), false);
-      colDataAppend(pDeUidCol, pDestBlock->info.rows, (const char*)(&srcUid), false);
-      colDataAppend(pStartTsCol, pDestBlock->info.rows, (const char*)(&win.skey), false);
-      colDataAppend(pEndTsCol, pDestBlock->info.rows, (const char*)(&win.ekey), false);
-      colDataAppend(pGpCol, pDestBlock->info.rows, (const char*)(&srcGpId), false);
-      pDestBlock->info.rows++;
-    }
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -1331,7 +1334,7 @@ void appendOneRow(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t*
 static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock* pBlock, bool out) {
   if (out) {
     blockDataCleanup(pInfo->pUpdateDataRes);
-    blockDataEnsureCapacity(pInfo->pUpdateDataRes, pBlock->info.rows);
+    blockDataEnsureCapacity(pInfo->pUpdateDataRes, pBlock->info.rows * 2);
   }
   SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, pInfo->primaryTsIndex);
   ASSERT(pColDataInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP);
@@ -1352,10 +1355,12 @@ static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock
                      isDeletedStreamWindow(&win, pBlock->info.groupId, pInfo->pTableScanOp, &pInfo->twAggSup);
     if ((update || closedWin) && out) {
       qDebug("stream update check not pass, update %d, closedWin %d", update, closedWin);
-      uint64_t gpId = closedWin && pInfo->partitionSup.needCalc
-                          ? calGroupIdByData(&pInfo->partitionSup, pInfo->pPartScalarSup, pBlock, rowId)
-                          : 0;
+      uint64_t gpId = 0;
       appendOneRow(pInfo->pUpdateDataRes, tsCol + rowId, tsCol + rowId, &pBlock->info.uid, &gpId);
+      if (closedWin && pInfo->partitionSup.needCalc) {
+        gpId = calGroupIdByData(&pInfo->partitionSup, pInfo->pPartScalarSup, pBlock, rowId);
+        appendOneRow(pInfo->pUpdateDataRes, tsCol + rowId, tsCol + rowId, &pBlock->info.uid, &gpId);
+      }
     }
   }
   if (out && pInfo->pUpdateDataRes->info.rows > 0) {
@@ -1430,6 +1435,43 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
   SStreamScanInfo* pInfo = pOperator->info;
 
   qDebug("queue scan called");
+
+  if (pTaskInfo->streamInfo.pReq != NULL) {
+    if (pInfo->tqReader->pMsg == NULL) {
+      pInfo->tqReader->pMsg = pTaskInfo->streamInfo.pReq;
+      const SSubmitReq* pSubmit = pInfo->tqReader->pMsg;
+      if (tqReaderSetDataMsg(pInfo->tqReader, pSubmit, 0) < 0) {
+        qError("submit msg messed up when initing stream submit block %p", pSubmit);
+        pInfo->tqReader->pMsg = NULL;
+        pTaskInfo->streamInfo.pReq = NULL;
+        ASSERT(0);
+      }
+    }
+
+    blockDataCleanup(pInfo->pRes);
+    SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
+
+    while (tqNextDataBlock(pInfo->tqReader)) {
+      SSDataBlock block = {0};
+
+      int32_t code = tqRetrieveDataBlock(&block, pInfo->tqReader);
+
+      if (code != TSDB_CODE_SUCCESS || block.info.rows == 0) {
+        continue;
+      }
+
+      setBlockIntoRes(pInfo, &block);
+
+      if (pBlockInfo->rows > 0) {
+        return pInfo->pRes;
+      }
+    }
+
+    pInfo->tqReader->pMsg = NULL;
+    pTaskInfo->streamInfo.pReq = NULL;
+    return NULL;
+  }
+
   if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
     if (pResult && pResult->info.rows > 0) {
@@ -1462,8 +1504,8 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         if (setBlockIntoRes(pInfo, &ret.data) < 0) {
           ASSERT(0);
         }
-        // TODO clean data block
         if (pInfo->pRes->info.rows > 0) {
+          pOperator->status = OP_EXEC_RECV;
           qDebug("queue scan log return %d rows", pInfo->pRes->info.rows);
           return pInfo->pRes;
         }
@@ -1472,18 +1514,19 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         //        pTaskInfo->streamInfo.lastStatus = ret.offset;
         //        pTaskInfo->streamInfo.metaBlk = ret.meta;
         //        return NULL;
-      } else if (ret.fetchType == FETCH_TYPE__NONE) {
+      } else if (ret.fetchType == FETCH_TYPE__NONE ||
+                 (ret.fetchType == FETCH_TYPE__SEP && pOperator->status == OP_EXEC_RECV)) {
         pTaskInfo->streamInfo.lastStatus = ret.offset;
         ASSERT(pTaskInfo->streamInfo.lastStatus.version >= pTaskInfo->streamInfo.prepareStatus.version);
         ASSERT(pTaskInfo->streamInfo.lastStatus.version + 1 == pInfo->tqReader->pWalReader->curVersion);
         char formatBuf[80];
         tFormatOffset(formatBuf, 80, &ret.offset);
         qDebug("queue scan log return null, offset %s", formatBuf);
+        pOperator->status = OP_OPENED;
         return NULL;
-      } else {
-        ASSERT(0);
       }
     }
+#if 0
   } else if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
     if (pResult && pResult->info.rows > 0) {
@@ -1492,6 +1535,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
     }
     qDebug("stream scan tsdb return null");
     return NULL;
+#endif
   } else {
     ASSERT(0);
     return NULL;
@@ -1530,6 +1574,30 @@ static int32_t filterDelBlockByUid(SSDataBlock* pDst, const SSDataBlock* pSrc, S
   pDst->info.rows = j;
 
   return 0;
+}
+
+// for partition by tag
+static void setBlockGroupIdByUid(SStreamScanInfo* pInfo, SSDataBlock* pBlock) {
+  SColumnInfoData* pStartTsCol = taosArrayGet(pBlock->pDataBlock, START_TS_COLUMN_INDEX);
+  TSKEY*           startTsCol = (TSKEY*)pStartTsCol->pData;
+  SColumnInfoData* pGpCol = taosArrayGet(pBlock->pDataBlock, GROUPID_COLUMN_INDEX);
+  uint64_t*        gpCol = (uint64_t*)pGpCol->pData;
+  SColumnInfoData* pUidCol = taosArrayGet(pBlock->pDataBlock, UID_COLUMN_INDEX);
+  uint64_t*        uidCol = (uint64_t*)pUidCol->pData;
+  int32_t          rows = pBlock->info.rows;
+  if (!pInfo->partitionSup.needCalc) {
+    for (int32_t i = 0; i < rows; i++) {
+      uint64_t groupId = getGroupIdByUid(pInfo, uidCol[i]);
+      colDataAppend(pGpCol, i, (const char*)&groupId, false);
+    }
+  } else {
+    // SSDataBlock* pPreRes = readPreVersionData(pInfo->pTableScanOp, uidCol[i], startTsCol, ts, maxVersion);
+    // if (!pPreRes || pPreRes->info.rows == 0) {
+    //   return 0;
+    // }
+    // ASSERT(pPreRes->info.rows == 1);
+    // return calGroupIdByData(&pInfo->partitionSup, pInfo->pPartScalarSup, pPreRes, 0);
+  }
 }
 
 static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
@@ -1628,7 +1696,8 @@ FETCH_NEXT_BLOCK:
         } else {
           pDelBlock = pBlock;
         }
-        printDataBlock(pBlock, "stream scan delete recv filtered");
+        setBlockGroupIdByUid(pInfo, pDelBlock);
+        printDataBlock(pDelBlock, "stream scan delete recv filtered");
         if (!isIntervalWindow(pInfo) && !isSessionWindow(pInfo) && !isStateWindow(pInfo)) {
           generateDeleteResultBlock(pInfo, pDelBlock, pInfo->pDeleteDataRes);
           pInfo->pDeleteDataRes->info.type = STREAM_DELETE_RESULT;

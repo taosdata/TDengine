@@ -379,6 +379,8 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
     topicObj.ast = strdup(pCreate->ast);
     topicObj.astLen = strlen(pCreate->ast) + 1;
 
+    qDebugL("ast %s", topicObj.ast);
+
     SNode *pAst = NULL;
     if (nodesStringToNode(pCreate->ast, &pAst) != 0) {
       taosMemoryFree(topicObj.ast);
