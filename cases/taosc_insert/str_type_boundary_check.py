@@ -50,9 +50,8 @@ class TestStrBoundary(TDCase):
             self.tdSql.execute(f'insert into {dbname}.tb2 values (now, "{max_length}")')
             self.tdSql.query(f'describe {dbname}.tb2')
             self.tdSql.checkEqual(self.tdSql.query_data[1][2], data_value)
-            # ! TD-19309
-            # self.tdSql.query(f'select c1 from {dbname}.tb2 where c1="{max_length}"')
-            # self.tdSql.checkEqual(self.tdSql.query_data[0][0], max_length)
+            self.tdSql.query(f'select c1 from {dbname}.tb2 where c1="{max_length}"')
+            self.tdSql.checkEqual(self.tdSql.query_data[0][0], max_length)
             self.tdSql.error(f'insert into {dbname}.tb3 values (now, "{exceed_length}")')
             self.tdSql.execute(f'drop database if exists {dbname}')
 
