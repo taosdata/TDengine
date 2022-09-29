@@ -28,7 +28,7 @@ SRaftStore *raftStoreOpen(const char *path) {
 
   SRaftStore *pRaftStore = taosMemoryMalloc(sizeof(SRaftStore));
   if (pRaftStore == NULL) {
-    sError("raftStoreOpen malloc error");
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   memset(pRaftStore, 0, sizeof(*pRaftStore));
@@ -72,7 +72,9 @@ static int32_t raftStoreInit(SRaftStore *pRaftStore) {
 }
 
 int32_t raftStoreClose(SRaftStore *pRaftStore) {
-  ASSERT(pRaftStore != NULL);
+  if (pRaftStore == NULL) {
+    return 0;
+  }
 
   taosCloseFile(&pRaftStore->pFile);
   taosMemoryFree(pRaftStore);
