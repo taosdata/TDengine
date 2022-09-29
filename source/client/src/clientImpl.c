@@ -874,8 +874,6 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   STscObj* pTscObj = pRequest->pTscObj;
 
   pRequest->code = code;
-  pRequest->metric.resultReady = taosGetTimestampUs();
-
   if (pResult) {
     destroyQueryExecRes(&pRequest->body.resInfo.execRes);
     memcpy(&pRequest->body.resInfo.execRes, pResult, sizeof(*pResult));
@@ -1059,7 +1057,6 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
       }
 
       pRequest->metric.planEnd = taosGetTimestampUs();
-
       if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
         SArray* pNodeList = NULL;
         buildAsyncExecNodeList(pRequest, &pNodeList, pMnodeList, pResultMeta);
