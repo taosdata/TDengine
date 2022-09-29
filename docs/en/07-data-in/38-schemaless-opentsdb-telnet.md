@@ -51,3 +51,8 @@ You can use any client that supports the http protocol to access the RESTful int
 /opentsdb/v1/put/telnet/<db>?token=<cloud_token>
 ```
 
+### Insert Example
+- curl --request POST http://127.0.0.1:6041/opentsdb/v1/put/telnet/test --user "root:taosdata" --data-binary "sys.if.bytes.out  1479496100 1.3E0 host=web01 interface=eth0"
+  
+### Query Example with SQL
+- select * from `sys.if.bytes.out` where host="web01" and interface="eth0"
