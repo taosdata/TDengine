@@ -668,7 +668,8 @@ static int32_t tsdbCommitSttBlk(SDataFWriter *pWriter, SDiskDataBuilder *pBuilde
                     .minKey = pBlkInfo->minKey,
                     .maxKey = pBlkInfo->maxKey,
                     .minVer = pBlkInfo->minVer,
-                    .maxVer = pBlkInfo->maxVer};
+                    .maxVer = pBlkInfo->maxVer,
+                    .nRow = pBuilder->nRow};
   // write
   code = tsdbWriteDiskData(pWriter, pDiskData, &sttBlk.bInfo, NULL);
   TSDB_CHECK_CODE(code, lino, _exit);
