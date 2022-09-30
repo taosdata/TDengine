@@ -607,65 +607,6 @@ _err:
   return code;
 }
 
-/**
- * @brief send file with limited speed(rough control)
- *
- * @param pTsdb
- * @param pFileOut
- * @param pFileIn
- * @param size
- * @param speed 0 no limit, unit: B/s
- * @return int64_t
- */
-static int64_t tsdbFSendFile(STsdb *pTsdb, TdFilePtr pOutFD, TdFilePtr pInFD, int64_t size, int64_t speed) {
-  if (speed <= 0) {
-    return taosFSendFile(pOutFD, pInFD, 0, size);
-  }
-
-  int64_t offset = 0;
-  int64_t tBytes = 0;
-  int64_t nBytes = 0;
-  int64_t startMs = 0;
-  int64_t cost = 0;
-
-  while ((offset + nBytes) < size) {
-    if (atomic_load_8(&pTsdb->trimHdl.commitInWait) == 1) {
-      tsdbDebug("vgId:%d sendFile without limit since conflicts, fSize:%" PRIi64 ", maxSpeed:%" PRIi64,
-                TD_VID(pTsdb->pVnode), size, speed);
-      goto _send_remain;
-    }
-    startMs = taosGetTimestampMs();
-    if ((nBytes = taosFSendFile(pOutFD, pInFD, &offset, speed)) < 0) {
-      return nBytes;
-    }
-    cost = taosGetTimestampMs() - startMs;
-    tBytes += nBytes;
-
-    int64_t nSleep = 0;
-    if (cost < 0) {
-      nSleep = 1000;
-    } else if (cost < 1000) {
-      nSleep = 1000 - cost;
-    }
-    if (nSleep > 0) {
-      taosMsleep(nSleep);
-      tsdbDebug("vgId:%d sendFile and msleep:%" PRIi64 ", fSize:%" PRIi64 ", tBytes:%" PRIi64 " maxSpeed:%" PRIi64,
-                TD_VID(pTsdb->pVnode), nSleep, size, tBytes, speed);
-    }
-  }
-
-_send_remain:
-  if (offset < size) {
-    if ((nBytes = taosFSendFile(pOutFD, pInFD, &offset, size - offset)) < 0) {
-      return nBytes;
-    }
-    tBytes += nBytes;
-    tsdbDebug("vgId:%d sendFile remain, fSize:%" PRIi64 ", tBytes:%" PRIi64 " maxSpeed:%" PRIi64, TD_VID(pTsdb->pVnode),
-              size, tBytes, speed);
-  }
-  return tBytes;
-}
-
 int32_t tsdbDFileSetCopy(STsdb *pTsdb, SDFileSet *pSetFrom, SDFileSet *pSetTo, int64_t maxSpeed) {
   int32_t   code = 0;
   int64_t   n;

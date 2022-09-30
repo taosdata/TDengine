@@ -480,7 +480,6 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, 
     taosThreadAttrDestroy(&thAttr);
     int8_t oldVal = atomic_val_compare_exchange_8(&pHandle->state, 1, 0);
     ASSERT(oldVal == 1);
-    vError("vgId:%d, failed to create pthread to trim vnode since %s", TD_VID(pVnode), tstrerror(code));
     goto _exit;
   }
   vDebug("vgId:%d, success to create pthread to trim vnode", TD_VID(pVnode));
@@ -489,6 +488,9 @@ static int32_t vnodeProcessTrimReq(SVnode *pVnode, int64_t version, void *pReq, 
 
 _exit:
   terrno = code;
+  if(code < 0) {
+    vError("vgId:%d, trim vnode request failed since %s", TD_VID(pVnode), tstrerror(code));
+  }
   return code;
 }
 

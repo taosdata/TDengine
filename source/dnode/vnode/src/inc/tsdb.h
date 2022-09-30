@@ -207,6 +207,7 @@ int32_t tsdbCmprColData(SColData *pColData, int8_t cmprAlg, SBlockCol *pBlockCol
                         uint8_t **ppBuf);
 int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, int32_t nVal, SColData *pColData,
                           uint8_t **ppBuf);
+int64_t tsdbFSendFile(STsdb *pTsdb, TdFilePtr pOutFD, TdFilePtr pInFD, int64_t size, int64_t speed);
 // tsdbMemTable ==============================================================================================
 // SMemTable
 int32_t  tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
