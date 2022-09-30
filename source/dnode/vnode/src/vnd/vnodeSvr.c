@@ -289,7 +289,7 @@ int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in vnode query queue is processing");
-  if ((pMsg->msgType == TDMT_SCH_QUERY) && !vnodeIsReadyForRead(pVnode)) {
+  if ((pMsg->msgType == TDMT_SCH_QUERY) && !vnodeIsLeader(pVnode)) {
     vnodeRedirectRpcMsg(pVnode, pMsg);
     return 0;
   }
@@ -311,7 +311,12 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("vgId:%d, msg:%p in fetch queue is processing", pVnode->config.vgId, pMsg);
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
        pMsg->msgType == TDMT_VND_BATCH_META) &&
-      !vnodeIsReadyForRead(pVnode)) {
+      !vnodeIsLeader(pVnode)) {
+    vnodeRedirectRpcMsg(pVnode, pMsg);
+    return 0;
+  }
+
+  if (pMsg->msgType == TDMT_VND_CONSUME && !pVnode->restored) {
     vnodeRedirectRpcMsg(pVnode, pMsg);
     return 0;
   }
@@ -894,7 +899,6 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
   SSubmitRsp     submitRsp = {0};
   SSubmitMsgIter msgIter = {0};
   SSubmitBlk    *pBlock;
-  SSubmitRsp     rsp = {0};
   SVCreateTbReq  createTbReq = {0};
   SDecoder       decoder = {0};
   int32_t        nRows;

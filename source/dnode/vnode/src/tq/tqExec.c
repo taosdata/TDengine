@@ -15,7 +15,7 @@
 
 #include "tq.h"
 
-static int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols) {
+int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols) {
   int32_t dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
   void*   buf = taosMemoryCalloc(1, dataStrLen);
   if (buf == NULL) return -1;
@@ -243,7 +243,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp
       }
       if (pHandle->fetchMeta) {
         SSubmitBlk* pBlk = pReader->pBlock;
-        int32_t schemaLen = htonl(pBlk->schemaLen);
+        int32_t     schemaLen = htonl(pBlk->schemaLen);
         if (schemaLen > 0) {
           if (pRsp->createTableNum == 0) {
             pRsp->createTableLen = taosArrayInit(0, sizeof(int32_t));
@@ -278,7 +278,7 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp
       }
       if (pHandle->fetchMeta) {
         SSubmitBlk* pBlk = pReader->pBlock;
-        int32_t schemaLen = htonl(pBlk->schemaLen);
+        int32_t     schemaLen = htonl(pBlk->schemaLen);
         if (schemaLen > 0) {
           if (pRsp->createTableNum == 0) {
             pRsp->createTableLen = taosArrayInit(0, sizeof(int32_t));
