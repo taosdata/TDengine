@@ -17,7 +17,7 @@
 
 typedef enum { MEMORY_DATA_ITER = 0, STT_DATA_ITER } EDataIterT;
 
-#define USE_STREAM_COMPRESSION 1
+#define USE_STREAM_COMPRESSION 0
 
 typedef struct {
   SRBTreeNode n;
