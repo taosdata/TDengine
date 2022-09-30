@@ -590,7 +590,10 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
         goto _next_fileset;
       }
 
-      tMapDataReset(&state->blockMap);
+      if (state->blockMap.pData != NULL) {
+        tMapDataClear(&state->blockMap);
+      }
+
       code = tsdbReadDataBlk(state->pDataFReader, state->pBlockIdx, &state->blockMap);
       if (code) goto _err;
 
@@ -693,6 +696,10 @@ int32_t clearNextRowFromFS(void *iter) {
     // tBlockDataDestroy(&state->blockData, 1);
     tBlockDataDestroy(state->pBlockData, 1);
     state->pBlockData = NULL;
+  }
+
+  if (state->blockMap.pData != NULL) {
+    tMapDataClear(&state->blockMap);
   }
 
   return code;
