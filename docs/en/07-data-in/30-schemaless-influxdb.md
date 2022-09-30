@@ -57,10 +57,10 @@ Support InfluxDB query parameters as follows.
 + `precision` The time precision used by TDengine
     - ns - nanoseconds
     - u - microseconds
-  ms - milliseconds
-  s - seconds
-  m - minutes
-  h - hours
+    - ms - milliseconds
+    - s - seconds
+    - m - minutes
+    - h - hours
 
 ## Insert Example
 ```bash
