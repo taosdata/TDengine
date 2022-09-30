@@ -164,3 +164,52 @@ class Runtaosx():
                                     -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])+11}/{dbname[source]}?group.id={group_id}&timeout={timeout}'\
                                     -t 'taos{target_task}://root:taosdata@{target_taosd[0]}:{int(target_taosd[1])+11}/{target_dbname}'\
                                         {add_tag_str}")))
+    
+    def run_backup_db_from_native_to_local(self,thread_list,taosx_setting,source_task,target_file_dir,source_taosd_list,dbname,source,group_id,timeout):
+        thread_list.append(threading.Thread(target=self.remote.cmd, args=(
+                                taosx_setting['fqdn'][0], f"taosx run \
+                                    -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])}/{dbname[source]}?group.id={group_id}&timeout={timeout}'\
+                                    -t 'local:{target_file_dir}'")))
+    
+    def run_restore_from_local_to_native(self,thread_list,taosx_setting,target_task,target_file_dir,target_taosd,dbname,source):
+        thread_list.append(threading.Thread(target=self.remote.cmd, args=(
+                                taosx_setting['fqdn'][0], f"taosx run \
+                                    -f 'local:{target_file_dir}'\
+                                    -t 'taos{target_task}://root:taosdata@{target_taosd[0]}:{int(target_taosd[1])}/{dbname[source]}' -y")))
+    
+    def run_backup_db_from_ws_to_local(self,thread_list,taosx_setting,source_task,target_file_dir,source_taosd_list,dbname,source,group_id,timeout):
+        thread_list.append(threading.Thread(target=self.remote.cmd, args=(
+                                taosx_setting['fqdn'][0], f"taosx run \
+                                    -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])+11}/{dbname[source]}?group.id={group_id}&timeout={timeout}'\
+                                    -t 'local:{target_file_dir}'")))
+    
+    def run_restore_from_local_to_ws(self,thread_list,taosx_setting,target_task,target_file_dir,target_taosd,dbname,source):
+        thread_list.append(threading.Thread(target=self.remote.cmd, args=(
+                                taosx_setting['fqdn'][0], f"taosx run \
+                                    -f 'local:{target_file_dir}'\
+                                    -t 'taos{target_task}://root:taosdata@{target_taosd[0]}:{int(target_taosd[1])+11}/{dbname[source]}' -y")))
+    
+    def run_backup_stb_from_native_to_local(self,thread_list,taosx_setting,source_task,target_file_dir,source_taosd_list,dbname,stbname,source,group_id,timeout):
+        thread_list.append(threading.Thread(target=self.remote.cmd, args=(
+                                taosx_setting['fqdn'][0], f"taosx run \
+                                    -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])}/{dbname[source]}.{stbname[source]}?group.id={group_id}&timeout={timeout}'\
+                                    -t 'local:{target_file_dir}'")))
+
+    def run_backup_stb_from_ws_to_local(self,thread_list,taosx_setting,source_task,target_file_dir,source_taosd_list,dbname,stbname,source,group_id,timeout):
+        thread_list.append(threading.Thread(target=self.remote.cmd, args=(
+                                taosx_setting['fqdn'][0], f"taosx run \
+                                    -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])+11}/{dbname[source]}.{stbname[source]}?group.id={group_id}&timeout={timeout}'\
+                                    -t 'local:{target_file_dir}'")))
+    
+    def run_backup_tb_from_native_to_local(self,thread_list,taosx_setting,source_task,target_file_dir,source_taosd_list,dbname,tbname,source,group_id,timeout):
+        thread_list.append(threading.Thread(target=self.remote.cmd, args=(
+                                taosx_setting['fqdn'][0], f"taosx run \
+                                    -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])}/{dbname[source]}.{tbname[source]}0?group.id={group_id}&timeout={timeout}'\
+                                    -t 'local:{target_file_dir}'")))
+
+    def run_backup_tb_from_ws_to_local(self,thread_list,taosx_setting,source_task,target_file_dir,source_taosd_list,dbname,tbname,source,group_id,timeout):
+        thread_list.append(threading.Thread(target=self.remote.cmd, args=(
+                                taosx_setting['fqdn'][0], f"taosx run \
+                                    -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])+11}/{dbname[source]}.{tbname[source]}0?group.id={group_id}&timeout={timeout}'\
+                                    -t 'local:{target_file_dir}'")))
+    

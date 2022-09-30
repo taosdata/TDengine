@@ -105,7 +105,6 @@ class StaticFullSync(TDCase):
                         elif source_task.lower() == '' and target_task.lower() == '+ws':
                             self.tdTaosx.run_taosx_stb_from_native_to_ws(thread_list,self.taosx_setting,source_task,target_task,self.source_taosd_list,self.target_taosd,self.dbname,self.stbname,self.target_dbname,source,group_id,self.timeout)
                     thread_list[source].start()
-                    time.sleep(0.05)
                 for thread in thread_list:
                     thread.join()
                 backup_count_rows = []
@@ -208,11 +207,11 @@ class StaticFullSync(TDCase):
                         master_sum[source][0]['sum(c1)'], backup_sum[source][0]['sum(c1)'])
                 taosd_backup.execute(f'drop database {self.target_dbname}')
     def run(self):
-        # self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root)
+        self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root)
         # self.full_sync_db_stb('db')
         # self.full_sync_db_stb('stable')
         self.full_sync_ctb()
-        # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)
+        self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)
         self.full_sync_ntb()
 
     def cleanup(self):

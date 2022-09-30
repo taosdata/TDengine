@@ -57,42 +57,7 @@ class AddSync(TDCase):
         #param for taosx
         self.timeout = '10s'
         self.target_dbname = 'target'
-    
-    # def get_json(self,json_path,host,port,dbname,stbname,tbname_m,start_timestamp,row_num,drop_flag,child_table_exist):
-    #     dict = {}
-    #     with open(json_path,'rb') as file:
-    #         params = json.load(file)
-    #         params['host'] = host
-    #         params['port'] = port
-    #         params['databases'][0]['dbinfo']['name'] = dbname
-    #         params['databases'][0]['dbinfo']['drop'] = drop_flag
-    #         params['databases'][0]['super_tables'][0]['name'] = stbname
-    #         params['databases'][0]['super_tables'][0]['childtable_count'] = self.tb_num
-    #         params['databases'][0]['super_tables'][0]['child_table_exists'] = child_table_exist
-    #         params['databases'][0]['super_tables'][0]['insert_rows'] = row_num
-    #         params['databases'][0]['super_tables'][0]['childtable_prefix'] = tbname_m
-    #         params['databases'][0]['super_tables'][0]['start_timestamp'] = start_timestamp
-    #         dict = params
-    #     file.close()
-    #     return dict
-    # def write_json(self,json_path,dict):
-    #     with open(json_path,'w') as r:
-    #         json.dump(dict,r)
-    #     r.close()
-    # def data_insert(self,start_timestamp,row_num,drop_flag,child_table_exist_flag):
-    #     taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
-    #     thread_list = []
-    #     for source in range(len(self.source_taosd_list)):
-    #         host = self.source_taosd_list[source][0]
-    #         port = self.source_taosd_list[source][1]
-    #         self.write_json(f'{self.test_root}/cases/taosx/basic.json',self.get_json(f'{self.test_root}/cases/taosx/basic.json',host,int(port),self.dbname[source],self.stbname[source],self.tbname_m[source],start_timestamp,row_num,drop_flag,child_table_exist_flag))
-    #         self.remote.put(taosBenchmark_fqdn[0],f'{self.test_root}/cases/taosx/basic.json','/tmp/basic{source}')
-    #     for source in range(len(self.source_taosd_list)):   
-    #         thread_list.append(threading.Thread(target=self.remote.cmd,args=(
-    #             taosBenchmark_fqdn[0], f'taosBenchmark -f /tmp/basic{source}/basic.json')))
-    #         thread_list[source].start()   
-    #     for thread in thread_list:
-    #         thread.join() 
+     
     def data_insert_ntb(self,source_taosd_list,dbname,ntbname_m,tb_num,row_num):
         taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
         for source in range(len(source_taosd_list)):
