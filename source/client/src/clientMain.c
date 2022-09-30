@@ -863,6 +863,7 @@ static void fetchCallback(void *pResult, void *param, int32_t code) {
   SRequestObj *pRequest = (SRequestObj *)param;
 
   SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
+  pRequest->metric.resultReady = taosGetTimestampUs();
 
   tscDebug("0x%" PRIx64 " enter scheduler fetch cb, code:%d - %s, reqId:0x%" PRIx64, pRequest->self, code,
            tstrerror(code), pRequest->requestId);

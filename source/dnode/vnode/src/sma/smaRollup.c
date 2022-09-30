@@ -196,7 +196,8 @@ static int32_t tdUpdateTbUidListImpl(SSma *pSma, tb_uid_t *suid, SArray *tbUids,
 
   if (!suid || !tbUids) {
     terrno = TSDB_CODE_INVALID_PTR;
-    smaError("vgId:%d, failed to get rsma info for uid:%" PRIi64 " since %s", SMA_VID(pSma), *suid, terrstr());
+    smaError("vgId:%d, failed to get rsma info for uid:%" PRIi64 " since %s", SMA_VID(pSma), suid ? *suid : -1,
+             terrstr());
     return TSDB_CODE_FAILED;
   }
 
@@ -566,6 +567,7 @@ static int32_t tdUidStorePut(STbUidStore *pStore, tb_uid_t suid, tb_uid_t *uid) 
         }
         if (!taosArrayPush(pUidArray, uid)) {
           terrno = TSDB_CODE_OUT_OF_MEMORY;
+          taosArrayDestroy(pUidArray);
           return TSDB_CODE_FAILED;
         }
         if (taosHashPut(pStore->uidHash, &suid, sizeof(suid), &pUidArray, sizeof(pUidArray)) < 0) {
@@ -1678,13 +1680,13 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
   SRSmaInfoItem *pItem = NULL;
 
   if (!(pRSmaRef = taosHashGet(smaMgmt.refHash, &param, POINTER_BYTES))) {
-    smaDebug("rsma fetch task not start since rsma info item:%p not exist in refHash:%p, rsetId:%" PRIi64, param,
-             *(int64_t *)&param, smaMgmt.refHash, smaMgmt.rsetId);
+    smaDebug("rsma fetch task not start since rsma info item:%p not exist in refHash:%p, rsetId:%d", param,
+             smaMgmt.refHash, smaMgmt.rsetId);
     return;
   }
 
   if (!(pStat = (SRSmaStat *)tdAcquireSmaRef(smaMgmt.rsetId, pRSmaRef->refId))) {
-    smaDebug("rsma fetch task not start since rsma stat already destroyed, rsetId:%" PRIi64 " refId:%d)",
+    smaDebug("rsma fetch task not start since rsma stat already destroyed, rsetId:%d refId:%" PRIi64 ")",
              smaMgmt.rsetId, pRSmaRef->refId);  // pRSmaRef freed in taosHashRemove
     taosHashRemove(smaMgmt.refHash, &param, POINTER_BYTES);
     return;
@@ -1693,7 +1695,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
   pSma = pStat->pSma;
 
   if (!(pRSmaInfo = tdAcquireRSmaInfoBySuid(pSma, pRSmaRef->suid))) {
-    smaDebug("rsma fetch task not start since rsma info not exist, rsetId:%" PRIi64 " refId:%d)", smaMgmt.rsetId,
+    smaDebug("rsma fetch task not start since rsma info not exist, rsetId:%d refId:%" PRIi64 ")", smaMgmt.rsetId,
              pRSmaRef->refId);  // pRSmaRef freed in taosHashRemove
     tdReleaseSmaRef(smaMgmt.rsetId, pRSmaRef->refId);
     taosHashRemove(smaMgmt.refHash, &param, POINTER_BYTES);
@@ -1701,7 +1703,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
   }
 
   if (RSMA_INFO_IS_DEL(pRSmaInfo)) {
-    smaDebug("rsma fetch task not start since rsma info already deleted, rsetId:%" PRIi64 " refId:%d)", smaMgmt.rsetId,
+    smaDebug("rsma fetch task not start since rsma info already deleted, rsetId:%d refId:%" PRIi64 ")", smaMgmt.rsetId,
              pRSmaRef->refId);  // pRSmaRef freed in taosHashRemove
     tdReleaseRSmaInfo(pSma, pRSmaInfo);
     tdReleaseSmaRef(smaMgmt.rsetId, pRSmaRef->refId);
@@ -1717,7 +1719,7 @@ static void tdRSmaFetchTrigger(void *param, void *tmrId) {
     case TASK_TRIGGER_STAT_PAUSED:
     case TASK_TRIGGER_STAT_CANCELLED: {
       smaDebug("vgId:%d, rsma fetch task not start for level %" PRIi8 " since stat is %" PRIi8
-               ", rsetId rsetId:%" PRIi64 " refId:%d",
+               ", rsetId:%d refId:%" PRIi64,
                SMA_VID(pSma), pItem->level, rsmaTriggerStat, smaMgmt.rsetId, pRSmaRef->refId);
       if (rsmaTriggerStat == TASK_TRIGGER_STAT_PAUSED) {
         taosTmrReset(tdRSmaFetchTrigger, RSMA_FETCH_INTERVAL, pItem, smaMgmt.tmrHandle, &pItem->tmrId);
@@ -1845,7 +1847,7 @@ static int32_t tdRSmaBatchExec(SSma *pSma, SRSmaInfo *pInfo, STaosQall *qall, SA
     void *msg = NULL;
     taosGetQitem(qall, (void **)&msg);
     if (msg) {
-      if (taosArrayPush(pSubmitArr, &msg) < 0) {
+      if (!taosArrayPush(pSubmitArr, &msg)) {
         tdFreeRSmaSubmitItems(pSubmitArr);
         goto _err;
       }

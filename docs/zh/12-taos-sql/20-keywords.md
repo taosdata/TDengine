@@ -344,6 +344,7 @@ description: TDengine 保留关键字的详细列表
 ### \_
 
 - \_C0
+- \_IROWTS
 - \_QDURATION
 - \_QEND
 - \_QSTART

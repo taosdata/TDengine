@@ -237,6 +237,7 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-cluster");
   if (pTrans == NULL) {
+    sdbFreeRaw(pRaw);
     mError("cluster:%" PRId64 ", failed to create since %s", clusterObj.id, terrstr());
     return -1;
   }
@@ -315,7 +316,7 @@ static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
     return 0;
   }
 
-  mInfo("update cluster uptime to %" PRId64, clusterObj.upTime);
+  mInfo("update cluster uptime to %d", clusterObj.upTime);
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-uptime");
   if (pTrans == NULL) return -1;
 

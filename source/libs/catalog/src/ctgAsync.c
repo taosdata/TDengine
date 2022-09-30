@@ -487,7 +487,6 @@ int32_t ctgInitTask(SCtgJob* pJob, CTG_TASK_TYPE type, void* param, int32_t* tas
 int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const SCatalogReq* pReq, catalogCallback fp,
                    void* param) {
   int32_t code = 0;
-
   int64_t st = taosGetTimestampUs();
 
   int32_t tbMetaNum = (int32_t)ctgGetTablesReqNum(pReq->pTableMeta);
@@ -638,12 +637,11 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
   taosAcquireRef(gCtgMgmt.jobPool, pJob->refId);
 
   double el = (taosGetTimestampUs() - st)/1000.0;
-  qDebug("QID:0x%" PRIx64 ", jobId: 0x%" PRIx64 " initialized, task num %d, forceUpdate %d, elapsed time:%.2fms", pJob->queryId, pJob->refId,
-         taskNum, pReq->forceUpdate, el);
+  qDebug("QID:0x%" PRIx64 ", jobId: 0x%" PRIx64 " initialized, task num %d, forceUpdate %d, elapsed time:%.2f ms",
+         pJob->queryId, pJob->refId, taskNum, pReq->forceUpdate, el);
   return TSDB_CODE_SUCCESS;
 
 _return:
-
   ctgFreeJob(*job);
   CTG_RET(code);
 }
