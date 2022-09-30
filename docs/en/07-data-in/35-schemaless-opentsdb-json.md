@@ -51,7 +51,12 @@ You can use any client that supports the http protocol to access the RESTful int
 /opentsdb/v1/put/json/<db>?token=<cloud_token>
 ```
 ### Insert Example
-- curl --request POST http://127.0.0.1:6041/opentsdb/v1/put/json/test --user "root:taosdata" --data-binary "{\"metric\":\"meter_current\",\"timestamp\":1646846400,\"value\":10.3,\"tags\":{\"groupid\":2,\"location\":\"Beijing\",\"id\":\"d1001\"}}"
-  
-### Query Example with SQL
-- select * from meter_current where groupid=2 and location="Beijing" and id="d1001"
+```bash
+curl --request POST "$TDENGINE_CLOUD_URL/opentsdb/v1/put/json/<db_name>?token=$TDENGINE_CLOUD_TOKEN" --data-binary "{\"metric\":\"meter_current\",\"timestamp\":1646846400,\"value\":10.3,\"tags\":{\"groupid\":2,\"location\":\"Beijing\",\"id\":\"d1001\"}}"
+```
+## Query Example with SQL
+`meter_current` is the super table name.
+you can filter data by tag, like:`where groupid=2`.
+```bash
+curl -L -d "select * from <db_name>.meter_current where groupid=2" $TDENGINE_CLOUD_URL/rest/sql/test?token=$TDENGINE_CLOUD_TOKEN
+```
