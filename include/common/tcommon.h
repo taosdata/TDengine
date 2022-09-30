@@ -177,6 +177,7 @@ typedef struct SSDataBlock {
 enum {
   FETCH_TYPE__DATA = 1,
   FETCH_TYPE__META,
+  FETCH_TYPE__SEP,
   FETCH_TYPE__NONE,
 };
 

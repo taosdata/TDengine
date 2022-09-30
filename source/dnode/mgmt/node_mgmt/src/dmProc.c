@@ -74,11 +74,14 @@ static SProcQueue *dmInitProcQueue(SProc *proc, char *ptr, int32_t size) {
     }
 
     tstrncpy(queue->name, proc->name, sizeof(queue->name));
+
+    taosThreadMutexLock(&queue->mutex);
     queue->head = 0;
     queue->tail = 0;
     queue->total = bufSize;
     queue->avail = bufSize;
     queue->items = 0;
+    taosThreadMutexUnlock(&queue->mutex);
   }
 
   return queue;
