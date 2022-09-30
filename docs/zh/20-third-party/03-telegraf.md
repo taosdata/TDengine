@@ -44,16 +44,16 @@ taos> use telegraf;
 Database changed.
 
 taos> show stables;
-              name              |      created_time       | columns |  tags  |   tables    |
-============================================================================================
- swap                           | 2022-04-20 08:47:53.532 |       7 |      1 |           1 |
- cpu                            | 2022-04-20 08:48:03.488 |      11 |      2 |           5 |
- system                         | 2022-04-20 08:47:53.512 |       8 |      1 |           1 |
- diskio                         | 2022-04-20 08:47:53.550 |      12 |      2 |          15 |
- kernel                         | 2022-04-20 08:47:53.503 |       6 |      1 |           1 |
- mem                            | 2022-04-20 08:47:53.521 |      35 |      1 |           1 |
- processes                      | 2022-04-20 08:47:53.555 |      12 |      1 |           1 |
- disk                           | 2022-04-20 08:47:53.541 |       8 |      5 |           2 |
+              name              |
+=================================
+ swap                           |
+ cpu                            |
+ system                         |
+ diskio                         |
+ kernel                         |
+ mem                            |
+ processes                      |
+ disk                           |
 Query OK, 8 row(s) in set (0.000521s)
 
 taos> select * from telegraf.system limit 10;

@@ -46,26 +46,26 @@ taos> use tcollector;
 Database changed.
 
 taos> show stables;
-              name              |      created_time       | columns |  tags  |   tables    |
-============================================================================================
- proc.meminfo.hugepages_rsvd    | 2022-04-20 12:44:53.945 |       2 |      1 |           1 |
- proc.meminfo.directmap1g       | 2022-04-20 12:44:54.110 |       2 |      1 |           1 |
- proc.meminfo.vmallocchunk      | 2022-04-20 12:44:53.724 |       2 |      1 |           1 |
- proc.meminfo.hugepagesize      | 2022-04-20 12:44:54.004 |       2 |      1 |           1 |
- tcollector.reader.lines_dro... | 2022-04-20 12:44:49.675 |       2 |      1 |           1 |
- proc.meminfo.sunreclaim        | 2022-04-20 12:44:53.437 |       2 |      1 |           1 |
- proc.stat.ctxt                 | 2022-04-20 12:44:55.363 |       2 |      1 |           1 |
- proc.meminfo.swaptotal         | 2022-04-20 12:44:53.158 |       2 |      1 |           1 |
- proc.uptime.total              | 2022-04-20 12:44:52.813 |       2 |      1 |           1 |
- tcollector.collector.lines_... | 2022-04-20 12:44:49.895 |       2 |      2 |          51 |
- proc.meminfo.vmallocused       | 2022-04-20 12:44:53.704 |       2 |      1 |           1 |
- proc.meminfo.memavailable      | 2022-04-20 12:44:52.939 |       2 |      1 |           1 |
- sys.numa.foreign_allocs        | 2022-04-20 12:44:57.929 |       2 |      2 |           1 |
- proc.meminfo.committed_as      | 2022-04-20 12:44:53.639 |       2 |      1 |           1 |
- proc.vmstat.pswpin             | 2022-04-20 12:44:54.177 |       2 |      1 |           1 |
- proc.meminfo.cmafree           | 2022-04-20 12:44:53.865 |       2 |      1 |           1 |
- proc.meminfo.mapped            | 2022-04-20 12:44:53.349 |       2 |      1 |           1 |
- proc.vmstat.pgmajfault         | 2022-04-20 12:44:54.251 |       2 |      1 |           1 |
+              name              |
+=================================
+ proc.meminfo.hugepages_rsvd    |
+ proc.meminfo.directmap1g       |
+ proc.meminfo.vmallocchunk      |
+ proc.meminfo.hugepagesize      |
+ tcollector.reader.lines_dro... |
+ proc.meminfo.sunreclaim        |
+ proc.stat.ctxt                 |
+ proc.meminfo.swaptotal         |
+ proc.uptime.total              |
+ tcollector.collector.lines_... |
+ proc.meminfo.vmallocused       |
+ proc.meminfo.memavailable      |
+ sys.numa.foreign_allocs        |
+ proc.meminfo.committed_as      |
+ proc.vmstat.pswpin             |
+ proc.meminfo.cmafree           |
+ proc.meminfo.mapped            |
+ proc.vmstat.pgmajfault         |
 ...
 ```
 

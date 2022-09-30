@@ -82,10 +82,10 @@ taos> use test;
 Database changed.
 
 taos> show stables;
-              name              |      created_time       | columns |  tags  |   tables    |
-============================================================================================
- meters.current                 | 2022-03-29 16:05:25.193 |       2 |      2 |           1 |
- meters.voltage                 | 2022-03-29 16:05:25.200 |       2 |      2 |           1 |
+              name              |
+=================================
+ meters.current                 |
+ meters.voltage                 |
 Query OK, 2 row(s) in set (0.001954s)
 
 taos> select * from `meters.current`;
