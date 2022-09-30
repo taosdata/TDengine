@@ -823,7 +823,13 @@ static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* 
       char*    name = taosArrayGetP(pTbList, i);
       uint64_t uid = 0;
       if (metaGetTableUidByName(metaHandle, name, &uid) == 0) {
-        taosArrayPush(list, &uid);
+        ETableType tbType = TSDB_TABLE_MAX;
+        if (metaGetTableTypeByName(metaHandle, name, &tbType) == 0 && tbType == TSDB_CHILD_TABLE) {
+          taosArrayPush(list, &uid);
+        } else {
+          taosArrayDestroy(pTbList);
+          return -1;
+        }
       } else {
         qWarn("failed to get tableIds from by table name: %s, reason: %s", name, tstrerror(terrno));
         terrno = 0;

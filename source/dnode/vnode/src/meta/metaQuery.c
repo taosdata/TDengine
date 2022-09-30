@@ -223,6 +223,18 @@ int metaGetTableUidByName(void *meta, char *tbName, uint64_t *uid) {
   return 0;
 }
 
+int metaGetTableTypeByName(void *meta, char *tbName, ETableType *tbType) {
+  int         code = 0;
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, (SMeta *)meta, 0);
+
+  if (metaGetTableEntryByName(&mr, tbName) == 0) {
+    *tbType = mr.me.type;
+  }
+  metaReaderClear(&mr);
+  return 0;
+}
+
 int metaReadNext(SMetaReader *pReader) {
   SMeta *pMeta = pReader->pMeta;
 
@@ -1130,7 +1142,8 @@ int32_t metaGetTableTagsOpt(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashO
 
     void   *val = NULL;
     int32_t len = 0;
-    if (0 == tdbTbGet(pMeta->pCtbIdx, &ctbIdxKey, sizeof(SCtbIdxKey), &val, &len)) {
+    if (taosHashGet(tags, id, sizeof(tb_uid_t)) == NULL &&
+        0 == tdbTbGet(pMeta->pCtbIdx, &ctbIdxKey, sizeof(SCtbIdxKey), &val, &len)) {
       taosHashPut(tags, id, sizeof(tb_uid_t), val, len);
     }
   }
