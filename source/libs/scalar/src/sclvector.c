@@ -1715,10 +1715,9 @@ void doVectorCompare(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pO
     fp = filterGetCompFuncEx(lType, rType, optr);
   }
 
-  pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
-
   if (startIndex < 0) {
     i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
+    pOut->numOfRows = TMAX(pLeft->numOfRows, pRight->numOfRows);
     compRows = pOut->numOfRows;
   } else {
     compRows = startIndex + numOfRows;
