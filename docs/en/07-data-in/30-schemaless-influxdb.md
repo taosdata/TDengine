@@ -55,10 +55,21 @@ Support InfluxDB query parameters as follows.
 
 - `db` Specifies the database name used by TDengine
 - `precision` The time precision used by TDengine
+  ns - nanoseconds
+  u or µ - microseconds
+  ms - milliseconds
+  s - seconds
+  m - minutes
+  h - hours
 
-Note: InfluxDB token authorization is not supported at present. Only Basic authorization and query parameter validation are supported.
 ## Insert Example
-- curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"
+```bash
+curl --request POST "$TDENGINE_CLOUD_URL/influxdb/v1/write?db=<db_name>&token=$TDENGINE_CLOUD_TOKEN&precision=ns" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577846800001000001"
+```
   
 ## Query Example with SQL
-- select * from measurement where host=host1
+`measurement` is the super table name.
+you can filter data by tag, like:`where host="host1"`.
+```bash
+curl -L -d "select * from <db_name>.measurement where host=\"host1\"" $TDENGINE_CLOUD_URL/rest/sql/test?token=$TDENGINE_CLOUD_TOKEN
+```
