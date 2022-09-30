@@ -55,8 +55,8 @@ Support InfluxDB query parameters as follows.
 
 + `db` Specifies the database name used by TDengine
 + `precision` The time precision used by TDengine
--  ns - nanoseconds
--  u - microseconds
+    - ns - nanoseconds
+    - u - microseconds
   ms - milliseconds
   s - seconds
   m - minutes
