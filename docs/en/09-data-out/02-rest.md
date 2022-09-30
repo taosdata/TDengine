@@ -43,9 +43,9 @@ $env:TDENGINE_CLOUD_URL="<url>"
 </TabItem>
 </Tabs>
 
-## Insert
+## Query
 
-Following command below show how to insert data into the table `d1001` of the database `test` via the command line utility `curl`.
+Following command below show how to query data into from table `ins_databases` of the database `information_schema` via the command line utility `curl`.
 
 ```bash
 curl -L \
