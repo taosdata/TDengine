@@ -1025,6 +1025,7 @@ void fstDestroy(Fst* fst) {
 }
 
 bool fstGet(Fst* fst, FstSlice* b, Output* out) {
+  int      ret = false;
   FstNode* root = fstGetRoot(fst);
   Output   tOut = 0;
   int32_t  len;
@@ -1037,7 +1038,7 @@ bool fstGet(Fst* fst, FstSlice* b, Output* out) {
     uint8_t inp = data[i];
     Output  res = 0;
     if (false == fstNodeFindInput(root, inp, &res)) {
-      return false;
+      goto _return;
     }
 
     FstTransition trn;
@@ -1047,18 +1048,20 @@ bool fstGet(Fst* fst, FstSlice* b, Output* out) {
     taosArrayPush(nodes, &root);
   }
   if (!FST_NODE_IS_FINAL(root)) {
-    return false;
+    goto _return;
   } else {
     tOut = tOut + FST_NODE_FINAL_OUTPUT(root);
+    ret = true;
   }
 
+_return:
   for (int32_t i = 0; i < taosArrayGetSize(nodes); i++) {
     FstNode** node = (FstNode**)taosArrayGet(nodes, i);
     fstNodeDestroy(*node);
   }
   taosArrayDestroy(nodes);
   *out = tOut;
-  return true;
+  return ret;
 }
 FStmBuilder* fstSearch(Fst* fst, FAutoCtx* ctx) {
   // refactor later
@@ -1243,6 +1246,7 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
 
       StreamState s = {.node = node, .trans = i, .out = {.null = false, .out = out}, .autState = autState};
       taosArrayPush(sws->stack, &s);
+      taosMemoryFree(trans);
       return true;
     }
   }
