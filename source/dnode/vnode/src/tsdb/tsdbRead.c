@@ -921,6 +921,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
     }
   }
 
+  // fill the mis-matched columns with null value
   while (i < numOfOutputCols) {
     pColData = taosArrayGet(pResBlock->pDataBlock, i);
     colDataAppendNNULL(pColData, 0, remain);
@@ -930,12 +931,15 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
   pResBlock->info.rows = remain;
   pDumpInfo->rowIndex += step * remain;
 
+  // check if current block are all handled
   if (pDumpInfo->rowIndex >= 0 && pDumpInfo->rowIndex < pBlock->nRow) {
-//    int64_t ts = pBlockData->aTSKEY[pDumpInfo->rowIndex];
-//    setBlockAllDumped(pDumpInfo, ts, pReader->order);
+    int64_t ts = pBlockData->aTSKEY[pDumpInfo->rowIndex];
+    if (outOfTimeWindow(ts, &pReader->window)) {  // the remain data has out of query time window, ignore current block
+      setBlockAllDumped(pDumpInfo, ts, pReader->order);
+    }
   } else {
-    int64_t k = asc ? pBlock->maxKey.ts : pBlock->minKey.ts;
-    setBlockAllDumped(pDumpInfo, k, pReader->order);
+    int64_t ts = asc ? pBlock->maxKey.ts : pBlock->minKey.ts;
+    setBlockAllDumped(pDumpInfo, ts, pReader->order);
   }
 
   double elapsedTime = (taosGetTimestampUs() - st) / 1000.0;
