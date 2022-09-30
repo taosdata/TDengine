@@ -88,3 +88,7 @@ VALUE    TIMESTAMP
 
 ```
 
+:::note
+
+- TDengine 默认生成的子表名是根据规则生成的唯一 ID 值。
+:::

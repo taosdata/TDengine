@@ -817,7 +817,6 @@ void doAsyncQuery(SRequestObj *pRequest, bool updateMetaForce) {
   pRequest->metric.syntaxEnd = taosGetTimestampUs();
 
   if (!updateMetaForce) {
-    STscObj            *pTscObj = pRequest->pTscObj;
     SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
     if (NULL == pRequest->pQuery->pRoot) {
       atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertsReq, 1);
@@ -864,6 +863,7 @@ static void fetchCallback(void *pResult, void *param, int32_t code) {
   SRequestObj *pRequest = (SRequestObj *)param;
 
   SReqResultInfo *pResultInfo = &pRequest->body.resInfo;
+  pRequest->metric.resultReady = taosGetTimestampUs();
 
   tscDebug("0x%" PRIx64 " enter scheduler fetch cb, code:%d - %s, reqId:0x%" PRIx64, pRequest->self, code,
            tstrerror(code), pRequest->requestId);
