@@ -101,6 +101,8 @@ TEST_F(PlanBasicTest, interpFunc) {
   useDb("root", "test");
 
   run("SELECT INTERP(c1) FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR)");
+
+  run("SELECT _IROWTS, INTERP(c1) FROM t1 RANGE('2017-7-14 18:00:00', '2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR)");
 }
 
 TEST_F(PlanBasicTest, lastRowFunc) {
@@ -178,6 +180,8 @@ TEST_F(PlanBasicTest, pseudoColumn) {
 
   run("SELECT _QSTART, _QEND, _QDURATION, _WSTART, _WEND, _WDURATION, COUNT(*) FROM t1 "
       "WHERE ts BETWEEN '2017-7-14 18:00:00' AND '2017-7-14 19:00:00' INTERVAL(10S)");
+
+  run("SELECT _TAGS, * FROM st1s1");
 }
 
 TEST_F(PlanBasicTest, indefiniteRowsFunc) {

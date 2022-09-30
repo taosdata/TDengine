@@ -11,12 +11,13 @@ description: "This document explains how TDengine SQL has changed in version 3.0
 | 1 | VARCHAR | Added | Alias of BINARY.
 | 2 | TIMESTAMP literal | Added | TIMESTAMP 'timestamp format' syntax now supported.
 | 3 | _ROWTS pseudocolumn | Added | Indicates the primary key. Alias of _C0.
-| 4 | INFORMATION_SCHEMA | Added |	Database for system metadata containing all schema definitions
-| 5 | PERFORMANCE_SCHEMA | Added | Database for system performance information.
-| 6 | Connection queries | Deprecated | Connection queries are no longer supported. The syntax and interfaces are deprecated.
-| 7 | Mixed operations | Enhanced | Mixing scalar and vector operations in queries has been enhanced and is supported in all SELECT clauses.
-| 8 | Tag operations | Added | Tag columns can be used in queries and clauses like data columns.
-| 9 | Timeline clauses and time functions in supertables | Enhanced | When PARTITION BY is not used, data in supertables is merged into a single timeline.
+| 4 | _IROWTS pseudocolumn | Added | Used to retrieve timestamps with INTERP function.
+| 5 | INFORMATION_SCHEMA | Added |	Database for system metadata containing all schema definitions
+| 6 | PERFORMANCE_SCHEMA | Added | Database for system performance information.
+| 7 | Connection queries | Deprecated | Connection queries are no longer supported. The syntax and interfaces are deprecated.
+| 8 | Mixed operations | Enhanced | Mixing scalar and vector operations in queries has been enhanced and is supported in all SELECT clauses.
+| 9 | Tag operations | Added | Tag columns can be used in queries and clauses like data columns.
+| 10 | Timeline clauses and time functions in supertables | Enhanced | When PARTITION BY is not used, data in supertables is merged into a single timeline.
 
 ## SQL Syntax
 

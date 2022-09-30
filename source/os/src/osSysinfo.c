@@ -143,8 +143,11 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
     cpuInfo->user = CompareFileTime(&pre_userTime, &userTime);
     cpuInfo->nice = 0;
   }
-#elif defined(_TD_DARWIN_64)
-  assert(0);
+#elif defined(DARWIN)
+  cpuInfo->idle = 0;
+  cpuInfo->system = 0;
+  cpuInfo->user = 0;
+  cpuInfo->nice = 0;
 #else
   TdFilePtr pFile = taosOpenFile(tsSysCpuFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
@@ -180,8 +183,11 @@ static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
     cpuInfo->cutime = 0;
     cpuInfo->cstime = 0;
 	}
-#elif defined(_TD_DARWIN_64)
-  assert(0);
+#elif defined(DARWIN)
+  cpuInfo->stime = 0;
+  cpuInfo->utime = 0;
+  cpuInfo->cutime = 0;
+  cpuInfo->cstime = 0;
 #else
   TdFilePtr pFile = taosOpenFile(tsProcCpuFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
@@ -359,7 +365,7 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
   pCmd = taosOpenCmd("sysctl -n machdep.cpu.core_count");
   if (pCmd == NULL) return code;
   memset(buf, 0, sizeof(buf));
-  if (taosGetsCmd(pCmd, maxLen, cpuModel) > 0) {
+  if (taosGetsCmd(pCmd, sizeof(buf) - 1, buf) > 0) {
     code = 0;
     done |= 2;
     *numOfCores = atof(buf);

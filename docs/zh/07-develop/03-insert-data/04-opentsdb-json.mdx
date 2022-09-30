@@ -48,7 +48,8 @@ OpenTSDB JSON 格式协议采用一个 JSON 字符串表示一行或多行数据
 
 - 对于 JSON 格式协议，TDengine 并不会自动把所有标签转成 nchar 类型， 字符串将将转为 nchar 类型， 数值将同样转换为 double 类型。
 - TDengine 只接收 JSON **数组格式**的字符串，即使一行数据也需要转换成数组形式。
-
+- 默认生产的子表名是根据规则生成的唯一ID值。为了让用户可以指定生成的表名，可以通过在taos.cfg里配置 smlChildTableName 参数来指定。
+举例如下：配置 smlChildTableName=tname 插入数据为 "tags": { "host": "web02","dc": "lga","tname":"cpu1"} 则创建的表名为 cpu1，注意如果多行数据 tname 相同，但是后面的 tag_set 不同，则使用第一行自动建表时指定的 tag_set，其他的行会忽略）。
 :::
 
 ## 示例代码
@@ -81,10 +82,10 @@ taos> use test;
 Database changed.
 
 taos> show stables;
-              name              |      created_time       | columns |  tags  |   tables    |
-============================================================================================
- meters.current                 | 2022-03-29 16:05:25.193 |       2 |      2 |           1 |
- meters.voltage                 | 2022-03-29 16:05:25.200 |       2 |      2 |           1 |
+              name              |
+=================================
+ meters.current                 |
+ meters.voltage                 |
 Query OK, 2 row(s) in set (0.001954s)
 
 taos> select * from `meters.current`;
@@ -94,3 +95,7 @@ taos> select * from `meters.current`;
  2022-03-28 09:56:51.250 |              12.600000000 |               2.000000000 | California.SanFrancisco               |
 Query OK, 2 row(s) in set (0.004076s)
 ```
+
+## 查询示例
+想要查询"tags": {"location": "California.LosAngeles", "groupid": 1} 的数据，可以通过如下sql：
+select * from `meters.voltage` where location="California.LosAngeles" and groupid=1

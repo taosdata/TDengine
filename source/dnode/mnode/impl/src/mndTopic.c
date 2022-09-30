@@ -379,6 +379,8 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
     topicObj.ast = strdup(pCreate->ast);
     topicObj.astLen = strlen(pCreate->ast) + 1;
 
+    qDebugL("ast %s", topicObj.ast);
+
     SNode *pAst = NULL;
     if (nodesStringToNode(pCreate->ast, &pAst) != 0) {
       taosMemoryFree(topicObj.ast);
@@ -774,7 +776,7 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     SName            n;
     int32_t          cols = 0;
 
-    char topicName[TSDB_TOPIC_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    char topicName[TSDB_TOPIC_NAME_LEN + VARSTR_HEADER_SIZE + 5] = {0};
     strcpy(varDataVal(topicName), mndGetDbStr(pTopic->name));
     /*tNameFromString(&n, pTopic->name, T_NAME_ACCT | T_NAME_DB);*/
     /*tNameGetDbName(&n, varDataVal(topicName));*/

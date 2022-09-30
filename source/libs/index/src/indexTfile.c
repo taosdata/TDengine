@@ -555,6 +555,7 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     taosArraySort(v->tableId, idxUidCompare);
     taosArrayRemoveDuplicate(v->tableId, idxUidCompare, NULL);
     int32_t tbsz = taosArrayGetSize(v->tableId);
+    if (tbsz == 0) continue;
     fstOffset += TF_TABLE_TATOAL_SIZE(tbsz);
   }
   tfileWriteFstOffset(tw, fstOffset);
@@ -566,6 +567,7 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     TFileValue* v = taosArrayGetP((SArray*)data, i);
 
     int32_t tbsz = taosArrayGetSize(v->tableId);
+    if (tbsz == 0) continue;
     // check buf has enough space or not
     int32_t ttsz = TF_TABLE_TATOAL_SIZE(tbsz);
 
@@ -592,6 +594,10 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
   for (size_t i = 0; i < sz; i++) {
     // TODO, fst batch write later
     TFileValue* v = taosArrayGetP((SArray*)data, i);
+
+    int32_t tbsz = taosArrayGetSize(v->tableId);
+    if (tbsz == 0) continue;
+
     if (tfileWriteData(tw, v) != 0) {
       indexError("failed to write data: %s, offset: %d len: %d", v->colVal, v->offset,
                  (int)taosArrayGetSize(v->tableId));

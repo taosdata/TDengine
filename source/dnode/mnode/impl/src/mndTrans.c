@@ -427,7 +427,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
   terrno = 0;
 
 _OVER:
-  if (terrno != 0) {
+  if (terrno != 0 && pTrans != NULL) {
     mError("trans:%d, failed to parse from raw:%p since %s", pTrans->id, pRaw, terrstr());
     mndTransDropData(pTrans);
     taosMemoryFreeClear(pRow);
@@ -629,6 +629,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
       pTrans->pRpcArray == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to create transaction since %s", terrstr());
+    mndTransDrop(pTrans);
     return NULL;
   }
 
@@ -1428,6 +1429,7 @@ static bool mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans) {
   SSdbRaw *pRaw = mndTransActionEncode(pTrans);
   if (pRaw == NULL) {
     mError("trans:%d, failed to encode while finish trans since %s", pTrans->id, terrstr());
+    return false;
   }
   sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
 
@@ -1478,6 +1480,7 @@ void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
 }
 
 static int32_t mndProcessTransTimer(SRpcMsg *pReq) {
+  mTrace("start to process trans timer");
   mndTransPullup(pReq->info.node);
   return 0;
 }
@@ -1604,7 +1607,7 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)dbname, false);
 
-    char stbname[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    char stbname[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(stbname, mndGetDbStr(pTrans->stbname), pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)stbname, false);
@@ -1616,7 +1619,7 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     colDataAppend(pColInfo, numOfRows, (const char *)&pTrans->lastExecTime, false);
 
     char    lastInfo[TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE] = {0};
-    char    detail[TSDB_TRANS_ERROR_LEN] = {0};
+    char    detail[TSDB_TRANS_ERROR_LEN + 1] = {0};
     int32_t len = snprintf(detail, sizeof(detail), "action:%d code:0x%x(%s) ", pTrans->lastAction,
                            pTrans->lastErrorNo & 0xFFFF, tstrerror(pTrans->lastErrorNo));
     SEpSet  epset = pTrans->lastEpset;

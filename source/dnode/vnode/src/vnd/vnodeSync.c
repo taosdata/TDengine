@@ -240,7 +240,7 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
             isWeak, isBlock, msg, numOfMsgs, arrayPos, pMsg->info.handle);
 
     if (!pVnode->restored) {
-      vGError("vgId:%d, msg:%p failed to process since not leader", vgId, pMsg);
+      vGError("vgId:%d, msg:%p failed to process since restore not finished", vgId, pMsg);
       terrno = TSDB_CODE_APP_NOT_READY;
       vnodeHandleProposeError(pVnode, pMsg, TSDB_CODE_APP_NOT_READY);
       rpcFreeCont(pMsg->pCont);
@@ -496,16 +496,16 @@ static int32_t vnodeSyncGetSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot) {
   return 0;
 }
 
-static void vnodeSyncReconfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbMeta) {
+static void vnodeSyncReconfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta *cbMeta) {
   SVnode *pVnode = pFsm->data;
 
   SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen};
-  syncGetAndDelRespRpc(pVnode->sync, cbMeta.newCfgSeqNum, &rpcMsg.info);
-  rpcMsg.info.conn.applyIndex = cbMeta.index;
+  syncGetAndDelRespRpc(pVnode->sync, cbMeta->newCfgSeqNum, &rpcMsg.info);
+  rpcMsg.info.conn.applyIndex = cbMeta->index;
 
   const STraceId *trace = (STraceId *)&pMsg->info.traceId;
   vGTrace("vgId:%d, alter vnode replica is confirmed, type:%s contLen:%d seq:%" PRIu64 " handle:%p", TD_VID(pVnode),
-          TMSG_INFO(pMsg->msgType), pMsg->contLen, cbMeta.seqNum, rpcMsg.info.handle);
+          TMSG_INFO(pMsg->msgType), pMsg->contLen, cbMeta->seqNum, rpcMsg.info.handle);
   if (rpcMsg.info.handle != NULL) {
     tmsgSendRsp(&rpcMsg);
   }
@@ -688,6 +688,8 @@ static void vnodeRestoreFinish(struct SSyncFSM *pFsm) {
     }
   } while (true);
 
+  walApplyVer(pVnode->pWal, pVnode->state.applied);
+
   pVnode->restored = true;
   vDebug("vgId:%d, sync restore finished", pVnode->config.vgId);
 }
@@ -794,16 +796,3 @@ bool vnodeIsLeader(SVnode *pVnode) {
   return true;
 }
 
-bool vnodeIsReadyForRead(SVnode *pVnode) {
-  if (syncIsReady(pVnode->sync)) {
-    return true;
-  }
-
-  if (syncIsReadyForRead(pVnode->sync)) {
-    return true;
-  }
-
-  vDebug("vgId:%d, vnode not ready for read, state:%s, last:%ld, cmt:%ld", pVnode->config.vgId,
-         syncGetMyRoleStr(pVnode->sync), syncGetLastIndex(pVnode->sync), syncGetCommitIndex(pVnode->sync));
-  return false;
-}

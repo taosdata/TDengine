@@ -54,13 +54,15 @@ static int32_t mndProcessConsumerLostMsg(SRpcMsg *pMsg);
 static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg);
 
 int32_t mndInitConsumer(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_CONSUMER,
-                     .keyType = SDB_KEY_INT64,
-                     .encodeFp = (SdbEncodeFp)mndConsumerActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndConsumerActionDecode,
-                     .insertFp = (SdbInsertFp)mndConsumerActionInsert,
-                     .updateFp = (SdbUpdateFp)mndConsumerActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndConsumerActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_CONSUMER,
+      .keyType = SDB_KEY_INT64,
+      .encodeFp = (SdbEncodeFp)mndConsumerActionEncode,
+      .decodeFp = (SdbDecodeFp)mndConsumerActionDecode,
+      .insertFp = (SdbInsertFp)mndConsumerActionInsert,
+      .updateFp = (SdbUpdateFp)mndConsumerActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndConsumerActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_SUBSCRIBE, mndProcessSubscribeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_HB, mndProcessMqHbReq);
@@ -176,6 +178,8 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
   SMqConsumerObj *pConsumer;
   void           *pIter = NULL;
 
+  mTrace("start to process mq timer");
+
   // rebalance cannot be parallel
   if (!mndRebTryStart()) {
     mInfo("mq rebalance already in progress, do nothing");
@@ -268,6 +272,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
 
   SMqConsumerObj *pConsumer = mndAcquireConsumer(pMnode, consumerId);
   if (pConsumer == NULL) {
+    mError("consumer %ld not exist", consumerId);
     terrno = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
     return -1;
   }

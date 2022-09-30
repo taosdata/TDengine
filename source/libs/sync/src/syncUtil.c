@@ -26,7 +26,8 @@ uint64_t syncUtilAddr2U64(const char* host, uint16_t port) {
 
   uint32_t hostU32 = taosGetIpv4FromFqdn(host);
   if (hostU32 == (uint32_t)-1) {
-    sError("Get IP address error");
+    sError("failed to resolve ipv4 addr. host:%s", host);
+    terrno = TSDB_CODE_TSC_INVALID_FQDN;
     return -1;
   }
 
@@ -57,7 +58,7 @@ void syncUtilU642Addr(uint64_t u64, char* host, size_t len, uint16_t* port) {
 
   struct in_addr addr;
   addr.s_addr = hostU32;
-  snprintf(host, len, "%s", taosInetNtoa(addr));
+  taosInetNtoa(addr, host, len);
   *port = (uint16_t)((u64 & 0x00000000FFFF0000) >> 16);
 }
 
@@ -84,13 +85,18 @@ void syncUtilraftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet) {
   addEpIntoEpSet(pEpSet, host, port);
 }
 
-void syncUtilnodeInfo2raftId(const SNodeInfo* pNodeInfo, SyncGroupId vgId, SRaftId* raftId) {
+bool syncUtilnodeInfo2raftId(const SNodeInfo* pNodeInfo, SyncGroupId vgId, SRaftId* raftId) {
   uint32_t ipv4 = taosGetIpv4FromFqdn(pNodeInfo->nodeFqdn);
-  ASSERT(ipv4 != 0xFFFFFFFF);
+  if (ipv4 == 0xFFFFFFFF || ipv4 == 1) {
+    sError("failed to resolve ipv4 addr. fqdn: %s", pNodeInfo->nodeFqdn);
+    terrno = TSDB_CODE_TSC_INVALID_FQDN;
+    return false;
+  }
   char ipbuf[128] = {0};
   tinet_ntoa(ipbuf, ipv4);
   raftId->addr = syncUtilAddr2U64(ipbuf, pNodeInfo->nodePort);
   raftId->vgId = vgId;
+  return true;
 }
 
 bool syncUtilSameId(const SRaftId* pId1, const SRaftId* pId2) {

@@ -2977,10 +2977,9 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst) {
+static void firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst, int32_t rowIndex) {
   SInputColumnInfoData* pColInfo = &pCtx->input;
 
-  int32_t start = pColInfo->startRowIndex;
   if (pOutput->hasResult) {
     if (isFirst) {
       if (pInput->ts > pOutput->ts) {
@@ -2998,7 +2997,7 @@ static void firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput, S
   pOutput->bytes = pInput->bytes;
 
   memcpy(pOutput->buf, pInput->buf, pOutput->bytes);
-  firstlastSaveTupleData(pCtx->pSrcBlock, start, pCtx, pOutput);
+  firstlastSaveTupleData(pCtx->pSrcBlock, rowIndex, pCtx, pOutput);
 
   pOutput->hasResult = true;
 }
@@ -3016,7 +3015,7 @@ static int32_t firstLastFunctionMergeImpl(SqlFunctionCtx* pCtx, bool isFirstQuer
   for (int32_t i = start; i < start + pInput->numOfRows; ++i) {
     char*          data = colDataGetData(pCol, i);
     SFirstLastRes* pInputInfo = (SFirstLastRes*)varDataVal(data);
-    firstLastTransferInfo(pCtx, pInputInfo, pInfo, isFirstQuery);
+    firstLastTransferInfo(pCtx, pInputInfo, pInfo, isFirstQuery, i);
     if (!numOfElems) {
       numOfElems = pInputInfo->hasResult ? 1 : 0;
     }
@@ -6158,7 +6157,10 @@ int32_t groupKeyFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SGroupKeyInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   if (pInfo->hasResult) {
-    colDataAppend(pCol, pBlock->info.rows, pInfo->data, pInfo->isNull ? true : false);
+    int32_t currentRow = pBlock->info.rows;
+    for (; currentRow < pBlock->info.rows + pResInfo->numOfRes; ++currentRow) {
+      colDataAppend(pCol, currentRow, pInfo->data, pInfo->isNull ? true : false);
+    }
   } else {
     pResInfo->numOfRes = 0;
   }

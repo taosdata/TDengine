@@ -177,11 +177,20 @@ The parameters described in this document by the effect that they have on the sy
 ### maxNumOfDistinctRes
 
 | Attribute     | Description                                                                                                                                                                         |
-| -------- | -------------------------------- | --- |
+| -------- | -------------------------------- |
 | Applicable    | Server Only                                                                                                                                                                         |
 | Meaning       | The maximum number of distinct rows returned |
 | Value Range   | [100,000 - 100,000,000]                      |
 | Default Value | 100,000                                      |
+
+### keepColumnName
+
+| Attribute     | Description                             |
+| -------- | -------------------------------- |
+| Applicable | Client only                     |
+| Meaning     | When the Last, First, LastRow function is queried, whether the returned column name contains the function name. |
+| Value Range | 0 means including the function name, 1 means not including the function name.     |
+| Default Value   | 0                            |
 
 ## Locale Parameters
 
