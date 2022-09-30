@@ -1620,9 +1620,7 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
     goto _error;
   }
 
-  SInterval* pInterval = QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL == downstream->operatorType
-                             ? &((SStreamFinalIntervalOperatorInfo*)downstream->info)->interval
-                             : &((SStreamIntervalOperatorInfo*)downstream->info)->interval;
+  SInterval* pInterval = &((SStreamIntervalOperatorInfo*)downstream->info)->interval;
   int32_t    numOfFillCols = 0;
   SExprInfo* pFillExprInfo = createExprInfo(pPhyFillNode->pFillExprs, NULL, &numOfFillCols);
   pInfo->pFillSup = initStreamFillSup(pPhyFillNode, pInterval, pFillExprInfo, numOfFillCols);
