@@ -447,7 +447,7 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
       if (--state->iFileSet >= 0) {
         pFileSet = (SDFileSet *)taosArrayGet(state->aDFileSet, state->iFileSet);
       } else {
-        // tMergeTreeClose(&state->mergeTree);
+        tMergeTreeClose(&state->mergeTree);
 
         *ppRow = NULL;
         return code;
@@ -463,7 +463,7 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
       bool hasVal = tMergeTreeNext(&state->mergeTree);
       if (!hasVal) {
         state->state = SFSLASTNEXTROW_FILESET;
-        // tMergeTreeClose(&state->mergeTree);
+        tMergeTreeClose(&state->mergeTree);
         goto _next_fileset;
       }
       state->state = SFSLASTNEXTROW_BLOCKROW;
