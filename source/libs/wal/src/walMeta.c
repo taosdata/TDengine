@@ -243,10 +243,7 @@ int walCheckAndRepairMeta(SWal* pWal) {
       pWal->vers.lastVer = lastVer;
       ((SWalFileInfo*)taosArrayGetLast(pWal->fileInfoSet))->lastVer = pWal->vers.lastVer;
 
-      int code = walSaveMeta(pWal);
-      if (code < 0) {
-        return -1;
-      }
+      (void)walSaveMeta(pWal);
     }
   }
 
