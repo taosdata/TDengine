@@ -649,7 +649,7 @@ int32_t tRowMergerInit2(SRowMerger *pMerger, STSchema *pResTSchema, TSDBROW *pRo
 
   ASSERT(pTColumn->type == TSDB_DATA_TYPE_TIMESTAMP);
 
-  *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.ts = key.ts});
+  *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.val = key.ts});
   if (taosArrayPush(pMerger->pArray, pColVal) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
@@ -690,7 +690,7 @@ int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
   STColumn *pTColumn;
   int32_t   iCol, jCol = 1;
 
-  ASSERT(((SColVal *)pMerger->pArray->pData)->value.ts == key.ts);
+  ASSERT(((SColVal *)pMerger->pArray->pData)->value.val == key.ts);
 
   for (iCol = 1; iCol < pMerger->pTSchema->numOfCols && jCol < pTSchema->numOfCols; ++iCol) {
     pTColumn = &pMerger->pTSchema->columns[iCol];
@@ -744,7 +744,7 @@ int32_t tRowMergerInit(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
 
   ASSERT(pTColumn->type == TSDB_DATA_TYPE_TIMESTAMP);
 
-  *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.ts = key.ts});
+  *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.val = key.ts});
   if (taosArrayPush(pMerger->pArray, pColVal) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
@@ -770,7 +770,7 @@ int32_t tRowMerge(SRowMerger *pMerger, TSDBROW *pRow) {
   TSDBKEY  key = TSDBROW_KEY(pRow);
   SColVal *pColVal = &(SColVal){0};
 
-  ASSERT(((SColVal *)pMerger->pArray->pData)->value.ts == key.ts);
+  ASSERT(((SColVal *)pMerger->pArray->pData)->value.val == key.ts);
 
   for (int32_t iCol = 1; iCol < pMerger->pTSchema->numOfCols; iCol++) {
     tsdbRowGetColVal(pRow, pMerger->pTSchema, iCol, pColVal);
@@ -1105,9 +1105,8 @@ int32_t tBlockDataAppendRow(SBlockData *pBlockData, TSDBROW *pRow, STSchema *pTS
       pColVal = tRowIterNext(&rIter);
     }
   }
-
-_exit:
   pBlockData->nRow++;
+
   return code;
 
 _err:
@@ -1455,9 +1454,8 @@ _exit:
 }
 
 // SDiskDataHdr ==============================
-int32_t tPutDiskDataHdr(uint8_t *p, void *ph) {
-  int32_t       n = 0;
-  SDiskDataHdr *pHdr = (SDiskDataHdr *)ph;
+int32_t tPutDiskDataHdr(uint8_t *p, const SDiskDataHdr *pHdr) {
+  int32_t n = 0;
 
   n += tPutU32(p ? p + n : p, pHdr->delimiter);
   n += tPutU32v(p ? p + n : p, pHdr->fmtVer);
@@ -1516,174 +1514,107 @@ int32_t tGetColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg) {
   return n;
 }
 
+#define SMA_UPDATE(SUM_V, MIN_V, MAX_V, VAL, MINSET, MAXSET) \
+  do {                                                       \
+    (SUM_V) += (VAL);                                        \
+    if (!(MINSET)) {                                         \
+      (MIN_V) = (VAL);                                       \
+      (MINSET) = 1;                                          \
+    } else if ((MIN_V) > (VAL)) {                            \
+      (MIN_V) = (VAL);                                       \
+    }                                                        \
+    if (!(MAXSET)) {                                         \
+      (MAX_V) = (VAL);                                       \
+      (MAXSET) = 1;                                          \
+    } else if ((MAX_V) < (VAL)) {                            \
+      (MAX_V) = (VAL);                                       \
+    }                                                        \
+  } while (0)
+
+static FORCE_INLINE void tSmaUpdateBool(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet, uint8_t *maxSet) {
+  int8_t val = *(int8_t *)&pColVal->value.val ? 1 : 0;
+  SMA_UPDATE(pColAgg->sum, pColAgg->min, pColAgg->max, val, *minSet, *maxSet);
+}
+static FORCE_INLINE void tSmaUpdateTinyint(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet,
+                                           uint8_t *maxSet) {
+  int8_t val = *(int8_t *)&pColVal->value.val;
+  SMA_UPDATE(pColAgg->sum, pColAgg->min, pColAgg->max, val, *minSet, *maxSet);
+}
+static FORCE_INLINE void tSmaUpdateSmallint(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet,
+                                            uint8_t *maxSet) {
+  int16_t val = *(int16_t *)&pColVal->value.val;
+  SMA_UPDATE(pColAgg->sum, pColAgg->min, pColAgg->max, val, *minSet, *maxSet);
+}
+static FORCE_INLINE void tSmaUpdateInt(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet, uint8_t *maxSet) {
+  int32_t val = *(int32_t *)&pColVal->value.val;
+  SMA_UPDATE(pColAgg->sum, pColAgg->min, pColAgg->max, val, *minSet, *maxSet);
+}
+static FORCE_INLINE void tSmaUpdateBigint(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet, uint8_t *maxSet) {
+  int64_t val = *(int64_t *)&pColVal->value.val;
+  SMA_UPDATE(pColAgg->sum, pColAgg->min, pColAgg->max, val, *minSet, *maxSet);
+}
+static FORCE_INLINE void tSmaUpdateFloat(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet, uint8_t *maxSet) {
+  float val = *(float *)&pColVal->value.val;
+  SMA_UPDATE(*(double *)&pColAgg->sum, *(double *)&pColAgg->min, *(double *)&pColAgg->max, val, *minSet, *maxSet);
+}
+static FORCE_INLINE void tSmaUpdateDouble(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet, uint8_t *maxSet) {
+  double val = *(double *)&pColVal->value.val;
+  SMA_UPDATE(*(double *)&pColAgg->sum, *(double *)&pColAgg->min, *(double *)&pColAgg->max, val, *minSet, *maxSet);
+}
+static FORCE_INLINE void tSmaUpdateUTinyint(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet,
+                                            uint8_t *maxSet) {
+  uint8_t val = *(uint8_t *)&pColVal->value.val;
+  SMA_UPDATE(pColAgg->sum, pColAgg->min, pColAgg->max, val, *minSet, *maxSet);
+}
+static FORCE_INLINE void tSmaUpdateUSmallint(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet,
+                                             uint8_t *maxSet) {
+  uint16_t val = *(uint16_t *)&pColVal->value.val;
+  SMA_UPDATE(pColAgg->sum, pColAgg->min, pColAgg->max, val, *minSet, *maxSet);
+}
+static FORCE_INLINE void tSmaUpdateUInt(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet, uint8_t *maxSet) {
+  uint32_t val = *(uint32_t *)&pColVal->value.val;
+  SMA_UPDATE(pColAgg->sum, pColAgg->min, pColAgg->max, val, *minSet, *maxSet);
+}
+static FORCE_INLINE void tSmaUpdateUBigint(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet,
+                                           uint8_t *maxSet) {
+  uint64_t val = *(uint64_t *)&pColVal->value.val;
+  SMA_UPDATE(pColAgg->sum, pColAgg->min, pColAgg->max, val, *minSet, *maxSet);
+}
+void (*tSmaUpdateImpl[])(SColumnDataAgg *pColAgg, SColVal *pColVal, uint8_t *minSet, uint8_t *maxSet) = {
+    NULL,
+    tSmaUpdateBool,       // TSDB_DATA_TYPE_BOOL
+    tSmaUpdateTinyint,    // TSDB_DATA_TYPE_TINYINT
+    tSmaUpdateSmallint,   // TSDB_DATA_TYPE_SMALLINT
+    tSmaUpdateInt,        // TSDB_DATA_TYPE_INT
+    tSmaUpdateBigint,     // TSDB_DATA_TYPE_BIGINT
+    tSmaUpdateFloat,      // TSDB_DATA_TYPE_FLOAT
+    tSmaUpdateDouble,     // TSDB_DATA_TYPE_DOUBLE
+    NULL,                 // TSDB_DATA_TYPE_VARCHAR
+    tSmaUpdateBigint,     // TSDB_DATA_TYPE_TIMESTAMP
+    NULL,                 // TSDB_DATA_TYPE_NCHAR
+    tSmaUpdateUTinyint,   // TSDB_DATA_TYPE_UTINYINT
+    tSmaUpdateUSmallint,  // TSDB_DATA_TYPE_USMALLINT
+    tSmaUpdateUInt,       // TSDB_DATA_TYPE_UINT
+    tSmaUpdateUBigint,    // TSDB_DATA_TYPE_UBIGINT
+    NULL,                 // TSDB_DATA_TYPE_JSON
+    NULL,                 // TSDB_DATA_TYPE_VARBINARY
+    NULL,                 // TSDB_DATA_TYPE_DECIMAL
+    NULL,                 // TSDB_DATA_TYPE_BLOB
+    NULL,                 // TSDB_DATA_TYPE_MEDIUMBLOB
+};
 void tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg) {
-  SColVal  colVal;
-  SColVal *pColVal = &colVal;
-
-  memset(pColAgg, 0, sizeof(*pColAgg));
-  bool minAssigned = false;
-  bool maxAssigned = false;
-
   *pColAgg = (SColumnDataAgg){.colId = pColData->cid};
-  for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
-    tColDataGetValue(pColData, iVal, pColVal);
+  uint8_t minSet = 0;
+  uint8_t maxSet = 0;
 
-    if (!COL_VAL_IS_VALUE(pColVal)) {
-      pColAgg->numOfNull++;
+  SColVal cv;
+  for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+    tColDataGetValue(pColData, iVal, &cv);
+
+    if (COL_VAL_IS_VALUE(&cv)) {
+      tSmaUpdateImpl[pColData->type](pColAgg, &cv, &minSet, &maxSet);
     } else {
-      switch (pColData->type) {
-        case TSDB_DATA_TYPE_NULL:
-          break;
-        case TSDB_DATA_TYPE_BOOL:
-          break;
-        case TSDB_DATA_TYPE_TINYINT: {
-          pColAgg->sum += colVal.value.i8;
-          if (!minAssigned || pColAgg->min > colVal.value.i8) {
-            pColAgg->min = colVal.value.i8;
-            minAssigned = true;
-          }
-          if (!maxAssigned || pColAgg->max < colVal.value.i8) {
-            pColAgg->max = colVal.value.i8;
-            maxAssigned = true;
-          }
-          break;
-        }
-        case TSDB_DATA_TYPE_SMALLINT: {
-          pColAgg->sum += colVal.value.i16;
-          if (!minAssigned || pColAgg->min > colVal.value.i16) {
-            pColAgg->min = colVal.value.i16;
-            minAssigned = true;
-          }
-          if (!maxAssigned || pColAgg->max < colVal.value.i16) {
-            pColAgg->max = colVal.value.i16;
-            maxAssigned = true;
-          }
-          break;
-        }
-        case TSDB_DATA_TYPE_INT: {
-          pColAgg->sum += colVal.value.i32;
-          if (!minAssigned || pColAgg->min > colVal.value.i32) {
-            pColAgg->min = colVal.value.i32;
-            minAssigned = true;
-          }
-          if (!maxAssigned || pColAgg->max < colVal.value.i32) {
-            pColAgg->max = colVal.value.i32;
-            maxAssigned = true;
-          }
-          break;
-        }
-        case TSDB_DATA_TYPE_BIGINT: {
-          pColAgg->sum += colVal.value.i64;
-          if (!minAssigned || pColAgg->min > colVal.value.i64) {
-            pColAgg->min = colVal.value.i64;
-            minAssigned = true;
-          }
-          if (!maxAssigned || pColAgg->max < colVal.value.i64) {
-            pColAgg->max = colVal.value.i64;
-            maxAssigned = true;
-          }
-          break;
-        }
-        case TSDB_DATA_TYPE_FLOAT: {
-          *(double *)(&pColAgg->sum) += colVal.value.f;
-          if (!minAssigned || *(double *)(&pColAgg->min) > colVal.value.f) {
-            *(double *)(&pColAgg->min) = colVal.value.f;
-            minAssigned = true;
-          }
-          if (!maxAssigned || *(double *)(&pColAgg->max) < colVal.value.f) {
-            *(double *)(&pColAgg->max) = colVal.value.f;
-            maxAssigned = true;
-          }
-          break;
-        }
-        case TSDB_DATA_TYPE_DOUBLE: {
-          *(double *)(&pColAgg->sum) += colVal.value.d;
-          if (!minAssigned || *(double *)(&pColAgg->min) > colVal.value.d) {
-            *(double *)(&pColAgg->min) = colVal.value.d;
-            minAssigned = true;
-          }
-          if (!maxAssigned || *(double *)(&pColAgg->max) < colVal.value.d) {
-            *(double *)(&pColAgg->max) = colVal.value.d;
-            maxAssigned = true;
-          }
-          break;
-        }
-        case TSDB_DATA_TYPE_VARCHAR:
-          break;
-        case TSDB_DATA_TYPE_TIMESTAMP: {
-          if (!minAssigned || pColAgg->min > colVal.value.i64) {
-            pColAgg->min = colVal.value.i64;
-            minAssigned = true;
-          }
-          if (!maxAssigned || pColAgg->max < colVal.value.i64) {
-            pColAgg->max = colVal.value.i64;
-            maxAssigned = true;
-          }
-          break;
-        }
-        case TSDB_DATA_TYPE_NCHAR:
-          break;
-        case TSDB_DATA_TYPE_UTINYINT: {
-          pColAgg->sum += colVal.value.u8;
-          if (!minAssigned || pColAgg->min > colVal.value.u8) {
-            pColAgg->min = colVal.value.u8;
-            minAssigned = true;
-          }
-          if (!maxAssigned || pColAgg->max < colVal.value.u8) {
-            pColAgg->max = colVal.value.u8;
-            maxAssigned = true;
-          }
-          break;
-        }
-        case TSDB_DATA_TYPE_USMALLINT: {
-          pColAgg->sum += colVal.value.u16;
-          if (!minAssigned || pColAgg->min > colVal.value.u16) {
-            pColAgg->min = colVal.value.u16;
-            minAssigned = true;
-          }
-          if (!maxAssigned || pColAgg->max < colVal.value.u16) {
-            pColAgg->max = colVal.value.u16;
-            maxAssigned = true;
-          }
-          break;
-        }
-        case TSDB_DATA_TYPE_UINT: {
-          pColAgg->sum += colVal.value.u32;
-          if (!minAssigned || pColAgg->min > colVal.value.u32) {
-            pColAgg->min = colVal.value.u32;
-            minAssigned = true;
-          }
-          if (!minAssigned || pColAgg->max < colVal.value.u32) {
-            pColAgg->max = colVal.value.u32;
-            maxAssigned = true;
-          }
-          break;
-        }
-        case TSDB_DATA_TYPE_UBIGINT: {
-          pColAgg->sum += colVal.value.u64;
-          if (!minAssigned || pColAgg->min > colVal.value.u64) {
-            pColAgg->min = colVal.value.u64;
-            minAssigned = true;
-          }
-          if (!maxAssigned || pColAgg->max < colVal.value.u64) {
-            pColAgg->max = colVal.value.u64;
-            maxAssigned = true;
-          }
-          break;
-        }
-        case TSDB_DATA_TYPE_JSON:
-          break;
-        case TSDB_DATA_TYPE_VARBINARY:
-          break;
-        case TSDB_DATA_TYPE_DECIMAL:
-          break;
-        case TSDB_DATA_TYPE_BLOB:
-          break;
-        case TSDB_DATA_TYPE_MEDIUMBLOB:
-          break;
-        default:
-          ASSERT(0);
-      }
+      pColAgg->numOfNull++;
     }
   }
 }

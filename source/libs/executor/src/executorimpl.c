@@ -4183,9 +4183,8 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey, SqlF
   return code;
 }
 
-int32_t setOutputBuf(STimeWindow* win, SResultRow** pResult, int64_t tableGroupId, SqlFunctionCtx* pCtx,
-                     int32_t numOfOutput, int32_t* rowEntryInfoOffset, SAggSupporter* pAggSup,
-                     SExecTaskInfo* pTaskInfo) {
+int32_t setOutputBuf(SStreamState* pState, STimeWindow* win, SResultRow** pResult, int64_t tableGroupId,
+                     SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowEntryInfoOffset, SAggSupporter* pAggSup) {
   SWinKey key = {
       .ts = win->skey,
       .groupId = tableGroupId,
@@ -4194,7 +4193,7 @@ int32_t setOutputBuf(STimeWindow* win, SResultRow** pResult, int64_t tableGroupI
   int32_t size = pAggSup->resultRowSize;
 
   tSimpleHashPut(pAggSup->pResultRowHashTable, &key, sizeof(SWinKey), NULL, 0);
-  if (streamStateAddIfNotExist(pTaskInfo->streamInfo.pState, &key, (void**)&value, &size) < 0) {
+  if (streamStateAddIfNotExist(pState, &key, (void**)&value, &size) < 0) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
   *pResult = (SResultRow*)value;
@@ -4205,18 +4204,17 @@ int32_t setOutputBuf(STimeWindow* win, SResultRow** pResult, int64_t tableGroupI
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t releaseOutputBuf(SExecTaskInfo* pTaskInfo, SWinKey* pKey, SResultRow* pResult) {
-  streamStateReleaseBuf(pTaskInfo->streamInfo.pState, pKey, pResult);
-  /*taosMemoryFree((*(void**)pResult));*/
+int32_t releaseOutputBuf(SStreamState* pState, SWinKey* pKey, SResultRow* pResult) {
+  streamStateReleaseBuf(pState, pKey, pResult);
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t saveOutputBuf(SExecTaskInfo* pTaskInfo, SWinKey* pKey, SResultRow* pResult, int32_t resSize) {
-  streamStatePut(pTaskInfo->streamInfo.pState, pKey, pResult, resSize);
+int32_t saveOutputBuf(SStreamState* pState, SWinKey* pKey, SResultRow* pResult, int32_t resSize) {
+  streamStatePut(pState, pKey, pResult, resSize);
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t buildDataBlockFromGroupRes(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup,
+int32_t buildDataBlockFromGroupRes(SExecTaskInfo* pTaskInfo, SStreamState* pState, SSDataBlock* pBlock, SExprSupp* pSup,
                                    SGroupResInfo* pGroupResInfo) {
   SExprInfo*      pExprInfo = pSup->pExprInfo;
   int32_t         numOfExprs = pSup->numOfExprs;
@@ -4233,14 +4231,14 @@ int32_t buildDataBlockFromGroupRes(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock
             .ts = *(TSKEY*)pPos->key,
             .groupId = pPos->groupId,
     };
-    int32_t code = streamStateGet(pTaskInfo->streamInfo.pState, &key, &pVal, &size);
+    int32_t code = streamStateGet(pState, &key, &pVal, &size);
     ASSERT(code == 0);
     SResultRow* pRow = (SResultRow*)pVal;
     doUpdateNumOfRows(pCtx, pRow, numOfExprs, rowEntryOffset);
     // no results, continue to check the next one
     if (pRow->numOfRows == 0) {
       pGroupResInfo->index += 1;
-      releaseOutputBuf(pTaskInfo, &key, pRow);
+      releaseOutputBuf(pState, &key, pRow);
       continue;
     }
 
@@ -4249,14 +4247,14 @@ int32_t buildDataBlockFromGroupRes(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock
     } else {
       // current value belongs to different group, it can't be packed into one datablock
       if (pBlock->info.groupId != pPos->groupId) {
-        releaseOutputBuf(pTaskInfo, &key, pRow);
+        releaseOutputBuf(pState, &key, pRow);
         break;
       }
     }
 
     if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
       ASSERT(pBlock->info.rows > 0);
-      releaseOutputBuf(pTaskInfo, &key, pRow);
+      releaseOutputBuf(pState, &key, pRow);
       break;
     }
 
@@ -4286,7 +4284,7 @@ int32_t buildDataBlockFromGroupRes(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock
     }
 
     pBlock->info.rows += pRow->numOfRows;
-    releaseOutputBuf(pTaskInfo, &key, pRow);
+    releaseOutputBuf(pState, &key, pRow);
   }
   blockDataUpdateTsWindow(pBlock, 0);
   return TSDB_CODE_SUCCESS;

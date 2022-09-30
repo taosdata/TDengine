@@ -101,7 +101,7 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, SArray* pTableIdList
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tsdbCacherowsReaderClose(void* pReader) {
+void* tsdbCacherowsReaderClose(void* pReader) {
   SCacheRowsReader* p = pReader;
 
   if (p->pSchema != NULL) {
@@ -114,7 +114,7 @@ int32_t tsdbCacherowsReaderClose(void* pReader) {
   }
 
   taosMemoryFree(pReader);
-  return TSDB_CODE_SUCCESS;
+  return NULL;
 }
 
 static int32_t doExtractCacheRow(SCacheRowsReader* pr, SLRUCache* lruCache, uint64_t uid, STSRow** pRow,

@@ -554,7 +554,7 @@ int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
 
   for (int32_t i = 0; i < pCreate->numOfColumns; ++i) {
     SField *pField1 = taosArrayGet(pCreate->pColumns, i);
-    if (pField1->type < 0) {
+    if (pField1->type >= TSDB_DATA_TYPE_MAX) {
       terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
       return -1;
     }
@@ -570,7 +570,7 @@ int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
 
   for (int32_t i = 0; i < pCreate->numOfTags; ++i) {
     SField *pField1 = taosArrayGet(pCreate->pTags, i);
-    if (pField1->type < 0) {
+    if (pField1->type >= TSDB_DATA_TYPE_MAX) {
       terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
       return -1;
     }
@@ -982,8 +982,8 @@ static int32_t mndProcessCreateStbReq(SRpcMsg *pReq) {
           goto _OVER;
         }
       } else {
-        mError("stb:%s, already exist while create, input tagVer:%d colVer:%d is invalid", createReq.name,
-               createReq.tagVer, createReq.colVer, pStb->tagVer, pStb->colVer);
+        mError("stb:%s, already exist while create, input tagVer:%d colVer:%d is invalid, origin tagVer:%d colVer:%d",
+               createReq.name, createReq.tagVer, createReq.colVer, pStb->tagVer, pStb->colVer);
         terrno = TSDB_CODE_MND_INVALID_SCHEMA_VER;
         goto _OVER;
       }
@@ -1603,9 +1603,9 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
     return -1;
   }
 
-  strcpy(pRsp->dbFName, pStb->db);
-  strcpy(pRsp->tbName, tbName);
-  strcpy(pRsp->stbName, tbName);
+  tstrncpy(pRsp->dbFName, pStb->db, sizeof(pRsp->dbFName));
+  tstrncpy(pRsp->tbName, tbName, sizeof(pRsp->tbName));
+  tstrncpy(pRsp->stbName, tbName, sizeof(pRsp->stbName));
   pRsp->dbId = pDb->uid;
   pRsp->numOfTags = pStb->numOfTags;
   pRsp->numOfColumns = pStb->numOfColumns;
@@ -1649,9 +1649,9 @@ static int32_t mndBuildStbCfgImp(SDbObj *pDb, SStbObj *pStb, const char *tbName,
     return -1;
   }
 
-  strcpy(pRsp->dbFName, pStb->db);
-  strcpy(pRsp->tbName, tbName);
-  strcpy(pRsp->stbName, tbName);
+  tstrncpy(pRsp->dbFName, pStb->db, sizeof(pRsp->dbFName));
+  tstrncpy(pRsp->tbName, tbName, sizeof(pRsp->tbName));
+  tstrncpy(pRsp->stbName, tbName, sizeof(pRsp->stbName));
   pRsp->numOfTags = pStb->numOfTags;
   pRsp->numOfColumns = pStb->numOfColumns;
   pRsp->tableType = TSDB_SUPER_TABLE;
@@ -2551,7 +2551,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)maxDelay, false);
 
-    char    rollup[128 + VARSTR_HEADER_SIZE] = {0};
+    char    rollup[160 + VARSTR_HEADER_SIZE] = {0};
     int32_t rollupNum = (int32_t)taosArrayGetSize(pStb->pFuncs);
     for (int32_t i = 0; i < rollupNum; ++i) {
       char *funcName = taosArrayGet(pStb->pFuncs, i);

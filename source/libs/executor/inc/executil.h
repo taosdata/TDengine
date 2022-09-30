@@ -15,7 +15,6 @@
 #ifndef TDENGINE_QUERYUTIL_H
 #define TDENGINE_QUERYUTIL_H
 
-#include "vnode.h"
 #include "function.h"
 #include "nodes.h"
 #include "plannodes.h"
@@ -23,6 +22,7 @@
 #include "tcommon.h"
 #include "tpagedbuf.h"
 #include "tsimplehash.h"
+#include "vnode.h"
 
 #define T_LONG_JMP(_obj, _c) \
   do {                       \
@@ -93,17 +93,12 @@ void   resetResultRow(SResultRow* pResultRow, size_t entrySize);
 struct SResultRowEntryInfo* getResultEntryInfo(const SResultRow* pRow, int32_t index, const int32_t* offset);
 
 static FORCE_INLINE SResultRow* getResultRowByPos(SDiskbasedBuf* pBuf, SResultRowPosition* pos, bool forUpdate) {
-  SFilePage*  bufPage = (SFilePage*)getBufPage(pBuf, pos->pageId);
+  SFilePage* bufPage = (SFilePage*)getBufPage(pBuf, pos->pageId);
   if (forUpdate) {
     setBufPageDirty(bufPage, true);
   }
   SResultRow* pRow = (SResultRow*)((char*)bufPage + pos->offset);
   return pRow;
-}
-
-static FORCE_INLINE void setResultBufPageDirty(SDiskbasedBuf* pBuf, SResultRowPosition* pos) {
-  void* pPage = getBufPage(pBuf, pos->pageId);
-  setBufPageDirty(pPage, true);
 }
 
 void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, int32_t order);
@@ -117,17 +112,18 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode);
 
 EDealRes doTranslateTagExpr(SNode** pNode, void* pContext);
-int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond, STableListInfo* pListInfo);
-int32_t getGroupIdFromTagsVal(void* pMeta, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId);
-int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableListInfo* pTableListInfo);
-size_t  getTableTagsBufLen(const SNodeList* pGroups);
+int32_t  getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond,
+                      STableListInfo* pListInfo);
+int32_t  getGroupIdFromTagsVal(void* pMeta, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId);
+int32_t  getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableListInfo* pTableListInfo);
+size_t   getTableTagsBufLen(const SNodeList* pGroups);
 
-SArray*  createSortInfo(SNodeList* pNodeList);
-SArray*  extractPartitionColInfo(SNodeList* pNodeList);
-SArray*  extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
-                             int32_t type);
+SArray* createSortInfo(SNodeList* pNodeList);
+SArray* extractPartitionColInfo(SNodeList* pNodeList);
+SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
+                            int32_t type);
 
-void createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode);
+void       createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode);
 SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* numOfExprs);
 
 SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowEntryInfoOffset);
