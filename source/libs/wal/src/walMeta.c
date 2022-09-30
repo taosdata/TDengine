@@ -35,8 +35,12 @@ int64_t FORCE_INLINE walGetCommittedVer(SWal* pWal) { return pWal->vers.commitVe
 
 int64_t FORCE_INLINE walGetAppliedVer(SWal* pWal) { return pWal->vers.appliedVer; }
 
-static FORCE_INLINE void walBuildMetaName(SWal* pWal, int metaVer, char* buf) {
-  sprintf(buf, "%s/meta-ver%d", pWal->path, metaVer);
+static FORCE_INLINE int walBuildMetaName(SWal* pWal, int metaVer, char* buf) {
+  return sprintf(buf, "%s/meta-ver%d", pWal->path, metaVer);
+}
+
+static FORCE_INLINE int walBuildTmpMetaName(SWal* pWal, char* buf) {
+  return sprintf(buf, "%s/meta-ver.tmp", pWal->path);
 }
 
 static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal) {
@@ -578,22 +582,51 @@ static int walFindCurMetaVer(SWal* pWal) {
 int walSaveMeta(SWal* pWal) {
   int  metaVer = walFindCurMetaVer(pWal);
   char fnameStr[WAL_FILE_LEN];
-  walBuildMetaName(pWal, metaVer + 1, fnameStr);
-  TdFilePtr pMetaFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE);
+  char tmpFnameStr[WAL_FILE_LEN];
+  int n;
+
+  // flush to a tmpfile
+  n = walBuildTmpMetaName(pWal, tmpFnameStr);
+  ASSERT(n < sizeof(tmpFnameStr) && "Buffer overflow of file name");
+
+  TdFilePtr pMetaFile = taosOpenFile(tmpFnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pMetaFile == NULL) {
+    wError("failed to open file due to %s. file:%s", strerror(errno), tmpFnameStr);
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
+
   char* serialized = walMetaSerialize(pWal);
   int   len = strlen(serialized);
   if (len != taosWriteFile(pMetaFile, serialized, len)) {
     // TODO:clean file
-
-    taosCloseFile(&pMetaFile);
-    taosRemoveFile(fnameStr);
-    return -1;
+    wError("failed to write file due to %s. file:%s", strerror(errno), tmpFnameStr);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
   }
 
-  taosCloseFile(&pMetaFile);
+  if (taosFsyncFile(pMetaFile) < 0) {
+    wError("failed to sync file due to %s. file:%s", strerror(errno), tmpFnameStr);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  if (taosCloseFile(&pMetaFile) < 0) {
+    wError("failed to close file due to %s. file:%s", strerror(errno), tmpFnameStr);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // rename it
+  n = walBuildMetaName(pWal, metaVer + 1, fnameStr);
+  ASSERT(n < sizeof(fnameStr) && "Buffer overflow of file name");
+
+  if (taosRenameFile(tmpFnameStr, fnameStr) < 0) {
+    wError("failed to rename file due to %s. dest:%s", strerror(errno), fnameStr);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
   // delete old file
   if (metaVer > -1) {
     walBuildMetaName(pWal, metaVer, fnameStr);
@@ -601,6 +634,11 @@ int walSaveMeta(SWal* pWal) {
   }
   taosMemoryFree(serialized);
   return 0;
+
+_err:
+  taosCloseFile(&pMetaFile);
+  taosMemoryFree(serialized);
+  return -1;
 }
 
 int walLoadMeta(SWal* pWal) {
