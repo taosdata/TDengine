@@ -412,13 +412,11 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   return 0;
 }
 
-SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
+SSyncRaftEntry* logStoreGetEntryWithoutLock(SSyncLogStore* pLogStore, SyncIndex index) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
 
   if (index >= SYNC_INDEX_BEGIN && index <= logStoreLastIndex(pLogStore)) {
-    taosThreadMutexLock(&(pData->mutex));
-
     // SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
     SWalReader* pWalHandle = pData->pWalHandle;
     ASSERT(pWalHandle != NULL);
@@ -442,7 +440,8 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
         }
       } while (0);
 
-      ASSERT(0);
+      sError("failed to read ver since %s. index:%lld", tstrerror(terrno), index);
+      return NULL;
     }
 
     SSyncRaftEntry* pEntry = syncEntryBuild(pWalHandle->pHead->head.bodyLen);
@@ -463,12 +462,21 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
         terrno = saveErr;
     */
 
-    taosThreadMutexUnlock(&(pData->mutex));
     return pEntry;
 
   } else {
     return NULL;
   }
+}
+
+SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
+    SSyncLogStoreData* pData = pLogStore->data;
+    SSyncRaftEntry *pEntry = NULL;
+
+    taosThreadMutexLock(&pData->mutex);
+    pEntry = logStoreGetEntryWithoutLock(pLogStore, index);
+    taosThreadMutexUnlock(&pData->mutex);
+    return pEntry;
 }
 
 int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex) {

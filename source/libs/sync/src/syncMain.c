@@ -2673,7 +2673,10 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
 
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
     int32_t code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
-    ASSERT(code == 0);
+    if (code != 0) {
+      sError("vgId:%d, failed to append log entry since %s",  ths->vgId, tstrerror(terrno));
+      return -1;
+    }
     syncNodeReplicate(ths, false);
   }
 
@@ -2813,8 +2816,8 @@ int32_t syncNodeOnClientRequestBatchCb(SSyncNode* ths, SyncClientRequestBatch* p
 
     code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
     if (code != 0) {
+      sError("vgId:%d, failed to append log entry since %s", ths->vgId, tstrerror(terrno));
       // del resp mgr, call FpCommitCb
-      ASSERT(0);
       return -1;
     }
 
