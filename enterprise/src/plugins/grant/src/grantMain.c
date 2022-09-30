@@ -94,7 +94,7 @@
 // 0 Default value. The grant metrics would take effect at once if alter 'activeCode/cActive' code executed.
 // 1 The grant metrics would take effect at once only when metrics increase, otherwise in 1 hour if decrease.
 #define GRANT_AT_ONCE (0 == (tsMndGrantMode & 0x01))
-#define GRANT_DIST_TOLERENCE 7200 // seconds
+#define GRANT_DIST_TOLERENCE 86400 // seconds
 
 #ifndef min
 #define min(x, y) (x) < (y) ? (x) : (y)
@@ -454,20 +454,19 @@ static int32_t dmGenerateGrantMsg(GrantMsg *pGrantMsg, GrantStatus *pGrantStatus
     int64_t tolerence = taosGetTimestampMs() / 1000 + GRANT_CHK_TOLERENCE;
     if (clusterTime > tolerence) {
       grantObj.granted = false;
-      uWarn("failed to grant since time ouf of sync: %" PRIi64 " > %" PRIi64, clusterTime, tolerence);
+      uWarn("failed to grant since time out of sync: cluster %" PRIi64 " > %" PRIi64, clusterTime, tolerence);
     } else {
-      uWarn("cont to grant since time in sync: clusterTime %" PRIi64 " <  tolerence %" PRIi64, clusterTime, tolerence);
       int64_t grantCurrent = GRANT_CUR_TIME;
       if (grantCurrent > tolerence) {
         grantObj.granted = false;
-        uWarn("failed to grant since time ouf of sync: %" PRIi64 " < %" PRIi64, tolerence, grantCurrent);
+        uWarn("failed to grant since time out of sync: grant %" PRIi64 " > %" PRIi64, grantCurrent, tolerence);
       } else {
-        uWarn("cont to grant since time in sync: grantCurrent %" PRIi64 " < tolerence %" PRIi64, grantCurrent,
-                 tolerence);
+        uInfo("continue to grant since time in sync: cluster,grant %" PRIi64 ",%" PRIi64 "  < %" PRIi64, clusterTime,
+              grantCurrent, tolerence);
       }
     }
   } else {
-    uWarn("%s:%d grantObj.granted is false", __func__, __LINE__);
+    uWarn("failed to grant since active granted is false");
   }
 
   if (grantObj.granted) {
@@ -1205,11 +1204,9 @@ static void grantConnStatusCheckImpl(SMnode *pMnode) {
     SGrantDistInfo *pInfo = TARRAY_GET_ELEM(pDists, --i);
     if (pInfo->connDist < leastDist) continue;
     GrantStatus *pStatus = taosHashGet(pGrants, &pInfo->dnodeId, sizeof(pInfo->dnodeId));
-    if (pStatus) {
-      if (IS_GRANT_CONNECTORS(pStatus)) {
-        grantConnStatusAssignLimits(&status, pStatus, true);
-        ++nGrant;
-      }
+    if (pStatus && IS_GRANT_CONNECTORS(pStatus)) {
+      grantConnStatusAssignLimits(&status, pStatus, true);
+      ++nGrant;
     }
   }
 
@@ -1245,11 +1242,9 @@ static void grantStatusCheckImpl(SMnode *pMnode) {
     SGrantDistInfo *pInfo = TARRAY_GET_ELEM(pDists, --i);
     if (pInfo->dist < leastDist) continue;
     GrantStatus *pStatus = taosHashGet(pGrants, &pInfo->dnodeId, sizeof(pInfo->dnodeId));
-    if (pStatus) {
-      if (IS_GRANT_TDENGINE(pStatus)) {
-        grantStatusAssignLimits(&status, pStatus, true);
-        ++nGrant;
-      }
+    if (pStatus && IS_GRANT_TDENGINE(pStatus)) {
+      grantStatusAssignLimits(&status, pStatus, true);
+      ++nGrant;
     }
   }
 
