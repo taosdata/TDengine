@@ -57,8 +57,8 @@ curl --request POST "$TDENGINE_CLOUD_URL/opentsdb/v1/put/telnet/<db_name>?token=
 ```
 
 ## Query Example with SQL
-`sys` is the super table name.
-you can filter data by tag, like:`where host="web01"`.
+- `sys` is the super table name.
+- you can filter data by tag, like:`where host="web01"`.
 ```bash
 curl -L -d "select * from <db_name>.sys where host=\"web01\"" $TDENGINE_CLOUD_URL/rest/sql/test?token=$TDENGINE_CLOUD_TOKEN
 ```
