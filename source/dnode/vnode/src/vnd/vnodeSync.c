@@ -797,6 +797,10 @@ bool vnodeIsLeader(SVnode *pVnode) {
 }
 
 bool vnodeIsReadyForRead(SVnode *pVnode) {
+  if (pVnode->config.syncCfg.replicaNum == 1) {
+    return true;
+  }
+
   if (syncIsReady(pVnode->sync)) {
     return true;
   }
