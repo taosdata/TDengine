@@ -40,9 +40,9 @@ taos> use prometheus_data;
 Database changed.
 
 taos> show stables;
-              name              |      created_time       | columns |  tags  |   tables    |
-============================================================================================
- metrics                        | 2022-04-20 07:21:09.209 |       2 |      1 |        1389 |
+              name              |
+=================================
+ metrics                        |
 Query OK, 1 row(s) in set (0.000487s)
 
 taos> select * from metrics limit 10;
