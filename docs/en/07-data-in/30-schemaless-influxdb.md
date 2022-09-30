@@ -68,8 +68,8 @@ curl --request POST "$TDENGINE_CLOUD_URL/influxdb/v1/write?db=<db_name>&token=$T
 ```
   
 ## Query Example with SQL
-`measurement` is the super table name.
-you can filter data by tag, like:`where host="host1"`.
+- `measurement` is the super table name.
+- you can filter data by tag, like:`where host="host1"`.
 ```bash
 curl -L -d "select * from <db_name>.measurement where host=\"host1\"" $TDENGINE_CLOUD_URL/rest/sql/test?token=$TDENGINE_CLOUD_TOKEN
 ```
