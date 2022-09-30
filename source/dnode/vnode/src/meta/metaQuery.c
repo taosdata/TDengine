@@ -1145,6 +1145,7 @@ int32_t metaGetTableTagsOpt(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashO
     if (taosHashGet(tags, id, sizeof(tb_uid_t)) == NULL &&
         0 == tdbTbGet(pMeta->pCtbIdx, &ctbIdxKey, sizeof(SCtbIdxKey), &val, &len)) {
       taosHashPut(tags, id, sizeof(tb_uid_t), val, len);
+      tdbFree(val);
     }
   }
   return 0;
