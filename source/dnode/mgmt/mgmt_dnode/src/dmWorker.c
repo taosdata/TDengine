@@ -32,7 +32,8 @@ static void *dmStatusThreadFp(void *param) {
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
-    float   interval = (curTime - lastTime) / 1000.0f;
+    if (curTime < lastTime) lastTime = curTime;
+    float interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsStatusInterval) {
       dmSendStatusReq(pMgmt);
       lastTime = curTime;
@@ -62,7 +63,8 @@ static void *dmMonitorThreadFp(void *param) {
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
-    float   interval = (curTime - lastTime) / 1000.0f;
+    if (curTime < lastTime) lastTime = curTime;
+    float interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsMonitorInterval) {
       (*pMgmt->sendMonitorReportFp)();
       lastTime = curTime;
