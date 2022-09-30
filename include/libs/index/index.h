@@ -206,12 +206,6 @@ void indexJsonRebuild(SIndexJson* idx, void* iter);
  **/
 bool indexJsonIsRebuild(SIndexJson* idx);
 
-/*
- * init index env
- *
- */
-void indexInit();
-
 /* index filter */
 typedef struct SIndexMetaArg {
   void*    metaEx;
@@ -225,6 +219,12 @@ typedef enum { SFLT_NOT_INDEX, SFLT_COARSE_INDEX, SFLT_ACCURATE_INDEX } SIdxFltS
 SIdxFltStatus idxGetFltStatus(SNode* pFilterNode);
 
 int32_t doFilterTag(SNode* pFilterNode, SIndexMetaArg* metaArg, SArray* result, SIdxFltStatus* status);
+
+/*
+ *  init index env
+ *
+ */
+void indexInit(int32_t threads);
 /*
  * destory index env
  *

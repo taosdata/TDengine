@@ -193,6 +193,8 @@ int32_t dmInitDnode(SDnode *pDnode, EDndNodeType rtype) {
     goto _OVER;
   }
 
+  indexInit(tsNumOfCommitThreads);
+
   dmReportStartup("dnode-transport", "initialized");
   dDebug("dnode is created, ptr:%p", pDnode);
   code = 0;

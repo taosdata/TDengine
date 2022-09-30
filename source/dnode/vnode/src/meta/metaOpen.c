@@ -200,11 +200,9 @@ int metaClose(SMeta *pMeta) {
 int32_t metaRLock(SMeta *pMeta) {
   int32_t ret = 0;
 
-  metaTrace("meta rlock %p B", &pMeta->lock);
+  metaTrace("meta rlock %p", &pMeta->lock);
 
   ret = taosThreadRwlockRdlock(&pMeta->lock);
-
-  metaTrace("meta rlock %p E", &pMeta->lock);
 
   return ret;
 }
@@ -212,11 +210,9 @@ int32_t metaRLock(SMeta *pMeta) {
 int32_t metaWLock(SMeta *pMeta) {
   int32_t ret = 0;
 
-  metaTrace("meta wlock %p B", &pMeta->lock);
+  metaTrace("meta wlock %p", &pMeta->lock);
 
   ret = taosThreadRwlockWrlock(&pMeta->lock);
-
-  metaTrace("meta wlock %p E", &pMeta->lock);
 
   return ret;
 }
@@ -224,11 +220,9 @@ int32_t metaWLock(SMeta *pMeta) {
 int32_t metaULock(SMeta *pMeta) {
   int32_t ret = 0;
 
-  metaTrace("meta ulock %p B", &pMeta->lock);
+  metaTrace("meta ulock %p", &pMeta->lock);
 
   ret = taosThreadRwlockUnlock(&pMeta->lock);
-
-  metaTrace("meta ulock %p E", &pMeta->lock);
 
   return ret;
 }
