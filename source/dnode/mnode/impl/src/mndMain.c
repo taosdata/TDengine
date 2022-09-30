@@ -201,7 +201,7 @@ static int32_t mndInitWal(SMnode *pMnode) {
 
   pMnode->pWal = walOpen(path, &cfg);
   if (pMnode->pWal == NULL) {
-    mError("failed to open wal since %s", terrstr());
+    mError("failed to open wal since %s. wal:%s", terrstr(), path);
     return -1;
   }
 
