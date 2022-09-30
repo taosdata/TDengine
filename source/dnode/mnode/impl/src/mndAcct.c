@@ -83,6 +83,7 @@ static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-acct");
   if (pTrans == NULL) {
+    sdbFreeRaw(pRaw);
     mError("acct:%s, failed to create since %s", acctObj.acct, terrstr());
     return -1;
   }

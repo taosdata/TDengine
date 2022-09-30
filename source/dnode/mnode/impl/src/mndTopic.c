@@ -776,7 +776,7 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     SName            n;
     int32_t          cols = 0;
 
-    char topicName[TSDB_TOPIC_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    char topicName[TSDB_TOPIC_NAME_LEN + VARSTR_HEADER_SIZE + 5] = {0};
     strcpy(varDataVal(topicName), mndGetDbStr(pTopic->name));
     /*tNameFromString(&n, pTopic->name, T_NAME_ACCT | T_NAME_DB);*/
     /*tNameGetDbName(&n, varDataVal(topicName));*/
