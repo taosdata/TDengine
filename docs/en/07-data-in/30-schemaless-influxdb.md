@@ -53,10 +53,10 @@ You can use any client that supports the http protocol to access the RESTful int
 
 Support InfluxDB query parameters as follows.
 
-- `db` Specifies the database name used by TDengine
-- `precision` The time precision used by TDengine
---  ns - nanoseconds
-  u or µ - microseconds
++ `db` Specifies the database name used by TDengine
++ `precision` The time precision used by TDengine
+-  ns - nanoseconds
+-  u - microseconds
   ms - milliseconds
   s - seconds
   m - minutes
