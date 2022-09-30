@@ -414,14 +414,20 @@ int walMetaDeserialize(SWal* pWal, const char* bytes) {
   ASSERT(taosArrayGetSize(pWal->fileInfoSet) == 0);
   cJSON *pRoot, *pMeta, *pFiles, *pInfoJson, *pField;
   pRoot = cJSON_Parse(bytes);
+  if (!pRoot) goto _err;
   pMeta = cJSON_GetObjectItem(pRoot, "meta");
+  if (!pMeta) goto _err;
   pField = cJSON_GetObjectItem(pMeta, "firstVer");
+  if (!pField) goto _err;
   pWal->vers.firstVer = atoll(cJSON_GetStringValue(pField));
   pField = cJSON_GetObjectItem(pMeta, "snapshotVer");
+  if (!pField) goto _err;
   pWal->vers.snapshotVer = atoll(cJSON_GetStringValue(pField));
   pField = cJSON_GetObjectItem(pMeta, "commitVer");
+  if (!pField) goto _err;
   pWal->vers.commitVer = atoll(cJSON_GetStringValue(pField));
   pField = cJSON_GetObjectItem(pMeta, "lastVer");
+  if (!pField) goto _err;
   pWal->vers.lastVer = atoll(cJSON_GetStringValue(pField));
 
   pFiles = cJSON_GetObjectItem(pRoot, "files");
@@ -432,16 +438,22 @@ int walMetaDeserialize(SWal* pWal, const char* bytes) {
   SWalFileInfo* pData = pArray->pData;
   for (int i = 0; i < sz; i++) {
     cJSON*        pInfoJson = cJSON_GetArrayItem(pFiles, i);
+    if (!pInfoJson) goto _err;
     SWalFileInfo* pInfo = &pData[i];
     pField = cJSON_GetObjectItem(pInfoJson, "firstVer");
+    if (!pField) goto _err;
     pInfo->firstVer = atoll(cJSON_GetStringValue(pField));
     pField = cJSON_GetObjectItem(pInfoJson, "lastVer");
+    if (!pField) goto _err;
     pInfo->lastVer = atoll(cJSON_GetStringValue(pField));
     pField = cJSON_GetObjectItem(pInfoJson, "createTs");
+    if (!pField) goto _err;
     pInfo->createTs = atoll(cJSON_GetStringValue(pField));
     pField = cJSON_GetObjectItem(pInfoJson, "closeTs");
+    if (!pField) goto _err;
     pInfo->closeTs = atoll(cJSON_GetStringValue(pField));
     pField = cJSON_GetObjectItem(pInfoJson, "fileSize");
+    if (!pField) goto _err;
     pInfo->fileSize = atoll(cJSON_GetStringValue(pField));
   }
   taosArraySetSize(pArray, sz);
@@ -449,6 +461,10 @@ int walMetaDeserialize(SWal* pWal, const char* bytes) {
   pWal->writeCur = sz - 1;
   cJSON_Delete(pRoot);
   return 0;
+
+_err:
+  cJSON_Delete(pRoot);
+  return -1;
 }
 
 static int walFindCurMetaVer(SWal* pWal) {
@@ -539,6 +555,10 @@ int walLoadMeta(SWal* pWal) {
   }
   // load into fileInfoSet
   int code = walMetaDeserialize(pWal, buf);
+  if (code < 0) {
+    wError("failed to deserialize wal meta. file:%s", fnameStr);
+    terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+  }
   taosCloseFile(&pFile);
   taosMemoryFree(buf);
   return code;

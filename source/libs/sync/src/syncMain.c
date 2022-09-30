@@ -2749,7 +2749,7 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg, SyncI
     code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
     if (code != 0) {
       // del resp mgr, call FpCommitCb
-      ASSERT(0);
+      sError("vgId:%d, failed to append log entry since %s",  ths->vgId, tstrerror(terrno));
       return -1;
     }
 

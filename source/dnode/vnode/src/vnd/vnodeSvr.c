@@ -265,10 +265,16 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   _do_commit:
     vInfo("vgId:%d, commit at version %" PRId64, TD_VID(pVnode), version);
     // commit current change
-    vnodeCommit(pVnode);
+    if (vnodeCommit(pVnode) < 0) {
+        vError("vgId:%d, failed to commit vnode since %s.", TD_VID(pVnode), tstrerror(terrno));
+        goto _err;
+    }
 
     // start a new one
-    vnodeBegin(pVnode);
+    if (vnodeBegin(pVnode) < 0) {
+        vError("vgId:%d, failed to begin vnode since %s.", TD_VID(pVnode), tstrerror(terrno));
+        goto _err;
+    }
   }
 
   return 0;

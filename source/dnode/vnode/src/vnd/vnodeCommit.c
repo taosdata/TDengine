@@ -89,6 +89,7 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   data = NULL;
 
   if (vnodeEncodeInfo(pInfo, &data) < 0) {
+    vError("failed to encode json info.");
     return -1;
   }
 
@@ -101,7 +102,7 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   }
 
   if (taosWriteFile(pFile, data, strlen(data)) < 0) {
-    vError("failed to write info file:%s data:%s", fname, terrstr());
+    vError("failed to write info file:%s error:%s", fname, terrstr());
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
@@ -229,7 +230,7 @@ int vnodeCommit(SVnode *pVnode) {
   info.state.commitID = pVnode->state.commitID;
   snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
   if (vnodeSaveInfo(dir, &info) < 0) {
-    ASSERT(0);
+    vError("vgId:%d, failed to save vnode info since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
   walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
@@ -237,7 +238,7 @@ int vnodeCommit(SVnode *pVnode) {
   // preCommit
   // smaSyncPreCommit(pVnode->pSma);
   if(smaAsyncPreCommit(pVnode->pSma) < 0){
-    ASSERT(0);
+    vError("vgId:%d, failed to async pre-commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
 
@@ -246,44 +247,44 @@ int vnodeCommit(SVnode *pVnode) {
 
   // commit each sub-system
   if (metaCommit(pVnode->pMeta) < 0) {
-    ASSERT(0);
+    vError("vgId:%d, failed to commit meta since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
 
   if (VND_IS_RSMA(pVnode)) {
     if (smaAsyncCommit(pVnode->pSma) < 0) {
-      ASSERT(0);
+      vError("vgId:%d, failed to async commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
       return -1;
     }
 
     if (tsdbCommit(VND_RSMA0(pVnode)) < 0) {
-      ASSERT(0);
+      vError("vgId:%d, failed to commit tsdb rsma0 since %s", TD_VID(pVnode), tstrerror(terrno));
       return -1;
     }
     if (tsdbCommit(VND_RSMA1(pVnode)) < 0) {
-      ASSERT(0);
+      vError("vgId:%d, failed to commit tsdb rsma1 since %s", TD_VID(pVnode), tstrerror(terrno));
       return -1;
     }
     if (tsdbCommit(VND_RSMA2(pVnode)) < 0) {
-      ASSERT(0);
+      vError("vgId:%d, failed to commit tsdb rsma2 since %s", TD_VID(pVnode), tstrerror(terrno));
       return -1;
     }
   } else {
     if (tsdbCommit(pVnode->pTsdb) < 0) {
-      ASSERT(0);
+      vError("vgId:%d, failed to commit tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
       return -1;
     }
   }
 
   if (tqCommit(pVnode->pTq) < 0) {
-    ASSERT(0);
+    vError("vgId:%d, failed to commit tq since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
   // walCommit (TODO)
 
   // commit info
   if (vnodeCommitInfo(dir, &info) < 0) {
-    ASSERT(0);
+    vError("vgId:%d, failed to commit vnode info since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
 
@@ -292,7 +293,7 @@ int vnodeCommit(SVnode *pVnode) {
   // postCommit
   // smaSyncPostCommit(pVnode->pSma);
   if (smaAsyncPostCommit(pVnode->pSma) < 0) {
-    ASSERT(0);
+    vError("vgId:%d, failed to async post-commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
 
