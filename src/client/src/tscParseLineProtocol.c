@@ -2879,7 +2879,7 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
   return (TAOS_RES*)pSql;
 }
 
-TAOS_RES *taos_schemaless_insert_new(TAOS* taos, char* lines, int len, int32_t *totalRows, int protocol, int precision){
+TAOS_RES *taos_schemaless_insert_raw(TAOS* taos, char* lines, int len, int32_t *totalRows, int protocol, int precision){
   int code = TSDB_CODE_SUCCESS;
   int affected_rows = 0;
   SMLTimeStampType tsType = SML_TIME_STAMP_NOW;
