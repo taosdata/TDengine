@@ -1109,11 +1109,6 @@ _exit:
   tsdbFSDestroy(&fsLatest);
   taosArrayDestroy(pCommitter->aTbDataP);
 
-  // if (pCommitter->toMerge) {
-  //   code = tsdbMerge(pTsdb);
-  //   if (code) goto _err;
-  // }
-
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   } else {
