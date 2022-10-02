@@ -202,6 +202,38 @@ int metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName) {
 
   return 0;
 }
+int metaGetTableUidByName(void *meta, char *tbName, uint64_t *uid) {
+  int         code = 0;
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, (SMeta *)meta, 0);
+
+  SMeta       *pMeta = mr.pMeta;
+  SMetaReader *pReader = &mr;
+
+  // query name.idx
+  if (tdbTbGet(pMeta->pNameIdx, tbName, strlen(tbName) + 1, &pReader->pBuf, &pReader->szBuf) < 0) {
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    metaReaderClear(&mr);
+    return -1;
+  }
+
+  *uid = *(tb_uid_t *)pReader->pBuf;
+  metaReaderClear(&mr);
+
+  return 0;
+}
+
+int metaGetTableTypeByName(void *meta, char *tbName, ETableType *tbType) {
+  int         code = 0;
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, (SMeta *)meta, 0);
+
+  if (metaGetTableEntryByName(&mr, tbName) == 0) {
+    *tbType = mr.me.type;
+  }
+  metaReaderClear(&mr);
+  return 0;
+}
 
 int metaReadNext(SMetaReader *pReader) {
   SMeta *pMeta = pReader->pMeta;
@@ -1102,6 +1134,22 @@ END:
   return ret;
 }
 
+int32_t metaGetTableTagsOpt(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj *tags) {
+  int32_t sz = uidList ? taosArrayGetSize(uidList) : 0;
+  for (int i = 0; i < sz; i++) {
+    tb_uid_t  *id = taosArrayGet(uidList, i);
+    SCtbIdxKey ctbIdxKey = {.suid = suid, .uid = *id};
+
+    void   *val = NULL;
+    int32_t len = 0;
+    if (taosHashGet(tags, id, sizeof(tb_uid_t)) == NULL &&
+        0 == tdbTbGet(pMeta->pCtbIdx, &ctbIdxKey, sizeof(SCtbIdxKey), &val, &len)) {
+      taosHashPut(tags, id, sizeof(tb_uid_t), val, len);
+      tdbFree(val);
+    }
+  }
+  return 0;
+}
 int32_t metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj *tags) {
   SMCtbCursor *pCur = metaOpenCtbCursor(pMeta, suid);
 

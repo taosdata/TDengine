@@ -1603,7 +1603,7 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
       break;
   }
   char precVstr[10] = {0};
-  STR_WITH_SIZE_TO_VARSTR(precVstr, precStr, 2);
+  STR_WITH_MAXSIZE_TO_VARSTR(precVstr, precStr, 10);
 
   char *statusStr = "ready";
   if (objStatus == SDB_STATUS_CREATING) {
@@ -1616,7 +1616,7 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     }
   }
   char statusVstr[24] = {0};
-  STR_WITH_SIZE_TO_VARSTR(statusVstr, statusStr, strlen(statusStr));
+  STR_WITH_MAXSIZE_TO_VARSTR(statusVstr, statusStr, 24);
 
   if (sysDb || !sysinfo) {
     for (int32_t i = 0; i < pShow->numOfColumns; ++i) {
@@ -1653,7 +1653,7 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
 
     const char *strictStr = pDb->cfg.strict ? "on" : "off";
     char        strictVstr[24] = {0};
-    STR_WITH_SIZE_TO_VARSTR(strictVstr, strictStr, strlen(strictStr));
+    STR_WITH_MAXSIZE_TO_VARSTR(strictVstr, strictStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)strictVstr, false);
 
@@ -1713,7 +1713,7 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
 
     const char *cacheModelStr = getCacheModelStr(pDb->cfg.cacheLast);
     char        cacheModelVstr[24] = {0};
-    STR_WITH_SIZE_TO_VARSTR(cacheModelVstr, cacheModelStr, strlen(cacheModelStr));
+    STR_WITH_MAXSIZE_TO_VARSTR(cacheModelVstr, cacheModelStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)cacheModelVstr, false);
 

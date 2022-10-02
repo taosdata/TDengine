@@ -30,85 +30,85 @@ static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     cols = 0;
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     const char      *src = "community";
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "false";
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
     cols++;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     src = "unlimited";
-    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
+    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, 32);
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
     numOfRows++;

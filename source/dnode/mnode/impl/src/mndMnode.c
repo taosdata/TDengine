@@ -93,6 +93,7 @@ static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, NULL, "create-mnode");
   if (pTrans == NULL) {
+    sdbFreeRaw(pRaw);
     mError("mnode:%d, failed to create since %s", mnodeObj.id, terrstr());
     return -1;
   }
@@ -220,8 +221,12 @@ bool mndIsMnode(SMnode *pMnode, int32_t dnodeId) {
 void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
   SSdb   *pSdb = pMnode->pSdb;
   int32_t totalMnodes = sdbGetSize(pSdb, SDB_MNODE);
-  void   *pIter = NULL;
+  if (totalMnodes == 0) {
+    syncGetRetryEpSet(pMnode->syncMgmt.sync, pEpSet);
+    return;
+  }
 
+  void *pIter = NULL;
   while (1) {
     SMnodeObj *pObj = NULL;
     pIter = sdbFetch(pSdb, SDB_MNODE, pIter, (void **)&pObj);
@@ -658,7 +663,7 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     colDataAppend(pColInfo, numOfRows, (const char *)&pObj->id, false);
 
     char b1[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(b1, pObj->pDnode->ep, pShow->pMeta->pSchemas[cols].bytes);
+    STR_WITH_MAXSIZE_TO_VARSTR(b1, pObj->pDnode->ep, TSDB_EP_LEN + VARSTR_HEADER_SIZE);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, b1, false);
@@ -667,7 +672,7 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     if (pObj->id == pMnode->selfDnodeId) {
       roles = syncStr(TAOS_SYNC_STATE_LEADER);
     }
-    if (pObj->pDnode && mndIsDnodeOnline(pObj->pDnode, curMs)) {
+    if (mndIsDnodeOnline(pObj->pDnode, curMs)) {
       roles = syncStr(pObj->state);
       if (pObj->state == TAOS_SYNC_STATE_LEADER && pObj->id != pMnode->selfDnodeId) {
         roles = syncStr(TAOS_SYNC_STATE_ERROR);

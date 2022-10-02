@@ -649,7 +649,7 @@ int32_t mndProcessRpcMsg(SRpcMsg *pMsg) {
 
 void mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp) {
   tmsg_t type = TMSG_INDEX(msgType);
-  if (type >= 0 && type < TDMT_MAX) {
+  if (type < TDMT_MAX) {
     pMnode->msgFp[type] = fp;
   }
 }

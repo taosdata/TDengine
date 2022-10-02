@@ -664,7 +664,7 @@ static int32_t mndProcessKillConnReq(SRpcMsg *pReq) {
 static int32_t mndProcessSvrVerReq(SRpcMsg *pReq) {
   int32_t       code = -1;
   SServerVerRsp rsp = {0};
-  strcpy(rsp.ver, version);
+  tstrncpy(rsp.ver, version, sizeof(rsp.ver));
 
   int32_t contLen = tSerializeSServerVerRsp(NULL, 0, &rsp);
   if (contLen < 0) goto _over;
@@ -702,7 +702,7 @@ static int32_t mndRetrieveConns(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
       break;
     }
 
-    if ((taosGetTimestampMs() - pConn->lastAccessTimeMs) > (keepTime * 1000)) {
+    if ((taosGetTimestampMs() - pConn->lastAccessTimeMs) > ((int64_t)keepTime * 1000)) {
       continue;
     }
 
