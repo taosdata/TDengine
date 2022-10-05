@@ -373,7 +373,7 @@ static int32_t createResultData(SDataType* pType, int32_t numOfRows, SScalarPara
   return TSDB_CODE_SUCCESS;
 }
 
-static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray* uidList, SNode* pTagCond) {
+static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray* uidList, SNode* pTagCond) {
   int32_t      code = TSDB_CODE_SUCCESS;
   SArray*      pBlockList = NULL;
   SSDataBlock* pResBlock = NULL;
@@ -420,8 +420,14 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, uint64_t suid, SArray
       goto end;
     }
   } else {
-    metaGetTableTagsByUids(metaHandle, suid, uidList, tags);
-    qInfo("succ to get table from meta idx, suid:%" PRIu64, suid);
+    code = metaGetTableTagsByUids(metaHandle, suid, uidList, tags);
+    if (code != 0) {
+      terrno = code;
+      qError("failed to get table from meta idx, reason: %s, suid:%" PRId64, tstrerror(code), suid);
+      goto end;
+    } else {
+      qInfo("succ to get table from meta idx, suid:%" PRId64, suid);
+    }
   }
 
   int32_t rows = taosArrayGetSize(uidList);

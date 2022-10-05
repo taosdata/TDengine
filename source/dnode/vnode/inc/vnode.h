@@ -96,11 +96,11 @@ void        metaReaderClear(SMetaReader *pReader);
 int32_t     metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
 int         metaGetTableEntryByName(SMetaReader *pReader, const char *name);
 int32_t     metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj *tags);
-int32_t     metaGetTableTagsByUids(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj *tags);
+int32_t     metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList, SHashObj *tags);
 int32_t     metaReadNext(SMetaReader *pReader);
 const void *metaGetTableTagVal(void *tag, int16_t type, STagVal *tagVal);
 int         metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName);
-int         metaGetTableUidByName(void *meta, char *tbName, uint64_t *uid);
+int         metaGetTableUidByName(void *meta, char *tbName, int64_t *uid);
 int         metaGetTableTypeByName(void *meta, char *tbName, ETableType *tbType);
 bool        metaIsTableExist(SMeta *pMeta, tb_uid_t uid);
 
