@@ -19,10 +19,9 @@ from util.dnodes import *
 
 class TDTestCase:
     def caseDescription(self):
-        '''
+        """
         [TD-11510] taosBenchmark test cases
-        '''
-        return
+        """
 
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
@@ -31,19 +30,19 @@ class TDTestCase:
     def getPath(self, tool="taosBenchmark"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
+        if "community" in selfPath:
+            projPath = selfPath[: selfPath.find("community")]
         else:
-            projPath = selfPath[:selfPath.find("tests")]
+            projPath = selfPath[: selfPath.find("tests")]
 
         paths = []
         for root, dirs, files in os.walk(projPath):
-            if ((tool) in files):
+            if (tool) in files:
                 rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
+                if "packaging" not in rootRealPath:
                     paths.append(os.path.join(root, tool))
                     break
-        if (len(paths) == 0):
+        if len(paths) == 0:
             tdLog.exit("taosBenchmark not found!")
             return
         else:
@@ -52,14 +51,15 @@ class TDTestCase:
 
     def run(self):
         binPath = self.getPath()
-        cmd = "%s -f ./5-taos-tools/taosbenchmark/json/default.json" %binPath
+        cmd = "%s -f ./5-taos-tools/taosbenchmark/json/default.json" % binPath
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
         tdSql.query("select count(tbname) from db.stb")
         tdSql.checkData(0, 0, 10)
         tdSql.query("select count(*) from db.stb")
-        tdSql.checkData(0, 0, 100)
+        if len(tdSql.queryResult):
+            tdLog.exit("query result is %d" % len(tdSql.queryResult))
 
     def stop(self):
         tdSql.close()
