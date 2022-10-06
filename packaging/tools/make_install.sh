@@ -554,7 +554,13 @@ function install_service() {
 }
 function install_app() {
   if [ "$osType" = "Darwin" ]; then
-    ${csudo}rm -rf /Applications/TDengine.app && ${csudo}tar xzf ${script_dir}/TDengine.app.tar.gz -C /Applications || :
+    ${csudo}rm -rf /Applications/TDengine.app &&
+      ${csudo}mkdir -p /Applications/TDengine.app/Contents/MacOS/ &&
+      ${csudo}cp ${script_dir}/TDengine /Applications/TDengine.app/Contents/MacOS/ &&
+      echo "<plist><dict></dict></plist>" | ${csudo}tee /Applications/TDengine.app/Contents/Info.plist &&
+      # ${csudo}sips -i ${script_dir}/logo.png && ${csudo}DeRez -only icns ${script_dir}/icon.png > ${script_dir}/mac_logo.rsrc &&
+      ${csudo}rez -append ${script_dir}/mac_logo.rsrc -o $'/Applications/TDengine.app/Icon\r' &&
+      ${csudo}SetFile -a C /Applications/TDengine.app/
   fi
 }
 
