@@ -80,7 +80,7 @@ pip3 install git+https://github.com/taosdata/taos-connector-python.git
 
 ### 安装验证
 
-<Tabs groupId="connect" default="native">
+<Tabs defaultValue="rest">
 <TabItem value="native" label="原生连接">
 
 对于原生连接，需要验证客户端驱动和 Python 连接器本身是否都正确安装。如果能成功导入 `taos` 模块，则说明已经正确安装了客户端驱动和 Python 连接器。可在 Python 交互式 Shell 中输入：
@@ -118,7 +118,7 @@ Requirement already satisfied: taospy in c:\users\username\appdata\local\program
 
 在用连接器建立连接之前，建议先测试本地 TDengine CLI 到 TDengine 集群的连通性。
 
-<Tabs>
+<Tabs defaultValue="rest">
 <TabItem value="native" label="原生连接">
 
 请确保 TDengine 集群已经启动， 且集群中机器的 FQDN （如果启动的是单机版，FQDN 默认为 hostname）在本机能够解析, 可用 `ping` 命令进行测试：
@@ -173,7 +173,7 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 
 以下示例代码假设 TDengine 安装在本机， 且 FQDN 和 serverPort 都使用了默认配置。
 
-<Tabs>
+<Tabs defaultValue="rest">
 <TabItem value="native" label="原生连接" groupId="connect">
 
 ```python
@@ -219,7 +219,7 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 
 ### 基本使用
 
-<Tabs default="native" groupId="connect">
+<Tabs defaultValue="rest">
 <TabItem value="native" label="原生连接">
 
 ##### TaosConnection 类的使用
@@ -289,7 +289,7 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 
 ### 与 pandas 一起使用
 
-<Tabs default="native" groupId="connect">
+<Tabs defaultValue="rest">
 <TabItem value="native" label="原生连接">
 
 ```python

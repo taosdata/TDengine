@@ -111,22 +111,23 @@ SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, boo
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver);
 int32_t         metaGetTbTSchemaEx(SMeta* pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sver, STSchema** ppTSchema);
 int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
-tb_uid_t        metaGetTableEntryUidByName(SMeta* pMeta, const char* name);
-int64_t         metaGetTbNum(SMeta* pMeta);
-int64_t         metaGetTimeSeriesNum(SMeta* pMeta);
-SMCtbCursor*    metaOpenCtbCursor(SMeta* pMeta, tb_uid_t uid);
-void            metaCloseCtbCursor(SMCtbCursor* pCtbCur);
-tb_uid_t        metaCtbCursorNext(SMCtbCursor* pCtbCur);
-SMStbCursor*    metaOpenStbCursor(SMeta* pMeta, tb_uid_t uid);
-void            metaCloseStbCursor(SMStbCursor* pStbCur);
-tb_uid_t        metaStbCursorNext(SMStbCursor* pStbCur);
-STSma*          metaGetSmaInfoByIndex(SMeta* pMeta, int64_t indexUid);
-STSmaWrapper*   metaGetSmaInfoByTable(SMeta* pMeta, tb_uid_t uid, bool deepCopy);
-SArray*         metaGetSmaIdsByTable(SMeta* pMeta, tb_uid_t uid);
-SArray*         metaGetSmaTbUids(SMeta* pMeta);
-void*           metaGetIdx(SMeta* pMeta);
-void*           metaGetIvtIdx(SMeta* pMeta);
-int             metaTtlSmaller(SMeta* pMeta, uint64_t time, SArray* uidList);
+
+tb_uid_t      metaGetTableEntryUidByName(SMeta* pMeta, const char* name);
+int64_t       metaGetTbNum(SMeta* pMeta);
+int64_t       metaGetTimeSeriesNum(SMeta* pMeta);
+SMCtbCursor*  metaOpenCtbCursor(SMeta* pMeta, tb_uid_t uid);
+void          metaCloseCtbCursor(SMCtbCursor* pCtbCur);
+tb_uid_t      metaCtbCursorNext(SMCtbCursor* pCtbCur);
+SMStbCursor*  metaOpenStbCursor(SMeta* pMeta, tb_uid_t uid);
+void          metaCloseStbCursor(SMStbCursor* pStbCur);
+tb_uid_t      metaStbCursorNext(SMStbCursor* pStbCur);
+STSma*        metaGetSmaInfoByIndex(SMeta* pMeta, int64_t indexUid);
+STSmaWrapper* metaGetSmaInfoByTable(SMeta* pMeta, tb_uid_t uid, bool deepCopy);
+SArray*       metaGetSmaIdsByTable(SMeta* pMeta, tb_uid_t uid);
+SArray*       metaGetSmaTbUids(SMeta* pMeta);
+void*         metaGetIdx(SMeta* pMeta);
+void*         metaGetIvtIdx(SMeta* pMeta);
+int           metaTtlSmaller(SMeta* pMeta, uint64_t time, SArray* uidList);
 
 int32_t metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
 int32_t metaDropTSma(SMeta* pMeta, int64_t indexUid);
@@ -184,8 +185,9 @@ int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
 
-SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchema* pSchema, SSchemaWrapper* pTagSchemaWrapper, bool createTb, int64_t suid,
-                            const char* stbFullName, SBatchDeleteReq* pDeleteReq);
+SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchema* pSchema,
+                            SSchemaWrapper* pTagSchemaWrapper, bool createTb, int64_t suid, const char* stbFullName,
+                            SBatchDeleteReq* pDeleteReq);
 
 // sma
 int32_t smaInit();

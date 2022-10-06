@@ -80,7 +80,7 @@ pip3 install git+https://github.com/taosdata/taos-connector-python.git
 
 ### Verify
 
-<Tabs groupId="connect" default="native">
+<Tabs defaultValue="rest">
 <TabItem value="native" label="native connection">
 
 For native connection, you need to verify that both the client driver and the Python connector itself are installed correctly. The client driver and Python connector have been installed properly if you can successfully import the `taos` module. In the Python Interactive Shell, you can type.
@@ -118,7 +118,7 @@ Requirement already satisfied: taospy in c:\users\username\appdata\local\program
 
 Before establishing a connection with the connector, we recommend testing the connectivity of the local TDengine CLI to the TDengine cluster.
 
-<Tabs>
+<Tabs defaultValue="rest">
 <TabItem value="native" label="native connection">
 
 Ensure that the TDengine instance is up and that the FQDN of the machines in the cluster (the FQDN defaults to hostname if you are starting a standalone version) can be resolved locally, by testing with the `ping` command.
@@ -173,7 +173,7 @@ If the test is successful, it will output the server version information, e.g.
 
 The following example code assumes that TDengine is installed locally and that the default configuration is used for both FQDN and serverPort.
 
-<Tabs>
+<Tabs defaultValue="rest">
 <TabItem value="native" label="native connection" groupId="connect">
 
 ```python
@@ -219,7 +219,7 @@ All arguments to the `connect()` function are optional keyword arguments. The fo
 
 ### Basic Usage
 
-<Tabs default="native" groupId="connect">
+<Tabs defaultValue="rest">
 <TabItem value="native" label="native connection">
 
 ##### TaosConnection class
@@ -289,7 +289,7 @@ For a more detailed description of the `sql()` method, please refer to [RestClie
 
 ### Used with pandas
 
-<Tabs default="native" groupId="connect">
+<Tabs defaultValue="rest">
 <TabItem value="native" label="native connection">
 
 ```python

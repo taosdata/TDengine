@@ -207,7 +207,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
           }
         }
 
-        tsdbCacherowsReaderClose(pInfo->pLastrowReader);
+        pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
         return pInfo->pRes;
       }
     }
@@ -220,6 +220,15 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
 void destroyLastrowScanOperator(void* param) {
   SLastrowScanInfo* pInfo = (SLastrowScanInfo*)param;
   blockDataDestroy(pInfo->pRes);
+  blockDataDestroy(pInfo->pBufferredRes);
+  taosMemoryFree(pInfo->pSlotIds);
+  taosArrayDestroy(pInfo->pUidList);
+  taosArrayDestroy(pInfo->pColMatchInfo);
+
+  if (pInfo->pLastrowReader != NULL) {
+    pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
+  }
+
   taosMemoryFreeClear(param);
 }
 

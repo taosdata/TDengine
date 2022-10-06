@@ -284,7 +284,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
       }
       return;
     } else {
-      tError("%s conn %p read invalid packet, exceed limit, received from %s, local info:", transLabel(pTransInst),
+      tError("%s conn %p read invalid packet, exceed limit, received from %s, local info:%s", transLabel(pTransInst),
              conn, conn->dst, conn->src);
       destroyConn(conn, true);
       return;
@@ -952,10 +952,10 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
 #ifdef WINDOWS
   char pipeName[64];
-  snprintf(pipeName, sizeof(pipeName), "\\\\?\\pipe\\trans.rpc.%p-" PRIu64, taosSafeRand(), GetCurrentProcessId());
+  snprintf(pipeName, sizeof(pipeName), "\\\\?\\pipe\\trans.rpc.%d-%" PRIu64, taosSafeRand(), GetCurrentProcessId());
 #else
   char pipeName[PATH_MAX] = {0};
-  snprintf(pipeName, sizeof(pipeName), "%s%spipe.trans.rpc.%08X-" PRIu64, tsTempDir, TD_DIRSEP, taosSafeRand(),
+  snprintf(pipeName, sizeof(pipeName), "%s%spipe.trans.rpc.%08d-%" PRIu64, tsTempDir, TD_DIRSEP, taosSafeRand(),
            taosGetSelfPthreadId());
 #endif
   ret = uv_pipe_bind(&srv->pipeListen, pipeName);

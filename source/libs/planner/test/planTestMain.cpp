@@ -48,7 +48,7 @@ class PlannerEnv : public testing::Environment {
 
  private:
   void initLog(const char* path) {
-    int32_t logLevel = getLogLevel();
+    int32_t logLevel = getLogLevel() | DEBUG_SCREEN;
     dDebugFlag = logLevel;
     vDebugFlag = logLevel;
     mDebugFlag = logLevel;

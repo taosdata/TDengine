@@ -202,6 +202,38 @@ int metaGetTableNameByUid(void *meta, uint64_t uid, char *tbName) {
 
   return 0;
 }
+int metaGetTableUidByName(void *meta, char *tbName, uint64_t *uid) {
+  int         code = 0;
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, (SMeta *)meta, 0);
+
+  SMetaReader *pReader = &mr;
+
+  // query name.idx
+  if (tdbTbGet(pReader->pMeta->pNameIdx, tbName, strlen(tbName) + 1, &pReader->pBuf, &pReader->szBuf) < 0) {
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    metaReaderClear(&mr);
+    return -1;
+  }
+
+  *uid = *(tb_uid_t *)pReader->pBuf;
+
+  metaReaderClear(&mr);
+
+  return 0;
+}
+
+int metaGetTableTypeByName(void *meta, char *tbName, ETableType *tbType) {
+  int         code = 0;
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, (SMeta *)meta, 0);
+
+  code = metaGetTableEntryByName(&mr, tbName);
+  if (code == 0) *tbType = mr.me.type;
+
+  metaReaderClear(&mr);
+  return code;
+}
 
 int metaReadNext(SMetaReader *pReader) {
   SMeta *pMeta = pReader->pMeta;
@@ -1100,6 +1132,49 @@ END:
   taosMemoryFree(pCursor);
 
   return ret;
+}
+
+static int32_t metaGetTableTagByUid(SMeta *pMeta, uint64_t suid, uint64_t uid, void **tag, int32_t *len, bool lock) {
+  int ret = 0;
+  if (lock) {
+    metaRLock(pMeta);
+  }
+
+  SCtbIdxKey ctbIdxKey = {.suid = suid, .uid = uid};
+  ret = tdbTbGet(pMeta->pCtbIdx, &ctbIdxKey, sizeof(SCtbIdxKey), tag, len);
+  if (lock) {
+    metaULock(pMeta);
+  }
+
+  return ret;
+}
+int32_t metaGetTableTagsByUids(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj *tags) {
+  const int32_t LIMIT = 128;
+
+  int32_t isLock = false;
+  int32_t sz = uidList ? taosArrayGetSize(uidList) : 0;
+  for (int i = 0; i < sz; i++) {
+    tb_uid_t *id = taosArrayGet(uidList, i);
+
+    if (i % LIMIT == 0) {
+      if (isLock) metaULock(pMeta);
+
+      metaRLock(pMeta);
+      isLock = true;
+    }
+
+    if (taosHashGet(tags, id, sizeof(tb_uid_t)) == NULL) {
+      void   *val = NULL;
+      int32_t len = 0;
+      if (metaGetTableTagByUid(pMeta, suid, *id, &val, &len, false) == 0) {
+        taosHashPut(tags, id, sizeof(tb_uid_t), val, len);
+        tdbFree(val);
+      }
+    }
+  }
+  if (isLock) metaULock(pMeta);
+
+  return 0;
 }
 
 int32_t metaGetTableTags(SMeta *pMeta, uint64_t suid, SArray *uidList, SHashObj *tags) {
