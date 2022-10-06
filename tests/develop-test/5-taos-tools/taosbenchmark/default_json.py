@@ -59,7 +59,8 @@ class TDTestCase:
         tdSql.query("select count(tbname) from db.stb")
         tdSql.checkData(0, 0, 10)
         tdSql.query("select count(*) from db.stb")
-        tdSql.checkData(0, 0, 100)
+        if(len(tdSql.queryResult)):
+            tdLog.exit("query result is %d" % len(tdSql.queryResult))
 
     def stop(self):
         tdSql.close()
