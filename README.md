@@ -105,6 +105,12 @@ If the PowerTools installation fails, you can try to use:
 sudo yum config-manager --set-enabled powertools
 ```
 
+### MacOS
+
+```
+sudo brew install argp-standalone pkgconfig
+```
+
 ### Setup golang environment
 
 TDengine includes a few components like taosAdapter developed by Go language. Please refer to golang.org official documentation for golang environment setup.
@@ -213,14 +219,14 @@ cmake .. -G "NMake Makefiles"
 nmake
 ```
 
-<!-- ### On macOS platform
+### On macOS platform
 
 Please install XCode command line tools and cmake. Verified with XCode 11.4+ on Catalina and Big Sur.
 
 ```shell
 mkdir debug && cd debug
 cmake .. && cmake --build .
-``` -->
+```
 
 # Installing
 
@@ -258,7 +264,7 @@ After building successfully, TDengine can be installed by:
 nmake install
 ```
 
-<!-- 
+
 ## On macOS platform
 
 After building successfully, TDengine can be installed by:
@@ -266,7 +272,24 @@ After building successfully, TDengine can be installed by:
 ```bash
 sudo make install
 ```
--->
+
+Users can find more information about directories installed on the system in the [directory and files](https://docs.tdengine.com/reference/directory/) section.
+
+Installing from source code will also configure service management for TDengine.Users can also choose to [install from packages](https://docs.tdengine.com/get-started/package/) for it.
+
+To start the service after installation, double-click the /applications/TDengine to start the program, or in a terminal, use:
+
+```bash
+launchctl start taosd
+```
+
+Then users can use the TDengine CLI to connect the TDengine server. In a terminal, use:
+
+```bash
+taos
+```
+
+If TDengine CLI connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
 
 ## Quick Run
 

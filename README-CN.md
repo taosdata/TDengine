@@ -104,6 +104,12 @@ sudo yum install -y zlib-devel xz-devel snappy-devel jansson jansson-devel pkgco
 sudo yum config-manager --set-enabled Powertools
 ```
 
+### MacOS
+
+```
+sudo brew install argp-standalone pkgconfig
+```
+
 ### 设置 golang 开发环境
 
 TDengine 包含数个使用 Go 语言开发的组件，比如taosAdapter, 请参考 golang.org 官方文档设置 go 开发环境。
@@ -210,14 +216,14 @@ cmake .. -G "NMake Makefiles"
 nmake
 ```
 
-<!-- ### macOS 系统
+### macOS 系统
 
 安装 Xcode 命令行工具和 cmake. 在 Catalina 和 Big Sur 操作系统上，需要安装 XCode 11.4+ 版本。
 
 ```bash
 mkdir debug && cd debug
 cmake .. && cmake --build .
-``` -->
+```
 
 # 安装
 
@@ -262,6 +268,24 @@ nmake install
 ```bash
 sudo make install
 ```
+
+用户可以在[文件目录结构](https://docs.taosdata.com/reference/directory/)中了解更多在操作系统中生成的目录或文件。
+
+从源代码安装也会为 TDengine 配置服务管理 ，用户也可以选择[从安装包中安装](https://docs.taosdata.com/get-started/package/)。
+
+安装成功后，可以在应用程序中双击 TDengine 图标启动服务，或者在终端中启动 TDengine 服务：
+
+```bash
+launchctl start taosd
+```
+
+用户可以使用 TDengine CLI 来连接 TDengine 服务，在终端中，输入：
+
+```bash
+taos
+```
+
+如果 TDengine CLI 连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印出错误消息。
 
 ## 快速运行
 
