@@ -505,8 +505,11 @@ function install_service_on_systemd() {
 }
 
 function install_service_on_launchctl() {
-  ${csudouser}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
-  ${csudouser}launchctl load -w /Library/LaunchDaemons/com.taosdata.taosd.plist || :
+  if [ -f ${install_main_dir}/service/com.taosdata.taosd.plist ]; then
+    ${csudouser}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
+    ${csudo}cp ${install_main_dir}/service/com.taosdata.taosd.plist /Library/LaunchDaemons/com.taosdata.taosd.plist || :
+    ${csudouser}launchctl load -w /Library/LaunchDaemons/com.taosdata.taosd.plist || :
+  fi
 }
 
 function install_taosadapter_service() {
@@ -534,12 +537,28 @@ function install_service() {
   fi
 }
 
+function install_app() {
+  if [ "$osType" = "Darwin" ]; then
+    if [ -f ${install_main_dir}/service/TDengine ]; then
+      ${csudo}rm -rf /Applications/TDengine.app &&
+        ${csudo}mkdir -p /Applications/TDengine.app/Contents/MacOS/ &&
+        ${csudo}cp ${install_main_dir}/service/TDengine /Applications/TDengine.app/Contents/MacOS/ &&
+        echo "<plist><dict></dict></plist>" | ${csudo}tee /Applications/TDengine.app/Contents/Info.plist > /dev/null &&
+        ${csudo}sips -i ${install_main_dir}/service/logo.png > /dev/null && 
+        DeRez -only icns ${install_main_dir}/service/logo.png | ${csudo}tee /Applications/TDengine.app/mac_logo.rsrc > /dev/null &&
+        ${csudo}rez -append /Applications/TDengine.app/mac_logo.rsrc -o $'/Applications/TDengine.app/Icon\r' &&
+        ${csudo}SetFile -a C /Applications/TDengine.app/ &&
+        ${csudo}rm /Applications/TDengine.app/mac_logo.rsrc
+    fi
+  fi
+}
+
 function install_TDengine() {
     echo -e "${GREEN}Start to install TDengine...${NC}"
 
     #install log and data dir , then ln to /usr/local/taos
     ${csudo}mkdir -p ${log_dir} && ${csudo}chmod 777 ${log_dir}
-    ${csudo}mkdir -p ${data_dir}
+    ${csudo}mkdir -p ${data_dir} && ${csudo}chmod 777 ${data_dir}
 
     ${csudo}rm -rf ${log_link_dir}   || :
     ${csudo}rm -rf ${data_link_dir}  || :
@@ -555,6 +574,7 @@ function install_TDengine() {
     install_taosadapter_config
     install_taosadapter_service
     install_service
+    install_app
 
     # Ask if to start the service
     #echo
