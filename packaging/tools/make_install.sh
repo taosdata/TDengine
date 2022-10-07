@@ -194,9 +194,15 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
   else
 
-    ${csudo}cp -r ${binary_dir}/build/bin/* ${install_main_dir}/bin || :
-    ${csudo}cp -r ${script_dir}/taosd-dump-cfg.gdb ${install_main_dir}/bin || :
-    ${csudo}cp -r ${script_dir}/remove_client.sh ${install_main_dir}/bin || :
+    ${csudo}cp -r ${binary_dir}/build/bin/${clientName} ${install_main_dir}/bin || :
+    [ -f ${binary_dir}/build/bin/taosBenchmark ] && ${csudo}cp -r ${binary_dir}/build/bin/taosBenchmark ${install_main_dir}/bin || :
+    [ -f ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -sf ${install_main_dir}/bin/taosBenchmark ${install_main_dir}/bin/taosdemo || :
+    [ -f ${binary_dir}/build/bin/taosdump ] && ${csudo}cp -r ${binary_dir}/build/bin/taosdump ${install_main_dir}/bin || :
+    [ -f ${binary_dir}/build/bin/taosadapter ] && ${csudo}cp -r ${binary_dir}/build/bin/taosadapter ${install_main_dir}/bin || :
+    [ -f ${binary_dir}/build/bin/udfd ] && ${csudo}cp -r ${binary_dir}/build/bin/udfd ${install_main_dir}/bin || :
+    [ -f ${binary_dir}/build/bin/taosx ] && ${csudo}cp -r ${binary_dir}/build/bin/taosx ${install_main_dir}/bin || :
+    ${csudo}cp -r ${binary_dir}/build/bin/${serverName} ${install_main_dir}/bin || :
+
     ${csudo}cp -r ${script_dir}/remove.sh ${install_main_dir}/bin || :
     ${csudo}chmod 0555 ${install_main_dir}/bin/*
     #Make link
