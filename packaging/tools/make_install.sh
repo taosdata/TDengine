@@ -557,10 +557,12 @@ function install_app() {
     ${csudo}rm -rf /Applications/TDengine.app &&
       ${csudo}mkdir -p /Applications/TDengine.app/Contents/MacOS/ &&
       ${csudo}cp ${script_dir}/TDengine /Applications/TDengine.app/Contents/MacOS/ &&
-      echo "<plist><dict></dict></plist>" | ${csudo}tee /Applications/TDengine.app/Contents/Info.plist &&
-      # ${csudo}sips -i ${script_dir}/logo.png && ${csudo}DeRez -only icns ${script_dir}/icon.png > ${script_dir}/mac_logo.rsrc &&
-      ${csudo}rez -append ${script_dir}/mac_logo.rsrc -o $'/Applications/TDengine.app/Icon\r' &&
-      ${csudo}SetFile -a C /Applications/TDengine.app/
+      echo "<plist><dict></dict></plist>" | ${csudo}tee /Applications/TDengine.app/Contents/Info.plist > /dev/null &&
+      ${csudo}sips -i ${script_dir}/logo.png > /dev/null && 
+      DeRez -only icns ${script_dir}/logo.png | ${csudo}tee /Applications/TDengine.app/mac_logo.rsrc > /dev/null &&
+      ${csudo}rez -append /Applications/TDengine.app/mac_logo.rsrc -o $'/Applications/TDengine.app/Icon\r' &&
+      ${csudo}SetFile -a C /Applications/TDengine.app/ &&
+      ${csudo}rm /Applications/TDengine.app/mac_logo.rsrc
   fi
 }
 
