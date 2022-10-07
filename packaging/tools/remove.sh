@@ -98,6 +98,7 @@ function clean_bin() {
   # Remove link
   ${csudo}rm -f ${bin_link_dir}/${clientName} || :
   ${csudo}rm -f ${bin_link_dir}/${serverName} || :
+  ${csudo}rm -f ${bin_link_dir}/udfd || :
   ${csudo}rm -f ${bin_link_dir}/taosadapter || :
   ${csudo}rm -f ${bin_link_dir}/taosBenchmark || :
   ${csudo}rm -f ${bin_link_dir}/taosdemo || :
@@ -213,7 +214,7 @@ function clean_service_on_sysvinit() {
 
 function clean_service_on_launchctl() {
   ${csudouser}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
-  ${csudo}rm /Library/LaunchDaemons/com.taosdata.taosd.plist
+  ${csudo}rm /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
 }
 
 function clean_service() {

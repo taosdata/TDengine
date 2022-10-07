@@ -17,6 +17,7 @@ cfg_install_dir="/etc/taos"
 if [ "$osType" != "Darwin" ]; then
   script_dir=$(dirname $(readlink -f "$0"))
   verNumber=""
+  lib_file_ext="so"
 
   bin_link_dir="/usr/bin"
   lib_link_dir="/usr/lib"
@@ -27,9 +28,11 @@ if [ "$osType" != "Darwin" ]; then
 else
   script_dir=${source_dir}/packaging/tools
   verNumber=`ls tdengine/driver | grep -E "libtaos\.[0-9]\.[0-9]" | sed "s/libtaos.//g" |  sed "s/.dylib//g" | head -n 1`
+  lib_file_ext="dylib"
 
   bin_link_dir="/usr/local/bin"
   lib_link_dir="/usr/local/lib"
+  lib64_link_dir="/usr/local/lib"
   inc_link_dir="/usr/local/include"
 
   if [ -d "/usr/local/Cellar/" ];then
@@ -128,19 +131,19 @@ function install_lib() {
     ${csudo}rm -f ${lib_link_dir}/libtaos* || :
     ${csudo}rm -f ${lib64_link_dir}/libtaos* || :
 
-    [ -f ${lib_link_dir}/libtaosws.so ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.so || :
-    [ -f ${lib64_link_dir}/libtaosws.so ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.so || :
+    [ -f ${lib_link_dir}/libtaosws.${lib_file_ext} ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.${lib_file_ext} || :
+    [ -f ${lib64_link_dir}/libtaosws.${lib_file_ext} ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.${lib_file_ext} || :
 
     ${csudo}ln -s ${lib_dir}/libtaos.* ${lib_link_dir}/libtaos.so.1
     ${csudo}ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
 
-    [ -f ${lib_dir}/libtaosws.so ] && ${csudo}ln -sf ${lib_dir}/libtaosws.so ${lib_link_dir}/libtaosws.so ||:
+    [ -f ${lib_dir}/libtaosws.${lib_file_ext} ] && ${csudo}ln -sf ${lib_dir}/libtaosws.${lib_file_ext} ${lib_link_dir}/libtaosws.${lib_file_ext} ||:
 
     if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
       ${csudo}ln -s ${lib_dir}/libtaos.* ${lib64_link_dir}/libtaos.so.1           || :
       ${csudo}ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so   || :
 
-      [ -f ${lib_dir}/libtaosws.so ] && ${csudo}ln -sf ${lib_dir}/libtaosws.so ${lib64_link_dir}/libtaosws.so           || :
+      [ -f ${lib_dir}/libtaosws.${lib_file_ext} ] && ${csudo}ln -sf ${lib_dir}/libtaosws.${lib_file_ext} ${lib64_link_dir}/libtaosws.${lib_file_ext} || :
     fi
 
     if [ "$osType" != "Darwin" ]; then
@@ -172,6 +175,7 @@ function install_bin() {
     [ -x ${bin_dir}/TDinsight.sh ] && ${csudo}ln -sf ${bin_dir}/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
     [ -x ${bin_dir}/taosdump ] && ${csudo}ln -s ${bin_dir}/taosdump ${bin_link_dir}/taosdump || :
     [ -x ${bin_dir}/set_core.sh ] && ${csudo}ln -s ${bin_dir}/set_core.sh ${bin_link_dir}/set_core || :
+    [ -x ${bin_dir}/remove.sh ] && ${csudo}ln -s ${bin_dir}/remove.sh ${bin_link_dir}/rmtaos || :
 }
 
 function add_newHostname_to_hosts() {
