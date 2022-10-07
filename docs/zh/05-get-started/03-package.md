@@ -111,6 +111,13 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统。
 2. 运行可执行程序来安装 TDengine。
 
 </TabItem>
+<TabItem label="Mac 安装" value="macos">
+
+1. 从列表中下载获得 pkg 安装程序；
+   <PkgListV3 type={7}/>
+2. 运行可执行程序来安装 TDengine。
+
+</TabItem>
 </Tabs>
 
 :::info
@@ -176,6 +183,12 @@ Active: inactive (dead)
 <TabItem label="Windows 系统" value="windows">
 
 安装后，在 `C:\TDengine` 目录下，运行 `taosd.exe` 来启动 TDengine 服务进程。
+
+</TabItem>
+
+<TabItem label="Mac 系统" value="macos">
+
+安装后，在应用程序目录下，双击 TDengine 来启动程序，也可以运行 `launchctl start taosd` 来启动 TDengine 服务进程。
 
 </TabItem>
 </Tabs>
