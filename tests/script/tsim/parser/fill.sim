@@ -795,9 +795,31 @@ if $data81 != 4 then
 endi
 
 # desc fill query
-print desc fill query
-sql select count(*) from m_fl_tb0 where ts>='2018-9-17 9:0:0' and ts<='2018-9-17 9:11:00' interval(1m) fill(value,10);
+print asc fill query
+sql select _wstart,count(*) from m_fl_tb0 where ts>='2018-9-17 9:0:0' and ts<='2018-9-17 9:11:00' interval(1m) fill(value,10) order by _wstart asc;
 if $rows != 12 then
+  return -1
+endi
+
+if $data00 != @18-09-17 09:00:00.000@ then
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+print desc fill query
+sql select _wstart,count(*) from m_fl_tb0 where ts>='2018-9-17 9:0:0' and ts<='2018-9-17 9:11:00' interval(1m) fill(value,10) order by _wstart desc;
+if $rows != 12 then
+  return -1
+endi
+
+if $data00 != @18-09-17 09:11:00.000@ then
+  return -1
+endi
+
+if $data01 != 10 then
   return -1
 endi
 
