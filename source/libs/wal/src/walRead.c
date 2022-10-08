@@ -181,7 +181,11 @@ int32_t walReadSeekVerImpl(SWalReader *pReader, int64_t ver) {
   SWalFileInfo tmpInfo;
   tmpInfo.firstVer = ver;
   SWalFileInfo *pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
-  ASSERT(pRet != NULL);
+  if (pRet == NULL) {
+    wError("failed to find WAL log file with ver:%lld", ver);
+    terrno = TSDB_CODE_WAL_INVALID_VER;
+    return -1;
+  }
   if (pReader->curFileFirstVer != pRet->firstVer) {
     // error code was set inner
     if (walReadChangeFile(pReader, pRet->firstVer) < 0) {
