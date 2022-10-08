@@ -369,9 +369,10 @@ endi
 #$loop_all = 0
 #=looptest:
 
-sql drop database IF EXISTS test2;
 sql drop stream IF EXISTS streams21;
 sql drop stream IF EXISTS streams22;
+sql drop stream IF EXISTS streams23;
+sql drop database IF EXISTS test2;
 
 sql create database test2 vgroups 6;
 sql use test2;
@@ -381,6 +382,7 @@ sql create table t2 using st tags(2,2,2);
 
 sql create stream streams21 trigger at_once  into streamt as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s, 5s);
 sql create stream streams22 trigger at_once  into streamt2 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s, 5s);
+sql create stream streams23 trigger at_once  into streamt3 as select  _wstart, count(*) c1, sum(a) c3 , max(b)  c4, min(c) c5 from st interval(20s) sliding(10s);
 
 sql insert into t1 values(1648791213000,1,1,1,1.0);
 sql insert into t1 values(1648791223001,2,2,2,1.1);
@@ -506,6 +508,50 @@ endi
 if $data32 != 8 then
   print =====data32=$data32
   goto loop3
+endi
+
+
+$loop_count = 0
+
+loop4:
+sleep 100
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt3;
+
+# row 0
+if $rows != 5 then
+  print =====rows=$rows
+  goto loop4
+endi
+
+if $data01 != 4 then
+  print =====data01=$data01
+  goto loop4
+endi
+
+if $data11 != 6 then
+  print =====data11=$data11
+  goto loop4
+endi
+
+if $data21 != 4 then
+  print =====data21=$data21
+  goto loop4
+endi
+
+if $data31 != 4 then
+  print =====data31=$data31
+  goto loop4
+endi
+
+if $data41 != 2 then
+  print =====data41=$data41
+  goto loop4
 endi
 
 $loop_all = $loop_all + 1

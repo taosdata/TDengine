@@ -70,6 +70,7 @@ meters,location=California.LosAngeles,groupid=2 current=13.4,voltage=223,phase=0
 ## SQL查询示例
 - meters 是插入数据的超级表名
 - 可以通过超级表的tag来过滤数据，比如查询 `location=California.LosAngeles,groupid=2` 可以通过如下sql：
-``` sql
-select * from meters where location=California.LosAngeles and groupid=2
+
+``` cmd
+select * from meters where location="California.LosAngeles" and groupid=2
 ```
