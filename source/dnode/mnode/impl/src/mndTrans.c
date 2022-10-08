@@ -435,7 +435,9 @@ _OVER:
     return NULL;
   }
 
-  mTrace("trans:%d, decode from raw:%p, row:%p", pTrans->id, pRaw, pTrans);
+  if (pTrans != NULL) {
+    mTrace("trans:%d, decode from raw:%p, row:%p", pTrans->id, pRaw, pTrans);
+  }
   return pRow;
 }
 
@@ -769,7 +771,7 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
     mError("trans:%d, failed to encode while sync trans since %s", pTrans->id, terrstr());
     return -1;
   }
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   mInfo("trans:%d, sync to other mnodes, stage:%s", pTrans->id, mndTransStr(pTrans->stage));
   int32_t code = mndSyncPropose(pMnode, pRaw, pTrans->id);
@@ -1431,7 +1433,7 @@ static bool mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans) {
     mError("trans:%d, failed to encode while finish trans since %s", pTrans->id, terrstr());
     return false;
   }
-  sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
 
   int32_t code = sdbWrite(pMnode->pSdb, pRaw);
   if (code != 0) {

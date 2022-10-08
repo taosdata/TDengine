@@ -259,17 +259,17 @@ static int32_t mndDropFunc(SMnode *pMnode, SRpcMsg *pReq, SFuncObj *pFunc) {
   SSdbRaw *pRedoRaw = mndFuncActionEncode(pFunc);
   if (pRedoRaw == NULL) goto _OVER;
   if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) goto _OVER;
-  sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING);
+  (void)sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING);
 
   SSdbRaw *pUndoRaw = mndFuncActionEncode(pFunc);
   if (pUndoRaw == NULL) goto _OVER;
   if (mndTransAppendUndolog(pTrans, pUndoRaw) != 0) goto _OVER;
-  sdbSetRawStatus(pUndoRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pUndoRaw, SDB_STATUS_READY);
 
   SSdbRaw *pCommitRaw = mndFuncActionEncode(pFunc);
   if (pCommitRaw == NULL) goto _OVER;
   if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) goto _OVER;
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
