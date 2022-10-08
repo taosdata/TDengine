@@ -112,6 +112,13 @@ Note: TDengine only supports Windows Server 2016/2019 and Windows 10/11 on the W
 2. Run the downloaded package to install TDengine.
 
 </TabItem>
+<TabItem label="Mac" value="macos">
+
+1. Download the Mac installation package.
+   <PkgListV3 type={7}/>
+2. Run the downloaded package to install TDengine.
+
+</TabItem>
 </Tabs>
 
 :::info
@@ -177,6 +184,12 @@ The following `systemctl` commands can help you manage TDengine service:
 <TabItem label="Windows" value="windows">
 
 After the installation is complete, run `C:\TDengine\taosd.exe` to start TDengine Server.
+
+</TabItem>
+
+<TabItem label="Mac" value="macos">
+
+After the installation is complete, double-click the /applications/TDengine to start the program, or run `launchctl start taosd` to start TDengine Server.
 
 </TabItem>
 </Tabs>

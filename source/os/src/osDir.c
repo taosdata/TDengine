@@ -121,6 +121,8 @@ int32_t taosMkDir(const char *dirname) {
   if (taosDirExist(dirname)) return 0;
 #ifdef WINDOWS
   int32_t code = _mkdir(dirname, 0755);
+#elif defined(DARWIN)
+  int32_t code = mkdir(dirname, 0777);
 #else
   int32_t code = mkdir(dirname, 0755);
 #endif
@@ -156,6 +158,8 @@ int32_t taosMulMkDir(const char *dirname) {
       *pos = '\0';
 #ifdef WINDOWS
       code = _mkdir(temp, 0755);
+#elif defined(DARWIN)
+      code = mkdir(dirname, 0777);
 #else
       code = mkdir(temp, 0755);
 #endif
@@ -170,6 +174,8 @@ int32_t taosMulMkDir(const char *dirname) {
   if (*(pos - 1) != TD_DIRSEP[0]) {
 #ifdef WINDOWS
     code = _mkdir(temp, 0755);
+#elif defined(DARWIN)
+      code = mkdir(dirname, 0777);
 #else
     code = mkdir(temp, 0755);
 #endif
@@ -179,7 +185,6 @@ int32_t taosMulMkDir(const char *dirname) {
     }
   }
 
-  // int32_t code = mkdir(dirname, 0755);
   if (code < 0 && errno == EEXIST) {
     return 0;
   }
@@ -215,6 +220,8 @@ int32_t taosMulModeMkDir(const char *dirname, int mode) {
       *pos = '\0';
 #ifdef WINDOWS
       code = _mkdir(temp, mode);
+#elif defined(DARWIN)
+      code = mkdir(dirname, 0777);
 #else
       code = mkdir(temp, mode);
 #endif
@@ -229,6 +236,8 @@ int32_t taosMulModeMkDir(const char *dirname, int mode) {
   if (*(pos - 1) != TD_DIRSEP[0]) {
 #ifdef WINDOWS
     code = _mkdir(temp, mode);
+#elif defined(DARWIN)
+      code = mkdir(dirname, 0777);
 #else
     code = mkdir(temp, mode);
 #endif

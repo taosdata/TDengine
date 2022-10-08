@@ -32,7 +32,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   }
 
   sprintf(streamPath, "%s/%s", pMeta->path, "checkpoints");
-  mkdir(streamPath, 0755);
+  taosMulModeMkDir(streamPath, 0755);
   taosMemoryFree(streamPath);
 
   if (tdbTbOpen("task.db", sizeof(int32_t), -1, NULL, pMeta->db, &pMeta->pTaskDb) < 0) {

@@ -27,6 +27,7 @@
 extern "C" {
 #endif
 
+typedef struct SBuffer       SBuffer;
 typedef struct SSchema       SSchema;
 typedef struct STColumn      STColumn;
 typedef struct STSchema      STSchema;
@@ -55,6 +56,18 @@ const static uint8_t BIT2_MAP[4][4] = {{0b00000000, 0b00000001, 0b00000010, 0},
 #define GET_BIT1(p, i)    (((p)[(i) >> 3] >> ((i)&7)) & ((uint8_t)1))
 #define SET_BIT2(p, i, v) ((p)[(i) >> 2] = (p)[(i) >> 2] & N1(BIT2_MAP[(i)&3][3]) | BIT2_MAP[(i)&3][(v)])
 #define GET_BIT2(p, i)    (((p)[(i) >> 2] >> BIT2_MAP[(i)&3][3]) & ((uint8_t)3))
+
+// SBuffer ================================
+struct SBuffer {
+  int64_t  nBuf;
+  uint8_t *pBuf;
+};
+
+#define tBufferCreate() \
+  (SBuffer) { .nBuf = 0, .pBuf = NULL }
+void    tBufferDestroy(SBuffer *pBuffer);
+int32_t tBufferInit(SBuffer *pBuffer, int64_t size);
+int32_t tBufferPut(SBuffer *pBuffer, const void *pData, int64_t nData);
 
 // STSchema ================================
 int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema **ppTSchema);
