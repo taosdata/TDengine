@@ -78,6 +78,7 @@ SWords shellCommands[] = {
   {"alter user <user_name> privilege read", 0, 0, NULL},
   {"alter user <user_name> privilege write", 0, 0, NULL},
   {"create table <anyword> using <stb_name> tags(", 0, 0, NULL},
+  {"create table <anyword> as select ", 0, 0, NULL},
   {"create database ", 0, 0, NULL},
   {"create table <anyword> as ", 0, 0, NULL},
   {"create dnode ", 0, 0, NULL},
@@ -126,6 +127,7 @@ SWords shellCommands[] = {
   {"show vgroups;", 0, 0, NULL},
   {"insert into <tb_name> values(", 0, 0, NULL},
   {"insert into <tb_name> using <stb_name> tags( <anyword> ) values(", 0, 0, NULL},
+  {"insert into <tb_name> using <stb_name> <anyword> values(", 0, 0, NULL},
   {"use <db_name>", 0, 0, NULL},
   {"quit", 0, 0, NULL}
 };
@@ -1398,24 +1400,14 @@ int32_t searchAfterSelect(char* p, int32_t len) {
     return p1 - p;
   }
 
-  // explain as select * from st;
-  if(strncasecmp(p, "explain select ", 15) == 0) {
-    return 15;
-  }
-
   char* as_pos_end = strstr(p, " as select ");
   if (as_pos_end == NULL)
     return -1;
   as_pos_end += 11;
 
-  // create stream <stream_name> as select
-  if(strncasecmp(p, "create stream ", 14) == 0) {
+  // create table <stream_name> as select
+  if(strncasecmp(p, "create table ", 13) == 0) {
     return as_pos_end - p;;
-  }
-
-  // create topic <topic_name> as select
-  if(strncasecmp(p, "create topic ", 13) == 0) {
-    return as_pos_end - p;
   }
 
   return -1;
