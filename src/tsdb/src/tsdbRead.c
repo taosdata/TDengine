@@ -836,9 +836,11 @@ static bool initTableMemIterator(STsdbQueryHandle* pHandle, STableCheckInfo* pCh
 
     if (ASCENDING_TRAVERSE(order)) {
       assert(pCheckInfo->lastKey <= key);
-    } else {
-      assert(pCheckInfo->lastKey >= key);
     }
+    // mem data tskey maybe large than pCheckInfo->lastKey
+    //} else {
+    //  assert(pCheckInfo->lastKey >= key);
+    //}
 
   } else {
     tsdbDebug("%p uid:%"PRId64", tid:%d no data in mem, 0x%"PRIx64, pHandle, pCheckInfo->tableId.uid, pCheckInfo->tableId.tid,
@@ -858,9 +860,11 @@ static bool initTableMemIterator(STsdbQueryHandle* pHandle, STableCheckInfo* pCh
 
     if (ASCENDING_TRAVERSE(order)) {
       assert(pCheckInfo->lastKey <= key);
-    } else {
-      assert(pCheckInfo->lastKey >= key);
     }
+    // imem data tskey maybe large than pCheckInfo->lastKey
+    //} else {
+    //  assert(pCheckInfo->lastKey >= key);
+    //}
   } else {
     tsdbDebug("%p uid:%"PRId64", tid:%d no data in imem, 0x%"PRIx64, pHandle, pCheckInfo->tableId.uid, pCheckInfo->tableId.tid,
         pHandle->qId);
