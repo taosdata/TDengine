@@ -41,9 +41,9 @@ static int32_t buildDbTableInfoBlock(bool sysInfo, const SSDataBlock* p, const S
 
 static bool processBlockWithProbability(const SSampleExecInfo* pInfo);
 
-static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, SMetaReader* smr, const char* dbname,
-                                                const char* tableName, int32_t* pNumOfRows,
-                                                const SSDataBlock* dataBlock);
+static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, SMetaReader* smrSuperTable,
+                                                SMetaReader* smrChildTable, const char* dbname, const char* tableName,
+                                                int32_t* pNumOfRows, const SSDataBlock* dataBlock);
 
 static void relocateAndFilterSysTagsScanResult(SSysTableScanInfo* pInfo, int32_t numOfRows, SSDataBlock* dataBlock);
 bool        processBlockWithProbability(const SSampleExecInfo* pInfo) {
@@ -2415,11 +2415,10 @@ static bool sysTableIsOperatorCondOnOneTable(SNode* pCond, char* condTable) {
         strcasecmp(nodesGetNameFromColumnNode(node->pLeft), "table_name") == 0 &&
         nodeType(node->pRight) == QUERY_NODE_VALUE) {
       SValueNode* pValue = (SValueNode*)node->pRight;
-      if (pValue->node.type == TSDB_DATA_TYPE_NCHAR || pValue->node.type == TSDB_DATA_TYPE_VARCHAR ||
-          pValue->node.type == TSDB_DATA_TYPE_BINARY) {
-        char* value = nodesGetStrValueFromNode(pValue);
-        strncpy(condTable, value, TSDB_TABLE_NAME_LEN);
-        taosMemoryFree(value);
+      if (pValue->node.resType.type == TSDB_DATA_TYPE_NCHAR || pValue->node.resType.type == TSDB_DATA_TYPE_VARCHAR ||
+          pValue->node.resType.type == TSDB_DATA_TYPE_BINARY) {
+        char* value = nodesGetValueFromNode(pValue);
+        strncpy(condTable, varDataVal(value), TSDB_TABLE_NAME_LEN);
         return true;
       }
     }
@@ -2480,18 +2479,28 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(tableName, condTableName);
 
-    SMetaReader smr = {0};
-    metaReaderInit(&smr, pInfo->readHandle.meta, 0);
-    metaGetTableEntryByName(&smr, condTableName);
-    sysTableUserTagsFillOneTableTags(pInfo, &smr, dbname, tableName, &numOfRows, dataBlock);
-    metaReaderClear(&smr);
+    SMetaReader smrChildTable = {0};
+    metaReaderInit(&smrChildTable, pInfo->readHandle.meta, 0);
+    metaGetTableEntryByName(&smrChildTable, condTableName);
+    if (smrChildTable.me.type != TSDB_CHILD_TABLE) {
+      metaReaderClear(&smrChildTable);
+      blockDataDestroy(dataBlock);
+      pInfo->loadInfo.totalRows = 0;
+      return NULL;
+    }
+    SMetaReader smrSuperTable = {0};
+    metaReaderInit(&smrSuperTable, pInfo->readHandle.meta, 0);
+    metaGetTableEntryByUid(&smrSuperTable, smrChildTable.me.ctbEntry.suid);
+    sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &smrChildTable, dbname, tableName, &numOfRows, dataBlock);
+    metaReaderClear(&smrSuperTable);
+    metaReaderClear(&smrChildTable);
     if (numOfRows > 0) {
       relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock);
       numOfRows = 0;
     }
     blockDataDestroy(dataBlock);
-
     pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
+    doSetOperatorCompleted(pOperator);
     return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
   }
 
@@ -2508,23 +2517,22 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
     char tableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(tableName, pInfo->pCur->mr.me.name);
 
-    SMetaReader smr = {0};
-    metaReaderInit(&smr, pInfo->readHandle.meta, 0);
-
+    SMetaReader smrSuperTable = {0};
+    metaReaderInit(&smrSuperTable, pInfo->readHandle.meta, 0);
     uint64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
-    int32_t  code = metaGetTableEntryByUid(&smr, suid);
+    int32_t  code = metaGetTableEntryByUid(&smrSuperTable, suid);
     if (code != TSDB_CODE_SUCCESS) {
       qError("failed to get super table meta, uid:0x%" PRIx64 ", code:%s, %s", suid, tstrerror(terrno),
              GET_TASKID(pTaskInfo));
-      metaReaderClear(&smr);
+      metaReaderClear(&smrSuperTable);
       metaCloseTbCursor(pInfo->pCur);
       pInfo->pCur = NULL;
       T_LONG_JMP(pTaskInfo->env, terrno);
     }
 
-    sysTableUserTagsFillOneTableTags(pInfo, &smr, dbname, tableName, &numOfRows, dataBlock);
+    sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &pInfo->pCur->mr, dbname, tableName, &numOfRows, dataBlock);
 
-    metaReaderClear(&smr);
+    metaReaderClear(&smrSuperTable);
 
     if (numOfRows >= pOperator->resultInfo.capacity) {
       relocateAndFilterSysTagsScanResult(pInfo, numOfRows, dataBlock);
@@ -2562,15 +2570,15 @@ static void relocateAndFilterSysTagsScanResult(SSysTableScanInfo* pInfo, int32_t
   blockDataCleanup(dataBlock);
 }
 
-static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, SMetaReader* smr, const char* dbname,
-                                                const char* tableName, int32_t* pNumOfRows,
-                                                const SSDataBlock* dataBlock) {
+static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, SMetaReader* smrSuperTable,
+                                                SMetaReader* smrChildTable, const char* dbname, const char* tableName,
+                                                int32_t* pNumOfRows, const SSDataBlock* dataBlock) {
   char stableName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-  STR_TO_VARSTR(stableName, (*smr).me.name);
+  STR_TO_VARSTR(stableName, (*smrSuperTable).me.name);
 
   int32_t numOfRows = *pNumOfRows;
 
-  int32_t numOfTags = (*smr).me.stbEntry.schemaTag.nCols;
+  int32_t numOfTags = (*smrSuperTable).me.stbEntry.schemaTag.nCols;
   for (int32_t i = 0; i < numOfTags; ++i) {
     SColumnInfoData* pColInfoData = NULL;
 
@@ -2588,35 +2596,35 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
 
     // tag name
     char tagName[TSDB_COL_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_TO_VARSTR(tagName, (*smr).me.stbEntry.schemaTag.pSchema[i].name);
+    STR_TO_VARSTR(tagName, (*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].name);
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 3);
     colDataAppend(pColInfoData, numOfRows, tagName, false);
 
     // tag type
-    int8_t tagType = (*smr).me.stbEntry.schemaTag.pSchema[i].type;
+    int8_t tagType = (*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].type;
     pColInfoData = taosArrayGet(dataBlock->pDataBlock, 4);
     char tagTypeStr[VARSTR_HEADER_SIZE + 32];
     int  tagTypeLen = sprintf(varDataVal(tagTypeStr), "%s", tDataTypes[tagType].name);
     if (tagType == TSDB_DATA_TYPE_VARCHAR) {
       tagTypeLen += sprintf(varDataVal(tagTypeStr) + tagTypeLen, "(%d)",
-                            (int32_t)((*smr).me.stbEntry.schemaTag.pSchema[i].bytes - VARSTR_HEADER_SIZE));
+                            (int32_t)((*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].bytes - VARSTR_HEADER_SIZE));
     } else if (tagType == TSDB_DATA_TYPE_NCHAR) {
-      tagTypeLen +=
-          sprintf(varDataVal(tagTypeStr) + tagTypeLen, "(%d)",
-                  (int32_t)(((*smr).me.stbEntry.schemaTag.pSchema[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+      tagTypeLen += sprintf(
+          varDataVal(tagTypeStr) + tagTypeLen, "(%d)",
+          (int32_t)(((*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
     }
     varDataSetLen(tagTypeStr, tagTypeLen);
     colDataAppend(pColInfoData, numOfRows, (char*)tagTypeStr, false);
 
     STagVal tagVal = {0};
-    tagVal.cid = (*smr).me.stbEntry.schemaTag.pSchema[i].colId;
+    tagVal.cid = (*smrSuperTable).me.stbEntry.schemaTag.pSchema[i].colId;
     char*    tagData = NULL;
     uint32_t tagLen = 0;
 
     if (tagType == TSDB_DATA_TYPE_JSON) {
-      tagData = (char*)pInfo->pCur->mr.me.ctbEntry.pTags;
+      tagData = (char*)smrChildTable->me.ctbEntry.pTags;
     } else {
-      bool exist = tTagGet((STag*)pInfo->pCur->mr.me.ctbEntry.pTags, &tagVal);
+      bool exist = tTagGet((STag*)smrChildTable->me.ctbEntry.pTags, &tagVal);
       if (exist) {
         if (IS_VAR_DATA_TYPE(tagType)) {
           tagData = (char*)tagVal.pData;

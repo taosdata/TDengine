@@ -1402,7 +1402,7 @@ static void doDeleteWindows(SOperatorInfo* pOperator, SInterval* pInterval, int3
     SResultRowInfo dumyInfo;
     dumyInfo.cur.pageId = -1;
     STimeWindow win = getActiveTimeWindow(NULL, &dumyInfo, startTsCols[i], pInterval, TSDB_ORDER_ASC);
-    while (win.skey <= endTsCols[i]) {
+    do {
       uint64_t winGpId = pGpDatas[i];
       bool     res = doDeleteWindow(pOperator, win.skey, winGpId, numOfOutput);
       SWinKey  winRes = {.ts = win.skey, .groupId = winGpId};
@@ -1413,7 +1413,7 @@ static void doDeleteWindows(SOperatorInfo* pOperator, SInterval* pInterval, int3
         taosHashRemove(pUpdatedMap, &winRes, sizeof(SWinKey));
       }
       getNextTimeWindow(pInterval, pInterval->precision, TSDB_ORDER_ASC, &win);
-    }
+    } while (win.ekey <= endTsCols[i]);
   }
 }
 
@@ -3067,8 +3067,12 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperatorInfo, SSDataBlock* p
 
   int32_t     startPos = 0;
   TSKEY       ts = getStartTsKey(&pSDataBlock->info.window, tsCols);
-  STimeWindow nextWin =
-      getActiveTimeWindow(pInfo->aggSup.pResultBuf, pResultRowInfo, ts, &pInfo->interval, TSDB_ORDER_ASC);
+  STimeWindow nextWin = {0};
+  if (IS_FINAL_OP(pInfo)) {
+    nextWin = getFinalTimeWindow(ts, &pInfo->interval);
+  } else {
+    nextWin = getActiveTimeWindow(pInfo->aggSup.pResultBuf, pResultRowInfo, ts, &pInfo->interval, TSDB_ORDER_ASC);
+  }
   while (1) {
     bool isClosed = isCloseWindow(&nextWin, &pInfo->twAggSup);
     if ((pInfo->ignoreExpiredData && isClosed) || !inSlidingWindow(&pInfo->interval, &nextWin, &pSDataBlock->info)) {
@@ -3122,8 +3126,12 @@ static void doStreamIntervalAggImpl(SOperatorInfo* pOperatorInfo, SSDataBlock* p
       T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
 
-    forwardRows = getNumOfRowsInTimeWindow(&pSDataBlock->info, tsCols, startPos, nextWin.ekey, binarySearchForKey, NULL,
-                                           TSDB_ORDER_ASC);
+    if (IS_FINAL_OP(pInfo)) {
+      forwardRows = 1;
+    } else {
+      forwardRows = getNumOfRowsInTimeWindow(&pSDataBlock->info, tsCols, startPos, nextWin.ekey, binarySearchForKey,
+                                             NULL, TSDB_ORDER_ASC);
+    }
     if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_AT_ONCE && pUpdatedMap) {
       saveWinResultInfo(pResult->win.skey, groupId, pUpdatedMap);
     }

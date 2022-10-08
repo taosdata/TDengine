@@ -420,9 +420,11 @@ TEST_F(ParserSelectTest, setOperatorSemanticCheck) {
 }
 
 TEST_F(ParserSelectTest, informationSchema) {
-  useDb("root", "test");
+  useDb("root", "information_schema");
 
-  run("SELECT * FROM information_schema.ins_databases WHERE name = 'information_schema'");
+  run("SELECT * FROM ins_databases WHERE name = 'information_schema'");
+
+  run("SELECT * FROM ins_tags WHERE db_name = 'test' and table_name = 'st1'");
 }
 
 TEST_F(ParserSelectTest, withoutFrom) {
