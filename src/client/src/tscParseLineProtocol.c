@@ -2699,7 +2699,7 @@ int32_t tscParseLines(char* data, int32_t len, char* lines[], int numLines, SArr
   return code;
 }
 
-int taos_insert_lines(TAOS* taos, char* data, int len, char* lines[], int numLines, SMLProtocolType protocol, SMLTimeStampType tsType, int *affectedRows) {
+int taos_insert_lines(TAOS* taos, char* data, int len, char* lines[], int *numLines, SMLProtocolType protocol, SMLTimeStampType tsType, int *affectedRows) {
   int32_t code = 0;
 
   SSmlLinesInfo* info = tcalloc(1, sizeof(SSmlLinesInfo));
@@ -2708,26 +2708,26 @@ int taos_insert_lines(TAOS* taos, char* data, int len, char* lines[], int numLin
   info->protocol = protocol;
 
   if (data){
-    numLines = 0;
+    *numLines = 0;
     for(int i = 0; i < len; i++){
       if(data[i] == '\0'){
         data[i] = '0';
       }
       if(data[i] == '\n' || i == len - 1){
-        numLines++;
+        (*numLines)++;
       }
     }
   }
 
-  if (numLines <= 0 || numLines > 65536*32) {
-    tscError("SML:0x%"PRIx64" taos_insert_lines numLines should be between 1 and 65536*32. numLines: %d", info->id, numLines);
+  if (*numLines <= 0 || *numLines > 65536*32) {
+    tscError("SML:0x%"PRIx64" taos_insert_lines numLines should be between 1 and 65536*32. numLines: %d", info->id, *numLines);
     tfree(info);
     code = TSDB_CODE_TSC_APP_ERROR;
     return code;
   }
 
   if(lines){
-    for (int i = 0; i < numLines; ++i) {
+    for (int i = 0; i < *numLines; ++i) {
       if (lines[i] == NULL) {
         tscError("SML:0x%"PRIx64" taos_insert_lines line %d is NULL", info->id, i);
         tfree(info);
@@ -2737,22 +2737,22 @@ int taos_insert_lines(TAOS* taos, char* data, int len, char* lines[], int numLin
     }
   }
 
-  SArray* lpPoints = taosArrayInit(numLines, sizeof(TAOS_SML_DATA_POINT));
+  SArray* lpPoints = taosArrayInit(*numLines, sizeof(TAOS_SML_DATA_POINT));
   if (lpPoints == NULL) {
     tscError("SML:0x%"PRIx64" taos_insert_lines failed to allocate memory", info->id);
     tfree(info);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  tscDebug("SML:0x%"PRIx64" taos_insert_lines begin inserting %d lines", info->id, numLines);
-  code = tscParseLines(data, len, lines, numLines, lpPoints, NULL, info);
+  tscDebug("SML:0x%"PRIx64" taos_insert_lines begin inserting %d lines", info->id, *numLines);
+  code = tscParseLines(data, len, lines, *numLines, lpPoints, NULL, info);
   size_t numPoints = taosArrayGetSize(lpPoints);
+  TAOS_SML_DATA_POINT* points = TARRAY_GET_START(lpPoints);
 
   if (code != 0) {
     goto cleanup;
   }
 
-  TAOS_SML_DATA_POINT* points = TARRAY_GET_START(lpPoints);
   code = tscSmlInsert(taos, points, (int)numPoints, info);
   if (code != 0) {
     tscError("SML:0x%"PRIx64" taos_sml_insert error: %s", info->id, tstrerror((code)));
@@ -2762,9 +2762,7 @@ int taos_insert_lines(TAOS* taos, char* data, int len, char* lines[], int numLin
   }
 
 cleanup:
-  tscDebug("SML:0x%"PRIx64" taos_insert_lines finish inserting %d lines. code: %d", info->id, numLines, code);
-  points = TARRAY_GET_START(lpPoints);
-  numPoints = taosArrayGetSize(lpPoints);
+  tscDebug("SML:0x%"PRIx64" taos_insert_lines finish inserting %d lines. code: %d", info->id, *numLines, code);
   for (int i=0; i<numPoints; ++i) {
     destroySmlDataPoint(points+i);
   }
@@ -2860,13 +2858,13 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
 
   switch (protocol) {
     case TSDB_SML_LINE_PROTOCOL:
-      code = taos_insert_lines(taos, NULL, 0, lines, numLines, protocol, tsType, &affected_rows);
+      code = taos_insert_lines(taos, NULL, 0, lines, &numLines, protocol, tsType, &affected_rows);
       break;
     case TSDB_SML_TELNET_PROTOCOL:
-      code = taos_insert_telnet_lines(taos, NULL, 0, lines, numLines, protocol, tsType, &affected_rows);
+      code = taos_insert_telnet_lines(taos, NULL, 0, lines, &numLines, protocol, tsType, &affected_rows);
       break;
     case TSDB_SML_JSON_PROTOCOL:
-      code = taos_insert_json_payload(taos, *lines, protocol, tsType, &affected_rows);
+      code = taos_insert_json_payload(taos, *lines, protocol, &numLines, tsType, &affected_rows);
       break;
     default:
       code = TSDB_CODE_TSC_INVALID_PROTOCOL_TYPE;
@@ -2891,15 +2889,20 @@ TAOS_RES *taos_schemaless_insert_raw(TAOS* taos, char* lines, int len, int32_t *
     }
   }
 
+  if(!totalRows){
+    tscError("totalRows is null");
+    return NULL;
+  }
+
   switch (protocol) {
     case TSDB_SML_LINE_PROTOCOL:
-      code = taos_insert_lines(taos, lines, len, NULL, 0, protocol, tsType, &affected_rows);
+      code = taos_insert_lines(taos, lines, len, NULL, totalRows, protocol, tsType, &affected_rows);
       break;
     case TSDB_SML_TELNET_PROTOCOL:
-      code = taos_insert_telnet_lines(taos, lines, len, NULL, 0, protocol, tsType, &affected_rows);
+      code = taos_insert_telnet_lines(taos, lines, len, NULL, totalRows, protocol, tsType, &affected_rows);
       break;
     case TSDB_SML_JSON_PROTOCOL:
-      code = taos_insert_json_payload(taos, lines, protocol, tsType, &affected_rows);
+      code = taos_insert_json_payload(taos, lines, protocol, totalRows, tsType, &affected_rows);
       break;
     default:
       code = TSDB_CODE_TSC_INVALID_PROTOCOL_TYPE;
