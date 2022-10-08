@@ -44,8 +44,8 @@ class StaticFullSync(TDCase):
         self.dbname = ['db1','db2']
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
-        self.tb_num = 100
-        self.row_num = 1000
+        self.tb_num = 1000
+        self.row_num = 10000
         self.start_timestamp = "2020-10-01 00:00:00.000"
         self.drop_flag = 'yes'
         self.child_table_exist_flag = 'no'
@@ -208,8 +208,8 @@ class StaticFullSync(TDCase):
                 taosd_backup.execute(f'drop database {self.target_dbname}')
     def run(self):
         self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root)
-        # self.full_sync_db_stb('db')
-        # self.full_sync_db_stb('stable')
+        self.full_sync_db_stb('db')
+        self.full_sync_db_stb('stable')
         self.full_sync_ctb()
         self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)
         self.full_sync_ntb()
@@ -219,7 +219,7 @@ class StaticFullSync(TDCase):
 
     def desc(self):
         case_description = """
-            export test of taosx <jiacy>
+            full_sync test of taosx <jiacy>
             """
         return case_description
 

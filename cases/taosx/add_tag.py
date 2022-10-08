@@ -130,13 +130,16 @@ class RenameTable(TDCase):
                     for tag_num in range(len(tag)):
                         for source in range(len(self.source_taosd_list)):
                             for tbname in range(len(self.stbname)):
+                                print(f'''select count(*) from {self.target_dbname}.{self.stbname[source][tbname]} where {tag[tag_num]["name"]} = '{tag[tag_num]["value"]}' ''')
                                 count_rows = taosd_backup.query(f'''select count(*) from {self.target_dbname}.{self.stbname[source][tbname]} where {tag[tag_num]["name"]} = '{tag[tag_num]["value"]}' ''').fetch_all_into_dict()
                                 backup_count_rows.append(count_rows)
                                 sum_rows = taosd_backup.query(f'''select sum(voltage) from {self.target_dbname}.{self.stbname[source][tbname]} where {tag[tag_num]["name"]} = '{tag[tag_num]["value"]}' ''').fetch_all_into_dict()
                                 backup_sum.append(sum_rows)
-                            for i in range(len(self.source_taosd_list) * len(self.stbname)):
-                                self.tdSql.checkEqual(master_count_rows[i][0]['count(*)'], backup_count_rows[i][0]['count(*)'])
-                                self.tdSql.checkEqual(master_sum[i][0]['sum(voltage)'], backup_sum[i][0]['sum(voltage)'])
+                            print(master_count_rows)
+                            print(backup_count_rows)
+                        for i in range(len(self.source_taosd_list) * len(self.stbname)):
+                            self.tdSql.checkEqual(master_count_rows[i][0]['count(*)'], backup_count_rows[i][0]['count(*)'])
+                            self.tdSql.checkEqual(master_sum[i][0]['sum(voltage)'], backup_sum[i][0]['sum(voltage)'])
                 taosd_backup.execute(f'drop database {self.target_dbname}')
     
     
