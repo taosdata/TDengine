@@ -879,7 +879,12 @@ static void removeResults(SArray* pWins, SHashObj* pUpdatedMap) {
   int32_t size = taosArrayGetSize(pWins);
   for (int32_t i = 0; i < size; i++) {
     SWinKey* pW = taosArrayGet(pWins, i);
-    taosHashRemove(pUpdatedMap, pW, sizeof(SWinKey));
+    void*    tmp = taosHashGet(pUpdatedMap, pW, sizeof(SWinKey));
+    if (tmp) {
+      void* value = *(void**)tmp;
+      taosMemoryFree(value);
+      taosHashRemove(pUpdatedMap, pW, sizeof(SWinKey));
+    }
   }
 }
 
@@ -1410,7 +1415,12 @@ static void doDeleteWindows(SOperatorInfo* pOperator, SInterval* pInterval, int3
         taosArrayPush(pUpWins, &winRes);
       }
       if (pUpdatedMap) {
-        taosHashRemove(pUpdatedMap, &winRes, sizeof(SWinKey));
+        void* tmp = taosHashGet(pUpdatedMap, &winRes, sizeof(SWinKey));
+        if (tmp) {
+          void* value = *(void**)tmp;
+          taosMemoryFree(value);
+          taosHashRemove(pUpdatedMap, &winRes, sizeof(SWinKey));
+        }
       }
       getNextTimeWindow(pInterval, pInterval->precision, TSDB_ORDER_ASC, &win);
     } while (win.ekey <= endTsCols[i]);
@@ -2872,12 +2882,13 @@ static void rebuildIntervalWindow(SOperatorInfo* pOperator, SExprSupp* pSup, SAr
                    pChildSup->rowEntryInfoOffset, &pChInfo->aggSup);
       updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &parentWin, true);
       compactFunctions(pSup->pCtx, pChildSup->pCtx, numOfOutput, pTaskInfo, &pInfo->twAggSup.timeWindowData);
+      releaseOutputBuf(pChInfo->pState, pWinRes, pChResult);
     }
     if (num > 0 && pUpdatedMap) {
       saveWinResultInfo(pCurResult->win.skey, pWinRes->groupId, pUpdatedMap);
       saveOutputBuf(pInfo->pState, pWinRes, pCurResult, pInfo->aggSup.resultRowSize);
-      releaseOutputBuf(pInfo->pState, pWinRes, pCurResult);
     }
+    releaseOutputBuf(pInfo->pState, pWinRes, pCurResult);
   }
 }
 
@@ -2891,9 +2902,7 @@ bool isDeletedWindow(STimeWindow* pWin, uint64_t groupId, SAggSupporter* pSup) {
 bool isDeletedStreamWindow(STimeWindow* pWin, uint64_t groupId, SStreamState* pState, STimeWindowAggSupp* pTwSup) {
   if (pWin->ekey < pTwSup->maxTs - pTwSup->deleteMark) {
     SWinKey key = {.ts = pWin->skey, .groupId = groupId};
-    void*   pVal = NULL;
-    int32_t size = 0;
-    if (streamStateGet(pState, &key, &pVal, &size) == TSDB_CODE_SUCCESS) {
+    if (streamStateGet(pState, &key, NULL, 0) == TSDB_CODE_SUCCESS) {
       return false;
     }
     return true;
