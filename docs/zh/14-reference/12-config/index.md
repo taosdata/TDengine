@@ -205,7 +205,7 @@ taos --dump-config
 :::info
 为应对多时区的数据写入和查询问题，TDengine 采用 Unix 时间戳(Unix Timestamp)来记录和存储时间戳。Unix 时间戳的特点决定了任一时刻不论在任何时区，产生的时间戳均一致。需要注意的是，Unix 时间戳是在客户端完成转换和记录。为了确保客户端其他形式的时间转换为正确的 Unix 时间戳，需要设置正确的时区。
 
-在 Linux 系统中，客户端会自动读取系统设置的时区信息。用户也可以采用多种方式在配置文件设置时区。例如：
+在 Linux/macOS 中，客户端会自动读取系统设置的时区信息。用户也可以采用多种方式在配置文件设置时区。例如：
 
 ```
 timezone UTC-8
@@ -248,9 +248,9 @@ SELECT count(*) FROM table_name WHERE TS<1554984068000;
 :::info
 TDengine 为存储中文、日文、韩文等非 ASCII 编码的宽字符，提供一种专门的字段类型 nchar。写入 nchar 字段的数据将统一采用 UCS4-LE 格式进行编码并发送到服务器。需要注意的是，编码正确性是客户端来保证。因此，如果用户想要正常使用 nchar 字段来存储诸如中文、日文、韩文等非 ASCII 字符，需要正确设置客户端的编码格式。
 
-客户端的输入的字符均采用操作系统当前默认的编码格式，在 Linux 系统上多为 UTF-8，部分中文系统编码则可能是 GB18030 或 GBK 等。在 docker 环境中默认的编码是 POSIX。在中文版 Windows 系统中，编码则是 CP936。客户端需要确保正确设置自己所使用的字符集，即客户端运行的操作系统当前编码字符集，才能保证 nchar 中的数据正确转换为 UCS4-LE 编码格式。
+客户端的输入的字符均采用操作系统当前默认的编码格式，在 Linux/macOS 系统上多为 UTF-8，部分中文系统编码则可能是 GB18030 或 GBK 等。在 docker 环境中默认的编码是 POSIX。在中文版 Windows 系统中，编码则是 CP936。客户端需要确保正确设置自己所使用的字符集，即客户端运行的操作系统当前编码字符集，才能保证 nchar 中的数据正确转换为 UCS4-LE 编码格式。
 
-在 Linux 中 locale 的命名规则为: <语言>\_<地区>.<字符集编码> 如：zh_CN.UTF-8，zh 代表中文，CN 代表大陆地区，UTF-8 表示字符集。字符集编码为客户端正确解析本地字符串提供编码转换的说明。Linux 系统与 Mac OSX 系统可以通过设置 locale 来确定系统的字符编码，由于 Windows 使用的 locale 中不是 POSIX 标准的 locale 格式，因此在 Windows 下需要采用另一个配置参数 charset 来指定字符编码。在 Linux 系统中也可以使用 charset 来指定字符编码。
+在 Linux/macOS 中 locale 的命名规则为: <语言>\_<地区>.<字符集编码> 如：zh_CN.UTF-8，zh 代表中文，CN 代表大陆地区，UTF-8 表示字符集。字符集编码为客户端正确解析本地字符串提供编码转换的说明。Linux/macOS 可以通过设置 locale 来确定系统的字符编码，由于 Windows 使用的 locale 中不是 POSIX 标准的 locale 格式，因此在 Windows 下需要采用另一个配置参数 charset 来指定字符编码。在 Linux/macOS 中也可以使用 charset 来指定字符编码。
 
 :::
 
@@ -263,9 +263,9 @@ TDengine 为存储中文、日文、韩文等非 ASCII 编码的宽字符，提�
 | 缺省值   | 系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过 API 设置 |
 
 :::info
-如果配置文件中不设置 charset，在 Linux 系统中，taos 在启动时候，自动读取系统当前的 locale 信息，并从 locale 信息中解析提取 charset 编码格式。如果自动读取 locale 信息失败，则尝试读取 charset 配置，如果读取 charset 配置也失败，则中断启动过程。
+如果配置文件中不设置 charset，在 Linux/macOS 中，taos 在启动时候，自动读取系统当前的 locale 信息，并从 locale 信息中解析提取 charset 编码格式。如果自动读取 locale 信息失败，则尝试读取 charset 配置，如果读取 charset 配置也失败，则中断启动过程。
 
-在 Linux 系统中，locale 信息包含了字符编码信息，因此正确设置了 Linux 系统 locale 以后可以不用再单独设置 charset。例如：
+在 Linux/macOS 中，locale 信息包含了字符编码信息，因此正确设置了 Linux/macOS 的 locale 以后可以不用再单独设置 charset。例如：
 
 ```
 locale zh_CN.UTF-8
@@ -279,7 +279,7 @@ charset CP936
 
 如果需要调整字符编码，请查阅当前操作系统使用的编码，并在配置文件中正确设置。
 
-在 Linux 系统中，如果用户同时设置了 locale 和字符集编码 charset，并且 locale 和 charset 的不一致，后设置的值将覆盖前面设置的值。
+在 Linux/macOS 中，如果用户同时设置了 locale 和字符集编码 charset，并且 locale 和 charset 的不一致，后设置的值将覆盖前面设置的值。
 
 ```
 locale zh_CN.UTF-8

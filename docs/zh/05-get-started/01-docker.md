@@ -46,7 +46,7 @@ taos>
 
 可以使用 TDengine 的自带工具 taosBenchmark 快速体验 TDengine 的写入速度。
 
-启动 TDengine 的服务，在 Linux 或 Windows 终端执行 `taosBenchmark`（曾命名为 `taosdemo`）：
+启动 TDengine 的服务，在终端执行 `taosBenchmark`（曾命名为 `taosdemo`）：
 
 ```bash
 $ taosBenchmark
