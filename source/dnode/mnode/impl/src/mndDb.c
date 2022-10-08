@@ -1052,7 +1052,7 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
       mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
       goto _OVER;
     }
-    (void)(pCommitRaw, SDB_STATUS_READY);
+    (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
   }
 
   int32_t rspLen = 0;
