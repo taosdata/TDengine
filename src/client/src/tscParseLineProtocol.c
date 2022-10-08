@@ -1980,6 +1980,7 @@ static int32_t parseSmlTimeStamp(TAOS_SML_KV **pTS, const char **idx, int32_t le
   if (len > 0) {
     value = calloc(len + 1, 1);
     memcpy(value, start, len);
+    len = strtrim(value);
   }
 
   ret = convertSmlTimeStamp(*pTS, value, len, info);
@@ -2677,7 +2678,7 @@ int32_t tscParseLines(char* data, int32_t len, char* lines[], int numLines, SArr
     int32_t lenTmp = 0;
     for(int i = 0; i < len; i++){
       if(data[i] == '\n' || i == len - 1){
-        if(data[i] != '\n' || i == len - 1){
+        if(data[i] != '\n' && i == len - 1){
           lenTmp ++;
         }
         if(lenTmp > 0) {
