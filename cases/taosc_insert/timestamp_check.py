@@ -85,14 +85,14 @@ class TestTimestamp(TDCase):
                 if tbname == f"{dbname}.tb":
                     self.tdSql.query(f'select col_ts from {tbname}')
                     if ts != "ns":
-                        self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), dt)
+                        self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), dt.replace(".000000", ""))
                     else:
                         self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), str(timestamp))
                 else:
                     self.tdSql.query(f'select col_ts, tag_ts from {tbname}')
                     if ts != "ns":
-                        self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), dt)
-                        self.tdSql.checkEqual(str(self.tdSql.query_data[0][1]), dt)
+                        self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), dt.replace(".000000", ""))
+                        self.tdSql.checkEqual(str(self.tdSql.query_data[0][1]), dt.replace(".000000", ""))
                     else:
                         self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), str(timestamp))
                         self.tdSql.checkEqual(str(self.tdSql.query_data[0][1]), str(timestamp))
