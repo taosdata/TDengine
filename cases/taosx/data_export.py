@@ -76,11 +76,11 @@ class DataExportTest(TDCase):
                     if source_task.lower() == '':
                         self.remote.cmd(self.taosx_setting['fqdn'][0],f"taosx run \
                                             -f 'taos{source_task}://root:taosdata@{self.source_taosd_list[source][0]}:{int(self.source_taosd_list[source][1])}/{self.dbname[source]}?query=select * from {self.stbname[source]}&timeout=5s'\
-                                            -t '{file_type}:{self.run_log_dir}/{self.stbname[source]}.{file_type}'")
+                                            -t '{file_type}:{self.run_log_dir}/{self.stbname[source]}.{file_type}' -y")
                     elif source_task.lower() == '+ws':
                         self.remote.cmd(self.taosx_setting['fqdn'][0],f"taosx run \
                                             -f 'taos{source_task}://root:taosdata@{self.source_taosd_list[source][0]}:{int(self.source_taosd_list[source][1])+11}/{self.dbname[source]}?query=select * from {self.stbname[source]}&timeout=5s'\
-                                            -t '{file_type}:{self.run_log_dir}/{self.stbname[source]}.{file_type}'")
+                                            -t '{file_type}:{self.run_log_dir}/{self.stbname[source]}.{file_type}' -y")
                     time.sleep(0.5)
                     if file_type.lower() == 'csv':
                         total = sum(1 for line in open(f"{self.run_log_dir}/{self.stbname[source]}.{file_type}")) - 1
@@ -94,18 +94,18 @@ class DataExportTest(TDCase):
             for file_type in ['csv','parquet']:
                 for source in range(len(self.source_taosd_list)):
                     taosd_master = taos.connect(host=self.source_taosd_list[source][0], port=int(self.source_taosd_list[source][1]))
-                    count_rows = taosd_master.query(f'select count(*) from {self.dbname[source]}.{self.tbname_m[source]}').fetch_all_into_dict()
+                    count_rows = taosd_master.query(f'select count(*) from {self.dbname[source]}.{self.tbname_m[source]}0').fetch_all_into_dict()
                     if source_task.lower() == '':
                         self.remote.cmd(self.taosx_setting['fqdn'][0],f"taosx run \
                                             -f 'taos{source_task}://root:taosdata@{self.source_taosd_list[source][0]}:{int(self.source_taosd_list[source][1])}/{self.dbname[source]}?query=select * from {self.tbname_m[source]}0&timeout=5s'\
-                                            -t '{file_type}:{self.run_log_dir}/{self.tbname_m[source]}0.{file_type}'")
+                                            -t '{file_type}:{self.run_log_dir}/{self.tbname_m[source]}0.{file_type}' -y")
                     elif source_task.lower() == '+ws':
                         self.remote.cmd(self.taosx_setting['fqdn'][0],f"taosx run \
                                             -f 'taos{source_task}://root:taosdata@{self.source_taosd_list[source][0]}:{int(self.source_taosd_list[source][1])+11}/{self.dbname[source]}?query=select * from {self.tbname_m[source]}0&timeout=5s'\
-                                            -t '{file_type}:{self.run_log_dir}/{self.tbname_m[source]}0.{file_type}'")
+                                            -t '{file_type}:{self.run_log_dir}/{self.tbname_m[source]}0.{file_type}' -y")
                     time.sleep(0.5)
                     if file_type.lower() == 'csv':
-                        total = sum(1 for line in open(f"{self.run_log_dir}/{self.tbname_m[source]}.{file_type}")) - 1
+                        total = sum(1 for line in open(f"{self.run_log_dir}/{self.tbname_m[source]}0.{file_type}")) - 1
                         self.tdSql.checkEqual(count_rows[0]['count(*)'],total)
                     elif file_type.lower() == 'parquet':
                         all_data = read_parquet(f'{self.run_log_dir}/{self.tbname_m[source]}0.{file_type}')
@@ -116,18 +116,18 @@ class DataExportTest(TDCase):
             for file_type in ['csv','parquet']:
                 for source in range(len(self.source_taosd_list)):
                     taosd_master = taos.connect(host=self.source_taosd_list[source][0], port=int(self.source_taosd_list[source][1]))
-                    count_rows = taosd_master.query(f'select count(*) from {self.ntb_dbname[source]}.{self.ntb_name_m[source]}').fetch_all_into_dict()
+                    count_rows = taosd_master.query(f'select count(*) from {self.ntb_dbname[source]}.{self.ntb_name_m[source]}0').fetch_all_into_dict()
                     if source_task.lower() == '':
                         self.remote.cmd(self.taosx_setting['fqdn'][0],f"taosx run \
-                                            -f 'taos{source_task}://root:taosdata@{self.source_taosd_list[source][0]}:{int(self.source_taosd_list[source][1])}/{self.dbname[source]}?query=select * from {self.ntb_name_m[source]}0&timeout=5s'\
-                                            -t '{file_type}:{self.run_log_dir}/{self.ntb_name_m[source]}0.{file_type}'")
+                                            -f 'taos{source_task}://root:taosdata@{self.source_taosd_list[source][0]}:{int(self.source_taosd_list[source][1])}/{self.ntb_dbname[source]}?query=select * from {self.ntb_name_m[source]}0&timeout=5s'\
+                                            -t '{file_type}:{self.run_log_dir}/{self.ntb_name_m[source]}0.{file_type}' -y")
                     elif source_task.lower() == '+ws':
                         self.remote.cmd(self.taosx_setting['fqdn'][0],f"taosx run \
-                                            -f 'taos{source_task}://root:taosdata@{self.source_taosd_list[source][0]}:{int(self.source_taosd_list[source][1])+11}/{self.dbname[source]}?query=select * from {self.ntb_name_m[source]}0&timeout=5s'\
-                                            -t '{file_type}:{self.run_log_dir}/{self.ntb_name_m[source]}0.{file_type}'")
+                                            -f 'taos{source_task}://root:taosdata@{self.source_taosd_list[source][0]}:{int(self.source_taosd_list[source][1])+11}/{self.ntb_dbname[source]}?query=select * from {self.ntb_name_m[source]}0&timeout=5s'\
+                                            -t '{file_type}:{self.run_log_dir}/{self.ntb_name_m[source]}0.{file_type}' -y")
                     time.sleep(0.5)
                     if file_type.lower() == 'csv':
-                        total = sum(1 for line in open(f"{self.run_log_dir}/{self.ntb_name_m[source]}.{file_type}")) - 1
+                        total = sum(1 for line in open(f"{self.run_log_dir}/{self.ntb_name_m[source]}0.{file_type}")) - 1
                         self.tdSql.checkEqual(count_rows[0]['count(*)'],total)
                     elif file_type.lower() == 'parquet':
                         all_data = read_parquet(f'{self.run_log_dir}/{self.ntb_name_m[source]}0.{file_type}')
