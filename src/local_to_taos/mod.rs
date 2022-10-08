@@ -69,7 +69,7 @@ async fn restore(
                     log::debug!("[{id}] current rows: {}", rows);
                     // taos.write_raw_data(data[0]).await?
                 }
-                _ => unreachable!()
+                _ => unreachable!(),
             },
             Err(err) => {
                 if err.kind() == std::io::ErrorKind::UnexpectedEof {
@@ -156,13 +156,16 @@ pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> 
     for topic in &config.topics {
         if let Some(target) = target_database.as_ref() {
             if !global_taos.database_exists(&target).await? {
+                log::info!(
+                    "target database not exist, create database `{target}` with the same parameter in the backup"
+                );
+                let mut sql = topic
+                    .database_sql
+                    .replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS");
                 if &topic.database != target {
-                    let sql = topic
-                        .database_sql
-                        .replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS")
-                        .replace(&format!("`{}`", topic.database), &format!("`{target}`"));
-                    global_taos.exec(sql).await?;
+                    sql = sql.replace(&format!("`{}`", topic.database), &format!("`{target}`"));
                 }
+                global_taos.exec(sql).await?;
             } else if !force {
                 anyhow::bail!(
                     "the database has already exists, please be sure to override it by force"
@@ -193,9 +196,15 @@ pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> 
             }
 
             if let Some(sql) = table.stable_sql.as_deref() {
-                taos.exec(sql.replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS")).await?;
+                taos.exec(sql.replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS"))
+                    .await?;
             }
-            taos.exec(table.table_sql.replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS")).await?;
+            taos.exec(
+                table
+                    .table_sql
+                    .replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS"),
+            )
+            .await?;
         }
 
         let mut dir_entry = tokio::fs::read_dir(path).await?;
