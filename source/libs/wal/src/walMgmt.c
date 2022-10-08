@@ -134,10 +134,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   pWal->writeHead.head.protoVer = WAL_PROTO_VER;
   pWal->writeHead.magic = WAL_MAGIC;
 
-  if (walLoadMeta(pWal) < 0) {
-    wError("vgId:%d, failed to load wal meta.", pWal->cfg.vgId);
-    goto _err;
-  }
+  (void)walLoadMeta(pWal);
 
   if (walCheckAndRepairMeta(pWal) < 0) {
     wError("vgId:%d cannot open wal since repair meta file failed", pWal->cfg.vgId);
