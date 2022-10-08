@@ -956,7 +956,7 @@ static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
         sdbRelease(pSdb, pStbRaw);
         return -1;
       }
-      (void)(pStbRaw, SDB_STATUS_DROPPED);
+      (void)sdbSetRawStatus(pStbRaw, SDB_STATUS_DROPPED);
     }
 
     sdbRelease(pSdb, pStb);
