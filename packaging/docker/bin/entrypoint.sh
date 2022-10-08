@@ -35,6 +35,9 @@ FIRST_EP_PORT=${TAOS_FIRST_EP#*:}
 SERVER_PORT=$(cat $CFG_FILE | grep -E -v "^#|^$" | grep serverPort | tail -n1 | sed -E 's/.*serverPort\s+//')
 SERVER_PORT=${SERVER_PORT:-6030}
 
+# parse dataDir from taos.cfg
+DATA_DIR=$(cat $CFG_FILE | grep -E -v "^#|^$" | grep dataDir | tail -n1 | sed -E 's/.*dataDir\s+//')
+
 # for other binaries like interpreters
 if echo $1 | grep -E "taosd$" - >/dev/null; then
     true # will run taosd
