@@ -468,12 +468,11 @@ static int32_t taosArrayPartition(SArray* pArray, int32_t i, int32_t j, __ext_co
   return i;
 }
 
-static void taosArrayQuicksortHelper(SArray* pArray, int32_t low, int32_t high, __ext_compar_fn_t fn,
-                                     const void* param) {
+static void taosArrayQuicksortImpl(SArray* pArray, int32_t low, int32_t high, __ext_compar_fn_t fn, const void* param) {
   if (low < high) {
     int32_t idx = taosArrayPartition(pArray, low, high, fn, param);
-    taosArrayQuicksortHelper(pArray, low, idx - 1, fn, param);
-    taosArrayQuicksortHelper(pArray, idx + 1, high, fn, param);
+    taosArrayQuicksortImpl(pArray, low, idx - 1, fn, param);
+    taosArrayQuicksortImpl(pArray, idx + 1, high, fn, param);
   }
 }
 
@@ -481,7 +480,7 @@ static void taosArrayQuickSort(SArray* pArray, __ext_compar_fn_t fn, const void*
   if (pArray->size <= 1) {
     return;
   }
-  taosArrayQuicksortHelper(pArray, 0, (int32_t)(taosArrayGetSize(pArray) - 1), fn, param);
+  taosArrayQuicksortImpl(pArray, 0, (int32_t)(taosArrayGetSize(pArray) - 1), fn, param);
 }
 
 static void taosArrayInsertSort(SArray* pArray, __ext_compar_fn_t fn, const void* param) {
