@@ -3046,7 +3046,10 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
           pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
         } else {
           code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, i, &pEntry);
-          ASSERT(code == 0);
+          if (code != 0) {
+              sError("failed to get log entry since %s. index:%lld", tstrerror(terrno), i);
+              return -1;
+           }
           ASSERT(pEntry != NULL);
         }
 

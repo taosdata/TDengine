@@ -62,6 +62,7 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal) {
 
   TdFilePtr pFile = taosOpenFile(fnameStr, TD_FILE_READ | TD_FILE_WRITE);
   if (pFile == NULL) {
+    wError("failed to open file due to %s. file:%s", strerror(errno), fnameStr);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
