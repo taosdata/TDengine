@@ -1353,8 +1353,8 @@ bool appendAfterSelect(TAOS * con, Command * cmd, char* sql, int32_t len) {
     bool fieldEnd = fieldsInputEnd(p);
     // cheeck fields input end then insert from keyword
     if (fieldEnd && p[len-1] == ' ') {
-      shellInsertChar(cmd, "from", 4);
-      taosMemoryFree(p);
+      insertChar(cmd, "from", 4);
+      free(p);
       return true;
     }
 
@@ -1366,7 +1366,7 @@ bool appendAfterSelect(TAOS * con, Command * cmd, char* sql, int32_t len) {
       ret = fillWithType(con, cmd, last, WT_VAR_FUNC);
     }
     
-    taosMemoryFree(p);
+    free(p);
     return ret;
   }
 
@@ -1379,7 +1379,7 @@ bool appendAfterSelect(TAOS * con, Command * cmd, char* sql, int32_t len) {
     ret = fillWithType(con, cmd, last, WT_VAR_KEYWORD);
   }
 
-  taosMemoryFree(p);
+  free(p);
   return ret;
 }
 
@@ -1446,7 +1446,7 @@ bool matchSelectQuery(TAOS * con, Command * cmd) {
   // search
   char* sql_cp = strndup(p, len);
   int32_t n = searchAfterSelect(sql_cp, len);
-  taosMemoryFree(sql_cp);
+  free(sql_cp);
   if(n == -1 || n > len)
     return false;
   p   += n;
@@ -1540,7 +1540,7 @@ bool matchOther(TAOS * con, Command * cmd) {
   if (p[len - 1] == '\\') {
     // append '\G'
     char a[] = "G;";
-    shellInsertChar(cmd, a, 2);
+    insertChar(cmd, a, 2);
     return true;
   }
 
@@ -1554,7 +1554,7 @@ bool matchOther(TAOS * con, Command * cmd) {
 
   if (strcmp(last, "from(") == 0) {
     fillWithType(con, cmd, "", WT_VAR_KEYSELECT);
-    taosMemoryFree(sql);
+    free(sql);
     return true;
   }
   if (strncmp(last, "(", 1) == 0) {
@@ -1597,12 +1597,12 @@ bool matchOther(TAOS * con, Command * cmd) {
 
     if (found) {
       fillWithType(con, cmd, last, WT_VAR_KEYSELECT);
-      taosMemoryFree(sql);
+      free(sql);
       return true;
     }
   }
 
-  taosMemoryFree(sql);    
+  free(sql);    
   return false;
 }
 
@@ -1712,7 +1712,7 @@ bool dealUseDB(char * sql) {
   }
 
   // switch new db
-  taosThreadMutexLock(&tiresMutex);
+  pthread_mutex_lock(&tiresMutex);
   // STABLE set null
   STire* tire = tires[WT_VAR_STABLE];
   tires[WT_VAR_STABLE] = NULL;
@@ -1727,7 +1727,7 @@ bool dealUseDB(char * sql) {
   }
   // save
   strcpy(dbName, db);
-  taosThreadMutexUnlock(&tiresMutex);
+  pthread_mutex_unlock(&tiresMutex);
 
   return true;
 }
