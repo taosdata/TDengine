@@ -66,7 +66,8 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
   switch (nodeType(*pNode)) {
     case QUERY_NODE_OPERATOR:
     case QUERY_NODE_LOGIC_CONDITION:
-    case QUERY_NODE_FUNCTION: {
+    case QUERY_NODE_FUNCTION:
+    case QUERY_NODE_CASE_WHEN: {
       SRewriteExprCxt* pCxt = (SRewriteExprCxt*)pContext;
       SNode*           pExpr;
       int32_t          index = 0;

@@ -131,7 +131,7 @@ static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
   COPY_SCALAR_FIELD(placeholderNo);
   COPY_SCALAR_FIELD(typeData);
   COPY_SCALAR_FIELD(unit);
-  if (!pSrc->translate) {
+  if (!pSrc->translate || pSrc->isNull) {
     return TSDB_CODE_SUCCESS;
   }
   switch (pSrc->node.resType.type) {

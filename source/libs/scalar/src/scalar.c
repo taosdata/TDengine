@@ -612,7 +612,7 @@ int32_t sclWalkCaseWhenList(SScalarCtx *ctx, SNodeList* pList, struct SListCell*
 
   colDataAppend(output->columnData, rowIdx, NULL, true);
 
-  if (0 == rowIdx && totalRows > 1) {
+  if (0 == rowIdx && 1 == pCase->numOfRows && totalRows > 1) {
     SCL_ERR_JRET(sclExtendResRows(output, output, ctx->pBlockList));
     *complete = true;
   }
@@ -625,7 +625,8 @@ _return:
   SCL_RET(code);
 }
 
-int32_t sclWalkWhenList(SScalarCtx *ctx, SNodeList* pList, struct SListCell* pCell, SScalarParam *pElse, SScalarParam *output, int32_t rowIdx, int32_t totalRows, bool *complete) {
+int32_t sclWalkWhenList(SScalarCtx *ctx, SNodeList* pList, struct SListCell* pCell, SScalarParam *pElse, SScalarParam *output, 
+                             int32_t rowIdx, int32_t totalRows, bool *complete, bool preSingle) {
   SNode *node = NULL;
   SWhenThenNode* pWhenThen = NULL;
   SScalarParam *pWhen = NULL;
@@ -645,7 +646,7 @@ int32_t sclWalkWhenList(SScalarCtx *ctx, SNodeList* pList, struct SListCell* pCe
     if (*whenValue) {
       colDataAppend(output->columnData, rowIdx, colDataGetData(pThen->columnData, (pThen->numOfRows > 1 ? rowIdx : 0)), colDataIsNull_s(pThen->columnData, (pThen->numOfRows > 1 ? rowIdx : 0)));
 
-      if (0 == rowIdx && 1 == pWhen->numOfRows && 1 == pThen->numOfRows && totalRows > 1) {
+      if (preSingle && 0 == rowIdx && 1 == pWhen->numOfRows && 1 == pThen->numOfRows && totalRows > 1) {
         SCL_ERR_JRET(sclExtendResRows(output, output, ctx->pBlockList));
         *complete = true;
       }
@@ -660,7 +661,7 @@ int32_t sclWalkWhenList(SScalarCtx *ctx, SNodeList* pList, struct SListCell* pCe
   if (pElse) {
     colDataAppend(output->columnData, rowIdx, colDataGetData(pElse->columnData, (pElse->numOfRows > 1 ? rowIdx : 0)), colDataIsNull_s(pElse->columnData, (pElse->numOfRows > 1 ? rowIdx : 0)));
 
-    if (0 == rowIdx && 1 == pElse->numOfRows && totalRows > 1) {
+    if (preSingle && 0 == rowIdx && 1 == pElse->numOfRows && totalRows > 1) {
       SCL_ERR_JRET(sclExtendResRows(output, output, ctx->pBlockList));
       *complete = true;
     }
@@ -670,7 +671,7 @@ int32_t sclWalkWhenList(SScalarCtx *ctx, SNodeList* pList, struct SListCell* pCe
 
   colDataAppend(output->columnData, rowIdx, NULL, true);
 
-  if (0 == rowIdx && totalRows > 1) {
+  if (preSingle && 0 == rowIdx && totalRows > 1) {
     SCL_ERR_JRET(sclExtendResRows(output, output, ctx->pBlockList));
     *complete = true;
   }
@@ -905,7 +906,7 @@ int32_t sclExecCaseWhen(SCaseWhenNode *node, SScalarCtx *ctx, SScalarParam *outp
           break;
         }
       } else {
-        SCL_ERR_JRET(sclWalkWhenList(ctx, node->pWhenThenList, node->pWhenThenList->pHead->pNext, pElse, output, i, rowNum, &complete));
+        SCL_ERR_JRET(sclWalkWhenList(ctx, node->pWhenThenList, node->pWhenThenList->pHead->pNext, pElse, output, i, rowNum, &complete, (pWhen->numOfRows == 1 && pThen->numOfRows == 1)));
         if (complete) {
           break;
         }
