@@ -10,11 +10,11 @@ import PkgListV3 from "/components/PkgListV3";
 
 您可以[用 Docker 立即体验](../../get-started/docker/) TDengine。如果您希望对 TDengine 贡献代码或对内部实现感兴趣，请参考我们的 [TDengine GitHub 主页](https://github.com/taosdata/TDengine) 下载源码构建和安装.
 
-TDengine 完整的软件包包括服务端（taosd）、应用驱动（taosc）、用于与第三方系统对接并提供 RESTful 接口的 taosAdapter、命令行程序（CLI，taos）和一些工具软件。目前 taosAdapter 仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。TDengine 除了提供多种语言的连接器之外，还通过 [taosAdapter](../../reference/taosadapter/) 提供 [RESTful 接口](../../connector/rest-api/)。
+TDengine 完整的软件包包括服务端（taosd）、应用驱动（taosc）、用于与第三方系统对接并提供 RESTful 接口的 taosAdapter、命令行程序（CLI，taos）和一些工具软件。目前 taosdump、TDinsight 仅在 Linux 系统上安装和运行，后续将支持 Windows、MacOS 等系统。TDengine 除了提供多种语言的连接器之外，还通过 [taosAdapter](../../reference/taosadapter/) 提供 [RESTful 接口](../../connector/rest-api/)。
 
 为方便使用，标准的服务端安装包包含了 taosd、taosAdapter、taosc、taos、taosdump、taosBenchmark、TDinsight 安装脚本和示例代码；如果您只需要用到服务端程序和客户端连接的 C/C++ 语言支持，也可以仅下载 Lite 版本的安装包。
 
-在 Linux 系统上，TDengine 社区版提供 Deb 和 RPM 格式安装包，用户可以根据自己的运行环境选择合适的安装包。其中 Deb 支持 Debian/Ubuntu 及其衍生系统，RPM 支持 CentOS/RHEL/SUSE 及其衍生系统。同时我们也为企业用户提供 tar.gz 格式安装包，也支持通过 `apt-get` 工具从线上进行安装。需要注意的是，RPM 和 Deb 包不含 `taosdump` 和 TDinsight 安装脚本，这些工具需要通过安装 taosTool 包获得。TDengine 也提供 Windows x64 平台的安装包。
+在 Linux 系统上，TDengine 社区版提供 Deb 和 RPM 格式安装包，用户可以根据自己的运行环境选择合适的安装包。其中 Deb 支持 Debian/Ubuntu 及其衍生系统，RPM 支持 CentOS/RHEL/SUSE 及其衍生系统。同时我们也为企业用户提供 tar.gz 格式安装包，也支持通过 `apt-get` 工具从线上进行安装。需要注意的是，RPM 和 Deb 包不含 `taosdump` 和 TDinsight 安装脚本，这些工具需要通过安装 taosTool 包获得。TDengine 也提供 Windows x64 平台和 MacOS x64/m1 平台的安装包。
 
 ## 安装
 
@@ -111,7 +111,7 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统。
 2. 运行可执行程序来安装 TDengine。
 
 </TabItem>
-<TabItem label="Mac 安装" value="macos">
+<TabItem label="MacOS 安装" value="macos">
 
 1. 从列表中下载获得 pkg 安装程序；
    <PkgListV3 type={7}/>
@@ -186,16 +186,31 @@ Active: inactive (dead)
 
 </TabItem>
 
-<TabItem label="Mac 系统" value="macos">
+<TabItem label="MacOS 系统" value="macos">
 
-安装后，在应用程序目录下，双击 TDengine 来启动程序，也可以运行 `launchctl start taosd` 来启动 TDengine 服务进程。
+安装后，在应用程序目录下，双击 TDengine 图标来启动程序，也可以运行 `launchctl start taosd` 来启动 TDengine 服务进程。
+
+如下 `launchctl` 命令可以帮助你管理 TDengine 服务：
+
+- 启动服务进程：`launchctl start taosd`
+
+- 停止服务进程：`launchctl stop taosd`
+
+- 查看服务状态：`launchctl list | grep taosd`
+
+:::info
+
+- `launchctl` 命令不需要管理员权限，请不要在前面加 `sudo`。
+- `launchctl list | grep taosd` 指令返回的第一个内容是程序的 PID，若为 `-` 则说明 TDengine 服务未运行。
+
+:::
 
 </TabItem>
 </Tabs>
 
 ## TDengine 命令行（CLI）
 
-为便于检查 TDengine 的状态，执行数据库（Database）的各种即席（Ad Hoc）查询，TDengine 提供一命令行应用程序（以下简称为 TDengine CLI）taos。要进入 TDengine 命令行，您只要在安装有 TDengine 的 Linux 终端执行 `taos` 即可，也可以在安装有 TDengine 的 Windows 终端的 C:\TDengine 目录下，运行 taos.exe 来启动 TDengine 命令行。
+为便于检查 TDengine 的状态，执行数据库（Database）的各种即席（Ad Hoc）查询，TDengine 提供一命令行应用程序（以下简称为 TDengine CLI）taos。要进入 TDengine 命令行，您只要在安装有 TDengine 的 Linux、MacOS 终端执行 `taos` 即可，也可以在安装有 TDengine 的 Windows 终端的 C:\TDengine 目录下，运行 taos.exe 来启动 TDengine 命令行。
 
 ```bash
 taos
@@ -225,13 +240,13 @@ SELECT * FROM t;
 Query OK, 2 row(s) in set (0.003128s)
 ```
 
-除执行 SQL 语句外，系统管理员还可以从 TDengine CLI 进行检查系统运行状态、添加删除用户账号等操作。TDengine CLI 连同应用驱动也可以独立安装在 Linux 或 Windows 机器上运行，更多细节请参考 [TDengine 命令行](../../reference/taos-shell/)。
+除执行 SQL 语句外，系统管理员还可以从 TDengine CLI 进行检查系统运行状态、添加删除用户账号等操作。TDengine CLI 连同应用驱动也可以独立安装在机器上运行，更多细节请参考 [TDengine 命令行](../../reference/taos-shell/)。
 
 ## 使用 taosBenchmark 体验写入速度
 
 可以使用 TDengine 的自带工具 taosBenchmark 快速体验 TDengine 的写入速度。
 
-启动 TDengine 的服务，在 Linux 或 Windows 终端执行 `taosBenchmark`（曾命名为 `taosdemo`）：
+启动 TDengine 服务，然后在终端执行 `taosBenchmark`（曾命名为 `taosdemo`）：
 
 ```bash
 $ taosBenchmark
