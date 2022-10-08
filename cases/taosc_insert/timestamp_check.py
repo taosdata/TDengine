@@ -248,12 +248,12 @@ class TestTimestamp(TDCase):
                 self.tdSql.error(error_sql)
 
     def run(self) -> bool:
-        # self.ms_us_ns_db_check()
-        # self.h_m_s_check()
+        self.ms_us_ns_db_check()
+        self.h_m_s_check()
         self.human_date_check()
-        # self.now_check()
-        # self.epoch_check()
-        # self.error_check()
+        self.now_check()
+        self.epoch_check()
+        self.error_check()
 
     def cleanup(self):
         pass
