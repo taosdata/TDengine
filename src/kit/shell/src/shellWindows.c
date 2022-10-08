@@ -21,7 +21,7 @@
 
 extern char configDir[];
 
-char      WINCLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
+char      WINCLIENT_VERSION[] = "Welcome to the TDengine Command Line Interface from %s, Client Version:%s\n"
                              "Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.\n\n";
 
 void printVersion() {
@@ -30,7 +30,7 @@ void printVersion() {
 
 void printHelp() {
   char indent[10] = "        ";
-  printf("taos shell is used to test the TDengine database\n");
+  printf("TDengine Command Line is used to test the TDengine database\n");
 
   printf("%s%s\n", indent, "-h");
   printf("%s%s%s\n", indent, indent, "TDengine server FQDN to connect. The default host is localhost.");

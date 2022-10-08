@@ -251,6 +251,9 @@ char * key_tags[] = {
   "tags("
 };
 
+char * key_select[] = {
+  "select "
+};
 
 //
 //  ------- gobal variant define ---------
@@ -278,7 +281,8 @@ bool    waitAutoFill    = false;
 #define WT_VAR_DATATYPE 10
 #define WT_VAR_KEYTAGS  11
 #define WT_VAR_ANYWORD  12
-#define WT_VAR_CNT      13
+#define WT_VAR_KEYSELECT 13
+#define WT_VAR_CNT      14
 
 #define WT_FROM_DB_MAX  4  // max get content from db
 #define WT_FROM_DB_CNT  (WT_FROM_DB_MAX + 1)
@@ -305,7 +309,8 @@ char varTypes[WT_VAR_CNT][64] = {
   "<db_options>",
   "<data_types>",
   "<key_tags>",
-  "<anyword>"
+  "<anyword>",
+  "<key_select>"
 };
 
 char varSqls[WT_FROM_DB_CNT][64] = {
@@ -330,9 +335,10 @@ int      cntDel    = 0;   // delete byte count after next press tab
 
 // show auto tab introduction
 void printfIntroduction() {
-  printf("   *********************  How to Use TAB in TAOS Shell ******************************\n"); 
-  printf("   *   Taos shell supports pressing TAB key to complete word. You can try it.       *\n"); 
-  printf("   *   Press TAB key anywhere, You'll get surprise.                                 *\n");
+  printf("   ****************************  How To Use TAB Key  ********************************\n"); 
+  printf("   *   TDengine Command Line supports pressing TAB key to complete word,            *\n"); 
+  printf("   *   including database name, table name, function name and keywords.             *\n");
+  printf("   *   Press TAB key anywhere, you'll get surprise.                                 *\n");
   printf("   *   KEYBOARD SHORTCUT:                                                           *\n");
   printf("   *    [ TAB ]        ......  Complete the word or show help if no input           *\n");
   printf("   *    [ Ctrl + A ]   ......  move cursor to [A]head of line                       *\n");
@@ -346,7 +352,7 @@ void printfIntroduction() {
 }
 
 void showHelp() {
-  printf("\nThe following are supported commands for Taos shell:");
+  printf("\nThe following are supported commands for TDengine Command Line:");
   printf("\n\
   ----- A ----- \n\
     alter database <db_name> <db_options> \n\
@@ -586,6 +592,7 @@ bool shellAutoInit() {
   GenerateVarType(WT_VAR_TBACTION, tb_actions, sizeof(tb_actions) /sizeof(char *));
   GenerateVarType(WT_VAR_DATATYPE, data_types, sizeof(data_types) /sizeof(char *));
   GenerateVarType(WT_VAR_KEYTAGS,  key_tags,   sizeof(key_tags)   /sizeof(char *));
+  GenerateVarType(WT_VAR_KEYSELECT,key_select, sizeof(key_select) /sizeof(char *));
 
   printfIntroduction();
 
@@ -1242,7 +1249,7 @@ char * lastWord(char * p) {
   char * p2 = strrchr(p, ',');
 
   if (p1 && p2) {
-    return MAX(p1, p2) + 1;
+    return p1 > p2 ? p1 : p2 + 1;
   } else if (p1) {
     return p1 + 1;
   } else if(p2) {
@@ -1325,6 +1332,95 @@ bool needInsertFrom(char * sql, int len) {
   return true;
 }
 
+// p is string following select keyword
+bool appendAfterSelect(TAOS * con, Command * cmd, char* sql, int32_t len) {
+  char* p = strndup(sql, len);
+
+  // union all
+  char * p1;
+  do {
+    p1 = strstr(p, UNION_ALL);
+    if(p1) {
+      p = p1 + strlen(UNION_ALL);
+    }
+  } while (p1);
+
+  char * from = strstr(p, " from ");
+  //last word , maybe empty string or some letters of a string
+  char * last = lastWord(p);
+  bool ret = false;
+  if (from == NULL) {
+    bool fieldEnd = fieldsInputEnd(p);
+    // cheeck fields input end then insert from keyword
+    if (fieldEnd && p[len-1] == ' ') {
+      shellInsertChar(cmd, "from", 4);
+      taosMemoryFree(p);
+      return true;
+    }
+
+    // fill funciton
+    if(fieldEnd) {
+      // fields is end , need match keyword
+      ret = fillWithType(con, cmd, last, WT_VAR_KEYWORD);
+    } else {
+      ret = fillWithType(con, cmd, last, WT_VAR_FUNC);
+    }
+    
+    taosMemoryFree(p);
+    return ret;
+  }
+
+  // have from
+  char * blank = strstr(from + 6, " ");
+  if (blank == NULL) {
+    // no table name, need fill
+    ret = fillTableName(con, cmd, last);
+  } else {
+    ret = fillWithType(con, cmd, last, WT_VAR_KEYWORD);
+  }
+
+  taosMemoryFree(p);
+  return ret;
+}
+
+int32_t searchAfterSelect(char* p, int32_t len) {
+  // select * from st;
+  if(strncasecmp(p, "select ", 7) == 0) {
+    // check nest query
+    char *p1 = p + 7;
+    while(1) {
+      char *p2 = strstr(p1, "select ");
+      if(p2 == NULL)
+        break;
+      p1 = p2 + 7;
+    }
+
+    return p1 - p;
+  }
+
+  // explain as select * from st;
+  if(strncasecmp(p, "explain select ", 15) == 0) {
+    return 15;
+  }
+
+  char* as_pos_end = strstr(p, " as select ");
+  if (as_pos_end == NULL)
+    return -1;
+  as_pos_end += 11;
+
+  // create stream <stream_name> as select
+  if(strncasecmp(p, "create stream ", 14) == 0) {
+    return as_pos_end - p;;
+  }
+
+  // create topic <topic_name> as select
+  if(strncasecmp(p, "create topic ", 13) == 0) {
+    return as_pos_end - p;
+  }
+
+  return -1;
+}
+
 bool matchSelectQuery(TAOS * con, Command * cmd) {
   // if continue press Tab , delete bytes by previous autofill
   if (cntDel > 0) {
@@ -1347,61 +1443,17 @@ bool matchSelectQuery(TAOS * con, Command * cmd) {
     return false;
   }
 
-  // select and from 
-  if(strncasecmp(p, "select ", 7) != 0) {
-    // not select query clause
+  // search
+  char* sql_cp = strndup(p, len);
+  int32_t n = searchAfterSelect(sql_cp, len);
+  taosMemoryFree(sql_cp);
+  if(n == -1 || n > len)
     return false;
-  }
-  p += 7;
-  len -= 7;
+  p   += n;
+  len -= n;
 
-  char* ps = p = strndup(p, len);
-
-  // union all
-  char * p1;
-  do {
-    p1 = strstr(p, UNION_ALL);
-    if(p1) {
-      p = p1 + strlen(UNION_ALL);
-    }
-  } while (p1);
-
-  char * from = strstr(p, " from ");
-  //last word , maybe empty string or some letters of a string
-  char * last = lastWord(p);
-  bool ret = false;
-  if (from == NULL) {
-    bool fieldEnd = fieldsInputEnd(p);
-    // cheeck fields input end then insert from keyword
-    if (fieldEnd && p[len-1] == ' ') {
-      insertChar(cmd, "from", 4);
-      free(ps);
-      return true;
-    }
-
-    // fill funciton
-    if(fieldEnd) {
-      // fields is end , need match keyword
-      ret = fillWithType(con, cmd, last, WT_VAR_KEYWORD);
-    } else {
-      ret = fillWithType(con, cmd, last, WT_VAR_FUNC);
-    }
-    
-    free(ps);
-    return ret;
-  }
-
-  // have from
-  char * blank = strstr(from + 6, " ");
-  if (blank == NULL) {
-    // no table name, need fill
-    ret = fillTableName(con, cmd, last);
-  } else {
-    ret = fillWithType(con, cmd, last, WT_VAR_KEYWORD);
-  }
-
-  free(ps);
-  return ret;
+  // append
+  return appendAfterSelect(con, cmd, p, len);
 }
 
 // if is input create fields or tags area, return true
@@ -1484,17 +1536,75 @@ bool matchCreateTable(TAOS * con, Command * cmd) {
 bool matchOther(TAOS * con, Command * cmd) {
   int len = cmd->commandSize;
   char* p = cmd->command;
-
+  // '\\'
   if (p[len - 1] == '\\') {
     // append '\G'
     char a[] = "G;";
-    insertChar(cmd, a, 2);
+    shellInsertChar(cmd, a, 2);
     return true;
   }
-  
+
+  // too small
+  if(len < 8)
+    return false;
+
+  // like 'from ( '
+  char* sql = strndup(p, len);
+  char* last = lastWord(sql);
+
+  if (strcmp(last, "from(") == 0) {
+    fillWithType(con, cmd, "", WT_VAR_KEYSELECT);
+    taosMemoryFree(sql);
+    return true;
+  }
+  if (strncmp(last, "(", 1) == 0) {
+    last += 1; 
+  }
+
+  char* from = strstr(sql, " from");
+  // find last ' from'
+  while (from) {
+    char* p1 = strstr(from + 5, " from");
+    if (p1 == NULL)
+      break;
+    from = p1;
+  }
+
+  if (from) {
+    // find next is '('
+    char * p2 = from + 5;
+    bool found  = false; // found 'from ... ( ...'  ... is any count of blank
+    bool found1 = false; // found '('
+    while (1) {
+      if ( p2 == last || *p2 == '\0') {
+        // last word or string end
+        if (found1) {
+          found = true;
+        }
+        break;
+      } else if(*p2 == '(') {
+        found1 = true;
+      } else if(*p2 == ' ') {
+        // do nothing
+      } else {
+        // have any other char
+        break;
+      }
+
+      // move next
+      p2++;
+    }
+
+    if (found) {
+      fillWithType(con, cmd, last, WT_VAR_KEYSELECT);
+      taosMemoryFree(sql);
+      return true;
+    }
+  }
+
+  taosMemoryFree(sql);    
   return false;
 }
-
 
 // main key press tab
 void pressTabKey(TAOS * con, Command * cmd) {
@@ -1602,7 +1712,7 @@ bool dealUseDB(char * sql) {
   }
 
   // switch new db
-  pthread_mutex_lock(&tiresMutex);
+  taosThreadMutexLock(&tiresMutex);
   // STABLE set null
   STire* tire = tires[WT_VAR_STABLE];
   tires[WT_VAR_STABLE] = NULL;
@@ -1617,7 +1727,7 @@ bool dealUseDB(char * sql) {
   }
   // save
   strcpy(dbName, db);
-  pthread_mutex_unlock(&tiresMutex);
+  taosThreadMutexUnlock(&tiresMutex);
 
   return true;
 }
