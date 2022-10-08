@@ -4,9 +4,9 @@ title: 特色查询
 description: TDengine 提供的时序数据特有的查询功能
 ---
 
-TDengine 是专为时序数据而研发的大数据平台，存储和计算都针对时序数据的特定进行了量身定制，在支持标准 SQL 的基础之上，还提供了一系列贴合时序业务场景的特色查询语法，极大的方便时序场景的应用开发。
+TDengine 在支持标准 SQL 的基础之上，还提供了一系列满足时序业务场景需求的特色查询语法，这些语法能够为时序场景的应用的开发带来极大的便利。
 
-TDengine 提供的特色查询包括数据切分查询和窗口切分查询。
+TDengine 提供的特色查询包括数据切分查询和时间窗口切分查询。
 
 ## 数据切分查询
 
@@ -31,7 +31,7 @@ select max(current) from meters partition by location interval(10m)
 
 ## 窗口切分查询
 
-TDengine 支持按时间段窗口切分方式进行聚合结果查询，比如温度传感器每秒采集一次数据，但需查询每隔 10 分钟的温度平均值。这种场景下可以使用窗口子句来获得需要的查询结果。窗口子句用于针对查询的数据集合按照窗口切分成为查询子集并进行聚合，窗口包含时间窗口（time window）、状态窗口（status window）、会话窗口（session window）三种窗口。其中时间窗口又可划分为滑动时间窗口和翻转时间窗口。窗口切分查询语法如下：
+TDengine 支持按时间窗口切分方式进行聚合结果查询，比如温度传感器每秒采集一次数据，但需查询每隔 10 分钟的温度平均值。这种场景下可以使用窗口子句来获得需要的查询结果。窗口子句用于针对查询的数据集合按照窗口切分成为查询子集并进行聚合，窗口包含时间窗口（time window）、状态窗口（status window）、会话窗口（session window）三种窗口。其中时间窗口又可划分为滑动时间窗口和翻转时间窗口。窗口切分查询语法如下：
 
 ```sql
 SELECT select_list FROM tb_name
@@ -132,6 +132,10 @@ SELECT * FROM (SELECT COUNT(*) AS cnt, FIRST(ts) AS fst, status FROM temp_tb_1 S
 SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val);
 ```
 
+### 时间戳伪列
+
+窗口聚合查询结果中，如果 SQL 语句中没有指定输出查询结果中的时间戳列，那么最终结果中不会自动包含窗口的时间列信息。如果需要在结果中输出聚合结果所对应的时间窗口信息，需要在 SELECT 子句中使用时间戳相关的伪列: 时间窗口起始时间 (_WSTART), 时间窗口结束时间 (_WEND), 时间窗口持续时间 (_WDURATION), 以及查询整体窗口相关的伪列: 查询窗口起始时间(_QSTART) 和查询窗口结束时间(_QEND)。需要注意的是时间窗口起始时间和结束时间均是闭区间，时间窗口持续时间是数据当前时间分辨率下的数值。例如，如果当前数据库的时间分辨率是毫秒，那么结果中 500 就表示当前时间窗口是 500毫秒 (500 ms)。
+
 ### 示例
 
 智能电表的建表语句如下：
@@ -143,8 +147,10 @@ CREATE TABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS
 针对智能电表采集的数据，以 10 分钟为一个阶段，计算过去 24 小时的电流数据的平均值、最大值、电流的中位数。如果没有计算值，用前一个非 NULL 值填充。使用的查询语句如下：
 
 ```
-SELECT AVG(current), MAX(current), APERCENTILE(current, 50) FROM meters
+SELECT _WSTART, _WEND, AVG(current), MAX(current), APERCENTILE(current, 50) FROM meters
   WHERE ts>=NOW-1d and ts<=now
   INTERVAL(10m)
   FILL(PREV);
 ```
+
+
