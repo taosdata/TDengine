@@ -12,7 +12,7 @@ TDengine 命令行程序（以下简称 TDengine CLI）是用户操作 TDengine 
 
 ## 执行
 
-要进入 TDengine CLI，您只要在 Linux 终端或 Windows 终端执行 `taos` 即可。
+要进入 TDengine CLI，您只要在终端执行 `taos` 即可。
 
 ```bash
 taos
