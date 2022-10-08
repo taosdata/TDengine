@@ -90,7 +90,6 @@ SWords shellCommands[] = {
   {"create function ", 0, 0, NULL},
   {"create user <anyword> pass <anyword> sysinfo 0;", 0, 0, NULL},
   {"create user <anyword> pass <anyword> sysinfo 1;", 0, 0, NULL},
-  {"compact vnode in", 0, 0, NULL},
   {"describe <all_table>", 0, 0, NULL},
   {"delete from <all_table> where ", 0, 0, NULL},
   {"drop database <db_name>", 0, 0, NULL},
@@ -459,74 +458,116 @@ void printfIntroduction() {
 }
 
 void showHelp() {
-  printf("\nThe following are supported commands for Taos shell:");
+  printf("\nThe following are supported commands for TDengine Command Line:");
   printf("\n\
   ----- A ----- \n\
     alter database <db_name> <db_options> \n\
     alter dnode <dnode_id> balance \n\
     alter dnode <dnode_id> resetlog;\n\
-    alter dnode <dnode_id> DebugFlag 143;\n\
-    alter dnode <dnode_id> monitor 1;\n\
-    alter table <tb_name> ADD COLUMN <field_name> <data_type>; \n\
-    alter table <tb_name> DROP COLUMN <field_name>; \n\
-    alter table <tb_name> MODIFY COLUMN <field_name> <data_type(length)>;\n\
-    alter local resetlog; \n\
-    alter local DebugFlag 143; \n\
-    alter topic <topic_name>\n\
-    alter user <user_name> pass\n\
-    alter user <user_name> privilege read ;\n\
-    alter user <user_name> privilege write ;\n\
+    alter all dnodes monitor \n\
+    alter alldnodes balance \n\
+    alter alldnodes resetlog;\n\
+    alter alldnodes debugFlag \n\
+    alter alldnodes monitor \n\
+    alter table <tb_name> <tb_actions> ;\n\
+    alter table modify column\n\
+    alter local resetlog;\n\
+    alter local DebugFlag 143;\n\
+    alter topic\n\
+    alter user <user_name> <user_actions> ...\n\
   ----- C ----- \n\
     create table <tb_name> using <stb_name> tags ...\n\
-    create database <db_name>;\n\
-    create table <anyword> as ...\n\
-    create dnode <dnode_id>\n\
-    create topic <top_name>\n\
-    create function <function_name>\n\
-    create user <user_name> pass <password>;\n\
-    compact vnode in (vgid,vgid,vgid);\n\
+    create database <db_name> <db_options>  ...\n\
+    create dnode ...\n\
+    create index ...\n\
+    create mnode on dnode <dnode_id> ;\n\
+    create qnode on dnode <dnode_id> ;\n\
+    create stream <stream_name> into <stb_name> as select ...\n\
+    create topic <topic_name> as select ...\n\
+    create function ...\n\
+    create user <user_name> pass <password> ...\n\
   ----- D ----- \n\
-    describe <all_table> ;\n\
-    delete from <all_table> where ... \n\
+    describe <all_table>\n\
+    delete from <all_table> where ...\n\
     drop database <db_name>;\n\
     drop table <all_table>;\n\
     drop dnode <dnode_id>;\n\
-    drop function <function_id>;\n\
-    drop topic <topic_id>;\n\
-    drop user <user_name>;\n\
+    drop mnode on dnode <dnode_id> ;\n\
+    drop qnode on dnode <dnode_id> ;\n\
+    drop user <user_name> ;\n\
+    drop function <function_name>;\n\
+    drop consumer group ... \n\
+    drop topic <topic_name> ;\n\
+    drop stream <stream_name> ;\n\
+  ----- E ----- \n\
+    explain select clause ...\n\
+  ----- I ----- \n\
+    insert into <tb_name> values(...) ;\n\
+    insert into <tb_name> using <stb_name> tags(...) values(...) ;\n\
+  ----- G ----- \n\
+    grant all   on <priv_level> to <user_name> ;\n\
+    grant read  on <priv_level> to <user_name> ;\n\
+    grant write on <priv_level> to <user_name> ;\n\
   ----- K ----- \n\
     kill connection <connection_id>; \n\
     kill query <query_id>; \n\
-    kill stream <stream_id>; \n\
+    kill transaction <transaction_id>;\n\
+  ----- M ----- \n\
+    merge vgroup ...\n\
+  ----- R ----- \n\
+    reset query cache;\n\
+    revoke all   on <priv_level> from <user_name> ;\n\
+    revoke read  on <priv_level> from <user_name> ;\n\
+    revoke write on <priv_level> from <user_name> ;\n\
   ----- S ----- \n\
     select * from <all_table> where ... \n\
     select _block_dist() from <all_table>;\n\
     select client_version();\n\
     select current_user();\n\
-    select database;\n\
+    select database();\n\
     select server_version();\n\
-    set max_binary_display_width <width>;  \n\
+    select server_status();\n\
+    select now();\n\
+    select today();\n\
+    select timezone();\n\
+    set max_binary_display_width ...\n\
+    show apps;\n\
     show create database <db_name>;\n\
     show create stable <stb_name>;\n\
     show create table <tb_name>;\n\
     show connections;\n\
+    show cluster;\n\
     show databases;\n\
     show dnodes;\n\
+    show dnode <dnode_id> variables;\n\
     show functions;\n\
-    show modules;\n\
     show mnodes;\n\
     show queries;\n\
+    show query <query_id> ;\n\
+    show qnodes;\n\
+    show snodes;\n\
     show stables;\n\
-    show stables like '<regular expression>';  note: regular expression only support '_' and '%%' match.\n\
+    show stables like \n\
     show streams;\n\
     show scores;\n\
+    show subscriptions;\n\
     show tables;\n\
-    show tables like '<regular expression>'; \n\
+    show tables like\n\
+    show table distributed <all_table>;\n\
+    show tags from <tb_name>\n\
+    show tags from <db_name>\n\
+    show topics;\n\
+    show transactions;\n\
     show users;\n\
     show variables;\n\
+    show local variables;\n\
+    show vnodes <dnode_id>\n\
     show vgroups;\n\
-  ----- I ----- \n\
-    insert into <tb_name> values(...) ;\n\
+    show consumers;\n\
+    show grants;\n\
+    split vgroup ...\n\
+  ----- T ----- \n\
+    trim database <db_name>;\n\
   ----- U ----- \n\
     use <db_name>;");
 
@@ -1685,7 +1726,6 @@ bool matchOther(TAOS * con, SShellCmd * cmd) {
   if (strncmp(last, "(", 1) == 0) {
     last += 1; 
   }
-
 
   char* from = strstr(sql, " from");
   // find last ' from'
