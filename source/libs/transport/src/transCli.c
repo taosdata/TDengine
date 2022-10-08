@@ -1347,7 +1347,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
           EPSET_FORWARD_INUSE(&pCtx->epSet);
         } else {
           if (tDeserializeSEpSet(pResp->pCont, pResp->contLen, &pCtx->epSet) < 0) {
-            tError("%s conn %p failed to deserialize epset", CONN_GET_INST_LABEL(pConn));
+            tError("%s conn %p failed to deserialize epset", CONN_GET_INST_LABEL(pConn), pConn);
           }
         }
         addConnToPool(pThrd->pool, pConn);

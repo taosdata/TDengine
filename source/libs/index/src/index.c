@@ -54,11 +54,17 @@
 void*   indexQhandle = NULL;
 int32_t indexRefMgt;
 
+int32_t indexThreads = 5;
+
 static void indexDestroy(void* sIdx);
 
-void indexInit() {
+void indexInit(int32_t threadNum) {
+  indexThreads = threadNum;
+  if (indexThreads <= 1) indexThreads = INDEX_NUM_OF_THREADS;
+}
+void indexEnvInit() {
   // refactor later
-  indexQhandle = taosInitScheduler(INDEX_QUEUE_SIZE, INDEX_NUM_OF_THREADS, "index", NULL);
+  indexQhandle = taosInitScheduler(INDEX_QUEUE_SIZE, indexThreads, "index", NULL);
   indexRefMgt = taosOpenRef(1000, indexDestroy);
 }
 void indexCleanup() {
@@ -99,7 +105,7 @@ static void indexWait(void* idx) {
 
 int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   int ret = TSDB_CODE_SUCCESS;
-  taosThreadOnce(&isInit, indexInit);
+  taosThreadOnce(&isInit, indexEnvInit);
   SIndex* idx = taosMemoryCalloc(1, sizeof(SIndex));
   if (idx == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;

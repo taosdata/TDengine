@@ -101,8 +101,9 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
   dnodeObj.createdTime = taosGetTimestampMs();
   dnodeObj.updateTime = dnodeObj.createdTime;
   dnodeObj.port = tsServerPort;
-  memcpy(&dnodeObj.fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
-  snprintf(dnodeObj.ep, TSDB_EP_LEN, "%s:%u", dnodeObj.fqdn, dnodeObj.port);
+  tstrncpy(dnodeObj.fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
+  dnodeObj.fqdn[TSDB_FQDN_LEN - 1] = 0;
+  snprintf(dnodeObj.ep, TSDB_EP_LEN - 1, "%s:%u", dnodeObj.fqdn, dnodeObj.port);
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, NULL, "create-dnode");
   if (pTrans == NULL) goto _OVER;
@@ -110,7 +111,7 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
 
   pRaw = mndDnodeActionEncode(&dnodeObj);
   if (pRaw == NULL || mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
   pRaw = NULL;
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
@@ -190,7 +191,10 @@ _OVER:
 static int32_t mndDnodeActionInsert(SSdb *pSdb, SDnodeObj *pDnode) {
   mTrace("dnode:%d, perform insert action, row:%p", pDnode->id, pDnode);
   pDnode->offlineReason = DND_REASON_STATUS_NOT_RECEIVED;
-  snprintf(pDnode->ep, TSDB_EP_LEN, "%s:%u", pDnode->fqdn, pDnode->port);
+
+  char ep[TSDB_EP_LEN] = {0};
+  snprintf(ep, TSDB_EP_LEN - 1, "%s:%u", pDnode->fqdn, pDnode->port);
+  tstrncpy(pDnode->ep, ep, TSDB_EP_LEN);
   return 0;
 }
 
@@ -253,7 +257,7 @@ int32_t mndGetDnodeSize(SMnode *pMnode) {
 
 bool mndIsDnodeOnline(SDnodeObj *pDnode, int64_t curMs) {
   int64_t interval = TABS(pDnode->lastAccessTime - curMs);
-  if (interval > 5000 * tsStatusInterval) {
+  if (interval > 5000 * (int64_t)tsStatusInterval) {
     if (pDnode->rebootTime > 0) {
       pDnode->offlineReason = DND_REASON_STATUS_MSG_TIMEOUT;
     }
@@ -275,7 +279,7 @@ void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeEps) {
     SDnodeEp dnodeEp = {0};
     dnodeEp.id = pDnode->id;
     dnodeEp.ep.port = pDnode->port;
-    memcpy(dnodeEp.ep.fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
+    tstrncpy(dnodeEp.ep.fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
     sdbRelease(pSdb, pDnode);
 
     dnodeEp.isMnode = 0;
@@ -485,8 +489,8 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
   dnodeObj.createdTime = taosGetTimestampMs();
   dnodeObj.updateTime = dnodeObj.createdTime;
   dnodeObj.port = pCreate->port;
-  memcpy(dnodeObj.fqdn, pCreate->fqdn, TSDB_FQDN_LEN);
-  snprintf(dnodeObj.ep, TSDB_EP_LEN, "%s:%u", dnodeObj.fqdn, dnodeObj.port);
+  tstrncpy(dnodeObj.fqdn, pCreate->fqdn, TSDB_FQDN_LEN);
+  snprintf(dnodeObj.ep, TSDB_EP_LEN - 1, "%s:%u", dnodeObj.fqdn, dnodeObj.port);
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_GLOBAL, pReq, "create-dnode");
   if (pTrans == NULL) goto _OVER;
@@ -494,7 +498,7 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
 
   pRaw = mndDnodeActionEncode(&dnodeObj);
   if (pRaw == NULL || mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
   pRaw = NULL;
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
@@ -673,13 +677,15 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
   mInfo("trans:%d, used to drop dnode:%d", pTrans->id, pDnode->id);
 
   pRaw = mndDnodeActionEncode(pDnode);
-  if (pRaw == NULL || mndTransAppendRedolog(pTrans, pRaw) != 0) goto _OVER;
-  sdbSetRawStatus(pRaw, SDB_STATUS_DROPPING);
+  if (pRaw == NULL) goto _OVER;
+  if (mndTransAppendRedolog(pTrans, pRaw) != 0) goto _OVER;
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_DROPPING);
   pRaw = NULL;
 
   pRaw = mndDnodeActionEncode(pDnode);
-  if (pRaw == NULL || mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
-  sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
+  if (pRaw == NULL) goto _OVER;
+  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
   pRaw = NULL;
 
   if (pMObj != NULL) {

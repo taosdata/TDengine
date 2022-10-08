@@ -260,7 +260,7 @@ int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row, STsdb 
     SLastCol *tTsVal = (SLastCol *)taosArrayGet(pLast, iCol);
     if (keyTs > tTsVal->ts) {
       STColumn *pTColumn = &pTSchema->columns[0];
-      SColVal   tColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.ts = keyTs});
+      SColVal   tColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.val = keyTs});
 
       taosArraySet(pLast, iCol, &(SLastCol){.ts = keyTs, .colVal = tColVal});
     }
@@ -447,7 +447,7 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
       if (--state->iFileSet >= 0) {
         pFileSet = (SDFileSet *)taosArrayGet(state->aDFileSet, state->iFileSet);
       } else {
-        // tMergeTreeClose(&state->mergeTree);
+        tMergeTreeClose(&state->mergeTree);
 
         *ppRow = NULL;
         return code;
@@ -463,7 +463,7 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
       bool hasVal = tMergeTreeNext(&state->mergeTree);
       if (!hasVal) {
         state->state = SFSLASTNEXTROW_FILESET;
-        // tMergeTreeClose(&state->mergeTree);
+        tMergeTreeClose(&state->mergeTree);
         goto _next_fileset;
       }
       state->state = SFSLASTNEXTROW_BLOCKROW;
@@ -590,7 +590,10 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
         goto _next_fileset;
       }
 
-      tMapDataReset(&state->blockMap);
+      if (state->blockMap.pData != NULL) {
+        tMapDataClear(&state->blockMap);
+      }
+
       code = tsdbReadDataBlk(state->pDataFReader, state->pBlockIdx, &state->blockMap);
       if (code) goto _err;
 
@@ -693,6 +696,10 @@ int32_t clearNextRowFromFS(void *iter) {
     // tBlockDataDestroy(&state->blockData, 1);
     tBlockDataDestroy(state->pBlockData, 1);
     state->pBlockData = NULL;
+  }
+
+  if (state->blockMap.pData != NULL) {
+    tMapDataClear(&state->blockMap);
   }
 
   return code;
@@ -1052,7 +1059,7 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, STSRow **ppRo
       lastRowTs = TSDBROW_TS(pRow);
       STColumn *pTColumn = &pTSchema->columns[0];
 
-      *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.ts = lastRowTs});
+      *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.val = lastRowTs});
       if (taosArrayPush(pColArray, pColVal) == NULL) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         goto _err;
@@ -1151,7 +1158,7 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray) {
       lastRowTs = rowTs;
       STColumn *pTColumn = &pTSchema->columns[0];
 
-      *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.ts = lastRowTs});
+      *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.val = lastRowTs});
       if (taosArrayPush(pColArray, &(SLastCol){.ts = lastRowTs, .colVal = *pColVal}) == NULL) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         goto _err;

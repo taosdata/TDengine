@@ -240,7 +240,7 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
             isWeak, isBlock, msg, numOfMsgs, arrayPos, pMsg->info.handle);
 
     if (!pVnode->restored) {
-      vGError("vgId:%d, msg:%p failed to process since not leader", vgId, pMsg);
+      vGError("vgId:%d, msg:%p failed to process since restore not finished", vgId, pMsg);
       terrno = TSDB_CODE_APP_NOT_READY;
       vnodeHandleProposeError(pVnode, pMsg, TSDB_CODE_APP_NOT_READY);
       rpcFreeCont(pMsg->pCont);
@@ -328,14 +328,14 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   const STraceId *trace = &pMsg->info.traceId;
 
   if (!syncEnvIsStart()) {
-    vGError("vgId:%d, msg:%p failed to process since sync env not start", pVnode->config.vgId);
+    vGError("vgId:%d, msg:%p failed to process since sync env not start", pVnode->config.vgId, pMsg);
     terrno = TSDB_CODE_APP_ERROR;
     return -1;
   }
 
   SSyncNode *pSyncNode = syncNodeAcquire(pVnode->sync);
   if (pSyncNode == NULL) {
-    vGError("vgId:%d, msg:%p failed to process since invalid sync node", pVnode->config.vgId);
+    vGError("vgId:%d, msg:%p failed to process since invalid sync node", pVnode->config.vgId, pMsg);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
   }
@@ -394,7 +394,7 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       SRpcMsg rsp = {.code = code, .info = pMsg->info};
       tmsgSendRsp(&rsp);
     } else {
-      vGError("vgId:%d, msg:%p failed to process since error msg type:%d", pVnode->config.vgId, pMsg->msgType);
+      vGError("vgId:%d, msg:%p failed to process since error msg type:%d", pVnode->config.vgId, pMsg, pMsg->msgType);
       code = -1;
     }
 
@@ -459,7 +459,7 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       SRpcMsg rsp = {.code = code, .info = pMsg->info};
       tmsgSendRsp(&rsp);
     } else {
-      vGError("vgId:%d, msg:%p failed to process since error msg type:%d", pVnode->config.vgId, pMsg->msgType);
+      vGError("vgId:%d, msg:%p failed to process since error msg type:%d", pVnode->config.vgId, pMsg, pMsg->msgType);
       code = -1;
     }
   }
@@ -496,16 +496,16 @@ static int32_t vnodeSyncGetSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot) {
   return 0;
 }
 
-static void vnodeSyncReconfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta cbMeta) {
+static void vnodeSyncReconfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta *cbMeta) {
   SVnode *pVnode = pFsm->data;
 
   SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen};
-  syncGetAndDelRespRpc(pVnode->sync, cbMeta.newCfgSeqNum, &rpcMsg.info);
-  rpcMsg.info.conn.applyIndex = cbMeta.index;
+  syncGetAndDelRespRpc(pVnode->sync, cbMeta->newCfgSeqNum, &rpcMsg.info);
+  rpcMsg.info.conn.applyIndex = cbMeta->index;
 
   const STraceId *trace = (STraceId *)&pMsg->info.traceId;
   vGTrace("vgId:%d, alter vnode replica is confirmed, type:%s contLen:%d seq:%" PRIu64 " handle:%p", TD_VID(pVnode),
-          TMSG_INFO(pMsg->msgType), pMsg->contLen, cbMeta.seqNum, rpcMsg.info.handle);
+          TMSG_INFO(pMsg->msgType), pMsg->contLen, cbMeta->seqNum, rpcMsg.info.handle);
   if (rpcMsg.info.handle != NULL) {
     tmsgSendRsp(&rpcMsg);
   }
@@ -630,7 +630,7 @@ static int32_t vnodeSnapshotStartWrite(struct SSyncFSM *pFsm, void *pParam, void
       vInfo("vgId:%d, start write vnode snapshot since apply queue is empty", pVnode->config.vgId);
       break;
     } else {
-      vInfo("vgId:%d, write vnode snapshot later since %d items in apply queue", pVnode->config.vgId);
+      vInfo("vgId:%d, write vnode snapshot later since %d items in apply queue", pVnode->config.vgId, itemSize);
       taosMsleep(10);
     }
   } while (true);
@@ -683,7 +683,7 @@ static void vnodeRestoreFinish(struct SSyncFSM *pFsm) {
       vInfo("vgId:%d, apply queue is empty, restore finish", pVnode->config.vgId);
       break;
     } else {
-      vInfo("vgId:%d, restore not finish since %d items in apply queue", pVnode->config.vgId);
+      vInfo("vgId:%d, restore not finish since %d items in apply queue", pVnode->config.vgId, itemSize);
       taosMsleep(10);
     }
   } while (true);
@@ -796,16 +796,3 @@ bool vnodeIsLeader(SVnode *pVnode) {
   return true;
 }
 
-bool vnodeIsReadyForRead(SVnode *pVnode) {
-  if (syncIsReady(pVnode->sync)) {
-    return true;
-  }
-
-  if (syncIsReadyForRead(pVnode->sync)) {
-    return true;
-  }
-
-  vDebug("vgId:%d, vnode not ready for read, state:%s, last:%ld, cmt:%ld", pVnode->config.vgId,
-         syncGetMyRoleStr(pVnode->sync), syncGetLastIndex(pVnode->sync), syncGetCommitIndex(pVnode->sync));
-  return false;
-}

@@ -161,7 +161,7 @@ int32_t mndCreateOffsets(STrans *pTrans, const char *cgroup, const char *topicNa
     if (pOffsetRaw == NULL) {
       return -1;
     }
-    sdbSetRawStatus(pOffsetRaw, SDB_STATUS_READY);
+    (void)sdbSetRawStatus(pOffsetRaw, SDB_STATUS_READY);
     // commit log or redo log?
     if (mndTransAppendRedolog(pTrans, pOffsetRaw) < 0) {
       return -1;
@@ -208,7 +208,7 @@ static int32_t mndProcessCommitOffsetReq(SRpcMsg *pMsg) {
     }
     pOffsetObj->offset = pOffset->offset;
     SSdbRaw *pOffsetRaw = mndOffsetActionEncode(pOffsetObj);
-    sdbSetRawStatus(pOffsetRaw, SDB_STATUS_READY);
+    (void)sdbSetRawStatus(pOffsetRaw, SDB_STATUS_READY);
     mndTransAppendCommitlog(pTrans, pOffsetRaw);
     if (create) {
       taosMemoryFree(pOffsetObj);

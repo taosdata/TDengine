@@ -409,6 +409,9 @@ int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t vnodeGetCtbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bool (*filter)(void *arg), void *arg) {
+  return 0;
+}
 int32_t vnodeGetCtbIdList(SVnode *pVnode, int64_t suid, SArray *list) {
   SMCtbCursor *pCur = metaOpenCtbCursor(pVnode->pMeta, suid);
 

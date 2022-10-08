@@ -231,12 +231,13 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
 
   SSdbRaw *pRaw = mndClusterActionEncode(&clusterObj);
   if (pRaw == NULL) return -1;
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   mInfo("cluster:%" PRId64 ", will be created when deploying, raw:%p", clusterObj.id, pRaw);
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-cluster");
   if (pTrans == NULL) {
+    sdbFreeRaw(pRaw);
     mError("cluster:%" PRId64 ", failed to create since %s", clusterObj.id, terrstr());
     return -1;
   }
@@ -247,7 +248,7 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -315,7 +316,7 @@ static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
     return 0;
   }
 
-  mInfo("update cluster uptime to %" PRId64, clusterObj.upTime);
+  mInfo("update cluster uptime to %d", clusterObj.upTime);
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "update-uptime");
   if (pTrans == NULL) return -1;
 
@@ -325,7 +326,7 @@ static int32_t mndProcessUptimeTimer(SRpcMsg *pReq) {
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());

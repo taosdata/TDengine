@@ -706,6 +706,9 @@ void* destroyStreamFillSupporter(SStreamFillSupporter* pFillSup) {
   pFillSup->pAllColInfo = destroyFillColumnInfo(pFillSup->pAllColInfo, pFillSup->numOfFillCols, pFillSup->numOfAllCols);
   tSimpleHashCleanup(pFillSup->pResMap);
   pFillSup->pResMap = NULL;
+  streamStateReleaseBuf(NULL, NULL, pFillSup->cur.pRowVal);
+  pFillSup->cur.pRowVal = NULL;
+
   taosMemoryFree(pFillSup);
   return NULL;
 }
@@ -722,6 +725,7 @@ void* destroyStreamFillInfo(SStreamFillInfo* pFillInfo) {
     taosMemoryFreeClear(pFillInfo->pResRow);
   }
   pFillInfo->pLinearInfo = destroyStreamFillLinearInfo(pFillInfo->pLinearInfo);
+  taosArrayDestroy(pFillInfo->delRanges);
   taosMemoryFree(pFillInfo);
   return NULL;
 }
@@ -732,6 +736,8 @@ void destroyStreamFillOperatorInfo(void* param) {
   pInfo->pFillSup = destroyStreamFillSupporter(pInfo->pFillSup);
   pInfo->pRes = blockDataDestroy(pInfo->pRes);
   pInfo->pSrcBlock = blockDataDestroy(pInfo->pSrcBlock);
+  pInfo->pPrevSrcBlock = blockDataDestroy(pInfo->pPrevSrcBlock);
+  pInfo->pDelRes = blockDataDestroy(pInfo->pDelRes);
   pInfo->pColMatchColInfo = taosArrayDestroy(pInfo->pColMatchColInfo);
   taosMemoryFree(pInfo);
 }
@@ -743,6 +749,7 @@ static void resetFillWindow(SResultRowData* pRowData) {
 
 void resetPrevAndNextWindow(SStreamFillSupporter* pFillSup, SStreamState* pState) {
   resetFillWindow(&pFillSup->prev);
+  streamStateReleaseBuf(NULL, NULL, pFillSup->cur.pRowVal);
   resetFillWindow(&pFillSup->cur);
   resetFillWindow(&pFillSup->next);
   resetFillWindow(&pFillSup->nextNext);
@@ -753,12 +760,12 @@ void getCurWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupI
   resetPrevAndNextWindow(pFillSup, pState);
 
   SWinKey key = {.ts = ts, .groupId = groupId};
-  void*   curVal = NULL;
+  // void*   curVal = NULL;
   int32_t curVLen = 0;
-  int32_t code = streamStateFillGet(pState, &key, (void**)&curVal, &curVLen);
+  int32_t code = streamStateFillGet(pState, &key, (void**)&pFillSup->cur.pRowVal, &curVLen);
   ASSERT(code == TSDB_CODE_SUCCESS);
   pFillSup->cur.key = key.ts;
-  pFillSup->cur.pRowVal = curVal;
+  // pFillSup->cur.pRowVal = curVal;
 }
 
 void getWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId, SStreamFillSupporter* pFillSup) {
@@ -777,11 +784,9 @@ void getWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId, 
   SWinKey          preKey = {.groupId = groupId};
   void*            preVal = NULL;
   int32_t          preVLen = 0;
-  if (pCur) {
-    code = streamStateGetGroupKVByCur(pCur, &preKey, (const void**)&preVal, &preVLen);
-  }
+  code = streamStateGetGroupKVByCur(pCur, &preKey, (const void**)&preVal, &preVLen);
 
-  if (pCur && code == TSDB_CODE_SUCCESS) {
+  if (code == TSDB_CODE_SUCCESS) {
     pFillSup->prev.key = preKey.ts;
     pFillSup->prev.pRowVal = preVal;
 
@@ -790,35 +795,36 @@ void getWindowFromDiscBuf(SOperatorInfo* pOperator, TSKEY ts, uint64_t groupId, 
 
     code = streamStateCurNext(pState, pCur);
     if (code != TSDB_CODE_SUCCESS) {
+      streamStateFreeCur(pCur);
       pCur = NULL;
     }
   } else {
+    streamStateFreeCur(pCur);
     pCur = streamStateFillSeekKeyNext(pState, &key);
   }
 
-  if (pCur) {
-    SWinKey nextKey = {.groupId = groupId};
-    void*   nextVal = NULL;
-    int32_t nextVLen = 0;
-    code = streamStateGetGroupKVByCur(pCur, &nextKey, (const void**)&nextVal, &nextVLen);
-    if (code == TSDB_CODE_SUCCESS) {
-      pFillSup->next.key = nextKey.ts;
-      pFillSup->next.pRowVal = nextVal;
-      if (pFillSup->type == TSDB_FILL_PREV || pFillSup->type == TSDB_FILL_NEXT) {
-        code = streamStateCurNext(pState, pCur);
+  SWinKey nextKey = {.groupId = groupId};
+  void*   nextVal = NULL;
+  int32_t nextVLen = 0;
+  code = streamStateGetGroupKVByCur(pCur, &nextKey, (const void**)&nextVal, &nextVLen);
+  if (code == TSDB_CODE_SUCCESS) {
+    pFillSup->next.key = nextKey.ts;
+    pFillSup->next.pRowVal = nextVal;
+    if (pFillSup->type == TSDB_FILL_PREV || pFillSup->type == TSDB_FILL_NEXT) {
+      code = streamStateCurNext(pState, pCur);
+      if (code == TSDB_CODE_SUCCESS) {
+        SWinKey nextNextKey = {.groupId = groupId};
+        void*   nextNextVal = NULL;
+        int32_t nextNextVLen = 0;
+        code = streamStateGetGroupKVByCur(pCur, &nextNextKey, (const void**)&nextNextVal, &nextNextVLen);
         if (code == TSDB_CODE_SUCCESS) {
-          SWinKey nextNextKey = {.groupId = groupId};
-          void*   nextNextVal = NULL;
-          int32_t nextNextVLen = 0;
-          code = streamStateGetGroupKVByCur(pCur, &nextNextKey, (const void**)&nextNextVal, &nextNextVLen);
-          if (code == TSDB_CODE_SUCCESS) {
-            pFillSup->nextNext.key = nextNextKey.ts;
-            pFillSup->nextNext.pRowVal = nextNextVal;
-          }
+          pFillSup->nextNext.key = nextNextKey.ts;
+          pFillSup->nextNext.pRowVal = nextNextVal;
         }
       }
     }
   }
+  streamStateFreeCur(pCur);
 }
 
 static bool hasPrevWindow(SStreamFillSupporter* pFillSup) { return pFillSup->prev.key != INT64_MIN; }
@@ -1388,6 +1394,7 @@ static void doDeleteFillResult(SOperatorInfo* pOperator) {
       }
       pInfo->srcDelRowIndex++;
     }
+    streamStateFreeCur(pCur);
     doDeleteFillResultImpl(pOperator, ts, endTs, groupId);
   }
   pFillInfo->current = pFillInfo->end + 1;
@@ -1538,9 +1545,12 @@ static int32_t initResultBuf(SStreamFillSupporter* pFillSup) {
   pFillSup->next.key = INT64_MIN;
   pFillSup->nextNext.key = INT64_MIN;
   pFillSup->prev.key = INT64_MIN;
+  pFillSup->cur.key = INT64_MIN;
   pFillSup->next.pRowVal = NULL;
   pFillSup->nextNext.pRowVal = NULL;
   pFillSup->prev.pRowVal = NULL;
+  pFillSup->cur.pRowVal = NULL;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1620,9 +1630,7 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
     goto _error;
   }
 
-  SInterval* pInterval = QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL == downstream->operatorType
-                             ? &((SStreamFinalIntervalOperatorInfo*)downstream->info)->interval
-                             : &((SStreamIntervalOperatorInfo*)downstream->info)->interval;
+  SInterval* pInterval = &((SStreamIntervalOperatorInfo*)downstream->info)->interval;
   int32_t    numOfFillCols = 0;
   SExprInfo* pFillExprInfo = createExprInfo(pPhyFillNode->pFillExprs, NULL, &numOfFillCols);
   pInfo->pFillSup = initStreamFillSup(pPhyFillNode, pInterval, pFillExprInfo, numOfFillCols);

@@ -66,10 +66,10 @@ taos> use test;
 Database changed.
 
 taos> show stables;
-              name              |      created_time       | columns |  tags  |   tables    |
-============================================================================================
- meters.current                 | 2022-03-30 17:04:10.877 |       2 |      2 |           2 |
- meters.voltage                 | 2022-03-30 17:04:10.882 |       2 |      2 |           2 |
+              name              |
+=================================
+ meters.current                 |
+ meters.voltage                 |
 Query OK, 2 row(s) in set (0.002544s)
 
 taos> select tbname, * from `meters.current`;
@@ -81,6 +81,10 @@ taos> select tbname, * from `meters.current`;
  t_7e7b26dd860280242c6492a16... | 2022-03-28 09:56:51.250 |              12.600000000 | 2       | California.SanFrancisco               |
 Query OK, 4 row(s) in set (0.005399s)
 ```
-## 查询示例：
-想要查询 location=California.LosAngeles groupid=3 的数据，可以通过如下sql:
-select * from `meters.voltage` where location="California.LosAngeles" and groupid=3
+
+## SQL查询示例
+- `meters.current` 是插入数据的超级表名
+- 可以通过超级表的tag来过滤数据，比如查询 `location=California.LosAngeles groupid=3` 可以通过如下sql：
+``` cmd
+select * from `meters.current` where location="California.LosAngeles" and groupid=3
+```

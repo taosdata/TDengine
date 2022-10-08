@@ -123,7 +123,7 @@ static int32_t mndBuildSubChangeReq(void **pBuf, int32_t *pLen, const SMqSubscri
   req.subType = pSub->subType;
   req.withMeta = pSub->withMeta;
   req.suid = pSub->stbUid;
-  strncpy(req.subKey, pSub->key, TSDB_SUBSCRIBE_KEY_LEN);
+  tstrncpy(req.subKey, pSub->key, TSDB_SUBSCRIBE_KEY_LEN);
 
   int32_t tlen = sizeof(SMsgHead) + tEncodeSMqRebVgReq(NULL, &req);
   void   *buf = taosMemoryMalloc(tlen);

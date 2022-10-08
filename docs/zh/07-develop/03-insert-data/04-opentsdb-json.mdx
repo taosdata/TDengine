@@ -82,10 +82,10 @@ taos> use test;
 Database changed.
 
 taos> show stables;
-              name              |      created_time       | columns |  tags  |   tables    |
-============================================================================================
- meters.current                 | 2022-03-29 16:05:25.193 |       2 |      2 |           1 |
- meters.voltage                 | 2022-03-29 16:05:25.200 |       2 |      2 |           1 |
+              name              |
+=================================
+ meters.current                 |
+ meters.voltage                 |
 Query OK, 2 row(s) in set (0.001954s)
 
 taos> select * from `meters.current`;
@@ -96,6 +96,9 @@ taos> select * from `meters.current`;
 Query OK, 2 row(s) in set (0.004076s)
 ```
 
-## 查询示例
-想要查询"tags": {"location": "California.LosAngeles", "groupid": 1} 的数据，可以通过如下sql：
+## SQL查询示例
+- `meters.voltage` 是插入数据的超级表名
+- 可以通过超级表的tag来过滤数据，比如查询 `location=California.LosAngeles groupid=1` 可以通过如下sql：
+``` cmd
 select * from `meters.voltage` where location="California.LosAngeles" and groupid=1
+```
