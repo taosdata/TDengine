@@ -78,6 +78,7 @@ static int32_t tsdbShouldDoRetention(STsdb *pTsdb, int64_t now) {
  */
 static int32_t tsdbProcessRetention(STsdb *pTsdb, int64_t now, int64_t maxSpeed, int32_t retention, int8_t type) {
   int32_t code = 0;
+  int32_t lino = 0;
   int32_t nBatch = 0;
   int32_t nLoops = 0;
   int32_t maxFid = 0;
@@ -103,7 +104,7 @@ _retention_loop:
   }
 
   code = tsdbFSCopy(pTsdb, &fs);
-  if (code) goto _exit;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   if (type == RETENTION_MIGRATE) {
     int32_t fsSize = taosArrayGetSize(fs.aDFileSet);
@@ -152,6 +153,8 @@ _retention_loop:
         break;
       }
     }
+  } else {
+    ASSERT(0);
   }
 
   if (maxFid == INT32_MIN) goto _exit;
@@ -200,7 +203,7 @@ _commit_conflict_check:
 
         if (tfsAllocDisk(pTsdb->pVnode->pTfs, expLevel, &did) < 0) {
           code = terrno;
-          goto _exit;
+          TSDB_CHECK_CODE(code, lino, _exit);
         }
 
         if (did.level == pSet->diskId.level) continue;
@@ -210,10 +213,10 @@ _commit_conflict_check:
         fSet.diskId = did;
 
         code = tsdbDFileSetCopy(pTsdb, pSet, &fSet, maxSpeed);
-        if (code) goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
 
         code = tsdbFSUpsertFSet(&fs, &fSet);
-        if (code) goto _exit;
+        TSDB_CHECK_CODE(code, lino, _exit);
       }
     }
   }
@@ -228,12 +231,12 @@ _merge_fs:
   if (fs.version < pTsdb->fs.version) {
     if ((code = tsdbFSCopy(pTsdb, &fsLatest))) {
       taosThreadRwlockUnlock(&pTsdb->rwLock);
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
 
     if ((code = tsdbFSUpdDel(pTsdb, &fsLatest, &fs, maxFid))) {
       taosThreadRwlockUnlock(&pTsdb->rwLock);
-      goto _exit;
+      TSDB_CHECK_CODE(code, lino, _exit);
     }
     pTsdbFS = &fsLatest;
   }
@@ -241,13 +244,13 @@ _merge_fs:
   // 2) save CURRENT
   if ((code = tsdbFSCommit1(pTsdb, pTsdbFS))) {
     taosThreadRwlockUnlock(&pTsdb->rwLock);
-    goto _exit;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // 3) apply the tsdbFS to pTsdb->fs
   if ((code = tsdbFSCommit2(pTsdb, pTsdbFS))) {
     taosThreadRwlockUnlock(&pTsdb->rwLock);
-    goto _exit;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
   taosThreadRwlockUnlock(&pTsdb->rwLock);
 
@@ -259,8 +262,9 @@ _merge_fs:
 _exit:
   tsdbFSDestroy(&fs);
   tsdbFSDestroy(&fsLatest);
-  if (code != 0) {
-    tsdbError("vgId:%d, tsdb do retention %" PRIi8 " failed since %s", TD_VID(pTsdb->pVnode), type, tstrerror(code));
+  if (code) {
+    tsdbError("vgId:%d, tsdb do retention %" PRIi8 " failed at line %d since %s", TD_VID(pTsdb->pVnode), type, lino,
+              tstrerror(code));
     ASSERT(0);
   }
   return code;
@@ -280,6 +284,7 @@ _exit:
  */
 int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now, int64_t maxSpeed) {
   int32_t code = 0;
+  int32_t lino = 0;
   int32_t retention = RETENTION_NO;
 
   retention = tsdbShouldDoRetention(pTsdb, now);
@@ -289,17 +294,17 @@ int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now, int64_t maxSpeed) {
 
   // step 1: process expire
   code = tsdbProcessRetention(pTsdb, now, maxSpeed, retention, RETENTION_EXPIRED);
-  if (code < 0) goto _exit;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // step 2: process multi-tier migration
   code = tsdbProcessRetention(pTsdb, now, maxSpeed, retention, RETENTION_MIGRATE);
-  if (code < 0) goto _exit;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   pTsdb->trimHdl.maxRetentFid = INT32_MIN;
-  if (code != 0) {
-    tsdbError("vgId:%d, tsdb do retention %d failed since %s, time:%" PRIi64 ", max speed:%" PRIi64,
-              TD_VID(pTsdb->pVnode), retention, tstrerror(code), now, maxSpeed);
+  if (code) {
+    tsdbError("vgId:%d, tsdb do retention %d failed at line %d since %s, time:%" PRIi64 ", max speed:%" PRIi64,
+              TD_VID(pTsdb->pVnode), retention, lino, tstrerror(code), now, maxSpeed);
     ASSERT(0);
     // tsdbFSRollback(pTsdb->pFS);
   } else {

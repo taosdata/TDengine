@@ -662,6 +662,7 @@ static int32_t tdFetchSubmitReqSuids(SSubmitReq *pMsg, STbUidStore *pStore) {
  * @brief retention of rsma1/rsma2
  *
  * @param pSma
+ * @param now
  * @param maxSpeed
  * @return int32_t
  */
