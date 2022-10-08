@@ -564,3 +564,21 @@ char* taosShowStrArray(const SArray* pArray) {
   }
   return res;
 }
+void taosArraySwap(SArray* a, SArray* b) {
+  if (a == NULL || b == NULL) return;
+  size_t t = a->size;
+  a->size = b->size;
+  b->size = t;
+
+  uint32_t cap = a->capacity;
+  a->capacity = b->capacity;
+  b->capacity = cap;
+
+  uint32_t elem = a->elemSize;
+  a->elemSize = b->elemSize;
+  b->elemSize = elem;
+
+  void* data = a->pData;
+  a->pData = b->pData;
+  b->pData = data;
+}

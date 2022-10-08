@@ -1172,8 +1172,6 @@ int32_t metaGetTableTagsByUids(SMeta *pMeta, int64_t suid, SArray *uidList, SHas
       } else {
         metaError("vgId:%d, failed to table IDs, suid: %" PRId64 ", uid: %" PRId64 "", TD_VID(pMeta->pVnode), suid,
                   *id);
-        if (isLock) metaULock(pMeta);
-        return TSDB_CODE_TDB_IVLD_TAG_VAL;
       }
     }
   }
