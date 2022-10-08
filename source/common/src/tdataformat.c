@@ -20,6 +20,30 @@
 #include "tdatablock.h"
 #include "tlog.h"
 
+// SBuffer ================================
+void tBufferDestroy(SBuffer *pBuffer) {
+  tFree(pBuffer->pBuf);
+  pBuffer->pBuf = NULL;
+}
+
+int32_t tBufferInit(SBuffer *pBuffer, int64_t size) {
+  pBuffer->nBuf = 0;
+  return tRealloc(&pBuffer->pBuf, size);
+}
+
+int32_t tBufferPut(SBuffer *pBuffer, const void *pData, int64_t nData) {
+  int32_t code = 0;
+
+  code = tRealloc(&pBuffer->pBuf, pBuffer->nBuf + nData);
+  if (code) return code;
+
+  memcpy(pBuffer->pBuf + pBuffer->nBuf, pData, nData);
+  pBuffer->nBuf += nData;
+
+  return code;
+}
+
+// ================================
 static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson);
 
 #pragma pack(push, 1)
