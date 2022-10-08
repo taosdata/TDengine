@@ -384,7 +384,7 @@ static int32_t vmStartVnodes(SVnodeMgmt *pMgmt) {
   for (int32_t v = 0; v < numOfVnodes; ++v) {
     int32_t       t = v % threadNum;
     SVnodeThread *pThread = &threads[t];
-    if (pThread->ppVnodes != NULL) {
+    if (pThread->ppVnodes != NULL && ppVnodes != NULL) {
       pThread->ppVnodes[pThread->vnodeNum++] = ppVnodes[v];
     }
   }

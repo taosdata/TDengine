@@ -730,7 +730,7 @@ static int32_t mndSetAlterDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOl
     return -1;
   }
 
-  sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
   return 0;
 }
 
@@ -742,7 +742,7 @@ static int32_t mndSetAlterDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *p
     return -1;
   }
 
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
   return 0;
 }
 
@@ -938,7 +938,7 @@ static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
         sdbRelease(pSdb, pVgroup);
         return -1;
       }
-      sdbSetRawStatus(pVgRaw, SDB_STATUS_DROPPED);
+      (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_DROPPED);
     }
 
     sdbRelease(pSdb, pVgroup);
@@ -956,7 +956,7 @@ static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
         sdbRelease(pSdb, pStbRaw);
         return -1;
       }
-      sdbSetRawStatus(pStbRaw, SDB_STATUS_DROPPED);
+      (void)(pStbRaw, SDB_STATUS_DROPPED);
     }
 
     sdbRelease(pSdb, pStb);
@@ -1052,7 +1052,7 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
       mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
       goto _OVER;
     }
-    sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+    (void)(pCommitRaw, SDB_STATUS_READY);
   }
 
   int32_t rspLen = 0;

@@ -77,7 +77,7 @@ static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
 
   SSdbRaw *pRaw = mndAcctActionEncode(&acctObj);
   if (pRaw == NULL) return -1;
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   mInfo("acct:%s, will be created when deploying, raw:%p", acctObj.acct, pRaw);
 

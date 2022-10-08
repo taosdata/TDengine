@@ -39,8 +39,8 @@ int32_t tGenIdPI32(void) {
 
 int64_t tGenIdPI64(void) {
   if (tUUIDHashId == 0) {
-    char    uid[64];
-    int32_t code = taosGetSystemUUID(uid, tListLen(uid));
+    char    uid[65] = {0};
+    int32_t code = taosGetSystemUUID(uid, 64);
     if (code != TSDB_CODE_SUCCESS) {
       terrno = TAOS_SYSTEM_ERROR(errno);
     } else {
