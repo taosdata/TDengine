@@ -189,7 +189,7 @@ AllowWebSockets
 /influxdb/v1/write
 ```
 
-支持 InfluxDB 查询参数如下：
+支持 InfluxDB 参数如下：
 
 - `db` 指定 TDengine 使用的数据库名
 - `precision` TDengine 使用的时间精度
@@ -197,7 +197,7 @@ AllowWebSockets
 - `p` TDengine 密码
 
 注意： 目前不支持 InfluxDB 的 token 验证方式，仅支持 Basic 验证和查询参数验证。
-
+示例： curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"
 ### OpenTSDB
 
 您可以使用任何支持 http 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入 OpenTSDB 兼容格式的数据到 TDengine。EndPoint 如下：
