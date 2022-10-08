@@ -1504,6 +1504,12 @@ bool matchCreateTable(TAOS * con, Command * cmd) {
   bool ret = false;
   char * last = lastWord(ps);
 
+  // except create table m1 as select ....
+  if (strstr(ps, " as select")) {
+    free(ps);
+    return false;
+  }
+
   // check in create fields or tags input area
   if (isCreateFieldsArea(ps)) {
     ret = fillWithType(con, cmd, last, WT_VAR_DATATYPE);

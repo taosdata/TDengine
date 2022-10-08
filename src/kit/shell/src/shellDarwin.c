@@ -68,7 +68,7 @@ void printHelp() {
   exit(EXIT_SUCCESS);
 }
 
-char      DARWINCLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
+char      DARWINCLIENT_VERSION[] = "Welcome to the TDengine Command Line Interface from %s, Client Version:%s\n"
                              "Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.\n\n";
 char g_password[SHELL_MAX_PASSWORD_LEN];
 
