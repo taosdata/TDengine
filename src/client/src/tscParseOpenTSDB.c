@@ -428,7 +428,7 @@ static int32_t tscParseTelnetLines(char* data, int32_t len, char* lines[], int n
     int32_t lenTmp = 0;
     for(int i = 0; i < len; i++){
       if(data[i] == '\n' || i == len - 1){
-        if(data[i] != '\n' || i == len - 1){
+        if(data[i] != '\n' && i == len - 1){
           lenTmp++;
         }
         if(lenTmp > 0) {
