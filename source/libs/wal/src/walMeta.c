@@ -118,6 +118,8 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal) {
   if (found == NULL) {
     wError("WAL log file corrupted: no valid WAL record found. file: %s", fnameStr);
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+    taosRemoveFile(fnameStr);
+    wWarn("vgId:%d, remove corrupted WAL log file: %s", pWal->cfg.vgId, fnameStr);
     goto _err;
   }
 
