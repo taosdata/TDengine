@@ -2181,7 +2181,11 @@ static int32_t getTagsTableVgroupListImpl(STranslateContext* pCxt, SName* pTarge
   }
 
   if (TSDB_DB_NAME_T == pTargetName->type) {
-    return getDBVgInfoImpl(pCxt, pTargetName, pVgroupList);
+    int32_t code = getDBVgInfoImpl(pCxt, pTargetName, pVgroupList);
+    if (TSDB_CODE_MND_DB_NOT_EXIST == code) {
+      code = TSDB_CODE_SUCCESS;
+    }
+    return code;
   }
 
   SVgroupInfo vgInfo = {0};
@@ -2190,78 +2194,14 @@ static int32_t getTagsTableVgroupListImpl(STranslateContext* pCxt, SName* pTarge
     *pVgroupList = taosArrayInit(1, sizeof(SVgroupInfo));
     if (NULL == *pVgroupList) {
       code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      taosArrayPush(*pVgroupList, &vgInfo);
     }
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    taosArrayPush(*pVgroupList, &vgInfo);
+  } else if (TSDB_CODE_MND_DB_NOT_EXIST == code) {
+    code = TSDB_CODE_SUCCESS;
   }
   return code;
 }
-
-// static int32_t getTagsTableTargetNameFromOp(STranslateContext* pCxt, SOperatorNode* pOper, SName* pName) {
-//   if (OP_TYPE_EQUAL != pOper->opType) {
-//     return TSDB_CODE_SUCCESS;
-//   }
-
-//   SColumnNode* pCol = NULL;
-//   SValueNode*  pVal = NULL;
-//   if (QUERY_NODE_COLUMN == nodeType(pOper->pLeft)) {
-//     pCol = (SColumnNode*)pOper->pLeft;
-//   } else if (QUERY_NODE_VALUE == nodeType(pOper->pLeft)) {
-//     pVal = (SValueNode*)pOper->pLeft;
-//   }
-//   if (QUERY_NODE_COLUMN == nodeType(pOper->pRight)) {
-//     pCol = (SColumnNode*)pOper->pRight;
-//   } else if (QUERY_NODE_VALUE == nodeType(pOper->pRight)) {
-//     pVal = (SValueNode*)pOper->pRight;
-//   }
-//   if (NULL == pCol || NULL == pVal) {
-//     return TSDB_CODE_SUCCESS;
-//   }
-
-//   if (0 == strcmp(pCol->colName, "db_name")) {
-//     return tNameSetDbName(pName, pCxt->pParseCxt->acctId, pVal->literal, strlen(pVal->literal));
-//   } else if (0 == strcmp(pCol->colName, "table_name")) {
-//     return tNameAddTbName(pName, pVal->literal, strlen(pVal->literal));
-//   }
-
-//   return TSDB_CODE_SUCCESS;
-// }
-
-// static void getTagsTableTargetObjName(STranslateContext* pCxt, SNode* pNode, SName* pName) {
-//   if (QUERY_NODE_OPERATOR == nodeType(pNode)) {
-//     getTagsTableTargetNameFromOp(pCxt, (SOperatorNode*)pNode, pName);
-//   }
-// }
-
-// static int32_t getTagsTableTargetNameFromCond(STranslateContext* pCxt, SLogicConditionNode* pCond, SName* pName) {
-//   if (LOGIC_COND_TYPE_AND != pCond->condType) {
-//     return TSDB_CODE_SUCCESS;
-//   }
-
-//   SNode* pNode = NULL;
-//   FOREACH(pNode, pCond->pParameterList) { getTagsTableTargetObjName(pCxt, pNode, pName); }
-//   if ('\0' == pName->dbname[0]) {
-//     pName->type = 0;
-//   }
-//   return TSDB_CODE_SUCCESS;
-// }
-
-// static int32_t getTagsTableTargetName(STranslateContext* pCxt, SNode* pWhere, SName* pName) {
-//   if (NULL == pWhere) {
-//     return TSDB_CODE_SUCCESS;
-//   }
-
-//   if (QUERY_NODE_OPERATOR == nodeType(pWhere)) {
-//     return getTagsTableTargetNameFromOp(pCxt, (SOperatorNode*)pWhere, pName);
-//   }
-
-//   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pWhere)) {
-//     return getTagsTableTargetNameFromCond(pCxt, (SLogicConditionNode*)pWhere, pName);
-//   }
-
-//   return TSDB_CODE_SUCCESS;
-// }
 
 static int32_t getTagsTableVgroupList(STranslateContext* pCxt, SName* pName, SArray** pVgroupList) {
   if (!isSelectStmt(pCxt->pCurrStmt)) {

@@ -801,7 +801,6 @@ TdSocketServerPtr taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
 
   if (taosKeepTcpAlive(pSocket) < 0) {
     // printf("failed to set tcp server keep-alive option, 0x%x:%hu(%s)", ip, port, strerror(errno));
-    taosCloseSocket(&pSocket);
     return NULL;
   }
 

@@ -267,10 +267,12 @@ static int32_t tfSearchPrefix(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
     uint64_t offset = *(uint64_t*)taosArrayGet(offsets, i);
     ret = tfileReaderLoadTableIds((TFileReader*)reader, offset, tr->total);
     if (ret != 0) {
+      taosArrayDestroy(offsets);
       indexError("failed to find target tablelist");
       return TSDB_CODE_TDB_FILE_CORRUPTED;
     }
   }
+  taosArrayDestroy(offsets);
   return 0;
 }
 static int32_t tfSearchSuffix(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
@@ -336,6 +338,7 @@ static int32_t tfSearchCompareFunc(void* reader, SIndexTerm* tem, SIdxTRslt* tr,
   }
   stmStDestroy(st);
   stmBuilderDestroy(sb);
+  taosArrayDestroy(offsets);
   return TSDB_CODE_SUCCESS;
 }
 static int32_t tfSearchLessThan(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
@@ -379,6 +382,7 @@ static int32_t tfSearchTerm_JSON(void* reader, SIndexTerm* tem, SIdxTRslt* tr) {
               ", size: %d, time cost: %" PRIu64 "us",
               tem->suid, tem->colName, tem->colVal, offset, (int)taosArrayGetSize(tr->total), cost);
   }
+  taosMemoryFree(p);
   fstSliceDestroy(&key);
   return 0;
 }
@@ -471,6 +475,9 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTRslt
   }
   stmStDestroy(st);
   stmBuilderDestroy(sb);
+  taosArrayDestroy(offsets);
+  taosMemoryFree(p);
+
   return TSDB_CODE_SUCCESS;
 }
 int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTRslt* tr) {
@@ -898,9 +905,8 @@ static int tfileReaderLoadFst(TFileReader* reader) {
   int64_t ts = taosGetTimestampUs();
   int32_t nread = ctx->readFrom(ctx, buf, fstSize, reader->header.fstOffset);
   int64_t cost = taosGetTimestampUs() - ts;
-  indexInfo("nread = %d, and fst offset=%d, fst size: %d, filename: %s, file size: %" PRId64 ", time cost: %" PRId64
-            "us",
-            nread, reader->header.fstOffset, fstSize, ctx->file.buf, size, cost);
+  indexInfo("nread = %d, and fst offset=%d, fst size: %d, filename: %s, file size: %d, time cost: %" PRId64 "us", nread,
+            reader->header.fstOffset, fstSize, ctx->file.buf, size, cost);
   // we assuse fst size less than FST_MAX_SIZE
   assert(nread > 0 && nread <= fstSize);
 
@@ -989,6 +995,7 @@ static SArray* tfileGetFileList(const char* path) {
 
   TdDirPtr pDir = taosOpenDir(path);
   if (NULL == pDir) {
+    taosArrayDestroy(files);
     return NULL;
   }
   TdDirEntryPtr pDirEntry;
