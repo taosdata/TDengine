@@ -3367,7 +3367,7 @@ int32_t binarySearchForKey(char *pValue, int num, TSKEY key, int order) {
   int32_t midPos = -1;
   int32_t numOfRows;
 
-  if (num <= 0) {
+  if (num <= 0 || pValue == NULL) {
     return -1;
   }
 
@@ -5105,7 +5105,8 @@ int32_t doInitQInfo(SQInfo* pQInfo, STSBuf* pTsBuf, void* tsdb, void* sourceOptr
     int16_t order = (pQueryAttr->order.order == pRuntimeEnv->pTsBuf->tsOrder) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
     tsBufResetPos(pRuntimeEnv->pTsBuf);
     tsBufSetTraverseOrder(pRuntimeEnv->pTsBuf, order);
-    tsBufNextPos(pTsBuf);    
+    bool ret = tsBufNextPos(pTsBuf);
+    UNUSED(ret);
   }
 
   int32_t ps = DEFAULT_PAGE_SIZE;
@@ -5806,7 +5807,7 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
     goto _clean;
   }
 
-  pInfo->seed = rand();
+  pInfo->seed = taosSafeRand();
   setDefaultOutputBuf(pRuntimeEnv, &pInfo->binfo, pInfo->seed, MERGE_STAGE);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
@@ -5980,6 +5981,7 @@ SOperatorInfo *createOrderOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
 
       pDataBlock->pDataBlock = taosArrayInit(numOfOutput, sizeof(SColumnInfoData));
       if (pDataBlock->pDataBlock == NULL) {
+        free(pDataBlock);
         goto _clean;
       }
 
@@ -6527,13 +6529,17 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
     }
   }
   
+  if (pCtx == NULL) {
+    goto group_finished_exit;
+  }
+  
   TSKEY* tsCols = NULL;
   if (pBlock && pBlock->pDataBlock != NULL) {
     SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, 0);
     tsCols = (int64_t*) pColDataInfo->pData;
     assert(tsCols[0] == pBlock->info.window.skey && tsCols[pBlock->info.rows - 1] == pBlock->info.window.ekey);
   }
-
+  
   if (pCtx->startTs == INT64_MIN) {
     if (pQueryAttr->range.skey == INT64_MIN) {
       if (NULL == tsCols) {        
@@ -6625,8 +6631,8 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
     return false;
   }
 
-
-  int32_t startPos = binarySearchForKey((char *)tsCols, pBlock->info.rows, pCtx->startTs, pQueryAttr->order.order);
+  int32_t nRows = pBlock ? pBlock->info.rows : 0;
+  int32_t startPos = binarySearchForKey((char *)tsCols, nRows, pCtx->startTs, pQueryAttr->order.order);
 
   if (ascQuery && pQueryAttr->fillType != TSDB_FILL_NEXT && pCtx->start.key == INT64_MIN) {
     if (startPos < 0) {
@@ -7410,7 +7416,7 @@ SOperatorInfo* createAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpera
     goto _clean;
   }
 
-  pInfo->seed = rand();
+  pInfo->seed = taosSafeRand();
   setDefaultOutputBuf(pRuntimeEnv, &pInfo->binfo, pInfo->seed, MASTER_SCAN);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
@@ -7614,7 +7620,7 @@ SOperatorInfo* createProjectOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
     return NULL;
   }
 
-  pInfo->seed = rand();
+  pInfo->seed = taosSafeRand();
   pInfo->bufCapacity = pRuntimeEnv->resultInfo.capacity;
 
   SOptrBasicInfo* pBInfo = &pInfo->binfo;
@@ -7754,16 +7760,17 @@ SOperatorInfo* createTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOp
     return NULL;
   }
 
+  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
+  if (pOperator == NULL) {
+    goto _clean;
+  }
+  
   pInfo->pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->rowCellInfoOffset);
   pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
   initResultRowInfo(&pInfo->resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
   if (pInfo->pRes == NULL || pInfo->pCtx == NULL || pInfo->resultRowInfo.pResult == NULL) {
-    goto _clean;
-  }
-
-  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-  if (pOperator == NULL) {
+    free(pOperator);
     goto _clean;
   }
 
@@ -7797,7 +7804,7 @@ SOperatorInfo* createTimeEveryOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpera
 
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
 
-  pInfo->seed = rand();
+  pInfo->seed = taosSafeRand();
   pInfo->bufCapacity = pRuntimeEnv->resultInfo.capacity;
   pInfo->groupDone = true;
   pInfo->lastGroupIdx = -1;
