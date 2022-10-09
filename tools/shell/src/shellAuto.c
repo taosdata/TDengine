@@ -17,7 +17,7 @@
 
 #include "shellInt.h"
 #include "shellAuto.h"
-#include "tire.h"
+#include "shellTire.h"
 #include "tthread.h"
 
 //
