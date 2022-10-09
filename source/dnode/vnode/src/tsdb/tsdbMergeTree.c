@@ -240,7 +240,8 @@ static bool queryChildTable(uint64_t suid) {
 }
 
 int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t iStt, int8_t backward, uint64_t suid,
-                       uint64_t uid, STimeWindow *pTimeWindow, SVersionRange *pRange, SSttBlockLoadInfo* pBlockLoadInfo) {
+                       uint64_t uid, STimeWindow *pTimeWindow, SVersionRange *pRange, SSttBlockLoadInfo* pBlockLoadInfo,
+                       const char* idStr) {
   int32_t code = 0;
   *pIter = taosMemoryCalloc(1, sizeof(SLDataIter));
   if (*pIter == NULL) {
@@ -259,6 +260,8 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
 
   size_t size = taosArrayGetSize(pBlockLoadInfo->aSttBlk);
   if (size == 0) {
+    int64_t st = taosGetTimestampUs();
+
     code = tsdbReadSttBlk(pReader, iStt, pBlockLoadInfo->aSttBlk);
     if (code) {
       goto _exit;
@@ -278,6 +281,9 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
       taosArrayDestroy(pBlockLoadInfo->aSttBlk);
       pBlockLoadInfo->aSttBlk = pTmp;
     }
+
+    double el = (taosGetTimestampUs() - st)/1000.0;
+    tsdbDebug("load the last file info completed, elapsed time:%.2fms, %s", el, idStr);
   }
 
   size = taosArrayGetSize(pBlockLoadInfo->aSttBlk);
@@ -502,7 +508,7 @@ int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFRead
 
   for (int32_t i = 0; i < pFReader->pSet->nSttF; ++i) {  // open all last file
     struct SLDataIter* pIter = NULL;
-    code = tLDataIterOpen(&pIter, pFReader, i, pMTree->backward, suid, uid, pTimeWindow, pVerRange, &pMTree->pLoadInfo[i]);
+    code = tLDataIterOpen(&pIter, pFReader, i, pMTree->backward, suid, uid, pTimeWindow, pVerRange, &pMTree->pLoadInfo[i], pMTree->idStr);
     if (code != TSDB_CODE_SUCCESS) {
       goto _end;
     }
