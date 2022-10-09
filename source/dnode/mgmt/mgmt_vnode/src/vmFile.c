@@ -94,6 +94,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
     pCfgs = taosMemoryCalloc(vnodesNum, sizeof(SWrapperCfg));
     if (pCfgs == NULL) {
       dError("failed to read %s since out of memory", file);
+      code = TSDB_CODE_OUT_OF_MEMORY;
       goto _OVER;
     }
 
@@ -104,6 +105,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
       cJSON *vgId = cJSON_GetObjectItem(vnode, "vgId");
       if (!vgId || vgId->type != cJSON_Number) {
         dError("failed to read %s since vgId not found", file);
+        taosMemoryFree(pCfgs);
         goto _OVER;
       }
       pCfg->vgId = vgId->valueint;
@@ -112,6 +114,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
       cJSON *dropped = cJSON_GetObjectItem(vnode, "dropped");
       if (!dropped || dropped->type != cJSON_Number) {
         dError("failed to read %s since dropped not found", file);
+        taosMemoryFree(pCfgs);
         goto _OVER;
       }
       pCfg->dropped = dropped->valueint;
@@ -119,6 +122,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
       cJSON *vgVersion = cJSON_GetObjectItem(vnode, "vgVersion");
       if (!vgVersion || vgVersion->type != cJSON_Number) {
         dError("failed to read %s since vgVersion not found", file);
+        taosMemoryFree(pCfgs);
         goto _OVER;
       }
       pCfg->vgVersion = vgVersion->valueint;
@@ -135,7 +139,6 @@ _OVER:
   if (content != NULL) taosMemoryFree(content);
   if (root != NULL) cJSON_Delete(root);
   if (pFile != NULL) taosCloseFile(&pFile);
-  if (code != 0) taosMemoryFree(pCfgs);
 
   terrno = code;
   return code;
@@ -143,8 +146,8 @@ _OVER:
 
 int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   int32_t ret = 0;
-  char file[PATH_MAX] = {0};
-  char realfile[PATH_MAX] = {0};
+  char    file[PATH_MAX] = {0};
+  char    realfile[PATH_MAX] = {0};
   snprintf(file, sizeof(file), "%s%svnodes.json.bak", pMgmt->path, TD_DIRSEP);
   snprintf(realfile, sizeof(file), "%s%svnodes.json", pMgmt->path, TD_DIRSEP);
 
