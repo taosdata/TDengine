@@ -3747,7 +3747,7 @@ _error:
   return pRes->code;
 }
 
-static char* getResultBlockPosition(SSqlCmd* pCmd, SSqlRes* pRes, int32_t columnIndex, int16_t* bytes) {
+static char* getResultBlockPosition(SSqlCmd* pCmd, SSqlRes* pRes, int32_t columnIndex, uint16_t* bytes) {
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
 
   SInternalField* pInfo = (SInternalField*) TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, columnIndex);
@@ -3805,7 +3805,7 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
   pRes->data = pFilePage->data;
   char* data = pRes->data;
 
-  int16_t bytes = 0;
+  uint16_t bytes = 0;
 
   tscRestoreFuncForSTableQuery(pQueryInfo);
   tscFieldInfoUpdateOffset(pQueryInfo);

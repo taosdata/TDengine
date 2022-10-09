@@ -265,10 +265,10 @@ typedef struct {
 } SShellSubmitRspMsg;
 
 typedef struct SSchema {
-  uint8_t type;
-  char    name[TSDB_COL_NAME_LEN];
-  int16_t colId;
-  int16_t bytes;
+  uint8_t  type;
+  char     name[TSDB_COL_NAME_LEN];
+  int16_t  colId;
+  uint16_t bytes;
 } SSchema;
 
 typedef struct STimeWindow {
@@ -643,14 +643,14 @@ typedef struct {
 } SRetrieveFuncMsg;
 
 typedef struct {
-  int8_t  extend;
-  char    name[TSDB_FUNC_NAME_LEN];
-  int32_t funcType;
-  int8_t  resType;
-  int16_t resBytes;
-  int32_t bufSize;
-  int32_t len;
-  char    content[];
+  int8_t   extend;
+  char     name[TSDB_FUNC_NAME_LEN];
+  int32_t  funcType;
+  int8_t   resType;
+  uint16_t resBytes;
+  int32_t  bufSize;
+  int32_t  len;
+  char     content[];
 } SFunctionInfoMsg;
 
 typedef struct {

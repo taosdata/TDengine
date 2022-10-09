@@ -210,7 +210,7 @@ void taosLoadScriptDestroy(void *pInit) {
   destroyScriptCtx(pInit);
 }
 
-ScriptCtx* createScriptCtx(char *script, int8_t resType, int16_t resBytes) {
+ScriptCtx* createScriptCtx(char *script, int8_t resType, uint16_t resBytes) {
   ScriptCtx *pCtx = (ScriptCtx *)calloc(1, sizeof(ScriptCtx)); 
   pCtx->state = SCRIPT_STATE_INIT; 
   pCtx->pEnv  = getScriptEnvFromPool();  //  

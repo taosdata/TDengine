@@ -1290,7 +1290,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       *(int8_t*) pMsg = pUdfInfo->resType;
       pMsg += sizeof(pUdfInfo->resType);
 
-      *(int16_t*) pMsg = htons(pUdfInfo->resBytes);
+      *(uint16_t *)pMsg = htons(pUdfInfo->resBytes);
       pMsg += sizeof(pUdfInfo->resBytes);
 
       STR_TO_VARSTR(pMsg, pUdfInfo->name);

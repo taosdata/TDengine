@@ -239,7 +239,7 @@ typedef struct SFuncObj {
   int32_t           bufSize;
   int64_t           createdTime;
   uint8_t           resType;
-  int16_t           resBytes;
+  uint16_t          resBytes;
   int64_t           sig;         // partial md5 sign
   int16_t           type;        // [lua script|so|js]
   int8_t            reserved[64];

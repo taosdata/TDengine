@@ -657,7 +657,7 @@ static int32_t parseTimestampFromJSON(cJSON *root, TAOS_SML_KV **pTS, int *num_k
   memcpy((*pTS)->key, key, sizeof(key));
 
   (*pTS)->type = TSDB_DATA_TYPE_TIMESTAMP;
-  (*pTS)->length = (int16_t)tDataTypes[(*pTS)->type].bytes;
+  (*pTS)->length = (uint16_t)tDataTypes[(*pTS)->type].bytes;
   (*pTS)->value = tcalloc((*pTS)->length, 1);
   memcpy((*pTS)->value, &tsVal, (*pTS)->length);
 
@@ -672,7 +672,7 @@ static int32_t convertJSONBool(TAOS_SML_KV *pVal, char* typeStr, int64_t valueIn
     return TSDB_CODE_TSC_INVALID_JSON_TYPE;
   }
   pVal->type = TSDB_DATA_TYPE_BOOL;
-  pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+  pVal->length = (uint16_t)tDataTypes[pVal->type].bytes;
   pVal->value = tcalloc(pVal->length, 1);
   *(bool *)(pVal->value) = valueInt ? true : false;
 
@@ -688,7 +688,7 @@ static int32_t convertJSONNumber(TAOS_SML_KV *pVal, char* typeStr, cJSON *value,
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
     }
     pVal->type = TSDB_DATA_TYPE_TINYINT;
-    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    pVal->length = (uint16_t)tDataTypes[pVal->type].bytes;
     pVal->value = tcalloc(pVal->length, 1);
     *(int8_t *)(pVal->value) = (int8_t)(value->valueint);
     return TSDB_CODE_SUCCESS;
@@ -701,7 +701,7 @@ static int32_t convertJSONNumber(TAOS_SML_KV *pVal, char* typeStr, cJSON *value,
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
     }
     pVal->type = TSDB_DATA_TYPE_SMALLINT;
-    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    pVal->length = (uint16_t)tDataTypes[pVal->type].bytes;
     pVal->value = tcalloc(pVal->length, 1);
     *(int16_t *)(pVal->value) = (int16_t)(value->valueint);
     return TSDB_CODE_SUCCESS;
@@ -714,7 +714,7 @@ static int32_t convertJSONNumber(TAOS_SML_KV *pVal, char* typeStr, cJSON *value,
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
     }
     pVal->type = TSDB_DATA_TYPE_INT;
-    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    pVal->length = (uint16_t)tDataTypes[pVal->type].bytes;
     pVal->value = tcalloc(pVal->length, 1);
     *(int32_t *)(pVal->value) = (int32_t)(value->valueint);
     return TSDB_CODE_SUCCESS;
@@ -723,7 +723,7 @@ static int32_t convertJSONNumber(TAOS_SML_KV *pVal, char* typeStr, cJSON *value,
   if (strcasecmp(typeStr, "i64") == 0 ||
       strcasecmp(typeStr, "bigint") == 0) {
     pVal->type = TSDB_DATA_TYPE_BIGINT;
-    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    pVal->length = (uint16_t)tDataTypes[pVal->type].bytes;
     pVal->value = tcalloc(pVal->length, 1);
     /* cJSON conversion of legit BIGINT may overflow,
      * use original string to do the conversion.
@@ -745,7 +745,7 @@ static int32_t convertJSONNumber(TAOS_SML_KV *pVal, char* typeStr, cJSON *value,
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
     }
     pVal->type = TSDB_DATA_TYPE_FLOAT;
-    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    pVal->length = (uint16_t)tDataTypes[pVal->type].bytes;
     pVal->value = tcalloc(pVal->length, 1);
     *(float *)(pVal->value) = (float)(value->valuedouble);
     return TSDB_CODE_SUCCESS;
@@ -758,7 +758,7 @@ static int32_t convertJSONNumber(TAOS_SML_KV *pVal, char* typeStr, cJSON *value,
       return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
     }
     pVal->type = TSDB_DATA_TYPE_DOUBLE;
-    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    pVal->length = (uint16_t)tDataTypes[pVal->type].bytes;
     pVal->value = tcalloc(pVal->length, 1);
     *(double *)(pVal->value) = (double)(value->valuedouble);
     return TSDB_CODE_SUCCESS;
@@ -778,7 +778,7 @@ static int32_t convertJSONString(TAOS_SML_KV *pVal, char* typeStr, cJSON *value,
     tscError("OTD:0x%"PRIx64" invalid type(%s) for JSON String", info->id, typeStr);
     return TSDB_CODE_TSC_INVALID_JSON_TYPE;
   }
-  pVal->length = (int16_t)strlen(value->valuestring);
+  pVal->length = (uint16_t)strlen(value->valuestring);
   pVal->value = tcalloc(pVal->length + 1, 1);
   memcpy(pVal->value, value->valuestring, pVal->length);
   return TSDB_CODE_SUCCESS;
@@ -839,7 +839,7 @@ static int32_t parseValueFromJSON(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo*
     case cJSON_True:
     case cJSON_False: {
       pVal->type = TSDB_DATA_TYPE_BOOL;
-      pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+      pVal->length = (uint16_t)tDataTypes[pVal->type].bytes;
       pVal->value = tcalloc(pVal->length, 1);
       *(bool *)(pVal->value) = root->valueint ? true : false;
       break;
@@ -848,7 +848,7 @@ static int32_t parseValueFromJSON(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo*
       //convert default JSON Number type to BIGINT/DOUBLE
       //if (isValidInteger(root->numberstring)) {
       //  pVal->type = TSDB_DATA_TYPE_BIGINT;
-      //  pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+      //  pVal->length = (uint16_t)tDataTypes[pVal->type].bytes;
       //  pVal->value = tcalloc(pVal->length, 1);
       //  /* cJSON conversion of legit BIGINT may overflow,
       //   * use original string to do the conversion.
@@ -862,7 +862,7 @@ static int32_t parseValueFromJSON(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo*
       //  *(int64_t *)(pVal->value) = val;
       //} else if (isValidFloat(root->numberstring)) {
       //  pVal->type = TSDB_DATA_TYPE_DOUBLE;
-      //  pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+      //  pVal->length = (uint16_t)tDataTypes[pVal->type].bytes;
       //  pVal->value = tcalloc(pVal->length, 1);
       //  *(double *)(pVal->value) = (double)(root->valuedouble);
       //} else {
@@ -870,7 +870,7 @@ static int32_t parseValueFromJSON(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo*
       //}
       if (isValidInteger(root->numberstring) || isValidFloat(root->numberstring)) {
         pVal->type = TSDB_DATA_TYPE_DOUBLE;
-        pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+        pVal->length = (uint16_t)tDataTypes[pVal->type].bytes;
         pVal->value = tcalloc(pVal->length, 1);
         *(double *)(pVal->value) = (double)(root->valuedouble);
       }
@@ -890,7 +890,7 @@ static int32_t parseValueFromJSON(cJSON *root, TAOS_SML_KV *pVal, SSmlLinesInfo*
         return TSDB_CODE_TSC_INVALID_JSON_CONFIG;
       }
       //pVal->length = wcslen((wchar_t *)root->valuestring) * TSDB_NCHAR_SIZE;
-      pVal->length = (int16_t)strlen(root->valuestring);
+      pVal->length = (uint16_t)strlen(root->valuestring);
       pVal->value = tcalloc(pVal->length + 1, 1);
       memcpy(pVal->value, root->valuestring, pVal->length);
       break;

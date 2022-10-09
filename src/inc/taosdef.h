@@ -206,7 +206,14 @@ do { \
 // this is the length of its string representation, including the terminator zero
 #define TSDB_ACCT_ID_LEN          11
 
+#define TSDB_MODE_RICH_COL_
+
+#ifdef TSDB_MODE_RICH_COL
 #define TSDB_MAX_COLUMNS          4096
+#else 
+#define TSDB_MAX_COLUMNS          128
+#endif
+
 #define TSDB_MIN_COLUMNS          2       //PRIMARY COLUMN(timestamp) + other columns
 
 #define TSDB_NODE_NAME_LEN        64
@@ -231,7 +238,12 @@ do { \
    *  - Secondly, if all cols are VarDataT type except primary key, we need 4 bits to store the offset, thus
    *    the final value is 65531-(4096-1)*4 = 49151.
    */
-#define TSDB_MAX_BYTES_PER_ROW    49151
+#ifdef TSDB_MODE_RICH_COL
+#define TSDB_MAX_BYTES_PER_ROW 49151
+#else
+#define TSDB_MAX_BYTES_PER_ROW 65023  // 65531-(128-1)*4=65023
+#endif
+
 #define TSDB_MAX_TAGS_LEN         16384
 #define TSDB_MAX_JSON_TAGS_LEN    (4096*TSDB_NCHAR_SIZE + 2 + 1) // 2->var_header_len 1->type
 #define TSDB_MAX_TAGS             128
@@ -371,7 +383,12 @@ do { \
 #define TSDB_MAX_JOIN_TABLE_NUM         10
 #define TSDB_MAX_UNION_CLAUSE           5
 
+#ifdef TSDB_MODE_RICH_COL
 #define TSDB_MAX_FIELD_LEN              16384
+#else
+#define TSDB_MAX_FIELD_LEN              64512
+#endif
+
 #define TSDB_MAX_BINARY_LEN            (TSDB_MAX_FIELD_LEN-TSDB_KEYSIZE) // keep 16384
 #define TSDB_MAX_NCHAR_LEN             (TSDB_MAX_FIELD_LEN-TSDB_KEYSIZE) // keep 16384
 #define PRIMARYKEY_TIMESTAMP_COL_INDEX  0

@@ -81,7 +81,7 @@ static void getColumnName(tSqlExprItem* pItem, char* resultFieldName, char* rawN
 
 static int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t colIndex, tSqlExprItem* pItem,
     bool finalResult, SUdfInfo* pUdfInfo);
-static int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnList* pColList, int16_t bytes,
+static int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnList* pColList, uint16_t bytes,
                           int8_t type, char* fieldName, SExprInfo* pSqlExpr);
 
 static uint8_t convertRelationalOperator(SStrToken *pToken);
@@ -2368,7 +2368,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnList* pColList, int16_t bytes,
+int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnList* pColList, uint16_t bytes,
                           int8_t type, char* fieldName, SExprInfo* pSqlExpr) {
   for (int32_t i = 0; i < pColList->num; ++i) {
     int32_t tableIndex = pColList->ids[i].tableIndex;
@@ -8276,9 +8276,9 @@ void addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t subClau
       int16_t colIndex = tscGetTagColIndexById(pTableMetaInfo->pTableMeta, colId);
       SColumnIndex idx = {.tableIndex = 0, .columnIndex = colIndex};
 
-      char*   name = pTagSchema->name;
-      int16_t type = pTagSchema->type;
-      int16_t bytes = pTagSchema->bytes;
+      char*    name = pTagSchema->name;
+      int16_t  type = pTagSchema->type;
+      uint16_t bytes = pTagSchema->bytes;
 
       pExpr = tscExprAppend(pQueryInfo, TSDB_FUNC_TAG, &idx, type, bytes, getNewResColId(&pSql->cmd), bytes, true);
       pExpr->base.colInfo.flag = TSDB_COL_TAG;
@@ -9350,7 +9350,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
 
             // check again after the convert since it may be converted from binary to nchar.
             if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
-              int16_t len = varDataTLen(tagVal);
+              uint16_t len = varDataTLen(tagVal);
               if (len > pSchema->bytes) {
                 tdDestroyKVRowBuilder(&kvRowBuilder);
                 return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
@@ -9404,7 +9404,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
 
         // check again after the convert since it may be converted from binary to nchar.
         if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
-          int16_t len = varDataTLen(tagVal);
+          uint16_t len = varDataTLen(tagVal);
           if (len > pSchema->bytes) {
             tdDestroyKVRowBuilder(&kvRowBuilder);
             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);

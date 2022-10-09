@@ -3446,7 +3446,7 @@ void filterColRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSDataBlock* pBlock
 
 static SColumnInfo* doGetTagColumnInfoById(SColumnInfo* pTagColList, int32_t numOfTags, int16_t colId);
 static void         doSetTagValueInParam(void* pTable, char* param, int32_t paraLen, int32_t tagColId, tVariant* tag,
-                                         int16_t type, int16_t bytes);
+                                         int16_t type, uint16_t bytes);
 
 static uint32_t doFilterByBlockTimeWindow(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock) {
   SQLFunctionCtx* pCtx = pTableScanInfo->pCtx;
@@ -3732,7 +3732,7 @@ int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order) {
  * e.g.,tag information into input buffer
  */
 static void doSetTagValueInParam(void* pTable, char* param, int32_t paramLen, int32_t tagColId, tVariant* tag,
-                                 int16_t type, int16_t bytes) {
+                                 int16_t type, uint16_t bytes) {
   tVariantDestroy(tag);
 
   char* val = NULL;
@@ -8580,7 +8580,7 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
 
     count = 0;
 
-    int16_t bytes = pExprInfo->base.resBytes;
+    uint16_t bytes = pExprInfo->base.resBytes;
     int16_t type = pExprInfo->base.resType;
 
     for (int32_t i = 0; i < pQueryAttr->numOfTags; ++i) {
@@ -8654,7 +8654,8 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
       STableQueryInfo* item = taosArrayGetP(pa, i);
 
       char *  data = NULL, *dst = NULL;
-      int16_t type = 0, bytes = 0;
+      int16_t type = 0;
+      uint16_t bytes = 0;
       for (int32_t j = 0; j < pOperator->numOfOutput; ++j) {
         // not assign value in case of user defined constant output column
         if (TSDB_COL_IS_UD_COL(pExprInfo[j].base.colInfo.flag)) {
@@ -9359,7 +9360,7 @@ int32_t convertQueryMsg(SQueryTableMsg* pQueryMsg, SQueryParam* param) {
     param->pUdfInfo->resType = *(int8_t*)pMsg;
     pMsg += sizeof(int8_t);
 
-    param->pUdfInfo->resBytes = htons(*(int16_t*)pMsg);
+    param->pUdfInfo->resBytes = htons(*(uint16_t*)pMsg);
     pMsg += sizeof(int16_t);
 
     tstr* name = (tstr*)(pMsg);
