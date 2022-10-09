@@ -145,11 +145,11 @@ SWords shellCommands[] = {
     // 80
     {"show query <anyword> ;", 0, 0, NULL},
     {"show qnodes;", 0, 0, NULL},
-    {"show snodes;", 0, 0, NULL},
     {"show stables;", 0, 0, NULL},
     {"show stables like ", 0, 0, NULL},
     {"show streams;", 0, 0, NULL},
     {"show scores;", 0, 0, NULL},
+    {"show snodes;", 0, 0, NULL},
     {"show subscriptions;", 0, 0, NULL},
     {"show tables;", 0, 0, NULL},
     {"show tables like", 0, 0, NULL},
