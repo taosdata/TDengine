@@ -12,7 +12,7 @@ settings:
             serverPort: '6030'
             dataDir: /root/data/taosd
             logDir: /root/data/taosd
-            debugFlag: 135
+            debugFlag: 143
             supportVnodes: 1024
   - name: taosd
     fqdn: [node226]
@@ -24,10 +24,10 @@ settings:
         - endpoint: node226:6030
           config_dir: /root/data/taosd
           config: # will write into taos.cfg
-            serverPort: '6030'
+            
             dataDir: /root/data/taosd
             logDir: /root/data/taosd
-            debugFlag: 135
+            debugFlag: 143
             supportVnodes: 1024
   - name: taosd
     fqdn: [node222]
@@ -39,10 +39,10 @@ settings:
         - endpoint: node222:6030
           config_dir: /root/data/taosd
           config: # will write into taos.cfg
-            serverPort: '6030'
+            
             dataDir: /root/data/taosd
             logDir: /root/data/taosd
-            debugFlag: 135
+            debugFlag: 143
             supportVnodes: 1024
   - name: taospy
     fqdn: [vm85]
@@ -52,7 +52,7 @@ settings:
       config:
         firstEP: vm85:6030
         logDir: /root/data/taosd
-        debugFlag: 131
+        debugFlag: 143
   - name: taospy
     fqdn: [node226]
     spec:
@@ -61,7 +61,7 @@ settings:
       config:
         firstEP: node226:6030
         logDir: /root/data/taosd
-        debugFlag: 131
+        debugFlag: 143
   - name: taospy
     fqdn: [node222]
     spec:
@@ -70,21 +70,22 @@ settings:
       config:
         firstEP: node222:6030
         logDir: /root/data/taosd
-        debugFlag: 131
+        debugFlag: 143
   - name: taosAdapter
     fqdn: [vm85]
     spec:
       version: 3.0.1.0
       config_file: /root/data/taosd/taosadaper.toml
       adapter_config:
-        logLevel: info
+        debug: true
+        logLevel: debug
         taosConfigDir: /root/data/taosd
         log:
           path: /root/data/taosd
       taos_config:
         firstEP: vm85:6030
         logDir: /root/data/taosd
-        debugFlag: 135
+        debugFlag: 143
   - name: taosAdapter
     fqdn: [node226]
     spec:
@@ -98,7 +99,7 @@ settings:
       taos_config:
         firstEP: node226:6030
         logDir: /root/data/taosd
-        debugFlag: 135
+        debugFlag: 143
   - name: taosAdapter
     fqdn: [node222]
     spec:
@@ -112,7 +113,7 @@ settings:
       taos_config:
         firstEP: node222:6030
         logDir: /root/data/taosd
-        debugFlag: 135        
+        debugFlag: 143       
   - name: taosBenchmark
     fqdn: [vm85]
     spec:
@@ -122,7 +123,7 @@ settings:
       taos_config:
         firstEP: vm85:6090
         logDir: /root/data/taosd
-        debugFlag: 131
+        debugFlag: 143
   - name: taosx
     fqdn: [vm85]
     spec:
@@ -132,4 +133,4 @@ settings:
       taos_config:
         firstEP: vm85:6030
         logDir: /root/data/taosd
-        debugFlag: 131
+        debugFlag: 143
