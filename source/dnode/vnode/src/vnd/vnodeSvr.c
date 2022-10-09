@@ -1040,6 +1040,14 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void 
     tsdbCacheSetCapacity(pVnode, (size_t)pVnode->config.cacheLastSize * 1024 * 1024);
   }
 
+  if (pVnode->config.szBuf != alterReq.buffer * 1024LL * 1024LL) {
+    pVnode->config.szBuf = alterReq.buffer * 1024LL * 1024LL;
+  }
+
+  if (pVnode->config.szCache != alterReq.pages) {
+    // TODO
+  }
+
   if (pVnode->config.cacheLast != alterReq.cacheLast) {
     pVnode->config.cacheLast = alterReq.cacheLast;
   }
