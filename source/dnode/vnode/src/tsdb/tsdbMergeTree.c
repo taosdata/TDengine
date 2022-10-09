@@ -235,10 +235,6 @@ static int32_t binarySearchForStartRowIndex(uint64_t* uidList, int32_t num, uint
   }
 }
 
-static bool queryChildTable(uint64_t suid) {
-  return suid != 0;
-}
-
 int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t iStt, int8_t backward, uint64_t suid,
                        uint64_t uid, STimeWindow *pTimeWindow, SVersionRange *pRange, SSttBlockLoadInfo* pBlockLoadInfo,
                        const char* idStr) {
@@ -268,19 +264,24 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
     }
 
     // only apply to the child tables, ordinary tables will not incur this filter procedure.
-    if (queryChildTable(suid)) {
-      size = taosArrayGetSize(pBlockLoadInfo->aSttBlk);
-      SArray *pTmp = taosArrayInit(size, sizeof(SSttBlk));
-      for (int32_t i = 0; i < size; ++i) {
-        SSttBlk *p = taosArrayGet(pBlockLoadInfo->aSttBlk, i);
-        if (p->suid == suid) {
-          taosArrayPush(pTmp, p);
-        }
+    size = taosArrayGetSize(pBlockLoadInfo->aSttBlk);
+    SArray *pTmp = taosArrayInit(size, sizeof(SSttBlk));
+    for (int32_t i = 0; i < size; ++i) {
+      SSttBlk *p = taosArrayGet(pBlockLoadInfo->aSttBlk, i);
+      uint64_t s = p->suid;
+      if (s < suid) {
+        continue;
       }
 
-      taosArrayDestroy(pBlockLoadInfo->aSttBlk);
-      pBlockLoadInfo->aSttBlk = pTmp;
+      if (s == suid) {
+        taosArrayPush(pTmp, p);
+      } else if (s > suid) {
+        break;
+      }
     }
+
+    taosArrayDestroy(pBlockLoadInfo->aSttBlk);
+    pBlockLoadInfo->aSttBlk = pTmp;
 
     double el = (taosGetTimestampUs() - st)/1000.0;
     tsdbDebug("load the last file info completed, elapsed time:%.2fms, %s", el, idStr);
