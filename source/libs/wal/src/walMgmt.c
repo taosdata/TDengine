@@ -110,8 +110,8 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   // init ref
   pWal->pRefHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   if (pWal->pRefHash == NULL) {
-      wError("failed to init hash since %s", tstrerror(terrno));
-      goto _err;
+    wError("failed to init hash since %s", tstrerror(terrno));
+    goto _err;
   }
 
   // open meta
@@ -149,8 +149,8 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   // add ref
   pWal->refId = taosAddRef(tsWal.refSetId, pWal);
   if (pWal->refId < 0) {
-      wError("failed to add ref for Wal since %s", tstrerror(terrno));
-      goto _err;
+    wError("failed to add ref for Wal since %s", tstrerror(terrno));
+    goto _err;
   }
 
   wDebug("vgId:%d, wal:%p is opened, level:%d fsyncPeriod:%d", pWal->cfg.vgId, pWal, pWal->cfg.level,
