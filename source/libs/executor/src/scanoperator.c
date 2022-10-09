@@ -1415,6 +1415,30 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   }
   blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
   blockDataFreeRes((SSDataBlock*)pBlock);
+
+  if (pInfo->tbnameCalSup.numOfExprs > 0 && pInfo->pRes->info.rows > 0) {
+    SSDataBlock* pTmpBlock = blockCopyOneRow(pInfo->pRes, 0);
+    SSDataBlock* pResBlock = createDataBlock();
+    pResBlock->info.rowSize = TSDB_TABLE_NAME_LEN;
+    SColumnInfoData data = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, TSDB_TABLE_NAME_LEN, 0);
+    taosArrayPush(pResBlock->pDataBlock, &data);
+    blockDataEnsureCapacity(pResBlock, 1);
+    projectApplyFunctions(pInfo->tbnameCalSup.pExprInfo, pResBlock, pTmpBlock, pInfo->tbnameCalSup.pCtx, 1, NULL);
+    ASSERT(pResBlock->info.rows == 1);
+    ASSERT(taosArrayGetSize(pResBlock->pDataBlock) == 1);
+    SColumnInfoData* pCol = taosArrayGet(pResBlock->pDataBlock, 0);
+    ASSERT(pCol->info.type == TSDB_DATA_TYPE_VARCHAR);
+    void* pData = colDataGetData(pCol, 0);
+    // TODO check tbname validation
+    if (pData != (void*)-1) {
+      memcpy(pInfo->pRes->info.parTbName, varDataVal(pData), varDataLen(pData));
+    } else {
+      pInfo->pRes->info.parTbName[0] = 0;
+    }
+    blockDataDestroy(pTmpBlock);
+    blockDataDestroy(pResBlock);
+  }
+
   return 0;
 }
 
@@ -2086,6 +2110,19 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     taosArrayPush(pColIds, &colId);
     if (id->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
       pInfo->primaryTsIndex = id->targetSlotId;
+    }
+  }
+
+  if (pTableScanNode->pSubtable != NULL) {
+    SExprInfo* pSubTableExpr = taosMemoryCalloc(1, sizeof(SExprInfo));
+    if (pSubTableExpr == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto _error;
+    }
+    pInfo->tbnameCalSup.pExprInfo = pSubTableExpr;
+    createExprFromOneNode(pSubTableExpr, pTableScanNode->pSubtable, 0);
+    if (initExprSupp(&pInfo->tbnameCalSup, pSubTableExpr, 1) != 0) {
+      goto _error;
     }
   }
 

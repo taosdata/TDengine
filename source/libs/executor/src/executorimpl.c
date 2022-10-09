@@ -4249,6 +4249,8 @@ int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pStat
       char* tbname = taosHashGet(pInfo->pGroupIdTbNameMap, &pBlock->info.groupId, sizeof(int64_t));
       if (tbname != NULL) {
         memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
+      } else {
+        pBlock->info.parTbName[0] = 0;
       }
     } else {
       // current value belongs to different group, it can't be packed into one datablock

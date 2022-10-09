@@ -1761,6 +1761,7 @@ void destroyStreamFinalIntervalOperatorInfo(void* param) {
   nodesDestroyNode((SNode*)pInfo->pPhyNode);
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   cleanupGroupResInfo(&pInfo->groupResInfo);
+  taosHashCleanup(pInfo->pGroupIdTbNameMap);
 
   taosMemoryFreeClear(param);
 }
@@ -3291,6 +3292,11 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
     }
     printDataBlock(pBlock, IS_FINAL_OP(pInfo) ? "interval final recv" : "interval semi recv");
 
+    if (pBlock->info.parTbName[0]) {
+      taosHashPut(pInfo->pGroupIdTbNameMap, &pBlock->info.groupId, sizeof(int64_t), &pBlock->info.parTbName,
+                  TSDB_TABLE_NAME_LEN);
+    }
+
     ASSERT(pBlock->info.type != STREAM_INVERT);
     if (pBlock->info.type == STREAM_NORMAL || pBlock->info.type == STREAM_PULL_DATA) {
       pInfo->binfo.pRes->info.type = pBlock->info.type;
@@ -3500,6 +3506,9 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   pInfo->pDelWins = taosArrayInit(4, sizeof(SWinKey));
   pInfo->delKey.ts = INT64_MAX;
   pInfo->delKey.groupId = 0;
+
+  pInfo->pGroupIdTbNameMap =
+      taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_NO_LOCK);
 
   pOperator->operatorType = pPhyNode->type;
   pOperator->blocking = true;
@@ -5666,6 +5675,12 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
     }
     printDataBlock(pBlock, "single interval recv");
 
+    if (pBlock->info.parTbName[0]) {
+      taosHashPut(pInfo->pGroupIdTbNameMap, &pBlock->info.groupId, sizeof(int64_t), &pBlock->info.parTbName,
+                  TSDB_TABLE_NAME_LEN);
+      /*printf("\n\n put tbname %s\n\n", pBlock->info.parTbName);*/
+    }
+
     if (pBlock->info.type == STREAM_DELETE_DATA || pBlock->info.type == STREAM_DELETE_RESULT ||
         pBlock->info.type == STREAM_CLEAR) {
       doDeleteWindows(pOperator, &pInfo->interval, pBlock, pInfo->pDelWins, pUpdatedMap);
@@ -5806,6 +5821,9 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->pChildren = NULL;
   pInfo->delKey.ts = INT64_MAX;
   pInfo->delKey.groupId = 0;
+
+  pInfo->pGroupIdTbNameMap =
+      taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_NO_LOCK);
 
   pOperator->name = "StreamIntervalOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL;

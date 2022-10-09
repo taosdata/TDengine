@@ -873,7 +873,7 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
       colDataAppend(pDestCol, pDest->info.rows, pSrcData, isNull);
     }
     pDest->info.rows++;
-    if (i == 0) {
+    if (pInfo->tbnameCalSup.numOfExprs > 0 && i == 0) {
       SSDataBlock* pTmpBlock = blockCopyOneRow(pSrc, rowIndex);
       SSDataBlock* pResBlock = createDataBlock();
       pResBlock->info.rowSize = TSDB_TABLE_NAME_LEN;
@@ -892,6 +892,9 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
       } else {
         pDest->info.parTbName[0] = 0;
       }
+      /*printf("\n\n set name %s\n\n", pDest->info.parTbName);*/
+      blockDataDestroy(pTmpBlock);
+      blockDataDestroy(pResBlock);
     }
   }
   blockDataUpdateTsWindow(pDest, pInfo->tsColIndex);
@@ -915,7 +918,6 @@ static void doStreamHashPartitionImpl(SStreamPartitionOperatorInfo* pInfo, SSDat
     } else {
       SPartitionDataInfo newParData = {0};
       newParData.groupId = calcGroupId(pInfo->partitionSup.keyBuf, keyLen);
-      /*newParData.tbname = */
       newParData.rowIds = taosArrayInit(64, sizeof(int32_t));
       taosArrayPush(newParData.rowIds, &i);
       taosHashPut(pInfo->pPartitions, pInfo->partitionSup.keyBuf, keyLen, &newParData, sizeof(SPartitionDataInfo));
