@@ -1251,12 +1251,12 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
           }
         }
       } else if (type == TSDB_DATA_TYPE_FLOAT) {
-        double prev = 0;
-        GET_TYPED_DATA(prev, double, type, &pBuf->v);
+        float prev = 0;
+        GET_TYPED_DATA(prev, float, type, &pBuf->v);
 
-        double val = GET_DOUBLE_VAL(tval);
+        float val = GET_DOUBLE_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
-          *(double*)&pBuf->v = val;
+          *(float*)&pBuf->v = val;
         }
 
         if (pCtx->subsidiaries.num > 0) {

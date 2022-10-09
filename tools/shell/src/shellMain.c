@@ -15,6 +15,7 @@
 
 #define __USE_XOPEN
 #include "shellInt.h"
+#include "shellAuto.h"
 
 SShellObj shell = {0};
 
@@ -70,5 +71,9 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  return shellExecute();
+  // support port feature 
+  shellAutoInit();
+  int32_t ret = shellExecute();
+  shellAutoExit();
+  return ret;
 }
