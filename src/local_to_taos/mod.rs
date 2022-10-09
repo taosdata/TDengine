@@ -1,17 +1,16 @@
-use std::{path::Path, sync::Arc};
+use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 use anyhow::{bail, Context, Result};
 use taos::*;
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tokio::sync::Semaphore;
 
 use crate::{taoz::ZCodec, tmq_to_local::LocalConfig};
 
 async fn restore(
     id: usize,
     path: impl AsRef<Path>,
-    taos: Taos,
-    table: Option<String>,
-    sem: OwnedSemaphorePermit,
+    taos: &Taos,
+    table: Option<&str>,
 ) -> Result<()> {
     let path = path.as_ref();
     log::info!("[{}] restore with file: {:?}", id, path.display());
@@ -39,7 +38,7 @@ async fn restore(
                 }
                 MessageSet::Data(data) => {
                     for mut raw in data {
-                        if let Some(name) = table.as_ref() {
+                        if let Some(name) = table {
                             raw.with_table_name(name);
                         }
                         rows += raw.nrows();
@@ -83,7 +82,6 @@ async fn restore(
     let mut zo = path.to_path_buf();
     zo.set_extension("zo");
     tokio::fs::write(zo, "").await?;
-    drop(sem);
     drop(taos);
     drop(reader);
 
@@ -96,14 +94,18 @@ async fn restore(
     Ok(())
 }
 
-pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> Result<()> {
+pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> Result<()> {
     if from.path.is_none() {
         anyhow::bail!(
             "invalid local dsn: {}\nPlease use a local path DSN like `local:./path/to/backup`",
             from
         );
     }
-    let continuous = from.params.contains_key("continue");
+    let continuous = from
+        .params
+        .remove("continue")
+        .map(|s| s.is_empty() || s.to_lowercase() == "true")
+        .unwrap_or(false);
     let path: &Path = from.path.as_ref().unwrap().as_ref();
     if !path.exists() {
         anyhow::bail!("invalid backup dsn `{}`: directory not exist", from);
@@ -207,6 +209,9 @@ pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> 
         }
 
         let mut dir_entry = tokio::fs::read_dir(path).await?;
+
+        let mut files: BTreeMap<i64, BTreeMap<i64, tokio::fs::DirEntry>> = BTreeMap::new();
+
         while let Some(path) = dir_entry.next_entry().await? {
             let file_name = path.file_name().into_string().unwrap();
             if !file_name.starts_with(&topic.name) || !file_name.ends_with("z") {
@@ -219,7 +224,29 @@ pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> 
                     continue;
                 }
             }
+            let file_name_only = path.path().with_extension("");
+            let items = file_name_only
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .split("-")
+                .collect_vec();
 
+            let (ts, vgroup) = items.iter().rev().take(2).collect_tuple().unwrap();
+            let vgroup: i64 = vgroup.parse().unwrap();
+            let ts: i64 = ts.parse().unwrap();
+
+            if files.contains_key(&vgroup) {
+                files.get_mut(&vgroup).unwrap().insert(ts, path);
+            } else {
+                let mut map = BTreeMap::new();
+                map.insert(ts, path);
+                files.insert(vgroup, map);
+            }
+        }
+
+        for (_, files) in files {
             let sem = task_sem.clone().acquire_owned().await?;
             let taos = target.build()?;
             if let Some(target) = target_database.as_ref() {
@@ -228,10 +255,19 @@ pub async fn local_to_taos(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> 
                 taos.exec(format!("use {}", topic.database)).await?;
             }
 
-            // let barrier = barrier.clone();
             let table = topic.table.as_ref().map(|t| t.table.clone());
-            let handle =
-                tokio::spawn(async move { restore(task_id, path.path(), taos, table, sem).await });
+            let handle = tokio::spawn(async move {
+                for (_, path) in files {
+                    let res = restore(task_id, path.path(), &taos, table.as_deref()).await;
+                    if res.is_err() {
+                        drop(sem);
+                        return res;
+                    }
+                }
+
+                drop(sem);
+                Ok(())
+            });
             handles.push(handle);
 
             task_id += 1;
