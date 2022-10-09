@@ -959,8 +959,8 @@ int32_t udfdInitResidentFuncs() {
   char* pSave = tsUdfdResFuncs;
   char* token;
   while ((token = strtok_r(pSave, ",", &pSave)) != NULL) {
-    char func[TSDB_FUNC_NAME_LEN] = {0};
-    strncpy(func, token, sizeof(func));
+    char func[TSDB_FUNC_NAME_LEN+1] = {0};
+    strncpy(func, token, TSDB_FUNC_NAME_LEN);
     taosArrayPush(global.residentFuncs, func);
   }
 
