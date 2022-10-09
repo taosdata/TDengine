@@ -35,7 +35,7 @@ void insertChar(Command *cmd, char *c, int size);
 
 void printHelp() {
   char indent[10] = "        ";
-  printf("taos shell is used to test the TDengine database\n");
+  printf("TDengine Command Line is used to test the TDengine database\n");
 
   printf("%s%s\n", indent, "-h");
   printf("%s%s%s\n", indent, indent, "TDengine server IP address to connect. The default host is localhost.");
@@ -68,7 +68,7 @@ void printHelp() {
   exit(EXIT_SUCCESS);
 }
 
-char      DARWINCLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
+char      DARWINCLIENT_VERSION[] = "Welcome to the TDengine Command Line Interface from %s, Client Version:%s\n"
                              "Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.\n\n";
 char g_password[SHELL_MAX_PASSWORD_LEN];
 
