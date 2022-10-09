@@ -619,8 +619,8 @@ int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, i
   int32_t code = 0;
 
   if (!isApply) {
-    sdbCloseIter(pIter);
     mInfo("sdbiter:%p, not apply to sdb", pIter);
+    sdbCloseIter(pIter);
     return 0;
   }
 

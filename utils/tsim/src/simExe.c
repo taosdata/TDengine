@@ -237,9 +237,9 @@ int32_t simExecuteExpression(SScript *script, char *exp) {
   int32_t var3Len = 0;
   int32_t val0 = 0;
   int32_t val1 = 0;
-  char    t0[1024] = {0};
-  char    t1[1024] = {0};
-  char    t2[1024] = {0};
+  char    t0[2048] = {0};
+  char    t1[2048] = {0};
+  char    t2[2048] = {0};
   char    t3[2048] = {0};
   int32_t result = 0;
 
@@ -256,7 +256,7 @@ int32_t simExecuteExpression(SScript *script, char *exp) {
   }
 
   if (var2[0] == '$') {
-    tstrncpy(t1, simGetVariable(script, var2 + 1, var2Len - 1), 1024);
+    tstrncpy(t1, simGetVariable(script, var2 + 1, var2Len - 1), sizeof(t1));
   } else {
     memcpy(t1, var2, var2Len);
     t1[var2Len] = 0;
@@ -266,7 +266,7 @@ int32_t simExecuteExpression(SScript *script, char *exp) {
     rest = paGetToken(rest, &var3, &var3Len);
 
     if (var3[0] == '$')
-      strcpy(t2, simGetVariable(script, var3 + 1, var3Len - 1));
+      tstrncpy(t2, simGetVariable(script, var3 + 1, var3Len - 1), sizeof(t2));
     else {
       memcpy(t2, var3, var3Len);
       t2[var3Len] = 0;
@@ -291,7 +291,7 @@ int32_t simExecuteExpression(SScript *script, char *exp) {
       sprintf(t3, "%s%s", t1, t2);
     }
   } else {
-    strcpy(t3, t1);
+    tstrncpy(t3, t1, sizeof(t3));
   }
 
   result = 0;

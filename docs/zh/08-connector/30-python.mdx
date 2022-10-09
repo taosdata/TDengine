@@ -186,7 +186,7 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 - `user` ：TDengine 用户名。 默认值是 root。
 - `password` ： TDengine 用户密码。 默认值是 taosdata。
 - `port` ： 要连接的数据节点的起始端口，即 serverPort 配置。默认值是 6030。只有在提供了 host 参数的时候，这个参数才生效。
-- `config` ： 客户端配置文件路径。 在 Windows 系统上默认是 `C:\TDengine\cfg`。 在 Linux 系统上默认是 `/etc/taos/`。
+- `config` ： 客户端配置文件路径。 在 Windows 系统上默认是 `C:\TDengine\cfg`。 在 Linux/macOS 系统上默认是 `/etc/taos/`。
 - `timezone` ： 查询结果中 TIMESTAMP 类型的数据，转换为 python 的 datetime 对象时使用的时区。默认为本地时区。
 
 :::warning

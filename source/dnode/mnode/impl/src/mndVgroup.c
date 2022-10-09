@@ -1115,14 +1115,14 @@ int32_t mndSetMoveVgroupInfoToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
   {
     SSdbRaw *pRaw = mndVgroupActionEncode(&newVg);
     if (pRaw == NULL || mndTransAppendRedolog(pTrans, pRaw) != 0) return -1;
-    sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
     pRaw = NULL;
   }
 
   {
     SSdbRaw *pRaw = mndVgroupActionEncode(&newVg);
     if (pRaw == NULL || mndTransAppendCommitlog(pTrans, pRaw) != 0) return -1;
-    sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
     pRaw = NULL;
   }
 
@@ -1304,14 +1304,14 @@ static int32_t mndRedistributeVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb,
   {
     pRaw = mndVgroupActionEncode(&newVg);
     if (pRaw == NULL || mndTransAppendRedolog(pTrans, pRaw) != 0) goto _OVER;
-    sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
     pRaw = NULL;
   }
 
   {
     pRaw = mndVgroupActionEncode(&newVg);
     if (pRaw == NULL || mndTransAppendCommitlog(pTrans, pRaw) != 0) goto _OVER;
-    sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
     pRaw = NULL;
   }
 
@@ -1579,7 +1579,7 @@ int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, S
         sdbFreeRaw(pVgRaw);
         return -1;
       }
-      sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+      (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
     }
 
     {
@@ -1589,7 +1589,7 @@ int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, S
         sdbFreeRaw(pVgRaw);
         return -1;
       }
-      sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
+      (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_READY);
     }
   }
 
@@ -1704,7 +1704,7 @@ static int32_t mndSetBalanceVgroupInfoToTrans(SMnode *pMnode, STrans *pTrans, SD
       sdbFreeRaw(pRaw);
       return -1;
     }
-    sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
   }
 
   {
@@ -1713,7 +1713,7 @@ static int32_t mndSetBalanceVgroupInfoToTrans(SMnode *pMnode, STrans *pTrans, SD
       sdbFreeRaw(pRaw);
       return -1;
     }
-    sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+    (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
   }
 
   mInfo("vgId:%d, vgroup info after balance, replica:%d", newVg.vgId, newVg.replica);
