@@ -139,8 +139,11 @@ static int tdbPCacheAlterImpl(SPCache *pCache, int32_t nPage) {
       int32_t iPage = (*ppPage)->id;
 
       if (iPage >= nPage) {
+        SPage *pPage = *ppPage;
+        *ppPage = pPage->pFreeNext;
+        pCache->aPage[pPage->id] = NULL;
+        tdbPageDestroy(pPage, tdbDefaultFree, NULL);
         pCache->nFree--;
-        *ppPage = (*ppPage)->pFreeNext;
       } else {
         ppPage = &(*ppPage)->pFreeNext;
       }
