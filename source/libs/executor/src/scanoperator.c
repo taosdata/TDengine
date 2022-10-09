@@ -3089,6 +3089,7 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
   STagScanInfo* pInfo = pOperator->info;
   SExprInfo*    pExprInfo = &pOperator->exprSupp.pExprInfo[0];
   SSDataBlock*  pRes = pInfo->pRes;
+  blockDataCleanup(pRes);
 
   int32_t size = taosArrayGetSize(pInfo->pTableList->pTableList);
   if (size == 0) {
