@@ -44,8 +44,8 @@ class StaticFullSync(TDCase):
         self.dbname = ['db1','db2']
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
-        self.tb_num = 1000
-        self.row_num = 10000
+        self.tb_num = 100000
+        self.row_num = 50000
         self.start_timestamp = "2020-10-01 00:00:00.000"
         self.drop_flag = 'yes'
         self.child_table_exist_flag = 'no'

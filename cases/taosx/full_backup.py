@@ -84,6 +84,7 @@ class FullBackup(TDCase):
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'mkdir {target_file_dir}')
                     group_id = self.tdCom.get_long_name(5)
                     taosd_master = taos.connect(host=self.source_taosd_list[source][0], port=int(self.source_taosd_list[source][1]))
+                    taosd_backup.execute(f'drop database if exists {self.dbname[source]}')
                     count_rows = taosd_master.query(f'select count(*) from {self.dbname[source]}.{self.stbname[source]}').fetch_all_into_dict()
                     master_count_rows.append(count_rows)
                     sum_rows = taosd_master.query(f'select sum(voltage) from {self.dbname[source]}.{self.stbname[source]}').fetch_all_into_dict()
@@ -141,6 +142,7 @@ class FullBackup(TDCase):
                     master_count_rows.append(count_rows)
                     sum_rows = taosd_master.query(f'select sum(voltage) from {self.dbname[source]}.{self.tbname_m[source]}0').fetch_all_into_dict()
                     master_sum.append(sum_rows)
+                    taosd_backup.execute(f'drop database if exists {self.dbname[source]}')
                     if source_task.lower() == '+ws':
                         self.tdTaosx.run_backup_tb_from_ws_to_local(thread_list_source,self.taosx_setting,source_task,target_file_dir,self.source_taosd_list,self.dbname,self.tbname_m,source,group_id,self.timeout)
                     elif source_task.lower() == '':
@@ -186,6 +188,7 @@ class FullBackup(TDCase):
                     master_count_rows.append(count_rows)
                     sum_rows = taosd_master.query(f'select sum(c1) from {self.ntb_dbname[source]}.{self.ntb_name_m[source]}0').fetch_all_into_dict()
                     master_sum.append(sum_rows)
+                    taosd_backup.execute(f'drop database if exists {self.ntb_name_m[source]}')
                     if source_task.lower() == '+ws':
                             self.tdTaosx.run_backup_tb_from_ws_to_local(thread_list_source,self.taosx_setting,source_task,target_file_dir,self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,source,group_id,self.timeout)
                     elif source_task.lower() == '':
@@ -206,14 +209,16 @@ class FullBackup(TDCase):
                 backup_count_rows = []
                 backup_sum = []
                 for source in range(len(self.source_taosd_list)):
-                    count_rows = taosd_backup.query(f'select count(*) from {self.ntb_dbname[source]}.{self.ntb_name_m[source]}0').fetch_all_into_dict()
+                    print(f'select count(*) from {self.ntb_name_m[source]}.{self.ntb_name_m[source]}0')
+                    count_rows = taosd_backup.query(f'select count(*) from {self.ntb_name_m[source]}.{self.ntb_name_m[source]}0').fetch_all_into_dict()
                     backup_count_rows.append(count_rows)
-                    sum_rows = taosd_backup.query(f'select sum(voltage) from {self.ntb_dbname[source]}.{self.ntb_name_m[source]}0').fetch_all_into_dict()
+                    print(f'select sum(c1) from {self.ntb_dbname[source]}.{self.ntb_name_m[source]}0')
+                    sum_rows = taosd_backup.query(f'select sum(c1) from {self.ntb_name_m[source]}.{self.ntb_name_m[source]}0').fetch_all_into_dict()
                     backup_sum.append(sum_rows) 
                 for source in range(len(self.source_taosd_list)):
                     self.tdSql.checkEqual(master_count_rows[source][0]['count(*)'], backup_count_rows[source][0]['count(*)'])
                     self.tdSql.checkEqual(master_sum[source][0]['sum(c1)'], backup_sum[source][0]['sum(c1)'])
-                    taosd_backup.execute(f'drop database {self.ntb_dbname[source]}')
+                    taosd_backup.execute(f'drop database {self.ntb_name_m[source]}')
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'rm -rf {self.run_log_dir}/{self.source_taosd_list[source][0]}_backup')
 
         pass
