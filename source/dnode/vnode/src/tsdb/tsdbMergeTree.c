@@ -235,6 +235,10 @@ static int32_t binarySearchForStartRowIndex(uint64_t* uidList, int32_t num, uint
   }
 }
 
+static bool queryChildTable(uint64_t suid) {
+  return suid != 0;
+}
+
 int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t iStt, int8_t backward, uint64_t suid,
                        uint64_t uid, STimeWindow *pTimeWindow, SVersionRange *pRange, SSttBlockLoadInfo* pBlockLoadInfo) {
   int32_t code = 0;
@@ -252,15 +256,20 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
   (*pIter)->timeWindow = *pTimeWindow;
 
   (*pIter)->pBlockLoadInfo = pBlockLoadInfo;
-  if (taosArrayGetSize(pBlockLoadInfo->aSttBlk) == 0) {
+
+  size_t size = taosArrayGetSize(pBlockLoadInfo->aSttBlk);
+  if (size == 0) {
     code = tsdbReadSttBlk(pReader, iStt, pBlockLoadInfo->aSttBlk);
     if (code) {
       goto _exit;
-    } else {
-      size_t size = taosArrayGetSize(pBlockLoadInfo->aSttBlk);
-      SArray* pTmp = taosArrayInit(size, sizeof(SSttBlk));
-      for(int32_t i = 0; i < size; ++i) {
-        SSttBlk* p = taosArrayGet(pBlockLoadInfo->aSttBlk, i);
+    }
+
+    // only apply to the child tables, ordinary tables will not incur this filter procedure.
+    if (queryChildTable(suid)) {
+      size = taosArrayGetSize(pBlockLoadInfo->aSttBlk);
+      SArray *pTmp = taosArrayInit(size, sizeof(SSttBlk));
+      for (int32_t i = 0; i < size; ++i) {
+        SSttBlk *p = taosArrayGet(pBlockLoadInfo->aSttBlk, i);
         if (p->suid == suid) {
           taosArrayPush(pTmp, p);
         }
@@ -271,7 +280,7 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
     }
   }
 
-  size_t size = taosArrayGetSize(pBlockLoadInfo->aSttBlk);
+  size = taosArrayGetSize(pBlockLoadInfo->aSttBlk);
 
   // find the start block
   (*pIter)->iSttBlk = binarySearchForStartBlock(pBlockLoadInfo->aSttBlk->pData, size, uid, backward);
