@@ -622,4 +622,56 @@ if $data12 != 2 then
   goto loop3
 endi
 
+
+sql create database test4  vgroups 1;
+sql use test4;
+sql create table t1(ts timestamp, a int, b int , c int, d double);
+sql create stream streams4 trigger at_once  into streamt4 as select  _wstart, count(*) c1 from t1 where a > 5 interval(10s);
+sql insert into t1 values(1648791213000,1,2,3,1.0);
+
+sleep 200
+sql select * from streamt4;
+
+# row 0
+if $rows != 0 then
+  print =====rows=$rows
+  return -1
+endi
+
+sql insert into t1 values(1648791213000,6,2,3,1.0);
+
+$loop_count = 0
+loop4:
+sleep 200
+sql select * from streamt4;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $data01 != 1 then
+  print =====data01=$data01
+  goto loop4
+endi
+
+sql insert into t1 values(1648791213000,2,2,3,1.0);
+
+$loop_count = 0
+loop5:
+sleep 200
+sql select * from streamt4;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+if $rows != 0 then
+  print =====rows=$rows
+  goto loop5
+endi
+
+
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
