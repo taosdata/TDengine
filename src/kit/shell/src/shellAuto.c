@@ -21,7 +21,7 @@
 #include "tkey.h"
 #include "tulog.h"
 #include "shellAuto.h"
-#include "tire.h"
+#include "shellTire.h"
 #include "tthread.h"
 
 //
@@ -622,7 +622,7 @@ void shellAutoExit() {
   pthread_mutex_destroy(&tiresMutex);
 
   // free threads
-  for (int32_t i = 0; i < WT_VAR_CNT; i++) {
+  for (int32_t i = 0; i < WT_FROM_DB_CNT; i++) {
     if (threads[i]) {
       taosDestroyThread(threads[i]);
       threads[i] = NULL;
