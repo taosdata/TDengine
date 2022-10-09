@@ -197,6 +197,18 @@ int metaClose(SMeta *pMeta) {
   return 0;
 }
 
+int metaAlterCache(SMeta *pMeta, int32_t nPage) {
+  metaWLock(pMeta);
+
+  if (tdbAlter(pMeta->pEnv, nPage) < 0) {
+    metaULock(pMeta);
+    return -1;
+  }
+
+  metaULock(pMeta);
+  return 0;
+}
+
 int32_t metaRLock(SMeta *pMeta) {
   int32_t ret = 0;
 

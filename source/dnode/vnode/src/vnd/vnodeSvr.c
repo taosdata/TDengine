@@ -1047,7 +1047,14 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void 
   }
 
   if (pVnode->config.szCache != alterReq.pages) {
-    // TODO
+    if (metaAlterCache(pVnode->pMeta, alterReq.pages) < 0) {
+      vError("vgId:%d failed to change vnode pages from %d to %d failed since %s", TD_VID(pVnode),
+             pVnode->config.szCache, alterReq.pages, tstrerror(errno));
+      return errno;
+    } else {
+      vInfo("vgId:%d vnode pages is changed from %d to %d", TD_VID(pVnode), pVnode->config.szCache, alterReq.pages);
+      pVnode->config.szCache = alterReq.pages;
+    }
   }
 
   if (pVnode->config.cacheLast != alterReq.cacheLast) {
