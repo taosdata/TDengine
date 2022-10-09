@@ -1069,7 +1069,6 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
 
   STsdb     *pTsdb = pCommitter->pTsdb;
   SMemTable *pMemTable = pTsdb->imem;
-  STsdbFS    fsLatest = {0};
 
   ASSERT(eno == 0);
 
@@ -1079,12 +1078,7 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
   ASSERT(pCommitter->fs.version <= pTsdb->fs.version);
 
   if (pCommitter->fs.version < pTsdb->fs.version) {
-    if ((code = tsdbFSCopy(pTsdb, &fsLatest))) {
-      taosThreadRwlockUnlock(&pTsdb->rwLock);
-      TSDB_CHECK_CODE(code, lino, _exit);
-    }
-
-    if ((code = tsdbFSUpdDel(pTsdb, &pCommitter->fs, &fsLatest, pTsdb->trimHdl.minCommitFid - 1))) {
+    if ((code = tsdbFSUpdDel(pTsdb, &pCommitter->fs, &pTsdb->fs, pTsdb->trimHdl.minCommitFid - 1))) {
       taosThreadRwlockUnlock(&pTsdb->rwLock);
       TSDB_CHECK_CODE(code, lino, _exit);
     }
@@ -1111,7 +1105,6 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
 _exit:
   tsdbUnrefMemTable(pMemTable);
   tsdbFSDestroy(&pCommitter->fs);
-  tsdbFSDestroy(&fsLatest);
   taosArrayDestroy(pCommitter->aTbDataP);
   pTsdb->trimHdl.minCommitFid = INT32_MAX;
 
