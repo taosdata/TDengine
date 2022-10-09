@@ -118,11 +118,12 @@ static FORCE_INLINE long taosGetTimeZone() {
 #if defined(__linux__) || defined(__sun)
   return timezone;
 #else
-  struct timeval  tv;
-  struct timezone tz;
 
-  gettimeofday(&tv, &tz);
-  return tz.tz_minuteswest * 60L;
+  // struct timeval  tv;
+  // struct timezone tz;
+  // gettimeofday(&tv, &tz);
+
+  // return tz.tz_minuteswest * 60L;
 #endif
 }
 static FORCE_INLINE void taosUpdateDaylight() {
@@ -445,7 +446,6 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
 
   taosGetTimeOfDay(&timeSecs);
   time_t curTime = timeSecs.tv_sec;
-  // ptm = taosLocalTime(&curTime, &Tm);
   ptm = taosLocalTimeNolock(&Tm, &curTime, taosGetTimeZone(), taosGetDaylight());
 
   return sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " %s", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
