@@ -24,7 +24,7 @@ void pressTabKey(SShellCmd* cmd);
 // press othr key
 void pressOtherKey(char c);
 
-// init shell auto funciton , shell start call once 
+// init shell auto funciton , shell start call once
 bool shellAutoInit();
 
 // set conn
