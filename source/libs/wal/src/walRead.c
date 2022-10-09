@@ -476,7 +476,7 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
       } else {
         terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
       }
-      ASSERT(0);
+      wError("vgId:%d, failed to read WAL record head from log file since %s", pReader->pWal->cfg.vgId, terrstr());
       taosThreadMutexUnlock(&pReader->mutex);
       return -1;
     }
@@ -509,6 +509,7 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
     else {
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     }
+    wError("vgId:%d, failed to read WAL record body from log file since %s", pReader->pWal->cfg.vgId, terrstr());
     taosThreadMutexUnlock(&pReader->mutex);
     return -1;
   }
