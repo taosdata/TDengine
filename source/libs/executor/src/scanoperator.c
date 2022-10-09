@@ -924,29 +924,9 @@ _error:
   return NULL;
 }
 
-static void doClearBufferedBlocks(SStreamScanInfo* pInfo) {
-#if 0
-  if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
-    size_t total = taosArrayGetSize(pInfo->pBlockLists);
-    for (int32_t i = 0; i < total; i++) {
-      SSDataBlock* p = taosArrayGetP(pInfo->pBlockLists, i);
-      taosArrayDestroy(p->pDataBlock);
-      taosMemoryFree(p);
-    }
-  }
-#endif
+static FORCE_INLINE void doClearBufferedBlocks(SStreamScanInfo* pInfo) {
   taosArrayClear(pInfo->pBlockLists);
   pInfo->validBlockIndex = 0;
-#if 0
-  size_t total = taosArrayGetSize(pInfo->pBlockLists);
-
-  pInfo->validBlockIndex = 0;
-  for (int32_t i = 0; i < total; ++i) {
-    SSDataBlock* p = taosArrayGetP(pInfo->pBlockLists, i);
-    blockDataDestroy(p);
-  }
-  taosArrayClear(pInfo->pBlockLists);
-#endif
 }
 
 static bool isSessionWindow(SStreamScanInfo* pInfo) {

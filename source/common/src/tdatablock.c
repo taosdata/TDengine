@@ -1346,6 +1346,43 @@ SSDataBlock* createSpecialDataBlock(EStreamType type) {
   return pBlock;
 }
 
+SSDataBlock* blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx) {
+  if (pDataBlock == NULL) {
+    return NULL;
+  }
+
+  SSDataBlock* pBlock = createDataBlock();
+  pBlock->info = pDataBlock->info;
+  pBlock->info.rows = 0;
+  pBlock->info.capacity = 0;
+
+  size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
+    SColumnInfoData  colInfo = {.hasNull = true, .info = p->info};
+    blockDataAppendColInfo(pBlock, &colInfo);
+  }
+
+  int32_t code = blockDataEnsureCapacity(pBlock, 1);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    blockDataDestroy(pBlock);
+    return NULL;
+  }
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
+    SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, i);
+    void*            pData = colDataGetData(pSrc, rowIdx);
+    bool             isNull = colDataIsNull(pSrc, pDataBlock->info.rows, rowIdx, NULL);
+    colDataAppend(pDst, 0, pData, isNull);
+  }
+
+  pBlock->info.rows = 1;
+
+  return pBlock;
+}
+
 SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
   if (pDataBlock == NULL) {
     return NULL;

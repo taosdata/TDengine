@@ -873,6 +873,26 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
       colDataAppend(pDestCol, pDest->info.rows, pSrcData, isNull);
     }
     pDest->info.rows++;
+    if (i == 0) {
+      SSDataBlock* pTmpBlock = blockCopyOneRow(pSrc, rowIndex);
+      SSDataBlock* pResBlock = createDataBlock();
+      pResBlock->info.rowSize = TSDB_TABLE_NAME_LEN;
+      SColumnInfoData data = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, TSDB_TABLE_NAME_LEN, 0);
+      taosArrayPush(pResBlock->pDataBlock, &data);
+      blockDataEnsureCapacity(pResBlock, 1);
+      projectApplyFunctions(pInfo->tbnameCalSup.pExprInfo, pResBlock, pTmpBlock, pInfo->tbnameCalSup.pCtx, 1, NULL);
+      ASSERT(pResBlock->info.rows == 1);
+      ASSERT(taosArrayGetSize(pResBlock->pDataBlock) == 1);
+      SColumnInfoData* pCol = taosArrayGet(pResBlock->pDataBlock, 0);
+      ASSERT(pCol->info.type == TSDB_DATA_TYPE_VARCHAR);
+      void* pData = colDataGetData(pCol, 0);
+      // TODO check tbname validation
+      if (pData != (void*)-1) {
+        memcpy(pDest->info.parTbName, varDataVal(pData), varDataLen(pData));
+      } else {
+        pDest->info.parTbName[0] = 0;
+      }
+    }
   }
   blockDataUpdateTsWindow(pDest, pInfo->tsColIndex);
   pDest->info.groupId = pParInfo->groupId;
@@ -895,6 +915,7 @@ static void doStreamHashPartitionImpl(SStreamPartitionOperatorInfo* pInfo, SSDat
     } else {
       SPartitionDataInfo newParData = {0};
       newParData.groupId = calcGroupId(pInfo->partitionSup.keyBuf, keyLen);
+      /*newParData.tbname = */
       newParData.rowIds = taosArrayInit(64, sizeof(int32_t));
       taosArrayPush(newParData.rowIds, &i);
       taosHashPut(pInfo->pPartitions, pInfo->partitionSup.keyBuf, keyLen, &newParData, sizeof(SPartitionDataInfo));
@@ -995,6 +1016,20 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
     int32_t    num = 0;
     SExprInfo* pCalExprInfo = createExprInfo(pPartNode->part.pExprs, NULL, &num);
     code = initExprSupp(&pInfo->scalarSup, pCalExprInfo, num);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _error;
+    }
+  }
+
+  if (pPartNode->pSubtable != NULL) {
+    SExprInfo* pSubTableExpr = taosMemoryCalloc(1, sizeof(SExprInfo));
+    if (pSubTableExpr == NULL) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+      goto _error;
+    }
+    pInfo->tbnameCalSup.pExprInfo = pSubTableExpr;
+    createExprFromOneNode(pSubTableExpr, pPartNode->pSubtable, 0);
+    code = initExprSupp(&pInfo->tbnameCalSup, pSubTableExpr, 1);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }

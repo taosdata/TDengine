@@ -460,6 +460,8 @@ typedef struct SPartitionBySupporter {
 
 typedef struct SPartitionDataInfo {
   uint64_t groupId;
+  char*    tbname;
+  SArray*  tags;
   SArray*  rowIds;
 } SPartitionDataInfo;
 
@@ -617,6 +619,7 @@ typedef struct SStreamIntervalOperatorInfo {
   SArray*            pChildren;
   SStreamState*      pState;
   SWinKey            delKey;
+  SHashObj*          pGroupIdTbNameMap;  // uint64_t -> char[TSDB_TABLE_NAME_LEN]
 } SStreamIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
@@ -771,6 +774,7 @@ typedef struct SStreamPartitionOperatorInfo {
   SOptrBasicInfo        binfo;
   SPartitionBySupporter partitionSup;
   SExprSupp             scalarSup;
+  SExprSupp             tbnameCalSup;
   SHashObj*             pPartitions;
   void*                 parIte;
   SSDataBlock*          pInputDataBlock;
@@ -1085,7 +1089,7 @@ void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsCol
 bool    groupbyTbname(SNodeList* pGroupList);
 int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* groupKey);
 void*   destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput);
-int32_t buildDataBlockFromGroupRes(SExecTaskInfo* pTaskInfo, SStreamState* pState, SSDataBlock* pBlock, SExprSupp* pSup,
+int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pState, SSDataBlock* pBlock, SExprSupp* pSup,
                                    SGroupResInfo* pGroupResInfo);
 int32_t setOutputBuf(SStreamState* pState, STimeWindow* win, SResultRow** pResult, int64_t tableGroupId, SqlFunctionCtx* pCtx,
                      int32_t numOfOutput, int32_t* rowEntryInfoOffset, SAggSupporter* pAggSup);

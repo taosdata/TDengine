@@ -48,8 +48,9 @@ int32_t tqBuildDeleteReq(SVnode* pVnode, const char* stbFullName, const SSDataBl
   return 0;
 }
 
-SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchema* pTSchema, SSchemaWrapper* pTagSchemaWrapper, bool createTb,
-                            int64_t suid, const char* stbFullName, SBatchDeleteReq* pDeleteReq) {
+SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchema* pTSchema,
+                            SSchemaWrapper* pTagSchemaWrapper, bool createTb, int64_t suid, const char* stbFullName,
+                            SBatchDeleteReq* pDeleteReq) {
   SSubmitReq* ret = NULL;
   SArray*     schemaReqs = NULL;
   SArray*     schemaReqSz = NULL;
@@ -89,40 +90,46 @@ SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
         return NULL;
       }
 
-      SArray *tagName = taosArrayInit(1, TSDB_COL_NAME_LEN);
-      char     tagNameStr[TSDB_COL_NAME_LEN] = {0};
+      SArray* tagName = taosArrayInit(1, TSDB_COL_NAME_LEN);
+      char    tagNameStr[TSDB_COL_NAME_LEN] = {0};
       strcpy(tagNameStr, "group_id");
       taosArrayPush(tagName, tagNameStr);
 
-//      STag* pTag = NULL;
-//      taosArrayClear(tagArray);
-//      SArray *tagName = taosArrayInit(1, TSDB_COL_NAME_LEN);
-//      for(int j = 0; j < pTagSchemaWrapper->nCols; j++){
-//        STagVal tagVal = {
-//            .cid = pTagSchemaWrapper->pSchema[j].colId,
-//            .type = pTagSchemaWrapper->pSchema[j].type,
-//            .i64 = (int64_t)pDataBlock->info.groupId,
-//        };
-//        taosArrayPush(tagArray, &tagVal);
-//        taosArrayPush(tagName, pTagSchemaWrapper->pSchema[j].name);
-//      }
-//
-//      tTagNew(tagArray, 1, false, &pTag);
-//      if (pTag == NULL) {
-//        terrno = TSDB_CODE_OUT_OF_MEMORY;
-//        taosArrayDestroy(tagArray);
-//        taosArrayDestroy(tagName);
-//        return NULL;
-//      }
+      //      STag* pTag = NULL;
+      //      taosArrayClear(tagArray);
+      //      SArray *tagName = taosArrayInit(1, TSDB_COL_NAME_LEN);
+      //      for(int j = 0; j < pTagSchemaWrapper->nCols; j++){
+      //        STagVal tagVal = {
+      //            .cid = pTagSchemaWrapper->pSchema[j].colId,
+      //            .type = pTagSchemaWrapper->pSchema[j].type,
+      //            .i64 = (int64_t)pDataBlock->info.groupId,
+      //        };
+      //        taosArrayPush(tagArray, &tagVal);
+      //        taosArrayPush(tagName, pTagSchemaWrapper->pSchema[j].name);
+      //      }
+      //
+      //      tTagNew(tagArray, 1, false, &pTag);
+      //      if (pTag == NULL) {
+      //        terrno = TSDB_CODE_OUT_OF_MEMORY;
+      //        taosArrayDestroy(tagArray);
+      //        taosArrayDestroy(tagName);
+      //        return NULL;
+      //      }
 
       SVCreateTbReq createTbReq = {0};
-      SName         name = {0};
-      tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-
-      createTbReq.name = buildCtbNameByGroupId(stbFullName, pDataBlock->info.groupId);
-      createTbReq.ctb.name = strdup((char*)tNameGetTableName(&name));  // strdup(stbFullName);
       createTbReq.flags = 0;
       createTbReq.type = TSDB_CHILD_TABLE;
+
+      SName name = {0};
+      tNameFromString(&name, stbFullName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+      createTbReq.ctb.stbName = strdup((char*)tNameGetTableName(&name));  // strdup(stbFullName);
+
+      if (pDataBlock->info.parTbName[0]) {
+        createTbReq.name = strdup(pDataBlock->info.parTbName);
+      } else {
+        createTbReq.name = buildCtbNameByGroupId(stbFullName, pDataBlock->info.groupId);
+      }
+
       createTbReq.ctb.suid = suid;
       createTbReq.ctb.pTag = (uint8_t*)pTag;
       createTbReq.ctb.tagNum = taosArrayGetSize(tagArray);
@@ -261,8 +268,8 @@ void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
 
   ASSERT(pTask->tbSink.pTSchema);
   deleteReq.deleteReqs = taosArrayInit(0, sizeof(SSingleDeleteReq));
-  SSubmitReq* submitReq = tqBlockToSubmit(pVnode, pRes, pTask->tbSink.pTSchema, pTask->tbSink.pSchemaWrapper, true, pTask->tbSink.stbUid,
-                                          pTask->tbSink.stbFullName, &deleteReq);
+  SSubmitReq* submitReq = tqBlockToSubmit(pVnode, pRes, pTask->tbSink.pTSchema, pTask->tbSink.pSchemaWrapper, true,
+                                          pTask->tbSink.stbUid, pTask->tbSink.stbFullName, &deleteReq);
 
   tqDebug("vgId:%d, task %d convert blocks over, put into write-queue", TD_VID(pVnode), pTask->taskId);
 
