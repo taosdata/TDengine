@@ -47,7 +47,6 @@ async fn restore(
                             if err.to_string().contains("[0x2603]") {
                                 // table not exists
                                 if let Some(meta) = raw.to_create() {
-                                    dbg!(&meta);
                                     if let Err(err) = taos.exec(format!("{}", meta)).await {
                                         if err.to_string().contains("0x032C") {
                                             // tokio::time::sleep(Duration::from_nanos(1000)).await;
