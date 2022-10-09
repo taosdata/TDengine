@@ -494,7 +494,7 @@ struct tm *taosLocalTimeNolock(struct tm *result, const time_t *timep, time_t tz
   } else {
     localtime_s(result, timep);
   }
-#else
+#elif defined(LINUX)
   time_t secsMin = 60, secsHour = 3600, secsDay = 3600 * 24;
 
   time_t t = *timep;
@@ -536,6 +536,8 @@ struct tm *taosLocalTimeNolock(struct tm *result, const time_t *timep, time_t tz
 
   result->tm_mday = days + 1; /* Add 1 since our 'days' is zero-based. */
   result->tm_year -= 1900;    /* Surprisingly tm_year is year-1900. */
+#else
+  localtime_r(timep, result);
 #endif
   return result;
 }
