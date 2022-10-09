@@ -57,6 +57,7 @@ static int32_t dmInitProcSem(SProcQueue *queue) {
 
 static SProcQueue *dmInitProcQueue(SProc *proc, char *ptr, int32_t size) {
   SProcQueue *queue = (SProcQueue *)(ptr);
+  memset(ptr, 0, size);
 
   int32_t bufSize = size - CEIL8(sizeof(SProcQueue));
   if (bufSize <= 1024) {
@@ -76,11 +77,11 @@ static SProcQueue *dmInitProcQueue(SProc *proc, char *ptr, int32_t size) {
     tstrncpy(queue->name, proc->name, sizeof(queue->name));
 
     taosThreadMutexLock(&queue->mutex);
-    queue->head = 0;
-    queue->tail = 0;
+    // queue->head = 0;
+    // queue->tail = 0;
     queue->total = bufSize;
     queue->avail = bufSize;
-    queue->items = 0;
+    // queue->items = 0;
     taosThreadMutexUnlock(&queue->mutex);
   }
 

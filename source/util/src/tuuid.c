@@ -22,6 +22,8 @@ int32_t tGenIdPI32(void) {
   if (tUUIDHashId == 0) {
     char    uid[65] = {0};
     int32_t code = taosGetSystemUUID(uid, sizeof(uid));
+    uid[64] = 0;
+
     if (code != TSDB_CODE_SUCCESS) {
       terrno = TAOS_SYSTEM_ERROR(errno);
     } else {
