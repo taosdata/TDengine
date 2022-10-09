@@ -102,7 +102,7 @@ static int tdbPCacheAlterImpl(SPCache *pCache, int32_t nPage) {
       return -1;
     }
 
-    for (int32_t iPage = pCache->nPage; iPage < nPage; iPage++) {
+    for (int32_t iPage = pCache->nPages; iPage < nPage; iPage++) {
       if (tdbPageCreate(pCache->szPage, &aPage[iPage], tdbDefaultMalloc, NULL) < 0) {
         // TODO: handle error
         return -1;
@@ -117,13 +117,15 @@ static int tdbPCacheAlterImpl(SPCache *pCache, int32_t nPage) {
       aPage[iPage]->pLruPrev = NULL;
       aPage[iPage]->pDirtyNext = NULL;
 
-      // add page to free list
+      // add to local list
+      aPage[iPage]->id = iPage;
+    }
+
+    // add page to free list
+    for (int32_t iPage = pCache->nPages; iPage < nPage; iPage++) {
       aPage[iPage]->pFreeNext = pCache->pFree;
       pCache->pFree = aPage[iPage];
       pCache->nFree++;
-
-      // add to local list
-      aPage[iPage]->id = iPage;
     }
 
     for (int32_t iPage = 0; iPage < pCache->nPage; iPage++) {
@@ -131,8 +133,18 @@ static int tdbPCacheAlterImpl(SPCache *pCache, int32_t nPage) {
     }
 
     tdbOsFree(pCache->aPage);
-    pCache->nFree = nPage - pCache->nPage;
     pCache->aPage = aPage;
+  } else {
+    for (SPage **ppPage = &pCache->pFree; *ppPage;) {
+      int32_t iPage = (*ppPage)->id;
+
+      if (iPage >= nPage) {
+        pCache->nFree--;
+        *ppPage = (*ppPage)->pFreeNext;
+      } else {
+        ppPage = &(*ppPage)->pFreeNext;
+      }
+    }
   }
 
   pCache->nPages = nPage;
