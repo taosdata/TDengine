@@ -82,6 +82,8 @@ void vnodeBufPoolReset(SVBufPool *pPool) {
 void *vnodeBufPoolMalloc(SVBufPool *pPool, int size) {
   SVBufPoolNode *pNode;
   void          *p;
+  ASSERT(pPool != NULL);
+
   taosThreadSpinLock(&pPool->lock);
   if (pPool->node.size >= pPool->ptr - pPool->node.data + size) {
     // allocate from the anchor node
