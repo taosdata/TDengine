@@ -50,7 +50,7 @@ taos>
 
 After your TDengine Server is running normally, you can run the taosBenchmark utility to test its performance:
 
-Start TDengine service and execute `taosBenchmark` (formerly named `taosdemo`) in a Linux or Windows terminal.
+Start TDengine service and execute `taosBenchmark` (formerly named `taosdemo`) in a terminal.
 
 ```bash
 taosBenchmark

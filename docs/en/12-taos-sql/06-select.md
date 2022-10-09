@@ -11,7 +11,7 @@ SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW
 SELECT [DISTINCT] select_list
     from_clause
     [WHERE condition]
-    [PARTITION BY tag_list]
+    [partition_by_clause]
     [window_clause]
     [group_by_clause]
     [order_by_clasue]
@@ -51,6 +51,9 @@ window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col)
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
+
+partition_by_clause:
+    PARTITION BY expr [, expr] ... 
 
 group_by_clause:
     GROUP BY expr [, expr] ... HAVING condition
