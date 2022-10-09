@@ -94,8 +94,10 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal) {
           break;
       }
       SWalCkHead* logContent = (SWalCkHead*)candidate;
-      if (walValidHeadCksum(logContent) == 0 && walValidBodyCksum(logContent) == 0) {
-        found = candidate;
+      if (walValidHeadCksum(logContent) == 0 &&
+          walCkHeadSz + logContent->head.bodyLen <= len &&
+          walValidBodyCksum(logContent) == 0) {
+            found = candidate;
       }
       haystack = candidate + 1;
     }
