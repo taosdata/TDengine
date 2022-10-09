@@ -88,9 +88,15 @@ int32_t shellRunSingleCommand(char *command) {
   if (shellRegexMatch(command, "^[ \t]*source[\t ]+[^ ]+[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
     /* If source file. */
     char *c_ptr = strtok(command, " ;");
-    assert(c_ptr != NULL);
+    if (c_ptr == NULL) {
+      shellRunSingleCommandImp(command);
+      return 0;
+    }
     c_ptr = strtok(NULL, " ;");
-    assert(c_ptr != NULL);
+    if (c_ptr == NULL) {
+      shellRunSingleCommandImp(command);
+      return 0;
+    }
     shellSourceFile(c_ptr);
     return 0;
   }
@@ -781,9 +787,9 @@ void shellReadHistory() {
   TdFilePtr      pFile = taosOpenFile(pHistory->file, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) return;
 
-  char   *line = NULL;
+  char    *line = taosMemoryMalloc(TSDB_MAX_ALLOWED_SQL_LEN + 1);
   int32_t read_size = 0;
-  while ((read_size = taosGetLineFile(pFile, &line)) != -1) {
+  while ((read_size = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) != -1) {
     line[read_size - 1] = '\0';
     taosMemoryFree(pHistory->hist[pHistory->hend]);
     pHistory->hist[pHistory->hend] = strdup(line);
@@ -795,7 +801,7 @@ void shellReadHistory() {
     }
   }
 
-  if (line != NULL) taosMemoryFree(line);
+  taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
   int64_t file_size;
   if (taosStatFile(pHistory->file, &file_size, NULL) == 0 && file_size > SHELL_MAX_COMMAND_SIZE) {
@@ -859,7 +865,6 @@ void shellSourceFile(const char *file) {
   int32_t read_len = 0;
   char   *cmd = taosMemoryCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN + 1);
   size_t  cmd_len = 0;
-  char   *line = NULL;
   char    fullname[PATH_MAX] = {0};
   char    sourceFileCommand[PATH_MAX + 8] = {0};
 
@@ -877,7 +882,8 @@ void shellSourceFile(const char *file) {
     return;
   }
 
-  while ((read_len = taosGetLineFile(pFile, &line)) != -1) {
+  char   *line = taosMemoryMalloc(TSDB_MAX_ALLOWED_SQL_LEN + 1);
+  while ((read_len = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) != -1) {
     if (read_len >= TSDB_MAX_ALLOWED_SQL_LEN) continue;
     line[--read_len] = '\0';
 
@@ -904,7 +910,7 @@ void shellSourceFile(const char *file) {
   }
 
   taosMemoryFree(cmd);
-  if (line != NULL) taosMemoryFree(line);
+  taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
 }
 
