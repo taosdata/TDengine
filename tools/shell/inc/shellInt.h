@@ -102,6 +102,16 @@ typedef struct {
 #endif
 } SShellObj;
 
+typedef struct {
+  char    *buffer;
+  char    *command;
+  uint32_t commandSize;
+  uint32_t bufferSize;
+  uint32_t cursorOffset;
+  uint32_t screenOffset;
+  uint32_t endOffset;
+} SShellCmd;
+
 // shellArguments.c
 int32_t shellParseArgs(int32_t argc, char* argv[]);
 

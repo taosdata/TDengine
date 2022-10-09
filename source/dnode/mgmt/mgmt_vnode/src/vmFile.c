@@ -135,7 +135,7 @@ _OVER:
   if (content != NULL) taosMemoryFree(content);
   if (root != NULL) cJSON_Delete(root);
   if (pFile != NULL) taosCloseFile(&pFile);
-  if (*ppCfgs == NULL && pCfgs != NULL) taosMemoryFree(pCfgs);
+  if (code != 0) taosMemoryFree(pCfgs);
 
   terrno = code;
   return code;
@@ -157,6 +157,11 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
 
   int32_t     numOfVnodes = 0;
   SVnodeObj **pVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
+  if (pVnodes == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    ret = -1;
+    goto _OVER;
+  }
 
   int32_t len = 0;
   int32_t maxLen = MAX_CONTENT_LEN;

@@ -49,7 +49,7 @@ typedef struct {
   TSKEY    ts;
 } SWinKey;
 
-static inline int SWinKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
+static inline int sWinKeyCmprImpl(const void* pKey1, const void* pKey2) {
   SWinKey* pWin1 = (SWinKey*)pKey1;
   SWinKey* pWin2 = (SWinKey*)pKey2;
 
@@ -66,6 +66,10 @@ static inline int SWinKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, i
   }
 
   return 0;
+}
+
+static inline int winKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
+  return sWinKeyCmprImpl(pKey1, pKey2);
 }
 
 typedef struct {

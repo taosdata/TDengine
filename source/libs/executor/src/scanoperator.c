@@ -1311,8 +1311,8 @@ void appendOneRow(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t*
   colDataAppend(pEndTsCol, pBlock->info.rows, (const char*)pEndTs, false);
   colDataAppend(pUidCol, pBlock->info.rows, (const char*)pUid, false);
   colDataAppend(pGpCol, pBlock->info.rows, (const char*)pGp, false);
-  colDataAppendNULL(pCalStartCol, pBlock->info.rows);
-  colDataAppendNULL(pCalEndCol, pBlock->info.rows);
+  colDataAppend(pCalStartCol, pBlock->info.rows, (const char*)pStartTs, false);
+  colDataAppend(pCalEndCol, pBlock->info.rows, (const char*)pEndTs, false);
   pBlock->info.rows++;
 }
 
@@ -1356,7 +1356,7 @@ static void checkUpdateData(SStreamScanInfo* pInfo, bool invertible, SSDataBlock
   }
 }
 
-static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock) {
+static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock, bool filter) {
   SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
   SOperatorInfo*  pOperator = pInfo->pStreamScanOp;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
@@ -1410,7 +1410,9 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     }
   }
 
-  doFilter(pInfo->pCondition, pInfo->pRes, NULL);
+  if (filter) {
+    doFilter(pInfo->pCondition, pInfo->pRes, NULL);
+  }
   blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
   blockDataFreeRes((SSDataBlock*)pBlock);
   return 0;
@@ -1446,7 +1448,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         continue;
       }
 
-      setBlockIntoRes(pInfo, &block);
+      setBlockIntoRes(pInfo, &block, true);
 
       if (pBlockInfo->rows > 0) {
         return pInfo->pRes;
@@ -1487,7 +1489,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       tqNextBlock(pInfo->tqReader, &ret);
       if (ret.fetchType == FETCH_TYPE__DATA) {
         blockDataCleanup(pInfo->pRes);
-        if (setBlockIntoRes(pInfo, &ret.data) < 0) {
+        if (setBlockIntoRes(pInfo, &ret.data, true) < 0) {
           ASSERT(0);
         }
         if (pInfo->pRes->info.rows > 0) {
@@ -1751,6 +1753,7 @@ FETCH_NEXT_BLOCK:
           // printDataBlock(pSDB, "stream scan update");
           return pSDB;
         }
+        blockDataCleanup(pInfo->pUpdateDataRes);
         pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
       } break;
       default:
@@ -1801,7 +1804,7 @@ FETCH_NEXT_BLOCK:
           continue;
         }
 
-        setBlockIntoRes(pInfo, &block);
+        setBlockIntoRes(pInfo, &block, false);
 
         if (updateInfoIgnore(pInfo->pUpdateInfo, &pInfo->pRes->info.window, pInfo->pRes->info.groupId,
                              pInfo->pRes->info.version)) {
@@ -1810,11 +1813,30 @@ FETCH_NEXT_BLOCK:
           continue;
         }
 
-        if (pBlockInfo->rows > 0) {
+        if (pInfo->pUpdateInfo) {
+          checkUpdateData(pInfo, true, pInfo->pRes, true);
+          pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, pBlockInfo->window.ekey);
+          if (pInfo->pUpdateDataRes->info.rows > 0) {
+            pInfo->updateResIndex = 0;
+            if (pInfo->pUpdateDataRes->info.type == STREAM_CLEAR) {
+              pInfo->scanMode = STREAM_SCAN_FROM_UPDATERES;
+            } else if (pInfo->pUpdateDataRes->info.type == STREAM_INVERT) {
+              pInfo->scanMode = STREAM_SCAN_FROM_RES;
+              return pInfo->pUpdateDataRes;
+            } else if (pInfo->pUpdateDataRes->info.type == STREAM_DELETE_DATA) {
+              pInfo->scanMode = STREAM_SCAN_FROM_DELETE_DATA;
+            }
+          }
+        }
+
+        doFilter(pInfo->pCondition, pInfo->pRes, NULL);
+        blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
+
+        if (pBlockInfo->rows > 0 || pInfo->pUpdateDataRes->info.rows > 0) {
           break;
         }
       }
-      if (pBlockInfo->rows > 0) {
+      if (pBlockInfo->rows > 0 || pInfo->pUpdateDataRes->info.rows > 0) {
         break;
       } else {
         pInfo->tqReader->pMsg = NULL;
@@ -1828,32 +1850,16 @@ FETCH_NEXT_BLOCK:
     pOperator->resultInfo.totalRows += pBlockInfo->rows;
     // printDataBlock(pInfo->pRes, "stream scan");
 
-    if (pBlockInfo->rows == 0) {
-      updateInfoDestoryColseWinSBF(pInfo->pUpdateInfo);
-      /*pOperator->status = OP_EXEC_DONE;*/
-    } else if (pInfo->pUpdateInfo) {
-      checkUpdateData(pInfo, true, pInfo->pRes, true);
-      pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, pBlockInfo->window.ekey);
-      if (pInfo->pUpdateDataRes->info.rows > 0) {
-        pInfo->updateResIndex = 0;
-        if (pInfo->pUpdateDataRes->info.type == STREAM_CLEAR) {
-          pInfo->scanMode = STREAM_SCAN_FROM_UPDATERES;
-        } else if (pInfo->pUpdateDataRes->info.type == STREAM_INVERT) {
-          pInfo->scanMode = STREAM_SCAN_FROM_RES;
-          return pInfo->pUpdateDataRes;
-        } else if (pInfo->pUpdateDataRes->info.type == STREAM_DELETE_DATA) {
-          pInfo->scanMode = STREAM_SCAN_FROM_DELETE_DATA;
-        }
-      }
-    }
-
     qDebug("scan rows: %d", pBlockInfo->rows);
     if (pBlockInfo->rows > 0) {
       return pInfo->pRes;
-    } else {
-      goto NEXT_SUBMIT_BLK;
     }
-    /*return (pBlockInfo->rows == 0) ? NULL : pInfo->pRes;*/
+
+    if (pInfo->pUpdateDataRes->info.rows > 0) {
+      goto FETCH_NEXT_BLOCK;
+    }
+
+    goto NEXT_SUBMIT_BLK;
   } else {
     ASSERT(0);
     return NULL;
@@ -3077,6 +3083,7 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
   STagScanInfo* pInfo = pOperator->info;
   SExprInfo*    pExprInfo = &pOperator->exprSupp.pExprInfo[0];
   SSDataBlock*  pRes = pInfo->pRes;
+  blockDataCleanup(pRes);
 
   int32_t size = taosArrayGetSize(pInfo->pTableList->pTableList);
   if (size == 0) {

@@ -186,7 +186,7 @@ All arguments of the `connect()` function are optional keyword arguments. The fo
 - `user` : The TDengine user name. The default value is `root`.
 - `password` : TDengine user password. The default value is `taosdata`.
 - `port` : The starting port of the data node to connect to, i.e., the serverPort configuration. The default value is 6030, which will only take effect if the host parameter is provided.
-- `config` : The path to the client configuration file. On Windows systems, the default is `C:\TDengine\cfg`. The default is `/etc/taos/` on Linux systems.
+- `config` : The path to the client configuration file. On Windows systems, the default is `C:\TDengine\cfg`. The default is `/etc/taos/` on Linux/macOS.
 - `timezone` : The timezone used to convert the TIMESTAMP data in the query results to python `datetime` objects. The default is the local timezone.
 
 :::warning

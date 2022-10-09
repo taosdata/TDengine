@@ -608,8 +608,6 @@ typedef struct SStreamIntervalOperatorInfo {
   SArray*            pDelWins;           // SWinRes
   int32_t            delIndex;
   SSDataBlock*       pDelRes;
-  SSDataBlock*       pUpdateRes;
-  bool               returnUpdate;
   SPhysiNode*        pPhyNode;           // create new child
   SHashObj*          pPullDataMap;
   SArray*            pPullWins;          // SPullWindowInfo

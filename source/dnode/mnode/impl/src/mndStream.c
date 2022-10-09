@@ -420,7 +420,7 @@ int32_t mndPersistStream(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
     return -1;
   }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
   return 0;
 }
 
@@ -431,7 +431,7 @@ int32_t mndPersistDropStreamLog(SMnode *pMnode, STrans *pTrans, SStreamObj *pStr
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
   return 0;
 }
 
@@ -447,7 +447,7 @@ static int32_t mndSetStreamRecover(SMnode *pMnode, STrans *pTrans, const SStream
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
   return 0;
 }
 
