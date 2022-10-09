@@ -57,7 +57,6 @@ static int32_t dmInitProcSem(SProcQueue *queue) {
 
 static SProcQueue *dmInitProcQueue(SProc *proc, char *ptr, int32_t size) {
   SProcQueue *queue = (SProcQueue *)(ptr);
-  memset(ptr, 0, size);
 
   int32_t bufSize = size - CEIL8(sizeof(SProcQueue));
   if (bufSize <= 1024) {
@@ -66,6 +65,7 @@ static SProcQueue *dmInitProcQueue(SProc *proc, char *ptr, int32_t size) {
   }
 
   if (proc->ptype & DND_PROC_PARENT) {
+    memset(ptr, 0, sizeof(SProcQueue));
     if (dmInitProcMutex(queue) != 0) {
       return NULL;
     }
