@@ -43,96 +43,142 @@ static FORCE_INLINE int walBuildTmpMetaName(SWal* pWal, char* buf) {
   return sprintf(buf, "%s/meta-ver.tmp", pWal->path);
 }
 
-static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal) {
+static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
   int32_t sz = taosArrayGetSize(pWal->fileInfoSet);
   if (sz <= 0) {
-    wError("No WAL log file found.");
+    wError("vgId:%d, No WAL log file found.", pWal->cfg.vgId);
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
+  terrno = TSDB_CODE_SUCCESS;
+  ASSERT(fileIdx >= 0 && fileIdx < sz);
 
-  SWalFileInfo* pLastFileInfo = taosArrayGet(pWal->fileInfoSet, sz - 1);
+  SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
   char          fnameStr[WAL_FILE_LEN];
-  walBuildLogName(pWal, pLastFileInfo->firstVer, fnameStr);
+  walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
 
   int64_t fileSize = 0;
   taosStatFile(fnameStr, &fileSize, NULL);
-  int32_t readSize = TMIN(WAL_SCAN_BUF_SIZE, fileSize);
-  pLastFileInfo->fileSize = fileSize;
 
   TdFilePtr pFile = taosOpenFile(fnameStr, TD_FILE_READ | TD_FILE_WRITE);
   if (pFile == NULL) {
-    wError("failed to open file due to %s. file:%s", strerror(errno), fnameStr);
+    wError("vgId:%d, failed to open file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), fnameStr);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
   uint64_t magic = WAL_MAGIC;
-
-  char* buf = taosMemoryMalloc(readSize + sizeof(uint64_t));
-  if (buf == NULL) {
-    terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
-    goto _err;
-  }
-
-  int64_t offset;
-  offset = taosLSeekFile(pFile, -readSize, SEEK_END);
-  if (readSize != taosReadFile(pFile, buf, readSize)) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
   int64_t walCkHeadSz = sizeof(SWalCkHead);
+  int64_t end = fileSize;
+  int64_t offset = 0;
+  int32_t capacity = 0;
+  int32_t readSize = 0;
+  char *buf = NULL;
   char* found = NULL;
+  bool firstTrial = pFileInfo->fileSize < fileSize;
+
+  // search for the valid last WAL entry, e.g. block by block
   while (1) {
-    char* haystack = buf;
+    offset = (firstTrial) ? TMAX(0, pFileInfo->fileSize) : TMAX(0, end - WAL_SCAN_BUF_SIZE);
+    ASSERT(offset <= end);
+    readSize = end - offset;
+    capacity = readSize + sizeof(magic);
+
+    int64_t limit = WAL_RECOV_SIZE_LIMIT;
+    if (limit < readSize) {
+      wError("vgId:%d, possibly corrupted WAL range exceeds size limit (i.e. %lld bytes). offset:%lld, end:%lld, file:%s",
+             pWal->cfg.vgId, limit, offset, end, fnameStr);
+      terrno = TSDB_CODE_WAL_SIZE_LIMIT;
+      goto _err;
+    }
+
+    void *ptr = taosMemoryRealloc(buf, capacity);
+    if (ptr == NULL) {
+      terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
+      goto _err;
+    }
+    buf = ptr;
+
+    int64_t ret = taosLSeekFile(pFile, offset, SEEK_SET);
+    if (ret < 0)  {
+      wError("vgId:%d, failed to lseek file due to %s. offset:%lld", pWal->cfg.vgId, strerror(errno), offset);
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+    ASSERT(ret == offset);
+
+    if (readSize != taosReadFile(pFile, buf, readSize)) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      goto _err;
+    }
+
     char* candidate = NULL;
-    while ((candidate = tmemmem(haystack, readSize - (haystack - buf), (char*)&magic, sizeof(uint64_t))) != NULL) {
-      // read and validate
+    char* haystack = buf;
+
+    while ((candidate = tmemmem(haystack, readSize - (haystack - buf), (char*)&magic, sizeof(magic))) != NULL) {
+      // validate head
       int64_t len = readSize - (candidate - buf);
       if (len < walCkHeadSz) {
           break;
       }
       SWalCkHead* logContent = (SWalCkHead*)candidate;
-      if (walValidHeadCksum(logContent) == 0 &&
-          walCkHeadSz + logContent->head.bodyLen <= len &&
-          walValidBodyCksum(logContent) == 0) {
-            found = candidate;
+      if (walValidHeadCksum(logContent) != 0) {
+        haystack = candidate + 1;
+        if (firstTrial) break; else continue;
       }
+
+      // validate body
+      int64_t size = walCkHeadSz + logContent->head.bodyLen;
+      if (len < size) {
+        int64_t extraSize = size - len;
+        if (capacity < readSize + extraSize + sizeof(magic)) {
+            capacity += extraSize;
+            void* ptr = taosMemoryRealloc(buf, capacity);
+            if (ptr == NULL) {
+                terrno = TSDB_CODE_OUT_OF_MEMORY;
+                goto _err;
+            }
+            buf = ptr;
+        }
+        if (extraSize != taosReadFile(pFile, buf + readSize, extraSize)) {
+            terrno = TAOS_SYSTEM_ERROR(errno);
+            break;
+        }
+      }
+      if (walValidBodyCksum(logContent) != 0) {
+        haystack = candidate + 1;
+        if (firstTrial) break; else continue;
+      }
+
+      // found one
+      found = candidate;
       haystack = candidate + 1;
     }
+
     if (found || offset == 0) break;
 
-    // go backwards, i.e. by at most one WAL scan buf size
-    offset = TMAX(0, offset - readSize + walCkHeadSz);
-    int64_t ret = taosLSeekFile(pFile, offset, SEEK_SET);
-    if (ret < 0)  {
-      wError("failed to lseek file due to %s. offset:%lld", strerror(errno), offset);
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      goto _err;
-    }
-    ASSERT(offset == ret);
-    if (readSize != taosReadFile(pFile, buf, readSize)) {
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      goto _err;
-    }
+    // go backwards, e.g. by at most one WAL scan buf size
+    end = offset + walCkHeadSz;
+    firstTrial = false;
   }
 
-  if (found == NULL) {
-    wError("WAL log file corrupted: no valid WAL record found. file: %s", fnameStr);
-    terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
-    taosRemoveFile(fnameStr);
-    wWarn("vgId:%d, remove corrupted WAL log file: %s", pWal->cfg.vgId, fnameStr);
-    goto _err;
+  // determine end of last entry
+  SWalCkHead* lastEntry = (SWalCkHead*)found;
+  int64_t     retVer = -1;
+  int64_t     lastEntryBeginOffset = 0;
+  int64_t     lastEntryEndOffset = 0;
+
+  if (lastEntry == NULL) {
+     terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
+  } else {
+     retVer = lastEntry->head.version;
+     lastEntryBeginOffset = offset + (int64_t)((char*)lastEntry - (char*)buf);
+     lastEntryEndOffset = lastEntryBeginOffset + sizeof(SWalCkHead) + lastEntry->head.bodyLen;
   }
 
   // truncate file
-  SWalCkHead* lastEntry = (SWalCkHead*)found;
-  int64_t     retVer = lastEntry->head.version;
-  int64_t     lastEntryBeginOffset = offset + (int64_t)((char*)found - (char*)buf);
-  int64_t     lastEntryEndOffset = lastEntryBeginOffset + sizeof(SWalCkHead) + lastEntry->head.bodyLen;
   if (lastEntryEndOffset != fileSize) {
-    wWarn("vgId:%d repair meta truncate file %s to %ld, orig size %ld", pWal->cfg.vgId, fnameStr, lastEntryEndOffset,
+    wWarn("vgId:%d, repair meta truncate file %s to %ld, orig size %ld", pWal->cfg.vgId, fnameStr, lastEntryEndOffset,
           fileSize);
     if (taosFtruncateFile(pFile, lastEntryEndOffset) < 0) {
         wError("failed to truncate file due to %s. file:%s", strerror(errno), fnameStr);
@@ -144,9 +190,8 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal) {
         terrno = TAOS_SYSTEM_ERROR(errno);
         goto _err;
     }
-    ((SWalFileInfo*)taosArrayGetLast(pWal->fileInfoSet))->fileSize = lastEntryEndOffset;
-    pWal->totSize -= (fileSize - lastEntryEndOffset);
   }
+  pFileInfo->fileSize = lastEntryEndOffset;
 
   taosCloseFile(&pFile);
   taosMemoryFree(buf);
@@ -156,6 +201,38 @@ _err:
   taosCloseFile(&pFile);
   taosMemoryFree(buf);
   return -1;
+}
+
+
+static void walRebuildFileInfoSet(SArray *metaLogList, SArray *actualLogList) {
+  int metaFileNum = taosArrayGetSize(metaLogList);
+  int actualFileNum = taosArrayGetSize(actualLogList);
+  int j = 0;
+
+  // both of the lists in asc order
+  for (int i = 0; i < actualFileNum; i++) {
+    SWalFileInfo *pLogInfo = taosArrayGet(actualLogList, i);
+    while (j < metaFileNum) {
+        SWalFileInfo *pMetaInfo = taosArrayGet(metaLogList, j);
+        ASSERT(pMetaInfo != NULL);
+        if (pMetaInfo->firstVer < pLogInfo->firstVer) {
+            j++;
+        } else if (pMetaInfo->firstVer == pLogInfo->firstVer) {
+            (*pLogInfo) = *pMetaInfo;
+            j++;
+            break;
+        } else {
+            break;
+        }
+    }
+  }
+
+  taosArrayClear(metaLogList);
+
+  for (int i = 0; i < actualFileNum; i++) {
+    SWalFileInfo* pFileInfo = taosArrayGet(actualLogList, i);
+    taosArrayPush(metaLogList, pFileInfo);
+  }
 }
 
 int walCheckAndRepairMeta(SWal* pWal) {
@@ -196,62 +273,81 @@ int walCheckAndRepairMeta(SWal* pWal) {
 
   int metaFileNum = taosArrayGetSize(pWal->fileInfoSet);
   int actualFileNum = taosArrayGetSize(actualLog);
+  int64_t firstVerPrev = pWal->vers.firstVer;
+  int64_t lastVerPrev = pWal->vers.lastVer;
+  int64_t totSize = 0;
+  bool updateMeta = (metaFileNum != actualFileNum);
 
-#if 0
-  for (int32_t fileNo = actualFileNum - 1; fileNo >= 0; fileNo--) {
-    SWalFileInfo* pFileInfo = taosArrayGet(pLogInfoArray, fileNo);
-    char          fnameStr[WAL_FILE_LEN];
-    walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
+  // rebuild meta of file info
+  walRebuildFileInfoSet(pWal->fileInfoSet, actualLog);
+  taosArrayDestroy(actualLog);
+
+  int32_t sz = taosArrayGetSize(pWal->fileInfoSet);
+  ASSERT(sz == actualFileNum);
+
+  // scan and determine the lastVer
+  int32_t fileIdx = sz;
+
+  while (--fileIdx >= 0) {
+    char fnameStr[WAL_FILE_LEN];
     int64_t fileSize = 0;
-    taosStatFile(fnameStr, &fileSize, NULL);
-    if (fileSize == 0) {
+    SWalFileInfo *pFileInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
+
+    walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
+    int32_t code = taosStatFile(fnameStr, &fileSize, NULL);
+    if (code < 0) {
+       terrno = TAOS_SYSTEM_ERROR(errno);
+       wError("failed to stat file since %s. file:%s", terrstr(), fnameStr);
+       return -1;
+    }
+
+    if (pFileInfo->lastVer >= pFileInfo->firstVer && fileSize == pFileInfo->fileSize) {
+      totSize += pFileInfo->fileSize;
+      continue;
+    }
+    updateMeta = true;
+
+    int64_t lastVer = walScanLogGetLastVer(pWal, fileIdx);
+    if (lastVer < 0) {
+      if (terrno != TSDB_CODE_WAL_LOG_NOT_EXIST) {
+        wError("failed to scan wal last ver since %s", terrstr());
+        return -1;
+      }
+      // remove the empty wal log, and its idx
       taosRemoveFile(fnameStr);
       walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
       taosRemoveFile(fnameStr);
-      taosArrayPop(pLogInfoArray);
-    } else {
-      break;
+      // remove its meta entry
+      taosArrayRemove(pWal->fileInfoSet, fileIdx);
+      continue;
     }
+
+    // update lastVer
+    pFileInfo->lastVer = lastVer;
+    totSize += pFileInfo->fileSize;
   }
 
-  actualFileNum = taosArrayGetSize(pLogInfoArray);
-#endif
-
-  if (metaFileNum > actualFileNum) {
-    taosArrayPopFrontBatch(pWal->fileInfoSet, metaFileNum - actualFileNum);
-  } else if (metaFileNum < actualFileNum) {
-    for (int i = metaFileNum; i < actualFileNum; i++) {
-      SWalFileInfo* pFileInfo = taosArrayGet(actualLog, i);
-      taosArrayPush(pWal->fileInfoSet, pFileInfo);
-    }
-  }
-  taosArrayDestroy(actualLog);
-
+  // reset the first, last vers, and so on
+  actualFileNum = taosArrayGetSize(pWal->fileInfoSet);
   pWal->writeCur = actualFileNum - 1;
+  pWal->totSize = totSize;
+  //pWal->vers.appliedVer
+  //pWal->vers.commitVer
+  //pWal->vers.snapshotVer
+  pWal->vers.verInSnapshotting = -1;
+  pWal->vers.firstVer = -1;
+  pWal->vers.lastVer = -1;
   if (actualFileNum > 0) {
-    pWal->vers.firstVer = ((SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, 0))->firstVer;
-
-    SWalFileInfo* pLastFileInfo = taosArrayGet(pWal->fileInfoSet, actualFileNum - 1);
-    char          fnameStr[WAL_FILE_LEN];
-    walBuildLogName(pWal, pLastFileInfo->firstVer, fnameStr);
-    int64_t fileSize = 0;
-    taosStatFile(fnameStr, &fileSize, NULL);
-    /*ASSERT(fileSize != 0);*/
-
-    if (metaFileNum != actualFileNum || pLastFileInfo->fileSize != fileSize) {
-      pLastFileInfo->fileSize = fileSize;
-      int64_t lastVer = walScanLogGetLastVer(pWal);
-      if (lastVer < 0) {
-        wError("failed to scan wal last ver since %s", tstrerror(terrno));
-        return -1;
-      }
-      pWal->vers.lastVer = lastVer;
-      ((SWalFileInfo*)taosArrayGetLast(pWal->fileInfoSet))->lastVer = pWal->vers.lastVer;
-
-      (void)walSaveMeta(pWal);
-    }
+      pWal->vers.firstVer = ((SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, 0))->firstVer;
+      pWal->vers.lastVer = ((SWalFileInfo*)taosArrayGetLast(pWal->fileInfoSet))->lastVer;
   }
+  pWal->vers.commitVer = TMIN(pWal->vers.lastVer, pWal->vers.commitVer);
+  pWal->vers.appliedVer = TMIN(pWal->vers.commitVer, pWal->vers.appliedVer);
 
+  // update meta file
+  if (updateMeta) {
+      (void)walSaveMeta(pWal);
+  }
   return 0;
 }
 
@@ -524,7 +620,7 @@ int walSaveMeta(SWal* pWal) {
 
   TdFilePtr pMetaFile = taosOpenFile(tmpFnameStr, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pMetaFile == NULL) {
-    wError("failed to open file due to %s. file:%s", strerror(errno), tmpFnameStr);
+    wError("vgId:%d, failed to open file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), tmpFnameStr);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -532,19 +628,19 @@ int walSaveMeta(SWal* pWal) {
   char* serialized = walMetaSerialize(pWal);
   int   len = strlen(serialized);
   if (len != taosWriteFile(pMetaFile, serialized, len)) {
-    wError("failed to write file due to %s. file:%s", strerror(errno), tmpFnameStr);
+    wError("vgId:%d, failed to write file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), tmpFnameStr);
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
   if (taosFsyncFile(pMetaFile) < 0) {
-    wError("failed to sync file due to %s. file:%s", strerror(errno), tmpFnameStr);
+    wError("vgId:%d, failed to sync file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), tmpFnameStr);
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
   if (taosCloseFile(&pMetaFile) < 0) {
-    wError("failed to close file due to %s. file:%s", strerror(errno), tmpFnameStr);
+    wError("vgId:%d, failed to close file due to %s. file:%s", pWal->cfg.vgId, strerror(errno), tmpFnameStr);
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
