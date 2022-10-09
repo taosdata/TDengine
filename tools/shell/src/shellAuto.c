@@ -772,7 +772,7 @@ void shellAutoExit() {
   taosThreadMutexDestroy(&tiresMutex);
 
   // free threads
-  for (int32_t i = 0; i < WT_VAR_CNT; i++) {
+  for (int32_t i = 0; i < WT_FROM_DB_CNT; i++) {
     if (threads[i]) {
       taosDestroyThread(threads[i]);
       threads[i] = NULL;
