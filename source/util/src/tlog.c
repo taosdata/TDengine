@@ -68,6 +68,7 @@ static int8_t   tsLogInited = 0;
 static SLogObj  tsLogObj = {.fileNum = 1};
 static int64_t  tsAsyncLogLostLines = 0;
 static int32_t  tsWriteInterval = LOG_DEFAULT_INTERVAL;
+static int32_t  tsDaylightActive; /* Currently in daylight saving time. */
 
 bool    tsLogEmbedded = 0;
 bool    tsAsyncLog = true;
@@ -113,6 +114,27 @@ static void      taosCloseLogByFd(TdFilePtr pFile);
 static int32_t   taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum);
 static int32_t   taosCompressFile(char *srcFileName, char *destFileName);
 
+static FORCE_INLINE long taosGetTimeZone() {
+#if defined(__linux__) || defined(__sun)
+  return timezone;
+#else
+  struct timeval  tv;
+  struct timezone tz;
+
+  gettimeofday(&tv, &tz);
+  return tz.tz_minuteswest * 60L;
+#endif
+}
+static FORCE_INLINE void taosUpdateDaylight() {
+  struct tm      Tm, *ptm;
+  struct timeval timeSecs;
+  taosGetTimeOfDay(&timeSecs);
+  time_t curTime = timeSecs.tv_sec;
+  ptm = taosLocalTime(&curTime, &Tm);
+  tsDaylightActive = ptm->tm_isdst;
+}
+static FORCE_INLINE int32_t taosGetDaylight() { return tsDaylightActive; }
+
 static int32_t taosStartLog() {
   TdThreadAttr threadAttr;
   taosThreadAttrInit(&threadAttr);
@@ -133,6 +155,7 @@ int32_t taosInitLog(const char *logName, int32_t maxFiles) {
   } else {
     snprintf(fullName, PATH_MAX, "%s", logName);
   }
+  taosUpdateDaylight();
 
   tsLogObj.logHandle = taosLogBuffNew(LOG_DEFAULT_BUF_SIZE);
   if (tsLogObj.logHandle == NULL) return -1;
@@ -422,7 +445,8 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
 
   taosGetTimeOfDay(&timeSecs);
   time_t curTime = timeSecs.tv_sec;
-  ptm = taosLocalTime(&curTime, &Tm);
+  // ptm = taosLocalTime(&curTime, &Tm);
+  ptm = taosLocalTimeNolock(&Tm, &curTime, taosGetTimeZone(), taosGetDaylight());
 
   return sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " %s", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
                  ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId(), flags);
@@ -694,8 +718,10 @@ static void *taosAsyncOutputLog(void *param) {
   SLogBuff *pLogBuf = (SLogBuff *)param;
   setThreadName("log");
   int32_t count = 0;
+  int32_t updateCron = 0;
   while (1) {
     count += tsWriteInterval;
+    updateCron++;
     taosMsleep(tsWriteInterval);
     if (count > 1000) {
       osUpdate();
@@ -704,6 +730,11 @@ static void *taosAsyncOutputLog(void *param) {
 
     // Polling the buffer
     taosWriteLog(pLogBuf);
+
+    if (updateCron >= 3600 * 24 * 40 / 2) {
+      taosUpdateDaylight();
+      updateCron = 0;
+    }
 
     if (pLogBuf->stop) break;
   }

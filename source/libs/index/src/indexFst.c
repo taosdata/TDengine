@@ -24,7 +24,7 @@ static FORCE_INLINE void fstPackDeltaIn(IdxFstFile* wrt, CompiledAddr nodeAddr, 
   CompiledAddr deltaAddr = (transAddr == EMPTY_ADDRESS) ? EMPTY_ADDRESS : nodeAddr - transAddr;
   idxFilePackUintIn(wrt, deltaAddr, nBytes);
 }
-static FORCE_INLINE uint8_t fstPackDetla(IdxFstFile* wrt, CompiledAddr nodeAddr, CompiledAddr transAddr) {
+static FORCE_INLINE uint8_t fstPackDelta(IdxFstFile* wrt, CompiledAddr nodeAddr, CompiledAddr transAddr) {
   uint8_t nBytes = packDeltaSize(nodeAddr, transAddr);
   fstPackDeltaIn(wrt, nodeAddr, transAddr, nBytes);
   return nBytes;
@@ -226,7 +226,7 @@ void fstStateCompileForOneTransNext(IdxFstFile* w, CompiledAddr addr, uint8_t in
 void fstStateCompileForOneTrans(IdxFstFile* w, CompiledAddr addr, FstTransition* trn) {
   Output    out = trn->out;
   uint8_t   outPackSize = (out == 0 ? 0 : idxFilePackUint(w, out));
-  uint8_t   transPackSize = fstPackDetla(w, addr, trn->addr);
+  uint8_t   transPackSize = fstPackDelta(w, addr, trn->addr);
   PackSizes packSizes = 0;
 
   FST_SET_OUTPUT_PACK_SIZE(packSizes, outPackSize);
