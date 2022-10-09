@@ -21,7 +21,7 @@
 #include "tkey.h"
 #include "tulog.h"
 #include "shellAuto.h"
-#include "shellTire.h"
+#include "tire.h"
 #include "tthread.h"
 
 //
