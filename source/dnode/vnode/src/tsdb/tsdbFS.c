@@ -718,7 +718,7 @@ _exit:
 }
 
 /**
- * @brief Update or delete DFileSet in pFS according to DFileSet (fid <= maxFid) in pFSNew.
+ * @brief Update or delete DFileSet in pFS according to DFileSet (fid <= maxFid) in pFSUpd.
  *
  * @param pTsdb
  * @param pFS
@@ -731,6 +731,8 @@ int32_t tsdbFSUpdDel(STsdb *pTsdb, STsdbFS *pFS, STsdbFS *pFSUpd, int32_t maxFid
   int32_t nRef = 0;
   char    fname[TSDB_FILENAME_LEN];
 
+  ASSERT(taosArrayGetSize(pFS->aDFileSet) >= taosArrayGetSize(pFSUpd->aDFileSet));
+  
   int32_t iBase = 0;
   int32_t iUpd = 0;
   while (true) {
@@ -748,9 +750,9 @@ int32_t tsdbFSUpdDel(STsdb *pTsdb, STsdbFS *pFS, STsdbFS *pFSUpd, int32_t maxFid
 
     if (pSetBase && pSetUpd) {
       if (pSetBase->fid == pSetUpd->fid) {
-        goto _merge_migrate;
+        goto _merge_fs;
       } else if (pSetBase->fid < pSetUpd->fid) {
-        goto _remove_old;
+        goto _remove_base;
       } else {
         ++iUpd;
         ASSERT(0);
@@ -760,7 +762,7 @@ int32_t tsdbFSUpdDel(STsdb *pTsdb, STsdbFS *pFS, STsdbFS *pFSUpd, int32_t maxFid
       break;
     }
 
-  _merge_migrate:
+  _merge_fs:
     sameDisk = ((pSetBase->diskId.level == pSetUpd->diskId.level) && (pSetBase->diskId.id == pSetUpd->diskId.id));
 
     ASSERT(pSetBase->pHeadF->commitID == pSetUpd->pHeadF->commitID);
@@ -800,7 +802,7 @@ int32_t tsdbFSUpdDel(STsdb *pTsdb, STsdbFS *pFS, STsdbFS *pFSUpd, int32_t maxFid
     ++iUpd;
     continue;
 
-  _remove_old:
+  _remove_base:
     taosMemoryFree(pSetBase->pHeadF);
     taosMemoryFree(pSetBase->pDataF);
     for (int32_t iStt = 0; iStt < pSetBase->nSttF; ++iStt) {
