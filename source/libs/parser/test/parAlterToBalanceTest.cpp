@@ -84,7 +84,7 @@ TEST_F(ParserInitialATest, alterDnode) {
  *   | CACHESIZE int_value                                       -- range [1, 65536], default 1, unit MB
  *   | WAL_FSYNC_PERIOD int_value                                -- rang [0, 180000], default 3000, unit ms
  *   | KEEP {int_value | duration_value}                         -- rang [1, 365000], default 3650, unit day
- *   | PAGES int_value                                           -- rang [64, 16384], default 256, unit page
+ *   | PAGES int_value                                           -- rang [64, INT32_MAX], default 256, unit page
  *   | REPLICA int_value                                         -- todo: enum 1, 3, default 1, unit replica
  *   | STRICT {'off' | 'on'}                                     -- todo: default 'off'
  *   | WAL_LEVEL int_value                                       -- enum 1, 2, default 1
