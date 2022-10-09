@@ -1316,8 +1316,8 @@ SSDataBlock* createSpecialDataBlock(EStreamType type) {
   pBlock->info.groupId = 0;
   pBlock->info.rows = 0;
   pBlock->info.type = type;
-  pBlock->info.rowSize =
-      sizeof(TSKEY) + sizeof(TSKEY) + sizeof(uint64_t) + sizeof(uint64_t) + sizeof(TSKEY) + sizeof(TSKEY);
+  pBlock->info.rowSize = sizeof(TSKEY) + sizeof(TSKEY) + sizeof(uint64_t) + sizeof(uint64_t) + sizeof(TSKEY) +
+                         sizeof(TSKEY) + TSDB_TABLE_NAME_LEN;
   pBlock->info.watermark = INT64_MIN;
 
   pBlock->pDataBlock = taosArrayInit(6, sizeof(SColumnInfoData));
@@ -1341,6 +1341,11 @@ SSDataBlock* createSpecialDataBlock(EStreamType type) {
   // calculate start ts
   taosArrayPush(pBlock->pDataBlock, &infoData);
   // calculate end ts
+  taosArrayPush(pBlock->pDataBlock, &infoData);
+
+  // table name
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = TSDB_TABLE_NAME_LEN;
   taosArrayPush(pBlock->pDataBlock, &infoData);
 
   return pBlock;

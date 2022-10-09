@@ -885,8 +885,8 @@ static SSDataBlock* buildStreamPartitionResult(SOperatorInfo* pOperator) {
       ASSERT(taosArrayGetSize(pResBlock->pDataBlock) == 1);
       SColumnInfoData* pCol = taosArrayGet(pResBlock->pDataBlock, 0);
       ASSERT(pCol->info.type == TSDB_DATA_TYPE_VARCHAR);
-      void* pData = colDataGetData(pCol, 0);
-      // TODO check tbname validation
+      void* pData = colDataGetVarData(pCol, 0);
+      // TODO check tbname validity
       if (pData != (void*)-1) {
         memcpy(pDest->info.parTbName, varDataVal(pData), varDataLen(pData));
       } else {

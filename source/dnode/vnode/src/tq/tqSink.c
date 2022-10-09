@@ -23,10 +23,19 @@ int32_t tqBuildDeleteReq(SVnode* pVnode, const char* stbFullName, const SSDataBl
   int32_t          totRow = pDataBlock->info.rows;
   SColumnInfoData* pTsCol = taosArrayGet(pDataBlock->pDataBlock, START_TS_COLUMN_INDEX);
   SColumnInfoData* pGidCol = taosArrayGet(pDataBlock->pDataBlock, GROUPID_COLUMN_INDEX);
+  SColumnInfoData* pTbNameCol = taosArrayGet(pDataBlock->pDataBlock, TABLE_NAME_COLUMN_INDEX);
+
   for (int32_t row = 0; row < totRow; row++) {
     int64_t ts = *(int64_t*)colDataGetData(pTsCol, row);
     int64_t groupId = *(int64_t*)colDataGetData(pGidCol, row);
-    char*   name = buildCtbNameByGroupId(stbFullName, groupId);
+    char*   name;
+    void*   varTbName = colDataGetVarData(pTbNameCol, row);
+    if (varTbName != NULL && varTbName != (void*)-1) {
+      name = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
+      memcpy(name, varDataVal(varTbName), varDataLen(varTbName));
+    } else {
+      name = buildCtbNameByGroupId(stbFullName, groupId);
+    }
     tqDebug("stream delete msg: groupId :%ld, name: %s", groupId, name);
     SMetaReader mr = {0};
     metaReaderInit(&mr, pVnode->pMeta, 0);

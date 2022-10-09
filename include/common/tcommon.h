@@ -340,6 +340,7 @@ typedef struct SSortExecInfo {
 #define GROUPID_COLUMN_INDEX            3
 #define CALCULATE_START_TS_COLUMN_INDEX 4
 #define CALCULATE_END_TS_COLUMN_INDEX   5
+#define TABLE_NAME_COLUMN_INDEX         6
 
 #ifdef __cplusplus
 }
