@@ -16,7 +16,7 @@
 #define __USE_XOPEN
 
 #include "os.h"
-#include "tire.h"
+#include "shellTire.h"
 
 // ----------- interface -------------
 
