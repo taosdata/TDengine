@@ -84,7 +84,7 @@ static FORCE_INLINE int64_t taosGetTimestampNs() {
 
 char      *taosStrpTime(const char *buf, const char *fmt, struct tm *tm);
 struct tm *taosLocalTime(const time_t *timep, struct tm *result);
-struct tm *taosLocalTimeNolock(struct tm *result, const time_t *timep, time_t tz, int dst);
+struct tm *taosLocalTimeNolock(struct tm *result, const time_t *timep, int dst);
 time_t     taosTime(time_t *t);
 time_t     taosMktime(struct tm *timep);
 

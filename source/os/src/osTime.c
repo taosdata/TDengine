@@ -455,7 +455,7 @@ static int isLeapYear(time_t year) {
   else
     return 1;
 }
-struct tm *taosLocalTimeNolock(struct tm *result, const time_t *timep, time_t tz, int dst) {
+struct tm *taosLocalTimeNolock(struct tm *result, const time_t *timep, int dst) {
   if (result == NULL) {
     return localtime(timep);
   }
@@ -496,6 +496,7 @@ struct tm *taosLocalTimeNolock(struct tm *result, const time_t *timep, time_t tz
   }
 #elif defined(LINUX)
   time_t secsMin = 60, secsHour = 3600, secsDay = 3600 * 24;
+  long   tz = timezone;
 
   time_t t = *timep;
   t -= tz;                      /* Adjust for timezone. */
