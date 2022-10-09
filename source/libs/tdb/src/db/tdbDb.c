@@ -97,6 +97,8 @@ int tdbClose(TDB *pDb) {
   return 0;
 }
 
+int32_t tdbAlter(TDB *pDb, int pages) { return tdbPCacheAlter(pDb->pCache, pages); }
+
 int32_t tdbBegin(TDB *pDb, TXN *pTxn) {
   SPager *pPager;
   int     ret;
