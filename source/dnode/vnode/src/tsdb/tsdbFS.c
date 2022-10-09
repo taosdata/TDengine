@@ -722,37 +722,37 @@ _exit:
  *
  * @param pTsdb
  * @param pFS
- * @param pFSNew
+ * @param pFSUpd
  * @param maxFid
  * @return int32_t
  */
-int32_t tsdbFSUpdDel(STsdb *pTsdb, STsdbFS *pFS, STsdbFS *pFSNew, int32_t maxFid) {
+int32_t tsdbFSUpdDel(STsdb *pTsdb, STsdbFS *pFS, STsdbFS *pFSUpd, int32_t maxFid) {
   int32_t code = 0;
   int32_t nRef = 0;
   char    fname[TSDB_FILENAME_LEN];
 
-  int32_t iOld = 0;
-  int32_t iNew = 0;
+  int32_t iBase = 0;
+  int32_t iUpd = 0;
   while (true) {
-    int32_t   nOld = taosArrayGetSize(pFS->aDFileSet);
-    int32_t   nNew = taosArrayGetSize(pFSNew->aDFileSet);
+    int32_t   nBase = taosArrayGetSize(pFS->aDFileSet);
+    int32_t   nUpd = taosArrayGetSize(pFSUpd->aDFileSet);
     SDFileSet fSet;
     int8_t    sameDisk;
 
-    if (iOld >= nOld && iNew >= nNew) break;
+    if (iBase >= nBase && iUpd >= nUpd) break;
 
-    SDFileSet *pSetOld = (iOld < nOld) ? taosArrayGet(pFS->aDFileSet, iOld) : NULL;
-    SDFileSet *pSetNew = (iNew < nNew) ? taosArrayGet(pFSNew->aDFileSet, iNew) : NULL;
+    SDFileSet *pSetBase = (iBase < nBase) ? taosArrayGet(pFS->aDFileSet, iBase) : NULL;
+    SDFileSet *pSetUpd = (iUpd < nUpd) ? taosArrayGet(pFSUpd->aDFileSet, iUpd) : NULL;
 
-    if (pSetNew && (pSetNew->fid > maxFid)) break;
+    if (pSetUpd && (pSetUpd->fid > maxFid)) break;
 
-    if (pSetOld && pSetNew) {
-      if (pSetOld->fid == pSetNew->fid) {
+    if (pSetBase && pSetUpd) {
+      if (pSetBase->fid == pSetUpd->fid) {
         goto _merge_migrate;
-      } else if (pSetOld->fid > pSetNew->fid) {
+      } else if (pSetBase->fid < pSetUpd->fid) {
         goto _remove_old;
       } else {
-        ++iOld;
+        ++iUpd;
         ASSERT(0);
       }
       continue;
@@ -761,54 +761,53 @@ int32_t tsdbFSUpdDel(STsdb *pTsdb, STsdbFS *pFS, STsdbFS *pFSNew, int32_t maxFid
     }
 
   _merge_migrate:
-    sameDisk = ((pSetOld->diskId.level == pSetNew->diskId.level) && (pSetOld->diskId.id == pSetNew->diskId.id));
+    sameDisk = ((pSetBase->diskId.level == pSetUpd->diskId.level) && (pSetBase->diskId.id == pSetUpd->diskId.id));
 
-    ASSERT(pSetOld->pHeadF->commitID == pSetNew->pHeadF->commitID);
-    ASSERT(pSetOld->pHeadF->size == pSetNew->pHeadF->size);
-    ASSERT(pSetOld->pHeadF->offset == pSetNew->pHeadF->offset);
+    ASSERT(pSetBase->pHeadF->commitID == pSetUpd->pHeadF->commitID);
+    ASSERT(pSetBase->pHeadF->size == pSetUpd->pHeadF->size);
+    ASSERT(pSetBase->pHeadF->offset == pSetUpd->pHeadF->offset);
 
     if (!sameDisk) {
       // head
-      *pSetOld->pHeadF = *pSetNew->pHeadF;
-      pSetOld->pHeadF->nRef = 1;
+      *pSetBase->pHeadF = *pSetUpd->pHeadF;
+      pSetBase->pHeadF->nRef = 1;
 
       // data
-      ASSERT(pSetOld->pDataF->size == pSetNew->pDataF->size);
-      *pSetOld->pDataF = *pSetNew->pDataF;
-      pSetOld->pDataF->nRef = 1;
+      ASSERT(pSetBase->pDataF->size == pSetUpd->pDataF->size);
+      *pSetBase->pDataF = *pSetUpd->pDataF;
+      pSetBase->pDataF->nRef = 1;
 
       // sma
-      ASSERT(pSetOld->pSmaF->size == pSetNew->pSmaF->size);
-      *pSetOld->pSmaF = *pSetNew->pSmaF;
-      pSetOld->pSmaF->nRef = 1;
+      ASSERT(pSetBase->pSmaF->size == pSetUpd->pSmaF->size);
+      *pSetBase->pSmaF = *pSetUpd->pSmaF;
+      pSetBase->pSmaF->nRef = 1;
 
       // stt
-      ASSERT(pSetOld->nSttF == pSetNew->nSttF);
-      for (int32_t iStt = 0; iStt < pSetOld->nSttF; ++iStt) {
-        ASSERT(pSetOld->aSttF[iStt]->size == pSetNew->aSttF[iStt]->size);
-        ASSERT(pSetOld->aSttF[iStt]->offset == pSetNew->aSttF[iStt]->offset);
+      ASSERT(pSetBase->nSttF == pSetUpd->nSttF);
+      for (int32_t iStt = 0; iStt < pSetBase->nSttF; ++iStt) {
+        ASSERT(pSetBase->aSttF[iStt]->size == pSetUpd->aSttF[iStt]->size);
+        ASSERT(pSetBase->aSttF[iStt]->offset == pSetUpd->aSttF[iStt]->offset);
 
-        *pSetOld->aSttF[iStt] = *pSetNew->aSttF[iStt];
-        pSetOld->aSttF[iStt]->nRef = 1;
+        *pSetBase->aSttF[iStt] = *pSetUpd->aSttF[iStt];
+        pSetBase->aSttF[iStt]->nRef = 1;
       }
 
       // set diskId
-      pSetOld->diskId = pSetNew->diskId;
+      pSetBase->diskId = pSetUpd->diskId;
     }
 
-    ++iOld;
-    ++iNew;
+    ++iBase;
+    ++iUpd;
     continue;
 
   _remove_old:
-    taosMemoryFree(pSetOld->pHeadF);
-    taosMemoryFree(pSetOld->pDataF);
-    for (int32_t iStt = 0; iStt < pSetOld->nSttF; ++iStt) {
-      taosMemoryFree(pSetOld->aSttF[iStt]);
+    taosMemoryFree(pSetBase->pHeadF);
+    taosMemoryFree(pSetBase->pDataF);
+    for (int32_t iStt = 0; iStt < pSetBase->nSttF; ++iStt) {
+      taosMemoryFree(pSetBase->aSttF[iStt]);
     }
-    taosMemoryFree(pSetOld->pSmaF);
-    taosArrayRemove(pFS->aDFileSet, iOld);
-    ++iNew;
+    taosMemoryFree(pSetBase->pSmaF);
+    taosArrayRemove(pFS->aDFileSet, iBase);
     continue;
   }
 

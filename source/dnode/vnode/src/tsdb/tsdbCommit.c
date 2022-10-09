@@ -1113,6 +1113,7 @@ _exit:
   tsdbFSDestroy(&pCommitter->fs);
   tsdbFSDestroy(&fsLatest);
   taosArrayDestroy(pCommitter->aTbDataP);
+  pTsdb->trimHdl.minCommitFid = INT32_MAX;
 
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
