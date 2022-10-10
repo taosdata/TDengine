@@ -1161,45 +1161,45 @@ static SColumn* createColumn(int32_t blockId, int32_t slotId, int32_t colId, SDa
   return pCol;
 }
 
-void createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode) {
+void createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
   pExp->pExpr = taosMemoryCalloc(1, sizeof(tExprNode));
   pExp->pExpr->_function.num = 1;
   pExp->pExpr->_function.functionId = -1;
 
-  int32_t type = nodeType(pTargetNode->pExpr);
+  int32_t type = nodeType(pNode);
   // it is a project query, or group by column
   if (type == QUERY_NODE_COLUMN) {
     pExp->pExpr->nodeType = QUERY_NODE_COLUMN;
-    SColumnNode* pColNode = (SColumnNode*)pTargetNode->pExpr;
+    SColumnNode* pColNode = (SColumnNode*)pNode;
 
     pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
     pExp->base.numOfParams = 1;
 
     SDataType* pType = &pColNode->node.resType;
-    pExp->base.resSchema = createResSchema(pType->type, pType->bytes, pTargetNode->slotId, pType->scale,
-                                           pType->precision, pColNode->colName);
+    pExp->base.resSchema =
+        createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pColNode->colName);
     pExp->base.pParam[0].pCol =
         createColumn(pColNode->dataBlockId, pColNode->slotId, pColNode->colId, pType, pColNode->colType);
     pExp->base.pParam[0].type = FUNC_PARAM_TYPE_COLUMN;
   } else if (type == QUERY_NODE_VALUE) {
     pExp->pExpr->nodeType = QUERY_NODE_VALUE;
-    SValueNode* pValNode = (SValueNode*)pTargetNode->pExpr;
+    SValueNode* pValNode = (SValueNode*)pNode;
 
     pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
     pExp->base.numOfParams = 1;
 
     SDataType* pType = &pValNode->node.resType;
-    pExp->base.resSchema = createResSchema(pType->type, pType->bytes, pTargetNode->slotId, pType->scale,
-                                           pType->precision, pValNode->node.aliasName);
+    pExp->base.resSchema =
+        createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pValNode->node.aliasName);
     pExp->base.pParam[0].type = FUNC_PARAM_TYPE_VALUE;
     nodesValueNodeToVariant(pValNode, &pExp->base.pParam[0].param);
   } else if (type == QUERY_NODE_FUNCTION) {
     pExp->pExpr->nodeType = QUERY_NODE_FUNCTION;
-    SFunctionNode* pFuncNode = (SFunctionNode*)pTargetNode->pExpr;
+    SFunctionNode* pFuncNode = (SFunctionNode*)pNode;
 
     SDataType* pType = &pFuncNode->node.resType;
-    pExp->base.resSchema = createResSchema(pType->type, pType->bytes, pTargetNode->slotId, pType->scale,
-                                           pType->precision, pFuncNode->node.aliasName);
+    pExp->base.resSchema =
+        createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pFuncNode->node.aliasName);
 
     pExp->pExpr->_function.functionId = pFuncNode->funcId;
     pExp->pExpr->_function.pFunctNode = pFuncNode;
@@ -1241,18 +1241,22 @@ void createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode) {
     }
   } else if (type == QUERY_NODE_OPERATOR) {
     pExp->pExpr->nodeType = QUERY_NODE_OPERATOR;
-    SOperatorNode* pNode = (SOperatorNode*)pTargetNode->pExpr;
+    SOperatorNode* pOpNode = (SOperatorNode*)pNode;
 
     pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
     pExp->base.numOfParams = 1;
 
-    SDataType* pType = &pNode->node.resType;
-    pExp->base.resSchema = createResSchema(pType->type, pType->bytes, pTargetNode->slotId, pType->scale,
-                                           pType->precision, pNode->node.aliasName);
-    pExp->pExpr->_optrRoot.pRootNode = pTargetNode->pExpr;
+    SDataType* pType = &pOpNode->node.resType;
+    pExp->base.resSchema =
+        createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pOpNode->node.aliasName);
+    pExp->pExpr->_optrRoot.pRootNode = pNode;
   } else {
     ASSERT(0);
   }
+}
+
+void createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode) {
+  createExprFromOneNode(pExp, pTargetNode->pExpr, pTargetNode->slotId);
 }
 
 SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* numOfExprs) {

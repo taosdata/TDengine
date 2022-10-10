@@ -1316,8 +1316,8 @@ SSDataBlock* createSpecialDataBlock(EStreamType type) {
   pBlock->info.groupId = 0;
   pBlock->info.rows = 0;
   pBlock->info.type = type;
-  pBlock->info.rowSize =
-      sizeof(TSKEY) + sizeof(TSKEY) + sizeof(uint64_t) + sizeof(uint64_t) + sizeof(TSKEY) + sizeof(TSKEY);
+  pBlock->info.rowSize = sizeof(TSKEY) + sizeof(TSKEY) + sizeof(uint64_t) + sizeof(uint64_t) + sizeof(TSKEY) +
+                         sizeof(TSKEY) + TSDB_TABLE_NAME_LEN;
   pBlock->info.watermark = INT64_MIN;
 
   pBlock->pDataBlock = taosArrayInit(6, sizeof(SColumnInfoData));
@@ -1342,6 +1342,48 @@ SSDataBlock* createSpecialDataBlock(EStreamType type) {
   taosArrayPush(pBlock->pDataBlock, &infoData);
   // calculate end ts
   taosArrayPush(pBlock->pDataBlock, &infoData);
+
+  // table name
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = TSDB_TABLE_NAME_LEN;
+  taosArrayPush(pBlock->pDataBlock, &infoData);
+
+  return pBlock;
+}
+
+SSDataBlock* blockCopyOneRow(const SSDataBlock* pDataBlock, int32_t rowIdx) {
+  if (pDataBlock == NULL) {
+    return NULL;
+  }
+
+  SSDataBlock* pBlock = createDataBlock();
+  pBlock->info = pDataBlock->info;
+  pBlock->info.rows = 0;
+  pBlock->info.capacity = 0;
+
+  size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
+    SColumnInfoData  colInfo = {.hasNull = true, .info = p->info};
+    blockDataAppendColInfo(pBlock, &colInfo);
+  }
+
+  int32_t code = blockDataEnsureCapacity(pBlock, 1);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    blockDataDestroy(pBlock);
+    return NULL;
+  }
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, i);
+    SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, i);
+    void*            pData = colDataGetData(pSrc, rowIdx);
+    bool             isNull = colDataIsNull(pSrc, pDataBlock->info.rows, rowIdx, NULL);
+    colDataAppend(pDst, 0, pData, isNull);
+  }
+
+  pBlock->info.rows = 1;
 
   return pBlock;
 }

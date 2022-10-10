@@ -460,6 +460,8 @@ typedef struct SPartitionBySupporter {
 
 typedef struct SPartitionDataInfo {
   uint64_t groupId;
+  char*    tbname;
+  SArray*  tags;
   SArray*  rowIds;
 } SPartitionDataInfo;
 
@@ -476,6 +478,7 @@ typedef struct SStreamScanInfo {
   uint64_t    tableUid;  // queried super table uid
   SExprInfo*  pPseudoExpr;
   int32_t     numOfPseudoExpr;
+  SExprSupp   tbnameCalSup;
   int32_t     primaryTsIndex;  // primary time stamp slot id
   SReadHandle readHandle;
   SInterval   interval;       // if the upstream is an interval operator, the interval info is also kept here.
@@ -615,6 +618,7 @@ typedef struct SStreamIntervalOperatorInfo {
   SArray*            pChildren;
   SStreamState*      pState;
   SWinKey            delKey;
+  SHashObj*          pGroupIdTbNameMap;  // uint64_t -> char[TSDB_TABLE_NAME_LEN]
 } SStreamIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
@@ -769,6 +773,7 @@ typedef struct SStreamPartitionOperatorInfo {
   SOptrBasicInfo        binfo;
   SPartitionBySupporter partitionSup;
   SExprSupp             scalarSup;
+  SExprSupp             tbnameCalSup;
   SHashObj*             pPartitions;
   void*                 parIte;
   SSDataBlock*          pInputDataBlock;
@@ -1062,7 +1067,7 @@ bool               isOverdue(TSKEY ts, STimeWindowAggSupp* pSup);
 bool               isCloseWindow(STimeWindow* pWin, STimeWindowAggSupp* pSup);
 bool               isDeletedWindow(STimeWindow* pWin, uint64_t groupId, SAggSupporter* pSup);
 bool               isDeletedStreamWindow(STimeWindow* pWin, uint64_t groupId, SStreamState* pState, STimeWindowAggSupp* pTwSup);
-void               appendOneRow(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t* pUid, uint64_t* pGp);
+void               appendOneRowToStreamSpecialBlock(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t* pUid, uint64_t* pGp, void* pTbName);
 void               printDataBlock(SSDataBlock* pBlock, const char* flag);
 uint64_t calGroupIdByData(SPartitionBySupporter* pParSup, SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t rowId);
 
@@ -1083,7 +1088,7 @@ void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsCol
 bool    groupbyTbname(SNodeList* pGroupList);
 int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* groupKey);
 void*   destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput);
-int32_t buildDataBlockFromGroupRes(SExecTaskInfo* pTaskInfo, SStreamState* pState, SSDataBlock* pBlock, SExprSupp* pSup,
+int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pState, SSDataBlock* pBlock, SExprSupp* pSup,
                                    SGroupResInfo* pGroupResInfo);
 int32_t setOutputBuf(SStreamState* pState, STimeWindow* win, SResultRow** pResult, int64_t tableGroupId, SqlFunctionCtx* pCtx,
                      int32_t numOfOutput, int32_t* rowEntryInfoOffset, SAggSupporter* pAggSup);
