@@ -639,6 +639,7 @@ typedef struct {
   char*          physicalPlan;
   SArray*        tasks;  // SArray<SArray<SStreamTask>>
   SSchemaWrapper outputSchema;
+  SSchemaWrapper tagSchema;
 } SStreamObj;
 
 int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);

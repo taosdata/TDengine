@@ -74,7 +74,8 @@ typedef struct SResultRowPosition {
 typedef struct SResKeyPos {
   SResultRowPosition pos;
   uint64_t           groupId;
-  char               key[];
+  // char               parTbName[TSDB_TABLE_NAME_LEN];
+  char key[];
 } SResKeyPos;
 
 typedef struct SResultRowInfo {
@@ -123,6 +124,7 @@ SArray* extractPartitionColInfo(SNodeList* pNodeList);
 SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
                             int32_t type);
 
+void       createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId);
 void       createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode);
 SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* numOfExprs);
 

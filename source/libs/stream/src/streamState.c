@@ -60,6 +60,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath) {
   if (!specPath) {
     sprintf(statePath, "%s/%d", path, pTask->taskId);
   } else {
+    memset(statePath, 0, 300);
     strncpy(statePath, path, 300);
   }
   if (tdbOpen(statePath, 4096, 256, &pState->db) < 0) {

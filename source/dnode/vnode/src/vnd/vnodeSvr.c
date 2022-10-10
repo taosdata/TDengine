@@ -770,7 +770,7 @@ static int32_t vnodeDebugPrintSingleSubmitMsg(SMeta *pMeta, SSubmitBlk *pBlock, 
     if (pSchema) {
       taosMemoryFreeClear(pSchema);
     }
-    pSchema = metaGetTbTSchema(pMeta, msgIter->suid, TD_ROW_SVER(blkIter.row));  // TODO: use the real schema
+    pSchema = metaGetTbTSchema(pMeta, msgIter->suid, TD_ROW_SVER(blkIter.row), 1);  // TODO: use the real schema
     if (pSchema) {
       suid = msgIter->suid;
       rv = TD_ROW_SVER(blkIter.row);

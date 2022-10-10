@@ -161,10 +161,12 @@ static int32_t tdProcessRSmaSyncPreCommitImpl(SSma *pSma) {
  * @return int32_t
  */
 static int32_t tdProcessRSmaSyncCommitImpl(SSma *pSma) {
+#if 0
   SSmaEnv *pSmaEnv = SMA_RSMA_ENV(pSma);
   if (!pSmaEnv) {
     return TSDB_CODE_SUCCESS;
   }
+#endif
   return TSDB_CODE_SUCCESS;
 }
 
