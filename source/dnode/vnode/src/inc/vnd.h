@@ -72,7 +72,7 @@ struct SVBufPool {
   SVBufPoolNode    node;
 };
 
-int32_t vnodeOpenBufPool(SVnode* pVnode, int64_t size);
+int32_t vnodeOpenBufPool(SVnode* pVnode);
 int32_t vnodeCloseBufPool(SVnode* pVnode);
 void    vnodeBufPoolReset(SVBufPool* pPool);
 

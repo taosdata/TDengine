@@ -1128,6 +1128,23 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void 
     tsdbCacheSetCapacity(pVnode, (size_t)pVnode->config.cacheLastSize * 1024 * 1024);
   }
 
+  if (pVnode->config.szBuf != alterReq.buffer * 1024LL * 1024LL) {
+    vInfo("vgId:%d vnode buffer is changed from %" PRId64 " to %" PRId64, TD_VID(pVnode), pVnode->config.szBuf,
+          alterReq.buffer * 1024LL * 1024LL);
+    pVnode->config.szBuf = alterReq.buffer * 1024LL * 1024LL;
+  }
+
+  if (pVnode->config.szCache != alterReq.pages) {
+    if (metaAlterCache(pVnode->pMeta, alterReq.pages) < 0) {
+      vError("vgId:%d failed to change vnode pages from %d to %d failed since %s", TD_VID(pVnode),
+             pVnode->config.szCache, alterReq.pages, tstrerror(errno));
+      return errno;
+    } else {
+      vInfo("vgId:%d vnode pages is changed from %d to %d", TD_VID(pVnode), pVnode->config.szCache, alterReq.pages);
+      pVnode->config.szCache = alterReq.pages;
+    }
+  }
+
   if (pVnode->config.cacheLast != alterReq.cacheLast) {
     pVnode->config.cacheLast = alterReq.cacheLast;
   }

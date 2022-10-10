@@ -13,14 +13,6 @@ SHOW APPS;
 
 Shows all clients (such as applications) that connect to the cluster.
 
-## SHOW BNODES
-
-```sql
-SHOW BNODES;
-```
-
-Shows information about backup nodes (bnodes) in the system.
-
 ## SHOW CLUSTER
 
 ```sql
@@ -153,14 +145,6 @@ SHOW SCORES;
 Shows information about the storage space allowed by the license.
 
 Note: TDengine Enterprise Edition only.
-
-## SHOW SNODES
-
-```sql
-SHOW SNODES;
-```
-
-Shows information about stream processing nodes (snodes) in the system.
 
 ## SHOW STABLES
 
