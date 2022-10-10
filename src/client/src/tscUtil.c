@@ -5177,6 +5177,8 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
 
   STableMetaInfo* pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
 
+  pQueryAttr->precision = pTableMetaInfo->pTableMeta->tableInfo.precision;
+
   if (pQueryInfo->groupbyExpr.numOfGroupCols > 0) {
     pQueryAttr->pGroupbyExpr    = calloc(1, sizeof(SGroupbyExpr));
     *(pQueryAttr->pGroupbyExpr) = pQueryInfo->groupbyExpr;
