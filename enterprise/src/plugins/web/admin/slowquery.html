@@ -171,7 +171,7 @@
 			headers: {
 				'Authorization' : DbSession.GetToken()
 			},
-			data: "select * from log.slowquery",
+			data: "show queries",
 			dataType: "json",
 			success: dbQueryCb,
 			error: function(msg) { 
@@ -188,14 +188,7 @@
 	
 	function dbQueryCb(d)
 	{
-		if (d == null || d.status == null) {
-			DbUtil.Error(DB_CODE_INVALID_FORMAT);
-			return;
-		} 
-		if (d.status == "error") {
-			DbUtil.HandleError(d);
-		}
-		else if (d.status == "succ") {
+		if (DbUtil.CheckResponse(d)) {
 			DbCache.OnData(d);
 		}	
 		else{

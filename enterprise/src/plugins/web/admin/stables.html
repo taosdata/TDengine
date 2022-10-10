@@ -295,23 +295,13 @@
 
 	function dbExecuteDeleteCb(d)
 	{
-		if (d == null || d.status == null) {
-			DbUtil.Error(DB_CODE_INVALID_FORMAT);
-			return;
-		}
-		if (d.status == "error") {
-			DbUtil.HandleError(d);
-		}
-		else if (d.status == "succ") {
+		if (DbUtil.CheckResponse(d)) {
 			if (d.affect_rows == 0) {
 				DbUtil.Error(DB_CODE_EXEC_ERROR);
 			}
 			else {
 				DbUtil.GotoPage("stables.html");
 			}
-		}
-		else{
-			DbUtil.Error(DB_CODE_UNKNOWN);
 		}
 	}
 
