@@ -53,9 +53,9 @@ class TestBuffer(TDCase):
         self.tdSql.checkEqual(db_field,int(data['config'][self.cfg["vnode_json_key"]])/1024/1024)
         self.tdRest.request(f'drop database {dbname}')
         # boundary
+        dbname = self.tdCom.get_long_name()
         for param_value in self.cfg["boundary"]:
-            dbname = self.tdCom.get_long_name()
-            kv_dict = {test_param: param_value}
+            kv_dict = {test_param: param_value, "pagesize":1, "pages":64}
             self.tdCom.createDb(dbname, **kv_dict)
             self.tdRest.request('select * from information_schema.ins_databases')
             db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
