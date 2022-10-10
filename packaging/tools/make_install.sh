@@ -317,10 +317,6 @@ function install_lib() {
             ${csudo}chmod 777 ${install_main_dir}/driver/libtaosws.so ||:
 
         ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so ${lib_link_dir}/libtaosws.so || :
-
-        if [ -d "${lib64_link_dir}" ]; then
-            ${csudo}ln -sf ${lib64_link_dir}/libtaosws.so ${lib64_link_dir}/libtaosws.so || :
-        fi
     fi
   else
     ${csudo}cp -Rf ${binary_dir}/build/lib/libtaos.${verNumber}.dylib \
