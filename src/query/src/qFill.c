@@ -108,8 +108,8 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
           continue;
         }
 
-        int16_t type  = pCol->col.type;
-        int16_t bytes = pCol->col.bytes;
+        int16_t  type = pCol->col.type;
+        uint16_t bytes = pCol->col.bytes;
 
         char *val1 = elePtrAt(data[i], pCol->col.bytes, idx);
         if (type == TSDB_DATA_TYPE_BINARY|| type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BOOL) {

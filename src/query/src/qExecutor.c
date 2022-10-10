@@ -206,7 +206,7 @@ static void getNextTimeWindow(SQueryAttr* pQueryAttr, STimeWindow* tw) {
   tw->ekey -= 1;
 }
 
-static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type, int16_t bytes);
+static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type, uint16_t bytes);
 static void setResultOutputBuf(SQueryRuntimeEnv* pRuntimeEnv, SResultRow* pResult, SQLFunctionCtx* pCtx,
                                int32_t numOfCols, int32_t* rowCellInfoOffset);
 
@@ -10531,7 +10531,7 @@ bool doBuildResCheck(SQInfo* pQInfo) {
   return buildRes;
 }
 
-static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type, int16_t bytes) {
+static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type, uint16_t bytes) {
   if (val == NULL) {
     setNull(output, type, bytes);
     return;

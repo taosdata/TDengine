@@ -55,7 +55,7 @@ extern "C" {
 typedef struct {
   int8_t   type;    // Column type
   int16_t  colId;   // column ID
-  int16_t  bytes;   // column bytes (restore to int16_t in case of misuse)
+  uint16_t bytes;   // column bytes
   uint16_t offset;  // point offset in SDataRow after the header part.
 } STColumn;
 

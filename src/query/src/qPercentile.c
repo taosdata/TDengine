@@ -222,7 +222,7 @@ static void resetSlotInfo(tMemBucket* pBucket) {
   }
 }
 
-tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval, double maxval) {
+tMemBucket *tMemBucketCreate(uint16_t nElemSize, int16_t dataType, double minval, double maxval) {
   tMemBucket *pBucket = (tMemBucket *)calloc(1, sizeof(tMemBucket));
   if (pBucket == NULL) {
     return NULL;

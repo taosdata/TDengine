@@ -731,8 +731,8 @@ static void columnwiseMergeSortImpl(tOrderDescriptor *pDescriptor, int32_t numOf
   char* p = NULL;
 
   for(int32_t i = 0; i < numOfCols; ++i) {
-    int16_t colOffset = getColumnModelOffset(pDescriptor->pColumnModel, i);
-    int32_t colBytes = pDescriptor->pColumnModel->pFields[i].field.bytes;
+    uint16_t colOffset = getColumnModelOffset(pDescriptor->pColumnModel, i);
+    int32_t  colBytes = pDescriptor->pColumnModel->pFields[i].field.bytes;
     // make sure memory buffer is enough
     if (prevLength < colBytes) {
       char *tmp = realloc(p, colBytes * numOfRows);
@@ -1181,7 +1181,7 @@ SSchema1* getColumnModelSchema(SColumnModel *pColumnModel, int32_t idx) {
   return &pColumnModel->pFields[idx].field;
 }
 
-int16_t getColumnModelOffset(SColumnModel *pColumnModel, int32_t idx) {
+uint16_t getColumnModelOffset(SColumnModel *pColumnModel, int32_t idx) {
   assert(pColumnModel != NULL && idx >= 0 && idx < pColumnModel->numOfCols);
   return pColumnModel->pFields[idx].offset;
 }
@@ -1197,7 +1197,7 @@ void tColModelErase(SColumnModel *pModel, tFilePage *inputBuffer, int32_t blockC
 
   /* start from the second column */
   for (int32_t i = 0; i < pModel->numOfCols; ++i) {
-    int16_t offset = getColumnModelOffset(pModel, i);
+    uint16_t offset = getColumnModelOffset(pModel, i);
     SSchema1* pSchema = getColumnModelSchema(pModel, i);
     
     char *startPos = inputBuffer->data + offset * blockCapacity + s * pSchema->bytes;
