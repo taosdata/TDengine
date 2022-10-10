@@ -83,7 +83,7 @@ int32_t stmtSwitchStatus(STscStmt* pStmt, STMT_STATUS newStatus) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t stmtGetTbName(TAOS_STMT* stmt, char** tbName) {
+static int32_t stmtGetTbName(TAOS_STMT* stmt, char** tbName) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
   pStmt->sql.type = STMT_TYPE_MULTI_INSERT;

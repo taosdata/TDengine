@@ -1619,6 +1619,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
 //       VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
 //   [...];
 int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery, SParseMetaCache* pMetaCache) {
+  int to_free = 0;
   SInsertParseContext context = {
       .pComCxt = pContext,
       .pSql = (char*)pContext->pSql,
@@ -1649,6 +1650,7 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery, SParseMetaCache
     context.pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
     context.pTableBlockHashObj =
         taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+    to_free = 1;
   }
 
   if (NULL == context.pVgroupsHashObj || NULL == context.pTableBlockHashObj || NULL == context.pSubTableHashObj ||
@@ -1708,7 +1710,7 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery, SParseMetaCache
       pDb = taosHashIterate(context.pDbFNameHashObj, pDb);
     }
   }
-  if (pContext->pStmtCb) {
+  if (!to_free) {
     context.pVgroupsHashObj = NULL;
     context.pTableBlockHashObj = NULL;
   }
