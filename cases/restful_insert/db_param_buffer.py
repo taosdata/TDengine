@@ -71,13 +71,14 @@ class TestBuffer(TDCase):
                 else:
                     continue
             self.tdSql.checkEqual(db_field,int(data['config'][self.cfg["vnode_json_key"]])/1024/1024)
-            for param_value in [self.cfg["boundary"][0],self.cfg["boundary"][-1]]:
-                self.tdRest.error(f'alter database {dbname} buffer {param_value}')
-            self.tdRest.request(f'drop database {dbname}')
-        self.tdRest.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')
-        self.tdRest.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][-1] + 1}')
 
-        
+        for param_value in self.cfg["boundary"]:
+            self.tdRest.request(f'alter database {dbname} {test_param} {param_value}')
+            self.tdRest.request('select * from information_schema.ins_databases')
+            db_field = self.tdRest.get_rest_db_field(self.tdRest.resp,test_param,dbname)
+            self.tdSql.checkEqual(db_field, param_value)
+
+        self.tdRest.request(f'drop database {dbname}')
         for i in [self.cfg["boundary"][0] - 1,self.cfg["boundary"][-1] + 1,'abc',100.1]:
             self.tdSql.error(f'create database {dbname} {test_param} {i}')
         

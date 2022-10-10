@@ -49,6 +49,7 @@ class TestTagColLimit(TDCase):
         self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (1)')
         self.tdSql.execute(f'insert into {dbname}.tb values (now, {col_value_str})')
         self.tdSql.query(f'select col4093 from {dbname}.stb')
+        self.tdSql.execute(f'drop table {dbname}.stb')
         self.tdSql.checkEqual(int(self.tdSql.query_data[0][0]), 1)
         self.tdSql.execute(f'drop database if exists {dbname}')
 

@@ -32,6 +32,7 @@ class TestComp(TDCase):
                 self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
         self.tdRest = TDRest(env_setting=self.env_setting)
         self.api_type = 'restful'
+        self.tdRest.drop_all_db()
     def precision_check(self):
         """
         precision check
@@ -131,7 +132,8 @@ class TestComp(TDCase):
         self.tdRest.request(f'drop database if exists {dbname}')
         kv_dict = {"precision": "ns"}
         self.tdCom.createDb(dbname, **kv_dict)
-        ns_ts, ns_dt = self.tdCom.genTs("ns",None,'restful')
+        # ns_ts, ns_dt = self.tdCom.genTs("ns",None,'restful')
+        ns_ts = 1665386585499707961
         self.tdRest.request(f'create table {dbname}.ntb (ts timestamp, c0 int)')
         self.tdRest.request(f'insert into {dbname}.ntb values({ns_ts}, 1)')
         self.tdRest.request(f"select * from {dbname}.ntb")
