@@ -2757,7 +2757,7 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
         colDataAppend(pColInfoData, numOfRows, (char*)&ts, false);
 
         SMetaReader mr = {0};
-        metaReaderInit(&mr, pInfo->readHandle.meta, 0);
+        metaReaderInit(&mr, pInfo->readHandle.meta, META_READER_NOLOCK);
 
         uint64_t suid = pInfo->pCur->mr.me.ctbEntry.suid;
         int32_t  code = metaGetTableEntryByUid(&mr, suid);
