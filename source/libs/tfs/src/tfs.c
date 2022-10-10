@@ -354,7 +354,7 @@ const STfsFile *tfsReaddir(STfsDir *pTfsDir) {
       char *name = taosGetDirEntryName(pDirEntry);
       if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
 
-      if (pTfsDir->dirName == NULL || pTfsDir->dirName[0] == 0) {
+      if (pTfsDir->dirName[0] == 0) {
         snprintf(bname, TMPNAME_LEN * 2, "%s", name);
       } else {
         snprintf(bname, TMPNAME_LEN * 2, "%s%s%s", pTfsDir->dirName, TD_DIRSEP, name);

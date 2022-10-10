@@ -376,7 +376,7 @@ int32_t rsmaSnapWriterClose(SRSmaSnapWriter** ppWriter, int8_t rollback) {
       if (taosRemoveFile(pWriter->pQTaskFWriter->fname) != 0) {
         smaWarn("vgId:%d, vnode snapshot rsma writer failed to remove %s since %s", SMA_VID(pWriter->pSma),
                 pWriter->pQTaskFWriter->fname ? pWriter->pQTaskFWriter->fname : "NULL",
-                terrstr(TAOS_SYSTEM_ERROR(errno)));
+                tstrerror(TAOS_SYSTEM_ERROR(errno)));
       }
     }
   } else {
