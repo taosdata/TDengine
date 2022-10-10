@@ -413,7 +413,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader) {
   if (pReader->cachedSchemaSuid == 0 || pReader->cachedSchemaVer != sversion ||
       pReader->cachedSchemaSuid != pReader->msgIter.suid) {
     if (pReader->pSchema) taosMemoryFree(pReader->pSchema);
-    pReader->pSchema = metaGetTbTSchema(pReader->pVnodeMeta, pReader->msgIter.uid, sversion);
+    pReader->pSchema = metaGetTbTSchema(pReader->pVnodeMeta, pReader->msgIter.uid, sversion, 1);
     if (pReader->pSchema == NULL) {
       tqWarn("cannot found tsschema for table: uid:%" PRId64 " (suid:%" PRId64 "), version %d, possibly dropped table",
              pReader->msgIter.uid, pReader->msgIter.suid, pReader->cachedSchemaVer);
@@ -423,7 +423,7 @@ int32_t tqRetrieveDataBlock(SSDataBlock* pBlock, STqReader* pReader) {
     }
 
     if (pReader->pSchemaWrapper) tDeleteSSchemaWrapper(pReader->pSchemaWrapper);
-    pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, pReader->msgIter.uid, sversion, true);
+    pReader->pSchemaWrapper = metaGetTableSchema(pReader->pVnodeMeta, pReader->msgIter.uid, sversion, 1);
     if (pReader->pSchemaWrapper == NULL) {
       tqWarn("cannot found schema wrapper for table: suid:%" PRId64 ", version %d, possibly dropped table",
              pReader->msgIter.uid, pReader->cachedSchemaVer);
