@@ -812,10 +812,10 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
   SSubmitReq    *pSubmitReq = (SSubmitReq *)pReq;
   SSubmitRsp     submitRsp = {0};
   SSubmitMsgIter msgIter = {0};
-  SSubmitBlk    *pBlock;
+  SSubmitBlk    *pBlock = NULL;
   SVCreateTbReq  createTbReq = {0};
   SDecoder       decoder = {0};
-  int32_t        nRows;
+  int32_t        nRows = 0;
   int32_t        tsize, ret;
   SEncoder       encoder = {0};
   SArray        *newTbUids = NULL;
@@ -823,6 +823,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
 
   pRsp->code = 0;
   pSubmitReq->version = version;
+  atomic_fetch_add_64(&pVnode->statis.nBatchInsert, 1);
 
 #ifdef TD_DEBUG_PRINT_ROW
   vnodeDebugPrintSubmitMsg(pVnode, pReq, __func__);
@@ -942,12 +943,16 @@ _exit:
 
   taosArrayDestroyEx(submitRsp.pArray, tFreeSSubmitBlkRsp);
 
+  atomic_fetch_add_64(&pVnode->statis.nInsert, submitRsp.numOfRows);
+  atomic_fetch_add_64(&pVnode->statis.nInsertSuccess, submitRsp.affectedRows);
+
   // TODO: the partial success scenario and the error case
   // => If partial success, extract the success submitted rows and reconstruct a new submit msg, and push to level
   // 1/level 2.
   // TODO: refactor
   if ((terrno == TSDB_CODE_SUCCESS) && (pRsp->code == TSDB_CODE_SUCCESS)) {
     tdProcessRSmaSubmit(pVnode->pSma, pReq, STREAM_INPUT__DATA_SUBMIT);
+    atomic_fetch_add_64(&pVnode->statis.nBatchInsertSuccess, 1);
   }
 
   vDebug("vgId:%d, submit success, index:%" PRId64, pVnode->config.vgId, version);

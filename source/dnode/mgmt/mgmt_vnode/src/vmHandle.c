@@ -78,6 +78,15 @@ void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
   pMgmt->state.numOfBatchInsertReqs = numOfBatchInsertReqs;
   pMgmt->state.numOfBatchInsertSuccessReqs = numOfBatchInsertSuccessReqs;
 
+  printf("%s:%d: Info: nInsert:%" PRIi64 ", nInsertSuccess:%" PRIi64 ", nBatch:%" PRIi64 ", nBatchSuccess:%" PRIi64
+         "\n",
+         __func__, __LINE__, pInfo->vstat.numOfInsertReqs, pInfo->vstat.numOfInsertSuccessReqs,
+         pInfo->vstat.numOfBatchInsertReqs, pInfo->vstat.numOfBatchInsertSuccessReqs);
+  printf("%s:%d: Mgmt: nInsert:%" PRIi64 ", nInsertSuccess:%" PRIi64 ", nBatch:%" PRIi64 ", nBatchSuccess:%" PRIi64
+         "\n",
+         __func__, __LINE__, pMgmt->state.numOfInsertReqs, pMgmt->state.numOfInsertSuccessReqs,
+         pMgmt->state.numOfBatchInsertReqs, pMgmt->state.numOfBatchInsertSuccessReqs);
+
   tfsGetMonitorInfo(pMgmt->pTfs, &pInfo->tfs);
   taosArrayDestroy(pVloads);
 }

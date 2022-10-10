@@ -375,10 +375,10 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->compStorage = (int64_t)2 * 1073741824;
   pLoad->pointsWritten = 100;
   pLoad->numOfSelectReqs = 1;
-  pLoad->numOfInsertReqs = 3;
-  pLoad->numOfInsertSuccessReqs = 2;
-  pLoad->numOfBatchInsertReqs = 5;
-  pLoad->numOfBatchInsertSuccessReqs = 4;
+  pLoad->numOfInsertReqs = atomic_load_64(&pVnode->statis.nInsert);
+  pLoad->numOfInsertSuccessReqs = atomic_load_64(&pVnode->statis.nInsertSuccess);
+  pLoad->numOfBatchInsertReqs = atomic_load_64(&pVnode->statis.nBatchInsert);
+  pLoad->numOfBatchInsertSuccessReqs = atomic_load_64(&pVnode->statis.nBatchInsertSuccess);
   return 0;
 }
 

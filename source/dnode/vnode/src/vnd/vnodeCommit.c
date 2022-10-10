@@ -227,6 +227,11 @@ int vnodeCommit(SVnode *pVnode) {
   info.state.committed = pVnode->state.applied;
   info.state.commitTerm = pVnode->state.applyTerm;
   info.state.commitID = pVnode->state.commitID;
+  info.statis.nInsert = pVnode->statis.nInsert;
+  info.statis.nInsertSuccess = pVnode->statis.nInsertSuccess;
+  info.statis.nBatchInsert = pVnode->statis.nBatchInsert;
+  info.statis.nBatchInsertSuccess = pVnode->statis.nBatchInsertSuccess;
+
   snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
   if (vnodeSaveInfo(dir, &info) < 0) {
     ASSERT(0);
@@ -352,6 +357,32 @@ static int vnodeDecodeState(const SJson *pJson, void *pObj) {
   return 0;
 }
 
+static int vnodeEncodeStatis(const void *pObj, SJson *pJson) {
+  const SVStatis *pStatis = (SVStatis *)pObj;
+
+  if (tjsonAddIntegerToObject(pJson, "insert", pStatis->nInsert) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "insert success", pStatis->nInsertSuccess) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "batch insert", pStatis->nBatchInsert) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "batch insert success", pStatis->nBatchInsertSuccess) < 0) return -1;
+
+  return 0;
+}
+
+static int vnodeDecodeStatis(const SJson *pJson, void *pObj) {
+  SVStatis *pStatis = (SVStatis *)pObj;
+
+  int32_t code;
+  tjsonGetNumberValue(pJson, "insert", pStatis->nInsert, code);
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "insert success", pStatis->nInsertSuccess, code);
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "batch insert", pStatis->nBatchInsert, code);
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "batch insert success", pStatis->nBatchInsertSuccess, code);
+  if (code < 0) return -1;
+  return 0;
+}
+
 static int vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData) {
   SJson *pJson;
   char  *pData;
@@ -368,6 +399,10 @@ static int vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData) {
   }
 
   if (tjsonAddObject(pJson, "state", vnodeEncodeState, (void *)&pInfo->state) < 0) {
+    goto _err;
+  }
+
+  if (tjsonAddObject(pJson, "statis", vnodeEncodeStatis, (void *)&pInfo->statis) < 0) {
     goto _err;
   }
 
@@ -399,6 +434,10 @@ static int vnodeDecodeInfo(uint8_t *pData, SVnodeInfo *pInfo) {
   }
 
   if (tjsonToObject(pJson, "state", vnodeDecodeState, (void *)&pInfo->state) < 0) {
+    goto _err;
+  }
+
+  if (tjsonToObject(pJson, "statis", vnodeDecodeStatis, (void *)&pInfo->statis) < 0) {
     goto _err;
   }
 
