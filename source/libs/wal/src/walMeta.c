@@ -614,6 +614,19 @@ int walSaveMeta(SWal* pWal) {
   char tmpFnameStr[WAL_FILE_LEN];
   int n;
 
+  // fsync the log and idx file at first to ensure validity of meta
+  if (taosFsyncFile(pWal->pLogFile) < 0) {
+    wError("vgId:%d, failed to sync log file due to %s", pWal->cfg.vgId, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  if (taosFsyncFile(pWal->pIdxFile) < 0) {
+    wError("vgId:%d, failed to sync idx file due to %s", pWal->cfg.vgId, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
   // flush to a tmpfile
   n = walBuildTmpMetaName(pWal, tmpFnameStr);
   ASSERT(n < sizeof(tmpFnameStr) && "Buffer overflow of file name");
