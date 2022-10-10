@@ -818,6 +818,7 @@ typedef struct SStateWindowOperatorInfo {
   // SOptrBasicInfo should be first, SAggSupporter should be second for stream encode
   SOptrBasicInfo binfo;
   SAggSupporter  aggSup;
+  SExprSupp      scalarSup;
 
   SGroupResInfo      groupResInfo;
   SWindowRowsSup     winSup;

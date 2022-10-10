@@ -366,7 +366,6 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, SSDataBlock* pBlock, int32_t
       }
 
       // set the tag value for final result
-      //      setTagsValue(pFillInfo, data, pFillInfo->numOfCurrent);
       SInterval* pInterval = &pFillInfo->interval;
       pFillInfo->currentKey =
           taosTimeAdd(pFillInfo->currentKey, pInterval->sliding * step, pInterval->slidingUnit, pInterval->precision);
@@ -521,14 +520,6 @@ void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
   taosMemoryFreeClear(pFillInfo->pFillCol);
   taosMemoryFreeClear(pFillInfo);
   return NULL;
-}
-
-void taosFillSetDataOrderInfo(SFillInfo* pFillInfo, int32_t order) {
-  if (pFillInfo == NULL || (order != TSDB_ORDER_ASC && order != TSDB_ORDER_DESC)) {
-    return;
-  }
-
-  pFillInfo->order = order;
 }
 
 void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey) {
