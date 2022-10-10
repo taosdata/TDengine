@@ -105,9 +105,8 @@ static bool fillIfWindowPseudoColumn(SFillInfo* pFillInfo, SFillColInfo* pCol, S
     } else if (pCol->pExpr->base.pParam[0].pCol->colType == COLUMN_TYPE_WINDOW_END) {
       // TODO: include endpoint
       SInterval* pInterval = &pFillInfo->interval;
-      int32_t    step = (pFillInfo->order == TSDB_ORDER_ASC) ? 1 : -1;
       int64_t    windowEnd =
-          taosTimeAdd(pFillInfo->currentKey, pInterval->sliding * step, pInterval->slidingUnit, pInterval->precision);
+          taosTimeAdd(pFillInfo->currentKey, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
       colDataAppend(pDstColInfoData, rowIndex, (const char*)&windowEnd, false);
       return true;
     } else if (pCol->pExpr->base.pParam[0].pCol->colType == COLUMN_TYPE_WINDOW_DURATION) {
