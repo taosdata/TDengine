@@ -157,6 +157,8 @@ int walCheckAndRepairMeta(SWal* pWal) {
 
   TdDirPtr pDir = taosOpenDir(pWal->path);
   if (pDir == NULL) {
+    regfree(&logRegPattern);
+    regfree(&idxRegPattern);
     wError("vgId:%d, path:%s, failed to open since %s", pWal->cfg.vgId, pWal->path, strerror(errno));
     return -1;
   }
@@ -304,7 +306,12 @@ int walCheckAndRepairIdx(SWal* pWal) {
         return -1;
       }
       while (idxEntry.ver < pFileInfo->lastVer) {
-        taosLSeekFile(pLogFile, idxEntry.offset, SEEK_SET);
+        if (taosLSeekFile(pLogFile, idxEntry.offset, SEEK_SET) == -1) {
+          terrno = TAOS_SYSTEM_ERROR(errno);
+          wError("vgId:%d, cannot seek file %s at %ld, since %s", pWal->cfg.vgId, fLogNameStr, idxEntry.offset,
+                 terrstr());
+          return -1;
+        }
         SWalCkHead ckHead;
         taosReadFile(pLogFile, &ckHead, sizeof(SWalCkHead));
         if (idxEntry.ver != ckHead.head.version) {

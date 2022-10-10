@@ -253,6 +253,7 @@ STqReader* tqOpenReader(SVnode* pVnode) {
 
   pReader->pWalReader = walOpenReader(pVnode->pWal, NULL);
   if (pReader->pWalReader == NULL) {
+    taosMemoryFree(pReader);
     return NULL;
   }
 
