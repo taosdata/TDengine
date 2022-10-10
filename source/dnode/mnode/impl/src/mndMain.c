@@ -814,9 +814,11 @@ int32_t mndAcquireRpcRef(SMnode *pMnode) {
   int32_t code = 0;
   taosThreadRwlockRdlock(&pMnode->lock);
   if (pMnode->stopped) {
+    mTrace("mnode not running");
     terrno = TSDB_CODE_APP_NOT_READY;
     code = -1;
   } else if (!mndIsMaster(pMnode)) {
+    mTrace("mnode not ready, role:%s restored:%d", syncGetMyRoleStr(pMnode->syncMgmt.sync), pMnode->restored);
     code = -1;
   } else {
     int32_t ref = atomic_add_fetch_32(&pMnode->rpcRef, 1);
