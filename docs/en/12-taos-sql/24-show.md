@@ -120,14 +120,6 @@ SHOW MNODES;
 
 Shows information about mnodes in the system.
 
-## SHOW MODULES
-
-```sql
-SHOW MODULES;
-```
-
-Shows information about modules installed in the system.
-
 ## SHOW QNODES
 
 ```sql
