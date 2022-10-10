@@ -52,9 +52,9 @@ class TestBuffer(TDCase):
         self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config'][self.cfg["vnode_json_key"]])/1024/1024)
         self.tdSql.execute(f'drop database {dbname}')
         # boundary
+        dbname = self.tdCom.get_long_name()
         for param_value in self.cfg["boundary"]:
-            dbname = self.tdCom.get_long_name()
-            kv_dict = {test_param: param_value}
+            kv_dict = {test_param: param_value, "pagesize":1, "pages":64}
             self.tdCom.createDb(dbname, **kv_dict)
             self.tdSql.query('select * from information_schema.ins_databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
@@ -69,12 +69,14 @@ class TestBuffer(TDCase):
                     break
                 else:
                     continue
-            
             self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config'][self.cfg["vnode_json_key"]])/1024/1024)
-            # TODO
-            for i in self.cfg["boundary"]:
-                self.tdSql.error(f'alter database {dbname} {test_param} {i}')
-            self.tdSql.execute(f'drop database {dbname}')
+
+        for param_value in self.cfg["boundary"]:
+            self.tdSql.execute(f'alter database {dbname} {test_param} {param_value}')
+            self.tdSql.query('select * from information_schema.ins_databases')
+            db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
+            self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
+        self.tdSql.execute(f'drop database {dbname}')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][-1] + 1}')
 

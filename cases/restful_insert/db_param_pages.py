@@ -76,7 +76,7 @@ class TestPages(TDCase):
         self.tdRest.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')
         self.tdRest.request(f'create database if not exists {dbname}')
         
-        for i in [self.cfg["boundary"][0]+100,100.1,'abc']:
+        for i in [self.cfg["boundary"][0]-1,100.1,'abc']:
             self.tdRest.error(f'alter database {dbname} pages {i}')
         self.tdRest.request(f'drop database {dbname}')
     def run(self):
