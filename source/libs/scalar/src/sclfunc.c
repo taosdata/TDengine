@@ -1028,7 +1028,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
 
   _end:
   taosMemoryFree(output);
-  taosMemoryFree(buf);
+  taosMemoryFree(convBuf);
   return code;
 }
 
