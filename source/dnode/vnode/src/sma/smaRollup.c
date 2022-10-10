@@ -411,7 +411,7 @@ int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
     return TSDB_CODE_FAILED;
   }
 
-  STSchema *pTSchema = metaGetTbTSchema(SMA_META(pSma), suid, -1);
+  STSchema *pTSchema = metaGetTbTSchema(SMA_META(pSma), suid, -1, 1);
   if (!pTSchema) {
     terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
     goto _err;
