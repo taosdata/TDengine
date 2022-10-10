@@ -69,7 +69,11 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   char       tdir[TSDB_FILENAME_LEN * 2];
   int        ret;
 
-  snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
+  if (pTfs) {
+    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
+  } else {
+    snprintf(dir, TSDB_FILENAME_LEN, "%s", path);
+  }
 
   info.config = vnodeCfgDefault;
 
