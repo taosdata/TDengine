@@ -562,10 +562,7 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
   int32_t  numOfRows = taosNumOfRemainRows(pFillInfo);
 
   TSKEY ekey1 = ekey;
-  if (!FILL_IS_ASC_FILL(pFillInfo)) {
-    pFillInfo->end = taosTimeTruncate(ekey, &pFillInfo->interval, pFillInfo->interval.precision);
-  }
-
+  
   int64_t numOfRes = -1;
   if (numOfRows > 0) {  // still fill gap within current data block, not generating data after the result set.
     TSKEY lastKey = tsList[pFillInfo->numOfRows - 1];
