@@ -1861,7 +1861,7 @@ FETCH_NEXT_BLOCK:
           }
         }
 
-        doFilter(pInfo->pCondition, pInfo->pRes, NULL);
+        doFilter(pInfo->pCondition, pInfo->pRes, NULL, NULL);
         blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
 
         if (pBlockInfo->rows > 0 || pInfo->pUpdateDataRes->info.rows > 0) {
