@@ -249,7 +249,7 @@ static int32_t mndCreateBnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-bnode");
   if (pTrans == NULL) goto _OVER;
 
-  mDebug("trans:%d, used to create bnode:%d", pTrans->id, pCreate->dnodeId);
+  mInfo("trans:%d, used to create bnode:%d", pTrans->id, pCreate->dnodeId);
   if (mndSetCreateBnodeRedoLogs(pTrans, &bnodeObj) != 0) goto _OVER;
   if (mndSetCreateBnodeUndoLogs(pTrans, &bnodeObj) != 0) goto _OVER;
   if (mndSetCreateBnodeCommitLogs(pTrans, &bnodeObj) != 0) goto _OVER;
@@ -276,7 +276,7 @@ static int32_t mndProcessCreateBnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mDebug("bnode:%d, start to create", createReq.dnodeId);
+  mInfo("bnode:%d, start to create", createReq.dnodeId);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_BNODE) != 0) {
     goto _OVER;
   }
@@ -357,7 +357,7 @@ static int32_t mndDropBnode(SMnode *pMnode, SRpcMsg *pReq, SBnodeObj *pObj) {
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "drop-bnode");
   if (pTrans == NULL) goto _OVER;
 
-  mDebug("trans:%d, used to drop bnode:%d", pTrans->id, pObj->id);
+  mInfo("trans:%d, used to drop bnode:%d", pTrans->id, pObj->id);
   if (mndSetDropBnodeRedoLogs(pTrans, pObj) != 0) goto _OVER;
   if (mndSetDropBnodeCommitLogs(pTrans, pObj) != 0) goto _OVER;
   if (mndSetDropBnodeRedoActions(pTrans, pObj->pDnode, pObj) != 0) goto _OVER;
@@ -381,7 +381,7 @@ static int32_t mndProcessDropBnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mDebug("bnode:%d, start to drop", dropReq.dnodeId);
+  mInfo("bnode:%d, start to drop", dropReq.dnodeId);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_BNODE) != 0) {
     goto _OVER;
   }

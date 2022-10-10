@@ -12,7 +12,15 @@ TDengine 内置了一个名为 `INFORMATION_SCHEMA` 的数据库，提供对数�
 4. TDengine 在后续演进中可以灵活的添加已有 INFORMATION_SCHEMA 中表的列，而不用担心对既有业务系统造成影响
 5. 与其他数据库系统更具互操作性。例如，Oracle 数据库用户熟悉查询 Oracle 数据字典中的表
 
-Note: 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们仍然被保留。
+:::info
+
+- 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们仍然被保留。
+- 系统表中的一些列可能是关键字，在查询时需要使用转义符'\`'，例如查询数据库 test 有几个 VGROUP：
+```sql 
+   select `vgroups` from ins_databases where name = 'test';
+``` 
+
+:::
 
 本章将详细介绍 `INFORMATION_SCHEMA` 这个内置元数据库中的表和表结构。
 
@@ -103,7 +111,11 @@ Note: 由于 SHOW 语句已经被开发者熟悉和广泛使用，所以它们�
 | 24  | wal_retention_period | INT              | WAL 的保存时长                                   |
 | 25  |  wal_retention_size  | INT              | WAL 的保存上限                                   |
 | 26  |   wal_roll_period    | INT              | wal 文件切换时长                                 |
-| 27  |   wal_segment_size   | wal 单个文件大小 |
+| 27  |   wal_segment_size   | BIGINT | wal 单个文件大小 |
+| 28  |   stt_trigger   | SMALLINT | 触发文件合并的落盘文件的个数 |
+| 29  |   table_prefix   | SMALLINT | 内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的前缀的长度 |
+| 30  |   table_suffix   | SMALLINT | 内部存储引擎根据表名分配存储该表数据的 VNODE 时要忽略的后缀的长度 |
+| 31  |   tsdb_pagesize   | INT | 时序数据存储引擎中的页大小 |
 
 ## INS_FUNCTIONS
 

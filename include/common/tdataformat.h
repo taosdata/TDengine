@@ -27,6 +27,7 @@
 extern "C" {
 #endif
 
+typedef struct SBuffer       SBuffer;
 typedef struct SSchema       SSchema;
 typedef struct STColumn      STColumn;
 typedef struct STSchema      STSchema;
@@ -56,6 +57,18 @@ const static uint8_t BIT2_MAP[4][4] = {{0b00000000, 0b00000001, 0b00000010, 0},
 #define SET_BIT2(p, i, v) ((p)[(i) >> 2] = (p)[(i) >> 2] & N1(BIT2_MAP[(i)&3][3]) | BIT2_MAP[(i)&3][(v)])
 #define GET_BIT2(p, i)    (((p)[(i) >> 2] >> BIT2_MAP[(i)&3][3]) & ((uint8_t)3))
 
+// SBuffer ================================
+struct SBuffer {
+  int64_t  nBuf;
+  uint8_t *pBuf;
+};
+
+#define tBufferCreate() \
+  (SBuffer) { .nBuf = 0, .pBuf = NULL }
+void    tBufferDestroy(SBuffer *pBuffer);
+int32_t tBufferInit(SBuffer *pBuffer, int64_t size);
+int32_t tBufferPut(SBuffer *pBuffer, const void *pData, int64_t nData);
+
 // STSchema ================================
 int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema **ppTSchema);
 void    tTSchemaDestroy(STSchema *pTSchema);
@@ -66,9 +79,17 @@ int32_t tGetValue(uint8_t *p, SValue *pValue, int8_t type);
 int     tValueCmprFn(const SValue *pValue1, const SValue *pValue2, int8_t type);
 
 // SColVal ================================
-#define COL_VAL_NONE(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .isNone = 1})
-#define COL_VAL_NULL(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .isNull = 1})
+#define CV_FLAG_VALUE ((int8_t)0x0)
+#define CV_FLAG_NONE  ((int8_t)0x1)
+#define CV_FLAG_NULL  ((int8_t)0x2)
+
+#define COL_VAL_NONE(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .flag = CV_FLAG_NONE})
+#define COL_VAL_NULL(CID, TYPE)     ((SColVal){.cid = (CID), .type = (TYPE), .flag = CV_FLAG_NULL})
 #define COL_VAL_VALUE(CID, TYPE, V) ((SColVal){.cid = (CID), .type = (TYPE), .value = (V)})
+
+#define COL_VAL_IS_NONE(CV)  ((CV)->flag == CV_FLAG_NONE)
+#define COL_VAL_IS_NULL(CV)  ((CV)->flag == CV_FLAG_NULL)
+#define COL_VAL_IS_VALUE(CV) ((CV)->flag == CV_FLAG_VALUE)
 
 // STSRow2 ================================
 #define TSROW_LEN(PROW, V)  tGetI32v((uint8_t *)(PROW)->data, (V) ? &(V) : NULL)
@@ -154,17 +175,7 @@ struct STSRowBuilder {
 
 struct SValue {
   union {
-    int8_t   i8;   // TSDB_DATA_TYPE_BOOL||TSDB_DATA_TYPE_TINYINT
-    uint8_t  u8;   // TSDB_DATA_TYPE_UTINYINT
-    int16_t  i16;  // TSDB_DATA_TYPE_SMALLINT
-    uint16_t u16;  // TSDB_DATA_TYPE_USMALLINT
-    int32_t  i32;  // TSDB_DATA_TYPE_INT
-    uint32_t u32;  // TSDB_DATA_TYPE_UINT
-    int64_t  i64;  // TSDB_DATA_TYPE_BIGINT
-    uint64_t u64;  // TSDB_DATA_TYPE_UBIGINT
-    TSKEY    ts;   // TSDB_DATA_TYPE_TIMESTAMP
-    float    f;    // TSDB_DATA_TYPE_FLOAT
-    double   d;    // TSDB_DATA_TYPE_DOUBLE
+    int64_t val;
     struct {
       uint32_t nData;
       uint8_t *pData;
@@ -175,8 +186,7 @@ struct SValue {
 struct SColVal {
   int16_t cid;
   int8_t  type;
-  int8_t  isNone;
-  int8_t  isNull;
+  int8_t  flag;
   SValue  value;
 };
 

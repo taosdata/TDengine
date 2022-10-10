@@ -22,7 +22,7 @@
 #define MAX_INDEX_KEY_LEN 256  // test only, change later
 
 #define MEM_TERM_LIMIT     10 * 10000
-#define MEM_THRESHOLD      512 * 1024
+#define MEM_THRESHOLD      8 * 512 * 1024  // 8M
 #define MEM_SIGNAL_QUIT    MEM_THRESHOLD * 20
 #define MEM_ESTIMATE_RADIO 1.5
 
@@ -302,6 +302,7 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
         char* p = taosMemoryCalloc(1, strlen(c->colVal) + 1);
         memcpy(p, c->colVal, strlen(c->colVal));
         cond = cmpFn(p + skip, term->colVal, dType);
+        taosMemoryFree(p);
       }
     }
     if (cond == MATCH) {

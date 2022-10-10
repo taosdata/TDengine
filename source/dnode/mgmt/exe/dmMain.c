@@ -16,10 +16,12 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "tconfig.h"
+#include "mnode.h"
 
 #define DM_APOLLO_URL    "The apollo string to use when configuring the server, such as: -a 'jsonFile:./tests/cfg.json', cfg.json text can be '{\"fqdn\":\"td1\"}'."
 #define DM_CFG_DIR       "Configuration directory."
 #define DM_DMP_CFG       "Dump configuration."
+#define DM_SDB_INFO      "Dump sdb info."
 #define DM_ENV_CMD       "The env cmd variable string to use when configuring the server, such as: -e 'TAOS_FQDN=td1'."
 #define DM_ENV_FILE      "The env variable file path to use when configuring the server, default is './.env', .env text can be 'TAOS_FQDN=td1'."
 #define DM_NODE_TYPE     "Startup type of the node, default is 0."
@@ -31,6 +33,7 @@ static struct {
   bool         winServiceMode;
 #endif
   bool         dumpConfig;
+  bool         dumpSdb;
   bool         generateGrant;
   bool         printAuth;
   bool         printVersion;
@@ -82,6 +85,8 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       }
     } else if (strcmp(argv[i], "-a") == 0) {
       tstrncpy(global.apolloUrl, argv[++i], PATH_MAX);
+    } else if (strcmp(argv[i], "-s") == 0) {
+      global.dumpSdb = true;
     } else if (strcmp(argv[i], "-E") == 0) {
       tstrncpy(global.envFile, argv[++i], PATH_MAX);
     } else if (strcmp(argv[i], "-n") == 0) {
@@ -131,6 +136,7 @@ static void dmPrintHelp() {
   printf("Usage: taosd [OPTION...] \n\n");
   printf("%s%s%s%s\n", indent, "-a,", indent, DM_APOLLO_URL);
   printf("%s%s%s%s\n", indent, "-c,", indent, DM_CFG_DIR);
+  printf("%s%s%s%s\n", indent, "-s,", indent, DM_SDB_INFO);
   printf("%s%s%s%s\n", indent, "-C,", indent, DM_DMP_CFG);
   printf("%s%s%s%s\n", indent, "-e,", indent, DM_ENV_CMD);
   printf("%s%s%s%s\n", indent, "-E,", indent, DM_ENV_FILE);
@@ -223,6 +229,14 @@ int mainWindows(int argc,char** argv) {
 
   if (global.dumpConfig) {
     dmDumpCfg();
+    taosCleanupCfg();
+    taosCloseLog();
+    taosCleanupArgs();
+    return 0;
+  }
+
+  if (global.dumpSdb) {
+    mndDumpSdb();
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();

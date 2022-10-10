@@ -49,14 +49,8 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
 
     SStreamScanInfo* pInfo = pOperator->info;
 
-    // TODO: if a block was set but not consumed,
-    // prevent setting a different type of block
-    pInfo->validBlockIndex = 0;
-    if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
-      taosArrayClearP(pInfo->pBlockLists, taosMemoryFree);
-    } else {
-      taosArrayClear(pInfo->pBlockLists);
-    }
+    ASSERT(pInfo->validBlockIndex == 0);
+    ASSERT(taosArrayGetSize(pInfo->pBlockLists) == 0);
 
     if (type == STREAM_INPUT__MERGED_SUBMIT) {
       // ASSERT(numOfBlocks > 1);
@@ -66,27 +60,13 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
       }
       pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
     } else if (type == STREAM_INPUT__DATA_SUBMIT) {
-      /*if (tqReaderSetDataMsg(pInfo->tqReader, input, 0) < 0) {*/
-      /*qError("submit msg messed up when initing stream block, %s" PRIx64, id);*/
-      /*return TSDB_CODE_QRY_APP_ERROR;*/
-      /*}*/
       ASSERT(numOfBlocks == 1);
-      /*if (numOfBlocks == 1) {*/
       taosArrayPush(pInfo->pBlockLists, &input);
       pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
-      /*} else {*/
-      /*}*/
     } else if (type == STREAM_INPUT__DATA_BLOCK) {
       for (int32_t i = 0; i < numOfBlocks; ++i) {
         SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
-
-        // TODO optimize
-        SSDataBlock* p = createOneDataBlock(pDataBlock, false);
-        p->info = pDataBlock->info;
-
-        taosArrayClear(p->pDataBlock);
-        taosArrayAddAll(p->pDataBlock, pDataBlock->pDataBlock);
-        taosArrayPush(pInfo->pBlockLists, &p);
+        taosArrayPush(pInfo->pBlockLists, &pDataBlock);
       }
       pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
     } else {
@@ -98,25 +78,6 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
 }
 
 static FORCE_INLINE void streamInputBlockDataDestory(void* pBlock) { blockDataDestroy((SSDataBlock*)pBlock); }
-
-void tdCleanupStreamInputDataBlock(qTaskInfo_t tinfo) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
-  if (!pTaskInfo || !pTaskInfo->pRoot || pTaskInfo->pRoot->numOfDownstream <= 0) {
-    return;
-  }
-  SOperatorInfo* pOptrInfo = pTaskInfo->pRoot->pDownstream[0];
-
-  if (pOptrInfo->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
-    SStreamScanInfo* pInfo = pOptrInfo->info;
-    if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
-      taosArrayClearP(pInfo->pBlockLists, streamInputBlockDataDestory);
-    } else {
-      ASSERT(0);
-    }
-  } else {
-    ASSERT(0);
-  }
-}
 
 int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type) {
   if (tinfo == NULL) {
@@ -320,8 +281,8 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
         }
       }
 
-      bool exists = false;
 #if 0
+      bool exists = false;
       for (int32_t k = 0; k < taosArrayGetSize(pListInfo->pTableList); ++k) {
         STableKeyInfo* pKeyInfo = taosArrayGet(pListInfo->pTableList, k);
         if (pKeyInfo->uid == keyInfo.uid) {
@@ -329,13 +290,14 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
           exists = true;
         }
       }
-#endif
 
       if (!exists) {
-        taosArrayPush(pTaskInfo->tableqinfoList.pTableList, &keyInfo);
-        taosHashPut(pTaskInfo->tableqinfoList.map, uid, sizeof(uid), &keyInfo.groupId, sizeof(keyInfo.groupId));
-      }
+#endif
+      taosArrayPush(pTaskInfo->tableqinfoList.pTableList, &keyInfo);
+      taosHashPut(pTaskInfo->tableqinfoList.map, uid, sizeof(uid), &keyInfo.groupId, sizeof(keyInfo.groupId));
     }
+
+    /*}*/
 
     if (keyBuf != NULL) {
       taosMemoryFree(keyBuf);
@@ -469,9 +431,13 @@ static void freeBlock(void* param) {
   blockDataDestroy(pBlock);
 }
 
-int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds) {
+int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds, bool* hasMore, SLocalFetch* pLocal) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   int64_t        threadId = taosGetSelfPthreadId();
+
+  if (pLocal) {
+    memcpy(&pTaskInfo->localFetch, pLocal, sizeof(*pLocal));
+  }
 
   taosArrayClearEx(pResList, freeBlock);
 
@@ -522,6 +488,7 @@ int32_t qExecTaskOpt(qTaskInfo_t tinfo, SArray* pResList, uint64_t* useconds) {
     }
   }
 
+  *hasMore = (pRes != NULL);
   uint64_t el = (taosGetTimestampUs() - st);
 
   pTaskInfo->cost.elapsedTime += el;
@@ -757,6 +724,14 @@ int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* s
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t qStreamScanMemData(qTaskInfo_t tinfo, const SSubmitReq* pReq) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+  ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE);
+  ASSERT(pTaskInfo->streamInfo.pReq == NULL);
+  pTaskInfo->streamInfo.pReq = pReq;
+  return 0;
 }
 
 int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subType) {

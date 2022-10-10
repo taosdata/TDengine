@@ -6,12 +6,31 @@ set -e
 #set -x
 
 verMode=edge
+osType=`uname`
 
 RED='\033[0;31m'
 GREEN='\033[1;32m'
 NC='\033[0m'
 
-installDir="/usr/local/taos"
+if [ "$osType" != "Darwin" ]; then
+  installDir="/usr/local/taos"
+  bin_link_dir="/usr/bin"
+  lib_link_dir="/usr/lib"
+  lib64_link_dir="/usr/lib64"
+  inc_link_dir="/usr/include"
+else
+  if [ -d "/usr/local/Cellar/" ];then
+    installDir="/usr/local/Cellar/tdengine/${verNumber}"
+  elif [ -d "/opt/homebrew/Cellar/" ];then
+    installDir="/opt/homebrew/Cellar/tdengine/${verNumber}"
+  else
+    installDir="/usr/local/taos"
+  fi
+  bin_link_dir="/usr/local/bin"
+  lib_link_dir="/usr/local/lib"
+  lib64_link_dir="/usr/local/lib"
+  inc_link_dir="/usr/local/include"
+fi
 serverName="taosd"
 clientName="taos"
 uninstallScript="rmtaos"
@@ -22,18 +41,13 @@ install_main_dir=${installDir}
 data_link_dir=${installDir}/data
 log_link_dir=${installDir}/log
 cfg_link_dir=${installDir}/cfg
-bin_link_dir="/usr/bin"
 local_bin_link_dir="/usr/local/bin"
-lib_link_dir="/usr/lib"
-lib64_link_dir="/usr/lib64"
-inc_link_dir="/usr/include"
-install_nginxd_dir="/usr/local/nginxd"
+
 
 service_config_dir="/etc/systemd/system"
 taos_service_name=${serverName}
 taosadapter_service_name="taosadapter"
 tarbitrator_service_name="tarbitratord"
-nginx_service_name="nginxd"
 csudo=""
 if command -v sudo >/dev/null; then
   csudo="sudo "
@@ -84,6 +98,7 @@ function clean_bin() {
   # Remove link
   ${csudo}rm -f ${bin_link_dir}/${clientName} || :
   ${csudo}rm -f ${bin_link_dir}/${serverName} || :
+  ${csudo}rm -f ${bin_link_dir}/udfd || :
   ${csudo}rm -f ${bin_link_dir}/taosadapter || :
   ${csudo}rm -f ${bin_link_dir}/taosBenchmark || :
   ${csudo}rm -f ${bin_link_dir}/taosdemo || :
@@ -105,7 +120,7 @@ function clean_lib() {
   [ -f ${lib_link_dir}/libtaosws.so ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.so || :
 
   ${csudo}rm -f ${lib64_link_dir}/libtaos.* || :
-  [ -f ${lib64_link_dir}/libtaosws.so ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.so || :
+  [ -f ${lib64_link_dir}/libtaosws.* ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.* || :
   #${csudo}rm -rf ${v15_java_app_dir}           || :
 }
 
@@ -153,18 +168,6 @@ function clean_service_on_systemd() {
   fi
   ${csudo}systemctl disable ${tarbitrator_service_name} &>/dev/null || echo &>/dev/null
   ${csudo}rm -f ${tarbitratord_service_config}
-
-  if [ "$verMode" == "cluster" ]; then
-    nginx_service_config="${service_config_dir}/${nginx_service_name}.service"
-    if [ -d ${install_nginxd_dir} ]; then
-      if systemctl is-active --quiet ${nginx_service_name}; then
-        echo "Nginx for ${productName} is running, stopping it..."
-        ${csudo}systemctl stop ${nginx_service_name} &>/dev/null || echo &>/dev/null
-      fi
-      ${csudo}systemctl disable ${nginx_service_name} &>/dev/null || echo &>/dev/null
-      ${csudo}rm -f ${nginx_service_config}
-    fi
-  fi
 }
 
 function clean_service_on_sysvinit() {
@@ -209,12 +212,20 @@ function clean_service_on_sysvinit() {
   fi
 }
 
+function clean_service_on_launchctl() {
+  ${csudouser}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
+  ${csudo}rm /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
+}
+
 function clean_service() {
   if ((${service_mod} == 0)); then
     clean_service_on_systemd
   elif ((${service_mod} == 1)); then
     clean_service_on_sysvinit
   else
+    if [ "$osType" = "Darwin" ]; then
+      clean_service_on_launchctl
+    fi
     kill_taosadapter
     kill_taosd
     kill_tarbitrator
@@ -239,7 +250,6 @@ clean_config
 ${csudo}rm -rf ${data_link_dir} || :
 
 ${csudo}rm -rf ${install_main_dir}
-${csudo}rm -rf ${install_nginxd_dir}
 if [[ -e /etc/os-release ]]; then
   osinfo=$(awk -F= '/^NAME/{print $2}' /etc/os-release)
 else
@@ -255,6 +265,9 @@ elif echo $osinfo | grep -qwi "debian"; then
 elif echo $osinfo | grep -qwi "centos"; then
   #  echo "this is centos system"
   ${csudo}rpm -e --noscripts tdengine >/dev/null 2>&1 || :
+fi
+if [ "$osType" = "Darwin" ]; then
+  ${csudo}rm -rf /Applications/TDengine.app
 fi
 
 echo -e "${GREEN}${productName} is removed successfully!${NC}"

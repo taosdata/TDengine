@@ -27,9 +27,10 @@ extern "C" {
 
 #define LIST_LENGTH(l) (NULL != (l) ? (l)->length : 0)
 
-#define FOREACH(node, list)                                       \
-  for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); \
-       (NULL != cell ? (node = cell->pNode, true) : (node = NULL, false)); cell = cell->pNext)
+#define FOREACH(node, list)                                                                                   \
+  for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL), *pNext;                                     \
+       (NULL != cell ? (node = cell->pNode, pNext = cell->pNext, true) : (node = NULL, pNext = NULL, false)); \
+       cell = pNext)
 
 #define REPLACE_NODE(newNode) cell->pNode = (SNode*)(newNode)
 
@@ -103,6 +104,8 @@ typedef enum ENodeType {
   QUERY_NODE_STREAM_OPTIONS,
   QUERY_NODE_LEFT_VALUE,
   QUERY_NODE_COLUMN_REF,
+  QUERY_NODE_WHEN_THEN,
+  QUERY_NODE_CASE_WHEN,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR = 100,
@@ -190,6 +193,7 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_TABLE_DISTRIBUTED_STMT,
   QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT,
   QUERY_NODE_SHOW_SCORES_STMT,
+  QUERY_NODE_SHOW_TABLE_TAGS_STMT,
   QUERY_NODE_KILL_CONNECTION_STMT,
   QUERY_NODE_KILL_QUERY_STMT,
   QUERY_NODE_KILL_TRANSACTION_STMT,
@@ -237,6 +241,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_FILL,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_FILL,
   QUERY_NODE_PHYSICAL_PLAN_MERGE_SESSION,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION,

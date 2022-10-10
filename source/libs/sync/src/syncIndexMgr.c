@@ -20,7 +20,10 @@
 
 SSyncIndexMgr *syncIndexMgrCreate(SSyncNode *pSyncNode) {
   SSyncIndexMgr *pSyncIndexMgr = taosMemoryMalloc(sizeof(SSyncIndexMgr));
-  ASSERT(pSyncIndexMgr != NULL);
+  if (pSyncIndexMgr == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
   memset(pSyncIndexMgr, 0, sizeof(SSyncIndexMgr));
 
   pSyncIndexMgr->replicas = &(pSyncNode->replicasId);

@@ -17,6 +17,7 @@
 #include "schInt.h"
 #include "tmsg.h"
 #include "tref.h"
+#include "qworker.h"
 
 SSchedulerMgmt schMgmt = {
     .jobRef = -1,
@@ -192,4 +193,7 @@ void schedulerDestroy(void) {
     schMgmt.hbConnections = NULL;
   }
   SCH_UNLOCK(SCH_WRITE, &schMgmt.hbLock);
+
+  qWorkerDestroy(&schMgmt.queryMgmt);
+  schMgmt.queryMgmt = NULL;
 }

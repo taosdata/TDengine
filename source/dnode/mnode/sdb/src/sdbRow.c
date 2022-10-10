@@ -23,7 +23,7 @@ SSdbRow *sdbAllocRow(int32_t objSize) {
     return NULL;
   }
 
-#if 0
+#if 1
   mTrace("row:%p, is created, len:%d", pRow->pObj, objSize);
 #endif
   return pRow;
@@ -47,7 +47,7 @@ void sdbFreeRow(SSdb *pSdb, SSdbRow *pRow, bool callFunc) {
 
   sdbPrintOper(pSdb, pRow, "free");
 
-#if 0
+#if 1
   mTrace("row:%p, is freed", pRow->pObj);
 #endif
   taosMemoryFreeClear(pRow);

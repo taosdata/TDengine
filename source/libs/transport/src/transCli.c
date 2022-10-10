@@ -79,7 +79,8 @@ typedef struct SCliThrd {
   uint64_t      nextTimeout;  // next timeout
   void*         pTransInst;   //
 
-  SCvtAddr cvtAddr;
+  SHashObj* fqdn2ipCache;
+  SCvtAddr  cvtAddr;
 
   SCliMsg* stopMsg;
 
@@ -135,6 +136,9 @@ static FORCE_INLINE void cliMayCvtFqdnToIp(SEpSet* pEpSet, SCvtAddr* pCvtAddr);
 
 static FORCE_INLINE int32_t cliBuildExceptResp(SCliMsg* pMsg, STransMsg* resp);
 
+static FORCE_INLINE uint32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn);
+static FORCE_INLINE void     cliUpdateFqdnCache(SHashObj* cache, char* fqdn);
+
 // process data read from server, add decompress etc later
 static void cliHandleResp(SCliConn* conn);
 // handle except about conn
@@ -154,7 +158,7 @@ static FORCE_INLINE int  cliRBChoseIdx(STrans* pTransInst);
 static FORCE_INLINE void transDestroyConnCtx(STransConnCtx* ctx);
 
 // thread obj
-static SCliThrd* createThrdObj();
+static SCliThrd* createThrdObj(void* trans);
 static void      destroyThrdObj(SCliThrd* pThrd);
 
 static void cliWalkCb(uv_handle_t* handle, void* arg);
@@ -930,6 +934,21 @@ FORCE_INLINE int32_t cliBuildExceptResp(SCliMsg* pMsg, STransMsg* pResp) {
 
   return 0;
 }
+static FORCE_INLINE uint32_t cliGetIpFromFqdnCache(SHashObj* cache, char* fqdn) {
+  uint32_t  addr = 0;
+  uint32_t* v = taosHashGet(cache, fqdn, strlen(fqdn));
+  if (v == NULL) {
+    addr = taosGetIpv4FromFqdn(fqdn);
+    taosHashPut(cache, fqdn, strlen(fqdn), &addr, sizeof(addr));
+  } else {
+    addr = *v;
+  }
+  return addr;
+}
+static FORCE_INLINE void cliUpdateFqdnCache(SHashObj* cache, char* fqdn) {
+  // impl later
+  return;
+}
 
 void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
   STrans*        pTransInst = pThrd->pTransInst;
@@ -985,7 +1004,8 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrd* pThrd) {
 
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = taosGetIpv4FromFqdn(conn->ip);
+
+    addr.sin_addr.s_addr = cliGetIpFromFqdnCache(pThrd->fqdn2ipCache, conn->ip);
     addr.sin_port = (uint16_t)htons((uint16_t)conn->port);
     tTrace("%s conn %p try to connect to %s:%d", pTransInst->label, conn, conn->ip, conn->port);
     ret = uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, cliConnCb);
@@ -1132,11 +1152,8 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   cli->pThreadObj = (SCliThrd**)taosMemoryCalloc(cli->numOfThreads, sizeof(SCliThrd*));
 
   for (int i = 0; i < cli->numOfThreads; i++) {
-    SCliThrd* pThrd = createThrdObj();
-    pThrd->nextTimeout = taosGetTimestampMs() + CONN_PERSIST_TIME(pTransInst->idleTime);
-    pThrd->pTransInst = shandle;
-
-    int err = taosThreadCreate(&pThrd->thread, NULL, cliWorkThread, (void*)(pThrd));
+    SCliThrd* pThrd = createThrdObj(shandle);
+    int       err = taosThreadCreate(&pThrd->thread, NULL, cliWorkThread, (void*)(pThrd));
     if (err == 0) {
       tDebug("success to create tranport-cli thread:%d", i);
     }
@@ -1164,7 +1181,9 @@ static FORCE_INLINE void destroyCmsg(void* arg) {
   taosMemoryFree(pMsg);
 }
 
-static SCliThrd* createThrdObj() {
+static SCliThrd* createThrdObj(void* trans) {
+  STrans* pTransInst = trans;
+
   SCliThrd* pThrd = (SCliThrd*)taosMemoryCalloc(1, sizeof(SCliThrd));
 
   QUEUE_INIT(&pThrd->msg);
@@ -1193,6 +1212,10 @@ static SCliThrd* createThrdObj() {
 
   transDQCreate(pThrd->loop, &pThrd->timeoutQueue);
 
+  pThrd->nextTimeout = taosGetTimestampMs() + CONN_PERSIST_TIME(pTransInst->idleTime);
+  pThrd->pTransInst = trans;
+
+  pThrd->fqdn2ipCache = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   pThrd->quit = false;
   return pThrd;
 }
@@ -1217,6 +1240,7 @@ static void destroyThrdObj(SCliThrd* pThrd) {
   taosArrayDestroy(pThrd->timerList);
   taosMemoryFree(pThrd->prepare);
   taosMemoryFree(pThrd->loop);
+  taosHashCleanup(pThrd->fqdn2ipCache);
   taosMemoryFree(pThrd);
 }
 
@@ -1347,7 +1371,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
           EPSET_FORWARD_INUSE(&pCtx->epSet);
         } else {
           if (tDeserializeSEpSet(pResp->pCont, pResp->contLen, &pCtx->epSet) < 0) {
-            tError("%s conn %p failed to deserialize epset", CONN_GET_INST_LABEL(pConn));
+            tError("%s conn %p failed to deserialize epset", CONN_GET_INST_LABEL(pConn), pConn);
           }
         }
         addConnToPool(pThrd->pool, pConn);

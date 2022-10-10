@@ -65,6 +65,7 @@ static SProcQueue *dmInitProcQueue(SProc *proc, char *ptr, int32_t size) {
   }
 
   if (proc->ptype & DND_PROC_PARENT) {
+    memset(ptr, 0, sizeof(SProcQueue));
     if (dmInitProcMutex(queue) != 0) {
       return NULL;
     }
@@ -74,11 +75,14 @@ static SProcQueue *dmInitProcQueue(SProc *proc, char *ptr, int32_t size) {
     }
 
     tstrncpy(queue->name, proc->name, sizeof(queue->name));
-    queue->head = 0;
-    queue->tail = 0;
+
+    taosThreadMutexLock(&queue->mutex);
+    // queue->head = 0;
+    // queue->tail = 0;
     queue->total = bufSize;
     queue->avail = bufSize;
-    queue->items = 0;
+    // queue->items = 0;
+    taosThreadMutexUnlock(&queue->mutex);
   }
 
   return queue;

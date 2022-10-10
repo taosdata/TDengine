@@ -2020,6 +2020,11 @@ static int32_t translateUserFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateTagsPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // The _tags pseudo-column will be expanded to the actual tags on the client side
+  return TSDB_CODE_SUCCESS;
+}
+
 // clang-format off
 const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
@@ -3145,6 +3150,26 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_USER,
     .classification = FUNC_MGT_SYSTEM_INFO_FUNC | FUNC_MGT_SCALAR_FUNC,
     .translateFunc = translateUserFunc,
+  },
+  {
+    .name = "_irowts",
+    .type = FUNCTION_TYPE_IROWTS,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_INTERP_PC_FUNC,
+    .translateFunc = translateTimePseudoColumn,
+    .getEnvFunc   = getTimePseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "_tags",
+    .type = FUNCTION_TYPE_TAGS,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_MULTI_RES_FUNC,
+    .translateFunc = translateTagsPseudoColumn,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
   },
 };
 // clang-format on

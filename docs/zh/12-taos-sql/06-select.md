@@ -12,7 +12,7 @@ SELECT {DATABASE() | CLIENT_VERSION() | SERVER_VERSION() | SERVER_STATUS() | NOW
 SELECT [DISTINCT] select_list
     from_clause
     [WHERE condition]
-    [PARTITION BY tag_list]
+    [partition_by_clause]
     [window_clause]
     [group_by_clause]
     [order_by_clasue]
@@ -52,6 +52,9 @@ window_clause: {
     SESSION(ts_col, tol_val)
   | STATE_WINDOW(col)
   | INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [WATERMARK(watermark_val)] [FILL(fill_mod_and_val)]
+
+partition_by_clause:
+    PARTITION BY expr [, expr] ... 
 
 group_by_clause:
     GROUP BY expr [, expr] ... HAVING condition
@@ -180,6 +183,14 @@ TDengine 中，所有表的第一列都必须是时间戳类型，且为其主�
 
 ```sql
 select _rowts, max(current) from meters;
+```
+
+**\_IROWTS**
+
+\_irowts 伪列只能与 interp 函数一起使用，用于返回 interp 函数插值结果对应的时间戳列。
+
+```sql
+select _irowts, interp(current) from meters range('2020-01-01 10:00:00', '2020-01-01 10:30:00') every(1s) fill(linear);
 ```
 
 ## 查询对象

@@ -99,7 +99,7 @@ typedef struct SFilterRange {
 
 typedef bool (*rangeCompFunc) (const void *, const void *, const void *, const void *, __compar_fn_t);
 typedef int32_t(*filter_desc_compare_func)(const void *, const void *);
-typedef bool(*filter_exec_func)(void *info, int32_t numOfRows, SColumnInfoData* p, SColumnDataAgg *statis, int16_t numOfCols);
+typedef bool(*filter_exec_func)(void*, int32_t, SColumnInfoData*, SColumnDataAgg*, int16_t, int32_t*);
 typedef int32_t (*filer_get_col_from_name)(void *, int32_t, char*, void **);
 
 typedef struct SFilterRangeCompare {

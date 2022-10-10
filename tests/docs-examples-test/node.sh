@@ -23,7 +23,7 @@ node query_example.js
 
 node async_query_example.js
 
-node subscribe_demo.js
+# node subscribe_demo.js
 
 taos -s "drop topic if exists topic_name_example"
 taos -s "drop database if exists power"

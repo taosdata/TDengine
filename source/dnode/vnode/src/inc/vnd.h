@@ -72,7 +72,7 @@ struct SVBufPool {
   SVBufPoolNode    node;
 };
 
-int32_t vnodeOpenBufPool(SVnode* pVnode, int64_t size);
+int32_t vnodeOpenBufPool(SVnode* pVnode);
 int32_t vnodeCloseBufPool(SVnode* pVnode);
 void    vnodeBufPoolReset(SVBufPool* pPool);
 
@@ -99,7 +99,6 @@ void    vnodeSyncStart(SVnode* pVnode);
 void    vnodeSyncClose(SVnode* pVnode);
 void    vnodeRedirectRpcMsg(SVnode* pVnode, SRpcMsg* pMsg);
 bool    vnodeIsLeader(SVnode* pVnode);
-bool    vnodeIsReadyForRead(SVnode* pVnode);
 bool    vnodeIsRoleLeader(SVnode* pVnode);
 
 #ifdef __cplusplus

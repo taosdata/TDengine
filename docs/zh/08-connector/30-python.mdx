@@ -80,7 +80,7 @@ pip3 install git+https://github.com/taosdata/taos-connector-python.git
 
 ### 安装验证
 
-<Tabs groupId="connect" default="native">
+<Tabs defaultValue="rest">
 <TabItem value="native" label="原生连接">
 
 对于原生连接，需要验证客户端驱动和 Python 连接器本身是否都正确安装。如果能成功导入 `taos` 模块，则说明已经正确安装了客户端驱动和 Python 连接器。可在 Python 交互式 Shell 中输入：
@@ -118,7 +118,7 @@ Requirement already satisfied: taospy in c:\users\username\appdata\local\program
 
 在用连接器建立连接之前，建议先测试本地 TDengine CLI 到 TDengine 集群的连通性。
 
-<Tabs>
+<Tabs defaultValue="rest">
 <TabItem value="native" label="原生连接">
 
 请确保 TDengine 集群已经启动， 且集群中机器的 FQDN （如果启动的是单机版，FQDN 默认为 hostname）在本机能够解析, 可用 `ping` 命令进行测试：
@@ -173,7 +173,7 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 
 以下示例代码假设 TDengine 安装在本机， 且 FQDN 和 serverPort 都使用了默认配置。
 
-<Tabs>
+<Tabs defaultValue="rest">
 <TabItem value="native" label="原生连接" groupId="connect">
 
 ```python
@@ -186,7 +186,7 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 - `user` ：TDengine 用户名。 默认值是 root。
 - `password` ： TDengine 用户密码。 默认值是 taosdata。
 - `port` ： 要连接的数据节点的起始端口，即 serverPort 配置。默认值是 6030。只有在提供了 host 参数的时候，这个参数才生效。
-- `config` ： 客户端配置文件路径。 在 Windows 系统上默认是 `C:\TDengine\cfg`。 在 Linux 系统上默认是 `/etc/taos/`。
+- `config` ： 客户端配置文件路径。 在 Windows 系统上默认是 `C:\TDengine\cfg`。 在 Linux/macOS 系统上默认是 `/etc/taos/`。
 - `timezone` ： 查询结果中 TIMESTAMP 类型的数据，转换为 python 的 datetime 对象时使用的时区。默认为本地时区。
 
 :::warning
@@ -219,7 +219,7 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 
 ### 基本使用
 
-<Tabs default="native" groupId="connect">
+<Tabs defaultValue="rest">
 <TabItem value="native" label="原生连接">
 
 ##### TaosConnection 类的使用
@@ -289,7 +289,7 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 
 ### 与 pandas 一起使用
 
-<Tabs default="native" groupId="connect">
+<Tabs defaultValue="rest">
 <TabItem value="native" label="原生连接">
 
 ```python

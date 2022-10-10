@@ -77,23 +77,24 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
 
   SSdbRaw *pRaw = mndUserActionEncode(&userObj);
   if (pRaw == NULL) return -1;
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mDebug("user:%s, will be created when deploying, raw:%p", userObj.user, pRaw);
+  mInfo("user:%s, will be created when deploying, raw:%p", userObj.user, pRaw);
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-user");
   if (pTrans == NULL) {
+    sdbFreeRaw(pRaw);
     mError("user:%s, failed to create since %s", userObj.user, terrstr());
     return -1;
   }
-  mDebug("trans:%d, used to create user:%s", pTrans->id, userObj.user);
+  mInfo("trans:%d, used to create user:%s", pTrans->id, userObj.user);
 
   if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
     mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -304,7 +305,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     mError("user:%s, failed to create since %s", pCreate->user, terrstr());
     return -1;
   }
-  mDebug("trans:%d, used to create user:%s", pTrans->id, pCreate->user);
+  mInfo("trans:%d, used to create user:%s", pTrans->id, pCreate->user);
 
   SSdbRaw *pCommitRaw = mndUserActionEncode(&userObj);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
@@ -312,7 +313,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -336,7 +337,7 @@ static int32_t mndProcessCreateUserReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mDebug("user:%s, start to create", createReq.user);
+  mInfo("user:%s, start to create", createReq.user);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_USER) != 0) {
     goto _OVER;
   }
@@ -388,7 +389,7 @@ static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpc
     mError("user:%s, failed to alter since %s", pOld->user, terrstr());
     return -1;
   }
-  mDebug("trans:%d, used to alter user:%s", pTrans->id, pOld->user);
+  mInfo("trans:%d, used to alter user:%s", pTrans->id, pOld->user);
 
   SSdbRaw *pCommitRaw = mndUserActionEncode(pNew);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
@@ -396,7 +397,7 @@ static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpc
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -446,7 +447,7 @@ static int32_t mndProcessAlterUserReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mDebug("user:%s, start to alter", alterReq.user);
+  mInfo("user:%s, start to alter", alterReq.user);
 
   if (alterReq.user[0] == 0) {
     terrno = TSDB_CODE_MND_INVALID_USER_FORMAT;
@@ -603,7 +604,7 @@ static int32_t mndDropUser(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser) {
     mError("user:%s, failed to drop since %s", pUser->user, terrstr());
     return -1;
   }
-  mDebug("trans:%d, used to drop user:%s", pTrans->id, pUser->user);
+  mInfo("trans:%d, used to drop user:%s", pTrans->id, pUser->user);
 
   SSdbRaw *pCommitRaw = mndUserActionEncode(pUser);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
@@ -611,7 +612,7 @@ static int32_t mndDropUser(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser) {
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -634,7 +635,7 @@ static int32_t mndProcessDropUserReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mDebug("user:%s, start to drop", dropReq.user);
+  mInfo("user:%s, start to drop", dropReq.user);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_USER) != 0) {
     goto _OVER;
   }

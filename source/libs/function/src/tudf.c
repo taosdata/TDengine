@@ -1656,6 +1656,8 @@ int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
   int32_t errCode = udfcRunUdfUvTask(task, UV_TASK_CONNECT);
   if (errCode != 0) {
     fnError("failed to connect to pipe. udfName: %s, pipe: %s", udfName, (&gUdfdProxy)->udfdPipeName);
+    taosMemoryFree(task->session);
+    taosMemoryFree(task);
     return TSDB_CODE_UDF_PIPE_CONNECT_ERR;
   }
 

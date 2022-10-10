@@ -877,7 +877,7 @@ TEST(seqTest, normalCase) {
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
   msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
   code = qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc, 0);
@@ -913,7 +913,7 @@ TEST(seqTest, cancelFirst) {
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
   msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
   code = qWorkerProcessDropMsg(mockPointer, mgmt, &dropRpc, 0);
@@ -950,7 +950,7 @@ TEST(seqTest, randCase) {
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
   msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
   int32_t t = 0;
@@ -1021,7 +1021,7 @@ TEST(seqTest, multithreadRand) {
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
   msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
   TdThreadAttr thattr;
@@ -1084,7 +1084,7 @@ TEST(rcTest, shortExecshortDelay) {
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
   msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
   qwtTestMaxExecTaskUsec = 0;
@@ -1168,7 +1168,7 @@ TEST(rcTest, longExecshortDelay) {
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
   msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
   qwtTestMaxExecTaskUsec = 1000000;
@@ -1254,7 +1254,7 @@ TEST(rcTest, shortExeclongDelay) {
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
   msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
   qwtTestMaxExecTaskUsec = 0;
@@ -1338,7 +1338,7 @@ TEST(rcTest, dropTest) {
   SMsgCb msgCb = {0};
   msgCb.mgmt = (void *)mockPointer;
   msgCb.putToQueueFp = (PutToQueueFp)qwtPutReqToQueue;
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
 
   tsem_init(&qwtTestQuerySem, 0, 0);

@@ -137,19 +137,3 @@ local_option: {
 ```sql
 SHOW LOCAL VARIABLES;
 ```
-
-## 合并 vgroup
-
-```sql
-MERGE VGROUP vgroup_no1 vgroup_no2;
-```
-
-如果在系统实际运行一段时间后，因为不同时间线的数据特征不同导致在 vgroups 之间的数据和负载分布不均衡，可以通过合并或拆分 vgroups 的方式逐步实现负载均衡。
-
-## 拆分 vgroup
-
-```sql
-SPLIT VGROUP vgroup_no;
-```
-
-会创建一个新的 vgroup，并将指定 vgroup 中的数据按照一致性 HASH 迁移一部分到新的 vgroup 中。此过程中，原 vgroup 可以正常提供读写服务。

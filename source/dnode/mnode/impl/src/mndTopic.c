@@ -358,7 +358,7 @@ static int32_t extractTopicTbInfo(SNode *pAst, SMqTopicObj *pTopic) {
 }
 
 static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *pCreate, SDbObj *pDb) {
-  mDebug("topic:%s to create", pCreate->name);
+  mInfo("topic:%s to create", pCreate->name);
   SMqTopicObj topicObj = {0};
   tstrncpy(topicObj.name, pCreate->name, TSDB_TOPIC_FNAME_LEN);
   tstrncpy(topicObj.db, pDb->name, TSDB_DB_FNAME_LEN);
@@ -378,6 +378,8 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   if (pCreate->subType == TOPIC_SUB_TYPE__COLUMN) {
     topicObj.ast = strdup(pCreate->ast);
     topicObj.astLen = strlen(pCreate->ast) + 1;
+
+    qDebugL("ast %s", topicObj.ast);
 
     SNode *pAst = NULL;
     if (nodesStringToNode(pCreate->ast, &pAst) != 0) {
@@ -448,7 +450,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
     taosMemoryFreeClear(topicObj.physicalPlan);
     return -1;
   }
-  mDebug("trans:%d, used to create topic:%s", pTrans->id, pCreate->name);
+  mInfo("trans:%d, used to create topic:%s", pTrans->id, pCreate->name);
 
   SSdbRaw *pCommitRaw = mndTopicActionEncode(&topicObj);
   if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
@@ -457,7 +459,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
   if (topicObj.ntbUid != 0) {
     STqCheckInfo info;
@@ -541,7 +543,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  mDebug("topic:%s, start to create, sql:%s", createTopicReq.name, createTopicReq.sql);
+  mInfo("topic:%s, start to create, sql:%s", createTopicReq.name, createTopicReq.sql);
 
   if (mndCheckCreateTopicReq(&createTopicReq) != 0) {
     mError("topic:%s, failed to create since %s", createTopicReq.name, terrstr());
@@ -551,7 +553,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
   pTopic = mndAcquireTopic(pMnode, createTopicReq.name);
   if (pTopic != NULL) {
     if (createTopicReq.igExists) {
-      mDebug("topic:%s, already exist, ignore exist is set", createTopicReq.name);
+      mInfo("topic:%s, already exist, ignore exist is set", createTopicReq.name);
       code = 0;
       goto _OVER;
     } else {
@@ -594,7 +596,7 @@ static int32_t mndDropTopic(SMnode *pMnode, STrans *pTrans, SRpcMsg *pReq, SMqTo
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -619,7 +621,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   SMqTopicObj *pTopic = mndAcquireTopic(pMnode, dropReq.name);
   if (pTopic == NULL) {
     if (dropReq.igNotExists) {
-      mDebug("topic:%s, not exist, ignore not exist is set", dropReq.name);
+      mInfo("topic:%s, not exist, ignore not exist is set", dropReq.name);
       return 0;
     } else {
       terrno = TSDB_CODE_MND_TOPIC_NOT_EXIST;
@@ -671,7 +673,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  mDebug("trans:%d, used to drop topic:%s", pTrans->id, pTopic->name);
+  mInfo("trans:%d, used to drop topic:%s", pTrans->id, pTopic->name);
 
 #if 0
   if (mndDropOffsetByTopic(pMnode, pTrans, dropReq.name) < 0) {
@@ -774,8 +776,8 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     SName            n;
     int32_t          cols = 0;
 
-    char topicName[TSDB_TOPIC_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    strcpy(varDataVal(topicName), mndGetDbStr(pTopic->name));
+    char topicName[TSDB_TOPIC_NAME_LEN + VARSTR_HEADER_SIZE + 5] = {0};
+    tstrncpy(varDataVal(topicName), mndGetDbStr(pTopic->name), sizeof(topicName) - 2);
     /*tNameFromString(&n, pTopic->name, T_NAME_ACCT | T_NAME_DB);*/
     /*tNameGetDbName(&n, varDataVal(topicName));*/
     varDataSetLen(topicName, strlen(varDataVal(topicName)));

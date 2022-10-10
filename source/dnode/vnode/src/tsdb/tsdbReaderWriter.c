@@ -128,7 +128,7 @@ _exit:
   return code;
 }
 
-static int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, uint8_t *pBuf, int64_t size) {
+static int32_t tsdbWriteFile(STsdbFD *pFD, int64_t offset, const uint8_t *pBuf, int64_t size) {
   int32_t code = 0;
   int64_t fOffset = LOGIC_TO_FILE_OFFSET(offset, pFD->szPage);
   int64_t pgno = OFFSET_PGNO(fOffset, pFD->szPage);
@@ -522,9 +522,6 @@ static int32_t tsdbWriteBlockSma(SDataFWriter *pWriter, SBlockData *pBlockData, 
 
   // write
   if (pSmaInfo->size) {
-    code = tRealloc(&pWriter->aBuf[0], pSmaInfo->size);
-    if (code) goto _err;
-
     code = tsdbWriteFile(pWriter->pSmaFD, pWriter->fSma.size, pWriter->aBuf[0], pSmaInfo->size);
     if (code) goto _err;
 
@@ -604,6 +601,132 @@ _exit:
 
 _err:
   tsdbError("vgId:%d tsdb write block data failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
+  return code;
+}
+
+int32_t tsdbWriteDiskData(SDataFWriter *pWriter, const SDiskData *pDiskData, SBlockInfo *pBlkInfo, SSmaInfo *pSmaInfo) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  STsdbFD *pFD = NULL;
+  if (pSmaInfo) {
+    pFD = pWriter->pDataFD;
+    pBlkInfo->offset = pWriter->fData.size;
+  } else {
+    pFD = pWriter->pSttFD;
+    pBlkInfo->offset = pWriter->fStt[pWriter->wSet.nSttF - 1].size;
+  }
+  pBlkInfo->szBlock = 0;
+  pBlkInfo->szKey = 0;
+
+  // hdr
+  int32_t n = tPutDiskDataHdr(NULL, &pDiskData->hdr);
+  code = tRealloc(&pWriter->aBuf[0], n);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  tPutDiskDataHdr(pWriter->aBuf[0], &pDiskData->hdr);
+
+  code = tsdbWriteFile(pFD, pBlkInfo->offset, pWriter->aBuf[0], n);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  pBlkInfo->szKey += n;
+  pBlkInfo->szBlock += n;
+
+  // uid + ver + key
+  if (pDiskData->pUid) {
+    code = tsdbWriteFile(pFD, pBlkInfo->offset + pBlkInfo->szBlock, pDiskData->pUid, pDiskData->hdr.szUid);
+    TSDB_CHECK_CODE(code, lino, _exit);
+    pBlkInfo->szKey += pDiskData->hdr.szUid;
+    pBlkInfo->szBlock += pDiskData->hdr.szUid;
+  }
+
+  code = tsdbWriteFile(pFD, pBlkInfo->offset + pBlkInfo->szBlock, pDiskData->pVer, pDiskData->hdr.szVer);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  pBlkInfo->szKey += pDiskData->hdr.szVer;
+  pBlkInfo->szBlock += pDiskData->hdr.szVer;
+
+  code = tsdbWriteFile(pFD, pBlkInfo->offset + pBlkInfo->szBlock, pDiskData->pKey, pDiskData->hdr.szKey);
+  TSDB_CHECK_CODE(code, lino, _exit);
+  pBlkInfo->szKey += pDiskData->hdr.szKey;
+  pBlkInfo->szBlock += pDiskData->hdr.szKey;
+
+  // aBlockCol
+  if (pDiskData->hdr.szBlkCol) {
+    code = tRealloc(&pWriter->aBuf[0], pDiskData->hdr.szBlkCol);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    n = 0;
+    for (int32_t iDiskCol = 0; iDiskCol < taosArrayGetSize(pDiskData->aDiskCol); iDiskCol++) {
+      SDiskCol *pDiskCol = (SDiskCol *)taosArrayGet(pDiskData->aDiskCol, iDiskCol);
+      n += tPutBlockCol(pWriter->aBuf[0] + n, pDiskCol);
+    }
+    ASSERT(n == pDiskData->hdr.szBlkCol);
+
+    code = tsdbWriteFile(pFD, pBlkInfo->offset + pBlkInfo->szBlock, pWriter->aBuf[0], pDiskData->hdr.szBlkCol);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    pBlkInfo->szBlock += pDiskData->hdr.szBlkCol;
+  }
+
+  // aDiskCol
+  for (int32_t iDiskCol = 0; iDiskCol < taosArrayGetSize(pDiskData->aDiskCol); iDiskCol++) {
+    SDiskCol *pDiskCol = (SDiskCol *)taosArrayGet(pDiskData->aDiskCol, iDiskCol);
+
+    if (pDiskCol->pBit) {
+      code = tsdbWriteFile(pFD, pBlkInfo->offset + pBlkInfo->szBlock, pDiskCol->pBit, pDiskCol->bCol.szBitmap);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      pBlkInfo->szBlock += pDiskCol->bCol.szBitmap;
+    }
+
+    if (pDiskCol->pOff) {
+      code = tsdbWriteFile(pFD, pBlkInfo->offset + pBlkInfo->szBlock, pDiskCol->pOff, pDiskCol->bCol.szOffset);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      pBlkInfo->szBlock += pDiskCol->bCol.szOffset;
+    }
+
+    if (pDiskCol->pVal) {
+      code = tsdbWriteFile(pFD, pBlkInfo->offset + pBlkInfo->szBlock, pDiskCol->pVal, pDiskCol->bCol.szValue);
+      TSDB_CHECK_CODE(code, lino, _exit);
+
+      pBlkInfo->szBlock += pDiskCol->bCol.szValue;
+    }
+  }
+
+  if (pSmaInfo) {
+    pWriter->fData.size += pBlkInfo->szBlock;
+  } else {
+    pWriter->fStt[pWriter->wSet.nSttF - 1].size += pBlkInfo->szBlock;
+    goto _exit;
+  }
+
+  pSmaInfo->offset = 0;
+  pSmaInfo->size = 0;
+  for (int32_t iDiskCol = 0; iDiskCol < taosArrayGetSize(pDiskData->aDiskCol); iDiskCol++) {
+    SDiskCol *pDiskCol = (SDiskCol *)taosArrayGet(pDiskData->aDiskCol, iDiskCol);
+
+    if (IS_VAR_DATA_TYPE(pDiskCol->bCol.type)) continue;
+    if (pDiskCol->bCol.flag == HAS_NULL || pDiskCol->bCol.flag == (HAS_NULL | HAS_NONE)) continue;
+    if (!pDiskCol->bCol.smaOn) continue;
+
+    code = tRealloc(&pWriter->aBuf[0], pSmaInfo->size + tPutColumnDataAgg(NULL, &pDiskCol->agg));
+    TSDB_CHECK_CODE(code, lino, _exit);
+    pSmaInfo->size += tPutColumnDataAgg(pWriter->aBuf[0] + pSmaInfo->size, &pDiskCol->agg);
+  }
+
+  if (pSmaInfo->size) {
+    pSmaInfo->offset = pWriter->fSma.size;
+
+    code = tsdbWriteFile(pWriter->pSmaFD, pSmaInfo->offset, pWriter->aBuf[0], pSmaInfo->size);
+    TSDB_CHECK_CODE(code, lino, _exit);
+
+    pWriter->fSma.size += pSmaInfo->size;
+  }
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+  }
   return code;
 }
 
@@ -926,12 +1049,13 @@ _err:
   return code;
 }
 
-static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo, SBlockData *pBlockData) {
+static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo, SBlockData *pBlockData,
+                                     int32_t iStt) {
   int32_t code = 0;
 
   tBlockDataClear(pBlockData);
 
-  STsdbFD *pFD = pReader->pDataFD;
+  STsdbFD *pFD = (iStt < 0) ? pReader->pDataFD : pReader->aSttFD[iStt];
 
   // uid + version + tskey
   code = tRealloc(&pReader->aBuf[0], pBlkInfo->szKey);
@@ -945,8 +1069,8 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
 
   ASSERT(hdr.delimiter == TSDB_FILE_DLMT);
   ASSERT(pBlockData->suid == hdr.suid);
-  ASSERT(pBlockData->uid == hdr.uid);
 
+  pBlockData->uid = hdr.uid;
   pBlockData->nRow = hdr.nRow;
 
   // uid
@@ -1070,9 +1194,12 @@ _err:
 int32_t tsdbReadDataBlock(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockData *pBlockData) {
   int32_t code = 0;
 
-  code = tsdbReadBlockDataImpl(pReader, &pDataBlk->aSubBlock[0], pBlockData);
+  code = tsdbReadBlockDataImpl(pReader, &pDataBlk->aSubBlock[0], pBlockData, -1);
   if (code) goto _err;
 
+  ASSERT(pDataBlk->nSubBlock == 1);
+
+#if 0
   if (pDataBlk->nSubBlock > 1) {
     SBlockData bData1;
     SBlockData bData2;
@@ -1113,6 +1240,7 @@ int32_t tsdbReadDataBlock(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockData 
     tBlockDataDestroy(&bData1, 1);
     tBlockDataDestroy(&bData2, 1);
   }
+#endif
 
   return code;
 
@@ -1123,23 +1251,38 @@ _err:
 
 int32_t tsdbReadSttBlock(SDataFReader *pReader, int32_t iStt, SSttBlk *pSttBlk, SBlockData *pBlockData) {
   int32_t code = 0;
+  int32_t lino = 0;
+
+  code = tsdbReadBlockDataImpl(pReader, &pSttBlk->bInfo, pBlockData, iStt);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pReader->pTsdb->pVnode), __func__, lino, tstrerror(code));
+  }
+  return code;
+}
+
+int32_t tsdbReadSttBlockEx(SDataFReader *pReader, int32_t iStt, SSttBlk *pSttBlk, SBlockData *pBlockData) {
+  int32_t code = 0;
+  int32_t lino = 0;
 
   // alloc
   code = tRealloc(&pReader->aBuf[0], pSttBlk->bInfo.szBlock);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // read
   code = tsdbReadFile(pReader->aSttFD[iStt], pSttBlk->bInfo.offset, pReader->aBuf[0], pSttBlk->bInfo.szBlock);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // decmpr
   code = tDecmprBlockData(pReader->aBuf[0], pSttBlk->bInfo.szBlock, pBlockData, &pReader->aBuf[1]);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
-  return code;
-
-_err:
-  tsdbError("vgId:%d tsdb read stt block failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pReader->pTsdb->pVnode), __func__, lino, tstrerror(code));
+  }
   return code;
 }
 

@@ -324,6 +324,21 @@ static int32_t fillNodeCopy(const SFillNode* pSrc, SFillNode* pDst) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t whenThenNodeCopy(const SWhenThenNode* pSrc, SWhenThenNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
+  CLONE_NODE_FIELD(pWhen);
+  CLONE_NODE_FIELD(pThen);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t caseWhenNodeCopy(const SCaseWhenNode* pSrc, SCaseWhenNode* pDst) {
+  COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
+  CLONE_NODE_FIELD(pCase);
+  CLONE_NODE_FIELD(pElse);
+  CLONE_NODE_LIST_FIELD(pWhenThenList);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
   CLONE_NODE_LIST_FIELD(pTargets);
   CLONE_NODE_FIELD(pConditions);
@@ -366,6 +381,8 @@ static int32_t logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(igExpired);
   CLONE_NODE_LIST_FIELD(pGroupTags);
   COPY_SCALAR_FIELD(groupSort);
+  CLONE_NODE_LIST_FIELD(pTags);
+  CLONE_NODE_FIELD(pSubtable);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -414,7 +431,8 @@ static int32_t logicVnodeModifCopy(const SVnodeModifyLogicNode* pSrc, SVnodeModi
 
 static int32_t logicExchangeCopy(const SExchangeLogicNode* pSrc, SExchangeLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
-  COPY_SCALAR_FIELD(srcGroupId);
+  COPY_SCALAR_FIELD(srcStartGroupId);
+  COPY_SCALAR_FIELD(srcEndGroupId);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -472,6 +490,8 @@ static int32_t logicSortCopy(const SSortLogicNode* pSrc, SSortLogicNode* pDst) {
 static int32_t logicPartitionCopy(const SPartitionLogicNode* pSrc, SPartitionLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pPartitionKeys);
+  CLONE_NODE_LIST_FIELD(pTags);
+  CLONE_NODE_FIELD(pSubtable);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -611,6 +631,7 @@ static int32_t downstreamSourceCopy(const SDownstreamSourceNode* pSrc, SDownstre
   COPY_SCALAR_FIELD(schedId);
   COPY_SCALAR_FIELD(execId);
   COPY_SCALAR_FIELD(fetchMsgType);
+  COPY_SCALAR_FIELD(localExec);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -710,6 +731,12 @@ SNode* nodesCloneNode(const SNode* pNode) {
       break;
     case QUERY_NODE_LEFT_VALUE:
       code = TSDB_CODE_SUCCESS;
+      break;
+    case QUERY_NODE_WHEN_THEN:
+      code = whenThenNodeCopy((const SWhenThenNode*)pNode, (SWhenThenNode*)pDst);
+      break;
+    case QUERY_NODE_CASE_WHEN:
+      code = caseWhenNodeCopy((const SCaseWhenNode*)pNode, (SCaseWhenNode*)pDst);
       break;
     case QUERY_NODE_SELECT_STMT:
       code = selectStmtCopy((const SSelectStmt*)pNode, (SSelectStmt*)pDst);

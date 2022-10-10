@@ -485,6 +485,8 @@ void qwDestroyImpl(void *pMgmt) {
   }
   taosHashCleanup(mgmt->schHash);
 
+  *mgmt->destroyed = 1;
+  
   taosMemoryFree(mgmt);
 
   atomic_sub_fetch_32(&gQwMgmt.qwNum, 1);

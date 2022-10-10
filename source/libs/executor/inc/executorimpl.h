@@ -34,6 +34,7 @@ extern "C" {
 #include "scalar.h"
 #include "taosdef.h"
 #include "tarray.h"
+#include "tfill.h"
 #include "thash.h"
 #include "tlockfree.h"
 #include "tmsg.h"
@@ -145,6 +146,7 @@ typedef struct {
   SMqMetaRsp   metaRsp;        // for tmq fetching meta
   int8_t       returned;
   int64_t      snapshotVer;
+  const SSubmitReq*  pReq;
 
   SSchemaWrapper*     schema;
   char                tbName[TSDB_TABLE_NAME_LEN];
@@ -183,6 +185,7 @@ typedef struct SExecTaskInfo {
   EOPTR_EXEC_MODEL      execModel;       // operator execution model [batch model|stream model]
   SSubplan*             pSubplan;
   struct SOperatorInfo* pRoot;
+  SLocalFetch      localFetch;
 } SExecTaskInfo;
 
 enum {
@@ -190,6 +193,7 @@ enum {
   OP_OPENED = 0x1,
   OP_RES_TO_RETURN = 0x5,
   OP_EXEC_DONE = 0x9,
+  OP_EXEC_RECV = 0x11,
 };
 
 typedef struct SOperatorFpSet {
@@ -456,6 +460,8 @@ typedef struct SPartitionBySupporter {
 
 typedef struct SPartitionDataInfo {
   uint64_t groupId;
+  char*    tbname;
+  SArray*  tags;
   SArray*  rowIds;
 } SPartitionDataInfo;
 
@@ -472,6 +478,7 @@ typedef struct SStreamScanInfo {
   uint64_t    tableUid;  // queried super table uid
   SExprInfo*  pPseudoExpr;
   int32_t     numOfPseudoExpr;
+  SExprSupp   tbnameCalSup;
   int32_t     primaryTsIndex;  // primary time stamp slot id
   SReadHandle readHandle;
   SInterval   interval;       // if the upstream is an interval operator, the interval info is also kept here.
@@ -573,13 +580,7 @@ typedef struct SIntervalAggOperatorInfo {
   int32_t            inputOrder;         // input data ts order
   EOPTR_EXEC_MODEL   execModel;          // operator execution model [batch model|stream model]
   STimeWindowAggSupp twAggSup;
-  bool               invertible;
   SArray*            pPrevValues;  //  SArray<SGroupKeys> used to keep the previous not null value for interpolation.
-  bool               ignoreExpiredData;
-  SArray*            pRecycledPages;
-  SArray*            pDelWins;  // SWinRes
-  int32_t            delIndex;
-  SSDataBlock*       pDelRes;
   SNode*             pCondition;
 } SIntervalAggOperatorInfo;
 
@@ -605,38 +606,20 @@ typedef struct SStreamIntervalOperatorInfo {
   STimeWindowAggSupp twAggSup;
   bool               invertible;
   bool               ignoreExpiredData;
-  SArray*            pRecycledPages;
   SArray*            pDelWins;           // SWinRes
   int32_t            delIndex;
   SSDataBlock*       pDelRes;
-  bool               isFinal;
-} SStreamIntervalOperatorInfo;
-
-typedef struct SStreamFinalIntervalOperatorInfo {
-  // SOptrBasicInfo should be first, SAggSupporter should be second for stream encode
-  SOptrBasicInfo     binfo;           // basic info
-  SAggSupporter      aggSup;          // aggregate supporter
-  SExprSupp          scalarSupp;      // supporter for perform scalar function
-  SGroupResInfo      groupResInfo;    // multiple results build supporter
-  SInterval          interval;        // interval info
-  int32_t            primaryTsIndex;  // primary time stamp slot id from result of downstream operator.
-  int32_t            order;           // current SSDataBlock scan order
-  STimeWindowAggSupp twAggSup;
-  SArray*            pChildren;
-  SSDataBlock*       pUpdateRes;
-  bool               returnUpdate;
-  SPhysiNode*        pPhyNode;  // create new child
-  bool               isFinal;
+  SPhysiNode*        pPhyNode;           // create new child
   SHashObj*          pPullDataMap;
-  SArray*            pPullWins;  // SPullWindowInfo
+  SArray*            pPullWins;          // SPullWindowInfo
   int32_t            pullIndex;
   SSDataBlock*       pPullDataRes;
-  bool               ignoreExpiredData;
-  SArray*            pRecycledPages;
-  SArray*            pDelWins;  // SWinRes
-  int32_t            delIndex;
-  SSDataBlock*       pDelRes;
-} SStreamFinalIntervalOperatorInfo;
+  bool               isFinal;
+  SArray*            pChildren;
+  SStreamState*      pState;
+  SWinKey            delKey;
+  SHashObj*          pGroupIdTbNameMap;  // uint64_t -> char[TSDB_TABLE_NAME_LEN]
+} SStreamIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
   // SOptrBasicInfo should be first, SAggSupporter should be second for stream encode
@@ -790,12 +773,29 @@ typedef struct SStreamPartitionOperatorInfo {
   SOptrBasicInfo        binfo;
   SPartitionBySupporter partitionSup;
   SExprSupp             scalarSup;
+  SExprSupp             tbnameCalSup;
   SHashObj*             pPartitions;
   void*                 parIte;
   SSDataBlock*          pInputDataBlock;
   int32_t               tsColIndex;
   SSDataBlock*          pDelRes;
 } SStreamPartitionOperatorInfo;
+
+typedef struct SStreamFillOperatorInfo {
+  SStreamFillSupporter* pFillSup;
+  SSDataBlock*      pRes;
+  SSDataBlock*      pSrcBlock;
+  int32_t           srcRowIndex;
+  SSDataBlock*      pPrevSrcBlock;
+  SSDataBlock*      pSrcDelBlock;
+  int32_t           srcDelRowIndex;
+  SSDataBlock*      pDelRes;
+  SNode*            pCondition;
+  SArray*           pColMatchColInfo;
+  int32_t           primaryTsCol;
+  int32_t           primarySrcSlotId;
+  SStreamFillInfo*  pFillInfo;
+} SStreamFillOperatorInfo;
 
 typedef struct STimeSliceOperatorInfo {
   SSDataBlock*         pRes;
@@ -818,6 +818,7 @@ typedef struct SStateWindowOperatorInfo {
   // SOptrBasicInfo should be first, SAggSupporter should be second for stream encode
   SOptrBasicInfo binfo;
   SAggSupporter  aggSup;
+  SExprSupp      scalarSup;
 
   SGroupResInfo      groupResInfo;
   SWindowRowsSup     winSup;
@@ -989,7 +990,7 @@ SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWi
 SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNode* pPartNode,
                                            SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SPartitionPhysiNode* pPartNode,
+SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStreamPartitionPhysiNode* pPartNode,
                                                  SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pNode, SExecTaskInfo* pTaskInfo);
@@ -1005,6 +1006,8 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream,
 
 SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhysiNode* pPhyNode,
                                                 SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFillPhysiNode* pPhyFillNode,
+                                            SExecTaskInfo* pTaskInfo);
 
 int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
                               int32_t numOfOutput, SArray* pPseudoList);
@@ -1064,8 +1067,8 @@ bool               functionNeedToExecute(SqlFunctionCtx* pCtx);
 bool               isOverdue(TSKEY ts, STimeWindowAggSupp* pSup);
 bool               isCloseWindow(STimeWindow* pWin, STimeWindowAggSupp* pSup);
 bool               isDeletedWindow(STimeWindow* pWin, uint64_t groupId, SAggSupporter* pSup);
-bool               isDeletedStreamWindow(STimeWindow* pWin, uint64_t groupId, SOperatorInfo* pOperator, STimeWindowAggSupp* pTwSup);
-void               appendOneRow(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t* pUid, uint64_t* pGp);
+bool               isDeletedStreamWindow(STimeWindow* pWin, uint64_t groupId, SStreamState* pState, STimeWindowAggSupp* pTwSup);
+void               appendOneRowToStreamSpecialBlock(SSDataBlock* pBlock, TSKEY* pStartTs, TSKEY* pEndTs, uint64_t* pUid, uint64_t* pGp, void* pTbName);
 void               printDataBlock(SSDataBlock* pBlock, const char* flag);
 uint64_t calGroupIdByData(SPartitionBySupporter* pParSup, SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t rowId);
 
@@ -1086,13 +1089,13 @@ void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsCol
 bool    groupbyTbname(SNodeList* pGroupList);
 int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* groupKey);
 void*   destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput);
-int32_t buildDataBlockFromGroupRes(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprSupp* pSup,
+int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pState, SSDataBlock* pBlock, SExprSupp* pSup,
                                    SGroupResInfo* pGroupResInfo);
-int32_t setOutputBuf(STimeWindow* win, SResultRow** pResult, int64_t tableGroupId, SqlFunctionCtx* pCtx,
-                           int32_t numOfOutput, int32_t* rowEntryInfoOffset, SAggSupporter* pAggSup,
-                           SExecTaskInfo* pTaskInfo);
-int32_t releaseOutputBuf(SExecTaskInfo* pTaskInfo, SWinKey* pKey, SResultRow* pResult);
-int32_t saveOutputBuf(SExecTaskInfo* pTaskInfo, SWinKey* pKey, SResultRow* pResult, int32_t resSize);
+int32_t setOutputBuf(SStreamState* pState, STimeWindow* win, SResultRow** pResult, int64_t tableGroupId, SqlFunctionCtx* pCtx,
+                     int32_t numOfOutput, int32_t* rowEntryInfoOffset, SAggSupporter* pAggSup);
+int32_t releaseOutputBuf(SStreamState* pState, SWinKey* pKey, SResultRow* pResult);
+int32_t saveOutputBuf(SStreamState* pState, SWinKey* pKey, SResultRow* pResult, int32_t resSize);
+void    getNextIntervalWindow(SInterval* pInterval, STimeWindow* tw, int32_t order);
 
 #ifdef __cplusplus
 }

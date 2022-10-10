@@ -358,7 +358,7 @@ static int32_t shellCheckArgs() {
     return -1;
   }
 
-  if (pArgs->password != NULL && (strlen(pArgs->password) <= 0)) {
+  if (/*pArgs->password != NULL && */ (strlen(pArgs->password) <= 0)) {
     printf("Invalid password\r\n");
     return -1;
   }

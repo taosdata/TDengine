@@ -891,6 +891,7 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
   time_t    tx1 = taosGetTimestampSec();
   struct tm tm1;
   taosLocalTime(&tx1, &tm1);
+  daylight = tm1.tm_isdst;
 
   /*
    * format example:

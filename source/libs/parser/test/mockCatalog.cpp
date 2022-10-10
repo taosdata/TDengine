@@ -85,6 +85,10 @@ void generateInformationSchema(MockCatalogService* mcs) {
       .addColumn("dnode_id", TSDB_DATA_TYPE_INT)
       .addColumn("dnode_ep", TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN)
       .done();
+  mcs->createTableBuilder(TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_TAGS, TSDB_SYSTEM_TABLE, 2)
+      .addColumn("table_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN)
+      .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
+      .done();
 }
 
 void generatePerformanceSchema(MockCatalogService* mcs) {

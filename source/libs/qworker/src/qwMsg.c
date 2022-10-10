@@ -9,10 +9,10 @@
 #include "tmsg.h"
 #include "tname.h"
 
-int32_t qwMallocFetchRsp(int32_t length, SRetrieveTableRsp **rsp) {
+int32_t qwMallocFetchRsp(int8_t rpcMalloc, int32_t length, SRetrieveTableRsp **rsp) {
   int32_t msgSize = sizeof(SRetrieveTableRsp) + length;
 
-  SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)rpcReallocCont(*rsp, msgSize);
+  SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)(rpcMalloc ? rpcReallocCont(*rsp, msgSize) : taosMemoryRealloc(*rsp, msgSize));
   if (NULL == pRsp) {
     qError("rpcMallocCont %d failed", msgSize);
     QW_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);

@@ -19,6 +19,10 @@
 
 SSyncRespMgr *syncRespMgrCreate(void *data, int64_t ttl) {
   SSyncRespMgr *pObj = (SSyncRespMgr *)taosMemoryMalloc(sizeof(SSyncRespMgr));
+  if (pObj == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
   memset(pObj, 0, sizeof(SSyncRespMgr));
 
   pObj->pRespHash =

@@ -140,7 +140,7 @@ static int32_t tsdbSnapReadOpenFile(STsdbSnapReader* pReader) {
       if (pSttBlk->minVer > pReader->ever) continue;
       if (pSttBlk->maxVer < pReader->sver) continue;
 
-      code = tsdbReadSttBlock(pReader->pDataFReader, iStt, pSttBlk, &pIter->bData);
+      code = tsdbReadSttBlockEx(pReader->pDataFReader, iStt, pSttBlk, &pIter->bData);
       if (code) goto _err;
 
       for (pIter->iRow = 0; pIter->iRow < pIter->bData.nRow; pIter->iRow++) {
@@ -223,7 +223,7 @@ static int32_t tsdbSnapNextRow(STsdbSnapReader* pReader) {
 
           if (pSttBlk->minVer > pReader->ever || pSttBlk->maxVer < pReader->sver) continue;
 
-          code = tsdbReadSttBlock(pReader->pDataFReader, pIter->iStt, pSttBlk, &pIter->bData);
+          code = tsdbReadSttBlockEx(pReader->pDataFReader, pIter->iStt, pSttBlk, &pIter->bData);
           if (code) goto _err;
 
           pIter->iRow = -1;
@@ -319,7 +319,7 @@ static int32_t tsdbSnapReadData(STsdbSnapReader* pReader, uint8_t** ppData) {
     code = tsdbUpdateTableSchema(pTsdb->pVnode->pMeta, id.suid, id.uid, &pReader->skmTable);
     if (code) goto _err;
 
-    code = tBlockDataInit(pBlockData, id.suid, id.uid, pReader->skmTable.pTSchema);
+    code = tBlockDataInit(pBlockData, &id, pReader->skmTable.pTSchema, NULL, 0);
     if (code) goto _err;
 
     while (pRowInfo->suid == id.suid && pRowInfo->uid == id.uid) {
@@ -715,7 +715,7 @@ static int32_t tsdbSnapWriteTableDataStart(STsdbSnapWriter* pWriter, TABLEID* pI
   if (code) goto _err;
 
   tMapDataReset(&pWriter->dWriter.mDataBlk);
-  code = tBlockDataInit(&pWriter->dWriter.bData, pId->suid, pId->uid, pWriter->skmTable.pTSchema);
+  code = tBlockDataInit(&pWriter->dWriter.bData, pId, pWriter->skmTable.pTSchema, NULL, 0);
   if (code) goto _err;
 
   return code;
@@ -1000,7 +1000,8 @@ static int32_t tsdbSnapWriteToSttFile(STsdbSnapWriter* pWriter, int32_t iRow) {
     code = tsdbUpdateTableSchema(pWriter->pTsdb->pVnode->pMeta, pWriter->id.suid, pWriter->id.uid, &pWriter->skmTable);
     if (code) goto _err;
 
-    code = tBlockDataInit(pBData, pWriter->id.suid, pWriter->id.suid ? 0 : pWriter->id.uid, pWriter->skmTable.pTSchema);
+    TABLEID tid = {.suid = pWriter->id.suid, .uid = pWriter->id.suid ? 0 : pWriter->id.uid};
+    code = tBlockDataInit(pBData, &tid, pWriter->skmTable.pTSchema, NULL, 0);
     if (code) goto _err;
   }
 

@@ -143,16 +143,19 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
     cpuInfo->user = CompareFileTime(&pre_userTime, &userTime);
     cpuInfo->nice = 0;
   }
-#elif defined(_TD_DARWIN_64)
-  assert(0);
+#elif defined(DARWIN)
+  cpuInfo->idle = 0;
+  cpuInfo->system = 0;
+  cpuInfo->user = 0;
+  cpuInfo->nice = 0;
 #else
   TdFilePtr pFile = taosOpenFile(tsSysCpuFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     return -1;
   }
 
-  char   *line = NULL;
-  ssize_t _bytes = taosGetLineFile(pFile, &line);
+  char    line[1024];
+  ssize_t _bytes = taosGetsFile(pFile, sizeof(line), line);
   if ((_bytes < 0) || (line == NULL)) {
     taosCloseFile(&pFile);
     return -1;
@@ -162,7 +165,6 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   sscanf(line, "%s %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, cpu, &cpuInfo->user, &cpuInfo->nice, &cpuInfo->system,
          &cpuInfo->idle);
 
-  if (line != NULL) taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
 #endif
   return 0;
@@ -180,16 +182,19 @@ static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
     cpuInfo->cutime = 0;
     cpuInfo->cstime = 0;
 	}
-#elif defined(_TD_DARWIN_64)
-  assert(0);
+#elif defined(DARWIN)
+  cpuInfo->stime = 0;
+  cpuInfo->utime = 0;
+  cpuInfo->cutime = 0;
+  cpuInfo->cstime = 0;
 #else
   TdFilePtr pFile = taosOpenFile(tsProcCpuFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     return -1;
   }
 
-  char   *line = NULL;
-  ssize_t _bytes = taosGetLineFile(pFile, &line);
+  char    line[1024];
+  ssize_t _bytes = taosGetsFile(pFile, sizeof(line), line);
   if ((_bytes < 0) || (line == NULL)) {
     taosCloseFile(&pFile);
     return -1;
@@ -204,7 +209,6 @@ static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
     }
   }
 
-  if (line != NULL) taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
 #endif
   return 0;
@@ -280,14 +284,14 @@ int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
   snprintf(releaseName, maxLen, "Windows");
   return 0;
 #elif defined(_TD_DARWIN_64)
-  char   *line = NULL;
+  char    line[1024];
   size_t  size = 0;
   int32_t code = -1;
 
   TdFilePtr pFile = taosOpenFile("/etc/os-release", TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) return false;
 
-  while ((size = taosGetLineFile(pFile, &line)) != -1) {
+  while ((size = taosGetsFile(pFile, sizeof(line), line)) != -1) {
     line[size - 1] = '\0';
     if (strncmp(line, "PRETTY_NAME", 11) == 0) {
       const char *p = strchr(line, '=') + 1;
@@ -301,18 +305,17 @@ int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
     }
   }
 
-  if (line != NULL) taosMemoryFree(line);
   taosCloseFile(&pFile);
   return code;
 #else
-  char   *line = NULL;
+  char    line[1024];
   size_t  size = 0;
   int32_t code = -1;
 
   TdFilePtr pFile = taosOpenFile("/etc/os-release", TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) return false;
 
-  while ((size = taosGetLineFile(pFile, &line)) != -1) {
+  while ((size = taosGetsFile(pFile, sizeof(line), line)) != -1) {
     line[size - 1] = '\0';
     if (strncmp(line, "PRETTY_NAME", 11) == 0) {
       const char *p = strchr(line, '=') + 1;
@@ -326,7 +329,6 @@ int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
     }
   }
 
-  if (line != NULL) taosMemoryFree(line);
   taosCloseFile(&pFile);
   return code;
 #endif
@@ -359,7 +361,7 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
   pCmd = taosOpenCmd("sysctl -n machdep.cpu.core_count");
   if (pCmd == NULL) return code;
   memset(buf, 0, sizeof(buf));
-  if (taosGetsCmd(pCmd, maxLen, cpuModel) > 0) {
+  if (taosGetsCmd(pCmd, sizeof(buf) - 1, buf) > 0) {
     code = 0;
     done |= 2;
     *numOfCores = atof(buf);
@@ -368,7 +370,7 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
 
   return code;
 #else
-  char   *line = NULL;
+  char    line[1024];
   size_t  size = 0;
   int32_t done = 0;
   int32_t code = -1;
@@ -377,7 +379,7 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
   TdFilePtr pFile = taosOpenFile("/proc/cpuinfo", TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) return code;
 
-  while (done != 3 && (size = taosGetLineFile(pFile, &line)) != -1) {
+  while (done != 3 && (size = taosGetsFile(pFile, sizeof(line), line)) != -1) {
     line[size - 1] = '\0';
     if (((done & 1) == 0) && strncmp(line, "model name", 10) == 0) {
       const char *v = strchr(line, ':') + 2;
@@ -392,7 +394,6 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
     if (strncmp(line, "processor", 9) == 0) coreCount += 1;
   }
 
-  if (line != NULL) taosMemoryFree(line);
   taosCloseFile(&pFile);
 
   if (code != 0 && (done & 1) == 0) {
@@ -511,9 +512,9 @@ int32_t taosGetProcMemory(int64_t *usedKB) {
   }
 
   ssize_t _bytes = 0;
-  char   *line = NULL;
+  char    line[1024];
   while (!taosEOFFile(pFile)) {
-    _bytes = taosGetLineFile(pFile, &line);
+    _bytes = taosGetsFile(pFile, sizeof(line), line);
     if ((_bytes < 0) || (line == NULL)) {
       break;
     }
@@ -531,7 +532,6 @@ int32_t taosGetProcMemory(int64_t *usedKB) {
   char tmp[10];
   sscanf(line, "%s %" PRId64, tmp, usedKB);
 
-  if (line != NULL) taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
   return 0;
 #endif
@@ -625,12 +625,12 @@ int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int
   if (pFile == NULL) return -1;
 
   ssize_t _bytes = 0;
-  char   *line = NULL;
+  char    line[1024];
   char    tmp[24];
   int     readIndex = 0;
 
   while (!taosEOFFile(pFile)) {
-    _bytes = taosGetLineFile(pFile, &line);
+    _bytes = taosGetsFile(pFile, sizeof(line), line);
     if (_bytes < 10 || line == NULL) {
       break;
     }
@@ -652,7 +652,6 @@ int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int
     if (readIndex >= 4) break;
   }
 
-  if (line != NULL) taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
 
   if (readIndex < 4) {
@@ -703,7 +702,7 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
   if (pFile == NULL) return -1;
 
   ssize_t _bytes = 0;
-  char   *line = NULL;
+  char     line[1024];
 
   while (!taosEOFFile(pFile)) {
     int64_t o_rbytes = 0;
@@ -718,7 +717,7 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
     int64_t nouse6 = 0;
     char    nouse0[200] = {0};
 
-    _bytes = taosGetLineFile(pFile, &line);
+    _bytes = taosGetsFile(pFile, sizeof(line), line);
     if (_bytes < 0) {
       break;
     }
@@ -737,7 +736,6 @@ int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
     *transmit_bytes = o_tbytes;
   }
 
-  if (line != NULL) taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
 
   return 0;

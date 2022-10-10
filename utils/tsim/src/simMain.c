@@ -33,7 +33,7 @@ int32_t main(int32_t argc, char *argv[]) {
     if (strcmp(argv[i], "-c") == 0 && i < argc - 1) {
       tstrncpy(configDir, argv[++i], 128);
     } else if (strcmp(argv[i], "-f") == 0 && i < argc - 1) {
-      strcpy(scriptFile, argv[++i]);
+      tstrncpy(scriptFile, argv[++i], MAX_FILE_NAME_LEN);
     } else if (strcmp(argv[i], "-m") == 0) {
       useMultiProcess = true;
     } else if (strcmp(argv[i], "-v") == 0) {

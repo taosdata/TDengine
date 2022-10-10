@@ -505,7 +505,7 @@ static int32_t tdBlockRowMerge(STableMeta* pTableMeta, SBlockKeyTuple* pEndKeyTp
     SColVal colVal = {0};
     for (int32_t j = 0; j < nDupRows; ++j) {
       tTSRowGetVal((pEndKeyTp - j)->payloadAddr, pSchema, i, &colVal);
-      if (!colVal.isNone) {
+      if (!COL_VAL_IS_NONE(&colVal)) {
         break;
       }
     }

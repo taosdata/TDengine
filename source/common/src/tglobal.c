@@ -58,7 +58,7 @@ int32_t tsNumOfMnodeFetchThreads = 1;
 int32_t tsNumOfMnodeReadThreads = 1;
 int32_t tsNumOfVnodeQueryThreads = 4;
 int32_t tsNumOfVnodeStreamThreads = 2;
-int32_t tsNumOfVnodeFetchThreads = 4;
+int32_t tsNumOfVnodeFetchThreads = 1;
 int32_t tsNumOfVnodeWriteThreads = 2;
 int32_t tsNumOfVnodeSyncThreads = 2;
 int32_t tsNumOfVnodeRsmaThreads = 2;
@@ -85,8 +85,7 @@ uint16_t tsTelemPort = 80;
 char tsSmlTagName[TSDB_COL_NAME_LEN] = "_tag_null";
 char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table name can be specified in tag value.
                                                      // If set to empty system will generate table name using MD5 hash.
-bool tsSmlDataFormat =
-    true;  // true means that the name and order of cols in each line are the same(only for influx protocol)
+bool tsSmlDataFormat = false;  // true means that the name and order of cols in each line are the same(only for influx protocol)
 
 // query
 int32_t tsQueryPolicy = 1;
@@ -95,6 +94,7 @@ int32_t tsQueryRsmaTolerance = 1000;  // the tolerance time (ms) to judge from w
 bool    tsQueryPlannerTrace = false;
 int32_t tsQueryNodeChunkSize = 32 * 1024;
 bool    tsQueryUseNodeAllocator = true;
+bool    tsKeepColumnName = false;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -165,8 +165,8 @@ int32_t tsMqRebalanceInterval = 2;
 int32_t tsTtlUnit = 86400;
 int32_t tsTtlPushInterval = 86400;
 int32_t tsGrantHBInterval = 60;
-int32_t tsUptimeInterval = 300;  // seconds
-char    tsUdfdResFuncs[1024] = ""; // udfd resident funcs that teardown when udfd exits
+int32_t tsUptimeInterval = 300;     // seconds
+char    tsUdfdResFuncs[1024] = "";  // udfd resident funcs that teardown when udfd exits
 
 #ifndef _STORAGE
 int32_t taosSetTfsCfg(SConfig *pCfg) {
@@ -205,7 +205,9 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *input
     tstrncpy(cfgFile, cfgDir, sizeof(cfgDir));
   }
 
-  if (apolloUrl == NULL || apolloUrl[0] == '\0') cfgGetApollUrl(envCmd, envFile, apolloUrl);
+  if (apolloUrl != NULL && apolloUrl[0] == '\0') {
+    cfgGetApollUrl(envCmd, envFile, apolloUrl);
+  }
 
   if (cfgLoad(pCfg, CFG_STYPE_APOLLO_URL, apolloUrl) != 0) {
     uError("failed to load from apollo url:%s since %s", apolloUrl, terrstr());
@@ -285,11 +287,12 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "shellActivityTimer", tsShellActivityTimer, 1, 120, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "compressMsgSize", tsCompressMsgSize, -1, 100000000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "compressColData", tsCompressColData, -1, 100000000, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "queryPolicy", tsQueryPolicy, 1, 3, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "queryPolicy", tsQueryPolicy, 1, 4, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "querySmaOptimize", tsQuerySmaOptimize, 0, 1, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "queryPlannerTrace", tsQueryPlannerTrace, true) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryNodeChunkSize", tsQueryNodeChunkSize, 1024, 128 * 1024, true) != 0) return -1;
   if (cfgAddBool(pCfg, "queryUseNodeAllocator", tsQueryUseNodeAllocator, true) != 0) return -1;
+  if (cfgAddBool(pCfg, "keepColumnName", tsKeepColumnName, true) != 0) return -1;
   if (cfgAddString(pCfg, "smlChildTableName", "", 1) != 0) return -1;
   if (cfgAddString(pCfg, "smlTagName", tsSmlTagName, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
@@ -371,9 +374,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfVnodeStreamThreads = TMAX(tsNumOfVnodeStreamThreads, 4);
   if (cfgAddInt32(pCfg, "numOfVnodeStreamThreads", tsNumOfVnodeStreamThreads, 4, 1024, 0) != 0) return -1;
 
-  tsNumOfVnodeFetchThreads = tsNumOfCores / 4;
-  tsNumOfVnodeFetchThreads = TMAX(tsNumOfVnodeFetchThreads, 4);
-  if (cfgAddInt32(pCfg, "numOfVnodeFetchThreads", tsNumOfVnodeFetchThreads, 4, 1024, 0) != 0) return -1;
+//  tsNumOfVnodeFetchThreads = 1;
+//  if (cfgAddInt32(pCfg, "numOfVnodeFetchThreads", tsNumOfVnodeFetchThreads, 1, 1, 0) != 0) return -1;
 
   tsNumOfVnodeWriteThreads = tsNumOfCores;
   tsNumOfVnodeWriteThreads = TMAX(tsNumOfVnodeWriteThreads, 1);
@@ -495,6 +497,7 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
     pItem->stype = stype;
   }
 
+/*
   pItem = cfgGetItem(tsCfg, "numOfVnodeFetchThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
     tsNumOfVnodeFetchThreads = numOfCores / 4;
@@ -502,6 +505,7 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
     pItem->i32 = tsNumOfVnodeFetchThreads;
     pItem->stype = stype;
   }
+*/
 
   pItem = cfgGetItem(tsCfg, "numOfVnodeWriteThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
@@ -653,6 +657,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsQueryPlannerTrace = cfgGetItem(pCfg, "queryPlannerTrace")->bval;
   tsQueryNodeChunkSize = cfgGetItem(pCfg, "queryNodeChunkSize")->i32;
   tsQueryUseNodeAllocator = cfgGetItem(pCfg, "queryUseNodeAllocator")->bval;
+  tsKeepColumnName = cfgGetItem(pCfg, "keepColumnName")->bval;
   return 0;
 }
 
@@ -686,7 +691,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsQueryBufferSize = cfgGetItem(pCfg, "queryBufferSize")->i32;
   tsPrintAuth = cfgGetItem(pCfg, "printAuth")->bval;
 
+#if !defined(WINDOWS) && !defined(DARWIN)
   tsMultiProcess = cfgGetItem(pCfg, "multiProcess")->bval;
+#endif
   tsMnodeShmSize = cfgGetItem(pCfg, "mnodeShmSize")->i32;
   tsVnodeShmSize = cfgGetItem(pCfg, "vnodeShmSize")->i32;
   tsQnodeShmSize = cfgGetItem(pCfg, "qnodeShmSize")->i32;
@@ -698,7 +705,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsNumOfMnodeReadThreads = cfgGetItem(pCfg, "numOfMnodeReadThreads")->i32;
   tsNumOfVnodeQueryThreads = cfgGetItem(pCfg, "numOfVnodeQueryThreads")->i32;
   tsNumOfVnodeStreamThreads = cfgGetItem(pCfg, "numOfVnodeStreamThreads")->i32;
-  tsNumOfVnodeFetchThreads = cfgGetItem(pCfg, "numOfVnodeFetchThreads")->i32;
+//  tsNumOfVnodeFetchThreads = cfgGetItem(pCfg, "numOfVnodeFetchThreads")->i32;
   tsNumOfVnodeWriteThreads = cfgGetItem(pCfg, "numOfVnodeWriteThreads")->i32;
   tsNumOfVnodeSyncThreads = cfgGetItem(pCfg, "numOfVnodeSyncThreads")->i32;
   tsNumOfVnodeRsmaThreads = cfgGetItem(pCfg, "numOfVnodeRsmaThreads")->i32;
@@ -844,6 +851,9 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
       break;
     }
     case 'k': {
+      if (strcasecmp("keepColumnName", name) == 0) {
+        tsKeepColumnName = cfgGetItem(pCfg, "keepColumnName")->bval;
+      }
       break;
     }
     case 'l': {
@@ -920,7 +930,9 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         }
         case 'u': {
           if (strcasecmp("multiProcess", name) == 0) {
+#if !defined(WINDOWS) && !defined(DARWIN)
             tsMultiProcess = cfgGetItem(pCfg, "multiProcess")->bval;
+#endif
           } else if (strcasecmp("udfDebugFlag", name) == 0) {
             udfDebugFlag = cfgGetItem(pCfg, "udfDebugFlag")->i32;
           }
@@ -943,8 +955,10 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         tsNumOfMnodeReadThreads = cfgGetItem(pCfg, "numOfMnodeReadThreads")->i32;
       } else if (strcasecmp("numOfVnodeQueryThreads", name) == 0) {
         tsNumOfVnodeQueryThreads = cfgGetItem(pCfg, "numOfVnodeQueryThreads")->i32;
+/*
       } else if (strcasecmp("numOfVnodeFetchThreads", name) == 0) {
         tsNumOfVnodeFetchThreads = cfgGetItem(pCfg, "numOfVnodeFetchThreads")->i32;
+*/
       } else if (strcasecmp("numOfVnodeWriteThreads", name) == 0) {
         tsNumOfVnodeWriteThreads = cfgGetItem(pCfg, "numOfVnodeWriteThreads")->i32;
       } else if (strcasecmp("numOfVnodeSyncThreads", name) == 0) {
@@ -1123,11 +1137,20 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
   if (tsc) {
     tsLogEmbedded = 0;
-    if (taosAddClientLogCfg(pCfg) != 0) return -1;
+    if (taosAddClientLogCfg(pCfg) != 0) {
+      cfgCleanup(pCfg);
+      return -1;
+    }
   } else {
     tsLogEmbedded = 1;
-    if (taosAddClientLogCfg(pCfg) != 0) return -1;
-    if (taosAddServerLogCfg(pCfg) != 0) return -1;
+    if (taosAddClientLogCfg(pCfg) != 0) {
+      cfgCleanup(pCfg);
+      return -1;
+    }
+    if (taosAddServerLogCfg(pCfg) != 0) {
+      cfgCleanup(pCfg);
+      return -1;
+    }
   }
 
   if (taosLoadCfg(pCfg, envCmd, cfgDir, envFile, apolloUrl) != 0) {

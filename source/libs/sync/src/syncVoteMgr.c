@@ -24,7 +24,10 @@ static void voteGrantedClearVotes(SVotesGranted *pVotesGranted) {
 
 SVotesGranted *voteGrantedCreate(SSyncNode *pSyncNode) {
   SVotesGranted *pVotesGranted = taosMemoryMalloc(sizeof(SVotesGranted));
-  ASSERT(pVotesGranted != NULL);
+  if (pVotesGranted == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
   memset(pVotesGranted, 0, sizeof(SVotesGranted));
 
   pVotesGranted->replicas = &(pSyncNode->replicasId);

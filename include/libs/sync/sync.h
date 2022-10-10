@@ -132,7 +132,7 @@ typedef struct SSyncFSM {
   void (*FpRollBackCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
 
   void (*FpRestoreFinishCb)(struct SSyncFSM* pFsm);
-  void (*FpReConfigCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta cbMeta);
+  void (*FpReConfigCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta *cbMeta);
   void (*FpLeaderTransferCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
 
   void (*FpBecomeLeaderCb)(struct SSyncFSM* pFsm);
