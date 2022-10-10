@@ -226,6 +226,8 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
       if (data == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         tqError("failed to copy data for stream since out of memory");
+        taosArrayDestroyP(cachedKeys, (FDelete)taosMemoryFree);
+        taosArrayDestroy(cachedKeyLens);
         return -1;
       }
       memcpy(data, msg, msgLen);
@@ -299,6 +301,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
       }
       taosArrayDestroyP(cachedKeys, (FDelete)taosMemoryFree);
       taosArrayDestroy(cachedKeyLens);
+      taosMemoryFree(data);
     }
     // unlock
     taosWUnLockLatch(&pTq->pushLock);
