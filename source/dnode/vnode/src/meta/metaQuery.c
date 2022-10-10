@@ -19,11 +19,13 @@ void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags) {
   memset(pReader, 0, sizeof(*pReader));
   pReader->flags = flags;
   pReader->pMeta = pMeta;
-  metaRLock(pMeta);
+  if (!(flags & META_READER_NOLOCK)) {
+    metaRLock(pMeta);
+  }
 }
 
 void metaReaderClear(SMetaReader *pReader) {
-  if (pReader->pMeta) {
+  if (pReader->pMeta && !(pReader->flags & META_READER_NOLOCK)) {
     metaULock(pReader->pMeta);
   }
   tDecoderClear(&pReader->coder);
