@@ -155,6 +155,7 @@ int32_t tsdbCommit(STsdb *pTsdb) {
 
   int32_t    code = 0;
   int32_t    lino = 0;
+  int32_t    phase = 0;
   SCommitter commith;
   SMemTable *pMemTable = pTsdb->mem;
 
@@ -181,11 +182,14 @@ int32_t tsdbCommit(STsdb *pTsdb) {
 
   // end commit
   code = tsdbEndCommit(&commith, 0);
+  phase = 1;
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
   if (code) {
-    tsdbEndCommit(&commith, code);
+    if (phase == 0) {
+      tsdbEndCommit(&commith, code);
+    }
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
