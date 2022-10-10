@@ -509,7 +509,7 @@ void transDQCancel(SDelayQueue* queue, SDelayTask* task) {
 
   if (heapSize(queue->heap) != 0) {
     HeapNode* minNode = heapMin(queue->heap);
-    if (minNode != NULL) return;
+    if (minNode == NULL) return;
 
     uint64_t    now = taosGetTimestampMs();
     SDelayTask* task = container_of(minNode, SDelayTask, node);

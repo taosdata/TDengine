@@ -678,25 +678,30 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pReq) {
   if (pTrans == NULL) {
     mError("cgroup: %s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
     mndReleaseSubscribe(pMnode, pSub);
+    mndTransDrop(pTrans);
     return -1;
   }
 
   mInfo("trans:%d, used to drop cgroup:%s on topic %s", pTrans->id, dropReq.cgroup, dropReq.topic);
 
   if (mndDropOffsetBySubKey(pMnode, pTrans, pSub->key) < 0) {
-    ASSERT(0);
     mndReleaseSubscribe(pMnode, pSub);
+    mndTransDrop(pTrans);
     return -1;
   }
 
   if (mndSetDropSubCommitLogs(pMnode, pTrans, pSub) < 0) {
     mError("cgroup %s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
     mndReleaseSubscribe(pMnode, pSub);
+    mndTransDrop(pTrans);
     return -1;
   }
 
-  mndTransPrepare(pMnode, pTrans);
-
+  if (mndTransPrepare(pMnode, pTrans) < 0) {
+    mndReleaseSubscribe(pMnode, pSub);
+    mndTransDrop(pTrans);
+    return -1;
+  }
   mndReleaseSubscribe(pMnode, pSub);
 
   return TSDB_CODE_ACTION_IN_PROGRESS;

@@ -770,7 +770,7 @@ static int32_t vnodeDebugPrintSingleSubmitMsg(SMeta *pMeta, SSubmitBlk *pBlock, 
     if (pSchema) {
       taosMemoryFreeClear(pSchema);
     }
-    pSchema = metaGetTbTSchema(pMeta, msgIter->suid, TD_ROW_SVER(blkIter.row));  // TODO: use the real schema
+    pSchema = metaGetTbTSchema(pMeta, msgIter->suid, TD_ROW_SVER(blkIter.row), 1);  // TODO: use the real schema
     if (pSchema) {
       suid = msgIter->suid;
       rv = TD_ROW_SVER(blkIter.row);
@@ -1038,6 +1038,23 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void 
   if (pVnode->config.cacheLastSize != alterReq.cacheLastSize) {
     pVnode->config.cacheLastSize = alterReq.cacheLastSize;
     tsdbCacheSetCapacity(pVnode, (size_t)pVnode->config.cacheLastSize * 1024 * 1024);
+  }
+
+  if (pVnode->config.szBuf != alterReq.buffer * 1024LL * 1024LL) {
+    vInfo("vgId:%d vnode buffer is changed from %" PRId64 " to %" PRId64, TD_VID(pVnode), pVnode->config.szBuf,
+          alterReq.buffer * 1024LL * 1024LL);
+    pVnode->config.szBuf = alterReq.buffer * 1024LL * 1024LL;
+  }
+
+  if (pVnode->config.szCache != alterReq.pages) {
+    if (metaAlterCache(pVnode->pMeta, alterReq.pages) < 0) {
+      vError("vgId:%d failed to change vnode pages from %d to %d failed since %s", TD_VID(pVnode),
+             pVnode->config.szCache, alterReq.pages, tstrerror(errno));
+      return errno;
+    } else {
+      vInfo("vgId:%d vnode pages is changed from %d to %d", TD_VID(pVnode), pVnode->config.szCache, alterReq.pages);
+      pVnode->config.szCache = alterReq.pages;
+    }
   }
 
   if (pVnode->config.cacheLast != alterReq.cacheLast) {

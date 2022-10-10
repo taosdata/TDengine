@@ -475,7 +475,11 @@ int32_t getInsTagsTableTargetName(int32_t acctId, SNode* pWhere, SName* pName) {
   }
 
   if (QUERY_NODE_OPERATOR == nodeType(pWhere)) {
-    return getInsTagsTableTargetNameFromOp(acctId, (SOperatorNode*)pWhere, pName);
+    int32_t code = getInsTagsTableTargetNameFromOp(acctId, (SOperatorNode*)pWhere, pName);
+    if (TSDB_CODE_SUCCESS == code && '\0' == pName->dbname[0]) {
+      pName->type = 0;
+    }
+    return code;
   }
 
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pWhere)) {

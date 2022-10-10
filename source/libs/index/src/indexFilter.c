@@ -468,6 +468,7 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
     SIndexMultiTermQuery *mtm = indexMultiTermQueryCreate(MUST);
     indexMultiTermQueryAdd(mtm, tm, qtype);
     ret = indexJsonSearch(arg->ivtIdx, mtm, output->result);
+    indexMultiTermQueryDestroy(mtm);
   } else {
     bool       reverse;
     FilterFunc filterFunc = sifGetFilterFunc(qtype, &reverse);
@@ -647,9 +648,8 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
   SIF_ERR_RET(sifInitOperParams(&params, node, ctx));
 
   if (params[0].status == SFLT_NOT_INDEX && (nParam > 1 && params[1].status == SFLT_NOT_INDEX)) {
-    for (int i = 0; i < nParam; i++) sifFreeParam(&params[i]);
     output->status = SFLT_NOT_INDEX;
-    return code;
+    goto _return;
   }
 
   // ugly code, refactor later

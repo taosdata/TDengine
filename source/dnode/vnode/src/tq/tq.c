@@ -93,7 +93,8 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
     ASSERT(0);
   }
 
-  if (tqOffsetOpen(pTq) < 0) {
+  pTq->pOffsetStore = tqOffsetOpen(pTq);
+  if (pTq->pOffsetStore == NULL) {
     ASSERT(0);
   }
 
@@ -648,7 +649,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
           code = -1;
         }
         tDeleteSTaosxRsp(&taosxRsp);
-        if (pCkHead) taosMemoryFree(pCkHead);
+        taosMemoryFreeClear(pCkHead);
         return code;
       }
 
@@ -671,7 +672,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
             code = -1;
           }
           tDeleteSTaosxRsp(&taosxRsp);
-          if (pCkHead) taosMemoryFree(pCkHead);
+          taosMemoryFreeClear(pCkHead);
           return code;
         } else {
           fetchVer++;
@@ -687,18 +688,19 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         metaRsp.metaRsp = pHead->body;
         if (tqSendMetaPollRsp(pTq, pMsg, pReq, &metaRsp) < 0) {
           code = -1;
-          taosMemoryFree(pCkHead);
+          taosMemoryFreeClear(pCkHead);
           tDeleteSTaosxRsp(&taosxRsp);
           return code;
         }
         code = 0;
-        if (pCkHead) taosMemoryFree(pCkHead);
+        taosMemoryFreeClear(pCkHead);
         tDeleteSTaosxRsp(&taosxRsp);
         return code;
       }
     }
   }
   tDeleteSTaosxRsp(&taosxRsp);
+  taosMemoryFreeClear(pCkHead);
   return 0;
 }
 
@@ -767,7 +769,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLe
   STqHandle* pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
   if (pHandle == NULL) {
     if (req.oldConsumerId != -1) {
-      tqError("vgId:%d, build new consumer handle %s for consumer %d, but old consumerId is %ld", req.vgId, req.subKey,
+      tqError("vgId:%d, build new consumer handle %s for consumer %ld, but old consumerId is %ld", req.vgId, req.subKey,
               req.newConsumerId, req.oldConsumerId);
     }
     if (req.newConsumerId == -1) {

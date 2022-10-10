@@ -326,7 +326,6 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
       terrno = TSDB_CODE_RSMA_STREAM_STATE_OPEN;
       return TSDB_CODE_FAILED;
     }
-    
 
     SReadHandle handle = {
         .meta = pVnode->pMeta,
@@ -412,7 +411,7 @@ int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
     return TSDB_CODE_FAILED;
   }
 
-  STSchema *pTSchema = metaGetTbTSchema(SMA_META(pSma), suid, -1);
+  STSchema *pTSchema = metaGetTbTSchema(SMA_META(pSma), suid, -1, 1);
   if (!pTSchema) {
     terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
     goto _err;
@@ -692,7 +691,7 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
 
   while (1) {
     uint64_t ts;
-    bool hasMore = false;
+    bool     hasMore = false;
     int32_t  code = qExecTaskOpt(taskInfo, pResList, &ts, &hasMore, NULL);
     if (code < 0) {
       if (code == TSDB_CODE_QRY_IN_EXEC) {
@@ -1821,11 +1820,9 @@ static int32_t tdRSmaFetchAllResult(SSma *pSma, SRSmaInfo *pInfo) {
         goto _err;
       }
       if (tdRSmaExecAndSubmitResult(pSma, taskInfo, pItem, pInfo->pTSchema, pInfo->suid) < 0) {
-        tdCleanupStreamInputDataBlock(taskInfo);
         goto _err;
       }
 
-      tdCleanupStreamInputDataBlock(taskInfo);
       smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nScanned:%" PRIi8 " maxDelay:%d, fetch finished",
                SMA_VID(pSma), pInfo->suid, i, pItem->nScanned, pItem->maxDelay);
     } else {
@@ -1935,7 +1932,8 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
                 int8_t oldStat = atomic_val_compare_exchange_8(RSMA_COMMIT_STAT(pRSmaStat), 0, 2);
                 if (oldStat == 0 ||
                     ((oldStat == 2) && atomic_load_8(RSMA_TRIGGER_STAT(pRSmaStat)) < TASK_TRIGGER_STAT_PAUSED)) {
-                  atomic_fetch_add_32(&pRSmaStat->nFetchAll, 1);
+                  int32_t oldVal = atomic_fetch_add_32(&pRSmaStat->nFetchAll, 1);
+                  ASSERT(oldVal >= 0);
                   tdRSmaFetchAllResult(pSma, pInfo);
                   if (0 == atomic_sub_fetch_32(&pRSmaStat->nFetchAll, 1)) {
                     atomic_store_8(RSMA_COMMIT_STAT(pRSmaStat), 0);

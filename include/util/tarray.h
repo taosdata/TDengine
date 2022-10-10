@@ -288,6 +288,13 @@ void*   taosDecodeArray(const void* buf, SArray** pArray, FDecode decode, int32_
 
 char* taosShowStrArray(const SArray* pArray);
 
+/**
+ * swap array
+ * @param a
+ * @param b
+ * @return
+ */
+void taosArraySwap(SArray* a, SArray* b);
 #ifdef __cplusplus
 }
 #endif
