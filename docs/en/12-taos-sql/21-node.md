@@ -136,19 +136,3 @@ The parameters that you can modify through this statement are the same as those 
 ```sql
 SHOW LOCAL VARIABLES;
 ```
-
-## Combine Vgroups
-
-```sql
-MERGE VGROUP vgroup_no1 vgroup_no2;
-```
-
-If load and data are not properly balanced among vgroups due to the data in different tim lines having different characteristics, you can combine or separate vgroups.
-
-## Separate Vgroups
-
-```sql
-SPLIT VGROUP vgroup_no;
-```
-
-This statement creates a new vgroup and migrates part of the data from the original vgroup to the new vgroup with consistent hashing. During this process, the original vgroup can continue to provide services normally.
