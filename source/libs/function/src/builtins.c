@@ -662,7 +662,7 @@ static int32_t translateTopBot(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  if (pValue->datum.i < 1 || pValue->datum.i > 100) {
+  if (pValue->datum.i < 1 || pValue->datum.i > TOP_BOTTOM_QUERY_LIMIT) {
     return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
