@@ -2,7 +2,6 @@ package main
 
 import (
 	"net/http"
-	"runtime"
 	"taosainternal/config"
 
 	_ "taosainternal/admin"
@@ -15,7 +14,6 @@ import (
 var logger = log.GetLogger("main")
 
 func main() {
-	runtime.GOMAXPROCS(runtime.NumCPU())
 	router := system.Init()
 	router.StaticFile("/", "/usr/local/taos/share/admin/home.html")
 	router.Use(static.Serve("/", static.LocalFile("/usr/local/taos/share/admin", false)))
