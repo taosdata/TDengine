@@ -5381,9 +5381,9 @@ static EDealRes rewriteSubtable(SNode** pNode, void* pContext) {
         found = true;
         break;
       }
-      if (!found) {
-        return generateDealNodeErrMsg(pCxt->pCxt, TSDB_CODE_PAR_INVALID_COLUMN, ((SColumnNode*)*pNode)->colName);
-      }
+    }
+    if (!found) {
+      return generateDealNodeErrMsg(pCxt->pCxt, TSDB_CODE_PAR_INVALID_COLUMN, ((SColumnNode*)*pNode)->colName);
     }
     return DEAL_RES_IGNORE_CHILD;
   }
@@ -6454,7 +6454,7 @@ static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, S
   }
   req.ctb.suid = suid;
   req.ctb.tagNum = tagNum;
-  req.ctb.name = strdup(sTableNmae);
+  req.ctb.stbName = strdup(sTableNmae);
   req.ctb.pTag = (uint8_t*)pTag;
   req.ctb.tagName = taosArrayDup(tagName);
   if (pStmt->ignoreExists) {

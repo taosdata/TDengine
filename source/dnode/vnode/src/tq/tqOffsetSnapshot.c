@@ -54,8 +54,8 @@ int32_t tqOffsetSnapRead(STqOffsetReader* pReader, uint8_t** ppData) {
 
   char*     fname = tqOffsetBuildFName(pReader->pTq->path, 0);
   TdFilePtr pFile = taosOpenFile(fname, TD_FILE_READ);
-  taosMemoryFree(fname);
   if (pFile != NULL) {
+    taosMemoryFree(fname);
     return 0;
   }
 
@@ -63,6 +63,7 @@ int32_t tqOffsetSnapRead(STqOffsetReader* pReader, uint8_t** ppData) {
   if (taosStatFile(fname, &sz, NULL) < 0) {
     ASSERT(0);
   }
+  taosMemoryFree(fname);
 
   SSnapDataHdr* buf = taosMemoryCalloc(1, sz + sizeof(SSnapDataHdr));
   if (buf == NULL) {
@@ -120,9 +121,13 @@ int32_t tqOffsetWriterClose(STqOffsetWriter** ppWriter, int8_t rollback) {
   char*            fname = tqOffsetBuildFName(pTq->path, 0);
 
   if (rollback) {
-    taosRemoveFile(pWriter->fname);
+    if (taosRemoveFile(pWriter->fname) < 0) {
+      ASSERT(0);
+    }
   } else {
-    taosRenameFile(pWriter->fname, fname);
+    if (taosRenameFile(pWriter->fname, fname) < 0) {
+      ASSERT(0);
+    }
     if (tqOffsetRestoreFromFile(pTq->pOffsetStore, fname) < 0) {
       ASSERT(0);
     }

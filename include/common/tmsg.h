@@ -676,7 +676,6 @@ typedef struct {
     col_id_t colId;
     int16_t  slotId;
   };
-  bool output;  // TODO remove it later
 
   int8_t  type;
   int32_t bytes;
@@ -1396,8 +1395,9 @@ typedef struct {
   int32_t numOfCols;
   int64_t skey;
   int64_t ekey;
-  int64_t version;    // for stream
-  TSKEY   watermark;  // for stream
+  int64_t version;                         // for stream
+  TSKEY   watermark;                       // for stream
+  char    parTbName[TSDB_TABLE_NAME_LEN];  // for stream
   char    data[];
 } SRetrieveTableRsp;
 
@@ -2026,7 +2026,7 @@ typedef struct SVCreateTbReq {
   int8_t   type;
   union {
     struct {
-      char*    name;  // super table name
+      char*    stbName;  // super table name
       uint8_t  tagNum;
       tb_uid_t suid;
       SArray*  tagName;
@@ -2046,7 +2046,7 @@ static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
   taosMemoryFreeClear(req->comment);
   if (req->type == TSDB_CHILD_TABLE) {
     taosMemoryFreeClear(req->ctb.pTag);
-    taosMemoryFreeClear(req->ctb.name);
+    taosMemoryFreeClear(req->ctb.stbName);
     taosArrayDestroy(req->ctb.tagName);
     req->ctb.tagName = NULL;
   } else if (req->type == TSDB_NORMAL_TABLE) {

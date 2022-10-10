@@ -195,6 +195,7 @@ static int32_t streamAddBlockToDispatchMsg(const SSDataBlock* pBlock, SStreamDis
   pRetrieve->ekey = htobe64(pBlock->info.window.ekey);
   pRetrieve->version = htobe64(pBlock->info.version);
   pRetrieve->watermark = htobe64(pBlock->info.watermark);
+  memcpy(pRetrieve->parTbName, pBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
 
   int32_t numOfCols = (int32_t)taosArrayGetSize(pBlock->pDataBlock);
   pRetrieve->numOfCols = htonl(numOfCols);
@@ -250,7 +251,13 @@ FAIL:
 
 int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, SSDataBlock* pDataBlock, int32_t vgSz,
                                 int64_t groupId) {
-  char*   ctbName = buildCtbNameByGroupId(pTask->shuffleDispatcher.stbFullName, groupId);
+  char* ctbName;
+  if (pDataBlock->info.parTbName[0]) {
+    ctbName = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
+    snprintf(ctbName, TSDB_TABLE_NAME_LEN, "%s.%s", pTask->shuffleDispatcher.dbInfo.db, pDataBlock->info.parTbName);
+  } else {
+    ctbName = buildCtbNameByGroupId(pTask->shuffleDispatcher.stbFullName, groupId);
+  }
   SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
 
   /*uint32_t hashValue = MurmurHash3_32(ctbName, strlen(ctbName));*/

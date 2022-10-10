@@ -393,7 +393,7 @@ void vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId) {
 }
 
 int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list) {
-  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode->pMeta, uid);
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode->pMeta, uid, 1);
 
   while (1) {
     tb_uid_t id = metaCtbCursorNext(pCur);
@@ -405,7 +405,7 @@ int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list) {
     taosArrayPush(list, &info);
   }
 
-  metaCloseCtbCursor(pCur);
+  metaCloseCtbCursor(pCur, 1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -413,7 +413,7 @@ int32_t vnodeGetCtbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bo
   return 0;
 }
 int32_t vnodeGetCtbIdList(SVnode *pVnode, int64_t suid, SArray *list) {
-  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode->pMeta, suid);
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode->pMeta, suid, 1);
 
   while (1) {
     tb_uid_t id = metaCtbCursorNext(pCur);
@@ -424,7 +424,7 @@ int32_t vnodeGetCtbIdList(SVnode *pVnode, int64_t suid, SArray *list) {
     taosArrayPush(list, &id);
   }
 
-  metaCloseCtbCursor(pCur);
+  metaCloseCtbCursor(pCur, 1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -448,7 +448,7 @@ int32_t vnodeGetStbIdList(SVnode *pVnode, int64_t suid, SArray *list) {
 }
 
 int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
-  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode->pMeta, suid);
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode->pMeta, suid, 0);
   if (!pCur) {
     return TSDB_CODE_FAILED;
   }
@@ -463,12 +463,12 @@ int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
     ++(*num);
   }
 
-  metaCloseCtbCursor(pCur);
+  metaCloseCtbCursor(pCur, 0);
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
-  STSchema *pTSchema = metaGetTbTSchema(pVnode->pMeta, suid, -1);
+  STSchema *pTSchema = metaGetTbTSchema(pVnode->pMeta, suid, -1, 0);
   // metaGetTbTSchemaEx(pVnode->pMeta, suid, suid, -1, &pTSchema);
 
   if (pTSchema) {

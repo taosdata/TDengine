@@ -121,14 +121,6 @@ SHOW MNODES;
 
 显示当前系统中 MNODE 的信息。
 
-## SHOW MODULES
-
-```sql
-SHOW MODULES;
-```
-
-显示当前系统中所安装的组件的信息。
-
 ## SHOW QNODES
 
 ```sql
