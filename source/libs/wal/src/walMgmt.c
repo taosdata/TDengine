@@ -134,6 +134,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   pWal->writeHead.head.protoVer = WAL_PROTO_VER;
   pWal->writeHead.magic = WAL_MAGIC;
 
+  // load meta
   (void)walLoadMeta(pWal);
 
   if (walCheckAndRepairMeta(pWal) < 0) {
@@ -188,11 +189,11 @@ int32_t walAlter(SWal *pWal, SWalCfg *pCfg) {
 
 void walClose(SWal *pWal) {
   taosThreadMutexLock(&pWal->mutex);
+  (void)walSaveMeta(pWal);
   taosCloseFile(&pWal->pLogFile);
   pWal->pLogFile = NULL;
   taosCloseFile(&pWal->pIdxFile);
   pWal->pIdxFile = NULL;
-  walSaveMeta(pWal);
   taosArrayDestroy(pWal->fileInfoSet);
   pWal->fileInfoSet = NULL;
   taosHashCleanup(pWal->pRefHash);

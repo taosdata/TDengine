@@ -209,10 +209,12 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   taosCloseFile(&pIdxFile);
   taosCloseFile(&pLogFile);
 
-  taosFsyncFile(pWal->pLogFile);
-  taosFsyncFile(pWal->pIdxFile);
-
-  walSaveMeta(pWal);
+  code = walSaveMeta(pWal);
+  if (code < 0) {
+    wError("vgId:%d, failed to save meta since %s", pWal->cfg.vgId, terrstr());
+    taosThreadMutexUnlock(&pWal->mutex);
+    return -1;
+  }
 
   // unlock
   taosThreadMutexUnlock(&pWal->mutex);
@@ -384,7 +386,11 @@ int32_t walRollImpl(SWal *pWal) {
 
   pWal->lastRollSeq = walGetSeq();
 
-  walSaveMeta(pWal);
+  code = walSaveMeta(pWal);
+  if (code < 0) {
+    wError("vgId:%d, failed to save meta since %s", pWal->cfg.vgId, terrstr());
+    goto END;
+  }
 
 END:
   return code;
