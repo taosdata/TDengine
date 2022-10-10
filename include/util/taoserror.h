@@ -632,6 +632,10 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_TMQ_CONSUMER_MISMATCH          TAOS_DEF_ERROR_CODE(0, 0x4001)
 #define TSDB_CODE_TMQ_CONSUMER_CLOSED            TAOS_DEF_ERROR_CODE(0, 0x4002)
 
+// TDLite
+#define TSDB_CODE_TDLITE_IVLD_OPEN_FLAGS         TAOS_DEF_ERROR_CODE(0, 0x4100)
+#define TSDB_CODE_TDLITE_IVLD_OPEN_DIR           TAOS_DEF_ERROR_CODE(0, 0x4101)
+
 #ifdef __cplusplus
 }
 #endif
