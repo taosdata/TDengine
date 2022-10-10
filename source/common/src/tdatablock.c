@@ -1235,6 +1235,7 @@ void blockDataFreeRes(SSDataBlock* pBlock) {
   taosArrayDestroy(pBlock->pDataBlock);
   pBlock->pDataBlock = NULL;
   taosMemoryFreeClear(pBlock->pBlockAgg);
+  taosMemoryFree(pBlock->info.pTag);
   memset(&pBlock->info, 0, sizeof(SDataBlockInfo));
 }
 
@@ -1317,7 +1318,7 @@ SSDataBlock* createSpecialDataBlock(EStreamType type) {
   pBlock->info.rows = 0;
   pBlock->info.type = type;
   pBlock->info.rowSize = sizeof(TSKEY) + sizeof(TSKEY) + sizeof(uint64_t) + sizeof(uint64_t) + sizeof(TSKEY) +
-                         sizeof(TSKEY) + TSDB_TABLE_NAME_LEN;
+                         sizeof(TSKEY) + VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN;
   pBlock->info.watermark = INT64_MIN;
 
   pBlock->pDataBlock = taosArrayInit(6, sizeof(SColumnInfoData));
@@ -1345,7 +1346,7 @@ SSDataBlock* createSpecialDataBlock(EStreamType type) {
 
   // table name
   infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = TSDB_TABLE_NAME_LEN;
+  infoData.info.bytes = VARSTR_HEADER_SIZE + TSDB_TABLE_NAME_LEN;
   taosArrayPush(pBlock->pDataBlock, &infoData);
 
   return pBlock;
