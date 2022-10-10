@@ -170,11 +170,13 @@ int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     if (tDecodeSTqCheckInfo(&decoder, &info) < 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
+      tdbTbcClose(pCur);
       return -1;
     }
     tDecoderClear(&decoder);
     if (taosHashPut(pTq->pCheckInfo, info.topic, strlen(info.topic), &info, sizeof(STqCheckInfo)) < 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
+      tdbTbcClose(pCur);
       return -1;
     }
   }
@@ -188,7 +190,7 @@ int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
   tEncodeSize(tEncodeSTqHandle, pHandle, vlen, code);
   ASSERT(code == 0);
 
-  tqDebug("tq save %s(%d) consumer %" PRId64 " vgId:%d", pHandle->subKey, strlen(pHandle->subKey), pHandle->consumerId,
+  tqDebug("tq save %s(%d) consumer %ld vgId:%d", pHandle->subKey, (int32_t)strlen(pHandle->subKey), pHandle->consumerId,
           TD_VID(pTq->pVnode));
 
   void* buf = taosMemoryCalloc(1, vlen);

@@ -118,7 +118,10 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
       for (int32_t j = 0; j < innerSz; j++) {
         SStreamTask *pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
         if (pTask == NULL) return -1;
-        if (tDecodeSStreamTask(pDecoder, pTask) < 0) return -1;
+        if (tDecodeSStreamTask(pDecoder, pTask) < 0) {
+          taosMemoryFree(pTask);
+          return -1;
+        }
         taosArrayPush(pArray, &pTask);
       }
       taosArrayPush(pObj->tasks, &pArray);
@@ -353,7 +356,7 @@ SMqConsumerEp *tCloneSMqConsumerEp(const SMqConsumerEp *pConsumerEpOld) {
 }
 
 void tDeleteSMqConsumerEp(void *data) {
-  SMqConsumerEp *pConsumerEp = (SMqConsumerEp*)data;
+  SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)data;
   taosArrayDestroyP(pConsumerEp->vgs, (FDelete)tDeleteSMqVgEp);
 }
 
