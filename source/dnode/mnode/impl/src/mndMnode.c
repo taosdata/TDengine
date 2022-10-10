@@ -104,7 +104,7 @@ static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());

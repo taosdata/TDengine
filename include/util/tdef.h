@@ -297,7 +297,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_BUFFER_PER_VNODE       16384  // unit MB
 #define TSDB_DEFAULT_BUFFER_PER_VNODE   96
 #define TSDB_MIN_PAGES_PER_VNODE        64
-#define TSDB_MAX_PAGES_PER_VNODE        INT32_MAX
+#define TSDB_MAX_PAGES_PER_VNODE        (INT32_MAX - 1)
 #define TSDB_DEFAULT_PAGES_PER_VNODE    256
 #define TSDB_MIN_PAGESIZE_PER_VNODE     1  // unit KB
 #define TSDB_MAX_PAGESIZE_PER_VNODE     16384
