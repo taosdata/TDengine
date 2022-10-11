@@ -286,10 +286,10 @@ struct SVState {
 };
 
 struct SVStatis {
-  int64_t nInsert;
-  int64_t nInsertSuccess;
-  int64_t nBatchInsert;
-  int64_t nBatchInsertSuccess;
+  int64_t nInsert;              // delta
+  int64_t nInsertSuccess;       // delta
+  int64_t nBatchInsert;         // delta
+  int64_t nBatchInsertSuccess;  // delta
 };
 
 struct SVnodeInfo {

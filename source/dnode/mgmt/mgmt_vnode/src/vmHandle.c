@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
 
-void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
+void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
   pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoad));
   if (pInfo->pVloads == NULL) return;
 
@@ -29,7 +29,7 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
 
     SVnodeObj *pVnode = *ppVnode;
     SVnodeLoad vload = {0};
-    vnodeGetLoad(pVnode->pImpl, &vload);
+    vnodeGetLoad(pVnode->pImpl, &vload, isReset);
     taosArrayPush(pInfo->pVloads, &vload);
     pIter = taosHashIterate(pMgmt->hash, pIter);
   }
@@ -39,7 +39,7 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
 
 void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
   SMonVloadInfo vloads = {0};
-  vmGetVnodeLoads(pMgmt, &vloads);
+  vmGetVnodeLoads(pMgmt, &vloads, true);
 
   SArray *pVloads = vloads.pVloads;
   if (pVloads == NULL) return;
@@ -66,10 +66,10 @@ void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
   pInfo->vstat.totalVnodes = totalVnodes;
   pInfo->vstat.masterNum = masterNum;
   pInfo->vstat.numOfSelectReqs = numOfSelectReqs - pMgmt->state.numOfSelectReqs;
-  pInfo->vstat.numOfInsertReqs = numOfInsertReqs;
-  pInfo->vstat.numOfInsertSuccessReqs = numOfInsertSuccessReqs;
-  pInfo->vstat.numOfBatchInsertReqs = numOfBatchInsertReqs;
-  pInfo->vstat.numOfBatchInsertSuccessReqs = numOfBatchInsertSuccessReqs;
+  pInfo->vstat.numOfInsertReqs = numOfInsertReqs;                          // delta
+  pInfo->vstat.numOfInsertSuccessReqs = numOfInsertSuccessReqs;            // delta
+  pInfo->vstat.numOfBatchInsertReqs = numOfBatchInsertReqs;                // delta
+  pInfo->vstat.numOfBatchInsertSuccessReqs = numOfBatchInsertSuccessReqs;  // delta
   pMgmt->state.totalVnodes = totalVnodes;
   pMgmt->state.masterNum = masterNum;
   pMgmt->state.numOfSelectReqs = numOfSelectReqs;
@@ -77,15 +77,6 @@ void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
   pMgmt->state.numOfInsertSuccessReqs = numOfInsertSuccessReqs;
   pMgmt->state.numOfBatchInsertReqs = numOfBatchInsertReqs;
   pMgmt->state.numOfBatchInsertSuccessReqs = numOfBatchInsertSuccessReqs;
-
-  printf("%s:%d: Info: nInsert:%" PRIi64 ", nInsertSuccess:%" PRIi64 ", nBatch:%" PRIi64 ", nBatchSuccess:%" PRIi64
-         "\n",
-         __func__, __LINE__, pInfo->vstat.numOfInsertReqs, pInfo->vstat.numOfInsertSuccessReqs,
-         pInfo->vstat.numOfBatchInsertReqs, pInfo->vstat.numOfBatchInsertSuccessReqs);
-  printf("%s:%d: Mgmt: nInsert:%" PRIi64 ", nInsertSuccess:%" PRIi64 ", nBatch:%" PRIi64 ", nBatchSuccess:%" PRIi64
-         "\n",
-         __func__, __LINE__, pMgmt->state.numOfInsertReqs, pMgmt->state.numOfInsertSuccessReqs,
-         pMgmt->state.numOfBatchInsertReqs, pMgmt->state.numOfBatchInsertSuccessReqs);
 
   tfsGetMonitorInfo(pMgmt->pTfs, &pInfo->tfs);
   taosArrayDestroy(pVloads);
@@ -118,7 +109,7 @@ int32_t vmProcessGetMonitorInfoReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
 int32_t vmProcessGetLoadsReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SMonVloadInfo vloads = {0};
-  vmGetVnodeLoads(pMgmt, &vloads);
+  vmGetVnodeLoads(pMgmt, &vloads, false);
 
   int32_t rspLen = tSerializeSMonVloadInfo(NULL, 0, &vloads);
   if (rspLen < 0) {
