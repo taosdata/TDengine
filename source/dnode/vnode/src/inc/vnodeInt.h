@@ -56,6 +56,7 @@ typedef struct SSma               SSma;
 typedef struct STsdb              STsdb;
 typedef struct STQ                STQ;
 typedef struct SVState            SVState;
+typedef struct SVStatis           SVStatis;
 typedef struct SVBufPool          SVBufPool;
 typedef struct SQWorker           SQHandle;
 typedef struct STsdbKeepCfg       STsdbKeepCfg;
@@ -284,9 +285,17 @@ struct SVState {
   int64_t commitTerm;
 };
 
+struct SVStatis {
+  int64_t nInsert;              // delta
+  int64_t nInsertSuccess;       // delta
+  int64_t nBatchInsert;         // delta
+  int64_t nBatchInsertSuccess;  // delta
+};
+
 struct SVnodeInfo {
   SVnodeCfg config;
   SVState   state;
+  SVStatis  statis;
 };
 
 typedef enum {
@@ -309,6 +318,7 @@ struct SVnode {
   char*         path;
   SVnodeCfg     config;
   SVState       state;
+  SVStatis      statis;
   STfs*         pTfs;
   SMsgCb        msgCb;
   TdThreadMutex mutex;
