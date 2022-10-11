@@ -868,10 +868,11 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
   return code;
 }
 
-//todo refacto the error code  mgmt
+// todo refacto the error code  mgmt
 void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
-  SRequestObj* pRequest = (SRequestObj*)param;
-  STscObj* pTscObj = pRequest->pTscObj;
+  SSqlCallbackWrapper* pWrapper = param;
+  SRequestObj*         pRequest = pWrapper->pRequest;
+  STscObj*             pTscObj = pRequest->pTscObj;
 
   pRequest->code = code;
   if (pResult) {
@@ -882,7 +883,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   int32_t type = pRequest->type;
   if (TDMT_VND_SUBMIT == type || TDMT_VND_DELETE == type || TDMT_VND_CREATE_TABLE == type) {
     if (pResult) {
-      pRequest->body.resInfo.numOfRows = pResult->numOfRows;
+      pRequest->body.resInfo.numOfRows += pResult->numOfRows;
 
       // record the insert rows
       if (TDMT_VND_SUBMIT == type) {
@@ -899,12 +900,13 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
            pRequest->requestId);
 
   if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code) && pRequest->sqlstr != NULL) {
-    tscDebug("0x%" PRIx64 " client retry to handle the error, code:%s, tryCount:%d, reqId:0x%" PRIx64,
-             pRequest->self, tstrerror(code), pRequest->retry, pRequest->requestId);
+    tscDebug("0x%" PRIx64 " client retry to handle the error, code:%s, tryCount:%d, reqId:0x%" PRIx64, pRequest->self,
+             tstrerror(code), pRequest->retry, pRequest->requestId);
     pRequest->prevCode = code;
     schedulerFreeJob(&pRequest->body.queryJob, 0);
     qDestroyQuery(pRequest->pQuery);
     pRequest->pQuery = NULL;
+    destorySqlCallbackWrapper(pWrapper);
     doAsyncQuery(pRequest, true);
     return;
   }
@@ -919,6 +921,15 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   if (pRequest->code == TSDB_CODE_SUCCESS && pRequest->code != code1) {
     pRequest->code = code1;
   }
+
+  if (pRequest->code == TSDB_CODE_SUCCESS && NULL != pWrapper->pParseCtx && pWrapper->pParseCtx->needMultiParse) {
+    code = continueInsertFromCsv(pWrapper, pRequest);
+    if (TSDB_CODE_SUCCESS == code) {
+      return;
+    }
+  }
+
+  destorySqlCallbackWrapper(pWrapper);
 
   // return to client
   pRequest->body.queryFp(pRequest->body.param, pRequest, code);
@@ -1020,24 +1031,13 @@ SRequestObj* launchQuery(uint64_t connId, const char* sql, int sqlLen, bool vali
   return launchQueryImpl(pRequest, pQuery, false, NULL);
 }
 
-void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta) {
-  int32_t code = 0;
+static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta,
+                                 SSqlCallbackWrapper* pWrapper) {
+  pRequest->type = pQuery->msgType;
 
-  pRequest->body.execMode = pQuery->execMode;
+  SArray*      pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
 
-  switch (pQuery->execMode) {
-    case QUERY_EXEC_MODE_LOCAL:
-      asyncExecLocalCmd(pRequest, pQuery);
-      return;
-    case QUERY_EXEC_MODE_RPC:
-      code = asyncExecDdlQuery(pRequest, pQuery);
-      break;
-    case QUERY_EXEC_MODE_SCHEDULE: {
-      SArray* pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
-
-      pRequest->type = pQuery->msgType;
-
-      SPlanContext cxt = {.queryId = pRequest->requestId,
+  SPlanContext cxt = {.queryId = pRequest->requestId,
                           .acctId = pRequest->pTscObj->acctId,
                           .mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp),
                           .pAstRoot = pQuery->pRoot,
@@ -1051,8 +1051,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
       SAppInstInfo* pAppInfo = getAppInfo(pRequest);
       SQueryPlan*   pDag = NULL;
 
-      int64_t st = taosGetTimestampUs();
-      code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
+  int64_t st = taosGetTimestampUs();
+  int32_t code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
       if (code) {
         tscError("0x%" PRIx64 " failed to create query plan, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
                  pRequest->requestId);
@@ -1061,42 +1061,64 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
       }
 
       pRequest->metric.planEnd = taosGetTimestampUs();
-      if (code == TSDB_CODE_SUCCESS) {
-        tscDebug("0x%" PRIx64 " create query plan success, elapsed time:%.2f ms, 0x%" PRIx64, pRequest->self,
-                 (pRequest->metric.planEnd - st)/1000.0, pRequest->requestId);
-      }
-
+  if (code == TSDB_CODE_SUCCESS) {
+    tscDebug("0x%" PRIx64 " create query plan success, elapsed time:%.2f ms, 0x%" PRIx64, pRequest->self,
+             (pRequest->metric.planEnd - st)/1000.0, pRequest->requestId);
+  }
       if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
         SArray* pNodeList = NULL;
         buildAsyncExecNodeList(pRequest, &pNodeList, pMnodeList, pResultMeta);
 
-        SRequestConnInfo conn = {
-            .pTrans = pAppInfo->pTransporter, .requestId = pRequest->requestId, .requestObjRefId = pRequest->self};
-        SSchedulerReq req = {
-            .syncReq = false,
-            .localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT),
-            .pConn = &conn,
-            .pNodeList = pNodeList,
-            .pDag = pDag,
-            .allocatorRefId = pRequest->allocatorRefId,
-            .sql = pRequest->sqlstr,
-            .startTs = pRequest->metric.start,
-            .execFp = schedulerExecCb,
-            .cbParam = pRequest,
-            .chkKillFp = chkRequestKilled,
-            .chkKillParam = (void*)pRequest->self,
-            .pExecRes = NULL,
-        };
-        code = schedulerExecJob(&req, &pRequest->body.queryJob);
-        taosArrayDestroy(pNodeList);
-      } else {
-        tscDebug("0x%" PRIx64 " plan not executed, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
-                 pRequest->requestId);
-        pRequest->body.queryFp(pRequest->body.param, pRequest, code);
-      }
+    SRequestConnInfo conn = {.pTrans = getAppInfo(pRequest)->pTransporter,
+                             .requestId = pRequest->requestId,
+                             .requestObjRefId = pRequest->self};
+    SSchedulerReq    req = {
+           .syncReq = false,
+           .localReq = (tsQueryPolicy == QUERY_POLICY_CLIENT),
+           .pConn = &conn,
+           .pNodeList = pNodeList,
+           .pDag = pDag,
+           .allocatorRefId = pRequest->allocatorRefId,
+           .sql = pRequest->sqlstr,
+           .startTs = pRequest->metric.start,
+           .execFp = schedulerExecCb,
+           .cbParam = pWrapper,
+           .chkKillFp = chkRequestKilled,
+           .chkKillParam = (void*)pRequest->self,
+           .pExecRes = NULL,
+    };
+    code = schedulerExecJob(&req, &pRequest->body.queryJob);
+    taosArrayDestroy(pNodeList);
+  } else {
+    tscDebug("0x%" PRIx64 " plan not executed, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
+             pRequest->requestId);
+    destorySqlCallbackWrapper(pWrapper);
+    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
+  }
 
-      // todo not to be released here
-      taosArrayDestroy(pMnodeList);
+  // todo not to be released here
+  taosArrayDestroy(pMnodeList);
+
+  return code;
+}
+
+void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta, SSqlCallbackWrapper* pWrapper) {
+  int32_t code = 0;
+
+  pRequest->body.execMode = pQuery->execMode;
+  if (QUERY_EXEC_MODE_SCHEDULE != pRequest->body.execMode) {
+    destorySqlCallbackWrapper(pWrapper);
+  }
+
+  switch (pQuery->execMode) {
+    case QUERY_EXEC_MODE_LOCAL:
+      asyncExecLocalCmd(pRequest, pQuery);
+      break;
+    case QUERY_EXEC_MODE_RPC:
+      code = asyncExecDdlQuery(pRequest, pQuery);
+      break;
+    case QUERY_EXEC_MODE_SCHEDULE: {
+      code = asyncExecSchQuery(pRequest, pQuery, pResultMeta, pWrapper);
       break;
     }
     case QUERY_EXEC_MODE_EMPTY_RESULT:

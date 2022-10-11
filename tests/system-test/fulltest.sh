@@ -37,7 +37,7 @@ python3 ./test.py -f 1-insert/table_param_ttl.py -R
 python3 ./test.py -f 1-insert/update_data_muti_rows.py
 python3 ./test.py -f 1-insert/db_tb_name_check.py
 python3 ./test.py -f 1-insert/database_pre_suf.py
-
+python3 ./test.py -f 0-others/show.py
 python3 ./test.py -f 2-query/abs.py
 python3 ./test.py -f 2-query/abs.py -R
 python3 ./test.py -f 2-query/and_or_for_byte.py

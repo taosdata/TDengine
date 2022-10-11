@@ -265,23 +265,42 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
 
     // only apply to the child tables, ordinary tables will not incur this filter procedure.
     size = taosArrayGetSize(pBlockLoadInfo->aSttBlk);
-    SArray *pTmp = taosArrayInit(size, sizeof(SSttBlk));
-    for (int32_t i = 0; i < size; ++i) {
-      SSttBlk *p = taosArrayGet(pBlockLoadInfo->aSttBlk, i);
-      uint64_t s = p->suid;
-      if (s < suid) {
-        continue;
-      }
 
-      if (s == suid) {
-        taosArrayPush(pTmp, p);
-      } else if (s > suid) {
-        break;
+    if (size > 1) {
+      SSttBlk *pStart = taosArrayGet(pBlockLoadInfo->aSttBlk, 0);
+      SSttBlk *pEnd = taosArrayGet(pBlockLoadInfo->aSttBlk, size - 1);
+
+      // all identical
+      if (pStart->suid == pEnd->suid) {
+        if (pStart->suid == suid) {
+          // do nothing
+        } else if (pStart->suid != suid) {
+          // no qualified stt block existed
+          (*pIter)->iSttBlk = -1;
+          double el = (taosGetTimestampUs() - st)/1000.0;
+          tsdbDebug("load the last file info completed, elapsed time:%.2fms, %s", el, idStr);
+          return code;
+        }
+      } else {
+        SArray *pTmp = taosArrayInit(size, sizeof(SSttBlk));
+        for (int32_t i = 0; i < size; ++i) {
+          SSttBlk *p = taosArrayGet(pBlockLoadInfo->aSttBlk, i);
+          uint64_t s = p->suid;
+          if (s < suid) {
+            continue;
+          }
+
+          if (s == suid) {
+            taosArrayPush(pTmp, p);
+          } else if (s > suid) {
+            break;
+          }
+        }
+
+        taosArrayDestroy(pBlockLoadInfo->aSttBlk);
+        pBlockLoadInfo->aSttBlk = pTmp;
       }
     }
-
-    taosArrayDestroy(pBlockLoadInfo->aSttBlk);
-    pBlockLoadInfo->aSttBlk = pTmp;
 
     double el = (taosGetTimestampUs() - st)/1000.0;
     tsdbDebug("load the last file info completed, elapsed time:%.2fms, %s", el, idStr);

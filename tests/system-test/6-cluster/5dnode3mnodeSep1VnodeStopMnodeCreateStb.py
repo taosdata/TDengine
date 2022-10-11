@@ -132,7 +132,7 @@ class TDTestCase:
         tdSql.error("create mnode on dnode 2")
         tdSql.query("select * from information_schema.ins_dnodes;")
         print(tdSql.queryResult)
-        clusterComCheck.checkDnodes(dnodeNumbers)
+        clusterComCheck.checkDnodes(dnodeNumbers, 60)
 
         # create database and stable
         clusterComCreate.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])

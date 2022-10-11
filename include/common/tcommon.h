@@ -171,7 +171,8 @@ typedef struct SDataBlockInfo {
   STimeWindow calWin;     // used for stream, do not serialize
   TSKEY       watermark;  // used for stream
 
-  char parTbName[TSDB_TABLE_NAME_LEN];  // used for stream
+  char  parTbName[TSDB_TABLE_NAME_LEN];  // used for stream partition
+  STag* pTag;                            // used for stream partition
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {

@@ -130,16 +130,16 @@ void generatePerformanceSchema(MockCatalogService* mcs) {
  *          c5         |       column       |       DOUBLE       |    8     |
  */
 void generateTestTables(MockCatalogService* mcs, const std::string& db) {
-  ITableBuilder& builder = mcs->createTableBuilder(db, "t1", TSDB_NORMAL_TABLE, 6)
-                               .setPrecision(TSDB_TIME_PRECISION_MILLI)
-                               .setVgid(1)
-                               .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
-                               .addColumn("c1", TSDB_DATA_TYPE_INT)
-                               .addColumn("c2", TSDB_DATA_TYPE_BINARY, 20)
-                               .addColumn("c3", TSDB_DATA_TYPE_BIGINT)
-                               .addColumn("c4", TSDB_DATA_TYPE_DOUBLE)
-                               .addColumn("c5", TSDB_DATA_TYPE_DOUBLE);
-  builder.done();
+  mcs->createTableBuilder(db, "t1", TSDB_NORMAL_TABLE, 6)
+      .setPrecision(TSDB_TIME_PRECISION_MILLI)
+      .setVgid(1)
+      .addColumn("ts", TSDB_DATA_TYPE_TIMESTAMP)
+      .addColumn("c1", TSDB_DATA_TYPE_INT)
+      .addColumn("c2", TSDB_DATA_TYPE_BINARY, 20)
+      .addColumn("c3", TSDB_DATA_TYPE_BIGINT)
+      .addColumn("c4", TSDB_DATA_TYPE_DOUBLE)
+      .addColumn("c5", TSDB_DATA_TYPE_DOUBLE)
+      .done();
 }
 
 /*

@@ -35,7 +35,7 @@ STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
     // tscError("tmp file created failed since %s", terrstr());
     return NULL;
   }
-  
+
   STSBuf* pTSBuf = taosMemoryCalloc(1, sizeof(STSBuf));
   if (pTSBuf == NULL) {
     return NULL;
@@ -52,10 +52,13 @@ STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
   }
 
   if (!autoDelete) {
-    taosRemoveFile(pTSBuf->path);
+    if (taosRemoveFile(pTSBuf->path) != 0) {
+      taosMemoryFree(pTSBuf);
+      return NULL;
+    }
   }
 
-  if (NULL == allocResForTSBuf(pTSBuf)) {
+  if (allocResForTSBuf(pTSBuf) == NULL) {
     return NULL;
   }
 

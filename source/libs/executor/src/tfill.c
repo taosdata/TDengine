@@ -105,9 +105,8 @@ static bool fillIfWindowPseudoColumn(SFillInfo* pFillInfo, SFillColInfo* pCol, S
     } else if (pCol->pExpr->base.pParam[0].pCol->colType == COLUMN_TYPE_WINDOW_END) {
       // TODO: include endpoint
       SInterval* pInterval = &pFillInfo->interval;
-      int32_t    step = (pFillInfo->order == TSDB_ORDER_ASC) ? 1 : -1;
       int64_t    windowEnd =
-          taosTimeAdd(pFillInfo->currentKey, pInterval->sliding * step, pInterval->slidingUnit, pInterval->precision);
+          taosTimeAdd(pFillInfo->currentKey, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
       colDataAppend(pDstColInfoData, rowIndex, (const char*)&windowEnd, false);
       return true;
     } else if (pCol->pExpr->base.pParam[0].pCol->colType == COLUMN_TYPE_WINDOW_DURATION) {
@@ -562,10 +561,7 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
   int32_t  numOfRows = taosNumOfRemainRows(pFillInfo);
 
   TSKEY ekey1 = ekey;
-  if (!FILL_IS_ASC_FILL(pFillInfo)) {
-    pFillInfo->end = taosTimeTruncate(ekey, &pFillInfo->interval, pFillInfo->interval.precision);
-  }
-
+  
   int64_t numOfRes = -1;
   if (numOfRows > 0) {  // still fill gap within current data block, not generating data after the result set.
     TSKEY lastKey = tsList[pFillInfo->numOfRows - 1];

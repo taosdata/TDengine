@@ -150,7 +150,6 @@ int walCheckAndRepairMeta(SWal* pWal) {
   const char* idxPattern = "^[0-9]+.idx$";
   regex_t     logRegPattern;
   regex_t     idxRegPattern;
-  SArray*     actualLog = taosArrayInit(8, sizeof(SWalFileInfo));
 
   regcomp(&logRegPattern, logPattern, REG_EXTENDED);
   regcomp(&idxRegPattern, idxPattern, REG_EXTENDED);
@@ -162,6 +161,8 @@ int walCheckAndRepairMeta(SWal* pWal) {
     wError("vgId:%d, path:%s, failed to open since %s", pWal->cfg.vgId, pWal->path, strerror(errno));
     return -1;
   }
+
+  SArray* actualLog = taosArrayInit(8, sizeof(SWalFileInfo));
 
   // scan log files and build new meta
   TdDirEntryPtr pDirEntry;
@@ -492,18 +493,21 @@ int walSaveMeta(SWal* pWal) {
   int  metaVer = walFindCurMetaVer(pWal);
   char fnameStr[WAL_FILE_LEN];
   walBuildMetaName(pWal, metaVer + 1, fnameStr);
-  TdFilePtr pMataFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE);
-  if (pMataFile == NULL) {
+  TdFilePtr pMetaFile = taosOpenFile(fnameStr, TD_FILE_CREATE | TD_FILE_WRITE);
+  if (pMetaFile == NULL) {
     return -1;
   }
   char* serialized = walMetaSerialize(pWal);
   int   len = strlen(serialized);
-  if (len != taosWriteFile(pMataFile, serialized, len)) {
+  if (len != taosWriteFile(pMetaFile, serialized, len)) {
     // TODO:clean file
+
+    taosCloseFile(&pMetaFile);
+    taosRemoveFile(fnameStr);
     return -1;
   }
 
-  taosCloseFile(&pMataFile);
+  taosCloseFile(&pMetaFile);
   // delete old file
   if (metaVer > -1) {
     walBuildMetaName(pWal, metaVer, fnameStr);
