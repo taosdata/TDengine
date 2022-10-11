@@ -495,8 +495,11 @@ int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
       break;
     }
 
-    int64_t ctbNum = 0;
-    vnodeGetCtbNum(pVnode, id, &ctbNum);
+    SMetaStbStats stats = {0};
+    metaGetStbStats(pVnode->pMeta, id, &stats);
+    int64_t ctbNum = stats.ctbNum;
+    // vnodeGetCtbNum(pVnode, id, &ctbNum);
+
     int numOfCols = 0;
     vnodeGetStbColumnNum(pVnode, id, &numOfCols);
 
