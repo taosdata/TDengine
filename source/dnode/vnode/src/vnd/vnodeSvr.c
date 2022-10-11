@@ -812,10 +812,10 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
   SSubmitReq    *pSubmitReq = (SSubmitReq *)pReq;
   SSubmitRsp     submitRsp = {0};
   SSubmitMsgIter msgIter = {0};
-  SSubmitBlk    *pBlock;
+  SSubmitBlk    *pBlock = NULL;
   SVCreateTbReq  createTbReq = {0};
   SDecoder       decoder = {0};
-  int32_t        nRows;
+  int32_t        nRows = 0;
   int32_t        tsize, ret;
   SEncoder       encoder = {0};
   SArray        *newTbUids = NULL;
@@ -823,6 +823,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
 
   pRsp->code = 0;
   pSubmitReq->version = version;
+  atomic_fetch_add_64(&pVnode->statis.nBatchInsert, 1);
 
 #ifdef TD_DEBUG_PRINT_ROW
   vnodeDebugPrintSubmitMsg(pVnode, pReq, __func__);
@@ -942,11 +943,15 @@ _exit:
 
   taosArrayDestroyEx(submitRsp.pArray, tFreeSSubmitBlkRsp);
 
+  atomic_fetch_add_64(&pVnode->statis.nInsert, submitRsp.numOfRows);
+  atomic_fetch_add_64(&pVnode->statis.nInsertSuccess, submitRsp.affectedRows);
+
   // TODO: the partial success scenario and the error case
   // => If partial success, extract the success submitted rows and reconstruct a new submit msg, and push to level
   // 1/level 2.
   // TODO: refactor
   if ((terrno == TSDB_CODE_SUCCESS) && (pRsp->code == TSDB_CODE_SUCCESS)) {
+    atomic_fetch_add_64(&pVnode->statis.nBatchInsertSuccess, 1);
     tdProcessRSmaSubmit(pVnode->pSma, pReq, STREAM_INPUT__DATA_SUBMIT);
   }
 
@@ -1024,71 +1029,75 @@ static int32_t vnodeProcessAlterHashRangeReq(SVnode *pVnode, int64_t version, vo
 }
 
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  SAlterVnodeReq alterReq = {0};
+  SAlterVnodeReq req = {0};
   bool           walChanged = false;
   bool           tsdbChanged = false;
 
-  if (tDeserializeSAlterVnodeReq(pReq, len, &alterReq) != 0) {
+  if (tDeserializeSAlterVnodeReq(pReq, len, &req) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return TSDB_CODE_INVALID_MSG;
   }
 
-  vInfo("vgId:%d, start to alter vnode config, cacheLast:%d cacheLastSize:%d", TD_VID(pVnode), alterReq.cacheLast,
-        alterReq.cacheLastSize);
-  if (pVnode->config.cacheLastSize != alterReq.cacheLastSize) {
-    pVnode->config.cacheLastSize = alterReq.cacheLastSize;
+  vInfo("vgId:%d, start to alter vnode config, page:%d pageSize:%d buffer:%d szPage:%d szBuf:%" PRIu64
+        " cacheLast:%d cacheLastSize:%d days:%d keep0:%d keep1:%d keep2:%d fsync:%d level:%d strict:%d",
+        TD_VID(pVnode), req.pages, req.pageSize, req.buffer, req.pageSize * 1024, (uint64_t)req.buffer * 1024 * 1024,
+        req.cacheLast, req.cacheLastSize, req.daysPerFile, req.daysToKeep0, req.daysToKeep1, req.daysToKeep2,
+        req.walFsyncPeriod, req.walLevel, req.strict);
+
+  if (pVnode->config.cacheLastSize != req.cacheLastSize) {
+    pVnode->config.cacheLastSize = req.cacheLastSize;
     tsdbCacheSetCapacity(pVnode, (size_t)pVnode->config.cacheLastSize * 1024 * 1024);
   }
 
-  if (pVnode->config.szBuf != alterReq.buffer * 1024LL * 1024LL) {
+  if (pVnode->config.szBuf != req.buffer * 1024LL * 1024LL) {
     vInfo("vgId:%d vnode buffer is changed from %" PRId64 " to %" PRId64, TD_VID(pVnode), pVnode->config.szBuf,
-          alterReq.buffer * 1024LL * 1024LL);
-    pVnode->config.szBuf = alterReq.buffer * 1024LL * 1024LL;
+          req.buffer * 1024LL * 1024LL);
+    pVnode->config.szBuf = req.buffer * 1024LL * 1024LL;
   }
 
-  if (pVnode->config.szCache != alterReq.pages) {
-    if (metaAlterCache(pVnode->pMeta, alterReq.pages) < 0) {
+  if (pVnode->config.szCache != req.pages) {
+    if (metaAlterCache(pVnode->pMeta, req.pages) < 0) {
       vError("vgId:%d failed to change vnode pages from %d to %d failed since %s", TD_VID(pVnode),
-             pVnode->config.szCache, alterReq.pages, tstrerror(errno));
+             pVnode->config.szCache, req.pages, tstrerror(errno));
       return errno;
     } else {
-      vInfo("vgId:%d vnode pages is changed from %d to %d", TD_VID(pVnode), pVnode->config.szCache, alterReq.pages);
-      pVnode->config.szCache = alterReq.pages;
+      vInfo("vgId:%d vnode pages is changed from %d to %d", TD_VID(pVnode), pVnode->config.szCache, req.pages);
+      pVnode->config.szCache = req.pages;
     }
   }
 
-  if (pVnode->config.cacheLast != alterReq.cacheLast) {
-    pVnode->config.cacheLast = alterReq.cacheLast;
+  if (pVnode->config.cacheLast != req.cacheLast) {
+    pVnode->config.cacheLast = req.cacheLast;
   }
 
-  if (pVnode->config.walCfg.fsyncPeriod != alterReq.walFsyncPeriod) {
-    pVnode->config.walCfg.fsyncPeriod = alterReq.walFsyncPeriod;
+  if (pVnode->config.walCfg.fsyncPeriod != req.walFsyncPeriod) {
+    pVnode->config.walCfg.fsyncPeriod = req.walFsyncPeriod;
 
     walChanged = true;
   }
 
-  if (pVnode->config.walCfg.level != alterReq.walLevel) {
-    pVnode->config.walCfg.level = alterReq.walLevel;
+  if (pVnode->config.walCfg.level != req.walLevel) {
+    pVnode->config.walCfg.level = req.walLevel;
 
     walChanged = true;
   }
 
-  if (pVnode->config.tsdbCfg.keep0 != alterReq.daysToKeep0) {
-    pVnode->config.tsdbCfg.keep0 = alterReq.daysToKeep0;
+  if (pVnode->config.tsdbCfg.keep0 != req.daysToKeep0) {
+    pVnode->config.tsdbCfg.keep0 = req.daysToKeep0;
     if (!VND_IS_RSMA(pVnode)) {
       tsdbChanged = true;
     }
   }
 
-  if (pVnode->config.tsdbCfg.keep1 != alterReq.daysToKeep1) {
-    pVnode->config.tsdbCfg.keep1 = alterReq.daysToKeep1;
+  if (pVnode->config.tsdbCfg.keep1 != req.daysToKeep1) {
+    pVnode->config.tsdbCfg.keep1 = req.daysToKeep1;
     if (!VND_IS_RSMA(pVnode)) {
       tsdbChanged = true;
     }
   }
 
-  if (pVnode->config.tsdbCfg.keep2 != alterReq.daysToKeep2) {
-    pVnode->config.tsdbCfg.keep2 = alterReq.daysToKeep2;
+  if (pVnode->config.tsdbCfg.keep2 != req.daysToKeep2) {
+    pVnode->config.tsdbCfg.keep2 = req.daysToKeep2;
     if (!VND_IS_RSMA(pVnode)) {
       tsdbChanged = true;
     }

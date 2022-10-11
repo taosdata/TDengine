@@ -1193,4 +1193,232 @@ SName* ctgGetFetchName(SArray* pNames, SCtgFetch* pFetch) {
   return (SName*)taosArrayGet(pReq->pTables, pFetch->tbIdx);
 }
 
+static void* ctgCloneDbVgroup(void* pSrc) {
+  return taosArrayDup((const SArray*)pSrc);
+}
 
+static void ctgFreeDbVgroup(void* p) {
+  taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes);
+}
+
+static void* ctgCloneDbCfgInfo(void* pSrc) {
+  SDbCfgInfo* pDst = taosMemoryMalloc(sizeof(SDbCfgInfo));
+  if (NULL == pDst) {
+    return NULL;
+  }
+  memcpy(pDst, pSrc, sizeof(SDbCfgInfo));
+  return pDst;
+}
+
+static void ctgFreeDbCfgInfo(void* p) {
+  taosMemoryFree(((SMetaRes*)p)->pRes);
+}
+
+static void* ctgCloneDbInfo(void* pSrc) {
+  SDbInfo* pDst = taosMemoryMalloc(sizeof(SDbInfo));
+  if (NULL == pDst) {
+    return NULL;
+  }
+  memcpy(pDst, pSrc, sizeof(SDbInfo));
+  return pDst;
+}
+
+static void ctgFreeDbInfo(void* p) {
+  taosMemoryFree(((SMetaRes*)p)->pRes);
+}
+
+static void* ctgCloneTableMeta(void* pSrc) {
+  STableMeta* pMeta = pSrc;
+  int32_t size = sizeof(STableMeta) + (pMeta->tableInfo.numOfColumns + pMeta->tableInfo.numOfTags) * sizeof(SSchema);
+  STableMeta* pDst = taosMemoryMalloc(size);
+  if (NULL == pDst) {
+    return NULL;
+  }
+  memcpy(pDst, pSrc, size);
+  return pDst;
+}
+
+static void ctgFreeTableMeta(void* p) {
+  taosMemoryFree(((SMetaRes*)p)->pRes);
+}
+
+static void* ctgCloneVgroupInfo(void* pSrc) {
+  SVgroupInfo* pDst = taosMemoryMalloc(sizeof(SVgroupInfo));
+  if (NULL == pDst) {
+    return NULL;
+  }
+  memcpy(pDst, pSrc, sizeof(SVgroupInfo));
+  return pDst;
+}
+
+static void ctgFreeVgroupInfo(void* p) {
+  taosMemoryFree(((SMetaRes*)p)->pRes);
+}
+
+static void* ctgCloneTableIndices(void* pSrc) {
+  return taosArrayDup((const SArray*)pSrc);
+}
+
+static void ctgFreeTableIndices(void* p) {
+  taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes);
+}
+
+static void* ctgCloneFuncInfo(void* pSrc) {
+  SFuncInfo* pDst = taosMemoryMalloc(sizeof(SFuncInfo));
+  if (NULL == pDst) {
+    return NULL;
+  }
+  memcpy(pDst, pSrc, sizeof(SFuncInfo));
+  return pDst;
+}
+
+static void ctgFreeFuncInfo(void* p) {
+  taosMemoryFree(((SMetaRes*)p)->pRes);
+}
+
+static void* ctgCloneIndexInfo(void* pSrc) {
+  SIndexInfo* pDst = taosMemoryMalloc(sizeof(SIndexInfo));
+  if (NULL == pDst) {
+    return NULL;
+  }
+  memcpy(pDst, pSrc, sizeof(SIndexInfo));
+  return pDst;
+}
+
+static void ctgFreeIndexInfo(void* p) {
+  taosMemoryFree(((SMetaRes*)p)->pRes);
+}
+
+static void* ctgCloneUserAuth(void* pSrc) {
+  bool* pDst = taosMemoryMalloc(sizeof(bool));
+  if (NULL == pDst) {
+    return NULL;
+  }
+  *pDst = *(bool*)pSrc;
+  return pDst;
+}
+
+static void ctgFreeUserAuth(void* p) {
+  taosMemoryFree(((SMetaRes*)p)->pRes);
+}
+
+static void* ctgCloneQnodeList(void* pSrc) {
+  return taosArrayDup((const SArray*)pSrc);
+}
+
+static void ctgFreeQnodeList(void* p) {
+  taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes);
+}
+
+static void* ctgCloneTableCfg(void* pSrc) {
+  STableCfg* pDst = taosMemoryMalloc(sizeof(STableCfg));
+  if (NULL == pDst) {
+    return NULL;
+  }
+  memcpy(pDst, pSrc, sizeof(STableCfg));
+  return pDst;
+}
+
+static void ctgFreeTableCfg(void* p) {
+  taosMemoryFree(((SMetaRes*)p)->pRes);
+}
+
+static void* ctgCloneDnodeList(void* pSrc) {
+  return taosArrayDup((const SArray*)pSrc);
+}
+
+static void ctgFreeDnodeList(void* p) {
+  taosArrayDestroy((SArray*)((SMetaRes*)p)->pRes);
+}
+
+static int32_t ctgCloneMetaDataArray(SArray* pSrc, FCopy copyFunc, SArray** pDst) {
+  if (NULL == pSrc) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t size = taosArrayGetSize(pSrc);
+  *pDst = taosArrayInit(size, sizeof(SMetaRes));
+  if (NULL == *pDst) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  for (int32_t i = 0; i < size; ++i) {
+    SMetaRes* pRes = taosArrayGet(pSrc, i);
+    SMetaRes res = {.code = pRes->code, .pRes = copyFunc(pRes->pRes)};
+    if (NULL == res.pRes) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    taosArrayPush(*pDst, &res);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+SMetaData* catalogCloneMetaData(SMetaData* pData) {
+  SMetaData* pRes = taosMemoryCalloc(1, sizeof(SMetaData));
+  if (NULL == pRes) {
+    return NULL;
+  }
+
+  int32_t code = ctgCloneMetaDataArray(pData->pDbVgroup, ctgCloneDbVgroup, &pRes->pDbVgroup);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = ctgCloneMetaDataArray(pData->pDbCfg, ctgCloneDbCfgInfo, &pRes->pDbCfg);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = ctgCloneMetaDataArray(pData->pDbInfo, ctgCloneDbInfo, &pRes->pDbInfo);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = ctgCloneMetaDataArray(pData->pTableMeta, ctgCloneTableMeta, &pRes->pTableMeta);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = ctgCloneMetaDataArray(pData->pTableHash, ctgCloneVgroupInfo, &pRes->pTableHash);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = ctgCloneMetaDataArray(pData->pTableIndex, ctgCloneTableIndices, &pRes->pTableIndex);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = ctgCloneMetaDataArray(pData->pUdfList, ctgCloneFuncInfo, &pRes->pUdfList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = ctgCloneMetaDataArray(pData->pIndex, ctgCloneIndexInfo, &pRes->pIndex);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = ctgCloneMetaDataArray(pData->pUser, ctgCloneUserAuth, &pRes->pUser);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = ctgCloneMetaDataArray(pData->pQnodeList, ctgCloneQnodeList, &pRes->pQnodeList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = ctgCloneMetaDataArray(pData->pTableCfg, ctgCloneTableCfg, &pRes->pTableCfg);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = ctgCloneMetaDataArray(pData->pDnodeList, ctgCloneDnodeList, &pRes->pDnodeList);
+  }
+
+  if (TSDB_CODE_SUCCESS != code) {
+    catalogFreeMetaData(pRes);
+    return NULL;
+  }
+
+  return pRes;
+}
+
+void catalogFreeMetaData(SMetaData* pData) {
+  if (NULL == pData) {
+    return;
+  }
+
+  taosArrayDestroyEx(pData->pDbVgroup, ctgFreeDbVgroup);
+  taosArrayDestroyEx(pData->pDbCfg, ctgFreeDbCfgInfo);
+  taosArrayDestroyEx(pData->pDbInfo, ctgFreeDbInfo);
+  taosArrayDestroyEx(pData->pTableMeta, ctgFreeTableMeta);
+  taosArrayDestroyEx(pData->pTableHash, ctgFreeVgroupInfo);
+  taosArrayDestroyEx(pData->pTableIndex, ctgFreeTableIndices);  
+  taosArrayDestroyEx(pData->pUdfList, ctgFreeFuncInfo); 
+  taosArrayDestroyEx(pData->pIndex, ctgFreeIndexInfo);
+  taosArrayDestroyEx(pData->pUser, ctgFreeUserAuth);
+  taosArrayDestroyEx(pData->pQnodeList, ctgFreeQnodeList);
+  taosArrayDestroyEx(pData->pTableCfg, ctgFreeTableCfg);
+  taosArrayDestroyEx(pData->pDnodeList, ctgFreeDnodeList);
+  taosMemoryFreeClear(pData->pSvrVer);
+  taosMemoryFree(pData);
+}
