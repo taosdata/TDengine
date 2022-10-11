@@ -85,10 +85,6 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   pVnode->state.applied = info.state.committed;
   pVnode->state.commitID = info.state.commitID;
   pVnode->state.commitTerm = info.state.commitTerm;
-  pVnode->statis.nInsert = info.statis.nInsert;
-  pVnode->statis.nInsertSuccess = info.statis.nInsertSuccess;
-  pVnode->statis.nBatchInsert = info.statis.nBatchInsert;
-  pVnode->statis.nBatchInsertSuccess = info.statis.nBatchInsertSuccess;
   pVnode->pTfs = pTfs;
   pVnode->msgCb = msgCb;
   taosThreadMutexInit(&pVnode->lock, NULL);

@@ -66,10 +66,10 @@ void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
   pInfo->vstat.totalVnodes = totalVnodes;
   pInfo->vstat.masterNum = masterNum;
   pInfo->vstat.numOfSelectReqs = numOfSelectReqs - pMgmt->state.numOfSelectReqs;
-  pInfo->vstat.numOfInsertReqs = numOfInsertReqs - pMgmt->state.numOfInsertReqs;
-  pInfo->vstat.numOfInsertSuccessReqs = numOfInsertSuccessReqs - pMgmt->state.numOfInsertSuccessReqs;
-  pInfo->vstat.numOfBatchInsertReqs = numOfBatchInsertReqs - pMgmt->state.numOfBatchInsertReqs;
-  pInfo->vstat.numOfBatchInsertSuccessReqs = numOfBatchInsertSuccessReqs - pMgmt->state.numOfBatchInsertSuccessReqs;
+  pInfo->vstat.numOfInsertReqs = numOfInsertReqs;
+  pInfo->vstat.numOfInsertSuccessReqs = numOfInsertSuccessReqs;
+  pInfo->vstat.numOfBatchInsertReqs = numOfBatchInsertReqs;
+  pInfo->vstat.numOfBatchInsertSuccessReqs = numOfBatchInsertSuccessReqs;
   pMgmt->state.totalVnodes = totalVnodes;
   pMgmt->state.masterNum = masterNum;
   pMgmt->state.numOfSelectReqs = numOfSelectReqs;
