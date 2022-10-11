@@ -340,7 +340,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **values** : nchar/binary 列/标签的值域，将从值中随机选择。
 
-- **sma**: 将该列加入bsma中，值为 "yes" 或者 "no"，默认为 "no"。
+- **sma**: 将该列加入 SMA 中，值为 "yes" 或者 "no"，默认为 "no"。
 
 #### 插入行为配置参数
 
