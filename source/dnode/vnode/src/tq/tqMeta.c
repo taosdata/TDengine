@@ -180,6 +180,7 @@ int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
       return -1;
     }
   }
+  tdbFree(pKey);
   tdbTbcClose(pCur);
   return 0;
 }
