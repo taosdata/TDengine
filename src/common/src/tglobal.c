@@ -273,6 +273,7 @@ int32_t  cqDebugFlag = 131;
 int32_t  fsDebugFlag = 135;
 
 int8_t tsClientMerge = 0;
+int8_t tsAggAlways = 0; // Agg function always return value even if zero row 
 
 // probe alive connection
 int32_t tsProbeSeconds     =  5 * 60; // start probe link alive after tsProbeSeconds from starting query
@@ -1684,6 +1685,16 @@ static void doInitGlobalConfig(void) {
   cfg.ptr = &tsClientMerge;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "aggAlways";
+  cfg.ptr = &tsAggAlways;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = 1;
   cfg.ptrLength = 1;

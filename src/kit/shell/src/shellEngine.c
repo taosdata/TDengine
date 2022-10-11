@@ -192,9 +192,15 @@ static int32_t shellRunSingleCommand(TAOS *con, char *command) {
   if (regex_match(command, "^[ \t]*source[\t ]+[^ ]+[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
     /* If source file. */
     char *c_ptr = strtok(command, " ;");
-    assert(c_ptr != NULL);
+    if (c_ptr == NULL) {
+      shellRunCommandOnServer(con, command);
+      return 0;
+    }
     c_ptr = strtok(NULL, " ;");
-    assert(c_ptr != NULL);
+    if (c_ptr == NULL) {
+      shellRunCommandOnServer(con, command);
+      return 0;
+    }
     source_file(con, c_ptr);
     return 0;
   }
