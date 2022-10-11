@@ -922,7 +922,7 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
     pRequest->code = code1;
   }
 
-  if (pRequest->code == TSDB_CODE_SUCCESS && pWrapper->pParseCtx->needMultiParse) {
+  if (pRequest->code == TSDB_CODE_SUCCESS && NULL != pWrapper->pParseCtx && pWrapper->pParseCtx->needMultiParse) {
     code = continueInsertFromCsv(pWrapper, pRequest);
     if (TSDB_CODE_SUCCESS == code) {
       return;

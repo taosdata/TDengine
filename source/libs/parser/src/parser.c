@@ -215,6 +215,10 @@ int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCata
 }
 
 void qDestroyParseContext(SParseContext* pCxt) {
+  if (NULL == pCxt) {
+    return;
+  }
+
   taosArrayDestroy(pCxt->pTableMetaPos);
   taosArrayDestroy(pCxt->pTableVgroupPos);
   taosMemoryFree(pCxt);
