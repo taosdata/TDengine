@@ -529,24 +529,24 @@ void* ncharTobinary(void *buf){            // todo need to remove , if tobinary 
 
 bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t typeRight, char **pLeftData, char **pRightData,
                       void *pLeftOut, void *pRightOut, bool *isNull, bool *freeLeft, bool *freeRight){
-  if(optr == OP_TYPE_JSON_CONTAINS) {
+  if (optr == OP_TYPE_JSON_CONTAINS) {
     return true;
   }
 
-  if(typeLeft != TSDB_DATA_TYPE_JSON && typeRight != TSDB_DATA_TYPE_JSON){
+  if (typeLeft != TSDB_DATA_TYPE_JSON && typeRight != TSDB_DATA_TYPE_JSON) {
     return true;
   }
 
-  if(typeLeft == TSDB_DATA_TYPE_JSON){
-    if(tTagIsJson(*pLeftData)){
+  if (typeLeft == TSDB_DATA_TYPE_JSON) {
+    if (tTagIsJson(*pLeftData)) {
       terrno = TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR;
       return false;
     }
     typeLeft = **pLeftData;
     (*pLeftData) ++;
   }
-  if(typeRight == TSDB_DATA_TYPE_JSON){
-    if(tTagIsJson(*pLeftData)){
+  if (typeRight == TSDB_DATA_TYPE_JSON) {
+    if (tTagIsJson(*pLeftData)) {
       terrno = TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR;
       return false;
     }
@@ -554,71 +554,71 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
     (*pRightData) ++;
   }
 
-  if(optr == OP_TYPE_LIKE || optr == OP_TYPE_NOT_LIKE || optr == OP_TYPE_MATCH || optr == OP_TYPE_NMATCH){
-    if(typeLeft != TSDB_DATA_TYPE_NCHAR && typeLeft != TSDB_DATA_TYPE_BINARY){
+  if (optr == OP_TYPE_LIKE || optr == OP_TYPE_NOT_LIKE || optr == OP_TYPE_MATCH || optr == OP_TYPE_NMATCH) {
+    if (typeLeft != TSDB_DATA_TYPE_NCHAR && typeLeft != TSDB_DATA_TYPE_BINARY) {
       return false;
     }
   }
 
   // if types can not comparable
-  if((IS_NUMERIC_TYPE(typeLeft) && !IS_NUMERIC_TYPE(typeRight)) ||
-     (IS_NUMERIC_TYPE(typeRight) && !IS_NUMERIC_TYPE(typeLeft)) ||
-     (IS_VAR_DATA_TYPE(typeLeft) && !IS_VAR_DATA_TYPE(typeRight)) ||
-     (IS_VAR_DATA_TYPE(typeRight) && !IS_VAR_DATA_TYPE(typeLeft)) ||
-     ((typeLeft == TSDB_DATA_TYPE_BOOL) && (typeRight != TSDB_DATA_TYPE_BOOL)) ||
-     ((typeRight == TSDB_DATA_TYPE_BOOL) && (typeLeft != TSDB_DATA_TYPE_BOOL)))
+  if ((IS_NUMERIC_TYPE(typeLeft) && !IS_NUMERIC_TYPE(typeRight)) ||
+      (IS_NUMERIC_TYPE(typeRight) && !IS_NUMERIC_TYPE(typeLeft)) ||
+      (IS_VAR_DATA_TYPE(typeLeft) && !IS_VAR_DATA_TYPE(typeRight)) ||
+      (IS_VAR_DATA_TYPE(typeRight) && !IS_VAR_DATA_TYPE(typeLeft)) ||
+      ((typeLeft == TSDB_DATA_TYPE_BOOL) && (typeRight != TSDB_DATA_TYPE_BOOL)) ||
+      ((typeRight == TSDB_DATA_TYPE_BOOL) && (typeLeft != TSDB_DATA_TYPE_BOOL)))
     return false;
 
 
-  if(typeLeft == TSDB_DATA_TYPE_NULL || typeRight == TSDB_DATA_TYPE_NULL){
+  if (typeLeft == TSDB_DATA_TYPE_NULL || typeRight == TSDB_DATA_TYPE_NULL) {
     *isNull = true;
     return true;
   }
   int8_t type = vectorGetConvertType(typeLeft, typeRight);
 
-  if(type == 0) {
+  if (type == 0) {
     *fp = filterGetCompFunc(typeLeft, optr);
     return true;
   }
 
   *fp = filterGetCompFunc(type, optr);
 
-  if(IS_NUMERIC_TYPE(type)){
-    if(typeLeft == TSDB_DATA_TYPE_NCHAR) {
+  if (IS_NUMERIC_TYPE(type)) {
+    if (typeLeft == TSDB_DATA_TYPE_NCHAR) {
       ASSERT(0);
 //      convertNcharToDouble(*pLeftData, pLeftOut);
 //      *pLeftData = pLeftOut;
-    } else if(typeLeft == TSDB_DATA_TYPE_BINARY) {
+    } else if (typeLeft == TSDB_DATA_TYPE_BINARY) {
       ASSERT(0);
 //      convertBinaryToDouble(*pLeftData, pLeftOut);
 //      *pLeftData = pLeftOut;
-    } else if(typeLeft != type) {
+    } else if (typeLeft != type) {
       convertNumberToNumber(*pLeftData, pLeftOut, typeLeft, type);
       *pLeftData = pLeftOut;
     }
 
-    if(typeRight == TSDB_DATA_TYPE_NCHAR) {
+    if (typeRight == TSDB_DATA_TYPE_NCHAR) {
       ASSERT(0);
 //      convertNcharToDouble(*pRightData, pRightOut);
 //      *pRightData = pRightOut;
-    } else if(typeRight == TSDB_DATA_TYPE_BINARY) {
+    } else if (typeRight == TSDB_DATA_TYPE_BINARY) {
       ASSERT(0);
 //      convertBinaryToDouble(*pRightData, pRightOut);
 //      *pRightData = pRightOut;
-    } else if(typeRight != type) {
+    } else if (typeRight != type) {
       convertNumberToNumber(*pRightData, pRightOut, typeRight, type);
       *pRightData = pRightOut;
     }
-  }else if(type == TSDB_DATA_TYPE_BINARY){
-    if(typeLeft == TSDB_DATA_TYPE_NCHAR){
+  } else if (type == TSDB_DATA_TYPE_BINARY) {
+    if (typeLeft == TSDB_DATA_TYPE_NCHAR) {
       *pLeftData = ncharTobinary(*pLeftData);
       *freeLeft = true;
     }
-    if(typeRight == TSDB_DATA_TYPE_NCHAR){
+    if (typeRight == TSDB_DATA_TYPE_NCHAR) {
       *pRightData = ncharTobinary(*pRightData);
       *freeRight = true;
     }
-  }else{
+  } else {
     ASSERT(0);
   }
 
