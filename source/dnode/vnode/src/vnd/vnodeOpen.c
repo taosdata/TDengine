@@ -28,13 +28,24 @@ int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   }
 
   // create vnode env
-  if (tfsMkdirAt(pTfs, path, (SDiskID){0}) < 0) {
-    vError("vgId:%d, failed to create vnode since:%s", pCfg->vgId, tstrerror(terrno));
-    return -1;
+  if (pTfs) {
+    if (tfsMkdirAt(pTfs, path, (SDiskID){0}) < 0) {
+      vError("vgId:%d, failed to create vnode since:%s", pCfg->vgId, tstrerror(terrno));
+      return -1;
+    }
+    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
+  } else {
+    if (taosMkDir(path)) {
+      return TAOS_SYSTEM_ERROR(errno);
+    }
+    strcpy(dir, path);
   }
 
-  snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
-  info.config = *pCfg;
+  if (pCfg) {
+    info.config = *pCfg;
+  } else {
+    info.config = vnodeCfgDefault;
+  }
   info.state.committed = -1;
   info.state.applied = -1;
   info.state.commitID = 0;
@@ -44,7 +55,7 @@ int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
     return -1;
   }
 
-  vInfo("vgId:%d, vnode is created", pCfg->vgId);
+  vInfo("vgId:%d, vnode is created", info.config.vgId);
 
   return 0;
 }
@@ -58,7 +69,11 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   char       tdir[TSDB_FILENAME_LEN * 2];
   int        ret;
 
-  snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
+  if (pTfs) {
+    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
+  } else {
+    snprintf(dir, TSDB_FILENAME_LEN, "%s", path);
+  }
 
   info.config = vnodeCfgDefault;
 

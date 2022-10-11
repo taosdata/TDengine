@@ -87,7 +87,7 @@ static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
 
   SSdbRaw *pRaw = mndMnodeActionEncode(&mnodeObj);
   if (pRaw == NULL) return -1;
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   mInfo("mnode:%d, will be created when deploying, raw:%p", mnodeObj.id, pRaw);
 

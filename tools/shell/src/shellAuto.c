@@ -1268,7 +1268,7 @@ char* lastWord(char* p) {
   char* p2 = strrchr(p, ',');
 
   if (p1 && p2) {
-    return p1 > p2 ? p1 : p2 + 1;
+    return p1 > p2 ? p1 + 1 : p2 + 1;
   } else if (p1) {
     return p1 + 1;
   } else if (p2) {

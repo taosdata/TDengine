@@ -267,21 +267,29 @@ int32_t taosSetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void
     return -1;
   }
 #ifdef WINDOWS
+#ifdef TCP_KEEPCNT
   if (level == SOL_SOCKET && optname == TCP_KEEPCNT) {
     return 0;
   }
+#endif
 
+#ifdef TCP_KEEPIDLE
   if (level == SOL_TCP && optname == TCP_KEEPIDLE) {
     return 0;
   }
+#endif
 
+#ifdef TCP_KEEPINTVL
   if (level == SOL_TCP && optname == TCP_KEEPINTVL) {
     return 0;
   }
+#endif
 
+#ifdef TCP_KEEPCNT
   if (level == SOL_TCP && optname == TCP_KEEPCNT) {
     return 0;
   }
+#endif
 
   return setsockopt(pSocket->fd, level, optname, optval, optlen);
 #else
@@ -601,26 +609,32 @@ int32_t taosKeepTcpAlive(TdSocketPtr pSocket) {
 
 #ifndef __APPLE__
   // all fails on macosx
+#ifdef TCP_KEEPCNT
   int32_t probes = 3;
   if (taosSetSockOpt(pSocket, SOL_TCP, TCP_KEEPCNT, (void *)&probes, sizeof(probes)) < 0) {
     // printf("fd:%d setsockopt SO_KEEPCNT failed: %d (%s)", sockFd, errno, strerror(errno));
     taosCloseSocket(&pSocket);
     return -1;
   }
+#endif
 
+#ifdef TCP_KEEPIDLE
   int32_t alivetime = 10;
   if (taosSetSockOpt(pSocket, SOL_TCP, TCP_KEEPIDLE, (void *)&alivetime, sizeof(alivetime)) < 0) {
     // printf("fd:%d setsockopt SO_KEEPIDLE failed: %d (%s)", sockFd, errno, strerror(errno));
     taosCloseSocket(&pSocket);
     return -1;
   }
+#endif
 
+#ifdef TCP_KEEPINTVL
   int32_t interval = 3;
   if (taosSetSockOpt(pSocket, SOL_TCP, TCP_KEEPINTVL, (void *)&interval, sizeof(interval)) < 0) {
     // printf("fd:%d setsockopt SO_KEEPINTVL failed: %d (%s)", sockFd, errno, strerror(errno));
     taosCloseSocket(&pSocket);
     return -1;
   }
+#endif
 #endif  // __APPLE__
 
   int32_t nodelay = 1;
