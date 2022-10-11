@@ -1,72 +1,205 @@
-use std::path::Path;
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use anyhow::Result;
 use chrono::Local;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
 use taos::{sync::MessageSet, Consumer, *};
+use tokio::sync::{Barrier, Mutex};
 
 use crate::{
     taoz::ZFile,
     tmq::{check_tmq_dsn, Topic},
 };
 
-// #[derive(Debug, Deserialize, Serialize)]
-// pub(crate) struct Topic {
-//     name: String,
-//     database: String,
-//     vgroups: usize,
-//     sql: String,
-//     /// the topic is for single table
-//     table: Option<String>,
-// }
+struct ZFileMan {
+    path: PathBuf,
+    // db: String,
+    topic: String,
+    sync: Mutex<()>,
+    writers: scc::HashMap<i32, Mutex<ZFile>>,
+}
 
-async fn backup(consumer: Consumer, mut writer: ZFile, id: usize) -> Result<()> {
+impl Drop for ZFileMan {
+    fn drop(&mut self) {
+        self.writers.for_each(|_, v| {
+            let _ = block_in_place(async { v.lock().await.shutdown().await });
+        });
+        self.writers.clear();
+    }
+}
+
+fn block_in_place<F>(f: F) -> F::Output
+where
+    F: std::future::Future,
+{
+    use tokio::runtime::Handle;
+    use tokio::task;
+
+    match Handle::try_current() {
+        Ok(handle) => task::block_in_place(move || handle.block_on(f)),
+        Err(_) => unreachable!(),
+    }
+}
+
+impl ZFileMan {
+    async fn assert_vgroup(&self, vgroup: i32) -> Result<()> {
+        if !self.writers.contains(&vgroup) {
+            let _ = self.sync.lock().await;
+            if !self.writers.contains(&vgroup) {
+                let prefix = self.path.join(format!("{}-{}", self.topic, vgroup));
+                let file = ZFile::new(prefix, async_compression::Level::Best).await?;
+                let _ = self.writers.insert_async(vgroup, Mutex::new(file)).await;
+            }
+        }
+        Ok(())
+    }
+    async fn write_vgroup_with_meta(&self, vgroup: i32, meta: taos::Meta) -> Result<()> {
+        let raw = meta.as_raw_meta().await?;
+        self.assert_vgroup(vgroup).await?;
+        self.writers
+            .update_async(&vgroup, |_vg, wtr| {
+                use tokio::runtime::Handle;
+                use tokio::task;
+
+                match Handle::try_current() {
+                    Ok(handle) => task::block_in_place(move || {
+                        handle.block_on(async { wtr.lock().await.write_meta(&raw).await })
+                    }),
+                    Err(_) => unreachable!(),
+                }
+            })
+            .await;
+        Ok(())
+    }
+    async fn write_vgroup_with_data(&self, vgroup: i32, data: taos::Data) -> Result<usize> {
+        // let raw = meta.as_raw_meta().await?;
+        self.assert_vgroup(vgroup).await?;
+        let nrows = self
+            .writers
+            .update_async(&vgroup, |vg, writer| {
+                use tokio::runtime::Handle;
+                use tokio::task;
+
+                match Handle::try_current() {
+                    Ok(handle) => {
+                        task::block_in_place(move || {
+                            handle.block_on(async {
+                                let mut writer = writer.lock().await;
+                                writer.start_raw_block().await?;
+                                let mut nrows = 0;
+                                while let Some(block) = data.fetch_raw_block().await.unwrap() {
+                                    // dbg!(&block);
+                                    writer.write_raw_block(&block).await?;
+                                    nrows += block.nrows();
+                                    log::debug!(
+                                        "[vg:{vg}] table {} rows: {}",
+                                        block.table_name().unwrap_or_default(),
+                                        block.nrows()
+                                    );
+                                }
+                                writer.finish_raw_block().await?;
+                                Ok::<usize, std::io::Error>(nrows)
+                            })
+                        })
+                    }
+                    Err(_) => unreachable!(),
+                }
+            })
+            .await
+            .unwrap()?;
+        Ok(nrows)
+    }
+
+    async fn flush_vgroup(&self, vgroup: i32) -> Result<()> {
+        self.assert_vgroup(vgroup).await?;
+        self.writers
+            .update_async(&vgroup, |_vg, writer| {
+                use tokio::runtime::Handle;
+                use tokio::task;
+
+                match Handle::try_current() {
+                    Ok(handle) => task::block_in_place(move || {
+                        handle.block_on(async { writer.lock().await.flush().await })
+                    }),
+                    Err(_) => unreachable!(),
+                }
+            })
+            .await
+            .unwrap()?;
+        Ok(())
+    }
+}
+
+async fn backup(
+    consumer: Consumer,
+    man: Arc<ZFileMan>,
+    id: usize,
+    barrier: Arc<Barrier>,
+) -> Result<()> {
     let mut stream = consumer.stream();
     let mut rows = 0;
 
+    // let mut wtr: scc::HashMap<i32, ZFile> = scc::HashMap::new();
+
     while let Some((offset, message)) = stream.try_next().await? {
+        let vgroup = offset.vgroup_id();
+
+        // let prefix = path.join(format!("{}-{}", topic.name, id));
+        // log::info!("start with {}", prefix.display());
+        // let file = ZFile::new(prefix, async_compression::Level::Best).await?;
         match message {
             MessageSet::Meta(meta) => {
                 //dbg!(meta.as_json_meta().await?);
-                writer.write_meta(&meta.as_raw_meta().await?).await?;
+                // writer.write_meta(&meta.as_raw_meta().await?).await?;
+                man.write_vgroup_with_meta(vgroup, meta).await?;
             }
             MessageSet::Data(data) => {
-                writer.start_raw_block().await?;
-                while let Some(block) = data.fetch_raw_block().await.unwrap() {
-                    // dbg!(&block);
-                    writer.write_raw_block(&block).await?;
-                    rows += block.nrows();
-                    log::info!(
-                        "[{id}] table {} rows: {}",
-                        block.table_name().unwrap_or_default(),
-                        block.nrows()
-                    );
-                }
-                writer.finish_raw_block().await?;
+                rows += man.write_vgroup_with_data(vgroup, data).await?;
+                // writer.start_raw_block().await?;
+                // while let Some(block) = data.fetch_raw_block().await.unwrap() {
+                //     // dbg!(&block);
+                //     writer.write_raw_block(&block).await?;
+                //     rows += block.nrows();
+                //     log::info!(
+                //         "[{id}] table {} rows: {}",
+                //         block.table_name().unwrap_or_default(),
+                //         block.nrows()
+                //     );
+                // }
+                // writer.finish_raw_block().await?;
             }
             MessageSet::MetaData(meta, data) => {
-                writer.write_meta(&meta.as_raw_meta().await?).await?;
+                // writer.write_meta(&meta.as_raw_meta().await?).await?;
+                man.write_vgroup_with_meta(vgroup, meta).await?;
+                rows += man.write_vgroup_with_data(vgroup, data).await?;
 
-                writer.start_raw_block().await?;
-                while let Some(block) = data.fetch_raw_block().await.unwrap() {
-                    // dbg!(&block);
-                    writer.write_raw_block(&block).await?;
-                    rows += block.nrows();
-                    log::info!(
-                        "[{id}] table {} rows: {}",
-                        block.table_name().unwrap_or_default(),
-                        block.nrows()
-                    );
-                }
-                writer.finish_raw_block().await?;
+                // writer.start_raw_block().await?;
+                // while let Some(block) = data.fetch_raw_block().await.unwrap() {
+                //     // dbg!(&block);
+                //     writer.write_raw_block(&block).await?;
+                //     rows += block.nrows();
+                //     log::info!(
+                //         "[{id}] table {} rows: {}",
+                //         block.table_name().unwrap_or_default(),
+                //         block.nrows()
+                //     );
+                // }
+                // writer.finish_raw_block().await?;
             }
         }
-        writer.flush().await?;
+        // writer.flush().await?;
+        man.flush_vgroup(vgroup).await?;
         consumer.commit(offset).await?;
     }
-    writer.shutdown().await?;
+    // writer.shutdown().await?;
+    barrier.wait().await;
     log::info!("[{id}] total backup {} rows", rows);
+    drop(stream);
+    consumer.unsubscribe().await;
     Ok(())
 }
 
@@ -215,12 +348,21 @@ pub async fn tmq_to_local(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> R
             consumers.push(consumer);
         }
 
-        for id in 0..jobs {
+        let barrier = Arc::new(Barrier::new(jobs));
+
+        let man = Arc::new(ZFileMan {
+            path: path.to_owned(),
+            // db: topic.database.clone(),
+            topic: topic.name.clone(),
+            sync: tokio::sync::Mutex::new(()),
+            writers: Default::default(),
+        });
+
+        for _ in 0..jobs {
             let consumer = consumers.pop().unwrap();
-            let prefix = path.join(format!("{}-{}", topic.name, id));
-            log::info!("start with {}", prefix.display());
-            let file = ZFile::new(prefix, async_compression::Level::Best).await?;
-            let handle = tokio::spawn(async move { backup(consumer, file, task_id).await });
+            let barrier = barrier.clone();
+            let man = man.clone();
+            let handle = tokio::spawn(async move { backup(consumer, man, task_id, barrier).await });
             handles.push(handle);
             task_id += 1;
         }
@@ -228,10 +370,11 @@ pub async fn tmq_to_local(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> R
     for handle in handles {
         handle.await??;
     }
+    // tokio::time::sleep(std::time::Duration::MAX).await;
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread")]
 async fn test_tmq_to_local() -> anyhow::Result<()> {
     std::env::set_var("RUST_LOG", "debug");
     pretty_env_logger::init();
@@ -252,5 +395,6 @@ async fn test_tmq_to_local() -> anyhow::Result<()> {
         true,
     )
     .await?;
+    std::fs::remove_dir_all("./tmq_to_local_out")?;
     Ok(())
 }

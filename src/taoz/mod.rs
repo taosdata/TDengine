@@ -107,6 +107,7 @@ impl ZFile {
     }
 
     pub async fn shutdown(&mut self) -> IoResult<()> {
+        log::debug!("shutdown file {}", self.prefix.display());
         self.file.shutdown().await?;
         Ok(())
     }
