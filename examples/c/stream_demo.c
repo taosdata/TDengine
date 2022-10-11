@@ -97,7 +97,7 @@ int32_t create_stream() {
 
   pRes = taos_query(pConn,
                     /*"create stream stream1 trigger at_once watermark 10s into outstb as select _wstart start, avg(k) from st1 partition by tbname interval(10s)");*/
-                    "create stream stream2 into outstb subtable(concat(concat(concat('prefix_', tname), '_suffix'), cast(k1 as varchar(20)))) as select _wstart wstart, avg(k) from st1 partition by tbname tname, a k1 interval(10s);");
+                    "create stream stream2 into outstb subtable(concat(concat(concat('prefix_', tname), '_suffix_'), cast(k1 as varchar(20)))) as select _wstart wstart, avg(k) from st1 partition by tbname tname, a k1 interval(10s);");
   if (taos_errno(pRes) != 0) {
     printf("failed to create stream stream1, reason:%s\n", taos_errstr(pRes));
     return -1;
