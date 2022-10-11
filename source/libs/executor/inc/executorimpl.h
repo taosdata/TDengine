@@ -767,6 +767,7 @@ typedef struct SStreamSessionAggOperatorInfo {
   SPhysiNode*         pPhyNode;   // create new child
   bool                isFinal;
   bool                ignoreExpiredData;
+  SHashObj*           pGroupIdTbNameMap;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct SStreamPartitionOperatorInfo {
@@ -845,6 +846,7 @@ typedef struct SStreamStateAggOperatorInfo {
   void*               pDelIterator;
   SArray*             pChildren;  // cache for children's result;
   bool                ignoreExpiredData;
+  SHashObj*           pGroupIdTbNameMap;
 } SStreamStateAggOperatorInfo;
 
 typedef struct SSortOperatorInfo {
@@ -899,8 +901,12 @@ void    destroyExprInfo(SExprInfo* pExpr, int32_t numOfExprs);
 int32_t initAggInfo(SExprSupp* pSup, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols, size_t keyBufSize,
                     const char* pkey);
 void    initResultSizeInfo(SResultInfo* pResultInfo, int32_t numOfRows);
+
+void doBuildStreamResBlock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo,
+                           SDiskbasedBuf* pBuf);
 void    doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo,
                                SDiskbasedBuf* pBuf);
+
 int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock, bool holdDataInBuf);
 bool    hasLimitOffsetInfo(SLimitInfo* pLimitInfo);
 void    initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimitInfo);
