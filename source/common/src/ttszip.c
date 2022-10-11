@@ -52,7 +52,7 @@ STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
   }
 
   if (!autoDelete) {
-    if (taosRemoveFile(pTSBuf->path) == NULL) {
+    if (taosRemoveFile(pTSBuf->path) != 0) {
       taosMemoryFree(pTSBuf);
       return NULL;
     }
