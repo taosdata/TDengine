@@ -373,7 +373,7 @@ _exit:
   return code;
 }
 
-int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad, bool isReset) {
+int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->vgId = TD_VID(pVnode);
   pLoad->syncState = syncGetMyRole(pVnode->sync);
   pLoad->cacheUsage = tsdbCacheGetUsage(pVnode);
@@ -387,15 +387,20 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad, bool isReset) {
   pLoad->numOfInsertSuccessReqs = atomic_load_64(&pVnode->statis.nInsertSuccess);
   pLoad->numOfBatchInsertReqs = atomic_load_64(&pVnode->statis.nBatchInsert);
   pLoad->numOfBatchInsertSuccessReqs = atomic_load_64(&pVnode->statis.nBatchInsertSuccess);
-
-  if (isReset) {
-    VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nInsert, pLoad->numOfInsertReqs, 64);
-    VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nInsertSuccess, pLoad->numOfInsertSuccessReqs, 64);
-    VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nBatchInsert, pLoad->numOfBatchInsertReqs, 64);
-    VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nBatchInsertSuccess, pLoad->numOfBatchInsertSuccessReqs, 64);
-  }
-
   return 0;
+}
+
+/**
+ * @brief Reset the statistics value by monitor interval
+ *
+ * @param pVnode
+ * @param pLoad
+ */
+void vnodeResetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
+  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nInsert, pLoad->numOfInsertReqs, 64);
+  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nInsertSuccess, pLoad->numOfInsertSuccessReqs, 64);
+  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nBatchInsert, pLoad->numOfBatchInsertReqs, 64);
+  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nBatchInsertSuccess, pLoad->numOfBatchInsertSuccessReqs, 64);
 }
 
 void vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId) {

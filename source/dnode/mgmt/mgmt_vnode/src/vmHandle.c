@@ -29,7 +29,8 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
 
     SVnodeObj *pVnode = *ppVnode;
     SVnodeLoad vload = {0};
-    vnodeGetLoad(pVnode->pImpl, &vload, isReset);
+    vnodeGetLoad(pVnode->pImpl, &vload);
+    if (isReset) vnodeResetLoad(pVnode->pImpl, &vload);
     taosArrayPush(pInfo->pVloads, &vload);
     pIter = taosHashIterate(pMgmt->hash, pIter);
   }
