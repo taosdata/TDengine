@@ -238,8 +238,8 @@ TEST(TdbOVFLPagesTest, TbGetTest) {
   }
 }
 
-TEST(TdbOVFLPagesTest, DISABLED_TbDeleteTest) {
-  // TEST(TdbOVFLPagesTest, TbDeleteTest) {
+// TEST(TdbOVFLPagesTest, DISABLED_TbDeleteTest) {
+TEST(TdbOVFLPagesTest, TbDeleteTest) {
   int ret = 0;
 
   taosRemoveDir("tdb");
@@ -267,7 +267,8 @@ TEST(TdbOVFLPagesTest, DISABLED_TbDeleteTest) {
   tdbBegin(pEnv, &txn);
 
   // generate value payload
-  char val[((4083 - 4 - 3 - 2) + 1) * 100];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
+  // char val[((4083 - 4 - 3 - 2) + 1) * 100];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
+  char val[((4083 - 4 - 3 - 2) + 1) * 2];  // pSize(4096) - amSize(1) - pageHdr(8) - footerSize(4)
   int  valLen = sizeof(val) / sizeof(val[0]);
   generateBigVal(val, valLen);
 
@@ -340,8 +341,8 @@ tdbBegin(pEnv, &txn);
   tdbTxnClose(&txn);
 }
 
-TEST(tdb_test, DISABLED_simple_insert1) {
-  // TEST(tdb_test, simple_insert1) {
+// TEST(tdb_test, DISABLED_simple_insert1) {
+TEST(tdb_test, simple_insert1) {
   int           ret;
   TDB          *pEnv;
   TTB          *pDb;
