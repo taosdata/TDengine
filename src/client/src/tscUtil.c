@@ -1372,6 +1372,10 @@ void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo, uint64_t objId, b
   // set the correct result
   SSDataBlock* p = pQueryInfo->pQInfo->runtimeEnv.outputBuf;
   pRes->numOfRows = (p != NULL)? p->info.rows: 0;
+  bool completed = pRes->numOfRows == 0;
+  if (p && pRes->numOfRows == 0 && tsAggAlways) {
+    pRes->numOfRows = 1;
+  }
 
   if (pRes->code == TSDB_CODE_SUCCESS && pRes->numOfRows > 0) {
     tscCreateResPointerInfo(pRes, pQueryInfo);
@@ -1380,7 +1384,7 @@ void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo, uint64_t objId, b
 
   tscDebug("0x%"PRIx64" retrieve result in pRes, numOfRows:%d", objId, pRes->numOfRows);
   pRes->row = 0;
-  pRes->completed = (pRes->numOfRows == 0);
+  pRes->completed = completed;
 }
 
 /*
