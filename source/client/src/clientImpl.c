@@ -868,10 +868,10 @@ int32_t handleQueryExecRsp(SRequestObj* pRequest) {
   return code;
 }
 
-//todo refacto the error code  mgmt
+// todo refacto the error code  mgmt
 void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
   SRequestObj* pRequest = (SRequestObj*)param;
-  STscObj* pTscObj = pRequest->pTscObj;
+  STscObj*     pTscObj = pRequest->pTscObj;
 
   pRequest->code = code;
   if (pResult) {
@@ -899,8 +899,8 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
            pRequest->requestId);
 
   if (code != TSDB_CODE_SUCCESS && NEED_CLIENT_HANDLE_ERROR(code) && pRequest->sqlstr != NULL) {
-    tscDebug("0x%" PRIx64 " client retry to handle the error, code:%s, tryCount:%d, reqId:0x%" PRIx64,
-             pRequest->self, tstrerror(code), pRequest->retry, pRequest->requestId);
+    tscDebug("0x%" PRIx64 " client retry to handle the error, code:%s, tryCount:%d, reqId:0x%" PRIx64, pRequest->self,
+             tstrerror(code), pRequest->retry, pRequest->requestId);
     pRequest->prevCode = code;
     schedulerFreeJob(&pRequest->body.queryJob, 0);
     qDestroyQuery(pRequest->pQuery);
@@ -1970,6 +1970,7 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   rpcInit.sessions = 16;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
+  rpcInit.compressSize = tsCompressMsgSize;
   rpcInit.user = "_dnd";
 
   clientRpc = rpcOpen(&rpcInit);

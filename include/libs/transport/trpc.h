@@ -82,8 +82,8 @@ typedef struct SRpcInit {
   int8_t   connType;      // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
   int32_t  idleTime;      // milliseconds, 0 means idle timer is disabled
 
-  const int32_t compressSize;  // -1: no compress, 0 : all data compressed, size: compress data if larger than size
-  const int8_t  encryption;    // encrypt or not
+  int32_t compressSize;  // -1: no compress, 0 : all data compressed, size: compress data if larger than size
+  int8_t  encryption;    // encrypt or not
 
   // the following is for client app ecurity only
   char *user;  // user name
