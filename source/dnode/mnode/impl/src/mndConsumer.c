@@ -149,10 +149,13 @@ static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
   if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) goto FAIL;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto FAIL;
 
+  tDeleteSMqConsumerObj(pConsumerNew);
+  taosMemoryFree(pConsumerNew);
   mndTransDrop(pTrans);
   return 0;
 FAIL:
   tDeleteSMqConsumerObj(pConsumerNew);
+  taosMemoryFree(pConsumerNew);
   mndTransDrop(pTrans);
   return -1;
 }

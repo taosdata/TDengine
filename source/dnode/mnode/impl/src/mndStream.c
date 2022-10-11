@@ -343,6 +343,20 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
     goto FAIL;
   }
 
+  pObj->tagSchema.nCols = pCreate->numOfTags;
+  if (pCreate->numOfTags) {
+    pObj->tagSchema.pSchema = taosMemoryCalloc(pCreate->numOfTags, sizeof(SSchema));
+  }
+  ASSERT(pCreate->numOfTags == taosArrayGetSize(pCreate->pTags));
+  for (int32_t i = 0; i < pCreate->numOfTags; i++) {
+    SField *pField = taosArrayGet(pCreate->pTags, i);
+    pObj->tagSchema.pSchema[i].colId = pObj->outputSchema.nCols + i + 1;
+    pObj->tagSchema.pSchema[i].bytes = pField->bytes;
+    pObj->tagSchema.pSchema[i].flags = pField->flags;
+    pObj->tagSchema.pSchema[i].type = pField->type;
+    memcpy(pObj->tagSchema.pSchema[i].name, pField->name, TSDB_COL_NAME_LEN);
+  }
+
 FAIL:
   if (pAst != NULL) nodesDestroyNode(pAst);
   if (pPlan != NULL) qDestroyQueryPlan(pPlan);
@@ -406,7 +420,7 @@ int32_t mndPersistStream(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
     return -1;
   }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
   return 0;
 }
 
@@ -417,7 +431,7 @@ int32_t mndPersistDropStreamLog(SMnode *pMnode, STrans *pTrans, SStreamObj *pStr
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
   return 0;
 }
 
@@ -433,7 +447,7 @@ static int32_t mndSetStreamRecover(SMnode *pMnode, STrans *pTrans, const SStream
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
   return 0;
 }
 
@@ -663,7 +677,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   // build stream obj from request
   if (mndBuildStreamObjFromCreateReq(pMnode, &streamObj, &createStreamReq) < 0) {
-    /*ASSERT(0);*/
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
   }
@@ -673,7 +686,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
   }
-  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb); // hack way
+  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb);  // hack way
   mInfo("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
 
   // create stb for stream

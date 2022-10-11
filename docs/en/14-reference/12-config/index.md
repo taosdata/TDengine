@@ -205,7 +205,7 @@ The parameters described in this document by the effect that they have on the sy
 :::info
 To handle the data insertion and data query from multiple timezones, Unix Timestamp is used and stored in TDengine. The timestamp generated from any timezones at same time is same in Unix timestamp. Note that Unix timestamps are converted and recorded on the client side. To make sure the time on client side can be converted to Unix timestamp correctly, the timezone must be set properly.
 
-On Linux system, TDengine clients automatically obtain timezone from the host. Alternatively, the timezone can be configured explicitly in configuration file `taos.cfg` like below. For example:
+On Linux/macOS, TDengine clients automatically obtain timezone from the host. Alternatively, the timezone can be configured explicitly in configuration file `taos.cfg` like below. For example:
 
 ```
 timezone UTC-8
@@ -248,9 +248,9 @@ To avoid the problems of using time strings, Unix timestamp can be used directly
 :::info
 A specific type "nchar" is provided in TDengine to store non-ASCII characters such as Chinese, Japanese, and Korean. The characters to be stored in nchar type are firstly encoded in UCS4-LE before sending to server side. Note that the correct encoding is determined by the user. To store non-ASCII characters correctly, the encoding format of the client side needs to be set properly.
 
-The characters input on the client side are encoded using the default system encoding, which is UTF-8 on Linux, or GB18030 or GBK on some systems in Chinese, POSIX in docker, CP936 on Windows in Chinese. The encoding of the operating system in use must be set correctly so that the characters in nchar type can be converted to UCS4-LE.
+The characters input on the client side are encoded using the default system encoding, which is UTF-8 on Linux/macOS, or GB18030 or GBK on some systems in Chinese, POSIX in docker, CP936 on Windows in Chinese. The encoding of the operating system in use must be set correctly so that the characters in nchar type can be converted to UCS4-LE.
 
-The locale definition standard on Linux is: <Language\>\_<Region\>.<charset\>, for example, in "zh_CN.UTF-8", "zh" means Chinese, "CN" means China mainland, "UTF-8" means charset. The charset indicates how to display the characters. On Linux and Mac OSX, the charset can be set by locale in the system. On Windows system another configuration parameter `charset` must be used to configure charset because the locale used on Windows is not POSIX standard. Of course, `charset` can also be used on Linux to specify the charset.
+The locale definition standard on Linux/macOS is: <Language\>\_<Region\>.<charset\>, for example, in "zh_CN.UTF-8", "zh" means Chinese, "CN" means China mainland, "UTF-8" means charset. The charset indicates how to display the characters. On Linux/macOS, the charset can be set by locale in the system. On Windows system another configuration parameter `charset` must be used to configure charset because the locale used on Windows is not POSIX standard. Of course, `charset` can also be used on Linux/macOS to specify the charset.
 
 :::
 
@@ -263,9 +263,9 @@ The locale definition standard on Linux is: <Language\>\_<Region\>.<charset\>, f
 | Default Value | charset set in the system |
 
 :::info
-On Linux, if `charset` is not set in `taos.cfg`, when `taos` is started, the charset is obtained from system locale. If obtaining charset from system locale fails, `taos` would fail to start.
+On Linux/macOS, if `charset` is not set in `taos.cfg`, when `taos` is started, the charset is obtained from system locale. If obtaining charset from system locale fails, `taos` would fail to start.
 
-So on Linux system, if system locale is set properly, it's not necessary to set `charset` in `taos.cfg`. For example:
+So on Linux/macOS, if system locale is set properly, it's not necessary to set `charset` in `taos.cfg`. For example:
 
 ```
 locale zh_CN.UTF-8
@@ -279,7 +279,7 @@ charset CP936
 
 Refer to the documentation for your operating system before changing the charset.
 
-On a Linux system, if the charset contained in `locale` is not consistent with that set by `charset`, the later setting in the configuration file takes precedence.
+On a Linux/macOS, if the charset contained in `locale` is not consistent with that set by `charset`, the later setting in the configuration file takes precedence.
 
 ```
 locale zh_CN.UTF-8
@@ -675,7 +675,7 @@ To prevent system resource from being exhausted by multiple concurrent streams, 
 | Meaning       | Whether to generate core file when server crashes                                                                                                                       |
 | Value Range   | 0: false, 1: true                                                                                                                                                       |
 | Default Value | 1                                                                                                                                                                       |
-| Note          | The core file is generated under root directory `systemctl start taosd` is used to start, or under the working directory if `taosd` is started directly on Linux Shell. |
+| Note          | The core file is generated under root directory `systemctl/launchctl start taosd` is used to start, or under the working directory if `taosd` is started directly on Linux/macOS Shell. |
 
 ### udf
 

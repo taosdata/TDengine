@@ -51,6 +51,9 @@ extern "C" {
 #endif
 #else
 
+#ifndef __func__
+#define __func__ __FUNCTION__ 
+#endif
 #include <malloc.h>
 #include <time.h>
 #ifndef TD_USE_WINSOCK

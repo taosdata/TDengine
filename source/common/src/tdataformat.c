@@ -20,6 +20,30 @@
 #include "tdatablock.h"
 #include "tlog.h"
 
+// SBuffer ================================
+void tBufferDestroy(SBuffer *pBuffer) {
+  tFree(pBuffer->pBuf);
+  pBuffer->pBuf = NULL;
+}
+
+int32_t tBufferInit(SBuffer *pBuffer, int64_t size) {
+  pBuffer->nBuf = 0;
+  return tRealloc(&pBuffer->pBuf, size);
+}
+
+int32_t tBufferPut(SBuffer *pBuffer, const void *pData, int64_t nData) {
+  int32_t code = 0;
+
+  code = tRealloc(&pBuffer->pBuf, pBuffer->nBuf + nData);
+  if (code) return code;
+
+  memcpy(pBuffer->pBuf + pBuffer->nBuf, pData, nData);
+  pBuffer->nBuf += nData;
+
+  return code;
+}
+
+// ================================
 static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson);
 
 #pragma pack(push, 1)
@@ -387,7 +411,7 @@ _exit:
 
 int32_t tTSRowClone(const STSRow2 *pRow, STSRow2 **ppRow) {
   int32_t code = 0;
-  int32_t rLen;
+  int32_t rLen = 0;
 
   TSROW_LEN(pRow, rLen);
   (*ppRow) = (STSRow2 *)taosMemoryMalloc(rLen);
@@ -1654,8 +1678,8 @@ int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest) {
   int32_t size;
 
   ASSERT(pColDataSrc->nVal > 0);
-  ASSERT(pColDataDest->cid = pColDataSrc->cid);
-  ASSERT(pColDataDest->type = pColDataSrc->type);
+  ASSERT(pColDataDest->cid == pColDataSrc->cid);
+  ASSERT(pColDataDest->type == pColDataSrc->type);
 
   pColDataDest->smaOn = pColDataSrc->smaOn;
   pColDataDest->nVal = pColDataSrc->nVal;

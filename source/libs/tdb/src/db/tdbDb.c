@@ -62,7 +62,7 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb) {
   }
   memset(pDb->pgrHash, 0, tsize);
 
-  mkdir(dbname, 0755);
+  taosMulModeMkDir(dbname, 0755);
 
 #ifdef USE_MAINDB
   // open main db
@@ -96,6 +96,8 @@ int tdbClose(TDB *pDb) {
 
   return 0;
 }
+
+int32_t tdbAlter(TDB *pDb, int pages) { return tdbPCacheAlter(pDb->pCache, pages); }
 
 int32_t tdbBegin(TDB *pDb, TXN *pTxn) {
   SPager *pPager;

@@ -303,6 +303,10 @@ int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, SRequestConnInfo* pConn, uint64_t re
 
 int32_t catalogClearCache(void);
 
+SMetaData* catalogCloneMetaData(SMetaData* pData);
+
+void catalogFreeMetaData(SMetaData* pData);
+
 /**
  * Destroy catalog and relase all resources
  */

@@ -15,6 +15,12 @@
 
 #include "vnd.h"
 
+#define VNODE_GET_LOAD_RESET_VALS(pVar, oVal, vType)                   \
+  do {                                                                 \
+    int##vType##_t newVal = atomic_sub_fetch_##vType(&(pVar), (oVal)); \
+    ASSERT(newVal >= 0);                                               \
+  } while (0)
+
 int vnodeQueryOpen(SVnode *pVnode) {
   return qWorkerInit(NODE_TYPE_VNODE, TD_VID(pVnode), (void **)&pVnode->pQuery, &pVnode->msgCb);
 }
@@ -375,11 +381,26 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->compStorage = (int64_t)2 * 1073741824;
   pLoad->pointsWritten = 100;
   pLoad->numOfSelectReqs = 1;
-  pLoad->numOfInsertReqs = 3;
-  pLoad->numOfInsertSuccessReqs = 2;
-  pLoad->numOfBatchInsertReqs = 5;
-  pLoad->numOfBatchInsertSuccessReqs = 4;
+  pLoad->numOfInsertReqs = atomic_load_64(&pVnode->statis.nInsert);
+  pLoad->numOfInsertSuccessReqs = atomic_load_64(&pVnode->statis.nInsertSuccess);
+  pLoad->numOfBatchInsertReqs = atomic_load_64(&pVnode->statis.nBatchInsert);
+  pLoad->numOfBatchInsertSuccessReqs = atomic_load_64(&pVnode->statis.nBatchInsertSuccess);
   return 0;
+}
+
+/**
+ * @brief Reset the statistics value by monitor interval
+ *
+ * @param pVnode
+ * @param pLoad
+ */
+void vnodeResetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
+  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nInsert, pLoad->numOfInsertReqs, 64);
+  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nInsertSuccess, pLoad->numOfInsertSuccessReqs, 64);
+  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nBatchInsert, pLoad->numOfBatchInsertReqs, 64);
+  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nBatchInsertSuccess, pLoad->numOfBatchInsertSuccessReqs, 64);
+
+
 }
 
 void vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId) {
@@ -393,7 +414,7 @@ void vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId) {
 }
 
 int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list) {
-  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode->pMeta, uid);
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode->pMeta, uid, 1);
 
   while (1) {
     tb_uid_t id = metaCtbCursorNext(pCur);
@@ -405,7 +426,7 @@ int32_t vnodeGetAllTableList(SVnode *pVnode, uint64_t uid, SArray *list) {
     taosArrayPush(list, &info);
   }
 
-  metaCloseCtbCursor(pCur);
+  metaCloseCtbCursor(pCur, 1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -413,7 +434,7 @@ int32_t vnodeGetCtbIdListByFilter(SVnode *pVnode, int64_t suid, SArray *list, bo
   return 0;
 }
 int32_t vnodeGetCtbIdList(SVnode *pVnode, int64_t suid, SArray *list) {
-  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode->pMeta, suid);
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode->pMeta, suid, 1);
 
   while (1) {
     tb_uid_t id = metaCtbCursorNext(pCur);
@@ -424,7 +445,7 @@ int32_t vnodeGetCtbIdList(SVnode *pVnode, int64_t suid, SArray *list) {
     taosArrayPush(list, &id);
   }
 
-  metaCloseCtbCursor(pCur);
+  metaCloseCtbCursor(pCur, 1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -448,7 +469,7 @@ int32_t vnodeGetStbIdList(SVnode *pVnode, int64_t suid, SArray *list) {
 }
 
 int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
-  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode->pMeta, suid);
+  SMCtbCursor *pCur = metaOpenCtbCursor(pVnode->pMeta, suid, 0);
   if (!pCur) {
     return TSDB_CODE_FAILED;
   }
@@ -463,12 +484,12 @@ int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
     ++(*num);
   }
 
-  metaCloseCtbCursor(pCur);
+  metaCloseCtbCursor(pCur, 0);
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
-  STSchema *pTSchema = metaGetTbTSchema(pVnode->pMeta, suid, -1);
+  STSchema *pTSchema = metaGetTbTSchema(pVnode->pMeta, suid, -1, 0);
   // metaGetTbTSchemaEx(pVnode->pMeta, suid, suid, -1, &pTSchema);
 
   if (pTSchema) {

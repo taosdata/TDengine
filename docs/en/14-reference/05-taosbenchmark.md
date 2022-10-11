@@ -23,7 +23,7 @@ There are two ways to install taosBenchmark:
 
 TaosBenchmark needs to be executed on the terminal of the operating system, it supports two configuration methods: [Command-line arguments](#command-line-arguments-in-detail) and [JSON configuration file](#configuration-file-parameters-in-detail). These two methods are mutually exclusive. Users can use `-f <json file>` to specify a configuration file. When running taosBenchmark with command-line arguments to control its behavior, users should use other parameters for configuration, but not the `-f` parameter. In addition, taosBenchmark offers a special way of running without parameters.
 
-taosBenchmark supports the complete performance testing of TDengine by providing functionally to write, query, and subscribe. These three functions are mutually exclusive, users can only select one of them each time taosBenchmark runs. The query and subscribe functionalities are only configurable using a json configuration file by specifying the parameter `filetype`, while write can be performed through both the command-line and a configuration file. If you want to test the performance of queries or data subscriptionm configure taosBenchmark with the configuration file. You can modify the value of the `filetype` parameter to specify the function that you want to test.
+taosBenchmark supports the complete performance testing of TDengine by providing functionally to write, query, and subscribe. These three functions are mutually exclusive, users can only select one of them each time taosBenchmark runs. The query and subscribe functionalities are only configurable using a json configuration file by specifying the parameter `filetype`, while write can be performed through both the command-line and a configuration file. If you want to test the performance of queries or data subscription configure taosBenchmark with the configuration file. You can modify the value of the `filetype` parameter to specify the function that you want to test.
 
 **Make sure that the TDengine cluster is running correctly before running taosBenchmark. **
 
@@ -340,7 +340,7 @@ The configuration parameters for specifying super table tag columns and data col
 
 - **values**: The value field of the nchar/binary column/label, which will be chosen randomly from the values.
 
-- **sma**: Insert the column into the BSMA. Enter `yes` or `no`. The default is `no`.
+- **sma**: Insert the column into the SMA. Enter `yes` or `no`. The default is `no`.
 
 #### insertion behavior configuration parameters
 

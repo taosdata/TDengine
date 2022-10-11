@@ -59,34 +59,18 @@ void osDefaultInit() {
   if (tmpDir != NULL) {
     strcpy(tsTempDir, tmpDir);
   }
-
-  if (configDir[0] == 0) {
-    strcpy(configDir, "C:\\TDengine\\cfg");
-  }
-  strcpy(tsDataDir, "C:\\TDengine\\data");
-  strcpy(tsLogDir, "C:\\TDengine\\log");
-  strcpy(tsTempDir, "C:\\Windows\\Temp");
   strcpy(tsOsName, "Windows");
-
 #elif defined(_TD_DARWIN_64)
-  if (configDir[0] == 0) {
-    strcpy(configDir, "/usr/local/etc/taos");
-  }
-  strcpy(tsDataDir, "/usr/local/var/lib/taos");
-  strcpy(tsLogDir, "/usr/local/var/log/taos");
-  strcpy(tsTempDir, "/tmp/taosd");
   strcpy(tsOsName, "Darwin");
-
 #else
-  if (configDir[0] == 0) {
-    strcpy(configDir, "/etc/taos");
-  }
-  strcpy(tsDataDir, "/var/lib/taos");
-  strcpy(tsLogDir, "/var/log/taos");
-  strcpy(tsTempDir, "/tmp");
   strcpy(tsOsName, "Linux");
-
 #endif
+  if (configDir[0] == 0) {
+    strcpy(configDir, TD_CFG_DIR_PATH);
+  }
+  strcpy(tsDataDir, TD_DATA_DIR_PATH);
+  strcpy(tsLogDir, TD_LOG_DIR_PATH);
+  strcpy(tsTempDir, TD_TMP_DIR_PATH);
 }
 
 void osUpdate() {

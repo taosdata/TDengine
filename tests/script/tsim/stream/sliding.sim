@@ -5,15 +5,15 @@ sleep 50
 sql connect
 
 print =============== create database
-sql create database test vgroups 1
-sql select * from information_schema.ins_databases
+sql create database test vgroups 1;
+sql select * from information_schema.ins_databases;
 if $rows != 3 then
   return -1
 endi
 
 print $data00 $data01 $data02
 
-sql use test
+sql use test;
 sql create stable st(ts timestamp, a int, b int, c int, d double) tags(ta int,tb int,tc int);
 sql create table t1 using st tags(1,1,1);
 sql create table t2 using st tags(2,2,2);
@@ -48,8 +48,9 @@ if $loop_count == 10 then
   return -1
 endi
 
+print step 0
 
-sql select * from streamt
+sql select * from streamt;
 
 # row 0
 if $data01 != 1 then
@@ -97,7 +98,7 @@ endi
 
 print step 1
 
-sql select * from streamt2
+sql select * from streamt2;
 
 # row 0
 if $data01 != 1 then
@@ -238,6 +239,67 @@ if $data32 != 6 then
   print =====data32=$data32
   goto loop0
 endi
+
+print step 3.1
+
+sql insert into t1 values(1648791216001,2,2,3,1.1);
+
+$loop_count = 0
+
+loop00:
+sleep 300
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+sql select * from streamt2;
+
+# row 0
+if $data01 != 1 then
+  print =====data01=$data01
+  goto loop00
+endi
+
+if $data02 != 1 then
+  print =====data02=$data02
+  goto loop00
+endi
+
+# row 1
+if $data11 != 3 then
+  print =====data11=$data11
+  goto loop00
+endi
+
+if $data12 != 5 then
+  print =====data12=$data12
+  goto loop00
+endi
+
+# row 2
+if $data21 != 3 then
+  print =====data21=$data21
+  goto loop00
+endi
+
+if $data22 != 7 then
+  print =====data22=$data22
+  goto loop00
+endi
+
+# row 3
+if $data31 != 1 then
+  print =====data31=$data31
+  goto loop00
+endi
+
+if $data32 != 3 then
+  print =====data32=$data32
+  goto loop00
+endi
+
 
 print step 4
 
@@ -512,6 +574,8 @@ endi
 
 
 $loop_count = 0
+
+print step 7
 
 loop4:
 sleep 100

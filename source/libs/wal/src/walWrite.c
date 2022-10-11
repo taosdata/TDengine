@@ -28,6 +28,7 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
     SWalRef *pRef = (SWalRef *)pIter;
     if (pRef->refVer != -1 && pRef->refVer <= ver) {
       taosHashCancelIterate(pWal->pRefHash, pIter);
+      taosThreadMutexUnlock(&pWal->mutex);
       return -1;
     }
   }
