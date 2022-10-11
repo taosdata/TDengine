@@ -186,16 +186,22 @@ static void uvHandleActivityTimeout(uv_timer_t* handle) {
 static bool uvHandleReq(SSvrConn* pConn) {
   STrans* pTransInst = pConn->pTransInst;
 
-  STransMsgHead* msg = NULL;
-  int            msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&msg);
+  STransMsgHead* pHead = NULL;
+
+  int msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead);
   if (msgLen <= 0) {
     tError("%s conn %p read invalid packet", transLabel(pTransInst), pConn);
     return false;
   }
 
-  STransMsgHead* pHead = (STransMsgHead*)msg;
+  if (transDecompressMsg((char**)&pHead, msgLen) < 0) {
+    tDebug("%s conn %p recv invalid packet, failed to decompress", transLabel(pTransInst), pConn);
+    return false;
+  }
+
   pHead->code = htonl(pHead->code);
   pHead->msgLen = htonl(pHead->msgLen);
+
   memcpy(pConn->user, pHead->user, strlen(pHead->user));
 
   if (uvRecvReleaseReq(pConn, pHead)) {
@@ -399,17 +405,22 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
 
   pHead->release = smsg->type == Release ? 1 : 0;
   pHead->code = htonl(pMsg->code);
+  pHead->msgLen = htonl(pMsg->contLen + sizeof(STransMsgHead));
 
   char*   msg = (char*)pHead;
   int32_t len = transMsgLenFromCont(pMsg->contLen);
 
-  STrans*   pTransInst = pConn->pTransInst;
+  STrans* pTransInst = pConn->pTransInst;
+  if (pTransInst->compressSize != -1 && pTransInst->compressSize > pMsg->contLen) {
+    len = transCompressMsg(pMsg->pCont, pMsg->contLen) + sizeof(STransMsgHead);
+    pHead->msgLen = (int32_t)htonl((uint32_t)len);
+  }
+
   STraceId* trace = &pMsg->info.traceId;
   tGDebug("%s conn %p %s is sent to %s, local info:%s, len:%d", transLabel(pTransInst), pConn,
           TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, pMsg->contLen);
-  pHead->msgLen = htonl(len);
 
-  wb->base = msg;
+  wb->base = (char*)pHead;
   wb->len = len;
 }
 

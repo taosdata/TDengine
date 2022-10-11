@@ -45,6 +45,10 @@ void* rpcOpen(const SRpcInit* pInit) {
   if (pInit->label) {
     tstrncpy(pRpc->label, pInit->label, TSDB_LABEL_LEN);
   }
+
+  pRpc->compressSize = pInit->compressSize;
+  pRpc->encryption = pInit->encryption;
+
   // register callback handle
   pRpc->cfp = pInit->cfp;
   pRpc->retry = pInit->rfp;
@@ -129,9 +133,6 @@ void* rpcReallocCont(void* ptr, int32_t contLen) {
 
   return st + TRANS_MSG_OVERHEAD;
 }
-
-int32_t rpcReportProgress(void* pConn, char* pCont, int32_t contLen) { return -1; }
-void    rpcCancelRequest(int64_t rid) { return; }
 
 int rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid) {
   return transSendRequest(shandle, pEpSet, pMsg, NULL);
