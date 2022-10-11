@@ -214,6 +214,12 @@ int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCata
   return code;
 }
 
+void qDestroyParseContext(SParseContext* pCxt) {
+  taosArrayDestroy(pCxt->pTableMetaPos);
+  taosArrayDestroy(pCxt->pTableVgroupPos);
+  taosMemoryFree(pCxt);
+}
+
 void qDestroyQuery(SQuery* pQueryNode) { nodesDestroyNode((SNode*)pQueryNode); }
 
 int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {

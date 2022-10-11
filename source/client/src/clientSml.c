@@ -2336,7 +2336,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
   SAppClusterSummary *pActivity = &info->taos->pAppInfo->summary;
   atomic_add_fetch_64((int64_t *)&pActivity->numOfInsertsReq, 1);
 
-  launchAsyncQuery(info->pRequest, info->pQuery, NULL);
+  launchAsyncQuery(info->pRequest, info->pQuery, NULL, NULL);
   return TSDB_CODE_SUCCESS;
 }
 
