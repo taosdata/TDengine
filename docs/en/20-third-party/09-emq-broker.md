@@ -32,7 +32,11 @@ Note: The table schema is based on the blog [(In Chinese) Data Transfer, Storage
 
 ## Configuring EMQX Rules
 
+<<<<<<< HEAD
 Since the configuration interface of EMQX differs from version to version, here is v4.4.3 as an example. For other versions, please refer to the corresponding official documentation.
+=======
+Since the configuration interface of EMQX differs from version to version, here is v4.4.5 as an example. For other versions, please refer to the corresponding official documentation.
+>>>>>>> 2.6
 
 ### Login EMQX Dashboard
 

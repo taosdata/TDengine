@@ -125,7 +125,7 @@ static int tsdbDeleteImplCommon(STsdbRepo *pRepo, SControlDataInfo* pCtlInfo) {
     pRepo->deleteState = TSDB_NO_DELETE;
     tsem_post(&(pRepo->readyToCommit));
     tsdbInfo("vgId:%d :SDEL delete over, no meta or data file", REPO_ID(pRepo));
-    return -1;
+    return TSDB_CODE_SUCCESS;
   }
 
   SArray* aUpdates = taosArrayInit(10, sizeof(STable *));

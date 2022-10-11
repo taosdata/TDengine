@@ -47,7 +47,7 @@ if [ -d ${top_dir}/src/kit/taos-tools/packaging/deb ]; then
   cd ${top_dir}/src/kit/taos-tools/packaging/deb
   [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
-  taostools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}')
+  taostools_ver=$(git tag |grep -v taos | sort | tail -1)
   taostools_install_dir="${release_dir}/${clientName}Tools-${taostools_ver}"
 
   cd ${curr_dir}

@@ -93,8 +93,8 @@ static void shellCheckTablesSQLFile(const char *directoryName)
 {
   sprintf(shellTablesSQLFile, "%s/tables.sql", directoryName);
 
-  struct stat fstat;
-  if (stat(shellTablesSQLFile, &fstat) < 0) {
+  struct stat status;
+  if (stat(shellTablesSQLFile, &status) < 0) {
     shellTablesSQLFile[0] = 0;
   }
 }

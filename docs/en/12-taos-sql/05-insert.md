@@ -113,13 +113,6 @@ From version 2.1.5.0, tables can be automatically created using a super table as
 INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile.csv';
 ```
 
-Multiple tables can be automatically created and inserted in a single SQL statement, like below:
-
-```sql
-INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile_21001.csv'
-            d21002 USING meters (groupId) TAGS (2) FILE '/tmp/csvfile_21002.csv';
-```
-
 ## More About Insert
 
 For SQL statement like `insert`, a stream parsing strategy is applied. That means before an error is found and the execution is aborted, the part prior to the error point has already been executed. Below is an experiment to help understand the behavior.

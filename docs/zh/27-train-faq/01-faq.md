@@ -101,7 +101,7 @@ TDengine 还没有一组专用的 validation queries。然而建议你使用系�
 
 ### 9. 我可以删除或更新一条记录吗？
 
-TDengine 目前尚不支持删除功能，未来根据用户需求可能会支持。
+TDengine 删除功能只在 2.6.0.0 及以后的企业版中提供。
 
 从 2.0.8.0 开始，TDengine 支持更新已经写入数据的功能。使用更新功能需要在创建数据库时使用 UPDATE 1 参数，之后可以使用 INSERT INTO 命令更新已经写入的相同时间戳数据。UPDATE 参数不支持 ALTER DATABASE 命令修改。没有使用 UPDATE 1 参数创建的数据库，写入相同时间戳的数据不会修改之前的数据，也不会报错。
 
@@ -141,7 +141,7 @@ charset UTF-8
 
 ### 14. JDBC 报错： the executed SQL is not a DML or a DDL？
 
-请更新至最新的 JDBC 驱动，参考 [Java 连接器](/reference/connector/java)
+请更新至最新的 JDBC 驱动，参考 [Java 连接器](../../reference/connector/java)
 
 ### 15. taos connect failed, reason&#58; invalid timestamp
 
@@ -233,4 +233,31 @@ taosAdapter 从 TDengine 2.4.0.0 版本开始成为 TDengine 服务端软件的�
 需要说明的是，taosAdapter 的日志路径 path 需要单独配置，默认路径是 /var/log/taos ；日志等级 logLevel 有 8 个等级，默认等级是 info ，配置成 panic 可关闭日志输出。请注意操作系统 / 目录的空间大小，可通过命令行参数、环境变量或配置文件来修改配置，默认配置文件是 /etc/taos/taosadapter.toml 。
 
 有关 taosAdapter 组件的详细介绍请看文档：[taosAdapter](https://docs.taosdata.com/reference/taosadapter/)
+
+### 25. 发生了 OOM 怎么办？
+
+OOM 是操作系统的保护机制，当操作系统内存(包括 SWAP )不足时，会杀掉某些进程，从而保证操作系统的稳定运行。通常内存不足主要是如下两个原因导致，一是剩余内存小于 vm.min_free_kbytes ；二是程序请求的内存大于剩余内存。还有一种情况是内存充足但程序占用了特殊的内存地址，也会触发 OOM 。
+
+TDengine 会预先为每个 VNode 分配好内存，每个 Database 的 VNode 个数受 maxVgroupsPerDb 影响，每个 VNode 占用的内存大小受 Blocks 和 Cache 影响。要防止 OOM，需要在项目建设之初合理规划内存，并合理设置 SWAP ，除此之外查询过量的数据也有可能导致内存暴涨，这取决于具体的查询语句。TDengine 企业版对内存管理做了优化，采用了新的内存分配器，对稳定性有更高要求的用户可以考虑选择企业版。
+
+### 26. 为何批量写入数据时，时间戳使用 NOW 函数拼接会导致数据丢失？
+
+首先需要强调一个概念，TDengine 作为一个时序数据库（Time-Series Database），首个时间戳字段起到主键的作用，内存索引的构建、磁盘数据的存储与其密切相关，不能有重复的时间戳。
+
+NOW 函数（以及 NOW 关键字）返回客户端当前时间。当执行批量写入时，若首列时间戳给的值都是 NOW，在数据库默认毫秒的时间级别下是区分不开的（建库时可选择更高的时间精度），后续写入的重复时间戳将会丢失或更新，处理重复时间戳的具体逻辑由在 TDengine 中建库时的 Update 参数决定。
+
+### 27. 扩容集群后，DNode 状态为 Offline 怎么办？
+
+新的节点正常加入集群后，数据节点列表中会显示该节点处于 Ready 状态。若该节点状态为 Offline，可按照如下内容进行排查：
+
+1. 查看该节点 taosd 是否已启动、防火墙是否关闭；
+2. 确认新增节点的数据文件夹是否清空；
+3. 检查所有节点 /etc/hosts 域名解析是否完整、有效（需要有所有节点的解析，包括 arbitrator）；
+4. 该节点 firstEP、fqdn 参数是否正确配置。
+
+### 28. 能提供 TDengine 的建模实例吗？
+
+在社区支持的过程中，能发现很多新手小伙伴在部署 TDengine 后不知道如何进一步体验，我们的建议是跑一跑官网文档的语句。文档内容较多，为了方便新手小伙伴快速上手，我们将官网文档的示例模型浓缩、汇总了一下，希望尽可能快的让大家了解 TDengine 建模方法：[建模入门](https://github.com/taosdata/tdengine-modeling-and-querying-101/blob/main/cases/001-electricity-meter-monitoring.zh-hans.md)
+
+同时也欢迎社区的用户们为仓库 [tdengine-modeling-and-querying-101](https://github.com/taosdata/tdengine-modeling-and-querying-101) 提交 PR，展现 TDengine 在各行各业的建模实例。
 

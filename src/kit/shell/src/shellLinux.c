@@ -20,6 +20,7 @@
 #include "shellCommand.h"
 #include "tkey.h"
 #include "tulog.h"
+#include "shellAuto.h"
 
 #define OPT_ABORT 1 /* �Cabort */
 
@@ -52,11 +53,8 @@ static struct argp_option options[] = {
   {"pktlen",     'l', "PKTLEN",     0,                   "Packet length used for net test, default is 1000 bytes."},
   {"pktnum",     'N', "PKTNUM",     0,                   "Packet numbers used for net test, default is 100."},
   {"pkttype",    'S', "PKTTYPE",    0,                   "Choose packet type used for net test, default is TCP. Only speed test could be either TCP or UDP."},
-#ifdef WEBSOCKET
   {"restful", 'R', 0, 0, "Connect and interact with TDengine use restful."},
-  {"cloudDsn", 'E', "DSN", 0, "The DSN to use when connecting TDengine's cloud services."},
-  {"timeout", 't', "SECONDS", 0, "The timeout seconds for websocket to interact."},
-#endif
+  {0, 'E', "DSN", 0, "The DSN to use when connecting TDengine's cloud services."},
   {0}};
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
@@ -68,9 +66,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
   switch (key) {
     case 'h':
         if (arg) {
-#ifdef WEBSOCKET
           args.cloud = false;
-#endif
           args.host = arg;
         } else {
           fprintf(stderr, "Invalid host\n");
@@ -81,9 +77,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       break;
     case 'P':
       if (arg) {
-#ifdef WEBSOCKET
         args.cloud = false;
-#endif
         tsDnodeShellPort = atoi(arg);
         args.port = atoi(arg);
       } else {
@@ -111,9 +105,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         wordfree(&full_path);
         return -1;
       }
-#ifdef WEBSOCKET
       args.cloud = false;
-#endif
       tstrncpy(configDir, full_path.we_wordv[0], TSDB_FILENAME_LEN);
       wordfree(&full_path);
       break;
@@ -181,27 +173,18 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     case OPT_ABORT:
       arguments->abort = 1;
       break;
-#ifdef WEBSOCKET
     case 'R':
       arguments->restful = true;
       arguments->cloud = false;
       break;
     case 'E':
       if (arg) {
-         arguments->dsn = arg;
+         arguments->cloudDsn = arg;
        } else {
          fprintf(stderr, "Invalid -E option\n");
          return -1;
        }
       break;
-    case 't':
-      if (arg) {
-        arguments->timeout = atoi(arg);
-      } else {
-        fprintf(stderr, "Invalid -t option\n");
-      }
-      break;
-#endif
     default:
       return ARGP_ERR_UNKNOWN;
   }
@@ -211,7 +194,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 /* Our argp parser. */
 static struct argp argp = {options, parse_opt, args_doc, doc};
 
-char      LINUXCLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
+char      LINUXCLIENT_VERSION[] = "Welcome to the TDengine Command Line Interface from %s, Client Version:%s\n"
                              "Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.\n\n";
 char g_password[SHELL_MAX_PASSWORD_LEN];
 
@@ -255,18 +238,16 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
 
   argp_parse(&argp, argc, argv, 0, 0, arguments);
 
-#ifdef WEBSOCKET
-  if (args.dsn == NULL) {
+  if (args.cloudDsn == NULL) {
     if (args.cloud) {
-      args.dsn = getenv("TDENGINE_CLOUD_DSN");
-        if (args.dsn == NULL) {
+      args.cloudDsn = getenv("TDENGINE_CLOUD_DSN");
+        if (args.cloudDsn == NULL) {
           args.cloud = false;
         }
     }
   } else {
     args.cloud = true;
   }
-#endif
 
   if (arguments->abort) {
     #ifndef _ALPINE
@@ -303,7 +284,12 @@ int32_t shellReadCommand(TAOS *con, char *command) {
         utf8_array[k] = c;
       }
       insertChar(&cmd, utf8_array, count);
+      pressOtherKey(c);
+    } else if (c == TAB_KEY) {
+      // press TAB key
+      pressTabKey(con, &cmd);
     } else if (c < '\033') {
+      pressOtherKey(c);
       // Ctrl keys.  TODO: Implement ctrl combinations
       switch (c) {
         case 1:  // ctrl A
@@ -349,8 +335,12 @@ int32_t shellReadCommand(TAOS *con, char *command) {
         case 21:  // Ctrl + U;
           clearLineBefore(&cmd);
           break;
+        case 23:  // Ctrl + W;
+          positionCursorMiddle(&cmd);
+          break;
       }
     } else if (c == '\033') {
+      pressOtherKey(c);
       c = (char)getchar();
       switch (c) {
         case '[':
@@ -425,9 +415,11 @@ int32_t shellReadCommand(TAOS *con, char *command) {
           break;
       }
     } else if (c == 0x7f) {
+      pressOtherKey(c);
       // press delete key
       backspaceChar(&cmd);
     } else {
+      pressOtherKey(c);
       insertChar(&cmd, &c, 1);
     }
   }
@@ -626,4 +618,38 @@ void exitShell() {
   /*int32_t ret =*/ tcsetattr(STDIN_FILENO, TCSANOW, &oldtio);
   taos_cleanup();
   exit(EXIT_SUCCESS);
+}
+
+int tcpConnect(char* host, int port) {
+    struct sockaddr_in serv_addr;
+    if (port == 0) {
+        port = 6041;
+        args.port = 6041;
+    }
+    if (NULL == host) {
+        host = "localhost";
+        args.host = "localhost";
+    }
+
+    struct hostent *server = gethostbyname(host);
+    if ((server == NULL) || (server->h_addr == NULL)) {
+        fprintf(stderr, "no such host: %s\n", host);
+        return -1;
+    }
+    memset(&serv_addr, 0, sizeof(struct sockaddr_in));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(port);
+    memcpy(&(serv_addr.sin_addr.s_addr), server->h_addr, server->h_length);
+    args.socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (args.socket < 0) {
+        fprintf(stderr, "failed to create socket\n");
+        return -1;
+    }
+    int retConn = connect(args.socket, (struct sockaddr *)&serv_addr, sizeof(struct sockaddr));
+    if (retConn < 0) {
+        fprintf(stderr, "failed to connect\n");
+        close(args.socket);
+        return -1;
+    }
+    return 0;
 }

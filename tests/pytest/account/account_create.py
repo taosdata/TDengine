@@ -13,6 +13,7 @@
 
 import sys
 import taos
+import os
 from util.log import tdLog
 from util.cases import tdCases
 from util.sql import tdSql
@@ -34,6 +35,17 @@ class TDTestCase:
         tdSql.error("create user tdenginetdenginetdengine PASS 'test' ")
 
         tdSql.error("create user tdenginet PASS '1234512345123456' ")
+
+        updatePwd = "test"
+        os.system('''taos -s "alter user root PASS '%s'"''' % updatePwd)
+        
+        r = os.popen("taos -u root -p%s -s 'show users'" % updatePwd);
+        text = r.read()
+        r.close()
+        if "Authentication failure" in text:
+            tdLog.exit("%s failed: Authentication failure" % __file__)
+        else:
+            pass
 
         try:
             tdSql.execute("create account a&cc PASS 'pass123'")

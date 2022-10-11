@@ -106,7 +106,7 @@ int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision);
 int64_t taosTimeSub(int64_t t, int64_t duration, char unit, int32_t precision);
 
 int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precision);
-int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision);
+int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t sliding, int64_t slidingUnit, int64_t intervalUnit, int32_t precision);
 
 int32_t parseAbsoluteDuration(char* token, int32_t tokenlen, int64_t* ts, char* unit, int32_t timePrecision);
 int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* duration, char* unit, int32_t timePrecision);

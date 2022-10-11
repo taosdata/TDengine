@@ -101,13 +101,13 @@ echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} 
 curr_dir=$(pwd)
 
 if [ "$osType" == "Darwin" ]; then
+  script_dir="$(dirname $(readlink -f $0))"
+  top_dir="$(readlink -f ${script_dir}/..)"
+else
   script_dir=$(dirname $0)
   cd ${script_dir}
   script_dir="$(pwd)"
   top_dir=${script_dir}/..
-else
-  script_dir="$(dirname $(readlink -f $0))"
-  top_dir="$(readlink -f ${script_dir}/..)"
 fi
 
 csudo=""
@@ -194,9 +194,11 @@ else
   allocator_macro=""
 fi
 
+# 3. replace product info
 if [[ "$dbName" != "taos" ]]; then
   source ${enterprise_dir}/packaging/oem/sed_$dbName.sh
   replace_community_$dbName
+  replace_output_$dbName
 fi
 
 if [[ "$httpdBuild" == "true" ]]; then
@@ -223,6 +225,7 @@ if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" =
   else
     if [[ "$dbName" != "taos" ]]; then
       replace_enterprise_$dbName
+      replace_output_$dbName
     fi
     cmake ../../ -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
   fi

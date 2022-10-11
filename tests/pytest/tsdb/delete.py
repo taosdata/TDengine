@@ -63,6 +63,8 @@ class TDTestCase:
         # test delete with functions
         self.test_case3()
         tdLog.debug(" DELETE test_case3 ............ [OK]")
+        self.test_case4()
+        tdLog.debug(" DELETE test_case4 ............ [OK]")
 
 
     # stop 
@@ -78,10 +80,16 @@ class TDTestCase:
     def create_tables(self):
         # super table
         tdSql.execute("create table st(ts timestamp, i1 int) tags(area int)")
+        # test delete empty super table
+        tdSql.execute("delete from st")
+
         # child table
         for i in range(10):
           sql = "create table t%d using st tags(%d)"%(i, i)
           tdSql.execute(sql)
+
+        # test delete empty table
+        tdSql.execute("delete from t0")
         
         return 
 
@@ -323,6 +331,38 @@ class TDTestCase:
         tdSql.query("select avg(i1) from st")
         tdSql.checkData(0, 0, (sum - sum1) / (count - count1))        
 
+
+        # verify function results after delete
+    def test_case4(self):
+        tdSql.execute("create database test1")
+        tdSql.execute("use test1")
+
+        tdSql.execute("create table tb(ts timestamp, c1 int)")
+        tdSql.execute("delete from tb where ts = '2021-05-31 00:00:00 000'")
+        tdSql.checkAffectedRows(0)
+        tdSql.execute("delete from tb where ts = '2021-05-31 00:00:00 000'")
+        tdSql.checkAffectedRows(0)
+
+        tdSql.execute("insert into tb values(now, 1)")
+        tdSql.query("select * from tb")
+        tdSql.checkRows(1)
+
+        tdSql.execute("create table stb(ts timestamp, c1 int) tags(t1 int)")
+        tdSql.execute("delete from stb where ts = '2021-05-31 00:00:00 000'")
+        tdSql.checkAffectedRows(0)
+
+        tdSql.execute("delete from stb where ts = '2021-05-31 00:00:00 000'")
+        tdSql.checkAffectedRows(0)
+
+        tdSql.execute("insert into t1 using stb tags(1) values(now, 1)")
+        tdSql.query("select * from stb")
+        tdSql.checkRows(1)
+
+        tdSql.execute("create table t2 using stb tags(2)")
+        tdSql.query("select tbname from stb")
+        tdSql.checkRows(2)
+
+        
 #
 # add case with filename
 #

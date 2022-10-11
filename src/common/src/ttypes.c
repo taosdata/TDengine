@@ -259,8 +259,8 @@ static void getStatics_u64(const void *pData, int32_t numOfRow, int64_t *min, in
 static void getStatics_f(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,
                          int64_t *sum, int16_t *minIndex, int16_t *maxIndex, int16_t *numOfNull) {
   float *data  = (float *)pData;
-  float fmin   = FLT_MAX;
-  float fmax   = -FLT_MAX;
+  float flmin   = FLT_MAX;
+  float flmax   = -FLT_MAX;
   double dsum  = 0;
   *minIndex    = 0;
   *maxIndex    = 0;
@@ -276,20 +276,20 @@ static void getStatics_f(const void *pData, int32_t numOfRow, int64_t *min, int6
     float fv = GET_FLOAT_VAL((const char*)&(data[i]));
 
     dsum += fv;
-    if (fmin > fv) {
-      fmin = fv;
+    if (flmin > fv) {
+      flmin = fv;
       *minIndex = i;
     }
     
-    if (fmax < fv) {
-      fmax = fv;
+    if (flmax < fv) {
+      flmax = fv;
       *maxIndex = i;
     }
   }
   
   SET_DOUBLE_VAL(sum, dsum);
-  SET_DOUBLE_VAL(max, fmax);
-  SET_DOUBLE_VAL(min, fmin);
+  SET_DOUBLE_VAL(max, flmax);
+  SET_DOUBLE_VAL(min, flmin);
 }
 
 static void getStatics_d(const void *pData, int32_t numOfRow, int64_t *min, int64_t *max,

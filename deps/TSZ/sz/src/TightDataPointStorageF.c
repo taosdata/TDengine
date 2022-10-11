@@ -25,15 +25,15 @@ void new_TightDataPointStorageF_Empty(TightDataPointStorageF **this)
 int new_TightDataPointStorageF_fromFlatBytes(TightDataPointStorageF **this, unsigned char* flatBytes, size_t flatBytesLength, sz_exedata* pde_exe, sz_params* pde_params)
 {
 	new_TightDataPointStorageF_Empty(this);
-	size_t i, index = 0;
+	size_t i, idx = 0;
 
 	//
 	// parse tdps
 	//
 
 	// 1 version(1)
-	unsigned char version = flatBytes[index++]; //1
-	unsigned char sameRByte = flatBytes[index++]; //1
+	unsigned char version = flatBytes[idx++]; //1
+	unsigned char sameRByte = flatBytes[idx++]; //1
 
     // parse data format
 	switch (version)
@@ -51,12 +51,12 @@ int new_TightDataPointStorageF_fromFlatBytes(TightDataPointStorageF **this, unsi
 	pde_exe->SZ_SIZE_TYPE = ((sameRByte & 0x40)>>6)==1?8:4; 				//0100,0000	
 	int errorBoundMode = SZ_ABS;
     // 3 meta(2)   
-	convertBytesToSZParams(&(flatBytes[index]), pde_params, pde_exe);
-	index += MetaDataByteLength;
+	convertBytesToSZParams(&(flatBytes[idx]), pde_params, pde_exe);
+	idx += MetaDataByteLength;
     // 4 element count(4)
 	unsigned char dsLengthBytes[8];
 	for (i = 0; i < pde_exe->SZ_SIZE_TYPE; i++)
-		dsLengthBytes[i] = flatBytes[index++];
+		dsLengthBytes[i] = flatBytes[idx++];
 	(*this)->dataSeriesLength = bytesToSize(dsLengthBytes, pde_exe->SZ_SIZE_TYPE);// 4 or 8		
 	if((*this)->isLossless==1)
 	{
@@ -66,7 +66,7 @@ int new_TightDataPointStorageF_fromFlatBytes(TightDataPointStorageF **this, unsi
 	else if(same==1)
 	{
 		(*this)->allSameData = 1;
-		(*this)->exactMidBytes = &(flatBytes[index]);
+		(*this)->exactMidBytes = &(flatBytes[idx]);
 		return errorBoundMode;
 	}
 	else
@@ -76,40 +76,40 @@ int new_TightDataPointStorageF_fromFlatBytes(TightDataPointStorageF **this, unsi
 	if(isRegression == 1)
 	{
 		(*this)->raBytes_size = flatBytesLength - 1 - 1 - MetaDataByteLength - pde_exe->SZ_SIZE_TYPE;
-		(*this)->raBytes = &(flatBytes[index]);
+		(*this)->raBytes = &(flatBytes[idx]);
 		return errorBoundMode;
 	}			
     // 5 quant intervals(4)   
 	unsigned char byteBuf[8];
 	for (i = 0; i < 4; i++)
-		byteBuf[i] = flatBytes[index++];
+		byteBuf[i] = flatBytes[idx++];
 	int max_quant_intervals = bytesToInt_bigEndian(byteBuf);// 4	
 	pde_params->maxRangeRadius = max_quant_intervals/2;
     // 6 intervals
 	for (i = 0; i < 4; i++)
-		byteBuf[i] = flatBytes[index++];
+		byteBuf[i] = flatBytes[idx++];
 	(*this)->intervals = bytesToInt_bigEndian(byteBuf);// 4	
     // 7 median
 	for (i = 0; i < 4; i++)
-		byteBuf[i] = flatBytes[index++];
+		byteBuf[i] = flatBytes[idx++];
 	(*this)->medianValue = bytesToFloat(byteBuf); //4
 	// 8 reqLength
-	(*this)->reqLength = flatBytes[index++]; //1
+	(*this)->reqLength = flatBytes[idx++]; //1
 	// 9 realPrecision(8)
 	for (i = 0; i < 8; i++)
-		byteBuf[i] = flatBytes[index++];
+		byteBuf[i] = flatBytes[idx++];
 	(*this)->realPrecision = bytesToDouble(byteBuf);//8
 	// 10 typeArray_size
 	for (i = 0; i < pde_exe->SZ_SIZE_TYPE; i++)
-		byteBuf[i] = flatBytes[index++];
+		byteBuf[i] = flatBytes[idx++];
 	(*this)->typeArray_size = bytesToSize(byteBuf, pde_exe->SZ_SIZE_TYPE);// 4		
     // 11 exactNum
 	for (i = 0; i < pde_exe->SZ_SIZE_TYPE; i++)
-		byteBuf[i] = flatBytes[index++];    
+		byteBuf[i] = flatBytes[idx++];    
 	(*this)->exactDataNum = bytesToSize(byteBuf, pde_exe->SZ_SIZE_TYPE);// ST
     // 12 mid size
 	for (i = 0; i < pde_exe->SZ_SIZE_TYPE; i++)
-		byteBuf[i] = flatBytes[index++];
+		byteBuf[i] = flatBytes[idx++];
 	(*this)->exactMidBytes_size = bytesToSize(byteBuf, pde_exe->SZ_SIZE_TYPE);// STqq
     
 	// calc leadNumArray_size
@@ -124,20 +124,20 @@ int new_TightDataPointStorageF_fromFlatBytes(TightDataPointStorageF **this, unsi
 	}	
 
     // 13 typeArray
-	(*this)->typeArray = &flatBytes[index]; 
+	(*this)->typeArray = &flatBytes[idx]; 
 	//retrieve the number of states (i.e., stateNum)
 	(*this)->allNodes = bytesToInt_bigEndian((*this)->typeArray); //the first 4 bytes store the stateNum
 	(*this)->stateNum = ((*this)->allNodes+1)/2;	
-	index+=(*this)->typeArray_size;
+	idx+=(*this)->typeArray_size;
 
     // 14 leadNumArray
-	(*this)->leadNumArray = &flatBytes[index];
-	index += (*this)->leadNumArray_size;
+	(*this)->leadNumArray = &flatBytes[idx];
+	idx += (*this)->leadNumArray_size;
 	// 15 exactMidBytes
-	(*this)->exactMidBytes = &flatBytes[index];
-	index+=(*this)->exactMidBytes_size;
+	(*this)->exactMidBytes = &flatBytes[idx];
+	idx+=(*this)->exactMidBytes_size;
 	// 16 residualMidBits
-	(*this)->residualMidBits = &flatBytes[index];
+	(*this)->residualMidBits = &flatBytes[idx];
 
     // calc residualMidBits_size
 	(*this)->residualMidBits_size = flatBytesLength - 1 - 1 - MetaDataByteLength - pde_exe->SZ_SIZE_TYPE - 4 - 4 - 4 - 1 - 8 

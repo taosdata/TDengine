@@ -13,7 +13,11 @@ import java.util.concurrent.BlockingQueue;
 public class FastWriteExample {
     final static Logger logger = LoggerFactory.getLogger(FastWriteExample.class);
 
+<<<<<<< HEAD
     final static int taskQueueCapacity = 10000000;
+=======
+    final static int taskQueueCapacity = 1000000;
+>>>>>>> 2.6
     final static List<BlockingQueue<String>> taskQueues = new ArrayList<>();
     final static List<ReadTask> readTasks = new ArrayList<>();
     final static List<WriteTask> writeTasks = new ArrayList<>();
@@ -61,8 +65,14 @@ public class FastWriteExample {
         long lastCount = 0;
         while (true) {
             Thread.sleep(10000);
+<<<<<<< HEAD
             long count = databaseMonitor.count();
             logger.info("count={} speed={}", count, (count - lastCount) / 10);
+=======
+            long numberOfTable = databaseMonitor.getTableCount();
+            long count = databaseMonitor.count();
+            logger.info("numberOfTable={} count={} speed={}", numberOfTable, count, (count - lastCount) / 10);
+>>>>>>> 2.6
             lastCount = count;
         }
     }

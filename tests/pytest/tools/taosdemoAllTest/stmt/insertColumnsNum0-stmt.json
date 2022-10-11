@@ -25,6 +25,7 @@
             "keep": 36500,
             "minRows": 100,
             "maxRows": 4096,
+            "comp":2,
             "cachelast":0,
             "quorum":1,
             "fsync":3000,

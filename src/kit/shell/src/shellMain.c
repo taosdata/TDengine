@@ -17,17 +17,15 @@
 #include "shell.h"
 #include "tconfig.h"
 #include "tnettest.h"
+#include "shellCommand.h"
+#include "shellAuto.h"
 
 pthread_t pid;
 static tsem_t cancelSem;
-bool stop_fetch = false;
-int64_t ws_id = 0;
 
 void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) {
   tsem_post(&cancelSem);
 }
-
-void shellRestfulSendInterruptHandler(int32_t signum, void *sigInfo, void *context) {}
 
 void *cancelHandler(void *arg) {
   setThreadName("cancelHandler");
@@ -37,11 +35,7 @@ void *cancelHandler(void *arg) {
       taosMsleep(10);
       continue;
     }
-#ifdef WEBSOCKET
-    if (args.restful || args.cloud) {
-      stop_fetch = true;
-    }
-#endif
+
 #ifdef LINUX
     int64_t rid = atomic_val_compare_exchange_64(&result, result, 0);
     SSqlObj* pSql = taosAcquireRef(tscObjRef, rid);
@@ -83,6 +77,7 @@ SShellArguments args = {.host = NULL,
   .user = NULL,
   .database = NULL,
   .timezone = NULL,
+  .restful = false,
   .is_raw_time = false,
   .is_use_passwd = false,
   .dump_config = false,
@@ -94,12 +89,10 @@ SShellArguments args = {.host = NULL,
   .pktNum = 100,
   .pktType = "TCP",
   .netTestRole = NULL,
-#ifdef WEBSOCKET
-  .restful = false,
   .cloud = true,
-  .dsn = NULL,
-  .timeout = 10,
-#endif
+  .cloudHost = NULL,
+  .cloudPort = NULL,
+  .cloudToken = NULL,
   };
 
 /*
@@ -139,21 +132,18 @@ int main(int argc, char* argv[]) {
     exit(0);
   }
 
-#ifdef WEBSOCKET
-  if (args.restful) {
-    args.dsn = calloc(1, 1024);
-
-    if (args.host == NULL) {
-      args.host = "localhost";
-    }
-
-    if (args.port == 0) {
-      args.port = 6041;
-    }
-
-    snprintf(args.dsn, 1024, "ws://%s:%d/rest/ws",args.host, args.port);
+  if (args.cloud) {
+      if (parse_cloud_dsn()) {
+          exit(EXIT_FAILURE);
+      }
+      if (tcpConnect(args.cloudHost, atoi(args.cloudPort))) {
+          exit(EXIT_FAILURE);
+      }
+  } else if (args.restful) {
+      if (tcpConnect(args.host, args.port)) {
+          exit(EXIT_FAILURE);
+      }
   }
-#endif
 
   /* Initialize the shell */
   shellInit(&args);
@@ -174,10 +164,16 @@ int main(int argc, char* argv[]) {
 
   /* Get grant information */
   shellGetGrantInfo(args.con);
+#ifndef WINDOWS
+  shellAutoInit();
+#endif
 
   /* Loop to query the input. */
   while (1) {
     pthread_create(&pid, NULL, shellLoopQuery, args.con);
     pthread_join(pid, NULL);
   }
+#ifndef WINDOWS
+  shellAutoExit();
+#endif
 }

@@ -62,8 +62,13 @@ There are about 200 keywords reserved by TDengine, they can't be used as the nam
 - DAYS      
 - DBS       
 - DEFERRED  
+<<<<<<< HEAD
 - DELETE
 - DELIMITERS
+=======
+- DELIMITERS
+- DELETE
+>>>>>>> 2.6
 - DESC      
 - DESCRIBE  
 - DETACH    
@@ -281,6 +286,10 @@ There are about 200 keywords reserved by TDengine, they can't be used as the nam
 Get the table name and tag values of all subtables in a STable.
 ```mysql
 SELECT TBNAME, location FROM meters;
+<<<<<<< HEAD
+=======
+```
+>>>>>>> 2.6
 
 Count the number of subtables in a STable.
 ```mysql

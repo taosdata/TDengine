@@ -43,9 +43,9 @@ char *simParseArbitratorName(char *varName) {
 char *simParseHostName(char *varName) {
   static char hostName[140];
 
-  int32_t index = atoi(varName + 8);
+  int32_t idx = atoi(varName + 8);
   int32_t port = 7100;
-  switch (index) {
+  switch (idx) {
     case 1:
       port = 7100;
       break;

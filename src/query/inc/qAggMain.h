@@ -90,8 +90,17 @@ extern "C" {
 #define TSDB_FUNC_QSTOP           48
 #define TSDB_FUNC_QDURATION       49
 #define TSDB_FUNC_HYPERLOGLOG     50
+#define TSDB_FUNC_MIN_ROW         51
+#define TSDB_FUNC_MAX_ROW         52
+#define TSDB_FUNC_COL_DUMMY       53
 
-#define TSDB_FUNC_MAX_NUM         51
+#define TSDB_FUNC_MAX_NUM         54
+
+enum {
+  FUNC_NOT_VAL,
+  FUNC_MIN_ROW,
+  FUNC_MAX_ROW
+};
 
 #define TSDB_FUNCSTATE_SO           0x1u    // single output
 #define TSDB_FUNCSTATE_MO           0x2u    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM
@@ -217,6 +226,10 @@ typedef struct SQLFunctionCtx {
   SHashObj     **pModeSet;     // for mode function
   STimeWindow  qWindow;        // for _qstart/_qstop/_qduration column
   int32_t      allocRows;      // rows allocated for output buffer
+  int16_t      minRowIndex;
+  int16_t      maxRowIndex;
+  int16_t      minMaxRowType;
+  bool         updateIndex;    // whether update index after comparation
 } SQLFunctionCtx;
 
 typedef struct SAggFunctionInfo {

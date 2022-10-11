@@ -17,7 +17,7 @@ endi
 if $data02 != 3/128 then 
   return -1
 endi
-if $data03 != 0/128 then 
+if $data03 != 0/32767 then
   return -1
 endi
 if $data04 != 0/2147483647 then 

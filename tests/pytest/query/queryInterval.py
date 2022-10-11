@@ -13,6 +13,7 @@
 
 import sys
 import taos
+import numpy as np
 from util.log import tdLog
 from util.cases import tdCases
 from util.sql import tdSql
@@ -162,6 +163,39 @@ class TDTestCase:
 
         tdSql.error("select twa(c) from tb group by c")
 
+        # TD-14678
+        tdSql.execute("create database test4")
+        tdSql.execute("use test4")
+        tdSql.execute("create table stb(ts timestamp, c int) tags(t1 int)")
+        ts = 1630000000000
+        sql = "insert into t1 using stb tags(1) values"
+        for i in range(100):
+            sql += "(%d, %d)" % (ts + i * 1000, i % 100)
+        tdSql.execute(sql)
+
+        tdSql.query("select COUNT(*) from stb interval(13m) sliding(3m) group by tbname order by ts desc")
+        tdSql.checkData(0, 1, 20)
+        tdSql.checkData(1, 1, 100)
+        tdSql.checkData(2, 1, 100)
+        tdSql.checkData(3, 1, 100)
+        tdSql.checkData(4, 1, 100)
+
+        tdSql.query("select COUNT(*) from stb interval(13m) sliding(3m) group by tbname order by ts")
+        tdSql.checkData(0, 1, 100)
+        tdSql.checkData(1, 1, 100)
+        tdSql.checkData(2, 1, 100)
+        tdSql.checkData(3, 1, 100)
+        tdSql.checkData(4, 1, 20)
+
+        # TD-14698
+        tdSql.query("select SPREAD(_c0) from (select * from stb) where ts between 1630000001000 and 1630100001000 interval(12h) Fill(NULL) order by ts")
+        matrix = np.array(tdSql.queryResult)
+        list = matrix[:, 0]
+
+        if all(sorted(list) == list):
+            tdLog.info("sql:%s, column : ts is sorted in accending order as expected" % (tdSql.sql))
+        else:
+            tdLog.exit("sql:%s, column : ts is not sorted in accending order as expected" % (tdSql.sql))
 
     def stop(self):
         tdSql.close()

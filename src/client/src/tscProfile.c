@@ -281,9 +281,11 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
 //      } else {
 //        pQdesc->stableQuery = 0;
 //      }
-      pthread_mutex_lock(&pSql->subState.mutex);
+      { pthread_mutex_lock(&pSql->subState.mutex);
+
       if (pSql->pSubs != NULL && pSql->subState.states != NULL) {
-        for (int32_t i = 0; i < pQdesc->numOfSub; ++i) {
+        for (int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
+          // because subState maybe free on anytime by any thread, check validate from here
           SSqlObj *psub = pSql->pSubs[i];
           int64_t  self = (psub != NULL)? psub->self : 0;
 
@@ -296,7 +298,9 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
           p += len;
         }
       }
-      pthread_mutex_unlock(&pSql->subState.mutex);
+      pQdesc->numOfSub = pSql->subState.numOfSub;
+
+      pthread_mutex_unlock(&pSql->subState.mutex); }
     }
 
     pQdesc->numOfSub = htonl(pQdesc->numOfSub);

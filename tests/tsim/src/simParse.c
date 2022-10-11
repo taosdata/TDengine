@@ -251,11 +251,11 @@ SScript *simParseScript(char *fileName) {
   return script;
 }
 
-int32_t simCheckExpression(char *exp) {
+int32_t simCheckExpression(char *expr) {
   char *  op1, *op2, *op, *rest;
   int32_t op1Len, op2Len, opLen;
 
-  rest = paGetToken(exp, &op1, &op1Len);
+  rest = paGetToken(expr, &op1, &op1Len);
   if (op1Len == 0) {
     sprintf(parseErr, "expression is required");
     return -1;
@@ -295,10 +295,10 @@ int32_t simCheckExpression(char *exp) {
 
   rest = paGetToken(rest, &op, &opLen);
 
-  if (opLen == 0) return (int32_t)(rest - exp);
+  if (opLen == 0) return (int32_t)(rest - expr);
 
   /* if it is key word "then" */
-  if (strncmp(op, "then", 4) == 0) return (int32_t)(op - exp);
+  if (strncmp(op, "then", 4) == 0) return (int32_t)(op - expr);
 
   rest = paGetToken(rest, &op2, &op2Len);
   if (op2Len == 0) {
@@ -312,7 +312,7 @@ int32_t simCheckExpression(char *exp) {
   }
 
   if (op[0] == '+' || op[0] == '-' || op[0] == '*' || op[0] == '/' || op[0] == '.') {
-    return (int32_t)(rest - exp);
+    return (int32_t)(rest - expr);
   }
 
   return -1;

@@ -321,6 +321,10 @@ title: TDengine 参数限制与保留关键字
 获取一个超级表所有的子表名及相关的标签信息：
 ```mysql
 SELECT TBNAME, location FROM meters;
+<<<<<<< HEAD
+=======
+```
+>>>>>>> 2.6
 
 统计超级表下辖子表数量：
 ```mysql

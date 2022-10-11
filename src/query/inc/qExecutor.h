@@ -92,6 +92,7 @@ typedef struct SResultRow {
   char         *key;               // start key of current result row
   SHashObj     *uniqueHash;  // for unique function
   SHashObj     *modeHash;  // for unique function
+  int32_t      groupIndex;     // index in group result
 } SResultRow;
 
 typedef struct SResultRowCell {

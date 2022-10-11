@@ -28,6 +28,8 @@ void *  dnodeAllocVQueryQueue(void *pVnode);
 void *  dnodeAllocVFetchQueue(void *pVnode);
 void    dnodeFreeVQueryQueue(void *pQqueue);
 void    dnodeFreeVFetchQueue(void *pFqueue);
+//      reponse probe connection msg
+void    dnodeResponseProbeMsg(SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

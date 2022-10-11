@@ -35,17 +35,17 @@ Execute the following commands to quickly experience taosBenchmark's default con
 taosBenchmark
 ```
 
-When run without parameters, taosBenchmark connects to the TDengine cluster specified in `/etc/taos` by default and creates a database named test in TDengine, a super table named `meters` under the test database, and 10,000 tables under the super table with 10,000 records written to each table. Note that if there is already a test database, this command will delete it first and create a new test database.
+When run without parameters, taosBenchmark connects to the TDengine cluster specified in `/etc/taos` by default and creates a database named `test`, a super table named `meters` under the test database, and 10,000 tables under the super table with 10,000 records written to each table. Note that if there is already a database named "test" this command will delete it first and create a new database.
 
 ### Run with command-line configuration parameters
 
-The `-f <json file>` argument cannot be used when running taosBenchmark with command-line parameters. Users must specify all configuration parameters from the command-line. The following is an example of testing taosBenchmark writing performance using the command-line approach.
+The `-f <json file>` argument cannot be used when running taosBenchmark with command-line parameters and controlling its behavior. Users must specify all configuration parameters from the command-line. The following is an example of testing taosBenchmark writing performance using the command-line approach.
 
 ```bash
 taosBenchmark -I stmt -n 200 -t 100
 ```
 
-In the above command, `taosBenchmark` will create the default database named `test`, create the default super table named `meters`, create 100 subtables in the super table and insert 200 records for each subtable using parameter binding.
+Using the above command, `taosBenchmark` will create a database named `test`, create a super table `meters` in it, create 100 sub-tables in the super table and insert 200 records for each sub-table using parameter binding.
 
 ### Run with the configuration file
 
@@ -91,70 +91,70 @@ taosBenchmark -f <json file>
 
 </details>
 
-## Command-line arguments in detail
+## Command-line argument in detailed
 
 - **-f/--file <json file\>** :
   specify the configuration file to use. This file includes All parameters. Users should not use this parameter with other parameters on the command-line. There is no default value.
 
 - **-c/--config-dir <dir\>** :
-  specify the directory of the TDengine cluster configuration file. the default path is `/etc/taos`.
+  specify the directory where the TDengine cluster configuration file. The default path is `/etc/taos`.
 
 - **-h/--host <host\>** :
-  specify the FQDN of the TDengine server to connect to. The default value is localhost.
+  Specify the FQDN of the TDengine server to connect to. The default value is localhost.
 
 - **-P/--port <port\>** :
-  specify the port number of the TDengine server to connect to, the default value is 6030.
+  The port number of the TDengine server to connect to, the default value is 6030.
 
 - **-I/--interface <insertMode\>** :
-  specify the insert mode. Options are taosc, rest, stmt, sml, sml-rest, corresponding to normal write, restful interface writing, parameter binding interface writing, schemaless interface writing, RESTful schemaless interface writing (provided by taosAdapter). The default value is taosc.
+  Insert mode. Options are taosc, rest, stmt, sml, sml-rest, corresponding to normal write, restful interface writing, parameter binding interface writing, schemaless interface writing, RESTful schemaless interface writing (provided by taosAdapter). The default value is taosc.
 
 - **-u/--user <user\>** :
-  specify the user name to connect to the TDengine server, the default is root.
+  User name to connect to the TDengine server. Default is root.
 
 - **-p/--password <passwd\>** :
-  specify the password to connect to the TDengine server, the default is `taosdata`.
+  The default password to connect to the TDengine server is `taosdata`.
 
 - **-o/--output <file\>** :
   specify the path of the result output file, the default value is `. /output.txt`.
 
 - **-T/--thread <threadNum\>** :
-  specify the number of threads to insert data, the default value is 8.
+  The number of threads to insert data. Default is 8.
 
 - **-B/--interlace-rows <rowNum\>** :
-  enables interleaved insertion mode and specifies the number of rows of data to be inserted into each child table. Interleaved insertion mode means inserting the number of rows specified by this parameter into each sub-table and repeating the process until all sub-tables have been inserted. The default value is 0, i.e., data is inserted into one sub-table before the next sub-table is inserted.
+  Enables interleaved insertion mode and specifies the number of rows of data to be inserted into each child table. Interleaved insertion mode means inserting the number of rows specified by this parameter into each sub-table and repeating the process until all sub-tables have been inserted. The default value is 0, i.e., data is inserted into one sub-table before the next sub-table is inserted.
 
 - **-i/--insert-interval <timeInterval\>** :
-  specify the insert interval in `ms` for interleaved insert mode. The default value is 0. It only works if `-B/--interlace-rows` is greater than 0. That means that after inserting interlaced rows for each child table, the data insertion with multiple threads will wait for the interval specified by this value before proceeding to the next round of writes.
+  Specify the insert interval in `ms` for interleaved insert mode. The default value is 0. It only works if `-B/--interlace-rows` is greater than 0. That means that after inserting interlaced rows for each child table, the data insertion with multiple threads will wait for the interval specified by this value before proceeding to the next round of writes.
 
 - **-r/--rec-per-req <rowNum\>** :
-  specify the number of rows to write per request, the default value is 30000.
+  Writing the number of rows of records per request to TDengine, the default value is 30000.
 
 - **-t/--tables <tableNum\>** :
-  specify the number of subtables to create, the default value is 10000.
+  Specify the number of sub-tables. The default is 10000.
 
 - **-S/--timestampstep <stepLength\>** :
-  specify the timestamp step between records when inserting data in each child table in ms, the default value is 1.
+  Timestamp step for inserting data in each child table in ms, default is 1.
 
 - **-n/--records <recordNum\>** :
-  specify the number of records inserted into each sub-table, the default value is 10000.
+  The default value of the number of records inserted in each sub-table is 10000.
 
 - **-d/--database <dbName\>** :
-  specify the name of the database used, the default value is `test`.
+  The name of the database used, the default value is `test`.
 
 - **-b/--data-type <colType\>** :
-  specify the data column types of the super table. The default values are three columns of type FLOAT, INT, and FLOAT.
+  specify the type of the data columns of the super table. It defaults to three columns of type FLOAT, INT, and FLOAT if not used.
 
 - **-l/--columns <colNum\>** :
-  specify the number of columns in the super table. If both this parameter and `-b/--data-type` are set, the resulting number of columns is the greater of the two. If the number specified by this parameter is greater than the number of columns specified by `-b/--data-type`, the unspecified column types default to INT, for example: `-l 5 -b float,double`, then the column types are `FLOAT,DOUBLE,INT,INT,INT`. If the number of columns specified is less than or equal to the number of columns specified by `-b/--data-type`, then the columns specified by `-b/--data-type` will be used. e.g.: `-l 3 -b float,double,float,bigint` will result in the column types `FLOAT,DOUBLE,FLOAT,BIGINT`.
+  specify the number of columns in the super table. If both this parameter and `-b/--data-type` is set, the final result number of columns is the greater of the two. If the number specified by this parameter is greater than the number of columns specified by `-b/--data-type`, the unspecified column type defaults to INT, for example: `-l 5 -b float,double`, then the final column is `FLOAT,DOUBLE,INT,INT,INT`. If the number of columns specified is less than or equal to the number of columns specified by `-b/--data-type`, then the result is the column and type specified by `-b/--data-type`, e.g.: `-l 3 -b float,double,float,bigint`. The last column is `FLOAT,DOUBLE, FLOAT,BIGINT`.
 
 - **-A/--tag-type <tagType\>** :
-  specify the tag column types of the super table. nchar and binary types can both set the length, for example:
+  The tag column type of the super table. nchar and binary types can both set the length, for example:
 
 ```
 taosBenchmark -A INT,DOUBLE,NCHAR,BINARY(16)
 ```
 
-If the user does not set the tag type, the default is two tags, whose types are INT and BINARY(16).
+If users did not set tag type, the default is two tags, whose types are INT and BINARY(16).
 Note: In some shells, such as bash, "()" needs to be escaped, so the above command should be
 
 ```
@@ -162,48 +162,52 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 ```
 
 - **-w/--binwidth <length\>**:
-  specify the default length for nchar and binary types, the default value is 64.
+  specify the default length for nchar and binary types. The default value is 64.
 
 - **-m/--table-prefix <tablePrefix\>** :
-  specify the prefix of the sub-table names, the default value is "d".
+  The prefix of the sub-table name, the default value is "d".
 
 - **-E/--escape-character** :
-  specify whether to use escape characters in the super table and sub-table names, the default is no.
+  Switch parameter specifying whether to use escape characters in the super table and sub-table names. By default is not used.
 
 - **-C/--chinese** :
+<<<<<<< HEAD
+  Switch specifying whether to use Unicode Chinese characters in nchar and binary. By default is not used.
+=======
   specify whether to use Unicode Chinese characters in nchar and binary, the default is no.
+>>>>>>> 108548b4d6 (docs: typo)
 
 - **-N/--normal-table** :
-  specify whether taosBenchmark will create only normal tables instead of super tables. The default value is false. It can be used if the insert mode is taosc, stmt, and rest.
+  This parameter indicates that taosBenchmark will create only normal tables instead of super tables. The default value is false. It can be used if the insert mode is taosc, stmt, and rest.
 
 - **-M/--random** :
-  specify whether taosBenchmark will generate random values. The default is false. When true, for tag/data columns of numeric type, the value is a random value within the range of values of that type. For NCHAR and BINARY type tag/data columns, the value is a random string within the specified length range.
+  This parameter indicates writing data with random values. The default is false. If users use this parameter, taosBenchmark will generate the random values. For tag/data columns of numeric type, the value is a random value within the range of values of that type. For NCHAR and BINARY type tag columns/data columns, the value is the random string within the specified length range.
 
 - **-x/--aggr-func** :
-  specify whether to query aggregation function after insertion. The default value is false.
+  Switch parameter to indicate query aggregation function after insertion. The default value is false.
 
 - **-y/--answer-yes** :
-  specify whether to require the user to confirm at the prompt to continue. The default value is false.
+  Switch parameter that requires the user to confirm at the prompt to continue. The default value is false.
 
 - **-O/--disorder <Percentage\>** :
-  specify the percentage probability of disordered data, with a value range of [0,50]. The default value is 0, i.e., there is no disordered data.
+  Specify the percentage probability of disordered data, with a value range of [0,50]. The default is 0, i.e., there is no disordered data.
 
 - **-R/--disorder-range <timeRange\>** :
-  specify the timestamp range for the disordered data. The disordered timestamp data will be out of order by the ordered timestamp minus a random value in this range. Valid only if the percentage of disordered data specified by `-O/--disorder` is greater than 0.
+  Specify the timestamp range for the disordered data. It leads the resulting disorder timestamp as the ordered timestamp minus a random value in this range. Valid only if the percentage of disordered data specified by `-O/--disorder` is greater than 0.
 
 - **-F/--prepare_rand <Num\>** :
-  specify the number of unique values in the generated random data. A value of 1 means that all data are equal. The default value is 10000.
+  Specify the number of unique values in the generated random data. A value of 1 means that all data are equal. The default value is 10000.
 
 - **-a/--replica <replicaNum\>** :
-  specify the number of replicas when creating the database. The default value is 1.
+  Specify the number of replicas when creating the database. The default value is 1.
 
 - **-V/--version** :
-  Show version information only. Users should not use this with other parameters.
+  Show version information only. Users should not use it with other parameters.
 
 - **-? /--help** :
   Show help information and exit. Users should not use it with other parameters.
 
-## Configuration file parameters in detail
+## Configuration file parameters in detailed
 
 ### General configuration parameters
 
@@ -212,17 +216,17 @@ The parameters listed in this section apply to all function modes.
 - **filetype** : The function to be tested, with optional values `insert`, `query` and `subscribe`. These correspond to the insert, query, and subscribe functions, respectively. Users can specify only one of these in each configuration file.
 **cfgdir**: specify the TDengine cluster configuration file's directory. The default path is /etc/taos.
 
-- **host**: specify the FQDN of the TDengine server to connect to. The default value is `localhost`.
+- **host**: Specify the FQDN of the TDengine server to connect. The default value is `localhost`.
 
-- **port**: specify the port number of the TDengine server to connect to, the default value is `6030`.
+- **port**: The port number of the TDengine server to connect to, the default value is `6030`.
 
-- **user**: specify the user name to connect to the TDengine server, the default is `root`.
+- **user**: The user name of the TDengine server to connect to, the default is `root`.
 
-- **password**:  specify the password to connect to the TDengine server, the default value is `taosdata`.
+- **password**: The password to connect to the TDengine server, the default value is `taosdata`.
 
 ### Insert scenario configuration parameters
 
-`filetype` must be set to `insert` in the insertion scenario. See [General Configuration Parameters](#general-configuration-parameters)
+`filetype` must be set to `insert` in the insertion scenario. See [General Configuration Parameters](#General Configuration Parameters)
 
 #### Database related configuration parameters
 
@@ -258,20 +262,20 @@ The parameters related to database creation are configured in `dbinfo` in the js
 
 - **fsync**: specify the interval of fsync in ms when users set WAL to 2. The default value is 3000.
 
-- **update** : indicate whether to support data update, default value is 0, values can be 0, 1, 2.
+- **update** : indicate whether to support data update, default value is 0, optional values are 0, 1, 2.
 
 #### Super table related configuration parameters
 
 The parameters for creating super tables are configured in `super_tables` in the json configuration file, as shown below.
 
 - **name**: Super table name, mandatory, no default value.
-- **child_table_exists** : whether the child table already exists, default value is "no", values can be "yes" or "no".
+- **child_table_exists** : whether the child table already exists, default value is "no", optional value is "yes" or "no".
 
 - **child_table_count** : The number of child tables, the default value is 10.
 
 - **child_table_prefix** : The prefix of the child table name, mandatory configuration item, no default value.
 
-- **escape_character**: specify whether the super table and child table names containing escape characters. By default is "no". The value can be "yes" or "no".
+- **escape_character**: specify the super table and child table names containing escape characters. The value can be "yes" or "no". The default is "no".
 
 - **auto_create_table**: only when insert_mode is taosc, rest, stmt, and childtable_exists is "no". "yes" means taosBenchmark will automatically create non-existent tables when inserting data; "no" means that taosBenchmark will create all tables before inserting.
 
@@ -281,7 +285,7 @@ The parameters for creating super tables are configured in `super_tables` in the
 
 - **insert_mode**: insertion mode with options taosc, rest, stmt, sml, sml-rest, corresponding to normal write, restful interface write, parameter binding interface write, schemaless interface write, restful schemaless interface write (provided by taosAdapter). The default value is taosc.
 
-- **non_stop_mode**: Specify whether to keep writing. If "yes", insert_rows will be disabled, and writing will not stop until Ctrl + C stops the program. The default value is "no", i.e., taosBenchmark will stop the writing after the specified number of rows are written. Note: insert_rows must be configured as a non-zero positive integer even if it is disabled in continuous write mode.
+- **non_stop_mode**: Specify whether to keep writing. If "yes", insert_rows will be disabled, and writing will not stop until Ctrl + C stops the program. The default value is "no", i.e., taosBenchmark will stop the writing after the specified number of rows are written. Note: insert_rows must be configured as a non-zero positive integer even if it fails in continuous write mode.
 
 - **line_protocol**: Insert data using line protocol. Only works when insert_mode is sml or sml-rest. The value can be `line`, `telnet`, or `json`.
 
@@ -360,7 +364,7 @@ The configuration parameters for specifying super table tag columns and data col
 
 ### Query scenario configuration parameters
 
-`filetype` must be set to `query` in the query scenario. See [General Configuration Parameters](#general-configuration-parameters) for details of this parameter and other general parameters
+`filetype` must be set to `query` in the query scenario. See [General Configuration Parameters](#General Configuration Parameters) for details of this parameter and other general parameters
 
 #### Configuration parameters for executing the specified query statement
 
@@ -391,7 +395,7 @@ The configuration parameters of the super table query are set in `super_table_qu
 
 ### Subscription scenario configuration parameters
 
-`filetype` must be set to `subscribe` in the subscription scenario. See [General Configuration Parameters](#genera-configuration-parameters) for details of this and other general parameters
+`filetype` must be set to `subscribe` in the subscription scenario. See [General Configuration Parameters](#General Configuration Parameters) for details of this and other general parameters
 
 #### Configuration parameters for executing the specified subscription statement
 

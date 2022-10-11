@@ -228,7 +228,7 @@ static int64_t syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversi
   return code;
 }
 
-static int64_t syncProcessLastWal(SSyncPeer *pPeer, char *wname, int64_t index) {
+static int64_t syncProcessLastWal(SSyncPeer *pPeer, char *wname, int64_t idx) {
   SSyncNode *pNode = pPeer->pSyncNode;
   int32_t    once = 0;  // last WAL has once ever been processed
   int64_t    offset = 0;
@@ -290,12 +290,12 @@ static int64_t syncRetrieveWal(SSyncPeer *pPeer) {
   char        wname[TSDB_FILENAME_LEN * 2];
   int32_t     size;
   int64_t     code = -1;
-  int64_t     index = 0;
+  int64_t     idx = 0;
 
   while (1) {
     // retrieve wal info
     wname[0] = 0;
-    code = (*pNode->getWalInfoFp)(pNode->vgId, wname, &index);
+    code = (*pNode->getWalInfoFp)(pNode->vgId, wname, &idx);
     if (code < 0) {
       sError("%s, failed to get wal info since:%s, code:0x%" PRIx64, pPeer->id, strerror(errno), code);
       break;
@@ -308,7 +308,7 @@ static int64_t syncRetrieveWal(SSyncPeer *pPeer) {
     }
 
     if (code == 0) {  // last wal
-      code = syncProcessLastWal(pPeer, wname, index);
+      code = syncProcessLastWal(pPeer, wname, idx);
       sInfo("%s, last wal processed, code:%" PRId64, pPeer->id, code);
       break;
     }
@@ -317,14 +317,14 @@ static int64_t syncRetrieveWal(SSyncPeer *pPeer) {
     snprintf(fname, sizeof(fname), "%s/%s", pNode->path, wname);
 
     // send wal file, old wal file won't be modified, even remove is ok
-    struct stat fstat;
-    if (stat(fname, &fstat) < 0) {
+    struct stat fstatus;
+    if (stat(fname, &fstatus) < 0) {
       code = -1;
       sInfo("%s, failed to stat wal:%s for retrieve since %s, code:0x%" PRIx64, pPeer->id, fname, strerror(errno), code);
       break;
     }
 
-    size = fstat.st_size;
+    size = fstatus.st_size;
     sInfo("%s, retrieve wal:%s size:%d", pPeer->id, fname, size);
 
     int32_t sfd = open(fname, O_RDONLY | O_BINARY);

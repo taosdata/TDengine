@@ -180,15 +180,15 @@ void* taosArrayPop(SArray* pArray) {
   return TARRAY_GET_ELEM(pArray, pArray->size);
 }
 
-void* taosArrayGet(const SArray* pArray, size_t index) {
-  assert(index < pArray->size);
-  return TARRAY_GET_ELEM(pArray, index);
+void* taosArrayGet(const SArray* pArray, size_t idx) {
+  assert(idx < pArray->size);
+  return TARRAY_GET_ELEM(pArray, idx);
 }
 
-void* taosArrayGetP(const SArray* pArray, size_t index) {
-  assert(index < pArray->size);
+void* taosArrayGetP(const SArray* pArray, size_t idx) {
+  assert(idx < pArray->size);
   
-  void* d = TARRAY_GET_ELEM(pArray, index);
+  void* d = TARRAY_GET_ELEM(pArray, idx);
   
   return *(void**)d;
 }
@@ -204,12 +204,12 @@ void taosArraySetSize(SArray* pArray, size_t size) {
   pArray->size = size;
 }
 
-void* taosArrayInsert(SArray* pArray, size_t index, void* pData) {
+void* taosArrayInsert(SArray* pArray, size_t idx, void* pData) {
   if (pArray == NULL || pData == NULL) {
     return NULL;
   }
 
-  if (index >= pArray->size) {
+  if (idx >= pArray->size) {
     return taosArrayPush(pArray, pData);
   }
 
@@ -221,9 +221,9 @@ void* taosArrayInsert(SArray* pArray, size_t index, void* pData) {
     }
   }
 
-  void* dst = TARRAY_GET_ELEM(pArray, index);
+  void* dst = TARRAY_GET_ELEM(pArray, idx);
 
-  int32_t remain = (int32_t)(pArray->size - index);
+  int32_t remain = (int32_t)(pArray->size - idx);
   memmove((char*)dst + pArray->elemSize, (char*)dst, pArray->elemSize * remain);
   memcpy(dst, pData, pArray->elemSize);
 
@@ -232,21 +232,21 @@ void* taosArrayInsert(SArray* pArray, size_t index, void* pData) {
   return dst;
 }
 
-void taosArraySet(SArray* pArray, size_t index, void* pData) {
-  assert(index < pArray->size);
-  memcpy(TARRAY_GET_ELEM(pArray, index), pData, pArray->elemSize);
+void taosArraySet(SArray* pArray, size_t idx, void* pData) {
+  assert(idx < pArray->size);
+  memcpy(TARRAY_GET_ELEM(pArray, idx), pData, pArray->elemSize);
 }
 
-void taosArrayRemove(SArray* pArray, size_t index) {
-  assert(index < pArray->size);
+void taosArrayRemove(SArray* pArray, size_t idx) {
+  assert(idx < pArray->size);
   
-  if (index == pArray->size - 1) {
+  if (idx == pArray->size - 1) {
     taosArrayPop(pArray);
     return;
   }
   
-  size_t remain = pArray->size - index - 1;
-  memmove((char*)pArray->pData + index * pArray->elemSize, (char*)pArray->pData + (index + 1) * pArray->elemSize, remain * pArray->elemSize);
+  size_t remain = pArray->size - idx - 1;
+  memmove((char*)pArray->pData + idx * pArray->elemSize, (char*)pArray->pData + (idx + 1) * pArray->elemSize, remain * pArray->elemSize);
   pArray->size -= 1;
 }
 

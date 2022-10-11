@@ -11,14 +11,16 @@
 
 # -*- coding: utf-8 -*-
 
+from pickletools import long1
 import sys
 import os
 import taos
+import csv
 from util.log import tdLog
 from util.cases import tdCases
 from util.sql import tdSql
 from util.dnodes import tdDnodes
-import random
+
 
 class TDTestCase:
     def init(self, conn, logSql):
@@ -105,7 +107,24 @@ class TDTestCase:
         # clear env
         testcaseFilename = os.path.split(__file__)[-1]
         os.system("rm -rf ./insert_res.txt")
-        os.system("rm -rf wal/%s.sql" % testcaseFilename )     
+        os.system("rm -rf wal/%s.sql" % testcaseFilename ) 
+
+        # TS-1584                
+        os.system("tar -zxf %s/query/nestedQuery/data.tar.gz" % os.getcwd())
+        tdSql.execute("create database artura")
+        tdSql.execute("use artura")
+        tdSql.execute("CREATE TABLE `machine_tool_metadata` (`ts` TIMESTAMP,`device_status` INT,`check_status` INT,`maintenance_status` INT,`repair_status` INT,`asset_status` INT,`device_status_1` INT,`device_status_2` INT,`device_status_3` INT,`composite_status_4` INT,`composite_status_5` INT,`risk_run_flag` NCHAR(30),`repair_stop_flag` NCHAR(30)) TAGS (`device_code` NCHAR(40),`id` BIGINT)")
+        csv_reader = csv.reader(open("data/tags.csv"))
+        for line in csv_reader:
+            tdSql.execute("create table %s using machine_tool_metadata tags(%s, %d)" % (line[0], line[1], int(line[2])))          
+            tdSql.execute("insert into %s file 'data/%s.csv'" % (line[0], line[0].replace("'", "")))
+
+        tdSql.query("select count(1) - sum(device_status_3) as enableCount from ( select last(device_status_1) as device_status_1,last(device_status_2) as device_status_2,last(device_status_3) as device_status_3,last(composite_status_4) as composite_status_4,last(composite_status_5) as composite_status_5 from machine_tool_metadata where ts>= '2022-05-26 00:00:00.0' and ts <= '2022-06-01 23:59:59.0' interval(1d) group by id ) group by ts")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, 55)
+        tdSql.checkData(1, 0, 55)
+        tdSql.checkData(2, 0, 55)
+        os.system("rm -rf data")
 
     def stop(self):
         tdSql.close()

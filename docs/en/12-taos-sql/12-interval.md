@@ -93,7 +93,11 @@ SELECT function_list FROM stb_name
 
 :::
 
+<<<<<<< HEAD
 Aggregate by time window is also used in continuous query, please refer to [Continuous Query](/develop/continuous-query).
+=======
+Aggregate by time window is also used in continuous query, please refer to [Continuous Query](../../develop/continuous-query).
+>>>>>>> 2.6
 
 ## Examples
 

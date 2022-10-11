@@ -5,7 +5,7 @@ description: "TAOS SQL 支持的语法规则、主要查询功能、支持的 SQ
 
 本文档说明 TAOS SQL 支持的语法规则、主要查询功能、支持的 SQL 查询函数，以及常用技巧等内容。阅读本文档需要读者具有基本的 SQL 语言的基础。
 
-TAOS SQL 是用户对 TDengine 进行数据写入和查询的主要工具。TAOS SQL 为了便于用户快速上手，在一定程度上提供与标准 SQL 类似的风格和模式。严格意义上，TAOS SQL 并不是也不试图提供标准的 SQL 语法。此外，由于 TDengine 针对的时序性结构化数据不提供删除功能，因此在 TAO SQL 中不提供数据删除的相关功能。
+TAOS SQL 是用户对 TDengine 进行数据写入和查询的主要工具。TAOS SQL 为了便于用户快速上手，在一定程度上提供与标准 SQL 类似的风格和模式。严格意义上，TAOS SQL 并不是也不试图提供标准的 SQL 语法。此外，由于 TDengine 没有提供时序数据的删除功能，因此 TAOS SQL 中也没有提供数据删除的相关功能。不过从 TDengine 企业版从 2.6 开始提供了 DELETE 语句。
 
 本章节 SQL 语法遵循如下约定：
 
