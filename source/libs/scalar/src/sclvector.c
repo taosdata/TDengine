@@ -281,7 +281,7 @@ static FORCE_INLINE void varToTimestamp(char *buf, SScalarParam* pOut, int32_t r
   if (taosParseTime(buf, &value, strlen(buf), pOut->columnData->info.precision, tsDaylight) != TSDB_CODE_SUCCESS) {
     value = 0;
   }
-  
+
   colDataAppendInt64(pOut->columnData, rowIndex, &value);
 }
 
@@ -300,29 +300,29 @@ static FORCE_INLINE void varToSigned(char *buf, SScalarParam* pOut, int32_t rowI
       *overflow = 0;
     }
   }
-      
+
   switch (pOut->columnData->info.type) {
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t value = (int8_t)taosStr2Int8(buf, NULL, 10);
-     
+
       colDataAppendInt8(pOut->columnData, rowIndex, (int8_t*)&value);
       break;
-    } 
+    }
     case TSDB_DATA_TYPE_SMALLINT: {
       int16_t value = (int16_t)taosStr2Int16(buf, NULL, 10);
       colDataAppendInt16(pOut->columnData, rowIndex, (int16_t*)&value);
       break;
-    } 
+    }
     case TSDB_DATA_TYPE_INT: {
       int32_t value = (int32_t)taosStr2Int32(buf, NULL, 10);
       colDataAppendInt32(pOut->columnData, rowIndex, (int32_t*)&value);
       break;
-    } 
+    }
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t value = (int64_t)taosStr2Int64(buf, NULL, 10);
       colDataAppendInt64(pOut->columnData, rowIndex, (int64_t*)&value);
       break;
-    }   
+    }
   }
 }
 
@@ -347,22 +347,22 @@ static FORCE_INLINE void varToUnsigned(char *buf, SScalarParam* pOut, int32_t ro
       uint8_t value = (uint8_t)taosStr2UInt8(buf, NULL, 10);
       colDataAppendInt8(pOut->columnData, rowIndex, (int8_t*)&value);
       break;
-    } 
+    }
     case TSDB_DATA_TYPE_USMALLINT: {
       uint16_t value = (uint16_t)taosStr2UInt16(buf, NULL, 10);
       colDataAppendInt16(pOut->columnData, rowIndex, (int16_t*)&value);
       break;
-    } 
+    }
     case TSDB_DATA_TYPE_UINT: {
       uint32_t value = (uint32_t)taosStr2UInt32(buf, NULL, 10);
       colDataAppendInt32(pOut->columnData, rowIndex, (int32_t*)&value);
       break;
-    } 
+    }
     case TSDB_DATA_TYPE_UBIGINT: {
       uint64_t value = (uint64_t)taosStr2UInt64(buf, NULL, 10);
       colDataAppendInt64(pOut->columnData, rowIndex, (int64_t*)&value);
       break;
-    }   
+    }
   }
 }
 
@@ -372,7 +372,7 @@ static FORCE_INLINE void varToFloat(char *buf, SScalarParam* pOut, int32_t rowIn
     colDataAppendFloat(pOut->columnData, rowIndex, &value);
     return;
   }
-  
+
   double value = taosStr2Double(buf, NULL);
   colDataAppendDouble(pOut->columnData, rowIndex, &value);
 }
@@ -488,11 +488,11 @@ int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, in
         tmp[len] = 0;
       }
     }
-    
+
     (*func)(tmp, pOut, i, overflow);
     taosMemoryFreeClear(tmp);
   }
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -636,7 +636,7 @@ int32_t vectorConvertToVarData(const SScalarParam* pIn, SScalarParam* pOut, int1
         colDataAppendNULL(pOutputCol, i);
         continue;
       }
-      
+
       int64_t value = 0;
       GET_TYPED_DATA(value, int64_t, inType, colDataGetData(pInputCol, i));
       int32_t len = sprintf(varDataVal(tmp), "%" PRId64, value);
@@ -653,7 +653,7 @@ int32_t vectorConvertToVarData(const SScalarParam* pIn, SScalarParam* pOut, int1
         colDataAppendNULL(pOutputCol, i);
         continue;
       }
-      
+
       uint64_t value = 0;
       GET_TYPED_DATA(value, uint64_t, inType, colDataGetData(pInputCol, i));
       int32_t len = sprintf(varDataVal(tmp), "%" PRIu64, value);
@@ -670,7 +670,7 @@ int32_t vectorConvertToVarData(const SScalarParam* pIn, SScalarParam* pOut, int1
         colDataAppendNULL(pOutputCol, i);
         continue;
       }
-      
+
       double value = 0;
       GET_TYPED_DATA(value, double, inType, colDataGetData(pInputCol, i));
       int32_t len = sprintf(varDataVal(tmp), "%lf", value);
@@ -698,7 +698,7 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut, int32_t* 
     sclError("input column is NULL, hashFilter %p", pIn->pHashFilter);
     return TSDB_CODE_APP_ERROR;
   }
-  
+
   int16_t inType   = pInputCol->info.type;
   int16_t outType  = pOutputCol->info.type;
 
@@ -710,14 +710,14 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut, int32_t* 
     ASSERT(1 == pIn->numOfRows);
 
     pOut->numOfRows = 0;
-    
+
     if (IS_SIGNED_NUMERIC_TYPE(outType)) {
       int64_t minValue = tDataTypes[outType].minValue;
       int64_t maxValue = tDataTypes[outType].maxValue;
-      
+
       double value = 0;
       GET_TYPED_DATA(value, double, inType, colDataGetData(pInputCol, 0));
-      
+
       if (value > maxValue) {
         *overflow = 1;
         return TSDB_CODE_SUCCESS;
@@ -730,10 +730,10 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut, int32_t* 
     } else if (IS_UNSIGNED_NUMERIC_TYPE(outType)) {
       uint64_t minValue = (uint64_t)tDataTypes[outType].minValue;
       uint64_t maxValue = (uint64_t)tDataTypes[outType].maxValue;
-      
+
       double value = 0;
       GET_TYPED_DATA(value, double, inType, colDataGetData(pInputCol, 0));
-      
+
       if (value > maxValue) {
         *overflow = 1;
         return TSDB_CODE_SUCCESS;
@@ -820,7 +820,7 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut, int32_t* 
           colDataAppendNULL(pOutputCol, i);
           continue;
         }
-        
+
         uint8_t value = 0;
         GET_TYPED_DATA(value, uint8_t, inType, colDataGetData(pInputCol, i));
         colDataAppendInt8(pOutputCol, i, (int8_t *)&value);
@@ -833,7 +833,7 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut, int32_t* 
           colDataAppendNULL(pOutputCol, i);
           continue;
         }
-        
+
         uint16_t value = 0;
         GET_TYPED_DATA(value, uint16_t, inType, colDataGetData(pInputCol, i));
         colDataAppendInt16(pOutputCol, i, (int16_t *)&value);
@@ -846,7 +846,7 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut, int32_t* 
           colDataAppendNULL(pOutputCol, i);
           continue;
         }
-        
+
         uint32_t value = 0;
         GET_TYPED_DATA(value, uint32_t, inType, colDataGetData(pInputCol, i));
         colDataAppendInt32(pOutputCol, i, (int32_t *)&value);
@@ -859,7 +859,7 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut, int32_t* 
           colDataAppendNULL(pOutputCol, i);
           continue;
         }
-        
+
         uint64_t value = 0;
         GET_TYPED_DATA(value, uint64_t, inType, colDataGetData(pInputCol, i));
         colDataAppendInt64(pOutputCol, i, (int64_t*)&value);
@@ -872,12 +872,12 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut, int32_t* 
           colDataAppendNULL(pOutputCol, i);
           continue;
         }
-        
+
         float value = 0;
         GET_TYPED_DATA(value, float, inType, colDataGetData(pInputCol, i));
         colDataAppendFloat(pOutputCol, i, (float*)&value);
       }
-      break;  
+      break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
       for (int32_t i = 0; i < pIn->numOfRows; ++i) {
@@ -885,14 +885,14 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut, int32_t* 
           colDataAppendNULL(pOutputCol, i);
           continue;
         }
-        
+
         double value = 0;
         GET_TYPED_DATA(value, double, inType, colDataGetData(pInputCol, i));
         colDataAppendDouble(pOutputCol, i, (double*)&value);
       }
-      break;  
+      break;
     }
-    case TSDB_DATA_TYPE_BINARY: 
+    case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR: {
       return vectorConvertToVarData(pIn, pOut, inType, outType);
     }
@@ -966,10 +966,10 @@ int32_t vectorConvert(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam* p
     return TSDB_CODE_SUCCESS;
   }
 
-  SScalarParam *param1 = NULL, *paramOut1 = NULL; 
+  SScalarParam *param1 = NULL, *paramOut1 = NULL;
   SScalarParam *param2 = NULL, *paramOut2 = NULL;
   int32_t code = 0;
-  
+
   if (leftType < rightType) {
     param1 = pLeft;
     param2 = pRight;
@@ -993,7 +993,7 @@ int32_t vectorConvert(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam* p
       return code;
     }
   }
-  
+
   if (type != GET_PARAM_TYPE(param2)) {
     code = vectorConvertScalarParam(param2, paramOut2, type);
     if (code) {
@@ -1136,7 +1136,7 @@ void vectorMathAdd(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
         }
         *output = getVectorBigintValueFnLeft(pLeftCol->pData, i) + getVectorBigintValueFnRight(pRightCol->pData, i);
       }
-    } 
+    }
   } else {
     double *output = (double *)pOutputCol->pData;
     _getDoubleValue_fn_t getVectorDoubleValueFnLeft  = getVectorDoubleValueFn(pLeftCol->info.type);
@@ -1198,7 +1198,7 @@ static void vectorMathTsSubHelper(SColumnInfoData* pLeftCol, SColumnInfoData* pR
       }
       *output = taosTimeAdd(getVectorBigintValueFnLeft(pLeftCol->pData, i), -getVectorBigintValueFnRight(pRightCol->pData, 0),
                             pRightCol->info.scale, pRightCol->info.precision);
-      
+
     }
   }
 }
@@ -1706,7 +1706,7 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
   int32_t       lType = GET_PARAM_TYPE(pLeft);
   int32_t       rType = GET_PARAM_TYPE(pRight);
   __compar_fn_t fp = NULL;
-  
+
   if (lType == rType) {
     fp = filterGetCompFunc(lType, optr);
   } else {
@@ -1736,9 +1736,9 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
 }
 
 void vectorCompare(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord, int32_t optr) {
-  SScalarParam pLeftOut = {0}; 
+  SScalarParam pLeftOut = {0};
   SScalarParam pRightOut = {0};
-  SScalarParam *param1 = NULL; 
+  SScalarParam *param1 = NULL;
   SScalarParam *param2 = NULL;
 
   if (SCL_NO_NEED_CONVERT_COMPARISION(GET_PARAM_TYPE(pLeft), GET_PARAM_TYPE(pRight), optr)) {
@@ -1762,7 +1762,7 @@ void vectorCompare(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
 
   vectorCompareImpl(param1, param2, pOut, _ord, optr);
   sclFreeParam(&pLeftOut);
-  sclFreeParam(&pRightOut);  
+  sclFreeParam(&pRightOut);
 }
 
 void vectorGreater(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
