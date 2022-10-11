@@ -3070,7 +3070,7 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
         } else {
           code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, i, &pEntry);
           if (code != 0) {
-              sError("failed to get log entry since %s. index:%lld", tstrerror(terrno), i);
+              sError("vgId:%d, failed to get log entry since %s. index:%lld", ths->vgId, tstrerror(terrno), i);
               return -1;
            }
           ASSERT(pEntry != NULL);
