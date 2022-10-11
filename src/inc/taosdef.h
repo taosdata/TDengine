@@ -89,6 +89,9 @@ extern const int32_t TYPE_BYTES[16];
 #define TSDB_PASS_LEN                   16
 
 #define SHELL_MAX_PASSWORD_LEN          20
+// user set query tags max len
+#define TSDB_TAGS_LEN                   256
+
 #define TSDB_TRUE   1
 #define TSDB_FALSE  0
 #define TSDB_OK     0
@@ -184,10 +187,15 @@ do { \
 #define TSDB_BINARY_OP_DIVIDE     33
 #define TSDB_BINARY_OP_REMAINDER  34
 #define TSDB_BINARY_OP_BITAND     35
+#define TSDB_BINARY_OP_BITOR      36
+#define TSDB_BINARY_OP_BITXOR     37
+#define TSDB_BINARY_OP_BITNOT     38
+#define TSDB_BINARY_OP_LSHIFT     39
+#define TSDB_BINARY_OP_RSHIFT     40
 
 
 #define IS_RELATION_OPTR(op) (((op) >= TSDB_RELATION_LESS) && ((op) < TSDB_RELATION_IN))
-#define IS_ARITHMETIC_OPTR(op) (((op) >= TSDB_BINARY_OP_ADD) && ((op) <= TSDB_BINARY_OP_BITAND))
+#define IS_ARITHMETIC_OPTR(op) (((op) >= TSDB_BINARY_OP_ADD) && ((op) <= TSDB_BINARY_OP_RSHIFT))
 
 #define TS_PATH_DELIMITER_LEN     1
 

@@ -13,7 +13,7 @@
 %right NOT.
 %left EQ NE ISNULL NOTNULL IS LIKE MATCH NMATCH CONTAINS GLOB BETWEEN IN.
 %left GT GE LT LE.
-%left BITAND BITOR LSHIFT RSHIFT.
+%left BITAND BITOR BITXOR LSHIFT RSHIFT.
 %left PLUS MINUS.
 %left DIVIDE TIMES.
 %left STAR SLASH REM.
@@ -161,8 +161,9 @@ cmd ::= DESC ids(X) cpxName(Y). {
     setDCLSqlElems(pInfo, TSDB_SQL_DESCRIBE_TABLE, 1, &X);
 }
 /////////////////////////////////THE ALTER STATEMENT////////////////////////////////////////
-cmd ::= ALTER USER ids(X) PASS ids(Y).          { setAlterUserSql(pInfo, TSDB_ALTER_USER_PASSWD, &X, &Y, NULL);    }
-cmd ::= ALTER USER ids(X) PRIVILEGE ids(Y).     { setAlterUserSql(pInfo, TSDB_ALTER_USER_PRIVILEGES, &X, NULL, &Y);}
+cmd ::= ALTER USER ids(X) PASS ids(Y).          { setAlterUserSql(pInfo, TSDB_ALTER_USER_PASSWD,     &X, &Y,   NULL, NULL);}
+cmd ::= ALTER USER ids(X) PRIVILEGE ids(Y).     { setAlterUserSql(pInfo, TSDB_ALTER_USER_PRIVILEGES, &X, NULL, &Y,   NULL);}
+cmd ::= ALTER USER ids(X) TAGS ids(Y).          { setAlterUserSql(pInfo, TSDB_ALTER_USER_TAGS,       &X, NULL, NULL, &Y);}
 cmd ::= ALTER DNODE ids(X) ids(Y).              { setDCLSqlElems(pInfo, TSDB_SQL_CFG_DNODE, 2, &X, &Y);          }
 cmd ::= ALTER DNODE ids(X) ids(Y) ids(Z).       { setDCLSqlElems(pInfo, TSDB_SQL_CFG_DNODE, 3, &X, &Y, &Z);      }
 cmd ::= ALTER LOCAL ids(X).                     { setDCLSqlElems(pInfo, TSDB_SQL_CFG_LOCAL, 1, &X);              }
@@ -201,7 +202,8 @@ cmd ::= CREATE DATABASE ifnotexists(Z) ids(X) db_optr(Y).  { setCreateDbInfo(pIn
 cmd ::= CREATE TOPIC ifnotexists(Z) ids(X) topic_optr(Y).  { setCreateDbInfo(pInfo, TSDB_SQL_CREATE_DB, &X, &Y, &Z);}
 cmd ::= CREATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) bufsize(B).   { setCreateFuncInfo(pInfo, TSDB_SQL_CREATE_FUNCTION, &X, &Y, &Z, &B, 1);}
 cmd ::= CREATE AGGREGATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) bufsize(B).   { setCreateFuncInfo(pInfo, TSDB_SQL_CREATE_FUNCTION, &X, &Y, &Z, &B, 2);}
-cmd ::= CREATE USER ids(X) PASS ids(Y).     { setCreateUserSql(pInfo, &X, &Y);}
+cmd ::= CREATE USER ids(X) PASS ids(Y).     { setCreateUserSql(pInfo, &X, &Y, NULL);}
+cmd ::= CREATE USER ids(X) PASS ids(Y) TAGS ids(Z).     { setCreateUserSql(pInfo, &X, &Y, &Z);}
 
 bufsize(Y) ::= .                                { Y.n = 0;   }
 bufsize(Y) ::= BUFSIZE INTEGER(X).              { Y = X;     }
@@ -802,6 +804,11 @@ expr(A) ::= expr(X) STAR  expr(Y).   {A = tSqlExprCreate(X, Y, TK_STAR);  }
 expr(A) ::= expr(X) SLASH expr(Y).   {A = tSqlExprCreate(X, Y, TK_DIVIDE);}
 expr(A) ::= expr(X) REM   expr(Y).   {A = tSqlExprCreate(X, Y, TK_REM);   }
 expr(A) ::= expr(X) BITAND expr(Y).  {A = tSqlExprCreate(X, Y, TK_BITAND);}
+expr(A) ::= expr(X) BITOR expr(Y).   {A = tSqlExprCreate(X, Y, TK_BITOR); }
+expr(A) ::= expr(X) BITXOR expr(Y).  {A = tSqlExprCreate(X, Y, TK_BITXOR);}
+expr(A) ::= BITNOT expr(X).          {A = tSqlExprCreate(X, NULL, TK_BITNOT);}
+expr(A) ::= expr(X) LSHIFT expr(Y).  {A = tSqlExprCreate(X, Y, TK_LSHIFT);}
+expr(A) ::= expr(X) RSHIFT expr(Y).  {A = tSqlExprCreate(X, Y, TK_RSHIFT);}
 
 // like expression
 expr(A) ::= expr(X) LIKE expr(Y).    {A = tSqlExprCreate(X, Y, TK_LIKE);  }

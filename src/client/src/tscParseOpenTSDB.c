@@ -76,7 +76,7 @@ static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **idx, in
   }
 
   addEscapeCharToString(pSml->stableName, len);
-  *index = cur + 1;
+  *idx = cur + 1;
   tscDebug("OTD:0x%"PRIx64" Stable name in metric:%s|len:%d", info->id, pSml->stableName, len);
 
   return TSDB_CODE_SUCCESS;
@@ -92,7 +92,7 @@ static int32_t parseTelnetTimeStamp(TAOS_SML_KV **pTS, int *num_kvs, const char 
   char key[] = OTD_TIMESTAMP_COLUMN_NAME;
   char *value = NULL;
 
-  start = cur = *index;
+  start = cur = *idx;
   //allocate fields for timestamp and value
   *pTS = tcalloc(OTD_MAX_FIELDS_NUM, sizeof(TAOS_SML_KV));
 
@@ -130,7 +130,7 @@ static int32_t parseTelnetTimeStamp(TAOS_SML_KV **pTS, int *num_kvs, const char 
   addEscapeCharToString((*pTS)->key, (int32_t)strlen(key));
 
   *num_kvs += 1;
-  *index = cur + 1;
+  *idx = cur + 1;
 
   return ret;
 }
@@ -145,7 +145,7 @@ static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const ch
   char key[] = OTD_METRIC_VALUE_COLUMN_NAME;
   char *value = NULL;
 
-  start = cur = *index;
+  start = cur = *idx;
 
   //if metric value is string
   if (*cur == '"') {
@@ -201,7 +201,7 @@ static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const ch
   addEscapeCharToString(pVal->key, (int32_t)strlen(pVal->key));
   *num_kvs += 1;
 
-  *index = cur + 1;
+  *idx = cur + 1;
   return ret;
 }
 
@@ -244,7 +244,7 @@ static int32_t parseTelnetTagKey(TAOS_SML_KV *pKV, const char **idx, int32_t sql
   memcpy(pKV->key, key, len + 1);
   addEscapeCharToString(pKV->key, len);
   //tscDebug("OTD:0x%"PRIx64" Key:%s|len:%d", info->id, pKV->key, len);
-  *index = cur + 1;
+  *idx = cur + 1;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -254,7 +254,7 @@ static int32_t parseTelnetTagValue(TAOS_SML_KV *pKV, const char **idx, int32_t s
   const char *start, *cur;
   char *value = NULL;
   uint16_t len = 0;
-  start = cur = *index;
+  start = cur = *idx;
 
   while (1) {
     // whitespace or '\0' identifies a value
@@ -297,7 +297,7 @@ static int32_t parseTelnetTagValue(TAOS_SML_KV *pKV, const char **idx, int32_t s
 static int32_t parseTelnetTagKvs(TAOS_SML_KV **pKVs, int *num_kvs,
                                const char **idx, int32_t sqlLen, char **childTableName,
                                SHashObj *pHash, SSmlLinesInfo* info) {
-  const char *cur = *index;
+  const char *cur = *idx;
   int32_t ret = TSDB_CODE_SUCCESS;
   TAOS_SML_KV *pkv;
   bool is_last_kv = false;
@@ -428,7 +428,7 @@ static int32_t tscParseTelnetLines(char* data, int32_t len, char* lines[], int n
     int32_t lenTmp = 0;
     for(int i = 0; i < len; i++){
       if(data[i] == '\n' || i == len - 1){
-        if(data[i] != '\n' || i == len - 1){
+        if(data[i] != '\n' && i == len - 1){
           lenTmp++;
         }
         if(lenTmp > 0) {
@@ -450,7 +450,7 @@ static int32_t tscParseTelnetLines(char* data, int32_t len, char* lines[], int n
   return code;
 }
 
-int taos_insert_telnet_lines(TAOS* taos, char* data, int32_t len, char* lines[], int numLines, SMLProtocolType protocol, SMLTimeStampType tsType, int* affectedRows) {
+int taos_insert_telnet_lines(TAOS* taos, char* data, int32_t len, char* lines[], int *numLines, SMLProtocolType protocol, SMLTimeStampType tsType, int* affectedRows) {
   int32_t code = 0;
 
   SSmlLinesInfo* info = tcalloc(1, sizeof(SSmlLinesInfo));
@@ -459,26 +459,26 @@ int taos_insert_telnet_lines(TAOS* taos, char* data, int32_t len, char* lines[],
   info->protocol = protocol;
 
   if (data && !lines){
-    numLines = 0;
+    *numLines = 0;
     for(int i = 0; i < len; i++){
       if(data[i] == '\0'){
         data[i] = '0';
       }
       if(data[i] == '\n' || i == len - 1){
-        numLines++;
+        (*numLines)++;
       }
     }
   }
 
-  if (numLines <= 0 || numLines > 65536) {
-    tscError("OTD:0x%"PRIx64" taos_insert_telnet_lines numLines should be between 1 and 65536. numLines: %d", info->id, numLines);
+  if (*numLines <= 0 || *numLines > 65536) {
+    tscError("OTD:0x%"PRIx64" taos_insert_telnet_lines numLines should be between 1 and 65536. numLines: %d", info->id, *numLines);
     tfree(info);
     code = TSDB_CODE_TSC_APP_ERROR;
     return code;
   }
 
   if(!data && lines){
-    for (int i = 0; i < numLines; ++i) {
+    for (int i = 0; i < *numLines; ++i) {
       if (lines[i] == NULL) {
         tscError("OTD:0x%"PRIx64" taos_insert_telnet_lines line %d is NULL", info->id, i);
         tfree(info);
@@ -488,22 +488,22 @@ int taos_insert_telnet_lines(TAOS* taos, char* data, int32_t len, char* lines[],
     }
   }
 
-  SArray* lpPoints = taosArrayInit(numLines, sizeof(TAOS_SML_DATA_POINT));
+  SArray* lpPoints = taosArrayInit(*numLines, sizeof(TAOS_SML_DATA_POINT));
   if (lpPoints == NULL) {
     tscError("OTD:0x%"PRIx64" taos_insert_telnet_lines failed to allocate memory", info->id);
     tfree(info);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  tscDebug("OTD:0x%"PRIx64" taos_insert_telnet_lines begin inserting %d lines, first line: %s", info->id, numLines, lines[0]);
-  code = tscParseTelnetLines(data, len, lines, numLines, lpPoints, NULL, info);
+  tscDebug("OTD:0x%"PRIx64" taos_insert_telnet_lines begin inserting %d lines, first line: %s", info->id, *numLines, lines[0]);
+  code = tscParseTelnetLines(data, len, lines, *numLines, lpPoints, NULL, info);
   size_t numPoints = taosArrayGetSize(lpPoints);
+  TAOS_SML_DATA_POINT* points = TARRAY_GET_START(lpPoints);
 
   if (code != 0) {
     goto cleanup;
   }
 
-  TAOS_SML_DATA_POINT* points = TARRAY_GET_START(lpPoints);
   code = tscSmlInsert(taos, points, (int)numPoints, info);
   if (code != 0) {
     tscError("OTD:0x%"PRIx64" taos_insert_telnet_lines error: %s", info->id, tstrerror((code)));
@@ -513,9 +513,7 @@ int taos_insert_telnet_lines(TAOS* taos, char* data, int32_t len, char* lines[],
   }
 
 cleanup:
-  tscDebug("OTD:0x%"PRIx64" taos_insert_telnet_lines finish inserting %d lines. code: %d", info->id, numLines, code);
-  points = TARRAY_GET_START(lpPoints);
-  numPoints = taosArrayGetSize(lpPoints);
+  tscDebug("OTD:0x%"PRIx64" taos_insert_telnet_lines finish inserting %d lines. code: %d", info->id, *numLines, code);
   for (int i = 0; i < numPoints; ++i) {
     destroySmlDataPoint(points+i);
   }
@@ -1107,8 +1105,9 @@ PARSE_JSON_OVER:
   return ret;
 }
 
-int taos_insert_json_payload(TAOS* taos, char* payload, SMLProtocolType protocol, SMLTimeStampType tsType, int* affectedRows) {
+int taos_insert_json_payload(TAOS* taos, char* payload, SMLProtocolType protocol, int32_t *totalRows, SMLTimeStampType tsType, int* affectedRows) {
   int32_t code = 0;
+  *totalRows = 0;
 
   SSmlLinesInfo* info = tcalloc(1, sizeof(SSmlLinesInfo));
   info->id = genUID();
@@ -1132,12 +1131,12 @@ int taos_insert_json_payload(TAOS* taos, char* payload, SMLProtocolType protocol
   tscDebug("OTD:0x%"PRIx64" taos_insert_telnet_lines begin inserting %d points", info->id, 1);
   code = tscParseMultiJSONPayload(payload, lpPoints, info);
   size_t numPoints = taosArrayGetSize(lpPoints);
+  TAOS_SML_DATA_POINT* points = TARRAY_GET_START(lpPoints);
 
   if (code != 0) {
     goto cleanup;
   }
 
-  TAOS_SML_DATA_POINT* points = TARRAY_GET_START(lpPoints);
   code = tscSmlInsert(taos, points, (int)numPoints, info);
   if (code != 0) {
     tscError("OTD:0x%"PRIx64" taos_insert_json_payload error: %s", info->id, tstrerror((code)));
@@ -1145,11 +1144,10 @@ int taos_insert_json_payload(TAOS* taos, char* payload, SMLProtocolType protocol
   if (affectedRows != NULL) {
     *affectedRows = info->affectedRows;
   }
+  *totalRows = numPoints;
 
 cleanup:
   tscDebug("OTD:0x%"PRIx64" taos_insert_json_payload finish inserting 1 Point. code: %d", info->id, code);
-  points = TARRAY_GET_START(lpPoints);
-  numPoints = taosArrayGetSize(lpPoints);
   for (int i = 0; i < numPoints; ++i) {
     destroySmlDataPoint(points+i);
   }

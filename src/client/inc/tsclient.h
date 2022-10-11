@@ -257,6 +257,8 @@ typedef struct SInsertStatementParam {
   int32_t      batchSize;               // for parameter ('?') binding and batch processing
   int32_t      numOfParams;
 
+  int32_t      numOfFiles;
+
   char         msg[512];                // error message
   uint32_t     insertType;              // insert data from [file|sql statement| bound statement]
   uint64_t     objectId;                // sql object id
@@ -292,6 +294,7 @@ typedef struct {
   SQueryInfo  *active;         // current active query info
   int32_t      batchSize;      // for parameter ('?') binding and batch processing
   int32_t      resColumnId;
+  SArray      *hashedTableNames;
 } SSqlCmd;
 
 typedef struct {
@@ -333,6 +336,7 @@ typedef struct STscObj {
   char               user[TSDB_USER_LEN];
   char               pass[TSDB_PASS_LEN];
   char               acctId[TSDB_ACCT_ID_LEN];
+  char               tags[TSDB_TAGS_LEN];
   char               db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   char               sversion[TSDB_VERSION_LEN];
   char               clusterId[TSDB_CLUSTER_ID_LEN];
@@ -357,6 +361,7 @@ typedef struct SSubqueryState {
   int8_t  *states;
   int32_t  numOfSub;            // the number of total sub-queries
   uint64_t numOfRetrievedRows;  // total number of points in this query
+  uint32_t version;
 } SSubqueryState;
 
 typedef struct SSqlObj {
@@ -394,6 +399,10 @@ typedef struct SSqlObj {
   int32_t          retryReason;  // previous error code
   struct SSqlObj  *prev, *next;
   int64_t          self;
+  
+  // connect alive
+  int64_t          lastAlive;
+  void *           pPrevContext;
 } SSqlObj;
 
 typedef struct SSqlStream {
@@ -430,6 +439,12 @@ typedef struct SSqlStream {
   void (*callback)(void *);  // Callback function when stream is stopped from client level
   struct SSqlStream *prev, *next;
 } SSqlStream;
+
+SSqlObj* tscAllocSqlObj();
+uint32_t tscGetVersionOfSubStateWithoutLock(SSqlObj *pSql);
+SSqlObj* tscAcquireRefOfSubobj(SSqlObj *pSql, int32_t idx, uint32_t stateVersion);
+void tscReleaseRefOfSubobj(SSqlObj *pSql);
+void tscResetAllSubStates(SSqlObj* pSql);
 
 void tscSetStreamDestTable(SSqlStream* pStream, const char* dstTable);
 
