@@ -411,7 +411,7 @@ _exit:
 
 int32_t tTSRowClone(const STSRow2 *pRow, STSRow2 **ppRow) {
   int32_t code = 0;
-  int32_t rLen;
+  int32_t rLen = 0;
 
   TSROW_LEN(pRow, rLen);
   (*ppRow) = (STSRow2 *)taosMemoryMalloc(rLen);
