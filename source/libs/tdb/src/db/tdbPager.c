@@ -156,6 +156,7 @@ int tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate, SBTree *pBt) {
 
     ret = tdbPagerWrite(pPager, pPage);
     if (ret < 0) {
+      tdbError("failed to write page since %s", terrstr());
       return -1;
     }
 
@@ -292,7 +293,7 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
     return -1;
   }
 
-  if (tdbOsRemove(pPager->jFileName) < 0) {
+  if (tdbOsRemove(pPager->jFileName) < 0 && errno != ENOENT) {
     tdbError("failed to remove file due to %s. file:%s", strerror(errno), pPager->jFileName);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -639,7 +640,7 @@ int tdbPagerRestore(SPager *pPager, SBTree *pBt) {
     return -1;
   }
 
-  if (tdbOsRemove(pPager->jFileName) < 0) {
+  if (tdbOsRemove(pPager->jFileName) < 0 && errno != ENOENT) {
     tdbError("failed to remove file due to %s. jFileName:%s", strerror(errno), pPager->jFileName);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
