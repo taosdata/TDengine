@@ -2547,7 +2547,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
       return NULL;
     }
     SMetaReader smrSuperTable = {0};
-    metaReaderInit(&smrSuperTable, pInfo->readHandle.meta, 0);
+    metaReaderInit(&smrSuperTable, pInfo->readHandle.meta, META_READER_NOLOCK);
     metaGetTableEntryByUid(&smrSuperTable, smrChildTable.me.ctbEntry.suid);
     sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &smrChildTable, dbname, tableName, &numOfRows, dataBlock);
     metaReaderClear(&smrSuperTable);
