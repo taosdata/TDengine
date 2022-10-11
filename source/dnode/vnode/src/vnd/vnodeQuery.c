@@ -15,12 +15,10 @@
 
 #include "vnd.h"
 
-#define VNODE_GET_LOAD_RESET_VALS(pVar, oVal, vType)                         \
-  do {                                                                       \
-    if ((oVal) != atomic_val_compare_exchange_##vType(&(pVar), (oVal), 0)) { \
-      int##vType##_t newVal = atomic_sub_fetch_##vType(&(pVar), (oVal));     \
-      ASSERT(newVal >= 0);                                                   \
-    }                                                                        \
+#define VNODE_GET_LOAD_RESET_VALS(pVar, oVal, vType)                   \
+  do {                                                                 \
+    int##vType##_t newVal = atomic_sub_fetch_##vType(&(pVar), (oVal)); \
+    ASSERT(newVal >= 0);                                               \
   } while (0)
 
 int vnodeQueryOpen(SVnode *pVnode) {
@@ -401,6 +399,8 @@ void vnodeResetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nInsertSuccess, pLoad->numOfInsertSuccessReqs, 64);
   VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nBatchInsert, pLoad->numOfBatchInsertReqs, 64);
   VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nBatchInsertSuccess, pLoad->numOfBatchInsertSuccessReqs, 64);
+
+
 }
 
 void vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId) {
