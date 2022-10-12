@@ -1,19 +1,19 @@
 #!/bin/bash
 
-PRJ_ROOT_DIR=$( readlink -f -- "`dirname $0`/../.." )
+PRJ_ROOT_DIR=$(readlink -f -- "$(dirname $0)/../..")
 
-ORIGIN_DIR=`pwd`
+ORIGIN_DIR=$(pwd)
 
 cd ${PRJ_ROOT_DIR}
 
 FORMAT_DIR_LIST=(
-    "include" 
-    "source"
+    "include"
+    # "source"
 )
 
 for d in ${FORMAT_DIR_LIST[@]}; do
-    for f in `find ${PRJ_ROOT_DIR}/$d/ -regex '.*\.\(cpp\|hpp\|cu\|c\|h\)'`; do
-        clang-format-12 -i $f
+    for f in $(find ${PRJ_ROOT_DIR}/$d/ -regex '.*\.\(cpp\|hpp\|c\|h\)'); do
+        clang-format-14 -i $f
     done
 done
 

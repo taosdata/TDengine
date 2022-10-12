@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 // sql type
+// clang-format off
 
 #ifdef TSDB_SQL_C
 #define TSDB_DEFINE_SQL_TYPE( name, msg ) msg, 
@@ -102,9 +103,10 @@ enum {
 
   TSDB_DEFINE_SQL_TYPE( TSDB_SQL_MAX, "max" )
 };
+// clang-format on
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  /*_TD_COMMON_SQLMSGTYPE_H_*/
+#endif /*_TD_COMMON_SQLMSGTYPE_H_*/
