@@ -585,6 +585,31 @@ if $data30 != NULL then
  return -1
 endi
 
+sql select cast(case f1 when f1 then f1 + 1 else f1 is null end as double) from tba1;
+if $rows != 4 then 
+  return -1
+endi
+if $data00 != 1.000000000 then
+ return -1
+endi
+if $data10 != 2.000000000 then
+ return -1
+endi
+if $data20 != 6.000000000 then
+ return -1
+endi
+if $data30 != 1.000000000 then
+ return -1
+endi
+
+sql select sum(case f1 when f1 then f1 + 1 else f1 is null end + 1) from tba1;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != 14.000000000 then
+ return -1
+endi
+
 sql select case when f1 < 3 then 1 when f1 >= 3 then 2 else 3 end,sum(f1),count(f1) from tba1 state_window(case when f1 < 3 then 1 when f1 >= 3 then 2 else 3 end);
 if $rows != 3 then 
   return -1
@@ -1011,6 +1036,26 @@ if $data20 != 1.000000000 then
  return -1
 endi
 if $data30 != 5.000000000 then
+ return -1
+endi
+
+sql select distinct tbname, case t1 when t2 then t1 else t1 + 100 end from sta order by tbname;
+if $rows != 5 then 
+  return -1
+endi
+if $data01 != 0 then
+ return -1
+endi
+if $data11 != 1 then
+ return -1
+endi
+if $data21 != NULL then
+ return -1
+endi
+if $data31 != 101 then
+ return -1
+endi
+if $data41 != 103 then
  return -1
 endi
 
