@@ -956,8 +956,8 @@ _exit:
   // N.B not strict as the following update steps is not atomic
   atomic_add_fetch_64(&pVnode->statis.nInsert, submitRsp.numOfRows);
   atomic_add_fetch_64(&pVnode->statis.nInsertSuccess, submitRsp.affectedRows);
-  atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, statis.nBatchInsertSuccess);
   atomic_add_fetch_64(&pVnode->statis.nBatchInsert, statis.nBatchInsert);
+  atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, statis.nBatchInsertSuccess);
 
   vDebug("vgId:%d, submit success, index:%" PRId64, pVnode->config.vgId, version);
   return 0;
