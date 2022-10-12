@@ -85,7 +85,8 @@ uint16_t tsTelemPort = 80;
 char tsSmlTagName[TSDB_COL_NAME_LEN] = "_tag_null";
 char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table name can be specified in tag value.
                                                      // If set to empty system will generate table name using MD5 hash.
-bool tsSmlDataFormat = false;  // true means that the name and order of cols in each line are the same(only for influx protocol)
+// true means that the name and order of cols in each line are the same(only for influx protocol)
+bool tsSmlDataFormat = false;
 
 // query
 int32_t tsQueryPolicy = 1;
@@ -124,6 +125,9 @@ int32_t tsMaxNumOfDistinctResults = 1000 * 10000;
 
 // 1 database precision unit for interval time range, changed accordingly
 int32_t tsMinIntervalTime = 1;
+
+// maximum memory allowed to be allocated for a single csv load (in MB)
+int32_t tsMaxMemUsedByInsert = 1024;
 
 // the maximum allowed query buffer size during query processing for each data node.
 // -1 no limit (default)
@@ -296,6 +300,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "smlChildTableName", "", 1) != 0) return -1;
   if (cfgAddString(pCfg, "smlTagName", tsSmlTagName, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxMemUsedByInsert", tsMaxMemUsedByInsert, 1, INT32_MAX, true) != 0) return -1;
 
   tsNumOfTaskQueueThreads = tsNumOfCores / 2;
   tsNumOfTaskQueueThreads = TMAX(tsNumOfTaskQueueThreads, 4);
@@ -374,8 +379,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   tsNumOfVnodeStreamThreads = TMAX(tsNumOfVnodeStreamThreads, 4);
   if (cfgAddInt32(pCfg, "numOfVnodeStreamThreads", tsNumOfVnodeStreamThreads, 4, 1024, 0) != 0) return -1;
 
-//  tsNumOfVnodeFetchThreads = 1;
-//  if (cfgAddInt32(pCfg, "numOfVnodeFetchThreads", tsNumOfVnodeFetchThreads, 1, 1, 0) != 0) return -1;
+  //  tsNumOfVnodeFetchThreads = 1;
+  //  if (cfgAddInt32(pCfg, "numOfVnodeFetchThreads", tsNumOfVnodeFetchThreads, 1, 1, 0) != 0) return -1;
 
   tsNumOfVnodeWriteThreads = tsNumOfCores;
   tsNumOfVnodeWriteThreads = TMAX(tsNumOfVnodeWriteThreads, 1);
@@ -497,15 +502,15 @@ static int32_t taosUpdateServerCfg(SConfig *pCfg) {
     pItem->stype = stype;
   }
 
-/*
-  pItem = cfgGetItem(tsCfg, "numOfVnodeFetchThreads");
-  if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
-    tsNumOfVnodeFetchThreads = numOfCores / 4;
-    tsNumOfVnodeFetchThreads = TMAX(tsNumOfVnodeFetchThreads, 4);
-    pItem->i32 = tsNumOfVnodeFetchThreads;
-    pItem->stype = stype;
-  }
-*/
+  /*
+    pItem = cfgGetItem(tsCfg, "numOfVnodeFetchThreads");
+    if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
+      tsNumOfVnodeFetchThreads = numOfCores / 4;
+      tsNumOfVnodeFetchThreads = TMAX(tsNumOfVnodeFetchThreads, 4);
+      pItem->i32 = tsNumOfVnodeFetchThreads;
+      pItem->stype = stype;
+    }
+  */
 
   pItem = cfgGetItem(tsCfg, "numOfVnodeWriteThreads");
   if (pItem != NULL && pItem->stype == CFG_STYPE_DEFAULT) {
@@ -648,6 +653,8 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagName")->str, TSDB_COL_NAME_LEN);
   tsSmlDataFormat = cfgGetItem(pCfg, "smlDataFormat")->bval;
 
+  tsMaxMemUsedByInsert = cfgGetItem(pCfg, "maxMemUsedByInsert")->i32;
+
   tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
   tsCompressMsgSize = cfgGetItem(pCfg, "compressMsgSize")->i32;
   tsCompressColData = cfgGetItem(pCfg, "compressColData")->i32;
@@ -705,7 +712,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsNumOfMnodeReadThreads = cfgGetItem(pCfg, "numOfMnodeReadThreads")->i32;
   tsNumOfVnodeQueryThreads = cfgGetItem(pCfg, "numOfVnodeQueryThreads")->i32;
   tsNumOfVnodeStreamThreads = cfgGetItem(pCfg, "numOfVnodeStreamThreads")->i32;
-//  tsNumOfVnodeFetchThreads = cfgGetItem(pCfg, "numOfVnodeFetchThreads")->i32;
+  //  tsNumOfVnodeFetchThreads = cfgGetItem(pCfg, "numOfVnodeFetchThreads")->i32;
   tsNumOfVnodeWriteThreads = cfgGetItem(pCfg, "numOfVnodeWriteThreads")->i32;
   tsNumOfVnodeSyncThreads = cfgGetItem(pCfg, "numOfVnodeSyncThreads")->i32;
   tsNumOfVnodeRsmaThreads = cfgGetItem(pCfg, "numOfVnodeRsmaThreads")->i32;
@@ -877,6 +884,8 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
             tsMaxShellConns = cfgGetItem(pCfg, "maxShellConns")->i32;
           } else if (strcasecmp("maxNumOfDistinctRes", name) == 0) {
             tsMaxNumOfDistinctResults = cfgGetItem(pCfg, "maxNumOfDistinctRes")->i32;
+          } else if (strcasecmp("maxMemUsedByInsert", name) == 0) {
+            tsMaxMemUsedByInsert = cfgGetItem(pCfg, "maxMemUsedByInsert")->i32;
           }
           break;
         }
@@ -955,10 +964,10 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
         tsNumOfMnodeReadThreads = cfgGetItem(pCfg, "numOfMnodeReadThreads")->i32;
       } else if (strcasecmp("numOfVnodeQueryThreads", name) == 0) {
         tsNumOfVnodeQueryThreads = cfgGetItem(pCfg, "numOfVnodeQueryThreads")->i32;
-/*
-      } else if (strcasecmp("numOfVnodeFetchThreads", name) == 0) {
-        tsNumOfVnodeFetchThreads = cfgGetItem(pCfg, "numOfVnodeFetchThreads")->i32;
-*/
+        /*
+              } else if (strcasecmp("numOfVnodeFetchThreads", name) == 0) {
+                tsNumOfVnodeFetchThreads = cfgGetItem(pCfg, "numOfVnodeFetchThreads")->i32;
+        */
       } else if (strcasecmp("numOfVnodeWriteThreads", name) == 0) {
         tsNumOfVnodeWriteThreads = cfgGetItem(pCfg, "numOfVnodeWriteThreads")->i32;
       } else if (strcasecmp("numOfVnodeSyncThreads", name) == 0) {

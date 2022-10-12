@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
 
-void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
+void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
   pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoad));
   if (pInfo->pVloads == NULL) return;
 
@@ -30,6 +30,7 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
     SVnodeObj *pVnode = *ppVnode;
     SVnodeLoad vload = {0};
     vnodeGetLoad(pVnode->pImpl, &vload);
+    if (isReset) vnodeResetLoad(pVnode->pImpl, &vload);
     taosArrayPush(pInfo->pVloads, &vload);
     pIter = taosHashIterate(pMgmt->hash, pIter);
   }
@@ -39,7 +40,7 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
 
 void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
   SMonVloadInfo vloads = {0};
-  vmGetVnodeLoads(pMgmt, &vloads);
+  vmGetVnodeLoads(pMgmt, &vloads, true);
 
   SArray *pVloads = vloads.pVloads;
   if (pVloads == NULL) return;
@@ -66,10 +67,10 @@ void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
   pInfo->vstat.totalVnodes = totalVnodes;
   pInfo->vstat.masterNum = masterNum;
   pInfo->vstat.numOfSelectReqs = numOfSelectReqs - pMgmt->state.numOfSelectReqs;
-  pInfo->vstat.numOfInsertReqs = numOfInsertReqs - pMgmt->state.numOfInsertReqs;
-  pInfo->vstat.numOfInsertSuccessReqs = numOfInsertSuccessReqs - pMgmt->state.numOfInsertSuccessReqs;
-  pInfo->vstat.numOfBatchInsertReqs = numOfBatchInsertReqs - pMgmt->state.numOfBatchInsertReqs;
-  pInfo->vstat.numOfBatchInsertSuccessReqs = numOfBatchInsertSuccessReqs - pMgmt->state.numOfBatchInsertSuccessReqs;
+  pInfo->vstat.numOfInsertReqs = numOfInsertReqs;                          // delta
+  pInfo->vstat.numOfInsertSuccessReqs = numOfInsertSuccessReqs;            // delta
+  pInfo->vstat.numOfBatchInsertReqs = numOfBatchInsertReqs;                // delta
+  pInfo->vstat.numOfBatchInsertSuccessReqs = numOfBatchInsertSuccessReqs;  // delta
   pMgmt->state.totalVnodes = totalVnodes;
   pMgmt->state.masterNum = masterNum;
   pMgmt->state.numOfSelectReqs = numOfSelectReqs;
@@ -109,7 +110,7 @@ int32_t vmProcessGetMonitorInfoReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
 int32_t vmProcessGetLoadsReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SMonVloadInfo vloads = {0};
-  vmGetVnodeLoads(pMgmt, &vloads);
+  vmGetVnodeLoads(pMgmt, &vloads, false);
 
   int32_t rspLen = tSerializeSMonVloadInfo(NULL, 0, &vloads);
   if (rspLen < 0) {

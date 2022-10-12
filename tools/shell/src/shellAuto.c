@@ -1133,6 +1133,10 @@ bool firstMatchCommand(TAOS* con, SShellCmd* cmd) {
 
   // print to screen
   printScreen(con, cmd, match);
+#ifdef WINDOWS
+  printf("\r");
+  shellShowOnScreen(cmd);
+#endif
   freeCommand(input);
   taosMemoryFree(input);
   return true;
@@ -1195,6 +1199,10 @@ bool nextMatchCommand(TAOS* con, SShellCmd* cmd, SWords* firstMatch) {
 
   // print to screen
   printScreen(con, cmd, match);
+#ifdef WINDOWS
+  printf("\r");
+  shellShowOnScreen(cmd);
+#endif
 
   // free
   if (input->source) {

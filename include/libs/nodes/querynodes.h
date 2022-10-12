@@ -385,7 +385,6 @@ typedef struct SCmdMsgInfo {
   SEpSet  epSet;
   void*   pMsg;
   int32_t msgLen;
-  void*   pExtension;  // todo remove it soon
 } SCmdMsgInfo;
 
 typedef enum EQueryExecMode {
