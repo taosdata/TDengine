@@ -3611,6 +3611,7 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
   blockDataDestroy(pInfo->pUpdateRes);
   destroySqlFunctionCtx(pInfo->pDummyCtx, 0);
   taosHashCleanup(pInfo->pStDeleted);
+  taosHashCleanup(pInfo->pGroupIdTbNameMap);
 
   taosMemoryFreeClear(param);
 }
@@ -4670,6 +4671,7 @@ void destroyStreamStateOperatorInfo(void* param) {
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   blockDataDestroy(pInfo->pDelRes);
   taosHashCleanup(pInfo->pSeDeleted);
+  taosHashCleanup(pInfo->pGroupIdTbNameMap);
   destroySqlFunctionCtx(pInfo->pDummyCtx, 0);
 
   taosMemoryFreeClear(param);

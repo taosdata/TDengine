@@ -117,6 +117,7 @@ static int32_t mndProcessConsumerLostMsg(SRpcMsg *pMsg) {
   if (mndTransPrepare(pMnode, pTrans) != 0) goto FAIL;
 
   mndTransDrop(pTrans);
+  tDeleteSMqConsumerObj(pConsumerNew);
   return 0;
 FAIL:
   tDeleteSMqConsumerObj(pConsumerNew);

@@ -170,6 +170,7 @@ int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     if (tDecodeSTqCheckInfo(&decoder, &info) < 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
+      tdbFree(pKey);
       tdbTbcClose(pCur);
       return -1;
     }
