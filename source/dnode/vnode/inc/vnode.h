@@ -94,6 +94,7 @@ typedef struct SMetaEntry  SMetaEntry;
 #define META_READER_NOLOCK 0x1
 
 void        metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags);
+void        metaReaderReleaseLock(SMetaReader *pReader);
 void        metaReaderClear(SMetaReader *pReader);
 int32_t     metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
 int         metaGetTableEntryByName(SMetaReader *pReader, const char *name);

@@ -429,6 +429,8 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int
     return terrno;
   }
 
+  metaReaderReleaseLock(&mr);
+
   for (int32_t j = 0; j < numOfPseudoExpr; ++j) {
     SExprInfo* pExpr = &pPseudoExpr[j];
 
