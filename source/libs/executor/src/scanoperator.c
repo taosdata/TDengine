@@ -1341,7 +1341,8 @@ static void calBlockTbName(SExprSupp* pTbNameCalSup, SSDataBlock* pBlock) {
   void* pData = colDataGetData(pCol, 0);
   // TODO check tbname validation
   if (pData != (void*)-1 && pData != NULL) {
-    memcpy(pBlock->info.parTbName, varDataVal(pData), varDataLen(pData));
+    memcpy(pBlock->info.parTbName, varDataVal(pData), TMIN(varDataLen(pData), TSDB_TABLE_NAME_LEN));
+    pBlock->info.parTbName[TSDB_TABLE_NAME_LEN - 1] = 0;
   } else {
     pBlock->info.parTbName[0] = 0;
   }
