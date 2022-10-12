@@ -6,9 +6,15 @@ ORIGIN_DIR=`pwd`
 
 cd ${PRJ_ROOT_DIR}
 
-# include/
-for f in `find ${PRJ_ROOT_DIR}/include/ -regex '.*\.\(cpp\|hpp\|cu\|c\|h\)'`; do
-    clang-format-12 -i $f
+FORMAT_DIR_LIST=(
+    "include" 
+    "source"
+)
+
+for d in ${FORMAT_DIR_LIST[@]}; do
+    for f in `find ${PRJ_ROOT_DIR}/$d/ -regex '.*\.\(cpp\|hpp\|cu\|c\|h\)'`; do
+        clang-format-12 -i $f
+    done
 done
 
 cd ${ORIGIN_DIR}
