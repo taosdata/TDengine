@@ -408,13 +408,7 @@
       }
 
       function dbQueryCb(d) {
-        if (d == null || d.status == null) {
-          dbHidePanel(DB_CODE_INVALID_FORMAT);
-          return;
-        }
-        if (d.status == "error") {
-          dbHidePanelWithDesc(d.desc);
-        } else if (d.status == "succ") {
+        if (DbUtil.CheckResponse(d)) {
           dbCallback(d);
         } else {
           dbHidePanel(DB_CODE_UNKNOWN);
