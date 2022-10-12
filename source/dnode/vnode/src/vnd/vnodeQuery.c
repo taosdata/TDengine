@@ -504,27 +504,36 @@ static int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
 }
 
 int32_t vnodeGetTimeSeriesNum(SVnode *pVnode, int64_t *num) {
-  SMStbCursor *pCur = metaOpenStbCursor(pVnode->pMeta, 0);
-  if (!pCur) {
+  SArray *suidList = NULL;
+
+  if (!(suidList = taosArrayInit(1, sizeof(tb_uid_t)))) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_FAILED;
+  }
+
+  if (vnodeGetStbIdList(pVnode, 0, suidList) < 0) {
+    qError("vgId:%d, failed to get stb id list error: %s", TD_VID(pVnode), terrstr());
+    taosArrayDestroy(suidList);
     return TSDB_CODE_FAILED;
   }
 
   *num = 0;
-  while (1) {
-    tb_uid_t id = metaStbCursorNext(pCur);
-    if (id == 0) {
-      break;
-    }
+  int64_t arrSize = taosArrayGetSize(suidList);
+  for (int64_t i = 0; i < arrSize; ++i) {
+    tb_uid_t suid = *(tb_uid_t *)taosArrayGet(suidList, i);
 
-    int64_t ctbNum = 0;
-    vnodeGetCtbNum(pVnode, id, &ctbNum);
+    SMetaStbStats stats = {0};
+    metaGetStbStats(pVnode->pMeta, suid, &stats);
+    int64_t ctbNum = stats.ctbNum;
+    // vnodeGetCtbNum(pVnode, id, &ctbNum);
+
     int numOfCols = 0;
-    vnodeGetStbColumnNum(pVnode, id, &numOfCols);
+    vnodeGetStbColumnNum(pVnode, suid, &numOfCols);
 
     *num += ctbNum * (numOfCols - 1);
   }
 
-  metaCloseStbCursor(pCur);
+  taosArrayDestroy(suidList);
   return TSDB_CODE_SUCCESS;
 }
 
