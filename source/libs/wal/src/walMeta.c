@@ -35,8 +35,8 @@ int64_t FORCE_INLINE walGetCommittedVer(SWal* pWal) { return pWal->vers.commitVe
 
 int64_t FORCE_INLINE walGetAppliedVer(SWal* pWal) { return pWal->vers.appliedVer; }
 
-static FORCE_INLINE int walBuildMetaName(SWal* pWal, int metaVer, char* buf) {
-  return sprintf(buf, "%s/meta-ver%d", pWal->path, metaVer);
+static FORCE_INLINE void walBuildMetaName(SWal* pWal, int metaVer, char* buf) {
+  sprintf(buf, "%s/meta-ver%d", pWal->path, metaVer);
 }
 
 static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal) {
@@ -615,6 +615,7 @@ int walLoadMeta(SWal* pWal) {
   TdFilePtr pFile = taosOpenFile(fnameStr, TD_FILE_READ);
   if (pFile == NULL) {
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+    taosMemoryFree(buf);
     return -1;
   }
   if (taosReadFile(pFile, buf, size) != size) {
