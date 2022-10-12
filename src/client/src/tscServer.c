@@ -3393,7 +3393,7 @@ int tscRenewTableMeta(SSqlObj *pSql) {
   SSqlCmd* pCmd2 = &pSql->rootObj->cmd;
   SHashObj *pmap = pCmd2->pTableMetaMap;
   if (pmap == atomic_val_compare_exchange_ptr(&pCmd2->pTableMetaMap, pmap, NULL)) {
-    tscCleanupTableMetaMap(pCmd2->pTableMetaMap);
+    tscCleanupTableMetaMap(pmap);
   }
   pCmd2->pTableMetaMap = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
 
