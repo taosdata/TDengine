@@ -8,8 +8,14 @@ target_include_directories(
 )
 
 target_link_libraries(scalar
-        PRIVATE os util common nodes function qcom vnode
-        )
+    PRIVATE os 
+    PRIVATE util 
+    PRIVATE common
+    PRIVATE nodes
+    PRIVATE function
+    PRIVATE qcom
+    PRIVATE vnode
+)
 
 if(${BUILD_TEST})
     ADD_SUBDIRECTORY(test)

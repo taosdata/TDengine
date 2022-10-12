@@ -227,7 +227,11 @@ int vnodeCommit(SVnode *pVnode) {
   info.state.committed = pVnode->state.applied;
   info.state.commitTerm = pVnode->state.applyTerm;
   info.state.commitID = pVnode->state.commitID;
-  snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
+  if (pVnode->pTfs) {
+    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
+  } else {
+    snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
+  }
   if (vnodeSaveInfo(dir, &info) < 0) {
     ASSERT(0);
     return -1;
