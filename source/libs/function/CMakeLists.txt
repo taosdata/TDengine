@@ -19,9 +19,9 @@ target_link_libraries(
     PRIVATE common 
     PRIVATE nodes 
     PRIVATE qcom 
-    # PRIVATE scalar 
-    # PRIVATE transport 
-    # PRIVATE stream
+    PRIVATE scalar 
+    PRIVATE transport 
+    PRIVATE stream
     PUBLIC uv_a
 )
 
