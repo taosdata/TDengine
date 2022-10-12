@@ -3,7 +3,8 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
-print ======== step1
+print ======== prepare data 
+
 sql drop database if exists db1;
 sql create database db1 vgroups 5;
 sql use db1;
@@ -33,6 +34,8 @@ sql insert into tba5 values ('2022-09-30 15:15:01', 0, "a", false);
 sql insert into tba5 values ('2022-09-30 15:15:02', 1, "0", true);
 sql insert into tba5 values ('2022-09-30 15:15:03', 5, "5", false);
 sql insert into tba5 values ('2022-09-30 15:15:04', null, null, null);
+
+print ======== case when xx
 
 sql select case when 3 then 4 end from tba1;
 if $rows != 4 then 
@@ -580,6 +583,226 @@ if $data20 != 5 then
  return -1
 endi
 if $data30 != NULL then
+ return -1
+endi
+
+#select case when f1 < 3 then 1 when f1 >= 3 then 2 else 3 end,sum(f1),count(f1) from tba1 state_window(case when f1 < 3 then 1 when f1 >= 3 then 2 else 3 end);
+
+sql select f1 from tba1 where case when case when f1 <= 0 then 3 when f1 = 1 then 4 when f1 >= 3 then 2 else 1 end > 2 then 1 else 0 end > 0;
+if $rows != 2 then 
+  return -1
+endi
+if $data00 != 0 then
+ return -1
+endi
+if $data10 != 1 then
+ return -1
+endi
+
+sql select case when f1 is not null then case when f1 <= 0 then f1 else f1 * 10 end else -1 end from tba1;
+if $rows != 4 then 
+  return -1
+endi
+if $data00 != 0 then
+ return -1
+endi
+if $data10 != 10 then
+ return -1
+endi
+if $data20 != 50 then
+ return -1
+endi
+if $data30 != -1 then
+ return -1
+endi
+
+
+print ======== case xx when xx
+
+sql select case 3 when 3 then 4 end from tba1;
+if $rows != 4 then 
+  return -1
+endi
+if $data00 != 4 then
+ return -1
+endi
+if $data10 != 4 then
+ return -1
+endi
+if $data20 != 4 then
+ return -1
+endi
+if $data30 != 4 then
+ return -1
+endi
+
+sql select case 3 when 1 then 4 end from tba1;
+if $rows != 4 then 
+  return -1
+endi
+if $data00 != NULL then
+ return -1
+endi
+if $data10 != NULL then
+ return -1
+endi
+if $data20 != NULL then
+ return -1
+endi
+if $data30 != NULL then
+ return -1
+endi
+
+sql select case 3 when 1 then 4 else 2 end from tba1;
+if $rows != 4 then 
+  return -1
+endi
+if $data00 != 2 then
+ return -1
+endi
+if $data10 != 2 then
+ return -1
+endi
+if $data20 != 2 then
+ return -1
+endi
+if $data30 != 2 then
+ return -1
+endi
+
+sql select case 3 when null then 4 when '3' then 1 end from tba1;
+if $rows != 4 then 
+  return -1
+endi
+if $data00 != 1 then
+ return -1
+endi
+if $data10 != 1 then
+ return -1
+endi
+if $data20 != 1 then
+ return -1
+endi
+if $data30 != 1 then
+ return -1
+endi
+
+sql select case '3' when null then 4 when 3 then 1 end from tba1;
+if $rows != 4 then 
+  return -1
+endi
+if $data00 != 1 then
+ return -1
+endi
+if $data10 != 1 then
+ return -1
+endi
+if $data20 != 1 then
+ return -1
+endi
+if $data30 != 1 then
+ return -1
+endi
+
+sql select case null when null then 4 when 3 then 1 end from tba1;
+if $rows != 4 then 
+  return -1
+endi
+if $data00 != NULL then
+ return -1
+endi
+if $data10 != NULL then
+ return -1
+endi
+if $data20 != NULL then
+ return -1
+endi
+if $data30 != NULL then
+ return -1
+endi
+
+sql select case 3.0 when null then 4 when '3' then 1 end from tba1;
+if $rows != 4 then 
+  return -1
+endi
+if $data00 != 1 then
+ return -1
+endi
+if $data10 != 1 then
+ return -1
+endi
+if $data20 != 1 then
+ return -1
+endi
+if $data30 != 1 then
+ return -1
+endi
+
+sql select case f2 when 'a' then 4 when '0' then 1 end from tba1;
+if $rows != 4 then 
+  return -1
+endi
+if $data00 != 4 then
+ return -1
+endi
+if $data10 != 1 then
+ return -1
+endi
+if $data20 != NULL then
+ return -1
+endi
+if $data30 != NULL then
+ return -1
+endi
+
+sql select case f2 when f1 then f1 when f1 - 1 then f1 else 99 end from tba1;
+if $rows != 4 then 
+  return -1
+endi
+if $data00 != 0 then
+ return -1
+endi
+if $data10 != 1 then
+ return -1
+endi
+if $data20 != 5 then
+ return -1
+endi
+if $data30 != 99 then
+ return -1
+endi
+
+sql select case cast(f2 as int) when 0 then f2 when f1 then 11 else ts end from tba1;
+if $rows != 4 then 
+  return -1
+endi
+if $data00 != 0 then
+ return -1
+endi
+if $data10 != 1 then
+ return -1
+endi
+if $data20 != 5 then
+ return -1
+endi
+if $data30 != 99 then
+ return -1
+endi
+
+sql select case f1 + 1 when 1 then 1 when 2 then 2 else 3 end from tba1;
+if $rows != 4 then 
+  return -1
+endi
+if $data00 != 1 then
+ return -1
+endi
+if $data10 != 2 then
+ return -1
+endi
+if $data20 != 3 then
+ return -1
+endi
+if $data30 != 3 then
  return -1
 endi
 

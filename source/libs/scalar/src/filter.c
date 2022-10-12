@@ -1170,7 +1170,7 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode* tree, SArray *group) {
       SValueNode *valueNode = (SValueNode *)cell->pNode;
       if (valueNode->node.resType.type != type) {
         int32_t overflow = 0;
-        code = doConvertDataType(valueNode, &out, &overflow);
+        code = sclConvertValueToSclParam(valueNode, &out, &overflow);
         if (code) {
   //        fltError("convert from %d to %d failed", in.type, out.type);
           FLT_ERR_RET(code);
@@ -1967,7 +1967,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       }
 
       // todo refactor the convert
-      int32_t code = doConvertDataType(var, &out, NULL);
+      int32_t code = sclConvertValueToSclParam(var, &out, NULL);
       if (code != TSDB_CODE_SUCCESS) {
         qError("convert value to type[%d] failed", type);
         return TSDB_CODE_TSC_INVALID_OPERATION;
