@@ -98,6 +98,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   tstrncpy(pWal->path, path, sizeof(pWal->path));
   if (taosMkDir(pWal->path) != 0) {
     wError("vgId:%d, path:%s, failed to create directory since %s", pWal->cfg.vgId, pWal->path, strerror(errno));
+    taosMemoryFree(pWal);
     return NULL;
   }
 

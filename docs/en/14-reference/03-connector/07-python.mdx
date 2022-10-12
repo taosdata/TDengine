@@ -32,7 +32,7 @@ We recommend using the latest version of `taospy`, regardless of the version of 
 
 ### Preparation
 
-1. Install Python. Python >= 3.6 is recommended. If Python is not available on your system, refer to the [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) to install it.
+1. Install Python. Python >= 3.7 is recommended. If Python is not available on your system, refer to the [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) to install it.
 2. Install [pip](https://pypi.org/project/pip/). In most cases, the Python installer comes with the pip utility. If not, please refer to [pip documentation](https://pip.pypa.io/en/stable/installation/) to install it.
 If you use a native connection, you will also need to [Install Client Driver](/reference/connector#Install-Client-Driver). The client install package includes the TDengine client dynamic link library (`libtaos.so` or `taos.dll`) and the TDengine CLI.
 
@@ -121,7 +121,7 @@ Before establishing a connection with the connector, we recommend testing the co
 <Tabs defaultValue="rest">
 <TabItem value="native" label="native connection">
 
-Ensure that the TDengine instance is up and that the FQDN of the machines in the cluster (the FQDN defaults to hostname if you are starting a standalone version) can be resolved locally, by testing with the `ping` command.
+Ensure that the TDengine instance is up and that the FQDN of the machines in the cluster (the FQDN defaults to hostname if you are starting a stand-alone version) can be resolved locally, by testing with the `ping` command.
 
 ```
 ping <FQDN>
@@ -186,7 +186,7 @@ All arguments of the `connect()` function are optional keyword arguments. The fo
 - `user` : The TDengine user name. The default value is `root`.
 - `password` : TDengine user password. The default value is `taosdata`.
 - `port` : The starting port of the data node to connect to, i.e., the serverPort configuration. The default value is 6030, which will only take effect if the host parameter is provided.
-- `config` : The path to the client configuration file. On Windows systems, the default is `C:\TDengine\cfg`. The default is `/etc/taos/` on Linux systems.
+- `config` : The path to the client configuration file. On Windows systems, the default is `C:\TDengine\cfg`. The default is `/etc/taos/` on Linux/macOS.
 - `timezone` : The timezone used to convert the TIMESTAMP data in the query results to python `datetime` objects. The default is the local timezone.
 
 :::warning

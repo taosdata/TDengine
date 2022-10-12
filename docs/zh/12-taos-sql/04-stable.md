@@ -50,6 +50,56 @@ SHOW CREATE STABLE stb_name;
 DESCRIBE [db_name.]stb_name;
 ```
 
+### 获取超级表中所有子表的标签信息
+
+```
+taos> SHOW TABLE TAGS FROM st1;
+             tbname             |     id      |         loc          |
+======================================================================
+ st1s1                          |           1 | beijing              |
+ st1s2                          |           2 | shanghai             |
+ st1s3                          |           3 | guangzhou            |
+Query OK, 3 rows in database (0.004455s)
+```
+
+返回结果集的第一列为子表名，后续列为标签列。
+
+如果已经知道标签列的名称，可以使用下面的语句来获取指定标签列的值。
+
+```
+taos> SELECT DISTINCT TBNAME, id FROM st1;
+             tbname             |     id      |
+===============================================
+ st1s1                          |           1 |
+ st1s2                          |           2 |
+ st1s3                          |           3 |
+Query OK, 3 rows in database (0.002891s)
+```
+
+需要注意，SELECT 语句中的 DISTINCT 和 TBNAME 都是必不可少的，TDengine 会根据它们对语句进行优化，使之在没有数据或数据非常多的情况下都可以正确并快速的返回标签值。
+
+### 获取某个子表的标签信息
+
+```
+taos> SHOW TAGS FROM st1s1;
+   table_name    |     db_name     |   stable_name   |    tag_name     |    tag_type     |    tag_value    |
+============================================================================================================
+ st1s1           | test            | st1             | id              | INT             | 1               |
+ st1s1           | test            | st1             | loc             | VARCHAR(20)     | beijing         |
+Query OK, 2 rows in database (0.003684s)
+```
+
+同样的，也可以用 SELECT 语句来查询指定标签列的值。
+
+```
+taos> SELECT DISTINCT TBNAME, id, loc FROM st1s1;
+     tbname      |     id      |       loc       |
+==================================================
+ st1s1           |           1 | beijing         |
+Query OK, 1 rows in database (0.001884s)
+```
+
+
 ## 删除超级表
 
 ```

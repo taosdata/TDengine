@@ -332,7 +332,7 @@ STfsDir *tfsOpendir(STfs *pTfs, const char *rname) {
   SDiskID diskId = {.id = 0, .level = 0};
   pDir->iter.pDisk = TFS_DISK_AT(pTfs, diskId);
   pDir->pTfs = pTfs;
-  tstrncpy(pDir->dirname, rname, TSDB_FILENAME_LEN);
+  tstrncpy(pDir->dirName, rname, TSDB_FILENAME_LEN);
 
   if (tfsOpendirImpl(pTfs, pDir) < 0) {
     taosMemoryFree(pDir);
@@ -354,10 +354,10 @@ const STfsFile *tfsReaddir(STfsDir *pTfsDir) {
       char *name = taosGetDirEntryName(pDirEntry);
       if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) continue;
 
-      if (pTfsDir->dirname == NULL || pTfsDir->dirname[0] == 0) {
+      if (pTfsDir->dirName[0] == 0) {
         snprintf(bname, TMPNAME_LEN * 2, "%s", name);
       } else {
-        snprintf(bname, TMPNAME_LEN * 2, "%s%s%s", pTfsDir->dirname, TD_DIRSEP, name);
+        snprintf(bname, TMPNAME_LEN * 2, "%s%s%s", pTfsDir->dirName, TD_DIRSEP, name);
       }
 
       tfsInitFile(pTfsDir->pTfs, &pTfsDir->tfile, pTfsDir->did, bname);
@@ -523,9 +523,9 @@ static int32_t tfsOpendirImpl(STfs *pTfs, STfsDir *pTfsDir) {
     pTfsDir->did.id = pDisk->id;
 
     if (pDisk->path == NULL || pDisk->path[0] == 0) {
-      snprintf(adir, TMPNAME_LEN * 2, "%s", pTfsDir->dirname);
+      snprintf(adir, TMPNAME_LEN * 2, "%s", pTfsDir->dirName);
     } else {
-      snprintf(adir, TMPNAME_LEN * 2, "%s%s%s", pDisk->path, TD_DIRSEP, pTfsDir->dirname);
+      snprintf(adir, TMPNAME_LEN * 2, "%s%s%s", pDisk->path, TD_DIRSEP, pTfsDir->dirName);
     }
     pTfsDir->pDir = taosOpenDir(adir);
     if (pTfsDir->pDir != NULL) break;

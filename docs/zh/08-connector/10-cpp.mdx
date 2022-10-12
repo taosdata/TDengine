@@ -13,11 +13,13 @@ TDengine 服务端或客户端安装后，`taos.h` 位于：
 
 - Linux：`/usr/local/taos/include`
 - Windows：`C:\TDengine\include`
+- macOS：`/usr/local/include`
 
 TDengine 客户端驱动的动态库位于：
 
 - Linux: `/usr/local/taos/driver/libtaos.so`
 - Windows: `C:\TDengine\taos.dll`
+- macOS: `/usr/local/lib/libtaos.dylib`
 
 ## 支持的平台
 
@@ -119,7 +121,7 @@ TDengine 客户端驱动的安装请参考 [安装指南](../#安装步骤)
 
 :::info
 更多示例代码及下载请见 [GitHub](https://github.com/taosdata/TDengine/tree/develop/examples/c)。
-也可以在安装目录下的 `examples/c` 路径下找到。 该目录下有 makefile，在 Linux 环境下，直接执行 make 就可以编译得到执行文件。
+也可以在安装目录下的 `examples/c` 路径下找到。 该目录下有 makefile，在 Linux/macOS 环境下，直接执行 make 就可以编译得到执行文件。
 **提示：**在 ARM 环境下编译时，请将 makefile 中的 `-msse4.2` 去掉，这个选项只有在 x64/x86 硬件平台上才能支持。
 
 :::

@@ -12,7 +12,7 @@ If executed on the TDengine server-side, there is no need for additional install
 
 ## Execution
 
-To access the TDengine CLI, you can execute `taos` command-line utility from a Linux terminal or Windows terminal.
+To access the TDengine CLI, you can execute `taos` command-line utility from a terminal.
 
 ```bash
 taos

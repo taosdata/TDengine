@@ -714,7 +714,7 @@ int32_t cfgLoadFromEnvCmd(SConfig *pConfig, const char **envCmd) {
 }
 
 int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *envFile) {
-  char   *line = NULL, *name, *value, *value2, *value3;
+  char    line[1024], *name, *value, *value2, *value3;
   int32_t olen, vlen, vlen2, vlen3;
   int32_t code = 0;
   ssize_t _bytes = 0;
@@ -743,7 +743,7 @@ int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *envFile) {
     name = value = value2 = value3 = NULL;
     olen = vlen = vlen2 = vlen3 = 0;
 
-    _bytes = taosGetLineFile(pFile, &line);
+    _bytes = taosGetsFile(pFile, sizeof(line), line);
     if (_bytes <= 0) {
       break;
     }
@@ -775,14 +775,13 @@ int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *envFile) {
   }
 
   taosCloseFile(&pFile);
-  if (line != NULL) taosMemoryFreeClear(line);
 
   uInfo("load from env cfg file %s success", filepath);
   return 0;
 }
 
 int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
-  char   *line = NULL, *name, *value, *value2, *value3;
+  char    line[1024], *name, *value, *value2, *value3;
   int32_t olen, vlen, vlen2, vlen3;
   ssize_t _bytes = 0;
   int32_t code = 0;
@@ -804,7 +803,7 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
     name = value = value2 = value3 = NULL;
     olen = vlen = vlen2 = vlen3 = 0;
 
-    _bytes = taosGetLineFile(pFile, &line);
+    _bytes = taosGetsFile(pFile, sizeof(line), line);
     if (_bytes <= 0) {
       break;
     }
@@ -836,7 +835,6 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
   }
 
   taosCloseFile(&pFile);
-  if (line != NULL) taosMemoryFreeClear(line);
 
   if (code == 0 || (code != 0 && terrno == TSDB_CODE_CFG_NOT_FOUND)) {
     uInfo("load from cfg file %s success", filepath);

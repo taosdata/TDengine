@@ -4,6 +4,8 @@ looptest:
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
+#==system sh/exec.sh -n dnode1 -s start -v
+
 sleep 200
 sql connect
 
@@ -671,6 +673,22 @@ endi
 
 
 
+
+
+#==system sh/exec.sh -n dnode1 -s stop -x SIGINT
+#==print =============== check
+#==$null=
+
+#==system_content sh/checkValgrind.sh -n dnode1 
+#==print cmd return result ----> [ $system_content ]
+#==if $system_content > 0 then
+#==  return -1
+#==endi 
+
+#==if $system_content == $null then
+#==  return -1
+#==endi
+#==return 1
 
 
 sql drop stream if exists streams0;

@@ -24,7 +24,7 @@ typedef struct SStateKey {
   int64_t opNum;
 } SStateKey;
 
-static inline int SStateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
+static inline int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
   SStateKey* pWin1 = (SStateKey*)pKey1;
   SStateKey* pWin2 = (SStateKey*)pKey2;
 
@@ -60,6 +60,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath) {
   if (!specPath) {
     sprintf(statePath, "%s/%d", path, pTask->taskId);
   } else {
+    memset(statePath, 0, 300);
     strncpy(statePath, path, 300);
   }
   if (tdbOpen(statePath, 4096, 256, &pState->db) < 0) {
@@ -67,12 +68,12 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath) {
   }
 
   // open state storage backend
-  if (tdbTbOpen("state.db", sizeof(SStateKey), -1, SStateKeyCmpr, pState->db, &pState->pStateDb) < 0) {
+  if (tdbTbOpen("state.db", sizeof(SStateKey), -1, stateKeyCmpr, pState->db, &pState->pStateDb) < 0) {
     goto _err;
   }
 
   // todo refactor
-  if (tdbTbOpen("func.state.db", sizeof(SWinKey), -1, SWinKeyCmpr, pState->db, &pState->pFillStateDb) < 0) {
+  if (tdbTbOpen("func.state.db", sizeof(SWinKey), -1, winKeyCmpr, pState->db, &pState->pFillStateDb) < 0) {
     goto _err;
   }
 
@@ -196,6 +197,7 @@ int32_t streamStateClear(SStreamState* pState) {
     SStreamStateCur* pCur = streamStateSeekKeyNext(pState, &key);
     SWinKey          delKey = {0};
     int32_t          code = streamStateGetKVByCur(pCur, &delKey, NULL, 0);
+    streamStateFreeCur(pCur);
     if (code == 0) {
       streamStateDel(pState, &delKey);
     } else {
@@ -225,6 +227,9 @@ int32_t streamStateAddIfNotExist(SStreamState* pState, const SWinKey* key, void*
 
 int32_t streamStateReleaseBuf(SStreamState* pState, const SWinKey* key, void* pVal) {
   // todo refactor
+  if (!pVal) {
+    return 0;
+  }
   streamFreeVal(pVal);
   return 0;
 }
@@ -236,7 +241,7 @@ SStreamStateCur* streamStateGetCur(SStreamState* pState, const SWinKey* key) {
 
   int32_t   c;
   SStateKey sKey = {.key = *key, .opNum = pState->number};
-  tdbTbcMoveTo(pCur->pCur, key, sizeof(SWinKey), &c);
+  tdbTbcMoveTo(pCur->pCur, &sKey, sizeof(SStateKey), &c);
   if (c != 0) {
     taosMemoryFree(pCur);
     return NULL;
@@ -253,7 +258,7 @@ SStreamStateCur* streamStateFillGetCur(SStreamState* pState, const SWinKey* key)
   int32_t c;
   tdbTbcMoveTo(pCur->pCur, key, sizeof(SWinKey), &c);
   if (c != 0) {
-    taosMemoryFree(pCur);
+    streamStateFreeCur(pCur);
     return NULL;
   }
   return pCur;
@@ -266,6 +271,7 @@ SStreamStateCur* streamStateGetAndCheckCur(SStreamState* pState, SWinKey* key) {
     if (code == 0) {
       return pCur;
     }
+    streamStateFreeCur(pCur);
   }
   return NULL;
 }
@@ -300,6 +306,9 @@ int32_t streamStateFillGetKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const vo
 }
 
 int32_t streamStateGetGroupKVByCur(SStreamStateCur* pCur, SWinKey* pKey, const void** pVal, int32_t* pVLen) {
+  if (!pCur) {
+    return -1;
+  }
   uint64_t groupId = pKey->groupId;
   int32_t  code = streamStateFillGetKVByCur(pCur, pKey, pVal, pVLen);
   if (code == 0) {
@@ -360,7 +369,7 @@ SStreamStateCur* streamStateSeekKeyNext(SStreamState* pState, const SWinKey* key
 
 SStreamStateCur* streamStateFillSeekKeyNext(SStreamState* pState, const SWinKey* key) {
   SStreamStateCur* pCur = taosMemoryCalloc(1, sizeof(SStreamStateCur));
-  if (pCur == NULL) {
+  if (!pCur) {
     return NULL;
   }
   if (tdbTbcOpen(pState->pFillStateDb, &pCur->pCur, NULL) < 0) {
@@ -411,6 +420,9 @@ SStreamStateCur* streamStateFillSeekKeyPrev(SStreamState* pState, const SWinKey*
 }
 
 int32_t streamStateCurNext(SStreamState* pState, SStreamStateCur* pCur) {
+  if (!pCur) {
+    return -1;
+  }
   //
   return tdbTbcMoveToNext(pCur->pCur);
 }
