@@ -417,8 +417,9 @@ char taosGetConsoleChar() {
   static char mbStr[5];
   static unsigned long bufLen = 0;
   static uint16_t bufIndex = 0, mbStrIndex = 0, mbStrLen = 0;
+  CONSOLE_READCONSOLE_CONTROL inputControl={ sizeof(CONSOLE_READCONSOLE_CONTROL), 0, 1<<TAB_KEY, 0 };
   while (bufLen == 0) {
-    ReadConsoleW(console, buf, SHELL_INPUT_MAX_COMMAND_SIZE, &bufLen, NULL);
+    ReadConsoleW(console, buf, SHELL_INPUT_MAX_COMMAND_SIZE, &bufLen, &inputControl);
     if (bufLen > 0 && buf[0] == 0) bufLen = 0;
     bufIndex = 0;
   }

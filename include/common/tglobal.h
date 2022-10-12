@@ -103,6 +103,7 @@ extern bool    tsKeepColumnName;
 // client
 extern int32_t tsMinSlidingTime;
 extern int32_t tsMinIntervalTime;
+extern int32_t tsMaxMemUsedByInsert;
 
 // build info
 extern char version[];

@@ -1485,7 +1485,7 @@ static int tdbBtreeCellSize(const SPage *pPage, SCell *pCell, int dropOfp, TXN *
     if (dropOfp) {
       int    ret = 0;
       SPgno  pgno = *(SPgno *)(pCell + nLocal - sizeof(SPgno));
-      int    nLeft = nPayload - nLocal + sizeof(SPgno);
+      int    nLeft = nPayload - nLocal + sizeof(SPgno) + nHeader;
       SPage *ofp;
       int    bytes;
 

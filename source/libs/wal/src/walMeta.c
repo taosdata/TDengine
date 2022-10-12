@@ -150,7 +150,6 @@ int walCheckAndRepairMeta(SWal* pWal) {
   const char* idxPattern = "^[0-9]+.idx$";
   regex_t     logRegPattern;
   regex_t     idxRegPattern;
-  SArray*     actualLog = taosArrayInit(8, sizeof(SWalFileInfo));
 
   regcomp(&logRegPattern, logPattern, REG_EXTENDED);
   regcomp(&idxRegPattern, idxPattern, REG_EXTENDED);
@@ -162,6 +161,8 @@ int walCheckAndRepairMeta(SWal* pWal) {
     wError("vgId:%d, path:%s, failed to open since %s", pWal->cfg.vgId, pWal->path, strerror(errno));
     return -1;
   }
+
+  SArray* actualLog = taosArrayInit(8, sizeof(SWalFileInfo));
 
   // scan log files and build new meta
   TdDirEntryPtr pDirEntry;

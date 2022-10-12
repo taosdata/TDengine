@@ -380,16 +380,25 @@ void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey);
 // --- mq
 void hbMgrInitMqHbRspHandle();
 
+typedef struct SSqlCallbackWrapper {
+  SParseContext* pParseCtx;
+  SCatalogReq*   pCatalogReq;
+  SMetaData*     pResultMeta;
+  SRequestObj*   pRequest;
+} SSqlCallbackWrapper;
+
 SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQuery, void** res);
 int32_t      scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList);
-void         launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta);
-int32_t      refreshMeta(STscObj* pTscObj, SRequestObj* pRequest);
-int32_t      updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList);
-void         doAsyncQuery(SRequestObj* pRequest, bool forceUpdateMeta);
-int32_t      removeMeta(STscObj* pTscObj, SArray* tbList);
-int32_t      handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);
-int32_t      handleCreateTbExecRes(void* res, SCatalog* pCatalog);
-bool         qnodeRequired(SRequestObj* pRequest);
+void    launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultMeta, SSqlCallbackWrapper* pWrapper);
+int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest);
+int32_t updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList);
+void    doAsyncQuery(SRequestObj* pRequest, bool forceUpdateMeta);
+int32_t removeMeta(STscObj* pTscObj, SArray* tbList);
+int32_t handleAlterTbExecRes(void* res, struct SCatalog* pCatalog);
+int32_t handleCreateTbExecRes(void* res, SCatalog* pCatalog);
+bool    qnodeRequired(SRequestObj* pRequest);
+int32_t continueInsertFromCsv(SSqlCallbackWrapper* pWrapper, SRequestObj* pRequest);
+void    destorySqlCallbackWrapper(SSqlCallbackWrapper* pWrapper);
 
 #ifdef __cplusplus
 }

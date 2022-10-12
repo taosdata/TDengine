@@ -1939,7 +1939,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       bytes = (len + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
 
       fi->data = taosMemoryCalloc(1, bytes);
-    } else{
+    } else {
       if (dType->type == TSDB_DATA_TYPE_VALUE_ARRAY) {  //TIME RANGE
 /*
         fi->data = taosMemoryCalloc(dType->bytes, tDataTypes[type].bytes);

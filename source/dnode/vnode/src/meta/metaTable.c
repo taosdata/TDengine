@@ -362,6 +362,8 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   // update uid index
   metaUpdateUidIdx(pMeta, &nStbEntry);
 
+  metaStatsCacheDrop(pMeta, nStbEntry.uid);
+
   metaULock(pMeta);
 
   if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
@@ -615,6 +617,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
     tdbTbDelete(pMeta->pSuidIdx, &e.uid, sizeof(tb_uid_t), &pMeta->txn);
     // drop schema.db (todo)
 
+    metaStatsCacheDrop(pMeta, uid);
     --pMeta->pVnode->config.vndStats.numOfSTables;
   }
 

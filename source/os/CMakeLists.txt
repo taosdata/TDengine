@@ -52,3 +52,7 @@ else()
         os PUBLIC dl m rt
     )
 endif()
+
+IF (JEMALLOC_ENABLED)
+    target_link_libraries(os PUBLIC -ljemalloc)
+ENDIF ()

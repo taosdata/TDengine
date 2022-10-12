@@ -33,6 +33,13 @@ typedef struct SStmtCallback {
   int32_t (*getExecInfoFn)(TAOS_STMT*, SHashObj**, SHashObj**);
 } SStmtCallback;
 
+typedef struct SParseCsvCxt {
+  TdFilePtr   fp;           // last parsed file
+  int32_t     tableNo;      // last parsed table
+  SName       tableName;    // last parsed table
+  const char* pLastSqlPos;  // the location of the last parsed sql
+} SParseCsvCxt;
+
 typedef struct SParseContext {
   uint64_t         requestId;
   int64_t          requestRid;
@@ -57,6 +64,8 @@ typedef struct SParseContext {
   SArray*          pTableMetaPos;    // sql table pos => catalog data pos
   SArray*          pTableVgroupPos;  // sql table pos => catalog data pos
   int64_t          allocatorId;
+  bool             needMultiParse;
+  SParseCsvCxt     csvCxt;
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
@@ -66,6 +75,8 @@ bool    qIsInsertValuesSql(const char* pStr, size_t length);
 int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq);
 int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCatalogReq,
                             const struct SMetaData* pMetaData, SQuery* pQuery);
+
+void qDestroyParseContext(SParseContext* pCxt);
 
 void qDestroyQuery(SQuery* pQueryNode);
 
