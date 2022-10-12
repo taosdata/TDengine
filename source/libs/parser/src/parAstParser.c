@@ -126,6 +126,9 @@ static bool needGetTableIndex(SNode* pStmt) {
 }
 
 static int32_t collectMetaKeyFromInsTagsImpl(SCollectMetaKeyCxt* pCxt, SName* pName) {
+  if (0 == pName->type) {
+    return TSDB_CODE_SUCCESS;
+  }
   if (TSDB_DB_NAME_T == pName->type) {
     return reserveDbVgInfoInCache(pName->acctId, pName->dbname, pCxt->pMetaCache);
   }

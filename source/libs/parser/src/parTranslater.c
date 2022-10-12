@@ -721,6 +721,14 @@ static bool isTimeLineQuery(SNode* pStmt) {
   }
 }
 
+static bool isGlobalTimeLineQuery(SNode* pStmt) {
+  if (!isTimeLineQuery(pStmt)) {
+    return false;
+  }
+  SSelectStmt* pSelect = (SSelectStmt*)pStmt;
+  return NULL == pSelect->pPartitionByList || NULL != pSelect->pOrderByList;
+}
+
 static bool isPrimaryKeyImpl(SNode* pExpr) {
   if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
     return (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pExpr)->colId);
@@ -3011,8 +3019,9 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateIntervalWindow(STranslateContext* pCxt, SSelectStmt* pSelect, SIntervalWindowNode* pInterval) {
-  int32_t code = checkIntervalWindow(pCxt, pInterval);
+static int32_t translateIntervalWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pSelect->pWindow;
+  int32_t              code = checkIntervalWindow(pCxt, pInterval);
   if (TSDB_CODE_SUCCESS == code) {
     code = translateFill(pCxt, pSelect, pInterval);
   }
@@ -3055,6 +3064,12 @@ static int32_t checkStateWindowForStream(STranslateContext* pCxt, SSelectStmt* p
 }
 
 static int32_t translateStateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
+      !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
+                                   "STATE_WINDOW requires valid time series input");
+  }
+
   SStateWindowNode* pState = (SStateWindowNode*)pSelect->pWindow;
   nodesWalkExprPostOrder(pState->pExpr, checkStateExpr, pCxt);
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
@@ -3063,7 +3078,14 @@ static int32_t translateStateWindow(STranslateContext* pCxt, SSelectStmt* pSelec
   return pCxt->errCode;
 }
 
-static int32_t translateSessionWindow(STranslateContext* pCxt, SSessionWindowNode* pSession) {
+static int32_t translateSessionWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (QUERY_NODE_TEMP_TABLE == nodeType(pSelect->pFromTable) &&
+      !isGlobalTimeLineQuery(((STempTableNode*)pSelect->pFromTable)->pSubquery)) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_QUERY,
+                                   "SESSION requires valid time series input");
+  }
+
+  SSessionWindowNode* pSession = (SSessionWindowNode*)pSelect->pWindow;
   if ('y' == pSession->pGap->unit || 'n' == pSession->pGap->unit || 0 == pSession->pGap->datum.i) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INTER_SESSION_GAP);
   }
@@ -3078,9 +3100,9 @@ static int32_t translateSpecificWindow(STranslateContext* pCxt, SSelectStmt* pSe
     case QUERY_NODE_STATE_WINDOW:
       return translateStateWindow(pCxt, pSelect);
     case QUERY_NODE_SESSION_WINDOW:
-      return translateSessionWindow(pCxt, (SSessionWindowNode*)pSelect->pWindow);
+      return translateSessionWindow(pCxt, pSelect);
     case QUERY_NODE_INTERVAL_WINDOW:
-      return translateIntervalWindow(pCxt, pSelect, (SIntervalWindowNode*)pSelect->pWindow);
+      return translateIntervalWindow(pCxt, pSelect);
     default:
       break;
   }
@@ -5149,6 +5171,13 @@ static int32_t translateDropComponentNode(STranslateContext* pCxt, SDropComponen
                      (FSerializeFunc)tSerializeSCreateDropMQSBNodeReq, &dropReq);
 }
 
+static int32_t checkTopicQuery(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (pSelect->hasAggFuncs || pSelect->hasInterpFunc || pSelect->hasIndefiniteRowsFunc) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TOPIC_QUERY);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t buildCreateTopicReq(STranslateContext* pCxt, SCreateTopicStmt* pStmt, SCMCreateTopicReq* pReq) {
   SName name;
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->topicName, strlen(pStmt->topicName));
@@ -5179,6 +5208,9 @@ static int32_t buildCreateTopicReq(STranslateContext* pCxt, SCreateTopicStmt* pS
     tNameGetFullDbName(&name, pReq->subDbName);
     pCxt->pParseCxt->topicQuery = true;
     code = translateQuery(pCxt, pStmt->pQuery);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = checkTopicQuery(pCxt, (SSelectStmt*)pStmt->pQuery);
+    }
     if (TSDB_CODE_SUCCESS == code) {
       code = nodesNodeToString(pStmt->pQuery, false, &pReq->ast, NULL);
     }
