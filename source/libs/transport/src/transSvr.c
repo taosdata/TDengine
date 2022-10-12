@@ -1171,6 +1171,11 @@ _return2:
   return -1;
 }
 int transSendResponse(const STransMsg* msg) {
+  if (msg->info.noResp) {
+    rpcFreeCont(msg->pCont);
+    tTrace("no need send resp");
+    return 0;
+  }
   SExHandle* exh = msg->info.handle;
   int64_t    refId = msg->info.refId;
   ASYNC_CHECK_HANDLE(exh, refId);
@@ -1209,6 +1214,8 @@ int transRegisterMsg(const STransMsg* msg) {
   ASYNC_CHECK_HANDLE(exh, refId);
 
   STransMsg tmsg = *msg;
+  tmsg.info.noResp = 1;
+
   tmsg.info.refId = refId;
 
   SWorkThrd* pThrd = exh->pThrd;
