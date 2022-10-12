@@ -8,13 +8,13 @@ description: 使用 Docker 快速体验 TDengine 的高效写入和查询
 
 ## 启动 TDengine
 
-如果已经安装了 Docker，首先拉取最新的包：
+如果已经安装了 Docker，首先拉取最新的 TDengine 容器镜像：
 
 ```shell
 docker pull tdengine/tdengine:latest
 ```
 
-或者指定版本的包：
+或者指定版本的容器镜像：
 
 ```shell
 docker pull tdengine/tdengine:3.0.1.4
