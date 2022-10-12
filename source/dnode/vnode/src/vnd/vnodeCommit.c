@@ -73,7 +73,7 @@ int vnodeBegin(SVnode *pVnode) {
 
 int vnodeShouldCommit(SVnode *pVnode) {
   if (pVnode->inUse) {
-    return pVnode->inUse->size > pVnode->inUse->node.size;
+    return osDataSpaceAvailable() && (pVnode->inUse->size > pVnode->inUse->node.size);
   }
   return false;
 }
