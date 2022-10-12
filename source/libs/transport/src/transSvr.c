@@ -235,10 +235,10 @@ static bool uvHandleReq(SSvrConn* pConn) {
     transRefSrvHandle(pConn);
 
     tGDebug("%s conn %p %s received from %s, local info:%s, len:%d", transLabel(pTransInst), pConn,
-            TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, transMsg.contLen);
+            TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, pHead->msgLen);
   } else {
     tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, resp:%d, code:%d", transLabel(pTransInst), pConn,
-            TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, transMsg.contLen, pHead->noResp, transMsg.code);
+            TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, pHead->msgLen, pHead->noResp, transMsg.code);
   }
 
   // pHead->noResp = 1,
@@ -411,14 +411,14 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   int32_t len = transMsgLenFromCont(pMsg->contLen);
 
   STrans* pTransInst = pConn->pTransInst;
-  if (pTransInst->compressSize != -1 && pTransInst->compressSize > pMsg->contLen) {
+  if (pTransInst->compressSize != -1 && pTransInst->compressSize < pMsg->contLen) {
     len = transCompressMsg(pMsg->pCont, pMsg->contLen) + sizeof(STransMsgHead);
     pHead->msgLen = (int32_t)htonl((uint32_t)len);
   }
 
   STraceId* trace = &pMsg->info.traceId;
   tGDebug("%s conn %p %s is sent to %s, local info:%s, len:%d", transLabel(pTransInst), pConn,
-          TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, pMsg->contLen);
+          TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, len);
 
   wb->base = (char*)pHead;
   wb->len = len;

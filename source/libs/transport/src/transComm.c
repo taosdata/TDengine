@@ -36,7 +36,6 @@ int32_t transCompressMsg(char* msg, int32_t len) {
   }
 
   int32_t clen = LZ4_compress_default(msg, buf, len, len + compHdr);
-  tDebug("compress rpc msg, before:%d, after:%d, overhead:%d", len, clen, compHdr);
   /*
    * only the compressed size is less than the value of contLen - overhead, the compression is applied
    * The first four bytes is set to 0, the second four bytes are utilized to keep the original length of message
