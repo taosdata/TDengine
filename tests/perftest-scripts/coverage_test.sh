@@ -64,6 +64,21 @@ function runGeneralCaseOneByOne {
 	done < $1
 }
 
+function runTestNGCaseOneByOne {
+	while read -r line; do
+		if [[ $line =~ ^./taostest* ]]; then
+			case=`echo $line | cut -d' ' -f 3 | cut -d'=' -f 2`
+			yaml=`echo $line | cut -d' ' -f 2`
+
+			if [ -n "$case" ]; then
+				date +%F\ %T | tee -a  $TDENGINE_COVERAGE_REPORT  && ./taostest $yaml --case=$case --keep > /dev/null 2>&1 && \
+					echo -e "${GREEN}$case success${NC}" | tee -a  $TDENGINE_COVERAGE_REPORT \
+				|| echo -e "${RED}$case failed${NC}" | tee -a  $TDENGINE_COVERAGE_REPORT
+			fi
+		fi
+	done < $1
+}
+
 function runTest {
 	echo "run Test"
 
@@ -87,6 +102,13 @@ function runTest {
 	else
 		sed -i '3i\\n'  $TDENGINE_COVERAGE_REPORT
 	fi
+	
+	# run TestNG cases
+	stopTaosd
+	$TDENGINE_DIR/debug/build/bin/taosd -c $TDENGINE_DIR/debug/test/cfg > /dev/null &
+	sleep 10
+	cd $TDENGINE_DIR/../TestNG/cases
+	runTestNGCaseOneByOne ../scripts/cases.txt
 
 	cd $TDENGINE_DIR/tests
 	rm -rf ../sim
