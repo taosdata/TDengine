@@ -1260,3 +1260,32 @@ _exit:
   tdbFree(pData);
   return code;
 }
+
+int32_t metaGetStbStats(SMeta *pMeta, int64_t uid, SMetaStbStats *pInfo) {
+  int32_t code = 0;
+
+  metaRLock(pMeta);
+
+  // fast path: search cache
+  if (metaStatsCacheGet(pMeta, uid, pInfo) == TSDB_CODE_SUCCESS) {
+    metaULock(pMeta);
+    goto _exit;
+  }
+
+  // slow path: search TDB
+  int64_t ctbNum = 0;
+  vnodeGetCtbNum(pMeta->pVnode, uid, &ctbNum);
+
+  metaULock(pMeta);
+
+  pInfo->uid = uid;
+  pInfo->ctbNum = ctbNum;
+
+  // upsert the cache
+  metaWLock(pMeta);
+  metaStatsCacheUpsert(pMeta, pInfo);
+  metaULock(pMeta);
+
+_exit:
+  return code;
+}

@@ -142,6 +142,12 @@ typedef struct SMetaInfo {
 } SMetaInfo;
 int32_t metaGetInfo(SMeta* pMeta, int64_t uid, SMetaInfo* pInfo);
 
+typedef struct {
+  int64_t uid;
+  int64_t ctbNum;
+} SMetaStbStats;
+int32_t metaGetStbStats(SMeta* pMeta, int64_t uid, SMetaStbStats* pInfo);
+
 // tsdb
 int         tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg);
 int         tsdbClose(STsdb** pTsdb);
