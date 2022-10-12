@@ -222,6 +222,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
     }
     SDB_GET_BINARY(pRaw, dataPos, buf, len, TOPIC_DECODE_OVER);
     if (taosDecodeSSchemaWrapper(buf, &pTopic->schema) == NULL) {
+      taosMemoryFree(buf);
       goto TOPIC_DECODE_OVER;
     }
     taosMemoryFree(buf);
