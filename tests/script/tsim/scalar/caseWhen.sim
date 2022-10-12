@@ -469,20 +469,20 @@ if $data00 != 5.000000000 then
  return -1
 endi
 
-sql select case when sum(f1) then sum(f1)-abs(f1) end from tba1;
+sql select case when sum(f1) then sum(f1)-abs(f1) end from tba1 group by f1 order by f1;
 if $rows != 4 then 
   return -1
 endi
 if $data00 != NULL then
  return -1
 endi
-if $data10 != 0.000000000 then
+if $data10 != NULL then
  return -1
 endi
 if $data20 != 0.000000000 then
  return -1
 endi
-if $data30 != NULL then
+if $data30 != 0.000000000 then
  return -1
 endi
 
@@ -536,8 +536,7 @@ if $data11 != 1 then
  return -1
 endi
 
-sql select case when f1 < 3 then 1 when f1 >= 3 then 2 else 3 end caseWhen, sum(f1),count(f1) from tba1 group by case when f1 < 3 then 1 when f1 >= 3 then 2 else 3 end 
-order by caseWhen;
+sql select case when f1 < 3 then 1 when f1 >= 3 then 2 else 3 end caseWhen, sum(f1),count(f1) from tba1 group by case when f1 < 3 then 1 when f1 >= 3 then 2 else 3 end order by caseWhen;
 if $rows != 3 then 
   return -1
 endi
@@ -586,7 +585,37 @@ if $data30 != NULL then
  return -1
 endi
 
-#select case when f1 < 3 then 1 when f1 >= 3 then 2 else 3 end,sum(f1),count(f1) from tba1 state_window(case when f1 < 3 then 1 when f1 >= 3 then 2 else 3 end);
+sql select case when f1 < 3 then 1 when f1 >= 3 then 2 else 3 end,sum(f1),count(f1) from tba1 state_window(case when f1 < 3 then 1 when f1 >= 3 then 2 else 3 end);
+if $rows != 3 then 
+  return -1
+endi
+if $data00 != 1 then
+ return -1
+endi
+if $data01 != 1 then
+ return -1
+endi
+if $data02 != 2 then
+ return -1
+endi
+if $data10 != 2 then
+ return -1
+endi
+if $data11 != 5 then
+ return -1
+endi
+if $data12 != 1 then
+ return -1
+endi
+if $data20 != 3 then
+ return -1
+endi
+if $data21 != NULL then
+ return -1
+endi
+if $data22 != 0 then
+ return -1
+endi
 
 sql select f1 from tba1 where case when case when f1 <= 0 then 3 when f1 = 1 then 4 when f1 >= 3 then 2 else 1 end > 2 then 1 else 0 end > 0;
 if $rows != 2 then 
@@ -776,16 +805,16 @@ sql select case cast(f2 as int) when 0 then f2 when f1 then 11 else ts end from 
 if $rows != 4 then 
   return -1
 endi
-if $data00 != 0 then
+if $data00 != a then
  return -1
 endi
-if $data10 != 1 then
+if $data10 != 0 then
  return -1
 endi
-if $data20 != 5 then
+if $data20 != 11 then
  return -1
 endi
-if $data30 != 99 then
+if $data30 != 1664176504 then
  return -1
 endi
 
@@ -803,6 +832,185 @@ if $data20 != 3 then
  return -1
 endi
 if $data30 != 3 then
+ return -1
+endi
+
+sql select case f1 when sum(f1) then sum(f1)-abs(f1) end from tba1 group by f1 order by f1;
+if $rows != 4 then 
+  return -1
+endi
+if $data00 != NULL then
+ return -1
+endi
+if $data10 != 0.000000000 then
+ return -1
+endi
+if $data20 != 0.000000000 then
+ return -1
+endi
+if $data30 != 0.000000000 then
+ return -1
+endi
+
+sql select f1, case sum(f1) when 1 then f1 + 99 when f1 then f1 -99 else f1 end from tba1 group by f1 order by f1;
+if $rows != 4 then 
+  return -1
+endi
+if $data00 != NULL then
+ return -1
+endi
+if $data01 != NULL then
+ return -1
+endi
+if $data10 != 0 then
+ return -1
+endi
+if $data11 != -99.000000000 then
+ return -1
+endi
+if $data20 != 1 then
+ return -1
+endi
+if $data21 != 100.000000000 then
+ return -1
+endi
+if $data30 != 5 then
+ return -1
+endi
+if $data31 != -94.000000000 then
+ return -1
+endi
+
+sql select case when 3 then 4 end from sta;
+if $rows != 20 then 
+  return -1
+endi
+sql select case when 0 then 4 end from sta;
+if $rows != 20 then 
+  return -1
+endi
+sql select case when null then 4 end from sta;
+if $rows != 20 then 
+  return -1
+endi
+sql select case when 1 then 4+1 end from sta;
+if $rows != 20 then 
+  return -1
+endi
+sql select case when 1-1 then 0 end from sta;
+if $rows != 20 then 
+  return -1
+endi
+sql select case when 1+1 then 0 end from sta;
+if $rows != 20 then 
+  return -1
+endi
+sql select case when abs(3) then abs(-1) end from sta;
+if $rows != 20 then 
+  return -1
+endi
+sql select case when abs(1+1) then abs(-1)+abs(3) end from sta;
+if $rows != 20 then 
+  return -1
+endi
+sql select case when 0 then 1 else 3 end from sta;
+if $rows != 20 then 
+  return -1
+endi
+sql select case when 0 then 1 when 1 then 0 else 3 end from sta;
+if $rows != 20 then 
+  return -1
+endi
+sql select case when 0 then 1 when 1 then 0 when 2 then 3 end from sta;
+if $rows != 20 then 
+  return -1
+endi
+sql select case when 'a' then 'b' when null then 0 end from sta;
+if $rows != 20 then 
+  return -1
+endi
+sql select case when '2' then 'b' when null then 0 end from sta;
+if $rows != 20 then 
+  return -1
+endi
+sql select case when 0 then 'b' else null end from sta;
+if $rows != 20 then 
+  return -1
+endi
+sql select case when 0 then 'b' else 2+abs(-2) end from sta;
+if $rows != 20 then 
+  return -1
+endi
+sql select case 3 when 3 then 4 end from sta;
+if $rows != 20 then 
+  return -1
+endi
+sql select case 3 when 1 then 4 end from sta;
+if $rows != 20 then 
+  return -1
+endi
+sql select case 3 when 1 then 4 else 2 end from sta;
+if $rows != 20 then 
+  return -1
+endi
+sql select case 3 when null then 4 when '3' then 1 end from sta;
+if $rows != 20 then 
+  return -1
+endi
+sql select case null when null then 4 when 3 then 1 end from sta;
+if $rows != 20 then 
+  return -1
+endi
+sql select case 3.0 when null then 4 when '3' then 1 end from sta;
+if $rows != 20 then 
+  return -1
+endi
+sql select f2,case f2 when 'a' then 4 when '0' then 1 end from sta order by f2;
+if $rows != 20 then 
+  return -1
+endi
+sql select f2,f1,case f2 when f1 then f1 when f1 - 1 then f1 else 99 end from sta order by f2;
+if $rows != 20 then 
+  return -1
+endi
+sql select case cast(f2 as int) when 0 then f2 when f1 then 11 else ts end from sta;
+if $rows != 20 then 
+  return -1
+endi
+sql select f1, case f1 + 1 when 1 then 1 when 2 then 2 else 3 end from sta order by f1;
+if $rows != 20 then 
+  return -1
+endi
+sql select case f1 when sum(f1) then sum(f1)-abs(f1) end from sta group by f1 order by f1;
+if $rows != 4 then 
+  return -1
+endi
+if $data00 != NULL then
+ return -1
+endi
+if $data10 != 0.000000000 then
+ return -1
+endi
+if $data20 != NULL then
+ return -1
+endi
+if $data30 != NULL then
+ return -1
+endi
+sql select case sum(f1) when 1 then f1 + 99 when f1 then f1 -99 else f1 end from sta group by f1 order by f1; 
+if $rows != 4 then 
+  return -1
+endi
+if $data00 != NULL then
+ return -1
+endi
+if $data10 != -99.000000000 then
+ return -1
+endi
+if $data20 != 1.000000000 then
+ return -1
+endi
+if $data30 != 5.000000000 then
  return -1
 endi
 

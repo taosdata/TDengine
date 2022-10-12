@@ -119,6 +119,17 @@ static EDealRes doNameExpr(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+static int32_t rewriteExprForSelect(SNode* pExpr, SSelectStmt* pSelect, ESqlClause clause) {
+  nodesWalkExpr(pExpr, doNameExpr, NULL);
+  SRewriteExprCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pExprs = NULL};
+  cxt.errCode = nodesListMakeAppend(&cxt.pExprs, pExpr);
+  if (TSDB_CODE_SUCCESS == cxt.errCode) {
+    nodesRewriteSelectStmt(pSelect, clause, doRewriteExpr, &cxt);
+    nodesClearList(cxt.pExprs);
+  }
+  return cxt.errCode;
+}
+
 static int32_t rewriteExprsForSelect(SNodeList* pExprs, SSelectStmt* pSelect, ESqlClause clause) {
   nodesWalkExprs(pExprs, doNameExpr, NULL);
   SRewriteExprCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pExprs = pExprs};
@@ -711,8 +722,13 @@ static int32_t createWindowLogicNodeByState(SLogicPlanContext* pCxt, SStateWindo
     nodesDestroyNode((SNode*)pWindow);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-
-  return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
+  // rewrite the expression in subsequent clauses
+  int32_t code = rewriteExprForSelect(pWindow->pStateExpr, pSelect, SQL_CLAUSE_WINDOW);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
+  }
+  
+  return code;
 }
 
 static int32_t createWindowLogicNodeBySession(SLogicPlanContext* pCxt, SSessionWindowNode* pSession,
