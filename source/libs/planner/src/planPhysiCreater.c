@@ -521,6 +521,7 @@ static int32_t createLastRowScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSu
   }
 
   pScan->groupSort = pScanLogicNode->groupSort;
+  pScan->ignoreNull = pScanLogicNode->igLastNull;
   vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
 
   vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);

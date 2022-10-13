@@ -310,6 +310,11 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   return (SNode*)val;
 }
 
+SNode* createIdentifierValueNode(SAstCreateContext* pCxt, SToken* pLiteral) {
+  trimEscape(pLiteral);
+  return createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, pLiteral);
+}
+
 SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) {
   CHECK_PARSER_STATUS(pCxt);
   SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);

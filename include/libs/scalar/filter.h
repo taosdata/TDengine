@@ -31,9 +31,9 @@ enum {
   FLT_OPTION_NEED_UNIQE = 4,
 };
 
-#define FILTER_RESULT_ALL_QUALIFIED        0x1
-#define FILTER_RESULT_NONE_QUALIFIED       0x2
-#define FILTER_RESULT_PARTIAL_QUALIFIED    0x3
+#define FILTER_RESULT_ALL_QUALIFIED     0x1
+#define FILTER_RESULT_NONE_QUALIFIED    0x2
+#define FILTER_RESULT_PARTIAL_QUALIFIED 0x3
 
 typedef struct SFilterColumnParam {
   int32_t numOfCols;
@@ -41,7 +41,8 @@ typedef struct SFilterColumnParam {
 } SFilterColumnParam;
 
 extern int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pinfo, uint32_t options);
-extern bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData** p, SColumnDataAgg *statis, int16_t numOfCols, int32_t* pFilterResStatus);
+extern bool    filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SColumnDataAgg *statis,
+                             int16_t numOfCols, int32_t *pFilterResStatus);
 extern int32_t filterSetDataFromSlotId(SFilterInfo *info, void *param);
 extern int32_t filterSetDataFromColId(SFilterInfo *info, void *param);
 extern int32_t filterGetTimeRange(SNode *pNode, STimeWindow *win, bool *isStrict);

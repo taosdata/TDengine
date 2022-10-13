@@ -68,7 +68,7 @@ After the above installation and configuration are done and making sure TDengine
 
 <Tabs groupId="lang">
 <TabItem label="Java" value="java">
-  
+
 If `maven` is used to manage the projects, what needs to be done is only adding below dependency in `pom.xml`.
 
 ```xml
@@ -138,19 +138,19 @@ Node.js connector provides different ways of establishing connections by providi
 
 1. Install Node.js Native Connector
 
-  ```
-  npm install @tdengine/client
-  ```
+```
+npm install @tdengine/client
+```
 
 :::note
 It's recommend to use Node whose version is between `node-v12.8.0` and `node-v13.0.0`.
-::: 
-  
+:::
+
 2. Install Node.js REST Connector
 
-  ```
-  npm install @tdengine/rest
-  ```
+```
+npm install @tdengine/rest
+```
 
 </TabItem>
 <TabItem label="C#" value="csharp">

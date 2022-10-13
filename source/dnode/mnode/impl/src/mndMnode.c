@@ -15,8 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "mndMnode.h"
-#include "mndPrivilege.h"
 #include "mndDnode.h"
+#include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndSync.h"
 #include "mndTrans.h"
@@ -239,7 +239,9 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
         pEpSet->inUse = (pEpSet->numOfEps + 1) % totalMnodes;
       }
     }
-    addEpIntoEpSet(pEpSet, pObj->pDnode->fqdn, pObj->pDnode->port);
+    if (pObj->pDnode != NULL) {
+      addEpIntoEpSet(pEpSet, pObj->pDnode->fqdn, pObj->pDnode->port);
+    }
     sdbRelease(pSdb, pObj);
   }
 

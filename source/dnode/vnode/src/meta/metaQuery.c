@@ -24,6 +24,13 @@ void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags) {
   }
 }
 
+void metaReaderReleaseLock(SMetaReader *pReader) {
+  if (pReader->pMeta && !(pReader->flags & META_READER_NOLOCK)) {
+    metaULock(pReader->pMeta);
+    pReader->flags |= META_READER_NOLOCK;
+  }
+}
+
 void metaReaderClear(SMetaReader *pReader) {
   if (pReader->pMeta && !(pReader->flags & META_READER_NOLOCK)) {
     metaULock(pReader->pMeta);
