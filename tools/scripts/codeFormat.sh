@@ -27,7 +27,7 @@ EXCLUDE_FILE_LIST=(
 )
 
 for d in ${FORMAT_DIR_LIST[@]}; do
-    for f in $(find $d -type f -not -name "*/sql.c" -regex '.*\.\(cpp\|hpp\|c\|h\)'); do
+    for f in $(find $d -type f -not -name '*sql.c' -regex '.*\.\(cpp\|hpp\|c\|h\)'); do
         ${FORMAT_BIN} -i $f
     done
 done
