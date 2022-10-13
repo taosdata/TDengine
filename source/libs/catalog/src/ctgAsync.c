@@ -636,7 +636,7 @@ int32_t ctgInitJob(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgJob** job, const
 
   taosAcquireRef(gCtgMgmt.jobPool, pJob->refId);
 
-  double el = (taosGetTimestampUs() - st)/1000.0;
+  double el = (taosGetTimestampUs() - st) / 1000.0;
   qDebug("QID:0x%" PRIx64 ", jobId: 0x%" PRIx64 " initialized, task num %d, forceUpdate %d, elapsed time:%.2f ms",
          pJob->queryId, pJob->refId, taskNum, pReq->forceUpdate, el);
   return TSDB_CODE_SUCCESS;

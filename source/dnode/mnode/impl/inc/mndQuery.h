@@ -22,9 +22,8 @@
 extern "C" {
 #endif
 
-int32_t  mndInitQuery(SMnode *pMnode);
-void     mndCleanupQuery(SMnode *pMnode);
-
+int32_t mndInitQuery(SMnode *pMnode);
+void    mndCleanupQuery(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

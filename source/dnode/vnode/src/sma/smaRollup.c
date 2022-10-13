@@ -321,7 +321,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
       }
       taosMemoryFree(s);
     }
-    pStreamState = streamStateOpen(taskInfDir, NULL, true);
+    pStreamState = streamStateOpen(taskInfDir, NULL, true, -1, -1);
     if (!pStreamState) {
       terrno = TSDB_CODE_RSMA_STREAM_STATE_OPEN;
       return TSDB_CODE_FAILED;

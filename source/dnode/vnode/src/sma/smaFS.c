@@ -33,7 +33,7 @@ int32_t tdRSmaFSOpen(SSma *pSma, int64_t version) {
   SSmaEnv   *pEnv = SMA_RSMA_ENV(pSma);
   SRSmaStat *pStat = NULL;
   SArray    *output = NULL;
-  
+
   terrno = TSDB_CODE_SUCCESS;
 
   if (!pEnv) {

@@ -36,7 +36,7 @@ typedef struct {
   int32_t      number;
 } SStreamState;
 
-SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath);
+SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages);
 void          streamStateClose(SStreamState* pState);
 int32_t       streamStateBegin(SStreamState* pState);
 int32_t       streamStateCommit(SStreamState* pState);

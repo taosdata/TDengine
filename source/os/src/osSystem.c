@@ -18,52 +18,52 @@
 #include "os.h"
 
 #if defined(WINDOWS)
-typedef void (*MainWindows)(int argc,char** argv);
+typedef void (*MainWindows)(int argc, char** argv);
 MainWindows mainWindowsFunc = NULL;
 
-SERVICE_STATUS ServiceStatus;
+SERVICE_STATUS        ServiceStatus;
 SERVICE_STATUS_HANDLE hServiceStatusHandle;
-void WINAPI windowsServiceCtrlHandle(DWORD request) {
-	switch (request) {
-	case SERVICE_CONTROL_STOP:
-	case SERVICE_CONTROL_SHUTDOWN:
-    raise(SIGINT);
-    ServiceStatus.dwCurrentState = SERVICE_STOP_PENDING;
-    if (!SetServiceStatus(hServiceStatusHandle, &ServiceStatus)) {
-      DWORD nError = GetLastError();
-      printf("failed to send stopped status to windows service: %d",nError);
-    }
-		break;
-	default:
-		return;
-	}
+void WINAPI           windowsServiceCtrlHandle(DWORD request) {
+            switch (request) {
+              case SERVICE_CONTROL_STOP:
+              case SERVICE_CONTROL_SHUTDOWN:
+      raise(SIGINT);
+      ServiceStatus.dwCurrentState = SERVICE_STOP_PENDING;
+      if (!SetServiceStatus(hServiceStatusHandle, &ServiceStatus)) {
+                  DWORD nError = GetLastError();
+                  printf("failed to send stopped status to windows service: %d", nError);
+      }
+      break;
+              default:
+      return;
+  }
 }
-void WINAPI mainWindowsService(int argc,char** argv) {
-	int ret = 0;
-	ServiceStatus.dwServiceType = SERVICE_WIN32;
-	ServiceStatus.dwControlsAccepted = SERVICE_ACCEPT_PAUSE_CONTINUE | SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN;
-	ServiceStatus.dwCurrentState = SERVICE_START_PENDING;
-	ServiceStatus.dwWin32ExitCode = 0;
-	ServiceStatus.dwCheckPoint = 0;
-	ServiceStatus.dwWaitHint = 0;
-	ServiceStatus.dwServiceSpecificExitCode = 0;
-	hServiceStatusHandle = RegisterServiceCtrlHandler("taosd", &windowsServiceCtrlHandle);
-	if (hServiceStatusHandle == 0) {
-		DWORD nError = GetLastError();
-		printf("failed to register windows service ctrl handler: %d",nError);
-	}
+void WINAPI mainWindowsService(int argc, char** argv) {
+  int ret = 0;
+  ServiceStatus.dwServiceType = SERVICE_WIN32;
+  ServiceStatus.dwControlsAccepted = SERVICE_ACCEPT_PAUSE_CONTINUE | SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN;
+  ServiceStatus.dwCurrentState = SERVICE_START_PENDING;
+  ServiceStatus.dwWin32ExitCode = 0;
+  ServiceStatus.dwCheckPoint = 0;
+  ServiceStatus.dwWaitHint = 0;
+  ServiceStatus.dwServiceSpecificExitCode = 0;
+  hServiceStatusHandle = RegisterServiceCtrlHandler("taosd", &windowsServiceCtrlHandle);
+  if (hServiceStatusHandle == 0) {
+    DWORD nError = GetLastError();
+    printf("failed to register windows service ctrl handler: %d", nError);
+  }
 
-	ServiceStatus.dwCurrentState = SERVICE_RUNNING;
-	if (SetServiceStatus(hServiceStatusHandle, &ServiceStatus)) {
-		DWORD nError = GetLastError();
-		printf("failed to send running status to windows service: %d",nError);
-	}
+  ServiceStatus.dwCurrentState = SERVICE_RUNNING;
+  if (SetServiceStatus(hServiceStatusHandle, &ServiceStatus)) {
+    DWORD nError = GetLastError();
+    printf("failed to send running status to windows service: %d", nError);
+  }
   if (mainWindowsFunc != NULL) mainWindowsFunc(argc, argv);
   ServiceStatus.dwCurrentState = SERVICE_STOPPED;
-	if (!SetServiceStatus(hServiceStatusHandle, &ServiceStatus)) {
-		DWORD nError = GetLastError();
-		printf("failed to send stopped status to windows service: %d",nError);
-	}
+  if (!SetServiceStatus(hServiceStatusHandle, &ServiceStatus)) {
+    DWORD nError = GetLastError();
+    printf("failed to send stopped status to windows service: %d", nError);
+  }
 }
 void stratWindowsService(MainWindows mainWindows) {
   mainWindowsFunc = mainWindows;
@@ -248,7 +248,7 @@ TdCmdPtr taosOpenCmd(const char* cmd) {
 #endif
 }
 
-int64_t taosGetsCmd(TdCmdPtr pCmd, int32_t maxSize, char *__restrict buf) {
+int64_t taosGetsCmd(TdCmdPtr pCmd, int32_t maxSize, char* __restrict buf) {
   if (pCmd == NULL || buf == NULL) {
     return -1;
   }

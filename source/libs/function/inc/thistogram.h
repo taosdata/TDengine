@@ -43,15 +43,15 @@ typedef struct SHistogramInfo {
   int64_t numOfElems;
   int32_t numOfEntries;
   int32_t maxEntries;
-  double min;
-  double max;
+  double  min;
+  double  max;
 #if defined(USE_ARRAYLIST)
   SHistBin* elems;
 #else
-  tSkipList*      pList;
+  tSkipList*              pList;
   SMultiwayMergeTreeInfo* pLoserTree;
-  int32_t         maxIndex;
-  bool            ordered;
+  int32_t                 maxIndex;
+  bool                    ordered;
 #endif
 } SHistogramInfo;
 
@@ -61,16 +61,16 @@ SHistogramInfo* tHistogramCreateFrom(void* pBuf, int32_t numOfBins);
 int32_t tHistogramAdd(SHistogramInfo** pHisto, double val);
 int64_t tHistogramSum(SHistogramInfo* pHisto, double v);
 
-double* tHistogramUniform(SHistogramInfo* pHisto, double* ratio, int32_t num);
+double*         tHistogramUniform(SHistogramInfo* pHisto, double* ratio, int32_t num);
 SHistogramInfo* tHistogramMerge(SHistogramInfo* pHisto1, SHistogramInfo* pHisto2, int32_t numOfEntries);
-void tHistogramDestroy(SHistogramInfo** pHisto);
+void            tHistogramDestroy(SHistogramInfo** pHisto);
 
 void tHistogramPrint(SHistogramInfo* pHisto);
 
 int32_t histoBinarySearch(SHistBin* pEntry, int32_t len, double val);
 
 SHeapEntry* tHeapCreate(int32_t numOfEntries);
-void tHeapSort(SHeapEntry* pEntry, int32_t len);
+void        tHeapSort(SHeapEntry* pEntry, int32_t len);
 
 #ifdef __cplusplus
 }

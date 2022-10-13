@@ -32,7 +32,8 @@ class MndTestStb : public ::testing::Test {
   void* BuildAlterStbUpdateTagBytesReq(const char* stbname, const char* tagname, int32_t bytes, int32_t* pContLen);
   void* BuildAlterStbAddColumnReq(const char* stbname, const char* colname, int32_t* pContLen);
   void* BuildAlterStbDropColumnReq(const char* stbname, const char* colname, int32_t* pContLen);
-  void* BuildAlterStbUpdateColumnBytesReq(const char* stbname, const char* colname, int32_t bytes, int32_t* pContLen, int32_t verInBlock);
+  void* BuildAlterStbUpdateColumnBytesReq(const char* stbname, const char* colname, int32_t bytes, int32_t* pContLen,
+                                          int32_t verInBlock);
 };
 
 Testbase MndTestStb::test;
