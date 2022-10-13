@@ -99,6 +99,7 @@ typedef struct SScanLogicNode {
   int8_t        cacheLastMode;
   bool          hasNormalCols;  // neither tag column nor primary key tag column
   bool          sortPrimaryKey;
+  bool          igLastNull;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -115,6 +116,7 @@ typedef struct SAggLogicNode {
   SNodeList* pGroupKeys;
   SNodeList* pAggFuncs;
   bool       hasLastRow;
+  bool       hasLast;
   bool       hasTimeLineFunc;
   bool       onlyHasKeepOrderFunc;
 } SAggLogicNode;
@@ -317,6 +319,7 @@ typedef struct SLastRowScanPhysiNode {
   SScanPhysiNode scan;
   SNodeList*     pGroupTags;
   bool           groupSort;
+  bool           ignoreNull;
 } SLastRowScanPhysiNode;
 
 typedef struct SSystemTableScanPhysiNode {
