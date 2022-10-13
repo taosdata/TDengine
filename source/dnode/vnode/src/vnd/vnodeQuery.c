@@ -74,7 +74,7 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     schemaTag = mer1.me.stbEntry.schemaTag;
     metaRsp.suid = mer1.me.uid;
   } else if (mer1.me.type == TSDB_CHILD_TABLE) {
-    metaReaderInit(&mer2, pVnode->pMeta, 0);
+    metaReaderInit(&mer2, pVnode->pMeta, META_READER_NOLOCK);
     if (metaGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit;
 
     strcpy(metaRsp.stbName, mer2.me.name);
