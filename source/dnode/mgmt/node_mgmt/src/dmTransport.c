@@ -277,6 +277,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.parent = pDnode;
   rpcInit.rfp = rpcRfp;
+  rpcInit.compressSize = tsCompressMsgSize;
 
   pTrans->clientRpc = rpcOpen(&rpcInit);
   if (pTrans->clientRpc == NULL) {
