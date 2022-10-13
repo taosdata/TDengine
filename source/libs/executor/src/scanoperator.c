@@ -2734,6 +2734,45 @@ typedef struct {
   __sys_filter fltFunc;
 } SSTabFltFuncDef;
 
+static int32_t systFilterDbName(void* pMeta, SNode* pNode, SArray* result) {
+  // impl later
+  return -1;
+}
+static int32_t sysFilteVgroupId(void* pMeta, SNode* pNode, SArray* result) {
+  // impl later
+  return -1;
+}
+static int32_t sysFilteTableName(void* pMeta, SNode* pNode, SArray* result) {
+  // impl later
+  return -1;
+}
+
+static int32_t sysFilteCreateTime(void* pMeta, SNode* pNode, SArray* result) {
+  // impl later
+  return -1;
+}
+static int32_t sysFilteNcolumn(void* pMeta, SNode* pNode, SArray* result) {
+  // impl later
+  return -1;
+}
+
+static int32_t sysFilteTtl(void* pMeta, SNode* pNode, SArray* result) {
+  // impl later
+  return -1;
+}
+static int32_t sysFilteSTableName(void* pMeta, SNode* pNode, SArray* result) {
+  // impl later
+  return -1;
+}
+static int32_t sysFilteUid(void* pMeta, SNode* pNode, SArray* result) {
+  // impl later
+  return -1;
+}
+static int32_t sysFilteType(void* pMeta, SNode* pNode, SArray* result) {
+  // impl later
+  return -1;
+}
+
 const SSTabFltFuncDef filterDict[] = {
     {.name = "table_name", .fltFunc = NULL},  {.name = "db_name", .fltFunc = NULL},
     {.name = "create_time", .fltFunc = NULL}, {.name = "columns", .fltFunc = NULL},
