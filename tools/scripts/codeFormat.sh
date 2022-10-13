@@ -24,7 +24,7 @@ FORMAT_DIR_LIST=(
     "${PRJ_ROOT_DIR}/source/libs/planner"
     # "${PRJ_ROOT_DIR}/source/libs/qcom"
     # "${PRJ_ROOT_DIR}/source/libs/qworker"
-    # "${PRJ_ROOT_DIR}/source/libs/scalar"
+    "${PRJ_ROOT_DIR}/source/libs/scalar"
     "${PRJ_ROOT_DIR}/source/libs/stream"
     # "${PRJ_ROOT_DIR}/source/libs/sync"
     "${PRJ_ROOT_DIR}/source/libs/tdb"
