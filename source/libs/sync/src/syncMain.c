@@ -52,9 +52,9 @@ int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
 int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
 
 // ---------------------------------
-static void syncNodeFreeCb(void *param) {
-    syncNodeClose(param);
-    param = NULL;
+static void syncNodeFreeCb(void* param) {
+  syncNodeClose(param);
+  param = NULL;
 }
 
 int32_t syncInit() {
@@ -947,15 +947,15 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
     meta.batchSize = pSyncInfo->batchSize;
     ret = raftCfgCreateFile((SSyncCfg*)&(pSyncInfo->syncCfg), meta, pSyncNode->configPath);
     if (ret != 0) {
-        sError("failed to create raft cfg file. configPath: %s", pSyncNode->configPath);
-        goto _error;
+      sError("failed to create raft cfg file. configPath: %s", pSyncNode->configPath);
+      goto _error;
     }
   } else {
     // update syncCfg by raft_config.json
     pSyncNode->pRaftCfg = raftCfgOpen(pSyncNode->configPath);
     if (pSyncNode->pRaftCfg == NULL) {
-        sError("failed to open raft cfg file. path:%s", pSyncNode->configPath);
-        goto _error;
+      sError("failed to open raft cfg file. path:%s", pSyncNode->configPath);
+      goto _error;
     }
     pSyncInfo->syncCfg = pSyncNode->pRaftCfg->cfg;
 
@@ -985,8 +985,8 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   // init internal
   pSyncNode->myNodeInfo = pSyncNode->pRaftCfg->cfg.nodeInfo[pSyncNode->pRaftCfg->cfg.myIndex];
   if (!syncUtilnodeInfo2raftId(&pSyncNode->myNodeInfo, pSyncNode->vgId, &pSyncNode->myRaftId)) {
-      sError("failed to determine my raft member id. vgId:%d", pSyncNode->vgId);
-      goto _error;
+    sError("failed to determine my raft member id. vgId:%d", pSyncNode->vgId);
+    goto _error;
   }
 
   // init peersNum, peers, peersId
@@ -1000,17 +1000,17 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   }
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
     if (!syncUtilnodeInfo2raftId(&pSyncNode->peersNodeInfo[i], pSyncNode->vgId, &pSyncNode->peersId[i])) {
-       sError("failed to determine raft member id. vgId:%d, peer:%d", pSyncNode->vgId, i);
-       goto _error;
+      sError("failed to determine raft member id. vgId:%d, peer:%d", pSyncNode->vgId, i);
+      goto _error;
     }
   }
 
   // init replicaNum, replicasId
   pSyncNode->replicaNum = pSyncNode->pRaftCfg->cfg.replicaNum;
   for (int i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
-    if(!syncUtilnodeInfo2raftId(&pSyncNode->pRaftCfg->cfg.nodeInfo[i], pSyncNode->vgId, &pSyncNode->replicasId[i])) {
-       sError("failed to determine raft member id. vgId:%d, replica:%d", pSyncNode->vgId, i);
-       goto _error;
+    if (!syncUtilnodeInfo2raftId(&pSyncNode->pRaftCfg->cfg.nodeInfo[i], pSyncNode->vgId, &pSyncNode->replicasId[i])) {
+      sError("failed to determine raft member id. vgId:%d, replica:%d", pSyncNode->vgId, i);
+      goto _error;
     }
   }
 
@@ -1090,8 +1090,8 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
     SSnapshot snapshot = {0};
     int32_t   code = pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
     if (code != 0) {
-       sError("failed to get snapshot info. vgId:%d, code:%d", pSyncNode->vgId, code);
-       goto _error;
+      sError("failed to get snapshot info. vgId:%d, code:%d", pSyncNode->vgId, code);
+      goto _error;
     }
     if (snapshot.lastApplyIndex > commitIndex) {
       commitIndex = snapshot.lastApplyIndex;
@@ -1191,8 +1191,8 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
 
 _error:
   if (pSyncInfo->pFsm) {
-      taosMemoryFree(pSyncInfo->pFsm);
-      pSyncInfo->pFsm = NULL;
+    taosMemoryFree(pSyncInfo->pFsm);
+    pSyncInfo->pFsm = NULL;
   }
   syncNodeClose(pSyncNode);
   pSyncNode = NULL;

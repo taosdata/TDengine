@@ -213,7 +213,7 @@ void tfsDirname(const STfsFile *pFile, char *dest) {
 
 void tfsAbsoluteName(STfs *pTfs, SDiskID diskId, const char *rname, char *aname) {
   STfsDisk *pDisk = TFS_DISK_AT(pTfs, diskId);
-  
+
   snprintf(aname, TSDB_FILENAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, rname);
 }
 
@@ -285,7 +285,7 @@ int32_t tfsMkdir(STfs *pTfs, const char *rname) {
 
 int32_t tfsRmdir(STfs *pTfs, const char *rname) {
   ASSERT(rname[0] != 0);
-    
+
   char aname[TMPNAME_LEN] = "\0";
 
   for (int32_t level = 0; level < pTfs->nlevel; level++) {
