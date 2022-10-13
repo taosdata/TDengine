@@ -9,7 +9,8 @@ cd ${PRJ_ROOT_DIR}
 
 FORMAT_DIR_LIST=(
     "include"
-    # "source"
+    "source/os"
+    "source/util"
 )
 
 for d in ${FORMAT_DIR_LIST[@]}; do

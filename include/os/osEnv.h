@@ -17,6 +17,7 @@
 #define _TD_OS_ENV_H_
 
 #include "osSysinfo.h"
+#include "osTimezone.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -226,30 +226,30 @@ int32_t compareLenPrefixedWStrDesc(const void *pLeft, const void *pRight) {
 // string > number > bool > null
 // ref: https://dev.mysql.com/doc/refman/8.0/en/json.html#json-comparison
 int32_t compareJsonVal(const void *pLeft, const void *pRight) {
-  char leftType = *(char*)pLeft;
-  char rightType = *(char*)pRight;
-  if(leftType != rightType){
+  char leftType = *(char *)pLeft;
+  char rightType = *(char *)pRight;
+  if (leftType != rightType) {
     return leftType > rightType ? 1 : -1;
   }
 
-  char* realDataLeft = POINTER_SHIFT(pLeft, CHAR_BYTES);
-  char* realDataRight = POINTER_SHIFT(pRight, CHAR_BYTES);
-  if(leftType == TSDB_DATA_TYPE_BOOL) {
+  char *realDataLeft = POINTER_SHIFT(pLeft, CHAR_BYTES);
+  char *realDataRight = POINTER_SHIFT(pRight, CHAR_BYTES);
+  if (leftType == TSDB_DATA_TYPE_BOOL) {
     DEFAULT_COMP(GET_INT8_VAL(realDataLeft), GET_INT8_VAL(realDataRight));
-  }else if(leftType == TSDB_DATA_TYPE_DOUBLE){
+  } else if (leftType == TSDB_DATA_TYPE_DOUBLE) {
     DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(realDataLeft), GET_DOUBLE_VAL(realDataRight));
-  }else if(leftType == TSDB_DATA_TYPE_NCHAR){
+  } else if (leftType == TSDB_DATA_TYPE_NCHAR) {
     return compareLenPrefixedWStr(realDataLeft, realDataRight);
-  }else if(leftType == TSDB_DATA_TYPE_NULL) {
+  } else if (leftType == TSDB_DATA_TYPE_NULL) {
     return 0;
-  }else{
+  } else {
     assert(0);
     return 0;
   }
 }
 
 int32_t compareInt8Int16(const void *pLeft, const void *pRight) {
-  int8_t left = GET_INT32_VAL(pLeft);
+  int8_t  left = GET_INT32_VAL(pLeft);
   int16_t right = GET_INT16_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -257,7 +257,7 @@ int32_t compareInt8Int16(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt8Int32(const void *pLeft, const void *pRight) {
-  int8_t left = GET_INT32_VAL(pLeft);
+  int8_t  left = GET_INT32_VAL(pLeft);
   int32_t right = GET_INT32_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -265,7 +265,7 @@ int32_t compareInt8Int32(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt8Int64(const void *pLeft, const void *pRight) {
-  int8_t left = GET_INT32_VAL(pLeft);
+  int8_t  left = GET_INT32_VAL(pLeft);
   int64_t right = GET_INT64_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -274,7 +274,7 @@ int32_t compareInt8Int64(const void *pLeft, const void *pRight) {
 
 int32_t compareInt8Float(const void *pLeft, const void *pRight) {
   int8_t left = GET_INT32_VAL(pLeft);
-  float right = GET_FLOAT_VAL(pRight);
+  float  right = GET_FLOAT_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -289,7 +289,7 @@ int32_t compareInt8Double(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt8Uint8(const void *pLeft, const void *pRight) {
-  int8_t left = GET_INT32_VAL(pLeft);
+  int8_t  left = GET_INT32_VAL(pLeft);
   uint8_t right = GET_UINT8_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -297,7 +297,7 @@ int32_t compareInt8Uint8(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt8Uint16(const void *pLeft, const void *pRight) {
-  int8_t left = GET_INT32_VAL(pLeft);
+  int8_t   left = GET_INT32_VAL(pLeft);
   uint16_t right = GET_UINT16_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -305,7 +305,7 @@ int32_t compareInt8Uint16(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt8Uint32(const void *pLeft, const void *pRight) {
-  int8_t left = GET_INT32_VAL(pLeft);
+  int8_t   left = GET_INT32_VAL(pLeft);
   uint32_t right = GET_UINT32_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -313,7 +313,7 @@ int32_t compareInt8Uint32(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt8Uint64(const void *pLeft, const void *pRight) {
-  int8_t left = GET_INT32_VAL(pLeft);
+  int8_t   left = GET_INT32_VAL(pLeft);
   uint64_t right = GET_UINT64_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -322,7 +322,7 @@ int32_t compareInt8Uint64(const void *pLeft, const void *pRight) {
 
 int32_t compareInt16Int8(const void *pLeft, const void *pRight) {
   int16_t left = GET_INT32_VAL(pLeft);
-  int8_t right = GET_INT8_VAL(pRight);
+  int8_t  right = GET_INT8_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -346,7 +346,7 @@ int32_t compareInt16Int64(const void *pLeft, const void *pRight) {
 
 int32_t compareInt16Float(const void *pLeft, const void *pRight) {
   int16_t left = GET_INT32_VAL(pLeft);
-  float right = GET_FLOAT_VAL(pRight);
+  float   right = GET_FLOAT_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -354,7 +354,7 @@ int32_t compareInt16Float(const void *pLeft, const void *pRight) {
 
 int32_t compareInt16Double(const void *pLeft, const void *pRight) {
   int16_t left = GET_INT32_VAL(pLeft);
-  double right = GET_DOUBLE_VAL(pRight);
+  double  right = GET_DOUBLE_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -369,7 +369,7 @@ int32_t compareInt16Uint8(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt16Uint16(const void *pLeft, const void *pRight) {
-  int16_t left = GET_INT32_VAL(pLeft);
+  int16_t  left = GET_INT32_VAL(pLeft);
   uint16_t right = GET_UINT16_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -377,7 +377,7 @@ int32_t compareInt16Uint16(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt16Uint32(const void *pLeft, const void *pRight) {
-  int16_t left = GET_INT32_VAL(pLeft);
+  int16_t  left = GET_INT32_VAL(pLeft);
   uint32_t right = GET_UINT32_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -385,17 +385,16 @@ int32_t compareInt16Uint32(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt16Uint64(const void *pLeft, const void *pRight) {
-  int16_t left = GET_INT32_VAL(pLeft);
+  int16_t  left = GET_INT32_VAL(pLeft);
   uint64_t right = GET_UINT64_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
 }
 
-
 int32_t compareInt32Int8(const void *pLeft, const void *pRight) {
   int32_t left = GET_INT32_VAL(pLeft);
-  int8_t right = GET_INT8_VAL(pRight);
+  int8_t  right = GET_INT8_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -419,7 +418,7 @@ int32_t compareInt32Int64(const void *pLeft, const void *pRight) {
 
 int32_t compareInt32Float(const void *pLeft, const void *pRight) {
   int32_t left = GET_INT32_VAL(pLeft);
-  float right = GET_FLOAT_VAL(pRight);
+  float   right = GET_FLOAT_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -427,7 +426,7 @@ int32_t compareInt32Float(const void *pLeft, const void *pRight) {
 
 int32_t compareInt32Double(const void *pLeft, const void *pRight) {
   int32_t left = GET_INT32_VAL(pLeft);
-  double right = GET_DOUBLE_VAL(pRight);
+  double  right = GET_DOUBLE_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -442,7 +441,7 @@ int32_t compareInt32Uint8(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt32Uint16(const void *pLeft, const void *pRight) {
-  int32_t left = GET_INT32_VAL(pLeft);
+  int32_t  left = GET_INT32_VAL(pLeft);
   uint16_t right = GET_UINT16_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -450,7 +449,7 @@ int32_t compareInt32Uint16(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt32Uint32(const void *pLeft, const void *pRight) {
-  int32_t left = GET_INT32_VAL(pLeft);
+  int32_t  left = GET_INT32_VAL(pLeft);
   uint32_t right = GET_UINT32_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -458,7 +457,7 @@ int32_t compareInt32Uint32(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt32Uint64(const void *pLeft, const void *pRight) {
-  int32_t left = GET_INT32_VAL(pLeft);
+  int32_t  left = GET_INT32_VAL(pLeft);
   uint64_t right = GET_UINT64_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -467,7 +466,7 @@ int32_t compareInt32Uint64(const void *pLeft, const void *pRight) {
 
 int32_t compareInt64Int8(const void *pLeft, const void *pRight) {
   int64_t left = GET_INT64_VAL(pLeft);
-  int8_t right = GET_INT8_VAL(pRight);
+  int8_t  right = GET_INT8_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -491,7 +490,7 @@ int32_t compareInt64Int32(const void *pLeft, const void *pRight) {
 
 int32_t compareInt64Float(const void *pLeft, const void *pRight) {
   int64_t left = GET_INT64_VAL(pLeft);
-  float right = GET_FLOAT_VAL(pRight);
+  float   right = GET_FLOAT_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -499,7 +498,7 @@ int32_t compareInt64Float(const void *pLeft, const void *pRight) {
 
 int32_t compareInt64Double(const void *pLeft, const void *pRight) {
   int64_t left = GET_INT64_VAL(pLeft);
-  double right = GET_DOUBLE_VAL(pRight);
+  double  right = GET_DOUBLE_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -514,7 +513,7 @@ int32_t compareInt64Uint8(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt64Uint16(const void *pLeft, const void *pRight) {
-  int64_t left = GET_INT64_VAL(pLeft);
+  int64_t  left = GET_INT64_VAL(pLeft);
   uint16_t right = GET_UINT16_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -522,7 +521,7 @@ int32_t compareInt64Uint16(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt64Uint32(const void *pLeft, const void *pRight) {
-  int64_t left = GET_INT64_VAL(pLeft);
+  int64_t  left = GET_INT64_VAL(pLeft);
   uint32_t right = GET_UINT32_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -530,7 +529,7 @@ int32_t compareInt64Uint32(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareInt64Uint64(const void *pLeft, const void *pRight) {
-  int64_t left = GET_INT64_VAL(pLeft);
+  int64_t  left = GET_INT64_VAL(pLeft);
   uint64_t right = GET_UINT64_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -538,7 +537,7 @@ int32_t compareInt64Uint64(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareFloatInt8(const void *pLeft, const void *pRight) {
-  float left = GET_FLOAT_VAL(pLeft);
+  float  left = GET_FLOAT_VAL(pLeft);
   int8_t right = GET_INT8_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -546,7 +545,7 @@ int32_t compareFloatInt8(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareFloatInt16(const void *pLeft, const void *pRight) {
-  float left = GET_FLOAT_VAL(pLeft);
+  float   left = GET_FLOAT_VAL(pLeft);
   int16_t right = GET_INT16_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -554,7 +553,7 @@ int32_t compareFloatInt16(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareFloatInt32(const void *pLeft, const void *pRight) {
-  float left = GET_FLOAT_VAL(pLeft);
+  float   left = GET_FLOAT_VAL(pLeft);
   int32_t right = GET_INT32_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -562,7 +561,7 @@ int32_t compareFloatInt32(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareFloatInt64(const void *pLeft, const void *pRight) {
-  float left = GET_FLOAT_VAL(pLeft);
+  float   left = GET_FLOAT_VAL(pLeft);
   int64_t right = GET_INT64_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -570,7 +569,7 @@ int32_t compareFloatInt64(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareFloatDouble(const void *pLeft, const void *pRight) {
-  float left = GET_FLOAT_VAL(pLeft);
+  float  left = GET_FLOAT_VAL(pLeft);
   double right = GET_DOUBLE_VAL(pRight);
 
   if (isnan(left) && isnan(right)) {
@@ -592,7 +591,7 @@ int32_t compareFloatDouble(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareFloatUint8(const void *pLeft, const void *pRight) {
-  float left = GET_FLOAT_VAL(pLeft);
+  float   left = GET_FLOAT_VAL(pLeft);
   uint8_t right = GET_UINT8_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -600,7 +599,7 @@ int32_t compareFloatUint8(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareFloatUint16(const void *pLeft, const void *pRight) {
-  float left = GET_FLOAT_VAL(pLeft);
+  float    left = GET_FLOAT_VAL(pLeft);
   uint16_t right = GET_UINT16_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -608,7 +607,7 @@ int32_t compareFloatUint16(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareFloatUint32(const void *pLeft, const void *pRight) {
-  float left = GET_FLOAT_VAL(pLeft);
+  float    left = GET_FLOAT_VAL(pLeft);
   uint32_t right = GET_UINT32_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -616,7 +615,7 @@ int32_t compareFloatUint32(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareFloatUint64(const void *pLeft, const void *pRight) {
-  float left = GET_FLOAT_VAL(pLeft);
+  float    left = GET_FLOAT_VAL(pLeft);
   uint64_t right = GET_UINT64_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -632,7 +631,7 @@ int32_t compareDoubleInt8(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareDoubleInt16(const void *pLeft, const void *pRight) {
-  double left = GET_DOUBLE_VAL(pLeft);
+  double  left = GET_DOUBLE_VAL(pLeft);
   int16_t right = GET_INT16_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -640,7 +639,7 @@ int32_t compareDoubleInt16(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareDoubleInt32(const void *pLeft, const void *pRight) {
-  double left = GET_DOUBLE_VAL(pLeft);
+  double  left = GET_DOUBLE_VAL(pLeft);
   int32_t right = GET_INT32_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -648,7 +647,7 @@ int32_t compareDoubleInt32(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareDoubleInt64(const void *pLeft, const void *pRight) {
-  double left = GET_DOUBLE_VAL(pLeft);
+  double  left = GET_DOUBLE_VAL(pLeft);
   int64_t right = GET_INT64_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -657,7 +656,7 @@ int32_t compareDoubleInt64(const void *pLeft, const void *pRight) {
 
 int32_t compareDoubleFloat(const void *pLeft, const void *pRight) {
   double left = GET_DOUBLE_VAL(pLeft);
-  float right = GET_FLOAT_VAL(pRight);
+  float  right = GET_FLOAT_VAL(pRight);
 
   if (isnan(left) && isnan(right)) {
     return 0;
@@ -678,7 +677,7 @@ int32_t compareDoubleFloat(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareDoubleUint8(const void *pLeft, const void *pRight) {
-  double left = GET_DOUBLE_VAL(pLeft);
+  double  left = GET_DOUBLE_VAL(pLeft);
   uint8_t right = GET_UINT8_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -686,7 +685,7 @@ int32_t compareDoubleUint8(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareDoubleUint16(const void *pLeft, const void *pRight) {
-  double left = GET_DOUBLE_VAL(pLeft);
+  double   left = GET_DOUBLE_VAL(pLeft);
   uint16_t right = GET_UINT16_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -694,7 +693,7 @@ int32_t compareDoubleUint16(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareDoubleUint32(const void *pLeft, const void *pRight) {
-  double left = GET_DOUBLE_VAL(pLeft);
+  double   left = GET_DOUBLE_VAL(pLeft);
   uint32_t right = GET_UINT32_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -702,7 +701,7 @@ int32_t compareDoubleUint32(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareDoubleUint64(const void *pLeft, const void *pRight) {
-  double left = GET_DOUBLE_VAL(pLeft);
+  double   left = GET_DOUBLE_VAL(pLeft);
   uint64_t right = GET_UINT64_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -711,7 +710,7 @@ int32_t compareDoubleUint64(const void *pLeft, const void *pRight) {
 
 int32_t compareUint8Int8(const void *pLeft, const void *pRight) {
   uint8_t left = GET_UINT8_VAL(pLeft);
-  int8_t right = GET_INT8_VAL(pRight);
+  int8_t  right = GET_INT8_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -743,7 +742,7 @@ int32_t compareUint8Int64(const void *pLeft, const void *pRight) {
 
 int32_t compareUint8Float(const void *pLeft, const void *pRight) {
   uint8_t left = GET_UINT8_VAL(pLeft);
-  float right = GET_FLOAT_VAL(pRight);
+  float   right = GET_FLOAT_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -751,14 +750,14 @@ int32_t compareUint8Float(const void *pLeft, const void *pRight) {
 
 int32_t compareUint8Double(const void *pLeft, const void *pRight) {
   uint8_t left = GET_UINT8_VAL(pLeft);
-  double right = GET_DOUBLE_VAL(pRight);
+  double  right = GET_DOUBLE_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
 }
 
 int32_t compareUint8Uint16(const void *pLeft, const void *pRight) {
-  uint8_t left = GET_UINT8_VAL(pLeft);
+  uint8_t  left = GET_UINT8_VAL(pLeft);
   uint16_t right = GET_UINT16_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -766,7 +765,7 @@ int32_t compareUint8Uint16(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareUint8Uint32(const void *pLeft, const void *pRight) {
-  uint8_t left = GET_UINT8_VAL(pLeft);
+  uint8_t  left = GET_UINT8_VAL(pLeft);
   uint32_t right = GET_UINT32_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -774,7 +773,7 @@ int32_t compareUint8Uint32(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareUint8Uint64(const void *pLeft, const void *pRight) {
-  uint8_t left = GET_UINT8_VAL(pLeft);
+  uint8_t  left = GET_UINT8_VAL(pLeft);
   uint64_t right = GET_UINT64_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
@@ -783,7 +782,7 @@ int32_t compareUint8Uint64(const void *pLeft, const void *pRight) {
 
 int32_t compareUint16Int8(const void *pLeft, const void *pRight) {
   uint16_t left = GET_UINT16_VAL(pLeft);
-  int8_t right = GET_INT8_VAL(pRight);
+  int8_t   right = GET_INT8_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -791,7 +790,7 @@ int32_t compareUint16Int8(const void *pLeft, const void *pRight) {
 
 int32_t compareUint16Int16(const void *pLeft, const void *pRight) {
   uint16_t left = GET_UINT16_VAL(pLeft);
-  int16_t right = GET_INT16_VAL(pRight);
+  int16_t  right = GET_INT16_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -799,7 +798,7 @@ int32_t compareUint16Int16(const void *pLeft, const void *pRight) {
 
 int32_t compareUint16Int32(const void *pLeft, const void *pRight) {
   uint16_t left = GET_UINT16_VAL(pLeft);
-  int32_t right = GET_INT32_VAL(pRight);
+  int32_t  right = GET_INT32_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -807,7 +806,7 @@ int32_t compareUint16Int32(const void *pLeft, const void *pRight) {
 
 int32_t compareUint16Int64(const void *pLeft, const void *pRight) {
   uint16_t left = GET_UINT16_VAL(pLeft);
-  int64_t right = GET_INT64_VAL(pRight);
+  int64_t  right = GET_INT64_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -815,7 +814,7 @@ int32_t compareUint16Int64(const void *pLeft, const void *pRight) {
 
 int32_t compareUint16Float(const void *pLeft, const void *pRight) {
   uint16_t left = GET_UINT16_VAL(pLeft);
-  float right = GET_FLOAT_VAL(pRight);
+  float    right = GET_FLOAT_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -823,7 +822,7 @@ int32_t compareUint16Float(const void *pLeft, const void *pRight) {
 
 int32_t compareUint16Double(const void *pLeft, const void *pRight) {
   uint16_t left = GET_UINT16_VAL(pLeft);
-  double right = GET_DOUBLE_VAL(pRight);
+  double   right = GET_DOUBLE_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -831,7 +830,7 @@ int32_t compareUint16Double(const void *pLeft, const void *pRight) {
 
 int32_t compareUint16Uint8(const void *pLeft, const void *pRight) {
   uint16_t left = GET_UINT16_VAL(pLeft);
-  uint8_t right = GET_UINT8_VAL(pRight);
+  uint8_t  right = GET_UINT8_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -855,7 +854,7 @@ int32_t compareUint16Uint64(const void *pLeft, const void *pRight) {
 
 int32_t compareUint32Int8(const void *pLeft, const void *pRight) {
   uint32_t left = GET_UINT32_VAL(pLeft);
-  int8_t right = GET_INT8_VAL(pRight);
+  int8_t   right = GET_INT8_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -863,7 +862,7 @@ int32_t compareUint32Int8(const void *pLeft, const void *pRight) {
 
 int32_t compareUint32Int16(const void *pLeft, const void *pRight) {
   uint32_t left = GET_UINT32_VAL(pLeft);
-  int16_t right = GET_INT16_VAL(pRight);
+  int16_t  right = GET_INT16_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -871,7 +870,7 @@ int32_t compareUint32Int16(const void *pLeft, const void *pRight) {
 
 int32_t compareUint32Int32(const void *pLeft, const void *pRight) {
   uint32_t left = GET_UINT32_VAL(pLeft);
-  int32_t right = GET_INT32_VAL(pRight);
+  int32_t  right = GET_INT32_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -879,7 +878,7 @@ int32_t compareUint32Int32(const void *pLeft, const void *pRight) {
 
 int32_t compareUint32Int64(const void *pLeft, const void *pRight) {
   uint32_t left = GET_UINT32_VAL(pLeft);
-  int64_t right = GET_INT64_VAL(pRight);
+  int64_t  right = GET_INT64_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -887,7 +886,7 @@ int32_t compareUint32Int64(const void *pLeft, const void *pRight) {
 
 int32_t compareUint32Float(const void *pLeft, const void *pRight) {
   uint32_t left = GET_UINT32_VAL(pLeft);
-  float right = GET_FLOAT_VAL(pRight);
+  float    right = GET_FLOAT_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -895,7 +894,7 @@ int32_t compareUint32Float(const void *pLeft, const void *pRight) {
 
 int32_t compareUint32Double(const void *pLeft, const void *pRight) {
   uint32_t left = GET_UINT32_VAL(pLeft);
-  double right = GET_DOUBLE_VAL(pRight);
+  double   right = GET_DOUBLE_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -903,7 +902,7 @@ int32_t compareUint32Double(const void *pLeft, const void *pRight) {
 
 int32_t compareUint32Uint8(const void *pLeft, const void *pRight) {
   uint32_t left = GET_UINT32_VAL(pLeft);
-  uint8_t right = GET_UINT8_VAL(pRight);
+  uint8_t  right = GET_UINT8_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -927,7 +926,7 @@ int32_t compareUint32Uint64(const void *pLeft, const void *pRight) {
 
 int32_t compareUint64Int8(const void *pLeft, const void *pRight) {
   uint64_t left = GET_UINT64_VAL(pLeft);
-  int8_t right = GET_INT8_VAL(pRight);
+  int8_t   right = GET_INT8_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -935,7 +934,7 @@ int32_t compareUint64Int8(const void *pLeft, const void *pRight) {
 
 int32_t compareUint64Int16(const void *pLeft, const void *pRight) {
   uint64_t left = GET_UINT64_VAL(pLeft);
-  int16_t right = GET_INT16_VAL(pRight);
+  int16_t  right = GET_INT16_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -943,7 +942,7 @@ int32_t compareUint64Int16(const void *pLeft, const void *pRight) {
 
 int32_t compareUint64Int32(const void *pLeft, const void *pRight) {
   uint64_t left = GET_UINT64_VAL(pLeft);
-  int32_t right = GET_INT32_VAL(pRight);
+  int32_t  right = GET_INT32_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -951,7 +950,7 @@ int32_t compareUint64Int32(const void *pLeft, const void *pRight) {
 
 int32_t compareUint64Int64(const void *pLeft, const void *pRight) {
   uint64_t left = GET_UINT64_VAL(pLeft);
-  int64_t right = GET_INT64_VAL(pRight);
+  int64_t  right = GET_INT64_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -959,7 +958,7 @@ int32_t compareUint64Int64(const void *pLeft, const void *pRight) {
 
 int32_t compareUint64Float(const void *pLeft, const void *pRight) {
   uint64_t left = GET_UINT64_VAL(pLeft);
-  float right = GET_FLOAT_VAL(pRight);
+  float    right = GET_FLOAT_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -967,7 +966,7 @@ int32_t compareUint64Float(const void *pLeft, const void *pRight) {
 
 int32_t compareUint64Double(const void *pLeft, const void *pRight) {
   uint64_t left = GET_UINT64_VAL(pLeft);
-  double right = GET_DOUBLE_VAL(pRight);
+  double   right = GET_DOUBLE_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -975,7 +974,7 @@ int32_t compareUint64Double(const void *pLeft, const void *pRight) {
 
 int32_t compareUint64Uint8(const void *pLeft, const void *pRight) {
   uint64_t left = GET_UINT64_VAL(pLeft);
-  uint8_t right = GET_UINT8_VAL(pRight);
+  uint8_t  right = GET_UINT8_VAL(pRight);
   if (left > right) return 1;
   if (left < right) return -1;
   return 0;
@@ -997,10 +996,7 @@ int32_t compareUint64Uint32(const void *pLeft, const void *pRight) {
   return 0;
 }
 
-
-int32_t compareJsonValDesc(const void *pLeft, const void *pRight) {
-    return compareJsonVal(pRight, pLeft);
-}
+int32_t compareJsonValDesc(const void *pLeft, const void *pRight) { return compareJsonVal(pRight, pLeft); }
 /*
  * Compare two strings
  *    TSDB_MATCH:            Match
