@@ -82,6 +82,9 @@ typedef struct SRpcInit {
   int8_t   connType;      // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
   int32_t  idleTime;      // milliseconds, 0 means idle timer is disabled
 
+  int32_t compressSize;  // -1: no compress, 0 : all data compressed, size: compress data if larger than size
+  int8_t  encryption;    // encrypt or not
+
   // the following is for client app ecurity only
   char *user;  // user name
 
@@ -115,10 +118,9 @@ typedef struct {
 } SRpcCtx;
 
 int32_t rpcInit();
+void    rpcCleanup();
 
-void  rpcCleanup();
 void *rpcOpen(const SRpcInit *pRpc);
-
 void  rpcClose(void *);
 void  rpcCloseImpl(void *);
 void *rpcMallocCont(int32_t contLen);
