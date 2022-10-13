@@ -73,7 +73,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath) {
   }
 
   // todo refactor
-  if (tdbTbOpen("func.state.db", sizeof(SWinKey), -1, winKeyCmpr, pState->db, &pState->pFillStateDb) < 0) {
+  if (tdbTbOpen("fill.state.db", sizeof(SWinKey), -1, winKeyCmpr, pState->db, &pState->pFillStateDb) < 0) {
     goto _err;
   }
 
