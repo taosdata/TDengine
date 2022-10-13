@@ -183,4 +183,3 @@ void dmGetQnodeLoads(SQnodeLoad *pInfo) {
     dmReleaseWrapper(pWrapper);
   }
 }
-

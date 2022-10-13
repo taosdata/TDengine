@@ -93,8 +93,8 @@ static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pIn
 
   pBuf->useSize = sizeof(SDataCacheEntry);
   blockEncode(pInput->pData, pEntry->data, &pEntry->dataLen, numOfCols, pEntry->compressed);
-  ASSERT(pEntry->numOfRows == *(int32_t*)(pEntry->data+8));
-  ASSERT(pEntry->numOfCols == *(int32_t*)(pEntry->data+8+4));
+  ASSERT(pEntry->numOfRows == *(int32_t*)(pEntry->data + 8));
+  ASSERT(pEntry->numOfCols == *(int32_t*)(pEntry->data + 8 + 4));
 
   pBuf->useSize += pEntry->dataLen;
 
@@ -103,14 +103,14 @@ static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pIn
 }
 
 static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput, SDataDispatchBuf* pBuf) {
-/*
-  uint32_t capacity = pDispatcher->pManager->cfg.maxDataBlockNumPerQuery;
-  if (taosQueueItemSize(pDispatcher->pDataBlocks) > capacity) {
-    qError("SinkNode queue is full, no capacity, max:%d, current:%d, no capacity", capacity,
-           taosQueueItemSize(pDispatcher->pDataBlocks));
-    return false;
-  }
-*/
+  /*
+    uint32_t capacity = pDispatcher->pManager->cfg.maxDataBlockNumPerQuery;
+    if (taosQueueItemSize(pDispatcher->pDataBlocks) > capacity) {
+      qError("SinkNode queue is full, no capacity, max:%d, current:%d, no capacity", capacity,
+             taosQueueItemSize(pDispatcher->pDataBlocks));
+      return false;
+    }
+  */
 
   pBuf->allocSize = sizeof(SDataCacheEntry) + blockGetEncodeSize(pInput->pData);
 
@@ -176,11 +176,12 @@ static void getDataLength(SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryE
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pDispatcher->nextOutput.pData;
   *pLen = pEntry->dataLen;
 
-  ASSERT(pEntry->numOfRows == *(int32_t*)(pEntry->data+8));
-  ASSERT(pEntry->numOfCols == *(int32_t*)(pEntry->data+8+4));
+  ASSERT(pEntry->numOfRows == *(int32_t*)(pEntry->data + 8));
+  ASSERT(pEntry->numOfCols == *(int32_t*)(pEntry->data + 8 + 4));
 
   *pQueryEnd = pDispatcher->queryEnd;
-  qDebug("got data len %" PRId64 ", row num %d in sink", *pLen, ((SDataCacheEntry*)(pDispatcher->nextOutput.pData))->numOfRows);
+  qDebug("got data len %" PRId64 ", row num %d in sink", *pLen,
+         ((SDataCacheEntry*)(pDispatcher->nextOutput.pData))->numOfRows);
 }
 
 static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
@@ -199,8 +200,8 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   pOutput->numOfCols = pEntry->numOfCols;
   pOutput->compressed = pEntry->compressed;
 
-  ASSERT(pEntry->numOfRows == *(int32_t*)(pEntry->data+8));
-  ASSERT(pEntry->numOfCols == *(int32_t*)(pEntry->data+8+4));
+  ASSERT(pEntry->numOfRows == *(int32_t*)(pEntry->data + 8));
+  ASSERT(pEntry->numOfCols == *(int32_t*)(pEntry->data + 8 + 4));
 
   atomic_sub_fetch_64(&pDispatcher->cachedSize, pEntry->dataLen);
   atomic_sub_fetch_64(&gDataSinkStat.cachedSize, pEntry->dataLen);

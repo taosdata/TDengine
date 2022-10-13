@@ -209,7 +209,8 @@ static STSGroupBlockInfoEx* addOneGroupInfo(STSBuf* pTSBuf, int32_t id) {
     uint32_t newSize = (uint32_t)(pTSBuf->numOfAlloc * 1.5);
     assert((int32_t)newSize > pTSBuf->numOfAlloc);
 
-    STSGroupBlockInfoEx* tmp = (STSGroupBlockInfoEx*)taosMemoryRealloc(pTSBuf->pData, sizeof(STSGroupBlockInfoEx) * newSize);
+    STSGroupBlockInfoEx* tmp =
+        (STSGroupBlockInfoEx*)taosMemoryRealloc(pTSBuf->pData, sizeof(STSGroupBlockInfoEx) * newSize);
     if (tmp == NULL) {
       return NULL;
     }

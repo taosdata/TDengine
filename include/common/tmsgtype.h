@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+// clang-format off
+
 // sql type
 // clang-format off
 
@@ -103,6 +105,8 @@ enum {
 
   TSDB_DEFINE_SQL_TYPE( TSDB_SQL_MAX, "max" )
 };
+// clang-format on
+
 // clang-format on
 
 #ifdef __cplusplus

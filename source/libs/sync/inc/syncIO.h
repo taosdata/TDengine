@@ -29,15 +29,15 @@ extern "C" {
 #include "tqueue.h"
 #include "trpc.h"
 
-#define TICK_Q_TIMER_MS 1000
+#define TICK_Q_TIMER_MS    1000
 #define TICK_Ping_TIMER_MS 1000
 
 typedef struct SSyncIO {
   STaosQueue *pMsgQ;
-  STaosQset * pQset;
+  STaosQset  *pQset;
   TdThread    consumerTid;
-  void *      serverRpc;
-  void *      clientRpc;
+  void       *serverRpc;
+  void       *clientRpc;
   SEpSet      myAddr;
   SMsgCb      msgcb;
 
