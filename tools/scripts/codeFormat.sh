@@ -16,7 +16,7 @@ FORMAT_DIR_LIST=(
     "${PRJ_ROOT_DIR}/source/libs/catalog"
     "${PRJ_ROOT_DIR}/source/libs/command"
     "${PRJ_ROOT_DIR}/source/libs/executor"
-    # "${PRJ_ROOT_DIR}/source/libs/function"
+    "${PRJ_ROOT_DIR}/source/libs/function"
     "${PRJ_ROOT_DIR}/source/libs/index"
     "${PRJ_ROOT_DIR}/source/libs/monitor"
     "${PRJ_ROOT_DIR}/source/libs/nodes"
@@ -49,3 +49,5 @@ for d in ${FORMAT_DIR_LIST[@]}; do
 done
 
 cd ${ORIGIN_DIR}
+
+# find source/libs/ -path ./source/libs/qworker -prune -o -regex '.*\.\(cpp\|hpp\|c\|h\)' -print
