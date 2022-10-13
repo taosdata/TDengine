@@ -30,6 +30,7 @@
 #include "qUdf.h"
 #include "tcompare.h"
 #include "hashfunc.h"
+#include "tglobal.h"
 
 #define GET_INPUT_DATA_LIST(x) ((char *)((x)->pInput))
 #define GET_INPUT_DATA(x, y) (GET_INPUT_DATA_LIST(x) + (y) * (x)->inputBytes)
