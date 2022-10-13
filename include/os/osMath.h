@@ -23,40 +23,40 @@ extern "C" {
 // If the error is in a third-party library, place this header file under the third-party library header file.
 // When you want to use this feature, you should find or add the same function in the following sectio
 #ifndef ALLOW_FORBID_FUNC
-#define qsort  QSORT_FUNC_TAOS_FORBID
+#define qsort QSORT_FUNC_TAOS_FORBID
 #endif
 
 #define TPOW2(x) ((x) * (x))
-#define TABS(x) ((x) > 0 ? (x) : -(x))
+#define TABS(x)  ((x) > 0 ? (x) : -(x))
 
-#define TSWAP(a, b)                              \
-  do {                                           \
-    char *__tmp = alloca(sizeof(a));             \
-    memcpy(__tmp, &(a), sizeof(a));              \
-    memcpy(&(a), &(b), sizeof(a));               \
-    memcpy(&(b), __tmp, sizeof(a));              \
+#define TSWAP(a, b)                  \
+  do {                               \
+    char *__tmp = alloca(sizeof(a)); \
+    memcpy(__tmp, &(a), sizeof(a));  \
+    memcpy(&(a), &(b), sizeof(a));   \
+    memcpy(&(b), __tmp, sizeof(a));  \
   } while (0)
 
 #ifdef WINDOWS
 
-  #define TMAX(a, b) (((a) > (b)) ? (a) : (b))
-  #define TMIN(a, b) (((a) < (b)) ? (a) : (b))
-  #define TRANGE(aa, bb, cc) ((aa) = TMAX((aa), (bb)),(aa) = TMIN((aa), (cc)))
+#define TMAX(a, b)         (((a) > (b)) ? (a) : (b))
+#define TMIN(a, b)         (((a) < (b)) ? (a) : (b))
+#define TRANGE(aa, bb, cc) ((aa) = TMAX((aa), (bb)), (aa) = TMIN((aa), (cc)))
 
 #else
 
-  #define TMAX(a, b)             \
-    ({                           \
-      __typeof(a) __a = (a);     \
-      __typeof(b) __b = (b);     \
-      (__a > __b) ? __a : __b;   \
-    })
+#define TMAX(a, b)           \
+  ({                         \
+    __typeof(a) __a = (a);   \
+    __typeof(b) __b = (b);   \
+    (__a > __b) ? __a : __b; \
+  })
 
-#define TMIN(a, b)             \
-  ({                           \
-    __typeof(a) __a = (a);     \
-    __typeof(b) __b = (b);     \
-    (__a < __b) ? __a : __b;   \
+#define TMIN(a, b)           \
+  ({                         \
+    __typeof(a) __a = (a);   \
+    __typeof(b) __b = (b);   \
+    (__a < __b) ? __a : __b; \
   })
 
 #define TRANGE(a, b, c) \
@@ -71,7 +71,7 @@ extern "C" {
 typedef int32_t (*__compar_fn_t)(const void *, const void *);
 #endif
 
-void taosSort(void* arr, int64_t sz, int64_t width, __compar_fn_t compar);
+void taosSort(void *arr, int64_t sz, int64_t width, __compar_fn_t compar);
 
 #ifdef __cplusplus
 }

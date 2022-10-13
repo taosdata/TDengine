@@ -36,7 +36,7 @@ void test1() {
 void test2() {
   SyncLeaderTransfer *pMsg = createMsg();
   uint32_t            len = pMsg->bytes;
-  char *              serialized = (char *)taosMemoryMalloc(len);
+  char               *serialized = (char *)taosMemoryMalloc(len);
   syncLeaderTransferSerialize(pMsg, serialized, len);
   SyncLeaderTransfer *pMsg2 = syncLeaderTransferBuild(1000);
   syncLeaderTransferDeserialize(serialized, len, pMsg2);
@@ -50,7 +50,7 @@ void test2() {
 void test3() {
   SyncLeaderTransfer *pMsg = createMsg();
   uint32_t            len;
-  char *              serialized = syncLeaderTransferSerialize2(pMsg, &len);
+  char               *serialized = syncLeaderTransferSerialize2(pMsg, &len);
   SyncLeaderTransfer *pMsg2 = syncLeaderTransferDeserialize2(serialized, len);
   syncLeaderTransferLog2((char *)"test3: syncLeaderTransferSerialize2 -> syncLeaderTransferDeserialize2 ", pMsg2);
 

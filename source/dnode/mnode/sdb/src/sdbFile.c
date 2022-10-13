@@ -306,8 +306,8 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
   pSdb->commitTerm = pSdb->applyTerm;
   pSdb->commitConfig = pSdb->applyConfig;
   memcpy(pSdb->tableVer, tableVer, sizeof(tableVer));
-  mInfo("read sdb file:%s success, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64, file,
-         pSdb->commitIndex, pSdb->commitTerm, pSdb->commitConfig);
+  mInfo("read sdb file:%s success, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64, file, pSdb->commitIndex,
+        pSdb->commitTerm, pSdb->commitConfig);
 
 _OVER:
   taosCloseFile(&pFile);
@@ -340,9 +340,9 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
   snprintf(curfile, sizeof(curfile), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
 
   mInfo("start to write sdb file, apply index:%" PRId64 " term:%" PRId64 " config:%" PRId64 ", commit index:%" PRId64
-         " term:%" PRId64 " config:%" PRId64 ", file:%s",
-         pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, pSdb->commitIndex, pSdb->commitTerm, pSdb->commitConfig,
-         curfile);
+        " term:%" PRId64 " config:%" PRId64 ", file:%s",
+        pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, pSdb->commitIndex, pSdb->commitTerm, pSdb->commitConfig,
+        curfile);
 
   TdFilePtr pFile = taosOpenFile(tmpfile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
@@ -438,7 +438,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
     pSdb->commitTerm = pSdb->applyTerm;
     pSdb->commitConfig = pSdb->applyConfig;
     mInfo("write sdb file success, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " file:%s",
-           pSdb->commitIndex, pSdb->commitTerm, pSdb->commitConfig, curfile);
+          pSdb->commitIndex, pSdb->commitTerm, pSdb->commitConfig, curfile);
   }
 
   terrno = code;
@@ -556,9 +556,8 @@ int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter, int64_t *index, int64_t *ter
   if (term != NULL) *term = commitTerm;
   if (config != NULL) *config = commitConfig;
 
-  mInfo("sdbiter:%p, is created to read snapshot, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64
-         " file:%s",
-         pIter, commitIndex, commitTerm, commitConfig, pIter->name);
+  mInfo("sdbiter:%p, is created to read snapshot, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " file:%s",
+        pIter, commitIndex, commitTerm, commitConfig, pIter->name);
   return 0;
 }
 

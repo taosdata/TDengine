@@ -38,7 +38,7 @@ void test1() {
 void test2() {
   SyncSnapshotRsp *pMsg = createMsg();
   uint32_t         len = pMsg->bytes;
-  char *           serialized = (char *)taosMemoryMalloc(len);
+  char            *serialized = (char *)taosMemoryMalloc(len);
   syncSnapshotRspSerialize(pMsg, serialized, len);
   SyncSnapshotRsp *pMsg2 = syncSnapshotRspBuild(1000);
   syncSnapshotRspDeserialize(serialized, len, pMsg2);
@@ -52,7 +52,7 @@ void test2() {
 void test3() {
   SyncSnapshotRsp *pMsg = createMsg();
   uint32_t         len;
-  char *           serialized = syncSnapshotRspSerialize2(pMsg, &len);
+  char            *serialized = syncSnapshotRspSerialize2(pMsg, &len);
   SyncSnapshotRsp *pMsg2 = syncSnapshotRspDeserialize2(serialized, len);
   syncSnapshotRspLog2((char *)"test3: syncSnapshotRspSerialize2 -> syncSnapshotRspDeserialize2 ", pMsg2);
 

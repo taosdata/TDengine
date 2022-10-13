@@ -1555,8 +1555,8 @@ static int32_t mndCheckDnodeMemory(SMnode *pMnode, SDbObj *pOldDb, SDbObj *pNewD
       terrno = TSDB_CODE_MND_NO_ENOUGH_MEM_IN_DNODE;
       return -1;
     } else if (inVgroup) {
-      mInfo("db:%s, vgId:%d, memory in dnode:%d, avail:%" PRId64 " used:%" PRId64, pNewVgroup->dbName,
-             pNewVgroup->vgId, pDnode->id, pDnode->memAvail, pDnode->memUsed);
+      mInfo("db:%s, vgId:%d, memory in dnode:%d, avail:%" PRId64 " used:%" PRId64, pNewVgroup->dbName, pNewVgroup->vgId,
+            pDnode->id, pDnode->memAvail, pDnode->memUsed);
     } else {
     }
   }
