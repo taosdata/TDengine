@@ -845,8 +845,7 @@ static int32_t copyBlockDataToSDataBlock(STsdbReader* pReader, STableBlockScanIn
   if ((pDumpInfo->rowIndex == 0 && asc) || (pDumpInfo->rowIndex == pBlock->nRow - 1 && (!asc))) {
     if (asc && pReader->window.skey <= pBlock->minKey.ts) {
       //pDumpInfo->rowIndex = 0;
-    } else 
-    if (!asc && pReader->window.ekey >= pBlock->maxKey.ts) {
+    } else if (!asc && pReader->window.ekey >= pBlock->maxKey.ts) {
       //pDumpInfo->rowIndex = pBlock->nRow - 1;
     } else {
       int32_t pos = asc ? pBlock->nRow - 1 : 0;
@@ -1644,6 +1643,7 @@ static int32_t doMergeFileBlockAndLastBlock(SLastBlockReader* pLastBlockReader, 
   STSRow*    pTSRow = NULL;
   SRowMerger merge = {0};
   TSDBROW    fRow = tMergeTreeGetRow(&pLastBlockReader->mergeTree);
+  tsdbTrace("fRow ptr:%p, %d, uid:%"PRIu64", %s", fRow.pBlockData, fRow.iRow, pLastBlockReader->uid, pReader->idStr);
 
   // only last block exists
   if ((!mergeBlockData) || (tsLastBlock != pBlockData->aTSKEY[pDumpInfo->rowIndex])) {
