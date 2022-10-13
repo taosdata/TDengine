@@ -285,7 +285,7 @@ if [ "$osType" != "Darwin" ]; then
       if [[ "$pagMode" == "full" ]]; then
         if [ -d ${top_dir}/tools/taos-tools/packaging/rpm ]; then
           cd ${top_dir}/tools/taos-tools/packaging/rpm
-          taostools_ver=$(git tag |grep -v taos | sort | tail -1)
+          taos_tools_ver=$(git tag |grep -v taos | sort | tail -1)
           [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
           ${csudo}./make-taos-tools-rpm.sh ${top_dir} \
