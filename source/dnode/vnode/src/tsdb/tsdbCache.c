@@ -1189,7 +1189,8 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray) {
     setNoneCol = false;
     for (iCol = noneCol; iCol < nCol; ++iCol) {
       // high version's column value
-      SColVal *tColVal = (SColVal *)taosArrayGet(pColArray, iCol);
+      SLastCol *lastColVal = (SLastCol *)taosArrayGet(pColArray, iCol);
+      SColVal  *tColVal = &lastColVal->colVal;
 
       tsdbRowGetColVal(pRow, pTSchema, iCol, pColVal);
       if (!COL_VAL_IS_VALUE(tColVal) && COL_VAL_IS_VALUE(pColVal)) {
