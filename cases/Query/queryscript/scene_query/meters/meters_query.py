@@ -131,12 +131,12 @@ class TDTestQuery(TDCase):
         # and ts >=1651334400000 and ts <=1651338000000            
         time_units = ['s','m','h','d','w'] #有限制，所以需要删除几个
         time_unit = random.sample(time_units,1)
-        ts_range = "ts >= now - %d%s and ts <= now " %(fake.random_int(min=0, max=12, step=1),time_unit)
+        ts_range = " ts >= now - %d%s and ts <= now " %(fake.random_int(min=0, max=12, step=1),time_unit)
         
-        q_tinyint_list = "c1 in (" + str(q_tinyint_list).replace("[","").replace("]","") + ")" + " %s " %ts_range
-        t_tinyint_list = "t0 in (" + str(t_tinyint_list).replace("[","").replace("]","") + ")" + " %s " %ts_range      
-        in_filters = [q_tinyint_list , t_tinyint_list, " %s " %ts_range]        
-        in_filter = str(random.sample(in_filters,1)).replace("[","").replace("]","").replace("'","")
+        q_tinyint_list = " c1 in (" + str(q_tinyint_list).replace("[","").replace("]","") + ") and " + '%s' %ts_range
+        t_tinyint_list = " t0 in (" + str(t_tinyint_list).replace("[","").replace("]","") + ") and " + '%s'  %ts_range      
+        in_filters = [q_tinyint_list , t_tinyint_list, '%s' %ts_range]        
+        in_filter = str(random.sample(in_filters,1)).replace("[","").replace("]","").replace("'","").replace("\" ","").replace(" \"","")
         
         orderby_filters = ['ts','_c0','_C0','_rowts','c1','c2','c3','c4','t0','t1']
         i = random.randint(1,8)
@@ -257,6 +257,8 @@ class TDTestQuery(TDCase):
         #判断sql执行结果，如果执行成功，判断返回rows，>0记录sql到文件， =0提示退出， sql执行不成功，则记录sql，不进入sql文件
         rows = 0;
         succ_flag = 0
+        t = time.time()
+        t_to_s =  time.strftime('%Y-%m-%d-%H', time.localtime(t)) 
         
         try:
             self.tdSql.query(sql,queryTimes=1)
@@ -269,10 +271,16 @@ class TDTestQuery(TDCase):
         if rows:
             self.explain_sql(sql) if rows > 0 else sys.exit("data rows = 0")
         
-        if succ_flag:
-            result_file_name = self.testcasePath + '/meters.sql'        
+        if succ_flag:            
+            result_file_name = self.testcasePath + '/sqls/meters.sql_%s' %t_to_s        
             f = open(result_file_name, 'a') 
             f.write(str(sql) + "; \n")
+            f.close()
+        else:
+            result_file_name = self.testcasePath + '/sqls/error/meters_error.sql_%s' %t_to_s        
+            f = open(result_file_name, 'a') 
+            f.write(str(sql) + "; \n")
+            #f.write(str(self.tdSql.error(sql)) + "; \n")
             f.close()
     
     def data_check_2(self,sql) :
@@ -841,7 +849,7 @@ class TDTestQuery(TDCase):
             return func_column_process 
         elif i == 53:             
             func = ['TO_UNIXTIMESTAMP']
-            t = time.time()  
+            t = time.time()
             t_to_s =  time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t))     
             column = ['(c3)','(c4)','(t1)','(t_to_s)'] 
             func_column = random.sample(func,1)+random.sample(column,1)
@@ -1746,5 +1754,5 @@ class TDTestQuery(TDCase):
         #self.rm_sql()
         self.logger.info("total time %ds" % (endTime - startTime))
         
-        self.sql_count()
+        #self.sql_count()
 
