@@ -176,9 +176,9 @@ struct SScalarParam {
   SColumnInfoData *columnData;
   SHashObj        *pHashFilter;
   int32_t          hashValueType;
-  void            *param; // other parameter, such as meta handle from vnode, to extract table name/tag value
+  void            *param;  // other parameter, such as meta handle from vnode, to extract table name/tag value
   int32_t          numOfRows;
-  int32_t          numOfQualified; // number of qualified elements in the final results
+  int32_t          numOfQualified;  // number of qualified elements in the final results
 };
 
 void    cleanupResultRowEntry(struct SResultRowEntryInfo *pCell);

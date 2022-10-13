@@ -79,7 +79,7 @@ static void *tQWorkerThreadFp(SQWorker *worker) {
   uDebug("worker:%s:%d is running", pool->name, worker->id);
 
   while (1) {
-     if (taosReadQitemFromQset(pool->qset, (void **)&msg, &qinfo) == 0) {
+    if (taosReadQitemFromQset(pool->qset, (void **)&msg, &qinfo) == 0) {
       uDebug("worker:%s:%d qset:%p, got no message and exiting", pool->name, worker->id, pool->qset);
       break;
     }

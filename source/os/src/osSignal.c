@@ -47,7 +47,7 @@ void taosDflSignal(int32_t signum) {
   signal(signum, SIG_DFL);
 }
 
-void taosKillChildOnParentStopped() { }
+void taosKillChildOnParentStopped() {}
 
 #else
 
@@ -73,9 +73,9 @@ void taosIgnSignal(int32_t signum) { signal(signum, SIG_IGN); }
 
 void taosDflSignal(int32_t signum) { signal(signum, SIG_DFL); }
 
-void taosKillChildOnParentStopped() { 
+void taosKillChildOnParentStopped() {
 #ifndef _TD_DARWIN_64
-  prctl(PR_SET_PDEATHSIG, SIGKILL); 
+  prctl(PR_SET_PDEATHSIG, SIGKILL);
 #endif
 }
 

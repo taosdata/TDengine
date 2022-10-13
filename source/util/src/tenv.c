@@ -59,12 +59,12 @@ int32_t taosEnvToCfg(const char *envStr, char *cfgStr) {
   }
   if (cfgStr != envStr) strcpy(cfgStr, envStr);
   char *p = strchr(cfgStr, '=');
-  
+
   if (p != NULL) {
     char buf[CFG_NAME_MAX_LEN];
-    if (*(p+1) == '\'') {
-      *(p+1)= ' ';
-      char *pEnd = &cfgStr[strlen(cfgStr)-1];
+    if (*(p + 1) == '\'') {
+      *(p + 1) = ' ';
+      char *pEnd = &cfgStr[strlen(cfgStr) - 1];
       if (*pEnd == '\'') *pEnd = '\0';
     }
     *p = '\0';

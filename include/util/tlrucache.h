@@ -28,37 +28,34 @@ typedef void (*_taos_lru_deleter_t)(const void *key, size_t keyLen, void *value)
 
 typedef struct LRUHandle LRUHandle;
 
-typedef enum {
-  TAOS_LRU_PRIORITY_HIGH,
-  TAOS_LRU_PRIORITY_LOW
-} LRUPriority;
-  
+typedef enum { TAOS_LRU_PRIORITY_HIGH, TAOS_LRU_PRIORITY_LOW } LRUPriority;
+
 typedef enum {
   TAOS_LRU_STATUS_OK,
   TAOS_LRU_STATUS_FAIL,
   TAOS_LRU_STATUS_INCOMPLETE,
   TAOS_LRU_STATUS_OK_OVERWRITTEN
 } LRUStatus;
-  
-SLRUCache *taosLRUCacheInit(size_t capacity, int numShardBits, double highPriPoolRatio);  
-void taosLRUCacheCleanup(SLRUCache *cache);
 
-LRUStatus taosLRUCacheInsert(SLRUCache *cache, const void *key, size_t keyLen, void *value, size_t charge,
-                             _taos_lru_deleter_t deleter, LRUHandle **handle, LRUPriority priority);
-LRUHandle *taosLRUCacheLookup(SLRUCache * cache, const void *key, size_t keyLen);
-void taosLRUCacheErase(SLRUCache * cache, const void *key, size_t keyLen);
+SLRUCache *taosLRUCacheInit(size_t capacity, int numShardBits, double highPriPoolRatio);
+void       taosLRUCacheCleanup(SLRUCache *cache);
+
+LRUStatus  taosLRUCacheInsert(SLRUCache *cache, const void *key, size_t keyLen, void *value, size_t charge,
+                              _taos_lru_deleter_t deleter, LRUHandle **handle, LRUPriority priority);
+LRUHandle *taosLRUCacheLookup(SLRUCache *cache, const void *key, size_t keyLen);
+void       taosLRUCacheErase(SLRUCache *cache, const void *key, size_t keyLen);
 
 void taosLRUCacheEraseUnrefEntries(SLRUCache *cache);
 
 bool taosLRUCacheRef(SLRUCache *cache, LRUHandle *handle);
 bool taosLRUCacheRelease(SLRUCache *cache, LRUHandle *handle, bool eraseIfLastRef);
 
-void* taosLRUCacheValue(SLRUCache *cache, LRUHandle *handle);
+void *taosLRUCacheValue(SLRUCache *cache, LRUHandle *handle);
 
 size_t taosLRUCacheGetUsage(SLRUCache *cache);
 size_t taosLRUCacheGetPinnedUsage(SLRUCache *cache);
 
-void taosLRUCacheSetCapacity(SLRUCache *cache, size_t capacity);
+void   taosLRUCacheSetCapacity(SLRUCache *cache, size_t capacity);
 size_t taosLRUCacheGetCapacity(SLRUCache *cache);
 
 void taosLRUCacheSetStrictCapacity(SLRUCache *cache, bool strict);

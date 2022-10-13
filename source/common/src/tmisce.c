@@ -61,17 +61,15 @@ bool isEpsetEqual(const SEpSet* s1, const SEpSet* s2) {
 
 void updateEpSet_s(SCorEpSet* pEpSet, SEpSet* pNewEpSet) {
   taosCorBeginWrite(&pEpSet->version);
-    pEpSet->epSet = *pNewEpSet;
+  pEpSet->epSet = *pNewEpSet;
   taosCorEndWrite(&pEpSet->version);
 }
 
 SEpSet getEpSet_s(SCorEpSet* pEpSet) {
   SEpSet ep = {0};
   taosCorBeginRead(&pEpSet->version);
-    ep = pEpSet->epSet;
+  ep = pEpSet->epSet;
   taosCorEndRead(&pEpSet->version);
 
   return ep;
 }
-
-

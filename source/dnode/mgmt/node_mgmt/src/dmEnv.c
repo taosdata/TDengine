@@ -52,17 +52,23 @@ static int32_t dmInitMonitor() {
 static bool dmCheckDiskSpace() {
   osUpdate();
   if (!osDataSpaceAvailable()) {
-    dError("free disk size: %f GB, too little, require %f GB at least at least , quit", (double)tsDataSpace.size.avail / 1024.0 / 1024.0 / 1024.0, (double)tsDataSpace.reserved / 1024.0 / 1024.0 / 1024.0);
+    dError("free disk size: %f GB, too little, require %f GB at least at least , quit",
+           (double)tsDataSpace.size.avail / 1024.0 / 1024.0 / 1024.0,
+           (double)tsDataSpace.reserved / 1024.0 / 1024.0 / 1024.0);
     terrno = TSDB_CODE_NO_AVAIL_DISK;
     return false;
   }
   if (!osLogSpaceAvailable()) {
-    dError("free disk size: %f GB, too little, require %f GB at least at least, quit", (double)tsLogSpace.size.avail / 1024.0 / 1024.0 / 1024.0, (double)tsLogSpace.reserved / 1024.0 / 1024.0 / 1024.0);
+    dError("free disk size: %f GB, too little, require %f GB at least at least, quit",
+           (double)tsLogSpace.size.avail / 1024.0 / 1024.0 / 1024.0,
+           (double)tsLogSpace.reserved / 1024.0 / 1024.0 / 1024.0);
     terrno = TSDB_CODE_NO_AVAIL_DISK;
     return false;
   }
   if (!osTempSpaceAvailable()) {
-    dError("free disk size: %f GB, too little, require %f GB at least at least, quit", (double)tsTempSpace.size.avail / 1024.0 / 1024.0 / 1024.0, (double)tsTempSpace.reserved / 1024.0 / 1024.0 / 1024.0);
+    dError("free disk size: %f GB, too little, require %f GB at least at least, quit",
+           (double)tsTempSpace.size.avail / 1024.0 / 1024.0 / 1024.0,
+           (double)tsTempSpace.reserved / 1024.0 / 1024.0 / 1024.0);
     terrno = TSDB_CODE_NO_AVAIL_DISK;
     return false;
   }
@@ -73,7 +79,8 @@ static bool dmCheckDataDirVersion() {
   char checkDataDirJsonFileName[PATH_MAX];
   snprintf(checkDataDirJsonFileName, PATH_MAX, "%s/dnode/dnodeCfg.json", tsDataDir);
   if (taosCheckExistFile(checkDataDirJsonFileName)) {
-    dError("The default data directory %s contains old data of tdengine 2.x, please clear it before running!", tsDataDir);
+    dError("The default data directory %s contains old data of tdengine 2.x, please clear it before running!",
+           tsDataDir);
     return false;
   }
   return true;

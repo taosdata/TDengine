@@ -23,52 +23,63 @@ static TdThreadOnce transModuleInit = PTHREAD_ONCE_INIT;
 static int32_t refMgt;
 static int32_t instMgt;
 
-bool transCompressMsg(char* msg, int32_t len, int32_t* flen) {
-  return false;
-  // SRpcHead* pHead = rpcHeadFromCont(pCont);
-  bool succ = false;
-  int  overhead = sizeof(STransCompMsg);
-  if (!NEEDTO_COMPRESSS_MSG(len)) {
-    return succ;
-  }
+int32_t transCompressMsg(char* msg, int32_t len) {
+  int32_t        ret = 0;
+  int            compHdr = sizeof(STransCompMsg);
+  STransMsgHead* pHead = transHeadFromCont(msg);
 
-  char* buf = taosMemoryMalloc(len + overhead + 8);  // 8 extra bytes
+  char* buf = taosMemoryMalloc(len + compHdr + 8);  // 8 extra bytes
   if (buf == NULL) {
     tError("failed to allocate memory for rpc msg compression, contLen:%d", len);
-    *flen = len;
-    return succ;
+    ret = len;
+    return ret;
   }
 
-  int32_t clen = LZ4_compress_default(msg, buf, len, len + overhead);
-  tDebug("compress rpc msg, before:%d, after:%d, overhead:%d", len, clen, overhead);
+  int32_t clen = LZ4_compress_default(msg, buf, len, len + compHdr);
   /*
    * only the compressed size is less than the value of contLen - overhead, the compression is applied
    * The first four bytes is set to 0, the second four bytes are utilized to keep the original length of message
    */
-  if (clen > 0 && clen < len - overhead) {
+  if (clen > 0 && clen < len - compHdr) {
     STransCompMsg* pComp = (STransCompMsg*)msg;
     pComp->reserved = 0;
     pComp->contLen = htonl(len);
-    memcpy(msg + overhead, buf, clen);
+    memcpy(msg + compHdr, buf, clen);
 
     tDebug("compress rpc msg, before:%d, after:%d", len, clen);
-    *flen = clen + overhead;
-    succ = true;
+    ret = clen + compHdr;
+    pHead->comp = 1;
   } else {
-    *flen = len;
-    succ = false;
+    ret = len;
+    pHead->comp = 0;
   }
   taosMemoryFree(buf);
-  return succ;
+  return ret;
 }
-bool transDecompressMsg(char* msg, int32_t len, int32_t* flen) {
-  // impl later
-  return false;
-  STransCompMsg* pComp = (STransCompMsg*)msg;
+int32_t transDecompressMsg(char** msg, int32_t len) {
+  STransMsgHead* pHead = (STransMsgHead*)(*msg);
+  if (pHead->comp == 0) return 0;
 
-  int overhead = sizeof(STransCompMsg);
-  int clen = 0;
-  return false;
+  char*          pCont = transContFromHead(pHead);
+  STransCompMsg* pComp = (STransCompMsg*)pCont;
+  int32_t        oriLen = htonl(pComp->contLen);
+
+  char*          buf = taosMemoryCalloc(1, oriLen + sizeof(STransMsgHead));
+  STransMsgHead* pNewHead = (STransMsgHead*)buf;
+
+  int32_t decompLen = LZ4_decompress_safe(pCont + sizeof(STransCompMsg), pNewHead->content,
+                                          len - sizeof(STransMsgHead) - sizeof(STransCompMsg), oriLen);
+  memcpy((char*)pNewHead, (char*)pHead, sizeof(STransMsgHead));
+
+  pNewHead->msgLen = htonl(oriLen + sizeof(STransMsgHead));
+
+  taosMemoryFree(pHead);
+
+  *msg = buf;
+  if (decompLen != oriLen) {
+    return -1;
+  }
+  return 0;
 }
 
 void transFreeMsg(void* msg) {
