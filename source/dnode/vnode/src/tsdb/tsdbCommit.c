@@ -853,7 +853,10 @@ static int32_t tsdbStartCommit(STsdb *pTsdb, SCommitter *pCommitter) {
 
   tsdbCommitConflictCheck(pTsdb, pCommitter);
 
+  taosThreadRwlockRdlock(&pTsdb->rwLock);
   code = tsdbFSCopy(pTsdb, &pCommitter->fs);
+  taosThreadRwlockUnlock(&pTsdb->rwLock);
+
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:

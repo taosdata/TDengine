@@ -102,8 +102,10 @@ _retention_loop:
     atomic_store_32(&pTsdb->trimHdl.maxRetentFid, INT32_MIN);
     taosMsleep(50);
   }
-
+  taosThreadRwlockRdlock(&pTsdb->rwLock);
   code = tsdbFSCopy(pTsdb, &fs);
+  taosThreadRwlockUnlock(&pTsdb->rwLock);
+
   TSDB_CHECK_CODE(code, lino, _exit);
 
   if (type == RETENTION_MIGRATE) {
