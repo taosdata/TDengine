@@ -126,7 +126,7 @@ TDengine utilizes RAFT protocol to replicate data. If a database has N replicas,
 
 Leader Vnode uses a writing process as follows:
 
-![TDengine Database Leader Writing Process](write_master.webp)
+![TDengine Database Leader Writing Process](write_leader.webp)
 
 <center> Figure 3: TDengine Leader writing process </center>
 
@@ -141,7 +141,7 @@ Leader Vnode uses a writing process as follows:
 
 For a follower vnode, the write process as follows:
 
-![TDengine Database Follower Writing Process](write_slave.webp)
+![TDengine Database Follower Writing Process](write_follower.webp)
 
 <center> Figure 4: TDengine Follower Writing Process </center>
 
