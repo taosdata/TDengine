@@ -31,7 +31,9 @@ FORMAT_DIR_LIST=(
     "${PRJ_ROOT_DIR}/source/libs/tfs"
     "${PRJ_ROOT_DIR}/source/libs/transport"
     "${PRJ_ROOT_DIR}/source/libs/wal"
-    # "${PRJ_ROOT_DIR}/source/client"
+    "${PRJ_ROOT_DIR}/source/client/inc"
+    "${PRJ_ROOT_DIR}/source/client/src"
+    "${PRJ_ROOT_DIR}/source/client/test"
     "${PRJ_ROOT_DIR}/source/dnode"
 )
 
@@ -43,11 +45,11 @@ EXCLUDE_FILE_LIST=(
 )
 
 for d in ${FORMAT_DIR_LIST[@]}; do
-    for f in $(find $d -regex '.*\.\(cpp\|hpp\|c\|h\)'); do
+    for f in $(find $d -type f -regex '.*\.\(cpp\|hpp\|c\|h\)'); do
         ${FORMAT_BIN} -i $f
     done
 done
 
 cd ${ORIGIN_DIR}
 
-# find source/libs/ -path ./source/libs/qworker -prune -o -regex '.*\.\(cpp\|hpp\|c\|h\)' -print
+# find source -type f -regex '.*\.\(cpp\|hpp\|c\|h\)' ! -name
