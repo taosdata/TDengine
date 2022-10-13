@@ -73,6 +73,7 @@ typedef struct SSyncNode {
   const SMsgCb* msgcb;
   int32_t (*FpSendMsg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
   int32_t (*FpEqMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
+  int32_t (*FpEqCtrlMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
 
   // init internal
   SNodeInfo myNodeInfo;
@@ -286,6 +287,12 @@ void syncLogRecvAppendEntriesBatch(SSyncNode* pSyncNode, const SyncAppendEntries
 
 void syncLogSendAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s);
 void syncLogRecvAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntriesReply* pMsg, const char* s);
+
+void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, const char* s);
+void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, const char* s);
+
+void syncLogSendHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, const char* s);
+void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, const char* s);
 
 // for debug --------------
 void syncNodePrint(SSyncNode* pObj);

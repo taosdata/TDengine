@@ -207,6 +207,7 @@ typedef struct SSyncInfo {
   SMsgCb*       msgcb;
   int32_t (*FpSendMsg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
   int32_t (*FpEqMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
+  int32_t (*FpEqCtrlMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
 } SSyncInfo;
 
 int32_t     syncInit();

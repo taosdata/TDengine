@@ -323,6 +323,49 @@ void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   }
 }
 
+int32_t vnodeProcessSyncCtrlMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+  int32_t         code = 0;
+  const STraceId *trace = &pMsg->info.traceId;
+
+  if (!syncEnvIsStart()) {
+    vGError("vgId:%d, msg:%p failed to process since sync env not start", pVnode->config.vgId);
+    terrno = TSDB_CODE_APP_ERROR;
+    return -1;
+  }
+
+  SSyncNode *pSyncNode = syncNodeAcquire(pVnode->sync);
+  if (pSyncNode == NULL) {
+    vGError("vgId:%d, msg:%p failed to process since invalid sync node", pVnode->config.vgId);
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return -1;
+  }
+
+  vGTrace("vgId:%d, sync msg:%p will be processed, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
+
+  if (pMsg->msgType == TDMT_SYNC_HEARTBEAT) {
+    SyncHeartbeat *pSyncMsg = syncHeartbeatFromRpcMsg2(pMsg);
+    code = syncNodeOnHeartbeat(pSyncNode, pSyncMsg);
+    syncHeartbeatDestroy(pSyncMsg);
+
+  } else if (pMsg->msgType == TDMT_SYNC_HEARTBEAT_REPLY) {
+    SyncHeartbeatReply *pSyncMsg = syncHeartbeatReplyFromRpcMsg2(pMsg);
+    code = syncNodeOnHeartbeatReply(pSyncNode, pSyncMsg);
+    syncHeartbeatReplyDestroy(pSyncMsg);
+
+  } else {
+    vGError("vgId:%d, msg:%p failed to process since error msg type:%d", pVnode->config.vgId, pMsg->msgType);
+    code = -1;
+  }
+
+  vTrace("vgId:%d, sync msg:%p is processed, type:%s code:0x%x", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType),
+         code);
+  syncNodeRelease(pSyncNode);
+  if (code != 0 && terrno == 0) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+  }
+  return code;
+}
+
 int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   int32_t         code = 0;
   const STraceId *trace = &pMsg->info.traceId;
@@ -469,6 +512,19 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   syncNodeRelease(pSyncNode);
   if (code != 0 && terrno == 0) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+  }
+  return code;
+}
+
+static int32_t vnodeSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
+  if (msgcb == NULL) {
+    return -1;
+  }
+
+  int32_t code = tmsgPutToQueue(msgcb, SYNC_CTRL_QUEUE, pMsg);
+  if (code != 0) {
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
   }
   return code;
 }
@@ -758,6 +814,7 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
       .msgcb = NULL,
       .FpSendMsg = vnodeSyncSendMsg,
       .FpEqMsg = vnodeSyncEqMsg,
+      .FpEqCtrlMsg = vnodeSyncEqCtrlMsg,
   };
 
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s%ssync", path, TD_DIRSEP);
