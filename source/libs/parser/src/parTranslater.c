@@ -308,7 +308,7 @@ static int32_t addNamespace(STranslateContext* pCxt, void* pTable) {
 
 static int32_t collectUseDatabaseImpl(const char* pFullDbName, SHashObj* pDbs) {
   SFullDatabaseName name = {0};
-  strncpy(name.fullDbName, pFullDbName, sizeof(name.fullDbName) - 1);
+  snprintf(name.fullDbName, sizeof(name.fullDbName), "%s", pFullDbName);
   return taosHashPut(pDbs, pFullDbName, strlen(pFullDbName), &name, sizeof(SFullDatabaseName));
 }
 
@@ -3429,10 +3429,10 @@ static SNode* createSetOperProject(const char* pTableAlias, SNode* pNode) {
     return NULL;
   }
   pCol->node.resType = ((SExprNode*)pNode)->resType;
-  strcpy(pCol->tableAlias, pTableAlias);
-  strcpy(pCol->colName, ((SExprNode*)pNode)->aliasName);
-  strcpy(pCol->node.aliasName, pCol->colName);
-  strcpy(pCol->node.userAlias, ((SExprNode*)pNode)->userAlias);
+  snprintf(pCol->tableAlias, sizeof(pCol->tableAlias), "%s", pTableAlias);
+  snprintf(pCol->colName, sizeof(pCol->colName), "%s", ((SExprNode*)pNode)->aliasName);
+  snprintf(pCol->node.aliasName, sizeof(pCol->node.aliasName), "%s", pCol->colName);
+  snprintf(pCol->node.userAlias, sizeof(pCol->node.userAlias), "%s", ((SExprNode*)pNode)->userAlias);
   return (SNode*)pCol;
 }
 
@@ -3739,8 +3739,8 @@ static int32_t buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pS
 static int32_t checkRangeOption(STranslateContext* pCxt, int32_t code, const char* pName, int32_t val, int32_t minVal,
                                 int32_t maxVal) {
   if (val >= 0 && (val < minVal || val > maxVal)) {
-    return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Invalid option %s: %" PRId64 " valid range: [%d, %d]", pName,
-                                   val, minVal, maxVal);
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, code, "Invalid option %s: %d valid range: [%d, %d]", pName, val,
+                                   minVal, maxVal);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -4939,9 +4939,9 @@ static int32_t translateAlterUser(STranslateContext* pCxt, SAlterUserStmt* pStmt
   alterReq.superUser = 0;
   alterReq.enable = pStmt->enable;
   alterReq.sysInfo = pStmt->sysinfo;
-  strcpy(alterReq.pass, pStmt->password);
+  snprintf(alterReq.pass, sizeof(alterReq.pass), "%s", pStmt->password);
   if (NULL != pCxt->pParseCxt->db) {
-    strcpy(alterReq.dbname, pCxt->pParseCxt->db);
+    snprintf(alterReq.dbname, sizeof(alterReq.dbname), "%s", pCxt->pParseCxt->db);
   }
 
   return buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &alterReq);
@@ -6081,9 +6081,9 @@ static int32_t createSimpleSelectStmt(const char* pDb, const char* pTable, int32
     nodesDestroyNode((SNode*)pSelect);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  strcpy(pRealTable->table.dbName, pDb);
-  strcpy(pRealTable->table.tableName, pTable);
-  strcpy(pRealTable->table.tableAlias, pTable);
+  snprintf(pRealTable->table.dbName, sizeof(pRealTable->table.dbName), "%s", pDb);
+  snprintf(pRealTable->table.tableName, sizeof(pRealTable->table.tableName), "%s", pTable);
+  snprintf(pRealTable->table.tableAlias, sizeof(pRealTable->table.tableAlias), "%s", pTable);
   pSelect->pFromTable = (SNode*)pRealTable;
 
   if (numOfProjs >= 0) {

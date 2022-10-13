@@ -923,7 +923,7 @@ static int32_t msgToDatum(STlv* pTlv, void* pObj) {
       break;
     }
     case TSDB_DATA_TYPE_JSON: {
-      if (pTlv->len <= 0 || pTlv > TSDB_MAX_JSON_TAG_LEN) {
+      if (pTlv->len <= 0 || pTlv->len > TSDB_MAX_JSON_TAG_LEN) {
         code = TSDB_CODE_FAILED;
         break;
       }
