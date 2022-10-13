@@ -267,18 +267,19 @@ static int32_t mergeJoinJoinDownstreamTsRanges(SOperatorInfo* pOperator, int64_t
   size_t rightNumJoin = taosArrayGetSize(rightRowLocations);
   code = blockDataEnsureCapacity(pRes, *nRows + leftNumJoin * rightNumJoin);
   if (code != TSDB_CODE_SUCCESS) {
-      qError("%s can not ensure block capacity for join. left: %zu, right: %zu", GET_TASKID(pOperator->pTaskInfo), leftNumJoin, rightNumJoin);
+    qError("%s can not ensure block capacity for join. left: %zu, right: %zu", GET_TASKID(pOperator->pTaskInfo),
+           leftNumJoin, rightNumJoin);
   }
   if (code == TSDB_CODE_SUCCESS) {
-      for (int32_t i = 0; i < leftNumJoin; ++i) {
-          for (int32_t j = 0; j < rightNumJoin; ++j) {
-              SRowLocation *leftRow = taosArrayGet(leftRowLocations, i);
-              SRowLocation *rightRow = taosArrayGet(rightRowLocations, j);
-              mergeJoinJoinLeftRight(pOperator, pRes, *nRows, leftRow->pDataBlock, leftRow->pos, rightRow->pDataBlock,
-                                     rightRow->pos);
-              ++*nRows;
-          }
+    for (int32_t i = 0; i < leftNumJoin; ++i) {
+      for (int32_t j = 0; j < rightNumJoin; ++j) {
+        SRowLocation* leftRow = taosArrayGet(leftRowLocations, i);
+        SRowLocation* rightRow = taosArrayGet(rightRowLocations, j);
+        mergeJoinJoinLeftRight(pOperator, pRes, *nRows, leftRow->pDataBlock, leftRow->pos, rightRow->pDataBlock,
+                               rightRow->pos);
+        ++*nRows;
       }
+    }
   }
 
   for (int i = 0; i < taosArrayGetSize(rightCreatedBlocks); ++i) {

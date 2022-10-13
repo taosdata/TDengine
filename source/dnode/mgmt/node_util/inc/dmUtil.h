@@ -44,7 +44,6 @@
 extern "C" {
 #endif
 
-
 // clang-format off
 
 #define dFatal(...) { if (dDebugFlag & DEBUG_FATAL) { taosPrintLog("DND FATAL ", DEBUG_FATAL, 255,        __VA_ARGS__); }}

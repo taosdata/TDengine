@@ -138,12 +138,6 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_WAL_DIR);
   taosRealPath(tdir, NULL, sizeof(tdir));
 
-// for test tsdb snapshot
-#if 0
-  pVnode->config.walCfg.segSize = 200;
-  pVnode->config.walCfg.retentionSize = 2000;
-#endif
-
   pVnode->pWal = walOpen(tdir, &(pVnode->config.walCfg));
   if (pVnode->pWal == NULL) {
     vError("vgId:%d, failed to open vnode wal since %s", TD_VID(pVnode), tstrerror(terrno));
@@ -159,12 +153,14 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
     goto _err;
   }
 
+#if !VNODE_AS_LIB
   // open query
   if (vnodeQueryOpen(pVnode)) {
     vError("vgId:%d, failed to open vnode query since %s", TD_VID(pVnode), tstrerror(terrno));
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
+#endif
 
   // vnode begin
   if (vnodeBegin(pVnode) < 0) {
@@ -173,11 +169,13 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
     goto _err;
   }
 
+#if !VNODE_AS_LIB
   // open sync
   if (vnodeSyncOpen(pVnode, dir)) {
     vError("vgId:%d, failed to open sync since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
+#endif
 
   return pVnode;
 
