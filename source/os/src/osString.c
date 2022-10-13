@@ -26,10 +26,10 @@ extern int wcswidth(const wchar_t *s, size_t n);
 
 #ifdef WINDOWS
 char *strsep(char **stringp, const char *delim) {
-  char *      s;
+  char       *s;
   const char *spanp;
   int32_t     c, sc;
-  char *      tok;
+  char       *tok;
   if ((s = *stringp) == NULL) return (NULL);
   for (tok = s;;) {
     c = *s++;
@@ -50,7 +50,7 @@ char *strsep(char **stringp, const char *delim) {
 /* Duplicate a string, up to at most size characters */
 char *strndup(const char *s, int size) {
   size_t l;
-  char * s2;
+  char  *s2;
   l = strlen(s);
   if (l > size) l = size;
   s2 = malloc(l + 1);
@@ -139,7 +139,7 @@ typedef struct {
   int8_t  inUse;
 } SConv;
 
-SConv *gConv = NULL;
+SConv  *gConv = NULL;
 int32_t convUsed = 0;
 int32_t gConvMaxNum = 0;
 
@@ -167,7 +167,7 @@ iconv_t taosAcquireConv(int32_t *idx) {
     *idx = -1;
     return iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
   }
-  
+
   while (true) {
     int32_t used = atomic_add_fetch_32(&convUsed, 1);
     if (used > gConvMaxNum) {
@@ -175,7 +175,7 @@ iconv_t taosAcquireConv(int32_t *idx) {
       sched_yield();
       continue;
     }
-    
+
     break;
   }
 

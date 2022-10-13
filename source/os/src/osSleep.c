@@ -17,14 +17,13 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-
 #if !(defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32))
 #include <unistd.h>
 #endif
 
 void taosSsleep(int32_t s) {
 #ifdef WINDOWS
-   Sleep(1000 * s); 
+  Sleep(1000 * s);
 #else
   sleep(s);
 #endif
@@ -32,7 +31,7 @@ void taosSsleep(int32_t s) {
 
 void taosMsleep(int32_t ms) {
 #ifdef WINDOWS
-   Sleep(ms); 
+  Sleep(ms);
 #else
   usleep(ms * 1000);
 #endif
@@ -40,14 +39,14 @@ void taosMsleep(int32_t ms) {
 
 void taosUsleep(int32_t us) {
 #ifdef WINDOWS
-	HANDLE timer;
-	LARGE_INTEGER interval;
-	interval.QuadPart = (10 * us);
+  HANDLE        timer;
+  LARGE_INTEGER interval;
+  interval.QuadPart = (10 * us);
 
-	timer = CreateWaitableTimer(NULL, TRUE, NULL);
-	SetWaitableTimer(timer, &interval, 0, NULL, NULL, 0);
-	WaitForSingleObject(timer, INFINITE);
-	CloseHandle(timer);
+  timer = CreateWaitableTimer(NULL, TRUE, NULL);
+  SetWaitableTimer(timer, &interval, 0, NULL, NULL, 0);
+  WaitForSingleObject(timer, INFINITE);
+  CloseHandle(timer);
 #else
   usleep(us);
 #endif

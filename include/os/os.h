@@ -26,33 +26,33 @@ extern "C" {
 #include <regex.h>
 
 #if !defined(WINDOWS)
-#include <unistd.h>
 #include <dirent.h>
-#include <sched.h>
-#include <wordexp.h>
 #include <libgen.h>
+#include <sched.h>
+#include <unistd.h>
+#include <wordexp.h>
 
-#include <sys/utsname.h>
-#include <sys/param.h>
-#include <sys/mman.h>
 #include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <sys/param.h>
+#include <sys/shm.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <sys/time.h>
 #include <sys/types.h>
-#include <termios.h>
-#include <sys/statvfs.h>
-#include <sys/shm.h>
+#include <sys/utsname.h>
 #include <sys/wait.h>
+#include <termios.h>
 
 #if defined(DARWIN)
 #else
-#include <sys/prctl.h>
 #include <argp.h>
+#include <sys/prctl.h>
 #endif
 #else
 
 #ifndef __func__
-#define __func__ __FUNCTION__ 
+#define __func__ __FUNCTION__
 #endif
 #include <malloc.h>
 #include <time.h>
@@ -82,11 +82,13 @@ extern "C" {
 #include <wchar.h>
 #include <wctype.h>
 
-#include "taoserror.h"
+#include "osThread.h"
+
 #include "osAtomic.h"
 #include "osDef.h"
 #include "osDir.h"
 #include "osEndian.h"
+#include "osEnv.h"
 #include "osFile.h"
 #include "osLocale.h"
 #include "osLz4.h"
@@ -94,10 +96,9 @@ extern "C" {
 #include "osMemory.h"
 #include "osProc.h"
 #include "osRand.h"
-#include "osThread.h"
 #include "osSemaphore.h"
-#include "osSignal.h"
 #include "osShm.h"
+#include "osSignal.h"
 #include "osSleep.h"
 #include "osSocket.h"
 #include "osString.h"
@@ -106,7 +107,7 @@ extern "C" {
 #include "osTime.h"
 #include "osTimer.h"
 #include "osTimezone.h"
-#include "osEnv.h"
+#include "taoserror.h"
 
 #ifdef __cplusplus
 }

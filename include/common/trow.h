@@ -285,11 +285,11 @@ static FORCE_INLINE void tdSRowInit(SRowBuilder *pBuilder, int16_t sver) {
   pBuilder->rowType = TD_ROW_TP;  // default STpRow
   pBuilder->sver = sver;
 }
-int32_t tdSRowSetInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen);
-int32_t tdSRowSetTpInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t flen);
-int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen,
-                              int32_t allNullLen, int32_t boundNullLen);
-int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf);
+int32_t                  tdSRowSetInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen);
+int32_t                  tdSRowSetTpInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t flen);
+int32_t                  tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen,
+                                               int32_t allNullLen, int32_t boundNullLen);
+int32_t                  tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf);
 static FORCE_INLINE void tdSRowEnd(SRowBuilder *pBuilder) {
   STSRow *pRow = (STSRow *)pBuilder->pBuf;
   if (pBuilder->hasNull || pBuilder->hasNone) {

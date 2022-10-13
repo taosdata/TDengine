@@ -23,16 +23,16 @@ extern "C" {
 // If the error is in a third-party library, place this header file under the third-party library header file.
 // When you want to use this feature, you should find or add the same function in the following section.
 #ifndef ALLOW_FORBID_FUNC
-    #define popen POPEN_FUNC_TAOS_FORBID
-    #define pclose PCLOSE_FUNC_TAOS_FORBID
-    #define tcsetattr TCSETATTR_FUNC_TAOS_FORBID
-    #define tcgetattr TCGETATTR_FUNC_TAOS_FORBID
+#define popen     POPEN_FUNC_TAOS_FORBID
+#define pclose    PCLOSE_FUNC_TAOS_FORBID
+#define tcsetattr TCSETATTR_FUNC_TAOS_FORBID
+#define tcgetattr TCGETATTR_FUNC_TAOS_FORBID
 #endif
 
-typedef struct TdCmd *TdCmdPtr;
+typedef struct TdCmd* TdCmdPtr;
 
 TdCmdPtr taosOpenCmd(const char* cmd);
-int64_t  taosGetsCmd(TdCmdPtr pCmd, int32_t maxSize, char *__restrict buf);
+int64_t  taosGetsCmd(TdCmdPtr pCmd, int32_t maxSize, char* __restrict buf);
 int64_t  taosGetLineCmd(TdCmdPtr pCmd, char** __restrict ptrBuf);
 int32_t  taosEOFCmd(TdCmdPtr pCmd);
 int64_t  taosCloseCmd(TdCmdPtr* ppCmd);

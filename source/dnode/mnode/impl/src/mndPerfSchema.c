@@ -45,8 +45,8 @@ int32_t mndPerfsInitMeta(SHashObj *hash) {
   meta.sversion = 1;
   meta.tversion = 1;
 
-  size_t size = 0;
-  const SSysTableMeta* pSysDbTableMeta = NULL;
+  size_t               size = 0;
+  const SSysTableMeta *pSysDbTableMeta = NULL;
   getPerfDbMeta(&pSysDbTableMeta, &size);
 
   for (int32_t i = 0; i < size; ++i) {
@@ -150,4 +150,3 @@ void mndCleanupPerfs(SMnode *pMnode) {
   taosHashCleanup(pMnode->perfsMeta);
   pMnode->perfsMeta = NULL;
 }
-
