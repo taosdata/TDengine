@@ -23,22 +23,22 @@ extern "C" {
 // If the error is in a third-party library, place this header file under the third-party library header file.
 // When you want to use this feature, you should find or add the same function in the following section.
 #ifndef ALLOW_FORBID_FUNC
-    #define timer_create TIMER_CREATE_FUNC_TAOS_FORBID
-    #define timer_settime TIMER_SETTIME_FUNC_TAOS_FORBID
-    #define timer_delete TIMER_DELETE_FUNC_TAOS_FORBID
-    #define timeSetEvent TIMESETEVENT_SETTIME_FUNC_TAOS_FORBID
-    #define timeKillEvent TIMEKILLEVENT_SETTIME_FUNC_TAOS_FORBID
+#define timer_create  TIMER_CREATE_FUNC_TAOS_FORBID
+#define timer_settime TIMER_SETTIME_FUNC_TAOS_FORBID
+#define timer_delete  TIMER_DELETE_FUNC_TAOS_FORBID
+#define timeSetEvent  TIMESETEVENT_SETTIME_FUNC_TAOS_FORBID
+#define timeKillEvent TIMEKILLEVENT_SETTIME_FUNC_TAOS_FORBID
 #endif
 
 #define MSECONDS_PER_TICK 5
 
-int32_t taosInitTimer(void (*callback)(int32_t), int32_t ms);
-void    taosUninitTimer();
-int64_t taosGetMonotonicMs();
+int32_t     taosInitTimer(void (*callback)(int32_t), int32_t ms);
+void        taosUninitTimer();
+int64_t     taosGetMonotonicMs();
 const char *taosMonotonicInit();
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  /*_TD_OS_TIMER_H_*/
+#endif /*_TD_OS_TIMER_H_*/
