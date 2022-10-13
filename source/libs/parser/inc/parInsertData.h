@@ -18,9 +18,9 @@
 
 #include "catalog.h"
 #include "os.h"
+#include "query.h"
 #include "tname.h"
 #include "ttypes.h"
-#include "query.h"
 
 #define IS_DATA_COL_ORDERED(spd) ((spd->orderStatus) == (int8_t)ORDER_STATUS_ORDERED)
 
