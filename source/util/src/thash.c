@@ -333,7 +333,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const vo
   // disable resize
   taosHashRLock(pHashObj);
 
-  uint32_t   slot = HASH_INDEX(hashVal, pHashObj->capacity);
+  uint32_t    slot = HASH_INDEX(hashVal, pHashObj->capacity);
   SHashEntry *pe = pHashObj->hashList[slot];
 
   taosHashEntryWLock(pHashObj, pe);
@@ -890,5 +890,3 @@ void *taosHashAcquire(SHashObj *pHashObj, const void *key, size_t keyLen) {
 void taosHashRelease(SHashObj *pHashObj, void *p) { taosHashCancelIterate(pHashObj, p); }
 
 int64_t taosHashGetCompTimes(SHashObj *pHashObj) { return atomic_load_64(&pHashObj->compTimes); }
-
-

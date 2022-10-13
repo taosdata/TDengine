@@ -44,11 +44,11 @@ void taosWaitProc(int32_t pid) {
 #endif
 }
 
-void taosKillProc(int32_t pid) { 
+void taosKillProc(int32_t pid) {
 #ifdef WINDOWS
   assert(0);
 #else
-  kill(pid, SIGINT); 
+  kill(pid, SIGINT);
 #endif
 }
 

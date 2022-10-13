@@ -799,4 +799,3 @@ bool vnodeIsLeader(SVnode *pVnode) {
 
   return true;
 }
-

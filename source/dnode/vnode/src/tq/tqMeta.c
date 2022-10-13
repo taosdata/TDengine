@@ -328,4 +328,3 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
   tdbTbcClose(pCur);
   return 0;
 }
-

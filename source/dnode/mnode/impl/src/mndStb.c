@@ -1162,7 +1162,7 @@ static int32_t mndCheckAlterColForTopic(SMnode *pMnode, const char *stbFullName,
     if (pIter == NULL) break;
 
     mInfo("topic:%s, check tag and column modifiable, stb:%s suid:%" PRId64 " colId:%d, subType:%d sql:%s",
-           pTopic->name, stbFullName, suid, colId, pTopic->subType, pTopic->sql);
+          pTopic->name, stbFullName, suid, colId, pTopic->subType, pTopic->sql);
     if (pTopic->subType != TOPIC_SUB_TYPE__COLUMN) {
       sdbRelease(pSdb, pTopic);
       continue;
@@ -1179,8 +1179,8 @@ static int32_t mndCheckAlterColForTopic(SMnode *pMnode, const char *stbFullName,
     SNode *pNode = NULL;
     FOREACH(pNode, pNodeList) {
       SColumnNode *pCol = (SColumnNode *)pNode;
-      mInfo("topic:%s, check colId:%d tableId:%" PRId64 " ctbStbUid:%" PRId64, pTopic->name, pCol->colId,
-             pCol->tableId, pTopic->ctbStbUid);
+      mInfo("topic:%s, check colId:%d tableId:%" PRId64 " ctbStbUid:%" PRId64, pTopic->name, pCol->colId, pCol->tableId,
+            pTopic->ctbStbUid);
 
       if (pCol->tableId != suid && pTopic->ctbStbUid != suid) {
         mInfo("topic:%s, check colId:%d passed", pTopic->name, pCol->colId);
@@ -1256,8 +1256,8 @@ static int32_t mndCheckAlterColForTSma(SMnode *pMnode, const char *stbFullName, 
     pIter = sdbFetch(pSdb, SDB_SMA, pIter, (void **)&pSma);
     if (pIter == NULL) break;
 
-    mInfo("tsma:%s, check tag and column modifiable, stb:%s suid:%" PRId64 " colId:%d, sql:%s", pSma->name,
-           stbFullName, suid, colId, pSma->sql);
+    mInfo("tsma:%s, check tag and column modifiable, stb:%s suid:%" PRId64 " colId:%d, sql:%s", pSma->name, stbFullName,
+          suid, colId, pSma->sql);
 
     SNode *pAst = NULL;
     if (nodesStringToNode(pSma->ast, &pAst) != 0) {

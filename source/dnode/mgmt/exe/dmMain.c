@@ -15,9 +15,10 @@
 
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
-#include "tconfig.h"
 #include "mnode.h"
+#include "tconfig.h"
 
+// clang-format off
 #define DM_APOLLO_URL    "The apollo string to use when configuring the server, such as: -a 'jsonFile:./tests/cfg.json', cfg.json text can be '{\"fqdn\":\"td1\"}'."
 #define DM_CFG_DIR       "Configuration directory."
 #define DM_DMP_CFG       "Dump configuration."
@@ -28,9 +29,10 @@
 #define DM_MACHINE_CODE  "Get machine code."
 #define DM_VERSION       "Print program version."
 #define DM_EMAIL         "<support@taosdata.com>"
+// clang-format on
 static struct {
 #ifdef WINDOWS
-  bool         winServiceMode;
+  bool winServiceMode;
 #endif
   bool         dumpConfig;
   bool         dumpSdb;
@@ -101,10 +103,10 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       global.dumpConfig = true;
     } else if (strcmp(argv[i], "-V") == 0) {
       global.printVersion = true;
-  #ifdef WINDOWS
+#ifdef WINDOWS
     } else if (strcmp(argv[i], "--win_service") == 0) {
       global.winServiceMode = true;
-  #endif
+#endif
     } else if (strcmp(argv[i], "-e") == 0) {
       global.envCmd[cmdEnvIndex] = argv[++i];
       cmdEnvIndex++;
@@ -183,7 +185,7 @@ int main(int argc, char const *argv[]) {
   }
 
 #ifdef WINDOWS
-  int mainWindows(int argc,char** argv);
+  int mainWindows(int argc, char **argv);
   if (global.winServiceMode) {
     stratWindowsService(mainWindows);
   } else {
@@ -191,7 +193,7 @@ int main(int argc, char const *argv[]) {
   }
   return 0;
 }
-int mainWindows(int argc,char** argv) {
+int mainWindows(int argc, char **argv) {
 #endif
 
   if (global.generateGrant) {
@@ -224,7 +226,7 @@ int mainWindows(int argc,char** argv) {
     taosCleanupArgs();
     return -1;
   }
-  
+
   taosConvInit();
 
   if (global.dumpConfig) {
