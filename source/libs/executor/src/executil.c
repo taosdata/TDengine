@@ -421,16 +421,6 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray*
       goto end;
     }
   }
-  /*else {
-    code = metaGetTableTagsByUids(metaHandle, suid, uidList, tags);
-    if (code != 0) {
-      terrno = code;
-      qError("failed to get table from meta idx, reason: %s, suid:%" PRId64, tstrerror(code), suid);
-      goto end;
-    } else {
-      qInfo("succ to get table from meta idx, suid:%" PRId64, suid);
-    }
-  }*/
 
   int32_t rows = taosArrayGetSize(uidList);
   if (rows == 0) {

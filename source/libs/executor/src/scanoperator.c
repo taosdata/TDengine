@@ -2724,9 +2724,28 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
   return TSDB_CODE_SUCCESS;
 }
 
+static char* SYSTABLE_IDX_COLUMN[] = {"table_name", "db_name",     "create_time",      "columns",
+                                      "ttl",        "stable_name", "vgroup_id', 'uid", "type"};
+
+typedef int32_t (*__sys_filter)(void* pMeta, SNode* condition, SArray* result);
+
+typedef struct {
+  const char*  name;
+  __sys_filter fltFunc;
+} SSTabFltFuncDef;
+
+const SSTabFltFuncDef filterDict[] = {
+    {.name = "table_name", .fltFunc = NULL},  {.name = "db_name", .fltFunc = NULL},
+    {.name = "create_time", .fltFunc = NULL}, {.name = "columns", .fltFunc = NULL},
+    {.name = "ttl", .fltFunc = NULL},         {.name = "stable_name", .fltFunc = NULL},
+    {.name = "vgroup_id", .fltFunc = NULL},   {.name = "uid", .fltFunc = NULL},
+    {.name = "type", .fltFunc = NULL}};
+
 static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SSysTableScanInfo* pInfo = pOperator->info;
+
+  SNode* pCondtion = pInfo->pCondition;
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
