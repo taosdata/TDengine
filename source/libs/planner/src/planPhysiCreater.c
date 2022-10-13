@@ -67,7 +67,7 @@ static SNode* createSlotDesc(SPhysiPlanContext* pCxt, const char* pName, const S
   if (NULL == pSlot) {
     return NULL;
   }
-  strcpy(pSlot->name, pName);
+  snprintf(pSlot->name, sizeof(pSlot->name), "%s", pName);
   pSlot->slotId = slotId;
   pSlot->dataType = ((SExprNode*)pNode)->resType;
   pSlot->reserve = reserve;
@@ -663,13 +663,17 @@ static int32_t createJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
     code = addDataBlockSlots(pCxt, pJoin->pTargets, pJoin->node.pOutputDataBlockDesc);
   }
 
-  SNodeList* condCols = nodesMakeList();
   if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pOnConditions) {
-    code = nodesCollectColumnsFromNode(pJoinLogicNode->pOnConditions, NULL, COLLECT_COL_TYPE_ALL, &condCols);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = addDataBlockSlots(pCxt, condCols, pJoin->node.pOutputDataBlockDesc);
-    nodesDestroyList(condCols);
+    SNodeList* pCondCols = nodesMakeList();
+    if (NULL == pCondCols) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    } else {
+      code = nodesCollectColumnsFromNode(pJoinLogicNode->pOnConditions, NULL, COLLECT_COL_TYPE_ALL, &pCondCols);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = addDataBlockSlots(pCxt, pCondCols, pJoin->node.pOutputDataBlockDesc);
+    }
+    nodesDestroyList(pCondCols);
   }
 
   if (TSDB_CODE_SUCCESS == code && NULL != pJoinLogicNode->pOnConditions) {
@@ -1633,7 +1637,7 @@ static SSubplan* makeSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubpl
   pSubplan->subplanType = pLogicSubplan->subplanType;
   pSubplan->level = pLogicSubplan->level;
   if (NULL != pCxt->pPlanCxt->pUser) {
-    strncpy(pSubplan->user, pCxt->pPlanCxt->pUser, sizeof(pSubplan->user) - 1);
+    snprintf(pSubplan->user, sizeof(pSubplan->user), "%s", pCxt->pPlanCxt->pUser);
   }
   return pSubplan;
 }
@@ -1824,7 +1828,7 @@ static int32_t pushSubplan(SPhysiPlanContext* pCxt, SNode* pSubplan, int32_t lev
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
-  return nodesListStrictAppend(pGroup->pNodeList, (SNode*)pSubplan);
+  return nodesListAppend(pGroup->pNodeList, (SNode*)pSubplan);
 }
 
 static int32_t buildPhysiPlan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubplan, SSubplan* pParent,

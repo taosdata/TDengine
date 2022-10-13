@@ -459,9 +459,9 @@ static SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) 
     return NULL;
   }
   pCol->node.resType = pExpr->resType;
-  strcpy(pCol->colName, pExpr->aliasName);
+  snprintf(pCol->colName, sizeof(pCol->colName), "%s", pExpr->aliasName);
   if (NULL != pStmtName) {
-    strcpy(pCol->tableAlias, pStmtName);
+    snprintf(pCol->tableAlias, sizeof(pCol->tableAlias), "%s", pStmtName);
   }
   return pCol;
 }

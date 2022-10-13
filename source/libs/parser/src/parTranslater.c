@@ -292,9 +292,13 @@ static int32_t addNamespace(STranslateContext* pCxt, void* pTable) {
   } else {
     do {
       SArray* pTables = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+      if (NULL == pTables) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
       if (pCxt->currLevel == currTotalLevel) {
         taosArrayPush(pTables, &pTable);
         if (hasSameTableAlias(pTables)) {
+          taosArrayDestroy(pTables);
           return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_UNIQUE_TABLE_ALIAS,
                                          "Not unique table/alias: '%s'", ((STableNode*)pTable)->tableAlias);
         }
@@ -540,15 +544,17 @@ static int32_t getTableIndex(STranslateContext* pCxt, const SName* pName, SArray
   if (TSDB_CODE_SUCCESS == code) {
     code = collectUseTable(pName, pCxt->pTables);
   }
-  if (pParCxt->async) {
-    code = getTableIndexFromCache(pCxt->pMetaCache, pName, pIndexes);
-  } else {
-    SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
-                             .requestId = pParCxt->requestId,
-                             .requestObjRefId = pParCxt->requestRid,
-                             .mgmtEps = pParCxt->mgmtEpSet};
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pParCxt->async) {
+      code = getTableIndexFromCache(pCxt->pMetaCache, pName, pIndexes);
+    } else {
+      SRequestConnInfo conn = {.pTrans = pParCxt->pTransporter,
+                               .requestId = pParCxt->requestId,
+                               .requestObjRefId = pParCxt->requestRid,
+                               .mgmtEps = pParCxt->mgmtEpSet};
 
-    code = catalogGetTableIndex(pParCxt->pCatalog, &conn, pName, pIndexes);
+      code = catalogGetTableIndex(pParCxt->pCatalog, &conn, pName, pIndexes);
+    }
   }
   if (TSDB_CODE_SUCCESS != code) {
     parserError("0x%" PRIx64 " getTableIndex error, code:%s, dbName:%s, tbName:%s", pCxt->pParseCxt->requestId,
@@ -990,9 +996,9 @@ static int32_t parseTimeFromValueNode(STranslateContext* pCxt, SValueNode* pVal)
       return pCxt->errCode;
     }
     if (IS_UNSIGNED_NUMERIC_TYPE(pVal->node.resType.type)) {
-      pVal->datum.i = pVal->datum.u;
+      pVal->datum.i = (int64_t)pVal->datum.u;
     } else if (IS_FLOAT_TYPE(pVal->node.resType.type)) {
-      pVal->datum.i = pVal->datum.d;
+      pVal->datum.i = (int64_t)pVal->datum.d;
     } else if (TSDB_DATA_TYPE_BOOL == pVal->node.resType.type) {
       pVal->datum.i = pVal->datum.b;
     }
@@ -1888,6 +1894,7 @@ static EDealRes translateCaseWhen(STranslateContext* pCxt, SCaseWhenNode* pCaseW
       pWhenThen->pWhen = pIsTrue;
     }
     if (first) {
+      first = false;
       pCaseWhen->node.resType = ((SExprNode*)pNode)->resType;
     } else if (!dataTypeEqual(&pCaseWhen->node.resType, &((SExprNode*)pNode)->resType)) {
       SNode* pCastFunc = NULL;
@@ -3877,7 +3884,7 @@ static int32_t checkDbStrictOption(STranslateContext* pCxt, SDatabaseOptions* pO
 static int32_t checkDbEnumOption(STranslateContext* pCxt, const char* pName, int32_t val, int32_t v1, int32_t v2) {
   if (val >= 0 && val != v1 && val != v2) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DB_OPTION,
-                                   "Invalid option %s: %" PRId64 ", only %d, %d allowed", pName, val, v1, v2);
+                                   "Invalid option %s: %d, only %d, %d allowed", pName, val, v1, v2);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -4462,8 +4469,8 @@ static int32_t buildSampleAst(STranslateContext* pCxt, SSampleAstInfo* pInfo, ch
     nodesDestroyNode((SNode*)pSelect);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  strcpy(pTable->table.dbName, pInfo->pDbName);
-  strcpy(pTable->table.tableName, pInfo->pTableName);
+  snprintf(pTable->table.dbName, sizeof(pTable->table.dbName), "%s", pInfo->pDbName);
+  snprintf(pTable->table.tableName, sizeof(pTable->table.tableName), "%s", pInfo->pTableName);
   TSWAP(pTable->pMeta, pInfo->pRollupTableMeta);
   pSelect->pFromTable = (SNode*)pTable;
 
@@ -6048,7 +6055,7 @@ static SNode* createProjectCol(const char* pProjCol) {
   if (NULL == pCol) {
     return NULL;
   }
-  strcpy(pCol->colName, pProjCol);
+  snprintf(pCol->colName, sizeof(pCol->colName), "%s", pProjCol);
   return (SNode*)pCol;
 }
 
@@ -7124,8 +7131,9 @@ static int32_t buildUpdateOptionsReq(STranslateContext* pCxt, SAlterTableStmt* p
       pReq->newComment = strdup(pStmt->pOptions->comment);
       if (NULL == pReq->newComment) {
         code = TSDB_CODE_OUT_OF_MEMORY;
+      } else {
+        pReq->newCommentLen = strlen(pReq->newComment);
       }
-      pReq->newCommentLen = strlen(pReq->newComment);
     } else {
       pReq->newCommentLen = -1;
     }
