@@ -1632,7 +1632,7 @@ static SSubplan* makeSubplan(SPhysiPlanContext* pCxt, SLogicSubplan* pLogicSubpl
   pSubplan->subplanType = pLogicSubplan->subplanType;
   pSubplan->level = pLogicSubplan->level;
   if (NULL != pCxt->pPlanCxt->pUser) {
-    strcpy(pSubplan->user, pCxt->pPlanCxt->pUser);
+    strncpy(pSubplan->user, pCxt->pPlanCxt->pUser, sizeof(pSubplan->user) - 1);
   }
   return pSubplan;
 }

@@ -478,7 +478,10 @@ static int32_t tlvDecodeValueEnum(STlvDecoder* pDecoder, void* pValue, int16_t l
   return code;
 }
 
-static int32_t tlvDecodeCStr(STlv* pTlv, char* pValue) {
+static int32_t tlvDecodeCStr(STlv* pTlv, char* pValue, int32_t size) {
+  if (pTlv->len > size - 1) {
+    return TSDB_CODE_FAILED;
+  }
   memcpy(pValue, pTlv->value, pTlv->len);
   return TSDB_CODE_SUCCESS;
 }
@@ -919,9 +922,14 @@ static int32_t msgToDatum(STlv* pTlv, void* pObj) {
       }
       break;
     }
-    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_JSON: {
+      if (pTlv->len <= 0 || pTlv > TSDB_MAX_JSON_TAG_LEN) {
+        code = TSDB_CODE_FAILED;
+        break;
+      }
       code = tlvDecodeDynBinary(pTlv, (void**)&pNode->datum.p);
       break;
+    }
     case TSDB_DATA_TYPE_DECIMAL:
     case TSDB_DATA_TYPE_BLOB:
       // todo
@@ -1097,7 +1105,7 @@ static int32_t msgToFunctionNode(STlvDecoder* pDecoder, void* pObj) {
         code = tlvDecodeObjFromTlv(pTlv, msgToExprNode, &pNode->node);
         break;
       case FUNCTION_CODE_FUNCTION_NAME:
-        code = tlvDecodeCStr(pTlv, pNode->functionName);
+        code = tlvDecodeCStr(pTlv, pNode->functionName, sizeof(pNode->functionName));
         break;
       case FUNCTION_CODE_FUNCTION_ID:
         code = tlvDecodeI32(pTlv, &pNode->funcId);
@@ -1226,10 +1234,10 @@ static int32_t msgToName(STlvDecoder* pDecoder, void* pObj) {
         code = tlvDecodeI32(pTlv, &pNode->acctId);
         break;
       case NAME_CODE_DB_NAME:
-        code = tlvDecodeCStr(pTlv, pNode->dbname);
+        code = tlvDecodeCStr(pTlv, pNode->dbname, sizeof(pNode->dbname));
         break;
       case NAME_CODE_TABLE_NAME:
-        code = tlvDecodeCStr(pTlv, pNode->tname);
+        code = tlvDecodeCStr(pTlv, pNode->tname, sizeof(pNode->tname));
         break;
       default:
         break;
@@ -1538,7 +1546,7 @@ static int32_t msgToEp(STlvDecoder* pDecoder, void* pObj) {
   tlvForEach(pDecoder, pTlv, code) {
     switch (pTlv->type) {
       case EP_CODE_FQDN:
-        code = tlvDecodeCStr(pTlv, pNode->fqdn);
+        code = tlvDecodeCStr(pTlv, pNode->fqdn, sizeof(pNode->fqdn));
         break;
       case EP_CODE_port:
         code = tlvDecodeU16(pTlv, &pNode->port);
@@ -3207,7 +3215,7 @@ static int32_t msgToPhysiQueryInsertNode(STlvDecoder* pDecoder, void* pObj) {
         code = tlvDecodeI8(pTlv, &pNode->tableType);
         break;
       case PHY_QUERY_INSERT_CODE_TABLE_NAME:
-        code = tlvDecodeCStr(pTlv, pNode->tableName);
+        code = tlvDecodeCStr(pTlv, pNode->tableName, sizeof(pNode->tableName));
         break;
       case PHY_QUERY_INSERT_CODE_VG_ID:
         code = tlvDecodeI32(pTlv, &pNode->vgId);
@@ -3284,10 +3292,10 @@ static int32_t msgToPhysiDeleteNode(STlvDecoder* pDecoder, void* pObj) {
         code = tlvDecodeI8(pTlv, &pNode->tableType);
         break;
       case PHY_DELETER_CODE_TABLE_FNAME:
-        code = tlvDecodeCStr(pTlv, pNode->tableFName);
+        code = tlvDecodeCStr(pTlv, pNode->tableFName, sizeof(pNode->tableFName));
         break;
       case PHY_DELETER_CODE_TS_COL_NAME:
-        code = tlvDecodeCStr(pTlv, pNode->tsColName);
+        code = tlvDecodeCStr(pTlv, pNode->tsColName, sizeof(pNode->tsColName));
         break;
       case PHY_DELETER_CODE_DELETE_TIME_RANGE:
         code = tlvDecodeObjFromTlv(pTlv, msgToTimeWindow, &pNode->deleteTimeRange);

@@ -513,7 +513,7 @@ SNode* createRealTableNode(SAstCreateContext* pCxt, SToken* pDbName, SToken* pTa
   if (NULL != pDbName) {
     COPY_STRING_FORM_ID_TOKEN(realTable->table.dbName, pDbName);
   } else {
-    strcpy(realTable->table.dbName, pCxt->pQueryCxt->db);
+    strncpy(realTable->table.dbName, pCxt->pQueryCxt->db, sizeof(realTable->table.dbName) - 1);
   }
   if (NULL != pTableAlias && TK_NK_NIL != pTableAlias->type) {
     COPY_STRING_FORM_ID_TOKEN(realTable->table.tableAlias, pTableAlias);
@@ -594,7 +594,7 @@ SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr) {
   state->pCol = createPrimaryKeyCol(pCxt, NULL);
   if (NULL == state->pCol) {
     nodesDestroyNode((SNode*)state);
-    CHECK_OUT_OF_MEM(state->pCol);
+    CHECK_OUT_OF_MEM(NULL);
   }
   state->pExpr = pExpr;
   return (SNode*)state;
@@ -608,7 +608,7 @@ SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode
   interval->pCol = createPrimaryKeyCol(pCxt, NULL);
   if (NULL == interval->pCol) {
     nodesDestroyNode((SNode*)interval);
-    CHECK_OUT_OF_MEM(interval->pCol);
+    CHECK_OUT_OF_MEM(NULL);
   }
   interval->pInterval = pInterval;
   interval->pOffset = pOffset;
@@ -626,7 +626,7 @@ SNode* createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues) {
   fill->pWStartTs = nodesMakeNode(QUERY_NODE_FUNCTION);
   if (NULL == fill->pWStartTs) {
     nodesDestroyNode((SNode*)fill);
-    CHECK_OUT_OF_MEM(fill->pWStartTs);
+    CHECK_OUT_OF_MEM(NULL);
   }
   strcpy(((SFunctionNode*)fill->pWStartTs)->functionName, "_wstart");
   return (SNode*)fill;
@@ -1490,10 +1490,10 @@ SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, bool igno
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->indexType = type;
   pStmt->ignoreExists = ignoreExists;
-  strcpy(pStmt->indexDbName, ((SRealTableNode*)pIndexName)->table.dbName);
-  strcpy(pStmt->indexName, ((SRealTableNode*)pIndexName)->table.tableName);
-  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
-  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  strncpy(pStmt->indexDbName, ((SRealTableNode*)pIndexName)->table.dbName, sizeof(pStmt->indexDbName) - 1);
+  strncpy(pStmt->indexName, ((SRealTableNode*)pIndexName)->table.tableName, sizeof(pStmt->indexName) - 1);
+  strncpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName, sizeof(pStmt->dbName) - 1);
+  strncpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName, sizeof(pStmt->tableName) - 1);
   nodesDestroyNode(pIndexName);
   nodesDestroyNode(pRealTable);
   pStmt->pCols = pCols;
@@ -1520,7 +1520,7 @@ SNode* createDropIndexStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SNode*
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->ignoreNotExists = ignoreNotExists;
   strcpy(pStmt->indexDbName, ((SRealTableNode*)pIndexName)->table.dbName);
-  strcpy(pStmt->indexName, ((SRealTableNode*)pIndexName)->table.tableName);
+  strncpy(pStmt->indexName, ((SRealTableNode*)pIndexName)->table.tableName, sizeof(pStmt->indexName) - 1);
   nodesDestroyNode(pIndexName);
   return (SNode*)pStmt;
 }
@@ -1813,7 +1813,7 @@ SNode* createRevokeStmt(SAstCreateContext* pCxt, int64_t privileges, SToken* pDb
 SNode* createFuncForDelete(SAstCreateContext* pCxt, const char* pFuncName) {
   SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   CHECK_OUT_OF_MEM(pFunc);
-  strcpy(pFunc->functionName, pFuncName);
+  strncpy(pFunc->functionName, pFuncName, sizeof(pFunc->functionName) - 1);
   if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pFunc->pParameterList, createPrimaryKeyCol(pCxt, NULL))) {
     nodesDestroyNode((SNode*)pFunc);
     CHECK_OUT_OF_MEM(NULL);

@@ -342,7 +342,7 @@ static int32_t stbSplAppendWStart(SNodeList* pFuncs, int32_t* pIndex) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   strcpy(pWStart->functionName, "_wstart");
-  snprintf(pWStart->node.aliasName, sizeof(pWStart->node.aliasName), "%s.%p", pWStart->functionName, pWStart);
+  snprintf(pWStart->node.aliasName, sizeof(pWStart->node.aliasName), "%s.%p", pWStart->functionName, (void*)pWStart);
   int32_t code = fmGetFuncInfo(pWStart, NULL, 0);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListStrictAppend(pFuncs, (SNode*)pWStart);

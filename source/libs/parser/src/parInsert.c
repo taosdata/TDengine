@@ -378,7 +378,9 @@ static int parseTime(char** end, SToken* pToken, int16_t timePrec, int64_t* time
   } else if (pToken->type == TK_TODAY) {
     ts = taosGetTimestampToday(timePrec);
   } else if (pToken->type == TK_NK_INTEGER) {
-    toInteger(pToken->z, pToken->n, 10, &ts);
+    if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, &ts)) {
+      return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
+    }
   } else {  // parse the RFC-3339/ISO-8601 timestamp format string
     if (taosParseTime(pToken->z, time, pToken->n, timePrec, tsDaylight) != TSDB_CODE_SUCCESS) {
       return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
@@ -591,8 +593,6 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
     case TSDB_DATA_TYPE_BIGINT: {
       if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, &iv)) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid bigint data", pToken->z);
-      } else if (!IS_VALID_BIGINT(iv)) {
-        return buildSyntaxErrMsg(pMsgBuf, "bigint data overflow", pToken->z);
       }
       return func(pMsgBuf, &iv, pSchema->bytes, param);
     }
@@ -894,10 +894,7 @@ static int32_t parseTagToken(char** end, SToken* pToken, SSchema* pSchema, int16
     case TSDB_DATA_TYPE_BIGINT: {
       if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, &iv)) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid bigint data", pToken->z);
-      } else if (!IS_VALID_BIGINT(iv)) {
-        return buildSyntaxErrMsg(pMsgBuf, "bigint data overflow", pToken->z);
       }
-
       val->i64 = iv;
       break;
     }
@@ -1173,7 +1170,7 @@ static int32_t parseUsingClause(SInsertParseContext* pCxt, int32_t tbNo, SName* 
   NEXT_TOKEN(pCxt->pSql, sToken);
 
   SName sname;
-  createSName(&sname, &sToken, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg);
+  CHECK_CODE(createSName(&sname, &sToken, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg));
   char dbFName[TSDB_DB_FNAME_LEN];
   tNameGetFullDbName(&sname, dbFName);
   strcpy(pCxt->sTableName, sname.tname);
@@ -1605,7 +1602,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
       if (!pCxt->pComCxt->needMultiParse) {
         continue;
       } else {
-        parserInfo("0x%" PRIx64 " insert from csv. File is too large, do it in batches.", pCxt->pComCxt->requestId);
+        parserDebug("0x%" PRIx64 " insert from csv. File is too large, do it in batches.", pCxt->pComCxt->requestId);
         break;
       }
     }
@@ -1613,7 +1610,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     return buildSyntaxErrMsg(&pCxt->msg, "keyword VALUES or FILE is expected", sToken.z);
   }
 
-  parserInfo("0x%" PRIx64 " insert input rows: %d", pCxt->pComCxt->requestId, pCxt->totalNum);
+  parserDebug("0x%" PRIx64 " insert input rows: %d", pCxt->pComCxt->requestId, pCxt->totalNum);
 
   if (TSDB_QUERY_HAS_TYPE(pCxt->pOutput->insertType, TSDB_QUERY_TYPE_STMT_INSERT)) {
     SParsedDataColInfo* tags = taosMemoryMalloc(sizeof(pCxt->tags));
@@ -1650,7 +1647,7 @@ static int32_t parseInsertBodyAgain(SInsertParseContext* pCxt) {
     pCxt->pComCxt->needMultiParse = false;
     return TSDB_CODE_SUCCESS;
   }
-  parserInfo("0x%" PRIx64 " insert again input rows: %d", pCxt->pComCxt->requestId, pCxt->totalNum);
+  parserDebug("0x%" PRIx64 " insert again input rows: %d", pCxt->pComCxt->requestId, pCxt->totalNum);
   // merge according to vgId
   if (taosHashGetSize(pCxt->pTableBlockHashObj) > 0) {
     CHECK_CODE(mergeTableDataBlocks(pCxt->pTableBlockHashObj, pCxt->pOutput->payloadType, &pCxt->pVgDataBlocks));

@@ -308,7 +308,7 @@ static int32_t addNamespace(STranslateContext* pCxt, void* pTable) {
 
 static int32_t collectUseDatabaseImpl(const char* pFullDbName, SHashObj* pDbs) {
   SFullDatabaseName name = {0};
-  strcpy(name.fullDbName, pFullDbName);
+  strncpy(name.fullDbName, pFullDbName, sizeof(name.fullDbName) - 1);
   return taosHashPut(pDbs, pFullDbName, strlen(pFullDbName), &name, sizeof(SFullDatabaseName));
 }
 
@@ -1061,7 +1061,7 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
     }
     case TSDB_DATA_TYPE_BIGINT: {
       code = toInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.i);
-      if (strict && (TSDB_CODE_SUCCESS != code || !IS_VALID_BIGINT(pVal->datum.i))) {
+      if (strict && TSDB_CODE_SUCCESS != code) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
       }
       *(int64_t*)&pVal->typeData = pVal->datum.i;
