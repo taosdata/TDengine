@@ -497,3 +497,13 @@ int32_t syncNodeAppendEntriesBatch(SSyncNode* pSyncNode, const SRaftId* destRaft
   syncNodeSendMsgById(destRaftId, pSyncNode, &rpcMsg);
   return 0;
 }
+
+int32_t syncNodeHeartbeat(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncHeartbeat* pMsg) {
+  int32_t ret = 0;
+  syncLogSendHeartbeat(pSyncNode, pMsg, "");
+
+  SRpcMsg rpcMsg;
+  syncHeartbeat2RpcMsg(pMsg, &rpcMsg);
+  syncNodeSendMsgById(&(pMsg->destId), pSyncNode, &rpcMsg);
+  return ret;
+}

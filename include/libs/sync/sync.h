@@ -27,20 +27,20 @@ extern "C" {
 
 extern bool gRaftDetailLog;
 
-#define SYNC_RESP_TTL_MS             10000000
-#define SYNC_SPEED_UP_HB_TIMER       400
-#define SYNC_SPEED_UP_AFTER_MS       (1000 * 20)
-#define SYNC_SLOW_DOWN_RANGE         100
-#define SYNC_MAX_READ_RANGE          2
-#define SYNC_MAX_PROGRESS_WAIT_MS    4000
+#define SYNC_RESP_TTL_MS 10000000
+#define SYNC_SPEED_UP_HB_TIMER 400
+#define SYNC_SPEED_UP_AFTER_MS (1000 * 20)
+#define SYNC_SLOW_DOWN_RANGE 100
+#define SYNC_MAX_READ_RANGE 2
+#define SYNC_MAX_PROGRESS_WAIT_MS 4000
 #define SYNC_MAX_START_TIME_RANGE_MS (1000 * 20)
-#define SYNC_MAX_RECV_TIME_RANGE_MS  1200
-#define SYNC_ADD_QUORUM_COUNT        3
+#define SYNC_MAX_RECV_TIME_RANGE_MS 1200
+#define SYNC_ADD_QUORUM_COUNT 3
 
 #define SYNC_MAX_BATCH_SIZE 1
-#define SYNC_INDEX_BEGIN    0
-#define SYNC_INDEX_INVALID  -1
-#define SYNC_TERM_INVALID   0xFFFFFFFFFFFFFFFF
+#define SYNC_INDEX_BEGIN 0
+#define SYNC_INDEX_INVALID -1
+#define SYNC_TERM_INVALID 0xFFFFFFFFFFFFFFFF
 
 typedef enum {
   SYNC_STRATEGY_NO_SNAPSHOT = 0,
@@ -132,7 +132,7 @@ typedef struct SSyncFSM {
   void (*FpRollBackCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
 
   void (*FpRestoreFinishCb)(struct SSyncFSM* pFsm);
-  void (*FpReConfigCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta *cbMeta);
+  void (*FpReConfigCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta* cbMeta);
   void (*FpLeaderTransferCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
 
   void (*FpBecomeLeaderCb)(struct SSyncFSM* pFsm);

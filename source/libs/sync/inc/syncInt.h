@@ -57,8 +57,31 @@ typedef struct SRaftCfg               SRaftCfg;
 typedef struct SSyncRespMgr           SSyncRespMgr;
 typedef struct SSyncSnapshotSender    SSyncSnapshotSender;
 typedef struct SSyncSnapshotReceiver  SSyncSnapshotReceiver;
+typedef struct SSyncTimer             SSyncTimer;
+typedef struct SSyncHbTimerData       SSyncHbTimerData;
 
 extern bool gRaftDetailLog;
+
+typedef struct SSyncHbTimerData {
+  SSyncNode*  pSyncNode;
+  SSyncTimer* pTimer;
+  SRaftId     destId;
+  uint64_t    logicClock;
+} SSyncHbTimerData;
+
+typedef struct SSyncTimer {
+  void*             pTimer;
+  TAOS_TMR_CALLBACK timerCb;
+  uint64_t          logicClock;
+  uint64_t          counter;
+  int32_t           timerMS;
+  SRaftId           destId;
+  void *pData;
+} SSyncTimer;
+
+int32_t syncHbTimerInit(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer, SRaftId destId);
+int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer);
+int32_t syncHbTimerStop(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer);
 
 typedef struct SSyncNode {
   // init by SSyncInfo
@@ -138,6 +161,9 @@ typedef struct SSyncNode {
   uint64_t          heartbeatTimerLogicClockUser;
   TAOS_TMR_CALLBACK FpHeartbeatTimerCB;  // Timer Fp
   uint64_t          heartbeatTimerCounter;
+
+  // peer heartbeat timer
+  SSyncTimer peerHeartbeatTimerArr[TSDB_MAX_REPLICA];
 
   // callback
   FpOnPingCb               FpOnPing;
@@ -256,6 +282,7 @@ int32_t syncNodeUpdateNewConfigIndex(SSyncNode* ths, SSyncCfg* pNewCfg);
 
 bool                 syncNodeInRaftGroup(SSyncNode* ths, SRaftId* pRaftId);
 SSyncSnapshotSender* syncNodeGetSnapshotSender(SSyncNode* ths, SRaftId* pDestId);
+SSyncTimer*          syncNodeGetHbTimer(SSyncNode* ths, SRaftId* pDestId);
 
 int32_t syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
 int32_t syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct SSnapshotMeta* sMeta);
