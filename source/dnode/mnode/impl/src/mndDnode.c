@@ -440,7 +440,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
             statusReq.memAvail, statusReq.memTotal, statusReq.numOfCores);
     } else {
       mInfo("dnode:%d, send dnode epset, online:%d dnodeVer:%" PRId64 ":%" PRId64 " reboot:%d", pDnode->id, online,
-             statusReq.dnodeVer, dnodeVer, reboot);
+            statusReq.dnodeVer, dnodeVer, reboot);
     }
 
     pDnode->rebootTime = statusReq.rebootTime;

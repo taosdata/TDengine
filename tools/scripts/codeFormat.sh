@@ -11,6 +11,10 @@ FORMAT_DIR_LIST=(
     "include"
     "source/os"
     "source/util"
+    "source/common"
+    # "source/libs"
+    # "source/client"
+    "source/dnode"
 )
 
 for d in ${FORMAT_DIR_LIST[@]}; do
