@@ -279,7 +279,7 @@ static int32_t walFetchBodyNew(SWalReader *pRead) {
       terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
       return -1;
     }
-    pRead->pHead = ptr;
+    pRead->pHead = (SWalCkHead *)ptr;
     pReadHead = &pRead->pHead->head;
     pRead->capacity = pReadHead->bodyLen;
   }

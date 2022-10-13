@@ -2914,6 +2914,7 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
   } else {
     intervalRange = pInterval->datum.i;
   }
+
   if ((timeRange == 0) || (timeRange / intervalRange) >= MAX_INTERVAL_TIME_WINDOW) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
   }
@@ -3138,6 +3139,12 @@ static int32_t translateInterpEvery(STranslateContext* pCxt, SNode** pEvery) {
   code = checkEvery(pCxt, (SValueNode*)(*pEvery));
   if (TSDB_CODE_SUCCESS == code) {
     code = translateExpr(pCxt, pEvery);
+  }
+
+  int64_t interval = ((SValueNode*)(*pEvery))->datum.i;
+  if (interval == 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE,
+                                   "Unsupported time unit in EVERY clause");
   }
 
   return code;
