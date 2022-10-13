@@ -24,7 +24,7 @@ typedef struct SStateKey {
   int64_t opNum;
 } SStateKey;
 
-static inline int SStateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
+static inline int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
   SStateKey* pWin1 = (SStateKey*)pKey1;
   SStateKey* pWin2 = (SStateKey*)pKey2;
 
@@ -60,6 +60,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath) {
   if (!specPath) {
     sprintf(statePath, "%s/%d", path, pTask->taskId);
   } else {
+    memset(statePath, 0, 300);
     strncpy(statePath, path, 300);
   }
   if (tdbOpen(statePath, 4096, 256, &pState->db) < 0) {
@@ -67,12 +68,12 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath) {
   }
 
   // open state storage backend
-  if (tdbTbOpen("state.db", sizeof(SStateKey), -1, SStateKeyCmpr, pState->db, &pState->pStateDb) < 0) {
+  if (tdbTbOpen("state.db", sizeof(SStateKey), -1, stateKeyCmpr, pState->db, &pState->pStateDb) < 0) {
     goto _err;
   }
 
   // todo refactor
-  if (tdbTbOpen("func.state.db", sizeof(SWinKey), -1, SWinKeyCmpr, pState->db, &pState->pFillStateDb) < 0) {
+  if (tdbTbOpen("fill.state.db", sizeof(SWinKey), -1, winKeyCmpr, pState->db, &pState->pFillStateDb) < 0) {
     goto _err;
   }
 

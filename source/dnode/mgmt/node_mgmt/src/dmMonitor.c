@@ -152,7 +152,7 @@ void dmGetVnodeLoads(SMonVloadInfo *pInfo) {
     if (tsMultiProcess) {
       dmSendLocalRecv(pDnode, TDMT_MON_VM_LOAD, tDeserializeSMonVloadInfo, pInfo);
     } else if (pWrapper->pMgmt != NULL) {
-      vmGetVnodeLoads(pWrapper->pMgmt, pInfo);
+      vmGetVnodeLoads(pWrapper->pMgmt, pInfo, false);
     }
     dmReleaseWrapper(pWrapper);
   }

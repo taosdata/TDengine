@@ -2914,6 +2914,7 @@ static int32_t checkFill(STranslateContext* pCxt, SFillNode* pFill, SValueNode* 
   } else {
     intervalRange = pInterval->datum.i;
   }
+
   if ((timeRange == 0) || (timeRange / intervalRange) >= MAX_INTERVAL_TIME_WINDOW) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
   }
@@ -3138,6 +3139,12 @@ static int32_t translateInterpEvery(STranslateContext* pCxt, SNode** pEvery) {
   code = checkEvery(pCxt, (SValueNode*)(*pEvery));
   if (TSDB_CODE_SUCCESS == code) {
     code = translateExpr(pCxt, pEvery);
+  }
+
+  int64_t interval = ((SValueNode*)(*pEvery))->datum.i;
+  if (interval == 0) {
+    return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_WRONG_VALUE_TYPE,
+                                   "Unsupported time unit in EVERY clause");
   }
 
   return code;
@@ -5381,9 +5388,9 @@ static EDealRes rewriteSubtable(SNode** pNode, void* pContext) {
         found = true;
         break;
       }
-      if (!found) {
-        return generateDealNodeErrMsg(pCxt->pCxt, TSDB_CODE_PAR_INVALID_COLUMN, ((SColumnNode*)*pNode)->colName);
-      }
+    }
+    if (!found) {
+      return generateDealNodeErrMsg(pCxt->pCxt, TSDB_CODE_PAR_INVALID_COLUMN, ((SColumnNode*)*pNode)->colName);
     }
     return DEAL_RES_IGNORE_CHILD;
   }
@@ -6454,7 +6461,7 @@ static void addCreateTbReqIntoVgroup(int32_t acctId, SHashObj* pVgroupHashmap, S
   }
   req.ctb.suid = suid;
   req.ctb.tagNum = tagNum;
-  req.ctb.name = strdup(sTableNmae);
+  req.ctb.stbName = strdup(sTableNmae);
   req.ctb.pTag = (uint8_t*)pTag;
   req.ctb.tagName = taosArrayDup(tagName);
   if (pStmt->ignoreExists) {

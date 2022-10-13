@@ -417,6 +417,7 @@ _err:
 // EXPOSED APIS ====================================================================================
 int32_t tsdbFSOpen(STsdb *pTsdb) {
   int32_t code = 0;
+  SVnode *pVnode = pTsdb->pVnode;
 
   // open handle
   pTsdb->fs.pDelFile = NULL;
@@ -429,8 +430,12 @@ int32_t tsdbFSOpen(STsdb *pTsdb) {
   // load fs or keep empty
   char fname[TSDB_FILENAME_LEN];
 
-  snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sCURRENT", tfsGetPrimaryPath(pTsdb->pVnode->pTfs), TD_DIRSEP,
-           pTsdb->path, TD_DIRSEP);
+  if (pVnode->pTfs) {
+    snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sCURRENT", tfsGetPrimaryPath(pTsdb->pVnode->pTfs), TD_DIRSEP,
+             pTsdb->path, TD_DIRSEP);
+  } else {
+    snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%sCURRENT", pTsdb->path, TD_DIRSEP);
+  }
 
   if (!taosCheckExistFile(fname)) {
     // empty one

@@ -279,7 +279,7 @@ static int32_t walFetchBodyNew(SWalReader *pRead) {
       terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
       return -1;
     }
-    pRead->pHead = ptr;
+    pRead->pHead = (SWalCkHead *)ptr;
     pReadHead = &pRead->pHead->head;
     pRead->capacity = pReadHead->bodyLen;
   }
@@ -399,7 +399,7 @@ int32_t walFetchBody(SWalReader *pRead, SWalCkHead **ppHead) {
       terrno = TSDB_CODE_WAL_OUT_OF_MEMORY;
       return -1;
     }
-    *ppHead = ptr;
+    *ppHead = (SWalCkHead *)ptr;
     pReadHead = &((*ppHead)->head);
     pRead->capacity = pReadHead->bodyLen;
   }
@@ -494,7 +494,7 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
       taosThreadMutexUnlock(&pReader->mutex);
       return -1;
     }
-    pReader->pHead = ptr;
+    pReader->pHead = (SWalCkHead *)ptr;
     pReader->capacity = pReader->pHead->head.bodyLen;
   }
 
@@ -504,7 +504,6 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
       terrno = TAOS_SYSTEM_ERROR(errno);
     else {
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
-      ASSERT(0);
     }
     taosThreadMutexUnlock(&pReader->mutex);
     return -1;

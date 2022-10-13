@@ -631,7 +631,7 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
   terrno = TSDB_CODE_MND_DB_OPTION_UNCHANGED;
 
   if (pAlter->buffer > 0 && pAlter->buffer != pDb->cfg.buffer) {
-#if 1
+#if 0
     terrno = TSDB_CODE_OPS_NOT_SUPPORT;
     return terrno;
 #else
@@ -641,7 +641,7 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
   }
 
   if (pAlter->pages > 0 && pAlter->pages != pDb->cfg.pages) {
-#if 1
+#if 0
     terrno = TSDB_CODE_OPS_NOT_SUPPORT;
     return terrno;
 #else
@@ -746,7 +746,7 @@ static int32_t mndSetAlterDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *p
   return 0;
 }
 
-static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
+static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb) {
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
   SArray *pArray = mndBuildDnodesArray(pMnode, 0);
@@ -756,8 +756,8 @@ static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
-    if (mndVgroupInDb(pVgroup, pNew->uid)) {
-      if (mndBuildAlterVgroupAction(pMnode, pTrans, pNew, pVgroup, pArray) != 0) {
+    if (mndVgroupInDb(pVgroup, pNewDb->uid)) {
+      if (mndBuildAlterVgroupAction(pMnode, pTrans, pOldDb, pNewDb, pVgroup, pArray) != 0) {
         sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pVgroup);
         taosArrayDestroy(pArray);
@@ -1311,7 +1311,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
       continue;
     } else {
       mInfo("db:%s, vgroup version changed from %d to %d", pDbVgVersion->dbFName, pDbVgVersion->vgVersion,
-             pDb->vgVersion);
+            pDb->vgVersion);
     }
 
     usedbRsp.pVgroupInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));

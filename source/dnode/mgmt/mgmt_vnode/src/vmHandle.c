@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
 
-void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
+void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
   pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoad));
   if (pInfo->pVloads == NULL) return;
 
@@ -30,6 +30,7 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
     SVnodeObj *pVnode = *ppVnode;
     SVnodeLoad vload = {0};
     vnodeGetLoad(pVnode->pImpl, &vload);
+    if (isReset) vnodeResetLoad(pVnode->pImpl, &vload);
     taosArrayPush(pInfo->pVloads, &vload);
     pIter = taosHashIterate(pMgmt->hash, pIter);
   }
@@ -39,7 +40,7 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
 
 void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
   SMonVloadInfo vloads = {0};
-  vmGetVnodeLoads(pMgmt, &vloads);
+  vmGetVnodeLoads(pMgmt, &vloads, true);
 
   SArray *pVloads = vloads.pVloads;
   if (pVloads == NULL) return;
@@ -66,10 +67,10 @@ void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
   pInfo->vstat.totalVnodes = totalVnodes;
   pInfo->vstat.masterNum = masterNum;
   pInfo->vstat.numOfSelectReqs = numOfSelectReqs - pMgmt->state.numOfSelectReqs;
-  pInfo->vstat.numOfInsertReqs = numOfInsertReqs - pMgmt->state.numOfInsertReqs;
-  pInfo->vstat.numOfInsertSuccessReqs = numOfInsertSuccessReqs - pMgmt->state.numOfInsertSuccessReqs;
-  pInfo->vstat.numOfBatchInsertReqs = numOfBatchInsertReqs - pMgmt->state.numOfBatchInsertReqs;
-  pInfo->vstat.numOfBatchInsertSuccessReqs = numOfBatchInsertSuccessReqs - pMgmt->state.numOfBatchInsertSuccessReqs;
+  pInfo->vstat.numOfInsertReqs = numOfInsertReqs;                          // delta
+  pInfo->vstat.numOfInsertSuccessReqs = numOfInsertSuccessReqs;            // delta
+  pInfo->vstat.numOfBatchInsertReqs = numOfBatchInsertReqs;                // delta
+  pInfo->vstat.numOfBatchInsertSuccessReqs = numOfBatchInsertSuccessReqs;  // delta
   pMgmt->state.totalVnodes = totalVnodes;
   pMgmt->state.masterNum = masterNum;
   pMgmt->state.numOfSelectReqs = numOfSelectReqs;
@@ -109,7 +110,7 @@ int32_t vmProcessGetMonitorInfoReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
 int32_t vmProcessGetLoadsReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SMonVloadInfo vloads = {0};
-  vmGetVnodeLoads(pMgmt, &vloads);
+  vmGetVnodeLoads(pMgmt, &vloads, false);
 
   int32_t rspLen = tSerializeSMonVloadInfo(NULL, 0, &vloads);
   if (rspLen < 0) {
@@ -212,38 +213,47 @@ static int32_t vmTsmaProcessCreate(SVnode *pVnode, SCreateVnodeReq *pReq) {
 }
 
 int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  SCreateVnodeReq createReq = {0};
+  SCreateVnodeReq req = {0};
   SVnodeCfg       vnodeCfg = {0};
   SWrapperCfg     wrapperCfg = {0};
   int32_t         code = -1;
   char            path[TSDB_FILENAME_LEN] = {0};
 
-  if (tDeserializeSCreateVnodeReq(pMsg->pCont, pMsg->contLen, &createReq) != 0) {
+  if (tDeserializeSCreateVnodeReq(pMsg->pCont, pMsg->contLen, &req) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
 
   dInfo(
-      "vgId:%d, start to create vnode, tsma:%d standby:%d cacheLast:%d cacheLastSize:%d sstTrigger:%d "
-      "tsdbPageSize:%d",
-      createReq.vgId, createReq.isTsma, createReq.standby, createReq.cacheLast, createReq.cacheLastSize,
-      createReq.sstTrigger, createReq.tsdbPageSize);
-  dInfo("vgId:%d, hashMethod:%d begin:%u end:%u prefix:%d surfix:%d", createReq.vgId, createReq.hashMethod,
-        createReq.hashBegin, createReq.hashEnd, createReq.hashPrefix, createReq.hashSuffix);
-  vmGenerateVnodeCfg(&createReq, &vnodeCfg);
+      "vgId:%d, start to create vnode, page:%d pageSize:%d buffer:%d szPage:%d szBuf:%" PRIu64
+      " cacheLast:%d cacheLastSize:%d sstTrigger:%d tsdbPageSize:%d %d dbname:%s dbId:%" PRId64
+      "days:%d keep0:%d keep1:%d keep2:%d tsma:%d precision:%d compression:%d minRows:%d maxRows:%d, wal "
+      "fsync:%d level:%d retentionPeriod:%d retentionSize:%d rollPeriod:%d segSize:%d, hash method:%d begin:%u end:%u "
+      "prefix:%d surfix:%d replica:%d selfIndex:%d strict:%d",
+      req.vgId, req.pages, req.pageSize, req.buffer, req.pageSize * 1024, (uint64_t)req.buffer * 1024 * 1024,
+      req.cacheLast, req.cacheLastSize, req.sstTrigger, req.tsdbPageSize, req.tsdbPageSize * 1024, req.db, req.dbUid,
+      req.daysPerFile, req.daysToKeep0, req.daysToKeep1, req.daysToKeep2, req.isTsma, req.precision, req.compression,
+      req.minRows, req.maxRows, req.walFsyncPeriod, req.walLevel, req.walRetentionPeriod, req.walRetentionSize,
+      req.walRollPeriod, req.walSegmentSize, req.hashMethod, req.hashBegin, req.hashEnd, req.hashPrefix, req.hashSuffix,
+      req.replica, req.selfIndex, req.strict);
+  for (int32_t i = 0; i < req.replica; ++i) {
+    dInfo("vgId:%d, replica:%d fqdn:%s port:%u", req.vgId, req.replicas[i].id, req.replicas[i].fqdn,
+          req.replicas[i].port);
+  }
+  vmGenerateVnodeCfg(&req, &vnodeCfg);
 
-  if (vmTsmaAdjustDays(&vnodeCfg, &createReq) < 0) {
-    dError("vgId:%d, failed to adjust tsma days since %s", createReq.vgId, terrstr());
+  if (vmTsmaAdjustDays(&vnodeCfg, &req) < 0) {
+    dError("vgId:%d, failed to adjust tsma days since %s", req.vgId, terrstr());
     code = terrno;
     goto _OVER;
   }
 
-  vmGenerateWrapperCfg(pMgmt, &createReq, &wrapperCfg);
+  vmGenerateWrapperCfg(pMgmt, &req, &wrapperCfg);
 
-  SVnodeObj *pVnode = vmAcquireVnode(pMgmt, createReq.vgId);
+  SVnodeObj *pVnode = vmAcquireVnode(pMgmt, req.vgId);
   if (pVnode != NULL) {
-    dDebug("vgId:%d, already exist", createReq.vgId);
-    tFreeSCreateVnodeReq(&createReq);
+    dDebug("vgId:%d, already exist", req.vgId);
+    tFreeSCreateVnodeReq(&req);
     vmReleaseVnode(pMgmt, pVnode);
     terrno = TSDB_CODE_NODE_ALREADY_DEPLOYED;
     code = terrno;
@@ -252,36 +262,36 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
   if (vnodeCreate(path, &vnodeCfg, pMgmt->pTfs) < 0) {
-    tFreeSCreateVnodeReq(&createReq);
-    dError("vgId:%d, failed to create vnode since %s", createReq.vgId, terrstr());
+    tFreeSCreateVnodeReq(&req);
+    dError("vgId:%d, failed to create vnode since %s", req.vgId, terrstr());
     code = terrno;
     goto _OVER;
   }
 
   SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, pMgmt->msgCb);
   if (pImpl == NULL) {
-    dError("vgId:%d, failed to open vnode since %s", createReq.vgId, terrstr());
+    dError("vgId:%d, failed to open vnode since %s", req.vgId, terrstr());
     code = terrno;
     goto _OVER;
   }
 
   code = vmOpenVnode(pMgmt, &wrapperCfg, pImpl);
   if (code != 0) {
-    dError("vgId:%d, failed to open vnode since %s", createReq.vgId, terrstr());
+    dError("vgId:%d, failed to open vnode since %s", req.vgId, terrstr());
     code = terrno;
     goto _OVER;
   }
 
-  code = vmTsmaProcessCreate(pImpl, &createReq);
+  code = vmTsmaProcessCreate(pImpl, &req);
   if (code != 0) {
-    dError("vgId:%d, failed to create tsma since %s", createReq.vgId, terrstr());
+    dError("vgId:%d, failed to create tsma since %s", req.vgId, terrstr());
     code = terrno;
     goto _OVER;
   }
 
   code = vnodeStart(pImpl);
   if (code != 0) {
-    dError("vgId:%d, failed to start sync since %s", createReq.vgId, terrstr());
+    dError("vgId:%d, failed to start sync since %s", req.vgId, terrstr());
     goto _OVER;
   }
 
@@ -296,10 +306,10 @@ _OVER:
     vnodeClose(pImpl);
     vnodeDestroy(path, pMgmt->pTfs);
   } else {
-    dInfo("vgId:%d, vnode is created", createReq.vgId);
+    dInfo("vgId:%d, vnode is created", req.vgId);
   }
 
-  tFreeSCreateVnodeReq(&createReq);
+  tFreeSCreateVnodeReq(&req);
   terrno = code;
   return code;
 }

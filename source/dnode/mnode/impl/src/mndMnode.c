@@ -87,7 +87,7 @@ static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
 
   SSdbRaw *pRaw = mndMnodeActionEncode(&mnodeObj);
   if (pRaw == NULL) return -1;
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   mInfo("mnode:%d, will be created when deploying, raw:%p", mnodeObj.id, pRaw);
 
@@ -104,7 +104,7 @@ static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -239,7 +239,9 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
         pEpSet->inUse = (pEpSet->numOfEps + 1) % totalMnodes;
       }
     }
-    addEpIntoEpSet(pEpSet, pObj->pDnode->fqdn, pObj->pDnode->port);
+    if (pObj->pDnode != NULL) {
+      addEpIntoEpSet(pEpSet, pObj->pDnode->fqdn, pObj->pDnode->port);
+    }
     sdbRelease(pSdb, pObj);
   }
 

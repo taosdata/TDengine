@@ -103,7 +103,7 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
   dnodeObj.port = tsServerPort;
   tstrncpy(dnodeObj.fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
   dnodeObj.fqdn[TSDB_FQDN_LEN - 1] = 0;
-  snprintf(dnodeObj.ep, TSDB_EP_LEN - 1, "%s:%u", dnodeObj.fqdn, dnodeObj.port);
+  snprintf(dnodeObj.ep, TSDB_EP_LEN - 1, "%s:%u", tsLocalFqdn, tsServerPort);
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, NULL, "create-dnode");
   if (pTrans == NULL) goto _OVER;
@@ -490,7 +490,7 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
   dnodeObj.updateTime = dnodeObj.createdTime;
   dnodeObj.port = pCreate->port;
   tstrncpy(dnodeObj.fqdn, pCreate->fqdn, TSDB_FQDN_LEN);
-  snprintf(dnodeObj.ep, TSDB_EP_LEN - 1, "%s:%u", dnodeObj.fqdn, dnodeObj.port);
+  snprintf(dnodeObj.ep, TSDB_EP_LEN - 1, "%s:%u", pCreate->fqdn, pCreate->port);
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_GLOBAL, pReq, "create-dnode");
   if (pTrans == NULL) goto _OVER;

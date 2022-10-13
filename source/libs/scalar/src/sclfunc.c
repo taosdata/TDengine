@@ -2002,7 +2002,7 @@ int32_t avgScalarFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *
     }
   }
 
-  if (hasNull) {
+  if (hasNull || (count == 0)) {
     colDataAppendNULL(pOutputData, 0);
   } else {
     if (IS_SIGNED_NUMERIC_TYPE(type)) {

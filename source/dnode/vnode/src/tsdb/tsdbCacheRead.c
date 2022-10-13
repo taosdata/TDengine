@@ -79,7 +79,7 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, SArray* pTableIdList
   }
 
   STableKeyInfo* pKeyInfo = taosArrayGet(pTableIdList, 0);
-  p->pSchema = metaGetTbTSchema(p->pVnode->pMeta, pKeyInfo->uid, -1);
+  p->pSchema = metaGetTbTSchema(p->pVnode->pMeta, pKeyInfo->uid, -1, 1);
   p->pTableList = pTableIdList;
 
   p->transferBuf = taosMemoryCalloc(p->pSchema->numOfCols, POINTER_BYTES);
