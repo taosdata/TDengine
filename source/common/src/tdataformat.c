@@ -411,7 +411,7 @@ _exit:
 
 int32_t tTSRowClone(const STSRow2 *pRow, STSRow2 **ppRow) {
   int32_t code = 0;
-  int32_t rLen;
+  int32_t rLen = 0;
 
   TSROW_LEN(pRow, rLen);
   (*ppRow) = (STSRow2 *)taosMemoryMalloc(rLen);
@@ -1678,8 +1678,8 @@ int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest) {
   int32_t size;
 
   ASSERT(pColDataSrc->nVal > 0);
-  ASSERT(pColDataDest->cid = pColDataSrc->cid);
-  ASSERT(pColDataDest->type = pColDataSrc->type);
+  ASSERT(pColDataDest->cid == pColDataSrc->cid);
+  ASSERT(pColDataDest->type == pColDataSrc->type);
 
   pColDataDest->smaOn = pColDataSrc->smaOn;
   pColDataDest->nVal = pColDataSrc->nVal;

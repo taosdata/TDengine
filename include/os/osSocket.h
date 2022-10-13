@@ -75,7 +75,7 @@ extern "C" {
 typedef int socklen_t;
 #define TAOS_EPOLL_WAIT_TIME 100
 typedef SOCKET eventfd_t;
-#define eventfd(a, b)      -1
+#define eventfd(a, b) -1
 #ifndef EPOLLWAKEUP
 #define EPOLLWAKEUP (1u << 29)
 #endif
@@ -119,8 +119,8 @@ typedef int32_t  SocketFd;
 typedef SocketFd EpollFd;
 
 typedef struct TdSocketServer *TdSocketServerPtr;
-typedef struct TdSocket *      TdSocketPtr;
-typedef struct TdEpoll *       TdEpollPtr;
+typedef struct TdSocket       *TdSocketPtr;
+typedef struct TdEpoll        *TdEpollPtr;
 
 int32_t taosSendto(TdSocketPtr pSocket, void *msg, int len, unsigned int flags, const struct sockaddr *to, int tolen);
 int32_t taosWriteSocket(TdSocketPtr pSocket, void *msg, int len);

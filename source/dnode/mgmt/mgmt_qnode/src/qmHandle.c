@@ -21,7 +21,6 @@ void qmGetMonitorInfo(SQnodeMgmt *pMgmt, SMonQmInfo *qmInfo) {
   qndGetLoad(pMgmt->pQnode, &qload);
 
   qload.dnodeId = pMgmt->pData->dnodeId;
-
 }
 
 void qmGetQnodeLoads(SQnodeMgmt *pMgmt, SQnodeLoad *pInfo) {

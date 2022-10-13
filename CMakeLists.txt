@@ -17,10 +17,11 @@ include(${TD_SUPPORT_DIR}/cmake.platform)
 include(${TD_SUPPORT_DIR}/cmake.define)
 include(${TD_SUPPORT_DIR}/cmake.options)
 include(${TD_SUPPORT_DIR}/cmake.version)
-include(${TD_SUPPORT_DIR}/cmake.install)
 
 # contrib
 add_subdirectory(contrib)
+
+set_property(GLOBAL PROPERTY GLOBAL_DEPENDS_NO_CYCLES OFF)
 
 # api
 add_library(api INTERFACE)
@@ -36,8 +37,7 @@ add_subdirectory(source)
 add_subdirectory(tools)
 add_subdirectory(utils)
 add_subdirectory(examples/c)
+include(${TD_SUPPORT_DIR}/cmake.install)
 
 # docs 
 add_subdirectory(docs/doxgen)
-
-# tests (TODO)

@@ -97,7 +97,7 @@ typedef struct SCollectMetaKeyCxt {
 
 typedef struct SCollectMetaKeyFromExprCxt {
   SCollectMetaKeyCxt* pComCxt;
-  bool                hasLastRow;
+  bool                hasLastRowOrLast;
   int32_t             errCode;
 } SCollectMetaKeyFromExprCxt;
 
@@ -106,7 +106,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt);
 static EDealRes collectMetaKeyFromFunction(SCollectMetaKeyFromExprCxt* pCxt, SFunctionNode* pFunc) {
   switch (fmGetFuncType(pFunc->functionName)) {
     case FUNCTION_TYPE_LAST_ROW:
-      pCxt->hasLastRow = true;
+    case FUNCTION_TYPE_LAST:
+      pCxt->hasLastRowOrLast = true;
       break;
     case FUNCTION_TYPE_UDF:
       pCxt->errCode = reserveUdfInCache(pFunc->functionName, pCxt->pComCxt->pMetaCache);
@@ -126,6 +127,9 @@ static bool needGetTableIndex(SNode* pStmt) {
 }
 
 static int32_t collectMetaKeyFromInsTagsImpl(SCollectMetaKeyCxt* pCxt, SName* pName) {
+  if (0 == pName->type) {
+    return TSDB_CODE_SUCCESS;
+  }
   if (TSDB_DB_NAME_T == pName->type) {
     return reserveDbVgInfoInCache(pName->acctId, pName->dbname, pCxt->pMetaCache);
   }
@@ -218,9 +222,9 @@ static int32_t reserveDbCfgForLastRow(SCollectMetaKeyCxt* pCxt, SNode* pTable) {
 }
 
 static int32_t collectMetaKeyFromSelect(SCollectMetaKeyCxt* pCxt, SSelectStmt* pStmt) {
-  SCollectMetaKeyFromExprCxt cxt = {.pComCxt = pCxt, .hasLastRow = false, .errCode = TSDB_CODE_SUCCESS};
+  SCollectMetaKeyFromExprCxt cxt = {.pComCxt = pCxt, .hasLastRowOrLast = false, .errCode = TSDB_CODE_SUCCESS};
   nodesWalkSelectStmt(pStmt, SQL_CLAUSE_FROM, collectMetaKeyFromExprImpl, &cxt);
-  if (TSDB_CODE_SUCCESS == cxt.errCode && cxt.hasLastRow) {
+  if (TSDB_CODE_SUCCESS == cxt.errCode && cxt.hasLastRowOrLast) {
     cxt.errCode = reserveDbCfgForLastRow(pCxt, pStmt->pFromTable);
   }
   return cxt.errCode;

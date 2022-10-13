@@ -343,7 +343,6 @@ class ParserTestBaseImpl {
 
       unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), destroyQuery);
       doParseSql(&cxt, query.get());
-      SQuery* pQuery = *(query.get());
 
       if (g_dump) {
         dump();

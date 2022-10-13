@@ -20,8 +20,8 @@
 #include <tglobal.h>
 #include <iostream>
 
-#include <vnodeInt.h>
 #include <tmsg.h>
+#include <vnodeInt.h>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -424,7 +424,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
                                           TSDB_DATA_TYPE_DOUBLE,    TSDB_DATA_TYPE_VARCHAR,  TSDB_DATA_TYPE_NCHAR};
   // last 2 columns for group by tags
   // int32_t tSmaTypeArray[tSmaNumOfCols] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BOOL};
-  const char *tSmaGroupbyTags[tSmaGroupSize * tSmaNumOfTags] = {"BeiJing",  "HaiDian", "BeiJing",   "ChaoYang",
+  const char *tSmaGroupbyTags[tSmaGroupSize * tSmaNumOfTags] = {"BeiJing",  "HaiDian", "BeiJing",  "ChaoYang",
                                                                 "ShangHai", "PuDong",  "ShangHai", "MinHang"};
   TSKEY       tSmaSKeyMs = (int64_t)1648535332 * 1000;
   int64_t     tSmaIntervalMs = tSma.interval * 60 * 1000;
@@ -441,7 +441,6 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
     pDataBlock->pDataBlock = taosArrayInit(tSmaNumOfCols, sizeof(SColumnInfoData *));
     EXPECT_NE(pDataBlock->pDataBlock, nullptr);
     for (int32_t c = 0; c < tSmaNumOfCols; ++c) {
-      
       SColumnInfoData *pColInfoData = (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
       EXPECT_NE(pColInfoData, nullptr);
 

@@ -58,14 +58,14 @@ typedef struct TdFile {
 
 #define FILE_WITH_LOCK 1
 
-typedef struct AutoDelFile * AutoDelFilePtr;
+typedef struct AutoDelFile *AutoDelFilePtr;
 typedef struct AutoDelFile {
-  char           *name;
-  AutoDelFilePtr  lastAutoDelFilePtr;
+  char          *name;
+  AutoDelFilePtr lastAutoDelFilePtr;
 } AutoDelFile;
-static TdThreadMutex autoDelFileLock;
+static TdThreadMutex  autoDelFileLock;
 static AutoDelFilePtr nowAutoDelFilePtr = NULL;
-static TdThreadOnce autoDelFileInit = PTHREAD_ONCE_INIT;
+static TdThreadOnce   autoDelFileInit = PTHREAD_ONCE_INIT;
 
 void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, char *dstPath) {
 #ifdef WINDOWS
@@ -205,10 +205,10 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
 int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime) {
 #ifdef WINDOWS
   struct _stati64 fileStat;
-  int32_t code = _stati64(path, &fileStat);
+  int32_t         code = _stati64(path, &fileStat);
 #else
   struct stat fileStat;
-  int32_t code = stat(path, &fileStat);
+  int32_t     code = stat(path, &fileStat);
 #endif
   if (code < 0) {
     return code;
@@ -706,11 +706,11 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
   int64_t sentbytes;
 
   while (leftbytes > 0) {
-  #ifdef _TD_ARM_32
-    sentbytes = sendfile(pFileOut->fd, pFileIn->fd, (long int*)offset, leftbytes);
-  #else
+#ifdef _TD_ARM_32
+    sentbytes = sendfile(pFileOut->fd, pFileIn->fd, (long int *)offset, leftbytes);
+#else
     sentbytes = sendfile(pFileOut->fd, pFileIn->fd, offset, leftbytes);
-  #endif
+#endif
     if (sentbytes == -1) {
       if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
         continue;
