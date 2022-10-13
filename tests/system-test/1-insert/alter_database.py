@@ -18,7 +18,7 @@ class TDTestCase:
         self.buffer_error = [self.buffer_boundary[0]-1,self.buffer_boundary[-1]+1,12289,96]
         # pages_boundary >= 64
         self.pages_boundary = [64,128,512]
-        self.pages_error = [256,self.pages_boundary[0]-1]
+        self.pages_error = [self.pages_boundary[0]-1]
     def alter_buffer(self):
         tdSql.execute('create database db')
         for buffer in self.buffer_boundary:
@@ -39,6 +39,8 @@ class TDTestCase:
             tdSql.checkEqual(tdSql.queryResult[0][10],pages)
         tdSql.execute('drop database db')
         tdSql.execute('create database db')
+        tdSql.query('select * from information_schema.ins_databases where name = "db"')
+        self.pages_error.append(tdSql.queryResult[0][10])
         for pages in self.pages_error:
             tdSql.error(f'alter database db pages {pages}')
         tdSql.execute('drop database db')
