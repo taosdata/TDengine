@@ -1653,7 +1653,7 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool clearCachedMeta, uint64_t id) {
   tscFreeQueryInfo(pCmd, clearCachedMeta, id);
   SHashObj *pmap = pCmd->pTableMetaMap;
   if (pmap == atomic_val_compare_exchange_ptr(&pCmd->pTableMetaMap, pmap, NULL)) {
-    tscCleanupTableMetaMap(pCmd->pTableMetaMap);
+    tscCleanupTableMetaMap(pmap);
   }
   taosReleaseRef(tscObjRef, id);
 }
