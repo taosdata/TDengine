@@ -31,8 +31,7 @@
 // }
 
 TEST(testCase, tSimpleHashTest_intKey) {
-  SSHashObj *pHashObj =
-      tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  SSHashObj *pHashObj = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
 
   assert(pHashObj != nullptr);
 
@@ -76,10 +75,8 @@ TEST(testCase, tSimpleHashTest_intKey) {
   tSimpleHashCleanup(pHashObj);
 }
 
-
 TEST(testCase, tSimpleHashTest_binaryKey) {
-  SSHashObj *pHashObj =
-      tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
+  SSHashObj *pHashObj = tSimpleHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT));
 
   assert(pHashObj != nullptr);
 
@@ -93,7 +90,7 @@ TEST(testCase, tSimpleHashTest_binaryKey) {
   size_t keyLen = sizeof(SCombineKey);
   size_t dataLen = sizeof(int64_t);
 
-  int64_t originDataSum = 0;
+  int64_t     originDataSum = 0;
   SCombineKey combineKey = {0};
   for (int64_t i = 1; i <= 100; ++i) {
     combineKey.suid = i;
@@ -139,6 +136,5 @@ TEST(testCase, tSimpleHashTest_binaryKey) {
 
   tSimpleHashCleanup(pHashObj);
 }
-
 
 #pragma GCC diagnostic pop

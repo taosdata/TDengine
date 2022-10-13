@@ -30,7 +30,7 @@ void test1() {
 void test2() {
   SyncTimeout *pMsg = createMsg();
   uint32_t     len = pMsg->bytes;
-  char *       serialized = (char *)taosMemoryMalloc(len);
+  char        *serialized = (char *)taosMemoryMalloc(len);
   syncTimeoutSerialize(pMsg, serialized, len);
   SyncTimeout *pMsg2 = syncTimeoutBuild();
   syncTimeoutDeserialize(serialized, len, pMsg2);
@@ -44,7 +44,7 @@ void test2() {
 void test3() {
   SyncTimeout *pMsg = createMsg();
   uint32_t     len;
-  char *       serialized = syncTimeoutSerialize2(pMsg, &len);
+  char        *serialized = syncTimeoutSerialize2(pMsg, &len);
   SyncTimeout *pMsg2 = syncTimeoutDeserialize2(serialized, len);
   syncTimeoutLog2((char *)"test3: syncTimeoutSerialize3 -> syncTimeoutDeserialize2 ", pMsg2);
 
@@ -80,7 +80,7 @@ void test5() {
 
 void test6() {
   SyncTimeout *pMsg = createMsg();
-  char *       jsonStr = syncTimeout2Str(pMsg);
+  char        *jsonStr = syncTimeout2Str(pMsg);
   sTrace("jsonStr: %s", jsonStr);
 
   syncUtilJson2Line(jsonStr);

@@ -25,8 +25,8 @@ int32_t  myIndex = 0;
 
 SRaftId    ids[TSDB_MAX_REPLICA];
 SSyncInfo  syncInfo;
-SSyncFSM * pFsm;
-SWal *     pWal;
+SSyncFSM  *pFsm;
+SWal      *pWal;
 SSyncNode *pSyncNode;
 
 SSyncNode *syncNodeInit() {
@@ -187,8 +187,8 @@ int main(int argc, char **argv) {
 
   // step5
   uint32_t len;
-  char *   pMsg5 = step5(pMsg4, &len);
-  char *   s = syncUtilprintBin(pMsg5, len);
+  char    *pMsg5 = step5(pMsg4, &len);
+  char    *s = syncUtilprintBin(pMsg5, len);
   printf("==step5== [%s] \n", s);
   taosMemoryFree(s);
 

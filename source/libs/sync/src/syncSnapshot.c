@@ -36,8 +36,8 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
   if (condition) {
     pSender = taosMemoryMalloc(sizeof(SSyncSnapshotSender));
     if (pSender == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        return NULL;
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
     }
     memset(pSender, 0, sizeof(*pSender));
 
