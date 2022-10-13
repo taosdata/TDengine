@@ -25,7 +25,7 @@ int            g = 100;
 
 typedef struct SyncObj {
   int64_t rid;
-  void *  data;
+  void   *data;
   char    name[32];
   int     counter;
 } SyncObj;

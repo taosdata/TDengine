@@ -53,20 +53,20 @@ SSyncCfg* createSyncCfg() {
   return pCfg;
 }
 
-const char *pFile = "./raft_config_index.json";
+const char* pFile = "./raft_config_index.json";
 
 void test1() {
   int32_t code = raftCfgIndexCreateFile(pFile);
   ASSERT(code == 0);
 
-  SRaftCfgIndex *pRaftCfgIndex = raftCfgIndexOpen(pFile);
+  SRaftCfgIndex* pRaftCfgIndex = raftCfgIndexOpen(pFile);
   raftCfgIndexLog2((char*)"==test1==", pRaftCfgIndex);
 
   raftCfgIndexClose(pRaftCfgIndex);
 }
 
 void test2() {
-  SRaftCfgIndex *pRaftCfgIndex = raftCfgIndexOpen(pFile);
+  SRaftCfgIndex* pRaftCfgIndex = raftCfgIndexOpen(pFile);
   for (int i = 0; i < 500; ++i) {
     raftCfgIndexAddConfigIndex(pRaftCfgIndex, i);
   }
@@ -77,7 +77,7 @@ void test2() {
 }
 
 void test3() {
-  SRaftCfgIndex *pRaftCfgIndex = raftCfgIndexOpen(pFile);
+  SRaftCfgIndex* pRaftCfgIndex = raftCfgIndexOpen(pFile);
 
   raftCfgIndexLog2((char*)"==test3==", pRaftCfgIndex);
   raftCfgIndexClose(pRaftCfgIndex);
