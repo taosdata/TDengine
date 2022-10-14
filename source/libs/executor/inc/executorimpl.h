@@ -479,6 +479,7 @@ typedef struct SStreamScanInfo {
   SExprInfo*  pPseudoExpr;
   int32_t     numOfPseudoExpr;
   SExprSupp   tbnameCalSup;
+  SExprSupp   tagCalSup;
   int32_t     primaryTsIndex;  // primary time stamp slot id
   SReadHandle readHandle;
   SInterval   interval;       // if the upstream is an interval operator, the interval info is also kept here.
@@ -775,6 +776,7 @@ typedef struct SStreamPartitionOperatorInfo {
   SPartitionBySupporter partitionSup;
   SExprSupp             scalarSup;
   SExprSupp             tbnameCalSup;
+  SExprSupp             tagCalSup;
   SHashObj*             pPartitions;
   void*                 parIte;
   SSDataBlock*          pInputDataBlock;
