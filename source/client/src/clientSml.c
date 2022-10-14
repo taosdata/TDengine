@@ -2477,11 +2477,12 @@ static void smlInsertCallback(void *param, void *res, int32_t code) {
   } else {
     pParam->request->body.resInfo.numOfRows += info->affectedRows;
   }
+  // unlock
+  taosThreadSpinUnlock(&pParam->lock);
+
   if (pParam->cnt == pParam->total) {
     tsem_post(&pParam->sem);
   }
-  taosThreadSpinUnlock(&pParam->lock);
-  // unlock
   uDebug("SML:0x%" PRIx64 " insert finished, code: %d, rows: %d, total: %d", info->id, code, rows, info->affectedRows);
   info->cost.endTime = taosGetTimestampUs();
   info->cost.code = code;
