@@ -901,3 +901,7 @@ int32_t syncNodeOnSnapshotRspCb(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
 
   return 0;
 }
+
+int32_t syncNodeOnSnapshot(SSyncNode *ths, SyncSnapshotSend *pMsg) { return 0; }
+
+int32_t syncNodeOnSnapshotReply(SSyncNode *ths, SyncSnapshotRsp *pMsg) { return 0; }

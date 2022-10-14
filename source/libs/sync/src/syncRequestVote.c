@@ -214,3 +214,5 @@ int32_t syncNodeOnRequestVoteSnapshotCb(SSyncNode* ths, SyncRequestVote* pMsg) {
 
   return 0;
 }
+
+int32_t syncNodeOnRequestVote(SSyncNode* ths, SyncRequestVote* pMsg) { return 0; }

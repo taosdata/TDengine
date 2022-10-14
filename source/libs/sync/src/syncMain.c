@@ -932,13 +932,12 @@ int32_t syncHbTimerInit(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer, SRaftId de
 int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
   int32_t ret = 0;
   if (syncEnvIsStart()) {
-
-    SSyncHbTimerData *pData = taosMemoryMalloc(sizeof(SSyncHbTimerData));
+    SSyncHbTimerData* pData = taosMemoryMalloc(sizeof(SSyncHbTimerData));
     pData->pSyncNode = pSyncNode;
     pData->pTimer = pSyncTimer;
     pData->destId = pSyncTimer->destId;
     pData->logicClock = pSyncTimer->logicClock;
-  
+
     pSyncTimer->pData = pData;
     taosTmrReset(pSyncTimer->timerCb, pSyncTimer->timerMS, pData, gSyncEnv->pTimerManager, &pSyncTimer->pTimer);
   } else {
@@ -952,7 +951,7 @@ int32_t syncHbTimerStop(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
   atomic_add_fetch_64(&pSyncTimer->logicClock, 1);
   taosTmrStop(pSyncTimer->pTimer);
   pSyncTimer->pTimer = NULL;
-  //taosMemoryFree(pSyncTimer->pData);
+  // taosMemoryFree(pSyncTimer->pData);
   return ret;
 }
 

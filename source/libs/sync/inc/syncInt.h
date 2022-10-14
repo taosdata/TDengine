@@ -76,7 +76,7 @@ typedef struct SSyncTimer {
   uint64_t          counter;
   int32_t           timerMS;
   SRaftId           destId;
-  void *pData;
+  void*             pData;
 } SSyncTimer;
 
 int32_t syncHbTimerInit(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer, SRaftId destId);

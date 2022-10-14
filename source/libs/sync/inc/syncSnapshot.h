@@ -97,6 +97,9 @@ char * snapshotReceiver2SimpleStr(SSyncSnapshotReceiver *pReceiver, char *event)
 int32_t syncNodeOnSnapshotSendCb(SSyncNode *ths, SyncSnapshotSend *pMsg);
 int32_t syncNodeOnSnapshotRspCb(SSyncNode *ths, SyncSnapshotRsp *pMsg);
 
+int32_t syncNodeOnSnapshot(SSyncNode *ths, SyncSnapshotSend *pMsg);
+int32_t syncNodeOnSnapshotReply(SSyncNode *ths, SyncSnapshotRsp *pMsg);
+
 #ifdef __cplusplus
 }
 #endif

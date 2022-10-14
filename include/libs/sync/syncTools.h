@@ -698,6 +698,13 @@ int32_t syncNodeOnSnapshotRspCb(SSyncNode* ths, SyncSnapshotRsp* pMsg);
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg);
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, SyncHeartbeatReply* pMsg);
 
+int32_t syncNodeOnRequestVote(SSyncNode* ths, SyncRequestVote* pMsg);
+int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, SyncRequestVoteReply* pMsg);
+int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg);
+int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
+int32_t syncNodeOnSnapshot(SSyncNode* ths, SyncSnapshotSend* pMsg);
+int32_t syncNodeOnSnapshotReply(SSyncNode* ths, SyncSnapshotRsp* pMsg);
+
 // -----------------------------------------
 typedef int32_t (*FpOnPingCb)(SSyncNode* ths, SyncPing* pMsg);
 typedef int32_t (*FpOnPingReplyCb)(SSyncNode* ths, SyncPingReply* pMsg);
