@@ -228,7 +228,7 @@ void taosPrintBackTrace() {
 void taosPrintBackTrace() { return; }
 #endif
 
-void *taosMemoryMalloc(int32_t size) {
+void *taosMemoryMalloc(int64_t size) {
 #ifdef USE_TD_MEMORY
   void *tmp = malloc(size + sizeof(TdMemoryInfo));
   if (tmp == NULL) return NULL;
@@ -244,7 +244,7 @@ void *taosMemoryMalloc(int32_t size) {
 #endif
 }
 
-void *taosMemoryCalloc(int32_t num, int32_t size) {
+void *taosMemoryCalloc(int64_t num, int64_t size) {
 #ifdef USE_TD_MEMORY
   int32_t memorySize = num * size;
   char   *tmp = calloc(memorySize + sizeof(TdMemoryInfo), 1);
@@ -261,7 +261,7 @@ void *taosMemoryCalloc(int32_t num, int32_t size) {
 #endif
 }
 
-void *taosMemoryRealloc(void *ptr, int32_t size) {
+void *taosMemoryRealloc(void *ptr, int64_t size) {
 #ifdef USE_TD_MEMORY
   if (ptr == NULL) return taosMemoryMalloc(size);
 
@@ -318,7 +318,7 @@ void taosMemoryFree(void *ptr) {
 #endif
 }
 
-int32_t taosMemorySize(void *ptr) {
+int64_t taosMemorySize(void *ptr) {
   if (ptr == NULL) return 0;
 
 #ifdef USE_TD_MEMORY

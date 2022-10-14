@@ -123,9 +123,9 @@ void    rpcCleanup();
 void *rpcOpen(const SRpcInit *pRpc);
 void  rpcClose(void *);
 void  rpcCloseImpl(void *);
-void *rpcMallocCont(int32_t contLen);
+void *rpcMallocCont(int64_t contLen);
 void  rpcFreeCont(void *pCont);
-void *rpcReallocCont(void *ptr, int32_t contLen);
+void *rpcReallocCont(void *ptr, int64_t contLen);
 
 // Because taosd supports multi-process mode
 // These functions should not be used on the server side
