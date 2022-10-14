@@ -3021,6 +3021,8 @@ void cleanupExprSupp(SExprSupp* pSupp) {
     destroyExprInfo(pSupp->pExprInfo, pSupp->numOfExprs);
     taosMemoryFreeClear(pSupp->pExprInfo);
   }
+  
+  filterFreeInfo(pSupp->pFilterInfo);
   taosMemoryFree(pSupp->rowEntryInfoOffset);
 }
 

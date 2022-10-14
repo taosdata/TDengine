@@ -10,6 +10,7 @@
 #include "tmsg.h"
 #include "tname.h"
 #include "tdatablock.h"
+#include "tglobal.h"
 
 SQWorkerMgmt gQwMgmt = {
     .lock = 0,
@@ -87,6 +88,16 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
     if (!ctx->needFetch) {
       dsGetDataLength(ctx->sinkHandle, &ctx->affectedRows, NULL);
     }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t qwSendQueryRsp(QW_FPARAMS_DEF, int32_t msgType, SQWTaskCtx *ctx, int32_t rspCode, bool quickRsp) {
+  if ((!quickRsp) || QUERY_RSP_POLICY_QUICK == tsQueryRspPolicy) {
+    qwBuildAndSendQueryRsp(msgType, &ctx->ctrlConnInfo, rspCode, ctx);
+    ctx->queryRsped = true;
+    QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", ctx->ctrlConnInfo.handle, rspCode, tstrerror(rspCode));
   }
 
   return TSDB_CODE_SUCCESS;
@@ -411,6 +422,11 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
         QW_ERR_JRET(TSDB_CODE_QRY_DUPLICATTED_OPERATION);
       }
 
+      if (ctx->rspCode) {
+        QW_TASK_ELOG("task already failed cause of %s, phase:%s", tstrerror(ctx->rspCode), qwPhaseStr(phase));
+        QW_ERR_JRET(ctx->rspCode);
+      }
+
       if (!ctx->queryRsped) {
         QW_TASK_ELOG("ready msg has not been processed, phase:%s", qwPhaseStr(phase));
         QW_ERR_JRET(TSDB_CODE_QRY_TASK_MSG_ERROR);
@@ -421,6 +437,11 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
       if (QW_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
         QW_TASK_WLOG("task already dropped, phase:%s", qwPhaseStr(phase));
         QW_ERR_JRET(TSDB_CODE_QRY_TASK_DROPPED);
+      }
+
+      if (ctx->rspCode) {
+        QW_TASK_ELOG("task already failed cause of %s, phase:%s", tstrerror(ctx->rspCode), qwPhaseStr(phase));
+        QW_ERR_JRET(ctx->rspCode);
       }
 
       if (QW_EVENT_RECEIVED(ctx, QW_EVENT_DROP)) {
@@ -506,22 +527,15 @@ _return:
     ctx->queryGotData = true;
   }
 
-#if 0
-  if (QW_PHASE_POST_QUERY == phase && ctx) {
-    if (!ctx->localExec) {
-      bool   rsped = false;
-      SQWMsg qwMsg = {.msgType = ctx->msgType, .connInfo = ctx->ctrlConnInfo};
-      qwDbgSimulateRedirect(&qwMsg, ctx, &rsped);
-      qwDbgSimulateDead(QW_FPARAMS(), ctx, &rsped);
-      if (!rsped) {
-        qwBuildAndSendQueryRsp(input->msgType + 1, &ctx->ctrlConnInfo, code, ctx);
-        QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", ctx->ctrlConnInfo.handle, code, tstrerror(code));
-      }
+  if (QW_PHASE_POST_QUERY == phase && ctx && !ctx->localExec && !ctx->queryRsped) {
+    bool   rsped = false;
+    SQWMsg qwMsg = {.msgType = ctx->msgType, .connInfo = ctx->ctrlConnInfo};
+    qwDbgSimulateRedirect(&qwMsg, ctx, &rsped);
+    qwDbgSimulateDead(QW_FPARAMS(), ctx, &rsped);
+    if (!rsped) {      
+      qwSendQueryRsp(QW_FPARAMS(), input->msgType + 1, ctx, code, false);
     }
-
-    ctx->queryRsped = true;
   }
-#endif
 
   if (ctx) {
     QW_UPDATE_RSP_CODE(ctx, code);
@@ -558,19 +572,11 @@ int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), &ctx));
 
   ctx->ctrlConnInfo = qwMsg->connInfo;
+  ctx->phase = -1;
 
   QW_ERR_JRET(qwAddTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_INIT));
 
 _return:
-
-#if 1
-  qwBuildAndSendQueryRsp(qwMsg->msgType + 1, &qwMsg->connInfo, code, ctx);
-  if (ctx) {
-    ctx->queryRsped = true;
-    ctx->phase = -1;
-    QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", ctx->ctrlConnInfo.handle, code, tstrerror(code));
-  }
-#endif
 
   if (ctx) {
     QW_UPDATE_RSP_CODE(ctx, code);
@@ -620,6 +626,8 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, char *sql) {
     QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
   }
 
+  qwSendQueryRsp(QW_FPARAMS(), qwMsg->msgType + 1, ctx, code, true);
+
   ctx->level = plan->level;
   atomic_store_ptr(&ctx->taskHandle, pTaskInfo);
   atomic_store_ptr(&ctx->sinkHandle, sinkHandle);
@@ -660,7 +668,7 @@ _return:
     }
   }
 
-  QW_RET(code);
+  QW_RET(TSDB_CODE_SUCCESS);
 }
 
 int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
