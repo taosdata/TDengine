@@ -35,7 +35,11 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
   *ppMeta = NULL;
 
   // create handle
-  slen = strlen(tfsGetPrimaryPath(pVnode->pTfs)) + strlen(pVnode->path) + strlen(VNODE_META_DIR) + 3;
+  if (pVnode->pTfs) {
+    slen = strlen(tfsGetPrimaryPath(pVnode->pTfs)) + strlen(pVnode->path) + strlen(VNODE_META_DIR) + 3;
+  } else {
+    slen = strlen(pVnode->path) + strlen(VNODE_META_DIR) + 2;
+  }
   if ((pMeta = taosMemoryCalloc(1, sizeof(*pMeta) + slen)) == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -43,8 +47,12 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
 
   metaInitLock(pMeta);
   pMeta->path = (char *)&pMeta[1];
-  sprintf(pMeta->path, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
-          VNODE_META_DIR);
+  if (pVnode->pTfs) {
+    sprintf(pMeta->path, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
+            VNODE_META_DIR);
+  } else {
+    sprintf(pMeta->path, "%s%s%s", pVnode->path, TD_DIRSEP, VNODE_META_DIR);
+  }
   taosRealPath(pMeta->path, NULL, slen);
   pMeta->pVnode = pVnode;
 

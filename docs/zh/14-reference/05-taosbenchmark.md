@@ -334,13 +334,13 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **name** : 列的名字，若与 count 同时使用，比如 "name"："current", "count":3, 则 3 个列的名字分别为 current, current_2. current_3。
 
-- **min** : 数据类型的 列/标签 的最小值。
+- **min** : 数据类型的 列/标签 的最小值。生成的值将大于或等于最小值。
 
-- **max** : 数据类型的 列/标签 的最大值。
+- **max** : 数据类型的 列/标签 的最大值。生成的值将小于最小值。
 
 - **values** : nchar/binary 列/标签的值域，将从值中随机选择。
 
-- **sma**: 将该列加入bsma中，值为 "yes" 或者 "no"，默认为 "no"。
+- **sma**: 将该列加入 SMA 中，值为 "yes" 或者 "no"，默认为 "no"。
 
 #### 插入行为配置参数
 

@@ -19,7 +19,7 @@
 #include "taos.h"
 #include "taoserror.h"
 
-#define UNIT_NUM_BITS 64
+#define UNIT_NUM_BITS      64
 #define UNIT_ADDR_NUM_BITS 6
 
 static FORCE_INLINE bool setBit(uint64_t *buf, uint64_t index) {
@@ -51,12 +51,12 @@ SBloomFilter *tBloomFilterInit(uint64_t expectedEntries, double errorRate) {
   // ln(2)^2 = 0.480453013918201
   // m = - n * ln(P) / ( ln(2) )^2
   // m is the size of bloom filter, n is expected entries, P is false positive probability
-  pBF->numUnits = (uint64_t) ceil(expectedEntries * lnRate / 0.480453013918201 / UNIT_NUM_BITS);
+  pBF->numUnits = (uint64_t)ceil(expectedEntries * lnRate / 0.480453013918201 / UNIT_NUM_BITS);
   pBF->numBits = pBF->numUnits * 64;
   pBF->size = 0;
 
   // ln(2) = 0.693147180559945
-  pBF->hashFunctions = (uint32_t) ceil(lnRate / 0.693147180559945);
+  pBF->hashFunctions = (uint32_t)ceil(lnRate / 0.693147180559945);
   pBF->hashFn1 = taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP);
   pBF->hashFn2 = taosGetDefaultHashFunction(TSDB_DATA_TYPE_NCHAR);
   pBF->buffer = taosMemoryCalloc(pBF->numUnits, sizeof(uint64_t));
@@ -69,11 +69,11 @@ SBloomFilter *tBloomFilterInit(uint64_t expectedEntries, double errorRate) {
 
 int32_t tBloomFilterPut(SBloomFilter *pBF, const void *keyBuf, uint32_t len) {
   ASSERT(!tBloomFilterIsFull(pBF));
-  uint64_t h1 = (uint64_t)pBF->hashFn1(keyBuf, len);
-  uint64_t h2 = (uint64_t)pBF->hashFn2(keyBuf, len);
-  bool hasChange = false;
+  uint64_t                h1 = (uint64_t)pBF->hashFn1(keyBuf, len);
+  uint64_t                h2 = (uint64_t)pBF->hashFn2(keyBuf, len);
+  bool                    hasChange = false;
   const register uint64_t size = pBF->numBits;
-  uint64_t cbHash = h1;
+  uint64_t                cbHash = h1;
   for (uint64_t i = 0; i < pBF->hashFunctions; ++i) {
     hasChange |= setBit(pBF->buffer, cbHash % size);
     cbHash += h2;
@@ -85,12 +85,11 @@ int32_t tBloomFilterPut(SBloomFilter *pBF, const void *keyBuf, uint32_t len) {
   return TSDB_CODE_FAILED;
 }
 
-int32_t tBloomFilterNoContain(const SBloomFilter *pBF, const void *keyBuf,
-                              uint32_t len) {
-  uint64_t h1 = (uint64_t)pBF->hashFn1(keyBuf, len);
-  uint64_t h2 = (uint64_t)pBF->hashFn2(keyBuf, len);
+int32_t tBloomFilterNoContain(const SBloomFilter *pBF, const void *keyBuf, uint32_t len) {
+  uint64_t                h1 = (uint64_t)pBF->hashFn1(keyBuf, len);
+  uint64_t                h2 = (uint64_t)pBF->hashFn2(keyBuf, len);
   const register uint64_t size = pBF->numBits;
-  uint64_t cbHash = h1;
+  uint64_t                cbHash = h1;
   for (uint64_t i = 0; i < pBF->hashFunctions; ++i) {
     if (!getBit(pBF->buffer, cbHash % size)) {
       return TSDB_CODE_SUCCESS;
@@ -108,21 +107,21 @@ void tBloomFilterDestroy(SBloomFilter *pBF) {
   taosMemoryFree(pBF);
 }
 
-int32_t tBloomFilterEncode(const SBloomFilter *pBF, SEncoder* pEncoder) {
+int32_t tBloomFilterEncode(const SBloomFilter *pBF, SEncoder *pEncoder) {
   if (tEncodeU32(pEncoder, pBF->hashFunctions) < 0) return -1;
   if (tEncodeU64(pEncoder, pBF->expectedEntries) < 0) return -1;
   if (tEncodeU64(pEncoder, pBF->numUnits) < 0) return -1;
   if (tEncodeU64(pEncoder, pBF->numBits) < 0) return -1;
   if (tEncodeU64(pEncoder, pBF->size) < 0) return -1;
   for (uint64_t i = 0; i < pBF->numUnits; i++) {
-    uint64_t* pUnits = (uint64_t*)pBF->buffer;
+    uint64_t *pUnits = (uint64_t *)pBF->buffer;
     if (tEncodeU64(pEncoder, pUnits[i]) < 0) return -1;
   }
   if (tEncodeDouble(pEncoder, pBF->errorRate) < 0) return -1;
   return 0;
 }
 
-SBloomFilter* tBloomFilterDecode(SDecoder* pDecoder) {
+SBloomFilter *tBloomFilterDecode(SDecoder *pDecoder) {
   SBloomFilter *pBF = taosMemoryCalloc(1, sizeof(SBloomFilter));
   pBF->buffer = NULL;
   if (tDecodeU32(pDecoder, &pBF->hashFunctions) < 0) goto _error;
@@ -132,7 +131,7 @@ SBloomFilter* tBloomFilterDecode(SDecoder* pDecoder) {
   if (tDecodeU64(pDecoder, &pBF->size) < 0) goto _error;
   pBF->buffer = taosMemoryCalloc(pBF->numUnits, sizeof(uint64_t));
   for (int32_t i = 0; i < pBF->numUnits; i++) {
-    uint64_t* pUnits = (uint64_t*)pBF->buffer;
+    uint64_t *pUnits = (uint64_t *)pBF->buffer;
     if (tDecodeU64(pDecoder, pUnits + i) < 0) goto _error;
   }
   if (tDecodeDouble(pDecoder, &pBF->errorRate) < 0) goto _error;
@@ -145,6 +144,4 @@ _error:
   return NULL;
 }
 
-bool tBloomFilterIsFull(const SBloomFilter *pBF) {
-  return pBF->size >= pBF->expectedEntries;
-}
+bool tBloomFilterIsFull(const SBloomFilter *pBF) { return pBF->size >= pBF->expectedEntries; }

@@ -64,36 +64,36 @@ int32_t mndProcessQueryMsg(SRpcMsg *pMsg) {
 }
 
 int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
-  int32_t code = 0;
-  int32_t offset = 0;
-  int32_t rspSize = 0;
-  SBatchReq *batchReq = (SBatchReq*)pMsg->pCont;
-  int32_t msgNum = ntohl(batchReq->msgNum);
+  int32_t    code = 0;
+  int32_t    offset = 0;
+  int32_t    rspSize = 0;
+  SBatchReq *batchReq = (SBatchReq *)pMsg->pCont;
+  int32_t    msgNum = ntohl(batchReq->msgNum);
   offset += sizeof(SBatchReq);
   SBatchMsg req = {0};
   SBatchRsp rsp = {0};
-  SRpcMsg reqMsg = *pMsg;
-  SRpcMsg rspMsg = {0};
-  void* pRsp = NULL;
-  SMnode *pMnode = pMsg->info.node;
+  SRpcMsg   reqMsg = *pMsg;
+  SRpcMsg   rspMsg = {0};
+  void     *pRsp = NULL;
+  SMnode   *pMnode = pMsg->info.node;
 
-  SArray* batchRsp = taosArrayInit(msgNum, sizeof(SBatchRsp));
+  SArray *batchRsp = taosArrayInit(msgNum, sizeof(SBatchRsp));
   if (NULL == batchRsp) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
-  
+
   for (int32_t i = 0; i < msgNum; ++i) {
-    req.msgIdx = ntohl(*(int32_t*)((char*)pMsg->pCont + offset));
+    req.msgIdx = ntohl(*(int32_t *)((char *)pMsg->pCont + offset));
     offset += sizeof(req.msgIdx);
 
-    req.msgType = ntohl(*(int32_t*)((char*)pMsg->pCont + offset));
+    req.msgType = ntohl(*(int32_t *)((char *)pMsg->pCont + offset));
     offset += sizeof(req.msgType);
 
-    req.msgLen = ntohl(*(int32_t*)((char*)pMsg->pCont + offset));
+    req.msgLen = ntohl(*(int32_t *)((char *)pMsg->pCont + offset));
     offset += sizeof(req.msgLen);
 
-    req.msg = (char*)pMsg->pCont + offset;
+    req.msg = (char *)pMsg->pCont + offset;
     offset += req.msgLen;
 
     reqMsg.msgType = req.msgType;
@@ -118,7 +118,7 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
     rsp.reqType = reqMsg.msgType;
     rsp.msgLen = reqMsg.info.rspLen;
     rsp.msg = reqMsg.info.rsp;
-    
+
     taosArrayPush(batchRsp, &rsp);
 
     rspSize += sizeof(rsp) + rsp.msgLen - POINTER_BYTES;
@@ -126,27 +126,27 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
 
   rspSize += sizeof(int32_t);
   offset = 0;
-  
+
   pRsp = rpcMallocCont(rspSize);
   if (pRsp == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
 
-  *(int32_t*)((char*)pRsp + offset) = htonl(msgNum);
+  *(int32_t *)((char *)pRsp + offset) = htonl(msgNum);
   offset += sizeof(msgNum);
   for (int32_t i = 0; i < msgNum; ++i) {
     SBatchRsp *p = taosArrayGet(batchRsp, i);
-    
-    *(int32_t*)((char*)pRsp + offset) = htonl(p->reqType);
+
+    *(int32_t *)((char *)pRsp + offset) = htonl(p->reqType);
     offset += sizeof(p->reqType);
-    *(int32_t*)((char*)pRsp + offset) = htonl(p->msgIdx);
+    *(int32_t *)((char *)pRsp + offset) = htonl(p->msgIdx);
     offset += sizeof(p->msgIdx);
-    *(int32_t*)((char*)pRsp + offset) = htonl(p->msgLen);
+    *(int32_t *)((char *)pRsp + offset) = htonl(p->msgLen);
     offset += sizeof(p->msgLen);
-    *(int32_t*)((char*)pRsp + offset) = htonl(p->rspCode);
+    *(int32_t *)((char *)pRsp + offset) = htonl(p->rspCode);
     offset += sizeof(p->rspCode);
-    memcpy((char*)pRsp + offset, p->msg, p->msgLen);
+    memcpy((char *)pRsp + offset, p->msg, p->msgLen);
     offset += p->msgLen;
 
     rpcFreeCont(p->msg);

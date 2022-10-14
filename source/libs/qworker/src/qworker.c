@@ -7,9 +7,9 @@
 #include "qwInt.h"
 #include "qwMsg.h"
 #include "tcommon.h"
+#include "tdatablock.h"
 #include "tmsg.h"
 #include "tname.h"
-#include "tdatablock.h"
 #include "tglobal.h"
 
 SQWorkerMgmt gQwMgmt = {
@@ -18,8 +18,8 @@ SQWorkerMgmt gQwMgmt = {
     .qwNum = 0,
 };
 
-static void freeBlock(void* param) {
-  SSDataBlock* pBlock = *(SSDataBlock**)param;
+static void freeBlock(void *param) {
+  SSDataBlock *pBlock = *(SSDataBlock **)param;
   blockDataDestroy(pBlock);
 }
 
@@ -95,9 +95,12 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 
 int32_t qwSendQueryRsp(QW_FPARAMS_DEF, int32_t msgType, SQWTaskCtx *ctx, int32_t rspCode, bool quickRsp) {
   if ((!quickRsp) || QUERY_RSP_POLICY_QUICK == tsQueryRspPolicy) {
-    qwBuildAndSendQueryRsp(msgType, &ctx->ctrlConnInfo, rspCode, ctx);
+    if (!ctx->localExec) {
+      qwBuildAndSendQueryRsp(msgType, &ctx->ctrlConnInfo, rspCode, ctx);
+      QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", ctx->ctrlConnInfo.handle, rspCode, tstrerror(rspCode));
+    }
+
     ctx->queryRsped = true;
-    QW_TASK_DLOG("query msg rsped, handle:%p, code:%x - %s", ctx->ctrlConnInfo.handle, rspCode, tstrerror(rspCode));
   }
 
   return TSDB_CODE_SUCCESS;
@@ -111,7 +114,7 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryStop) {
   int32_t        execNum = 0;
   qTaskInfo_t    taskHandle = ctx->taskHandle;
   DataSinkHandle sinkHandle = ctx->sinkHandle;
-  SLocalFetch    localFetch = {(void*)mgmt, ctx->localExec, qWorkerProcessLocalFetch, ctx->explainRes};
+  SLocalFetch    localFetch = {(void *)mgmt, ctx->localExec, qWorkerProcessLocalFetch, ctx->explainRes};
 
   SArray *pResList = taosArrayInit(4, POINTER_BYTES);
   while (true) {
@@ -527,7 +530,7 @@ _return:
     ctx->queryGotData = true;
   }
 
-  if (QW_PHASE_POST_QUERY == phase && ctx && !ctx->localExec && !ctx->queryRsped) {
+  if (QW_PHASE_POST_QUERY == phase && ctx && !ctx->queryRsped) {
     bool   rsped = false;
     SQWMsg qwMsg = {.msgType = ctx->msgType, .connInfo = ctx->ctrlConnInfo};
     qwDbgSimulateRedirect(&qwMsg, ctx, &rsped);
@@ -562,8 +565,8 @@ int32_t qwAbortPrerocessQuery(QW_FPARAMS_DEF) {
 }
 
 int32_t qwPreprocessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
-  int32_t        code = 0;
-  SQWTaskCtx    *ctx = NULL;
+  int32_t     code = 0;
+  SQWTaskCtx *ctx = NULL;
 
   QW_ERR_JRET(qwRegisterQueryBrokenLinkArg(QW_FPARAMS(), &qwMsg->connInfo));
 
@@ -1164,7 +1167,7 @@ void qWorkerDestroy(void **qWorkerMgmt) {
     return;
   }
 
-  int32_t destroyed = 0;
+  int32_t   destroyed = 0;
   SQWorker *mgmt = *qWorkerMgmt;
   mgmt->destroyed = &destroyed;
 
@@ -1204,15 +1207,16 @@ int32_t qWorkerGetStat(SReadHandle *handle, void *qWorkerMgmt, SQWorkerStat *pSt
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qWorkerProcessLocalQuery(void *pMgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId, int32_t eId, SQWMsg *qwMsg, SArray *explainRes) {
-  SQWorker      *mgmt = (SQWorker*)pMgmt;
+int32_t qWorkerProcessLocalQuery(void *pMgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId, int32_t eId,
+                                 SQWMsg *qwMsg, SArray *explainRes) {
+  SQWorker      *mgmt = (SQWorker *)pMgmt;
   int32_t        code = 0;
   SQWTaskCtx    *ctx = NULL;
   SSubplan      *plan = (SSubplan *)qwMsg->msg;
   SQWPhaseInput  input = {0};
   qTaskInfo_t    pTaskInfo = NULL;
   DataSinkHandle sinkHandle = NULL;
-  SReadHandle rHandle = {0};
+  SReadHandle    rHandle = {0};
 
   QW_ERR_JRET(qwAddTaskCtx(QW_FPARAMS()));
   QW_ERR_JRET(qwAddTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_INIT));
@@ -1263,13 +1267,14 @@ _return:
   QW_RET(code);
 }
 
-int32_t qWorkerProcessLocalFetch(void *pMgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId, int32_t eId, void** pRsp, SArray* explainRes) {
-  SQWorker      *mgmt = (SQWorker*)pMgmt;
-  int32_t       code = 0;
-  int32_t       dataLen = 0;
-  SQWTaskCtx   *ctx = NULL;
-  void         *rsp = NULL;
-  bool          queryStop = false;
+int32_t qWorkerProcessLocalFetch(void *pMgmt, uint64_t sId, uint64_t qId, uint64_t tId, int64_t rId, int32_t eId,
+                                 void **pRsp, SArray *explainRes) {
+  SQWorker   *mgmt = (SQWorker *)pMgmt;
+  int32_t     code = 0;
+  int32_t     dataLen = 0;
+  SQWTaskCtx *ctx = NULL;
+  void       *rsp = NULL;
+  bool        queryStop = false;
 
   SQWPhaseInput input = {0};
 
@@ -1310,5 +1315,3 @@ _return:
 
   QW_RET(code);
 }
-
-

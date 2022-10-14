@@ -677,7 +677,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   // build stream obj from request
   if (mndBuildStreamObjFromCreateReq(pMnode, &streamObj, &createStreamReq) < 0) {
-    /*ASSERT(0);*/
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
   }

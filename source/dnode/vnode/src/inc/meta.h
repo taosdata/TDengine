@@ -67,6 +67,10 @@ void    metaCacheClose(SMeta* pMeta);
 int32_t metaCacheUpsert(SMeta* pMeta, SMetaInfo* pInfo);
 int32_t metaCacheDrop(SMeta* pMeta, int64_t uid);
 
+int32_t metaStatsCacheUpsert(SMeta* pMeta, SMetaStbStats* pInfo);
+int32_t metaStatsCacheDrop(SMeta* pMeta, int64_t uid);
+int32_t metaStatsCacheGet(SMeta* pMeta, int64_t uid, SMetaStbStats* pInfo);
+
 struct SMeta {
   TdThreadRwlock lock;
 

@@ -201,14 +201,13 @@ _OVER:
   taosCloseFile(&pFile);
   taosMemoryFree(content);
 
-  for (int32_t i = 0; i < numOfVnodes; ++i) {
-    SVnodeObj *pVnode = ppVnodes[i];
-    if (pVnode != NULL) {
-      vmReleaseVnode(pMgmt, pVnode);
-    }
-  }
-
   if (ppVnodes != NULL) {
+    for (int32_t i = 0; i < numOfVnodes; ++i) {
+      SVnodeObj *pVnode = ppVnodes[i];
+      if (pVnode != NULL) {
+        vmReleaseVnode(pMgmt, pVnode);
+      }
+    }
     taosMemoryFree(ppVnodes);
   }
 

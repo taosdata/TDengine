@@ -15,8 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "mndMnode.h"
-#include "mndPrivilege.h"
 #include "mndDnode.h"
+#include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndSync.h"
 #include "mndTrans.h"
@@ -87,7 +87,7 @@ static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
 
   SSdbRaw *pRaw = mndMnodeActionEncode(&mnodeObj);
   if (pRaw == NULL) return -1;
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   mInfo("mnode:%d, will be created when deploying, raw:%p", mnodeObj.id, pRaw);
 
@@ -239,7 +239,9 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
         pEpSet->inUse = (pEpSet->numOfEps + 1) % totalMnodes;
       }
     }
-    addEpIntoEpSet(pEpSet, pObj->pDnode->fqdn, pObj->pDnode->port);
+    if (pObj->pDnode != NULL) {
+      addEpIntoEpSet(pEpSet, pObj->pDnode->fqdn, pObj->pDnode->port);
+    }
     sdbRelease(pSdb, pObj);
   }
 

@@ -28,7 +28,7 @@ extern "C" {
 #include "taosdef.h"
 
 #define RAFT_STORE_BLOCK_SIZE 512
-#define RAFT_STORE_PATH_LEN (TSDB_FILENAME_LEN * 2)
+#define RAFT_STORE_PATH_LEN   (TSDB_FILENAME_LEN * 2)
 
 typedef struct SRaftStore {
   SyncTerm  currentTerm;
@@ -49,8 +49,8 @@ void    raftStoreClearVote(SRaftStore *pRaftStore);
 void    raftStoreNextTerm(SRaftStore *pRaftStore);
 void    raftStoreSetTerm(SRaftStore *pRaftStore, SyncTerm term);
 int32_t raftStoreFromJson(SRaftStore *pRaftStore, cJSON *pJson);
-cJSON * raftStore2Json(SRaftStore *pRaftStore);
-char *  raftStore2Str(SRaftStore *pRaftStore);
+cJSON  *raftStore2Json(SRaftStore *pRaftStore);
+char   *raftStore2Str(SRaftStore *pRaftStore);
 
 // for debug -------------------
 void raftStorePrint(SRaftStore *pObj);

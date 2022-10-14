@@ -1218,7 +1218,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
                    pBlock->info.rows, numOfOutput);
 }
 
-static  int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
+static int32_t openStateWindowAggOptr(SOperatorInfo* pOperator) {
   if (OPTR_IS_OPENED(pOperator)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -2757,7 +2757,7 @@ SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWi
   if (pStateNode->window.pExprs != NULL) {
     int32_t    numOfScalarExpr = 0;
     SExprInfo* pScalarExprInfo = createExprInfo(pStateNode->window.pExprs, NULL, &numOfScalarExpr);
-    int32_t code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, numOfScalarExpr);
+    int32_t    code = initExprSupp(&pInfo->scalarSup, pScalarExprInfo, numOfScalarExpr);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -3611,6 +3611,7 @@ void destroyStreamSessionAggOperatorInfo(void* param) {
   blockDataDestroy(pInfo->pUpdateRes);
   destroySqlFunctionCtx(pInfo->pDummyCtx, 0);
   taosHashCleanup(pInfo->pStDeleted);
+  taosHashCleanup(pInfo->pGroupIdTbNameMap);
 
   taosMemoryFreeClear(param);
 }
@@ -3727,6 +3728,9 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
   pInfo->isFinal = false;
   pInfo->pPhyNode = pPhyNode;
   pInfo->ignoreExpiredData = pSessionNode->window.igExpired;
+
+  pInfo->pGroupIdTbNameMap =
+      taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_NO_LOCK);
 
   pOperator->name = "StreamSessionWindowAggOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION;
@@ -4351,7 +4355,7 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
       printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo) ? "final session" : "single session");
       return pInfo->pDelRes;
     }
-    doBuildResultDatablock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
+    doBuildStreamResBlock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
     if (pBInfo->pRes->info.rows == 0 || !hasRemainResults(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
     }
@@ -4369,6 +4373,12 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
       break;
     }
     printDataBlock(pBlock, IS_FINAL_OP(pInfo) ? "final session recv" : "single session recv");
+
+    if (pBlock->info.parTbName[0]) {
+      taosHashPut(pInfo->pGroupIdTbNameMap, &pBlock->info.groupId, sizeof(int64_t), &pBlock->info.parTbName,
+                  TSDB_TABLE_NAME_LEN);
+      /*printf("\n\n put tbname %s\n\n", pBlock->info.parTbName);*/
+    }
 
     if (pBlock->info.type == STREAM_CLEAR) {
       SArray* pWins = taosArrayInit(16, sizeof(SResultWindowInfo));
@@ -4451,7 +4461,7 @@ static SSDataBlock* doStreamSessionAgg(SOperatorInfo* pOperator) {
     printDataBlock(pInfo->pDelRes, IS_FINAL_OP(pInfo) ? "final session" : "single session");
     return pInfo->pDelRes;
   }
-  doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
+  doBuildStreamResBlock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
   printDataBlock(pBInfo->pRes, IS_FINAL_OP(pInfo) ? "final session" : "single session");
   return pBInfo->pRes->info.rows == 0 ? NULL : pBInfo->pRes;
 }
@@ -4482,7 +4492,7 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
   }
 
   {
-    doBuildResultDatablock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
+    doBuildStreamResBlock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
     if (pBInfo->pRes->info.rows > 0) {
       printDataBlock(pBInfo->pRes, "semi session");
       return pBInfo->pRes;
@@ -4522,6 +4532,12 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
       break;
     }
     printDataBlock(pBlock, "semi session recv");
+
+    if (pBlock->info.parTbName[0]) {
+      taosHashPut(pInfo->pGroupIdTbNameMap, &pBlock->info.groupId, sizeof(int64_t), &pBlock->info.parTbName,
+                  TSDB_TABLE_NAME_LEN);
+      /*printf("\n\n put tbname %s\n\n", pBlock->info.parTbName);*/
+    }
 
     if (pBlock->info.type == STREAM_CLEAR) {
       SArray* pWins = taosArrayInit(16, sizeof(SResultWindowInfo));
@@ -4566,7 +4582,7 @@ static SSDataBlock* doStreamSessionSemiAgg(SOperatorInfo* pOperator) {
   initMultiResInfoFromArrayList(&pInfo->groupResInfo, pUpdated);
   blockDataEnsureCapacity(pBInfo->pRes, pOperator->resultInfo.capacity);
 
-  doBuildResultDatablock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
+  doBuildStreamResBlock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
   if (pBInfo->pRes->info.rows > 0) {
     printDataBlock(pBInfo->pRes, "semi session");
     return pBInfo->pRes;
@@ -4610,6 +4626,10 @@ SOperatorInfo* createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream
         createOperatorFpSet(operatorDummyOpenFn, doStreamSessionSemiAgg, NULL, NULL,
                             destroyStreamSessionAggOperatorInfo, aggEncodeResultRow, aggDecodeResultRow, NULL);
   }
+
+  pInfo->pGroupIdTbNameMap =
+      taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_NO_LOCK);
+
   pOperator->operatorType = pPhyNode->type;
   if (numOfChild > 0) {
     pInfo->pChildren = taosArrayInit(numOfChild, sizeof(void*));
@@ -4651,6 +4671,7 @@ void destroyStreamStateOperatorInfo(void* param) {
   colDataDestroy(&pInfo->twAggSup.timeWindowData);
   blockDataDestroy(pInfo->pDelRes);
   taosHashCleanup(pInfo->pSeDeleted);
+  taosHashCleanup(pInfo->pGroupIdTbNameMap);
   destroySqlFunctionCtx(pInfo->pDummyCtx, 0);
 
   taosMemoryFreeClear(param);
@@ -4910,7 +4931,7 @@ static SSDataBlock* doStreamStateAgg(SOperatorInfo* pOperator) {
       printDataBlock(pInfo->pDelRes, "single state");
       return pInfo->pDelRes;
     }
-    doBuildResultDatablock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
+    doBuildStreamResBlock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
     if (pBInfo->pRes->info.rows == 0 || !hasRemainResults(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
     }
@@ -4972,7 +4993,7 @@ static SSDataBlock* doStreamStateAgg(SOperatorInfo* pOperator) {
     printDataBlock(pInfo->pDelRes, "single state");
     return pInfo->pDelRes;
   }
-  doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
+  doBuildStreamResBlock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->streamAggSup.pResultBuf);
   printDataBlock(pBInfo->pRes, "single state");
   return pBInfo->pRes->info.rows == 0 ? NULL : pBInfo->pRes;
 }
@@ -5044,6 +5065,9 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->pDelRes = createSpecialDataBlock(STREAM_DELETE_RESULT);
   pInfo->pChildren = NULL;
   pInfo->ignoreExpiredData = pStateNode->window.igExpired;
+
+  pInfo->pGroupIdTbNameMap =
+      taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_NO_LOCK);
 
   pOperator->name = "StreamStateAggOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE;
