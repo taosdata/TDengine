@@ -63,7 +63,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
     sprintf(statePath, "%s/%d", path, pTask->taskId);
   } else {
     memset(statePath, 0, 300);
-    strncpy(statePath, path, 300);
+    tstrncpy(statePath, path, 300);
   }
   if (tdbOpen(statePath, szPage, pages, &pState->db) < 0) {
     goto _err;
