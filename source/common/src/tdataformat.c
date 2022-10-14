@@ -807,19 +807,19 @@ int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, voi
     cJSON *item = cJSON_GetArrayItem(root, i);
     if (!item) {
       uError("json inner error:%d", i);
-      // retCode = buildSyntaxErrMsg(pMsgBuf, "json inner error", json);
+      retCode = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
       goto end;
     }
 
     char *jsonKey = item->string;
     if (!isValidateTag(jsonKey)) {
-      // retCode = buildSyntaxErrMsg(pMsgBuf, "json key not validate", jsonKey);
+      retCode = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
       goto end;
     }
     size_t keyLen = strlen(jsonKey);
     if (keyLen > TSDB_MAX_JSON_KEY_LEN) {
       uError("json key too long error");
-      // retCode = buildSyntaxErrMsg(pMsgBuf, "json key too long, more than 256", jsonKey);
+      retCode = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
       goto end;
     }
     if (keyLen == 0 || taosHashGet(keyHash, jsonKey, keyLen) != NULL) {
@@ -844,7 +844,7 @@ int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, voi
           !taosMbsToUcs4(jsonValue, valLen, (TdUcs4 *)tmp, (int32_t)(valLen * TSDB_NCHAR_SIZE), &valLen)) {
         uError("charset:%s to %s. val:%s, errno:%s, convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, jsonValue,
                strerror(errno));
-        // retCode = buildSyntaxErrMsg(pMsgBuf, "charset convert json error", jsonValue);
+        retCode = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
         goto end;
       }
       val.nData = valLen;
@@ -852,7 +852,7 @@ int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, voi
     } else if (item->type == cJSON_Number) {
       if (!isfinite(item->valuedouble)) {
         uError("json value is invalidate");
-        // retCode = buildSyntaxErrMsg(pMsgBuf, "json value number is illegal", json);
+        retCode = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
         goto end;
       }
       val.type = TSDB_DATA_TYPE_DOUBLE;
@@ -863,7 +863,7 @@ int32_t parseJsontoTagData(const char *json, SArray *pTagVals, STag **ppTag, voi
     } else if (item->type == cJSON_NULL) {
       val.type = TSDB_DATA_TYPE_NULL;
     } else {
-      // retCode = buildSyntaxErrMsg(pMsgBuf, "invalidate json value", json);
+      retCode = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
       goto end;
     }
     taosArrayPush(pTagVals, &val);
