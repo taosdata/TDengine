@@ -353,7 +353,7 @@ void printfIntroduction() {
 }
 
 void showHelp() {
-  printf("\nFollowing are the commands supported by TDengine command line:");
+  printf("\nFThe TDengine CLI supports the following commands:");
   printf("\n\
   ----- A ----- \n\
     alter database <db_name> <db_options> \n\
