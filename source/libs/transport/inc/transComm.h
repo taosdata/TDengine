@@ -200,15 +200,13 @@ typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } Co
 
 #define TRANS_MSG_OVERHEAD           (sizeof(STransMsgHead))
 #define transHeadFromCont(cont)      ((STransMsgHead*)((char*)cont - sizeof(STransMsgHead)))
-#define transContFromHead(msg)       (msg + sizeof(STransMsgHead))
+#define transContFromHead(msg)       (((char*)msg) + sizeof(STransMsgHead))
 #define transMsgLenFromCont(contLen) (contLen + sizeof(STransMsgHead))
 #define transContLenFromMsg(msgLen)  (msgLen - sizeof(STransMsgHead));
 #define transIsReq(type)             (type & 1U)
 
 #define transLabel(trans) ((STrans*)trans)->label
 
-void transFreeMsg(void* msg);
-//
 typedef struct SConnBuffer {
   char* buf;
   int   len;
@@ -414,6 +412,10 @@ void transThreadOnce();
 
 void transInit();
 void transCleanup();
+
+void    transFreeMsg(void* msg);
+int32_t transCompressMsg(char* msg, int32_t len);
+int32_t transDecompressMsg(char** msg, int32_t len);
 
 int32_t transOpenRefMgt(int size, void (*func)(void*));
 void    transCloseRefMgt(int32_t refMgt);

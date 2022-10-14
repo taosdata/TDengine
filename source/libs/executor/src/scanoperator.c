@@ -429,6 +429,8 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int
     return terrno;
   }
 
+  metaReaderReleaseLock(&mr);
+
   for (int32_t j = 0; j < numOfPseudoExpr; ++j) {
     SExprInfo* pExpr = &pPseudoExpr[j];
 
@@ -1341,7 +1343,8 @@ static void calBlockTbName(SExprSupp* pTbNameCalSup, SSDataBlock* pBlock) {
   void* pData = colDataGetData(pCol, 0);
   // TODO check tbname validation
   if (pData != (void*)-1 && pData != NULL) {
-    memcpy(pBlock->info.parTbName, varDataVal(pData), varDataLen(pData));
+    memcpy(pBlock->info.parTbName, varDataVal(pData), TMIN(varDataLen(pData), TSDB_TABLE_NAME_LEN));
+    pBlock->info.parTbName[TSDB_TABLE_NAME_LEN - 1] = 0;
   } else {
     pBlock->info.parTbName[0] = 0;
   }
@@ -2547,7 +2550,7 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
       return NULL;
     }
     SMetaReader smrSuperTable = {0};
-    metaReaderInit(&smrSuperTable, pInfo->readHandle.meta, 0);
+    metaReaderInit(&smrSuperTable, pInfo->readHandle.meta, META_READER_NOLOCK);
     metaGetTableEntryByUid(&smrSuperTable, smrChildTable.me.ctbEntry.suid);
     sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &smrChildTable, dbname, tableName, &numOfRows, dataBlock);
     metaReaderClear(&smrSuperTable);

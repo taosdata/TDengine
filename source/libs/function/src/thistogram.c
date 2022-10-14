@@ -14,10 +14,10 @@
  */
 #include "os.h"
 
-#include "thistogram.h"
 #include "taosdef.h"
-#include "tmsg.h"
+#include "thistogram.h"
 #include "tlosertree.h"
+#include "tmsg.h"
 
 /**
  *
@@ -54,7 +54,7 @@ SHistogramInfo* tHistogramCreateFrom(void* pBuf, int32_t numOfBins) {
 
   SHistogramInfo* pHisto = (SHistogramInfo*)pBuf;
   pHisto->elems = (SHistBin*)((char*)pBuf + sizeof(SHistogramInfo));
-  for(int32_t i = 0; i < numOfBins; ++i) {
+  for (int32_t i = 0; i < numOfBins; ++i) {
     pHisto->elems[i].val = -DBL_MAX;
   }
 
@@ -116,7 +116,7 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
       pEntry1->delta = ((SHistBin*)pResNode->pForward[0]->pData)->val - val;
 
       if ((*pHisto)->ordered) {
-        int32_t         lastIndex = (*pHisto)->maxIndex;
+        int32_t                 lastIndex = (*pHisto)->maxIndex;
         SMultiwayMergeTreeInfo* pTree = (*pHisto)->pLoserTree;
 
         (*pHisto)->pLoserTree->pNode[lastIndex + pTree->numOfEntries].pData = pResNode;
@@ -156,7 +156,7 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
         SSkipListPrint((*pHisto)->pList, 1);
 
         SMultiwayMergeTreeInfo* pTree = (*pHisto)->pLoserTree;
-        tSkipListNode*  pHead = (*pHisto)->pList->pHead.pForward[0];
+        tSkipListNode*          pHead = (*pHisto)->pList->pHead.pForward[0];
 
         tSkipListNode* p1 = pHead;
 
@@ -357,7 +357,7 @@ void tHistogramDestroy(SHistogramInfo** pHisto) {
 }
 
 void tHistogramPrint(SHistogramInfo* pHisto) {
-  printf("total entries: %d, elements: %"PRId64 "\n", pHisto->numOfEntries, pHisto->numOfElems);
+  printf("total entries: %d, elements: %" PRId64 "\n", pHisto->numOfEntries, pHisto->numOfElems);
 #if defined(USE_ARRAYLIST)
   for (int32_t i = 0; i < pHisto->numOfEntries; ++i) {
     printf("%d: (%f, %" PRId64 ")\n", i + 1, pHisto->elems[i].val, pHisto->elems[i].num);
@@ -536,7 +536,7 @@ SHistogramInfo* tHistogramMerge(SHistogramInfo* pHisto1, SHistogramInfo* pHisto2
   }
 
   SHistBin* pHistoBins = taosMemoryCalloc(1, sizeof(SHistBin) * (pHisto1->numOfEntries + pHisto2->numOfEntries));
-  int32_t i = 0, j = 0, k = 0;
+  int32_t   i = 0, j = 0, k = 0;
 
   while (i < pHisto1->numOfEntries && j < pHisto2->numOfEntries) {
     if (pHisto1->elems[i].val < pHisto2->elems[j].val) {

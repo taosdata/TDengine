@@ -74,7 +74,7 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, bool direct) {
     schemaTag = mer1.me.stbEntry.schemaTag;
     metaRsp.suid = mer1.me.uid;
   } else if (mer1.me.type == TSDB_CHILD_TABLE) {
-    metaReaderInit(&mer2, pVnode->pMeta, 0);
+    metaReaderInit(&mer2, pVnode->pMeta, META_READER_NOLOCK);
     if (metaGetTableEntryByUid(&mer2, mer1.me.ctbEntry.suid) < 0) goto _exit;
 
     strcpy(metaRsp.stbName, mer2.me.name);
@@ -399,8 +399,6 @@ void vnodeResetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nInsertSuccess, pLoad->numOfInsertSuccessReqs, 64);
   VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nBatchInsert, pLoad->numOfBatchInsertReqs, 64);
   VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nBatchInsertSuccess, pLoad->numOfBatchInsertSuccessReqs, 64);
-
-
 }
 
 void vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId) {
@@ -489,7 +487,7 @@ int32_t vnodeGetCtbNum(SVnode *pVnode, int64_t suid, int64_t *num) {
 }
 
 static int32_t vnodeGetStbColumnNum(SVnode *pVnode, tb_uid_t suid, int *num) {
-  STSchema *pTSchema = metaGetTbTSchema(pVnode->pMeta, suid, -1, 0);
+  STSchema *pTSchema = metaGetTbTSchema(pVnode->pMeta, suid, -1, 1);
   // metaGetTbTSchemaEx(pVnode->pMeta, suid, suid, -1, &pTSchema);
 
   if (pTSchema) {

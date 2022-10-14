@@ -49,7 +49,9 @@ static inline int stateKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, 
   return 0;
 }
 
-SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath) {
+SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int32_t szPage, int32_t pages) {
+  szPage = szPage < 0 ? 4096 : szPage;
+  pages = pages < 0 ? 256 : pages;
   SStreamState* pState = taosMemoryCalloc(1, sizeof(SStreamState));
   if (pState == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -63,7 +65,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath) {
     memset(statePath, 0, 300);
     strncpy(statePath, path, 300);
   }
-  if (tdbOpen(statePath, 4096, 256, &pState->db) < 0) {
+  if (tdbOpen(statePath, szPage, pages, &pState->db) < 0) {
     goto _err;
   }
 
@@ -73,7 +75,7 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath) {
   }
 
   // todo refactor
-  if (tdbTbOpen("func.state.db", sizeof(SWinKey), -1, winKeyCmpr, pState->db, &pState->pFillStateDb) < 0) {
+  if (tdbTbOpen("fill.state.db", sizeof(SWinKey), -1, winKeyCmpr, pState->db, &pState->pFillStateDb) < 0) {
     goto _err;
   }
 

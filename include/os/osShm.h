@@ -23,10 +23,10 @@ extern "C" {
 typedef struct {
   int32_t id;
   int32_t size;
-  void*   ptr;
+  void   *ptr;
 } SShm;
 
-int32_t taosCreateShm(SShm *pShm, int32_t key, int32_t shmsize) ;
+int32_t taosCreateShm(SShm *pShm, int32_t key, int32_t shmsize);
 void    taosDropShm(SShm *pShm);
 int32_t taosAttachShm(SShm *pShm);
 

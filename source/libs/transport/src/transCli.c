@@ -319,13 +319,18 @@ void cliHandleResp(SCliConn* conn) {
   }
 
   STransMsgHead* pHead = NULL;
-  if (transDumpFromBuffer(&conn->readBuf, (char**)&pHead) <= 0) {
+
+  int32_t msgLen = transDumpFromBuffer(&conn->readBuf, (char**)&pHead);
+  if (msgLen <= 0) {
     tDebug("%s conn %p recv invalid packet ", CONN_GET_INST_LABEL(conn), conn);
     return;
   }
+
+  if (transDecompressMsg((char**)&pHead, msgLen) < 0) {
+    tDebug("%s conn %p recv invalid packet, failed to decompress", CONN_GET_INST_LABEL(conn), conn);
+  }
   pHead->code = htonl(pHead->code);
   pHead->msgLen = htonl(pHead->msgLen);
-
   if (cliRecvReleaseReq(conn, pHead)) {
     return;
   }
@@ -374,7 +379,7 @@ void cliHandleResp(SCliConn* conn) {
 
   STraceId* trace = &transMsg.info.traceId;
   tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, code str:%s", CONN_GET_INST_LABEL(conn), conn,
-          TMSG_INFO(pHead->msgType), conn->dst, conn->src, transMsg.contLen, tstrerror(transMsg.code));
+          TMSG_INFO(pHead->msgType), conn->dst, conn->src, msgLen, tstrerror(transMsg.code));
 
   if (pCtx == NULL && CONN_NO_PERSIST_BY_APP(conn)) {
     tDebug("%s except, conn %p read while cli ignore it", CONN_GET_INST_LABEL(conn), conn);
@@ -553,7 +558,7 @@ static void addConnToPool(void* pool, SCliConn* conn) {
   if (conn->list->size >= 50) {
     STaskArg* arg = taosMemoryCalloc(1, sizeof(STaskArg));
     arg->param1 = conn;
-    arg->param2 = thrd;
+    arg->param2 = NULL;
 
     STrans* pTransInst = thrd->pTransInst;
     conn->task = transDQSched(thrd->timeoutQueue, doCloseIdleConn, arg, CONN_PERSIST_TIME(pTransInst->idleTime));
@@ -772,20 +777,17 @@ void cliSend(SCliConn* pConn) {
   memcpy(pHead->user, pTransInst->user, strlen(pTransInst->user));
   pHead->traceId = pMsg->info.traceId;
   pHead->magicNum = htonl(TRANS_MAGIC_NUM);
-
-  STraceId* trace = &pMsg->info.traceId;
-  tGDebug("%s conn %p %s is sent to %s, local info %s, len:%d", CONN_GET_INST_LABEL(pConn), pConn,
-          TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, pMsg->contLen);
-
   if (pHead->persist == 1) {
     CONN_SET_PERSIST_BY_APP(pConn);
   }
 
+  STraceId* trace = &pMsg->info.traceId;
+
   if (pTransInst->startTimer != NULL && pTransInst->startTimer(0, pMsg->msgType)) {
     uv_timer_t* timer = taosArrayGetSize(pThrd->timerList) > 0 ? *(uv_timer_t**)taosArrayPop(pThrd->timerList) : NULL;
     if (timer == NULL) {
-      tDebug("no avaiable timer, create");
       timer = taosMemoryCalloc(1, sizeof(uv_timer_t));
+      tDebug("no available timer, create a timer %p", timer);
       uv_timer_init(pThrd->loop, timer);
     }
     timer->data = pConn;
@@ -794,6 +796,13 @@ void cliSend(SCliConn* pConn) {
     tGTrace("%s conn %p start timer for msg:%s", CONN_GET_INST_LABEL(pConn), pConn, TMSG_INFO(pMsg->msgType));
     uv_timer_start((uv_timer_t*)pConn->timer, cliReadTimeoutCb, TRANS_READ_TIMEOUT, 0);
   }
+
+  if (pTransInst->compressSize != -1 && pTransInst->compressSize < pMsg->contLen) {
+    msgLen = transCompressMsg(pMsg->pCont, pMsg->contLen) + sizeof(STransMsgHead);
+    pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
+  }
+  tGDebug("%s conn %p %s is sent to %s, local info %s, len:%d", CONN_GET_INST_LABEL(pConn), pConn,
+          TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, msgLen);
 
   uv_buf_t    wb = uv_buf_init((char*)pHead, msgLen);
   uv_write_t* req = transReqQueuePush(&pConn->wreqQueue);
@@ -1275,17 +1284,13 @@ FORCE_INLINE int cliRBChoseIdx(STrans* pTransInst) {
 }
 static FORCE_INLINE void doDelayTask(void* param) {
   STaskArg* arg = param;
-  SCliMsg*  pMsg = arg->param1;
-  SCliThrd* pThrd = arg->param2;
+  cliHandleReq((SCliMsg*)arg->param1, (SCliThrd*)arg->param2);
   taosMemoryFree(arg);
-
-  cliHandleReq(pMsg, pThrd);
 }
 
 static void doCloseIdleConn(void* param) {
   STaskArg* arg = param;
   SCliConn* conn = arg->param1;
-  SCliThrd* pThrd = arg->param2;
   tTrace("%s conn %p idle, close it", CONN_GET_INST_LABEL(conn), conn);
   conn->task = NULL;
   cliDestroyConn(conn, true);

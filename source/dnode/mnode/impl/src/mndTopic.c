@@ -154,6 +154,8 @@ TOPIC_ENCODE_OVER:
 
 SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+
+  void  *buf = NULL;
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto TOPIC_DECODE_OVER;
 
@@ -215,7 +217,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
 
   SDB_GET_INT32(pRaw, dataPos, &len, TOPIC_DECODE_OVER);
   if (len) {
-    void *buf = taosMemoryMalloc(len);
+    buf = taosMemoryMalloc(len);
     if (buf == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto TOPIC_DECODE_OVER;
@@ -224,7 +226,6 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
     if (taosDecodeSSchemaWrapper(buf, &pTopic->schema) == NULL) {
       goto TOPIC_DECODE_OVER;
     }
-    taosMemoryFree(buf);
   } else {
     pTopic->schema.nCols = 0;
     pTopic->schema.version = 0;
@@ -250,6 +251,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_SUCCESS;
 
 TOPIC_DECODE_OVER:
+  taosMemoryFreeClear(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
     mError("topic:%s, failed to decode from raw:%p since %s", pTopic->name, pRaw, terrstr());
     taosMemoryFreeClear(pRow);

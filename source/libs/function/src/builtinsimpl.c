@@ -1557,8 +1557,8 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
       numOfElems += 1;
     }
   } else if (type == TSDB_DATA_TYPE_FLOAT) {
-    float*  pData = (float*)pCol->pData;
-    float*  val = (float*)&pBuf->v;
+    float* pData = (float*)pCol->pData;
+    float* val = (float*)&pBuf->v;
 
     for (int32_t i = start; i < start + numOfRows; ++i) {
       if ((pCol->hasNull) && colDataIsNull_f(pCol->nullbitmap, i)) {
@@ -2977,7 +2977,8 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst, int32_t rowIndex) {
+static void firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst,
+                                  int32_t rowIndex) {
   SInputColumnInfoData* pColInfo = &pCtx->input;
 
   if (pOutput->hasResult) {

@@ -130,12 +130,6 @@ TEST_F(ParserShowToUseTest, showMnodes) {
   run("SHOW mnodes");
 }
 
-TEST_F(ParserShowToUseTest, showModules) {
-  useDb("root", "test");
-
-  run("SHOW modules");
-}
-
 TEST_F(ParserShowToUseTest, showQnodes) {
   useDb("root", "test");
 
