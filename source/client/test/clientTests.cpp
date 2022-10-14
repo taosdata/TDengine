@@ -52,15 +52,15 @@ void printResult(TAOS_RES* pRes) {
   int32_t n = 0;
   char    str[512] = {0};
   while ((pRow = taos_fetch_row(pRes)) != NULL) {
-    int32_t* length = taos_fetch_lengths(pRes);
-    for (int32_t i = 0; i < numOfFields; ++i) {
-      printf("(%d):%d ", i, length[i]);
-    }
-    printf("\n");
-
-    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
-    printf("%s\n", str);
-    memset(str, 0, sizeof(str));
+//    int32_t* length = taos_fetch_lengths(pRes);
+//    for(int32_t i = 0; i < numOfFields; ++i) {
+//      printf("(%d):%d " , i, length[i]);
+//    }
+//    printf("\n");
+//
+//    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
+//    printf("%s\n", str);
+//    memset(str, 0, sizeof(str));
   }
 }
 
@@ -102,17 +102,6 @@ void queryCallback(void* param, void* res, int32_t code) {
   taos_fetch_raw_block_a(res, fetchCallback, param);
 }
 
-void queryCallback1(void* param, void* res, int32_t code) {
-  if (code != TSDB_CODE_SUCCESS) {
-    printf("failed to execute, reason:%s\n", taos_errstr(res));
-  }
-
-  taos_free_result(res);
-
-  printf("exec query:\n");
-  taos_query_a(param, "select * from tm1", queryCallback, param);
-}
-
 void createNewTable(TAOS* pConn, int32_t index) {
   char str[1024] = {0};
   sprintf(str, "create table tu%d using st2 tags(%d)", index, index);
@@ -123,7 +112,7 @@ void createNewTable(TAOS* pConn, int32_t index) {
   }
   taos_free_result(pRes);
 
-  for (int32_t i = 0; i < 3280; i += 20) {
+  for(int32_t i = 0; i < 10000; i += 20) {
     char sql[1024] = {0};
     sprintf(sql,
             "insert into tu%d values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
@@ -141,10 +130,49 @@ void createNewTable(TAOS* pConn, int32_t index) {
     taos_free_result(p);
   }
 }
+
+void *queryThread(void *arg) {
+  TAOS* pConn = taos_connect("192.168.0.209", "root", "taosdata", NULL, 0);
+  if (pConn == NULL) {
+    printf("failed to connect to db, reason:%s", taos_errstr(pConn));
+    return NULL;
+  }
+
+  int64_t el = 0;
+
+  for (int32_t i = 0; i < 5000000; ++i) {
+    int64_t st = taosGetTimestampUs();
+    TAOS_RES* pRes = taos_query(pConn,
+                      "SELECT _wstart as ts,max(usage_user) FROM benchmarkcpu.host_49 WHERE  ts >= 1451618560000 AND ts < 1451622160000 INTERVAL(1m) ;");
+    if (taos_errno(pRes) != 0) {
+      printf("failed, reason:%s\n", taos_errstr(pRes));
+    } else {
+      printResult(pRes);
+    }
+
+    taos_free_result(pRes);
+    el += (taosGetTimestampUs() - st);
+    if (i % 1000 == 0 && i != 0) {
+      printf("total:%d, avg time:%.2fms\n", i, el/(double)(i*1000));
+    }
+  }
+
+  taos_close(pConn);
+  return NULL;
+}
+
+static int32_t numOfThreads = 1;
 }  // namespace
 
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
+  if (argc > 1) {
+    numOfThreads = atoi(argv[1]);
+  }
+
+  numOfThreads = TMAX(numOfThreads, 1);
+  printf("the runing threads is:%d", numOfThreads);
+
   return RUN_ALL_TESTS();
 }
 
@@ -664,7 +692,6 @@ TEST(testCase, insert_test) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
-#endif
 
 TEST(testCase, projection_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -676,13 +703,14 @@ TEST(testCase, projection_query_tables) {
   //  }
   //  taos_free_result(pRes);
 
-  TAOS_RES* pRes = taos_query(pConn, "use abc1");
+  TAOS_RES* pRes = taos_query(pConn, "use benchmarkcpu");
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "create stable st1 (ts timestamp, k int) tags(a int)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
   }
+
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "create stable st2 (ts timestamp, k int) tags(a int)");
@@ -721,6 +749,16 @@ TEST(testCase, projection_query_tables) {
 
   taos_free_result(pRes);
   taos_close(pConn);
+}
+#endif
+
+TEST(testCase, tsbs_perf_test) {
+  TdThread qid[20] = {0};
+
+  for(int32_t i = 0; i < numOfThreads; ++i) {
+    taosThreadCreate(&qid[i], NULL, queryThread, NULL);
+  }
+  getchar();
 }
 
 #if 0
