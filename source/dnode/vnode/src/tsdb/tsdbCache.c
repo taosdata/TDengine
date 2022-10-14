@@ -1311,6 +1311,8 @@ int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHand
       // if table's empty or error, return code of -1
       // if (code < 0 || pRow == NULL) {
       if (code < 0 || pLastArray == NULL) {
+        taosThreadMutexUnlock(&pTsdb->lruMutex);
+
         *handle = NULL;
         return 0;
       }
