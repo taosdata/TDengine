@@ -279,7 +279,7 @@ class TDTestQuery(TDCase):
         rows = 0;
         succ_flag = 0
         t = time.time()
-        t_to_s =  time.strftime('%Y-%m-%d-%H', time.localtime(t)) 
+        t_to_s =  time.strftime('%Y-%m-%d', time.localtime(t)) 
         
         try:
             self.tdSql.query(sql,queryTimes=1)
@@ -870,8 +870,9 @@ class TDTestQuery(TDCase):
             return func_column_process 
         elif i == 53:             
             func = ['TO_UNIXTIMESTAMP']
+            import time
             t = time.time()
-            t_to_s =  time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t))     
+            t_to_s =  time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t))    
             column = ['(c3)','(c4)','(t1)','(t_to_s)'] 
             func_column = random.sample(func,1)+random.sample(column,1)
             time_to_unixtimestamp = str(func_column).replace("[","").replace("]","").replace("'","").replace(", ","").replace("\"","").replace("t_to_s","'t_to_s'")
@@ -1694,7 +1695,7 @@ class TDTestQuery(TDCase):
          
         # self.select_column()
         # self.select_column_union()
-        #self.base_function([72,]) # multiple
+        #self.base_function([53,]) # multiple
         # self.base_function([4,5,6]) # sinlge
             
         
