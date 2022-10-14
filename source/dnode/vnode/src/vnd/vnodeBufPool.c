@@ -141,17 +141,17 @@ void *vnodeBufPoolMalloc(SVBufPool *pPool, int size) {
 }
 
 void vnodeBufPoolFree(SVBufPool *pPool, void *p) {
-  uint8_t       *ptr = (uint8_t *)p;
-  SVBufPoolNode *pNode;
+  // uint8_t       *ptr = (uint8_t *)p;
+  // SVBufPoolNode *pNode;
 
-  if (ptr < pPool->node.data || ptr >= pPool->node.data + pPool->node.size) {
-    pNode = &((SVBufPoolNode *)p)[-1];
-    *pNode->pnext = pNode->prev;
-    pNode->prev->pnext = pNode->pnext;
+  // if (ptr < pPool->node.data || ptr >= pPool->node.data + pPool->node.size) {
+  //   pNode = &((SVBufPoolNode *)p)[-1];
+  //   *pNode->pnext = pNode->prev;
+  //   pNode->prev->pnext = pNode->pnext;
 
-    pPool->size = pPool->size - sizeof(*pNode) - pNode->size;
-    taosMemoryFree(pNode);
-  }
+  //   pPool->size = pPool->size - sizeof(*pNode) - pNode->size;
+  //   taosMemoryFree(pNode);
+  // }
 }
 
 void vnodeBufPoolRef(SVBufPool *pPool) {

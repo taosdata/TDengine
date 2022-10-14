@@ -68,7 +68,10 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       int64_t        ctime = taosGetTimestampMs();
       tb_uid_t       uid;
 
-      tInitSubmitMsgIter(pSubmitReq, &msgIter);
+      if (tInitSubmitMsgIter(pSubmitReq, &msgIter) < 0) {
+        code = terrno;
+        goto _err;
+      }
 
       for (;;) {
         tGetSubmitMsgNext(&msgIter, &pBlock);
