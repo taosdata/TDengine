@@ -108,7 +108,7 @@ sudo yum config-manager --set-enabled powertools
 ### macOS
 
 ```
-sudo brew install argp-standalone pkgconfig
+brew install argp-standalone pkgconfig
 ```
 
 ### Setup golang environment
@@ -280,7 +280,7 @@ Installing from source code will also configure service management for TDengine.
 To start the service after installation, double-click the /applications/TDengine to start the program, or in a terminal, use:
 
 ```bash
-launchctl start taosd
+launchctl start com.tdengine.taosd
 ```
 
 Then users can use the TDengine CLI to connect the TDengine server. In a terminal, use:
