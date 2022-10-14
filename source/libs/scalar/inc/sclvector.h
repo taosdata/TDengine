@@ -20,6 +20,15 @@
 extern "C" {
 #endif
 
+typedef struct SSclVectorConvCtx {
+  const SScalarParam* pIn;
+  SScalarParam* pOut;
+  int32_t startIndex; 
+  int32_t endIndex;
+  int16_t inType;
+  int16_t outType;
+} SSclVectorConvCtx;
+
 typedef double (*_getDoubleValue_fn_t)(void *src, int32_t index);
 
 static FORCE_INLINE double getVectorDoubleValue_TINYINT(void *src, int32_t index) {
