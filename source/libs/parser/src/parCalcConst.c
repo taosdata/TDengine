@@ -15,7 +15,7 @@
 
 #include "functionMgt.h"
 #include "parInt.h"
-#include "scalar.h"
+#include "scalar/scalar.h"
 #include "ttime.h"
 
 typedef struct SCalcConstContext {

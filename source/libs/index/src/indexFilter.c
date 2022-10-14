@@ -18,7 +18,7 @@
 #include "indexInt.h"
 #include "nodes.h"
 #include "querynodes.h"
-#include "scalar.h"
+#include "scalar/scalar.h"
 #include "tdatablock.h"
 #include "vnode.h"
 

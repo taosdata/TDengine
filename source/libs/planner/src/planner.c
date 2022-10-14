@@ -16,7 +16,7 @@
 #include "planner.h"
 
 #include "planInt.h"
-#include "scalar.h"
+#include "scalar/scalar.h"
 #include "tglobal.h"
 
 static void dumpQueryPlan(SQueryPlan* pPlan) {

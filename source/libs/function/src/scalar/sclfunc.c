@@ -1,12 +1,11 @@
+#include "scalar/scalar.h"
+#include "scalar/sclInt.h"
+#include "scalar/sclvector.h"
 #include "cJSON.h"
 #include "function.h"
-#include "scalar.h"
-#include "sclInt.h"
-#include "sclvector.h"
 #include "tdatablock.h"
 #include "tjson.h"
 #include "ttime.h"
-#include "vnode.h"
 
 typedef float (*_float_fn)(float);
 typedef double (*_double_fn)(double);
@@ -1720,13 +1719,15 @@ int32_t winEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
   return TSDB_CODE_SUCCESS;
 }
 
+// todo fix this dependency.
 int32_t qTbnameFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   ASSERT(inputNum == 1);
+  ASSERT(0);
 
   uint64_t uid = *(uint64_t *)colDataGetData(pInput->columnData, 0);
 
   char str[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-  metaGetTableNameByUid(pInput->param, uid, str);
+//  metaGetTableNameByUid(pInput->param, uid, str);
   colDataAppendNItems(pOutput->columnData, pOutput->numOfRows, str, pInput->numOfRows);
   pOutput->numOfRows += pInput->numOfRows;
   return TSDB_CODE_SUCCESS;

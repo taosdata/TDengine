@@ -31,7 +31,7 @@ extern "C" {
 #include "executil.h"
 #include "executor.h"
 #include "planner.h"
-#include "scalar.h"
+#include "scalar/scalar.h"
 #include "taosdef.h"
 #include "tarray.h"
 #include "tfill.h"

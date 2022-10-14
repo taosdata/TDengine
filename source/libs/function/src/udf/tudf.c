@@ -24,7 +24,7 @@
 #include "tdatablock.h"
 #include "tglobal.h"
 #include "tudf.h"
-#include "tudfInt.h"
+#include "udf/tudfInt.h"
 
 typedef struct SUdfdData {
   bool         startCalled;

@@ -194,32 +194,6 @@ typedef struct SPoint {
 int32_t taosGetLinearInterpolationVal(SPoint *point, int32_t outputType, SPoint *point1, SPoint *point2,
                                       int32_t inputType);
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// udf api
-/**
- * create udfd proxy, called once in process that call doSetupUdf/callUdfxxx/doTeardownUdf
- * @return error code
- */
-int32_t udfcOpen();
-
-/**
- * destroy udfd proxy
- * @return error code
- */
-int32_t udfcClose();
-
-/**
- * start udfd that serves udf function invocation under dnode startDnodeId
- * @param startDnodeId
- * @return
- */
-int32_t udfStartUdfd(int32_t startDnodeId);
-/**
- * stop udfd
- * @return
- */
-int32_t udfStopUdfd();
-
 #ifdef __cplusplus
 }
 #endif

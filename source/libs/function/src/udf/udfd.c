@@ -20,7 +20,7 @@
 #include "thash.h"
 
 #include "tudf.h"
-#include "tudfInt.h"
+#include "udf/tudfInt.h"
 
 #include "tdatablock.h"
 #include "tdataformat.h"

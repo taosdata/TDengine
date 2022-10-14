@@ -17,7 +17,7 @@
 #include "builtinsimpl.h"
 #include "cJSON.h"
 #include "querynodes.h"
-#include "scalar.h"
+#include "scalar/scalar.h"
 #include "taoserror.h"
 #include "ttime.h"
 

@@ -1,4 +1,4 @@
 enable_testing()
 
 #add_subdirectory(filter)
-add_subdirectory(scalar)
+add_subdirectory(../../function/test/scalar)

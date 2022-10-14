@@ -9,7 +9,7 @@ IF(NOT TD_DARWIN)
         ADD_EXECUTABLE(executorTest ${SOURCE_LIST})
         TARGET_LINK_LIBRARIES(
                 executorTest
-                PRIVATE os util common transport gtest taos_static qcom executor function planner scalar nodes vnode
+                PRIVATE os util common transport gtest taos_static qcom executor function planner nodes vnode
         )
 
         TARGET_INCLUDE_DIRECTORIES(

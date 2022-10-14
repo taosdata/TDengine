@@ -15,12 +15,12 @@
 
 #include "os.h"
 
-#include "filter.h"
-#include "filterInt.h"
+#include "../../inc/scalar/filterInt.h"
+#include "../../inc/scalar/sclInt.h"
+#include "../../inc/scalar/sclvector.h"
 #include "query.h"
 #include "querynodes.h"
-#include "sclInt.h"
-#include "sclvector.h"
+#include "scalar/filter.h"
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "tdataformat.h"

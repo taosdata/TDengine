@@ -14,7 +14,7 @@
  */
 
 #include "executorimpl.h"
-#include "filter.h"
+#include "scalar/filter.h"
 #include "function.h"
 #include "functionMgt.h"
 #include "os.h"

@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tscript.h"
+#include "udf/tscript.h"
 #include "os.h"
 #include "tstrbuild.h"
 #include "ttypes.h"

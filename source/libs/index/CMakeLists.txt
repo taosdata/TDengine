@@ -14,8 +14,7 @@ target_link_libraries(
     PUBLIC common
     PUBLIC vnode
     PUBLIC nodes
-    PUBLIC scalar 
-    PUBLIC function 
+    PUBLIC function
 )
 
 if (${BUILD_WITH_LUCENE})

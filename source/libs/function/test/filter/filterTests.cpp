@@ -32,9 +32,9 @@
 #endif
 #include "os.h"
 
-#include "filter.h"
+#include "scalar/filter.h"
 #include "nodes.h"
-#include "scalar.h"
+#include "scalar/scalar.h"
 #include "stub.h"
 #include "taos.h"
 #include "tdatablock.h"

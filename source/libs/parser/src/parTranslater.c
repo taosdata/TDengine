@@ -17,10 +17,10 @@
 
 #include "catalog.h"
 #include "cmdnodes.h"
-#include "filter.h"
+#include "scalar/filter.h"
 #include "functionMgt.h"
 #include "parUtil.h"
-#include "scalar.h"
+#include "scalar/scalar.h"
 #include "systable.h"
 #include "tglobal.h"
 #include "ttime.h"

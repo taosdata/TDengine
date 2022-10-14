@@ -40,6 +40,8 @@
 #include "wal.h"
 
 #include "libs/function/function.h"
+#include "libs/function/tudf.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

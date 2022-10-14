@@ -35,7 +35,7 @@
 #include "filterInt.h"
 #include "nodes.h"
 #include "parUtil.h"
-#include "scalar.h"
+#include "scalar/scalar.h"
 #include "stub.h"
 #include "taos.h"
 #include "tdatablock.h"

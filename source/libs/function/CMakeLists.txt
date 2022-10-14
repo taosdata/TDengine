@@ -1,10 +1,14 @@
-aux_source_directory(src FUNCTION_SRC)
-list(REMOVE_ITEM FUNCTION_SRC src/udfd.c)
-add_library(function STATIC ${FUNCTION_SRC})
+aux_source_directory(src  FUNCTION_SRC)
+aux_source_directory(src/scalar SCALAR_SRC)
+aux_source_directory(src/udf UDF_SRC)
+
+add_library(function STATIC ${FUNCTION_SRC} ${SCALAR_SRC} ${UDF_SRC})
 target_include_directories(
     function
     PUBLIC
         "${TD_SOURCE_DIR}/include/libs/function"
+#        "${TD_SOURCE_DIR}/include/libs/function/udf"
+        "${TD_SOURCE_DIR}/include/libs/function/scalar"
         "${TD_SOURCE_DIR}/include/util"
         "${TD_SOURCE_DIR}/include/common"
         "${TD_SOURCE_DIR}/include/client"
@@ -19,8 +23,7 @@ target_link_libraries(
     PRIVATE common 
     PRIVATE nodes 
     PRIVATE qcom 
-    PRIVATE scalar 
-    PRIVATE transport 
+    PRIVATE transport
     PRIVATE stream
     PUBLIC uv_a
 )
@@ -54,8 +57,8 @@ target_include_directories(
             "${TD_SOURCE_DIR}/include/os"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
-target_link_libraries(
-    udf1 PUBLIC os)
+
+target_link_libraries(udf1 PUBLIC os)
 
 add_library(udf2 STATIC MODULE test/udf2.c)
 target_include_directories(
@@ -73,7 +76,7 @@ target_link_libraries(
 )
 
 #SET(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/build/bin)
-add_executable(udfd src/udfd.c)
+add_executable(udfd src/udf/udfd.c)
 target_include_directories(
         udfd
         PUBLIC
