@@ -26,6 +26,7 @@
 #include "tfs.h"
 #include "wal.h"
 
+#include "index.h"
 #include "tcommon.h"
 #include "tfs.h"
 #include "tgrant.h"
