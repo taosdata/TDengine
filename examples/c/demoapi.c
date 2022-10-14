@@ -74,7 +74,12 @@ static void prepare_data(TAOS* taos) {
     res = taos_query(taos, "create database test;");
     taos_free_result(res);
     taosMsleep(100);
-    taos_select_db(taos, "test");
+    if (taos_select_db(taos, "test")) {
+        errorPrint("%s() LN%d: error no: %d, reason: %s\n",
+                __func__, __LINE__, taos_errno(res), taos_errstr(res));
+        taos_free_result(res);
+        return;
+    }
 
     char command[1024] = {0};
     sprintf(command, "%s", "create table meters(ts timestamp, f float, n int, bin1 binary(20), c nchar(20), bin2 binary(20)) tags(area int, city binary(20), dist nchar(20), street binary(20));");

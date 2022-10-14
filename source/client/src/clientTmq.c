@@ -972,6 +972,8 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   req.topicNames = taosArrayInit(sz, sizeof(void*));
   if (req.topicNames == NULL) goto FAIL;
 
+  tscDebug("call tmq subscribe, consumer: %ld, topic num %d", tmq->consumerId, sz);
+
   for (int32_t i = 0; i < sz; i++) {
     char* topic = taosArrayGetP(container, i);
 
@@ -1297,7 +1299,8 @@ int32_t tmqAskEpCb(void* param, SDataBuf* pMsg, int32_t code) {
 
   pParam->code = code;
   if (code != 0) {
-    tscError("consumer:%" PRId64 ", get topic endpoint error, not ready, wait:%d", tmq->consumerId, pParam->async);
+    tscError("consumer:%" PRId64 ", get topic endpoint error, not ready, wait:%d, code %x", tmq->consumerId,
+             pParam->async, code);
     goto END;
   }
 
