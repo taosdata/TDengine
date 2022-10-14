@@ -15,8 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "tcache.h"
-#include "taoserror.h"
 #include "osThread.h"
+#include "taoserror.h"
 #include "tlog.h"
 #include "tutil.h"
 
@@ -35,7 +35,7 @@ typedef struct SCacheNode {
   uint64_t           addedTime;   // the added time when this element is added or updated into cache
   uint64_t           lifespan;    // life duration when this element should be remove from cache
   int64_t            expireTime;  // expire time
-  void*              signature;
+  void              *signature;
   struct STrashElem *pTNodeHeader;    // point to trash node head
   uint16_t           keyLen : 15;     // max key size: 32kb
   bool               inTrashcan : 1;  // denote if it is in trash or not
@@ -279,7 +279,7 @@ static void removeNodeInEntryList(SCacheEntry *pe, SCacheNode *prev, SCacheNode 
 
   pNode->pNext = NULL;
   pe->num -= 1;
-  ASSERT((pe->next && pe->num > 0) || (NULL == pe->next && pe->num == 0));  
+  ASSERT((pe->next && pe->num > 0) || (NULL == pe->next && pe->num == 0));
 }
 
 static FORCE_INLINE SCacheEntry *doFindEntry(SCacheObj *pCacheObj, const void *key, size_t keyLen) {
@@ -660,7 +660,7 @@ void doTraverseElems(SCacheObj *pCacheObj, bool (*fp)(void *param, SCacheNode *p
     taosWLockLatch(&pEntry->latch);
 
     SCacheNode **pPre = &pEntry->next;
-    SCacheNode *pNode = pEntry->next;
+    SCacheNode  *pNode = pEntry->next;
     while (pNode != NULL) {
       SCacheNode *next = pNode->pNext;
 
@@ -945,7 +945,7 @@ bool taosCacheIterNext(SCacheIter *pIter) {
       char *p = pIter->pCurrent[i]->data;
       taosCacheRelease(pCacheObj, (void **)&p, false);
       pIter->pCurrent[i] = NULL;
-    }   
+    }
 
     if (pIter->entryIndex + 1 >= pCacheObj->capacity) {
       return false;

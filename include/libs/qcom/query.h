@@ -61,7 +61,6 @@ typedef struct STableComInfo {
   int32_t  rowSize;       // row size of the schema
 } STableComInfo;
 
-
 typedef struct SIndexMeta {
 #if defined(WINDOWS) || defined(_TD_DARWIN_64)
   size_t avoidCompilationErrors;
@@ -70,11 +69,11 @@ typedef struct SIndexMeta {
 } SIndexMeta;
 
 typedef struct SExecResult {
-  int32_t         code;
-  uint64_t        numOfRows;
-  uint64_t        numOfBytes;
-  int32_t         msgType;
-  void*           res;
+  int32_t  code;
+  uint64_t numOfRows;
+  uint64_t numOfBytes;
+  int32_t  msgType;
+  void*    res;
 } SExecResult;
 
 typedef struct STbVerInfo {
@@ -166,7 +165,7 @@ typedef struct SRequestConnInfo {
   SEpSet   mgmtEps;
 } SRequestConnInfo;
 
-typedef void (*__freeFunc)(void *param);
+typedef void (*__freeFunc)(void* param);
 
 typedef struct SMsgSendInfo {
   __async_send_cb_fn_t fp;      // async callback function
@@ -218,7 +217,7 @@ void initQueryModuleMsgHandle();
 const SSchema* tGetTbnameColumnSchema();
 bool           tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags);
 
-int32_t queryCreateCTableMetaFromMsg(STableMetaRsp *msg, SCTableMeta *pMeta);
+int32_t queryCreateCTableMetaFromMsg(STableMetaRsp* msg, SCTableMeta* pMeta);
 int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta** pMeta);
 char*   jobTaskStatusStr(int32_t status);
 
@@ -231,7 +230,7 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst);
 int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst);
 
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char** msg, int32_t msgSize, int32_t* msgLen,
-                                          void* (*mallocFp)(int32_t));
+                                          void* (*mallocFp)(int64_t));
 extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t msgSize);
 
 #define SET_META_TYPE_NULL(t)       (t) = META_TYPE_NULL_TABLE
@@ -250,64 +249,66 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 #define NEED_CLIENT_HANDLE_ERROR(_code)                                          \
   (NEED_CLIENT_RM_TBLMETA_ERROR(_code) || NEED_CLIENT_REFRESH_VG_ERROR(_code) || \
    NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code))
-#define NEED_REDIRECT_ERROR(_code)                                                      \
-  ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL ||     \
-   (_code) == TSDB_CODE_NODE_NOT_DEPLOYED || (_code) == TSDB_CODE_SYN_NOT_LEADER ||     \
+#define NEED_REDIRECT_ERROR(_code)                                                  \
+  ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL || \
+   (_code) == TSDB_CODE_NODE_NOT_DEPLOYED || (_code) == TSDB_CODE_SYN_NOT_LEADER || \
    (_code) == TSDB_CODE_APP_NOT_READY || (_code) == TSDB_CODE_RPC_BROKEN_LINK)
-  
+
 #define NEED_CLIENT_RM_TBLMETA_REQ(_type)                                                                  \
   ((_type) == TDMT_VND_CREATE_TABLE || (_type) == TDMT_MND_CREATE_STB || (_type) == TDMT_VND_DROP_TABLE || \
    (_type) == TDMT_MND_DROP_STB)
 
-#define NEED_SCHEDULER_REDIRECT_ERROR(_code)                                                      \
-  ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_NODE_NOT_DEPLOYED ||                 \
+#define NEED_SCHEDULER_REDIRECT_ERROR(_code)                                      \
+  ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_NODE_NOT_DEPLOYED || \
    (_code) == TSDB_CODE_SYN_NOT_LEADER || (_code) == TSDB_CODE_APP_NOT_READY)
 
 #define REQUEST_TOTAL_EXEC_TIMES 2
 
-#define IS_SYS_DBNAME(_dbname) (((*(_dbname) == 'i') && (0 == strcmp(_dbname, TSDB_INFORMATION_SCHEMA_DB))) || ((*(_dbname) == 'p') && (0 == strcmp(_dbname, TSDB_PERFORMANCE_SCHEMA_DB))))
+#define IS_SYS_DBNAME(_dbname)                                                    \
+  (((*(_dbname) == 'i') && (0 == strcmp(_dbname, TSDB_INFORMATION_SCHEMA_DB))) || \
+   ((*(_dbname) == 'p') && (0 == strcmp(_dbname, TSDB_PERFORMANCE_SCHEMA_DB))))
 
-#define qFatal(...)                                                                           \
-  do {                                                                                        \
-    if (qDebugFlag & DEBUG_FATAL) {                                                           \
+#define qFatal(...)                                                     \
+  do {                                                                  \
+    if (qDebugFlag & DEBUG_FATAL) {                                     \
       taosPrintLog("QRY FATAL ", DEBUG_FATAL, qDebugFlag, __VA_ARGS__); \
-    }                                                                                         \
+    }                                                                   \
   } while (0)
-#define qError(...)                                                                           \
-  do {                                                                                        \
-    if (qDebugFlag & DEBUG_ERROR) {                                                           \
+#define qError(...)                                                     \
+  do {                                                                  \
+    if (qDebugFlag & DEBUG_ERROR) {                                     \
       taosPrintLog("QRY ERROR ", DEBUG_ERROR, qDebugFlag, __VA_ARGS__); \
-    }                                                                                         \
+    }                                                                   \
   } while (0)
-#define qWarn(...)                                                                          \
-  do {                                                                                      \
-    if (qDebugFlag & DEBUG_WARN) {                                                          \
+#define qWarn(...)                                                    \
+  do {                                                                \
+    if (qDebugFlag & DEBUG_WARN) {                                    \
       taosPrintLog("QRY WARN ", DEBUG_WARN, qDebugFlag, __VA_ARGS__); \
-    }                                                                                       \
+    }                                                                 \
   } while (0)
-#define qInfo(...)                                                                     \
-  do {                                                                                 \
-    if (qDebugFlag & DEBUG_INFO) {                                                     \
+#define qInfo(...)                                               \
+  do {                                                           \
+    if (qDebugFlag & DEBUG_INFO) {                               \
       taosPrintLog("QRY ", DEBUG_INFO, qDebugFlag, __VA_ARGS__); \
-    }                                                                                  \
+    }                                                            \
   } while (0)
-#define qDebug(...)                                                                     \
-  do {                                                                                  \
-    if (qDebugFlag & DEBUG_DEBUG) {                                                     \
+#define qDebug(...)                                               \
+  do {                                                            \
+    if (qDebugFlag & DEBUG_DEBUG) {                               \
       taosPrintLog("QRY ", DEBUG_DEBUG, qDebugFlag, __VA_ARGS__); \
-    }                                                                                   \
+    }                                                             \
   } while (0)
-#define qTrace(...)                                                                     \
-  do {                                                                                  \
-    if (qDebugFlag & DEBUG_TRACE) {                                                     \
+#define qTrace(...)                                               \
+  do {                                                            \
+    if (qDebugFlag & DEBUG_TRACE) {                               \
       taosPrintLog("QRY ", DEBUG_TRACE, qDebugFlag, __VA_ARGS__); \
-    }                                                                                   \
+    }                                                             \
   } while (0)
-#define qDebugL(...)                                                                           \
-  do {                                                                                         \
-    if (qDebugFlag & DEBUG_DEBUG) {                                                            \
+#define qDebugL(...)                                                     \
+  do {                                                                   \
+    if (qDebugFlag & DEBUG_DEBUG) {                                      \
       taosPrintLongString("QRY ", DEBUG_DEBUG, qDebugFlag, __VA_ARGS__); \
-    }                                                                                          \
+    }                                                                    \
   } while (0)
 
 #define QRY_ERR_RET(c)                \

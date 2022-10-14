@@ -615,7 +615,7 @@ function update_TDengine() {
     if [ "$osType" != "Darwin" ]; then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${serverName}${NC}"
     else
-      echo -e "${GREEN_DARK}To start service      ${NC}: launchctl start ${serverName}${NC}"
+      echo -e "${GREEN_DARK}To start service      ${NC}: launchctl start com.tdengine.taosd${NC}"
     fi
     [ -f ${installDir}/bin/taosadapter ] && \
       echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: taosadapter &${NC}"
@@ -666,7 +666,7 @@ function install_TDengine() {
     if [ "$osType" != "Darwin" ]; then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${serverName}${NC}"
     else
-      echo -e "${GREEN_DARK}To start service      ${NC}: launchctl start ${serverName}${NC}"
+      echo -e "${GREEN_DARK}To start service      ${NC}: launchctl start com.tdengine.taosd${NC}"
     fi
     [ -f ${installDir}/bin/taosadapter ] && \
       echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: taosadapter &${NC}"

@@ -67,11 +67,11 @@ static int64_t user_mktime64(const uint32_t year0, const uint32_t mon0, const ui
 // ==== mktime() kernel code =================//
 static int64_t m_deltaUtc = 0;
 void           deltaToUtcInitOnce() {
-  struct tm tm = {0};
+            struct tm tm = {0};
 
-  (void)taosStrpTime("1970-01-01 00:00:00", (const char*)("%Y-%m-%d %H:%M:%S"), &tm);
-  m_deltaUtc = (int64_t)taosMktime(&tm);
-  // printf("====delta:%lld\n\n", seconds);
+            (void)taosStrpTime("1970-01-01 00:00:00", (const char*)("%Y-%m-%d %H:%M:%S"), &tm);
+            m_deltaUtc = (int64_t)taosMktime(&tm);
+            // printf("====delta:%lld\n\n", seconds);
 }
 
 static int64_t parseFraction(char* str, char** end, int32_t timePrec);
@@ -81,8 +81,8 @@ static int32_t parseLocaltimeDst(char* timestr, int32_t len, int64_t* utime, int
 static char*   forwardToTimeStringEnd(char* str);
 static bool    checkTzPresent(const char* str, int32_t len);
 
-static int32_t (*parseLocaltimeFp[])(char* timestr, int32_t len, int64_t* utime, int32_t timePrec, char delim) = {parseLocaltime,
-                                                                                                                  parseLocaltimeDst};
+static int32_t (*parseLocaltimeFp[])(char* timestr, int32_t len, int64_t* utime, int32_t timePrec, char delim) = {
+    parseLocaltime, parseLocaltimeDst};
 
 int32_t taosParseTime(const char* timestr, int64_t* utime, int32_t len, int32_t timePrec, int8_t day_light) {
   /* parse datatime string in with tz */
@@ -324,7 +324,7 @@ static FORCE_INLINE bool validateTm(struct tm* pTm) {
 
   int32_t leapYearMonthDay = 29;
   int32_t year = pTm->tm_year + 1900;
-  bool isLeapYear = ((year % 100) == 0)? ((year % 400) == 0):((year % 4) == 0);
+  bool    isLeapYear = ((year % 100) == 0) ? ((year % 400) == 0) : ((year % 4) == 0);
 
   if (isLeapYear && (pTm->tm_mon == 1)) {
     if (pTm->tm_mday > leapYearMonthDay) {
@@ -336,14 +336,14 @@ static FORCE_INLINE bool validateTm(struct tm* pTm) {
     }
   }
 
-  return  true;
+  return true;
 }
 
 int32_t parseLocaltime(char* timestr, int32_t len, int64_t* time, int32_t timePrec, char delim) {
   *time = 0;
   struct tm tm = {0};
 
-  char *str;
+  char* str;
   if (delim == 'T') {
     str = taosStrpTime(timestr, "%Y-%m-%dT%H:%M:%S", &tm);
   } else if (delim == 0) {
@@ -353,7 +353,7 @@ int32_t parseLocaltime(char* timestr, int32_t len, int64_t* time, int32_t timePr
   }
 
   if (str == NULL || (((str - timestr) < len) && (*str != '.')) || !validateTm(&tm)) {
-    //if parse failed, try "%Y-%m-%d" format
+    // if parse failed, try "%Y-%m-%d" format
     str = taosStrpTime(timestr, "%Y-%m-%d", &tm);
     if (str == NULL || (((str - timestr) < len) && (*str != '.')) || !validateTm(&tm)) {
       return -1;
@@ -390,7 +390,7 @@ int32_t parseLocaltimeDst(char* timestr, int32_t len, int64_t* time, int32_t tim
   struct tm tm = {0};
   tm.tm_isdst = -1;
 
-  char *str;
+  char* str;
   if (delim == 'T') {
     str = taosStrpTime(timestr, "%Y-%m-%dT%H:%M:%S", &tm);
   } else if (delim == 0) {
@@ -400,7 +400,7 @@ int32_t parseLocaltimeDst(char* timestr, int32_t len, int64_t* time, int32_t tim
   }
 
   if (str == NULL || (((str - timestr) < len) && (*str != '.')) || !validateTm(&tm)) {
-    //if parse failed, try "%Y-%m-%d" format
+    // if parse failed, try "%Y-%m-%d" format
     str = taosStrpTime(timestr, "%Y-%m-%d", &tm);
     if (str == NULL || (((str - timestr) < len) && (*str != '.')) || !validateTm(&tm)) {
       return -1;
@@ -438,14 +438,12 @@ char getPrecisionUnit(int32_t precision) {
 }
 
 int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrecision) {
-  assert(fromPrecision == TSDB_TIME_PRECISION_MILLI ||
-         fromPrecision == TSDB_TIME_PRECISION_MICRO ||
+  assert(fromPrecision == TSDB_TIME_PRECISION_MILLI || fromPrecision == TSDB_TIME_PRECISION_MICRO ||
          fromPrecision == TSDB_TIME_PRECISION_NANO);
-  assert(toPrecision == TSDB_TIME_PRECISION_MILLI ||
-         toPrecision == TSDB_TIME_PRECISION_MICRO ||
+  assert(toPrecision == TSDB_TIME_PRECISION_MILLI || toPrecision == TSDB_TIME_PRECISION_MICRO ||
          toPrecision == TSDB_TIME_PRECISION_NANO);
   double tempResult = (double)time;
-  switch(fromPrecision) {
+  switch (fromPrecision) {
     case TSDB_TIME_PRECISION_MILLI: {
       switch (toPrecision) {
         case TSDB_TIME_PRECISION_MILLI:
@@ -459,7 +457,7 @@ int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrec
           time *= 1000000;
           goto end_;
       }
-    } // end from milli
+    }  // end from milli
     case TSDB_TIME_PRECISION_MICRO: {
       switch (toPrecision) {
         case TSDB_TIME_PRECISION_MILLI:
@@ -471,7 +469,7 @@ int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrec
           time *= 1000;
           goto end_;
       }
-    } //end from micro
+    }  // end from micro
     case TSDB_TIME_PRECISION_NANO: {
       switch (toPrecision) {
         case TSDB_TIME_PRECISION_MILLI:
@@ -481,20 +479,21 @@ int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrec
         case TSDB_TIME_PRECISION_NANO:
           return time;
       }
-    } //end from nano
+    }  // end from nano
     default: {
       assert(0);
       return time;  // only to pass windows compilation
     }
-  } //end switch fromPrecision
+  }  // end switch fromPrecision
 end_:
   if (tempResult >= (double)INT64_MAX) return INT64_MAX;
   if (tempResult <= (double)INT64_MIN) return INT64_MIN;  // INT64_MIN means NULL
   return time;
 }
 
-// !!!!notice:there are precision problems, double lose precison if time is too large, for example: 1626006833631000000*1.0 = double = 1626006833631000064
-//int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrecision) {
+// !!!!notice:there are precision problems, double lose precison if time is too large, for example:
+// 1626006833631000000*1.0 = double = 1626006833631000064
+// int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrecision) {
 //  assert(fromPrecision == TSDB_TIME_PRECISION_MILLI || fromPrecision == TSDB_TIME_PRECISION_MICRO ||
 //         fromPrecision == TSDB_TIME_PRECISION_NANO);
 //  assert(toPrecision == TSDB_TIME_PRECISION_MILLI || toPrecision == TSDB_TIME_PRECISION_MICRO ||
@@ -503,53 +502,53 @@ end_:
 //  ((double)time * factors[fromPrecision][toPrecision]);
 //}
 
-
-// !!!!notice: double lose precison if time is too large, for example: 1626006833631000000*1.0 = double = 1626006833631000064
+// !!!!notice: double lose precison if time is too large, for example: 1626006833631000000*1.0 = double =
+// 1626006833631000064
 int64_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char toUnit) {
   assert(fromPrecision == TSDB_TIME_PRECISION_MILLI || fromPrecision == TSDB_TIME_PRECISION_MICRO ||
          fromPrecision == TSDB_TIME_PRECISION_NANO);
   int64_t factors[3] = {NANOSECOND_PER_MSEC, NANOSECOND_PER_USEC, 1};
-  double tmp = time;
+  double  tmp = time;
   switch (toUnit) {
-    case 's':{
-      tmp /= (NANOSECOND_PER_SEC/factors[fromPrecision]);     // the result of division is an integer
-      time /= (NANOSECOND_PER_SEC/factors[fromPrecision]);
+    case 's': {
+      tmp /= (NANOSECOND_PER_SEC / factors[fromPrecision]);  // the result of division is an integer
+      time /= (NANOSECOND_PER_SEC / factors[fromPrecision]);
       break;
     }
     case 'm':
-      tmp /= (NANOSECOND_PER_MINUTE/factors[fromPrecision]);  // the result of division is an integer
-      time /= (NANOSECOND_PER_MINUTE/factors[fromPrecision]);
+      tmp /= (NANOSECOND_PER_MINUTE / factors[fromPrecision]);  // the result of division is an integer
+      time /= (NANOSECOND_PER_MINUTE / factors[fromPrecision]);
       break;
     case 'h':
-      tmp /= (NANOSECOND_PER_HOUR/factors[fromPrecision]);    // the result of division is an integer
-      time /= (NANOSECOND_PER_HOUR/factors[fromPrecision]);
+      tmp /= (NANOSECOND_PER_HOUR / factors[fromPrecision]);  // the result of division is an integer
+      time /= (NANOSECOND_PER_HOUR / factors[fromPrecision]);
       break;
     case 'd':
-      tmp /= (NANOSECOND_PER_DAY/factors[fromPrecision]);     // the result of division is an integer
-      time /= (NANOSECOND_PER_DAY/factors[fromPrecision]);
+      tmp /= (NANOSECOND_PER_DAY / factors[fromPrecision]);  // the result of division is an integer
+      time /= (NANOSECOND_PER_DAY / factors[fromPrecision]);
       break;
     case 'w':
-      tmp /= (NANOSECOND_PER_WEEK/factors[fromPrecision]);    // the result of division is an integer
-      time /= (NANOSECOND_PER_WEEK/factors[fromPrecision]);
+      tmp /= (NANOSECOND_PER_WEEK / factors[fromPrecision]);  // the result of division is an integer
+      time /= (NANOSECOND_PER_WEEK / factors[fromPrecision]);
       break;
     case 'a':
-      tmp /= (NANOSECOND_PER_MSEC/factors[fromPrecision]);    // the result of division is an integer
-      time /= (NANOSECOND_PER_MSEC/factors[fromPrecision]);
+      tmp /= (NANOSECOND_PER_MSEC / factors[fromPrecision]);  // the result of division is an integer
+      time /= (NANOSECOND_PER_MSEC / factors[fromPrecision]);
       break;
     case 'u':
       // the result of (NANOSECOND_PER_USEC/(double)factors[fromPrecision]) maybe a double
       switch (fromPrecision) {
-        case TSDB_TIME_PRECISION_MILLI:{
+        case TSDB_TIME_PRECISION_MILLI: {
           tmp *= 1000;
           time *= 1000;
           break;
         }
-        case TSDB_TIME_PRECISION_MICRO:{
+        case TSDB_TIME_PRECISION_MICRO: {
           tmp /= 1;
           time /= 1;
           break;
         }
-        case TSDB_TIME_PRECISION_NANO:{
+        case TSDB_TIME_PRECISION_NANO: {
           tmp /= 1000;
           time /= 1000;
           break;
@@ -569,11 +568,11 @@ int64_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char
   return time;
 }
 
-int32_t convertStringToTimestamp(int16_t type, char *inputData, int64_t timePrec, int64_t *timeVal) {
+int32_t convertStringToTimestamp(int16_t type, char* inputData, int64_t timePrec, int64_t* timeVal) {
   int32_t charLen = varDataLen(inputData);
-  char *newColData;
+  char*   newColData;
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY) {
-    newColData = taosMemoryCalloc(1,  charLen + 1);
+    newColData = taosMemoryCalloc(1, charLen + 1);
     memcpy(newColData, varDataVal(inputData), charLen);
     int32_t ret = taosParseTime(newColData, timeVal, charLen, (int32_t)timePrec, tsDaylight);
     if (ret != TSDB_CODE_SUCCESS) {
@@ -582,9 +581,9 @@ int32_t convertStringToTimestamp(int16_t type, char *inputData, int64_t timePrec
     }
     taosMemoryFree(newColData);
   } else if (type == TSDB_DATA_TYPE_NCHAR) {
-    newColData = taosMemoryCalloc(1,  charLen + TSDB_NCHAR_SIZE);
-    int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inputData), charLen, newColData);
-    if (len < 0){
+    newColData = taosMemoryCalloc(1, charLen + TSDB_NCHAR_SIZE);
+    int len = taosUcs4ToMbs((TdUcs4*)varDataVal(inputData), charLen, newColData);
+    if (len < 0) {
       taosMemoryFree(newColData);
       return TSDB_CODE_FAILED;
     }
@@ -877,8 +876,8 @@ const char* fmtts(int64_t ts) {
 }
 
 void taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precision) {
-  char       ts[40] = {0};
-  struct tm  ptm;
+  char      ts[40] = {0};
+  struct tm ptm;
 
   int32_t fractionLen;
   char*   format = NULL;

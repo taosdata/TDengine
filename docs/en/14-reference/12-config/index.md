@@ -675,7 +675,7 @@ To prevent system resource from being exhausted by multiple concurrent streams, 
 | Meaning       | Whether to generate core file when server crashes                                                                                                                       |
 | Value Range   | 0: false, 1: true                                                                                                                                                       |
 | Default Value | 1                                                                                                                                                                       |
-| Note          | The core file is generated under root directory `systemctl/launchctl start taosd` is used to start, or under the working directory if `taosd` is started directly on Linux/macOS Shell. |
+| Note          | The core file is generated under root directory `systemctl start taosd`/`launchctl start com.tdengine.taosd` is used to start, or under the working directory if `taosd` is started directly on Linux/macOS Shell. |
 
 ### udf
 

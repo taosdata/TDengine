@@ -47,7 +47,7 @@ class Testbase {
   int32_t    connId;
 
  public:
-  int32_t SendShowReq(int8_t showType, const char *tb, const char* db);
+  int32_t SendShowReq(int8_t showType, const char* tb, const char* db);
   int32_t GetShowRows();
 
 #if 0
