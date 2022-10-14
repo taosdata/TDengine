@@ -232,12 +232,11 @@ endi
 if  $leaderNum != 1 then
   goto step81
 endi
-if $data(1)[3] != dropping then
-  goto step81
-endi
 
 print =============== step9: start mnode1 and wait it dropped
 system sh/exec.sh -n dnode1 -s start
+sql drop mnode on dnode 1 -x step90
+step90:
 
 $x = 0
 step91: 

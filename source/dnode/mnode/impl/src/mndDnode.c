@@ -423,7 +423,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         goto _OVER;
       } else {
         pDnode->accessTimes++;
-        mTrace("dnode:%d, status received, access times %d", pDnode->id, pDnode->accessTimes);
+        mDebug("dnode:%d, status received, access times %d", pDnode->id, pDnode->accessTimes);
       }
     }
 
@@ -471,6 +471,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   }
 
   pDnode->lastAccessTime = curMs;
+  pDnode->accessTimes++;
   code = 0;
 
 _OVER:
