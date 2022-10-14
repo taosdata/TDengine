@@ -17,8 +17,8 @@
 #define _TD_VNODE_DEF_H_
 
 #include "executor.h"
-#include "scalar/filter.h"
 #include "qworker.h"
+#include "scalar/filter.h"
 #include "sync.h"
 #include "tRealloc.h"
 #include "tchecksum.h"

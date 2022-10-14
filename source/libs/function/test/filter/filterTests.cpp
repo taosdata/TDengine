@@ -32,8 +32,8 @@
 #endif
 #include "os.h"
 
-#include "scalar/filter.h"
 #include "nodes.h"
+#include "scalar/filter.h"
 #include "scalar/scalar.h"
 #include "stub.h"
 #include "taos.h"

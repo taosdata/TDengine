@@ -13,11 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "scalar/filter.h"
 #include "function.h"
 #include "functionMgt.h"
 #include "os.h"
 #include "querynodes.h"
+#include "scalar/filter.h"
 #include "tfill.h"
 #include "tname.h"
 #include "tref.h"

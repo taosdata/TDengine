@@ -1,7 +1,8 @@
 #!/bin/bash
 
 PRJ_ROOT_DIR=$(readlink -f -- "$(dirname $0)/../..")
-FORMAT_BIN=clang-format-14
+# FORMAT_BIN=clang-format-14
+FORMAT_BIN=/root/.vscode-server/extensions/ms-vscode.cpptools-1.12.4-linux-x64/LLVM/bin/clang-format
 
 ORIGIN_DIR=$(pwd)
 

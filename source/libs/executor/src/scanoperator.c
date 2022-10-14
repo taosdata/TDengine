@@ -14,11 +14,11 @@
  */
 
 #include "executorimpl.h"
-#include "scalar/filter.h"
 #include "function.h"
 #include "functionMgt.h"
 #include "os.h"
 #include "querynodes.h"
+#include "scalar/filter.h"
 #include "systable.h"
 #include "tname.h"
 #include "ttime.h"

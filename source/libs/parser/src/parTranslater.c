@@ -17,9 +17,9 @@
 
 #include "catalog.h"
 #include "cmdnodes.h"
-#include "scalar/filter.h"
 #include "functionMgt.h"
 #include "parUtil.h"
+#include "scalar/filter.h"
 #include "scalar/scalar.h"
 #include "systable.h"
 #include "tglobal.h"
