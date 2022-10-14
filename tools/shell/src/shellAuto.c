@@ -341,7 +341,7 @@ void printfIntroduction() {
 }
 
 void showHelp() {
-  printf("\nThe following are supported commands for TDengine Command Line:");
+  printf("\nFollowing are the commands supported by TDengine command line:");
   printf(
       "\n\
   ----- A ----- \n\
