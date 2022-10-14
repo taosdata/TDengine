@@ -126,6 +126,8 @@ typedef struct SSerializeDataHandle {
   struct SDiskbasedBuf *pBuf;
   int32_t               currentPage;
   void                 *pState;
+  int32_t (*statePut)(void *pState, const STupleKey *key, const void *value, int32_t vLen);
+  int32_t (*stateGet)(void *pState, const STupleKey *key, void **pVal, int32_t *pVLen);
 } SSerializeDataHandle;
 
 // sql function runtime context

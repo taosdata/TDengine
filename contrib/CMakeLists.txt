@@ -144,6 +144,9 @@ execute_process(COMMAND "${CMAKE_COMMAND}" --build .
 # ================================================================================================
 # Build
 # ================================================================================================
+
+string(REPLACE "-g3" "-g0" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
+
 # googletest
 if(${BUILD_TEST})
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)

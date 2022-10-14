@@ -24,8 +24,6 @@ target_link_libraries(
     PRIVATE nodes 
     PRIVATE qcom 
     PRIVATE transport
-    PRIVATE stream
-    PUBLIC uv_a
 )
 
 add_executable(runUdf test/runUdf.c)
