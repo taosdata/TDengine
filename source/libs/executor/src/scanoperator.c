@@ -1473,7 +1473,9 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
     }
   }
 
-  doFilter(pInfo->pCondition, pInfo->pRes, NULL, NULL);
+  if (filter) {
+    doFilter(pInfo->pCondition, pInfo->pRes, NULL, NULL);
+  }
   blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
   blockDataFreeRes((SSDataBlock*)pBlock);
 
