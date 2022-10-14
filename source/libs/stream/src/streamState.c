@@ -153,10 +153,12 @@ int32_t streamStateAbort(SStreamState* pState) {
   return 0;
 }
 
-int32_t streamStateFuncPut(SStreamState* pState, const STupleKey* key, const void* value, int32_t vLen) {
+int32_t streamStateFuncPut(void* p, const STupleKey* key, const void* value, int32_t vLen) {
+  SStreamState* pState = (SStreamState*)p;
   return tdbTbUpsert(pState->pFuncStateDb, key, sizeof(STupleKey), value, vLen, &pState->txn);
 }
-int32_t streamStateFuncGet(SStreamState* pState, const STupleKey* key, void** pVal, int32_t* pVLen) {
+int32_t streamStateFuncGet(void* p, const STupleKey* key, void** pVal, int32_t* pVLen) {
+  SStreamState* pState = (SStreamState*)p;
   return tdbTbGet(pState->pFuncStateDb, key, sizeof(STupleKey), pVal, pVLen);
 }
 

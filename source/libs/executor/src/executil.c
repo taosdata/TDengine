@@ -1391,6 +1391,8 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
 
     pCtx->param = pFunct->pParam;
     pCtx->saveHandle.currentPage = -1;
+    pCtx->saveHandle.statePut = streamStateFuncPut;
+    pCtx->saveHandle.stateGet = streamStateFuncGet;
   }
 
   for (int32_t i = 1; i < numOfOutput; ++i) {
