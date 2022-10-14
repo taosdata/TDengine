@@ -189,13 +189,13 @@ After the installation is complete, run `C:\TDengine\taosd.exe` to start TDengin
 
 <TabItem label="macOS" value="macos">
 
-After the installation is complete, double-click the /applications/TDengine to start the program, or run `launchctl start taosd` to start TDengine Server.
+After the installation is complete, double-click the /applications/TDengine to start the program, or run `launchctl start com.tdengine.taosd` to start TDengine Server.
 
 The following `launchctl` commands can help you manage TDengine service:
 
-- Start TDengine Server: `launchctl start taosd`
+- Start TDengine Server: `launchctl start com.tdengine.taosd`
 
-- Stop TDengine Server: `launchctl stop taosd`
+- Stop TDengine Server: `launchctl stop com.tdengine.taosd`
 
 - Check TDengine Server status: `launchctl list | grep taosd`
 
