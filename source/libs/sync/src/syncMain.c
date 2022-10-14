@@ -262,7 +262,7 @@ int32_t syncReconfig(int64_t rid, SSyncCfg* pNewCfg) {
   return ret;
 #else
   syncNodeUpdateNewConfigIndex(pSyncNode, pNewCfg);
-  syncNodeDoConfigChange(pSyncNode, pNewCfg, 0);
+  syncNodeDoConfigChange(pSyncNode, pNewCfg, SYNC_INDEX_INVALID);
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   return 0;
 #endif
