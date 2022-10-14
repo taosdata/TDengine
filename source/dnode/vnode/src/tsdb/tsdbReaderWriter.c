@@ -124,7 +124,7 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno) {
   }
 
   // check
-  if (!taosCheckChecksumWhole(pFD->pBuf, pFD->szPage)) {
+  if (pgno > 1 && !taosCheckChecksumWhole(pFD->pBuf, pFD->szPage)) {
     code = TSDB_CODE_FILE_CORRUPTED;
     goto _exit;
   }
