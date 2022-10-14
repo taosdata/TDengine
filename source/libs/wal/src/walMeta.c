@@ -351,7 +351,10 @@ int walCheckAndRepairIdx(SWal* pWal) {
         taosWriteFile(pIdxFile, &idxEntry, sizeof(SWalIdxEntry));
         break;
       }
-      taosLSeekFile(pIdxFile, offset, SEEK_SET);
+      if (taosLSeekFile(pIdxFile, offset, SEEK_SET) < 0) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        wError("vgId:%d cannot seek offset %ld when repair idx since %s", pWal->cfg.vgId, offset, terrstr());
+      }
       int64_t contLen = taosReadFile(pIdxFile, &idxEntry, sizeof(SWalIdxEntry));
       if (contLen < 0 || contLen != sizeof(SWalIdxEntry)) {
         terrno = TAOS_SYSTEM_ERROR(errno);
@@ -636,6 +639,5 @@ int walRemoveMeta(SWal* pWal) {
   if (metaVer == -1) return 0;
   char fnameStr[WAL_FILE_LEN];
   walBuildMetaName(pWal, metaVer, fnameStr);
-  taosRemoveFile(fnameStr);
-  return 0;
+  return taosRemoveFile(fnameStr);
 }

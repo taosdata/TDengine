@@ -42,10 +42,20 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
       SWalFileInfo *pFileInfo = taosArrayGet(pWal->fileInfoSet, i);
       char          fnameStr[WAL_FILE_LEN];
       walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
-      taosRemoveFile(fnameStr);
+      if (taosRemoveFile(fnameStr) < 0) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        wError("vgId:%d restore from snapshot, cannot remove file %s since %s", pWal->cfg.vgId, fnameStr, terrstr());
+        return -1;
+      }
+      wInfo("vgId:%d restore from snapshot, remove file %s", pWal->cfg.vgId, fnameStr);
 
       walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
-      taosRemoveFile(fnameStr);
+      if (taosRemoveFile(fnameStr) < 0) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        wError("vgId:%d cannot remove file %s since %s", pWal->cfg.vgId, fnameStr, terrstr());
+        return -1;
+      }
+      wInfo("vgId:%d restore from snapshot, remove file %s", pWal->cfg.vgId, fnameStr);
     }
   }
   walRemoveMeta(pWal);

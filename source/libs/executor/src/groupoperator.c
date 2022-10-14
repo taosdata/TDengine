@@ -991,6 +991,8 @@ static void destroyStreamPartitionOperatorInfo(void* param) {
 
   taosMemoryFree(pInfo->partitionSup.keyBuf);
   cleanupExprSupp(&pInfo->scalarSup);
+  cleanupExprSupp(&pInfo->tbnameCalSup);
+  cleanupExprSupp(&pInfo->tagCalSup);
   blockDataDestroy(pInfo->pDelRes);
   taosMemoryFreeClear(param);
 }
@@ -1033,6 +1035,19 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
     createExprFromOneNode(pSubTableExpr, pPartNode->pSubtable, 0);
     code = initExprSupp(&pInfo->tbnameCalSup, pSubTableExpr, 1);
     if (code != TSDB_CODE_SUCCESS) {
+      goto _error;
+    }
+  }
+
+  if (pPartNode->pTags != NULL) {
+    int32_t    numOfTags;
+    SExprInfo* pTagExpr = createExprInfo(pPartNode->pTags, NULL, &numOfTags);
+    if (pTagExpr == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto _error;
+    }
+    if (initExprSupp(&pInfo->tagCalSup, pTagExpr, numOfTags) != 0) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _error;
     }
   }
