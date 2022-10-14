@@ -18,7 +18,7 @@
 // =============== PAGE-WISE FILE ===============
 static int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsdbFD **ppFD) {
   int32_t  code = 0;
-  STsdbFD *pFD;
+  STsdbFD *pFD = NULL;
 
   *ppFD = NULL;
 
@@ -35,6 +35,7 @@ static int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsd
   pFD->pFD = taosOpenFile(path, flag);
   if (pFD->pFD == NULL) {
     code = TAOS_SYSTEM_ERROR(errno);
+    taosMemoryFree(pFD);
     goto _exit;
   }
   pFD->szPage = szPage;
@@ -42,11 +43,15 @@ static int32_t tsdbOpenFile(const char *path, int32_t szPage, int32_t flag, STsd
   pFD->pBuf = taosMemoryCalloc(1, szPage);
   if (pFD->pBuf == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
+    taosCloseFile(&pFD->pFD);
     taosMemoryFree(pFD);
     goto _exit;
   }
   if (taosStatFile(path, &pFD->szFile, NULL) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
+    taosMemoryFree(pFD->pBuf);
+    taosCloseFile(&pFD->pFD);
+    taosMemoryFree(pFD);
     goto _exit;
   }
   ASSERT(pFD->szFile % szPage == 0);
@@ -59,10 +64,12 @@ _exit:
 
 static void tsdbCloseFile(STsdbFD **ppFD) {
   STsdbFD *pFD = *ppFD;
-  taosMemoryFree(pFD->pBuf);
-  taosCloseFile(&pFD->pFD);
-  taosMemoryFree(pFD);
-  *ppFD = NULL;
+  if (pFD) {
+    taosMemoryFree(pFD->pBuf);
+    taosCloseFile(&pFD->pFD);
+    taosMemoryFree(pFD);
+    *ppFD = NULL;
+  }
 }
 
 static int32_t tsdbWriteFilePage(STsdbFD *pFD) {
@@ -443,7 +450,7 @@ int32_t tsdbWriteDataBlk(SDataFWriter *pWriter, SMapData *mDataBlk, SBlockIdx *p
   pBlockIdx->size = size;
   pHeadFile->size += size;
 
-  tsdbTrace("vgId:%d, write block, file ID:%d commit ID:%d suid:%" PRId64 " uid:%" PRId64 " offset:%" PRId64
+  tsdbTrace("vgId:%d, write block, file ID:%d commit ID:%" PRId64 " suid:%" PRId64 " uid:%" PRId64 " offset:%" PRId64
             " size:%" PRId64 " nItem:%d",
             TD_VID(pWriter->pTsdb->pVnode), pWriter->wSet.fid, pHeadFile->commitID, pBlockIdx->suid, pBlockIdx->uid,
             pBlockIdx->offset, pBlockIdx->size, mDataBlk->nItem);
@@ -457,7 +464,7 @@ _err:
 int32_t tsdbWriteSttBlk(SDataFWriter *pWriter, SArray *aSttBlk) {
   int32_t   code = 0;
   SSttFile *pSttFile = &pWriter->fStt[pWriter->wSet.nSttF - 1];
-  int64_t   size;
+  int64_t   size = 0;
   int64_t   n;
 
   // check
@@ -906,10 +913,6 @@ int32_t tsdbDataFReaderClose(SDataFReader **ppReader) {
   taosMemoryFree(*ppReader);
   *ppReader = NULL;
   return code;
-
-_err:
-  tsdbError("vgId:%d, data file reader close failed since %s", TD_VID((*ppReader)->pTsdb->pVnode), tstrerror(code));
-  return code;
 }
 
 int32_t tsdbReadBlockIdx(SDataFReader *pReader, SArray *aBlockIdx) {
@@ -1289,16 +1292,17 @@ _exit:
 // SDelFWriter ====================================================
 int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile, STsdb *pTsdb) {
   int32_t      code = 0;
+  int32_t      lino = 0;
   char         fname[TSDB_FILENAME_LEN];
   uint8_t      hdr[TSDB_FHDR_SIZE] = {0};
-  SDelFWriter *pDelFWriter;
+  SDelFWriter *pDelFWriter = NULL;
   int64_t      n;
 
   // alloc
   pDelFWriter = (SDelFWriter *)taosMemoryCalloc(1, sizeof(*pDelFWriter));
   if (pDelFWriter == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
   pDelFWriter->pTsdb = pTsdb;
   pDelFWriter->fDel = *pFile;
@@ -1306,21 +1310,28 @@ int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile, STsdb *pTsdb
   tsdbDelFileName(pTsdb, pFile, fname);
   code = tsdbOpenFile(fname, pTsdb->pVnode->config.tsdbPageSize, TD_FILE_READ | TD_FILE_WRITE | TD_FILE_CREATE,
                       &pDelFWriter->pWriteH);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // update header
   code = tsdbWriteFile(pDelFWriter->pWriteH, 0, hdr, TSDB_FHDR_SIZE);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   pDelFWriter->fDel.size = TSDB_FHDR_SIZE;
   pDelFWriter->fDel.offset = 0;
 
   *ppWriter = pDelFWriter;
-  return code;
 
-_err:
-  tsdbError("vgId:%d, failed to open del file writer since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
-  *ppWriter = NULL;
+_exit:
+  if (code) {
+    if (pDelFWriter) {
+      taosMemoryFree(pDelFWriter);
+      tsdbCloseFile(&pDelFWriter->pWriteH);
+    }
+    *ppWriter = NULL;
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(errno));
+  } else {
+    *ppWriter = pDelFWriter;
+  }
   return code;
 }
 
@@ -1456,15 +1467,15 @@ struct SDelFReader {
 
 int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile, STsdb *pTsdb) {
   int32_t      code = 0;
+  int32_t      lino = 0;
   char         fname[TSDB_FILENAME_LEN];
-  SDelFReader *pDelFReader;
-  int64_t      n;
+  SDelFReader *pDelFReader = NULL;
 
   // alloc
   pDelFReader = (SDelFReader *)taosMemoryCalloc(1, sizeof(*pDelFReader));
   if (pDelFReader == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
+    goto _exit;
   }
 
   // open impl
@@ -1473,14 +1484,18 @@ int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile, STsdb *pTsdb
 
   tsdbDelFileName(pTsdb, pFile, fname);
   code = tsdbOpenFile(fname, pTsdb->pVnode->config.tsdbPageSize, TD_FILE_READ, &pDelFReader->pReadH);
-  if (code) goto _err;
+  if (code) {
+    taosMemoryFree(pDelFReader);
+    goto _exit;
+  }
 
-  *ppReader = pDelFReader;
-  return code;
-
-_err:
-  tsdbError("vgId:%d, del file reader open failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
-  *ppReader = NULL;
+_exit:
+  if (code) {
+    *ppReader = NULL;
+    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+  } else {
+    *ppReader = pDelFReader;
+  }
   return code;
 }
 

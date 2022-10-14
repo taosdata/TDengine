@@ -1311,10 +1311,15 @@ static void calBlockTag(SExprSupp* pTagCalSup, SSDataBlock* pBlock, SSDataBlock*
 
   blockDataEnsureCapacity(pResBlock, 1);
 
-  projectApplyFunctions(pTagCalSup->pExprInfo, pResBlock, pSrcBlock, pTagCalSup->pCtx, 1, NULL);
+  projectApplyFunctions(pTagCalSup->pExprInfo, pResBlock, pSrcBlock, pTagCalSup->pCtx, pTagCalSup->numOfExprs, NULL);
   ASSERT(pResBlock->info.rows == 1);
 
   // build tagArray
+  /*SArray* tagArray = taosArrayInit(0, sizeof(void*));*/
+  /*STagVal tagVal = {*/
+  /*.cid = 0,*/
+  /*.type = 0,*/
+  /*};*/
   // build STag
   // set STag
 
@@ -2110,6 +2115,9 @@ static void destroyStreamScanOperatorInfo(void* param) {
     taosMemoryFree(pStreamScan->pPseudoExpr);
   }
 
+  cleanupExprSupp(&pStreamScan->tbnameCalSup);
+  cleanupExprSupp(&pStreamScan->tagCalSup);
+
   updateInfoDestroy(pStreamScan->pUpdateInfo);
   blockDataDestroy(pStreamScan->pRes);
   blockDataDestroy(pStreamScan->pUpdateRes);
@@ -2160,6 +2168,19 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     pInfo->tbnameCalSup.pExprInfo = pSubTableExpr;
     createExprFromOneNode(pSubTableExpr, pTableScanNode->pSubtable, 0);
     if (initExprSupp(&pInfo->tbnameCalSup, pSubTableExpr, 1) != 0) {
+      goto _error;
+    }
+  }
+
+  if (pTableScanNode->pTags != NULL) {
+    int32_t    numOfTags;
+    SExprInfo* pTagExpr = createExprInfo(pTableScanNode->pTags, NULL, &numOfTags);
+    if (pTagExpr == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto _error;
+    }
+    if (initExprSupp(&pInfo->tagCalSup, pTagExpr, numOfTags) != 0) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _error;
     }
   }

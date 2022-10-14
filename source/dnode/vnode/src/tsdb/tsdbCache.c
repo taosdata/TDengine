@@ -429,7 +429,8 @@ typedef struct {
   SDataFReader        *pDataFReader;
   TSDBROW              row;
 
-  SMergeTree mergeTree;
+  SMergeTree  mergeTree;
+  SMergeTree *pMergeTree;
 } SFSLastNextRowIter;
 
 static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
@@ -444,11 +445,14 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
     case SFSLASTNEXTROW_FILESET: {
       SDFileSet *pFileSet = NULL;
     _next_fileset:
+      if (state->pMergeTree != NULL) {
+        tMergeTreeClose(state->pMergeTree);
+        state->pMergeTree = NULL;
+      }
+
       if (--state->iFileSet >= 0) {
         pFileSet = (SDFileSet *)taosArrayGet(state->aDFileSet, state->iFileSet);
       } else {
-        tMergeTreeClose(&state->mergeTree);
-
         *ppRow = NULL;
         return code;
       }
@@ -460,10 +464,10 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
       tMergeTreeOpen(&state->mergeTree, 1, state->pDataFReader, state->suid, state->uid,
                      &(STimeWindow){.skey = TSKEY_MIN, .ekey = TSKEY_MAX},
                      &(SVersionRange){.minVer = 0, .maxVer = UINT64_MAX}, pLoadInfo, true, NULL);
+      state->pMergeTree = &state->mergeTree;
       bool hasVal = tMergeTreeNext(&state->mergeTree);
       if (!hasVal) {
         state->state = SFSLASTNEXTROW_FILESET;
-        tMergeTreeClose(&state->mergeTree);
         goto _next_fileset;
       }
       state->state = SFSLASTNEXTROW_BLOCKROW;
@@ -475,6 +479,7 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
       if (!hasVal) {
         state->state = SFSLASTNEXTROW_FILESET;
       }
+
       return code;
     default:
       ASSERT(0);
@@ -486,6 +491,11 @@ _err:
     tsdbDataFReaderClose(&state->pDataFReader);
     state->pDataFReader = NULL;
   }
+  if (state->pMergeTree != NULL) {
+    tMergeTreeClose(state->pMergeTree);
+    state->pMergeTree = NULL;
+  }
+
   *ppRow = NULL;
 
   return code;
@@ -502,6 +512,11 @@ int32_t clearNextRowFromFSLast(void *iter) {
   if (state->pDataFReader) {
     tsdbDataFReaderClose(&state->pDataFReader);
     state->pDataFReader = NULL;
+  }
+
+  if (state->pMergeTree != NULL) {
+    tMergeTreeClose(state->pMergeTree);
+    state->pMergeTree = NULL;
   }
 
   return code;

@@ -24,8 +24,8 @@
 #pragma GCC diagnostic ignored "-Wformat-truncation"
 #endif
 
-int32_t (*queryBuildMsg[TDMT_MAX])(void *input, char **msg, int32_t msgSize, int32_t *msgLen,
-                                   void *(*mallocFp)(int32_t)) = {0};
+int32_t (*queryBuildMsg[TDMT_MAX])(void *input, char **msg, int32_t msgSize, int32_t *msgLen, 
+                                   void *(*mallocFp)(int64_t)) = {0};
 int32_t (*queryProcessMsgRsp[TDMT_MAX])(void *output, char *msg, int32_t msgSize) = {0};
 
 int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
@@ -67,8 +67,8 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildTableMetaReqMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen,
-                                  void *(*mallcFp)(int32_t)) {
+int32_t queryBuildTableMetaReqMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, 
+                                  void *(*mallcFp)(int64_t)) {
   SBuildTableInput *pInput = input;
   if (NULL == input || NULL == msg || NULL == msgLen) {
     return TSDB_CODE_TSC_INVALID_INPUT;
@@ -91,7 +91,7 @@ int32_t queryBuildTableMetaReqMsg(void *input, char **msg, int32_t msgSize, int3
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildUseDbMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int32_t)) {
+int32_t queryBuildUseDbMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t)) {
   SBuildUseDBInput *pInput = input;
   if (NULL == pInput || NULL == msg || NULL == msgLen) {
     return TSDB_CODE_TSC_INVALID_INPUT;
@@ -114,7 +114,7 @@ int32_t queryBuildUseDbMsg(void *input, char **msg, int32_t msgSize, int32_t *ms
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildQnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int32_t)) {
+int32_t queryBuildQnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t)) {
   if (NULL == msg || NULL == msgLen) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
@@ -132,7 +132,7 @@ int32_t queryBuildQnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildDnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int32_t)) {
+int32_t queryBuildDnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t)) {
   if (NULL == msg || NULL == msgLen) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
@@ -150,7 +150,7 @@ int32_t queryBuildDnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildGetSerVerMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int32_t)) {
+int32_t queryBuildGetSerVerMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t)) {
   if (NULL == msg || NULL == msgLen) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
@@ -167,7 +167,7 @@ int32_t queryBuildGetSerVerMsg(void *input, char **msg, int32_t msgSize, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildGetDBCfgMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int32_t)) {
+int32_t queryBuildGetDBCfgMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t)) {
   if (NULL == msg || NULL == msgLen) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
@@ -185,7 +185,7 @@ int32_t queryBuildGetDBCfgMsg(void *input, char **msg, int32_t msgSize, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildGetIndexMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int32_t)) {
+int32_t queryBuildGetIndexMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t)) {
   if (NULL == msg || NULL == msgLen) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
@@ -203,8 +203,8 @@ int32_t queryBuildGetIndexMsg(void *input, char **msg, int32_t msgSize, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildRetrieveFuncMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen,
-                                  void *(*mallcFp)(int32_t)) {
+int32_t queryBuildRetrieveFuncMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, 
+                                  void *(*mallcFp)(int64_t)) {
   if (NULL == msg || NULL == msgLen) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
@@ -227,7 +227,7 @@ int32_t queryBuildRetrieveFuncMsg(void *input, char **msg, int32_t msgSize, int3
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildGetUserAuthMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int32_t)) {
+int32_t queryBuildGetUserAuthMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t)) {
   if (NULL == msg || NULL == msgLen) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
@@ -245,7 +245,7 @@ int32_t queryBuildGetUserAuthMsg(void *input, char **msg, int32_t msgSize, int32
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildGetTbIndexMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int32_t)) {
+int32_t queryBuildGetTbIndexMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t)) {
   if (NULL == msg || NULL == msgLen) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
@@ -263,7 +263,7 @@ int32_t queryBuildGetTbIndexMsg(void *input, char **msg, int32_t msgSize, int32_
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildGetTbCfgMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int32_t)) {
+int32_t queryBuildGetTbCfgMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen, void *(*mallcFp)(int64_t)) {
   if (NULL == msg || NULL == msgLen) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
