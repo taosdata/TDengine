@@ -108,17 +108,7 @@ int         metaGetTableUidByName(void *meta, char *tbName, int64_t *uid);
 int         metaGetTableTypeByName(void *meta, char *tbName, ETableType *tbType);
 bool        metaIsTableExist(SMeta *pMeta, tb_uid_t uid);
 
-typedef struct SMetaFltParam {
-  tb_uid_t suid;
-  int16_t  cid;
-  int16_t  type;
-  void    *val;
-  bool     reverse;
-  int (*filterFunc)(void *a, void *b, int16_t type);
-
-} SMetaFltParam;
-
-int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *results);
+int32_t metaFilterTableIds(void *pHandle, SMetaFltParam *param, SArray *results);
 
 #if 1  // refact APIs below (TODO)
 typedef SVCreateTbReq   STbCfg;

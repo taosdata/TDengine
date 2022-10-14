@@ -1033,7 +1033,8 @@ typedef struct {
   int32_t  vLen;
 } SIdxCursor;
 
-int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
+int32_t metaFilterTableIds(void *pHandle, SMetaFltParam *param, SArray *pUids) {
+  SMeta  *pMeta = (SMeta *)pHandle;
   int32_t ret = 0;
   char   *buf = NULL;
 

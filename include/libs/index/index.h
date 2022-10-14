@@ -37,6 +37,16 @@ typedef struct SIndexOpts           SIndexJsonOpts;
 typedef struct SIndexMultiTermQuery SIndexJsonMultiTermQuery;
 typedef struct SArray               SIndexJsonMultiTerm;
 
+typedef struct SMetaFltParam {
+  int64_t suid;
+  int16_t cid;
+  int16_t type;
+  void*   val;
+  bool    reverse;
+  int (*filterFunc)(void* a, void* b, int16_t type);
+
+} SMetaFltParam;
+
 typedef enum {
   ADD_VALUE,     // add index colume value
   DEL_VALUE,     // delete index column value
@@ -212,6 +222,7 @@ typedef struct SIndexMetaArg {
   void*    idx;
   void*    ivtIdx;
   uint64_t suid;
+  int32_t (*metaFilterFn)(void* pMeta, SMetaFltParam* param, SArray* results);
 } SIndexMetaArg;
 
 typedef enum { SFLT_NOT_INDEX, SFLT_COARSE_INDEX, SFLT_ACCURATE_INDEX } SIdxFltStatus;

@@ -9,9 +9,9 @@ add_subdirectory(qcom)
 add_subdirectory(nodes)
 add_subdirectory(catalog)
 add_subdirectory(function)
-
-add_subdirectory(index)
 add_subdirectory(parser)
+add_subdirectory(index)
+
 add_subdirectory(scheduler)
 add_subdirectory(executor)
 add_subdirectory(stream)

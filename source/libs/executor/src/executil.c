@@ -892,8 +892,11 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
 
   if (pScanNode->tableType == TSDB_SUPER_TABLE) {
     if (pTagIndexCond) {
-      SIndexMetaArg metaArg = {
-          .metaEx = metaHandle, .idx = tsdbGetIdx(metaHandle), .ivtIdx = tsdbGetIvtIdx(metaHandle), .suid = tableUid};
+      SIndexMetaArg metaArg = {.metaEx = metaHandle,
+                               .idx = tsdbGetIdx(metaHandle),
+                               .ivtIdx = tsdbGetIvtIdx(metaHandle),
+                               .suid = tableUid,
+                               .metaFilterFn = metaFilterTableIds};
 
       //      int64_t stt = taosGetTimestampUs();
       SIdxFltStatus status = SFLT_NOT_INDEX;
