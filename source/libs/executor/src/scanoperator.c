@@ -39,6 +39,83 @@ static int32_t buildSysDbTableInfo(const SSysTableScanInfo* pInfo, int32_t capac
 static int32_t buildDbTableInfoBlock(bool sysInfo, const SSDataBlock* p, const SSysTableMeta* pSysDbTableMeta,
                                      size_t size, const char* dbName);
 
+static char* SYSTABLE_IDX_COLUMN[] = {"table_name", "db_name",     "create_time",      "columns",
+                                      "ttl",        "stable_name", "vgroup_id', 'uid", "type"};
+
+typedef int32_t (*__sys_filter)(void* pMeta, SNode* condition, SArray* result);
+
+typedef struct {
+  const char*  name;
+  __sys_filter fltFunc;
+} SSTabFltFuncDef;
+
+static int32_t sysFilteDbName(void* pMeta, SNode* pNode, SArray* result);
+static int32_t sysFilteVgroupId(void* pMeta, SNode* pNode, SArray* result);
+static int32_t sysFilteTableName(void* pMeta, SNode* pNode, SArray* result);
+static int32_t sysFilteCreateTime(void* pMeta, SNode* pNode, SArray* result);
+static int32_t sysFilteNcolumn(void* pMeta, SNode* pNode, SArray* result);
+static int32_t sysFilteTtl(void* pMeta, SNode* pNode, SArray* result);
+static int32_t sysFilteSTableName(void* pMeta, SNode* pNode, SArray* result);
+static int32_t sysFilteUid(void* pMeta, SNode* pNode, SArray* result);
+static int32_t sysFilteType(void* pMeta, SNode* pNode, SArray* result);
+
+const SSTabFltFuncDef filterDict[] = {{.name = "table_name", .fltFunc = sysFilteTableName},
+                                      {.name = "db_name", .fltFunc = sysFilteDbName},
+                                      {.name = "create_time", .fltFunc = sysFilteCreateTime},
+                                      {.name = "columns", .fltFunc = sysFilteNcolumn},
+                                      {.name = "ttl", .fltFunc = sysFilteTtl},
+                                      {.name = "stable_name", .fltFunc = sysFilteSTableName},
+                                      {.name = "vgroup_id", .fltFunc = sysFilteVgroupId},
+                                      {.name = "uid", .fltFunc = sysFilteUid},
+                                      {.name = "type", .fltFunc = sysFilteType}};
+#define SYSTAB_FILTER_DICT_SIZE (sizeof(filterDict) / sizeof(filterDict[0]))
+
+static int32_t optSysTabFilteImpl(void* arg, SNode* cond, SArray* result) {
+  if (nodeType(cond) != QUERY_NODE_OPERATOR) return -1;
+
+  SOperatorNode* pNode = (SOperatorNode*)cond;
+  if (nodeType(pNode->pLeft) != QUERY_NODE_COLUMN) return -1;
+
+  int8_t i = -1;
+  for (i = 0; i < SYSTAB_FILTER_DICT_SIZE; i++) {
+    if (strcmp(filterDict[i].name, ((SColumnNode*)(pNode->pLeft))->colName) == 0) {
+      break;
+    }
+  }
+  if (i >= SYSTAB_FILTER_DICT_SIZE) return -1;
+
+  return filterDict[i].fltFunc(arg, cond, result);
+}
+
+static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result) {
+  int ret = -1;
+  if (nodeType(cond) == QUERY_NODE_OPERATOR) {
+    ret = optSysTabFilteImpl(arg, cond, result);
+    return ret;
+  }
+  if (nodeType(cond) != QUERY_NODE_LOGIC_CONDITION || ((SLogicConditionNode*)cond)->condType != LOGIC_COND_TYPE_AND) {
+    return ret;
+  }
+
+  bool                 hasTbnameCond = false;
+  SLogicConditionNode* pNode = (SLogicConditionNode*)cond;
+  SNodeList*           pList = (SNodeList*)pNode->pParameterList;
+
+  int32_t len = LIST_LENGTH(pList);
+  if (len <= 0) return ret;
+
+  SListCell* cell = pList->pHead;
+  for (int i = 0; i < len; i++) {
+    if (cell == NULL) break;
+    if (optSysTabFilteImpl(arg, cell->pNode, result) == 0) {
+      hasTbnameCond = true;
+    }
+    cell = cell->pNext;
+  }
+
+  return hasTbnameCond == true ? 0 : -1;
+}
+
 static bool processBlockWithProbability(const SSampleExecInfo* pInfo);
 
 static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, SMetaReader* smrSuperTable,
@@ -2726,61 +2803,58 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
   return TSDB_CODE_SUCCESS;
 }
 
-static char* SYSTABLE_IDX_COLUMN[] = {"table_name", "db_name",     "create_time",      "columns",
-                                      "ttl",        "stable_name", "vgroup_id', 'uid", "type"};
+static int32_t sysFilteDbName(void* pMeta, SNode* pNode, SArray* result) {
+  void* pVnode = pMeta;
 
-typedef int32_t (*__sys_filter)(void* pMeta, SNode* condition, SArray* result);
+  const char* db = NULL;
+  vnodeGetInfo(pVnode, &db, NULL);
 
-typedef struct {
-  const char*  name;
-  __sys_filter fltFunc;
-} SSTabFltFuncDef;
+  SName sn = {0};
+  char  dbname[TSDB_DB_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  tNameFromString(&sn, db, T_NAME_ACCT | T_NAME_DB);
 
-static int32_t systFilterDbName(void* pMeta, SNode* pNode, SArray* result) {
-  // impl later
+  tNameGetDbName(&sn, varDataVal(dbname));
+  varDataSetLen(dbname, strlen(varDataVal(dbname)));
+
   return -1;
 }
 static int32_t sysFilteVgroupId(void* pMeta, SNode* pNode, SArray* result) {
-  // impl later
+  void* pVnode = pMeta;
+
+  int32_t vgId = 0;
+  vnodeGetInfo(pVnode, NULL, &vgId);
   return -1;
 }
 static int32_t sysFilteTableName(void* pMeta, SNode* pNode, SArray* result) {
   // impl later
-  return -1;
+  return 0;
 }
 
 static int32_t sysFilteCreateTime(void* pMeta, SNode* pNode, SArray* result) {
   // impl later
-  return -1;
+  return 0;
 }
 static int32_t sysFilteNcolumn(void* pMeta, SNode* pNode, SArray* result) {
   // impl later
-  return -1;
+  return 0;
 }
 
 static int32_t sysFilteTtl(void* pMeta, SNode* pNode, SArray* result) {
   // impl later
-  return -1;
+  return 0;
 }
 static int32_t sysFilteSTableName(void* pMeta, SNode* pNode, SArray* result) {
   // impl later
-  return -1;
+  return 0;
 }
 static int32_t sysFilteUid(void* pMeta, SNode* pNode, SArray* result) {
   // impl later
-  return -1;
+  return 0;
 }
 static int32_t sysFilteType(void* pMeta, SNode* pNode, SArray* result) {
   // impl later
-  return -1;
+  return 0;
 }
-
-const SSTabFltFuncDef filterDict[] = {
-    {.name = "table_name", .fltFunc = NULL},  {.name = "db_name", .fltFunc = NULL},
-    {.name = "create_time", .fltFunc = NULL}, {.name = "columns", .fltFunc = NULL},
-    {.name = "ttl", .fltFunc = NULL},         {.name = "stable_name", .fltFunc = NULL},
-    {.name = "vgroup_id", .fltFunc = NULL},   {.name = "uid", .fltFunc = NULL},
-    {.name = "type", .fltFunc = NULL}};
 
 static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;

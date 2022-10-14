@@ -1243,13 +1243,13 @@ void createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
   } else if (type == QUERY_NODE_CASE_WHEN) {
     pExp->pExpr->nodeType = QUERY_NODE_OPERATOR;
     SCaseWhenNode* pCaseNode = (SCaseWhenNode*)pNode;
-  
+
     pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
     pExp->base.numOfParams = 1;
-  
+
     SDataType* pType = &pCaseNode->node.resType;
-    pExp->base.resSchema = createResSchema(pType->type, pType->bytes, slotId, pType->scale,
-                                           pType->precision, pCaseNode->node.aliasName);
+    pExp->base.resSchema =
+        createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pCaseNode->node.aliasName);
     pExp->pExpr->_optrRoot.pRootNode = pNode;
   } else {
     ASSERT(0);
