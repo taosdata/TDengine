@@ -1437,25 +1437,6 @@ EDealRes sclCalcWalker(SNode *pNode, void *pContext) {
   return DEAL_RES_ERROR;
 }
 
-int32_t sclExtendResRows(SScalarParam *pDst, SScalarParam *pSrc, SArray *pBlockList) {
-  SSDataBlock  *pb = taosArrayGetP(pBlockList, 0);
-  SScalarParam *pLeft = taosMemoryCalloc(1, sizeof(SScalarParam));
-  if (NULL == pLeft) {
-    sclError("calloc %d failed", (int32_t)sizeof(SScalarParam));
-    SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-  }
-
-  pLeft->numOfRows = pb->info.rows;
-  colInfoDataEnsureCapacity(pDst->columnData, pb->info.rows);
-
-  _bin_scalar_fn_t OperatorFn = getBinScalarOperatorFn(OP_TYPE_ASSIGN);
-  OperatorFn(pLeft, pSrc, pDst, TSDB_ORDER_ASC);
-
-  taosMemoryFree(pLeft);
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t sclCalcConstants(SNode *pNode, bool dual, SNode **pRes) {
   if (NULL == pNode) {
     SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
