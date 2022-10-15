@@ -961,7 +961,7 @@ int32_t tsdbFSCommit2(STsdb *pTsdb, STsdbFS *pFSNew) {
     nRef = atomic_sub_fetch_32(&pSetOld->pHeadF->nRef, 1);
     if (nRef == 0) {
       tsdbHeadFileName(pTsdb, pSetOld->diskId, pSetOld->fid, pSetOld->pHeadF, fname);
-      taosRemoveFile(fname);
+      (void)taosRemoveFile(fname);
       taosMemoryFree(pSetOld->pHeadF);
     }
 
@@ -1114,7 +1114,7 @@ void tsdbFSUnref(STsdb *pTsdb, STsdbFS *pFS) {
     ASSERT(nRef >= 0);
     if (nRef == 0) {
       tsdbHeadFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pHeadF, fname);
-      taosRemoveFile(fname);
+      (void)taosRemoveFile(fname);
       taosMemoryFree(pSet->pHeadF);
     }
 

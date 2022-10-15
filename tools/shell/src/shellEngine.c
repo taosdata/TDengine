@@ -998,7 +998,9 @@ void *shellCancelHandler(void *arg) {
 		shell.stop_query = true;
 	} else {
 #endif
-		taos_kill_query(shell.conn);
+    if (shell.conn) {
+		  taos_kill_query(shell.conn);
+		}
 #ifdef WEBSOCKET
 	}
 #endif
