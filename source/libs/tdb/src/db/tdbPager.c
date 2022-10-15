@@ -34,9 +34,9 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
 static int tdbPagerWritePageToJournal(SPager *pPager, SPage *pPage);
 static int tdbPagerWritePageToDB(SPager *pPager, SPage *pPage);
 
-static FORCE_INLINE int32_t pageCmpFn(const void *lhs, const void *rhs) {
-  SPage *pPageL = (SPage *)(((uint8_t *)lhs) - sizeof(SRBTreeNode));
-  SPage *pPageR = (SPage *)(((uint8_t *)rhs) - sizeof(SRBTreeNode));
+static FORCE_INLINE int32_t pageCmpFn(const SRBTreeNode *lhs, const SRBTreeNode *rhs) {
+  SPage *pPageL = (SPage *)(((uint8_t *)lhs) - offsetof(SPage, node));
+  SPage *pPageR = (SPage *)(((uint8_t *)rhs) - offsetof(SPage, node));
 
   SPgno pgnoL = TDB_PAGE_PGNO(pPageL);
   SPgno pgnoR = TDB_PAGE_PGNO(pPageR);

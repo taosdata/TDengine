@@ -80,18 +80,21 @@ int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
     return -1;
   }
 
-  if (createReq.replica != 1) {
+  SMnodeOpt option = {.deploy = true, .numOfReplicas = createReq.replica, .selfIndex = -1};
+  memcpy(option.replicas, createReq.replicas, sizeof(createReq.replicas));
+  for (int32_t i = 0; i < option.numOfReplicas; ++i) {
+    if (createReq.replicas[i].id == pInput->pData->dnodeId) {
+      option.selfIndex = i;
+    }
+  }
+
+  if (option.selfIndex == -1) {
     terrno = TSDB_CODE_INVALID_OPTION;
-    dGError("failed to create mnode since %s", terrstr());
+    dGError("failed to create mnode since %s, selfIndex is -1", terrstr());
     return -1;
   }
 
-  bool deployed = true;
-
-  SMnodeMgmt mgmt = {0};
-  mgmt.path = pInput->path;
-  mgmt.name = pInput->name;
-  if (mmWriteFile(&mgmt, &createReq.replicas[0], deployed) != 0) {
+  if (mmWriteFile(pInput->path, &option) != 0) {
     dGError("failed to write mnode file since %s", terrstr());
     return -1;
   }
@@ -113,12 +116,8 @@ int32_t mmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
     return -1;
   }
 
-  bool deployed = false;
-
-  SMnodeMgmt mgmt = {0};
-  mgmt.path = pInput->path;
-  mgmt.name = pInput->name;
-  if (mmWriteFile(&mgmt, NULL, deployed) != 0) {
+  SMnodeOpt option = {.deploy = false};
+  if (mmWriteFile(pInput->path, &option) != 0) {
     dGError("failed to write mnode file since %s", terrstr());
     return -1;
   }
@@ -207,7 +206,6 @@ SArray *mmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_MND_HEARTBEAT, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_STATUS, mmPutMsgToReadQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_SYSTABLE_RETRIEVE, mmPutMsgToReadQueue, 0) == NULL) goto _OVER;
-  // if (dmSetMgmtHandle(pArray, TDMT_MND_GRANT, mmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_AUTH, mmPutMsgToReadQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_SHOW_VARIABLES, mmPutMsgToReadQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_MND_SERVER_VERSION, mmPutMsgToReadQueue, 0) == NULL) goto _OVER;

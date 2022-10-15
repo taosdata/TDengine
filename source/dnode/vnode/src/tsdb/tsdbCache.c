@@ -378,10 +378,10 @@ static int32_t getTableDelSkyline(STbData *pMem, STbData *pIMem, SDelFReader *pD
     if (code) goto _err;
   }
 
+_err:
   if (aDelData) {
     taosArrayDestroy(aDelData);
   }
-_err:
   return code;
 }
 
@@ -399,14 +399,13 @@ static int32_t getTableDelIdx(SDelFReader *pDelFReader, tb_uid_t suid, tb_uid_t 
 
   // code = tMapDataSearch(&delIdxMap, &idx, tGetDelIdx, tCmprDelIdx, pDelIdx);
   SDelIdx *pIdx = taosArraySearch(pDelIdxArray, &idx, tCmprDelIdx, TD_EQ);
-  if (code) goto _err;
 
   *pDelIdx = *pIdx;
 
+_err:
   if (pDelIdxArray) {
     taosArrayDestroy(pDelIdxArray);
   }
-_err:
   return code;
 }
 
@@ -599,8 +598,6 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
        * &state->blockIdx);
        */
       state->pBlockIdx = taosArraySearch(state->aBlockIdx, state->pBlockIdxExp, tCmprBlockIdx, TD_EQ);
-      if (code) goto _err;
-
       if (!state->pBlockIdx) {
         goto _next_fileset;
       }
@@ -898,10 +895,16 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
     if (code) goto _err;
 
     code = getTableDelIdx(pDelFReader, suid, uid, &delIdx);
-    if (code) goto _err;
+    if (code) {
+      tsdbDelFReaderClose(&pDelFReader);
+      goto _err;
+    }
 
     code = getTableDelSkyline(pMem, pIMem, pDelFReader, &delIdx, pIter->pSkyline);
-    if (code) goto _err;
+    if (code) {
+      tsdbDelFReaderClose(&pDelFReader);
+      goto _err;
+    }
 
     tsdbDelFReaderClose(&pDelFReader);
   } else {
@@ -1231,6 +1234,8 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray) {
 _err:
   nextRowIterClose(&iter);
   taosMemoryFreeClear(pTSchema);
+  *ppLastArray = NULL;
+  taosArrayDestroy(pColArray);
   return code;
 }
 

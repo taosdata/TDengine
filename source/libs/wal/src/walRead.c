@@ -521,7 +521,6 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
            pReader->pHead->head.version, ver);
     pReader->curInvalid = 1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
-    ASSERT(0);
     taosThreadMutexUnlock(&pReader->mutex);
     return -1;
   }
@@ -535,7 +534,6 @@ int32_t walReadVer(SWalReader *pReader, int64_t ver) {
     wError("checksum written into log:%u, checksum calculated:%u", logCkSum, readCkSum);
     pReader->curInvalid = 1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
-    ASSERT(0);
     taosThreadMutexUnlock(&pReader->mutex);
     return -1;
   }

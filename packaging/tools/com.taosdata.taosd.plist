@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
     <key>Label</key>
-    <string>taosd</string>
+    <string>com.tdengine.taosd</string>
     <key>ProgramArguments</key>
     <array>
         <string>/usr/local/bin/taosd</string>

@@ -562,6 +562,8 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
 
   // backward put first data
   row.pTSRow = tGetSubmitBlkNext(&blkIter);
+  if (row.pTSRow == NULL) return code;
+
   key.ts = row.pTSRow->ts;
   nRow++;
   tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_BACKWARD);

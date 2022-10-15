@@ -855,6 +855,5 @@ int walRemoveMeta(SWal* pWal) {
   if (metaVer == -1) return 0;
   char fnameStr[WAL_FILE_LEN];
   walBuildMetaName(pWal, metaVer, fnameStr);
-  taosRemoveFile(fnameStr);
-  return 0;
+  return taosRemoveFile(fnameStr);
 }
