@@ -913,7 +913,7 @@ int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask) {
   SCH_ERR_RET(schSetTaskCandidateAddrs(pJob, pTask));
 
   if (SCH_IS_QUERY_JOB(pJob)) {
-    SCH_ERR_RET(schEnsureHbConnection(pJob, pTask));
+//    SCH_ERR_RET(schEnsureHbConnection(pJob, pTask));
   }
 
   SCH_RET(schBuildAndSendMsg(pJob, pTask, NULL, plan->msgType));
@@ -992,6 +992,12 @@ int32_t schLaunchTaskImpl(void *param) {
   } else {
     SCH_ERR_JRET(schLaunchRemoteTask(pJob, pTask));
   }
+
+#if 0
+  if (SCH_IS_QUERY_JOB(pJob)) {
+    SCH_ERR_JRET(schEnsureHbConnection(pJob, pTask));
+  }
+#endif
 
 _return:
 
