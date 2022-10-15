@@ -1,5 +1,17 @@
-// C api call sequence demo
-// to compile: gcc -o apidemo apidemo.c -ltaos
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,23 +25,23 @@
 #include "taos.h"
 
 #define debugPrint(fmt, ...) \
-    do { if (g_args.debug_print || g_args.verbose_print) \
-      fprintf(stdout, "DEBG: "fmt, __VA_ARGS__); } while(0)
+    do { if (g_args.debug_print || g_args.verbose_print) {\
+      fprintf(stdout, "DEBG: "fmt, __VA_ARGS__); }} while (0)
 
 #define warnPrint(fmt, ...) \
     do { fprintf(stderr, "\033[33m"); \
         fprintf(stderr, "WARN: "fmt, __VA_ARGS__); \
-        fprintf(stderr, "\033[0m"); } while(0)
+        fprintf(stderr, "\033[0m"); } while (0)
 
 #define errorPrint(fmt, ...) \
     do { fprintf(stderr, "\033[31m"); \
         fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); \
-        fprintf(stderr, "\033[0m"); } while(0)
+        fprintf(stderr, "\033[0m"); } while (0)
 
 #define okPrint(fmt, ...) \
     do { fprintf(stderr, "\033[32m"); \
         fprintf(stderr, "OK: "fmt, __VA_ARGS__); \
-        fprintf(stderr, "\033[0m"); } while(0)
+        fprintf(stderr, "\033[0m"); } while (0)
 
 int64_t g_num_of_tb = 2;
 int64_t g_num_of_rec = 3;
@@ -75,14 +87,15 @@ static void prepare_data(TAOS* taos) {
     taos_free_result(res);
     taosMsleep(100);
     if (taos_select_db(taos, "test")) {
-        errorPrint("%s() LN%d: error no: %d, reason: %s\n",
-                __func__, __LINE__, taos_errno(res), taos_errstr(res));
-        taos_free_result(res);
+        errorPrint("%s() LN%d: taos_select_db() failed\n",
+                __func__, __LINE__);
         return;
     }
 
     char command[1024] = {0};
-    sprintf(command, "%s", "create table meters(ts timestamp, f float, n int, bin1 binary(20), c nchar(20), bin2 binary(20)) tags(area int, city binary(20), dist nchar(20), street binary(20));");
+    sprintf(command, "%s", "create table meters(ts timestamp, f float, n int, "
+            "bin1 binary(20), c nchar(20), bin2 binary(20)) tags(area int, "
+            "city binary(20), dist nchar(20), street binary(20));");
     res = taos_query(taos, command);
     if ((res) && (0 == taos_errno(res))) {
         okPrint("%s created\n", "meters");
@@ -122,12 +135,11 @@ static void prepare_data(TAOS* taos) {
             sprintf(command, "insert into t%"PRId64" "
                     "values(%" PRId64 ", %f, %"PRId64", "
                     "'%c%d', '%s%c%d', '%c%d')",
-                    i, 1650000000000+j, (float)j, j,
+                    i, 1650000000000+j, j * 1.0, j,
                     'a'+(int)j%25, rand(),
                     // "涛思", 'z' - (int)j%25, rand(),
                     "TAOS", 'z' - (int)j%25, rand(),
-                    'b' - (int)j%25, rand()
-                    );
+                    'b' - (int)j%25, rand());
             res = taos_query(taos,  command);
             if ((res) && (0 == taos_errno(res))) {
                 affected = taos_affected_rows(res);
@@ -155,8 +167,7 @@ static void prepare_data(TAOS* taos) {
                 i, 1650000000000+j+1, (float)j, j,
                 'a'+(int)j%25, rand(),
                 "数据", 'z' - (int)j%25, rand(),
-                'b' - (int)j%25, rand()
-               );
+                'b' - (int)j%25, rand());
         res = taos_query(taos,  command);
         if ((res) && (0 == taos_errno(res))) {
             affected = taos_affected_rows(res);
@@ -184,7 +195,8 @@ static int print_result(char *tbname, TAOS_RES* res, int block) {
     }
 
     if (block) {
-        warnPrint("%s", "call taos_fetch_block(), don't call taos_fetch_lengths()\n");
+        warnPrint("%s", "call taos_fetch_block(), "
+                "don't call taos_fetch_lengths()\n");
         int rows = 0;
         while ((rows = taos_fetch_block(res, &row))) {
             int *lengths = taos_fetch_lengths(res);
@@ -195,7 +207,7 @@ static int print_result(char *tbname, TAOS_RES* res, int block) {
                     printf("col%d type is %d, no need get offset\n",
                             f, fields[f].type);
                     for (int64_t c = 0; c < rows; c++) {
-                        switch(fields[f].type) {
+                        switch (fields[f].type) {
                             case TSDB_DATA_TYPE_TIMESTAMP:
                                 if (taos_is_null(res, c, f)) {
                                     printf("col%d, row: %"PRId64" "
@@ -204,7 +216,8 @@ static int print_result(char *tbname, TAOS_RES* res, int block) {
                                     printf("col%d, row: %"PRId64", "
                                             "value: %"PRId64"\n",
                                             f, c,
-                                            *(int64_t*)((char*)(row[f])+c*sizeof(int64_t)));
+                                            *(int64_t*)((char*)(row[f])
+                                                +c*sizeof(int64_t)));
                                 }
                                 break;
 
@@ -216,7 +229,8 @@ static int print_result(char *tbname, TAOS_RES* res, int block) {
                                     printf("col%d, row: %"PRId64", "
                                             "value: %d\n",
                                             f, c,
-                                            *(int32_t*)((char*)(row[f])+c*sizeof(int32_t)));
+                                            *(int32_t*)((char*)(row[f])
+                                                +c*sizeof(int32_t)));
                                 }
                                 break;
 
@@ -228,7 +242,8 @@ static int print_result(char *tbname, TAOS_RES* res, int block) {
                                     printf("col%d, row: %"PRId64", "
                                             "value: %f\n",
                                             f, c,
-                                            *(float*)((char*)(row[f])+c*sizeof(float)));
+                                            *(float*)((char*)(row[f])
+                                                +c*sizeof(float)));
                                 }
                                 break;
 
@@ -243,14 +258,18 @@ static int print_result(char *tbname, TAOS_RES* res, int block) {
                     if (offsets) {
                         for (int c = 0; c < rows; c++) {
                             if (offsets[c] != -1) {
-                                int length = *(int16_t*)((char*)(row[f]) + offsets[c]);
+                                int length = *(int16_t*)((char*)(row[f])
+                                        + offsets[c]);
                                 char *buf = calloc(1, length + 1);
-                                strncpy(buf, (char *)((char*)(row[f]) + offsets[c] + 2), length);
-                                printf("row: %d, col: %d, offset: %d, length: %d, content: %s\n",
+                                strncpy(buf, (char *)((char*)(row[f])
+                                            + offsets[c] + 2), length);
+                                printf("row: %d, col: %d, offset: %d, "
+                                        "length: %d, content: %s\n",
                                         c, f, offsets[c], length, buf);
                                 free(buf);
                             } else {
-                                printf("row: %d, col: %d, offset: -1, means content is NULL\n",
+                                printf("row: %d, col: %d, offset: -1, "
+                                        "means content is NULL\n",
                                         c, f);
                             }
                         }
@@ -272,7 +291,8 @@ static int print_result(char *tbname, TAOS_RES* res, int block) {
             int* lengths = taos_fetch_lengths(res);
             if (lengths) {
                 for (int c = 0; c < num_fields; c++) {
-                    printf("row: %"PRId64", col: %d, is_null: %s, length of column %d is %d\n",
+                    printf("row: %"PRId64", col: %d, is_null: %s, "
+                            "length of column %d is %d\n",
                             num_rows, c,
                             taos_is_null(res, num_rows, c)?"True":"False",
                             c, lengths[c]);
@@ -282,7 +302,7 @@ static int print_result(char *tbname, TAOS_RES* res, int block) {
                         __func__, __LINE__, tbname);
             }
 
-            num_rows ++;
+            num_rows++;
         }
     }
 
@@ -327,7 +347,8 @@ int main(int argc, char *argv[]) {
 #endif
     TAOS* taos = taos_connect(host, user, passwd, "", 0);
     if (taos == NULL) {
-        printf("\033[31mfailed to connect to db, reason:%s\033[0m\n", taos_errstr(taos));
+        printf("\033[31mfailed to connect to db, reason:%s\033[0m\n",
+                taos_errstr(taos));
         exit(1);
     }
 
