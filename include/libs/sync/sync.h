@@ -211,7 +211,7 @@ typedef struct SSyncInfo {
 
 int32_t     syncInit();
 void        syncCleanUp();
-int64_t     syncOpen(const SSyncInfo* pSyncInfo);
+int64_t     syncOpen(SSyncInfo* pSyncInfo);
 void        syncStart(int64_t rid);
 void        syncStop(int64_t rid);
 int32_t     syncSetStandby(int64_t rid);
@@ -233,7 +233,7 @@ const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);
 int32_t     syncGetSnapshotByIndex(int64_t rid, SyncIndex index, SSnapshot* pSnapshot);
 
-int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg);
+int32_t syncReconfig(int64_t rid, SSyncCfg* pNewCfg);
 
 // build SRpcMsg, need to call syncPropose with SRpcMsg
 int32_t syncReconfigBuild(int64_t rid, const SSyncCfg* pNewCfg, SRpcMsg* pRpcMsg);
