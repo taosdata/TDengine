@@ -158,10 +158,11 @@ print =============== restart
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start -v
 
+$x = 0
 steps: 
 	$x = $x + 1
-	sleep 1000
-	if $x == 20 then
+	sleep 500
+	if $x == 50 then
 		return -1
 	endi
 sql select avg(tbcol) as c from stb -x steps
