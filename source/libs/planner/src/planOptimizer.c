@@ -124,8 +124,9 @@ static void optSetParentOrder(SLogicNode* pNode, EOrder order) {
 
 EDealRes scanPathOptHaveNormalColImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-     *((bool*)pContext) =
-         (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType && COLUMN_TYPE_TBNAME != ((SColumnNode*)pNode)->colType);
+    // *((bool*)pContext) =
+    //     (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType && COLUMN_TYPE_TBNAME != ((SColumnNode*)pNode)->colType);
+    *((bool*)pContext) = true;
     return *((bool*)pContext) ? DEAL_RES_END : DEAL_RES_IGNORE_CHILD;
   }
   return DEAL_RES_CONTINUE;
