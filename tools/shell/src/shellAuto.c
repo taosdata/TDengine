@@ -325,24 +325,23 @@ int        cntDel = 0;        // delete byte count after next press tab
 
 // show auto tab introduction
 void printfIntroduction() {
-  printf("   ****************************  How To Use TAB Key  ********************************\n");
-  printf("   *   TDengine Command Line supports pressing TAB key to complete word,            *\n");
-  printf("   *   including database name, table name, function name and keywords.             *\n");
-  printf("   *   Press TAB key anywhere, you'll get surprise.                                 *\n");
-  printf("   *   KEYBOARD SHORTCUT:                                                           *\n");
-  printf("   *    [ TAB ]        ......  Complete the word or show help if no input           *\n");
-  printf("   *    [ Ctrl + A ]   ......  move cursor to [A]head of line                       *\n");
-  printf("   *    [ Ctrl + E ]   ......  move cursor to [E]nd of line                         *\n");
-  printf("   *    [ Ctrl + W ]   ......  move cursor to line of middle                        *\n");
-  printf("   *    [ Ctrl + L ]   ......  clean screen                                         *\n");
-  printf("   *    [ Ctrl + K ]   ......  clean after cursor                                   *\n");
-  printf("   *    [ Ctrl + U ]   ......  clean before cursor                                  *\n");
-  printf("   *                                                                                *\n");
+  printf("   ******************************  Tab Completion  **********************************\n");
+  printf("   *   The TDengine CLI supports tab completion for a variety of items,             *\n");
+  printf("   *   including database names, table names, function names and keywords.          *\n");
+  printf("   *   The full list of shortcut keys is as follows:                                *\n");
+  printf("   *    [ TAB ]        ......  complete the current word                            *\n");
+  printf("   *                   ......  if used on a blank line, display all valid commands  *\n");
+  printf("   *    [ Ctrl + A ]   ......  move cursor to the st[A]rt of the line               *\n");
+  printf("   *    [ Ctrl + E ]   ......  move cursor to the [E]nd of the line                 *\n");
+  printf("   *    [ Ctrl + W ]   ......  move cursor to the middle of the line                *\n");
+  printf("   *    [ Ctrl + L ]   ......  clear the entire screen                              *\n");
+  printf("   *    [ Ctrl + K ]   ......  clear the screen after the cursor                    *\n");
+  printf("   *    [ Ctrl + U ]   ......  clear the screen before the cursor                   *\n");
   printf("   **********************************************************************************\n\n");
 }
 
 void showHelp() {
-  printf("\nThe following are supported commands for TDengine Command Line:");
+  printf("\nThe TDengine CLI supports the following commands:");
   printf(
       "\n\
   ----- A ----- \n\
