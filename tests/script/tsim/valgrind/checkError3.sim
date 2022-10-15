@@ -62,10 +62,12 @@ system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start -v
 
 print =============== stepa: query data
+
+$x = 0
 steps: 
 	$x = $x + 1
-	sleep 1000
-	if $x == 20 then
+	sleep 500
+	if $x == 50 then
 		return -1
 	endi
 sql select * from c1 -x steps
