@@ -72,7 +72,7 @@ static void mmProcessRpcMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     mndPostProcessQueryMsg(pMsg);
   }
 
-  dGTrace("msg:%p, is freed, code:0x%x", pMsg, code);
+  dGTrace("msg:%p is freed, code:%s", pMsg, tstrerror(code));
   rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }

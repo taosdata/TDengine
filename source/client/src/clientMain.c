@@ -222,7 +222,9 @@ void taos_kill_query(TAOS *taos) {
 
   int64_t  rid = *(int64_t *)taos;
   STscObj *pTscObj = acquireTscObj(rid);
-  stopAllRequests(pTscObj->pRequests);
+  if (pTscObj) {
+    stopAllRequests(pTscObj->pRequests);
+  }
   releaseTscObj(rid);
 }
 

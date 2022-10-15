@@ -1036,30 +1036,38 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
   pRequest->type = pQuery->msgType;
 
   SArray*      pMnodeList = taosArrayInit(4, sizeof(SQueryNodeLoad));
+
   SPlanContext cxt = {.queryId = pRequest->requestId,
-                      .acctId = pRequest->pTscObj->acctId,
-                      .mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp),
-                      .pAstRoot = pQuery->pRoot,
-                      .showRewrite = pQuery->showRewrite,
-                      .pMsg = pRequest->msgBuf,
-                      .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
-                      .pUser = pRequest->pTscObj->user,
-                      .sysInfo = pRequest->pTscObj->sysInfo,
-                      .allocatorId = pRequest->allocatorRefId};
-  SQueryPlan*  pDag = NULL;
-  int32_t      code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
-  if (code) {
-    tscError("0x%" PRIx64 " failed to create query plan, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
-             pRequest->requestId);
-  } else {
-    pRequest->body.subplanNum = pDag->numOfSubplans;
+                          .acctId = pRequest->pTscObj->acctId,
+                          .mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp),
+                          .pAstRoot = pQuery->pRoot,
+                          .showRewrite = pQuery->showRewrite,
+                          .pMsg = pRequest->msgBuf,
+                          .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
+                          .pUser = pRequest->pTscObj->user,
+                          .sysInfo = pRequest->pTscObj->sysInfo,
+                          .allocatorId = pRequest->allocatorRefId};
+
+      SAppInstInfo* pAppInfo = getAppInfo(pRequest);
+      SQueryPlan*   pDag = NULL;
+
+  int64_t st = taosGetTimestampUs();
+  int32_t code = qCreateQueryPlan(&cxt, &pDag, pMnodeList);
+      if (code) {
+        tscError("0x%" PRIx64 " failed to create query plan, code:%s 0x%" PRIx64, pRequest->self, tstrerror(code),
+                 pRequest->requestId);
+      } else {
+        pRequest->body.subplanNum = pDag->numOfSubplans;
+      }
+
+      pRequest->metric.planEnd = taosGetTimestampUs();
+  if (code == TSDB_CODE_SUCCESS) {
+    tscDebug("0x%" PRIx64 " create query plan success, elapsed time:%.2f ms, 0x%" PRIx64, pRequest->self,
+             (pRequest->metric.planEnd - st)/1000.0, pRequest->requestId);
   }
-
-  pRequest->metric.planEnd = taosGetTimestampUs();
-
-  if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
-    SArray* pNodeList = NULL;
-    buildAsyncExecNodeList(pRequest, &pNodeList, pMnodeList, pResultMeta);
+      if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
+        SArray* pNodeList = NULL;
+        buildAsyncExecNodeList(pRequest, &pNodeList, pMnodeList, pResultMeta);
 
     SRequestConnInfo conn = {.pTrans = getAppInfo(pRequest)->pTransporter,
                              .requestId = pRequest->requestId,
