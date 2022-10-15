@@ -43,14 +43,23 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       tDecoderInit(&dc, (uint8_t *)pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead));
       tStartDecode(&dc);
 
-      tDecodeI32v(&dc, &nReqs);
+      if (tDecodeI32v(&dc, &nReqs) < 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _err;
+      }
       for (int32_t iReq = 0; iReq < nReqs; iReq++) {
         tb_uid_t uid = tGenIdPI64();
         char    *name = NULL;
         tStartDecode(&dc);
 
-        tDecodeI32v(&dc, NULL);
-        tDecodeCStr(&dc, &name);
+        if (tDecodeI32v(&dc, NULL) < 0) {
+          code = TSDB_CODE_INVALID_MSG;
+          return code;
+        }
+        if (tDecodeCStr(&dc, &name) < 0) {
+          code = TSDB_CODE_INVALID_MSG;
+          return code;
+        }
         *(int64_t *)(dc.data + dc.pos) = uid;
         *(int64_t *)(dc.data + dc.pos + 8) = ctime;
 
@@ -81,10 +90,19 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
           char *name = NULL;
 
           tDecoderInit(&dc, pBlock->data, msgIter.schemaLen);
-          tStartDecode(&dc);
+          if (tStartDecode(&dc) < 0) {
+            code = TSDB_CODE_INVALID_MSG;
+            return code;
+          }
 
-          tDecodeI32v(&dc, NULL);
-          tDecodeCStr(&dc, &name);
+          if (tDecodeI32v(&dc, NULL) < 0) {
+            code = TSDB_CODE_INVALID_MSG;
+            return code;
+          }
+          if (tDecodeCStr(&dc, &name) < 0) {
+            code = TSDB_CODE_INVALID_MSG;
+            return code;
+          }
 
           uid = metaGetTableEntryUidByName(pVnode->pMeta, name);
           if (uid == 0) {
