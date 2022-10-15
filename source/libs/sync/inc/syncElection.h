@@ -40,6 +40,7 @@ extern "C" {
 //
 int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode);
 int32_t syncNodeRequestVotePeersSnapshot(SSyncNode* pSyncNode);
+int32_t syncNodeDoRequestVote(SSyncNode* pSyncNode);
 
 int32_t syncNodeElect(SSyncNode* pSyncNode);
 int32_t syncNodeRequestVote(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncRequestVote* pMsg);

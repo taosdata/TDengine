@@ -157,4 +157,66 @@ int32_t syncNodeOnRequestVoteReplySnapshotCb(SSyncNode* ths, SyncRequestVoteRepl
   return 0;
 }
 
-int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, SyncRequestVoteReply* pMsg) { return 0; }
+int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, SyncRequestVoteReply* pMsg) {
+  int32_t ret = 0;
+
+  // if already drop replica, do not process
+  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
+    syncLogRecvRequestVoteReply(ths, pMsg, "maybe replica already dropped");
+    return -1;
+  }
+
+  // drop stale response
+  if (pMsg->term < ths->pRaftStore->currentTerm) {
+    syncLogRecvRequestVoteReply(ths, pMsg, "drop stale response");
+    return -1;
+  }
+
+  // ASSERT(!(pMsg->term > ths->pRaftStore->currentTerm));
+  //  no need this code, because if I receive reply.term, then I must have sent for that term.
+  //   if (pMsg->term > ths->pRaftStore->currentTerm) {
+  //     syncNodeUpdateTerm(ths, pMsg->term);
+  //   }
+
+  if (pMsg->term > ths->pRaftStore->currentTerm) {
+    syncLogRecvRequestVoteReply(ths, pMsg, "error term");
+    return -1;
+  }
+
+  syncLogRecvRequestVoteReply(ths, pMsg, "");
+  ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
+
+  // This tallies votes even when the current state is not Candidate,
+  // but they won't be looked at, so it doesn't matter.
+  if (ths->state == TAOS_SYNC_STATE_CANDIDATE) {
+    if (ths->pVotesRespond->term != pMsg->term) {
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "vote respond error vote-respond-mgr term:%lu, msg term:lu",
+               ths->pVotesRespond->term, pMsg->term);
+      syncNodeErrorLog(ths, logBuf);
+      return -1;
+    }
+
+    votesRespondAdd(ths->pVotesRespond, pMsg);
+    if (pMsg->voteGranted) {
+      // add vote
+      voteGrantedVote(ths->pVotesGranted, pMsg);
+
+      // maybe to leader
+      if (voteGrantedMajority(ths->pVotesGranted)) {
+        if (!ths->pVotesGranted->toLeader) {
+          syncNodeCandidate2Leader(ths);
+
+          // prevent to leader again!
+          ths->pVotesGranted->toLeader = true;
+        }
+      }
+    } else {
+      ;
+      // do nothing
+      // UNCHANGED <<votesGranted, voterLog>>
+    }
+  }
+
+  return 0;
+}

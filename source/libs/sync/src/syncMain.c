@@ -1262,6 +1262,7 @@ void syncNodeStart(SSyncNode* pSyncNode) {
     // Raft 3.6.2 Committing entries from previous terms
     syncNodeAppendNoop(pSyncNode);
     syncMaybeAdvanceCommitIndex(pSyncNode);
+
   } else {
     syncNodeBecomeFollower(pSyncNode, "first start");
   }
@@ -1491,6 +1492,14 @@ static int32_t syncNodeDoStartHeartbeatTimer(SSyncNode* pSyncNode) {
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
   pSyncNode->heartbeatTimerMS = pSyncNode->hbBaseLine;
   int32_t ret = syncNodeDoStartHeartbeatTimer(pSyncNode);
+
+  do {
+    for (int i = 0; i < pSyncNode->peersNum; ++i) {
+      SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->peersId[i]));
+      syncHbTimerStart(pSyncNode, pSyncTimer);
+    }
+  } while (0);
+
   return ret;
 }
 
@@ -1513,6 +1522,13 @@ int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
   pSyncNode->pHeartbeatTimer = NULL;
 
   sTrace("vgId:%d, sync %s stop heartbeat timer", pSyncNode->vgId, syncUtilState2String(pSyncNode->state));
+
+  do {
+    for (int i = 0; i < pSyncNode->peersNum; ++i) {
+      SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->peersId[i]));
+      syncHbTimerStop(pSyncNode, pSyncTimer);
+    }
+  } while (0);
 
   return ret;
 }
@@ -2177,10 +2193,6 @@ void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
   // state change
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
   syncNodeStopHeartbeatTimer(pSyncNode);
-  for (int i = 0; i < pSyncNode->peersNum; ++i) {
-    SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->peersId[i]));
-    syncHbTimerStop(pSyncNode, pSyncTimer);
-  }
 
   // reset elect timer
   syncNodeResetElectTimer(pSyncNode);
@@ -2280,10 +2292,9 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
 
   // start heartbeat timer
   syncNodeStartHeartbeatTimer(pSyncNode);
-  for (int i = 0; i < pSyncNode->peersNum; ++i) {
-    SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->peersId[i]));
-    syncHbTimerStart(pSyncNode, pSyncTimer);
-  }
+
+  // send heartbeat right now
+  syncNodeHeartbeatPeers(pSyncNode);
 
   // call back
   if (pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpBecomeLeaderCb != NULL) {
@@ -2317,6 +2328,8 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
   syncNodeAppendNoop(pSyncNode);
   syncMaybeAdvanceCommitIndex(pSyncNode);
 }
+
+bool syncNodeIsMnode(SSyncNode* pSyncNode) { return (pSyncNode->vgId == 1); }
 
 void syncNodeFollower2Candidate(SSyncNode* pSyncNode) {
   ASSERT(pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER);
@@ -2816,6 +2829,10 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg) {
 
   SRpcMsg rpcMsg;
   syncHeartbeatReply2RpcMsg(pMsgReply, &rpcMsg);
+
+  if (pMsg->term >= ths->pRaftStore->currentTerm && ths->state != TAOS_SYNC_STATE_FOLLOWER) {
+    syncNodeBecomeFollower(ths, "become follower by hb");
+  }
 
   if (pMsg->term == ths->pRaftStore->currentTerm) {
     sInfo("vgId:%d, heartbeat reset timer", 1);

@@ -299,6 +299,8 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
 
 int32_t syncNodeDynamicQuorum(const SSyncNode* pSyncNode);
 
+bool syncNodeIsMnode(SSyncNode* pSyncNode);
+
 // trace log
 void syncLogSendRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s);
 void syncLogRecvRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s);

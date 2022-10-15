@@ -507,3 +507,24 @@ int32_t syncNodeHeartbeat(SSyncNode* pSyncNode, const SRaftId* destRaftId, const
   syncNodeSendMsgById(&(pMsg->destId), pSyncNode, &rpcMsg);
   return ret;
 }
+
+int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
+  for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
+    SyncHeartbeat* pSyncMsg = syncHeartbeatBuild(pSyncNode->vgId);
+    pSyncMsg->srcId = pSyncNode->myRaftId;
+    pSyncMsg->destId = pSyncNode->peersId[i];
+    pSyncMsg->term = pSyncNode->pRaftStore->currentTerm;
+    pSyncMsg->commitIndex = pSyncNode->commitIndex;
+    pSyncMsg->privateTerm = 0;
+
+    SRpcMsg rpcMsg;
+    syncHeartbeat2RpcMsg(pSyncMsg, &rpcMsg);
+
+    // send msg
+    syncNodeHeartbeat(pSyncNode, &(pSyncMsg->destId), pSyncMsg);
+
+    syncHeartbeatDestroy(pSyncMsg);
+  }
+
+  return 0;
+}

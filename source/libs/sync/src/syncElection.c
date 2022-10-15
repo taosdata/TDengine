@@ -70,6 +70,26 @@ int32_t syncNodeRequestVotePeersSnapshot(SSyncNode* pSyncNode) {
   return ret;
 }
 
+int32_t syncNodeDoRequestVote(SSyncNode* pSyncNode) {
+  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
+
+  int32_t ret = 0;
+  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+    SyncRequestVote* pMsg = syncRequestVoteBuild(pSyncNode->vgId);
+    pMsg->srcId = pSyncNode->myRaftId;
+    pMsg->destId = pSyncNode->peersId[i];
+    pMsg->term = pSyncNode->pRaftStore->currentTerm;
+
+    ret = syncNodeGetLastIndexTerm(pSyncNode, &(pMsg->lastLogIndex), &(pMsg->lastLogTerm));
+    ASSERT(ret == 0);
+
+    ret = syncNodeRequestVote(pSyncNode, &pSyncNode->peersId[i], pMsg);
+    ASSERT(ret == 0);
+    syncRequestVoteDestroy(pMsg);
+  }
+  return ret;
+}
+
 int32_t syncNodeElect(SSyncNode* pSyncNode) {
   syncNodeEventLog(pSyncNode, "begin election");
 
@@ -98,20 +118,25 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
     return ret;
   }
 
-  switch (pSyncNode->pRaftCfg->snapshotStrategy) {
-    case SYNC_STRATEGY_NO_SNAPSHOT:
-      ret = syncNodeRequestVotePeers(pSyncNode);
-      break;
+  if (syncNodeIsMnode(pSyncNode)) {
+    switch (pSyncNode->pRaftCfg->snapshotStrategy) {
+      case SYNC_STRATEGY_NO_SNAPSHOT:
+        ret = syncNodeRequestVotePeers(pSyncNode);
+        break;
 
-    case SYNC_STRATEGY_STANDARD_SNAPSHOT:
-    case SYNC_STRATEGY_WAL_FIRST:
-      ret = syncNodeRequestVotePeersSnapshot(pSyncNode);
-      break;
+      case SYNC_STRATEGY_STANDARD_SNAPSHOT:
+      case SYNC_STRATEGY_WAL_FIRST:
+        ret = syncNodeRequestVotePeersSnapshot(pSyncNode);
+        break;
 
-    default:
-      ret = syncNodeRequestVotePeers(pSyncNode);
-      break;
+      default:
+        ret = syncNodeRequestVotePeers(pSyncNode);
+        break;
+    }
+  } else {
+    ret = syncNodeDoRequestVote(pSyncNode);
   }
+
   ASSERT(ret == 0);
   syncNodeResetElectTimer(pSyncNode);
 

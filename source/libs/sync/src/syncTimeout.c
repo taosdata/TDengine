@@ -101,8 +101,9 @@ int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg) {
       ++(ths->heartbeatTimerCounter);
       sTrace("vgId:%d, sync timer, type:replicate count:%d, heartbeatTimerLogicClockUser:%ld", ths->vgId,
              ths->heartbeatTimerCounter, ths->heartbeatTimerLogicClockUser);
-      syncNodeReplicate(ths, true);
+      // syncNodeReplicate(ths, true);
     }
+
   } else {
     sError("vgId:%d, unknown timeout-type:%d", ths->vgId, pMsg->timeoutType);
   }
