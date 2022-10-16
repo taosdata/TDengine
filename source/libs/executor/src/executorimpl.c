@@ -1857,6 +1857,7 @@ static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInf
     SResFetchReq* pMsg = taosMemoryCalloc(1, sizeof(SResFetchReq));
     if (NULL == pMsg) {
       pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      taosMemoryFree(pWrapper);
       return pTaskInfo->code;
     }
 
