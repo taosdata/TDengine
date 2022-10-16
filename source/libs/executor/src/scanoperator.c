@@ -68,53 +68,12 @@ const SSTabFltFuncDef filterDict[] = {{.name = "table_name", .fltFunc = sysFilte
                                       {.name = "vgroup_id", .fltFunc = sysFilteVgroupId},
                                       {.name = "uid", .fltFunc = sysFilteUid},
                                       {.name = "type", .fltFunc = sysFilteType}};
+
 #define SYSTAB_FILTER_DICT_SIZE (sizeof(filterDict) / sizeof(filterDict[0]))
 
-static int32_t optSysTabFilteImpl(void* arg, SNode* cond, SArray* result) {
-  if (nodeType(cond) != QUERY_NODE_OPERATOR) return -1;
-
-  SOperatorNode* pNode = (SOperatorNode*)cond;
-  if (nodeType(pNode->pLeft) != QUERY_NODE_COLUMN) return -1;
-
-  int8_t i = -1;
-  for (i = 0; i < SYSTAB_FILTER_DICT_SIZE; i++) {
-    if (strcmp(filterDict[i].name, ((SColumnNode*)(pNode->pLeft))->colName) == 0) {
-      break;
-    }
-  }
-  if (i >= SYSTAB_FILTER_DICT_SIZE) return -1;
-
-  return filterDict[i].fltFunc(arg, cond, result);
-}
-
-static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result) {
-  int ret = -1;
-  if (nodeType(cond) == QUERY_NODE_OPERATOR) {
-    ret = optSysTabFilteImpl(arg, cond, result);
-    return ret;
-  }
-  if (nodeType(cond) != QUERY_NODE_LOGIC_CONDITION || ((SLogicConditionNode*)cond)->condType != LOGIC_COND_TYPE_AND) {
-    return ret;
-  }
-
-  bool                 hasTbnameCond = false;
-  SLogicConditionNode* pNode = (SLogicConditionNode*)cond;
-  SNodeList*           pList = (SNodeList*)pNode->pParameterList;
-
-  int32_t len = LIST_LENGTH(pList);
-  if (len <= 0) return ret;
-
-  SListCell* cell = pList->pHead;
-  for (int i = 0; i < len; i++) {
-    if (cell == NULL) break;
-    if (optSysTabFilteImpl(arg, cell->pNode, result) == 0) {
-      hasTbnameCond = true;
-    }
-    cell = cell->pNext;
-  }
-
-  return hasTbnameCond == true ? 0 : -1;
-}
+static int32_t optSysTabFilteImpl(void* arg, SNode* cond, SArray* result);
+static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result);
+static int32_t optSysCheckOper(SNode* pOpear);
 
 static bool processBlockWithProbability(const SSampleExecInfo* pInfo);
 
@@ -2823,6 +2782,8 @@ static int32_t sysFilteVgroupId(void* pMeta, SNode* pNode, SArray* result) {
 
   int32_t vgId = 0;
   vnodeGetInfo(pVnode, NULL, &vgId);
+  SOperatorNode* pOper = (SOperatorNode*)pNode;
+
   return -1;
 }
 static int32_t sysFilteTableName(void* pMeta, SNode* pNode, SArray* result) {
@@ -2854,6 +2815,56 @@ static int32_t sysFilteUid(void* pMeta, SNode* pNode, SArray* result) {
 static int32_t sysFilteType(void* pMeta, SNode* pNode, SArray* result) {
   // impl later
   return 0;
+}
+static int32_t optSysTabFilteImpl(void* arg, SNode* cond, SArray* result) {
+  if (nodeType(cond) != QUERY_NODE_OPERATOR || optSysCheckOper(cond) != 0) return -1;
+
+  SOperatorNode* pNode = (SOperatorNode*)cond;
+  if (nodeType(pNode->pLeft) != QUERY_NODE_COLUMN) return -1;
+
+  int8_t i = -1;
+  for (i = 0; i < SYSTAB_FILTER_DICT_SIZE; i++) {
+    if (strcmp(filterDict[i].name, ((SColumnNode*)(pNode->pLeft))->colName) == 0) {
+      break;
+    }
+  }
+  if (i >= SYSTAB_FILTER_DICT_SIZE) return -1;
+
+  return filterDict[i].fltFunc(arg, cond, result);
+}
+
+static int32_t optSysCheckOper(SNode* pOpear) {
+  if (nodeType(pOpear) != QUERY_NODE_OPERATOR) return -1;
+  SOperatorNode* pOper = (SOperatorNode*)pOpear;
+  return -1;
+}
+static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result) {
+  int ret = -1;
+  if (nodeType(cond) == QUERY_NODE_OPERATOR) {
+    ret = optSysTabFilteImpl(arg, cond, result);
+    return ret;
+  }
+  if (nodeType(cond) != QUERY_NODE_LOGIC_CONDITION || ((SLogicConditionNode*)cond)->condType != LOGIC_COND_TYPE_AND) {
+    return ret;
+  }
+
+  bool                 hasIndex = false;
+  SLogicConditionNode* pNode = (SLogicConditionNode*)cond;
+  SNodeList*           pList = (SNodeList*)pNode->pParameterList;
+
+  int32_t len = LIST_LENGTH(pList);
+  if (len <= 0) return ret;
+
+  SListCell* cell = pList->pHead;
+  for (int i = 0; i < len; i++) {
+    if (cell == NULL) break;
+    if (optSysTabFilteImpl(arg, cell->pNode, result) == 0) {
+      hasIndex = true;
+    }
+    cell = cell->pNext;
+  }
+
+  return hasIndex == true ? 0 : -1;
 }
 
 static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
