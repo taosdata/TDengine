@@ -219,7 +219,7 @@ SRBTreeNode *tRBTreePut(SRBTree *pTree, SRBTreeNode *z) {
   while (temp != pTree->NIL) {
     y = temp;
 
-    int32_t c = pTree->cmprFn(RBTREE_NODE_PAYLOAD(z), RBTREE_NODE_PAYLOAD(temp));
+    int32_t c = pTree->cmprFn(z, temp);
     if (c < 0) {
       temp = temp->left;
     } else if (c > 0) {
@@ -232,7 +232,7 @@ SRBTreeNode *tRBTreePut(SRBTree *pTree, SRBTreeNode *z) {
 
   if (y == pTree->NIL) {
     pTree->root = z;
-  } else if (pTree->cmprFn(RBTREE_NODE_PAYLOAD(z), RBTREE_NODE_PAYLOAD(y)) < 0) {
+  } else if (pTree->cmprFn(z, y) < 0) {
     y->left = z;
   } else {
     y->right = z;
@@ -245,10 +245,10 @@ SRBTreeNode *tRBTreePut(SRBTree *pTree, SRBTreeNode *z) {
   tRBTreePutFix(pTree, z);
 
   // update min/max node
-  if (pTree->min == pTree->NIL || pTree->cmprFn(RBTREE_NODE_PAYLOAD(pTree->min), RBTREE_NODE_PAYLOAD(z)) > 0) {
+  if (pTree->min == pTree->NIL || pTree->cmprFn(pTree->min, z) > 0) {
     pTree->min = z;
   }
-  if (pTree->max == pTree->NIL || pTree->cmprFn(RBTREE_NODE_PAYLOAD(pTree->max), RBTREE_NODE_PAYLOAD(z)) < 0) {
+  if (pTree->max == pTree->NIL || pTree->cmprFn(pTree->max, z) < 0) {
     pTree->max = z;
   }
   pTree->n++;
@@ -309,11 +309,11 @@ SRBTreeNode *tRBTreeDropByKey(SRBTree *pTree, void *pKey) {
   return pNode;
 }
 
-SRBTreeNode *tRBTreeGet(SRBTree *pTree, void *pKey) {
+SRBTreeNode *tRBTreeGet(SRBTree *pTree, const SRBTreeNode *pKeyNode) {
   SRBTreeNode *pNode = pTree->root;
 
   while (pNode != pTree->NIL) {
-    int32_t c = pTree->cmprFn(pKey, RBTREE_NODE_PAYLOAD(pNode));
+    int32_t c = pTree->cmprFn(pKeyNode, pNode);
 
     if (c < 0) {
       pNode = pNode->left;

@@ -86,10 +86,10 @@ void syncCleanUp() {
   }
 }
 
-int64_t syncOpen(const SSyncInfo* pSyncInfo) {
+int64_t syncOpen(SSyncInfo* pSyncInfo) {
   SSyncNode* pSyncNode = syncNodeOpen(pSyncInfo);
   if (pSyncNode == NULL) {
-    sError("failed to open sync node. vgId:%d", pSyncInfo->vgId);
+    sError("vgId:%d, failed to open sync node since %s", pSyncInfo->vgId, terrstr());
     return -1;
   }
 
@@ -230,7 +230,7 @@ int32_t syncReconfigBuild(int64_t rid, const SSyncCfg* pNewCfg, SRpcMsg* pRpcMsg
   return ret;
 }
 
-int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg) {
+int32_t syncReconfig(int64_t rid, SSyncCfg* pNewCfg) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
@@ -238,6 +238,7 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg) {
   }
   ASSERT(rid == pSyncNode->rid);
 
+#if 0
   if (!syncNodeCheckNewConfig(pSyncNode, pNewCfg)) {
     taosReleaseRef(tsNodeRefId, pSyncNode->rid);
     terrno = TSDB_CODE_SYN_NEW_CONFIG_ERROR;
@@ -259,6 +260,12 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg) {
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   return ret;
+#else
+  syncNodeUpdateNewConfigIndex(pSyncNode, pNewCfg);
+  syncNodeDoConfigChange(pSyncNode, pNewCfg, SYNC_INDEX_INVALID);
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return 0;
+#endif
 }
 
 int32_t syncLeaderTransfer(int64_t rid) {
@@ -919,9 +926,7 @@ _END:
 }
 
 // open/close --------------
-SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
-  SSyncInfo* pSyncInfo = (SSyncInfo*)pOldSyncInfo;
-
+SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   SSyncNode* pSyncNode = (SSyncNode*)taosMemoryCalloc(1, sizeof(SSyncNode));
   if (pSyncNode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -957,7 +962,9 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
       sError("failed to open raft cfg file. path:%s", pSyncNode->configPath);
       goto _error;
     }
-    pSyncInfo->syncCfg = pSyncNode->pRaftCfg->cfg;
+    if (pSyncInfo->syncCfg.replicaNum == 0) {
+      pSyncInfo->syncCfg = pSyncNode->pRaftCfg->cfg;
+    }
 
     raftCfgClose(pSyncNode->pRaftCfg);
     pSyncNode->pRaftCfg = NULL;

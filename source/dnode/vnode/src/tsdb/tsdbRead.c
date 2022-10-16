@@ -2676,9 +2676,9 @@ static STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* ret
     int8_t  level = 0;
     int8_t  precision = pVnode->config.tsdbCfg.precision;
     int64_t now = taosGetTimestamp(precision);
-    int64_t offset = tsQueryRsmaTolerance * ((precision == TSDB_TIME_PRECISION_MILLI)   ? 1
-                                             : (precision == TSDB_TIME_PRECISION_MICRO) ? 1000
-                                                                                        : 1000000);
+    int64_t offset = tsQueryRsmaTolerance * ((precision == TSDB_TIME_PRECISION_MILLI)   ? 1L
+                                             : (precision == TSDB_TIME_PRECISION_MICRO) ? 1000L
+                                                                                        : 1000000L);
 
     for (int8_t i = 0; i < TSDB_RETENTION_MAX; ++i) {
       SRetention* pRetention = retentions + level;
@@ -3372,14 +3372,13 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
   if (pCond->suid != 0) {
     pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pReader->suid, -1, 1);
     if (pReader->pSchema == NULL) {
-      tsdbError("failed to get table schema, suid:%" PRIu64 ", ver:%" PRId64 " , %s", pReader->suid, -1,
-                pReader->idStr);
+      tsdbError("failed to get table schema, suid:%" PRIu64 ", ver:-1, %s", pReader->suid, pReader->idStr);
     }
   } else if (taosArrayGetSize(pTableList) > 0) {
     STableKeyInfo* pKey = taosArrayGet(pTableList, 0);
     pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pKey->uid, -1, 1);
     if (pReader->pSchema == NULL) {
-      tsdbError("failed to get table schema, uid:%" PRIu64 ", ver:%" PRId64 " , %s", pKey->uid, -1, pReader->idStr);
+      tsdbError("failed to get table schema, uid:%" PRIu64 ", ver:-1, %s", pKey->uid, pReader->idStr);
     }
   }
 
@@ -3395,19 +3394,20 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
     goto _err;
   }
 
-  code = tsdbTakeReadSnap(pReader->pTsdb, &pReader->pReadSnap, pReader->idStr);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _err;
-  }
-
-  if (pReader->type == TIMEWINDOW_RANGE_CONTAINED) {
-    code = doOpenReaderImpl(pReader);
+  if (numOfTables > 0) {
+    code = tsdbTakeReadSnap(pReader->pTsdb, &pReader->pReadSnap, pReader->idStr);
     if (code != TSDB_CODE_SUCCESS) {
-      return code;
+      goto _err;
     }
-  } else {
-    STsdbReader* pPrevReader = pReader->innerReader[0];
-    STsdbReader* pNextReader = pReader->innerReader[1];
+
+    if (pReader->type == TIMEWINDOW_RANGE_CONTAINED) {
+      code = doOpenReaderImpl(pReader);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    } else {
+      STsdbReader* pPrevReader = pReader->innerReader[0];
+      STsdbReader* pNextReader = pReader->innerReader[1];
 
     // we need only one row
     pPrevReader->capacity = 1;
@@ -3422,19 +3422,20 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
     pNextReader->pMemSchema = pReader->pMemSchema;
     pNextReader->pReadSnap = pReader->pReadSnap;
 
-    code = doOpenReaderImpl(pPrevReader);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
+      code = doOpenReaderImpl(pPrevReader);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
 
-    code = doOpenReaderImpl(pNextReader);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
+      code = doOpenReaderImpl(pNextReader);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
 
-    code = doOpenReaderImpl(pReader);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
+      code = doOpenReaderImpl(pReader);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     }
   }
 
@@ -3511,6 +3512,10 @@ void tsdbReaderClose(STsdbReader* pReader) {
 
     pLReader->pInfo = destroyLastBlockLoadInfo(pLReader->pInfo);
     taosMemoryFree(pLReader);
+  }
+
+  if (pReader->innerReader[0] != 0) {
+    tsdbUntakeReadSnap(pReader->innerReader[0]->pTsdb, pReader->innerReader[0]->pReadSnap, pReader->idStr);
   }
 
   tsdbDebug(

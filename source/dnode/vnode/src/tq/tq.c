@@ -171,11 +171,11 @@ int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry) {
   ASSERT(taosArrayGetSize(pRsp->blockSchema) == 0);
 
   if (pRsp->reqOffset.type == TMQ_OFFSET__LOG) {
-    if (pRsp->blockNum > 0) {
-      ASSERT(pRsp->rspOffset.version > pRsp->reqOffset.version);
-    } else {
-      ASSERT(pRsp->rspOffset.version >= pRsp->reqOffset.version);
-    }
+    /*if (pRsp->blockNum > 0) {*/
+    /*ASSERT(pRsp->rspOffset.version > pRsp->reqOffset.version);*/
+    /*} else {*/
+    ASSERT(pRsp->rspOffset.version > pRsp->reqOffset.version);
+    /*}*/
   }
 
   int32_t len = 0;
