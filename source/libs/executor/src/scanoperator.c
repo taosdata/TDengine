@@ -2568,16 +2568,27 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
 
     SMetaReader smrChildTable = {0};
     metaReaderInit(&smrChildTable, pInfo->readHandle.meta, 0);
-    metaGetTableEntryByName(&smrChildTable, condTableName);
+    int32_t code = metaGetTableEntryByName(&smrChildTable, condTableName);
+    if (code != TSDB_CODE_SUCCESS) {
+      // terrno has been set by metaGetTableEntryByName, therefore, return directly
+      return NULL;
+    }
+
     if (smrChildTable.me.type != TSDB_CHILD_TABLE) {
       metaReaderClear(&smrChildTable);
       blockDataDestroy(dataBlock);
       pInfo->loadInfo.totalRows = 0;
       return NULL;
     }
+
     SMetaReader smrSuperTable = {0};
     metaReaderInit(&smrSuperTable, pInfo->readHandle.meta, META_READER_NOLOCK);
-    metaGetTableEntryByUid(&smrSuperTable, smrChildTable.me.ctbEntry.suid);
+    code = metaGetTableEntryByUid(&smrSuperTable, smrChildTable.me.ctbEntry.suid);
+    if (code != TSDB_CODE_SUCCESS) {
+      // terrno has been set by metaGetTableEntryByUid
+      return NULL;
+    }
+
     sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &smrChildTable, dbname, tableName, &numOfRows, dataBlock);
     metaReaderClear(&smrSuperTable);
     metaReaderClear(&smrChildTable);
@@ -3795,6 +3806,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 
   int32_t code = initQueryTableDataCond(&pInfo->cond, pTableScanNode);
   if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(pColList);
     goto _error;
   }
 
