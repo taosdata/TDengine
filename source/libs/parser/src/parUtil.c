@@ -381,6 +381,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
         uError("charset:%s to %s. val:%s, errno:%s, convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, jsonValue,
                strerror(errno));
         retCode = buildSyntaxErrMsg(pMsgBuf, "charset convert json error", jsonValue);
+        taosMemoryFree(tmp);
         goto end;
       }
       val.nData = valLen;
@@ -652,8 +653,8 @@ static int32_t buildCatalogReqForInsert(SParseContext* pCxt, const SParseMetaCac
     }
 
     SUserAuthInfo auth = {0};
-    strcpy(auth.user, pCxt->pUser);
-    strcpy(auth.dbFName, p->dbFName);
+    snprintf(auth.user, sizeof(auth.user), "%s", pCxt->pUser);
+    snprintf(auth.dbFName, sizeof(auth.dbFName), "%s", p->dbFName);
     auth.type = AUTH_TYPE_WRITE;
     taosArrayPush(pCatalogReq->pUser, &auth);
 

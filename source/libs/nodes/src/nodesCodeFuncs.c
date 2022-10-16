@@ -3011,7 +3011,7 @@ static int32_t valueNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkValueIsNull, pNode->isNull);
   }
-  if (TSDB_CODE_SUCCESS == code && pNode->translate) {
+  if (TSDB_CODE_SUCCESS == code && pNode->translate && !pNode->isNull) {
     code = datumToJson(pNode, pJson);
   }
 
@@ -3161,7 +3161,7 @@ static int32_t jsonToValueNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkValueIsNull, &pNode->isNull);
   }
-  if (TSDB_CODE_SUCCESS == code && pNode->translate) {
+  if (TSDB_CODE_SUCCESS == code && pNode->translate && !pNode->isNull) {
     code = jsonToDatum(pJson, pNode);
   }
 

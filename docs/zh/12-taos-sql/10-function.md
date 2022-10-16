@@ -340,7 +340,7 @@ LTRIM(expr)
 #### RTRIM
 
 ```sql
-LTRIM(expr)
+RTRIM(expr)
 ```
 
 **功能说明**：返回清除右边空格后的字符串。

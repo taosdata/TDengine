@@ -158,9 +158,15 @@ print =============== restart
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start -v
 
-sleep 1000
+$x = 0
+steps: 
+	$x = $x + 1
+	sleep 500
+	if $x == 50 then
+		return -1
+	endi
+sql select avg(tbcol) as c from stb -x steps
 
-sql select avg(tbcol) as c from stb
 sql select avg(tbcol) as c from stb where ts <= 1601481840000
 sql select avg(tbcol) as c from stb where tgcol < 5 and ts <= 1601481840000
 sql select avg(tbcol) as c from stb interval(1m)

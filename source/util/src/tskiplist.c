@@ -145,7 +145,10 @@ void tSkipListPutBatchByIter(SSkipList *pSkipList, void *iter, iter_next_fn_t it
   tSkipListWLock(pSkipList);
 
   void *pData = iterate(iter);
-  if (pData == NULL) return;
+  if (pData == NULL) {
+    tSkipListUnlock(pSkipList);
+    return;
+  }
 
   // backward to put the first data
   hasDup = tSkipListGetPosToPut(pSkipList, backward, pData);

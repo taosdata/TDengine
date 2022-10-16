@@ -987,7 +987,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
 
     // fetch a new ofp and make it dirty
     SPgno  pgno = 0;
-    SPage *ofp, *nextOfp;
+    SPage *ofp = NULL, *nextOfp = NULL;
 
     ret = tdbFetchOvflPage(&pgno, &ofp, pTxn, pBt);
     if (ret < 0) {

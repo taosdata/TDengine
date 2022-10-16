@@ -298,6 +298,7 @@ void *sdbAcquire(SSdb *pSdb, ESdbType type, const void *pKey);
  * @param pObj The object of the row.
  */
 void sdbRelease(SSdb *pSdb, void *pObj);
+void sdbReleaseLock(SSdb *pSdb, void *pObj, bool lock);
 
 /**
  * @brief Traverse a sdb table
@@ -309,7 +310,7 @@ void sdbRelease(SSdb *pSdb, void *pObj);
  * @return void* The next iterator of the table.
  */
 void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj);
-void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStatus *status);
+void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStatus *status, bool lock);
 
 /**
  * @brief Cancel a traversal
