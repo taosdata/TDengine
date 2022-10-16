@@ -1219,6 +1219,9 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   // is config changing
   pSyncNode->changing = false;
 
+  // peer state
+  syncNodePeerStateInit(pSyncNode);
+
   // start in syncNodeStart
   // start raft
   // syncNodeBecomeFollower(pSyncNode);
@@ -2331,6 +2334,32 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
 
 bool syncNodeIsMnode(SSyncNode* pSyncNode) { return (pSyncNode->vgId == 1); }
 
+int32_t syncNodePeerStateInit(SSyncNode* pSyncNode) {
+  for (int i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    pSyncNode->peerStates[i].lastSendIndex = SYNC_INDEX_INVALID;
+    pSyncNode->peerStates[i].lastSendTime = 0;
+  }
+
+  return 0;
+}
+
+void syncNodeStepDown(SSyncNode* pSyncNode, SyncTerm newTerm) {
+  ASSERT(pSyncNode->pRaftStore->currentTerm <= newTerm);
+
+  if (pSyncNode->pRaftStore->currentTerm < newTerm) {
+    raftStoreSetTerm(pSyncNode->pRaftStore, newTerm);
+    char tmpBuf[64];
+    snprintf(tmpBuf, sizeof(tmpBuf), "step down, update term to %" PRIu64, newTerm);
+    syncNodeBecomeFollower(pSyncNode, tmpBuf);
+    raftStoreClearVote(pSyncNode->pRaftStore);
+
+  } else {
+    if (pSyncNode->state != TAOS_SYNC_STATE_FOLLOWER) {
+      syncNodeBecomeFollower(pSyncNode, "step down");
+    }
+  }
+}
+
 void syncNodeFollower2Candidate(SSyncNode* pSyncNode) {
   ASSERT(pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER);
   pSyncNode->state = TAOS_SYNC_STATE_CANDIDATE;
@@ -2924,6 +2953,55 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg, SyncI
   return ret;
 }
 
+int32_t syncNodeOnClientRequest(SSyncNode* ths, SyncClientRequest* pMsg, SyncIndex* pRetIndex) {
+  int32_t ret = 0;
+  int32_t code = 0;
+
+  SyncIndex       index = ths->pLogStore->syncLogWriteIndex(ths->pLogStore);
+  SyncTerm        term = ths->pRaftStore->currentTerm;
+  SSyncRaftEntry* pEntry = syncEntryBuild2((SyncClientRequest*)pMsg, term, index);
+  ASSERT(pEntry != NULL);
+
+  LRUHandle* h = NULL;
+  syncCacheEntry(ths->pLogStore, pEntry, &h);
+
+  if (ths->state == TAOS_SYNC_STATE_LEADER) {
+    // append entry
+    code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
+    if (code != 0) {
+      // del resp mgr, call FpCommitCb
+      ASSERT(0);
+      return -1;
+    }
+
+    // if mulit replica, start replicate right now
+    if (ths->replicaNum > 1) {
+      syncNodeDoReplicate(ths);
+    }
+
+    // if only myself, maybe commit right now
+    if (ths->replicaNum == 1) {
+      syncMaybeAdvanceCommitIndex(ths);
+    }
+  }
+
+  if (pRetIndex != NULL) {
+    if (ret == 0 && pEntry != NULL) {
+      *pRetIndex = pEntry->index;
+    } else {
+      *pRetIndex = SYNC_INDEX_INVALID;
+    }
+  }
+
+  if (h) {
+    taosLRUCacheRelease(ths->pLogStore->pCache, h, false);
+  } else {
+    syncEntryDestory(pEntry);
+  }
+
+  return ret;
+}
+
 int32_t syncNodeOnClientRequestBatchCb(SSyncNode* ths, SyncClientRequestBatch* pMsg) {
   int32_t code = 0;
 
@@ -3329,6 +3407,30 @@ SSyncTimer* syncNodeGetHbTimer(SSyncNode* ths, SRaftId* pDestId) {
     }
   }
   return pTimer;
+}
+
+SPeerState* syncNodeGetPeerState(SSyncNode* ths, const SRaftId* pDestId) {
+  SPeerState* pState = NULL;
+  for (int i = 0; i < ths->replicaNum; ++i) {
+    if (syncUtilSameId(pDestId, &((ths->replicasId)[i]))) {
+      pState = &((ths->peerStates)[i]);
+    }
+  }
+  return pState;
+}
+
+bool syncNodeNeedSendAppendEntries(SSyncNode* ths, const SRaftId* pDestId, const SyncAppendEntries* pMsg) {
+  SPeerState* pState = syncNodeGetPeerState(ths, pDestId);
+  ASSERT(pState != NULL);
+
+  SyncIndex sendIndex = pMsg->prevLogIndex + 1;
+  int64_t   tsNow = taosGetTimestampMs();
+
+  if (pState->lastSendIndex == sendIndex && tsNow - pState->lastSendTime < SYNC_APPEND_ENTRIES_TIMEOUT_MS) {
+    return false;
+  }
+
+  return true;
 }
 
 bool syncNodeCanChange(SSyncNode* pSyncNode) {

@@ -61,8 +61,15 @@ int32_t syncNodeReplicate(SSyncNode* pSyncNode, bool isTimer);
 int32_t syncNodeAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntries* pMsg);
 int32_t syncNodeAppendEntriesBatch(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntriesBatch* pMsg);
 
+//---------------------------------------------
+
 int32_t syncNodeHeartbeat(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncHeartbeat* pMsg);
 int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode);
+
+int32_t syncNodeDoReplicate(SSyncNode* pSyncNode);
+int32_t syncNodeDoAppendEntries(SSyncNode* pSyncNode, SRaftId* pDestId);
+int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntries* pMsg);
+int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntries* pMsg);
 
 #ifdef __cplusplus
 }

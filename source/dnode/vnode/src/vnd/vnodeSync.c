@@ -407,7 +407,7 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
     SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pMsg);
     ASSERT(pSyncMsg != NULL);
-    code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg, NULL);
+    code = syncNodeOnClientRequest(pSyncNode, pSyncMsg, NULL);
     syncClientRequestDestroy(pSyncMsg);
 
   } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST_BATCH) {

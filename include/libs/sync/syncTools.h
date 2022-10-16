@@ -423,6 +423,7 @@ typedef struct SyncAppendEntriesReply {
   SyncTerm  privateTerm;
   bool      success;
   SyncIndex matchIndex;
+  SyncIndex lastSendIndex;
   int64_t   startTime;
 } SyncAppendEntriesReply;
 
@@ -698,6 +699,7 @@ int32_t syncNodeOnSnapshotRspCb(SSyncNode* ths, SyncSnapshotRsp* pMsg);
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg);
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, SyncHeartbeatReply* pMsg);
 
+int32_t syncNodeOnClientRequest(SSyncNode* ths, SyncClientRequest* pMsg, SyncIndex* pRetIndex);
 int32_t syncNodeOnRequestVote(SSyncNode* ths, SyncRequestVote* pMsg);
 int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, SyncRequestVoteReply* pMsg);
 int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg);

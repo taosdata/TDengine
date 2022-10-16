@@ -1042,4 +1042,123 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
   return ret;
 }
 
-int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) { return 0; }
+int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
+  // prepare response msg
+  SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
+  pReply->srcId = ths->myRaftId;
+  pReply->destId = pMsg->srcId;
+  pReply->term = ths->pRaftStore->currentTerm;
+  pReply->success = false;
+  pReply->matchIndex = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
+  pReply->lastSendIndex = pMsg->prevLogIndex + 1;
+  pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
+  pReply->startTime = ths->startTime;
+
+  if (pMsg->term < ths->pRaftStore->currentTerm) {
+    goto _SEND_RESPONSE;
+  }
+
+  if (pMsg->term > ths->pRaftStore->currentTerm) {
+    pReply->term = pMsg->term;
+    goto _SEND_RESPONSE;
+  }
+
+  syncNodeStepDown(ths, pMsg->term);
+  syncNodeResetElectTimer(ths);
+
+  SyncIndex startIndex = ths->pLogStore->syncLogBeginIndex(ths->pLogStore);
+  SyncIndex lastIndex = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
+
+  if (pMsg->prevLogIndex > lastIndex) {
+    goto _SEND_RESPONSE;
+  }
+
+  if (pMsg->prevLogIndex >= startIndex) {
+    SyncTerm myPreLogTerm = syncNodeGetPreTerm(ths, pMsg->prevLogIndex + 1);
+    ASSERT(myPreLogTerm != SYNC_TERM_INVALID);
+
+    if (myPreLogTerm != pMsg->prevLogTerm) {
+      goto _SEND_RESPONSE;
+    }
+  }
+
+  // accept
+  pReply->success = true;
+  bool hasAppendEntries = pMsg->dataLen > 0;
+  if (hasAppendEntries) {
+    SSyncRaftEntry* pAppendEntry = syncEntryDeserialize(pMsg->data, pMsg->dataLen);
+    ASSERT(pAppendEntry != NULL);
+
+    SyncIndex       appendIndex = pMsg->prevLogIndex + 1;
+    SSyncRaftEntry* pLocalEntry = NULL;
+    int32_t         code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, appendIndex, &pLocalEntry);
+    ASSERT(code == 0);
+
+    if (pLocalEntry->term == pAppendEntry->term) {
+      // do nothing
+    } else {
+      code = ths->pLogStore->syncLogTruncate(ths->pLogStore, appendIndex);
+      ASSERT(code == 0);
+
+      code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
+      ASSERT(code == 0);
+    }
+
+    syncEntryDestory(pLocalEntry);
+    syncEntryDestory(pAppendEntry);
+  }
+
+  // update match index
+  pReply->matchIndex = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
+
+  // maybe update commit index, leader notice me
+  if (pMsg->commitIndex > ths->commitIndex) {
+    // has commit entry in local
+    if (pMsg->commitIndex <= ths->pLogStore->syncLogLastIndex(ths->pLogStore)) {
+      // advance commit index to sanpshot first
+      SSnapshot snapshot;
+      ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
+      if (snapshot.lastApplyIndex >= 0 && snapshot.lastApplyIndex > ths->commitIndex) {
+        SyncIndex commitBegin = ths->commitIndex;
+        SyncIndex commitEnd = snapshot.lastApplyIndex;
+        ths->commitIndex = snapshot.lastApplyIndex;
+
+        char eventLog[128];
+        snprintf(eventLog, sizeof(eventLog), "commit by snapshot from index:%" PRId64 " to index:%" PRId64, commitBegin,
+                 commitEnd);
+        syncNodeEventLog(ths, eventLog);
+      }
+
+      SyncIndex beginIndex = ths->commitIndex + 1;
+      SyncIndex endIndex = pMsg->commitIndex;
+
+      // update commit index
+      ths->commitIndex = pMsg->commitIndex;
+
+      // call back Wal
+      int32_t code = ths->pLogStore->updateCommitIndex(ths->pLogStore, ths->commitIndex);
+      ASSERT(code == 0);
+
+      code = syncNodeCommit(ths, beginIndex, endIndex, ths->state);
+      ASSERT(code == 0);
+    }
+  }
+
+  goto _SEND_RESPONSE;
+
+_IGNORE:
+  syncAppendEntriesReplyDestroy(pReply);
+  return 0;
+
+_SEND_RESPONSE:
+  // msg event log
+  syncLogSendAppendEntriesReply(ths, pReply, "");
+
+  // send response
+  SRpcMsg rpcMsg;
+  syncAppendEntriesReply2RpcMsg(pReply, &rpcMsg);
+  syncNodeSendMsgById(&pReply->destId, ths, &rpcMsg);
+  syncAppendEntriesReplyDestroy(pReply);
+
+  return 0;
+}

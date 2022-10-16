@@ -83,6 +83,11 @@ int32_t syncHbTimerInit(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer, SRaftId de
 int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer);
 int32_t syncHbTimerStop(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer);
 
+typedef struct SPeerState {
+  SyncIndex lastSendIndex;
+  int64_t   lastSendTime;
+} SPeerState;
+
 typedef struct SSyncNode {
   // init by SSyncInfo
   SyncGroupId vgId;
@@ -186,6 +191,8 @@ typedef struct SSyncNode {
   SSyncSnapshotSender*   senders[TSDB_MAX_REPLICA];
   SSyncSnapshotReceiver* pNewNodeReceiver;
 
+  SPeerState peerStates[TSDB_MAX_REPLICA];
+
   // is config changing
   bool changing;
 
@@ -283,6 +290,8 @@ int32_t syncNodeUpdateNewConfigIndex(SSyncNode* ths, SSyncCfg* pNewCfg);
 bool                 syncNodeInRaftGroup(SSyncNode* ths, SRaftId* pRaftId);
 SSyncSnapshotSender* syncNodeGetSnapshotSender(SSyncNode* ths, SRaftId* pDestId);
 SSyncTimer*          syncNodeGetHbTimer(SSyncNode* ths, SRaftId* pDestId);
+SPeerState*          syncNodeGetPeerState(SSyncNode* ths, const SRaftId* pDestId);
+bool syncNodeNeedSendAppendEntries(SSyncNode* ths, const SRaftId* pDestId, const SyncAppendEntries* pMsg);
 
 int32_t syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
 int32_t syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct SSnapshotMeta* sMeta);
@@ -299,7 +308,9 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
 
 int32_t syncNodeDynamicQuorum(const SSyncNode* pSyncNode);
 
-bool syncNodeIsMnode(SSyncNode* pSyncNode);
+bool    syncNodeIsMnode(SSyncNode* pSyncNode);
+int32_t syncNodePeerStateInit(SSyncNode* pSyncNode);
+void    syncNodeStepDown(SSyncNode* pSyncNode, SyncTerm newTerm);
 
 // trace log
 void syncLogSendRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s);

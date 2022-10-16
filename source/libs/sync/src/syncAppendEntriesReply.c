@@ -20,6 +20,7 @@
 #include "syncRaftCfg.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
+#include "syncReplication.h"
 #include "syncSnapshot.h"
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
@@ -415,4 +416,54 @@ int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntries
   return 0;
 }
 
-int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, SyncAppendEntriesReply* pMsg) { return 0; }
+int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
+  int32_t ret = 0;
+
+  // if already drop replica, do not process
+  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
+    syncLogRecvAppendEntriesReply(ths, pMsg, "maybe replica already dropped");
+    return -1;
+  }
+
+  // drop stale response
+  if (pMsg->term < ths->pRaftStore->currentTerm) {
+    syncLogRecvAppendEntriesReply(ths, pMsg, "drop stale response");
+    return 0;
+  }
+
+  if (ths->state == TAOS_SYNC_STATE_LEADER) {
+    if (pMsg->term > ths->pRaftStore->currentTerm) {
+      syncLogRecvAppendEntriesReply(ths, pMsg, "error term");
+      syncNodeStepDown(ths, pMsg->term);
+      return -1;
+    }
+
+    ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
+
+    if (pMsg->success) {
+      SyncIndex oldMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
+      if (pMsg->matchIndex > oldMatchIndex) {
+        syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), pMsg->matchIndex);
+        syncMaybeAdvanceCommitIndex(ths);
+      }
+      syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), pMsg->matchIndex + 1);
+
+    } else {
+      SyncIndex nextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
+      if (nextIndex > SYNC_INDEX_BEGIN) {
+        --nextIndex;
+      }
+      syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), nextIndex);
+    }
+
+    // send next append entries
+    SPeerState* pState = syncNodeGetPeerState(ths, &(pMsg->srcId));
+    ASSERT(pState != NULL);
+
+    if (pMsg->lastSendIndex == pState->lastSendIndex) {
+      syncNodeDoAppendEntries(ths, &(pMsg->srcId));
+    }
+  }
+
+  return 0;
+}
