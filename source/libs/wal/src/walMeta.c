@@ -257,23 +257,23 @@ static void walRebuildFileInfoSet(SArray* metaLogList, SArray* actualLogList) {
 }
 
 void walAlignVersions(SWal* pWal) {
-  if (pWal->vers.firstVer > pWal->vers.snapshotVer) {
-    wWarn("vgId:%d, firstVer:%" PRId64 " is larger than snapshotVer:%" PRId64 ". reset it.", pWal->cfg.vgId,
+  if (pWal->vers.firstVer > pWal->vers.snapshotVer + 1) {
+    wWarn("vgId:%d, firstVer:%" PRId64 " is larger than snapshotVer:%" PRId64 " + 1. align with it.", pWal->cfg.vgId,
           pWal->vers.firstVer, pWal->vers.snapshotVer);
-    pWal->vers.firstVer = pWal->vers.snapshotVer;
+    pWal->vers.firstVer = pWal->vers.snapshotVer + 1;
   }
   if (pWal->vers.lastVer < pWal->vers.snapshotVer) {
-    wWarn("vgId:%d, lastVer:%" PRId64 " is less than snapshotVer:%" PRId64 ". reset it.", pWal->cfg.vgId,
+    wWarn("vgId:%d, lastVer:%" PRId64 " is less than snapshotVer:%" PRId64 ". align with it.", pWal->cfg.vgId,
           pWal->vers.lastVer, pWal->vers.snapshotVer);
     pWal->vers.lastVer = pWal->vers.snapshotVer;
   }
   if (pWal->vers.commitVer < pWal->vers.snapshotVer) {
-    wWarn("vgId:%d, commitVer:%" PRId64 " is less than snapshotVer:%" PRId64 ". reset it.", pWal->cfg.vgId,
+    wWarn("vgId:%d, commitVer:%" PRId64 " is less than snapshotVer:%" PRId64 ". align with it.", pWal->cfg.vgId,
           pWal->vers.commitVer, pWal->vers.snapshotVer);
     pWal->vers.commitVer = pWal->vers.snapshotVer;
   }
   if (pWal->vers.appliedVer < pWal->vers.snapshotVer) {
-    wWarn("vgId:%d, appliedVer:%" PRId64 " is less than snapshotVer:%" PRId64 ". reset it.", pWal->cfg.vgId,
+    wWarn("vgId:%d, appliedVer:%" PRId64 " is less than snapshotVer:%" PRId64 ". align with it.", pWal->cfg.vgId,
           pWal->vers.appliedVer, pWal->vers.snapshotVer);
     pWal->vers.appliedVer = pWal->vers.snapshotVer;
   }
@@ -384,7 +384,6 @@ int walCheckAndRepairMeta(SWal* pWal) {
   actualFileNum = taosArrayGetSize(pWal->fileInfoSet);
   pWal->writeCur = actualFileNum - 1;
   pWal->totSize = totSize;
-  pWal->vers.firstVer = -1;
   pWal->vers.lastVer = -1;
   if (actualFileNum > 0) {
     pWal->vers.firstVer = ((SWalFileInfo*)taosArrayGet(pWal->fileInfoSet, 0))->firstVer;
