@@ -234,7 +234,7 @@ The parameters related to database creation are configured in `dbinfo` in the js
 
 - **name**: specify the name of the database.
 
-- **drop**: indicate whether to delete the database before inserting. The default is true.
+- **drop**: indicate whether to delete the database before inserting. The value can be 'yes' or 'no'. No means do not drop. The default is to drop.
 
 - **replica**: specify the number of replicas when creating the database.
 
