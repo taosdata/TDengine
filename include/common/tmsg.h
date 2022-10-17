@@ -1902,7 +1902,7 @@ static FORCE_INLINE SMqRebInfo* tNewSMqRebSubscribe(const char* key) {
   if (pRebInfo == NULL) {
     return NULL;
   }
-  strcpy(pRebInfo->key, key);
+  tstrncpy(pRebInfo->key, key, sizeof(pRebInfo->key));
   pRebInfo->lostConsumers = taosArrayInit(0, sizeof(int64_t));
   if (pRebInfo->lostConsumers == NULL) {
     goto _err;

@@ -871,8 +871,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   tmq_t* pTmq = taosMemoryCalloc(1, sizeof(tmq_t));
   if (pTmq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    tscError("consumer %" PRId64 " setup failed since %s, consumer group %s", pTmq->consumerId, terrstr(),
-             pTmq->groupId);
+    tscError("consumer setup failed since %s", terrstr());
     return NULL;
   }
 
