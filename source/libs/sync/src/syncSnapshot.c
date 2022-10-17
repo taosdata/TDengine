@@ -904,6 +904,12 @@ int32_t syncNodeOnSnapshotRspCb(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
   return 0;
 }
 
-int32_t syncNodeOnSnapshot(SSyncNode *ths, SyncSnapshotSend *pMsg) { return 0; }
+int32_t syncNodeOnSnapshot(SSyncNode *ths, SyncSnapshotSend *pMsg) {
+  int32_t code = syncNodeOnSnapshotSendCb(ths, pMsg);
+  return code;
+}
 
-int32_t syncNodeOnSnapshotReply(SSyncNode *ths, SyncSnapshotRsp *pMsg) { return 0; }
+int32_t syncNodeOnSnapshotReply(SSyncNode *ths, SyncSnapshotRsp *pMsg) {
+  int32_t code = syncNodeOnSnapshotRspCb(ths, pMsg);
+  return code;
+}
