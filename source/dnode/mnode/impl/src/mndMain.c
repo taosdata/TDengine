@@ -541,6 +541,16 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
     code = syncNodeOnAppendEntriesReply(pSyncNode, pSyncMsg);
     syncAppendEntriesReplyDestroy(pSyncMsg);
 
+  } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_SEND) {
+    SyncSnapshotSend *pSyncMsg = syncSnapshotSendFromRpcMsg2(pMsg);
+    code = syncNodeOnSnapshot(pSyncNode, pSyncMsg);
+    syncSnapshotSendDestroy(pSyncMsg);
+
+  } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_RSP) {
+    SyncSnapshotRsp *pSyncMsg = syncSnapshotRspFromRpcMsg2(pMsg);
+    code = syncNodeOnSnapshotReply(pSyncNode, pSyncMsg);
+    syncSnapshotRspDestroy(pSyncMsg);
+
   } else if (pMsg->msgType == TDMT_SYNC_SET_MNODE_STANDBY) {
     code = syncSetStandby(pMgmt->sync);
     SRpcMsg rsp = {.code = code, .info = pMsg->info};
