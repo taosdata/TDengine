@@ -340,7 +340,7 @@ static int32_t initFilesetIterator(SFilesetIter* pIter, SArray* aDFileSet, STsdb
     pIter->pLastBlockReader = taosMemoryCalloc(1, sizeof(struct SLastBlockReader));
     if (pIter->pLastBlockReader == NULL) {
       int32_t code = TSDB_CODE_OUT_OF_MEMORY;
-      tsdbError("failed to prepare the last block iterator, code:%d %s", tstrerror(code), pReader->idStr);
+      tsdbError("failed to prepare the last block iterator, code:%s %s", tstrerror(code), pReader->idStr);
       return code;
     }
   }
@@ -646,7 +646,7 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
 
   double el = (taosGetTimestampUs() - st) / 1000.0;
   tsdbDebug(
-      "load block of %d tables completed, blocks:%d in %d tables, last-files:%d, block-info-size:%.2f Kb, elapsed "
+      "load block of %"PRIzu" tables completed, blocks:%d in %d tables, last-files:%d, block-info-size:%.2f Kb, elapsed "
       "time:%.2f ms %s",
       numOfTables, pBlockNum->numOfBlocks, numOfQTable, pBlockNum->numOfLastFiles, sizeInDisk / 1000.0, el,
       pReader->idStr);
@@ -3090,7 +3090,7 @@ int32_t doMergeMemIMemRows(TSDBROW* pRow, TSDBROW* piRow, STableBlockScanInfo* p
     doMergeRowsInBuf(&pBlockScanInfo->iter, pBlockScanInfo->uid, k.ts, pBlockScanInfo->delSkyline, &merge, pReader);
 
     tRowMerge(&merge, piRow);
-    doMergeRowsInBuf(&pBlockScanInfo->iiter, pBlockScanInfo->uid, k.ts, pBlockScanInfo->delSkyline, &merge, pReader);
+    doMergeRowsInBuf(&pBlockScanInfo->iiter, pBlockScanInfo->uid, ik.ts, pBlockScanInfo->delSkyline, &merge, pReader);
   }
 
   int32_t code = tRowMergerGetRow(&merge, pTSRow);
@@ -3448,7 +3448,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
   return code;
 
 _err:
-  tsdbError("failed to create data reader, code:%s %s", tstrerror(code), pReader->idStr);
+  tsdbError("failed to create data reader, code:%s %s", tstrerror(code), idstr);
   return code;
 }
 
