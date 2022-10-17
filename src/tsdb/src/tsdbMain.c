@@ -645,6 +645,7 @@ static void tsdbFreeRepo(STsdbRepo *pRepo) {
     // tsdbFreeMemTable(pRepo->imem);
     tsem_destroy(&(pRepo->readyToCommit));
     pthread_mutex_destroy(&pRepo->mutex);
+    pthread_mutex_destroy(&pRepo->save_mutex);
     free(pRepo);
   }
 }
