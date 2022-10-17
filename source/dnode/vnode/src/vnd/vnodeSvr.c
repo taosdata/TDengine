@@ -41,16 +41,28 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       int32_t nReqs;
 
       tDecoderInit(&dc, (uint8_t *)pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead));
-      tStartDecode(&dc);
+      if (tStartDecode(&dc) < 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        return code;
+      }
 
-      tDecodeI32v(&dc, &nReqs);
+      if (tDecodeI32v(&dc, &nReqs) < 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _err;
+      }
       for (int32_t iReq = 0; iReq < nReqs; iReq++) {
         tb_uid_t uid = tGenIdPI64();
         char    *name = NULL;
         tStartDecode(&dc);
 
-        tDecodeI32v(&dc, NULL);
-        tDecodeCStr(&dc, &name);
+        if (tDecodeI32v(&dc, NULL) < 0) {
+          code = TSDB_CODE_INVALID_MSG;
+          return code;
+        }
+        if (tDecodeCStr(&dc, &name) < 0) {
+          code = TSDB_CODE_INVALID_MSG;
+          return code;
+        }
         *(int64_t *)(dc.data + dc.pos) = uid;
         *(int64_t *)(dc.data + dc.pos + 8) = ctime;
 
@@ -68,7 +80,10 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       int64_t        ctime = taosGetTimestampMs();
       tb_uid_t       uid;
 
-      tInitSubmitMsgIter(pSubmitReq, &msgIter);
+      if (tInitSubmitMsgIter(pSubmitReq, &msgIter) < 0) {
+        code = terrno;
+        goto _err;
+      }
 
       for (;;) {
         tGetSubmitMsgNext(&msgIter, &pBlock);
@@ -78,10 +93,19 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
           char *name = NULL;
 
           tDecoderInit(&dc, pBlock->data, msgIter.schemaLen);
-          tStartDecode(&dc);
+          if (tStartDecode(&dc) < 0) {
+            code = TSDB_CODE_INVALID_MSG;
+            return code;
+          }
 
-          tDecodeI32v(&dc, NULL);
-          tDecodeCStr(&dc, &name);
+          if (tDecodeI32v(&dc, NULL) < 0) {
+            code = TSDB_CODE_INVALID_MSG;
+            return code;
+          }
+          if (tDecodeCStr(&dc, &name) < 0) {
+            code = TSDB_CODE_INVALID_MSG;
+            return code;
+          }
 
           uid = metaGetTableEntryUidByName(pVnode->pMeta, name);
           if (uid == 0) {
@@ -144,6 +168,12 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   void   *pReq;
   int32_t len;
   int32_t ret;
+
+  if (!pVnode->inUse) {
+    terrno = TSDB_CODE_VND_NOT_SYNCED;
+    vError("vgId:%d, not ready to write since %s", TD_VID(pVnode), terrstr());
+    return -1;
+  }
 
   vDebug("vgId:%d, start to process write request %s, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
          version);
@@ -265,10 +295,16 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   _do_commit:
     vInfo("vgId:%d, commit at version %" PRId64, TD_VID(pVnode), version);
     // commit current change
-    vnodeCommit(pVnode);
+    if (vnodeCommit(pVnode) < 0) {
+      vError("vgId:%d, failed to commit vnode since %s.", TD_VID(pVnode), tstrerror(terrno));
+      goto _err;
+    }
 
     // start a new one
-    vnodeBegin(pVnode);
+    if (vnodeBegin(pVnode) < 0) {
+      vError("vgId:%d, failed to begin vnode since %s.", TD_VID(pVnode), tstrerror(terrno));
+      goto _err;
+    }
   }
 
   return 0;
@@ -819,11 +855,12 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
   int32_t        tsize, ret;
   SEncoder       encoder = {0};
   SArray        *newTbUids = NULL;
+  SVStatis       statis = {0};
   terrno = TSDB_CODE_SUCCESS;
 
   pRsp->code = 0;
   pSubmitReq->version = version;
-  atomic_fetch_add_64(&pVnode->statis.nBatchInsert, 1);
+  statis.nBatchInsert = 1;
 
 #ifdef TD_DEBUG_PRINT_ROW
   vnodeDebugPrintSubmitMsg(pVnode, pReq, __func__);
@@ -943,17 +980,20 @@ _exit:
 
   taosArrayDestroyEx(submitRsp.pArray, tFreeSSubmitBlkRsp);
 
-  atomic_fetch_add_64(&pVnode->statis.nInsert, submitRsp.numOfRows);
-  atomic_fetch_add_64(&pVnode->statis.nInsertSuccess, submitRsp.affectedRows);
-
   // TODO: the partial success scenario and the error case
   // => If partial success, extract the success submitted rows and reconstruct a new submit msg, and push to level
   // 1/level 2.
   // TODO: refactor
   if ((terrno == TSDB_CODE_SUCCESS) && (pRsp->code == TSDB_CODE_SUCCESS)) {
-    atomic_fetch_add_64(&pVnode->statis.nBatchInsertSuccess, 1);
+    statis.nBatchInsertSuccess = 1;
     tdProcessRSmaSubmit(pVnode->pSma, pReq, STREAM_INPUT__DATA_SUBMIT);
   }
+
+  // N.B. not strict as the following procedure is not atomic
+  atomic_add_fetch_64(&pVnode->statis.nInsert, submitRsp.numOfRows);
+  atomic_add_fetch_64(&pVnode->statis.nInsertSuccess, submitRsp.affectedRows);
+  atomic_add_fetch_64(&pVnode->statis.nBatchInsert, statis.nBatchInsert);
+  atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, statis.nBatchInsertSuccess);
 
   vDebug("vgId:%d, submit success, index:%" PRId64, pVnode->config.vgId, version);
   return 0;

@@ -423,7 +423,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         goto _OVER;
       } else {
         pDnode->accessTimes++;
-        mTrace("dnode:%d, status received, access times %d", pDnode->id, pDnode->accessTimes);
+        mDebug("dnode:%d, status received, access times %d", pDnode->id, pDnode->accessTimes);
       }
     }
 
@@ -440,7 +440,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
             statusReq.memAvail, statusReq.memTotal, statusReq.numOfCores);
     } else {
       mInfo("dnode:%d, send dnode epset, online:%d dnodeVer:%" PRId64 ":%" PRId64 " reboot:%d", pDnode->id, online,
-             statusReq.dnodeVer, dnodeVer, reboot);
+            statusReq.dnodeVer, dnodeVer, reboot);
     }
 
     pDnode->rebootTime = statusReq.rebootTime;
@@ -471,6 +471,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   }
 
   pDnode->lastAccessTime = curMs;
+  pDnode->accessTimes++;
   code = 0;
 
 _OVER:

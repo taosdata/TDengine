@@ -20,6 +20,8 @@
     "super_tables": [{
       "name": "stb",
       "childtable_prefix": "stb_",
+      "childtable_count": 10,
+      "insert_rows": 10,
       "columns": [{"type": "INT"}],
       "tags": [{"type": "INT"}]
     }]

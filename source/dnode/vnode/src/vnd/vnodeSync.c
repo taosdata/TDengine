@@ -474,6 +474,10 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 }
 
 static int32_t vnodeSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
+  if (msgcb == NULL) {
+    return -1;
+  }
+
   int32_t code = tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg);
   if (code != 0) {
     rpcFreeCont(pMsg->pCont);
@@ -795,4 +799,3 @@ bool vnodeIsLeader(SVnode *pVnode) {
 
   return true;
 }
-

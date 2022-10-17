@@ -102,21 +102,21 @@ void dumpDb(SSdb *pSdb, SJson *json) {
     tjsonAddStringToObject(item, "compression", i642str(pObj->cfg.compression));
     tjsonAddStringToObject(item, "replications", i642str(pObj->cfg.replications));
     tjsonAddStringToObject(item, "strict", i642str(pObj->cfg.strict));
-    tjsonAddStringToObject(item, "cacheLast",i642str( pObj->cfg.cacheLast));
+    tjsonAddStringToObject(item, "cacheLast", i642str(pObj->cfg.cacheLast));
     tjsonAddStringToObject(item, "hashMethod", i642str(pObj->cfg.hashMethod));
     tjsonAddStringToObject(item, "hashPrefix", i642str(pObj->cfg.hashPrefix));
     tjsonAddStringToObject(item, "hashSuffix", i642str(pObj->cfg.hashSuffix));
     tjsonAddStringToObject(item, "sstTrigger", i642str(pObj->cfg.sstTrigger));
-    tjsonAddStringToObject(item, "tsdbPageSize",i642str( pObj->cfg.tsdbPageSize));
+    tjsonAddStringToObject(item, "tsdbPageSize", i642str(pObj->cfg.tsdbPageSize));
     tjsonAddStringToObject(item, "schemaless", i642str(pObj->cfg.schemaless));
-    tjsonAddStringToObject(item, "walLevel",i642str( pObj->cfg.walLevel));
+    tjsonAddStringToObject(item, "walLevel", i642str(pObj->cfg.walLevel));
     tjsonAddStringToObject(item, "walFsyncPeriod", i642str(pObj->cfg.walFsyncPeriod));
     tjsonAddStringToObject(item, "walRetentionPeriod", i642str(pObj->cfg.walRetentionPeriod));
-    tjsonAddStringToObject(item, "walRetentionSize",i642str( pObj->cfg.walRetentionSize));
+    tjsonAddStringToObject(item, "walRetentionSize", i642str(pObj->cfg.walRetentionSize));
     tjsonAddStringToObject(item, "walRollPeriod", i642str(pObj->cfg.walRollPeriod));
     tjsonAddStringToObject(item, "walSegmentSize", i642str(pObj->cfg.walSegmentSize));
 
-    tjsonAddStringToObject(item, "numOfRetensions",i642str( pObj->cfg.numOfRetensions));
+    tjsonAddStringToObject(item, "numOfRetensions", i642str(pObj->cfg.numOfRetensions));
     for (int32_t i = 0; i < pObj->cfg.numOfRetensions; ++i) {
       SJson *rentensions = tjsonAddArrayToObject(item, "rentensions");
       SJson *rentension = tjsonCreateObject();
@@ -126,7 +126,7 @@ void dumpDb(SSdb *pSdb, SJson *json) {
       tjsonAddStringToObject(item, "freq", i642str(pRetension->freq));
       tjsonAddStringToObject(item, "freqUnit", i642str(pRetension->freqUnit));
       tjsonAddStringToObject(item, "keep", i642str(pRetension->keep));
-      tjsonAddStringToObject(item, "keepUnit",i642str( pRetension->keepUnit));
+      tjsonAddStringToObject(item, "keepUnit", i642str(pRetension->keepUnit));
     }
 
     sdbRelease(pSdb, pObj);
@@ -150,21 +150,21 @@ void dumpStb(SSdb *pSdb, SJson *json) {
     tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime));
     tjsonAddStringToObject(item, "uid", i642str(pObj->uid));
     tjsonAddStringToObject(item, "dbUid", i642str(pObj->dbUid));
-    tjsonAddStringToObject(item, "tagVer",i642str( pObj->tagVer));
+    tjsonAddStringToObject(item, "tagVer", i642str(pObj->tagVer));
     tjsonAddStringToObject(item, "colVer", i642str(pObj->colVer));
     tjsonAddStringToObject(item, "smaVer", i642str(pObj->smaVer));
     tjsonAddStringToObject(item, "nextColId", i642str(pObj->nextColId));
     tjsonAddStringToObject(item, "watermark1", i642str(pObj->watermark[0]));
     tjsonAddStringToObject(item, "watermark2", i642str(pObj->watermark[1]));
-    tjsonAddStringToObject(item, "maxdelay0",i642str( pObj->maxdelay[0]));
-    tjsonAddStringToObject(item, "maxdelay1",i642str( pObj->maxdelay[1]));
-    tjsonAddStringToObject(item, "ttl",i642str( pObj->ttl));
-    tjsonAddStringToObject(item, "numOfFuncs",i642str( pObj->numOfFuncs));
+    tjsonAddStringToObject(item, "maxdelay0", i642str(pObj->maxdelay[0]));
+    tjsonAddStringToObject(item, "maxdelay1", i642str(pObj->maxdelay[1]));
+    tjsonAddStringToObject(item, "ttl", i642str(pObj->ttl));
+    tjsonAddStringToObject(item, "numOfFuncs", i642str(pObj->numOfFuncs));
     tjsonAddStringToObject(item, "commentLen", i642str(pObj->commentLen));
     tjsonAddStringToObject(item, "ast1Len", i642str(pObj->ast1Len));
-    tjsonAddStringToObject(item, "ast2Len",i642str( pObj->ast2Len));
+    tjsonAddStringToObject(item, "ast2Len", i642str(pObj->ast2Len));
 
-    tjsonAddStringToObject(item, "numOfColumns",i642str( pObj->numOfColumns));
+    tjsonAddStringToObject(item, "numOfColumns", i642str(pObj->numOfColumns));
     SJson *columns = tjsonAddArrayToObject(item, "columns");
     for (int32_t i = 0; i < pObj->numOfColumns; ++i) {
       SJson *column = tjsonCreateObject();
@@ -188,7 +188,7 @@ void dumpStb(SSdb *pSdb, SJson *json) {
       SSchema *pTag = &pObj->pTags[i];
       tjsonAddStringToObject(tag, "type", i642str(pTag->type));
       tjsonAddStringToObject(tag, "typestr", tDataTypes[pTag->type].name);
-      tjsonAddStringToObject(tag, "flags",i642str( pTag->flags));
+      tjsonAddStringToObject(tag, "flags", i642str(pTag->flags));
       tjsonAddStringToObject(tag, "colId", i642str(pTag->colId));
       tjsonAddStringToObject(tag, "bytes", i642str(pTag->bytes));
       tjsonAddStringToObject(tag, "name", pTag->name);
@@ -219,16 +219,16 @@ void dumpSma(SSdb *pSdb, SJson *json) {
     tjsonAddStringToObject(item, "dbUid", i642str(pObj->dbUid));
     tjsonAddStringToObject(item, "dstTbUid", i642str(pObj->dstTbUid));
     tjsonAddStringToObject(item, "intervalUnit", i642str(pObj->intervalUnit));
-    tjsonAddStringToObject(item, "slidingUnit",i642str( pObj->slidingUnit));
+    tjsonAddStringToObject(item, "slidingUnit", i642str(pObj->slidingUnit));
     tjsonAddStringToObject(item, "timezone", i642str(pObj->timezone));
-    tjsonAddStringToObject(item, "dstVgId",i642str( pObj->dstVgId));
+    tjsonAddStringToObject(item, "dstVgId", i642str(pObj->dstVgId));
     tjsonAddStringToObject(item, "interval", i642str(pObj->interval));
     tjsonAddStringToObject(item, "offset", i642str(pObj->offset));
     tjsonAddStringToObject(item, "sliding", i642str(pObj->sliding));
-    tjsonAddStringToObject(item, "exprLen",i642str( pObj->exprLen));
+    tjsonAddStringToObject(item, "exprLen", i642str(pObj->exprLen));
     tjsonAddStringToObject(item, "tagsFilterLen", i642str(pObj->tagsFilterLen));
-    tjsonAddStringToObject(item, "sqlLen",i642str( pObj->sqlLen));
-    tjsonAddStringToObject(item, "astLen",i642str( pObj->astLen));
+    tjsonAddStringToObject(item, "sqlLen", i642str(pObj->sqlLen));
+    tjsonAddStringToObject(item, "astLen", i642str(pObj->astLen));
     sdbRelease(pSdb, pObj);
   }
 }
@@ -247,13 +247,13 @@ void dumpVgroup(SSdb *pSdb, SJson *json) {
     tjsonAddStringToObject(item, "vgId", i642str(pObj->vgId));
     tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime));
     tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime));
-    tjsonAddStringToObject(item, "version",i642str(pObj->version));
+    tjsonAddStringToObject(item, "version", i642str(pObj->version));
     tjsonAddStringToObject(item, "hashBegin", i642str(pObj->hashBegin));
     tjsonAddStringToObject(item, "hashEnd", i642str(pObj->hashEnd));
     tjsonAddStringToObject(item, "db", mndGetDbStr(pObj->dbName));
     tjsonAddStringToObject(item, "dbUid", i642str(pObj->dbUid));
     tjsonAddStringToObject(item, "isTsma", i642str(pObj->isTsma));
-    tjsonAddStringToObject(item, "replica",i642str( pObj->replica));
+    tjsonAddStringToObject(item, "replica", i642str(pObj->replica));
     for (int32_t i = 0; i < pObj->replica; ++i) {
       SJson *replicas = tjsonAddArrayToObject(item, "replicas");
       SJson *replica = tjsonCreateObject();
@@ -281,13 +281,13 @@ void dumpTopic(SSdb *pSdb, SJson *json) {
     tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime));
     tjsonAddStringToObject(item, "uid", i642str(pObj->uid));
     tjsonAddStringToObject(item, "dbUid", i642str(pObj->dbUid));
-    tjsonAddStringToObject(item, "version",i642str( pObj->version));
-    tjsonAddStringToObject(item, "subType",i642str( pObj->subType));
+    tjsonAddStringToObject(item, "version", i642str(pObj->version));
+    tjsonAddStringToObject(item, "subType", i642str(pObj->subType));
     tjsonAddStringToObject(item, "withMeta", i642str(pObj->withMeta));
     tjsonAddStringToObject(item, "stbUid", i642str(pObj->stbUid));
     tjsonAddStringToObject(item, "sqlLen", i642str(pObj->sqlLen));
-    tjsonAddStringToObject(item, "astLen",i642str( pObj->astLen));
-    tjsonAddStringToObject(item, "sqlLen",i642str( pObj->sqlLen));
+    tjsonAddStringToObject(item, "astLen", i642str(pObj->astLen));
+    tjsonAddStringToObject(item, "sqlLen", i642str(pObj->sqlLen));
     tjsonAddStringToObject(item, "ntbUid", i642str(pObj->ntbUid));
     tjsonAddStringToObject(item, "ctbStbUid", i642str(pObj->ctbStbUid));
     sdbRelease(pSdb, pObj);
@@ -365,9 +365,9 @@ void dumpStream(SSdb *pSdb, SJson *json) {
     tjsonAddStringToObject(item, "totalLevel", i642str(pObj->totalLevel));
     tjsonAddStringToObject(item, "smaId", i642str(pObj->smaId));
     tjsonAddStringToObject(item, "uid", i642str(pObj->uid));
-    tjsonAddStringToObject(item, "status",i642str( pObj->status));
-    tjsonAddStringToObject(item, "igExpired",i642str( pObj->igExpired));
-    tjsonAddStringToObject(item, "trigger",i642str( pObj->trigger));
+    tjsonAddStringToObject(item, "status", i642str(pObj->status));
+    tjsonAddStringToObject(item, "igExpired", i642str(pObj->igExpired));
+    tjsonAddStringToObject(item, "trigger", i642str(pObj->trigger));
     tjsonAddStringToObject(item, "triggerParam", i642str(pObj->triggerParam));
     tjsonAddStringToObject(item, "watermark", i642str(pObj->watermark));
     tjsonAddStringToObject(item, "sourceDbUid", i642str(pObj->sourceDbUid));
@@ -419,9 +419,9 @@ void dumpUser(SSdb *pSdb, SJson *json) {
     tjsonAddStringToObject(item, "acct", pObj->acct);
     tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime));
     tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime));
-    tjsonAddStringToObject(item, "superUser",i642str( pObj->superUser));
+    tjsonAddStringToObject(item, "superUser", i642str(pObj->superUser));
     tjsonAddStringToObject(item, "authVersion", i642str(pObj->authVersion));
-    tjsonAddStringToObject(item, "numOfReadDbs",i642str( taosHashGetSize(pObj->readDbs)));
+    tjsonAddStringToObject(item, "numOfReadDbs", i642str(taosHashGetSize(pObj->readDbs)));
     tjsonAddStringToObject(item, "numOfWriteDbs", i642str(taosHashGetSize(pObj->writeDbs)));
     sdbRelease(pSdb, pObj);
   }
@@ -438,10 +438,10 @@ void dumpDnode(SSdb *pSdb, SJson *json) {
 
     SJson *item = tjsonCreateObject();
     tjsonAddItemToArray(items, item);
-    tjsonAddStringToObject(item, "id",i642str( pObj->id));
+    tjsonAddStringToObject(item, "id", i642str(pObj->id));
     tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime));
     tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime));
-    tjsonAddStringToObject(item, "port",i642str( pObj->port));
+    tjsonAddStringToObject(item, "port", i642str(pObj->port));
     tjsonAddStringToObject(item, "fqdn", pObj->fqdn);
     sdbRelease(pSdb, pObj);
   }
@@ -462,7 +462,7 @@ void dumpSnode(SSdb *pSdb, SJson *json) {
 
     SJson *item = tjsonCreateObject();
     tjsonAddItemToArray(items, item);
-    tjsonAddStringToObject(item, "id",i642str( pObj->id));
+    tjsonAddStringToObject(item, "id", i642str(pObj->id));
     tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime));
     tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime));
     sdbRelease(pSdb, pObj);
@@ -538,15 +538,15 @@ void dumpTrans(SSdb *pSdb, SJson *json) {
     tjsonAddStringToObject(item, "id", i642str(pObj->id));
     tjsonAddStringToObject(item, "stage", i642str(pObj->stage));
     tjsonAddStringToObject(item, "policy", i642str(pObj->policy));
-    tjsonAddStringToObject(item, "conflict",i642str( pObj->conflict));
+    tjsonAddStringToObject(item, "conflict", i642str(pObj->conflict));
     tjsonAddStringToObject(item, "exec", i642str(pObj->exec));
     tjsonAddStringToObject(item, "oper", i642str(pObj->oper));
     tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime));
     tjsonAddStringToObject(item, "dbname", pObj->dbname);
     tjsonAddStringToObject(item, "stbname", pObj->stbname);
     tjsonAddStringToObject(item, "opername", pObj->opername);
-    tjsonAddStringToObject(item, "commitLogNum",i642str( taosArrayGetSize(pObj->commitActions)));
-    tjsonAddStringToObject(item, "redoActionNum",i642str(taosArrayGetSize(pObj->redoActions)));
+    tjsonAddStringToObject(item, "commitLogNum", i642str(taosArrayGetSize(pObj->commitActions)));
+    tjsonAddStringToObject(item, "redoActionNum", i642str(taosArrayGetSize(pObj->redoActions)));
     tjsonAddStringToObject(item, "undoActionNum", i642str(taosArrayGetSize(pObj->undoActions)));
     sdbRelease(pSdb, pObj);
   }

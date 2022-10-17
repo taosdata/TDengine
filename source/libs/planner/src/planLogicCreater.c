@@ -66,7 +66,8 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
   switch (nodeType(*pNode)) {
     case QUERY_NODE_OPERATOR:
     case QUERY_NODE_LOGIC_CONDITION:
-    case QUERY_NODE_FUNCTION: {
+    case QUERY_NODE_FUNCTION:
+    case QUERY_NODE_CASE_WHEN: {
       SRewriteExprCxt* pCxt = (SRewriteExprCxt*)pContext;
       SNode*           pExpr;
       int32_t          index = 0;
@@ -116,6 +117,17 @@ static EDealRes doNameExpr(SNode* pNode, void* pContext) {
   }
 
   return DEAL_RES_CONTINUE;
+}
+
+static int32_t rewriteExprForSelect(SNode* pExpr, SSelectStmt* pSelect, ESqlClause clause) {
+  nodesWalkExpr(pExpr, doNameExpr, NULL);
+  SRewriteExprCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pExprs = NULL};
+  cxt.errCode = nodesListMakeAppend(&cxt.pExprs, pExpr);
+  if (TSDB_CODE_SUCCESS == cxt.errCode) {
+    nodesRewriteSelectStmt(pSelect, clause, doRewriteExpr, &cxt);
+    nodesClearList(cxt.pExprs);
+  }
+  return cxt.errCode;
 }
 
 static int32_t rewriteExprsForSelect(SNodeList* pExprs, SSelectStmt* pSelect, ESqlClause clause) {
@@ -459,9 +471,9 @@ static SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) 
     return NULL;
   }
   pCol->node.resType = pExpr->resType;
-  strcpy(pCol->colName, pExpr->aliasName);
+  snprintf(pCol->colName, sizeof(pCol->colName), "%s", pExpr->aliasName);
   if (NULL != pStmtName) {
-    strcpy(pCol->tableAlias, pStmtName);
+    snprintf(pCol->tableAlias, sizeof(pCol->tableAlias), "%s", pStmtName);
   }
   return pCol;
 }
@@ -514,6 +526,7 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   }
 
   pAgg->hasLastRow = pSelect->hasLastRowFunc;
+  pAgg->hasLast = pSelect->hasLastFunc;
   pAgg->hasTimeLineFunc = pSelect->hasTimeLineFunc;
   pAgg->onlyHasKeepOrderFunc = pSelect->onlyHasKeepOrderFunc;
   pAgg->node.groupAction = getGroupAction(pCxt, pSelect);
@@ -710,8 +723,13 @@ static int32_t createWindowLogicNodeByState(SLogicPlanContext* pCxt, SStateWindo
     nodesDestroyNode((SNode*)pWindow);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-
-  return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
+  // rewrite the expression in subsequent clauses
+  int32_t code = rewriteExprForSelect(pWindow->pStateExpr, pSelect, SQL_CLAUSE_WINDOW);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
+  }
+  
+  return code;
 }
 
 static int32_t createWindowLogicNodeBySession(SLogicPlanContext* pCxt, SSessionWindowNode* pSession,

@@ -94,3 +94,10 @@ description: "TDengine 3.0 版本的语法变更说明"
 | 9 | SAMPLE | 增强 | 可以直接用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。
 | 10 | STATECOUNT | 增强 | 可以直接用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。
 | 11 | STATEDURATION | 增强 | 可以直接用于超级表了。没有PARTITION BY时，超级表的数据会被合并成一条时间线。
+
+
+## SCHEMALESS 变更
+
+| # | **元素**  | **<div style={{width: 60}}>差异性</div>** | **说明** |
+| - | :------- | :-------- | :------- |
+| 1 | 主键ts 变更为 _ts | 变更 | schemaless自动建的列名用 _ 开头，不同于2.x。

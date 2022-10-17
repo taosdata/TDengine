@@ -11,11 +11,11 @@ import TabItem from "@theme/TabItem";
 
 从客户端程序的角度来说，高效写入数据要考虑以下几个因素：
 
-1. 单次写入的数据量。一般来讲，每批次写入的数据量越大越高效（但超过一定阈值其优势会消失）。使用 SQL 写入 TDengine 时，尽量在一条 SQL 中拼接更多数据。目前，TDengine 支持的一条 SQL 的最大长度为 1,048,576（1M）个字符。
-2. 并发连接数。一般来讲，同时写入数据的并发连接数越多写入越高效（但超过一定阈值反而会下降，取决于服务端处理能力）。
-3. 数据在不同表（或子表）之间的分布，即要写入数据的相邻性。一般来说，每批次只向同一张表（或子表）写入数据比向多张表（或子表）写入数据要更高效；
+1. 单次写入的数据量。一般来讲，每批次写入的数据量越大越高效（但超过一定阈值其优势会消失）。使用 SQL 写入 TDengine 时，尽量在一条 SQL 中拼接更多数据。目前，TDengine 支持的一条 SQL 的最大长度为 1,048,576（1MB）个字符
+2. 并发连接数。一般来讲，同时写入数据的并发连接数越多写入越高效（但超过一定阈值反而会下降，取决于服务端处理能力）
+3. 数据在不同表（或子表）之间的分布，即要写入数据的相邻性。一般来说，每批次只向同一张表（或子表）写入数据比向多张表（或子表）写入数据要更高效
 4. 写入方式。一般来讲：
-   - 参数绑定写入比 SQL 写入更高效。因参数绑定方式避免了 SQL 解析。（但增加了 C 接口的调用次数，对于连接器也有性能损耗）。
+   - 参数绑定写入比 SQL 写入更高效。因参数绑定方式避免了 SQL 解析。（但增加了 C 接口的调用次数，对于连接器也有性能损耗）
    - SQL 写入不自动建表比自动建表更高效。因自动建表要频繁检查表是否存在
    - SQL 写入比无模式写入更高效。因无模式写入会自动建表且支持动态更改表结构
 
@@ -34,7 +34,7 @@ import TabItem from "@theme/TabItem";
 1. 将同一张表的数据写到同一个 Topic 的同一个 Partition，增加数据的相邻性
 2. 通过订阅多个 Topic 实现数据汇聚
 3. 通过增加 Consumer 线程数增加写入的并发度
-4. 通过增加每次 fetch 的最大数据量来增加单次写入的最大数据量
+4. 通过增加每次 Fetch 的最大数据量来增加单次写入的最大数据量
 
 ### 服务器配置的角度 {#setting-view}
 
@@ -59,7 +59,7 @@ import TabItem from "@theme/TabItem";
 
 这一部分是针对以上场景的示例代码。对于其它场景高效写入原理相同，不过代码需要适当修改。
 
-本示例代码假设源数据属于同一张超级表(meters)的不同子表。程序在开始写入数据之前已经在 test 库创建了这个超级表。对于子表，将根据收到的数据，由应用程序自动创建。如果实际场景是多个超级表，只需修改写任务自动建表的代码。
+本示例代码假设源数据属于同一张超级表（meters）的不同子表。程序在开始写入数据之前已经在 test 库创建了这个超级表。对于子表，将根据收到的数据，由应用程序自动创建。如果实际场景是多个超级表，只需修改写任务自动建表的代码。
 
 <Tabs defaultValue="java" groupId="lang">
 <TabItem label="Java" value="java">
@@ -69,13 +69,12 @@ import TabItem from "@theme/TabItem";
 | 类名             | 功能说明                                                                    |
 | ---------------- | --------------------------------------------------------------------------- |
 | FastWriteExample | 主程序                                                                      |
-| ReadTask         | 从模拟源中读取数据，将表名经过 hash 后得到 Queue 的 index，写入对应的 Queue |
+| ReadTask         | 从模拟源中读取数据，将表名经过 Hash 后得到 Queue 的 Index，写入对应的 Queue |
 | WriteTask        | 从 Queue 中获取数据，组成一个 Batch，写入 TDengine                          |
 | MockDataSource   | 模拟生成一定数量 meters 子表的数据                                          |
 | SQLWriter        | WriteTask 依赖这个类完成 SQL 拼接、自动建表、 SQL 写入、SQL 长度检查        |
 | StmtWriter       | 实现参数绑定方式批量写入（暂未完成）                                        |
 | DataBaseMonitor  | 统计写入速度，并每隔 10 秒把当前写入速度打印到控制台                        |
-
 
 以下是各类的完整代码和更详细的功能说明。
 
@@ -92,10 +91,10 @@ import TabItem from "@theme/TabItem";
 
 1. 读线程个数。默认为 1。
 2. 写线程个数。默认为 3。
-3. 模拟生成的总表数。默认为 1000。将会平分给各个读线程。如果总表数较大，建表需要花费较长，开始统计的写入速度可能较慢。
-4. 每批最多写入记录数量。默认为 3000。
+3. 模拟生成的总表数。默认为 1,000。将会平分给各个读线程。如果总表数较大，建表需要花费较长，开始统计的写入速度可能较慢。
+4. 每批最多写入记录数量。默认为 3,000。
 
-队列容量(taskQueueCapacity)也是与性能有关的参数，可通过修改程序调节。一般来讲，队列容量越大，入队被阻塞的概率越小，队列的吞吐量越大，但是内存占用也会越大。 示例程序默认值已经设置地足够大。
+队列容量（taskQueueCapacity）也是与性能有关的参数，可通过修改程序调节。一般来讲，队列容量越大，入队被阻塞的概率越小，队列的吞吐量越大，但是内存占用也会越大。示例程序默认值已经设置地足够大。
 
 ```java
 {{#include docs/examples/java/src/main/java/com/taos/example/highvolume/FastWriteExample.java}}
@@ -208,14 +207,14 @@ TDENGINE_JDBC_URL="jdbc:TAOS://localhost:6030?user=root&password=taosdata"
 
    以上使用的是本地部署 TDengine Server 时默认的 JDBC URL。你需要根据自己的实际情况更改。
 
-5. 用 java 命令启动示例程序，命令模板：
+5. 用 Java 命令启动示例程序，命令模板：
 
    ```
    java -classpath lib/*:javaexample-1.0.jar  com.taos.example.highvolume.FastWriteExample <read_thread_count>  <white_thread_count> <total_table_count> <max_batch_size>
    ```
 
 6. 结束测试程序。测试程序不会自动结束，在获取到当前配置下稳定的写入速度后，按 <kbd>CTRL</kbd> + <kbd>C</kbd> 结束程序。
-   下面是一次实际运行的日志输出，机器配置 16核 + 64G + 固态硬盘。
+   下面是一次实际运行的日志输出，机器配置 16 核 + 64G + 固态硬盘。
 
    ```
    root@vm85$ java -classpath lib/*:javaexample-1.0.jar  com.taos.example.highvolume.FastWriteExample 2 12
@@ -271,11 +270,10 @@ Python 示例程序中采用了多进程的架构，并使用了跨进程的消�
 | main 函数                | 程序入口， 创建各个子进程和消息队列                                  |
 | run_monitor_process 函数 | 创建数据库，超级表，统计写入速度并定时打印到控制台                   |
 | run_read_task 函数       | 读进程主要逻辑，负责从其它数据系统读数据，并分发数据到为之分配的队列 |
-| MockDataSource 类        | 模拟数据源, 实现迭代器接口，每次批量返回每张表的接下来 1000 条数据   |
+| MockDataSource 类        | 模拟数据源, 实现迭代器接口，每次批量返回每张表的接下来 1,000 条数据  |
 | run_write_task 函数      | 写进程主要逻辑。每次从队列中取出尽量多的数据，并批量写入             |
-| SQLWriter类              | SQL 写入和自动建表                                                   |
+| SQLWriter 类             | SQL 写入和自动建表                                                   |
 | StmtWriter 类            | 实现参数绑定方式批量写入（暂未完成）                                 |
-
 
 <details>
 <summary>main 函数</summary>
@@ -290,9 +288,9 @@ main 函数可以接收 5 个启动参数，依次是：
 
 1. 读任务（进程）数, 默认为 1
 2. 写任务（进程）数, 默认为 1
-3. 模拟生成的总表数，默认为 1000
-4. 队列大小（单位字节），默认为 1000000
-5. 每批最多写入记录数量， 默认为 3000
+3. 模拟生成的总表数，默认为 1,000
+4. 队列大小（单位字节），默认为 1,000,000
+5. 每批最多写入记录数量， 默认为 3,000
 
 ```python
 {{#include docs/examples/python/fast_write_example.py:main}}
@@ -348,7 +346,7 @@ main 函数可以接收 5 个启动参数，依次是：
 
 <details>
 
-SQLWriter 类封装了拼 SQL 和写数据的逻辑。所有的表都没有提前创建，而是在发生表不存在错误的时候，再以超级表为模板批量建表，然后重新执行 INSERT 语句。对于其它错误会记录当时执行的 SQL， 以便排查错误和故障恢复。这个类也对 SQL 是否超过最大长度限制做了检查，根据 TDengine 3.0 的限制由输入参数 maxSQLLength 传入了支持的最大 SQL 长度，即 1048576 。
+SQLWriter 类封装了拼 SQL 和写数据的逻辑。所有的表都没有提前创建，而是在发生表不存在错误的时候，再以超级表为模板批量建表，然后重新执行 INSERT 语句。对于其它错误会记录当时执行的 SQL， 以便排查错误和故障恢复。这个类也对 SQL 是否超过最大长度限制做了检查，根据 TDengine 3.0 的限制由输入参数 maxSQLLength 传入了支持的最大 SQL 长度，即 1,048,576 。
 
 <summary>SQLWriter</summary>
 
@@ -384,7 +382,7 @@ SQLWriter 类封装了拼 SQL 和写数据的逻辑。所有的表都没有提�
    python3  fast_write_example.py <READ_TASK_COUNT> <WRITE_TASK_COUNT> <TABLE_COUNT> <QUEUE_SIZE> <MAX_BATCH_SIZE>
    ```
 
-   下面是一次实际运行的输出, 机器配置 16核 + 64G + 固态硬盘。
+   下面是一次实际运行的输出, 机器配置 16 核 + 64G + 固态硬盘。
 
    ```
    root@vm85$ python3 fast_write_example.py  8 8
@@ -432,5 +430,3 @@ SQLWriter 类封装了拼 SQL 和写数据的逻辑。所有的表都没有提�
 
 </TabItem>
 </Tabs>
-
-

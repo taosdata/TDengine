@@ -229,7 +229,7 @@ void shellRunSingleCommandImp(char *command) {
     printf("Query OK, %d of %d rows affected (%.6fs)\r\n", num_rows_affacted, num_rows_affacted, (et - st) / 1E6);
 
     // call auto tab
-    callbackAutoTab(command, pSql, false);    
+    callbackAutoTab(command, NULL, false);
   }
 
   printf("\r\n");
@@ -998,7 +998,9 @@ void *shellCancelHandler(void *arg) {
 		shell.stop_query = true;
 	} else {
 #endif
-		taos_kill_query(shell.conn);
+    if (shell.conn) {
+		  taos_kill_query(shell.conn);
+		}
 #ifdef WEBSOCKET
 	}
 #endif

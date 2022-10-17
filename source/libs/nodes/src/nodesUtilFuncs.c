@@ -209,6 +209,10 @@ int64_t nodesMakeAllocatorWeakRef(int64_t allocatorId) {
   }
 
   SNodeAllocator* pAllocator = taosAcquireRef(g_allocatorReqRefPool, allocatorId);
+  if (NULL == pAllocator) {
+    nodesError("allocator id %" PRIx64 " weak reference failed", allocatorId);
+    return -1;
+  }
   return pAllocator->self;
 }
 
@@ -1604,7 +1608,7 @@ char* nodesGetStrValueFromNode(SValueNode* pNode) {
 bool nodesIsExprNode(const SNode* pNode) {
   ENodeType type = nodeType(pNode);
   return (QUERY_NODE_COLUMN == type || QUERY_NODE_VALUE == type || QUERY_NODE_OPERATOR == type ||
-          QUERY_NODE_FUNCTION == type || QUERY_NODE_LOGIC_CONDITION == type);
+          QUERY_NODE_FUNCTION == type || QUERY_NODE_LOGIC_CONDITION == type || QUERY_NODE_CASE_WHEN == type);
 }
 
 bool nodesIsUnaryOp(const SOperatorNode* pOp) {
@@ -1716,9 +1720,10 @@ static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pN
   char    name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
   int32_t len = 0;
   if ('\0' == pCol->tableAlias[0]) {
-    len = sprintf(name, "%s", pCol->colName);
+    len = snprintf(name, sizeof(name), "%s", pCol->colName);
+  } else {
+    len = snprintf(name, sizeof(name), "%s.%s", pCol->tableAlias, pCol->colName);
   }
-  len = sprintf(name, "%s.%s", pCol->tableAlias, pCol->colName);
   if (NULL == taosHashGet(pCxt->pColHash, name, len)) {
     pCxt->errCode = taosHashPut(pCxt->pColHash, name, len, NULL, 0);
     if (TSDB_CODE_SUCCESS == pCxt->errCode) {

@@ -21,10 +21,10 @@ OpenTSDB 行协议同样采用一行字符串来表示一行数据。OpenTSDB �
 <metric> <timestamp> <value> <tagk_1>=<tagv_1>[ <tagk_n>=<tagv_n>]
 ```
 
-- metric 将作为超级表名。
-- timestamp 本行数据对应的时间戳。根据时间戳的长度自动识别时间精度。支持秒和毫秒两种时间精度
-- value 度量值，必须为一个数值。对应的列名是 “_value”。
-- 最后一部分是标签集， 用空格分隔不同标签， 所有标签自动转化为 nchar 数据类型;
+- metric 将作为超级表名；
+- timestamp 本行数据对应的时间戳。根据时间戳的长度自动识别时间精度。支持秒和毫秒两种时间精度；
+- value 度量值，必须为一个数值。对应的列名是 “\_value”；
+- 最后一部分是标签集， 用空格分隔不同标签， 所有标签自动转化为 NCHAR 数据类型。
 
 例如：
 
@@ -32,9 +32,9 @@ OpenTSDB 行协议同样采用一行字符串来表示一行数据。OpenTSDB �
 meters.current 1648432611250 11.3 location=California.LosAngeles groupid=3
 ```
 
-- 默认生产的子表名是根据规则生成的唯一ID值。为了让用户可以指定生成的表名，可以通过在taos.cfg里配置 smlChildTableName 参数来指定。
-举例如下：配置 smlChildTableName=tname 插入数据为 meters.current 1648432611250 11.3 tname=cpu1 location=California.LosAngeles groupid=3 则创建的表名为 cpu1，注意如果多行数据 tname 相同，但是后面的 tag_set 不同，则使用第一行自动建表时指定的 tag_set，其他的行会忽略）。
-参考[OpenTSDB Telnet API 文档](http://opentsdb.net/docs/build/html/api_telnet/put.html)。
+- 默认生产的子表名是根据规则生成的唯一 ID 值。为了让用户可以指定生成的表名，可以通过在 taos.cfg 里配置 smlChildTableName 参数来指定。
+  举例如下：配置 smlChildTableName=tname 插入数据为 meters.current 1648432611250 11.3 tname=cpu1 location=California.LosAngeles groupid=3 则创建的表名为 cpu1，注意如果多行数据 tname 相同，但是后面的 tag_set 不同，则使用第一行自动建表时指定的 tag_set，其他的行会忽略）。
+  参考 [OpenTSDB Telnet API 文档](http://opentsdb.net/docs/build/html/api_telnet/put.html)。
 
 ## 示例代码
 
@@ -62,17 +62,17 @@ meters.current 1648432611250 11.3 location=California.LosAngeles groupid=3
 以上示例代码会自动创建 2 个超级表， 每个超级表有 4 条数据。
 
 ```cmd
-taos> use test;
+taos> USE test;
 Database changed.
 
-taos> show stables;
+taos> SHOW STABLES;
               name              |
 =================================
  meters.current                 |
  meters.voltage                 |
 Query OK, 2 row(s) in set (0.002544s)
 
-taos> select tbname, * from `meters.current`;
+taos> SELECT TBNAME, * FROM `meters.current`;
              tbname             |           _ts            |           _value           | groupid |            location            |
 ==================================================================================================================================
  t_0e7bcfa21a02331c06764f275... | 2022-03-28 09:56:51.249 |              10.800000000 | 3       | California.LosAngeles                |
@@ -82,9 +82,12 @@ taos> select tbname, * from `meters.current`;
 Query OK, 4 row(s) in set (0.005399s)
 ```
 
-## SQL查询示例
-- `meters.current` 是插入数据的超级表名
-- 可以通过超级表的tag来过滤数据，比如查询 `location=California.LosAngeles groupid=3` 可以通过如下sql：
-``` cmd
-select * from `meters.current` where location="California.LosAngeles" and groupid=3
+## SQL 查询示例
+
+`meters.current` 是插入数据的超级表名。
+
+可以通过超级表的 TAG 来过滤数据，比如查询 `location=California.LosAngeles groupid=3` 可以通过如下 SQL：
+
+```sql
+SELECT * FROM `meters.current` WHERE location = "California.LosAngeles" AND groupid = 3;
 ```

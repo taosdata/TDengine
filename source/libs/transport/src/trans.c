@@ -45,6 +45,10 @@ void* rpcOpen(const SRpcInit* pInit) {
   if (pInit->label) {
     tstrncpy(pRpc->label, pInit->label, TSDB_LABEL_LEN);
   }
+
+  pRpc->compressSize = pInit->compressSize;
+  pRpc->encryption = pInit->encryption;
+
   // register callback handle
   pRpc->cfp = pInit->cfp;
   pRpc->retry = pInit->rfp;
@@ -96,8 +100,8 @@ void rpcCloseImpl(void* arg) {
   taosMemoryFree(pRpc);
 }
 
-void* rpcMallocCont(int32_t contLen) {
-  int32_t size = contLen + TRANS_MSG_OVERHEAD;
+void* rpcMallocCont(int64_t contLen) {
+  int64_t size = contLen + TRANS_MSG_OVERHEAD;
   char*   start = taosMemoryCalloc(1, size);
   if (start == NULL) {
     tError("failed to malloc msg, size:%d", size);
@@ -116,11 +120,11 @@ void rpcFreeCont(void* cont) {
   tTrace("rpc free cont:%p", (char*)cont - TRANS_MSG_OVERHEAD);
 }
 
-void* rpcReallocCont(void* ptr, int32_t contLen) {
+void* rpcReallocCont(void* ptr, int64_t contLen) {
   if (ptr == NULL) return rpcMallocCont(contLen);
 
   char*   st = (char*)ptr - TRANS_MSG_OVERHEAD;
-  int32_t sz = contLen + TRANS_MSG_OVERHEAD;
+  int64_t sz = contLen + TRANS_MSG_OVERHEAD;
   st = taosMemoryRealloc(st, sz);
   if (st == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -129,9 +133,6 @@ void* rpcReallocCont(void* ptr, int32_t contLen) {
 
   return st + TRANS_MSG_OVERHEAD;
 }
-
-int32_t rpcReportProgress(void* pConn, char* pCont, int32_t contLen) { return -1; }
-void    rpcCancelRequest(int64_t rid) { return; }
 
 int rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid) {
   return transSendRequest(shandle, pEpSet, pMsg, NULL);
