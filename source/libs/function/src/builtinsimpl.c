@@ -57,16 +57,6 @@ typedef struct SAvgRes {
   int16_t type;  // store the original input type, used in merge function
 } SAvgRes;
 
-typedef struct STuplePos {
-  union {
-    struct {
-      int32_t pageId;
-      int32_t offset;
-    };
-    STupleKey streamTupleKey;
-  };
-} STuplePos;
-
 typedef struct SMinmaxResInfo {
   bool      assign;  // assign the first value or not
   int64_t   v;
@@ -92,17 +82,6 @@ typedef struct STopBotRes {
 
   STopBotResItem* pItems;
 } STopBotRes;
-
-typedef struct SFirstLastRes {
-  bool hasResult;
-  // used for last_row function only, isNullRes in SResultRowEntry can not be passed to downstream.So,
-  // this attribute is required
-  bool      isNull;
-  int32_t   bytes;
-  int64_t   ts;
-  STuplePos pos;
-  char      buf[];
-} SFirstLastRes;
 
 typedef struct SStddevRes {
   double  result;

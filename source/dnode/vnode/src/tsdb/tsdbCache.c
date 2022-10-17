@@ -15,11 +15,6 @@
 
 #include "tsdb.h"
 
-typedef struct {
-  TSKEY   ts;
-  SColVal colVal;
-} SLastCol;
-
 int32_t tsdbOpenCache(STsdb *pTsdb) {
   int32_t    code = 0;
   SLRUCache *pCache = NULL;
