@@ -28,6 +28,10 @@
       *exti = -1;                                                   \
       break;                                                        \
     }                                                               \
+    if ((res) > (maxv)) {                                           \
+      *exti = -1;                                                   \
+      break;                                                        \
+    }                                                               \
     assert(0);                                                      \
   } while (0)
 
@@ -685,7 +689,7 @@ int32_t tVariantDumpEx(SVariant *pVariant, char *payload, int16_t type, bool inc
 
     case TSDB_DATA_TYPE_BIGINT: {
       if (convertToInteger(pVariant, &result, type, true, false, converted) < 0) {
-        SET_EXT_INFO(converted, (int64_t)result, INT64_MIN + 1, INT64_MAX, extInfo);
+        SET_EXT_INFO(converted, result, INT64_MIN + 1, INT64_MAX, extInfo);
         return -1;
       }
       *((int64_t *)payload) = (int64_t)result;
@@ -694,7 +698,7 @@ int32_t tVariantDumpEx(SVariant *pVariant, char *payload, int16_t type, bool inc
 
     case TSDB_DATA_TYPE_UBIGINT: {
       if (convertToInteger(pVariant, &result, type, false, false, converted) < 0) {
-        SET_EXT_INFO(converted, (uint64_t)result, 0, UINT64_MAX - 1, extInfo);
+        SET_EXT_INFO(converted, result, 0, UINT64_MAX - 1, extInfo);
         return -1;
       }
       *((uint64_t *)payload) = (uint64_t)result;
