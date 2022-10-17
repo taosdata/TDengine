@@ -616,7 +616,7 @@ int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len) {
 
   int32_t nOptrWithVal = 0;
   int32_t code = encodeOperator(pTaskInfo->pRoot, pOutput, len, &nOptrWithVal);
-  if ((code == TSDB_CODE_SUCCESS) && (nOptrWithVal = 0)) {
+  if ((code == TSDB_CODE_SUCCESS) && (nOptrWithVal == 0)) {
     taosMemoryFreeClear(*pOutput);
     *len = 0;
   }
@@ -701,10 +701,10 @@ int32_t qStreamExtractOffset(qTaskInfo_t tinfo, STqOffsetVal* pOffset) {
   return 0;
 }
 
-int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* sContext, SMetaTableInfo mtInfo) {
+int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* sContext, SMetaTableInfo* pMtInfo) {
   memset(pCond, 0, sizeof(SQueryTableDataCond));
   pCond->order = TSDB_ORDER_ASC;
-  pCond->numOfCols = mtInfo.schema->nCols;
+  pCond->numOfCols = pMtInfo->schema->nCols;
   pCond->colList = taosMemoryCalloc(pCond->numOfCols, sizeof(SColumnInfo));
   if (pCond->colList == NULL) {
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
@@ -712,15 +712,15 @@ int32_t initQueryTableDataCondForTmq(SQueryTableDataCond* pCond, SSnapContext* s
   }
 
   pCond->twindows = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
-  pCond->suid = mtInfo.suid;
+  pCond->suid = pMtInfo->suid;
   pCond->type = TIMEWINDOW_RANGE_CONTAINED;
   pCond->startVersion = -1;
   pCond->endVersion = sContext->snapVersion;
 
   for (int32_t i = 0; i < pCond->numOfCols; ++i) {
-    pCond->colList[i].type = mtInfo.schema->pSchema[i].type;
-    pCond->colList[i].bytes = mtInfo.schema->pSchema[i].bytes;
-    pCond->colList[i].colId = mtInfo.schema->pSchema[i].colId;
+    pCond->colList[i].type = pMtInfo->schema->pSchema[i].type;
+    pCond->colList[i].bytes = pMtInfo->schema->pSchema[i].bytes;
+    pCond->colList[i].colId = pMtInfo->schema->pSchema[i].colId;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -844,7 +844,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     taosArrayDestroy(pTaskInfo->tableqinfoList.pTableList);
     if (mtInfo.uid == 0) return 0;  // no data
 
-    initQueryTableDataCondForTmq(&pTaskInfo->streamInfo.tableCond, sContext, mtInfo);
+    initQueryTableDataCondForTmq(&pTaskInfo->streamInfo.tableCond, sContext, &mtInfo);
     pTaskInfo->streamInfo.tableCond.twindows.skey = pOffset->ts;
     pTaskInfo->tableqinfoList.pTableList = taosArrayInit(1, sizeof(STableKeyInfo));
     taosArrayPush(pTaskInfo->tableqinfoList.pTableList, &(STableKeyInfo){.uid = mtInfo.uid, .groupId = 0});
@@ -856,15 +856,15 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     tDeleteSSchemaWrapper(pTaskInfo->streamInfo.schema);
     pTaskInfo->streamInfo.schema = mtInfo.schema;
 
-    qDebug("tmqsnap qStreamPrepareScan snapshot data uid %ld ts %ld", mtInfo.uid, pOffset->ts);
+    qDebug("tmqsnap qStreamPrepareScan snapshot data uid %ld ts %"PRId64, mtInfo.uid, pOffset->ts);
   } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_META) {
     SStreamRawScanInfo* pInfo = pOperator->info;
     SSnapContext*       sContext = pInfo->sContext;
     if (setForSnapShot(sContext, pOffset->uid) != 0) {
-      qError("setForSnapShot error. uid:%" PRIi64 " ,version:%" PRIi64, pOffset->uid);
+      qError("setForSnapShot error. uid:%" PRIu64 " ,version:%" PRId64, pOffset->uid, pOffset->version);
       return -1;
     }
-    qDebug("tmqsnap qStreamPrepareScan snapshot meta uid %ld ts %ld", pOffset->uid);
+    qDebug("tmqsnap qStreamPrepareScan snapshot meta uid %ld ts %"PRId64, pOffset->uid, pOffset->ts);
   } else if (pOffset->type == TMQ_OFFSET__LOG) {
     SStreamRawScanInfo* pInfo = pOperator->info;
     tsdbReaderClose(pInfo->dataReader);

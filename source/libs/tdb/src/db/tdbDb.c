@@ -106,7 +106,7 @@ int32_t tdbBegin(TDB *pDb, TXN *pTxn) {
   for (pPager = pDb->pgrList; pPager; pPager = pPager->pNext) {
     ret = tdbPagerBegin(pPager, pTxn);
     if (ret < 0) {
-      ASSERT(0);
+      tdbError("failed to begin pager since %s. dbName:%s, txnId:%d", tstrerror(terrno), pDb->dbName, pTxn->txnId);
       return -1;
     }
   }
@@ -121,7 +121,7 @@ int32_t tdbCommit(TDB *pDb, TXN *pTxn) {
   for (pPager = pDb->pgrList; pPager; pPager = pPager->pNext) {
     ret = tdbPagerCommit(pPager, pTxn);
     if (ret < 0) {
-      ASSERT(0);
+      tdbError("failed to commit pager since %s. dbName:%s, txnId:%d", tstrerror(terrno), pDb->dbName, pTxn->txnId);
       return -1;
     }
   }
@@ -136,7 +136,7 @@ int32_t tdbAbort(TDB *pDb, TXN *pTxn) {
   for (pPager = pDb->pgrList; pPager; pPager = pPager->pNext) {
     ret = tdbPagerAbort(pPager, pTxn);
     if (ret < 0) {
-      ASSERT(0);
+      tdbError("failed to abort pager since %s. dbName:%s, txnId:%d", tstrerror(terrno), pDb->dbName, pTxn->txnId);
       return -1;
     }
   }

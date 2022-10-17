@@ -100,8 +100,8 @@ void rpcCloseImpl(void* arg) {
   taosMemoryFree(pRpc);
 }
 
-void* rpcMallocCont(int32_t contLen) {
-  int32_t size = contLen + TRANS_MSG_OVERHEAD;
+void* rpcMallocCont(int64_t contLen) {
+  int64_t size = contLen + TRANS_MSG_OVERHEAD;
   char*   start = taosMemoryCalloc(1, size);
   if (start == NULL) {
     tError("failed to malloc msg, size:%d", size);
@@ -120,11 +120,11 @@ void rpcFreeCont(void* cont) {
   tTrace("rpc free cont:%p", (char*)cont - TRANS_MSG_OVERHEAD);
 }
 
-void* rpcReallocCont(void* ptr, int32_t contLen) {
+void* rpcReallocCont(void* ptr, int64_t contLen) {
   if (ptr == NULL) return rpcMallocCont(contLen);
 
   char*   st = (char*)ptr - TRANS_MSG_OVERHEAD;
-  int32_t sz = contLen + TRANS_MSG_OVERHEAD;
+  int64_t sz = contLen + TRANS_MSG_OVERHEAD;
   st = taosMemoryRealloc(st, sz);
   if (st == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;

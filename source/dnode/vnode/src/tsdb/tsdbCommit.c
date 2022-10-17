@@ -400,12 +400,19 @@ _exit:
   return code;
 }
 
+static int32_t tDataIterCmprFn(const SRBTreeNode *n1, const SRBTreeNode *n2) {
+  SDataIter *pIter1 = (SDataIter *)((uint8_t *)n1 - offsetof(SDataIter, n));
+  SDataIter *pIter2 = (SDataIter *)((uint8_t *)n2 - offsetof(SDataIter, n));
+
+  return tRowInfoCmprFn(&pIter1->r, &pIter2->r);
+}
+
 static int32_t tsdbOpenCommitIter(SCommitter *pCommitter) {
   int32_t code = 0;
   int32_t lino = 0;
 
   pCommitter->pIter = NULL;
-  tRBTreeCreate(&pCommitter->rbt, tRowInfoCmprFn);
+  tRBTreeCreate(&pCommitter->rbt, tDataIterCmprFn);
 
   // memory
   TSDBKEY    tKey = {.ts = pCommitter->minKey, .version = VERSION_MIN};
@@ -1077,7 +1084,9 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
   STsdb     *pTsdb = pCommitter->pTsdb;
   SMemTable *pMemTable = pTsdb->imem;
 
-  ASSERT(eno == 0);
+  ASSERT(eno == 0 &&
+    "tsdbCommit failure"
+    "Restart taosd");
 
   // lock
   taosThreadRwlockWrlock(&pTsdb->rwLock);

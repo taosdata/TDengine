@@ -18,7 +18,7 @@
 #include "tlog.h"
 
 #define SHASH_DEFAULT_LOAD_FACTOR 0.75
-#define HASH_MAX_CAPACITY         (1024 * 1024 * 16)
+#define HASH_MAX_CAPACITY         (1024 * 1024 * 16L)
 #define SHASH_NEED_RESIZE(_h)     ((_h)->size >= (_h)->capacity * SHASH_DEFAULT_LOAD_FACTOR)
 
 #define GET_SHASH_NODE_KEY(_n, _dl) ((char *)(_n) + sizeof(SHNode) + (_dl))
@@ -104,7 +104,7 @@ static void tSimpleHashTableResize(SSHashObj *pHashObj) {
 
   int32_t newCapacity = (int32_t)(pHashObj->capacity << 1u);
   if (newCapacity > HASH_MAX_CAPACITY) {
-    uDebug("current capacity:%zu, maximum capacity:%" PRIu64 ", no resize applied due to limitation is reached",
+    uDebug("current capacity:%"PRIzu", maximum capacity:%" PRIu64 ", no resize applied due to limitation is reached",
            pHashObj->capacity, HASH_MAX_CAPACITY);
     return;
   }

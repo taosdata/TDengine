@@ -38,7 +38,7 @@ int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
     if (taosMkDir(path)) {
       return TAOS_SYSTEM_ERROR(errno);
     }
-    strcpy(dir, path);
+    snprintf(dir, TSDB_FILENAME_LEN, "%s", path);
   }
 
   if (pCfg) {
@@ -51,7 +51,7 @@ int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   info.state.commitID = 0;
 
   if (vnodeSaveInfo(dir, &info) < 0 || vnodeCommitInfo(dir, &info) < 0) {
-    vError("vgId:%d, failed to save vnode config since %s", pCfg->vgId, tstrerror(terrno));
+    vError("vgId:%d, failed to save vnode config since %s", pCfg ? pCfg->vgId : 0, tstrerror(terrno));
     return -1;
   }
 
@@ -140,7 +140,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
 
   pVnode->pWal = walOpen(tdir, &(pVnode->config.walCfg));
   if (pVnode->pWal == NULL) {
-    vError("vgId:%d, failed to open vnode wal since %s", TD_VID(pVnode), tstrerror(terrno));
+    vError("vgId:%d, failed to open vnode wal since %s. wal:%s", TD_VID(pVnode), tstrerror(terrno), tdir);
     goto _err;
   }
 

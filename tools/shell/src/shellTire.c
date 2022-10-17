@@ -243,8 +243,8 @@ void enumAllWords(STireNode** nodes, char* prefix, SMatch* match) {
       continue;
     } else {
       // combine word string
-      memset(word, 0, sizeof(word));
-      strcpy(word, prefix);
+      memset(word, 0, tListLen(word));
+      strncpy(word, prefix, len);
       word[len] = FIRST_ASCII + i;  // append current char
 
       // chain middle node
@@ -315,8 +315,7 @@ void matchPrefixFromTree(STire* tire, char* prefix, SMatch* match) {
     }
   }
 
-  // return
-  return;
+  taosMemoryFree(root);
 }
 
 SMatch* matchPrefix(STire* tire, char* prefix, SMatch* match) {

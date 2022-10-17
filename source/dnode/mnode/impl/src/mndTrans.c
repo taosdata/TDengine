@@ -53,7 +53,7 @@ static bool    mndTransPerformCommitActionStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerformCommitStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans);
-static bool    mndCannotExecuteTransAction(SMnode *pMnode) { return !pMnode->deploy && !mndIsMaster(pMnode); }
+static bool    mndCannotExecuteTransAction(SMnode *pMnode) { return !pMnode->deploy && !mndIsLeader(pMnode); }
 
 static void    mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans);
 static int32_t mndProcessTransTimer(SRpcMsg *pReq);
