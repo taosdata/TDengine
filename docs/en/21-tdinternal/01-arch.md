@@ -181,7 +181,7 @@ To make full use of the characteristics of time-series data, TDengine splits the
 
 For time-series data, there is generally a retention policy, which is determined by the system configuration parameter `keep`. Data files exceeding this set number of days will be automatically deleted by the system to free up storage space.
 
-Given `duration` and `keep` parameters, the total number of data files in a vnode is: keep/duration. The total number of data files should not be too large or too small. 10 to 100 is appropriate. Based on this principle, reasonable `duration` can be set. In the current version, parameter `keep` can be modified, but parameter `duration` cannot be modified once it is set.
+Given `duration` and `keep` parameters, the total number of data files in a vnode is: round up of (keep/duration+1). The total number of data files should not be too large or too small. 10 to 100 is appropriate. Based on this principle, reasonable `duration` can be set. In the current version, parameter `keep` can be modified, but parameter `duration` cannot be modified once it is set.
 
 In each data file, the data of a table is stored in blocks. A table can have one or more data file blocks. In a file block, data is stored in columns, occupying a continuous storage space, thus greatly improving the reading speed. The size of file block is determined by the system parameter `maxRows` (the maximum number of records per block), and the default value is 4096. This value should not be too large or too small. If it is too large, data location for queries will take a longer time. If it is too small, the index of data block is too large, and the compression efficiency will be low with slower reading speed.
 

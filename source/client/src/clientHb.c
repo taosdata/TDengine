@@ -173,7 +173,7 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
       pTscObj->pAppInfo->totalDnodes = pRsp->query->totalDnodes;
       pTscObj->pAppInfo->onlineDnodes = pRsp->query->onlineDnodes;
       pTscObj->connId = pRsp->query->connId;
-      tscTrace("conn %p hb rsp, dnodes %d/%d", pTscObj->connId, pTscObj->pAppInfo->onlineDnodes,
+      tscTrace("conn %u hb rsp, dnodes %d/%d", pTscObj->connId, pTscObj->pAppInfo->onlineDnodes,
                pTscObj->pAppInfo->totalDnodes);
 
       if (pRsp->query->killRid) {

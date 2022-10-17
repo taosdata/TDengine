@@ -709,6 +709,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
   int64_t refId = *(int64_t*)param;
   tmq_t*  tmq = taosAcquireRef(tmqMgmt.rsetId, refId);
   if (tmq == NULL) {
+    taosMemoryFree(param);
     return;
   }
   int64_t   consumerId = tmq->consumerId;
@@ -870,8 +871,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   tmq_t* pTmq = taosMemoryCalloc(1, sizeof(tmq_t));
   if (pTmq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    tscError("consumer %" PRId64 " setup failed since %s, consumer group %s", pTmq->consumerId, terrstr(),
-             pTmq->groupId);
+    tscError("consumer setup failed since %s", terrstr());
     return NULL;
   }
 
@@ -939,10 +939,9 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
     return NULL;
   }
 
-  int64_t* pRefId = taosMemoryMalloc(sizeof(int64_t));
-  *pRefId = pTmq->refId;
-
   if (pTmq->hbBgEnable) {
+    int64_t* pRefId = taosMemoryMalloc(sizeof(int64_t));
+    *pRefId = pTmq->refId;
     pTmq->hbLiveTimer = taosTmrStart(tmqSendHbReq, 1000, pRefId, tmqMgmt.timer);
   }
 
@@ -965,6 +964,8 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   void*           buf = NULL;
   SCMSubscribeReq req = {0};
   int32_t         code = -1;
+
+  tscDebug("call tmq subscribe, consumer: %ld, topic num %d", tmq->consumerId, sz);
 
   req.consumerId = tmq->consumerId;
   tstrncpy(req.clientId, tmq->clientId, 256);
@@ -1297,7 +1298,8 @@ int32_t tmqAskEpCb(void* param, SDataBuf* pMsg, int32_t code) {
 
   pParam->code = code;
   if (code != 0) {
-    tscError("consumer:%" PRId64 ", get topic endpoint error, not ready, wait:%d", tmq->consumerId, pParam->async);
+    tscError("consumer:%" PRId64 ", get topic endpoint error, not ready, wait:%d, code %x", tmq->consumerId,
+             pParam->async, code);
     goto END;
   }
 

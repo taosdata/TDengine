@@ -2,7 +2,7 @@
 set -e
 set -x
 
-#python3 ./test.py -f 0-others/taosShell.py
+python3 ./test.py -f 0-others/taosShell.py
 python3 ./test.py -f 0-others/taosShellError.py
 python3 ./test.py -f 0-others/taosShellNetChk.py
 python3 ./test.py -f 0-others/telemetry.py
@@ -18,7 +18,7 @@ python3 ./test.py -f 0-others/sysinfo.py
 python3 ./test.py -f 0-others/user_control.py
 python3 ./test.py -f 0-others/fsync.py
 python3 ./test.py  -f 0-others/compatibility.py   
-
+python3 ./test.py -f 1-insert/alter_database.py
 python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
 python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
 python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
@@ -232,7 +232,7 @@ python3 ./test.py -f 6-cluster/5dnode2mnode.py  -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStopLoop.py -N 5 -M 3
-# unstable python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDbRep3.py -N 5 -M 3
@@ -248,8 +248,8 @@ python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 5 -
 
 python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 6 -M 3 -C 5
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStopInsert.py
-# python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
-# python3 test.py -f 6-cluster/5dnode3mnodeStopConnect.py -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
+python3 test.py -f 6-cluster/5dnode3mnodeStopConnect.py -N 5 -M 3
 
 python3 ./test.py -f 6-cluster/5dnode3mnodeRecreateMnode.py  -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStopFollowerLeader.py  -N 5 -M 3
@@ -279,7 +279,7 @@ python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_stop_
 python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_vgroups.py  -N 4 -M 1
 # python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_vgroups_stopOne.py -N 4 -M 1
 
-
+python3 ./test.py -f 7-tmq/create_wrong_topic.py
 python3 ./test.py -f 7-tmq/dropDbR3ConflictTransaction.py -N 3
 python3 ./test.py -f 7-tmq/basic5.py
 python3 ./test.py -f 7-tmq/subscribeDb.py
@@ -302,7 +302,7 @@ python3 ./test.py -f 7-tmq/tmqCheckData.py
 python3 ./test.py -f 7-tmq/tmqCheckData1.py
 #python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 5
 python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
-python3 ./test.py -f 7-tmq/tmqShow.py
+#python3 ./test.py -f 7-tmq/tmqShow.py
 python3 ./test.py -f 7-tmq/tmqAlterSchema.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1.py

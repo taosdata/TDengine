@@ -895,33 +895,6 @@ static bool overlapWithTimeWindow(STaskAttr* pQueryAttr, SDataBlockInfo* pBlockI
 }
 #endif
 
-static uint32_t doFilterByBlockTimeWindow(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock) {
-#if 0
-  SqlFunctionCtx* pCtx = pTableScanInfo->pCtx;
-  uint32_t        status = BLK_DATA_NOT_LOAD;
-
-  int32_t numOfOutput = 0;  // pTableScanInfo->numOfOutput;
-  for (int32_t i = 0; i < numOfOutput; ++i) {
-    int32_t functionId = pCtx[i].functionId;
-    int32_t colId = pTableScanInfo->pExpr[i].base.pParam[0].pCol->colId;
-
-    // group by + first/last should not apply the first/last block filter
-    if (functionId < 0) {
-      status |= BLK_DATA_DATA_LOAD;
-      return status;
-    } else {
-      //      status |= aAggs[functionId].dataReqFunc(&pTableScanInfo->pCtx[i], &pBlock->info.window, colId);
-      //      if ((status & BLK_DATA_DATA_LOAD) == BLK_DATA_DATA_LOAD) {
-      //        return status;
-      //      }
-    }
-  }
-
-  return status;
-#endif
-  return 0;
-}
-
 int32_t loadDataBlockOnDemand(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableScanInfo, SSDataBlock* pBlock,
                               uint32_t* status) {
   *status = BLK_DATA_NOT_LOAD;
@@ -1113,15 +1086,24 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
 static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, bool keep,
                                                 int32_t status);
 
-void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColMatchInfo) {
+void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColMatchInfo, SFilterInfo* pFilterInfo) {
   if (pFilterNode == NULL || pBlock->info.rows == 0) {
     return;
   }
 
-  SFilterInfo* filter = NULL;
+  SFilterInfo* filter = pFilterInfo;
+  int64_t st = taosGetTimestampUs();
+
+//  pError("start filter");
 
   // todo move to the initialization function
-  int32_t            code = filterInitFromNode((SNode*)pFilterNode, &filter, 0);
+  int32_t code = 0;
+  bool needFree = false;
+  if (filter == NULL) {
+    needFree = true;
+    code = filterInitFromNode((SNode*)pFilterNode, &filter, 0);
+  }
+
   SFilterColumnParam param1 = {.numOfCols = taosArrayGetSize(pBlock->pDataBlock), .pDataBlock = pBlock->pDataBlock};
   code = filterSetDataFromSlotId(filter, &param1);
 
@@ -1130,7 +1112,10 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColM
 
   // todo the keep seems never to be True??
   bool keep = filterExecute(filter, pBlock, &p, NULL, param1.numOfCols, &status);
-  filterFreeInfo(filter);
+
+  if (needFree) {
+    filterFreeInfo(filter);
+  }
 
   extractQualifiedTupleByFilterResult(pBlock, p, keep, status);
 
@@ -1790,7 +1775,7 @@ int32_t loadRemoteDataCallback(void* param, SDataBuf* pMsg, int32_t code) {
   } else {
     taosMemoryFree(pMsg->pData);
     pSourceDataInfo->code = code;
-    qDebug("%s fetch rsp received, index:%d, error:%d", pSourceDataInfo->taskId, index, tstrerror(code));
+    qDebug("%s fetch rsp received, index:%d, code:%s", pSourceDataInfo->taskId, index, tstrerror(code));
   }
 
   pSourceDataInfo->status = EX_SOURCE_DATA_READY;
@@ -1845,6 +1830,7 @@ static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInf
     SResFetchReq* pMsg = taosMemoryCalloc(1, sizeof(SResFetchReq));
     if (NULL == pMsg) {
       pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      taosMemoryFree(pWrapper);
       return pTaskInfo->code;
     }
 
@@ -2479,7 +2465,7 @@ static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
   while (1) {
     doBuildResultDatablock(pOperator, pInfo, &pAggInfo->groupResInfo, pAggInfo->aggSup.pResultBuf);
-    doFilter(pAggInfo->pCondition, pInfo->pRes, NULL);
+    doFilter(pAggInfo->pCondition, pInfo->pRes, NULL, NULL);
 
     if (!hasRemainResults(&pAggInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
@@ -2803,6 +2789,8 @@ static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
       blockDataUpdateTsWindow(pBlock, pInfo->primarySrcSlotId);
 
       blockDataCleanup(pInfo->pRes);
+      blockDataEnsureCapacity(pInfo->pRes, pBlock->info.rows);
+      blockDataEnsureCapacity(pInfo->pFinalRes, pBlock->info.rows);
       doApplyScalarCalculation(pOperator, pBlock, order, scanFlag);
 
       if (pInfo->curGroupId == 0 || pInfo->curGroupId == pInfo->pRes->info.groupId) {
@@ -2873,7 +2861,7 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
       break;
     }
 
-    doFilter(pInfo->pCondition, fillResult, pInfo->pColMatchColInfo);
+    doFilter(pInfo->pCondition, fillResult, pInfo->pColMatchColInfo, NULL);
     if (fillResult->info.rows > 0) {
       break;
     }
@@ -3049,6 +3037,12 @@ void cleanupExprSupp(SExprSupp* pSupp) {
     destroyExprInfo(pSupp->pExprInfo, pSupp->numOfExprs);
     taosMemoryFreeClear(pSupp->pExprInfo);
   }
+
+  if (pSupp->pFilterInfo != NULL) {
+    filterFreeInfo(pSupp->pFilterInfo);
+    pSupp->pFilterInfo = NULL;
+  }
+
   taosMemoryFree(pSupp->rowEntryInfoOffset);
 }
 
@@ -3378,8 +3372,8 @@ SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
     SSchema* pSchema = &pqSw->pSchema[pqSw->nCols++];
     pSchema->colId = pColNode->colId;
     pSchema->type = pColNode->node.resType.type;
-    pSchema->type = pColNode->node.resType.bytes;
-    strncpy(pSchema->name, pColNode->colName, tListLen(pSchema->name));
+    pSchema->bytes = pColNode->node.resType.bytes;
+    tstrncpy(pSchema->name, pColNode->colName, tListLen(pSchema->name));
   }
 
   // this the tags and pseudo function columns, we only keep the tag columns
@@ -3393,7 +3387,7 @@ SSchemaWrapper* extractQueriedColumnSchema(SScanPhysiNode* pScanNode) {
       SSchema* pSchema = &pqSw->pSchema[pqSw->nCols++];
       pSchema->colId = pColNode->colId;
       pSchema->type = pColNode->node.resType.type;
-      pSchema->type = pColNode->node.resType.bytes;
+      pSchema->bytes = pColNode->node.resType.bytes;
       strncpy(pSchema->name, pColNode->colName, tListLen(pSchema->name));
     }
   }

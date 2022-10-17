@@ -81,7 +81,7 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
     }
 
     pInserter->submitRes.affectedRows += pInserter->submitRes.pRsp->affectedRows;
-    qDebug("submit rsp received, affectedRows:%d, total:%d", pInserter->submitRes.pRsp->affectedRows,
+    qDebug("submit rsp received, affectedRows:%d, total:%"PRId64, pInserter->submitRes.pRsp->affectedRows,
            pInserter->submitRes.affectedRows);
 
     tFreeSSubmitRsp(pInserter->submitRes.pRsp);

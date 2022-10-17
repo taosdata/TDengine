@@ -610,9 +610,6 @@ int32_t tsdbFSRollback(STsdbFS *pFS) {
   ASSERT(0);
 
   return code;
-
-_err:
-  return code;
 }
 
 int32_t tsdbFSUpsertDelFile(STsdbFS *pFS, SDelFile *pDelFile) {
@@ -822,7 +819,7 @@ int32_t tsdbFSCommit2(STsdb *pTsdb, STsdbFS *pFSNew) {
       nRef = atomic_sub_fetch_32(&fSet.pHeadF->nRef, 1);
       if (nRef == 0) {
         tsdbHeadFileName(pTsdb, pSetOld->diskId, pSetOld->fid, fSet.pHeadF, fname);
-        taosRemoveFile(fname);
+        (void)taosRemoveFile(fname);
         taosMemoryFree(fSet.pHeadF);
       }
     } else {
@@ -866,7 +863,7 @@ int32_t tsdbFSCommit2(STsdb *pTsdb, STsdbFS *pFSNew) {
       nRef = atomic_sub_fetch_32(&fSet.pSmaF->nRef, 1);
       if (nRef == 0) {
         tsdbSmaFileName(pTsdb, pSetOld->diskId, pSetOld->fid, fSet.pSmaF, fname);
-        taosRemoveFile(fname);
+        (void)taosRemoveFile(fname);
         taosMemoryFree(fSet.pSmaF);
       }
     } else {
@@ -877,7 +874,7 @@ int32_t tsdbFSCommit2(STsdb *pTsdb, STsdbFS *pFSNew) {
     // stt
     if (sameDisk) {
       if (pSetNew->nSttF > pSetOld->nSttF) {
-        ASSERT(pSetNew->nSttF = pSetOld->nSttF + 1);
+        ASSERT(pSetNew->nSttF == pSetOld->nSttF + 1);
         pSetOld->aSttF[pSetOld->nSttF] = (SSttFile *)taosMemoryMalloc(sizeof(SSttFile));
         if (pSetOld->aSttF[pSetOld->nSttF] == NULL) {
           code = TSDB_CODE_OUT_OF_MEMORY;
@@ -964,7 +961,7 @@ int32_t tsdbFSCommit2(STsdb *pTsdb, STsdbFS *pFSNew) {
     nRef = atomic_sub_fetch_32(&pSetOld->pHeadF->nRef, 1);
     if (nRef == 0) {
       tsdbHeadFileName(pTsdb, pSetOld->diskId, pSetOld->fid, pSetOld->pHeadF, fname);
-      taosRemoveFile(fname);
+      (void)taosRemoveFile(fname);
       taosMemoryFree(pSetOld->pHeadF);
     }
 
@@ -1104,7 +1101,7 @@ void tsdbFSUnref(STsdb *pTsdb, STsdbFS *pFS) {
     ASSERT(nRef >= 0);
     if (nRef == 0) {
       tsdbDelFileName(pTsdb, pFS->pDelFile, fname);
-      taosRemoveFile(fname);
+      (void)taosRemoveFile(fname);
       taosMemoryFree(pFS->pDelFile);
     }
   }
@@ -1117,7 +1114,7 @@ void tsdbFSUnref(STsdb *pTsdb, STsdbFS *pFS) {
     ASSERT(nRef >= 0);
     if (nRef == 0) {
       tsdbHeadFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pHeadF, fname);
-      taosRemoveFile(fname);
+      (void)taosRemoveFile(fname);
       taosMemoryFree(pSet->pHeadF);
     }
 

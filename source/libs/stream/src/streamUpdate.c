@@ -174,14 +174,9 @@ bool updateInfoIsUpdated(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts) {
       if (res == TSDB_CODE_SUCCESS) {
         return false;
       } else {
-        qDebug("===stream===Update close window sbf. tableId:%" PRIu64 ", maxTs:%" PRIu64 ", mapMaxTs:%" PRIu64
-               ", ts:%" PRIu64,
-               tableId, maxTs, *pMapMaxTs, ts);
         return true;
       }
     }
-    qDebug("===stream===Update close window. tableId:%" PRIu64 ", maxTs:%" PRIu64 ", mapMaxTs:%" PRIu64 ", ts:%" PRIu64,
-           tableId, maxTs, *pMapMaxTs, ts);
     return true;
   }
 
@@ -203,14 +198,10 @@ bool updateInfoIsUpdated(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts) {
   }
 
   if (ts < pInfo->minTS) {
-    qDebug("===stream===Update min ts. tableId:%" PRIu64 ", maxTs:%" PRIu64 ", mapMaxTs:%" PRIu64 ", ts:%" PRIu64,
-           tableId, maxTs, *pMapMaxTs, ts);
     return true;
   } else if (res == TSDB_CODE_SUCCESS) {
     return false;
   }
-  qDebug("===stream===Update. tableId:%" PRIu64 ", maxTs:%" PRIu64 ", mapMaxTs:%" PRIu64 ", ts:%" PRIu64, tableId,
-         maxTs, *pMapMaxTs, ts);
   // check from tsdb api
   return true;
 }
