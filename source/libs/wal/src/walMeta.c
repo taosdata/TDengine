@@ -481,6 +481,10 @@ int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
       continue;
     }
 
+    if (offset != (idxEntry.ver - pFileInfo->firstVer) * sizeof(SWalIdxEntry)) {
+      continue;
+    }
+
     if (walReadLogHead(pLogFile, idxEntry.offset, &ckHead) < 0) {
       wWarn("vgId:%d, failed to read log file since %s. file:%s, offset:%" PRId64 ", idx entry ver:%" PRId64 "",
             pWal->cfg.vgId, terrstr(), fLogNameStr, idxEntry.offset, idxEntry.ver);
@@ -492,6 +496,8 @@ int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
     }
   }
   offset += sizeof(SWalIdxEntry);
+
+  ASSERT(offset == (idxEntry.ver - pFileInfo->firstVer + 1) * sizeof(SWalIdxEntry));
 
   // ftruncate idx file
   if (offset < fileSize) {
