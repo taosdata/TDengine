@@ -616,7 +616,7 @@ int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len) {
 
   int32_t nOptrWithVal = 0;
   int32_t code = encodeOperator(pTaskInfo->pRoot, pOutput, len, &nOptrWithVal);
-  if ((code == TSDB_CODE_SUCCESS) && (nOptrWithVal = 0)) {
+  if ((code == TSDB_CODE_SUCCESS) && (nOptrWithVal == 0)) {
     taosMemoryFreeClear(*pOutput);
     *len = 0;
   }
