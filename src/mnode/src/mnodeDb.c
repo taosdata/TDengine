@@ -1013,7 +1013,7 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
     newCfg.daysToKeep2 = daysToKeep2;
   }
 
-  if (minRows > 0 && minRows != pDb->cfg.minRowsPerFileBlock) {
+  if (minRows >= 0 && minRows != pDb->cfg.minRowsPerFileBlock) {
     mDebug("db:%s, minRows:%d change to %d", pDb->name, pDb->cfg.minRowsPerFileBlock, minRows);
     newCfg.minRowsPerFileBlock = minRows;
   }

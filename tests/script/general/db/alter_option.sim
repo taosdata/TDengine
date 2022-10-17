@@ -182,7 +182,11 @@ sql_error alter database db blocks -1
 sql_error alter database db blocks 10001
 
 print ============== step minrows
+sql_error alter database db minrows 0
 sql_error alter database db minrows 1
+sql_error alter database db minrows -1
+sql_error alter database db minrows 9
+sql_error alter database db minrows 1001
 sql alter database db minrows 100
 sql alter database db minrows 1000
 
