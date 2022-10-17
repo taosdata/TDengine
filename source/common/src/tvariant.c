@@ -29,7 +29,7 @@
       break;                                                        \
     }                                                               \
     if ((res) > (maxv)) {                                           \
-      *exti = -1;                                                   \
+      *exti = 1;                                                    \
       break;                                                        \
     }                                                               \
     assert(0);                                                      \
