@@ -1891,8 +1891,26 @@ inline bool syncNodeInConfig(SSyncNode* pSyncNode, const SSyncCfg* config) {
   return b1;
 }
 
+static bool syncIsConfigChanged(const SSyncCfg* pOldCfg, const SSyncCfg* pNewCfg) {
+  if (pOldCfg->replicaNum != pNewCfg->replicaNum) return true;
+  if (pOldCfg->myIndex != pNewCfg->myIndex) return true;
+  for (int32_t i = 0; i < pOldCfg->replicaNum; ++i) {
+    const SNodeInfo* pOldInfo = &pOldCfg->nodeInfo[i];
+    const SNodeInfo* pNewInfo = &pNewCfg->nodeInfo[i];
+    if (strcmp(pOldInfo->nodeFqdn, pNewInfo->nodeFqdn) != 0) return true;
+    if (pOldInfo->nodePort != pNewInfo->nodePort) return true;
+  }
+
+  return false;
+}
+
 void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncIndex lastConfigChangeIndex) {
   SSyncCfg oldConfig = pSyncNode->pRaftCfg->cfg;
+  if (!syncIsConfigChanged(&oldConfig, pNewConfig)) {
+    sInfo("vgId:1, sync not reconfig since not changed");
+    return;
+  }
+
   pSyncNode->pRaftCfg->cfg = *pNewConfig;
   pSyncNode->pRaftCfg->lastConfigIndex = lastConfigChangeIndex;
 

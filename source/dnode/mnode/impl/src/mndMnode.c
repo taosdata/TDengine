@@ -394,7 +394,6 @@ static int32_t mndCreateMnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
   if (mndSetCreateMnodeRedoActions(pMnode, pTrans, pDnode, &mnodeObj) != 0) goto _OVER;
   if (mndSetCreateMnodeRedoLogs(pMnode, pTrans, &mnodeObj) != 0) goto _OVER;
   if (mndSetCreateMnodeCommitLogs(pMnode, pTrans, &mnodeObj) != 0) goto _OVER;
-  if (mndTransAppendNullLog(pTrans) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
   code = 0;
@@ -478,7 +477,6 @@ static int32_t mndSetDropMnodeCommitLogs(SMnode *pMnode, STrans *pTrans, SMnodeO
 static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnodeObj *pDnode, SMnodeObj *pObj) {
   SSdb          *pSdb = pMnode->pSdb;
   void          *pIter = NULL;
-  int32_t        numOfReplicas = 0;
   SDDropMnodeReq dropReq = {0};
   SEpSet         dropEpSet = {0};
 
@@ -505,9 +503,8 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
 
 int32_t mndSetDropMnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SMnodeObj *pObj) {
   if (pObj == NULL) return 0;
-  if (mndSetDropMnodeCommitLogs(pMnode, pTrans, pObj) != 0) return -1;
   if (mndSetDropMnodeRedoActions(pMnode, pTrans, pObj->pDnode, pObj) != 0) return -1;
-  if (mndTransAppendNullLog(pTrans) != 0) return -1;
+  if (mndSetDropMnodeCommitLogs(pMnode, pTrans, pObj) != 0) return -1;
   return 0;
 }
 
@@ -715,7 +712,8 @@ static void mndReloadSyncConfig(SMnode *pMnode) {
   SMnodeObj *pObj = NULL;
   ESdbStatus objStatus = 0;
   void      *pIter = NULL;
-  bool       hasUpdatingMnode = false;
+  int32_t    updatingMnodes = 0;
+  int32_t    readyMnodes = 0;
   SSyncCfg   cfg = {.myIndex = -1};
 
   while (1) {
@@ -723,7 +721,11 @@ static void mndReloadSyncConfig(SMnode *pMnode) {
     if (pIter == NULL) break;
     if (objStatus == SDB_STATUS_CREATING || objStatus == SDB_STATUS_DROPPING) {
       mInfo("vgId:1, has updating mnode:%d, status:%s", pObj->id, sdbStatusName(objStatus));
-      hasUpdatingMnode = true;
+      updatingMnodes++;
+    }
+    if (objStatus == SDB_STATUS_READY) {
+      mInfo("vgId:1, has ready mnode:%d, status:%s", pObj->id, sdbStatusName(objStatus));
+      readyMnodes++;
     }
 
     if (objStatus == SDB_STATUS_READY || objStatus == SDB_STATUS_CREATING) {
@@ -739,18 +741,18 @@ static void mndReloadSyncConfig(SMnode *pMnode) {
     sdbReleaseLock(pSdb, pObj, false);
   }
 
+  if (readyMnodes <= 0 || updatingMnodes <= 0) {
+    mInfo("vgId:1, mnode sync not reconfig since readyMnodes:%d updatingMnodes:%d", readyMnodes, updatingMnodes);
+    return;
+  }
+
   if (cfg.myIndex == -1) {
-    mInfo("vgId:1, mnode not reload since selfIndex is -1");
+    mInfo("vgId:1, mnode sync not reconfig since selfIndex is -1");
     return;
   }
 
-  if (!mndGetRestored(pMnode)) {
-    mInfo("vgId:1, mnode not reload since restore not finished");
-    return;
-  }
-
-  if (hasUpdatingMnode) {
-    mInfo("vgId:1, start to reload mnode sync, replica:%d myIndex:%d", cfg.replicaNum, cfg.myIndex);
+  if (updatingMnodes > 0) {
+    mInfo("vgId:1, mnode sync reconfig, replica:%d myIndex:%d", cfg.replicaNum, cfg.myIndex);
     for (int32_t i = 0; i < cfg.replicaNum; ++i) {
       SNodeInfo *pNode = &cfg.nodeInfo[i];
       mInfo("vgId:1, index:%d, fqdn:%s port:%d", i, pNode->nodeFqdn, pNode->nodePort);
