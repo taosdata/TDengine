@@ -71,7 +71,10 @@ int32_t syncNodeRequestVotePeersSnapshot(SSyncNode* pSyncNode) {
 }
 
 int32_t syncNodeDoRequestVote(SSyncNode* pSyncNode) {
-  ASSERT(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
+  if (pSyncNode->state != TAOS_SYNC_STATE_CANDIDATE) {
+    syncNodeEventLog(pSyncNode, "not candidate, stop elect");
+    return 0;
+  }
 
   int32_t ret = 0;
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
