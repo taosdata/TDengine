@@ -179,11 +179,19 @@ The following `systemctl` commands can help you manage TDengine service:
 
 :::
 
+## Command Line Interface (CLI)
+
+You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can execute `taos` in terminal.
+
 </TabItem>
 
 <TabItem label="Windows" value="windows">
 
 After the installation is complete, run `C:\TDengine\taosd.exe` to start TDengine Server.
+
+## Command Line Interface (CLI)
+
+You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can run `taos.exe` in the `C:\TDengine` directory of the Windows terminal to start the TDengine command line.
 
 </TabItem>
 
@@ -206,12 +214,12 @@ The following `launchctl` commands can help you manage TDengine service:
 
 :::
 
-</TabItem>
-</Tabs>
-
 ## Command Line Interface (CLI)
 
-You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can execute `taos` in the Linux/macOS terminal where TDengine is installed, or you can run `taos.exe` in the `C:\TDengine` directory of the Windows terminal where TDengine is installed to start the TDengine command line.
+You can use the TDengine CLI to monitor your TDengine deployment and execute ad hoc queries. To open the CLI, you can execute `taos` in terminal.
+
+</TabItem>
+</Tabs>
 
 ```bash
 taos
