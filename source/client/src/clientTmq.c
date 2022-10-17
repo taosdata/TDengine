@@ -966,13 +966,13 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   SCMSubscribeReq req = {0};
   int32_t         code = -1;
 
+  tscDebug("call tmq subscribe, consumer: %ld, topic num %d", tmq->consumerId, sz);
+
   req.consumerId = tmq->consumerId;
   tstrncpy(req.clientId, tmq->clientId, 256);
   tstrncpy(req.cgroup, tmq->groupId, TSDB_CGROUP_LEN);
   req.topicNames = taosArrayInit(sz, sizeof(void*));
   if (req.topicNames == NULL) goto FAIL;
-
-  tscDebug("call tmq subscribe, consumer: %ld, topic num %d", tmq->consumerId, sz);
 
   for (int32_t i = 0; i < sz; i++) {
     char* topic = taosArrayGetP(container, i);
