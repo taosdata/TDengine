@@ -49,7 +49,7 @@ bool tNameIsValid(const SName* name);
 
 const char* tNameGetTableName(const SName* name);
 
-int32_t tNameGetDbName(const SName* name, char* dst);
+int32_t     tNameGetDbName(const SName* name, char* dst);
 const char* tNameGetDbNameP(const SName* name);
 
 int32_t tNameGetFullDbName(const SName* name, char* dst);

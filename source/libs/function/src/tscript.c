@@ -13,10 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
 #include "tscript.h"
-#include "ttypes.h"
+#include "os.h"
 #include "tstrbuild.h"
+#include "ttypes.h"
 //#include "queryLog.h"
 #include "ttokendef.h"
 #if 0

@@ -342,7 +342,7 @@ static int32_t stbSplAppendWStart(SNodeList* pFuncs, int32_t* pIndex) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   strcpy(pWStart->functionName, "_wstart");
-  snprintf(pWStart->node.aliasName, sizeof(pWStart->node.aliasName), "%s.%p", pWStart->functionName, pWStart);
+  snprintf(pWStart->node.aliasName, sizeof(pWStart->node.aliasName), "%s.%p", pWStart->functionName, (void*)pWStart);
   int32_t code = fmGetFuncInfo(pWStart, NULL, 0);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListStrictAppend(pFuncs, (SNode*)pWStart);
@@ -367,7 +367,7 @@ static int32_t stbSplAppendWEnd(SWindowLogicNode* pWin, int32_t* pIndex) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   strcpy(pWEnd->functionName, "_wend");
-  snprintf(pWEnd->node.aliasName, sizeof(pWEnd->node.aliasName), "%s.%p", pWEnd->functionName, pWEnd);
+  snprintf(pWEnd->node.aliasName, sizeof(pWEnd->node.aliasName), "%s.%p", pWEnd->functionName, (void*)pWEnd);
   int32_t code = fmGetFuncInfo(pWEnd, NULL, 0);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListStrictAppend(pWin->pFuncs, (SNode*)pWEnd);
@@ -389,22 +389,19 @@ static int32_t stbSplCreatePartWindowNode(SWindowLogicNode* pMergeWindow, SLogic
   SNode* pConditions = pMergeWindow->node.pConditions;
   pMergeWindow->node.pConditions = NULL;
 
-  int32_t           code = TSDB_CODE_SUCCESS;
   SWindowLogicNode* pPartWin = (SWindowLogicNode*)nodesCloneNode((SNode*)pMergeWindow);
   if (NULL == pPartWin) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   pPartWin->node.groupAction = GROUP_ACTION_KEEP;
+  pMergeWindow->node.pTargets = pTargets;
+  pMergeWindow->node.pConditions = pConditions;
+  pPartWin->node.pChildren = pChildren;
+  splSetParent((SLogicNode*)pPartWin);
 
-  if (TSDB_CODE_SUCCESS == code) {
-    pMergeWindow->node.pTargets = pTargets;
-    pMergeWindow->node.pConditions = pConditions;
-    pPartWin->node.pChildren = pChildren;
-    splSetParent((SLogicNode*)pPartWin);
-    code = stbSplRewriteFuns(pFunc, &pPartWin->pFuncs, &pMergeWindow->pFuncs);
-  }
   int32_t index = 0;
+  int32_t code = stbSplRewriteFuns(pFunc, &pPartWin->pFuncs, &pMergeWindow->pFuncs);
   if (TSDB_CODE_SUCCESS == code) {
     code = stbSplAppendWStart(pPartWin->pFuncs, &index);
   }
@@ -721,15 +718,16 @@ static int32_t stbSplCreatePartAggNode(SAggLogicNode* pMergeAgg, SLogicNode** pO
   SNode* pConditions = pMergeAgg->node.pConditions;
   pMergeAgg->node.pConditions = NULL;
 
-  int32_t        code = TSDB_CODE_SUCCESS;
   SAggLogicNode* pPartAgg = (SAggLogicNode*)nodesCloneNode((SNode*)pMergeAgg);
   if (NULL == pPartAgg) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   pPartAgg->node.groupAction = GROUP_ACTION_KEEP;
 
-  if (TSDB_CODE_SUCCESS == code && NULL != pGroupKeys) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  if (NULL != pGroupKeys) {
     pPartAgg->pGroupKeys = pGroupKeys;
     code = createColumnByRewriteExprs(pPartAgg->pGroupKeys, &pPartAgg->node.pTargets);
   }

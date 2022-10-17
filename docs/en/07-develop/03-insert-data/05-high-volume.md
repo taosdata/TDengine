@@ -16,16 +16,16 @@ To achieve high performance writing, there are a few aspects to consider. In the
 
 From the perspective of application program, you need to consider:
 
-1. The data size of each single write, also known as batch size. Generally speaking, higher batch size generates better writing performance. However, once the batch size is over a specific value, you will not get any additional benefit anymore. When using SQL to write into TDengine, it's better to put as much as possible data in single SQL. The maximum SQL length supported by TDengine is 1,048,576 bytes, i.e. 1 MB. 
+1. The data size of each single write, also known as batch size. Generally speaking, higher batch size generates better writing performance. However, once the batch size is over a specific value, you will not get any additional benefit anymore. When using SQL to write into TDengine, it's better to put as much as possible data in single SQL. The maximum SQL length supported by TDengine is 1,048,576 bytes, i.e. 1 MB.
 
 2. The number of concurrent connections. Normally more connections can get better result. However, once the number of connections exceeds the processing ability of the server side, the performance may downgrade.
 
 3. The distribution of data to be written across tables or sub-tables. Writing to single table in one batch is more efficient than writing to multiple tables in one batch.
 
 4. Data Writing Protocol.
-   - Prameter binding mode is more efficient than SQL because it doesn't have the cost of parsing SQL.
-   - Writing to known existing tables is more efficient than wirting to uncertain tables in automatic creating mode because the later needs to check whether the table exists or not before actually writing data into it
-   - Writing in SQL is more efficient than writing in schemaless mode because schemaless writing creats table automatically and may alter table schema
+   - Parameter binding mode is more efficient than SQL because it doesn't have the cost of parsing SQL.
+   - Writing to known existing tables is more efficient than writing to uncertain tables in automatic creating mode because the later needs to check whether the table exists or not before actually writing data into it.
+   - Writing in SQL is more efficient than writing in schemaless mode because schemaless writing creates table automatically and may alter table schema.
 
 Application programs need to take care of the above factors and try to take advantage of them. The application progam should write to single table in each write batch. The batch size needs to be tuned to a proper value on a specific system. The number of concurrent connections needs to be tuned to a proper value too to achieve the best writing throughput.
 
@@ -37,7 +37,7 @@ Application programs need to read data from data source then write into TDengine
 2. The speed of data generation from single data source is much higher than the speed of single writing thread. The purpose of message queue in this case is to provide buffer so that data is not lost and multiple writing threads can get data from the buffer.
 3. The data for single table are from multiple data source. In this case the purpose of message queues is to combine the data for single table together to improve the write efficiency.
 
-If the data source is Kafka, then the appication program is a consumer of Kafka, you can benefit from some kafka features to achieve high performance writing:
+If the data source is Kafka, then the application program is a consumer of Kafka, you can benefit from some kafka features to achieve high performance writing:
 
 1. Put the data for a table in single partition of single topic so that it's easier to put the data for each table together and write in batch
 2. Subscribe multiple topics to accumulate data together.
@@ -56,7 +56,7 @@ This section will introduce the sample programs to demonstrate how to write into
 
 ### Scenario
 
-Below are the scenario for the sample programs of high performance wrting.
+Below are the scenario for the sample programs of high performance writing.
 
 - Application program reads data from data source, the sample program simulates a data source by generating data
 - The speed of single writing thread is much slower than the speed of generating data, so the program starts multiple writing threads while each thread establish a connection to TDengine and each thread has a message queue of fixed size.
@@ -80,7 +80,7 @@ The sample programs assume the source data is for all the different sub tables i
 | ---------------- | ----------------------------------------------------------------------------------------------------- |
 | FastWriteExample | Main Program                                                                                          |
 | ReadTask         | Read data from simulated data source and put into a queue according to the hash value of table name   |
-| WriteTask        | Read data from Queue, compose a wirte batch and write into TDengine                                   |
+| WriteTask        | Read data from Queue, compose a write batch and write into TDengine                                   |
 | MockDataSource   | Generate data for some sub tables of super table meters                                               |
 | SQLWriter        | WriteTask uses this class to compose SQL, create table automatically, check SQL length and write data |
 | StmtWriter       | Write in Parameter binding mode (Not finished yet)                                                    |
@@ -95,16 +95,16 @@ The main Program is responsible for:
 1. Create message queues
 2. Start writing threads
 3. Start reading threads
-4. Otuput writing speed every 10 seconds
+4. Output writing speed every 10 seconds
 
 The main program provides 4 parameters for tuning：
 
 1. The number of reading threads, default value is 1
-2. The number of writing threads, default alue is 2
+2. The number of writing threads, default value is 2
 3. The total number of tables in the generated data, default value is 1000. These tables are distributed evenly across all writing threads. If the number of tables is very big, it will cost much time to firstly create these tables.
 4. The batch size of single write, default value is 3,000
 
-The capacity of message queue also impacts performance and can be tuned by modifying program. Normally it's always better to have a larger message queue. A larger message queue means lower possibility of being blocked when enqueueing and higher throughput. But a larger message queue consumes more memory space. The default value used in the sample programs is already big enoug.
+The capacity of message queue also impacts performance and can be tuned by modifying program. Normally it's always better to have a larger message queue. A larger message queue means lower possibility of being blocked when enqueueing and higher throughput. But a larger message queue consumes more memory space. The default value used in the sample programs is already big enough.
 
 ```java
 {{#include docs/examples/java/src/main/java/com/taos/example/highvolume/FastWriteExample.java}}
@@ -179,7 +179,7 @@ TDENGINE_JDBC_URL="jdbc:TAOS://localhost:6030?user=root&password=taosdata"
 
 **Launch in IDE**
 
-1. Clone TDengine repolitory
+1. Clone TDengine repository
    ```
    git clone git@github.com:taosdata/TDengine.git --depth 1
    ```
@@ -282,7 +282,7 @@ Sample programs in Python uses multi-process and cross-process message queues.
 | run_read_task Function       | Read data and distribute to message queues                                  |
 | MockDataSource Class         | Simulate data source, return next 1,000 rows of each table                  |
 | run_write_task Function      | Read as much as possible data from message queue and write in batch         |
-| SQLWriter Class              | Write in SQL and create table utomatically                                  |
+| SQLWriter Class              | Write in SQL and create table automatically                                 |
 | StmtWriter Class             | Write in parameter binding mode (not finished yet)                          |
 
 <details>
@@ -292,7 +292,7 @@ Sample programs in Python uses multi-process and cross-process message queues.
 
 1. Monitoring process, initializes database and calculating writing speed
 2. Reading process (n), reads data from data source
-3. Writing process (m), wirtes data into TDengine
+3. Writing process (m), writes data into TDengine
 
 `main` function provides 5 parameters:
 
@@ -311,7 +311,7 @@ Sample programs in Python uses multi-process and cross-process message queues.
 <details>
 <summary>run_monitor_process</summary>
 
-Monitoring process initilizes database and monitoring writing speed.
+Monitoring process initializes database and monitoring writing speed.
 
 ```python
 {{#include docs/examples/python/fast_write_example.py:monitor}}
@@ -356,7 +356,7 @@ Writing process tries to read as much as possible data from message queue and wr
 
 <details>
 
-SQLWriter class encapsulates the logic of composing SQL and writing data. Please be noted that the tables have not been created before writing, but are created automatically when catching the exception of table doesn't exist. For other exceptions caught, the SQL which caused the exception are logged for you to debug. This class also checks the SQL length, and passes the maximum SQL length by parameter maxSQLLength according to actual TDengine limit. 
+SQLWriter class encapsulates the logic of composing SQL and writing data. Please be noted that the tables have not been created before writing, but are created automatically when catching the exception of table doesn't exist. For other exceptions caught, the SQL which caused the exception are logged for you to debug. This class also checks the SQL length, and passes the maximum SQL length by parameter maxSQLLength according to actual TDengine limit.
 
 <summary>SQLWriter</summary>
 
@@ -372,7 +372,7 @@ SQLWriter class encapsulates the logic of composing SQL and writing data. Please
 
 <summary>Launch Sample Program in Python</summary>
 
-1. Prerequisities
+1. Prerequisites
 
    - TDengine client driver has been installed
    - Python3 has been installed, the the version >= 3.8

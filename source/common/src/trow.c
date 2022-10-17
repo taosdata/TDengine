@@ -689,7 +689,7 @@ int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow) {
         memcpy(varDataVal(varBuf), pColVal->value.pData, pColVal->value.nData);
         val = varBuf;
       } else {
-        val = (const void *)&pColVal->value.i64;
+        val = (const void *)&pColVal->value.val;
       }
     } else {
       pColVal = NULL;

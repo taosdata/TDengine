@@ -53,7 +53,8 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
     }
     case QUERY_NODE_OPERATOR:
     case QUERY_NODE_LOGIC_CONDITION:
-    case QUERY_NODE_FUNCTION: {
+    case QUERY_NODE_FUNCTION:
+    case QUERY_NODE_CASE_WHEN: {
       SExprNode*   pExpr = (SExprNode*)pNode;
       SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
       if (NULL == pCol) {

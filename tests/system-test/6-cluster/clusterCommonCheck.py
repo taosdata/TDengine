@@ -37,10 +37,10 @@ class ClusterComCheck:
         tdSql.init(conn.cursor())
         # tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
-    def checkDnodes(self,dnodeNumbers):
+    def checkDnodes(self,dnodeNumbers, timeout=30):
         count=0
         # print(tdSql)
-        while count < 30:
+        while count < timeout:
             tdSql.query("select * from information_schema.ins_dnodes")
             # tdLog.debug(tdSql.queryResult)
             status=0
@@ -50,14 +50,14 @@ class ClusterComCheck:
             tdLog.info(status)
 
             if status == dnodeNumbers:
-                tdLog.success("it find cluster with %d dnodes and check that all cluster dnodes are ready within 30s! " %dnodeNumbers)
+                tdLog.success("it find cluster with %d dnodes and check that all cluster dnodes are ready within %ds! " % (dnodeNumbers, count))
                 return True
             count+=1
             time.sleep(1)
         else:
             tdSql.query("select * from information_schema.ins_dnodes")
             tdLog.debug(tdSql.queryResult)
-            tdLog.exit("it find cluster with %d dnodes but  check that there dnodes are not ready within 30s ! "%dnodeNumbers)
+            tdLog.exit("it find cluster with %d dnodes but  check that there dnodes are not ready within %ds ! "% (dnodeNumbers, timeout))
 
     def checkDbRows(self,dbNumbers):
         dbNumbers=int(dbNumbers)

@@ -362,6 +362,8 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   // update uid index
   metaUpdateUidIdx(pMeta, &nStbEntry);
 
+  metaStatsCacheDrop(pMeta, nStbEntry.uid);
+
   metaULock(pMeta);
 
   if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
@@ -382,7 +384,7 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq, STableMe
   }
 
   if (pReq->type == TSDB_CHILD_TABLE) {
-    tb_uid_t suid = metaGetTableEntryUidByName(pMeta, pReq->ctb.name);
+    tb_uid_t suid = metaGetTableEntryUidByName(pMeta, pReq->ctb.stbName);
     if (suid != pReq->ctb.suid) {
       terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
       return -1;
@@ -615,6 +617,7 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
     tdbTbDelete(pMeta->pSuidIdx, &e.uid, sizeof(tb_uid_t), &pMeta->txn);
     // drop schema.db (todo)
 
+    metaStatsCacheDrop(pMeta, uid);
     --pMeta->pVnode->config.vndStats.numOfSTables;
   }
 
@@ -690,6 +693,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
     if (iCol >= pSchema->nCols) break;
     pColumn = &pSchema->pSchema[iCol];
 
+    ASSERT(pAlterTbReq->colName);
     if (strcmp(pColumn->name, pAlterTbReq->colName) == 0) break;
     iCol++;
   }

@@ -186,16 +186,22 @@ static void uvHandleActivityTimeout(uv_timer_t* handle) {
 static bool uvHandleReq(SSvrConn* pConn) {
   STrans* pTransInst = pConn->pTransInst;
 
-  STransMsgHead* msg = NULL;
-  int            msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&msg);
+  STransMsgHead* pHead = NULL;
+
+  int msgLen = transDumpFromBuffer(&pConn->readBuf, (char**)&pHead);
   if (msgLen <= 0) {
     tError("%s conn %p read invalid packet", transLabel(pTransInst), pConn);
     return false;
   }
 
-  STransMsgHead* pHead = (STransMsgHead*)msg;
+  if (transDecompressMsg((char**)&pHead, msgLen) < 0) {
+    tDebug("%s conn %p recv invalid packet, failed to decompress", transLabel(pTransInst), pConn);
+    return false;
+  }
+
   pHead->code = htonl(pHead->code);
   pHead->msgLen = htonl(pHead->msgLen);
+
   memcpy(pConn->user, pHead->user, strlen(pHead->user));
 
   if (uvRecvReleaseReq(pConn, pHead)) {
@@ -229,10 +235,10 @@ static bool uvHandleReq(SSvrConn* pConn) {
     transRefSrvHandle(pConn);
 
     tGDebug("%s conn %p %s received from %s, local info:%s, len:%d", transLabel(pTransInst), pConn,
-            TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, transMsg.contLen);
+            TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen);
   } else {
     tGDebug("%s conn %p %s received from %s, local info:%s, len:%d, resp:%d, code:%d", transLabel(pTransInst), pConn,
-            TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, transMsg.contLen, pHead->noResp, transMsg.code);
+            TMSG_INFO(transMsg.msgType), pConn->dst, pConn->src, msgLen, pHead->noResp, transMsg.code);
   }
 
   // pHead->noResp = 1,
@@ -284,7 +290,7 @@ void uvOnRecvCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
       }
       return;
     } else {
-      tError("%s conn %p read invalid packet, exceed limit, received from %s, local info:", transLabel(pTransInst),
+      tError("%s conn %p read invalid packet, exceed limit, received from %s, local info:%s", transLabel(pTransInst),
              conn, conn->dst, conn->src);
       destroyConn(conn, true);
       return;
@@ -326,7 +332,10 @@ void uvOnSendCb(uv_write_t* req, int status) {
   if (status == 0) {
     tTrace("conn %p data already was written on stream", conn);
     if (!transQueueEmpty(&conn->srvMsgs)) {
-      SSvrMsg* msg = transQueuePop(&conn->srvMsgs);
+      SSvrMsg*  msg = transQueuePop(&conn->srvMsgs);
+      STraceId* trace = &msg->msg.info.traceId;
+      tGDebug("conn %p write data out", conn);
+
       destroySmsg(msg);
       // send cached data
       if (!transQueueEmpty(&conn->srvMsgs)) {
@@ -399,17 +408,22 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
 
   pHead->release = smsg->type == Release ? 1 : 0;
   pHead->code = htonl(pMsg->code);
+  pHead->msgLen = htonl(pMsg->contLen + sizeof(STransMsgHead));
 
   char*   msg = (char*)pHead;
   int32_t len = transMsgLenFromCont(pMsg->contLen);
 
-  STrans*   pTransInst = pConn->pTransInst;
+  STrans* pTransInst = pConn->pTransInst;
+  if (pTransInst->compressSize != -1 && pTransInst->compressSize < pMsg->contLen) {
+    len = transCompressMsg(pMsg->pCont, pMsg->contLen) + sizeof(STransMsgHead);
+    pHead->msgLen = (int32_t)htonl((uint32_t)len);
+  }
+
   STraceId* trace = &pMsg->info.traceId;
   tGDebug("%s conn %p %s is sent to %s, local info:%s, len:%d", transLabel(pTransInst), pConn,
-          TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, pMsg->contLen);
-  pHead->msgLen = htonl(len);
+          TMSG_INFO(pHead->msgType), pConn->dst, pConn->src, len);
 
-  wb->base = msg;
+  wb->base = (char*)pHead;
   wb->len = len;
 }
 
@@ -952,10 +966,10 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
 #ifdef WINDOWS
   char pipeName[64];
-  snprintf(pipeName, sizeof(pipeName), "\\\\?\\pipe\\trans.rpc.%p-" PRIu64, taosSafeRand(), GetCurrentProcessId());
+  snprintf(pipeName, sizeof(pipeName), "\\\\?\\pipe\\trans.rpc.%d-%" PRIu64, taosSafeRand(), GetCurrentProcessId());
 #else
   char pipeName[PATH_MAX] = {0};
-  snprintf(pipeName, sizeof(pipeName), "%s%spipe.trans.rpc.%08X-" PRIu64, tsTempDir, TD_DIRSEP, taosSafeRand(),
+  snprintf(pipeName, sizeof(pipeName), "%s%spipe.trans.rpc.%08d-%" PRIu64, tsTempDir, TD_DIRSEP, taosSafeRand(),
            taosGetSelfPthreadId());
 #endif
   ret = uv_pipe_bind(&srv->pipeListen, pipeName);
@@ -1160,6 +1174,11 @@ _return2:
   return -1;
 }
 int transSendResponse(const STransMsg* msg) {
+  if (msg->info.noResp) {
+    rpcFreeCont(msg->pCont);
+    tTrace("no need send resp");
+    return 0;
+  }
   SExHandle* exh = msg->info.handle;
   int64_t    refId = msg->info.refId;
   ASYNC_CHECK_HANDLE(exh, refId);
@@ -1198,6 +1217,8 @@ int transRegisterMsg(const STransMsg* msg) {
   ASYNC_CHECK_HANDLE(exh, refId);
 
   STransMsg tmsg = *msg;
+  tmsg.info.noResp = 1;
+
   tmsg.info.refId = refId;
 
   SWorkThrd* pThrd = exh->pThrd;

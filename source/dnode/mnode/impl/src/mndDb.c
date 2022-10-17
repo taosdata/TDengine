@@ -631,7 +631,7 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
   terrno = TSDB_CODE_MND_DB_OPTION_UNCHANGED;
 
   if (pAlter->buffer > 0 && pAlter->buffer != pDb->cfg.buffer) {
-#if 1
+#if 0
     terrno = TSDB_CODE_OPS_NOT_SUPPORT;
     return terrno;
 #else
@@ -641,7 +641,7 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
   }
 
   if (pAlter->pages > 0 && pAlter->pages != pDb->cfg.pages) {
-#if 1
+#if 0
     terrno = TSDB_CODE_OPS_NOT_SUPPORT;
     return terrno;
 #else
@@ -730,7 +730,7 @@ static int32_t mndSetAlterDbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pOl
     return -1;
   }
 
-  sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
   return 0;
 }
 
@@ -742,11 +742,11 @@ static int32_t mndSetAlterDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *p
     return -1;
   }
 
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
   return 0;
 }
 
-static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
+static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pOldDb, SDbObj *pNewDb) {
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = NULL;
   SArray *pArray = mndBuildDnodesArray(pMnode, 0);
@@ -756,8 +756,8 @@ static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
-    if (mndVgroupInDb(pVgroup, pNew->uid)) {
-      if (mndBuildAlterVgroupAction(pMnode, pTrans, pNew, pVgroup, pArray) != 0) {
+    if (mndVgroupInDb(pVgroup, pNewDb->uid)) {
+      if (mndBuildAlterVgroupAction(pMnode, pTrans, pOldDb, pNewDb, pVgroup, pArray) != 0) {
         sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pVgroup);
         taosArrayDestroy(pArray);
@@ -938,7 +938,7 @@ static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
         sdbRelease(pSdb, pVgroup);
         return -1;
       }
-      sdbSetRawStatus(pVgRaw, SDB_STATUS_DROPPED);
+      (void)sdbSetRawStatus(pVgRaw, SDB_STATUS_DROPPED);
     }
 
     sdbRelease(pSdb, pVgroup);
@@ -956,7 +956,7 @@ static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
         sdbRelease(pSdb, pStbRaw);
         return -1;
       }
-      sdbSetRawStatus(pStbRaw, SDB_STATUS_DROPPED);
+      (void)sdbSetRawStatus(pStbRaw, SDB_STATUS_DROPPED);
     }
 
     sdbRelease(pSdb, pStb);
@@ -1052,7 +1052,7 @@ static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
       mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
       goto _OVER;
     }
-    sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+    (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
   }
 
   int32_t rspLen = 0;
@@ -1311,7 +1311,7 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
       continue;
     } else {
       mInfo("db:%s, vgroup version changed from %d to %d", pDbVgVersion->dbFName, pDbVgVersion->vgVersion,
-             pDb->vgVersion);
+            pDb->vgVersion);
     }
 
     usedbRsp.pVgroupInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));
@@ -1594,7 +1594,7 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
       break;
   }
   char precVstr[10] = {0};
-  STR_WITH_SIZE_TO_VARSTR(precVstr, precStr, 2);
+  STR_WITH_MAXSIZE_TO_VARSTR(precVstr, precStr, 10);
 
   char *statusStr = "ready";
   if (objStatus == SDB_STATUS_CREATING) {
@@ -1607,7 +1607,7 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
     }
   }
   char statusVstr[24] = {0};
-  STR_WITH_SIZE_TO_VARSTR(statusVstr, statusStr, strlen(statusStr));
+  STR_WITH_MAXSIZE_TO_VARSTR(statusVstr, statusStr, 24);
 
   if (sysDb || !sysinfo) {
     for (int32_t i = 0; i < pShow->numOfColumns; ++i) {
@@ -1644,7 +1644,7 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
 
     const char *strictStr = pDb->cfg.strict ? "on" : "off";
     char        strictVstr[24] = {0};
-    STR_WITH_SIZE_TO_VARSTR(strictVstr, strictStr, strlen(strictStr));
+    STR_WITH_MAXSIZE_TO_VARSTR(strictVstr, strictStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)strictVstr, false);
 
@@ -1704,7 +1704,7 @@ static void mndDumpDbInfoData(SMnode *pMnode, SSDataBlock *pBlock, SDbObj *pDb, 
 
     const char *cacheModelStr = getCacheModelStr(pDb->cfg.cacheLast);
     char        cacheModelVstr[24] = {0};
-    STR_WITH_SIZE_TO_VARSTR(cacheModelVstr, cacheModelStr, strlen(cacheModelStr));
+    STR_WITH_MAXSIZE_TO_VARSTR(cacheModelVstr, cacheModelStr, 24);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)cacheModelVstr, false);
 
@@ -1809,7 +1809,7 @@ static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
   }
 
   while (numOfRows < rowsCapacity) {
-    pShow->pIter = sdbFetchAll(pSdb, SDB_DB, pShow->pIter, (void **)&pDb, &objStatus);
+    pShow->pIter = sdbFetchAll(pSdb, SDB_DB, pShow->pIter, (void **)&pDb, &objStatus, true);
     if (pShow->pIter == NULL) break;
 
     if (mndCheckDbPrivilege(pMnode, pReq->info.conn.user, MND_OPER_READ_OR_WRITE_DB, pDb) == 0) {

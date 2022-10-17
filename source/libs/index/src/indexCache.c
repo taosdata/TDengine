@@ -22,7 +22,7 @@
 #define MAX_INDEX_KEY_LEN 256  // test only, change later
 
 #define MEM_TERM_LIMIT     10 * 10000
-#define MEM_THRESHOLD      512 * 1024
+#define MEM_THRESHOLD      8 * 512 * 1024  // 8M
 #define MEM_SIGNAL_QUIT    MEM_THRESHOLD * 20
 #define MEM_ESTIMATE_RADIO 1.5
 

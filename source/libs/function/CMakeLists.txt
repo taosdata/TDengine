@@ -14,7 +14,14 @@ target_include_directories(
 
 target_link_libraries(
     function
-    PRIVATE os util common nodes scalar qcom transport stream
+    PRIVATE os 
+    PRIVATE util 
+    PRIVATE common 
+    PRIVATE nodes 
+    PRIVATE qcom 
+    PRIVATE scalar 
+    PRIVATE transport 
+    PRIVATE stream
     PUBLIC uv_a
 )
 

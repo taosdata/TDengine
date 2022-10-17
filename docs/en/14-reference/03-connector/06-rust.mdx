@@ -55,16 +55,6 @@ taos = "*"
 
 </TabItem>
 
-<TabItem value="native" label="native connection only">
-
-In `cargo.toml`, add [taos][taos] and enable the native feature:
-
-```toml
-[dependencies]
-taos = { version = "*", default-features = false, features = ["native"] }
-```
-
-</TabItem>
 <TabItem value="rest" label="Websocket only">
 
 In `cargo.toml`, add [taos][taos] and enable the ws feature:
@@ -75,6 +65,18 @@ taos = { version = "*", default-features = false, features = ["ws"] }
 ```
 
 </TabItem>
+
+<TabItem value="native" label="native connection only">
+
+In `cargo.toml`, add [taos][taos] and enable the native feature:
+
+```toml
+[dependencies]
+taos = { version = "*", default-features = false, features = ["native"] }
+```
+
+</TabItem>
+
 </Tabs>
 
 ## Establishing a connection

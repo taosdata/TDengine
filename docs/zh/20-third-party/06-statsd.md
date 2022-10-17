@@ -27,7 +27,7 @@ StatsD 是汇总和总结应用指标的一个简单的守护进程，近些年�
 ```
 $ node stats.js config.js &
 [1] 8546
-$ 20 Apr 09:54:41 - [8546] reading config file: exampleConfig.js
+$ 20 Apr 09:54:41 - [8546] reading config file: config.js
 20 Apr 09:54:41 - server is up INFO
 ```
 
@@ -41,19 +41,20 @@ $ echo "foo:1|c" | nc -u -w0 127.0.0.1 8125
 
 ```
 taos> show databases;
-              name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
-====================================================================================================================================================================================================================================================================================
- log                            | 2022-04-20 07:19:50.260 |          11 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ms        |      0 | ready      |
- statsd                         | 2022-04-20 09:54:51.220 |           1 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ns        |      2 | ready      |
-Query OK, 2 row(s) in set (0.003142s)
+              name              |
+=================================
+ information_schema             |
+ performance_schema             |
+ statsd                         |
+Query OK, 3 row(s) in set (0.003142s)
 
 taos> use statsd;
 Database changed.
 
 taos> show stables;
-              name              |      created_time       | columns |  tags  |   tables    |
-============================================================================================
- foo                            | 2022-04-20 09:54:51.234 |       2 |      1 |           1 |
+              name              |
+=================================
+ foo                            |
 Query OK, 1 row(s) in set (0.002161s)
 
 taos> select * from foo;
@@ -64,3 +65,8 @@ Query OK, 1 row(s) in set (0.004179s)
 
 taos>
 ```
+
+:::note
+
+- TDengine will automatically create unique IDs for sub-table names by the rule.
+:::

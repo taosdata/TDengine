@@ -16,7 +16,7 @@
 
 class TfsTest : public ::testing::Test {
  protected:
- #ifdef _TD_DARWIN_64
+#ifdef _TD_DARWIN_64
   static void SetUpTestSuite() { root = "/private" TD_TMP_DIR_PATH "tfsTest"; }
 #else
   static void SetUpTestSuite() { root = TD_TMP_DIR_PATH "tfsTest"; }
@@ -303,7 +303,7 @@ TEST_F(TfsTest, 04_File) {
 TEST_F(TfsTest, 05_MultiDisk) {
   int32_t code = 0;
 
- #ifdef _TD_DARWIN_64
+#ifdef _TD_DARWIN_64
   const char *root00 = "/private" TD_TMP_DIR_PATH "tfsTest00";
   const char *root01 = "/private" TD_TMP_DIR_PATH "tfsTest01";
   const char *root10 = "/private" TD_TMP_DIR_PATH "tfsTest10";

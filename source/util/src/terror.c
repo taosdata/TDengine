@@ -447,12 +447,13 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND,    "TQ table schema not f
 TAOS_DEFINE_ERROR(TSDB_CODE_TQ_NO_COMMITTED_OFFSET,       "TQ no commited offset")
 
 // wal
-TAOS_DEFINE_ERROR(TSDB_CODE_WAL_APP_ERROR,                "Wal unexpected generic error")
+TAOS_DEFINE_ERROR(TSDB_CODE_WAL_APP_ERROR,                "WAL unexpected generic error")
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_FILE_CORRUPTED,           "WAL file is corrupted")
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_SIZE_LIMIT,               "WAL size exceeds limit")
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_INVALID_VER,              "WAL use invalid version")
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_OUT_OF_MEMORY,            "WAL out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_LOG_NOT_EXIST,            "WAL log not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_WAL_CHKSUM_MISMATCH,          "WAL checksum mismatch")
 
 // tfs
 TAOS_DEFINE_ERROR(TSDB_CODE_FS_INVLD_CFG,                 "tfs invalid mount config")
@@ -632,6 +633,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INDEX_INVALID_FILE,             "Index file is inval
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_INVALID_MSG,                "Invalid message")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_CONSUMER_MISMATCH,          "Consumer mismatch")
 TAOS_DEFINE_ERROR(TSDB_CODE_TMQ_CONSUMER_CLOSED,            "Consumer closed")
+
+// TDLite
+TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_FLAGS,         "Invalid TDLite open flags")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDLITE_IVLD_OPEN_DIR,           "Invalid TDLite open directory")
 
 #ifdef TAOS_ERROR_C
 };

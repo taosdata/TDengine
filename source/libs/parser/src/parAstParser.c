@@ -97,7 +97,7 @@ typedef struct SCollectMetaKeyCxt {
 
 typedef struct SCollectMetaKeyFromExprCxt {
   SCollectMetaKeyCxt* pComCxt;
-  bool                hasLastRow;
+  bool                hasLastRowOrLast;
   int32_t             errCode;
 } SCollectMetaKeyFromExprCxt;
 
@@ -106,7 +106,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt);
 static EDealRes collectMetaKeyFromFunction(SCollectMetaKeyFromExprCxt* pCxt, SFunctionNode* pFunc) {
   switch (fmGetFuncType(pFunc->functionName)) {
     case FUNCTION_TYPE_LAST_ROW:
-      pCxt->hasLastRow = true;
+    case FUNCTION_TYPE_LAST:
+      pCxt->hasLastRowOrLast = true;
       break;
     case FUNCTION_TYPE_UDF:
       pCxt->errCode = reserveUdfInCache(pFunc->functionName, pCxt->pComCxt->pMetaCache);
@@ -123,6 +124,26 @@ static bool needGetTableIndex(SNode* pStmt) {
     return (NULL != pSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow));
   }
   return false;
+}
+
+static int32_t collectMetaKeyFromInsTagsImpl(SCollectMetaKeyCxt* pCxt, SName* pName) {
+  if (0 == pName->type) {
+    return TSDB_CODE_SUCCESS;
+  }
+  if (TSDB_DB_NAME_T == pName->type) {
+    return reserveDbVgInfoInCache(pName->acctId, pName->dbname, pCxt->pMetaCache);
+  }
+  return reserveTableVgroupInCacheExt(pName, pCxt->pMetaCache);
+}
+
+static int32_t collectMetaKeyFromInsTags(SCollectMetaKeyCxt* pCxt) {
+  SSelectStmt* pSelect = (SSelectStmt*)pCxt->pStmt;
+  SName        name = {0};
+  int32_t      code = getInsTagsTableTargetName(pCxt->pParseCxt->acctId, pSelect->pWhere, &name);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = collectMetaKeyFromInsTagsImpl(pCxt, &name);
+  }
+  return code;
 }
 
 static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const char* pDb, const char* pTable,
@@ -142,6 +163,10 @@ static int32_t collectMetaKeyFromRealTableImpl(SCollectMetaKeyCxt* pCxt, const c
   }
   if (TSDB_CODE_SUCCESS == code && (0 == strcmp(pTable, TSDB_INS_TABLE_DNODE_VARIABLES))) {
     code = reserveDnodeRequiredInCache(pCxt->pMetaCache);
+  }
+  if (TSDB_CODE_SUCCESS == code && (0 == strcmp(pTable, TSDB_INS_TABLE_TAGS)) &&
+      QUERY_NODE_SELECT_STMT == nodeType(pCxt->pStmt)) {
+    code = collectMetaKeyFromInsTags(pCxt);
   }
   return code;
 }
@@ -197,9 +222,9 @@ static int32_t reserveDbCfgForLastRow(SCollectMetaKeyCxt* pCxt, SNode* pTable) {
 }
 
 static int32_t collectMetaKeyFromSelect(SCollectMetaKeyCxt* pCxt, SSelectStmt* pStmt) {
-  SCollectMetaKeyFromExprCxt cxt = {.pComCxt = pCxt, .hasLastRow = false, .errCode = TSDB_CODE_SUCCESS};
+  SCollectMetaKeyFromExprCxt cxt = {.pComCxt = pCxt, .hasLastRowOrLast = false, .errCode = TSDB_CODE_SUCCESS};
   nodesWalkSelectStmt(pStmt, SQL_CLAUSE_FROM, collectMetaKeyFromExprImpl, &cxt);
-  if (TSDB_CODE_SUCCESS == cxt.errCode && cxt.hasLastRow) {
+  if (TSDB_CODE_SUCCESS == cxt.errCode && cxt.hasLastRowOrLast) {
     cxt.errCode = reserveDbCfgForLastRow(pCxt, pStmt->pFromTable);
   }
   return cxt.errCode;
@@ -414,6 +439,11 @@ static int32_t collectMetaKeyFromShowTags(SCollectMetaKeyCxt* pCxt, SShowStmt* p
   return code;
 }
 
+static int32_t collectMetaKeyFromShowStableTags(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
+  return collectMetaKeyFromRealTableImpl(pCxt, ((SValueNode*)pStmt->pDbName)->literal,
+                                         ((SValueNode*)pStmt->pTbName)->literal, AUTH_TYPE_READ);
+}
+
 static int32_t collectMetaKeyFromShowUsers(SCollectMetaKeyCxt* pCxt, SShowStmt* pStmt) {
   return reserveTableMetaInCache(pCxt->pParseCxt->acctId, TSDB_INFORMATION_SCHEMA_DB, TSDB_INS_TABLE_USERS,
                                  pCxt->pMetaCache);
@@ -595,6 +625,8 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
       return collectMetaKeyFromShowTables(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_TAGS_STMT:
       return collectMetaKeyFromShowTags(pCxt, (SShowStmt*)pStmt);
+    case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
+      return collectMetaKeyFromShowStableTags(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_USERS_STMT:
       return collectMetaKeyFromShowUsers(pCxt, (SShowStmt*)pStmt);
     case QUERY_NODE_SHOW_LICENCES_STMT:

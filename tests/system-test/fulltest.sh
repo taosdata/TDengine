@@ -37,7 +37,7 @@ python3 ./test.py -f 1-insert/table_param_ttl.py -R
 python3 ./test.py -f 1-insert/update_data_muti_rows.py
 python3 ./test.py -f 1-insert/db_tb_name_check.py
 python3 ./test.py -f 1-insert/database_pre_suf.py
-
+python3 ./test.py -f 0-others/show.py
 python3 ./test.py -f 2-query/abs.py
 python3 ./test.py -f 2-query/abs.py -R
 python3 ./test.py -f 2-query/and_or_for_byte.py
@@ -248,8 +248,8 @@ python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 5 -
 
 python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 6 -M 3 -C 5
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStopInsert.py
-# python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
-# python3 test.py -f 6-cluster/5dnode3mnodeStopConnect.py -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
+python3 test.py -f 6-cluster/5dnode3mnodeStopConnect.py -N 5 -M 3
 
 python3 ./test.py -f 6-cluster/5dnode3mnodeRecreateMnode.py  -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStopFollowerLeader.py  -N 5 -M 3
@@ -302,7 +302,7 @@ python3 ./test.py -f 7-tmq/tmqCheckData.py
 python3 ./test.py -f 7-tmq/tmqCheckData1.py
 #python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 5
 python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
-python3 ./test.py -f 7-tmq/tmqShow.py
+#python3 ./test.py -f 7-tmq/tmqShow.py
 python3 ./test.py -f 7-tmq/tmqAlterSchema.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1.py

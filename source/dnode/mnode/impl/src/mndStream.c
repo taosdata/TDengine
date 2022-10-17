@@ -343,6 +343,20 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
     goto FAIL;
   }
 
+  pObj->tagSchema.nCols = pCreate->numOfTags;
+  if (pCreate->numOfTags) {
+    pObj->tagSchema.pSchema = taosMemoryCalloc(pCreate->numOfTags, sizeof(SSchema));
+  }
+  ASSERT(pCreate->numOfTags == taosArrayGetSize(pCreate->pTags));
+  for (int32_t i = 0; i < pCreate->numOfTags; i++) {
+    SField *pField = taosArrayGet(pCreate->pTags, i);
+    pObj->tagSchema.pSchema[i].colId = pObj->outputSchema.nCols + i + 1;
+    pObj->tagSchema.pSchema[i].bytes = pField->bytes;
+    pObj->tagSchema.pSchema[i].flags = pField->flags;
+    pObj->tagSchema.pSchema[i].type = pField->type;
+    memcpy(pObj->tagSchema.pSchema[i].name, pField->name, TSDB_COL_NAME_LEN);
+  }
+
 FAIL:
   if (pAst != NULL) nodesDestroyNode(pAst);
   if (pPlan != NULL) qDestroyQueryPlan(pPlan);
@@ -406,7 +420,7 @@ int32_t mndPersistStream(SMnode *pMnode, STrans *pTrans, SStreamObj *pStream) {
     mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
     return -1;
   }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
   return 0;
 }
 
@@ -417,7 +431,7 @@ int32_t mndPersistDropStreamLog(SMnode *pMnode, STrans *pTrans, SStreamObj *pStr
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
   return 0;
 }
 
@@ -425,13 +439,15 @@ static int32_t mndSetStreamRecover(SMnode *pMnode, STrans *pTrans, const SStream
   SStreamObj streamObj = {0};
   memcpy(streamObj.name, pStream->name, TSDB_STREAM_FNAME_LEN);
   streamObj.status = STREAM_STATUS__RECOVER;
+
   SSdbRaw *pCommitRaw = mndStreamActionEncode(&streamObj);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+  if (pCommitRaw == NULL) return -1;
+  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
     mError("stream trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
   return 0;
 }
 
@@ -661,7 +677,6 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
 
   // build stream obj from request
   if (mndBuildStreamObjFromCreateReq(pMnode, &streamObj, &createStreamReq) < 0) {
-    /*ASSERT(0);*/
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
   }
@@ -671,7 +686,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
   }
-  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb); // hack way
+  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb);  // hack way
   mInfo("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
 
   // create stb for stream
@@ -771,12 +786,14 @@ static int32_t mndProcessDropStreamReq(SRpcMsg *pReq) {
   if (mndDropStreamTasks(pMnode, pTrans, pStream) < 0) {
     mError("stream:%s, failed to drop task since %s", dropReq.name, terrstr());
     sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
     return -1;
   }
 
   // drop stream
   if (mndPersistDropStreamLog(pMnode, pTrans, pStream) < 0) {
     sdbRelease(pMnode->pSdb, pStream);
+    mndTransDrop(pTrans);
     return -1;
   }
 
@@ -945,10 +962,8 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     SName            n;
     int32_t          cols = 0;
 
-    char streamName[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    tNameFromString(&n, pStream->name, T_NAME_ACCT | T_NAME_DB);
-    tNameGetDbName(&n, varDataVal(streamName));
-    varDataSetLen(streamName, strlen(varDataVal(streamName)));
+    char streamName[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(streamName, mndGetDbStr(pStream->name), sizeof(streamName));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)streamName, false);
 
@@ -956,28 +971,24 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     colDataAppend(pColInfo, numOfRows, (const char *)&pStream->createTime, false);
 
     char sql[TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE] = {0};
-    tstrncpy(&sql[VARSTR_HEADER_SIZE], pStream->sql, TSDB_SHOW_SQL_LEN);
-    varDataSetLen(sql, strlen(&sql[VARSTR_HEADER_SIZE]));
+    STR_WITH_MAXSIZE_TO_VARSTR(sql, pStream->sql, sizeof(sql));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)sql, false);
 
     char status[20 + VARSTR_HEADER_SIZE] = {0};
-    mndShowStreamStatus(&status[VARSTR_HEADER_SIZE], pStream);
-    varDataSetLen(status, strlen(varDataVal(status)));
+    char status2[20] = {0};
+    mndShowStreamStatus(status2, pStream);
+    STR_WITH_MAXSIZE_TO_VARSTR(status, status2, sizeof(status));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&status, false);
 
     char sourceDB[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    tNameFromString(&n, pStream->sourceDb, T_NAME_ACCT | T_NAME_DB);
-    tNameGetDbName(&n, varDataVal(sourceDB));
-    varDataSetLen(sourceDB, strlen(varDataVal(sourceDB)));
+    STR_WITH_MAXSIZE_TO_VARSTR(sourceDB, mndGetDbStr(pStream->sourceDb), sizeof(sourceDB));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&sourceDB, false);
 
     char targetDB[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    tNameFromString(&n, pStream->targetDb, T_NAME_ACCT | T_NAME_DB);
-    tNameGetDbName(&n, varDataVal(targetDB));
-    varDataSetLen(targetDB, strlen(varDataVal(targetDB)));
+    STR_WITH_MAXSIZE_TO_VARSTR(targetDB, mndGetDbStr(pStream->targetDb), sizeof(targetDB));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&targetDB, false);
 
@@ -986,9 +997,7 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       colDataAppend(pColInfo, numOfRows, NULL, true);
     } else {
       char targetSTB[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-      tNameFromString(&n, pStream->targetSTbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
-      strcpy(&targetSTB[VARSTR_HEADER_SIZE], tNameGetTableName(&n));
-      varDataSetLen(targetSTB, strlen(varDataVal(targetSTB)));
+      STR_WITH_MAXSIZE_TO_VARSTR(targetSTB, mndGetStbStr(pStream->targetSTbName), sizeof(targetSTB));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataAppend(pColInfo, numOfRows, (const char *)&targetSTB, false);
     }
@@ -997,8 +1006,9 @@ static int32_t mndRetrieveStream(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     colDataAppend(pColInfo, numOfRows, (const char *)&pStream->watermark, false);
 
     char trigger[20 + VARSTR_HEADER_SIZE] = {0};
-    mndShowStreamTrigger(&trigger[VARSTR_HEADER_SIZE], pStream);
-    varDataSetLen(trigger, strlen(varDataVal(trigger)));
+    char trigger2[20] = {0};
+    mndShowStreamTrigger(trigger2, pStream);
+    STR_WITH_MAXSIZE_TO_VARSTR(trigger, trigger2, sizeof(trigger));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&trigger, false);
 

@@ -657,7 +657,8 @@ int32_t udfdOpenClientRpc() {
   rpcInit.user = TSDB_DEFAULT_USER;
   rpcInit.parent = &global;
   rpcInit.rfp = udfdRpcRfp;
-
+  rpcInit.compressSize = tsCompressMsgSize;
+  
   global.clientRpc = rpcOpen(&rpcInit);
   if (global.clientRpc == NULL) {
     fnError("failed to init dnode rpc client");
@@ -959,8 +960,8 @@ int32_t udfdInitResidentFuncs() {
   char* pSave = tsUdfdResFuncs;
   char* token;
   while ((token = strtok_r(pSave, ",", &pSave)) != NULL) {
-    char func[TSDB_FUNC_NAME_LEN] = {0};
-    strncpy(func, token, strlen(token));
+    char func[TSDB_FUNC_NAME_LEN+1] = {0};
+    strncpy(func, token, TSDB_FUNC_NAME_LEN);
     taosArrayPush(global.residentFuncs, func);
   }
 

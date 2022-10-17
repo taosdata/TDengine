@@ -1251,12 +1251,12 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
           }
         }
       } else if (type == TSDB_DATA_TYPE_FLOAT) {
-        double prev = 0;
-        GET_TYPED_DATA(prev, double, type, &pBuf->v);
+        float prev = 0;
+        GET_TYPED_DATA(prev, float, type, &pBuf->v);
 
-        double val = GET_DOUBLE_VAL(tval);
+        float val = GET_DOUBLE_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
-          *(double*)&pBuf->v = val;
+          *(float*)&pBuf->v = val;
         }
 
         if (pCtx->subsidiaries.num > 0) {
@@ -1557,8 +1557,8 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
       numOfElems += 1;
     }
   } else if (type == TSDB_DATA_TYPE_FLOAT) {
-    float*  pData = (float*)pCol->pData;
-    float*  val = (float*)&pBuf->v;
+    float* pData = (float*)pCol->pData;
+    float* val = (float*)&pBuf->v;
 
     for (int32_t i = start; i < start + numOfRows; ++i) {
       if ((pCol->hasNull) && colDataIsNull_f(pCol->nullbitmap, i)) {
@@ -2977,7 +2977,8 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-static void firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst, int32_t rowIndex) {
+static void firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst,
+                                  int32_t rowIndex) {
   SInputColumnInfoData* pColInfo = &pCtx->input;
 
   if (pOutput->hasResult) {
@@ -6157,7 +6158,10 @@ int32_t groupKeyFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SGroupKeyInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   if (pInfo->hasResult) {
-    colDataAppend(pCol, pBlock->info.rows, pInfo->data, pInfo->isNull ? true : false);
+    int32_t currentRow = pBlock->info.rows;
+    for (; currentRow < pBlock->info.rows + pResInfo->numOfRes; ++currentRow) {
+      colDataAppend(pCol, currentRow, pInfo->data, pInfo->isNull ? true : false);
+    }
   } else {
     pResInfo->numOfRes = 0;
   }

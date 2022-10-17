@@ -31,14 +31,13 @@ typedef struct TdDir {
   HANDLE     hFind;
 } TdDir;
 
-enum
-  {
-    WRDE_NOSPACE = 1,		/* Ran out of memory.  */
-    WRDE_BADCHAR,		/* A metachar appears in the wrong place.  */
-    WRDE_BADVAL,		/* Undefined var reference with WRDE_UNDEF.  */
-    WRDE_CMDSUB,		/* Command substitution with WRDE_NOCMD.  */
-    WRDE_SYNTAX			/* Shell syntax error.  */
-  };
+enum {
+  WRDE_NOSPACE = 1, /* Ran out of memory.  */
+  WRDE_BADCHAR,     /* A metachar appears in the wrong place.  */
+  WRDE_BADVAL,      /* Undefined var reference with WRDE_UNDEF.  */
+  WRDE_CMDSUB,      /* Command substitution with WRDE_NOCMD.  */
+  WRDE_SYNTAX       /* Shell syntax error.  */
+};
 
 int wordexp(char *words, wordexp_t *pwordexp, int flags) {
   pwordexp->we_offs = 0;
@@ -121,6 +120,8 @@ int32_t taosMkDir(const char *dirname) {
   if (taosDirExist(dirname)) return 0;
 #ifdef WINDOWS
   int32_t code = _mkdir(dirname, 0755);
+#elif defined(DARWIN)
+  int32_t code = mkdir(dirname, 0777);
 #else
   int32_t code = mkdir(dirname, 0755);
 #endif
@@ -156,6 +157,8 @@ int32_t taosMulMkDir(const char *dirname) {
       *pos = '\0';
 #ifdef WINDOWS
       code = _mkdir(temp, 0755);
+#elif defined(DARWIN)
+      code = mkdir(dirname, 0777);
 #else
       code = mkdir(temp, 0755);
 #endif
@@ -170,6 +173,8 @@ int32_t taosMulMkDir(const char *dirname) {
   if (*(pos - 1) != TD_DIRSEP[0]) {
 #ifdef WINDOWS
     code = _mkdir(temp, 0755);
+#elif defined(DARWIN)
+    code = mkdir(dirname, 0777);
 #else
     code = mkdir(temp, 0755);
 #endif
@@ -179,7 +184,6 @@ int32_t taosMulMkDir(const char *dirname) {
     }
   }
 
-  // int32_t code = mkdir(dirname, 0755);
   if (code < 0 && errno == EEXIST) {
     return 0;
   }
@@ -215,6 +219,8 @@ int32_t taosMulModeMkDir(const char *dirname, int mode) {
       *pos = '\0';
 #ifdef WINDOWS
       code = _mkdir(temp, mode);
+#elif defined(DARWIN)
+      code = mkdir(dirname, 0777);
 #else
       code = mkdir(temp, mode);
 #endif
@@ -229,6 +235,8 @@ int32_t taosMulModeMkDir(const char *dirname, int mode) {
   if (*(pos - 1) != TD_DIRSEP[0]) {
 #ifdef WINDOWS
     code = _mkdir(temp, mode);
+#elif defined(DARWIN)
+    code = mkdir(dirname, 0777);
 #else
     code = mkdir(temp, mode);
 #endif
@@ -292,22 +300,24 @@ void taosRemoveOldFiles(const char *dirname, int32_t keepDays) {
 
 int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
   wordexp_t full_path;
-  switch (wordexp (dirname, &full_path, 0)) {
-  case 0:
-    break;
-  case WRDE_NOSPACE:
-    wordfree (&full_path);
-    // printf("failed to expand path:%s since Out of memory\n", dirname);
-    return -1;
-  case WRDE_BADCHAR:
-    // printf("failed to expand path:%s since illegal occurrence of newline or one of |, &, ;, <, >, (, ), {, }\n", dirname);
-    return -1;
-  case WRDE_SYNTAX:
-    // printf("failed to expand path:%s since Shell syntax error, such as unbalanced parentheses or unmatched quotes\n", dirname);
-    return -1;
-  default:
-    // printf("failed to expand path:%s since %s\n", dirname, strerror(errno));
-    return -1;
+  switch (wordexp(dirname, &full_path, 0)) {
+    case 0:
+      break;
+    case WRDE_NOSPACE:
+      wordfree(&full_path);
+      // printf("failed to expand path:%s since Out of memory\n", dirname);
+      return -1;
+    case WRDE_BADCHAR:
+      // printf("failed to expand path:%s since illegal occurrence of newline or one of |, &, ;, <, >, (, ), {, }\n",
+      // dirname);
+      return -1;
+    case WRDE_SYNTAX:
+      // printf("failed to expand path:%s since Shell syntax error, such as unbalanced parentheses or unmatched
+      // quotes\n", dirname);
+      return -1;
+    default:
+      // printf("failed to expand path:%s since %s\n", dirname, strerror(errno));
+      return -1;
   }
 
   if (full_path.we_wordv != NULL && full_path.we_wordv[0] != NULL) {
@@ -408,7 +418,7 @@ TdDirPtr taosOpenDir(const char *dirname) {
   DIR *pDir = opendir(dirname);
   if (pDir == NULL) return NULL;
   TdDirPtr dirPtr = (TdDirPtr)taosMemoryMalloc(sizeof(TdDir));
-  dirPtr->dirEntryPtr = (TdDirEntryPtr)&(dirPtr->dirEntry1);
+  dirPtr->dirEntryPtr = (TdDirEntryPtr) & (dirPtr->dirEntry1);
   dirPtr->pDir = pDir;
   return dirPtr;
 #else
@@ -426,7 +436,7 @@ TdDirEntryPtr taosReadDir(TdDirPtr pDir) {
   }
   return (TdDirEntryPtr) & (pDir->dirEntry.findFileData);
 #elif defined(DARWIN)
-  if (readdir_r(pDir->pDir, (dirent*)&(pDir->dirEntry), (dirent**)&(pDir->dirEntryPtr)) == 0) {
+  if (readdir_r(pDir->pDir, (dirent *)&(pDir->dirEntry), (dirent **)&(pDir->dirEntryPtr)) == 0) {
     return pDir->dirEntryPtr;
   } else {
     return NULL;

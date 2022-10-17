@@ -93,6 +93,7 @@ extern int64_t tsQueryBufferSizeBytes;  // maximum allowed usage buffer size in 
 
 // query client
 extern int32_t tsQueryPolicy;
+extern int32_t tsQueryRspPolicy;
 extern int32_t tsQuerySmaOptimize;
 extern int32_t tsQueryRsmaTolerance;
 extern bool    tsQueryPlannerTrace;
@@ -103,6 +104,7 @@ extern bool    tsKeepColumnName;
 // client
 extern int32_t tsMinSlidingTime;
 extern int32_t tsMinIntervalTime;
+extern int32_t tsMaxMemUsedByInsert;
 
 // build info
 extern char version[];
@@ -139,7 +141,7 @@ extern int32_t tsTtlPushInterval;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
 
-#define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
+//#define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);

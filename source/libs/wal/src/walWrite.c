@@ -28,6 +28,7 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
     SWalRef *pRef = (SWalRef *)pIter;
     if (pRef->refVer != -1 && pRef->refVer <= ver) {
       taosHashCancelIterate(pWal->pRefHash, pIter);
+      taosThreadMutexUnlock(&pWal->mutex);
       return -1;
     }
   }
@@ -41,10 +42,20 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
       SWalFileInfo *pFileInfo = taosArrayGet(pWal->fileInfoSet, i);
       char          fnameStr[WAL_FILE_LEN];
       walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
-      taosRemoveFile(fnameStr);
+      if (taosRemoveFile(fnameStr) < 0) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        wError("vgId:%d restore from snapshot, cannot remove file %s since %s", pWal->cfg.vgId, fnameStr, terrstr());
+        return -1;
+      }
+      wInfo("vgId:%d restore from snapshot, remove file %s", pWal->cfg.vgId, fnameStr);
 
       walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
-      taosRemoveFile(fnameStr);
+      if (taosRemoveFile(fnameStr) < 0) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        wError("vgId:%d cannot remove file %s since %s", pWal->cfg.vgId, fnameStr, terrstr());
+        return -1;
+      }
+      wInfo("vgId:%d restore from snapshot, remove file %s", pWal->cfg.vgId, fnameStr);
     }
   }
   walRemoveMeta(pWal);
@@ -208,10 +219,12 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   taosCloseFile(&pIdxFile);
   taosCloseFile(&pLogFile);
 
-  taosFsyncFile(pWal->pLogFile);
-  taosFsyncFile(pWal->pIdxFile);
-
-  walSaveMeta(pWal);
+  code = walSaveMeta(pWal);
+  if (code < 0) {
+    wError("vgId:%d, failed to save meta since %s", pWal->cfg.vgId, terrstr());
+    taosThreadMutexUnlock(&pWal->mutex);
+    return -1;
+  }
 
   // unlock
   taosThreadMutexUnlock(&pWal->mutex);
@@ -383,7 +396,11 @@ int32_t walRollImpl(SWal *pWal) {
 
   pWal->lastRollSeq = walGetSeq();
 
-  walSaveMeta(pWal);
+  code = walSaveMeta(pWal);
+  if (code < 0) {
+    wError("vgId:%d, failed to save meta since %s", pWal->cfg.vgId, terrstr());
+    goto END;
+  }
 
 END:
   return code;
@@ -539,6 +556,11 @@ int32_t walWrite(SWal *pWal, int64_t index, tmsg_t msgType, const void *body, in
 
 void walFsync(SWal *pWal, bool forceFsync) {
   if (forceFsync || (pWal->cfg.level == TAOS_WAL_FSYNC && pWal->cfg.fsyncPeriod == 0)) {
+    wTrace("vgId:%d, fileId:%" PRId64 ".idx, do fsync", pWal->cfg.vgId, walGetCurFileFirstVer(pWal));
+    if (taosFsyncFile(pWal->pIdxFile) < 0) {
+      wError("vgId:%d, file:%" PRId64 ".idx, fsync failed since %s", pWal->cfg.vgId, walGetCurFileFirstVer(pWal),
+             strerror(errno));
+    }
     wTrace("vgId:%d, fileId:%" PRId64 ".log, do fsync", pWal->cfg.vgId, walGetCurFileFirstVer(pWal));
     if (taosFsyncFile(pWal->pLogFile) < 0) {
       wError("vgId:%d, file:%" PRId64 ".log, fsync failed since %s", pWal->cfg.vgId, walGetCurFileFirstVer(pWal),

@@ -77,12 +77,13 @@ static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
 
   SSdbRaw *pRaw = mndAcctActionEncode(&acctObj);
   if (pRaw == NULL) return -1;
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   mInfo("acct:%s, will be created when deploying, raw:%p", acctObj.acct, pRaw);
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-acct");
   if (pTrans == NULL) {
+    sdbFreeRaw(pRaw);
     mError("acct:%s, failed to create since %s", acctObj.acct, terrstr());
     return -1;
   }

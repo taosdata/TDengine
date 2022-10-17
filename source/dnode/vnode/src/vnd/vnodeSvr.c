@@ -43,14 +43,23 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       tDecoderInit(&dc, (uint8_t *)pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead));
       tStartDecode(&dc);
 
-      tDecodeI32v(&dc, &nReqs);
+      if (tDecodeI32v(&dc, &nReqs) < 0) {
+        code = TSDB_CODE_INVALID_MSG;
+        goto _err;
+      }
       for (int32_t iReq = 0; iReq < nReqs; iReq++) {
         tb_uid_t uid = tGenIdPI64();
         char    *name = NULL;
         tStartDecode(&dc);
 
-        tDecodeI32v(&dc, NULL);
-        tDecodeCStr(&dc, &name);
+        if (tDecodeI32v(&dc, NULL) < 0) {
+          code = TSDB_CODE_INVALID_MSG;
+          return code;
+        }
+        if (tDecodeCStr(&dc, &name) < 0) {
+          code = TSDB_CODE_INVALID_MSG;
+          return code;
+        }
         *(int64_t *)(dc.data + dc.pos) = uid;
         *(int64_t *)(dc.data + dc.pos + 8) = ctime;
 
@@ -68,7 +77,10 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       int64_t        ctime = taosGetTimestampMs();
       tb_uid_t       uid;
 
-      tInitSubmitMsgIter(pSubmitReq, &msgIter);
+      if (tInitSubmitMsgIter(pSubmitReq, &msgIter) < 0) {
+        code = terrno;
+        goto _err;
+      }
 
       for (;;) {
         tGetSubmitMsgNext(&msgIter, &pBlock);
@@ -78,10 +90,19 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
           char *name = NULL;
 
           tDecoderInit(&dc, pBlock->data, msgIter.schemaLen);
-          tStartDecode(&dc);
+          if (tStartDecode(&dc) < 0) {
+            code = TSDB_CODE_INVALID_MSG;
+            return code;
+          }
 
-          tDecodeI32v(&dc, NULL);
-          tDecodeCStr(&dc, &name);
+          if (tDecodeI32v(&dc, NULL) < 0) {
+            code = TSDB_CODE_INVALID_MSG;
+            return code;
+          }
+          if (tDecodeCStr(&dc, &name) < 0) {
+            code = TSDB_CODE_INVALID_MSG;
+            return code;
+          }
 
           uid = metaGetTableEntryUidByName(pVnode->pMeta, name);
           if (uid == 0) {
@@ -144,6 +165,12 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   void   *pReq;
   int32_t len;
   int32_t ret;
+
+  if (!pVnode->inUse) {
+     terrno = TSDB_CODE_VND_NOT_SYNCED;
+     vError("vgId:%d, not ready to write since %s", TD_VID(pVnode), terrstr());
+     return -1;
+  }
 
   vDebug("vgId:%d, start to process write request %s, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType),
          version);
@@ -265,10 +292,16 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   _do_commit:
     vInfo("vgId:%d, commit at version %" PRId64, TD_VID(pVnode), version);
     // commit current change
-    vnodeCommit(pVnode);
+    if (vnodeCommit(pVnode) < 0) {
+        vError("vgId:%d, failed to commit vnode since %s.", TD_VID(pVnode), tstrerror(terrno));
+        goto _err;
+    }
 
     // start a new one
-    vnodeBegin(pVnode);
+    if (vnodeBegin(pVnode) < 0) {
+        vError("vgId:%d, failed to begin vnode since %s.", TD_VID(pVnode), tstrerror(terrno));
+        goto _err;
+    }
   }
 
   return 0;
@@ -289,7 +322,7 @@ int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in vnode query queue is processing");
-  if ((pMsg->msgType == TDMT_SCH_QUERY) && !vnodeIsReadyForRead(pVnode)) {
+  if ((pMsg->msgType == TDMT_SCH_QUERY) && !vnodeIsLeader(pVnode)) {
     vnodeRedirectRpcMsg(pVnode, pMsg);
     return 0;
   }
@@ -311,7 +344,12 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("vgId:%d, msg:%p in fetch queue is processing", pVnode->config.vgId, pMsg);
   if ((pMsg->msgType == TDMT_SCH_FETCH || pMsg->msgType == TDMT_VND_TABLE_META || pMsg->msgType == TDMT_VND_TABLE_CFG ||
        pMsg->msgType == TDMT_VND_BATCH_META) &&
-      !vnodeIsReadyForRead(pVnode)) {
+      !vnodeIsLeader(pVnode)) {
+    vnodeRedirectRpcMsg(pVnode, pMsg);
+    return 0;
+  }
+
+  if (pMsg->msgType == TDMT_VND_CONSUME && !pVnode->restored) {
     vnodeRedirectRpcMsg(pVnode, pMsg);
     return 0;
   }
@@ -765,7 +803,7 @@ static int32_t vnodeDebugPrintSingleSubmitMsg(SMeta *pMeta, SSubmitBlk *pBlock, 
     if (pSchema) {
       taosMemoryFreeClear(pSchema);
     }
-    pSchema = metaGetTbTSchema(pMeta, msgIter->suid, TD_ROW_SVER(blkIter.row));  // TODO: use the real schema
+    pSchema = metaGetTbTSchema(pMeta, msgIter->suid, TD_ROW_SVER(blkIter.row), 1);  // TODO: use the real schema
     if (pSchema) {
       suid = msgIter->suid;
       rv = TD_ROW_SVER(blkIter.row);
@@ -807,18 +845,19 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
   SSubmitReq    *pSubmitReq = (SSubmitReq *)pReq;
   SSubmitRsp     submitRsp = {0};
   SSubmitMsgIter msgIter = {0};
-  SSubmitBlk    *pBlock;
-  SSubmitRsp     rsp = {0};
+  SSubmitBlk    *pBlock = NULL;
   SVCreateTbReq  createTbReq = {0};
   SDecoder       decoder = {0};
-  int32_t        nRows;
+  int32_t        nRows = 0;
   int32_t        tsize, ret;
   SEncoder       encoder = {0};
   SArray        *newTbUids = NULL;
+  SVStatis       statis = {0};
   terrno = TSDB_CODE_SUCCESS;
 
   pRsp->code = 0;
   pSubmitReq->version = version;
+  statis.nBatchInsert = 1;
 
 #ifdef TD_DEBUG_PRINT_ROW
   vnodeDebugPrintSubmitMsg(pVnode, pReq, __func__);
@@ -921,7 +960,8 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
   }
 
   if (taosArrayGetSize(newTbUids) > 0) {
-    vDebug("vgId:%d, add %d table into query table list in handling submit", TD_VID(pVnode), (int32_t)taosArrayGetSize(newTbUids));
+    vDebug("vgId:%d, add %d table into query table list in handling submit", TD_VID(pVnode),
+           (int32_t)taosArrayGetSize(newTbUids));
   }
 
   tqUpdateTbUidList(pVnode->pTq, newTbUids, true);
@@ -942,8 +982,15 @@ _exit:
   // 1/level 2.
   // TODO: refactor
   if ((terrno == TSDB_CODE_SUCCESS) && (pRsp->code == TSDB_CODE_SUCCESS)) {
+    statis.nBatchInsertSuccess = 1;
     tdProcessRSmaSubmit(pVnode->pSma, pReq, STREAM_INPUT__DATA_SUBMIT);
   }
+
+  // N.B. not strict as the following procedure is not atomic
+  atomic_add_fetch_64(&pVnode->statis.nInsert, submitRsp.numOfRows);
+  atomic_add_fetch_64(&pVnode->statis.nInsertSuccess, submitRsp.affectedRows);
+  atomic_add_fetch_64(&pVnode->statis.nBatchInsert, statis.nBatchInsert);
+  atomic_add_fetch_64(&pVnode->statis.nBatchInsertSuccess, statis.nBatchInsertSuccess);
 
   vDebug("vgId:%d, submit success, index:%" PRId64, pVnode->config.vgId, version);
   return 0;
@@ -1019,54 +1066,75 @@ static int32_t vnodeProcessAlterHashRangeReq(SVnode *pVnode, int64_t version, vo
 }
 
 static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  SAlterVnodeReq alterReq = {0};
+  SAlterVnodeReq req = {0};
   bool           walChanged = false;
   bool           tsdbChanged = false;
 
-  if (tDeserializeSAlterVnodeReq(pReq, len, &alterReq) != 0) {
+  if (tDeserializeSAlterVnodeReq(pReq, len, &req) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return TSDB_CODE_INVALID_MSG;
   }
 
-  vInfo("vgId:%d, start to alter vnode config, cacheLast:%d cacheLastSize:%d", TD_VID(pVnode), alterReq.cacheLast,
-        alterReq.cacheLastSize);
-  if (pVnode->config.cacheLastSize != alterReq.cacheLastSize) {
-    pVnode->config.cacheLastSize = alterReq.cacheLastSize;
+  vInfo("vgId:%d, start to alter vnode config, page:%d pageSize:%d buffer:%d szPage:%d szBuf:%" PRIu64
+        " cacheLast:%d cacheLastSize:%d days:%d keep0:%d keep1:%d keep2:%d fsync:%d level:%d strict:%d",
+        TD_VID(pVnode), req.pages, req.pageSize, req.buffer, req.pageSize * 1024, (uint64_t)req.buffer * 1024 * 1024,
+        req.cacheLast, req.cacheLastSize, req.daysPerFile, req.daysToKeep0, req.daysToKeep1, req.daysToKeep2,
+        req.walFsyncPeriod, req.walLevel, req.strict);
+
+  if (pVnode->config.cacheLastSize != req.cacheLastSize) {
+    pVnode->config.cacheLastSize = req.cacheLastSize;
     tsdbCacheSetCapacity(pVnode, (size_t)pVnode->config.cacheLastSize * 1024 * 1024);
   }
 
-  if (pVnode->config.cacheLast != alterReq.cacheLast) {
-    pVnode->config.cacheLast = alterReq.cacheLast;
+  if (pVnode->config.szBuf != req.buffer * 1024LL * 1024LL) {
+    vInfo("vgId:%d vnode buffer is changed from %" PRId64 " to %" PRId64, TD_VID(pVnode), pVnode->config.szBuf,
+          req.buffer * 1024LL * 1024LL);
+    pVnode->config.szBuf = req.buffer * 1024LL * 1024LL;
   }
 
-  if (pVnode->config.walCfg.fsyncPeriod != alterReq.walFsyncPeriod) {
-    pVnode->config.walCfg.fsyncPeriod = alterReq.walFsyncPeriod;
+  if (pVnode->config.szCache != req.pages) {
+    if (metaAlterCache(pVnode->pMeta, req.pages) < 0) {
+      vError("vgId:%d failed to change vnode pages from %d to %d failed since %s", TD_VID(pVnode),
+             pVnode->config.szCache, req.pages, tstrerror(errno));
+      return errno;
+    } else {
+      vInfo("vgId:%d vnode pages is changed from %d to %d", TD_VID(pVnode), pVnode->config.szCache, req.pages);
+      pVnode->config.szCache = req.pages;
+    }
+  }
+
+  if (pVnode->config.cacheLast != req.cacheLast) {
+    pVnode->config.cacheLast = req.cacheLast;
+  }
+
+  if (pVnode->config.walCfg.fsyncPeriod != req.walFsyncPeriod) {
+    pVnode->config.walCfg.fsyncPeriod = req.walFsyncPeriod;
 
     walChanged = true;
   }
 
-  if (pVnode->config.walCfg.level != alterReq.walLevel) {
-    pVnode->config.walCfg.level = alterReq.walLevel;
+  if (pVnode->config.walCfg.level != req.walLevel) {
+    pVnode->config.walCfg.level = req.walLevel;
 
     walChanged = true;
   }
 
-  if (pVnode->config.tsdbCfg.keep0 != alterReq.daysToKeep0) {
-    pVnode->config.tsdbCfg.keep0 = alterReq.daysToKeep0;
+  if (pVnode->config.tsdbCfg.keep0 != req.daysToKeep0) {
+    pVnode->config.tsdbCfg.keep0 = req.daysToKeep0;
     if (!VND_IS_RSMA(pVnode)) {
       tsdbChanged = true;
     }
   }
 
-  if (pVnode->config.tsdbCfg.keep1 != alterReq.daysToKeep1) {
-    pVnode->config.tsdbCfg.keep1 = alterReq.daysToKeep1;
+  if (pVnode->config.tsdbCfg.keep1 != req.daysToKeep1) {
+    pVnode->config.tsdbCfg.keep1 = req.daysToKeep1;
     if (!VND_IS_RSMA(pVnode)) {
       tsdbChanged = true;
     }
   }
 
-  if (pVnode->config.tsdbCfg.keep2 != alterReq.daysToKeep2) {
-    pVnode->config.tsdbCfg.keep2 = alterReq.daysToKeep2;
+  if (pVnode->config.tsdbCfg.keep2 != req.daysToKeep2) {
+    pVnode->config.tsdbCfg.keep2 = req.daysToKeep2;
     if (!VND_IS_RSMA(pVnode)) {
       tsdbChanged = true;
     }

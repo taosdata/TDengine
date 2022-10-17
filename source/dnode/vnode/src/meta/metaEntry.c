@@ -34,7 +34,7 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
     if (tEncodeI64(pCoder, pME->ctbEntry.ctime) < 0) return -1;
     if (tEncodeI32(pCoder, pME->ctbEntry.ttlDays) < 0) return -1;
     if (tEncodeI32v(pCoder, pME->ctbEntry.commentLen) < 0) return -1;
-    if (pME->ctbEntry.commentLen > 0){
+    if (pME->ctbEntry.commentLen > 0) {
       if (tEncodeCStr(pCoder, pME->ctbEntry.comment) < 0) return -1;
     }
     if (tEncodeI64(pCoder, pME->ctbEntry.suid) < 0) return -1;
@@ -43,7 +43,7 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
     if (tEncodeI64(pCoder, pME->ntbEntry.ctime) < 0) return -1;
     if (tEncodeI32(pCoder, pME->ntbEntry.ttlDays) < 0) return -1;
     if (tEncodeI32v(pCoder, pME->ntbEntry.commentLen) < 0) return -1;
-    if (pME->ntbEntry.commentLen > 0){
+    if (pME->ntbEntry.commentLen > 0) {
       if (tEncodeCStr(pCoder, pME->ntbEntry.comment) < 0) return -1;
     }
     if (tEncodeI32v(pCoder, pME->ntbEntry.ncid) < 0) return -1;
@@ -77,9 +77,8 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
     if (tDecodeI64(pCoder, &pME->ctbEntry.ctime) < 0) return -1;
     if (tDecodeI32(pCoder, &pME->ctbEntry.ttlDays) < 0) return -1;
     if (tDecodeI32v(pCoder, &pME->ctbEntry.commentLen) < 0) return -1;
-    if (pME->ctbEntry.commentLen > 0){
-      if (tDecodeCStr(pCoder, &pME->ctbEntry.comment) < 0)
-        return -1;
+    if (pME->ctbEntry.commentLen > 0) {
+      if (tDecodeCStr(pCoder, &pME->ctbEntry.comment) < 0) return -1;
     }
     if (tDecodeI64(pCoder, &pME->ctbEntry.suid) < 0) return -1;
     if (tDecodeTag(pCoder, (STag **)&pME->ctbEntry.pTags) < 0) return -1;  // (TODO)
@@ -87,7 +86,7 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
     if (tDecodeI64(pCoder, &pME->ntbEntry.ctime) < 0) return -1;
     if (tDecodeI32(pCoder, &pME->ntbEntry.ttlDays) < 0) return -1;
     if (tDecodeI32v(pCoder, &pME->ntbEntry.commentLen) < 0) return -1;
-    if (pME->ntbEntry.commentLen > 0){
+    if (pME->ntbEntry.commentLen > 0) {
       if (tDecodeCStr(pCoder, &pME->ntbEntry.comment) < 0) return -1;
     }
     if (tDecodeI32v(pCoder, &pME->ntbEntry.ncid) < 0) return -1;

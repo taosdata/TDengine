@@ -35,7 +35,11 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
   *ppMeta = NULL;
 
   // create handle
-  slen = strlen(tfsGetPrimaryPath(pVnode->pTfs)) + strlen(pVnode->path) + strlen(VNODE_META_DIR) + 3;
+  if (pVnode->pTfs) {
+    slen = strlen(tfsGetPrimaryPath(pVnode->pTfs)) + strlen(pVnode->path) + strlen(VNODE_META_DIR) + 3;
+  } else {
+    slen = strlen(pVnode->path) + strlen(VNODE_META_DIR) + 2;
+  }
   if ((pMeta = taosMemoryCalloc(1, sizeof(*pMeta) + slen)) == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -43,8 +47,12 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
 
   metaInitLock(pMeta);
   pMeta->path = (char *)&pMeta[1];
-  sprintf(pMeta->path, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
-          VNODE_META_DIR);
+  if (pVnode->pTfs) {
+    sprintf(pMeta->path, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
+            VNODE_META_DIR);
+  } else {
+    sprintf(pMeta->path, "%s%s%s", pVnode->path, TD_DIRSEP, VNODE_META_DIR);
+  }
   taosRealPath(pMeta->path, NULL, slen);
   pMeta->pVnode = pVnode;
 
@@ -197,14 +205,24 @@ int metaClose(SMeta *pMeta) {
   return 0;
 }
 
+int metaAlterCache(SMeta *pMeta, int32_t nPage) {
+  metaWLock(pMeta);
+
+  if (tdbAlter(pMeta->pEnv, nPage) < 0) {
+    metaULock(pMeta);
+    return -1;
+  }
+
+  metaULock(pMeta);
+  return 0;
+}
+
 int32_t metaRLock(SMeta *pMeta) {
   int32_t ret = 0;
 
-  metaTrace("meta rlock %p B", &pMeta->lock);
+  metaTrace("meta rlock %p", &pMeta->lock);
 
   ret = taosThreadRwlockRdlock(&pMeta->lock);
-
-  metaTrace("meta rlock %p E", &pMeta->lock);
 
   return ret;
 }
@@ -212,11 +230,9 @@ int32_t metaRLock(SMeta *pMeta) {
 int32_t metaWLock(SMeta *pMeta) {
   int32_t ret = 0;
 
-  metaTrace("meta wlock %p B", &pMeta->lock);
+  metaTrace("meta wlock %p", &pMeta->lock);
 
   ret = taosThreadRwlockWrlock(&pMeta->lock);
-
-  metaTrace("meta wlock %p E", &pMeta->lock);
 
   return ret;
 }
@@ -224,11 +240,9 @@ int32_t metaWLock(SMeta *pMeta) {
 int32_t metaULock(SMeta *pMeta) {
   int32_t ret = 0;
 
-  metaTrace("meta ulock %p B", &pMeta->lock);
+  metaTrace("meta ulock %p", &pMeta->lock);
 
   ret = taosThreadRwlockUnlock(&pMeta->lock);
-
-  metaTrace("meta ulock %p E", &pMeta->lock);
 
   return ret;
 }

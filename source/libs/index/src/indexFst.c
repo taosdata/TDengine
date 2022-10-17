@@ -24,7 +24,7 @@ static FORCE_INLINE void fstPackDeltaIn(IdxFstFile* wrt, CompiledAddr nodeAddr, 
   CompiledAddr deltaAddr = (transAddr == EMPTY_ADDRESS) ? EMPTY_ADDRESS : nodeAddr - transAddr;
   idxFilePackUintIn(wrt, deltaAddr, nBytes);
 }
-static FORCE_INLINE uint8_t fstPackDetla(IdxFstFile* wrt, CompiledAddr nodeAddr, CompiledAddr transAddr) {
+static FORCE_INLINE uint8_t fstPackDelta(IdxFstFile* wrt, CompiledAddr nodeAddr, CompiledAddr transAddr) {
   uint8_t nBytes = packDeltaSize(nodeAddr, transAddr);
   fstPackDeltaIn(wrt, nodeAddr, transAddr, nBytes);
   return nBytes;
@@ -226,7 +226,7 @@ void fstStateCompileForOneTransNext(IdxFstFile* w, CompiledAddr addr, uint8_t in
 void fstStateCompileForOneTrans(IdxFstFile* w, CompiledAddr addr, FstTransition* trn) {
   Output    out = trn->out;
   uint8_t   outPackSize = (out == 0 ? 0 : idxFilePackUint(w, out));
-  uint8_t   transPackSize = fstPackDetla(w, addr, trn->addr);
+  uint8_t   transPackSize = fstPackDelta(w, addr, trn->addr);
   PackSizes packSizes = 0;
 
   FST_SET_OUTPUT_PACK_SIZE(packSizes, outPackSize);
@@ -1025,6 +1025,7 @@ void fstDestroy(Fst* fst) {
 }
 
 bool fstGet(Fst* fst, FstSlice* b, Output* out) {
+  int      ret = false;
   FstNode* root = fstGetRoot(fst);
   Output   tOut = 0;
   int32_t  len;
@@ -1037,7 +1038,7 @@ bool fstGet(Fst* fst, FstSlice* b, Output* out) {
     uint8_t inp = data[i];
     Output  res = 0;
     if (false == fstNodeFindInput(root, inp, &res)) {
-      return false;
+      goto _return;
     }
 
     FstTransition trn;
@@ -1047,18 +1048,20 @@ bool fstGet(Fst* fst, FstSlice* b, Output* out) {
     taosArrayPush(nodes, &root);
   }
   if (!FST_NODE_IS_FINAL(root)) {
-    return false;
+    goto _return;
   } else {
     tOut = tOut + FST_NODE_FINAL_OUTPUT(root);
+    ret = true;
   }
 
+_return:
   for (int32_t i = 0; i < taosArrayGetSize(nodes); i++) {
     FstNode** node = (FstNode**)taosArrayGet(nodes, i);
     fstNodeDestroy(*node);
   }
   taosArrayDestroy(nodes);
   *out = tOut;
-  return true;
+  return ret;
 }
 FStmBuilder* fstSearch(Fst* fst, FAutoCtx* ctx) {
   // refactor later
@@ -1243,6 +1246,7 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
 
       StreamState s = {.node = node, .trans = i, .out = {.null = false, .out = out}, .autState = autState};
       taosArrayPush(sws->stack, &s);
+      taosMemoryFree(trans);
       return true;
     }
   }

@@ -277,6 +277,7 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.parent = pDnode;
   rpcInit.rfp = rpcRfp;
+  rpcInit.compressSize = tsCompressMsgSize;
 
   pTrans->clientRpc = rpcOpen(&rpcInit);
   if (pTrans->clientRpc == NULL) {
@@ -301,7 +302,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
   SRpcInit rpcInit = {0};
-  strncpy(rpcInit.localFqdn, tsLocalFqdn, TSDB_FQDN_LEN);
+  tstrncpy(rpcInit.localFqdn, tsLocalFqdn, TSDB_FQDN_LEN);
   rpcInit.localPort = tsServerPort;
   rpcInit.label = "DND-S";
   rpcInit.numOfThreads = tsNumOfRpcThreads;

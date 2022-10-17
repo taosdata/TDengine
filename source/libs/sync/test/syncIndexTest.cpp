@@ -9,7 +9,7 @@ void print(SHashObj *pNextIndex) {
   uint64_t *p = (uint64_t *)taosHashIterate(pNextIndex, NULL);
   while (p) {
     size_t len;
-    void * key = taosHashGetKey(p, &len);
+    void  *key = taosHashGetKey(p, &len);
 
     SRaftId *pRaftId = (SRaftId *)key;
 

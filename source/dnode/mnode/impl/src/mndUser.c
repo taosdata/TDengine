@@ -77,12 +77,13 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
 
   SSdbRaw *pRaw = mndUserActionEncode(&userObj);
   if (pRaw == NULL) return -1;
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   mInfo("user:%s, will be created when deploying, raw:%p", userObj.user, pRaw);
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-user");
   if (pTrans == NULL) {
+    sdbFreeRaw(pRaw);
     mError("user:%s, failed to create since %s", userObj.user, terrstr());
     return -1;
   }
@@ -93,7 +94,7 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -312,7 +313,7 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -396,7 +397,7 @@ static int32_t mndAlterUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SRpc
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -611,7 +612,7 @@ static int32_t mndDropUser(SMnode *pMnode, SRpcMsg *pReq, SUserObj *pUser) {
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
+  (void)sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
