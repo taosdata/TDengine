@@ -408,25 +408,33 @@ END:
 
 static int32_t walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
   SWalIdxEntry entry = {.ver = ver, .offset = offset};
-  int64_t      idxOffset = taosLSeekFile(pWal->pIdxFile, 0, SEEK_END);
+  SWalFileInfo *pFileInfo = walGetCurFileInfo(pWal);
+  ASSERT(pFileInfo != NULL);
+  ASSERT(pFileInfo->firstVer >= 0);
+  int64_t idxOffset = (entry.ver - pFileInfo->firstVer) * sizeof(SWalIdxEntry);
   wDebug("vgId:%d, write index, index:%" PRId64 ", offset:%" PRId64 ", at %" PRId64, pWal->cfg.vgId, ver, offset,
          idxOffset);
+
   int64_t size = taosWriteFile(pWal->pIdxFile, &entry, sizeof(SWalIdxEntry));
   if (size != sizeof(SWalIdxEntry)) {
+    wError("vgId:%d, failed to write idx entry due to %s. ver:%lld", pWal->cfg.vgId, strerror(errno), ver);
     terrno = TAOS_SYSTEM_ERROR(errno);
-    // TODO truncate
     return -1;
   }
   return 0;
 }
 
-// TODO  gurantee atomicity by truncate failed writing
 static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta,
                                          const void *body, int32_t bodyLen) {
   int64_t code = 0;
 
   int64_t offset = walGetCurFileOffset(pWal);
+  SWalFileInfo *pFileInfo = walGetCurFileInfo(pWal);
+  ASSERT(pFileInfo != NULL);
 
+  if (pFileInfo->firstVer == -1) {
+    pFileInfo->firstVer = index;
+  }
   pWal->writeHead.head.version = index;
   pWal->writeHead.head.bodyLen = bodyLen;
   pWal->writeHead.head.msgType = msgType;
@@ -437,11 +445,9 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
 
   pWal->writeHead.cksumHead = walCalcHeadCksum(&pWal->writeHead);
   pWal->writeHead.cksumBody = walCalcBodyCksum(body, bodyLen);
-
   wDebug("vgId:%d, wal write log %ld, msgType: %s", pWal->cfg.vgId, index, TMSG_INFO(msgType));
 
   if (taosWriteFile(pWal->pLogFile, &pWal->writeHead, sizeof(SWalCkHead)) != sizeof(SWalCkHead)) {
-    // TODO ftruncate
     terrno = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
            strerror(errno));
@@ -450,7 +456,6 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   }
 
   if (taosWriteFile(pWal->pLogFile, (char *)body, bodyLen) != bodyLen) {
-    // TODO ftruncate
     terrno = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
            strerror(errno));
@@ -460,7 +465,6 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
 
   code = walWriteIndex(pWal, index, offset);
   if (code < 0) {
-    // TODO ftruncate
     goto END;
   }
 
@@ -468,14 +472,27 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   if (pWal->vers.firstVer == -1) pWal->vers.firstVer = index;
   pWal->vers.lastVer = index;
   pWal->totSize += sizeof(SWalCkHead) + bodyLen;
-  if (walGetCurFileInfo(pWal)->firstVer == -1) {
-    walGetCurFileInfo(pWal)->firstVer = index;
-  }
-  walGetCurFileInfo(pWal)->lastVer = index;
-  walGetCurFileInfo(pWal)->fileSize += sizeof(SWalCkHead) + bodyLen;
+  pFileInfo->lastVer = index;
+  pFileInfo->fileSize += sizeof(SWalCkHead) + bodyLen;
 
   return 0;
+
 END:
+  // recover in a reverse order
+  if (taosFtruncateFile(pWal->pLogFile, offset) < 0) {
+    wFatal("vgId:%d, failed to ftruncate logfile to offset:%lld during recovery due to %s", pWal->cfg.vgId, offset,
+           strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    ASSERT(0 && "failed to recover from error");
+  }
+
+  int64_t idxOffset = (index - pFileInfo->firstVer) * sizeof(SWalIdxEntry);
+  if (taosFtruncateFile(pWal->pIdxFile, idxOffset) < 0) {
+    wFatal("vgId:%d, failed to ftruncate idxfile to offset:%lld during recovery due to %s", pWal->cfg.vgId, idxOffset,
+           strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    ASSERT(0 && "failed to recover from error");
+  }
   return -1;
 }
 
