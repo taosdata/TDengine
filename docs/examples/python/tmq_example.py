@@ -22,7 +22,6 @@ conf.set("group.id", "tg2")
 conf.set("td.connect.user", "root")
 conf.set("td.connect.pass", "taosdata")
 conf.set("enable.auto.commit", "true")
-conf.set("msg.with.table.name", "true")
 
 def tmq_commit_cb_print(tmq, resp, offset, param=None):
     print(f"commit: {resp}, tmq: {tmq}, offset: {offset}, param: {param}")
@@ -51,7 +50,6 @@ while 1:
         print(f"topic: {topic}\nvgroup id: {vg}\ndb: {db}")
         for row in res:
             print(row)
-            tb = res.get_table_name()
             print(f"from table: {tb}")
     
 
