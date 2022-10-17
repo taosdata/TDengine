@@ -440,6 +440,7 @@ int32_t hbGetExpiredUserInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, S
   }
 
   if (userNum <= 0) {
+    taosMemoryFree(users);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -476,6 +477,7 @@ int32_t hbGetExpiredDBInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SCl
   }
 
   if (dbNum <= 0) {
+    taosMemoryFree(dbs);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -514,6 +516,7 @@ int32_t hbGetExpiredStbInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SC
   }
 
   if (stbNum <= 0) {
+    taosMemoryFree(stbs);
     return TSDB_CODE_SUCCESS;
   }
 

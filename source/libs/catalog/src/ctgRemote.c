@@ -19,6 +19,7 @@
 #include "tname.h"
 #include "tref.h"
 #include "trpc.h"
+#include "ctgRemote.h"
 
 int32_t ctgHandleBatchRsp(SCtgJob* pJob, SCtgTaskCallbackParam* cbParam, SDataBuf* pMsg, int32_t rspCode) {
   int32_t   code = 0;
@@ -578,6 +579,11 @@ int32_t ctgBuildBatchReqMsg(SCtgBatch* pBatch, int32_t vgId, void** msg) {
   int32_t    offset = 0;
   int32_t    num = taosArrayGetSize(pBatch->pMsgs);
   SBatchReq* pBatchReq = (SBatchReq*)(*msg);
+
+  if (num >= CTG_MAX_REQ_IN_BATCH) {
+    qError("too many msgs %d in one batch request", num);
+    CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
+  }
 
   pBatchReq->header.vgId = htonl(vgId);
   pBatchReq->msgNum = htonl(num);

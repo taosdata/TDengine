@@ -1598,6 +1598,7 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
   SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)taosMemoryCalloc(1, rspSize);
   if (NULL == rsp) {
     qError("malloc SRetrieveTableRsp failed, size:%d", rspSize);
+    blockDataDestroy(pBlock);
     QRY_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
