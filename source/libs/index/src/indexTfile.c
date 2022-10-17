@@ -587,6 +587,7 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
         taosMemoryFree(buf);
         return -1;
       }
+      buf = t;
     }
 
     char* p = buf;
