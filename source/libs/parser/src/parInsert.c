@@ -1027,6 +1027,9 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
         }
       }
     }
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
+    }
   }
 
   if (TSDB_CODE_SUCCESS == code && !isParseBindParam && !isJson) {
