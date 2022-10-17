@@ -995,13 +995,17 @@ static int32_t parseTimeFromValueNode(STranslateContext* pCxt, SValueNode* pVal)
     if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
       return pCxt->errCode;
     }
+    int64_t value = 0;
     if (IS_UNSIGNED_NUMERIC_TYPE(pVal->node.resType.type)) {
-      pVal->datum.i = (int64_t)pVal->datum.u;
+      value = pVal->datum.u;
     } else if (IS_FLOAT_TYPE(pVal->node.resType.type)) {
-      pVal->datum.i = (int64_t)pVal->datum.d;
+      value = pVal->datum.d;
     } else if (TSDB_DATA_TYPE_BOOL == pVal->node.resType.type) {
-      pVal->datum.i = pVal->datum.b;
+      value = pVal->datum.b;
+    } else {
+      value = pVal->datum.i;
     }
+    pVal->datum.i = value;
     return TSDB_CODE_SUCCESS;
   } else if (IS_VAR_DATA_TYPE(pVal->node.resType.type) || TSDB_DATA_TYPE_TIMESTAMP == pVal->node.resType.type) {
     if (TSDB_CODE_SUCCESS == taosParseTime(pVal->literal, &pVal->datum.i, pVal->node.resType.bytes,
@@ -1083,7 +1087,7 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
     }
     case TSDB_DATA_TYPE_UTINYINT: {
       code = toUInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.u);
-      if (strict && (TSDB_CODE_SUCCESS != code || !IS_VALID_UTINYINT(pVal->datum.u))) {
+      if (strict && (TSDB_CODE_SUCCESS != code || pVal->datum.u > UINT8_MAX)) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
       }
       *(uint8_t*)&pVal->typeData = pVal->datum.u;
@@ -1091,7 +1095,7 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
     }
     case TSDB_DATA_TYPE_USMALLINT: {
       code = toUInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.u);
-      if (strict && (TSDB_CODE_SUCCESS != code || !IS_VALID_USMALLINT(pVal->datum.u))) {
+      if (strict && (TSDB_CODE_SUCCESS != code || pVal->datum.u > UINT16_MAX)) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
       }
       *(uint16_t*)&pVal->typeData = pVal->datum.u;
@@ -1099,7 +1103,7 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
     }
     case TSDB_DATA_TYPE_UINT: {
       code = toUInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.u);
-      if (strict && (TSDB_CODE_SUCCESS != code || !IS_VALID_UINT(pVal->datum.u))) {
+      if (strict && (TSDB_CODE_SUCCESS != code || pVal->datum.u > UINT32_MAX)) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
       }
       *(uint32_t*)&pVal->typeData = pVal->datum.u;
@@ -1107,7 +1111,7 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
     }
     case TSDB_DATA_TYPE_UBIGINT: {
       code = toUInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.u);
-      if (strict && (TSDB_CODE_SUCCESS != code || !IS_VALID_UBIGINT(pVal->datum.u))) {
+      if (strict && TSDB_CODE_SUCCESS != code) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
       }
       *(uint64_t*)&pVal->typeData = pVal->datum.u;
@@ -4286,8 +4290,9 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
       code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      if ((TSDB_DATA_TYPE_VARCHAR == pCol->dataType.type && calcTypeBytes(pCol->dataType) > TSDB_MAX_BINARY_LEN) ||
-          (TSDB_DATA_TYPE_NCHAR == pCol->dataType.type && calcTypeBytes(pCol->dataType) > TSDB_MAX_NCHAR_LEN)) {
+      pCol->dataType.bytes = calcTypeBytes(pCol->dataType);
+      if ((TSDB_DATA_TYPE_VARCHAR == pCol->dataType.type && pCol->dataType.bytes > TSDB_MAX_BINARY_LEN) ||
+          (TSDB_DATA_TYPE_NCHAR == pCol->dataType.type && pCol->dataType.bytes > TSDB_MAX_NCHAR_LEN)) {
         code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
       }
     }
