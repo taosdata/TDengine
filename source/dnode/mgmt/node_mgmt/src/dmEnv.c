@@ -51,6 +51,7 @@ static int32_t dmInitMonitor() {
 
 static bool dmCheckDiskSpace() {
   osUpdate();
+  // sufficiency
   if (!osDataSpaceSufficient()) {
     dWarn("free data disk size: %f GB, not sufficient, expected %f GB at least", (double)tsDataSpace.size.avail / 1024.0 / 1024.0 / 1024.0, (double)tsDataSpace.reserved / 1024.0 / 1024.0 / 1024.0);
   }
@@ -60,7 +61,21 @@ static bool dmCheckDiskSpace() {
   if (!osTempSpaceSufficient()) {
     dWarn("free temp disk size: %f GB, not sufficient, expected %f GB at least", (double)tsTempSpace.size.avail / 1024.0 / 1024.0 / 1024.0, (double)tsTempSpace.reserved / 1024.0 / 1024.0 / 1024.0);
   }
-  return true;
+  // availability
+  bool ret = true;
+  if (!osDataSpaceAvailable()) {
+    dError("data disk space unavailable, i.e. %s", tsDataDir);
+    ret = false;
+  }
+  if (!osLogSpaceAvailable()) {
+    dError("log disk space unavailable, i.e. %s", tsLogDir);
+    ret = false;
+  }
+  if (!osTempSpaceAvailable()) {
+    dError("temp disk space unavailable, i.e. %s", tsTempDir);
+    ret = false;
+  }
+  return ret;
 }
 
 static bool dmCheckDataDirVersion() {
