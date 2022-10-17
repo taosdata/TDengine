@@ -299,6 +299,7 @@ static int32_t smlCheckMeta(SSchema *schema, int32_t length, SArray *cols, bool 
   for (; i < taosArrayGetSize(cols); i++) {
     SSmlKv *kv = (SSmlKv *)taosArrayGetP(cols, i);
     if (taosHashGet(hashTmp, kv->key, kv->keyLen) == NULL) {
+      taosHashCleanup(hashTmp);
       return -1;
     }
   }
@@ -430,7 +431,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle *info) {
   STableMeta *pTableMeta = NULL;
 
   SName pName = {TSDB_TABLE_NAME_T, info->taos->acctId, {0}, {0}};
-  strcpy(pName.dbname, info->pRequest->pDb);
+  tstrncpy(pName.dbname, info->pRequest->pDb, sizeof(pName.dbname));
 
   SRequestConnInfo conn = {0};
   conn.pTrans = info->taos->pAppInfo->pTransporter;
@@ -874,7 +875,8 @@ static int32_t smlParseTS(SSmlHandle *info, const char *data, int32_t len, SArra
   kv->i = ts;
   kv->type = TSDB_DATA_TYPE_TIMESTAMP;
   kv->length = (int16_t)tDataTypes[kv->type].bytes;
-  if (cols) taosArrayPush(cols, &kv);
+  taosArrayPush(cols, &kv);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1010,6 +1012,7 @@ static void smlParseTelnetElement(const char **sql, const char *sqlEnd, const ch
 
 static int32_t smlParseTelnetTags(const char *data, const char *sqlEnd, SArray *cols, char *childTableName, SHashObj *dumplicateKey,
                                   SSmlMsgBuf *msg) {
+  if(!cols) return TSDB_CODE_OUT_OF_MEMORY;
   const char *sql = data;
   size_t      childTableNameLen = strlen(tsSmlChildTableName);
   while (sql < sqlEnd) {
@@ -1083,7 +1086,7 @@ static int32_t smlParseTelnetTags(const char *data, const char *sqlEnd, SArray *
     kv->length = valueLen;
     kv->type = TSDB_DATA_TYPE_NCHAR;
 
-    if (cols) taosArrayPush(cols, &kv);
+    taosArrayPush(cols, &kv);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1371,8 +1374,14 @@ static int32_t smlKvTimeHashCompare(const void *key1, const void *key2) {
   SHashObj *s2 = *(SHashObj **)key2;
   SSmlKv   *kv1 = *(SSmlKv **)taosHashGet(s1, TS, TS_LEN);
   SSmlKv   *kv2 = *(SSmlKv **)taosHashGet(s2, TS, TS_LEN);
-  ASSERT(kv1->type == TSDB_DATA_TYPE_TIMESTAMP);
-  ASSERT(kv2->type == TSDB_DATA_TYPE_TIMESTAMP);
+  if(!kv1 || kv1->type != TSDB_DATA_TYPE_TIMESTAMP){
+    uError("smlKvTimeHashCompare kv1");
+    return -1;
+  }
+  if(!kv2 || kv2->type != TSDB_DATA_TYPE_TIMESTAMP){
+    uError("smlKvTimeHashCompare kv2");
+    return -1;
+  }
   if (kv1->i < kv2->i) {
     return -1;
   } else if (kv1->i > kv2->i) {
@@ -1736,7 +1745,7 @@ static int32_t smlParseTSFromJSON(SSmlHandle *info, cJSON *root, SArray *cols) {
   kv->i = tsVal;
   kv->type = TSDB_DATA_TYPE_TIMESTAMP;
   kv->length = (int16_t)tDataTypes[kv->type].bytes;
-  if (cols) taosArrayPush(cols, &kv);
+  taosArrayPush(cols, &kv);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1933,6 +1942,7 @@ static int32_t smlParseValueFromJSON(cJSON *root, SSmlKv *kv) {
 }
 
 static int32_t smlParseColsFromJSON(cJSON *root, SArray *cols) {
+  if(!cols) return TSDB_CODE_OUT_OF_MEMORY;
   cJSON *metricVal = cJSON_GetObjectItem(root, "value");
   if (metricVal == NULL) {
     return TSDB_CODE_TSC_INVALID_JSON;
@@ -1942,7 +1952,7 @@ static int32_t smlParseColsFromJSON(cJSON *root, SArray *cols) {
   if (!kv) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  if (cols) taosArrayPush(cols, &kv);
+  taosArrayPush(cols, &kv);
 
   kv->key = VALUE;
   kv->keyLen = VALUE_LEN;
@@ -1956,7 +1966,9 @@ static int32_t smlParseColsFromJSON(cJSON *root, SArray *cols) {
 static int32_t smlParseTagsFromJSON(cJSON *root, SArray *pKVs, char *childTableName, SHashObj *dumplicateKey,
                                     SSmlMsgBuf *msg) {
   int32_t ret = TSDB_CODE_SUCCESS;
-
+  if (!pKVs){
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   cJSON *tags = cJSON_GetObjectItem(root, "tags");
   if (tags == NULL || tags->type != cJSON_Object) {
     return TSDB_CODE_TSC_INVALID_JSON;
@@ -1986,14 +1998,14 @@ static int32_t smlParseTagsFromJSON(cJSON *root, SArray *pKVs, char *childTableN
         return TSDB_CODE_TSC_INVALID_JSON;
       }
       memset(childTableName, 0, TSDB_TABLE_NAME_LEN);
-      strncpy(childTableName, tag->valuestring, TSDB_TABLE_NAME_LEN);
+      tstrncpy(childTableName, tag->valuestring, TSDB_TABLE_NAME_LEN);
       continue;
     }
 
     // add kv to SSmlKv
     SSmlKv *kv = (SSmlKv *)taosMemoryCalloc(sizeof(SSmlKv), 1);
     if (!kv) return TSDB_CODE_OUT_OF_MEMORY;
-    if (pKVs) taosArrayPush(pKVs, &kv);
+    taosArrayPush(pKVs, &kv);
 
     // key
     kv->keyLen = keyLen;
@@ -2104,6 +2116,8 @@ static int32_t smlParseInfluxLine(SSmlHandle *info, const char *sql, const int l
   if (!oneTable) {
     tinfo = smlBuildTableInfo();
     if (!tinfo) {
+      smlDestroyCols(cols);
+      if (info->dataFormat) taosArrayDestroy(cols);
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
     taosHashPut(info->childTables, elements.measure, elements.measureTagsLen, &tinfo, POINTER_BYTES);
@@ -2296,7 +2310,7 @@ static int32_t smlInsertData(SSmlHandle *info) {
     SSmlTableInfo *tableData = *oneTable;
 
     SName pName = {TSDB_TABLE_NAME_T, info->taos->acctId, {0}, {0}};
-    strcpy(pName.dbname, info->pRequest->pDb);
+    tstrncpy(pName.dbname, info->pRequest->pDb, sizeof(pName.dbname));
     memcpy(pName.tname, tableData->childTableName, strlen(tableData->childTableName));
 
     SRequestConnInfo conn = {0};
