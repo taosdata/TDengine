@@ -363,9 +363,8 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
 
     mInfo("write %s to sdb file, total %d rows", sdbTableName(i), sdbGetSize(pSdb, i));
 
-    SHashObj       *hash = pSdb->hashObjs[i];
-    TdThreadRwlock *pLock = &pSdb->locks[i];
-    taosThreadRwlockWrlock(pLock);
+    SHashObj *hash = pSdb->hashObjs[i];
+    sdbWriteLock(pSdb, i);
 
     SSdbRow **ppRow = taosHashIterate(hash, NULL);
     while (ppRow != NULL) {
@@ -410,7 +409,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
       sdbFreeRaw(pRaw);
       ppRow = taosHashIterate(hash, ppRow);
     }
-    taosThreadRwlockUnlock(pLock);
+    sdbUnLock(pSdb, i);
   }
 
   if (code == 0) {
