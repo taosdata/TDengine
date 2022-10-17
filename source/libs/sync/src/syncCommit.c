@@ -76,7 +76,10 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
         pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
       } else {
         pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, index);
-        ASSERT(pEntry != NULL);
+        if (pEntry == NULL) {
+           sError("failed to get entry since %s. index:%lld", tstrerror(terrno), index);
+           return;
+        }
       }
       // cannot commit, even if quorum agree. need check term!
       if (pEntry->term <= pSyncNode->pRaftStore->currentTerm) {
@@ -127,7 +130,9 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
     // execute fsm
     if (pSyncNode->pFsm != NULL) {
       int32_t code = syncNodeCommit(pSyncNode, beginIndex, endIndex, pSyncNode->state);
-      ASSERT(code == 0);
+      if (code != 0) {
+         wError("failed to commit sync node since %s", tstrerror(terrno));
+      }
     }
   }
 }

@@ -124,7 +124,7 @@ static int32_t tsdbReadFilePage(STsdbFD *pFD, int64_t pgno) {
   }
 
   // check
-  if (!taosCheckChecksumWhole(pFD->pBuf, pFD->szPage)) {
+  if (pgno > 1 && !taosCheckChecksumWhole(pFD->pBuf, pFD->szPage)) {
     code = TSDB_CODE_FILE_CORRUPTED;
     goto _exit;
   }
@@ -843,7 +843,8 @@ _err:
 // SDataFReader ====================================================
 int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pSet) {
   int32_t       code = 0;
-  SDataFReader *pReader;
+  int32_t       lino = 0;
+  SDataFReader *pReader = NULL;
   int32_t       szPage = pTsdb->pVnode->config.tsdbPageSize;
   char          fname[TSDB_FILENAME_LEN];
 
@@ -851,7 +852,7 @@ int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pS
   pReader = (SDataFReader *)taosMemoryCalloc(1, sizeof(*pReader));
   if (pReader == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _err;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
   pReader->pTsdb = pTsdb;
   pReader->pSet = pSet;
@@ -859,31 +860,40 @@ int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pS
   // head
   tsdbHeadFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pHeadF, fname);
   code = tsdbOpenFile(fname, szPage, TD_FILE_READ, &pReader->pHeadFD);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // data
   tsdbDataFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pDataF, fname);
   code = tsdbOpenFile(fname, szPage, TD_FILE_READ, &pReader->pDataFD);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // sma
   tsdbSmaFileName(pTsdb, pSet->diskId, pSet->fid, pSet->pSmaF, fname);
   code = tsdbOpenFile(fname, szPage, TD_FILE_READ, &pReader->pSmaFD);
-  if (code) goto _err;
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   // stt
   for (int32_t iStt = 0; iStt < pSet->nSttF; iStt++) {
     tsdbSttFileName(pTsdb, pSet->diskId, pSet->fid, pSet->aSttF[iStt], fname);
     code = tsdbOpenFile(fname, szPage, TD_FILE_READ, &pReader->aSttFD[iStt]);
-    if (code) goto _err;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  *ppReader = pReader;
-  return code;
+_exit:
+  if (code) {
+    *ppReader = NULL;
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
 
-_err:
-  tsdbError("vgId:%d, tsdb data file reader open failed since %s", TD_VID(pTsdb->pVnode), tstrerror(code));
-  *ppReader = NULL;
+    if (pReader) {
+      for (int32_t iStt = 0; iStt < pSet->nSttF; iStt++) tsdbCloseFile(&pReader->aSttFD[iStt]);
+      tsdbCloseFile(&pReader->pSmaFD);
+      tsdbCloseFile(&pReader->pDataFD);
+      tsdbCloseFile(&pReader->pHeadFD);
+      taosMemoryFree(pReader);
+    }
+  } else {
+    *ppReader = pReader;
+  }
   return code;
 }
 

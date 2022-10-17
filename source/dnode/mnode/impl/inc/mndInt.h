@@ -87,12 +87,13 @@ typedef struct {
 typedef struct {
   tsem_t   syncSem;
   int64_t  sync;
-  SReplica replica;
   int32_t  errCode;
   int32_t  transId;
   SRWLatch lock;
-  int8_t   standby;
   int8_t   leaderTransferFinish;
+  int8_t   selfIndex;
+  int8_t   numOfReplicas;
+  SReplica replicas[TSDB_MAX_REPLICA];
 } SSyncMgmt;
 
 typedef struct {
@@ -130,11 +131,10 @@ typedef struct SMnode {
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
 int64_t mndGenerateUid(const char *name, int32_t len);
 
-int32_t mndAcquireRpcRef(SMnode *pMnode);
-void    mndReleaseRpcRef(SMnode *pMnode);
-void    mndSetRestore(SMnode *pMnode, bool restored);
-void    mndSetStop(SMnode *pMnode);
-bool    mndGetStop(SMnode *pMnode);
+void mndSetRestored(SMnode *pMnode, bool restored);
+bool mndGetRestored(SMnode *pMnode);
+void mndSetStop(SMnode *pMnode);
+bool mndGetStop(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

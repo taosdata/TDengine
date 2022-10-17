@@ -284,6 +284,7 @@ static bool doLoadBlockSMA(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, 
   return true;
 }
 
+
 static void doSetTagColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo) {
   if (pTableScanInfo->pseudoSup.numOfExprs > 0) {
     SExprSupp* pSup = &pTableScanInfo->pseudoSup;
@@ -324,19 +325,18 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
   } else if (*status == FUNC_DATA_REQUIRED_NOT_LOAD) {
     qDebug("%s data block skipped, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
            pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
-    pCost->skipBlocks += 1;
-    doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo);
 
+    doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo);
+    pCost->skipBlocks += 1;
     return TSDB_CODE_SUCCESS;
   } else if (*status == FUNC_DATA_REQUIRED_STATIS_LOAD) {
     pCost->loadBlockStatis += 1;
     loadSMA = true;  // mark the operation of load sma;
     bool success = doLoadBlockSMA(pTableScanInfo, pBlock, pTaskInfo);
     if (success) {  // failed to load the block sma data, data block statistics does not exist, load data block instead
-      doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo);
-
       qDebug("%s data block SMA loaded, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
              pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
+      doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo);
       return TSDB_CODE_SUCCESS;
     } else {
       qDebug("%s failed to load SMA, since not all columns have SMA", GET_TASKID(pTaskInfo));
@@ -386,8 +386,6 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
   }
 
   relocateColumnData(pBlock, pTableScanInfo->pColMatchInfo, pCols, true);
-
-  // currently only the tbname pseudo column
   doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo);
 
   if (pTableScanInfo->pFilterNode != NULL) {
@@ -1086,12 +1084,13 @@ static bool prepareRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pBlock, int32_
 
 static STimeWindow getSlidingWindow(TSKEY* startTsCol, TSKEY* endTsCol, uint64_t* gpIdCol, SInterval* pInterval,
                                     SDataBlockInfo* pDataBlockInfo, int32_t* pRowIndex, bool hasGroup) {
-  SResultRowInfo dumyInfo;
+  SResultRowInfo dumyInfo = {0};
   dumyInfo.cur.pageId = -1;
   STimeWindow win = getActiveTimeWindow(NULL, &dumyInfo, startTsCol[*pRowIndex], pInterval, TSDB_ORDER_ASC);
   STimeWindow endWin = win;
   STimeWindow preWin = win;
   uint64_t    groupId = gpIdCol[*pRowIndex];
+
   while (1) {
     if (hasGroup) {
       (*pRowIndex) += 1;
@@ -1155,6 +1154,9 @@ static SSDataBlock* doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32
           pResult->info.rows++;
         }
       }
+
+      blockDataDestroy(tmpBlock);
+
       if (pResult->info.rows > 0) {
         pResult->info.calWin = pInfo->updateWin;
         return pResult;
@@ -1327,6 +1329,11 @@ static void calBlockTag(SExprSupp* pTagCalSup, SSDataBlock* pBlock, SSDataBlock*
   ASSERT(pResBlock->info.rows == 1);
 
   // build tagArray
+  /*SArray* tagArray = taosArrayInit(0, sizeof(void*));*/
+  /*STagVal tagVal = {*/
+  /*.cid = 0,*/
+  /*.type = 0,*/
+  /*};*/
   // build STag
   // set STag
 
@@ -1545,7 +1552,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         tsdbReaderClose(pTSInfo->dataReader);
         pTSInfo->dataReader = NULL;
         tqOffsetResetToLog(&pTaskInfo->streamInfo.prepareStatus, pTaskInfo->streamInfo.snapshotVer);
-        qDebug("queue scan tsdb over, switch to wal ver %d", pTaskInfo->streamInfo.snapshotVer + 1);
+        qDebug("queue scan tsdb over, switch to wal ver %"PRId64, pTaskInfo->streamInfo.snapshotVer + 1);
         if (tqSeekVer(pInfo->tqReader, pTaskInfo->streamInfo.snapshotVer + 1) < 0) {
           return NULL;
         }
@@ -2176,6 +2183,19 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     }
   }
 
+  if (pTableScanNode->pTags != NULL) {
+    int32_t    numOfTags;
+    SExprInfo* pTagExpr = createExprInfo(pTableScanNode->pTags, NULL, &numOfTags);
+    if (pTagExpr == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto _error;
+    }
+    if (initExprSupp(&pInfo->tagCalSup, pTagExpr, numOfTags) != 0) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto _error;
+    }
+  }
+
   pInfo->pBlockLists = taosArrayInit(4, POINTER_BYTES);
   if (pInfo->pBlockLists == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -2554,16 +2574,27 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
 
     SMetaReader smrChildTable = {0};
     metaReaderInit(&smrChildTable, pInfo->readHandle.meta, 0);
-    metaGetTableEntryByName(&smrChildTable, condTableName);
+    int32_t code = metaGetTableEntryByName(&smrChildTable, condTableName);
+    if (code != TSDB_CODE_SUCCESS) {
+      // terrno has been set by metaGetTableEntryByName, therefore, return directly
+      return NULL;
+    }
+
     if (smrChildTable.me.type != TSDB_CHILD_TABLE) {
       metaReaderClear(&smrChildTable);
       blockDataDestroy(dataBlock);
       pInfo->loadInfo.totalRows = 0;
       return NULL;
     }
+
     SMetaReader smrSuperTable = {0};
     metaReaderInit(&smrSuperTable, pInfo->readHandle.meta, META_READER_NOLOCK);
-    metaGetTableEntryByUid(&smrSuperTable, smrChildTable.me.ctbEntry.suid);
+    code = metaGetTableEntryByUid(&smrSuperTable, smrChildTable.me.ctbEntry.suid);
+    if (code != TSDB_CODE_SUCCESS) {
+      // terrno has been set by metaGetTableEntryByUid
+      return NULL;
+    }
+
     sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &smrChildTable, dbname, tableName, &numOfRows, dataBlock);
     metaReaderClear(&smrSuperTable);
     metaReaderClear(&smrChildTable);
@@ -2970,7 +3001,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
 
     while (1) {
       int64_t startTs = taosGetTimestampUs();
-      strncpy(pInfo->req.tb, tNameGetTableName(&pInfo->name), tListLen(pInfo->req.tb));
+      tstrncpy(pInfo->req.tb, tNameGetTableName(&pInfo->name), tListLen(pInfo->req.tb));
       strcpy(pInfo->req.user, pInfo->pUser);
 
       int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &pInfo->req);
@@ -3781,6 +3812,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 
   int32_t code = initQueryTableDataCond(&pInfo->cond, pTableScanNode);
   if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(pColList);
     goto _error;
   }
 

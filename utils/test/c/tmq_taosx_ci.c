@@ -663,7 +663,7 @@ void initLogFile() {
 int main(int argc, char* argv[]) {
   for (int32_t i = 1; i < argc; i++) {
     if(strcmp(argv[i], "-c") == 0){
-      strcpy(g_conf.dir, argv[++i]);
+      tstrncpy(g_conf.dir, argv[++i], sizeof(g_conf.dir));
     }else if(strcmp(argv[i], "-s") == 0){
       g_conf.snapShot = true;
     }else if(strcmp(argv[i], "-d") == 0){

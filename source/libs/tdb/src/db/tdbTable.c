@@ -106,11 +106,13 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
   // pTb->pBt
   ret = tdbBtreeOpen(keyLen, valLen, pPager, tbname, pgno, keyCmprFn, &(pTb->pBt));
   if (ret < 0) {
+    tdbOsFree(pTb);
     return -1;
   }
 
   ret = tdbPagerRestore(pPager, pTb->pBt);
   if (ret < 0) {
+    tdbOsFree(pTb);
     return -1;
   }
 
