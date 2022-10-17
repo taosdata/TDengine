@@ -1709,9 +1709,9 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
                ctx->isrange);
         if (ctx->isrange) {
           SFilterRangeNode *r = ctx->rs;
+          int32_t tlen = 0;
           while (r) {
-            char    str[256] = {0};
-            int32_t tlen = 0;
+            char str[256] = {0};
             if (FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_NULL)) {
               strcat(str, "(NULL)");
             } else {
