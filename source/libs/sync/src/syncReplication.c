@@ -487,6 +487,8 @@ int32_t syncNodeDoAppendEntries(SSyncNode* pSyncNode, SRaftId* pDestId) {
   SyncIndex logEndIndex = pSyncNode->pLogStore->syncLogEndIndex(pSyncNode->pLogStore);
   if (nextIndex < logStartIndex || nextIndex > logEndIndex) {
     // start snapshot
+    int32_t code = syncNodeStartSnapshot(pSyncNode, pDestId);
+    ASSERT(code == 0);
     return 0;
   }
 
@@ -546,6 +548,8 @@ int32_t syncNodeDoAppendEntries(SSyncNode* pSyncNode, SRaftId* pDestId) {
 }
 
 int32_t syncNodeDoReplicate(SSyncNode* pSyncNode) {
+  syncNodeEventLog(pSyncNode, "do replicate");
+
   if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
     return -1;
   }

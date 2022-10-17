@@ -111,6 +111,9 @@ else
 endi
 
 
+
+return 0
+
 vg_ready:
 print ====>  create stable/child table
 sql create table stb (ts timestamp, c1 int, c2 float, c3 double) tags (t1 int)
@@ -121,6 +124,12 @@ if $rows != 1 then
 endi
 
 sql create table ct1 using stb tags(1000)
+
+
+
+
+
+
 
 
 print ====> step1 insert 1000 records

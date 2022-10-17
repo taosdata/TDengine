@@ -1493,15 +1493,19 @@ static int32_t syncNodeDoStartHeartbeatTimer(SSyncNode* pSyncNode) {
 }
 
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
-  pSyncNode->heartbeatTimerMS = pSyncNode->hbBaseLine;
-  int32_t ret = syncNodeDoStartHeartbeatTimer(pSyncNode);
+  int32_t ret = 0;
 
-  do {
-    for (int i = 0; i < pSyncNode->peersNum; ++i) {
-      SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->peersId[i]));
-      syncHbTimerStart(pSyncNode, pSyncTimer);
-    }
-  } while (0);
+  if (syncNodeIsMnode(pSyncNode)) {
+    pSyncNode->heartbeatTimerMS = pSyncNode->hbBaseLine;
+    ret = syncNodeDoStartHeartbeatTimer(pSyncNode);
+  } else {
+    do {
+      for (int i = 0; i < pSyncNode->peersNum; ++i) {
+        SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->peersId[i]));
+        syncHbTimerStart(pSyncNode, pSyncTimer);
+      }
+    } while (0);
+  }
 
   return ret;
 }
@@ -2954,6 +2958,8 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg, SyncI
 }
 
 int32_t syncNodeOnClientRequest(SSyncNode* ths, SyncClientRequest* pMsg, SyncIndex* pRetIndex) {
+  syncNodeEventLog(ths, "on client request");
+
   int32_t ret = 0;
   int32_t code = 0;
 
@@ -3003,6 +3009,8 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SyncClientRequest* pMsg, SyncInd
 }
 
 int32_t syncNodeOnClientRequestBatchCb(SSyncNode* ths, SyncClientRequestBatch* pMsg) {
+  syncNodeEventLog(ths, "on client request batch");
+
   int32_t code = 0;
 
   if (ths->state != TAOS_SYNC_STATE_LEADER) {
