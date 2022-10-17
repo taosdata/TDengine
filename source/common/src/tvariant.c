@@ -366,6 +366,7 @@ static int32_t toBinary(SVariant *pVariant, char **pDest, int32_t *pDestSize) {
   }
 
   if (pBuf != NULL) {
+    taosMemoryFree(pVariant->pz);
     *pDest = pBuf;
   }
 
