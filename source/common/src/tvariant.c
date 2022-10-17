@@ -28,10 +28,6 @@
       *exti = -1;                                                   \
       break;                                                        \
     }                                                               \
-    if ((res) > (maxv)) {                                           \
-      *exti = 1;                                                    \
-      break;                                                        \
-    }                                                               \
     assert(0);                                                      \
   } while (0)
 
