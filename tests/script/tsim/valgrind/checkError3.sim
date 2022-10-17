@@ -62,7 +62,16 @@ system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start -v
 
 print =============== stepa: query data
-sql select * from c1
+
+$x = 0
+steps: 
+	$x = $x + 1
+	sleep 500
+	if $x == 50 then
+		return -1
+	endi
+sql select * from c1 -x steps
+
 sql select * from stb
 sql select * from stb_1
 sql select ts, c1, c2, c3 from c1

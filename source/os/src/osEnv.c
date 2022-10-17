@@ -87,11 +87,17 @@ void osUpdate() {
 
 void osCleanup() {}
 
-bool osLogSpaceAvailable() { return tsLogSpace.reserved <= tsLogSpace.size.avail; }
+bool osLogSpaceAvailable() { return tsLogSpace.size.avail > 0; }
 
-bool osDataSpaceAvailable() { return tsDataSpace.reserved <= tsDataSpace.size.avail; }
+bool osDataSpaceAvailable() { return tsDataSpace.size.avail > 0; }
 
-bool osTempSpaceAvailable() { return tsTempSpace.reserved <= tsTempSpace.size.avail; }
+bool osTempSpaceAvailable() { return tsTempSpace.size.avail > 0; }
+
+bool osLogSpaceSufficient() { return tsLogSpace.size.avail > tsLogSpace.reserved; }
+
+bool osDataSpaceSufficient() { return tsDataSpace.size.avail > tsDataSpace.reserved; }
+
+bool osTempSpaceSufficient() { return tsTempSpace.size.avail > tsTempSpace.reserved; }
 
 void osSetTimezone(const char *timezone) { taosSetSystemTimezone(timezone, tsTimezoneStr, &tsDaylight, &tsTimezone); }
 

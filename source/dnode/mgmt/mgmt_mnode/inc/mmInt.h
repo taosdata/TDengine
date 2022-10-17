@@ -41,8 +41,8 @@ typedef struct SMnodeMgmt {
 } SMnodeMgmt;
 
 // mmFile.c
-int32_t mmReadFile(SMnodeMgmt *pMgmt, SReplica *pReplica, bool *pDeployed);
-int32_t mmWriteFile(SMnodeMgmt *pMgmt, const SReplica *pReplica, bool deployed);
+int32_t mmReadFile(const char *path, SMnodeOpt *pOption);
+int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption);
 
 // mmHandle.c
 SArray *mmGetMsgHandles();

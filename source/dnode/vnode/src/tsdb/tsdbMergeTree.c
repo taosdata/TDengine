@@ -133,8 +133,15 @@ static SBlockData *loadLastBlock(SLDataIter *pIter, const char *idStr) {
       id.uid = pIter->uid;
     }
 
-    tBlockDataInit(pBlock, &id, pInfo->pSchema, pInfo->colIds, pInfo->numOfCols);
+    code = tBlockDataInit(pBlock, &id, pInfo->pSchema, pInfo->colIds, pInfo->numOfCols);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _exit;
+    }
+
     code = tsdbReadSttBlock(pIter->pReader, pIter->iStt, pIter->pSttBlk, pBlock);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _exit;
+    }
 
     double el = (taosGetTimestampUs() - st) / 1000.0;
     pInfo->elapsedTime += el;
@@ -543,6 +550,7 @@ int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFRead
 
   pMTree->pLoadInfo = pBlockLoadInfo;
   pMTree->destroyLoadInfo = destroyLoadInfo;
+  ASSERT(pMTree->pLoadInfo != NULL);
 
   for (int32_t i = 0; i < pFReader->pSet->nSttF; ++i) {  // open all last file
     struct SLDataIter *pIter = NULL;

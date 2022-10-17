@@ -1113,15 +1113,24 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
 static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, bool keep,
                                                 int32_t status);
 
-void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColMatchInfo) {
+void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColMatchInfo, SFilterInfo* pFilterInfo) {
   if (pFilterNode == NULL || pBlock->info.rows == 0) {
     return;
   }
 
-  SFilterInfo* filter = NULL;
+  SFilterInfo* filter = pFilterInfo;
+  int64_t st = taosGetTimestampUs();
+
+//  pError("start filter");
 
   // todo move to the initialization function
-  int32_t            code = filterInitFromNode((SNode*)pFilterNode, &filter, 0);
+  int32_t code = 0;
+  bool needFree = false;
+  if (filter == NULL) {
+    needFree = true;
+    code = filterInitFromNode((SNode*)pFilterNode, &filter, 0);
+  }
+
   SFilterColumnParam param1 = {.numOfCols = taosArrayGetSize(pBlock->pDataBlock), .pDataBlock = pBlock->pDataBlock};
   code = filterSetDataFromSlotId(filter, &param1);
 
@@ -1130,7 +1139,10 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColM
 
   // todo the keep seems never to be True??
   bool keep = filterExecute(filter, pBlock, &p, NULL, param1.numOfCols, &status);
-  filterFreeInfo(filter);
+
+  if (needFree) {
+    filterFreeInfo(filter);
+  }
 
   extractQualifiedTupleByFilterResult(pBlock, p, keep, status);
 
@@ -1845,6 +1857,7 @@ static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInf
     SResFetchReq* pMsg = taosMemoryCalloc(1, sizeof(SResFetchReq));
     if (NULL == pMsg) {
       pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      taosMemoryFree(pWrapper);
       return pTaskInfo->code;
     }
 
@@ -2479,7 +2492,7 @@ static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
   while (1) {
     doBuildResultDatablock(pOperator, pInfo, &pAggInfo->groupResInfo, pAggInfo->aggSup.pResultBuf);
-    doFilter(pAggInfo->pCondition, pInfo->pRes, NULL);
+    doFilter(pAggInfo->pCondition, pInfo->pRes, NULL, NULL);
 
     if (!hasRemainResults(&pAggInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
@@ -2873,7 +2886,7 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
       break;
     }
 
-    doFilter(pInfo->pCondition, fillResult, pInfo->pColMatchColInfo);
+    doFilter(pInfo->pCondition, fillResult, pInfo->pColMatchColInfo, NULL);
     if (fillResult->info.rows > 0) {
       break;
     }
@@ -3049,6 +3062,12 @@ void cleanupExprSupp(SExprSupp* pSupp) {
     destroyExprInfo(pSupp->pExprInfo, pSupp->numOfExprs);
     taosMemoryFreeClear(pSupp->pExprInfo);
   }
+
+  if (pSupp->pFilterInfo != NULL) {
+    filterFreeInfo(pSupp->pFilterInfo);
+    pSupp->pFilterInfo = NULL;
+  }
+
   taosMemoryFree(pSupp->rowEntryInfoOffset);
 }
 
