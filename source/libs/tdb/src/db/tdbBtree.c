@@ -121,6 +121,7 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, char const *tbname, SPg
 
     ret = tdbPagerWrite(pPager, pPage);
     if (ret < 0) {
+      tdbError("failed to write page since %s", terrstr());
       return -1;
     }
 
@@ -483,9 +484,8 @@ static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild, TXN
 
   ret = tdbPagerWrite(pPager, pChild);
   if (ret < 0) {
-    // TODO
-    ASSERT(0);
-    return 0;
+    tdbError("failed to write page since %s", terrstr());
+    return -1;
   }
 
   // Copy the root page content to the child page
@@ -556,8 +556,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
 
       ret = tdbPagerWrite(pBt->pPager, pOlds[i]);
       if (ret < 0) {
-        // TODO
-        ASSERT(0);
+        tdbError("failed to write page since %s", terrstr());
         return -1;
       }
     }
@@ -583,8 +582,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
 
     ret = tdbPagerWrite(pBt->pPager, pParent);
     if (ret < 0) {
-      // TODO
-      ASSERT(0);
+      tdbError("failed to write page since %s", terrstr());
       return -1;
     }
 
@@ -719,8 +717,7 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
 
         ret = tdbPagerWrite(pBt->pPager, pNews[iNew]);
         if (ret < 0) {
-          // TODO
-          ASSERT(0);
+          tdbError("failed to write page since %s", terrstr());
           return -1;
         }
       }
@@ -937,7 +934,7 @@ static int tdbFetchOvflPage(SPgno *pPgno, SPage **ppOfp, TXN *pTxn, SBTree *pBt)
   // mark dirty
   ret = tdbPagerWrite(pBt->pPager, *ppOfp);
   if (ret < 0) {
-    ASSERT(0);
+    tdbError("failed to write page since %s", terrstr());
     return -1;
   }
 
@@ -1942,7 +1939,7 @@ int tdbBtcDelete(SBTC *pBtc) {
   // drop the cell on the leaf
   ret = tdbPagerWrite(pPager, pBtc->pPage);
   if (ret < 0) {
-    ASSERT(0);
+    tdbError("failed to write page since %s", terrstr());
     return -1;
   }
 
@@ -1964,7 +1961,7 @@ int tdbBtcDelete(SBTC *pBtc) {
         if (idx < nCells) {
           ret = tdbPagerWrite(pPager, pPage);
           if (ret < 0) {
-            ASSERT(0);
+            tdbError("failed to write page since %s", terrstr());
             return -1;
           }
 
@@ -2029,7 +2026,7 @@ int tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pData, int 
   // mark dirty
   ret = tdbPagerWrite(pBtc->pBt->pPager, pBtc->pPage);
   if (ret < 0) {
-    ASSERT(0);
+    tdbError("failed to write page since %s", terrstr());
     return -1;
   }
 

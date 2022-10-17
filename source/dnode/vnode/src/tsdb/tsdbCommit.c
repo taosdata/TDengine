@@ -1045,7 +1045,9 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
   STsdb     *pTsdb = pCommitter->pTsdb;
   SMemTable *pMemTable = pTsdb->imem;
 
-  ASSERT(eno == 0);
+  ASSERT(eno == 0 &&
+    "tsdbCommit failure"
+    "Restart taosd");
 
   code = tsdbFSCommit1(pTsdb, &pCommitter->fs);
   TSDB_CHECK_CODE(code, lino, _exit);
