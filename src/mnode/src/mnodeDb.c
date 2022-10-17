@@ -1013,9 +1013,9 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
     newCfg.daysToKeep2 = daysToKeep2;
   }
 
-  if (minRows > 0 && minRows != pDb->cfg.minRowsPerFileBlock) {
-    mError("db:%s, can't alter minRows option", pDb->name);
-    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+  if (minRows >= 0 && minRows != pDb->cfg.minRowsPerFileBlock) {
+    mDebug("db:%s, minRows:%d change to %d", pDb->name, pDb->cfg.minRowsPerFileBlock, minRows);
+    newCfg.minRowsPerFileBlock = minRows;
   }
 
   if (maxRows > 0 && maxRows != pDb->cfg.maxRowsPerFileBlock) {
