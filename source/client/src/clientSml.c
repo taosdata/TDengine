@@ -2648,7 +2648,7 @@ TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLines, int pr
     return NULL;
   }
 
-  if (!lines || numLines <= 0) {
+  if (!lines) {
     SSmlMsgBuf msg = {ERROR_MSG_BUF_DEFAULT_SIZE, request->msgBuf};
     request->code = TSDB_CODE_SML_INVALID_DATA;
     smlBuildInvalidDataMsg(&msg, "lines is null", NULL);
