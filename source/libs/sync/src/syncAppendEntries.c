@@ -1042,6 +1042,43 @@ int32_t syncNodeOnAppendEntriesSnapshotCb(SSyncNode* ths, SyncAppendEntries* pMs
   return ret;
 }
 
+int32_t syncNodeFollowerCommit(SSyncNode* ths, SyncIndex newCommitIndex) {
+  // maybe update commit index, leader notice me
+  if (newCommitIndex > ths->commitIndex) {
+    // has commit entry in local
+    if (newCommitIndex <= ths->pLogStore->syncLogLastIndex(ths->pLogStore)) {
+      // advance commit index to sanpshot first
+      SSnapshot snapshot;
+      ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
+      if (snapshot.lastApplyIndex >= 0 && snapshot.lastApplyIndex > ths->commitIndex) {
+        SyncIndex commitBegin = ths->commitIndex;
+        SyncIndex commitEnd = snapshot.lastApplyIndex;
+        ths->commitIndex = snapshot.lastApplyIndex;
+
+        char eventLog[128];
+        snprintf(eventLog, sizeof(eventLog), "commit by snapshot from index:%" PRId64 " to index:%" PRId64, commitBegin,
+                 commitEnd);
+        syncNodeEventLog(ths, eventLog);
+      }
+
+      SyncIndex beginIndex = ths->commitIndex + 1;
+      SyncIndex endIndex = newCommitIndex;
+
+      // update commit index
+      ths->commitIndex = newCommitIndex;
+
+      // call back Wal
+      int32_t code = ths->pLogStore->updateCommitIndex(ths->pLogStore, ths->commitIndex);
+      ASSERT(code == 0);
+
+      code = syncNodeCommit(ths, beginIndex, endIndex, ths->state);
+      ASSERT(code == 0);
+    }
+  }
+
+  return 0;
+}
+
 int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
   // prepare response msg
   SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
@@ -1092,16 +1129,25 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
     SyncIndex       appendIndex = pMsg->prevLogIndex + 1;
     SSyncRaftEntry* pLocalEntry = NULL;
     int32_t         code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, appendIndex, &pLocalEntry);
-    ASSERT(code == 0);
-
-    if (pLocalEntry->term == pAppendEntry->term) {
-      // do nothing
-    } else {
+    if (code != 0 && terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
       code = ths->pLogStore->syncLogTruncate(ths->pLogStore, appendIndex);
       ASSERT(code == 0);
 
       code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
       ASSERT(code == 0);
+
+    } else {
+      ASSERT(code == 0);
+
+      if (pLocalEntry->term == pAppendEntry->term) {
+        // do nothing
+      } else {
+        code = ths->pLogStore->syncLogTruncate(ths->pLogStore, appendIndex);
+        ASSERT(code == 0);
+
+        code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
+        ASSERT(code == 0);
+      }
     }
 
     syncEntryDestory(pLocalEntry);
@@ -1112,37 +1158,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
   pReply->matchIndex = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
 
   // maybe update commit index, leader notice me
-  if (pMsg->commitIndex > ths->commitIndex) {
-    // has commit entry in local
-    if (pMsg->commitIndex <= ths->pLogStore->syncLogLastIndex(ths->pLogStore)) {
-      // advance commit index to sanpshot first
-      SSnapshot snapshot;
-      ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
-      if (snapshot.lastApplyIndex >= 0 && snapshot.lastApplyIndex > ths->commitIndex) {
-        SyncIndex commitBegin = ths->commitIndex;
-        SyncIndex commitEnd = snapshot.lastApplyIndex;
-        ths->commitIndex = snapshot.lastApplyIndex;
-
-        char eventLog[128];
-        snprintf(eventLog, sizeof(eventLog), "commit by snapshot from index:%" PRId64 " to index:%" PRId64, commitBegin,
-                 commitEnd);
-        syncNodeEventLog(ths, eventLog);
-      }
-
-      SyncIndex beginIndex = ths->commitIndex + 1;
-      SyncIndex endIndex = pMsg->commitIndex;
-
-      // update commit index
-      ths->commitIndex = pMsg->commitIndex;
-
-      // call back Wal
-      int32_t code = ths->pLogStore->updateCommitIndex(ths->pLogStore, ths->commitIndex);
-      ASSERT(code == 0);
-
-      code = syncNodeCommit(ths, beginIndex, endIndex, ths->state);
-      ASSERT(code == 0);
-    }
-  }
+  syncNodeFollowerCommit(ths, pMsg->commitIndex);
 
   goto _SEND_RESPONSE;
 

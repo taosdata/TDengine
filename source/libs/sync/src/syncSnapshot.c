@@ -41,6 +41,8 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
     }
     memset(pSender, 0, sizeof(*pSender));
 
+    int64_t timeNow = taosGetTimestampMs();
+
     pSender->start = false;
     pSender->seq = SYNC_SNAPSHOT_SEQ_INVALID;
     pSender->ack = SYNC_SNAPSHOT_SEQ_INVALID;
@@ -51,7 +53,8 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
     pSender->pSyncNode = pSyncNode;
     pSender->replicaIndex = replicaIndex;
     pSender->term = pSyncNode->pRaftStore->currentTerm;
-    pSender->privateTerm = taosGetTimestampMs() + 100;
+    pSender->privateTerm = timeNow + 100;
+    pSender->startTime = timeNow;
     pSender->pSyncNode->pFsm->FpGetSnapshotInfo(pSender->pSyncNode->pFsm, &(pSender->snapshot));
     pSender->finish = false;
   } else {
@@ -402,7 +405,21 @@ char *snapshotSender2SimpleStr(SSyncSnapshotSender *pSender, char *event) {
   return s;
 }
 
-int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId) { return 0; }
+int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId) {
+  // calculate <start, end> index
+
+  SSyncSnapshotSender *pSender = syncNodeGetSnapshotSender(pSyncNode, pDestId);
+  if (pSender == NULL) {
+    // create sender
+  } else {
+    // if <start, end> is same
+    // return 0;
+  }
+
+  // send begin msg
+
+  return 0;
+}
 
 // -------------------------------------
 SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId fromId) {

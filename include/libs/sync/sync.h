@@ -244,6 +244,9 @@ int32_t syncReconfigBuild(int64_t rid, const SSyncCfg* pNewCfg, SRpcMsg* pRpcMsg
 int32_t syncLeaderTransfer(int64_t rid);
 int32_t syncLeaderTransferTo(int64_t rid, SNodeInfo newLeader);
 
+int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex);
+int32_t syncEndSnapshot(int64_t rid);
+
 #ifdef __cplusplus
 }
 #endif

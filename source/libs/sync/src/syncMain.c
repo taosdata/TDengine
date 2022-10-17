@@ -288,6 +288,51 @@ int32_t syncLeaderTransferTo(int64_t rid, SNodeInfo newLeader) {
   return ret;
 }
 
+int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return -1;
+  }
+  ASSERT(rid == pSyncNode->rid);
+  int32_t code = 0;
+
+  if (pSyncNode->replicaNum == 1) {
+    SSyncLogStoreData* pData = pSyncNode->pLogStore->data;
+    code = walBeginSnapshot(pData->pWal, lastApplyIndex);
+  } else {
+    SyncIndex snapshottingIndex = atomic_load_64(&pSyncNode->snapshottingIndex);
+
+    if (snapshottingIndex == SYNC_INDEX_INVALID) {
+      atomic_store_64(&pSyncNode->snapshottingIndex, lastApplyIndex);
+
+      SSyncLogStoreData* pData = pSyncNode->pLogStore->data;
+      code = walBeginSnapshot(pData->pWal, lastApplyIndex);
+
+    } else {
+      sError("vgId:%d snapshotting index:%ld, lastApplyIndex:%ld", snapshottingIndex, lastApplyIndex);
+    }
+  }
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return code;
+}
+
+int32_t syncEndSnapshot(int64_t rid) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return -1;
+  }
+  ASSERT(rid == pSyncNode->rid);
+
+  SSyncLogStoreData* pData = pSyncNode->pLogStore->data;
+  int32_t            code = walEndSnapshot(pData->pWal);
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return code;
+}
+
 int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
   if (pSyncNode->peersNum == 0) {
     sDebug("only one replica, cannot leader transfer");
@@ -1231,6 +1276,9 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   pSyncNode->leaderTime = timeNow;
   pSyncNode->lastReplicateTime = timeNow;
 
+  // snapshotting
+  atomic_store_64(&pSyncNode->snapshottingIndex, SYNC_INDEX_INVALID);
+
   syncNodeEventLog(pSyncNode, "sync open");
 
   return pSyncNode;
@@ -1423,11 +1471,13 @@ int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms) {
                  &pSyncNode->pElectTimer);
     atomic_store_64(&pSyncNode->electTimerLogicClock, pSyncNode->electTimerLogicClockUser);
 
-    do {
-      char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "elect timer reset, ms:%d", ms);
-      syncNodeEventLog(pSyncNode, logBuf);
-    } while (0);
+    /*
+        do {
+          char logBuf[128];
+          snprintf(logBuf, sizeof(logBuf), "elect timer reset, ms:%d", ms);
+          syncNodeEventLog(pSyncNode, logBuf);
+        } while (0);
+    */
 
   } else {
     sError("vgId:%d, start elect timer error, sync env is stop", pSyncNode->vgId);
@@ -1441,7 +1491,7 @@ int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode) {
   taosTmrStop(pSyncNode->pElectTimer);
   pSyncNode->pElectTimer = NULL;
 
-  sTrace("vgId:%d, sync %s stop elect timer", pSyncNode->vgId, syncUtilState2String(pSyncNode->state));
+  // sTrace("vgId:%d, sync %s stop elect timer", pSyncNode->vgId, syncUtilState2String(pSyncNode->state));
   return ret;
 }
 
@@ -2334,6 +2384,10 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
   // Raft 3.6.2 Committing entries from previous terms
   syncNodeAppendNoop(pSyncNode);
   syncMaybeAdvanceCommitIndex(pSyncNode);
+
+  if (pSyncNode->replicaNum > 1) {
+    syncNodeDoReplicate(pSyncNode);
+  }
 }
 
 bool syncNodeIsMnode(SSyncNode* pSyncNode) { return (pSyncNode->vgId == 1); }
@@ -2868,8 +2922,12 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg) {
   }
 
   if (pMsg->term == ths->pRaftStore->currentTerm) {
-    sInfo("vgId:%d, heartbeat reset timer", 1);
+    // sInfo("vgId:%d, heartbeat reset timer", ths->vgId);
     syncNodeResetElectTimer(ths);
+
+    if (ths->state == TAOS_SYNC_STATE_FOLLOWER) {
+      syncNodeFollowerCommit(ths, pMsg->commitIndex);
+    }
   }
 
   /*

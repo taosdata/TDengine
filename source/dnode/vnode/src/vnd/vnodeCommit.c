@@ -15,7 +15,7 @@
 
 #include "vnd.h"
 
-#define VND_INFO_FNAME     "vnode.json"
+#define VND_INFO_FNAME "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
 
 static int  vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData);
@@ -236,7 +236,9 @@ int vnodeCommit(SVnode *pVnode) {
     ASSERT(0);
     return -1;
   }
-  walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
+
+  // walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
+  syncBeginSnapshot(pVnode->sync, pVnode->state.applied);
 
   // preCommit
   // smaSyncPreCommit(pVnode->pSma);
@@ -301,7 +303,8 @@ int vnodeCommit(SVnode *pVnode) {
   }
 
   // apply the commit (TODO)
-  walEndSnapshot(pVnode->pWal);
+  // walEndSnapshot(pVnode->pWal);
+  syncEndSnapshot(pVnode->sync);
 
   vInfo("vgId:%d, commit end", TD_VID(pVnode));
 

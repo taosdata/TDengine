@@ -196,6 +196,8 @@ typedef struct SSyncNode {
   // is config changing
   bool changing;
 
+  int64_t snapshottingIndex;
+
   int64_t startTime;
   int64_t leaderTime;
   int64_t lastReplicateTime;
