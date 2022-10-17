@@ -2199,7 +2199,7 @@ static int32_t smlParseTelnetLine(SSmlHandle *info, void *data, const int len) {
   }
 
   if (info->protocol == TSDB_SML_TELNET_PROTOCOL) {
-    ret = smlParseTelnetString(info, (const char *)data, data + len, tinfo, cols);
+    ret = smlParseTelnetString(info, (const char *)data, POINTER_SHIFT(data, len), tinfo, cols);
   } else if (info->protocol == TSDB_SML_JSON_PROTOCOL) {
     ret = smlParseJSONString(info, (cJSON *)data, tinfo, cols);
   } else {
