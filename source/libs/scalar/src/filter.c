@@ -1214,7 +1214,7 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
 
 int32_t filterAddUnitFromUnit(SFilterInfo *dst, SFilterInfo *src, SFilterUnit *u, uint32_t *uidx) {
   SFilterFieldId left, right, *pright = &right;
-  int32_t        type = FILTER_UNIT_DATA_TYPE(u);
+  uint8_t        type = FILTER_UNIT_DATA_TYPE(u);
   uint16_t       flag = 0;
 
   filterAddField(dst, FILTER_UNIT_COL_DESC(src, u), NULL, FLD_TYPE_COLUMN, &left, 0, false);
@@ -2614,7 +2614,7 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
         int32_t usize = (int32_t)taosArrayGetSize((SArray *)colInfo->info);
 
         for (int32_t n = 0; n < usize; ++n) {
-          SFilterUnit *u = taosArrayGetP((SArray *)colInfo->info, n);
+          SFilterUnit *u = (SFilterUnit *)taosArrayGetP((SArray *)colInfo->info, n);
 
           filterAddUnitFromUnit(info, &oinfo, u, &uidx);
           filterAddUnitToGroup(&ng, uidx);
