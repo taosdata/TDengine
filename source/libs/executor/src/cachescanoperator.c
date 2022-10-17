@@ -193,6 +193,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       pInfo->currentGroupIndex += 1;
 
       // check for tag values
+      // TODO NOTE: The uid of pInfo->pRes is required.
       if (pInfo->pRes->info.rows > 0) {
         if (pInfo->pseudoExprSup.numOfExprs > 0) {
           SExprSupp* pSup = &pInfo->pseudoExprSup;
