@@ -1506,7 +1506,12 @@ static FORCE_INLINE STSchema* doGetSchemaForTSRow(int32_t sversion, STsdbReader*
   if (pReader->pMemSchema == NULL) {
     int32_t code =
         metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, pReader->suid, uid, sversion, &pReader->pMemSchema);
-    return pReader->pMemSchema;
+    if (code != TSDB_CODE_SUCCESS) {
+      terrno = code;
+      return NULL;
+    } else {
+      return pReader->pMemSchema;
+    }
   }
 
   if (pReader->pMemSchema->version == sversion) {
@@ -1518,9 +1523,9 @@ static FORCE_INLINE STSchema* doGetSchemaForTSRow(int32_t sversion, STsdbReader*
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     return NULL;
+  } else {
+    return pReader->pMemSchema;
   }
-
-  return pReader->pMemSchema;
 }
 
 static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* pBlockScanInfo, TSDBROW* pRow,
@@ -1816,7 +1821,11 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     if (minKey == key) {
       init = true;
       TSDBROW fRow = tsdbRowFromBlockData(pBlockData, pDumpInfo->rowIndex);
-      tRowMergerInit(&merge, &fRow, pReader->pSchema);
+      int32_t code = tRowMergerInit(&merge, &fRow, pReader->pSchema);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+
       doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pReader, &merge);
     }
 
@@ -1826,8 +1835,12 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
         tRowMerge(&merge, &fRow1);
       } else {
         init = true;
-        tRowMergerInit(&merge, &fRow1, pReader->pSchema);
+        int32_t code = tRowMergerInit(&merge, &fRow1, pReader->pSchema);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       }
+
       doMergeRowsInLastBlock(pLastBlockReader, pBlockScanInfo, tsLast, &merge);
     }
 
@@ -1837,7 +1850,10 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
       } else {
         init = true;
         STSchema* pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(piRow), pReader, pBlockScanInfo->uid);
-        tRowMergerInit(&merge, piRow, pSchema);
+        int32_t code = tRowMergerInit(&merge, piRow, pSchema);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       }
       doMergeRowsInBuf(&pBlockScanInfo->iiter, pBlockScanInfo->uid, ik.ts, pBlockScanInfo->delSkyline, &merge, pReader);
     }
@@ -1847,7 +1863,10 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
         tRowMerge(&merge, pRow);
       } else {
         STSchema* pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(pRow), pReader, pBlockScanInfo->uid);
-        tRowMergerInit(&merge, pRow, pSchema);
+        int32_t code = tRowMergerInit(&merge, pRow, pSchema);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       }
       doMergeRowsInBuf(&pBlockScanInfo->iter, pBlockScanInfo->uid, k.ts, pBlockScanInfo->delSkyline, &merge, pReader);
     }
@@ -1855,7 +1874,11 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     if (minKey == k.ts) {
       init = true;
       STSchema* pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(pRow), pReader, pBlockScanInfo->uid);
-      tRowMergerInit(&merge, pRow, pSchema);
+      int32_t code = tRowMergerInit(&merge, pRow, pSchema);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+
       doMergeRowsInBuf(&pBlockScanInfo->iter, pBlockScanInfo->uid, k.ts, pBlockScanInfo->delSkyline, &merge, pReader);
     }
 
@@ -1865,7 +1888,10 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
       } else {
         init = true;
         STSchema* pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(piRow), pReader, pBlockScanInfo->uid);
-        tRowMergerInit(&merge, piRow, pSchema);
+        int32_t code = tRowMergerInit(&merge, piRow, pSchema);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       }
       doMergeRowsInBuf(&pBlockScanInfo->iiter, pBlockScanInfo->uid, ik.ts, pBlockScanInfo->delSkyline, &merge, pReader);
     }
@@ -1876,7 +1902,10 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
         tRowMerge(&merge, &fRow1);
       } else {
         init = true;
-        tRowMergerInit(&merge, &fRow1, pReader->pSchema);
+        int32_t code = tRowMergerInit(&merge, &fRow1, pReader->pSchema);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       }
       doMergeRowsInLastBlock(pLastBlockReader, pBlockScanInfo, tsLast, &merge);
     }
@@ -1884,7 +1913,10 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     if (minKey == key) {
       TSDBROW fRow = tsdbRowFromBlockData(pBlockData, pDumpInfo->rowIndex);
       if (!init) {
-        tRowMergerInit(&merge, &fRow, pReader->pSchema);
+        int32_t code = tRowMergerInit(&merge, &fRow, pReader->pSchema);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       } else {
         tRowMerge(&merge, &fRow);
       }
@@ -3046,19 +3078,30 @@ int32_t doMergeMemTableMultiRows(TSDBROW* pRow, uint64_t uid, SIterInfo* pIter, 
   SRowMerger merge = {0};
 
   // get the correct schema for data in memory
+  terrno = 0;
   STSchema* pTSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(&current), pReader, uid);
+  if (pTSchema == NULL) {
+    return terrno;
+  }
 
   if (pReader->pSchema == NULL) {
     pReader->pSchema = pTSchema;
   }
 
-  tRowMergerInit2(&merge, pReader->pSchema, &current, pTSchema);
+  int32_t code = tRowMergerInit2(&merge, pReader->pSchema, &current, pTSchema);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   STSchema* pTSchema1 = doGetSchemaForTSRow(TSDBROW_SVERSION(pNextRow), pReader, uid);
+  if(pTSchema1 == NULL) {
+    return terrno;
+  }
+
   tRowMergerAdd(&merge, pNextRow, pTSchema1);
 
   doMergeRowsInBuf(pIter, uid, current.pTSRow->ts, pDelList, &merge, pReader);
-  int32_t code = tRowMergerGetRow(&merge, pTSRow);
+  code = tRowMergerGetRow(&merge, pTSRow);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
