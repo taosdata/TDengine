@@ -119,7 +119,7 @@ int smlProcess_json1_Test() {
       "           \"dc\": \"lga\""
       "        }"
       "    }"
-      "]"};
+      "]",};
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
@@ -159,7 +159,7 @@ int smlProcess_json2_Test() {
       "       },"
       "       \"id\": \"d1001\""
       "    }"
-      "}"};
+      "}",};
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
@@ -227,7 +227,7 @@ int smlProcess_json3_Test() {
       "       },"
       "       \"id\": \"d1001\""
       "    }"
-      "}"};
+      "}",};
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
@@ -286,7 +286,7 @@ int smlProcess_json4_Test() {
       "       \"t9\": false,"
       "       \"id\": \"d1001\""
       "    }"
-      "}"};
+      "}",};
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
