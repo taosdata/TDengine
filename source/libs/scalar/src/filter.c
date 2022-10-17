@@ -1644,7 +1644,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
 
         SFilterField *left = FILTER_UNIT_LEFT_FIELD(info, unit);
         SColumnNode  *refNode = (SColumnNode *)left->desc;
-        if (unit->compare.optr >= 0 && unit->compare.optr <= OP_TYPE_JSON_CONTAINS) {
+        if (unit->compare.optr <= OP_TYPE_JSON_CONTAINS) {
           len = sprintf(str, "UNIT[%d] => [%d][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId,
                         operatorTypeStr(unit->compare.optr));
         }
@@ -1664,7 +1664,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
 
         if (unit->compare.optr2) {
           strcat(str, " && ");
-          if (unit->compare.optr2 >= 0 && unit->compare.optr2 <= OP_TYPE_JSON_CONTAINS) {
+          if (unit->compare.optr2 <= OP_TYPE_JSON_CONTAINS) {
             sprintf(str + strlen(str), "[%d][%d]  %s  [", refNode->dataBlockId, refNode->slotId,
                     operatorTypeStr(unit->compare.optr2));
           }
