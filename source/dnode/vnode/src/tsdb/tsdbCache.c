@@ -1181,7 +1181,7 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, SArray **ppCo
 
   // build the result ts row here
   *dup = false;
-  if (taosArrayGetSize(pColArray) == nCol) {
+  if (taosArrayGetSize(pColArray) != nCol) {
     *ppColArray = NULL;
     taosArrayDestroy(pColArray);
   } else {
