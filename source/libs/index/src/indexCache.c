@@ -538,7 +538,7 @@ int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   idxCacheRef(pCache);
   // encode data
   CacheTerm* ct = taosMemoryCalloc(1, sizeof(CacheTerm));
-  if (cache == NULL) {
+  if (ct == NULL) {
     return -1;
   }
   // set up key
@@ -730,15 +730,17 @@ static int32_t idxCacheJsonTermCompare(const void* l, const void* r) {
   return cmp;
 }
 static MemTable* idxInternalCacheCreate(int8_t type) {
-  int ttype = IDX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? TSDB_DATA_TYPE_BINARY : TSDB_DATA_TYPE_BINARY;
+  // int ttype = IDX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? TSDB_DATA_TYPE_BINARY :
+  // TSDB_DATA_TYPE_BINARY;
+  int ttype = TSDB_DATA_TYPE_BINARY;
   int32_t (*cmpFn)(const void* l, const void* r) =
       IDX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? idxCacheJsonTermCompare : idxCacheTermCompare;
 
   MemTable* tbl = taosMemoryCalloc(1, sizeof(MemTable));
   idxMemRef(tbl);
-  if (ttype == TSDB_DATA_TYPE_BINARY || ttype == TSDB_DATA_TYPE_NCHAR) {
-    tbl->mem = tSkipListCreate(MAX_SKIP_LIST_LEVEL, ttype, MAX_INDEX_KEY_LEN, cmpFn, SL_ALLOW_DUP_KEY, idxCacheTermGet);
-  }
+  // if (ttype == TSDB_DATA_TYPE_BINARY || ttype == TSDB_DATA_TYPE_NCHAR) {
+  tbl->mem = tSkipListCreate(MAX_SKIP_LIST_LEVEL, ttype, MAX_INDEX_KEY_LEN, cmpFn, SL_ALLOW_DUP_KEY, idxCacheTermGet);
+  //}
   return tbl;
 }
 
