@@ -327,14 +327,16 @@ static void sdbCheckRow(SSdb *pSdb, SSdbRow *pRow) {
   taosThreadRwlockUnlock(pLock);
 }
 
-void sdbRelease(SSdb *pSdb, void *pObj) {
+void sdbReleaseLock(SSdb *pSdb, void *pObj, bool lock) {
   if (pObj == NULL) return;
 
   SSdbRow *pRow = (SSdbRow *)((char *)pObj - sizeof(SSdbRow));
   if (pRow->type >= SDB_MAX) return;
 
   TdThreadRwlock *pLock = &pSdb->locks[pRow->type];
-  taosThreadRwlockWrlock(pLock);
+  if (lock) {
+    taosThreadRwlockWrlock(pLock);
+  }
 
   int32_t ref = atomic_sub_fetch_32(&pRow->refCount, 1);
   sdbPrintOper(pSdb, pRow, "release");
@@ -342,8 +344,12 @@ void sdbRelease(SSdb *pSdb, void *pObj) {
     sdbFreeRow(pSdb, pRow, true);
   }
 
-  taosThreadRwlockUnlock(pLock);
+  if (lock) {
+    taosThreadRwlockUnlock(pLock);
+  }
 }
+
+void sdbRelease(SSdb *pSdb, void *pObj) { sdbReleaseLock(pSdb, pObj, true); }
 
 void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj) {
   *ppObj = NULL;
@@ -372,14 +378,16 @@ void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj) {
   return ppRow;
 }
 
-void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStatus *status) {
+void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStatus *status, bool lock) {
   *ppObj = NULL;
 
   SHashObj *hash = sdbGetHash(pSdb, type);
   if (hash == NULL) return NULL;
 
   TdThreadRwlock *pLock = &pSdb->locks[type];
-  taosThreadRwlockRdlock(pLock);
+  if (lock) {
+    taosThreadRwlockRdlock(pLock);
+  }
 
   SSdbRow **ppRow = taosHashIterate(hash, pIter);
   while (ppRow != NULL) {
@@ -395,7 +403,9 @@ void *sdbFetchAll(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj, ESdbStat
     *status = pRow->status;
     break;
   }
-  taosThreadRwlockUnlock(pLock);
+  if (lock) {
+    taosThreadRwlockUnlock(pLock);
+  }
 
   return ppRow;
 }

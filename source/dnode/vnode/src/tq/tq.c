@@ -171,11 +171,11 @@ int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry) {
   ASSERT(taosArrayGetSize(pRsp->blockSchema) == 0);
 
   if (pRsp->reqOffset.type == TMQ_OFFSET__LOG) {
-    if (pRsp->blockNum > 0) {
-      ASSERT(pRsp->rspOffset.version > pRsp->reqOffset.version);
-    } else {
-      ASSERT(pRsp->rspOffset.version >= pRsp->reqOffset.version);
-    }
+    /*if (pRsp->blockNum > 0) {*/
+    /*ASSERT(pRsp->rspOffset.version > pRsp->reqOffset.version);*/
+    /*} else {*/
+    ASSERT(pRsp->rspOffset.version > pRsp->reqOffset.version);
+    /*}*/
   }
 
   int32_t len = 0;
@@ -890,7 +890,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask) {
 
   // expand executor
   if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
-    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false);
+    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false, -1, -1);
     if (pTask->pState == NULL) {
       return -1;
     }
@@ -904,7 +904,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask) {
     pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);
     ASSERT(pTask->exec.executor);
   } else if (pTask->taskLevel == TASK_LEVEL__AGG) {
-    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false);
+    pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false, -1, -1);
     if (pTask->pState == NULL) {
       return -1;
     }

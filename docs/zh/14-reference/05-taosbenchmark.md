@@ -231,7 +231,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **name** : 数据库名。
 
-- **drop** : 插入前是否删除数据库，默认为 true。
+- **drop** : 插入前是否删除数据库，可选项为 "yes" 或者 "no", 为 "no" 时不创建。默认删除。
 
 #### 流式计算相关配置参数
 

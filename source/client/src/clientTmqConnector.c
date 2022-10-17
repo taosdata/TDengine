@@ -212,7 +212,8 @@ JNIEXPORT void JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqCommitAsync(JN
   tmq_commit_async(tmq, res, commit_cb, consumer);
 }
 
-JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqUnsubscribeImp(JNIEnv *env, jobject jobj, jlong jtmq) {
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqUnsubscribeImp(JNIEnv *env, jobject jobj,
+                                                                                 jlong jtmq) {
   tmq_t *tmq = (tmq_t *)jtmq;
   if (tmq == NULL) {
     jniError("jobj:%p, tmq is closed", jobj);
@@ -223,7 +224,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqUnsubscribeImp
 }
 
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_tmq_TMQConnector_tmqConsumerCloseImp(JNIEnv *env, jobject jobj,
-                                                                                  jlong jtmq) {
+                                                                                   jlong jtmq) {
   tmq_t *tmq = (tmq_t *)jtmq;
   if (tmq == NULL) {
     jniDebug("jobj:%p, tmq is closed", jobj);

@@ -35,7 +35,7 @@ void test1() {
 void test2() {
   SyncClientRequest *pMsg = createMsg();
   uint32_t           len = pMsg->bytes;
-  char *             serialized = (char *)taosMemoryMalloc(len);
+  char              *serialized = (char *)taosMemoryMalloc(len);
   syncClientRequestSerialize(pMsg, serialized, len);
   SyncClientRequest *pMsg2 = syncClientRequestBuild(pMsg->dataLen);
   syncClientRequestDeserialize(serialized, len, pMsg2);
@@ -49,7 +49,7 @@ void test2() {
 void test3() {
   SyncClientRequest *pMsg = createMsg();
   uint32_t           len;
-  char *             serialized = syncClientRequestSerialize2(pMsg, &len);
+  char              *serialized = syncClientRequestSerialize2(pMsg, &len);
   SyncClientRequest *pMsg2 = syncClientRequestDeserialize2(serialized, len);
   syncClientRequestLog2((char *)"test3: syncClientRequestSerialize3 -> syncClientRequestDeserialize2 ", pMsg2);
 

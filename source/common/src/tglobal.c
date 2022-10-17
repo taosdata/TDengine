@@ -90,6 +90,7 @@ bool tsSmlDataFormat = false;
 
 // query
 int32_t tsQueryPolicy = 1;
+int32_t tsQueryRspPolicy = 0;
 int32_t tsQuerySmaOptimize = 0;
 int32_t tsQueryRsmaTolerance = 1000;  // the tolerance time (ms) to judge from which level to query rsma data.
 bool    tsQueryPlannerTrace = false;
@@ -350,6 +351,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "countAlwaysReturnValue", tsCountAlwaysReturnValue, 0, 1, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryBufferSize", tsQueryBufferSize, -1, 500000000000, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "printAuth", tsPrintAuth, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "queryRspPolicy", tsQueryRspPolicy, 0, 1, 0) != 0) return -1;
 
   if (cfgAddInt32(pCfg, "multiProcess", tsMultiProcess, 0, 2, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "mnodeShmSize", tsMnodeShmSize, TSDB_MAX_MSG_SIZE * 2 + 1024, INT32_MAX, 0) != 0) return -1;
@@ -728,6 +730,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsMonitorPort = (uint16_t)cfgGetItem(pCfg, "monitorPort")->i32;
   tsMonitorMaxLogs = cfgGetItem(pCfg, "monitorMaxLogs")->i32;
   tsMonitorComp = cfgGetItem(pCfg, "monitorComp")->bval;
+  tsQueryRspPolicy = cfgGetItem(pCfg, "queryRspPolicy")->i32;
 
   tsEnableTelem = cfgGetItem(pCfg, "telemetryReporting")->bval;
   tsTelemInterval = cfgGetItem(pCfg, "telemetryInterval")->i32;

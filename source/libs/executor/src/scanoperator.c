@@ -385,7 +385,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
 
   if (pTableScanInfo->pFilterNode != NULL) {
     int64_t st = taosGetTimestampUs();
-    doFilter(pTableScanInfo->pFilterNode, pBlock, pTableScanInfo->pColMatchInfo);
+    doFilter(pTableScanInfo->pFilterNode, pBlock, pTableScanInfo->pColMatchInfo, pOperator->exprSupp.pFilterInfo);
 
     double el = (taosGetTimestampUs() - st) / 1000.0;
     pTableScanInfo->readRecorder.filterTime += el;
@@ -754,6 +754,11 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pInfo->dataBlockLoadFlag = pTableScanNode->dataRequired;
   pInfo->pResBlock = createResDataBlock(pDescNode);
   pInfo->pFilterNode = pTableScanNode->scan.node.pConditions;
+
+  if (pInfo->pFilterNode != NULL) {
+    code = filterInitFromNode((SNode*)pInfo->pFilterNode, &pOperator->exprSupp.pFilterInfo, 0);
+  }
+
   pInfo->scanFlag = MAIN_SCAN;
   pInfo->pColMatchInfo = pColList;
   pInfo->currentGroupId = -1;
@@ -1123,7 +1128,7 @@ static SSDataBlock* doRangeScan(SStreamScanInfo* pInfo, SSDataBlock* pSDB, int32
       return NULL;
     }
 
-    doFilter(pInfo->pCondition, pResult, NULL);
+    doFilter(pInfo->pCondition, pResult, NULL, NULL);
     if (pResult->info.rows == 0) {
       continue;
     }
@@ -1311,10 +1316,15 @@ static void calBlockTag(SExprSupp* pTagCalSup, SSDataBlock* pBlock, SSDataBlock*
 
   blockDataEnsureCapacity(pResBlock, 1);
 
-  projectApplyFunctions(pTagCalSup->pExprInfo, pResBlock, pSrcBlock, pTagCalSup->pCtx, 1, NULL);
+  projectApplyFunctions(pTagCalSup->pExprInfo, pResBlock, pSrcBlock, pTagCalSup->pCtx, pTagCalSup->numOfExprs, NULL);
   ASSERT(pResBlock->info.rows == 1);
 
   // build tagArray
+  /*SArray* tagArray = taosArrayInit(0, sizeof(void*));*/
+  /*STagVal tagVal = {*/
+  /*.cid = 0,*/
+  /*.type = 0,*/
+  /*};*/
   // build STag
   // set STag
 
@@ -1469,7 +1479,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   }
 
   if (filter) {
-    doFilter(pInfo->pCondition, pInfo->pRes, NULL);
+    doFilter(pInfo->pCondition, pInfo->pRes, NULL, NULL);
   }
   blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
   blockDataFreeRes((SSDataBlock*)pBlock);
@@ -1891,7 +1901,7 @@ FETCH_NEXT_BLOCK:
           }
         }
 
-        doFilter(pInfo->pCondition, pInfo->pRes, NULL);
+        doFilter(pInfo->pCondition, pInfo->pRes, NULL, NULL);
         blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
 
         if (pBlockInfo->rows > 0 || pInfo->pUpdateDataRes->info.rows > 0) {
@@ -2110,6 +2120,9 @@ static void destroyStreamScanOperatorInfo(void* param) {
     taosMemoryFree(pStreamScan->pPseudoExpr);
   }
 
+  cleanupExprSupp(&pStreamScan->tbnameCalSup);
+  cleanupExprSupp(&pStreamScan->tagCalSup);
+
   updateInfoDestroy(pStreamScan->pUpdateInfo);
   blockDataDestroy(pStreamScan->pRes);
   blockDataDestroy(pStreamScan->pUpdateRes);
@@ -2160,6 +2173,19 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
     pInfo->tbnameCalSup.pExprInfo = pSubTableExpr;
     createExprFromOneNode(pSubTableExpr, pTableScanNode->pSubtable, 0);
     if (initExprSupp(&pInfo->tbnameCalSup, pSubTableExpr, 1) != 0) {
+      goto _error;
+    }
+  }
+
+  if (pTableScanNode->pTags != NULL) {
+    int32_t    numOfTags;
+    SExprInfo* pTagExpr = createExprInfo(pTableScanNode->pTags, NULL, &numOfTags);
+    if (pTagExpr == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto _error;
+    }
+    if (initExprSupp(&pInfo->tagCalSup, pTagExpr, numOfTags) != 0) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _error;
     }
   }
@@ -2361,7 +2387,7 @@ static SSDataBlock* doFilterResult(SSysTableScanInfo* pInfo) {
     return pInfo->pRes->info.rows == 0 ? NULL : pInfo->pRes;
   }
 
-  doFilter(pInfo->pCondition, pInfo->pRes, NULL);
+  doFilter(pInfo->pCondition, pInfo->pRes, NULL, NULL);
   return pInfo->pRes->info.rows == 0 ? NULL : pInfo->pRes;
 }
 
@@ -2542,16 +2568,27 @@ static SSDataBlock* sysTableScanUserTags(SOperatorInfo* pOperator) {
 
     SMetaReader smrChildTable = {0};
     metaReaderInit(&smrChildTable, pInfo->readHandle.meta, 0);
-    metaGetTableEntryByName(&smrChildTable, condTableName);
+    int32_t code = metaGetTableEntryByName(&smrChildTable, condTableName);
+    if (code != TSDB_CODE_SUCCESS) {
+      // terrno has been set by metaGetTableEntryByName, therefore, return directly
+      return NULL;
+    }
+
     if (smrChildTable.me.type != TSDB_CHILD_TABLE) {
       metaReaderClear(&smrChildTable);
       blockDataDestroy(dataBlock);
       pInfo->loadInfo.totalRows = 0;
       return NULL;
     }
+
     SMetaReader smrSuperTable = {0};
     metaReaderInit(&smrSuperTable, pInfo->readHandle.meta, META_READER_NOLOCK);
-    metaGetTableEntryByUid(&smrSuperTable, smrChildTable.me.ctbEntry.suid);
+    code = metaGetTableEntryByUid(&smrSuperTable, smrChildTable.me.ctbEntry.suid);
+    if (code != TSDB_CODE_SUCCESS) {
+      // terrno has been set by metaGetTableEntryByUid
+      return NULL;
+    }
+
     sysTableUserTagsFillOneTableTags(pInfo, &smrSuperTable, &smrChildTable, dbname, tableName, &numOfRows, dataBlock);
     metaReaderClear(&smrSuperTable);
     metaReaderClear(&smrChildTable);
@@ -3434,7 +3471,7 @@ static int32_t loadDataBlockFromOneTable(SOperatorInfo* pOperator, STableMergeSc
 
   if (pTableScanInfo->pFilterNode != NULL) {
     int64_t st = taosGetTimestampMs();
-    doFilter(pTableScanInfo->pFilterNode, pBlock, pTableScanInfo->pColMatchInfo);
+    doFilter(pTableScanInfo->pFilterNode, pBlock, pTableScanInfo->pColMatchInfo, NULL);
 
     double el = (taosGetTimestampUs() - st) / 1000.0;
     pTableScanInfo->readRecorder.filterTime += el;
@@ -3769,6 +3806,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 
   int32_t code = initQueryTableDataCond(&pInfo->cond, pTableScanNode);
   if (code != TSDB_CODE_SUCCESS) {
+    taosArrayDestroy(pColList);
     goto _error;
   }
 

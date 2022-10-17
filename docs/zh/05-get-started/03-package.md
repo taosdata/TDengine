@@ -188,13 +188,13 @@ Active: inactive (dead)
 
 <TabItem label="macOS 系统" value="macos">
 
-安装后，在应用程序目录下，双击 TDengine 图标来启动程序，也可以运行 `launchctl start taosd` 来启动 TDengine 服务进程。
+安装后，在应用程序目录下，双击 TDengine 图标来启动程序，也可以运行 `launchctl start com.tdengine.taosd` 来启动 TDengine 服务进程。
 
 如下 `launchctl` 命令可以帮助你管理 TDengine 服务：
 
-- 启动服务进程：`launchctl start taosd`
+- 启动服务进程：`launchctl start com.tdengine.taosd`
 
-- 停止服务进程：`launchctl stop taosd`
+- 停止服务进程：`launchctl stop com.tdengine.taosd`
 
 - 查看服务状态：`launchctl list | grep taosd`
 

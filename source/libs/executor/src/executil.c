@@ -1201,14 +1201,21 @@ void createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     pExp->base.resSchema =
         createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pFuncNode->node.aliasName);
 
-    pExp->pExpr->_function.functionId = pFuncNode->funcId;
-    pExp->pExpr->_function.pFunctNode = pFuncNode;
+    tExprNode* pExprNode = pExp->pExpr;
 
-    strncpy(pExp->pExpr->_function.functionName, pFuncNode->functionName,
-            tListLen(pExp->pExpr->_function.functionName));
+    pExprNode->_function.functionId = pFuncNode->funcId;
+    pExprNode->_function.pFunctNode = pFuncNode;
+
+    tstrncpy(pExprNode->_function.functionName, pFuncNode->functionName, tListLen(pExprNode->_function.functionName));
+
 #if 1
     // todo refactor: add the parameter for tbname function
-    if (!pFuncNode->pParameterList && (strcmp(pExp->pExpr->_function.functionName, "tbname") == 0)) {
+    const char* name = "tbname";
+    int32_t len = strlen(name);
+
+    if (!pFuncNode->pParameterList && (memcmp(pExprNode->_function.functionName, name, len) == 0) &&
+        pExprNode->_function.functionName[len] == 0) {
+
       pFuncNode->pParameterList = nodesMakeList();
       ASSERT(LIST_LENGTH(pFuncNode->pParameterList) == 0);
       SValueNode* res = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
@@ -1249,6 +1256,17 @@ void createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
     SDataType* pType = &pOpNode->node.resType;
     pExp->base.resSchema =
         createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pOpNode->node.aliasName);
+    pExp->pExpr->_optrRoot.pRootNode = pNode;
+  } else if (type == QUERY_NODE_CASE_WHEN) {
+    pExp->pExpr->nodeType = QUERY_NODE_OPERATOR;
+    SCaseWhenNode* pCaseNode = (SCaseWhenNode*)pNode;
+  
+    pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
+    pExp->base.numOfParams = 1;
+  
+    SDataType* pType = &pCaseNode->node.resType;
+    pExp->base.resSchema = createResSchema(pType->type, pType->bytes, slotId, pType->scale,
+                                           pType->precision, pCaseNode->node.aliasName);
     pExp->pExpr->_optrRoot.pRootNode = pNode;
   } else {
     ASSERT(0);

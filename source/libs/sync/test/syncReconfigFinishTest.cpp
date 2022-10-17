@@ -69,7 +69,7 @@ void test1() {
 void test2() {
   SyncReconfigFinish *pMsg = createMsg();
   uint32_t            len = pMsg->bytes;
-  char *              serialized = (char *)taosMemoryMalloc(len);
+  char               *serialized = (char *)taosMemoryMalloc(len);
   syncReconfigFinishSerialize(pMsg, serialized, len);
   SyncReconfigFinish *pMsg2 = syncReconfigFinishBuild(1000);
   syncReconfigFinishDeserialize(serialized, len, pMsg2);
@@ -83,7 +83,7 @@ void test2() {
 void test3() {
   SyncReconfigFinish *pMsg = createMsg();
   uint32_t            len;
-  char *              serialized = syncReconfigFinishSerialize2(pMsg, &len);
+  char               *serialized = syncReconfigFinishSerialize2(pMsg, &len);
   SyncReconfigFinish *pMsg2 = syncReconfigFinishDeserialize2(serialized, len);
   syncReconfigFinishLog2((char *)"test3: SyncReconfigFinishSerialize2 -> syncReconfigFinishDeserialize2 ", pMsg2);
 
