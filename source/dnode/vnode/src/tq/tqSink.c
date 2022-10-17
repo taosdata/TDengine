@@ -352,6 +352,7 @@ void tqTableSink1(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
       SMetaReader mr = {0};
       metaReaderInit(&mr, pVnode->pMeta, 0);
       if (metaGetTableEntryByName(&mr, ctbName) < 0) {
+        metaReaderClear(&mr);
         tqDebug("vgId:%d, stream write into %s, table auto created", TD_VID(pVnode), ctbName);
 
         SVCreateTbReq createTbReq = {0};
@@ -444,6 +445,9 @@ void tqTableSink1(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
         createTb = false;
         uid = mr.me.uid;
         metaReaderClear(&mr);
+
+        tqDebug("vgId:%d, stream write, table %s, uid %ld already exist, skip create", TD_VID(pVnode), ctbName, uid);
+
         taosMemoryFreeClear(ctbName);
       }
 
@@ -478,7 +482,7 @@ void tqTableSink1(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
         blkHead->schemaLen = htonl(schemaLen);
         rowData = POINTER_SHIFT(blkSchema, schemaLen);
       } else {
-        blkHead->uid = uid;
+        blkHead->uid = htobe64(uid);
       }
 
       taosMemoryFreeClear(schemaStr);
