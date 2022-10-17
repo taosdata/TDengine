@@ -602,7 +602,7 @@ _exit:
 }
 
 int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow) {
-  int32_t n;
+  int32_t n = 0;
 
   TSROW_LEN(pRow, n);
   if (p) {
@@ -613,7 +613,7 @@ int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow) {
 }
 
 int32_t tGetTSRow(uint8_t *p, STSRow2 **ppRow) {
-  int32_t n;
+  int32_t n = 0;
 
   *ppRow = (STSRow2 *)p;
   TSROW_LEN(*ppRow, n);
