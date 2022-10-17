@@ -192,7 +192,7 @@ int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry) {
     return -1;
   }
 
-  memcpy(buf, &pPushEntry->rspHead, sizeof(SMqRspHead));
+  memcpy(buf, &pPushEntry->dataRsp.head, sizeof(SMqRspHead));
 
   void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
 
@@ -215,7 +215,7 @@ int32_t tqPushDataRsp(STQ* pTq, STqPushEntry* pPushEntry) {
   tFormatOffset(buf1, 80, &pRsp->reqOffset);
   tFormatOffset(buf2, 80, &pRsp->rspOffset);
   tqDebug("vgId:%d, from consumer:%" PRId64 ", (epoch %d) push rsp, block num: %d, reqOffset:%s, rspOffset:%s",
-          TD_VID(pTq->pVnode), pPushEntry->rspHead.consumerId, pRsp->head.epoch, pRsp->blockNum, buf1, buf2);
+          TD_VID(pTq->pVnode), pRsp->head.consumerId, pRsp->head.epoch, pRsp->blockNum, buf1, buf2);
 
   return 0;
 }
@@ -560,9 +560,9 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         memcpy(pPushEntry->subKey, pHandle->subKey, TSDB_SUBSCRIBE_KEY_LEN);
         dataRsp.withTbName = 0;
         memcpy(&pPushEntry->dataRsp, &dataRsp, sizeof(SMqDataRsp));
-        pPushEntry->rspHead.consumerId = consumerId;
-        pPushEntry->rspHead.epoch = reqEpoch;
-        pPushEntry->rspHead.mqMsgType = TMQ_MSG_TYPE__POLL_RSP;
+        pPushEntry->dataRsp.head.consumerId = consumerId;
+        pPushEntry->dataRsp.head.epoch = reqEpoch;
+        pPushEntry->dataRsp.head.mqMsgType = TMQ_MSG_TYPE__POLL_RSP;
         taosHashPut(pTq->pPushMgr, pHandle->subKey, strlen(pHandle->subKey) + 1, &pPushEntry, sizeof(void*));
         tqDebug("tmq poll: consumer %ld, subkey %s, vg %d save handle to push mgr", consumerId, pHandle->subKey,
                 TD_VID(pTq->pVnode));
@@ -924,7 +924,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask) {
     pTask->smaSink.smaSink = smaHandleRes;
   } else if (pTask->outputType == TASK_OUTPUT__TABLE) {
     pTask->tbSink.vnode = pTq->pVnode;
-    pTask->tbSink.tbSinkFunc = tqTableSink;
+    pTask->tbSink.tbSinkFunc = tqTableSink1;
 
     ASSERT(pTask->tbSink.pSchemaWrapper);
     ASSERT(pTask->tbSink.pSchemaWrapper->pSchema);
