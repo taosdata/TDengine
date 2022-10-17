@@ -116,7 +116,6 @@ static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const
       indexMultiTermAdd(terms, term);
     }
   }
-  taosArrayDestroy(pTagVals);
   indexJsonPut(pMeta->pTagIvtIdx, terms, tuid);
   indexMultiTermDestroy(terms);
 
