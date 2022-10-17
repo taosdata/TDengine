@@ -421,6 +421,8 @@ static int32_t walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
+
+  ASSERT(taosLSeekFile(pWal->pIdxFile, 0, SEEK_END) == idxOffset + sizeof(SWalIdxEntry) && "Offset of idx entries misaligned");
   return 0;
 }
 
