@@ -155,7 +155,7 @@ static void printHelp() {
 
 
   printf("%s%s\n", indent, "-l");
-  printf("%s%s%s\n", indent, indent, "run duration unit is minutes, default is ", g_stConfInfo.runDurationMinutes);
+  printf("%s%s%s%d\n", indent, indent, "run duration unit is minutes, default is ", g_stConfInfo.runDurationMinutes);
   printf("%s%s\n", indent, "-p");
   printf("%s%s%s\n", indent, indent, "producer thread number, default is 0");
   printf("%s%s\n", indent, "-b");
@@ -238,7 +238,7 @@ void saveConfigToLogFile() {
       taosFprintfFile(g_fp, "%s:%s, ", g_stConfInfo.stThreads[i].key[k], g_stConfInfo.stThreads[i].value[k]);
     }
     taosFprintfFile(g_fp, "\n");
-    taosFprintfFile(g_fp, "  expect rows: %d\n", g_stConfInfo.stThreads[i].expectMsgCnt);
+    taosFprintfFile(g_fp, "  expect rows: %" PRIx64 "\n", g_stConfInfo.stThreads[i].expectMsgCnt);
   }
 
   char tmpString[128];
@@ -263,11 +263,11 @@ void parseArgument(int32_t argc, char* argv[]) {
       printHelp();
       exit(0);
     } else if (strcmp(argv[i], "-d") == 0) {
-      strcpy(g_stConfInfo.dbName, argv[++i]);
+      tstrncpy(g_stConfInfo.dbName, argv[++i], sizeof(g_stConfInfo.dbName));
     } else if (strcmp(argv[i], "-w") == 0) {
-      strcpy(g_stConfInfo.cdbName, argv[++i]);
+      tstrncpy(g_stConfInfo.cdbName, argv[++i], sizeof(g_stConfInfo.cdbName));
     } else if (strcmp(argv[i], "-c") == 0) {
-      strcpy(configDir, argv[++i]);
+      tstrncpy(configDir, argv[++i], PATH_MAX);
     } else if (strcmp(argv[i], "-g") == 0) {
       g_stConfInfo.showMsgFlag = atol(argv[++i]);
     } else if (strcmp(argv[i], "-r") == 0) {
@@ -279,9 +279,9 @@ void parseArgument(int32_t argc, char* argv[]) {
     } else if (strcmp(argv[i], "-e") == 0) {
       g_stConfInfo.useSnapshot = atol(argv[++i]);
     } else if (strcmp(argv[i], "-t") == 0) {
-	  char tmpBuf[56];
-      strcpy(tmpBuf, argv[++i]);
-	  sprintf(g_stConfInfo.topic, "`%s`", tmpBuf);
+      char tmpBuf[56] = {0};
+      tstrncpy(tmpBuf, argv[++i], sizeof(tmpBuf));
+      sprintf(g_stConfInfo.topic, "`%s`", tmpBuf);
     } else if (strcmp(argv[i], "-x") == 0) {
       g_stConfInfo.numOfThread = atol(argv[++i]);
     } else if (strcmp(argv[i], "-l") == 0) {
@@ -294,6 +294,10 @@ void parseArgument(int32_t argc, char* argv[]) {
       g_stConfInfo.producerRate = atol(argv[++i]);
     } else if (strcmp(argv[i], "-n") == 0) {
       g_stConfInfo.payloadLen = atol(argv[++i]);
+      if(g_stConfInfo.payloadLen <= 0 || g_stConfInfo.payloadLen > 1024 * 1024 * 1024){
+        pError("%s calloc size is too large: %s %s", GREEN, argv[++i], NC);
+        exit(-1);
+      }
     } else {
       pError("%s unknow para: %s %s", GREEN, argv[++i], NC);
       exit(-1);
@@ -354,8 +358,8 @@ void ltrim(char* str) {
 
 int queryDB(TAOS* taos, char* command) {
   int        retryCnt = 10;
-  int        code;
-  TAOS_RES*  pRes;
+  int        code = 0;
+  TAOS_RES*  pRes = NULL;
 
   while (retryCnt--) {
     pRes = taos_query(taos, command);
@@ -363,10 +367,11 @@ int queryDB(TAOS* taos, char* command) {
     if (code != 0) {
       taosSsleep(1);
       taos_free_result(pRes);
+      pRes = NULL;
       continue;
     }
     taos_free_result(pRes);
-	return 0;
+    return 0;
   }
 
   pError("failed to reason:%s, sql: %s", tstrerror(code), command);
@@ -418,7 +423,7 @@ int32_t saveConsumeContentToTbl(SThreadInfo* pInfo, char* buf) {
   char sqlStr[1100] = {0};
 
   if (strlen(buf) > 1024) {
-    taosFprintfFile(g_fp, "The length of one row[%d] is overflow 1024\n", strlen(buf));
+    taosFprintfFile(g_fp, "The length of one row[%d] is overflow 1024\n", (int)strlen(buf));
     taosCloseFile(&g_fp);
     return -1;
   }
@@ -592,7 +597,7 @@ static int32_t data_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIn
   int32_t     vgroupId = tmq_get_vgroup_id(msg);
   const char* dbName = tmq_get_db_name(msg);
 
-  taosFprintfFile(g_fp, "consumerId: %d, msg index:%" PRId64 "\n", pInfo->consumerId, msgIndex);
+  taosFprintfFile(g_fp, "consumerId: %d, msg index:%d\n", pInfo->consumerId, msgIndex);
   taosFprintfFile(g_fp, "dbName: %s, topic: %s, vgroupId: %d\n", dbName != NULL ? dbName : "invalid table",
                   tmq_get_topic_name(msg), vgroupId);
 
@@ -644,7 +649,7 @@ static int32_t meta_msg_process(TAOS_RES* msg, SThreadInfo* pInfo, int32_t msgIn
   int32_t     vgroupId = tmq_get_vgroup_id(msg);
   const char* dbName = tmq_get_db_name(msg);
 
-  taosFprintfFile(g_fp, "consumerId: %d, msg index:%" PRId64 "\n", pInfo->consumerId, msgIndex);
+  taosFprintfFile(g_fp, "consumerId: %d, msg index:%d\n", pInfo->consumerId, msgIndex);
   taosFprintfFile(g_fp, "dbName: %s, topic: %s, vgroupId: %d\n", dbName != NULL ? dbName : "invalid table",
                   tmq_get_topic_name(msg), vgroupId);
 
@@ -960,7 +965,7 @@ void parseConsumeInfo() {
         ltrim(pstr);
         char* ret = strchr(pstr, ch);
         memcpy(g_stConfInfo.stThreads[i].key[g_stConfInfo.stThreads[i].numOfKey], pstr, ret - pstr);
-        strcpy(g_stConfInfo.stThreads[i].value[g_stConfInfo.stThreads[i].numOfKey], ret + 1);
+        tstrncpy(g_stConfInfo.stThreads[i].value[g_stConfInfo.stThreads[i].numOfKey], ret + 1, sizeof(g_stConfInfo.stThreads[i].value[g_stConfInfo.stThreads[i].numOfKey]));
         // printf("key: %s, value: %s\n", g_stConfInfo.key[g_stConfInfo.numOfKey],
         // g_stConfInfo.value[g_stConfInfo.numOfKey]);
         g_stConfInfo.stThreads[i].numOfKey++;
@@ -1268,25 +1273,26 @@ void* ombProduceThreadFunc(void* param) {
     for (int i = 0; i < batchPerTblTimes; ++i) {
 	  uint32_t  msgsOfSql = g_stConfInfo.batchSize;
 	  if ((i == batchPerTblTimes - 1) && (0 != remainder)) {
-        msgsOfSql = remainder;
+            msgsOfSql = remainder;
 	  }
       int len = 0;
 	  len += snprintf(sqlBuf+len, MAX_SQL_LEN - len, "insert into %s values ", ctbName);
       for (int j = 0; j < msgsOfSql; j++) {
- 		int64_t timeStamp = taosGetTimestampNs();
-		len += snprintf(sqlBuf+len, MAX_SQL_LEN - len, "(%" PRId64 ", \"%s\")", timeStamp, g_payload);
+            int64_t timeStamp = taosGetTimestampNs();
+            len += snprintf(sqlBuf+len, MAX_SQL_LEN - len, "(%" PRId64 ", \"%s\")", timeStamp, g_payload);
 	    sendMsgs++;
 	    pInfo->totalProduceMsgs++;
 	  }
 
-      totalMsgLen += len;
+          totalMsgLen += len;
 	  pInfo->totalMsgsLen += len;
 	  
-      int64_t affectedRows = queryDbExec(pInfo->taos, sqlBuf, INSERT_TYPE);
+          int64_t affectedRows = queryDbExec(pInfo->taos, sqlBuf, INSERT_TYPE);
 	  if (affectedRows < 0) {
 	    taos_close(pInfo->taos);
-        pInfo->taos = NULL;
-        return NULL;
+            pInfo->taos = NULL;
+            taosMemoryFree(sqlBuf);
+            return NULL;
 	  }
 
 	  affectedRowsTotal += affectedRows;
@@ -1322,6 +1328,7 @@ void* ombProduceThreadFunc(void* param) {
   printf("affectedRowsTotal: %"PRId64"\n", affectedRowsTotal);
   taos_close(pInfo->taos);
   pInfo->taos = NULL;
+  taosMemoryFree(sqlBuf);
   return NULL;
 }
 

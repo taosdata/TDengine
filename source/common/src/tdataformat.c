@@ -916,6 +916,10 @@ char *tTagValToData(const STagVal *value, bool isJson) {
 }
 
 bool tTagGet(const STag *pTag, STagVal *pTagVal) {
+  if(!pTag || !pTagVal){
+    return false;
+  }
+
   int16_t  lidx = 0;
   int16_t  ridx = pTag->nTag - 1;
   int16_t  midx;
