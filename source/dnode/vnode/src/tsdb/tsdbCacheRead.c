@@ -128,7 +128,8 @@ static int32_t doExtractCacheRow(SCacheRowsReader* pr, SLRUCache* lruCache, uint
 
     // no data in the table of Uid
     if (*h != NULL) {
-      *pRow = (STSRow*)taosLRUCacheValue(lruCache, *h);
+      //*pRow = (STSRow*)taosLRUCacheValue(lruCache, *h);
+      SArray* pLastrow = (SArray*)taosLRUCacheValue(lruCache, *h);
     }
   } else {
     code = tsdbCacheGetLastH(lruCache, uid, pr->pVnode->pTsdb, h);
