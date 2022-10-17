@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+#define CTG_MAX_REQ_IN_BATCH 1048576
+
 #ifdef __cplusplus
 }
 #endif

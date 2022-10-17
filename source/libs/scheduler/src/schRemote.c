@@ -169,7 +169,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
         if (TSDB_CODE_SUCCESS == code && batchRsp.nRsps > 0) {
           SCH_LOCK(SCH_WRITE, &pJob->resLock);
           if (NULL == pJob->execRes.res) {
-            pJob->execRes.res = taosArrayInit(batchRsp.nRsps, POINTER_BYTES);
+            pJob->execRes.res = (void*)taosArrayInit(batchRsp.nRsps, POINTER_BYTES);
             pJob->execRes.msgType = TDMT_VND_CREATE_TABLE;
           }
 
@@ -386,7 +386,6 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
       // NEVER REACH HERE
       SCH_TASK_ELOG("invalid status to handle drop task rsp, refId:0x%" PRIx64, pJob->refId);
       SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
-      break;
     }
     case TDMT_SCH_LINK_BROKEN:
       SCH_TASK_ELOG("link broken received, error:%x - %s", rspCode, tstrerror(rspCode));
@@ -981,7 +980,7 @@ _return:
 }
 
 int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr, int32_t msgType) {
-  uint32_t msgSize = 0;
+  int32_t msgSize = 0;
   void    *msg = NULL;
   int32_t  code = 0;
   bool     isCandidateAddr = false;
@@ -1133,12 +1132,11 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     default:
       SCH_TASK_ELOG("unknown msg type to send, msgType:%d", msgType);
       SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
-      break;
   }
 
 #if 1
   SSchTrans trans = {.pTrans = pJob->conn.pTrans, .pHandle = SCH_GET_TASK_HANDLE(pTask)};
-  code = schAsyncSendMsg(pJob, pTask, &trans, addr, msgType, msg, msgSize, persistHandle, (rpcCtx.args ? &rpcCtx : NULL));
+  code = schAsyncSendMsg(pJob, pTask, &trans, addr, msgType, msg, (uint32_t)msgSize, persistHandle, (rpcCtx.args ? &rpcCtx : NULL));
   msg = NULL;
   SCH_ERR_JRET(code);
 
