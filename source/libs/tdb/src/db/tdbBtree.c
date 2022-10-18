@@ -1086,6 +1086,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
             // fetch next ofp, a new ofp and make it dirty
             ret = tdbFetchOvflPage(&pgno, &nextOfp, pTxn, pBt);
             if (ret < 0) {
+              tdbFree(pBuf);
               return -1;
             }
           }
