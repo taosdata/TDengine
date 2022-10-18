@@ -380,7 +380,7 @@ int32_t dmRunProc(SProc *proc) {
       dError("node:%s, failed to create pthread since %s", proc->name, terrstr());
       return -1;
     }
-    dDebug("node:%s, thread:%" PRId64 " is created to consume pqueue", proc->name, proc->pthread);
+    dDebug("node:%s, thread:%p is created to consume pqueue", proc->name, (void *)proc->pthread);
   }
 
   if (proc->ptype & DND_PROC_CHILD) {
@@ -389,7 +389,7 @@ int32_t dmRunProc(SProc *proc) {
       dError("node:%s, failed to create cthread since %s", proc->name, terrstr());
       return -1;
     }
-    dDebug("node:%s, thread:%" PRId64 " is created to consume cqueue", proc->name, proc->cthread);
+    dDebug("node:%s, thread:%p is created to consume cqueue", proc->name, (void *)proc->cthread);
   }
 
   taosThreadAttrDestroy(&thAttr);
@@ -399,14 +399,14 @@ int32_t dmRunProc(SProc *proc) {
 void dmStopProc(SProc *proc) {
   proc->stop = true;
   if (taosCheckPthreadValid(proc->pthread)) {
-    dDebug("node:%s, start to join pthread:%" PRId64, proc->name, proc->pthread);
+    dDebug("node:%s, start to join pthread:%p", proc->name, (void *)proc->pthread);
     tsem_post(&proc->pqueue->sem);
     taosThreadJoin(proc->pthread, NULL);
     taosThreadClear(&proc->pthread);
   }
 
   if (taosCheckPthreadValid(proc->cthread)) {
-    dDebug("node:%s, start to join cthread:%" PRId64, proc->name, proc->cthread);
+    dDebug("node:%s, start to join cthread:%p", proc->name, (void *)proc->cthread);
     tsem_post(&proc->cqueue->sem);
     taosThreadJoin(proc->cthread, NULL);
     taosThreadClear(&proc->cthread);

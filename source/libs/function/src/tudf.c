@@ -1269,7 +1269,7 @@ void udfcUvHandleRsp(SClientUvConn *conn) {
   SClientUvTaskNode *task = QUEUE_DATA(h, SClientUvTaskNode, connTaskQueue);
 
   while (h != &conn->taskQueue) {
-    fnDebug("udfc handle response iterate through queue. uvTask:%d-%p", task->seqNum, task);
+    fnDebug("udfc handle response iterate through queue. uvTask:%" PRId64 "-%p", task->seqNum, task);
     if (task->seqNum == seqNum) {
       if (found == false) {
         found = true;

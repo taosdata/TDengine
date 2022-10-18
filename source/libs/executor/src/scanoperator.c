@@ -1551,7 +1551,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         tsdbReaderClose(pTSInfo->dataReader);
         pTSInfo->dataReader = NULL;
         tqOffsetResetToLog(&pTaskInfo->streamInfo.prepareStatus, pTaskInfo->streamInfo.snapshotVer);
-        qDebug("queue scan tsdb over, switch to wal ver %"PRId64, pTaskInfo->streamInfo.snapshotVer + 1);
+        qDebug("queue scan tsdb over, switch to wal ver %" PRId64 "", pTaskInfo->streamInfo.snapshotVer + 1);
         if (tqSeekVer(pInfo->tqReader, pTaskInfo->streamInfo.snapshotVer + 1) < 0) {
           return NULL;
         }
@@ -1983,7 +1983,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
         longjmp(pTaskInfo->env, terrno);
       }
 
-      qDebug("tmqsnap doRawScan get data uid:%ld", pBlock->info.uid);
+      qDebug("tmqsnap doRawScan get data uid:%" PRId64 "", pBlock->info.uid);
       pTaskInfo->streamInfo.lastStatus.type = TMQ_OFFSET__SNAPSHOT_DATA;
       pTaskInfo->streamInfo.lastStatus.uid = pBlock->info.uid;
       pTaskInfo->streamInfo.lastStatus.ts = pBlock->info.window.ekey;
@@ -1999,7 +1999,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
     } else {
       pTaskInfo->streamInfo.prepareStatus.uid = mtInfo.uid;
       pTaskInfo->streamInfo.prepareStatus.ts = INT64_MIN;
-      qDebug("tmqsnap change get data uid:%ld", mtInfo.uid);
+      qDebug("tmqsnap change get data uid:%" PRId64 "", mtInfo.uid);
       qStreamPrepareScan(pTaskInfo, &pTaskInfo->streamInfo.prepareStatus, pInfo->sContext->subType);
     }
     tDeleteSSchemaWrapper(mtInfo.schema);
@@ -3334,7 +3334,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
   int64_t st = taosGetTimestampUs();
 
   if (pHandle == NULL) {
-    qError("invalid handle, in creating operator tree", idStr);
+    qError("invalid handle, in creating operator tree: %s", idStr);
     return TSDB_CODE_INVALID_PARA;
   }
 

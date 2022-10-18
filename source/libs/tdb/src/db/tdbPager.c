@@ -541,8 +541,8 @@ static int tdbPagerWritePageToJournal(SPager *pPager, SPage *pPage) {
 
   ret = tdbOsWrite(pPager->jfd, pPage->pData, pPage->pageSize);
   if (ret < 0) {
-    tdbError("failed to write page data due to %s. file:%s, pageSize:%d", strerror(errno), pPager->jFileName,
-             pPage->pageSize);
+    tdbError("failed to write page data due to %s. file:%s, pageSize:%ld", strerror(errno), pPager->jFileName,
+             (long)pPage->pageSize);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -563,7 +563,7 @@ static int tdbPagerWritePageToDB(SPager *pPager, SPage *pPage) {
 
   offset = (i64)pPage->pageSize * (TDB_PAGE_PGNO(pPage) - 1);
   if (tdbOsLSeek(pPager->fd, offset, SEEK_SET) < 0) {
-    tdbError("failed to lseek due to %s. file:%s, offset:%ld", strerror(errno), pPager->dbFileName, offset);
+    tdbError("failed to lseek due to %s. file:%s, offset:%" PRId64, strerror(errno), pPager->dbFileName, offset);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -618,7 +618,7 @@ int tdbPagerRestore(SPager *pPager, SBTree *pBt) {
 
     i64 offset = pPager->pageSize * (pgno - 1);
     if (tdbOsLSeek(pPager->fd, offset, SEEK_SET) < 0) {
-      tdbError("failed to lseek fd due to %s. file:%s, offset:%ld", strerror(errno), pPager->dbFileName, offset);
+      tdbError("failed to lseek fd due to %s. file:%s, offset:%" PRId64, strerror(errno), pPager->dbFileName, offset);
       terrno = TAOS_SYSTEM_ERROR(errno);
       tdbOsFree(pageBuf);
       return -1;

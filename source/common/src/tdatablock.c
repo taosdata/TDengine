@@ -1836,10 +1836,10 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
             printf(" %15u |", *(uint32_t*)var);
             break;
           case TSDB_DATA_TYPE_BIGINT:
-            printf(" %15ld |", *(int64_t*)var);
+            printf(" %15" PRId64 " |", *(int64_t*)var);
             break;
           case TSDB_DATA_TYPE_UBIGINT:
-            printf(" %15lu |", *(uint64_t*)var);
+            printf(" %15" PRIu64 " |", *(uint64_t*)var);
             break;
           case TSDB_DATA_TYPE_FLOAT:
             printf(" %15f |", *(float*)var);
@@ -1914,11 +1914,11 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
           if (len >= size - 1) return dumpBuf;
           break;
         case TSDB_DATA_TYPE_BIGINT:
-          len += snprintf(dumpBuf + len, size - len, " %15ld |", *(int64_t*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15" PRId64 " |", *(int64_t*)var);
           if (len >= size - 1) return dumpBuf;
           break;
         case TSDB_DATA_TYPE_UBIGINT:
-          len += snprintf(dumpBuf + len, size - len, " %15lu |", *(uint64_t*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15" PRIu64 " |", *(uint64_t*)var);
           if (len >= size - 1) return dumpBuf;
           break;
         case TSDB_DATA_TYPE_FLOAT:

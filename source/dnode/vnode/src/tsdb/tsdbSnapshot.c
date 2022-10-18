@@ -517,7 +517,7 @@ int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, int8_t type
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s, TSDB path: %s", TD_VID(pTsdb->pVnode), lino, tstrerror(code),
+    tsdbError("vgId:%d failed at line %d since %s, TSDB path: %s", TD_VID(pTsdb->pVnode), lino, tstrerror(code),
               pTsdb->path);
     *ppReader = NULL;
 

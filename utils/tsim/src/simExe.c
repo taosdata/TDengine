@@ -288,7 +288,7 @@ int32_t simExecuteExpression(SScript *script, char *exp) {
         sprintf(t3, "%" PRId64, t1l / t2l);
       }
     } else if (op2[0] == '.') {
-      sprintf(t3, "%s%s", t1, t2);
+      snprintf(t3, sizeof(t3), "%s%s", t1, t2);
     }
   } else {
     tstrncpy(t3, t1, sizeof(t3));
@@ -794,7 +794,7 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
               }
 
               taosLocalTime(&tt, &tp);
-              strftime(timeStr, 64, "%y-%m-%d %H:%M:%S", &tp);
+              strftime(timeStr, 64, "%Y-%m-%d %H:%M:%S", &tp);
               if (precision == TSDB_TIME_PRECISION_MILLI) {
                 sprintf(value, "%s.%03d", timeStr, (int32_t)(*((int64_t *)row[i]) % 1000));
               } else if (precision == TSDB_TIME_PRECISION_MICRO) {

@@ -1071,8 +1071,8 @@ static int32_t taosDeleteData(TAOS* taos, void* meta, int32_t metaLen) {
 
   //  getTbName(req.tableFName);
   char sql[256] = {0};
-  sprintf(sql, "delete from `%s` where `%s` >= %" PRId64 " and `%s` <= %" PRId64, req.tableFName, req.tsColName,
-          req.skey, req.tsColName, req.ekey);
+  snprintf(sql, sizeof(sql), "delete from `%s` where `%s` >= %" PRId64 " and `%s` <= %" PRId64, req.tableFName,
+           req.tsColName, req.skey, req.tsColName, req.ekey);
   printf("delete sql:%s\n", sql);
 
   TAOS_RES*    res = taos_query(taos, sql);

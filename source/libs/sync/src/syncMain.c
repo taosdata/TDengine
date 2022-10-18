@@ -67,7 +67,7 @@ int32_t syncInit() {
       syncCleanUp();
       ret = -1;
     } else {
-      sDebug("sync rsetId:%" PRId64 " is open", tsNodeRefId);
+      sDebug("sync rsetId:%" PRId32 " is open", tsNodeRefId);
       ret = syncEnvStart();
     }
   }
@@ -80,7 +80,7 @@ void syncCleanUp() {
   ASSERT(ret == 0);
 
   if (tsNodeRefId != -1) {
-    sDebug("sync rsetId:%" PRId64 " is closed", tsNodeRefId);
+    sDebug("sync rsetId:%" PRId32 " is closed", tsNodeRefId);
     taosCloseRef(tsNodeRefId);
     tsNodeRefId = -1;
   }
@@ -100,7 +100,7 @@ int64_t syncOpen(SSyncInfo* pSyncInfo) {
     return -1;
   }
 
-  sDebug("vgId:%d, sync rid:%" PRId64 " is added to rsetId:%" PRId64, pSyncInfo->vgId, pSyncNode->rid, tsNodeRefId);
+  sDebug("vgId:%d, sync rid:%" PRId64 " is added to rsetId:%" PRId32, pSyncInfo->vgId, pSyncNode->rid, tsNodeRefId);
   return pSyncNode->rid;
 }
 
@@ -146,7 +146,7 @@ void syncStop(int64_t rid) {
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
 
   taosRemoveRef(tsNodeRefId, rid);
-  sDebug("vgId:%d, sync rid:%" PRId64 " is removed from rsetId:%" PRId64, vgId, rid, tsNodeRefId);
+  sDebug("vgId:%d, sync rid:%" PRId64 " is removed from rsetId:%" PRId64, vgId, rid, (int64_t)tsNodeRefId);
 }
 
 int32_t syncSetStandby(int64_t rid) {
@@ -316,7 +316,7 @@ int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader) {
   }
 
   do {
-    char logBuf[128];
+    char logBuf[256];
     snprintf(logBuf, sizeof(logBuf), "begin leader transfer to %s:%u", newLeader.nodeFqdn, newLeader.nodePort);
     syncNodeEventLog(pSyncNode, logBuf);
   } while (0);
@@ -867,8 +867,8 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
     if (!pSyncNode->restoreFinish && pSyncNode->vgId != 1) {
       ret = -1;
       terrno = TSDB_CODE_SYN_PROPOSE_NOT_READY;
-      sError("vgId:%d, failed to sync propose since not ready, type:%s, last:%ld, cmt:%ld", pSyncNode->vgId,
-             TMSG_INFO(pMsg->msgType), syncNodeGetLastIndex(pSyncNode), pSyncNode->commitIndex);
+      sError("vgId:%d, failed to sync propose since not ready, type:%s, last:%" PRId64 ", cmt:%" PRId64 "",
+             pSyncNode->vgId, TMSG_INFO(pMsg->msgType), syncNodeGetLastIndex(pSyncNode), pSyncNode->commitIndex);
       goto _END;
     }
 
@@ -2475,35 +2475,35 @@ int32_t syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex
 // for debug --------------
 void syncNodePrint(SSyncNode* pObj) {
   char* serialized = syncNode2Str(pObj);
-  printf("syncNodePrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("syncNodePrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncNodePrint2(char* s, SSyncNode* pObj) {
   char* serialized = syncNode2Str(pObj);
-  printf("syncNodePrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncNodePrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncNodeLog(SSyncNode* pObj) {
   char* serialized = syncNode2Str(pObj);
-  sTraceLong("syncNodeLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTraceLong("syncNodeLog | len:%lu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncNodeLog2(char* s, SSyncNode* pObj) {
   if (gRaftDetailLog) {
     char* serialized = syncNode2Str(pObj);
-    sTraceLong("syncNodeLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTraceLong("syncNodeLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
 
 void syncNodeLog3(char* s, SSyncNode* pObj) {
   char* serialized = syncNode2Str(pObj);
-  sTraceLong("syncNodeLog3 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+  sTraceLong("syncNodeLog3 | len:%lu | %s | %s", strlen(serialized), s, serialized);
   taosMemoryFree(serialized);
 }
 
@@ -2870,14 +2870,14 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
 
   if (pEntry->term < ths->pRaftStore->currentTerm) {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "little term:%lu, can not do leader transfer", pEntry->term);
+    snprintf(logBuf, sizeof(logBuf), "little term:%" PRIu64 ", can not do leader transfer", pEntry->term);
     syncNodeEventLog(ths, logBuf);
     return 0;
   }
 
   if (pEntry->index < syncNodeGetLastIndex(ths)) {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "little index:%ld, can not do leader transfer", pEntry->index);
+    snprintf(logBuf, sizeof(logBuf), "little index:%" PRId64 ", can not do leader transfer", pEntry->index);
     syncNodeEventLog(ths, logBuf);
     return 0;
   }
@@ -2893,7 +2893,7 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
 
   do {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "do leader transfer, index:%ld", pEntry->index);
+    snprintf(logBuf, sizeof(logBuf), "do leader transfer, index:%" PRId64 "", pEntry->index);
     syncNodeEventLog(ths, logBuf);
   } while (0);
 
@@ -3072,8 +3072,8 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
         } else {
           code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, i, &pEntry);
           if (code != 0) {
-              sError("vgId:%d, failed to get log entry since %s. index:%lld", ths->vgId, tstrerror(terrno), i);
-              return -1;
+            sError("vgId:%d, failed to get log entry since %s. index:%" PRId64 "", ths->vgId, tstrerror(terrno), i);
+            return -1;
            }
           ASSERT(pEntry != NULL);
         }
@@ -3152,8 +3152,8 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
             int64_t restoreDelay = taosGetTimestampMs() - ths->leaderTime;
 
             char eventLog[128];
-            snprintf(eventLog, sizeof(eventLog), "restore finish, index:%ld, elapsed:%ld ms, ", pEntry->index,
-                     restoreDelay);
+            snprintf(eventLog, sizeof(eventLog), "restore finish, index:%" PRId64 ", elapsed:%" PRId64 " ms, ",
+                     pEntry->index, restoreDelay);
             syncNodeEventLog(ths, eventLog);
           }
         }
