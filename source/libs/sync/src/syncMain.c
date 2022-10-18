@@ -2282,7 +2282,7 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
 
 void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
   ASSERT(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
-  ASSERT(voteGrantedMajority(pSyncNode->pVotesGranted));
+  //ASSERT(voteGrantedMajority(pSyncNode->pVotesGranted));
   syncNodeBecomeLeader(pSyncNode, "candidate to leader");
 
   syncNodeLog2("==state change syncNodeCandidate2Leader==", pSyncNode);

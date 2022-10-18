@@ -747,7 +747,13 @@ static void mndReloadSyncConfig(SMnode *pMnode) {
   }
 
   if (cfg.myIndex == -1) {
+#if 1
     mInfo("vgId:1, mnode sync not reconfig since selfIndex is -1");
+#else
+    // cannot reconfig because the leader may fail to elect after reboot
+    mInfo("vgId:1, mnode sync not reconfig since selfIndex is -1, do sync stop oper");
+    syncStop(pMnode->syncMgmt.sync);
+#endif
     return;
   }
 
