@@ -179,8 +179,8 @@ typedef struct SSyncNode {
   FpOnRequestVoteReplyCb   FpOnRequestVoteReply;
   FpOnAppendEntriesCb      FpOnAppendEntries;
   FpOnAppendEntriesReplyCb FpOnAppendEntriesReply;
-  FpOnSnapshotSendCb       FpOnSnapshotSend;
-  FpOnSnapshotRspCb        FpOnSnapshotRsp;
+  FpOnSnapshotCb           FpOnSnapshot;
+  FpOnSnapshotReplyCb      FpOnSnapshotReply;
 
   // tools
   SSyncRespMgr* pSyncRespMgr;
@@ -210,7 +210,6 @@ void       syncNodeStart(SSyncNode* pSyncNode);
 void       syncNodeStartStandBy(SSyncNode* pSyncNode);
 void       syncNodeClose(SSyncNode* pSyncNode);
 int32_t    syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak);
-int32_t    syncNodeProposeBatch(SSyncNode* pSyncNode, SRpcMsg** pMsgPArr, bool* pIsWeakArr, int32_t arrSize);
 
 // option
 bool          syncNodeSnapshotEnable(SSyncNode* pSyncNode);
@@ -276,15 +275,14 @@ void syncNodeMaybeUpdateCommitBySnapshot(SSyncNode* pSyncNode);
 SyncIndex syncNodeGetLastIndex(const SSyncNode* pSyncNode);
 SyncTerm  syncNodeGetLastTerm(SSyncNode* pSyncNode);
 int32_t   syncNodeGetLastIndexTerm(SSyncNode* pSyncNode, SyncIndex* pLastIndex, SyncTerm* pLastTerm);
-
 SyncIndex syncNodeSyncStartIndex(SSyncNode* pSyncNode);
-
 SyncIndex syncNodeGetPreIndex(SSyncNode* pSyncNode, SyncIndex index);
 SyncTerm  syncNodeGetPreTerm(SSyncNode* pSyncNode, SyncIndex index);
 int32_t   syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex* pPreIndex, SyncTerm* pPreTerm);
 
 bool    syncNodeIsOptimizedOneReplica(SSyncNode* ths, SRpcMsg* pMsg);
 int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag);
+int32_t syncNodeFollowerCommit(SSyncNode* ths, SyncIndex newCommitIndex);
 int32_t syncNodePreCommit(SSyncNode* ths, SSyncRaftEntry* pEntry, int32_t code);
 
 int32_t syncNodeUpdateNewConfigIndex(SSyncNode* ths, SSyncCfg* pNewCfg);

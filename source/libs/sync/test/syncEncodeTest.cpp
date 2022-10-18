@@ -181,8 +181,11 @@ int main(int argc, char **argv) {
   SSyncNode *pSyncNode = syncNodeInit();
   assert(pSyncNode != NULL);
   SSyncRaftEntry *pEntry = pMsg4;
-  pSyncNode->pLogStore->appendEntry(pSyncNode->pLogStore, pEntry);
-  SSyncRaftEntry *pEntry2 = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, pEntry->index);
+  pSyncNode->pLogStore->syncLogAppendEntry(pSyncNode->pLogStore, pEntry);
+ 
+  int32_t code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, pEntry->index, &pEntry);
+  ASSERT(code == 0);
+
   syncEntryLog2((char *)"==pEntry2==", pEntry2);
 
   // step5

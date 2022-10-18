@@ -40,8 +40,8 @@ int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode) {
     pMsg->srcId = pSyncNode->myRaftId;
     pMsg->destId = pSyncNode->peersId[i];
     pMsg->term = pSyncNode->pRaftStore->currentTerm;
-    pMsg->lastLogIndex = pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore);
-    pMsg->lastLogTerm = pSyncNode->pLogStore->getLastTerm(pSyncNode->pLogStore);
+    pMsg->lastLogIndex = pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore);
+    pMsg->lastLogTerm = pSyncNode->pLogStore->syncLogLastTerm(pSyncNode->pLogStore);
 
     ret = syncNodeRequestVote(pSyncNode, &pSyncNode->peersId[i], pMsg);
     ASSERT(ret == 0);

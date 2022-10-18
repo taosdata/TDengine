@@ -379,14 +379,14 @@ cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) {
 
 char *snapshotSender2Str(SSyncSnapshotSender *pSender) {
   cJSON *pJson = snapshotSender2Json(pSender);
-  char * serialized = cJSON_Print(pJson);
+  char  *serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
 
 char *snapshotSender2SimpleStr(SSyncSnapshotSender *pSender, char *event) {
   int32_t len = 256;
-  char *  s = taosMemoryMalloc(len);
+  char   *s = taosMemoryMalloc(len);
 
   SRaftId  destId = pSender->pSyncNode->replicasId[pSender->replicaIndex];
   char     host[64];
@@ -674,7 +674,7 @@ cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) {
     cJSON_AddStringToObject(pFromId, "addr", u64buf);
     {
       uint64_t u64 = pReceiver->fromId.addr;
-      cJSON *  pTmp = pFromId;
+      cJSON   *pTmp = pFromId;
       char     host[128] = {0};
       uint16_t port;
       syncUtilU642Addr(u64, host, sizeof(host), &port);
@@ -707,14 +707,14 @@ cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) {
 
 char *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver) {
   cJSON *pJson = snapshotReceiver2Json(pReceiver);
-  char * serialized = cJSON_Print(pJson);
+  char  *serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
 
 char *snapshotReceiver2SimpleStr(SSyncSnapshotReceiver *pReceiver, char *event) {
   int32_t len = 256;
-  char *  s = taosMemoryMalloc(len);
+  char   *s = taosMemoryMalloc(len);
 
   SRaftId  fromId = pReceiver->fromId;
   char     host[128];
@@ -740,7 +740,7 @@ char *snapshotReceiver2SimpleStr(SSyncSnapshotReceiver *pReceiver, char *event) 
 // condition 3, recv SYNC_SNAPSHOT_SEQ_FORCE_CLOSE, force close
 // condition 4, got data, update ack
 //
-int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
+int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
   // get receiver
   SSyncSnapshotReceiver *pReceiver = pSyncNode->pNewNodeReceiver;
   bool                   needRsp = false;
@@ -853,7 +853,7 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
 // condition 2 sender receives ack, set seq = ack + 1, send msg from seq
 // condition 3 sender receives error msg, just print error log
 //
-int32_t syncNodeOnSnapshotRspCb(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
+int32_t syncNodeOnSnapshotReply(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(pSyncNode, &(pMsg->srcId)) && pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     sError("vgId:%d, recv sync-snapshot-rsp, maybe replica already dropped", pSyncNode->vgId);
@@ -919,14 +919,4 @@ int32_t syncNodeOnSnapshotRspCb(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
   }
 
   return 0;
-}
-
-int32_t syncNodeOnSnapshot(SSyncNode *ths, SyncSnapshotSend *pMsg) {
-  int32_t code = syncNodeOnSnapshotSendCb(ths, pMsg);
-  return code;
-}
-
-int32_t syncNodeOnSnapshotReply(SSyncNode *ths, SyncSnapshotRsp *pMsg) {
-  int32_t code = syncNodeOnSnapshotRspCb(ths, pMsg);
-  return code;
 }

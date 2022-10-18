@@ -30,7 +30,7 @@ static int32_t  syncIODestroy(SSyncIO *io);
 static int32_t  syncIOStartInternal(SSyncIO *io);
 static int32_t  syncIOStopInternal(SSyncIO *io);
 
-static void *  syncIOConsumerFunc(void *param);
+static void   *syncIOConsumerFunc(void *param);
 static void    syncIOProcessRequest(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
 static void    syncIOProcessReply(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
 static int32_t syncIOAuth(void *parent, char *meterId, char *spi, char *encrypt, char *secret, char *ckey);
@@ -242,9 +242,9 @@ static int32_t syncIOStopInternal(SSyncIO *io) {
 }
 
 static void *syncIOConsumerFunc(void *param) {
-  SSyncIO *  io = param;
+  SSyncIO   *io = param;
   STaosQall *qall = taosAllocateQall();
-  SRpcMsg *  pRpcMsg, rpcMsg;
+  SRpcMsg   *pRpcMsg, rpcMsg;
   SQueueInfo qinfo = {0};
 
   while (1) {
@@ -326,18 +326,18 @@ static void *syncIOConsumerFunc(void *param) {
         }
 
       } else if (pRpcMsg->msgType == TDMT_SYNC_SNAPSHOT_SEND) {
-        if (io->FpOnSyncSnapshotSend != NULL) {
+        if (io->FpOnSyncSnapshot != NULL) {
           SyncSnapshotSend *pSyncMsg = syncSnapshotSendFromRpcMsg2(pRpcMsg);
           ASSERT(pSyncMsg != NULL);
-          io->FpOnSyncSnapshotSend(io->pSyncNode, pSyncMsg);
+          io->FpOnSyncSnapshot(io->pSyncNode, pSyncMsg);
           syncSnapshotSendDestroy(pSyncMsg);
         }
 
       } else if (pRpcMsg->msgType == TDMT_SYNC_SNAPSHOT_RSP) {
-        if (io->FpOnSyncSnapshotRsp != NULL) {
+        if (io->FpOnSyncSnapshotReply != NULL) {
           SyncSnapshotRsp *pSyncMsg = syncSnapshotRspFromRpcMsg2(pRpcMsg);
           ASSERT(pSyncMsg != NULL);
-          io->FpOnSyncSnapshotRsp(io->pSyncNode, pSyncMsg);
+          io->FpOnSyncSnapshotReply(io->pSyncNode, pSyncMsg);
           syncSnapshotRspDestroy(pSyncMsg);
         }
 

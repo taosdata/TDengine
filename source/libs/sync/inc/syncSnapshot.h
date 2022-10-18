@@ -40,14 +40,14 @@ typedef struct SSyncSnapshotSender {
   bool           start;
   int32_t        seq;
   int32_t        ack;
-  void *         pReader;
-  void *         pCurrentBlock;
+  void          *pReader;
+  void          *pCurrentBlock;
   int32_t        blockLen;
   SSnapshotParam snapshotParam;
   SSnapshot      snapshot;
   SSyncCfg       lastConfig;
   int64_t        sendingMS;
-  SSyncNode *    pSyncNode;
+  SSyncNode     *pSyncNode;
   int32_t        replicaIndex;
   SyncTerm       term;
   SyncTerm       privateTerm;
@@ -65,8 +65,8 @@ int32_t              snapshotSend(SSyncSnapshotSender *pSender);
 int32_t              snapshotReSend(SSyncSnapshotSender *pSender);
 
 cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender);
-char * snapshotSender2Str(SSyncSnapshotSender *pSender);
-char * snapshotSender2SimpleStr(SSyncSnapshotSender *pSender, char *event);
+char  *snapshotSender2Str(SSyncSnapshotSender *pSender);
+char  *snapshotSender2SimpleStr(SSyncSnapshotSender *pSender, char *event);
 
 int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId);
 
@@ -74,13 +74,13 @@ int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId);
 typedef struct SSyncSnapshotReceiver {
   bool           start;
   int32_t        ack;
-  void *         pWriter;
+  void          *pWriter;
   SyncTerm       term;
   SyncTerm       privateTerm;
   SSnapshotParam snapshotParam;
   SSnapshot      snapshot;
   SRaftId        fromId;
-  SSyncNode *    pSyncNode;
+  SSyncNode     *pSyncNode;
 
 } SSyncSnapshotReceiver;
 
@@ -92,14 +92,11 @@ bool                   snapshotReceiverIsStart(SSyncSnapshotReceiver *pReceiver)
 void                   snapshotReceiverForceStop(SSyncSnapshotReceiver *pReceiver);
 
 cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver);
-char * snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver);
-char * snapshotReceiver2SimpleStr(SSyncSnapshotReceiver *pReceiver, char *event);
+char  *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver);
+char  *snapshotReceiver2SimpleStr(SSyncSnapshotReceiver *pReceiver, char *event);
 
 //---------------------------------------------------
 // on message
-int32_t syncNodeOnSnapshotSendCb(SSyncNode *ths, SyncSnapshotSend *pMsg);
-int32_t syncNodeOnSnapshotRspCb(SSyncNode *ths, SyncSnapshotRsp *pMsg);
-
 int32_t syncNodeOnSnapshot(SSyncNode *ths, SyncSnapshotSend *pMsg);
 int32_t syncNodeOnSnapshotReply(SSyncNode *ths, SyncSnapshotRsp *pMsg);
 

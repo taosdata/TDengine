@@ -75,8 +75,11 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
       if (h) {
         pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
       } else {
-        pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, index);
-        ASSERT(pEntry != NULL);
+        int32_t code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, index, &pEntry);
+        ASSERT(code == 0);
+
+        // pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, index);
+        // ASSERT(pEntry != NULL);
       }
       // cannot commit, even if quorum agree. need check term!
       if (pEntry->term <= pSyncNode->pRaftStore->currentTerm) {
@@ -122,7 +125,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
     pSyncNode->commitIndex = newCommitIndex;
 
     // call back Wal
-    pSyncNode->pLogStore->updateCommitIndex(pSyncNode->pLogStore, pSyncNode->commitIndex);
+    pSyncNode->pLogStore->syncLogUpdateCommitIndex(pSyncNode->pLogStore, pSyncNode->commitIndex);
 
     // execute fsm
     if (pSyncNode->pFsm != NULL) {
@@ -215,6 +218,7 @@ int32_t syncNodeDynamicQuorum(const SSyncNode* pSyncNode) {
   return quorum;
 }
 
+/*
 bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
   int agreeCount = 0;
   for (int i = 0; i < pSyncNode->replicaNum; ++i) {
@@ -227,8 +231,8 @@ bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
   }
   return false;
 }
+*/
 
-/*
 bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
   int agreeCount = 0;
   for (int i = 0; i < pSyncNode->replicaNum; ++i) {
@@ -241,4 +245,3 @@ bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
   }
   return false;
 }
-*/

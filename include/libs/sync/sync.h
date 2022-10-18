@@ -159,32 +159,15 @@ typedef struct SSyncLogStore {
   SLRUCache* pCache;
   void*      data;
 
-  // append one log entry
-  int32_t (*appendEntry)(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
-
-  // get one log entry, user need to free pEntry->pCont
-  SSyncRaftEntry* (*getEntry)(struct SSyncLogStore* pLogStore, SyncIndex index);
-
-  // truncate log with index, entries after the given index (>=index) will be deleted
-  int32_t (*truncate)(struct SSyncLogStore* pLogStore, SyncIndex fromIndex);
-
-  // return index of last entry
-  SyncIndex (*getLastIndex)(struct SSyncLogStore* pLogStore);
-
-  // return term of last entry
-  SyncTerm (*getLastTerm)(struct SSyncLogStore* pLogStore);
-
-  // update log store commit index with "index"
-  int32_t (*updateCommitIndex)(struct SSyncLogStore* pLogStore, SyncIndex index);
-
-  // return commit index of log
-  SyncIndex (*getCommitIndex)(struct SSyncLogStore* pLogStore);
+  int32_t (*syncLogUpdateCommitIndex)(struct SSyncLogStore* pLogStore, SyncIndex index);
+  SyncIndex (*syncLogCommitIndex)(struct SSyncLogStore* pLogStore);
 
   SyncIndex (*syncLogBeginIndex)(struct SSyncLogStore* pLogStore);
   SyncIndex (*syncLogEndIndex)(struct SSyncLogStore* pLogStore);
-  bool (*syncLogIsEmpty)(struct SSyncLogStore* pLogStore);
+
   int32_t (*syncLogEntryCount)(struct SSyncLogStore* pLogStore);
   int32_t (*syncLogRestoreFromSnapshot)(struct SSyncLogStore* pLogStore, SyncIndex index);
+  bool (*syncLogIsEmpty)(struct SSyncLogStore* pLogStore);
   bool (*syncLogExist)(struct SSyncLogStore* pLogStore, SyncIndex index);
 
   SyncIndex (*syncLogWriteIndex)(struct SSyncLogStore* pLogStore);
@@ -230,7 +213,7 @@ SyncGroupId syncGetVgId(int64_t rid);
 void        syncGetEpSet(int64_t rid, SEpSet* pEpSet);
 void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);
 int32_t     syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak);
-int32_t     syncProposeBatch(int64_t rid, SRpcMsg** pMsgPArr, bool* pIsWeakArr, int32_t arrSize);
+// int32_t     syncProposeBatch(int64_t rid, SRpcMsg** pMsgPArr, bool* pIsWeakArr, int32_t arrSize);
 bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);
