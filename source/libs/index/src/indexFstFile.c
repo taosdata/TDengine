@@ -72,7 +72,8 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
   if (offset >= ctx->file.size) return 0;
 
   do {
-    char key[128] = {0};
+    char key[1024] = {0};
+    assert(strlen(ctx->file.buf) + 1 + 64 < sizeof(key));
     idxGenLRUKey(key, ctx->file.buf, blkId);
     LRUHandle* h = taosLRUCacheLookup(ctx->lru, key, strlen(key));
 
@@ -99,6 +100,7 @@ static int idxFileCtxDoReadFrom(IFileCtx* ctx, uint8_t* buf, int len, int32_t of
         assert(blk->nread <= kBlockSize);
 
         if (blk->nread < kBlockSize && blk->nread < len) {
+          taosMemoryFree(blk);
           break;
         }
 
@@ -150,7 +152,7 @@ IFileCtx* idxFileCtxCreate(WriterType type, const char* path, bool readOnly, int
   if (ctx->type == TFILE) {
     // ugly code, refactor later
     ctx->file.readOnly = readOnly;
-    memcpy(ctx->file.buf, path, strlen(path));
+    memcpy(ctx->file.buf, path, sizeof(ctx->file.buf));
     if (readOnly == false) {
       ctx->file.pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
       taosFtruncateFile(ctx->file.pFile, 0);

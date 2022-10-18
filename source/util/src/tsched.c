@@ -38,6 +38,7 @@ void *taosInitScheduler(int32_t queueSize, int32_t numOfThreads, const char *lab
   if (pSched->queue == NULL) {
     uError("%s: no enough memory for queue", label);
     taosCleanUpScheduler(pSched);
+    taosMemoryFree(pSched);
     return NULL;
   }
 
