@@ -525,7 +525,7 @@ typedef struct SDataInserterNode {
   SDataSinkNode sink;
   int32_t       numOfTables;
   uint32_t      size;
-  char*         pData;
+  void*         pData;
 } SDataInserterNode;
 
 typedef struct SQueryInserterNode {
