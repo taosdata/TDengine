@@ -55,7 +55,8 @@ class StreamComputingTest(TDCase):
         self.offset = 1000
         self.interation = 10
         self.range_count = 5
-        self.vgroups = 1
+        self.vgroups = 3
+        self.vgroups_list = [1, self.vgroups]
         self.des_table_suffix = "_output"
         self.stream_suffix = "_stream"
         
@@ -1382,57 +1383,58 @@ class StreamComputingTest(TDCase):
     
 
     def run(self):
-        self.create_none_db_stream()
-        self.create_none_source_tb_stream()
-        self.create_none_source_tb_tag_stream()
-        self.create_none_source_tb_col_stream()
-        self.create_error_source_sql_stream()
-        # ! TD-19320	
-        # self.insert_after_restart()
-        # ! TD-18123
-        # self.insert_after_recreate_source_table()
-        self.query_after_drop_stream_db()
-
-        # self.vgroups = 10
-        # ! TD-19320	
-        # self.data_filter()
-        self.life_cycle()
-        self.scalar_function()
-        self.stream_tandem()
-        # self.udf_test()
-        # self.udaf_test(interval=10)
-        self.at_once_interval(interval=random.randint(10, 15))
-        # self.alter_source_table(interval=random.randint(10, 15))
-        self.at_once_state_window(state_window="c1")
         # self.at_once_session(session=random.randint(10, 15))
-        self.at_once_session(session=random.randint(10, 15), ignore_expired=0)
-        self.window_close_interval(interval=random.randint(10, 15), watermark=None)
-        self.window_close_interval(interval=random.randint(10, 15), watermark=None, ignore_expired=0)
-        self.window_close_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20))
-        self.window_close_state_window(state_window="c1")
-        self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s")
-        # * in this case, when vgroups = 10, max_delay must be set upper than 4, root cause not found 
-        self.watermark_max_delay_interval(interval=random.choice([15]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s")
+        # return
+        for vgroups in self.vgroups_list:
+            self.vgroups = vgroups
+            self.create_none_db_stream()
+            self.create_none_source_tb_stream()
+            self.create_none_source_tb_tag_stream()
+            self.create_none_source_tb_col_stream()
+            self.create_error_source_sql_stream()
+            self.insert_after_restart()
+            # ! TD-18123
+            # self.insert_after_recreate_source_table()
+            self.query_after_drop_stream_db()
 
-        self.watermark_window_close_session(session=random.randint(10, 15), watermark=None)
-        self.watermark_window_close_session(session=random.randint(10, 15), watermark=random.randint(20, 30))
-        self.watermark_max_delay_session(session=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s")
-        self.watermark_max_delay_session(session=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s")
-        self.partitionby_interval(interval=None, partition_by_elm="tbname")
-        self.partitionby_interval(interval=None, partition_by_elm="tbname", ignore_expired=0)
-        self.partitionby_interval(interval=10, partition_by_elm="tbname")
-        self.partitionby_interval(interval=10, partition_by_elm="tbname", ignore_expired=0)
-        self.partitionby_interval(interval=10, partition_by_elm="t1")
-        self.partition_tag_by_interval(interval=10, partition_by_elm="t1")
+            # self.vgroups = 10
+            self.data_filter()
+            self.life_cycle()
+            self.scalar_function()
+            self.stream_tandem()
+            self.udf_test()
+            # self.udaf_test(interval=10)
+            self.at_once_interval(interval=random.randint(10, 15))
+            self.at_once_state_window(state_window="c1")
+            self.at_once_session(session=random.randint(10, 15))
+            self.at_once_session(session=random.randint(10, 15), ignore_expired=0)
+            self.window_close_interval(interval=random.randint(10, 15), watermark=None)
+            self.window_close_interval(interval=random.randint(10, 15), watermark=None, ignore_expired=0)
+            self.window_close_interval(interval=random.randint(10, 15), watermark=random.randint(15, 20))
+            self.window_close_state_window(state_window="c1")
+            self.watermark_max_delay_interval(interval=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(5, 6)}s")
+            # * in this case, when vgroups = 10, max_delay must be set upper than 4, root cause not found 
+            self.watermark_max_delay_interval(interval=random.choice([15]), watermark=random.randint(20, 25), max_delay=f"{random.randint(5, 6)}s")
 
-        # TODO to be supported
-        # self.partitionby_interval(interval=None, partition_by_elm="t1")
-        # self.partitionby_interval(interval=None, partition_by_elm="c1")
-        # self.partitionby_interval(interval=10, partition_by_elm="c1")
-        # self.partitionby_interval(interval=10, partition_by_elm="abs(t1)")
-        # self.partitionby_interval(interval=None, partition_by_elm="abs(t1)")
-        # self.partitionby_interval(interval=10, partition_by_elm="abs(c1)")
-        # self.partitionby_interval(interval=None, partition_by_elm="abs(c1)")
+            self.watermark_window_close_session(session=random.randint(10, 15), watermark=None)
+            self.watermark_window_close_session(session=random.randint(10, 15), watermark=random.randint(20, 30))
+            self.watermark_max_delay_session(session=random.randint(10, 15), watermark=None, max_delay=f"{random.randint(1, 3)}s")
+            self.watermark_max_delay_session(session=random.randint(10, 15), watermark=random.randint(20, 30), max_delay=f"{random.randint(1, 3)}s")
+            self.partitionby_interval(interval=None, partition_by_elm="tbname")
+            self.partitionby_interval(interval=None, partition_by_elm="tbname", ignore_expired=0)
+            self.partitionby_interval(interval=10, partition_by_elm="tbname")
+            self.partitionby_interval(interval=10, partition_by_elm="tbname", ignore_expired=0)
+            self.partitionby_interval(interval=10, partition_by_elm="t1")
+            self.partition_tag_by_interval(interval=10, partition_by_elm="t1")
+
+            # TODO to be supported
+            # self.partitionby_interval(interval=None, partition_by_elm="t1")
+            # self.partitionby_interval(interval=None, partition_by_elm="c1")
+            # self.partitionby_interval(interval=10, partition_by_elm="c1")
+            # self.partitionby_interval(interval=10, partition_by_elm="abs(t1)")
+            # self.partitionby_interval(interval=None, partition_by_elm="abs(t1)")
+            # self.partitionby_interval(interval=10, partition_by_elm="abs(c1)")
+            # self.partitionby_interval(interval=None, partition_by_elm="abs(c1)")
 
     def cleanup(self):
         pass
