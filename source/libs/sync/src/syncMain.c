@@ -2299,7 +2299,7 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
   syncMaybeAdvanceCommitIndex(pSyncNode);
 
   if (pSyncNode->replicaNum > 1) {
-    syncNodeDoReplicate(pSyncNode);
+    syncNodeReplicate(pSyncNode);
   }
 }
 
@@ -2696,7 +2696,7 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
 #endif
 
       // send msg
-      syncNodeHeartbeat(pSyncNode, &(pSyncMsg->destId), pSyncMsg);
+      syncNodeSendHeartbeat(pSyncNode, &(pSyncMsg->destId), pSyncMsg);
 
       syncHeartbeatDestroy(pSyncMsg);
 
@@ -2900,7 +2900,7 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SyncClientRequest* pMsg, SyncInd
 
     // if mulit replica, start replicate right now
     if (ths->replicaNum > 1) {
-      syncNodeDoReplicate(ths);
+      syncNodeReplicate(ths);
     }
 
     // if only myself, maybe commit right now

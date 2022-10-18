@@ -47,9 +47,8 @@
 //                msource        |-> i,
 //                mdest          |-> j])
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
-//
 
-int32_t syncNodeDoAppendEntries(SSyncNode* pSyncNode, SRaftId* pDestId) {
+int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId) {
   // next index
   SyncIndex nextIndex = syncIndexMgrGetIndex(pSyncNode->pNextIndex, pDestId);
 
@@ -118,7 +117,7 @@ int32_t syncNodeDoAppendEntries(SSyncNode* pSyncNode, SRaftId* pDestId) {
   return 0;
 }
 
-int32_t syncNodeDoReplicate(SSyncNode* pSyncNode) {
+int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
   syncNodeEventLog(pSyncNode, "do replicate");
 
   if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
@@ -128,7 +127,7 @@ int32_t syncNodeDoReplicate(SSyncNode* pSyncNode) {
   int32_t ret = 0;
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
     SRaftId* pDestId = &(pSyncNode->peersId[i]);
-    ret = syncNodeDoAppendEntries(pSyncNode, pDestId);
+    ret = syncNodeReplicateOne(pSyncNode, pDestId);
     if (ret != 0) {
       char    host[64];
       int16_t port;
@@ -175,7 +174,7 @@ int32_t syncNodeAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, c
   return ret;
 }
 
-int32_t syncNodeHeartbeat(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncHeartbeat* pMsg) {
+int32_t syncNodeSendHeartbeat(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncHeartbeat* pMsg) {
   int32_t ret = 0;
   syncLogSendHeartbeat(pSyncNode, pMsg, "");
 
@@ -198,7 +197,7 @@ int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
     syncHeartbeat2RpcMsg(pSyncMsg, &rpcMsg);
 
     // send msg
-    syncNodeHeartbeat(pSyncNode, &(pSyncMsg->destId), pSyncMsg);
+    syncNodeSendHeartbeat(pSyncNode, &(pSyncMsg->destId), pSyncMsg);
 
     syncHeartbeatDestroy(pSyncMsg);
   }
