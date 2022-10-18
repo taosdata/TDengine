@@ -5363,7 +5363,7 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   SModeItem* pResItem = (SModeItem*)(pInfo->pItems + resIndex * (sizeof(SModeItem) + pInfo->colBytes));
-  colDataAppend(pCol, currentRow, pResItem->data, false);
+  colDataAppend(pCol, currentRow, pResItem->data, (maxCount == 0) ? true : false);
 
   return pResInfo->numOfRes;
 }
