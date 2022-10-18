@@ -42,32 +42,44 @@ static int32_t buildDbTableInfoBlock(bool sysInfo, const SSDataBlock* p, const S
 static char* SYSTABLE_IDX_COLUMN[] = {"table_name", "db_name",     "create_time",      "columns",
                                       "ttl",        "stable_name", "vgroup_id', 'uid", "type"};
 
-typedef int32_t (*__sys_filter)(void* pMeta, SNode* condition, SArray* result);
-
+typedef int32_t (*__sys_filte)(void* pMeta, SNode* condition, SArray* result);
+typedef int32_t (*__sys_check)(SNode* condtion);
 typedef struct {
-  const char*  name;
-  __sys_filter fltFunc;
+  const char* name;
+  __sys_check chkFunc;
+  __sys_filte fltFunc;
 } SSTabFltFuncDef;
 
-static int32_t sysFilteDbName(void* pMeta, SNode* pNode, SArray* result);
-static int32_t sysFilteVgroupId(void* pMeta, SNode* pNode, SArray* result);
-static int32_t sysFilteTableName(void* pMeta, SNode* pNode, SArray* result);
-static int32_t sysFilteCreateTime(void* pMeta, SNode* pNode, SArray* result);
-static int32_t sysFilteNcolumn(void* pMeta, SNode* pNode, SArray* result);
-static int32_t sysFilteTtl(void* pMeta, SNode* pNode, SArray* result);
-static int32_t sysFilteSTableName(void* pMeta, SNode* pNode, SArray* result);
-static int32_t sysFilteUid(void* pMeta, SNode* pNode, SArray* result);
-static int32_t sysFilteType(void* pMeta, SNode* pNode, SArray* result);
+static int32_t sysChkFilter__DBName(SNode* pNode);
+static int32_t sysChkFilter__VgroupId(SNode* pNode);
+static int32_t sysChkFilter__TableName(SNode* pNode);
+static int32_t sysChkFilter__CreateTime(SNode* pNode);
+static int32_t sysChkFilter__Ncolumn(SNode* pNode);
+static int32_t sysChkFilter__Ttl(SNode* pNode);
+static int32_t sysChkFilter__STableName(SNode* pNode);
+static int32_t sysChkFilter__Uid(SNode* pNode);
+static int32_t sysChkFilter__Type(SNode* pNode);
 
-const SSTabFltFuncDef filterDict[] = {{.name = "table_name", .fltFunc = sysFilteTableName},
-                                      {.name = "db_name", .fltFunc = sysFilteDbName},
-                                      {.name = "create_time", .fltFunc = sysFilteCreateTime},
-                                      {.name = "columns", .fltFunc = sysFilteNcolumn},
-                                      {.name = "ttl", .fltFunc = sysFilteTtl},
-                                      {.name = "stable_name", .fltFunc = sysFilteSTableName},
-                                      {.name = "vgroup_id", .fltFunc = sysFilteVgroupId},
-                                      {.name = "uid", .fltFunc = sysFilteUid},
-                                      {.name = "type", .fltFunc = sysFilteType}};
+static int32_t sysFilte__DbName(void* pMeta, SNode* pNode, SArray* result);
+static int32_t sysFilte__VgroupId(void* pMeta, SNode* pNode, SArray* result);
+static int32_t sysFilte__TableName(void* pMeta, SNode* pNode, SArray* result);
+static int32_t sysFilte__CreateTime(void* pMeta, SNode* pNode, SArray* result);
+static int32_t sysFilte__Ncolumn(void* pMeta, SNode* pNode, SArray* result);
+static int32_t sysFilte__Ttl(void* pMeta, SNode* pNode, SArray* result);
+static int32_t sysFilte__STableName(void* pMeta, SNode* pNode, SArray* result);
+static int32_t sysFilte__Uid(void* pMeta, SNode* pNode, SArray* result);
+static int32_t sysFilte__Type(void* pMeta, SNode* pNode, SArray* result);
+
+const SSTabFltFuncDef filterDict[] = {
+    {.name = "table_name", .chkFunc = sysChkFilter__TableName, .fltFunc = sysFilte__TableName},
+    {.name = "db_name", .chkFunc = sysChkFilter__DBName, .fltFunc = sysFilte__DbName},
+    {.name = "create_time", .chkFunc = sysChkFilter__CreateTime, .fltFunc = sysFilte__CreateTime},
+    {.name = "columns", .chkFunc = sysChkFilter__Ncolumn, .fltFunc = sysFilte__Ncolumn},
+    {.name = "ttl", .chkFunc = sysChkFilter__Ttl, .fltFunc = sysFilte__Ttl},
+    {.name = "stable_name", .chkFunc = sysChkFilter__STableName, .fltFunc = sysFilte__STableName},
+    {.name = "vgroup_id", .chkFunc = sysChkFilter__VgroupId, .fltFunc = sysFilte__VgroupId},
+    {.name = "uid", .chkFunc = sysChkFilter__Uid, .fltFunc = sysFilte__Uid},
+    {.name = "type", .chkFunc = sysChkFilter__Type, .fltFunc = sysFilte__Type}};
 
 #define SYSTAB_FILTER_DICT_SIZE (sizeof(filterDict) / sizeof(filterDict[0]))
 
@@ -319,7 +331,6 @@ static bool doLoadBlockSMA(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, 
 
   return true;
 }
-
 
 static void doSetTagColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo) {
   if (pTableScanInfo->pseudoSup.numOfExprs > 0) {
@@ -1587,7 +1598,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         tsdbReaderClose(pTSInfo->dataReader);
         pTSInfo->dataReader = NULL;
         tqOffsetResetToLog(&pTaskInfo->streamInfo.prepareStatus, pTaskInfo->streamInfo.snapshotVer);
-        qDebug("queue scan tsdb over, switch to wal ver %"PRId64, pTaskInfo->streamInfo.snapshotVer + 1);
+        qDebug("queue scan tsdb over, switch to wal ver %" PRId64, pTaskInfo->streamInfo.snapshotVer + 1);
         if (tqSeekVer(pInfo->tqReader, pTaskInfo->streamInfo.snapshotVer + 1) < 0) {
           return NULL;
         }
@@ -2804,7 +2815,7 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t sysFilteDbName(void* pMeta, SNode* pNode, SArray* result) {
+static int32_t sysFilte__DbName(void* pMeta, SNode* pNode, SArray* result) {
   void* pVnode = pMeta;
 
   const char* db = NULL;
@@ -2819,7 +2830,7 @@ static int32_t sysFilteDbName(void* pMeta, SNode* pNode, SArray* result) {
 
   return -1;
 }
-static int32_t sysFilteVgroupId(void* pMeta, SNode* pNode, SArray* result) {
+static int32_t sysFilte__VgroupId(void* pMeta, SNode* pNode, SArray* result) {
   void* pVnode = pMeta;
 
   int32_t vgId = 0;
@@ -2828,57 +2839,143 @@ static int32_t sysFilteVgroupId(void* pMeta, SNode* pNode, SArray* result) {
 
   return -1;
 }
-static int32_t sysFilteTableName(void* pMeta, SNode* pNode, SArray* result) {
+static int32_t sysFilte__TableName(void* pMeta, SNode* pNode, SArray* result) {
   // impl later
   return 0;
 }
 
-static int32_t sysFilteCreateTime(void* pMeta, SNode* pNode, SArray* result) {
+static int32_t sysFilte__CreateTime(void* pMeta, SNode* pNode, SArray* result) {
   // impl later
   return 0;
 }
-static int32_t sysFilteNcolumn(void* pMeta, SNode* pNode, SArray* result) {
+static int32_t sysFilte__Ncolumn(void* pMeta, SNode* pNode, SArray* result) {
   // impl later
   return 0;
 }
 
-static int32_t sysFilteTtl(void* pMeta, SNode* pNode, SArray* result) {
+static int32_t sysFilte__Ttl(void* pMeta, SNode* pNode, SArray* result) {
   // impl later
   return 0;
 }
-static int32_t sysFilteSTableName(void* pMeta, SNode* pNode, SArray* result) {
+static int32_t sysFilte__STableName(void* pMeta, SNode* pNode, SArray* result) {
   // impl later
   return 0;
 }
-static int32_t sysFilteUid(void* pMeta, SNode* pNode, SArray* result) {
+static int32_t sysFilte__Uid(void* pMeta, SNode* pNode, SArray* result) {
   // impl later
   return 0;
 }
-static int32_t sysFilteType(void* pMeta, SNode* pNode, SArray* result) {
+static int32_t sysFilte__Type(void* pMeta, SNode* pNode, SArray* result) {
   // impl later
+  return 0;
+}
+static int32_t sysChkFilter__DBName(SNode* pNode) {
+  SOperatorNode* pOper = (SOperatorNode*)pNode;
+  SValueNode*    pVal = (SValueNode*)pOper->pRight;
+  if (!IS_STR_DATA_TYPE(pVal->typeData)) {
+    return -1;
+  }
+  return 0;
+}
+static int32_t sysChkFilter__VgroupId(SNode* pNode) {
+  SOperatorNode* pOper = (SOperatorNode*)pNode;
+  SValueNode*    pVal = (SValueNode*)pOper->pRight;
+  if (!IS_VALID_INT(pVal->typeData)) {
+    return -1;
+  }
+  return 0;
+}
+static int32_t sysChkFilter__TableName(SNode* pNode) {
+  SOperatorNode* pOper = (SOperatorNode*)pNode;
+  SValueNode*    pVal = (SValueNode*)pOper->pRight;
+  if (!IS_STR_DATA_TYPE(pVal->typeData)) {
+    return -1;
+  }
+  return 0;
+}
+static int32_t sysChkFilter__CreateTime(SNode* pNode) {
+  SOperatorNode* pOper = (SOperatorNode*)pNode;
+  SValueNode*    pVal = (SValueNode*)pOper->pRight;
+
+  if (!IS_VALID_BIGINT(pVal->typeData)) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static int32_t sysChkFilter__Ncolumn(SNode* pNode) {
+  SOperatorNode* pOper = (SOperatorNode*)pNode;
+  SValueNode*    pVal = (SValueNode*)pOper->pRight;
+
+  if (!IS_VALID_INT(pVal->typeData)) {
+    return -1;
+  }
+  return 0;
+}
+static int32_t sysChkFilter__Ttl(SNode* pNode) {
+  SOperatorNode* pOper = (SOperatorNode*)pNode;
+  SValueNode*    pVal = (SValueNode*)pOper->pRight;
+
+  if (!IS_VALID_BIGINT(pVal->typeData)) {
+    return -1;
+  }
+  return 0;
+}
+static int32_t sysChkFilter__STableName(SNode* pNode) {
+  SOperatorNode* pOper = (SOperatorNode*)pNode;
+  SValueNode*    pVal = (SValueNode*)pOper->pRight;
+  if (!IS_STR_DATA_TYPE(pVal->typeData)) {
+    return -1;
+  }
+  return 0;
+}
+static int32_t sysChkFilter__Uid(SNode* pNode) {
+  SOperatorNode* pOper = (SOperatorNode*)pNode;
+  SValueNode*    pVal = (SValueNode*)pOper->pRight;
+  if (!IS_VALID_BIGINT(pVal->typeData)) {
+    return -1;
+  }
+  return 0;
+}
+static int32_t sysChkFilter__Type(SNode* pNode) {
+  SOperatorNode* pOper = (SOperatorNode*)pNode;
+  SValueNode*    pVal = (SValueNode*)pOper->pRight;
+  if (!IS_VALID_INT(pVal->typeData)) {
+    return -1;
+  }
   return 0;
 }
 static int32_t optSysTabFilteImpl(void* arg, SNode* cond, SArray* result) {
-  if (nodeType(cond) != QUERY_NODE_OPERATOR || optSysCheckOper(cond) != 0) return -1;
+  if (optSysCheckOper(cond) != 0) return -1;
 
   SOperatorNode* pNode = (SOperatorNode*)cond;
-  if (nodeType(pNode->pLeft) != QUERY_NODE_COLUMN) return -1;
 
-  int8_t i = -1;
-  for (i = 0; i < SYSTAB_FILTER_DICT_SIZE; i++) {
+  int8_t i = 0;
+  for (; i < SYSTAB_FILTER_DICT_SIZE; i++) {
     if (strcmp(filterDict[i].name, ((SColumnNode*)(pNode->pLeft))->colName) == 0) {
       break;
     }
   }
   if (i >= SYSTAB_FILTER_DICT_SIZE) return -1;
 
+  if (filterDict[i].chkFunc(cond) != 0) return -1;
+
   return filterDict[i].fltFunc(arg, cond, result);
 }
 
 static int32_t optSysCheckOper(SNode* pOpear) {
   if (nodeType(pOpear) != QUERY_NODE_OPERATOR) return -1;
+
   SOperatorNode* pOper = (SOperatorNode*)pOpear;
-  return -1;
+  if (pOper->opType < OP_TYPE_GREATER_THAN || pOper->opType > OP_TYPE_NOT_EQUAL) {
+    return -1;
+  }
+
+  if (nodeType(pOper->pLeft) != QUERY_NODE_COLUMN || nodeType(pOper->pRight) != QUERY_NODE_VALUE) {
+    return -1;
+  }
+  return 0;
 }
 static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result) {
   int ret = -1;
@@ -2886,6 +2983,7 @@ static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result) {
     ret = optSysTabFilteImpl(arg, cond, result);
     return ret;
   }
+
   if (nodeType(cond) != QUERY_NODE_LOGIC_CONDITION || ((SLogicConditionNode*)cond)->condType != LOGIC_COND_TYPE_AND) {
     return ret;
   }
