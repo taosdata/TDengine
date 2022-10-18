@@ -338,7 +338,7 @@ uint8_t fstStateCommInput(FstState* s, bool* null) {
     return v;
   }
   // 0 indicate that common_input is None
-  return v == 0 ? 0 : COMMON_INPUT(v);
+  return COMMON_INPUT(v);
 }
 
 // input_len
