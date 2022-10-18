@@ -1130,7 +1130,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
       break;
   }
 
-  if (NULL != pRequest && TSDB_CODE_SUCCESS != code) {
+  // TODO weired responding code?
+  if (TSDB_CODE_SUCCESS != code) {
     pRequest->code = terrno;
   }
 }

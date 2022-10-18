@@ -276,6 +276,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
           code = getGroupIdFromTagsVal(pScanInfo->readHandle.meta, keyInfo.uid, pScanInfo->pGroupTags, keyBuf,
                                        &keyInfo.groupId);
           if (code != TSDB_CODE_SUCCESS) {
+            taosMemoryFree(keyBuf);
             return code;
           }
         }
