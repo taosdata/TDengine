@@ -1959,7 +1959,8 @@ static SNode* rewriteUniqueOptCreateFirstFunc(SFunctionNode* pSelectValue, SNode
   if (NULL != pSelectValue) {
     strcpy(pFunc->node.aliasName, pSelectValue->node.aliasName);
   } else {
-    snprintf(pFunc->node.aliasName, sizeof(pFunc->node.aliasName), "%s.%p", pFunc->functionName, (void*)pFunc);
+    int64_t pointer = (int64_t)pFunc;
+    snprintf(pFunc->node.aliasName, sizeof(pFunc->node.aliasName), "%s.%" PRId64 "", pFunc->functionName, pointer);
   }
   int32_t code = nodesListMakeStrictAppend(&pFunc->pParameterList, nodesCloneNode(pCol));
   if (TSDB_CODE_SUCCESS == code) {
