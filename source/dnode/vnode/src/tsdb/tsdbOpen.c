@@ -74,7 +74,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
     goto _err;
   }
 
-  pTsdb->trimHdl.maxRetentFid = INT32_MIN;
+  pTsdb->trimHdl.maxOccupyFid = INT32_MIN;
   pTsdb->trimHdl.minCommitFid = INT32_MAX;
   pTsdb->trimHdl.commitInWait = 0;
 

@@ -99,7 +99,7 @@ _retention_loop:
   tsdbFSDestroy(&fsLatest);
 
   if (atomic_load_8(&pTsdb->trimHdl.commitInWait) == 1) {
-    atomic_store_32(&pTsdb->trimHdl.maxRetentFid, INT32_MIN);
+    atomic_store_32(&pTsdb->trimHdl.maxOccupyFid, INT32_MIN);
     taosMsleep(50);
   }
   taosThreadRwlockRdlock(&pTsdb->rwLock);
@@ -173,7 +173,7 @@ _commit_conflict_check:
       atomic_store_8(&pTsdb->trimHdl.state, 0);
       goto _commit_conflict_check;
     }
-    atomic_store_32(&pTsdb->trimHdl.maxRetentFid, maxFid);
+    atomic_store_32(&pTsdb->trimHdl.maxOccupyFid, maxFid);
     atomic_store_8(&pTsdb->trimHdl.state, 0);
   } else {
     goto _commit_conflict_check;
@@ -303,7 +303,7 @@ int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now, int64_t maxSpeed) {
   TSDB_CHECK_CODE(code, lino, _exit);
 
 _exit:
-  pTsdb->trimHdl.maxRetentFid = INT32_MIN;
+  pTsdb->trimHdl.maxOccupyFid = INT32_MIN;
   if (code) {
     tsdbError("vgId:%d, tsdb do retention %d failed at line %d since %s, time:%" PRIi64 ", max speed:%" PRIi64,
               TD_VID(pTsdb->pVnode), retention, lino, tstrerror(code), now, maxSpeed);

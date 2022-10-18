@@ -343,9 +343,9 @@ struct STsdbFS {
 };
 
 struct STsdbTrimHdl {
-  volatile int8_t  state;         // 0 idle 1 in use
+  volatile int8_t  state;         // 0 idle, 1 busy
   volatile int8_t  commitInWait;  // 0 not in wait, 1 in wait
-  volatile int32_t maxRetentFid;
+  volatile int32_t maxOccupyFid;  // e.g. used by retention/compact
   volatile int32_t minCommitFid;
 };
 

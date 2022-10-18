@@ -321,8 +321,12 @@ struct STsdbKeepCfg {
   int32_t keep2;
 };
 
+/**
+ * @brief used by retention or compact
+ * 
+ */
 struct SVTrimDbHdl {
-  volatile int8_t state;  // 0 not in trim, 1 in trim
+  volatile int8_t state;  // 0 idle, 1 busy
 };
 
 struct SVnode {

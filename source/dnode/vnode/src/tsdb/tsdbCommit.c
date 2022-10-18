@@ -812,7 +812,7 @@ static void tsdbCommitConflictCheck(STsdb *pTsdb, SCommitter *pCommitter) {
   int32_t nLoops = 0;
 
 _wait_retention_end:
-  while (atomic_load_32(&pTsdb->trimHdl.maxRetentFid) >= minCommitFid) {
+  while (atomic_load_32(&pTsdb->trimHdl.maxOccupyFid) >= minCommitFid) {
     atomic_val_compare_exchange_8(&pTsdb->trimHdl.commitInWait, 0, 1);
     if (++nLoops > 1000) {
       nLoops = 0;
@@ -820,7 +820,7 @@ _wait_retention_end:
     }
   }
   if (atomic_val_compare_exchange_8(&pTsdb->trimHdl.state, 0, 1) == 0) {
-    if (atomic_load_32(&pTsdb->trimHdl.maxRetentFid) >= minCommitFid) {
+    if (atomic_load_32(&pTsdb->trimHdl.maxOccupyFid) >= minCommitFid) {
       atomic_store_8(&pTsdb->trimHdl.state, 0);
       goto _wait_retention_end;
     }
