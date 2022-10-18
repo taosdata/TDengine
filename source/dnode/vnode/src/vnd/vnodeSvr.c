@@ -890,15 +890,11 @@ static int32_t vnodeDebugPrintSingleSubmitMsg(SMeta *pMeta, SSubmitBlk *pBlock, 
 
   tInitSubmitBlkIter(msgIter, pBlock, &blkIter);
   if (blkIter.row == NULL) return 0;
-  if (!pSchema || (suid != msgIter->suid) || rv != TD_ROW_SVER(blkIter.row)) {
-    if (pSchema) {
-      taosMemoryFreeClear(pSchema);
-    }
-    pSchema = metaGetTbTSchema(pMeta, msgIter->suid, TD_ROW_SVER(blkIter.row), 1);  // TODO: use the real schema
-    if (pSchema) {
-      suid = msgIter->suid;
-      rv = TD_ROW_SVER(blkIter.row);
-    }
+
+  pSchema = metaGetTbTSchema(pMeta, msgIter->suid, TD_ROW_SVER(blkIter.row), 1);  // TODO: use the real schema
+  if (pSchema) {
+    suid = msgIter->suid;
+    rv = TD_ROW_SVER(blkIter.row);
   }
   if (!pSchema) {
     printf("%s:%d no valid schema\n", tags, __LINE__);

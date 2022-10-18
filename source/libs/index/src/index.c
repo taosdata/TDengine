@@ -139,7 +139,7 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
 
 END:
   if (idx != NULL) {
-    indexClose(idx);
+    indexDestroy(idx);
   }
   *index = NULL;
   return ret;
