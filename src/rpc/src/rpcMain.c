@@ -1080,7 +1080,6 @@ static void rpcProcessBrokenLink(SRpcConn *pConn) {
     pContext->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
     pContext->pConn = NULL;
     pConn->pReqMsg = NULL;
-    taosAcquireRef(tsRpcRefId, pContext->rid);
     int64_t *rid = malloc(sizeof(int64_t));
     *rid = pContext->rid;
     taosTmrStart(rpcProcessConnError, 0, rid, pRpc->tmrCtrl);
