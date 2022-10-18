@@ -65,14 +65,17 @@ static bool dmCheckDiskSpace() {
   bool ret = true;
   if (!osDataSpaceAvailable()) {
     dError("data disk space unavailable, i.e. %s", tsDataDir);
+    terrno = TSDB_CODE_VND_NO_DISKSPACE;
     ret = false;
   }
   if (!osLogSpaceAvailable()) {
     dError("log disk space unavailable, i.e. %s", tsLogDir);
+    terrno = TSDB_CODE_VND_NO_DISKSPACE;
     ret = false;
   }
   if (!osTempSpaceAvailable()) {
     dError("temp disk space unavailable, i.e. %s", tsTempDir);
+    terrno = TSDB_CODE_VND_NO_DISKSPACE;
     ret = false;
   }
   return ret;
