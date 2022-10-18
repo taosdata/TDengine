@@ -16,6 +16,7 @@
 #include "functionMgt.h"
 
 #include "builtins.h"
+#include "builtinsimpl.h"
 #include "functionMgtInt.h"
 #include "taos.h"
 #include "taoserror.h"
@@ -312,6 +313,11 @@ bool fmIsSameInOutType(int32_t funcId) {
       break;
   }
   return res;
+}
+
+void getLastCacheDataType(SDataType* pType) {
+  pType->bytes = getFirstLastInfoSize(pType->bytes) + VARSTR_HEADER_SIZE;
+  pType->type = TSDB_DATA_TYPE_BINARY;
 }
 
 static int32_t getFuncInfo(SFunctionNode* pFunc) {
