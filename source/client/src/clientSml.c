@@ -79,7 +79,7 @@
 #define NCHAR_ADD_LEN  3  // L"nchar"   3 means L" "
 
 #define MAX_RETRY_TIMES 5
-#define LINE_BATCH      2000
+#define LINE_BATCH      2
 //=================================================================================================
 typedef TSDB_SML_PROTOCOL_TYPE SMLProtocolType;
 
@@ -2199,7 +2199,7 @@ static int32_t smlParseTelnetLine(SSmlHandle *info, void *data, const int len) {
   }
 
   if (info->protocol == TSDB_SML_TELNET_PROTOCOL) {
-    ret = smlParseTelnetString(info, (const char *)data, POINTER_SHIFT(data, len), tinfo, cols);
+    ret = smlParseTelnetString(info, (const char *)data, (char*)data + len, tinfo, cols);
   } else if (info->protocol == TSDB_SML_JSON_PROTOCOL) {
     ret = smlParseJSONString(info, (cJSON *)data, tinfo, cols);
   } else {
@@ -2408,6 +2408,9 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char* rawLine, char
         }
         len++;
       }
+      if(info->protocol == TSDB_SML_LINE_PROTOCOL && tmp[0] == '#'){ // this line is comment
+        continue;
+      }
     }
 
     if (info->protocol == TSDB_SML_LINE_PROTOCOL) {
@@ -2418,7 +2421,7 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char* rawLine, char
       ASSERT(0);
     }
     if (code != TSDB_CODE_SUCCESS) {
-      uError("SML:0x%" PRIx64 " smlParseLine failed. line %d : %s", info->id, i, lines[i]);
+      uError("SML:0x%" PRIx64 " smlParseLine failed. line %d : %s", info->id, i, tmp);
       return code;
     }
   }
@@ -2692,11 +2695,16 @@ TAOS_RES *taos_schemaless_insert_raw(TAOS* taos, char* lines, int len, int32_t *
   }
 
   int numLines = 0;
+  *totalRows = 0;
+  char *tmp = lines;
   for(int i = 0; i < len; i++){
     if(lines[i] == '\n' || i == len - 1){
       numLines++;
+      if(tmp[0] != '#' || protocol != TSDB_SML_LINE_PROTOCOL){    //ignore comment
+        (*totalRows)++;
+      }
+      tmp = lines + i + 1;
     }
   }
-  *totalRows = numLines;
   return taos_schemaless_insert_inner(request, NULL, lines, lines + len, numLines, protocol, precision);
 }
