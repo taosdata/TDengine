@@ -72,7 +72,7 @@ elif [ "$cpuType" = "arm64" ] || [ "$cpuType" = "aarch64" ]; then
 else
   arch=$cpuType
 fi
-taoskeeper_binary=`$scriptDir/build_taoskeeper.sh --arch $arch`
+taoskeeper_binary=`$scriptDir/build_taoskeeper.sh --arch $arch --repo taoskeeperinternal`
 
 set -e
 # unpack server package and repack with taoskeeper binary and service file.
