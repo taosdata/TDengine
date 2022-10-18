@@ -1371,8 +1371,14 @@ static int32_t smlKvTimeArrayCompare(const void *key1, const void *key2) {
 static int32_t smlKvTimeHashCompare(const void *key1, const void *key2) {
   SHashObj *s1 = *(SHashObj **)key1;
   SHashObj *s2 = *(SHashObj **)key2;
-  SSmlKv   *kv1 = *(SSmlKv **)taosHashGet(s1, TS, TS_LEN);
-  SSmlKv   *kv2 = *(SSmlKv **)taosHashGet(s2, TS, TS_LEN);
+  SSmlKv   **kv1pp = (SSmlKv **)taosHashGet(s1, TS, TS_LEN);
+  SSmlKv   **kv2pp = (SSmlKv **)taosHashGet(s2, TS, TS_LEN);
+  if(!kv1pp || !kv2pp){
+    uError("smlKvTimeHashCompare kv is null");
+    return -1;
+  }
+  SSmlKv   *kv1 = *kv1pp;
+  SSmlKv   *kv2 = *kv2pp;
   if(!kv1 || kv1->type != TSDB_DATA_TYPE_TIMESTAMP){
     uError("smlKvTimeHashCompare kv1");
     return -1;

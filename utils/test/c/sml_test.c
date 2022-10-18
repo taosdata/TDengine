@@ -99,27 +99,8 @@ int smlProcess_json1_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {
-      "["
-      "    {"
-      "        \"metric\": \"sys.cpu.nice\","
-      "        \"timestamp\": 0,"
-      "        \"value\": 18,"
-      "        \"tags\": {"
-      "           \"host\": \"web01\","
-      "           \"id\": \"t1\","
-      "           \"dc\": \"lga\""
-      "        }"
-      "    },"
-      "    {"
-      "        \"metric\": \"sys.cpu.nice\","
-      "        \"timestamp\": 1662344042,"
-      "        \"value\": 9,"
-      "        \"tags\": {"
-      "           \"host\": \"web02\","
-      "           \"dc\": \"lga\""
-      "        }"
-      "    }"
-      "]",};
+      "[{\"metric\":\"sys.cpu.nice\",\"timestamp\":0,\"value\":18,\"tags\":{\"host\":\"web01\",\"id\":\"t1\",\"dc\":\"lga\"}},{\"metric\":\"sys.cpu.nice\",\"timestamp\":1662344042,\"value\":9,\"tags\":{\"host\":\"web02\",\"dc\":\"lga\"}}]"
+  };
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
@@ -138,28 +119,8 @@ int smlProcess_json2_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {
-      "{"
-      "    \"metric\": \"meter_current0\","
-      "    \"timestamp\": {"
-      "        \"value\"  : 1662344042,"
-      "        \"type\"   : \"s\""
-      "    },"
-      "    \"value\": {"
-      "         \"value\" : 10.3,"
-      "         \"type\"  : \"i64\""
-      "    },"
-      "    \"tags\": {"
-      "       \"groupid\": { "
-      "           \"value\" : 2,"
-      "           \"type\"  : \"bigint\""
-      "       },"
-      "       \"location\": { "
-      "           \"value\" : \"北京\","
-      "           \"type\"  : \"binary\""
-      "       },"
-      "       \"id\": \"d1001\""
-      "    }"
-      "}",};
+      "{\"metric\":\"meter_current0\",\"timestamp\":{\"value\":1662344042,\"type\":\"s\"},\"value\":{\"value\":10.3,\"type\":\"i64\"},\"tags\":{\"groupid\":{\"value\":2,\"type\":\"bigint\"},\"location\":{\"value\":\"北京\",\"type\":\"binary\"},\"id\":\"d1001\"}}"
+  };
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
@@ -178,56 +139,7 @@ int smlProcess_json3_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {
-      "{"
-      "    \"metric\": \"meter_current1\","
-      "    \"timestamp\": {"
-      "        \"value\"  : 1662344042,"
-      "        \"type\"   : \"s\""
-      "    },"
-      "    \"value\": {"
-      "         \"value\" : 10.3,"
-      "         \"type\"  : \"i64\""
-      "    },"
-      "    \"tags\": {"
-      "       \"t1\": { "
-      "           \"value\" : 2,"
-      "           \"type\"  : \"bigint\""
-      "       },"
-      "       \"t2\": { "
-      "           \"value\" : 2,"
-      "           \"type\"  : \"int\""
-      "       },"
-      "       \"t3\": { "
-      "           \"value\" : 2,"
-      "           \"type\"  : \"i16\""
-      "       },"
-      "       \"t4\": { "
-      "           \"value\" : 2,"
-      "           \"type\"  : \"i8\""
-      "       },"
-      "       \"t5\": { "
-      "           \"value\" : 2,"
-      "           \"type\"  : \"f32\""
-      "       },"
-      "       \"t6\": { "
-      "           \"value\" : 2,"
-      "           \"type\"  : \"double\""
-      "       },"
-      "       \"t7\": { "
-      "           \"value\" : \"8323\","
-      "           \"type\"  : \"binary\""
-      "       },"
-      "       \"t8\": { "
-      "           \"value\" : \"北京\","
-      "           \"type\"  : \"nchar\""
-      "       },"
-      "       \"t9\": { "
-      "           \"value\" : true,"
-      "           \"type\"  : \"bool\""
-      "       },"
-      "       \"id\": \"d1001\""
-      "    }"
-      "}",};
+      "{\"metric\":\"meter_current1\",\"timestamp\":{\"value\":1662344042,\"type\":\"s\"},\"value\":{\"value\":10.3,\"type\":\"i64\"},\"tags\":{\"t1\":{\"value\":2,\"type\":\"bigint\"},\"t2\":{\"value\":2,\"type\":\"int\"},\"t3\":{\"value\":2,\"type\":\"i16\"},\"t4\":{\"value\":2,\"type\":\"i8\"},\"t5\":{\"value\":2,\"type\":\"f32\"},\"t6\":{\"value\":2,\"type\":\"double\"},\"t7\":{\"value\":\"8323\",\"type\":\"binary\"},\"t8\":{\"value\":\"北京\",\"type\":\"nchar\"},\"t9\":{\"value\":true,\"type\":\"bool\"},\"id\":\"d1001\"}}"};
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
@@ -246,47 +158,8 @@ int smlProcess_json4_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {
-      "{"
-      "    \"metric\": \"meter_current2\","
-      "    \"timestamp\": {"
-      "        \"value\"  : 1662344042000,"
-      "        \"type\"   : \"ms\""
-      "    },"
-      "    \"value\": \"ni\","
-      "    \"tags\": {"
-      "       \"t1\": { "
-      "           \"value\" : 20,"
-      "           \"type\"  : \"i64\""
-      "       },"
-      "       \"t2\": { "
-      "           \"value\" : 25,"
-      "           \"type\"  : \"i32\""
-      "       },"
-      "       \"t3\": { "
-      "           \"value\" : 2,"
-      "           \"type\"  : \"smallint\""
-      "       },"
-      "       \"t4\": { "
-      "           \"value\" : 2,"
-      "           \"type\"  : \"tinyint\""
-      "       },"
-      "       \"t5\": { "
-      "           \"value\" : 2,"
-      "           \"type\"  : \"float\""
-      "       },"
-      "       \"t6\": { "
-      "           \"value\" : 0.2,"
-      "           \"type\"  : \"f64\""
-      "       },"
-      "       \"t7\": \"nsj\","
-      "       \"t8\": { "
-      "           \"value\" : \"北京\","
-      "           \"type\"  : \"nchar\""
-      "       },"
-      "       \"t9\": false,"
-      "       \"id\": \"d1001\""
-      "    }"
-      "}",};
+      "{\"metric\":\"meter_current2\",\"timestamp\":{\"value\":1662344042000,\"type\":\"ms\"},\"value\":\"ni\",\"tags\":{\"t1\":{\"value\":20,\"type\":\"i64\"},\"t2\":{\"value\":25,\"type\":\"i32\"},\"t3\":{\"value\":2,\"type\":\"smallint\"},\"t4\":{\"value\":2,\"type\":\"tinyint\"},\"t5\":{\"value\":2,\"type\":\"float\"},\"t6\":{\"value\":0.2,\"type\":\"f64\"},\"t7\":\"nsj\",\"t8\":{\"value\":\"北京\",\"type\":\"nchar\"},\"t9\":false,\"id\":\"d1001\"}}"
+  };
   pRes = taos_schemaless_insert(taos, (char **)sql, sizeof(sql) / sizeof(sql[0]), TSDB_SML_JSON_PROTOCOL,
                                 TSDB_SML_TIMESTAMP_NANO_SECONDS);
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
