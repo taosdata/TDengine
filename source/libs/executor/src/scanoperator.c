@@ -42,13 +42,19 @@ static int32_t buildDbTableInfoBlock(bool sysInfo, const SSDataBlock* p, const S
 static char* SYSTABLE_IDX_COLUMN[] = {"table_name", "db_name",     "create_time",      "columns",
                                       "ttl",        "stable_name", "vgroup_id', 'uid", "type"};
 
-typedef int32_t (*__sys_filte)(void* pMeta, SNode* condition, SArray* result);
-typedef int32_t (*__sys_check)(SNode* condtion);
+typedef int32_t (*__sys_filte)(void* pMeta, SNode* cond, SArray* result);
+typedef int32_t (*__sys_check)(SNode* cond);
+
 typedef struct {
   const char* name;
   __sys_check chkFunc;
   __sys_filte fltFunc;
 } SSTabFltFuncDef;
+
+typedef struct {
+  void* pMeta;
+  void* reserve;
+} SSTabFltArg;
 
 static int32_t sysChkFilter__DBName(SNode* pNode);
 static int32_t sysChkFilter__VgroupId(SNode* pNode);
@@ -83,9 +89,10 @@ const SSTabFltFuncDef filterDict[] = {
 
 #define SYSTAB_FILTER_DICT_SIZE (sizeof(filterDict) / sizeof(filterDict[0]))
 
-static int32_t optSysTabFilteImpl(void* arg, SNode* cond, SArray* result);
 static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result);
+static int32_t optSysTabFilteImpl(void* arg, SNode* cond, SArray* result);
 static int32_t optSysCheckOper(SNode* pOpear);
+static int32_t optSysMergeRslt(SArray* multiRslt, SArray* reslt);
 
 static bool processBlockWithProbability(const SSampleExecInfo* pInfo);
 
@@ -2871,10 +2878,16 @@ static int32_t sysFilte__Type(void* pMeta, SNode* pNode, SArray* result) {
 }
 static int32_t sysChkFilter__DBName(SNode* pNode) {
   SOperatorNode* pOper = (SOperatorNode*)pNode;
-  SValueNode*    pVal = (SValueNode*)pOper->pRight;
+
+  if (pOper->opType != OP_TYPE_EQUAL && pOper->opType != OP_TYPE_NOT_EQUAL) {
+    return -1;
+  }
+
+  SValueNode* pVal = (SValueNode*)pOper->pRight;
   if (!IS_STR_DATA_TYPE(pVal->typeData)) {
     return -1;
   }
+
   return 0;
 }
 static int32_t sysChkFilter__VgroupId(SNode* pNode) {
@@ -2977,6 +2990,14 @@ static int32_t optSysCheckOper(SNode* pOpear) {
   }
   return 0;
 }
+static int32_t optSysMergeRslt(SArray* mRslt, SArray* rslt) {
+  // TODO, find comm mem from mRslt
+  for (int i = 0; i < taosArrayGetSize(mRslt); i++) {
+    SArray* aRslt = taosArrayGetP(mRslt, i);
+    taosArrayAddAll(rslt, aRslt);
+  }
+  return 0;
+}
 static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result) {
   int ret = -1;
   if (nodeType(cond) == QUERY_NODE_OPERATOR) {
@@ -2988,23 +3009,47 @@ static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result) {
     return ret;
   }
 
-  bool                 hasIndex = false;
   SLogicConditionNode* pNode = (SLogicConditionNode*)cond;
   SNodeList*           pList = (SNodeList*)pNode->pParameterList;
 
   int32_t len = LIST_LENGTH(pList);
   if (len <= 0) return ret;
 
+  bool    hasIdx = false;
+  int     hasRslt = true;
+  SArray* mRslt = taosArrayInit(len, POINTER_BYTES);
+
   SListCell* cell = pList->pHead;
   for (int i = 0; i < len; i++) {
     if (cell == NULL) break;
-    if (optSysTabFilteImpl(arg, cell->pNode, result) == 0) {
-      hasIndex = true;
+
+    SArray* aRslt = taosArrayInit(16, sizeof(int64_t));
+
+    ret = optSysTabFilteImpl(arg, cell->pNode, aRslt);
+    if (ret == 0) {
+      hasIdx = true;
+      taosArrayPush(mRslt, &aRslt);
+    } else if (ret == -2) {
+      hasIdx = true;
+      hasRslt = false;
+      taosArrayDestroy(aRslt);
+      break;
+    } else {
+      taosArrayDestroy(aRslt);
     }
     cell = cell->pNext;
   }
+  if (hasRslt && hasIdx) {
+    optSysMergeRslt(mRslt, result);
+  }
 
-  return hasIndex == true ? 0 : -1;
+  for (int i = 0; i < taosArrayGetSize(mRslt); i++) {
+    SArray* aRslt = taosArrayGetP(mRslt, i);
+    taosArrayDestroy(aRslt);
+  };
+  taosArrayDestroy(mRslt);
+
+  return hasIdx == true ? 0 : -1;
 }
 
 static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
