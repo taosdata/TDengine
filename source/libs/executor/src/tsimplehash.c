@@ -16,6 +16,7 @@
 #include "tsimplehash.h"
 #include "taoserror.h"
 #include "tlog.h"
+#include "tdef.h"
 
 #define SHASH_DEFAULT_LOAD_FACTOR 0.75
 #define HASH_MAX_CAPACITY         (1024 * 1024 * 16L)
@@ -110,14 +111,14 @@ static void tSimpleHashTableResize(SSHashObj *pHashObj) {
   }
 
   int64_t st = taosGetTimestampUs();
-  void   *pNewEntryList = taosMemoryRealloc(pHashObj->hashList, sizeof(void *) * newCapacity);
+  void   *pNewEntryList = taosMemoryRealloc(pHashObj->hashList, POINTER_BYTES * newCapacity);
   if (!pNewEntryList) {
     uWarn("hash resize failed due to out of memory, capacity remain:%zu", pHashObj->capacity);
     return;
   }
 
   size_t inc = newCapacity - pHashObj->capacity;
-  memset((char *)pNewEntryList + pHashObj->capacity * sizeof(void *), 0, inc * sizeof(void *));
+  memset((char *)pNewEntryList + pHashObj->capacity * POINTER_BYTES, 0, inc * sizeof(void *));
 
   pHashObj->hashList = pNewEntryList;
   pHashObj->capacity = newCapacity;
