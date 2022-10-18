@@ -244,7 +244,7 @@ int32_t getDataBlockFromList(SHashObj* pHashList, void* id, int32_t idLen, int32
       }
     }
 
-    taosHashPut(pHashList, (const char*)id, idLen, (char*)dataBlocks, POINTER_BYTES);
+    taosHashPut(pHashList, id, idLen, dataBlocks, POINTER_BYTES);
     if (pBlockList) {
       taosArrayPush(pBlockList, dataBlocks);
     }
@@ -666,7 +666,7 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SB
     }
   } else {
     for (int32_t i = 0; i < numOfRows; ++i) {
-      char*     payload = (blkKeyTuple + i)->payloadAddr;
+      void*     payload = (blkKeyTuple + i)->payloadAddr;
       TDRowLenT rowTLen = TD_ROW_LEN((STSRow*)payload);
       memcpy(pDataBlock, payload, rowTLen);
       pDataBlock = POINTER_SHIFT(pDataBlock, rowTLen);
