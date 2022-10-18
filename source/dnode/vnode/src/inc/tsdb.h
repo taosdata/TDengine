@@ -257,8 +257,6 @@ int32_t tsdbFSCommit2(STsdb *pTsdb, STsdbFS *pFS);
 int32_t tsdbFSRef(STsdb *pTsdb, STsdbFS *pFS);
 void    tsdbFSUnref(STsdb *pTsdb, STsdbFS *pFS);
 
-int32_t tsdbFSRollback(STsdbFS *pFS);
-
 int32_t tsdbFSUpsertFSet(STsdbFS *pFS, SDFileSet *pSet);
 int32_t tsdbFSUpsertDelFile(STsdbFS *pFS, SDelFile *pDelFile);
 // tsdbReaderWriter.c ==============================================================================================
