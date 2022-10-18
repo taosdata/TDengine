@@ -3472,6 +3472,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   int32_t      numOfCols = 0;
   SExprInfo*   pExprInfo = createExprInfo(pIntervalPhyNode->window.pFuncs, NULL, &numOfCols);
   SSDataBlock* pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
+  initBasicInfo(&pInfo->binfo, pResBlock);
 
   int32_t code = initAggInfo(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str);
   if (code != TSDB_CODE_SUCCESS) {
@@ -3479,7 +3480,6 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   }
 
   initStreamFunciton(pOperator->exprSupp.pCtx, pOperator->exprSupp.numOfExprs);
-  initBasicInfo(&pInfo->binfo, pResBlock);
 
   ASSERT(numOfCols > 0);
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);

@@ -758,7 +758,7 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   }
   return pOperator;
 
-_error:
+_error: 3
   pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
   if (pInfo != NULL) {
     destroyMultiwayMergeOperatorInfo(pInfo);
