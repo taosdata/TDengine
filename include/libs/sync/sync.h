@@ -36,6 +36,7 @@ extern bool gRaftDetailLog;
 #define SYNC_MAX_START_TIME_RANGE_MS (1000 * 20)
 #define SYNC_MAX_RECV_TIME_RANGE_MS 1200
 #define SYNC_ADD_QUORUM_COUNT 3
+#define SYNC_MNODE_MAX_LOG_NUM 10000
 
 #define SYNC_APPEND_ENTRIES_TIMEOUT_MS 10000
 
@@ -203,7 +204,6 @@ void        syncStop(int64_t rid);
 int32_t     syncSetStandby(int64_t rid);
 ESyncState  syncGetMyRole(int64_t rid);
 bool        syncIsReady(int64_t rid);
-bool        syncIsReadyForRead(int64_t rid);
 const char* syncGetMyRoleStr(int64_t rid);
 bool        syncRestoreFinish(int64_t rid);
 SyncTerm    syncGetMyTerm(int64_t rid);

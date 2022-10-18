@@ -45,8 +45,10 @@
 //     /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, log>>
 //
 void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
-  syncIndexMgrLog2("==syncNodeMaybeAdvanceCommitIndex== pNextIndex", pSyncNode->pNextIndex);
-  syncIndexMgrLog2("==syncNodeMaybeAdvanceCommitIndex== pMatchIndex", pSyncNode->pMatchIndex);
+  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+    syncNodeErrorLog(pSyncNode, "not leader, can not advance commit index");
+    return;
+  }
 
   // advance commit index to sanpshot first
   SSnapshot snapshot;
@@ -129,7 +131,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
 
     // execute fsm
     if (pSyncNode->pFsm != NULL) {
-      int32_t code = syncNodeCommit(pSyncNode, beginIndex, endIndex, pSyncNode->state);
+      int32_t code = syncNodeDoCommit(pSyncNode, beginIndex, endIndex, pSyncNode->state);
       ASSERT(code == 0);
     }
   }

@@ -299,7 +299,7 @@ int32_t syncNodeFollowerCommit(SSyncNode* ths, SyncIndex newCommitIndex) {
       int32_t code = ths->pLogStore->syncLogUpdateCommitIndex(ths->pLogStore, ths->commitIndex);
       ASSERT(code == 0);
 
-      code = syncNodeCommit(ths, beginIndex, endIndex, ths->state);
+      code = syncNodeDoCommit(ths, beginIndex, endIndex, ths->state);
       ASSERT(code == 0);
     }
   }

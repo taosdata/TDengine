@@ -297,6 +297,20 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
   ASSERT(rid == pSyncNode->rid);
   int32_t code = 0;
 
+  if (syncNodeIsMnode(pSyncNode)) {
+    SyncIndex beginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
+    SyncIndex endIndex = pSyncNode->pLogStore->syncLogEndIndex(pSyncNode->pLogStore);
+    int64_t   logNum = endIndex - beginIndex;
+    if (logNum > SYNC_MNODE_MAX_LOG_NUM) {
+      char logBuf[256];
+      snprintf(logBuf, sizeof(logBuf), "mnode log num:%ld, do not delete", logNum);
+      syncNodeEventLog(pSyncNode, logBuf);
+
+      taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+      return 0;
+    }
+  }
+
   for (int32_t i = 0; i < pSyncNode->peersNum; ++i) {
     int64_t matchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, &(pSyncNode->peersId[i]));
     if (lastApplyIndex > matchIndex) {
@@ -311,6 +325,7 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
         syncNodeEventLog(pSyncNode, logBuf);
       } while (0);
 
+      taosReleaseRef(tsNodeRefId, pSyncNode->rid);
       return 0;
     }
   }
@@ -3117,7 +3132,7 @@ bool syncNodeIsOptimizedOneReplica(SSyncNode* ths, SRpcMsg* pMsg) {
   return (ths->replicaNum == 1 && syncUtilUserCommit(pMsg->msgType) && ths->vgId != 1);
 }
 
-int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag) {
+int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag) {
   if (beginIndex > endIndex) {
     return 0;
   }
