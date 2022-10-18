@@ -2232,6 +2232,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
     cxt.doAgg = false;
     nodesWalkExprs(pScan->pScanCols, lastRowScanOptSetColDataType, &cxt);
     nodesWalkExprs(pScan->pScanPseudoCols, lastRowScanOptSetColDataType, &cxt);
+    nodesWalkExprs(pScan->node.pTargets, lastRowScanOptSetColDataType, &cxt);
     nodesClearList(cxt.pLastCols);
   }
   pAgg->hasLastRow = false;
