@@ -222,12 +222,12 @@ TDengine provides a variety of query processing functions for tables and STables
 
 ### Query Process
 
-1. TDEngine client driver `taosc` parses the SQL statement and generates an abstract syntax tree (AST), then check and verify the AST according to metadata. During this stage, the metadata management module in `taosc` (Catalog) requests the metadata of the involved database and table from mnode and vnode.
+1. TDengine client driver `taosc` parses the SQL statement and generates an abstract syntax tree (AST), then checks and verifies the AST according to metadata. During this stage, the metadata management module in `taosc` (Catalog) requests the metadata of the involved database and table from mnode and vnode.
 2. After the verification passes, `taosc` generates distributed query plan and optimizes the plan.
 3. `taosc` schedules the tasks according to configured query policy, a query sub-task may be scheduled to a vnode or qnode according to data relative and system load. Please be noted that both vnode and qnode are logic execution unit, the physical execution node is dnode (data node).
 4. When a dnode receives a query request, it identifies which vnode or qnode this query request is targeted, and forwards the request to the query execution queue of the identified vnode or qnode.
 5. The query execution thread of the vnode or qnode establishes fundamental query execution context, and executes the query, and notifies the client once obtaining a part of result data.
-6. TDengine client driver `taosc` will initiates next level query tasks or obtain the result simply.
+6. TDengine client driver `taosc` will initiate next level query tasks or obtain the result simply.
 
 ### Aggregation by Time Axis, Downsampling, Interpolation
 

@@ -74,10 +74,12 @@ The different database framework specifications for various programming language
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import InstallOnWindows from "./_linux_install.mdx";
-import InstallOnLinux from "./_windows_install.mdx";
+import InstallOnLinux from "./_linux_install.mdx";
+import InstallOnWindows from "./_windows_install.mdx";
+import InstallOnMacOS from "./_macos_install.mdx";
 import VerifyWindows from "./_verify_windows.mdx";
 import VerifyLinux from "./_verify_linux.mdx";
+import VerifyMacOS from "./_verify_macos.mdx";
 
 ## Install Client Driver
 
@@ -90,10 +92,13 @@ The client driver needs to be installed if you use the native interface connecto
 
 <Tabs defaultValue="linux" groupId="os">
   <TabItem value="linux" label="Linux">
-    <InstallOnWindows />
+    <InstallOnLinux />
   </TabItem>
   <TabItem value="windows" label="Windows">
-    <InstallOnLinux />
+    <InstallOnWindows />
+  </TabItem>
+  <TabItem value="macos" label="MacOS">
+    <InstallOnMacOS />
   </TabItem>
 </Tabs>
 
@@ -107,6 +112,9 @@ After completing the above installation and configuration and you have confirmed
   </TabItem>
   <TabItem value="windows" label="Windows">
     <VerifyWindows />
+  </TabItem>
+  <TabItem value="macos" label="MacOS">
+    <VerifyMacOS />
   </TabItem>
 </Tabs>
 

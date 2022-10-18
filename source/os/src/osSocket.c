@@ -590,7 +590,9 @@ TdSocketPtr taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t
     taosCloseSocket(&pSocket);
     return NULL;
   } else {
-    taosKeepTcpAlive(pSocket);
+    if (taosKeepTcpAlive(pSocket) == -1) {
+      return NULL;
+    }
   }
 
   return pSocket;
@@ -1059,18 +1061,22 @@ int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
   }
 #if defined(WINDOWS)
   if (0 != setsockopt(fd, IPPROTO_TCP, TCP_MAXRT, (char *)&timeout, sizeof(timeout))) {
+    taosCloseSocketNoCheck1(fd);
     return -1;
   }
 #elif defined(_TD_DARWIN_64)
   uint32_t conn_timeout_ms = timeout * 1000;
   if (0 != setsockopt(fd, IPPROTO_TCP, TCP_CONNECTIONTIMEOUT, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
+    taosCloseSocketNoCheck1(fd);
     return -1;
   }
 #else  // Linux like systems
   uint32_t conn_timeout_ms = timeout * 1000;
   if (0 != setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
+    taosCloseSocketNoCheck1(fd);
     return -1;
   }
 #endif
+
   return (int)fd;
 }
