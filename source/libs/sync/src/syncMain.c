@@ -301,7 +301,7 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
     SyncIndex beginIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
     SyncIndex endIndex = pSyncNode->pLogStore->syncLogEndIndex(pSyncNode->pLogStore);
     int64_t   logNum = endIndex - beginIndex;
-    if (logNum > SYNC_MNODE_MAX_LOG_NUM) {
+    if (logNum < SYNC_MNODE_MAX_LOG_NUM) {
       char logBuf[256];
       snprintf(logBuf, sizeof(logBuf), "mnode log num:%ld, do not delete", logNum);
       syncNodeEventLog(pSyncNode, logBuf);
@@ -341,6 +341,13 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
     if (snapshottingIndex == SYNC_INDEX_INVALID) {
       atomic_store_64(&pSyncNode->snapshottingIndex, lastApplyIndex);
 
+      do {
+        char logBuf[256];
+        snprintf(logBuf, sizeof(logBuf), "wal snapshot begin, index:%ld, last apply index:%ld",
+                 pSyncNode->snapshottingIndex, lastApplyIndex);
+        syncNodeEventLog(pSyncNode, logBuf);
+      } while (0);
+
       SSyncLogStoreData* pData = pSyncNode->pLogStore->data;
       code = walBeginSnapshot(pData->pWal, lastApplyIndex);
 
@@ -366,6 +373,12 @@ int32_t syncEndSnapshot(int64_t rid) {
 
   int32_t code = 0;
   if (atomic_load_64(&pSyncNode->snapshottingIndex) != SYNC_INDEX_INVALID) {
+    do {
+      char logBuf[256];
+      snprintf(logBuf, sizeof(logBuf), "wal snapshot end, index:%ld", atomic_load_64(&pSyncNode->snapshottingIndex));
+      syncNodeEventLog(pSyncNode, logBuf);
+    } while (0);
+
     SSyncLogStoreData* pData = pSyncNode->pLogStore->data;
     code = walEndSnapshot(pData->pWal);
 
