@@ -362,7 +362,7 @@ Creates consumer group.
 
 * `func (c *Consumer) Subscribe(topics []string) error`
 
-Subscribes to a topic.
+Subscribes to topics.
 
 * `func (c *Consumer) Poll(timeout time.Duration) (*Result, error)`
 
@@ -444,23 +444,23 @@ Close consumer.
 
 * `func NewConsumer(config *Config) (*Consumer, error)`
 
-   Create a consumer.
+   Creates consumer group.
 
 * `func (c *Consumer) Subscribe(topic []string) error`
 
-   Subscribe to topics.
+   Subscribes to topics.
 
 * `func (c *Consumer) Poll(timeout time.Duration) (*Result, error)`
 
-   Poll for messages.
+   Polling information.
 
 * `func (c *Consumer) Commit(messageID uint64) error`
 
-   Commit message.
+   Commit information.
 
 * `func (c *Consumer) Close() error`
 
-   Close the consumer.
+   Close consumer.
 
 For a complete example see [GitHub sample file](https://github.com/taosdata/driver-go/blob/3.0/examples/tmqoverws/main.go)
 
