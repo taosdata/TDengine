@@ -45,7 +45,7 @@
 //     /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, log>>
 //
 void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
-  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
     syncNodeErrorLog(pSyncNode, "not leader, can not advance commit index");
     return;
   }
