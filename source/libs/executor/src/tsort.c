@@ -548,7 +548,8 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
 
       SSDataBlock* pBlock = createOneDataBlock(pHandle->pDataBlock, false);
       code = doAddNewExternalMemSource(pHandle->pBuf, pResList, pBlock, &pHandle->sourceId, pPageIdList);
-      if (code != 0) {
+      if (code != TSDB_CODE_SUCCESS) {
+        taosArrayDestroy(pResList);
         return code;
       }
     }
