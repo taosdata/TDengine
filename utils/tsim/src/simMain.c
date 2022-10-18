@@ -18,7 +18,6 @@
 
 bool simExecSuccess = false;
 bool abortExecution = false;
-bool useMultiProcess = false;
 bool useValgrind = false;
 
 void simHandleSignal(int32_t signo, void *sigInfo, void *context) {
@@ -34,8 +33,6 @@ int32_t main(int32_t argc, char *argv[]) {
       tstrncpy(configDir, argv[++i], 128);
     } else if (strcmp(argv[i], "-f") == 0 && i < argc - 1) {
       tstrncpy(scriptFile, argv[++i], MAX_FILE_NAME_LEN);
-    } else if (strcmp(argv[i], "-m") == 0) {
-      useMultiProcess = true;
     } else if (strcmp(argv[i], "-v") == 0) {
       useValgrind = true;
     } else {

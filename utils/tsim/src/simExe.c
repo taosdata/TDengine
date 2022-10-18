@@ -438,10 +438,6 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
   simReplaceStr(buf, ".sh", ".bat");
 #endif
 
-  if (useMultiProcess) {
-    simReplaceStr(buf, "deploy.sh", "deploy.sh -m");
-  }
-
   if (useValgrind) {
     replaced = simReplaceStr(buf, "exec.sh", "exec.sh -v");
   }

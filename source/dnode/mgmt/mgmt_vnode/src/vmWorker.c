@@ -34,12 +34,6 @@ static void vmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 
   dGTrace("msg:%p, get from vnode-mgmt queue", pMsg);
   switch (pMsg->msgType) {
-    case TDMT_MON_VM_INFO:
-      code = vmProcessGetMonitorInfoReq(pMgmt, pMsg);
-      break;
-    case TDMT_MON_VM_LOAD:
-      code = vmProcessGetLoadsReq(pMgmt, pMsg);
-      break;
     case TDMT_DND_CREATE_VNODE:
       code = vmProcessCreateVnodeReq(pMgmt, pMsg);
       break;
@@ -234,13 +228,6 @@ int32_t vmPutMsgToMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return 0;
 }
 
-int32_t vmPutMsgToMonitorQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  const STraceId *trace = &pMsg->info.traceId;
-  dGTrace("msg:%p, put into vnode-monitor queue", pMsg);
-  taosWriteQitem(pMgmt->monitorWorker.queue, pMsg);
-  return 0;
-}
-
 int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
   if (pMsg == NULL) {
@@ -379,21 +366,11 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
   };
   if (tSingleWorkerInit(&pMgmt->mgmtWorker, &mgmtCfg) != 0) return -1;
 
-  SSingleWorkerCfg monitorCfg = {
-      .min = 1,
-      .max = 1,
-      .name = "vnode-monitor",
-      .fp = (FItem)vmProcessMgmtQueue,
-      .param = pMgmt,
-  };
-  if (tSingleWorkerInit(&pMgmt->monitorWorker, &monitorCfg) != 0) return -1;
-
   dDebug("vnode workers are initialized");
   return 0;
 }
 
 void vmStopWorker(SVnodeMgmt *pMgmt) {
-  tSingleWorkerCleanup(&pMgmt->monitorWorker);
   tSingleWorkerCleanup(&pMgmt->mgmtWorker);
   tWWorkerCleanup(&pMgmt->writePool);
   tWWorkerCleanup(&pMgmt->applyPool);

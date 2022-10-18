@@ -15,7 +15,6 @@ VALGRIND=0
 UNIQUE=0
 UNAME_BIN=`which uname`
 OS_TYPE=`$UNAME_BIN`
-MULTIPROCESS=0
 while getopts "f:avum" arg
 do
   case $arg in
@@ -27,9 +26,6 @@ do
       ;;
     u)
       UNIQUE=1
-      ;;
-    m)
-      MULTIPROCESS=1
       ;;
     ?)
       echo "unknow argument"
@@ -126,22 +122,12 @@ ulimit -c unlimited
 if [ -n "$FILE_NAME" ]; then
   echo "------------------------------------------------------------------------"
   if [ $VALGRIND -eq 1 ]; then
-    if [[ $MULTIPROCESS -eq 1 ]];then
-      FLAG="-m -v"
-    else
-      FLAG="-v"    
-    fi 
-  
+    FLAG="-v"
     echo valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --child-silent-after-fork=yes --show-leak-kinds=all --num-callers=20 -v  --workaround-gcc296-bugs=yes  --log-file=${LOG_DIR}/valgrind-tsim.log $PROGRAM -c $CFG_DIR -f $FILE_NAME $FLAG
     valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --child-silent-after-fork=yes --show-leak-kinds=all --num-callers=20 -v  --workaround-gcc296-bugs=yes  --log-file=${LOG_DIR}/valgrind-tsim.log $PROGRAM -c $CFG_DIR -f $FILE_NAME $FLAG
   else
-    if [[ $MULTIPROCESS -eq 1 ]];then
-      echo "ExcuteCmd(multiprocess):" $PROGRAM -m -c $CFG_DIR -f $FILE_NAME  
-      $PROGRAM -m -c $CFG_DIR -f $FILE_NAME
-    else
-      echo "ExcuteCmd(singleprocess):" $PROGRAM -c $CFG_DIR -f $FILE_NAME  
-      $PROGRAM -c $CFG_DIR -f $FILE_NAME
-    fi
+    echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f $FILE_NAME  
+    $PROGRAM -c $CFG_DIR -f $FILE_NAME
   fi
 else
   echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f basicSuite.sim

@@ -17,18 +17,6 @@
 #include "dmMgmt.h"
 #include "dmNodes.h"
 
-#define dmSendLocalRecv(pDnode, mtype, func, pInfo)         \
-  SRpcMsg rsp = {0};                                        \
-  SRpcMsg req = {.msgType = mtype};                         \
-  SEpSet  epset = {.inUse = 0, .numOfEps = 1};              \
-  tstrncpy(epset.eps[0].fqdn, tsLocalFqdn, TSDB_FQDN_LEN);  \
-  epset.eps[0].port = tsServerPort;                         \
-  rpcSendRecv(pDnode->trans.clientRpc, &epset, &req, &rsp); \
-  if (rsp.code == 0 && rsp.contLen > 0) {                   \
-    func(rsp.pCont, rsp.contLen, pInfo);                    \
-  }                                                         \
-  rpcFreeCont(rsp.pCont);
-
 static void dmGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
   pInfo->protocol = 1;
   pInfo->dnode_id = pDnode->data.dnodeId;
@@ -59,9 +47,7 @@ static void dmGetMmMonitorInfo(SDnode *pDnode) {
   SMgmtWrapper *pWrapper = &pDnode->wrappers[MNODE];
   if (dmMarkWrapper(pWrapper) == 0) {
     SMonMmInfo mmInfo = {0};
-    if (tsMultiProcess) {
-      dmSendLocalRecv(pDnode, TDMT_MON_MM_INFO, tDeserializeSMonMmInfo, &mmInfo);
-    } else if (pWrapper->pMgmt != NULL) {
+    if (pWrapper->pMgmt != NULL) {
       mmGetMonitorInfo(pWrapper->pMgmt, &mmInfo);
     }
     dmReleaseWrapper(pWrapper);
@@ -74,9 +60,7 @@ static void dmGetVmMonitorInfo(SDnode *pDnode) {
   SMgmtWrapper *pWrapper = &pDnode->wrappers[VNODE];
   if (dmMarkWrapper(pWrapper) == 0) {
     SMonVmInfo vmInfo = {0};
-    if (tsMultiProcess) {
-      dmSendLocalRecv(pDnode, TDMT_MON_VM_INFO, tDeserializeSMonVmInfo, &vmInfo);
-    } else if (pWrapper->pMgmt != NULL) {
+    if (pWrapper->pMgmt != NULL) {
       vmGetMonitorInfo(pWrapper->pMgmt, &vmInfo);
     }
     dmReleaseWrapper(pWrapper);
@@ -89,9 +73,7 @@ static void dmGetQmMonitorInfo(SDnode *pDnode) {
   SMgmtWrapper *pWrapper = &pDnode->wrappers[QNODE];
   if (dmMarkWrapper(pWrapper) == 0) {
     SMonQmInfo qmInfo = {0};
-    if (tsMultiProcess) {
-      dmSendLocalRecv(pDnode, TDMT_MON_QM_INFO, tDeserializeSMonQmInfo, &qmInfo);
-    } else if (pWrapper->pMgmt != NULL) {
+    if (pWrapper->pMgmt != NULL) {
       qmGetMonitorInfo(pWrapper->pMgmt, &qmInfo);
     }
     dmReleaseWrapper(pWrapper);
@@ -104,9 +86,7 @@ static void dmGetSmMonitorInfo(SDnode *pDnode) {
   SMgmtWrapper *pWrapper = &pDnode->wrappers[SNODE];
   if (dmMarkWrapper(pWrapper) == 0) {
     SMonSmInfo smInfo = {0};
-    if (tsMultiProcess) {
-      dmSendLocalRecv(pDnode, TDMT_MON_SM_INFO, tDeserializeSMonSmInfo, &smInfo);
-    } else if (pWrapper->pMgmt != NULL) {
+    if (pWrapper->pMgmt != NULL) {
       smGetMonitorInfo(pWrapper->pMgmt, &smInfo);
     }
     dmReleaseWrapper(pWrapper);
@@ -132,9 +112,7 @@ void dmGetVnodeLoads(SMonVloadInfo *pInfo) {
   SDnode       *pDnode = dmInstance();
   SMgmtWrapper *pWrapper = &pDnode->wrappers[VNODE];
   if (dmMarkWrapper(pWrapper) == 0) {
-    if (tsMultiProcess) {
-      dmSendLocalRecv(pDnode, TDMT_MON_VM_LOAD, tDeserializeSMonVloadInfo, pInfo);
-    } else if (pWrapper->pMgmt != NULL) {
+    if (pWrapper->pMgmt != NULL) {
       vmGetVnodeLoads(pWrapper->pMgmt, pInfo, false);
     }
     dmReleaseWrapper(pWrapper);
@@ -145,9 +123,7 @@ void dmGetMnodeLoads(SMonMloadInfo *pInfo) {
   SDnode       *pDnode = dmInstance();
   SMgmtWrapper *pWrapper = &pDnode->wrappers[MNODE];
   if (dmMarkWrapper(pWrapper) == 0) {
-    if (tsMultiProcess) {
-      dmSendLocalRecv(pDnode, TDMT_MON_MM_LOAD, tDeserializeSMonMloadInfo, pInfo);
-    } else if (pWrapper->pMgmt != NULL) {
+    if (pWrapper->pMgmt != NULL) {
       mmGetMnodeLoads(pWrapper->pMgmt, pInfo);
     }
     dmReleaseWrapper(pWrapper);
@@ -158,9 +134,7 @@ void dmGetQnodeLoads(SQnodeLoad *pInfo) {
   SDnode       *pDnode = dmInstance();
   SMgmtWrapper *pWrapper = &pDnode->wrappers[QNODE];
   if (dmMarkWrapper(pWrapper) == 0) {
-    if (tsMultiProcess) {
-      dmSendLocalRecv(pDnode, TDMT_MON_QM_LOAD, tDeserializeSQnodeLoad, pInfo);
-    } else if (pWrapper->pMgmt != NULL) {
+    if (pWrapper->pMgmt != NULL) {
       qmGetQnodeLoads(pWrapper->pMgmt, pInfo);
     }
     dmReleaseWrapper(pWrapper);
