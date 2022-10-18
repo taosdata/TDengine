@@ -115,7 +115,7 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统。
 
 1. 从列表中下载获得 pkg 安装程序；
    <PkgListV3 type={7}/>
-2. 运行可执行程序来安装 TDengine。
+2. 运行可执行程序来安装 TDengine。如果安装被阻止，可以右键或者按 Ctrl 点击安装包，选择 `打开`。
 
 </TabItem>
 </Tabs>

@@ -116,7 +116,7 @@ Note: TDengine only supports Windows Server 2016/2019 and Windows 10/11 on the W
 
 1. Download the macOS installation package.
    <PkgListV3 type={7}/>
-2. Run the downloaded package to install TDengine.
+2. Run the downloaded package to install TDengine. If the installation is blocked, you can right-click or ctrl-click on the installation package and select `Open`.
 
 </TabItem>
 </Tabs>
