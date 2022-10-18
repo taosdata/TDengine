@@ -485,6 +485,7 @@ static int32_t execShowCreateTable(SShowCreateTableStmt* pStmt, SRetrieveTableRs
   SSDataBlock* pBlock = buildCreateTbResultDataBlock();
   int32_t      code = setCreateTBResultIntoDataBlock(pBlock, pStmt->pDbCfg, pStmt->tableName, pStmt->pTableCfg);
   if (code) {
+    blockDataDestroy(pBlock);
     return code;
   }
   return buildRetrieveTableRsp(pBlock, SHOW_CREATE_TB_RESULT_COLS, pRsp);

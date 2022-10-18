@@ -1128,7 +1128,7 @@ static SResSchema createResSchema(int32_t type, int32_t bytes, int32_t slotId, i
   s.bytes = bytes;
   s.slotId = slotId;
   s.precision = precision;
-  strncpy(s.name, name, tListLen(s.name));
+  tstrncpy(s.name, name, tListLen(s.name));
 
   return s;
 }
@@ -1356,7 +1356,7 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
           fmGetFuncExecFuncs(pCtx->functionId, &pCtx->fpSet);
         } else {
           char* udfName = pExpr->pExpr->_function.pFunctNode->functionName;
-          strncpy(pCtx->udfName, udfName, TSDB_FUNC_NAME_LEN);
+          tstrncpy(pCtx->udfName, udfName, TSDB_FUNC_NAME_LEN);
           fmGetUdafExecFuncs(pCtx->functionId, &pCtx->fpSet);
         }
         pCtx->fpSet.getEnv(pExpr->pExpr->_function.pFunctNode, &env);

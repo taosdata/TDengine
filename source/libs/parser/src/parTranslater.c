@@ -2357,7 +2357,8 @@ static int32_t setTableIndex(STranslateContext* pCxt, SName* pName, SRealTableNo
 }
 
 static int32_t setTableCacheLastMode(STranslateContext* pCxt, SSelectStmt* pSelect) {
-  if ((!pSelect->hasLastRowFunc && !pSelect->hasLastFunc) || QUERY_NODE_REAL_TABLE != nodeType(pSelect->pFromTable)) {
+  if ((!pSelect->hasLastRowFunc && !pSelect->hasLastFunc) || QUERY_NODE_REAL_TABLE != nodeType(pSelect->pFromTable) ||
+      TSDB_SYSTEM_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType) {
     return TSDB_CODE_SUCCESS;
   }
 

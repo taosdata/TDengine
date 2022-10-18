@@ -49,9 +49,15 @@ extern SDiskSpace tsTempSpace;
 void osDefaultInit();
 void osUpdate();
 void osCleanup();
+
 bool osLogSpaceAvailable();
 bool osDataSpaceAvailable();
 bool osTempSpaceAvailable();
+
+bool osLogSpaceSufficient();
+bool osDataSpaceSufficient();
+bool osTempSpaceSufficient();
+
 void osSetTimezone(const char *timezone);
 void osSetSystemLocale(const char *inLocale, const char *inCharSet);
 

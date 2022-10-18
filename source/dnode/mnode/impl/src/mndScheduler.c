@@ -416,7 +416,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
       }
 
       SStreamTask* pTask = tNewSStreamTask(pStream->uid);
-      if (pInnerTask == NULL) {
+      if (pTask == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         sdbRelease(pSdb, pVgroup);
         qDestroyQueryPlan(pPlan);
