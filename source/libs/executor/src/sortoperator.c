@@ -398,15 +398,16 @@ int32_t finishSortGroup(SOperatorInfo* pOperator) {
   SGroupSortOperatorInfo* pInfo = pOperator->info;
 
   SSortExecInfo sortExecInfo = tsortGetSortExecInfo(pInfo->pCurrSortHandle);
+
   pInfo->sortExecInfo.sortMethod = sortExecInfo.sortMethod;
   pInfo->sortExecInfo.sortBuffer = sortExecInfo.sortBuffer;
   pInfo->sortExecInfo.loops += sortExecInfo.loops;
   pInfo->sortExecInfo.readBytes += sortExecInfo.readBytes;
   pInfo->sortExecInfo.writeBytes += sortExecInfo.writeBytes;
-  if (pInfo->pCurrSortHandle != NULL) {
-    tsortDestroySortHandle(pInfo->pCurrSortHandle);
-  }
+
+  tsortDestroySortHandle(pInfo->pCurrSortHandle);
   pInfo->pCurrSortHandle = NULL;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -717,10 +718,9 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   SMultiwayMergeOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SMultiwayMergeOperatorInfo));
   SOperatorInfo*              pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   SDataBlockDescNode*         pDescNode = pPhyNode->pOutputDataBlockDesc;
-  SSDataBlock*                pResBlock = createResDataBlock(pDescNode);
 
-  int32_t rowSize = pResBlock->info.rowSize;
-
+  pInfo->binfo.pRes = createResDataBlock(pDescNode);
+  int32_t rowSize = pInfo->binfo.pRes->info.rowSize;
   if (pInfo == NULL || pOperator == NULL || rowSize > 100 * 1024 * 1024) {
     goto _error;
   }
@@ -734,7 +734,6 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   initResultSizeInfo(&pOperator->resultInfo, 1024);
 
   pInfo->groupSort = pMergePhyNode->groupSort;
-  pInfo->binfo.pRes = pResBlock;
   pInfo->pSortInfo = pSortInfo;
   pInfo->pColMatchInfo = pColMatchColInfo;
   pInfo->pInputBlock = pInputBlock;
@@ -761,7 +760,10 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
 
 _error:
   pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
-  taosMemoryFree(pInfo);
+  if (pInfo != NULL) {
+    destroyMultiwayMergeOperatorInfo(pInfo);
+  }
+
   taosMemoryFree(pOperator);
   return NULL;
 }

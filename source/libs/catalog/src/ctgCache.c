@@ -1390,8 +1390,10 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
 
     pCache = taosHashGet(dbCache->tbCache, tbName, strlen(tbName));
   } else {
+    CTG_LOCK(CTG_WRITE, &pCache->metaLock);
     taosMemoryFree(pCache->pMeta);
     pCache->pMeta = meta;
+    CTG_UNLOCK(CTG_WRITE, &pCache->metaLock);
   }
 
   if (NULL == orig) {
@@ -1454,6 +1456,8 @@ int32_t ctgWriteTbIndexToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNa
     return TSDB_CODE_SUCCESS;
   }
 
+  CTG_LOCK(CTG_WRITE, &pCache->indexLock);
+
   if (pCache->pIndex) {
     if (0 == suid) {
       suid = pCache->pIndex->suid;
@@ -1463,6 +1467,8 @@ int32_t ctgWriteTbIndexToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNa
   }
 
   pCache->pIndex = pIndex;
+  CTG_UNLOCK(CTG_WRITE, &pCache->indexLock);
+
   *index = NULL;
 
   ctgDebug("table %s index updated to cache, ver:%d, num:%d", tbName, pIndex->version,

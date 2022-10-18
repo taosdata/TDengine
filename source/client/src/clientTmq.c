@@ -455,7 +455,10 @@ static int32_t tmqSendCommitReq(tmq_t* tmq, SMqClientVg* pVg, SMqClientTopic* pT
     return -1;
   }
   void* buf = taosMemoryCalloc(1, sizeof(SMsgHead) + len);
-  if (buf == NULL) return -1;
+  if (buf == NULL) {
+    taosMemoryFree(pOffset);
+    return -1;
+  }
   ((SMsgHead*)buf)->vgId = htonl(pVg->vgId);
 
   void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
@@ -468,6 +471,7 @@ static int32_t tmqSendCommitReq(tmq_t* tmq, SMqClientVg* pVg, SMqClientTopic* pT
   // build param
   SMqCommitCbParam* pParam = taosMemoryCalloc(1, sizeof(SMqCommitCbParam));
   if (pParam == NULL) {
+    taosMemoryFree(pOffset);
     taosMemoryFree(buf);
     return -1;
   }
@@ -477,6 +481,7 @@ static int32_t tmqSendCommitReq(tmq_t* tmq, SMqClientVg* pVg, SMqClientTopic* pT
   // build send info
   SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (pMsgSendInfo == NULL) {
+    taosMemoryFree(pOffset);
     taosMemoryFree(buf);
     taosMemoryFree(pParam);
     return -1;
