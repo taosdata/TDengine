@@ -61,6 +61,8 @@ TEST_F(PlanPartitionByTest, withGroupBy) {
   run("SELECT COUNT(*) FROM t1 PARTITION BY c1 GROUP BY c2");
 
   run("SELECT TBNAME, c1 FROM st1 PARTITION BY TBNAME GROUP BY c1");
+
+  run("SELECT COUNT(*) FROM t1 PARTITION BY TBNAME GROUP BY TBNAME");
 }
 
 TEST_F(PlanPartitionByTest, withTimeLineFunc) {
