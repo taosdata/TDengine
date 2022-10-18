@@ -54,7 +54,7 @@ static void saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pRea
           if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
             varDataSetLen(p->buf, pColVal->colVal.value.nData);
             memcpy(varDataVal(p->buf), pColVal->colVal.value.pData, pColVal->colVal.value.nData);
-            p->bytes = pColVal->colVal.value.nData;
+            p->bytes = pColVal->colVal.value.nData + VARSTR_HEADER_SIZE;
           } else {
             memcpy(p->buf, &pColVal->colVal.value, pReader->pSchema->columns[slotId].bytes);
             p->bytes = pReader->pSchema->columns[slotId].bytes;
