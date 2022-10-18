@@ -20,8 +20,6 @@
 
 static int  vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData);
 static int  vnodeDecodeInfo(uint8_t *pData, SVnodeInfo *pInfo);
-static int  vnodeStartCommit(SVnode *pVnode);
-static int  vnodeEndCommit(SVnode *pVnode);
 static int  vnodeCommitImpl(void *arg);
 static void vnodeWaitCommit(SVnode *pVnode);
 
@@ -241,7 +239,7 @@ int vnodeCommit(SVnode *pVnode) {
 
   // preCommit
   // smaSyncPreCommit(pVnode->pSma);
-  if(smaAsyncPreCommit(pVnode->pSma) < 0){
+  if (smaAsyncPreCommit(pVnode->pSma) < 0) {
     vError("vgId:%d, failed to async pre-commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
@@ -309,6 +307,22 @@ int vnodeCommit(SVnode *pVnode) {
   return 0;
 }
 
+bool vnodeShouldRollback(SVnode *pVnode) {
+  char tFName[TSDB_FILENAME_LEN] = {0};
+  snprintf(tFName, TSDB_FILENAME_LEN, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
+           VND_INFO_FNAME_TMP);
+
+  return taosCheckExistFile(tFName);
+}
+
+void vnodeRollback(SVnode *pVnode) {
+  char tFName[TSDB_FILENAME_LEN] = {0};
+  snprintf(tFName, TSDB_FILENAME_LEN, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
+           VND_INFO_FNAME_TMP);
+
+  (void)taosRemoveFile(tFName);
+}
+
 static int vnodeCommitImpl(void *arg) {
   SVnode *pVnode = (SVnode *)arg;
 
@@ -318,16 +332,6 @@ static int vnodeCommitImpl(void *arg) {
 
   // vnodeBufPoolRecycle(pVnode);
   tsem_post(&(pVnode->canCommit));
-  return 0;
-}
-
-static int vnodeStartCommit(SVnode *pVnode) {
-  // TODO
-  return 0;
-}
-
-static int vnodeEndCommit(SVnode *pVnode) {
-  // TODO
   return 0;
 }
 

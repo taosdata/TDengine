@@ -27,7 +27,7 @@ static int taskIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int k
 static int32_t metaInitLock(SMeta *pMeta) { return taosThreadRwlockInit(&pMeta->lock, NULL); }
 static int32_t metaDestroyLock(SMeta *pMeta) { return taosThreadRwlockDestroy(&pMeta->lock); }
 
-int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
+int metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   SMeta *pMeta = NULL;
   int    ret;
   int    slen;

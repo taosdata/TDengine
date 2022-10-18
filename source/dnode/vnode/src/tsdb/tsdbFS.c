@@ -415,7 +415,7 @@ _err:
 }
 
 // EXPOSED APIS ====================================================================================
-int32_t tsdbFSOpen(STsdb *pTsdb) {
+int32_t tsdbFSOpen(STsdb *pTsdb, int8_t rollback) {
   int32_t code = 0;
   SVnode *pVnode = pTsdb->pVnode;
 

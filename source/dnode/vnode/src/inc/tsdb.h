@@ -247,7 +247,7 @@ void tsdbSmaFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSmaFile *pSmaF, ch
 // SDelFile
 void tsdbDelFileName(STsdb *pTsdb, SDelFile *pFile, char fname[]);
 // tsdbFS.c ==============================================================================================
-int32_t tsdbFSOpen(STsdb *pTsdb);
+int32_t tsdbFSOpen(STsdb *pTsdb, int8_t rollback);
 int32_t tsdbFSClose(STsdb *pTsdb);
 int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS);
 void    tsdbFSDestroy(STsdbFS *pFS);
