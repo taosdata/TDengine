@@ -5356,16 +5356,14 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t maxCount = 0;
   for (int32_t i = 0; i < pInfo->numOfPoints; ++i) {
     SModeItem* pItem = (SModeItem*)(pInfo->pItems + i * (sizeof(SModeItem) + pInfo->colBytes));
-    if (pItem->count > maxCount) {
+    if (pItem->count >= maxCount) {
       maxCount = pItem->count;
       resIndex = i;
-    } else if (pItem->count == maxCount) {
-      resIndex = -1;
     }
   }
 
   SModeItem* pResItem = (SModeItem*)(pInfo->pItems + resIndex * (sizeof(SModeItem) + pInfo->colBytes));
-  colDataAppend(pCol, currentRow, pResItem->data, (resIndex == -1) ? true : false);
+  colDataAppend(pCol, currentRow, pResItem->data, false);
 
   return pResInfo->numOfRes;
 }
