@@ -436,7 +436,7 @@ void tqTableSink1(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
         }
         if (mr.me.ctbEntry.suid != suid) {
           tqError("vgId:%d, failed to write into %s, since suid mismatch, expect suid: %ld, actual suid %ld",
-                  TD_VID(pVnode), ctbName, suid, mr.me.ctbEntry);
+                  TD_VID(pVnode), ctbName, suid, mr.me.ctbEntry.suid);
           metaReaderClear(&mr);
           taosMemoryFree(ctbName);
           continue;
