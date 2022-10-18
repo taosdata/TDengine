@@ -1162,18 +1162,19 @@ int sml_19221_Test() {
   taos_free_result(pRes);
 
   const char *sql[] = {
-      "qelhxo,id=pnnqhsa,t0=t,t1=127i8 c11=L\"ncharColValue\",c0=t,c1=127i8 1626006833639000000\nqelhxo,id=pnnhsa,t0=t,t1=127i8 c11=L\"ncharColValue\",c0=t,c1=127i8 1626006833639000000\nqelhxo,id=pnqhsa,t0=t,t1=127i8 c11=L\"ncharColValue\",c0=t,c1=127i8 1626006833639000000",
+      "qelhxo,id=pnnqhsa,t0=t,t1=127i8 c11=L\"ncharColValue\",c0=t,c1=127i8 1626006833639000000\nqelhxo,id=pnnhsa,t0=t,t1=127i8 c11=L\"ncharColValue\",c0=t,c1=127i8 1626006833639000000\n#comment\nqelhxo,id=pnqhsa,t0=t,t1=127i8 c11=L\"ncharColValue\",c0=t,c1=127i8 1626006833639000000",
   };
 
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  void* tmp = taosMemoryCalloc(256, 1);
+  char* tmp = (char*)taosMemoryCalloc(1024, 1);
   memcpy(tmp, sql[0], strlen(sql[0]));
   *(char*)(tmp+44) = 0;
   int32_t totalRows = 0;
   pRes = taos_schemaless_insert_raw(taos, tmp, strlen(sql[0]), &totalRows, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
 
+  ASSERT(totalRows == 3);
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
@@ -1182,36 +1183,36 @@ int sml_19221_Test() {
 
 int main(int argc, char *argv[]) {
   int ret = 0;
-//  ret = smlProcess_influx_Test();
-//  ASSERT(!ret);
-//  ret = smlProcess_telnet_Test();
-//  ASSERT(!ret);
-//  ret = smlProcess_json1_Test();
-//  ASSERT(!ret);
-//  ret = smlProcess_json2_Test();
-//  ASSERT(!ret);
-//  ret = smlProcess_json3_Test();
-//  ASSERT(!ret);
-//  ret = smlProcess_json4_Test();
-//  ASSERT(!ret);
-//  ret = sml_TD15662_Test();
-//  ASSERT(!ret);
-//  ret = sml_TD15742_Test();
-//  ASSERT(!ret);
-//  ret = sml_16384_Test();
-//  ASSERT(!ret);
-//  ret = sml_oom_Test();
-//  ASSERT(!ret);
-//  ret = sml_16368_Test();
-//  ASSERT(!ret);
-//  ret = sml_dup_time_Test();
-//  ASSERT(!ret);
-//  ret = sml_16960_Test();
-//  ASSERT(!ret);
-//  ret = sml_add_tag_col_Test();
-//  ASSERT(!ret);
-//  ret = smlProcess_18784_Test();
-//  ASSERT(!ret);
+  ret = smlProcess_influx_Test();
+  ASSERT(!ret);
+  ret = smlProcess_telnet_Test();
+  ASSERT(!ret);
+  ret = smlProcess_json1_Test();
+  ASSERT(!ret);
+  ret = smlProcess_json2_Test();
+  ASSERT(!ret);
+  ret = smlProcess_json3_Test();
+  ASSERT(!ret);
+  ret = smlProcess_json4_Test();
+  ASSERT(!ret);
+  ret = sml_TD15662_Test();
+  ASSERT(!ret);
+  ret = sml_TD15742_Test();
+  ASSERT(!ret);
+  ret = sml_16384_Test();
+  ASSERT(!ret);
+  ret = sml_oom_Test();
+  ASSERT(!ret);
+  ret = sml_16368_Test();
+  ASSERT(!ret);
+  ret = sml_dup_time_Test();
+  ASSERT(!ret);
+  ret = sml_16960_Test();
+  ASSERT(!ret);
+  ret = sml_add_tag_col_Test();
+  ASSERT(!ret);
+  ret = smlProcess_18784_Test();
+  ASSERT(!ret);
   ret = sml_19221_Test();
   ASSERT(!ret);
   return ret;
