@@ -289,6 +289,11 @@ int vnodeCommit(SVnode *pVnode) {
 
   tsdbFinishCommit(pVnode->pTsdb);
 
+  if (metaFinishCommit(pVnode->pMeta) < 0) {
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
   pVnode->state.committed = info.state.committed;
 
   // postCommit

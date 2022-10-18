@@ -27,7 +27,7 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   char*   streamPath = taosMemoryCalloc(1, len);
   sprintf(streamPath, "%s/%s", path, "stream");
   pMeta->path = strdup(streamPath);
-  if (tdbOpen(pMeta->path, 16 * 1024, 1, &pMeta->db) < 0) {
+  if (tdbOpen(pMeta->path, 16 * 1024, 1, &pMeta->db, 0) < 0) {
     taosMemoryFree(streamPath);
     goto _err;
   }
@@ -36,11 +36,11 @@ SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandF
   taosMulModeMkDir(streamPath, 0755);
   taosMemoryFree(streamPath);
 
-  if (tdbTbOpen("task.db", sizeof(int32_t), -1, NULL, pMeta->db, &pMeta->pTaskDb) < 0) {
+  if (tdbTbOpen("task.db", sizeof(int32_t), -1, NULL, pMeta->db, &pMeta->pTaskDb, 0) < 0) {
     goto _err;
   }
 
-  if (tdbTbOpen("checkpoint.db", sizeof(int32_t), -1, NULL, pMeta->db, &pMeta->pCheckpointDb) < 0) {
+  if (tdbTbOpen("checkpoint.db", sizeof(int32_t), -1, NULL, pMeta->db, &pMeta->pCheckpointDb, 0) < 0) {
     goto _err;
   }
 
