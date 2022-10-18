@@ -258,7 +258,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
     dsGetDataLength(ctx->sinkHandle, &len, &queryEnd);
 
     if (len < 0) {
-      QW_TASK_ELOG("invalid length from dsGetDataLength, length:%d", len);
+      QW_TASK_ELOG("invalid length from dsGetDataLength, length:%" PRId64, len);
       QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
     }
 
@@ -292,7 +292,7 @@ int32_t qwGetQueryResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen,
     }
 
     // Got data from sink
-    QW_TASK_DLOG("there are data in sink, dataLength:%d", len);
+    QW_TASK_DLOG("there are data in sink, dataLength:%" PRId64, len);
 
     *dataLen += len;
 
@@ -408,7 +408,6 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
         // QW_TASK_DLOG("drop rsp send, handle:%p, code:%x - %s", ctx->ctrlConnInfo.handle, code, tstrerror(code));
 
         QW_ERR_JRET(TSDB_CODE_QRY_TASK_DROPPED);
-        break;
       }
 
       QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXEC));

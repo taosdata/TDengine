@@ -89,8 +89,8 @@ extern "C" {
 #define EXPLAIN_STRING_TYPE_FORMAT "%s"
 #define EXPLAIN_INPUT_ORDER_FORMAT "input_order=%s"
 #define EXPLAIN_OUTPUT_ORDER_TYPE_FORMAT "output_order=%s"
-#define EXPLAIN_OFFSET_FORMAT "offset=%d"
-#define EXPLAIN_SOFFSET_FORMAT "soffset=%d"
+#define EXPLAIN_OFFSET_FORMAT "offset=%" PRId64
+#define EXPLAIN_SOFFSET_FORMAT "soffset=%" PRId64
 #define EXPLAIN_PARTITIONS_FORMAT "partitions=%d"
 
 #define COMMAND_RESET_LOG "resetLog"

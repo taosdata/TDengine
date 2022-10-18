@@ -271,8 +271,8 @@ int32_t queryBuildGetTbCfgMsg(void *input, char **msg, int32_t msgSize, int32_t 
   SBuildTableInput *pInput = input;
   STableCfgReq      cfgReq = {0};
   cfgReq.header.vgId = pInput->vgId;
-  strcpy(cfgReq.dbFName, pInput->dbFName);
-  strcpy(cfgReq.tbName, pInput->tbName);
+  strncpy(cfgReq.dbFName, pInput->dbFName, sizeof(cfgReq.dbFName));
+  strncpy(cfgReq.tbName, pInput->tbName, sizeof(cfgReq.tbName));
 
   int32_t bufLen = tSerializeSTableCfgReq(NULL, 0, &cfgReq);
   void   *pBuf = (*mallcFp)(bufLen);
@@ -615,6 +615,8 @@ int32_t queryProcessGetTbCfgRsp(void *output, char *msg, int32_t msgSize) {
   STableCfgRsp *out = taosMemoryCalloc(1, sizeof(STableCfgRsp));
   if (tDeserializeSTableCfgRsp(msg, msgSize, out) != 0) {
     qError("tDeserializeSTableCfgRsp failed, msgSize:%d", msgSize);
+    tFreeSTableCfgRsp(out);
+    taosMemoryFree(out);
     return TSDB_CODE_INVALID_MSG;
   }
 
