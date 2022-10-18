@@ -414,6 +414,27 @@ _err:
   return code;
 }
 
+static void tsdbGetCurrentFName(STsdb *pTsdb, char *current, char *current_t) {
+  SVnode *pVnode = pTsdb->pVnode;
+  if (pVnode->pTfs) {
+    if (current) {
+      snprintf(current, TSDB_FILENAME_LEN - 1, "%s%s%s%sCURRENT", tfsGetPrimaryPath(pTsdb->pVnode->pTfs), TD_DIRSEP,
+               pTsdb->path, TD_DIRSEP);
+    }
+    if (current_t) {
+      snprintf(current_t, TSDB_FILENAME_LEN - 1, "%s%s%s%sCURRENT.t", tfsGetPrimaryPath(pTsdb->pVnode->pTfs), TD_DIRSEP,
+               pTsdb->path, TD_DIRSEP);
+    }
+  } else {
+    if (current) {
+      snprintf(current, TSDB_FILENAME_LEN - 1, "%s%sCURRENT", pTsdb->path, TD_DIRSEP);
+    }
+    if (current_t) {
+      snprintf(current_t, TSDB_FILENAME_LEN - 1, "%s%sCURRENT.t", pTsdb->path, TD_DIRSEP);
+    }
+  }
+}
+
 // EXPOSED APIS ====================================================================================
 int32_t tsdbFSOpen(STsdb *pTsdb, int8_t rollback) {
   int32_t code = 0;
@@ -428,22 +449,18 @@ int32_t tsdbFSOpen(STsdb *pTsdb, int8_t rollback) {
   }
 
   // load fs or keep empty
-  char fname[TSDB_FILENAME_LEN];
+  char current[TSDB_FILENAME_LEN] = {0};
+  char current_t[TSDB_FILENAME_LEN] = {0};
 
-  if (pVnode->pTfs) {
-    snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sCURRENT", tfsGetPrimaryPath(pTsdb->pVnode->pTfs), TD_DIRSEP,
-             pTsdb->path, TD_DIRSEP);
-  } else {
-    snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%sCURRENT", pTsdb->path, TD_DIRSEP);
-  }
+  tsdbGetCurrentFName(pTsdb, current, current_t);
 
-  if (!taosCheckExistFile(fname)) {
+  if (!taosCheckExistFile(current)) {
     // empty one
-    code = tsdbGnrtCurrent(pTsdb, &pTsdb->fs, fname);
+    code = tsdbGnrtCurrent(pTsdb, &pTsdb->fs, current);
     if (code) goto _err;
   } else {
     // read
-    TdFilePtr pFD = taosOpenFile(fname, TD_FILE_READ);
+    TdFilePtr pFD = taosOpenFile(current, TD_FILE_READ);
     if (pFD == NULL) {
       code = TAOS_SYSTEM_ERROR(errno);
       goto _err;
