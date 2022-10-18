@@ -43,9 +43,7 @@ void Testbase::InitLog(const char* path) {
 }
 
 void Testbase::Init(const char* path, int16_t port) {
-#ifdef _TD_DARWIN_64
   osDefaultInit();
-#endif
   tsServerPort = port;
   strcpy(tsLocalFqdn, "localhost");
   snprintf(tsLocalEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);

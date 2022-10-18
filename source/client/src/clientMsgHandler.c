@@ -292,8 +292,10 @@ int32_t processDropDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
     tDeserializeSDropDbRsp(pMsg->pData, pMsg->len, &dropdbRsp);
 
     struct SCatalog* pCatalog = NULL;
-    catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
-    catalogRemoveDB(pCatalog, dropdbRsp.db, dropdbRsp.uid);
+    int32_t code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+    if (TSDB_CODE_SUCCESS == code) {
+      catalogRemoveDB(pCatalog, dropdbRsp.db, dropdbRsp.uid);
+    }
   }
 
   taosMemoryFree(pMsg->pData);
@@ -397,6 +399,7 @@ static int32_t buildShowVariablesRsp(SArray* pVars, SRetrieveTableRsp** pRsp) {
   size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
   *pRsp = taosMemoryCalloc(1, rspSize);
   if (NULL == *pRsp) {
+    blockDataDestroy(pBlock);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 

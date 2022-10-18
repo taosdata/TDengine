@@ -443,10 +443,13 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
 static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *buffer, int32_t len) {
   if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL && osLogSpaceAvailable()) {
     taosUpdateLogNums(level);
-    if (tsAsyncLog) {
+    if (tsAsyncLog && level != DEBUG_FATAL) {
       taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
     } else {
       taosWriteFile(tsLogObj.logHandle->pFile, buffer, len);
+      if (level == DEBUG_FATAL) {
+        taosFsyncFile(tsLogObj.logHandle->pFile);
+      }
     }
 
     if (tsLogObj.maxLines > 0) {
