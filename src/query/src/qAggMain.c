@@ -5899,15 +5899,23 @@ static void mode_function_merge(SQLFunctionCtx *pCtx) {
 
 static void mode_func_finalizer(SQLFunctionCtx *pCtx) {
   int32_t bytes = 0;
+  int32_t type = 0;
   if (pCtx->currentStage == MERGE_STAGE) {
     bytes = pCtx->outputBytes;
+    type  = pCtx->outputType;
     assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY);
   } else {
     bytes = pCtx->inputBytes;
+    type  = pCtx->inputType;
   }
 
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   SModeFuncInfo *pRes = GET_ROWCELL_INTERBUF(pResInfo);
+
+  if (pRes->num == 0) {
+    setNull(pCtx->pOutput, type, 0);
+    goto _mode_over;
+  }
 
   size_t size = sizeof(ModeUnit) + bytes;
 
@@ -5925,6 +5933,8 @@ static void mode_func_finalizer(SQLFunctionCtx *pCtx) {
   }
 
   memcpy(pCtx->pOutput, result + sizeof(ModeUnit), bytes);
+
+_mode_over:
 
   pResInfo->numOfRes = 1;
   doFinalizer(pCtx);
