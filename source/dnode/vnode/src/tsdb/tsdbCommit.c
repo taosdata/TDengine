@@ -1041,38 +1041,20 @@ _exit:
 static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
   int32_t code = 0;
   int32_t lino = 0;
+  STsdb  *pTsdb = pCommitter->pTsdb;
 
-  STsdb     *pTsdb = pCommitter->pTsdb;
-  SMemTable *pMemTable = pTsdb->imem;
-
-  ASSERT(eno == 0 &&
-    "tsdbCommit failure"
-    "Restart taosd");
-
-  code = tsdbFSCommit1(pTsdb, &pCommitter->fs);
-  TSDB_CHECK_CODE(code, lino, _exit);
-
-  // lock
-  taosThreadRwlockWrlock(&pTsdb->rwLock);
-
-  // commit or rollback
-  code = tsdbFSCommit2(pTsdb, &pCommitter->fs);
-  if (code) {
-    taosThreadRwlockUnlock(&pTsdb->rwLock);
+  if (eno) {
+    code = eno;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  } else {
+    code = tsdbFSPrepareCommit(pCommitter->pTsdb, &pCommitter->fs);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  pTsdb->imem = NULL;
-
-  // unlock
-  taosThreadRwlockUnlock(&pTsdb->rwLock);
-
-  tsdbUnrefMemTable(pMemTable);
+_exit:
   tsdbFSDestroy(&pCommitter->fs);
   taosArrayDestroy(pCommitter->aTbDataP);
-
-_exit:
-  if (code) {
+  if (code || eno) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   } else {
     tsdbInfo("vgId:%d tsdb end commit", TD_VID(pTsdb->pVnode));
@@ -1643,6 +1625,51 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino,
               tstrerror(code));
+  }
+  return code;
+}
+
+int32_t tsdbFinishCommit(STsdb *pTsdb) {
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  SMemTable *pMemTable = pTsdb->imem;
+
+  // lock
+  taosThreadRwlockWrlock(&pTsdb->rwLock);
+
+  code = tsdbFSCommit(pTsdb);
+  if (code) {
+    taosThreadRwlockUnlock(&pTsdb->rwLock);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  pTsdb->imem = NULL;
+
+  // unlock
+  taosThreadRwlockUnlock(&pTsdb->rwLock);
+  tsdbUnrefMemTable(pMemTable);
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+  } else {
+    tsdbInfo("vgId:%d tsdb finish commit", TD_VID(pTsdb->pVnode));
+  }
+  return code;
+}
+
+int32_t tsdbRollbackCommit(STsdb *pTsdb) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  code = tsdbFSRollback(pTsdb);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+  } else {
+    tsdbInfo("vgId:%d tsdb rollback commit", TD_VID(pTsdb->pVnode));
   }
   return code;
 }

@@ -213,6 +213,8 @@ int vnodeSyncCommit(SVnode *pVnode) {
 }
 
 int vnodeCommit(SVnode *pVnode) {
+  int32_t    code = 0;
+  int32_t    lino = 0;
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN];
 
@@ -232,25 +234,23 @@ int vnodeCommit(SVnode *pVnode) {
     snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
   }
   if (vnodeSaveInfo(dir, &info) < 0) {
-    vError("vgId:%d, failed to save vnode info since %s", TD_VID(pVnode), tstrerror(terrno));
-    return -1;
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
   walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
 
   // preCommit
   // smaSyncPreCommit(pVnode->pSma);
-  if (smaAsyncPreCommit(pVnode->pSma) < 0) {
-    vError("vgId:%d, failed to async pre-commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
-    return -1;
-  }
+  code = smaAsyncPreCommit(pVnode->pSma);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   vnodeBufPoolUnRef(pVnode->inUse);
   pVnode->inUse = NULL;
 
   // commit each sub-system
   if (metaCommit(pVnode->pMeta) < 0) {
-    vError("vgId:%d, failed to commit meta since %s", TD_VID(pVnode), tstrerror(terrno));
-    return -1;
+    code = TSDB_CODE_FAILED;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (VND_IS_RSMA(pVnode)) {
@@ -272,23 +272,22 @@ int vnodeCommit(SVnode *pVnode) {
       return -1;
     }
   } else {
-    if (tsdbCommit(pVnode->pTsdb) < 0) {
-      vError("vgId:%d, failed to commit tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
+    code = tsdbCommit(pVnode->pTsdb);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (tqCommit(pVnode->pTq) < 0) {
-    vError("vgId:%d, failed to commit tq since %s", TD_VID(pVnode), tstrerror(terrno));
-    return -1;
+    code = TSDB_CODE_FAILED;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
-  // walCommit (TODO)
 
   // commit info
   if (vnodeCommitInfo(dir, &info) < 0) {
-    vError("vgId:%d, failed to commit vnode info since %s", TD_VID(pVnode), tstrerror(terrno));
-    return -1;
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
+
+  tsdbFinishCommit(pVnode->pTsdb);
 
   pVnode->state.committed = info.state.committed;
 
@@ -302,8 +301,12 @@ int vnodeCommit(SVnode *pVnode) {
   // apply the commit (TODO)
   walEndSnapshot(pVnode->pWal);
 
-  vInfo("vgId:%d, commit end", TD_VID(pVnode));
-
+_exit:
+  if (code) {
+    vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  } else {
+    vInfo("vgId:%d, commit end", TD_VID(pVnode));
+  }
   return 0;
 }
 

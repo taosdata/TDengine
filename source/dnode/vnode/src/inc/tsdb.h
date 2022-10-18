@@ -32,12 +32,6 @@ extern "C" {
 #define tsdbTrace(...) do { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TSD ", DEBUG_TRACE, tsdbDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
-#define TSDB_CHECK_CODE(CODE, LINO, LABEL) \
-  if (CODE) {                              \
-    LINO = __LINE__;                       \
-    goto LABEL;                            \
-  }
-
 typedef struct TSDBROW          TSDBROW;
 typedef struct TABLEID          TABLEID;
 typedef struct TSDBKEY          TSDBKEY;
@@ -252,8 +246,9 @@ int32_t tsdbFSClose(STsdb *pTsdb);
 int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS);
 void    tsdbFSDestroy(STsdbFS *pFS);
 int32_t tDFileSetCmprFn(const void *p1, const void *p2);
-int32_t tsdbFSCommit1(STsdb *pTsdb, STsdbFS *pFS);
-int32_t tsdbFSCommit2(STsdb *pTsdb, STsdbFS *pFS);
+int32_t tsdbFSCommit(STsdb *pTsdb);
+int32_t tsdbFSRollback(STsdb *pTsdb);
+int32_t tsdbFSPrepareCommit(STsdb *pTsdb, STsdbFS *pFS);
 int32_t tsdbFSRef(STsdb *pTsdb, STsdbFS *pFS);
 void    tsdbFSUnref(STsdb *pTsdb, STsdbFS *pFS);
 

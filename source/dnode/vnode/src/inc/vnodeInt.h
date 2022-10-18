@@ -153,6 +153,8 @@ int         tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepC
 int         tsdbClose(STsdb** pTsdb);
 int32_t     tsdbBegin(STsdb* pTsdb);
 int32_t     tsdbCommit(STsdb* pTsdb);
+int32_t     tsdbFinishCommit(STsdb* pTsdb);
+int32_t     tsdbRollbackCommit(STsdb* pTsdb);
 int32_t     tsdbDoRetention(STsdb* pTsdb, int64_t now);
 int         tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq* pMsg);
 int         tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq* pMsg, SSubmitRsp* pRsp);
