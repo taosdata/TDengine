@@ -22,6 +22,8 @@
 extern "C" {
 #endif
 
+#define MAX_META_MSG_IN_BATCH 1048576
+
 int32_t mndInitQuery(SMnode *pMnode);
 void    mndCleanupQuery(SMnode *pMnode);
 

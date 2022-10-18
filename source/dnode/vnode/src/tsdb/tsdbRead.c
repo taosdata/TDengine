@@ -340,7 +340,7 @@ static int32_t initFilesetIterator(SFilesetIter* pIter, SArray* aDFileSet, STsdb
     pIter->pLastBlockReader = taosMemoryCalloc(1, sizeof(struct SLastBlockReader));
     if (pIter->pLastBlockReader == NULL) {
       int32_t code = TSDB_CODE_OUT_OF_MEMORY;
-      tsdbError("failed to prepare the last block iterator, code:%d %s", tstrerror(code), pReader->idStr);
+      tsdbError("failed to prepare the last block iterator, code:%s %s", tstrerror(code), pReader->idStr);
       return code;
     }
   }
@@ -646,7 +646,7 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
 
   double el = (taosGetTimestampUs() - st) / 1000.0;
   tsdbDebug(
-      "load block of %d tables completed, blocks:%d in %d tables, last-files:%d, block-info-size:%.2f Kb, elapsed "
+      "load block of %"PRIzu" tables completed, blocks:%d in %d tables, last-files:%d, block-info-size:%.2f Kb, elapsed "
       "time:%.2f ms %s",
       numOfTables, pBlockNum->numOfBlocks, numOfQTable, pBlockNum->numOfLastFiles, sizeInDisk / 1000.0, el,
       pReader->idStr);
@@ -1506,7 +1506,12 @@ static FORCE_INLINE STSchema* doGetSchemaForTSRow(int32_t sversion, STsdbReader*
   if (pReader->pMemSchema == NULL) {
     int32_t code =
         metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, pReader->suid, uid, sversion, &pReader->pMemSchema);
-    return pReader->pMemSchema;
+    if (code != TSDB_CODE_SUCCESS) {
+      terrno = code;
+      return NULL;
+    } else {
+      return pReader->pMemSchema;
+    }
   }
 
   if (pReader->pMemSchema->version == sversion) {
@@ -1515,7 +1520,12 @@ static FORCE_INLINE STSchema* doGetSchemaForTSRow(int32_t sversion, STsdbReader*
 
   taosMemoryFree(pReader->pMemSchema);
   int32_t code = metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, pReader->suid, uid, sversion, &pReader->pMemSchema);
-  return pReader->pMemSchema;
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    return NULL;
+  } else {
+    return pReader->pMemSchema;
+  }
 }
 
 static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* pBlockScanInfo, TSDBROW* pRow,
@@ -1811,7 +1821,11 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     if (minKey == key) {
       init = true;
       TSDBROW fRow = tsdbRowFromBlockData(pBlockData, pDumpInfo->rowIndex);
-      tRowMergerInit(&merge, &fRow, pReader->pSchema);
+      int32_t code = tRowMergerInit(&merge, &fRow, pReader->pSchema);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+
       doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pReader, &merge);
     }
 
@@ -1821,8 +1835,12 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
         tRowMerge(&merge, &fRow1);
       } else {
         init = true;
-        tRowMergerInit(&merge, &fRow1, pReader->pSchema);
+        int32_t code = tRowMergerInit(&merge, &fRow1, pReader->pSchema);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       }
+
       doMergeRowsInLastBlock(pLastBlockReader, pBlockScanInfo, tsLast, &merge);
     }
 
@@ -1832,7 +1850,10 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
       } else {
         init = true;
         STSchema* pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(piRow), pReader, pBlockScanInfo->uid);
-        tRowMergerInit(&merge, piRow, pSchema);
+        int32_t code = tRowMergerInit(&merge, piRow, pSchema);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       }
       doMergeRowsInBuf(&pBlockScanInfo->iiter, pBlockScanInfo->uid, ik.ts, pBlockScanInfo->delSkyline, &merge, pReader);
     }
@@ -1842,7 +1863,10 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
         tRowMerge(&merge, pRow);
       } else {
         STSchema* pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(pRow), pReader, pBlockScanInfo->uid);
-        tRowMergerInit(&merge, pRow, pSchema);
+        int32_t code = tRowMergerInit(&merge, pRow, pSchema);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       }
       doMergeRowsInBuf(&pBlockScanInfo->iter, pBlockScanInfo->uid, k.ts, pBlockScanInfo->delSkyline, &merge, pReader);
     }
@@ -1850,7 +1874,11 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     if (minKey == k.ts) {
       init = true;
       STSchema* pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(pRow), pReader, pBlockScanInfo->uid);
-      tRowMergerInit(&merge, pRow, pSchema);
+      int32_t code = tRowMergerInit(&merge, pRow, pSchema);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+
       doMergeRowsInBuf(&pBlockScanInfo->iter, pBlockScanInfo->uid, k.ts, pBlockScanInfo->delSkyline, &merge, pReader);
     }
 
@@ -1860,7 +1888,10 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
       } else {
         init = true;
         STSchema* pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(piRow), pReader, pBlockScanInfo->uid);
-        tRowMergerInit(&merge, piRow, pSchema);
+        int32_t code = tRowMergerInit(&merge, piRow, pSchema);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       }
       doMergeRowsInBuf(&pBlockScanInfo->iiter, pBlockScanInfo->uid, ik.ts, pBlockScanInfo->delSkyline, &merge, pReader);
     }
@@ -1871,7 +1902,10 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
         tRowMerge(&merge, &fRow1);
       } else {
         init = true;
-        tRowMergerInit(&merge, &fRow1, pReader->pSchema);
+        int32_t code = tRowMergerInit(&merge, &fRow1, pReader->pSchema);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       }
       doMergeRowsInLastBlock(pLastBlockReader, pBlockScanInfo, tsLast, &merge);
     }
@@ -1879,7 +1913,10 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     if (minKey == key) {
       TSDBROW fRow = tsdbRowFromBlockData(pBlockData, pDumpInfo->rowIndex);
       if (!init) {
-        tRowMergerInit(&merge, &fRow, pReader->pSchema);
+        int32_t code = tRowMergerInit(&merge, &fRow, pReader->pSchema);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
       } else {
         tRowMerge(&merge, &fRow);
       }
@@ -2676,9 +2713,9 @@ static STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* ret
     int8_t  level = 0;
     int8_t  precision = pVnode->config.tsdbCfg.precision;
     int64_t now = taosGetTimestamp(precision);
-    int64_t offset = tsQueryRsmaTolerance * ((precision == TSDB_TIME_PRECISION_MILLI)   ? 1
-                                             : (precision == TSDB_TIME_PRECISION_MICRO) ? 1000
-                                                                                        : 1000000);
+    int64_t offset = tsQueryRsmaTolerance * ((precision == TSDB_TIME_PRECISION_MILLI)   ? 1L
+                                             : (precision == TSDB_TIME_PRECISION_MICRO) ? 1000L
+                                                                                        : 1000000L);
 
     for (int8_t i = 0; i < TSDB_RETENTION_MAX; ++i) {
       SRetention* pRetention = retentions + level;
@@ -3041,19 +3078,30 @@ int32_t doMergeMemTableMultiRows(TSDBROW* pRow, uint64_t uid, SIterInfo* pIter, 
   SRowMerger merge = {0};
 
   // get the correct schema for data in memory
+  terrno = 0;
   STSchema* pTSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(&current), pReader, uid);
+  if (pTSchema == NULL) {
+    return terrno;
+  }
 
   if (pReader->pSchema == NULL) {
     pReader->pSchema = pTSchema;
   }
 
-  tRowMergerInit2(&merge, pReader->pSchema, &current, pTSchema);
+  int32_t code = tRowMergerInit2(&merge, pReader->pSchema, &current, pTSchema);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   STSchema* pTSchema1 = doGetSchemaForTSRow(TSDBROW_SVERSION(pNextRow), pReader, uid);
+  if(pTSchema1 == NULL) {
+    return terrno;
+  }
+
   tRowMergerAdd(&merge, pNextRow, pTSchema1);
 
   doMergeRowsInBuf(pIter, uid, current.pTSRow->ts, pDelList, &merge, pReader);
-  int32_t code = tRowMergerGetRow(&merge, pTSRow);
+  code = tRowMergerGetRow(&merge, pTSRow);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -3085,7 +3133,7 @@ int32_t doMergeMemIMemRows(TSDBROW* pRow, TSDBROW* piRow, STableBlockScanInfo* p
     doMergeRowsInBuf(&pBlockScanInfo->iter, pBlockScanInfo->uid, k.ts, pBlockScanInfo->delSkyline, &merge, pReader);
 
     tRowMerge(&merge, piRow);
-    doMergeRowsInBuf(&pBlockScanInfo->iiter, pBlockScanInfo->uid, k.ts, pBlockScanInfo->delSkyline, &merge, pReader);
+    doMergeRowsInBuf(&pBlockScanInfo->iiter, pBlockScanInfo->uid, ik.ts, pBlockScanInfo->delSkyline, &merge, pReader);
   }
 
   int32_t code = tRowMergerGetRow(&merge, pTSRow);
@@ -3372,14 +3420,13 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
   if (pCond->suid != 0) {
     pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pReader->suid, -1, 1);
     if (pReader->pSchema == NULL) {
-      tsdbError("failed to get table schema, suid:%" PRIu64 ", ver:%" PRId64 " , %s", pReader->suid, -1,
-                pReader->idStr);
+      tsdbError("failed to get table schema, suid:%" PRIu64 ", ver:-1, %s", pReader->suid, pReader->idStr);
     }
   } else if (taosArrayGetSize(pTableList) > 0) {
     STableKeyInfo* pKey = taosArrayGet(pTableList, 0);
     pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pKey->uid, -1, 1);
     if (pReader->pSchema == NULL) {
-      tsdbError("failed to get table schema, uid:%" PRIu64 ", ver:%" PRId64 " , %s", pKey->uid, -1, pReader->idStr);
+      tsdbError("failed to get table schema, uid:%" PRIu64 ", ver:-1, %s", pKey->uid, pReader->idStr);
     }
   }
 
@@ -3444,7 +3491,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
   return code;
 
 _err:
-  tsdbError("failed to create data reader, code:%s %s", tstrerror(code), pReader->idStr);
+  tsdbError("failed to create data reader, code:%s %s", tstrerror(code), idstr);
   return code;
 }
 
@@ -3733,7 +3780,7 @@ SArray* tsdbRetrieveDataBlock(STsdbReader* pReader, SArray* pIdList) {
 }
 
 int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
-  if (isEmptyQueryTimeWindow(&pReader->window)) {
+  if (isEmptyQueryTimeWindow(&pReader->window) || pReader->pReadSnap == NULL) {
     return TSDB_CODE_SUCCESS;
   }
 

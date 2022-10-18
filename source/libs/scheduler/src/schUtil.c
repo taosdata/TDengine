@@ -242,7 +242,7 @@ uint64_t schGenUUID(void) {
 
   if (hashId == 0) {
     char    uid[64] = {0};
-    int32_t code = taosGetSystemUUID(uid, tListLen(uid));
+    int32_t code = taosGetSystemUUID(uid, tListLen(uid) - 1);
     if (code != TSDB_CODE_SUCCESS) {
       qError("Failed to get the system uid, reason:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
     } else {
