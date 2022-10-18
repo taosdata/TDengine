@@ -37,7 +37,7 @@ class TDTestCase:
                     'colSchema':   [{'type': 'INT', 'count':2}, {'type': 'binary', 'len':20, 'count':1},{'type': 'TIMESTAMP', 'count':1}],
                     'tagSchema':   [{'type': 'INT', 'count':1}, {'type': 'binary', 'len':20, 'count':1}],
                     'ctbPrefix':  'ctb',
-                    'ctbNum':     10,
+                    'ctbNum':     100,
                     'rowsPerTbl': 4000,
                     'batchNum':   15,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
@@ -124,7 +124,8 @@ class TDTestCase:
         tdLog.info("async insert data")
         pThread = tmqCom.asyncInsertData(paraDict)
 
-        time.sleep(5)
+        tmqCom.getStartConsumeNotifyFromTmqsim();
+        #time.sleep(5)
         tdLog.info("check show consumers")
         tdSql.query("show consumers")
         # tdLog.info(tdSql.queryResult)

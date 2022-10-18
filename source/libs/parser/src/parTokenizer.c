@@ -597,6 +597,8 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
         *tokenId = TK_NK_BOOL;
         return i;
       }
+      *tokenId = tKeywordCode(z, i);
+      return i;
     }
     default: {
       if (((*z & 0x80) != 0) || !isIdChar[(uint8_t)*z]) {

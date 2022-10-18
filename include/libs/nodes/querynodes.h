@@ -356,7 +356,7 @@ typedef struct SVgDataBlocks {
   SVgroupInfo vg;
   int32_t     numOfTables;  // number of tables in current submit block
   uint32_t    size;
-  char*       pData;  // SMsgDesc + SSubmitReq + SSubmitBlk + ...
+  void*       pData;  // SMsgDesc + SSubmitReq + SSubmitBlk + ...
 } SVgDataBlocks;
 
 typedef struct SVnodeModifOpStmt {

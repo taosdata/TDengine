@@ -942,8 +942,7 @@ static FORCE_INLINE void doClearBufferedBlocks(SStreamScanInfo* pInfo) {
 }
 
 static bool isSessionWindow(SStreamScanInfo* pInfo) {
-  return pInfo->windowSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION ||
-         pInfo->windowSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION;
+  return pInfo->windowSup.parentType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION;
 }
 
 static bool isStateWindow(SStreamScanInfo* pInfo) {
@@ -1771,6 +1770,7 @@ FETCH_NEXT_BLOCK:
           pInfo->pDeleteDataRes->info.type = STREAM_DELETE_RESULT;
           printDataBlock(pDelBlock, "stream scan delete result");
           if (pInfo->pDeleteDataRes->info.rows > 0) {
+            blockDataDestroy(pDelBlock);
             return pInfo->pDeleteDataRes;
           } else {
             goto FETCH_NEXT_BLOCK;
@@ -3002,7 +3002,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
     while (1) {
       int64_t startTs = taosGetTimestampUs();
       tstrncpy(pInfo->req.tb, tNameGetTableName(&pInfo->name), tListLen(pInfo->req.tb));
-      strcpy(pInfo->req.user, pInfo->pUser);
+      tstrncpy(pInfo->req.user, pInfo->pUser, tListLen(pInfo->req.user));
 
       int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &pInfo->req);
       char*   buf1 = taosMemoryCalloc(1, contLen);
@@ -3332,6 +3332,11 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
                                 STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
                                 const char* idStr) {
   int64_t st = taosGetTimestampUs();
+
+  if (pHandle == NULL) {
+    qError("invalid handle, in creating operator tree", idStr);
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   int32_t code = getTableList(pHandle->meta, pHandle->vnode, pScanNode, pTagCond, pTagIndexCond, pTableListInfo);
   if (code != TSDB_CODE_SUCCESS) {
