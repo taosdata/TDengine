@@ -203,7 +203,7 @@ static int32_t sdbUpdateRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
     code = (*updateFp)(pSdb, pOldRow->pObj, pNewRow->pObj);
   }
 
-  sdbUnLock(pSdb, type);
+  // sdbUnLock(pSdb, type);
   sdbFreeRow(pSdb, pNewRow, false);
 
   pSdb->tableVer[pOldRow->type]++;
