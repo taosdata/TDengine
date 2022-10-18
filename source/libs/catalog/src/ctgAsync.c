@@ -252,7 +252,7 @@ int32_t ctgInitGetIndexTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
   SCtgIndexCtx* ctx = task.taskCtx;
 
-  strcpy(ctx->indexFName, name);
+  tstrncpy(ctx->indexFName, name, sizeof(ctx->indexFName));
 
   taosArrayPush(pJob->pTasks, &task);
 
@@ -277,7 +277,7 @@ int32_t ctgInitGetUdfTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
   SCtgUdfCtx* ctx = task.taskCtx;
 
-  strcpy(ctx->udfName, name);
+  tstrncpy(ctx->udfName, name, sizeof(ctx->udfName));
 
   taosArrayPush(pJob->pTasks, &task);
 

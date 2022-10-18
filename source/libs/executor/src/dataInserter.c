@@ -323,7 +323,7 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
   int32_t code =
       tsdbGetTableSchema(inserter->pParam->readHandle->vnode, pInserterNode->tableId, &inserter->pSchema, &suid);
   if (code) {
-    destroyDataSinker((SDataSinkHandle*)pInserterNode);
+    destroyDataSinker((SDataSinkHandle*)inserter);
     return code;
   }
 
