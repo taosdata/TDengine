@@ -1489,9 +1489,14 @@ static bool rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
 }
 
 static void rpcProcessConnError(void *param, void *id) {
+  if (NULL == param) {
+    return;
+  }
+  
   int64_t *rid = (int64_t*)param;
   SRpcReqContext *pContext = (SRpcReqContext *)taosAcquireRef(tsRpcRefId, *rid);
   if (NULL == pContext) {
+    free(param);
     return;
   }
   
@@ -1500,6 +1505,7 @@ static void rpcProcessConnError(void *param, void *id) {
  
   if (pRpc == NULL) {
     taosReleaseRef(tsRpcRefId, *rid);
+    free(param);
     return;
   }
   
@@ -1521,6 +1527,7 @@ static void rpcProcessConnError(void *param, void *id) {
   }
 
   taosReleaseRef(tsRpcRefId, *rid);  
+  free(param);  
 }
 
 static void rpcProcessRetryTimer(void *param, void *tmrId) {
