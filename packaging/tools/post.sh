@@ -75,7 +75,7 @@ fi
 
 initd_mod=0
 service_mod=2
-if pidof systemd &> /dev/null; then
+if ps aux | grep -v grep | grep systemd &> /dev/null; then
     service_mod=0
 elif $(which service &> /dev/null); then
     service_mod=1
@@ -421,7 +421,7 @@ function clean_service_on_sysvinit() {
     #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
     #${csudo}sed -i "\|${restart_config_str}|d" /etc/inittab || :
 
-    if pidof taosd &> /dev/null; then
+    if ps aux | grep -v grep | grep taosd &> /dev/null; then
         ${csudo}service taosd stop || :
     fi
 
@@ -511,6 +511,11 @@ function install_service_on_launchctl() {
     ${csudouser}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
     ${csudo}cp ${install_main_dir}/service/com.taosdata.taosd.plist /Library/LaunchDaemons/com.taosdata.taosd.plist || :
     ${csudouser}launchctl load -w /Library/LaunchDaemons/com.taosdata.taosd.plist || :
+  fi
+  if [ -f ${install_main_dir}/service/com.taosdata.taosadapter.plist ]; then
+    ${csudouser}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosadapter.plist > /dev/null 2>&1 || :
+    ${csudo}cp ${install_main_dir}/service/com.taosdata.taosadapter.plist /Library/LaunchDaemons/com.taosdata.taosadapter.plist || :
+    ${csudouser}launchctl load -w /Library/LaunchDaemons/com.taosdata.taosadapter.plist || :
   fi
 }
 
