@@ -507,7 +507,7 @@
 			
 			var mem_db = data[4].toFixed(1) + "MB";
 			var mem_system = data[5].toFixed(1) + "MB";
-			var mem_total = (data[6]/1024).toFixed(0) + "GB";
+			var mem_total = (data[6]/1024/1024).toFixed(0) + "GB";
 			
 			var disk_db = data[7].toFixed(1) + "GB";
 			var disk_system = data[8].toFixed(0) + "GB";
@@ -919,13 +919,13 @@ var DbMemoryChart = new function() {
 				var showdate = value[0].axisValueLabel.substring(5, 16);
 				if (dbIsUseTime) {
 					return showdate + '<br>' 
-						+ value[0].marker + value[0].seriesName + ' ' + value[0].data[1].toFixed(2) +' GB<br>'
-						+ value[1].marker + value[1].seriesName + ' ' + value[1].data[1].toFixed(2) +' GB';
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data[1].toFixed(2) +' MB<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data[1].toFixed(2) +' MB';
 				}
 				else {
 					return showdate + '<br>' 
-						+ value[0].marker + value[0].seriesName + ' ' + value[0].data.toFixed(2) +' GB<br>'
-						+ value[1].marker + value[1].seriesName + ' ' + value[1].data.toFixed(2) +' GB';
+						+ value[0].marker + value[0].seriesName + ' ' + value[0].data.toFixed(2) +' MB<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + value[1].data.toFixed(2) +' MB';
 				}
 			} 
 		},
@@ -1062,7 +1062,7 @@ var DbMemoryChart = new function() {
 				this.option.series[1].data[row] = data[5]/1000;
 			}
 			if (data[6]*1 != 0)
-				this.option.title.text = "memory(total:" + (data[6]/1000).toFixed(1) +"GB)";
+				this.option.title.text = "memory(total:" + (data[6]/1000/1000).toFixed(2) +"GB)";
 			this.maxVal = Math.max(this.maxVal, data[4]/1000);
 			this.maxVal = Math.max(this.maxVal, data[5]/1000);
 		}	
@@ -1379,13 +1379,13 @@ var DbIoChart = new function() {
 				var showdate = value[0].axisValueLabel.substring(5, 16);
 				if (dbIsUseTime) {
 					return showdate + '<br>' 
-						+ value[0].marker + value[0].seriesName + ' ' + value[0].data[1].toFixed(2) +' KB/s<br>'
-						+ value[1].marker + value[1].seriesName + ' ' + value[1].data[1].toFixed(2) +' KB/s';
+						+ value[0].marker + value[0].seriesName + ' ' + (value[0].data[1] / 1000).toFixed(2) +' KB/s<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + (value[1].data[1] / 1000).toFixed(2) +' KB/s';
 				}
 				else {
 					return showdate + '<br>' 
-						+ value[0].marker + value[0].seriesName + ' ' + value[0].data.toFixed(2) +' KB/s<br>'
-						+ value[1].marker + value[1].seriesName + ' ' + value[1].data.toFixed(2) +' KB/s';
+						+ value[0].marker + value[0].seriesName + ' ' + (value[0].data / 1000).toFixed(2) +' KB/s<br>'
+						+ value[1].marker + value[1].seriesName + ' ' + (value[1].data / 1000).toFixed(2) +' KB/s';
 				}
 			} 
 		},
