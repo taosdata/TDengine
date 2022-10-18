@@ -63,6 +63,7 @@ int smlProcess_influx_Test() {
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
+  taos_close(taos);
 
   return code;
 }
@@ -86,6 +87,8 @@ int smlProcess_telnet_Test() {
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
+  taos_close(taos);
+
   return code;
 }
 
@@ -125,6 +128,8 @@ int smlProcess_json1_Test() {
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
+  taos_close(taos);
+
   return code;
 }
 
@@ -165,6 +170,8 @@ int smlProcess_json2_Test() {
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
+  taos_close(taos);
+
   return code;
 }
 
@@ -233,6 +240,8 @@ int smlProcess_json3_Test() {
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
+  taos_close(taos);
+
   return code;
 }
 
@@ -292,6 +301,8 @@ int smlProcess_json4_Test() {
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
+  taos_close(taos);
+
   return code;
 }
 
@@ -313,6 +324,8 @@ int sml_TD15662_Test() {
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
+  taos_close(taos);
+
   return code;
 }
 
@@ -333,6 +346,8 @@ int sml_TD15742_Test() {
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
+  taos_close(taos);
+
   return code;
 }
 
@@ -362,6 +377,8 @@ int sml_16384_Test() {
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   code = taos_errno(pRes);
   taos_free_result(pRes);
+  taos_close(taos);
+
   return code;
 }
 
@@ -781,6 +798,8 @@ int sml_oom_Test() {
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
+  taos_close(taos);
+
   return code;
 }
 
@@ -825,6 +844,8 @@ int sml_16368_Test() {
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
+  taos_close(taos);
+
   return code;
 }
 
@@ -862,6 +883,8 @@ int sml_dup_time_Test() {
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
+  taos_close(taos);
+
   return code;
 }
 
@@ -1068,6 +1091,8 @@ int sml_16960_Test() {
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
+  taos_close(taos);
+
   return code;
 }
 
@@ -1097,6 +1122,7 @@ int sml_add_tag_col_Test() {
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   code = taos_errno(pRes);
   taos_free_result(pRes);
+  taos_close(taos);
 
   return code;
 }
@@ -1151,6 +1177,7 @@ int smlProcess_18784_Test() {
     rowIndex++;
   }
   taos_free_result(pRes);
+  taos_close(taos);
 
   return code;
 }
@@ -1178,6 +1205,9 @@ int sml_19221_Test() {
   printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
   int code = taos_errno(pRes);
   taos_free_result(pRes);
+  taos_close(taos);
+  taosMemoryFree(tmp);
+
   return code;
 }
 
