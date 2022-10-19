@@ -1647,7 +1647,9 @@ int32_t tsdbFinishCommit(STsdb *pTsdb) {
 
   // unlock
   taosThreadRwlockUnlock(&pTsdb->rwLock);
-  tsdbUnrefMemTable(pMemTable);
+  if (pMemTable) {
+    tsdbUnrefMemTable(pMemTable);
+  }
 
 _exit:
   if (code) {
