@@ -105,8 +105,8 @@ static void tSimpleHashTableResize(SSHashObj *pHashObj) {
 
   int32_t newCapacity = (int32_t)(pHashObj->capacity << 1u);
   if (newCapacity > HASH_MAX_CAPACITY) {
-    uDebug("current capacity:%"PRIzu", maximum capacity:%" PRIu64 ", no resize applied due to limitation is reached",
-           pHashObj->capacity, HASH_MAX_CAPACITY);
+    uDebug("current capacity:%" PRIzu ", maximum capacity:%" PRId32 ", no resize applied due to limitation is reached",
+           pHashObj->capacity, (int32_t)HASH_MAX_CAPACITY);
     return;
   }
 

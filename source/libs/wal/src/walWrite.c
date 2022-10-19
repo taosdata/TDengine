@@ -419,7 +419,7 @@ static int32_t walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
 
   int64_t size = taosWriteFile(pWal->pIdxFile, &entry, sizeof(SWalIdxEntry));
   if (size != sizeof(SWalIdxEntry)) {
-    wError("vgId:%d, failed to write idx entry due to %s. ver:%lld", pWal->cfg.vgId, strerror(errno), ver);
+    wError("vgId:%d, failed to write idx entry due to %s. ver:%" PRId64, pWal->cfg.vgId, strerror(errno), ver);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -449,7 +449,7 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
 
   pWal->writeHead.cksumHead = walCalcHeadCksum(&pWal->writeHead);
   pWal->writeHead.cksumBody = walCalcBodyCksum(body, bodyLen);
-  wDebug("vgId:%d, wal write log %ld, msgType: %s", pWal->cfg.vgId, index, TMSG_INFO(msgType));
+  wDebug("vgId:%d, wal write log %" PRId64 ", msgType: %s", pWal->cfg.vgId, index, TMSG_INFO(msgType));
 
   code = walWriteIndex(pWal, index, offset);
   if (code < 0) {
@@ -484,16 +484,16 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
 END:
   // recover in a reverse order
   if (taosFtruncateFile(pWal->pLogFile, offset) < 0) {
-    wFatal("vgId:%d, failed to ftruncate logfile to offset:%lld during recovery due to %s", pWal->cfg.vgId, offset,
-           strerror(errno));
+    wFatal("vgId:%d, failed to ftruncate logfile to offset:%" PRId64 " during recovery due to %s", pWal->cfg.vgId,
+           offset, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     ASSERT(0 && "failed to recover from error");
   }
 
   int64_t idxOffset = (index - pFileInfo->firstVer) * sizeof(SWalIdxEntry);
   if (taosFtruncateFile(pWal->pIdxFile, idxOffset) < 0) {
-    wFatal("vgId:%d, failed to ftruncate idxfile to offset:%lld during recovery due to %s", pWal->cfg.vgId, idxOffset,
-           strerror(errno));
+    wFatal("vgId:%d, failed to ftruncate idxfile to offset:%" PRId64 "during recovery due to %s", pWal->cfg.vgId,
+           idxOffset, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     ASSERT(0 && "failed to recover from error");
   }
