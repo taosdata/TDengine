@@ -1334,8 +1334,8 @@ int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile, STsdb *pTsdb
 _exit:
   if (code) {
     if (pDelFWriter) {
-      taosMemoryFree(pDelFWriter);
       tsdbCloseFile(&pDelFWriter->pWriteH);
+      taosMemoryFree(pDelFWriter);
     }
     *ppWriter = NULL;
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(errno));
