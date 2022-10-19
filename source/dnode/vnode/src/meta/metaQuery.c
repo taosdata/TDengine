@@ -687,7 +687,12 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
     SSchema *pSchema = pSchemaWrapper->pSchema + i;
     tdAddColToSchema(&sb, pSchema->type, pSchema->flags, pSchema->colId, pSchema->bytes);
   }
+
   STSchema *pTSchema = tdGetSchemaFromBuilder(&sb);
+  if (pTSchema == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   tdDestroyTSchemaBuilder(&sb);
 
   *ppTSchema = pTSchema;

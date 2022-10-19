@@ -2554,6 +2554,12 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
     pScanInfo = pReader->status.pTableIter;
   }
 
+  if (pScanInfo == NULL) {
+    tsdbError("failed to get table, uid:"PRIu64 ", %s", pBlockInfo->uid, pReader->idStr);
+    code = TSDB_CODE_INVALID_PARA;
+    return code;
+  }
+
   if (pBlockInfo != NULL) {
     pBlock = getCurrentBlock(pBlockIter);
   }

@@ -737,7 +737,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
 
   SDataBlockDescNode* pDescNode = pTableScanNode->scan.node.pOutputDataBlockDesc;
   int32_t             numOfCols = 0;
-  SArray* pColList = extractColMatchInfo(pTableScanNode->scan.pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID);
+  pInfo->pColMatchInfo = extractColMatchInfo(pTableScanNode->scan.pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID);
 
   int32_t code = initQueryTableDataCond(&pInfo->cond, pTableScanNode);
   if (code != TSDB_CODE_SUCCESS) {
@@ -765,7 +765,6 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   }
 
   pInfo->scanFlag = MAIN_SCAN;
-  pInfo->pColMatchInfo = pColList;
   pInfo->currentGroupId = -1;
   pInfo->assignBlockUid = pTableScanNode->assignBlockUid;
 
@@ -1769,8 +1768,9 @@ FETCH_NEXT_BLOCK:
           generateDeleteResultBlock(pInfo, pDelBlock, pInfo->pDeleteDataRes);
           pInfo->pDeleteDataRes->info.type = STREAM_DELETE_RESULT;
           printDataBlock(pDelBlock, "stream scan delete result");
+          blockDataDestroy(pDelBlock);
+
           if (pInfo->pDeleteDataRes->info.rows > 0) {
-            blockDataDestroy(pDelBlock);
             return pInfo->pDeleteDataRes;
           } else {
             goto FETCH_NEXT_BLOCK;
@@ -2091,24 +2091,30 @@ SOperatorInfo* createRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pT
   // create meta reader
   // create tq reader
 
+  int32_t code = TSDB_CODE_SUCCESS;
+
   SStreamRawScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamRawScanInfo));
   SOperatorInfo*      pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    return NULL;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _end;
   }
 
   pInfo->vnode = pHandle->vnode;
 
   pInfo->sContext = pHandle->sContext;
   pOperator->name = "RawStreamScanOperator";
-  //  pOperator->blocking = false;
-  //  pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(NULL, doRawScan, NULL, NULL, destroyRawScanOperatorInfo, NULL, NULL, NULL);
   return pOperator;
+
+  _end:
+  taosMemoryFree(pInfo);
+  taosMemoryFree(pOperator);
+  pTaskInfo->code = code;
+  return NULL;
 }
 
 static void destroyStreamScanOperatorInfo(void* param) {
@@ -2286,7 +2292,14 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   return pOperator;
 
 _error:
-  taosMemoryFreeClear(pInfo);
+  if (pColIds != NULL) {
+    taosArrayDestroy(pColIds);
+  }
+
+  if (pInfo != NULL) {
+    destroyStreamScanOperatorInfo(pInfo);
+  }
+
   taosMemoryFreeClear(pOperator);
   return NULL;
 }
@@ -3334,7 +3347,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
   int64_t st = taosGetTimestampUs();
 
   if (pHandle == NULL) {
-    qError("invalid handle, in creating operator tree", idStr);
+    qError("invalid handle, in creating operator tree, %s", idStr);
     return TSDB_CODE_INVALID_PARA;
   }
 
