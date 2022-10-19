@@ -66,10 +66,10 @@ Please refer to [version support list](/reference/connector#version-support)
 * [Nuget Client](https://docs.microsoft.com/en-us/nuget/install-nuget-client-tools) (optional installation)
 * Install TDengine client driver, please refer to [Install client driver](/reference/connector/#install-client-driver) for details
 
-### Install via dotnet CLI
+### Install `TDengine.Connector`
 
 <Tabs defaultValue="CLI">
-<TabItem value="CLI" label="Get C# driver using dotnet CLI">
+<TabItem value="CLI" label="Using Native Connection">
 
 You can reference the `TDengine.Connector` published in Nuget to the current project via the `dotnet` command under the path of the existing .NET project.
 
@@ -77,19 +77,31 @@ You can reference the `TDengine.Connector` published in Nuget to the current pro
 dotnet add package TDengine.Connector
 ```
 
-</TabItem>
-<TabItem value="source" label="Use source code to get C# driver">
+Beside, you can edit current .NET project file either. You can add following 'ItemGroup' into you project file (.csproj).
 
-You can [download the source code](https://github.com/taosdata/taos-connector-dotnet/tree/3.0) and directly reference the latest version of the TDengine.Connector library.
-
-```bash
-git clone -b 3.0 https://github.com/taosdata/taos-connector-dotnet.git
-cd taos-connector-dotnet
-cp -r src/ myProject
-
-cd myProject
-dotnet add exmaple.csproj reference src/TDengine.csproj
+``` XML
+  <ItemGroup>
+    <PackageReference Include="TDengine.Connector" Version="3.0.*" />
+  </ItemGroup>
 ```
+
+</TabItem>
+<TabItem value="source" label="Use WebSocket Connection">
+
+In this scenario, modifying your project file is required in order to copy the WebSocket dependency dynamic library from the nuget package into your project.
+```XML
+  <ItemGroup>
+    <PackageReference Include="TDengine.Connector" Version="3.0.*" GeneratePathProperty="true" />
+  </ItemGroup>
+  <Target Name="copyDLLDepency" BeforeTargets="BeforeBuild">
+    <ItemGroup>
+      <DepDLLFiles Include="$(PkgTDengine_Connector_test)\runtimes\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DepDLLFiles)" DestinationFolder="$(OutDir)\dep_lib" />
+  </Target>
+```
+
+Notice: `TDengine.Connector` only version>= 3.0.2 includes the dynamic library for WebSocket.
 
 </TabItem>
 </Tabs>

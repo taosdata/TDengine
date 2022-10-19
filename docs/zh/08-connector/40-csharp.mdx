@@ -67,10 +67,10 @@ import CSAsyncQuery from "../07-develop/04-query-data/_cs_async.mdx"
 * [Nuget 客户端](https://docs.microsoft.com/en-us/nuget/install-nuget-client-tools) （可选安装）
 * 安装 TDengine 客户端驱动，具体步骤请参考[安装客户端驱动](../#安装客户端驱动)
 
-### 使用 dotnet CLI 安装
+### 安装 TDengine.Connector
 
 <Tabs defaultValue="CLI">
-<TabItem value="CLI" label="使用 dotnet CLI 获取 C# 驱动">
+<TabItem value="CLI" label="使用本地连接">
 
 可以在当前 .NET 项目的路径下，通过 dotnet 命令引用 Nuget 中发布的 `TDengine.Connector` 到当前项目。
 
@@ -78,19 +78,34 @@ import CSAsyncQuery from "../07-develop/04-query-data/_cs_async.mdx"
 dotnet add package TDengine.Connector
 ```
 
-</TabItem>
-<TabItem value="source" label="使用源码获取 C# 驱动">
+也可以修改当前项目的 `.csproj` 文件，添加一下 ItemGroup。
 
-也可以[下载源码](https://github.com/taosdata/taos-connector-dotnet/tree/3.0)，直接引用 TDengine.Connector 库
-
-```bash
-git clone -b 3.0 https://github.com/taosdata/taos-connector-dotnet.git
-cd taos-connector-dotnet
-cp -r src/ myProject
-
-cd myProject
-dotnet add exmaple.csproj reference src/TDengine.csproj
+``` XML
+  <ItemGroup>
+    <PackageReference Include="TDengine.Connector" Version="3.0.*" />
+  </ItemGroup>
 ```
+
+</TabItem>
+
+<TabItem value="source" label="使用 WebSocket 连接">
+
+需要修改目标项目的 `.csproj` 项目文件，将 nupkg 中的 `runtimes/` 下的动态库复制到当前项目的 `$(OutDir)`下。一下示例是复制到 `$(OutDir)\dep_lib`。
+
+```XML
+  <ItemGroup>
+    <PackageReference Include="TDengine.Connector" Version="3.0.*" GeneratePathProperty="true" />
+  </ItemGroup>
+  <Target Name="copyDLLDepency" BeforeTargets="BeforeBuild">
+    <ItemGroup>
+      <DepDLLFiles Include="$(PkgTDengine_Connector_test)\runtimes\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DepDLLFiles)" DestinationFolder="$(OutDir)\dep_lib" />
+  </Target>
+```
+
+注意：`TDengine.Connector` 自 version>= 3.0.2 的 nuget package 中才会有动态库。
+
 </TabItem>
 </Tabs>
 
