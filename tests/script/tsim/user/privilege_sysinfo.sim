@@ -110,7 +110,6 @@ sql_error show dnodes
 sql_error show snodes
 sql_error show qnodes
 sql_error show mnodes
-sql_error show bnodes
 sql_error show db.vgroups
 sql_error show db.stables
 sql_error show db.tables
