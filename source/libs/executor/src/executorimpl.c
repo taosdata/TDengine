@@ -4192,42 +4192,6 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SArray* pExecInf
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey, SqlFunctionCtx* pCtx, int32_t numOfOutput,
-                               int32_t size) {
-  pSup->currentPageId = -1;
-  pSup->resultRowSize = getResultRowSize(pCtx, numOfOutput);
-  pSup->keySize = sizeof(int64_t) + sizeof(TSKEY);
-  pSup->pKeyBuf = taosMemoryCalloc(1, pSup->keySize);
-  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
-  pSup->pResultRows = taosHashInit(1024, hashFn, false, HASH_NO_LOCK);
-  if (pSup->pKeyBuf == NULL || pSup->pResultRows == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pSup->valueSize = size;
-
-  pSup->pScanBlock = createSpecialDataBlock(STREAM_CLEAR);
-  int32_t pageSize = 4096;
-  while (pageSize < pSup->resultRowSize * 4) {
-    pageSize <<= 1u;
-  }
-  // at least four pages need to be in buffer
-  int32_t bufSize = 4096 * 256;
-  if (bufSize <= pageSize) {
-    bufSize = pageSize * 4;
-  }
-  if (!osTempSpaceAvailable()) {
-    terrno = TSDB_CODE_NO_AVAIL_DISK;
-    qError("Init stream agg supporter failed since %s", terrstr(terrno));
-    return terrno;
-  }
-  int32_t code = createDiskbasedBuf(&pSup->pResultBuf, pageSize, bufSize, pKey, tsTempDir);
-  for (int32_t i = 0; i < numOfOutput; ++i) {
-    pCtx[i].saveHandle.pBuf = pSup->pResultBuf;
-  }
-
-  return code;
-}
-
 int32_t setOutputBuf(SStreamState* pState, STimeWindow* win, SResultRow** pResult, int64_t tableGroupId,
                      SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowEntryInfoOffset, SAggSupporter* pAggSup) {
   SWinKey key = {
@@ -4237,7 +4201,6 @@ int32_t setOutputBuf(SStreamState* pState, STimeWindow* win, SResultRow** pResul
   char*   value = NULL;
   int32_t size = pAggSup->resultRowSize;
 
-  tSimpleHashPut(pAggSup->pResultRowHashTable, &key, sizeof(SWinKey), NULL, 0);
   if (streamStateAddIfNotExist(pState, &key, (void**)&value, &size) < 0) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
@@ -4338,6 +4301,85 @@ int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pStat
 
     pBlock->info.rows += pRow->numOfRows;
     releaseOutputBuf(pState, &key, pRow);
+  }
+  blockDataUpdateTsWindow(pBlock, 0);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t saveSessionDiscBuf(SStreamState* pState, SSessionKey* key, void* buf, int32_t size) {
+  streamStateSessionPut(pState, key, (const void*)buf, size);
+  releaseOutputBuf(pState, NULL, (SResultRow*)buf);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t buildSessionResultDataBlock(SExecTaskInfo* pTaskInfo, SStreamState* pState, SSDataBlock* pBlock,
+                                    SExprSupp* pSup, SGroupResInfo* pGroupResInfo) {
+  SExprInfo*      pExprInfo = pSup->pExprInfo;
+  int32_t         numOfExprs = pSup->numOfExprs;
+  int32_t*        rowEntryOffset = pSup->rowEntryInfoOffset;
+  SqlFunctionCtx* pCtx = pSup->pCtx;
+
+  int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
+
+  for (int32_t i = pGroupResInfo->index; i < numOfRows; i += 1) {
+    SSessionKey* pKey = taosArrayGet(pGroupResInfo->pRows, i);
+    int32_t      size = 0;
+    void*        pVal = NULL;
+    int32_t      code = streamStateSessionGet(pState, pKey, &pVal, &size);
+    ASSERT(code == 0);
+    SResultRow* pRow = (SResultRow*)pVal;
+    doUpdateNumOfRows(pCtx, pRow, numOfExprs, rowEntryOffset);
+    // no results, continue to check the next one
+    if (pRow->numOfRows == 0) {
+      pGroupResInfo->index += 1;
+      releaseOutputBuf(pState, NULL, pRow);
+      continue;
+    }
+
+    if (pBlock->info.groupId == 0) {
+      pBlock->info.groupId = pKey->groupId;
+    } else {
+      // current value belongs to different group, it can't be packed into one datablock
+      if (pBlock->info.groupId != pKey->groupId) {
+        releaseOutputBuf(pState, NULL, pRow);
+        break;
+      }
+    }
+
+    if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
+      ASSERT(pBlock->info.rows > 0);
+      releaseOutputBuf(pState, NULL, pRow);
+      break;
+    }
+
+    pGroupResInfo->index += 1;
+
+    for (int32_t j = 0; j < numOfExprs; ++j) {
+      int32_t slotId = pExprInfo[j].base.resSchema.slotId;
+
+      pCtx[j].resultInfo = getResultEntryInfo(pRow, j, rowEntryOffset);
+      if (pCtx[j].fpSet.finalize) {
+        int32_t code1 = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
+        if (TAOS_FAILED(code1)) {
+          qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(code1));
+          T_LONG_JMP(pTaskInfo->env, code1);
+        }
+      } else if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_select_value") == 0) {
+        // do nothing, todo refactor
+      } else {
+        // expand the result into multiple rows. E.g., _wstart, top(k, 20)
+        // the _wstart needs to copy to 20 following rows, since the results of top-k expands to 20 different rows.
+        SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
+        char*            in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
+        for (int32_t k = 0; k < pRow->numOfRows; ++k) {
+          colDataAppend(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
+        }
+      }
+    }
+
+    pBlock->info.rows += pRow->numOfRows;
+    // saveSessionDiscBuf(pState, pKey, pVal, size);
+    releaseOutputBuf(pState, NULL, pRow);
   }
   blockDataUpdateTsWindow(pBlock, 0);
   return TSDB_CODE_SUCCESS;

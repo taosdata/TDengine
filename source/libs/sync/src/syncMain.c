@@ -3032,7 +3032,8 @@ static int32_t syncNodeProposeConfigChangeFinish(SSyncNode* ths, SyncReconfigFin
 }
 
 bool syncNodeIsOptimizedOneReplica(SSyncNode* ths, SRpcMsg* pMsg) {
-  return (ths->replicaNum == 1 && syncUtilUserCommit(pMsg->msgType) && ths->vgId != 1);
+  return (ths->replicaNum == 1 && syncUtilUserCommit(pMsg->msgType));
+  // return (ths->replicaNum == 1 && syncUtilUserCommit(pMsg->msgType) && ths->vgId != 1);
 }
 
 int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag) {
@@ -3084,7 +3085,8 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
         // user commit
         if ((ths->pFsm->FpCommitCb != NULL) && syncUtilUserCommit(pEntry->originalRpcType)) {
           bool internalExecute = true;
-          if ((ths->replicaNum == 1) && ths->restoreFinish && ths->vgId != 1) {
+          if ((ths->replicaNum == 1) && ths->restoreFinish) {
+            // if ((ths->replicaNum == 1) && ths->restoreFinish && ths->vgId != 1) {
             internalExecute = false;
           }
 

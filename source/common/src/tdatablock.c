@@ -1892,12 +1892,13 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
 
     for (int32_t k = 0; k < colNum; k++) {
       SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
-      void*            var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
       if (colDataIsNull(pColInfoData, rows, j, NULL) || !pColInfoData->pData) {
         len += snprintf(dumpBuf + len, size - len, " %15s |", "NULL");
         if (len >= size - 1) return dumpBuf;
         continue;
       }
+
+      void* var = colDataGetData(pColInfoData, j);
       switch (pColInfoData->info.type) {
         case TSDB_DATA_TYPE_TIMESTAMP:
           memset(pBuf, 0, sizeof(pBuf));
@@ -1926,8 +1927,8 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
           if (len >= size - 1) return dumpBuf;
           break;
         case TSDB_DATA_TYPE_DOUBLE:
-          len += snprintf(dumpBuf + len, size - len, " %15lf |", *(double*)var);
-          if (len >= size - 1) return dumpBuf;
+          // len += snprintf(dumpBuf + len, size - len, " %15lf |", *(double*)var);
+          // if (len >= size - 1) return dumpBuf;
           break;
         case TSDB_DATA_TYPE_BOOL:
           len += snprintf(dumpBuf + len, size - len, " %15d |", *(bool*)var);

@@ -596,7 +596,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
   tqInitTaosxRsp(&taosxRsp, pReq);
 
   if (fetchOffsetNew.type != TMQ_OFFSET__LOG) {
-    tqScan(pTq, pHandle, &taosxRsp, &metaRsp, &fetchOffsetNew);
+    tqScanTaosx(pTq, pHandle, &taosxRsp, &metaRsp, &fetchOffsetNew);
 
     if (metaRsp.metaRspLen > 0) {
       if (tqSendMetaPollRsp(pTq, pMsg, pReq, &metaRsp) < 0) {
@@ -927,7 +927,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask) {
     pTask->smaSink.smaSink = smaHandleRes;
   } else if (pTask->outputType == TASK_OUTPUT__TABLE) {
     pTask->tbSink.vnode = pTq->pVnode;
-    pTask->tbSink.tbSinkFunc = tqTableSink1;
+    pTask->tbSink.tbSinkFunc = tqSinkToTablePipeline;
 
     ASSERT(pTask->tbSink.pSchemaWrapper);
     ASSERT(pTask->tbSink.pSchemaWrapper->pSchema);

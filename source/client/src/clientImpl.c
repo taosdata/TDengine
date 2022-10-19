@@ -955,7 +955,12 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
   switch (pQuery->execMode) {
     case QUERY_EXEC_MODE_LOCAL:
       if (!pRequest->validateOnly) {
-        code = execLocalCmd(pRequest, pQuery);
+        if (NULL == pQuery->pRoot) {
+          terrno = TSDB_CODE_INVALID_PARA;
+          code = terrno;
+        } else {
+          code = execLocalCmd(pRequest, pQuery);
+        }
       }
       break;
     case QUERY_EXEC_MODE_RPC:
@@ -997,7 +1002,7 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
 
   handleQueryExecRsp(pRequest);
 
-  if (NULL != pRequest && TSDB_CODE_SUCCESS != code) {
+  if (TSDB_CODE_SUCCESS != code) {
     pRequest->code = terrno;
   }
 
@@ -2254,7 +2259,10 @@ void syncQueryFn(void* param, void* res, int32_t code) {
 void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly) {
   if (sql == NULL || NULL == fp) {
     terrno = TSDB_CODE_INVALID_PARA;
-    fp(param, NULL, terrno);
+    if (fp) {
+      fp(param, NULL, terrno);
+    }
+    
     return;
   }
 
