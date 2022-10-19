@@ -1196,6 +1196,7 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
   if (cfgLoadFromArray(tsCfg, pArgs) != 0) {
     uError("failed to load cfg from array since %s", terrstr());
     cfgCleanup(tsCfg);
+    tsCfg = NULL;
     return -1;
   }
 

@@ -208,6 +208,7 @@ int mainWindows(int argc, char **argv) {
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();
+    taosConvDestroy();
     return 0;
   }
 
@@ -216,9 +217,11 @@ int mainWindows(int argc, char **argv) {
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();
+    taosConvDestroy();
     return 0;
   }
 
+  osSetProcPath(argc, (char **)argv);
   taosCleanupArgs();
 
   if (dmInit() != 0) {

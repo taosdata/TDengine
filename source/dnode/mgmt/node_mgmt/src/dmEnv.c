@@ -132,8 +132,8 @@ void dmCleanup() {
   taosStopCacheRefreshWorker();
   dInfo("dnode env is cleaned up");
 
-  taosCloseLog();
   taosCleanupCfg();
+  taosCloseLog();
 }
 
 void dmStop() {
