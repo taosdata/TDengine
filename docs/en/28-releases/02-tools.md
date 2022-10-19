@@ -6,10 +6,6 @@ description: taosTools release history, Release Notes, download links.
 
 import Release from "/components/ReleaseV3";
 
-## 2.2.6
-
-<Release type="tools" version="2.2.6" />
-
 ## 2.2.4
 
 <Release type="tools" version="2.2.4" />
