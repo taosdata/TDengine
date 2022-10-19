@@ -2402,7 +2402,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateFirstLast,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
-    .processFunc  = lastRowFunction,
+    .processFunc  = cachedLastRowFunction,
     .finalizeFunc = firstLastFinalize
   },
   {

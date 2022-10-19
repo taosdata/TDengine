@@ -188,15 +188,26 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
   SArray*    pRow = NULL;
   size_t     numOfTables = taosArrayGetSize(pr->pTableList);
   bool       hasRes = false;
+  SArray*    pLastCols = NULL;
 
   void** pRes = taosMemoryCalloc(pr->numOfCols, POINTER_BYTES);
+  if (pRes == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _end;
+  }
+
   for (int32_t j = 0; j < pr->numOfCols; ++j) {
     pRes[j] = taosMemoryCalloc(1, sizeof(SFirstLastRes) + pr->pSchema->columns[slotIds[j]].bytes + VARSTR_HEADER_SIZE);
     SFirstLastRes* p = (SFirstLastRes*)varDataVal(pRes[j]);
     p->ts = INT64_MIN;
   }
 
-  SArray* pLastCols = taosArrayInit(pr->pSchema->numOfCols, sizeof(SLastCol));
+  pLastCols = taosArrayInit(pr->pSchema->numOfCols, sizeof(SLastCol));
+  if (pLastCols == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _end;
+  }
+
   for (int32_t i = 0; i < pr->numOfCols; ++i) {
     SLastCol p = {0};
     p.ts = INT64_MIN;
@@ -262,7 +273,6 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     }
 
     if (hasRes) {
-      pResBlock->info.rows = 1;
       saveOneRow(pLastCols, pResBlock, pr, slotIds, pRes);
     }
 
@@ -286,12 +296,19 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
       pr->tableIndex += 1;
       if (pResBlock->info.rows >= pResBlock->info.capacity) {
-        return TSDB_CODE_SUCCESS;
+        goto _end;
       }
     }
   } else {
-    return TSDB_CODE_INVALID_PARA;
+    code = TSDB_CODE_INVALID_PARA;
   }
 
-  return TSDB_CODE_SUCCESS;
+  _end:
+  for (int32_t j = 0; j < pr->numOfCols; ++j) {
+    taosMemoryFree(pRes[j]);
+  }
+
+  taosMemoryFree(pRes);
+  taosArrayDestroy(pLastCols);
+  return code;
 }
