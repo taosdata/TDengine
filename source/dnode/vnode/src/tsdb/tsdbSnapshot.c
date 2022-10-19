@@ -1380,13 +1380,13 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
     code = tsdbSnapWriteDelEnd(pWriter);
     if (code) goto _err;
 
-    code = tsdbFSCommit1(pWriter->pTsdb, &pWriter->fs);
+    code = tsdbFSPrepareCommit(pWriter->pTsdb, &pWriter->fs);
     if (code) goto _err;
 
     // lock
     taosThreadRwlockWrlock(&pTsdb->rwLock);
 
-    code = tsdbFSCommit2(pWriter->pTsdb, &pWriter->fs);
+    code = tsdbFSCommit(pWriter->pTsdb);
     if (code) {
       taosThreadRwlockUnlock(&pTsdb->rwLock);
       goto _err;
