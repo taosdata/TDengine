@@ -420,7 +420,18 @@ let mut consumer = tmq.build()?;
 
 <TabItem value="Python" label="Python">
 
-Python 使用以下配置项创建一个 Consumer 实例。
+Python 语言下引入 `taos` 库的 `TaosConsumer` 类，创建一个 Consumer 示例：
+
+```python
+from taos.tmq import TaosConsumer
+
+# Syntax: `consumer = TaosConsumer(*topics, **args)`
+#
+# Example:
+consumer = TaosConsumer('topic1', 'topic2', td_connect_ip = "127.0.0.1", group_id = "local")
+```
+
+其中，元组类型参数被视为 *Topics*，字典类型参数用于以下订阅配置设置：
 
 |            参数名称            |  类型  | 参数说明                                                 | 备注                                        |
 | :----------------------------: | :----: | -------------------------------------------------------- | ------------------------------------------- |
