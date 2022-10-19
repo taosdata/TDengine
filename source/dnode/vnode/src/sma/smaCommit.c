@@ -89,18 +89,18 @@ int32_t smaBegin(SSma *pSma) {
 
   if ((code = tsdbBegin(VND_RSMA1(pVnode))) < 0) {
     smaError("vgId:%d, failed to begin rsma1 since %s", TD_VID(pVnode), tstrerror(code));
-    return TSDB_CODE_FAILED;
+    return code;
   }
 
   if ((code = tsdbBegin(VND_RSMA2(pVnode))) < 0) {
     smaError("vgId:%d, failed to begin rsma2 since %s", TD_VID(pVnode), tstrerror(code));
-    return TSDB_CODE_FAILED;
+    return code;
   }
 
   // set trigger stat
   SSmaEnv *pSmaEnv = SMA_RSMA_ENV(pSma);
   if (!pSmaEnv) {
-    return TSDB_CODE_SUCCESS;
+    return code;
   }
   SRSmaStat *pRSmaStat = (SRSmaStat *)SMA_ENV_STAT(pSmaEnv);
   int8_t     rsmaTriggerStat =
@@ -121,7 +121,7 @@ int32_t smaBegin(SSma *pSma) {
       break;
     }
   }
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t smaFinishCommit(SSma *pSma) {
