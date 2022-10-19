@@ -31,6 +31,16 @@ class TDTestQuery(TDCase):
         self.tdCreateData = TDCreateData(self.tdSql, self.logger)
         self._remote: Remote = Remote(self.logger)
         self._remote._logger.info("********")
+        
+        self.firstEP = []
+        for env_setting in self.env_setting["settings"]:
+            if env_setting["name"].lower() == "taosd":
+                self.taosd_setting = env_setting
+                self.firstEP.append(
+                    self.taosd_setting['spec']['config']['firstEP'])
+        self.target_taosd = self.firstEP[-1].split(':')
+        print(self.target_taosd[0])
+        self.service_host = self.target_taosd[0]
 
     def tags(self) :
 	
@@ -48,8 +58,8 @@ class TDTestQuery(TDCase):
         return case_description
 
     #basic_param
-    db = "table_math_apercentile"
-    service_host = ""
+    db = "table_apercentile"
+    
     table_list = ['regular_table_1','stable_1_1','regular_table_2','stable_1_2','stable_2_1']
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
     table_null_list = ['regular_table_null','stable_1_3','stable_1_4','stable_2_2','stable_null_data_1']
