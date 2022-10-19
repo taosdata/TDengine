@@ -519,6 +519,11 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
         return code;
       }
 
+      if (state->pDataFReader != NULL) {
+        tsdbDataFReaderClose(&state->pDataFReader);
+        state->pDataFReader = NULL;
+      }
+
       code = tsdbDataFReaderOpen(&state->pDataFReader, state->pTsdb, pFileSet);
       if (code) goto _err;
 
@@ -662,6 +667,8 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
        */
       state->pBlockIdx = taosArraySearch(state->aBlockIdx, state->pBlockIdxExp, tCmprBlockIdx, TD_EQ);
       if (!state->pBlockIdx) {
+        tsdbDataFReaderClose(&state->pDataFReader);
+        state->pDataFReader = NULL;
         goto _next_fileset;
       }
 
