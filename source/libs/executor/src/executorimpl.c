@@ -4312,8 +4312,9 @@ int32_t saveSessionDiscBuf(SStreamState* pState, SSessionKey* key, void* buf, in
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t buildSessionResultDataBlock(SExecTaskInfo* pTaskInfo, SStreamState* pState, SSDataBlock* pBlock,
+int32_t buildSessionResultDataBlock(SOperatorInfo* pOperator, SStreamState* pState, SSDataBlock* pBlock,
                                     SExprSupp* pSup, SGroupResInfo* pGroupResInfo) {
+  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   SExprInfo*      pExprInfo = pSup->pExprInfo;
   int32_t         numOfExprs = pSup->numOfExprs;
   int32_t*        rowEntryOffset = pSup->rowEntryInfoOffset;
@@ -4338,6 +4339,31 @@ int32_t buildSessionResultDataBlock(SExecTaskInfo* pTaskInfo, SStreamState* pSta
 
     if (pBlock->info.groupId == 0) {
       pBlock->info.groupId = pKey->groupId;
+
+      if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_STATE) {
+        SStreamStateAggOperatorInfo* pInfo = pOperator->info;
+
+        char* tbname = taosHashGet(pInfo->pGroupIdTbNameMap, &pBlock->info.groupId, sizeof(int64_t));
+        if (tbname != NULL) {
+          memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
+        } else {
+          pBlock->info.parTbName[0] = 0;
+        }
+      } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION ||
+                 pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_SESSION ||
+                 pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION) {
+        SStreamSessionAggOperatorInfo* pInfo = pOperator->info;
+
+        char* tbname = taosHashGet(pInfo->pGroupIdTbNameMap, &pBlock->info.groupId, sizeof(int64_t));
+        if (tbname != NULL) {
+          memcpy(pBlock->info.parTbName, tbname, TSDB_TABLE_NAME_LEN);
+        } else {
+          pBlock->info.parTbName[0] = 0;
+        }
+      } else {
+        ASSERT(0);
+      }
+
     } else {
       // current value belongs to different group, it can't be packed into one datablock
       if (pBlock->info.groupId != pKey->groupId) {

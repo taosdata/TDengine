@@ -305,6 +305,18 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
   return 0;
 }
 
+int tdbPagerPostCommit(SPager *pPager, TXN *pTxn) {
+  if (tdbOsRemove(pPager->jFileName) < 0 && errno != ENOENT) {
+    tdbError("failed to remove file due to %s. file:%s", strerror(errno), pPager->jFileName);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  pPager->inTran = 0;
+
+  return 0;
+}
+
 // recovery dirty pages
 int tdbPagerAbort(SPager *pPager, TXN *pTxn) {
   SPage *pPage;
@@ -649,6 +661,16 @@ int tdbPagerRestore(SPager *pPager, SBTree *pBt) {
     return -1;
   }
 
+  if (tdbOsRemove(pPager->jFileName) < 0 && errno != ENOENT) {
+    tdbError("failed to remove file due to %s. jFileName:%s", strerror(errno), pPager->jFileName);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  return 0;
+}
+
+int tdbPagerRollback(SPager *pPager) {
   if (tdbOsRemove(pPager->jFileName) < 0 && errno != ENOENT) {
     tdbError("failed to remove file due to %s. jFileName:%s", strerror(errno), pPager->jFileName);
     terrno = TAOS_SYSTEM_ERROR(errno);

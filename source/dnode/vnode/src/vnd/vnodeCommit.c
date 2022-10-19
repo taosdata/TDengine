@@ -20,8 +20,6 @@
 
 static int  vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData);
 static int  vnodeDecodeInfo(uint8_t *pData, SVnodeInfo *pInfo);
-static int  vnodeStartCommit(SVnode *pVnode);
-static int  vnodeEndCommit(SVnode *pVnode);
 static int  vnodeCommitImpl(void *arg);
 static void vnodeWaitCommit(SVnode *pVnode);
 
@@ -215,6 +213,8 @@ int vnodeSyncCommit(SVnode *pVnode) {
 }
 
 int vnodeCommit(SVnode *pVnode) {
+  int32_t    code = 0;
+  int32_t    lino = 0;
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN];
 
@@ -234,47 +234,47 @@ int vnodeCommit(SVnode *pVnode) {
     snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
   }
   if (vnodeSaveInfo(dir, &info) < 0) {
-    vError("vgId:%d, failed to save vnode info since %s", TD_VID(pVnode), tstrerror(terrno));
-    return -1;
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
   walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
 
-  if (smaPreCommit(pVnode->pSma) < 0) {
-    vError("vgId:%d, failed to pre-commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
-    return -1;
-  }
+  code = smaPreCommit(pVnode->pSma);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   vnodeBufPoolUnRef(pVnode->inUse);
   pVnode->inUse = NULL;
 
   // commit each sub-system
   if (metaCommit(pVnode->pMeta) < 0) {
-    vError("vgId:%d, failed to commit meta since %s", TD_VID(pVnode), tstrerror(terrno));
-    return -1;
+    code = TSDB_CODE_FAILED;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (VND_IS_RSMA(pVnode)) {
-    if (smaCommit(pVnode->pSma) < 0) {
-      vError("vgId:%d, failed to commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
+    code = smaCommit(pVnode->pSma);
+    TSDB_CHECK_CODE(code, lino, _exit);
   } else {
-    if (tsdbCommit(pVnode->pTsdb) < 0) {
-      vError("vgId:%d, failed to commit tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
+    code = tsdbCommit(pVnode->pTsdb);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (tqCommit(pVnode->pTq) < 0) {
-    vError("vgId:%d, failed to commit tq since %s", TD_VID(pVnode), tstrerror(terrno));
-    return -1;
+    code = TSDB_CODE_FAILED;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
-  // walCommit (TODO)
 
   // commit info
   if (vnodeCommitInfo(dir, &info) < 0) {
-    vError("vgId:%d, failed to commit vnode info since %s", TD_VID(pVnode), tstrerror(terrno));
-    return -1;
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  tsdbFinishCommit(pVnode->pTsdb);
+
+  if (metaFinishCommit(pVnode->pMeta) < 0) {
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   pVnode->state.committed = info.state.committed;
@@ -287,9 +287,29 @@ int vnodeCommit(SVnode *pVnode) {
   // apply the commit (TODO)
   walEndSnapshot(pVnode->pWal);
 
-  vInfo("vgId:%d, commit end", TD_VID(pVnode));
-
+_exit:
+  if (code) {
+    vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  } else {
+    vInfo("vgId:%d, commit end", TD_VID(pVnode));
+  }
   return 0;
+}
+
+bool vnodeShouldRollback(SVnode *pVnode) {
+  char tFName[TSDB_FILENAME_LEN] = {0};
+  snprintf(tFName, TSDB_FILENAME_LEN, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
+           VND_INFO_FNAME_TMP);
+
+  return taosCheckExistFile(tFName);
+}
+
+void vnodeRollback(SVnode *pVnode) {
+  char tFName[TSDB_FILENAME_LEN] = {0};
+  snprintf(tFName, TSDB_FILENAME_LEN, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
+           VND_INFO_FNAME_TMP);
+
+  (void)taosRemoveFile(tFName);
 }
 
 static int vnodeCommitImpl(void *arg) {
@@ -301,16 +321,6 @@ static int vnodeCommitImpl(void *arg) {
 
   // vnodeBufPoolRecycle(pVnode);
   tsem_post(&(pVnode->canCommit));
-  return 0;
-}
-
-static int vnodeStartCommit(SVnode *pVnode) {
-  // TODO
-  return 0;
-}
-
-static int vnodeEndCommit(SVnode *pVnode) {
-  // TODO
   return 0;
 }
 

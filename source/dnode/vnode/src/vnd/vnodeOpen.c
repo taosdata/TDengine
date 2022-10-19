@@ -110,6 +110,8 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   taosThreadMutexInit(&pVnode->mutex, NULL);
   taosThreadCondInit(&pVnode->poolNotEmpty, NULL);
 
+  int8_t rollback = vnodeShouldRollback(pVnode);
+
   // open buffer pool
   if (vnodeOpenBufPool(pVnode) < 0) {
     vError("vgId:%d, failed to open vnode buffer pool since %s", TD_VID(pVnode), tstrerror(terrno));
@@ -117,19 +119,19 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   }
 
   // open meta
-  if (metaOpen(pVnode, &pVnode->pMeta) < 0) {
+  if (metaOpen(pVnode, &pVnode->pMeta, rollback) < 0) {
     vError("vgId:%d, failed to open vnode meta since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open tsdb
-  if (!VND_IS_RSMA(pVnode) && tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL) < 0) {
+  if (!VND_IS_RSMA(pVnode) && tsdbOpen(pVnode, &VND_TSDB(pVnode), VNODE_TSDB_DIR, NULL, rollback) < 0) {
     vError("vgId:%d, failed to open vnode tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open sma
-  if (smaOpen(pVnode)) {
+  if (smaOpen(pVnode, rollback)) {
     vError("vgId:%d, failed to open vnode sma since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
@@ -153,14 +155,12 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
     goto _err;
   }
 
-#if !VNODE_AS_LIB
   // open query
   if (vnodeQueryOpen(pVnode)) {
     vError("vgId:%d, failed to open vnode query since %s", TD_VID(pVnode), tstrerror(terrno));
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
-#endif
 
   // vnode begin
   if (vnodeBegin(pVnode) < 0) {
@@ -169,13 +169,15 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
     goto _err;
   }
 
-#if !VNODE_AS_LIB
   // open sync
   if (vnodeSyncOpen(pVnode, dir)) {
     vError("vgId:%d, failed to open sync since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
-#endif
+
+  if (rollback) {
+    vnodeRollback(pVnode);
+  }
 
   return pVnode;
 

@@ -807,7 +807,7 @@ static void tsdbCommitConflictCheck(STsdb *pTsdb, SCommitter *pCommitter) {
   if (pTsdb->imem->nRow <= 0) {
     return;
   }
-  
+
   int32_t minCommitFid = tsdbKeyFid(pTsdb->imem->minKey, pCommitter->minutes, pCommitter->precision);
   int32_t nLoops = 0;
 
@@ -1080,14 +1080,8 @@ _exit:
 static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
   int32_t code = 0;
   int32_t lino = 0;
-
-  STsdb     *pTsdb = pCommitter->pTsdb;
-  SMemTable *pMemTable = pTsdb->imem;
-
-  ASSERT(eno == 0 &&
-    "tsdbCommit failure"
-    "Restart taosd");
-
+  STsdb  *pTsdb = pCommitter->pTsdb;
+#if 0
   // lock
   taosThreadRwlockWrlock(&pTsdb->rwLock);
 
@@ -1112,19 +1106,21 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
     taosThreadRwlockUnlock(&pTsdb->rwLock);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
+#endif
 
-  pTsdb->imem = NULL;
-
-  // unlock
-  taosThreadRwlockUnlock(&pTsdb->rwLock);
+  if (eno) {
+    code = eno;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  } else {
+    code = tsdbFSPrepareCommit(pCommitter->pTsdb, &pCommitter->fs);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
 _exit:
-  tsdbUnrefMemTable(pMemTable);
   tsdbFSDestroy(&pCommitter->fs);
   taosArrayDestroy(pCommitter->aTbDataP);
   pTsdb->trimHdl.minCommitFid = INT32_MAX;
-
-  if (code) {
+  if (code || eno) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   } else {
     tsdbInfo("vgId:%d tsdb end commit", TD_VID(pTsdb->pVnode));
@@ -1695,6 +1691,53 @@ _exit:
   if (code) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pCommitter->pTsdb->pVnode), __func__, lino,
               tstrerror(code));
+  }
+  return code;
+}
+
+int32_t tsdbFinishCommit(STsdb *pTsdb) {
+  int32_t    code = 0;
+  int32_t    lino = 0;
+  SMemTable *pMemTable = pTsdb->imem;
+
+  // lock
+  taosThreadRwlockWrlock(&pTsdb->rwLock);
+
+  code = tsdbFSCommit(pTsdb);
+  if (code) {
+    taosThreadRwlockUnlock(&pTsdb->rwLock);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  pTsdb->imem = NULL;
+
+  // unlock
+  taosThreadRwlockUnlock(&pTsdb->rwLock);
+  if (pMemTable) {
+    tsdbUnrefMemTable(pMemTable);
+  }
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+  } else {
+    tsdbInfo("vgId:%d tsdb finish commit", TD_VID(pTsdb->pVnode));
+  }
+  return code;
+}
+
+int32_t tsdbRollbackCommit(STsdb *pTsdb) {
+  int32_t code = 0;
+  int32_t lino = 0;
+
+  code = tsdbFSRollback(pTsdb);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+_exit:
+  if (code) {
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+  } else {
+    tsdbInfo("vgId:%d tsdb rollback commit", TD_VID(pTsdb->pVnode));
   }
   return code;
 }

@@ -244,13 +244,13 @@ _merge_fs:
   }
 
   // 2) save CURRENT
-  if ((code = tsdbFSCommit1(pTsdb, pTsdbFS))) {
+  if ((code = tsdbFSPrepareCommit(pTsdb, pTsdbFS))) {
     taosThreadRwlockUnlock(&pTsdb->rwLock);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   // 3) apply the tsdbFS to pTsdb->fs
-  if ((code = tsdbFSCommit2(pTsdb, pTsdbFS))) {
+  if ((code = tsdbFSCommit(pTsdb))) {
     taosThreadRwlockUnlock(&pTsdb->rwLock);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
