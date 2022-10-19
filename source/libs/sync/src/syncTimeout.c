@@ -60,12 +60,12 @@ static void syncNodeCleanConfigIndex(SSyncNode* ths) {
 int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   syncNodeEventLog(ths, "timer routines");
 
-  if (ths->vgId == 1) {
+  if (syncNodeIsMnode(ths)) {
     syncNodeCleanConfigIndex(ths);
   }
 
 #if 0
-  if (ths->vgId != 1) {
+  if (!syncNodeIsMnode(ths)) {
     syncRespClean(ths->pSyncRespMgr);
   }
 #endif
@@ -73,9 +73,9 @@ int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   return 0;
 }
 
-int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg) {
+int32_t syncNodeOnTimer(SSyncNode* ths, SyncTimeout* pMsg) {
   int32_t ret = 0;
-  syncTimeoutLog2("==syncNodeOnTimeoutCb==", pMsg);
+  syncLogRecvTimer(ths, pMsg, "");
 
   if (pMsg->timeoutType == SYNC_TIMEOUT_PING) {
     if (atomic_load_64(&ths->pingTimerLogicClockUser) <= pMsg->logicClock) {
@@ -84,28 +84,29 @@ int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg) {
       // syncNodePingAll(ths);
       // syncNodePingPeers(ths);
 
-      // sTrace("vgId:%d, sync timeout, type:ping count:%d", ths->vgId, ths->pingTimerCounter);
       syncNodeTimerRoutine(ths);
     }
 
   } else if (pMsg->timeoutType == SYNC_TIMEOUT_ELECTION) {
     if (atomic_load_64(&ths->electTimerLogicClockUser) <= pMsg->logicClock) {
       ++(ths->electTimerCounter);
-      sTrace("vgId:%d, sync timer, type:election count:%d, electTimerLogicClockUser:%ld", ths->vgId,
-             ths->electTimerCounter, ths->electTimerLogicClockUser);
+      sTrace("vgId:%d, sync timer, type:election count:%d, lc-user:%ld", ths->vgId, ths->electTimerCounter,
+             ths->electTimerLogicClockUser);
+
       syncNodeElect(ths);
     }
 
   } else if (pMsg->timeoutType == SYNC_TIMEOUT_HEARTBEAT) {
     if (atomic_load_64(&ths->heartbeatTimerLogicClockUser) <= pMsg->logicClock) {
       ++(ths->heartbeatTimerCounter);
-      sTrace("vgId:%d, sync timer, type:replicate count:%d, heartbeatTimerLogicClockUser:%ld", ths->vgId,
-             ths->heartbeatTimerCounter, ths->heartbeatTimerLogicClockUser);
+      sTrace("vgId:%d, sync timer, type:replicate count:%d, lc-user:%ld", ths->vgId, ths->heartbeatTimerCounter,
+             ths->heartbeatTimerLogicClockUser);
+
       // syncNodeReplicate(ths, true);
     }
 
   } else {
-    sError("vgId:%d, unknown timeout-type:%d", ths->vgId, pMsg->timeoutType);
+    sError("vgId:%d, recv unknown timer-type:%d", ths->vgId, pMsg->timeoutType);
   }
 
   return ret;

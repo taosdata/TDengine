@@ -157,6 +157,8 @@ typedef enum ESyncTimeoutType {
   SYNC_TIMEOUT_HEARTBEAT,
 } ESyncTimeoutType;
 
+const char* syncTimerTypeStr(enum ESyncTimeoutType timerType);
+
 typedef struct SyncTimeout {
   uint32_t         bytes;
   int32_t          vgId;
@@ -677,7 +679,7 @@ void syncReconfigFinishLog2(char* s, const SyncReconfigFinish* pMsg);
 // on message ----------------------
 int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
 int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
-int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg);
+int32_t syncNodeOnTimer(SSyncNode* ths, SyncTimeout* pMsg);
 
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg);
 int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, SyncHeartbeatReply* pMsg);

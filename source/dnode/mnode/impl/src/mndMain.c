@@ -503,7 +503,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
 
   if (pMsg->msgType == TDMT_SYNC_TIMEOUT) {
     SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pMsg);
-    code = syncNodeOnTimeoutCb(pSyncNode, pSyncMsg);
+    code = syncNodeOnTimer(pSyncNode, pSyncMsg);
     syncTimeoutDestroy(pSyncMsg);
 
   } else if (pMsg->msgType == TDMT_SYNC_PING) {

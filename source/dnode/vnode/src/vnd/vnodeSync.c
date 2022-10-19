@@ -388,7 +388,7 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   if (pMsg->msgType == TDMT_SYNC_TIMEOUT) {
     SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pMsg);
     ASSERT(pSyncMsg != NULL);
-    code = syncNodeOnTimeoutCb(pSyncNode, pSyncMsg);
+    code = syncNodeOnTimer(pSyncNode, pSyncMsg);
     syncTimeoutDestroy(pSyncMsg);
 
   } else if (pMsg->msgType == TDMT_SYNC_PING) {

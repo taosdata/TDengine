@@ -232,12 +232,8 @@ int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms);
 int32_t syncNodeResetElectTimer(SSyncNode* pSyncNode);
 
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode);
-int32_t syncNodeStartHeartbeatTimerNow(SSyncNode* pSyncNode);
-int32_t syncNodeStartHeartbeatTimerMS(SSyncNode* pSyncNode, int32_t ms);
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode);
-int32_t syncNodeRestartHeartbeatTimerNow(SSyncNode* pSyncNode);
-int32_t syncNodeRestartNowHeartbeatTimerMS(SSyncNode* pSyncNode, int32_t ms);
 
 // utils --------------
 int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
@@ -313,6 +309,8 @@ int32_t syncNodePeerStateInit(SSyncNode* pSyncNode);
 void    syncNodeStepDown(SSyncNode* pSyncNode, SyncTerm newTerm);
 
 // trace log
+void syncLogRecvTimer(SSyncNode* pSyncNode, const SyncTimeout* pMsg, const char* s);
+
 void syncLogSendRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s);
 void syncLogRecvRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s);
 

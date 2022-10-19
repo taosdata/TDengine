@@ -1174,7 +1174,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   pSyncNode->FpOnPing = syncNodeOnPingCb;
   pSyncNode->FpOnPingReply = syncNodeOnPingReplyCb;
   pSyncNode->FpOnClientRequest = syncNodeOnClientRequest;
-  pSyncNode->FpOnTimeout = syncNodeOnTimeoutCb;
+  pSyncNode->FpOnTimeout = syncNodeOnTimer;
   pSyncNode->FpOnSnapshot = syncNodeOnSnapshot;
   pSyncNode->FpOnSnapshotReply = syncNodeOnSnapshotReply;
   pSyncNode->FpOnRequestVote = syncNodeOnRequestVote;
@@ -1259,7 +1259,7 @@ void syncNodeStart(SSyncNode* pSyncNode) {
     syncNodeBecomeFollower(pSyncNode, "first start");
   }
 
-  if (pSyncNode->vgId == 1) {
+  if (syncNodeIsMnode(pSyncNode)) {
     int32_t ret = 0;
     ret = syncNodeStartPingTimer(pSyncNode);
     ASSERT(ret == 0);
@@ -1486,47 +1486,32 @@ static int32_t syncNodeDoStartHeartbeatTimer(SSyncNode* pSyncNode) {
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
   int32_t ret = 0;
 
-  if (syncNodeIsMnode(pSyncNode)) {
-    pSyncNode->heartbeatTimerMS = pSyncNode->hbBaseLine;
-    ret = syncNodeDoStartHeartbeatTimer(pSyncNode);
-  } else {
-    do {
-      for (int i = 0; i < pSyncNode->peersNum; ++i) {
-        SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->peersId[i]));
-        syncHbTimerStart(pSyncNode, pSyncTimer);
-      }
-    } while (0);
+#if 0
+  pSyncNode->heartbeatTimerMS = pSyncNode->hbBaseLine;
+  ret = syncNodeDoStartHeartbeatTimer(pSyncNode);
+#endif
+
+  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+    SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->peersId[i]));
+    syncHbTimerStart(pSyncNode, pSyncTimer);
   }
 
   return ret;
 }
 
-int32_t syncNodeStartHeartbeatTimerMS(SSyncNode* pSyncNode, int32_t ms) {
-  pSyncNode->heartbeatTimerMS = ms;
-  int32_t ret = syncNodeDoStartHeartbeatTimer(pSyncNode);
-  return ret;
-}
-
-int32_t syncNodeStartHeartbeatTimerNow(SSyncNode* pSyncNode) {
-  pSyncNode->heartbeatTimerMS = 1;
-  int32_t ret = syncNodeDoStartHeartbeatTimer(pSyncNode);
-  return ret;
-}
-
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
   int32_t ret = 0;
+
+#if 0
   atomic_add_fetch_64(&pSyncNode->heartbeatTimerLogicClockUser, 1);
   taosTmrStop(pSyncNode->pHeartbeatTimer);
   pSyncNode->pHeartbeatTimer = NULL;
+#endif
 
-  sTrace("vgId:%d, sync %s stop heartbeat timer", pSyncNode->vgId, syncUtilState2String(pSyncNode->state));
-
-  do {
-    for (int i = 0; i < pSyncNode->peersNum; ++i) {
-      SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->peersId[i]));
-      syncHbTimerStop(pSyncNode, pSyncTimer);
-    }
-  } while (0);
+  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+    SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->peersId[i]));
+    syncHbTimerStop(pSyncNode, pSyncTimer);
+  }
 
   return ret;
 }
@@ -1534,18 +1519,6 @@ int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
 int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode) {
   syncNodeStopHeartbeatTimer(pSyncNode);
   syncNodeStartHeartbeatTimer(pSyncNode);
-  return 0;
-}
-
-int32_t syncNodeRestartHeartbeatTimerNow(SSyncNode* pSyncNode) {
-  syncNodeStopHeartbeatTimer(pSyncNode);
-  syncNodeStartHeartbeatTimerNow(pSyncNode);
-  return 0;
-}
-
-int32_t syncNodeRestartNowHeartbeatTimerMS(SSyncNode* pSyncNode, int32_t ms) {
-  syncNodeStopHeartbeatTimer(pSyncNode);
-  syncNodeStartHeartbeatTimerMS(pSyncNode, ms);
   return 0;
 }
 
@@ -2025,12 +1998,13 @@ void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncInde
       syncUtilnodeInfo2raftId(&pSyncNode->pRaftCfg->cfg.nodeInfo[i], pSyncNode->vgId, &pSyncNode->replicasId[i]);
     }
 
+    // update quorum first
+    pSyncNode->quorum = syncUtilQuorum(pSyncNode->pRaftCfg->cfg.replicaNum);
+
     syncIndexMgrUpdate(pSyncNode->pNextIndex, pSyncNode);
     syncIndexMgrUpdate(pSyncNode->pMatchIndex, pSyncNode);
     voteGrantedUpdate(pSyncNode->pVotesGranted, pSyncNode);
     votesRespondUpdate(pSyncNode->pVotesRespond, pSyncNode);
-
-    pSyncNode->quorum = syncUtilQuorum(pSyncNode->pRaftCfg->cfg.replicaNum);
 
     // reset snapshot senders
 
@@ -3353,6 +3327,25 @@ bool syncNodeCanChange(SSyncNode* pSyncNode) {
   }
 
   return true;
+}
+
+const char* syncTimerTypeStr(enum ESyncTimeoutType timerType) {
+  if (timerType == SYNC_TIMEOUT_PING) {
+    return "ping";
+  } else if (timerType == SYNC_TIMEOUT_ELECTION) {
+    return "elect";
+  } else if (timerType == SYNC_TIMEOUT_HEARTBEAT) {
+    return "heartbeat";
+  } else {
+    return "unknown";
+  }
+}
+
+void syncLogRecvTimer(SSyncNode* pSyncNode, const SyncTimeout* pMsg, const char* s) {
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf), "recv sync-timer {type:%s, lc:%lu, ms:%d, data:%p}, %s",
+           syncTimerTypeStr(pMsg->timeoutType), s, pMsg->logicClock, pMsg->timerMS, pMsg->data);
+  syncNodeEventLog(pSyncNode, logBuf);
 }
 
 void syncLogSendRequestVote(SSyncNode* pSyncNode, const SyncRequestVote* pMsg, const char* s) {
