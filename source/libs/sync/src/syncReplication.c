@@ -55,7 +55,12 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId) {
   // maybe start snapshot
   SyncIndex logStartIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
   SyncIndex logEndIndex = pSyncNode->pLogStore->syncLogEndIndex(pSyncNode->pLogStore);
-  if (nextIndex < logStartIndex || nextIndex > logEndIndex) {
+  if (nextIndex < logStartIndex || nextIndex - 1 > logEndIndex) {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "start snapshot for next-index:%ld, start:%ld, end:%ld", nextIndex, logStartIndex,
+             logEndIndex);
+    syncNodeEventLog(pSyncNode, logBuf);
+
     // start snapshot
     int32_t code = syncNodeStartSnapshot(pSyncNode, pDestId);
     ASSERT(code == 0);
@@ -128,11 +133,11 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId) {
 }
 
 int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
-  syncNodeEventLog(pSyncNode, "do replicate");
-
   if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
     return -1;
   }
+
+  syncNodeEventLog(pSyncNode, "do replicate");
 
   int32_t ret = 0;
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
@@ -170,7 +175,17 @@ int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* dest
   int32_t ret = 0;
   if (syncNodeNeedSendAppendEntries(pSyncNode, destRaftId, pMsg)) {
     ret = syncNodeSendAppendEntries(pSyncNode, destRaftId, pMsg);
+
+  } else {
+    char    logBuf[128];
+    char    host[64];
+    int16_t port;
+    syncUtilU642Addr(destRaftId->addr, host, sizeof(host), &port);
+
+    snprintf(logBuf, sizeof(logBuf), "do not repcate to %s:%d for index:%ld", host, port, pMsg->prevLogIndex + 1);
+    syncNodeEventLog(pSyncNode, logBuf);
   }
+
   return ret;
 }
 

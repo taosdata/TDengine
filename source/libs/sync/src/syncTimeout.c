@@ -60,6 +60,9 @@ static void syncNodeCleanConfigIndex(SSyncNode* ths) {
 int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   syncNodeEventLog(ths, "timer routines");
 
+  // timer replicate
+  syncNodeReplicate(ths);
+
   if (syncNodeIsMnode(ths)) {
     syncNodeCleanConfigIndex(ths);
   }
