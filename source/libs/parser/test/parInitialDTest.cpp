@@ -52,12 +52,6 @@ TEST_F(ParserInitialDTest, describe) {
 // todo describe
 // todo DROP account
 
-TEST_F(ParserInitialDTest, dropBnode) {
-  useDb("root", "test");
-
-  run("DROP BNODE ON DNODE 1");
-}
-
 // DROP CONSUMER GROUP [ IF EXISTS ] cgroup_name ON topic_name
 TEST_F(ParserInitialDTest, dropConsumerGroup) {
   useDb("root", "test");

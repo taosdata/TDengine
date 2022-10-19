@@ -37,6 +37,7 @@ void simLogSql(char *sql, bool useSharp) {
   taosFsyncFile(pFile);
 }
 
+#if 0
 char *simParseArbitratorName(char *varName) {
   static char hostName[140];
 #ifdef WINDOWS
@@ -47,6 +48,7 @@ char *simParseArbitratorName(char *varName) {
 #endif
   return hostName;
 }
+#endif
 
 char *simParseHostName(char *varName) {
   static char hostName[140];
@@ -102,9 +104,11 @@ char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
     return simParseHostName(varName);
   }
 
+#if 0
   if (strncmp(varName, "arbitrator", 10) == 0) {
     return simParseArbitratorName(varName);
   }
+#endif
 
   if (strncmp(varName, "error", varLen) == 0) return script->error;
 
@@ -437,10 +441,6 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
   simVisuallizeOption(script, option, buf + strlen(buf));
   simReplaceStr(buf, ".sh", ".bat");
 #endif
-
-  if (useMultiProcess) {
-    simReplaceStr(buf, "deploy.sh", "deploy.sh -m");
-  }
 
   if (useValgrind) {
     replaced = simReplaceStr(buf, "exec.sh", "exec.sh -v");
@@ -883,6 +883,7 @@ bool simExecuteSqlSlowCmd(SScript *script, char *rest) {
   return simExecuteSqlImpCmd(script, rest, isSlow);
 }
 
+#if 0
 bool simExecuteRestfulCmd(SScript *script, char *rest) {
   TdFilePtr pFile = NULL;
   char      filename[256];
@@ -924,6 +925,7 @@ bool simExecuteRestfulCmd(SScript *script, char *rest) {
 
   return simExecuteSystemCmd(script, cmd);
 }
+#endif
 
 bool simExecuteSqlErrorCmd(SScript *script, char *rest) {
   char      buf[3000];
@@ -981,6 +983,7 @@ bool simExecuteSqlErrorCmd(SScript *script, char *rest) {
   return false;
 }
 
+#if 0
 bool simExecuteLineInsertCmd(SScript *script, char *rest) {
   char buf[TSDB_MAX_BINARY_LEN] = {0};
 
@@ -1037,3 +1040,4 @@ bool simExecuteLineInsertErrorCmd(SScript *script, char *rest) {
     return true;
   }
 }
+#endif

@@ -284,7 +284,7 @@ SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
   return ret;
 }
 
-void tqTableSink1(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
+void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
   const SArray*   pBlocks = (const SArray*)data;
   SVnode*         pVnode = (SVnode*)vnode;
   int64_t         suid = pTask->tbSink.stbUid;
@@ -436,7 +436,7 @@ void tqTableSink1(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
         }
         if (mr.me.ctbEntry.suid != suid) {
           tqError("vgId:%d, failed to write into %s, since suid mismatch, expect suid: %ld, actual suid %ld",
-                  TD_VID(pVnode), ctbName, suid, mr.me.ctbEntry);
+                  TD_VID(pVnode), ctbName, suid, mr.me.ctbEntry.suid);
           metaReaderClear(&mr);
           taosMemoryFree(ctbName);
           continue;
@@ -528,7 +528,7 @@ void tqTableSink1(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
   taosArrayDestroy(tagArray);
 }
 
-void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
+void tqSinkToTableMerge(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
   const SArray*   pRes = (const SArray*)data;
   SVnode*         pVnode = (SVnode*)vnode;
   SBatchDeleteReq deleteReq = {0};

@@ -248,8 +248,12 @@ int32_t getNumOfTags(const STableMeta* pTableMeta) { return getTableInfo(pTableM
 STableComInfo getTableInfo(const STableMeta* pTableMeta) { return pTableMeta->tableInfo; }
 
 STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
-  size_t size = TABLE_META_SIZE(pTableMeta);
+  int32_t numOfFields = TABLE_TOTAL_COL_NUM(pTableMeta);
+  if (numOfFields > TSDB_MAX_COLUMNS || numOfFields < TSDB_MIN_COLUMNS) {
+    return NULL;
+  }
 
+  size_t      size = sizeof(STableMeta) + numOfFields * sizeof(SSchema);
   STableMeta* p = taosMemoryMalloc(size);
   memcpy(p, pTableMeta, size);
   return p;
@@ -1200,7 +1204,7 @@ int32_t getTableMetaFromCacheForInsert(SArray* pTableMetaPos, SParseMetaCache* p
   int32_t   reqIndex = *(int32_t*)taosArrayGet(pTableMetaPos, tableNo);
   SMetaRes* pRes = taosArrayGet(pMetaCache->pTableMetaData, reqIndex);
   if (TSDB_CODE_SUCCESS == pRes->code) {
-    *pMeta = tableMetaDup(pRes->pRes);
+    *pMeta = tableMetaDup((const STableMeta*)pRes->pRes);
     if (NULL == *pMeta) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }

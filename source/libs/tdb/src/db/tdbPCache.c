@@ -105,7 +105,7 @@ static int tdbPCacheAlterImpl(SPCache *pCache, int32_t nPage) {
     for (int32_t iPage = pCache->nPages; iPage < nPage; iPage++) {
       if (tdbPageCreate(pCache->szPage, &aPage[iPage], tdbDefaultMalloc, NULL) < 0) {
         // TODO: handle error
-        tdbOsFree(pCache->aPage);
+        tdbOsFree(aPage);
         return -1;
       }
 
@@ -268,7 +268,7 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
   // 4. Try a create new page
   if (!pPage) {
     ret = tdbPageCreate(pCache->szPage, &pPage, pTxn->xMalloc, pTxn->xArg);
-    if (ret < 0 && pPage != NULL) {
+    if (ret < 0 || pPage == NULL) {
       // TODO
       ASSERT(0);
       return NULL;

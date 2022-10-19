@@ -54,11 +54,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->retry = pInit->rfp;
   pRpc->startTimer = pInit->tfp;
 
-  if (pInit->connType == TAOS_CONN_SERVER) {
-    pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
-  } else {
-    pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
-  }
+  pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
 
   uint32_t ip = 0;
   if (pInit->connType == TAOS_CONN_SERVER) {
@@ -80,7 +76,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   }
   pRpc->parent = pInit->parent;
   if (pInit->user) {
-    memcpy(pRpc->user, pInit->user, strlen(pInit->user));
+    memcpy(pRpc->user, pInit->user, TSDB_UNI_LEN);
   }
 
   int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);

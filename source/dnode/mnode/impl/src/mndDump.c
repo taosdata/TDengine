@@ -447,10 +447,6 @@ void dumpDnode(SSdb *pSdb, SJson *json) {
   }
 }
 
-void dumpBnode(SSdb *pSdb, SJson *json) {
-  // not implemented yet
-}
-
 void dumpSnode(SSdb *pSdb, SJson *json) {
   void  *pIter = NULL;
   SJson *items = tjsonAddArrayToObject(json, "snodes");
@@ -616,7 +612,6 @@ void mndDumpSdb() {
   dumpAuth(pSdb, json);
   dumpUser(pSdb, json);
   dumpDnode(pSdb, json);
-  dumpBnode(pSdb, json);
   dumpSnode(pSdb, json);
   dumpQnode(pSdb, json);
   dumpMnode(pSdb, json);

@@ -543,7 +543,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
     case TSDB_DATA_TYPE_UTINYINT: {
       if (TSDB_CODE_SUCCESS != toUInteger(pToken->z, pToken->n, 10, &uv)) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid unsigned tinyint data", pToken->z);
-      } else if (!IS_VALID_UTINYINT(uv)) {
+      } else if (uv > UINT8_MAX) {
         return buildSyntaxErrMsg(pMsgBuf, "unsigned tinyint data overflow", pToken->z);
       }
       uint8_t tmpVal = (uint8_t)uv;
@@ -563,7 +563,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
     case TSDB_DATA_TYPE_USMALLINT: {
       if (TSDB_CODE_SUCCESS != toUInteger(pToken->z, pToken->n, 10, &uv)) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid unsigned smallint data", pToken->z);
-      } else if (!IS_VALID_USMALLINT(uv)) {
+      } else if (uv > UINT16_MAX) {
         return buildSyntaxErrMsg(pMsgBuf, "unsigned smallint data overflow", pToken->z);
       }
       uint16_t tmpVal = (uint16_t)uv;
@@ -583,7 +583,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
     case TSDB_DATA_TYPE_UINT: {
       if (TSDB_CODE_SUCCESS != toUInteger(pToken->z, pToken->n, 10, &uv)) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid unsigned int data", pToken->z);
-      } else if (!IS_VALID_UINT(uv)) {
+      } else if (uv > UINT32_MAX) {
         return buildSyntaxErrMsg(pMsgBuf, "unsigned int data overflow", pToken->z);
       }
       uint32_t tmpVal = (uint32_t)uv;
@@ -600,8 +600,6 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
     case TSDB_DATA_TYPE_UBIGINT: {
       if (TSDB_CODE_SUCCESS != toUInteger(pToken->z, pToken->n, 10, &uv)) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid unsigned bigint data", pToken->z);
-      } else if (!IS_VALID_UBIGINT(uv)) {
-        return buildSyntaxErrMsg(pMsgBuf, "unsigned bigint data overflow", pToken->z);
       }
       return func(pMsgBuf, &uv, pSchema->bytes, param);
     }
@@ -844,7 +842,7 @@ static int32_t parseTagToken(char** end, SToken* pToken, SSchema* pSchema, int16
     case TSDB_DATA_TYPE_UTINYINT: {
       if (TSDB_CODE_SUCCESS != toUInteger(pToken->z, pToken->n, 10, &uv)) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid unsigned tinyint data", pToken->z);
-      } else if (!IS_VALID_UTINYINT(uv)) {
+      } else if (uv > UINT8_MAX) {
         return buildSyntaxErrMsg(pMsgBuf, "unsigned tinyint data overflow", pToken->z);
       }
       *(uint8_t*)(&val->i64) = uv;
@@ -864,7 +862,7 @@ static int32_t parseTagToken(char** end, SToken* pToken, SSchema* pSchema, int16
     case TSDB_DATA_TYPE_USMALLINT: {
       if (TSDB_CODE_SUCCESS != toUInteger(pToken->z, pToken->n, 10, &uv)) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid unsigned smallint data", pToken->z);
-      } else if (!IS_VALID_USMALLINT(uv)) {
+      } else if (uv > UINT16_MAX) {
         return buildSyntaxErrMsg(pMsgBuf, "unsigned smallint data overflow", pToken->z);
       }
       *(uint16_t*)(&val->i64) = uv;
@@ -884,7 +882,7 @@ static int32_t parseTagToken(char** end, SToken* pToken, SSchema* pSchema, int16
     case TSDB_DATA_TYPE_UINT: {
       if (TSDB_CODE_SUCCESS != toUInteger(pToken->z, pToken->n, 10, &uv)) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid unsigned int data", pToken->z);
-      } else if (!IS_VALID_UINT(uv)) {
+      } else if (uv > UINT32_MAX) {
         return buildSyntaxErrMsg(pMsgBuf, "unsigned int data overflow", pToken->z);
       }
       *(uint32_t*)(&val->i64) = uv;
@@ -902,8 +900,6 @@ static int32_t parseTagToken(char** end, SToken* pToken, SSchema* pSchema, int16
     case TSDB_DATA_TYPE_UBIGINT: {
       if (TSDB_CODE_SUCCESS != toUInteger(pToken->z, pToken->n, 10, &uv)) {
         return buildSyntaxErrMsg(pMsgBuf, "invalid unsigned bigint data", pToken->z);
-      } else if (!IS_VALID_UBIGINT(uv)) {
-        return buildSyntaxErrMsg(pMsgBuf, "unsigned bigint data overflow", pToken->z);
       }
       *(uint64_t*)(&val->i64) = uv;
       break;
@@ -994,7 +990,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
       isParseBindParam = true;
       if (NULL == pCxt->pStmtCb) {
         code = buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", sToken.z);
-        goto end;
+        break;
       }
 
       continue;
@@ -1002,57 +998,50 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
 
     if (isParseBindParam) {
       code = buildInvalidOperationMsg(&pCxt->msg, "no mix usage for ? and tag values");
-      goto end;
+      break;
     }
 
     SSchema* pTagSchema = &pSchema[pCxt->tags.boundColumns[i]];
     char     tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0};  // todo this can be optimize with parse column
     code = checkAndTrimValue(&sToken, tmpTokenBuf, &pCxt->msg);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto end;
-    }
-
-    if (!isNullValue(pTagSchema->type, &sToken)) {
-      taosArrayPush(tagName, pTagSchema->name);
-    }
-    if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
-      if (sToken.n > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
-        code = buildSyntaxErrMsg(&pCxt->msg, "json string too long than 4095", sToken.z);
-        goto end;
+    if (TSDB_CODE_SUCCESS == code) {
+      if (!isNullValue(pTagSchema->type, &sToken)) {
+        taosArrayPush(tagName, pTagSchema->name);
       }
-      if (isNullValue(pTagSchema->type, &sToken)) {
-        code = tTagNew(pTagVals, 1, true, &pTag);
+      if (pTagSchema->type == TSDB_DATA_TYPE_JSON) {
+        isJson = true;
+        if (sToken.n > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
+          code = buildSyntaxErrMsg(&pCxt->msg, "json string too long than 4095", sToken.z);
+          break;
+        }
+        if (isNullValue(pTagSchema->type, &sToken)) {
+          code = tTagNew(pTagVals, 1, true, &pTag);
+        } else {
+          code = parseJsontoTagData(sToken.z, pTagVals, &pTag, &pCxt->msg);
+        }
       } else {
-        code = parseJsontoTagData(sToken.z, pTagVals, &pTag, &pCxt->msg);
+        STagVal val = {0};
+        code = parseTagToken(&pCxt->pSql, &sToken, pTagSchema, precision, &val, &pCxt->msg);
+        if (TSDB_CODE_SUCCESS == code) {
+          taosArrayPush(pTagVals, &val);
+        }
       }
-      if (code != TSDB_CODE_SUCCESS) {
-        goto end;
-      }
-      isJson = true;
-    } else {
-      STagVal val = {0};
-      code = parseTagToken(&pCxt->pSql, &sToken, pTagSchema, precision, &val, &pCxt->msg);
-      if (TSDB_CODE_SUCCESS != code) {
-        goto end;
-      }
-
-      taosArrayPush(pTagVals, &val);
+    }
+    if (TSDB_CODE_SUCCESS != code) {
+      break;
     }
   }
 
-  if (isParseBindParam) {
-    code = TSDB_CODE_SUCCESS;
-    goto end;
+  if (TSDB_CODE_SUCCESS == code && !isParseBindParam && !isJson) {
+    code = tTagNew(pTagVals, 1, false, &pTag);
   }
 
-  if (!isJson && (code = tTagNew(pTagVals, 1, false, &pTag)) != TSDB_CODE_SUCCESS) {
-    goto end;
+  if (TSDB_CODE_SUCCESS == code && !isParseBindParam) {
+    buildCreateTbReq(&pCxt->createTblReq, tName, pTag, pCxt->pTableMeta->suid, pCxt->sTableName, tagName,
+                     pCxt->pTableMeta->tableInfo.numOfTags);
+    pTag = NULL;
   }
 
-  buildCreateTbReq(&pCxt->createTblReq, tName, pTag, pCxt->pTableMeta->suid, pCxt->sTableName, tagName,
-                   pCxt->pTableMeta->tableInfo.numOfTags);
-
-end:
   for (int i = 0; i < taosArrayGetSize(pTagVals); ++i) {
     STagVal* p = (STagVal*)taosArrayGet(pTagVals, i);
     if (IS_VAR_DATA_TYPE(p->type)) {
@@ -1061,6 +1050,7 @@ end:
   }
   taosArrayDestroy(pTagVals);
   taosArrayDestroy(tagName);
+  tTagFree(pTag);
   return code;
 }
 
@@ -1375,8 +1365,12 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, TdFilePtr fp, STableDataB
     strtolower(pLine, pLine);
     char* pRawSql = pCxt->pSql;
     pCxt->pSql = pLine;
-    bool gotRow = false;
-    CHECK_CODE(parseOneRow(pCxt, pDataBlock, tinfo.precision, &gotRow, tmpTokenBuf));
+    bool    gotRow = false;
+    int32_t code = parseOneRow(pCxt, pDataBlock, tinfo.precision, &gotRow, tmpTokenBuf);
+    if (TSDB_CODE_SUCCESS != code) {
+      pCxt->pSql = pRawSql;
+      return code;
+    }
     if (gotRow) {
       pDataBlock->size += extendedRowSize;  // len;
       (*numOfRows)++;

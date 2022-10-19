@@ -115,7 +115,7 @@ apt-get 方式只适用于 Debian 或 Ubuntu 系统。
 
 1. 从列表中下载获得 pkg 安装程序；
    <PkgListV3 type={7}/>
-2. 运行可执行程序来安装 TDengine。
+2. 运行可执行程序来安装 TDengine。如果安装被阻止，可以右键或者按 Ctrl 点击安装包，选择 `打开`。
 
 </TabItem>
 </Tabs>
@@ -178,11 +178,19 @@ Active: inactive (dead)
 
 :::
 
+## TDengine 命令行（CLI）
+
+为便于检查 TDengine 的状态，执行数据库（Database）的各种即席（Ad Hoc）查询，TDengine 提供一命令行应用程序（以下简称为 TDengine CLI）taos。要进入 TDengine 命令行，您只要在终端执行 `taos` 即可。
+
 </TabItem>
 
 <TabItem label="Windows 系统" value="windows">
 
 安装后，在 `C:\TDengine` 目录下，运行 `taosd.exe` 来启动 TDengine 服务进程。
+
+## TDengine 命令行（CLI）
+
+为便于检查 TDengine 的状态，执行数据库（Database）的各种即席（Ad Hoc）查询，TDengine 提供一命令行应用程序（以下简称为 TDengine CLI）taos。要进入 TDengine 命令行，您只要在终端执行 `taos` 即可。
 
 </TabItem>
 
@@ -205,12 +213,12 @@ Active: inactive (dead)
 
 :::
 
-</TabItem>
-</Tabs>
-
 ## TDengine 命令行（CLI）
 
-为便于检查 TDengine 的状态，执行数据库（Database）的各种即席（Ad Hoc）查询，TDengine 提供一命令行应用程序（以下简称为 TDengine CLI）taos。要进入 TDengine 命令行，您只要在安装有 TDengine 的 Linux、macOS 终端执行 `taos` 即可，也可以在安装有 TDengine 的 Windows 终端的 C:\TDengine 目录下，运行 taos.exe 来启动 TDengine 命令行。
+为便于检查 TDengine 的状态，执行数据库（Database）的各种即席（Ad Hoc）查询，TDengine 提供一命令行应用程序（以下简称为 TDengine CLI）taos。要进入 TDengine 命令行，您只要在 Windows 终端的 C:\TDengine 目录下，运行 taos.exe 来启动 TDengine 命令行。
+
+</TabItem>
+</Tabs>
 
 ```bash
 taos

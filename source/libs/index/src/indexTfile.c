@@ -506,7 +506,9 @@ TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int64_t version, const c
   tfh.suid = suid;
   tfh.version = version;
   tfh.colType = colType;
-  memcpy(tfh.colName, colName, strlen(colName));
+  if (strlen(colName) <= sizeof(tfh.colName)) {
+    memcpy(tfh.colName, colName, strlen(colName));
+  }
 
   return tfileWriterCreate(wcx, &tfh);
 }
@@ -580,8 +582,14 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
 
     if (cap < ttsz) {
       cap = ttsz;
-      buf = (char*)taosMemoryRealloc(buf, cap);
+      char* t = (char*)taosMemoryRealloc(buf, cap);
+      if (t == NULL) {
+        taosMemoryFree(buf);
+        return -1;
+      }
+      buf = t;
     }
+
     char* p = buf;
     tfileSerialTableIdsToBuf(p, v->tableId);
     tw->ctx->write(tw->ctx, buf, ttsz);
