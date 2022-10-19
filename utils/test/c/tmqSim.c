@@ -949,7 +949,7 @@ void parseConsumeInfo() {
     token = strtok(g_stConfInfo.stThreads[i].topicString, delim);
     while (token != NULL) {
       // printf("%s\n", token );
-      strcpy(g_stConfInfo.stThreads[i].topics[g_stConfInfo.stThreads[i].numOfTopic], token);
+      tstrncpy(g_stConfInfo.stThreads[i].topics[g_stConfInfo.stThreads[i].numOfTopic], token, sizeof(g_stConfInfo.stThreads[i].topics[g_stConfInfo.stThreads[i].numOfTopic]));
       ltrim(g_stConfInfo.stThreads[i].topics[g_stConfInfo.stThreads[i].numOfTopic]);
       // printf("%s\n", g_stConfInfo.topics[g_stConfInfo.numOfTopic]);
       g_stConfInfo.stThreads[i].numOfTopic++;

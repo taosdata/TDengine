@@ -284,7 +284,7 @@ SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
   return ret;
 }
 
-void tqTableSink1(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
+void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
   const SArray*   pBlocks = (const SArray*)data;
   SVnode*         pVnode = (SVnode*)vnode;
   int64_t         suid = pTask->tbSink.stbUid;
@@ -528,7 +528,7 @@ void tqTableSink1(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
   taosArrayDestroy(tagArray);
 }
 
-void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
+void tqSinkToTableMerge(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
   const SArray*   pRes = (const SArray*)data;
   SVnode*         pVnode = (SVnode*)vnode;
   SBatchDeleteReq deleteReq = {0};

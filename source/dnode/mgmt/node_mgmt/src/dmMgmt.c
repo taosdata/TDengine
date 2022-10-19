@@ -141,7 +141,6 @@ int32_t dmInitDnode(SDnode *pDnode, EDndNodeType rtype) {
   pDnode->wrappers[VNODE].func = vmGetMgmtFunc();
   pDnode->wrappers[QNODE].func = qmGetMgmtFunc();
   pDnode->wrappers[SNODE].func = smGetMgmtFunc();
-  pDnode->wrappers[BNODE].func = bmGetMgmtFunc();
 
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];

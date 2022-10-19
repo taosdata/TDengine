@@ -41,7 +41,6 @@ static void dmGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
   pInfo->has_mnode = pDnode->wrappers[MNODE].required;
   pInfo->has_qnode = pDnode->wrappers[QNODE].required;
   pInfo->has_snode = pDnode->wrappers[SNODE].required;
-  pInfo->has_bnode = pDnode->wrappers[BNODE].required;
   tstrncpy(pInfo->logdir.name, tsLogDir, sizeof(pInfo->logdir.name));
   pInfo->logdir.size = tsLogSpace.size;
   tstrncpy(pInfo->tempdir.name, tsTempDir, sizeof(pInfo->tempdir.name));
@@ -116,21 +115,6 @@ static void dmGetSmMonitorInfo(SDnode *pDnode) {
   }
 }
 
-static void dmGetBmMonitorInfo(SDnode *pDnode) {
-  SMgmtWrapper *pWrapper = &pDnode->wrappers[BNODE];
-  if (dmMarkWrapper(pWrapper) == 0) {
-    SMonBmInfo bmInfo = {0};
-    if (tsMultiProcess) {
-      dmSendLocalRecv(pDnode, TDMT_MON_BM_INFO, tDeserializeSMonBmInfo, &bmInfo);
-    } else if (pWrapper->pMgmt != NULL) {
-      bmGetMonitorInfo(pWrapper->pMgmt, &bmInfo);
-    }
-    dmReleaseWrapper(pWrapper);
-    monSetBmInfo(&bmInfo);
-    tFreeSMonBmInfo(&bmInfo);
-  }
-}
-
 void dmSendMonitorReport() {
   if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
   dTrace("send monitor report to %s:%u", tsMonitorFqdn, tsMonitorPort);
@@ -141,7 +125,6 @@ void dmSendMonitorReport() {
   dmGetVmMonitorInfo(pDnode);
   dmGetQmMonitorInfo(pDnode);
   dmGetSmMonitorInfo(pDnode);
-  dmGetBmMonitorInfo(pDnode);
   monSendReport();
 }
 

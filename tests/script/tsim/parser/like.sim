@@ -17,9 +17,9 @@ sql create table $table1 (ts timestamp, b binary(20))
 sql create table $table2 (ts timestamp, b binary(20))
 
 sql insert into $table1 values(now,    "table_name")
-sql insert into $table1 values(now-1m, "tablexname")
+sql insert into $table1 values(now-3m, "tablexname")
 sql insert into $table1 values(now-2m, "tablexxx")
-sql insert into $table1 values(now-2m, "table")
+sql insert into $table1 values(now-1m, "table")
 
 sql select b from $table1
 if $rows != 4 then
