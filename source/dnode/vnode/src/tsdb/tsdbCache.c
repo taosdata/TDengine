@@ -56,7 +56,18 @@ static void getTableCacheKey(tb_uid_t uid, int cacheType, char *key, int *len) {
   *len = sizeof(uint64_t);
 }
 
-static void deleteTableCacheLast(const void *key, size_t keyLen, void *value) { taosArrayDestroy(value); }
+static void deleteTableCacheLast(const void *key, size_t keyLen, void *value) {
+  SArray *pLastArray = (SArray *)value;
+  int16_t nCol = taosArrayGetSize(pLastArray);
+  for (int16_t iCol = 0; iCol < nCol; ++iCol) {
+    SLastCol *pLastCol = (SLastCol *)taosArrayGet(pLastArray, iCol);
+    if (IS_VAR_DATA_TYPE(pLastCol->colVal.type)) {
+      taosMemoryFree(pLastCol->colVal.value.pData);
+    }
+  }
+
+  taosArrayDestroy(value);
+}
 
 int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey) {
   int32_t code = 0;
@@ -1141,12 +1152,11 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, SArray **ppCo
         tsdbRowGetColVal(pRow, pTSchema, iCol, pColVal);
 
         SLastCol lastCol = {.ts = lastRowTs, .colVal = *pColVal};
-        /*
         if (IS_VAR_DATA_TYPE(pColVal->type)) {
           lastCol.colVal.value.pData = taosMemoryMalloc(lastCol.colVal.value.nData);
           memcpy(lastCol.colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
         }
-        */
+
         if (taosArrayPush(pColArray, &lastCol) == NULL) {
           code = TSDB_CODE_OUT_OF_MEMORY;
           goto _err;
@@ -1178,7 +1188,16 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, SArray **ppCo
 
       tsdbRowGetColVal(pRow, pTSchema, iCol, pColVal);
       if (COL_VAL_IS_NONE(tColVal) && !COL_VAL_IS_NONE(pColVal)) {
-        taosArraySet(pColArray, iCol, &(SLastCol){.ts = rowTs, .colVal = *pColVal});
+        SLastCol lastCol = {.ts = rowTs, .colVal = *pColVal};
+        if (IS_VAR_DATA_TYPE(pColVal->type)) {
+          SLastCol *pLastCol = (SLastCol *)taosArrayGet(pColArray, iCol);
+          taosMemoryFree(pLastCol->colVal.value.pData);
+
+          lastCol.colVal.value.pData = taosMemoryMalloc(lastCol.colVal.value.nData);
+          memcpy(lastCol.colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
+        }
+
+        taosArraySet(pColArray, iCol, &lastCol);
       } else if (COL_VAL_IS_NONE(tColVal) && COL_VAL_IS_NONE(pColVal) && !setNoneCol) {
         noneCol = iCol;
         setNoneCol = true;
@@ -1245,7 +1264,13 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray) {
       for (iCol = 1; iCol < nCol; ++iCol) {
         tsdbRowGetColVal(pRow, pTSchema, iCol, pColVal);
 
-        if (taosArrayPush(pColArray, &(SLastCol){.ts = lastRowTs, .colVal = *pColVal}) == NULL) {
+        SLastCol lastCol = {.ts = lastRowTs, .colVal = *pColVal};
+        if (IS_VAR_DATA_TYPE(pColVal->type)) {
+          lastCol.colVal.value.pData = taosMemoryMalloc(lastCol.colVal.value.nData);
+          memcpy(lastCol.colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
+        }
+
+        if (taosArrayPush(pColArray, &lastCol) == NULL) {
           code = TSDB_CODE_OUT_OF_MEMORY;
           goto _err;
         }
@@ -1272,7 +1297,16 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray) {
 
       tsdbRowGetColVal(pRow, pTSchema, iCol, pColVal);
       if (!COL_VAL_IS_VALUE(tColVal) && COL_VAL_IS_VALUE(pColVal)) {
-        taosArraySet(pColArray, iCol, &(SLastCol){.ts = rowTs, .colVal = *pColVal});
+        SLastCol lastCol = {.ts = rowTs, .colVal = *pColVal};
+        if (IS_VAR_DATA_TYPE(pColVal->type)) {
+          SLastCol *pLastCol = (SLastCol *)taosArrayGet(pColArray, iCol);
+          taosMemoryFree(pLastCol->colVal.value.pData);
+
+          lastCol.colVal.value.pData = taosMemoryMalloc(lastCol.colVal.value.nData);
+          memcpy(lastCol.colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
+        }
+
+        taosArraySet(pColArray, iCol, &lastCol);
       } else if (!COL_VAL_IS_VALUE(tColVal) && !COL_VAL_IS_VALUE(pColVal) && !setNoneCol) {
         noneCol = iCol;
         setNoneCol = true;
