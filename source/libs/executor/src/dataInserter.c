@@ -324,6 +324,7 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
       tsdbGetTableSchema(inserter->pParam->readHandle->vnode, pInserterNode->tableId, &inserter->pSchema, &suid);
   if (code) {
     destroyDataSinker((SDataSinkHandle*)inserter);
+    taosMemoryFree(inserter);
     return code;
   }
 
