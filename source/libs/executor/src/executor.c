@@ -250,6 +250,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
     qDebug(" %d qualified child tables added into stream scanner", (int32_t)taosArrayGetSize(qa));
     code = tqReaderAddTbUidList(pScanInfo->tqReader, qa);
     if (code != TSDB_CODE_SUCCESS) {
+      taosArrayDestroy(qa);
       return code;
     }
 
@@ -261,6 +262,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
       assignUid = groupbyTbname(pScanInfo->pGroupTags);
       keyBuf = taosMemoryMalloc(bufLen);
       if (keyBuf == NULL) {
+        taosArrayDestroy(qa);
         return TSDB_CODE_OUT_OF_MEMORY;
       }
     }
@@ -277,6 +279,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
                                        &keyInfo.groupId);
           if (code != TSDB_CODE_SUCCESS) {
             taosMemoryFree(keyBuf);
+            taosArrayDestroy(qa);
             return code;
           }
         }
@@ -297,8 +300,6 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
       taosArrayPush(pTaskInfo->tableqinfoList.pTableList, &keyInfo);
       taosHashPut(pTaskInfo->tableqinfoList.map, uid, sizeof(*uid), &keyInfo.groupId, sizeof(keyInfo.groupId));
     }
-
-    /*}*/
 
     if (keyBuf != NULL) {
       taosMemoryFree(keyBuf);
