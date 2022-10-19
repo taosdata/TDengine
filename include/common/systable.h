@@ -27,7 +27,7 @@ extern "C" {
 #define TSDB_INS_TABLE_MNODES            "ins_mnodes"
 #define TSDB_INS_TABLE_MODULES           "ins_modules"
 #define TSDB_INS_TABLE_QNODES            "ins_qnodes"
-#define TSDB_INS_TABLE_BNODES            "ins_bnodes"
+#define TSDB_INS_TABLE_BNODES            "ins_bnodes"  // no longer used
 #define TSDB_INS_TABLE_SNODES            "ins_snodes"
 #define TSDB_INS_TABLE_CLUSTER           "ins_cluster"
 #define TSDB_INS_TABLE_DATABASES         "ins_databases"

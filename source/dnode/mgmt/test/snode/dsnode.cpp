@@ -30,9 +30,9 @@ TEST_F(DndTestSnode, 01_Create_Snode) {
     SDCreateSnodeReq createReq = {0};
     createReq.dnodeId = 2;
 
-    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
+    int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &createReq);
+    tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_SNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -43,9 +43,9 @@ TEST_F(DndTestSnode, 01_Create_Snode) {
     SDCreateSnodeReq createReq = {0};
     createReq.dnodeId = 1;
 
-    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
+    int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &createReq);
+    tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_SNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -56,9 +56,9 @@ TEST_F(DndTestSnode, 01_Create_Snode) {
     SDCreateSnodeReq createReq = {0};
     createReq.dnodeId = 1;
 
-    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
+    int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &createReq);
+    tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_SNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -71,9 +71,9 @@ TEST_F(DndTestSnode, 01_Create_Snode) {
     SDCreateSnodeReq createReq = {0};
     createReq.dnodeId = 1;
 
-    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
+    int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &createReq);
+    tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_SNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -87,9 +87,9 @@ TEST_F(DndTestSnode, 01_Drop_Snode) {
     SDDropSnodeReq dropReq = {0};
     dropReq.dnodeId = 2;
 
-    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &dropReq);
+    int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &dropReq);
     void*   pReq = rpcMallocCont(contLen);
-    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &dropReq);
+    tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_SNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -101,9 +101,9 @@ TEST_F(DndTestSnode, 01_Drop_Snode) {
     SDDropSnodeReq dropReq = {0};
     dropReq.dnodeId = 1;
 
-    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &dropReq);
+    int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &dropReq);
     void*   pReq = rpcMallocCont(contLen);
-    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &dropReq);
+    tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_SNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -114,9 +114,9 @@ TEST_F(DndTestSnode, 01_Drop_Snode) {
     SDDropSnodeReq dropReq = {0};
     dropReq.dnodeId = 1;
 
-    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &dropReq);
+    int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &dropReq);
     void*   pReq = rpcMallocCont(contLen);
-    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &dropReq);
+    tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_SNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -129,9 +129,9 @@ TEST_F(DndTestSnode, 01_Drop_Snode) {
     SDDropSnodeReq dropReq = {0};
     dropReq.dnodeId = 1;
 
-    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &dropReq);
+    int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &dropReq);
     void*   pReq = rpcMallocCont(contLen);
-    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &dropReq);
+    tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_SNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -142,9 +142,9 @@ TEST_F(DndTestSnode, 01_Drop_Snode) {
     SDCreateSnodeReq createReq = {0};
     createReq.dnodeId = 1;
 
-    int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
+    int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &createReq);
+    tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_SNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);

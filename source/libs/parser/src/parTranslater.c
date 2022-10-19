@@ -5166,7 +5166,7 @@ static int16_t getCreateComponentNodeMsgType(ENodeType type) {
 static int32_t translateCreateComponentNode(STranslateContext* pCxt, SCreateComponentNodeStmt* pStmt) {
   SMCreateQnodeReq createReq = {.dnodeId = pStmt->dnodeId};
   return buildCmdMsg(pCxt, getCreateComponentNodeMsgType(nodeType(pStmt)),
-                     (FSerializeFunc)tSerializeSCreateDropMQSBNodeReq, &createReq);
+                     (FSerializeFunc)tSerializeSCreateDropMQSNodeReq, &createReq);
 }
 
 static int16_t getDropComponentNodeMsgType(ENodeType type) {
@@ -5188,7 +5188,7 @@ static int16_t getDropComponentNodeMsgType(ENodeType type) {
 static int32_t translateDropComponentNode(STranslateContext* pCxt, SDropComponentNodeStmt* pStmt) {
   SDDropQnodeReq dropReq = {.dnodeId = pStmt->dnodeId};
   return buildCmdMsg(pCxt, getDropComponentNodeMsgType(nodeType(pStmt)),
-                     (FSerializeFunc)tSerializeSCreateDropMQSBNodeReq, &dropReq);
+                     (FSerializeFunc)tSerializeSCreateDropMQSNodeReq, &dropReq);
 }
 
 static int32_t checkTopicQuery(STranslateContext* pCxt, SSelectStmt* pSelect) {
