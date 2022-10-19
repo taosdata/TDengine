@@ -34,6 +34,7 @@ typedef struct SVnodeMgmt {
   SQWorkerPool   streamPool;
   SWWorkerPool   fetchPool;
   SWWorkerPool   syncPool;
+  SWWorkerPool   syncCtrlPool;
   SWWorkerPool   writePool;
   SWWorkerPool   applyPool;
   SSingleWorker  mgmtWorker;
@@ -60,6 +61,7 @@ typedef struct {
   SVnode     *pImpl;
   STaosQueue *pWriteQ;
   STaosQueue *pSyncQ;
+  STaosQueue *pSyncCtrlQ;
   STaosQueue *pApplyQ;
   STaosQueue *pQueryQ;
   STaosQueue *pStreamQ;
@@ -106,6 +108,7 @@ int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc);
 
 int32_t vmPutMsgToWriteQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToSyncQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmPutMsgToSyncCtrlQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToQueryQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToFetchQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t vmPutMsgToStreamQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
