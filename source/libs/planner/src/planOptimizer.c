@@ -124,9 +124,8 @@ static void optSetParentOrder(SLogicNode* pNode, EOrder order) {
 
 EDealRes scanPathOptHaveNormalColImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-    // *((bool*)pContext) =
-    //     (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType && COLUMN_TYPE_TBNAME != ((SColumnNode*)pNode)->colType);
-    *((bool*)pContext) = true;
+    *((bool*)pContext) =
+        (COLUMN_TYPE_TAG != ((SColumnNode*)pNode)->colType && COLUMN_TYPE_TBNAME != ((SColumnNode*)pNode)->colType);
     return *((bool*)pContext) ? DEAL_RES_END : DEAL_RES_IGNORE_CHILD;
   }
   return DEAL_RES_CONTINUE;
@@ -1521,11 +1520,15 @@ static bool partTagsHasIndefRowsSelectFunc(SNodeList* pFuncs) {
   return false;
 }
 
-static int32_t partTagsRewriteGroupTagsToFuncs(SNodeList* pGroupTags, SNodeList* pAggFuncs) {
+static int32_t partTagsRewriteGroupTagsToFuncs(SNodeList* pGroupTags, int32_t start, SNodeList* pAggFuncs) {
   bool    hasIndefRowsSelectFunc = partTagsHasIndefRowsSelectFunc(pAggFuncs);
   int32_t code = TSDB_CODE_SUCCESS;
+  int32_t index = 0;
   SNode*  pNode = NULL;
   FOREACH(pNode, pGroupTags) {
+    if (index++ < start) {
+      continue;
+    }
     if (hasIndefRowsSelectFunc) {
       code = nodesListStrictAppend(pAggFuncs, partTagsCreateWrapperFunc("_select_value", pNode));
     } else {
@@ -1560,20 +1563,35 @@ static int32_t partTagsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSub
     }
   } else {
     SAggLogicNode* pAgg = (SAggLogicNode*)pNode;
+    int32_t        start = -1;
     SNode*         pGroupKey = NULL;
     FOREACH(pGroupKey, pAgg->pGroupKeys) {
-      code = nodesListMakeStrictAppend(
-          &pScan->pGroupTags, nodesCloneNode(nodesListGetNode(((SGroupingSetNode*)pGroupKey)->pParameterList, 0)));
+      SNode* pGroupExpr = nodesListGetNode(((SGroupingSetNode*)pGroupKey)->pParameterList, 0);
+      if (NULL != pScan->pGroupTags) {
+        SNode* pGroupTag = NULL;
+        FOREACH(pGroupTag, pScan->pGroupTags) {
+          if (nodesEqualNode(pGroupTag, pGroupExpr)) {
+            continue;
+          }
+        }
+      }
+      if (start < 0) {
+        start = LIST_LENGTH(pScan->pGroupTags);
+      }
+      code = nodesListMakeStrictAppend(&pScan->pGroupTags, nodesCloneNode(pGroupExpr));
       if (TSDB_CODE_SUCCESS != code) {
         break;
       }
     }
     NODES_DESTORY_LIST(pAgg->pGroupKeys);
-    code = partTagsRewriteGroupTagsToFuncs(pScan->pGroupTags, pAgg->pAggFuncs);
+    if (TSDB_CODE_SUCCESS == code && start >= 0) {
+      code = partTagsRewriteGroupTagsToFuncs(pScan->pGroupTags, start, pAgg->pAggFuncs);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = partTagsOptRebuildTbanme(pScan->pGroupTags);
   }
+  pCxt->optimized = true;
   return code;
 }
 
@@ -1960,7 +1978,8 @@ static SNode* rewriteUniqueOptCreateFirstFunc(SFunctionNode* pSelectValue, SNode
   if (NULL != pSelectValue) {
     strcpy(pFunc->node.aliasName, pSelectValue->node.aliasName);
   } else {
-    snprintf(pFunc->node.aliasName, sizeof(pFunc->node.aliasName), "%s.%p", pFunc->functionName, (void*)pFunc);
+    int64_t pointer = (int64_t)pFunc;
+    snprintf(pFunc->node.aliasName, sizeof(pFunc->node.aliasName), "%s.%" PRId64 "", pFunc->functionName, pointer);
   }
   int32_t code = nodesListMakeStrictAppend(&pFunc->pParameterList, nodesCloneNode(pCol));
   if (TSDB_CODE_SUCCESS == code) {

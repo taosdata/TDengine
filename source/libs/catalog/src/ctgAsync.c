@@ -71,7 +71,7 @@ int32_t ctgInitGetTbMetasTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
   taosArrayPush(pJob->pTasks, &task);
 
   qDebug("QID:0x%" PRIx64 " the %dth task type %s initialized, dbNum:%d, tbNum:%d", pJob->queryId, taskIdx,
-         ctgTaskTypeStr(task.type), taosArrayGetSize(ctx->pNames), pJob->tbMetaNum);
+         ctgTaskTypeStr(task.type), (int32_t)taosArrayGetSize(ctx->pNames), pJob->tbMetaNum);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -202,7 +202,7 @@ int32_t ctgInitGetTbHashsTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
   taosArrayPush(pJob->pTasks, &task);
 
   qDebug("QID:0x%" PRIx64 " the %dth task type %s initialized, dbNum:%d, tbNum:%d", pJob->queryId, taskIdx,
-         ctgTaskTypeStr(task.type), taosArrayGetSize(ctx->pNames), pJob->tbHashNum);
+         ctgTaskTypeStr(task.type), (int32_t)taosArrayGetSize(ctx->pNames), pJob->tbHashNum);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -252,7 +252,7 @@ int32_t ctgInitGetIndexTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
   SCtgIndexCtx* ctx = task.taskCtx;
 
-  strcpy(ctx->indexFName, name);
+  tstrncpy(ctx->indexFName, name, sizeof(ctx->indexFName));
 
   taosArrayPush(pJob->pTasks, &task);
 
@@ -277,7 +277,7 @@ int32_t ctgInitGetUdfTask(SCtgJob* pJob, int32_t taskIdx, void* param) {
 
   SCtgUdfCtx* ctx = task.taskCtx;
 
-  strcpy(ctx->udfName, name);
+  tstrncpy(ctx->udfName, name, sizeof(ctx->udfName));
 
   taosArrayPush(pJob->pTasks, &task);
 
@@ -1056,7 +1056,6 @@ int32_t ctgHandleGetTbMetaRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
     default:
       ctgError("invalid reqType %d", reqType);
       CTG_ERR_JRET(TSDB_CODE_INVALID_MSG);
-      break;
   }
 
   STableMetaOutput* pOut = (STableMetaOutput*)pMsgCtx->out;
@@ -1223,7 +1222,6 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
     default:
       ctgError("invalid reqType %d", reqType);
       CTG_ERR_JRET(TSDB_CODE_INVALID_MSG);
-      break;
   }
 
   STableMetaOutput* pOut = (STableMetaOutput*)pMsgCtx->out;
@@ -1309,7 +1307,6 @@ int32_t ctgHandleGetDbVgRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf* 
     default:
       ctgError("invalid reqType %d", reqType);
       CTG_ERR_JRET(TSDB_CODE_INVALID_MSG);
-      break;
   }
 
 _return:
@@ -1346,7 +1343,6 @@ int32_t ctgHandleGetTbHashRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBuf
     default:
       ctgError("invalid reqType %d", reqType);
       CTG_ERR_JRET(TSDB_CODE_INVALID_MSG);
-      break;
   }
 
 _return:
@@ -1382,7 +1378,6 @@ int32_t ctgHandleGetTbHashsRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
     default:
       ctgError("invalid reqType %d", reqType);
       CTG_ERR_JRET(TSDB_CODE_INVALID_MSG);
-      break;
   }
 
   if (0 == atomic_sub_fetch_32(&ctx->fetchNum, 1)) {
@@ -1672,7 +1667,7 @@ int32_t ctgLaunchGetTbMetasTask(SCtgTask* pTask) {
   int32_t baseResIdx = 0;
   for (int32_t i = 0; i < dbNum; ++i) {
     STablesReq* pReq = taosArrayGet(pCtx->pNames, i);
-    ctgDebug("start to check tb metas in db %s, tbNum %d", pReq->dbFName, taosArrayGetSize(pReq->pTables));
+    ctgDebug("start to check tb metas in db %s, tbNum %d", pReq->dbFName, (int32_t)taosArrayGetSize(pReq->pTables));
     CTG_ERR_RET(ctgGetTbMetasFromCache(pCtg, pConn, pCtx, i, &fetchIdx, baseResIdx, pReq->pTables));
     baseResIdx += taosArrayGetSize(pReq->pTables);
   }
@@ -2009,10 +2004,6 @@ int32_t ctgLaunchGetDbInfoTask(SCtgTask* pTask) {
   CTG_ERR_JRET(ctgHandleTaskEnd(pTask, 0));
 
 _return:
-
-  if (dbCache) {
-    ctgReleaseVgInfoToCache(pCtg, dbCache);
-  }
 
   CTG_RET(code);
 }

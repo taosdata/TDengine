@@ -77,6 +77,12 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
   void     *pRsp = NULL;
   SMnode   *pMnode = pMsg->info.node;
 
+  if (msgNum >= MAX_META_MSG_IN_BATCH) {
+    code = TSDB_CODE_INVALID_MSG;
+    mError("too many msgs %d in mnode batch meta req", msgNum);
+    goto _exit;
+  }
+
   SArray *batchRsp = taosArrayInit(msgNum, sizeof(SBatchRsp));
   if (NULL == batchRsp) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -84,14 +90,39 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
   }
 
   for (int32_t i = 0; i < msgNum; ++i) {
+    if (offset >= pMsg->contLen) {
+      mError("offset %d is bigger than contLen %d", offset, pMsg->contLen);
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      taosArrayDestroy(batchRsp);
+      return -1;
+    }
+
     req.msgIdx = ntohl(*(int32_t *)((char *)pMsg->pCont + offset));
     offset += sizeof(req.msgIdx);
+    if (offset >= pMsg->contLen) {
+      mError("offset %d is bigger than contLen %d", offset, pMsg->contLen);
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      taosArrayDestroy(batchRsp);
+      return -1;
+    }
 
     req.msgType = ntohl(*(int32_t *)((char *)pMsg->pCont + offset));
     offset += sizeof(req.msgType);
+    if (offset >= pMsg->contLen) {
+      mError("offset %d is bigger than contLen %d", offset, pMsg->contLen);
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      taosArrayDestroy(batchRsp);
+      return -1;
+    }
 
     req.msgLen = ntohl(*(int32_t *)((char *)pMsg->pCont + offset));
     offset += sizeof(req.msgLen);
+    if (offset >= pMsg->contLen) {
+      mError("offset %d is bigger than contLen %d", offset, pMsg->contLen);
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      taosArrayDestroy(batchRsp);
+      return -1;
+    }
 
     req.msg = (char *)pMsg->pCont + offset;
     offset += req.msgLen;
@@ -106,6 +137,7 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
     if (fp == NULL) {
       mError("msg:%p, failed to get msg handle, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      taosArrayDestroy(batchRsp);
       return -1;
     }
 

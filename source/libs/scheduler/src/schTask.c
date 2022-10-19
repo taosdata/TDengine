@@ -430,7 +430,8 @@ int32_t schHandleRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32
   if (SCH_IS_DATA_BIND_TASK(pTask)) {
     if (NULL == pData->pEpSet) {
       SCH_TASK_ELOG("no epset updated while got error %s", tstrerror(rspCode));
-      SCH_ERR_JRET(rspCode);
+      code = rspCode;
+      goto _return;
     }
   }
 
@@ -904,7 +905,7 @@ int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask) {
     } else if (tsQueryPlannerTrace) {
       char   *msg = NULL;
       int32_t msgLen = 0;
-      qSubPlanToString(plan, &msg, &msgLen);
+      SCH_ERR_RET(qSubPlanToString(plan, &msg, &msgLen));
       SCH_TASK_DLOGL("physical plan len:%d, %s", msgLen, msg);
       taosMemoryFree(msg);
     }
@@ -926,6 +927,7 @@ int32_t schLaunchLocalTask(SSchJob *pJob, SSchTask *pTask) {
   }
 
   SArray *explainRes = NULL;
+  int32_t code = 0;
   SQWMsg  qwMsg = {0};
   qwMsg.msgInfo.taskType = TASK_TYPE_TEMP;
   qwMsg.msgInfo.explain = SCH_IS_EXPLAIN_JOB(pJob);
@@ -938,14 +940,21 @@ int32_t schLaunchLocalTask(SSchJob *pJob, SSchTask *pTask) {
     explainRes = taosArrayInit(pJob->taskNum, sizeof(SExplainLocalRsp));
   }
 
-  SCH_ERR_RET(qWorkerProcessLocalQuery(schMgmt.queryMgmt, schMgmt.sId, pJob->queryId, pTask->taskId, pJob->refId,
+  SCH_ERR_JRET(qWorkerProcessLocalQuery(schMgmt.queryMgmt, schMgmt.sId, pJob->queryId, pTask->taskId, pJob->refId,
                                        pTask->execId, &qwMsg, explainRes));
 
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
     SCH_ERR_RET(schHandleExplainRes(explainRes));
+    explainRes = NULL;
   }
 
-  SCH_RET(schProcessOnTaskSuccess(pJob, pTask));
+  SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
+
+_return:
+
+  taosArrayDestroy(explainRes);
+
+  SCH_RET(code);
 }
 
 int32_t schLaunchTaskImpl(void *param) {
@@ -1097,22 +1106,28 @@ int32_t schExecRemoteFetch(SSchJob *pJob, SSchTask *pTask) {
 
 int32_t schExecLocalFetch(SSchJob *pJob, SSchTask *pTask) {
   void   *pRsp = NULL;
+  int32_t code = 0;
   SArray *explainRes = NULL;
 
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
     explainRes = taosArrayInit(pJob->taskNum, sizeof(SExplainLocalRsp));
   }
 
-  SCH_ERR_RET(qWorkerProcessLocalFetch(schMgmt.queryMgmt, schMgmt.sId, pJob->queryId, pTask->taskId, pJob->refId,
+  SCH_ERR_JRET(qWorkerProcessLocalFetch(schMgmt.queryMgmt, schMgmt.sId, pJob->queryId, pTask->taskId, pJob->refId,
                                        pTask->execId, &pRsp, explainRes));
 
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
     SCH_ERR_RET(schHandleExplainRes(explainRes));
+    explainRes = NULL;
   }
 
   SCH_ERR_RET(schProcessFetchRsp(pJob, pTask, pRsp, TSDB_CODE_SUCCESS));
 
-  return TSDB_CODE_SUCCESS;
+_return:
+
+  taosArrayDestroy(explainRes);
+
+  SCH_RET(code);
 }
 
 // Note: no more error processing, handled in function internal

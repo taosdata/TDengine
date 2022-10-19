@@ -629,6 +629,8 @@ _return:
   
   sclFreeParam(pWhen);
   sclFreeParam(pThen);
+  taosMemoryFree(pWhen);
+  taosMemoryFree(pThen);
 
   SCL_RET(code);
 }
@@ -664,6 +666,8 @@ int32_t sclWalkWhenList(SScalarCtx *ctx, SNodeList* pList, struct SListCell* pCe
 
     sclFreeParam(pWhen);
     sclFreeParam(pThen);
+    taosMemoryFreeClear(pWhen);
+    taosMemoryFreeClear(pThen);
   }
 
   if (pElse) {
@@ -688,6 +692,8 @@ _return:
 
   sclFreeParam(pWhen);
   sclFreeParam(pThen);
+  taosMemoryFree(pWhen);
+  taosMemoryFree(pThen);
 
   SCL_RET(code);
 }
@@ -929,6 +935,10 @@ int32_t sclExecCaseWhen(SCaseWhenNode *node, SScalarCtx *ctx, SScalarParam *outp
   sclFreeParam(&comp);
   sclFreeParam(pWhen);
   sclFreeParam(pThen);
+  taosMemoryFree(pCase);
+  taosMemoryFree(pElse);
+  taosMemoryFree(pWhen);
+  taosMemoryFree(pThen);
 
   return TSDB_CODE_SUCCESS;
 
@@ -940,6 +950,10 @@ _return:
   sclFreeParam(pWhen);
   sclFreeParam(pThen);
   sclFreeParam(output);
+  taosMemoryFree(pCase);
+  taosMemoryFree(pElse);
+  taosMemoryFree(pWhen);
+  taosMemoryFree(pThen);
 
   SCL_RET(code);
 }

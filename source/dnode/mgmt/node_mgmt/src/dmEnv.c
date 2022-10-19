@@ -51,28 +51,34 @@ static int32_t dmInitMonitor() {
 
 static bool dmCheckDiskSpace() {
   osUpdate();
+  // sufficiency
+  if (!osDataSpaceSufficient()) {
+    dWarn("free data disk size: %f GB, not sufficient, expected %f GB at least", (double)tsDataSpace.size.avail / 1024.0 / 1024.0 / 1024.0, (double)tsDataSpace.reserved / 1024.0 / 1024.0 / 1024.0);
+  }
+  if (!osLogSpaceSufficient()) {
+    dWarn("free log disk size: %f GB, not sufficient, expected %f GB at least", (double)tsLogSpace.size.avail / 1024.0 / 1024.0 / 1024.0, (double)tsLogSpace.reserved / 1024.0 / 1024.0 / 1024.0);
+  }
+  if (!osTempSpaceSufficient()) {
+    dWarn("free temp disk size: %f GB, not sufficient, expected %f GB at least", (double)tsTempSpace.size.avail / 1024.0 / 1024.0 / 1024.0, (double)tsTempSpace.reserved / 1024.0 / 1024.0 / 1024.0);
+  }
+  // availability
+  bool ret = true;
   if (!osDataSpaceAvailable()) {
-    dError("free disk size: %f GB, too little, require %f GB at least at least , quit",
-           (double)tsDataSpace.size.avail / 1024.0 / 1024.0 / 1024.0,
-           (double)tsDataSpace.reserved / 1024.0 / 1024.0 / 1024.0);
-    terrno = TSDB_CODE_NO_AVAIL_DISK;
-    return false;
+    dError("data disk space unavailable, i.e. %s", tsDataDir);
+    terrno = TSDB_CODE_VND_NO_DISKSPACE;
+    ret = false;
   }
   if (!osLogSpaceAvailable()) {
-    dError("free disk size: %f GB, too little, require %f GB at least at least, quit",
-           (double)tsLogSpace.size.avail / 1024.0 / 1024.0 / 1024.0,
-           (double)tsLogSpace.reserved / 1024.0 / 1024.0 / 1024.0);
-    terrno = TSDB_CODE_NO_AVAIL_DISK;
-    return false;
+    dError("log disk space unavailable, i.e. %s", tsLogDir);
+    terrno = TSDB_CODE_VND_NO_DISKSPACE;
+    ret = false;
   }
   if (!osTempSpaceAvailable()) {
-    dError("free disk size: %f GB, too little, require %f GB at least at least, quit",
-           (double)tsTempSpace.size.avail / 1024.0 / 1024.0 / 1024.0,
-           (double)tsTempSpace.reserved / 1024.0 / 1024.0 / 1024.0);
-    terrno = TSDB_CODE_NO_AVAIL_DISK;
-    return false;
+    dError("temp disk space unavailable, i.e. %s", tsTempDir);
+    terrno = TSDB_CODE_VND_NO_DISKSPACE;
+    ret = false;
   }
-  return true;
+  return ret;
 }
 
 static bool dmCheckDataDirVersion() {

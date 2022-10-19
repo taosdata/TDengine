@@ -23,7 +23,6 @@ extern "C" {
 #endif
 
 SMgmtFunc dmGetMgmtFunc();
-SMgmtFunc bmGetMgmtFunc();
 SMgmtFunc qmGetMgmtFunc();
 SMgmtFunc smGetMgmtFunc();
 SMgmtFunc vmGetMgmtFunc();

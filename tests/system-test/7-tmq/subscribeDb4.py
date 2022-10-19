@@ -41,7 +41,7 @@ class TDTestCase:
     ifcheckdata = 0
     ifManualCommit = 1
     groupId = 'group.id:cgrp1'
-    autoCommit = 'enable.auto.commit:false'
+    autoCommit = 'enable.auto.commit:true'
     autoCommitInterval = 'auto.commit.interval.ms:1000'
     autoOffset = 'auto.offset.reset:earliest'
 
@@ -87,8 +87,9 @@ class TDTestCase:
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(self.pollDelay,self.paraDict["dbName"],self.showMsg, self.showRow,self.cdbName)
 
-        tdLog.info("After waiting for a period of time, drop one stable")
-        time.sleep(3)
+        tdLog.info("After waiting for a commit notify, drop one stable")
+        #time.sleep(3)
+        tmqCom.getStartCommitNotifyFromTmqsim()
         tdSql.execute("drop table %s.%s" %(self.paraDict['dbName'], self.paraDict['stbName']))
 
         tdLog.info("wait result from consumer, then check it")
