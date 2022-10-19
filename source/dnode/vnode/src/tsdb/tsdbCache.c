@@ -1328,9 +1328,9 @@ int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUH
         return 0;
       }
 
+      size_t              charge = pArray->capacity * pArray->elemSize + sizeof(*pArray);
       _taos_lru_deleter_t deleter = deleteTableCacheLast;
-      LRUStatus           status =
-          taosLRUCacheInsert(pCache, key, keyLen, pArray, pArray->capacity, deleter, NULL, TAOS_LRU_PRIORITY_LOW);
+      LRUStatus status = taosLRUCacheInsert(pCache, key, keyLen, pArray, charge, deleter, NULL, TAOS_LRU_PRIORITY_LOW);
       if (status != TAOS_LRU_STATUS_OK) {
         code = -1;
       }
@@ -1395,9 +1395,10 @@ int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHand
         return 0;
       }
 
+      size_t              charge = pLastArray->capacity * pLastArray->elemSize + sizeof(*pLastArray);
       _taos_lru_deleter_t deleter = deleteTableCacheLast;
-      LRUStatus status = taosLRUCacheInsert(pCache, key, keyLen, pLastArray, pLastArray->capacity, deleter, NULL,
-                                            TAOS_LRU_PRIORITY_LOW);
+      LRUStatus           status =
+          taosLRUCacheInsert(pCache, key, keyLen, pLastArray, charge, deleter, NULL, TAOS_LRU_PRIORITY_LOW);
       if (status != TAOS_LRU_STATUS_OK) {
         code = -1;
       }
