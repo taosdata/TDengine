@@ -239,10 +239,10 @@ int vnodeCommit(SVnode *pVnode) {
   }
   walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
 
-  // preCommit
-  // smaSyncPreCommit(pVnode->pSma);
-  code = smaAsyncPreCommit(pVnode->pSma);
-  TSDB_CHECK_CODE(code, lino, _exit);
+  if (smaPreCommit(pVnode->pSma) < 0) {
+    vError("vgId:%d, failed to pre-commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
+    return -1;
+  }
 
   vnodeBufPoolUnRef(pVnode->inUse);
   pVnode->inUse = NULL;
@@ -254,21 +254,8 @@ int vnodeCommit(SVnode *pVnode) {
   }
 
   if (VND_IS_RSMA(pVnode)) {
-    if (smaAsyncCommit(pVnode->pSma) < 0) {
-      vError("vgId:%d, failed to async commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
-
-    if (tsdbCommit(VND_RSMA0(pVnode)) < 0) {
-      vError("vgId:%d, failed to commit tsdb rsma0 since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
-    if (tsdbCommit(VND_RSMA1(pVnode)) < 0) {
-      vError("vgId:%d, failed to commit tsdb rsma1 since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
-    if (tsdbCommit(VND_RSMA2(pVnode)) < 0) {
-      vError("vgId:%d, failed to commit tsdb rsma2 since %s", TD_VID(pVnode), tstrerror(terrno));
+    if (smaCommit(pVnode->pSma) < 0) {
+      vError("vgId:%d, failed to commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
       return -1;
     }
   } else {
@@ -296,10 +283,8 @@ int vnodeCommit(SVnode *pVnode) {
 
   pVnode->state.committed = info.state.committed;
 
-  // postCommit
-  // smaSyncPostCommit(pVnode->pSma);
-  if (smaAsyncPostCommit(pVnode->pSma) < 0) {
-    vError("vgId:%d, failed to async post-commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
+  if (smaPostCommit(pVnode->pSma) < 0) {
+    vError("vgId:%d, failed to post-commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
 
