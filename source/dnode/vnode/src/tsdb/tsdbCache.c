@@ -1109,7 +1109,7 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, SArray **ppCo
   int16_t   iCol = 0;
   int16_t   noneCol = 0;
   bool      setNoneCol = false;
-  SArray   *pColArray = taosArrayInit(nCol, sizeof(SColVal));
+  SArray   *pColArray = taosArrayInit(nCol, sizeof(SLastCol));
   SColVal  *pColVal = &(SColVal){0};
 
   TSKEY lastRowTs = TSKEY_MAX;
@@ -1140,7 +1140,14 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, SArray **ppCo
       for (iCol = 1; iCol < nCol; ++iCol) {
         tsdbRowGetColVal(pRow, pTSchema, iCol, pColVal);
 
-        if (taosArrayPush(pColArray, &(SLastCol){.ts = lastRowTs, .colVal = *pColVal}) == NULL) {
+        SLastCol lastCol = {.ts = lastRowTs, .colVal = *pColVal};
+        /*
+        if (IS_VAR_DATA_TYPE(pColVal->type)) {
+          lastCol.colVal.value.pData = taosMemoryMalloc(lastCol.colVal.value.nData);
+          memcpy(lastCol.colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
+        }
+        */
+        if (taosArrayPush(pColArray, &lastCol) == NULL) {
           code = TSDB_CODE_OUT_OF_MEMORY;
           goto _err;
         }
