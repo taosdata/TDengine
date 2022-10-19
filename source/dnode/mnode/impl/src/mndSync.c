@@ -293,6 +293,14 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
 
   if (code == 0) {
     tsem_wait(&pMgmt->syncSem);
+  } else if (code > 0) {
+    mInfo("trans:%d, confirm at once since replica is 1, continue execute", transId);
+    taosWLockLatch(&pMgmt->lock);
+    pMgmt->transId = 0;
+    taosWUnLockLatch(&pMgmt->lock);
+    sdbWriteWithoutFree(pMnode->pSdb, pRaw);
+    sdbSetApplyInfo(pMnode->pSdb, req.info.conn.applyIndex, req.info.conn.applyTerm, SYNC_INDEX_INVALID);
+    code = 0;
   } else if (code == -1 && terrno == TSDB_CODE_SYN_NOT_LEADER) {
     terrno = TSDB_CODE_APP_NOT_READY;
   } else if (code == -1 && terrno == TSDB_CODE_SYN_INTERNAL_ERROR) {

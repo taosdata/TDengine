@@ -660,7 +660,7 @@ int32_t ctgDropDbCacheEnqueue(SCatalog *pCtg, const char *dbFName, int64_t dbId)
   }
 
   msg->pCtg = pCtg;
-  strncpy(msg->dbFName, dbFName, sizeof(msg->dbFName));
+  tstrncpy(msg->dbFName, dbFName, sizeof(msg->dbFName));
   msg->dbId = dbId;
 
   op->data = msg;
@@ -693,7 +693,7 @@ int32_t ctgDropDbVgroupEnqueue(SCatalog *pCtg, const char *dbFName, bool syncOp)
   }
 
   msg->pCtg = pCtg;
-  strncpy(msg->dbFName, dbFName, sizeof(msg->dbFName));
+  tstrncpy(msg->dbFName, dbFName, sizeof(msg->dbFName));
 
   op->data = msg;
 
@@ -721,8 +721,8 @@ int32_t ctgDropStbMetaEnqueue(SCatalog *pCtg, const char *dbFName, int64_t dbId,
   }
 
   msg->pCtg = pCtg;
-  strncpy(msg->dbFName, dbFName, sizeof(msg->dbFName));
-  strncpy(msg->stbName, stbName, sizeof(msg->stbName));
+  tstrncpy(msg->dbFName, dbFName, sizeof(msg->dbFName));
+  tstrncpy(msg->stbName, stbName, sizeof(msg->stbName));
   msg->dbId = dbId;
   msg->suid = suid;
 
@@ -751,8 +751,8 @@ int32_t ctgDropTbMetaEnqueue(SCatalog *pCtg, const char *dbFName, int64_t dbId, 
   }
 
   msg->pCtg = pCtg;
-  strncpy(msg->dbFName, dbFName, sizeof(msg->dbFName));
-  strncpy(msg->tbName, tbName, sizeof(msg->tbName));
+  tstrncpy(msg->dbFName, dbFName, sizeof(msg->dbFName));
+  tstrncpy(msg->tbName, tbName, sizeof(msg->tbName));
   msg->dbId = dbId;
 
   op->data = msg;
@@ -785,7 +785,7 @@ int32_t ctgUpdateVgroupEnqueue(SCatalog *pCtg, const char *dbFName, int64_t dbId
     dbFName = p + 1;
   }
 
-  strncpy(msg->dbFName, dbFName, sizeof(msg->dbFName));
+  tstrncpy(msg->dbFName, dbFName, sizeof(msg->dbFName));
   msg->pCtg = pCtg;
   msg->dbId = dbId;
   msg->dbInfo = dbInfo;
@@ -817,7 +817,8 @@ int32_t ctgUpdateTbMetaEnqueue(SCatalog *pCtg, STableMetaOutput *output, bool sy
 
   char *p = strchr(output->dbFName, '.');
   if (p && IS_SYS_DBNAME(p + 1)) {
-    memmove(output->dbFName, p + 1, strlen(p + 1));
+    int32_t len = strlen(p + 1);
+    memmove(output->dbFName, p + 1, len >= TSDB_DB_FNAME_LEN ? TSDB_DB_FNAME_LEN - 1 : len);
   }
 
   msg->pCtg = pCtg;
@@ -852,7 +853,7 @@ int32_t ctgUpdateVgEpsetEnqueue(SCatalog *pCtg, char *dbFName, int32_t vgId, SEp
   }
 
   msg->pCtg = pCtg;
-  strcpy(msg->dbFName, dbFName);
+  tstrncpy(msg->dbFName, dbFName, sizeof(msg->dbFName));
   msg->vgId = vgId;
   msg->epSet = *pEpSet;
 
@@ -1215,7 +1216,7 @@ int32_t ctgAddNewDBCache(SCatalog *pCtg, const char *dbFName, uint64_t dbId) {
   CTG_CACHE_STAT_INC(numOfDb, 1);
 
   SDbVgVersion vgVersion = {.dbId = newDBCache.dbId, .vgVersion = -1};
-  strncpy(vgVersion.dbFName, dbFName, sizeof(vgVersion.dbFName));
+  tstrncpy(vgVersion.dbFName, dbFName, sizeof(vgVersion.dbFName));
 
   ctgDebug("db added to cache, dbFName:%s, dbId:0x%" PRIx64, dbFName, dbId);
 
@@ -1331,8 +1332,8 @@ int32_t ctgUpdateRentStbVersion(SCatalog *pCtg, char *dbFName, char *tbName, uin
     metaRent.smaVer = pCache->pIndex->version;
   }
 
-  strcpy(metaRent.dbFName, dbFName);
-  strcpy(metaRent.stbName, tbName);
+  tstrncpy(metaRent.dbFName, dbFName, sizeof(metaRent.dbFName));
+  tstrncpy(metaRent.stbName, tbName, sizeof(metaRent.stbName));
 
   CTG_ERR_RET(ctgMetaRentUpdate(&pCtg->stbRent, &metaRent, metaRent.suid, sizeof(SSTableVersion),
                                 ctgStbVersionSortCompare, ctgStbVersionSearchCompare));
@@ -1418,8 +1419,10 @@ int32_t ctgWriteTbMetaToCache(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFNam
   ctgDebug("stb 0x%" PRIx64 " updated to cache, dbFName:%s, tbName:%s, tbType:%d", meta->suid, dbFName, tbName,
            meta->tableType);
 
-  CTG_ERR_RET(ctgUpdateRentStbVersion(pCtg, dbFName, tbName, dbId, meta->suid, pCache));
-
+  if (pCache) {
+    CTG_ERR_RET(ctgUpdateRentStbVersion(pCtg, dbFName, tbName, dbId, meta->suid, pCache));
+  }
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1590,7 +1593,7 @@ int32_t ctgOpUpdateVgroup(SCtgCacheOperation *operation) {
 
   dbCache = NULL;
 
-  strncpy(vgVersion.dbFName, dbFName, sizeof(vgVersion.dbFName));
+  tstrncpy(vgVersion.dbFName, dbFName, sizeof(vgVersion.dbFName));
   CTG_ERR_JRET(ctgMetaRentUpdate(&msg->pCtg->dbRent, &vgVersion, vgVersion.dbId, sizeof(SDbVgVersion),
                                  ctgDbVgVersionSortCompare, ctgDbVgVersionSearchCompare));
 
@@ -1680,9 +1683,9 @@ int32_t ctgOpUpdateTbMeta(SCtgCacheOperation *operation) {
 
   if (CTG_IS_META_TABLE(pMeta->metaType) || CTG_IS_META_BOTH(pMeta->metaType)) {
     int32_t metaSize = CTG_META_SIZE(pMeta->tbMeta);
-    CTG_ERR_JRET(
-        ctgWriteTbMetaToCache(pCtg, dbCache, pMeta->dbFName, pMeta->dbId, pMeta->tbName, pMeta->tbMeta, metaSize));
+    code = ctgWriteTbMetaToCache(pCtg, dbCache, pMeta->dbFName, pMeta->dbId, pMeta->tbName, pMeta->tbMeta, metaSize);
     pMeta->tbMeta = NULL;
+    CTG_ERR_JRET(code);
   }
 
   if (CTG_IS_META_CTABLE(pMeta->metaType) || CTG_IS_META_BOTH(pMeta->metaType)) {
@@ -1697,10 +1700,8 @@ int32_t ctgOpUpdateTbMeta(SCtgCacheOperation *operation) {
 
 _return:
 
-  if (pMeta) {
-    taosMemoryFreeClear(pMeta->tbMeta);
-    taosMemoryFreeClear(pMeta);
-  }
+  taosMemoryFreeClear(pMeta->tbMeta);
+  taosMemoryFreeClear(pMeta);
 
   taosMemoryFreeClear(msg);
 

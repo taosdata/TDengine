@@ -330,6 +330,11 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   rspSize += sizeof(int32_t);
   offset = 0;
 
+  if (rspSize > MAX_META_BATCH_RSP_SIZE) {
+    code = TSDB_CODE_INVALID_MSG_LEN;
+    goto _exit;
+  }
+  
   pRsp = rpcMallocCont(rspSize);
   if (pRsp == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;

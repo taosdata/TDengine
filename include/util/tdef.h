@@ -497,6 +497,7 @@ enum {
 #define MAX_NUM_STR_SIZE 40
 
 #define MAX_META_MSG_IN_BATCH 1048576
+#define MAX_META_BATCH_RSP_SIZE (1 * 1048576 * 1024)
 
 #ifdef __cplusplus
 }
