@@ -252,6 +252,7 @@ void       syncNodeRelease(SSyncNode* pNode);
 // raft state change --------------
 void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
 void syncNodeUpdateTermWithoutStepDown(SSyncNode* pSyncNode, SyncTerm term);
+void syncNodeStepDown(SSyncNode* pSyncNode, SyncTerm newTerm);
 void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr);
 void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr);
 
@@ -306,7 +307,6 @@ int32_t syncNodeDynamicQuorum(const SSyncNode* pSyncNode);
 
 bool    syncNodeIsMnode(SSyncNode* pSyncNode);
 int32_t syncNodePeerStateInit(SSyncNode* pSyncNode);
-void    syncNodeStepDown(SSyncNode* pSyncNode, SyncTerm newTerm);
 
 // trace log
 void syncLogRecvTimer(SSyncNode* pSyncNode, const SyncTimeout* pMsg, const char* s);

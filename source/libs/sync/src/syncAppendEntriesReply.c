@@ -133,5 +133,6 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, SyncAppendEntriesReply* pMs
     }
   }
 
+  syncLogRecvAppendEntriesReply(ths, pMsg, "process");
   return 0;
 }

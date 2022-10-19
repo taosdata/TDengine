@@ -60,6 +60,7 @@ int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, SyncRequestVoteReply* pMsg) {
 
   if (pMsg->term > ths->pRaftStore->currentTerm) {
     syncLogRecvRequestVoteReply(ths, pMsg, "error term");
+    syncNodeStepDown(ths, pMsg->term);
     return -1;
   }
 

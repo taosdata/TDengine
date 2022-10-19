@@ -2154,6 +2154,30 @@ void syncNodeUpdateTermWithoutStepDown(SSyncNode* pSyncNode, SyncTerm term) {
   }
 }
 
+void syncNodeStepDown(SSyncNode* pSyncNode, SyncTerm newTerm) {
+  ASSERT(pSyncNode->pRaftStore->currentTerm <= newTerm);
+
+  do {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "step down, new-term:%lu, current-term:%lu", newTerm,
+             pSyncNode->pRaftStore->currentTerm);
+    syncNodeEventLog(pSyncNode, logBuf);
+  } while (0);
+
+  if (pSyncNode->pRaftStore->currentTerm < newTerm) {
+    raftStoreSetTerm(pSyncNode->pRaftStore, newTerm);
+    char tmpBuf[64];
+    snprintf(tmpBuf, sizeof(tmpBuf), "step down, update term to %" PRIu64, newTerm);
+    syncNodeBecomeFollower(pSyncNode, tmpBuf);
+    raftStoreClearVote(pSyncNode->pRaftStore);
+
+  } else {
+    if (pSyncNode->state != TAOS_SYNC_STATE_FOLLOWER) {
+      syncNodeBecomeFollower(pSyncNode, "step down");
+    }
+  }
+}
+
 void syncNodeLeaderChangeRsp(SSyncNode* pSyncNode) { syncRespCleanRsp(pSyncNode->pSyncRespMgr); }
 
 void syncNodeBecomeFollower(SSyncNode* pSyncNode, const char* debugStr) {
@@ -2243,6 +2267,9 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
     pSyncNode->pMatchIndex->index[i] = SYNC_INDEX_INVALID;
   }
 
+  // init peer mgr
+  syncNodePeerStateInit(pSyncNode);
+
   // update sender private term
   SSyncSnapshotSender* pMySender = syncNodeGetSnapshotSender(pSyncNode, &(pSyncNode->myRaftId));
   if (pMySender != NULL) {
@@ -2314,23 +2341,6 @@ int32_t syncNodePeerStateInit(SSyncNode* pSyncNode) {
   }
 
   return 0;
-}
-
-void syncNodeStepDown(SSyncNode* pSyncNode, SyncTerm newTerm) {
-  ASSERT(pSyncNode->pRaftStore->currentTerm <= newTerm);
-
-  if (pSyncNode->pRaftStore->currentTerm < newTerm) {
-    raftStoreSetTerm(pSyncNode->pRaftStore, newTerm);
-    char tmpBuf[64];
-    snprintf(tmpBuf, sizeof(tmpBuf), "step down, update term to %" PRIu64, newTerm);
-    syncNodeBecomeFollower(pSyncNode, tmpBuf);
-    raftStoreClearVote(pSyncNode->pRaftStore);
-
-  } else {
-    if (pSyncNode->state != TAOS_SYNC_STATE_FOLLOWER) {
-      syncNodeBecomeFollower(pSyncNode, "step down");
-    }
-  }
 }
 
 void syncNodeFollower2Candidate(SSyncNode* pSyncNode) {
@@ -2831,17 +2841,20 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg) {
   SRpcMsg rpcMsg;
   syncHeartbeatReply2RpcMsg(pMsgReply, &rpcMsg);
 
+#if 0
   if (pMsg->term >= ths->pRaftStore->currentTerm && ths->state != TAOS_SYNC_STATE_FOLLOWER) {
-    syncNodeBecomeFollower(ths, "become follower by hb");
+    syncNodeStepDown(ths, pMsg->term);
   }
+#endif
 
-  if (pMsg->term == ths->pRaftStore->currentTerm) {
-    // sInfo("vgId:%d, heartbeat reset timer", ths->vgId);
+  if (pMsg->term == ths->pRaftStore->currentTerm && ths->state != TAOS_SYNC_STATE_LEADER) {
     syncNodeResetElectTimer(ths);
 
+#if 0
     if (ths->state == TAOS_SYNC_STATE_FOLLOWER) {
       syncNodeFollowerCommit(ths, pMsg->commitIndex);
     }
+#endif
   }
 
   /*

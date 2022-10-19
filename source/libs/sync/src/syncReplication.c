@@ -94,8 +94,18 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId) {
       ASSERT(pMsg != NULL);
 
     } else {
-      syncNodeLog3("", pSyncNode);
-      ASSERT(0);
+      do {
+        char     host[64];
+        uint16_t port;
+        syncUtilU642Addr(pDestId->addr, host, sizeof(host), &port);
+
+        char logBuf[128];
+        snprintf(logBuf, sizeof(logBuf), "replicate to %s:%d error, next-index:%ld", host, port, nextIndex);
+        syncNodeErrorLog(pSyncNode, logBuf);
+      } while (0);
+
+      syncAppendEntriesDestroy(pMsg);
+      return -1;
     }
   }
 

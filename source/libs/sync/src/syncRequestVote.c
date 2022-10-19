@@ -111,14 +111,8 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, SyncRequestVote* pMsg) {
 
   // maybe update term
   if (pMsg->term > ths->pRaftStore->currentTerm) {
-    syncNodeUpdateTerm(ths, pMsg->term);
-#if 0
-    if (logOK) {
-      syncNodeUpdateTerm(ths, pMsg->term);
-    } else {
-      syncNodeUpdateTermWithoutStepDown(ths, pMsg->term);
-    }
-#endif
+    syncNodeStepDown(ths, pMsg->term);
+    // syncNodeUpdateTerm(ths, pMsg->term);
   }
   ASSERT(pMsg->term <= ths->pRaftStore->currentTerm);
 
@@ -128,6 +122,9 @@ int32_t syncNodeOnRequestVote(SSyncNode* ths, SyncRequestVote* pMsg) {
     // maybe has already voted for pMsg->srcId
     // vote again, no harm
     raftStoreVote(ths->pRaftStore, &(pMsg->srcId));
+
+    // candidate ?
+    syncNodeStepDown(ths, ths->pRaftStore->currentTerm);
 
     // forbid elect for this round
     syncNodeResetElectTimer(ths);

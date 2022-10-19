@@ -408,6 +408,8 @@ char *snapshotSender2SimpleStr(SSyncSnapshotSender *pSender, char *event) {
 int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId) {
   // calculate <start, end> index
 
+  syncNodeEventLog(pSyncNode, "start snapshot ...");
+
   SSyncSnapshotSender *pSender = syncNodeGetSnapshotSender(pSyncNode, pDestId);
   if (pSender == NULL) {
     // create sender

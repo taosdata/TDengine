@@ -308,24 +308,31 @@ int32_t syncNodeFollowerCommit(SSyncNode* ths, SyncIndex newCommitIndex) {
 }
 
 int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
+  // if already drop replica, do not process
+  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
+    syncLogRecvAppendEntries(ths, pMsg, "ignore, maybe replica already dropped");
+    goto _IGNORE;
+  }
+
   // prepare response msg
   SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
   pReply->srcId = ths->myRaftId;
   pReply->destId = pMsg->srcId;
   pReply->term = ths->pRaftStore->currentTerm;
   pReply->success = false;
-  pReply->matchIndex = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
+  // pReply->matchIndex = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
+  pReply->matchIndex = SYNC_INDEX_INVALID;
   pReply->lastSendIndex = pMsg->prevLogIndex + 1;
   pReply->privateTerm = ths->pNewNodeReceiver->privateTerm;
   pReply->startTime = ths->startTime;
 
   if (pMsg->term < ths->pRaftStore->currentTerm) {
+    syncLogRecvAppendEntries(ths, pMsg, "reject, small term");
     goto _SEND_RESPONSE;
   }
 
   if (pMsg->term > ths->pRaftStore->currentTerm) {
     pReply->term = pMsg->term;
-    goto _SEND_RESPONSE;
   }
 
   syncNodeStepDown(ths, pMsg->term);
@@ -335,6 +342,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
   SyncIndex lastIndex = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
 
   if (pMsg->prevLogIndex > lastIndex) {
+    syncLogRecvAppendEntries(ths, pMsg, "reject, index not match");
     goto _SEND_RESPONSE;
   }
 
@@ -343,6 +351,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
     ASSERT(myPreLogTerm != SYNC_TERM_INVALID);
 
     if (myPreLogTerm != pMsg->prevLogTerm) {
+      syncLogRecvAppendEntries(ths, pMsg, "reject, pre-term not match");
       goto _SEND_RESPONSE;
     }
   }
@@ -357,6 +366,71 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
     SyncIndex       appendIndex = pMsg->prevLogIndex + 1;
     SSyncRaftEntry* pLocalEntry = NULL;
     int32_t         code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, appendIndex, &pLocalEntry);
+    if (code == 0) {
+      if (pLocalEntry->term == pAppendEntry->term) {
+        // do nothing
+
+        char logBuf[128];
+        snprintf(logBuf, sizeof(logBuf), "log match, do nothing, index:%ld", appendIndex);
+        syncNodeEventLog(ths, logBuf);
+
+      } else {
+        // truncate
+        code = ths->pLogStore->syncLogTruncate(ths->pLogStore, appendIndex);
+        if (code != 0) {
+          char logBuf[128];
+          snprintf(logBuf, sizeof(logBuf), "ignore, truncate error, append-index:%ld", appendIndex);
+          syncLogRecvAppendEntries(ths, pMsg, logBuf);
+
+          goto _IGNORE;
+        }
+
+        // append
+        code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
+        if (code != 0) {
+          char logBuf[128];
+          snprintf(logBuf, sizeof(logBuf), "ignore, append error, append-index:%ld", appendIndex);
+          syncLogRecvAppendEntries(ths, pMsg, logBuf);
+
+          goto _IGNORE;
+        }
+      }
+
+    } else {
+      if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
+        // log not exist
+
+        // truncate
+        code = ths->pLogStore->syncLogTruncate(ths->pLogStore, appendIndex);
+        if (code != 0) {
+          char logBuf[128];
+          snprintf(logBuf, sizeof(logBuf), "ignore, log not exist, truncate error, append-index:%ld", appendIndex);
+          syncLogRecvAppendEntries(ths, pMsg, logBuf);
+
+          goto _IGNORE;
+        }
+
+        // append
+        code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
+        if (code != 0) {
+          char logBuf[128];
+          snprintf(logBuf, sizeof(logBuf), "ignore, log not exist, append error, append-index:%ld", appendIndex);
+          syncLogRecvAppendEntries(ths, pMsg, logBuf);
+
+          goto _IGNORE;
+        }
+
+      } else {
+        // error
+        char logBuf[128];
+        snprintf(logBuf, sizeof(logBuf), "ignore, get local entry error, append-index:%ld", appendIndex);
+        syncLogRecvAppendEntries(ths, pMsg, logBuf);
+
+        goto _IGNORE;
+      }
+    }
+
+#if 0
     if (code != 0 && terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
       code = ths->pLogStore->syncLogTruncate(ths->pLogStore, appendIndex);
       ASSERT(code == 0);
@@ -377,17 +451,26 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
         ASSERT(code == 0);
       }
     }
+#endif
+
+    // update match index
+    pReply->matchIndex = pAppendEntry->index;
 
     syncEntryDestory(pLocalEntry);
     syncEntryDestory(pAppendEntry);
-  }
 
-  // update match index
-  pReply->matchIndex = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
+  } else {
+    // no append entries, do nothing
+    // maybe has extra entries, no harm
+
+    // update match index
+    pReply->matchIndex = pMsg->prevLogIndex;
+  }
 
   // maybe update commit index, leader notice me
   syncNodeFollowerCommit(ths, pMsg->commitIndex);
 
+  syncLogRecvAppendEntries(ths, pMsg, "accept");
   goto _SEND_RESPONSE;
 
 _IGNORE:
