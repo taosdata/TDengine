@@ -2822,6 +2822,73 @@ static int32_t sysTableUserTagsFillOneTableTags(const SSysTableScanInfo* pInfo, 
   return TSDB_CODE_SUCCESS;
 }
 
+typedef int (*__optSysFilter)(void* a, void* b, int16_t dtype);
+
+int optSysDoCompare(__compar_fn_t func, int8_t comparType, void* a, void* b) {
+  int32_t cmp = func(a, b);
+  switch (comparType) {
+    case OP_TYPE_LOWER_THAN:
+      if (cmp < 0) return 0;
+      break;
+    case OP_TYPE_LOWER_EQUAL: {
+      if (cmp <= 0) return 0;
+      break;
+    }
+    case OP_TYPE_GREATER_THAN: {
+      if (cmp > 0) return 0;
+      break;
+    }
+    case OP_TYPE_GREATER_EQUAL: {
+      if (cmp >= 0) return 0;
+      break;
+    }
+    case OP_TYPE_EQUAL: {
+      if (cmp == 0) return 0;
+      break;
+    }
+    default:
+      return -1;
+  }
+  return 1;
+}
+
+static int optSysFilterFuncImpl__LowerThan(void* a, void* b, int16_t dtype) {
+  __compar_fn_t func = getComparFunc(dtype, 0);
+  return optSysDoCompare(func, OP_TYPE_LOWER_THAN, a, b);
+}
+static int optSysFilterFuncImpl__LowerEqual(void* a, void* b, int16_t dtype) {
+  __compar_fn_t func = getComparFunc(dtype, 0);
+  return optSysDoCompare(func, OP_TYPE_LOWER_EQUAL, a, b);
+}
+static int optSysFilterFuncImpl__GreaterThan(void* a, void* b, int16_t dtype) {
+  __compar_fn_t func = getComparFunc(dtype, 0);
+  return optSysDoCompare(func, OP_TYPE_GREATER_THAN, a, b);
+}
+static int optSysFilterFuncImpl__GreaterEqual(void* a, void* b, int16_t dtype) {
+  __compar_fn_t func = getComparFunc(dtype, 0);
+  return optSysDoCompare(func, OP_TYPE_GREATER_EQUAL, a, b);
+}
+static int optSysFilterFuncImpl__Equal(void* a, void* b, int16_t dtype) {
+  __compar_fn_t func = getComparFunc(dtype, 0);
+  return optSysDoCompare(func, OP_TYPE_EQUAL, a, b);
+}
+
+static __optSysFilter optSysGetFilterFunc(int32_t ctype, bool* reverse) {
+  if (ctype == OP_TYPE_LOWER_EQUAL || ctype == OP_TYPE_LOWER_THAN) {
+    *reverse = true;
+  }
+  if (ctype == OP_TYPE_LOWER_THAN)
+    return optSysFilterFuncImpl__LowerThan;
+  else if (ctype == OP_TYPE_LOWER_EQUAL)
+    return optSysFilterFuncImpl__LowerEqual;
+  else if (ctype == OP_TYPE_GREATER_THAN)
+    return optSysFilterFuncImpl__GreaterThan;
+  else if (ctype == OP_TYPE_GREATER_EQUAL)
+    return optSysFilterFuncImpl__GreaterEqual;
+  else if (ctype == OP_TYPE_EQUAL)
+    return optSysFilterFuncImpl__Equal;
+  return NULL;
+}
 static int32_t sysFilte__DbName(void* pMeta, SNode* pNode, SArray* result) {
   void* pVnode = pMeta;
 
@@ -2835,6 +2902,16 @@ static int32_t sysFilte__DbName(void* pMeta, SNode* pNode, SArray* result) {
   tNameGetDbName(&sn, varDataVal(dbname));
   varDataSetLen(dbname, strlen(varDataVal(dbname)));
 
+  SOperatorNode* pOper = (SOperatorNode*)pNode;
+
+  SValueNode* pVal = (SValueNode*)pOper->pRight;
+
+  __optSysFilter func = optSysGetFilterFunc(pOper->operType);
+  if (func == NULL) return -1;
+
+  int ret = func(dbname, pVal->datum.p, TSDB_DATA_TYPE_VARCHAR);
+  if (ret == 0) return 0;
+
   return -1;
 }
 static int32_t sysFilte__VgroupId(void* pMeta, SNode* pNode, SArray* result) {
@@ -2842,7 +2919,15 @@ static int32_t sysFilte__VgroupId(void* pMeta, SNode* pNode, SArray* result) {
 
   int32_t vgId = 0;
   vnodeGetInfo(pVnode, NULL, &vgId);
+
   SOperatorNode* pOper = (SOperatorNode*)pNode;
+  SValueNode*    pVal = (SValueNode*)pOper->pRight;
+
+  __optSysFilter func = optSysGetFilterFunc(pOper->operType);
+  if (func == NULL) return -1;
+
+  int ret = func(&vgId, &pVal->datum.i, TSDB_DATA_TYPE_BIGINT);
+  if (ret == 0) return 0;
 
   return -1;
 }
