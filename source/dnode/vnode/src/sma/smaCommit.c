@@ -89,18 +89,18 @@ int32_t smaBegin(SSma *pSma) {
 
   if ((code = tsdbBegin(VND_RSMA1(pVnode))) < 0) {
     smaError("vgId:%d, failed to begin rsma1 since %s", TD_VID(pVnode), tstrerror(code));
-    return code;
+    goto _exit;
   }
 
   if ((code = tsdbBegin(VND_RSMA2(pVnode))) < 0) {
     smaError("vgId:%d, failed to begin rsma2 since %s", TD_VID(pVnode), tstrerror(code));
-    return code;
+    goto _exit;
   }
 
   // set trigger stat
   SSmaEnv *pSmaEnv = SMA_RSMA_ENV(pSma);
   if (!pSmaEnv) {
-    return code;
+    goto _exit;
   }
   SRSmaStat *pRSmaStat = (SRSmaStat *)SMA_ENV_STAT(pSmaEnv);
   int8_t     rsmaTriggerStat =
@@ -117,10 +117,12 @@ int32_t smaBegin(SSma *pSma) {
     }
     default: {
       atomic_store_8(RSMA_TRIGGER_STAT(pRSmaStat), TASK_TRIGGER_STAT_ACTIVE);
-      smaError("vgId:%d, rsma trigger stat %" PRIi8 " is unexpected", TD_VID(pVnode), rsmaTriggerStat);
+      smaWarn("vgId:%d, rsma trigger stat %" PRIi8 " is unexpected", TD_VID(pVnode), rsmaTriggerStat);
       break;
     }
   }
+_exit:
+  terrno = code;
   return code;
 }
 
