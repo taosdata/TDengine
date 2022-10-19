@@ -654,7 +654,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam* pIn, SScalarParam* pOut, 
     return TSDB_CODE_APP_ERROR;
   }
 
-  int32_t rstart = startIndex >= 0 ? startIndex : 0;
+  int32_t rstart = (startIndex >= 0 && startIndex < pIn->numOfRows) ? startIndex : 0;
   int32_t rend = numOfRows > 0 ? rstart + numOfRows - 1 : rstart + pIn->numOfRows - 1;
   SSclVectorConvCtx cCtx = {pIn, pOut, rstart, rend, pInputCol->info.type, pOutputCol->info.type};
 

@@ -361,7 +361,12 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
   SArray* pTagVals = NULL;
   STag*   pTag = (STag*)pCfg->pTags;
 
-  if (pCfg->pTags && tTagIsJson(pTag)) {
+  if (NULL == pCfg->pTags || pCfg->numOfTags <= 0) {
+    qError("tag missed in table cfg, pointer:%p, numOfTags:%d", pCfg->pTags, pCfg->numOfTags);
+    return TSDB_CODE_APP_ERROR;
+  }
+
+  if (tTagIsJson(pTag)) {
     char* pJson = parseTagDatatoJson(pTag);
     if (pJson) {
       *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s", pJson);

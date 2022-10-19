@@ -403,6 +403,10 @@ const char *sdbStatusName(ESdbStatus status);
 void        sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper);
 int32_t     sdbGetIdFromRaw(SSdb *pSdb, SSdbRaw *pRaw);
 
+void sdbWriteLock(SSdb *pSdb, int32_t type);
+void sdbReadLock(SSdb *pSdb, int32_t type);
+void sdbUnLock(SSdb *pSdb, int32_t type);
+
 #ifdef __cplusplus
 }
 #endif
