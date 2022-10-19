@@ -137,6 +137,8 @@ int32_t streamPipelineExec(SStreamTask* pTask, int32_t batchNum, bool dispatch) 
       if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
         streamDispatch(pTask);
       }
+    } else {
+      taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
     }
   }
 

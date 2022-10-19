@@ -262,12 +262,14 @@ int32_t streamLoadTasks(SStreamMeta* pMeta) {
     if (pMeta->expandFunc(pMeta->ahandle, pTask) < 0) {
       tdbFree(pKey);
       tdbFree(pVal);
+      tdbTbcClose(pCur);
       return -1;
     }
 
     if (taosHashPut(pMeta->pTasks, &pTask->taskId, sizeof(int32_t), &pTask, sizeof(void*)) < 0) {
       tdbFree(pKey);
       tdbFree(pVal);
+      tdbTbcClose(pCur);
       return -1;
     }
   }
