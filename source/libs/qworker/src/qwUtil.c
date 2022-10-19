@@ -412,7 +412,7 @@ void qwSetHbParam(int64_t refId, SQWHbParam **pParam) {
   while (true) {
     paramIdx = atomic_load_32(&gQwMgmt.paramIdx);
     if (paramIdx == tListLen(gQwMgmt.param)) {
-      newParamIdx = 0;
+      newParamIdx = 1;
     } else {
       newParamIdx = paramIdx + 1;
     }
@@ -420,6 +420,10 @@ void qwSetHbParam(int64_t refId, SQWHbParam **pParam) {
     if (paramIdx == atomic_val_compare_exchange_32(&gQwMgmt.paramIdx, paramIdx, newParamIdx)) {
       break;
     }
+  }
+
+  if (paramIdx == tListLen(gQwMgmt.param)) {
+    paramIdx = 0;
   }
 
   gQwMgmt.param[paramIdx].qwrId = gQwMgmt.qwRef;

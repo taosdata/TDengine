@@ -945,7 +945,7 @@ MIN(expr)
 MODE(expr)
 ```
 
-**Description**:The value which has the highest frequency of occurrence. NULL is returned if there are multiple values which have highest frequency of occurrence.
+**Description**:The value which has the highest frequency of occurrence. One random value is returned if there are multiple values which have highest frequency of occurrence.
 
 **Return value type**: Same as the input data
 

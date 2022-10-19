@@ -541,7 +541,7 @@ static int tdbPagerWritePageToJournal(SPager *pPager, SPage *pPage) {
 
   ret = tdbOsWrite(pPager->jfd, pPage->pData, pPage->pageSize);
   if (ret < 0) {
-    tdbError("failed to write page data due to %s. file:%s, pageSize:%ld", strerror(errno), pPager->jFileName,
+    tdbError("failed to write page data due to %s. file:%s, pageSize:%d", strerror(errno), pPager->jFileName,
              pPage->pageSize);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -570,7 +570,7 @@ static int tdbPagerWritePageToDB(SPager *pPager, SPage *pPage) {
 
   ret = tdbOsWrite(pPager->fd, pPage->pData, pPage->pageSize);
   if (ret < 0) {
-    tdbError("failed to write page data due to %s. file:%s, pageSize:%ld", strerror(errno), pPager->dbFileName,
+    tdbError("failed to write page data due to %s. file:%s, pageSize:%d", strerror(errno), pPager->dbFileName,
              pPage->pageSize);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;

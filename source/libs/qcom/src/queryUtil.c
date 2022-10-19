@@ -357,8 +357,7 @@ char* parseTagDatatoJson(void* p) {
   for (int j = 0; j < nCols; ++j) {
     STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, j);
     // json key  encode by binary
-    memset(tagJsonKey, 0, sizeof(tagJsonKey));
-    memcpy(tagJsonKey, pTagVal->pKey, strlen(pTagVal->pKey));
+    tstrncpy(tagJsonKey, pTagVal->pKey, sizeof(tagJsonKey));
     // json value
     char type = pTagVal->type;
     if (type == TSDB_DATA_TYPE_NULL) {

@@ -149,7 +149,7 @@ int32_t tEncodeSTqHandle(SEncoder* pEncoder, const STqHandle* pHandle);
 int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle);
 
 // tqRead
-int32_t tqScan(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMetaRsp* pMetaRsp, STqOffsetVal* offset);
+int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMetaRsp* pMetaRsp, STqOffsetVal* offset);
 int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffsetVal* pOffset);
 int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHead** pHeadWithCkSum);
 
@@ -181,8 +181,8 @@ int32_t         tqOffsetDelete(STqOffsetStore* pStore, const char* subscribeKey)
 int32_t         tqOffsetCommitFile(STqOffsetStore* pStore);
 
 // tqSink
-void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
-void tqTableSink1(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
+void tqSinkToTableMerge(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
+void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
 
 // tqOffset
 char*   tqOffsetBuildFName(const char* path, int32_t ver);

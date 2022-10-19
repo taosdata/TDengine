@@ -302,9 +302,11 @@ int32_t ctgUpdateTbMeta(SCatalog* pCtg, STableMetaRsp* rspMsg, bool syncOp) {
 
 _return:
 
-  taosMemoryFreeClear(output->tbMeta);
-  taosMemoryFreeClear(output);
-
+  if (output) {
+    taosMemoryFreeClear(output->tbMeta);
+    taosMemoryFreeClear(output);
+  }
+  
   CTG_RET(code);
 }
 

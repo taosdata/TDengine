@@ -1190,23 +1190,22 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
   SColumnInfoData* pDestGpCol = taosArrayGet(pDestBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   SColumnInfoData* pDestCalStartTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
   SColumnInfoData* pDestCalEndTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
-  int32_t          dummy = 0;
   int64_t          version = pSrcBlock->info.version - 1;
   for (int32_t i = 0; i < pSrcBlock->info.rows; i++) {
     uint64_t groupId = getGroupIdByData(pInfo, uidCol[i], startData[i], version);
     // gap must be 0.
-    SResultWindowInfo* pStartWin =
-        getCurSessionWindow(pInfo->windowSup.pStreamAggSup, startData[i], endData[i], groupId, 0, &dummy);
-    if (!pStartWin) {
+    SSessionKey startWin = {0};
+    getCurSessionWindow(pInfo->windowSup.pStreamAggSup, startData[i], endData[i], groupId, &startWin);
+    if (IS_INVALID_SESSION_WIN_KEY(startWin)) {
       // window has been closed.
       continue;
     }
-    SResultWindowInfo* pEndWin =
-        getCurSessionWindow(pInfo->windowSup.pStreamAggSup, endData[i], endData[i], groupId, 0, &dummy);
-    ASSERT(pEndWin);
-    TSKEY ts = INT64_MIN;
-    colDataAppend(pDestStartCol, i, (const char*)&pStartWin->win.skey, false);
-    colDataAppend(pDestEndCol, i, (const char*)&pEndWin->win.ekey, false);
+    SSessionKey endWin = {0};
+    getCurSessionWindow(pInfo->windowSup.pStreamAggSup, endData[i], endData[i], groupId, &endWin);
+    ASSERT(!IS_INVALID_SESSION_WIN_KEY(endWin));
+    colDataAppend(pDestStartCol, i, (const char*)&startWin.win.skey, false);
+    colDataAppend(pDestEndCol, i, (const char*)&endWin.win.ekey, false);
+
     colDataAppendNULL(pDestUidCol, i);
     colDataAppend(pDestGpCol, i, (const char*)&groupId, false);
     colDataAppendNULL(pDestCalStartTsCol, i);
