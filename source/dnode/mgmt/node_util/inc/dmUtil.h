@@ -83,20 +83,6 @@ typedef enum {
   DND_ENV_CLEANUP,
 } EDndEnvStatus;
 
-typedef enum {
-  DND_PROC_SINGLE,
-  DND_PROC_CHILD,
-  DND_PROC_PARENT,
-  DND_PROC_TEST,
-} EDndProcType;
-
-typedef enum {
-  DND_FUNC_REQ = 1,
-  DND_FUNC_RSP = 2,
-  DND_FUNC_REGIST = 3,
-  DND_FUNC_RELEASE = 4,
-} EProcFuncType;
-
 typedef int32_t (*ProcessCreateNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef int32_t (*ProcessDropNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef void (*SendMonitorReportFp)();
@@ -165,11 +151,7 @@ typedef struct {
 
 // dmUtil.c
 const char *dmStatStr(EDndRunStatus stype);
-const char *dmNodeLogName(EDndNodeType ntype);
-const char *dmNodeProcName(EDndNodeType ntype);
 const char *dmNodeName(EDndNodeType ntype);
-const char *dmProcStr(EDndProcType ptype);
-const char *dmFuncStr(EProcFuncType etype);
 void       *dmSetMgmtHandle(SArray *pArray, tmsg_t msgType, void *nodeMsgFp, bool needCheckVgId);
 void        dmGetMonitorSystemInfo(SMonSysInfo *pInfo);
 
@@ -177,8 +159,6 @@ void        dmGetMonitorSystemInfo(SMonSysInfo *pInfo);
 int32_t   dmReadFile(const char *path, const char *name, bool *pDeployed);
 int32_t   dmWriteFile(const char *path, const char *name, bool deployed);
 TdFilePtr dmCheckRunning(const char *dataDir);
-int32_t   dmReadShmFile(const char *path, const char *name, EDndNodeType runType, SShm *pShm);
-int32_t   dmWriteShmFile(const char *path, const char *name, const SShm *pShm);
 
 // dmEps.c
 int32_t dmReadEps(SDnodeData *pData);

@@ -25,10 +25,9 @@ extern "C" {
 /**
  * @brief Initialize the dnode
  *
- * @param rtype for internal debug usage, default is 0
  * @return int32_t 0 for success and -1 for failure
  */
-int32_t dmInit(int8_t rtype);
+int32_t dmInit();
 
 /**
  * @brief Cleanup the dnode

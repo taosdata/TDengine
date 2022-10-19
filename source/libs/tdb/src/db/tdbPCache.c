@@ -105,7 +105,7 @@ static int tdbPCacheAlterImpl(SPCache *pCache, int32_t nPage) {
     for (int32_t iPage = pCache->nPages; iPage < nPage; iPage++) {
       if (tdbPageCreate(pCache->szPage, &aPage[iPage], tdbDefaultMalloc, NULL) < 0) {
         // TODO: handle error
-        tdbOsFree(pCache->aPage);
+        tdbOsFree(aPage);
         return -1;
       }
 

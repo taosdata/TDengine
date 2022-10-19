@@ -105,3 +105,5 @@ void osSetSystemLocale(const char *inLocale, const char *inCharSet) {
   memcpy(tsLocale, inLocale, strlen(inLocale) + 1);
   memcpy(tsCharset, inCharSet, strlen(inCharSet) + 1);
 }
+
+void osSetProcPath(int32_t argc, char **argv) { tsProcPath = argv[0]; }
