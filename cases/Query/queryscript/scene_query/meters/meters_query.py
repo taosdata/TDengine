@@ -29,13 +29,23 @@ class TDTestQuery(TDCase):
         
         #basic_param
         self.db = "db"
-        self.service_host = ""
+        
         table_list = ['db.stb0',]
         self.table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
         self.testcasePath = os.path.split(__file__)[0]
         self.testcaseFilename = os.path.split(__file__)[-1]
         self.interval_lists = [1,2,3,4,6,7,8,9,11,12,13,14,15,16,17,18,19,20,21,22]
         self.interval_list = random.sample(self.interval_lists,10) 
+        
+        self.firstEP = []
+        for env_setting in self.env_setting["settings"]:
+            if env_setting["name"].lower() == "taosd":
+                self.taosd_setting = env_setting
+                self.firstEP.append(
+                    self.taosd_setting['spec']['config']['firstEP'])
+        self.target_taosd = self.firstEP[-1].split(':')
+        print(self.target_taosd[0])
+        self.service_host = self.target_taosd[0]
 
     def tags(self) :
 	
