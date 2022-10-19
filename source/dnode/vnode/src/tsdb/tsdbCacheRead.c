@@ -162,7 +162,7 @@ static int32_t doExtractCacheRow(SCacheRowsReader* pr, SLRUCache* lruCache, uint
   int32_t code = TSDB_CODE_SUCCESS;
   *pRow = NULL;
 
-  if ((pr->type & CACHESCAN_RETRIEVE_LAST_ROW) == CACHESCAN_RETRIEVE_LAST_ROW) {
+  if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_LAST_ROW)) {
     code = tsdbCacheGetLastrowH(lruCache, uid, pr->pVnode->pTsdb, h);
   } else {
     code = tsdbCacheGetLastH(lruCache, uid, pr->pVnode->pTsdb, h);
@@ -231,7 +231,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
   }
 
   // retrieve the only one last row of all tables in the uid list.
-  if ((pr->type & CACHESCAN_RETRIEVE_TYPE_SINGLE) == CACHESCAN_RETRIEVE_TYPE_SINGLE) {
+  if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_SINGLE)) {
     for (int32_t i = 0; i < numOfTables; ++i) {
       STableKeyInfo* pKeyInfo = taosArrayGet(pr->pTableList, i);
 
@@ -255,6 +255,15 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
               hasRes = true;
               p->ts = pCol->ts;
               p->colVal = pCol->colVal;
+
+              // only set value for last row query
+              if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_LAST_ROW)) {
+                if (taosArrayGetSize(pTableUidList) == 0) {
+                  taosArrayPush(pTableUidList, &pKeyInfo->uid);
+                } else {
+                  taosArraySet(pTableUidList, 0, &pKeyInfo->uid);
+                }
+              }
             }
           } else {
             SLastCol* p = taosArrayGet(pLastCols, slotId);
@@ -268,15 +277,12 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
               hasRes = true;
               p->ts = pColVal->ts;
 
-              if (COL_VAL_IS_VALUE(&pColVal->colVal)) {
-                if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
-                  uint8_t* px = p->colVal.value.pData;
-                  p->colVal = pColVal->colVal;
-                  p->colVal.value.pData = px;
-                  memcpy(px, pColVal->colVal.value.pData, pColVal->colVal.value.nData);
-                } else {
-                  p->colVal = pColVal->colVal;
-                }
+              uint8_t* px = p->colVal.value.pData;
+              p->colVal = pColVal->colVal;
+
+              if (COL_VAL_IS_VALUE(&pColVal->colVal) && IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
+                p->colVal.value.pData = px;
+                memcpy(px, pColVal->colVal.value.pData, pColVal->colVal.value.nData);
               }
             }
           }
@@ -290,7 +296,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
       saveOneRow(pLastCols, pResBlock, pr, slotIds, pRes);
     }
 
-  } else if ((pr->type & CACHESCAN_RETRIEVE_TYPE_ALL) == CACHESCAN_RETRIEVE_TYPE_ALL) {
+  } else if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_ALL)) {
     for (int32_t i = pr->tableIndex; i < numOfTables; ++i) {
       STableKeyInfo* pKeyInfo = taosArrayGet(pr->pTableList, i);
       code = doExtractCacheRow(pr, lruCache, pKeyInfo->uid, &pRow, &h);
