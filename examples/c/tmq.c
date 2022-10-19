@@ -212,6 +212,7 @@ tmq_list_t* build_topic_list() {
   tmq_list_t* topicList = tmq_list_new();
   int32_t     code = tmq_list_append(topicList, "topicname");
   if (code) {
+    tmq_list_destroy(topicList);
     return NULL;
   }
   return topicList;

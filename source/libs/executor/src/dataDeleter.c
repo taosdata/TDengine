@@ -267,6 +267,8 @@ int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pData
   taosThreadMutexInit(&deleter->mutex, NULL);
   if (NULL == deleter->pDataBlocks) {
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    destroyDataSinker((SDataSinkHandle*)deleter);
+    taosMemoryFree(deleter);
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
   *pHandle = deleter;

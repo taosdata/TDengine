@@ -51,7 +51,6 @@ extern int32_t tsMnodeShmSize;
 extern int32_t tsVnodeShmSize;
 extern int32_t tsQnodeShmSize;
 extern int32_t tsSnodeShmSize;
-extern int32_t tsBnodeShmSize;
 extern int32_t tsNumOfShmThreads;
 
 // queue & threads

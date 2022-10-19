@@ -1214,7 +1214,7 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode *tree, SArray *group) {
 
 int32_t filterAddUnitFromUnit(SFilterInfo *dst, SFilterInfo *src, SFilterUnit *u, uint32_t *uidx) {
   SFilterFieldId left, right, *pright = &right;
-  int32_t        type = FILTER_UNIT_DATA_TYPE(u);
+  uint8_t        type = FILTER_UNIT_DATA_TYPE(u);
   uint16_t       flag = 0;
 
   filterAddField(dst, FILTER_UNIT_COL_DESC(src, u), NULL, FLD_TYPE_COLUMN, &left, 0, false);
@@ -1644,7 +1644,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
 
         SFilterField *left = FILTER_UNIT_LEFT_FIELD(info, unit);
         SColumnNode  *refNode = (SColumnNode *)left->desc;
-        if (unit->compare.optr >= 0 && unit->compare.optr <= OP_TYPE_JSON_CONTAINS) {
+        if (unit->compare.optr <= OP_TYPE_JSON_CONTAINS) {
           len = sprintf(str, "UNIT[%d] => [%d][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId,
                         operatorTypeStr(unit->compare.optr));
         }
@@ -1664,7 +1664,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
 
         if (unit->compare.optr2) {
           strcat(str, " && ");
-          if (unit->compare.optr2 >= 0 && unit->compare.optr2 <= OP_TYPE_JSON_CONTAINS) {
+          if (unit->compare.optr2 <= OP_TYPE_JSON_CONTAINS) {
             sprintf(str + strlen(str), "[%d][%d]  %s  [", refNode->dataBlockId, refNode->slotId,
                     operatorTypeStr(unit->compare.optr2));
           }
@@ -1709,9 +1709,9 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
                ctx->isrange);
         if (ctx->isrange) {
           SFilterRangeNode *r = ctx->rs;
+          int32_t tlen = 0;
           while (r) {
-            char    str[256] = {0};
-            int32_t tlen = 0;
+            char str[256] = {0};
             if (FILTER_GET_FLAG(r->ra.sflag, RANGE_FLG_NULL)) {
               strcat(str, "(NULL)");
             } else {
@@ -2614,7 +2614,7 @@ int32_t filterRewrite(SFilterInfo *info, SFilterGroupCtx **gRes, int32_t gResNum
         int32_t usize = (int32_t)taosArrayGetSize((SArray *)colInfo->info);
 
         for (int32_t n = 0; n < usize; ++n) {
-          SFilterUnit *u = taosArrayGetP((SArray *)colInfo->info, n);
+          SFilterUnit *u = (SFilterUnit *)taosArrayGetP((SArray *)colInfo->info, n);
 
           filterAddUnitFromUnit(info, &oinfo, u, &uidx);
           filterAddUnitToGroup(&ng, uidx);

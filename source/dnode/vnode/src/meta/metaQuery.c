@@ -675,7 +675,7 @@ int32_t metaGetTbTSchemaEx(SMeta *pMeta, tb_uid_t suid, tb_uid_t uid, int32_t sv
   SSchemaWrapper *pSchemaWrapper = &schema;
 
   tDecoderInit(&dc, pData, nData);
-  tDecodeSSchemaWrapper(&dc, pSchemaWrapper);
+  (void)tDecodeSSchemaWrapper(&dc, pSchemaWrapper);
   tDecoderClear(&dc);
   tdbFree(pData);
 
@@ -1059,7 +1059,7 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
 
   if (param->val == NULL) {
     metaError("vgId:%d, failed to filter NULL data", TD_VID(pMeta->pVnode));
-    return -1;
+    goto END;
   } else {
     if (IS_VAR_DATA_TYPE(param->type)) {
       tagData = varDataVal(param->val);
@@ -1111,27 +1111,25 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
         break;
       }
     }
-    if (p->suid != pKey->suid) {
+    if (p == NULL || p->suid != pKey->suid) {
       break;
     }
     first = false;
-    if (p != NULL) {
-      int32_t cmp = (*param->filterFunc)(p->data, pKey->data, pKey->type);
-      if (cmp == 0) {
-        // match
-        tb_uid_t tuid = 0;
-        if (IS_VAR_DATA_TYPE(pKey->type)) {
-          tuid = *(tb_uid_t *)(p->data + varDataTLen(p->data));
-        } else {
-          tuid = *(tb_uid_t *)(p->data + tDataTypes[pCursor->type].bytes);
-        }
-        taosArrayPush(pUids, &tuid);
-      } else if (cmp == 1) {
-        // not match but should continue to iter
+    int32_t cmp = (*param->filterFunc)(p->data, pKey->data, pKey->type);
+    if (cmp == 0) {
+      // match
+      tb_uid_t tuid = 0;
+      if (IS_VAR_DATA_TYPE(pKey->type)) {
+        tuid = *(tb_uid_t *)(p->data + varDataTLen(p->data));
       } else {
-        // not match and no more result
-        break;
+        tuid = *(tb_uid_t *)(p->data + tDataTypes[pCursor->type].bytes);
       }
+      taosArrayPush(pUids, &tuid);
+    } else if (cmp == 1) {
+      // not match but should continue to iter
+    } else {
+      // not match and no more result
+      break;
     }
     valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
     if (valid < 0) {

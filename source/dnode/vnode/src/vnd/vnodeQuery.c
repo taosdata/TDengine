@@ -272,6 +272,12 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   SRpcMsg   rspMsg = {0};
   void     *pRsp = NULL;
 
+  if (msgNum >= MAX_META_MSG_IN_BATCH) {
+    code = TSDB_CODE_INVALID_MSG;
+    qError("too many msgs %d in vnode batch meta req", msgNum);
+    goto _exit;
+  }
+
   SArray *batchRsp = taosArrayInit(msgNum, sizeof(SBatchRsp));
   if (NULL == batchRsp) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -324,6 +330,11 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   rspSize += sizeof(int32_t);
   offset = 0;
 
+  if (rspSize > MAX_META_BATCH_RSP_SIZE) {
+    code = TSDB_CODE_INVALID_MSG_LEN;
+    goto _exit;
+  }
+  
   pRsp = rpcMallocCont(rspSize);
   if (pRsp == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;

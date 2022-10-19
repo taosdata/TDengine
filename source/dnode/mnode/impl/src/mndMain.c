@@ -15,7 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "mndAcct.h"
-#include "mndBnode.h"
 #include "mndCluster.h"
 #include "mndConsumer.h"
 #include "mndDb.h"
@@ -232,7 +231,7 @@ static int32_t mndInitWal(SMnode *pMnode) {
 
   pMnode->pWal = walOpen(path, &cfg);
   if (pMnode->pWal == NULL) {
-    mError("failed to open wal since %s", terrstr());
+    mError("failed to open wal since %s. wal:%s", terrstr(), path);
     return -1;
   }
 
@@ -296,7 +295,6 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-mnode", mndInitMnode, mndCleanupMnode) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-qnode", mndInitQnode, mndCleanupQnode) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-snode", mndInitSnode, mndCleanupSnode) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-bnode", mndInitBnode, mndCleanupBnode) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-dnode", mndInitDnode, mndCleanupDnode) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-user", mndInitUser, mndCleanupUser) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-grant", mndInitGrant, mndCleanupGrant) != 0) return -1;
@@ -603,22 +601,27 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
     return 0;
   }
   if (mndAcquireRpc(pMsg->info.node) == 0) return 0;
+
+  SMnode     *pMnode = pMsg->info.node;
+  const char *role = syncGetMyRoleStr(pMnode->syncMgmt.sync);
+  bool        restored = syncIsRestoreFinish(pMnode->syncMgmt.sync);
   if (pMsg->msgType == TDMT_MND_MQ_TIMER || pMsg->msgType == TDMT_MND_TELEM_TIMER ||
       pMsg->msgType == TDMT_MND_TRANS_TIMER || pMsg->msgType == TDMT_MND_TTL_TIMER ||
       pMsg->msgType == TDMT_MND_UPTIME_TIMER) {
+    mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
+           pMnode->stopped, restored, role);
     return -1;
   }
 
-  SEpSet  epSet = {0};
-  SMnode *pMnode = pMsg->info.node;
+  const STraceId *trace = &pMsg->info.traceId;
+  SEpSet          epSet = {0};
   mndGetMnodeEpSet(pMnode, &epSet);
 
-  const STraceId *trace = &pMsg->info.traceId;
   mDebug(
-      "msg:%p, failed to check mnode state since %s, mnode restored:%d stopped:%d, sync restored:%d role:%s type:%s "
-      "numOfEps:%d inUse:%d",
-      pMsg, terrstr(), pMnode->restored, pMnode->stopped, syncIsRestoreFinish(pMnode->syncMgmt.sync),
-      syncGetMyRoleStr(pMnode->syncMgmt.sync), TMSG_INFO(pMsg->msgType), epSet.numOfEps, epSet.inUse);
+      "msg:%p, type:%s failed to process since %s, mnode restored:%d stopped:%d, sync restored:%d "
+      "role:%s, redirect numOfEps:%d inUse:%d",
+      pMsg, TMSG_INFO(pMsg->msgType), terrstr(), pMnode->restored, pMnode->stopped, restored, role, epSet.numOfEps,
+      epSet.inUse);
 
   if (epSet.numOfEps > 0) {
     for (int32_t i = 0; i < epSet.numOfEps; ++i) {

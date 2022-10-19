@@ -43,7 +43,6 @@ static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRe
   blockEncode(pBlock, (*pRsp)->data, &len, numOfCols, false);
   ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
 
-  blockDataDestroy(pBlock);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -59,21 +58,33 @@ static int32_t getSchemaBytes(const SSchema* pSchema) {
   }
 }
 
-static SSDataBlock* buildDescResultDataBlock() {
+static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
   SSDataBlock* pBlock = createDataBlock();
+  if (NULL == pBlock) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_FIELD_LEN, 1);
-  blockDataAppendColInfo(pBlock, &infoData);
+  int32_t         code = blockDataAppendColInfo(pBlock, &infoData);
+  if (TSDB_CODE_SUCCESS == code) {
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_TYPE_LEN, 2);
+    code = blockDataAppendColInfo(pBlock, &infoData);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, tDataTypes[TSDB_DATA_TYPE_INT].bytes, 3);
+    code = blockDataAppendColInfo(pBlock, &infoData);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_NOTE_LEN, 4);
+    code = blockDataAppendColInfo(pBlock, &infoData);
+  }
 
-  infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_TYPE_LEN, 2);
-  blockDataAppendColInfo(pBlock, &infoData);
-
-  infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, tDataTypes[TSDB_DATA_TYPE_INT].bytes, 3);
-  blockDataAppendColInfo(pBlock, &infoData);
-
-  infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_NOTE_LEN, 4);
-  blockDataAppendColInfo(pBlock, &infoData);
-  return pBlock;
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOutput = pBlock;
+  } else {
+    blockDataDestroy(pBlock);
+  }
+  return code;
 }
 
 static void setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock, int32_t numOfRows, STableMeta* pMeta) {
@@ -109,22 +120,39 @@ static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** 
   SDescribeStmt* pDesc = (SDescribeStmt*)pStmt;
   int32_t        numOfRows = TABLE_TOTAL_COL_NUM(pDesc->pMeta);
 
-  SSDataBlock* pBlock = buildDescResultDataBlock();
-  setDescResultIntoDataBlock(sysInfoUser, pBlock, numOfRows, pDesc->pMeta);
-
-  return buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS, pRsp);
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildDescResultDataBlock(&pBlock);
+  if (TSDB_CODE_SUCCESS == code) {
+    setDescResultIntoDataBlock(sysInfoUser, pBlock, numOfRows, pDesc->pMeta);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS, pRsp);
+  }
+  blockDataDestroy(pBlock);
+  return code;
 }
 
 static int32_t execResetQueryCache() { return catalogClearCache(); }
 
-static SSDataBlock* buildCreateDBResultDataBlock() {
-  SSDataBlock*    pBlock = createDataBlock();
-  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_DB_RESULT_COLS, 1);
-  blockDataAppendColInfo(pBlock, &infoData);
+static int32_t buildCreateDBResultDataBlock(SSDataBlock** pOutput) {
+  SSDataBlock* pBlock = createDataBlock();
+  if (NULL == pBlock) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
-  infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_DB_RESULT_FIELD2_LEN, 2);
-  blockDataAppendColInfo(pBlock, &infoData);
-  return pBlock;
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_DB_RESULT_COLS, 1);
+  int32_t         code = blockDataAppendColInfo(pBlock, &infoData);
+  if (TSDB_CODE_SUCCESS == code) {
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_DB_RESULT_FIELD2_LEN, 2);
+    code = blockDataAppendColInfo(pBlock, &infoData);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOutput = pBlock;
+  } else {
+    blockDataDestroy(pBlock);
+  }
+  return code;
 }
 
 int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {
@@ -259,21 +287,37 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, S
 }
 
 static int32_t execShowCreateDatabase(SShowCreateDatabaseStmt* pStmt, SRetrieveTableRsp** pRsp) {
-  SSDataBlock* pBlock = buildCreateDBResultDataBlock();
-  setCreateDBResultIntoDataBlock(pBlock, pStmt->dbName, pStmt->pCfg);
-  return buildRetrieveTableRsp(pBlock, SHOW_CREATE_DB_RESULT_COLS, pRsp);
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildCreateDBResultDataBlock(&pBlock);
+  if (TSDB_CODE_SUCCESS == code) {
+    setCreateDBResultIntoDataBlock(pBlock, pStmt->dbName, pStmt->pCfg);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_DB_RESULT_COLS, pRsp);
+  }
+  blockDataDestroy(pBlock);
+  return code;
 }
 
-static SSDataBlock* buildCreateTbResultDataBlock() {
+static int32_t buildCreateTbResultDataBlock(SSDataBlock** pOutput) {
   SSDataBlock* pBlock = createDataBlock();
+  if (NULL == pBlock) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
 
   SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_TB_RESULT_FIELD1_LEN, 1);
-  blockDataAppendColInfo(pBlock, &infoData);
+  int32_t         code = blockDataAppendColInfo(pBlock, &infoData);
+  if (TSDB_CODE_SUCCESS == code) {
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_TB_RESULT_FIELD2_LEN, 2);
+    code = blockDataAppendColInfo(pBlock, &infoData);
+  }
 
-  infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_TB_RESULT_FIELD2_LEN, 2);
-  blockDataAppendColInfo(pBlock, &infoData);
-
-  return pBlock;
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOutput = pBlock;
+  } else {
+    blockDataDestroy(pBlock);
+  }
+  return code;
 }
 
 void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
@@ -317,7 +361,12 @@ int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
   SArray* pTagVals = NULL;
   STag*   pTag = (STag*)pCfg->pTags;
 
-  if (pCfg->pTags && tTagIsJson(pTag)) {
+  if (NULL == pCfg->pTags || pCfg->numOfTags <= 0) {
+    qError("tag missed in table cfg, pointer:%p, numOfTags:%d", pCfg->pTags, pCfg->numOfTags);
+    return TSDB_CODE_APP_ERROR;
+  }
+
+  if (tTagIsJson(pTag)) {
     char* pJson = parseTagDatatoJson(pTag);
     if (pJson) {
       *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s", pJson);
@@ -482,12 +531,16 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
 }
 
 static int32_t execShowCreateTable(SShowCreateTableStmt* pStmt, SRetrieveTableRsp** pRsp) {
-  SSDataBlock* pBlock = buildCreateTbResultDataBlock();
-  int32_t      code = setCreateTBResultIntoDataBlock(pBlock, pStmt->pDbCfg, pStmt->tableName, pStmt->pTableCfg);
-  if (code) {
-    return code;
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildCreateTbResultDataBlock(&pBlock);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setCreateTBResultIntoDataBlock(pBlock, pStmt->pDbCfg, pStmt->tableName, pStmt->pTableCfg);
   }
-  return buildRetrieveTableRsp(pBlock, SHOW_CREATE_TB_RESULT_COLS, pRsp);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_TB_RESULT_COLS, pRsp);
+  }
+  blockDataDestroy(pBlock);
+  return code;
 }
 
 static int32_t execShowCreateSTable(SShowCreateTableStmt* pStmt, SRetrieveTableRsp** pRsp) {
@@ -556,8 +609,12 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
-static SSDataBlock* buildLocalVariablesResultDataBlock() {
+static int32_t buildLocalVariablesResultDataBlock(SSDataBlock** pOutput) {
   SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (NULL == pBlock) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   pBlock->info.hasVarCol = true;
 
   pBlock->pDataBlock = taosArrayInit(SHOW_LOCAL_VARIABLES_RESULT_COLS, sizeof(SColumnInfoData));
@@ -572,7 +629,8 @@ static SSDataBlock* buildLocalVariablesResultDataBlock() {
   infoData.info.bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN;
   taosArrayPush(pBlock->pDataBlock, &infoData);
 
-  return pBlock;
+  *pOutput = pBlock;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t setLocalVariablesResultIntoDataBlock(SSDataBlock* pBlock) {
@@ -604,12 +662,16 @@ int32_t setLocalVariablesResultIntoDataBlock(SSDataBlock* pBlock) {
 }
 
 static int32_t execShowLocalVariables(SRetrieveTableRsp** pRsp) {
-  SSDataBlock* pBlock = buildLocalVariablesResultDataBlock();
-  int32_t      code = setLocalVariablesResultIntoDataBlock(pBlock);
-  if (code) {
-    return code;
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildLocalVariablesResultDataBlock(&pBlock);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setLocalVariablesResultIntoDataBlock(pBlock);
   }
-  return buildRetrieveTableRsp(pBlock, SHOW_LOCAL_VARIABLES_RESULT_COLS, pRsp);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildRetrieveTableRsp(pBlock, SHOW_LOCAL_VARIABLES_RESULT_COLS, pRsp);
+  }
+  blockDataDestroy(pBlock);
+  return code;
 }
 
 static int32_t createSelectResultDataBlock(SNodeList* pProjects, SSDataBlock** pOutput) {
@@ -659,6 +721,7 @@ static int32_t execSelectWithoutFrom(SSelectStmt* pSelect, SRetrieveTableRsp** p
   if (TSDB_CODE_SUCCESS == code) {
     code = buildRetrieveTableRsp(pBlock, LIST_LENGTH(pSelect->pProjectionList), pRsp);
   }
+  blockDataDestroy(pBlock);
   return code;
 }
 

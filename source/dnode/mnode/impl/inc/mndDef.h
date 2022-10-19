@@ -43,8 +43,6 @@ typedef enum {
   MND_OPER_CREATE_USER,
   MND_OPER_DROP_USER,
   MND_OPER_ALTER_USER,
-  MND_OPER_CREATE_BNODE,
-  MND_OPER_DROP_BNODE,
   MND_OPER_CREATE_DNODE,
   MND_OPER_DROP_DNODE,
   MND_OPER_CONFIG_DNODE,
@@ -225,13 +223,6 @@ typedef struct {
   int64_t    updateTime;
   SDnodeObj* pDnode;
 } SSnodeObj;
-
-typedef struct {
-  int32_t    id;
-  int64_t    createdTime;
-  int64_t    updateTime;
-  SDnodeObj* pDnode;
-} SBnodeObj;
 
 typedef struct {
   int32_t maxUsers;

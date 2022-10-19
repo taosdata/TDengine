@@ -186,7 +186,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   STscObj* pTscObj = (*pRequest)->pTscObj;
   if (taosHashPut(pTscObj->pRequests, &(*pRequest)->self, sizeof((*pRequest)->self), &(*pRequest)->self,
                   sizeof((*pRequest)->self))) {
-    tscError("%d failed to add to request container, reqId:0x%" PRIx64 ", conn:%d, %s", (*pRequest)->self,
+    tscError("%" PRIx64 " failed to add to request container, reqId:0x%" PRIu64 ", conn:%" PRIx64 ", %s", (*pRequest)->self,
              (*pRequest)->requestId, pTscObj->id, sql);
 
     taosMemoryFree(param);
@@ -199,7 +199,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   if (tsQueryUseNodeAllocator && !qIsInsertValuesSql((*pRequest)->sqlstr, (*pRequest)->sqlLen)) {
     if (TSDB_CODE_SUCCESS !=
         nodesCreateAllocator((*pRequest)->requestId, tsQueryNodeChunkSize, &((*pRequest)->allocatorRefId))) {
-      tscError("%d failed to create node allocator, reqId:0x%" PRIx64 ", conn:%d, %s", (*pRequest)->self,
+      tscError("%d failed to create node allocator, reqId:0x%" PRIx64 ", conn:%" PRId64 ", %s", (*pRequest)->self,
                (*pRequest)->requestId, pTscObj->id, sql);
 
       destroyRequest(*pRequest);
@@ -371,7 +371,7 @@ int32_t updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList) {
     pInfo->pQnodeList = taosArrayDup(pNodeList);
     taosArraySort(pInfo->pQnodeList, compareQueryNodeLoad);
     tscDebug("QnodeList updated in cluster 0x%" PRIx64 ", num:%d", pInfo->clusterId,
-             taosArrayGetSize(pInfo->pQnodeList));
+             (int)taosArrayGetSize(pInfo->pQnodeList));
   }
   taosThreadMutexUnlock(&pInfo->qnodeMutex);
 
@@ -955,7 +955,12 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
   switch (pQuery->execMode) {
     case QUERY_EXEC_MODE_LOCAL:
       if (!pRequest->validateOnly) {
-        code = execLocalCmd(pRequest, pQuery);
+        if (NULL == pQuery->pRoot) {
+          terrno = TSDB_CODE_INVALID_PARA;
+          code = terrno;
+        } else {
+          code = execLocalCmd(pRequest, pQuery);
+        }
       }
       break;
     case QUERY_EXEC_MODE_RPC:
@@ -997,7 +1002,7 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, bool keepQue
 
   handleQueryExecRsp(pRequest);
 
-  if (NULL != pRequest && TSDB_CODE_SUCCESS != code) {
+  if (TSDB_CODE_SUCCESS != code) {
     pRequest->code = terrno;
   }
 
@@ -1130,7 +1135,8 @@ void launchAsyncQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaData* pResultM
       break;
   }
 
-  if (NULL != pRequest && TSDB_CODE_SUCCESS != code) {
+  // TODO weired responding code?
+  if (TSDB_CODE_SUCCESS != code) {
     pRequest->code = terrno;
   }
 }
@@ -2253,7 +2259,10 @@ void syncQueryFn(void* param, void* res, int32_t code) {
 void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly) {
   if (sql == NULL || NULL == fp) {
     terrno = TSDB_CODE_INVALID_PARA;
-    fp(param, NULL, terrno);
+    if (fp) {
+      fp(param, NULL, terrno);
+    }
+    
     return;
   }
 

@@ -146,7 +146,7 @@ static FORCE_INLINE void clientRecvCb(uv_stream_t* handle, ssize_t nread, const 
   if (nread < 0) {
     uError("http-report recv error:%s", uv_err_name(nread));
   } else {
-    uTrace("http-report succ to recv %d bytes", nread);
+    uTrace("http-report succ to recv %d bytes", (int32_t)nread);
   }
   uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
 }

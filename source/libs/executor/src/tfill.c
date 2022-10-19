@@ -693,7 +693,7 @@ void* destroyStreamFillSupporter(SStreamFillSupporter* pFillSup) {
   pFillSup->pAllColInfo = destroyFillColumnInfo(pFillSup->pAllColInfo, pFillSup->numOfFillCols, pFillSup->numOfAllCols);
   tSimpleHashCleanup(pFillSup->pResMap);
   pFillSup->pResMap = NULL;
-  streamStateReleaseBuf(NULL, NULL, pFillSup->cur.pRowVal);
+  releaseOutputBuf(NULL, NULL, (SResultRow*)pFillSup->cur.pRowVal);
   pFillSup->cur.pRowVal = NULL;
 
   taosMemoryFree(pFillSup);
@@ -736,7 +736,7 @@ static void resetFillWindow(SResultRowData* pRowData) {
 
 void resetPrevAndNextWindow(SStreamFillSupporter* pFillSup, SStreamState* pState) {
   resetFillWindow(&pFillSup->prev);
-  streamStateReleaseBuf(NULL, NULL, pFillSup->cur.pRowVal);
+  releaseOutputBuf(NULL, NULL, (SResultRow*)pFillSup->cur.pRowVal);
   resetFillWindow(&pFillSup->cur);
   resetFillWindow(&pFillSup->next);
   resetFillWindow(&pFillSup->nextNext);
@@ -1681,7 +1681,11 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
                                                  &numOfOutputCols, COL_MATCH_FROM_SLOT_ID);
   pInfo->pCondition = pPhyFillNode->node.pConditions;
   pInfo->pColMatchColInfo = pColMatchColInfo;
-  initExprSupp(&pOperator->exprSupp, pFillExprInfo, numOfFillCols);
+  int32_t code = initExprSupp(&pOperator->exprSupp, pFillExprInfo, numOfFillCols);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   pInfo->srcRowIndex = 0;
 
   pOperator->name = "FillOperator";
@@ -1693,7 +1697,7 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doStreamFill, NULL, NULL, destroyStreamFillOperatorInfo,
                                          NULL, NULL, NULL);
 
-  int32_t code = appendDownstream(pOperator, &downstream, 1);
+  code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -1702,5 +1706,6 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
 _error:
   destroyStreamFillOperatorInfo(pInfo);
   taosMemoryFreeClear(pOperator);
+  pTaskInfo->code = code;
   return NULL;
 }

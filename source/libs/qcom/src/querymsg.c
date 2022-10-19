@@ -173,7 +173,7 @@ int32_t queryBuildGetDBCfgMsg(void *input, char **msg, int32_t msgSize, int32_t 
   }
 
   SDbCfgReq dbCfgReq = {0};
-  strcpy(dbCfgReq.db, input);
+  strncpy(dbCfgReq.db, input, sizeof(dbCfgReq.db) - 1);
 
   int32_t bufLen = tSerializeSDbCfgReq(NULL, 0, &dbCfgReq);
   void   *pBuf = (*mallcFp)(bufLen);
@@ -191,7 +191,7 @@ int32_t queryBuildGetIndexMsg(void *input, char **msg, int32_t msgSize, int32_t 
   }
 
   SUserIndexReq indexReq = {0};
-  strcpy(indexReq.indexFName, input);
+  strncpy(indexReq.indexFName, input, sizeof(indexReq.indexFName) - 1);
 
   int32_t bufLen = tSerializeSUserIndexReq(NULL, 0, &indexReq);
   void   *pBuf = (*mallcFp)(bufLen);
@@ -233,7 +233,7 @@ int32_t queryBuildGetUserAuthMsg(void *input, char **msg, int32_t msgSize, int32
   }
 
   SGetUserAuthReq req = {0};
-  strncpy(req.user, input, sizeof(req.user));
+  strncpy(req.user, input, sizeof(req.user) - 1);
 
   int32_t bufLen = tSerializeSGetUserAuthReq(NULL, 0, &req);
   void   *pBuf = (*mallcFp)(bufLen);
@@ -251,7 +251,7 @@ int32_t queryBuildGetTbIndexMsg(void *input, char **msg, int32_t msgSize, int32_
   }
 
   STableIndexReq indexReq = {0};
-  strcpy(indexReq.tbFName, input);
+  strncpy(indexReq.tbFName, input, sizeof(indexReq.tbFName) - 1);
 
   int32_t bufLen = tSerializeSTableIndexReq(NULL, 0, &indexReq);
   void   *pBuf = (*mallcFp)(bufLen);
@@ -271,8 +271,8 @@ int32_t queryBuildGetTbCfgMsg(void *input, char **msg, int32_t msgSize, int32_t 
   SBuildTableInput *pInput = input;
   STableCfgReq      cfgReq = {0};
   cfgReq.header.vgId = pInput->vgId;
-  strcpy(cfgReq.dbFName, pInput->dbFName);
-  strcpy(cfgReq.tbName, pInput->tbName);
+  strncpy(cfgReq.dbFName, pInput->dbFName, sizeof(cfgReq.dbFName) - 1);
+  strncpy(cfgReq.tbName, pInput->tbName, sizeof(cfgReq.tbName) - 1);
 
   int32_t bufLen = tSerializeSTableCfgReq(NULL, 0, &cfgReq);
   void   *pBuf = (*mallcFp)(bufLen);
@@ -615,6 +615,8 @@ int32_t queryProcessGetTbCfgRsp(void *output, char *msg, int32_t msgSize) {
   STableCfgRsp *out = taosMemoryCalloc(1, sizeof(STableCfgRsp));
   if (tDeserializeSTableCfgRsp(msg, msgSize, out) != 0) {
     qError("tDeserializeSTableCfgRsp failed, msgSize:%d", msgSize);
+    tFreeSTableCfgRsp(out);
+    taosMemoryFree(out);
     return TSDB_CODE_INVALID_MSG;
   }
 
