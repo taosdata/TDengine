@@ -701,10 +701,13 @@ _exit:
 int32_t tsdbFSCommit(STsdb *pTsdb) {
   int32_t code = 0;
   int32_t lino = 0;
+  STsdbFS fs = {0};
 
   char current[TSDB_FILENAME_LEN] = {0};
   char current_t[TSDB_FILENAME_LEN] = {0};
   tsdbGetCurrentFName(pTsdb, current, current_t);
+
+  if (!taosCheckExistFile(current_t)) goto _exit;
 
   // rename the file
   if (taosRenameFile(current_t, current) < 0) {
@@ -713,11 +716,10 @@ int32_t tsdbFSCommit(STsdb *pTsdb) {
   }
 
   // Load the new FS
-  STsdbFS fs = {0};
   code = tsdbFSCreate(&fs);
   TSDB_CHECK_CODE(code, lino, _exit);
 
-  code = tsdbLoadFSFromFile(current_t, &fs);
+  code = tsdbLoadFSFromFile(current, &fs);
   TSDB_CHECK_CODE(code, lino, _exit);
 
   // apply file change
@@ -727,7 +729,7 @@ int32_t tsdbFSCommit(STsdb *pTsdb) {
 _exit:
   tsdbFSDestroy(&fs);
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(errno));
+    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
