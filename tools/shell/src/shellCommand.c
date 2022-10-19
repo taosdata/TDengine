@@ -101,8 +101,11 @@ void shellInsertChar(SShellCmd *cmd, char *c, int32_t size) {
   /* update the values */
   cmd->commandSize += size;
   cmd->cursorOffset += size;
-  cmd->screenOffset += taosWcharWidth(wc);
-  cmd->endOffset    += taosWcharWidth(wc);
+  for (int i = 0; i < size; i++) {
+    taosMbToWchar(&wc, c + i, size);
+    cmd->screenOffset += taosWcharWidth(wc);
+    cmd->endOffset += taosWcharWidth(wc);
+  }
   // set string end
   cmd->command[cmd->commandSize] = 0;
 #ifdef WINDOWS
