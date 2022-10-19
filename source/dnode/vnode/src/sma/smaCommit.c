@@ -129,10 +129,6 @@ _exit:
 int32_t smaFinishCommit(SSma *pSma) {
   int32_t  code = 0;
   SVnode  *pVnode = pSma->pVnode;
-  SSmaEnv *pSmaEnv = SMA_RSMA_ENV(pSma);
-  if (!pSmaEnv) {
-    goto _exit;
-  }
 
   if (VND_RSMA1(pVnode) && (code = tsdbFinishCommit(VND_RSMA1(pVnode))) < 0) {
     smaError("vgId:%d, failed to finish commit tsdb rsma1 since %s", TD_VID(pVnode), tstrerror(code));
