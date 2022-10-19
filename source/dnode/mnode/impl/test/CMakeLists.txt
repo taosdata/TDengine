@@ -1,7 +1,6 @@
 enable_testing()
 
 add_subdirectory(acct)
-add_subdirectory(bnode)
 add_subdirectory(db)
 #add_subdirectory(dnode)
 add_subdirectory(func)

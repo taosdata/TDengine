@@ -201,7 +201,6 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
         nodesCreateAllocator((*pRequest)->requestId, tsQueryNodeChunkSize, &((*pRequest)->allocatorRefId))) {
       tscError("%" PRId64 " failed to create node allocator, reqId:0x%" PRIx64 ", conn:%" PRId64 ", %s",
                (*pRequest)->self, (*pRequest)->requestId, pTscObj->id, sql);
-
       destroyRequest(*pRequest);
       *pRequest = NULL;
       return TSDB_CODE_TSC_OUT_OF_MEMORY;

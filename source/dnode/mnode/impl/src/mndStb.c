@@ -2555,7 +2555,7 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
     int32_t rollupNum = (int32_t)taosArrayGetSize(pStb->pFuncs);
     char   *sep = ", ";
     int32_t sepLen = strlen(sep);
-    int32_t rollupLen = sizeof(rollup) - 2;
+    int32_t rollupLen = sizeof(rollup) - VARSTR_HEADER_SIZE - 2;
     for (int32_t i = 0; i < rollupNum; ++i) {
       char *funcName = taosArrayGet(pStb->pFuncs, i);
       if (i) {

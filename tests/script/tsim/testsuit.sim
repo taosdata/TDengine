@@ -129,4 +129,3 @@ run tsim/sma/tsmaCreateInsertQuery.sim
 run tsim/sma/rsmaCreateInsertQuery.sim
 run tsim/valgrind/basic.sim
 run tsim/valgrind/checkError.sim
-run tsim/bnode/basic1.sim
