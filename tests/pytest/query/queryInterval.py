@@ -197,6 +197,25 @@ class TDTestCase:
         else:
             tdLog.exit("sql:%s, column : ts is not sorted in accending order as expected" % (tdSql.sql))
 
+        # TS-1582
+        tdSql.execute("create table stb1(ts timestamp, c1 int) tags(t1 int)")
+        tdSql.execute("insert into tb1 using stb1 tags(1) values(%d, 1)(%d, 5)(%d, 10)" % (self.ts, self.ts + 1000, self.ts + 2000))
+        tdSql.execute("insert into tb2 using stb1 tags(2) values(%d, 1)(%d, 5)(%d, 10)" % (self.ts, self.ts + 1000, self.ts + 2000))
+
+        tdSql.query("select t1, last(c1) from stb1 where ts between 1593548685000 and 1593548688000 interval(2s) fill(NULL) group by tbname")
+        tdSql.checkRows(6)
+        tdSql.checkData(2, 2, None)
+        tdSql.checkData(2, 3, "tb1")
+        tdSql.checkData(5, 2, None)
+        tdSql.checkData(5, 3, "tb2")
+
+        tdSql.query("select t1, last(c1) - 1 from stb1 where ts between 1593548685000 and 1593548688000 interval(2s) fill(NULL) group by tbname")
+        tdSql.checkRows(6)
+        tdSql.checkData(2, 2, None)
+        tdSql.checkData(2, 3, "tb1")
+        tdSql.checkData(5, 2, None)
+        tdSql.checkData(5, 3, "tb2")
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
