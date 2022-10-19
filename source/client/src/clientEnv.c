@@ -438,21 +438,18 @@ int taos_init() {
 }
 
 int taos_options_imp(TSDB_OPTION option, const char *str) {
-  if (option != TSDB_OPTION_CONFIGDIR) {
-    taos_init();  // initialize global config
-  } else {
+  if (option == TSDB_OPTION_CONFIGDIR) {
     tstrncpy(configDir, str, PATH_MAX);
     tscInfo("set cfg:%s to %s", configDir, str);
     return 0;
+  } else {
+    taos_init();  // initialize global config
   }
 
   SConfig     *pCfg = taosGetCfg();
   SConfigItem *pItem = NULL;
 
   switch (option) {
-    case TSDB_OPTION_CONFIGDIR:
-      pItem = cfgGetItem(pCfg, "configDir");
-      break;
     case TSDB_OPTION_SHELL_ACTIVITY_TIMER:
       pItem = cfgGetItem(pCfg, "shellActivityTimer");
       break;

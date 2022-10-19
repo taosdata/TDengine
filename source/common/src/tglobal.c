@@ -46,7 +46,6 @@ int32_t tsMnodeShmSize = TSDB_MAX_MSG_SIZE * 2 + 1024;
 int32_t tsVnodeShmSize = TSDB_MAX_MSG_SIZE * 10 + 1024;
 int32_t tsQnodeShmSize = TSDB_MAX_MSG_SIZE * 4 + 1024;
 int32_t tsSnodeShmSize = TSDB_MAX_MSG_SIZE * 4 + 1024;
-int32_t tsBnodeShmSize = TSDB_MAX_MSG_SIZE * 4 + 1024;
 int32_t tsNumOfShmThreads = 1;
 
 // queue & threads
@@ -358,7 +357,6 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "vnodeShmSize", tsVnodeShmSize, TSDB_MAX_MSG_SIZE * 2 + 1024, INT32_MAX, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "qnodeShmSize", tsQnodeShmSize, TSDB_MAX_MSG_SIZE * 2 + 1024, INT32_MAX, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "snodeShmSize", tsSnodeShmSize, TSDB_MAX_MSG_SIZE * 2 + 1024, INT32_MAX, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "bnodeShmSize", tsBnodeShmSize, TSDB_MAX_MSG_SIZE * 2 + 1024, INT32_MAX, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "numOfShmThreads", tsNumOfShmThreads, 1, 1024, 0) != 0) return -1;
 
   tsNumOfRpcThreads = tsNumOfCores / 2;
@@ -707,7 +705,6 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsVnodeShmSize = cfgGetItem(pCfg, "vnodeShmSize")->i32;
   tsQnodeShmSize = cfgGetItem(pCfg, "qnodeShmSize")->i32;
   tsSnodeShmSize = cfgGetItem(pCfg, "snodeShmSize")->i32;
-  tsBnodeShmSize = cfgGetItem(pCfg, "bnodeShmSize")->i32;
 
   tsNumOfRpcThreads = cfgGetItem(pCfg, "numOfRpcThreads")->i32;
   tsNumOfCommitThreads = cfgGetItem(pCfg, "numOfCommitThreads")->i32;
@@ -777,12 +774,6 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
     case 'a': {
       if (strcasecmp("asyncLog", name) == 0) {
         tsAsyncLog = cfgGetItem(pCfg, "asyncLog")->bval;
-      }
-      break;
-    }
-    case 'b': {
-      if (strcasecmp("bnodeShmSize", name) == 0) {
-        tsBnodeShmSize = cfgGetItem(pCfg, "bnodeShmSize")->i32;
       }
       break;
     }

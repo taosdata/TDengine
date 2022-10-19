@@ -69,7 +69,7 @@ prompt_force=0
 
 initd_mod=0
 service_mod=2
-if pidof systemd &>/dev/null; then
+if ps aux | grep -v grep | grep systemd &>/dev/null; then
   service_mod=0
 elif $(which service &>/dev/null); then
   service_mod=1
@@ -575,11 +575,11 @@ function install_web() {
 
 
 function clean_service_on_sysvinit() {
-  if pidof ${serverName} &>/dev/null; then
+  if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
     ${csudo}service ${serverName} stop || :
   fi
 
-  if pidof tarbitrator &>/dev/null; then
+  if ps aux | grep -v grep | grep tarbitrator &>/dev/null; then
     ${csudo}service tarbitratord stop || :
   fi
 
@@ -759,7 +759,7 @@ function updateProduct() {
 
   echo -e "${GREEN}Start to update ${productName}...${NC}"
   # Stop the service if running
-  if pidof ${serverName} &>/dev/null; then
+  if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
     if ((${service_mod} == 0)); then
       ${csudo}systemctl stop ${serverName} || :
     elif ((${service_mod} == 1)); then

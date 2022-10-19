@@ -1006,6 +1006,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
       nLeft -= kLen;
       // pack partial val to local if any space left
       if (nLocal > nHeader + kLen + sizeof(SPgno)) {
+        ASSERT(pVal != NULL && vLen != 0);
         memcpy(pCell + nHeader + kLen, pVal, nLocal - nHeader - kLen - sizeof(SPgno));
         nLeft -= nLocal - nHeader - kLen - sizeof(SPgno);
       }
@@ -1085,6 +1086,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
             // fetch next ofp, a new ofp and make it dirty
             ret = tdbFetchOvflPage(&pgno, &nextOfp, pTxn, pBt);
             if (ret < 0) {
+              tdbFree(pBuf);
               return -1;
             }
           }

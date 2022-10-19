@@ -132,7 +132,6 @@ typedef enum {
   SDB_MNODE = 2,
   SDB_QNODE = 3,
   SDB_SNODE = 4,
-  SDB_BNODE = 5,
   SDB_DNODE = 6,
   SDB_USER = 7,
   SDB_AUTH = 8,
@@ -402,6 +401,10 @@ const char *sdbTableName(ESdbType type);
 const char *sdbStatusName(ESdbStatus status);
 void        sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper);
 int32_t     sdbGetIdFromRaw(SSdb *pSdb, SSdbRaw *pRaw);
+
+void sdbWriteLock(SSdb *pSdb, int32_t type);
+void sdbReadLock(SSdb *pSdb, int32_t type);
+void sdbUnLock(SSdb *pSdb, int32_t type);
 
 #ifdef __cplusplus
 }

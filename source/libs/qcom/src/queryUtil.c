@@ -357,8 +357,7 @@ char* parseTagDatatoJson(void* p) {
   for (int j = 0; j < nCols; ++j) {
     STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, j);
     // json key  encode by binary
-    memset(tagJsonKey, 0, sizeof(tagJsonKey));
-    memcpy(tagJsonKey, pTagVal->pKey, strlen(pTagVal->pKey));
+    tstrncpy(tagJsonKey, pTagVal->pKey, sizeof(tagJsonKey));
     // json value
     char type = pTagVal->type;
     if (type == TSDB_DATA_TYPE_NULL) {
@@ -422,6 +421,12 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   if (NULL == pSrc) {
     *pDst = NULL;
     return TSDB_CODE_SUCCESS;
+  }
+
+  if ((pSrc->tableInfo.numOfColumns + pSrc->tableInfo.numOfTags) > TSDB_MAX_COL_TAG_NUM) {
+    *pDst = NULL;
+    qError("too many column and tag num:%d,%d", pSrc->tableInfo.numOfColumns, pSrc->tableInfo.numOfTags);
+    return TSDB_CODE_INVALID_PARA;
   }
 
   int32_t metaSize = sizeof(STableMeta) + (pSrc->tableInfo.numOfColumns + pSrc->tableInfo.numOfTags) * sizeof(SSchema);

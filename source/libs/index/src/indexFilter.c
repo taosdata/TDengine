@@ -231,7 +231,9 @@ static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
       SIF_ERR_RET(sifGetValueFromNode(node, &param->condValue));
       param->colId = -1;
       param->colValType = (uint8_t)(vn->node.resType.type);
-      memcpy(param->colName, vn->literal, strlen(vn->literal));
+      if (strlen(vn->literal) <= sizeof(param->colName)) {
+        memcpy(param->colName, vn->literal, strlen(vn->literal));
+      }
       break;
     }
     case QUERY_NODE_COLUMN: {
@@ -400,54 +402,52 @@ static FORCE_INLINE FilterFunc sifGetFilterFunc(EIndexQueryType type, bool *reve
 static void sifSetFltParam(SIFParam *left, SIFParam *right, SDataTypeBuf *typedata, SMetaFltParam *param) {
   int8_t ltype = left->colValType, rtype = right->colValType;
   if (ltype == TSDB_DATA_TYPE_FLOAT) {
-    float f;
+    float f = 0;
     SIF_DATA_CONVERT(rtype, right->condValue, f);
     typedata->f = f;
     param->val = &typedata->f;
   } else if (ltype == TSDB_DATA_TYPE_DOUBLE) {
-    double d;
+    double d = 0;
     SIF_DATA_CONVERT(rtype, right->condValue, d);
     typedata->d = d;
     param->val = &typedata->d;
   } else if (ltype == TSDB_DATA_TYPE_BIGINT) {
-    int64_t i64;
+    int64_t i64 = 0;
     SIF_DATA_CONVERT(rtype, right->condValue, i64);
     typedata->i64 = i64;
     param->val = &typedata->i64;
   } else if (ltype == TSDB_DATA_TYPE_INT) {
-    int32_t i32;
+    int32_t i32 = 0;
     SIF_DATA_CONVERT(rtype, right->condValue, i32);
     typedata->i32 = i32;
     param->val = &typedata->i32;
   } else if (ltype == TSDB_DATA_TYPE_SMALLINT) {
-    int16_t i16;
-
+    int16_t i16 = 0;
     SIF_DATA_CONVERT(rtype, right->condValue, i16);
     typedata->i16 = i16;
     param->val = &typedata->i16;
   } else if (ltype == TSDB_DATA_TYPE_TINYINT) {
-    int8_t i8;
+    int8_t i8 = 0;
     SIF_DATA_CONVERT(rtype, right->condValue, i8)
     typedata->i8 = i8;
     param->val = &typedata->i8;
   } else if (ltype == TSDB_DATA_TYPE_UBIGINT) {
-    uint64_t u64;
+    uint64_t u64 = 0;
     SIF_DATA_CONVERT(rtype, right->condValue, u64);
     typedata->u64 = u64;
     param->val = &typedata->u64;
-
   } else if (ltype == TSDB_DATA_TYPE_UINT) {
-    uint32_t u32;
+    uint32_t u32 = 0;
     SIF_DATA_CONVERT(rtype, right->condValue, u32);
     typedata->u32 = u32;
     param->val = &typedata->u32;
   } else if (ltype == TSDB_DATA_TYPE_USMALLINT) {
-    uint16_t u16;
+    uint16_t u16 = 0;
     SIF_DATA_CONVERT(rtype, right->condValue, u16);
     typedata->u16 = u16;
     param->val = &typedata->u16;
   } else if (ltype == TSDB_DATA_TYPE_UTINYINT) {
-    uint8_t u8;
+    uint8_t u8 = 0;
     SIF_DATA_CONVERT(rtype, right->condValue, u8);
     typedata->u8 = u8;
     param->val = &typedata->u8;
@@ -663,7 +663,7 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
     // ugly code, refactor later
     if (nParam > 1 && params[1].status == SFLT_NOT_INDEX) {
       output->status = SFLT_NOT_INDEX;
-      return code;
+      goto _return;
     }
     SIF_ERR_JRET(sifGetOperFn(node->opType, &operFn, &output->status));
   }

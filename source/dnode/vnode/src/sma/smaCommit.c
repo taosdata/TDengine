@@ -17,14 +17,17 @@
 
 extern SSmaMgmt smaMgmt;
 
+#if 0
 static int32_t tdProcessRSmaSyncPreCommitImpl(SSma *pSma);
 static int32_t tdProcessRSmaSyncCommitImpl(SSma *pSma);
 static int32_t tdProcessRSmaSyncPostCommitImpl(SSma *pSma);
+#endif
 static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma);
 static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma);
 static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma);
 static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat);
 
+#if 0
 /**
  * @brief Only applicable to Rollup SMA
  *
@@ -48,30 +51,31 @@ int32_t smaSyncCommit(SSma *pSma) { return tdProcessRSmaSyncCommitImpl(pSma); }
  * @return int32_t
  */
 int32_t smaSyncPostCommit(SSma *pSma) { return tdProcessRSmaSyncPostCommitImpl(pSma); }
+#endif
 
 /**
- * @brief Only applicable to Rollup SMA
+ * @brief async commit, only applicable to Rollup SMA
  *
  * @param pSma
  * @return int32_t
  */
-int32_t smaAsyncPreCommit(SSma *pSma) { return tdProcessRSmaAsyncPreCommitImpl(pSma); }
+int32_t smaPreCommit(SSma *pSma) { return tdProcessRSmaAsyncPreCommitImpl(pSma); }
 
 /**
- * @brief Only applicable to Rollup SMA
+ * @brief async commit, only applicable to Rollup SMA
  *
  * @param pSma
  * @return int32_t
  */
-int32_t smaAsyncCommit(SSma *pSma) { return tdProcessRSmaAsyncCommitImpl(pSma); }
+int32_t smaCommit(SSma *pSma) { return tdProcessRSmaAsyncCommitImpl(pSma); }
 
 /**
- * @brief Only applicable to Rollup SMA
+ * @brief async commit, only applicable to Rollup SMA
  *
  * @param pSma
  * @return int32_t
  */
-int32_t smaAsyncPostCommit(SSma *pSma) { return tdProcessRSmaAsyncPostCommitImpl(pSma); }
+int32_t smaPostCommit(SSma *pSma) { return tdProcessRSmaAsyncPostCommitImpl(pSma); }
 
 /**
  * @brief set rsma trigger stat active
@@ -108,6 +112,7 @@ int32_t smaBegin(SSma *pSma) {
   return TSDB_CODE_SUCCESS;
 }
 
+#if 0
 /**
  * @brief pre-commit for rollup sma(sync commit).
  *  1) set trigger stat of rsma timer TASK_TRIGGER_STAT_PAUSED.
@@ -169,6 +174,7 @@ static int32_t tdProcessRSmaSyncCommitImpl(SSma *pSma) {
 #endif
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 // SQTaskFile ======================================================
 
@@ -230,6 +236,7 @@ static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pStat) {
   return TSDB_CODE_SUCCESS;
 }
 
+#if 0
 /**
  * @brief post-commit for rollup sma
  *  1) clean up the outdated qtaskinfo files
@@ -249,6 +256,7 @@ static int32_t tdProcessRSmaSyncPostCommitImpl(SSma *pSma) {
 
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 /**
  * @brief Rsma async commit implementation(only do some necessary light weighted task)
@@ -358,9 +366,11 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
  * @return int32_t
  */
 static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma) {
+  int32_t  code = 0;
+  SVnode  *pVnode = pSma->pVnode;
   SSmaEnv *pSmaEnv = SMA_RSMA_ENV(pSma);
   if (!pSmaEnv) {
-    return TSDB_CODE_SUCCESS;
+    goto _exit;
   }
 #if 0
   SRSmaStat *pRSmaStat = (SRSmaStat *)SMA_ENV_STAT(pSmaEnv);
@@ -370,8 +380,21 @@ static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma) {
     return TSDB_CODE_FAILED;
   }
 #endif
-
-  return TSDB_CODE_SUCCESS;
+  if ((code = tsdbCommit(VND_RSMA0(pVnode))) < 0) {
+    smaError("vgId:%d, failed to commit tsdb rsma0 since %s", TD_VID(pVnode), tstrerror(code));
+    goto _exit;
+  }
+  if ((code = tsdbCommit(VND_RSMA1(pVnode))) < 0) {
+    smaError("vgId:%d, failed to commit tsdb rsma1 since %s", TD_VID(pVnode), tstrerror(code));
+    goto _exit;
+  }
+  if ((code = tsdbCommit(VND_RSMA2(pVnode))) < 0) {
+    smaError("vgId:%d, failed to commit tsdb rsma2 since %s", TD_VID(pVnode), tstrerror(code));
+    goto _exit;
+  }
+_exit:
+  terrno = code;
+  return code;
 }
 
 /**

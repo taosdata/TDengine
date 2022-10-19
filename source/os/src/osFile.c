@@ -343,6 +343,7 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
 
   TdFilePtr pFile = (TdFilePtr)taosMemoryMalloc(sizeof(TdFile));
   if (pFile == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     if (fd >= 0) close(fd);
     if (fp != NULL) fclose(fp);
     return NULL;

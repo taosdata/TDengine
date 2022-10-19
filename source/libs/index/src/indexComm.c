@@ -427,6 +427,7 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       *dst = taosMemoryCalloc(1, bufSize + 1);
       idxInt2str(*(uint64_t*)src, *dst, 1);
       tlen = strlen(*dst);
+      break;
     case TSDB_DATA_TYPE_FLOAT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
       sprintf(*dst, "%.9lf", *(float*)src);

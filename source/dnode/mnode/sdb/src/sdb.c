@@ -181,3 +181,23 @@ void sdbGetCommitInfo(SSdb *pSdb, int64_t *index, int64_t *term, int64_t *config
          pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, *index, *term, *config);
 #endif
 }
+
+void sdbWriteLock(SSdb *pSdb, int32_t type) {
+  TdThreadRwlock *pLock = &pSdb->locks[type];
+  // mTrace("sdb table:%d start write lock:%p", type, pLock);
+  taosThreadRwlockWrlock(pLock);
+  // mTrace("sdb table:%d stop write lock:%p", type, pLock);
+}
+
+void sdbReadLock(SSdb *pSdb, int32_t type) {
+  TdThreadRwlock *pLock = &pSdb->locks[type];
+  // mTrace("sdb table:%d start read lock:%p", type, pLock);
+  taosThreadRwlockRdlock(pLock);
+  // mTrace("sdb table:%d stop read lock:%p", type, pLock);
+}
+
+void sdbUnLock(SSdb *pSdb, int32_t type) {
+  TdThreadRwlock *pLock = &pSdb->locks[type];
+  // mTrace("sdb table:%d unlock:%p", type, pLock);
+  taosThreadRwlockUnlock(pLock);
+}

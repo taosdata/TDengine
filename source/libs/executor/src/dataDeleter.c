@@ -150,9 +150,15 @@ static int32_t getStatus(SDataDeleterHandle* pDeleter) {
 static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
   SDataDeleterHandle* pDeleter = (SDataDeleterHandle*)pHandle;
   SDataDeleterBuf*    pBuf = taosAllocateQitem(sizeof(SDataDeleterBuf), DEF_QITEM);
-  if (NULL == pBuf || !allocBuf(pDeleter, pInput, pBuf)) {
+  if (NULL == pBuf) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
+
+  if (!allocBuf(pDeleter, pInput, pBuf)) {
+    taosFreeQitem(pBuf);
+    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+  }
+  
   toDataCacheEntry(pDeleter, pInput, pBuf);
   taosWriteQitem(pDeleter->pDataBlocks, pBuf);
   *pContinue = (DS_BUF_LOW == updateStatus(pDeleter) ? true : false);
@@ -267,6 +273,8 @@ int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pData
   taosThreadMutexInit(&deleter->mutex, NULL);
   if (NULL == deleter->pDataBlocks) {
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    destroyDataSinker((SDataSinkHandle*)deleter);
+    taosMemoryFree(deleter);
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
   *pHandle = deleter;

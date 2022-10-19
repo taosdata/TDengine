@@ -187,9 +187,6 @@
 # ---- snode ----
 # unsupport ./test.sh -f tsim/snode/basic1.sim
 
-# ---- bnode
-./test.sh -f tsim/bnode/basic1.sim
-
 # ---- mnode
 ./test.sh -f tsim/mnode/basic1.sim
 ./test.sh -f tsim/mnode/basic2.sim
@@ -249,12 +246,18 @@
 ./test.sh -f tsim/stream/windowClose.sim
 ./test.sh -f tsim/stream/ignoreExpiredData.sim
 ./test.sh -f tsim/stream/sliding.sim
-#./test.sh -f tsim/stream/partitionbyColumnInterval.sim
+./test.sh -f tsim/stream/partitionbyColumnInterval.sim
 #./test.sh -f tsim/stream/partitionbyColumnSession.sim
 #./test.sh -f tsim/stream/partitionbyColumnState.sim
 #./test.sh -f tsim/stream/deleteInterval.sim
 #./test.sh -f tsim/stream/deleteSession.sim
 #./test.sh -f tsim/stream/deleteState.sim
+#./test.sh -f tsim/stream/fillIntervalDelete0.sim
+#./test.sh -f tsim/stream/fillIntervalDelete1.sim
+./test.sh -f tsim/stream/fillIntervalLinear.sim
+#./test.sh -f tsim/stream/fillIntervalPartitionBy.sim
+./test.sh -f tsim/stream/fillIntervalPrevNext.sim
+./test.sh -f tsim/stream/fillIntervalValue.sim
 
 # ---- transaction ----
 ./test.sh -f tsim/trans/lossdata1.sim

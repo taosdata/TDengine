@@ -173,15 +173,19 @@ int32_t ctgRefreshTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx*
     CTG_ERR_JRET(ctgCloneMetaOutput(output, pOutput));
   }
 
-  CTG_ERR_JRET(ctgUpdateTbMetaEnqueue(pCtg, output, syncReq));
+  code = ctgUpdateTbMetaEnqueue(pCtg, output, syncReq);
+  output = NULL;
+  CTG_ERR_JRET(code);
 
   return TSDB_CODE_SUCCESS;
 
 _return:
 
-  taosMemoryFreeClear(output->tbMeta);
-  taosMemoryFreeClear(output);
-
+  if (output) {
+    taosMemoryFreeClear(output->tbMeta);
+    taosMemoryFreeClear(output);
+  }
+  
   CTG_RET(code);
 }
 
@@ -290,15 +294,19 @@ int32_t ctgUpdateTbMeta(SCatalog* pCtg, STableMetaRsp* rspMsg, bool syncOp) {
     CTG_ERR_JRET(queryCreateTableMetaFromMsg(rspMsg, rspMsg->tableType == TSDB_SUPER_TABLE, &output->tbMeta));
   }
 
-  CTG_ERR_JRET(ctgUpdateTbMetaEnqueue(pCtg, output, syncOp));
+  code = ctgUpdateTbMetaEnqueue(pCtg, output, syncOp);
+  output = NULL;
+  CTG_ERR_JRET(code);
 
   return TSDB_CODE_SUCCESS;
 
 _return:
 
-  taosMemoryFreeClear(output->tbMeta);
-  taosMemoryFreeClear(output);
-
+  if (output) {
+    taosMemoryFreeClear(output->tbMeta);
+    taosMemoryFreeClear(output);
+  }
+  
   CTG_RET(code);
 }
 

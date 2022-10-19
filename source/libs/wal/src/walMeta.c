@@ -123,8 +123,8 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
       }
       SWalCkHead* logContent = (SWalCkHead*)candidate;
       if (walValidHeadCksum(logContent) != 0) {
-        wError("vgId:%d, failed to validate checksum of wal entry header. offset:% %" PRId64 ", file:%s",
-               ((char*)(logContent)-buf), fnameStr);
+        wWarn("vgId:%d, failed to validate checksum of wal entry header. offset:%" PRId64 ", file:%s", pWal->cfg.vgId,
+               offset + ((char*)(logContent)-buf), fnameStr);
         haystack = candidate + 1;
         if (firstTrial) {
           break;
@@ -162,8 +162,8 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
       }
       if (walValidBodyCksum(logContent) != 0) {
         terrno = TSDB_CODE_WAL_CHKSUM_MISMATCH;
-        wError("vgId:%d, failed to validate checksum of wal entry body. offset:% %" PRId64 ", file:%s",
-               ((char*)(logContent)-buf), fnameStr);
+        wWarn("vgId:%d, failed to validate checksum of wal entry body. offset:%" PRId64 ", file:%s", pWal->cfg.vgId,
+               offset + ((char*)(logContent)-buf), fnameStr);
         haystack = candidate + 1;
         if (firstTrial) {
           break;
@@ -481,6 +481,10 @@ int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
       continue;
     }
 
+    if (offset != (idxEntry.ver - pFileInfo->firstVer) * sizeof(SWalIdxEntry)) {
+      continue;
+    }
+
     if (walReadLogHead(pLogFile, idxEntry.offset, &ckHead) < 0) {
       wWarn("vgId:%d, failed to read log file since %s. file:%s, offset:%" PRId64 ", idx entry ver:%" PRId64 "",
             pWal->cfg.vgId, terrstr(), fLogNameStr, idxEntry.offset, idxEntry.ver);
@@ -492,6 +496,8 @@ int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
     }
   }
   offset += sizeof(SWalIdxEntry);
+
+  ASSERT(offset == (idxEntry.ver - pFileInfo->firstVer + 1) * sizeof(SWalIdxEntry));
 
   // ftruncate idx file
   if (offset < fileSize) {

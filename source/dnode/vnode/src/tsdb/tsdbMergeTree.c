@@ -151,9 +151,6 @@ static SBlockData *loadLastBlock(SLDataIter *pIter, const char *idStr) {
               ", last file index:%d, last block index:%d, entry:%d, %p, elapsed time:%.2f ms, %s",
               pInfo->loadBlocks, pIter->uid, pIter->iStt, pIter->iSttBlk, pInfo->currentLoadBlockIndex, pBlock, el,
               idStr);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _exit;
-    }
 
     pInfo->blockIndex[pInfo->currentLoadBlockIndex] = pIter->iSttBlk;
     tsdbDebug("last block index list:%d, %d, %s", pInfo->blockIndex[0], pInfo->blockIndex[1], idStr);
@@ -466,8 +463,8 @@ static void findNextValidRow(SLDataIter *pIter, const char *idStr) {
 }
 
 bool tLDataIterNextRow(SLDataIter *pIter, const char *idStr) {
-  int32_t code = 0;
   int32_t step = pIter->backward ? -1 : 1;
+  terrno = TSDB_CODE_SUCCESS;
 
   // no qualified last file block in current file, no need to fetch row
   if (pIter->pSttBlk == NULL) {
@@ -476,6 +473,10 @@ bool tLDataIterNextRow(SLDataIter *pIter, const char *idStr) {
 
   int32_t     iBlockL = pIter->iSttBlk;
   SBlockData *pBlockData = loadLastBlock(pIter, idStr);
+  if (pBlockData == NULL && terrno != TSDB_CODE_SUCCESS) {
+    goto _exit;
+  }
+
   pIter->iRow += step;
 
   while (1) {
@@ -501,11 +502,7 @@ bool tLDataIterNextRow(SLDataIter *pIter, const char *idStr) {
   pIter->rInfo.row = tsdbRowFromBlockData(pBlockData, pIter->iRow);
 
 _exit:
-  if (code != TSDB_CODE_SUCCESS) {
-    terrno = code;
-  }
-
-  return (code == TSDB_CODE_SUCCESS) && (pIter->pSttBlk != NULL);
+  return (terrno == TSDB_CODE_SUCCESS) && (pIter->pSttBlk != NULL);
 }
 
 SRowInfo *tLDataIterGet(SLDataIter *pIter) { return &pIter->rInfo; }

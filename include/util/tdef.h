@@ -239,6 +239,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_TAGS           128
 #define TSDB_MAX_TAG_CONDITIONS 1024
 
+#define TSDB_MAX_COL_TAG_NUM  (TSDB_MAX_COLUMNS + TSDB_MAX_TAGS)
 #define TSDB_MAX_JSON_TAG_LEN 16384
 #define TSDB_MAX_JSON_KEY_LEN 256
 
@@ -482,7 +483,6 @@ enum {
 #define QNODE_HANDLE   -1
 #define SNODE_HANDLE   -2
 #define VNODE_HANDLE   -3
-#define BNODE_HANDLE   -4
 #define CLIENT_HANDLE  -5
 
 #define TSDB_CONFIG_OPTION_LEN 32
@@ -495,6 +495,9 @@ enum {
 #define QUERY_SAVE_SIZE    20
 
 #define MAX_NUM_STR_SIZE 40
+
+#define MAX_META_MSG_IN_BATCH 1048576
+#define MAX_META_BATCH_RSP_SIZE (1 * 1048576 * 1024)
 
 #ifdef __cplusplus
 }

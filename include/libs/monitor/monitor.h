@@ -80,7 +80,6 @@ typedef struct {
   int8_t       has_mnode;
   int8_t       has_qnode;
   int8_t       has_snode;
-  int8_t       has_bnode;
   SMonDiskDesc logdir;
   SMonDiskDesc tempdir;
 } SMonDnodeInfo;

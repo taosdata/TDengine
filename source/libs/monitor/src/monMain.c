@@ -401,7 +401,6 @@ static void monGenDnodeJson(SMonInfo *pMonitor) {
   tjsonAddDoubleToObject(pJson, "has_mnode", pInfo->has_mnode);
   tjsonAddDoubleToObject(pJson, "has_qnode", pInfo->has_qnode);
   tjsonAddDoubleToObject(pJson, "has_snode", pInfo->has_snode);
-  tjsonAddDoubleToObject(pJson, "has_bnode", pInfo->has_bnode);
 }
 
 static void monGenDiskJson(SMonInfo *pMonitor) {

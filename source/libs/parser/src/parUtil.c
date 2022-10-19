@@ -1200,7 +1200,7 @@ int32_t getTableMetaFromCacheForInsert(SArray* pTableMetaPos, SParseMetaCache* p
   int32_t   reqIndex = *(int32_t*)taosArrayGet(pTableMetaPos, tableNo);
   SMetaRes* pRes = taosArrayGet(pMetaCache->pTableMetaData, reqIndex);
   if (TSDB_CODE_SUCCESS == pRes->code) {
-    *pMeta = tableMetaDup(pRes->pRes);
+    *pMeta = tableMetaDup((const STableMeta*)pRes->pRes);
     if (NULL == *pMeta) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
