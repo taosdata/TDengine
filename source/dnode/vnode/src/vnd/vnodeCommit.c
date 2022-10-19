@@ -239,10 +239,8 @@ int vnodeCommit(SVnode *pVnode) {
   }
   walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
 
-  if (smaPreCommit(pVnode->pSma) < 0) {
-    vError("vgId:%d, failed to pre-commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
-    return -1;
-  }
+  code = smaPreCommit(pVnode->pSma);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   vnodeBufPoolUnRef(pVnode->inUse);
   pVnode->inUse = NULL;
@@ -254,10 +252,8 @@ int vnodeCommit(SVnode *pVnode) {
   }
 
   if (VND_IS_RSMA(pVnode)) {
-    if (smaCommit(pVnode->pSma) < 0) {
-      vError("vgId:%d, failed to commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
+    code = smaCommit(pVnode->pSma);
+    TSDB_CHECK_CODE(code, lino, _exit);
   } else {
     code = tsdbCommit(pVnode->pTsdb);
     TSDB_CHECK_CODE(code, lino, _exit);
@@ -274,7 +270,13 @@ int vnodeCommit(SVnode *pVnode) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  tsdbFinishCommit(pVnode->pTsdb);
+  if (VND_IS_RSMA(pVnode)) {
+    code = smaFinishCommit(pVnode->pSma);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  } else {
+    code = tsdbFinishCommit(pVnode->pTsdb);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
   if (metaFinishCommit(pVnode->pMeta) < 0) {
     code = terrno;

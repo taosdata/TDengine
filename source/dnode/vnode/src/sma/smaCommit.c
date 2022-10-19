@@ -112,6 +112,30 @@ int32_t smaBegin(SSma *pSma) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t smaFinishCommit(SSma *pSma) {
+  int32_t  code = 0;
+  SVnode  *pVnode = pSma->pVnode;
+  SSmaEnv *pSmaEnv = SMA_RSMA_ENV(pSma);
+  if (!pSmaEnv) {
+    goto _exit;
+  }
+  if ((code = tsdbFinishCommit(VND_RSMA0(pVnode))) < 0) {
+    smaError("vgId:%d, failed to finish commit tsdb rsma0 since %s", TD_VID(pVnode), tstrerror(code));
+    goto _exit;
+  }
+  if ((code = tsdbFinishCommit(VND_RSMA1(pVnode))) < 0) {
+    smaError("vgId:%d, failed to finish commit tsdb rsma1 since %s", TD_VID(pVnode), tstrerror(code));
+    goto _exit;
+  }
+  if ((code = tsdbFinishCommit(VND_RSMA2(pVnode))) < 0) {
+    smaError("vgId:%d, failed to finish commit tsdb rsma2 since %s", TD_VID(pVnode), tstrerror(code));
+    goto _exit;
+  }
+_exit:
+  terrno = code;
+  return code;
+}
+
 #if 0
 /**
  * @brief pre-commit for rollup sma(sync commit).
