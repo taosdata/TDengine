@@ -99,26 +99,26 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
     memset(statePath, 0, 300);
     tstrncpy(statePath, path, 300);
   }
-  if (tdbOpen(statePath, szPage, pages, &pState->db) < 0) {
+  if (tdbOpen(statePath, szPage, pages, &pState->db, 0) < 0) {
     goto _err;
   }
 
   // open state storage backend
-  if (tdbTbOpen("state.db", sizeof(SStateKey), -1, stateKeyCmpr, pState->db, &pState->pStateDb) < 0) {
+  if (tdbTbOpen("state.db", sizeof(SStateKey), -1, stateKeyCmpr, pState->db, &pState->pStateDb, 0) < 0) {
     goto _err;
   }
 
   // todo refactor
-  if (tdbTbOpen("fill.state.db", sizeof(SWinKey), -1, winKeyCmpr, pState->db, &pState->pFillStateDb) < 0) {
+  if (tdbTbOpen("fill.state.db", sizeof(SWinKey), -1, winKeyCmpr, pState->db, &pState->pFillStateDb, 0) < 0) {
     goto _err;
   }
 
   if (tdbTbOpen("session.state.db", sizeof(SStateSessionKey), -1, stateSessionKeyCmpr, pState->db,
-                &pState->pSessionStateDb) < 0) {
+                &pState->pSessionStateDb, 0) < 0) {
     goto _err;
   }
 
-  if (tdbTbOpen("func.state.db", sizeof(STupleKey), -1, STupleKeyCmpr, pState->db, &pState->pFuncStateDb) < 0) {
+  if (tdbTbOpen("func.state.db", sizeof(STupleKey), -1, STupleKeyCmpr, pState->db, &pState->pFuncStateDb, 0) < 0) {
     goto _err;
   }
 

@@ -140,7 +140,7 @@ static void generateBigVal(char *val, int valLen) {
 static TDB *openEnv(char const *envName, int const pageSize, int const pageNum) {
   TDB *pEnv = NULL;
 
-  int ret = tdbOpen(envName, pageSize, pageNum, &pEnv);
+  int ret = tdbOpen(envName, pageSize, pageNum, &pEnv, 0);
   if (ret) {
     pEnv = NULL;
   }
@@ -162,8 +162,8 @@ static void insertOfp(void) {
   // open db
   TTB          *pDb = NULL;
   tdb_cmpr_fn_t compFunc = tKeyCmpr;
-  // ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb);
-  ret = tdbTbOpen("ofp_insert.db", 12, -1, compFunc, pEnv, &pDb);
+  // ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
+  ret = tdbTbOpen("ofp_insert.db", 12, -1, compFunc, pEnv, &pDb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   // open the pool
@@ -211,8 +211,8 @@ TEST(TdbOVFLPagesTest, TbGetTest) {
   // open db
   TTB          *pDb = NULL;
   tdb_cmpr_fn_t compFunc = tKeyCmpr;
-  // int           ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb);
-  int ret = tdbTbOpen("ofp_insert.db", 12, -1, compFunc, pEnv, &pDb);
+  // int           ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
+  int ret = tdbTbOpen("ofp_insert.db", 12, -1, compFunc, pEnv, &pDb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   // generate value payload
@@ -253,7 +253,7 @@ TEST(TdbOVFLPagesTest, TbDeleteTest) {
   // open db
   TTB          *pDb = NULL;
   tdb_cmpr_fn_t compFunc = tKeyCmpr;
-  ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb);
+  ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   // open the pool
@@ -354,12 +354,12 @@ TEST(tdb_test, simple_insert1) {
   taosRemoveDir("tdb");
 
   // Open Env
-  ret = tdbOpen("tdb", pageSize, 64, &pEnv);
+  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
   compFunc = tKeyCmpr;
-  ret = tdbTbOpen("db.db", -1, -1, compFunc, pEnv, &pDb);
+  ret = tdbTbOpen("db.db", -1, -1, compFunc, pEnv, &pDb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   {

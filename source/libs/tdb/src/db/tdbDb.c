@@ -15,7 +15,7 @@
 
 #include "tdbInt.h"
 
-int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb) {
+int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb, int8_t rollback) {
   TDB *pDb;
   int  dsize;
   int  zsize;
@@ -66,7 +66,7 @@ int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb) {
 
 #ifdef USE_MAINDB
   // open main db
-  ret = tdbTbOpen(TDB_MAINDB_NAME, -1, sizeof(SBtInfo), NULL, pDb, &pDb->pMainDb);
+  ret = tdbTbOpen(TDB_MAINDB_NAME, -1, sizeof(SBtInfo), NULL, pDb, &pDb->pMainDb, rollback);
   if (ret < 0) {
     return -1;
   }
@@ -124,6 +124,21 @@ int32_t tdbCommit(TDB *pDb, TXN *pTxn) {
     if (ret < 0) {
       tdbError("failed to commit pager since %s. dbName:%s, txnId:%" PRId64, tstrerror(terrno), pDb->dbName,
                pTxn->txnId);
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+int32_t tdbPostCommit(TDB *pDb, TXN *pTxn) {
+  SPager *pPager;
+  int     ret;
+
+  for (pPager = pDb->pgrList; pPager; pPager = pPager->pNext) {
+    ret = tdbPagerPostCommit(pPager, pTxn);
+    if (ret < 0) {
+      tdbError("failed to commit pager since %s. dbName:%s, txnId:%" PRId64, tstrerror(terrno), pDb->dbName, pTxn->txnId);
       return -1;
     }
   }

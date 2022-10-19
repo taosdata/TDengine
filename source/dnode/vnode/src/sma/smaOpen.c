@@ -29,19 +29,19 @@ static int32_t rsmaRestore(SSma *pSma);
     pKeepCfg->days = smaEvalDays(v, pCfg->retentions, l, pCfg->precision, pCfg->days);            \
   } while (0)
 
-#define SMA_OPEN_RSMA_IMPL(v, l)                                                   \
-  do {                                                                             \
-    SRetention *r = (SRetention *)VND_RETENTIONS(v) + l;                           \
-    if (!RETENTION_VALID(r)) {                                                     \
-      if (l == 0) {                                                                \
-        goto _err;                                                                 \
-      }                                                                            \
-      break;                                                                       \
-    }                                                                              \
-    smaSetKeepCfg(v, &keepCfg, pCfg, TSDB_TYPE_RSMA_L##l);                         \
-    if (tsdbOpen(v, &SMA_RSMA_TSDB##l(pSma), VNODE_RSMA##l##_DIR, &keepCfg) < 0) { \
-      goto _err;                                                                   \
-    }                                                                              \
+#define SMA_OPEN_RSMA_IMPL(v, l)                                                             \
+  do {                                                                                       \
+    SRetention *r = (SRetention *)VND_RETENTIONS(v) + l;                                     \
+    if (!RETENTION_VALID(r)) {                                                               \
+      if (l == 0) {                                                                          \
+        goto _err;                                                                           \
+      }                                                                                      \
+      break;                                                                                 \
+    }                                                                                        \
+    smaSetKeepCfg(v, &keepCfg, pCfg, TSDB_TYPE_RSMA_L##l);                                   \
+    if (tsdbOpen(v, &SMA_RSMA_TSDB##l(pSma), VNODE_RSMA##l##_DIR, &keepCfg, rollback) < 0) { \
+      goto _err;                                                                             \
+    }                                                                                        \
   } while (0)
 
 /**
@@ -118,7 +118,7 @@ int smaSetKeepCfg(SVnode *pVnode, STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int ty
   return 0;
 }
 
-int32_t smaOpen(SVnode *pVnode) {
+int32_t smaOpen(SVnode *pVnode, int8_t rollback) {
   STsdbCfg *pCfg = &pVnode->config.tsdbCfg;
 
   ASSERT(!pVnode->pSma);

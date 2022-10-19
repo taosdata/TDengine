@@ -27,25 +27,6 @@ TEST_F(ParserInitialCTest, createAccount) {
   run("CREATE ACCOUNT ac_wxy PASS '123456'", TSDB_CODE_PAR_EXPRIE_STATEMENT, PARSER_STAGE_PARSE);
 }
 
-TEST_F(ParserInitialCTest, createBnode) {
-  useDb("root", "test");
-
-  SMCreateQnodeReq expect = {0};
-
-  auto setCreateQnodeReq = [&](int32_t dnodeId) { expect.dnodeId = dnodeId; };
-
-  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
-    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_BNODE_STMT);
-    SMCreateQnodeReq req = {0};
-    ASSERT_TRUE(TSDB_CODE_SUCCESS ==
-                tDeserializeSCreateDropMQSBNodeReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
-    ASSERT_EQ(req.dnodeId, expect.dnodeId);
-  });
-
-  setCreateQnodeReq(1);
-  run("CREATE BNODE ON DNODE 1");
-}
-
 /*
  * CREATE DATABASE [IF NOT EXISTS] db_name [database_options]
  *

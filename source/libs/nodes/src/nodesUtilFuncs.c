@@ -190,14 +190,23 @@ int32_t nodesReleaseAllocator(int64_t allocatorId) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (NULL == g_pNodeAllocator) {
+  SNodeAllocator* pAllocator = taosAcquireRef(g_allocatorReqRefPool, allocatorId);
+  if (NULL == pAllocator) {
+    return terrno;
+  }
+
+  int32_t code = taosThreadMutexTryLock(&pAllocator->mutex);
+  if (EBUSY != code) {
     nodesError("allocator id %" PRIx64
                " release failed: The nodesReleaseAllocator function needs to be called after the nodesAcquireAllocator "
                "function is called!",
                allocatorId);
+    if (0 == code) {
+      taosThreadMutexUnlock(&pAllocator->mutex);
+    }
     return TSDB_CODE_FAILED;
   }
-  SNodeAllocator* pAllocator = g_pNodeAllocator;
+
   g_pNodeAllocator = NULL;
   taosThreadMutexUnlock(&pAllocator->mutex);
   return taosReleaseRef(g_allocatorReqRefPool, allocatorId);
@@ -1826,7 +1835,7 @@ static EDealRes collectFuncs(SNode* pNode, void* pContext) {
   if (QUERY_NODE_FUNCTION == nodeType(pNode) && pCxt->classifier(((SFunctionNode*)pNode)->funcId) &&
       !(((SExprNode*)pNode)->orderAlias)) {
     SExprNode* pExpr = (SExprNode*)pNode;
-    if (NULL == taosHashGet(pCxt->pFuncsSet, &pExpr, POINTER_BYTES)) {
+    if (NULL == taosHashGet(pCxt->pFuncsSet, &pExpr, sizeof(SExprNode*))) {
       pCxt->errCode = nodesListStrictAppend(pCxt->pFuncs, nodesCloneNode(pNode));
       taosHashPut(pCxt->pFuncsSet, &pExpr, POINTER_BYTES, &pExpr, POINTER_BYTES);
     }
