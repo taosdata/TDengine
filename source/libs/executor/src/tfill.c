@@ -467,9 +467,11 @@ struct SFillInfo* taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t 
     case FILL_MODE_VALUE:
       pFillInfo->type = TSDB_FILL_SET_VALUE;
       break;
-    default:
+    default: {
+      taosMemoryFree(pFillInfo);
       terrno = TSDB_CODE_INVALID_PARA;
       return NULL;
+    }
   }
 
   pFillInfo->type = fillType;
