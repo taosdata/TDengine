@@ -349,7 +349,7 @@ endi
 
 if $rows != 3 then
   print ====loop4=rows=$rows
-#  goto loop4
+  goto loop4
 endi
 
 # row 0
