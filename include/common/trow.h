@@ -30,7 +30,7 @@
 extern "C" {
 #endif
 
-typedef struct {
+typedef struct STSRow {
   TSKEY ts;
   union {
     uint32_t info;
