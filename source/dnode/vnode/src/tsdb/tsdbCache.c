@@ -1144,6 +1144,7 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, SArray **ppCo
 
       *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.val = lastRowTs});
       if (taosArrayPush(pColArray, &(SLastCol){.ts = lastRowTs, .colVal = *pColVal}) == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
         code = TSDB_CODE_OUT_OF_MEMORY;
         goto _err;
       }
@@ -1154,6 +1155,11 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, SArray **ppCo
         SLastCol lastCol = {.ts = lastRowTs, .colVal = *pColVal};
         if (IS_VAR_DATA_TYPE(pColVal->type)) {
           lastCol.colVal.value.pData = taosMemoryMalloc(lastCol.colVal.value.nData);
+          if (lastCol.colVal.value.pData == NULL) {
+            terrno = TSDB_CODE_OUT_OF_MEMORY;
+            code = TSDB_CODE_OUT_OF_MEMORY;
+            goto _err;
+          }
           memcpy(lastCol.colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
         }
 
@@ -1194,6 +1200,11 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, SArray **ppCo
           taosMemoryFree(pLastCol->colVal.value.pData);
 
           lastCol.colVal.value.pData = taosMemoryMalloc(lastCol.colVal.value.nData);
+          if (lastCol.colVal.value.pData == NULL) {
+            terrno = TSDB_CODE_OUT_OF_MEMORY;
+            code = TSDB_CODE_OUT_OF_MEMORY;
+            goto _err;
+          }
           memcpy(lastCol.colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
         }
 
@@ -1267,6 +1278,11 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray) {
         SLastCol lastCol = {.ts = lastRowTs, .colVal = *pColVal};
         if (IS_VAR_DATA_TYPE(pColVal->type)) {
           lastCol.colVal.value.pData = taosMemoryMalloc(lastCol.colVal.value.nData);
+          if (lastCol.colVal.value.pData == NULL) {
+            terrno = TSDB_CODE_OUT_OF_MEMORY;
+            code = TSDB_CODE_OUT_OF_MEMORY;
+            goto _err;
+          }
           memcpy(lastCol.colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
         }
 
@@ -1303,6 +1319,11 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray) {
           taosMemoryFree(pLastCol->colVal.value.pData);
 
           lastCol.colVal.value.pData = taosMemoryMalloc(lastCol.colVal.value.nData);
+          if (lastCol.colVal.value.pData == NULL) {
+            terrno = TSDB_CODE_OUT_OF_MEMORY;
+            code = TSDB_CODE_OUT_OF_MEMORY;
+            goto _err;
+          }
           memcpy(lastCol.colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
         }
 
