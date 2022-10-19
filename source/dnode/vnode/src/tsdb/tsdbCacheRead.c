@@ -69,7 +69,6 @@ static void saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pRea
   } else {
     ASSERT((pReader->type & CACHESCAN_RETRIEVE_LAST_ROW) == CACHESCAN_RETRIEVE_LAST_ROW);
 
-    SColVal colVal = {0};
     for (int32_t i = 0; i < pReader->numOfCols; ++i) {
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
 
@@ -79,17 +78,18 @@ static void saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pRea
       } else {
         int32_t   slotId = slotIds[i];
         SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, slotId);
+        SColVal*  pVal = &pColVal->colVal;
 
-        if (IS_VAR_DATA_TYPE(colVal.type)) {
+        if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
           if (!COL_VAL_IS_VALUE(&pColVal->colVal)) {
             colDataAppendNULL(pColInfoData, numOfRows);
           } else {
-            varDataSetLen(pReader->transferBuf[slotId], colVal.value.nData);
-            memcpy(varDataVal(pReader->transferBuf[slotId]), colVal.value.pData, colVal.value.nData);
+            varDataSetLen(pReader->transferBuf[slotId], pVal->value.nData);
+            memcpy(varDataVal(pReader->transferBuf[slotId]), pVal->value.pData, pVal->value.nData);
             colDataAppend(pColInfoData, numOfRows, pReader->transferBuf[slotId], false);
           }
         } else {
-          colDataAppend(pColInfoData, numOfRows, (const char*)&colVal.value, !COL_VAL_IS_VALUE(&pColVal->colVal));
+          colDataAppend(pColInfoData, numOfRows, (const char*)&pVal->value.val, !COL_VAL_IS_VALUE(pVal));
         }
       }
     }
@@ -157,6 +157,8 @@ void* tsdbCacherowsReaderClose(void* pReader) {
 static int32_t doExtractCacheRow(SCacheRowsReader* pr, SLRUCache* lruCache, uint64_t uid, SArray** pRow,
                                  LRUHandle** h) {
   int32_t code = TSDB_CODE_SUCCESS;
+  *pRow = NULL;
+
   if ((pr->type & CACHESCAN_RETRIEVE_LAST_ROW) == CACHESCAN_RETRIEVE_LAST_ROW) {
     code = tsdbCacheGetLastrowH(lruCache, uid, pr->pVnode->pTsdb, h);
   } else {
@@ -208,12 +210,9 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     goto _end;
   }
 
-  for (int32_t i = 0; i < pr->numOfCols; ++i) {
-    SLastCol p = {0};
-    p.ts = INT64_MIN;
-
+  for (int32_t i = 0; i < pr->pSchema->numOfCols; ++i) {
     struct STColumn* pCol = &pr->pSchema->columns[i];
-    p.colVal.type = pCol->type;
+    SLastCol p = {.ts = INT64_MIN, .colVal.type = pCol->type};
 
     if (IS_VAR_DATA_TYPE(pCol->type)) {
       p.colVal.value.pData = taosMemoryCalloc(pCol->bytes, sizeof(char));
@@ -254,7 +253,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
               hasRes = true;
               p->ts = pColVal->ts;
 
-              if (!COL_VAL_IS_VALUE(&pColVal->colVal)) {
+              if (COL_VAL_IS_VALUE(&pColVal->colVal)) {
                 if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
                   uint8_t* px = p->colVal.value.pData;
                   p->colVal = pColVal->colVal;
