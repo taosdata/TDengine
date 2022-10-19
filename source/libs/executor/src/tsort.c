@@ -181,6 +181,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
     blockDataSplitRows(pDataBlock, pDataBlock->info.hasVarCol, start, &stop, pHandle->pageSize);
     SSDataBlock* p = blockDataExtractBlock(pDataBlock, start, stop - start + 1);
     if (p == NULL) {
+      taosArrayDestroy(pPageIdList);
       return terrno;
     }
 
@@ -422,7 +423,7 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
     SColumnInfoData* pRightColInfoData = TARRAY_GET_ELEM(pRightBlock->pDataBlock, pOrder->slotId);
     bool             rightNull = false;
     if (pRightColInfoData->hasNull) {
-      if (pLeftBlock->pBlockAgg == NULL) {
+      if (pRightBlock->pBlockAgg == NULL) {
         rightNull = colDataIsNull_s(pRightColInfoData, pRightSource->src.rowIndex);
       } else {
         rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, pRightSource->src.rowIndex,

@@ -39,8 +39,6 @@ typedef struct SVariant {
 int32_t toInteger(const char *z, int32_t n, int32_t base, int64_t *value);
 int32_t toUInteger(const char *z, int32_t n, int32_t base, uint64_t *value);
 
-bool taosVariantIsValid(SVariant *pVar);
-
 void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uint32_t type);
 
 void taosVariantDestroy(SVariant *pV);
@@ -49,15 +47,6 @@ void taosVariantAssign(SVariant *pDst, const SVariant *pSrc);
 
 int32_t taosVariantCompare(const SVariant *p1, const SVariant *p2);
 
-int32_t taosVariantToString(SVariant *pVar, char *dst);
-
-int32_t taosVariantDump(SVariant *pVariant, char *payload, int16_t type, bool includeLengthPrefix);
-
-#if 0
-int32_t taosVariantDumpEx(SVariant *pVariant, char *payload, int16_t type, bool includeLengthPrefix, bool *converted, char *extInfo);
-#endif
-
-int32_t taosVariantTypeSetType(SVariant *pVariant, char type);
 char   *taosVariantGet(SVariant *pVar, int32_t type);
 
 #ifdef __cplusplus
