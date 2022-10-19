@@ -28,6 +28,16 @@ class TDTestQuery(TDCase):
     def init(self):
         super(TDTestQuery, self).init()
         self.tdCreateData = TDCreateData(self.tdSql, self.logger)
+        
+        self.firstEP = []
+        for env_setting in self.env_setting["settings"]:
+            if env_setting["name"].lower() == "taosd":
+                self.taosd_setting = env_setting
+                self.firstEP.append(
+                    self.taosd_setting['spec']['config']['firstEP'])
+        self.target_taosd = self.firstEP[-1].split(':')
+        print(self.target_taosd[0])
+        self.service_host = self.target_taosd[0]
 
     def tags(self) :
 	
@@ -45,7 +55,7 @@ class TDTestQuery(TDCase):
 
     #basic_param
     db = "top_security"
-    service_host = ""
+    
     num_random = 10
     stable_child_num = 100
 
