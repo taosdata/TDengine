@@ -5462,9 +5462,11 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   }
   SStreamIntervalPhysiNode* pIntervalPhyNode = (SStreamIntervalPhysiNode*)pPhyNode;
 
+  int32_t    code = TSDB_CODE_SUCCESS;
   int32_t    numOfCols = 0;
   SExprInfo* pExprInfo = createExprInfo(pIntervalPhyNode->window.pFuncs, NULL, &numOfCols);
   ASSERT(numOfCols > 0);
+
   SSDataBlock* pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
   SInterval    interval = {
          .interval = pIntervalPhyNode->interval,
@@ -5474,6 +5476,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
          .offset = pIntervalPhyNode->offset,
          .precision = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->node.resType.precision,
   };
+
   STimeWindowAggSupp twAggSupp = {
       .waterMark = pIntervalPhyNode->window.watermark,
       .calTrigger = pIntervalPhyNode->window.triggerType,
@@ -5481,6 +5484,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
       .minTs = INT64_MAX,
       .deleteMark = INT64_MAX,
   };
+
   ASSERT(twAggSupp.calTrigger != STREAM_TRIGGER_MAX_DELAY);
   pOperator->pTaskInfo = pTaskInfo;
   pInfo->interval = interval;
@@ -5502,7 +5506,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   }
 
   size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
-  int32_t code = initAggInfo(pSup, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str);
+  code = initAggInfo(pSup, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
