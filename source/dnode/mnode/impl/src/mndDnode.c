@@ -361,10 +361,12 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       bool roleChanged = false;
       for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
         if (pVgroup->vnodeGid[vg].dnodeId == statusReq.dnodeId) {
-          if (pVgroup->vnodeGid[vg].role != pVload->syncState) {
+          if (pVgroup->vnodeGid[vg].syncState != pVload->syncState ||
+              pVgroup->vnodeGid[vg].syncRestore != pVload->syncRestore) {
+            pVgroup->vnodeGid[vg].syncState = pVload->syncState;
+            pVgroup->vnodeGid[vg].syncRestore = pVload->syncRestore;
             roleChanged = true;
           }
-          pVgroup->vnodeGid[vg].role = pVload->syncState;
           break;
         }
       }
@@ -378,10 +380,11 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
   SMnodeObj *pObj = mndAcquireMnode(pMnode, pDnode->id);
   if (pObj != NULL) {
-    if (pObj->state != statusReq.mload.syncState) {
-      mInfo("dnode:%d, mnode syncstate from %s to %s", pObj->id, syncStr(pObj->state),
-            syncStr(statusReq.mload.syncState));
-      pObj->state = statusReq.mload.syncState;
+    if (pObj->syncState != statusReq.mload.syncState || pObj->syncRestore != statusReq.mload.syncRestore) {
+      mInfo("dnode:%d, mnode syncState from %s to %s, restoreState from %d to %d", pObj->id, syncStr(pObj->syncState),
+            syncStr(statusReq.mload.syncState), pObj->syncRestore, statusReq.mload.syncRestore);
+      pObj->syncState = statusReq.mload.syncState;
+      pObj->syncRestore = statusReq.mload.syncRestore;
       pObj->stateStartTime = taosGetTimestampMs();
     }
     mndReleaseMnode(pMnode, pObj);
