@@ -73,6 +73,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->idleTime = pInit->idleTime;
   pRpc->tcphandle =
       (*taosInitHandle[pRpc->connType])(ip, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
+
   if (pRpc->tcphandle == NULL) {
     taosMemoryFree(pRpc);
     return NULL;

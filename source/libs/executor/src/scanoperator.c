@@ -2906,7 +2906,8 @@ static int32_t sysFilte__DbName(void* pMeta, SNode* pNode, SArray* result) {
 
   SValueNode* pVal = (SValueNode*)pOper->pRight;
 
-  __optSysFilter func = optSysGetFilterFunc(pOper->operType);
+  bool           reverse = false;
+  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
   if (func == NULL) return -1;
 
   int ret = func(dbname, pVal->datum.p, TSDB_DATA_TYPE_VARCHAR);
@@ -2923,7 +2924,9 @@ static int32_t sysFilte__VgroupId(void* pMeta, SNode* pNode, SArray* result) {
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
 
-  __optSysFilter func = optSysGetFilterFunc(pOper->operType);
+  bool reverse = false;
+
+  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
   if (func == NULL) return -1;
 
   int ret = func(&vgId, &pVal->datum.i, TSDB_DATA_TYPE_BIGINT);
@@ -2932,33 +2935,92 @@ static int32_t sysFilte__VgroupId(void* pMeta, SNode* pNode, SArray* result) {
   return -1;
 }
 static int32_t sysFilte__TableName(void* pMeta, SNode* pNode, SArray* result) {
-  // impl later
-  return 0;
+  void* pVnode = pMeta;
+
+  SOperatorNode* pOper = (SOperatorNode*)pNode;
+  SValueNode*    pVal = (SValueNode*)pOper->pRight;
+  bool           reverse = false;
+
+  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
+  if (func == NULL) return -1;
+
+  SMetaFltParam param = {.suid = 0,
+                         .cid = 0,
+                         .type = TSDB_DATA_TYPE_VARCHAR,
+                         .val = pVal->datum.p,
+                         .reverse = reverse,
+                         .filterFunc = func};
+  int32_t       ret = metaFilterTableName(pVnode, &param, result);
+  if (ret == 0) return 0;
+
+  return -1;
 }
 
 static int32_t sysFilte__CreateTime(void* pMeta, SNode* pNode, SArray* result) {
-  // impl later
+  void* pVnode = pMeta;
+
+  SOperatorNode* pOper = (SOperatorNode*)pNode;
+  SValueNode*    pVal = (SValueNode*)pOper->pRight;
+  bool           reverse = false;
+
+  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
+  if (func == NULL) return -1;
   return 0;
 }
 static int32_t sysFilte__Ncolumn(void* pMeta, SNode* pNode, SArray* result) {
-  // impl later
+  void* pVnode = pMeta;
+
+  SOperatorNode* pOper = (SOperatorNode*)pNode;
+  SValueNode*    pVal = (SValueNode*)pOper->pRight;
+  bool           reverse = false;
+
+  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
+  if (func == NULL) return -1;
   return 0;
 }
 
 static int32_t sysFilte__Ttl(void* pMeta, SNode* pNode, SArray* result) {
-  // impl later
+  void* pVnode = pMeta;
+
+  SOperatorNode* pOper = (SOperatorNode*)pNode;
+  SValueNode*    pVal = (SValueNode*)pOper->pRight;
+  bool           reverse = false;
+
+  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
+  if (func == NULL) return -1;
   return 0;
 }
 static int32_t sysFilte__STableName(void* pMeta, SNode* pNode, SArray* result) {
-  // impl later
+  void* pVnode = pMeta;
+
+  SOperatorNode* pOper = (SOperatorNode*)pNode;
+  SValueNode*    pVal = (SValueNode*)pOper->pRight;
+  bool           reverse = false;
+
+  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
+  if (func == NULL) return -1;
   return 0;
 }
 static int32_t sysFilte__Uid(void* pMeta, SNode* pNode, SArray* result) {
-  // impl later
+  void* pVnode = pMeta;
+
+  SOperatorNode* pOper = (SOperatorNode*)pNode;
+  SValueNode*    pVal = (SValueNode*)pOper->pRight;
+  bool           reverse = false;
+
+  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
+  if (func == NULL) return -1;
   return 0;
 }
 static int32_t sysFilte__Type(void* pMeta, SNode* pNode, SArray* result) {
-  // impl later
+  void* pVnode = pMeta;
+
+  SOperatorNode* pOper = (SOperatorNode*)pNode;
+  SValueNode*    pVal = (SValueNode*)pOper->pRight;
+  bool           reverse = false;
+
+  __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
+  if (func == NULL) return -1;
   return 0;
 }
 static int32_t sysChkFilter__DBName(SNode* pNode) {

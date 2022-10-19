@@ -1201,11 +1201,10 @@ void createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
 #if 1
     // todo refactor: add the parameter for tbname function
     const char* name = "tbname";
-    int32_t len = strlen(name);
+    int32_t     len = strlen(name);
 
     if (!pFuncNode->pParameterList && (memcmp(pExprNode->_function.functionName, name, len) == 0) &&
         pExprNode->_function.functionName[len] == 0) {
-
       pFuncNode->pParameterList = nodesMakeList();
       ASSERT(LIST_LENGTH(pFuncNode->pParameterList) == 0);
       SValueNode* res = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);

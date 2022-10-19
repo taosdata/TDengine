@@ -152,7 +152,7 @@ typedef struct {
 } SCtimeIdxKey;
 
 typedef struct {
-  int16_t  ncol;
+  int64_t  ncol;
   tb_uid_t uid;
 } SNcolIdxKey;
 
