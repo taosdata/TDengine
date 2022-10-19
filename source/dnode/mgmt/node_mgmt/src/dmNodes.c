@@ -26,8 +26,6 @@ static int32_t dmCreateShm(SMgmtWrapper *pWrapper) {
     shmsize = tsSnodeShmSize;
   } else if (pWrapper->ntype == MNODE) {
     shmsize = tsMnodeShmSize;
-  } else if (pWrapper->ntype == BNODE) {
-    shmsize = tsBnodeShmSize;
   } else {
     return -1;
   }
