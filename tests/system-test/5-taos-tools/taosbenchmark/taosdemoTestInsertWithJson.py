@@ -51,10 +51,10 @@ class TDTestCase:
 
     def run(self):
         binPath = self.getPath()
-        if buildPath == "":
+        if binPath == "":
             tdLog.exit("taosBenchmark not found!")
         else:
-            tdLog.info("taosBenchmark found in %s" % buildPath)
+            tdLog.info("taosBenchmark found in %s" % binPath)
 
         testcaseFilename = os.path.split(__file__)[-1]
         os.system("rm -rf ./insert*_res.txt*")
