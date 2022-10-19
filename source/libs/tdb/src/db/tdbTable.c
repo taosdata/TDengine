@@ -24,7 +24,8 @@ struct STBC {
   SBTC btc;
 };
 
-int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn, TDB *pEnv, TTB **ppTb) {
+int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn, TDB *pEnv, TTB **ppTb,
+              int8_t rollback) {
   TTB    *pTb;
   SPager *pPager;
   int     ret;
@@ -110,10 +111,14 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
     return -1;
   }
 
-  ret = tdbPagerRestore(pPager, pTb->pBt);
-  if (ret < 0) {
-    tdbOsFree(pTb);
-    return -1;
+  if (rollback) {
+    tdbPagerRollback(pPager);
+  } else {
+    ret = tdbPagerRestore(pPager, pTb->pBt);
+    if (ret < 0) {
+      tdbOsFree(pTb);
+      return -1;
+    }
   }
 
   *ppTb = pTb;

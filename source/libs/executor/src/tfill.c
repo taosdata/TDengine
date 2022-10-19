@@ -1492,6 +1492,7 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
         case STREAM_NORMAL:
         case STREAM_INVALID: {
           doApplyStreamScalarCalculation(pOperator, pBlock, pInfo->pSrcBlock);
+          memcpy(pInfo->pSrcBlock->info.parTbName, pBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
           pInfo->srcRowIndex = 0;
         } break;
         default:
@@ -1502,6 +1503,7 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
 
     doStreamFillImpl(pOperator);
     doFilter(pInfo->pCondition, pInfo->pRes, pInfo->pColMatchColInfo, NULL);
+    memcpy(pInfo->pRes->info.parTbName, pInfo->pSrcBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
     pOperator->resultInfo.totalRows += pInfo->pRes->info.rows;
     if (pInfo->pRes->info.rows > 0) {
       break;

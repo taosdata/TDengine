@@ -119,7 +119,10 @@ int32_t tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   for (int32_t i = 0; i < epSz; i++) {
     SStreamChildEpInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamChildEpInfo));
     if (pInfo == NULL) return -1;
-    if (tDecodeStreamEpInfo(pDecoder, pInfo) < 0) return -1;
+    if (tDecodeStreamEpInfo(pDecoder, pInfo) < 0) {
+      taosMemoryFreeClear(pInfo);
+      return -1;
+    }
     taosArrayPush(pTask->childEpInfo, &pInfo);
   }
 
