@@ -1094,6 +1094,7 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
           // fetch next ofp, a new ofp and make it dirty
           ret = tdbFetchOvflPage(&pgno, &nextOfp, pTxn, pBt);
           if (ret < 0) {
+            tdbFree(pBuf);
             return -1;
           }
         }
@@ -1134,6 +1135,11 @@ static int tdbBtreeEncodePayload(SPage *pPage, SCell *pCell, int nHeader, const 
 
         memcpy(pBuf, ((SCell *)pVal) + vLen - nLeft, bytes);
         memcpy(pBuf + bytes, &pgno, sizeof(pgno));
+
+        if (ofp == NULL) {
+          tdbFree(pBuf);
+          return -1;
+        }
 
         ret = tdbPageInsertCell(ofp, 0, pBuf, bytes + sizeof(pgno), 0);
         if (ret < 0) {

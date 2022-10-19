@@ -26,47 +26,14 @@ static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
   int32_t code = (*pWrapper->func.requiredFp)(&input, &required);
   if (!required) {
     dDebug("node:%s, does not require startup", pWrapper->name);
-  }
-
-  if (pWrapper->ntype == DNODE) {
-    if (pDnode->rtype != DNODE && pDnode->rtype != NODE_END) {
-      required = false;
-      dDebug("node:%s, does not require startup in child process", pWrapper->name);
-    }
   } else {
-    if (OnlyInChildProc(pWrapper)) {
-      if (pWrapper->ntype != pDnode->rtype) {
-        dDebug("node:%s, does not require startup in child process", pWrapper->name);
-        required = false;
-      }
-    }
-  }
-
-  if (required) {
     dDebug("node:%s, required to startup", pWrapper->name);
   }
 
   return required;
 }
 
-static int32_t dmInitVars(SDnode *pDnode, EDndNodeType rtype) {
-  pDnode->rtype = rtype;
-
-  if (tsMultiProcess == 0) {
-    pDnode->ptype = DND_PROC_SINGLE;
-    dInfo("dnode will run in single-process mode");
-  } else if (tsMultiProcess > 1) {
-    pDnode->ptype = DND_PROC_TEST;
-    dInfo("dnode will run in multi-process test mode");
-  } else if (pDnode->rtype == DNODE || pDnode->rtype == NODE_END) {
-    pDnode->ptype = DND_PROC_PARENT;
-    dInfo("dnode will run in parent-process mode");
-  } else {
-    pDnode->ptype = DND_PROC_CHILD;
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->rtype];
-    dInfo("dnode will run in child-process mode, node:%s", dmNodeName(pDnode->rtype));
-  }
-
+static int32_t dmInitVars(SDnode *pDnode) {
   SDnodeData *pData = &pDnode->data;
   pData->dnodeId = 0;
   pData->clusterId = 0;
@@ -127,12 +94,12 @@ static void dmClearVars(SDnode *pDnode) {
   memset(&pDnode->mutex, 0, sizeof(pDnode->mutex));
 }
 
-int32_t dmInitDnode(SDnode *pDnode, EDndNodeType rtype) {
+int32_t dmInitDnode(SDnode *pDnode) {
   dDebug("start to create dnode");
   int32_t code = -1;
   char    path[PATH_MAX + 100] = {0};
 
-  if (dmInitVars(pDnode, rtype) != 0) {
+  if (dmInitVars(pDnode) != 0) {
     goto _OVER;
   }
 
@@ -141,20 +108,12 @@ int32_t dmInitDnode(SDnode *pDnode, EDndNodeType rtype) {
   pDnode->wrappers[VNODE].func = vmGetMgmtFunc();
   pDnode->wrappers[QNODE].func = qmGetMgmtFunc();
   pDnode->wrappers[SNODE].func = smGetMgmtFunc();
-  pDnode->wrappers[BNODE].func = bmGetMgmtFunc();
 
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
     pWrapper->pDnode = pDnode;
     pWrapper->name = dmNodeName(ntype);
     pWrapper->ntype = ntype;
-    pWrapper->proc.wrapper = pWrapper;
-    pWrapper->proc.shm.id = -1;
-    pWrapper->proc.pid = -1;
-    pWrapper->proc.ptype = pDnode->ptype;
-    if (ntype == DNODE) {
-      pWrapper->proc.ptype = DND_PROC_SINGLE;
-    }
     taosThreadRwlockInit(&pWrapper->lock, NULL);
 
     snprintf(path, sizeof(path), "%s%s%s", tsDataDir, TD_DIRSEP, pWrapper->name);
@@ -165,11 +124,6 @@ int32_t dmInitDnode(SDnode *pDnode, EDndNodeType rtype) {
     }
 
     pWrapper->required = dmRequireNode(pDnode, pWrapper);
-
-    if (ntype != DNODE && dmReadShmFile(pWrapper->path, pWrapper->name, pDnode->rtype, &pWrapper->proc.shm) != 0) {
-      dError("node:%s, failed to read shm file since %s", pWrapper->name, terrstr());
-      goto _OVER;
-    }
   }
 
   if (dmInitMsgHandle(pDnode) != 0) {
@@ -177,16 +131,14 @@ int32_t dmInitDnode(SDnode *pDnode, EDndNodeType rtype) {
     goto _OVER;
   }
 
-  if (pDnode->ptype == SINGLE_PROC || (pDnode->ptype & PARENT_PROC)) {
-    pDnode->lockfile = dmCheckRunning(tsDataDir);
-    if (pDnode->lockfile == NULL) {
-      goto _OVER;
-    }
+  pDnode->lockfile = dmCheckRunning(tsDataDir);
+  if (pDnode->lockfile == NULL) {
+    goto _OVER;
+  }
 
-    if (dmInitServer(pDnode) != 0) {
-      dError("failed to init transport since %s", terrstr());
-      goto _OVER;
-    }
+  if (dmInitServer(pDnode) != 0) {
+    dError("failed to init transport since %s", terrstr());
+    goto _OVER;
   }
 
   if (dmInitClient(pDnode) != 0) {
@@ -249,7 +201,7 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
   int32_t code = 0;
 
   taosThreadRwlockRdlock(&pWrapper->lock);
-  if (pWrapper->deployed || (InParentProc(pWrapper) && pWrapper->required)) {
+  if (pWrapper->deployed) {
     int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
     // dTrace("node:%s, is marked, ref:%d", pWrapper->name, refCount);
   } else {

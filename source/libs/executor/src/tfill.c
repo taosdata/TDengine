@@ -693,7 +693,7 @@ void* destroyStreamFillSupporter(SStreamFillSupporter* pFillSup) {
   pFillSup->pAllColInfo = destroyFillColumnInfo(pFillSup->pAllColInfo, pFillSup->numOfFillCols, pFillSup->numOfAllCols);
   tSimpleHashCleanup(pFillSup->pResMap);
   pFillSup->pResMap = NULL;
-  streamStateReleaseBuf(NULL, NULL, pFillSup->cur.pRowVal);
+  releaseOutputBuf(NULL, NULL, (SResultRow*)pFillSup->cur.pRowVal);
   pFillSup->cur.pRowVal = NULL;
 
   taosMemoryFree(pFillSup);
@@ -736,7 +736,7 @@ static void resetFillWindow(SResultRowData* pRowData) {
 
 void resetPrevAndNextWindow(SStreamFillSupporter* pFillSup, SStreamState* pState) {
   resetFillWindow(&pFillSup->prev);
-  streamStateReleaseBuf(NULL, NULL, pFillSup->cur.pRowVal);
+  releaseOutputBuf(NULL, NULL, (SResultRow*)pFillSup->cur.pRowVal);
   resetFillWindow(&pFillSup->cur);
   resetFillWindow(&pFillSup->next);
   resetFillWindow(&pFillSup->nextNext);
@@ -1492,6 +1492,7 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
         case STREAM_NORMAL:
         case STREAM_INVALID: {
           doApplyStreamScalarCalculation(pOperator, pBlock, pInfo->pSrcBlock);
+          memcpy(pInfo->pSrcBlock->info.parTbName, pBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
           pInfo->srcRowIndex = 0;
         } break;
         default:
@@ -1502,6 +1503,7 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
 
     doStreamFillImpl(pOperator);
     doFilter(pInfo->pCondition, pInfo->pRes, pInfo->pColMatchColInfo, NULL);
+    memcpy(pInfo->pRes->info.parTbName, pInfo->pSrcBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
     pOperator->resultInfo.totalRows += pInfo->pRes->info.rows;
     if (pInfo->pRes->info.rows > 0) {
       break;

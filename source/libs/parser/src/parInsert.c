@@ -1365,8 +1365,12 @@ static int32_t parseCsvFile(SInsertParseContext* pCxt, TdFilePtr fp, STableDataB
     strtolower(pLine, pLine);
     char* pRawSql = pCxt->pSql;
     pCxt->pSql = pLine;
-    bool gotRow = false;
-    CHECK_CODE(parseOneRow(pCxt, pDataBlock, tinfo.precision, &gotRow, tmpTokenBuf));
+    bool    gotRow = false;
+    int32_t code = parseOneRow(pCxt, pDataBlock, tinfo.precision, &gotRow, tmpTokenBuf);
+    if (TSDB_CODE_SUCCESS != code) {
+      pCxt->pSql = pRawSql;
+      return code;
+    }
     if (gotRow) {
       pDataBlock->size += extendedRowSize;  // len;
       (*numOfRows)++;

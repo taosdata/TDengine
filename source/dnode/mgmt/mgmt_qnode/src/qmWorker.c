@@ -28,18 +28,9 @@ static inline void qmSendRsp(SRpcMsg *pMsg, int32_t code) {
 
 static void qmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SQnodeMgmt *pMgmt = pInfo->ahandle;
-  int32_t     code = -1;
   dTrace("msg:%p, get from qnode queue", pMsg);
 
-  switch (pMsg->msgType) {
-    case TDMT_MON_QM_INFO:
-      code = qmProcessGetMonitorInfoReq(pMgmt, pMsg);
-      break;
-    default:
-      code = qndProcessQueryMsg(pMgmt->pQnode, pInfo->timestamp, pMsg);
-      break;
-  }
-
+  int32_t code = qndProcessQueryMsg(pMgmt->pQnode, pInfo->timestamp, pMsg);
   if (IsReq(pMsg) && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     if (code != 0 && terrno != 0) code = terrno;
     qmSendRsp(pMsg, code);
@@ -64,10 +55,6 @@ int32_t qmPutNodeMsgToQueryQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
 int32_t qmPutNodeMsgToFetchQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return qmPutNodeMsgToWorker(&pMgmt->fetchWorker, pMsg);
-}
-
-int32_t qmPutNodeMsgToMonitorQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  return qmPutNodeMsgToWorker(&pMgmt->monitorWorker, pMsg);
 }
 
 int32_t qmPutRpcMsgToQueue(SQnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
@@ -136,24 +123,11 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
     return -1;
   }
 
-  SSingleWorkerCfg mCfg = {
-      .min = 1,
-      .max = 1,
-      .name = "qnode-monitor",
-      .fp = (FItem)qmProcessQueue,
-      .param = pMgmt,
-  };
-  if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
-    dError("failed to start qnode-monitor worker since %s", terrstr());
-    return -1;
-  }
-
   dDebug("qnode workers are initialized");
   return 0;
 }
 
 void qmStopWorker(SQnodeMgmt *pMgmt) {
-  tSingleWorkerCleanup(&pMgmt->monitorWorker);
   tSingleWorkerCleanup(&pMgmt->queryWorker);
   tSingleWorkerCleanup(&pMgmt->fetchWorker);
   dDebug("qnode workers are closed");

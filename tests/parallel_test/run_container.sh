@@ -68,12 +68,16 @@ if [ $ent -ne 0 ]; then
     CONTAINER_TESTDIR=/home/TDinternal/community
     SIM_DIR=/home/TDinternal/sim
     REP_MOUNT_PARAM="$INTERNAL_REPDIR:/home/TDinternal"
+    REP_MOUNT_LIB="$INTERNAL_REPDIR/debug/build/lib:/home/TDinternal/debug/build/lib:ro"
+
 else
     # community edition
     REPDIR=$WORKDIR/TDengine
     CONTAINER_TESTDIR=/home/TDengine
     SIM_DIR=/home/TDengine/sim
     REP_MOUNT_PARAM="$REPDIR:/home/TDengine"
+    REP_MOUNT_LIB="$REPDIR/debug/build/lib:/home/TDengine/debug/build/lib:ro"
+
 fi
 
 ulimit -c unlimited
@@ -103,6 +107,7 @@ coredump_dir=`cat /proc/sys/kernel/core_pattern | xargs dirname`
 
 docker run \
     -v $REP_MOUNT_PARAM \
+    -v $REP_MOUNT_LIB \
     -v $MOUNT_DIR \
     -v ${SOURCEDIR}:/usr/local/src/ \
     -v "$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}" \
