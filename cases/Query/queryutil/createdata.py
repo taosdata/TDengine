@@ -35,6 +35,7 @@ class TDCreateData():
         self._remote: Remote = Remote(self.logger)
         self.tdCommon = TDCom(self.tdSql)
         self._remote._logger.info("********")
+        
 
     def desc(self) -> str:
         case_description = '''
@@ -826,13 +827,15 @@ class TDCreateData():
         # testcaseFilename = os.path.split(__file__)[-1]
         # taos_cmd1 = "taos -h %s -f %s/%s.sql" % (service_host,testcasePath,testcaseFilename)
         # _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-        service_host = "ceph01"
+        #service_host = "ceph01"
+        
         taos_cmd1 = "taos -h %s -f %s/%s.sql" % (service_host,testcasePath,testcaseFilename)
         _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
         self.logger.info("sqlname :============= %s/%s.sql"% (testcasePath,testcaseFilename))
 
     def case_sql_subprocess_execute(self,service_host,db):
-        service_host = "ceph01"
+        #service_host = "ceph01"
+        
         conn1 = taos.connect(host="%s" %service_host, user="root", password="taosdata", config="/etc/taos/")
         cur1 = conn1.cursor()        
         cur1.execute('use %s;' %db)
