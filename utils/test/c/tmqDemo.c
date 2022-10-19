@@ -130,15 +130,15 @@ void parseArgument(int32_t argc, char* argv[]) {
       printHelp();
       exit(0);
     } else if (strcmp(argv[i], "-d") == 0) {
-      strcpy(g_stConfInfo.dbName, argv[++i]);
+      tstrncpy(g_stConfInfo.dbName, argv[++i], sizeof(g_stConfInfo.dbName));
     } else if (strcmp(argv[i], "-c") == 0) {
-      strcpy(configDir, argv[++i]);
+      tstrncpy(configDir, argv[++i], PATH_MAX);
     } else if (strcmp(argv[i], "-s") == 0) {
-      strcpy(g_stConfInfo.stbName, argv[++i]);
+      tstrncpy(g_stConfInfo.stbName, argv[++i], sizeof(g_stConfInfo.stbName));
     } else if (strcmp(argv[i], "-w") == 0) {
-      strcpy(g_stConfInfo.vnodeWalPath, argv[++i]);
+      tstrncpy(g_stConfInfo.vnodeWalPath, argv[++i], sizeof(g_stConfInfo.vnodeWalPath));
     } else if (strcmp(argv[i], "-f") == 0) {
-      strcpy(g_stConfInfo.resultFileName, argv[++i]);
+      tstrncpy(g_stConfInfo.resultFileName, argv[++i], sizeof(g_stConfInfo.resultFileName));
     } else if (strcmp(argv[i], "-t") == 0) {
       g_stConfInfo.numOfThreads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-n") == 0) {
