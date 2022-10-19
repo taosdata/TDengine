@@ -51,20 +51,8 @@ int vnodeBegin(SVnode *pVnode) {
     return -1;
   }
 
-  if (pVnode->pSma) {
-    if (VND_RSMA1(pVnode) && tsdbBegin(VND_RSMA1(pVnode)) < 0) {
-      vError("vgId:%d, failed to begin rsma1 since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
-
-    if (VND_RSMA2(pVnode) && tsdbBegin(VND_RSMA2(pVnode)) < 0) {
-      vError("vgId:%d, failed to begin rsma2 since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
-  }
-
   // begin sma
-  smaBegin(pVnode->pSma);  // TODO: refactor to include the rsma1/rsma2 tsdbBegin() after tsdb_refact branch merged
+  smaBegin(pVnode->pSma);
 
   return 0;
 }

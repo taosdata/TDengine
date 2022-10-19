@@ -89,6 +89,7 @@ int32_t smaBegin(SSma *pSma) {
     return TSDB_CODE_SUCCESS;
   }
 
+  SVnode    *pVnode = pSma->pVnode;
   SRSmaStat *pRSmaStat = (SRSmaStat *)SMA_ENV_STAT(pSmaEnv);
 
   int8_t rsmaTriggerStat =
@@ -109,6 +110,17 @@ int32_t smaBegin(SSma *pSma) {
       break;
     }
   }
+
+  if (VND_RSMA1(pVnode) && tsdbBegin(VND_RSMA1(pVnode)) < 0) {
+    smaError("vgId:%d, failed to begin rsma1 since %s", TD_VID(pVnode), tstrerror(terrno));
+    return TSDB_CODE_FAILED;
+  }
+
+  if (VND_RSMA2(pVnode) && tsdbBegin(VND_RSMA2(pVnode)) < 0) {
+    smaError("vgId:%d, failed to begin rsma2 since %s", TD_VID(pVnode), tstrerror(terrno));
+    return TSDB_CODE_FAILED;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -333,15 +345,6 @@ static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma) {
    *  1) This is high cost task and should not put in asyncPreCommit originally.
    *  2) But, if put in asyncCommit, would trigger taskInfo cloning frequently.
    */
-  nLoops = 0;
-  while (atomic_load_64(&pRSmaStat->nBufItems) > 0) {
-    ++nLoops;
-    if (nLoops > 1000) {
-      sched_yield();
-      nLoops = 0;
-    }
-  }
-
   smaInfo("vgId:%d, rsma commit, wait for all items to be consumed, TID:%p", SMA_VID(pSma),
           (void *)taosGetSelfPthreadId());
   nLoops = 0;
