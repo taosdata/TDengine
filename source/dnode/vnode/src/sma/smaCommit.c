@@ -131,10 +131,7 @@ int32_t smaFinishCommit(SSma *pSma) {
   if (!pSmaEnv) {
     goto _exit;
   }
-  if (VND_RSMA0(pVnode) && (code = tsdbFinishCommit(VND_RSMA0(pVnode))) < 0) {
-    smaError("vgId:%d, failed to finish commit tsdb rsma0 since %s", TD_VID(pVnode), tstrerror(code));
-    goto _exit;
-  }
+
   if (VND_RSMA1(pVnode) && (code = tsdbFinishCommit(VND_RSMA1(pVnode))) < 0) {
     smaError("vgId:%d, failed to finish commit tsdb rsma1 since %s", TD_VID(pVnode), tstrerror(code));
     goto _exit;
@@ -407,10 +404,7 @@ static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma) {
     return TSDB_CODE_FAILED;
   }
 #endif
-  if ((code = tsdbCommit(VND_RSMA0(pVnode))) < 0) {
-    smaError("vgId:%d, failed to commit tsdb rsma0 since %s", TD_VID(pVnode), tstrerror(code));
-    goto _exit;
-  }
+
   if ((code = tsdbCommit(VND_RSMA1(pVnode))) < 0) {
     smaError("vgId:%d, failed to commit tsdb rsma1 since %s", TD_VID(pVnode), tstrerror(code));
     goto _exit;

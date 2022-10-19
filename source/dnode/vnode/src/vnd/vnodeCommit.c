@@ -239,11 +239,11 @@ int vnodeCommit(SVnode *pVnode) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
+  code = tsdbCommit(pVnode->pTsdb);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   if (VND_IS_RSMA(pVnode)) {
     code = smaCommit(pVnode->pSma);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  } else {
-    code = tsdbCommit(pVnode->pTsdb);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -258,11 +258,11 @@ int vnodeCommit(SVnode *pVnode) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
+  code = tsdbFinishCommit(pVnode->pTsdb);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   if (VND_IS_RSMA(pVnode)) {
     code = smaFinishCommit(pVnode->pSma);
-    TSDB_CHECK_CODE(code, lino, _exit);
-  } else {
-    code = tsdbFinishCommit(pVnode->pTsdb);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
