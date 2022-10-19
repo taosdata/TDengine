@@ -417,11 +417,11 @@ static int32_t getDBVgInfoImpl(STranslateContext* pCxt, const SName* pName, SArr
                                .requestId = pParCxt->requestId,
                                .requestObjRefId = pParCxt->requestRid,
                                .mgmtEps = pParCxt->mgmtEpSet};
-      code = catalogGetDBVgInfo(pParCxt->pCatalog, &conn, fullDbName, pVgInfo);
+      code = catalogGetDBVgList(pParCxt->pCatalog, &conn, fullDbName, pVgInfo);
     }
   }
   if (TSDB_CODE_SUCCESS != code) {
-    parserError("0x%" PRIx64 " catalogGetDBVgInfo error, code:%s, dbFName:%s", pCxt->pParseCxt->requestId,
+    parserError("0x%" PRIx64 " catalogGetDBVgList error, code:%s, dbFName:%s", pCxt->pParseCxt->requestId,
                 tstrerror(code), fullDbName);
   }
   return code;
