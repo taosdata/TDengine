@@ -30,8 +30,6 @@ const char *sdbTableName(ESdbType type) {
       return "qnode";
     case SDB_SNODE:
       return "snode";
-    case SDB_BNODE:
-      return "bnode";
     case SDB_DNODE:
       return "dnode";
     case SDB_USER:

@@ -68,8 +68,7 @@ typedef enum {
   VNODE = 2,
   QNODE = 3,
   SNODE = 4,
-  BNODE = 5,
-  NODE_END = 6,
+  NODE_END = 5,
 } EDndNodeType;
 
 typedef enum {
