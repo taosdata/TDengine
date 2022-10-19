@@ -1891,8 +1891,26 @@ inline bool syncNodeInConfig(SSyncNode* pSyncNode, const SSyncCfg* config) {
   return b1;
 }
 
+static bool syncIsConfigChanged(const SSyncCfg* pOldCfg, const SSyncCfg* pNewCfg) {
+  if (pOldCfg->replicaNum != pNewCfg->replicaNum) return true;
+  if (pOldCfg->myIndex != pNewCfg->myIndex) return true;
+  for (int32_t i = 0; i < pOldCfg->replicaNum; ++i) {
+    const SNodeInfo* pOldInfo = &pOldCfg->nodeInfo[i];
+    const SNodeInfo* pNewInfo = &pNewCfg->nodeInfo[i];
+    if (strcmp(pOldInfo->nodeFqdn, pNewInfo->nodeFqdn) != 0) return true;
+    if (pOldInfo->nodePort != pNewInfo->nodePort) return true;
+  }
+
+  return false;
+}
+
 void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncIndex lastConfigChangeIndex) {
   SSyncCfg oldConfig = pSyncNode->pRaftCfg->cfg;
+  if (!syncIsConfigChanged(&oldConfig, pNewConfig)) {
+    sInfo("vgId:1, sync not reconfig since not changed");
+    return;
+  }
+
   pSyncNode->pRaftCfg->cfg = *pNewConfig;
   pSyncNode->pRaftCfg->lastConfigIndex = lastConfigChangeIndex;
 
@@ -2264,7 +2282,7 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
 
 void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
   ASSERT(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
-  ASSERT(voteGrantedMajority(pSyncNode->pVotesGranted));
+  //ASSERT(voteGrantedMajority(pSyncNode->pVotesGranted));
   syncNodeBecomeLeader(pSyncNode, "candidate to leader");
 
   syncNodeLog2("==state change syncNodeCandidate2Leader==", pSyncNode);
@@ -3014,7 +3032,8 @@ static int32_t syncNodeProposeConfigChangeFinish(SSyncNode* ths, SyncReconfigFin
 }
 
 bool syncNodeIsOptimizedOneReplica(SSyncNode* ths, SRpcMsg* pMsg) {
-  return (ths->replicaNum == 1 && syncUtilUserCommit(pMsg->msgType) && ths->vgId != 1);
+  return (ths->replicaNum == 1 && syncUtilUserCommit(pMsg->msgType));
+  // return (ths->replicaNum == 1 && syncUtilUserCommit(pMsg->msgType) && ths->vgId != 1);
 }
 
 int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag) {
@@ -3066,7 +3085,8 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
         // user commit
         if ((ths->pFsm->FpCommitCb != NULL) && syncUtilUserCommit(pEntry->originalRpcType)) {
           bool internalExecute = true;
-          if ((ths->replicaNum == 1) && ths->restoreFinish && ths->vgId != 1) {
+          if ((ths->replicaNum == 1) && ths->restoreFinish) {
+            // if ((ths->replicaNum == 1) && ths->restoreFinish && ths->vgId != 1) {
             internalExecute = false;
           }
 

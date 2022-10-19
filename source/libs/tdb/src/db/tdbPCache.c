@@ -268,7 +268,7 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
   // 4. Try a create new page
   if (!pPage) {
     ret = tdbPageCreate(pCache->szPage, &pPage, pTxn->xMalloc, pTxn->xArg);
-    if (ret < 0 && pPage != NULL) {
+    if (ret < 0 || pPage == NULL) {
       // TODO
       ASSERT(0);
       return NULL;

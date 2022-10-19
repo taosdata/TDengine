@@ -44,12 +44,17 @@ enum {
 )
 // clang-format on
 
-typedef struct {
+typedef struct SWinKey {
   uint64_t groupId;
   TSKEY    ts;
 } SWinKey;
 
-static inline int sWinKeyCmprImpl(const void* pKey1, const void* pKey2) {
+typedef struct SSessionKey {
+  STimeWindow win;
+  uint64_t    groupId;
+} SSessionKey;
+
+static inline int winKeyCmprImpl(const void* pKey1, const void* pKey2) {
   SWinKey* pWin1 = (SWinKey*)pKey1;
   SWinKey* pWin2 = (SWinKey*)pKey2;
 
@@ -69,7 +74,7 @@ static inline int sWinKeyCmprImpl(const void* pKey1, const void* pKey2) {
 }
 
 static inline int winKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
-  return sWinKeyCmprImpl(pKey1, pKey2);
+  return winKeyCmprImpl(pKey1, pKey2);
 }
 
 typedef struct {

@@ -194,6 +194,10 @@ int32_t processUseDbRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SUseDbRsp usedbRsp = {0};
   tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
 
+  if(strlen(usedbRsp.db) == 0){
+    return TSDB_CODE_MND_DB_NOT_EXIST;
+  }
+
   SName name = {0};
   tNameFromString(&name, usedbRsp.db, T_NAME_ACCT | T_NAME_DB);
 

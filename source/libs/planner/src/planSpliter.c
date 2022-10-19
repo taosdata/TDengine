@@ -342,7 +342,8 @@ static int32_t stbSplAppendWStart(SNodeList* pFuncs, int32_t* pIndex) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   strcpy(pWStart->functionName, "_wstart");
-  snprintf(pWStart->node.aliasName, sizeof(pWStart->node.aliasName), "%s.%p", pWStart->functionName, (void*)pWStart);
+  int64_t pointer = (int64_t)pWStart;
+  snprintf(pWStart->node.aliasName, sizeof(pWStart->node.aliasName), "%s.%" PRId64 "", pWStart->functionName, pointer);
   int32_t code = fmGetFuncInfo(pWStart, NULL, 0);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListStrictAppend(pFuncs, (SNode*)pWStart);
@@ -367,7 +368,8 @@ static int32_t stbSplAppendWEnd(SWindowLogicNode* pWin, int32_t* pIndex) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   strcpy(pWEnd->functionName, "_wend");
-  snprintf(pWEnd->node.aliasName, sizeof(pWEnd->node.aliasName), "%s.%p", pWEnd->functionName, (void*)pWEnd);
+  int64_t pointer = (int64_t)pWEnd;
+  snprintf(pWEnd->node.aliasName, sizeof(pWEnd->node.aliasName), "%s.%" PRId64 "", pWEnd->functionName, pointer);
   int32_t code = fmGetFuncInfo(pWEnd, NULL, 0);
   if (TSDB_CODE_SUCCESS == code) {
     code = nodesListStrictAppend(pWin->pFuncs, (SNode*)pWEnd);

@@ -267,11 +267,12 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
 #define EPSET_GET_SIZE(epSet)       (epSet)->numOfEps
 #define EPSET_GET_INUSE_IP(epSet)   ((epSet)->eps[(epSet)->inUse].fqdn)
 #define EPSET_GET_INUSE_PORT(epSet) ((epSet)->eps[(epSet)->inUse].port)
-#define EPSET_FORWARD_INUSE(epSet)                                 \
-  do {                                                             \
-    if ((epSet)->numOfEps != 0) {                                  \
-      (epSet)->inUse = (++((epSet)->inUse)) % ((epSet)->numOfEps); \
-    }                                                              \
+#define EPSET_FORWARD_INUSE(epSet)                             \
+  do {                                                         \
+    if ((epSet)->numOfEps != 0) {                              \
+      ++((epSet)->inUse);                                      \
+      (epSet)->inUse = ((epSet)->inUse) % ((epSet)->numOfEps); \
+    }                                                          \
   } while (0)
 
 #define EPSET_DEBUG_STR(epSet, tbuf)                                                                                   \
@@ -503,6 +504,7 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
     SConnList list = {0};
     taosHashPut((SHashObj*)pool, key, strlen(key), (void*)&list, sizeof(list));
     plist = taosHashGet((SHashObj*)pool, key, strlen(key));
+    if (plist == NULL) return NULL;
     QUEUE_INIT(&plist->conns);
   }
 
@@ -1157,7 +1159,7 @@ void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   SCliObj* cli = taosMemoryCalloc(1, sizeof(SCliObj));
 
   STrans* pTransInst = shandle;
-  memcpy(cli->label, label, strlen(label));
+  memcpy(cli->label, label, TSDB_LABEL_LEN);
   cli->numOfThreads = numOfThreads;
   cli->pThreadObj = (SCliThrd**)taosMemoryCalloc(cli->numOfThreads, sizeof(SCliThrd*));
 
@@ -1611,8 +1613,8 @@ int transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) {
 
   SCvtAddr cvtAddr = {0};
   if (ip != NULL && fqdn != NULL) {
-    memcpy(cvtAddr.ip, ip, strlen(ip));
-    memcpy(cvtAddr.fqdn, fqdn, strlen(fqdn));
+    if (strlen(ip) <= sizeof(cvtAddr.ip)) memcpy(cvtAddr.ip, ip, strlen(ip));
+    if (strlen(fqdn) <= sizeof(cvtAddr.fqdn)) memcpy(cvtAddr.fqdn, fqdn, strlen(fqdn));
     cvtAddr.cvt = true;
   }
   for (int i = 0; i < pTransInst->numOfThreads; i++) {

@@ -210,6 +210,8 @@ typedef struct {
 typedef struct {
   SMqCommitCbParamSet* params;
   STqOffset*           pOffset;
+  /*char                 topicName[TSDB_TOPIC_FNAME_LEN];*/
+  /*int32_t              vgId;*/
 } SMqCommitCbParam;
 
 tmq_conf_t* tmq_conf_new() {
@@ -407,6 +409,14 @@ int32_t tmqCommitDone(SMqCommitCbParamSet* pParamSet) {
   return 0;
 }
 
+static void tmqCommitRspCountDown(SMqCommitCbParamSet* pParamSet) {
+  int32_t waitingRspNum = atomic_sub_fetch_32(&pParamSet->waitingRspNum, 1);
+  ASSERT(waitingRspNum >= 0);
+  if (waitingRspNum == 0) {
+    tmqCommitDone(pParamSet);
+  }
+}
+
 int32_t tmqCommitCb(void* param, SDataBuf* pBuf, int32_t code) {
   SMqCommitCbParam*    pParam = (SMqCommitCbParam*)param;
   SMqCommitCbParamSet* pParamSet = (SMqCommitCbParamSet*)pParam->params;
@@ -420,18 +430,13 @@ int32_t tmqCommitCb(void* param, SDataBuf* pBuf, int32_t code) {
 #endif
 
   taosMemoryFree(pParam->pOffset);
-  if (pBuf->pData) taosMemoryFree(pBuf->pData);
+  taosMemoryFree(pBuf->pData);
 
   /*tscDebug("receive offset commit cb of %s on vgId:%d, offset is %" PRId64, pParam->pOffset->subKey, pParam->->vgId,
    * pOffset->version);*/
 
-  // count down waiting rsp
-  int32_t waitingRspNum = atomic_sub_fetch_32(&pParamSet->waitingRspNum, 1);
-  ASSERT(waitingRspNum >= 0);
+  tmqCommitRspCountDown(pParamSet);
 
-  if (waitingRspNum == 0) {
-    tmqCommitDone(pParamSet);
-  }
   return 0;
 }
 
@@ -455,7 +460,10 @@ static int32_t tmqSendCommitReq(tmq_t* tmq, SMqClientVg* pVg, SMqClientTopic* pT
     return -1;
   }
   void* buf = taosMemoryCalloc(1, sizeof(SMsgHead) + len);
-  if (buf == NULL) return -1;
+  if (buf == NULL) {
+    taosMemoryFree(pOffset);
+    return -1;
+  }
   ((SMsgHead*)buf)->vgId = htonl(pVg->vgId);
 
   void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
@@ -468,6 +476,7 @@ static int32_t tmqSendCommitReq(tmq_t* tmq, SMqClientVg* pVg, SMqClientTopic* pT
   // build param
   SMqCommitCbParam* pParam = taosMemoryCalloc(1, sizeof(SMqCommitCbParam));
   if (pParam == NULL) {
+    taosMemoryFree(pOffset);
     taosMemoryFree(buf);
     return -1;
   }
@@ -477,6 +486,7 @@ static int32_t tmqSendCommitReq(tmq_t* tmq, SMqClientVg* pVg, SMqClientTopic* pT
   // build send info
   SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (pMsgSendInfo == NULL) {
+    taosMemoryFree(pOffset);
     taosMemoryFree(buf);
     taosMemoryFree(pParam);
     return -1;
@@ -586,13 +596,9 @@ FAIL:
   return 0;
 }
 
-int32_t tmqCommitInner(tmq_t* tmq, const TAOS_RES* msg, int8_t automatic, int8_t async, tmq_commit_cb* userCb,
-                       void* userParam) {
+static int32_t tmqCommitConsumerImpl(tmq_t* tmq, int8_t automatic, int8_t async, tmq_commit_cb* userCb,
+                                     void* userParam) {
   int32_t code = -1;
-
-  if (msg != NULL) {
-    return tmqCommitMsgImpl(tmq, msg, async, userCb, userParam);
-  }
 
   SMqCommitCbParamSet* pParamSet = taosMemoryCalloc(1, sizeof(SMqCommitCbParamSet));
   if (pParamSet == NULL) {
@@ -641,33 +647,37 @@ int32_t tmqCommitInner(tmq_t* tmq, const TAOS_RES* msg, int8_t automatic, int8_t
     }
   }
 
+  // no request is sent
   if (pParamSet->totalRspNum == 0) {
     tsem_destroy(&pParamSet->rspSem);
     taosMemoryFree(pParamSet);
     return 0;
   }
 
-  int32_t waitingRspNum = atomic_sub_fetch_32(&pParamSet->waitingRspNum, 1);
-  ASSERT(waitingRspNum >= 0);
-  if (waitingRspNum == 0) {
-    tmqCommitDone(pParamSet);
-  }
+  // count down since waiting rsp num init as 1
+  tmqCommitRspCountDown(pParamSet);
 
   if (!async) {
     tsem_wait(&pParamSet->rspSem);
     code = pParamSet->rspErr;
     tsem_destroy(&pParamSet->rspSem);
     taosMemoryFree(pParamSet);
-  }
-
 #if 0
-  if (!async) {
     taosArrayDestroyP(pParamSet->successfulOffsets, taosMemoryFree);
     taosArrayDestroyP(pParamSet->failedOffsets, taosMemoryFree);
-  }
 #endif
+  }
 
-  return 0;
+  return code;
+}
+
+int32_t tmqCommitInner(tmq_t* tmq, const TAOS_RES* msg, int8_t automatic, int8_t async, tmq_commit_cb* userCb,
+                       void* userParam) {
+  if (msg) {
+    return tmqCommitMsgImpl(tmq, msg, async, userCb, userParam);
+  } else {
+    return tmqCommitConsumerImpl(tmq, automatic, async, userCb, userParam);
+  }
 }
 
 void tmqAssignAskEpTask(void* param, void* tmrId) {
