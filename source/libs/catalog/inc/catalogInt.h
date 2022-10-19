@@ -505,6 +505,7 @@ typedef struct SCtgOperation {
 #define CTG_FLAG_UNKNOWN_STB  0x4
 #define CTG_FLAG_SYS_DB       0x8
 #define CTG_FLAG_FORCE_UPDATE 0x10
+#define CTG_FLAG_ONLY_CACHE   0x20
 
 #define CTG_FLAG_SET(_flag, _v) ((_flag) |= (_v))
 
@@ -783,7 +784,7 @@ void    ctgFreeQNode(SCtgQNode* node);
 void    ctgClearHandle(SCatalog* pCtg);
 void    ctgFreeTbCacheImpl(SCtgTbCache* pCache);
 int32_t ctgRemoveTbMeta(SCatalog* pCtg, SName* pTableName);
-int32_t ctgGetTbHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SVgroupInfo* pVgroup);
+int32_t ctgGetTbHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SVgroupInfo* pVgroup, bool* exists);
 SName*  ctgGetFetchName(SArray* pNames, SCtgFetch* pFetch);
 
 extern SCatalogMgmt gCtgMgmt;
