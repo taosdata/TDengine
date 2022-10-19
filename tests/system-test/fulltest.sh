@@ -127,7 +127,7 @@ python3 ./test.py -f 2-query/leastsquares.py -R
 python3 ./test.py -f 2-query/length.py
 python3 ./test.py -f 2-query/length.py -R
 python3 ./test.py -f 2-query/log.py
-# python3 ./test.py -f 2-query/log.py -R
+python3 ./test.py -f 2-query/log.py -R
 python3 ./test.py -f 2-query/lower.py
 python3 ./test.py -f 2-query/lower.py -R
 python3 ./test.py -f 2-query/ltrim.py
@@ -175,7 +175,7 @@ python3 ./test.py -f 2-query/sum.py -R
 python3 ./test.py -f 2-query/tail.py
 python3 ./test.py -f 2-query/tail.py -R
 python3 ./test.py -f 2-query/tan.py
-# python3 ./test.py -f 2-query/tan.py -R
+python3 ./test.py -f 2-query/tan.py -R
 python3 ./test.py -f 2-query/Timediff.py
 python3 ./test.py -f 2-query/Timediff.py -R
 python3 ./test.py -f 2-query/timetruncate.py
@@ -221,6 +221,7 @@ python3 ./test.py -f 2-query/json_tag.py
 # TD-15983 subquery output duplicate name column.
 # Please Xiangyang Guo modify the following script
 # python3 ./test.py -f 2-query/nestedQuery_str.py
+python3 ./test.py -f 2-query/stablity.py
 
 python3 ./test.py -f 2-query/elapsed.py
 python3 ./test.py -f 2-query/csum.py
