@@ -28,6 +28,16 @@ class TDTestQuery(TDCase):
     def init(self):
         super(TDTestQuery, self).init()
         self.tdCreateData = TDCreateData(self.tdSql, self.logger)
+        
+        self.firstEP = []
+        for env_setting in self.env_setting["settings"]:
+            if env_setting["name"].lower() == "taosd":
+                self.taosd_setting = env_setting
+                self.firstEP.append(
+                    self.taosd_setting['spec']['config']['firstEP'])
+        self.target_taosd = self.firstEP[-1].split(':')
+        print(self.target_taosd[0])
+        self.service_host = self.target_taosd[0]
 
     def tags(self) :
 	
@@ -45,8 +55,8 @@ class TDTestQuery(TDCase):
         return case_description
 
     #basic_param
-    db = "table_alltype_sample"
-    service_host = "ceph01"
+    db = "table_sample"
+    
     #table_list = ['regular_table_1','stable_1_1','regular_table_2','stable_1_2','stable_2_1']
     #因为有的表数据过大，因此只选了这3个表的
     table_list = ['regular_table_1','stable_1_1','stable_2_1']

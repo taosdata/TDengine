@@ -27,6 +27,16 @@ class TDTestQuery(TDCase):
     def init(self):
         super(TDTestQuery, self).init()
         self.tdCreateData = TDCreateData(self.tdSql, self.logger)
+        
+        self.firstEP = []
+        for env_setting in self.env_setting["settings"]:
+            if env_setting["name"].lower() == "taosd":
+                self.taosd_setting = env_setting
+                self.firstEP.append(
+                    self.taosd_setting['spec']['config']['firstEP'])
+        self.target_taosd = self.firstEP[-1].split(':')
+        print(self.target_taosd[0])
+        self.service_host = self.target_taosd[0]
 
     def tags(self) -> str:
          
@@ -52,7 +62,7 @@ class TDTestQuery(TDCase):
     db_2 = "stable_casewhen_2"
     db_3 = "stable_casewhen_3"
     db_4 = "stable_casewhen_4"
-    service_host = ""
+    
     table_list = ['stable_1','stable_2',]
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
     table_null_list = ['stable_null_data','stable_null_childtable']
@@ -70,14 +80,14 @@ class TDTestQuery(TDCase):
         casewhen_lists = ['first  case when %d then %d end last' %(a1,a2) ,     #'first  case when 3 then 4 end last' , 
                         'first  case when 0 then %d end last' %(a1),            #'first  case when 0 then 4 end last' ,
                         'first  case when null then %d end last' %(a1) ,        #'first  case when null then 4 end last' ,
-                        'first  case when 1 then %d+%d end last' %(a1,a2) ,     #'first  case when 1 then 4+1 end last' ,
-                        'first  case when %d-%d then 0 end last' %(a1,a1) ,     #'first  case when 1-1 then 0 end last' ,
-                        'first  case when %d+%d then 0 end last' %(a1,a1),      #'first  case when 1+1 then 0 end last' ,  
-                        'first  case when 1 then %d-%d+%d end last' %(a1,a1,a2),  #'first  case when 1 then 1-1+2 end last' ,
+                        'first  case when 1 then %d+(%d) end last' %(a1,a2) ,     #'first  case when 1 then 4+1 end last' ,
+                        'first  case when %d-(%d) then 0 end last' %(a1,a1) ,     #'first  case when 1-1 then 0 end last' ,
+                        'first  case when %d+(%d) then 0 end last' %(a1,a1),      #'first  case when 1+1 then 0 end last' ,  
+                        'first  case when 1 then %d-(%d)+(%d) end last' %(a1,a1,a2),  #'first  case when 1 then 1-1+2 end last' ,
                         'first  case when %d > 0 then %d < %d end last'  %(a1,a1,a2),   #'first  case when 1 > 0 then 1 < 2 end last' ,
                         'first  case when %d > %d then %d < %d end last'  %(a1,a2,a1,a2),   #'first  case when 1 > 2 then 1 < 2 end last' ,
-                        'first  case when abs(%d) then abs(-%d) end last'  %(a1,a2) ,#'first  case when abs(3) then abs(-1) end last' ,
-                        'first  case when abs(%d+%d) then abs(-%d)+abs(%d) end last' %(a1,a2,a1,a2) , #'first  case when abs(1+1) then abs(-1)+abs(3) end last' ,
+                        'first  case when abs(%d) then abs(-(%d)) end last'  %(a1,a2) ,#'first  case when abs(3) then abs(-1) end last' ,
+                        'first  case when abs(%d+%d) then abs(-(%d))+abs(%d) end last' %(a1,a2,a1,a2) , #'first  case when abs(1+1) then abs(-1)+abs(3) end last' ,
                         'first  case when 0 then %d else %d end last'  %(a1,a2),  #'first  case when 0 then 1 else 3 end last' ,
                         'first  case when 0 then %d when 1 then %d else %d end last'  %(a1,a1,a3),  #'first  case when 0 then 1 when 1 then 0 else 3 end last' ,
                         'first  case when 0 then %d when 1 then %d when 2 then %d end last' %(a1,a1,a3), #'first  case when 0 then 1 when 1 then 0 when 2 then 3 end last' ,
