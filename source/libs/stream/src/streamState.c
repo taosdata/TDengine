@@ -114,11 +114,11 @@ SStreamState* streamStateOpen(char* path, SStreamTask* pTask, bool specPath, int
   }
 
   if (tdbTbOpen("session.state.db", sizeof(SStateSessionKey), -1, stateSessionKeyCmpr, pState->db,
-                &pState->pSessionStateDb) < 0) {
+                &pState->pSessionStateDb, 0) < 0) {
     goto _err;
   }
 
-  if (tdbTbOpen("func.state.db", sizeof(STupleKey), -1, STupleKeyCmpr, pState->db, &pState->pFuncStateDb) < 0) {
+  if (tdbTbOpen("func.state.db", sizeof(STupleKey), -1, STupleKeyCmpr, pState->db, &pState->pFuncStateDb, 0) < 0) {
     goto _err;
   }
 
