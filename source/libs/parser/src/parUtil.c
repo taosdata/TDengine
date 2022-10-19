@@ -248,8 +248,11 @@ int32_t getNumOfTags(const STableMeta* pTableMeta) { return getTableInfo(pTableM
 STableComInfo getTableInfo(const STableMeta* pTableMeta) { return pTableMeta->tableInfo; }
 
 STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
-  size_t size = TABLE_META_SIZE(pTableMeta);
+  if (TABLE_TOTAL_COL_NUM(pTableMeta) > TSDB_MAX_COLUMNS || TABLE_TOTAL_COL_NUM(pTableMeta) < TSDB_MIN_COLUMNS) {
+    return NULL;
+  }
 
+  size_t      size = TABLE_META_SIZE(pTableMeta);
   STableMeta* p = taosMemoryMalloc(size);
   memcpy(p, pTableMeta, size);
   return p;
