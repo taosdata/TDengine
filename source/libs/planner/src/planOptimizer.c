@@ -2155,6 +2155,22 @@ static bool lastRowScanOptHasTag(SNode* pExpr) {
   return hasTag;
 }
 
+static bool hasSuitableCache(int8_t cacheLastMode, bool hasLastRow, bool hasLast) {
+  switch (cacheLastMode) {
+    case TSDB_CACHE_MODEL_NONE:
+      return false;
+    case TSDB_CACHE_MODEL_LAST_ROW:
+      return hasLastRow;
+    case TSDB_CACHE_MODEL_LAST_VALUE:
+      return hasLast;
+    case TSDB_CACHE_MODEL_BOTH:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
 static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren) ||
       QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pNode->pChildren, 0))) {
@@ -2165,7 +2181,8 @@ static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
   SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0);
   // Only one of LAST and LASTROW can appear
   if (pAgg->hasLastRow == pAgg->hasLast || NULL != pAgg->pGroupKeys || NULL != pScan->node.pConditions ||
-      0 == pScan->cacheLastMode || IS_TSWINDOW_SPECIFIED(pScan->scanRange)) {
+      !hasSuitableCache(pScan->cacheLastMode, pAgg->hasLastRow, pAgg->hasLast) ||
+      IS_TSWINDOW_SPECIFIED(pScan->scanRange)) {
     return false;
   }
 

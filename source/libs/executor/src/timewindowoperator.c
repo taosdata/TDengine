@@ -5492,9 +5492,13 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   pInfo->ignoreExpiredData = pIntervalPhyNode->window.igExpired;
   pInfo->isFinal = false;
 
+  SExprSupp* pSup = &pOperator->exprSupp;
+  initBasicInfo(&pInfo->binfo, pResBlock);
+  initStreamFunciton(pSup->pCtx, pSup->numOfExprs);
+  initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
+
   pInfo->primaryTsIndex = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->slotId;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
-  SExprSupp* pSup = &pOperator->exprSupp;
 
   if (pIntervalPhyNode->window.pExprs != NULL) {
     int32_t    numOfScalar = 0;
