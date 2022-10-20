@@ -1191,7 +1191,6 @@ typedef struct {
   int8_t   strict;
   int8_t   cacheLast;
   int8_t   isTsma;
-  int8_t   standby;
   int8_t   replica;
   int8_t   selfIndex;
   SReplica replicas[TSDB_MAX_REPLICA];
@@ -1206,6 +1205,7 @@ typedef struct {
   int16_t  hashPrefix;
   int16_t  hashSuffix;
   int32_t  tsdbPageSize;
+  int64_t  reserved[8];
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
@@ -1217,6 +1217,7 @@ typedef struct {
   int32_t dnodeId;
   int64_t dbUid;
   char    db[TSDB_DB_FNAME_LEN];
+  int64_t reserved[8];
 } SDropVnodeReq;
 
 int32_t tSerializeSDropVnodeReq(void* buf, int32_t bufLen, SDropVnodeReq* pReq);
@@ -1225,6 +1226,7 @@ int32_t tDeserializeSDropVnodeReq(void* buf, int32_t bufLen, SDropVnodeReq* pReq
 typedef struct {
   int64_t dbUid;
   char    db[TSDB_DB_FNAME_LEN];
+  int64_t reserved[8];
 } SCompactVnodeReq;
 
 int32_t tSerializeSCompactVnodeReq(void* buf, int32_t bufLen, SCompactVnodeReq* pReq);
@@ -1244,13 +1246,23 @@ typedef struct {
   int8_t   walLevel;
   int8_t   strict;
   int8_t   cacheLast;
+  int64_t  reserved[8];
+} SAlterVnodeConfigReq;
+
+int32_t tSerializeSAlterVnodeConfigReq(void* buf, int32_t bufLen, SAlterVnodeConfigReq* pReq);
+int32_t tDeserializeSAlterVnodeConfigReq(void* buf, int32_t bufLen, SAlterVnodeConfigReq* pReq);
+
+typedef struct {
+  int32_t  vgId;
+  int8_t   strict;
   int8_t   selfIndex;
   int8_t   replica;
   SReplica replicas[TSDB_MAX_REPLICA];
-} SAlterVnodeReq;
+  int64_t  reserved[8];
+} SAlterVnodeReplicaReq;
 
-int32_t tSerializeSAlterVnodeReq(void* buf, int32_t bufLen, SAlterVnodeReq* pReq);
-int32_t tDeserializeSAlterVnodeReq(void* buf, int32_t bufLen, SAlterVnodeReq* pReq);
+int32_t tSerializeSAlterVnodeReplicaReq(void* buf, int32_t bufLen, SAlterVnodeReplicaReq* pReq);
+int32_t tDeserializeSAlterVnodeReplicaReq(void* buf, int32_t bufLen, SAlterVnodeReplicaReq* pReq);
 
 typedef struct {
   SMsgHead header;
@@ -1502,14 +1514,6 @@ typedef struct {
 
 int32_t tSerializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
 int32_t tDeserializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
-
-typedef struct {
-  int32_t dnodeId;
-  int8_t  standby;
-} SSetStandbyReq;
-
-int32_t tSerializeSSetStandbyReq(void* buf, int32_t bufLen, SSetStandbyReq* pReq);
-int32_t tDeserializeSSetStandbyReq(void* buf, int32_t bufLen, SSetStandbyReq* pReq);
 
 typedef struct {
   char queryStrId[TSDB_QUERY_ID_LEN];
