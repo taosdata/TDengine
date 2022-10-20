@@ -45,8 +45,10 @@
 //     /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, log>>
 //
 void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
-  syncIndexMgrLog2("==syncNodeMaybeAdvanceCommitIndex== pNextIndex", pSyncNode->pNextIndex);
-  syncIndexMgrLog2("==syncNodeMaybeAdvanceCommitIndex== pMatchIndex", pSyncNode->pMatchIndex);
+  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+    syncNodeErrorLog(pSyncNode, "not leader, can not advance commit index");
+    return;
+  }
 
   // advance commit index to sanpshot first
   SSnapshot snapshot;
@@ -75,9 +77,11 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
       if (h) {
         pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
       } else {
-        pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, index);
-        if (pEntry == NULL) {
-          sError("failed to get entry since %s. index:%" PRId64, tstrerror(terrno), index);
+        int32_t code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, index, &pEntry);
+        if (code != 0) {
+          char logBuf[128];
+          snprintf(logBuf, sizeof(logBuf), "advance commit index error, read wal index:%ld", index);
+          syncNodeErrorLog(pSyncNode, logBuf);
           return;
         }
       }
@@ -125,13 +129,17 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
     pSyncNode->commitIndex = newCommitIndex;
 
     // call back Wal
-    pSyncNode->pLogStore->updateCommitIndex(pSyncNode->pLogStore, pSyncNode->commitIndex);
+    pSyncNode->pLogStore->syncLogUpdateCommitIndex(pSyncNode->pLogStore, pSyncNode->commitIndex);
 
     // execute fsm
     if (pSyncNode->pFsm != NULL) {
-      int32_t code = syncNodeCommit(pSyncNode, beginIndex, endIndex, pSyncNode->state);
+      int32_t code = syncNodeDoCommit(pSyncNode, beginIndex, endIndex, pSyncNode->state);
       if (code != 0) {
-         wError("failed to commit sync node since %s", tstrerror(terrno));
+        char logBuf[128];
+        snprintf(logBuf, sizeof(logBuf), "advance commit index error, do commit begin:%ld, end:%ld", beginIndex,
+                 endIndex);
+        syncNodeErrorLog(pSyncNode, logBuf);
+        return;
       }
     }
   }
@@ -220,6 +228,7 @@ int32_t syncNodeDynamicQuorum(const SSyncNode* pSyncNode) {
   return quorum;
 }
 
+/*
 bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
   int agreeCount = 0;
   for (int i = 0; i < pSyncNode->replicaNum; ++i) {
@@ -232,8 +241,8 @@ bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
   }
   return false;
 }
+*/
 
-/*
 bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
   int agreeCount = 0;
   for (int i = 0; i < pSyncNode->replicaNum; ++i) {
@@ -246,4 +255,3 @@ bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
   }
   return false;
 }
-*/

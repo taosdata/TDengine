@@ -15,7 +15,7 @@
 
 #include "vnd.h"
 
-#define VND_INFO_FNAME     "vnode.json"
+#define VND_INFO_FNAME "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
 
 static int  vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData);
@@ -237,7 +237,9 @@ int vnodeCommit(SVnode *pVnode) {
     code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-  walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
+
+  // walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
+  syncBeginSnapshot(pVnode->sync, pVnode->state.applied);
 
   if (smaPreCommit(pVnode->pSma) < 0) {
     vError("vgId:%d, failed to pre-commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
@@ -289,7 +291,8 @@ int vnodeCommit(SVnode *pVnode) {
   }
 
   // apply the commit (TODO)
-  walEndSnapshot(pVnode->pWal);
+  // walEndSnapshot(pVnode->pWal);
+  syncEndSnapshot(pVnode->sync);
 
 _exit:
   if (code) {

@@ -29,7 +29,7 @@ SRaftCfgIndex *raftCfgIndexOpen(const char *path) {
   taosLSeekFile(pRaftCfgIndex->pFile, 0, SEEK_SET);
 
   int32_t bufLen = MAX_CONFIG_INDEX_COUNT * 16;
-  char   *pBuf = taosMemoryMalloc(bufLen);
+  char *  pBuf = taosMemoryMalloc(bufLen);
   memset(pBuf, 0, bufLen);
   int64_t len = taosReadFile(pRaftCfgIndex->pFile, pBuf, bufLen);
   ASSERT(len > 0);
@@ -93,7 +93,7 @@ cJSON *raftCfgIndex2Json(SRaftCfgIndex *pRaftCfgIndex) {
 
 char *raftCfgIndex2Str(SRaftCfgIndex *pRaftCfgIndex) {
   cJSON *pJson = raftCfgIndex2Json(pRaftCfgIndex);
-  char  *serialized = cJSON_Print(pJson);
+  char * serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
@@ -151,7 +151,7 @@ int32_t raftCfgIndexCreateFile(const char *path) {
   raftCfgIndex.configIndexCount = 1;
   raftCfgIndex.configIndexArr[0] = -1;
 
-  char   *s = raftCfgIndex2Str(&raftCfgIndex);
+  char *  s = raftCfgIndex2Str(&raftCfgIndex);
   int64_t ret = taosWriteFile(pFile, s, strlen(s) + 1);
   ASSERT(ret == strlen(s) + 1);
 
@@ -244,7 +244,7 @@ cJSON *syncCfg2Json(SSyncCfg *pSyncCfg) {
 
 char *syncCfg2Str(SSyncCfg *pSyncCfg) {
   cJSON *pJson = syncCfg2Json(pSyncCfg);
-  char  *serialized = cJSON_Print(pJson);
+  char * serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
@@ -252,7 +252,7 @@ char *syncCfg2Str(SSyncCfg *pSyncCfg) {
 char *syncCfg2SimpleStr(SSyncCfg *pSyncCfg) {
   if (pSyncCfg != NULL) {
     int32_t len = 512;
-    char   *s = taosMemoryMalloc(len);
+    char *  s = taosMemoryMalloc(len);
     memset(s, 0, len);
 
     snprintf(s, len, "{r-num:%d, my:%d, ", pSyncCfg->replicaNum, pSyncCfg->myIndex);
@@ -349,7 +349,7 @@ cJSON *raftCfg2Json(SRaftCfg *pRaftCfg) {
 
 char *raftCfg2Str(SRaftCfg *pRaftCfg) {
   cJSON *pJson = raftCfg2Json(pRaftCfg);
-  char  *serialized = cJSON_Print(pJson);
+  char * serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
@@ -426,7 +426,7 @@ int32_t raftCfgFromJson(const cJSON *pRoot, SRaftCfg *pRaftCfg) {
     (pRaftCfg->configIndexArr)[i] = atoll(pIndex->valuestring);
   }
 
-  cJSON  *pJsonSyncCfg = cJSON_GetObjectItem(pJson, "SSyncCfg");
+  cJSON * pJsonSyncCfg = cJSON_GetObjectItem(pJson, "SSyncCfg");
   int32_t code = syncCfgFromJson(pJsonSyncCfg, &(pRaftCfg->cfg));
   ASSERT(code == 0);
 
