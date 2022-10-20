@@ -533,26 +533,16 @@ void parseCommand(SWords * command, bool pattern) {
 }
 
 // free Command
-void freeCommand(SWords * command) {
-  SWord * word = command->head;
-  if (word == NULL) {
-    return ;
-  }
-
-  // loop 
-  while (word->next) {
-    SWord * tmp = word;
-    word = word->next;
+void freeCommand(SWords* command) {
+  SWord* item = command->head;
+  // loop
+  while (item) {
+    SWord* tmp = item;
+    item = item->next;
     // if malloc need free
-    if(tmp->free && tmp->word)
-      free(tmp->word);
-    free(tmp);
+    if (tmp->free && tmp->word) taosMemoryFree(tmp->word);
+    taosMemoryFree(tmp);
   }
-
-  // if malloc need free
-  if(word->free && word->word)
-    free(word->word);
-  free(word);
 }
 
 void GenerateVarType(int type, char** p, int count) {
@@ -1178,11 +1168,11 @@ bool nextMatchCommand(TAOS * con, Command * cmd, SWords * firstMatch) {
   printScreen(con, cmd, match);
 
   // free
+  freeCommand(input);
   if (input->source) {
     free(input->source);
     input->source = NULL;
   }
-  freeCommand(input);
   free(input);
 
   return true;
