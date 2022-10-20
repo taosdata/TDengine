@@ -452,7 +452,7 @@ int32_t syncEndSnapshot(int64_t rid) {
     SSyncLogStoreData* pData = pSyncNode->pLogStore->data;
     code = walEndSnapshot(pData->pWal);
     if (code != 0) {
-      sError("vgId:%d, wal end snapshot error since:%s", terrstr(terrno));
+      sError("vgId:%d, wal snapshot end error since:%s", terrstr(terrno));
 
       taosReleaseRef(tsNodeRefId, pSyncNode->rid);
       return -1;
