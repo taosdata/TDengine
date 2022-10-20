@@ -495,10 +495,10 @@ int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, SQueueInfo *
 }
 
 int32_t taosQallItemSize(STaosQall *qall) { return qall->numOfItems; }
+void    taosResetQitems(STaosQall *qall) { qall->current = qall->start; }
+int32_t taosGetQueueNumber(STaosQset *qset) { return qset->numOfQueues; }
 
 #if 0
-int32_t taosGetQueueNumber(STaosQset *qset) { return qset->numOfQueues; }
-void    taosResetQitems(STaosQall *qall) { qall->current = qall->start; }
 
 void taosResetQsetThread(STaosQset *qset, void *pItem) {
   if (pItem == NULL) return;
