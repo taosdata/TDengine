@@ -327,7 +327,7 @@ void matchPrefixFromTree(STire* tire, char* prefix, SMatch* match) {
 SMatch* matchPrefix(STire* tire, char* prefix, SMatch* match) {
   SMatch* rMatch = match; // define return match
   if (rMatch == NULL) {
-    rMatch = (SMatch*)taosMemoryMalloc(sizeof(SMatch));
+    rMatch = (SMatch*)malloc(sizeof(SMatch));
     memset(rMatch, 0, sizeof(SMatch));
   }
 
