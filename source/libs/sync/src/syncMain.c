@@ -264,6 +264,17 @@ int32_t syncReconfig(int64_t rid, SSyncCfg* pNewCfg) {
 #else
   syncNodeUpdateNewConfigIndex(pSyncNode, pNewCfg);
   syncNodeDoConfigChange(pSyncNode, pNewCfg, SYNC_INDEX_INVALID);
+  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+    syncNodeStopHeartbeatTimer(pSyncNode);
+
+    for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
+      syncHbTimerInit(pSyncNode, &(pSyncNode->peerHeartbeatTimerArr[i]), (pSyncNode->replicasId)[i]);
+    }
+
+    syncNodeStartHeartbeatTimer(pSyncNode);
+
+    syncNodeReplicate(pSyncNode);
+  }
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   return 0;
 #endif
@@ -2943,7 +2954,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg) {
   SRpcMsg rpcMsg;
   syncHeartbeatReply2RpcMsg(pMsgReply, &rpcMsg);
 
-#if 0
+#if 1
   if (pMsg->term >= ths->pRaftStore->currentTerm && ths->state != TAOS_SYNC_STATE_FOLLOWER) {
     syncNodeStepDown(ths, pMsg->term);
   }
@@ -3592,7 +3603,7 @@ void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, const
   syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
   char logBuf[256];
   snprintf(logBuf, sizeof(logBuf),
-           "send sync-heartbeat from %s:%d {term:%" PRIu64 ", cmt:%" PRId64 ", min-match:%" PRId64 ", pterm:%" PRIu64
+           "send sync-heartbeat to %s:%d {term:%" PRIu64 ", cmt:%" PRId64 ", min-match:%" PRId64 ", pterm:%" PRIu64
            "}, %s",
            host, port, pMsg->term, pMsg->commitIndex, pMsg->minMatchIndex, pMsg->privateTerm, s);
   syncNodeEventLog(pSyncNode, logBuf);
