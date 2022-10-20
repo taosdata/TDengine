@@ -315,7 +315,7 @@ enum { UV_TASK_CONNECT = 0, UV_TASK_REQ_RSP = 1, UV_TASK_DISCONNECT = 2 };
 
 int64_t gUdfTaskSeqNum = 0;
 typedef struct SUdfcFuncStub {
-  char           udfName[TSDB_FUNC_NAME_LEN];
+  char           udfName[TSDB_FUNC_NAME_LEN + 1];
   UdfcFuncHandle handle;
   int32_t        refCount;
   int64_t        lastRefTime;
@@ -353,7 +353,7 @@ typedef struct SUdfcUvSession {
   int32_t outputLen;
   int32_t bufSize;
 
-  char udfName[TSDB_FUNC_NAME_LEN];
+  char udfName[TSDB_FUNC_NAME_LEN + 1];
 } SUdfcUvSession;
 
 typedef struct SClientUvTaskNode {
@@ -898,7 +898,7 @@ int32_t acquireUdfFuncHandle(char *udfName, UdfcFuncHandle *pHandle) {
   int32_t code = 0;
   uv_mutex_lock(&gUdfdProxy.udfStubsMutex);
   SUdfcFuncStub key = {0};
-  strcpy(key.udfName, udfName);
+  strncpy(key.udfName, udfName, TSDB_FUNC_NAME_LEN);
   int32_t stubIndex = taosArraySearchIdx(gUdfdProxy.udfStubs, &key, compareUdfcFuncSub, TD_EQ);
   if (stubIndex != -1) {
     SUdfcFuncStub *foundStub = taosArrayGet(gUdfdProxy.udfStubs, stubIndex);
@@ -936,7 +936,7 @@ int32_t acquireUdfFuncHandle(char *udfName, UdfcFuncHandle *pHandle) {
 void releaseUdfFuncHandle(char *udfName) {
   uv_mutex_lock(&gUdfdProxy.udfStubsMutex);
   SUdfcFuncStub key = {0};
-  strcpy(key.udfName, udfName);
+  strncpy(key.udfName, udfName, TSDB_FUNC_NAME_LEN);
   SUdfcFuncStub *foundStub = taosArraySearch(gUdfdProxy.udfStubs, &key, compareUdfcFuncSub, TD_EQ);
   if (!foundStub) {
     uv_mutex_unlock(&gUdfdProxy.udfStubsMutex);
@@ -1446,6 +1446,7 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
         QUEUE_INSERT_TAIL(connTaskQueue, &uvTask->connTaskQueue);
         int err = uv_write(write, (uv_stream_t *)pipe, &uvTask->reqBuf, 1, onUdfcPipeWrite);
         if (err != 0) {
+          taosMemoryFree(write);
           fnError("udfc event loop start req_rsp task uv_write failed. uvtask: %p, code: %s", uvTask, uv_strerror(err));
         }
         code = err;
@@ -1637,7 +1638,7 @@ int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
   task->session->outputType = rsp->outputType;
   task->session->outputLen = rsp->outputLen;
   task->session->bufSize = rsp->bufSize;
-  strcpy(task->session->udfName, udfName);
+  strncpy(task->session->udfName, udfName, TSDB_FUNC_NAME_LEN);
   if (task->errCode != 0) {
     fnError("failed to setup udf. udfname: %s, err: %d", udfName, task->errCode)
   } else {
