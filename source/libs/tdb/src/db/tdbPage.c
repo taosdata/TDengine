@@ -586,7 +586,7 @@ static inline void setLPageNFree(SPage *pPage, int nFree) {
 
 // cell offset
 static inline int getLPageCellOffset(SPage *pPage, int idx) {
-  ASSERT(idx >= 0 && idx < getPageCellNum(pPage));
+  ASSERT(idx >= 0 && idx < getLPageCellNum(pPage));
   return TDB_GET_U24(pPage->pCellIdx + 3 * idx);
 }
 
