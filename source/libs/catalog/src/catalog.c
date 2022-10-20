@@ -788,7 +788,7 @@ int32_t catalogGetDBVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* 
   SCtgDBCache* dbCache = NULL;
   int32_t      code = 0;
   SDBVgInfo*   dbInfo = NULL;
-  CTG_ERR_JRET(ctgGetDBVgInfo(pCtg, pConn, dbFName, &dbCache, &dbInfo));
+  CTG_ERR_JRET(ctgGetDBVgInfo(pCtg, pConn, dbFName, &dbCache, &dbInfo, NULL));
   if (dbCache) {
     dbInfo = dbCache->vgCache.vgInfo;
   }
