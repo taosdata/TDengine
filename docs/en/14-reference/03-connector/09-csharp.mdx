@@ -69,15 +69,15 @@ Please refer to [version support list](/reference/connector#version-support)
 ### Install `TDengine.Connector`
 
 <Tabs defaultValue="CLI">
-<TabItem value="CLI" label="Using Native Connection">
+<TabItem value="CLI" label="Native Connection">
 
-You can reference the `TDengine.Connector` published in Nuget to the current project via the `dotnet` command under the path of the existing .NET project.
+You can reference the `TDengine.Connector` published in Nuget to the current project via the `dotnet` CLI under the path of the existing .NET project.
 
 ``` bash
 dotnet add package TDengine.Connector
 ```
 
-Beside, you can edit current .NET project file either. You can add following 'ItemGroup' into you project file (.csproj).
+You may also modify the current.NET project file. You can include the following 'ItemGroup' in your project file (.csproj).
 
 ``` XML
   <ItemGroup>
@@ -86,7 +86,7 @@ Beside, you can edit current .NET project file either. You can add following 'It
 ```
 
 </TabItem>
-<TabItem value="source" label="Use WebSocket Connection">
+<TabItem value="source" label="WebSocket Connection">
 
 In this scenario, modifying your project file is required in order to copy the WebSocket dependency dynamic library from the nuget package into your project.
 ```XML
@@ -277,6 +277,7 @@ ws://localhost:6041/test
 
 | TDengine.Connector | Description |
 |--------------------|--------------------------------|
+|        3.0.2       | Support .NET Framework 4.5 and above. Support .Net standard 2.0. Nuget package includes dynamic library for WebSocket.|
 |        3.0.1       | Support WebSocket and Cloud，With function query, insert, and parameter binding|
 |        3.0.0       | Supports TDengine 3.0.0.0. TDengine 2.x is not supported. Added `TDengine.Impl.GetData()` interface to deserialize query results. |
 |        1.0.7       | Fixed TDengine.Query() memory leak. |

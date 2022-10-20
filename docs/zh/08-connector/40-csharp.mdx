@@ -72,13 +72,13 @@ import CSAsyncQuery from "../07-develop/04-query-data/_cs_async.mdx"
 <Tabs defaultValue="CLI">
 <TabItem value="CLI" label="使用本地连接">
 
-可以在当前 .NET 项目的路径下，通过 dotnet 命令引用 Nuget 中发布的 `TDengine.Connector` 到当前项目。
+可以在当前 .NET 项目的路径下，通过 dotnet CLI 添加 Nuget package `TDengine.Connector` 到当前项目。
 
 ``` bash
 dotnet add package TDengine.Connector
 ```
 
-也可以修改当前项目的 `.csproj` 文件，添加一下 ItemGroup。
+也可以修改当前项目的 `.csproj` 文件，添加如下 ItemGroup。
 
 ``` XML
   <ItemGroup>
@@ -90,7 +90,7 @@ dotnet add package TDengine.Connector
 
 <TabItem value="source" label="使用 WebSocket 连接">
 
-需要修改目标项目的 `.csproj` 项目文件，将 nupkg 中的 `runtimes/` 下的动态库复制到当前项目的 `$(OutDir)`下。一下示例是复制到 `$(OutDir)\dep_lib`。
+需要修改目标项目的 `.csproj` 项目文件，将 `.nupkg` 中的 `runtimes` 目录中的动态库复制到当前项目的 `$(OutDir)` 目录下。下例是复制到 `$(OutDir)\dep_lib`。
 
 ```XML
   <ItemGroup>
@@ -281,6 +281,7 @@ namespace TDengineExample
 
 | TDengine.Connector | 说明                           |
 |--------------------|--------------------------------|
+|        3.0.2       | 支持 .NET Framework 4.5 及以上，支持 .NET standard 2.0。Nuget Package 包含 WebSocket 动态库。 |
 |        3.0.1       | 支持 WebSocket 和 Cloud，查询，插入，参数绑定。 |
 |        3.0.0       | 支持 TDengine 3.0.0.0，不兼容 2.x。新增接口TDengine.Impl.GetData()，解析查询结果。 |
 |        1.0.7       | 修复 TDengine.Query()内存泄露。 |
