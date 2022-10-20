@@ -6,7 +6,7 @@ settings:
       config: # common config for all dnodes
         firstEP: vm85:6030
       dnodes:
-        - endpoint: vm85:60390
+        - endpoint: vm85:6030
           config_dir: /root/cyjia/data/taosd
           config: # will write into taos.cfg
             serverPort: '6030'
