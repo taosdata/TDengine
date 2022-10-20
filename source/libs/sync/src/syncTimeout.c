@@ -16,6 +16,7 @@
 #include "syncTimeout.h"
 #include "syncElection.h"
 #include "syncRaftCfg.h"
+#include "syncRaftLog.h"
 #include "syncReplication.h"
 #include "syncRespMgr.h"
 
@@ -63,8 +64,29 @@ int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   // timer replicate
   syncNodeReplicate(ths);
 
+  // clean mnode index
   if (syncNodeIsMnode(ths)) {
     syncNodeCleanConfigIndex(ths);
+  }
+
+  // end timeout wal snapshot
+  int64_t timeNow = taosGetTimestampMs();
+  if (timeNow - ths->snapshottingIndex > SYNC_DEL_WAL_MS &&
+      atomic_load_64(&ths->snapshottingIndex) != SYNC_INDEX_INVALID) {
+    SSyncLogStoreData* pData = ths->pLogStore->data;
+    int32_t            code = walEndSnapshot(pData->pWal);
+    if (code != 0) {
+      sError("vgId:%d, wal end snapshot error since:%s", terrstr(terrno));
+      return -1;
+    } else {
+      do {
+        char logBuf[256];
+        snprintf(logBuf, sizeof(logBuf), "wal snapshot end, index:%ld", atomic_load_64(&ths->snapshottingIndex));
+        syncNodeEventLog(ths, logBuf);
+      } while (0);
+
+      atomic_store_64(&ths->snapshottingIndex, SYNC_INDEX_INVALID);
+    }
   }
 
 #if 0

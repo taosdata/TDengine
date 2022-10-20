@@ -216,6 +216,7 @@ int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode) {
     pSyncMsg->destId = pSyncNode->peersId[i];
     pSyncMsg->term = pSyncNode->pRaftStore->currentTerm;
     pSyncMsg->commitIndex = pSyncNode->commitIndex;
+    pSyncMsg->minMatchIndex = syncMinMatchIndex(pSyncNode);
     pSyncMsg->privateTerm = 0;
 
     SRpcMsg rpcMsg;

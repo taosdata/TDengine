@@ -459,6 +459,8 @@ typedef struct SyncHeartbeat {
   SyncTerm  term;
   SyncIndex commitIndex;
   SyncTerm  privateTerm;
+  SyncTerm  minMatchIndex;
+
 } SyncHeartbeat;
 
 SyncHeartbeat* syncHeartbeatBuild(int32_t vgId);

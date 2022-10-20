@@ -197,6 +197,8 @@ typedef struct SSyncNode {
   bool changing;
 
   int64_t snapshottingIndex;
+  int64_t snapshottingTime;
+  int64_t minMatchIndex;
 
   int64_t startTime;
   int64_t leaderTime;
@@ -236,15 +238,16 @@ int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode);
 
 // utils --------------
-int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
-int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
-cJSON*  syncNode2Json(const SSyncNode* pSyncNode);
-char*   syncNode2Str(const SSyncNode* pSyncNode);
-void    syncNodeEventLog(const SSyncNode* pSyncNode, char* str);
-void    syncNodeErrorLog(const SSyncNode* pSyncNode, char* str);
-char*   syncNode2SimpleStr(const SSyncNode* pSyncNode);
-bool    syncNodeInConfig(SSyncNode* pSyncNode, const SSyncCfg* config);
-void    syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex lastConfigChangeIndex);
+int32_t   syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
+int32_t   syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
+cJSON*    syncNode2Json(const SSyncNode* pSyncNode);
+char*     syncNode2Str(const SSyncNode* pSyncNode);
+void      syncNodeEventLog(const SSyncNode* pSyncNode, char* str);
+void      syncNodeErrorLog(const SSyncNode* pSyncNode, char* str);
+char*     syncNode2SimpleStr(const SSyncNode* pSyncNode);
+bool      syncNodeInConfig(SSyncNode* pSyncNode, const SSyncCfg* config);
+void      syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex lastConfigChangeIndex);
+SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode);
 
 SSyncNode* syncNodeAcquire(int64_t rid);
 void       syncNodeRelease(SSyncNode* pNode);
