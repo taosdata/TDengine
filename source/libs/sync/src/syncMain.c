@@ -231,7 +231,7 @@ int32_t syncReconfigBuild(int64_t rid, const SSyncCfg* pNewCfg, SRpcMsg* pRpcMsg
   return ret;
 }
 
-int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg) {
+int32_t syncReconfig(int64_t rid, SSyncCfg* pNewCfg) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
@@ -246,6 +246,7 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg) {
     return -1;
   }
 
+#if 0
   char*   newconfig = syncCfg2Str((SSyncCfg*)pNewCfg);
   int32_t ret = 0;
 
@@ -260,6 +261,12 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg* pNewCfg) {
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   return ret;
+#else
+  syncNodeUpdateNewConfigIndex(pSyncNode, pNewCfg);
+  syncNodeDoConfigChange(pSyncNode, pNewCfg, SYNC_INDEX_INVALID);
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return 0;
+#endif
 }
 
 int32_t syncLeaderTransfer(int64_t rid) {
