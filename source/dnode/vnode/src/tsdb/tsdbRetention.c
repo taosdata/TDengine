@@ -47,7 +47,7 @@ int32_t tsdbDoRetention(STsdb *pTsdb, int64_t now) {
   }
 
   // do retention
-  STsdbFS fs;
+  STsdbFS fs = {0};
 
   code = tsdbFSCopy(pTsdb, &fs);
   if (code) goto _err;

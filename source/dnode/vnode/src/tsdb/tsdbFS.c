@@ -149,6 +149,7 @@ _exit:
 void tsdbFSDestroy(STsdbFS *pFS) {
   if (pFS->pDelFile) {
     taosMemoryFree(pFS->pDelFile);
+    pFS->pDelFile = NULL;
   }
 
   for (int32_t iSet = 0; iSet < taosArrayGetSize(pFS->aDFileSet); iSet++) {
@@ -162,6 +163,7 @@ void tsdbFSDestroy(STsdbFS *pFS) {
   }
 
   taosArrayDestroy(pFS->aDFileSet);
+  pFS->aDFileSet = NULL;
 }
 
 static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
@@ -296,7 +298,7 @@ static int32_t tsdbLoadFSFromFile(const char *fname, STsdbFS *pFS) {
   // load binary
   TdFilePtr pFD = taosOpenFile(fname, TD_FILE_READ);
   if (pFD == NULL) {
-    code = terrno;
+    code = TAOS_SYSTEM_ERROR(errno);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
