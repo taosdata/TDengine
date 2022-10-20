@@ -979,6 +979,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   const SArray*   container = &topic_list->container;
   int32_t         sz = taosArrayGetSize(container);
   void*           buf = NULL;
+  SMsgSendInfo*   sendInfo = NULL;
   SCMSubscribeReq req = {0};
   int32_t         code = -1;
 
@@ -1016,7 +1017,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   void* abuf = buf;
   tSerializeSCMSubscribeReq(&abuf, &req);
 
-  SMsgSendInfo* sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+  sendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (sendInfo == NULL) goto FAIL;
 
   SMqSubscribeCbParam param = {
@@ -1046,6 +1047,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
 
   // avoid double free if msg is sent
   buf = NULL;
+  sendInfo = NULL;
 
   tsem_wait(&param.rspSem);
   tsem_destroy(&param.rspSem);
@@ -1078,8 +1080,9 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
 
   code = 0;
 FAIL:
-  if (req.topicNames != NULL) taosArrayDestroyP(req.topicNames, taosMemoryFree);
+  taosArrayDestroyP(req.topicNames, taosMemoryFree);
   taosMemoryFree(buf);
+  taosMemoryFree(sendInfo);
 
   return code;
 }
@@ -1613,7 +1616,11 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
     if (rspWrapper == NULL) {
       taosReadAllQitems(tmq->mqueue, tmq->qall);
       taosGetQitem(tmq->qall, (void**)&rspWrapper);
-      if (rspWrapper == NULL) return NULL;
+
+      if (rspWrapper == NULL) {
+        tscDebug("consumer %" PRId64 " mqueue empty", tmq->consumerId);
+        return NULL;
+      }
     }
 
     if (rspWrapper->tmqRspType == TMQ_MSG_TYPE__END_RSP) {
@@ -1711,6 +1718,8 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
   void*   rspObj;
   int64_t startTime = taosGetTimestampMs();
 
+  tscDebug("consumer:%" PRId64 ", start poll at %" PRId64, tmq->consumerId, startTime);
+
 #if 0
   tmqHandleAllDelayedTask(tmq);
   tmqPollImpl(tmq, timeout);
@@ -1745,15 +1754,18 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
 
     rspObj = tmqHandleAllRsp(tmq, timeout, false);
     if (rspObj) {
+      tscDebug("consumer:%" PRId64 ", return rsp", tmq->consumerId);
       return (TAOS_RES*)rspObj;
     } else if (terrno == TSDB_CODE_TQ_NO_COMMITTED_OFFSET) {
+      tscDebug("consumer:%" PRId64 ", return null since no committed offset", tmq->consumerId);
       return NULL;
     }
     if (timeout != -1) {
       int64_t endTime = taosGetTimestampMs();
       int64_t leftTime = endTime - startTime;
       if (leftTime > timeout) {
-        tscDebug("consumer:%" PRId64 ", (epoch %d) timeout, no rsp", tmq->consumerId, tmq->epoch);
+        tscDebug("consumer:%" PRId64 ", (epoch %d) timeout, no rsp, start time %" PRId64 ", end time %" PRId64,
+                 tmq->consumerId, tmq->epoch, startTime, endTime);
         return NULL;
       }
       tsem_timewait(&tmq->rspSem, leftTime * 1000);
