@@ -84,21 +84,21 @@ class TDTestCase:
         tableNumbers=100
         recordNumbers1=100
         recordNumbers2=1000
-#         tdsqlF=tdCom.newTdSql()
-#         print(tdsqlF)
-#         tdsqlF.query(f"SELECT SERVER_VERSION();")
-#         print(tdsqlF.query(f"SELECT SERVER_VERSION();"))
-#         oldServerVersion=tdsqlF.queryResult[0][0]
-#         tdLog.info(f"Base server version is {oldServerVersion}")
-#         tdsqlF.query(f"SELECT CLIENT_VERSION();")
-#         # the oldClientVersion can't be updated in the same python process,so the version is new compiled verison
-#         oldClientVersion=tdsqlF.queryResult[0][0]
-#         tdLog.info(f"Base client version is {oldClientVersion}")
+        tdsqlF=tdCom.newTdSql()
+        print(tdsqlF)
+        tdsqlF.query(f"SELECT SERVER_VERSION();")
+        print(tdsqlF.query(f"SELECT SERVER_VERSION();"))
+        oldServerVersion=tdsqlF.queryResult[0][0]
+        tdLog.info(f"Base server version is {oldServerVersion}")
+        tdsqlF.query(f"SELECT CLIENT_VERSION();")
+        # the oldClientVersion can't be updated in the same python process,so the version is new compiled verison
+        oldClientVersion=tdsqlF.queryResult[0][0]
+        tdLog.info(f"Base client version is {oldClientVersion}")
 
-#         tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{oldServerVersion}")
-#         tdLog.info(f"taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
-#         os.system(f"taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
-#         sleep(3)
+        tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{oldServerVersion}")
+        tdLog.info(f"taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
+        os.system(f"taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
+        sleep(3)
 
 #         # tdsqlF.query(f"select count(*) from {stb}")
 #         # tdsqlF.checkData(0,0,tableNumbers*recordNumbers1)
