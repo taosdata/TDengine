@@ -562,23 +562,15 @@ void parseCommand(SWords* command, bool pattern) {
 
 // free SShellCmd
 void freeCommand(SWords* command) {
-  SWord* word = command->head;
-  if (word == NULL) {
-    return;
-  }
-
+  SWord* item = command->head;
   // loop
-  while (word->next) {
-    SWord* tmp = word;
-    word = word->next;
+  while (item) {
+    SWord* tmp = item;
+    item = item->next;
     // if malloc need free
     if (tmp->free && tmp->word) taosMemoryFree(tmp->word);
     taosMemoryFree(tmp);
   }
-
-  // if malloc need free
-  if (word->free && word->word) taosMemoryFree(word->word);
-  taosMemoryFree(word);
 }
 
 void GenerateVarType(int type, char** p, int count) {
@@ -1204,11 +1196,11 @@ bool nextMatchCommand(TAOS* con, SShellCmd* cmd, SWords* firstMatch) {
 #endif
 
   // free
+  freeCommand(input);
   if (input->source) {
     taosMemoryFree(input->source);
     input->source = NULL;
   }
-  freeCommand(input);
   taosMemoryFree(input);
 
   return true;
@@ -1377,7 +1369,7 @@ bool appendAfterSelect(TAOS* con, SShellCmd* cmd, char* sql, int32_t len) {
   bool  ret = false;
   if (from == NULL) {
     bool fieldEnd = fieldsInputEnd(p);
-    // cheeck fields input end then insert from keyword
+    // check fields input end then insert from keyword
     if (fieldEnd && p[len - 1] == ' ') {
       shellInsertChar(cmd, "from", 4);
       taosMemoryFree(p);
