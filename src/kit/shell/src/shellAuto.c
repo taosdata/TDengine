@@ -540,8 +540,8 @@ void freeCommand(SWords* command) {
     SWord* tmp = item;
     item = item->next;
     // if malloc need free
-    if (tmp->free && tmp->word) taosMemoryFree(tmp->word);
-    taosMemoryFree(tmp);
+    if (tmp->free && tmp->word) free(tmp->word);
+    free(tmp);
   }
 }
 
