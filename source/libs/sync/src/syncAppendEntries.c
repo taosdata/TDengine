@@ -408,7 +408,7 @@ static int32_t syncNodeDoMakeLogSame(SSyncNode* ths, SyncIndex FromIndex) {
 
     do {
       char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "update delete begin to %ld", delBegin);
+      snprintf(logBuf, sizeof(logBuf), "update delete begin to %" PRId64, delBegin);
       syncNodeEventLog(ths, logBuf);
     } while (0);
   }
@@ -419,7 +419,8 @@ static int32_t syncNodeDoMakeLogSame(SSyncNode* ths, SyncIndex FromIndex) {
 
   do {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "make log same from:%ld, delbegin:%ld, pass:%d", FromIndex, delBegin, pass);
+    snprintf(logBuf, sizeof(logBuf), "make log same from:%" PRId64 ", delbegin:%" PRId64 ", pass:%d", FromIndex,
+             delBegin, pass);
     syncNodeEventLog(ths, logBuf);
   } while (0);
 

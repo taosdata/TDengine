@@ -2545,7 +2545,7 @@ int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
     // might be a race condition here that pHisto can be overwritten or setup function
     // has not been called, need to relink the buffer pHisto points to.
     buildHistogramInfo(pInfo);
-    qDebug("%s before add %d elements into histogram, total:%d, numOfEntry:%d, pHisto:%p, elems: %p", __FUNCTION__,
+    qDebug("%s before add %d elements into histogram, total:%" PRId64 ", numOfEntry:%d, pHisto:%p, elems: %p", __FUNCTION__,
            numOfElems, pInfo->pHisto->numOfElems, pInfo->pHisto->numOfEntries, pInfo->pHisto, pInfo->pHisto->elems);
     for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
       if (colDataIsNull_f(pCol->nullbitmap, i)) {
@@ -2559,8 +2559,9 @@ int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
       tHistogramAdd(&pInfo->pHisto, v);
     }
 
-    qDebug("%s after add %d elements into histogram, total:%d, numOfEntry:%d, pHisto:%p, elems: %p", __FUNCTION__,
-           numOfElems, pInfo->pHisto->numOfElems, pInfo->pHisto->numOfEntries, pInfo->pHisto, pInfo->pHisto->elems);
+    qDebug("%s after add %d elements into histogram, total:%" PRId64 ", numOfEntry:%d, pHisto:%p, elems: %p",
+           __FUNCTION__, numOfElems, pInfo->pHisto->numOfElems, pInfo->pHisto->numOfEntries, pInfo->pHisto,
+           pInfo->pHisto->elems);
   }
 
   SET_VAL(pResInfo, numOfElems, 1);
@@ -2640,7 +2641,7 @@ int32_t apercentileFunctionMerge(SqlFunctionCtx* pCtx) {
   }
 
   if (pInfo->algo != APERCT_ALGO_TDIGEST) {
-    qDebug("%s after merge, total:%d, numOfEntry:%d, %p", __FUNCTION__, pInfo->pHisto->numOfElems,
+    qDebug("%s after merge, total:%" PRId64 ", numOfEntry:%d, %p", __FUNCTION__, pInfo->pHisto->numOfElems,
            pInfo->pHisto->numOfEntries, pInfo->pHisto);
   }
 
@@ -6184,99 +6185,6 @@ int32_t groupKeyFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   return pResInfo->numOfRes;
-}
-
-int32_t interpFunction(SqlFunctionCtx* pCtx) {
-#if 0
-  int32_t fillType = (int32_t) pCtx->param[2].i64;
-  //bool ascQuery = (pCtx->order == TSDB_ORDER_ASC);
-
-  if (pCtx->start.key == pCtx->startTs) {
-    assert(pCtx->start.key != INT64_MIN);
-
-    COPY_TYPED_DATA(pCtx->pOutput, pCtx->inputType, &pCtx->start.val);
-
-    goto interp_success_exit;
-  } else if (pCtx->end.key == pCtx->startTs && pCtx->end.key != INT64_MIN && fillType == TSDB_FILL_NEXT) {
-    COPY_TYPED_DATA(pCtx->pOutput, pCtx->inputType, &pCtx->end.val);
-
-    goto interp_success_exit;
-  }
-
-  switch (fillType) {
-    case TSDB_FILL_NULL:
-      setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
-      break;
-
-    case TSDB_FILL_SET_VALUE:
-      tVariantDump(&pCtx->param[1], pCtx->pOutput, pCtx->inputType, true);
-      break;
-
-    case TSDB_FILL_LINEAR:
-      if (pCtx->start.key == INT64_MIN || pCtx->start.key > pCtx->startTs
-          || pCtx->end.key == INT64_MIN || pCtx->end.key < pCtx->startTs) {
-        goto interp_exit;
-      }
-
-      double v1 = -1, v2 = -1;
-      GET_TYPED_DATA(v1, double, pCtx->inputType, &pCtx->start.val);
-      GET_TYPED_DATA(v2, double, pCtx->inputType, &pCtx->end.val);
-
-      SPoint point1 = {.key = pCtx->start.key, .val = &v1};
-      SPoint point2 = {.key = pCtx->end.key, .val = &v2};
-      SPoint point  = {.key = pCtx->startTs, .val = pCtx->pOutput};
-
-      int32_t srcType = pCtx->inputType;
-      if (isNull((char *)&pCtx->start.val, srcType) || isNull((char *)&pCtx->end.val, srcType)) {
-        setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
-      } else {
-        bool exceedMax = false, exceedMin = false;
-        taosGetLinearInterpolationVal(&point, pCtx->outputType, &point1, &point2, TSDB_DATA_TYPE_DOUBLE, &exceedMax, &exceedMin);
-        if (exceedMax || exceedMin) {
-          __compar_fn_t func = getComparFunc((int32_t)pCtx->inputType, 0);
-          if (func(&pCtx->start.val, &pCtx->end.val) <= 0) {
-            COPY_TYPED_DATA(pCtx->pOutput, pCtx->inputType, exceedMax ? &pCtx->start.val : &pCtx->end.val);
-          } else {
-            COPY_TYPED_DATA(pCtx->pOutput, pCtx->inputType, exceedMax ? &pCtx->end.val : &pCtx->start.val);
-          }
-        }
-      }
-      break;
-
-    case TSDB_FILL_PREV:
-      if (pCtx->start.key == INT64_MIN || pCtx->start.key > pCtx->startTs) {
-        goto interp_exit;
-      }
-
-      COPY_TYPED_DATA(pCtx->pOutput, pCtx->inputType, &pCtx->start.val);
-      break;
-
-    case TSDB_FILL_NEXT:
-      if (pCtx->end.key == INT64_MIN || pCtx->end.key < pCtx->startTs) {
-        goto interp_exit;
-      }
-
-      COPY_TYPED_DATA(pCtx->pOutput, pCtx->inputType, &pCtx->end.val);
-      break;
-
-    case TSDB_FILL_NONE:
-      // do nothing
-    default:
-      goto interp_exit;
-  }
-
-
-  interp_success_exit:
-  *(TSKEY*)pCtx->ptsOutputBuf = pCtx->startTs;
-  INC_INIT_VAL(pCtx, 1);
-
-  interp_exit:
-  pCtx->start.key = INT64_MIN;
-  pCtx->end.key = INT64_MIN;
-  pCtx->endTs = pCtx->startTs;
-#endif
-
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t cachedLastRowFunction(SqlFunctionCtx* pCtx) {

@@ -1157,7 +1157,7 @@ static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
           pEp->port = pDnode->port;
         }
         mndReleaseDnode(pMnode, pDnode);
-        if (pVgid->role == TAOS_SYNC_STATE_LEADER) {
+        if (pVgid->syncState == TAOS_SYNC_STATE_LEADER) {
           vgInfo.epSet.inUse = gid;
         }
       }
@@ -1553,7 +1553,7 @@ bool mndIsDbReady(SMnode *pMnode, SDbObj *pDb) {
     if (pVgroup->dbUid == pDb->uid && pVgroup->replica > 1) {
       bool hasLeader = false;
       for (int32_t i = 0; i < pVgroup->replica; ++i) {
-        if (pVgroup->vnodeGid[i].role == TAOS_SYNC_STATE_LEADER) {
+        if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEADER) {
           hasLeader = true;
         }
       }
