@@ -944,6 +944,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
     if (taosReadFile(pFile, buf, fileSize) <= 0) {
       taosCloseFile(&pFile);
       uError("load json file error: %s", filepath);
+      taosMemoryFreeClear(buf);
       return -1;
     }
     taosCloseFile(&pFile);
@@ -953,6 +954,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
       if (jsonParseError != NULL) {
         uError("load json file parse error: %s", jsonParseError);
       }
+      taosMemoryFreeClear(buf);
       return -1;
     }
     taosMemoryFreeClear(buf);

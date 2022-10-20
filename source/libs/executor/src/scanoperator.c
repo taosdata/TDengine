@@ -494,7 +494,13 @@ void setTbNameColData(void* pMeta, const SSDataBlock* pBlock, SColumnInfoData* p
   SScalarParam srcParam = {.numOfRows = pBlock->info.rows, .param = pMeta, .columnData = &infoData};
 
   SScalarParam param = {.columnData = pColInfoData};
-  fpSet.process(&srcParam, 1, &param);
+
+  if (fpSet.process != NULL) {
+    fpSet.process(&srcParam, 1, &param);
+  } else {
+    qError("failed to get the corresponding callback function, functionId:%d", functionId);
+  }
+
   colDataDestroy(&infoData);
 }
 
@@ -1549,7 +1555,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
         tsdbReaderClose(pTSInfo->dataReader);
         pTSInfo->dataReader = NULL;
         tqOffsetResetToLog(&pTaskInfo->streamInfo.prepareStatus, pTaskInfo->streamInfo.snapshotVer);
-        qDebug("queue scan tsdb over, switch to wal ver %"PRId64, pTaskInfo->streamInfo.snapshotVer + 1);
+        qDebug("queue scan tsdb over, switch to wal ver %" PRId64 "", pTaskInfo->streamInfo.snapshotVer + 1);
         if (tqSeekVer(pInfo->tqReader, pTaskInfo->streamInfo.snapshotVer + 1) < 0) {
           return NULL;
         }
@@ -1982,7 +1988,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
         longjmp(pTaskInfo->env, terrno);
       }
 
-      qDebug("tmqsnap doRawScan get data uid:%ld", pBlock->info.uid);
+      qDebug("tmqsnap doRawScan get data uid:%" PRId64 "", pBlock->info.uid);
       pTaskInfo->streamInfo.lastStatus.type = TMQ_OFFSET__SNAPSHOT_DATA;
       pTaskInfo->streamInfo.lastStatus.uid = pBlock->info.uid;
       pTaskInfo->streamInfo.lastStatus.ts = pBlock->info.window.ekey;
@@ -1998,7 +2004,7 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
     } else {
       pTaskInfo->streamInfo.prepareStatus.uid = mtInfo.uid;
       pTaskInfo->streamInfo.prepareStatus.ts = INT64_MIN;
-      qDebug("tmqsnap change get data uid:%ld", mtInfo.uid);
+      qDebug("tmqsnap change get data uid:%" PRId64 "", mtInfo.uid);
       qStreamPrepareScan(pTaskInfo, &pTaskInfo->streamInfo.prepareStatus, pInfo->sContext->subType);
     }
     tDeleteSSchemaWrapper(mtInfo.schema);

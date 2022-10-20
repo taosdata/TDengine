@@ -1075,7 +1075,8 @@ typedef struct {
 
 typedef struct {
   int32_t vgId;
-  int32_t syncState;
+  int8_t  syncState;
+  int8_t  syncRestore;
   int64_t cacheUsage;
   int64_t numOfTables;
   int64_t numOfTimeSeries;
@@ -1090,7 +1091,8 @@ typedef struct {
 } SVnodeLoad;
 
 typedef struct {
-  int32_t syncState;
+  int8_t syncState;
+  int8_t syncRestore;
 } SMnodeLoad;
 
 typedef struct {

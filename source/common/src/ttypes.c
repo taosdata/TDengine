@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "ttypes.h"
 #include "tcompression.h"
-#include "trow.h"
 
 const int32_t TYPE_BYTES[16] = {
     -1,                      // TSDB_DATA_TYPE_NULL
@@ -85,18 +84,6 @@ FORCE_INLINE void *getDataMax(int32_t type) {
 }
 
 bool isValidDataType(int32_t type) { return type >= TSDB_DATA_TYPE_NULL && type < TSDB_DATA_TYPE_MAX; }
-
-void setVardataNull(void *val, int32_t type) {
-  if (type == TSDB_DATA_TYPE_BINARY) {
-    varDataSetLen(val, sizeof(int8_t));
-    *(uint8_t *)varDataVal(val) = TSDB_DATA_BINARY_NULL;
-  } else if (type == TSDB_DATA_TYPE_NCHAR) {
-    varDataSetLen(val, sizeof(int32_t));
-    *(uint32_t *)varDataVal(val) = TSDB_DATA_NCHAR_NULL;
-  } else {
-    assert(0);
-  }
-}
 
 #define POINTER_SHIFT(p, b) ((void *)((char *)(p) + (b)))
 

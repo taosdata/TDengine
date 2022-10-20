@@ -285,14 +285,42 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   }
 
   for (int32_t i = 0; i < msgNum; ++i) {
+    if (offset >= pMsg->contLen) {
+      qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      taosArrayDestroy(batchRsp);
+      return -1;
+    }    
+
     req.msgIdx = ntohl(*(int32_t *)((char *)pMsg->pCont + offset));
     offset += sizeof(req.msgIdx);
+
+    if (offset >= pMsg->contLen) {
+      qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      taosArrayDestroy(batchRsp);
+      return -1;
+    } 
 
     req.msgType = ntohl(*(int32_t *)((char *)pMsg->pCont + offset));
     offset += sizeof(req.msgType);
 
+    if (offset >= pMsg->contLen) {
+      qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      taosArrayDestroy(batchRsp);
+      return -1;
+    } 
+
     req.msgLen = ntohl(*(int32_t *)((char *)pMsg->pCont + offset));
     offset += sizeof(req.msgLen);
+
+    if (offset >= pMsg->contLen) {
+      qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      taosArrayDestroy(batchRsp);
+      return -1;
+    } 
 
     req.msg = (char *)pMsg->pCont + offset;
     offset += req.msgLen;
@@ -385,6 +413,7 @@ _exit:
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->vgId = TD_VID(pVnode);
   pLoad->syncState = syncGetMyRole(pVnode->sync);
+  pLoad->syncRestore = pVnode->restored;
   pLoad->cacheUsage = tsdbCacheGetUsage(pVnode);
   pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
   pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta);

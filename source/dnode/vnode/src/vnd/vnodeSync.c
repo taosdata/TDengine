@@ -328,14 +328,14 @@ int32_t vnodeProcessSyncCtrlMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   const STraceId *trace = &pMsg->info.traceId;
 
   if (!syncEnvIsStart()) {
-    vGError("vgId:%d, msg:%p failed to process since sync env not start", pVnode->config.vgId);
+    vGError("vgId:%d, msg:%p failed to process since sync env not start", pVnode->config.vgId, pMsg);
     terrno = TSDB_CODE_APP_ERROR;
     return -1;
   }
 
   SSyncNode *pSyncNode = syncNodeAcquire(pVnode->sync);
   if (pSyncNode == NULL) {
-    vGError("vgId:%d, msg:%p failed to process since invalid sync node", pVnode->config.vgId);
+    vGError("vgId:%d, msg:%p failed to process since invalid sync node", pVnode->config.vgId, pMsg);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
   }
@@ -353,7 +353,7 @@ int32_t vnodeProcessSyncCtrlMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     syncHeartbeatReplyDestroy(pSyncMsg);
 
   } else {
-    vGError("vgId:%d, msg:%p failed to process since error msg type:%d", pVnode->config.vgId, pMsg->msgType);
+    vGError("vgId:%d, msg:%p failed to process since error msg type:%d", pVnode->config.vgId, pMsg, pMsg->msgType);
     code = -1;
   }
 

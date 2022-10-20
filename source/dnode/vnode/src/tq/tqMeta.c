@@ -193,8 +193,8 @@ int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
   tEncodeSize(tEncodeSTqHandle, pHandle, vlen, code);
   ASSERT(code == 0);
 
-  tqDebug("tq save %s(%d) consumer %ld vgId:%d", pHandle->subKey, (int32_t)strlen(pHandle->subKey), pHandle->consumerId,
-          TD_VID(pTq->pVnode));
+  tqDebug("tq save %s(%d) consumer %" PRId64 " vgId:%d", pHandle->subKey, (int32_t)strlen(pHandle->subKey),
+          pHandle->consumerId, TD_VID(pTq->pVnode));
 
   void* buf = taosMemoryCalloc(1, vlen);
   if (buf == NULL) {
