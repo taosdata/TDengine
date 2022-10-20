@@ -282,6 +282,7 @@ char *shellFormatTimestamp(char *buf, int64_t val, int32_t precision) {
 
 void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length, int32_t precision) {
   if (val == NULL) {
+    taosFprintfFile(pFile, "NULL");
     return;
   }
 
