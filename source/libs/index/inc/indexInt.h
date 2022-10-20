@@ -138,7 +138,7 @@ void    idxReleaseRef(int64_t ref);
 #define IDX_TYPE_ADD_EXTERN_TYPE(ty, exTy) \
   do {                                     \
     uint8_t oldTy = ty;                    \
-    ty = (ty >> 4) | exTy;                 \
+    ty = ((ty >> 4) & 0xFF) | exTy;        \
     ty = (ty << 4) | oldTy;                \
   } while (0)
 

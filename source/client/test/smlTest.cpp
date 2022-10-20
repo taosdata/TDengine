@@ -44,7 +44,7 @@ TEST(testCase, smlParseInfluxString_Test) {
   char *tmp = "\\,st,t1=3,t2=4,t3=t3 c1=3i64,c3=\"passit hello,c1=2\",c2=false,c4=4f64 1626006833639000000    ,32,c=3";
   char *sql = (char *)taosMemoryCalloc(256, 1);
   memcpy(sql, tmp, strlen(tmp) + 1);
-  int ret = smlParseInfluxString(sql, &elements, &msgBuf);
+  int ret = smlParseInfluxString(sql, sql + strlen(sql), &elements, &msgBuf);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(elements.measure, sql);
   ASSERT_EQ(elements.measureLen, strlen(",st"));
@@ -63,14 +63,14 @@ TEST(testCase, smlParseInfluxString_Test) {
   tmp = "st,t1=3,t2=4,t3=t3 c1=3i64,c3=\"passit hello,c1=2,c2=false,c4=4f64 1626006833639000000";
   memcpy(sql, tmp, strlen(tmp) + 1);
   memset(&elements, 0, sizeof(SSmlLineInfo));
-  ret = smlParseInfluxString(sql, &elements, &msgBuf);
+  ret = smlParseInfluxString(sql, sql + strlen(sql), &elements, &msgBuf);
   ASSERT_NE(ret, 0);
 
   // case 3  false
   tmp = "st, t1=3,t2=4,t3=t3 c1=3i64,c3=\"passit hello,c1=2,c2=false,c4=4f64 1626006833639000000";
   memcpy(sql, tmp, strlen(tmp) + 1);
   memset(&elements, 0, sizeof(SSmlLineInfo));
-  ret = smlParseInfluxString(sql, &elements, &msgBuf);
+  ret = smlParseInfluxString(sql, sql + strlen(sql), &elements, &msgBuf);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(elements.cols, sql + elements.measureTagsLen + 1);
   ASSERT_EQ(elements.colsLen, strlen("t1=3,t2=4,t3=t3"));
@@ -79,7 +79,7 @@ TEST(testCase, smlParseInfluxString_Test) {
   tmp = "st, c1=3i64,c3=\"passit hello,c1=2\",c2=false,c4=4f64 1626006833639000000";
   memcpy(sql, tmp, strlen(tmp) + 1);
   memset(&elements, 0, sizeof(SSmlLineInfo));
-  ret = smlParseInfluxString(sql, &elements, &msgBuf);
+  ret = smlParseInfluxString(sql, sql + strlen(sql), &elements, &msgBuf);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(elements.measure, sql);
   ASSERT_EQ(elements.measureLen, strlen("st"));
@@ -98,7 +98,7 @@ TEST(testCase, smlParseInfluxString_Test) {
   tmp = " st   c1=3i64,c3=\"passit hello,c1=2\",c2=false,c4=4f64  1626006833639000000 ";
   memcpy(sql, tmp, strlen(tmp) + 1);
   memset(&elements, 0, sizeof(SSmlLineInfo));
-  ret = smlParseInfluxString(sql, &elements, &msgBuf);
+  ret = smlParseInfluxString(sql, sql + strlen(sql), &elements, &msgBuf);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(elements.measure, sql + 1);
   ASSERT_EQ(elements.measureLen, strlen("st"));
@@ -116,21 +116,21 @@ TEST(testCase, smlParseInfluxString_Test) {
   tmp = " st   c1=3i64,c3=\"passit hello,c1=2\",c2=false,c4=4f64   ";
   memcpy(sql, tmp, strlen(tmp) + 1);
   memset(&elements, 0, sizeof(SSmlLineInfo));
-  ret = smlParseInfluxString(sql, &elements, &msgBuf);
+  ret = smlParseInfluxString(sql, sql + strlen(sql), &elements, &msgBuf);
   ASSERT_EQ(ret, 0);
 
   // case 7
   tmp = " st   ,   ";
   memcpy(sql, tmp, strlen(tmp) + 1);
   memset(&elements, 0, sizeof(SSmlLineInfo));
-  ret = smlParseInfluxString(sql, &elements, &msgBuf);
+  ret = smlParseInfluxString(sql, sql + strlen(sql), &elements, &msgBuf);
   ASSERT_EQ(ret, 0);
 
   // case 8 false
   tmp = ", st   ,   ";
   memcpy(sql, tmp, strlen(tmp) + 1);
   memset(&elements, 0, sizeof(SSmlLineInfo));
-  ret = smlParseInfluxString(sql, &elements, &msgBuf);
+  ret = smlParseInfluxString(sql, sql + strlen(sql), &elements, &msgBuf);
   ASSERT_NE(ret, 0);
   taosMemoryFree(sql);
 }
@@ -542,7 +542,7 @@ TEST(testCase, smlParseTelnetLine_error_Test) {
       "sys.procs.running 1479496100 42 host= web01",
   };
   for (int i = 0; i < sizeof(sql) / sizeof(sql[0]); i++) {
-    int ret = smlParseTelnetLine(info, (void *)sql[i]);
+    int ret = smlParseTelnetLine(info, (void *)sql[i], strlen(sql[i]));
     ASSERT_NE(ret, 0);
   }
 
@@ -561,7 +561,7 @@ TEST(testCase, smlParseTelnetLine_diff_type_Test) {
 
   int ret = TSDB_CODE_SUCCESS;
   for (int i = 0; i < sizeof(sql) / sizeof(sql[0]); i++) {
-    ret = smlParseTelnetLine(info, (void *)sql[i]);
+    ret = smlParseTelnetLine(info, (void *)sql[i], strlen(sql[i]));
     if (ret != TSDB_CODE_SUCCESS) break;
   }
   ASSERT_NE(ret, 0);
@@ -617,7 +617,7 @@ TEST(testCase, smlParseTelnetLine_json_error_Test) {
 
   int ret = TSDB_CODE_SUCCESS;
   for (int i = 0; i < sizeof(sql) / sizeof(sql[0]); i++) {
-    ret = smlParseTelnetLine(info, (void *)sql[i]);
+    ret = smlParseTelnetLine(info, (void *)sql[i], strlen(sql[i]));
     ASSERT_NE(ret, 0);
   }
 
@@ -653,7 +653,7 @@ TEST(testCase, smlParseTelnetLine_diff_json_type1_Test) {
 
   int ret = TSDB_CODE_SUCCESS;
   for (int i = 0; i < sizeof(sql) / sizeof(sql[0]); i++) {
-    ret = smlParseTelnetLine(info, (void *)sql[i]);
+    ret = smlParseTelnetLine(info, (void *)sql[i], strlen(sql[i]));
     if (ret != TSDB_CODE_SUCCESS) break;
   }
   ASSERT_NE(ret, 0);
@@ -688,7 +688,7 @@ TEST(testCase, smlParseTelnetLine_diff_json_type2_Test) {
   };
   int ret = TSDB_CODE_SUCCESS;
   for (int i = 0; i < sizeof(sql) / sizeof(sql[0]); i++) {
-    ret = smlParseTelnetLine(info, (void *)sql[i]);
+    ret = smlParseTelnetLine(info, (void *)sql[i], strlen(sql[i]));
     if (ret != TSDB_CODE_SUCCESS) break;
   }
   ASSERT_NE(ret, 0);
@@ -1002,7 +1002,7 @@ TEST(testCase, sml_col_4096_Test) {
 
   int ret = TSDB_CODE_SUCCESS;
   for (int i = 0; i < sizeof(sql) / sizeof(sql[0]); i++) {
-    ret = smlParseInfluxLine(info, sql[i]);
+    ret = smlParseInfluxLine(info, sql[i], strlen(sql[i]));
     if (ret != TSDB_CODE_SUCCESS) break;
   }
   ASSERT_NE(ret, 0);

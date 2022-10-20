@@ -275,7 +275,6 @@ void matchPrefixFromList(STire* tire, char* prefix, SMatch* match) {
 
 // match prefix words, if match is not NULL , put all item to match and return match
 void matchPrefixFromTree(STire* tire, char* prefix, SMatch* match) {
-  SMatch*    root = match;
   int        m = 0;
   STireNode* c = 0;
   int        len = strlen(prefix);
@@ -299,23 +298,14 @@ void matchPrefixFromTree(STire* tire, char* prefix, SMatch* match) {
 
     // previous items already matched
     if (i == len - 1) {
-      // malloc match if not pass by param match
-      if (root == NULL) {
-        root = (SMatch*)taosMemoryMalloc(sizeof(SMatch));
-        memset(root, 0, sizeof(SMatch));
-        strcpy(root->pre, prefix);
-      }
-
       // prefix is match to end char
-      if (c->d) enumAllWords(c->d, prefix, root);
+      if (c->d) enumAllWords(c->d, prefix, match);
     } else {
       // move to next node continue match
       if (c->d == NULL) break;
       nodes = c->d;
     }
   }
-
-  taosMemoryFree(root);
 }
 
 SMatch* matchPrefix(STire* tire, char* prefix, SMatch* match) {

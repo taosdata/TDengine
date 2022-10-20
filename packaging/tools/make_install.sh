@@ -77,7 +77,7 @@ os_type=0
 
 if [ "$osType" != "Darwin" ]; then
   initd_mod=0
-  if pidof systemd &>/dev/null; then
+  if ps aux | grep -v grep | grep systemd &>/dev/null; then
     service_mod=0
   elif $(which service &>/dev/null); then
     service_mod=1
@@ -130,7 +130,6 @@ function kill_taosadapter() {
 }
 
 function kill_taosd() {
-  ps -ef | grep ${serverName}
   pid=$(ps -ef | grep -w ${serverName} | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
     ${csudo}kill -9 $pid || :
@@ -438,7 +437,7 @@ function install_web() {
 }
 
 function clean_service_on_sysvinit() {
-  if pidof ${serverName} &>/dev/null; then
+  if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
     ${csudo}service ${serverName} stop || :
   fi
 
@@ -535,6 +534,10 @@ function install_service_on_launchctl() {
   ${csudouser}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
   ${csudo}cp ${script_dir}/com.taosdata.taosd.plist /Library/LaunchDaemons/com.taosdata.taosd.plist
   ${csudouser}launchctl load -w /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
+
+  ${csudouser}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosadapter.plist > /dev/null 2>&1 || :
+  ${csudo}cp ${script_dir}/com.taosdata.taosadapter.plist /Library/LaunchDaemons/com.taosdata.taosadapter.plist
+  ${csudouser}launchctl load -w /Library/LaunchDaemons/com.taosdata.taosadapter.plist > /dev/null 2>&1 || :
 }
 
 function install_service() {
@@ -568,7 +571,7 @@ function update_TDengine() {
   echo -e "${GREEN}Start to update ${productName}...${NC}"
   # Stop the service if running
 
-  if pidof ${serverName} &>/dev/null; then
+  if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
     if ((${service_mod} == 0)); then
       ${csudo}systemctl stop ${serverName} || :
     elif ((${service_mod} == 1)); then
@@ -615,11 +618,12 @@ function update_TDengine() {
   else
     if [ "$osType" != "Darwin" ]; then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${serverName}${NC}"
+      [ -f ${installDir}/bin/taosadapter ] && \
+        echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: taosadapter &${NC}"
     else
       echo -e "${GREEN_DARK}To start service      ${NC}: launchctl start com.tdengine.taosd${NC}"
+      echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: launchctl start com.tdengine.taosadapter${NC}"
     fi
-    [ -f ${installDir}/bin/taosadapter ] && \
-      echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: taosadapter &${NC}"
   fi
 
   echo -e "${GREEN_DARK}To access ${productName}    ${NC}: use ${GREEN_UNDERLINE}${clientName}${NC} in shell${NC}"
@@ -666,11 +670,12 @@ function install_TDengine() {
   else
     if [ "$osType" != "Darwin" ]; then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${serverName}${NC}"
+      [ -f ${installDir}/bin/taosadapter ] && \
+        echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: taosadapter &${NC}"
     else
       echo -e "${GREEN_DARK}To start service      ${NC}: launchctl start com.tdengine.taosd${NC}"
+      echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: launchctl start com.tdengine.taosadapter${NC}"
     fi
-    [ -f ${installDir}/bin/taosadapter ] && \
-      echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: taosadapter &${NC}"
   fi
 
   echo -e "${GREEN_DARK}To access ${productName}    ${NC}: use ${GREEN_UNDERLINE}${clientName}${NC} in shell${NC}"

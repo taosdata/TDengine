@@ -51,7 +51,7 @@ static int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema
     return -1;
   }
 
-  strncpy(pMetaRsp->tbName, tbName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pMetaRsp->tbName, tbName, TSDB_TABLE_NAME_LEN);
   pMetaRsp->numOfColumns = pSchema->nCols;
   pMetaRsp->tableType = TSDB_NORMAL_TABLE;
   pMetaRsp->sversion = pSchema->version;
@@ -116,9 +116,10 @@ static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const
       indexMultiTermAdd(terms, term);
     }
   }
-  taosArrayDestroy(pTagVals);
   indexJsonPut(pMeta->pTagIvtIdx, terms, tuid);
   indexMultiTermDestroy(terms);
+
+  taosArrayDestroy(pTagVals);
 #endif
   return 0;
 }
@@ -159,6 +160,7 @@ int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSche
         memcpy(val, (uint16_t *)&len, VARSTR_HEADER_SIZE);
         type = TSDB_DATA_TYPE_VARCHAR;
         term = indexTermCreate(suid, DEL_VALUE, type, key, nKey, val, len);
+        taosMemoryFree(val);
       } else if (pTagVal->nData == 0) {
         term = indexTermCreate(suid, DEL_VALUE, TSDB_DATA_TYPE_VARCHAR, key, nKey, pTagVal->pData, 0);
       }
@@ -177,6 +179,7 @@ int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSche
   }
   indexJsonPut(pMeta->pTagIvtIdx, terms, tuid);
   indexMultiTermDestroy(terms);
+  taosArrayDestroy(pTagVals);
 #endif
   return 0;
 }

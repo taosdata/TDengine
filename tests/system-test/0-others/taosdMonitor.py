@@ -125,7 +125,7 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
         dnode_infos =  ['uptime', 'cpu_engine', 'cpu_system', 'cpu_cores', 'mem_engine', 'mem_system', 'mem_total', 'disk_engine',
         'disk_used', 'disk_total', 'net_in', 'net_out', 'io_read', 'io_write', 'io_read_disk', 'io_write_disk', 'req_select',
         'req_select_rate', 'req_insert', 'req_insert_success', 'req_insert_rate', 'req_insert_batch', 'req_insert_batch_success',
-        'req_insert_batch_rate', 'errors', 'vnodes_num', 'masters', 'has_mnode', 'has_qnode', 'has_snode', 'has_bnode']
+        'req_insert_batch_rate', 'errors', 'vnodes_num', 'masters', 'has_mnode', 'has_qnode', 'has_snode']
         for elem in dnode_infos:
             if elem not in infoDict["dnode_info"] or  infoDict["dnode_info"][elem] < 0:
                 tdLog.exit(f"{elem} is null!")

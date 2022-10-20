@@ -1190,23 +1190,22 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
   SColumnInfoData* pDestGpCol = taosArrayGet(pDestBlock->pDataBlock, GROUPID_COLUMN_INDEX);
   SColumnInfoData* pDestCalStartTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_START_TS_COLUMN_INDEX);
   SColumnInfoData* pDestCalEndTsCol = taosArrayGet(pDestBlock->pDataBlock, CALCULATE_END_TS_COLUMN_INDEX);
-  int32_t          dummy = 0;
   int64_t          version = pSrcBlock->info.version - 1;
   for (int32_t i = 0; i < pSrcBlock->info.rows; i++) {
     uint64_t groupId = getGroupIdByData(pInfo, uidCol[i], startData[i], version);
     // gap must be 0.
-    SResultWindowInfo* pStartWin =
-        getCurSessionWindow(pInfo->windowSup.pStreamAggSup, startData[i], endData[i], groupId, 0, &dummy);
-    if (!pStartWin) {
+    SSessionKey startWin = {0};
+    getCurSessionWindow(pInfo->windowSup.pStreamAggSup, startData[i], endData[i], groupId, &startWin);
+    if (IS_INVALID_SESSION_WIN_KEY(startWin)) {
       // window has been closed.
       continue;
     }
-    SResultWindowInfo* pEndWin =
-        getCurSessionWindow(pInfo->windowSup.pStreamAggSup, endData[i], endData[i], groupId, 0, &dummy);
-    ASSERT(pEndWin);
-    TSKEY ts = INT64_MIN;
-    colDataAppend(pDestStartCol, i, (const char*)&pStartWin->win.skey, false);
-    colDataAppend(pDestEndCol, i, (const char*)&pEndWin->win.ekey, false);
+    SSessionKey endWin = {0};
+    getCurSessionWindow(pInfo->windowSup.pStreamAggSup, endData[i], endData[i], groupId, &endWin);
+    ASSERT(!IS_INVALID_SESSION_WIN_KEY(endWin));
+    colDataAppend(pDestStartCol, i, (const char*)&startWin.win.skey, false);
+    colDataAppend(pDestEndCol, i, (const char*)&endWin.win.ekey, false);
+
     colDataAppendNULL(pDestUidCol, i);
     colDataAppend(pDestGpCol, i, (const char*)&groupId, false);
     colDataAppendNULL(pDestCalStartTsCol, i);
@@ -1770,6 +1769,7 @@ FETCH_NEXT_BLOCK:
           pInfo->pDeleteDataRes->info.type = STREAM_DELETE_RESULT;
           printDataBlock(pDelBlock, "stream scan delete result");
           if (pInfo->pDeleteDataRes->info.rows > 0) {
+            blockDataDestroy(pDelBlock);
             return pInfo->pDeleteDataRes;
           } else {
             goto FETCH_NEXT_BLOCK;
@@ -3001,7 +3001,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
     while (1) {
       int64_t startTs = taosGetTimestampUs();
       tstrncpy(pInfo->req.tb, tNameGetTableName(&pInfo->name), tListLen(pInfo->req.tb));
-      strcpy(pInfo->req.user, pInfo->pUser);
+      tstrncpy(pInfo->req.user, pInfo->pUser, tListLen(pInfo->req.user));
 
       int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &pInfo->req);
       char*   buf1 = taosMemoryCalloc(1, contLen);
@@ -3331,6 +3331,11 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
                                 STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
                                 const char* idStr) {
   int64_t st = taosGetTimestampUs();
+
+  if (pHandle == NULL) {
+    qError("invalid handle, in creating operator tree", idStr);
+    return TSDB_CODE_INVALID_PARA;
+  }
 
   int32_t code = getTableList(pHandle->meta, pHandle->vnode, pScanNode, pTagCond, pTagIndexCond, pTableListInfo);
   if (code != TSDB_CODE_SUCCESS) {

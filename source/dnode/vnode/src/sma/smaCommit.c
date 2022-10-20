@@ -17,14 +17,17 @@
 
 extern SSmaMgmt smaMgmt;
 
+#if 0
 static int32_t tdProcessRSmaSyncPreCommitImpl(SSma *pSma);
 static int32_t tdProcessRSmaSyncCommitImpl(SSma *pSma);
 static int32_t tdProcessRSmaSyncPostCommitImpl(SSma *pSma);
+#endif
 static int32_t tdProcessRSmaAsyncPreCommitImpl(SSma *pSma);
 static int32_t tdProcessRSmaAsyncCommitImpl(SSma *pSma);
 static int32_t tdProcessRSmaAsyncPostCommitImpl(SSma *pSma);
 static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pRSmaStat);
 
+#if 0
 /**
  * @brief Only applicable to Rollup SMA
  *
@@ -48,6 +51,7 @@ int32_t smaSyncCommit(SSma *pSma) { return tdProcessRSmaSyncCommitImpl(pSma); }
  * @return int32_t
  */
 int32_t smaSyncPostCommit(SSma *pSma) { return tdProcessRSmaSyncPostCommitImpl(pSma); }
+#endif
 
 /**
  * @brief Only applicable to Rollup SMA
@@ -108,6 +112,7 @@ int32_t smaBegin(SSma *pSma) {
   return TSDB_CODE_SUCCESS;
 }
 
+#if 0
 /**
  * @brief pre-commit for rollup sma(sync commit).
  *  1) set trigger stat of rsma timer TASK_TRIGGER_STAT_PAUSED.
@@ -169,6 +174,7 @@ static int32_t tdProcessRSmaSyncCommitImpl(SSma *pSma) {
 #endif
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 // SQTaskFile ======================================================
 
@@ -230,6 +236,7 @@ static int32_t tdUpdateQTaskInfoFiles(SSma *pSma, SRSmaStat *pStat) {
   return TSDB_CODE_SUCCESS;
 }
 
+#if 0
 /**
  * @brief post-commit for rollup sma
  *  1) clean up the outdated qtaskinfo files
@@ -249,6 +256,7 @@ static int32_t tdProcessRSmaSyncPostCommitImpl(SSma *pSma) {
 
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 /**
  * @brief Rsma async commit implementation(only do some necessary light weighted task)

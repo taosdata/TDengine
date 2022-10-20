@@ -39,8 +39,6 @@ const char *dmNodeLogName(EDndNodeType ntype) {
       return "snode";
     case MNODE:
       return "mnode";
-    case BNODE:
-      return "bnode";
     default:
       return "taosd";
   }
@@ -56,8 +54,6 @@ const char *dmNodeProcName(EDndNodeType ntype) {
       return "taoss";
     case MNODE:
       return "taosm";
-    case BNODE:
-      return "taosb";
     default:
       return "taosd";
   }
@@ -73,8 +69,6 @@ const char *dmNodeName(EDndNodeType ntype) {
       return "snode";
     case MNODE:
       return "mnode";
-    case BNODE:
-      return "bnode";
     default:
       return "dnode";
   }
