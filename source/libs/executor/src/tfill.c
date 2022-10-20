@@ -272,7 +272,17 @@ static void copyCurrentRowIntoBuf(SFillInfo* pFillInfo, int32_t rowIndex, SArray
       char* p = colDataGetData(pSrcCol, rowIndex);
       saveColData(pRow, i, p, isNull);
     } else if (type == QUERY_NODE_OPERATOR) {
-      SColumnInfoData* pSrcCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, i);
+      int32_t srcSlotId = GET_DEST_SLOT_ID(&pFillInfo->pFillCol[i]);
+
+      SColumnInfoData* pSrcCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, srcSlotId);
+
+      bool  isNull = colDataIsNull_s(pSrcCol, rowIndex);
+      char* p = colDataGetData(pSrcCol, rowIndex);
+      saveColData(pRow, i, p, isNull);
+    } else if (type == QUERY_NODE_FUNCTION) {
+      int32_t srcSlotId = GET_DEST_SLOT_ID(&pFillInfo->pFillCol[i]);
+
+      SColumnInfoData* pSrcCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, srcSlotId);
 
       bool  isNull = colDataIsNull_s(pSrcCol, rowIndex);
       char* p = colDataGetData(pSrcCol, rowIndex);
@@ -621,8 +631,8 @@ int64_t taosFillResultDataBlock(SFillInfo* pFillInfo, SSDataBlock* p, int32_t ca
 int64_t getFillInfoStart(struct SFillInfo* pFillInfo) { return pFillInfo->start; }
 
 SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprInfo* pNotFillExpr,
-                                int32_t numOfNotFillExpr, const struct SNodeListNode* pValNode) {
-  SFillColInfo* pFillCol = taosMemoryCalloc(numOfFillExpr + numOfNotFillExpr, sizeof(SFillColInfo));
+                                int32_t numOfNoFillExpr, const struct SNodeListNode* pValNode) {
+  SFillColInfo* pFillCol = taosMemoryCalloc(numOfFillExpr + numOfNoFillExpr, sizeof(SFillColInfo));
   if (pFillCol == NULL) {
     return NULL;
   }
@@ -643,7 +653,7 @@ SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprIn
     }
   }
 
-  for (int32_t i = 0; i < numOfNotFillExpr; ++i) {
+  for (int32_t i = 0; i < numOfNoFillExpr; ++i) {
     SExprInfo* pExprInfo = &pNotFillExpr[i];
     pFillCol[i + numOfFillExpr].pExpr = pExprInfo;
     pFillCol[i + numOfFillExpr].notFillCol = true;
@@ -1403,7 +1413,7 @@ static void doApplyStreamScalarCalculation(SOperatorInfo* pOperator, SSDataBlock
 
   blockDataCleanup(pDstBlock);
   blockDataEnsureCapacity(pDstBlock, pSrcBlock->info.rows);
-  setInputDataBlock(pOperator, pSup->pCtx, pSrcBlock, TSDB_ORDER_ASC, MAIN_SCAN, false);
+  setInputDataBlock(pSup, pSrcBlock, TSDB_ORDER_ASC, MAIN_SCAN, false);
   projectApplyFunctions(pSup->pExprInfo, pDstBlock, pSrcBlock, pSup->pCtx, pSup->numOfExprs, NULL);
   pDstBlock->info.groupId = pSrcBlock->info.groupId;
 
@@ -1553,8 +1563,8 @@ static SStreamFillSupporter* initStreamFillSup(SStreamFillPhysiNode* pPhyFillNod
   }
   pFillSup->numOfFillCols = numOfFillCols;
   int32_t    numOfNotFillCols = 0;
-  SExprInfo* pNotFillExprInfo = createExprInfo(pPhyFillNode->pNotFillExprs, NULL, &numOfNotFillCols);
-  pFillSup->pAllColInfo = createFillColInfo(pFillExprInfo, pFillSup->numOfFillCols, pNotFillExprInfo, numOfNotFillCols,
+  SExprInfo* noFillExprInfo = createExprInfo(pPhyFillNode->pNotFillExprs, NULL, &numOfNotFillCols);
+  pFillSup->pAllColInfo = createFillColInfo(pFillExprInfo, pFillSup->numOfFillCols, noFillExprInfo, numOfNotFillCols,
                                             (const SNodeListNode*)(pPhyFillNode->pValues));
   pFillSup->type = convertFillType(pPhyFillNode->mode);
   pFillSup->numOfAllCols = pFillSup->numOfFillCols + numOfNotFillCols;

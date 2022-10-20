@@ -403,25 +403,24 @@ void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfo
   }
 }
 
-static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order,
-                                   int32_t scanFlag, bool createDummyCol);
+static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t order, int32_t scanFlag,
+                                   bool createDummyCol);
 
-static void doSetInputDataBlockInfo(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SSDataBlock* pBlock,
-                                    int32_t order) {
-  for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
+static void doSetInputDataBlockInfo(SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t order) {
+  SqlFunctionCtx* pCtx = pExprSup->pCtx;
+  for (int32_t i = 0; i < pExprSup->numOfExprs; ++i) {
     pCtx[i].order = order;
     pCtx[i].input.numOfRows = pBlock->info.rows;
-    setBlockSMAInfo(&pCtx[i], &pOperator->exprSupp.pExprInfo[i], pBlock);
+    setBlockSMAInfo(&pCtx[i], &pExprSup->pExprInfo[i], pBlock);
     pCtx[i].pSrcBlock = pBlock;
   }
 }
 
-void setInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order,
-                       int32_t scanFlag, bool createDummyCol) {
+void setInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t order, int32_t scanFlag, bool createDummyCol) {
   if (pBlock->pBlockAgg != NULL) {
-    doSetInputDataBlockInfo(pOperator, pCtx, pBlock, order);
+    doSetInputDataBlockInfo(pExprSup, pBlock, order);
   } else {
-    doSetInputDataBlock(pOperator, pCtx, pBlock, order, scanFlag, createDummyCol);
+    doSetInputDataBlock(pExprSup, pBlock, order, scanFlag, createDummyCol);
   }
 }
 
@@ -468,11 +467,12 @@ static int32_t doCreateConstantValColumnInfo(SInputColumnInfoData* pInput, SFunc
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order,
-                                   int32_t scanFlag, bool createDummyCol) {
+static int32_t doSetInputDataBlock(SExprSupp* pExprSup, SSDataBlock* pBlock, int32_t order, int32_t scanFlag,
+                                   bool createDummyCol) {
   int32_t code = TSDB_CODE_SUCCESS;
+  SqlFunctionCtx* pCtx = pExprSup->pCtx;
 
-  for (int32_t i = 0; i < pOperator->exprSupp.numOfExprs; ++i) {
+  for (int32_t i = 0; i < pExprSup->numOfExprs; ++i) {
     pCtx[i].order = order;
     pCtx[i].input.numOfRows = pBlock->info.rows;
 
@@ -483,7 +483,7 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
     pInput->uid = pBlock->info.uid;
     pInput->colDataAggIsSet = false;
 
-    SExprInfo* pOneExpr = &pOperator->exprSupp.pExprInfo[i];
+    SExprInfo* pOneExpr = &pExprSup->pExprInfo[i];
     for (int32_t j = 0; j < pOneExpr->base.numOfParams; ++j) {
       SFunctParam* pFuncParam = &pOneExpr->base.pParam[j];
       if (pFuncParam->type == FUNC_PARAM_TYPE_COLUMN) {
@@ -2435,7 +2435,7 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
 
     // the pDataBlock are always the same one, no need to call this again
     setExecutionContext(pOperator, pOperator->exprSupp.numOfExprs, pBlock->info.groupId);
-    setInputDataBlock(pOperator, pSup->pCtx, pBlock, order, scanFlag, true);
+    setInputDataBlock(pSup, pBlock, order, scanFlag, true);
     code = doAggregateImpl(pOperator, pSup->pCtx);
     if (code != 0) {
       T_LONG_JMP(pTaskInfo->env, code);
@@ -2734,28 +2734,16 @@ static void doHandleRemainBlockFromNewGroup(SOperatorInfo* pOperator, SFillOpera
 static void doApplyScalarCalculation(SOperatorInfo* pOperator, SSDataBlock* pBlock, int32_t order, int32_t scanFlag) {
   SFillOperatorInfo* pInfo = pOperator->info;
   SExprSupp*         pSup = &pOperator->exprSupp;
-  SSDataBlock*       pResBlock = pInfo->pFinalRes;
-
-  setInputDataBlock(pOperator, pSup->pCtx, pBlock, order, scanFlag, false);
+  setInputDataBlock(pSup, pBlock, order, scanFlag, false);
   projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs, NULL);
+
+  // reset the row value before applying the no-fill functions to the input data block, which is "pBlock" in this case.
+  pInfo->pRes->info.rows = 0;
+  SExprSupp* pNoFillSupp = &pInfo->noFillExprSupp;
+  setInputDataBlock(pNoFillSupp, pBlock, order, scanFlag, false);
+
+  projectApplyFunctions(pNoFillSupp->pExprInfo, pInfo->pRes, pBlock, pNoFillSupp->pCtx, pNoFillSupp->numOfExprs, NULL);
   pInfo->pRes->info.groupId = pBlock->info.groupId;
-
-  SColumnInfoData* pDst = taosArrayGet(pInfo->pRes->pDataBlock, pInfo->primaryTsCol);
-  SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, pInfo->primarySrcSlotId);
-  colDataAssign(pDst, pSrc, pInfo->pRes->info.rows, &pResBlock->info);
-
-  for (int32_t i = 0; i < pInfo->numOfNotFillExpr; ++i) {
-    SFillColInfo* pCol = &pInfo->pFillInfo->pFillCol[i + pInfo->numOfExpr];
-    ASSERT(pCol->notFillCol);
-
-    SExprInfo* pExpr = pCol->pExpr;
-    int32_t    srcSlotId = pExpr->base.pParam[0].pCol->slotId;
-    int32_t    dstSlotId = pExpr->base.resSchema.slotId;
-
-    SColumnInfoData* pDst1 = taosArrayGet(pInfo->pRes->pDataBlock, dstSlotId);
-    SColumnInfoData* pSrc1 = taosArrayGet(pBlock->pDataBlock, srcSlotId);
-    colDataAssign(pDst1, pSrc1, pInfo->pRes->info.rows, &pResBlock->info);
-  }
 }
 
 static SSDataBlock* doFillImpl(SOperatorInfo* pOperator) {
@@ -3143,10 +3131,7 @@ void destroyFillOperatorInfo(void* param) {
   pInfo->pRes = blockDataDestroy(pInfo->pRes);
   pInfo->pFinalRes = blockDataDestroy(pInfo->pFinalRes);
 
-  if (pInfo->pNotFillExprInfo != NULL) {
-    destroyExprInfo(pInfo->pNotFillExprInfo, pInfo->numOfNotFillExpr);
-    taosMemoryFree(pInfo->pNotFillExprInfo);
-  }
+  cleanupExprSupp(&pInfo->noFillExprSupp);
 
   taosMemoryFreeClear(pInfo->p);
   taosArrayDestroy(pInfo->pColMatchColInfo);
@@ -3211,11 +3196,12 @@ static int32_t initFillInfo(SFillOperatorInfo* pInfo, SExprInfo* pExpr, int32_t 
 }
 
 static bool isWstartColumnExist(SFillOperatorInfo* pInfo) {
-  if (pInfo->numOfNotFillExpr == 0) {
+  if (pInfo->noFillExprSupp.numOfExprs == 0) {
     return false;
   }
-  for (int32_t i = 0; i < pInfo->numOfNotFillExpr; ++i) {
-    SExprInfo* exprInfo = pInfo->pNotFillExprInfo + i;
+
+  for (int32_t i = 0; i < pInfo->noFillExprSupp.numOfExprs; ++i) {
+    SExprInfo* exprInfo = pInfo->noFillExprSupp.pExprInfo + i;
     if (exprInfo->pExpr->nodeType == QUERY_NODE_COLUMN && exprInfo->base.numOfParams == 1 &&
         exprInfo->base.pParam[0].pCol->colType == COLUMN_TYPE_WINDOW_START) {
       return true;
@@ -3224,25 +3210,24 @@ static bool isWstartColumnExist(SFillOperatorInfo* pInfo) {
   return false;
 }
 
-static int32_t createWStartTsAsNotFillExpr(SFillOperatorInfo* pInfo, SFillPhysiNode* pPhyFillNode) {
+static int32_t createPrimaryTsExprIfNeeded(SFillOperatorInfo* pInfo, SFillPhysiNode* pPhyFillNode, SExprSupp* pExprSupp,
+                                           const char* idStr) {
   bool wstartExist = isWstartColumnExist(pInfo);
+
   if (wstartExist == false) {
     if (pPhyFillNode->pWStartTs->type != QUERY_NODE_TARGET) {
-      qError("pWStartTs of fill physical node is not a target node");
+      qError("pWStartTs of fill physical node is not a target node, %s", idStr);
       return TSDB_CODE_QRY_SYS_ERROR;
     }
 
-    SExprInfo* notFillExprs =
-        taosMemoryRealloc(pInfo->pNotFillExprInfo, (pInfo->numOfNotFillExpr + 1) * sizeof(SExprInfo));
-    if (notFillExprs == NULL) {
+    SExprInfo* pExpr = taosMemoryRealloc(pExprSupp->pExprInfo, (pExprSupp->numOfExprs + 1) * sizeof(SExprInfo));
+    if (pExpr == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
-    createExprFromTargetNode(notFillExprs + pInfo->numOfNotFillExpr, (STargetNode*)pPhyFillNode->pWStartTs);
-
-    ++pInfo->numOfNotFillExpr;
-    pInfo->pNotFillExprInfo = notFillExprs;
-    return TSDB_CODE_SUCCESS;
+    createExprFromTargetNode(&pExpr[pExprSupp->numOfExprs], (STargetNode*)pPhyFillNode->pWStartTs);
+    pExprSupp->numOfExprs += 1;
+    pExprSupp->pExprInfo = pExpr;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -3260,8 +3245,14 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
   SExprInfo* pExprInfo = createExprInfo(pPhyFillNode->pFillExprs, NULL, &pInfo->numOfExpr);
   pOperator->exprSupp.pExprInfo = pExprInfo;
 
-  pInfo->pNotFillExprInfo = createExprInfo(pPhyFillNode->pNotFillExprs, NULL, &pInfo->numOfNotFillExpr);
-  int32_t code = createWStartTsAsNotFillExpr(pInfo, pPhyFillNode);
+  SExprSupp* pNoFillSupp = &pInfo->noFillExprSupp;
+  pNoFillSupp->pExprInfo = createExprInfo(pPhyFillNode->pNotFillExprs, NULL, &pNoFillSupp->numOfExprs);
+  int32_t code = createPrimaryTsExprIfNeeded(pInfo, pPhyFillNode, pNoFillSupp, pTaskInfo->id.str);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
+  code = initExprSupp(pNoFillSupp, pNoFillSupp->pExprInfo, pNoFillSupp->numOfExprs);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -3290,7 +3281,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
   pInfo->pColMatchColInfo = extractColMatchInfo(pPhyFillNode->pFillExprs, pPhyFillNode->node.pOutputDataBlockDesc,
                                                 &numOfOutputCols, COL_MATCH_FROM_SLOT_ID);
 
-  code = initFillInfo(pInfo, pExprInfo, pInfo->numOfExpr, pInfo->pNotFillExprInfo, pInfo->numOfNotFillExpr,
+  code = initFillInfo(pInfo, pExprInfo, pInfo->numOfExpr, pNoFillSupp->pExprInfo, pNoFillSupp->numOfExprs,
                       (SNodeListNode*)pPhyFillNode->pValues, pPhyFillNode->timeRange, pResultInfo->capacity,
                       pTaskInfo->id.str, pInterval, type, order);
   if (code != TSDB_CODE_SUCCESS) {
