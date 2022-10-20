@@ -245,6 +245,7 @@ STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FItems fp) {
   }
 
   uDebug("worker:%s, queue:%p is allocated, ahandle:%p", pool->name, queue, ahandle);
+  code = 0;
 
 _OVER:
   taosThreadMutexUnlock(&pool->mutex);

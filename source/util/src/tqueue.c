@@ -141,12 +141,14 @@ int32_t taosQueueItemSize(STaosQueue *queue) {
 }
 
 int64_t taosQueueMemorySize(STaosQueue *queue) {
-  if (queue == NULL) return 0;
-
+#if 1
+  return queue->memOfItems;
+#else
   taosThreadMutexLock(&queue->mutex);
   int64_t memOfItems = queue->memOfItems;
   taosThreadMutexUnlock(&queue->mutex);
   return memOfItems;
+#endif
 }
 
 void *taosAllocateQitem(int32_t size, EQItype itype) {
