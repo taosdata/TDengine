@@ -81,6 +81,7 @@ class TDTestCase:
         dbname = "test"
         stb = f"{dbname}.meters"
         self.installTaosd(bPath,cPath)
+        os.system("echo 'debugFlag 143' > /etc/taos/taos.cfg ")
         tableNumbers=100
         recordNumbers1=100
         recordNumbers2=1000
