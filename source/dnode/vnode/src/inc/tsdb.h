@@ -299,6 +299,11 @@ int32_t tsdbMerge(STsdb *pTsdb);
 #define TSDB_CACHE_LAST(c)     (((c).cacheLast & 2) > 0)
 
 // tsdbCache ==============================================================================================
+typedef struct {
+  TSKEY   ts;
+  SColVal colVal;
+} SLastCol;
+
 int32_t tsdbOpenCache(STsdb *pTsdb);
 void    tsdbCloseCache(STsdb *pTsdb);
 int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row, STsdb *pTsdb);
