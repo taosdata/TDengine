@@ -265,6 +265,45 @@ _OVER:
   return code;
 }
 
+int32_t vmProcessAlterVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  SAlterVnodeReplicaReq alterReq = {0};
+  if (tSerializeSAlterVnodeReplicaReq(pMsg->pCont, pMsg->contLen, &alterReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  int32_t vgId = alterReq.vgId;
+  dInfo("vgId:%d, start to alter vnode replica", alterReq.vgId);
+
+  SVnodeObj *pVnode = vmAcquireVnode(pMgmt, vgId);
+  if (pVnode == NULL) {
+    dError("vgId:%d, failed to alter replica since %s", vgId, terrstr());
+    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
+    return -1;
+  }
+
+  dInfo("vgId:%d, start to close vnode", vgId);
+  vmCloseVnode(pMgmt, pVnode);
+
+  char path[TSDB_FILENAME_LEN] = {0};
+  snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vgId);
+
+  dInfo("vgId:%d, start to alter vnode replica at %s", vgId, path);
+  if (vnodeAlter(path, &alterReq, pMgmt->pTfs) < 0) {
+    dError("vgId:%d, failed to alter vnode at %s since %s", vgId, path, terrstr());
+    return -1;
+  }
+
+  dInfo("vgId:%d, start to open vnode", vgId);
+  if (vnodeOpen(path, pMgmt->pTfs, pMgmt->msgCb) < 0) {
+    dError("vgId:%d, failed to open vnode at %s since %s", vgId, path, terrstr());
+    return -1;
+  }
+
+  dInfo("vgId:%d, vnode config is altered", vgId);
+  return 0;
+}
+
 int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SDropVnodeReq dropReq = {0};
   if (tDeserializeSDropVnodeReq(pMsg->pCont, pMsg->contLen, &dropReq) != 0) {
@@ -348,7 +387,7 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_RETRIEVE, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_RETRIEVE_RSP, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
 
-  if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_REPLICA, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_REPLICA, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_CONFIG, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_CONFIRM, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_HASHRANGE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
@@ -370,7 +409,6 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_APPEND_ENTRIES_REPLY, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_SNAPSHOT_SEND, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_SNAPSHOT_RSP, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_SYNC_SET_VNODE_STANDBY, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_HEARTBEAT, vmPutMsgToSyncCtrlQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_HEARTBEAT_REPLY, vmPutMsgToSyncCtrlQueue, 0) == NULL) goto _OVER;
 

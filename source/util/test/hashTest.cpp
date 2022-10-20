@@ -216,7 +216,7 @@ void perfTest() {
 
   char* name = (char*)taosMemoryCalloc(50000000, 9);
   for (int64_t i = 0; i < 50000000; ++i) {
-    sprintf(name + i * 9, "t%08d", i);
+    sprintf(name + i * 9, "t%08" PRId64, i);
   }
 
   for (int64_t i = 0; i < 50; ++i) {

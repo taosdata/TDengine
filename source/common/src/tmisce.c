@@ -21,7 +21,8 @@
 
 int32_t taosGetFqdnPortFromEp(const char* ep, SEp* pEp) {
   pEp->port = 0;
-  strcpy(pEp->fqdn, ep);
+  memset(pEp->fqdn, 0, TSDB_FQDN_LEN);
+  strncpy(pEp->fqdn, ep, TSDB_FQDN_LEN - 1);
 
   char* temp = strchr(pEp->fqdn, ':');
   if (temp) {

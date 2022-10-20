@@ -2139,6 +2139,46 @@ static int32_t rewriteUniqueOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   return rewriteUniqueOptimizeImpl(pCxt, pLogicSubplan, pIndef);
 }
 
+typedef struct SLastRowScanOptLastParaCkCxt {
+  bool hasTag;
+  bool hasCol;
+} SLastRowScanOptLastParaCkCxt;
+
+static EDealRes lastRowScanOptLastParaCheckImpl(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SLastRowScanOptLastParaCkCxt* pCxt = pContext;
+    if (COLUMN_TYPE_TAG == ((SColumnNode*)pNode)->colType || COLUMN_TYPE_TBNAME == ((SColumnNode*)pNode)->colType) {
+      pCxt->hasTag = true;
+    } else {
+      pCxt->hasCol = true;
+    }
+    return DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool lastRowScanOptLastParaCheck(SNode* pExpr) {
+  SLastRowScanOptLastParaCkCxt cxt = {.hasTag = false, .hasCol = false};
+  nodesWalkExpr(pExpr, lastRowScanOptLastParaCheckImpl, &cxt);
+  return !cxt.hasTag && cxt.hasCol;
+}
+
+static bool hasSuitableCache(int8_t cacheLastMode, bool hasLastRow, bool hasLast) {
+  switch (cacheLastMode) {
+    case TSDB_CACHE_MODEL_NONE:
+      return false;
+    case TSDB_CACHE_MODEL_LAST_ROW:
+      return hasLastRow;
+    case TSDB_CACHE_MODEL_LAST_VALUE:
+      return hasLast;
+    case TSDB_CACHE_MODEL_BOTH:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
 static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_AGG != nodeType(pNode) || 1 != LIST_LENGTH(pNode->pChildren) ||
       QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pNode->pChildren, 0))) {
@@ -2149,21 +2189,57 @@ static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
   SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pNode->pChildren, 0);
   // Only one of LAST and LASTROW can appear
   if (pAgg->hasLastRow == pAgg->hasLast || NULL != pAgg->pGroupKeys || NULL != pScan->node.pConditions ||
-      0 == pScan->cacheLastMode || IS_TSWINDOW_SPECIFIED(pScan->scanRange)) {
+      !hasSuitableCache(pScan->cacheLastMode, pAgg->hasLastRow, pAgg->hasLast) ||
+      IS_TSWINDOW_SPECIFIED(pScan->scanRange)) {
     return false;
   }
 
+  bool   hasLastFunc = false;
+  bool   hasSelectFunc = false;
   SNode* pFunc = NULL;
   FOREACH(pFunc, ((SAggLogicNode*)pNode)->pAggFuncs) {
-    if (FUNCTION_TYPE_LAST_ROW != ((SFunctionNode*)pFunc)->funcType &&
-        // FUNCTION_TYPE_LAST != ((SFunctionNode*)pFunc)->funcType &&
-        FUNCTION_TYPE_SELECT_VALUE != ((SFunctionNode*)pFunc)->funcType &&
-        FUNCTION_TYPE_GROUP_KEY != ((SFunctionNode*)pFunc)->funcType) {
+    SFunctionNode* pAggFunc = (SFunctionNode*)pFunc;
+    if (FUNCTION_TYPE_LAST == pAggFunc->funcType) {
+      if (hasSelectFunc || !lastRowScanOptLastParaCheck(nodesListGetNode(pAggFunc->pParameterList, 0))) {
+        return false;
+      }
+      hasLastFunc = true;
+    } else if (FUNCTION_TYPE_SELECT_VALUE == pAggFunc->funcType || FUNCTION_TYPE_GROUP_KEY == pAggFunc->funcType) {
+      if (hasLastFunc) {
+        return false;
+      }
+      hasSelectFunc = true;
+    } else if (FUNCTION_TYPE_LAST_ROW != pAggFunc->funcType) {
       return false;
     }
   }
 
   return true;
+}
+
+typedef struct SLastRowScanOptSetColDataTypeCxt {
+  bool       doAgg;
+  SNodeList* pLastCols;
+} SLastRowScanOptSetColDataTypeCxt;
+
+static EDealRes lastRowScanOptSetColDataType(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SLastRowScanOptSetColDataTypeCxt* pCxt = pContext;
+    if (pCxt->doAgg) {
+      nodesListMakeAppend(&pCxt->pLastCols, pNode);
+      getLastCacheDataType(&(((SColumnNode*)pNode)->node.resType));
+    } else {
+      SNode* pCol = NULL;
+      FOREACH(pCol, pCxt->pLastCols) {
+        if (nodesEqualNode(pCol, pNode)) {
+          getLastCacheDataType(&(((SColumnNode*)pNode)->node.resType));
+          break;
+        }
+      }
+    }
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  return DEAL_RES_CONTINUE;
 }
 
 static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
@@ -2173,15 +2249,22 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
     return TSDB_CODE_SUCCESS;
   }
 
-  SNode* pNode = NULL;
+  SLastRowScanOptSetColDataTypeCxt cxt = {.doAgg = true, .pLastCols = NULL};
+  SNode*                           pNode = NULL;
   FOREACH(pNode, pAgg->pAggFuncs) {
     SFunctionNode* pFunc = (SFunctionNode*)pNode;
-    if (FUNCTION_TYPE_LAST_ROW == pFunc->funcType || FUNCTION_TYPE_LAST == pFunc->funcType) {
-      int32_t len = snprintf(pFunc->functionName, sizeof(pFunc->functionName), "_cache_last_row");
+    int32_t        funcType = pFunc->funcType;
+    if (FUNCTION_TYPE_LAST_ROW == funcType || FUNCTION_TYPE_LAST == funcType) {
+      int32_t len = snprintf(pFunc->functionName, sizeof(pFunc->functionName),
+                             FUNCTION_TYPE_LAST_ROW == funcType ? "_cache_last_row" : "_cache_last");
       pFunc->functionName[len] = '\0';
       int32_t code = fmGetFuncInfo(pFunc, NULL, 0);
       if (TSDB_CODE_SUCCESS != code) {
+        nodesClearList(cxt.pLastCols);
         return code;
+      }
+      if (FUNCTION_TYPE_LAST == funcType) {
+        nodesWalkExpr(nodesListGetNode(pFunc->pParameterList, 0), lastRowScanOptSetColDataType, &cxt);
       }
     }
   }
@@ -2189,6 +2272,13 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   SScanLogicNode* pScan = (SScanLogicNode*)nodesListGetNode(pAgg->node.pChildren, 0);
   pScan->scanType = SCAN_TYPE_LAST_ROW;
   pScan->igLastNull = pAgg->hasLast ? true : false;
+  if (NULL != cxt.pLastCols) {
+    cxt.doAgg = false;
+    nodesWalkExprs(pScan->pScanCols, lastRowScanOptSetColDataType, &cxt);
+    nodesWalkExprs(pScan->pScanPseudoCols, lastRowScanOptSetColDataType, &cxt);
+    nodesWalkExprs(pScan->node.pTargets, lastRowScanOptSetColDataType, &cxt);
+    nodesClearList(cxt.pLastCols);
+  }
   pAgg->hasLastRow = false;
   pAgg->hasLast = false;
 
