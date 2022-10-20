@@ -23,19 +23,7 @@ dotnet add package TDengine.Connector
 ## Establishing a connection
 
 ``` XML
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net5.0</TargetFramework>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="TDengine.Connector" Version="3.0.1" />
-  </ItemGroup>
-
-</Project>
+{{#include docs/examples/csharp/cloud-example/connect/connect.csproj}}
 ```
 
 ``` C#
@@ -47,20 +35,7 @@ dotnet add package TDengine.Connector
 ### Basic Insert and Query
 
 ``` XML
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net5.0</TargetFramework>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="TDengine.Connector" Version="3.0.1" />
-  </ItemGroup>
-
-</Project>
-
+{{#include docs/examples/csharp/cloud-example/usage/usage.csproj}}
 ```
 
 ```C#
@@ -70,20 +45,7 @@ dotnet add package TDengine.Connector
 ### STMT Insert
 
 ``` XML
-<Project Sdk="Microsoft.NET.Sdk">
-
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net5</TargetFramework>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="TDengine.Connector" Version="3.0.1" />
-  </ItemGroup>
-
-</Project>
-
+{{#include docs/examples/csharp/cloud-example/stmt/stmt.csproj}}
 ```
 
 ```C#
@@ -94,7 +56,8 @@ dotnet add package TDengine.Connector
 
 | TDengine.Connector | Description |
 | ------------------------- | ---------------------------------------------------------------- |
-| 3.0.1 | Support connect to TDengine cloud service
+| 3.0.2 | Support .NET Framework 4.5 and above. Support .Net standard 2.0. Nuget package includes dynamic library for WebSocket.|
+| 3.0.1 | Support connect to TDengine cloud service|
 
 ## API Reference
 

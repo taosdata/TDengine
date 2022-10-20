@@ -18,7 +18,21 @@ dotnet new console -o example
 
 ```bash
 cd example
-dotnet add package TDengine.Connector
+vim example.csproj
+```
+
+Add following ItemGroup and Task to your project file.
+
+```XML
+<ItemGroup>
+    <PackageReference Include="TDengine.Connector" Version="3.0.*" GeneratePathProperty="true" />
+  </ItemGroup>
+  <Target Name="copyDLLDepency" BeforeTargets="BeforeBuild">
+    <ItemGroup>
+      <DepDLLFiles Include="$(PkgTDengine_Connector_test)\runtimes\**\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(DepDLLFiles)" DestinationFolder="$(OutDir)\dep_lib" />
+  </Target>
 ```
 
 ## Config
@@ -59,6 +73,9 @@ Replace  <DSN\> with real TDengine cloud DSN. To obtain the real value, please l
 
 ## Connect
 
+``` XML
+{{#include docs/examples/csharp/cloud-example/connect/connect.csproj}}
+```
 
 ```C#
 {{#include docs/examples/csharp/cloud-example/connect/Program.cs}}
