@@ -69,8 +69,8 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
   int64_t  walCkHeadSz = sizeof(SWalCkHead);
   int64_t  end = fileSize;
   int64_t  offset = 0;
-  int32_t  capacity = 0;
-  int32_t  readSize = 0;
+  int64_t  capacity = 0;
+  int64_t  readSize = 0;
   char*    buf = NULL;
   char*    found = NULL;
   bool     firstTrial = pFileInfo->fileSize < fileSize;
@@ -200,8 +200,8 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
 
   // truncate file
   if (lastEntryEndOffset != fileSize) {
-    wWarn("vgId:%d, repair meta truncate file %s to %ld, orig size %ld", pWal->cfg.vgId, fnameStr, lastEntryEndOffset,
-          fileSize);
+    wWarn("vgId:%d, repair meta truncate file %s to %" PRId64 ", orig size %" PRId64, pWal->cfg.vgId, fnameStr,
+          lastEntryEndOffset, fileSize);
     if (taosFtruncateFile(pFile, lastEntryEndOffset) < 0) {
       wError("failed to truncate file due to %s. file:%s", strerror(errno), fnameStr);
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -464,7 +464,7 @@ int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
   // determine the last valid entry end, i.e. offset
   while ((offset -= sizeof(SWalIdxEntry)) >= 0) {
     if (taosLSeekFile(pIdxFile, offset, SEEK_SET) < 0) {
-      wError("vgId:%d, failed to seek file due to %s. offset:" PRId64 ", file:%s", pWal->cfg.vgId, strerror(errno),
+      wError("vgId:%d, failed to seek file due to %s. offset:%" PRId64 ", file:%s", pWal->cfg.vgId, strerror(errno),
              offset, fnameStr);
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto _err;
@@ -511,7 +511,7 @@ int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
 
   // rebuild idx file
   if (taosLSeekFile(pIdxFile, 0, SEEK_END) < 0) {
-    wError("vgId:%d, failed to seek file due to %s. offset:" PRId64 ", file:%s", pWal->cfg.vgId, strerror(errno),
+    wError("vgId:%d, failed to seek file due to %s. offset:%" PRId64 ", file:%s", pWal->cfg.vgId, strerror(errno),
            offset, fnameStr);
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
@@ -528,7 +528,7 @@ int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
              idxEntry.offset, fLogNameStr);
       goto _err;
     }
-    wWarn("vgId:%d wal idx append new entry %ld %ld", pWal->cfg.vgId, idxEntry.ver, idxEntry.offset);
+    wWarn("vgId:%d wal idx append new entry %" PRId64 " %" PRId64, pWal->cfg.vgId, idxEntry.ver, idxEntry.offset);
     if (taosWriteFile(pIdxFile, &idxEntry, sizeof(SWalIdxEntry)) < 0) {
       wError("vgId:%d, failed to append file since %s. file:%s", pWal->cfg.vgId, terrstr(), fnameStr);
       goto _err;

@@ -358,7 +358,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
   SDataSinkMgtCfg cfg = {.maxDataBlockNum = 10000, .maxDataBlockNumPerQuery = 5000};
   code = dsDataSinkMgtInit(&cfg);
   if (code != TSDB_CODE_SUCCESS) {
-    qError("failed to dsDataSinkMgtInit, code: %s", tstrerror(code));
+    qError("failed to dsDataSinkMgtInit, code:%s, %s", tstrerror(code), (*pTask)->id.str);
     goto _error;
   }
 
@@ -366,7 +366,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
     void* pSinkParam = NULL;
     code = createDataSinkParam(pSubplan->pDataSink, &pSinkParam, pTaskInfo, readHandle);
     if (code != TSDB_CODE_SUCCESS) {
-      qError("failed to createDataSinkParam, code: %s", tstrerror(code));
+      qError("failed to createDataSinkParam, vgId:%d, code:%s, %s", vgId, tstrerror(code), (*pTask)->id.str);
       goto _error;
     }
 
@@ -858,7 +858,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     tDeleteSSchemaWrapper(pTaskInfo->streamInfo.schema);
     pTaskInfo->streamInfo.schema = mtInfo.schema;
 
-    qDebug("tmqsnap qStreamPrepareScan snapshot data uid %ld ts %"PRId64, mtInfo.uid, pOffset->ts);
+    qDebug("tmqsnap qStreamPrepareScan snapshot data uid %" PRId64 " ts %" PRId64, mtInfo.uid, pOffset->ts);
   } else if (pOffset->type == TMQ_OFFSET__SNAPSHOT_META) {
     SStreamRawScanInfo* pInfo = pOperator->info;
     SSnapContext*       sContext = pInfo->sContext;
@@ -866,7 +866,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       qError("setForSnapShot error. uid:%" PRIu64 " ,version:%" PRId64, pOffset->uid, pOffset->version);
       return -1;
     }
-    qDebug("tmqsnap qStreamPrepareScan snapshot meta uid %ld ts %"PRId64, pOffset->uid, pOffset->ts);
+    qDebug("tmqsnap qStreamPrepareScan snapshot meta uid %" PRId64 " ts %" PRId64, pOffset->uid, pOffset->ts);
   } else if (pOffset->type == TMQ_OFFSET__LOG) {
     SStreamRawScanInfo* pInfo = pOperator->info;
     tsdbReaderClose(pInfo->dataReader);

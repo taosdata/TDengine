@@ -53,6 +53,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
   if (strcmp(TDB_MAINDB_NAME, tbname)) {
     pPager = tdbEnvGetPager(pEnv, fFullName);
     if (!pPager) {
+      tdbOsFree(pTb);
       return -1;
     }
 
@@ -72,6 +73,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
     if (pPager == NULL) {
       ret = tdbPagerOpen(pEnv->pCache, fFullName, &pPager);
       if (ret < 0) {
+        tdbOsFree(pTb);
         return -1;
       }
 
@@ -94,6 +96,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
     snprintf(fFullName, TDB_FILENAME_LEN, "%s/%s", pEnv->dbName, tbname);
     ret = tdbPagerOpen(pEnv->pCache, fFullName, &pPager);
     if (ret < 0) {
+      tdbOsFree(pTb);
       return -1;
     }
 

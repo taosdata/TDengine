@@ -292,7 +292,7 @@ int32_t simExecuteExpression(SScript *script, char *exp) {
         sprintf(t3, "%" PRId64, t1l / t2l);
       }
     } else if (op2[0] == '.') {
-      sprintf(t3, "%s%s", t1, t2);
+      snprintf(t3, sizeof(t3), "%s%s", t1, t2);
     }
   } else {
     tstrncpy(t3, t1, sizeof(t3));
@@ -657,11 +657,11 @@ bool simCreateTaosdConnect(SScript *script, char *rest) {
 }
 
 bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
-  char       timeStr[80] = {0};
-  time_t     tt;
-  struct tm  tp;
-  SCmdLine  *line = &script->lines[script->linePos];
-  int32_t    ret = -1;
+  char      timeStr[80] = {0};
+  time_t    tt;
+  struct tm tp;
+  SCmdLine *line = &script->lines[script->linePos];
+  int32_t   ret = -1;
 
   TAOS_RES *pSql = NULL;
 
