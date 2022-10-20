@@ -1106,8 +1106,41 @@ int32_t metaFilterTableName(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
   pCursor->cid = param->cid;
   pCursor->type = param->type;
 
+  char *pName = param->val;
+
   metaRLock(pMeta);
   ret = tdbTbcOpen(pMeta->pNameIdx, &pCursor->pCur, NULL);
+  if (ret != 0) {
+    goto END;
+  }
+
+  int cmp = 0;
+  if (tdbTbcMoveTo(pCursor->pCur, pName, strlen(pName) + 1, &cmp) < 0) {
+    goto END;
+  }
+  bool    first = true;
+  int32_t valid = 0;
+  while (1) {
+    void   *pEntryKey = NULL, *pEntryVal = NULL;
+    int32_t nEntryKey = -1, nEntryVal = 0;
+    valid = tdbTbcGet(pCursor->pCur, (const void **)pEntryKey, &nEntryKey, (const void **)&pEntryVal, &nEntryVal);
+    if (valid < 0) break;
+
+    char   *pTableKey = (char *)pEntryKey;
+    int32_t cmp = (*param->filterFunc)(pTableKey, pName, pCursor->type);
+    if (cmp == 0) {
+      tb_uid_t tuid = *(tb_uid_t *)pEntryVal;
+      taosArrayPush(pUids, &tuid);
+    } else if (cmp == 1) {
+      // next
+    } else {
+      break;
+    }
+    valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
+    if (valid < 0) {
+      break;
+    }
+  }
 
 END:
   if (pCursor->pMeta) metaULock(pCursor->pMeta);
@@ -1215,6 +1248,7 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
 
     valid = tdbTbcGet(pCursor->pCur, (const void **)&entryKey, &nEntryKey, (const void **)&entryVal, &nEntryVal);
     if (valid < 0) {
+      tdbFree(entryVal);
       break;
     }
     STagIdxKey *p = entryKey;
