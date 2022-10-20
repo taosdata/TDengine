@@ -575,7 +575,11 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
   tdbTbGet(pMeta->pTbDb, &(STbDbKey){.version = version, .uid = uid}, sizeof(STbDbKey), &pData, &nData);
 
   tDecoderInit(&dc, pData, nData);
-  metaDecodeEntry(&dc, &e);
+  rc = metaDecodeEntry(&dc, &e);
+  if (rc < 0) {
+    tDecoderClear(&dc);
+    return -1;
+  }
 
   if (type) *type = e.type;
 
@@ -1244,7 +1248,10 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pData, &nData);
 
   tDecoderInit(&dc, pData, nData);
-  metaDecodeEntry(&dc, &stbEntry);
+  ret = metaDecodeEntry(&dc, &stbEntry);
+  if (ret < 0) {
+    goto end;
+  }
 
   pTagColumn = &stbEntry.stbEntry.schemaTag.pSchema[0];
 
