@@ -657,11 +657,11 @@ bool simCreateTaosdConnect(SScript *script, char *rest) {
 }
 
 bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
-  char       timeStr[80] = {0};
-  time_t     tt;
-  struct tm  tp;
-  SCmdLine  *line = &script->lines[script->linePos];
-  int32_t    ret = -1;
+  char      timeStr[80] = {0};
+  time_t    tt;
+  struct tm tp;
+  SCmdLine *line = &script->lines[script->linePos];
+  int32_t   ret = -1;
 
   TAOS_RES *pSql = NULL;
 

@@ -1047,11 +1047,16 @@ static int32_t fileDataBlockOrderCompar(const void* pLeft, const void* pRight, v
   return pLeftBlock->offset > pRightBlock->offset ? 1 : -1;
 }
 
-static int32_t doSetCurrentBlock(SDataBlockIter* pBlockIter) {
+static int32_t doSetCurrentBlock(SDataBlockIter* pBlockIter, const char* idStr) {
   SFileDataBlockInfo* pBlockInfo = getCurrentBlockInfo(pBlockIter);
   if (pBlockInfo != NULL) {
     STableBlockScanInfo* pScanInfo = taosHashGet(pBlockIter->pTableMap, &pBlockInfo->uid, sizeof(pBlockInfo->uid));
-    int32_t*             mapDataIndex = taosArrayGet(pScanInfo->pBlockList, pBlockInfo->tbBlockIdx);
+    if (pScanInfo == NULL) {
+      tsdbError("failed to locate the uid:%"PRIu64" in query table uid list, %s", pBlockInfo->uid, idStr);
+      return TSDB_CODE_INVALID_PARA;
+    }
+
+    int32_t* mapDataIndex = taosArrayGet(pScanInfo->pBlockList, pBlockInfo->tbBlockIdx);
     tMapDataGetItemByIdx(&pScanInfo->mapData, *mapDataIndex, &pBlockIter->block, tGetDataBlk);
   }
 
@@ -1135,7 +1140,7 @@ static int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIte
 
     pBlockIter->index = asc ? 0 : (numOfBlocks - 1);
     cleanupBlockOrderSupporter(&sup);
-    doSetCurrentBlock(pBlockIter);
+    doSetCurrentBlock(pBlockIter, pReader->idStr);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1175,12 +1180,12 @@ static int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIte
   taosMemoryFree(pTree);
 
   pBlockIter->index = asc ? 0 : (numOfBlocks - 1);
-  doSetCurrentBlock(pBlockIter);
+  doSetCurrentBlock(pBlockIter, pReader->idStr);
 
   return TSDB_CODE_SUCCESS;
 }
 
-static bool blockIteratorNext(SDataBlockIter* pBlockIter) {
+static bool blockIteratorNext(SDataBlockIter* pBlockIter, const char* idStr) {
   bool asc = ASCENDING_TRAVERSE(pBlockIter->order);
 
   int32_t step = asc ? 1 : -1;
@@ -1189,7 +1194,7 @@ static bool blockIteratorNext(SDataBlockIter* pBlockIter) {
   }
 
   pBlockIter->index += step;
-  doSetCurrentBlock(pBlockIter);
+  doSetCurrentBlock(pBlockIter, idStr);
 
   return true;
 }
@@ -1260,7 +1265,7 @@ static int32_t setFileBlockActiveInBlockIter(SDataBlockIter* pBlockIter, int32_t
     ASSERT(pBlockInfo->uid == fblock.uid && pBlockInfo->tbBlockIdx == fblock.tbBlockIdx);
   }
 
-  doSetCurrentBlock(pBlockIter);
+  doSetCurrentBlock(pBlockIter, "");
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2190,6 +2195,8 @@ static int32_t buildComposedDataBlockImpl(STsdbReader* pReader, STableBlockScanI
 }
 
 static int32_t buildComposedDataBlock(STsdbReader* pReader) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
   SSDataBlock* pResBlock = pReader->pResBlock;
 
   SFileDataBlockInfo* pBlockInfo = getCurrentBlockInfo(&pReader->status.blockIter);
@@ -2200,6 +2207,13 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
   STableBlockScanInfo* pBlockScanInfo = NULL;
   if (pBlockInfo != NULL) {
     pBlockScanInfo = taosHashGet(pReader->status.pTableMap, &pBlockInfo->uid, sizeof(pBlockInfo->uid));
+    if (pBlockScanInfo == NULL) {
+      code = TSDB_CODE_INVALID_PARA;
+      tsdbError("failed to locate the uid:%"PRIu64" in query table uid list, total tables:%d, %s",
+          pBlockInfo->uid, taosHashGetSize(pReader->status.pTableMap), pReader->idStr);
+      goto _end;
+    }
+
     SDataBlk* pBlock = getCurrentBlock(&pReader->status.blockIter);
     TSDBKEY   keyInBuf = getCurrentKeyInBuf(pBlockScanInfo, pReader);
 
@@ -2276,7 +2290,7 @@ _end:
               pResBlock->info.rows, el, pReader->idStr);
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 void setComposedBlockFlag(STsdbReader* pReader, bool composed) { pReader->status.composedDataBlock = composed; }
@@ -2732,7 +2746,7 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
       // current block are exhausted, try the next file block
       if (pDumpInfo->allDumped) {
         // try next data block in current file
-        bool hasNext = blockIteratorNext(&pReader->status.blockIter);
+        bool hasNext = blockIteratorNext(&pReader->status.blockIter, pReader->idStr);
         if (hasNext) {  // check for the next block in the block accessed order list
           initBlockDumpInfo(pReader, pBlockIter);
         } else {
@@ -3658,10 +3672,6 @@ void tsdbReaderClose(STsdbReader* pReader) {
     taosMemoryFree(pLReader);
   }
 
-  if (pReader->innerReader[0] != 0) {
-    tsdbUntakeReadSnap(pReader->innerReader[0]->pTsdb, pReader->innerReader[0]->pReadSnap, pReader->idStr);
-  }
-
   tsdbDebug(
       "%p :io-cost summary: head-file:%" PRIu64 ", head-file time:%.2f ms, SMA:%" PRId64
       " SMA-time:%.2f ms, fileBlocks:%" PRId64
@@ -3849,8 +3859,14 @@ static SArray* doRetrieveDataBlock(STsdbReader* pReader) {
     return pReader->pResBlock->pDataBlock;
   }
 
-  SFileDataBlockInfo*  pFBlock = getCurrentBlockInfo(&pStatus->blockIter);
-  STableBlockScanInfo* pBlockScanInfo = taosHashGet(pStatus->pTableMap, &pFBlock->uid, sizeof(pFBlock->uid));
+  SFileDataBlockInfo*  pBlockInfo = getCurrentBlockInfo(&pStatus->blockIter);
+  STableBlockScanInfo* pBlockScanInfo = taosHashGet(pStatus->pTableMap, &pBlockInfo->uid, sizeof(pBlockInfo->uid));
+  if (pBlockScanInfo == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    tsdbError("failed to locate the uid:%" PRIu64 " in query table uid list, total tables:%d, %s", pBlockInfo->uid,
+              taosHashGetSize(pReader->status.pTableMap), pReader->idStr);
+    return NULL;
+  }
 
   int32_t code = doLoadFileBlockData(pReader, &pStatus->blockIter, &pStatus->fileBlockData, pBlockScanInfo->uid);
   if (code != TSDB_CODE_SUCCESS) {
@@ -3979,7 +3995,7 @@ int32_t tsdbGetFileBlocksDistInfo(STsdbReader* pReader, STableBlockDistInfo* pTa
       int32_t bucketIndex = getBucketIndex(pTableBlockInfo->defMinRows, bucketRange, numOfRows);
       pTableBlockInfo->blockRowsHisto[bucketIndex]++;
 
-      hasNext = blockIteratorNext(&pStatus->blockIter);
+      hasNext = blockIteratorNext(&pStatus->blockIter, pReader->idStr);
     } else {
       code = initForFirstBlockInFile(pReader, pBlockIter);
       if ((code != TSDB_CODE_SUCCESS) || (pReader->status.loadFromFile == false)) {

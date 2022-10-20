@@ -1119,7 +1119,9 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
 _exit:
   tsdbFSDestroy(&pCommitter->fs);
   taosArrayDestroy(pCommitter->aTbDataP);
+  pCommitter->aTbDataP = NULL;
   pTsdb->trimHdl.minCommitFid = INT32_MAX;
+
   if (code || eno) {
     tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   } else {

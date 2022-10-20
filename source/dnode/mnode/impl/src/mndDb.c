@@ -113,7 +113,7 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.hashMethod, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.numOfRetensions, _OVER)
   for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
-    TASSERT(taosArrayGetSize(pDb->cfg.pRetensions) == pDb->cfg.numOfRetensions);
+    ASSERT(taosArrayGetSize(pDb->cfg.pRetensions) == pDb->cfg.numOfRetensions);
     SRetention *pRetension = taosArrayGet(pDb->cfg.pRetensions, i);
     SDB_SET_INT64(pRaw, dataPos, pRetension->freq, _OVER)
     SDB_SET_INT64(pRaw, dataPos, pRetension->keep, _OVER)
