@@ -678,22 +678,19 @@ typedef struct SFillOperatorInfo {
   SExprInfo*        pExprInfo;
   int32_t           numOfExpr;
   SExprSupp         noFillExprSupp;
-//  SExprInfo*        noFillExprInfo;
-//  int32_t           numOfNoFillExpr;
 } SFillOperatorInfo;
 
 typedef struct SGroupbyOperatorInfo {
   SOptrBasicInfo binfo;
   SAggSupporter  aggSup;
-
-  SArray*       pGroupCols;     // group by columns, SArray<SColumn>
-  SArray*       pGroupColVals;  // current group column values, SArray<SGroupKeys>
-  SNode*        pCondition;
-  bool          isInit;       // denote if current val is initialized or not
-  char*         keyBuf;       // group by keys for hash
-  int32_t       groupKeyLen;  // total group by column width
-  SGroupResInfo groupResInfo;
-  SExprSupp     scalarSup;
+  SArray*        pGroupCols;     // group by columns, SArray<SColumn>
+  SArray*        pGroupColVals;  // current group column values, SArray<SGroupKeys>
+  SNode*         pCondition;
+  bool           isInit;         // denote if current val is initialized or not
+  char*          keyBuf;         // group by keys for hash
+  int32_t        groupKeyLen;    // total group by column width
+  SGroupResInfo  groupResInfo;
+  SExprSupp      scalarSup;
 } SGroupbyOperatorInfo;
 
 typedef struct SDataGroupInfo {
