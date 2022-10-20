@@ -2553,12 +2553,17 @@ static int32_t mndRetrieveStb(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
     char    rollup[160 + VARSTR_HEADER_SIZE] = {0};
     int32_t rollupNum = (int32_t)taosArrayGetSize(pStb->pFuncs);
+    char   *sep = ", ";
+    int32_t sepLen = strlen(sep);
+    int32_t rollupLen = sizeof(rollup) - VARSTR_HEADER_SIZE - 2;
     for (int32_t i = 0; i < rollupNum; ++i) {
       char *funcName = taosArrayGet(pStb->pFuncs, i);
       if (i) {
-        strcat(varDataVal(rollup), ", ");
+        strncat(varDataVal(rollup), sep, rollupLen);
+        rollupLen -= sepLen;
       }
-      strcat(varDataVal(rollup), funcName);
+      strncat(varDataVal(rollup), funcName, rollupLen);
+      rollupLen -= strlen(funcName);
     }
     varDataSetLen(rollup, strlen(varDataVal(rollup)));
 

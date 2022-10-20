@@ -67,7 +67,7 @@ int32_t syncInit() {
       syncCleanUp();
       ret = -1;
     } else {
-      sDebug("sync rsetId:%" PRId64 " is open", tsNodeRefId);
+      sDebug("sync rsetId:%" PRId32 " is open", tsNodeRefId);
       ret = syncEnvStart();
     }
   }
@@ -80,7 +80,7 @@ void syncCleanUp() {
   ASSERT(ret == 0);
 
   if (tsNodeRefId != -1) {
-    sDebug("sync rsetId:%" PRId64 " is closed", tsNodeRefId);
+    sDebug("sync rsetId:%" PRId32 " is closed", tsNodeRefId);
     taosCloseRef(tsNodeRefId);
     tsNodeRefId = -1;
   }
@@ -100,7 +100,7 @@ int64_t syncOpen(SSyncInfo* pSyncInfo) {
     return -1;
   }
 
-  sDebug("vgId:%d, sync rid:%" PRId64 " is added to rsetId:%" PRId64, pSyncInfo->vgId, pSyncNode->rid, tsNodeRefId);
+  sDebug("vgId:%d, sync rid:%" PRId64 " is added to rsetId:%" PRId32, pSyncInfo->vgId, pSyncNode->rid, tsNodeRefId);
   return pSyncNode->rid;
 }
 
@@ -146,7 +146,7 @@ void syncStop(int64_t rid) {
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
 
   taosRemoveRef(tsNodeRefId, rid);
-  sDebug("vgId:%d, sync rid:%" PRId64 " is removed from rsetId:%" PRId64, vgId, rid, tsNodeRefId);
+  sDebug("vgId:%d, sync rid:%" PRId64 " is removed from rsetId:%" PRId64, vgId, rid, (int64_t)tsNodeRefId);
 }
 
 int32_t syncSetStandby(int64_t rid) {
@@ -316,7 +316,7 @@ int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader) {
   }
 
   do {
-    char logBuf[128];
+    char logBuf[256];
     snprintf(logBuf, sizeof(logBuf), "begin leader transfer to %s:%u", newLeader.nodeFqdn, newLeader.nodePort);
     syncNodeEventLog(pSyncNode, logBuf);
   } while (0);
@@ -867,8 +867,8 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
     if (!pSyncNode->restoreFinish && pSyncNode->vgId != 1) {
       ret = -1;
       terrno = TSDB_CODE_SYN_PROPOSE_NOT_READY;
-      sError("vgId:%d, failed to sync propose since not ready, type:%s, last:%ld, cmt:%ld", pSyncNode->vgId,
-             TMSG_INFO(pMsg->msgType), syncNodeGetLastIndex(pSyncNode), pSyncNode->commitIndex);
+      sError("vgId:%d, failed to sync propose since not ready, type:%s, last:%" PRId64 ", cmt:%" PRId64 "",
+             pSyncNode->vgId, TMSG_INFO(pMsg->msgType), syncNodeGetLastIndex(pSyncNode), pSyncNode->commitIndex);
       goto _END;
     }
 
@@ -1891,8 +1891,26 @@ inline bool syncNodeInConfig(SSyncNode* pSyncNode, const SSyncCfg* config) {
   return b1;
 }
 
+static bool syncIsConfigChanged(const SSyncCfg* pOldCfg, const SSyncCfg* pNewCfg) {
+  if (pOldCfg->replicaNum != pNewCfg->replicaNum) return true;
+  if (pOldCfg->myIndex != pNewCfg->myIndex) return true;
+  for (int32_t i = 0; i < pOldCfg->replicaNum; ++i) {
+    const SNodeInfo* pOldInfo = &pOldCfg->nodeInfo[i];
+    const SNodeInfo* pNewInfo = &pNewCfg->nodeInfo[i];
+    if (strcmp(pOldInfo->nodeFqdn, pNewInfo->nodeFqdn) != 0) return true;
+    if (pOldInfo->nodePort != pNewInfo->nodePort) return true;
+  }
+
+  return false;
+}
+
 void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncIndex lastConfigChangeIndex) {
   SSyncCfg oldConfig = pSyncNode->pRaftCfg->cfg;
+  if (!syncIsConfigChanged(&oldConfig, pNewConfig)) {
+    sInfo("vgId:1, sync not reconfig since not changed");
+    return;
+  }
+
   pSyncNode->pRaftCfg->cfg = *pNewConfig;
   pSyncNode->pRaftCfg->lastConfigIndex = lastConfigChangeIndex;
 
@@ -2264,7 +2282,7 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
 
 void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
   ASSERT(pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE);
-  ASSERT(voteGrantedMajority(pSyncNode->pVotesGranted));
+  // ASSERT(voteGrantedMajority(pSyncNode->pVotesGranted));
   syncNodeBecomeLeader(pSyncNode, "candidate to leader");
 
   syncNodeLog2("==state change syncNodeCandidate2Leader==", pSyncNode);
@@ -2457,35 +2475,35 @@ int32_t syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex
 // for debug --------------
 void syncNodePrint(SSyncNode* pObj) {
   char* serialized = syncNode2Str(pObj);
-  printf("syncNodePrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("syncNodePrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncNodePrint2(char* s, SSyncNode* pObj) {
   char* serialized = syncNode2Str(pObj);
-  printf("syncNodePrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncNodePrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncNodeLog(SSyncNode* pObj) {
   char* serialized = syncNode2Str(pObj);
-  sTraceLong("syncNodeLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTraceLong("syncNodeLog | len:%lu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncNodeLog2(char* s, SSyncNode* pObj) {
   if (gRaftDetailLog) {
     char* serialized = syncNode2Str(pObj);
-    sTraceLong("syncNodeLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTraceLong("syncNodeLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
 
 void syncNodeLog3(char* s, SSyncNode* pObj) {
   char* serialized = syncNode2Str(pObj);
-  sTraceLong("syncNodeLog3 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+  sTraceLong("syncNodeLog3 | len:%lu | %s | %s", strlen(serialized), s, serialized);
   taosMemoryFree(serialized);
 }
 
@@ -2658,7 +2676,7 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
   if (ths->state == TAOS_SYNC_STATE_LEADER) {
     int32_t code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
     if (code != 0) {
-      sError("vgId:%d, failed to append log entry since %s",  ths->vgId, tstrerror(terrno));
+      sError("vgId:%d, failed to append log entry since %s", ths->vgId, tstrerror(terrno));
       return -1;
     }
     syncNodeReplicate(ths, false);
@@ -2708,6 +2726,55 @@ int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg) {
   return ret;
 }
 
+int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg) {
+  syncLogRecvHeartbeat(ths, pMsg, "");
+
+  SyncHeartbeatReply* pMsgReply = syncHeartbeatReplyBuild(ths->vgId);
+  pMsgReply->destId = pMsg->srcId;
+  pMsgReply->srcId = ths->myRaftId;
+  pMsgReply->term = ths->pRaftStore->currentTerm;
+  pMsgReply->privateTerm = 8864;  // magic number
+
+  SRpcMsg rpcMsg;
+  syncHeartbeatReply2RpcMsg(pMsgReply, &rpcMsg);
+
+  if (pMsg->term >= ths->pRaftStore->currentTerm && ths->state != TAOS_SYNC_STATE_FOLLOWER) {
+    syncNodeBecomeFollower(ths, "become follower by hb");
+  }
+
+  if (pMsg->term == ths->pRaftStore->currentTerm) {
+    // sInfo("vgId:%d, heartbeat reset timer", ths->vgId);
+    syncNodeResetElectTimer(ths);
+
+#if 0
+    if (ths->state == TAOS_SYNC_STATE_FOLLOWER) {
+      syncNodeFollowerCommit(ths, pMsg->commitIndex);
+    }
+#endif
+  }
+
+  /*
+    // htonl
+    SMsgHead* pHead = rpcMsg.pCont;
+    pHead->contLen = htonl(pHead->contLen);
+    pHead->vgId = htonl(pHead->vgId);
+  */
+
+  // reply
+  syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg);
+
+  return 0;
+}
+
+int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, SyncHeartbeatReply* pMsg) {
+  syncLogRecvHeartbeatReply(ths, pMsg, "");
+
+  // update last reply time, make decision whether the other node is alive or not
+  syncIndexMgrSetRecvTime(ths->pMatchIndex, &(pMsg->destId), pMsg->startTime);
+
+  return 0;
+}
+
 // TLA+ Spec
 // ClientRequest(i, v) ==
 //     /\ state[i] = Leader
@@ -2736,7 +2803,7 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg, SyncI
     code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
     if (code != 0) {
       // del resp mgr, call FpCommitCb
-      sError("vgId:%d, failed to append log entry since %s",  ths->vgId, tstrerror(terrno));
+      sError("vgId:%d, failed to append log entry since %s", ths->vgId, tstrerror(terrno));
       return -1;
     }
 
@@ -2852,14 +2919,14 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
 
   if (pEntry->term < ths->pRaftStore->currentTerm) {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "little term:%lu, can not do leader transfer", pEntry->term);
+    snprintf(logBuf, sizeof(logBuf), "little term:%" PRIu64 ", can not do leader transfer", pEntry->term);
     syncNodeEventLog(ths, logBuf);
     return 0;
   }
 
   if (pEntry->index < syncNodeGetLastIndex(ths)) {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "little index:%ld, can not do leader transfer", pEntry->index);
+    snprintf(logBuf, sizeof(logBuf), "little index:%" PRId64 ", can not do leader transfer", pEntry->index);
     syncNodeEventLog(ths, logBuf);
     return 0;
   }
@@ -2875,7 +2942,7 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
 
   do {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "do leader transfer, index:%ld", pEntry->index);
+    snprintf(logBuf, sizeof(logBuf), "do leader transfer, index:%" PRId64 "", pEntry->index);
     syncNodeEventLog(ths, logBuf);
   } while (0);
 
@@ -3014,7 +3081,8 @@ static int32_t syncNodeProposeConfigChangeFinish(SSyncNode* ths, SyncReconfigFin
 }
 
 bool syncNodeIsOptimizedOneReplica(SSyncNode* ths, SRpcMsg* pMsg) {
-  return (ths->replicaNum == 1 && syncUtilUserCommit(pMsg->msgType) && ths->vgId != 1);
+  return (ths->replicaNum == 1 && syncUtilUserCommit(pMsg->msgType));
+  // return (ths->replicaNum == 1 && syncUtilUserCommit(pMsg->msgType) && ths->vgId != 1);
 }
 
 int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, uint64_t flag) {
@@ -3054,8 +3122,8 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
         } else {
           code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, i, &pEntry);
           if (code != 0) {
-              sError("vgId:%d, failed to get log entry since %s. index:%lld", ths->vgId, tstrerror(terrno), i);
-              return -1;
+            sError("vgId:%d, failed to get log entry since %s. index:%" PRId64 "", ths->vgId, tstrerror(terrno), i);
+            return -1;
            }
           ASSERT(pEntry != NULL);
         }
@@ -3066,7 +3134,8 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
         // user commit
         if ((ths->pFsm->FpCommitCb != NULL) && syncUtilUserCommit(pEntry->originalRpcType)) {
           bool internalExecute = true;
-          if ((ths->replicaNum == 1) && ths->restoreFinish && ths->vgId != 1) {
+          if ((ths->replicaNum == 1) && ths->restoreFinish) {
+            // if ((ths->replicaNum == 1) && ths->restoreFinish && ths->vgId != 1) {
             internalExecute = false;
           }
 
@@ -3134,8 +3203,8 @@ int32_t syncNodeCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex,
             int64_t restoreDelay = taosGetTimestampMs() - ths->leaderTime;
 
             char eventLog[128];
-            snprintf(eventLog, sizeof(eventLog), "restore finish, index:%ld, elapsed:%ld ms, ", pEntry->index,
-                     restoreDelay);
+            snprintf(eventLog, sizeof(eventLog), "restore finish, index:%" PRId64 ", elapsed:%" PRId64 " ms, ",
+                     pEntry->index, restoreDelay);
             syncNodeEventLog(ths, eventLog);
           }
         }
@@ -3315,5 +3384,47 @@ void syncLogRecvAppendEntriesReply(SSyncNode* pSyncNode, const SyncAppendEntries
            "recv sync-append-entries-reply from %s:%d {term:%" PRIu64 ", pterm:%" PRIu64 ", success:%d, match:%" PRId64
            "}, %s",
            host, port, pMsg->term, pMsg->privateTerm, pMsg->success, pMsg->matchIndex, s);
+  syncNodeEventLog(pSyncNode, logBuf);
+}
+
+void syncLogSendHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf),
+           "send sync-heartbeat from %s:%d {term:%" PRIu64 ", cmt:%" PRIu64 ", pterm:%" PRIu64 "}, %s", host, port,
+           pMsg->term, pMsg->commitIndex, pMsg->privateTerm, s);
+  syncNodeEventLog(pSyncNode, logBuf);
+}
+
+void syncLogRecvHeartbeat(SSyncNode* pSyncNode, const SyncHeartbeat* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf),
+           "recv sync-heartbeat from %s:%d {term:%" PRIu64 ", cmt:%" PRIu64 ", pterm:%" PRIu64 "}, %s", host, port,
+           pMsg->term, pMsg->commitIndex, pMsg->privateTerm, s);
+  syncNodeEventLog(pSyncNode, logBuf);
+}
+
+void syncLogSendHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf), "send sync-heartbeat-reply from %s:%d {term:%" PRIu64 ", pterm:%" PRIu64 "}, %s",
+           host, port, pMsg->term, pMsg->privateTerm, s);
+  syncNodeEventLog(pSyncNode, logBuf);
+}
+
+void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf), "recv sync-heartbeat-reply from %s:%d {term:%" PRIu64 ", pterm:%" PRIu64 "}, %s",
+           host, port, pMsg->term, pMsg->privateTerm, s);
   syncNodeEventLog(pSyncNode, logBuf);
 }

@@ -187,9 +187,6 @@
 # ---- snode ----
 # unsupport ./test.sh -f tsim/snode/basic1.sim
 
-# ---- bnode
-./test.sh -f tsim/bnode/basic1.sim
-
 # ---- mnode
 ./test.sh -f tsim/mnode/basic1.sim
 ./test.sh -f tsim/mnode/basic2.sim
@@ -231,7 +228,7 @@
 ./test.sh -f tsim/table/vgroup.sim
 
 # ---- stream
-./test.sh -f tsim/stream/basic0.sim
+./test.sh -f tsim/stream/basic0.sim -v
 ./test.sh -f tsim/stream/basic1.sim
 ./test.sh -f tsim/stream/basic2.sim
 ./test.sh -f tsim/stream/drop_stream.sim
@@ -249,12 +246,18 @@
 ./test.sh -f tsim/stream/windowClose.sim
 ./test.sh -f tsim/stream/ignoreExpiredData.sim
 ./test.sh -f tsim/stream/sliding.sim
-#./test.sh -f tsim/stream/partitionbyColumnInterval.sim
+./test.sh -f tsim/stream/partitionbyColumnInterval.sim
 #./test.sh -f tsim/stream/partitionbyColumnSession.sim
 #./test.sh -f tsim/stream/partitionbyColumnState.sim
 #./test.sh -f tsim/stream/deleteInterval.sim
 #./test.sh -f tsim/stream/deleteSession.sim
 #./test.sh -f tsim/stream/deleteState.sim
+#./test.sh -f tsim/stream/fillIntervalDelete0.sim
+#./test.sh -f tsim/stream/fillIntervalDelete1.sim
+./test.sh -f tsim/stream/fillIntervalLinear.sim
+#./test.sh -f tsim/stream/fillIntervalPartitionBy.sim
+./test.sh -f tsim/stream/fillIntervalPrevNext.sim
+./test.sh -f tsim/stream/fillIntervalValue.sim
 
 # ---- transaction ----
 ./test.sh -f tsim/trans/lossdata1.sim
@@ -295,18 +298,6 @@
 ./test.sh -f tsim/stable/tag_rename.sim
 ./test.sh -f tsim/stable/values.sim
 ./test.sh -f tsim/stable/vnode3.sim
-
-# --- for multi process mode
-./test.sh -f tsim/user/basic.sim -m
-./test.sh -f tsim/db/basic3.sim -m
-./test.sh -f tsim/db/error1.sim -m
-./test.sh -f tsim/insert/backquote.sim -m
-# unsupport ./test.sh -f tsim/parser/fourArithmetic-basic.sim -m
-./test.sh -f tsim/query/interval-offset.sim -m
-# unsupport ./test.sh -f tsim/tmq/basic3.sim -m
-./test.sh -f tsim/stable/vnode3.sim -m
-./test.sh -f tsim/qnode/basic1.sim -m
-# unsupport ./test.sh -f tsim/mnode/basic1.sim -m
 
 # --- sma
 ./test.sh -f tsim/sma/drop_sma.sim
@@ -454,5 +445,7 @@
 ./test.sh -f tsim/tag/set.sim
 ./test.sh -f tsim/tag/smallint.sim
 ./test.sh -f tsim/tag/tinyint.sim
+./test.sh -f tsim/tag/drop_tag.sim
+
 
 #======================b1-end===============

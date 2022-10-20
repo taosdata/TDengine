@@ -133,28 +133,28 @@ char* syncRpcMsg2Str(SRpcMsg* pRpcMsg) {
 // for debug ----------------------
 void syncRpcMsgPrint(SRpcMsg* pMsg) {
   char* serialized = syncRpcMsg2Str(pMsg);
-  printf("syncRpcMsgPrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("syncRpcMsgPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncRpcMsgPrint2(char* s, SRpcMsg* pMsg) {
   char* serialized = syncRpcMsg2Str(pMsg);
-  printf("syncRpcMsgPrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncRpcMsgPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncRpcMsgLog(SRpcMsg* pMsg) {
   char* serialized = syncRpcMsg2Str(pMsg);
-  sTrace("syncRpcMsgLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTrace("syncRpcMsgLog | len:%lu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncRpcMsgLog2(char* s, SRpcMsg* pMsg) {
   if (gRaftDetailLog) {
     char* serialized = syncRpcMsg2Str(pMsg);
-    sTrace("syncRpcMsgLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTrace("syncRpcMsgLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -271,21 +271,21 @@ void syncTimeoutPrint(const SyncTimeout* pMsg) {
 
 void syncTimeoutPrint2(char* s, const SyncTimeout* pMsg) {
   char* serialized = syncTimeout2Str(pMsg);
-  printf("syncTimeoutPrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncTimeoutPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncTimeoutLog(const SyncTimeout* pMsg) {
   char* serialized = syncTimeout2Str(pMsg);
-  sTrace("syncTimeoutLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTrace("syncTimeoutLog | len:%lu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncTimeoutLog2(char* s, const SyncTimeout* pMsg) {
   if (gRaftDetailLog) {
     char* serialized = syncTimeout2Str(pMsg);
-    sTrace("syncTimeoutLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTrace("syncTimeoutLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -526,28 +526,28 @@ char* syncPing2Str(const SyncPing* pMsg) {
 // for debug ----------------------
 void syncPingPrint(const SyncPing* pMsg) {
   char* serialized = syncPing2Str(pMsg);
-  printf("syncPingPrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("syncPingPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncPingPrint2(char* s, const SyncPing* pMsg) {
   char* serialized = syncPing2Str(pMsg);
-  printf("syncPingPrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncPingPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncPingLog(const SyncPing* pMsg) {
   char* serialized = syncPing2Str(pMsg);
-  sTrace("syncPingLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTrace("syncPingLog | len:%lu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncPingLog2(char* s, const SyncPing* pMsg) {
   if (gRaftDetailLog) {
     char* serialized = syncPing2Str(pMsg);
-    sTrace("syncPingLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTrace("syncPingLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -931,28 +931,28 @@ char* syncClientRequest2Str(const SyncClientRequest* pMsg) {
 // for debug ----------------------
 void syncClientRequestPrint(const SyncClientRequest* pMsg) {
   char* serialized = syncClientRequest2Str(pMsg);
-  printf("syncClientRequestPrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("syncClientRequestPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncClientRequestPrint2(char* s, const SyncClientRequest* pMsg) {
   char* serialized = syncClientRequest2Str(pMsg);
-  printf("syncClientRequestPrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncClientRequestPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncClientRequestLog(const SyncClientRequest* pMsg) {
   char* serialized = syncClientRequest2Str(pMsg);
-  sTrace("syncClientRequestLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTrace("syncClientRequestLog | len:%lu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncClientRequestLog2(char* s, const SyncClientRequest* pMsg) {
   if (gRaftDetailLog) {
     char* serialized = syncClientRequest2Str(pMsg);
-    sTrace("syncClientRequestLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTrace("syncClientRequestLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -1101,28 +1101,28 @@ char* syncClientRequestBatch2Str(const SyncClientRequestBatch* pMsg) {
 // for debug ----------------------
 void syncClientRequestBatchPrint(const SyncClientRequestBatch* pMsg) {
   char* serialized = syncClientRequestBatch2Str(pMsg);
-  printf("syncClientRequestBatchPrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("syncClientRequestBatchPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncClientRequestBatchPrint2(char* s, const SyncClientRequestBatch* pMsg) {
   char* serialized = syncClientRequestBatch2Str(pMsg);
-  printf("syncClientRequestBatchPrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncClientRequestBatchPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncClientRequestBatchLog(const SyncClientRequestBatch* pMsg) {
   char* serialized = syncClientRequestBatch2Str(pMsg);
-  sTrace("syncClientRequestBatchLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTrace("syncClientRequestBatchLog | len:%lu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncClientRequestBatchLog2(char* s, const SyncClientRequestBatch* pMsg) {
   if (gRaftDetailLog) {
     char* serialized = syncClientRequestBatch2Str(pMsg);
-    sTraceLong("syncClientRequestBatchLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTraceLong("syncClientRequestBatchLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -1252,28 +1252,28 @@ char* syncRequestVote2Str(const SyncRequestVote* pMsg) {
 // for debug ----------------------
 void syncRequestVotePrint(const SyncRequestVote* pMsg) {
   char* serialized = syncRequestVote2Str(pMsg);
-  printf("syncRequestVotePrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("syncRequestVotePrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncRequestVotePrint2(char* s, const SyncRequestVote* pMsg) {
   char* serialized = syncRequestVote2Str(pMsg);
-  printf("syncRequestVotePrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncRequestVotePrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncRequestVoteLog(const SyncRequestVote* pMsg) {
   char* serialized = syncRequestVote2Str(pMsg);
-  sTrace("syncRequestVoteLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTrace("syncRequestVoteLog | len:%lu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncRequestVoteLog2(char* s, const SyncRequestVote* pMsg) {
   if (gRaftDetailLog) {
     char* serialized = syncRequestVote2Str(pMsg);
-    sTrace("syncRequestVoteLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTrace("syncRequestVoteLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -1400,28 +1400,28 @@ char* syncRequestVoteReply2Str(const SyncRequestVoteReply* pMsg) {
 // for debug ----------------------
 void syncRequestVoteReplyPrint(const SyncRequestVoteReply* pMsg) {
   char* serialized = syncRequestVoteReply2Str(pMsg);
-  printf("syncRequestVoteReplyPrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("syncRequestVoteReplyPrint | len:%ld | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncRequestVoteReplyPrint2(char* s, const SyncRequestVoteReply* pMsg) {
   char* serialized = syncRequestVoteReply2Str(pMsg);
-  printf("syncRequestVoteReplyPrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncRequestVoteReplyPrint2 | len:%ld | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncRequestVoteReplyLog(const SyncRequestVoteReply* pMsg) {
   char* serialized = syncRequestVoteReply2Str(pMsg);
-  sTrace("syncRequestVoteReplyLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTrace("syncRequestVoteReplyLog | len:%ld | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncRequestVoteReplyLog2(char* s, const SyncRequestVoteReply* pMsg) {
   if (gRaftDetailLog) {
     char* serialized = syncRequestVoteReply2Str(pMsg);
-    sTrace("syncRequestVoteReplyLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTrace("syncRequestVoteReplyLog2 | len:%ld | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -1571,28 +1571,28 @@ char* syncAppendEntries2Str(const SyncAppendEntries* pMsg) {
 // for debug ----------------------
 void syncAppendEntriesPrint(const SyncAppendEntries* pMsg) {
   char* serialized = syncAppendEntries2Str(pMsg);
-  printf("syncAppendEntriesPrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("syncAppendEntriesPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncAppendEntriesPrint2(char* s, const SyncAppendEntries* pMsg) {
   char* serialized = syncAppendEntries2Str(pMsg);
-  printf("syncAppendEntriesPrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncAppendEntriesPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncAppendEntriesLog(const SyncAppendEntries* pMsg) {
   char* serialized = syncAppendEntries2Str(pMsg);
-  sTrace("syncAppendEntriesLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTrace("syncAppendEntriesLog | len:%lu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncAppendEntriesLog2(char* s, const SyncAppendEntries* pMsg) {
   if (gRaftDetailLog) {
     char* serialized = syncAppendEntries2Str(pMsg);
-    sTrace("syncAppendEntriesLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTrace("syncAppendEntriesLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -1810,28 +1810,28 @@ char* syncAppendEntriesBatch2Str(const SyncAppendEntriesBatch* pMsg) {
 // for debug ----------------------
 void syncAppendEntriesBatchPrint(const SyncAppendEntriesBatch* pMsg) {
   char* serialized = syncAppendEntriesBatch2Str(pMsg);
-  printf("syncAppendEntriesBatchPrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("syncAppendEntriesBatchPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncAppendEntriesBatchPrint2(char* s, const SyncAppendEntriesBatch* pMsg) {
   char* serialized = syncAppendEntriesBatch2Str(pMsg);
-  printf("syncAppendEntriesBatchPrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncAppendEntriesBatchPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncAppendEntriesBatchLog(const SyncAppendEntriesBatch* pMsg) {
   char* serialized = syncAppendEntriesBatch2Str(pMsg);
-  sTrace("syncAppendEntriesBatchLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTrace("syncAppendEntriesBatchLog | len:%lu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncAppendEntriesBatchLog2(char* s, const SyncAppendEntriesBatch* pMsg) {
   if (gRaftDetailLog) {
     char* serialized = syncAppendEntriesBatch2Str(pMsg);
-    sTraceLong("syncAppendEntriesBatchLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTraceLong("syncAppendEntriesBatchLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -1966,28 +1966,28 @@ char* syncAppendEntriesReply2Str(const SyncAppendEntriesReply* pMsg) {
 // for debug ----------------------
 void syncAppendEntriesReplyPrint(const SyncAppendEntriesReply* pMsg) {
   char* serialized = syncAppendEntriesReply2Str(pMsg);
-  printf("syncAppendEntriesReplyPrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("syncAppendEntriesReplyPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncAppendEntriesReplyPrint2(char* s, const SyncAppendEntriesReply* pMsg) {
   char* serialized = syncAppendEntriesReply2Str(pMsg);
-  printf("syncAppendEntriesReplyPrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncAppendEntriesReplyPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncAppendEntriesReplyLog(const SyncAppendEntriesReply* pMsg) {
   char* serialized = syncAppendEntriesReply2Str(pMsg);
-  sTrace("syncAppendEntriesReplyLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTrace("syncAppendEntriesReplyLog | len:%lu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncAppendEntriesReplyLog2(char* s, const SyncAppendEntriesReply* pMsg) {
   if (gRaftDetailLog) {
     char* serialized = syncAppendEntriesReply2Str(pMsg);
-    sTrace("syncAppendEntriesReplyLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTrace("syncAppendEntriesReplyLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -2119,28 +2119,28 @@ char* syncHeartbeat2Str(const SyncHeartbeat* pMsg) {
 
 void syncHeartbeatPrint(const SyncHeartbeat* pMsg) {
   char* serialized = syncHeartbeat2Str(pMsg);
-  printf("syncHeartbeatPrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("syncHeartbeatPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncHeartbeatPrint2(char* s, const SyncHeartbeat* pMsg) {
   char* serialized = syncHeartbeat2Str(pMsg);
-  printf("syncHeartbeatPrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncHeartbeatPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncHeartbeatLog(const SyncHeartbeat* pMsg) {
   char* serialized = syncHeartbeat2Str(pMsg);
-  sTrace("syncHeartbeatLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTrace("syncHeartbeatLog | len:%lu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncHeartbeatLog2(char* s, const SyncHeartbeat* pMsg) {
   if (gRaftDetailLog) {
     char* serialized = syncHeartbeat2Str(pMsg);
-    sTrace("syncHeartbeatLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTrace("syncHeartbeatLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -2273,28 +2273,28 @@ char* syncHeartbeatReply2Str(const SyncHeartbeatReply* pMsg) {
 
 void syncHeartbeatReplyPrint(const SyncHeartbeatReply* pMsg) {
   char* serialized = syncHeartbeatReply2Str(pMsg);
-  printf("syncHeartbeatReplyPrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("syncHeartbeatReplyPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncHeartbeatReplyPrint2(char* s, const SyncHeartbeatReply* pMsg) {
   char* serialized = syncHeartbeatReply2Str(pMsg);
-  printf("syncHeartbeatReplyPrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncHeartbeatReplyPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncHeartbeatReplyLog(const SyncHeartbeatReply* pMsg) {
   char* serialized = syncHeartbeatReply2Str(pMsg);
-  sTrace("syncHeartbeatReplyLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTrace("syncHeartbeatReplyLog | len:%lu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncHeartbeatReplyLog2(char* s, const SyncHeartbeatReply* pMsg) {
   if (gRaftDetailLog) {
     char* serialized = syncHeartbeatReply2Str(pMsg);
-    sTrace("syncHeartbeatReplyLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTrace("syncHeartbeatReplyLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -2426,28 +2426,28 @@ char* syncApplyMsg2Str(const SyncApplyMsg* pMsg) {
 // for debug ----------------------
 void syncApplyMsgPrint(const SyncApplyMsg* pMsg) {
   char* serialized = syncApplyMsg2Str(pMsg);
-  printf("syncApplyMsgPrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("syncApplyMsgPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncApplyMsgPrint2(char* s, const SyncApplyMsg* pMsg) {
   char* serialized = syncApplyMsg2Str(pMsg);
-  printf("syncApplyMsgPrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncApplyMsgPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncApplyMsgLog(const SyncApplyMsg* pMsg) {
   char* serialized = syncApplyMsg2Str(pMsg);
-  sTrace("ssyncApplyMsgLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTrace("ssyncApplyMsgLog | len:%lu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncApplyMsgLog2(char* s, const SyncApplyMsg* pMsg) {
   if (gRaftDetailLog) {
     char* serialized = syncApplyMsg2Str(pMsg);
-    sTrace("syncApplyMsgLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTrace("syncApplyMsgLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -2603,28 +2603,28 @@ char* syncSnapshotSend2Str(const SyncSnapshotSend* pMsg) {
 // for debug ----------------------
 void syncSnapshotSendPrint(const SyncSnapshotSend* pMsg) {
   char* serialized = syncSnapshotSend2Str(pMsg);
-  printf("syncSnapshotSendPrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("syncSnapshotSendPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncSnapshotSendPrint2(char* s, const SyncSnapshotSend* pMsg) {
   char* serialized = syncSnapshotSend2Str(pMsg);
-  printf("syncSnapshotSendPrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncSnapshotSendPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncSnapshotSendLog(const SyncSnapshotSend* pMsg) {
   char* serialized = syncSnapshotSend2Str(pMsg);
-  sTrace("syncSnapshotSendLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTrace("syncSnapshotSendLog | len:%lu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncSnapshotSendLog2(char* s, const SyncSnapshotSend* pMsg) {
   if (gRaftDetailLog) {
     char* serialized = syncSnapshotSend2Str(pMsg);
-    sTrace("syncSnapshotSendLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTrace("syncSnapshotSendLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -2763,28 +2763,28 @@ char* syncSnapshotRsp2Str(const SyncSnapshotRsp* pMsg) {
 // for debug ----------------------
 void syncSnapshotRspPrint(const SyncSnapshotRsp* pMsg) {
   char* serialized = syncSnapshotRsp2Str(pMsg);
-  printf("syncSnapshotRspPrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("syncSnapshotRspPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncSnapshotRspPrint2(char* s, const SyncSnapshotRsp* pMsg) {
   char* serialized = syncSnapshotRsp2Str(pMsg);
-  printf("syncSnapshotRspPrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncSnapshotRspPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncSnapshotRspLog(const SyncSnapshotRsp* pMsg) {
   char* serialized = syncSnapshotRsp2Str(pMsg);
-  sTrace("syncSnapshotRspLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTrace("syncSnapshotRspLog | len:%lu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncSnapshotRspLog2(char* s, const SyncSnapshotRsp* pMsg) {
   if (gRaftDetailLog) {
     char* serialized = syncSnapshotRsp2Str(pMsg);
-    sTrace("syncSnapshotRspLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTrace("syncSnapshotRspLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -2925,28 +2925,28 @@ char* syncLeaderTransfer2Str(const SyncLeaderTransfer* pMsg) {
 // for debug ----------------------
 void syncLeaderTransferPrint(const SyncLeaderTransfer* pMsg) {
   char* serialized = syncLeaderTransfer2Str(pMsg);
-  printf("syncLeaderTransferPrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("syncLeaderTransferPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncLeaderTransferPrint2(char* s, const SyncLeaderTransfer* pMsg) {
   char* serialized = syncLeaderTransfer2Str(pMsg);
-  printf("syncLeaderTransferPrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncLeaderTransferPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncLeaderTransferLog(const SyncLeaderTransfer* pMsg) {
   char* serialized = syncLeaderTransfer2Str(pMsg);
-  sTrace("syncLeaderTransferLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTrace("syncLeaderTransferLog | len:%lu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncLeaderTransferLog2(char* s, const SyncLeaderTransfer* pMsg) {
   if (gRaftDetailLog) {
     char* serialized = syncLeaderTransfer2Str(pMsg);
-    sTrace("syncLeaderTransferLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTrace("syncLeaderTransferLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -3054,28 +3054,28 @@ char* syncReconfigFinish2Str(const SyncReconfigFinish* pMsg) {
 // for debug ----------------------
 void syncReconfigFinishPrint(const SyncReconfigFinish* pMsg) {
   char* serialized = syncReconfigFinish2Str(pMsg);
-  printf("syncReconfigFinishPrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("syncReconfigFinishPrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncReconfigFinishPrint2(char* s, const SyncReconfigFinish* pMsg) {
   char* serialized = syncReconfigFinish2Str(pMsg);
-  printf("syncReconfigFinishPrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncReconfigFinishPrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncReconfigFinishLog(const SyncReconfigFinish* pMsg) {
   char* serialized = syncReconfigFinish2Str(pMsg);
-  sTrace("syncReconfigFinishLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTrace("syncReconfigFinishLog | len:%lu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncReconfigFinishLog2(char* s, const SyncReconfigFinish* pMsg) {
   if (gRaftDetailLog) {
     char* serialized = syncReconfigFinish2Str(pMsg);
-    sTrace("syncReconfigFinishLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTrace("syncReconfigFinishLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }

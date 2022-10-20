@@ -21,7 +21,7 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   if (tEncodeI64(pCoder, pME->version) < 0) return -1;
   if (tEncodeI8(pCoder, pME->type) < 0) return -1;
   if (tEncodeI64(pCoder, pME->uid) < 0) return -1;
-  if (tEncodeCStr(pCoder, pME->name) < 0) return -1;
+  if (pME->name == NULL || tEncodeCStr(pCoder, pME->name) < 0) return -1;
 
   if (pME->type == TSDB_SUPER_TABLE) {
     if (tEncodeI8(pCoder, pME->flags) < 0) return -1;  // TODO: need refactor?

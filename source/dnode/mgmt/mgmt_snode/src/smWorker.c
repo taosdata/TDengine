@@ -26,27 +26,6 @@ static inline void smSendRsp(SRpcMsg *pMsg, int32_t code) {
   tmsgSendRsp(&rsp);
 }
 
-static void smProcessMonitorQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
-  SSnodeMgmt *pMgmt = pInfo->ahandle;
-  int32_t     code = -1;
-  dTrace("msg:%p, get from snode-monitor queue", pMsg);
-
-  if (pMsg->msgType == TDMT_MON_SM_INFO) {
-    code = smProcessGetMonitorInfoReq(pMgmt, pMsg);
-  } else {
-    terrno = TSDB_CODE_MSG_NOT_PROCESSED;
-  }
-
-  if (IsReq(pMsg)) {
-    if (code != 0 && terrno != 0) code = terrno;
-    smSendRsp(pMsg, code);
-  }
-
-  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
-  rpcFreeCont(pMsg->pCont);
-  taosFreeQitem(pMsg);
-}
-
 static void smProcessUniqueQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   SSnodeMgmt *pMgmt = pInfo->ahandle;
 
@@ -123,24 +102,11 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
     return -1;
   }
 
-  SSingleWorkerCfg mCfg = {
-      .min = 1,
-      .max = 1,
-      .name = "snode-monitor",
-      .fp = (FItem)smProcessMonitorQueue,
-      .param = pMgmt,
-  };
-  if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
-    dError("failed to start snode-monitor worker since %s", terrstr());
-    return -1;
-  }
-
   dDebug("snode workers are initialized");
   return 0;
 }
 
 void smStopWorker(SSnodeMgmt *pMgmt) {
-  tSingleWorkerCleanup(&pMgmt->monitorWorker);
   for (int32_t i = 0; i < taosArrayGetSize(pMgmt->uniqueWorkers); i++) {
     SMultiWorker *pWorker = taosArrayGetP(pMgmt->uniqueWorkers, i);
     tMultiWorkerCleanup(pWorker);
@@ -169,14 +135,6 @@ int32_t smPutNodeMsgToMgmtQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
-
-  dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
-  taosWriteQitem(pWorker->queue, pMsg);
-  return 0;
-}
-
-int32_t smPutNodeMsgToMonitorQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  SSingleWorker *pWorker = &pMgmt->monitorWorker;
 
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   taosWriteQitem(pWorker->queue, pMsg);

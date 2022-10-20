@@ -54,11 +54,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->retry = pInit->rfp;
   pRpc->startTimer = pInit->tfp;
 
-  if (pInit->connType == TAOS_CONN_SERVER) {
-    pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
-  } else {
-    pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
-  }
+  pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
 
   uint32_t ip = 0;
   if (pInit->connType == TAOS_CONN_SERVER) {
@@ -79,7 +75,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   }
   pRpc->parent = pInit->parent;
   if (pInit->user) {
-    memcpy(pRpc->user, pInit->user, strlen(pInit->user));
+    memcpy(pRpc->user, pInit->user, TSDB_UNI_LEN);
   }
 
   int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);
@@ -104,11 +100,11 @@ void* rpcMallocCont(int64_t contLen) {
   int64_t size = contLen + TRANS_MSG_OVERHEAD;
   char*   start = taosMemoryCalloc(1, size);
   if (start == NULL) {
-    tError("failed to malloc msg, size:%d", size);
+    tError("failed to malloc msg, size:%" PRId64, size);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   } else {
-    tTrace("malloc mem:%p size:%d", start, size);
+    tTrace("malloc mem:%p size:%" PRId64, start, size);
   }
 
   return start + sizeof(STransMsgHead);

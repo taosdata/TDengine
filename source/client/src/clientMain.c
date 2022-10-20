@@ -944,7 +944,6 @@ void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
   if (pResultInfo->completed) {
     // it is a local executed query, no need to do async fetch
     if (QUERY_EXEC_MODE_LOCAL == pRequest->body.execMode) {
-      ASSERT(pResultInfo->numOfRows >= 0);
       if (pResultInfo->localResultFetched) {
         pResultInfo->numOfRows = 0;
         pResultInfo->current = 0;

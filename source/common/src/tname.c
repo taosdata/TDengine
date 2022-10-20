@@ -90,8 +90,10 @@ int64_t taosGetIntervalStartTimestamp(int64_t startTime, int64_t slidingTime, in
 SName* toName(int32_t acctId, const char* pDbName, const char* pTableName, SName* pName) {
   pName->type = TSDB_TABLE_NAME_T;
   pName->acctId = acctId;
-  strcpy(pName->dbname, pDbName);
-  strcpy(pName->tname, pTableName);
+  memset(pName->dbname, 0, TSDB_DB_NAME_LEN);
+  strncpy(pName->dbname, pDbName, TSDB_DB_NAME_LEN - 1);
+  memset(pName->tname, 0, TSDB_TABLE_NAME_LEN);
+  strncpy(pName->tname, pTableName, TSDB_TABLE_NAME_LEN - 1);
   return pName;
 }
 

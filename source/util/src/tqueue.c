@@ -141,12 +141,14 @@ int32_t taosQueueItemSize(STaosQueue *queue) {
 }
 
 int64_t taosQueueMemorySize(STaosQueue *queue) {
-  if (queue == NULL) return 0;
-
+#if 1
+  return queue->memOfItems;
+#else
   taosThreadMutexLock(&queue->mutex);
   int64_t memOfItems = queue->memOfItems;
   taosThreadMutexUnlock(&queue->mutex);
   return memOfItems;
+#endif
 }
 
 void *taosAllocateQitem(int32_t size, EQItype itype) {
@@ -298,9 +300,6 @@ int32_t taosGetQitem(STaosQall *qall, void **ppItem) {
   return num;
 }
 
-void    taosResetQitems(STaosQall *qall) { qall->current = qall->start; }
-int32_t taosQallItemSize(STaosQall *qall) { return qall->numOfItems; }
-
 STaosQset *taosOpenQset() {
   STaosQset *qset = taosMemoryCalloc(sizeof(STaosQset), 1);
   if (qset == NULL) {
@@ -405,8 +404,6 @@ void taosRemoveFromQset(STaosQset *qset, STaosQueue *queue) {
   uDebug("queue:%p is removed from qset:%p", queue, qset);
 }
 
-int32_t taosGetQueueNumber(STaosQset *qset) { return qset->numOfQueues; }
-
 int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, SQueueInfo *qinfo) {
   STaosQnode *pNode = NULL;
   int32_t     code = 0;
@@ -497,6 +494,12 @@ int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, SQueueInfo *
   return code;
 }
 
+int32_t taosQallItemSize(STaosQall *qall) { return qall->numOfItems; }
+void    taosResetQitems(STaosQall *qall) { qall->current = qall->start; }
+int32_t taosGetQueueNumber(STaosQset *qset) { return qset->numOfQueues; }
+
+#if 0
+
 void taosResetQsetThread(STaosQset *qset, void *pItem) {
   if (pItem == NULL) return;
   STaosQnode *pNode = (STaosQnode *)((char *)pItem - sizeof(STaosQnode));
@@ -507,3 +510,5 @@ void taosResetQsetThread(STaosQset *qset, void *pItem) {
   }
   taosThreadMutexUnlock(&qset->mutex);
 }
+
+#endif
