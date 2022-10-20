@@ -294,6 +294,10 @@ class TDTestCase:
         vgroups = "30"
         sql = "create database db3 vgroups " + vgroups
         tdSql.query(sql)
+        sql = "create table db3.stb (ts timestamp, f int) tags (t int)"
+        tdSql.query(sql)
+        sql = "create table db3.tb using db3.stb tags (1)"
+        tdSql.query(sql)
 
         # create http server: bing ip/port , and  request processor
         if (platform.system().lower() == 'windows' and not tdDnodes.dnodes[0].remoteIP == ""):
