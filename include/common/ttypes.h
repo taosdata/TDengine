@@ -340,12 +340,8 @@ typedef struct tDataTypeDescriptor {
 } tDataTypeDescriptor;
 
 extern tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX];
-
 bool isValidDataType(int32_t type);
 
-void  setVardataNull(void *val, int32_t type);
-//void  setNull(void *val, int32_t type, int32_t bytes);
-//void  setNullN(void *val, int32_t type, int32_t bytes, int32_t numOfElems);
 void  assignVal(char *val, const char *src, int32_t len, int32_t type);
 void  operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type);
 void *getDataMin(int32_t type);
