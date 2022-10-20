@@ -450,17 +450,10 @@ static void monGenDiskJson(SMonInfo *pMonitor) {
 }
 
 static const char *monLogLevelStr(ELogLevel level) {
-  switch (level) {
-    case DEBUG_ERROR:
-      return "error";
-    case DEBUG_INFO:
-      return "info";
-    case DEBUG_DEBUG:
-      return "debug";
-    case DEBUG_TRACE:
-      return "trace";
-    default:
-      return "undefine";
+  if (level == DEBUG_ERROR) {
+    return "error";
+  } else {
+    return "info";
   }
 }
 
