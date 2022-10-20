@@ -68,9 +68,10 @@ int32_t streamStateSessionClear(SStreamState* pState);
 int32_t streamStateSessionGetKVByCur(SStreamStateCur* pCur, SSessionKey* pKey, const void** pVal, int32_t* pVLen);
 int32_t streamStateStateAddIfNotExist(SStreamState* pState, SSessionKey* key, char* pKeyData, int32_t keyDataLen,
                                       state_key_cmpr_fn fn, void** pVal, int32_t* pVLen);
+int32_t streamStateSessionGetKey(SStreamState* pState, const SSessionKey* key, SSessionKey* curKey);
 
 SStreamStateCur* streamStateSessionSeekKeyNext(SStreamState* pState, const SSessionKey* key);
-SStreamStateCur* streamStateSessionSeekKeyPrev(SStreamState* pState, const SSessionKey* key);
+SStreamStateCur* streamStateSessionSeekKeyCurrentPrev(SStreamState* pState, const SSessionKey* key);
 SStreamStateCur* streamStateSessionGetCur(SStreamState* pState, const SSessionKey* key);
 
 int32_t streamStateFillPut(SStreamState* pState, const SWinKey* key, const void* value, int32_t vLen);
