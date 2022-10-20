@@ -2970,7 +2970,8 @@ static int32_t sysFilte__TableName(void* arg, SNode* pNode, SArray* result) {
                          .val = pVal->datum.p,
                          .reverse = reverse,
                          .filterFunc = func};
-  int32_t       ret = metaFilterTableName(pMeta, &param, result);
+
+  int32_t ret = metaFilterCreateTime(pMeta, &param, result);
   if (ret == 0) return 0;
 
   return -1;
@@ -2984,6 +2985,13 @@ static int32_t sysFilte__CreateTime(void* arg, SNode* pNode, SArray* result) {
   bool           reverse = false;
 
   __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
+  SMetaFltParam  param = {.suid = 0,
+                          .cid = 0,
+                          .type = TSDB_DATA_TYPE_BIGINT,
+                          .val = &pVal->datum.i,
+                          .reverse = reverse,
+                          .filterFunc = func};
+  int32_t        ret = metaFilterCreateTime(pMeta, &param, result);
   if (func == NULL) return -1;
   return 0;
 }
@@ -3277,17 +3285,17 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator, SArr
       SMetaReader mr1 = {0};
       metaReaderInit(&mr1, pInfo->readHandle.meta, META_READER_NOLOCK);
 
-      uint64_t suid = mr.me.ctbEntry.suid;
-      int32_t  code = metaGetTableEntryByUid(&mr, suid);
+      int64_t suid = mr.me.ctbEntry.suid;
+      int32_t code = metaGetTableEntryByUid(&mr1, suid);
       if (code != TSDB_CODE_SUCCESS) {
         qError("failed to get super table meta, cname:%s, suid:0x%" PRIx64 ", code:%s, %s", pInfo->pCur->mr.me.name,
                suid, tstrerror(terrno), GET_TASKID(pTaskInfo));
-        metaReaderClear(&mr);
         metaReaderClear(&mr1);
+        metaReaderClear(&mr);
         T_LONG_JMP(pTaskInfo->env, terrno);
       }
       pColInfoData = taosArrayGet(p->pDataBlock, 3);
-      colDataAppend(pColInfoData, numOfRows, (char*)&mr.me.stbEntry.schemaRow.nCols, false);
+      colDataAppend(pColInfoData, numOfRows, (char*)&mr1.me.stbEntry.schemaRow.nCols, false);
 
       // super table name
       STR_TO_VARSTR(n, mr1.me.name);
@@ -3334,11 +3342,11 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator, SArr
 
       // table comment
       pColInfoData = taosArrayGet(p->pDataBlock, 8);
-      if (pInfo->pCur->mr.me.ntbEntry.commentLen > 0) {
+      if (mr.me.ntbEntry.commentLen > 0) {
         char comment[TSDB_TB_COMMENT_LEN + VARSTR_HEADER_SIZE] = {0};
-        STR_TO_VARSTR(comment, pInfo->pCur->mr.me.ntbEntry.comment);
+        STR_TO_VARSTR(comment, mr.me.ntbEntry.comment);
         colDataAppend(pColInfoData, numOfRows, comment, false);
-      } else if (pInfo->pCur->mr.me.ntbEntry.commentLen == 0) {
+      } else if (mr.me.ntbEntry.commentLen == 0) {
         char comment[VARSTR_HEADER_SIZE + VARSTR_HEADER_SIZE] = {0};
         STR_TO_VARSTR(comment, "");
         colDataAppend(pColInfoData, numOfRows, comment, false);
@@ -3348,11 +3356,11 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator, SArr
 
       // uid
       pColInfoData = taosArrayGet(p->pDataBlock, 5);
-      colDataAppend(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.uid, false);
+      colDataAppend(pColInfoData, numOfRows, (char*)&mr.me.uid, false);
 
       // ttl
       pColInfoData = taosArrayGet(p->pDataBlock, 7);
-      colDataAppend(pColInfoData, numOfRows, (char*)&pInfo->pCur->mr.me.ntbEntry.ttlDays, false);
+      colDataAppend(pColInfoData, numOfRows, (char*)&mr.me.ntbEntry.ttlDays, false);
 
       STR_TO_VARSTR(n, "NORMAL_TABLE");
       // impl later

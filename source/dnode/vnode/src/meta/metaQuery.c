@@ -1071,13 +1071,7 @@ int32_t metaFilterCreateTime(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) 
     if (valid < 0) break;
 
     SCtimeIdxKey *p = entryKey;
-    if (first) {
-      valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
-      if (valid < 0) break;
-      continue;
-    } else {
-      break;
-    }
+
     int32_t cmp = (*param->filterFunc)((void *)&p->ctime, (void *)&pCtimeKey->ctime, param->type);
     if (cmp == 0) taosArrayPush(pUids, &p->uid);
     if (cmp == -1) break;
