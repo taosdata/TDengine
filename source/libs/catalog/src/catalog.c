@@ -814,9 +814,7 @@ _return:
   if (dbCache) {
     ctgRUnlockVgInfo(dbCache);
     ctgReleaseDBCache(pCtg, dbCache);
-  }
-
-  if (dbInfo) {
+  } else if (dbInfo) {
     taosHashCleanup(dbInfo->vgHash);
     taosMemoryFreeClear(dbInfo);
   }

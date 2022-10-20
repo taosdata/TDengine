@@ -213,7 +213,7 @@ DLL_EXPORT void        taos_fetch_raw_block_a(TAOS_RES *res, __taos_async_fn_t f
 DLL_EXPORT const void *taos_get_raw_block(TAOS_RES *res);
 
 DLL_EXPORT int       taos_get_db_route_info(TAOS* taos, const char* db, TAOS_DB_ROUTE_INFO* dbInfo);
-DLL_EXPORT int       taos_get_table_vgId(TAOS* taos, const char* table, TAOS_DB_ROUTE_INFO* dbInfo, int* vgId);
+DLL_EXPORT int       taos_get_table_vgId(TAOS* taos, const char* db, const char* table, int* vgId);
 
 DLL_EXPORT int       taos_load_table_info(TAOS *taos, const char *tableNameList);
 DLL_EXPORT TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLines, int protocol, int precision);
