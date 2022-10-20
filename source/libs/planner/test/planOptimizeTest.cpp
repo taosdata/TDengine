@@ -109,7 +109,26 @@ TEST_F(PlanOptimizeTest, mergeProjects) {
 
 TEST_F(PlanOptimizeTest, pushDownProjectCond) {
   useDb("root", "test");
+
   run("select 1-abs(c1) from (select unique(c1) c1 from st1s3) where 1-c1>5 order by 1 nulls first");
+}
+
+TEST_F(PlanOptimizeTest, LastRowScan) {
+  useDb("root", "cache_db");
+
+  run("SELECT LAST_ROW(c1), c2 FROM t1");
+
+  run("SELECT LAST_ROW(c1), c2, tag1, tbname FROM st1");
+
+  run("SELECT LAST_ROW(c1) FROM st1 PARTITION BY TBNAME");
+
+  run("SELECT LAST_ROW(c1), SUM(c3) FROM t1");
+
+  run("SELECT LAST_ROW(tag1) FROM st1");
+
+  run("SELECT LAST(c1) FROM st1");
+
+  run("SELECT LAST(c1), c2 FROM st1");
 }
 
 TEST_F(PlanOptimizeTest, tagScan) {

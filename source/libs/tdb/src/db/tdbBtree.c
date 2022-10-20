@@ -371,7 +371,7 @@ static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2
   }
   return cret;
 }
-
+/*
 static int tdbBtreeOpenImpl(SBTree *pBt) {
   // Try to get the root page of the an existing btree
   SPgno  pgno;
@@ -400,7 +400,7 @@ static int tdbBtreeOpenImpl(SBTree *pBt) {
   pBt->root = pgno;
   return 0;
 }
-
+*/
 int tdbBtreeInitPage(SPage *pPage, void *arg, int init) {
   SBTree *pBt;
   u8      flags;

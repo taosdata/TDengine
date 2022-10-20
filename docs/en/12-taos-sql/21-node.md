@@ -64,6 +64,12 @@ dnode_option: {
 
 The parameters that you can modify through this statement are the same as those located in the dnode configuration file. Modifications that you make through this statement take effect immediately, while modifications to the configuration file take effect when the dnode restarts.
 
+`value` is the value of the parameter, which needs to be in character format. For example, modify the log output level of dnode 1 to debug:
+
+```sql
+ALTER DNODE 1 'debugFlag' '143';
+```
+
 ## Add an Mnode
 
 ```sql

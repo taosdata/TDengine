@@ -116,7 +116,7 @@ int tdbPagerClose(SPager *pPager) {
   }
   return 0;
 }
-
+/*
 int tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate, SBTree *pBt) {
   SPgno  pgno;
   SPage *pPage;
@@ -167,7 +167,7 @@ int tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate, SBTree *pBt) {
   *ppgno = pgno;
   return 0;
 }
-
+*/
 int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   int     ret;
   SPage **ppPage;
