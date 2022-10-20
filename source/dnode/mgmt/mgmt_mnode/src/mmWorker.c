@@ -46,22 +46,12 @@ static inline void mmSendRsp(SRpcMsg *pMsg, int32_t code) {
 
 static void mmProcessRpcMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SMnodeMgmt *pMgmt = pInfo->ahandle;
-  int32_t     code = -1;
+  pMsg->info.node = pMgmt->pMnode;
 
   const STraceId *trace = &pMsg->info.traceId;
   dGTrace("msg:%p, get from mnode queue", pMsg);
 
-  switch (pMsg->msgType) {
-    case TDMT_MON_MM_INFO:
-      code = mmProcessGetMonitorInfoReq(pMgmt, pMsg);
-      break;
-    case TDMT_MON_MM_LOAD:
-      code = mmProcessGetLoadsReq(pMgmt, pMsg);
-      break;
-    default:
-      pMsg->info.node = pMgmt->pMnode;
-      code = mndProcessRpcMsg(pMsg);
-  }
+  int32_t code = mndProcessRpcMsg(pMsg);
 
   if (IsReq(pMsg) && pMsg->info.handle != NULL && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     if (code != 0 && terrno != 0) code = terrno;
@@ -134,10 +124,6 @@ int32_t mmPutMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
 int32_t mmPutMsgToFetchQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->fetchWorker, pMsg);
-}
-
-int32_t mmPutMsgToMonitorQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  return mmPutMsgToWorker(pMgmt, &pMgmt->monitorWorker, pMsg);
 }
 
 int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
@@ -237,18 +223,6 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
     return -1;
   }
 
-  SSingleWorkerCfg mCfg = {
-      .min = 1,
-      .max = 1,
-      .name = "mnode-monitor",
-      .fp = (FItem)mmProcessRpcMsg,
-      .param = pMgmt,
-  };
-  if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
-    dError("failed to start mnode mnode-monitor worker since %s", terrstr());
-    return -1;
-  }
-
   dDebug("mnode workers are initialized");
   return 0;
 }
@@ -256,7 +230,6 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
 void mmStopWorker(SMnodeMgmt *pMgmt) {
   while (pMgmt->refCount > 0) taosMsleep(10);
 
-  tSingleWorkerCleanup(&pMgmt->monitorWorker);
   tSingleWorkerCleanup(&pMgmt->queryWorker);
   tSingleWorkerCleanup(&pMgmt->fetchWorker);
   tSingleWorkerCleanup(&pMgmt->readWorker);

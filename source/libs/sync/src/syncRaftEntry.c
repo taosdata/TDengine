@@ -418,28 +418,28 @@ char* raftCache2Str(SRaftEntryHashCache* pCache) {
 
 void raftCachePrint(SRaftEntryHashCache* pCache) {
   char* serialized = raftCache2Str(pCache);
-  printf("raftCachePrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("raftCachePrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void raftCachePrint2(char* s, SRaftEntryHashCache* pCache) {
   char* serialized = raftCache2Str(pCache);
-  printf("raftCachePrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("raftCachePrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void raftCacheLog(SRaftEntryHashCache* pCache) {
   char* serialized = raftCache2Str(pCache);
-  sTrace("raftCacheLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTrace("raftCacheLog | len:%lu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void raftCacheLog2(char* s, SRaftEntryHashCache* pCache) {
   if (gRaftDetailLog) {
     char* serialized = raftCache2Str(pCache);
-    sTraceLong("raftCacheLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTraceLong("raftCacheLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -677,28 +677,28 @@ char* raftEntryCache2Str(SRaftEntryCache* pObj) {
 
 void raftEntryCachePrint(SRaftEntryCache* pObj) {
   char* serialized = raftEntryCache2Str(pObj);
-  printf("raftEntryCachePrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("raftEntryCachePrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void raftEntryCachePrint2(char* s, SRaftEntryCache* pObj) {
   char* serialized = raftEntryCache2Str(pObj);
-  printf("raftEntryCachePrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("raftEntryCachePrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void raftEntryCacheLog(SRaftEntryCache* pObj) {
   char* serialized = raftEntryCache2Str(pObj);
-  sTrace("raftEntryCacheLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTrace("raftEntryCacheLog | len:%lu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void raftEntryCacheLog2(char* s, SRaftEntryCache* pObj) {
   if (gRaftDetailLog) {
     char* serialized = raftEntryCache2Str(pObj);
-    sTraceLong("raftEntryCacheLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTraceLong("raftEntryCacheLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }

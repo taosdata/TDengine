@@ -127,7 +127,7 @@ int32_t syncNodeOnRequestVoteReplySnapshotCb(SSyncNode* ths, SyncRequestVoteRepl
   if (ths->state == TAOS_SYNC_STATE_CANDIDATE) {
     if (ths->pVotesRespond->term != pMsg->term) {
       char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "vote respond error vote-respond-mgr term:%lu, msg term:lu",
+      snprintf(logBuf, sizeof(logBuf), "vote respond error vote-respond-mgr term:%" PRIu64 ", msg term:%" PRIu64 "",
                ths->pVotesRespond->term, pMsg->term);
       syncNodeErrorLog(ths, logBuf);
       return -1;

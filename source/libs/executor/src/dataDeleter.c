@@ -103,7 +103,7 @@ static void toDataCacheEntry(SDataDeleterHandle* pHandle, const SInputData* pInp
     pRes->ekey = pHandle->pDeleter->deleteTimeRange.ekey;
   }
 
-  qDebug("delete %ld rows, from %ld to %ld", pRes->affectedRows, pRes->skey, pRes->ekey);
+  qDebug("delete %" PRId64 " rows, from %" PRId64 " to %" PRId64 "", pRes->affectedRows, pRes->skey, pRes->ekey);
 
   pBuf->useSize += pEntry->dataLen;
 
