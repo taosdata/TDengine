@@ -78,77 +78,77 @@ class TDTestCase:
     def run(self):
         bPath=self.getBuildPath()
         cPath=self.getCfgPath()
-        dbname = "test"
-        stb = f"{dbname}.meters"
-        self.installTaosd(bPath,cPath)
-        tableNumbers=100
-        recordNumbers1=100
-        recordNumbers2=1000
-        tdsqlF=tdCom.newTdSql()
-        print(tdsqlF)
-        tdsqlF.query(f"SELECT SERVER_VERSION();")
-        print(tdsqlF.query(f"SELECT SERVER_VERSION();"))
-        oldServerVersion=tdsqlF.queryResult[0][0]
-        tdLog.info(f"Base server version is {oldServerVersion}")
-        tdsqlF.query(f"SELECT CLIENT_VERSION();")
-        # the oldClientVersion can't be updated in the same python process,so the version is new compiled verison
-        oldClientVersion=tdsqlF.queryResult[0][0]
-        tdLog.info(f"Base client version is {oldClientVersion}")
+#         dbname = "test"
+#         stb = f"{dbname}.meters"
+#         self.installTaosd(bPath,cPath)
+#         tableNumbers=100
+#         recordNumbers1=100
+#         recordNumbers2=1000
+#         tdsqlF=tdCom.newTdSql()
+#         print(tdsqlF)
+#         tdsqlF.query(f"SELECT SERVER_VERSION();")
+#         print(tdsqlF.query(f"SELECT SERVER_VERSION();"))
+#         oldServerVersion=tdsqlF.queryResult[0][0]
+#         tdLog.info(f"Base server version is {oldServerVersion}")
+#         tdsqlF.query(f"SELECT CLIENT_VERSION();")
+#         # the oldClientVersion can't be updated in the same python process,so the version is new compiled verison
+#         oldClientVersion=tdsqlF.queryResult[0][0]
+#         tdLog.info(f"Base client version is {oldClientVersion}")
 
-        tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{oldServerVersion}")
-        tdLog.info(f"taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
-        os.system(f"taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
-        sleep(3)
+#         tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{oldServerVersion}")
+#         tdLog.info(f"taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
+#         os.system(f"taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
+#         sleep(3)
 
-        # tdsqlF.query(f"select count(*) from {stb}")
-        # tdsqlF.checkData(0,0,tableNumbers*recordNumbers1)
-        os.system("pkill taosd")
-        sleep(1)
+#         # tdsqlF.query(f"select count(*) from {stb}")
+#         # tdsqlF.checkData(0,0,tableNumbers*recordNumbers1)
+#         os.system("pkill taosd")
+#         sleep(1)
 
-        tdLog.printNoPrefix("==========step2:update new version ")
-        self.buildTaosd(bPath)
-        tdDnodes.start(1)
-        sleep(1)
-        tdsql=tdCom.newTdSql()
-        print(tdsql)
+#         tdLog.printNoPrefix("==========step2:update new version ")
+#         self.buildTaosd(bPath)
+#         tdDnodes.start(1)
+#         sleep(1)
+#         tdsql=tdCom.newTdSql()
+#         print(tdsql)
 
 
-        tdsql.query(f"SELECT SERVER_VERSION();")
-        nowServerVersion=tdsql.queryResult[0][0]
-        tdLog.info(f"New server version is {nowServerVersion}")
-        tdsql.query(f"SELECT CLIENT_VERSION();")
-        nowClientVersion=tdsql.queryResult[0][0]
-        tdLog.info(f"New client version is {nowClientVersion}")
+#         tdsql.query(f"SELECT SERVER_VERSION();")
+#         nowServerVersion=tdsql.queryResult[0][0]
+#         tdLog.info(f"New server version is {nowServerVersion}")
+#         tdsql.query(f"SELECT CLIENT_VERSION();")
+#         nowClientVersion=tdsql.queryResult[0][0]
+#         tdLog.info(f"New client version is {nowClientVersion}")
 
-        tdLog.printNoPrefix(f"==========step3:prepare and check data in new version-{nowServerVersion}")
-        tdsql.query(f"select count(*) from {stb}")
-        tdsql.checkData(0,0,tableNumbers*recordNumbers1)        
-        os.system(f"taosBenchmark -t {tableNumbers} -n {recordNumbers2} -y  ")
-        tdsql.query(f"select count(*) from {stb}")
-        tdsql.checkData(0,0,tableNumbers*recordNumbers2)
+#         tdLog.printNoPrefix(f"==========step3:prepare and check data in new version-{nowServerVersion}")
+#         tdsql.query(f"select count(*) from {stb}")
+#         tdsql.checkData(0,0,tableNumbers*recordNumbers1)        
+#         os.system(f"taosBenchmark -t {tableNumbers} -n {recordNumbers2} -y  ")
+#         tdsql.query(f"select count(*) from {stb}")
+#         tdsql.checkData(0,0,tableNumbers*recordNumbers2)
 
-        tdsql=tdCom.newTdSql()
-        tdLog.printNoPrefix(f"==========step4:verify backticks in taos Sql-TD18542")
-        tdsql.execute("drop database if exists db")
-        tdsql.execute("create database db")
-        tdsql.execute("use db")
-        tdsql.execute("create stable db.stb1 (ts timestamp, c1 int) tags (t1 int);")
-        tdsql.execute("insert into db.ct1 using db.stb1 TAGS(1) values(now(),11);")
-        tdsql.error(" insert into `db.ct2` using db.stb1 TAGS(9) values(now(),11);")
-        tdsql.error(" insert into db.`db.ct2` using db.stb1 TAGS(9) values(now(),11);")
-        tdsql.execute("insert into `db`.ct3 using db.stb1 TAGS(3) values(now(),13);")
-        tdsql.query("select * from db.ct3")
-        tdsql.checkData(0,1,13)
-        tdsql.execute("insert into db.`ct4` using db.stb1 TAGS(4) values(now(),14);")
-        tdsql.query("select * from db.ct4")
-        tdsql.checkData(0,1,14)
-        tdsql.query("describe  information_schema.ins_databases;")
-        qRows=tdsql.queryRows   
-        for i in  range(qRows) :
-            if tdsql.queryResult[i][0]=="retentions" :
-                return True
-            else:
-                return False
+#         tdsql=tdCom.newTdSql()
+#         tdLog.printNoPrefix(f"==========step4:verify backticks in taos Sql-TD18542")
+#         tdsql.execute("drop database if exists db")
+#         tdsql.execute("create database db")
+#         tdsql.execute("use db")
+#         tdsql.execute("create stable db.stb1 (ts timestamp, c1 int) tags (t1 int);")
+#         tdsql.execute("insert into db.ct1 using db.stb1 TAGS(1) values(now(),11);")
+#         tdsql.error(" insert into `db.ct2` using db.stb1 TAGS(9) values(now(),11);")
+#         tdsql.error(" insert into db.`db.ct2` using db.stb1 TAGS(9) values(now(),11);")
+#         tdsql.execute("insert into `db`.ct3 using db.stb1 TAGS(3) values(now(),13);")
+#         tdsql.query("select * from db.ct3")
+#         tdsql.checkData(0,1,13)
+#         tdsql.execute("insert into db.`ct4` using db.stb1 TAGS(4) values(now(),14);")
+#         tdsql.query("select * from db.ct4")
+#         tdsql.checkData(0,1,14)
+#         tdsql.query("describe  information_schema.ins_databases;")
+#         qRows=tdsql.queryRows   
+#         for i in  range(qRows) :
+#             if tdsql.queryResult[i][0]=="retentions" :
+#                 return True
+#             else:
+#                 return False
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
