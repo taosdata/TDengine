@@ -47,6 +47,7 @@ void           shellClearScreen(int32_t ecmd_pos, int32_t cursor_pos);
 void           shellShowOnScreen(SShellCmd *cmd);
 void           shellGetPrevCharSize(const char *str, int32_t pos, int32_t *size, int32_t *width);
 void           shellInsertChar(SShellCmd *cmd, char *c, int size);
+void           shellInsertString(SShellCmd *cmd, char *str, int size);
 
 int32_t shellCountPrefixOnes(uint8_t c) {
   uint8_t mask = 127;
@@ -106,6 +107,27 @@ void shellInsertChar(SShellCmd *cmd, char *c, int32_t size) {
     cmd->screenOffset += taosWcharWidth(wc);
     cmd->endOffset += taosWcharWidth(wc);
   }
+  // set string end
+  cmd->command[cmd->commandSize] = 0;
+#ifdef WINDOWS
+#else
+  shellShowOnScreen(cmd);
+#endif
+}
+
+// insert string . count is str char count
+void shellInsertStr(SShellCmd *cmd, char *str, int32_t size) {
+  shellClearScreen(cmd->endOffset + PSIZE, cmd->screenOffset + PSIZE);
+  /* update the buffer */
+  memmove(cmd->command + cmd->cursorOffset + size, cmd->command + cmd->cursorOffset,
+          cmd->commandSize - cmd->cursorOffset);
+  memcpy(cmd->command + cmd->cursorOffset, str, size);
+  /* update the values */
+  cmd->commandSize += size;
+  cmd->cursorOffset += size;
+  cmd->screenOffset += size;
+  cmd->endOffset += size;
+
   // set string end
   cmd->command[cmd->commandSize] = 0;
 #ifdef WINDOWS
