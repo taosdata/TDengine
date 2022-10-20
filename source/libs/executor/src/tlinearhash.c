@@ -251,6 +251,7 @@ SLHashObj* tHashInit(int32_t inMemPages, int32_t pageSize, _hash_fn_t fn, int32_
   if (!osTempSpaceAvailable()) {
     terrno = TSDB_CODE_NO_AVAIL_DISK;
     printf("tHash Init failed since %s", terrstr(terrno));
+    taosMemoryFree(pHashObj);
     return NULL;
   }
 

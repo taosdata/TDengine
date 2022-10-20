@@ -564,7 +564,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         pPushEntry->dataRsp.head.epoch = reqEpoch;
         pPushEntry->dataRsp.head.mqMsgType = TMQ_MSG_TYPE__POLL_RSP;
         taosHashPut(pTq->pPushMgr, pHandle->subKey, strlen(pHandle->subKey) + 1, &pPushEntry, sizeof(void*));
-        tqDebug("tmq poll: consumer %ld, subkey %s, vg %d save handle to push mgr", consumerId, pHandle->subKey,
+        tqDebug("tmq poll: consumer %" PRId64 ", subkey %s, vg %d save handle to push mgr", consumerId, pHandle->subKey,
                 TD_VID(pTq->pVnode));
         // unlock
         taosWUnLockLatch(&pTq->pushLock);
@@ -578,7 +578,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
       code = -1;
     }
 
-    tqDebug("tmq poll: consumer %ld, subkey %s, vg %d, send data blockNum:%d, offset type:%d, uid:%ld, version:%ld",
+    tqDebug("tmq poll: consumer %" PRId64 ", subkey %s, vg %d, send data blockNum:%d, offset type:%d, uid:%" PRId64
+            ", version:%" PRId64 "",
             consumerId, pHandle->subKey, TD_VID(pTq->pVnode), dataRsp.blockNum, dataRsp.rspOffset.type,
             dataRsp.rspOffset.uid, dataRsp.rspOffset.version);
 
@@ -601,8 +602,9 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
       if (tqSendMetaPollRsp(pTq, pMsg, pReq, &metaRsp) < 0) {
         code = -1;
       }
-      tqDebug("tmq poll: consumer %ld, subkey %s, vg %d, send meta offset type:%d,uid:%ld,version:%ld", consumerId,
-              pHandle->subKey, TD_VID(pTq->pVnode), metaRsp.rspOffset.type, metaRsp.rspOffset.uid,
+      tqDebug("tmq poll: consumer %" PRId64 ", subkey %s, vg %d, send meta offset type:%d,uid:%" PRId64
+              ",version:%" PRId64 "",
+              consumerId, pHandle->subKey, TD_VID(pTq->pVnode), metaRsp.rspOffset.type, metaRsp.rspOffset.uid,
               metaRsp.rspOffset.version);
       taosMemoryFree(metaRsp.metaRsp);
       tDeleteSTaosxRsp(&taosxRsp);
@@ -619,7 +621,8 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
       fetchOffsetNew = taosxRsp.rspOffset;
     }
 
-    tqDebug("taosx poll: consumer %ld, subkey %s, vg %d, send data blockNum:%d, offset type:%d,uid:%ld,version:%ld",
+    tqDebug("taosx poll: consumer %" PRId64 ", subkey %s, vg %d, send data blockNum:%d, offset type:%d,uid:%" PRId64
+            ",version:%" PRId64 "",
             consumerId, pHandle->subKey, TD_VID(pTq->pVnode), taosxRsp.blockNum, taosxRsp.rspOffset.type,
             taosxRsp.rspOffset.uid, taosxRsp.rspOffset.version);
   }
@@ -769,11 +772,11 @@ int32_t tqProcessVgChangeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLe
   STqHandle* pHandle = taosHashGet(pTq->pHandle, req.subKey, strlen(req.subKey));
   if (pHandle == NULL) {
     if (req.oldConsumerId != -1) {
-      tqError("vgId:%d, build new consumer handle %s for consumer %ld, but old consumerId is %ld", req.vgId, req.subKey,
-              req.newConsumerId, req.oldConsumerId);
+      tqError("vgId:%d, build new consumer handle %s for consumer %" PRId64 ", but old consumerId is %" PRId64 "",
+              req.vgId, req.subKey, req.newConsumerId, req.oldConsumerId);
     }
     if (req.newConsumerId == -1) {
-      tqError("vgId:%d, tq invalid rebalance request, new consumerId %ld", req.vgId, req.newConsumerId);
+      tqError("vgId:%d, tq invalid rebalance request, new consumerId %" PRId64 "", req.vgId, req.newConsumerId);
       return 0;
     }
     STqHandle tqHandle = {0};

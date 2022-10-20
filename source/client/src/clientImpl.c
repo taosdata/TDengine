@@ -186,7 +186,7 @@ int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, 
   STscObj* pTscObj = (*pRequest)->pTscObj;
   if (taosHashPut(pTscObj->pRequests, &(*pRequest)->self, sizeof((*pRequest)->self), &(*pRequest)->self,
                   sizeof((*pRequest)->self))) {
-    tscError("%" PRIx64 " failed to add to request container, reqId:0x%" PRIu64 ", conn:%" PRIx64 ", %s",
+    tscError("%" PRId64 " failed to add to request container, reqId:0x%" PRIx64 ", conn:%" PRId64 ", %s",
              (*pRequest)->self, (*pRequest)->requestId, pTscObj->id, sql);
 
     taosMemoryFree(param);
@@ -369,8 +369,8 @@ int32_t updateQnodeList(SAppInstInfo* pInfo, SArray* pNodeList) {
   if (pNodeList) {
     pInfo->pQnodeList = taosArrayDup(pNodeList);
     taosArraySort(pInfo->pQnodeList, compareQueryNodeLoad);
-    tscDebug("QnodeList updated in cluster 0x%" PRIx64 ", num:%d", pInfo->clusterId,
-             (int)taosArrayGetSize(pInfo->pQnodeList));
+    tscDebug("QnodeList updated in cluster 0x%" PRIx64 ", num:%ld", pInfo->clusterId,
+             taosArrayGetSize(pInfo->pQnodeList));
   }
   taosThreadMutexUnlock(&pInfo->qnodeMutex);
 

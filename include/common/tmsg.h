@@ -343,6 +343,8 @@ typedef struct {
 } SSchemaWrapper;
 
 static FORCE_INLINE SSchemaWrapper* tCloneSSchemaWrapper(const SSchemaWrapper* pSchemaWrapper) {
+  if (pSchemaWrapper->pSchema == NULL) return NULL;
+
   SSchemaWrapper* pSW = (SSchemaWrapper*)taosMemoryMalloc(sizeof(SSchemaWrapper));
   if (pSW == NULL) return pSW;
   pSW->nCols = pSchemaWrapper->nCols;
@@ -352,6 +354,7 @@ static FORCE_INLINE SSchemaWrapper* tCloneSSchemaWrapper(const SSchemaWrapper* p
     taosMemoryFree(pSW);
     return NULL;
   }
+
   memcpy(pSW->pSchema, pSchemaWrapper->pSchema, pSW->nCols * sizeof(SSchema));
   return pSW;
 }
@@ -1071,7 +1074,8 @@ typedef struct {
 
 typedef struct {
   int32_t vgId;
-  int32_t syncState;
+  int8_t  syncState;
+  int8_t  syncRestore;
   int64_t cacheUsage;
   int64_t numOfTables;
   int64_t numOfTimeSeries;
@@ -1086,7 +1090,8 @@ typedef struct {
 } SVnodeLoad;
 
 typedef struct {
-  int32_t syncState;
+  int8_t syncState;
+  int8_t syncRestore;
 } SMnodeLoad;
 
 typedef struct {
