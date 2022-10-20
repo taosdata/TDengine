@@ -68,7 +68,7 @@ if [ $ent -ne 0 ]; then
     CONTAINER_TESTDIR=/home/TDinternal/community
     SIM_DIR=/home/TDinternal/sim
     REP_MOUNT_PARAM="$INTERNAL_REPDIR:/home/TDinternal"
-    REP_MOUNT_LIB="$INTERNAL_REPDIR/debug/build/lib:/home/TDinternal/debug/build/lib:ro"
+    REP_MOUNT_LIB="$INTERNAL_REPDIR/debug/build/lib:/home/TDinternal/debug/build/lib"
 
 else
     # community edition
@@ -76,7 +76,7 @@ else
     CONTAINER_TESTDIR=/home/TDengine
     SIM_DIR=/home/TDengine/sim
     REP_MOUNT_PARAM="$REPDIR:/home/TDengine"
-    REP_MOUNT_LIB="$REPDIR/debug/build/lib:/home/TDengine/debug/build/lib:ro"
+    REP_MOUNT_LIB="$REPDIR/debug/build/lib:/home/TDengine/debug/build/lib"
 
 fi
 
