@@ -84,6 +84,7 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, SArray* pTableIdList
 
   p->transferBuf = taosMemoryCalloc(p->pSchema->numOfCols, POINTER_BYTES);
   if (p->transferBuf == NULL) {
+    tsdbCacherowsReaderClose(p);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -193,7 +194,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     }
   } else if ((pr->type & CACHESCAN_RETRIEVE_TYPE_ALL) == CACHESCAN_RETRIEVE_TYPE_ALL) {
     for (int32_t i = pr->tableIndex; i < numOfTables; ++i) {
-      STableKeyInfo* pKeyInfo = taosArrayGet(pr->pTableList, i);
+      STableKeyInfo* pKeyInfo = (STableKeyInfo*) taosArrayGet(pr->pTableList, i);
       code = doExtractCacheRow(pr, lruCache, pKeyInfo->uid, &pRow, &h);
       if (code != TSDB_CODE_SUCCESS) {
         return code;

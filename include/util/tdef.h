@@ -237,7 +237,6 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_BYTES_PER_ROW  49151
 #define TSDB_MAX_TAGS_LEN       16384
 #define TSDB_MAX_TAGS           128
-#define TSDB_MAX_TAG_CONDITIONS 1024
 
 #define TSDB_MAX_COL_TAG_NUM  (TSDB_MAX_COLUMNS + TSDB_MAX_TAGS)
 #define TSDB_MAX_JSON_TAG_LEN 16384
@@ -274,8 +273,6 @@ typedef enum ELogicConditionType {
 
 #define TSDB_PAYLOAD_SIZE         TSDB_DEFAULT_PKT_SIZE
 #define TSDB_DEFAULT_PAYLOAD_SIZE 5120  // default payload size, greater than PATH_MAX value
-#define TSDB_EXTRA_PAYLOAD_SIZE   128   // extra bytes for auth
-#define TSDB_CQ_SQL_SIZE          1024
 #define TSDB_MIN_VNODES           16
 #define TSDB_MAX_VNODES           512
 
@@ -285,10 +282,7 @@ typedef enum ELogicConditionType {
 
 #define TSDB_MAX_REPLICA 5
 
-#define TSDB_TBNAME_COLUMN_INDEX (-1)
-#define TSDB_UD_COLUMN_INDEX     (-1000)
-#define TSDB_RES_COL_ID          (-5000)
-
+#define TSDB_TBNAME_COLUMN_INDEX     (-1)
 #define TSDB_MULTI_TABLEMETA_MAX_NUM 100000  // maximum batch size allowed to load table meta
 
 #define TSDB_MIN_VNODES_PER_DB          1
@@ -398,9 +392,6 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_EXPLAIN_RATIO     1
 #define TSDB_DEFAULT_EXPLAIN_RATIO 0.001
 
-#define TSDB_MAX_JOIN_TABLE_NUM 10
-#define TSDB_MAX_UNION_CLAUSE   5
-
 #define TSDB_DEFAULT_EXPLAIN_VERBOSE false
 
 #define TSDB_EXPLAIN_RESULT_ROW_SIZE    (16 * 1024)
@@ -419,7 +410,6 @@ typedef enum ELogicConditionType {
 #endif
 
 #define TSDB_QUERY_TYPE_NON_TYPE      0x00u  // none type
-#define TSDB_QUERY_TYPE_FREE_RESOURCE 0x01u  // free qhandle at vnode
 
 #define TSDB_META_COMPACT_RATIO 0  // disable tsdb meta compact by default
 
@@ -483,7 +473,6 @@ enum {
 #define QNODE_HANDLE   -1
 #define SNODE_HANDLE   -2
 #define VNODE_HANDLE   -3
-#define BNODE_HANDLE   -4
 #define CLIENT_HANDLE  -5
 
 #define TSDB_CONFIG_OPTION_LEN 32
@@ -498,6 +487,7 @@ enum {
 #define MAX_NUM_STR_SIZE 40
 
 #define MAX_META_MSG_IN_BATCH 1048576
+#define MAX_META_BATCH_RSP_SIZE (1 * 1048576 * 1024)
 
 #ifdef __cplusplus
 }

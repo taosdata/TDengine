@@ -105,7 +105,7 @@ static int tdbPCacheAlterImpl(SPCache *pCache, int32_t nPage) {
     for (int32_t iPage = pCache->nPages; iPage < nPage; iPage++) {
       if (tdbPageCreate(pCache->szPage, &aPage[iPage], tdbDefaultMalloc, NULL) < 0) {
         // TODO: handle error
-        tdbOsFree(pCache->aPage);
+        tdbOsFree(aPage);
         return -1;
       }
 
@@ -301,8 +301,8 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
       pPage->pPager = pPageH->pPager;
 
       memcpy(pPage->pData, pPageH->pData, pPage->pageSize);
-      // tdbDebug("pcache/pPageH: %p %d %p %p %d", pPageH, pPageH->pPageHdr - pPageH->pData, pPageH->xCellSize, pPage,
-      // TDB_PAGE_PGNO(pPageH));
+      // tdbDebug("pcache/pPageH: %p %ld %p %p %u", pPageH, pPageH->pPageHdr - pPageH->pData, pPageH->xCellSize, pPage,
+      //         TDB_PAGE_PGNO(pPageH));
       tdbPageInit(pPage, pPageH->pPageHdr - pPageH->pData, pPageH->xCellSize);
       pPage->kLen = pPageH->kLen;
       pPage->vLen = pPageH->vLen;

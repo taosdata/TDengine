@@ -53,7 +53,10 @@ int32_t vnodePreProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       for (int32_t iReq = 0; iReq < nReqs; iReq++) {
         tb_uid_t uid = tGenIdPI64();
         char    *name = NULL;
-        tStartDecode(&dc);
+        if (tStartDecode(&dc) < 0) {
+          code = TSDB_CODE_INVALID_MSG;
+          goto _err;
+        }
 
         if (tDecodeI32v(&dc, NULL) < 0) {
           code = TSDB_CODE_INVALID_MSG;
@@ -1087,7 +1090,7 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void 
 
   if (pVnode->config.szBuf != req.buffer * 1024LL * 1024LL) {
     vInfo("vgId:%d vnode buffer is changed from %" PRId64 " to %" PRId64, TD_VID(pVnode), pVnode->config.szBuf,
-          req.buffer * 1024LL * 1024LL);
+          (uint64_t)(req.buffer * 1024LL * 1024LL));
     pVnode->config.szBuf = req.buffer * 1024LL * 1024LL;
   }
 

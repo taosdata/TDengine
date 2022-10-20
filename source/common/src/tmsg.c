@@ -993,7 +993,8 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   for (int32_t i = 0; i < vlen; ++i) {
     SVnodeLoad *pload = taosArrayGet(pReq->pVloads, i);
     if (tEncodeI32(&encoder, pload->vgId) < 0) return -1;
-    if (tEncodeI32(&encoder, pload->syncState) < 0) return -1;
+    if (tEncodeI8(&encoder, pload->syncState) < 0) return -1;
+    if (tEncodeI8(&encoder, pload->syncRestore) < 0) return -1;
     if (tEncodeI64(&encoder, pload->cacheUsage) < 0) return -1;
     if (tEncodeI64(&encoder, pload->numOfTables) < 0) return -1;
     if (tEncodeI64(&encoder, pload->numOfTimeSeries) < 0) return -1;
@@ -1003,7 +1004,8 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   }
 
   // mnode loads
-  if (tEncodeI32(&encoder, pReq->mload.syncState) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->mload.syncState) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->mload.syncRestore) < 0) return -1;
 
   if (tEncodeI32(&encoder, pReq->qload.dnodeId) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->qload.numOfProcessedQuery) < 0) return -1;
@@ -1063,7 +1065,8 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   for (int32_t i = 0; i < vlen; ++i) {
     SVnodeLoad vload = {0};
     if (tDecodeI32(&decoder, &vload.vgId) < 0) return -1;
-    if (tDecodeI32(&decoder, &vload.syncState) < 0) return -1;
+    if (tDecodeI8(&decoder, &vload.syncState) < 0) return -1;
+    if (tDecodeI8(&decoder, &vload.syncRestore) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.cacheUsage) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.numOfTables) < 0) return -1;
     if (tDecodeI64(&decoder, &vload.numOfTimeSeries) < 0) return -1;
@@ -1076,7 +1079,8 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     }
   }
 
-  if (tDecodeI32(&decoder, &pReq->mload.syncState) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->mload.syncState) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->mload.syncRestore) < 0) return -1;
 
   if (tDecodeI32(&decoder, &pReq->qload.dnodeId) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->qload.numOfProcessedQuery) < 0) return -1;
@@ -1448,7 +1452,7 @@ void tFreeSGetUserAuthRsp(SGetUserAuthRsp *pRsp) {
   taosHashCleanup(pRsp->writeDbs);
 }
 
-int32_t tSerializeSCreateDropMQSBNodeReq(void *buf, int32_t bufLen, SMCreateQnodeReq *pReq) {
+int32_t tSerializeSCreateDropMQSNodeReq(void *buf, int32_t bufLen, SMCreateQnodeReq *pReq) {
   SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, bufLen);
 
@@ -1461,7 +1465,7 @@ int32_t tSerializeSCreateDropMQSBNodeReq(void *buf, int32_t bufLen, SMCreateQnod
   return tlen;
 }
 
-int32_t tDeserializeSCreateDropMQSBNodeReq(void *buf, int32_t bufLen, SMCreateQnodeReq *pReq) {
+int32_t tDeserializeSCreateDropMQSNodeReq(void *buf, int32_t bufLen, SMCreateQnodeReq *pReq) {
   SDecoder decoder = {0};
   tDecoderInit(&decoder, buf, bufLen);
 

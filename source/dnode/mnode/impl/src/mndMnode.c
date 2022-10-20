@@ -187,7 +187,7 @@ static int32_t mndMnodeActionInsert(SSdb *pSdb, SMnodeObj *pObj) {
     return -1;
   }
 
-  pObj->state = TAOS_SYNC_STATE_ERROR;
+  pObj->syncState = TAOS_SYNC_STATE_ERROR;
   mndReloadSyncConfig(pSdb->pMnode);
   return 0;
 }
@@ -324,9 +324,9 @@ static int32_t mndBuildAlterMnodeRedoAction(STrans *pTrans, SDCreateMnodeReq *pA
 }
 
 static int32_t mndBuildDropMnodeRedoAction(STrans *pTrans, SDDropMnodeReq *pDropReq, SEpSet *pDroprEpSet) {
-  int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, pDropReq);
+  int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, pDropReq);
   void   *pReq = taosMemoryMalloc(contLen);
-  tSerializeSCreateDropMQSBNodeReq(pReq, contLen, pDropReq);
+  tSerializeSCreateDropMQSNodeReq(pReq, contLen, pDropReq);
 
   STransAction action = {
       .epSet = *pDroprEpSet,
@@ -410,7 +410,7 @@ static int32_t mndProcessCreateMnodeReq(SRpcMsg *pReq) {
   SDnodeObj       *pDnode = NULL;
   SMCreateMnodeReq createReq = {0};
 
-  if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
+  if (tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
@@ -533,7 +533,7 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
   SMnodeObj     *pObj = NULL;
   SMDropMnodeReq dropReq = {0};
 
-  if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
+  if (tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
@@ -604,19 +604,19 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, b1, false);
 
-    const char *roles = "offline";
+    char role[20] = "offline";
     if (pObj->id == pMnode->selfDnodeId) {
-      roles = syncStr(TAOS_SYNC_STATE_LEADER);
+      snprintf(role, sizeof(role), "%s%s", syncStr(TAOS_SYNC_STATE_LEADER), pMnode->restored ? "" : "*");
     }
     if (mndIsDnodeOnline(pObj->pDnode, curMs)) {
-      roles = syncStr(pObj->state);
-      if (pObj->state == TAOS_SYNC_STATE_LEADER && pObj->id != pMnode->selfDnodeId) {
-        roles = syncStr(TAOS_SYNC_STATE_ERROR);
+      tstrncpy(role, syncStr(pObj->syncState), sizeof(role));
+      if (pObj->syncState == TAOS_SYNC_STATE_LEADER && pObj->id != pMnode->selfDnodeId) {
+        tstrncpy(role, syncStr(TAOS_SYNC_STATE_ERROR), sizeof(role));
         mError("mnode:%d, is leader too", pObj->id);
       }
     }
     char b2[12 + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(b2, roles, pShow->pMeta->pSchemas[cols].bytes);
+    STR_WITH_MAXSIZE_TO_VARSTR(b2, role, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)b2, false);
 
@@ -745,6 +745,7 @@ static void mndReloadSyncConfig(SMnode *pMnode) {
     mInfo("vgId:1, mnode sync not reconfig since readyMnodes:%d updatingMnodes:%d", readyMnodes, updatingMnodes);
     return;
   }
+    // ASSERT(0);
 
   if (cfg.myIndex == -1) {
 #if 1

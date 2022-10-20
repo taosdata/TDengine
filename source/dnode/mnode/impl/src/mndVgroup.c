@@ -142,7 +142,7 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
     SDB_GET_INT32(pRaw, dataPos, &pVgid->dnodeId, _OVER)
     if (pVgroup->replica == 1) {
-      pVgid->role = TAOS_SYNC_STATE_LEADER;
+      pVgid->syncState = TAOS_SYNC_STATE_LEADER;
     }
   }
   SDB_GET_RESERVE(pRaw, dataPos, VGROUP_RESERVE_SIZE, _OVER)
@@ -485,9 +485,9 @@ static int32_t mndGetAvailableDnode(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup
 
     pVgid->dnodeId = pDnode->id;
     if (pVgroup->replica == 1) {
-      pVgid->role = TAOS_SYNC_STATE_LEADER;
+      pVgid->syncState = TAOS_SYNC_STATE_LEADER;
     } else {
-      pVgid->role = TAOS_SYNC_STATE_FOLLOWER;
+      pVgid->syncState = TAOS_SYNC_STATE_FOLLOWER;
     }
 
     mInfo("db:%s, vgId:%d, vn:%d is alloced, memory:%" PRId64 ", dnode:%d avail:%" PRId64 " used:%" PRId64,
@@ -587,7 +587,7 @@ SEpSet mndGetVgroupEpset(SMnode *pMnode, const SVgObj *pVgroup) {
     SDnodeObj       *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
     if (pDnode == NULL) continue;
 
-    if (pVgid->role == TAOS_SYNC_STATE_LEADER) {
+    if (pVgid->syncState == TAOS_SYNC_STATE_LEADER) {
       epset.inUse = epset.numOfEps;
     }
 
@@ -681,8 +681,12 @@ static int32_t mndRetrieveVgroups(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
           mndReleaseDnode(pMnode, pDnode);
         }
 
-        char        buf1[20] = {0};
-        const char *role = online ? syncStr(pVgroup->vnodeGid[i].role) : "offline";
+        char buf1[20] = {0};
+        char role[20] = "offline";
+        if (online) {
+          bool show = (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEADER && !pVgroup->vnodeGid[i].syncRestore);
+          snprintf(role, sizeof(role), "%s%s", syncStr(pVgroup->vnodeGid[i].syncState), show ? "*" : "");
+        }
         STR_WITH_MAXSIZE_TO_VARSTR(buf1, role, pShow->pMeta->pSchemas[cols].bytes);
 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
@@ -809,7 +813,7 @@ static int32_t mndRetrieveVnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
       colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->replica, false);
 
       char buf[20] = {0};
-      STR_TO_VARSTR(buf, syncStr(pVgid->role));
+      STR_TO_VARSTR(buf, syncStr(pVgid->syncState));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataAppend(pColInfo, numOfRows, (const char *)buf, false);
 
@@ -887,7 +891,7 @@ int32_t mndAddVnodeToVgroup(SMnode *pMnode, SVgObj *pVgroup, SArray *pArray) {
     }
 
     pVgid->dnodeId = pDnode->id;
-    pVgid->role = TAOS_SYNC_STATE_ERROR;
+    pVgid->syncState = TAOS_SYNC_STATE_ERROR;
     mInfo("db:%s, vgId:%d, vn:%d is added, memory:%" PRId64 ", dnode:%d avail:%" PRId64 " used:%" PRId64,
           pVgroup->dbName, pVgroup->vgId, pVgroup->replica, vgMem, pVgid->dnodeId, pDnode->memAvail, pDnode->memUsed);
 
@@ -1179,7 +1183,7 @@ static int32_t mndAddIncVgroupReplicaToTrans(SMnode *pMnode, STrans *pTrans, SDb
   SVnodeGid *pGid = &pVgroup->vnodeGid[pVgroup->replica];
   pVgroup->replica++;
   pGid->dnodeId = newDnodeId;
-  pGid->role = TAOS_SYNC_STATE_ERROR;
+  pGid->syncState = TAOS_SYNC_STATE_ERROR;
 
   if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, pVgroup, pGid, true) != 0) return -1;
   if (mndAddAlterVnodeAction(pMnode, pTrans, pDb, pVgroup, TDMT_VND_ALTER_REPLICA) != 0) return -1;
@@ -1233,7 +1237,7 @@ static int32_t mndRedistributeVgroup(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb,
   mInfo("vgId:%d, vgroup info before redistribute, replica:%d", newVg.vgId, newVg.replica);
   for (int32_t i = 0; i < newVg.replica; ++i) {
     mInfo("vgId:%d, vnode:%d dnode:%d role:%s", newVg.vgId, i, newVg.vnodeGid[i].dnodeId,
-          syncStr(newVg.vnodeGid[i].role));
+          syncStr(newVg.vnodeGid[i].syncState));
   }
 
   if (pNew1 != NULL && pOld1 != NULL) {

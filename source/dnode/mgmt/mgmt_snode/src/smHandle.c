@@ -18,34 +18,9 @@
 
 void smGetMonitorInfo(SSnodeMgmt *pMgmt, SMonSmInfo *smInfo) {}
 
-int32_t smProcessGetMonitorInfoReq(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  SMonSmInfo smInfo = {0};
-  smGetMonitorInfo(pMgmt, &smInfo);
-  dmGetMonitorSystemInfo(&smInfo.sys);
-  monGetLogs(&smInfo.log);
-
-  int32_t rspLen = tSerializeSMonSmInfo(NULL, 0, &smInfo);
-  if (rspLen < 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
-
-  void *pRsp = rpcMallocCont(rspLen);
-  if (pRsp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  tSerializeSMonSmInfo(pRsp, rspLen, &smInfo);
-  pMsg->info.rsp = pRsp;
-  pMsg->info.rspLen = rspLen;
-  tFreeSMonSmInfo(&smInfo);
-  return 0;
-}
-
 int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   SDCreateSnodeReq createReq = {0};
-  if (tDeserializeSCreateDropMQSBNodeReq(pMsg->pCont, pMsg->contLen, &createReq) != 0) {
+  if (tDeserializeSCreateDropMQSNodeReq(pMsg->pCont, pMsg->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
@@ -67,7 +42,7 @@ int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
 
 int32_t smProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   SDDropSnodeReq dropReq = {0};
-  if (tDeserializeSCreateDropMQSBNodeReq(pMsg->pCont, pMsg->contLen, &dropReq) != 0) {
+  if (tDeserializeSCreateDropMQSNodeReq(pMsg->pCont, pMsg->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
@@ -91,8 +66,6 @@ SArray *smGetMsgHandles() {
   int32_t code = -1;
   SArray *pArray = taosArrayInit(4, sizeof(SMgmtHandle));
   if (pArray == NULL) goto _OVER;
-
-  if (dmSetMgmtHandle(pArray, TDMT_MON_SM_INFO, smPutNodeMsgToMonitorQueue, 0) == NULL) goto _OVER;
 
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_DEPLOY, smPutNodeMsgToMgmtQueue, 1) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_TASK_DROP, smPutNodeMsgToMgmtQueue, 1) == NULL) goto _OVER;

@@ -285,14 +285,42 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   }
 
   for (int32_t i = 0; i < msgNum; ++i) {
+    if (offset >= pMsg->contLen) {
+      qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      taosArrayDestroy(batchRsp);
+      return -1;
+    }    
+
     req.msgIdx = ntohl(*(int32_t *)((char *)pMsg->pCont + offset));
     offset += sizeof(req.msgIdx);
+
+    if (offset >= pMsg->contLen) {
+      qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      taosArrayDestroy(batchRsp);
+      return -1;
+    } 
 
     req.msgType = ntohl(*(int32_t *)((char *)pMsg->pCont + offset));
     offset += sizeof(req.msgType);
 
+    if (offset >= pMsg->contLen) {
+      qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      taosArrayDestroy(batchRsp);
+      return -1;
+    } 
+
     req.msgLen = ntohl(*(int32_t *)((char *)pMsg->pCont + offset));
     offset += sizeof(req.msgLen);
+
+    if (offset >= pMsg->contLen) {
+      qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      taosArrayDestroy(batchRsp);
+      return -1;
+    } 
 
     req.msg = (char *)pMsg->pCont + offset;
     offset += req.msgLen;
@@ -330,6 +358,11 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   rspSize += sizeof(int32_t);
   offset = 0;
 
+  if (rspSize > MAX_META_BATCH_RSP_SIZE) {
+    code = TSDB_CODE_INVALID_MSG_LEN;
+    goto _exit;
+  }
+  
   pRsp = rpcMallocCont(rspSize);
   if (pRsp == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -380,6 +413,7 @@ _exit:
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->vgId = TD_VID(pVnode);
   pLoad->syncState = syncGetMyRole(pVnode->sync);
+  pLoad->syncRestore = pVnode->restored;
   pLoad->cacheUsage = tsdbCacheGetUsage(pVnode);
   pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
   pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta);
