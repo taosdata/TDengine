@@ -440,7 +440,7 @@ SSyncRaftEntry* logStoreGetEntryWithoutLock(SSyncLogStore* pLogStore, SyncIndex 
         }
       } while (0);
 
-      sError("failed to read ver since %s. index:%lld", tstrerror(terrno), index);
+      sError("failed to read ver since %s. index:%" PRId64 "", tstrerror(terrno), index);
       return NULL;
     }
 
@@ -675,14 +675,14 @@ SyncIndex logStoreWalCommitVer(SSyncLogStore* pLogStore) {
 // for debug -----------------
 void logStorePrint(SSyncLogStore* pLogStore) {
   char* serialized = logStore2Str(pLogStore);
-  printf("logStorePrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("logStorePrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void logStorePrint2(char* s, SSyncLogStore* pLogStore) {
   char* serialized = logStore2Str(pLogStore);
-  printf("logStorePrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("logStorePrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
@@ -690,7 +690,7 @@ void logStorePrint2(char* s, SSyncLogStore* pLogStore) {
 void logStoreLog(SSyncLogStore* pLogStore) {
   if (gRaftDetailLog) {
     char* serialized = logStore2Str(pLogStore);
-    sTraceLong("logStoreLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+    sTraceLong("logStoreLog | len:%lu | %s", strlen(serialized), serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -698,7 +698,7 @@ void logStoreLog(SSyncLogStore* pLogStore) {
 void logStoreLog2(char* s, SSyncLogStore* pLogStore) {
   if (gRaftDetailLog) {
     char* serialized = logStore2Str(pLogStore);
-    sTraceLong("logStoreLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTraceLong("logStoreLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -706,28 +706,28 @@ void logStoreLog2(char* s, SSyncLogStore* pLogStore) {
 // for debug -----------------
 void logStoreSimplePrint(SSyncLogStore* pLogStore) {
   char* serialized = logStoreSimple2Str(pLogStore);
-  printf("logStoreSimplePrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("logStoreSimplePrint | len:%lu | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void logStoreSimplePrint2(char* s, SSyncLogStore* pLogStore) {
   char* serialized = logStoreSimple2Str(pLogStore);
-  printf("logStoreSimplePrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("logStoreSimplePrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void logStoreSimpleLog(SSyncLogStore* pLogStore) {
   char* serialized = logStoreSimple2Str(pLogStore);
-  sTrace("logStoreSimpleLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTrace("logStoreSimpleLog | len:%lu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void logStoreSimpleLog2(char* s, SSyncLogStore* pLogStore) {
   if (gRaftDetailLog) {
     char* serialized = logStoreSimple2Str(pLogStore);
-    sTrace("logStoreSimpleLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTrace("logStoreSimpleLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }

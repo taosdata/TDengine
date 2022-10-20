@@ -1262,7 +1262,7 @@ void* ombProduceThreadFunc(void* param) {
 
   printf("Produce Info: totalSendLoopTimes: %d, batchPerTblTimes: %d, producerRate: %d\n", totalSendLoopTimes, batchPerTblTimes, pInfo->producerRate);
 
-  char  ctbName[64] = {0};
+  char ctbName[128] = {0};
   sprintf(ctbName, "%s.ctb%d", g_stConfInfo.dbName, pInfo->consumerId);
 
   int64_t	 lastPrintTime = taosGetTimestampUs();

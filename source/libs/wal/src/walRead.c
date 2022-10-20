@@ -126,7 +126,7 @@ static int64_t walReadSeekFilePos(SWalReader *pReader, int64_t fileFirstVer, int
       wError("vgId:%d, failed to read idx file, since %s", pReader->pWal->cfg.vgId, terrstr());
     } else {
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
-      wError("vgId:%d, read idx file incompletely, read bytes %" PRId64 ", bytes should be %" PRIu64,
+      wError("vgId:%d, read idx file incompletely, read bytes %" PRId64 ", bytes should be %ld",
              pReader->pWal->cfg.vgId, ret, sizeof(SWalIdxEntry));
     }
     return -1;
@@ -182,7 +182,7 @@ int32_t walReadSeekVerImpl(SWalReader *pReader, int64_t ver) {
   tmpInfo.firstVer = ver;
   SWalFileInfo *pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
   if (pRet == NULL) {
-    wError("failed to find WAL log file with ver:%lld", ver);
+    wError("failed to find WAL log file with ver:%" PRId64, ver);
     terrno = TSDB_CODE_WAL_INVALID_VER;
     return -1;
   }

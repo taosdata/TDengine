@@ -213,7 +213,7 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
 #endif
 
 int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
-  tqDebug("vgId:%d tq push msg ver %ld, type: %s", pTq->pVnode->config.vgId, ver, TMSG_INFO(msgType));
+  tqDebug("vgId:%d tq push msg ver %" PRId64 ", type: %s", pTq->pVnode->config.vgId, ver, TMSG_INFO(msgType));
 
   if (msgType == TDMT_VND_SUBMIT) {
     // lock push mgr to avoid potential msg lost
@@ -246,8 +246,8 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
           continue;
         }
         if (pPushEntry->dataRsp.reqOffset.version >= ver) {
-          tqDebug("vgId:%d push entry req version %ld, while push version %ld, skip", pTq->pVnode->config.vgId,
-                  pPushEntry->dataRsp.reqOffset.version, ver);
+          tqDebug("vgId:%d push entry req version %" PRId64 ", while push version %" PRId64 ", skip",
+                  pTq->pVnode->config.vgId, pPushEntry->dataRsp.reqOffset.version, ver);
           continue;
         }
         STqExecHandle* pExec = &pHandle->execHandle;
