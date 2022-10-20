@@ -112,6 +112,9 @@ taosBenchmark -f <json file>
 - **-u/--user <user\>** :
   用于连接 TDengine 服务端的用户名，默认为 root 。
 
+- **-U/--supplement-insert ** :
+  写入数据而不提前建数据库和表，默认关闭。
+
 - **-p/--password <passwd\>** :
   用于连接 TDengine 服务端的密码，默认值为 taosdata。
 
