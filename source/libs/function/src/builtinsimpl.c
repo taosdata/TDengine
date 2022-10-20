@@ -1168,7 +1168,7 @@ static int32_t findRowIndex(int32_t start, int32_t num, SColumnInfoData* pCol, c
     }
   }
 
-  // if reach here means real data of block SMA is not set.
+  // if reach here means real data of block SMA is not set in pCtx->input.
   return -1;
 }
 
