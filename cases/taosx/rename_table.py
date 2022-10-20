@@ -135,6 +135,7 @@ class RenameTable(TDCase):
                     master_sum = []
                     taosd_backup = taos.connect(
                         host=self.target_taosd[0], port=int(self.target_taosd[1]))
+                    taosd_backup.execute(f'drop database if  exists {self.target_dbname}')
                     taosd_backup.execute(f'create database if not exists {self.target_dbname}')
                     for source in range(len(self.source_taosd_list)):
                         for tbname in range(len(self.stbname)):
@@ -222,6 +223,7 @@ class RenameTable(TDCase):
                     rename_str = ''
                     taosd_backup = taos.connect(
                         host=self.target_taosd[0], port=int(self.target_taosd[1]))
+                    taosd_backup.execute(f'drop database if  exists {self.target_dbname}')
                     taosd_backup.execute(f'create database if not exists {self.target_dbname}')
                     for source in range(len(self.source_taosd_list)):
                         for tbname in range(len(self.stbname)):
