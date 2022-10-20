@@ -3594,9 +3594,7 @@ void getCurSessionWindow(SStreamAggSupporter* pAggSup, TSKEY startTs, TSKEY endT
   pKey->win.skey = startTs;
   pKey->win.ekey = endTs;
   pKey->groupId = groupId;
-  SStreamStateCur* pCur = streamStateSessionGetCur(pAggSup->pState, pKey);
-  int32_t          code = streamStateSessionGetKVByCur(pCur, pKey, NULL, 0);
-  streamStateFreeCur(pCur);
+  int32_t code = streamStateSessionGetKey(pAggSup->pState, pKey, pKey);
   if (code != TSDB_CODE_SUCCESS) {
     SET_SESSION_WIN_KEY_INVALID(pKey);
   }
