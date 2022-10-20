@@ -162,7 +162,9 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
 
       if (pTableList->map != NULL) {
         int64_t* groupId = taosHashGet(pTableList->map, &pInfo->pRes->info.uid, sizeof(int64_t));
-        pInfo->pRes->info.groupId = *groupId;
+        if (groupId != NULL) {
+          pInfo->pRes->info.groupId = *groupId;
+        }
       } else {
         ASSERT(taosArrayGetSize(pTableList->pTableList) == 1);
         STableKeyInfo* pKeyInfo = taosArrayGet(pTableList->pTableList, 0);
