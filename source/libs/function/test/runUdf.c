@@ -110,8 +110,11 @@ int aggregateFuncTest() {
   taosArrayDestroy(pBlock->pDataBlock);
 
   doCallUdfAggFinalize(handle, &newBuf, &resultBuf);
-  fprintf(stderr, "agg result: %f\n", *(double *)resultBuf.buf);
-
+  if (resultBuf.buf != NULL) {
+    fprintf(stderr, "agg result: %f\n", *(double *)resultBuf.buf);
+  } else {
+    fprintf(stderr, "result buffer is null");
+  }
   freeUdfInterBuf(&buf);
   freeUdfInterBuf(&newBuf);
   freeUdfInterBuf(&resultBuf);
