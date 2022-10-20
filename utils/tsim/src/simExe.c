@@ -21,34 +21,19 @@ void simLogSql(char *sql, bool useSharp) {
   char             filename[256];
   sprintf(filename, "%s/sim.sql", simScriptDir);
   if (pFile == NULL) {
-    // fp = fopen(filename, "w");
     pFile = taosOpenFile(filename, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
-    if (pFile == NULL) {
-      fprintf(stderr, "ERROR: failed to open file: %s\n", filename);
-      return;
+  }
+
+  if (pFile != NULL) {
+    if (useSharp) {
+      taosFprintfFile(pFile, "# %s;\n", sql);
+    } else {
+      taosFprintfFile(pFile, "%s;\n", sql);
     }
-  }
-  if (useSharp) {
-    taosFprintfFile(pFile, "# %s;\n", sql);
-  } else {
-    taosFprintfFile(pFile, "%s;\n", sql);
-  }
 
-  taosFsyncFile(pFile);
+    taosFsyncFile(pFile);
+  }
 }
-
-#if 0
-char *simParseArbitratorName(char *varName) {
-  static char hostName[140];
-#ifdef WINDOWS
-  taosGetFqdn(hostName);
-  sprintf(&hostName[strlen(hostName)], ":%d", 8000);
-#else
-  sprintf(hostName, "%s:%d", "localhost", 8000);
-#endif
-  return hostName;
-}
-#endif
 
 char *simParseHostName(char *varName) {
   static char hostName[140];
@@ -65,18 +50,18 @@ char *simParseHostName(char *varName) {
 }
 
 static void simFindFirstNum(const char *begin, int32_t beginLen, int32_t *num) {
-  if (beginLen <= 5) {
-    *num = 0;
-  } else {
+  *num = 0;
+
+  if (beginLen > 5) {
     *num = atoi(begin + 5);
   }
 }
 
 static void simFindSecondNum(const char *begin, int32_t beginLen, int32_t *num) {
+  *num = 0;
+
   const char *number = strstr(begin, "][");
-  if (number == NULL) {
-    *num = 0;
-  } else {
+  if (number != NULL) {
     *num = atoi(number + 2);
   }
 }
@@ -91,10 +76,10 @@ static void simFindFirstKeyVal(const char *begin, int32_t beginLen, char *key, i
 }
 
 static void simFindSecondKeyNum(const char *begin, int32_t beginLen, int32_t *num) {
+  *num = 0;
+
   const char *number = strstr(begin, ")[");
-  if (number == NULL) {
-    *num = 0;
-  } else {
+  if (number != NULL) {
     *num = atoi(number + 2);
   }
 }
@@ -103,12 +88,6 @@ char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
   if (strncmp(varName, "hostname", 8) == 0) {
     return simParseHostName(varName);
   }
-
-#if 0
-  if (strncmp(varName, "arbitrator", 10) == 0) {
-    return simParseArbitratorName(varName);
-  }
-#endif
 
   if (strncmp(varName, "error", varLen) == 0) return script->error;
 
@@ -153,9 +132,7 @@ char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
     } else if (varName[5] == '_') {
       // data2_db
       int32_t col = varName[4] - '0';
-      if (col < 0 || col >= MAX_QUERY_COL_NUM) {
-        return "null";
-      }
+      col = col % MAX_QUERY_COL_NUM;
 
       char   *keyName;
       int32_t keyLen;
@@ -171,9 +148,7 @@ char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
     } else if (varName[6] == '_') {
       // data21_db
       int32_t col = (varName[4] - '0') * 10 + (varName[5] - '0');
-      if (col < 0 || col >= MAX_QUERY_COL_NUM) {
-        return "null";
-      }
+      col = col % MAX_QUERY_COL_NUM;
 
       char   *keyName;
       int32_t keyLen;
@@ -185,17 +160,12 @@ char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
           return script->data[i][col];
         }
       }
-      return "null";
     } else {
       // $data00
       int32_t row = varName[4] - '0';
       int32_t col = varName[5] - '0';
-      if (row < 0 || row >= MAX_QUERY_ROW_NUM) {
-        return "null";
-      }
-      if (col < 0 || col >= MAX_QUERY_COL_NUM) {
-        return "null";
-      }
+      row = row % MAX_QUERY_ROW_NUM;
+      col = col % MAX_QUERY_COL_NUM;
 
       simDebug("script:%s, data[%d][%d]=%s", script->fileName, row, col, script->data[row][col]);
       return script->data[row][col];
@@ -253,9 +223,9 @@ int32_t simExecuteExpression(SScript *script, char *exp) {
   rest = paGetToken(rest, &op2, &op2Len);
 
   if (var1[0] == '$')
-    strcpy(t0, simGetVariable(script, var1 + 1, var1Len - 1));
+    tstrncpy(t0, simGetVariable(script, var1 + 1, var1Len - 1), sizeof(t0));
   else {
-    memcpy(t0, var1, var1Len);
+    tstrncpy(t0, var1, var1Len);
     t0[var1Len] = 0;
   }
 
@@ -578,6 +548,8 @@ void simVisuallizeOption(SScript *script, char *src, char *dst) {
   while (1) {
     var = strchr(src, '$');
     if (var == NULL) break;
+
+#if 0
     if (var && ((var - src - 1) > 0) && *(var - 1) == '\\') {
       srcLen = (int32_t)(var - src - 1);
       memcpy(dst + dstLen, src, srcLen);
@@ -585,6 +557,7 @@ void simVisuallizeOption(SScript *script, char *src, char *dst) {
       src = var;
       break;
     }
+#endif
 
     srcLen = (int32_t)(var - src);
     memcpy(dst + dstLen, src, srcLen);
@@ -657,11 +630,11 @@ bool simCreateTaosdConnect(SScript *script, char *rest) {
 }
 
 bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
-  char       timeStr[80] = {0};
-  time_t     tt;
-  struct tm  tp;
-  SCmdLine  *line = &script->lines[script->linePos];
-  int32_t    ret = -1;
+  char      timeStr[80] = {0};
+  time_t    tt;
+  struct tm tp;
+  SCmdLine *line = &script->lines[script->linePos];
+  int32_t   ret = -1;
 
   TAOS_RES *pSql = NULL;
 
@@ -705,17 +678,6 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
   int32_t numOfRows = 0;
   int32_t num_fields = taos_field_count(pSql);
   if (num_fields != 0) {
-    if (pSql == NULL) {
-      simDebug("script:%s, taos:%p, %s failed, result is null", script->fileName, script->taos, rest);
-      if (line->errorJump == SQL_JUMP_TRUE) {
-        script->linePos = line->jump;
-        return true;
-      }
-
-      sprintf(script->error, "lineNum:%d. result set null, sql:%s", line->lineNum, rest);
-      return false;
-    }
-
     TAOS_ROW row;
 
     while ((row = taos_fetch_row(pSql))) {
@@ -940,30 +902,6 @@ bool simExecuteSqlErrorCmd(SScript *script, char *rest) {
     for (int32_t col = 0; col < MAX_QUERY_COL_NUM; ++col) {
       strcpy(script->data[row][col], "null");
     }
-  }
-
-  if (strncmp(rest, "connect", 7) == 0) {
-    if (!simCreateTaosdConnect(script, rest)) {
-      return false;
-    }
-    script->linePos++;
-    return true;
-  }
-
-  if (script->taos == NULL) {
-    if (!simCreateTaosdConnect(script, "connect root")) {
-      if (line->errorJump == SQL_JUMP_TRUE) {
-        script->linePos = line->jump;
-        return true;
-      }
-      return false;
-    }
-  }
-
-  if (strncmp(rest, "close", 5) == 0) {
-    simCloseTaosdConnect(script);
-    script->linePos++;
-    return true;
   }
 
   TAOS_RES *pSql = taos_query(script->taos, rest);

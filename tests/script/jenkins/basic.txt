@@ -228,7 +228,7 @@
 ./test.sh -f tsim/table/vgroup.sim
 
 # ---- stream
-./test.sh -f tsim/stream/basic0.sim
+./test.sh -f tsim/stream/basic0.sim -v
 ./test.sh -f tsim/stream/basic1.sim
 ./test.sh -f tsim/stream/basic2.sim
 ./test.sh -f tsim/stream/drop_stream.sim
