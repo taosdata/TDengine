@@ -53,7 +53,7 @@ typedef struct {
 
 typedef struct {
   void* pMeta;
-  void* reserve;
+  void* pVnode;
 } SSTabFltArg;
 
 static int32_t sysChkFilter__DBName(SNode* pNode);
@@ -2909,8 +2909,8 @@ static __optSysFilter optSysGetFilterFunc(int32_t ctype, bool* reverse) {
     return optSysFilterFuncImpl__Equal;
   return NULL;
 }
-static int32_t sysFilte__DbName(void* pMeta, SNode* pNode, SArray* result) {
-  void* pVnode = pMeta;
+static int32_t sysFilte__DbName(void* arg, SNode* pNode, SArray* result) {
+  void* pVnode = ((SSTabFltArg*)arg)->pVnode;
 
   const char* db = NULL;
   vnodeGetInfo(pVnode, &db, NULL);
@@ -2935,8 +2935,8 @@ static int32_t sysFilte__DbName(void* pMeta, SNode* pNode, SArray* result) {
 
   return -1;
 }
-static int32_t sysFilte__VgroupId(void* pMeta, SNode* pNode, SArray* result) {
-  void* pVnode = pMeta;
+static int32_t sysFilte__VgroupId(void* arg, SNode* pNode, SArray* result) {
+  void* pVnode = ((SSTabFltArg*)arg)->pVnode;
 
   int32_t vgId = 0;
   vnodeGetInfo(pVnode, NULL, &vgId);
@@ -2954,8 +2954,8 @@ static int32_t sysFilte__VgroupId(void* pMeta, SNode* pNode, SArray* result) {
 
   return -1;
 }
-static int32_t sysFilte__TableName(void* pMeta, SNode* pNode, SArray* result) {
-  void* pVnode = pMeta;
+static int32_t sysFilte__TableName(void* arg, SNode* pNode, SArray* result) {
+  void* pMeta = ((SSTabFltArg*)arg)->pMeta;
 
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
@@ -2970,14 +2970,14 @@ static int32_t sysFilte__TableName(void* pMeta, SNode* pNode, SArray* result) {
                          .val = pVal->datum.p,
                          .reverse = reverse,
                          .filterFunc = func};
-  int32_t       ret = metaFilterTableName(pVnode, &param, result);
+  int32_t       ret = metaFilterTableName(pMeta, &param, result);
   if (ret == 0) return 0;
 
   return -1;
 }
 
-static int32_t sysFilte__CreateTime(void* pMeta, SNode* pNode, SArray* result) {
-  void* pVnode = pMeta;
+static int32_t sysFilte__CreateTime(void* arg, SNode* pNode, SArray* result) {
+  void* pMeta = ((SSTabFltArg*)arg)->pMeta;
 
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
@@ -2987,8 +2987,8 @@ static int32_t sysFilte__CreateTime(void* pMeta, SNode* pNode, SArray* result) {
   if (func == NULL) return -1;
   return 0;
 }
-static int32_t sysFilte__Ncolumn(void* pMeta, SNode* pNode, SArray* result) {
-  void* pVnode = pMeta;
+static int32_t sysFilte__Ncolumn(void* arg, SNode* pNode, SArray* result) {
+  void* pMeta = ((SSTabFltArg*)arg)->pMeta;
 
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
@@ -2999,8 +2999,8 @@ static int32_t sysFilte__Ncolumn(void* pMeta, SNode* pNode, SArray* result) {
   return 0;
 }
 
-static int32_t sysFilte__Ttl(void* pMeta, SNode* pNode, SArray* result) {
-  void* pVnode = pMeta;
+static int32_t sysFilte__Ttl(void* arg, SNode* pNode, SArray* result) {
+  void* pMeta = ((SSTabFltArg*)arg)->pMeta;
 
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
@@ -3010,8 +3010,8 @@ static int32_t sysFilte__Ttl(void* pMeta, SNode* pNode, SArray* result) {
   if (func == NULL) return -1;
   return 0;
 }
-static int32_t sysFilte__STableName(void* pMeta, SNode* pNode, SArray* result) {
-  void* pVnode = pMeta;
+static int32_t sysFilte__STableName(void* arg, SNode* pNode, SArray* result) {
+  void* pMeta = ((SSTabFltArg*)arg)->pMeta;
 
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
@@ -3021,8 +3021,8 @@ static int32_t sysFilte__STableName(void* pMeta, SNode* pNode, SArray* result) {
   if (func == NULL) return -1;
   return 0;
 }
-static int32_t sysFilte__Uid(void* pMeta, SNode* pNode, SArray* result) {
-  void* pVnode = pMeta;
+static int32_t sysFilte__Uid(void* arg, SNode* pNode, SArray* result) {
+  void* pMeta = ((SSTabFltArg*)arg)->pMeta;
 
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
@@ -3032,8 +3032,8 @@ static int32_t sysFilte__Uid(void* pMeta, SNode* pNode, SArray* result) {
   if (func == NULL) return -1;
   return 0;
 }
-static int32_t sysFilte__Type(void* pMeta, SNode* pNode, SArray* result) {
-  void* pVnode = pMeta;
+static int32_t sysFilte__Type(void* arg, SNode* pNode, SArray* result) {
+  void* pMeta = ((SSTabFltArg*)arg)->pMeta;
 
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
@@ -3247,7 +3247,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator, SArr
     tb_uid_t* uid = taosArrayGet(pUids, i);
 
     SMetaReader mr = {0};
-    metaReaderInit(&mr, NULL, 0);
+    metaReaderInit(&mr, pInfo->readHandle.meta, 0);
     int32_t ret = metaGetTableEntryByUid(&mr, *uid);
     if (ret < 0) {
       metaReaderClear(&mr);
@@ -3357,6 +3357,9 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator, SArr
       STR_TO_VARSTR(n, "NORMAL_TABLE");
       // impl later
     }
+
+    metaReaderClear(&mr);
+
     pColInfoData = taosArrayGet(p->pDataBlock, 9);
     colDataAppend(pColInfoData, numOfRows, n, false);
 
@@ -3594,8 +3597,10 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
     return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
   } else {
     if (pCondition != NULL) {
-      SArray* uids = taosArrayInit(128, sizeof(int64_t));
-      int     flt = optSysTabFilte(NULL, pCondition, uids);
+      SSTabFltArg arg = {.pMeta = pInfo->readHandle.meta, .pVnode = pInfo->readHandle.vnode};
+      SArray*     uids = taosArrayInit(128, sizeof(int64_t));
+
+      int flt = optSysTabFilte(&arg, pCondition, uids);
       if (flt == 0) {
         SSDataBlock* blk = sysTableBuildUserTablesByUids(pOperator, uids);
         taosArrayDestroy(uids);
