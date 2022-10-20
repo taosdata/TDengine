@@ -52,7 +52,7 @@ int vnodeBegin(SVnode *pVnode) {
   }
 
   // begin sma
-  if (smaBegin(pVnode->pSma) < 0) {
+  if (VND_IS_RSMA(pVnode) && smaBegin(pVnode->pSma) < 0) {
     vError("vgId:%d, failed to begin sma since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
