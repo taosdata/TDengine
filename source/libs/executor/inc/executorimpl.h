@@ -672,8 +672,9 @@ typedef struct SFillOperatorInfo {
   uint64_t          curGroupId;  // current handled group id
   SExprInfo*        pExprInfo;
   int32_t           numOfExpr;
-  SExprInfo*        pNotFillExprInfo;
-  int32_t           numOfNotFillExpr;
+  SExprSupp         noFillExprSupp;
+//  SExprInfo*        noFillExprInfo;
+//  int32_t           numOfNoFillExpr;
 } SFillOperatorInfo;
 
 typedef struct SGroupbyOperatorInfo {
@@ -1017,8 +1018,7 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
 int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
                               int32_t numOfOutput, SArray* pPseudoList);
 
-void setInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order,
-                       int32_t scanFlag, bool createDummyCol);
+void setInputDataBlock(SExprSupp* pExprSupp, SSDataBlock* pBlock, int32_t order, int32_t scanFlag, bool createDummyCol);
 
 bool    isTaskKilled(SExecTaskInfo* pTaskInfo);
 int32_t checkForQueryBuf(size_t numOfTables);
