@@ -143,8 +143,10 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   SDecoder decoder;
   tDecoderInit(&decoder, buf, tlen + 1);
   if (tDecodeSStreamObj(&decoder, pStream) < 0) {
+    tDecoderClear(&decoder);
     goto STREAM_DECODE_OVER;
   }
+  tDecoderClear(&decoder);
 
   terrno = TSDB_CODE_SUCCESS;
 

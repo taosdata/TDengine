@@ -94,7 +94,7 @@ int32_t streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t startVer, char* 
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
   if (tDecodeSStreamTask(&decoder, pTask) < 0) {
-    ASSERT(0);
+    tDecoderClear(&decoder);
     goto FAIL;
   }
   tDecoderClear(&decoder);
