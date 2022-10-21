@@ -65,6 +65,12 @@ dnode_option: {
 
 上面语法中的这些可修改配置项其配置方式与 dnode 配置文件中的配置方式相同，区别是修改是动态的立即生效，且不需要重启 dnode。
 
+value 是参数的值，需要是字符格式。如修改 dnode 1 的日志输出级别为 debug：
+
+```sql
+ALTER DNODE 1 'debugFlag' '143';
+```
+
 ## 添加管理节点
 
 ```sql

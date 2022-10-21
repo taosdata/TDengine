@@ -149,6 +149,7 @@ _exit:
 void tsdbFSDestroy(STsdbFS *pFS) {
   if (pFS->pDelFile) {
     taosMemoryFree(pFS->pDelFile);
+    pFS->pDelFile = NULL;
   }
 
   for (int32_t iSet = 0; iSet < taosArrayGetSize(pFS->aDFileSet); iSet++) {
@@ -162,6 +163,7 @@ void tsdbFSDestroy(STsdbFS *pFS) {
   }
 
   taosArrayDestroy(pFS->aDFileSet);
+  pFS->aDFileSet = NULL;
 }
 
 static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
@@ -251,7 +253,7 @@ static int32_t tsdbScanAndTryFixFS(STsdb *pTsdb) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s, fid:%d", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code),
+    tsdbError("vgId:%d, %s failed at line %d since %s, fid:%d", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code),
               fid);
   }
   return code;
@@ -296,7 +298,7 @@ static int32_t tsdbLoadFSFromFile(const char *fname, STsdbFS *pFS) {
   // load binary
   TdFilePtr pFD = taosOpenFile(fname, TD_FILE_READ);
   if (pFD == NULL) {
-    code = terrno;
+    code = TAOS_SYSTEM_ERROR(errno);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -426,7 +428,7 @@ static int32_t tsdbNewFileSet(STsdb *pTsdb, SDFileSet *pSetTo, SDFileSet *pSetFr
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -596,7 +598,7 @@ static int32_t tsdbMergeFileSet(STsdb *pTsdb, SDFileSet *pSetOld, SDFileSet *pSe
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -692,7 +694,7 @@ static int32_t tsdbFSApplyChange(STsdb *pTsdb, STsdbFS *pFS) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -729,7 +731,7 @@ int32_t tsdbFSCommit(STsdb *pTsdb) {
 _exit:
   tsdbFSDestroy(&fs);
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -744,7 +746,7 @@ int32_t tsdbFSRollback(STsdb *pTsdb) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(errno));
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(errno));
   }
   return code;
 }
@@ -790,7 +792,7 @@ int32_t tsdbFSOpen(STsdb *pTsdb, int8_t rollback) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -901,7 +903,7 @@ int32_t tsdbFSCopy(STsdb *pTsdb, STsdbFS *pFS) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -1021,7 +1023,7 @@ int32_t tsdbFSPrepareCommit(STsdb *pTsdb, STsdbFS *pFSNew) {
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }

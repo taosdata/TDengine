@@ -262,6 +262,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta) {
     if (pTask == NULL) {
       tdbFree(pKey);
       tdbFree(pVal);
+      tdbTbcClose(pCur);
       return -1;
     }
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);

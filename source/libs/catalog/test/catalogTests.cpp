@@ -778,7 +778,7 @@ void *ctgTestGetDbVgroupThread(void *param) {
   int32_t           n = 0;
 
   while (!ctgTestStop) {
-    code = catalogGetDBVgInfo(pCtg, mockPointer, ctgTestDbname, &vgList);
+    code = catalogGetDBVgList(pCtg, mockPointer, ctgTestDbname, &vgList);
     if (code) {
       assert(0);
     }
@@ -2063,7 +2063,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
 
-  code = catalogGetDBVgInfo(pCtg, mockPointer, ctgTestDbname, &vgList);
+  code = catalogGetDBVgList(pCtg, mockPointer, ctgTestDbname, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), ctgTestVgNum);
 

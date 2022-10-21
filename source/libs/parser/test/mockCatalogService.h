@@ -70,7 +70,7 @@ class MockCatalogService {
   int32_t catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta) const;
   int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo) const;
   int32_t catalogGetTableDistVgInfo(const SName* pTableName, SArray** pVgList) const;
-  int32_t catalogGetDBVgInfo(const char* pDbFName, SArray** pVgList) const;
+  int32_t catalogGetDBVgList(const char* pDbFName, SArray** pVgList) const;
   int32_t catalogGetDBCfg(const char* pDbFName, SDbCfgInfo* pDbCfg) const;
   int32_t catalogGetUdfInfo(const std::string& funcName, SFuncInfo* pInfo) const;
   int32_t catalogGetTableIndex(const SName* pTableName, SArray** pIndexes) const;

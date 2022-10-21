@@ -94,7 +94,7 @@ class RequestHandlerImpl(http.server.BaseHTTPRequestHandler):
                 tdLog.exit("vgroup_id is null!")
             if "database_name" not in infoDict["vgroup_infos"][index] or len(infoDict["vgroup_infos"][index]["database_name"]) < 0:
                 tdLog.exit("database_name is null!")
-            if "tables_num" not in infoDict["vgroup_infos"][index] or infoDict["vgroup_infos"][index]["tables_num"]!= 0:
+            if "tables_num" not in infoDict["vgroup_infos"][index]:
                 tdLog.exit("tables_num is null!")
             if "status" not in infoDict["vgroup_infos"][index] or len(infoDict["vgroup_infos"][index]["status"]) < 0 :
                 tdLog.exit("status is null!")
@@ -293,6 +293,10 @@ class TDTestCase:
         # time.sleep(2)
         vgroups = "30"
         sql = "create database db3 vgroups " + vgroups
+        tdSql.query(sql)
+        sql = "create table db3.stb (ts timestamp, f int) tags (t int)"
+        tdSql.query(sql)
+        sql = "create table db3.tb using db3.stb tags (1)"
         tdSql.query(sql)
 
         # create http server: bing ip/port , and  request processor
