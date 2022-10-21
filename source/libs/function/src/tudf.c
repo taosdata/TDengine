@@ -920,7 +920,7 @@ int32_t acquireUdfFuncHandle(char *udfName, UdfcFuncHandle *pHandle) {
   code = doSetupUdf(udfName, pHandle);
   if (code == TSDB_CODE_SUCCESS) {
     SUdfcFuncStub stub = {0};
-    strcpy(stub.udfName, udfName);
+    strncpy(stub.udfName, udfName, TSDB_FUNC_NAME_LEN);
     stub.handle = *pHandle;
     ++stub.refCount;
     stub.lastRefTime = taosGetTimestampUs();

@@ -1731,13 +1731,14 @@ typedef struct {
   char    name[TSDB_STREAM_FNAME_LEN];
   char    sourceDB[TSDB_DB_FNAME_LEN];
   char    targetStbFullName[TSDB_TABLE_FNAME_LEN];
-  int8_t  igExists;
   char*   sql;
   char*   ast;
+  int8_t  igExists;
   int8_t  triggerType;
+  int8_t  igExpired;
+  int8_t  fillHistory;  // process data inserted before creating stream
   int64_t maxDelay;
   int64_t watermark;
-  int8_t  igExpired;
   int32_t numOfTags;
   SArray* pTags;  // array of SField
 } SCMCreateStreamReq;

@@ -9,12 +9,17 @@ AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 ADD_EXECUTABLE(streamUpdateTest "tstreamUpdateTest.cpp")
 
 TARGET_LINK_LIBRARIES(
-        streamUpdateTest
-        PUBLIC os util common gtest stream
+  streamUpdateTest
+  PUBLIC os util common gtest stream
 )
 
 TARGET_INCLUDE_DIRECTORIES(
-        streamUpdateTest
-        PUBLIC "${TD_SOURCE_DIR}/include/libs/stream/"
-        PRIVATE "${TD_SOURCE_DIR}/source/libs/stream/inc"
+  streamUpdateTest
+  PUBLIC "${TD_SOURCE_DIR}/include/libs/stream/"
+  PRIVATE "${TD_SOURCE_DIR}/source/libs/stream/inc"
+)
+
+add_test(
+  NAME streamUpdateTest
+  COMMAND streamUpdateTest
 )

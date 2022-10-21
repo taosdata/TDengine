@@ -14,6 +14,7 @@
  */
 
 #include "query.h"
+#include "tdatablock.h"
 #include "tencode.h"
 #include "tstreamUpdate.h"
 #include "ttime.h"
@@ -162,15 +163,42 @@ bool updateInfoIsTableInserted(SUpdateInfo *pInfo, int64_t tbUid) {
   return false;
 }
 
+void updateInfoFillBlockData(SUpdateInfo *pInfo, SSDataBlock *pBlock, int32_t primaryTsCol) {
+  if (pBlock == NULL || pBlock->info.rows == 0) return;
+  TSKEY   maxTs = -1;
+  int64_t tbUid = pBlock->info.uid;
+
+  SColumnInfoData *pColDataInfo = taosArrayGet(pBlock->pDataBlock, primaryTsCol);
+
+  for (int32_t i = 0; i < pBlock->info.rows; i++) {
+    TSKEY ts = ((TSKEY *)pColDataInfo->pData)[i];
+    maxTs = TMAX(maxTs, ts);
+    SScalableBf *pSBf = getSBf(pInfo, ts);
+    if (pSBf) {
+      tScalableBfPut(pSBf, &ts, sizeof(TSKEY));
+    }
+  }
+  TSKEY *pMaxTs = taosHashGet(pInfo->pMap, &tbUid, sizeof(int64_t));
+  if (pMaxTs == NULL || *pMaxTs > tbUid) {
+    taosHashPut(pInfo->pMap, &tbUid, sizeof(int64_t), &maxTs, sizeof(TSKEY));
+  }
+}
+
 bool updateInfoIsUpdated(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts) {
-  int32_t  res = TSDB_CODE_FAILED;
+  int32_t res = TSDB_CODE_FAILED;
+
+  SUpdateKey updateKey = {
+      .tbUid = tableId,
+      .ts = ts,
+  };
+
   TSKEY   *pMapMaxTs = taosHashGet(pInfo->pMap, &tableId, sizeof(uint64_t));
   uint64_t index = ((uint64_t)tableId) % pInfo->numBuckets;
   TSKEY    maxTs = *(TSKEY *)taosArrayGet(pInfo->pTsBuckets, index);
   if (ts < maxTs - pInfo->watermark) {
     // this window has been closed.
     if (pInfo->pCloseWinSBF) {
-      res = tScalableBfPut(pInfo->pCloseWinSBF, &ts, sizeof(TSKEY));
+      res = tScalableBfPut(pInfo->pCloseWinSBF, &updateKey, sizeof(SUpdateKey));
       if (res == TSDB_CODE_SUCCESS) {
         return false;
       } else {
@@ -183,7 +211,7 @@ bool updateInfoIsUpdated(SUpdateInfo *pInfo, uint64_t tableId, TSKEY ts) {
   SScalableBf *pSBf = getSBf(pInfo, ts);
   // pSBf may be a null pointer
   if (pSBf) {
-    res = tScalableBfPut(pSBf, &ts, sizeof(TSKEY));
+    res = tScalableBfPut(pSBf, &updateKey, sizeof(SUpdateKey));
   }
 
   int32_t size = taosHashGetSize(pInfo->pMap);
