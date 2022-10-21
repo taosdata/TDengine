@@ -162,6 +162,8 @@ typedef struct {
   SQueryTableDataCond tableCond;
   int64_t             recoverStartVer;
   int64_t             recoverEndVer;
+  int64_t             fillHistoryVer1;
+  int64_t             fillHistoryVer2;
   SStreamState*       pState;
 } SStreamTaskInfo;
 
@@ -677,22 +679,20 @@ typedef struct SFillOperatorInfo {
   uint64_t          curGroupId;  // current handled group id
   SExprInfo*        pExprInfo;
   int32_t           numOfExpr;
-  SExprInfo*        pNotFillExprInfo;
-  int32_t           numOfNotFillExpr;
+  SExprSupp         noFillExprSupp;
 } SFillOperatorInfo;
 
 typedef struct SGroupbyOperatorInfo {
   SOptrBasicInfo binfo;
   SAggSupporter  aggSup;
-
-  SArray*       pGroupCols;     // group by columns, SArray<SColumn>
-  SArray*       pGroupColVals;  // current group column values, SArray<SGroupKeys>
-  SNode*        pCondition;
-  bool          isInit;       // denote if current val is initialized or not
-  char*         keyBuf;       // group by keys for hash
-  int32_t       groupKeyLen;  // total group by column width
-  SGroupResInfo groupResInfo;
-  SExprSupp     scalarSup;
+  SArray*        pGroupCols;     // group by columns, SArray<SColumn>
+  SArray*        pGroupColVals;  // current group column values, SArray<SGroupKeys>
+  SNode*         pCondition;
+  bool           isInit;         // denote if current val is initialized or not
+  char*          keyBuf;         // group by keys for hash
+  int32_t        groupKeyLen;    // total group by column width
+  SGroupResInfo  groupResInfo;
+  SExprSupp      scalarSup;
 } SGroupbyOperatorInfo;
 
 typedef struct SDataGroupInfo {
@@ -1016,8 +1016,7 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
 int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
                               int32_t numOfOutput, SArray* pPseudoList);
 
-void setInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order,
-                       int32_t scanFlag, bool createDummyCol);
+void setInputDataBlock(SExprSupp* pExprSupp, SSDataBlock* pBlock, int32_t order, int32_t scanFlag, bool createDummyCol);
 
 bool    isTaskKilled(SExecTaskInfo* pTaskInfo);
 int32_t checkForQueryBuf(size_t numOfTables);

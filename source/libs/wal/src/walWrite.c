@@ -44,20 +44,20 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
       walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
       if (taosRemoveFile(fnameStr) < 0) {
         terrno = TAOS_SYSTEM_ERROR(errno);
-        wError("vgId:%d restore from snapshot, cannot remove file %s since %s", pWal->cfg.vgId, fnameStr, terrstr());
+        wError("vgId:%d, restore from snapshot, cannot remove file %s since %s", pWal->cfg.vgId, fnameStr, terrstr());
         taosThreadMutexUnlock(&pWal->mutex);
         return -1;
       }
-      wInfo("vgId:%d restore from snapshot, remove file %s", pWal->cfg.vgId, fnameStr);
+      wInfo("vgId:%d, restore from snapshot, remove file %s", pWal->cfg.vgId, fnameStr);
 
       walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
       if (taosRemoveFile(fnameStr) < 0) {
         terrno = TAOS_SYSTEM_ERROR(errno);
-        wError("vgId:%d cannot remove file %s since %s", pWal->cfg.vgId, fnameStr, terrstr());
+        wError("vgId:%d, cannot remove file %s since %s", pWal->cfg.vgId, fnameStr, terrstr());
         taosThreadMutexUnlock(&pWal->mutex);
         return -1;
       }
-      wInfo("vgId:%d restore from snapshot, remove file %s", pWal->cfg.vgId, fnameStr);
+      wInfo("vgId:%d, restore from snapshot, remove file %s", pWal->cfg.vgId, fnameStr);
     }
   }
   walRemoveMeta(pWal);
@@ -424,7 +424,12 @@ static int32_t walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
     return -1;
   }
 
-  ASSERT(taosLSeekFile(pWal->pIdxFile, 0, SEEK_END) == idxOffset + sizeof(SWalIdxEntry) && "Offset of idx entries misaligned");
+  // check alignment of idx entries
+  int64_t endOffset = taosLSeekFile(pWal->pIdxFile, 0, SEEK_END);
+  if (endOffset < 0) {
+    wFatal("vgId:%d, failed to seek end of idxfile due to %s. ver:%" PRId64 "", pWal->cfg.vgId, strerror(errno), ver);
+  }
+  ASSERT(endOffset  == idxOffset + sizeof(SWalIdxEntry) && "Offset of idx entries misaligned");
   return 0;
 }
 

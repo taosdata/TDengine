@@ -32,6 +32,23 @@
     (h) ^= (h) >> 16;  \
   } while (0)
 
+uint32_t taosFastHash(const char *key, uint32_t len) {
+  uint32_t result = 0x55555555;
+  for (uint32_t i = 0; i < len; i++) {
+    result ^= (uint8_t)key[i];
+    result = ROTL32(result, 5);
+  }
+  return result;
+}
+
+uint32_t taosDJB2Hash(const char *key, uint32_t len) {
+  uint32_t hash = 5381;
+  for (uint32_t i = 0; i < len; i++) {
+    hash = ((hash << 5) + hash) + (uint8_t)key[i]; /* hash * 33 + c */
+  }
+  return hash;
+}
+
 uint32_t MurmurHash3_32(const char *key, uint32_t len) {
   const uint8_t *data = (const uint8_t *)key;
   const int32_t  nblocks = len >> 2u;

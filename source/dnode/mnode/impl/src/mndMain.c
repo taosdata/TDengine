@@ -534,10 +534,6 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       SyncSnapshotRsp *pSyncMsg = syncSnapshotRspFromRpcMsg2(pMsg);
       code = syncNodeOnSnapshotRspCb(pSyncNode, pSyncMsg);
       syncSnapshotRspDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_SET_MNODE_STANDBY) {
-      code = syncSetStandby(pMgmt->sync);
-      SRpcMsg rsp = {.code = code, .info = pMsg->info};
-      tmsgSendRsp(&rsp);
     } else {
       mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));
       code = -1;
@@ -575,10 +571,6 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pMsg);
       code = syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
       syncAppendEntriesReplyDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_SET_MNODE_STANDBY) {
-      code = syncSetStandby(pMgmt->sync);
-      SRpcMsg rsp = {.code = code, .info = pMsg->info};
-      tmsgSendRsp(&rsp);
     } else {
       mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));
       code = -1;
