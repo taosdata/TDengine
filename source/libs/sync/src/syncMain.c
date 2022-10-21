@@ -3453,7 +3453,9 @@ SPeerState* syncNodeGetPeerState(SSyncNode* ths, const SRaftId* pDestId) {
 
 bool syncNodeNeedSendAppendEntries(SSyncNode* ths, const SRaftId* pDestId, const SyncAppendEntries* pMsg) {
   SPeerState* pState = syncNodeGetPeerState(ths, pDestId);
-  ASSERT(pState != NULL);
+  if (pState == NULL) {
+    return false;
+  }
 
   SyncIndex sendIndex = pMsg->prevLogIndex + 1;
   int64_t   tsNow = taosGetTimestampMs();
