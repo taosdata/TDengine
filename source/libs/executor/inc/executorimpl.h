@@ -162,6 +162,8 @@ typedef struct {
   SQueryTableDataCond tableCond;
   int64_t             recoverStartVer;
   int64_t             recoverEndVer;
+  int64_t             fillHistoryVer1;
+  int64_t             fillHistoryVer2;
   SStreamState*       pState;
 } SStreamTaskInfo;
 

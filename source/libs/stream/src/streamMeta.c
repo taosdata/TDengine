@@ -113,6 +113,13 @@ int32_t streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t startVer, char* 
     ASSERT(0);
     goto FAIL;
   }
+
+  if (pTask->fillHistory) {
+    // pipeline exec
+    // if finished, dispatch a stream-prepare-finished msg to downstream task
+    // set status normal
+  }
+
   return 0;
 
 FAIL:

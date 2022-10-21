@@ -36,6 +36,7 @@ typedef struct SStreamTask SStreamTask;
 enum {
   STREAM_STATUS__NORMAL = 0,
   STREAM_STATUS__STOP,
+  STREAM_STATUS__INIT,
   STREAM_STATUS__FAILED,
   STREAM_STATUS__RECOVER,
 };
@@ -290,6 +291,9 @@ typedef struct SStreamTask {
 
   int64_t recoverSnapVer;
   int64_t startVer;
+
+  // fill history
+  int8_t fillHistory;
 
   // children info
   SArray* childEpInfo;  // SArray<SStreamChildEpInfo*>
