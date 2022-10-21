@@ -88,9 +88,9 @@ int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, SyncAppendEntriesReply* pMs
   int32_t ret = 0;
 
   // if already drop replica, do not process
-  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
-    syncLogRecvAppendEntriesReply(ths, pMsg, "maybe replica already dropped");
-    return -1;
+  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
+    syncLogRecvAppendEntriesReply(ths, pMsg, "not in my config");
+    return 0;
   }
 
   // drop stale response

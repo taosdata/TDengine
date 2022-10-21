@@ -41,8 +41,8 @@ int32_t syncNodeOnRequestVoteReply(SSyncNode* ths, SyncRequestVoteReply* pMsg) {
   int32_t ret = 0;
 
   // if already drop replica, do not process
-  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
-    syncLogRecvRequestVoteReply(ths, pMsg, "maybe replica already dropped");
+  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
+    syncLogRecvRequestVoteReply(ths, pMsg, "not in my config");
     return -1;
   }
 
