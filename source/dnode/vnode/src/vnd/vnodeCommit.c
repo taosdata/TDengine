@@ -51,20 +51,11 @@ int vnodeBegin(SVnode *pVnode) {
     return -1;
   }
 
-  if (pVnode->pSma) {
-    if (VND_RSMA1(pVnode) && tsdbBegin(VND_RSMA1(pVnode)) < 0) {
-      vError("vgId:%d, failed to begin rsma1 since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
-
-    if (VND_RSMA2(pVnode) && tsdbBegin(VND_RSMA2(pVnode)) < 0) {
-      vError("vgId:%d, failed to begin rsma2 since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
-  }
-
   // begin sma
-  smaBegin(pVnode->pSma);  // TODO: refactor to include the rsma1/rsma2 tsdbBegin() after tsdb_refact branch merged
+  if (VND_IS_RSMA(pVnode) && smaBegin(pVnode->pSma) < 0) {
+    vError("vgId:%d, failed to begin sma since %s", TD_VID(pVnode), tstrerror(terrno));
+    return -1;
+  }
 
   return 0;
 }
@@ -239,10 +230,8 @@ int vnodeCommit(SVnode *pVnode) {
   }
   walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
 
-  if (smaPreCommit(pVnode->pSma) < 0) {
-    vError("vgId:%d, failed to pre-commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
-    return -1;
-  }
+  code = smaPreCommit(pVnode->pSma);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   vnodeBufPoolUnRef(pVnode->inUse);
   pVnode->inUse = NULL;
@@ -253,13 +242,11 @@ int vnodeCommit(SVnode *pVnode) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
+  code = tsdbCommit(pVnode->pTsdb);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   if (VND_IS_RSMA(pVnode)) {
-    if (smaCommit(pVnode->pSma) < 0) {
-      vError("vgId:%d, failed to commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
-  } else {
-    code = tsdbCommit(pVnode->pTsdb);
+    code = smaCommit(pVnode->pSma);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -274,7 +261,13 @@ int vnodeCommit(SVnode *pVnode) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  tsdbFinishCommit(pVnode->pTsdb);
+  code = tsdbFinishCommit(pVnode->pTsdb);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  if (VND_IS_RSMA(pVnode)) {
+    code = smaFinishCommit(pVnode->pSma);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
   if (metaFinishCommit(pVnode->pMeta) < 0) {
     code = terrno;
