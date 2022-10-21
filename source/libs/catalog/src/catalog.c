@@ -739,7 +739,7 @@ _return:
   CTG_API_LEAVE(code);
 }
 
-int32_t catalogGetDBVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, SArray** vgroupList) {
+int32_t catalogGetDBVgList(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, SArray** vgroupList) {
   CTG_API_ENTER();
 
   if (NULL == pCtg || NULL == dbFName || NULL == pConn || NULL == vgroupList) {
@@ -773,6 +773,64 @@ _return:
   if (vgInfo) {
     taosHashCleanup(vgInfo->vgHash);
     taosMemoryFreeClear(vgInfo);
+  }
+
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogGetDBVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, TAOS_DB_ROUTE_INFO* pInfo) {
+  CTG_API_ENTER();
+
+  if (NULL == pCtg || NULL == dbFName || NULL == pConn || NULL == pInfo) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  SCtgDBCache* dbCache = NULL;
+  int32_t      code = 0;
+  SDBVgInfo*   dbInfo = NULL;
+  CTG_ERR_JRET(ctgGetDBVgInfo(pCtg, pConn, dbFName, &dbCache, &dbInfo, NULL));
+  if (dbCache) {
+    dbInfo = dbCache->vgCache.vgInfo;
+  }
+
+  pInfo->routeVersion = dbInfo->vgVersion;
+  pInfo->hashPrefix = dbInfo->hashPrefix;
+  pInfo->hashSuffix = dbInfo->hashSuffix;
+  pInfo->hashMethod = dbInfo->hashMethod;
+  pInfo->vgNum = taosHashGetSize(dbInfo->vgHash);
+  if (pInfo->vgNum <= 0) {
+    ctgError("invalid vgNum %d in db %s's vgHash", pInfo->vgNum, dbFName);
+    CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
+  pInfo->vgHash = taosMemoryCalloc(pInfo->vgNum, sizeof(TAOS_VGROUP_HASH_INFO));
+  if (NULL == pInfo->vgHash) {
+    CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  SVgroupInfo* vgInfo = NULL;  
+  int32_t i = 0;
+  void* pIter = taosHashIterate(dbInfo->vgHash, NULL);
+  while (pIter) {
+    vgInfo = pIter;
+
+    pInfo->vgHash[i].vgId = vgInfo->vgId;
+    pInfo->vgHash[i].hashBegin = vgInfo->hashBegin;
+    pInfo->vgHash[i].hashEnd = vgInfo->hashEnd;
+    
+    pIter = taosHashIterate(dbInfo->vgHash, pIter);
+    vgInfo = NULL;
+    ++i;
+  }
+
+_return:
+
+  if (dbCache) {
+    ctgRUnlockVgInfo(dbCache);
+    ctgReleaseDBCache(pCtg, dbCache);
+  } else if (dbInfo) {
+    taosHashCleanup(dbInfo->vgHash);
+    taosMemoryFreeClear(dbInfo);
   }
 
   CTG_API_LEAVE(code);
