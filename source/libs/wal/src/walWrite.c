@@ -424,7 +424,12 @@ static int32_t walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
     return -1;
   }
 
-  ASSERT(taosLSeekFile(pWal->pIdxFile, 0, SEEK_END) == idxOffset + sizeof(SWalIdxEntry) && "Offset of idx entries misaligned");
+  // check alignment of idx entries
+  int64_t endOffset = taosLSeekFile(pWal->pIdxFile, 0, SEEK_END);
+  if (endOffset < 0) {
+    wFatal("vgId:%d, failed to seek end of idxfile due to %s. ver:%" PRId64 "", pWal->cfg.vgId, strerror(errno), ver);
+  }
+  ASSERT(endOffset  == idxOffset + sizeof(SWalIdxEntry) && "Offset of idx entries misaligned");
   return 0;
 }
 
