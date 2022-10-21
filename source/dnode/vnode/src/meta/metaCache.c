@@ -120,7 +120,7 @@ _err2:
 _err:
   taosMemoryFree(pCache);
 
-  metaError("vgId:%d meta open cache failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
+  metaError("vgId:%d, meta open cache failed since %s", TD_VID(pMeta->pVnode), tstrerror(code));
   return code;
 }
 

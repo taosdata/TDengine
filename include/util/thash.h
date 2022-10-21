@@ -50,6 +50,9 @@ uint64_t MurmurHash3_64(const char *key, uint32_t len);
 uint32_t taosIntHash_32(const char *key, uint32_t len);
 uint32_t taosIntHash_64(const char *key, uint32_t len);
 
+uint32_t taosFastHash(const char *key, uint32_t len);
+uint32_t taosDJB2Hash(const char *key, uint32_t len);
+
 _hash_fn_t  taosGetDefaultHashFunction(int32_t type);
 _equal_fn_t taosGetDefaultEqualFunction(int32_t type);
 

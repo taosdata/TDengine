@@ -234,7 +234,15 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   cli->addr = tstrdup(server);
   cli->port = port;
 
-  uv_loop_t* loop = uv_default_loop();
+  uv_loop_t* loop = taosMemoryMalloc(sizeof(uv_loop_t));
+  int        err = uv_loop_init(loop);
+  if (err != 0) {
+    uError("http-report failed to init uv_loop, reason: %s", uv_strerror(err));
+    taosMemoryFree(loop);
+    terrno = TAOS_SYSTEM_ERROR(err);
+    destroyHttpClient(cli);
+    return terrno;
+  }
   uv_tcp_init(loop, &cli->tcp);
   // set up timeout to avoid stuck;
   int32_t fd = taosCreateSocketWithTimeout(5);
@@ -258,5 +266,6 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
 
   uv_run(loop, UV_RUN_DEFAULT);
   uv_loop_close(loop);
+  taosMemoryFree(loop);
   return terrno;
 }
