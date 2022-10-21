@@ -2667,8 +2667,8 @@ SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWi
 
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
 
-  int32_t      num = 0;
-  SExprInfo*   pExprInfo = createExprInfo(pStateNode->window.pFuncs, NULL, &num);
+  int32_t    num = 0;
+  SExprInfo* pExprInfo = createExprInfo(pStateNode->window.pFuncs, NULL, &num);
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   int32_t code = initAggInfo(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str);
   if (code != TSDB_CODE_SUCCESS) {
@@ -3986,7 +3986,8 @@ int32_t closeSessionWindow(SSHashObj* pHashMap, STimeWindowAggSupp* pTwSup, SSHa
           return code;
         }
       }
-      tSimpleHashIterateRemove(pHashMap, &pWinInfo->sessionWin, sizeof(SSessionKey), &pIte, &iter);
+      SSessionKey* pKey = tSimpleHashGetKey(pIte, &keyLen);
+      tSimpleHashIterateRemove(pHashMap, pKey, sizeof(SSessionKey), &pIte, &iter);
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -4006,7 +4007,7 @@ int32_t getAllSessionWindow(SSHashObj* pHashMap, SSHashObj* pStUpdated) {
   void*   pIte = NULL;
   int32_t iter = 0;
   while ((pIte = tSimpleHashIterate(pHashMap, pIte, &iter)) != NULL) {
-    SResultWindowInfo* pWinInfo = *(void**)pIte;
+    SResultWindowInfo* pWinInfo = pIte;
     saveResult(*pWinInfo, pStUpdated);
   }
   return TSDB_CODE_SUCCESS;
@@ -4584,6 +4585,12 @@ static void doStreamStateAggImpl(SOperatorInfo* pOperator, SSDataBlock* pSDataBl
         T_LONG_JMP(pTaskInfo->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
     }
+
+    if (pInfo->twAggSup.calTrigger == STREAM_TRIGGER_WINDOW_CLOSE) {
+      SSessionKey key = curWin.winInfo.sessionWin;
+      key.win.ekey = key.win.skey;
+      tSimpleHashPut(pAggSup->pResultRows, &key, sizeof(SSessionKey), &curWin.winInfo, sizeof(SResultWindowInfo));
+    }
   }
 }
 
@@ -4973,8 +4980,6 @@ SOperatorInfo* createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream,
   if (miaInfo->intervalAggOperatorInfo == NULL) {
     goto _error;
   }
-
-
 
   SInterval interval = {.interval = pNode->interval,
                         .sliding = pNode->sliding,
@@ -5523,7 +5528,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
     }
   }
 
-  size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
+  size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
   code = initAggInfo(pSup, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;

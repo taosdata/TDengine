@@ -656,6 +656,7 @@ int32_t streamStateSessionGetKey(SStreamState* pState, const SSessionKey* key, S
     streamStateCurPrev(pState, pCur);
   }
   *curKey = resKey;
+  streamStateFreeCur(pCur);
   return res;
 }
 

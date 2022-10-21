@@ -5,7 +5,7 @@ sleep 50
 sql connect
 
 print =============== create database
-sql create database test vgroups 1
+sql create database test vgroups 1;
 sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
