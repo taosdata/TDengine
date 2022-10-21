@@ -79,8 +79,7 @@ if [ $RET -ne 0 ]; then
     pwd
 fi
 
-sleep  36000
-
 exit $RET
+
 
 
