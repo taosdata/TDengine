@@ -243,8 +243,8 @@ int32_t __catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* ve
   return 0;
 }
 
-int32_t __catalogGetDBVgInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, SArray** pVgList) {
-  return g_mockCatalogService->catalogGetDBVgInfo(dbFName, pVgList);
+int32_t __catalogGetDBVgList(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, SArray** pVgList) {
+  return g_mockCatalogService->catalogGetDBVgList(dbFName, pVgList);
 }
 
 int32_t __catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* dbFName, SDbCfgInfo* pDbCfg) {
@@ -293,7 +293,7 @@ void initMetaDataEnv() {
   stub.set(catalogGetTableHashVgroup, __catalogGetTableHashVgroup);
   stub.set(catalogGetTableDistVgInfo, __catalogGetTableDistVgInfo);
   stub.set(catalogGetDBVgVersion, __catalogGetDBVgVersion);
-  stub.set(catalogGetDBVgInfo, __catalogGetDBVgInfo);
+  stub.set(catalogGetDBVgList, __catalogGetDBVgList);
   stub.set(catalogGetDBCfg, __catalogGetDBCfg);
   stub.set(catalogChkAuth, __catalogChkAuth);
   stub.set(catalogGetUdfInfo, __catalogGetUdfInfo);
