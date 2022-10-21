@@ -322,6 +322,38 @@ SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode) {
   return minMatchIndex;
 }
 
+char* syncNodePeerState2Str(const SSyncNode* pSyncNode) {
+  int32_t len = 128;
+  int32_t useLen = 0;
+  int32_t leftLen = len - useLen;
+  char*   pStr = taosMemoryMalloc(len);
+  memset(pStr, 0, len);
+
+  char*   p = pStr;
+  int32_t use = snprintf(p, leftLen, "{");
+  useLen += use;
+  leftLen -= use;
+
+  for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
+    SPeerState* pState = syncNodeGetPeerState((SSyncNode*)pSyncNode, &(pSyncNode->replicasId[i]));
+    ASSERT(pState != NULL);
+
+    p = pStr + useLen;
+    use = snprintf(p, leftLen, "%d:%ld,%ld, ", i, pState->lastSendIndex, pState->lastSendTime);
+    useLen += use;
+    leftLen -= use;
+  }
+
+  p = pStr + useLen;
+  use = snprintf(p, leftLen, "}");
+  useLen += use;
+  leftLen -= use;
+
+  // sTrace("vgId:%d, ------------------ syncNodePeerState2Str:%s", pSyncNode->vgId, pStr);
+
+  return pStr;
+}
+
 int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
@@ -1822,8 +1854,6 @@ char* syncNode2Str(const SSyncNode* pSyncNode) {
 }
 
 inline void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
-  int32_t userStrLen = strlen(str);
-
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
   if (pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
     pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
@@ -1842,6 +1872,9 @@ inline void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
     printStr = pCfgStr;
   }
 
+  char*   peerStateStr = syncNodePeerState2Str(pSyncNode);
+  int32_t userStrLen = strlen(str) + strlen(peerStateStr);
+
   if (userStrLen < 256) {
     char logBuf[256 + 256];
     if (pSyncNode != NULL && pSyncNode->pRaftCfg != NULL && pSyncNode->pRaftStore != NULL) {
@@ -1851,13 +1884,13 @@ inline void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
                ", sby:%d, "
                "stgy:%d, bch:%d, "
                "r-num:%d, "
-               "lcfg:%" PRId64 ", chging:%d, rsto:%d, dquorum:%d, elt:%" PRId64 ", hb:%" PRId64 ", %s",
+               "lcfg:%" PRId64 ", chging:%d, rsto:%d, dquorum:%d, elt:%" PRId64 ", hb:%" PRId64 ", %s, %s",
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, pSyncNode->minMatchIndex, snapshot.lastApplyIndex,
                snapshot.lastApplyTerm, pSyncNode->pRaftCfg->isStandBy, pSyncNode->pRaftCfg->snapshotStrategy,
                pSyncNode->pRaftCfg->batchSize, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
                pSyncNode->changing, pSyncNode->restoreFinish, syncNodeDynamicQuorum(pSyncNode),
-               pSyncNode->electTimerLogicClockUser, pSyncNode->heartbeatTimerLogicClockUser, printStr);
+               pSyncNode->electTimerLogicClockUser, pSyncNode->heartbeatTimerLogicClockUser, peerStateStr, printStr);
     } else {
       snprintf(logBuf, sizeof(logBuf), "%s", str);
     }
@@ -1875,19 +1908,20 @@ inline void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
                ", sby:%d, "
                "stgy:%d, bch:%d, "
                "r-num:%d, "
-               "lcfg:%" PRId64 ", chging:%d, rsto:%d, dquorum:%d, elt:%" PRId64 ", hb:%" PRId64 ", %s",
+               "lcfg:%" PRId64 ", chging:%d, rsto:%d, dquorum:%d, elt:%" PRId64 ", hb:%" PRId64 ", %s, %s",
                pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, pSyncNode->minMatchIndex, snapshot.lastApplyIndex,
                snapshot.lastApplyTerm, pSyncNode->pRaftCfg->isStandBy, pSyncNode->pRaftCfg->snapshotStrategy,
                pSyncNode->pRaftCfg->batchSize, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
                pSyncNode->changing, pSyncNode->restoreFinish, syncNodeDynamicQuorum(pSyncNode),
-               pSyncNode->electTimerLogicClockUser, pSyncNode->heartbeatTimerLogicClockUser, printStr);
+               pSyncNode->electTimerLogicClockUser, pSyncNode->heartbeatTimerLogicClockUser, peerStateStr, printStr);
     } else {
       snprintf(s, len, "%s", str);
     }
     // sDebug("%s", s);
     // sInfo("%s", s);
     sTrace("%s", s);
+    taosMemoryFree(peerStateStr);
     taosMemoryFree(s);
   }
 

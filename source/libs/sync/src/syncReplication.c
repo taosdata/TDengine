@@ -165,8 +165,10 @@ int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftI
   SPeerState* pState = syncNodeGetPeerState(pSyncNode, destRaftId);
   ASSERT(pState != NULL);
 
-  pState->lastSendIndex = pMsg->prevLogIndex + 1;
-  pState->lastSendTime = taosGetTimestampMs();
+  if (pMsg->dataLen > 0) {
+    pState->lastSendIndex = pMsg->prevLogIndex + 1;
+    pState->lastSendTime = taosGetTimestampMs();
+  }
 
   return ret;
 }
