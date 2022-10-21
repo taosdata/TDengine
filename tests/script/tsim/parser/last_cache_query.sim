@@ -39,6 +39,7 @@ if $data02 != 5.000000000 then
   return -1
 endi
 if $data03 != 3 then
+  print expect 3, actual: $data03
   return -1
 endi
 if $data04 != @70-01-01 07:59:57.000@ then
@@ -210,7 +211,7 @@ if $data01 != 6 then
   return -1
 endi
 if $data02 != 37.000000000 then
-  print $data02
+  print expect 37.000000000 actual: $data02
   return -1
 endi
 if $data03 != 27 then
@@ -233,7 +234,7 @@ if $data01 != 6 then
   return -1
 endi
 if $data02 != 37.000000000 then
-  print $data02
+  print expect 37.000000000, acutal: $data02
   return -1
 endi
 if $data03 != 27 then
