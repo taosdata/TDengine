@@ -170,6 +170,8 @@ static inline int64_t syncNodeAbs64(int64_t a, int64_t b) {
 }
 
 int32_t syncNodeDynamicQuorum(const SSyncNode* pSyncNode) {
+  return pSyncNode->quorum;
+
   int32_t quorum = 1;  // self
 
   int64_t timeNow = taosGetTimestampMs();

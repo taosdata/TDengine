@@ -248,6 +248,7 @@ char*     syncNode2SimpleStr(const SSyncNode* pSyncNode);
 bool      syncNodeInConfig(SSyncNode* pSyncNode, const SSyncCfg* config);
 void      syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex lastConfigChangeIndex);
 SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode);
+char*     syncNodePeerState2Str(const SSyncNode* pSyncNode);
 
 SSyncNode* syncNodeAcquire(int64_t rid);
 void       syncNodeRelease(SSyncNode* pNode);
