@@ -138,12 +138,12 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   (void)walLoadMeta(pWal);
 
   if (walCheckAndRepairMeta(pWal) < 0) {
-    wError("vgId:%d cannot open wal since repair meta file failed", pWal->cfg.vgId);
+    wError("vgId:%d, cannot open wal since repair meta file failed", pWal->cfg.vgId);
     goto _err;
   }
 
   if (walCheckAndRepairIdx(pWal) < 0) {
-    wError("vgId:%d cannot open wal since repair idx file failed", pWal->cfg.vgId);
+    wError("vgId:%d, cannot open wal since repair idx file failed", pWal->cfg.vgId);
     goto _err;
   }
 
