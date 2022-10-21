@@ -1924,10 +1924,10 @@ inline void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
     // sDebug("%s", s);
     // sInfo("%s", s);
     sTrace("%s", s);
-    taosMemoryFree(peerStateStr);
     taosMemoryFree(s);
   }
 
+  taosMemoryFree(peerStateStr);
   taosMemoryFree(pCfgStr);
 }
 
