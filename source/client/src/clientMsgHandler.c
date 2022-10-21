@@ -47,13 +47,10 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
 int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
 
-  taosMemoryFree(pMsg->pEpSet);
-  taosMemoryFree(pMsg->pData);
-
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
-    return code;
+    goto End;
   }
 
   STscObj* pTscObj = pRequest->pTscObj;
@@ -63,7 +60,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
     code = TSDB_CODE_TSC_INVALID_VERSION;
     setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
-    return code;
+    goto End;
   }
 
   int32_t now = taosGetTimestampSec();
@@ -73,14 +70,14 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
     tscError("time diff:%ds is too big", delta);
     setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
-    return code;
+    goto End;
   }
 
   /*assert(connectRsp.epSet.numOfEps > 0);*/
   if (connectRsp.epSet.numOfEps == 0) {
     setErrno(pRequest, TSDB_CODE_MND_APP_ERROR);
     tsem_post(&pRequest->body.rspSem);
-    return code;
+    goto End;
   }
 
   if (connectRsp.dnodeNum == 1) {
@@ -120,7 +117,11 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
            pTscObj->pAppInfo->numOfConns);
 
   tsem_post(&pRequest->body.rspSem);
-  return 0;
+End:
+
+  taosMemoryFree(pMsg->pEpSet);
+  taosMemoryFree(pMsg->pData);
+  return code;
 }
 
 SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pRequest) {
