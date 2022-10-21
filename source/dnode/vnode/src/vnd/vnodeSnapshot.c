@@ -219,7 +219,7 @@ _exit:
   return code;
 
 _err:
-  vError("vgId:%d vnode snapshot read failed since %s", TD_VID(pReader->pVnode), tstrerror(code));
+  vError("vgId:%d, vnode snapshot read failed since %s", TD_VID(pReader->pVnode), tstrerror(code));
   return code;
 }
 

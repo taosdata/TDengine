@@ -44,20 +44,20 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
       walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
       if (taosRemoveFile(fnameStr) < 0) {
         terrno = TAOS_SYSTEM_ERROR(errno);
-        wError("vgId:%d restore from snapshot, cannot remove file %s since %s", pWal->cfg.vgId, fnameStr, terrstr());
+        wError("vgId:%d, restore from snapshot, cannot remove file %s since %s", pWal->cfg.vgId, fnameStr, terrstr());
         taosThreadMutexUnlock(&pWal->mutex);
         return -1;
       }
-      wInfo("vgId:%d restore from snapshot, remove file %s", pWal->cfg.vgId, fnameStr);
+      wInfo("vgId:%d, restore from snapshot, remove file %s", pWal->cfg.vgId, fnameStr);
 
       walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
       if (taosRemoveFile(fnameStr) < 0) {
         terrno = TAOS_SYSTEM_ERROR(errno);
-        wError("vgId:%d cannot remove file %s since %s", pWal->cfg.vgId, fnameStr, terrstr());
+        wError("vgId:%d, cannot remove file %s since %s", pWal->cfg.vgId, fnameStr, terrstr());
         taosThreadMutexUnlock(&pWal->mutex);
         return -1;
       }
-      wInfo("vgId:%d restore from snapshot, remove file %s", pWal->cfg.vgId, fnameStr);
+      wInfo("vgId:%d, restore from snapshot, remove file %s", pWal->cfg.vgId, fnameStr);
     }
   }
   walRemoveMeta(pWal);
