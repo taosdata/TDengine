@@ -77,8 +77,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
       } else {
         pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, index);
         if (pEntry == NULL) {
-           sError("failed to get entry since %s. index:%lld", tstrerror(terrno), index);
-           return;
+          sError("failed to get entry since %s. index:%" PRId64, tstrerror(terrno), index);
+          return;
         }
       }
       // cannot commit, even if quorum agree. need check term!

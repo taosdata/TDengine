@@ -258,6 +258,7 @@ enum {
   TD_FTYPE_RSMA_QTASKINFO = 0,
 };
 
+#if 0
 struct STFile {
   uint8_t   state;
   STFInfo   info;
@@ -287,6 +288,7 @@ int32_t tdUpdateTFileHeader(STFile *pTFile);
 void    tdUpdateTFileMagic(STFile *pTFile, void *pCksm);
 void    tdCloseTFile(STFile *pTFile);
 void    tdDestroyTFile(STFile *pTFile);
+#endif
 
 void tdGetVndFileName(int32_t vgId, const char *pdname, const char *dname, const char *fname, int64_t version,
                       char *outputName);

@@ -116,7 +116,7 @@ int tdbPagerClose(SPager *pPager) {
   }
   return 0;
 }
-
+/*
 int tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate, SBTree *pBt) {
   SPgno  pgno;
   SPage *pPage;
@@ -167,7 +167,7 @@ int tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate, SBTree *pBt) {
   *ppgno = pgno;
   return 0;
 }
-
+*/
 int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   int     ret;
   SPage **ppPage;
@@ -294,6 +294,18 @@ int tdbPagerCommit(SPager *pPager, TXN *pTxn) {
     return -1;
   }
 
+  if (tdbOsRemove(pPager->jFileName) < 0 && errno != ENOENT) {
+    tdbError("failed to remove file due to %s. file:%s", strerror(errno), pPager->jFileName);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  pPager->inTran = 0;
+
+  return 0;
+}
+
+int tdbPagerPostCommit(SPager *pPager, TXN *pTxn) {
   if (tdbOsRemove(pPager->jFileName) < 0 && errno != ENOENT) {
     tdbError("failed to remove file due to %s. file:%s", strerror(errno), pPager->jFileName);
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -542,7 +554,7 @@ static int tdbPagerWritePageToJournal(SPager *pPager, SPage *pPage) {
   ret = tdbOsWrite(pPager->jfd, pPage->pData, pPage->pageSize);
   if (ret < 0) {
     tdbError("failed to write page data due to %s. file:%s, pageSize:%ld", strerror(errno), pPager->jFileName,
-             pPage->pageSize);
+             (long)pPage->pageSize);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -563,14 +575,14 @@ static int tdbPagerWritePageToDB(SPager *pPager, SPage *pPage) {
 
   offset = (i64)pPage->pageSize * (TDB_PAGE_PGNO(pPage) - 1);
   if (tdbOsLSeek(pPager->fd, offset, SEEK_SET) < 0) {
-    tdbError("failed to lseek due to %s. file:%s, offset:%ld", strerror(errno), pPager->dbFileName, offset);
+    tdbError("failed to lseek due to %s. file:%s, offset:%" PRId64, strerror(errno), pPager->dbFileName, offset);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
   ret = tdbOsWrite(pPager->fd, pPage->pData, pPage->pageSize);
   if (ret < 0) {
-    tdbError("failed to write page data due to %s. file:%s, pageSize:%ld", strerror(errno), pPager->dbFileName,
+    tdbError("failed to write page data due to %s. file:%s, pageSize:%d", strerror(errno), pPager->dbFileName,
              pPage->pageSize);
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -618,7 +630,7 @@ int tdbPagerRestore(SPager *pPager, SBTree *pBt) {
 
     i64 offset = pPager->pageSize * (pgno - 1);
     if (tdbOsLSeek(pPager->fd, offset, SEEK_SET) < 0) {
-      tdbError("failed to lseek fd due to %s. file:%s, offset:%ld", strerror(errno), pPager->dbFileName, offset);
+      tdbError("failed to lseek fd due to %s. file:%s, offset:%" PRId64, strerror(errno), pPager->dbFileName, offset);
       terrno = TAOS_SYSTEM_ERROR(errno);
       tdbOsFree(pageBuf);
       return -1;
@@ -649,6 +661,16 @@ int tdbPagerRestore(SPager *pPager, SBTree *pBt) {
     return -1;
   }
 
+  if (tdbOsRemove(pPager->jFileName) < 0 && errno != ENOENT) {
+    tdbError("failed to remove file due to %s. jFileName:%s", strerror(errno), pPager->jFileName);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  return 0;
+}
+
+int tdbPagerRollback(SPager *pPager) {
   if (tdbOsRemove(pPager->jFileName) < 0 && errno != ENOENT) {
     tdbError("failed to remove file due to %s. jFileName:%s", strerror(errno), pPager->jFileName);
     terrno = TAOS_SYSTEM_ERROR(errno);

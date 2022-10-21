@@ -122,7 +122,8 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, in
 
   if (order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC) {
     __compar_fn_t fn = (order == TSDB_ORDER_ASC) ? resultrowComparAsc : resultrowComparDesc;
-    taosSort(pGroupResInfo->pRows->pData, taosArrayGetSize(pGroupResInfo->pRows), POINTER_BYTES, fn);
+    int32_t size = POINTER_BYTES;
+    taosSort(pGroupResInfo->pRows->pData, taosArrayGetSize(pGroupResInfo->pRows), size, fn);
   }
 
   pGroupResInfo->index = 0;
@@ -929,7 +930,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       void* var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
 
       int64_t* uid = taosArrayGet(res, i);
-      qDebug("tagfilter get uid:%ld, res:%d", *uid, *(bool*)var);
+      qDebug("tagfilter get uid:%" PRId64 ", res:%d", *uid, *(bool*)var);
       if (*(bool*)var == false) {
         taosArrayRemove(res, i);
         j++;
@@ -951,7 +952,7 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
-    qDebug("tagfilter get uid:%ld", info.uid);
+    qDebug("tagfilter get uid:%" PRId64 "", info.uid);
   }
 
   taosArrayDestroy(res);

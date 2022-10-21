@@ -367,7 +367,7 @@ int32_t idxConvertData(void* src, int8_t type, void** dst) {
       tlen = taosEncodeBinary(dst, src, strlen(src));
       break;
     default:
-      TASSERT(0);
+      ASSERT(0);
       break;
   }
   *dst = (char*)*dst - tlen;
@@ -427,6 +427,7 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       *dst = taosMemoryCalloc(1, bufSize + 1);
       idxInt2str(*(uint64_t*)src, *dst, 1);
       tlen = strlen(*dst);
+      break;
     case TSDB_DATA_TYPE_FLOAT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
       sprintf(*dst, "%.9lf", *(float*)src);
@@ -458,7 +459,7 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       *dst = (char*)*dst - tlen;
       break;
     default:
-      TASSERT(0);
+      ASSERT(0);
       break;
   }
   return tlen;

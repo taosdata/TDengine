@@ -47,6 +47,7 @@ void           shellClearScreen(int32_t ecmd_pos, int32_t cursor_pos);
 void           shellShowOnScreen(SShellCmd *cmd);
 void           shellGetPrevCharSize(const char *str, int32_t pos, int32_t *size, int32_t *width);
 void           shellInsertChar(SShellCmd *cmd, char *c, int size);
+void           shellInsertString(SShellCmd *cmd, char *str, int size);
 
 int32_t shellCountPrefixOnes(uint8_t c) {
   uint8_t mask = 127;
@@ -101,11 +102,32 @@ void shellInsertChar(SShellCmd *cmd, char *c, int32_t size) {
   /* update the values */
   cmd->commandSize += size;
   cmd->cursorOffset += size;
-  for (int i = 0; i < size; i++) {
-    taosMbToWchar(&wc, c + i, size);
-    cmd->screenOffset += taosWcharWidth(wc);
-    cmd->endOffset    += taosWcharWidth(wc);
-  }  
+  cmd->screenOffset += taosWcharWidth(wc);
+  cmd->endOffset += taosWcharWidth(wc);
+
+  // set string end
+  cmd->command[cmd->commandSize] = 0;
+#ifdef WINDOWS
+#else
+  shellShowOnScreen(cmd);
+#endif
+}
+
+// insert string . count is str char count
+void shellInsertStr(SShellCmd *cmd, char *str, int32_t size) {
+  shellClearScreen(cmd->endOffset + PSIZE, cmd->screenOffset + PSIZE);
+  /* update the buffer */
+  memmove(cmd->command + cmd->cursorOffset + size, cmd->command + cmd->cursorOffset,
+          cmd->commandSize - cmd->cursorOffset);
+  memcpy(cmd->command + cmd->cursorOffset, str, size);
+  /* update the values */
+  cmd->commandSize += size;
+  cmd->cursorOffset += size;
+  cmd->screenOffset += size;
+  cmd->endOffset += size;
+
+  // set string end
+  cmd->command[cmd->commandSize] = 0;
 #ifdef WINDOWS
 #else
   shellShowOnScreen(cmd);
@@ -126,6 +148,8 @@ void shellBackspaceChar(SShellCmd *cmd) {
     cmd->cursorOffset -= size;
     cmd->screenOffset -= width;
     cmd->endOffset -= width;
+    // set string end
+    cmd->command[cmd->commandSize] = 0;
     shellShowOnScreen(cmd);
   }
 }
@@ -139,6 +163,8 @@ void shellClearLineBefore(SShellCmd *cmd) {
   cmd->cursorOffset = 0;
   cmd->screenOffset = 0;
   cmd->endOffset = cmd->commandSize;
+  // set string end
+  cmd->command[cmd->commandSize] = 0;
   shellShowOnScreen(cmd);
 }
 
@@ -163,6 +189,8 @@ void shellDeleteChar(SShellCmd *cmd) {
             cmd->commandSize - cmd->cursorOffset - size);
     cmd->commandSize -= size;
     cmd->endOffset -= width;
+    // set string end
+    cmd->command[cmd->commandSize] = 0;
     shellShowOnScreen(cmd);
   }
 }
@@ -472,9 +500,11 @@ int32_t shellReadCommand(char *command) {
       }
       shellInsertChar(&cmd, utf8_array, count);
       pressOtherKey(c);
+#ifndef WINDOWS
     } else if (c == TAB_KEY) {
       // press TAB key
       pressTabKey(&cmd);
+#endif
     } else if (c < '\033') {
       pressOtherKey(c);      
       // Ctrl keys.  TODO: Implement ctrl combinations

@@ -74,8 +74,8 @@ enum {
   TD_DEF_MSG_TYPE(TDMT_DND_DROP_QNODE, "dnode-drop-qnode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_CREATE_SNODE, "dnode-create-snode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_DROP_SNODE, "dnode-drop-snode", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_DND_CREATE_BNODE, "dnode-create-bnode", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_DND_DROP_BNODE, "dnode-drop-bnode", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_DND_CREATE_BNODE, "dnode-create-bnode", NULL, NULL) // no longer used
+  TD_DEF_MSG_TYPE(TDMT_DND_DROP_BNODE, "dnode-drop-bnode", NULL, NULL)     // no longer used
   TD_DEF_MSG_TYPE(TDMT_DND_CREATE_VNODE, "create-vnode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_DROP_VNODE, "drop-vnode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_DND_SERVER_STATUS, "server-status", NULL, NULL)
@@ -107,9 +107,9 @@ enum {
   TD_DEF_MSG_TYPE(TDMT_MND_CREATE_SNODE, "create-snode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_ALTER_SNODE, "alter-snode", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_DROP_SNODE, "drop-snode", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MND_CREATE_BNODE, "create-bnode", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MND_ALTER_BNODE, "alter-bnode", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MND_DROP_BNODE, "drop-bnode", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_CREATE_BNODE, "create-bnode", NULL, NULL) // no longer used
+  TD_DEF_MSG_TYPE(TDMT_MND_ALTER_BNODE, "alter-bnode", NULL, NULL)   // no longer used
+  TD_DEF_MSG_TYPE(TDMT_MND_DROP_BNODE, "drop-bnode", NULL, NULL)     // no longer used
   TD_DEF_MSG_TYPE(TDMT_MND_CREATE_DB, "create-db", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_DROP_DB, "drop-db", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_USE_DB, "use-db", NULL, NULL)
@@ -239,14 +239,6 @@ enum {
   TD_DEF_MSG_TYPE(TDMT_STREAM_MAX_MSG, "stream-max", NULL, NULL)
 
   TD_NEW_MSG_SEG(TDMT_MON_MSG)
-  TD_DEF_MSG_TYPE(TDMT_MON_MM_INFO, "monitor-minfo", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MON_VM_INFO, "monitor-vinfo", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MON_QM_INFO, "monitor-qinfo", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MON_SM_INFO, "monitor-sinfo", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MON_BM_INFO, "monitor-binfo", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MON_VM_LOAD, "monitor-vload", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MON_MM_LOAD, "monitor-mload", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MON_QM_LOAD, "monitor-qload", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MON_MAX_MSG, "monitor-max", NULL, NULL)
 
   TD_NEW_MSG_SEG(TDMT_SYNC_MSG)
@@ -270,8 +262,8 @@ enum {
   TD_DEF_MSG_TYPE(TDMT_SYNC_SNAPSHOT_SEND, "sync-snapshot-send", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_SYNC_SNAPSHOT_RSP, "sync-snapshot-rsp", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_SYNC_LEADER_TRANSFER, "sync-leader-transfer", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_SYNC_SET_MNODE_STANDBY, "set-mnode-standby", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_SYNC_SET_VNODE_STANDBY, "set-vnode-standby", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_SYNC_SET_MNODE_STANDBY, "set-mnode-standby", NULL, NULL) // no longer used
+  TD_DEF_MSG_TYPE(TDMT_SYNC_SET_VNODE_STANDBY, "set-vnode-standby", NULL, NULL) // no longer used
   TD_DEF_MSG_TYPE(TDMT_SYNC_HEARTBEAT, "sync-heartbeat", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_SYNC_HEARTBEAT_REPLY, "sync-heartbeat-reply", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_SYNC_MAX_MSG, "sync-max", NULL, NULL)

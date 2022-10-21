@@ -174,7 +174,7 @@ static int32_t tsdbSnapReadOpenFile(STsdbSnapReader* pReader) {
   return code;
 
 _err:
-  tsdbError("vgId:%d vnode snapshot tsdb snap read open file failed since %s", TD_VID(pReader->pTsdb->pVnode),
+  tsdbError("vgId:%d, vnode snapshot tsdb snap read open file failed since %s", TD_VID(pReader->pTsdb->pVnode),
             tstrerror(code));
   return code;
 }
@@ -517,8 +517,8 @@ int32_t tsdbSnapReaderOpen(STsdb* pTsdb, int64_t sver, int64_t ever, int8_t type
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s, TSDB path: %s", TD_VID(pTsdb->pVnode), lino, tstrerror(code),
-              pTsdb->path);
+    tsdbError("vgId:%d, %s failed at line %d since %s, TSDB path: %s", TD_VID(pTsdb->pVnode), __func__, lino,
+              tstrerror(code), pTsdb->path);
     *ppReader = NULL;
 
     if (pReader) {
@@ -738,7 +738,7 @@ static int32_t tsdbSnapWriteTableDataStart(STsdbSnapWriter* pWriter, TABLEID* pI
   return code;
 
 _err:
-  tsdbError("vgId:%d %s failed since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, tstrerror(code));
+  tsdbError("vgId:%d, %s failed since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, tstrerror(code));
   return code;
 }
 
@@ -991,7 +991,7 @@ _exit:
   return code;
 
 _err:
-  tsdbError("vgId:%d %s failed since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, tstrerror(code));
+  tsdbError("vgId:%d, %s failed since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, tstrerror(code));
   return code;
 }
 
@@ -1072,7 +1072,7 @@ _exit:
   return code;
 
 _err:
-  tsdbError("vgId:%d %s failed since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, tstrerror(code));
+  tsdbError("vgId:%d, %s failed since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, tstrerror(code));
   return code;
 }
 
@@ -1338,7 +1338,7 @@ int32_t tsdbSnapWriterOpen(STsdb* pTsdb, int64_t sver, int64_t ever, STsdbSnapWr
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
     *ppWriter = NULL;
 
     if (pWriter) {
@@ -1380,13 +1380,13 @@ int32_t tsdbSnapWriterClose(STsdbSnapWriter** ppWriter, int8_t rollback) {
     code = tsdbSnapWriteDelEnd(pWriter);
     if (code) goto _err;
 
-    code = tsdbFSCommit1(pWriter->pTsdb, &pWriter->fs);
+    code = tsdbFSPrepareCommit(pWriter->pTsdb, &pWriter->fs);
     if (code) goto _err;
 
     // lock
     taosThreadRwlockWrlock(&pTsdb->rwLock);
 
-    code = tsdbFSCommit2(pWriter->pTsdb, &pWriter->fs);
+    code = tsdbFSCommit(pWriter->pTsdb);
     if (code) {
       taosThreadRwlockUnlock(&pTsdb->rwLock);
       goto _err;

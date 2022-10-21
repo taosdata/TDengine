@@ -16,7 +16,7 @@
 #include "sut.h"
 
 void* serverLoop(void* param) {
-  dmInit(0);
+  dmInit();
   dmRun();
   dmCleanup();
   return NULL;

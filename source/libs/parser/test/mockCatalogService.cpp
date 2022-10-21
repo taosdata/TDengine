@@ -132,7 +132,7 @@ class MockCatalogServiceImpl {
     return copyTableVgroup(db, tNameGetTableName(pTableName), vgList);
   }
 
-  int32_t catalogGetDBVgInfo(const char* pDbFName, SArray** pVgList) const {
+  int32_t catalogGetDBVgList(const char* pDbFName, SArray** pVgList) const {
     std::string                 dbFName(pDbFName);
     DbMetaCache::const_iterator it = meta_.find(dbFName.substr(std::string(pDbFName).find_last_of('.') + 1));
     if (meta_.end() == it) {
@@ -663,8 +663,8 @@ int32_t MockCatalogService::catalogGetTableDistVgInfo(const SName* pTableName, S
   return impl_->catalogGetTableDistVgInfo(pTableName, pVgList);
 }
 
-int32_t MockCatalogService::catalogGetDBVgInfo(const char* pDbFName, SArray** pVgList) const {
-  return impl_->catalogGetDBVgInfo(pDbFName, pVgList);
+int32_t MockCatalogService::catalogGetDBVgList(const char* pDbFName, SArray** pVgList) const {
+  return impl_->catalogGetDBVgList(pDbFName, pVgList);
 }
 
 int32_t MockCatalogService::catalogGetDBCfg(const char* pDbFName, SDbCfgInfo* pDbCfg) const {

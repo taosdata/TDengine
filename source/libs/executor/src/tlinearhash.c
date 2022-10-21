@@ -220,7 +220,7 @@ static int32_t doAddNewBucket(SLHashObj* pHashObj) {
   pHashObj->pBucket[pHashObj->numOfBuckets] = pBucket;
 
   pBucket->pPageIdList = taosArrayInit(2, sizeof(int32_t));
-  if (pBucket->pPageIdList == NULL || pBucket == NULL) {
+  if (pBucket->pPageIdList == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
@@ -251,11 +251,13 @@ SLHashObj* tHashInit(int32_t inMemPages, int32_t pageSize, _hash_fn_t fn, int32_
   if (!osTempSpaceAvailable()) {
     terrno = TSDB_CODE_NO_AVAIL_DISK;
     printf("tHash Init failed since %s", terrstr(terrno));
+    taosMemoryFree(pHashObj);
     return NULL;
   }
 
   int32_t code = createDiskbasedBuf(&pHashObj->pBuf, pageSize, inMemPages * pageSize, "", tsTempDir);
   if (code != 0) {
+    taosMemoryFree(pHashObj);
     terrno = code;
     return NULL;
   }
@@ -351,7 +353,7 @@ int32_t tHashPut(SLHashObj* pHashObj, const void* key, size_t keyLen, void* data
       char* pStart = p->data;
       while (pStart - ((char*)p) < p->num) {
         SLHashNode* pNode = (SLHashNode*)pStart;
-        ASSERT(pNode->keyLen > 0 && pNode->dataLen >= 0);
+        ASSERT(pNode->keyLen > 0);
 
         char*   k = GET_LHASH_NODE_KEY(pNode);
         int32_t hashv = pHashObj->hashFn(k, pNode->keyLen);

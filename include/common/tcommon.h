@@ -44,12 +44,17 @@ enum {
 )
 // clang-format on
 
-typedef struct {
+typedef struct SWinKey {
   uint64_t groupId;
   TSKEY    ts;
 } SWinKey;
 
-static inline int sWinKeyCmprImpl(const void* pKey1, const void* pKey2) {
+typedef struct SSessionKey {
+  STimeWindow win;
+  uint64_t    groupId;
+} SSessionKey;
+
+static inline int winKeyCmprImpl(const void* pKey1, const void* pKey2) {
   SWinKey* pWin1 = (SWinKey*)pKey1;
   SWinKey* pWin2 = (SWinKey*)pKey2;
 
@@ -69,7 +74,7 @@ static inline int sWinKeyCmprImpl(const void* pKey1, const void* pKey2) {
 }
 
 static inline int winKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
-  return sWinKeyCmprImpl(pKey1, pKey2);
+  return winKeyCmprImpl(pKey1, pKey2);
 }
 
 typedef struct {
@@ -77,6 +82,27 @@ typedef struct {
   TSKEY    ts;
   int32_t  exprIdx;
 } STupleKey;
+
+typedef struct STuplePos {
+  union {
+    struct {
+      int32_t pageId;
+      int32_t offset;
+    };
+    STupleKey streamTupleKey;
+  };
+} STuplePos;
+
+typedef struct SFirstLastRes {
+  bool hasResult;
+  // used for last_row function only, isNullRes in SResultRowEntry can not be passed to downstream.So,
+  // this attribute is required
+  bool      isNull;
+  int32_t   bytes;
+  int64_t   ts;
+  STuplePos pos;
+  char      buf[];
+} SFirstLastRes;
 
 static inline int STupleKeyCmpr(const void* pKey1, int kLen1, const void* pKey2, int kLen2) {
   STupleKey* pTuple1 = (STupleKey*)pKey1;

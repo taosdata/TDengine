@@ -15,7 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "mndAcct.h"
-#include "mndBnode.h"
 #include "mndCluster.h"
 #include "mndConsumer.h"
 #include "mndDb.h"
@@ -296,7 +295,6 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-mnode", mndInitMnode, mndCleanupMnode) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-qnode", mndInitQnode, mndCleanupQnode) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-snode", mndInitSnode, mndCleanupSnode) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-bnode", mndInitBnode, mndCleanupBnode) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-dnode", mndInitDnode, mndCleanupDnode) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-user", mndInitUser, mndCleanupUser) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-grant", mndInitGrant, mndCleanupGrant) != 0) return -1;
@@ -536,10 +534,6 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       SyncSnapshotRsp *pSyncMsg = syncSnapshotRspFromRpcMsg2(pMsg);
       code = syncNodeOnSnapshotRspCb(pSyncNode, pSyncMsg);
       syncSnapshotRspDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_SET_MNODE_STANDBY) {
-      code = syncSetStandby(pMgmt->sync);
-      SRpcMsg rsp = {.code = code, .info = pMsg->info};
-      tmsgSendRsp(&rsp);
     } else {
       mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));
       code = -1;
@@ -577,10 +571,6 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
       SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pMsg);
       code = syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
       syncAppendEntriesReplyDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_SET_MNODE_STANDBY) {
-      code = syncSetStandby(pMgmt->sync);
-      SRpcMsg rsp = {.code = code, .info = pMsg->info};
-      tmsgSendRsp(&rsp);
     } else {
       mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));
       code = -1;
@@ -603,22 +593,27 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
     return 0;
   }
   if (mndAcquireRpc(pMsg->info.node) == 0) return 0;
+
+  SMnode     *pMnode = pMsg->info.node;
+  const char *role = syncGetMyRoleStr(pMnode->syncMgmt.sync);
+  bool        restored = syncIsRestoreFinish(pMnode->syncMgmt.sync);
   if (pMsg->msgType == TDMT_MND_MQ_TIMER || pMsg->msgType == TDMT_MND_TELEM_TIMER ||
       pMsg->msgType == TDMT_MND_TRANS_TIMER || pMsg->msgType == TDMT_MND_TTL_TIMER ||
       pMsg->msgType == TDMT_MND_UPTIME_TIMER) {
+    mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
+           pMnode->stopped, restored, role);
     return -1;
   }
 
-  SEpSet  epSet = {0};
-  SMnode *pMnode = pMsg->info.node;
+  const STraceId *trace = &pMsg->info.traceId;
+  SEpSet          epSet = {0};
   mndGetMnodeEpSet(pMnode, &epSet);
 
-  const STraceId *trace = &pMsg->info.traceId;
   mDebug(
-      "msg:%p, failed to check mnode state since %s, mnode restored:%d stopped:%d, sync restored:%d role:%s type:%s "
-      "numOfEps:%d inUse:%d",
-      pMsg, terrstr(), pMnode->restored, pMnode->stopped, syncIsRestoreFinish(pMnode->syncMgmt.sync),
-      syncGetMyRoleStr(pMnode->syncMgmt.sync), TMSG_INFO(pMsg->msgType), epSet.numOfEps, epSet.inUse);
+      "msg:%p, type:%s failed to process since %s, mnode restored:%d stopped:%d, sync restored:%d "
+      "role:%s, redirect numOfEps:%d inUse:%d",
+      pMsg, TMSG_INFO(pMsg->msgType), terrstr(), pMnode->restored, pMnode->stopped, restored, role, epSet.numOfEps,
+      epSet.inUse);
 
   if (epSet.numOfEps > 0) {
     for (int32_t i = 0; i < epSet.numOfEps; ++i) {
@@ -762,7 +757,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
       // pClusterInfo->master_uptime = (ms - pObj->stateStartTime) / (86400000.0f);
       tstrncpy(desc.role, syncStr(TAOS_SYNC_STATE_LEADER), sizeof(desc.role));
     } else {
-      tstrncpy(desc.role, syncStr(pObj->state), sizeof(desc.role));
+      tstrncpy(desc.role, syncStr(pObj->syncState), sizeof(desc.role));
     }
     taosArrayPush(pClusterInfo->mnodes, &desc);
     sdbRelease(pSdb, pObj);
@@ -792,12 +787,12 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
       SVnodeGid     *pVgid = &pVgroup->vnodeGid[i];
       SMonVnodeDesc *pVnDesc = &desc.vnodes[i];
       pVnDesc->dnode_id = pVgid->dnodeId;
-      tstrncpy(pVnDesc->vnode_role, syncStr(pVgid->role), sizeof(pVnDesc->vnode_role));
-      if (pVgid->role == TAOS_SYNC_STATE_LEADER) {
+      tstrncpy(pVnDesc->vnode_role, syncStr(pVgid->syncState), sizeof(pVnDesc->vnode_role));
+      if (pVgid->syncState == TAOS_SYNC_STATE_LEADER) {
         tstrncpy(desc.status, "ready", sizeof(desc.status));
         pClusterInfo->vgroups_alive++;
       }
-      if (pVgid->role != TAOS_SYNC_STATE_ERROR) {
+      if (pVgid->syncState != TAOS_SYNC_STATE_ERROR) {
         pClusterInfo->vnodes_alive++;
       }
       pClusterInfo->vnodes_total++;
@@ -842,7 +837,8 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
 
 int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad) {
   pLoad->syncState = syncGetMyRole(pMnode->syncMgmt.sync);
-  mTrace("mnode current syncstate is %s", syncStr(pLoad->syncState));
+  pLoad->syncRestore = pMnode->restored;
+  mTrace("mnode current syncState is %s, syncRestore:%d", syncStr(pLoad->syncState), pLoad->syncRestore);
   return 0;
 }
 

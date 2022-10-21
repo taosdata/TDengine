@@ -337,21 +337,12 @@ typedef struct tDataTypeDescriptor {
                       int32_t nBuf);
   int32_t (*decompFunc)(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
                         int32_t nBuf);
-  void (*statisFunc)(int8_t bitmapMode, const void *pBitmap, const void *pData, int32_t numofrow, int64_t *min,
-                     int64_t *max, int64_t *sum, int16_t *minindex, int16_t *maxindex, int16_t *numofnull);
 } tDataTypeDescriptor;
 
 extern tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX];
-
 bool isValidDataType(int32_t type);
 
-void        setVardataNull(void *val, int32_t type);
-void        setNull(void *val, int32_t type, int32_t bytes);
-void        setNullN(void *val, int32_t type, int32_t bytes, int32_t numOfElems);
-const void *getNullValue(int32_t type);
-
 void  assignVal(char *val, const char *src, int32_t len, int32_t type);
-void  tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void *buf);
 void  operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type);
 void *getDataMin(int32_t type);
 void *getDataMax(int32_t type);

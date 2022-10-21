@@ -15,8 +15,6 @@
 
 #include "sma.h"
 
-#define RSMA_QTASKINFO_BUFSIZE     (32768)                                               // size
-#define RSMA_QTASKINFO_HEAD_LEN    (sizeof(int32_t) + sizeof(int8_t) + sizeof(int64_t))  // len + type + suid
 #define RSMA_QTASKEXEC_SMOOTH_SIZE (100)                                                 // cnt
 #define RSMA_SUBMIT_BATCH_SIZE     (1024)                                                // cnt
 #define RSMA_FETCH_DELAY_MAX       (120000)                                              // ms
@@ -48,22 +46,9 @@ static int32_t    tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SR
 static void       tdRSmaFetchTrigger(void *param, void *tmrId);
 static int32_t    tdRSmaInfoClone(SSma *pSma, SRSmaInfo *pInfo);
 static void       tdRSmaQTaskInfoFree(qTaskInfo_t *taskHandle, int32_t vgId, int32_t level);
-static int32_t    tdRSmaQTaskInfoIterInit(SRSmaQTaskInfoIter *pIter, STFile *pTFile);
-static int32_t    tdRSmaQTaskInfoIterNextBlock(SRSmaQTaskInfoIter *pIter, bool *isFinish);
-static int32_t    tdRSmaQTaskInfoRestore(SSma *pSma, int8_t type, SRSmaQTaskInfoIter *pIter);
-static int32_t    tdRSmaQTaskInfoItemRestore(SSma *pSma, const SRSmaQTaskInfoItem *infoItem);
 static int32_t    tdRSmaRestoreQTaskInfoInit(SSma *pSma, int64_t *nTables);
 static int32_t    tdRSmaRestoreQTaskInfoReload(SSma *pSma, int8_t type, int64_t qTaskFileVer);
 static int32_t    tdRSmaRestoreTSDataReload(SSma *pSma);
-
-static SRSmaInfo *tdGetRSmaInfoByItem(SRSmaInfoItem *pItem) {
-  // adapt accordingly if definition of SRSmaInfo update
-  SRSmaInfo *pResult = NULL;
-  ASSERT(pItem->level == TSDB_RETENTION_L1 || pItem->level == TSDB_RETENTION_L2);
-  pResult = (SRSmaInfo *)POINTER_SHIFT(pItem, -(sizeof(SRSmaInfoItem) * (pItem->level - 1) + RSMA_INFO_HEAD_LEN));
-  ASSERT(pResult->pTSchema->numOfCols > 1);
-  return pResult;
-}
 
 struct SRSmaQTaskInfoItem {
   int32_t len;
@@ -103,12 +88,6 @@ void tdRSmaQTaskInfoGetFullPathEx(int32_t vgId, tb_uid_t suid, int8_t level, con
   int32_t rsmaLen = strlen(outputName);
   snprintf(outputName + rsmaLen, TSDB_FILENAME_LEN - rsmaLen, "%" PRIi64 "%s%" PRIi8, suid, TD_DIRSEP, level);
 }
-
-static FORCE_INLINE int32_t tdRSmaQTaskInfoContLen(int32_t lenWithHead) {
-  return lenWithHead - RSMA_QTASKINFO_HEAD_LEN;
-}
-
-static FORCE_INLINE void tdRSmaQTaskInfoIterDestroy(SRSmaQTaskInfoIter *pIter) { taosMemoryFreeClear(pIter->pBuf); }
 
 static void tdRSmaQTaskInfoFree(qTaskInfo_t *taskHandle, int32_t vgId, int32_t level) {
   // Note: free/kill may in RC
@@ -363,7 +342,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
 
     smaInfo("vgId:%d, item:%p table:%" PRIi64 " level:%" PRIi8 " maxdelay:%" PRIi64 " watermark:%" PRIi64
             ", finally maxdelay:%" PRIi32,
-            TD_VID(pVnode), pItem, pRSmaInfo->suid, idx + 1, param->maxdelay[idx], param->watermark[idx],
+            TD_VID(pVnode), pItem, pRSmaInfo->suid, (int8_t)(idx + 1), param->maxdelay[idx], param->watermark[idx],
             pItem->maxDelay);
   }
   return TSDB_CODE_SUCCESS;
@@ -803,6 +782,7 @@ static int32_t tdExecuteRSmaImplAsync(SSma *pSma, const void *pMsg, int32_t inpu
   return TSDB_CODE_SUCCESS;
 }
 
+#if 0
 static int32_t tdRsmaPrintSubmitReq(SSma *pSma, SSubmitReq *pReq) {
   SSubmitMsgIter msgIter = {0};
   SSubmitBlkIter blkIter = {0};
@@ -820,6 +800,7 @@ static int32_t tdRsmaPrintSubmitReq(SSma *pSma, SSubmitReq *pReq) {
   }
   return 0;
 }
+#endif
 
 /**
  * @brief sync mode
@@ -1189,65 +1170,6 @@ _err:
   return TSDB_CODE_FAILED;
 }
 
-static int32_t tdRSmaRestoreQTaskInfoReload(SSma *pSma, int8_t type, int64_t qTaskFileVer) {
-  SVnode *pVnode = pSma->pVnode;
-  STFile  tFile = {0};
-  char    qTaskInfoFName[TSDB_FILENAME_LEN] = {0};
-
-  tdRSmaQTaskInfoGetFileName(TD_VID(pVnode), qTaskFileVer, qTaskInfoFName);
-  if (tdInitTFile(&tFile, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFName) < 0) {
-    goto _err;
-  }
-
-  if (!taosCheckExistFile(TD_TFILE_FULL_NAME(&tFile))) {
-    if (qTaskFileVer > 0) {
-      smaWarn("vgId:%d, restore rsma task %" PRIi8 " for version %" PRIi64 ", not start as %s not exist",
-              TD_VID(pVnode), type, qTaskFileVer, TD_TFILE_FULL_NAME(&tFile));
-    } else {
-      smaDebug("vgId:%d, restore rsma task %" PRIi8 " for version %" PRIi64 ", no need as %s not exist", TD_VID(pVnode),
-               type, qTaskFileVer, TD_TFILE_FULL_NAME(&tFile));
-    }
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (tdOpenTFile(&tFile, TD_FILE_READ) < 0) {
-    goto _err;
-  }
-
-  STFInfo tFileInfo = {0};
-  if (tdLoadTFileHeader(&tFile, &tFileInfo) < 0) {
-    goto _err;
-  }
-
-  SRSmaQTaskInfoIter fIter = {0};
-  if (tdRSmaQTaskInfoIterInit(&fIter, &tFile) < 0) {
-    tdRSmaQTaskInfoIterDestroy(&fIter);
-    tdCloseTFile(&tFile);
-    tdDestroyTFile(&tFile);
-    goto _err;
-  }
-
-  if (tdRSmaQTaskInfoRestore(pSma, type, &fIter) < 0) {
-    tdRSmaQTaskInfoIterDestroy(&fIter);
-    tdCloseTFile(&tFile);
-    tdDestroyTFile(&tFile);
-    goto _err;
-  }
-
-  tdRSmaQTaskInfoIterDestroy(&fIter);
-  tdCloseTFile(&tFile);
-  tdDestroyTFile(&tFile);
-
-  // restored successfully from committed or sync
-  smaInfo("vgId:%d, restore rsma task %" PRIi8 " for version %" PRIi64 ", qtaskinfo reload succeed", TD_VID(pVnode),
-          type, qTaskFileVer);
-  return TSDB_CODE_SUCCESS;
-_err:
-  smaError("vgId:%d, restore rsma task %" PRIi8 " for version %" PRIi64 ", qtaskinfo reload failed since %s",
-           TD_VID(pVnode), type, qTaskFileVer, terrstr());
-  return TSDB_CODE_FAILED;
-}
-
 /**
  * @brief reload ts data from checkpoint
  *
@@ -1270,19 +1192,12 @@ int32_t tdRSmaProcessRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer) 
     return TSDB_CODE_SUCCESS;
   }
 
-#if 0
-  // step 2: retrieve qtaskinfo items from the persistence file(rsma/qtaskinfo) and restore
-  if (tdRSmaRestoreQTaskInfoReload(pSma, type, qtaskFileVer) < 0) {
-    goto _err;
-  }
-#endif
-
-  // step 3: reload ts data from checkpoint
+  // step 2: reload ts data from checkpoint
   if (tdRSmaRestoreTSDataReload(pSma) < 0) {
     goto _err;
   }
 
-  // step 4: open SRSmaFS for qTaskFiles
+  // step 3: open SRSmaFS for qTaskFiles
   if (tdRSmaFSOpen(pSma, qtaskFileVer) < 0) {
     goto _err;
   }
@@ -1293,191 +1208,6 @@ _err:
   smaError("vgId:%d, restore rsma task %" PRIi8 "from qtaskf %" PRIi64 " failed since %s", SMA_VID(pSma), type,
            qtaskFileVer, terrstr());
   return TSDB_CODE_FAILED;
-}
-
-/**
- * @brief Restore from SRSmaQTaskInfoItem
- *
- * @param pSma
- * @param pItem
- * @return int32_t
- */
-static int32_t tdRSmaQTaskInfoItemRestore(SSma *pSma, const SRSmaQTaskInfoItem *pItem) {
-  SRSmaInfo *pRSmaInfo = NULL;
-  void      *qTaskInfo = NULL;
-
-  pRSmaInfo = tdAcquireRSmaInfoBySuid(pSma, pItem->suid);
-  if (!pRSmaInfo) {
-    smaDebug("vgId:%d, no restore as no rsma info for table:%" PRIu64, SMA_VID(pSma), pItem->suid);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (pItem->type == TSDB_RETENTION_L1) {
-    qTaskInfo = RSMA_INFO_QTASK(pRSmaInfo, 0);
-  } else if (pItem->type == TSDB_RETENTION_L2) {
-    qTaskInfo = RSMA_INFO_QTASK(pRSmaInfo, 1);
-  } else {
-    ASSERT(0);
-  }
-
-  if (!qTaskInfo) {
-    tdReleaseRSmaInfo(pSma, pRSmaInfo);
-    smaDebug("vgId:%d, no restore as NULL rsma qTaskInfo for table:%" PRIu64, SMA_VID(pSma), pItem->suid);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (qDeserializeTaskStatus(qTaskInfo, pItem->qTaskInfo, pItem->len) < 0) {
-    tdReleaseRSmaInfo(pSma, pRSmaInfo);
-    smaError("vgId:%d, restore rsma task failed for table:%" PRIi64 " level %d since %s", SMA_VID(pSma), pItem->suid,
-             pItem->type, terrstr());
-    return TSDB_CODE_FAILED;
-  }
-  smaDebug("vgId:%d, restore rsma task success for table:%" PRIi64 " level %d", SMA_VID(pSma), pItem->suid,
-           pItem->type);
-
-  tdReleaseRSmaInfo(pSma, pRSmaInfo);
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t tdRSmaQTaskInfoIterInit(SRSmaQTaskInfoIter *pIter, STFile *pTFile) {
-  memset(pIter, 0, sizeof(*pIter));
-  pIter->pTFile = pTFile;
-  pIter->offset = TD_FILE_HEAD_SIZE;
-
-  if (tdGetTFileSize(pTFile, &pIter->fsize) < 0) {
-    return TSDB_CODE_FAILED;
-  }
-
-  if ((pIter->fsize - TD_FILE_HEAD_SIZE) < RSMA_QTASKINFO_BUFSIZE) {
-    pIter->nAlloc = pIter->fsize - TD_FILE_HEAD_SIZE;
-  } else {
-    pIter->nAlloc = RSMA_QTASKINFO_BUFSIZE;
-  }
-
-  if (pIter->nAlloc < TD_FILE_HEAD_SIZE) {
-    pIter->nAlloc = TD_FILE_HEAD_SIZE;
-  }
-
-  pIter->pBuf = taosMemoryMalloc(pIter->nAlloc);
-  if (!pIter->pBuf) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_FAILED;
-  }
-  pIter->qBuf = pIter->pBuf;
-
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t tdRSmaQTaskInfoIterNextBlock(SRSmaQTaskInfoIter *pIter, bool *isFinish) {
-  STFile *pTFile = pIter->pTFile;
-  int64_t nBytes = RSMA_QTASKINFO_BUFSIZE;
-
-  if (pIter->offset >= pIter->fsize) {
-    *isFinish = true;
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if ((pIter->fsize - pIter->offset) < RSMA_QTASKINFO_BUFSIZE) {
-    nBytes = pIter->fsize - pIter->offset;
-  }
-
-  if (tdSeekTFile(pTFile, pIter->offset, SEEK_SET) < 0) {
-    return TSDB_CODE_FAILED;
-  }
-
-  if (tdReadTFile(pTFile, pIter->pBuf, nBytes) != nBytes) {
-    return TSDB_CODE_FAILED;
-  }
-
-  int32_t infoLen = 0;
-  taosDecodeFixedI32(pIter->pBuf, &infoLen);
-  if (infoLen > nBytes) {
-    if (infoLen <= RSMA_QTASKINFO_BUFSIZE) {
-      terrno = TSDB_CODE_RSMA_FILE_CORRUPTED;
-      smaError("iterate rsma qtaskinfo file %s failed since %s", TD_TFILE_FULL_NAME(pIter->pTFile), terrstr());
-      return TSDB_CODE_FAILED;
-    }
-    if (pIter->nAlloc < infoLen) {
-      pIter->nAlloc = infoLen;
-      void *pBuf = taosMemoryRealloc(pIter->pBuf, infoLen);
-      if (!pBuf) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        return TSDB_CODE_FAILED;
-      }
-      pIter->pBuf = pBuf;
-    }
-
-    nBytes = infoLen;
-
-    if (tdSeekTFile(pTFile, pIter->offset, SEEK_SET) < 0) {
-      return TSDB_CODE_FAILED;
-    }
-
-    if (tdReadTFile(pTFile, pIter->pBuf, nBytes) != nBytes) {
-      return TSDB_CODE_FAILED;
-    }
-  }
-
-  pIter->qBuf = pIter->pBuf;
-  pIter->offset += nBytes;
-  pIter->nBytes = nBytes;
-  pIter->nBufPos = 0;
-
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t tdRSmaQTaskInfoRestore(SSma *pSma, int8_t type, SRSmaQTaskInfoIter *pIter) {
-  while (1) {
-    // block iter
-    bool isFinish = false;
-    if (tdRSmaQTaskInfoIterNextBlock(pIter, &isFinish) < 0) {
-      return TSDB_CODE_FAILED;
-    }
-    if (isFinish) {
-      return TSDB_CODE_SUCCESS;
-    }
-
-    // consume the block
-    int32_t qTaskInfoLenWithHead = 0;
-    pIter->qBuf = taosDecodeFixedI32(pIter->qBuf, &qTaskInfoLenWithHead);
-    if (qTaskInfoLenWithHead < RSMA_QTASKINFO_HEAD_LEN) {
-      terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-      smaError("vgId:%d, restore rsma task %" PRIi8 " from qtaskinfo file %s failed since %s", SMA_VID(pSma), type,
-               TD_TFILE_FULL_NAME(pIter->pTFile), terrstr());
-      return TSDB_CODE_FAILED;
-    }
-
-    while (1) {
-      if ((pIter->nBufPos + qTaskInfoLenWithHead) <= pIter->nBytes) {
-        SRSmaQTaskInfoItem infoItem = {0};
-        pIter->qBuf = taosDecodeFixedI8(pIter->qBuf, &infoItem.type);
-        pIter->qBuf = taosDecodeFixedI64(pIter->qBuf, &infoItem.suid);
-        infoItem.qTaskInfo = pIter->qBuf;
-        infoItem.len = tdRSmaQTaskInfoContLen(qTaskInfoLenWithHead);
-        // do the restore job
-        smaDebug("vgId:%d, restore rsma task %" PRIi8 " from qtaskinfo file %s offset:%" PRIi64 "\n", SMA_VID(pSma),
-                 type, TD_TFILE_FULL_NAME(pIter->pTFile), pIter->offset - pIter->nBytes + pIter->nBufPos);
-        tdRSmaQTaskInfoItemRestore(pSma, &infoItem);
-
-        pIter->qBuf = POINTER_SHIFT(pIter->qBuf, infoItem.len);
-        pIter->nBufPos += qTaskInfoLenWithHead;
-
-        if ((pIter->nBufPos + RSMA_QTASKINFO_HEAD_LEN) >= pIter->nBytes) {
-          // prepare and load next block in the file
-          pIter->offset -= (pIter->nBytes - pIter->nBufPos);
-          break;
-        }
-
-        pIter->qBuf = taosDecodeFixedI32(pIter->qBuf, &qTaskInfoLenWithHead);
-        continue;
-      }
-      // prepare and load next block in the file
-      pIter->offset -= (pIter->nBytes - pIter->nBufPos);
-      break;
-    }
-  }
-
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
@@ -1522,148 +1252,6 @@ _err:
   smaError("vgId:%d, rsma persist failed since %s", vid, terrstr());
   return TSDB_CODE_FAILED;
 }
-
-#if 0
-int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash) {
-  SSma   *pSma = pRSmaStat->pSma;
-  SVnode *pVnode = pSma->pVnode;
-  int32_t vid = SMA_VID(pSma);
-  int64_t toffset = 0;
-  bool    isFileCreated = false;
-
-  if (taosHashGetSize(pInfoHash) <= 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  void *infoHash = taosHashIterate(pInfoHash, NULL);
-  if (!infoHash) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  int64_t fsMaxVer = tdRSmaFSMaxVer(pSma, pRSmaStat);
-  if (pRSmaStat->commitAppliedVer <= fsMaxVer) {
-    smaDebug("vgId:%d, rsma persist, no need as applied %" PRIi64 " not larger than fsMaxVer %" PRIi64, vid,
-             pRSmaStat->commitAppliedVer, fsMaxVer);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  STFile tFile = {0};
-#if 0
-  if (pRSmaStat->commitAppliedVer > 0) {
-    char qTaskInfoFName[TSDB_FILENAME_LEN];
-    tdRSmaQTaskInfoGetFileName(vid, pRSmaStat->commitAppliedVer, qTaskInfoFName);
-    if (tdInitTFile(&tFile, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFName) < 0) {
-      smaError("vgId:%d, rsma persist, init %s failed since %s", vid, qTaskInfoFName, terrstr());
-      goto _err;
-    }
-    if (tdCreateTFile(&tFile, true, TD_FTYPE_RSMA_QTASKINFO) < 0) {
-      smaError("vgId:%d, rsma persist, create %s failed since %s", vid, TD_TFILE_FULL_NAME(&tFile), terrstr());
-      goto _err;
-    }
-    smaDebug("vgId:%d, rsma, serialize qTaskInfo, file %s created", vid, TD_TFILE_FULL_NAME(&tFile));
-
-    isFileCreated = true;
-  }
-#endif
-
-  while (infoHash) {
-    SRSmaInfo *pRSmaInfo = *(SRSmaInfo **)infoHash;
-
-    if (RSMA_INFO_IS_DEL(pRSmaInfo)) {
-      infoHash = taosHashIterate(pInfoHash, infoHash);
-      continue;
-    }
-
-    for (int32_t i = 0; i < TSDB_RETENTION_L2; ++i) {
-#if 0
-      qTaskInfo_t taskInfo = RSMA_INFO_IQTASK(pRSmaInfo, i);
-#endif
-      qTaskInfo_t taskInfo = RSMA_INFO_QTASK(pRSmaInfo, i);
-      if (!taskInfo) {
-        smaDebug("vgId:%d, rsma, table %" PRIi64 " level %d qTaskInfo is NULL", vid, pRSmaInfo->suid, i + 1);
-        continue;
-      }
-
-      char   *pOutput = NULL;
-      int32_t len = 0;
-      int8_t  type = (int8_t)(i + 1);
-      if (qSerializeTaskStatus(taskInfo, &pOutput, &len) < 0) {
-        smaError("vgId:%d, rsma, table %" PRIi64 " level %d serialize qTaskInfo failed since %s", vid, pRSmaInfo->suid,
-                 i + 1, terrstr());
-        goto _err;
-      }
-      if (!pOutput || len <= 0) {
-        smaDebug("vgId:%d, rsma, table %" PRIi64
-                 " level %d serialize qTaskInfo success but no output(len %d), not persist",
-                 vid, pRSmaInfo->suid, i + 1, len);
-        taosMemoryFreeClear(pOutput);
-        continue;
-      }
-
-      smaDebug("vgId:%d, rsma, table %" PRIi64 " level %d serialize qTaskInfo success with len %d, need persist", vid,
-               pRSmaInfo->suid, i + 1, len);
-
-      if (!isFileCreated) {
-        char qTaskInfoFName[TSDB_FILENAME_LEN];
-        tdRSmaQTaskInfoGetFileName(vid, pRSmaStat->commitAppliedVer, qTaskInfoFName);
-        if (tdInitTFile(&tFile, tfsGetPrimaryPath(pVnode->pTfs), qTaskInfoFName) < 0) {
-          smaError("vgId:%d, rsma persist, init %s failed since %s", vid, qTaskInfoFName, terrstr());
-          goto _err;
-        }
-        if (tdCreateTFile(&tFile, true, TD_FTYPE_RSMA_QTASKINFO) < 0) {
-          smaError("vgId:%d, rsma persist, create %s failed since %s", vid, TD_TFILE_FULL_NAME(&tFile), terrstr());
-          goto _err;
-        }
-        smaDebug("vgId:%d, rsma, table %" PRIi64 " serialize qTaskInfo, file %s created", vid, pRSmaInfo->suid,
-                 TD_TFILE_FULL_NAME(&tFile));
-
-        isFileCreated = true;
-      }
-
-      char    tmpBuf[RSMA_QTASKINFO_HEAD_LEN] = {0};
-      void   *pTmpBuf = &tmpBuf;
-      int32_t headLen = 0;
-      headLen += taosEncodeFixedI32(&pTmpBuf, len + RSMA_QTASKINFO_HEAD_LEN);
-      headLen += taosEncodeFixedI8(&pTmpBuf, type);
-      headLen += taosEncodeFixedI64(&pTmpBuf, pRSmaInfo->suid);
-
-      ASSERT(headLen <= RSMA_QTASKINFO_HEAD_LEN);
-      tdAppendTFile(&tFile, (void *)&tmpBuf, headLen, &toffset);
-      smaDebug("vgId:%d, rsma, table %" PRIi64 " level %d head part(len:%d) appended to offset:%" PRIi64, vid,
-               pRSmaInfo->suid, i + 1, headLen, toffset);
-      tdAppendTFile(&tFile, pOutput, len, &toffset);
-      smaDebug("vgId:%d, rsma, table %" PRIi64 " level %d body part len:%d appended to offset:%" PRIi64, vid,
-               pRSmaInfo->suid, i + 1, len, toffset);
-
-      taosMemoryFree(pOutput);
-    }
-
-    infoHash = taosHashIterate(pInfoHash, infoHash);
-  }
-
-  if (isFileCreated) {
-    if (tdUpdateTFileHeader(&tFile) < 0) {
-      smaError("vgId:%d, rsma, failed to update tfile %s header since %s", vid, TD_TFILE_FULL_NAME(&tFile),
-               tstrerror(terrno));
-      goto _err;
-    } else {
-      smaDebug("vgId:%d, rsma, succeed to update tfile %s header", vid, TD_TFILE_FULL_NAME(&tFile));
-    }
-
-    tdCloseTFile(&tFile);
-    tdDestroyTFile(&tFile);
-  }
-  return TSDB_CODE_SUCCESS;
-_err:
-  smaError("vgId:%d, rsma persist failed since %s", vid, terrstr());
-  if (isFileCreated) {
-    tdRemoveTFile(&tFile);
-    tdDestroyTFile(&tFile);
-  }
-  return TSDB_CODE_FAILED;
-}
-
-#endif
 
 /**
  * @brief trigger to get rsma result in async mode
@@ -1799,7 +1387,7 @@ static int32_t tdRSmaFetchAllResult(SSma *pSma, SRSmaInfo *pInfo) {
       }
 
       if ((++pItem->nScanned * pItem->maxDelay) > RSMA_FETCH_DELAY_MAX) {
-        smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nScanned:%" PRIi8 " maxDelay:%d, fetch executed",
+        smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nScanned:%" PRIi16 " maxDelay:%d, fetch executed",
                  SMA_VID(pSma), pInfo->suid, i, pItem->nScanned, pItem->maxDelay);
       } else {
         int64_t curMs = taosGetTimestampMs();
@@ -1823,10 +1411,10 @@ static int32_t tdRSmaFetchAllResult(SSma *pSma, SRSmaInfo *pInfo) {
         goto _err;
       }
 
-      smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nScanned:%" PRIi8 " maxDelay:%d, fetch finished",
+      smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nScanned:%" PRIi16 " maxDelay:%d, fetch finished",
                SMA_VID(pSma), pInfo->suid, i, pItem->nScanned, pItem->maxDelay);
     } else {
-      smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nScanned:%" PRIi8
+      smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nScanned:%" PRIi16
                " maxDelay:%d, fetch not executed as fetch level is %" PRIi8,
                SMA_VID(pSma), pInfo->suid, i, pItem->nScanned, pItem->maxDelay, pItem->fetchLevel);
     }
@@ -1925,7 +1513,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
               int32_t qallItemSize = taosQallItemSize(pInfo->qall);
               if (qallItemSize > 0) {
                 tdRSmaBatchExec(pSma, pInfo, pInfo->qall, pSubmitArr, type);
-                smaDebug("vgId:%d, batchSize:%d, execType:%" PRIi8, SMA_VID(pSma), qallItemSize, type);
+                smaDebug("vgId:%d, batchSize:%d, execType:%" PRIi32, SMA_VID(pSma), qallItemSize, type);
               }
 
               if (RSMA_INFO_ITEM(pInfo, 0)->fetchLevel || RSMA_INFO_ITEM(pInfo, 1)->fetchLevel) {

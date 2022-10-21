@@ -52,7 +52,7 @@ static int metaUpdateMetaRsp(tb_uid_t uid, char *tbName, SSchemaWrapper *pSchema
     return -1;
   }
 
-  strncpy(pMetaRsp->tbName, tbName, TSDB_TABLE_NAME_LEN);
+  tstrncpy(pMetaRsp->tbName, tbName, TSDB_TABLE_NAME_LEN);
   pMetaRsp->numOfColumns = pSchema->nCols;
   pMetaRsp->tableType = TSDB_NORMAL_TABLE;
   pMetaRsp->sversion = pSchema->version;
@@ -117,9 +117,10 @@ static int metaSaveJsonVarToIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const
       indexMultiTermAdd(terms, term);
     }
   }
-  taosArrayDestroy(pTagVals);
   indexJsonPut(pMeta->pTagIvtIdx, terms, tuid);
   indexMultiTermDestroy(terms);
+
+  taosArrayDestroy(pTagVals);
 #endif
   return 0;
 }
@@ -160,6 +161,7 @@ int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSche
         memcpy(val, (uint16_t *)&len, VARSTR_HEADER_SIZE);
         type = TSDB_DATA_TYPE_VARCHAR;
         term = indexTermCreate(suid, DEL_VALUE, type, key, nKey, val, len);
+        taosMemoryFree(val);
       } else if (pTagVal->nData == 0) {
         term = indexTermCreate(suid, DEL_VALUE, TSDB_DATA_TYPE_VARCHAR, key, nKey, pTagVal->pData, 0);
       }
@@ -178,6 +180,7 @@ int metaDelJsonVarFromIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry, const SSche
   }
   indexJsonPut(pMeta->pTagIvtIdx, terms, tuid);
   indexMultiTermDestroy(terms);
+  taosArrayDestroy(pTagVals);
 #endif
   return 0;
 }
@@ -572,7 +575,11 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
   tdbTbGet(pMeta->pTbDb, &(STbDbKey){.version = version, .uid = uid}, sizeof(STbDbKey), &pData, &nData);
 
   tDecoderInit(&dc, pData, nData);
-  metaDecodeEntry(&dc, &e);
+  rc = metaDecodeEntry(&dc, &e);
+  if (rc < 0) {
+    tDecoderClear(&dc);
+    return -1;
+  }
 
   if (type) *type = e.type;
 
@@ -664,6 +671,11 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   SMetaEntry      entry = {0};
   SSchemaWrapper *pSchema;
   int             c;
+
+  if (pAlterTbReq->colName == NULL) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
 
   // search name index
   ret = tdbTbGet(pMeta->pNameIdx, pAlterTbReq->tbName, strlen(pAlterTbReq->tbName) + 1, &pVal, &nVal);
@@ -1241,7 +1253,10 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pData, &nData);
 
   tDecoderInit(&dc, pData, nData);
-  metaDecodeEntry(&dc, &stbEntry);
+  ret = metaDecodeEntry(&dc, &stbEntry);
+  if (ret < 0) {
+    goto end;
+  }
 
   pTagColumn = &stbEntry.stbEntry.schemaTag.pSchema[0];
 

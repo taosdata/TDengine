@@ -222,6 +222,21 @@ int32_t buildCreateTbMsg(STableDataBlocks* pBlocks, SVCreateTbReq* pCreateTbReq)
   return code;
 }
 
+static void destroyDataBlock(STableDataBlocks* pDataBlock) {
+  if (pDataBlock == NULL) {
+    return;
+  }
+
+  taosMemoryFreeClear(pDataBlock->pData);
+  //  if (!pDataBlock->cloned) {
+  // free the refcount for metermeta
+  taosMemoryFreeClear(pDataBlock->pTableMeta);
+
+  destroyBoundColumnInfo(&pDataBlock->boundColumnInfo);
+  //  }
+  taosMemoryFreeClear(pDataBlock);
+}
+
 int32_t getDataBlockFromList(SHashObj* pHashList, void* id, int32_t idLen, int32_t size, int32_t startOffset,
                              int32_t rowSize, STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList,
                              SVCreateTbReq* pCreateTbReq) {
@@ -240,11 +255,13 @@ int32_t getDataBlockFromList(SHashObj* pHashList, void* id, int32_t idLen, int32
     if (NULL != pCreateTbReq && NULL != pCreateTbReq->ctb.pTag) {
       ret = buildCreateTbMsg(*dataBlocks, pCreateTbReq);
       if (ret != TSDB_CODE_SUCCESS) {
+        destroyDataBlock(*dataBlocks);
         return ret;
       }
     }
 
-    taosHashPut(pHashList, (const char*)id, idLen, (char*)dataBlocks, POINTER_BYTES);
+    // converting to 'const char*' is to handle coverity scan errors
+    taosHashPut(pHashList, (const char*)id, idLen, (const char*)dataBlocks, POINTER_BYTES);
     if (pBlockList) {
       taosArrayPush(pBlockList, dataBlocks);
     }
@@ -264,21 +281,6 @@ static int32_t getRowExpandSize(STableMeta* pTableMeta) {
   }
   result += (int32_t)TD_BITMAP_BYTES(columns - 1);
   return result;
-}
-
-static void destroyDataBlock(STableDataBlocks* pDataBlock) {
-  if (pDataBlock == NULL) {
-    return;
-  }
-
-  taosMemoryFreeClear(pDataBlock->pData);
-  //  if (!pDataBlock->cloned) {
-  // free the refcount for metermeta
-  taosMemoryFreeClear(pDataBlock->pTableMeta);
-
-  destroyBoundColumnInfo(&pDataBlock->boundColumnInfo);
-  //  }
-  taosMemoryFreeClear(pDataBlock);
 }
 
 void destroyBlockArrayList(SArray* pDataBlockList) {
@@ -666,7 +668,7 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SB
     }
   } else {
     for (int32_t i = 0; i < numOfRows; ++i) {
-      char*     payload = (blkKeyTuple + i)->payloadAddr;
+      void*     payload = (blkKeyTuple + i)->payloadAddr;
       TDRowLenT rowTLen = TD_ROW_LEN((STSRow*)payload);
       memcpy(pDataBlock, payload, rowTLen);
       pDataBlock = POINTER_SHIFT(pDataBlock, rowTLen);

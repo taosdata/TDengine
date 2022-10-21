@@ -84,13 +84,12 @@ static void endTlvEncode(STlvEncoder* pEncoder, char** pMsg, int32_t* pLen) {
   *pMsg = pEncoder->pBuf;
   pEncoder->pBuf = NULL;
   *pLen = pEncoder->offset;
-  // nodesWarn("encode tlv count = %d, tl size = %d", pEncoder->tlvCount, sizeof(STlv) * pEncoder->tlvCount);
 }
 
 static int32_t tlvEncodeImpl(STlvEncoder* pEncoder, int16_t type, const void* pValue, int32_t len) {
   int32_t tlvLen = sizeof(STlv) + len;
   if (pEncoder->offset + tlvLen > pEncoder->allocSize) {
-    pEncoder->allocSize = TMAX(pEncoder->allocSize * 2, pEncoder->allocSize + pEncoder->offset + tlvLen);
+    pEncoder->allocSize = TMAX(pEncoder->allocSize * 2, pEncoder->allocSize + tlvLen);
     void* pNewBuf = taosMemoryRealloc(pEncoder->pBuf, pEncoder->allocSize);
     if (NULL == pNewBuf) {
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -241,6 +240,15 @@ static int32_t tlvEncodeObj(STlvEncoder* pEncoder, int16_t type, FToMsg func, co
     return TSDB_CODE_SUCCESS;
   }
 
+  if (pEncoder->offset + sizeof(STlv) > pEncoder->allocSize) {
+    pEncoder->allocSize = TMAX(pEncoder->allocSize * 2, pEncoder->allocSize + sizeof(STlv));
+    void* pNewBuf = taosMemoryRealloc(pEncoder->pBuf, pEncoder->allocSize);
+    if (NULL == pNewBuf) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    pEncoder->pBuf = pNewBuf;
+  }
+
   int32_t start = pEncoder->offset;
   pEncoder->offset += sizeof(STlv);
   int32_t code = func(pObj, pEncoder);
@@ -307,7 +315,7 @@ static int32_t tlvDecodeImpl(STlv* pTlv, void* pValue, int32_t len) {
 }
 
 static int32_t tlvDecodeValueImpl(STlvDecoder* pDecoder, void* pValue, int32_t len) {
-  if (pDecoder->offset + len > pDecoder->bufSize) {
+  if (len > pDecoder->bufSize - pDecoder->offset) {
     return TSDB_CODE_FAILED;
   }
   memcpy(pValue, pDecoder->pBuf + pDecoder->offset, len);
@@ -911,6 +919,10 @@ static int32_t msgToDatum(STlv* pTlv, void* pObj) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY: {
+      if (pTlv->len > pNode->node.resType.bytes + VARSTR_HEADER_SIZE) {
+        code = TSDB_CODE_FAILED;
+        break;
+      }
       pNode->datum.p = taosMemoryCalloc(1, pNode->node.resType.bytes + VARSTR_HEADER_SIZE + 1);
       if (NULL == pNode->datum.p) {
         code = TSDB_CODE_OUT_OF_MEMORY;
@@ -1957,7 +1969,7 @@ static int32_t msgToPhysiScanNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { PHY_LAST_ROW_SCAN_CODE_SCAN = 1, PHY_LAST_ROW_SCAN_CODE_GROUP_TAGS, PHY_LAST_ROW_SCAN_CODE_GROUP_SORT };
+enum { PHY_LAST_ROW_SCAN_CODE_SCAN = 1, PHY_LAST_ROW_SCAN_CODE_GROUP_TAGS, PHY_LAST_ROW_SCAN_CODE_GROUP_SORT, PHY_LAST_ROW_SCAN_CODE_IGNULL };
 
 static int32_t physiLastRowScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SLastRowScanPhysiNode* pNode = (const SLastRowScanPhysiNode*)pObj;
@@ -1968,6 +1980,9 @@ static int32_t physiLastRowScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_LAST_ROW_SCAN_CODE_GROUP_SORT, pNode->groupSort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_LAST_ROW_SCAN_CODE_IGNULL, pNode->ignoreNull);
   }
 
   return code;
@@ -1988,6 +2003,9 @@ static int32_t msgToPhysiLastRowScanNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_LAST_ROW_SCAN_CODE_GROUP_SORT:
         code = tlvDecodeBool(pTlv, &pNode->groupSort);
+        break;
+      case PHY_LAST_ROW_SCAN_CODE_IGNULL:
+        code = tlvDecodeBool(pTlv, &pNode->ignoreNull);
         break;
       default:
         break;

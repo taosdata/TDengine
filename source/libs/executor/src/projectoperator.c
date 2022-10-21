@@ -285,7 +285,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
 
-      setInputDataBlock(pOperator, pSup->pCtx, pBlock, order, scanFlag, false);
+      setInputDataBlock(pSup, pBlock, order, scanFlag, false);
       blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
 
       code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
@@ -384,6 +384,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
     numOfRows = TWOMB / pResBlock->info.rowSize;
   }
 
+  initBasicInfo(&pInfo->binfo, pResBlock);
   initResultSizeInfo(&pOperator->resultInfo, numOfRows);
 
   int32_t code = initAggInfo(pSup, &pInfo->aggSup, pExprInfo, numOfExpr, keyBufSize, pTaskInfo->id.str);
@@ -391,7 +392,6 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
     goto _error;
   }
 
-  initBasicInfo(&pInfo->binfo, pResBlock);
   setFunctionResultOutput(pOperator, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, numOfExpr);
 
   pInfo->binfo.pRes = pResBlock;
@@ -446,7 +446,7 @@ static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOp
     }
   }
 
-  setInputDataBlock(pOperator, pSup->pCtx, pBlock, order, scanFlag, false);
+  setInputDataBlock(pSup, pBlock, order, scanFlag, false);
   blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
 
   code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,

@@ -417,11 +417,11 @@ static int32_t getDBVgInfoImpl(STranslateContext* pCxt, const SName* pName, SArr
                                .requestId = pParCxt->requestId,
                                .requestObjRefId = pParCxt->requestRid,
                                .mgmtEps = pParCxt->mgmtEpSet};
-      code = catalogGetDBVgInfo(pParCxt->pCatalog, &conn, fullDbName, pVgInfo);
+      code = catalogGetDBVgList(pParCxt->pCatalog, &conn, fullDbName, pVgInfo);
     }
   }
   if (TSDB_CODE_SUCCESS != code) {
-    parserError("0x%" PRIx64 " catalogGetDBVgInfo error, code:%s, dbFName:%s", pCxt->pParseCxt->requestId,
+    parserError("0x%" PRIx64 " catalogGetDBVgList error, code:%s, dbFName:%s", pCxt->pParseCxt->requestId,
                 tstrerror(code), fullDbName);
   }
   return code;
@@ -995,13 +995,17 @@ static int32_t parseTimeFromValueNode(STranslateContext* pCxt, SValueNode* pVal)
     if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
       return pCxt->errCode;
     }
+    int64_t value = 0;
     if (IS_UNSIGNED_NUMERIC_TYPE(pVal->node.resType.type)) {
-      pVal->datum.i = (int64_t)pVal->datum.u;
+      value = pVal->datum.u;
     } else if (IS_FLOAT_TYPE(pVal->node.resType.type)) {
-      pVal->datum.i = (int64_t)pVal->datum.d;
+      value = pVal->datum.d;
     } else if (TSDB_DATA_TYPE_BOOL == pVal->node.resType.type) {
-      pVal->datum.i = pVal->datum.b;
+      value = pVal->datum.b;
+    } else {
+      value = pVal->datum.i;
     }
+    pVal->datum.i = value;
     return TSDB_CODE_SUCCESS;
   } else if (IS_VAR_DATA_TYPE(pVal->node.resType.type) || TSDB_DATA_TYPE_TIMESTAMP == pVal->node.resType.type) {
     if (TSDB_CODE_SUCCESS == taosParseTime(pVal->literal, &pVal->datum.i, pVal->node.resType.bytes,
@@ -1083,7 +1087,7 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
     }
     case TSDB_DATA_TYPE_UTINYINT: {
       code = toUInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.u);
-      if (strict && (TSDB_CODE_SUCCESS != code || !IS_VALID_UTINYINT(pVal->datum.u))) {
+      if (strict && (TSDB_CODE_SUCCESS != code || pVal->datum.u > UINT8_MAX)) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
       }
       *(uint8_t*)&pVal->typeData = pVal->datum.u;
@@ -1091,7 +1095,7 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
     }
     case TSDB_DATA_TYPE_USMALLINT: {
       code = toUInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.u);
-      if (strict && (TSDB_CODE_SUCCESS != code || !IS_VALID_USMALLINT(pVal->datum.u))) {
+      if (strict && (TSDB_CODE_SUCCESS != code || pVal->datum.u > UINT16_MAX)) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
       }
       *(uint16_t*)&pVal->typeData = pVal->datum.u;
@@ -1099,7 +1103,7 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
     }
     case TSDB_DATA_TYPE_UINT: {
       code = toUInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.u);
-      if (strict && (TSDB_CODE_SUCCESS != code || !IS_VALID_UINT(pVal->datum.u))) {
+      if (strict && (TSDB_CODE_SUCCESS != code || pVal->datum.u > UINT32_MAX)) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
       }
       *(uint32_t*)&pVal->typeData = pVal->datum.u;
@@ -1107,7 +1111,7 @@ static EDealRes translateNormalValue(STranslateContext* pCxt, SValueNode* pVal, 
     }
     case TSDB_DATA_TYPE_UBIGINT: {
       code = toUInteger(pVal->literal, strlen(pVal->literal), 10, &pVal->datum.u);
-      if (strict && (TSDB_CODE_SUCCESS != code || !IS_VALID_UBIGINT(pVal->datum.u))) {
+      if (strict && TSDB_CODE_SUCCESS != code) {
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
       }
       *(uint64_t*)&pVal->typeData = pVal->datum.u;
@@ -4245,7 +4249,7 @@ static int32_t checkTableTagsSchema(STranslateContext* pCxt, SHashObj* pHash, SN
       code = taosHashPut(pHash, pTag->colName, len, &pTag, POINTER_BYTES);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      tagsSize += pTag->dataType.bytes;
+      tagsSize += calcTypeBytes(pTag->dataType);
     } else {
       break;
     }
@@ -4296,7 +4300,7 @@ static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, in
       code = taosHashPut(pHash, pCol->colName, len, &pCol, POINTER_BYTES);
     }
     if (TSDB_CODE_SUCCESS == code) {
-      rowSize += pCol->dataType.bytes;
+      rowSize += calcTypeBytes(pCol->dataType);
     } else {
       break;
     }
@@ -5162,7 +5166,7 @@ static int16_t getCreateComponentNodeMsgType(ENodeType type) {
 static int32_t translateCreateComponentNode(STranslateContext* pCxt, SCreateComponentNodeStmt* pStmt) {
   SMCreateQnodeReq createReq = {.dnodeId = pStmt->dnodeId};
   return buildCmdMsg(pCxt, getCreateComponentNodeMsgType(nodeType(pStmt)),
-                     (FSerializeFunc)tSerializeSCreateDropMQSBNodeReq, &createReq);
+                     (FSerializeFunc)tSerializeSCreateDropMQSNodeReq, &createReq);
 }
 
 static int16_t getDropComponentNodeMsgType(ENodeType type) {
@@ -5184,7 +5188,7 @@ static int16_t getDropComponentNodeMsgType(ENodeType type) {
 static int32_t translateDropComponentNode(STranslateContext* pCxt, SDropComponentNodeStmt* pStmt) {
   SDDropQnodeReq dropReq = {.dnodeId = pStmt->dnodeId};
   return buildCmdMsg(pCxt, getDropComponentNodeMsgType(nodeType(pStmt)),
-                     (FSerializeFunc)tSerializeSCreateDropMQSBNodeReq, &dropReq);
+                     (FSerializeFunc)tSerializeSCreateDropMQSNodeReq, &dropReq);
 }
 
 static int32_t checkTopicQuery(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -6204,6 +6208,20 @@ static int32_t rewriteShow(STranslateContext* pCxt, SQuery* pQuery) {
     pQuery->pRoot = (SNode*)pStmt;
   } else {
     nodesDestroyNode((SNode*)pStmt);
+  }
+  return code;
+}
+
+static int32_t checkShowVgroups(STranslateContext* pCxt, SShowStmt* pShow) {
+  // just to verify whether the database exists
+  SDbCfgInfo dbCfg = {0};
+  return getDBCfg(pCxt, ((SValueNode*)pShow->pDbName)->literal, &dbCfg);
+}
+
+static int32_t rewriteShowVgroups(STranslateContext* pCxt, SQuery* pQuery) {
+  int32_t code = checkShowVgroups(pCxt, (SShowStmt*)pQuery->pRoot);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteShow(pCxt, pQuery);
   }
   return code;
 }
@@ -7354,7 +7372,6 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_STABLES_STMT:
     case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_DNODES_STMT:
-    case QUERY_NODE_SHOW_VGROUPS_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
     case QUERY_NODE_SHOW_QNODES_STMT:
@@ -7373,6 +7390,9 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_SUBSCRIPTIONS_STMT:
     case QUERY_NODE_SHOW_TAGS_STMT:
       code = rewriteShow(pCxt, pQuery);
+      break;
+    case QUERY_NODE_SHOW_VGROUPS_STMT:
+      code = rewriteShowVgroups(pCxt, pQuery);
       break;
     case QUERY_NODE_SHOW_TABLE_TAGS_STMT:
       code = rewriteShowStableTags(pCxt, pQuery);

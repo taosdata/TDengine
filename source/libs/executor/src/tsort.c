@@ -140,6 +140,7 @@ static int32_t doAddNewExternalMemSource(SDiskbasedBuf* pBuf, SArray* pAllSource
                                          int32_t* sourceId, SArray* pPageIdList) {
   SSortSource* pSource = taosMemoryCalloc(1, sizeof(SSortSource));
   if (pSource == NULL) {
+    taosArrayDestroy(pPageIdList);
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 
@@ -155,6 +156,7 @@ static int32_t doAddNewExternalMemSource(SDiskbasedBuf* pBuf, SArray* pAllSource
   int32_t numOfRows =
       (getBufPageSize(pBuf) - blockDataGetSerialMetaSize(taosArrayGetSize(pBlock->pDataBlock))) / rowSize;
   ASSERT(numOfRows > 0);
+
   return blockDataEnsureCapacity(pSource->src.pBlock, numOfRows);
 }
 
@@ -181,6 +183,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
     blockDataSplitRows(pDataBlock, pDataBlock->info.hasVarCol, start, &stop, pHandle->pageSize);
     SSDataBlock* p = blockDataExtractBlock(pDataBlock, start, stop - start + 1);
     if (p == NULL) {
+      taosArrayDestroy(pPageIdList);
       return terrno;
     }
 
@@ -223,6 +226,22 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int
 
   int32_t code = 0;
 
+  // multi-pass internal merge sort is required
+  if (pHandle->pBuf == NULL) {
+    if (!osTempSpaceAvailable()) {
+      code = TSDB_CODE_NO_AVAIL_DISK;
+      qError("Sort compare init failed since %s", terrstr(code));
+      return code;
+    }
+
+    code = createDiskbasedBuf(&pHandle->pBuf, pHandle->pageSize, pHandle->numOfPages * pHandle->pageSize,
+                              "sortComparInit", tsTempDir);
+    dBufSetPrintInfo(pHandle->pBuf);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  }
+
   if (pHandle->type == SORT_SINGLESOURCE_SORT) {
     for (int32_t i = 0; i < cmpParam->numOfSources; ++i) {
       SSortSource* pSource = cmpParam->pSources[i];
@@ -244,22 +263,6 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int
       releaseBufPage(pHandle->pBuf, pPage);
     }
   } else {
-    // multi-pass internal merge sort is required
-    if (pHandle->pBuf == NULL) {
-      if (!osTempSpaceAvailable()) {
-        terrno = TSDB_CODE_NO_AVAIL_DISK;
-        code = terrno;
-        qError("Sort compare init failed since %s", terrstr(terrno));
-        return code;
-      }
-      code = createDiskbasedBuf(&pHandle->pBuf, pHandle->pageSize, pHandle->numOfPages * pHandle->pageSize,
-                                "sortComparInit", tsTempDir);
-      dBufSetPrintInfo(pHandle->pBuf);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
-    }
-
     for (int32_t i = 0; i < cmpParam->numOfSources; ++i) {
       SSortSource* pSource = cmpParam->pSources[i];
       pSource->src.pBlock = pHandle->fetchfp(pSource->param);
@@ -422,7 +425,7 @@ int32_t msortComparFn(const void* pLeft, const void* pRight, void* param) {
     SColumnInfoData* pRightColInfoData = TARRAY_GET_ELEM(pRightBlock->pDataBlock, pOrder->slotId);
     bool             rightNull = false;
     if (pRightColInfoData->hasNull) {
-      if (pLeftBlock->pBlockAgg == NULL) {
+      if (pRightBlock->pBlockAgg == NULL) {
         rightNull = colDataIsNull_s(pRightColInfoData, pRightSource->src.rowIndex);
       } else {
         rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, pRightSource->src.rowIndex,
@@ -506,12 +509,14 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
 
       int32_t code = sortComparInit(&pHandle->cmpParam, pHandle->pOrderedSource, i * numOfInputSources, end, pHandle);
       if (code != TSDB_CODE_SUCCESS) {
+        taosArrayDestroy(pResList);
         return code;
       }
 
       code =
           tMergeTreeCreate(&pHandle->pMergeTree, pHandle->cmpParam.numOfSources, &pHandle->cmpParam, pHandle->comparFn);
       if (code != TSDB_CODE_SUCCESS) {
+        taosArrayDestroy(pResList);
         return code;
       }
 
@@ -519,12 +524,16 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
       while (1) {
         SSDataBlock* pDataBlock = getSortedBlockDataInner(pHandle, &pHandle->cmpParam, numOfRows);
         if (pDataBlock == NULL) {
+          taosArrayDestroy(pResList);
+          taosArrayDestroy(pPageIdList);
           break;
         }
 
         int32_t pageId = -1;
         void*   pPage = getNewBufPage(pHandle->pBuf, &pageId);
         if (pPage == NULL) {
+          taosArrayDestroy(pResList);
+          taosArrayDestroy(pPageIdList);
           return terrno;
         }
 
@@ -548,7 +557,8 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
 
       SSDataBlock* pBlock = createOneDataBlock(pHandle->pDataBlock, false);
       code = doAddNewExternalMemSource(pHandle->pBuf, pResList, pBlock, &pHandle->sourceId, pPageIdList);
-      if (code != 0) {
+      if (code != TSDB_CODE_SUCCESS) {
+        taosArrayDestroy(pResList);
         return code;
       }
     }

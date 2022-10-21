@@ -113,7 +113,7 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   SDB_SET_INT8(pRaw, dataPos, pDb->cfg.hashMethod, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pDb->cfg.numOfRetensions, _OVER)
   for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
-    TASSERT(taosArrayGetSize(pDb->cfg.pRetensions) == pDb->cfg.numOfRetensions);
+    ASSERT(taosArrayGetSize(pDb->cfg.pRetensions) == pDb->cfg.numOfRetensions);
     SRetention *pRetension = taosArrayGet(pDb->cfg.pRetensions, i);
     SDB_SET_INT64(pRaw, dataPos, pRetension->freq, _OVER)
     SDB_SET_INT64(pRaw, dataPos, pRetension->keep, _OVER)
@@ -447,7 +447,7 @@ static int32_t mndSetCreateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
 
     for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
       SVnodeGid *pVgid = pVgroup->vnodeGid + vn;
-      if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid, false) != 0) {
+      if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid) != 0) {
         return -1;
       }
     }
@@ -631,29 +631,18 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
   terrno = TSDB_CODE_MND_DB_OPTION_UNCHANGED;
 
   if (pAlter->buffer > 0 && pAlter->buffer != pDb->cfg.buffer) {
-#if 0
-    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
-    return terrno;
-#else
     pDb->cfg.buffer = pAlter->buffer;
     terrno = 0;
-#endif
   }
 
   if (pAlter->pages > 0 && pAlter->pages != pDb->cfg.pages) {
-#if 0
-    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
-    return terrno;
-#else
     pDb->cfg.pages = pAlter->pages;
     terrno = 0;
-#endif
   }
 
   if (pAlter->pageSize > 0 && pAlter->pageSize != pDb->cfg.pageSize) {
 #if 1
     terrno = TSDB_CODE_OPS_NOT_SUPPORT;
-    return terrno;
 #else
     pDb->cfg.pageSize = pAlter->pageSize;
     terrno = 0;
@@ -710,13 +699,9 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
   }
 
   if (pAlter->replications > 0 && pAlter->replications != pDb->cfg.replications) {
-#if 1
-    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
-#else
     pDb->cfg.replications = pAlter->replications;
     pDb->vgVersion++;
     terrno = 0;
-#endif
   }
 
   return terrno;
@@ -1157,7 +1142,7 @@ static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
           pEp->port = pDnode->port;
         }
         mndReleaseDnode(pMnode, pDnode);
-        if (pVgid->role == TAOS_SYNC_STATE_LEADER) {
+        if (pVgid->syncState == TAOS_SYNC_STATE_LEADER) {
           vgInfo.epSet.inUse = gid;
         }
       }
@@ -1553,7 +1538,7 @@ bool mndIsDbReady(SMnode *pMnode, SDbObj *pDb) {
     if (pVgroup->dbUid == pDb->uid && pVgroup->replica > 1) {
       bool hasLeader = false;
       for (int32_t i = 0; i < pVgroup->replica; ++i) {
-        if (pVgroup->vnodeGid[i].role == TAOS_SYNC_STATE_LEADER) {
+        if (pVgroup->vnodeGid[i].syncState == TAOS_SYNC_STATE_LEADER) {
           hasLeader = true;
         }
       }
