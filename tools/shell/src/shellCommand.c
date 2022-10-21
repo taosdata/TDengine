@@ -500,9 +500,11 @@ int32_t shellReadCommand(char *command) {
       }
       shellInsertChar(&cmd, utf8_array, count);
       pressOtherKey(c);
+#ifndef WINDOWS
     } else if (c == TAB_KEY) {
       // press TAB key
       pressTabKey(&cmd);
+#endif
     } else if (c < '\033') {
       pressOtherKey(c);      
       // Ctrl keys.  TODO: Implement ctrl combinations
