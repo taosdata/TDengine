@@ -70,7 +70,7 @@ class UpdateBackup(TDCase):
             if create_flag.lower() == 'create':
                 self.remote.cmd(
                     taosBenchmark_fqdn[0], f'taosBenchmark -h {host} -P {port} -n {row_num} -t {tb_num} -d {dbname[source]} -m {ntbname_m[source]} -N -s {start_timestamp} -y')
-            elif create_flag.lower() == 'add':
+            elif create_flag.lower() == 'update':
                 self.remote.cmd(
                     taosBenchmark_fqdn[0], f'taosBenchmark -h {host} -P {port} -n {row_num} -t {tb_num} -d {dbname[source]} -m {ntbname_m[source]} -N -y -U -s {start_timestamp}')
     
@@ -84,9 +84,9 @@ class UpdateBackup(TDCase):
                 group_id = self.tdCom.get_long_name(5)
                 taosd_backup = taos.connect(host=self.target_taosd[0],port=int(self.target_taosd[1]))
                 for source in range(len(self.source_taosd_list)):
+                    taosd_backup.execute(f'drop database if exists {self.dbname[source]}')
                     target_file_dir = f'{self.run_log_dir}/{self.source_taosd_list[source][0]}_backup_{source}'
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'mkdir {target_file_dir}')
-                    # group_id = self.tdCom.get_long_name(5)
                     if source_type == 'db':
                         if source_task.lower() == '+ws':
                             self.tdTaosx.run_backup_db_from_ws_to_local(thread_list_source,self.taosx_setting,source_task,target_file_dir,self.source_taosd_list,self.dbname,source,group_id,self.timeout)
@@ -155,9 +155,8 @@ class UpdateBackup(TDCase):
                 master_sum = []
                 group_id = self.tdCom.get_long_name(5)
                 taosd_backup = taos.connect(host=self.target_taosd[0],port=int(self.target_taosd[1]))
-                taosd_backup.execute(f'drop database if exists {self.target_dbname}')
-                taosd_backup.execute(f'create database if not exists {self.target_dbname}')
                 for source in range(len(self.source_taosd_list)):
+                    taosd_backup.execute(f'drop database if exists {self.dbname[source]}')
                     target_file_dir = f'{self.run_log_dir}/{self.source_taosd_list[source][0]}_backup_{source}'
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'mkdir {target_file_dir}')
                     if source_task.lower() == '+ws':
@@ -168,6 +167,7 @@ class UpdateBackup(TDCase):
                 self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.add_row_num,self.start_timestamp,self.add_drop_flag,self.add_child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root)
                 for thread in thread_list_source:
                     thread.join()
+                thread_list_source = []    
                 for source in range(len(self.source_taosd_list)):
                     target_file_dir = f'{self.run_log_dir}/{self.source_taosd_list[source][0]}_backup_{source}'
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'mkdir {target_file_dir}')
@@ -214,9 +214,8 @@ class UpdateBackup(TDCase):
                 master_sum = []
                 group_id = self.tdCom.get_long_name(5)
                 taosd_backup = taos.connect(host=self.target_taosd[0],port=int(self.target_taosd[1]))
-                taosd_backup.execute(f'drop database if exists {self.target_dbname}')
-                taosd_backup.execute(f'create database if not exists {self.target_dbname}')
                 for source in range(len(self.source_taosd_list)):
+                    taosd_backup.execute(f'drop database if exists {self.ntb_dbname[source]}')
                     target_file_dir = f'{self.run_log_dir}/{self.source_taosd_list[source][0]}_backup_{source}'
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'mkdir {target_file_dir}')
                     if source_task.lower() == '+ws':
