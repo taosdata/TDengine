@@ -83,6 +83,10 @@ void syncIndexMgrSetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, 
 }
 
 SyncIndex syncIndexMgrGetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId) {
+  if (pSyncIndexMgr == NULL) {
+    return SYNC_INDEX_INVALID;
+  }
+
   for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
     if (syncUtilSameId(&((*(pSyncIndexMgr->replicas))[i]), pRaftId)) {
       SyncIndex idx = (pSyncIndexMgr->index)[i];
@@ -136,7 +140,7 @@ cJSON *syncIndexMgr2Json(SSyncIndexMgr *pSyncIndexMgr) {
 
 char *syncIndexMgr2Str(SSyncIndexMgr *pSyncIndexMgr) {
   cJSON *pJson = syncIndexMgr2Json(pSyncIndexMgr);
-  char * serialized = cJSON_Print(pJson);
+  char  *serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
