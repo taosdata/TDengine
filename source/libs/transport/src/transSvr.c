@@ -811,7 +811,7 @@ static bool addHandleToAcceptloop(void* arg) {
     tError("failed to bind:%s", uv_err_name(err));
     return false;
   }
-  if ((err = uv_listen((uv_stream_t*)&srv->server, 512, uvOnAcceptCb)) != 0) {
+  if ((err = uv_listen((uv_stream_t*)&srv->server, 4096 * 2, uvOnAcceptCb)) != 0) {
     tError("failed to listen:%s", uv_err_name(err));
     terrno = TSDB_CODE_RPC_PORT_EADDRINUSE;
     return false;

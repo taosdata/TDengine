@@ -20,7 +20,7 @@
 
 static inline bool vnodeIsMsgBlock(tmsg_t type) {
   return (type == TDMT_VND_CREATE_TABLE) || (type == TDMT_VND_ALTER_TABLE) || (type == TDMT_VND_DROP_TABLE) ||
-         (type == TDMT_VND_UPDATE_TAG_VAL) || (type == TDMT_VND_ALTER_REPLICA);
+         (type == TDMT_VND_UPDATE_TAG_VAL);
 }
 
 static inline bool vnodeIsMsgWeak(tmsg_t type) { return false; }
@@ -51,76 +51,6 @@ static inline void vnodePostBlockMsg(SVnode *pVnode, const SRpcMsg *pMsg) {
     }
     taosThreadMutexUnlock(&pVnode->lock);
   }
-}
-
-static int32_t vnodeSetStandBy(SVnode *pVnode) {
-  vInfo("vgId:%d, start to set standby", TD_VID(pVnode));
-
-  if (syncSetStandby(pVnode->sync) == 0) {
-    vInfo("vgId:%d, set standby success", TD_VID(pVnode));
-    return 0;
-  } else if (terrno != TSDB_CODE_SYN_IS_LEADER) {
-    vError("vgId:%d, failed to set standby since %s", TD_VID(pVnode), terrstr());
-    return -1;
-  }
-
-  vInfo("vgId:%d, start to transfer leader", TD_VID(pVnode));
-  if (syncLeaderTransfer(pVnode->sync) != 0) {
-    vError("vgId:%d, failed to transfer leader since:%s", TD_VID(pVnode), terrstr());
-    return -1;
-  } else {
-    vInfo("vgId:%d, transfer leader success", TD_VID(pVnode));
-  }
-
-  if (syncSetStandby(pVnode->sync) == 0) {
-    vInfo("vgId:%d, set standby success", TD_VID(pVnode));
-    return 0;
-  } else {
-    vError("vgId:%d, failed to set standby after leader transfer since %s", TD_VID(pVnode), terrstr());
-    return -1;
-  }
-}
-
-static int32_t vnodeProcessAlterReplicaReq(SVnode *pVnode, SRpcMsg *pMsg) {
-  SAlterVnodeReq req = {0};
-  if (tDeserializeSAlterVnodeReq((char *)pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead), &req) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return TSDB_CODE_INVALID_MSG;
-  }
-
-  const STraceId *trace = &pMsg->info.traceId;
-  vGTrace("vgId:%d, start to alter vnode replica to %d, handle:%p", TD_VID(pVnode), req.replica, pMsg->info.handle);
-
-  SSyncCfg cfg = {.replicaNum = req.replica, .myIndex = req.selfIndex};
-  for (int32_t r = 0; r < req.replica; ++r) {
-    SNodeInfo *pNode = &cfg.nodeInfo[r];
-    tstrncpy(pNode->nodeFqdn, req.replicas[r].fqdn, sizeof(pNode->nodeFqdn));
-    pNode->nodePort = req.replicas[r].port;
-    vInfo("vgId:%d, replica:%d %s:%u", TD_VID(pVnode), r, pNode->nodeFqdn, pNode->nodePort);
-  }
-
-  SRpcMsg rpcMsg = {.info = pMsg->info};
-  if (syncReconfigBuild(pVnode->sync, &cfg, &rpcMsg) != 0) {
-    vError("vgId:%d, failed to build reconfig msg since %s", TD_VID(pVnode), terrstr());
-    return -1;
-  }
-
-  int32_t code = syncPropose(pVnode->sync, &rpcMsg, false);
-  if (code != 0) {
-    if (terrno != 0) code = terrno;
-
-    vInfo("vgId:%d, failed to propose reconfig msg since %s", TD_VID(pVnode), terrstr());
-    if (terrno == TSDB_CODE_SYN_IS_LEADER) {
-      if (syncLeaderTransfer(pVnode->sync) != 0) {
-        vError("vgId:%d, failed to transfer leader since %s", TD_VID(pVnode), terrstr());
-      } else {
-        vInfo("vgId:%d, transfer leader success", TD_VID(pVnode));
-      }
-    }
-  }
-
-  terrno = code;
-  return code;
 }
 
 void vnodeRedirectRpcMsg(SVnode *pVnode, SRpcMsg *pMsg) {
@@ -167,24 +97,6 @@ static void vnodeHandleProposeError(SVnode *pVnode, SRpcMsg *pMsg, int32_t code)
       tmsgSendRsp(&rsp);
     }
   }
-}
-
-static void vnodeHandleAlterReplicaReq(SVnode *pVnode, SRpcMsg *pMsg) {
-  int32_t code = vnodeProcessAlterReplicaReq(pVnode, pMsg);
-
-  if (code > 0) {
-    ASSERT(0);
-  } else if (code == 0) {
-    vnodeWaitBlockMsg(pVnode, pMsg);
-  } else {
-    if (terrno != 0) code = terrno;
-    vnodeHandleProposeError(pVnode, pMsg, code);
-  }
-
-  const STraceId *trace = &pMsg->info.traceId;
-  vGTrace("vgId:%d, msg:%p is freed, code:0x%x", pVnode->config.vgId, pMsg, code);
-  rpcFreeCont(pMsg->pCont);
-  taosFreeQitem(pMsg);
 }
 
 static void inline vnodeProposeBatchMsg(SVnode *pVnode, SRpcMsg **pMsgArr, bool *pIsWeakArr, int32_t *arrSize) {
@@ -262,11 +174,6 @@ void vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs)
       vGError("vgId:%d, msg:%p failed to pre-process since %s", vgId, pMsg, terrstr());
       rpcFreeCont(pMsg->pCont);
       taosFreeQitem(pMsg);
-      continue;
-    }
-
-    if (pMsg->msgType == TDMT_VND_ALTER_REPLICA) {
-      vnodeHandleAlterReplicaReq(pVnode, pMsg);
       continue;
     }
 
@@ -431,11 +338,6 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       ASSERT(pSyncMsg != NULL);
       code = syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
       syncAppendEntriesReplyDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_SET_VNODE_STANDBY) {
-      code = vnodeSetStandBy(pVnode);
-      if (code != 0 && terrno != 0) code = terrno;
-      SRpcMsg rsp = {.code = code, .info = pMsg->info};
-      tmsgSendRsp(&rsp);
     } else {
       vGError("vgId:%d, msg:%p failed to process since error msg type:%d", pVnode->config.vgId, pMsg, pMsg->msgType);
       code = -1;
@@ -496,11 +398,6 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       SyncSnapshotRsp *pSyncMsg = syncSnapshotRspFromRpcMsg2(pMsg);
       code = syncNodeOnSnapshotRspCb(pSyncNode, pSyncMsg);
       syncSnapshotRspDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_SET_VNODE_STANDBY) {
-      code = vnodeSetStandBy(pVnode);
-      if (code != 0 && terrno != 0) code = terrno;
-      SRpcMsg rsp = {.code = code, .info = pMsg->info};
-      tmsgSendRsp(&rsp);
     } else {
       vGError("vgId:%d, msg:%p failed to process since error msg type:%d", pVnode->config.vgId, pMsg, pMsg->msgType);
       code = -1;
@@ -543,22 +440,7 @@ static int32_t vnodeSyncGetSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot) {
   return 0;
 }
 
-static void vnodeSyncReconfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta *cbMeta) {
-  SVnode *pVnode = pFsm->data;
-
-  SRpcMsg rpcMsg = {.msgType = pMsg->msgType, .contLen = pMsg->contLen};
-  syncGetAndDelRespRpc(pVnode->sync, cbMeta->newCfgSeqNum, &rpcMsg.info);
-  rpcMsg.info.conn.applyIndex = cbMeta->index;
-
-  const STraceId *trace = (STraceId *)&pMsg->info.traceId;
-  vGTrace("vgId:%d, alter vnode replica is confirmed, type:%s contLen:%d seq:%" PRIu64 " handle:%p", TD_VID(pVnode),
-          TMSG_INFO(pMsg->msgType), pMsg->contLen, cbMeta->seqNum, rpcMsg.info.handle);
-  if (rpcMsg.info.handle != NULL) {
-    tmsgSendRsp(&rpcMsg);
-  }
-
-  vnodePostBlockMsg(pVnode, pMsg);
-}
+static void vnodeSyncReconfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta *cbMeta) {}
 
 static void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   if (cbMeta.isWeak == 0) {
