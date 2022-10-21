@@ -4411,6 +4411,11 @@ SOperatorInfo* createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream
       taosArrayPush(pInfo->pChildren, &pChildOp);
     }
   }
+
+  if (!IS_FINAL_OP(pInfo) || numOfChild == 0) {
+    pInfo->twAggSup.calTrigger = STREAM_TRIGGER_AT_ONCE;
+  }
+
   return pOperator;
 
 _error:
