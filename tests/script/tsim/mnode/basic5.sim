@@ -183,7 +183,7 @@ $x = 0
 step71: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 10 then
+	if $x == 50 then
 		return -1
 	endi
 sql select * from information_schema.ins_dnodes
