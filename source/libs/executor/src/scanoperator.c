@@ -3401,9 +3401,9 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator, SArr
   blockDataDestroy(p);
 
   // todo temporarily free the cursor here, the true reason why the free is not valid needs to be found
-  if (ret != 0) {
-    doSetOperatorCompleted(pOperator);
-  }
+  // if (ret != 0) {
+  doSetOperatorCompleted(pOperator);
+  //}
 
   pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
