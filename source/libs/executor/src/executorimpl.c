@@ -3098,7 +3098,9 @@ _error:
     destroyAggOperatorInfo(pInfo);
   }
 
+  cleanupExprSupp(&pOperator->exprSupp);
   taosMemoryFreeClear(pOperator);
+
   pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
   return NULL;
 }

@@ -1523,9 +1523,9 @@ static FORCE_INLINE STSchema* doGetSchemaForTSRow(int32_t sversion, STsdbReader*
     return pReader->pMemSchema;
   }
 
-  taosMemoryFree(pReader->pMemSchema);
+  taosMemoryFreeClear(pReader->pMemSchema);
   int32_t code = metaGetTbTSchemaEx(pReader->pTsdb->pVnode->pMeta, pReader->suid, uid, sversion, &pReader->pMemSchema);
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code != TSDB_CODE_SUCCESS || pReader->pMemSchema == NULL) {
     terrno = code;
     return NULL;
   } else {
@@ -2274,7 +2274,7 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
   }
 
 _end:
-  pResBlock->info.uid = pBlockScanInfo->uid;
+  pResBlock->info.uid = (pBlockScanInfo != NULL)? pBlockScanInfo->uid:0;
   blockDataUpdateTsWindow(pResBlock, 0);
 
   setComposedBlockFlag(pReader, true);
@@ -2569,7 +2569,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
   }
 
   if (pScanInfo == NULL) {
-    tsdbError("failed to get table, uid:%" PRIu64 ", %s", pBlockInfo->uid, pReader->idStr);
+    tsdbError("failed to get table scan-info, %s", pReader->idStr);
     code = TSDB_CODE_INVALID_PARA;
     return code;
   }
