@@ -31,7 +31,7 @@
 
 
 // extern function
-void insertChar(Command *cmd, char *c, int size);
+void insertStr(Command *cmd, char *str, int size);
 
 
 typedef struct SAutoPtr {
@@ -1077,7 +1077,7 @@ void printScreen(TAOS * con, Command * cmd, SWords * match) {
   }
   
   // insert new
-  insertChar(cmd, (char *)str, strLen);
+  insertStr(cmd, (char *)str, strLen);
 }
 
 
@@ -1192,7 +1192,7 @@ bool fillWithType(TAOS * con, Command * cmd, char* pre, int type) {
 
   // show
   int count = strlen(part);
-  insertChar(cmd, part, count);
+  insertStr(cmd, part, count);
   cntDel = count; // next press tab delete current append count
 
   free(str);
@@ -1220,7 +1220,7 @@ bool fillTableName(TAOS * con, Command * cmd, char* pre) {
 
   // show
   int count = strlen(part);
-  insertChar(cmd, part, count);
+  insertStr(cmd, part, count);
   cntDel = count; // next press tab delete current append count
   
   free(str);
@@ -1344,7 +1344,7 @@ bool appendAfterSelect(TAOS * con, Command * cmd, char* sql, int32_t len) {
     bool fieldEnd = fieldsInputEnd(p);
     // cheeck fields input end then insert from keyword
     if (fieldEnd && p[len-1] == ' ') {
-      insertChar(cmd, "from", 4);
+      insertStr(cmd, "from", 4);
       free(p);
       return true;
     }
@@ -1527,7 +1527,7 @@ bool matchOther(TAOS * con, Command * cmd) {
   if (p[len - 1] == '\\') {
     // append '\G'
     char a[] = "G;";
-    insertChar(cmd, a, 2);
+    insertStr(cmd, a, 2);
     return true;
   }
 
