@@ -134,6 +134,7 @@ if $rows != 1 then
   return -1
 endi
 
+return
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 system sh/exec.sh -n dnode3 -s stop -x SIGINT

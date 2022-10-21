@@ -267,7 +267,7 @@ _OVER:
 
 int32_t vmProcessAlterVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SAlterVnodeReplicaReq alterReq = {0};
-  if (tSerializeSAlterVnodeReplicaReq(pMsg->pCont, pMsg->contLen, &alterReq) != 0) {
+  if (tDeserializeSAlterVnodeReplicaReq(pMsg->pCont, pMsg->contLen, &alterReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
@@ -283,6 +283,12 @@ int32_t vmProcessAlterVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   dInfo("vgId:%d, start to close vnode", vgId);
+  SWrapperCfg wrapperCfg = {
+      .dropped = pVnode->dropped,
+      .vgId = pVnode->vgId,
+      .vgVersion = pVnode->vgVersion,
+  };
+  tstrncpy(wrapperCfg.path, pVnode->path, sizeof(wrapperCfg.path));
   vmCloseVnode(pMgmt, pVnode);
 
   char path[TSDB_FILENAME_LEN] = {0};
@@ -295,8 +301,19 @@ int32_t vmProcessAlterVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   dInfo("vgId:%d, start to open vnode", vgId);
-  if (vnodeOpen(path, pMgmt->pTfs, pMgmt->msgCb) < 0) {
+  SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, pMgmt->msgCb);
+  if (pImpl == NULL) {
     dError("vgId:%d, failed to open vnode at %s since %s", vgId, path, terrstr());
+    return -1;
+  }
+
+  if (vmOpenVnode(pMgmt, &wrapperCfg, pImpl) != 0) {
+    dError("vgId:%d, failed to open vnode mgmt since %s", vgId, terrstr());
+    return -1;
+  }
+
+  if (vnodeStart(pImpl) != 0) {
+    dError("vgId:%d, failed to start sync since %s", vgId, terrstr());
     return -1;
   }
 
