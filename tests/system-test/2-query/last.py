@@ -10,7 +10,7 @@ import numpy as np
 class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), log=True)
+        tdSql.init(conn.cursor())
 
         self.rowNum = 10
         self.tbnum = 20
