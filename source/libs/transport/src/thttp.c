@@ -241,7 +241,7 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
     taosMemoryFree(loop);
     terrno = TAOS_SYSTEM_ERROR(err);
     destroyHttpClient(cli);
-    return -1;
+    return terrno;
   }
   uv_tcp_init(loop, &cli->tcp);
   // set up timeout to avoid stuck;
@@ -266,5 +266,6 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
 
   uv_run(loop, UV_RUN_DEFAULT);
   uv_loop_close(loop);
+  taosMemoryFree(loop);
   return terrno;
 }
