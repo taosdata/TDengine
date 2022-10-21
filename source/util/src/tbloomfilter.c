@@ -137,8 +137,10 @@ SBloomFilter *tBloomFilterDecode(SDecoder *pDecoder) {
     if (tDecodeU64(pDecoder, pUnits + i) < 0) goto _error;
   }
   if (tDecodeDouble(pDecoder, &pBF->errorRate) < 0) goto _error;
-  pBF->hashFn1 = taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP);
-  pBF->hashFn2 = taosGetDefaultHashFunction(TSDB_DATA_TYPE_NCHAR);
+  /*pBF->hashFn1 = taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP);*/
+  /*pBF->hashFn2 = taosGetDefaultHashFunction(TSDB_DATA_TYPE_NCHAR);*/
+  pBF->hashFn1 = taosFastHash;
+  pBF->hashFn2 = taosDJB2Hash;
   return pBF;
 
 _error:
