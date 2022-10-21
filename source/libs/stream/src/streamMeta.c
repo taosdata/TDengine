@@ -127,6 +127,7 @@ FAIL:
   return -1;
 }
 
+#if 0
 int32_t streamMetaAddTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   void* buf = NULL;
   if (pMeta->expandFunc(pMeta->ahandle, pTask) < 0) {
@@ -156,6 +157,7 @@ int32_t streamMetaAddTask(SStreamMeta* pMeta, SStreamTask* pTask) {
 
   return 0;
 }
+#endif
 
 SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId) {
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
