@@ -217,10 +217,11 @@ python3 ./test.py  -f 0-others/compatibility.py
 
 # python3 ./test.py -f 2-query/json_tag.py
 
-# # python3 ./test.py -f 2-query/nestedQuery.py
-# # TD-15983 subquery output duplicate name column.
-# # Please Xiangyang Guo modify the following script
-# # python3 ./test.py -f 2-query/nestedQuery_str.py
+# python3 ./test.py -f 2-query/nestedQuery.py
+# TD-15983 subquery output duplicate name column.
+# Please Xiangyang Guo modify the following script
+# python3 ./test.py -f 2-query/nestedQuery_str.py
+# python3 ./test.py -f 2-query/stablity.py
 
 # python3 ./test.py -f 2-query/elapsed.py
 # python3 ./test.py -f 2-query/csum.py
