@@ -226,6 +226,7 @@ class UpdateBackup(TDCase):
                 self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num,'update',self.start_timestamp)
                 for thread in thread_list_source:
                     thread.join()
+                thread_list_source = []
                 for source in range(len(self.source_taosd_list)):
                     target_file_dir = f'{self.run_log_dir}/{self.source_taosd_list[source][0]}_backup_{source}'
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'mkdir {target_file_dir}')
