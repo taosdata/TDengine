@@ -175,11 +175,15 @@ void updateInfoFillBlockData(SUpdateInfo *pInfo, SSDataBlock *pBlock, int32_t pr
     maxTs = TMAX(maxTs, ts);
     SScalableBf *pSBf = getSBf(pInfo, ts);
     if (pSBf) {
-      tScalableBfPut(pSBf, &ts, sizeof(TSKEY));
+      SUpdateKey updateKey = {
+          .tbUid = tbUid,
+          .ts = ts,
+      };
+      tScalableBfPut(pSBf, &updateKey, sizeof(SUpdateKey));
     }
   }
   TSKEY *pMaxTs = taosHashGet(pInfo->pMap, &tbUid, sizeof(int64_t));
-  if (pMaxTs == NULL || *pMaxTs > tbUid) {
+  if (pMaxTs == NULL || *pMaxTs > maxTs) {
     taosHashPut(pInfo->pMap, &tbUid, sizeof(int64_t), &maxTs, sizeof(TSKEY));
   }
 }
