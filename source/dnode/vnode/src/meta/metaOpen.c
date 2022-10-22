@@ -206,6 +206,8 @@ int metaClose(SMeta *pMeta) {
     if (pMeta->pCache) metaCacheClose(pMeta);
     if (pMeta->pIdx) metaCloseIdx(pMeta);
     if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
+    if (pMeta->pNcolIdx) tdbTbClose(pMeta->pNcolIdx);
+    if (pMeta->pCtimeIdx) tdbTbClose(pMeta->pCtimeIdx);
     if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);
     if (pMeta->pTtlIdx) tdbTbClose(pMeta->pTtlIdx);
     if (pMeta->pTagIvtIdx) indexClose(pMeta->pTagIvtIdx);

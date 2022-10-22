@@ -42,6 +42,8 @@ static int32_t buildDbTableInfoBlock(bool sysInfo, const SSDataBlock* p, const S
 static char* SYSTABLE_IDX_COLUMN[] = {"table_name", "db_name",     "create_time",      "columns",
                                       "ttl",        "stable_name", "vgroup_id', 'uid", "type"};
 
+static char* SYSTABLE_IDX_EXCEPT[] = {"db_name", "vgroup_id"};
+
 typedef int32_t (*__sys_filte)(void* pMeta, SNode* cond, SArray* result);
 typedef int32_t (*__sys_check)(SNode* cond);
 
@@ -3195,10 +3197,19 @@ static int32_t optSysMergeRslt(SArray* mRslt, SArray* rslt) {
   }
   return 0;
 }
+
 static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result) {
   int ret = -1;
   if (nodeType(cond) == QUERY_NODE_OPERATOR) {
     ret = optSysTabFilteImpl(arg, cond, result);
+    if (ret == 0) {
+      SOperatorNode* pOper = (SOperatorNode*)cond;
+      SColumnNode*   pCol = (SColumnNode*)pOper->pLeft;
+      if (0 != strcmp(pCol->colName, SYSTABLE_IDX_EXCEPT[0]) && 0 != strcmp(pCol->colName, SYSTABLE_IDX_EXCEPT[1])) {
+        return 0;
+      }
+      return -1;
+    }
     return ret;
   }
 
@@ -3251,7 +3262,17 @@ static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result) {
     return -2;
   }
   if (hasRslt && hasIdx) {
-    return 0;
+    cell = pList->pHead;
+    for (int i = 0; i < len; i++) {
+      if (cell == NULL) break;
+      SOperatorNode* pOper = (SOperatorNode*)cell->pNode;
+      SColumnNode*   pCol = (SColumnNode*)pOper->pLeft;
+      if (0 != strcmp(pCol->colName, SYSTABLE_IDX_EXCEPT[0]) && 0 != strcmp(pCol->colName, SYSTABLE_IDX_EXCEPT[1])) {
+        return 0;
+      }
+      cell = cell->pNext;
+    }
+    return -1;
   }
   return -1;
 }
