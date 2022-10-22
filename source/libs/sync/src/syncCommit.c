@@ -80,7 +80,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
         int32_t code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, index, &pEntry);
         if (code != 0) {
           char logBuf[128];
-          snprintf(logBuf, sizeof(logBuf), "advance commit index error, read wal index:%ld", index);
+          snprintf(logBuf, sizeof(logBuf), "advance commit index error, read wal index:%" PRId64, index);
           syncNodeErrorLog(pSyncNode, logBuf);
           return;
         }
@@ -136,8 +136,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
       int32_t code = syncNodeDoCommit(pSyncNode, beginIndex, endIndex, pSyncNode->state);
       if (code != 0) {
         char logBuf[128];
-        snprintf(logBuf, sizeof(logBuf), "advance commit index error, do commit begin:%ld, end:%ld", beginIndex,
-                 endIndex);
+        snprintf(logBuf, sizeof(logBuf), "advance commit index error, do commit begin:%" PRId64 ", end:%" PRId64,
+                 beginIndex, endIndex);
         syncNodeErrorLog(pSyncNode, logBuf);
         return;
       }

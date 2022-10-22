@@ -1400,28 +1400,28 @@ char* syncRequestVoteReply2Str(const SyncRequestVoteReply* pMsg) {
 // for debug ----------------------
 void syncRequestVoteReplyPrint(const SyncRequestVoteReply* pMsg) {
   char* serialized = syncRequestVoteReply2Str(pMsg);
-  printf("syncRequestVoteReplyPrint | len:%ld | %s \n", strlen(serialized), serialized);
+  printf("syncRequestVoteReplyPrint | len:%" PRId64 " | %s \n", strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncRequestVoteReplyPrint2(char* s, const SyncRequestVoteReply* pMsg) {
   char* serialized = syncRequestVoteReply2Str(pMsg);
-  printf("syncRequestVoteReplyPrint2 | len:%ld | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncRequestVoteReplyPrint2 | len:%" PRId64 " | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncRequestVoteReplyLog(const SyncRequestVoteReply* pMsg) {
   char* serialized = syncRequestVoteReply2Str(pMsg);
-  sTrace("syncRequestVoteReplyLog | len:%ld | %s", strlen(serialized), serialized);
+  sTrace("syncRequestVoteReplyLog | len:%" PRId64 " | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncRequestVoteReplyLog2(char* s, const SyncRequestVoteReply* pMsg) {
   if (gRaftDetailLog) {
     char* serialized = syncRequestVoteReply2Str(pMsg);
-    sTrace("syncRequestVoteReplyLog2 | len:%ld | %s | %s", strlen(serialized), s, serialized);
+    sTrace("syncRequestVoteReplyLog2 | len:%" PRId64 " | %s | %s", strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }

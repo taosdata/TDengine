@@ -57,8 +57,8 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId) {
   SyncIndex logEndIndex = pSyncNode->pLogStore->syncLogEndIndex(pSyncNode->pLogStore);
   if (nextIndex < logStartIndex || nextIndex - 1 > logEndIndex) {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "start snapshot for next-index:%ld, start:%ld, end:%ld", nextIndex, logStartIndex,
-             logEndIndex);
+    snprintf(logBuf, sizeof(logBuf), "start snapshot for next-index:%" PRId64 ", start:%" PRId64 ", end:%" PRId64,
+             nextIndex, logStartIndex, logEndIndex);
     syncNodeEventLog(pSyncNode, logBuf);
 
     // start snapshot
@@ -105,7 +105,7 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId) {
         syncUtilU642Addr(pDestId->addr, host, sizeof(host), &port);
 
         char logBuf[128];
-        snprintf(logBuf, sizeof(logBuf), "replicate to %s:%d error, next-index:%ld", host, port, nextIndex);
+        snprintf(logBuf, sizeof(logBuf), "replicate to %s:%d error, next-index:%" PRId64, host, port, nextIndex);
         syncNodeErrorLog(pSyncNode, logBuf);
       } while (0);
 
@@ -184,7 +184,7 @@ int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* dest
     int16_t port;
     syncUtilU642Addr(destRaftId->addr, host, sizeof(host), &port);
 
-    snprintf(logBuf, sizeof(logBuf), "do not repcate to %s:%d for index:%ld", host, port, pMsg->prevLogIndex + 1);
+    snprintf(logBuf, sizeof(logBuf), "do not repcate to %s:%d for index:%" PRId64, host, port, pMsg->prevLogIndex + 1);
     syncNodeEventLog(pSyncNode, logBuf);
   }
 

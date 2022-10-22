@@ -339,7 +339,7 @@ char* syncNodePeerState2Str(const SSyncNode* pSyncNode) {
     ASSERT(pState != NULL);
 
     p = pStr + useLen;
-    use = snprintf(p, leftLen, "%d:%ld,%ld, ", i, pState->lastSendIndex, pState->lastSendTime);
+    use = snprintf(p, leftLen, "%d:%" PRId64 " ,%" PRId64, i, pState->lastSendIndex, pState->lastSendTime);
     useLen += use;
     leftLen -= use;
   }
@@ -374,8 +374,9 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
 
     if (isEmpty || (!isEmpty && logNum < logRetention)) {
       char logBuf[256];
-      snprintf(logBuf, sizeof(logBuf), "new-snapshot-index:%ld, log-num:%ld, empty:%d, do not delete wal",
-               lastApplyIndex, logNum, isEmpty);
+      snprintf(logBuf, sizeof(logBuf),
+               "new-snapshot-index:%" PRId64 ", log-num:%" PRId64 ", empty:%d, do not delete wal", lastApplyIndex,
+               logNum, isEmpty);
       syncNodeEventLog(pSyncNode, logBuf);
 
       taosReleaseRef(tsNodeRefId, pSyncNode->rid);
@@ -401,7 +402,8 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
               syncUtilU642Addr(pSyncNode->peersId[i].addr, host, sizeof(host), &port);
               char logBuf[256];
               snprintf(logBuf, sizeof(logBuf),
-                       "new-snapshot-index:%ld is greater than match-index:%ld of %s:%d, do not delete wal",
+                       "new-snapshot-index:%" PRId64 " is greater than match-index:%" PRId64
+                       " of %s:%d, do not delete wal",
                        lastApplyIndex, matchIndex, host, port);
               syncNodeEventLog(pSyncNode, logBuf);
             } while (0);
@@ -415,8 +417,8 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
         if (lastApplyIndex > pSyncNode->minMatchIndex) {
           char logBuf[256];
           snprintf(logBuf, sizeof(logBuf),
-                   "new-snapshot-index:%ld is greater than min-match-index:%ld, do not delete wal", lastApplyIndex,
-                   pSyncNode->minMatchIndex);
+                   "new-snapshot-index:%" PRId64 " is greater than min-match-index:%" PRId64 ", do not delete wal",
+                   lastApplyIndex, pSyncNode->minMatchIndex);
           syncNodeEventLog(pSyncNode, logBuf);
 
           taosReleaseRef(tsNodeRefId, pSyncNode->rid);
@@ -425,7 +427,7 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
 
       } else if (pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE) {
         char logBuf[256];
-        snprintf(logBuf, sizeof(logBuf), "new-snapshot-index:%ld candidate, do not delete wal", lastApplyIndex);
+        snprintf(logBuf, sizeof(logBuf), "new-snapshot-index:%" PRId64 " candidate, do not delete wal", lastApplyIndex);
         syncNodeEventLog(pSyncNode, logBuf);
 
         taosReleaseRef(tsNodeRefId, pSyncNode->rid);
@@ -433,7 +435,8 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
 
       } else {
         char logBuf[256];
-        snprintf(logBuf, sizeof(logBuf), "new-snapshot-index:%ld unknown state, do not delete wal", lastApplyIndex);
+        snprintf(logBuf, sizeof(logBuf), "new-snapshot-index:%" PRId64 " unknown state, do not delete wal",
+                 lastApplyIndex);
         syncNodeEventLog(pSyncNode, logBuf);
 
         taosReleaseRef(tsNodeRefId, pSyncNode->rid);
@@ -462,14 +465,15 @@ _DEL_WAL:
       code = walBeginSnapshot(pData->pWal, lastApplyIndex);
       if (code == 0) {
         char logBuf[256];
-        snprintf(logBuf, sizeof(logBuf), "wal snapshot begin, index:%ld, last apply index:%ld",
+        snprintf(logBuf, sizeof(logBuf), "wal snapshot begin, index:%" PRId64 ", last apply index:%" PRId64,
                  pSyncNode->snapshottingIndex, lastApplyIndex);
         syncNodeEventLog(pSyncNode, logBuf);
 
       } else {
         char logBuf[256];
-        snprintf(logBuf, sizeof(logBuf), "wal snapshot begin error since:%s, index:%ld, last apply index:%ld",
-                 terrstr(terrno), pSyncNode->snapshottingIndex, lastApplyIndex);
+        snprintf(logBuf, sizeof(logBuf),
+                 "wal snapshot begin error since:%s, index:%" PRId64 ", last apply index:%" PRId64, terrstr(terrno),
+                 pSyncNode->snapshottingIndex, lastApplyIndex);
         syncNodeErrorLog(pSyncNode, logBuf);
 
         atomic_store_64(&pSyncNode->snapshottingIndex, SYNC_INDEX_INVALID);
@@ -477,8 +481,9 @@ _DEL_WAL:
 
     } else {
       char logBuf[256];
-      snprintf(logBuf, sizeof(logBuf), "snapshotting for %ld, do not delete wal for new-snapshot-index:%ld",
-               snapshottingIndex, lastApplyIndex);
+      snprintf(logBuf, sizeof(logBuf),
+               "snapshotting for %" PRId64 ", do not delete wal for new-snapshot-index:%" PRId64, snapshottingIndex,
+               lastApplyIndex);
       syncNodeEventLog(pSyncNode, logBuf);
     }
   } while (0);
@@ -507,7 +512,8 @@ int32_t syncEndSnapshot(int64_t rid) {
     } else {
       do {
         char logBuf[256];
-        snprintf(logBuf, sizeof(logBuf), "wal snapshot end, index:%ld", atomic_load_64(&pSyncNode->snapshottingIndex));
+        snprintf(logBuf, sizeof(logBuf), "wal snapshot end, index:%" PRId64,
+                 atomic_load_64(&pSyncNode->snapshottingIndex));
         syncNodeEventLog(pSyncNode, logBuf);
       } while (0);
 
@@ -989,8 +995,8 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
     if (!pSyncNode->restoreFinish && pSyncNode->vgId != 1) {
       ret = -1;
       terrno = TSDB_CODE_SYN_PROPOSE_NOT_READY;
-      sError("vgId:%d, failed to sync propose since not ready, type:%s, last:%ld, cmt:%ld", pSyncNode->vgId,
-             TMSG_INFO(pMsg->msgType), syncNodeGetLastIndex(pSyncNode), pSyncNode->commitIndex);
+      sError("vgId:%d, failed to sync propose since not ready, type:%s, last:%" PRId64 ", cmt:%" PRId64,
+             pSyncNode->vgId, TMSG_INFO(pMsg->msgType), syncNodeGetLastIndex(pSyncNode), pSyncNode->commitIndex);
       goto _END;
     }
 
@@ -3144,7 +3150,7 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
 
   if (pEntry->index < syncNodeGetLastIndex(ths)) {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "little index:%ld, can not do leader transfer", pEntry->index);
+    snprintf(logBuf, sizeof(logBuf), "little index:%" PRId64, can not do leader transfer", pEntry->index);
     syncNodeEventLog(ths, logBuf);
     return 0;
   }
@@ -3160,7 +3166,7 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
 
   do {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "do leader transfer, index:%ld", pEntry->index);
+    snprintf(logBuf, sizeof(logBuf), "do leader transfer, index:%" PRId64, pEntry->index);
     syncNodeEventLog(ths, logBuf);
   } while (0);
 
@@ -3416,8 +3422,8 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
             int64_t restoreDelay = taosGetTimestampMs() - ths->leaderTime;
 
             char eventLog[128];
-            snprintf(eventLog, sizeof(eventLog), "restore finish, index:%ld, elapsed:%ld ms, ", pEntry->index,
-                     restoreDelay);
+            snprintf(eventLog, sizeof(eventLog), "restore finish, index:%" PRId64 ", elapsed:%" PRId64 " ms, ",
+                     pEntry->index, restoreDelay);
             syncNodeEventLog(ths, eventLog);
           }
         }

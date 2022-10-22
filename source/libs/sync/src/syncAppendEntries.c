@@ -174,7 +174,7 @@ static int32_t syncNodeDoMakeLogSame(SSyncNode* ths, SyncIndex FromIndex) {
 
     do {
       char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "update delete begin to %ld", delBegin);
+      snprintf(logBuf, sizeof(logBuf), "update delete begin to %" PRId64, delBegin);
       syncNodeEventLog(ths, logBuf);
     } while (0);
   }
@@ -185,7 +185,8 @@ static int32_t syncNodeDoMakeLogSame(SSyncNode* ths, SyncIndex FromIndex) {
 
   do {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "make log same from:%ld, delbegin:%ld, pass:%d", FromIndex, delBegin, pass);
+    snprintf(logBuf, sizeof(logBuf), "make log same from:%l" PRId64 ", delbegin:%" PRId64 ", pass:%d", FromIndex,
+             delBegin, pass);
     syncNodeEventLog(ths, logBuf);
   } while (0);
 
@@ -371,7 +372,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
         // do nothing
 
         char logBuf[128];
-        snprintf(logBuf, sizeof(logBuf), "log match, do nothing, index:%ld", appendIndex);
+        snprintf(logBuf, sizeof(logBuf), "log match, do nothing, index:%" PRId64, appendIndex);
         syncNodeEventLog(ths, logBuf);
 
       } else {
@@ -379,7 +380,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
         code = ths->pLogStore->syncLogTruncate(ths->pLogStore, appendIndex);
         if (code != 0) {
           char logBuf[128];
-          snprintf(logBuf, sizeof(logBuf), "ignore, truncate error, append-index:%ld", appendIndex);
+          snprintf(logBuf, sizeof(logBuf), "ignore, truncate error, append-index:%" PRId64, appendIndex);
           syncLogRecvAppendEntries(ths, pMsg, logBuf);
 
           goto _IGNORE;
@@ -389,7 +390,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
         code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
         if (code != 0) {
           char logBuf[128];
-          snprintf(logBuf, sizeof(logBuf), "ignore, append error, append-index:%ld", appendIndex);
+          snprintf(logBuf, sizeof(logBuf), "ignore, append error, append-index:%" PRId64, appendIndex);
           syncLogRecvAppendEntries(ths, pMsg, logBuf);
 
           goto _IGNORE;
@@ -404,7 +405,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
         code = ths->pLogStore->syncLogTruncate(ths->pLogStore, appendIndex);
         if (code != 0) {
           char logBuf[128];
-          snprintf(logBuf, sizeof(logBuf), "ignore, log not exist, truncate error, append-index:%ld", appendIndex);
+          snprintf(logBuf, sizeof(logBuf), "ignore, log not exist, truncate error, append-index:%" PRId64, appendIndex);
           syncLogRecvAppendEntries(ths, pMsg, logBuf);
 
           goto _IGNORE;
@@ -414,7 +415,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
         code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
         if (code != 0) {
           char logBuf[128];
-          snprintf(logBuf, sizeof(logBuf), "ignore, log not exist, append error, append-index:%ld", appendIndex);
+          snprintf(logBuf, sizeof(logBuf), "ignore, log not exist, append error, append-index:%" PRId64, appendIndex);
           syncLogRecvAppendEntries(ths, pMsg, logBuf);
 
           goto _IGNORE;
@@ -423,7 +424,7 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
       } else {
         // error
         char logBuf[128];
-        snprintf(logBuf, sizeof(logBuf), "ignore, get local entry error, append-index:%ld", appendIndex);
+        snprintf(logBuf, sizeof(logBuf), "ignore, get local entry error, append-index:%" PRId64, appendIndex);
         syncLogRecvAppendEntries(ths, pMsg, logBuf);
 
         goto _IGNORE;
