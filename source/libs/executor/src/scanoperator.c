@@ -2950,8 +2950,8 @@ static int32_t sysFilte__DbName(void* arg, SNode* pNode, SArray* result) {
 static int32_t sysFilte__VgroupId(void* arg, SNode* pNode, SArray* result) {
   void* pVnode = ((SSTabFltArg*)arg)->pVnode;
 
-  int32_t vgId = 0;
-  vnodeGetInfo(pVnode, NULL, &vgId);
+  int64_t vgId = 0;
+  vnodeGetInfo(pVnode, NULL, (int32_t*)&vgId);
 
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
@@ -2964,7 +2964,7 @@ static int32_t sysFilte__VgroupId(void* arg, SNode* pNode, SArray* result) {
   int ret = func(&vgId, &pVal->datum.i, TSDB_DATA_TYPE_BIGINT);
   if (ret == 0) return 0;
 
-  return -1;
+  return -2;
 }
 static int32_t sysFilte__TableName(void* arg, SNode* pNode, SArray* result) {
   void* pMeta = ((SSTabFltArg*)arg)->pMeta;
