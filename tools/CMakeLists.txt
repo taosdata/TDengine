@@ -17,6 +17,7 @@ IF (TD_WEBSOCKET)
             PATCH_COMMAND
             COMMAND     git clean -f -d
             BUILD_COMMAND
+            COMMAND cargo update
             COMMAND cargo build --release -p taos-ws-sys --features native-tls-vendored
             COMMAND ./taos-ws-sys/ci/package.sh
             INSTALL_COMMAND
@@ -36,6 +37,7 @@ IF (TD_WEBSOCKET)
             PATCH_COMMAND
             COMMAND     git clean -f -d
             BUILD_COMMAND
+            COMMAND cargo update
             COMMAND cargo build --release -p taos-ws-sys --features native-tls-vendored
             COMMAND ./taos-ws-sys/ci/package.sh
             INSTALL_COMMAND
