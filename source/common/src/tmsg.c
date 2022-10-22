@@ -2765,6 +2765,7 @@ int32_t tSerializeSDbCfgRsp(void *buf, int32_t bufLen, const SDbCfgRsp *pRsp) {
   if (tEncodeI32(&encoder, pRsp->numOfVgroups) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->numOfStables) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->buffer) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->cacheSize) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->pageSize) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->pages) < 0) return -1;
   if (tEncodeI32(&encoder, pRsp->daysPerFile) < 0) return -1;
@@ -2804,6 +2805,7 @@ int32_t tDeserializeSDbCfgRsp(void *buf, int32_t bufLen, SDbCfgRsp *pRsp) {
   if (tDecodeI32(&decoder, &pRsp->numOfVgroups) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->numOfStables) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->buffer) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->cacheSize) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->pageSize) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->pages) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->daysPerFile) < 0) return -1;
