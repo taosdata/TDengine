@@ -403,7 +403,6 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
 }
 
 void vmStopWorker(SVnodeMgmt *pMgmt) {
-  tSingleWorkerCleanup(&pMgmt->mgmtWorker);
   tWWorkerCleanup(&pMgmt->writePool);
   tWWorkerCleanup(&pMgmt->applyPool);
   tWWorkerCleanup(&pMgmt->syncPool);

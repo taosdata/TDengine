@@ -188,7 +188,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
         req.walRollPeriod, req.walSegmentSize, req.hashMethod, req.hashBegin, req.hashEnd, req.hashPrefix,
         req.hashSuffix, req.replica, req.selfIndex, req.strict);
   for (int32_t i = 0; i < req.replica; ++i) {
-    dInfo("vgId:%d, replica:%d fqdn:%s port:%u", req.vgId, req.replicas[i].id, req.replicas[i].fqdn,
+    dInfo("vgId:%d, replica:%d id:%d fqdn:%s port:%u", req.vgId, i, req.replicas[i].id, req.replicas[i].fqdn,
           req.replicas[i].port);
   }
   vmGenerateVnodeCfg(&req, &vnodeCfg);
