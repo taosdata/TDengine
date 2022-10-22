@@ -2693,35 +2693,35 @@ int32_t syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex
 // for debug --------------
 void syncNodePrint(SSyncNode* pObj) {
   char* serialized = syncNode2Str(pObj);
-  printf("syncNodePrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("syncNodePrint | len:%d | %s \n", (int32_t)strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncNodePrint2(char* s, SSyncNode* pObj) {
   char* serialized = syncNode2Str(pObj);
-  printf("syncNodePrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncNodePrint2 | len:%d | %s | %s \n", (int32_t)strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncNodeLog(SSyncNode* pObj) {
   char* serialized = syncNode2Str(pObj);
-  sTraceLong("syncNodeLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTraceLong("syncNodeLog | len:%d | %s", (int32_t)strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncNodeLog2(char* s, SSyncNode* pObj) {
   if (gRaftDetailLog) {
     char* serialized = syncNode2Str(pObj);
-    sTraceLong("syncNodeLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTraceLong("syncNodeLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
 
 void syncNodeLog3(char* s, SSyncNode* pObj) {
   char* serialized = syncNode2Str(pObj);
-  sTraceLong("syncNodeLog3 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+  sTraceLong("syncNodeLog3 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
   taosMemoryFree(serialized);
 }
 
