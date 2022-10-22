@@ -263,29 +263,14 @@ static void saveColData(SArray* rowBuf, int32_t columnIndex, const char* src, bo
 static void copyCurrentRowIntoBuf(SFillInfo* pFillInfo, int32_t rowIndex, SArray* pRow) {
   for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
     int32_t type = pFillInfo->pFillCol[i].pExpr->pExpr->nodeType;
-    if (type == QUERY_NODE_COLUMN) {
+    if (type == QUERY_NODE_COLUMN || type == QUERY_NODE_OPERATOR || type == QUERY_NODE_FUNCTION) {
       int32_t srcSlotId = GET_DEST_SLOT_ID(&pFillInfo->pFillCol[i]);
 
       SColumnInfoData* pSrcCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, srcSlotId);
 
       bool  isNull = colDataIsNull_s(pSrcCol, rowIndex);
       char* p = colDataGetData(pSrcCol, rowIndex);
-      saveColData(pRow, i, p, isNull);
-    } else if (type == QUERY_NODE_OPERATOR) {
-      int32_t srcSlotId = GET_DEST_SLOT_ID(&pFillInfo->pFillCol[i]);
 
-      SColumnInfoData* pSrcCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, srcSlotId);
-
-      bool  isNull = colDataIsNull_s(pSrcCol, rowIndex);
-      char* p = colDataGetData(pSrcCol, rowIndex);
-      saveColData(pRow, i, p, isNull);
-    } else if (type == QUERY_NODE_FUNCTION) {
-      int32_t srcSlotId = GET_DEST_SLOT_ID(&pFillInfo->pFillCol[i]);
-
-      SColumnInfoData* pSrcCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, srcSlotId);
-
-      bool  isNull = colDataIsNull_s(pSrcCol, rowIndex);
-      char* p = colDataGetData(pSrcCol, rowIndex);
       saveColData(pRow, i, p, isNull);
     } else {
       ASSERT(0);
