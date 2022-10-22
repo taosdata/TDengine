@@ -16,6 +16,7 @@
 #include "functionMgt.h"
 
 #include "builtins.h"
+#include "builtinsimpl.h"
 #include "functionMgtInt.h"
 #include "taos.h"
 #include "taoserror.h"
@@ -314,6 +315,11 @@ bool fmIsSameInOutType(int32_t funcId) {
   return res;
 }
 
+void getLastCacheDataType(SDataType* pType) {
+  pType->bytes = getFirstLastInfoSize(pType->bytes) + VARSTR_HEADER_SIZE;
+  pType->type = TSDB_DATA_TYPE_BINARY;
+}
+
 static int32_t getFuncInfo(SFunctionNode* pFunc) {
   char msg[128] = {0};
   return fmGetFuncInfo(pFunc, msg, sizeof(msg));
@@ -324,7 +330,7 @@ static SFunctionNode* createFunction(const char* pName, SNodeList* pParameterLis
   if (NULL == pFunc) {
     return NULL;
   }
-  strcpy(pFunc->functionName, pName);
+  snprintf(pFunc->functionName, sizeof(pFunc->functionName), "%s", pName);
   pFunc->pParameterList = pParameterList;
   if (TSDB_CODE_SUCCESS != getFuncInfo(pFunc)) {
     pFunc->pParameterList = NULL;
@@ -402,10 +408,6 @@ static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctio
   if (TSDB_CODE_SUCCESS == code) {
     *pMergeFunc = pFunc;
   } else {
-    if (NULL != pFunc) {
-      pFunc->pParameterList = NULL;
-      nodesDestroyNode((SNode*)pFunc);
-    }
     nodesDestroyList(pParameterList);
   }
 

@@ -129,6 +129,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TO_COLUMN,
   FUNCTION_TYPE_GROUP_KEY,
   FUNCTION_TYPE_CACHE_LAST_ROW,
+  FUNCTION_TYPE_CACHE_LAST,
 
   // distributed splitting functions
   FUNCTION_TYPE_APERCENTILE_PARTIAL = 4000,
@@ -215,6 +216,8 @@ bool fmIsMultiRowsFunc(int32_t funcId);
 bool fmIsKeepOrderFunc(int32_t funcId);
 bool fmIsCumulativeFunc(int32_t funcId);
 bool fmIsInterpPseudoColumnFunc(int32_t funcId);
+
+void getLastCacheDataType(SDataType* pType);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 
