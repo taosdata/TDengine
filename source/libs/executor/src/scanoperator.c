@@ -3224,9 +3224,11 @@ static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result) {
 
     ret = optSysTabFilteImpl(arg, cell->pNode, aRslt);
     if (ret == 0) {
+      // has index
       hasIdx = true;
       taosArrayPush(mRslt, &aRslt);
     } else if (ret == -2) {
+      // current vg
       hasIdx = true;
       hasRslt = false;
       taosArrayDestroy(aRslt);
@@ -3634,30 +3636,33 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
     doSetOperatorCompleted(pOperator);
     return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
   } else {
-    if (pCondition != NULL && pInfo->pIdx == NULL) {
-      SSTabFltArg arg = {.pMeta = pInfo->readHandle.meta, .pVnode = pInfo->readHandle.vnode};
+    if (pInfo->showRewrite == false) {
+      if (pCondition != NULL && pInfo->pIdx == NULL) {
+        SSTabFltArg arg = {.pMeta = pInfo->readHandle.meta, .pVnode = pInfo->readHandle.vnode};
 
-      SSysTableIndex* idx = taosMemoryMalloc(sizeof(SSysTableIndex));
-      idx->init = 0;
-      idx->uids = taosArrayInit(128, sizeof(int64_t));
-      idx->lastIdx = 0;
-      pInfo->pIdx = idx;
+        SSysTableIndex* idx = taosMemoryMalloc(sizeof(SSysTableIndex));
+        idx->init = 0;
+        idx->uids = taosArrayInit(128, sizeof(int64_t));
+        idx->lastIdx = 0;
 
-      SArray* uids = idx->uids;
+        pInfo->pIdx = idx;  // set idx arg
 
-      int flt = optSysTabFilte(&arg, pCondition, uids);
-      if (flt == 0) {
+        int flt = optSysTabFilte(&arg, pCondition, idx->uids);
+        if (flt == 0) {
+          pInfo->pIdx->init = 1;
+          SSDataBlock* blk = sysTableBuildUserTablesByUids(pOperator);
+          return blk;
+        } else if (flt == -2) {
+          qDebug("%s failed to get sys table info by idx, empty result", GET_TASKID(pTaskInfo));
+          return NULL;
+        } else if (flt == -1) {
+          // not idx
+          qDebug("%s failed to get sys table info by idx, scan sys table one by one", GET_TASKID(pTaskInfo));
+        }
+      } else if (pCondition != NULL && (pInfo->pIdx != NULL && pInfo->pIdx->init == 1)) {
         SSDataBlock* blk = sysTableBuildUserTablesByUids(pOperator);
         return blk;
-      } else if (flt == -2) {
-        qDebug("%s failed to get sys table info by idx, empty result", GET_TASKID(pTaskInfo));
-        return NULL;
-      } else if (flt == -1) {
-        qDebug("%s failed to get sys table info by idx, scan sys table one by one", GET_TASKID(pTaskInfo));
       }
-    } else if (pCondition != NULL && pInfo->pIdx != NULL) {
-      SSDataBlock* blk = sysTableBuildUserTablesByUids(pOperator);
-      return blk;
     }
 
     return sysTableBuildUserTables(pOperator);
