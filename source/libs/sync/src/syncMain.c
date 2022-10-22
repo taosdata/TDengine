@@ -2320,7 +2320,7 @@ void syncNodeStepDown(SSyncNode* pSyncNode, SyncTerm newTerm) {
 
   do {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "step down, new-term:%lu, current-term:%lu", newTerm,
+    snprintf(logBuf, sizeof(logBuf), "step down, new-term:%" PRIu64 ", current-term:%" PRIu64, newTerm,
              pSyncNode->pRaftStore->currentTerm);
     syncNodeEventLog(pSyncNode, logBuf);
   } while (0);
@@ -3143,7 +3143,7 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
 
   if (pEntry->term < ths->pRaftStore->currentTerm) {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "little term:%lu, can not do leader transfer", pEntry->term);
+    snprintf(logBuf, sizeof(logBuf), "little term:%" PRIu64 ", can not do leader transfer", pEntry->term);
     syncNodeEventLog(ths, logBuf);
     return 0;
   }
@@ -3534,7 +3534,7 @@ const char* syncTimerTypeStr(enum ESyncTimeoutType timerType) {
 
 void syncLogRecvTimer(SSyncNode* pSyncNode, const SyncTimeout* pMsg, const char* s) {
   char logBuf[256];
-  snprintf(logBuf, sizeof(logBuf), "recv sync-timer {type:%s, lc:%lu, ms:%d, data:%p}, %s",
+  snprintf(logBuf, sizeof(logBuf), "recv sync-timer {type:%s, lc:%" PRIu64 ", ms:%d, data:%p}, %s",
            syncTimerTypeStr(pMsg->timeoutType), pMsg->logicClock, pMsg->timerMS, pMsg->data, s);
   syncNodeEventLog(pSyncNode, logBuf);
 }
