@@ -519,7 +519,7 @@ static int32_t vnodeSnapshotStartWrite(struct SSyncFSM *pFsm, void *pParam, void
 
   do {
     int32_t itemSize = tmsgGetQueueSize(&pVnode->msgCb, pVnode->config.vgId, APPLY_QUEUE);
-    if (itemSize <= 0) {
+    if (itemSize == 0) {
       vInfo("vgId:%d, start write vnode snapshot since apply queue is empty", pVnode->config.vgId);
       break;
     } else {
@@ -572,7 +572,7 @@ static void vnodeRestoreFinish(struct SSyncFSM *pFsm) {
 
   do {
     int32_t itemSize = tmsgGetQueueSize(&pVnode->msgCb, pVnode->config.vgId, APPLY_QUEUE);
-    if (itemSize <= 0) {
+    if (itemSize == 0) {
       vInfo("vgId:%d, apply queue is empty, restore finish", pVnode->config.vgId);
       break;
     } else {

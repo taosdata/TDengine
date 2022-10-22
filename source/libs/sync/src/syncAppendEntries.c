@@ -185,7 +185,7 @@ static int32_t syncNodeDoMakeLogSame(SSyncNode* ths, SyncIndex FromIndex) {
 
   do {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "make log same from:%l" PRId64 ", delbegin:%" PRId64 ", pass:%d", FromIndex,
+    snprintf(logBuf, sizeof(logBuf), "make log same from:%" PRId64 ", delbegin:%" PRId64 ", pass:%d", FromIndex,
              delBegin, pass);
     syncNodeEventLog(ths, logBuf);
   } while (0);

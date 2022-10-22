@@ -3150,7 +3150,7 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
 
   if (pEntry->index < syncNodeGetLastIndex(ths)) {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "little index:%" PRId64, can not do leader transfer", pEntry->index);
+    snprintf(logBuf, sizeof(logBuf), "little index:%" PRId64 ", can not do leader transfer", pEntry->index);
     syncNodeEventLog(ths, logBuf);
     return 0;
   }
