@@ -1897,7 +1897,7 @@ int32_t setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32
 
   // check fields
   for (int32_t i = 0; i < numOfCols; ++i) {
-    int16_t type = *(int16_t*)p;
+    int8_t type = *(int8_t*)p;
     p += sizeof(int8_t);
 
     int32_t bytes = *(int32_t*)p;
