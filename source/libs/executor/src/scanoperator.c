@@ -56,6 +56,7 @@ typedef struct {
   void* pVnode;
 } SSTabFltArg;
 
+static int32_t sysChkFilter__Comm(SNode* pNode);
 static int32_t sysChkFilter__DBName(SNode* pNode);
 static int32_t sysChkFilter__VgroupId(SNode* pNode);
 static int32_t sysChkFilter__TableName(SNode* pNode);
@@ -2375,6 +2376,11 @@ static void destroySysScanOperator(void* param) {
     metaCloseTbCursor(pInfo->pCur);
     pInfo->pCur = NULL;
   }
+  if (pInfo->pIdx) {
+    taosArrayDestroy(pInfo->pIdx->uids);
+    taosMemoryFree(pInfo->pIdx);
+    pInfo->pIdx = NULL;
+  }
 
   taosArrayDestroy(pInfo->scanCols);
   taosMemoryFreeClear(pInfo->pUser);
@@ -2893,6 +2899,10 @@ static int optSysFilterFuncImpl__Equal(void* a, void* b, int16_t dtype) {
   return optSysDoCompare(func, OP_TYPE_EQUAL, a, b);
 }
 
+static int optSysFilterFuncImpl__NoEqual(void* a, void* b, int16_t dtype) {
+  __compar_fn_t func = getComparFunc(dtype, 0);
+  return optSysDoCompare(func, OP_TYPE_NOT_EQUAL, a, b);
+}
 static __optSysFilter optSysGetFilterFunc(int32_t ctype, bool* reverse) {
   if (ctype == OP_TYPE_LOWER_EQUAL || ctype == OP_TYPE_LOWER_THAN) {
     *reverse = true;
@@ -2907,6 +2917,8 @@ static __optSysFilter optSysGetFilterFunc(int32_t ctype, bool* reverse) {
     return optSysFilterFuncImpl__GreaterEqual;
   else if (ctype == OP_TYPE_EQUAL)
     return optSysFilterFuncImpl__Equal;
+  else if (ctype == OP_TYPE_NOT_EQUAL)
+    return optSysFilterFuncImpl__NoEqual;
   return NULL;
 }
 static int32_t sysFilte__DbName(void* arg, SNode* pNode, SArray* result) {
@@ -2933,7 +2945,7 @@ static int32_t sysFilte__DbName(void* arg, SNode* pNode, SArray* result) {
   int ret = func(dbname, pVal->datum.p, TSDB_DATA_TYPE_VARCHAR);
   if (ret == 0) return 0;
 
-  return -1;
+  return -2;
 }
 static int32_t sysFilte__VgroupId(void* arg, SNode* pNode, SArray* result) {
   void* pVnode = ((SSTabFltArg*)arg)->pVnode;
@@ -3051,6 +3063,17 @@ static int32_t sysFilte__Type(void* arg, SNode* pNode, SArray* result) {
   if (func == NULL) return -1;
   return 0;
 }
+static int32_t sysChkFilter__Comm(SNode* pNode) {
+  // impl
+  SOperatorNode* pOper = (SOperatorNode*)pNode;
+  EOperatorType  opType = pOper->opType;
+  if (opType != OP_TYPE_EQUAL && opType != OP_TYPE_LOWER_EQUAL && opType != OP_TYPE_LOWER_THAN &&
+      OP_TYPE_GREATER_EQUAL && opType != OP_TYPE_GREATER_THAN) {
+    return -1;
+  }
+  return 0;
+}
+
 static int32_t sysChkFilter__DBName(SNode* pNode) {
   SOperatorNode* pOper = (SOperatorNode*)pNode;
 
@@ -3059,7 +3082,7 @@ static int32_t sysChkFilter__DBName(SNode* pNode) {
   }
 
   SValueNode* pVal = (SValueNode*)pOper->pRight;
-  if (!IS_STR_DATA_TYPE(pVal->typeData)) {
+  if (!IS_STR_DATA_TYPE(pVal->node.resType.type)) {
     return -1;
   }
 
@@ -3068,71 +3091,70 @@ static int32_t sysChkFilter__DBName(SNode* pNode) {
 static int32_t sysChkFilter__VgroupId(SNode* pNode) {
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
-  if (!IS_VALID_INT(pVal->typeData)) {
+  if (!IS_INTEGER_TYPE(pVal->node.resType.type)) {
     return -1;
   }
-  return 0;
+  return sysChkFilter__Comm(pNode);
 }
 static int32_t sysChkFilter__TableName(SNode* pNode) {
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
-  if (!IS_STR_DATA_TYPE(pVal->typeData)) {
+  if (!IS_STR_DATA_TYPE(pVal->node.resType.type)) {
     return -1;
   }
-  return 0;
+  return sysChkFilter__Comm(pNode);
 }
 static int32_t sysChkFilter__CreateTime(SNode* pNode) {
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
 
-  if (!IS_VALID_BIGINT(pVal->typeData)) {
+  if (!IS_TIMESTAMP_TYPE(pVal->node.resType.type)) {
     return -1;
   }
-
-  return 0;
+  return sysChkFilter__Comm(pNode);
 }
 
 static int32_t sysChkFilter__Ncolumn(SNode* pNode) {
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
 
-  if (!IS_VALID_INT(pVal->typeData)) {
+  if (!IS_INTEGER_TYPE(pVal->node.resType.type)) {
     return -1;
   }
-  return 0;
+  return sysChkFilter__Comm(pNode);
 }
 static int32_t sysChkFilter__Ttl(SNode* pNode) {
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
 
-  if (!IS_VALID_BIGINT(pVal->typeData)) {
+  if (!IS_INTEGER_TYPE(pVal->node.resType.type)) {
     return -1;
   }
-  return 0;
+  return sysChkFilter__Comm(pNode);
 }
 static int32_t sysChkFilter__STableName(SNode* pNode) {
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
-  if (!IS_STR_DATA_TYPE(pVal->typeData)) {
+  if (!IS_STR_DATA_TYPE(pVal->node.resType.type)) {
     return -1;
   }
-  return 0;
+  return sysChkFilter__Comm(pNode);
 }
 static int32_t sysChkFilter__Uid(SNode* pNode) {
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
-  if (!IS_VALID_BIGINT(pVal->typeData)) {
+  if (!IS_INTEGER_TYPE(pVal->node.resType.type)) {
     return -1;
   }
-  return 0;
+  return sysChkFilter__Comm(pNode);
 }
 static int32_t sysChkFilter__Type(SNode* pNode) {
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   SValueNode*    pVal = (SValueNode*)pOper->pRight;
-  if (!IS_VALID_INT(pVal->typeData)) {
+  if (!IS_INTEGER_TYPE(pVal->node.resType.type)) {
     return -1;
   }
-  return 0;
+  return sysChkFilter__Comm(pNode);
 }
 static int32_t optSysTabFilteImpl(void* arg, SNode* cond, SArray* result) {
   if (optSysCheckOper(cond) != 0) return -1;
@@ -3191,7 +3213,7 @@ static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result) {
   if (len <= 0) return ret;
 
   bool    hasIdx = false;
-  int     hasRslt = true;
+  bool    hasRslt = true;
   SArray* mRslt = taosArrayInit(len, POINTER_BYTES);
 
   SListCell* cell = pList->pHead;
@@ -3221,15 +3243,22 @@ static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result) {
   for (int i = 0; i < taosArrayGetSize(mRslt); i++) {
     SArray* aRslt = taosArrayGetP(mRslt, i);
     taosArrayDestroy(aRslt);
-  };
+  }
   taosArrayDestroy(mRslt);
-
-  return hasIdx == true ? 0 : -1;
+  if (hasRslt == false) {
+    return -2;
+  }
+  if (hasRslt && hasIdx) {
+    return 0;
+  }
+  return -1;
 }
 
-static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator, SArray* pUids) {
+static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SSysTableScanInfo* pInfo = pOperator->info;
+
+  SSysTableIndex* pIdx = pInfo->pIdx;
   blockDataCleanup(pInfo->pRes);
   int32_t numOfRows = 0;
 
@@ -3249,10 +3278,10 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator, SArr
   SSDataBlock* p = buildInfoSchemaTableMetaBlock(TSDB_INS_TABLE_TABLES);
   blockDataEnsureCapacity(p, pOperator->resultInfo.capacity);
 
-  char n[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-
-  for (int i = 0; i < taosArrayGetSize(pUids); i++) {
-    tb_uid_t* uid = taosArrayGet(pUids, i);
+  char    n[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  int32_t i = pIdx->lastIdx;
+  for (; i < taosArrayGetSize(pIdx->uids); i++) {
+    tb_uid_t* uid = taosArrayGet(pIdx->uids, i);
 
     SMetaReader mr = {0};
     metaReaderInit(&mr, pInfo->readHandle.meta, 0);
@@ -3398,12 +3427,13 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator, SArr
     numOfRows = 0;
   }
 
-  blockDataDestroy(p);
+  if (i >= taosArrayGetSize(pIdx->uids)) {
+    doSetOperatorCompleted(pOperator);
+  } else {
+    pIdx->lastIdx = i;
+  }
 
-  // todo temporarily free the cursor here, the true reason why the free is not valid needs to be found
-  // if (ret != 0) {
-  doSetOperatorCompleted(pOperator);
-  //}
+  blockDataDestroy(p);
 
   pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
@@ -3604,25 +3634,32 @@ static SSDataBlock* sysTableScanUserTables(SOperatorInfo* pOperator) {
     doSetOperatorCompleted(pOperator);
     return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
   } else {
-    if (pCondition != NULL) {
+    if (pCondition != NULL && pInfo->pIdx == NULL) {
       SSTabFltArg arg = {.pMeta = pInfo->readHandle.meta, .pVnode = pInfo->readHandle.vnode};
-      SArray*     uids = taosArrayInit(128, sizeof(int64_t));
+
+      SSysTableIndex* idx = taosMemoryMalloc(sizeof(SSysTableIndex));
+      idx->init = 0;
+      idx->uids = taosArrayInit(128, sizeof(int64_t));
+      idx->lastIdx = 0;
+      pInfo->pIdx = idx;
+
+      SArray* uids = idx->uids;
 
       int flt = optSysTabFilte(&arg, pCondition, uids);
       if (flt == 0) {
-        SSDataBlock* blk = sysTableBuildUserTablesByUids(pOperator, uids);
-        taosArrayDestroy(uids);
+        SSDataBlock* blk = sysTableBuildUserTablesByUids(pOperator);
         return blk;
-        // filter succ, build result by uids
       } else if (flt == -2) {
-        // filter succe and not result, build empty result
-        taosArrayDestroy(uids);
+        qDebug("%s failed to get sys table info by idx, empty result", GET_TASKID(pTaskInfo));
         return NULL;
       } else if (flt == -1) {
-        // iterate meta and filte one by one
+        qDebug("%s failed to get sys table info by idx, scan sys table one by one", GET_TASKID(pTaskInfo));
       }
-      taosArrayDestroy(uids);
+    } else if (pCondition != NULL && pInfo->pIdx != NULL) {
+      SSDataBlock* blk = sysTableBuildUserTablesByUids(pOperator);
+      return blk;
     }
+
     return sysTableBuildUserTables(pOperator);
   }
   return NULL;
