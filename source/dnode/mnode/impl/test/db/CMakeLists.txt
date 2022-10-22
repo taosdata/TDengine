@@ -5,7 +5,8 @@ target_link_libraries(
     PUBLIC sut
 )
 
-add_test(
-    NAME dbTest
-    COMMAND dbTest
-)
+#
+#add_test(
+#    NAME dbTest
+#    COMMAND dbTest
+#)
