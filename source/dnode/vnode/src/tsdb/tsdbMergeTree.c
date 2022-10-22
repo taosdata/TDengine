@@ -536,6 +536,10 @@ static FORCE_INLINE int32_t tLDataIterCmprFn(const SRBTreeNode *p1, const SRBTre
   }
 }
 
+static FORCE_INLINE int32_t tLDataIterDescCmprFn(const SRBTreeNode *p1, const SRBTreeNode *p2) {
+  return -1 * tLDataIterCmprFn(p1, p2);
+}
+
 int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFReader, uint64_t suid, uint64_t uid,
                        STimeWindow *pTimeWindow, SVersionRange *pVerRange, SSttBlockLoadInfo *pBlockLoadInfo,
                        bool destroyLoadInfo, const char *idStr) {
@@ -547,8 +551,11 @@ int32_t tMergeTreeOpen(SMergeTree *pMTree, int8_t backward, SDataFReader *pFRead
   }
 
   pMTree->idStr = idStr;
-
-  tRBTreeCreate(&pMTree->rbt, tLDataIterCmprFn);
+  if (!pMTree->backward) { // asc
+    tRBTreeCreate(&pMTree->rbt, tLDataIterCmprFn);
+  } else { // desc
+    tRBTreeCreate(&pMTree->rbt, tLDataIterDescCmprFn);
+  }
   int32_t code = TSDB_CODE_SUCCESS;
 
   pMTree->pLoadInfo = pBlockLoadInfo;

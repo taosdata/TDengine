@@ -58,7 +58,7 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
 
   // partition by tbname
   if (taosArrayGetSize(pTableList->pGroupList) == taosArrayGetSize(pTableList->pTableList)) {
-    pInfo->retrieveType = CACHESCAN_RETRIEVE_TYPE_ALL | CACHESCAN_RETRIEVE_LAST_ROW;
+    pInfo->retrieveType = CACHESCAN_RETRIEVE_TYPE_ALL|(pScanNode->ignoreNull? CACHESCAN_RETRIEVE_LAST:CACHESCAN_RETRIEVE_LAST_ROW);
     code = tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pTableList->pTableList,
                                    taosArrayGetSize(pInfo->pColMatchInfo), &pInfo->pLastrowReader);
     if (code != TSDB_CODE_SUCCESS) {
@@ -67,8 +67,8 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
 
     pInfo->pBufferredRes = createOneDataBlock(pInfo->pRes, false);
     blockDataEnsureCapacity(pInfo->pBufferredRes, pOperator->resultInfo.capacity);
-  } else {  // by tags
-    pInfo->retrieveType = CACHESCAN_RETRIEVE_TYPE_SINGLE | CACHESCAN_RETRIEVE_LAST_ROW;
+  } else { // by tags
+    pInfo->retrieveType = CACHESCAN_RETRIEVE_TYPE_SINGLE|(pScanNode->ignoreNull? CACHESCAN_RETRIEVE_LAST:CACHESCAN_RETRIEVE_LAST_ROW);
   }
 
   if (pScanNode->scan.pScanPseudoCols != NULL) {
@@ -198,16 +198,20 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       if (pInfo->pRes->info.rows > 0) {
         if (pInfo->pseudoExprSup.numOfExprs > 0) {
           SExprSupp* pSup = &pInfo->pseudoExprSup;
-          pInfo->pRes->info.uid = *(tb_uid_t*)taosArrayGet(pInfo->pUidList, 0);
 
           STableKeyInfo* pKeyInfo = taosArrayGet(pGroupTableList, 0);
           pInfo->pRes->info.groupId = pKeyInfo->groupId;
 
-          code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pInfo->pRes,
-                                        GET_TASKID(pTaskInfo));
-          if (code != TSDB_CODE_SUCCESS) {
-            pTaskInfo->code = code;
-            return NULL;
+          if (taosArrayGetSize(pInfo->pUidList) > 0) {
+            ASSERT((pInfo->retrieveType & CACHESCAN_RETRIEVE_LAST_ROW) == CACHESCAN_RETRIEVE_LAST_ROW);
+
+            pInfo->pRes->info.uid = *(tb_uid_t*)taosArrayGet(pInfo->pUidList, 0);
+            code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pInfo->pRes,
+                                          GET_TASKID(pTaskInfo));
+            if (code != TSDB_CODE_SUCCESS) {
+              pTaskInfo->code = code;
+              return NULL;
+            }
           }
         }
 

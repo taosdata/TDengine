@@ -643,7 +643,7 @@ int32_t buildSyncExecNodeList(SRequestObj* pRequest, SArray** pNodeList, SArray*
                                    .requestObjRefId = pRequest->self,
                                    .mgmtEps = getEpSet_s(&pInst->mgmtEp)};
 
-          code = catalogGetDBVgInfo(pCtg, &conn, dbFName, &pVgList);
+          code = catalogGetDBVgList(pCtg, &conn, dbFName, &pVgList);
           if (code) {
             goto _return;
           }

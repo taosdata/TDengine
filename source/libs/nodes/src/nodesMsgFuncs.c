@@ -1969,7 +1969,7 @@ static int32_t msgToPhysiScanNode(STlvDecoder* pDecoder, void* pObj) {
   return code;
 }
 
-enum { PHY_LAST_ROW_SCAN_CODE_SCAN = 1, PHY_LAST_ROW_SCAN_CODE_GROUP_TAGS, PHY_LAST_ROW_SCAN_CODE_GROUP_SORT };
+enum { PHY_LAST_ROW_SCAN_CODE_SCAN = 1, PHY_LAST_ROW_SCAN_CODE_GROUP_TAGS, PHY_LAST_ROW_SCAN_CODE_GROUP_SORT, PHY_LAST_ROW_SCAN_CODE_IGNULL };
 
 static int32_t physiLastRowScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder) {
   const SLastRowScanPhysiNode* pNode = (const SLastRowScanPhysiNode*)pObj;
@@ -1980,6 +1980,9 @@ static int32_t physiLastRowScanNodeToMsg(const void* pObj, STlvEncoder* pEncoder
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tlvEncodeBool(pEncoder, PHY_LAST_ROW_SCAN_CODE_GROUP_SORT, pNode->groupSort);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tlvEncodeBool(pEncoder, PHY_LAST_ROW_SCAN_CODE_IGNULL, pNode->ignoreNull);
   }
 
   return code;
@@ -2000,6 +2003,9 @@ static int32_t msgToPhysiLastRowScanNode(STlvDecoder* pDecoder, void* pObj) {
         break;
       case PHY_LAST_ROW_SCAN_CODE_GROUP_SORT:
         code = tlvDecodeBool(pTlv, &pNode->groupSort);
+        break;
+      case PHY_LAST_ROW_SCAN_CODE_IGNULL:
+        code = tlvDecodeBool(pTlv, &pNode->ignoreNull);
         break;
       default:
         break;

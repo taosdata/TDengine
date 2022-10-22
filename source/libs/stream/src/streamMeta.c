@@ -94,7 +94,7 @@ int32_t streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t startVer, char* 
   SDecoder decoder;
   tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
   if (tDecodeSStreamTask(&decoder, pTask) < 0) {
-    ASSERT(0);
+    tDecoderClear(&decoder);
     goto FAIL;
   }
   tDecoderClear(&decoder);
@@ -113,6 +113,13 @@ int32_t streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t startVer, char* 
     ASSERT(0);
     goto FAIL;
   }
+
+  if (pTask->fillHistory) {
+    // pipeline exec
+    // if finished, dispatch a stream-prepare-finished msg to downstream task
+    // set status normal
+  }
+
   return 0;
 
 FAIL:
@@ -120,6 +127,7 @@ FAIL:
   return -1;
 }
 
+#if 0
 int32_t streamMetaAddTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   void* buf = NULL;
   if (pMeta->expandFunc(pMeta->ahandle, pTask) < 0) {
@@ -149,6 +157,7 @@ int32_t streamMetaAddTask(SStreamMeta* pMeta, SStreamTask* pTask) {
 
   return 0;
 }
+#endif
 
 SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId) {
   SStreamTask** ppTask = (SStreamTask**)taosHashGet(pMeta->pTasks, &taskId, sizeof(int32_t));
@@ -253,6 +262,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta) {
     if (pTask == NULL) {
       tdbFree(pKey);
       tdbFree(pVal);
+      tdbTbcClose(pCur);
       return -1;
     }
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);

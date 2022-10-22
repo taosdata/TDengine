@@ -613,6 +613,7 @@ typedef struct {
   // config
   int8_t  igExpired;
   int8_t  trigger;
+  int8_t  fillHistory;
   int64_t triggerParam;
   int64_t watermark;
   // source and target

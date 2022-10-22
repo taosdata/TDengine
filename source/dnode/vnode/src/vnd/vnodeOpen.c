@@ -15,11 +15,9 @@
 
 #include "vnd.h"
 
-int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
+int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   SVnodeInfo info = {0};
-  char       dir[TSDB_FILENAME_LEN];
-
-  // TODO: check if directory exists
+  char       dir[TSDB_FILENAME_LEN] = {0};
 
   // check config
   if (vnodeCheckCfg(pCfg) < 0) {
@@ -56,18 +54,60 @@ int vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs) {
   }
 
   vInfo("vgId:%d, vnode is created", info.config.vgId);
-
   return 0;
 }
 
-void vnodeDestroy(const char *path, STfs *pTfs) { tfsRmdir(pTfs, path); }
+int32_t vnodeAlter(const char *path, SAlterVnodeReplicaReq *pReq, STfs *pTfs) {
+  SVnodeInfo info = {0};
+  char       dir[TSDB_FILENAME_LEN] = {0};
+  int32_t    ret = 0;
+
+  if (pTfs) {
+    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
+  } else {
+    snprintf(dir, TSDB_FILENAME_LEN, "%s", path);
+  }
+
+  ret = vnodeLoadInfo(dir, &info);
+  if (ret < 0) {
+    vError("vgId:%d, failed to read vnode config from %s since %s", pReq->vgId, path, tstrerror(terrno));
+    return -1;
+  }
+
+  SSyncCfg *pCfg = &info.config.syncCfg;
+  pCfg->myIndex = pReq->selfIndex;
+  pCfg->replicaNum = pReq->replica;
+  memset(&pCfg->nodeInfo, 0, sizeof(pCfg->nodeInfo));
+
+  vInfo("vgId:%d, save config, replicas:%d selfIndex:%d", pReq->vgId, pCfg->replicaNum, pCfg->myIndex);
+  for (int i = 0; i < pReq->replica; ++i) {
+    SNodeInfo *pNode = &pCfg->nodeInfo[i];
+    pNode->nodePort = pReq->replicas[i].port;
+    tstrncpy(pNode->nodeFqdn, pReq->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
+    vInfo("vgId:%d, save config, replica:%d ep:%s:%u", pReq->vgId, i, pNode->nodeFqdn, pNode->nodePort);
+  }
+
+  ret = vnodeSaveInfo(dir, &info);
+  if (ret < 0) {
+    vError("vgId:%d, failed to save vnode config since %s", pReq->vgId, tstrerror(terrno));
+    return -1;
+  }
+
+  vInfo("vgId:%d, vnode config is saved", info.config.vgId);
+  return 0;
+}
+
+void vnodeDestroy(const char *path, STfs *pTfs) {
+  vInfo("path:%s is removed while destroy vnode", path);
+  tfsRmdir(pTfs, path);
+}
 
 SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   SVnode    *pVnode = NULL;
   SVnodeInfo info = {0};
-  char       dir[TSDB_FILENAME_LEN];
-  char       tdir[TSDB_FILENAME_LEN * 2];
-  int        ret;
+  char       dir[TSDB_FILENAME_LEN] = {0};
+  char       tdir[TSDB_FILENAME_LEN * 2] = {0};
+  int32_t    ret = 0;
 
   if (pTfs) {
     snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pTfs), TD_DIRSEP, path);
@@ -85,7 +125,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   }
 
   // create handle
-  pVnode = (SVnode *)taosMemoryCalloc(1, sizeof(*pVnode) + strlen(path) + 1);
+  pVnode = taosMemoryCalloc(1, sizeof(*pVnode) + strlen(path) + 1);
   if (pVnode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     vError("vgId:%d, failed to open vnode since %s", info.config.vgId, tstrerror(terrno));

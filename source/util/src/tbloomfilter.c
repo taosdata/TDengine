@@ -57,8 +57,10 @@ SBloomFilter *tBloomFilterInit(uint64_t expectedEntries, double errorRate) {
 
   // ln(2) = 0.693147180559945
   pBF->hashFunctions = (uint32_t)ceil(lnRate / 0.693147180559945);
-  pBF->hashFn1 = taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP);
-  pBF->hashFn2 = taosGetDefaultHashFunction(TSDB_DATA_TYPE_NCHAR);
+  /*pBF->hashFn1 = taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP);*/
+  /*pBF->hashFn2 = taosGetDefaultHashFunction(TSDB_DATA_TYPE_NCHAR);*/
+  pBF->hashFn1 = taosFastHash;
+  pBF->hashFn2 = taosDJB2Hash;
   pBF->buffer = taosMemoryCalloc(pBF->numUnits, sizeof(uint64_t));
   if (pBF->buffer == NULL) {
     tBloomFilterDestroy(pBF);
@@ -135,8 +137,10 @@ SBloomFilter *tBloomFilterDecode(SDecoder *pDecoder) {
     if (tDecodeU64(pDecoder, pUnits + i) < 0) goto _error;
   }
   if (tDecodeDouble(pDecoder, &pBF->errorRate) < 0) goto _error;
-  pBF->hashFn1 = taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP);
-  pBF->hashFn2 = taosGetDefaultHashFunction(TSDB_DATA_TYPE_NCHAR);
+  /*pBF->hashFn1 = taosGetDefaultHashFunction(TSDB_DATA_TYPE_TIMESTAMP);*/
+  /*pBF->hashFn2 = taosGetDefaultHashFunction(TSDB_DATA_TYPE_NCHAR);*/
+  pBF->hashFn1 = taosFastHash;
+  pBF->hashFn2 = taosDJB2Hash;
   return pBF;
 
 _error:
