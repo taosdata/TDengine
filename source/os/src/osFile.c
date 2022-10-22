@@ -191,7 +191,7 @@ int32_t taosRenameFile(const char *oldName, const char *newName) {
     printf("failed to rename file %s to %s, reason:%s\n", oldName, newName, strerror(errno));
   }
 
-  return !code;
+  return code ? 0 : 1;
 #else
   int32_t code = rename(oldName, newName);
   if (code < 0) {

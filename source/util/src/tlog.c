@@ -207,7 +207,10 @@ static void taosKeepOldLog(char *oldName) {
   char    fileName[LOG_FILE_NAME_LEN + 20];
   snprintf(fileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64, tsLogObj.logName, fileSec);
 
-  taosRenameFile(oldName, fileName);
+  if (taosRenameFile(oldName, fileName) != 0) {
+    return;
+  }
+
   if (tsLogKeepDays < 0) {
     char compressFileName[LOG_FILE_NAME_LEN + 20];
     snprintf(compressFileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64 ".gz", tsLogObj.logName, fileSec);

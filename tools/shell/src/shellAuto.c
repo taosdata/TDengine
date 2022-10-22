@@ -564,6 +564,7 @@ void parseCommand(SWords* command, bool pattern) {
 // free SShellCmd
 void freeCommand(SWords* command) {
   SWord* item = command->head;
+  command->head = NULL;
   // loop
   while (item) {
     SWord* tmp = item;
@@ -815,7 +816,9 @@ char* matchNextPrefix(STire* tire, char* pre) {
       match = enumAll(tire);
     } else {
       // NOT EMPTY
-      match = matchPrefix(tire, pre, NULL);
+      match = (SMatch*)taosMemoryMalloc(sizeof(SMatch));
+      memset(match, 0, sizeof(SMatch));
+      matchPrefix(tire, pre, match);
     }
 
     // save to lastMatch
@@ -828,7 +831,7 @@ char* matchNextPrefix(STire* tire, char* pre) {
   // check valid
   if (match == NULL || match->head == NULL) {
     // no one matched
-    return false;
+    return NULL;
   }
 
   if (cursorVar == -1) {
