@@ -330,7 +330,7 @@ static SFunctionNode* createFunction(const char* pName, SNodeList* pParameterLis
   if (NULL == pFunc) {
     return NULL;
   }
-  strcpy(pFunc->functionName, pName);
+  snprintf(pFunc->functionName, sizeof(pFunc->functionName), "%s", pName);
   pFunc->pParameterList = pParameterList;
   if (TSDB_CODE_SUCCESS != getFuncInfo(pFunc)) {
     pFunc->pParameterList = NULL;
@@ -408,10 +408,6 @@ static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctio
   if (TSDB_CODE_SUCCESS == code) {
     *pMergeFunc = pFunc;
   } else {
-    if (NULL != pFunc) {
-      pFunc->pParameterList = NULL;
-      nodesDestroyNode((SNode*)pFunc);
-    }
     nodesDestroyList(pParameterList);
   }
 
