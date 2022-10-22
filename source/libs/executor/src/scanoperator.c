@@ -2937,8 +2937,7 @@ static int32_t sysFilte__DbName(void* arg, SNode* pNode, SArray* result) {
   varDataSetLen(dbname, strlen(varDataVal(dbname)));
 
   SOperatorNode* pOper = (SOperatorNode*)pNode;
-
-  SValueNode* pVal = (SValueNode*)pOper->pRight;
+  SValueNode*    pVal = (SValueNode*)pOper->pRight;
 
   bool           reverse = false;
   __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
