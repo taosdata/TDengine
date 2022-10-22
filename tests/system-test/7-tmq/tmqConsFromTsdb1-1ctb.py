@@ -214,7 +214,7 @@ class TDTestCase:
         resultList = tmqCom.selectConsumeResult(expectRows)
 
         actConsumeTotalRows = resultList[0]
-
+        tdLog.info("act consume rows: %d, expect rows range (0, %d)"%(actConsumeTotalRows, totalRowsInserted))
         if not (actConsumeTotalRows > 0 and actConsumeTotalRows < totalRowsInserted):
             tdLog.info("act consume rows: %d"%(actConsumeTotalRows))
             tdLog.info("and second consume rows should be between 0 and %d"%(totalRowsInserted))

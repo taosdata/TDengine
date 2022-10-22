@@ -338,7 +338,7 @@ void doDestroyRequest(void *p) {
 
   SRequestObj *pRequest = (SRequestObj *)p;
 
-  int64_t reqId = pRequest->self;
+  uint64_t reqId = pRequest->requestId;
   tscTrace("begin to destroy request %" PRIx64 " p:%p", reqId, pRequest);
 
   taosHashRemove(pRequest->pTscObj->pRequests, &pRequest->self, sizeof(pRequest->self));
