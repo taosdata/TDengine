@@ -19,7 +19,7 @@
   do {                                                                                                   \
     int##vType##_t newVal = atomic_sub_fetch_##vType(&(pVar), (oVal));                                   \
     ASSERT(newVal >= 0);                                                                                 \
-    if (newVal >= 0) {                                                                                   \
+    if (newVal < 0) {                                                                                    \
       vWarn("vgId:%d %s, abnormal val:%" PRIi64 ", old val:%" PRIi64, TD_VID(pVnode), tags, pVar, oVal); \
     }                                                                                                    \
   } while (0)
