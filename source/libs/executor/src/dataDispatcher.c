@@ -231,8 +231,10 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   while (!taosQueueEmpty(pDispatcher->pDataBlocks)) {
     SDataDispatchBuf* pBuf = NULL;
     taosReadQitem(pDispatcher->pDataBlocks, (void**)&pBuf);
-    taosMemoryFreeClear(pBuf->pData);
-    taosFreeQitem(pBuf);
+    if (pBuf != NULL) {
+      taosMemoryFreeClear(pBuf->pData);
+      taosFreeQitem(pBuf);
+    }
   }
   taosCloseQueue(pDispatcher->pDataBlocks);
   taosThreadMutexDestroy(&pDispatcher->mutex);

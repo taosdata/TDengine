@@ -43,7 +43,7 @@ void* rpcOpen(const SRpcInit* pInit) {
     return NULL;
   }
   if (pInit->label) {
-    tstrncpy(pRpc->label, pInit->label, TSDB_LABEL_LEN);
+    tstrncpy(pRpc->label, pInit->label, sizeof(pRpc->label));
   }
 
   pRpc->compressSize = pInit->compressSize;
@@ -75,7 +75,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   }
   pRpc->parent = pInit->parent;
   if (pInit->user) {
-    memcpy(pRpc->user, pInit->user, TSDB_UNI_LEN);
+    tstrncpy(pRpc->user, pInit->user, sizeof(pRpc->user));
   }
 
   int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);
@@ -87,7 +87,7 @@ void rpcClose(void* arg) {
   tInfo("start to close rpc");
   transRemoveExHandle(transGetInstMgt(), (int64_t)arg);
   transReleaseExHandle(transGetInstMgt(), (int64_t)arg);
-  tInfo("rpc is closed");
+  tInfo("end to close rpc");
   return;
 }
 void rpcCloseImpl(void* arg) {
