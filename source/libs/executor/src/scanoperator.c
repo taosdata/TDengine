@@ -3061,7 +3061,7 @@ static int32_t sysFilte__Type(void* arg, SNode* pNode, SArray* result) {
   bool           reverse = false;
 
   __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
-  if (func == NULL) return -2;
+  if (func == NULL) return -1;
   return -2;
 }
 static int32_t sysChkFilter__Comm(SNode* pNode) {
@@ -3070,7 +3070,7 @@ static int32_t sysChkFilter__Comm(SNode* pNode) {
   EOperatorType  opType = pOper->opType;
   if (opType != OP_TYPE_EQUAL && opType != OP_TYPE_LOWER_EQUAL && opType != OP_TYPE_LOWER_THAN &&
       OP_TYPE_GREATER_EQUAL && opType != OP_TYPE_GREATER_THAN) {
-    return -2;
+    return -1;
   }
   return 0;
 }
@@ -3204,7 +3204,7 @@ static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result) {
     if (ret == 0) {
       SOperatorNode* pOper = (SOperatorNode*)cond;
       SColumnNode*   pCol = (SColumnNode*)pOper->pLeft;
-      if (0 != strcmp(pCol->colName, SYSTABLE_IDX_EXCEPT[0]) && 0 != strcmp(pCol->colName, SYSTABLE_IDX_EXCEPT[1])) {
+      if (0 == strcmp(pCol->colName, "create_time")) {
         return 0;
       }
       return -1;
@@ -3266,7 +3266,7 @@ static int32_t optSysTabFilte(void* arg, SNode* cond, SArray* result) {
       if (cell == NULL) break;
       SOperatorNode* pOper = (SOperatorNode*)cell->pNode;
       SColumnNode*   pCol = (SColumnNode*)pOper->pLeft;
-      if (0 != strcmp(pCol->colName, SYSTABLE_IDX_EXCEPT[0]) && 0 != strcmp(pCol->colName, SYSTABLE_IDX_EXCEPT[1])) {
+      if (0 == strcmp(pCol->colName, "create_time")) {
         return 0;
       }
       cell = cell->pNext;
