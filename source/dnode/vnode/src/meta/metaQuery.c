@@ -1107,6 +1107,7 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
       break;
     }
     STagIdxKey *p = entryKey;
+    if (p == NULL) break;
     if (p->type != pCursor->type) {
       if (first) {
         valid = param->reverse ? tdbTbcMoveToPrev(pCursor->pCur) : tdbTbcMoveToNext(pCursor->pCur);
@@ -1116,7 +1117,7 @@ int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) {
         break;
       }
     }
-    if (p == NULL || p->suid != pKey->suid) {
+    if (p->suid != pKey->suid) {
       break;
     }
     first = false;
