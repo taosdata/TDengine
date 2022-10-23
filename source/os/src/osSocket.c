@@ -223,20 +223,6 @@ int32_t taosShutDownSocketServerRDWR(TdSocketServerPtr pSocketServer) {
 #endif
 }
 
-void taosWinSocketInit() {
-#ifdef WINDOWS
-  static char flag = 0;
-  if (flag == 0) {
-    WORD    wVersionRequested;
-    WSADATA wsaData;
-    wVersionRequested = MAKEWORD(1, 1);
-    if (WSAStartup(wVersionRequested, &wsaData) == 0) {
-      flag = 1;
-    }
-  }
-#else
-#endif
-}
 int32_t taosSetNonblocking(TdSocketPtr pSocket, int32_t on) {
   if (pSocket == NULL || pSocket->fd < 0) {
     return -1;
@@ -1095,4 +1081,19 @@ int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
   }
 #endif
   return (int)fd;
+}
+
+void taosWinSocketInit() {
+#ifdef WINDOWS
+  static char flag = 0;
+  if (flag == 0) {
+    WORD    wVersionRequested;
+    WSADATA wsaData;
+    wVersionRequested = MAKEWORD(1, 1);
+    if (WSAStartup(wVersionRequested, &wsaData) == 0) {
+      flag = 1;
+    }
+  }
+#else
+#endif
 }
