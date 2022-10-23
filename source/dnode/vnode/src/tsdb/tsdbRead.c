@@ -1891,6 +1891,10 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
       } else {
         init = true;
         STSchema* pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(piRow), pReader, pBlockScanInfo->uid);
+        if (pSchema == NULL) {
+          return code;
+        }
+
         code = tRowMergerInit(&merge, piRow, pSchema);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
@@ -2286,7 +2290,7 @@ _end:
   if (pResBlock->info.rows > 0) {
     tsdbDebug("%p uid:%" PRIu64 ", composed data block created, brange:%" PRIu64 "-%" PRIu64
               " rows:%d, elapsed time:%.2f ms %s",
-              pReader, pBlockScanInfo->uid, pResBlock->info.window.skey, pResBlock->info.window.ekey,
+              pReader, pResBlock->info.uid, pResBlock->info.window.skey, pResBlock->info.window.ekey,
               pResBlock->info.rows, el, pReader->idStr);
   }
 

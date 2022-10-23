@@ -966,9 +966,7 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** dowStreams, size_
 SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
                                            SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
-                                          SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
-                                          STimeWindowAggSupp* pTwAggSupp, SIntervalPhysiNode* pPhyNode,
+SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode* pPhyNode,
                                           SExecTaskInfo* pTaskInfo, bool isStream);
 SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMergeIntervalPhysiNode* pIntervalPhyNode,
                                                SExecTaskInfo* pTaskInfo);
