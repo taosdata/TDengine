@@ -115,8 +115,8 @@ int32_t syncNodeOnTimer(SSyncNode* ths, SyncTimeout* pMsg) {
   } else if (pMsg->timeoutType == SYNC_TIMEOUT_ELECTION) {
     if (atomic_load_64(&ths->electTimerLogicClockUser) <= pMsg->logicClock) {
       ++(ths->electTimerCounter);
-      sTrace("vgId:%d, sync timer, type:election count:%lu, lc-user:%" PRId64, ths->vgId, ths->electTimerCounter,
-             ths->electTimerLogicClockUser);
+      sTrace("vgId:%d, sync timer, type:election count:%" PRIu64 ", lc-user:%" PRIu64, ths->vgId,
+             ths->electTimerCounter, ths->electTimerLogicClockUser);
 
       syncNodeElect(ths);
     }
@@ -124,7 +124,7 @@ int32_t syncNodeOnTimer(SSyncNode* ths, SyncTimeout* pMsg) {
   } else if (pMsg->timeoutType == SYNC_TIMEOUT_HEARTBEAT) {
     if (atomic_load_64(&ths->heartbeatTimerLogicClockUser) <= pMsg->logicClock) {
       ++(ths->heartbeatTimerCounter);
-      sTrace("vgId:%d, sync timer, type:replicate count:%" PRIu64 ", lc-user:%" PRId64, ths->vgId,
+      sTrace("vgId:%d, sync timer, type:replicate count:%" PRIu64 ", lc-user:%" PRIu64, ths->vgId,
              ths->heartbeatTimerCounter, ths->heartbeatTimerLogicClockUser);
 
       // syncNodeReplicate(ths, true);
