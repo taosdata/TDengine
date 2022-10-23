@@ -27,6 +27,11 @@ static int  metaUpdateSuidIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int  metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry);
 static int  metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type);
 static void metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey);
+// opt ins_tables query
+static int metaUpdateCtimeIdx(SMeta *pMeta, const SMetaEntry *pME);
+static int metaDeleteCtimeIdx(SMeta *pMeta, const SMetaEntry *pME);
+static int metaUpdateNcolIdx(SMeta *pMeta, const SMetaEntry *pME);
+static int metaDeleteNcolIdx(SMeta *pMeta, const SMetaEntry *pME);
 
 static void metaGetEntryInfo(const SMetaEntry *pEntry, SMetaInfo *pInfo) {
   pInfo->uid = pEntry->uid;
@@ -551,6 +556,26 @@ static void metaBuildTtlIdxKey(STtlIdxKey *ttlKey, const SMetaEntry *pME) {
   ttlKey->dtime = ctime / 1000 + ttlDays * tsTtlUnit;
   ttlKey->uid = pME->uid;
 }
+static int metaBuildCtimeIdxKey(SCtimeIdxKey *ctimeKey, const SMetaEntry *pME) {
+  int64_t ctime;
+  if (pME->type == TSDB_CHILD_TABLE) {
+    ctime = pME->ctbEntry.ctime;
+  } else if (pME->type == TSDB_NORMAL_TABLE) {
+    ctime = pME->ntbEntry.ctime;
+  } else {
+    return -1;
+  }
+
+  ctimeKey->ctime = ctime;
+  ctimeKey->uid = pME->uid;
+  return 0;
+}
+
+static int metaBuildNColIdxKey(SNcolIdxKey *ncolKey, const SMetaEntry *pME) {
+  ncolKey->ncol = pME->ntbEntry.schemaRow.nCols;
+  ncolKey->uid = pME->uid;
+  return 0;
+}
 
 static int metaDeleteTtlIdx(SMeta *pMeta, const SMetaEntry *pME) {
   STtlIdxKey ttlKey = {0};
@@ -632,6 +657,9 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
   tdbTbDelete(pMeta->pNameIdx, e.name, strlen(e.name) + 1, &pMeta->txn);
   tdbTbDelete(pMeta->pUidIdx, &uid, sizeof(uid), &pMeta->txn);
 
+  if (e.type == TSDB_CHILD_TABLE || e.type == TSDB_NORMAL_TABLE) metaDeleteCtimeIdx(pMeta, &e);
+  if (e.type == TSDB_NORMAL_TABLE) metaDeleteNcolIdx(pMeta, &e);
+
   if (e.type != TSDB_SUPER_TABLE) metaDeleteTtlIdx(pMeta, &e);
 
   if (e.type == TSDB_CHILD_TABLE) {
@@ -657,6 +685,37 @@ static int metaDropTableByUid(SMeta *pMeta, tb_uid_t uid, int *type) {
   tdbFree(pData);
 
   return 0;
+}
+// opt ins_tables
+int metaUpdateCtimeIdx(SMeta *pMeta, const SMetaEntry *pME) {
+  SCtimeIdxKey ctimeKey = {0};
+  if (metaBuildCtimeIdxKey(&ctimeKey, pME) < 0) {
+    return 0;
+  }
+  return tdbTbInsert(pMeta->pCtimeIdx, &ctimeKey, sizeof(ctimeKey), NULL, 0, &pMeta->txn);
+}
+
+int metaDeleteCtimeIdx(SMeta *pMeta, const SMetaEntry *pME) {
+  SCtimeIdxKey ctimeKey = {0};
+  if (metaBuildCtimeIdxKey(&ctimeKey, pME) < 0) {
+    return 0;
+  }
+  return tdbTbDelete(pMeta->pCtimeIdx, &ctimeKey, sizeof(ctimeKey), &pMeta->txn);
+}
+int metaUpdateNcolIdx(SMeta *pMeta, const SMetaEntry *pME) {
+  SNcolIdxKey ncolKey = {0};
+  if (metaBuildNColIdxKey(&ncolKey, pME) < 0) {
+    return 0;
+  }
+  return tdbTbInsert(pMeta->pNcolIdx, &ncolKey, sizeof(ncolKey), NULL, 0, &pMeta->txn);
+}
+
+int metaDeleteNcolIdx(SMeta *pMeta, const SMetaEntry *pME) {
+  SNcolIdxKey ncolKey = {0};
+  if (metaBuildNColIdxKey(&ncolKey, pME) < 0) {
+    return 0;
+  }
+  return tdbTbDelete(pMeta->pNcolIdx, &ncolKey, sizeof(ncolKey), &pMeta->txn);
 }
 
 static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq, STableMetaRsp *pMetaRsp) {
@@ -1278,12 +1337,14 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
     ret = metaSaveJsonVarToIdx(pMeta, pCtbEntry, pTagColumn);
     goto end;
   }
-  if (metaCreateTagIdxKey(pCtbEntry->ctbEntry.suid, pTagColumn->colId, pTagData, nTagData, pTagColumn->type,
-                          pCtbEntry->uid, &pTagIdxKey, &nTagIdxKey) < 0) {
-    ret = -1;
-    goto end;
+  if (pTagData != NULL) {
+    if (metaCreateTagIdxKey(pCtbEntry->ctbEntry.suid, pTagColumn->colId, pTagData, nTagData, pTagColumn->type,
+                            pCtbEntry->uid, &pTagIdxKey, &nTagIdxKey) < 0) {
+      ret = -1;
+      goto end;
+    }
+    tdbTbUpsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, &pMeta->txn);
   }
-  tdbTbUpsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, &pMeta->txn);
 end:
   metaDestroyTagIdxKey(pTagIdxKey);
   tDecoderClear(&dc);
@@ -1368,6 +1429,12 @@ int metaHandleEntry(SMeta *pMeta, const SMetaEntry *pME) {
     if (pME->type == TSDB_SUPER_TABLE) {
       if (metaUpdateSuidIdx(pMeta, pME) < 0) goto _err;
     }
+  }
+
+  if (metaUpdateCtimeIdx(pMeta, pME) < 0) goto _err;
+
+  if (pME->type == TSDB_NORMAL_TABLE) {
+    if (metaUpdateNcolIdx(pMeta, pME) < 0) goto _err;
   }
 
   if (pME->type != TSDB_SUPER_TABLE) {

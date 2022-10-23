@@ -422,16 +422,6 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray*
       goto end;
     }
   }
-  /*else {
-    code = metaGetTableTagsByUids(metaHandle, suid, uidList, tags);
-    if (code != 0) {
-      terrno = code;
-      qError("failed to get table from meta idx, reason: %s, suid:%" PRId64, tstrerror(code), suid);
-      goto end;
-    } else {
-      qInfo("succ to get table from meta idx, suid:%" PRId64, suid);
-    }
-  }*/
 
   int32_t rows = taosArrayGetSize(uidList);
   if (rows == 0) {
@@ -1212,11 +1202,10 @@ void createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
 #if 1
     // todo refactor: add the parameter for tbname function
     const char* name = "tbname";
-    int32_t len = strlen(name);
+    int32_t     len = strlen(name);
 
     if (!pFuncNode->pParameterList && (memcmp(pExprNode->_function.functionName, name, len) == 0) &&
         pExprNode->_function.functionName[len] == 0) {
-
       pFuncNode->pParameterList = nodesMakeList();
       ASSERT(LIST_LENGTH(pFuncNode->pParameterList) == 0);
       SValueNode* res = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
@@ -1261,13 +1250,13 @@ void createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId) {
   } else if (type == QUERY_NODE_CASE_WHEN) {
     pExp->pExpr->nodeType = QUERY_NODE_OPERATOR;
     SCaseWhenNode* pCaseNode = (SCaseWhenNode*)pNode;
-  
+
     pExp->base.pParam = taosMemoryCalloc(1, sizeof(SFunctParam));
     pExp->base.numOfParams = 1;
-  
+
     SDataType* pType = &pCaseNode->node.resType;
-    pExp->base.resSchema = createResSchema(pType->type, pType->bytes, slotId, pType->scale,
-                                           pType->precision, pCaseNode->node.aliasName);
+    pExp->base.resSchema =
+        createResSchema(pType->type, pType->bytes, slotId, pType->scale, pType->precision, pCaseNode->node.aliasName);
     pExp->pExpr->_optrRoot.pRootNode = pNode;
   } else {
     ASSERT(0);
