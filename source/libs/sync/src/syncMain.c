@@ -2783,7 +2783,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
     syncTimeoutDestroy(pSyncMsg);
 
     // reset timer ms
-    if (syncEnvIsStart()) {
+    if (syncEnvIsStart() && pSyncNode->electBaseLine > 0) {
       pSyncNode->electTimerMS = syncUtilElectRandomMS(pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine);
       taosTmrReset(syncNodeEqElectTimer, pSyncNode->electTimerMS, pSyncNode, gSyncEnv->pTimerManager,
                    &pSyncNode->pElectTimer);
@@ -2846,7 +2846,7 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
     return;
   }
 
-  syncNodeEventLog(pSyncNode, "eq peer hb timer");
+  //syncNodeEventLog(pSyncNode, "eq peer hb timer");
 
   int64_t timerLogicClock = atomic_load_64(&pSyncTimer->logicClock);
   int64_t msgLogicClock = atomic_load_64(&pData->logicClock);
