@@ -1165,7 +1165,7 @@ FStmSt* stmStCreate(Fst* fst, FAutoCtx* automation, FstBoundWithData* min, FstBo
   sws->emptyOutput.null = true;
   sws->emptyOutput.out = 0;
 
-  sws->stack = (SArray*)taosArrayInit(256, sizeof(StreamState));
+  sws->stack = (SArray*)taosArrayInit(256, sizeof(FstStreamState));
   sws->endAt = max;
   stmStSeekMin(sws, min);
 
@@ -1177,7 +1177,7 @@ void stmStDestroy(FStmSt* sws) {
   }
 
   taosArrayDestroy(sws->inp);
-  taosArrayDestroyEx(sws->stack, streamStateDestroy);
+  taosArrayDestroyEx(sws->stack, fstStreamStateDestroy);
 
   taosMemoryFree(sws);
 }
@@ -1188,10 +1188,10 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
     if (fstBoundWithDataIsIncluded(min)) {
       sws->emptyOutput.out = fstEmptyFinalOutput(sws->fst, &(sws->emptyOutput.null));
     }
-    StreamState s = {.node = fstGetRoot(sws->fst),
-                     .trans = 0,
-                     .out = {.null = false, .out = 0},
-                     .autState = automFuncs[aut->type].start(aut)};  // auto.start callback
+    FstStreamState s = {.node = fstGetRoot(sws->fst),
+                        .trans = 0,
+                        .out = {.null = false, .out = 0},
+                        .autState = automFuncs[aut->type].start(aut)};  // auto.start callback
     taosArrayPush(sws->stack, &s);
     return true;
   }
@@ -1223,7 +1223,7 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
       autState = automFuncs[aut->type].accept(aut, preState, b);
       taosArrayPush(sws->inp, &b);
 
-      StreamState s = {.node = node, .trans = res + 1, .out = {.null = false, .out = out}, .autState = preState};
+      FstStreamState s = {.node = node, .trans = res + 1, .out = {.null = false, .out = out}, .autState = preState};
       node = NULL;
 
       taosArrayPush(sws->stack, &s);
@@ -1244,7 +1244,7 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
         }
       }
 
-      StreamState s = {.node = node, .trans = i, .out = {.null = false, .out = out}, .autState = autState};
+      FstStreamState s = {.node = node, .trans = i, .out = {.null = false, .out = out}, .autState = autState};
       taosArrayPush(sws->stack, &s);
       taosMemoryFree(trans);
       return true;
@@ -1255,7 +1255,7 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
 
   uint32_t sz = taosArrayGetSize(sws->stack);
   if (sz != 0) {
-    StreamState* s = taosArrayGet(sws->stack, sz - 1);
+    FstStreamState* s = taosArrayGet(sws->stack, sz - 1);
     if (inclusize) {
       s->trans -= 1;
       taosArrayPop(sws->inp);
@@ -1264,7 +1264,7 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
       uint64_t      trans = s->trans;
       FstTransition trn;
       fstNodeGetTransitionAt(n, trans - 1, &trn);
-      StreamState s = {
+      FstStreamState s = {
           .node = fstGetNode(sws->fst, trn.addr), .trans = 0, .out = {.null = false, .out = out}, .autState = autState};
       taosArrayPush(sws->stack, &s);
       return true;
@@ -1274,14 +1274,14 @@ bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min) {
 
   return false;
 }
-FStmStRslt* stmStNextWith(FStmSt* sws, StreamCallback callback) {
+FStmStRslt* stmStNextWith(FStmSt* sws, streamCallback__fn callback) {
   FAutoCtx* aut = sws->aut;
   FstOutput output = sws->emptyOutput;
   if (output.null == false) {
     FstSlice emptySlice = fstSliceCreate(NULL, 0);
     if (fstBoundWithDataExceededBy(sws->endAt, &emptySlice)) {
-      taosArrayDestroyEx(sws->stack, streamStateDestroy);
-      sws->stack = (SArray*)taosArrayInit(256, sizeof(StreamState));
+      taosArrayDestroyEx(sws->stack, fstStreamStateDestroy);
+      sws->stack = (SArray*)taosArrayInit(256, sizeof(FstStreamState));
       return NULL;
     }
     void* start = automFuncs[aut->type].start(aut);
@@ -1292,12 +1292,12 @@ FStmStRslt* stmStNextWith(FStmSt* sws, StreamCallback callback) {
   }
   SArray* nodes = taosArrayInit(8, sizeof(FstNode*));
   while (taosArrayGetSize(sws->stack) > 0) {
-    StreamState* p = (StreamState*)taosArrayPop(sws->stack);
+    FstStreamState* p = (FstStreamState*)taosArrayPop(sws->stack);
     if (p->trans >= FST_NODE_LEN(p->node) || !automFuncs[aut->type].canMatch(aut, p->autState)) {
       if (FST_NODE_ADDR(p->node) != fstGetRootAddr(sws->fst)) {
         taosArrayPop(sws->inp);
       }
-      streamStateDestroy(p);
+      fstStreamStateDestroy(p);
       continue;
     }
     FstTransition trn;
@@ -1318,10 +1318,10 @@ FStmStRslt* stmStNextWith(FStmSt* sws, StreamCallback callback) {
         isMatch = automFuncs[aut->type].isMatch(aut, eofState);
       }
     }
-    StreamState s1 = {.node = p->node, .trans = p->trans + 1, .out = p->out, .autState = p->autState};
+    FstStreamState s1 = {.node = p->node, .trans = p->trans + 1, .out = p->out, .autState = p->autState};
     taosArrayPush(sws->stack, &s1);
 
-    StreamState s2 = {.node = nextNode, .trans = 0, .out = {.null = false, .out = out}, .autState = nextState};
+    FstStreamState s2 = {.node = nextNode, .trans = 0, .out = {.null = false, .out = out}, .autState = nextState};
     taosArrayPush(sws->stack, &s2);
 
     int32_t  isz = taosArrayGetSize(sws->inp);
@@ -1331,8 +1331,8 @@ FStmStRslt* stmStNextWith(FStmSt* sws, StreamCallback callback) {
     }
     FstSlice slice = fstSliceCreate(buf, isz);
     if (fstBoundWithDataExceededBy(sws->endAt, &slice)) {
-      taosArrayDestroyEx(sws->stack, streamStateDestroy);
-      sws->stack = (SArray*)taosArrayInit(256, sizeof(StreamState));
+      taosArrayDestroyEx(sws->stack, fstStreamStateDestroy);
+      sws->stack = (SArray*)taosArrayInit(256, sizeof(FstStreamState));
       taosMemoryFreeClear(buf);
       fstSliceDestroy(&slice);
       taosArrayDestroy(nodes);
@@ -1375,11 +1375,11 @@ void swsResultDestroy(FStmStRslt* result) {
   taosMemoryFree(result);
 }
 
-void streamStateDestroy(void* s) {
+void fstStreamStateDestroy(void* s) {
   if (NULL == s) {
     return;
   }
-  StreamState* ss = (StreamState*)s;
+  FstStreamState* ss = (FstStreamState*)s;
   fstNodeDestroy(ss->node);
 }
 
