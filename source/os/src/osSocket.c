@@ -73,6 +73,7 @@ typedef struct TdEpoll {
   EpollFd fd;
 } * TdEpollPtr, TdEpoll;
 
+#if 0
 int32_t taosSendto(TdSocketPtr pSocket, void *buf, int len, unsigned int flags, const struct sockaddr *dest_addr,
                    int addrlen) {
   if (pSocket == NULL || pSocket->fd < 0) {
@@ -84,6 +85,7 @@ int32_t taosSendto(TdSocketPtr pSocket, void *buf, int len, unsigned int flags, 
   return sendto(pSocket->fd, buf, len, flags, dest_addr, addrlen);
 #endif
 }
+
 int32_t taosWriteSocket(TdSocketPtr pSocket, void *buf, int len) {
   if (pSocket == NULL || pSocket->fd < 0) {
     return -1;
@@ -114,6 +116,8 @@ int32_t taosReadFromSocket(TdSocketPtr pSocket, void *buf, int32_t len, int32_t 
   }
   return recvfrom(pSocket->fd, buf, len, flags, destAddr, addrLen);
 }
+#endif  // endif 0
+
 int32_t taosCloseSocketNoCheck1(SocketFd fd) {
 #ifdef WINDOWS
   return closesocket(fd);
@@ -121,6 +125,7 @@ int32_t taosCloseSocketNoCheck1(SocketFd fd) {
   return close(fd);
 #endif
 }
+
 int32_t taosCloseSocket(TdSocketPtr *ppSocket) {
   int32_t code;
   if (ppSocket == NULL || *ppSocket == NULL || (*ppSocket)->fd < 0) {
@@ -131,6 +136,8 @@ int32_t taosCloseSocket(TdSocketPtr *ppSocket) {
   taosMemoryFree(*ppSocket);
   return code;
 }
+
+#if 0
 int32_t taosCloseSocketServer(TdSocketServerPtr *ppSocketServer) {
   int32_t code;
   if (ppSocketServer == NULL || *ppSocketServer == NULL || (*ppSocketServer)->fd < 0) {
@@ -216,20 +223,6 @@ int32_t taosShutDownSocketServerRDWR(TdSocketServerPtr pSocketServer) {
 #endif
 }
 
-void taosWinSocketInit() {
-#ifdef WINDOWS
-  static char flag = 0;
-  if (flag == 0) {
-    WORD    wVersionRequested;
-    WSADATA wsaData;
-    wVersionRequested = MAKEWORD(1, 1);
-    if (WSAStartup(wVersionRequested, &wsaData) == 0) {
-      flag = 1;
-    }
-  }
-#else
-#endif
-}
 int32_t taosSetNonblocking(TdSocketPtr pSocket, int32_t on) {
   if (pSocket == NULL || pSocket->fd < 0) {
     return -1;
@@ -262,6 +255,8 @@ int32_t taosSetNonblocking(TdSocketPtr pSocket, int32_t on) {
 #endif
   return 0;
 }
+#endif  // endif 0
+
 int32_t taosSetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void *optval, int32_t optlen) {
   if (pSocket == NULL || pSocket->fd < 0) {
     return -1;
@@ -296,6 +291,8 @@ int32_t taosSetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void
   return setsockopt(pSocket->fd, level, optname, optval, (int)optlen);
 #endif
 }
+
+#if 0
 int32_t taosGetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void *optval, int32_t *optlen) {
   if (pSocket == NULL || pSocket->fd < 0) {
     return -1;
@@ -307,6 +304,9 @@ int32_t taosGetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void
   return getsockopt(pSocket->fd, level, optname, optval, (int *)optlen);
 #endif
 }
+
+#endif
+
 uint32_t taosInetAddr(const char *ipAddr) {
 #ifdef WINDOWS
   uint32_t value;
@@ -330,6 +330,7 @@ const char *taosInetNtoa(struct in_addr ipInt, char *dstStr, int32_t len) {
 
 #define TCP_CONN_TIMEOUT 3000  // conn timeout
 
+#if 0
 int32_t taosWriteMsg(TdSocketPtr pSocket, void *buf, int32_t nbytes) {
   if (pSocket == NULL || pSocket->fd < 0) {
     return -1;
@@ -726,6 +727,7 @@ int taosValidIp(uint32_t ip) {
 #endif
   return 0;
 }
+#endif  // endif 0
 
 bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
   struct sockaddr_in serverAdd;
@@ -774,6 +776,8 @@ bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
   return true;
   // return 0 == taosValidIp(ip) ? true : false;
 }
+
+#if 0
 TdSocketServerPtr taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
   struct sockaddr_in serverAdd;
   SocketFd           fd;
@@ -888,6 +892,36 @@ int64_t taosCopyFds(TdSocketPtr pSrcSocket, TdSocketPtr pDestSocket, int64_t len
   return len;
 }
 
+// Function converting an IP address string to an uint32_t.
+uint32_t ip2uint(const char *const ip_addr) {
+  char ip_addr_cpy[20];
+  char ip[5];
+
+  tstrncpy(ip_addr_cpy, ip_addr, sizeof(ip_addr_cpy));
+
+  char *s_start, *s_end;
+  s_start = ip_addr_cpy;
+  s_end = ip_addr_cpy;
+
+  int32_t k;
+
+  for (k = 0; *s_start != '\0'; s_start = s_end) {
+    for (s_end = s_start; *s_end != '.' && *s_end != '\0'; s_end++) {
+    }
+    if (*s_end == '.') {
+      *s_end = '\0';
+      s_end++;
+    }
+    ip[k++] = (char)atoi(s_start);
+  }
+
+  ip[k] = '\0';
+
+  return *((uint32_t *)ip);
+}
+
+#endif  // endif 0
+
 void taosBlockSIGPIPE() {
 #ifdef WINDOWS
   // assert(0);
@@ -991,34 +1025,6 @@ int32_t taosGetFqdn(char *fqdn) {
   return 0;
 }
 
-// Function converting an IP address string to an uint32_t.
-uint32_t ip2uint(const char *const ip_addr) {
-  char ip_addr_cpy[20];
-  char ip[5];
-
-  tstrncpy(ip_addr_cpy, ip_addr, sizeof(ip_addr_cpy));
-
-  char *s_start, *s_end;
-  s_start = ip_addr_cpy;
-  s_end = ip_addr_cpy;
-
-  int32_t k;
-
-  for (k = 0; *s_start != '\0'; s_start = s_end) {
-    for (s_end = s_start; *s_end != '.' && *s_end != '\0'; s_end++) {
-    }
-    if (*s_end == '.') {
-      *s_end = '\0';
-      s_end++;
-    }
-    ip[k++] = (char)atoi(s_start);
-  }
-
-  ip[k] = '\0';
-
-  return *((uint32_t *)ip);
-}
-
 void tinet_ntoa(char *ipstr, uint32_t ip) {
   sprintf(ipstr, "%d.%d.%d.%d", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, ip >> 24);
 }
@@ -1039,12 +1045,14 @@ void taosSetMaskSIGPIPE() {
 #endif
 }
 
+#if 0
 int32_t taosGetSocketName(TdSocketPtr pSocket, struct sockaddr *destAddr, int *addrLen) {
   if (pSocket == NULL || pSocket->fd < 0) {
     return -1;
   }
   return getsockname(pSocket->fd, destAddr, addrLen);
 }
+#endif  // endif 0
 
 /*
  * Set TCP connection timeout per-socket level.
@@ -1079,4 +1087,19 @@ int32_t taosCreateSocketWithTimeout(uint32_t timeout) {
 #endif
 
   return (int)fd;
+}
+
+void taosWinSocketInit() {
+#ifdef WINDOWS
+  static char flag = 0;
+  if (flag == 0) {
+    WORD    wVersionRequested;
+    WSADATA wsaData;
+    wVersionRequested = MAKEWORD(1, 1);
+    if (WSAStartup(wVersionRequested, &wsaData) == 0) {
+      flag = 1;
+    }
+  }
+#else
+#endif
 }
