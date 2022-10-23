@@ -83,6 +83,10 @@ void syncIndexMgrSetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, 
 }
 
 SyncIndex syncIndexMgrGetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId) {
+  if (pSyncIndexMgr == NULL) {
+    return SYNC_INDEX_INVALID;
+  }
+
   for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
     if (syncUtilSameId(&((*(pSyncIndexMgr->replicas))[i]), pRaftId)) {
       SyncIndex idx = (pSyncIndexMgr->index)[i];

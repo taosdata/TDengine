@@ -35,7 +35,12 @@ extern bool gRaftDetailLog;
 #define SYNC_MAX_PROGRESS_WAIT_MS    4000
 #define SYNC_MAX_START_TIME_RANGE_MS (1000 * 20)
 #define SYNC_MAX_RECV_TIME_RANGE_MS  1200
+#define SYNC_DEL_WAL_MS              (1000 * 60)
 #define SYNC_ADD_QUORUM_COUNT        3
+#define SYNC_MNODE_LOG_RETENTION     10000
+#define SYNC_VNODE_LOG_RETENTION     500
+
+#define SYNC_APPEND_ENTRIES_TIMEOUT_MS 10000
 
 #define SYNC_MAX_BATCH_SIZE 1
 #define SYNC_INDEX_BEGIN    0
@@ -157,32 +162,15 @@ typedef struct SSyncLogStore {
   SLRUCache* pCache;
   void*      data;
 
-  // append one log entry
-  int32_t (*appendEntry)(struct SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
-
-  // get one log entry, user need to free pEntry->pCont
-  SSyncRaftEntry* (*getEntry)(struct SSyncLogStore* pLogStore, SyncIndex index);
-
-  // truncate log with index, entries after the given index (>=index) will be deleted
-  int32_t (*truncate)(struct SSyncLogStore* pLogStore, SyncIndex fromIndex);
-
-  // return index of last entry
-  SyncIndex (*getLastIndex)(struct SSyncLogStore* pLogStore);
-
-  // return term of last entry
-  SyncTerm (*getLastTerm)(struct SSyncLogStore* pLogStore);
-
-  // update log store commit index with "index"
-  int32_t (*updateCommitIndex)(struct SSyncLogStore* pLogStore, SyncIndex index);
-
-  // return commit index of log
-  SyncIndex (*getCommitIndex)(struct SSyncLogStore* pLogStore);
+  int32_t (*syncLogUpdateCommitIndex)(struct SSyncLogStore* pLogStore, SyncIndex index);
+  SyncIndex (*syncLogCommitIndex)(struct SSyncLogStore* pLogStore);
 
   SyncIndex (*syncLogBeginIndex)(struct SSyncLogStore* pLogStore);
   SyncIndex (*syncLogEndIndex)(struct SSyncLogStore* pLogStore);
-  bool (*syncLogIsEmpty)(struct SSyncLogStore* pLogStore);
+
   int32_t (*syncLogEntryCount)(struct SSyncLogStore* pLogStore);
   int32_t (*syncLogRestoreFromSnapshot)(struct SSyncLogStore* pLogStore, SyncIndex index);
+  bool (*syncLogIsEmpty)(struct SSyncLogStore* pLogStore);
   bool (*syncLogExist)(struct SSyncLogStore* pLogStore, SyncIndex index);
 
   SyncIndex (*syncLogWriteIndex)(struct SSyncLogStore* pLogStore);
@@ -207,6 +195,7 @@ typedef struct SSyncInfo {
   SMsgCb*       msgcb;
   int32_t (*FpSendMsg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
   int32_t (*FpEqMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
+  int32_t (*FpEqCtrlMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
 } SSyncInfo;
 
 int32_t     syncInit();
@@ -217,7 +206,6 @@ void        syncStop(int64_t rid);
 int32_t     syncSetStandby(int64_t rid);
 ESyncState  syncGetMyRole(int64_t rid);
 bool        syncIsReady(int64_t rid);
-bool        syncIsReadyForRead(int64_t rid);
 const char* syncGetMyRoleStr(int64_t rid);
 bool        syncRestoreFinish(int64_t rid);
 SyncTerm    syncGetMyTerm(int64_t rid);
@@ -227,7 +215,7 @@ SyncGroupId syncGetVgId(int64_t rid);
 void        syncGetEpSet(int64_t rid, SEpSet* pEpSet);
 void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);
 int32_t     syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak);
-int32_t     syncProposeBatch(int64_t rid, SRpcMsg** pMsgPArr, bool* pIsWeakArr, int32_t arrSize);
+// int32_t     syncProposeBatch(int64_t rid, SRpcMsg** pMsgPArr, bool* pIsWeakArr, int32_t arrSize);
 bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);
@@ -240,6 +228,9 @@ int32_t syncReconfigBuild(int64_t rid, const SSyncCfg* pNewCfg, SRpcMsg* pRpcMsg
 
 int32_t syncLeaderTransfer(int64_t rid);
 int32_t syncLeaderTransferTo(int64_t rid, SNodeInfo newLeader);
+
+int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex);
+int32_t syncEndSnapshot(int64_t rid);
 
 #ifdef __cplusplus
 }
