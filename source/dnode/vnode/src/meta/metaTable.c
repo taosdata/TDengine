@@ -572,8 +572,6 @@ static int metaBuildCtimeIdxKey(SCtimeIdxKey *ctimeKey, const SMetaEntry *pME) {
 }
 
 static int metaBuildNColIdxKey(SNcolIdxKey *ncolKey, const SMetaEntry *pME) {
-  if (pME->type != TSDB_NORMAL_TABLE) return -1;
-
   ncolKey->ncol = pME->ntbEntry.schemaRow.nCols;
   ncolKey->uid = pME->uid;
   return 0;
