@@ -341,6 +341,7 @@ static void *mndBuildAlterVnodeReplicaReq(SMnode *pMnode, SDbObj *pDb, SVgObj *p
       alterReq.selfIndex = v;
     }
   }
+  alterReq.replica = pVgroup->replica;
 
   if (alterReq.selfIndex == -1) {
     terrno = TSDB_CODE_MND_APP_ERROR;
