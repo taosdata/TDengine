@@ -2965,7 +2965,7 @@ static int32_t sysFilte__VgroupId(void* arg, SNode* pNode, SArray* result) {
   int ret = func(&vgId, &pVal->datum.i, TSDB_DATA_TYPE_BIGINT);
   if (ret == 0) return 0;
 
-  return -2;
+  return -1;
 }
 static int32_t sysFilte__TableName(void* arg, SNode* pNode, SArray* result) {
   void* pMeta = ((SSTabFltArg*)arg)->pMeta;
@@ -2987,7 +2987,7 @@ static int32_t sysFilte__TableName(void* arg, SNode* pNode, SArray* result) {
   int32_t ret = metaFilterCreateTime(pMeta, &param, result);
   if (ret == 0) return 0;
 
-  return -2;
+  return -1;
 }
 
 static int32_t sysFilte__CreateTime(void* arg, SNode* pNode, SArray* result) {
@@ -3016,8 +3016,8 @@ static int32_t sysFilte__Ncolumn(void* arg, SNode* pNode, SArray* result) {
   bool           reverse = false;
 
   __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
-  if (func == NULL) return -2;
-  return -2;
+  if (func == NULL) return -1;
+  return -1;
 }
 
 static int32_t sysFilte__Ttl(void* arg, SNode* pNode, SArray* result) {
@@ -3028,8 +3028,8 @@ static int32_t sysFilte__Ttl(void* arg, SNode* pNode, SArray* result) {
   bool           reverse = false;
 
   __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
-  if (func == NULL) return -2;
-  return -2;
+  if (func == NULL) return -1;
+  return -1;
 }
 static int32_t sysFilte__STableName(void* arg, SNode* pNode, SArray* result) {
   void* pMeta = ((SSTabFltArg*)arg)->pMeta;
@@ -3039,8 +3039,8 @@ static int32_t sysFilte__STableName(void* arg, SNode* pNode, SArray* result) {
   bool           reverse = false;
 
   __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
-  if (func == NULL) return -2;
-  return 0;
+  if (func == NULL) return -1;
+  return -1;
 }
 static int32_t sysFilte__Uid(void* arg, SNode* pNode, SArray* result) {
   void* pMeta = ((SSTabFltArg*)arg)->pMeta;
@@ -3050,8 +3050,8 @@ static int32_t sysFilte__Uid(void* arg, SNode* pNode, SArray* result) {
   bool           reverse = false;
 
   __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
-  if (func == NULL) return -2;
-  return -2;
+  if (func == NULL) return -1;
+  return -1;
 }
 static int32_t sysFilte__Type(void* arg, SNode* pNode, SArray* result) {
   void* pMeta = ((SSTabFltArg*)arg)->pMeta;
@@ -3062,7 +3062,7 @@ static int32_t sysFilte__Type(void* arg, SNode* pNode, SArray* result) {
 
   __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
   if (func == NULL) return -1;
-  return -2;
+  return -1;
 }
 static int32_t sysChkFilter__Comm(SNode* pNode) {
   // impl
