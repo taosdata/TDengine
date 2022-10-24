@@ -16,6 +16,7 @@ import re
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.remote import Remote
+import time
 class TestKeep(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
@@ -187,11 +188,22 @@ class TestKeep(TDCase):
         self.tdSql.execute("insert into ntb values(-1, 1)")
         self.tdSql.checkRow(1)
         
-
+    def keep_expired_check(self):
+        self.tdSql.execute("drop database if exists db1 ")
+        kv_dict = {"duration": "1d", "keep": "2d,2d,2d"}
+        self.tdCom.createDb("db1", **kv_dict)
+        self.tdSql.execute("create table ntb (ts timestamp, c0 int)")
+        self.tdSql.execute(f'insert into ntb values(now-{2*86400-10}s, 1)')
+        self.tdSql.query("select * from ntb")
+        self.tdSql.checkRow(1)
+        time.sleep(15)
+        self.tdSql.query("select * from ntb")
+        self.tdSql.checkRow(0)
 
     def run(self) -> bool:
         self.keep_check()
         self.keep_checkdata()
+        self.keep_expired_check()
 
     def cleanup(self):
         pass
