@@ -189,7 +189,7 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
   int64_t submitEndUs = taosGetTimestampUs();
 
   if (submitEndUs - submitStartUs > 10 * 1000000) {
-    vError("vgId: %d, insert msg takes more than 10s", pVnode->vgId);
+    vWarn("vgId: %d, submit msg process takes more than 10s", pVnode->vgId);
   }
   return code;
 }
