@@ -43,7 +43,7 @@ class UpdateBackup(TDCase):
         self.test_root = os.environ['TEST_ROOT']
         self.taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
         #param for taosBenchmark
-        self.dbname = ['db1','db2']
+        self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
         self.tb_num = 100
@@ -61,7 +61,7 @@ class UpdateBackup(TDCase):
         self.ntb_num = 100
         self.ntb_row_num = 1000
         #param for taosx
-        self.timeout = '10s'
+        self.timeout = '5s'
     def data_insert_ntb(self,source_taosd_list,dbname,ntbname_m,tb_num,row_num,create_flag,start_timestamp):
         taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
         for source in range(len(source_taosd_list)):
@@ -170,7 +170,6 @@ class UpdateBackup(TDCase):
                 thread_list_source = []    
                 for source in range(len(self.source_taosd_list)):
                     target_file_dir = f'{self.run_log_dir}/{self.source_taosd_list[source][0]}_backup_{source}'
-                    self.remote.cmd(self.taosx_setting['fqdn'][0],f'mkdir {target_file_dir}')
                     if source_task.lower() == '+ws':
                         self.tdTaosx.run_backup_tb_from_ws_to_local(thread_list_source,self.taosx_setting,source_task,target_file_dir,self.source_taosd_list,self.dbname,self.tbname_m,source,group_id,self.timeout)
                     elif source_task.lower() == '':
@@ -229,7 +228,6 @@ class UpdateBackup(TDCase):
                 thread_list_source = []
                 for source in range(len(self.source_taosd_list)):
                     target_file_dir = f'{self.run_log_dir}/{self.source_taosd_list[source][0]}_backup_{source}'
-                    self.remote.cmd(self.taosx_setting['fqdn'][0],f'mkdir {target_file_dir}')
                     if source_task.lower() == '+ws':
                         self.tdTaosx.run_backup_tb_from_ws_to_local(thread_list_source,self.taosx_setting,source_task,target_file_dir,self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,source,group_id,self.timeout)
                     elif source_task.lower() == '':
@@ -268,9 +266,9 @@ class UpdateBackup(TDCase):
         self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root)
         self.update_backup_db_stb('db')
         self.update_backup_db_stb('stable')
-        self.update_backup_ctb()
-        self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num,'create',self.start_timestamp)
-        self.update_backup_ntb()
+        # self.update_backup_ctb()
+        # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num,'create',self.start_timestamp)
+        # self.update_backup_ntb()
     def cleanup(self):
         pass
 

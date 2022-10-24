@@ -42,7 +42,7 @@ class DataExportTest(TDCase):
         self.test_root = os.environ['TEST_ROOT']
 
         self.taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
-        self.dbname = ['db1','db2']
+        self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
         self.tb_num = 100
@@ -54,7 +54,7 @@ class DataExportTest(TDCase):
         self.ntb_dbname = ['test1','test2']
         self.ntb_name_m = ['nd','nt']
         self.ntb_num = 1000
-        self.ntb_row_num = 10000
+        self.ntb_row_num = 1000
     def data_insert_ntb(self,source_taosd_list,dbname,ntbname_m,tb_num,row_num):
         taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
         thread_list = []

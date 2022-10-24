@@ -44,7 +44,7 @@ class FullBackup(TDCase):
         self.test_root = os.environ['TEST_ROOT']
         self.taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
         # param for taosBenchmark with db,stb and ctb check
-        self.dbname = ['db1','db2']
+        self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
         self.tb_num = 100
@@ -53,10 +53,10 @@ class FullBackup(TDCase):
         self.drop_flag = 'yes'
         self.child_table_exist_flag = 'no'
         # param for taosBenchmark with ntb check
-        self.ntb_dbname = ['test1','test2']
+        self.ntb_dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
         self.ntb_name_m = ['nd','nt']
-        self.ntb_num = 1000
-        self.ntb_row_num = 10000
+        self.ntb_num = 100
+        self.ntb_row_num = 100
         # param for taosx
         self.timeout = '5s'
         self.target_dbname = 'target'
@@ -223,9 +223,9 @@ class FullBackup(TDCase):
         self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root)
         self.full_backup_db_stb('db')
         self.full_backup_db_stb('stb')
-        self.full_backup_ctb()
-        self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)
-        self.full_backup_ntb()
+        # self.full_backup_ctb()
+        # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)
+        # self.full_backup_ntb()
     def cleanup(self):
         pass
 
