@@ -421,14 +421,14 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode 
     goto _error;
   }
 
-  int32_t    num = 0;
-  SExprInfo* pExprInfo = createExprInfo(pAggNode->pAggFuncs, pAggNode->pGroupKeys, &num);
+  initResultSizeInfo(&pOperator->resultInfo, 4096);
   code = initGroupOptrInfo(&pInfo->pGroupColVals, &pInfo->groupKeyLen, &pInfo->keyBuf, pInfo->pGroupCols);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
 
-  initResultSizeInfo(&pOperator->resultInfo, 4096);
+  int32_t    num = 0;
+  SExprInfo* pExprInfo = createExprInfo(pAggNode->pAggFuncs, pAggNode->pGroupKeys, &num);
   code = initAggInfo(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, pInfo->groupKeyLen, pTaskInfo->id.str);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -443,7 +443,7 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode 
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, hashGroupbyAggregate, NULL, NULL,
-                                         destroyGroupOperatorInfo, aggEncodeResultRow, aggDecodeResultRow, NULL);
+                                         destroyGroupOperatorInfo, NULL);
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -453,7 +453,9 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode 
 
 _error:
   pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
-  destroyGroupOperatorInfo(pInfo);
+  if (pInfo != NULL) {
+    destroyGroupOperatorInfo(pInfo);
+  }
   taosMemoryFreeClear(pOperator);
   return NULL;
 }
@@ -818,7 +820,7 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartition
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, hashPartition, NULL, NULL, destroyPartitionOperatorInfo,
-                                         NULL, NULL, NULL);
+                                         NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
@@ -1093,7 +1095,7 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
   pOperator->info = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doStreamHashPartition, NULL, NULL,
-                                         destroyStreamPartitionOperatorInfo, NULL, NULL, NULL);
+                                         destroyStreamPartitionOperatorInfo, NULL);
 
   initParDownStream(downstream, &pInfo->partitionSup, &pInfo->scalarSup);
   code = appendDownstream(pOperator, &downstream, 1);

@@ -15,7 +15,7 @@
 
 #include "vnd.h"
 
-#define VND_INFO_FNAME     "vnode.json"
+#define VND_INFO_FNAME "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
 
 static int  vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData);
@@ -107,7 +107,7 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   // free info binary
   taosMemoryFree(data);
 
-  vInfo("vgId:%d, vnode info is saved, fname:%s", pInfo->config.vgId, fname);
+  vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d", pInfo->config.vgId, fname, pInfo->config.syncCfg.replicaNum);
 
   return 0;
 
@@ -228,7 +228,9 @@ int vnodeCommit(SVnode *pVnode) {
     code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-  walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
+
+  // walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
+  syncBeginSnapshot(pVnode->sync, pVnode->state.applied);
 
   code = smaPreCommit(pVnode->pSma);
   TSDB_CHECK_CODE(code, lino, _exit);
@@ -282,7 +284,8 @@ int vnodeCommit(SVnode *pVnode) {
   }
 
   // apply the commit (TODO)
-  walEndSnapshot(pVnode->pWal);
+  // walEndSnapshot(pVnode->pWal);
+  syncEndSnapshot(pVnode->sync);
 
 _exit:
   if (code) {

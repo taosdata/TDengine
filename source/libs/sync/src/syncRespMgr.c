@@ -136,7 +136,7 @@ void syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl, bool rsp) {
 
   while (pStub) {
     size_t    len;
-    void     *key = taosHashGetKey(pStub, &len);
+    void *    key = taosHashGetKey(pStub, &len);
     uint64_t *pSeqNum = (uint64_t *)key;
     sum++;
 

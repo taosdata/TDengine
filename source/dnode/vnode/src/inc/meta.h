@@ -86,8 +86,12 @@ struct SMeta {
   TTB*    pSuidIdx;
   // ivt idx and idx
   void* pTagIvtIdx;
-  TTB*  pTagIdx;
-  TTB*  pTtlIdx;
+
+  TTB* pTagIdx;
+  TTB* pTtlIdx;
+
+  TTB* pCtimeIdx;  // table created time idx
+  TTB* pNcolIdx;   // ncol of table idx, normal table only
 
   TTB* pSmaIdx;
 
@@ -141,6 +145,16 @@ typedef struct {
   tb_uid_t uid;
   int64_t  smaUid;
 } SSmaIdxKey;
+
+typedef struct {
+  int64_t  ctime;
+  tb_uid_t uid;
+} SCtimeIdxKey;
+
+typedef struct {
+  int64_t  ncol;
+  tb_uid_t uid;
+} SNcolIdxKey;
 
 // metaTable ==================
 int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void* pTagData, int32_t nTagData, int8_t type, tb_uid_t uid,

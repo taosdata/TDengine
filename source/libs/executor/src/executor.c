@@ -370,7 +370,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
       goto _error;
     }
 
-    code = dsCreateDataSinker(pSubplan->pDataSink, handle, pSinkParam);
+    code = dsCreateDataSinker(pSubplan->pDataSink, handle, pSinkParam, (*pTask)->id.str);
     if (code != TSDB_CODE_SUCCESS) {
       taosMemoryFreeClear(pSinkParam);
     }

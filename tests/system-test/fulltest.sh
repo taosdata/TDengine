@@ -179,7 +179,7 @@ python3 ./test.py -f 2-query/tan.py -R
 python3 ./test.py -f 2-query/Timediff.py
 python3 ./test.py -f 2-query/Timediff.py -R
 python3 ./test.py -f 2-query/timetruncate.py
-# python3 ./test.py -f 2-query/timetruncate.py -R
+python3 ./test.py -f 2-query/timetruncate.py -R
 python3 ./test.py -f 2-query/timezone.py
 python3 ./test.py -f 2-query/timezone.py -R
 python3 ./test.py -f 2-query/To_iso8601.py
@@ -187,7 +187,7 @@ python3 ./test.py -f 2-query/To_iso8601.py -R
 python3 ./test.py -f 2-query/To_unixtimestamp.py
 python3 ./test.py -f 2-query/To_unixtimestamp.py -R
 python3 ./test.py -f 2-query/Today.py
-# python3 ./test.py -f 2-query/Today.py -R
+python3 ./test.py -f 2-query/Today.py -R
 python3 ./test.py -f 2-query/top.py
 python3 ./test.py -f 2-query/top.py -R
 python3 ./test.py -f 2-query/tsbsQuery.py
@@ -217,11 +217,12 @@ python3 ./test.py -f 2-query/concat2.py
 
 python3 ./test.py -f 2-query/json_tag.py
 
-# python3 ./test.py -f 2-query/nestedQuery.py
-# TD-15983 subquery output duplicate name column.
-# Please Xiangyang Guo modify the following script
-# python3 ./test.py -f 2-query/nestedQuery_str.py
+python3 ./test.py -f 2-query/nestedQuery.py
+python3 ./test.py -f 2-query/nestedQuery_str.py
+python3 ./test.py -f 2-query/nestedQuery_math.py
+python3 ./test.py -f 2-query/nestedQuery_time.py
 python3 ./test.py -f 2-query/stablity.py
+python3 ./test.py -f 2-query/stablity_1.py
 
 python3 ./test.py -f 2-query/elapsed.py
 python3 ./test.py -f 2-query/csum.py
@@ -249,8 +250,8 @@ python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 5 -
 
 python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 6 -M 3 -C 5
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStopInsert.py
-python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
-python3 test.py -f 6-cluster/5dnode3mnodeStopConnect.py -N 5 -M 3
+# TD-19646 python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
+# TD-19646 python3 test.py -f 6-cluster/5dnode3mnodeStopConnect.py -N 5 -M 3
 
 python3 ./test.py -f 6-cluster/5dnode3mnodeRecreateMnode.py  -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStopFollowerLeader.py  -N 5 -M 3
@@ -610,4 +611,3 @@ python3 ./test.py -f 2-query/last_row.py -Q 4
 python3 ./test.py -f 2-query/tsbsQuery.py -Q 4
 #python3 ./test.py -f 2-query/sml.py -Q 4
 python3 ./test.py -f 2-query/interp.py -Q 4
-

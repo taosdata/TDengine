@@ -1206,7 +1206,7 @@ CREATE_MSG_FAIL:
   return -1;
 }
 
-bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
+bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, const SMqAskEpRsp* pRsp) {
   bool set = false;
 
   int32_t topicNumGet = taosArrayGetSize(pRsp->topics);
@@ -1599,6 +1599,7 @@ int32_t tmqHandleNoPollRsp(tmq_t* tmq, SMqRspWrapper* rspWrapper, bool* pReset) 
       SMqAskEpRsp*        rspMsg = &pEpRspWrapper->msg;
       tmqUpdateEp(tmq, rspWrapper->epoch, rspMsg);
       /*tmqClearUnhandleMsg(tmq);*/
+      tDeleteSMqAskEpRsp(rspMsg);
       *pReset = true;
     } else {
       *pReset = false;

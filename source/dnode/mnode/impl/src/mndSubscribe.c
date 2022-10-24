@@ -550,7 +550,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
 
   // 6. execution
   if (mndTransPrepare(pMnode, pTrans) != 0) {
-    ASSERT(0);
+    mError("failed to prepare trans rebalance since %s", terrstr());
     goto REB_FAIL;
   }
 

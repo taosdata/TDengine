@@ -848,6 +848,7 @@ static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
   cfgRsp.numOfVgroups = pDb->cfg.numOfVgroups;
   cfgRsp.numOfStables = pDb->cfg.numOfStables;
   cfgRsp.buffer = pDb->cfg.buffer;
+  cfgRsp.cacheSize = pDb->cfg.cacheLastSize;
   cfgRsp.pageSize = pDb->cfg.pageSize;
   cfgRsp.pages = pDb->cfg.pages;
   cfgRsp.daysPerFile = pDb->cfg.daysPerFile;
