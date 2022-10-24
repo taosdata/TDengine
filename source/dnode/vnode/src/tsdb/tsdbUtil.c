@@ -1609,6 +1609,7 @@ void tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg) {
           break;
         }
         case TSDB_DATA_TYPE_VARCHAR:
+        case TSDB_DATA_TYPE_GEOMETRY:
           break;
         case TSDB_DATA_TYPE_TIMESTAMP: {
           if (!minAssigned || pColAgg->min > colVal.value.i64) {

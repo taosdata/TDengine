@@ -405,9 +405,10 @@ tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {
      getStatics_u64},
     {TSDB_DATA_TYPE_JSON, 4, TSDB_MAX_JSON_TAG_LEN, "JSON", 0, 0, tsCompressString, tsDecompressString,
      getStatics_nchr},
+    {TSDB_DATA_TYPE_GEOMETRY, 8, 1, "GEOMETRY", 0, 0, tsCompressString, tsDecompressString, getStatics_bin},
 };
 
-char tTokenTypeSwitcher[13] = {
+char tTokenTypeSwitcher[14] = {
     TSDB_DATA_TYPE_NULL,     // no type
     TSDB_DATA_TYPE_BINARY,   // TK_ID
     TSDB_DATA_TYPE_BOOL,     // TK_BOOL
@@ -421,6 +422,7 @@ char tTokenTypeSwitcher[13] = {
     TSDB_DATA_TYPE_BIGINT,   // TK_TIMESTAMP
     TSDB_DATA_TYPE_VARCHAR,  // TK_BINARY
     TSDB_DATA_TYPE_NCHAR,    // TK_NCHAR
+    TSDB_DATA_TYPE_GEOMETRY, // TK_GEOMETRY
 };
 
 float  floatMin = -FLT_MAX, floatMax = FLT_MAX;
@@ -451,7 +453,7 @@ FORCE_INLINE void *getDataMax(int32_t type) {
 bool isValidDataType(int32_t type) { return type >= TSDB_DATA_TYPE_NULL && type < TSDB_DATA_TYPE_MAX; }
 
 void setVardataNull(void *val, int32_t type) {
-  if (type == TSDB_DATA_TYPE_BINARY) {
+  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_GEOMETRY) {
     varDataSetLen(val, sizeof(int8_t));
     *(uint8_t *)varDataVal(val) = TSDB_DATA_BINARY_NULL;
   } else if (type == TSDB_DATA_TYPE_NCHAR) {
@@ -526,6 +528,7 @@ void setNullN(void *val, int32_t type, int32_t bytes, int32_t numOfElems) {
       break;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
       for (int32_t i = 0; i < numOfElems; ++i) {
         setVardataNull(POINTER_SHIFT(val, i * bytes), type);
       }
@@ -591,6 +594,7 @@ void assignVal(char *val, const char *src, int32_t len, int32_t type) {
       *((int64_t *)val) = GET_INT64_VAL(src);
       break;
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
       varDataCopy(val, src);
       break;
     case TSDB_DATA_TYPE_NCHAR:

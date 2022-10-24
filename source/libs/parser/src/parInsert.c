@@ -630,7 +630,8 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
       return func(pMsgBuf, &dv, pSchema->bytes, param);
     }
 
-    case TSDB_DATA_TYPE_BINARY: {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY: {
       // Too long values will raise the invalid sql error message
       if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {
         return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
@@ -642,12 +643,14 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
     case TSDB_DATA_TYPE_NCHAR: {
       return func(pMsgBuf, pToken->z, pToken->n, param);
     }
+
     case TSDB_DATA_TYPE_JSON: {
       if (pToken->n > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
         return buildSyntaxErrMsg(pMsgBuf, "json string too long than 4095", pToken->z);
       }
       return func(pMsgBuf, pToken->z, pToken->n, param);
     }
+
     case TSDB_DATA_TYPE_TIMESTAMP: {
       int64_t tmpVal;
       if (parseTime(end, pToken, timePrec, &tmpVal, pMsgBuf) != TSDB_CODE_SUCCESS) {
@@ -670,7 +673,7 @@ static FORCE_INLINE int32_t MemRowAppend(SMsgBuf* pMsgBuf, const void* value, in
     return TSDB_CODE_SUCCESS;
   }
 
-  if (TSDB_DATA_TYPE_BINARY == pa->schema->type) {
+  if (TSDB_DATA_TYPE_BINARY == pa->schema->type || TSDB_DATA_TYPE_GEOMETRY == pa->schema->type) {
     const char* rowEnd = tdRowEnd(rb->pBuf);
     STR_WITH_SIZE_TO_VARSTR(rowEnd, value, len);
     tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, rowEnd, false, pa->toffset, pa->colIdx);
@@ -739,6 +742,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
     ++pColList->numOfBound;
     switch (pSchema[t].type) {
       case TSDB_DATA_TYPE_BINARY:
+      case TSDB_DATA_TYPE_GEOMETRY:
         pColList->boundNullLen += (sizeof(VarDataOffsetT) + VARSTR_HEADER_SIZE + CHAR_BYTES);
         break;
       case TSDB_DATA_TYPE_NCHAR:
@@ -938,7 +942,8 @@ static int32_t parseTagToken(char** end, SToken* pToken, SSchema* pSchema, int16
       break;
     }
 
-    case TSDB_DATA_TYPE_BINARY: {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY: {
       // Too long values will raise the invalid sql error message
       if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {
         return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
@@ -1999,7 +2004,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const ch
     } else {
       STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
       //      strcpy(val.colName, pTagSchema->name);
-      if (pTagSchema->type == TSDB_DATA_TYPE_BINARY) {
+      if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
         val.pData = (uint8_t*)bind[c].buffer;
         val.nData = colLen;
       } else if (pTagSchema->type == TSDB_DATA_TYPE_NCHAR) {
@@ -2335,6 +2340,7 @@ static int32_t smlBoundColumnData(SArray* cols, SParsedDataColInfo* pColList, SS
     ++pColList->numOfBound;
     switch (pSchema[t].type) {
       case TSDB_DATA_TYPE_BINARY:
+      case TSDB_DATA_TYPE_GEOMETRY:
         pColList->boundNullLen += (sizeof(VarDataOffsetT) + VARSTR_HEADER_SIZE + CHAR_BYTES);
         break;
       case TSDB_DATA_TYPE_NCHAR:
@@ -2402,7 +2408,7 @@ static int32_t smlBuildTagRow(SArray* cols, SParsedDataColInfo* tags, SSchema* p
     taosArrayPush(*tagName, pTagSchema->name);
     STagVal val = {.cid = pTagSchema->colId, .type = pTagSchema->type};
     //    strcpy(val.colName, pTagSchema->name);
-    if (pTagSchema->type == TSDB_DATA_TYPE_BINARY) {
+    if (pTagSchema->type == TSDB_DATA_TYPE_BINARY || pTagSchema->type == TSDB_DATA_TYPE_GEOMETRY) {
       val.pData = (uint8_t*)kv->value;
       val.nData = kv->length;
     } else if (pTagSchema->type == TSDB_DATA_TYPE_NCHAR) {

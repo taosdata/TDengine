@@ -54,7 +54,7 @@ static char* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sch
     cJSON_AddItemToObject(column, "name", cname);
     cJSON* ctype = cJSON_CreateNumber(s->type);
     cJSON_AddItemToObject(column, "type", ctype);
-    if (s->type == TSDB_DATA_TYPE_BINARY) {
+    if (s->type == TSDB_DATA_TYPE_BINARY || s->type == TSDB_DATA_TYPE_GEOMETRY) {
       int32_t length = s->bytes - VARSTR_HEADER_SIZE;
       cJSON*  cbytes = cJSON_CreateNumber(length);
       cJSON_AddItemToObject(column, "length", cbytes);
@@ -75,7 +75,7 @@ static char* buildCreateTableJson(SSchemaWrapper* schemaRow, SSchemaWrapper* sch
     cJSON_AddItemToObject(tag, "name", tname);
     cJSON* ttype = cJSON_CreateNumber(s->type);
     cJSON_AddItemToObject(tag, "type", ttype);
-    if (s->type == TSDB_DATA_TYPE_BINARY) {
+    if (s->type == TSDB_DATA_TYPE_BINARY || s->type == TSDB_DATA_TYPE_GEOMETRY) {
       int32_t length = s->bytes - VARSTR_HEADER_SIZE;
       cJSON*  cbytes = cJSON_CreateNumber(length);
       cJSON_AddItemToObject(tag, "length", cbytes);
@@ -128,7 +128,7 @@ static char* buildAlterSTableJson(void* alterData, int32_t alterDataLen) {
       cJSON* colType = cJSON_CreateNumber(field->type);
       cJSON_AddItemToObject(json, "colType", colType);
 
-      if (field->type == TSDB_DATA_TYPE_BINARY) {
+      if (field->type == TSDB_DATA_TYPE_BINARY || field->type == TSDB_DATA_TYPE_GEOMETRY) {
         int32_t length = field->bytes - VARSTR_HEADER_SIZE;
         cJSON*  cbytes = cJSON_CreateNumber(length);
         cJSON_AddItemToObject(json, "colLength", cbytes);
@@ -153,7 +153,7 @@ static char* buildAlterSTableJson(void* alterData, int32_t alterDataLen) {
       cJSON_AddItemToObject(json, "colName", colName);
       cJSON* colType = cJSON_CreateNumber(field->type);
       cJSON_AddItemToObject(json, "colType", colType);
-      if (field->type == TSDB_DATA_TYPE_BINARY) {
+      if (field->type == TSDB_DATA_TYPE_BINARY || field->type == TSDB_DATA_TYPE_GEOMETRY) {
         int32_t length = field->bytes - VARSTR_HEADER_SIZE;
         cJSON*  cbytes = cJSON_CreateNumber(length);
         cJSON_AddItemToObject(json, "colLength", cbytes);
@@ -440,7 +440,7 @@ static char* processAlterTable(SMqMetaRsp* metaRsp) {
       cJSON* colType = cJSON_CreateNumber(vAlterTbReq.type);
       cJSON_AddItemToObject(json, "colType", colType);
 
-      if (vAlterTbReq.type == TSDB_DATA_TYPE_BINARY) {
+      if (vAlterTbReq.type == TSDB_DATA_TYPE_BINARY || vAlterTbReq.type == TSDB_DATA_TYPE_GEOMETRY) {
         int32_t length = vAlterTbReq.bytes - VARSTR_HEADER_SIZE;
         cJSON*  cbytes = cJSON_CreateNumber(length);
         cJSON_AddItemToObject(json, "colLength", cbytes);
@@ -461,7 +461,7 @@ static char* processAlterTable(SMqMetaRsp* metaRsp) {
       cJSON_AddItemToObject(json, "colName", colName);
       cJSON* colType = cJSON_CreateNumber(vAlterTbReq.colModType);
       cJSON_AddItemToObject(json, "colType", colType);
-      if (vAlterTbReq.colModType == TSDB_DATA_TYPE_BINARY) {
+      if (vAlterTbReq.colModType == TSDB_DATA_TYPE_BINARY || vAlterTbReq.colModType == TSDB_DATA_TYPE_GEOMETRY) {
         int32_t length = vAlterTbReq.colModBytes - VARSTR_HEADER_SIZE;
         cJSON*  cbytes = cJSON_CreateNumber(length);
         cJSON_AddItemToObject(json, "colLength", cbytes);

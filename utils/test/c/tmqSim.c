@@ -539,6 +539,7 @@ static void shellDumpFieldToFile(TdFilePtr pFile, const char* val, TAOS_FIELD* f
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_GEOMETRY:
       {
         char quotationStr[2];
         int32_t bufIndex = 0;
@@ -986,7 +987,7 @@ int32_t getConsumeInfo() {
     taosFprintfFile(g_fp, "error in get consumeinfo for %s\n", taos_errstr(pRes));
     taosCloseFile(&g_fp);
     taos_free_result(pRes);
-	taos_close(pConn);
+    taos_close(pConn);
     return -1;
   }
 

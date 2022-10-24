@@ -101,6 +101,7 @@ void setBoundColumnInfo(SParsedDataColInfo* pColList, SSchema* pSchema, col_id_t
     pColList->flen += TYPE_BYTES[type];
     switch (type) {
       case TSDB_DATA_TYPE_BINARY:
+      case TSDB_DATA_TYPE_GEOMETRY:
         pColList->allNullLen += (VARSTR_HEADER_SIZE + CHAR_BYTES);
         ++nVar;
         break;

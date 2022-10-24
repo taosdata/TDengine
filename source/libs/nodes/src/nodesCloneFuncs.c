@@ -157,7 +157,8 @@ static int32_t valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
       break;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
-    case TSDB_DATA_TYPE_VARBINARY: {
+    case TSDB_DATA_TYPE_VARBINARY:
+    case TSDB_DATA_TYPE_GEOMETRY: {
       int32_t len = varDataTLen(pSrc->datum.p) + 1;
       pDst->datum.p = taosMemoryCalloc(1, len);
       if (NULL == pDst->datum.p) {

@@ -1030,6 +1030,7 @@ static struct {
     {TSDB_DATA_TYPE_UINT, 4, 0, tCompInt},             // TSDB_DATA_TYPE_UINT
     {TSDB_DATA_TYPE_UBIGINT, 8, 0, tCompInt},          // TSDB_DATA_TYPE_UBIGINT
     {TSDB_DATA_TYPE_JSON, 1, 1, tCompBinary},          // TSDB_DATA_TYPE_JSON
+    {TSDB_DATA_TYPE_GEOMETRY, 1, 1, tCompBinary},      // TSDB_DATA_TYPE_GEOMETRY
     {TSDB_DATA_TYPE_VARBINARY, 1, 1, tCompBinary},     // TSDB_DATA_TYPE_VARBINARY
     {TSDB_DATA_TYPE_DECIMAL, 1, 1, tCompBinary},       // TSDB_DATA_TYPE_DECIMAL
     {TSDB_DATA_TYPE_BLOB, 1, 1, tCompBinary},          // TSDB_DATA_TYPE_BLOB
@@ -1541,6 +1542,7 @@ int32_t tCompressorReset(SCompressor *pCmprsor, int8_t type, int8_t cmprAlg, int
       pCmprsor->nBuf[0] = 0;
       break;
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
       pCmprsor->nBuf[0] = 0;
       break;
     case TSDB_DATA_TYPE_FLOAT:

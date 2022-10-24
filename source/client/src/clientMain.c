@@ -353,9 +353,10 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
       } break;
 
       case TSDB_DATA_TYPE_BINARY:
-      case TSDB_DATA_TYPE_NCHAR: {
+      case TSDB_DATA_TYPE_NCHAR:
+      case TSDB_DATA_TYPE_GEOMETRY: {
         int32_t charLen = varDataLen((char *)row[i] - VARSTR_HEADER_SIZE);
-        if (fields[i].type == TSDB_DATA_TYPE_BINARY) {
+        if (fields[i].type == TSDB_DATA_TYPE_BINARY || fields[i].type == TSDB_DATA_TYPE_GEOMETRY) {
           assert(charLen <= fields[i].bytes && charLen >= 0);
         } else {
           assert(charLen <= fields[i].bytes * TSDB_NCHAR_SIZE && charLen >= 0);
@@ -431,6 +432,8 @@ const char *taos_data_type(int type) {
       return "TSDB_DATA_TYPE_NCHAR";
     case TSDB_DATA_TYPE_JSON:
       return "TSDB_DATA_TYPE_JSON";
+    case TSDB_DATA_TYPE_GEOMETRY:
+      return "TSDB_DATA_TYPE_GEOMETRY";
     default:
       return "UNKNOWN";
   }

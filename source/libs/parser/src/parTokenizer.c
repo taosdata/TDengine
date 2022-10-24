@@ -98,6 +98,7 @@ static SKeyword keywordTable[] = {
     {"FROM",                 TK_FROM},
     {"FUNCTION",             TK_FUNCTION},
     {"FUNCTIONS",            TK_FUNCTIONS},
+    {"GEOMETRY",             TK_GEOMETRY},
     {"GRANT",                TK_GRANT},
     {"GRANTS",               TK_GRANTS},
     {"GROUP",                TK_GROUP},

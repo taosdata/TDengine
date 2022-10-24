@@ -2317,6 +2317,7 @@ int32_t convertTagDataToStr(char* str, int type, void* buf, int32_t bufSize, int
       break;
 
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
       if (bufSize < 0) {
         return TSDB_CODE_TSC_INVALID_VALUE;
       }

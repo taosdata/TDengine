@@ -270,6 +270,8 @@ _getValueAddr_fn_t getVectorValueAddrFn(int32_t srcType) {
         p = getVectorValueAddr_VAR;
     }else if(srcType==TSDB_DATA_TYPE_NCHAR) {
         p = getVectorValueAddr_VAR;
+    }else if(srcType==TSDB_DATA_TYPE_GEOMETRY) {
+        p = getVectorValueAddr_VAR;
     }else {
         p = getVectorValueAddr_default;
     }
@@ -472,7 +474,7 @@ int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, in
     if (vton) {
       memcpy(tmp, data, varDataTLen(data));
     } else {
-      if (TSDB_DATA_TYPE_VARCHAR == convertType) {
+      if (TSDB_DATA_TYPE_VARCHAR == convertType || TSDB_DATA_TYPE_GEOMETRY == convertType) {
         memcpy(tmp, varDataVal(data), varDataLen(data));
         tmp[varDataLen(data)] = 0;
       } else if (TSDB_DATA_TYPE_NCHAR == convertType){
@@ -555,7 +557,7 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
   }
 
   if(optr == OP_TYPE_LIKE || optr == OP_TYPE_NOT_LIKE || optr == OP_TYPE_MATCH || optr == OP_TYPE_NMATCH){
-    if(typeLeft != TSDB_DATA_TYPE_NCHAR && typeLeft != TSDB_DATA_TYPE_BINARY){
+    if(typeLeft != TSDB_DATA_TYPE_NCHAR && typeLeft != TSDB_DATA_TYPE_BINARY && typeLeft != TSDB_DATA_TYPE_GEOMETRY){
       return false;
     }
   }
@@ -588,7 +590,7 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
       ASSERT(0);
 //      convertNcharToDouble(*pLeftData, pLeftOut);
 //      *pLeftData = pLeftOut;
-    } else if(typeLeft == TSDB_DATA_TYPE_BINARY) {
+    } else if(typeLeft == TSDB_DATA_TYPE_BINARY || typeLeft == TSDB_DATA_TYPE_GEOMETRY) {
       ASSERT(0);
 //      convertBinaryToDouble(*pLeftData, pLeftOut);
 //      *pLeftData = pLeftOut;
@@ -601,7 +603,7 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
       ASSERT(0);
 //      convertNcharToDouble(*pRightData, pRightOut);
 //      *pRightData = pRightOut;
-    } else if(typeRight == TSDB_DATA_TYPE_BINARY) {
+    } else if(typeRight == TSDB_DATA_TYPE_BINARY || typeLeft == TSDB_DATA_TYPE_GEOMETRY) {
       ASSERT(0);
 //      convertBinaryToDouble(*pRightData, pRightOut);
 //      *pRightData = pRightOut;
@@ -609,7 +611,7 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
       convertNumberToNumber(*pRightData, pRightOut, typeRight, type);
       *pRightData = pRightOut;
     }
-  }else if(type == TSDB_DATA_TYPE_BINARY){
+  }else if(type == TSDB_DATA_TYPE_BINARY || typeLeft == TSDB_DATA_TYPE_GEOMETRY){
     if(typeLeft == TSDB_DATA_TYPE_NCHAR){
       *pLeftData = ncharTobinary(*pLeftData);
       *freeLeft = true;
@@ -892,8 +894,9 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut, int32_t* 
       }
       break;  
     }
-    case TSDB_DATA_TYPE_BINARY: 
-    case TSDB_DATA_TYPE_NCHAR: {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_GEOMETRY: {
       return vectorConvertToVarData(pIn, pOut, inType, outType);
     }
     default:

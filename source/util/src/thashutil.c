@@ -167,6 +167,7 @@ _hash_fn_t taosGetDefaultHashFunction(int32_t type) {
       fn = taosIntHash_64;
       break;
     case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY:
       fn = MurmurHash3_32;
       break;
     case TSDB_DATA_TYPE_NCHAR:

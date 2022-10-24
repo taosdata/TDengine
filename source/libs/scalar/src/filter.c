@@ -206,7 +206,7 @@ __compar_fn_t gUint64UsignCompare[] = {
 int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
   int8_t comparFn = 0;
 
-  if (optr == OP_TYPE_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR)) {
+  if (optr == OP_TYPE_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
     switch (type) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_TINYINT:
@@ -232,7 +232,7 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
     }
   }
 
-  if (optr == OP_TYPE_NOT_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR)) {
+  if (optr == OP_TYPE_NOT_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_GEOMETRY)) {
     switch (type) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_TINYINT:
@@ -272,7 +272,8 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
     case TSDB_DATA_TYPE_TIMESTAMP: comparFn = 3;  break;
     case TSDB_DATA_TYPE_FLOAT:     comparFn = 4;  break;
     case TSDB_DATA_TYPE_DOUBLE:    comparFn = 5; break;
-    case TSDB_DATA_TYPE_BINARY: {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY: {
       if (optr == OP_TYPE_MATCH) {
         comparFn = 19;
       } else if (optr == OP_TYPE_NMATCH) {
@@ -455,7 +456,8 @@ static FORCE_INLINE SFilterRangeNode* filterNewRange(SFilterRangeCtx *ctx, SFilt
 }
 
 void* filterInitRangeCtx(int32_t type, int32_t options) {
-  if (type > TSDB_DATA_TYPE_UBIGINT || type < TSDB_DATA_TYPE_BOOL || type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
+  if (type > TSDB_DATA_TYPE_UBIGINT || type < TSDB_DATA_TYPE_BOOL ||
+      type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_GEOMETRY) {
     qError("not supported range type:%d", type);
     return NULL;
   }
@@ -1557,6 +1559,7 @@ int32_t fltConverToStr(char *str, int type, void *buf, int32_t bufSize, int32_t 
 
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_GEOMETRY:
       if (bufSize < 0) {
 //        tscError("invalid buf size");
         return TSDB_CODE_TSC_INVALID_VALUE;
@@ -3740,7 +3743,8 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
       return DEAL_RES_CONTINUE;
     }
 
-    if (TSDB_DATA_TYPE_BINARY != valueNode->node.resType.type && TSDB_DATA_TYPE_NCHAR != valueNode->node.resType.type) {
+    if (TSDB_DATA_TYPE_BINARY != valueNode->node.resType.type && TSDB_DATA_TYPE_NCHAR != valueNode->node.resType.type &&
+        TSDB_DATA_TYPE_GEOMETRY != valueNode->node.resType.type) {
       return DEAL_RES_CONTINUE;
     }
 

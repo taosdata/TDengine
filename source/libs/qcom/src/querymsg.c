@@ -282,7 +282,6 @@ int32_t queryBuildGetTbCfgMsg(void *input, char **msg, int32_t msgSize, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-
 int32_t queryProcessUseDBRsp(void *output, char *msg, int32_t msgSize) {
   SUseDbOutput *pOut = output;
   SUseDbRsp     usedbRsp = {0};

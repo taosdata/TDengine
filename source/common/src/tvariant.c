@@ -137,7 +137,8 @@ void taosVariantCreateFromBinary(SVariant *pVar, const char *pz, size_t len, uin
 
       break;
     }
-    case TSDB_DATA_TYPE_BINARY: {  // todo refactor, extract a method
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY: {  // todo refactor, extract a method
       pVar->pz = taosMemoryCalloc(len + 1, sizeof(char));
       memcpy(pVar->pz, pz, len);
       pVar->nLen = (int32_t)len;
@@ -156,7 +157,7 @@ void taosVariantDestroy(SVariant *pVar) {
   if (pVar == NULL) return;
 
   if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR ||
-      pVar->nType == TSDB_DATA_TYPE_JSON) {
+      pVar->nType == TSDB_DATA_TYPE_JSON || pVar->nType == TSDB_DATA_TYPE_GEOMETRY) {
     taosMemoryFreeClear(pVar->pz);
     pVar->nLen = 0;
   }
@@ -186,7 +187,7 @@ void taosVariantAssign(SVariant *pDst, const SVariant *pSrc) {
 
   pDst->nType = pSrc->nType;
   if (pSrc->nType == TSDB_DATA_TYPE_BINARY || pSrc->nType == TSDB_DATA_TYPE_NCHAR ||
-      pSrc->nType == TSDB_DATA_TYPE_JSON) {
+      pSrc->nType == TSDB_DATA_TYPE_JSON || pSrc->nType == TSDB_DATA_TYPE_GEOMETRY) {
     int32_t len = pSrc->nLen + TSDB_NCHAR_SIZE;
     char   *p = taosMemoryRealloc(pDst->pz, len);
     assert(p);
@@ -238,7 +239,7 @@ int32_t taosVariantCompare(const SVariant *p1, const SVariant *p2) {
     return 1;
   }
 
-  if (p1->nType == TSDB_DATA_TYPE_BINARY || p1->nType == TSDB_DATA_TYPE_NCHAR) {
+  if (p1->nType == TSDB_DATA_TYPE_BINARY || p1->nType == TSDB_DATA_TYPE_NCHAR || p1->nType == TSDB_DATA_TYPE_GEOMETRY) {
     if (p1->nLen == p2->nLen) {
       return memcmp(p1->pz, p2->pz, p1->nLen);
     } else {
@@ -269,7 +270,8 @@ int32_t taosVariantToString(SVariant *pVar, char *dst) {
   if (pVar == NULL || dst == NULL) return 0;
 
   switch (pVar->nType) {
-    case TSDB_DATA_TYPE_BINARY: {
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_GEOMETRY: {
       int32_t len = sprintf(dst, "\'%s\'", pVar->pz);
       assert(len <= pVar->nLen + sizeof("\'") * 2);  // two more chars
       return len;
@@ -386,7 +388,7 @@ static int32_t toNchar(SVariant *pVariant, char **pDest, int32_t *pDestSize) {
     nLen = sprintf(pDst, "%" PRIu64, pVariant->u);
   } else if (pVariant->nType == TSDB_DATA_TYPE_DOUBLE || pVariant->nType == TSDB_DATA_TYPE_FLOAT) {
     nLen = sprintf(pDst, "%lf", pVariant->d);
-  } else if (pVariant->nType == TSDB_DATA_TYPE_BINARY) {
+  } else if (pVariant->nType == TSDB_DATA_TYPE_BINARY || pVariant->nType == TSDB_DATA_TYPE_GEOMETRY) {
     pDst = pVariant->pz;
     nLen = pVariant->nLen;
   } else if (pVariant->nType == TSDB_DATA_TYPE_BOOL) {
@@ -402,7 +404,7 @@ static int32_t toNchar(SVariant *pVariant, char **pDest, int32_t *pDestSize) {
     }
 
     // free the binary buffer in the first place
-    if (pVariant->nType == TSDB_DATA_TYPE_BINARY) {
+    if (pVariant->nType == TSDB_DATA_TYPE_BINARY || pVariant->nType == TSDB_DATA_TYPE_GEOMETRY) {
       taosMemoryFree(pVariant->ucs4);
     }
 
@@ -464,7 +466,7 @@ static FORCE_INLINE int32_t convertToInteger(SVariant *pVariant, int64_t *result
     *result = pVariant->u;
   } else if (IS_FLOAT_TYPE(pVariant->nType)) {
     *result = (int64_t) pVariant->d;
-  } else if (pVariant->nType == TSDB_DATA_TYPE_BINARY) {
+  } else if (pVariant->nType == TSDB_DATA_TYPE_BINARY || pVariant->nType == TSDB_DATA_TYPE_GEOMETRY) {
     SToken token = {.z = pVariant->pz, .n = pVariant->nLen};
     /*int32_t n = */tGetToken(pVariant->pz, &token.type);
 
@@ -584,7 +586,7 @@ static int32_t convertToBool(SVariant *pVariant, int64_t *pDest) {
     *pDest = ((pVariant->i != 0) ? TSDB_TRUE : TSDB_FALSE);
   } else if (pVariant->nType == TSDB_DATA_TYPE_FLOAT || pVariant->nType == TSDB_DATA_TYPE_DOUBLE) {
     *pDest = ((pVariant->d != 0) ? TSDB_TRUE : TSDB_FALSE);
-  } else if (pVariant->nType == TSDB_DATA_TYPE_BINARY) {
+  } else if (pVariant->nType == TSDB_DATA_TYPE_BINARY || pVariant->nType == TSDB_DATA_TYPE_GEOMETRY) {
     int32_t ret = 0;
     if ((ret = convertToBoolImpl(pVariant->pz, pVariant->nLen)) < 0) {
       return ret;
@@ -705,7 +707,7 @@ int32_t tVariantDumpEx(SVariant *pVariant, char *payload, int16_t type, bool inc
     }
 
     case TSDB_DATA_TYPE_FLOAT: {
-      if (pVariant->nType == TSDB_DATA_TYPE_BINARY) {
+      if (pVariant->nType == TSDB_DATA_TYPE_BINARY || pVariant->nType == TSDB_DATA_TYPE_GEOMETRY) {
         if (strncasecmp(TSDB_DATA_NULL_STR_L, pVariant->pz, pVariant->nLen) == 0 &&
             strlen(TSDB_DATA_NULL_STR_L) == pVariant->nLen) {
           *((int32_t *)payload) = TSDB_DATA_FLOAT_NULL;
@@ -762,7 +764,7 @@ int32_t tVariantDumpEx(SVariant *pVariant, char *payload, int16_t type, bool inc
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
-      if (pVariant->nType == TSDB_DATA_TYPE_BINARY) {
+      if (pVariant->nType == TSDB_DATA_TYPE_BINARY || pVariant->nType == TSDB_DATA_TYPE_GEOMETRY) {
         if (strncasecmp(TSDB_DATA_NULL_STR_L, pVariant->pz, pVariant->nLen) == 0 &&
             strlen(TSDB_DATA_NULL_STR_L) == pVariant->nLen) {
           *((int64_t *)payload) = TSDB_DATA_DOUBLE_NULL;
@@ -800,7 +802,7 @@ int32_t tVariantDumpEx(SVariant *pVariant, char *payload, int16_t type, bool inc
         if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
           *(uint8_t *)payload = TSDB_DATA_BINARY_NULL;
         } else {
-          if (pVariant->nType != TSDB_DATA_TYPE_BINARY) {
+          if (pVariant->nType != TSDB_DATA_TYPE_BINARY && pVariant->nType != TSDB_DATA_TYPE_GEOMETRY) {
             toBinary(pVariant, &payload, &pVariant->nLen);
           } else {
             strncpy(payload, pVariant->pz, pVariant->nLen);
@@ -812,7 +814,7 @@ int32_t tVariantDumpEx(SVariant *pVariant, char *payload, int16_t type, bool inc
         } else {
           char *p = varDataVal(payload);
 
-          if (pVariant->nType != TSDB_DATA_TYPE_BINARY) {
+          if (pVariant->nType != TSDB_DATA_TYPE_BINARY && pVariant->nType != TSDB_DATA_TYPE_GEOMETRY) {
             toBinary(pVariant, &p, &pVariant->nLen);
           } else {
             strncpy(p, pVariant->pz, pVariant->nLen);
@@ -824,6 +826,7 @@ int32_t tVariantDumpEx(SVariant *pVariant, char *payload, int16_t type, bool inc
       }
       break;
     }
+
     case TSDB_DATA_TYPE_TIMESTAMP: {
       if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
         *((int64_t *)payload) = TSDB_DATA_BIGINT_NULL;
@@ -832,6 +835,7 @@ int32_t tVariantDumpEx(SVariant *pVariant, char *payload, int16_t type, bool inc
       }
       break;
     }
+
     case TSDB_DATA_TYPE_NCHAR: {
       int32_t newlen = 0;
       if (!includeLengthPrefix) {
@@ -866,6 +870,36 @@ int32_t tVariantDumpEx(SVariant *pVariant, char *payload, int16_t type, bool inc
         }
       }
 
+      break;
+    }
+
+    case TSDB_DATA_TYPE_GEOMETRY: {
+      if (!includeLengthPrefix) {
+        if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
+          *(uint8_t *)payload = TSDB_DATA_GEOMETRY_NULL;
+        } else {
+          if (pVariant->nType != TSDB_DATA_TYPE_GEOMETRY) {
+            toBinary(pVariant, &payload, &pVariant->nLen);
+          } else {
+            strncpy(payload, pVariant->pz, pVariant->nLen);
+          }
+        }
+      } else {
+        if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
+          setVardataNull(payload, TSDB_DATA_TYPE_GEOMETRY);
+        } else {
+          char *p = varDataVal(payload);
+
+          if (pVariant->nType != TSDB_DATA_TYPE_GEOMETRY) {
+            toBinary(pVariant, &p, &pVariant->nLen);
+          } else {
+            strncpy(p, pVariant->pz, pVariant->nLen);
+          }
+
+          varDataSetLen(payload, pVariant->nLen);
+          assert(p == varDataVal(payload));
+        }
+      }
       break;
     }
   }
@@ -911,7 +945,7 @@ int32_t taosVariantTypeSetType(SVariant *pVariant, char type) {
     }
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE: {
-      if (pVariant->nType == TSDB_DATA_TYPE_BINARY) {
+      if (pVariant->nType == TSDB_DATA_TYPE_BINARY || pVariant->nType == TSDB_DATA_TYPE_GEOMETRY) {
         errno = 0;
         double v = taosStr2Double(pVariant->pz, NULL);
         if ((errno == ERANGE && v == -1) || (isinf(v) || isnan(v))) {
@@ -940,7 +974,7 @@ int32_t taosVariantTypeSetType(SVariant *pVariant, char type) {
       break;
     }
     case TSDB_DATA_TYPE_BINARY: {
-      if (pVariant->nType != TSDB_DATA_TYPE_BINARY) {
+      if (pVariant->nType != TSDB_DATA_TYPE_BINARY && pVariant->nType != TSDB_DATA_TYPE_GEOMETRY) {
         toBinary(pVariant, &pVariant->pz, &pVariant->nLen);
       }
       pVariant->nType = type;
@@ -951,6 +985,13 @@ int32_t taosVariantTypeSetType(SVariant *pVariant, char type) {
         if (toNchar(pVariant, &pVariant->pz, &pVariant->nLen) != 0) {
           return -1;
         }
+      }
+      pVariant->nType = type;
+      break;
+    }
+    case TSDB_DATA_TYPE_GEOMETRY: {
+      if (pVariant->nType != TSDB_DATA_TYPE_GEOMETRY) {
+        toBinary(pVariant, &pVariant->pz, &pVariant->nLen);
       }
       pVariant->nType = type;
       break;
@@ -979,6 +1020,7 @@ char *taosVariantGet(SVariant *pVar, int32_t type) {
       return (char *)&pVar->d;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_GEOMETRY:
       return (char *)pVar->pz;
     case TSDB_DATA_TYPE_NCHAR:
       return (char *)pVar->ucs4;
