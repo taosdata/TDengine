@@ -3191,12 +3191,24 @@ static int32_t optSysCheckOper(SNode* pOpear) {
   }
   return 0;
 }
+
+static int tableUidCompare(const void* a, const void* b) {
+  int64_t u1 = *(int64_t*)a;
+  int64_t u2 = *(int64_t*)b;
+  if (u1 == u2) {
+    return 0;
+  }
+  return u1 < u2 ? -1 : 1;
+}
 static int32_t optSysMergeRslt(SArray* mRslt, SArray* rslt) {
   // TODO, find comm mem from mRslt
   for (int i = 0; i < taosArrayGetSize(mRslt); i++) {
     SArray* aRslt = taosArrayGetP(mRslt, i);
     taosArrayAddAll(rslt, aRslt);
   }
+  taosArraySort(rslt, tableUidCompare);
+  taosArrayRemoveDuplicate(rslt, tableUidCompare, NULL);
+
   return 0;
 }
 
@@ -3455,7 +3467,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
   if (i >= taosArrayGetSize(pIdx->uids)) {
     doSetOperatorCompleted(pOperator);
   } else {
-    pIdx->lastIdx = i;
+    pIdx->lastIdx = i + 1;
   }
 
   blockDataDestroy(p);
@@ -3464,7 +3476,9 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
 static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
-  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+
+  qError("%p buildUserTable", pTaskInfo);
   SSysTableScanInfo* pInfo = pOperator->info;
   if (pInfo->pCur == NULL) {
     pInfo->pCur = metaOpenTbCursor(pInfo->readHandle.meta);

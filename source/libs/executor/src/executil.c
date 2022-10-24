@@ -122,7 +122,7 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SSHashObj* pHashmap, in
 
   if (order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC) {
     __compar_fn_t fn = (order == TSDB_ORDER_ASC) ? resultrowComparAsc : resultrowComparDesc;
-    int32_t size = POINTER_BYTES;
+    int32_t       size = POINTER_BYTES;
     taosSort(pGroupResInfo->pRows->pData, taosArrayGetSize(pGroupResInfo->pRows), size, fn);
   }
 
@@ -752,8 +752,8 @@ end:
 }
 
 static int tableUidCompare(const void* a, const void* b) {
-  uint64_t u1 = *(uint64_t*)a;
-  uint64_t u2 = *(uint64_t*)b;
+  int64_t u1 = *(uint64_t*)a;
+  int64_t u2 = *(uint64_t*)b;
   if (u1 == u2) {
     return 0;
   }
