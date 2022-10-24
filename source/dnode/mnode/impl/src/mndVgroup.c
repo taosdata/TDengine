@@ -341,6 +341,12 @@ static void *mndBuildAlterVnodeReplicaReq(SMnode *pMnode, SDbObj *pDb, SVgObj *p
       alterReq.selfIndex = v;
     }
   }
+  alterReq.replica = pVgroup->replica;
+  mInfo("vgId:%d, start to alter vnode, replica:%d selfIndex:%d strict:%d", alterReq.vgId, alterReq.replica,
+        alterReq.selfIndex, alterReq.strict);
+  for (int32_t i = 0; i < alterReq.replica; ++i) {
+    mInfo("vgId:%d, replica:%d ep:%s:%u", alterReq.vgId, i, alterReq.replicas[i].fqdn, alterReq.replicas[i].port);
+  }
 
   if (alterReq.selfIndex == -1) {
     terrno = TSDB_CODE_MND_APP_ERROR;
