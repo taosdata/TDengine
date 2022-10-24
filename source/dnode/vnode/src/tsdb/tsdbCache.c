@@ -61,7 +61,7 @@ static void deleteTableCacheLast(const void *key, size_t keyLen, void *value) {
   int16_t nCol = taosArrayGetSize(pLastArray);
   for (int16_t iCol = 0; iCol < nCol; ++iCol) {
     SLastCol *pLastCol = (SLastCol *)taosArrayGet(pLastArray, iCol);
-    if (IS_VAR_DATA_TYPE(pLastCol->colVal.type)) {
+    if (IS_VAR_DATA_TYPE(pLastCol->colVal.type) && pLastCol->colVal.value.nData > 0) {
       taosMemoryFree(pLastCol->colVal.value.pData);
     }
   }
@@ -1160,7 +1160,7 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, SArray **ppCo
         tsdbRowGetColVal(pRow, pTSchema, iCol, pColVal);
 
         SLastCol lastCol = {.ts = lastRowTs, .colVal = *pColVal};
-        if (IS_VAR_DATA_TYPE(pColVal->type)) {
+        if (IS_VAR_DATA_TYPE(pColVal->type) && pColVal->value.nData > 0) {
           lastCol.colVal.value.pData = taosMemoryMalloc(lastCol.colVal.value.nData);
           if (lastCol.colVal.value.pData == NULL) {
             terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1202,7 +1202,7 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, SArray **ppCo
       tsdbRowGetColVal(pRow, pTSchema, iCol, pColVal);
       if (COL_VAL_IS_NONE(tColVal) && !COL_VAL_IS_NONE(pColVal)) {
         SLastCol lastCol = {.ts = rowTs, .colVal = *pColVal};
-        if (IS_VAR_DATA_TYPE(pColVal->type)) {
+        if (IS_VAR_DATA_TYPE(pColVal->type) && pColVal->value.nData > 0) {
           SLastCol *pLastCol = (SLastCol *)taosArrayGet(pColArray, iCol);
           taosMemoryFree(pLastCol->colVal.value.pData);
 
@@ -1283,7 +1283,7 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray) {
         tsdbRowGetColVal(pRow, pTSchema, iCol, pColVal);
 
         SLastCol lastCol = {.ts = lastRowTs, .colVal = *pColVal};
-        if (IS_VAR_DATA_TYPE(pColVal->type)) {
+        if (IS_VAR_DATA_TYPE(pColVal->type) && pColVal->value.nData > 0) {
           lastCol.colVal.value.pData = taosMemoryMalloc(lastCol.colVal.value.nData);
           if (lastCol.colVal.value.pData == NULL) {
             terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1321,7 +1321,7 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray) {
       tsdbRowGetColVal(pRow, pTSchema, iCol, pColVal);
       if (!COL_VAL_IS_VALUE(tColVal) && COL_VAL_IS_VALUE(pColVal)) {
         SLastCol lastCol = {.ts = rowTs, .colVal = *pColVal};
-        if (IS_VAR_DATA_TYPE(pColVal->type)) {
+        if (IS_VAR_DATA_TYPE(pColVal->type) && pColVal->value.nData > 0) {
           SLastCol *pLastCol = (SLastCol *)taosArrayGet(pColArray, iCol);
           taosMemoryFree(pLastCol->colVal.value.pData);
 

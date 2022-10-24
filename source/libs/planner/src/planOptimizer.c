@@ -2139,20 +2139,28 @@ static int32_t rewriteUniqueOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   return rewriteUniqueOptimizeImpl(pCxt, pLogicSubplan, pIndef);
 }
 
-static EDealRes lastRowScanOptHasTagImpl(SNode* pNode, void* pContext) {
+typedef struct SLastRowScanOptLastParaCkCxt {
+  bool hasTag;
+  bool hasCol;
+} SLastRowScanOptLastParaCkCxt;
+
+static EDealRes lastRowScanOptLastParaCheckImpl(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SLastRowScanOptLastParaCkCxt* pCxt = pContext;
     if (COLUMN_TYPE_TAG == ((SColumnNode*)pNode)->colType || COLUMN_TYPE_TBNAME == ((SColumnNode*)pNode)->colType) {
-      *(bool*)pContext = true;
-      return DEAL_RES_END;
+      pCxt->hasTag = true;
+    } else {
+      pCxt->hasCol = true;
     }
+    return DEAL_RES_END;
   }
   return DEAL_RES_CONTINUE;
 }
 
-static bool lastRowScanOptHasTag(SNode* pExpr) {
-  bool hasTag = false;
-  nodesWalkExpr(pExpr, lastRowScanOptHasTagImpl, &hasTag);
-  return hasTag;
+static bool lastRowScanOptLastParaCheck(SNode* pExpr) {
+  SLastRowScanOptLastParaCkCxt cxt = {.hasTag = false, .hasCol = false};
+  nodesWalkExpr(pExpr, lastRowScanOptLastParaCheckImpl, &cxt);
+  return !cxt.hasTag && cxt.hasCol;
 }
 
 static bool hasSuitableCache(int8_t cacheLastMode, bool hasLastRow, bool hasLast) {
@@ -2192,7 +2200,7 @@ static bool lastRowScanOptMayBeOptimized(SLogicNode* pNode) {
   FOREACH(pFunc, ((SAggLogicNode*)pNode)->pAggFuncs) {
     SFunctionNode* pAggFunc = (SFunctionNode*)pFunc;
     if (FUNCTION_TYPE_LAST == pAggFunc->funcType) {
-      if (hasSelectFunc || lastRowScanOptHasTag(nodesListGetNode(pAggFunc->pParameterList, 0))) {
+      if (hasSelectFunc || !lastRowScanOptLastParaCheck(nodesListGetNode(pAggFunc->pParameterList, 0))) {
         return false;
       }
       hasLastFunc = true;
