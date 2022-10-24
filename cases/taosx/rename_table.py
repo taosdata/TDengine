@@ -40,26 +40,26 @@ class RenameTable(TDCase):
         self.target_taosd = self.firstEP[-1].split(':')
         self.test_root = os.environ['TEST_ROOT']
         # param for taosBenchmark with db,stb and ctb check
-        self.dbname = ['db1','db2']
-        self.stbname = [['stb11','stb12'],['stb21','stb22']]
-        self.tbname_m = [['d1d','t1t'],['d2d','t2t']]
+        self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
+        self.stbname = [[self.tdCom.get_long_name(6),self.tdCom.get_long_name(6)],[self.tdCom.get_long_name(6),self.tdCom.get_long_name(6)]]
+        self.tbname_m = [[self.tdCom.get_long_name(3),self.tdCom.get_long_name(3)],[self.tdCom.get_long_name(3),self.tdCom.get_long_name(3)]]
         self.tb_num = 10
-        self.row_num = 10000
+        self.row_num = 100
         self.start_timestamp = "2020-10-01 00:00:00.000"
         self.drop_flag = 'no'
         self.child_table_exist_flag = 'no'
         # param for taosBenchmark with ntb check
         #self.ntb_dbname = ['test1','test2']
-        self.ntb_name_m = ['nd','nt']
-        self.ntb_num = 1000
-        self.ntb_row_num = 10000
+        self.ntb_name_m = [self.tdCom.get_long_name(2),self.tdCom.get_long_name(2)]
+        self.ntb_num = 100
+        self.ntb_row_num = 100
         self.prefix_list = ['first','second']
         self.suffix_list = ['one','two']
         self.template_list = [
             {'prefix':'first','suffix':'one'},
             {'prefix':'second','suffix':'two'}]
         # param for taosx
-        self.timeout = '5s'
+        self.timeout = '1s'
         self.target_dbname = 'target'
     def get_json(self,json_path,host,port,dbname,stbname,tbname_m,tb_num,row_num,start_timestamp,drop_flag,child_table_exist_flag):
         dict = {}

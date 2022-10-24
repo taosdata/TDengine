@@ -43,7 +43,7 @@ class UpdateBackup(TDCase):
         self.test_root = os.environ['TEST_ROOT']
         self.taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
         #param for taosBenchmark
-        self.dbname = ['db1','db2']
+        self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
         self.tb_num = 100
@@ -61,7 +61,7 @@ class UpdateBackup(TDCase):
         self.ntb_num = 100
         self.ntb_row_num = 1000
         #param for taosx
-        self.timeout = '10s'
+        self.timeout = '5s'
     def data_insert_ntb(self,source_taosd_list,dbname,ntbname_m,tb_num,row_num,create_flag,start_timestamp):
         taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
         for source in range(len(source_taosd_list)):
@@ -267,8 +267,8 @@ class UpdateBackup(TDCase):
         self.update_backup_db_stb('db')
         self.update_backup_db_stb('stable')
         self.update_backup_ctb()
-        self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num,'create',self.start_timestamp)
-        self.update_backup_ntb()
+        # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num,'create',self.start_timestamp)
+        # self.update_backup_ntb()
     def cleanup(self):
         pass
 
