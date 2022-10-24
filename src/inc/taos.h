@@ -110,7 +110,7 @@ DLL_EXPORT TAOS *taos_connect(const char *ip, const char *user, const char *pass
 DLL_EXPORT TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
 DLL_EXPORT void  taos_close(TAOS *taos);
 
-const char *taos_data_type(int type);
+DLL_EXPORT const char *taos_data_type(int type);
 
 typedef struct TAOS_BIND {
   int            buffer_type;
