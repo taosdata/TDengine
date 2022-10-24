@@ -655,12 +655,14 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
   uv_tcp_init(pObj->loop, cli);
 
   if (uv_accept(stream, (uv_stream_t*)cli) == 0) {
+#ifdef WINDOWS
     if (pObj->numOfWorkerReady < pObj->numOfThreads) {
       tError("worker-threads are not ready for all, need %d instead of %d.", pObj->numOfThreads,
              pObj->numOfWorkerReady);
       uv_close((uv_handle_t*)cli, NULL);
       return;
     }
+#endif
 
     uv_write_t* wr = (uv_write_t*)taosMemoryMalloc(sizeof(uv_write_t));
     wr->data = cli;
@@ -777,7 +779,12 @@ static bool addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
     return false;
   }
 
+#ifdef WINDOWS
   uv_pipe_init(pThrd->loop, pThrd->pipe, 1);
+#else
+  uv_pipe_init(pThrd->loop, pThrd->pipe, 1);
+  uv_pipe_open(pThrd->pipe, pThrd->fd);
+#endif
 
   pThrd->pipe->data = pThrd;
 
@@ -792,8 +799,11 @@ static bool addHandleToWorkloop(SWorkThrd* pThrd, char* pipeName) {
   QUEUE_INIT(&pThrd->conn);
 
   pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 5, pThrd, uvWorkerAsyncCb);
+#ifdef WINDOWS
   uv_pipe_connect(&pThrd->connect_req, pThrd->pipe, pipeName, uvOnPipeConnectionCb);
-  // uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
+#else
+  uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
+#endif
   return true;
 }
 
@@ -965,20 +975,18 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   srv->port = port;
   uv_loop_init(srv->loop);
 
+  char pipeName[64];
+#ifdef WINDOWS
   int ret = uv_pipe_init(srv->loop, &srv->pipeListen, 0);
   if (ret != 0) {
     tError("failed to init pipe, errmsg: %s", uv_err_name(ret));
     goto End;
   }
 
-#ifdef WINDOWS
-  char pipeName[64];
   snprintf(pipeName, sizeof(pipeName), "\\\\?\\pipe\\trans.rpc.%d-%" PRIu64, taosSafeRand(), GetCurrentProcessId());
-#else
   char pipeName[PATH_MAX] = {0};
   snprintf(pipeName, sizeof(pipeName), "%s%spipe.trans.rpc.%08d-%" PRIu64, tsTempDir, TD_DIRSEP, taosSafeRand(),
            taosGetSelfPthreadId());
-#endif
 
   ret = uv_pipe_bind(&srv->pipeListen, pipeName);
   if (ret != 0) {
@@ -1015,7 +1023,44 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
       goto End;
     }
   }
+#else
 
+  for (int i = 0; i < srv->numOfThreads; i++) {
+    SWorkThrd* thrd = (SWorkThrd*)taosMemoryCalloc(1, sizeof(SWorkThrd));
+
+    thrd->pTransInst = shandle;
+    thrd->quit = false;
+    thrd->pTransInst = shandle;
+
+    srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
+    srv->pThreadObj[i] = thrd;
+
+    uv_os_sock_t fds[2];
+    if (uv_socketpair(AF_UNIX, SOCK_STREAM, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE) != 0) {
+      goto End;
+    }
+
+    uv_pipe_init(srv->loop, &(srv->pipe[i][0]), 1);
+    uv_pipe_open(&(srv->pipe[i][0]), fds[1]);
+
+    thrd->pipe = &(srv->pipe[i][1]);  // init read
+    thrd->fd = fds[0];
+
+    if (false == addHandleToWorkloop(thrd, pipeName)) {
+      goto End;
+    }
+
+    int err = taosThreadCreate(&(thrd->thread), NULL, transWorkerThread, (void*)(thrd));
+    if (err == 0) {
+      tDebug("success to create worker-thread:%d", i);
+    } else {
+      // TODO: clear all other resource later
+      tError("failed to create worker-thread:%d", i);
+      goto End;
+    }
+  }
+
+#endif
   if (false == taosValidIpAndPort(srv->ip, srv->port)) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     tError("invalid ip/port, %d:%d, reason:%s", srv->ip, srv->port, terrstr());
