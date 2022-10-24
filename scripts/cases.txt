@@ -173,6 +173,7 @@ taostest --use=common_insert.yaml --case=taosc_insert/db_param_single_stable.py 
 taostest --use=common_insert.yaml --case=taosc_insert/db_param_strict.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/db_param_vgroups.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/db_param_wal.py --keep --containers
+taostest --use=common_insert.yaml --case=taosc_insert/db_param_keep.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/disorder_insert.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/double_boundary_check.py --keep --containers
 taostest --use=common_insert.yaml --case=taosc_insert/error_insert_check.py --keep --containers
@@ -204,7 +205,6 @@ taostest --use=common_insert.yaml --case=stream_computing/stream_computing_test.
 
 
 # commented out cases
-# taostest --use=common_insert.yaml --case=taosc_insert/db_param_keep.py --keep --containers
 #taostest --use=empty.yaml --case=helloworld/hellocase.py --keep
 #taostest --use=common_insert.yaml --group-dir=taosc_insert --keep --containers
 #taostest --use=common_insert.yaml --group-dir=restful_insert --keep --containers
