@@ -30,7 +30,7 @@ class RestartDnodes(TDCase):
         self.ready_sleep = 5
         self._remote: Remote = Remote(self.logger)
         self.column_dict = {
-            'col1': 'tinyint'
+            'col1': 'bigint'
         }
         self.taosd = TaosD(self._remote)
         self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
@@ -47,9 +47,12 @@ class RestartDnodes(TDCase):
         self.tdSql.execute(f'use {self.dbname}')
         for col_name,col_type in self.column_dict.items():
             self.tdSql.execute(f'create table {self.ntbname} (ts timestamp,{col_name} {col_type})')
-            self.tdSql.execute(f'insert into {self.ntbname} values({self.ts}, {replica_value})')
-        for endpoint in self.endpoint_list:
-            self.taosd.restart(endpoint, self.ready_sleep)
+            for i in range(1, 1000):
+                self.tdSql.execute(f'insert into {self.ntbname} values(now+{i}s, {i})')
+        self._remote.cmd(self.fqdn_list[-1], ["ps -ef | grep taosd | grep -v grep | awk '{print $2}' | xargs kill -TERM"])
+        for i in range(1001, 2000):
+            self.tdSql.execute(f'insert into {self.ntbname} values(now+{i}s, {i})')
+        self.taosd.restart(self.endpoint_list[-1], self.ready_sleep)
         time.sleep(self.ready_sleep)
         self.tdSql.query("show dnodes")
         for query_data in self.tdSql.query_data:
