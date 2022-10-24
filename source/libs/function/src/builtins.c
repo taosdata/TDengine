@@ -209,7 +209,7 @@ static int32_t countTrailingSpaces(const SValueNode* pVal, bool isLtrim) {
   return numOfSpaces;
 }
 
-void static addTimezoneParam(SNodeList* pList) {
+static int32_t addTimezoneParam(SNodeList* pList) {
   char      buf[6] = {0};
   time_t    t = taosTime(NULL);
   struct tm tmInfo;
@@ -218,6 +218,10 @@ void static addTimezoneParam(SNodeList* pList) {
   int32_t len = (int32_t)strlen(buf);
 
   SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  if (pVal == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   pVal->literal = strndup(buf, len);
   pVal->isDuration = false;
   pVal->translate = true;
@@ -229,10 +233,15 @@ void static addTimezoneParam(SNodeList* pList) {
   strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
 
   nodesListAppend(pList, (SNode*)pVal);
+  return TSDB_CODE_SUCCESS;
 }
 
-void static addDbPrecisonParam(SNodeList** pList, uint8_t precision) {
+static int32_t addDbPrecisonParam(SNodeList** pList, uint8_t precision) {
   SValueNode* pVal = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
+  if (pVal == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   pVal->literal = NULL;
   pVal->isDuration = false;
   pVal->translate = true;
@@ -244,6 +253,7 @@ void static addDbPrecisonParam(SNodeList** pList, uint8_t precision) {
   pVal->typeData = (int64_t)precision;
 
   nodesListMakeAppend(pList, (SNode*)pVal);
+  return TSDB_CODE_SUCCESS;
 }
 
 // There is only one parameter of numeric type, and the return type is parameter type
@@ -465,7 +475,10 @@ static int32_t translateNowToday(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 
   // add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
-  addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  int32_t code   = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   pFunc->node.resType = (SDataType){.bytes = sizeof(int64_t), .type = TSDB_DATA_TYPE_TIMESTAMP};
   return TSDB_CODE_SUCCESS;
@@ -1487,7 +1500,10 @@ static int32_t translateIrate(SFunctionNode* pFunc, char* pErrBuf, int32_t len) 
 
   // add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
-  addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  int32_t code   = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
   return TSDB_CODE_SUCCESS;
@@ -1810,7 +1826,10 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 
   // add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
-  addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  int32_t code   = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1844,7 +1863,10 @@ static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t l
       return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "Invalid timzone format");
     }
   } else {  // add default client timezone
-    addTimezoneParam(pFunc->pParameterList);
+    int32_t code = addTimezoneParam(pFunc->pParameterList);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   }
 
   // set result type
@@ -1863,7 +1885,10 @@ static int32_t translateToUnixtimestamp(SFunctionNode* pFunc, char* pErrBuf, int
 
   // add database precision as param
   uint8_t dbPrec = pFunc->node.resType.precision;
-  addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  int32_t code   = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
   return TSDB_CODE_SUCCESS;
@@ -1894,7 +1919,10 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
         "TIMETRUNCATE function time unit parameter should be one of the following: [1b, 1u, 1a, 1s, 1m, 1h, 1d, 1w]");
   }
 
-  addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  int32_t code = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   pFunc->node.resType =
       (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes, .type = TSDB_DATA_TYPE_TIMESTAMP};
@@ -1935,7 +1963,10 @@ static int32_t translateTimeDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t le
     }
   }
 
-  addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  int32_t code = addDbPrecisonParam(&pFunc->pParameterList, dbPrec);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
   return TSDB_CODE_SUCCESS;
