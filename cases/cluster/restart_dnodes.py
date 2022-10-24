@@ -49,7 +49,9 @@ class RestartDnodes(TDCase):
             self.tdSql.execute(f'create table {self.ntbname} (ts timestamp,{col_name} {col_type})')
             for i in range(1, 1000):
                 self.tdSql.execute(f'insert into {self.ntbname} values(now+{i}s, {i})')
-        self._remote.cmd(self.fqdn_list[-1], ["ps -ef | grep taosd | grep -v grep | awk '{print $2}' | xargs kill -TERM"])
+        print(self.endpoint_list)
+        last_endpoint_port = self.endpoint_list[-1]["endpoint"].split(":")[1]
+        self._remote.cmd(self.fqdn_list[-1], [f"netstat -ntlp | grep {last_endpoint_port} | awk \'{{print $7}}\' | cut -d '/' -f 1 | xargs kill -TERM"])
         for i in range(1001, 2000):
             self.tdSql.execute(f'insert into {self.ntbname} values(now+{i}s, {i})')
         self.taosd.restart(self.endpoint_list[-1], self.ready_sleep)
