@@ -685,6 +685,8 @@ static void syncChooseMaster(SSyncNode *pNode) {
 
   if (index < 0 && onlineNum > replica / 2.0) {
     // over half of nodes are online
+    int unsync_count = 0;
+    int master_count = 0;
     for (int32_t i = 0; i < pNode->replica; ++i) {
       // slave with highest version shall be master
       pPeer = pNode->peerInfo[i];
@@ -693,11 +695,66 @@ static void syncChooseMaster(SSyncNode *pNode) {
           index = i;
         }
       }
+      //we count the unsync and master dnodes numbers
+      if (pPeer->role == TAOS_SYNC_ROLE_UNSYNCED)
+      {
+        unsync_count++;
+      } else if (pPeer->role == TAOS_SYNC_ROLE_MASTER)
+      {
+        master_count++;
+      }
     }
 
     if (index >= 0) {
       sDebug("vgId:%d, master:%s may be choosed, index:%d onlineNum(arb):%d replica:%d", pNode->vgId,
              pNode->peerInfo[index]->id, index, onlineNum, replica);
+    }
+    /*** try again to find "index". 
+    We suppose it comes when :
+    1、tarbitrator process is shut down (some reason)
+    2、master dnode is offline ,
+    3、we start up tarbitrator again
+    4、hours later,slave dnode doesn't transfer status from unsync to master. 
+    
+    status change like:
+    1:
+    taos> show vgroups;
+			 vgId 		| 	tables		|  status  |	 onlines	 | v1_dnode | v1_status | v2_dnode | v2_status | compacting  |
+		=================================================================================================================
+							7 | 				 53 | ready 	 |					 2 |				3 | slave 		| 			 2 | master 	 |					 0 |
+
+    2:
+		taos> show vgroups;
+			 vgId 		| 	tables		|  status  |	 onlines	 | v1_dnode | v1_status | v2_dnode | v2_status | compacting  |
+		=================================================================================================================
+							7 | 				 53 | ready 	 |					 1 |				3 | unsynced	| 			 2 | master 	 |					 0 |
+		3,4:
+		taos> show vgroups;
+			 vgId 		| 	tables		|  status  |	 onlines	 | v1_dnode | v1_status | v2_dnode | v2_status | compacting  |
+		=================================================================================================================
+							7 | 				 53 | ready 	 |					 0 |				3 | unsynced	| 			 2 | offline	 |					 0 |
+
+		 ***/
+		// if some node is unsynced(only slave dnode need to transfer), and no master node(master may be offline), we suppose TAOS_SYNC_ROLE_UNSYNCED dnode should have a chance to  to find the index 
+    else if ( unsync_count >0 && master_count == 0 )
+    {
+      for (int32_t i = 0; i < pNode->replica; ++i) {
+      // slave with highest version shall be master
+      pPeer = pNode->peerInfo[i];
+      if (index < 0 )
+      {
+        sDebug("vgId:%d, index:%d;pPeer->role:%d", pNode->vgId, index,pPeer->role);
+      }
+      else
+      {	
+        sDebug("vgId:%d, index:%d;pPeer->role:%d;pPeer->version:%"PRId64";pNode->peerInfo[index]->version:%"PRId64, pNode->vgId, index,pPeer->role,pPeer->version,pNode->peerInfo[index]->version);
+      }
+      if (pPeer->role == TAOS_SYNC_ROLE_UNSYNCED ) {
+        if (index < 0 || pPeer->version > pNode->peerInfo[index]->version) {
+          index = i;
+        }
+      }
+      }
     }
   }
 
