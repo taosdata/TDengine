@@ -1420,7 +1420,7 @@ int32_t timeDiffFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
         } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
           timeVal[k] = timeVal[k] * 1000;
         } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-          timeVal[k] = timeVal[k];
+          timeVal[k] = timeVal[k] * 1;
         } else {
           hasNull = true;
           break;
