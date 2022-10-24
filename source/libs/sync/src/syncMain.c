@@ -336,7 +336,9 @@ char* syncNodePeerState2Str(const SSyncNode* pSyncNode) {
 
   for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
     SPeerState* pState = syncNodeGetPeerState((SSyncNode*)pSyncNode, &(pSyncNode->replicasId[i]));
-    ASSERT(pState != NULL);
+    if (pState == NULL) {
+      break;
+    }
 
     p = pStr + useLen;
     use = snprintf(p, leftLen, "%d:%" PRId64 " ,%" PRId64, i, pState->lastSendIndex, pState->lastSendTime);
