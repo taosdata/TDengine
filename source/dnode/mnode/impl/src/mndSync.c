@@ -204,13 +204,21 @@ int32_t mndInitSync(SMnode *pMnode) {
   taosInitRWLatch(&pMgmt->lock);
   pMgmt->transId = 0;
 
-  SSyncInfo syncInfo = {.vgId = 1, .FpSendMsg = mndSyncSendMsg, .FpEqMsg = mndSyncEqMsg};
-  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s%ssync", pMnode->path, TD_DIRSEP);
-  syncInfo.pWal = pMnode->pWal;
-  syncInfo.pFsm = mndSyncMakeFsm(pMnode);
-  syncInfo.snapshotStrategy = SYNC_STRATEGY_STANDARD_SNAPSHOT;
+  SSyncInfo syncInfo = {
+      .snapshotStrategy = SYNC_STRATEGY_STANDARD_SNAPSHOT,
+      .batchSize = 1,
+      .vgId = 1,
+      .pWal = pMnode->pWal,
+      .msgcb = NULL,
+      .FpSendMsg = mndSyncSendMsg,
+      .FpEqMsg = mndSyncEqMsg,
+      .FpEqCtrlMsg = NULL,
+  };
 
-  mInfo("vgId:1, start to open sync, selfIndex:%d replica:%d", pMgmt->selfIndex, pMgmt->numOfReplicas);
+  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s%ssync", pMnode->path, TD_DIRSEP);
+  syncInfo.pFsm = mndSyncMakeFsm(pMnode);
+
+  mInfo("vgId:1, start to open sync, replica:%d selfIndex:%d", pMgmt->numOfReplicas, pMgmt->selfIndex);
   SSyncCfg *pCfg = &syncInfo.syncCfg;
   pCfg->replicaNum = pMgmt->numOfReplicas;
   pCfg->myIndex = pMgmt->selfIndex;
