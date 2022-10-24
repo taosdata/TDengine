@@ -1082,7 +1082,12 @@ int32_t filterAddUnitImpl(SFilterInfo *info, uint8_t optr, SFilterFieldId *left,
   if (info->unitNum >= info->unitSize) {
     uint32_t psize = info->unitSize;
     info->unitSize += FILTER_DEFAULT_UNIT_SIZE;
-    info->units = taosMemoryRealloc(info->units, info->unitSize * sizeof(SFilterUnit));
+
+    void *tmp = taosMemoryRealloc(info->units, info->unitSize * sizeof(SFilterUnit));
+    if (tmp == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    info->units = tmp;
     memset(info->units + psize, 0, sizeof(*info->units) * FILTER_DEFAULT_UNIT_SIZE);
   }
 
