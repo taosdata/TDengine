@@ -337,6 +337,7 @@ char* syncNodePeerState2Str(const SSyncNode* pSyncNode) {
   for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
     SPeerState* pState = syncNodeGetPeerState((SSyncNode*)pSyncNode, &(pSyncNode->replicasId[i]));
     if (pState == NULL) {
+      sError("vgId:%d, replica maybe dropped", pSyncNode->vgId);
       break;
     }
 
@@ -3497,6 +3498,7 @@ SPeerState* syncNodeGetPeerState(SSyncNode* ths, const SRaftId* pDestId) {
 bool syncNodeNeedSendAppendEntries(SSyncNode* ths, const SRaftId* pDestId, const SyncAppendEntries* pMsg) {
   SPeerState* pState = syncNodeGetPeerState(ths, pDestId);
   if (pState == NULL) {
+    sError("vgId:%d, replica maybe dropped", ths->vgId);
     return false;
   }
 
