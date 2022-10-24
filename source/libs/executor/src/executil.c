@@ -1120,6 +1120,7 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
     }
   }
 
+  pMatchInfo->pList = pList;
   return code;
 }
 

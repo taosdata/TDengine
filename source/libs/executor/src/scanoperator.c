@@ -3890,7 +3890,6 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   SScanPhysiNode* pScanNode = &pScanPhyNode->scan;
 
   SDataBlockDescNode* pDescNode = pScanNode->node.pOutputDataBlockDesc;
-  SSDataBlock*        pResBlock = createResDataBlock(pDescNode);
 
   int32_t num = 0;
   int32_t code = extractColMatchInfo(pScanNode->pScanCols, pDescNode, &num, COL_MATCH_FROM_COL_ID, &pInfo->matchInfo);
@@ -3899,7 +3898,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   pInfo->pUser = taosMemoryStrDup((void*)pUser);
   pInfo->sysInfo = pScanPhyNode->sysInfo;
   pInfo->showRewrite = pScanPhyNode->showRewrite;
-  pInfo->pRes = pResBlock;
+  pInfo->pRes = createResDataBlock(pDescNode);
   pInfo->pCondition = pScanNode->node.pConditions;
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
@@ -3922,7 +3921,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
-  pOperator->exprSupp.numOfExprs = taosArrayGetSize(pResBlock->pDataBlock);
+  pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pRes->pDataBlock);
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet =
