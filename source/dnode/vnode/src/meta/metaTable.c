@@ -731,7 +731,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   SSchemaWrapper *pSchema;
   int             c;
 
-  if (pAlterTbReq->colName == NULL) {
+  if (pAlterTbReq->colName == NULL || pAlterTbReq->colNewName == NULL) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
