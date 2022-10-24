@@ -736,7 +736,7 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
     memcpy(pConn->user, pHead->user, tListLen(pConn->user));
     pConn->pRpc = pRpc;
     pConn->sid = sid;
-    pConn->tranId = (uint16_t)(rand() & 0xFFFF);
+    pConn->tranId = (uint16_t)(random() & 0xFFFF);
     pConn->ownId = htonl(pConn->sid);
     pConn->linkUid = pHead->linkUid;
     if (pRpc->afp) {
@@ -1116,7 +1116,7 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
         if (pHead->msgType + 1 > 1 && pHead->msgType+1 < TSDB_MSG_TYPE_MAX) {
           tDebug("%s %p %p, %s is sent with error code:0x%x", pRpc->label, pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType+1], code);
         } else {
-          tError("%s %p %p, %s is sent with error code:0x%x", pRpc->label, pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType], code);
+          tError("%s %p %p, UnkownmsgType is sent with error code:0x%x", pRpc->label, pConn, (void *)pHead->ahandle, code);
         }     
       } 
     } else { // msg is passed to app only parsing is ok 
@@ -1172,6 +1172,7 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqConte
           SRpcMsg rMsg = {.handle = rpcMsg.handle, .pCont = NULL, .contLen = 0};
           rpcSendResponse(&rMsg);
           rpcFreeCont(rpcMsg.pCont);
+          rpcFreeMsg(pHead);
           return;
         }
         break;
