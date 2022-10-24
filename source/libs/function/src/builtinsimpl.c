@@ -1872,7 +1872,7 @@ int32_t stddevFunction(SqlFunctionCtx* pCtx) {
         numOfElem += 1;
         pStddevRes->count += 1;
         pStddevRes->usum += plist[i];
-        pStddevRes->quadraticISum += plist[i] * plist[i];
+        pStddevRes->quadraticUSum += plist[i] * plist[i];
       }
 
       break;
@@ -1888,7 +1888,7 @@ int32_t stddevFunction(SqlFunctionCtx* pCtx) {
         numOfElem += 1;
         pStddevRes->count += 1;
         pStddevRes->usum += plist[i];
-        pStddevRes->quadraticISum += plist[i] * plist[i];
+        pStddevRes->quadraticUSum += plist[i] * plist[i];
       }
       break;
     }
@@ -1903,7 +1903,7 @@ int32_t stddevFunction(SqlFunctionCtx* pCtx) {
         numOfElem += 1;
         pStddevRes->count += 1;
         pStddevRes->usum += plist[i];
-        pStddevRes->quadraticISum += plist[i] * plist[i];
+        pStddevRes->quadraticUSum += plist[i] * plist[i];
       }
 
       break;
@@ -1919,7 +1919,7 @@ int32_t stddevFunction(SqlFunctionCtx* pCtx) {
         numOfElem += 1;
         pStddevRes->count += 1;
         pStddevRes->usum += plist[i];
-        pStddevRes->quadraticISum += plist[i] * plist[i];
+        pStddevRes->quadraticUSum += plist[i] * plist[i];
       }
       break;
     }
