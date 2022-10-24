@@ -2394,7 +2394,7 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char* rawLine, char
       code = smlParseJSON(info, rawLine);
     }
     if (code != TSDB_CODE_SUCCESS) {
-      uError("SML:0x%" PRIx64 " smlParseJSON failed:%s", info->id, *lines);
+      uError("SML:0x%" PRIx64 " smlParseJSON failed:%s", info->id, lines?*lines:rawLine);
       return code;
     }
     return code;

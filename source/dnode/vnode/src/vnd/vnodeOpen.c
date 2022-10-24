@@ -87,9 +87,16 @@ int32_t vnodeAlter(const char *path, SAlterVnodeReplicaReq *pReq, STfs *pTfs) {
     vInfo("vgId:%d, save config, replica:%d ep:%s:%u", pReq->vgId, i, pNode->nodeFqdn, pNode->nodePort);
   }
 
+  info.config.syncCfg = *pCfg;
   ret = vnodeSaveInfo(dir, &info);
   if (ret < 0) {
     vError("vgId:%d, failed to save vnode config since %s", pReq->vgId, tstrerror(terrno));
+    return -1;
+  }
+
+  ret = vnodeCommitInfo(dir, &info);
+  if (ret < 0) {
+    vError("vgId:%d, failed to commit vnode config since %s", pReq->vgId, tstrerror(terrno));
     return -1;
   }
 

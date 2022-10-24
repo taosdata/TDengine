@@ -15,10 +15,13 @@
 
 #include "vnd.h"
 
-#define VNODE_GET_LOAD_RESET_VALS(pVar, oVal, vType)                   \
-  do {                                                                 \
-    int##vType##_t newVal = atomic_sub_fetch_##vType(&(pVar), (oVal)); \
-    ASSERT(newVal >= 0);                                               \
+#define VNODE_GET_LOAD_RESET_VALS(pVar, oVal, vType, tags)                                                   \
+  do {                                                                                                       \
+    int##vType##_t newVal = atomic_sub_fetch_##vType(&(pVar), (oVal));                                       \
+    ASSERT(newVal >= 0);                                                                                     \
+    if (newVal < 0) {                                                                                        \
+      vWarn("vgId:%d %s, abnormal val:%" PRIi64 ", old val:%" PRIi64, TD_VID(pVnode), tags, newVal, (oVal)); \
+    }                                                                                                        \
   } while (0)
 
 int vnodeQueryOpen(SVnode *pVnode) {
@@ -435,10 +438,10 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
  * @param pLoad
  */
 void vnodeResetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
-  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nInsert, pLoad->numOfInsertReqs, 64);
-  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nInsertSuccess, pLoad->numOfInsertSuccessReqs, 64);
-  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nBatchInsert, pLoad->numOfBatchInsertReqs, 64);
-  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nBatchInsertSuccess, pLoad->numOfBatchInsertSuccessReqs, 64);
+  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nInsert, pLoad->numOfInsertReqs, 64, "nInsert");
+  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nInsertSuccess, pLoad->numOfInsertSuccessReqs, 64, "nInsertSuccess");
+  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nBatchInsert, pLoad->numOfBatchInsertReqs, 64, "nBatchInsert");
+  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nBatchInsertSuccess, pLoad->numOfBatchInsertSuccessReqs, 64, "nBatchInsertSuccess");
 }
 
 void vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId) {

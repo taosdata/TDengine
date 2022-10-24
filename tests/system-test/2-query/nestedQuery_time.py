@@ -38,11 +38,11 @@ class TDTestCase(TDTestCase):
         # self.math_nest(['statecount','stateduration'])
         # self.math_nest(['HISTOGRAM']) 
         
-        self.str_nest(['LTRIM','RTRIM','LOWER','UPPER']) 
-        self.str_nest(['LENGTH','CHAR_LENGTH']) 
-        self.str_nest(['SUBSTR'])   
-        self.str_nest(['CONCAT']) 
-        self.str_nest(['CONCAT_WS']) 
+        # self.str_nest(['LTRIM','RTRIM','LOWER','UPPER']) 
+        # self.str_nest(['LENGTH','CHAR_LENGTH']) 
+        # self.str_nest(['SUBSTR'])   
+        # self.str_nest(['CONCAT']) 
+        # self.str_nest(['CONCAT_WS']) 
         # self.time_nest(['CAST']) #放到time里起来弄
         # self.time_nest(['CAST_1'])
         # self.time_nest(['CAST_2'])
@@ -51,14 +51,14 @@ class TDTestCase(TDTestCase):
         
         
         
-        # self.time_nest(['NOW','TODAY']) 
-        # self.time_nest(['TIMEZONE']) 
-        # self.time_nest(['TIMETRUNCATE']) 
-        # self.time_nest(['TO_ISO8601'])
-        # self.time_nest(['TO_UNIXTIMESTAMP'])
-        # self.time_nest(['ELAPSED'])
-        # self.time_nest(['TIMEDIFF_1'])
-        # self.time_nest(['TIMEDIFF_2'])
+        self.time_nest(['NOW','TODAY']) 
+        self.time_nest(['TIMEZONE']) 
+        self.time_nest(['TIMETRUNCATE']) 
+        self.time_nest(['TO_ISO8601'])
+        self.time_nest(['TO_UNIXTIMESTAMP'])
+        self.time_nest(['ELAPSED'])
+        #self.time_nest(['TIMEDIFF_1'])
+        #self.time_nest(['TIMEDIFF_2'])
         
 
         endTime = time.time()

@@ -292,116 +292,67 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
   vGTrace("vgId:%d, sync msg:%p will be processed, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
 
-  if (syncNodeStrategy(pSyncNode) == SYNC_STRATEGY_NO_SNAPSHOT) {
-    if (pMsg->msgType == TDMT_SYNC_TIMEOUT) {
-      SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pMsg);
-      ASSERT(pSyncMsg != NULL);
-      code = syncNodeOnTimeoutCb(pSyncNode, pSyncMsg);
-      syncTimeoutDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_PING) {
-      SyncPing *pSyncMsg = syncPingFromRpcMsg2(pMsg);
-      ASSERT(pSyncMsg != NULL);
-      code = syncNodeOnPingCb(pSyncNode, pSyncMsg);
-      syncPingDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_PING_REPLY) {
-      SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pMsg);
-      ASSERT(pSyncMsg != NULL);
-      code = syncNodeOnPingReplyCb(pSyncNode, pSyncMsg);
-      syncPingReplyDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
-      SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pMsg);
-      ASSERT(pSyncMsg != NULL);
-      code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg, NULL);
-      syncClientRequestDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST_BATCH) {
-      SyncClientRequestBatch *pSyncMsg = syncClientRequestBatchFromRpcMsg(pMsg);
-      ASSERT(pSyncMsg != NULL);
-      code = syncNodeOnClientRequestBatchCb(pSyncNode, pSyncMsg);
-      syncClientRequestBatchDestroyDeep(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
-      SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
-      ASSERT(pSyncMsg != NULL);
-      code = syncNodeOnRequestVoteCb(pSyncNode, pSyncMsg);
-      syncRequestVoteDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE_REPLY) {
-      SyncRequestVoteReply *pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pMsg);
-      ASSERT(pSyncMsg != NULL);
-      code = syncNodeOnRequestVoteReplyCb(pSyncNode, pSyncMsg);
-      syncRequestVoteReplyDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES) {
-      SyncAppendEntries *pSyncMsg = syncAppendEntriesFromRpcMsg2(pMsg);
-      ASSERT(pSyncMsg != NULL);
-      code = syncNodeOnAppendEntriesCb(pSyncNode, pSyncMsg);
-      syncAppendEntriesDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES_REPLY) {
-      SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pMsg);
-      ASSERT(pSyncMsg != NULL);
-      code = syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
-      syncAppendEntriesReplyDestroy(pSyncMsg);
-    } else {
-      vGError("vgId:%d, msg:%p failed to process since error msg type:%d", pVnode->config.vgId, pMsg, pMsg->msgType);
-      code = -1;
-    }
+  if (pMsg->msgType == TDMT_SYNC_TIMEOUT) {
+    SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pMsg);
+    ASSERT(pSyncMsg != NULL);
+    code = syncNodeOnTimer(pSyncNode, pSyncMsg);
+    syncTimeoutDestroy(pSyncMsg);
 
-  } else if (syncNodeStrategy(pSyncNode) == SYNC_STRATEGY_WAL_FIRST) {
-    // use wal first strategy
-    if (pMsg->msgType == TDMT_SYNC_TIMEOUT) {
-      SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pMsg);
-      ASSERT(pSyncMsg != NULL);
-      code = syncNodeOnTimeoutCb(pSyncNode, pSyncMsg);
-      syncTimeoutDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_PING) {
-      SyncPing *pSyncMsg = syncPingFromRpcMsg2(pMsg);
-      ASSERT(pSyncMsg != NULL);
-      code = syncNodeOnPingCb(pSyncNode, pSyncMsg);
-      syncPingDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_PING_REPLY) {
-      SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pMsg);
-      ASSERT(pSyncMsg != NULL);
-      code = syncNodeOnPingReplyCb(pSyncNode, pSyncMsg);
-      syncPingReplyDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
-      SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pMsg);
-      ASSERT(pSyncMsg != NULL);
-      code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg, NULL);
-      syncClientRequestDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST_BATCH) {
-      SyncClientRequestBatch *pSyncMsg = syncClientRequestBatchFromRpcMsg(pMsg);
-      ASSERT(pSyncMsg != NULL);
-      code = syncNodeOnClientRequestBatchCb(pSyncNode, pSyncMsg);
-      syncClientRequestBatchDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
-      SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
-      ASSERT(pSyncMsg != NULL);
-      code = syncNodeOnRequestVoteSnapshotCb(pSyncNode, pSyncMsg);
-      syncRequestVoteDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE_REPLY) {
-      SyncRequestVoteReply *pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pMsg);
-      ASSERT(pSyncMsg != NULL);
-      code = syncNodeOnRequestVoteReplySnapshotCb(pSyncNode, pSyncMsg);
-      syncRequestVoteReplyDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES_BATCH) {
-      SyncAppendEntriesBatch *pSyncMsg = syncAppendEntriesBatchFromRpcMsg2(pMsg);
-      ASSERT(pSyncMsg != NULL);
-      code = syncNodeOnAppendEntriesSnapshot2Cb(pSyncNode, pSyncMsg);
-      syncAppendEntriesBatchDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES_REPLY) {
-      SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pMsg);
-      ASSERT(pSyncMsg != NULL);
-      code = syncNodeOnAppendEntriesReplySnapshot2Cb(pSyncNode, pSyncMsg);
-      syncAppendEntriesReplyDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_SEND) {
-      SyncSnapshotSend *pSyncMsg = syncSnapshotSendFromRpcMsg2(pMsg);
-      code = syncNodeOnSnapshotSendCb(pSyncNode, pSyncMsg);
-      syncSnapshotSendDestroy(pSyncMsg);
-    } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_RSP) {
-      SyncSnapshotRsp *pSyncMsg = syncSnapshotRspFromRpcMsg2(pMsg);
-      code = syncNodeOnSnapshotRspCb(pSyncNode, pSyncMsg);
-      syncSnapshotRspDestroy(pSyncMsg);
-    } else {
-      vGError("vgId:%d, msg:%p failed to process since error msg type:%d", pVnode->config.vgId, pMsg, pMsg->msgType);
-      code = -1;
-    }
+  } else if (pMsg->msgType == TDMT_SYNC_PING) {
+    SyncPing *pSyncMsg = syncPingFromRpcMsg2(pMsg);
+    ASSERT(pSyncMsg != NULL);
+    code = syncNodeOnPingCb(pSyncNode, pSyncMsg);
+    syncPingDestroy(pSyncMsg);
+
+  } else if (pMsg->msgType == TDMT_SYNC_PING_REPLY) {
+    SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pMsg);
+    ASSERT(pSyncMsg != NULL);
+    code = syncNodeOnPingReplyCb(pSyncNode, pSyncMsg);
+    syncPingReplyDestroy(pSyncMsg);
+
+  } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
+    SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pMsg);
+    ASSERT(pSyncMsg != NULL);
+    code = syncNodeOnClientRequest(pSyncNode, pSyncMsg, NULL);
+    syncClientRequestDestroy(pSyncMsg);
+
+  } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
+    SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
+    ASSERT(pSyncMsg != NULL);
+    code = syncNodeOnRequestVote(pSyncNode, pSyncMsg);
+    syncRequestVoteDestroy(pSyncMsg);
+
+  } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE_REPLY) {
+    SyncRequestVoteReply *pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pMsg);
+    ASSERT(pSyncMsg != NULL);
+    code = syncNodeOnRequestVoteReply(pSyncNode, pSyncMsg);
+    syncRequestVoteReplyDestroy(pSyncMsg);
+
+  } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES) {
+    SyncAppendEntries *pSyncMsg = syncAppendEntriesFromRpcMsg2(pMsg);
+    ASSERT(pSyncMsg != NULL);
+    code = syncNodeOnAppendEntries(pSyncNode, pSyncMsg);
+    syncAppendEntriesDestroy(pSyncMsg);
+
+  } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES_REPLY) {
+    SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pMsg);
+    ASSERT(pSyncMsg != NULL);
+    code = syncNodeOnAppendEntriesReply(pSyncNode, pSyncMsg);
+    syncAppendEntriesReplyDestroy(pSyncMsg);
+
+  } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_SEND) {
+    SyncSnapshotSend *pSyncMsg = syncSnapshotSendFromRpcMsg2(pMsg);
+    code = syncNodeOnSnapshot(pSyncNode, pSyncMsg);
+    syncSnapshotSendDestroy(pSyncMsg);
+
+  } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_RSP) {
+    SyncSnapshotRsp *pSyncMsg = syncSnapshotRspFromRpcMsg2(pMsg);
+    code = syncNodeOnSnapshotReply(pSyncNode, pSyncMsg);
+    syncSnapshotRspDestroy(pSyncMsg);
+
+  } else {
+    vGError("vgId:%d, msg:%p failed to process since error msg type:%d", pVnode->config.vgId, pMsg, pMsg->msgType);
+    code = -1;
   }
 
   vTrace("vgId:%d, sync msg:%p is processed, type:%s code:0x%x", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType),
@@ -409,6 +360,19 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   syncNodeRelease(pSyncNode);
   if (code != 0 && terrno == 0) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+  }
+  return code;
+}
+
+static int32_t vnodeSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
+  if (msgcb == NULL) {
+    return -1;
+  }
+
+  int32_t code = tmsgPutToQueue(msgcb, SYNC_CTRL_QUEUE, pMsg);
+  if (code != 0) {
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
   }
   return code;
 }
@@ -599,9 +563,7 @@ static int32_t vnodeSnapshotDoWrite(struct SSyncFSM *pFsm, void *pWriter, void *
 #endif
 }
 
-static void vnodeLeaderTransfer(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
-  SVnode *pVnode = pFsm->data;
-}
+static void vnodeLeaderTransfer(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {}
 
 static void vnodeRestoreFinish(struct SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
@@ -641,12 +603,14 @@ static void vnodeBecomeLeader(struct SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
   vDebug("vgId:%d, become leader", pVnode->config.vgId);
 
-  // taosThreadMutexLock(&pVnode->lock);
-  // if (pVnode->blocked) {
-  //   pVnode->blocked = false;
-  //   tsem_post(&pVnode->syncSem);
-  // }
-  // taosThreadMutexUnlock(&pVnode->lock);
+#if 0
+  taosThreadMutexLock(&pVnode->lock);
+  if (pVnode->blocked) {
+    pVnode->blocked = false;
+    tsem_post(&pVnode->syncSem);
+  }
+  taosThreadMutexUnlock(&pVnode->lock);
+#endif
 }
 
 static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
@@ -674,19 +638,25 @@ static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
 int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
   SSyncInfo syncInfo = {
       .snapshotStrategy = SYNC_STRATEGY_WAL_FIRST,
-      //.snapshotStrategy = SYNC_STRATEGY_NO_SNAPSHOT,
       .batchSize = 1,
       .vgId = pVnode->config.vgId,
-      .isStandBy = pVnode->config.standby,
       .syncCfg = pVnode->config.syncCfg,
       .pWal = pVnode->pWal,
       .msgcb = NULL,
       .FpSendMsg = vnodeSyncSendMsg,
       .FpEqMsg = vnodeSyncEqMsg,
+      .FpEqCtrlMsg = vnodeSyncEqCtrlMsg,
   };
 
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s%ssync", path, TD_DIRSEP);
   syncInfo.pFsm = vnodeSyncMakeFsm(pVnode);
+
+  SSyncCfg *pCfg = &syncInfo.syncCfg;
+  vInfo("vgId:%d, start to open sync, replica:%d selfIndex:%d", pVnode->config.vgId, pCfg->replicaNum, pCfg->myIndex);
+  for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
+    SNodeInfo *pNode = &pCfg->nodeInfo[i];
+    vInfo("vgId:%d, index:%d ep:%s:%u", pVnode->config.vgId, i, pNode->nodeFqdn, pNode->nodePort);
+  }
 
   pVnode->sync = syncOpen(&syncInfo);
   if (pVnode->sync <= 0) {
@@ -701,11 +671,15 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
 }
 
 void vnodeSyncStart(SVnode *pVnode) {
+  vDebug("vgId:%d, start sync", pVnode->config.vgId);
   syncSetMsgCb(pVnode->sync, &pVnode->msgCb);
   syncStart(pVnode->sync);
 }
 
-void vnodeSyncClose(SVnode *pVnode) { syncStop(pVnode->sync); }
+void vnodeSyncClose(SVnode *pVnode) {
+  vDebug("vgId:%d, close sync", pVnode->config.vgId);
+  syncStop(pVnode->sync);
+}
 
 bool vnodeIsRoleLeader(SVnode *pVnode) { return syncGetMyRole(pVnode->sync) == TAOS_SYNC_STATE_LEADER; }
 

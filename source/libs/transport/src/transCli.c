@@ -439,12 +439,14 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
       tDebug("%s conn %p construct ahandle %p by %s", CONN_GET_INST_LABEL(pConn), pConn, transMsg.info.ahandle,
              TMSG_INFO(transMsg.msgType));
       if (transMsg.info.ahandle == NULL) {
-        transMsg.info.ahandle = transCtxDumpBrokenlinkVal(&pConn->ctx, (int32_t*)&(transMsg.msgType));
+        int32_t msgType = 0;
+        transMsg.info.ahandle = transCtxDumpBrokenlinkVal(&pConn->ctx, &msgType);
+        transMsg.msgType = msgType;
         tDebug("%s conn %p construct ahandle %p due to brokenlink", CONN_GET_INST_LABEL(pConn), pConn,
                transMsg.info.ahandle);
       }
     } else {
-      transMsg.info.ahandle = (pMsg->type != Release && pCtx) ? pCtx->ahandle : NULL;
+      transMsg.info.ahandle = (pMsg != NULL && pMsg->type != Release && pCtx) ? pCtx->ahandle : NULL;
     }
 
     if (pCtx == NULL || pCtx->pSem == NULL) {
@@ -1078,9 +1080,6 @@ static void cliPrepareCb(uv_prepare_t* handle) {
       QUEUE_REMOVE(h);
 
       SCliMsg* pMsg = QUEUE_DATA(h, SCliMsg, q);
-      if (pMsg == NULL) {
-        continue;
-      }
       (*cliAsyncHandle[pMsg->type])(pMsg, thrd);
       count++;
     }

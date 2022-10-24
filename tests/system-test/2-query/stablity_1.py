@@ -11,17 +11,18 @@
 
 # -*- coding: utf-8 -*-
 from util.cases import tdCases
-from .nestedQuery import *
+from .stablity import *
 
 class TDTestCase(TDTestCase):
 
-                        
     def run(self):
         tdSql.prepare()
         
         startTime = time.time() 
 
-        # self.function_before_26()       
+        self.function_before_26()    
+        
+        self.dropandcreateDB_random("%s" %self.db_nest, 1)   
                
         # self.math_nest(['UNIQUE'])
         # self.math_nest(['MODE']) 
@@ -43,29 +44,25 @@ class TDTestCase(TDTestCase):
         self.str_nest(['SUBSTR'])   
         self.str_nest(['CONCAT']) 
         self.str_nest(['CONCAT_WS']) 
-        # self.time_nest(['CAST']) #放到time里起来弄
-        # self.time_nest(['CAST_1'])
-        # self.time_nest(['CAST_2'])
-        # self.time_nest(['CAST_3'])
-        # self.time_nest(['CAST_4'])
+        self.time_nest(['CAST']) 
+        self.time_nest(['CAST_1'])
+        self.time_nest(['CAST_2'])
+        self.time_nest(['CAST_3'])
+        self.time_nest(['CAST_4'])
         
-        
-        
-        # self.time_nest(['NOW','TODAY']) 
-        # self.time_nest(['TIMEZONE']) 
-        # self.time_nest(['TIMETRUNCATE']) 
-        # self.time_nest(['TO_ISO8601'])
-        # self.time_nest(['TO_UNIXTIMESTAMP'])
-        # self.time_nest(['ELAPSED'])
-        # self.time_nest(['TIMEDIFF_1'])
-        # self.time_nest(['TIMEDIFF_2'])
-        
+        self.time_nest(['NOW','TODAY']) 
+        self.time_nest(['TIMEZONE']) 
+        self.time_nest(['TIMETRUNCATE']) 
+        self.time_nest(['TO_ISO8601'])
+        self.time_nest(['TO_UNIXTIMESTAMP'])
+        self.time_nest(['ELAPSED'])
+        self.time_nest(['TIMEDIFF_1'])
+        self.time_nest(['TIMEDIFF_2'])       
 
         endTime = time.time()
         print("total time %ds" % (endTime - startTime))
 
         
-
 
     def stop(self):
         tdSql.close()
