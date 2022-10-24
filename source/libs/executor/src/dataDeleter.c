@@ -53,22 +53,6 @@ typedef struct SDataDeleterHandle {
   TdThreadMutex       mutex;
 } SDataDeleterHandle;
 
-static bool needCompress(const SSDataBlock* pData, int32_t numOfCols) {
-  if (tsCompressColData < 0 || 0 == pData->info.rows) {
-    return false;
-  }
-
-  for (int32_t col = 0; col < numOfCols; ++col) {
-    SColumnInfoData* pColRes = taosArrayGet(pData->pDataBlock, col);
-    int32_t          colSize = pColRes->info.bytes * pData->info.rows;
-    if (NEEDTO_COMPRESS_QUERY(colSize)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 static void toDataCacheEntry(SDataDeleterHandle* pHandle, const SInputData* pInput, SDataDeleterBuf* pBuf) {
   int32_t numOfCols = LIST_LENGTH(pHandle->pSchema->pSlots);
 

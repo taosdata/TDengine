@@ -1086,7 +1086,7 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
 static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, bool keep,
                                                 int32_t status);
 
-void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColMatchInfo, SFilterInfo* pFilterInfo) {
+void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, SColMatchInfo* pColMatchInfo, SFilterInfo* pFilterInfo) {
   if (pFilterNode == NULL || pBlock->info.rows == 0) {
     return;
   }
@@ -1120,12 +1120,12 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColM
   extractQualifiedTupleByFilterResult(pBlock, p, keep, status);
 
   if (pColMatchInfo != NULL) {
-    for (int32_t i = 0; i < taosArrayGetSize(pColMatchInfo); ++i) {
-      SColMatchInfo* pInfo = taosArrayGet(pColMatchInfo, i);
+    for (int32_t i = 0; i < taosArrayGetSize(pColMatchInfo->pList); ++i) {
+      SColMatchItem* pInfo = taosArrayGet(pColMatchInfo->pList, i);
       if (pInfo->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-        SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, pInfo->targetSlotId);
+        SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, pInfo->dstSlotId);
         if (pColData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-          blockDataUpdateTsWindow(pBlock, pInfo->targetSlotId);
+          blockDataUpdateTsWindow(pBlock, pInfo->dstSlotId);
           break;
         }
       }
@@ -2799,7 +2799,7 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
       break;
     }
 
-    doFilter(pInfo->pCondition, fillResult, pInfo->pColMatchColInfo, NULL);
+    doFilter(pInfo->pCondition, fillResult, &pInfo->matchInfo, NULL);
     if (fillResult->info.rows > 0) {
       break;
     }
@@ -3087,7 +3087,7 @@ void destroyFillOperatorInfo(void* param) {
   cleanupExprSupp(&pInfo->noFillExprSupp);
 
   taosMemoryFreeClear(pInfo->p);
-  taosArrayDestroy(pInfo->pColMatchColInfo);
+  taosArrayDestroy(pInfo->matchInfo.pList);
   taosMemoryFreeClear(param);
 }
 
@@ -3231,8 +3231,8 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
   pInfo->primarySrcSlotId = ((SColumnNode*)((STargetNode*)pPhyFillNode->pWStartTs)->pExpr)->slotId;
 
   int32_t numOfOutputCols = 0;
-  pInfo->pColMatchColInfo = extractColMatchInfo(pPhyFillNode->pFillExprs, pPhyFillNode->node.pOutputDataBlockDesc,
-                                                &numOfOutputCols, COL_MATCH_FROM_SLOT_ID);
+  code = extractColMatchInfo(pPhyFillNode->pFillExprs, pPhyFillNode->node.pOutputDataBlockDesc, &numOfOutputCols,
+                             COL_MATCH_FROM_SLOT_ID, &pInfo->matchInfo);
 
   code = initFillInfo(pInfo, pExprInfo, pInfo->numOfExpr, pNoFillSupp->pExprInfo, pNoFillSupp->numOfExprs,
                       (SNodeListNode*)pPhyFillNode->pValues, pPhyFillNode->timeRange, pResultInfo->capacity,
