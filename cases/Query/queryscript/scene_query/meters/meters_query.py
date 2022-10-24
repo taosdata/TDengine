@@ -284,7 +284,7 @@ class TDTestQuery(TDCase):
         return time_window
         
     def data_check(self,sql) :
-        self.insert_data(self.db,1) #方便时时插入数据
+        #self.insert_data(self.db,1) #方便时时插入数据
         #判断sql执行结果，如果执行成功，判断返回rows，>0记录sql到文件， =0提示退出， sql执行不成功，则记录sql，不进入sql文件
         rows = 0;
         succ_flag = 0
@@ -1385,6 +1385,461 @@ class TDTestQuery(TDCase):
                         
                         #intreval
                         
+                        # for k in self.interval_lists:                            
+                        #     time_window = self.time_window(k)                            
+                                                
+                        #     sql2 = "select %s from %s where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select %s , %s from %s where  %s %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2) 
+                            
+                        #     sql2 = "select %s from %s where  %s %s %s %s %s  " %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s from %s where  %s %s %s %s %s  " %(func,self.table,data_filter,like_match_filter,in_filter,groupby_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s from %s where  %s %s %s %s %s  " %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s , %s from %s where  %s %s %s %s %s  " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s , %s from %s where  %s %s %s %s %s  " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,groupby_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s , %s from %s where  %s %s %s %s %s  " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s from %s where  %s %s %s %s %s %s  " %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s from %s where  %s %s %s %s %s %s  " %(func,self.table,data_filter,like_match_filter,in_filter,groupby_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s from %s where  %s %s %s %s %s %s  " %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s , %s from %s where  %s %s %s %s %s %s  " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s , %s from %s where  %s %s %s %s %s %s  " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,groupby_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s , %s from %s where  %s %s %s %s %s %s  " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s from (select * from %s where  %s %s %s %s) " %(func,self.table,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s from (select * from %s ) where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s , %s from (select * from %s where  %s %s %s %s) " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s , %s from (select * from %s ) where  %s %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s from (select * from %s where  %s %s %s %s %s) " %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s from (select * from %s ) where  %s %s %s  %s %s" %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s , %s from (select * from %s where  %s %s %s %s %s) " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s , %s from (select * from %s ) where  %s %s %s  %s %s" %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s from (select * from %s %s ) where  %s %s %s %s " %(func,self.table,orderby_filter,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s from %s %s ) where  %s %s %s %s " %(func,self.table,groupby_filter,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s from %s %s ) where  %s %s %s %s " %(func,self.table,partitonby_filter,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s , %s from (select * from %s %s ) where  %s %s %s %s " %(self.column_select(2),func,self.table,orderby_filter,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s , %s from %s %s ) where  %s %s %s %s " %(self.column_select(2),func,self.table,groupby_filter,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s , %s from %s %s ) where  %s %s %s %s " %(self.column_select(2),func,self.table,partitonby_filter,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s from (select * from %s %s ) where  %s %s %s  %s %s" %(func,self.table,orderby_filter,data_filter,like_match_filter,in_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s from %s %s ) where  %s %s %s  %s %s" %(func,self.table,groupby_filter,data_filter,like_match_filter,in_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s from %s %s ) where  %s %s %s  %s %s" %(func,self.table,partitonby_filter,data_filter,like_match_filter,in_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s , %s from (select * from %s %s ) where  %s %s %s  %s %s" %(self.column_select(2),func,self.table,orderby_filter,data_filter,like_match_filter,in_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s , %s from %s %s ) where  %s %s %s  %s %s" %(self.column_select(2),func,self.table,groupby_filter,data_filter,like_match_filter,in_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s , %s from %s %s ) where  %s %s %s  %s %s" %(self.column_select(2),func,self.table,partitonby_filter,data_filter,like_match_filter,in_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s from (select * from %s  where  %s %s %s ) where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s from (select * from %s where %s %s %s  %s) where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s from (select * from %s where %s %s %s  %s) where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s , %s from (select * from %s  where  %s %s %s ) where  %s %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s , %s from (select * from %s where %s %s %s  %s) where  %s %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s , %s from (select * from %s where %s %s %s  %s) where  %s %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s from (select * from %s  where  %s %s %s ) where  %s %s %s  %s %s" %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s from (select * from %s where %s %s %s  %s) where  %s %s %s  %s %s" %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,data_filter,like_match_filter,in_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s from (select * from %s where %s %s %s  %s) where  %s %s %s  %s %s" %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,data_filter,like_match_filter,in_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s , %s from (select * from %s  where  %s %s %s ) where  %s %s %s  %s %s" %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s , %s from (select * from %s where %s %s %s  %s) where  %s %s %s  %s %s" %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,data_filter,like_match_filter,in_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s , %s from (select * from %s where %s %s %s  %s) where  %s %s %s  %s %s" %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,data_filter,like_match_filter,in_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s from (select * from %s  where  %s %s %s  %s) where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s from (select * from %s where %s %s %s  %s %s) where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s from (select * from %s where %s %s %s  %s %s) where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s , %s from (select * from %s  where  %s %s %s  %s) where  %s %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s , %s from (select * from %s where %s %s %s  %s %s) where  %s %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                            
+                        #     sql2 = "select %s , %s from (select * from %s where %s %s %s  %s %s) where  %s %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,orderby_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,partitonby_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s , %s from %s  where  %s %s %s ) where  %s %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s , %s from %s  where  %s %s %s ) where  %s %s %s  %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,orderby_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s , %s from %s  where  %s %s %s ) where  %s %s %s  %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,partitonby_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s from %s  where  %s %s %s  %s ) where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s from %s  where  %s %s %s  %s ) where  %s %s %s  %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter,orderby_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s from %s  where  %s %s %s  %s ) where  %s %s %s  %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter,partitonby_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s , %s from %s  where  %s %s %s  %s ) where  %s %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s , %s from %s  where  %s %s %s  %s ) where  %s %s %s  %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter,orderby_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s , %s from %s  where  %s %s %s  %s ) where  %s %s %s  %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter,partitonby_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s , %s from %s  where  %s %s %s ) where  %s %s %s  %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s , %s from %s  where  %s %s %s ) where  %s %s %s  %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+                                                    
+                        #     sql2 = "select * from (select %s , %s from %s  where  %s %s %s ) where  %s %s %s  %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter,time_window)
+                        #     self.data_check(sql2)
+
+            except Exception as e:
+                raise e   
+        
+    def base_time_function(self,num):#thread_id
+        self.logger.info("\n=============func num = %s==============base_function==========================\n"%num)
+        
+        #for i in (1,2,3,4,5,):
+        for i in (num):
+            func = self.base_function_all(i)
+            try:                
+                self.tdSql.execute('use %s;' %self.db)            
+                self.logger.info("\n\n\n=======func num = %d======base_function======\n\n\n" %i)                
+                where_filters = self.where_filter()
+                for i in range(2,len(where_filters[0])+1):
+                    data_filter = list(combinations(where_filters[0],i))
+                    for data_filter in data_filter:
+                        data_filter = str(data_filter).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
+                        like_match_filter = where_filters[1]
+                        in_filter = where_filters[2] 
+                        orderby_filter = where_filters[3]  
+                        groupby_filter = where_filters[4] 
+                        partitonby_filter = where_filters[5] 
+                        limit_filter = where_filters[6]                       
+
+                        # sql2 = "select %s " %(func)
+                        # self.data_check(sql2)
+
+                        # sql2 = "select %s , %s " %(self.column_select(2),func)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select %s from %s where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select %s , %s from %s where  %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)                           
+                        
+                        # sql2 = "select %s from %s where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from %s where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,groupby_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from %s where  %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s , %s from %s where  %s %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,orderby_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s , %s from %s where  %s %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,groupby_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s , %s from %s where  %s %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from %s where  %s %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from %s where  %s %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,groupby_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from %s where  %s %s %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s , %s from %s where  %s %s %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s , %s from %s where  %s %s %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,groupby_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s , %s from %s where  %s %s %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s where  %s %s %s) " %(func,self.table,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s ) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s , %s from (select * from %s where  %s %s %s) " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s , %s from (select * from %s ) where  %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s where  %s %s %s %s) " %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s ) where  %s %s %s  %s" %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s , %s from (select * from %s where  %s %s %s %s) " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s , %s from (select * from %s ) where  %s %s %s  %s" %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s %s ) where  %s %s %s " %(func,self.table,orderby_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s from %s %s ) where  %s %s %s " %(func,self.table,groupby_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s from %s %s ) where  %s %s %s " %(func,self.table,partitonby_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s , %s from (select * from %s %s ) where  %s %s %s " %(self.column_select(2),func,self.table,orderby_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s , %s from %s %s ) where  %s %s %s " %(self.column_select(2),func,self.table,groupby_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s , %s from %s %s ) where  %s %s %s " %(self.column_select(2),func,self.table,partitonby_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s %s ) where  %s %s %s  %s" %(func,self.table,orderby_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s from %s %s ) where  %s %s %s  %s" %(func,self.table,groupby_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s from %s %s ) where  %s %s %s  %s" %(func,self.table,partitonby_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s , %s from (select * from %s %s ) where  %s %s %s  %s" %(self.column_select(2),func,self.table,orderby_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s , %s from %s %s ) where  %s %s %s  %s" %(self.column_select(2),func,self.table,groupby_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s , %s from %s %s ) where  %s %s %s  %s" %(self.column_select(2),func,self.table,partitonby_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s  where  %s %s %s ) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s where %s %s %s  %s) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s where %s %s %s  %s) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s , %s from (select * from %s  where  %s %s %s ) where  %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s , %s from (select * from %s where %s %s %s  %s) where  %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s , %s from (select * from %s where %s %s %s  %s) where  %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s  where  %s %s %s ) where  %s %s %s  %s" %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s where %s %s %s  %s) where  %s %s %s  %s" %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s where %s %s %s  %s) where  %s %s %s  %s" %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s , %s from (select * from %s  where  %s %s %s ) where  %s %s %s  %s" %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s , %s from (select * from %s where %s %s %s  %s) where  %s %s %s  %s" %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s , %s from (select * from %s where %s %s %s  %s) where  %s %s %s  %s" %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s  where  %s %s %s  %s) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s where %s %s %s  %s %s) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s from (select * from %s where %s %s %s  %s %s) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s , %s from (select * from %s  where  %s %s %s  %s) where  %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s , %s from (select * from %s where %s %s %s  %s %s) where  %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                        
+                        # sql2 = "select %s , %s from (select * from %s where %s %s %s  %s %s) where  %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,orderby_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,partitonby_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s , %s from %s  where  %s %s %s ) where  %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s , %s from %s  where  %s %s %s ) where  %s %s %s  %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,orderby_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s , %s from %s  where  %s %s %s ) where  %s %s %s  %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,partitonby_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s from %s  where  %s %s %s  %s ) where  %s %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s from %s  where  %s %s %s  %s ) where  %s %s %s  %s " %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter,orderby_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s from %s  where  %s %s %s  %s ) where  %s %s %s  %s " %(func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter,partitonby_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s , %s from %s  where  %s %s %s  %s ) where  %s %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s , %s from %s  where  %s %s %s  %s ) where  %s %s %s  %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter,orderby_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s , %s from %s  where  %s %s %s  %s ) where  %s %s %s  %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,limit_filter,data_filter,like_match_filter,in_filter,partitonby_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s from %s  where  %s %s %s ) where  %s %s %s  %s %s " %(func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s , %s from %s  where  %s %s %s ) where  %s %s %s  %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,limit_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s , %s from %s  where  %s %s %s ) where  %s %s %s  %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,orderby_filter,limit_filter)
+                        # self.data_check(sql2)
+                                                
+                        # sql2 = "select * from (select %s , %s from %s  where  %s %s %s ) where  %s %s %s  %s %s " %(self.column_select(2),func,self.table,data_filter,like_match_filter,in_filter,data_filter,like_match_filter,in_filter,partitonby_filter,limit_filter)
+                        # self.data_check(sql2)
+                        
+                        #intreval
+                        
                         for k in self.interval_lists:                            
                             time_window = self.time_window(k)                            
                                                 
@@ -1600,7 +2055,7 @@ class TDTestQuery(TDCase):
 
             except Exception as e:
                 raise e   
-            
+                        
     def base_function_1(self):
         base_function_1 = self.base_function([1,21,31,41,51,61,71,81,91])     
         return base_function_1
@@ -1642,43 +2097,43 @@ class TDTestQuery(TDCase):
         return base_function_10       
             
     def base_function_11(self):
-        base_function_11 = self.base_function([51,61,71,81,91,1,21,31,41])     
+        base_function_11 = self.base_time_function([51,61,71,81,91,1,21,31,41])     
         return base_function_11
             
     def base_function_12(self):
-        base_function_12 = self.base_function([52,62,72,82,92,2,22,32,42])      
+        base_function_12 = self.base_time_function([52,62,72,82,92,2,22,32,42])      
         return base_function_12
             
     def base_function_13(self):
-        base_function_13 = self.base_function([53,63,73,83,93,3,23,33,43])      
+        base_function_13 = self.base_time_function([53,63,73,83,93,3,23,33,43])      
         return base_function_13  
             
     def base_function_14(self):
-        base_function_14 = self.base_function([54,64,74,84,94,4,24,34,44])     
+        base_function_14 = self.base_time_function([54,64,74,84,94,4,24,34,44])     
         return base_function_14
             
     def base_function_15(self):
-        base_function_15 = self.base_function([55,65,75,85,95,5,25,35,45])      
+        base_function_15 = self.base_time_function([55,65,75,85,95,5,25,35,45])      
         return base_function_15
             
     def base_function_16(self):
-        base_function_16 = self.base_function([56,66,76,86,96,6,26,36,46])      
+        base_function_16 = self.base_time_function([56,66,76,86,96,6,26,36,46])      
         return base_function_16 
             
     def base_function_17(self):
-        base_function_17 = self.base_function([57,67,77,87,97,7,27,37,47])     
+        base_function_17 = self.base_time_function([57,67,77,87,97,7,27,37,47])     
         return base_function_17
             
     def base_function_18(self):
-        base_function_18 = self.base_function([58,68,78,88,98,8,28,38,48])      
+        base_function_18 = self.base_time_function([58,68,78,88,98,8,28,38,48])      
         return base_function_18
             
     def base_function_19(self):
-        base_function_19 = self.base_function([59,69,79,89,99,9,29,39,49])      
+        base_function_19 = self.base_time_function([59,69,79,89,99,9,29,39,49])      
         return base_function_19   
             
     def base_function_20(self):
-        base_function_20 = self.base_function([50,60,70,80,90,10,20,30,40])      
+        base_function_20 = self.base_time_function([50,60,70,80,90,10,20,30,40])      
         return base_function_20  
                
     def rm_sql(self):
