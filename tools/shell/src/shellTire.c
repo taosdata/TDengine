@@ -356,9 +356,9 @@ void enumFromTree(STire* tire, SMatch* match) {
     }
 
     // this branch have data
-    if (c->end)
+    if (c->end) {
       addWordToMatch(match, pre);
-    else {
+    } else {
       matchPrefix(tire, pre, match);
     }
   }
