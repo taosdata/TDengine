@@ -3712,7 +3712,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
     SListCell           *cell = node->pParameterList->pHead;
     for (int32_t i = 0; i < node->pParameterList->length; ++i) {
       if (NULL == cell || NULL == cell->pNode) {
-        fltError("invalid cell, cell:%p, pNode:%p", cell, cell->pNode);
+        fltError("invalid cell");
         stat->code = TSDB_CODE_QRY_INVALID_INPUT;
         return DEAL_RES_ERROR;
       }
