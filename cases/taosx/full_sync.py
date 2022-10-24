@@ -45,7 +45,7 @@ class StaticFullSync(TDCase):
         self.stbname = [self.tdCom.get_long_name(3),self.tdCom.get_long_name(3)]
         self.tbname_m = [self.tdCom.get_long_name(1),self.tdCom.get_long_name(1)]
         self.tb_num = 100
-        self.row_num = 500
+        self.row_num = 100
         self.start_timestamp = "2020-10-01 00:00:00.000"
         self.drop_flag = 'yes'
         self.child_table_exist_flag = 'no'
@@ -214,7 +214,7 @@ class StaticFullSync(TDCase):
         # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)
         self.full_sync_db_stb('db')
         self.full_sync_db_stb('stable')
-        self.full_sync_ctb()
+        # self.full_sync_ctb()
         # self.full_sync_ntb()
 
     def cleanup(self):

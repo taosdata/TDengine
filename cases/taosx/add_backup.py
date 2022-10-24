@@ -271,7 +271,7 @@ class AddBackup(TDCase):
         # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num,'create',self.ntb_starttimestamp)
         self.add_backup_db_stb('db')
         self.add_backup_db_stb('stb')
-        self.add_backup_ctb()
+        # self.add_backup_ctb()
         # self.add_backup_ntb()
     def cleanup(self):
         pass

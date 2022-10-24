@@ -1,0 +1,11 @@
+taostest --setup=taosx.yaml --case=taosx/full_sync.py --keep
+taostest --use=taosx.yaml --case=taosx/add_sync.py --keep
+# taostest --setup=taosx.yaml --case=taosx/delete_sync.py --keep
+taostest --use=taosx.yaml --case=taosx/update_sync.py --keep
+# taostest --setup=taosx.yaml --case=taosx/add_tag.py --keep
+taostest --use=taosx.yaml --case=taosx/full_backup.py --keep
+taostest --use=taosx.yaml --case=taosx/add_backup.py --keep
+taostest --use=taosx.yaml --case=taosx/update_backup.py --keep
+# taostest --setup=taosx.yaml --case=taosx/delete_backup.py --keep
+taostest --use=taosx.yaml --case=taosx/rename_table.py --keep
+taostest --use=taosx.yaml --case=taosx/data_export.py --keep

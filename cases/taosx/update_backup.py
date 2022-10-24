@@ -266,7 +266,7 @@ class UpdateBackup(TDCase):
         self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root)
         self.update_backup_db_stb('db')
         self.update_backup_db_stb('stable')
-        self.update_backup_ctb()
+        # self.update_backup_ctb()
         # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num,'create',self.start_timestamp)
         # self.update_backup_ntb()
     def cleanup(self):

@@ -15,6 +15,7 @@
 import json
 import os
 import threading
+import time
 from taostest import TDCase, T
 import taos
 from taostest.util.remote import Remote
@@ -154,6 +155,7 @@ class AddSync(TDCase):
                     thread.join()
                 backup_count_rows = []
                 backup_sum = []
+                time.sleep(0.5)
                 for source in range(len(self.source_taosd_list)):
                     taosd_master = taos.connect(host=self.source_taosd_list[source][0],port=int(self.source_taosd_list[source][1]))
                     master_rows = taosd_master.query(f'select count(*) from {self.dbname[source]}.{self.tbname_m[source]}0').fetch_all_into_dict()
@@ -217,7 +219,7 @@ class AddSync(TDCase):
         # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntbname_m,self.ntb_tbnum,self.ntb_rownum,'create',self.ntb_starttimestamp)
         self.add_sync_db_stb('db')
         self.add_sync_db_stb('stable')
-        self.add_sync_ctb()
+        # self.add_sync_ctb()
         # self.add_sync_ntb()
     def cleanup(self):
         pass
