@@ -383,6 +383,8 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
           snprintf(logBuf, sizeof(logBuf), "ignore, truncate error, append-index:%" PRId64, appendIndex);
           syncLogRecvAppendEntries(ths, pMsg, logBuf);
 
+          syncEntryDestory(pLocalEntry);
+          syncEntryDestory(pAppendEntry);
           goto _IGNORE;
         }
 
@@ -393,6 +395,8 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
           snprintf(logBuf, sizeof(logBuf), "ignore, append error, append-index:%" PRId64, appendIndex);
           syncLogRecvAppendEntries(ths, pMsg, logBuf);
 
+          syncEntryDestory(pLocalEntry);
+          syncEntryDestory(pAppendEntry);
           goto _IGNORE;
         }
       }
@@ -408,6 +412,8 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
           snprintf(logBuf, sizeof(logBuf), "ignore, log not exist, truncate error, append-index:%" PRId64, appendIndex);
           syncLogRecvAppendEntries(ths, pMsg, logBuf);
 
+          syncEntryDestory(pLocalEntry);
+          syncEntryDestory(pAppendEntry);
           goto _IGNORE;
         }
 
@@ -418,6 +424,8 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
           snprintf(logBuf, sizeof(logBuf), "ignore, log not exist, append error, append-index:%" PRId64, appendIndex);
           syncLogRecvAppendEntries(ths, pMsg, logBuf);
 
+          syncEntryDestory(pLocalEntry);
+          syncEntryDestory(pAppendEntry);
           goto _IGNORE;
         }
 
@@ -427,32 +435,11 @@ int32_t syncNodeOnAppendEntries(SSyncNode* ths, SyncAppendEntries* pMsg) {
         snprintf(logBuf, sizeof(logBuf), "ignore, get local entry error, append-index:%" PRId64, appendIndex);
         syncLogRecvAppendEntries(ths, pMsg, logBuf);
 
+        syncEntryDestory(pLocalEntry);
+        syncEntryDestory(pAppendEntry);
         goto _IGNORE;
       }
     }
-
-#if 0
-    if (code != 0 && terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
-      code = ths->pLogStore->syncLogTruncate(ths->pLogStore, appendIndex);
-      ASSERT(code == 0);
-
-      code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
-      ASSERT(code == 0);
-
-    } else {
-      ASSERT(code == 0);
-
-      if (pLocalEntry->term == pAppendEntry->term) {
-        // do nothing
-      } else {
-        code = ths->pLogStore->syncLogTruncate(ths->pLogStore, appendIndex);
-        ASSERT(code == 0);
-
-        code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pAppendEntry);
-        ASSERT(code == 0);
-      }
-    }
-#endif
 
     // update match index
     pReply->matchIndex = pAppendEntry->index;
