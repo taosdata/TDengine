@@ -2275,7 +2275,6 @@ int32_t tsCompressBool(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t
   } else if (cmprAlg == TWO_STAGE_COMP) {
     int32_t len = tsCompressBoolImp(pIn, nEle, pBuf);
     if (len < 0) {
-      strerror(errno));
       return -1;
     }
     return tsCompressStringImp(pBuf, len, pOut, nOut);
