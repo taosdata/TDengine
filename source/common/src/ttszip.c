@@ -187,7 +187,9 @@ void* tsBufDestroy(STSBuf* pTSBuf) {
 
   if (pTSBuf->autoDelete) {
     //    ("tsBuf %p destroyed, delete tmp file:%s", pTSBuf, pTSBuf->path);
-    taosRemoveFile(pTSBuf->path);
+    if (taosRemoveFile(pTSBuf->path) != 0) {
+      // tscError("tsBuf %p destroyed, failed to remove tmp file:%s", pTSBuf, pTSBuf->path);
+    }
   } else {
     //    tscDebug("tsBuf %p destroyed, tmp file:%s, remains", pTSBuf, pTSBuf->path);
   }
