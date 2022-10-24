@@ -955,9 +955,18 @@ class TDFunction():
     
                              
     # error      
+    def int_min_max_error(self):  
+        # not support all int type \ double type \        
+        hanshu = ['MIN','MAX']      
+        column = ['(*)','(q_bool)','(q_binary)','(q_nchar)','(q_ts)','(ts)','(_c0)','(_C0)'] 
+        hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
+        int_cloumn_error = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
+        
+        return int_cloumn_error  
+    
     def int_cloumn_error(self):  
         # not support all int type \ double type \        
-        hanshu = ['AVG','SUM','MIN','MAX','CEIL','FLOOR','ROUND']      
+        hanshu = ['AVG','SUM','CEIL','FLOOR','ROUND']      
         column = ['(*)','(_c0)','(_C0)','(q_ts)','(q_bool)','(q_binary)','(q_nchar)'] 
         hanshu_column = random.sample(hanshu,1)+random.sample(column,1)
         int_cloumn_error = str(hanshu_column).replace("[","").replace("]","").replace("'","").replace(", ","")
@@ -1014,6 +1023,8 @@ class TDFunction():
     
     def func_stable_error_all(self,i):   
         func_stable_error_all = ''
+        if i == 0:    
+            func_stable_error_all = self.int_min_max_error()
         if i == 1:    
             func_stable_error_all = self.int_cloumn_error()
         elif i == 2:

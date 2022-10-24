@@ -1,6 +1,8 @@
 """
 测试云服务 Python 连接器示例代码
-启动命令：tt --case=cloud/connector/python.py --use=cloud_test.yaml
+启动命令：
+tt --case=cloud/connector/python.py --use=cloud/cloud_aws.yaml
+tt --case=cloud/connector/python.py --use=cloud/cloud_gcp.yaml
 """
 import os
 
@@ -10,7 +12,7 @@ from taostest import TDCase, T
 class Python(TDCase):
     def init(self):
         os.system("pip3 uninstall -y taospy")
-        os.system('pip3 install "taospy<=3.0.0"')
+        os.system('pip3 install -U taospy')
 
     def cleanup(self):
         pass

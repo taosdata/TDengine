@@ -196,6 +196,8 @@ class TDWhere():
         t_like = ['t_binary like \'binary_\' and','t_binary like \'0%\' and','t_nchar like \'nchar_\' and','t_nchar like \'0%\' and',]
         t_match = ['t_binary nmatch \'binary\' and','t_binary match \'binarynchar\' and','t_nchar nmatch \'nchar\' and','t_nchar match \'binarynchar\' and',]
         t_like_match = random.sample(t_like,1) + random.sample(t_match,1)
+        t_match_regular = ['tbname match \'[elbats]\' and', 'tbname match \'[^qwertyuiopzxcvnmdfghj]\' and',]
+        t_like_match = random.sample(t_like,1) + random.sample(t_match,1) + random.sample(t_match_regular,2)
         t_like_match_null = random.sample(t_like_match,1)
 
         t_tinyint_list=[]

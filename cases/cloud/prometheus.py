@@ -4,7 +4,9 @@
 启动 prometheus， 检查输出是否包括： Server is ready to receive web requests
 测试 remote read 的方法：
 启动 promql-cli 执行查询，不抛异常则成功
-启动命令： tt --case=cloud/prometheus.py --use=cloud_test.yaml
+启动命令：
+tt --case=cloud/prometheus.py --use=cloud/cloud_aws.yaml
+tt --case=cloud/prometheus.py --use=cloud/cloud_gcp.yaml
 """
 
 from taostest import TDCase, T

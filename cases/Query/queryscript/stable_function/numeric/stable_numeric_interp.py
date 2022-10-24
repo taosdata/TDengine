@@ -28,6 +28,17 @@ class TDTestQuery(TDCase):
     def init(self):
         super(TDTestQuery, self).init()
         self.tdCreateData = TDCreateData(self.tdSql, self.logger)
+        
+        self.firstEP = []
+        for env_setting in self.env_setting["settings"]:
+            if env_setting["name"].lower() == "taosd":
+                self.taosd_setting = env_setting
+                self.firstEP.append(
+                    self.taosd_setting['spec']['config']['firstEP'])
+        self.target_taosd = self.firstEP[-1].split(':')
+        print(self.target_taosd[0])
+        self.service_host = self.target_taosd[0]
+        
 
     def tags(self) :
 	
@@ -39,14 +50,14 @@ class TDTestQuery(TDCase):
 
     def desc(self) -> str:
         case_description = '''
-        case1:# not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
+        case1:# support all int type \ double type  [hanshu = ['INTERP']]
         case2:
         '''
         return case_description
 
     #basic_param
     db = "stable_interp"
-    service_host = ""
+    
     table_list = ['stable_1','stable_2',]
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
     table_null_list = ['stable_null_data','stable_null_childtable']
@@ -79,7 +90,7 @@ class TDTestQuery(TDCase):
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
                            
-        # 1: not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
+        # 1: support all int type \ double type  [hanshu = ['INTERP']]
         for i in (33,):
             func = tdFunction.func_stable_special(i)
             try:
@@ -125,7 +136,7 @@ class TDTestQuery(TDCase):
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
                            
-        # 1: not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
+        # 1: support all int type \ double type  [hanshu = ['INTERP']]
         for i in (33,):
             func = tdFunction.func_stable_special(i)
             try:
@@ -171,7 +182,7 @@ class TDTestQuery(TDCase):
         cur1 = case_common[1]
         sql = 'Count the number of sqls'         
                            
-        # 1: not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
+        # 1: support all int type \ double type  [hanshu = ['INTERP']]
         for i in (33,):
             func = tdFunction.func_stable_special(i)
             try:
@@ -396,7 +407,7 @@ class TDTestQuery(TDCase):
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
 
-        # 1: not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
+        # 1: support all int type \ double type  [hanshu = ['INTERP']]
         for i in (33,):
             func = tdFunction.func_stable_special(i)
             func_desc = func # for desc
@@ -486,7 +497,7 @@ class TDTestQuery(TDCase):
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
 
-        # 1: not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
+        # 1: support all int type \ double type  [hanshu = ['INTERP']]
         for i in (33,):
             func = tdFunction.func_stable_special(i)
             func_desc = func # for desc
@@ -592,7 +603,7 @@ class TDTestQuery(TDCase):
         cur1 = case_common[1]        
         sql = 'Count the number of sqls'       
 
-        # 1: not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
+        # 1: support all int type \ double type  [hanshu = ['INTERP']]
         for i in (33,):
             func = tdFunction.func_stable_special(i)
             func_desc = func # for desc
@@ -1179,7 +1190,7 @@ class TDTestQuery(TDCase):
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
                    
-        # 1: not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
+        # 1: support all int type \ double type  [hanshu = ['INTERP']]
         for i in (33,):
             func = tdFunction.func_stable_special(i)
             try:
@@ -1227,7 +1238,7 @@ class TDTestQuery(TDCase):
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
                    
-        # 1: not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
+        # 1: support all int type \ double type  [hanshu = ['INTERP']]
         for i in (33,):
             func = tdFunction.func_stable_special(i)
             try:
@@ -1273,7 +1284,7 @@ class TDTestQuery(TDCase):
         cur1 = case_common[1]       
         sql = 'Count the number of sqls'
                    
-        # 1: not support stable, if support should together with groupby tbname.  support all int type \ double type  [hanshu = ['TWA','DIFF','IRATE','CSUM','INTERP']]
+        # 1: support all int type \ double type  [hanshu = ['INTERP']]
         for i in (33,):
             func = tdFunction.func_stable_special(i)
             try:

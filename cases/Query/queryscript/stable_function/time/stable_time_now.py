@@ -29,6 +29,16 @@ class TDTestQuery(TDCase):
     def init(self):
         super(TDTestQuery, self).init()
         self.tdCreateData = TDCreateData(self.tdSql, self.logger)
+        
+        self.firstEP = []
+        for env_setting in self.env_setting["settings"]:
+            if env_setting["name"].lower() == "taosd":
+                self.taosd_setting = env_setting
+                self.firstEP.append(
+                    self.taosd_setting['spec']['config']['firstEP'])
+        self.target_taosd = self.firstEP[-1].split(':')
+        print(self.target_taosd[0])
+        self.service_host = self.target_taosd[0]
 
     def tags(self) :
 	
@@ -46,11 +56,11 @@ class TDTestQuery(TDCase):
         return case_description
 
     #basic_param
-    db = "stable_time"
-    db_1 = "stable_time_1"
-    db_2 = "stable_time_2"
-    db_3 = "stable_time_3"
-    service_host = ""
+    db = "stable_now"
+    db_1 = "stable_now_1"
+    db_2 = "stable_now_2"
+    db_3 = "stable_now_3"
+    
     table_list = ['stable_1','stable_2',]
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
     table_null_list = ['stable_null_data','stable_null_childtable']

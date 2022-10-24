@@ -28,6 +28,16 @@ class TDTestQuery(TDCase):
         super(TDTestQuery, self).init()
         self.tdCreateData = TDCreateData(self.tdSql, self.logger)
         
+        self.firstEP = []
+        for env_setting in self.env_setting["settings"]:
+            if env_setting["name"].lower() == "taosd":
+                self.taosd_setting = env_setting
+                self.firstEP.append(
+                    self.taosd_setting['spec']['config']['firstEP'])
+        self.target_taosd = self.firstEP[-1].split(':')
+        print(self.target_taosd[0])
+        self.service_host = self.target_taosd[0]
+        
     def desc(self) -> str:
         case_description = '''
         case1<xyguo>:select * from regular_table_1 where condition union all select * from regular_table_2[null data] where condition && select * from ( union all )
@@ -57,7 +67,7 @@ class TDTestQuery(TDCase):
     db_2_2 = "stable_union_2_2"
     db_3 = "stable_union_3"
     db_4 = "stable_union_4"
-    service_host = ""
+   
     table_list = ['stable_1','stable_2',]
     table = str(random.sample(table_list,1)).replace("[","").replace("]","").replace("'","")
     table_null_list = ['stable_null_data','stable_null_childtable']

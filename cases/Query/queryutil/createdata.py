@@ -35,6 +35,7 @@ class TDCreateData():
         self._remote: Remote = Remote(self.logger)
         self.tdCommon = TDCom(self.tdSql)
         self._remote._logger.info("********")
+        
 
     def desc(self) -> str:
         case_description = '''
@@ -779,33 +780,43 @@ class TDCreateData():
         sql_analyze_ratio_verbose_true = sql 
         sql_analyze_ratio_verbose_false = sql 
         
-        sql = "explain " + sql 
-        self.tdSql.query(sql) 
-        # sql_verbose_true = "explain verbose true " + sql_verbose_true 
-        # self.tdSql.query(sql_verbose_true) 
-        # sql_verbose_false = "explain verbose false " + sql_verbose_false 
-        # self.tdSql.query(sql_verbose_false)
+        i = random.randint(1,5)
         
-        # sql_ratio = "explain ratio {}".format(ratio) + sql_ratio 
-        # self.tdSql.query(sql_ratio) 
-        # sql_ratio_verbose_true = "explain ratio 0.05 verbose true " + sql_ratio_verbose_true 
-        # self.tdSql.query(sql_ratio_verbose_true) 
-        # sql_ratio_verbose_false = "explain ratio 0.05 verbose false " + sql_ratio_verbose_false 
-        # self.tdSql.query(sql_ratio_verbose_false)
+        if i==1:
         
-        # sql_analyze = "explain analyze " + sql_analyze 
-        # self.tdSql.query(sql_analyze)
-        # sql_analyze_verbose_true = "explain analyze verbose false " + sql_analyze_verbose_true 
-        # self.tdSql.query(sql_analyze_verbose_true)
-        # sql_analyze_verbose_false = "explain analyze verbose false " + sql_analyze_verbose_false 
-        # self.tdSql.query(sql_analyze_verbose_false)
+            sql = "explain " + sql 
+            self.tdSql.query(sql) 
+            sql_verbose_true = "explain verbose true " + sql_verbose_true 
+            self.tdSql.query(sql_verbose_true) 
+            sql_verbose_false = "explain verbose false " + sql_verbose_false 
+            self.tdSql.query(sql_verbose_false)
         
-        # sql_analyze_ratio = "explain analyze ratio {}".format(ratio) + sql_analyze_ratio 
-        # self.tdSql.query(sql_analyze_ratio)
-        # sql_analyze_ratio_verbose_true = "explain analyze ratio {} verbose false ".format(ratio) + sql_analyze_ratio_verbose_true 
-        # self.tdSql.query(sql_analyze_ratio_verbose_true)
-        # sql_analyze_ratio_verbose_false = "explain analyze ratio {} verbose false ".format(ratio) + sql_analyze_ratio_verbose_false 
-        # self.tdSql.query(sql_analyze_ratio_verbose_false)
+        elif i ==2:
+            
+            sql_ratio = "explain ratio {} ".format(ratio) + sql_ratio 
+            self.tdSql.query(sql_ratio) 
+            sql_ratio_verbose_true = "explain ratio 0.05 verbose true " + sql_ratio_verbose_true 
+            self.tdSql.query(sql_ratio_verbose_true) 
+            sql_ratio_verbose_false = "explain ratio 0.05 verbose false " + sql_ratio_verbose_false 
+            self.tdSql.query(sql_ratio_verbose_false)
+        
+        elif i ==3:
+            
+            sql_analyze = "explain analyze " + sql_analyze 
+            self.tdSql.query(sql_analyze)
+            sql_analyze_verbose_true = "explain analyze verbose true " + sql_analyze_verbose_true 
+            self.tdSql.query(sql_analyze_verbose_true)
+            sql_analyze_verbose_false = "explain analyze verbose false " + sql_analyze_verbose_false 
+            self.tdSql.query(sql_analyze_verbose_false)
+        
+        else:
+            
+            sql_analyze_ratio = "explain analyze ratio {} ".format(ratio) + sql_analyze_ratio 
+            self.tdSql.query(sql_analyze_ratio)
+            sql_analyze_ratio_verbose_true = "explain analyze ratio {} verbose true ".format(ratio) + sql_analyze_ratio_verbose_true 
+            self.tdSql.query(sql_analyze_ratio_verbose_true)
+            sql_analyze_ratio_verbose_false = "explain analyze ratio {} verbose false ".format(ratio) + sql_analyze_ratio_verbose_false 
+            self.tdSql.query(sql_analyze_ratio_verbose_false)
         
     def taos_f(self,service_host,testcasePath,testcaseFilename):   
         #执行taos_f 导入解析            
@@ -816,13 +827,15 @@ class TDCreateData():
         # testcaseFilename = os.path.split(__file__)[-1]
         # taos_cmd1 = "taos -h %s -f %s/%s.sql" % (service_host,testcasePath,testcaseFilename)
         # _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
-        service_host = "ceph01"
+        #service_host = "ceph01"
+        
         taos_cmd1 = "taos -h %s -f %s/%s.sql" % (service_host,testcasePath,testcaseFilename)
         _ = subprocess.check_output(taos_cmd1, shell=True).decode("utf-8")
         self.logger.info("sqlname :============= %s/%s.sql"% (testcasePath,testcaseFilename))
 
     def case_sql_subprocess_execute(self,service_host,db):
-        service_host = "ceph01"
+        #service_host = "ceph01"
+        
         conn1 = taos.connect(host="%s" %service_host, user="root", password="taosdata", config="/etc/taos/")
         cur1 = conn1.cursor()        
         cur1.execute('use %s;' %db)
@@ -921,7 +934,7 @@ class TDCreateData():
                 #self.logger.info("jjjj=%d"%j1)
                 #self.logger.info("data=%s" %(self.tdSql.getData(i1,j1)))
                 list1.append(self.tdSql.getData(i1,j1))
-            #self.logger.info("=====list1-------list1---=%s" %set(list1))
+            self.logger.info("=====list1-------list1---=%s" %set(list1))
         
         self.tdSql.execute("reset query cache;") #TD=16766
         self.sql2 = sql2  
@@ -933,7 +946,7 @@ class TDCreateData():
                 #self.logger.info("jjjj222=%d"%j2)
                 #self.logger.info("data=%s" %(self.tdSql.getData(i2,j2)))
                 list2.append(self.tdSql.getData(i2,j2))
-            #self.logger.info("=====list2-------list2---=%s" %set(list2)) 
+            self.logger.info("=====list2-------list2---=%s" %set(list2)) 
        
         if  (list1 == list2) and len(list2)>0:
             # self.logger.info(("=====matrix===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
@@ -942,7 +955,6 @@ class TDCreateData():
             # 解决不同子表排列结果乱序
             # self.logger.info(("=====list_issubset==matrix2in1-true===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("===matrix_issubset===sql1:'%s' matrix_set_result = sql2:'%s' matrix_set_result") %(sql1,sql2))
-        #elif abs(float(str(list1).replace("]","").replace("[","").replace("e+","")) - float(str(list2).replace("]","").replace("[","").replace("e+",""))) <= 0.0001:
         elif abs(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None","")) - float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None",""))) <= 0.0001:
             self.logger.info(("=====matrix_abs+e+===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("=====matrix_abs+e+replace_after===sql1.list1:'%s',sql2.list2:'%s'") %(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None","")),float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None",""))))
@@ -998,7 +1010,38 @@ class TDCreateData():
             #return self.tdSql.checkEqual(list1,self.tdSql.getData(i2,j2))
             return self.tdSql.checkEqual(list1,list2)
 
-
+    
+    def ignore_error_check(self,service_host,db,sql1,sql2):            
+        rows = -1;
+        case_common = self.case_sql_subprocess_execute(service_host,db)
+        cur1 = case_common[1]
+        
+        try:
+            self.tdSql.query(sql1,queryTimes=1)
+            self.tdSql.query(sql2,queryTimes=1)            
+            rows = self.tdSql.query(sql1).row_count   
+            if rows>=0:
+                rows_1 = rows 
+                rows_2 = self.tdSql.query(sql2).row_count 
+                if (rows_1 == 0) and (rows_2 == 0):
+                    self.logger.info(("=====sql1.rows:'%s',=====sql2.rows:'%s'") %(rows_1,rows_2))
+                    self.explain_sql(sql2) 
+                    cur1.execute(sql2)           
+                elif (rows_1 > 0 and rows_1 <= 10) and (rows_2 > 0 and rows_2 <= 10):
+                    self.logger.info(("=====sql1.rows:'%s',=====sql2.rows:'%s'") %(rows_1,rows_2))
+                    self.dataequal('%s' %sql1 ,1,1,'%s' %sql2 ,1,1)
+                    self.data_matrix_equal('%s' %sql1 ,1,int('%d' %rows_1),1,1,'%s' %sql2 ,1,int('%d' %rows_2),1,1)
+                    self.explain_sql(sql2)    
+                    cur1.execute(sql2)      
+                elif (rows_1 > 10 ) and (rows_2 > 10 ) and (rows_1 == rows_2) :
+                    self.logger.info(("=====sql1.rows:'%s',=====sql2.rows:'%s'") %(rows_1,rows_2))
+                    self.data_matrix_equal('%s' %sql1 ,1,10,1,1,'%s' %sql2 ,1,10,1,1)
+                    self.explain_sql(sql2)
+                    cur1.execute(sql2)
+        except:
+            self.tdSql.error(sql1)
+            self.tdSql.error(sql2)
+            self.logger.info("sql1 is not support :=====%s; sql2 is not support :=====%s; " %(sql1,sql2))
 
     def check_one_row_one_col_value(self, sql, row, col, oper, value, throw=True) -> bool:
         # oper : LT (小于)、GT（大于）、LE（小于等于）、GE（大于等于）、NE（不等于）、EQ（等于）。不区分大小写 val : 数值型

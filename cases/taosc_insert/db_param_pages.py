@@ -71,11 +71,15 @@ class TestPages(TDCase):
             self.tdSql.execute(f'drop database {dbname}')
         dbname = self.tdCom.get_long_name()
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')
-        self.tdSql.execute(f'create database {dbname}')
-        for i in [self.cfg["boundary"][0]-1,100.1,'abc',self.cfg["boundary"][0]]:
+        self.tdSql.execute(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0]}')
+        self.tdSql.execute(f'alter database {dbname} {test_param} {self.cfg["boundary"][0] + 1}')
+        self.tdSql.query('select * from information_schema.ins_databases')
+        db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
+        self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value + 1)
+        for i in [self.cfg["boundary"][0] - 1, 100.1, 'abc']:
             self.tdSql.error(f'alter database {dbname} pages {i}')
-        
         self.tdSql.execute(f'drop database {dbname}')
+        
     def run(self):
         self.pages_check()
 
