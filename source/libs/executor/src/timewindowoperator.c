@@ -1831,8 +1831,7 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPh
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
 
-  pOperator->fpSet = createOperatorFpSet(doOpenIntervalAgg, doBuildIntervalResult, NULL, NULL,
-                                         destroyIntervalOperatorInfo, aggEncodeResultRow, aggDecodeResultRow, NULL);
+  pOperator->fpSet = createOperatorFpSet(doOpenIntervalAgg, doBuildIntervalResult, NULL, NULL, destroyIntervalOperatorInfo, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2638,8 +2637,7 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode
   pOperator->info = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
 
-  pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doTimeslice, NULL, NULL, destroyTimeSliceOperatorInfo, NULL, NULL, NULL);
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTimeslice, NULL, NULL, destroyTimeSliceOperatorInfo, NULL);
 
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
 
@@ -2710,7 +2708,7 @@ SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWi
   pOperator->info = pInfo;
 
   pOperator->fpSet = createOperatorFpSet(openStateWindowAggOptr, doStateWindowAgg, NULL, NULL,
-                                         destroyStateWindowOperatorInfo, aggEncodeResultRow, aggDecodeResultRow, NULL);
+                                         destroyStateWindowOperatorInfo, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2784,7 +2782,7 @@ SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionW
   pOperator->info = pInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doSessionWindowAgg, NULL, NULL,
-                                         destroySWindowOperatorInfo, aggEncodeResultRow, aggDecodeResultRow, NULL);
+                                         destroySWindowOperatorInfo, NULL);
   pOperator->pTaskInfo = pTaskInfo;
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -3465,8 +3463,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   pOperator->info = pInfo;
 
   pOperator->fpSet =
-      createOperatorFpSet(NULL, doStreamFinalIntervalAgg, NULL, NULL, destroyStreamFinalIntervalOperatorInfo,
-                          aggEncodeResultRow, aggDecodeResultRow, NULL);
+      createOperatorFpSet(NULL, doStreamFinalIntervalAgg, NULL, NULL, destroyStreamFinalIntervalOperatorInfo, NULL);
   if (pPhyNode->type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SEMI_INTERVAL) {
     initIntervalDownStream(downstream, pPhyNode->type, &pInfo->aggSup, &pInfo->interval, &pInfo->twAggSup);
   }
@@ -4261,7 +4258,7 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
   pOperator->info = pInfo;
   pOperator->fpSet =
       createOperatorFpSet(operatorDummyOpenFn, doStreamSessionAgg, NULL, NULL, destroyStreamSessionAggOperatorInfo,
-                          aggEncodeResultRow, aggDecodeResultRow, NULL);
+                          NULL);
   if (downstream) {
     initDownStream(downstream, &pInfo->streamAggSup, pInfo->twAggSup.waterMark, pOperator->operatorType,
                    pInfo->primaryTsIndex);
@@ -4408,7 +4405,7 @@ SOperatorInfo* createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream
     pOperator->name = "StreamSessionSemiAggOperator";
     pOperator->fpSet =
         createOperatorFpSet(operatorDummyOpenFn, doStreamSessionSemiAgg, NULL, NULL,
-                            destroyStreamSessionAggOperatorInfo, aggEncodeResultRow, aggDecodeResultRow, NULL);
+                            destroyStreamSessionAggOperatorInfo, NULL);
   }
 
   pInfo->pGroupIdTbNameMap =
@@ -4777,7 +4774,7 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
   pOperator->pTaskInfo = pTaskInfo;
   pOperator->info = pInfo;
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doStreamStateAgg, NULL, NULL,
-                                         destroyStreamStateOperatorInfo, aggEncodeResultRow, aggDecodeResultRow, NULL);
+                                         destroyStreamStateOperatorInfo, NULL);
   initDownStream(downstream, &pInfo->streamAggSup, pInfo->twAggSup.waterMark, pOperator->operatorType,
                  pInfo->primaryTsIndex);
   code = appendDownstream(pOperator, &downstream, 1);
@@ -5054,7 +5051,7 @@ SOperatorInfo* createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream,
   pOperator->info = miaInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, mergeAlignedIntervalAgg, NULL, NULL,
-                                         destroyMAIOperatorInfo, NULL, NULL, NULL);
+                                         destroyMAIOperatorInfo, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -5366,7 +5363,7 @@ SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMerge
   pOperator->info = pMergeIntervalInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doMergeIntervalAgg, NULL, NULL,
-                                         destroyMergeIntervalOperatorInfo, NULL, NULL, NULL);
+                                         destroyMergeIntervalOperatorInfo, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -5599,7 +5596,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   pOperator->info = pInfo;
   pOperator->fpSet =
       createOperatorFpSet(operatorDummyOpenFn, doStreamIntervalAgg, NULL, NULL, destroyStreamFinalIntervalOperatorInfo,
-                          aggEncodeResultRow, aggDecodeResultRow, NULL);
+                          NULL);
 
   initIntervalDownStream(downstream, pPhyNode->type, &pInfo->aggSup, &pInfo->interval, &pInfo->twAggSup);
   code = appendDownstream(pOperator, &downstream, 1);

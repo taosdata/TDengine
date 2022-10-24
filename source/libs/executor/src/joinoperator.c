@@ -116,7 +116,7 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
   }
 
   pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doMergeJoin, NULL, NULL, destroyMergeJoinOperator, NULL, NULL, NULL);
+      createOperatorFpSet(operatorDummyOpenFn, doMergeJoin, NULL, NULL, destroyMergeJoinOperator, NULL);
   code = appendDownstream(pOperator, pDownstream, numOfDownstream);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;

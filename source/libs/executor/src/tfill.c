@@ -1624,7 +1624,6 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
     goto _error;
   }
 
-  SResultInfo* pResultInfo = &pOperator->resultInfo;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->pRes = createResDataBlock(pPhyFillNode->node.pOutputDataBlockDesc);
   pInfo->pSrcBlock = createResDataBlock(pPhyFillNode->node.pOutputDataBlockDesc);
@@ -1694,7 +1693,7 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
   pOperator->info = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doStreamFill, NULL, NULL, destroyStreamFillOperatorInfo,
-                                         NULL, NULL, NULL);
+                                         NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {

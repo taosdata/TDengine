@@ -839,7 +839,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableScan, NULL, NULL, destroyTableScanOperatorInfo,
-                                         NULL, NULL, getTableScannerExecInfo);
+                                         getTableScannerExecInfo);
 
   // for non-blocking operator, the open cost is always 0
   pOperator->cost.openCost = 0;
@@ -867,7 +867,7 @@ SOperatorInfo* createTableSeqScanOperatorInfo(void* pReadHandle, SExecTaskInfo* 
   pOperator->info = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
 
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableScanImpl, NULL, NULL, NULL, NULL, NULL, NULL);
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableScanImpl, NULL, NULL, NULL, NULL);
   return pOperator;
 }
 
@@ -988,7 +988,7 @@ SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SReadHandle* re
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doBlockInfoScan, NULL, NULL,
-                                         destroyBlockDistScanOperatorInfo, NULL, NULL, NULL);
+                                         destroyBlockDistScanOperatorInfo, NULL);
   return pOperator;
 
 _error:
@@ -2173,7 +2173,7 @@ SOperatorInfo* createRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pT
   pOperator->info = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
 
-  pOperator->fpSet = createOperatorFpSet(NULL, doRawScan, NULL, NULL, destroyRawScanOperatorInfo, NULL, NULL, NULL);
+  pOperator->fpSet = createOperatorFpSet(NULL, doRawScan, NULL, NULL, destroyRawScanOperatorInfo, NULL);
   return pOperator;
 
 _end:
@@ -2353,7 +2353,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
 
   __optr_fn_t nextFn = pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM ? doStreamScan : doQueueScan;
   pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, nextFn, NULL, NULL, destroyStreamScanOperatorInfo, NULL, NULL, NULL);
+      createOperatorFpSet(operatorDummyOpenFn, nextFn, NULL, NULL, destroyStreamScanOperatorInfo, NULL);
 
   return pOperator;
 
@@ -3926,7 +3926,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doSysTableScan, NULL, NULL, destroySysScanOperator, NULL, NULL, NULL);
+      createOperatorFpSet(operatorDummyOpenFn, doSysTableScan, NULL, NULL, destroySysScanOperator, NULL);
 
   return pOperator;
 
@@ -4063,7 +4063,7 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
 
   pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doTagScan, NULL, NULL, destroyTagScanOperatorInfo, NULL, NULL, NULL);
+      createOperatorFpSet(operatorDummyOpenFn, doTagScan, NULL, NULL, destroyTagScanOperatorInfo, NULL);
 
   return pOperator;
 
@@ -4603,9 +4603,8 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   pOperator->pTaskInfo = pTaskInfo;
   initResultSizeInfo(&pOperator->resultInfo, 1024);
 
-  pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doTableMergeScan, NULL, NULL, destroyTableMergeScanOperatorInfo, NULL,
-                          NULL, getTableMergeScanExplainExecInfo);
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableMergeScan, NULL, NULL,
+                                         destroyTableMergeScanOperatorInfo, getTableMergeScanExplainExecInfo);
   pOperator->cost.openCost = 0;
   return pOperator;
 
