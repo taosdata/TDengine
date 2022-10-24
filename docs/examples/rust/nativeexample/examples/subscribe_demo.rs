@@ -19,13 +19,13 @@ struct Record {
 async fn prepare(taos: Taos) -> anyhow::Result<()> {
     let inserted = taos.exec_many([
         // create child table
-        "CREATE TABLE `d0` USING `meters` TAGS(0, 'Los Angles')",
+        "CREATE TABLE `d0` USING `meters` TAGS(0, 'California.LosAngles')",
         // insert into child table
         "INSERT INTO `d0` values(now - 10s, 10, 116, 0.32)",
         // insert with NULL values
         "INSERT INTO `d0` values(now - 8s, NULL, NULL, NULL)",
         // insert and automatically create table with tags if not exists
-        "INSERT INTO `d1` USING `meters` TAGS(1, 'San Francisco') values(now - 9s, 10.1, 119, 0.33)",
+        "INSERT INTO `d1` USING `meters` TAGS(1, 'California.SanFrancisco') values(now - 9s, 10.1, 119, 0.33)",
         // insert many records in a single sql
         "INSERT INTO `d1` values (now-8s, 10, 120, 0.33) (now - 6s, 10, 119, 0.34) (now - 4s, 11.2, 118, 0.322)",
     ]).await?;
@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
         format!("CREATE DATABASE `{db}`"),
         format!("USE `{db}`"),
         // create super table
-        format!("CREATE TABLE `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` BINARY(16))"),
+        format!("CREATE TABLE `meters` (`ts` TIMESTAMP, `current` FLOAT, `voltage` INT, `phase` FLOAT) TAGS (`groupid` INT, `location` BINARY(24))"),
         // create topic for subscription
         format!("CREATE TOPIC tmq_meters with META AS DATABASE {db}")
     ])

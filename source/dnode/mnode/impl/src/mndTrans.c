@@ -17,15 +17,15 @@
 #include "mndTrans.h"
 #include "mndConsumer.h"
 #include "mndDb.h"
-#include "mndStb.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
+#include "mndStb.h"
 #include "mndSync.h"
 #include "mndUser.h"
 
 #define TRANS_VER_NUMBER   1
 #define TRANS_ARRAY_SIZE   8
-#define TRANS_RESERVE_SIZE 64
+#define TRANS_RESERVE_SIZE 48
 
 static SSdbRaw *mndTransActionEncode(STrans *pTrans);
 static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw);
@@ -53,7 +53,7 @@ static bool    mndTransPerformCommitActionStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerformCommitStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans);
-static bool    mndCannotExecuteTransAction(SMnode *pMnode) { return !pMnode->deploy && !mndIsMaster(pMnode); }
+static bool    mndCannotExecuteTransAction(SMnode *pMnode) { return !pMnode->deploy && !mndIsLeader(pMnode); }
 
 static void    mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans);
 static int32_t mndProcessTransTimer(SRpcMsg *pReq);
@@ -127,8 +127,8 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
   SDB_SET_INT8(pRaw, dataPos, 0, _OVER)
   SDB_SET_INT16(pRaw, dataPos, pTrans->originRpcType, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pTrans->createdTime, _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pTrans->dbname1, TSDB_TABLE_FNAME_LEN, _OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pTrans->dbname2, TSDB_TABLE_FNAME_LEN, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pTrans->dbname, TSDB_TABLE_FNAME_LEN, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pTrans->stbname, TSDB_TABLE_FNAME_LEN, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pTrans->redoActionPos, _OVER)
 
   int32_t redoActionNum = taosArrayGetSize(pTrans->redoActions);
@@ -138,6 +138,7 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
   SDB_SET_INT32(pRaw, dataPos, undoActionNum, _OVER)
   SDB_SET_INT32(pRaw, dataPos, commitActionNum, _OVER)
 
+  int8_t unused = 0;
   for (int32_t i = 0; i < redoActionNum; ++i) {
     STransAction *pAction = taosArrayGet(pTrans->redoActions, i);
     SDB_SET_INT32(pRaw, dataPos, pAction->id, _OVER)
@@ -149,14 +150,14 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
     SDB_SET_INT8(pRaw, dataPos, pAction->reserved, _OVER)
     if (pAction->actionType == TRANS_ACTION_RAW) {
       int32_t len = sdbGetRawTotalSize(pAction->pRaw);
-      SDB_SET_INT8(pRaw, dataPos, pAction->rawWritten, _OVER)
+      SDB_SET_INT8(pRaw, dataPos, unused /*pAction->rawWritten*/, _OVER)
       SDB_SET_INT32(pRaw, dataPos, len, _OVER)
       SDB_SET_BINARY(pRaw, dataPos, (void *)pAction->pRaw, len, _OVER)
     } else if (pAction->actionType == TRANS_ACTION_MSG) {
       SDB_SET_BINARY(pRaw, dataPos, (void *)&pAction->epSet, sizeof(SEpSet), _OVER)
       SDB_SET_INT16(pRaw, dataPos, pAction->msgType, _OVER)
-      SDB_SET_INT8(pRaw, dataPos, pAction->msgSent, _OVER)
-      SDB_SET_INT8(pRaw, dataPos, pAction->msgReceived, _OVER)
+      SDB_SET_INT8(pRaw, dataPos, unused /*pAction->msgSent*/, _OVER)
+      SDB_SET_INT8(pRaw, dataPos, unused /*pAction->msgReceived*/, _OVER)
       SDB_SET_INT32(pRaw, dataPos, pAction->contLen, _OVER)
       SDB_SET_BINARY(pRaw, dataPos, pAction->pCont, pAction->contLen, _OVER)
     } else {
@@ -175,14 +176,14 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
     SDB_SET_INT8(pRaw, dataPos, pAction->reserved, _OVER)
     if (pAction->actionType == TRANS_ACTION_RAW) {
       int32_t len = sdbGetRawTotalSize(pAction->pRaw);
-      SDB_SET_INT8(pRaw, dataPos, pAction->rawWritten, _OVER)
+      SDB_SET_INT8(pRaw, dataPos, unused /*pAction->rawWritten*/, _OVER)
       SDB_SET_INT32(pRaw, dataPos, len, _OVER)
       SDB_SET_BINARY(pRaw, dataPos, (void *)pAction->pRaw, len, _OVER)
     } else if (pAction->actionType == TRANS_ACTION_MSG) {
       SDB_SET_BINARY(pRaw, dataPos, (void *)&pAction->epSet, sizeof(SEpSet), _OVER)
       SDB_SET_INT16(pRaw, dataPos, pAction->msgType, _OVER)
-      SDB_SET_INT8(pRaw, dataPos, pAction->msgSent, _OVER)
-      SDB_SET_INT8(pRaw, dataPos, pAction->msgReceived, _OVER)
+      SDB_SET_INT8(pRaw, dataPos, unused /*pAction->msgSent*/, _OVER)
+      SDB_SET_INT8(pRaw, dataPos, unused /*pAction->msgReceived*/, _OVER)
       SDB_SET_INT32(pRaw, dataPos, pAction->contLen, _OVER)
       SDB_SET_BINARY(pRaw, dataPos, pAction->pCont, pAction->contLen, _OVER)
     } else {
@@ -201,14 +202,14 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
     SDB_SET_INT8(pRaw, dataPos, pAction->reserved, _OVER)
     if (pAction->actionType == TRANS_ACTION_RAW) {
       int32_t len = sdbGetRawTotalSize(pAction->pRaw);
-      SDB_SET_INT8(pRaw, dataPos, pAction->rawWritten, _OVER)
+      SDB_SET_INT8(pRaw, dataPos, unused /*pAction->rawWritten*/, _OVER)
       SDB_SET_INT32(pRaw, dataPos, len, _OVER)
       SDB_SET_BINARY(pRaw, dataPos, (void *)pAction->pRaw, len, _OVER)
     } else if (pAction->actionType == TRANS_ACTION_MSG) {
       SDB_SET_BINARY(pRaw, dataPos, (void *)&pAction->epSet, sizeof(SEpSet), _OVER)
       SDB_SET_INT16(pRaw, dataPos, pAction->msgType, _OVER)
-      SDB_SET_INT8(pRaw, dataPos, pAction->msgSent, _OVER)
-      SDB_SET_INT8(pRaw, dataPos, pAction->msgReceived, _OVER)
+      SDB_SET_INT8(pRaw, dataPos, unused /*pAction->msgSent*/, _OVER)
+      SDB_SET_INT8(pRaw, dataPos, unused /*pAction->msgReceived*/, _OVER)
       SDB_SET_INT32(pRaw, dataPos, pAction->contLen, _OVER)
       SDB_SET_BINARY(pRaw, dataPos, pAction->pCont, pAction->contLen, _OVER)
     } else {
@@ -223,6 +224,7 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
     SDB_SET_BINARY(pRaw, dataPos, pTrans->param, pTrans->paramLen, _OVER)
   }
 
+  SDB_SET_BINARY(pRaw, dataPos, pTrans->opername, TSDB_TRANS_OPER_LEN, _OVER)
   SDB_SET_RESERVE(pRaw, dataPos, TRANS_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
@@ -289,8 +291,8 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
   pTrans->oper = oper;
   SDB_GET_INT16(pRaw, dataPos, &pTrans->originRpcType, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pTrans->createdTime, _OVER)
-  SDB_GET_BINARY(pRaw, dataPos, pTrans->dbname1, TSDB_TABLE_FNAME_LEN, _OVER)
-  SDB_GET_BINARY(pRaw, dataPos, pTrans->dbname2, TSDB_TABLE_FNAME_LEN, _OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pTrans->dbname, TSDB_TABLE_FNAME_LEN, _OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pTrans->stbname, TSDB_TABLE_FNAME_LEN, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pTrans->redoActionPos, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &redoActionNum, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &undoActionNum, _OVER)
@@ -304,7 +306,9 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
   if (pTrans->undoActions == NULL) goto _OVER;
   if (pTrans->commitActions == NULL) goto _OVER;
 
+  int8_t unused = 0;
   for (int32_t i = 0; i < redoActionNum; ++i) {
+    memset(&action, 0, sizeof(action));
     SDB_GET_INT32(pRaw, dataPos, &action.id, _OVER)
     SDB_GET_INT32(pRaw, dataPos, &action.errCode, _OVER)
     SDB_GET_INT32(pRaw, dataPos, &action.acceptableCode, _OVER)
@@ -315,19 +319,19 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
     action.stage = stage;
     SDB_GET_INT8(pRaw, dataPos, &action.reserved, _OVER)
     if (action.actionType == TRANS_ACTION_RAW) {
-      SDB_GET_INT8(pRaw, dataPos, &action.rawWritten, _OVER)
+      SDB_GET_INT8(pRaw, dataPos, &unused /*&action.rawWritten*/, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
       action.pRaw = taosMemoryMalloc(dataLen);
       if (action.pRaw == NULL) goto _OVER;
-      // mTrace("raw:%p, is created", pData);
+      mTrace("raw:%p, is created", action.pRaw);
       SDB_GET_BINARY(pRaw, dataPos, (void *)action.pRaw, dataLen, _OVER);
       if (taosArrayPush(pTrans->redoActions, &action) == NULL) goto _OVER;
       action.pRaw = NULL;
     } else if (action.actionType == TRANS_ACTION_MSG) {
       SDB_GET_BINARY(pRaw, dataPos, (void *)&action.epSet, sizeof(SEpSet), _OVER);
       SDB_GET_INT16(pRaw, dataPos, &action.msgType, _OVER)
-      SDB_GET_INT8(pRaw, dataPos, &action.msgSent, _OVER)
-      SDB_GET_INT8(pRaw, dataPos, &action.msgReceived, _OVER)
+      SDB_GET_INT8(pRaw, dataPos, &unused /*&action.msgSent*/, _OVER)
+      SDB_GET_INT8(pRaw, dataPos, &unused /*&action.msgReceived*/, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &action.contLen, _OVER)
       action.pCont = taosMemoryMalloc(action.contLen);
       if (action.pCont == NULL) goto _OVER;
@@ -340,6 +344,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
   }
 
   for (int32_t i = 0; i < undoActionNum; ++i) {
+    memset(&action, 0, sizeof(action));
     SDB_GET_INT32(pRaw, dataPos, &action.id, _OVER)
     SDB_GET_INT32(pRaw, dataPos, &action.errCode, _OVER)
     SDB_GET_INT32(pRaw, dataPos, &action.acceptableCode, _OVER)
@@ -350,19 +355,19 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
     action.stage = stage;
     SDB_GET_INT8(pRaw, dataPos, &action.reserved, _OVER)
     if (action.actionType == TRANS_ACTION_RAW) {
-      SDB_GET_INT8(pRaw, dataPos, &action.rawWritten, _OVER)
+      SDB_GET_INT8(pRaw, dataPos, &unused /*&action.rawWritten*/, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
       action.pRaw = taosMemoryMalloc(dataLen);
       if (action.pRaw == NULL) goto _OVER;
-      // mTrace("raw:%p, is created", action.pRaw);
+      mTrace("raw:%p, is created", action.pRaw);
       SDB_GET_BINARY(pRaw, dataPos, (void *)action.pRaw, dataLen, _OVER);
       if (taosArrayPush(pTrans->undoActions, &action) == NULL) goto _OVER;
       action.pRaw = NULL;
     } else if (action.actionType == TRANS_ACTION_MSG) {
       SDB_GET_BINARY(pRaw, dataPos, (void *)&action.epSet, sizeof(SEpSet), _OVER);
       SDB_GET_INT16(pRaw, dataPos, &action.msgType, _OVER)
-      SDB_GET_INT8(pRaw, dataPos, &action.msgSent, _OVER)
-      SDB_GET_INT8(pRaw, dataPos, &action.msgReceived, _OVER)
+      SDB_GET_INT8(pRaw, dataPos, &unused /*&action.msgSent*/, _OVER)
+      SDB_GET_INT8(pRaw, dataPos, &unused /*&action.msgReceived*/, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &action.contLen, _OVER)
       action.pCont = taosMemoryMalloc(action.contLen);
       if (action.pCont == NULL) goto _OVER;
@@ -375,6 +380,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
   }
 
   for (int32_t i = 0; i < commitActionNum; ++i) {
+    memset(&action, 0, sizeof(action));
     SDB_GET_INT32(pRaw, dataPos, &action.id, _OVER)
     SDB_GET_INT32(pRaw, dataPos, &action.errCode, _OVER)
     SDB_GET_INT32(pRaw, dataPos, &action.acceptableCode, _OVER)
@@ -385,19 +391,19 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
     action.stage = stage;
     SDB_GET_INT8(pRaw, dataPos, &action.reserved, _OVER)
     if (action.actionType) {
-      SDB_GET_INT8(pRaw, dataPos, &action.rawWritten, _OVER)
+      SDB_GET_INT8(pRaw, dataPos, &unused /*&action.rawWritten*/, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
       action.pRaw = taosMemoryMalloc(dataLen);
       if (action.pRaw == NULL) goto _OVER;
-      // mTrace("raw:%p, is created", action.pRaw);
+      mTrace("raw:%p, is created", action.pRaw);
       SDB_GET_BINARY(pRaw, dataPos, (void *)action.pRaw, dataLen, _OVER);
       if (taosArrayPush(pTrans->commitActions, &action) == NULL) goto _OVER;
       action.pRaw = NULL;
     } else if (action.actionType == TRANS_ACTION_MSG) {
       SDB_GET_BINARY(pRaw, dataPos, (void *)&action.epSet, sizeof(SEpSet), _OVER);
       SDB_GET_INT16(pRaw, dataPos, &action.msgType, _OVER)
-      SDB_GET_INT8(pRaw, dataPos, &action.msgSent, _OVER)
-      SDB_GET_INT8(pRaw, dataPos, &action.msgReceived, _OVER)
+      SDB_GET_INT8(pRaw, dataPos, &unused /*&action.msgSent*/, _OVER)
+      SDB_GET_INT8(pRaw, dataPos, &unused /*&action.msgReceived*/, _OVER)
       SDB_GET_INT32(pRaw, dataPos, &action.contLen, _OVER)
       action.pCont = taosMemoryMalloc(action.contLen);
       if (action.pCont == NULL) goto _OVER;
@@ -417,12 +423,13 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
     SDB_GET_BINARY(pRaw, dataPos, pTrans->param, pTrans->paramLen, _OVER);
   }
 
+  SDB_GET_BINARY(pRaw, dataPos, pTrans->opername, TSDB_TRANS_OPER_LEN, _OVER);
   SDB_GET_RESERVE(pRaw, dataPos, TRANS_RESERVE_SIZE, _OVER)
 
   terrno = 0;
 
 _OVER:
-  if (terrno != 0) {
+  if (terrno != 0 && pTrans != NULL) {
     mError("trans:%d, failed to parse from raw:%p since %s", pTrans->id, pRaw, terrstr());
     mndTransDropData(pTrans);
     taosMemoryFreeClear(pRow);
@@ -430,7 +437,9 @@ _OVER:
     return NULL;
   }
 
-  mTrace("trans:%d, decode from raw:%p, row:%p", pTrans->id, pRaw, pTrans);
+  if (pTrans != NULL) {
+    mTrace("trans:%d, decode from raw:%p, row:%p", pTrans->id, pRaw, pTrans);
+  }
   return pRow;
 }
 
@@ -452,6 +461,20 @@ static const char *mndTransStr(ETrnStage stage) {
       return "finished";
     default:
       return "invalid";
+  }
+}
+
+static void mndSetTransLastAction(STrans *pTrans, STransAction *pAction) {
+  if (pAction != NULL) {
+    pTrans->lastAction = pAction->id;
+    pTrans->lastMsgType = pAction->msgType;
+    pTrans->lastEpset = pAction->epSet;
+    pTrans->lastErrorNo = pAction->errCode;
+  } else {
+    pTrans->lastAction = 0;
+    pTrans->lastMsgType = 0;
+    memset(&pTrans->lastEpset, 0, sizeof(pTrans->lastEpset));
+    pTrans->lastErrorNo = 0;
   }
 }
 
@@ -582,12 +605,17 @@ void mndReleaseTrans(SMnode *pMnode, STrans *pTrans) {
   sdbRelease(pSdb, pTrans);
 }
 
-STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, const SRpcMsg *pReq) {
+STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, const SRpcMsg *pReq,
+                       const char *opername) {
   STrans *pTrans = taosMemoryCalloc(1, sizeof(STrans));
   if (pTrans == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to create transaction since %s", terrstr());
     return NULL;
+  }
+
+  if (opername != NULL) {
+    tstrncpy(pTrans->opername, opername, TSDB_TRANS_OPER_LEN);
   }
 
   pTrans->id = sdbGetMaxId(pMnode->pSdb, SDB_TRANS);
@@ -605,6 +633,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, 
       pTrans->pRpcArray == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to create transaction since %s", terrstr());
+    mndTransDrop(pTrans);
     return NULL;
   }
 
@@ -706,7 +735,7 @@ int32_t mndSetRpcInfoForDbTrans(SMnode *pMnode, SRpcMsg *pMsg, EOperType oper, c
     if (pIter == NULL) break;
 
     if (pTrans->oper == oper) {
-      if (strcasecmp(dbname, pTrans->dbname1) == 0) {
+      if (strcasecmp(dbname, pTrans->dbname) == 0) {
         mInfo("trans:%d, db:%s oper:%d matched with input", pTrans->id, dbname, oper);
         if (pTrans->pRpcArray == NULL) {
           pTrans->pRpcArray = taosArrayInit(1, sizeof(SRpcHandleInfo));
@@ -725,12 +754,12 @@ int32_t mndSetRpcInfoForDbTrans(SMnode *pMnode, SRpcMsg *pMsg, EOperType oper, c
   return code;
 }
 
-void mndTransSetDbName(STrans *pTrans, const char *dbname1, const char *dbname2) {
-  if (dbname1 != NULL) {
-    tstrncpy(pTrans->dbname1, dbname1, TSDB_TABLE_FNAME_LEN);
+void mndTransSetDbName(STrans *pTrans, const char *dbname, const char *stbname) {
+  if (dbname != NULL) {
+    tstrncpy(pTrans->dbname, dbname, TSDB_TABLE_FNAME_LEN);
   }
-  if (dbname2 != NULL) {
-    tstrncpy(pTrans->dbname2, dbname2, TSDB_TABLE_FNAME_LEN);
+  if (stbname != NULL) {
+    tstrncpy(pTrans->stbname, stbname, TSDB_TABLE_FNAME_LEN);
   }
 }
 
@@ -744,12 +773,12 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
     mError("trans:%d, failed to encode while sync trans since %s", pTrans->id, terrstr());
     return -1;
   }
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   mInfo("trans:%d, sync to other mnodes, stage:%s", pTrans->id, mndTransStr(pTrans->stage));
   int32_t code = mndSyncPropose(pMnode, pRaw, pTrans->id);
   if (code != 0) {
-    mError("trans:%d, failed to sync since %s", pTrans->id, terrstr());
+    mError("trans:%d, failed to sync, errno:%s code:%s", pTrans->id, terrstr(), tstrerror(code));
     sdbFreeRaw(pRaw);
     return -1;
   }
@@ -759,9 +788,9 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
   return 0;
 }
 
-static bool mndCheckDbConflict(const char *db, STrans *pTrans) {
-  if (db[0] == 0) return false;
-  if (strcasecmp(db, pTrans->dbname1) == 0 || strcasecmp(db, pTrans->dbname2) == 0) return true;
+static bool mndCheckDbConflict(const char *conflict, STrans *pTrans) {
+  if (conflict[0] == 0) return false;
+  if (strcasecmp(conflict, pTrans->dbname) == 0 || strcasecmp(conflict, pTrans->stbname) == 0) return true;
   return false;
 }
 
@@ -780,20 +809,29 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
     if (pNew->conflict == TRN_CONFLICT_DB) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
       if (pTrans->conflict == TRN_CONFLICT_DB || pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
-        if (mndCheckDbConflict(pNew->dbname1, pTrans)) conflict = true;
-        if (mndCheckDbConflict(pNew->dbname2, pTrans)) conflict = true;
+        if (mndCheckDbConflict(pNew->dbname, pTrans)) conflict = true;
+        if (mndCheckDbConflict(pNew->stbname, pTrans)) conflict = true;
       }
     }
     if (pNew->conflict == TRN_CONFLICT_DB_INSIDE) {
       if (pTrans->conflict == TRN_CONFLICT_GLOBAL) conflict = true;
       if (pTrans->conflict == TRN_CONFLICT_DB) {
-        if (mndCheckDbConflict(pNew->dbname1, pTrans)) conflict = true;
-        if (mndCheckDbConflict(pNew->dbname2, pTrans)) conflict = true;
+        if (mndCheckDbConflict(pNew->dbname, pTrans)) conflict = true;
+        if (mndCheckDbConflict(pNew->stbname, pTrans)) conflict = true;
+      }
+      if (pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
+        if (mndCheckDbConflict(pNew->stbname, pTrans)) conflict = true;  // for stb
       }
     }
 
-    mError("trans:%d, can't execute since conflict with trans:%d, db1:%s db2:%s", pNew->id, pTrans->id, pTrans->dbname1,
-           pTrans->dbname2);
+    if (conflict) {
+      mError("trans:%d, db:%s stb:%s type:%d, can't execute since conflict with trans:%d db:%s stb:%s type:%d",
+             pNew->id, pNew->dbname, pNew->stbname, pNew->conflict, pTrans->id, pTrans->dbname, pTrans->stbname,
+             pTrans->conflict);
+    } else {
+      mInfo("trans:%d, db:%s stb:%s type:%d, not conflict with trans:%d db:%s stb:%s type:%d", pNew->id, pNew->dbname,
+            pNew->stbname, pNew->conflict, pTrans->id, pTrans->dbname, pTrans->stbname, pTrans->conflict);
+    }
     sdbRelease(pMnode->pSdb, pTrans);
   }
 
@@ -802,7 +840,7 @@ static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNew) {
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
   if (pTrans->conflict == TRN_CONFLICT_DB || pTrans->conflict == TRN_CONFLICT_DB_INSIDE) {
-    if (strlen(pTrans->dbname1) == 0 && strlen(pTrans->dbname2) == 0) {
+    if (strlen(pTrans->dbname) == 0 && strlen(pTrans->stbname) == 0) {
       terrno = TSDB_CODE_MND_TRANS_CONFLICT;
       mError("trans:%d, failed to prepare conflict db not set", pTrans->id);
       return -1;
@@ -895,7 +933,7 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
     SRpcHandleInfo *pInfo = taosArrayGet(pTrans->pRpcArray, i);
     if (pInfo->handle != NULL) {
       mInfo("trans:%d, send rsp, code:0x%x stage:%s app:%p", pTrans->id, code, mndTransStr(pTrans->stage),
-             pInfo->ahandle);
+            pInfo->ahandle);
       if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
         code = TSDB_CODE_MND_TRANS_NETWORK_UNAVAILL;
       }
@@ -903,12 +941,12 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
 
       if (pTrans->originRpcType == TDMT_MND_CREATE_DB) {
         mInfo("trans:%d, origin msgtype:%s", pTrans->id, TMSG_INFO(pTrans->originRpcType));
-        SDbObj *pDb = mndAcquireDb(pMnode, pTrans->dbname1);
+        SDbObj *pDb = mndAcquireDb(pMnode, pTrans->dbname);
         if (pDb != NULL) {
           for (int32_t j = 0; j < 12; j++) {
             bool ready = mndIsDbReady(pMnode, pDb);
             if (!ready) {
-              mInfo("trans:%d, db:%s not ready yet, wait %d times", pTrans->id, pTrans->dbname1, j);
+              mInfo("trans:%d, db:%s not ready yet, wait %d times", pTrans->id, pTrans->dbname, j);
               taosMsleep(1000);
             } else {
               break;
@@ -919,7 +957,7 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
       } else if (pTrans->originRpcType == TDMT_MND_CREATE_STB) {
         void   *pCont = NULL;
         int32_t contLen = 0;
-        if (0 == mndBuildSMCreateStbRsp(pMnode, pTrans->dbname1, pTrans->dbname2, &pCont, &contLen) != 0) {
+        if (0 == mndBuildSMCreateStbRsp(pMnode, pTrans->dbname, pTrans->stbname, &pCont, &contLen) != 0) {
           mndTransSetRpcRsp(pTrans, pCont, contLen);
         }
       }
@@ -978,8 +1016,8 @@ int32_t mndTransProcessRsp(SRpcMsg *pRsp) {
     pAction->errCode = pRsp->code;
   }
 
-  mInfo("trans:%d, %s:%d response is received, code:0x%x, accept:0x%x retry:0x%x", transId,
-         mndTransStr(pAction->stage), action, pRsp->code, pAction->acceptableCode, pAction->retryCode);
+  mInfo("trans:%d, %s:%d response is received, code:0x%x, accept:0x%x retry:0x%x", transId, mndTransStr(pAction->stage),
+        action, pRsp->code, pAction->acceptableCode, pAction->retryCode);
   mndTransExecute(pMnode, pTrans);
 
 _OVER:
@@ -995,7 +1033,7 @@ static void mndTransResetAction(SMnode *pMnode, STrans *pTrans, STransAction *pA
       pAction->errCode == TSDB_CODE_SYN_INTERNAL_ERROR || pAction->errCode == TSDB_CODE_SYN_NOT_LEADER) {
     pAction->epSet.inUse = (pAction->epSet.inUse + 1) % pAction->epSet.numOfEps;
     mInfo("trans:%d, %s:%d execute status is reset and set epset inuse:%d", pTrans->id, mndTransStr(pAction->stage),
-           pAction->id, pAction->epSet.inUse);
+          pAction->id, pAction->epSet.inUse);
   } else {
     mInfo("trans:%d, %s:%d execute status is reset", pTrans->id, mndTransStr(pAction->stage), pAction->id);
   }
@@ -1025,20 +1063,14 @@ static int32_t mndTransWriteSingleLog(SMnode *pMnode, STrans *pTrans, STransActi
     pAction->errCode = 0;
     code = 0;
     mInfo("trans:%d, %s:%d write to sdb, type:%s status:%s", pTrans->id, mndTransStr(pAction->stage), pAction->id,
-           sdbTableName(pAction->pRaw->type), sdbStatusName(pAction->pRaw->status));
+          sdbTableName(pAction->pRaw->type), sdbStatusName(pAction->pRaw->status));
 
-    pTrans->lastAction = pAction->id;
-    pTrans->lastMsgType = pAction->msgType;
-    pTrans->lastEpset = pAction->epSet;
-    pTrans->lastErrorNo = 0;
+    mndSetTransLastAction(pTrans, pAction);
   } else {
     pAction->errCode = (terrno != 0) ? terrno : code;
     mError("trans:%d, %s:%d failed to write sdb since %s, type:%s status:%s", pTrans->id, mndTransStr(pAction->stage),
            pAction->id, terrstr(), sdbTableName(pAction->pRaw->type), sdbStatusName(pAction->pRaw->status));
-    pTrans->lastAction = pAction->id;
-    pTrans->lastMsgType = pAction->msgType;
-    pTrans->lastEpset = pAction->epSet;
-    pTrans->lastErrorNo = pAction->errCode;
+    mndSetTransLastAction(pTrans, pAction);
   }
 
   return code;
@@ -1072,15 +1104,10 @@ static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransActio
   if (code == 0) {
     pAction->msgSent = 1;
     pAction->msgReceived = 0;
-    pAction->errCode = 0;
+    pAction->errCode = TSDB_CODE_ACTION_IN_PROGRESS;
     mInfo("trans:%d, %s:%d is sent, %s", pTrans->id, mndTransStr(pAction->stage), pAction->id, detail);
 
-    pTrans->lastAction = pAction->id;
-    pTrans->lastMsgType = pAction->msgType;
-    pTrans->lastEpset = pAction->epSet;
-    if (pTrans->lastErrorNo == 0) {
-      pTrans->lastErrorNo = TSDB_CODE_ACTION_IN_PROGRESS;
-    }
+    mndSetTransLastAction(pTrans, pAction);
   } else {
     pAction->msgSent = 0;
     pAction->msgReceived = 0;
@@ -1088,10 +1115,7 @@ static int32_t mndTransSendSingleMsg(SMnode *pMnode, STrans *pTrans, STransActio
     mError("trans:%d, %s:%d not send since %s, %s", pTrans->id, mndTransStr(pAction->stage), pAction->id, terrstr(),
            detail);
 
-    pTrans->lastAction = pAction->id;
-    pTrans->lastMsgType = pAction->msgType;
-    pTrans->lastEpset = pAction->epSet;
-    pTrans->lastErrorNo = pAction->errCode;
+    mndSetTransLastAction(pTrans, pAction);
   }
 
   return code;
@@ -1102,10 +1126,7 @@ static int32_t mndTransExecNullMsg(SMnode *pMnode, STrans *pTrans, STransAction 
   pAction->errCode = 0;
   mInfo("trans:%d, %s:%d confirm action executed", pTrans->id, mndTransStr(pAction->stage), pAction->id);
 
-  pTrans->lastAction = pAction->id;
-  pTrans->lastMsgType = pAction->msgType;
-  pTrans->lastEpset = pAction->epSet;
-  pTrans->lastErrorNo = 0;
+  mndSetTransLastAction(pTrans, pAction);
   return 0;
 }
 
@@ -1151,25 +1172,19 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
         errCode = pAction->errCode;
         pErrAction = pAction;
       }
+    } else {
+      pErrAction = pAction;
     }
   }
 
+  mndSetTransLastAction(pTrans, pErrAction);
+
   if (numOfExecuted == numOfActions) {
     if (errCode == 0) {
-      pTrans->lastAction = 0;
-      pTrans->lastMsgType = 0;
-      memset(&pTrans->lastEpset, 0, sizeof(pTrans->lastEpset));
-      pTrans->lastErrorNo = 0;
       mInfo("trans:%d, all %d actions execute successfully", pTrans->id, numOfActions);
       return 0;
     } else {
       mError("trans:%d, all %d actions executed, code:0x%x", pTrans->id, numOfActions, errCode & 0XFFFF);
-      if (pErrAction != NULL) {
-        pTrans->lastAction = pErrAction->id;
-        pTrans->lastMsgType = pErrAction->msgType;
-        pTrans->lastEpset = pErrAction->epSet;
-        pTrans->lastErrorNo = pErrAction->errCode;
-      }
       mndTransResetActions(pMnode, pTrans, pArray);
       terrno = errCode;
       return errCode;
@@ -1210,6 +1225,8 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
   if (numOfActions == 0) return code;
   if (pTrans->redoActionPos >= numOfActions) return code;
 
+  mInfo("trans:%d, execute %d actions serial", pTrans->id, numOfActions);
+
   for (int32_t action = pTrans->redoActionPos; action < numOfActions; ++action) {
     STransAction *pAction = taosArrayGet(pTrans->redoActions, pTrans->redoActionPos);
 
@@ -1238,16 +1255,8 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
 
     if (code == 0) {
       pTrans->failedTimes = 0;
-      pTrans->lastAction = action;
-      pTrans->lastMsgType = 0;
-      pTrans->lastErrorNo = 0;
-      memset(&pTrans->lastEpset, 0, sizeof(pTrans->lastEpset));
-    } else {
-      pTrans->lastAction = action;
-      pTrans->lastMsgType = pAction->msgType;
-      pTrans->lastErrorNo = code;
-      pTrans->lastEpset = pAction->epSet;
     }
+    mndSetTransLastAction(pTrans, pAction);
 
     if (mndCannotExecuteTransAction(pMnode)) break;
 
@@ -1255,7 +1264,7 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
       pTrans->code = 0;
       pTrans->redoActionPos++;
       mInfo("trans:%d, %s:%d is executed and need sync to other mnodes", pTrans->id, mndTransStr(pAction->stage),
-             pAction->id);
+            pAction->id);
       code = mndTransSync(pMnode, pTrans);
       if (code != 0) {
         pTrans->code = terrno;
@@ -1274,7 +1283,7 @@ static int32_t mndTransExecuteRedoActionsSerial(SMnode *pMnode, STrans *pTrans) 
       terrno = code;
       pTrans->code = code;
       mInfo("trans:%d, %s:%d receive code:0x%x and wait another schedule, failedTimes:%d", pTrans->id,
-             mndTransStr(pAction->stage), pAction->id, code, pTrans->failedTimes);
+            mndTransStr(pAction->stage), pAction->id, code, pTrans->failedTimes);
       break;
     }
   }
@@ -1423,8 +1432,9 @@ static bool mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans) {
   SSdbRaw *pRaw = mndTransActionEncode(pTrans);
   if (pRaw == NULL) {
     mError("trans:%d, failed to encode while finish trans since %s", pTrans->id, terrstr());
+    return false;
   }
-  sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_DROPPED);
 
   int32_t code = sdbWrite(pMnode->pSdb, pRaw);
   if (code != 0) {
@@ -1473,6 +1483,7 @@ void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
 }
 
 static int32_t mndProcessTransTimer(SRpcMsg *pReq) {
+  mTrace("start to process trans timer");
   mndTransPullup(pReq->info.node);
   return 0;
 }
@@ -1589,15 +1600,20 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)stage, false);
 
-    char dbname1[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(dbname1, mndGetDbStr(pTrans->dbname1), pShow->pMeta->pSchemas[cols].bytes);
+    char opername[TSDB_TRANS_OPER_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(opername, pTrans->opername, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)dbname1, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)opername, false);
 
-    char dbname2[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(dbname2, mndGetDbStr(pTrans->dbname2), pShow->pMeta->pSchemas[cols].bytes);
+    char dbname[TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(dbname, mndGetDbStr(pTrans->dbname), pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)dbname2, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)dbname, false);
+
+    char stbname[TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(stbname, mndGetDbStr(pTrans->stbname), pShow->pMeta->pSchemas[cols].bytes);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)stbname, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pTrans->failedTimes, false);
@@ -1606,7 +1622,7 @@ static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
     colDataAppend(pColInfo, numOfRows, (const char *)&pTrans->lastExecTime, false);
 
     char    lastInfo[TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE] = {0};
-    char    detail[TSDB_TRANS_ERROR_LEN] = {0};
+    char    detail[TSDB_TRANS_ERROR_LEN + 1] = {0};
     int32_t len = snprintf(detail, sizeof(detail), "action:%d code:0x%x(%s) ", pTrans->lastAction,
                            pTrans->lastErrorNo & 0xFFFF, tstrerror(pTrans->lastErrorNo));
     SEpSet  epset = pTrans->lastEpset;

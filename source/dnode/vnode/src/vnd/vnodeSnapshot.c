@@ -39,7 +39,7 @@ struct SVSnapReader {
   SStreamStateReader *pStreamStateReader;
   // rsma
   int8_t           rsmaDone;
-  SRsmaSnapReader *pRsmaReader;
+  SRSmaSnapReader *pRsmaReader;
 };
 
 int32_t vnodeSnapReaderOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapReader **ppReader) {
@@ -166,7 +166,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       if (*ppData) {
         goto _exit;
       } else {
-        pReader->tqHandleDone = 1;
+        pReader->tqOffsetDone = 1;
         code = tqOffsetReaderClose(&pReader->pTqOffsetReader);
         if (code) goto _err;
       }
@@ -219,7 +219,7 @@ _exit:
   return code;
 
 _err:
-  vError("vgId:% vnode snapshot read failed since %s", TD_VID(pReader->pVnode), tstrerror(code));
+  vError("vgId:%d, vnode snapshot read failed since %s", TD_VID(pReader->pVnode), tstrerror(code));
   return code;
 }
 
@@ -241,7 +241,7 @@ struct SVSnapWriter {
   SStreamTaskWriter  *pStreamTaskWriter;
   SStreamStateWriter *pStreamStateWriter;
   // rsma
-  SRsmaSnapWriter *pRsmaSnapWriter;
+  SRSmaSnapWriter *pRsmaSnapWriter;
 };
 
 int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWriter **ppWriter) {
@@ -260,7 +260,10 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWr
 
   // commit it
   code = vnodeCommit(pVnode);
-  if (code) goto _err;
+  if (code) {
+    taosMemoryFree(pWriter);
+    goto _err;
+  }
 
   // inc commit ID
   pVnode->state.commitID++;
@@ -354,7 +357,8 @@ int32_t vnodeSnapWrite(SVSnapWriter *pWriter, uint8_t *pData, uint32_t nData) {
       code = metaSnapWrite(pWriter->pMetaSnapWriter, pData, nData);
       if (code) goto _err;
     } break;
-    case SNAP_DATA_TSDB: {
+    case SNAP_DATA_TSDB:
+    case SNAP_DATA_DEL: {
       // tsdb
       if (pWriter->pTsdbSnapWriter == NULL) {
         code = tsdbSnapWriterOpen(pVnode->pTsdb, pWriter->sver, pWriter->ever, &pWriter->pTsdbSnapWriter);

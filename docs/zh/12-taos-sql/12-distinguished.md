@@ -1,12 +1,12 @@
 ---
-sidebar_label: 时序数据特色查询
-title: 时序数据特色查询
+sidebar_label: 特色查询
+title: 特色查询
 description: TDengine 提供的时序数据特有的查询功能
 ---
 
-TDengine 是专为时序数据而研发的大数据平台，存储和计算都针对时序数据的特定进行了量身定制，在支持标准 SQL 的基础之上，还提供了一系列贴合时序业务场景的特色查询语法，极大的方便时序场景的应用开发。
+TDengine 在支持标准 SQL 的基础之上，还提供了一系列满足时序业务场景需求的特色查询语法，这些语法能够为时序场景的应用的开发带来极大的便利。
 
-TDengine 提供的特色查询包括数据切分查询和窗口切分查询。
+TDengine 提供的特色查询包括数据切分查询和时间窗口切分查询。
 
 ## 数据切分查询
 
@@ -31,7 +31,7 @@ select max(current) from meters partition by location interval(10m)
 
 ## 窗口切分查询
 
-TDengine 支持按时间段窗口切分方式进行聚合结果查询，比如温度传感器每秒采集一次数据，但需查询每隔 10 分钟的温度平均值。这种场景下可以使用窗口子句来获得需要的查询结果。窗口子句用于针对查询的数据集合按照窗口切分成为查询子集并进行聚合，窗口包含时间窗口（time window）、状态窗口（status window）、会话窗口（session window）三种窗口。其中时间窗口又可划分为滑动时间窗口和翻转时间窗口。窗口切分查询语法如下：
+TDengine 支持按时间窗口切分方式进行聚合结果查询，比如温度传感器每秒采集一次数据，但需查询每隔 10 分钟的温度平均值。这种场景下可以使用窗口子句来获得需要的查询结果。窗口子句用于针对查询的数据集合按照窗口切分成为查询子集并进行聚合，窗口包含时间窗口（time window）、状态窗口（status window）、会话窗口（session window）三种窗口。其中时间窗口又可划分为滑动时间窗口和翻转时间窗口。窗口切分查询语法如下：
 
 ```sql
 SELECT select_list FROM tb_name
@@ -46,7 +46,7 @@ SELECT select_list FROM tb_name
 
 ### 窗口子句的规则
 
-- 窗口子句位于数据切分子句之后，GROUP BY 子句之前，且不可以和 GROUP BY 子句一起使用。
+- 窗口子句位于数据切分子句之后，不可以和 GROUP BY 子句一起使用。
 - 窗口子句将数据按窗口进行切分，对每个窗口进行 SELECT 列表中的表达式的计算，SELECT 列表中的表达式只能包含：
   - 常量。
   - _wstart伪列、_wend伪列和_wduration伪列。
@@ -71,7 +71,7 @@ FILL 语句指定某一窗口区间数据缺失的情况下的填充模式。填
 
 1. 使用 FILL 语句的时候可能生成大量的填充输出，务必指定查询的时间区间。针对每次查询，系统可返回不超过 1 千万条具有插值的结果。
 2. 在时间维度聚合中，返回的结果中时间序列严格单调递增。
-3. 如果查询对象是超级表，则聚合函数会作用于该超级表下满足值过滤条件的所有表的数据。如果查询中没有使用 PARTITION BY 语句，则返回的结果按照时间序列严格单调递增；如果查询中使用了 PARTITION BY 语句分组，则返回结果中每个 PARTITION 内不按照时间序列严格单调递增。
+3. 如果查询对象是超级表，则聚合函数会作用于该超级表下满足值过滤条件的所有表的数据。如果查询中没有使用 PARTITION BY 语句，则返回的结果按照时间序列严格单调递增；如果查询中使用了 PARTITION BY 语句分组，则返回结果中每个 PARTITION 内按照时间序列严格单调递增。
 
 :::
 
@@ -113,6 +113,12 @@ SELECT COUNT(*) FROM temp_tb_1 INTERVAL(1m) SLIDING(2m);
 SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status);
 ```
 
+仅关心 status 为 2 时的状态窗口的信息。例如：
+
+```
+SELECT * FROM (SELECT COUNT(*) AS cnt, FIRST(ts) AS fst, status FROM temp_tb_1 STATE_WINDOW(status)) t WHERE status = 2;
+```
+
 ### 会话窗口
 
 会话窗口根据记录的时间戳主键的值来确定是否属于同一个会话。如下图所示，如果设置时间戳的连续的间隔小于等于 12 秒，则以下 6 条记录构成 2 个会话窗口，分别是：[2019-04-28 14:22:10，2019-04-28 14:22:30]和[2019-04-28 14:23:10，2019-04-28 14:23:30]。因为 2019-04-28 14:22:30 与 2019-04-28 14:23:10 之间的时间间隔是 40 秒，超过了连续时间间隔（12 秒）。
@@ -126,6 +132,10 @@ SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status);
 SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val);
 ```
 
+### 时间戳伪列
+
+窗口聚合查询结果中，如果 SQL 语句中没有指定输出查询结果中的时间戳列，那么最终结果中不会自动包含窗口的时间列信息。如果需要在结果中输出聚合结果所对应的时间窗口信息，需要在 SELECT 子句中使用时间戳相关的伪列: 时间窗口起始时间 (\_WSTART), 时间窗口结束时间 (\_WEND), 时间窗口持续时间 (\_WDURATION), 以及查询整体窗口相关的伪列: 查询窗口起始时间(\_QSTART) 和查询窗口结束时间(\_QEND)。需要注意的是时间窗口起始时间和结束时间均是闭区间，时间窗口持续时间是数据当前时间分辨率下的数值。例如，如果当前数据库的时间分辨率是毫秒，那么结果中 500 就表示当前时间窗口的持续时间是 500毫秒 (500 ms)。
+
 ### 示例
 
 智能电表的建表语句如下：
@@ -137,8 +147,10 @@ CREATE TABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS
 针对智能电表采集的数据，以 10 分钟为一个阶段，计算过去 24 小时的电流数据的平均值、最大值、电流的中位数。如果没有计算值，用前一个非 NULL 值填充。使用的查询语句如下：
 
 ```
-SELECT AVG(current), MAX(current), APERCENTILE(current, 50) FROM meters
+SELECT _WSTART, _WEND, AVG(current), MAX(current), APERCENTILE(current, 50) FROM meters
   WHERE ts>=NOW-1d and ts<=now
   INTERVAL(10m)
   FILL(PREV);
 ```
+
+

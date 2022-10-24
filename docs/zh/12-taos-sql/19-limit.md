@@ -1,6 +1,6 @@
 ---
-sidebar_label: 命名与边界限制
-title: 命名与边界限制
+sidebar_label: 命名与边界
+title: 命名与边界
 description: 合法字符集和命名中的限制规则
 ---
 

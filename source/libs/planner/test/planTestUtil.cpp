@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 
 #include "cmdnodes.h"
 #include "mockCatalogService.h"
@@ -40,6 +41,7 @@ using namespace testing;
 
 enum DumpModule {
   DUMP_MODULE_NOTHING = 1,
+  DUMP_MODULE_SQL,
   DUMP_MODULE_PARSER,
   DUMP_MODULE_LOGIC,
   DUMP_MODULE_OPTIMIZED,
@@ -55,10 +57,13 @@ int32_t    g_skipSql = 0;
 int32_t    g_limitSql = 0;
 int32_t    g_logLevel = 131;
 int32_t    g_queryPolicy = QUERY_POLICY_VNODE;
+bool       g_useNodeAllocator = false;
 
 void setDumpModule(const char* pModule) {
   if (NULL == pModule) {
     g_dumpModule = DUMP_MODULE_ALL;
+  } else if (0 == strncasecmp(pModule, "sql", strlen(pModule))) {
+    g_dumpModule = DUMP_MODULE_SQL;
   } else if (0 == strncasecmp(pModule, "parser", strlen(pModule))) {
     g_dumpModule = DUMP_MODULE_PARSER;
   } else if (0 == strncasecmp(pModule, "logic", strlen(pModule))) {
@@ -78,10 +83,11 @@ void setDumpModule(const char* pModule) {
   }
 }
 
-void setSkipSqlNum(const char* pNum) { g_skipSql = stoi(pNum); }
-void setLimitSqlNum(const char* pNum) { g_limitSql = stoi(pNum); }
-void setLogLevel(const char* pLogLevel) { g_logLevel = stoi(pLogLevel); }
-void setQueryPolicy(const char* pQueryPolicy) { g_queryPolicy = stoi(pQueryPolicy); }
+void setSkipSqlNum(const char* pArg) { g_skipSql = stoi(pArg); }
+void setLimitSqlNum(const char* pArg) { g_limitSql = stoi(pArg); }
+void setLogLevel(const char* pArg) { g_logLevel = stoi(pArg); }
+void setQueryPolicy(const char* pArg) { g_queryPolicy = stoi(pArg); }
+void setUseNodeAllocator(const char* pArg) { g_useNodeAllocator = stoi(pArg); }
 
 int32_t getLogLevel() { return g_logLevel; }
 
@@ -123,6 +129,12 @@ class PlannerTestBaseImpl {
   }
 
   void runImpl(const string& sql, int32_t queryPolicy) {
+    int64_t allocatorId = 0;
+    if (g_useNodeAllocator) {
+      nodesCreateAllocator(sqlNo_, 32 * 1024, &allocatorId);
+      nodesAcquireAllocator(allocatorId);
+    }
+
     reset();
     tsQueryPolicy = queryPolicy;
     try {
@@ -154,8 +166,13 @@ class PlannerTestBaseImpl {
       dump(g_dumpModule);
     } catch (...) {
       dump(DUMP_MODULE_ALL);
+      nodesReleaseAllocator(allocatorId);
+      nodesDestroyAllocator(allocatorId);
       throw;
     }
+
+    nodesReleaseAllocator(allocatorId);
+    nodesDestroyAllocator(allocatorId);
   }
 
   void prepare(const string& sql) {
@@ -214,6 +231,8 @@ class PlannerTestBaseImpl {
       SQueryPlan* pPlan = nullptr;
       doCreatePhysiPlan(&cxt, pLogicPlan, &pPlan);
       unique_ptr<SQueryPlan, void (*)(SQueryPlan*)> plan(pPlan, (void (*)(SQueryPlan*))nodesDestroyNode);
+
+      checkPlanMsg((SNode*)pPlan);
 
       dump(g_dumpModule);
     } catch (...) {
@@ -450,6 +469,32 @@ class PlannerTestBaseImpl {
     string str(pStr);
     taosMemoryFreeClear(pStr);
     return str;
+  }
+
+  void checkPlanMsg(const SNode* pRoot) {
+    char*   pStr = NULL;
+    int32_t len = 0;
+    DO_WITH_THROW(nodesNodeToMsg, pRoot, &pStr, &len)
+
+    string  copyStr(pStr, len);
+    SNode*  pNode = NULL;
+    char*   pNewStr = NULL;
+    int32_t newlen = 0;
+    DO_WITH_THROW(nodesMsgToNode, copyStr.c_str(), len, &pNode)
+    DO_WITH_THROW(nodesNodeToMsg, pNode, &pNewStr, &newlen)
+    if (newlen != len || 0 != memcmp(pStr, pNewStr, len)) {
+      cout << "nodesNodeToMsg error!!!!!!!!!!!!!! len = " << len << ", newlen = " << newlen << endl;
+      taosMemoryFreeClear(pNewStr);
+      DO_WITH_THROW(nodesNodeToString, pRoot, false, &pNewStr, &newlen)
+      cout << "orac node: " << pNewStr << endl;
+      taosMemoryFreeClear(pNewStr);
+      DO_WITH_THROW(nodesNodeToString, pNode, false, &pNewStr, &newlen)
+      cout << "new node: " << pNewStr << endl;
+    }
+    nodesDestroyNode(pNode);
+    taosMemoryFreeClear(pNewStr);
+
+    taosMemoryFreeClear(pStr);
   }
 
   caseEnv caseEnv_;

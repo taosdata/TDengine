@@ -22,7 +22,7 @@
 #define MAX_INDEX_KEY_LEN 256  // test only, change later
 
 #define MEM_TERM_LIMIT     10 * 10000
-#define MEM_THRESHOLD      512 * 1024
+#define MEM_THRESHOLD      8 * 512 * 1024  // 8M
 #define MEM_SIGNAL_QUIT    MEM_THRESHOLD * 20
 #define MEM_ESTIMATE_RADIO 1.5
 
@@ -302,6 +302,7 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTR
         char* p = taosMemoryCalloc(1, strlen(c->colVal) + 1);
         memcpy(p, c->colVal, strlen(c->colVal));
         cond = cmpFn(p + skip, term->colVal, dType);
+        taosMemoryFree(p);
       }
     }
     if (cond == MATCH) {
@@ -537,7 +538,7 @@ int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   idxCacheRef(pCache);
   // encode data
   CacheTerm* ct = taosMemoryCalloc(1, sizeof(CacheTerm));
-  if (cache == NULL) {
+  if (ct == NULL) {
     return -1;
   }
   // set up key
@@ -566,7 +567,6 @@ int idxCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   taosThreadMutexUnlock(&pCache->mtx);
   idxCacheUnRef(pCache);
   return 0;
-  // encode end
 }
 void idxCacheForceToMerge(void* cache) {
   IndexCache* pCache = cache;
@@ -602,10 +602,10 @@ static int32_t idxQueryMem(MemTable* mem, SIndexTermQuery* query, SIdxTRslt* tr,
   }
 }
 int idxCacheSearch(void* cache, SIndexTermQuery* query, SIdxTRslt* result, STermValueType* s) {
-  int64_t st = taosGetTimestampUs();
   if (cache == NULL) {
     return 0;
   }
+
   IndexCache* pCache = cache;
 
   MemTable *mem = NULL, *imm = NULL;
@@ -615,6 +615,8 @@ int idxCacheSearch(void* cache, SIndexTermQuery* query, SIdxTRslt* result, STerm
   idxMemRef(mem);
   idxMemRef(imm);
   taosThreadMutexUnlock(&pCache->mtx);
+
+  int64_t st = taosGetTimestampUs();
 
   int ret = (mem && mem->mem) ? idxQueryMem(mem, query, result, s) : 0;
   if (ret == 0 && *s != kTypeDeletion) {
@@ -728,15 +730,17 @@ static int32_t idxCacheJsonTermCompare(const void* l, const void* r) {
   return cmp;
 }
 static MemTable* idxInternalCacheCreate(int8_t type) {
-  int ttype = IDX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? TSDB_DATA_TYPE_BINARY : TSDB_DATA_TYPE_BINARY;
+  // int ttype = IDX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? TSDB_DATA_TYPE_BINARY :
+  // TSDB_DATA_TYPE_BINARY;
+  int ttype = TSDB_DATA_TYPE_BINARY;
   int32_t (*cmpFn)(const void* l, const void* r) =
       IDX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? idxCacheJsonTermCompare : idxCacheTermCompare;
 
   MemTable* tbl = taosMemoryCalloc(1, sizeof(MemTable));
   idxMemRef(tbl);
-  if (ttype == TSDB_DATA_TYPE_BINARY || ttype == TSDB_DATA_TYPE_NCHAR) {
-    tbl->mem = tSkipListCreate(MAX_SKIP_LIST_LEVEL, ttype, MAX_INDEX_KEY_LEN, cmpFn, SL_ALLOW_DUP_KEY, idxCacheTermGet);
-  }
+  // if (ttype == TSDB_DATA_TYPE_BINARY || ttype == TSDB_DATA_TYPE_NCHAR) {
+  tbl->mem = tSkipListCreate(MAX_SKIP_LIST_LEVEL, ttype, MAX_INDEX_KEY_LEN, cmpFn, SL_ALLOW_DUP_KEY, idxCacheTermGet);
+  //}
   return tbl;
 }
 

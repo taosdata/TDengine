@@ -65,38 +65,7 @@ class TDTestCase:
             '''
         )
 
-
-    def check_result_auto_log(self ,origin_query , log_query):
-
-        log_result = tdSql.getResult(log_query)
-        origin_result = tdSql.getResult(origin_query)
-
-        auto_result =[]
-
-        for row in origin_result:
-            row_check = []
-            for elem in row:
-                if elem == None:
-                    elem = None
-                elif elem >0:
-                    elem = math.log(elem)
-                elif elem <=0:
-                    elem = None
-                row_check.append(elem)
-            auto_result.append(row_check)
-
-        check_status = True
-        for row_index , row in enumerate(log_result):
-            for col_index , elem in enumerate(row):
-                if auto_result[row_index][col_index] != elem:
-                    check_status = False
-        if not check_status:
-            tdLog.notice("log function value has not as expected , sql is \"%s\" "%log_query )
-            sys.exit(1)
-        else:
-            tdLog.info("log value check pass , it work as expected ,sql is \"%s\"   "%log_query )
-
-    def check_result_auto_log2(self ,origin_query , log_query):
+    def check_result_auto_log(self ,base , origin_query , log_query):
 
         log_result = tdSql.getResult(log_query)
         origin_result = tdSql.getResult(origin_query)
@@ -106,83 +75,30 @@ class TDTestCase:
         for row in origin_result:
             row_check = []
             for elem in row:
-                if elem == None:
+                if base ==1:
                     elem = None
-                elif elem >0:
-                    elem = math.log(elem,2)
-                elif elem <=0:
-                    elem = None
+                else:
+                    if elem == None:
+                        elem = None
+                    elif elem ==1:
+                        elem = 0.0
+                    elif elem >0 and elem !=1 :
+                        if  base==None :
+                            elem = math.log(elem )
+                        else:
+                            print(base , elem)
+                            elem = math.log(elem , base)
+                    elif elem <=0:
+                        elem = None
+                    
                 row_check.append(elem)
             auto_result.append(row_check)
 
-        check_status = True
+        tdSql.query(log_query)
         for row_index , row in enumerate(log_result):
             for col_index , elem in enumerate(row):
-                if auto_result[row_index][col_index] != elem:
-                    check_status = False
-        if not check_status:
-            tdLog.notice("log function value has not as expected , sql is \"%s\" "%log_query )
-            sys.exit(1)
-        else:
-            tdLog.info("log value check pass , it work as expected ,sql is \"%s\"   "%log_query )
-
-    def check_result_auto_log1(self ,origin_query , log_query):
-        log_result = tdSql.getResult(log_query)
-        origin_result = tdSql.getResult(origin_query)
-
-        auto_result =[]
-
-        for row in origin_result:
-            row_check = []
-            for elem in row:
-                if elem == None:
-                    elem = None
-                elif elem >0:
-                    elem = None
-                elif elem <=0:
-                    elem = None
-                row_check.append(elem)
-            auto_result.append(row_check)
-
-        check_status = True
-        for row_index , row in enumerate(log_result):
-            for col_index , elem in enumerate(row):
-                if auto_result[row_index][col_index] != elem:
-                    check_status = False
-        if not check_status:
-            tdLog.notice("log function value has not as expected , sql is \"%s\" "%log_query )
-            sys.exit(1)
-        else:
-            tdLog.info("log value check pass , it work as expected ,sql is \"%s\"   "%log_query )
-    def check_result_auto_log__10(self ,origin_query , log_query):
-        log_result = tdSql.getResult(log_query)
-        origin_result = tdSql.getResult(origin_query)
-
-        auto_result =[]
-
-        for row in origin_result:
-            row_check = []
-            for elem in row:
-                if elem == None:
-                    elem = None
-                elif elem >0:
-                    elem = None
-                elif elem <=0:
-                    elem = None
-                row_check.append(elem)
-            auto_result.append(row_check)
-
-        check_status = True
-        for row_index , row in enumerate(log_result):
-            for col_index , elem in enumerate(row):
-                if auto_result[row_index][col_index] != elem:
-                    check_status = False
-        if not check_status:
-            tdLog.notice("log function value has not as expected , sql is \"%s\" "%log_query )
-            sys.exit(1)
-        else:
-            tdLog.info("log value check pass , it work as expected ,sql is \"%s\"   "%log_query )
-
+                tdSql.checkData(row_index , col_index ,auto_result[row_index][col_index])
+               
     def test_errors(self, dbname="db"):
         error_sql_lists = [
             f"select log from {dbname}.t1",
@@ -328,10 +244,10 @@ class TDTestCase:
         tdSql.checkData(3 , 0, 1.098612289)
         tdSql.checkData(4 , 0, 1.386294361)
 
-        self.check_result_auto_log( f"select c1, c2, c3 , c4, c5 from {dbname}.t1", f"select log(c1), log(c2) ,log(c3), log(c4), log(c5) from {dbname}.t1")
-        self.check_result_auto_log2( f"select c1, c2, c3 , c4, c5 from {dbname}.t1", f"select log(c1 ,2), log(c2 ,2) ,log(c3, 2), log(c4 ,2), log(c5 ,2) from {dbname}.t1")
-        self.check_result_auto_log__10( f"select c1, c2, c3 , c4, c5 from {dbname}.t1", f"select log(c1 ,1), log(c2 ,1) ,log(c3, 1), log(c4 ,1), log(c5 ,1) from {dbname}.t1")
-        self.check_result_auto_log__10( f"select c1, c2, c3 , c4, c5 from {dbname}.t1", f"select log(c1 ,-10), log(c2 ,-10) ,log(c3, -10), log(c4 ,-10), log(c5 ,-10) from {dbname}.t1")
+        self.check_result_auto_log( None , f"select c1, c2, c3 , c4, c5 from {dbname}.t1", f"select log(c1), log(c2) ,log(c3), log(c4), log(c5) from {dbname}.t1")
+        self.check_result_auto_log( 2 ,  f"select c1, c2, c3 , c4, c5 from {dbname}.t1", f"select log(c1 ,2), log(c2 ,2) ,log(c3, 2), log(c4 ,2), log(c5 ,2) from {dbname}.t1")
+        self.check_result_auto_log( 1, f"select c1, c2, c3 , c4, c5 from {dbname}.t1", f"select log(c1 ,1), log(c2 ,1) ,log(c3, 1), log(c4 ,1), log(c5 ,1) from {dbname}.t1")
+        self.check_result_auto_log( 10 ,f"select c1, c2, c3 , c4, c5 from {dbname}.t1", f"select log(c1 ,10), log(c2 ,10) ,log(c3, 10), log(c4 ,10), log(c5 ,10) from {dbname}.t1")
 
         # used for sub table
         tdSql.query(f"select c1 ,log(c1 ,3) from {dbname}.ct1")
@@ -349,9 +265,9 @@ class TDTestCase:
         tdSql.checkData(3 , 2, 0.147315235)
         tdSql.checkData(4 , 2, None)
 
-        self.check_result_auto_log( f"select c1, c2, c3 , c4, c5 from {dbname}.ct1", f"select log(c1), log(c2) ,log(c3), log(c4), log(c5) from {dbname}.ct1")
-        self.check_result_auto_log2( f"select c1, c2, c3 , c4, c5 from {dbname}.ct1", f"select log(c1,2), log(c2,2) ,log(c3,2), log(c4,2), log(c5,2) from {dbname}.ct1")
-        self.check_result_auto_log__10( f"select c1, c2, c3 , c4, c5 from {dbname}.ct1", f"select log(c1,-10), log(c2,-10) ,log(c3,-10), log(c4,-10), log(c5,-10) from {dbname}.ct1")
+        self.check_result_auto_log( None ,f"select c1, c2, c3 , c4, c5 from {dbname}.ct1", f"select log(c1), log(c2) ,log(c3), log(c4), log(c5) from {dbname}.ct1")
+        self.check_result_auto_log( 2, f"select c1, c2, c3 , c4, c5 from {dbname}.ct1", f"select log(c1,2), log(c2,2) ,log(c3,2), log(c4,2), log(c5,2) from {dbname}.ct1")
+        self.check_result_auto_log( 10 , f"select c1, c2, c3 , c4, c5 from {dbname}.ct1", f"select log(c1,10), log(c2,10) ,log(c3,10), log(c4,10), log(c5,10) from {dbname}.ct1")
 
         # nest query for log functions
         tdSql.query(f"select c1  , log(c1,3) ,log(log(c1,3),3) , log(log(log(c1,3),3),3) from {dbname}.ct1;")
@@ -585,15 +501,15 @@ class TDTestCase:
         tdSql.error(
                 f"insert into {dbname}.sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
-        self.check_result_auto_log( f"select c1, c2, c3 , c4, c5 ,c6 from {dbname}.sub1_bound ", f"select log(c1), log(c2) ,log(c3), log(c4), log(c5) ,log(c6) from {dbname}.sub1_bound")
-        self.check_result_auto_log2( f"select c1, c2, c3 , c4, c5 ,c6 from {dbname}.sub1_bound ", f"select log(c1,2), log(c2,2) ,log(c3,2), log(c4,2), log(c5,2) ,log(c6,2) from {dbname}.sub1_bound")
-        self.check_result_auto_log__10( f"select c1, c2, c3 , c4, c5 ,c6 from {dbname}.sub1_bound ", f"select log(c1,-10), log(c2,-10) ,log(c3,-10), log(c4,-10), log(c5,-10) ,log(c6,-10) from {dbname}.sub1_bound")
+        self.check_result_auto_log(None ,  f"select c1, c2, c3 , c4, c5 ,c6 from {dbname}.sub1_bound ", f"select log(c1), log(c2) ,log(c3), log(c4), log(c5) ,log(c6) from {dbname}.sub1_bound")
+        self.check_result_auto_log( 2 ,  f"select c1, c2, c3 , c4, c5 ,c6 from {dbname}.sub1_bound ", f"select log(c1,2), log(c2,2) ,log(c3,2), log(c4,2), log(c5,2) ,log(c6,2) from {dbname}.sub1_bound")
+        self.check_result_auto_log( 10 , f"select c1, c2, c3 , c4, c5 ,c6 from {dbname}.sub1_bound ", f"select log(c1,10), log(c2,10) ,log(c3,10), log(c4,10), log(c5,10) ,log(c6,10) from {dbname}.sub1_bound")
 
-        self.check_result_auto_log2( f"select c1, c2, c3 , c3, c2 ,c1 from {dbname}.sub1_bound ", f"select log(c1,2), log(c2,2) ,log(c3,2), log(c3,2), log(c2,2) ,log(c1,2) from {dbname}.sub1_bound")
-        self.check_result_auto_log( f"select c1, c2, c3 , c3, c2 ,c1 from {dbname}.sub1_bound ", f"select log(c1), log(c2) ,log(c3), log(c3), log(c2) ,log(c1) from {dbname}.sub1_bound")
+        self.check_result_auto_log( 2 , f"select c1, c2, c3 , c3, c2 ,c1 from {dbname}.sub1_bound ", f"select log(c1,2), log(c2,2) ,log(c3,2), log(c3,2), log(c2,2) ,log(c1,2) from {dbname}.sub1_bound")
+        self.check_result_auto_log( None ,  f"select c1, c2, c3 , c3, c2 ,c1 from {dbname}.sub1_bound ", f"select log(c1), log(c2) ,log(c3), log(c3), log(c2) ,log(c1) from {dbname}.sub1_bound")
 
 
-        self.check_result_auto_log2(f"select abs(abs(abs(abs(abs(abs(abs(abs(abs(c1)))))))))  nest_col_func from {dbname}.sub1_bound" , f"select log(abs(c1) ,2) from {dbname}.sub1_bound" )
+        self.check_result_auto_log(2 , f"select abs(abs(abs(abs(abs(abs(abs(abs(abs(c1)))))))))  nest_col_func from {dbname}.sub1_bound" , f"select log(abs(c1) ,2) from {dbname}.sub1_bound" )
 
         # check basic elem for table per row
         tdSql.query(f"select log(abs(c1),2) ,log(abs(c2),2) , log(abs(c3),2) , log(abs(c4),2), log(abs(c5),2), log(abs(c6),2) from {dbname}.sub1_bound ")
@@ -647,15 +563,15 @@ class TDTestCase:
 
     def support_super_table_test(self, dbname="db"):
 
-        self.check_result_auto_log2( f"select c5 from {dbname}.stb1 order by ts " , f"select log(c5,2) from {dbname}.stb1 order by ts" )
-        self.check_result_auto_log2( f"select c5 from {dbname}.stb1 order by tbname " , f"select log(c5,2) from {dbname}.stb1 order by tbname" )
-        self.check_result_auto_log2( f"select c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select log(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
-        self.check_result_auto_log2( f"select c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select log(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_log( 2 ,  f"select c5 from {dbname}.stb1 order by ts " , f"select log(c5,2) from {dbname}.stb1 order by ts" )
+        self.check_result_auto_log( 2 ,f"select c5 from {dbname}.stb1 order by tbname " , f"select log(c5,2) from {dbname}.stb1 order by tbname" )
+        self.check_result_auto_log( 2 ,f"select c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select log(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_log( 2 , f"select c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select log(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
 
-        self.check_result_auto_log2( f"select t1,c5 from {dbname}.stb1 order by ts " , f"select log(t1,2), log(c5,2) from {dbname}.stb1 order by ts" )
-        self.check_result_auto_log2( f"select t1,c5 from {dbname}.stb1 order by tbname " , f"select log(t1,2) ,log(c5,2) from {dbname}.stb1 order by tbname" )
-        self.check_result_auto_log2( f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select log(t1,2) ,log(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
-        self.check_result_auto_log2( f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select log(t1,2) , log(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_log( 2 , f"select t1,c5 from {dbname}.stb1 order by ts " , f"select log(t1,2), log(c5,2) from {dbname}.stb1 order by ts" )
+        self.check_result_auto_log( 2 , f"select t1,c5 from {dbname}.stb1 order by tbname " , f"select log(t1,2) ,log(c5,2) from {dbname}.stb1 order by tbname" )
+        self.check_result_auto_log( 2 , f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select log(t1,2) ,log(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
+        self.check_result_auto_log( 2 ,f"select t1,c5 from {dbname}.stb1 where c1 > 0 order by tbname  " , f"select log(t1,2) , log(c5,2) from {dbname}.stb1 where c1 > 0 order by tbname" )
 
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()

@@ -81,6 +81,7 @@ class TDTestCase:
             'binary':self.binary_val,
             'nchar':self.nchar_val
                     }
+        
     def insert_base_data(self,col_type,tbname,rows,base_data):
         for i in range(rows):
             if col_type.lower() == 'tinyint':
@@ -290,6 +291,9 @@ class TDTestCase:
         self.delete_data_ntb()
         self.delete_data_ctb()
         self.delete_data_stb()
+        tdDnodes.stoptaosd(1)
+        tdDnodes.starttaosd(1)
+        self.delete_data_ntb()
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

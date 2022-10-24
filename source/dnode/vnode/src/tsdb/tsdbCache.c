@@ -15,11 +15,6 @@
 
 #include "tsdb.h"
 
-typedef struct {
-  TSKEY   ts;
-  SColVal colVal;
-} SLastCol;
-
 int32_t tsdbOpenCache(STsdb *pTsdb) {
   int32_t    code = 0;
   SLRUCache *pCache = NULL;
@@ -61,9 +56,18 @@ static void getTableCacheKey(tb_uid_t uid, int cacheType, char *key, int *len) {
   *len = sizeof(uint64_t);
 }
 
-static void deleteTableCacheLastrow(const void *key, size_t keyLen, void *value) { taosMemoryFree(value); }
+static void deleteTableCacheLast(const void *key, size_t keyLen, void *value) {
+  SArray *pLastArray = (SArray *)value;
+  int16_t nCol = taosArrayGetSize(pLastArray);
+  for (int16_t iCol = 0; iCol < nCol; ++iCol) {
+    SLastCol *pLastCol = (SLastCol *)taosArrayGet(pLastArray, iCol);
+    if (IS_VAR_DATA_TYPE(pLastCol->colVal.type) && pLastCol->colVal.value.nData > 0) {
+      taosMemoryFree(pLastCol->colVal.value.pData);
+    }
+  }
 
-static void deleteTableCacheLast(const void *key, size_t keyLen, void *value) { taosArrayDestroy(value); }
+  taosArrayDestroy(value);
+}
 
 int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey) {
   int32_t code = 0;
@@ -75,13 +79,23 @@ int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey) {
   getTableCacheKey(uid, 0, key, &keyLen);
   LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
   if (h) {
-    STSRow *pRow = (STSRow *)taosLRUCacheValue(pCache, h);
-    if (pRow->ts <= eKey) {
+    SArray *pLast = (SArray *)taosLRUCacheValue(pCache, h);
+    bool    invalidate = false;
+    int16_t nCol = taosArrayGetSize(pLast);
+
+    for (int16_t iCol = 0; iCol < nCol; ++iCol) {
+      SLastCol *tTsVal = (SLastCol *)taosArrayGet(pLast, iCol);
+      if (eKey >= tTsVal->ts) {
+        invalidate = true;
+        break;
+      }
+    }
+
+    if (invalidate) {
       taosLRUCacheRelease(pCache, h, true);
     } else {
       taosLRUCacheRelease(pCache, h, false);
     }
-
     // void taosLRUCacheErase(SLRUCache * cache, const void *key, size_t keyLen);
   }
 
@@ -130,14 +144,23 @@ int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey) {
   getTableCacheKey(uid, 0, key, &keyLen);
   LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
   if (h) {
-    STSRow *pRow = (STSRow *)taosLRUCacheValue(pCache, h);
-    if (pRow->ts <= eKey) {
+    SArray *pLast = (SArray *)taosLRUCacheValue(pCache, h);
+    bool    invalidate = false;
+    int16_t nCol = taosArrayGetSize(pLast);
+
+    for (int16_t iCol = 0; iCol < nCol; ++iCol) {
+      SLastCol *tTsVal = (SLastCol *)taosArrayGet(pLast, iCol);
+      if (eKey >= tTsVal->ts) {
+        invalidate = true;
+        break;
+      }
+    }
+
+    if (invalidate) {
       taosLRUCacheRelease(pCache, h, true);
     } else {
       taosLRUCacheRelease(pCache, h, false);
     }
-
-    // void taosLRUCacheErase(SLRUCache * cache, const void *key, size_t keyLen);
   }
 
   // getTableCacheKey(uid, "l", key, &keyLen);
@@ -177,12 +200,52 @@ int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, ST
   getTableCacheKey(uid, 0, key, &keyLen);
   LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
   if (h) {
+    STSchema *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, uid, -1, 1);
+    TSKEY     keyTs = row->ts;
+    bool      invalidate = false;
+
+    SArray *pLast = (SArray *)taosLRUCacheValue(pCache, h);
+    int16_t nCol = taosArrayGetSize(pLast);
+    int16_t iCol = 0;
+
+    SLastCol *tTsVal = (SLastCol *)taosArrayGet(pLast, iCol);
+    if (keyTs > tTsVal->ts) {
+      STColumn *pTColumn = &pTSchema->columns[0];
+      SColVal   tColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.val = keyTs});
+
+      taosArraySet(pLast, iCol, &(SLastCol){.ts = keyTs, .colVal = tColVal});
+    }
+
+    for (++iCol; iCol < nCol; ++iCol) {
+      SLastCol *tTsVal1 = (SLastCol *)taosArrayGet(pLast, iCol);
+      if (keyTs >= tTsVal1->ts) {
+        SColVal *tColVal = &tTsVal1->colVal;
+
+        SColVal colVal = {0};
+        tTSRowGetVal(row, pTSchema, iCol, &colVal);
+        if (!COL_VAL_IS_NONE(&colVal)) {
+          if (keyTs == tTsVal1->ts && !COL_VAL_IS_NONE(tColVal)) {
+            invalidate = true;
+
+            break;
+          }
+        } else {
+          taosArraySet(pLast, iCol, &(SLastCol){.ts = keyTs, .colVal = colVal});
+        }
+      }
+    }
+
+  _invalidate:
+    taosMemoryFreeClear(pTSchema);
+
+    taosLRUCacheRelease(pCache, h, invalidate);
+    /*
     cacheRow = (STSRow *)taosLRUCacheValue(pCache, h);
     if (row->ts >= cacheRow->ts) {
       if (row->ts == cacheRow->ts) {
         STSRow    *mergedRow = NULL;
         SRowMerger merger = {0};
-        STSchema  *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, uid, -1);
+        STSchema  *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, uid, -1, 1);
 
         tRowMergerInit(&merger, &tsdbRowFromTSRow(0, cacheRow), pTSchema);
 
@@ -218,9 +281,9 @@ int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, ST
         if (status != TAOS_LRU_STATUS_OK) {
           code = -1;
         }
-        /* tsdbCacheInsertLastrow(pCache, uid, row, dup); */
+        // tsdbCacheInsertLastrow(pCache, uid, row, dup);
       }
-    }
+    }*/
   } /*else {
     if (dup) {
       cacheRow = tdRowDup(row);
@@ -249,7 +312,7 @@ int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row, STsdb 
   getTableCacheKey(uid, 1, key, &keyLen);
   LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
   if (h) {
-    STSchema *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, uid, -1);
+    STSchema *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, uid, -1, 1);
     TSKEY     keyTs = row->ts;
     bool      invalidate = false;
 
@@ -260,7 +323,7 @@ int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row, STsdb 
     SLastCol *tTsVal = (SLastCol *)taosArrayGet(pLast, iCol);
     if (keyTs > tTsVal->ts) {
       STColumn *pTColumn = &pTSchema->columns[0];
-      SColVal   tColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.ts = keyTs});
+      SColVal   tColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.val = keyTs});
 
       taosArraySet(pLast, iCol, &(SLastCol){.ts = keyTs, .colVal = tColVal});
     }
@@ -272,8 +335,8 @@ int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row, STsdb 
 
         SColVal colVal = {0};
         tTSRowGetVal(row, pTSchema, iCol, &colVal);
-        if (colVal.isNone || colVal.isNull) {
-          if (keyTs == tTsVal1->ts && !tColVal->isNone && !tColVal->isNull) {
+        if (!COL_VAL_IS_VALUE(&colVal)) {
+          if (keyTs == tTsVal1->ts && COL_VAL_IS_VALUE(tColVal)) {
             invalidate = true;
 
             break;
@@ -378,10 +441,10 @@ static int32_t getTableDelSkyline(STbData *pMem, STbData *pIMem, SDelFReader *pD
     if (code) goto _err;
   }
 
+_err:
   if (aDelData) {
     taosArrayDestroy(aDelData);
   }
-_err:
   return code;
 }
 
@@ -399,14 +462,13 @@ static int32_t getTableDelIdx(SDelFReader *pDelFReader, tb_uid_t suid, tb_uid_t 
 
   // code = tMapDataSearch(&delIdxMap, &idx, tGetDelIdx, tCmprDelIdx, pDelIdx);
   SDelIdx *pIdx = taosArraySearch(pDelIdxArray, &idx, tCmprDelIdx, TD_EQ);
-  if (code) goto _err;
 
   *pDelIdx = *pIdx;
 
+_err:
   if (pDelIdxArray) {
     taosArrayDestroy(pDelIdxArray);
   }
-_err:
   return code;
 }
 
@@ -418,31 +480,19 @@ typedef enum {
 } SFSLASTNEXTROWSTATES;
 
 typedef struct {
-  SFSLASTNEXTROWSTATES state;         // [input]
-  STsdb               *pTsdb;         // [input]
-  SBlockIdx           *pBlockIdxExp;  // [input]
-  STSchema            *pTSchema;      // [input]
+  SFSLASTNEXTROWSTATES state;     // [input]
+  STsdb               *pTsdb;     // [input]
+  STSchema            *pTSchema;  // [input]
   tb_uid_t             suid;
   tb_uid_t             uid;
   int32_t              nFileSet;
   int32_t              iFileSet;
   SArray              *aDFileSet;
   SDataFReader        *pDataFReader;
-  SArray              *aBlockL;
-  SBlockL             *pBlockL;
-  SBlockData          *pBlockDataL;
-  SBlockData           blockDataL;
-  int32_t              nRow;
-  int32_t              iRow;
   TSDBROW              row;
-  /*
-  SArray    *aBlockIdx;
-  SBlockIdx *pBlockIdx;
-  SMapData   blockMap;
-  int32_t    nBlock;
-  int32_t    iBlock;
-  SBlock     block;
-  */
+
+  SMergeTree  mergeTree;
+  SMergeTree *pMergeTree;
 } SFSLastNextRowIter;
 
 static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
@@ -451,90 +501,50 @@ static int32_t getNextRowFromFSLast(void *iter, TSDBROW **ppRow) {
 
   switch (state->state) {
     case SFSLASTNEXTROW_FS:
-      // state->aDFileSet = state->pTsdb->pFS->cState->aDFileSet;
       state->nFileSet = taosArrayGetSize(state->aDFileSet);
       state->iFileSet = state->nFileSet;
-
-      state->pBlockDataL = NULL;
 
     case SFSLASTNEXTROW_FILESET: {
       SDFileSet *pFileSet = NULL;
     _next_fileset:
+      if (state->pMergeTree != NULL) {
+        tMergeTreeClose(state->pMergeTree);
+        state->pMergeTree = NULL;
+      }
+
       if (--state->iFileSet >= 0) {
         pFileSet = (SDFileSet *)taosArrayGet(state->aDFileSet, state->iFileSet);
       } else {
-        if (state->pBlockDataL) {
-          tBlockDataDestroy(state->pBlockDataL, 1);
-          state->pBlockDataL = NULL;
-        }
-
         *ppRow = NULL;
         return code;
+      }
+
+      if (state->pDataFReader != NULL) {
+        tsdbDataFReaderClose(&state->pDataFReader);
+        state->pDataFReader = NULL;
       }
 
       code = tsdbDataFReaderOpen(&state->pDataFReader, state->pTsdb, pFileSet);
       if (code) goto _err;
 
-      if (!state->aBlockL) {
-        state->aBlockL = taosArrayInit(0, sizeof(SBlockL));
-      } else {
-        taosArrayClear(state->aBlockL);
-      }
-
-      code = tsdbReadBlockL(state->pDataFReader, state->aBlockL);
-      if (code) goto _err;
-
-      // SBlockL *pBlockL = (SBlockL *)taosArrayGet(state->aBlockL, state->iBlockL);
-
-      state->pBlockL = taosArraySearch(state->aBlockL, state->pBlockIdxExp, tCmprBlockL, TD_EQ);
-      if (!state->pBlockL) {
+      SSttBlockLoadInfo *pLoadInfo = tCreateLastBlockLoadInfo(state->pTSchema, NULL, 0);
+      tMergeTreeOpen(&state->mergeTree, 1, state->pDataFReader, state->suid, state->uid,
+                     &(STimeWindow){.skey = TSKEY_MIN, .ekey = TSKEY_MAX},
+                     &(SVersionRange){.minVer = 0, .maxVer = UINT64_MAX}, pLoadInfo, true, NULL);
+      state->pMergeTree = &state->mergeTree;
+      bool hasVal = tMergeTreeNext(&state->mergeTree);
+      if (!hasVal) {
+        state->state = SFSLASTNEXTROW_FILESET;
         goto _next_fileset;
       }
-
-      int64_t suid = state->pBlockL->suid;
-      int64_t uid = state->pBlockL->maxUid;
-
-      if (!state->pBlockDataL) {
-        state->pBlockDataL = &state->blockDataL;
-
-        tBlockDataCreate(state->pBlockDataL);
-      }
-      code = tBlockDataInit(state->pBlockDataL, suid, suid ? 0 : uid, state->pTSchema);
-      if (code) goto _err;
-    }
-    case SFSLASTNEXTROW_BLOCKDATA:
-      code = tsdbReadLastBlock(state->pDataFReader, state->pBlockL, state->pBlockDataL);
-      if (code) goto _err;
-
-      state->nRow = state->blockDataL.nRow;
-      state->iRow = state->nRow - 1;
-
-      if (!state->pBlockDataL->uid) {
-        while (state->pBlockIdxExp->uid != state->pBlockDataL->aUid[state->iRow]) {
-          --state->iRow;
-        }
-      }
-
       state->state = SFSLASTNEXTROW_BLOCKROW;
+    }
     case SFSLASTNEXTROW_BLOCKROW:
-      if (state->pBlockDataL->uid) {
-        if (state->iRow >= 0) {
-          state->row = tsdbRowFromBlockData(state->pBlockDataL, state->iRow);
-          *ppRow = &state->row;
-
-          if (--state->iRow < 0) {
-            state->state = SFSLASTNEXTROW_FILESET;
-          }
-        }
-      } else {
-        if (state->iRow >= 0 && state->pBlockIdxExp->uid == state->pBlockDataL->aUid[state->iRow]) {
-          state->row = tsdbRowFromBlockData(state->pBlockDataL, state->iRow);
-          *ppRow = &state->row;
-
-          if (--state->iRow < 0 || state->pBlockIdxExp->uid != state->pBlockDataL->aUid[state->iRow]) {
-            state->state = SFSLASTNEXTROW_FILESET;
-          }
-        }
+      state->row = tMergeTreeGetRow(&state->mergeTree);
+      *ppRow = &state->row;
+      bool hasVal = tMergeTreeNext(&state->mergeTree);
+      if (!hasVal) {
+        state->state = SFSLASTNEXTROW_FILESET;
       }
 
       return code;
@@ -548,13 +558,9 @@ _err:
     tsdbDataFReaderClose(&state->pDataFReader);
     state->pDataFReader = NULL;
   }
-  if (state->aBlockL) {
-    taosArrayDestroy(state->aBlockL);
-    state->aBlockL = NULL;
-  }
-  if (state->pBlockDataL) {
-    tBlockDataDestroy(state->pBlockDataL, 1);
-    state->pBlockDataL = NULL;
+  if (state->pMergeTree != NULL) {
+    tMergeTreeClose(state->pMergeTree);
+    state->pMergeTree = NULL;
   }
 
   *ppRow = NULL;
@@ -574,13 +580,10 @@ int32_t clearNextRowFromFSLast(void *iter) {
     tsdbDataFReaderClose(&state->pDataFReader);
     state->pDataFReader = NULL;
   }
-  if (state->aBlockL) {
-    taosArrayDestroy(state->aBlockL);
-    state->aBlockL = NULL;
-  }
-  if (state->pBlockDataL) {
-    tBlockDataDestroy(state->pBlockDataL, 1);
-    state->pBlockDataL = NULL;
+
+  if (state->pMergeTree != NULL) {
+    tMergeTreeClose(state->pMergeTree);
+    state->pMergeTree = NULL;
   }
 
   return code;
@@ -609,7 +612,7 @@ typedef struct SFSNextRowIter {
   SMapData         blockMap;
   int32_t          nBlock;
   int32_t          iBlock;
-  SBlock           block;
+  SDataBlk         block;
   SBlockData       blockData;
   SBlockData      *pBlockData;
   int32_t          nRow;
@@ -663,14 +666,17 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
        * &state->blockIdx);
        */
       state->pBlockIdx = taosArraySearch(state->aBlockIdx, state->pBlockIdxExp, tCmprBlockIdx, TD_EQ);
-      if (code) goto _err;
-
       if (!state->pBlockIdx) {
+        tsdbDataFReaderClose(&state->pDataFReader);
+        state->pDataFReader = NULL;
         goto _next_fileset;
       }
 
-      tMapDataReset(&state->blockMap);
-      code = tsdbReadBlock(state->pDataFReader, state->pBlockIdx, &state->blockMap);
+      if (state->blockMap.pData != NULL) {
+        tMapDataClear(&state->blockMap);
+      }
+
+      code = tsdbReadDataBlk(state->pDataFReader, state->pBlockIdx, &state->blockMap);
       if (code) goto _err;
 
       state->nBlock = state->blockMap.nItem;
@@ -684,16 +690,17 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
     }
     case SFSNEXTROW_BLOCKDATA:
       if (state->iBlock >= 0) {
-        SBlock block = {0};
+        SDataBlk block = {0};
 
-        tBlockReset(&block);
+        tDataBlkReset(&block);
         // tBlockDataReset(&state->blockData);
         tBlockDataReset(state->pBlockData);
 
-        tMapDataGetItemByIdx(&state->blockMap, state->iBlock, &block, tGetBlock);
+        tMapDataGetItemByIdx(&state->blockMap, state->iBlock, &block, tGetDataBlk);
         /* code = tsdbReadBlockData(state->pDataFReader, &state->blockIdx, &block, &state->blockData, NULL, NULL); */
         tBlockDataReset(state->pBlockData);
-        code = tBlockDataInit(state->pBlockData, state->suid, state->uid, state->pTSchema);
+        TABLEID tid = {.suid = state->suid, .uid = state->uid};
+        code = tBlockDataInit(state->pBlockData, &tid, state->pTSchema, NULL, 0);
         if (code) goto _err;
 
         code = tsdbReadDataBlock(state->pDataFReader, &block, state->pBlockData);
@@ -771,6 +778,10 @@ int32_t clearNextRowFromFS(void *iter) {
     // tBlockDataDestroy(&state->blockData, 1);
     tBlockDataDestroy(state->pBlockData, 1);
     state->pBlockData = NULL;
+  }
+
+  if (state->blockMap.pData != NULL) {
+    tMapDataClear(&state->blockMap);
   }
 
   return code;
@@ -878,7 +889,7 @@ static bool tsdbKeyDeleted(TSDBKEY *key, SArray *pSkyline, int64_t *iSkyline) {
     if (key->ts > pItemBack->ts) {
       return false;
     } else if (key->ts >= pItemFront->ts && key->ts <= pItemBack->ts) {
-      if ((key->version <= pItemFront->version || key->ts == pItemBack->ts && key->version <= pItemBack->version)) {
+      if (key->version <= pItemFront->version || (key->ts == pItemBack->ts && key->version <= pItemBack->version)) {
         return true;
       } else {
         return false;
@@ -928,7 +939,7 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
 
   tb_uid_t suid = getTableSuidByUid(uid, pTsdb);
 
-  tsdbTakeReadSnap(pTsdb, &pIter->pReadSnap);
+  tsdbTakeReadSnap(pTsdb, &pIter->pReadSnap, NULL);
 
   STbData *pMem = NULL;
   if (pIter->pReadSnap->pMem) {
@@ -954,10 +965,16 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
     if (code) goto _err;
 
     code = getTableDelIdx(pDelFReader, suid, uid, &delIdx);
-    if (code) goto _err;
+    if (code) {
+      tsdbDelFReaderClose(&pDelFReader);
+      goto _err;
+    }
 
     code = getTableDelSkyline(pMem, pIMem, pDelFReader, &delIdx, pIter->pSkyline);
-    if (code) goto _err;
+    if (code) {
+      tsdbDelFReaderClose(&pDelFReader);
+      goto _err;
+    }
 
     tsdbDelFReaderClose(&pDelFReader);
   } else {
@@ -972,7 +989,6 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
   pIter->fsLastState.state = (SFSLASTNEXTROWSTATES)SFSNEXTROW_FS;
   pIter->fsLastState.pTsdb = pTsdb;
   pIter->fsLastState.aDFileSet = pIter->pReadSnap->fs.aDFileSet;
-  pIter->fsLastState.pBlockIdxExp = &pIter->idx;
   pIter->fsLastState.pTSchema = pTSchema;
   pIter->fsLastState.suid = suid;
   pIter->fsLastState.uid = uid;
@@ -1024,7 +1040,7 @@ static int32_t nextRowIterClose(CacheNextRowIter *pIter) {
     taosArrayDestroy(pIter->pSkyline);
   }
 
-  tsdbUntakeReadSnap(pIter->pTsdb, pIter->pReadSnap);
+  tsdbUntakeReadSnap(pIter->pTsdb, pIter->pReadSnap, NULL);
 
 _err:
   return code;
@@ -1103,107 +1119,10 @@ _err:
   return code;
 }
 
-static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, STSRow **ppRow) {
+static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, SArray **ppColArray) {
   int32_t code = 0;
 
-  STSchema *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, uid, -1);
-  int16_t   nCol = pTSchema->numOfCols;
-  int16_t   iCol = 0;
-  int16_t   noneCol = 0;
-  bool      setNoneCol = false;
-  SArray   *pColArray = taosArrayInit(nCol, sizeof(SColVal));
-  SColVal  *pColVal = &(SColVal){0};
-
-  TSKEY lastRowTs = TSKEY_MAX;
-
-  CacheNextRowIter iter = {0};
-  nextRowIterOpen(&iter, uid, pTsdb, pTSchema);
-
-  do {
-    TSDBROW *pRow = NULL;
-    nextRowIterGet(&iter, &pRow);
-
-    if (!pRow) {
-      break;
-    }
-
-    if (lastRowTs == TSKEY_MAX) {
-      lastRowTs = TSDBROW_TS(pRow);
-      STColumn *pTColumn = &pTSchema->columns[0];
-
-      *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.ts = lastRowTs});
-      if (taosArrayPush(pColArray, pColVal) == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _err;
-      }
-
-      for (iCol = 1; iCol < nCol; ++iCol) {
-        tsdbRowGetColVal(pRow, pTSchema, iCol, pColVal);
-
-        if (taosArrayPush(pColArray, pColVal) == NULL) {
-          code = TSDB_CODE_OUT_OF_MEMORY;
-          goto _err;
-        }
-
-        if (pColVal->isNone && !setNoneCol) {
-          noneCol = iCol;
-          setNoneCol = true;
-        }
-      }
-      if (!setNoneCol) {
-        // goto build the result ts row
-        break;
-      } else {
-        continue;
-      }
-    }
-
-    if ((TSDBROW_TS(pRow) < lastRowTs)) {
-      // goto build the result ts row
-      break;
-    }
-
-    // merge into pColArray
-    setNoneCol = false;
-    for (iCol = noneCol; iCol < nCol; ++iCol) {
-      // high version's column value
-      SColVal *tColVal = (SColVal *)taosArrayGet(pColArray, iCol);
-
-      tsdbRowGetColVal(pRow, pTSchema, iCol, pColVal);
-      if (tColVal->isNone && !pColVal->isNone) {
-        taosArraySet(pColArray, iCol, pColVal);
-      } else if (tColVal->isNone && pColVal->isNone && !setNoneCol) {
-        noneCol = iCol;
-        setNoneCol = true;
-      }
-    }
-  } while (setNoneCol);
-
-  // build the result ts row here
-  *dup = false;
-  if (taosArrayGetSize(pColArray) == nCol) {
-    code = tdSTSRowNew(pColArray, pTSchema, ppRow);
-    if (code) goto _err;
-  } else {
-    *ppRow = NULL;
-  }
-
-  nextRowIterClose(&iter);
-  taosArrayDestroy(pColArray);
-  taosMemoryFreeClear(pTSchema);
-  return code;
-
-_err:
-  nextRowIterClose(&iter);
-  taosArrayDestroy(pColArray);
-  taosMemoryFreeClear(pTSchema);
-  return code;
-}
-
-static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray) {
-  int32_t code = 0;
-
-  STSchema *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, uid, -1);
+  STSchema *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, uid, -1, 1);
   int16_t   nCol = pTSchema->numOfCols;
   int16_t   iCol = 0;
   int16_t   noneCol = 0;
@@ -1230,7 +1149,131 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray) {
       lastRowTs = rowTs;
       STColumn *pTColumn = &pTSchema->columns[0];
 
-      *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.ts = lastRowTs});
+      *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.val = lastRowTs});
+      if (taosArrayPush(pColArray, &(SLastCol){.ts = lastRowTs, .colVal = *pColVal}) == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        goto _err;
+      }
+
+      for (iCol = 1; iCol < nCol; ++iCol) {
+        tsdbRowGetColVal(pRow, pTSchema, iCol, pColVal);
+
+        SLastCol lastCol = {.ts = lastRowTs, .colVal = *pColVal};
+        if (IS_VAR_DATA_TYPE(pColVal->type) && pColVal->value.nData > 0) {
+          lastCol.colVal.value.pData = taosMemoryMalloc(lastCol.colVal.value.nData);
+          if (lastCol.colVal.value.pData == NULL) {
+            terrno = TSDB_CODE_OUT_OF_MEMORY;
+            code = TSDB_CODE_OUT_OF_MEMORY;
+            goto _err;
+          }
+          memcpy(lastCol.colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
+        }
+
+        if (taosArrayPush(pColArray, &lastCol) == NULL) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          goto _err;
+        }
+
+        if (COL_VAL_IS_NONE(pColVal) && !setNoneCol) {
+          noneCol = iCol;
+          setNoneCol = true;
+        }
+      }
+      if (!setNoneCol) {
+        // done, goto return pColArray
+        break;
+      } else {
+        continue;
+      }
+    }
+
+    if ((rowTs < lastRowTs)) {
+      // done, goto return pColArray
+      break;
+    }
+
+    // merge into pColArray
+    setNoneCol = false;
+    for (iCol = noneCol; iCol < nCol; ++iCol) {
+      // high version's column value
+      SColVal *tColVal = (SColVal *)taosArrayGet(pColArray, iCol);
+
+      tsdbRowGetColVal(pRow, pTSchema, iCol, pColVal);
+      if (COL_VAL_IS_NONE(tColVal) && !COL_VAL_IS_NONE(pColVal)) {
+        SLastCol lastCol = {.ts = rowTs, .colVal = *pColVal};
+        if (IS_VAR_DATA_TYPE(pColVal->type) && pColVal->value.nData > 0) {
+          SLastCol *pLastCol = (SLastCol *)taosArrayGet(pColArray, iCol);
+          taosMemoryFree(pLastCol->colVal.value.pData);
+
+          lastCol.colVal.value.pData = taosMemoryMalloc(lastCol.colVal.value.nData);
+          if (lastCol.colVal.value.pData == NULL) {
+            terrno = TSDB_CODE_OUT_OF_MEMORY;
+            code = TSDB_CODE_OUT_OF_MEMORY;
+            goto _err;
+          }
+          memcpy(lastCol.colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
+        }
+
+        taosArraySet(pColArray, iCol, &lastCol);
+      } else if (COL_VAL_IS_NONE(tColVal) && COL_VAL_IS_NONE(pColVal) && !setNoneCol) {
+        noneCol = iCol;
+        setNoneCol = true;
+      }
+    }
+  } while (setNoneCol);
+
+  // build the result ts row here
+  *dup = false;
+  if (taosArrayGetSize(pColArray) != nCol) {
+    *ppColArray = NULL;
+    taosArrayDestroy(pColArray);
+  } else {
+    *ppColArray = pColArray;
+  }
+
+  nextRowIterClose(&iter);
+  taosMemoryFreeClear(pTSchema);
+  return code;
+
+_err:
+  nextRowIterClose(&iter);
+  taosArrayDestroy(pColArray);
+  taosMemoryFreeClear(pTSchema);
+  return code;
+}
+
+static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray) {
+  int32_t code = 0;
+
+  STSchema *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, uid, -1, 1);
+  int16_t   nCol = pTSchema->numOfCols;
+  int16_t   iCol = 0;
+  int16_t   noneCol = 0;
+  bool      setNoneCol = false;
+  SArray   *pColArray = taosArrayInit(nCol, sizeof(SLastCol));
+  SColVal  *pColVal = &(SColVal){0};
+
+  TSKEY lastRowTs = TSKEY_MAX;
+
+  CacheNextRowIter iter = {0};
+  nextRowIterOpen(&iter, uid, pTsdb, pTSchema);
+
+  do {
+    TSDBROW *pRow = NULL;
+    nextRowIterGet(&iter, &pRow);
+
+    if (!pRow) {
+      break;
+    }
+
+    TSKEY rowTs = TSDBROW_TS(pRow);
+
+    if (lastRowTs == TSKEY_MAX) {
+      lastRowTs = rowTs;
+      STColumn *pTColumn = &pTSchema->columns[0];
+
+      *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, (SValue){.val = lastRowTs});
       if (taosArrayPush(pColArray, &(SLastCol){.ts = lastRowTs, .colVal = *pColVal}) == NULL) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         goto _err;
@@ -1239,18 +1282,29 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray) {
       for (iCol = 1; iCol < nCol; ++iCol) {
         tsdbRowGetColVal(pRow, pTSchema, iCol, pColVal);
 
-        if (taosArrayPush(pColArray, &(SLastCol){.ts = lastRowTs, .colVal = *pColVal}) == NULL) {
+        SLastCol lastCol = {.ts = lastRowTs, .colVal = *pColVal};
+        if (IS_VAR_DATA_TYPE(pColVal->type) && pColVal->value.nData > 0) {
+          lastCol.colVal.value.pData = taosMemoryMalloc(lastCol.colVal.value.nData);
+          if (lastCol.colVal.value.pData == NULL) {
+            terrno = TSDB_CODE_OUT_OF_MEMORY;
+            code = TSDB_CODE_OUT_OF_MEMORY;
+            goto _err;
+          }
+          memcpy(lastCol.colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
+        }
+
+        if (taosArrayPush(pColArray, &lastCol) == NULL) {
           code = TSDB_CODE_OUT_OF_MEMORY;
           goto _err;
         }
 
-        if ((pColVal->isNone || pColVal->isNull) && !setNoneCol) {
+        if (!COL_VAL_IS_VALUE(pColVal) && !setNoneCol) {
           noneCol = iCol;
           setNoneCol = true;
         }
       }
       if (!setNoneCol) {
-        // goto build the result ts row
+        // done, goto return pColArray
         break;
       } else {
         continue;
@@ -1261,19 +1315,33 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray) {
     setNoneCol = false;
     for (iCol = noneCol; iCol < nCol; ++iCol) {
       // high version's column value
-      SColVal *tColVal = (SColVal *)taosArrayGet(pColArray, iCol);
+      SLastCol *lastColVal = (SLastCol *)taosArrayGet(pColArray, iCol);
+      SColVal  *tColVal = &lastColVal->colVal;
 
       tsdbRowGetColVal(pRow, pTSchema, iCol, pColVal);
-      if ((tColVal->isNone || tColVal->isNull) && (!pColVal->isNone && !pColVal->isNull)) {
-        taosArraySet(pColArray, iCol, &(SLastCol){.ts = rowTs, .colVal = *pColVal});
-      } else if ((tColVal->isNone || tColVal->isNull) && (pColVal->isNone || pColVal->isNull) && !setNoneCol) {
+      if (!COL_VAL_IS_VALUE(tColVal) && COL_VAL_IS_VALUE(pColVal)) {
+        SLastCol lastCol = {.ts = rowTs, .colVal = *pColVal};
+        if (IS_VAR_DATA_TYPE(pColVal->type) && pColVal->value.nData > 0) {
+          SLastCol *pLastCol = (SLastCol *)taosArrayGet(pColArray, iCol);
+          taosMemoryFree(pLastCol->colVal.value.pData);
+
+          lastCol.colVal.value.pData = taosMemoryMalloc(lastCol.colVal.value.nData);
+          if (lastCol.colVal.value.pData == NULL) {
+            terrno = TSDB_CODE_OUT_OF_MEMORY;
+            code = TSDB_CODE_OUT_OF_MEMORY;
+            goto _err;
+          }
+          memcpy(lastCol.colVal.value.pData, pColVal->value.pData, pColVal->value.nData);
+        }
+
+        taosArraySet(pColArray, iCol, &lastCol);
+      } else if (!COL_VAL_IS_VALUE(tColVal) && !COL_VAL_IS_VALUE(pColVal) && !setNoneCol) {
         noneCol = iCol;
         setNoneCol = true;
       }
     }
   } while (setNoneCol);
 
-  // build the result ts row here
   if (taosArrayGetSize(pColArray) <= 0) {
     *ppLastArray = NULL;
     taosArrayDestroy(pColArray);
@@ -1288,6 +1356,8 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray) {
 _err:
   nextRowIterClose(&iter);
   taosMemoryFreeClear(pTSchema);
+  *ppLastArray = NULL;
+  taosArrayDestroy(pColArray);
   return code;
 }
 
@@ -1304,13 +1374,13 @@ int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUH
 
     h = taosLRUCacheLookup(pCache, key, keyLen);
     if (!h) {
-      STSRow *pRow = NULL;
+      SArray *pArray = NULL;
       bool    dup = false;  // which is always false for now
-      code = mergeLastRow(uid, pTsdb, &dup, &pRow);
+      code = mergeLastRow(uid, pTsdb, &dup, &pArray);
       // if table's empty or error, return code of -1
-      if (code < 0 || pRow == NULL) {
-        if (!dup && pRow) {
-          taosMemoryFree(pRow);
+      if (code < 0 || pArray == NULL) {
+        if (!dup && pArray) {
+          taosArrayDestroy(pArray);
         }
 
         taosThreadMutexUnlock(&pTsdb->lruMutex);
@@ -1320,9 +1390,9 @@ int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUH
         return 0;
       }
 
-      _taos_lru_deleter_t deleter = deleteTableCacheLastrow;
-      LRUStatus           status =
-          taosLRUCacheInsert(pCache, key, keyLen, pRow, TD_ROW_LEN(pRow), deleter, NULL, TAOS_LRU_PRIORITY_LOW);
+      size_t              charge = pArray->capacity * pArray->elemSize + sizeof(*pArray);
+      _taos_lru_deleter_t deleter = deleteTableCacheLast;
+      LRUStatus status = taosLRUCacheInsert(pCache, key, keyLen, pArray, charge, deleter, NULL, TAOS_LRU_PRIORITY_LOW);
       if (status != TAOS_LRU_STATUS_OK) {
         code = -1;
       }
@@ -1372,25 +1442,35 @@ int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHand
   // getTableCacheKeyS(uid, "l", key, &keyLen);
   getTableCacheKey(uid, 1, key, &keyLen);
   LRUHandle *h = taosLRUCacheLookup(pCache, key, keyLen);
-  if (h) {
-  } else {
-    SArray *pLastArray = NULL;
-    code = mergeLast(uid, pTsdb, &pLastArray);
-    // if table's empty or error, return code of -1
-    // if (code < 0 || pRow == NULL) {
-    if (code < 0 || pLastArray == NULL) {
-      *handle = NULL;
-      return 0;
-    }
-
-    _taos_lru_deleter_t deleter = deleteTableCacheLast;
-    LRUStatus           status =
-        taosLRUCacheInsert(pCache, key, keyLen, pLastArray, pLastArray->capacity, deleter, NULL, TAOS_LRU_PRIORITY_LOW);
-    if (status != TAOS_LRU_STATUS_OK) {
-      code = -1;
-    }
+  if (!h) {
+    taosThreadMutexLock(&pTsdb->lruMutex);
 
     h = taosLRUCacheLookup(pCache, key, keyLen);
+    if (!h) {
+      SArray *pLastArray = NULL;
+      code = mergeLast(uid, pTsdb, &pLastArray);
+      // if table's empty or error, return code of -1
+      if (code < 0 || pLastArray == NULL) {
+        taosThreadMutexUnlock(&pTsdb->lruMutex);
+
+        *handle = NULL;
+        return 0;
+      }
+
+      size_t              charge = pLastArray->capacity * pLastArray->elemSize + sizeof(*pLastArray);
+      _taos_lru_deleter_t deleter = deleteTableCacheLast;
+      LRUStatus           status =
+          taosLRUCacheInsert(pCache, key, keyLen, pLastArray, charge, deleter, NULL, TAOS_LRU_PRIORITY_LOW);
+      if (status != TAOS_LRU_STATUS_OK) {
+        code = -1;
+      }
+
+      taosThreadMutexUnlock(&pTsdb->lruMutex);
+
+      h = taosLRUCacheLookup(pCache, key, keyLen);
+    } else {
+      taosThreadMutexUnlock(&pTsdb->lruMutex);
+    }
   }
 
   *handle = h;
@@ -1411,3 +1491,12 @@ void tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity) {
 }
 
 size_t tsdbCacheGetCapacity(SVnode *pVnode) { return taosLRUCacheGetCapacity(pVnode->pTsdb->lruCache); }
+
+size_t tsdbCacheGetUsage(SVnode *pVnode) {
+  size_t usage = 0;
+  if (pVnode->pTsdb != NULL) {
+    usage = taosLRUCacheGetUsage(pVnode->pTsdb->lruCache);
+  }
+
+  return usage;
+}

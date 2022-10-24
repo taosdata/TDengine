@@ -219,12 +219,12 @@ fi
 if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "arm64" ]] || [[ "$cpuType" == "arm32" ]] || [[ "$cpuType" == "mips64" ]]; then
   if [ "$verMode" != "cluster" ]; then
     # community-version compile
-    cmake ../ -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
+    cmake ../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
   else
     if [[ "$dbName" != "taos" ]]; then
       replace_enterprise_$dbName
     fi
-    cmake ../../ -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
+    cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
   fi
 else
   echo "input cpuType=${cpuType} error!!!"
@@ -260,7 +260,7 @@ if [ "$osType" != "Darwin" ]; then
       if [[ "$pagMode" == "full" ]]; then
         if [ -d ${top_dir}/tools/taos-tools/packaging/deb ]; then
           cd ${top_dir}/tools/taos-tools/packaging/deb
-          taos_tools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}')
+          taos_tools_ver=$(git tag |grep -v taos | sort | tail -1)
           [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
           ${csudo}./make-taos-tools-deb.sh ${top_dir} \
@@ -285,7 +285,7 @@ if [ "$osType" != "Darwin" ]; then
       if [[ "$pagMode" == "full" ]]; then
         if [ -d ${top_dir}/tools/taos-tools/packaging/rpm ]; then
           cd ${top_dir}/tools/taos-tools/packaging/rpm
-          taos_tools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}' | sed -e 's/-/_/g')
+          taos_tools_ver=$(git tag |grep -v taos | sort | tail -1)
           [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
           ${csudo}./make-taos-tools-rpm.sh ${top_dir} \

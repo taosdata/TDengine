@@ -12,7 +12,7 @@ async fn main() -> anyhow::Result<()> {
     // bind table name and tags
     stmt.set_tbname_tags(
         "d1001",
-        &[Value::VarChar("San Fransico".into()), Value::Int(2)],
+        &[Value::VarChar("California.SanFransico".into()), Value::Int(2)],
     )?;
     // bind values.
     let values = vec![

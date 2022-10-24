@@ -5,8 +5,8 @@ print ========= start dnode1 as master
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
-print ======== step1 
-sql create database d1 replica 1 duration 7 keep 50 
+print ======== step1
+sql create database d1 replica 1 duration 7 keep 50
 sql use d1
 sql create table tb (ts timestamp, a int)
 sql insert into tb values(now-28d, -28)
@@ -83,7 +83,7 @@ if $data00 != 3 then
 endi
 
 print ======== step8
-# sql alter table tb(ts timestamp, a int, b smallint, c tinyint, d int, e bigint, f float, g double, h binary(10) ) 
+# sql alter table tb(ts timestamp, a int, b smallint, c tinyint, d int, e bigint, f float, g double, h binary(10) )
 sql alter table tb add column h binary(10)
 sql insert into tb values(now-7d, -7, 18, 0, 0, 0, 0, 0, '0')
 sql insert into tb values(now-6d, -6, 19, 1, 1, 1, 1, 1, '1')

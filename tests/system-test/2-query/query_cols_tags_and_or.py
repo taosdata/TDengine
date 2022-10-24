@@ -19,7 +19,7 @@ class TDTestCase:
     def init(self, conn, logSql):
         ## add for TD-6672
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
+        tdSql.init(conn.cursor(), False)
 
     def insertData(self, tb_name):
         insert_sql_list = [f'insert into {tb_name} values ("2021-01-01 12:00:00", 1, 1, 1, 3, 1.1, 1.1, "binary", "nchar", true, 1, 2, 3, 4)',
@@ -37,17 +37,17 @@ class TDTestCase:
         for sql in insert_sql_list:
             tdSql.execute(sql)
 
-    def initTb(self):
-        tdCom.cleanTb()
-        tb_name = tdCom.getLongName(8, "letters")
+    def initTb(self, dbname="db"):
+        tdCom.cleanTb(dbname)
+        tb_name = f'{dbname}.{tdCom.getLongName(8, "letters")}'
         tdSql.execute(
             f"CREATE TABLE {tb_name} (ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 float, c6 double, c7 binary(100), c8 nchar(200), c9 bool, c10 tinyint unsigned, c11 smallint unsigned, c12 int unsigned, c13 bigint unsigned)")
         self.insertData(tb_name)
         return tb_name
 
-    def initStb(self, count=5):
-        tdCom.cleanTb()
-        tb_name = tdCom.getLongName(8, "letters")
+    def initStb(self, count=5, dbname="db"):
+        tdCom.cleanTb(dbname)
+        tb_name = f'{dbname}.{tdCom.getLongName(8, "letters")}'
         tdSql.execute(
             f"CREATE TABLE {tb_name} (ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 float, c6 double, c7 binary(100), c8 nchar(200), c9 bool, c10 tinyint unsigned, c11 smallint unsigned, c12 int unsigned, c13 bigint unsigned) tags (t1 tinyint, t2 smallint, t3 int, t4 bigint, t5 float, t6 double, t7 binary(100), t8 nchar(200), t9 bool, t10 tinyint unsigned, t11 smallint unsigned, t12 int unsigned, t13 bigint unsigned)")
         for i in range(1, count+1):
@@ -56,9 +56,10 @@ class TDTestCase:
             self.insertData(f'{tb_name}_sub_{i}')
         return tb_name
 
-    def initTwoStb(self):
-        tdCom.cleanTb()
-        tb_name = tdCom.getLongName(8, "letters")
+    def initTwoStb(self, dbname="db"):
+        tdCom.cleanTb(dbname)
+        tb_name = f'{dbname}.{tdCom.getLongName(8, "letters")}'
+        # tb_name = tdCom.getLongName(8, "letters")
         tb_name1 = f'{tb_name}1'
         tb_name2 = f'{tb_name}2'
         tdSql.execute(

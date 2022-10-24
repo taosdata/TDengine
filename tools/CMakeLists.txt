@@ -1,6 +1,11 @@
 IF (TD_WEBSOCKET)
+    IF (TD_LINUX)
+        SET(websocket_lib_file "libtaosws.so")
+    ELSEIF (TD_DARWIN)
+        SET(websocket_lib_file "libtaosws.dylib")
+    ENDIF ()
     MESSAGE("${Green} use libtaos-ws${ColourReset}")
-    IF (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs/target/release/libtaosws.so" OR "${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs/target/release/libtaosws.so" IS_NEWER_THAN "${CMAKE_SOURCE_DIR}/.git/modules/tools/taosws-rs/FETCH_HEAD")
+    IF (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs/target/release/${websocket_lib_file}" OR "${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs/target/release/${websocket_lib_file}" IS_NEWER_THAN "${CMAKE_SOURCE_DIR}/.git/modules/tools/taosws-rs/FETCH_HEAD")
         include(ExternalProject)
         ExternalProject_Add(taosws-rs
             PREFIX        "taosws-rs"
@@ -12,10 +17,11 @@ IF (TD_WEBSOCKET)
             PATCH_COMMAND
             COMMAND     git clean -f -d
             BUILD_COMMAND
-            COMMAND cargo build --release -p taos-ws-sys
+            COMMAND cargo update
+            COMMAND cargo build --release -p taos-ws-sys --features native-tls-vendored
             COMMAND ./taos-ws-sys/ci/package.sh
             INSTALL_COMMAND
-            COMMAND cmake -E copy target/libtaosws/libtaosws.so ${CMAKE_BINARY_DIR}/build/lib
+            COMMAND cmake -E copy target/libtaosws/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib
             COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/build/include
             COMMAND cmake -E copy target/libtaosws/taosws.h ${CMAKE_BINARY_DIR}/build/include
             )
@@ -31,10 +37,11 @@ IF (TD_WEBSOCKET)
             PATCH_COMMAND
             COMMAND     git clean -f -d
             BUILD_COMMAND
-            COMMAND cargo build --release -p taos-ws-sys
+            COMMAND cargo update
+            COMMAND cargo build --release -p taos-ws-sys --features native-tls-vendored
             COMMAND ./taos-ws-sys/ci/package.sh
             INSTALL_COMMAND
-            COMMAND cmake -E copy target/libtaosws/libtaosws.so ${CMAKE_BINARY_DIR}/build/lib
+            COMMAND cmake -E copy target/libtaosws/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib
             COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/build/include
             COMMAND cmake -E copy target/libtaosws/taosws.h ${CMAKE_BINARY_DIR}/build/include
             )

@@ -53,7 +53,7 @@ static void destroyIndefinitOperatorInfo(void* param) {
 
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhysiNode* pProjPhyNode,
                                          SExecTaskInfo* pTaskInfo) {
-  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t               code = TSDB_CODE_SUCCESS;
   SProjectOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SProjectOperatorInfo));
   SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -184,7 +184,7 @@ static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SS
   if (pLimitInfo->limit.limit >= 0 && pLimitInfo->numOfOutputRows + pBlock->info.rows >= pLimitInfo->limit.limit) {
     int32_t keepRows = (int32_t)(pLimitInfo->limit.limit - pLimitInfo->numOfOutputRows);
     blockDataKeepFirstNRows(pBlock, keepRows);
-    //TODO: optimize it later when partition by + limit
+    // TODO: optimize it later when partition by + limit
     if ((pLimitInfo->slimit.limit == -1 && pLimitInfo->currentGroupId == 0) ||
         (pLimitInfo->slimit.limit > 0 && pLimitInfo->slimit.limit <= pLimitInfo->numOfOutputGroups)) {
       doSetOperatorCompleted(pOperator);
@@ -193,16 +193,6 @@ static int32_t doIngroupLimitOffset(SLimitInfo* pLimitInfo, uint64_t groupId, SS
 
   pLimitInfo->numOfOutputRows += pBlock->info.rows;
   return PROJECT_RETRIEVE_DONE;
-}
-
-void printDataBlock1(SSDataBlock* pBlock, const char* flag) {
-  if (!pBlock || pBlock->info.rows == 0) {
-    qDebug("===stream===printDataBlock: Block is Null or Empty");
-    return;
-  }
-  char* pBuf = NULL;
-  qDebug("%s", dumpBlockData(pBlock, flag, &pBuf));
-  taosMemoryFreeClear(pBuf);
 }
 
 SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
@@ -216,9 +206,16 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   blockDataCleanup(pFinalRes);
 
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  if (pTaskInfo->streamInfo.pReq) {
+    pOperator->status = OP_OPENED;
+  }
+
+  qDebug("enter project");
+
   if (pOperator->status == OP_EXEC_DONE) {
     if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
       pOperator->status = OP_OPENED;
+      qDebug("projection in queue model, set status open and return null");
       return NULL;
     }
 
@@ -247,8 +244,22 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       // The downstream exec may change the value of the newgroup, so use a local variable instead.
       SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
       if (pBlock == NULL) {
+        if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE && pFinalRes->info.rows == 0) {
+          pOperator->status = OP_OPENED;
+          if (pOperator->status == OP_EXEC_RECV) {
+            continue;
+          } else {
+            return NULL;
+          }
+        }
+        qDebug("set op close, exec %d, status %d rows %d", pTaskInfo->execModel, pOperator->status,
+               pFinalRes->info.rows);
         doSetOperatorCompleted(pOperator);
         break;
+      }
+      if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
+        qDebug("set status recv");
+        pOperator->status = OP_EXEC_RECV;
       }
 
       // for stream interval
@@ -274,7 +285,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
 
-      setInputDataBlock(pOperator, pSup->pCtx, pBlock, order, scanFlag, false);
+      setInputDataBlock(pSup, pBlock, order, scanFlag, false);
       blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
 
       code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
@@ -304,16 +315,17 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       }
 
       // do apply filter
-      doFilter(pProjectInfo->pFilterNode, pFinalRes, NULL);
+      doFilter(pProjectInfo->pFilterNode, pFinalRes, NULL, NULL);
 
       // when apply the limit/offset for each group, pRes->info.rows may be 0, due to limit constraint.
       if (pFinalRes->info.rows > 0 || (pOperator->status == OP_EXEC_DONE)) {
+        qDebug("project return %d rows, status %d", pFinalRes->info.rows, pOperator->status);
         break;
       }
     } else {
       // do apply filter
       if (pRes->info.rows > 0) {
-        doFilter(pProjectInfo->pFilterNode, pRes, NULL);
+        doFilter(pProjectInfo->pFilterNode, pRes, NULL, NULL);
         if (pRes->info.rows == 0) {
           continue;
         }
@@ -372,6 +384,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
     numOfRows = TWOMB / pResBlock->info.rowSize;
   }
 
+  initBasicInfo(&pInfo->binfo, pResBlock);
   initResultSizeInfo(&pOperator->resultInfo, numOfRows);
 
   int32_t code = initAggInfo(pSup, &pInfo->aggSup, pExprInfo, numOfExpr, keyBufSize, pTaskInfo->id.str);
@@ -379,7 +392,6 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
     goto _error;
   }
 
-  initBasicInfo(&pInfo->binfo, pResBlock);
   setFunctionResultOutput(pOperator, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, numOfExpr);
 
   pInfo->binfo.pRes = pResBlock;
@@ -434,7 +446,7 @@ static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOp
     }
   }
 
-  setInputDataBlock(pOperator, pSup->pCtx, pBlock, order, scanFlag, false);
+  setInputDataBlock(pSup, pBlock, order, scanFlag, false);
   blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
 
   code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
@@ -506,7 +518,7 @@ SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator) {
       }
     }
 
-    doFilter(pIndefInfo->pCondition, pInfo->pRes, NULL);
+    doFilter(pIndefInfo->pCondition, pInfo->pRes, NULL, NULL);
     size_t rows = pInfo->pRes->info.rows;
     if (rows > 0 || pOperator->status == OP_EXEC_DONE) {
       break;
@@ -608,7 +620,7 @@ SSDataBlock* doGenerateSourceData(SOperatorInfo* pOperator) {
   }
 
   pRes->info.rows = 1;
-  doFilter(pProjectInfo->pFilterNode, pRes, NULL);
+  doFilter(pProjectInfo->pFilterNode, pRes, NULL, NULL);
 
   /*int32_t status = */ doIngroupLimitOffset(&pProjectInfo->limitInfo, 0, pRes, pOperator);
 

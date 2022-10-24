@@ -5,16 +5,6 @@ title: SHOW Statement for Metadata
 
 `SHOW` command can be used to get brief system information. To get details about metatadata, information, and status in the system, please use `select` to query the tables in database `INFORMATION_SCHEMA`. 
 
-## SHOW ACCOUNTS
-
-```sql
-SHOW ACCOUNTS;
-```
-
-Shows information about tenants on the system.
-
-Note: TDengine Enterprise Edition only.
-
 ## SHOW APPS
 
 ```sql
@@ -22,14 +12,6 @@ SHOW APPS;
 ```
 
 Shows all clients (such as applications) that connect to the cluster.
-
-## SHOW BNODES
-
-```sql
-SHOW BNODES;
-```
-
-Shows information about backup nodes (bnodes) in the system.
 
 ## SHOW CLUSTER
 
@@ -138,14 +120,6 @@ SHOW MNODES;
 
 Shows information about mnodes in the system.
 
-## SHOW MODULES
-
-```sql
-SHOW MODULES;
-```
-
-Shows information about modules installed in the system.
-
 ## SHOW QNODES
 
 ```sql
@@ -163,14 +137,6 @@ SHOW SCORES;
 Shows information about the storage space allowed by the license.
 
 Note: TDengine Enterprise Edition only.
-
-## SHOW SNODES
-
-```sql
-SHOW SNODES;
-```
-
-Shows information about stream processing nodes (snodes) in the system.
 
 ## SHOW STABLES
 

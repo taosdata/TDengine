@@ -17,9 +17,10 @@
 
 #include "planInt.h"
 #include "scalar.h"
+#include "tglobal.h"
 
 static void dumpQueryPlan(SQueryPlan* pPlan) {
-  if (0 == (qDebugFlag & DEBUG_DEBUG)) {
+  if (!tsQueryPlannerTrace) {
     return;
   }
   char* pStr = NULL;
@@ -32,7 +33,10 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   SLogicSubplan*   pLogicSubplan = NULL;
   SQueryLogicPlan* pLogicPlan = NULL;
 
-  int32_t code = createLogicPlan(pCxt, &pLogicSubplan);
+  int32_t code = nodesAcquireAllocator(pCxt->allocatorId);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createLogicPlan(pCxt, &pLogicSubplan);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = optimizeLogicPlan(pCxt, pLogicSubplan);
   }
@@ -48,6 +52,7 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   if (TSDB_CODE_SUCCESS == code) {
     dumpQueryPlan(*pPlan);
   }
+  nodesReleaseAllocator(pCxt->allocatorId);
 
   nodesDestroyNode((SNode*)pLogicSubplan);
   nodesDestroyNode((SNode*)pLogicPlan);
@@ -58,7 +63,7 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
 static int32_t setSubplanExecutionNode(SPhysiNode* pNode, int32_t groupId, SDownstreamSourceNode* pSource) {
   if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == nodeType(pNode)) {
     SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pNode;
-    if (pExchange->srcGroupId == groupId) {
+    if (groupId >= pExchange->srcStartGroupId && groupId <= pExchange->srcEndGroupId) {
       return nodesListMakeStrictAppend(&pExchange->pSrcEndPoints, nodesCloneNode((SNode*)pSource));
     }
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE == nodeType(pNode)) {
@@ -121,6 +126,21 @@ int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
 }
 
 int32_t qStringToSubplan(const char* pStr, SSubplan** pSubplan) { return nodesStringToNode(pStr, (SNode**)pSubplan); }
+
+int32_t qSubPlanToMsg(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
+  if (SUBPLAN_TYPE_MODIFY == pSubplan->subplanType && NULL == pSubplan->pNode) {
+    SDataInserterNode* insert = (SDataInserterNode*)pSubplan->pDataSink;
+    *pLen = insert->size;
+    *pStr = insert->pData;
+    insert->pData = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+  return nodesNodeToMsg((const SNode*)pSubplan, pStr, pLen);
+}
+
+int32_t qMsgToSubplan(const char* pStr, int32_t len, SSubplan** pSubplan) {
+  return nodesMsgToNode(pStr, len, (SNode**)pSubplan);
+}
 
 char* qQueryPlanToString(const SQueryPlan* pPlan) {
   char*   pStr = NULL;

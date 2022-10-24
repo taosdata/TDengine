@@ -30,14 +30,6 @@ class TDTestCase:
     # updatecfgDict = {'debugFlag': 135}
     # updatecfgDict = {'fqdn': 135}
 
-    def caseDescription(self):
-        '''
-        limit and offset keyword function test cases;
-        case1: limit offset base function test
-        case2: offset return valid
-        '''
-        return 
-
     # init
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
@@ -47,11 +39,12 @@ class TDTestCase:
         self.ts = 1500000000000
 
 
-    # run case  
+    # run case
     def run(self):
         # insert data
-        self.insert_data1("t1", self.ts, 1000*10000)
-        self.insert_data1("t4", self.ts, 1000*10000)        
+        dbname = "db"
+        self.insert_data1(f"{dbname}.t1", self.ts, 1000*10000)
+        self.insert_data1(f"{dbname}.t4", self.ts, 1000*10000)
         # test base case
         # self.test_case1()
         tdLog.debug(" LIMIT test_case1 ............ [OK]")
@@ -60,7 +53,7 @@ class TDTestCase:
         tdLog.debug(" LIMIT test_case2 ............ [OK]")
 
 
-    # stop 
+    # stop
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
@@ -70,16 +63,16 @@ class TDTestCase:
     #
 
     # create table
-    def create_tables(self):
+    def create_tables(self, dbname="db"):
         # super table
-        tdSql.execute("create table st(ts timestamp, i1 int,i2 int) tags(area int)");
+        tdSql.execute(f"create table {dbname}.st(ts timestamp, i1 int,i2 int) tags(area int)")
         # child table
-        tdSql.execute("create table t1 using st tags(1)");
+        tdSql.execute(f"create table {dbname}.t1 using {dbname}.st tags(1)")
 
-        tdSql.execute("create table st1(ts timestamp, i1 int ,i2 int) tags(area int) sma(i2) ");
-        tdSql.execute("create table t4 using st1 tags(1)");
+        tdSql.execute(f"create table {dbname}.st1(ts timestamp, i1 int ,i2 int) tags(area int) sma(i2) ")
+        tdSql.execute(f"create table {dbname}.t4 using {dbname}.st1 tags(1)")
 
-        return 
+        return
 
     # insert data1
     def insert_data(self, tbname, ts_start, count):
@@ -91,7 +84,7 @@ class TDTestCase:
             if i >0 and i%30000 == 0:
                 tdSql.execute(sql)
                 sql = pre_insert
-        # end sql        
+        # end sql
         if sql != pre_insert:
             tdSql.execute(sql)
 
@@ -107,16 +100,16 @@ class TDTestCase:
             if i >0 and i%30000 == 0:
                 tdSql.execute(sql)
                 sql = pre_insert
-        # end sql        
+        # end sql
         if sql != pre_insert:
             tdSql.execute(sql)
 
         tdLog.debug("INSERT TABLE DATA ............ [OK]")
         return
 
-    # test case1 base 
+    # test case1 base
     # def test_case1(self):
-    #     # 
+    #     #
     #     # limit base function
     #     #
     #     # base no where

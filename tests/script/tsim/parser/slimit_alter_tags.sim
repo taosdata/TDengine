@@ -128,6 +128,7 @@ if $rows != 5 then
   return -1
 endi
 if $data00 != $rowNum then
+  print expect $rowNum , actual: $data00
   return -1
 endi
 if $data10 != $rowNum then

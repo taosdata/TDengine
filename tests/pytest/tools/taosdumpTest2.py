@@ -11,15 +11,19 @@
 
 # -*- coding: utf-8 -*-
 
+from logging.config import dictConfig
 import sys
 import os
 from util.log import *
 from util.cases import *
 from util.sql import *
 from util.dnodes import *
+import string
+import random
 
 
 class TDTestCase:
+
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
@@ -47,12 +51,19 @@ class TDTestCase:
             return ""
         return paths[0]
 
+    def generateString(self, length):
+        chars = string.ascii_uppercase + string.ascii_lowercase
+        v = ""
+        for i in range(length):
+            v += random.choice(chars)
+        return v
+
     def run(self):
         if not os.path.exists("./taosdumptest/tmp"):
             os.makedirs("./taosdumptest/tmp")
         else:
-            os.system("rm -rf ./taosdumptest/tmp")
-            os.makedirs("./taosdumptest/tmp")
+            print("directory exists")
+            os.system("rm -rf ./taosdumptest/tmp/*")
 
         tdSql.prepare()
 
@@ -76,17 +87,19 @@ class TDTestCase:
             tdLog.info("taosdump found in %s" % binPath)
 
         os.system("rm ./taosdumptest/tmp/*.sql")
+        os.system("rm ./taosdumptest/tmp/*.avro*")
+        os.system("rm -rf ./taosdumptest/taosdump.*")
         os.system(
-            "%s --databases db -o ./taosdumptest/tmp -B 32766 -L 1048576" %
+            "%s --databases db -o ./taosdumptest/tmp " %
             binPath)
 
         tdSql.execute("drop database db")
-        tdSql.query("select * from information_schema.ins_databases")
+        tdSql.query("show databases")
         tdSql.checkRows(2)
 
-        os.system("%s -i ./taosdumptest/tmp" % binPath)
+        os.system("%s -i ./taosdumptest/tmp -y" % binPath)
 
-        tdSql.query("select * from information_schema.ins_databases")
+        tdSql.query("show databases")
         tdSql.checkRows(3)
         tdSql.checkData(2, 0, 'db')
 
@@ -105,23 +118,22 @@ class TDTestCase:
             "create table stb(ts timestamp, c1 binary(16374), c2 binary(16374), c3 binary(16374)) tags(t1 nchar(256))")
         tdSql.execute(
             "insert into t1 using stb tags('t1') values(now, '%s', '%s', '%s')" %
-            ("16374",
-             "16374",
-             "16374"))
+            (self.generateString(16374),
+             self.generateString(16374),
+             self.generateString(16374)))
 
-#        sys.exit(0)
         os.system("rm ./taosdumptest/tmp/*.sql")
         os.system("rm ./taosdumptest/tmp/*.avro*")
+        os.system("rm -rf ./taosdumptest/tmp/taosdump.*")
         os.system("%s -D test -o ./taosdumptest/tmp -y" % binPath)
 
         tdSql.execute("drop database test")
-        tdSql.query("select * from information_schema.ins_databases")
+        tdSql.query("show databases")
         tdSql.checkRows(3)
 
         os.system("%s -i ./taosdumptest/tmp -y" % binPath)
 
         tdSql.execute("use test")
-        tdSql.error("show vnodes '' ")
         tdSql.query("show stables")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 'stb')

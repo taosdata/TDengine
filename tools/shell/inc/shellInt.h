@@ -102,6 +102,16 @@ typedef struct {
 #endif
 } SShellObj;
 
+typedef struct {
+  char    *buffer;
+  char    *command;
+  uint32_t commandSize;
+  uint32_t bufferSize;
+  uint32_t cursorOffset;
+  uint32_t screenOffset;
+  uint32_t endOffset;
+} SShellCmd;
+
 // shellArguments.c
 int32_t shellParseArgs(int32_t argc, char* argv[]);
 
@@ -113,7 +123,7 @@ int32_t shellExecute();
 int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision);
 void    shellPrintHeader(TAOS_FIELD *fields, int32_t *width, int32_t num_fields);
 void    shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t length, int32_t precision);
-void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length, int32_t precision); 
+void    shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length, int32_t precision); 
 // shellUtil.c
 int32_t shellCheckIntSize();
 void    shellPrintVersion();

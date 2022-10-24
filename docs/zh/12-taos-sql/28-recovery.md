@@ -17,10 +17,10 @@ conn_id 可以通过 `SHOW CONNECTIONS` 获取。
 ## 终止查询
 
 ```sql
-SHOW QUERY query_id;
+KILL QUERY kill_id;
 ```
 
-query_id 可以通过 `SHOW QUERIES` 获取。
+kill_id 可以通过 `SHOW QUERIES` 获取。
 
 ## 终止事务
 

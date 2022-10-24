@@ -144,18 +144,18 @@ if $data20 != 8.000000000 then
   return -1
 endi
 
-sql drop function bit_and;
-sql show functions;
-if $rows != 1 then
-  return -1
-endi
-if $data00 != @l2norm@ then
-  return -1
-  endi
-sql drop function l2norm;
-sql show functions;
-if $rows != 0 then
-  return -1
-endi
+#sql drop function bit_and;
+#sql show functions;
+#if $rows != 1 then
+#  return -1
+#endi
+#if $data00 != @l2norm@ then
+#  return -1
+#  endi
+#sql drop function l2norm;
+#sql show functions;
+#if $rows != 0 then
+#  return -1
+#endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

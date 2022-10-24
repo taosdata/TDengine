@@ -53,16 +53,16 @@ typedef struct SDiskbasedBufStatis {
  * @param handle
  * @return
  */
-int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, const char* id, const char* dir);
+int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, const char* id,
+                           const char* dir);
 
 /**
  *
  * @param pBuf
- * @param groupId
  * @param pageId
  * @return
  */
-void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t groupId, int32_t* pageId);
+void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t* pageId);
 
 /**
  *
@@ -159,7 +159,7 @@ void setBufPageCompressOnDisk(SDiskbasedBuf* pBuf, bool comp);
  * @param pBuf
  * @param pageId
  */
-void dBufSetBufPageRecycled(SDiskbasedBuf *pBuf, void* pPage);
+void dBufSetBufPageRecycled(SDiskbasedBuf* pBuf, void* pPage);
 
 /**
  * Print the statistics when closing this buffer

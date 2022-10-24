@@ -372,7 +372,7 @@ sql_error insert into st_tinyint_e7  values (now, "123abc")
 sql_error insert into st_tinyint_e9  values (now, abc)
 sql_error insert into st_tinyint_e10 values (now, "abc")
 sql_error insert into st_tinyint_e11 values (now, " ")
-sql insert into st_tinyint_e12 values (now, '')
+sql_error insert into st_tinyint_e12 values (now, '')
 
 sql_error insert into st_tinyint_e13 using mt_tinyint tags (033) values (now, 128)
 sql insert into st_tinyint_e14_1 using mt_tinyint tags (033) values (now, -128)
@@ -385,7 +385,7 @@ sql_error insert into st_tinyint_e20 using mt_tinyint tags (033) values (now, "1
 sql_error insert into st_tinyint_e22 using mt_tinyint tags (033) values (now, abc)
 sql_error insert into st_tinyint_e23 using mt_tinyint tags (033) values (now, "abc")
 sql_error insert into st_tinyint_e24 using mt_tinyint tags (033) values (now, " ")
-sql insert into st_tinyint_e25_2 using mt_tinyint tags (033) values (now, '')
+sql_error insert into st_tinyint_e25_2 using mt_tinyint tags (033) values (now, '')
 
 sql_error insert into st_tinyint_e13 using mt_tinyint tags (128)      values (now, -033)
 sql insert into st_tinyint_e14 using mt_tinyint tags (-128)     values (now, -033)

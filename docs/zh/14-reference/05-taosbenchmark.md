@@ -112,6 +112,9 @@ taosBenchmark -f <json file>
 - **-u/--user <user\>** :
   用于连接 TDengine 服务端的用户名，默认为 root 。
 
+- **-U/--supplement-insert ** :
+  写入数据而不提前建数据库和表，默认关闭。
+
 - **-p/--password <passwd\>** :
   用于连接 TDengine 服务端的密码，默认值为 taosdata。
 
@@ -147,6 +150,9 @@ taosBenchmark -f <json file>
 
 - **-l/--columns <colNum\>** :
   超级表的数据列的总数量。如果同时设置了该参数和 `-b/--data-type`，则最后的结果列数为两者取大。如果本参数指定的数量大于 `-b/--data-type` 指定的列数，则未指定的列类型默认为 INT， 例如: `-l 5 -b float,double`， 那么最后的列为 `FLOAT,DOUBLE,INT,INT,INT`。如果 columns 指定的数量小于或等于 `-b/--data-type` 指定的列数，则结果为 `-b/--data-type` 指定的列和类型，例如: `-l 3 -b float,double,float,bigint`，那么最后的列为 `FLOAT,DOUBLE,FLOAT,BIGINT` 。
+
+- **-L/--partial-col-num <colNum\> **：
+  指定某些列写入数据，其他列数据为 NULL。默认所有列都写入数据。
 
 - **-A/--tag-type <tagType\>** :
   超级表的标签列类型。nchar 和 binary 类型可以同时设置长度，例如:
@@ -231,7 +237,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **name** : 数据库名。
 
-- **drop** : 插入前是否删除数据库，默认为 true。
+- **drop** : 插入前是否删除数据库，可选项为 "yes" 或者 "no", 为 "no" 时不创建。默认删除。
 
 #### 流式计算相关配置参数
 
@@ -334,13 +340,13 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **name** : 列的名字，若与 count 同时使用，比如 "name"："current", "count":3, 则 3 个列的名字分别为 current, current_2. current_3。
 
-- **min** : 数据类型的 列/标签 的最小值。
+- **min** : 数据类型的 列/标签 的最小值。生成的值将大于或等于最小值。
 
-- **max** : 数据类型的 列/标签 的最大值。
+- **max** : 数据类型的 列/标签 的最大值。生成的值将小于最小值。
 
 - **values** : nchar/binary 列/标签的值域，将从值中随机选择。
 
-- **sma**: 将该列加入bsma中，值为 "yes" 或者 "no"，默认为 "no"。
+- **sma**: 将该列加入 SMA 中，值为 "yes" 或者 "no"，默认为 "no"。
 
 #### 插入行为配置参数
 
@@ -405,37 +411,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 订阅子表或者普通表的配置参数在 `specified_table_query` 中设置。
 
-- **threads** : 执行 SQL 的线程数，默认为 1。
-
-- **interval** : 执行订阅的时间间隔，单位为秒，默认为 0。
-
-- **restart** : "yes" 表示开始新的订阅，"no" 表示继续之前的订阅，默认值为 "no"。
-
-- **keepProgress** : "yes" 表示保留订阅进度，"no" 表示不保留，默认值为 "no"。
-
-- **resubAfterConsume** : "yes" 表示取消之前的订阅然后再次订阅， "no" 表示继续之前的订阅，默认值为 "no"。
+- **threads/concurrent** : 执行 SQL 的线程数，默认为 1。
 
 - **sqls** ：
   - **sql** : 执行的 SQL 命令，必填。
-  - **result** : 保存查询结果的文件，未指定则不保存。
-
-#### 订阅超级表的配置参数
-
-订阅超级表的配置参数在 `super_table_query` 中设置。
-
-- **stblname** : 要订阅的超级表名称，必填。
-
-- **threads** : 执行 SQL 的线程数，默认为 1。
-
-- **interval** : 执行订阅的时间间隔，单位为秒，默认为 0。
-
-- **restart** : "yes" 表示开始新的订阅，"no" 表示继续之前的订阅，默认值为 "no"。
-
-- **keepProgress** : "yes" 表示保留订阅进度，"no" 表示不保留，默认值为 "no"。
-
-- **resubAfterConsume** : "yes" 表示取消之前的订阅然后再次订阅， "no" 表示继续之前的订阅，默认值为 "no"。
-
-- **sqls** ：
-  - **sql** : 执行的 SQL 命令，必填；对于超级表的查询 SQL，在 SQL 命令中保留 "xxxx"，程序会自动将其替换为超级表的所有子表名。
-    替换为超级表中所有的子表名。
-  - **result** : 保存查询结果的文件，未指定则不保存。

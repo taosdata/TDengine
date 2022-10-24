@@ -21,7 +21,7 @@ typedef struct MergeIndex {
   int len;
 } MergeIndex;
 
-static int iBinarySearch(SArray *arr, int s, int e, uint64_t k) {
+static FORCE_INLINE int iBinarySearch(SArray *arr, int s, int e, uint64_t k) {
   uint64_t v;
   int32_t  m;
   while (s <= e) {

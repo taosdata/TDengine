@@ -43,6 +43,7 @@ extern "C" {
 #define WAL_FILE_LEN      (WAL_PATH_LEN + 32)
 #define WAL_MAGIC         0xFAFBFCFDF4F3F2F1ULL
 #define WAL_SCAN_BUF_SIZE (1024 * 1024 * 3)
+#define WAL_RECOV_SIZE_LIMIT (100 * WAL_SCAN_BUF_SIZE)
 
 typedef enum {
   TAOS_WAL_WRITE = 1,

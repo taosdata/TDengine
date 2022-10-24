@@ -16,7 +16,7 @@ class MockDataSource implements Iterator {
     private int currentTbId = -1;
 
     // mock values
-    String[] location = {"LosAngeles", "SanDiego", "Hollywood", "Compton", "San Francisco"};
+    String[] location = {"California.LosAngeles", "California.SanDiego", "California.SanJose", "California.Campbell", "California.SanFrancisco"};
     float[] current = {8.8f, 10.7f, 9.9f, 8.9f, 9.4f};
     int[] voltage = {119, 116, 111, 113, 118};
     float[] phase = {0.32f, 0.34f, 0.33f, 0.329f, 0.141f};

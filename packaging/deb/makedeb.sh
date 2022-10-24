@@ -45,6 +45,7 @@ mkdir -p ${pkg_dir}${install_home_path}/include
 mkdir -p ${pkg_dir}${install_home_path}/script
 
 cp ${compile_dir}/../packaging/cfg/taos.cfg         ${pkg_dir}${install_home_path}/cfg
+cp ${compile_dir}/../packaging/cfg/taosd.service    ${pkg_dir}${install_home_path}/cfg
 if [ -f "${compile_dir}/test/cfg/taosadapter.toml" ]; then
     cp ${compile_dir}/test/cfg/taosadapter.toml		${pkg_dir}${install_home_path}/cfg || :
 fi

@@ -44,8 +44,6 @@ cmake ../../ -G "NMake Makefiles JOM" -DCMAKE_MAKE_PROGRAM=jom -DBUILD_TOOLS=tru
 cmake --build .
 rd /s /Q C:\TDengine
 cmake --install .
-for /r c:\TDengine %%i in (*.dll) do signtool sign /f D:\\123.pfx /p taosdata %%i
-for /r c:\TDengine %%i in (*.exe) do signtool sign /f D:\\123.pfx /p taosdata %%i
 if not %errorlevel% == 0  ( call :RUNFAILED build x64 failed & exit /b 1)
 cd %package_dir%
 iscc /DMyAppInstallName="%packagServerName_x64%" /DMyAppVersion="%2" /DMyAppExcludeSource="" tools\tdengine.iss /O..\release
@@ -53,7 +51,6 @@ if not %errorlevel% == 0  ( call :RUNFAILED package %packagServerName_x64% faile
 iscc /DMyAppInstallName="%packagClientName_x64%" /DMyAppVersion="%2" /DMyAppExcludeSource="taosd.exe" tools\tdengine.iss /O..\release
 if not %errorlevel% == 0  ( call :RUNFAILED package %packagClientName_x64% failed & exit /b 1)
 
-for /r ..\release %%i in (*.exe) do signtool sign /f d:\\123.pfx /p taosdata %%i
 goto EXIT0
 
 :USAGE

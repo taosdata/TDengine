@@ -154,10 +154,12 @@ class TDTestCase:
         up_bool = random.randint(0,100)%2
         up_float = random.uniform(constant.FLOAT_MIN,constant.FLOAT_MAX)
         up_double = random.uniform(constant.DOUBLE_MIN*(1E-300),constant.DOUBLE_MAX*(1E-300))
-        binary_length = random.randint(0,self.str_length)
-        nchar_length = random.randint(0,self.str_length)
-        up_binary = tdCom.getLongName(binary_length)
-        up_nchar = tdCom.getLongName(nchar_length)
+        binary_length = []
+        for i in range(self.str_length+1):
+            binary_length.append(i)
+        nchar_length = []
+        for i in range(self.str_length+1):
+            nchar_length.append(i)
         for col_name,col_type in column_dict.items():
             if tb_type == 'ntb':
                 tdSql.execute(f'create table {tbname} (ts timestamp,{col_name} {col_type})')
@@ -188,9 +190,13 @@ class TDTestCase:
             elif col_type.lower() == 'double':
                 self.update_and_check_data(tbname,col_name,col_type,up_double,dbname)
             elif 'binary' in col_type.lower():
-                self.update_and_check_data(tbname,col_name,col_type,up_binary,dbname)
+                for i in binary_length:
+                    up_binary = tdCom.getLongName(i)
+                    self.update_and_check_data(tbname,col_name,col_type,up_binary,dbname)
             elif 'nchar' in col_type.lower():
-                self.update_and_check_data(tbname,col_name,col_type,up_nchar,dbname)
+                for i in nchar_length:
+                    up_nchar = tdCom.getLongName(i)
+                    self.update_and_check_data(tbname,col_name,col_type,up_nchar,dbname)
             elif col_type.lower() == 'timestamp':
                 self.update_and_check_data(tbname,col_name,col_type,self.ts+1,dbname)
             tdSql.execute(f'insert into {tbname} values({self.ts},null)')

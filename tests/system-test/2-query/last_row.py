@@ -13,7 +13,7 @@ class TDTestCase:
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), False)
+        tdSql.init(conn.cursor(), True)
         self.tb_nums = 10
         self.row_nums = 20
         self.ts = 1434938400000
@@ -638,13 +638,13 @@ class TDTestCase:
         tdSql.query(f"select ts , last_row(c1) ,c1  from (select ts , c1 ,t1 from {dbname}.stb1)")
         tdSql.checkData(0,1,None)
 
-        tdSql.query(f"select ts , last_row(c1) ,c1  from (select ts , max(c1) c1  ,t1 from {dbname}.stb1 where ts >now -1h and ts <now+1h interval(10s) fill(value ,10 ))")
+        tdSql.query(f"select ts , last_row(c1) ,c1  from (select ts , max(c1) c1  ,t1 from {dbname}.stb1 where ts >now -1h and ts <now+1h interval(10s) fill(value ,10, 10, 10))")
         tdSql.checkData(0,1,10)
         tdSql.checkData(0,1,10)
 
-        tdSql.error(f"select ts , last_row(c1) ,c1  from (select count(c1) c1 from {dbname}.stb1 where ts >now -1h and ts <now+1h interval(10s) fill(value ,10 ))")
+        tdSql.error(f"select ts , last_row(c1) ,c1  from (select count(c1) c1 from {dbname}.stb1 where ts >now -1h and ts <now+1h interval(10s) fill(value ,10, 10, 10))")
 
-        tdSql.error(f"select  last_row(c1) ,c1  from (select  count(c1) c1 from {dbname}.stb1 where ts >now -1h and ts <now+1h interval(10s) fill(value ,10 ))")
+        tdSql.error(f"select  last_row(c1) ,c1  from (select  count(c1) c1 from {dbname}.stb1 where ts >now -1h and ts <now+1h interval(10s) fill(value ,10, 10))")
 
         # tag filter with last_row function
         tdSql.query(f"select last_row(t1) from {dbname}.stb1 where abs(t1)=1")

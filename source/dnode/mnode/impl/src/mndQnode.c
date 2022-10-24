@@ -15,8 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "mndQnode.h"
-#include "mndPrivilege.h"
 #include "mndDnode.h"
+#include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
@@ -190,13 +190,13 @@ static int32_t mndSetCreateQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
   SDCreateQnodeReq createReq = {0};
   createReq.dnodeId = pDnode->id;
 
-  int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &createReq);
+  int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &createReq);
   void   *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &createReq);
+  tSerializeSCreateDropMQSNodeReq(pReq, contLen, &createReq);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
@@ -217,13 +217,13 @@ static int32_t mndSetCreateQnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
   SDDropQnodeReq dropReq = {0};
   dropReq.dnodeId = pDnode->id;
 
-  int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &dropReq);
+  int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &dropReq);
   void   *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &dropReq);
+  tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
@@ -248,10 +248,10 @@ static int32_t mndCreateQnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
   qnodeObj.createdTime = taosGetTimestampMs();
   qnodeObj.updateTime = qnodeObj.createdTime;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pReq, "create-qnode");
   if (pTrans == NULL) goto _OVER;
 
-  mDebug("trans:%d, used to create qnode:%d", pTrans->id, pCreate->dnodeId);
+  mInfo("trans:%d, used to create qnode:%d", pTrans->id, pCreate->dnodeId);
   if (mndSetCreateQnodeRedoLogs(pTrans, &qnodeObj) != 0) goto _OVER;
   if (mndSetCreateQnodeUndoLogs(pTrans, &qnodeObj) != 0) goto _OVER;
   if (mndSetCreateQnodeCommitLogs(pTrans, &qnodeObj) != 0) goto _OVER;
@@ -273,12 +273,12 @@ static int32_t mndProcessCreateQnodeReq(SRpcMsg *pReq) {
   SDnodeObj       *pDnode = NULL;
   SMCreateQnodeReq createReq = {0};
 
-  if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
+  if (tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
 
-  mDebug("qnode:%d, start to create", createReq.dnodeId);
+  mInfo("qnode:%d, start to create", createReq.dnodeId);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_CREATE_QNODE) != 0) {
     goto _OVER;
   }
@@ -330,13 +330,13 @@ static int32_t mndSetDropQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQn
   SDDropQnodeReq dropReq = {0};
   dropReq.dnodeId = pDnode->id;
 
-  int32_t contLen = tSerializeSCreateDropMQSBNodeReq(NULL, 0, &dropReq);
+  int32_t contLen = tSerializeSCreateDropMQSNodeReq(NULL, 0, &dropReq);
   void   *pReq = taosMemoryMalloc(contLen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  tSerializeSCreateDropMQSBNodeReq(pReq, contLen, &dropReq);
+  tSerializeSCreateDropMQSNodeReq(pReq, contLen, &dropReq);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
@@ -364,10 +364,10 @@ int32_t mndSetDropQnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SQnodeObj *pO
 static int32_t mndDropQnode(SMnode *pMnode, SRpcMsg *pReq, SQnodeObj *pObj) {
   int32_t code = -1;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, pReq, "drop-qnode");
   if (pTrans == NULL) goto _OVER;
 
-  mDebug("trans:%d, used to drop qnode:%d", pTrans->id, pObj->id);
+  mInfo("trans:%d, used to drop qnode:%d", pTrans->id, pObj->id);
   if (mndSetDropQnodeInfoToTrans(pMnode, pTrans, pObj) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
@@ -384,12 +384,12 @@ static int32_t mndProcessDropQnodeReq(SRpcMsg *pReq) {
   SQnodeObj     *pObj = NULL;
   SMDropQnodeReq dropReq = {0};
 
-  if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
+  if (tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
 
-  mDebug("qnode:%d, start to drop", dropReq.dnodeId);
+  mInfo("qnode:%d, start to drop", dropReq.dnodeId);
   if (mndCheckOperPrivilege(pMnode, pReq->info.conn.user, MND_OPER_DROP_QNODE) != 0) {
     goto _OVER;
   }

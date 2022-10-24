@@ -61,15 +61,6 @@ Provides information about SQL queries currently running. Similar to SHOW QUERIE
 | 12  |  sub_status  | BINARY(1000) | Subquery status                   |
 | 13  |     sql      | BINARY(1024) | SQL statement                     |
 
-## PERF_TOPICS
-
-| #   |    **Column**    | **Data Type** | **Description**                  |
-| --- | :---------: | ------------ | ------------------------------ |
-| 1   | topic_name  | BINARY(192)  | Topic name                     |
-| 2   |   db_name   | BINARY(64)   | Database for the topic                |
-| 3   | create_time | TIMESTAMP    | Creation time              |
-| 4   |     sql     | BINARY(1024) | SQL statement used to create the topic |
-
 ## PERF_CONSUMERS
 
 | #   |    **Column**    | **Data Type** | **Description**                  |
@@ -82,15 +73,6 @@ Provides information about SQL queries currently running. Similar to SHOW QUERIE
 | 6   |    up_time     | TIMESTAMP    | Time of first connection to TDengine Server                                     |
 | 7   | subscribe_time | TIMESTAMP    | Time of first subscription                                        |
 | 8   | rebalance_time | TIMESTAMP    | Time of first rebalance triggering                                 |
-
-## PERF_SUBSCRIPTIONS
-
-| #   |    **Column**    | **Data Type** | **Description**                  |
-| --- | :------------: | ------------ | ------------------------ |
-| 1   |   topic_name   | BINARY(204)  | Subscribed topic           |
-| 2   | consumer_group | BINARY(193)  | Subscribed consumer group         |
-| 3   |   vgroup_id    | INT          | Vgroup ID for the consumer |
-| 4   |  consumer_id   | BIGINT       | Consumer ID          |
 
 ## PERF_TRANS
 
@@ -113,17 +95,3 @@ Provides information about SQL queries currently running. Similar to SHOW QUERIE
 | 2   | create_time | TIMESTAMP    | Creation time                                |
 | 3   | stable_name | BINARY(192)  | Supertable name                        |
 | 4   |  vgroup_id  | INT          | Dedicated vgroup name                      |
-
-## PERF_STREAMS
-
-| #   |    **Column**    | **Data Type** | **Description**                  |
-| --- | :----------: | ------------ | --------------------------------------- |
-| 1   | stream_name  | BINARY(64)   | Stream name                              |
-| 2   | create_time  | TIMESTAMP    | Creation time                                |
-| 3   |     sql      | BINARY(1024) | SQL statement used to create the stream             |
-| 4   |    status    | BIANRY(20)   | Current status                              |
-| 5   |  source_db   | BINARY(64)   | Source database                                |
-| 6   |  target_db   | BIANRY(64)   | Target database                              |
-| 7   | target_table | BINARY(192)  | Target table                      |
-| 8   |  watermark   | BIGINT       | Watermark (see stream processing documentation)        |
-| 9   |   trigger    | INT          | Method of triggering the result push (see stream processing documentation) |

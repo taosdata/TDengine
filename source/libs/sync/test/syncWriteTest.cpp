@@ -25,8 +25,8 @@ int32_t  myIndex = 0;
 
 SRaftId    ids[TSDB_MAX_REPLICA];
 SSyncInfo  syncInfo;
-SSyncFSM * pFsm;
-SWal *     pWal;
+SSyncFSM  *pFsm;
+SWal      *pWal;
 SSyncNode *gSyncNode;
 
 const char *pDir = "./syncWriteTest";

@@ -102,7 +102,7 @@ class TDSql:
                     caller = inspect.getframeinfo(inspect.stack()[1][0])
                     args = (caller.filename, caller.lineno, sql, repr(e))
                     tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
-                    raise Exception(repr(e))   
+                    raise Exception(repr(e))
                 i+=1
                 time.sleep(1)
                 pass
@@ -225,25 +225,21 @@ class TDSql:
                 # suppose user want to check nanosecond timestamp if a longer data passed
                 if (len(data) >= 28):
                     if pd.to_datetime(self.queryResult[row][col]) == pd.to_datetime(data):
-                        tdLog.info("sql:%s, row:%d col:%d data:%d == expect:%s" %
-                            (self.sql, row, col, self.queryResult[row][col], data))
+                        tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
                 else:
                     if self.queryResult[row][col] == _parse_datetime(data):
-                        tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                            (self.sql, row, col, self.queryResult[row][col], data))
+                        tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
                 return
 
             if str(self.queryResult[row][col]) == str(data):
-                tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                            (self.sql, row, col, self.queryResult[row][col], data))
+                tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
                 return
+
             elif isinstance(data, float):
                 if abs(data) >= 1 and abs((self.queryResult[row][col] - data) / data) <= 0.000001:
-                    tdLog.info("sql:%s, row:%d col:%d data:%f == expect:%f" %
-                                (self.sql, row, col, self.queryResult[row][col], data))
+                    tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
                 elif abs(data) < 1 and abs(self.queryResult[row][col] - data) <= 0.000001:
-                    tdLog.info("sql:%s, row:%d col:%d data:%f == expect:%f" %
-                                (self.sql, row, col, self.queryResult[row][col], data))
+                    tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
                 else:
                     caller = inspect.getframeinfo(inspect.stack()[1][0])
                     args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
@@ -254,21 +250,7 @@ class TDSql:
                 args = (caller.filename, caller.lineno, self.sql, row, col, self.queryResult[row][col], data)
                 tdLog.exit("%s(%d) failed: sql:%s row:%d col:%d data:%s != expect:%s" % args)
 
-        if data is None:
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                       (self.sql, row, col, self.queryResult[row][col], data))
-        elif isinstance(data, str):
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                       (self.sql, row, col, self.queryResult[row][col], data))
-        elif isinstance(data, datetime.date):
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                       (self.sql, row, col, self.queryResult[row][col], data))
-        elif isinstance(data, float):
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%s" %
-                       (self.sql, row, col, self.queryResult[row][col], data))
-        else:
-            tdLog.info("sql:%s, row:%d col:%d data:%s == expect:%d" %
-                       (self.sql, row, col, self.queryResult[row][col], data))
+        tdLog.info(f"sql:{self.sql}, row:{row} col:{col} data:{self.queryResult[row][col]} == expect:{data}")
 
     def getData(self, row, col):
         self.checkRowCol(row, col)
@@ -307,7 +289,7 @@ class TDSql:
                     caller = inspect.getframeinfo(inspect.stack()[1][0])
                     args = (caller.filename, caller.lineno, sql, repr(e))
                     tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
-                    raise Exception(repr(e))                    
+                    raise Exception(repr(e))
                 i+=1
                 time.sleep(1)
                 pass
@@ -329,7 +311,7 @@ class TDSql:
             tdLog.exit("%s(%d) failed: sql:%s, col_name_list:%s != expect_col_name_list:%s" % args)
 
     def __check_equal(self, elm, expect_elm):
-        if not type(elm) in(list, tuple) and elm == expect_elm:
+        if elm == expect_elm:
             return True
         if type(elm) in(list, tuple) and type(expect_elm) in(list, tuple):
             if len(elm) != len(expect_elm):

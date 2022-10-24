@@ -22,7 +22,7 @@
 #define TAOS_CONSOLE_PROMPT_HEADER "taos> "
 #define TAOS_CONSOLE_PROMPT_CONTINUE "   -> "
 
-#define SHELL_HOST     "The auth string to use when connecting to the server."
+#define SHELL_HOST     "TDengine server FQDN to connect. The default host is localhost."
 #define SHELL_PORT     "The TCP/IP port number to use for the connection."
 #define SHELL_USER     "The user name to use when connecting to the server."
 #define SHELL_PASSWORD "The password to use when connecting to the server."
@@ -358,7 +358,7 @@ static int32_t shellCheckArgs() {
     return -1;
   }
 
-  if (pArgs->password != NULL && (strlen(pArgs->password) <= 0)) {
+  if (/*pArgs->password != NULL && */ (strlen(pArgs->password) <= 0)) {
     printf("Invalid password\r\n");
     return -1;
   }

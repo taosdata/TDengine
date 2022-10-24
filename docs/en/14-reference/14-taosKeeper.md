@@ -1,7 +1,7 @@
 ---
 sidebar_label: taosKeeper
 title: taosKeeper
-description: Instructions and tips for using taosKeeper
+description: exports TDengine monitoring metrics.
 ---
 
 ## Introduction
@@ -22,26 +22,35 @@ You can compile taosKeeper separately and install it. Please refer to the [taosK
 
 ### Configuration and running methods
 
-<!-- taosKeeper needs to be executed on the terminal of the operating system, it supports two configuration methods: [Command-line arguments](#command-line-arguments-in-detail) and [configuration file](#configuration-file-parameters-in-detail). Command-line arguments take precedence over values in the configuration file. -->
-taosKeeper needs to be executed on the terminal of the operating system. To run taosKeeper, see [configuration file](#configuration-file-parameters-in-detail).
+taosKeeper needs to be executed on the terminal of the operating system, it supports three configuration methods: [Command-line arguments](#command-line-arguments-in-detail), [environment variable](#environment-variable-in-detail) and [configuration file](#configuration-file-parameters-in-detail). The precedence of those is Command-line, environment variable and configuration file.
 
 **Make sure that the TDengine cluster is running correctly before running taosKeeper. ** Ensure that the monitoring service in TDengine has been started. For more information, see [TDengine Monitoring Configuration](../config/#monitoring).
 
-<!--
 ### Command-Line Parameters
 
-You can use command-line parameters to run taosBenchmark and control its behavior:
+You can use command-line parameters to run taosKeeper and control its behavior:
 
 ```shell
-taosKeeper
+$ taosKeeper
 ```
--->
+### Environment variable
+
+You can use Environment variable to run taosKeeper and control its behavior:
+
+```shell
+$ export TAOS_KEEPER_TDENGINE_HOST=192.168.64.3
+ 
+$ taoskeeper
+```
+
+you can run `taoskeeper -h` for more detail.
+
 ### Configuration File
 
 You can quickly launch taosKeeper with the following commands. If you do not specify a configuration file, `/etc/taos/keeper.toml` is used by default. If this file does not specify configurations, the default values are used. 
 
 ```shell
-taoskeeper -c <keeper config file>
+$ taoskeeper -c <keeper config file>
 ```
 
 **Sample configuration files**
@@ -110,7 +119,7 @@ Query OK, 1 rows in database (0.036162s)
 #### Export Monitoring Metrics
 
 ```shell
-curl http://127.0.0.1:6043/metrics
+$ curl http://127.0.0.1:6043/metrics
 ```
 
 Sample result set (excerpt):

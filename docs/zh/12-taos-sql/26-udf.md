@@ -1,6 +1,6 @@
 ---
 sidebar_label: 自定义函数
-title: 用户自定义函数
+title: 自定义函数
 description: 使用 UDF 的详细指南
 ---
 

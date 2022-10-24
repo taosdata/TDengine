@@ -20,7 +20,7 @@ class TDTestCase:
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
-    def checkFileContent(self):
+    def checkFileContent(self, dbname="sml_db"):
         buildPath = tdCom.getBuildPath()
         cmdStr = '%s/build/bin/sml_test'%(buildPath)
         tdLog.info(cmdStr)
@@ -28,8 +28,8 @@ class TDTestCase:
         if ret != 0:
             tdLog.exit("sml_test failed")
 
-        tdSql.execute('use sml_db')
-        tdSql.query("select * from t_b7d815c9222ca64cdf2614c61de8f211")
+        # tdSql.execute('use sml_db')
+        tdSql.query(f"select * from {dbname}.t_b7d815c9222ca64cdf2614c61de8f211")
         tdSql.checkRows(1)
 
         tdSql.checkData(0, 0, '2016-01-01 08:00:07.000')
@@ -44,35 +44,35 @@ class TDTestCase:
         tdSql.checkData(0, 9, 0)
         tdSql.checkData(0, 10, 25)
 
-        tdSql.query("select * from readings")
+        tdSql.query(f"select * from {dbname}.readings")
         tdSql.checkRows(9)
 
-        tdSql.query("select distinct tbname from readings")
+        tdSql.query(f"select distinct tbname from {dbname}.readings")
         tdSql.checkRows(4)
 
-        tdSql.query("select * from t_0799064f5487946e5d22164a822acfc8 order by _ts")
+        tdSql.query(f"select * from {dbname}.t_0799064f5487946e5d22164a822acfc8 order by _ts")
         tdSql.checkRows(2)
         tdSql.checkData(0, 3, "kk")
-        tdSql.checkData(1, 3, None)
+        tdSql.checkData(1, 3, "")
 
 
-        tdSql.query("select distinct tbname from `sys.if.bytes.out`")
+        tdSql.query(f"select distinct tbname from {dbname}.`sys.if.bytes.out`")
         tdSql.checkRows(2)
 
-        tdSql.query("select * from t_fc70dec6677d4277c5d9799c4da806da order by _ts")
+        tdSql.query(f"select * from {dbname}.t_fc70dec6677d4277c5d9799c4da806da order by _ts")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 1.300000000)
         tdSql.checkData(1, 1,13.000000000)
 
-        tdSql.query("select * from `sys.procs.running`")
+        tdSql.query(f"select * from {dbname}.`sys.procs.running`")
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, 42.000000000)
         tdSql.checkData(0, 2, "web01")
 
-        tdSql.query("select distinct tbname from `sys.cpu.nice`")
+        tdSql.query(f"select distinct tbname from {dbname}.`sys.cpu.nice`")
         tdSql.checkRows(2)
 
-        tdSql.query("select * from `sys.cpu.nice` order by _ts")
+        tdSql.query(f"select * from {dbname}.`sys.cpu.nice` order by _ts")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 9.000000000)
         tdSql.checkData(0, 2, "lga")
@@ -83,10 +83,10 @@ class TDTestCase:
         tdSql.checkData(1, 3, "web01")
         tdSql.checkData(1, 4, "t1")
 
-        tdSql.query("select * from macylr")
+        tdSql.query(f"select * from {dbname}.macylr")
         tdSql.checkRows(2)
 
-        tdSql.query("desc macylr")
+        tdSql.query(f"desc {dbname}.macylr")
         tdSql.checkRows(25)
         return
 

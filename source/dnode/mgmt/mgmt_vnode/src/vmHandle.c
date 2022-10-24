@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
 
-void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
+void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo, bool isReset) {
   pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoad));
   if (pInfo->pVloads == NULL) return;
 
@@ -30,6 +30,7 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
     SVnodeObj *pVnode = *ppVnode;
     SVnodeLoad vload = {0};
     vnodeGetLoad(pVnode->pImpl, &vload);
+    if (isReset) vnodeResetLoad(pVnode->pImpl, &vload);
     taosArrayPush(pInfo->pVloads, &vload);
     pIter = taosHashIterate(pMgmt->hash, pIter);
   }
@@ -39,7 +40,7 @@ void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
 
 void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
   SMonVloadInfo vloads = {0};
-  vmGetVnodeLoads(pMgmt, &vloads);
+  vmGetVnodeLoads(pMgmt, &vloads, true);
 
   SArray *pVloads = vloads.pVloads;
   if (pVloads == NULL) return;
@@ -65,11 +66,11 @@ void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
 
   pInfo->vstat.totalVnodes = totalVnodes;
   pInfo->vstat.masterNum = masterNum;
-  pInfo->vstat.numOfSelectReqs = numOfSelectReqs - pMgmt->state.numOfSelectReqs;
-  pInfo->vstat.numOfInsertReqs = numOfInsertReqs - pMgmt->state.numOfInsertReqs;
-  pInfo->vstat.numOfInsertSuccessReqs = numOfInsertSuccessReqs - pMgmt->state.numOfInsertSuccessReqs;
-  pInfo->vstat.numOfBatchInsertReqs = numOfBatchInsertReqs - pMgmt->state.numOfBatchInsertReqs;
-  pInfo->vstat.numOfBatchInsertSuccessReqs = numOfBatchInsertSuccessReqs - pMgmt->state.numOfBatchInsertSuccessReqs;
+  pInfo->vstat.numOfSelectReqs = numOfSelectReqs;
+  pInfo->vstat.numOfInsertReqs = numOfInsertReqs;                          // delta
+  pInfo->vstat.numOfInsertSuccessReqs = numOfInsertSuccessReqs;            // delta
+  pInfo->vstat.numOfBatchInsertReqs = numOfBatchInsertReqs;                // delta
+  pInfo->vstat.numOfBatchInsertSuccessReqs = numOfBatchInsertSuccessReqs;  // delta
   pMgmt->state.totalVnodes = totalVnodes;
   pMgmt->state.masterNum = masterNum;
   pMgmt->state.numOfSelectReqs = numOfSelectReqs;
@@ -80,54 +81,6 @@ void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
 
   tfsGetMonitorInfo(pMgmt->pTfs, &pInfo->tfs);
   taosArrayDestroy(pVloads);
-}
-
-int32_t vmProcessGetMonitorInfoReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  SMonVmInfo vmInfo = {0};
-  vmGetMonitorInfo(pMgmt, &vmInfo);
-  dmGetMonitorSystemInfo(&vmInfo.sys);
-  monGetLogs(&vmInfo.log);
-
-  int32_t rspLen = tSerializeSMonVmInfo(NULL, 0, &vmInfo);
-  if (rspLen < 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
-
-  void *pRsp = rpcMallocCont(rspLen);
-  if (pRsp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  tSerializeSMonVmInfo(pRsp, rspLen, &vmInfo);
-  pMsg->info.rsp = pRsp;
-  pMsg->info.rspLen = rspLen;
-  tFreeSMonVmInfo(&vmInfo);
-  return 0;
-}
-
-int32_t vmProcessGetLoadsReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  SMonVloadInfo vloads = {0};
-  vmGetVnodeLoads(pMgmt, &vloads);
-
-  int32_t rspLen = tSerializeSMonVloadInfo(NULL, 0, &vloads);
-  if (rspLen < 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
-
-  void *pRsp = rpcMallocCont(rspLen);
-  if (pRsp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  tSerializeSMonVloadInfo(pRsp, rspLen, &vloads);
-  pMsg->info.rsp = pRsp;
-  pMsg->info.rspLen = rspLen;
-  tFreeSMonVloadInfo(&vloads);
-  return 0;
 }
 
 static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
@@ -167,11 +120,15 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->walCfg.segSize = pCreate->walSegmentSize;
   pCfg->walCfg.level = pCreate->walLevel;
 
+  pCfg->sttTrigger = pCreate->sstTrigger;
   pCfg->hashBegin = pCreate->hashBegin;
   pCfg->hashEnd = pCreate->hashEnd;
   pCfg->hashMethod = pCreate->hashMethod;
+  pCfg->hashPrefix = pCreate->hashPrefix;
+  pCfg->hashSuffix = pCreate->hashSuffix;
+  pCfg->tsdbPageSize = pCreate->tsdbPageSize * 1024;
 
-  pCfg->standby = pCfg->standby;
+  pCfg->standby = 0;
   pCfg->syncCfg.myIndex = pCreate->selfIndex;
   pCfg->syncCfg.replicaNum = pCreate->replica;
   memset(&pCfg->syncCfg.nodeInfo, 0, sizeof(pCfg->syncCfg.nodeInfo));
@@ -208,33 +165,46 @@ static int32_t vmTsmaProcessCreate(SVnode *pVnode, SCreateVnodeReq *pReq) {
 }
 
 int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  SCreateVnodeReq createReq = {0};
+  SCreateVnodeReq req = {0};
   SVnodeCfg       vnodeCfg = {0};
   SWrapperCfg     wrapperCfg = {0};
   int32_t         code = -1;
   char            path[TSDB_FILENAME_LEN] = {0};
 
-  if (tDeserializeSCreateVnodeReq(pMsg->pCont, pMsg->contLen, &createReq) != 0) {
+  if (tDeserializeSCreateVnodeReq(pMsg->pCont, pMsg->contLen, &req) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
 
-  dDebug("vgId:%d, start to create vnode, tsma:%d standby:%d cacheLast:%d cacheLastSize:%d", createReq.vgId,
-         createReq.isTsma, createReq.standby, createReq.cacheLast, createReq.cacheLastSize);
-  vmGenerateVnodeCfg(&createReq, &vnodeCfg);
+  dInfo("vgId:%d, start to create vnode, page:%d pageSize:%d buffer:%d szPage:%d szBuf:%" PRIu64
+        ", cacheLast:%d cacheLastSize:%d sstTrigger:%d tsdbPageSize:%d %d dbname:%s dbId:%" PRId64
+        ", days:%d keep0:%d keep1:%d keep2:%d tsma:%d precision:%d compression:%d minRows:%d maxRows:%d"
+        ", wal fsync:%d level:%d retentionPeriod:%d retentionSize:%" PRId64 " rollPeriod:%d segSize:%" PRId64
+        ", hash method:%d begin:%u end:%u prefix:%d surfix:%d replica:%d selfIndex:%d strict:%d",
+        req.vgId, req.pages, req.pageSize, req.buffer, req.pageSize * 1024, (uint64_t)req.buffer * 1024 * 1024,
+        req.cacheLast, req.cacheLastSize, req.sstTrigger, req.tsdbPageSize, req.tsdbPageSize * 1024, req.db, req.dbUid,
+        req.daysPerFile, req.daysToKeep0, req.daysToKeep1, req.daysToKeep2, req.isTsma, req.precision, req.compression,
+        req.minRows, req.maxRows, req.walFsyncPeriod, req.walLevel, req.walRetentionPeriod, req.walRetentionSize,
+        req.walRollPeriod, req.walSegmentSize, req.hashMethod, req.hashBegin, req.hashEnd, req.hashPrefix,
+        req.hashSuffix, req.replica, req.selfIndex, req.strict);
+  for (int32_t i = 0; i < req.replica; ++i) {
+    dInfo("vgId:%d, replica:%d id:%d fqdn:%s port:%u", req.vgId, i, req.replicas[i].id, req.replicas[i].fqdn,
+          req.replicas[i].port);
+  }
+  vmGenerateVnodeCfg(&req, &vnodeCfg);
 
-  if (vmTsmaAdjustDays(&vnodeCfg, &createReq) < 0) {
-    dError("vgId:%d, failed to adjust tsma days since %s", createReq.vgId, terrstr());
+  if (vmTsmaAdjustDays(&vnodeCfg, &req) < 0) {
+    dError("vgId:%d, failed to adjust tsma days since %s", req.vgId, terrstr());
     code = terrno;
     goto _OVER;
   }
 
-  vmGenerateWrapperCfg(pMgmt, &createReq, &wrapperCfg);
+  vmGenerateWrapperCfg(pMgmt, &req, &wrapperCfg);
 
-  SVnodeObj *pVnode = vmAcquireVnode(pMgmt, createReq.vgId);
+  SVnodeObj *pVnode = vmAcquireVnode(pMgmt, req.vgId);
   if (pVnode != NULL) {
-    dDebug("vgId:%d, already exist", createReq.vgId);
-    tFreeSCreateVnodeReq(&createReq);
+    dDebug("vgId:%d, already exist", req.vgId);
+    tFreeSCreateVnodeReq(&req);
     vmReleaseVnode(pMgmt, pVnode);
     terrno = TSDB_CODE_NODE_ALREADY_DEPLOYED;
     code = terrno;
@@ -243,36 +213,36 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
   snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vnodeCfg.vgId);
   if (vnodeCreate(path, &vnodeCfg, pMgmt->pTfs) < 0) {
-    tFreeSCreateVnodeReq(&createReq);
-    dError("vgId:%d, failed to create vnode since %s", createReq.vgId, terrstr());
+    tFreeSCreateVnodeReq(&req);
+    dError("vgId:%d, failed to create vnode since %s", req.vgId, terrstr());
     code = terrno;
     goto _OVER;
   }
 
   SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, pMgmt->msgCb);
   if (pImpl == NULL) {
-    dError("vgId:%d, failed to open vnode since %s", createReq.vgId, terrstr());
+    dError("vgId:%d, failed to open vnode since %s", req.vgId, terrstr());
     code = terrno;
     goto _OVER;
   }
 
   code = vmOpenVnode(pMgmt, &wrapperCfg, pImpl);
   if (code != 0) {
-    dError("vgId:%d, failed to open vnode since %s", createReq.vgId, terrstr());
+    dError("vgId:%d, failed to open vnode since %s", req.vgId, terrstr());
     code = terrno;
     goto _OVER;
   }
 
-  code = vmTsmaProcessCreate(pImpl, &createReq);
+  code = vmTsmaProcessCreate(pImpl, &req);
   if (code != 0) {
-    dError("vgId:%d, failed to create tsma since %s", createReq.vgId, terrstr());
+    dError("vgId:%d, failed to create tsma since %s", req.vgId, terrstr());
     code = terrno;
     goto _OVER;
   }
 
   code = vnodeStart(pImpl);
   if (code != 0) {
-    dError("vgId:%d, failed to start sync since %s", createReq.vgId, terrstr());
+    dError("vgId:%d, failed to start sync since %s", req.vgId, terrstr());
     goto _OVER;
   }
 
@@ -287,12 +257,78 @@ _OVER:
     vnodeClose(pImpl);
     vnodeDestroy(path, pMgmt->pTfs);
   } else {
-    dInfo("vgId:%d, vnode is created", createReq.vgId);
+    dInfo("vgId:%d, vnode is created", req.vgId);
   }
 
-  tFreeSCreateVnodeReq(&createReq);
+  tFreeSCreateVnodeReq(&req);
   terrno = code;
   return code;
+}
+
+int32_t vmProcessAlterVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  SAlterVnodeReplicaReq alterReq = {0};
+  if (tDeserializeSAlterVnodeReplicaReq(pMsg->pCont, pMsg->contLen, &alterReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  int32_t vgId = alterReq.vgId;
+  dInfo("vgId:%d, start to alter vnode, replica:%d selfIndex:%d strict:%d", alterReq.vgId, alterReq.replica,
+        alterReq.selfIndex, alterReq.strict);
+  for (int32_t i = 0; i < alterReq.replica; ++i) {
+    dInfo("vgId:%d, replica:%d ep:%s:%u", alterReq.vgId, i, alterReq.replicas[i].fqdn, alterReq.replicas[i].port);
+  }
+
+  if (alterReq.replica <= 0 || alterReq.selfIndex < 0 || alterReq.selfIndex >= alterReq.replica) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    dError("vgId:%d, failed to alter replica since invalid msg", alterReq.vgId);
+    return -1;
+  }
+
+  SVnodeObj *pVnode = vmAcquireVnode(pMgmt, vgId);
+  if (pVnode == NULL) {
+    dError("vgId:%d, failed to alter replica since %s", vgId, terrstr());
+    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
+    return -1;
+  }
+
+  dInfo("vgId:%d, start to close vnode", vgId);
+  SWrapperCfg wrapperCfg = {
+      .dropped = pVnode->dropped,
+      .vgId = pVnode->vgId,
+      .vgVersion = pVnode->vgVersion,
+  };
+  tstrncpy(wrapperCfg.path, pVnode->path, sizeof(wrapperCfg.path));
+  vmCloseVnode(pMgmt, pVnode);
+
+  char path[TSDB_FILENAME_LEN] = {0};
+  snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, vgId);
+
+  dInfo("vgId:%d, start to alter vnode replica at %s", vgId, path);
+  if (vnodeAlter(path, &alterReq, pMgmt->pTfs) < 0) {
+    dError("vgId:%d, failed to alter vnode at %s since %s", vgId, path, terrstr());
+    return -1;
+  }
+
+  dInfo("vgId:%d, start to open vnode", vgId);
+  SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, pMgmt->msgCb);
+  if (pImpl == NULL) {
+    dError("vgId:%d, failed to open vnode at %s since %s", vgId, path, terrstr());
+    return -1;
+  }
+
+  if (vmOpenVnode(pMgmt, &wrapperCfg, pImpl) != 0) {
+    dError("vgId:%d, failed to open vnode mgmt since %s", vgId, terrstr());
+    return -1;
+  }
+
+  if (vnodeStart(pImpl) != 0) {
+    dError("vgId:%d, failed to start sync since %s", vgId, terrstr());
+    return -1;
+  }
+
+  dInfo("vgId:%d, vnode config is altered", vgId);
+  return 0;
 }
 
 int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
@@ -329,9 +365,6 @@ SArray *vmGetMsgHandles() {
   int32_t code = -1;
   SArray *pArray = taosArrayInit(32, sizeof(SMgmtHandle));
   if (pArray == NULL) goto _OVER;
-
-  if (dmSetMgmtHandle(pArray, TDMT_MON_VM_INFO, vmPutMsgToMonitorQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_MON_VM_LOAD, vmPutMsgToMonitorQueue, 0) == NULL) goto _OVER;
 
   if (dmSetMgmtHandle(pArray, TDMT_VND_SUBMIT, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SCH_QUERY, vmPutMsgToQueryQueue, 0) == NULL) goto _OVER;
@@ -381,7 +414,7 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_RETRIEVE, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_STREAM_RETRIEVE_RSP, vmPutMsgToStreamQueue, 0) == NULL) goto _OVER;
 
-  if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_REPLICA, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_REPLICA, vmPutMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_CONFIG, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_CONFIRM, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_ALTER_HASHRANGE, vmPutMsgToWriteQueue, 0) == NULL) goto _OVER;
@@ -403,7 +436,8 @@ SArray *vmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_APPEND_ENTRIES_REPLY, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_SNAPSHOT_SEND, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_SYNC_SNAPSHOT_RSP, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_SYNC_SET_VNODE_STANDBY, vmPutMsgToSyncQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_SYNC_HEARTBEAT, vmPutMsgToSyncCtrlQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_SYNC_HEARTBEAT_REPLY, vmPutMsgToSyncCtrlQueue, 0) == NULL) goto _OVER;
 
   code = 0;
 

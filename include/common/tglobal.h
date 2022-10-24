@@ -45,15 +45,6 @@ extern bool    tsPrintAuth;
 extern int64_t tsTickPerMin[3];
 extern int32_t tsCountAlwaysReturnValue;
 
-// multi-process
-extern int32_t tsMultiProcess;
-extern int32_t tsMnodeShmSize;
-extern int32_t tsVnodeShmSize;
-extern int32_t tsQnodeShmSize;
-extern int32_t tsSnodeShmSize;
-extern int32_t tsBnodeShmSize;
-extern int32_t tsNumOfShmThreads;
-
 // queue & threads
 extern int32_t tsNumOfRpcThreads;
 extern int32_t tsNumOfCommitThreads;
@@ -89,15 +80,22 @@ extern uint16_t tsTelemPort;
 
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
-extern int64_t tsQueryBufferSizeBytes;   // maximum allowed usage buffer size in byte for each data node
+extern int64_t tsQueryBufferSizeBytes;  // maximum allowed usage buffer size in byte for each data node
 
 // query client
 extern int32_t tsQueryPolicy;
+extern int32_t tsQueryRspPolicy;
 extern int32_t tsQuerySmaOptimize;
+extern int32_t tsQueryRsmaTolerance;
+extern bool    tsQueryPlannerTrace;
+extern int32_t tsQueryNodeChunkSize;
+extern bool    tsQueryUseNodeAllocator;
+extern bool    tsKeepColumnName;
 
 // client
 extern int32_t tsMinSlidingTime;
 extern int32_t tsMinIntervalTime;
+extern int32_t tsMaxMemUsedByInsert;
 
 // build info
 extern char version[];
@@ -119,6 +117,7 @@ extern SDiskCfg tsDiskCfg[];
 
 // udf
 extern bool tsStartUdfd;
+extern char tsUdfdResFuncs[];
 
 // schemaless
 extern char tsSmlChildTableName[];
@@ -133,7 +132,7 @@ extern int32_t tsTtlPushInterval;
 extern int32_t tsGrantHBInterval;
 extern int32_t tsUptimeInterval;
 
-#define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
+//#define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
                       const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);
@@ -144,10 +143,10 @@ void    taosCfgDynamicOptions(const char *option, const char *value);
 
 struct SConfig *taosGetCfg();
 
-void    taosSetAllDebugFlag(int32_t flag);
-void    taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal);
+void    taosSetAllDebugFlag(int32_t flag, bool rewrite);
+void    taosSetDebugFlag(int32_t *pFlagPtr, const char *flagName, int32_t flagVal, bool rewrite);
 int32_t taosSetCfg(SConfig *pCfg, char *name);
-void    taosLocalCfgForbiddenToChange(char* name, bool* forbidden);
+void    taosLocalCfgForbiddenToChange(char *name, bool *forbidden);
 
 #ifdef __cplusplus
 }

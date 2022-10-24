@@ -1,20 +1,10 @@
 ---
 sidebar_label: SHOW 命令
-title: 使用 SHOW 命令查看系统元数据
+title: SHOW 命令
 description: SHOW 命令的完整列表
 ---
 
 SHOW 命令可以用来获取简要的系统信息。若想获取系统中详细的各种元数据、系统信息和状态，请使用 select 语句查询 INFORMATION_SCHEMA 数据库中的表。
-
-## SHOW ACCOUNTS
-
-```sql
-SHOW ACCOUNTS;
-```
-
-显示当前系统中所有租户的信息。
-
-注：企业版独有
 
 ## SHOW APPS
 
@@ -23,14 +13,6 @@ SHOW APPS;
 ```
 
 显示接入集群的应用（客户端）信息。
-
-## SHOW BNODES
-
-```sql
-SHOW BNODES;
-```
-
-显示当前系统中存在的 BNODE (backup node, 即备份节点）的信息。
 
 ## SHOW CLUSTER
 
@@ -139,14 +121,6 @@ SHOW MNODES;
 
 显示当前系统中 MNODE 的信息。
 
-## SHOW MODULES
-
-```sql
-SHOW MODULES;
-```
-
-显示当前系统中所安装的组件的信息。
-
 ## SHOW QNODES
 
 ```sql
@@ -163,15 +137,7 @@ SHOW SCORES;
 
 显示系统被许可授权的容量的信息。
 
-注：企业版独有
-
-## SHOW SNODES
-
-```sql
-SHOW SNODES;
-```
-
-显示当前系统中 SNODE （流计算节点）的信息。
+注：企业版独有。
 
 ## SHOW STABLES
 

@@ -19,6 +19,7 @@
 #include "tdb.h"
 
 #include "tlog.h"
+#include "trbtree.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -189,12 +190,14 @@ int  tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate, SBTree *pBt);
 int  tdbPagerWrite(SPager *pPager, SPage *pPage);
 int  tdbPagerBegin(SPager *pPager, TXN *pTxn);
 int  tdbPagerCommit(SPager *pPager, TXN *pTxn);
+int  tdbPagerPostCommit(SPager *pPager, TXN *pTxn);
 int  tdbPagerAbort(SPager *pPager, TXN *pTxn);
 int  tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *, int), void *arg,
                        TXN *pTxn);
 void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn);
 int  tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
 int  tdbPagerRestore(SPager *pPager, SBTree *pBt);
+int  tdbPagerRollback(SPager *pPager);
 
 // tdbPCache.c ====================================
 #define TDB_PCACHE_PAGE    \
@@ -215,6 +218,7 @@ int  tdbPagerRestore(SPager *pPager, SBTree *pBt);
 
 int    tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache);
 int    tdbPCacheClose(SPCache *pCache);
+int    tdbPCacheAlter(SPCache *pCache, int32_t nPage);
 SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn);
 void   tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn);
 int    tdbPCacheGetPageSize(SPCache *pCache);
@@ -256,6 +260,7 @@ typedef struct {
 #pragma pack(pop)
 
 struct SPage {
+  SRBTreeNode    node;  // must be the first field for pageCmpFn to work
   tdb_spinlock_t lock;
   int            pageSize;
   u8            *pData;
@@ -280,13 +285,13 @@ struct SPage {
 
 static inline i32 tdbRefPage(SPage *pPage) {
   i32 nRef = atomic_add_fetch_32(&((pPage)->nRef), 1);
-  tdbTrace("ref page %p/%d, nRef %d", pPage, pPage->id, nRef);
+  // tdbTrace("ref page %p/%d, nRef %d", pPage, pPage->id, nRef);
   return nRef;
 }
 
 static inline i32 tdbUnrefPage(SPage *pPage) {
   i32 nRef = atomic_sub_fetch_32(&((pPage)->nRef), 1);
-  tdbTrace("unref page %p/%d, nRef %d", pPage, pPage->id, nRef);
+  // tdbTrace("unref page %p/%d, nRef %d", pPage, pPage->id, nRef);
   return nRef;
 }
 
@@ -331,7 +336,7 @@ void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell
 int  tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl);
 int  tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt);
 int  tdbPageUpdateCell(SPage *pPage, int idx, SCell *pCell, int szCell, TXN *pTxn, SBTree *pBt);
-void tdbPageCopy(SPage *pFromPage, SPage *pToPage);
+void tdbPageCopy(SPage *pFromPage, SPage *pToPage, int copyOvflCells);
 int  tdbPageCapacity(int pageSize, int amHdrSize);
 
 static inline SCell *tdbPageGetCell(SPage *pPage, int idx) {
@@ -389,6 +394,7 @@ struct SPager {
   SPgno    dbFileSize;
   SPgno    dbOrigSize;
   SPage   *pDirty;
+  SRBTree  rbt;
   u8       inTran;
   SPager  *pNext;      // used by TDB
   SPager  *pHashNext;  // used by TDB

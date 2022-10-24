@@ -53,22 +53,22 @@ static int32_t tGetDataFile(uint8_t *p, SDataFile *pDataFile) {
   return n;
 }
 
-int32_t tPutLastFile(uint8_t *p, SLastFile *pLastFile) {
+int32_t tPutSttFile(uint8_t *p, SSttFile *pSttFile) {
   int32_t n = 0;
 
-  n += tPutI64v(p ? p + n : p, pLastFile->commitID);
-  n += tPutI64v(p ? p + n : p, pLastFile->size);
-  n += tPutI64v(p ? p + n : p, pLastFile->offset);
+  n += tPutI64v(p ? p + n : p, pSttFile->commitID);
+  n += tPutI64v(p ? p + n : p, pSttFile->size);
+  n += tPutI64v(p ? p + n : p, pSttFile->offset);
 
   return n;
 }
 
-static int32_t tGetLastFile(uint8_t *p, SLastFile *pLastFile) {
+static int32_t tGetSttFile(uint8_t *p, SSttFile *pSttFile) {
   int32_t n = 0;
 
-  n += tGetI64v(p + n, &pLastFile->commitID);
-  n += tGetI64v(p + n, &pLastFile->size);
-  n += tGetI64v(p + n, &pLastFile->offset);
+  n += tGetI64v(p + n, &pSttFile->commitID);
+  n += tGetI64v(p + n, &pSttFile->size);
+  n += tGetI64v(p + n, &pSttFile->offset);
 
   return n;
 }
@@ -102,9 +102,9 @@ void tsdbDataFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SDataFile *pDataF,
            TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), fid, pDataF->commitID, ".data");
 }
 
-void tsdbLastFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SLastFile *pLastF, char fname[]) {
+void tsdbSttFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSttFile *pSttF, char fname[]) {
   snprintf(fname, TSDB_FILENAME_LEN - 1, "%s%s%s%sv%df%dver%" PRId64 "%s", tfsGetDiskPath(pTsdb->pVnode->pTfs, did),
-           TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), fid, pLastF->commitID, ".last");
+           TD_DIRSEP, pTsdb->path, TD_DIRSEP, TD_VID(pTsdb->pVnode), fid, pSttF->commitID, ".stt");
 }
 
 void tsdbSmaFileName(STsdb *pTsdb, SDiskID did, int32_t fid, SSmaFile *pSmaF, char fname[]) {
@@ -148,7 +148,7 @@ int32_t tsdbDFileRollback(STsdb *pTsdb, SDFileSet *pSet, EDataFileT ftype) {
   }
 
   // ftruncate
-  if (taosFtruncateFile(pFD, size) < 0) {
+  if (taosFtruncateFile(pFD, tsdbLogicToFileSize(size, pTsdb->pVnode->config.tsdbPageSize)) < 0) {
     code = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
@@ -194,9 +194,11 @@ int32_t tPutDFileSet(uint8_t *p, SDFileSet *pSet) {
   n += tPutDataFile(p ? p + n : p, pSet->pDataF);
   n += tPutSmaFile(p ? p + n : p, pSet->pSmaF);
 
-  // last
-  n += tPutU8(p ? p + n : p, 1);  // for future compatibility
-  n += tPutLastFile(p ? p + n : p, pSet->pLastF);
+  // stt
+  n += tPutU8(p ? p + n : p, pSet->nSttF);
+  for (int32_t iStt = 0; iStt < pSet->nSttF; iStt++) {
+    n += tPutSttFile(p ? p + n : p, pSet->aSttF[iStt]);
+  }
 
   return n;
 }
@@ -208,15 +210,40 @@ int32_t tGetDFileSet(uint8_t *p, SDFileSet *pSet) {
   n += tGetI32v(p + n, &pSet->diskId.id);
   n += tGetI32v(p + n, &pSet->fid);
 
-  // data
+  // head
+  pSet->pHeadF = (SHeadFile *)taosMemoryCalloc(1, sizeof(SHeadFile));
+  if (pSet->pHeadF == NULL) {
+    return -1;
+  }
+  pSet->pHeadF->nRef = 1;
   n += tGetHeadFile(p + n, pSet->pHeadF);
+
+  // data
+  pSet->pDataF = (SDataFile *)taosMemoryCalloc(1, sizeof(SDataFile));
+  if (pSet->pDataF == NULL) {
+    return -1;
+  }
+  pSet->pDataF->nRef = 1;
   n += tGetDataFile(p + n, pSet->pDataF);
+
+  // sma
+  pSet->pSmaF = (SSmaFile *)taosMemoryCalloc(1, sizeof(SSmaFile));
+  if (pSet->pSmaF == NULL) {
+    return -1;
+  }
+  pSet->pSmaF->nRef = 1;
   n += tGetSmaFile(p + n, pSet->pSmaF);
 
-  // last
-  uint8_t nLast;
-  n += tGetU8(p + n, &nLast);
-  n += tGetLastFile(p + n, pSet->pLastF);
+  // stt
+  n += tGetU8(p + n, &pSet->nSttF);
+  for (int32_t iStt = 0; iStt < pSet->nSttF; iStt++) {
+    pSet->aSttF[iStt] = (SSttFile *)taosMemoryCalloc(1, sizeof(SSttFile));
+    if (pSet->aSttF[iStt] == NULL) {
+      return -1;
+    }
+    pSet->aSttF[iStt]->nRef = 1;
+    n += tGetSttFile(p + n, pSet->aSttF[iStt]);
+  }
 
   return n;
 }

@@ -139,7 +139,7 @@ if $data[0][1] != 1 then
 endi
 if $data[0][2] != 2 then
   return -1
-endi  
+endi
 if $data[0][3] != 101 then
   return -1
 endi
@@ -170,7 +170,7 @@ if $data[0][1] != 1 then
 endi
 if $data[0][2] != 2 then
   return -1
-endi  
+endi
 if $data[0][3] != 101 then
   return -1
 endi

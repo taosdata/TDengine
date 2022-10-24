@@ -9,8 +9,8 @@
 
 # ---- db ----
 ./test.sh -f tsim/db/alter_option.sim
-# unsupport ./test.sh -f tsim/db/alter_replica_13.sim
-# unsupport ./test.sh -f tsim/db/alter_replica_31.sim
+./test.sh -f tsim/db/alter_replica_13.sim
+./test.sh -f tsim/db/alter_replica_31.sim
 ./test.sh -f tsim/db/basic1.sim
 ./test.sh -f tsim/db/basic2.sim
 ./test.sh -f tsim/db/basic3.sim
@@ -155,7 +155,7 @@
 ./test.sh -f tsim/parser/select_with_tags.sim
 ./test.sh -f tsim/parser/selectResNum.sim
 ./test.sh -f tsim/parser/set_tag_vals.sim
-./test.sh -f tsim/parser/single_row_in_tb.sim
+# TD-19572 ./test.sh -f tsim/parser/single_row_in_tb.sim
 ./test.sh -f tsim/parser/sliding.sim
 ./test.sh -f tsim/parser/slimit_alter_tags.sim
 ./test.sh -f tsim/parser/slimit.sim
@@ -187,14 +187,11 @@
 # ---- snode ----
 # unsupport ./test.sh -f tsim/snode/basic1.sim
 
-# ---- bnode
-./test.sh -f tsim/bnode/basic1.sim
-
 # ---- mnode
 ./test.sh -f tsim/mnode/basic1.sim
 ./test.sh -f tsim/mnode/basic2.sim
 ./test.sh -f tsim/mnode/basic3.sim
-# TD-17919 ./test.sh -f tsim/mnode/basic4.sim
+./test.sh -f tsim/mnode/basic4.sim
 ./test.sh -f tsim/mnode/basic5.sim
 
 # ---- show ----
@@ -221,6 +218,7 @@
 ./test.sh -f tsim/table/describe.sim
 ./test.sh -f tsim/table/double.sim
 ./test.sh -f tsim/table/float.sim
+./test.sh -f tsim/table/hash.sim
 ./test.sh -f tsim/table/int.sim
 ./test.sh -f tsim/table/limit.sim
 ./test.sh -f tsim/table/smallint.sim
@@ -230,7 +228,7 @@
 ./test.sh -f tsim/table/vgroup.sim
 
 # ---- stream
-./test.sh -f tsim/stream/basic0.sim
+./test.sh -f tsim/stream/basic0.sim -v
 ./test.sh -f tsim/stream/basic1.sim
 ./test.sh -f tsim/stream/basic2.sim
 ./test.sh -f tsim/stream/drop_stream.sim
@@ -248,6 +246,18 @@
 ./test.sh -f tsim/stream/windowClose.sim
 ./test.sh -f tsim/stream/ignoreExpiredData.sim
 ./test.sh -f tsim/stream/sliding.sim
+./test.sh -f tsim/stream/partitionbyColumnInterval.sim
+#./test.sh -f tsim/stream/partitionbyColumnSession.sim
+#./test.sh -f tsim/stream/partitionbyColumnState.sim
+#./test.sh -f tsim/stream/deleteInterval.sim
+#./test.sh -f tsim/stream/deleteSession.sim
+#./test.sh -f tsim/stream/deleteState.sim
+#./test.sh -f tsim/stream/fillIntervalDelete0.sim
+#./test.sh -f tsim/stream/fillIntervalDelete1.sim
+./test.sh -f tsim/stream/fillIntervalLinear.sim
+#./test.sh -f tsim/stream/fillIntervalPartitionBy.sim
+./test.sh -f tsim/stream/fillIntervalPrevNext.sim
+./test.sh -f tsim/stream/fillIntervalValue.sim
 
 # ---- transaction ----
 ./test.sh -f tsim/trans/lossdata1.sim
@@ -288,18 +298,7 @@
 ./test.sh -f tsim/stable/tag_rename.sim
 ./test.sh -f tsim/stable/values.sim
 ./test.sh -f tsim/stable/vnode3.sim
-
-# --- for multi process mode
-./test.sh -f tsim/user/basic.sim -m
-./test.sh -f tsim/db/basic3.sim -m
-./test.sh -f tsim/db/error1.sim -m
-./test.sh -f tsim/insert/backquote.sim -m
-# unsupport ./test.sh -f tsim/parser/fourArithmetic-basic.sim -m
-./test.sh -f tsim/query/interval-offset.sim -m
-./test.sh -f tsim/tmq/basic3.sim -m
-./test.sh -f tsim/stable/vnode3.sim -m
-./test.sh -f tsim/qnode/basic1.sim -m
-# unsupport ./test.sh -f tsim/mnode/basic1.sim -m
+./test.sh -f tsim/stable/metrics_idx.sim
 
 # --- sma
 ./test.sh -f tsim/sma/drop_sma.sim
@@ -344,6 +343,8 @@
 # --- scalar ----
 ./test.sh -f tsim/scalar/in.sim
 ./test.sh -f tsim/scalar/scalar.sim
+./test.sh -f tsim/scalar/filter.sim 
+./test.sh -f tsim/scalar/caseWhen.sim 
 
 # ---- alter ----
 ./test.sh -f tsim/alter/cached_schema_after_alter.sim
@@ -445,5 +446,7 @@
 ./test.sh -f tsim/tag/set.sim
 ./test.sh -f tsim/tag/smallint.sim
 ./test.sh -f tsim/tag/tinyint.sim
+./test.sh -f tsim/tag/drop_tag.sim
+
 
 #======================b1-end===============

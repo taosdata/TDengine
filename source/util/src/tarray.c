@@ -386,11 +386,12 @@ void* taosArrayDestroy(SArray* pArray) {
 }
 
 void taosArrayDestroyP(SArray* pArray, FDelete fp) {
-  if(!pArray) return;
-  for (int32_t i = 0; i < pArray->size; i++) {
-    fp(*(void**)TARRAY_GET_ELEM(pArray, i));
+  if (pArray) {
+    for (int32_t i = 0; i < pArray->size; i++) {
+      fp(*(void**)TARRAY_GET_ELEM(pArray, i));
+    }
+    taosArrayDestroy(pArray);
   }
-  taosArrayDestroy(pArray);
 }
 
 void taosArrayDestroyEx(SArray* pArray, FDelete fp) {
@@ -467,12 +468,11 @@ static int32_t taosArrayPartition(SArray* pArray, int32_t i, int32_t j, __ext_co
   return i;
 }
 
-static void taosArrayQuicksortHelper(SArray* pArray, int32_t low, int32_t high, __ext_compar_fn_t fn,
-                                     const void* param) {
+static void taosArrayQuicksortImpl(SArray* pArray, int32_t low, int32_t high, __ext_compar_fn_t fn, const void* param) {
   if (low < high) {
     int32_t idx = taosArrayPartition(pArray, low, high, fn, param);
-    taosArrayQuicksortHelper(pArray, low, idx - 1, fn, param);
-    taosArrayQuicksortHelper(pArray, idx + 1, high, fn, param);
+    taosArrayQuicksortImpl(pArray, low, idx - 1, fn, param);
+    taosArrayQuicksortImpl(pArray, idx + 1, high, fn, param);
   }
 }
 
@@ -480,7 +480,7 @@ static void taosArrayQuickSort(SArray* pArray, __ext_compar_fn_t fn, const void*
   if (pArray->size <= 1) {
     return;
   }
-  taosArrayQuicksortHelper(pArray, 0, (int32_t)(taosArrayGetSize(pArray) - 1), fn, param);
+  taosArrayQuicksortImpl(pArray, 0, (int32_t)(taosArrayGetSize(pArray) - 1), fn, param);
 }
 
 static void taosArrayInsertSort(SArray* pArray, __ext_compar_fn_t fn, const void* param) {
@@ -562,4 +562,22 @@ char* taosShowStrArray(const SArray* pArray) {
     if (i != sz - 1) *buf = ',';
   }
   return res;
+}
+void taosArraySwap(SArray* a, SArray* b) {
+  if (a == NULL || b == NULL) return;
+  size_t t = a->size;
+  a->size = b->size;
+  b->size = t;
+
+  uint32_t cap = a->capacity;
+  a->capacity = b->capacity;
+  b->capacity = cap;
+
+  uint32_t elem = a->elemSize;
+  a->elemSize = b->elemSize;
+  b->elemSize = elem;
+
+  void* data = a->pData;
+  a->pData = b->pData;
+  b->pData = data;
 }

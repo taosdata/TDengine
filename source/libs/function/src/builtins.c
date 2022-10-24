@@ -207,7 +207,6 @@ static int32_t countTrailingSpaces(const SValueNode* pVal, bool isLtrim) {
   }
 
   return numOfSpaces;
-
 }
 
 void static addTimezoneParam(SNodeList* pList) {
@@ -322,7 +321,7 @@ static int32_t translateTrimStr(SFunctionNode* pFunc, char* pErrBuf, int32_t len
   }
 
   int32_t numOfSpaces = 0;
-  SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 0);
+  SNode*  pParamNode1 = nodesListGetNode(pFunc->pParameterList, 0);
   // for select trim functions with constant value from table,
   // need to set the proper result result schema bytes to avoid
   // trailing garbage characters
@@ -330,7 +329,6 @@ static int32_t translateTrimStr(SFunctionNode* pFunc, char* pErrBuf, int32_t len
     SValueNode* pValue = (SValueNode*)pParamNode1;
     numOfSpaces = countTrailingSpaces(pValue, isLtrim);
   }
-
 
   int32_t resBytes = pPara1->resType.bytes - numOfSpaces;
   pFunc->node.resType = (SDataType){.bytes = resBytes, .type = pPara1->resType.type};
@@ -664,7 +662,7 @@ static int32_t translateTopBot(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  if (pValue->datum.i < 1 || pValue->datum.i > 100) {
+  if (pValue->datum.i < 1 || pValue->datum.i > TOP_BOTTOM_QUERY_LIMIT) {
     return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -698,7 +696,7 @@ static int32_t translateSpread(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   }
 
   uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-  if (!IS_NUMERIC_TYPE(paraType) && TSDB_DATA_TYPE_TIMESTAMP != paraType) {
+  if (!IS_NUMERIC_TYPE(paraType) && !IS_TIMESTAMP_TYPE(paraType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -713,7 +711,7 @@ static int32_t translateSpreadImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t 
 
   uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (isPartial) {
-    if (!IS_NUMERIC_TYPE(paraType) && TSDB_DATA_TYPE_TIMESTAMP != paraType) {
+    if (!IS_NUMERIC_TYPE(paraType) && !IS_TIMESTAMP_TYPE(paraType)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
     pFunc->node.resType = (SDataType){.bytes = getSpreadInfoSize() + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY};
@@ -788,7 +786,7 @@ static int32_t translateElapsedImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t
     }
 
     uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-    if (TSDB_DATA_TYPE_TIMESTAMP != paraType) {
+    if (!IS_TIMESTAMP_TYPE(paraType)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
 
@@ -1634,7 +1632,7 @@ static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (!IS_SIGNED_NUMERIC_TYPE(colType) && !IS_FLOAT_TYPE(colType) && TSDB_DATA_TYPE_BOOL != colType &&
-      TSDB_DATA_TYPE_TIMESTAMP != colType) {
+      !IS_TIMESTAMP_TYPE(colType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -1660,7 +1658,7 @@ static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   }
 
   uint8_t resType;
-  if (IS_SIGNED_NUMERIC_TYPE(colType) || TSDB_DATA_TYPE_BOOL == colType || TSDB_DATA_TYPE_TIMESTAMP == colType) {
+  if (IS_SIGNED_NUMERIC_TYPE(colType) || IS_TIMESTAMP_TYPE(colType) || TSDB_DATA_TYPE_BOOL == colType) {
     resType = TSDB_DATA_TYPE_BIGINT;
   } else {
     resType = TSDB_DATA_TYPE_DOUBLE;
@@ -1825,7 +1823,7 @@ static int32_t translateToIso8601(SFunctionNode* pFunc, char* pErrBuf, int32_t l
 
   // param0
   uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-  if (!IS_INTEGER_TYPE(paraType) && TSDB_DATA_TYPE_TIMESTAMP != paraType) {
+  if (!IS_INTEGER_TYPE(paraType) && !IS_TIMESTAMP_TYPE(paraType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -1878,7 +1876,7 @@ static int32_t translateTimeTruncate(SFunctionNode* pFunc, char* pErrBuf, int32_
 
   uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
-  if ((!IS_STR_DATA_TYPE(para1Type) && !IS_INTEGER_TYPE(para1Type) && TSDB_DATA_TYPE_TIMESTAMP != para1Type) ||
+  if ((!IS_STR_DATA_TYPE(para1Type) && !IS_INTEGER_TYPE(para1Type) && !IS_TIMESTAMP_TYPE(para1Type)) ||
       !IS_INTEGER_TYPE(para2Type)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
@@ -1911,7 +1909,7 @@ static int32_t translateTimeDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 
   for (int32_t i = 0; i < 2; ++i) {
     uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, i))->resType.type;
-    if (!IS_STR_DATA_TYPE(paraType) && !IS_INTEGER_TYPE(paraType) && TSDB_DATA_TYPE_TIMESTAMP != paraType) {
+    if (!IS_STR_DATA_TYPE(paraType) && !IS_INTEGER_TYPE(paraType) && !IS_TIMESTAMP_TYPE(paraType)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
   }
@@ -2019,6 +2017,11 @@ static int32_t translateCurrentUserFunc(SFunctionNode* pFunc, char* pErrBuf, int
 
 static int32_t translateUserFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   pFunc->node.resType = (SDataType){.bytes = TSDB_USER_LEN, .type = TSDB_DATA_TYPE_VARCHAR};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateTagsPseudoColumn(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  // The _tags pseudo-column will be expanded to the actual tags on the client side
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2141,7 +2144,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "avg",
     .type = FUNCTION_TYPE_AVG,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SPECIAL_DATA_REQUIRED,
     .translateFunc = translateInNumOutDou,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getAvgFuncEnv,
@@ -2159,6 +2162,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_AVG_PARTIAL,
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateAvgPartial,
+    .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getAvgFuncEnv,
     .initFunc     = avgFunctionSetup,
     .processFunc  = avgFunction,
@@ -2402,6 +2406,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = firstLastFinalize
   },
   {
+    .name = "_cache_last",
+    .type = FUNCTION_TYPE_CACHE_LAST,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_FORBID_STREAM_FUNC,
+    .translateFunc = translateFirstLast,
+    .getEnvFunc   = getFirstLastFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = lastFunctionMerge,
+    .finalizeFunc = firstLastFinalize
+  },
+  {
     .name = "_last_row_partial",
     .type = FUNCTION_TYPE_LAST_PARTIAL,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
@@ -2427,6 +2441,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_FIRST,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
     .translateFunc = translateFirstLast,
+    .dynDataRequiredFunc = firstDynDataReq,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = firstFunction,
@@ -2441,6 +2456,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_FIRST_PARTIAL,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_MULTI_RES_FUNC | FUNC_MGT_IMPLICIT_TS_FUNC,
     .translateFunc = translateFirstLastPartial,
+    .dynDataRequiredFunc = firstDynDataReq,
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = firstFunction,
@@ -3146,6 +3162,26 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_USER,
     .classification = FUNC_MGT_SYSTEM_INFO_FUNC | FUNC_MGT_SCALAR_FUNC,
     .translateFunc = translateUserFunc,
+  },
+  {
+    .name = "_irowts",
+    .type = FUNCTION_TYPE_IROWTS,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_INTERP_PC_FUNC,
+    .translateFunc = translateTimePseudoColumn,
+    .getEnvFunc   = getTimePseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "_tags",
+    .type = FUNCTION_TYPE_TAGS,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_MULTI_RES_FUNC,
+    .translateFunc = translateTagsPseudoColumn,
+    .getEnvFunc   = NULL,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
   },
 };
 // clang-format on

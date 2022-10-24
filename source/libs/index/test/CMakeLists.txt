@@ -80,6 +80,11 @@ IF(NOT TD_DARWIN)
    "${TD_SOURCE_DIR}/include/libs/index" 
    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
   ) 
+  target_include_directories (idxJsonUT
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/index" 
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+  ) 
 
   target_link_libraries (idxTest
     os  
@@ -102,11 +107,7 @@ IF(NOT TD_DARWIN)
     gtest_main
     index
   )
-  target_include_directories (idxJsonUT
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/index" 
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-  ) 
+
   target_link_libraries (idxTest
     os  
     util

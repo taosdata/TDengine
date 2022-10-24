@@ -72,7 +72,7 @@ struct SVBufPool {
   SVBufPoolNode    node;
 };
 
-int32_t vnodeOpenBufPool(SVnode* pVnode, int64_t size);
+int32_t vnodeOpenBufPool(SVnode* pVnode);
 int32_t vnodeCloseBufPool(SVnode* pVnode);
 void    vnodeBufPoolReset(SVBufPool* pPool);
 
@@ -87,11 +87,13 @@ int32_t vnodeGetBatchMeta(SVnode* pVnode, SRpcMsg* pMsg);
 int32_t vnodeBegin(SVnode* pVnode);
 int32_t vnodeShouldCommit(SVnode* pVnode);
 int32_t vnodeCommit(SVnode* pVnode);
+void    vnodeRollback(SVnode* pVnode);
 int32_t vnodeSaveInfo(const char* dir, const SVnodeInfo* pCfg);
 int32_t vnodeCommitInfo(const char* dir, const SVnodeInfo* pInfo);
 int32_t vnodeLoadInfo(const char* dir, SVnodeInfo* pInfo);
 int32_t vnodeSyncCommit(SVnode* pVnode);
 int32_t vnodeAsyncCommit(SVnode* pVnode);
+bool    vnodeShouldRollback(SVnode* pVnode);
 
 // vnodeSync.c
 int32_t vnodeSyncOpen(SVnode* pVnode, char* path);
@@ -99,7 +101,6 @@ void    vnodeSyncStart(SVnode* pVnode);
 void    vnodeSyncClose(SVnode* pVnode);
 void    vnodeRedirectRpcMsg(SVnode* pVnode, SRpcMsg* pMsg);
 bool    vnodeIsLeader(SVnode* pVnode);
-bool    vnodeIsReadyForRead(SVnode* pVnode);
 bool    vnodeIsRoleLeader(SVnode* pVnode);
 
 #ifdef __cplusplus

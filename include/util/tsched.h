@@ -31,7 +31,6 @@ typedef struct SSchedMsg {
   void *thandle;
 } SSchedMsg;
 
-
 typedef struct {
   char          label[TSDB_LABEL_LEN];
   tsem_t        emptySem;
@@ -48,7 +47,6 @@ typedef struct {
   void         *pTimer;
 } SSchedQueue;
 
-
 /**
  * Create a thread-safe ring-buffer based task queue and return the instance. A thread
  * pool will be created to consume the messages in the queue.
@@ -57,7 +55,7 @@ typedef struct {
  * @param label the label of the queue
  * @return the created queue scheduler
  */
-void *taosInitScheduler(int32_t capacity, int32_t numOfThreads, const char *label, SSchedQueue* pSched);
+void *taosInitScheduler(int32_t capacity, int32_t numOfThreads, const char *label, SSchedQueue *pSched);
 
 /**
  * Create a thread-safe ring-buffer based task queue and return the instance.
@@ -83,7 +81,7 @@ void taosCleanUpScheduler(void *queueScheduler);
  * @param queueScheduler the queue scheduler instance
  * @param pMsg the message for the task
  */
-void taosScheduleTask(void *queueScheduler, SSchedMsg *pMsg);
+int taosScheduleTask(void *queueScheduler, SSchedMsg *pMsg);
 
 #ifdef __cplusplus
 }

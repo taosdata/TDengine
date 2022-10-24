@@ -49,9 +49,6 @@ typedef struct {
 #define varDataCopy(dst, v)    memcpy((dst), (void *)(v), varDataTLen(v))
 #define varDataLenByData(v)    (*(VarDataLenT *)(((char *)(v)) - VARSTR_HEADER_SIZE))
 #define varDataSetLen(v, _len) (((VarDataLenT *)(v))[0] = (VarDataLenT)(_len))
-#define IS_VAR_DATA_TYPE(t) \
-  (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_NCHAR) || ((t) == TSDB_DATA_TYPE_JSON))
-#define IS_STR_DATA_TYPE(t) (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_NCHAR))
 
 #define varDataNetLen(v)  (htons(((VarDataLenT *)(v))[0]))
 #define varDataNetTLen(v) (sizeof(VarDataLenT) + varDataNetLen(v))
@@ -268,10 +265,15 @@ typedef struct {
 #define IS_UNSIGNED_NUMERIC_TYPE(_t) ((_t) >= TSDB_DATA_TYPE_UTINYINT && (_t) <= TSDB_DATA_TYPE_UBIGINT)
 #define IS_FLOAT_TYPE(_t)            ((_t) == TSDB_DATA_TYPE_FLOAT || (_t) == TSDB_DATA_TYPE_DOUBLE)
 #define IS_INTEGER_TYPE(_t)          ((IS_SIGNED_NUMERIC_TYPE(_t)) || (IS_UNSIGNED_NUMERIC_TYPE(_t)))
+#define IS_TIMESTAMP_TYPE(_t)        ((_t) == TSDB_DATA_TYPE_TIMESTAMP)
 
 #define IS_NUMERIC_TYPE(_t) ((IS_SIGNED_NUMERIC_TYPE(_t)) || (IS_UNSIGNED_NUMERIC_TYPE(_t)) || (IS_FLOAT_TYPE(_t)))
 #define IS_MATHABLE_TYPE(_t) \
   (IS_NUMERIC_TYPE(_t) || (_t) == (TSDB_DATA_TYPE_BOOL) || (_t) == (TSDB_DATA_TYPE_TIMESTAMP))
+
+#define IS_VAR_DATA_TYPE(t) \
+  (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_NCHAR) || ((t) == TSDB_DATA_TYPE_JSON))
+#define IS_STR_DATA_TYPE(t) (((t) == TSDB_DATA_TYPE_VARCHAR) || ((t) == TSDB_DATA_TYPE_NCHAR))
 
 #define IS_VALID_TINYINT(_t)   ((_t) >= INT8_MIN && (_t) <= INT8_MAX)
 #define IS_VALID_SMALLINT(_t)  ((_t) >= INT16_MIN && (_t) <= INT16_MAX)
@@ -331,29 +333,19 @@ typedef struct tDataTypeDescriptor {
   char   *name;
   int64_t minValue;
   int64_t maxValue;
-  int32_t (*compFunc)(const char *const input, int32_t inputSize, const int32_t nelements, char *const output,
-                      int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize);
-  int32_t (*decompFunc)(const char *const input, int32_t compressedSize, const int32_t nelements, char *const output,
-                        int32_t outputSize, char algorithm, char *const buffer, int32_t bufferSize);
-  void (*statisFunc)(int8_t bitmapMode, const void *pBitmap, const void *pData, int32_t numofrow, int64_t *min,
-                     int64_t *max, int64_t *sum, int16_t *minindex, int16_t *maxindex, int16_t *numofnull);
+  int32_t (*compFunc)(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                      int32_t nBuf);
+  int32_t (*decompFunc)(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t nOut, uint8_t cmprAlg, void *pBuf,
+                        int32_t nBuf);
 } tDataTypeDescriptor;
 
 extern tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX];
-
-bool isValidDataType(int32_t type);
-
-void        setVardataNull(void *val, int32_t type);
-void        setNull(void *val, int32_t type, int32_t bytes);
-void        setNullN(void *val, int32_t type, int32_t bytes, int32_t numOfElems);
-const void *getNullValue(int32_t type);
+bool                       isValidDataType(int32_t type);
 
 void  assignVal(char *val, const char *src, int32_t len, int32_t type);
-void  tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void *buf);
 void  operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type);
 void *getDataMin(int32_t type);
 void *getDataMax(int32_t type);
-
 
 #ifdef __cplusplus
 }

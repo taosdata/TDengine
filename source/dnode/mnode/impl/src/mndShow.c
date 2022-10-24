@@ -60,8 +60,6 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_MODULE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_QNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_QNODE;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_BNODES, len) == 0) {
-    type = TSDB_MGMT_TABLE_BNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_SNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_SNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_CLUSTER, len) == 0) {
@@ -88,7 +86,7 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_VGROUP;
   } else if (strncasecmp(name, TSDB_PERFS_TABLE_CONSUMERS, len) == 0) {
     type = TSDB_MGMT_TABLE_CONSUMERS;
-  } else if (strncasecmp(name, TSDB_PERFS_TABLE_SUBSCRIPTIONS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SUBSCRIPTIONS, len) == 0) {
     type = TSDB_MGMT_TABLE_SUBSCRIPTIONS;
   } else if (strncasecmp(name, TSDB_PERFS_TABLE_TRANS, len) == 0) {
     type = TSDB_MGMT_TABLE_TRANS;
@@ -102,9 +100,9 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_QUERIES;
   } else if (strncasecmp(name, TSDB_INS_TABLE_VNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_VNODES;
-  } else if (strncasecmp(name, TSDB_PERFS_TABLE_TOPICS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TOPICS, len) == 0) {
     type = TSDB_MGMT_TABLE_TOPICS;
-  } else if (strncasecmp(name, TSDB_PERFS_TABLE_STREAMS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_STREAMS, len) == 0) {
     type = TSDB_MGMT_TABLE_STREAMS;
   } else if (strncasecmp(name, TSDB_PERFS_TABLE_APPS, len) == 0) {
     type = TSDB_MGMT_TABLE_APPS;

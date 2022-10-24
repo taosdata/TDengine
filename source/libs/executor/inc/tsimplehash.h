@@ -112,7 +112,7 @@ void tSimpleHashCleanup(SSHashObj *pHashObj);
 size_t tSimpleHashGetMemSize(const SSHashObj *pHashObj);
 
 #pragma pack(push, 4)
-typedef struct SHNode{
+typedef struct SHNode {
   struct SHNode *next;
   uint32_t       keyLen : 20;
   uint32_t       dataLen : 12;

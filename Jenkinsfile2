@@ -173,7 +173,7 @@ def pre_test_build_mac() {
     '''
     sh '''
         cd ${WK}/debug
-        cmake ..
+        cmake .. -DBUILD_TEST=true
         make -j8
     '''
     sh '''
@@ -218,12 +218,12 @@ def pre_test_win(){
         if (env.CHANGE_URL =~ /\/TDengine\//) {
             bat '''
                 cd %WIN_INTERNAL_ROOT%
-                git pull
+                git pull origin ''' + env.CHANGE_TARGET + '''
             '''
             bat '''
                 cd %WIN_COMMUNITY_ROOT%
                 git remote prune origin
-                git pull
+                git pull  origin ''' + env.CHANGE_TARGET + '''
             '''
             bat '''
                 cd %WIN_COMMUNITY_ROOT%
@@ -236,7 +236,7 @@ def pre_test_win(){
         } else if (env.CHANGE_URL =~ /\/TDinternal\//) {
             bat '''
                 cd %WIN_INTERNAL_ROOT%
-                git pull
+                git pull origin ''' + env.CHANGE_TARGET + '''
             '''
             bat '''
                 cd %WIN_INTERNAL_ROOT%
@@ -302,7 +302,7 @@ def pre_test_build_win() {
         set CL=/MP8
         echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> cmake"
         time /t
-        cmake .. -G "NMake Makefiles JOM" || exit 7
+        cmake .. -G "NMake Makefiles JOM" -DBUILD_TEST=true || exit 7
         echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> jom -j 6"
         time /t
         jom -j 6 || exit 8

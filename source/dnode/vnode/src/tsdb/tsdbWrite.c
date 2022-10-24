@@ -34,12 +34,14 @@ int tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq *pMsg, SSubmitRsp *
   }
 
   // loop to insert
-  tInitSubmitMsgIter(pMsg, &msgIter);
+  if (tInitSubmitMsgIter(pMsg, &msgIter) < 0) {
+    return -1;
+  }
   while (true) {
     SSubmitBlkRsp r = {0};
     tGetSubmitMsgNext(&msgIter, &pBlock);
     if (pBlock == NULL) break;
-    if (tsdbInsertTableData(pTsdb, version, &msgIter, pBlock, &r) < 0) {
+    if ((terrno = tsdbInsertTableData(pTsdb, version, &msgIter, pBlock, &r)) < 0) {
       return -1;
     }
 

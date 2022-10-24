@@ -264,12 +264,14 @@ static FORCE_INLINE int32_t tEncodeDouble(SEncoder* pCoder, double val) {
 
 static FORCE_INLINE int32_t tEncodeBinary(SEncoder* pCoder, const uint8_t* val, uint32_t len) {
   if (tEncodeU32v(pCoder, len) < 0) return -1;
-  if (pCoder->data) {
-    if (TD_CODER_CHECK_CAPACITY_FAILED(pCoder, len)) return -1;
-    memcpy(TD_CODER_CURRENT(pCoder), val, len);
-  }
+  if (len) {
+    if (pCoder->data) {
+      if (TD_CODER_CHECK_CAPACITY_FAILED(pCoder, len)) return -1;
+      memcpy(TD_CODER_CURRENT(pCoder), val, len);
+    }
 
-  TD_CODER_MOVE_POS(pCoder, len);
+    TD_CODER_MOVE_POS(pCoder, len);
+  }
   return 0;
 }
 
@@ -414,14 +416,18 @@ static int32_t tDecodeCStrTo(SDecoder* pCoder, char* val) {
 static FORCE_INLINE int32_t tDecodeBinaryAlloc(SDecoder* pCoder, void** val, uint64_t* len) {
   uint64_t length = 0;
   if (tDecodeU64v(pCoder, &length) < 0) return -1;
-  if (len) *len = length;
+  if (length) {
+    if (len) *len = length;
 
-  if (TD_CODER_CHECK_CAPACITY_FAILED(pCoder, length)) return -1;
-  *val = taosMemoryMalloc(length);
-  if (*val == NULL) return -1;
-  memcpy(*val, TD_CODER_CURRENT(pCoder), length);
+    if (TD_CODER_CHECK_CAPACITY_FAILED(pCoder, length)) return -1;
+    *val = taosMemoryMalloc(length);
+    if (*val == NULL) return -1;
+    memcpy(*val, TD_CODER_CURRENT(pCoder), length);
 
-  TD_CODER_MOVE_POS(pCoder, length);
+    TD_CODER_MOVE_POS(pCoder, length);
+  } else {
+    *val = NULL;
+  }
   return 0;
 }
 

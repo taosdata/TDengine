@@ -101,7 +101,7 @@ $ms = 1601481600000 + $cc
 $cc = 1 * 60000
 $ms2 = 1601481600000 - $cc
 
-sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts <= $ms and ts > $ms2 interval(1m) fill(value,0)
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $tb  where ts <= $ms and ts > $ms2 interval(1m) fill(value,0,0,0,0,0)
 print ===> $rows
 if $rows < 30 then
   print expect greater than 30, actual: $rows
@@ -180,7 +180,7 @@ $ms1 = 1601481600000 + $cc
 $cc = 1 * 60000
 $ms2 = 1601481600000 - $cc
 
-sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts <= $ms1 and ts > $ms2 interval(1m) fill(value, 0)
+sql select count(tbcol), avg(tbcol), max(tbcol), min(tbcol), count(tbcol) from $mt  where ts <= $ms1 and ts > $ms2 interval(1m) fill(value, 0,0,0,0,0)
 if $rows < 30 then
   return -1
 endi

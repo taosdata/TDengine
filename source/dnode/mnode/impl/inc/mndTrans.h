@@ -61,7 +61,8 @@ void    mndCleanupTrans(SMnode *pMnode);
 STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId);
 void    mndReleaseTrans(SMnode *pMnode, STrans *pTrans);
 
-STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, const SRpcMsg *pReq);
+STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, const SRpcMsg *pReq,
+                       const char *opername);
 void    mndTransDrop(STrans *pTrans);
 int32_t mndTransAppendRedolog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendUndolog(STrans *pTrans, SSdbRaw *pRaw);
@@ -71,7 +72,7 @@ int32_t mndTransAppendRedoAction(STrans *pTrans, STransAction *pAction);
 int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
 void    mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen);
 void    mndTransSetCb(STrans *pTrans, ETrnFunc startFunc, ETrnFunc stopFunc, void *param, int32_t paramLen);
-void    mndTransSetDbName(STrans *pTrans, const char *dbname1, const char *dbname2);
+void    mndTransSetDbName(STrans *pTrans, const char *dbname, const char *stbname);
 void    mndTransSetSerial(STrans *pTrans);
 void    mndTransSetOper(STrans *pTrans, EOperType oper);
 

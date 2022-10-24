@@ -16,6 +16,8 @@ INSERT INTO
         [(field1_name, ...)]
         VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
     ...];
+
+INSERT INTO tb_name [(field1_name, ...)] subquery
 ```
 
 **Timestamps**
@@ -37,7 +39,7 @@ INSERT INTO
 
 4. The FILE clause inserts tags or data from a comma-separates values (CSV) file. Do not include headers in your CSV files.
 
-5. A single INSERT statement can write data to multiple tables.
+5. A single `INSERT ... VALUES` statement and `INSERT ... FILE` statement can write data to multiple tables.
 
 6. The INSERT statement is fully parsed before being executed, so that if any element of the statement fails, the entire statement will fail. For example, the following statement will not create a table because the latter part of the statement is invalid:
 
@@ -46,6 +48,8 @@ INSERT INTO
    ```
 
 7. However, an INSERT statement that writes data to multiple subtables can succeed for some tables and fail for others. This situation is caused because vnodes perform write operations independently of each other. One vnode failing to write data does not affect the ability of other vnodes to write successfully.
+
+8. Data from TDengine can be inserted into a specified table using the `INSERT ... subquery` statement. Arbitrary query statements are supported. This syntax can only be used for subtables and normal tables, and does not support automatic table creation.
 
 ## Insert a Record
 
@@ -104,11 +108,11 @@ INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) VALUES ('202
 
 ## Insert Rows From A File
 
-Besides using `VALUES` to insert one or multiple rows, the data to be inserted can also be prepared in a CSV file with comma as separator and each field value quoted by single quotes. Table definition is not required in the CSV file. For example, if file "/tmp/csvfile.csv" contains the below data:
+Besides using `VALUES` to insert one or multiple rows, the data to be inserted can also be prepared in a CSV file with comma as separator and timestamp and string field value quoted by single quotes. Table definition is not required in the CSV file. For example, if file "/tmp/csvfile.csv" contains the below data:
 
 ```
-'2021-07-13 14:07:34.630', '10.2', '219', '0.32'
-'2021-07-13 14:07:35.779', '10.15', '217', '0.33'
+'2021-07-13 14:07:34.630', 10.2, 219, 0.32
+'2021-07-13 14:07:35.779', 10.15, 217, 0.33
 ```
 
 Then data in this file can be inserted by the SQL statement below:

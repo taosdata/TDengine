@@ -193,43 +193,38 @@ class TDTestCase:
 
         # case17: only support normal table join
         case17 = {
-            "col": "t1.c1",
-            "table_expr": "t1, t2",
-            "condition": "where t1.ts=t2.ts"
+            "col": "table1.c1 ",
+            "table_expr": "db.t1 as table1, db.t2 as table2",
+            "condition": "where table1.ts=table2.ts"
         }
         self.checkdiff(**case17)
-        # case18~19: with group by
-        # case18 = {
-        #     "table_expr": "db.t1",
-        #     "condition": "group by c6"
-        # }
-        # self.checkdiff(**case18)
+        # case18~19: with group by , function diff not support group by 
+    
         case19 = {
-            "table_expr": "db.stb1",
+            "table_expr": "db.stb1 where tbname =='t0' ",
             "condition": "partition by tbname order by tbname"  # partition by tbname
         }
         self.checkdiff(**case19)
 
-        # # case20~21: with order by
-        # case20 = {"condition": "order by ts"}
-        # self.checkdiff(**case20)
+        # case20~21: with order by , Not a single-group group function
 
-        # # case22: with union
+        # case22: with union
         # case22 = {
-        #     "condition": "union all select diff(c1) from t2"
+        #     "condition": "union all select diff(c1) from db.t2  "
         # }
         # self.checkdiff(**case22)
+        tdSql.query("select count(c1)  from db.t1 union all select count(c1) from db.t2")
 
         # case23: with limit/slimit
         case23 = {
             "condition": "limit 1"
         }
         self.checkdiff(**case23)
-        # case24 = {
-        #     "table_expr": "db.stb1",
-        #     "condition": "group by tbname slimit 1 soffset 1"
-        # }
-        # self.checkdiff(**case24)
+        case24 = {
+            "table_expr": "db.stb1",
+            "condition": "partition by tbname order by tbname slimit 1 soffset 1"
+        }
+        self.checkdiff(**case24)
 
         pass
 
@@ -284,9 +279,9 @@ class TDTestCase:
         tdSql.query(self.diff_query_form(alias=", c2"))         # mix with other 1
         # tdSql.error(self.diff_query_form(table_expr="db.stb1"))    # select stb directly
         stb_join = {
-            "col": "stb1.c1",
-            "table_expr": "stb1, stb2",
-            "condition": "where stb1.ts=stb2.ts and stb1.st1=stb2.st2 order by stb1.ts"
+            "col": "stable1.c1",
+            "table_expr": "db.stb1 as stable1, db.stb2 as stable2",
+            "condition": "where stable1.ts=stable2.ts and stable1.st1=stable2.st2 order by stable1.ts"
         }
         tdSql.query(self.diff_query_form(**stb_join))           # stb join
         interval_sql = {
@@ -315,20 +310,20 @@ class TDTestCase:
         for i in range(tbnum):
             for j in range(data_row):
                 tdSql.execute(
-                    f"insert into t{i} values ("
+                    f"insert into db.t{i} values ("
                     f"{basetime + (j+1)*10}, {random.randint(-200, -1)}, {random.uniform(200, -1)}, {basetime + random.randint(-200, -1)}, "
                     f"'binary_{j}', {random.uniform(-200, -1)}, {random.choice([0,1])}, {random.randint(-200,-1)}, "
                     f"{random.randint(-200, -1)}, {random.randint(-127, -1)}, 'nchar_{j}' )"
                 )
 
                 tdSql.execute(
-                    f"insert into t{i} values ("
+                    f"insert into db.t{i} values ("
                     f"{basetime - (j+1) * 10}, {random.randint(1, 200)}, {random.uniform(1, 200)}, {basetime - random.randint(1, 200)}, "
                     f"'binary_{j}_1', {random.uniform(1, 200)}, {random.choice([0, 1])}, {random.randint(1,200)}, "
                     f"{random.randint(1,200)}, {random.randint(1,127)}, 'nchar_{j}_1' )"
                 )
                 tdSql.execute(
-                    f"insert into tt{i} values ( {basetime-(j+1) * 10}, {random.randint(1, 200)} )"
+                    f"insert into db.tt{i} values ( {basetime-(j+1) * 10}, {random.randint(1, 200)} )"
                 )
 
         pass
@@ -349,8 +344,8 @@ class TDTestCase:
             "create stable db.stb2 (ts timestamp, c1 int) tags(st2 int)"
         )
         for i in range(tbnum):
-            tdSql.execute(f"create table t{i} using db.stb1 tags({i})")
-            tdSql.execute(f"create table tt{i} using db.stb2 tags({i})")
+            tdSql.execute(f"create table db.t{i} using db.stb1 tags({i})")
+            tdSql.execute(f"create table db.tt{i} using db.stb2 tags({i})")
 
         pass
     def diff_support_stable(self):
@@ -398,8 +393,8 @@ class TDTestCase:
 
         tdLog.printNoPrefix("######## insert only NULL test:")
         for i in range(tbnum):
-            tdSql.execute(f"insert into t{i}(ts) values ({nowtime - 5})")
-            tdSql.execute(f"insert into t{i}(ts) values ({nowtime + 5})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime - 5})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime + 5})")
         self.diff_current_query()
         self.diff_error_query()
 
@@ -430,9 +425,9 @@ class TDTestCase:
 
         tdLog.printNoPrefix("######## insert data mix with NULL test:")
         for i in range(tbnum):
-            tdSql.execute(f"insert into t{i}(ts) values ({nowtime})")
-            tdSql.execute(f"insert into t{i}(ts) values ({nowtime-(per_table_rows+3)*10})")
-            tdSql.execute(f"insert into t{i}(ts) values ({nowtime+(per_table_rows+3)*10})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime-(per_table_rows+3)*10})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime+(per_table_rows+3)*10})")
         self.diff_current_query()
         self.diff_error_query()
 

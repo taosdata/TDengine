@@ -216,7 +216,7 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
       return NULL;
     }
 
-    doFilter(pInfo->pCondition, pBlock, pInfo->pColMatchInfo);
+    doFilter(pInfo->pCondition, pBlock, pInfo->pColMatchInfo, NULL);
     if (blockDataGetNumOfRows(pBlock) == 0) {
       continue;
     }
@@ -398,15 +398,16 @@ int32_t finishSortGroup(SOperatorInfo* pOperator) {
   SGroupSortOperatorInfo* pInfo = pOperator->info;
 
   SSortExecInfo sortExecInfo = tsortGetSortExecInfo(pInfo->pCurrSortHandle);
+
   pInfo->sortExecInfo.sortMethod = sortExecInfo.sortMethod;
   pInfo->sortExecInfo.sortBuffer = sortExecInfo.sortBuffer;
   pInfo->sortExecInfo.loops += sortExecInfo.loops;
   pInfo->sortExecInfo.readBytes += sortExecInfo.readBytes;
   pInfo->sortExecInfo.writeBytes += sortExecInfo.writeBytes;
-  if (pInfo->pCurrSortHandle != NULL) {
-    tsortDestroySortHandle(pInfo->pCurrSortHandle);
-  }
+
+  tsortDestroySortHandle(pInfo->pCurrSortHandle);
   pInfo->pCurrSortHandle = NULL;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -658,7 +659,8 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
 
   blockDataDestroy(p);
 
-  qDebug("%s get sorted block, groupId:%0x"PRIx64" rows:%d", GET_TASKID(pTaskInfo), pDataBlock->info.groupId, pDataBlock->info.rows);
+  qDebug("%s get sorted block, groupId:0x%" PRIx64 " rows:%d", GET_TASKID(pTaskInfo), pDataBlock->info.groupId,
+         pDataBlock->info.rows);
   return (pDataBlock->info.rows > 0) ? pDataBlock : NULL;
 }
 
@@ -716,13 +718,16 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   SMultiwayMergeOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SMultiwayMergeOperatorInfo));
   SOperatorInfo*              pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   SDataBlockDescNode*         pDescNode = pPhyNode->pOutputDataBlockDesc;
-  SSDataBlock*                pResBlock = createResDataBlock(pDescNode);
 
-  int32_t rowSize = pResBlock->info.rowSize;
-
-  if (pInfo == NULL || pOperator == NULL || rowSize > 100 * 1024 * 1024) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pInfo == NULL || pOperator == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
+
+  pInfo->binfo.pRes = createResDataBlock(pDescNode);
+  int32_t rowSize = pInfo->binfo.pRes->info.rowSize;
+  ASSERT(rowSize < 100 * 1024 * 1024);
 
   SArray* pSortInfo = createSortInfo(pMergePhyNode->pMergeKeys);
   int32_t numOfOutputCols = 0;
@@ -733,10 +738,12 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   initResultSizeInfo(&pOperator->resultInfo, 1024);
 
   pInfo->groupSort = pMergePhyNode->groupSort;
-  pInfo->binfo.pRes = pResBlock;
   pInfo->pSortInfo = pSortInfo;
   pInfo->pColMatchInfo = pColMatchColInfo;
   pInfo->pInputBlock = pInputBlock;
+  pInfo->bufPageSize = getProperSortPageSize(rowSize);
+  pInfo->sortBufSize = pInfo->bufPageSize * (numStreams + 1);  // one additional is reserved for merged result.
+
   pOperator->name = "MultiwayMerge";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_MERGE;
   pOperator->blocking = false;
@@ -744,15 +751,10 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   pOperator->info = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
 
-  pInfo->bufPageSize = getProperSortPageSize(rowSize);
-
-  // one additional is reserved for merged result.
-  pInfo->sortBufSize = pInfo->bufPageSize * (numStreams + 1);
-
   pOperator->fpSet = createOperatorFpSet(doOpenMultiwayMergeOperator, doMultiwayMerge, NULL, NULL,
                                          destroyMultiwayMergeOperatorInfo, NULL, NULL, getMultiwayMergeExplainExecInfo);
 
-  int32_t code = appendDownstream(pOperator, downStreams, numStreams);
+  code = appendDownstream(pOperator, downStreams, numStreams);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -760,7 +762,10 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
 
 _error:
   pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
-  taosMemoryFree(pInfo);
+  if (pInfo != NULL) {
+    destroyMultiwayMergeOperatorInfo(pInfo);
+  }
+
   taosMemoryFree(pOperator);
   return NULL;
 }

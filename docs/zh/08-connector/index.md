@@ -41,14 +41,14 @@ TDengine 版本更新往往会增加新的功能特性，列表中的连接器�
 
 ### 使用原生接口（taosc）
 
-| **功能特性**   | **Java** | **Python** | **Go** | **C#** | **Node.js** | **Rust** |
-| -------------- | -------- | ---------- | ------ | ------ | ----------- | -------- |
-| **连接管理**   | 支持     | 支持       | 支持   | 支持   | 支持        | 支持     |
-| **普通查询**   | 支持     | 支持       | 支持   | 支持   | 支持        | 支持     |
-| **参数绑定**   | 支持     | 支持       | 支持   | 支持   | 支持        | 支持     |
-| ** TMQ **      | 支持     | 支持       | 支持   | 支持   | 支持        | 支持     |
-| **Schemaless** | 支持     | 支持       | 支持   | 支持   | 支持        | 支持     |
-| **DataFrame**  | 不支持   | 支持       | 不支持 | 不支持 | 不支持      | 不支持   |
+| **功能特性**        | **Java** | **Python** | **Go** | **C#** | **Node.js** | **Rust** |
+| ------------------- | -------- | ---------- | ------ | ------ | ----------- | -------- |
+| **连接管理**        | 支持     | 支持       | 支持   | 支持   | 支持        | 支持     |
+| **普通查询**        | 支持     | 支持       | 支持   | 支持   | 支持        | 支持     |
+| **参数绑定**        | 支持     | 支持       | 支持   | 支持   | 支持        | 支持     |
+| **数据订阅（TMQ）** | 支持     | 支持       | 支持   | 支持   | 支持        | 支持     |
+| **Schemaless**      | 支持     | 支持       | 支持   | 支持   | 支持        | 支持     |
+| **DataFrame**       | 不支持   | 支持       | 不支持 | 不支持 | 不支持      | 不支持   |
 
 :::info
 由于不同编程语言数据库框架规范不同，并不意味着所有 C/C++ 接口都需要对应封装支持。
@@ -56,16 +56,15 @@ TDengine 版本更新往往会增加新的功能特性，列表中的连接器�
 
 ### 使用 http (REST 或 WebSocket) 接口
 
-| **功能特性**                   | **Java** | **Python** | **Go**   | **C#（暂不支持）** | **Node.js** | **Rust** |
-| ------------------------------ | -------- | ---------- | -------- | ------------------ | ----------- | -------- |
-| **连接管理**                   | 支持     | 支持       | 支持     | N/A                | 支持        | 支持     |
-| **普通查询**                   | 支持     | 支持       | 支持     | N/A                | 支持        | 支持     |
-| **连续查询**                   | 支持     | 支持       | 支持     | N/A                | 支持        | 支持     |
-| **参数绑定**                   | 不支持   | 暂不支持   | 暂不支持 | N/A                | 不支持      | 支持     |
-| ** TMQ **                      | 不支持   | 暂不支持   | 暂不支持 | N/A                | 不支持      | 支持     |
-| **Schemaless**                 | 暂不支持 | 暂不支持   | 暂不支持 | N/A                | 不支持      | 暂不支持 |
-| **批量拉取（基于 WebSocket）** | 支持     | 支持       | 暂不支持 | N/A                | 不支持      | 支持     |
-| **DataFrame**                  | 不支持   | 支持       | 不支持   | N/A                | 不支持      | 不支持   |
+| **功能特性**                   | **Java** | **Python** | **Go**   | **C# **  | **Node.js** | **Rust** |
+| ------------------------------ | -------- | ---------- | -------- | -------- | ----------- | -------- |
+| **连接管理**                   | 支持     | 支持       | 支持     | 支持     | 支持        | 支持     |
+| **普通查询**                   | 支持     | 支持       | 支持     | 支持     | 支持        | 支持     |
+| **参数绑定**                   | 暂不支持 | 暂不支持   | 暂不支持 | 支持     | 暂不支持    | 支持     |
+| **数据订阅（TMQ）**            | 暂不支持 | 暂不支持   | 暂不支持 | 暂不支持 | 暂不支持    | 支持     |
+| **Schemaless**                 | 暂不支持 | 暂不支持   | 暂不支持 | 暂不支持 | 暂不支持    | 暂不支持 |
+| **批量拉取（基于 WebSocket）** | 支持     | 支持       | 暂不支持 | 支持     | 暂不支持    | 支持     |
+| **DataFrame**                  | 不支持   | 支持       | 不支持   | 不支持   | 不支持      | 不支持   |
 
 :::warning
 
@@ -75,10 +74,12 @@ TDengine 版本更新往往会增加新的功能特性，列表中的连接器�
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import InstallOnWindows from "./_linux_install.mdx";
-import InstallOnLinux from "./_windows_install.mdx";
+import InstallOnLinux from "./_linux_install.mdx";
+import InstallOnWindows from "./_windows_install.mdx";
+import InstallOnMacOS from "./_macos_install.mdx";
 import VerifyWindows from "./_verify_windows.mdx";
 import VerifyLinux from "./_verify_linux.mdx";
+import VerifyMacOS from "./_verify_macos.mdx";
 
 ## 安装客户端驱动
 
@@ -91,10 +92,13 @@ import VerifyLinux from "./_verify_linux.mdx";
 
 <Tabs defaultValue="linux" groupId="os">
   <TabItem value="linux" label="Linux">
-    <InstallOnWindows />
+    <InstallOnLinux />
   </TabItem>
   <TabItem value="windows" label="Windows">
-    <InstallOnLinux />
+    <InstallOnWindows />
+  </TabItem>
+  <TabItem value="macos" label="MacOS">
+    <InstallOnMacOS />
   </TabItem>
 </Tabs>
 
@@ -108,6 +112,9 @@ import VerifyLinux from "./_verify_linux.mdx";
   </TabItem>
   <TabItem value="windows" label="Windows">
     <VerifyWindows />
+  </TabItem>
+  <TabItem value="macos" label="MacOS">
+    <VerifyMacOS />
   </TabItem>
 </Tabs>
 

@@ -79,15 +79,16 @@ TEST_F(ParserInitialATest, alterDnode) {
  *     alter_database_option ...
  *
  * alter_database_option: {
- *     BUFFER int_value                                          -- todo: range [3, 16384], default 96, unit MB
+ *     BUFFER int_value                                          -- range [3, 16384], default 96, unit MB
  *   | CACHEMODEL {'none' | 'last_row' | 'last_value' | 'both'}  -- default 'none'
  *   | CACHESIZE int_value                                       -- range [1, 65536], default 1, unit MB
  *   | WAL_FSYNC_PERIOD int_value                                -- rang [0, 180000], default 3000, unit ms
  *   | KEEP {int_value | duration_value}                         -- rang [1, 365000], default 3650, unit day
- *   | PAGES int_value                                           -- todo: rang [64, +oo), default 256, unit page
+ *   | PAGES int_value                                           -- rang [64, INT32_MAX], default 256, unit page
  *   | REPLICA int_value                                         -- todo: enum 1, 3, default 1, unit replica
  *   | STRICT {'off' | 'on'}                                     -- todo: default 'off'
  *   | WAL_LEVEL int_value                                       -- enum 1, 2, default 1
+ *   | SST_TRIGGER int_value                                     -- rang [1, 16], default 8
  * }
  */
 TEST_F(ParserInitialATest, alterDatabase) {
@@ -112,6 +113,7 @@ TEST_F(ParserInitialATest, alterDatabase) {
     expect.cacheLast = -1;
     expect.cacheLastSize = -1;
     expect.replications = -1;
+    expect.sstTrigger = -1;
   };
   auto setAlterDbBuffer = [&](int32_t buffer) { expect.buffer = buffer; };
   auto setAlterDbPageSize = [&](int32_t pageSize) { expect.pageSize = pageSize; };
@@ -128,6 +130,7 @@ TEST_F(ParserInitialATest, alterDatabase) {
   auto setAlterDbStrict = [&](int8_t strict) { expect.strict = strict; };
   auto setAlterDbCacheModel = [&](int8_t cacheModel) { expect.cacheLast = cacheModel; };
   auto setAlterDbReplica = [&](int8_t replications) { expect.replications = replications; };
+  auto setAlterDbSstTrigger = [&](int8_t sstTrigger) { expect.sstTrigger = sstTrigger; };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_ALTER_DATABASE_STMT);
@@ -146,6 +149,7 @@ TEST_F(ParserInitialATest, alterDatabase) {
     ASSERT_EQ(req.strict, expect.strict);
     ASSERT_EQ(req.cacheLast, expect.cacheLast);
     ASSERT_EQ(req.replications, expect.replications);
+    ASSERT_EQ(req.sstTrigger, expect.sstTrigger);
   });
 
   const int32_t MINUTE_PER_DAY = MILLISECOND_PER_DAY / MILLISECOND_PER_MINUTE;
@@ -157,7 +161,20 @@ TEST_F(ParserInitialATest, alterDatabase) {
   setAlterDbFsync(200);
   setAlterDbWal(1);
   setAlterDbCacheModel(TSDB_CACHE_MODEL_LAST_ROW);
-  run("ALTER DATABASE test CACHEMODEL 'last_row' CACHESIZE 32 WAL_FSYNC_PERIOD 200 KEEP 10 WAL_LEVEL 1");
+  setAlterDbSstTrigger(16);
+  setAlterDbBuffer(16);
+  setAlterDbPages(128);
+  run("ALTER DATABASE test BUFFER 16 CACHEMODEL 'last_row' CACHESIZE 32 WAL_FSYNC_PERIOD 200 KEEP 10 PAGES 128 "
+      "WAL_LEVEL 1 STT_TRIGGER 16");
+  clearAlterDbReq();
+
+  initAlterDb("test");
+  setAlterDbBuffer(3);
+  run("ALTER DATABASE test BUFFER 3");
+  setAlterDbBuffer(64);
+  run("ALTER DATABASE test BUFFER 64");
+  setAlterDbBuffer(16384);
+  run("ALTER DATABASE test BUFFER 16384");
   clearAlterDbReq();
 
   initAlterDb("test");
@@ -209,6 +226,15 @@ TEST_F(ParserInitialATest, alterDatabase) {
   clearAlterDbReq();
 
   initAlterDb("test");
+  setAlterDbPages(64);
+  run("ALTER DATABASE test PAGES 64");
+  setAlterDbPages(1024);
+  run("ALTER DATABASE test PAGES 1024");
+  setAlterDbPages(16384);
+  run("ALTER DATABASE test PAGES 16384");
+  clearAlterDbReq();
+
+  initAlterDb("test");
   setAlterDbWal(1);
   run("ALTER DATABASE test WAL_LEVEL 1");
   setAlterDbWal(2);
@@ -219,6 +245,8 @@ TEST_F(ParserInitialATest, alterDatabase) {
 TEST_F(ParserInitialATest, alterDatabaseSemanticCheck) {
   useDb("root", "test");
 
+  run("ALTER DATABASE test BUFFER 2", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("ALTER DATABASE test BUFFER 16385", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test CACHEMODEL 'other'", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test CACHESIZE 0", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test CACHESIZE 65537", TSDB_CODE_PAR_INVALID_DB_OPTION);
@@ -229,8 +257,11 @@ TEST_F(ParserInitialATest, alterDatabaseSemanticCheck) {
   run("ALTER DATABASE test KEEP 365001", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test KEEP 1000000000s", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test KEEP 1w", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("ALTER DATABASE test PAGES 63", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test WAL_LEVEL 0", TSDB_CODE_PAR_INVALID_DB_OPTION);
   run("ALTER DATABASE test WAL_LEVEL 3", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("ALTER DATABASE test STT_TRIGGER 0", TSDB_CODE_PAR_INVALID_DB_OPTION);
+  run("ALTER DATABASE test STT_TRIGGER 17", TSDB_CODE_PAR_INVALID_DB_OPTION);
   // Regardless of the specific sentence
   run("ALTER DATABASE db WAL_LEVEL 0     # td-14436", TSDB_CODE_PAR_SYNTAX_ERROR, PARSER_STAGE_PARSE);
 }

@@ -116,7 +116,7 @@ aggfn为函数名的占位符，需要修改为自己的函数名，如l2norm。
 
 参数的具体含义是：
   - inputDataBlock: 输入的数据块
-  - resultColumn: 输出列。输出列 
+  - resultColumn: 输出列 
 
 ### 聚合接口函数
 

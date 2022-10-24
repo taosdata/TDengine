@@ -115,7 +115,7 @@ class MndTestTrans2 : public ::testing::Test {
     userObj.superUser = 1;
 
     SRpcMsg  rpcMsg = {0};
-    STrans  *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, conflict, &rpcMsg);
+    STrans  *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, conflict, &rpcMsg, "");
     SSdbRaw *pRedoRaw = mndUserActionEncode(&userObj);
     mndTransAppendRedolog(pTrans, pRedoRaw);
     sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
@@ -148,7 +148,7 @@ class MndTestTrans2 : public ::testing::Test {
     userObj.superUser = 1;
 
     SRpcMsg  rpcMsg = {0};
-    STrans  *pTrans = mndTransCreate(pMnode, policy, conflict, &rpcMsg);
+    STrans  *pTrans = mndTransCreate(pMnode, policy, conflict, &rpcMsg, "");
     SSdbRaw *pRedoRaw = mndUserActionEncode(&userObj);
     mndTransAppendRedolog(pTrans, pRedoRaw);
     sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
@@ -220,7 +220,7 @@ class MndTestTrans2 : public ::testing::Test {
     userObj.superUser = 1;
 
     SRpcMsg  rpcMsg = {0};
-    STrans  *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, &rpcMsg);
+    STrans  *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, &rpcMsg, "");
     SSdbRaw *pRedoRaw = mndUserActionEncode(&userObj);
     mndTransAppendRedolog(pTrans, pRedoRaw);
     sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);

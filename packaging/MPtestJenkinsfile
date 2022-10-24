@@ -5,13 +5,6 @@ def sync_source(branch_name) {
         echo ''' + branch_name + '''
     '''
     sh '''
-        cd ${TDINTERNAL_ROOT_DIR}
-        git reset --hard
-        git fetch || git fetch
-        git checkout ''' + branch_name + ''' -f
-        git branch
-        git pull || git pull
-        git log | head -n 20
         cd ${TDENGINE_ROOT_DIR}
         git reset --hard
         git fetch || git fetch
@@ -69,7 +62,7 @@ pipeline {
         WORK_DIR = '/var/lib/jenkins/workspace'
         TDINTERNAL_ROOT_DIR = '/var/lib/jenkins/workspace/TDinternal'
         TDENGINE_ROOT_DIR = '/var/lib/jenkins/workspace/TDinternal/community'
-        BRANCH_NAME = '3.0'
+        BRANCH_NAME = 'test/chr/TD-14699'
 
         TD_SERVER_TAR = "TDengine-server-${version}-Linux-x64.tar.gz"
         BASE_TD_SERVER_TAR = "TDengine-server-${baseVersion}-Linux-x64.tar.gz"
@@ -102,7 +95,7 @@ pipeline {
 
     }
     stages {
-        stage ('RUN') {
+        stage ('Test Server') {
             parallel {
                 stage('ubuntu16') {
                     agent{label " ubuntu16 "}
@@ -111,17 +104,17 @@ pipeline {
                             sync_source("${BRANCH_NAME}")
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server
+                            bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server 
                             python3 checkPackageRuning.py  
                             '''
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_LITE_TAR} ${version} ${BASE_TD_SERVER_LITE_TAR} ${baseVersion} server
+                            bash testpackage.sh ${TD_SERVER_LITE_TAR} ${version} ${BASE_TD_SERVER_LITE_TAR} ${baseVersion} server 
                             python3 checkPackageRuning.py  
                             '''
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_DEB} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server
+                            bash testpackage.sh ${TD_SERVER_DEB} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server 
                             python3 checkPackageRuning.py  
                             '''
                         }
@@ -134,19 +127,21 @@ pipeline {
                             sync_source("${BRANCH_NAME}")
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server
+                            bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server 
                             python3 checkPackageRuning.py  
                             '''
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_LITE_TAR} ${version} ${BASE_TD_SERVER_LITE_TAR} ${baseVersion} server
+                            bash testpackage.sh ${TD_SERVER_LITE_TAR} ${version} ${BASE_TD_SERVER_LITE_TAR} ${baseVersion} server 
                             python3 checkPackageRuning.py  
                             '''
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_DEB} ${version} ${BASE_TD_SERVER_DEB} ${baseVersion} server
+                            bash testpackage.sh ${TD_SERVER_DEB} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server  
                             python3 checkPackageRuning.py  
+                            dpkg -r tdengine
                             '''
+
                         }
                     }
                 }
@@ -157,17 +152,17 @@ pipeline {
                             sync_source("${BRANCH_NAME}")
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server
+                            bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server 
                             python3 checkPackageRuning.py  
                             '''
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_LITE_TAR} ${version} ${BASE_TD_SERVER_LITE_TAR} ${baseVersion} server
+                            bash testpackage.sh ${TD_SERVER_LITE_TAR} ${version} ${BASE_TD_SERVER_LITE_TAR} ${baseVersion} server 
                             python3 checkPackageRuning.py  
                             '''
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_RPM} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server
+                            bash testpackage.sh ${TD_SERVER_RPM} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server 
                             python3 checkPackageRuning.py  
                             '''
                         }
@@ -179,25 +174,78 @@ pipeline {
                         timeout(time: 30, unit: 'MINUTES'){
                             sync_source("${BRANCH_NAME}")
                             sh '''
-                            cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server
-                            python3 checkPackageRuning.py  
-                            rmtaos
-                            '''
-                            sh '''
-                            cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_LITE_TAR} ${version} ${BASE_TD_SERVER_LITE_TAR} ${baseVersion} server
+                            cd ${TDENGINE_ROOT_DIR}/packaging 
+                            bash testpackage.sh ${TD_SERVER_TAR} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server  
                             python3 checkPackageRuning.py  
                             '''
                             sh '''
                             cd ${TDENGINE_ROOT_DIR}/packaging
-                            bash testpackage.sh ${TD_SERVER_RPM} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server
+                            bash testpackage.sh ${TD_SERVER_LITE_TAR} ${version} ${BASE_TD_SERVER_LITE_TAR} ${baseVersion} server 
                             python3 checkPackageRuning.py  
-                            '''                     
+                            '''
+                            sh '''
+                            cd ${TDENGINE_ROOT_DIR}/packaging
+                            bash testpackage.sh ${TD_SERVER_RPM} ${version} ${BASE_TD_SERVER_TAR} ${baseVersion} server 
+                            python3 checkPackageRuning.py  
+                            sudo rpm -e tdengine 
+                            '''              
+                        }
+                    }
+                }                  
+                stage('arm64') {
+                    agent{label 'linux_arm64'}
+                    steps {
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sync_source("${BRANCH_NAME}")
+                            sh '''
+                            cd ${TDENGINE_ROOT_DIR}/packaging
+                            bash testpackage.sh ${TD_SERVER_ARM_TAR} ${version} ${BASE_TD_SERVER_ARM_TAR} ${baseVersion} server 
+                            python3 checkPackageRuning.py  
+                            '''
                         }
                     }
                 }
             }
         }
-    }
+        stage ('Test Client') {
+            parallel {
+                stage('ubuntu18') {
+                    agent{label " ubuntu18 "}
+                    steps {
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sh '''
+                            cd ${TDENGINE_ROOT_DIR}/packaging
+                            bash testpackage.sh ${TD_CLIENT_TAR} ${version} ${BASE_TD_CLIENT_TAR} ${baseVersion} client 
+                            python3 checkPackageRuning.py  192.168.0.21
+                            '''
+                        }
+                    }
+                }
+                stage('centos8') {
+                    agent{label " centos8_3 "}
+                    steps {
+                        timeout(time: 30, unit: 'MINUTES'){
+                            sh '''
+                            cd ${TDENGINE_ROOT_DIR}/packaging
+                            bash testpackage.sh ${TD_CLIENT_LITE_TAR} ${version} ${BASE_TD_CLIENT_LITE_TAR} ${baseVersion} client 
+                            python3 checkPackageRuning.py  192.168.0.24
+                            '''         
+                        }
+                    }
+                }      
+            }
+        }  
+        stage('arm64-client') {
+            agent{label " linux_arm64 "}
+            steps {
+                timeout(time: 30, unit: 'MINUTES'){
+                    sh '''
+                    cd ${TDENGINE_ROOT_DIR}/packaging
+                    bash testpackage.sh ${TD_CLIENT_ARM_TAR} ${version} ${BASE_TD_CLIENT_ARM_TAR} ${baseVersion} client  
+                    python3 checkPackageRuning.py  192.168.0.21
+                    '''  
+                }
+            }
+        } 
+    }    
 }

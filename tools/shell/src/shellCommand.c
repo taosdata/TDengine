@@ -15,6 +15,7 @@
 
 #define __USE_XOPEN
 #include "shellInt.h"
+#include "shellAuto.h"
 
 #define LEFT  1
 #define RIGHT 2
@@ -23,20 +24,11 @@
 #define PSIZE shell.info.promptSize
 #define SHELL_INPUT_MAX_COMMAND_SIZE 10000
 
-typedef struct {
-  char    *buffer;
-  char    *command;
-  uint32_t commandSize;
-  uint32_t bufferSize;
-  uint32_t cursorOffset;
-  uint32_t screenOffset;
-  uint32_t endOffset;
-} SShellCmd;
 
 static int32_t shellCountPrefixOnes(uint8_t c);
-static void    shellGetPrevCharSize(const char *str, int32_t pos, int32_t *size, int32_t *width);
+
 static void    shellGetNextCharSize(const char *str, int32_t pos, int32_t *size, int32_t *width);
-static void    shellInsertChar(SShellCmd *cmd, char *c, int size);
+
 static void    shellBackspaceChar(SShellCmd *cmd);
 static void    shellClearLineBefore(SShellCmd *cmd);
 static void    shellClearLineAfter(SShellCmd *cmd);
@@ -51,8 +43,11 @@ static void    shellUpdateBuffer(SShellCmd *cmd);
 static int32_t shellIsReadyGo(SShellCmd *cmd);
 static void    shellGetMbSizeInfo(const char *str, int32_t *size, int32_t *width);
 static void    shellResetCommand(SShellCmd *cmd, const char s[]);
-static void    shellClearScreen(int32_t ecmd_pos, int32_t cursor_pos);
-static void    shellShowOnScreen(SShellCmd *cmd);
+void           shellClearScreen(int32_t ecmd_pos, int32_t cursor_pos);
+void           shellShowOnScreen(SShellCmd *cmd);
+void           shellGetPrevCharSize(const char *str, int32_t pos, int32_t *size, int32_t *width);
+void           shellInsertChar(SShellCmd *cmd, char *c, int size);
+void           shellInsertString(SShellCmd *cmd, char *str, int size);
 
 int32_t shellCountPrefixOnes(uint8_t c) {
   uint8_t mask = 127;
@@ -109,6 +104,30 @@ void shellInsertChar(SShellCmd *cmd, char *c, int32_t size) {
   cmd->cursorOffset += size;
   cmd->screenOffset += taosWcharWidth(wc);
   cmd->endOffset += taosWcharWidth(wc);
+
+  // set string end
+  cmd->command[cmd->commandSize] = 0;
+#ifdef WINDOWS
+#else
+  shellShowOnScreen(cmd);
+#endif
+}
+
+// insert string . count is str char count
+void shellInsertStr(SShellCmd *cmd, char *str, int32_t size) {
+  shellClearScreen(cmd->endOffset + PSIZE, cmd->screenOffset + PSIZE);
+  /* update the buffer */
+  memmove(cmd->command + cmd->cursorOffset + size, cmd->command + cmd->cursorOffset,
+          cmd->commandSize - cmd->cursorOffset);
+  memcpy(cmd->command + cmd->cursorOffset, str, size);
+  /* update the values */
+  cmd->commandSize += size;
+  cmd->cursorOffset += size;
+  cmd->screenOffset += size;
+  cmd->endOffset += size;
+
+  // set string end
+  cmd->command[cmd->commandSize] = 0;
 #ifdef WINDOWS
 #else
   shellShowOnScreen(cmd);
@@ -129,6 +148,8 @@ void shellBackspaceChar(SShellCmd *cmd) {
     cmd->cursorOffset -= size;
     cmd->screenOffset -= width;
     cmd->endOffset -= width;
+    // set string end
+    cmd->command[cmd->commandSize] = 0;
     shellShowOnScreen(cmd);
   }
 }
@@ -142,6 +163,8 @@ void shellClearLineBefore(SShellCmd *cmd) {
   cmd->cursorOffset = 0;
   cmd->screenOffset = 0;
   cmd->endOffset = cmd->commandSize;
+  // set string end
+  cmd->command[cmd->commandSize] = 0;
   shellShowOnScreen(cmd);
 }
 
@@ -166,6 +189,8 @@ void shellDeleteChar(SShellCmd *cmd) {
             cmd->commandSize - cmd->cursorOffset - size);
     cmd->commandSize -= size;
     cmd->endOffset -= width;
+    // set string end
+    cmd->command[cmd->commandSize] = 0;
     shellShowOnScreen(cmd);
   }
 }
@@ -205,6 +230,15 @@ void shellPositionCursorHome(SShellCmd *cmd) {
     shellClearScreen(cmd->endOffset + PSIZE, cmd->screenOffset + PSIZE);
     cmd->cursorOffset = 0;
     cmd->screenOffset = 0;
+    shellShowOnScreen(cmd);
+  }
+}
+
+void positionCursorMiddle(SShellCmd *cmd) {
+  if (cmd->endOffset > 0) {
+    shellClearScreen(cmd->endOffset + PSIZE, cmd->screenOffset + PSIZE);
+    cmd->cursorOffset = cmd->commandSize/2;
+    cmd->screenOffset = cmd->endOffset/2;
     shellShowOnScreen(cmd);
   }
 }
@@ -411,8 +445,9 @@ char taosGetConsoleChar() {
   static char mbStr[5];
   static unsigned long bufLen = 0;
   static uint16_t bufIndex = 0, mbStrIndex = 0, mbStrLen = 0;
+  CONSOLE_READCONSOLE_CONTROL inputControl={ sizeof(CONSOLE_READCONSOLE_CONTROL), 0, 1<<TAB_KEY, 0 };
   while (bufLen == 0) {
-    ReadConsoleW(console, buf, SHELL_INPUT_MAX_COMMAND_SIZE, &bufLen, NULL);
+    ReadConsoleW(console, buf, SHELL_INPUT_MAX_COMMAND_SIZE, &bufLen, &inputControl);
     if (bufLen > 0 && buf[0] == 0) bufLen = 0;
     bufIndex = 0;
   }
@@ -464,7 +499,14 @@ int32_t shellReadCommand(char *command) {
         utf8_array[k] = c;
       }
       shellInsertChar(&cmd, utf8_array, count);
+      pressOtherKey(c);
+#ifndef WINDOWS
+    } else if (c == TAB_KEY) {
+      // press TAB key
+      pressTabKey(&cmd);
+#endif
     } else if (c < '\033') {
+      pressOtherKey(c);      
       // Ctrl keys.  TODO: Implement ctrl combinations
       switch (c) {
         case 0:
@@ -510,14 +552,21 @@ int32_t shellReadCommand(char *command) {
           shellClearLineAfter(&cmd);
           break;
         case 12:  // Ctrl + L;
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
           system("clear");
+#pragma GCC diagnostic pop
           shellShowOnScreen(&cmd);
           break;
         case 21:  // Ctrl + U;
           shellClearLineBefore(&cmd);
           break;
+        case 23:  // Ctrl + W;
+          positionCursorMiddle(&cmd);
+          break;          
       }
     } else if (c == '\033') {
+      pressOtherKey(c);
       c = taosGetConsoleChar();
       switch (c) {
         case '[':
@@ -594,9 +643,11 @@ int32_t shellReadCommand(char *command) {
           break;
       }
     } else if (c == 0x7f) {
+      pressOtherKey(c);
       // press delete key
       shellBackspaceChar(&cmd);
     } else {
+      pressOtherKey(c);
       shellInsertChar(&cmd, &c, 1);
     }
   }

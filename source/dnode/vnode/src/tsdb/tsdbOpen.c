@@ -33,7 +33,7 @@ int32_t tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
  * @param dir
  * @return int
  */
-int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKeepCfg) {
+int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKeepCfg, int8_t rollback) {
   STsdb *pTsdb = NULL;
   int    slen = 0;
 
@@ -57,13 +57,16 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   } else {
     memcpy(&pTsdb->keepCfg, pKeepCfg, sizeof(STsdbKeepCfg));
   }
-  // pTsdb->fs = tsdbNewFS(REPO_KEEP_CFG(pTsdb));
 
   // create dir
-  tfsMkdir(pVnode->pTfs, pTsdb->path);
+  if (pVnode->pTfs) {
+    tfsMkdir(pVnode->pTfs, pTsdb->path);
+  } else {
+    taosMkDir(pTsdb->path);
+  }
 
   // open tsdb
-  if (tsdbFSOpen(pTsdb) < 0) {
+  if (tsdbFSOpen(pTsdb, rollback) < 0) {
     goto _err;
   }
 
@@ -84,7 +87,13 @@ _err:
 
 int tsdbClose(STsdb **pTsdb) {
   if (*pTsdb) {
+    taosThreadRwlockWrlock(&(*pTsdb)->rwLock);
+    tsdbMemTableDestroy((*pTsdb)->mem);
+    (*pTsdb)->mem = NULL;
+    taosThreadRwlockUnlock(&(*pTsdb)->rwLock);
+
     taosThreadRwlockDestroy(&(*pTsdb)->rwLock);
+
     tsdbFSClose(*pTsdb);
     tsdbCloseCache(*pTsdb);
     taosMemoryFreeClear(*pTsdb);

@@ -8,13 +8,15 @@ TDengine provides a rich set of APIs (application development interface). To fac
 
 ## Supported platforms
 
-Currently, TDengine's native interface connectors can support platforms such as x64 and ARM hardware platforms and Linux and Windows development environments. The comparison matrix is as follows.
+Currently, TDengine's native interface connectors can support platforms such as x64 and ARM hardware platforms and Linux/Windows/macOS development environments. The comparison matrix is as follows.
 
 | **CPU**        | **OS**    | **Java** | **Python** | **Go** | **Node.js** | **C#** | **Rust** | C/C++ |
 | -------------- | --------- | -------- | ---------- | ------ | ----------- | ------ | -------- | ----- |
 | **X86 64bit**  | **Linux** | ●        | ●          | ●      | ●           | ●      | ●        | ●     |
 | **X86 64bit**  | **Win64** | ●        | ●          | ●      | ●           | ●      | ●        | ●     |
+| **X86 64bit**  | **macOS** | ○        | ●          | ●      | ○           | ○      | ●        | ●     |
 | **ARM64**      | **Linux** | ●        | ●          | ●      | ●           | ○      | ○        | ●     |
+| **ARM64**      | **macOS** | ○        | ●          | ●      | ○           | ○      | ●        | ●     |
 
 Where ● means the official test verification passed, ○ means the unofficial test verification passed, -- means no assurance.
 
@@ -39,14 +41,14 @@ Comparing the connector support for TDengine functional features as follows.
 
 ### Using the native interface (taosc)
 
-| **Functional Features** | **Java** | **Python** | **Go** | **C#** | **Node.js** | **Rust** |
-| -------------- | -------- | ---------- | ------ | ------ | ----------- | -------- |
-| **Connection Management** | Support | Support | Support | Support | Support | Support |
-| **Regular Query** | Support | Support | Support | Support | Support | Support |
-| **Parameter Binding** | Support | Support | Support | Support | Support | Support |
-| ** TMQ **      | Support     | Support       | Support   | Support   | Support        | Support     |
-| **Schemaless** | Support | Support | Support | Support | Support | Support |
-| **DataFrame** | Not Supported | Support | Not Supported | Not Supported | Not Supported | Not Supported |
+| **Functional Features**       | **Java**      | **Python** | **Go**        | **C#**        | **Node.js**   | **Rust**      |
+| ----------------------------- | ------------- | ---------- | ------------- | ------------- | ------------- | ------------- |
+| **Connection Management**     | Support       | Support    | Support       | Support       | Support       | Support       |
+| **Regular Query**             | Support       | Support    | Support       | Support       | Support       | Support       |
+| **Parameter Binding**         | Support       | Support    | Support       | Support       | Support       | Support       |
+| **Subscription (TMQ)**        | Support       | Support    | Support       | Support       | Support       | Support       |
+| **Schemaless**                | Support       | Support    | Support       | Support       | Support       | Support       |
+| **DataFrame**                 | Not Supported | Support    | Not Supported | Not Supported | Not Supported | Not Supported |
 
 :::info
 The different database framework specifications for various programming languages do not mean that all C/C++ interfaces need a wrapper.
@@ -54,16 +56,15 @@ The different database framework specifications for various programming language
 
 ### Use HTTP Interfaces (REST or WebSocket)
 
-| **Functional Features** | **Java** | **Python** | **Go** | **C# (not supported yet)** | **Node.js** | **Rust** |
-| ------------------------------ | -------- | ---------- | -------- | ------------------ | ----------- | -------- |
-| **Connection Management** | Support | Support | Support | N/A | Support | Support |
-| **Regular Query** | Support | Support | Support | N/A | Support | Support |
-| **Continous Query ** | Support | Support | Support | N/A | Support | Support |
-| **Parameter Binding**                   | Not supported   | Not supported   | Not supported | N/A                | Not supported      | Support     |
-| ** TMQ **                      | Not supported   | Not supported   | Not supported | N/A                | Not supported      | Support     |
-| **Schemaless**                 | Not supported | Not supported   | Not supported | N/A                | Not supported      | Not supported |
-| **Bulk Pulling (based on WebSocket) **| Support | Support | Not Supported | N/A | Not Supported | Supported |
-| **DataFrame** | Not supported | Support | Not supported | N/A | Not supported | Not supported |
+| **Functional Features**                | **Java**      | **Python**      | **Go**        | **C#**        | **Node.js**   | **Rust**      |
+| -------------------------------------- | ------------- | --------------- | ------------- | ------------- | ------------- | ------------- |
+| **Connection Management**              | Support       | Support         | Support       | Support       | Support       | Support       |
+| **Regular Query**                      | Support       | Support         | Support       | Support       | Support       | Support       |
+| **Parameter Binding**                  | Not supported | Not supported   | Not supported | Support       | Not supported | Support       |
+| **Subscription (TMQ) **                | Not supported | Not supported   | Not supported | Not supported | Not supported | Support       |
+| **Schemaless**                         | Not supported | Not supported   | Not supported | Not supported | Not supported | Not supported |
+| **Bulk Pulling (based on WebSocket) ** | Support       | Support         | Not Supported | support       | Not Supported | Supported     |
+| **DataFrame**                          | Not supported | Support         | Not supported | Not supported | Not supported | Not supported |
 
 :::warning
 
@@ -73,10 +74,12 @@ The different database framework specifications for various programming language
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
-import InstallOnWindows from "./_linux_install.mdx";
-import InstallOnLinux from "./_windows_install.mdx";
+import InstallOnLinux from "./_linux_install.mdx";
+import InstallOnWindows from "./_windows_install.mdx";
+import InstallOnMacOS from "./_macos_install.mdx";
 import VerifyWindows from "./_verify_windows.mdx";
 import VerifyLinux from "./_verify_linux.mdx";
+import VerifyMacOS from "./_verify_macos.mdx";
 
 ## Install Client Driver
 
@@ -89,10 +92,13 @@ The client driver needs to be installed if you use the native interface connecto
 
 <Tabs defaultValue="linux" groupId="os">
   <TabItem value="linux" label="Linux">
-    <InstallOnWindows />
+    <InstallOnLinux />
   </TabItem>
   <TabItem value="windows" label="Windows">
-    <InstallOnLinux />
+    <InstallOnWindows />
+  </TabItem>
+  <TabItem value="macos" label="MacOS">
+    <InstallOnMacOS />
   </TabItem>
 </Tabs>
 
@@ -106,6 +112,9 @@ After completing the above installation and configuration and you have confirmed
   </TabItem>
   <TabItem value="windows" label="Windows">
     <VerifyWindows />
+  </TabItem>
+  <TabItem value="macos" label="MacOS">
+    <VerifyMacOS />
   </TabItem>
 </Tabs>
 

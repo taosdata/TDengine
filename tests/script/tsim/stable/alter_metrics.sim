@@ -3,7 +3,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
-print ======== step1 
+print ======== step1
 sql create database d2
 sql use d2
 sql create table mt (ts timestamp, a int) TAGS (t int)
@@ -757,7 +757,7 @@ endi
 print ======= over
 sql drop database d2
 sql select * from information_schema.ins_databases
-if $rows != 2 then 
+if $rows != 2 then
   return -1
 endi
 

@@ -43,18 +43,18 @@ void* rpcOpen(const SRpcInit* pInit) {
     return NULL;
   }
   if (pInit->label) {
-    tstrncpy(pRpc->label, pInit->label, strlen(pInit->label) + 1);
+    tstrncpy(pRpc->label, pInit->label, sizeof(pRpc->label));
   }
+
+  pRpc->compressSize = pInit->compressSize;
+  pRpc->encryption = pInit->encryption;
+
   // register callback handle
   pRpc->cfp = pInit->cfp;
   pRpc->retry = pInit->rfp;
   pRpc->startTimer = pInit->tfp;
 
-  if (pInit->connType == TAOS_CONN_SERVER) {
-    pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
-  } else {
-    pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
-  }
+  pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
 
   uint32_t ip = 0;
   if (pInit->connType == TAOS_CONN_SERVER) {
@@ -69,13 +69,14 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->idleTime = pInit->idleTime;
   pRpc->tcphandle =
       (*taosInitHandle[pRpc->connType])(ip, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
+
   if (pRpc->tcphandle == NULL) {
     taosMemoryFree(pRpc);
     return NULL;
   }
   pRpc->parent = pInit->parent;
   if (pInit->user) {
-    memcpy(pRpc->user, pInit->user, strlen(pInit->user));
+    tstrncpy(pRpc->user, pInit->user, sizeof(pRpc->user));
   }
 
   int64_t refId = transAddExHandle(transGetInstMgt(), pRpc);
@@ -87,7 +88,7 @@ void rpcClose(void* arg) {
   tInfo("start to close rpc");
   transRemoveExHandle(transGetInstMgt(), (int64_t)arg);
   transReleaseExHandle(transGetInstMgt(), (int64_t)arg);
-  tInfo("rpc is closed");
+  tInfo("end to close rpc");
   return;
 }
 void rpcCloseImpl(void* arg) {
@@ -96,15 +97,15 @@ void rpcCloseImpl(void* arg) {
   taosMemoryFree(pRpc);
 }
 
-void* rpcMallocCont(int32_t contLen) {
-  int32_t size = contLen + TRANS_MSG_OVERHEAD;
+void* rpcMallocCont(int64_t contLen) {
+  int64_t size = contLen + TRANS_MSG_OVERHEAD;
   char*   start = taosMemoryCalloc(1, size);
   if (start == NULL) {
-    tError("failed to malloc msg, size:%d", size);
+    tError("failed to malloc msg, size:%" PRId64, size);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   } else {
-    tTrace("malloc mem:%p size:%d", start, size);
+    tTrace("malloc mem:%p size:%" PRId64, start, size);
   }
 
   return start + sizeof(STransMsgHead);
@@ -116,11 +117,11 @@ void rpcFreeCont(void* cont) {
   tTrace("rpc free cont:%p", (char*)cont - TRANS_MSG_OVERHEAD);
 }
 
-void* rpcReallocCont(void* ptr, int32_t contLen) {
+void* rpcReallocCont(void* ptr, int64_t contLen) {
   if (ptr == NULL) return rpcMallocCont(contLen);
 
   char*   st = (char*)ptr - TRANS_MSG_OVERHEAD;
-  int32_t sz = contLen + TRANS_MSG_OVERHEAD;
+  int64_t sz = contLen + TRANS_MSG_OVERHEAD;
   st = taosMemoryRealloc(st, sz);
   if (st == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -129,9 +130,6 @@ void* rpcReallocCont(void* ptr, int32_t contLen) {
 
   return st + TRANS_MSG_OVERHEAD;
 }
-
-int32_t rpcReportProgress(void* pConn, char* pCont, int32_t contLen) { return -1; }
-void    rpcCancelRequest(int64_t rid) { return; }
 
 int rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid) {
   return transSendRequest(shandle, pEpSet, pMsg, NULL);

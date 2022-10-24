@@ -30,7 +30,7 @@ taosAdapter provides the following features.
 
 ### Install taosAdapter
 
-If you use the TDengine server, you don't need additional steps to install taosAdapter. You can download taosAdapter from [TDengine 3.0 released versions](../../releases) to download the TDengine server installation package. If you need to deploy taosAdapter separately on another server other than the TDengine server, you should install the full TDengine server package on that server to install taosAdapter. If you need to build taosAdapter from source code, you can refer to the [Building taosAdapter]( https://github.com/taosdata/taosadapter/blob/3.0/BUILD.md) documentation.
+If you use the TDengine server, you don't need additional steps to install taosAdapter. You can download taosAdapter from [TDengine 3.0 released versions](../../releases/tdengine) to download the TDengine server installation package. If you need to deploy taosAdapter separately on another server other than the TDengine server, you should install the full TDengine server package on that server to install taosAdapter. If you need to build taosAdapter from source code, you can refer to the [Building taosAdapter]( https://github.com/taosdata/taosadapter/blob/3.0/BUILD.md) documentation.
 
 ### Start/Stop taosAdapter
 
@@ -196,7 +196,8 @@ Support InfluxDB query parameters as follows.
 - `u` TDengine user name
 - `p` TDengine password
 
-Note: InfluxDB token authorization is not supported at present. Only Basic authorization and query parameter validation are supported.
+Note:      InfluxDB token authorization is not supported at present. Only Basic authorization and query parameter validation are supported.
+Example:   curl --request POST http://127.0.0.1:6041/influxdb/v1/write?db=test --user "root:taosdata" --data-binary "measurement,host=host1 field1=2i,field2=2.0 1577836800000000000"
 
 ### OpenTSDB
 
