@@ -2880,7 +2880,7 @@ int optSysDoCompare(__compar_fn_t func, int8_t comparType, void* a, void* b) {
     default:
       return -1;
   }
-  return 1;
+  return cmp;
 }
 
 static int optSysFilterFuncImpl__LowerThan(void* a, void* b, int16_t dtype) {
