@@ -1751,9 +1751,7 @@ void initStreamFunciton(SqlFunctionCtx* pCtx, int32_t numOfExpr) {
   }
 }
 
-SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
-                                          SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
-                                          STimeWindowAggSupp* pTwAggSupp, SIntervalPhysiNode* pPhyNode,
+SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode* pPhyNode,
                                           SExecTaskInfo* pTaskInfo, bool isStream) {
   SIntervalAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SIntervalAggOperatorInfo));
   SOperatorInfo*            pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
@@ -1761,46 +1759,63 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
     goto _error;
   }
 
+  SSDataBlock* pResBlock = createResDataBlock(pPhyNode->window.node.pOutputDataBlockDesc);
+  initBasicInfo(&pInfo->binfo, pResBlock);
+
+  SExprSupp* pSup = &pOperator->exprSupp;
+  pInfo->primaryTsIndex = ((SColumnNode*)pPhyNode->window.pTspk)->slotId;
+
+  size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
+  initResultSizeInfo(&pOperator->resultInfo, 4096);
+
+  int32_t    num = 0;
+  SExprInfo* pExprInfo = createExprInfo(pPhyNode->window.pFuncs, NULL, &num);
+  int32_t    code = initAggInfo(pSup, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
+  SInterval interval = {.interval = pPhyNode->interval,
+      .sliding = pPhyNode->sliding,
+      .intervalUnit = pPhyNode->intervalUnit,
+      .slidingUnit = pPhyNode->slidingUnit,
+      .offset = pPhyNode->offset,
+      .precision = ((SColumnNode*)pPhyNode->window.pTspk)->node.resType.precision};
+
+  STimeWindowAggSupp as = {
+      .waterMark = pPhyNode->window.watermark,
+      .calTrigger = pPhyNode->window.triggerType,
+      .maxTs = INT64_MIN,
+  };
+
+  ASSERT(as.calTrigger != STREAM_TRIGGER_MAX_DELAY);
+
   pOperator->pTaskInfo = pTaskInfo;
   pInfo->win = pTaskInfo->window;
   pInfo->inputOrder = (pPhyNode->window.inputTsOrder == ORDER_ASC) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
   pInfo->resultTsOrder = (pPhyNode->window.outputTsOrder == ORDER_ASC) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
-  pInfo->interval = *pInterval;
+  pInfo->interval = interval;
   pInfo->execModel = pTaskInfo->execModel;
-  pInfo->twAggSup = *pTwAggSupp;
+  pInfo->twAggSup = as;
   pInfo->pCondition = pPhyNode->window.node.pConditions;
   pInfo->binfo.mergeResultBlock = pPhyNode->window.mergeDataBlock;
 
   if (pPhyNode->window.pExprs != NULL) {
     int32_t    numOfScalar = 0;
     SExprInfo* pScalarExprInfo = createExprInfo(pPhyNode->window.pExprs, NULL, &numOfScalar);
-    int32_t    code = initExprSupp(&pInfo->scalarSupp, pScalarExprInfo, numOfScalar);
+    code = initExprSupp(&pInfo->scalarSupp, pScalarExprInfo, numOfScalar);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
   }
 
-  pInfo->primaryTsIndex = primaryTsSlotId;
-  SExprSupp* pSup = &pOperator->exprSupp;
-
-  size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
-  initResultSizeInfo(&pOperator->resultInfo, 4096);
-
-  int32_t code = initAggInfo(pSup, &pInfo->aggSup, pExprInfo, numOfCols, keyBufSize, pTaskInfo->id.str);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
-
-  initBasicInfo(&pInfo->binfo, pResBlock);
-
   if (isStream) {
-    ASSERT(numOfCols > 0);
+    ASSERT(num > 0);
     initStreamFunciton(pSup->pCtx, pSup->numOfExprs);
   }
 
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pInfo->win);
-
-  pInfo->timeWindowInterpo = timeWindowinterpNeeded(pSup->pCtx, numOfCols, pInfo);
+  pInfo->timeWindowInterpo = timeWindowinterpNeeded(pSup->pCtx, num, pInfo);
   if (pInfo->timeWindowInterpo) {
     pInfo->binfo.resultRowInfo.openWindow = tdListNew(sizeof(SOpenWindowInfo));
     if (pInfo->binfo.resultRowInfo.openWindow == NULL) {
@@ -1827,7 +1842,9 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
   return pOperator;
 
 _error:
-  destroyIntervalOperatorInfo(pInfo);
+  if (pInfo != NULL) {
+    destroyIntervalOperatorInfo(pInfo);
+  }
   taosMemoryFreeClear(pOperator);
   pTaskInfo->code = code;
   return NULL;

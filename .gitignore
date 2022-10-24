@@ -128,3 +128,4 @@ tools/NEWS
 tools/COPYING
 tools/BUGS
 tools/taos-tools
+tools/taosws-rs

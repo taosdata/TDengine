@@ -2988,8 +2988,6 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
 
 static void firstLastTransferInfo(SqlFunctionCtx* pCtx, SFirstLastRes* pInput, SFirstLastRes* pOutput, bool isFirst,
                                   int32_t rowIndex) {
-  SInputColumnInfoData* pColInfo = &pCtx->input;
-
   if (pOutput->hasResult) {
     if (isFirst) {
       if (pInput->ts > pOutput->ts) {

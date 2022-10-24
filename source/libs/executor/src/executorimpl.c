@@ -3049,12 +3049,6 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
   SSDataBlock* pResBlock = createResDataBlock(pAggNode->node.pOutputDataBlockDesc);
   initBasicInfo(&pInfo->binfo, pResBlock);
 
-  int32_t    numOfScalarExpr = 0;
-  SExprInfo* pScalarExprInfo = NULL;
-  if (pAggNode->pExprs != NULL) {
-    pScalarExprInfo = createExprInfo(pAggNode->pExprs, NULL, &numOfScalarExpr);
-  }
-
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
 
@@ -3063,6 +3057,12 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
   int32_t    code = initAggInfo(&pOperator->exprSupp, &pInfo->aggSup, pExprInfo, num, keyBufSize, pTaskInfo->id.str);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
+  }
+
+  int32_t    numOfScalarExpr = 0;
+  SExprInfo* pScalarExprInfo = NULL;
+  if (pAggNode->pExprs != NULL) {
+    pScalarExprInfo = createExprInfo(pAggNode->pExprs, NULL, &numOfScalarExpr);
   }
 
   code = initExprSupp(&pInfo->scalarExprSup, pScalarExprInfo, numOfScalarExpr);
@@ -3720,28 +3720,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
   } else if (QUERY_NODE_PHYSICAL_PLAN_HASH_INTERVAL == type) {
     SIntervalPhysiNode* pIntervalPhyNode = (SIntervalPhysiNode*)pPhyNode;
 
-    SExprInfo*   pExprInfo = createExprInfo(pIntervalPhyNode->window.pFuncs, NULL, &num);
-    SSDataBlock* pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
-
-    SInterval interval = {.interval = pIntervalPhyNode->interval,
-                          .sliding = pIntervalPhyNode->sliding,
-                          .intervalUnit = pIntervalPhyNode->intervalUnit,
-                          .slidingUnit = pIntervalPhyNode->slidingUnit,
-                          .offset = pIntervalPhyNode->offset,
-                          .precision = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->node.resType.precision};
-
-    STimeWindowAggSupp as = {
-        .waterMark = pIntervalPhyNode->window.watermark,
-        .calTrigger = pIntervalPhyNode->window.triggerType,
-        .maxTs = INT64_MIN,
-    };
-    ASSERT(as.calTrigger != STREAM_TRIGGER_MAX_DELAY);
-
-    int32_t tsSlotId = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->slotId;
-    bool    isStream = (QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == type);
-    pOptr = createIntervalOperatorInfo(ops[0], pExprInfo, num, pResBlock, &interval, tsSlotId, &as, pIntervalPhyNode,
-                                       pTaskInfo, isStream);
-
+    bool isStream = (QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == type);
+    pOptr = createIntervalOperatorInfo(ops[0], pIntervalPhyNode, pTaskInfo, isStream);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == type) {
     pOptr = createStreamIntervalOperatorInfo(ops[0], pPhyNode, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_MERGE_ALIGNED_INTERVAL == type) {

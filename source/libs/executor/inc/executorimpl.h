@@ -541,6 +541,12 @@ typedef struct {
   SSnapContext* sContext;
 } SStreamRawScanInfo;
 
+typedef struct SSysTableIndex {
+  int8_t init;
+  SArray *uids; 
+  int32_t lastIdx; 
+} SSysTableIndex;
+
 typedef struct SSysTableScanInfo {
   SRetrieveMetaTableRsp* pRsp;
   SRetrieveTableReq      req;
@@ -553,6 +559,7 @@ typedef struct SSysTableScanInfo {
   bool                   showRewrite;
   SNode*                 pCondition;  // db_name filter condition, to discard data that are not in current database
   SMTbCursor*            pCur;        // cursor for iterate the local table meta store.
+  SSysTableIndex*          pIdx;         // idx for local table meta 
   SArray*                scanCols;    // SArray<int16_t> scan column id list
   SName                  name;
   SSDataBlock*           pRes;
@@ -966,9 +973,7 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** dowStreams, size_
 SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
                                            SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
-                                          SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
-                                          STimeWindowAggSupp* pTwAggSupp, SIntervalPhysiNode* pPhyNode,
+SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode* pPhyNode,
                                           SExecTaskInfo* pTaskInfo, bool isStream);
 SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMergeIntervalPhysiNode* pIntervalPhyNode,
                                                SExecTaskInfo* pTaskInfo);

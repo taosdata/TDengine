@@ -249,8 +249,8 @@ python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 5 -
 
 python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 6 -M 3 -C 5
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStopInsert.py
-python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
-python3 test.py -f 6-cluster/5dnode3mnodeStopConnect.py -N 5 -M 3
+# TD-19646 python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
+# TD-19646 python3 test.py -f 6-cluster/5dnode3mnodeStopConnect.py -N 5 -M 3
 
 python3 ./test.py -f 6-cluster/5dnode3mnodeRecreateMnode.py  -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStopFollowerLeader.py  -N 5 -M 3
