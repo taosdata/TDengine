@@ -28,7 +28,7 @@
 static SSDataBlock* doScanCache(SOperatorInfo* pOperator);
 static void         destroyLastrowScanOperator(void* param);
 static int32_t      extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTaskInfo, int32_t** pSlotIds);
-static SArray*      removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SArray* pColMatchInfo);
+static int32_t      removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SColMatchInfo* pColMatchInfo);
 
 SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SReadHandle* readHandle,
                                            SExecTaskInfo* pTaskInfo) {
@@ -46,10 +46,10 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
   pInfo->pRes = createResDataBlock(pDescNode);
 
   int32_t numOfCols = 0;
-  SArray* pColMatchInfo = extractColMatchInfo(pScanNode->scan.pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID);
-  pInfo->pColMatchInfo = removeRedundantTsCol(pScanNode, pColMatchInfo);
+  code = extractColMatchInfo(pScanNode->scan.pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID, &pInfo->matchInfo);
+  removeRedundantTsCol(pScanNode, &pInfo->matchInfo);
 
-  code = extractCacheScanSlotId(pInfo->pColMatchInfo, pTaskInfo, &pInfo->pSlotIds);
+  code = extractCacheScanSlotId(pInfo->matchInfo.pList, pTaskInfo, &pInfo->pSlotIds);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -64,7 +64,7 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
   if (taosArrayGetSize(pTableList->pGroupList) == taosArrayGetSize(pTableList->pTableList)) {
     pInfo->retrieveType = CACHESCAN_RETRIEVE_TYPE_ALL|(pScanNode->ignoreNull? CACHESCAN_RETRIEVE_LAST:CACHESCAN_RETRIEVE_LAST_ROW);
     code = tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pTableList->pTableList,
-                                   taosArrayGetSize(pInfo->pColMatchInfo), &pInfo->pLastrowReader);
+                                   taosArrayGetSize(pInfo->matchInfo.pList), &pInfo->pLastrowReader);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -139,9 +139,9 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
     }
 
     if (pInfo->indexOfBufferedRes < pInfo->pBufferredRes->info.rows) {
-      for (int32_t i = 0; i < taosArrayGetSize(pInfo->pColMatchInfo); ++i) {
-        SColMatchInfo* pMatchInfo = taosArrayGet(pInfo->pColMatchInfo, i);
-        int32_t        slotId = pMatchInfo->targetSlotId;
+      for (int32_t i = 0; i < taosArrayGetSize(pInfo->matchInfo.pList); ++i) {
+        SColMatchItem* pMatchInfo = taosArrayGet(pInfo->matchInfo.pList, i);
+        int32_t        slotId = pMatchInfo->dstSlotId;
 
         SColumnInfoData* pSrc = taosArrayGet(pInfo->pBufferredRes->pDataBlock, slotId);
         SColumnInfoData* pDst = taosArrayGet(pInfo->pRes->pDataBlock, slotId);
@@ -188,7 +188,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       SArray* pGroupTableList = taosArrayGetP(pTableList->pGroupList, pInfo->currentGroupIndex);
 
       tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pGroupTableList,
-                              taosArrayGetSize(pInfo->pColMatchInfo), &pInfo->pLastrowReader);
+                              taosArrayGetSize(pInfo->matchInfo.pList), &pInfo->pLastrowReader);
       taosArrayClear(pInfo->pUidList);
 
       int32_t code = tsdbRetrieveCacheRows(pInfo->pLastrowReader, pInfo->pRes, pInfo->pSlotIds, pInfo->pUidList);
@@ -235,7 +235,7 @@ void destroyLastrowScanOperator(void* param) {
   blockDataDestroy(pInfo->pBufferredRes);
   taosMemoryFree(pInfo->pSlotIds);
   taosArrayDestroy(pInfo->pUidList);
-  taosArrayDestroy(pInfo->pColMatchInfo);
+  taosArrayDestroy(pInfo->matchInfo.pList);
 
   if (pInfo->pLastrowReader != NULL) {
     pInfo->pLastrowReader = tsdbCacherowsReaderClose(pInfo->pLastrowReader);
@@ -255,16 +255,16 @@ int32_t extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTask
   SSchemaWrapper* pWrapper = pTaskInfo->schemaInfo.sw;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
-    SColMatchInfo* pColMatch = taosArrayGet(pColMatchInfo, i);
+    SColMatchItem* pColMatch = taosArrayGet(pColMatchInfo, i);
     for (int32_t j = 0; j < pWrapper->nCols; ++j) {
       if (pColMatch->colId == pWrapper->pSchema[j].colId &&
           pColMatch->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-        (*pSlotIds)[pColMatch->targetSlotId] = -1;
+        (*pSlotIds)[pColMatch->dstSlotId] = -1;
         break;
       }
 
       if (pColMatch->colId == pWrapper->pSchema[j].colId) {
-        (*pSlotIds)[pColMatch->targetSlotId] = j;
+        (*pSlotIds)[pColMatch->dstSlotId] = j;
         break;
       }
     }
@@ -273,17 +273,18 @@ int32_t extractCacheScanSlotId(const SArray* pColMatchInfo, SExecTaskInfo* pTask
   return TSDB_CODE_SUCCESS;
 }
 
-SArray* removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SArray* pColMatchInfo) {
+int32_t removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SColMatchInfo* pColMatchInfo) {
   if (!pScanNode->ignoreNull) {  // retrieve cached last value
-    return pColMatchInfo;
+    return TSDB_CODE_SUCCESS;
   }
 
-  SArray* pMatchInfo = taosArrayInit(taosArrayGetSize(pColMatchInfo), sizeof(SColMatchInfo));
+  size_t size = taosArrayGetSize(pColMatchInfo->pList);
+  SArray* pMatchInfo = taosArrayInit(size, sizeof(SColMatchInfo));
 
-  for (int32_t i = 0; i < taosArrayGetSize(pColMatchInfo); ++i) {
-    SColMatchInfo* pColInfo = taosArrayGet(pColMatchInfo, i);
+  for (int32_t i = 0; i < size; ++i) {
+    SColMatchItem* pColInfo = taosArrayGet(pColMatchInfo->pList, i);
 
-    int32_t    slotId = pColInfo->targetSlotId;
+    int32_t    slotId = pColInfo->dstSlotId;
     SNodeList* pList = pScanNode->scan.node.pOutputDataBlockDesc->pSlots;
 
     SSlotDescNode* pDesc = (SSlotDescNode*)nodesListGetNode(pList, slotId);
@@ -292,6 +293,7 @@ SArray* removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SArray* pColMatch
     }
   }
 
-  taosArrayDestroy(pColMatchInfo);
-  return pMatchInfo;
+  taosArrayDestroy(pColMatchInfo->pList);
+  pColMatchInfo->pList = pMatchInfo;
+  return TSDB_CODE_SUCCESS;
 }
