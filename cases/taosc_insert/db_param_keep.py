@@ -201,8 +201,8 @@ class TestKeep(TDCase):
         self.tdSql.checkRow(0)
 
     def run(self) -> bool:
-        # self.keep_check()
-        # self.keep_checkdata()
+        self.keep_check()
+        self.keep_checkdata()
         self.keep_expired_check()
 
     def cleanup(self):
