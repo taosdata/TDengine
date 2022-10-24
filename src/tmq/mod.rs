@@ -15,7 +15,7 @@ pub(crate) struct Topic {
     pub(crate) name: String,
     pub(crate) database: String,
     pub(crate) vgroups: usize,
-    pub(crate) database_sql: String,
+    pub(crate) database_sql: Option<String>,
     #[serde(flatten)]
     pub(crate) table: Option<TopicTable>,
 }
@@ -60,10 +60,18 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                 .unwrap_or_default()
                 .unwrap_or(0);
 
-            let (_, database_sql): ((), String) = source
-                .query_one(format!("SHOW CREATE DATABASE `{}`", topic.db_name()))
-                .await?
-                .unwrap();
+            let database_sql = match source
+                .query_one::<_, ((), String)>(format!("SHOW CREATE DATABASE `{}`", topic.db_name()))
+                .await
+            {
+                Ok(Some((_, sql))) => Some(sql),
+                Err(err) => {
+                    log::error!("SHOW CREATE DATABASE `{}` error: {}", topic.db_name(), err);
+                    None
+                }
+                _ => unreachable!(),
+            };
+
             Ok((
                 from,
                 vec![Topic {
@@ -94,10 +102,17 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                 .unwrap_or_default()
                 .unwrap_or(0);
 
-            let (_, database_sql): ((), String) = source
-                .query_one(format!("SHOW CREATE DATABASE `{database}`"))
-                .await?
-                .unwrap();
+            let database_sql = match source
+                .query_one::<_, ((), String)>(format!("SHOW CREATE DATABASE `{}`", database))
+                .await
+            {
+                Ok(Some((_, sql))) => Some(sql),
+                Err(err) => {
+                    log::error!("SHOW CREATE DATABASE `{}` error: {}", database, err);
+                    None
+                }
+                _ => unreachable!(),
+            };
             Ok((
                 from,
                 vec![Topic {
@@ -135,10 +150,24 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                             .await?
                             .expect("database not exists");
 
-                        let (_, database_sql): ((), String) = source
-                            .query_one(format!("SHOW CREATE DATABASE `{}`", topic.db_name()))
-                            .await?
-                            .unwrap();
+                        let database_sql = match source
+                            .query_one::<_, ((), String)>(format!(
+                                "SHOW CREATE DATABASE `{}`",
+                                topic.db_name()
+                            ))
+                            .await
+                        {
+                            Ok(Some((_, sql))) => Some(sql),
+                            Err(err) => {
+                                log::error!(
+                                    "SHOW CREATE DATABASE `{}` error: {}",
+                                    topic.db_name(),
+                                    err
+                                );
+                                None
+                            }
+                            _ => unreachable!(),
+                        };
                         return Ok((
                             from,
                             vec![Topic {
@@ -165,10 +194,24 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                             .await?
                             .expect("database not exists");
 
-                        let (_, database_sql): ((), String) = source
-                            .query_one(format!("SHOW CREATE DATABASE `{database}`"))
-                            .await?
-                            .unwrap();
+                        let database_sql = match source
+                            .query_one::<_, ((), String)>(format!(
+                                "SHOW CREATE DATABASE `{}`",
+                                database
+                            ))
+                            .await
+                        {
+                            Ok(Some((_, sql))) => Some(sql),
+                            Err(err) => {
+                                log::error!(
+                                    "SHOW CREATE DATABASE `{}` error: {}",
+                                    database,
+                                    err
+                                );
+                                None
+                            }
+                            _ => unreachable!(),
+                        };
                         return Ok((
                             from,
                             vec![Topic {
@@ -224,10 +267,24 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                             .await?
                             .expect("database not exists");
 
-                        let (_, database_sql): ((), String) = source
-                            .query_one(format!("SHOW CREATE DATABASE `{}`", topic.db_name()))
-                            .await?
-                            .unwrap();
+                        let database_sql = match source
+                            .query_one::<_, ((), String)>(format!(
+                                "SHOW CREATE DATABASE `{}`",
+                                topic.db_name()
+                            ))
+                            .await
+                        {
+                            Ok(Some((_, sql))) => Some(sql),
+                            Err(err) => {
+                                log::error!(
+                                    "SHOW CREATE DATABASE `{}` error: {}",
+                                    topic.db_name(),
+                                    err
+                                );
+                                None
+                            }
+                            _ => unreachable!(),
+                        };
                         return Ok((
                             from,
                             vec![Topic {
@@ -276,10 +333,24 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                             .await?
                             .expect("database not exists");
 
-                        let (_, database_sql): ((), String) = source
-                            .query_one(format!("SHOW CREATE DATABASE `{database}`"))
-                            .await?
-                            .unwrap();
+                        let database_sql = match source
+                            .query_one::<_, ((), String)>(format!(
+                                "SHOW CREATE DATABASE `{}`",
+                                database
+                            ))
+                            .await
+                        {
+                            Ok(Some((_, sql))) => Some(sql),
+                            Err(err) => {
+                                log::error!(
+                                    "SHOW CREATE DATABASE `{}` error: {}",
+                                    database,
+                                    err
+                                );
+                                None
+                            }
+                            _ => unreachable!(),
+                        };
 
                         return Ok((
                             from,
@@ -315,15 +386,22 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                 ))
                 .await?
                 .expect("database not exists");
-            let (_, sql): ((), String) = source
-                .query_one(format!("SHOW CREATE DATABASE `{}`", topic.db_name()))
-                .await?
-                .unwrap();
+            let database_sql = match source
+                .query_one::<_, ((), String)>(format!("SHOW CREATE DATABASE `{}`", topic.db_name()))
+                .await
+            {
+                Ok(Some((_, sql))) => Some(sql),
+                Err(err) => {
+                    log::error!("SHOW CREATE DATABASE `{}` error: {}", topic.db_name(), err);
+                    None
+                }
+                _ => unreachable!(),
+            };
 
             out.push(Topic {
                 name: topic.name().to_string(),
                 database: topic.db_name().to_string(),
-                database_sql: sql,
+                database_sql,
                 vgroups,
                 table: None,
             });
@@ -351,14 +429,21 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                         ))
                         .await?
                         .expect("database not exists");
-                    let (_, sql): ((), String) = source
-                        .query_one(format!("SHOW CREATE DATABASE `{topic}`"))
-                        .await?
-                        .unwrap();
+                    let database_sql = match source
+                        .query_one::<_, ((), String)>(format!("SHOW CREATE DATABASE `{}`", topic))
+                        .await
+                    {
+                        Ok(Some((_, sql))) => Some(sql),
+                        Err(err) => {
+                            log::error!("SHOW CREATE DATABASE `{}` error: {}", topic, err);
+                            None
+                        }
+                        _ => unreachable!(),
+                    };
                     out.push(Topic {
                         name: topic.to_string(),
                         database: topic.to_string(),
-                        database_sql: sql,
+                        database_sql,
                         vgroups,
                         table: None,
                     });

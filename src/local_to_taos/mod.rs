@@ -160,13 +160,13 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
                 log::info!(
                     "target database not exist, create database `{target}` with the same parameter in the backup"
                 );
-                let mut sql = topic
-                    .database_sql
-                    .replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS");
-                if &topic.database != target {
-                    sql = sql.replace(&format!("`{}`", topic.database), &format!("`{target}`"));
+                if let Some(sql) = topic.database_sql.as_deref() {
+                    let mut sql = sql.replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS");
+                    if &topic.database != target {
+                        sql = sql.replace(&format!("`{}`", topic.database), &format!("`{target}`"));
+                    }
+                    global_taos.exec(sql).await?;
                 }
-                global_taos.exec(sql).await?;
             } else if !force {
                 anyhow::bail!(
                     "the database has already exists, please be sure to override it by force"
@@ -174,13 +174,11 @@ pub async fn local_to_taos(mut from: Dsn, mut to: Dsn, jobs: usize, force: bool)
             }
         } else {
             if !global_taos.database_exists(&topic.database).await? {
-                global_taos
-                    .exec(
-                        topic
-                            .database_sql
-                            .replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS"),
-                    )
-                    .await?;
+                if let Some(sql) = topic.database_sql.as_deref() {
+                    global_taos
+                        .exec(sql.replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS"))
+                        .await?;
+                }
             } else if !force {
                 anyhow::bail!(
                     "the database has already exists, please be sure to override it by force"
