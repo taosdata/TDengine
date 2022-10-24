@@ -203,7 +203,6 @@ int32_t nodesReleaseAllocator(int64_t allocatorId) {
   return taosReleaseRef(g_allocatorReqRefPool, allocatorId);
 }
 
-
 int64_t nodesMakeAllocatorWeakRef(int64_t allocatorId) {
   if (allocatorId <= 0) {
     return 0;
@@ -936,6 +935,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
       nodesDestroyNode(((SShowDnodeVariablesStmt*)pNode)->pDnodeId);
+      nodesDestroyNode(((SShowDnodeVariablesStmt*)pNode)->pLikePattern);
       break;
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       taosMemoryFreeClear(((SShowCreateDatabaseStmt*)pNode)->pCfg);

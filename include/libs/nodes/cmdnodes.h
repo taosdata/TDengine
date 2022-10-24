@@ -274,6 +274,7 @@ typedef struct SShowTableDistributedStmt {
 typedef struct SShowDnodeVariablesStmt {
   ENodeType type;
   SNode*    pDnodeId;
+  SNode*    pLikePattern;
 } SShowDnodeVariablesStmt;
 
 typedef struct SShowVnodesStmt {

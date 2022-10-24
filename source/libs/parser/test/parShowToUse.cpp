@@ -100,6 +100,8 @@ TEST_F(ParserShowToUseTest, showDnodeVariables) {
   useDb("root", "test");
 
   run("SHOW DNODE 1 VARIABLES");
+
+  run("SHOW DNODE 1 VARIABLES LIKE '%debug%'");
 }
 
 TEST_F(ParserShowToUseTest, showFunctions) {
