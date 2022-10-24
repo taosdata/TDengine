@@ -169,7 +169,7 @@ typedef struct {
 // #define TD_ROW_VER(r)      ((r)->ver)
 #define TD_ROW_KEY_ADDR(r) (r)
 
-// N.B. If without STSchema, getExtendedRowSize() is used to get the rowMaxBytes and
+// N.B. If without STSchema, insGetExtendedRowSize() is used to get the rowMaxBytes and
 // (int32_t)ceil((double)nCols/TD_VTYPE_PARTS) should be added if TD_SUPPORT_BITMAP defined.
 #define TD_ROW_MAX_BYTES_FROM_SCHEMA(s) ((s)->tlen + TD_ROW_HEAD_LEN)
 
