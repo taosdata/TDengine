@@ -443,7 +443,7 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode 
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, hashGroupbyAggregate, NULL, NULL,
-                                         destroyGroupOperatorInfo, aggEncodeResultRow, aggDecodeResultRow, NULL);
+                                         destroyGroupOperatorInfo, NULL);
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -820,7 +820,7 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SPartition
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, hashPartition, NULL, NULL, destroyPartitionOperatorInfo,
-                                         NULL, NULL, NULL);
+                                         NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
@@ -1095,7 +1095,7 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
   pOperator->info = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doStreamHashPartition, NULL, NULL,
-                                         destroyStreamPartitionOperatorInfo, NULL, NULL, NULL);
+                                         destroyStreamPartitionOperatorInfo, NULL);
 
   initParDownStream(downstream, &pInfo->partitionSup, &pInfo->scalarSup);
   code = appendDownstream(pOperator, &downstream, 1);
