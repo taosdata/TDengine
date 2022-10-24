@@ -4076,6 +4076,10 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SC
     *p = output.columnData;
     output.numOfRows = pSrc->info.rows;
 
+    if (*p == NULL) {
+      return false;
+    }
+
     bool keep = (*info->func)(info, pSrc->info.rows, *p, statis, numOfCols, &output.numOfQualified);
 
     // todo this should be return during filter procedure
