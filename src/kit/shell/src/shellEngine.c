@@ -32,7 +32,7 @@
 #include <regex.h>
 
 /**************** Global variables ****************/
-char      CLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
+char      CLIENT_VERSION[] = "Welcome to the TDengine Command Line Interface from %s, Client Version:%s\n"
                              "Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "taos> ";
 char      CONTINUE_PROMPT[] = "   -> ";
@@ -192,9 +192,15 @@ static int32_t shellRunSingleCommand(TAOS *con, char *command) {
   if (regex_match(command, "^[ \t]*source[\t ]+[^ ]+[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
     /* If source file. */
     char *c_ptr = strtok(command, " ;");
-    assert(c_ptr != NULL);
+    if (c_ptr == NULL) {
+      shellRunCommandOnServer(con, command);
+      return 0;
+    }
     c_ptr = strtok(NULL, " ;");
-    assert(c_ptr != NULL);
+    if (c_ptr == NULL) {
+      shellRunCommandOnServer(con, command);
+      return 0;
+    }
     source_file(con, c_ptr);
     return 0;
   }

@@ -60,7 +60,6 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
   username = "<TDengine's username>"
   password = "<TDengine's password>"
   data_format = "influx"
-  influx_max_line_bytes = 250
 ```
 
 然后重启 Telegraf：
