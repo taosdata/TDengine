@@ -572,8 +572,12 @@ static int metaBuildCtimeIdxKey(SCtimeIdxKey *ctimeKey, const SMetaEntry *pME) {
 }
 
 static int metaBuildNColIdxKey(SNcolIdxKey *ncolKey, const SMetaEntry *pME) {
-  ncolKey->ncol = pME->ntbEntry.schemaRow.nCols;
-  ncolKey->uid = pME->uid;
+  if (pME->type == TSDB_NORMAL_TABLE) {
+    ncolKey->ncol = pME->ntbEntry.schemaRow.nCols;
+    ncolKey->uid = pME->uid;
+  } else {
+    return -1;
+  }
   return 0;
 }
 
@@ -778,6 +782,10 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
     goto _err;
   }
 
+  // save old entry
+  SMetaEntry oldEntry = {.type = TSDB_NORMAL_TABLE, .uid = entry.uid};
+  oldEntry.ntbEntry.schemaRow.nCols = pSchema->nCols;
+
   // search the column to add/drop/update
   pSchema = &entry.ntbEntry.schemaRow;
   int32_t iCol = 0;
@@ -867,6 +875,9 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   }
 
   entry.version = version;
+
+  metaDeleteNcolIdx(pMeta, &oldEntry);
+  metaUpdateNcolIdx(pMeta, &entry);
 
   // do actual write
   metaWLock(pMeta);
