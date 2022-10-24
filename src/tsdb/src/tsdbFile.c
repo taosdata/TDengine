@@ -683,19 +683,20 @@ int tsdbScanAndTryFixDFileSet(STsdbRepo *pRepo, SDFileSet *pSet) {
 }
 
 int tsdbParseDFilename(const char *fname, int *vid, int *fid, TSDB_FILE_T *ftype, uint32_t *_version) {
-  char *p = NULL;
+#define MAX_SUFFIX_LEN 10
+  char suffix[MAX_SUFFIX_LEN] = {0};
   *_version = 0;
   *ftype = TSDB_FILE_MAX;
 
-  sscanf(fname, "v%df%d.%m[a-z]-ver%" PRIu32, vid, fid, &p, _version);
+  // "suffix" needs to be constrained by 1 less MAX_SUFFIX_LEN
+  sscanf(fname, "v%df%d.%9[a-z]-ver%" PRIu32, vid, fid, suffix, _version);
   for (TSDB_FILE_T i = 0; i < TSDB_FILE_MAX; i++) {
-    if (strcmp(p, TSDB_FNAME_SUFFIX[i]) == 0) {
+    if (strcmp(suffix, TSDB_FNAME_SUFFIX[i]) == 0) {
       *ftype = i;
       break;
     }
   }
 
-  tfree(p);
   return 0;
 }
 
