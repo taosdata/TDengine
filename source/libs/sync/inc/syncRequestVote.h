@@ -49,8 +49,7 @@ extern "C" {
 //                 m)
 //       /\ UNCHANGED <<state, currentTerm, candidateVars, leaderVars, logVars>>
 //
-int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg);
-int32_t syncNodeOnRequestVoteSnapshotCb(SSyncNode* ths, SyncRequestVote* pMsg);
+int32_t syncNodeOnRequestVote(SSyncNode* ths, SyncRequestVote* pMsg);
 
 #ifdef __cplusplus
 }

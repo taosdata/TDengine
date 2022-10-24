@@ -524,8 +524,6 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
       while (1) {
         SSDataBlock* pDataBlock = getSortedBlockDataInner(pHandle, &pHandle->cmpParam, numOfRows);
         if (pDataBlock == NULL) {
-          taosArrayDestroy(pResList);
-          taosArrayDestroy(pPageIdList);
           break;
         }
 

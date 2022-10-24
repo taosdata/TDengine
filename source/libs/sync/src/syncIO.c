@@ -326,18 +326,18 @@ static void *syncIOConsumerFunc(void *param) {
         }
 
       } else if (pRpcMsg->msgType == TDMT_SYNC_SNAPSHOT_SEND) {
-        if (io->FpOnSyncSnapshotSend != NULL) {
+        if (io->FpOnSyncSnapshot != NULL) {
           SyncSnapshotSend *pSyncMsg = syncSnapshotSendFromRpcMsg2(pRpcMsg);
           ASSERT(pSyncMsg != NULL);
-          io->FpOnSyncSnapshotSend(io->pSyncNode, pSyncMsg);
+          io->FpOnSyncSnapshot(io->pSyncNode, pSyncMsg);
           syncSnapshotSendDestroy(pSyncMsg);
         }
 
       } else if (pRpcMsg->msgType == TDMT_SYNC_SNAPSHOT_RSP) {
-        if (io->FpOnSyncSnapshotRsp != NULL) {
+        if (io->FpOnSyncSnapshotReply != NULL) {
           SyncSnapshotRsp *pSyncMsg = syncSnapshotRspFromRpcMsg2(pRpcMsg);
           ASSERT(pSyncMsg != NULL);
-          io->FpOnSyncSnapshotRsp(io->pSyncNode, pSyncMsg);
+          io->FpOnSyncSnapshotReply(io->pSyncNode, pSyncMsg);
           syncSnapshotRspDestroy(pSyncMsg);
         }
 

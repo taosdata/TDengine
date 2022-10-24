@@ -162,6 +162,8 @@ typedef struct {
   SQueryTableDataCond tableCond;
   int64_t             recoverStartVer;
   int64_t             recoverEndVer;
+  int64_t             fillHistoryVer1;
+  int64_t             fillHistoryVer2;
   SStreamState*       pState;
 } SStreamTaskInfo;
 
@@ -539,6 +541,12 @@ typedef struct {
   SSnapContext* sContext;
 } SStreamRawScanInfo;
 
+typedef struct SSysTableIndex {
+  int8_t init;
+  SArray *uids; 
+  int32_t lastIdx; 
+} SSysTableIndex;
+
 typedef struct SSysTableScanInfo {
   SRetrieveMetaTableRsp* pRsp;
   SRetrieveTableReq      req;
@@ -551,6 +559,7 @@ typedef struct SSysTableScanInfo {
   bool                   showRewrite;
   SNode*                 pCondition;  // db_name filter condition, to discard data that are not in current database
   SMTbCursor*            pCur;        // cursor for iterate the local table meta store.
+  SSysTableIndex*          pIdx;         // idx for local table meta 
   SArray*                scanCols;    // SArray<int16_t> scan column id list
   SName                  name;
   SSDataBlock*           pRes;
@@ -887,8 +896,7 @@ typedef struct SJoinOperatorInfo {
 void doDestroyExchangeOperatorInfo(void* param);
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t streamFn,
-                                   __optr_fn_t cleanup, __optr_close_fn_t closeFn, __optr_encode_fn_t encode,
-                                   __optr_decode_fn_t decode, __optr_explain_fn_t explain);
+                                   __optr_fn_t cleanup, __optr_close_fn_t closeFn, __optr_explain_fn_t explain);
 
 int32_t operatorDummyOpenFn(SOperatorInfo* pOperator);
 int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t num);
@@ -964,9 +972,7 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** dowStreams, size_
 SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
                                            SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
-                                          SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
-                                          STimeWindowAggSupp* pTwAggSupp, SIntervalPhysiNode* pPhyNode,
+SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPhysiNode* pPhyNode,
                                           SExecTaskInfo* pTaskInfo, bool isStream);
 SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMergeIntervalPhysiNode* pIntervalPhyNode,
                                                SExecTaskInfo* pTaskInfo);

@@ -42,6 +42,7 @@ void walCloseRef(SWal *pWal, int64_t refId) {
 
 int32_t walRefVer(SWalRef *pRef, int64_t ver) {
   SWal *pWal = pRef->pWal;
+  wDebug("vgId:%d, wal ref version %" PRId64 ", refId %" PRId64, pWal->cfg.vgId, ver, pRef->refId);
   if (pRef->refVer != ver) {
     taosThreadMutexLock(&pWal->mutex);
     if (ver < pWal->vers.firstVer || ver > pWal->vers.lastVer) {

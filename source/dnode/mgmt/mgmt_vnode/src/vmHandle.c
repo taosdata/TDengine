@@ -66,7 +66,7 @@ void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
 
   pInfo->vstat.totalVnodes = totalVnodes;
   pInfo->vstat.masterNum = masterNum;
-  pInfo->vstat.numOfSelectReqs = numOfSelectReqs - pMgmt->state.numOfSelectReqs;
+  pInfo->vstat.numOfSelectReqs = numOfSelectReqs;
   pInfo->vstat.numOfInsertReqs = numOfInsertReqs;                          // delta
   pInfo->vstat.numOfInsertSuccessReqs = numOfInsertSuccessReqs;            // delta
   pInfo->vstat.numOfBatchInsertReqs = numOfBatchInsertReqs;                // delta
@@ -188,7 +188,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
         req.walRollPeriod, req.walSegmentSize, req.hashMethod, req.hashBegin, req.hashEnd, req.hashPrefix,
         req.hashSuffix, req.replica, req.selfIndex, req.strict);
   for (int32_t i = 0; i < req.replica; ++i) {
-    dInfo("vgId:%d, replica:%d fqdn:%s port:%u", req.vgId, req.replicas[i].id, req.replicas[i].fqdn,
+    dInfo("vgId:%d, replica:%d id:%d fqdn:%s port:%u", req.vgId, i, req.replicas[i].id, req.replicas[i].fqdn,
           req.replicas[i].port);
   }
   vmGenerateVnodeCfg(&req, &vnodeCfg);
@@ -267,13 +267,23 @@ _OVER:
 
 int32_t vmProcessAlterVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SAlterVnodeReplicaReq alterReq = {0};
-  if (tSerializeSAlterVnodeReplicaReq(pMsg->pCont, pMsg->contLen, &alterReq) != 0) {
+  if (tDeserializeSAlterVnodeReplicaReq(pMsg->pCont, pMsg->contLen, &alterReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
 
   int32_t vgId = alterReq.vgId;
-  dInfo("vgId:%d, start to alter vnode replica", alterReq.vgId);
+  dInfo("vgId:%d, start to alter vnode, replica:%d selfIndex:%d strict:%d", alterReq.vgId, alterReq.replica,
+        alterReq.selfIndex, alterReq.strict);
+  for (int32_t i = 0; i < alterReq.replica; ++i) {
+    dInfo("vgId:%d, replica:%d ep:%s:%u", alterReq.vgId, i, alterReq.replicas[i].fqdn, alterReq.replicas[i].port);
+  }
+
+  if (alterReq.replica <= 0 || alterReq.selfIndex < 0 || alterReq.selfIndex >= alterReq.replica) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    dError("vgId:%d, failed to alter replica since invalid msg", alterReq.vgId);
+    return -1;
+  }
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, vgId);
   if (pVnode == NULL) {
@@ -283,6 +293,12 @@ int32_t vmProcessAlterVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   dInfo("vgId:%d, start to close vnode", vgId);
+  SWrapperCfg wrapperCfg = {
+      .dropped = pVnode->dropped,
+      .vgId = pVnode->vgId,
+      .vgVersion = pVnode->vgVersion,
+  };
+  tstrncpy(wrapperCfg.path, pVnode->path, sizeof(wrapperCfg.path));
   vmCloseVnode(pMgmt, pVnode);
 
   char path[TSDB_FILENAME_LEN] = {0};
@@ -295,8 +311,19 @@ int32_t vmProcessAlterVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   }
 
   dInfo("vgId:%d, start to open vnode", vgId);
-  if (vnodeOpen(path, pMgmt->pTfs, pMgmt->msgCb) < 0) {
+  SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, pMgmt->msgCb);
+  if (pImpl == NULL) {
     dError("vgId:%d, failed to open vnode at %s since %s", vgId, path, terrstr());
+    return -1;
+  }
+
+  if (vmOpenVnode(pMgmt, &wrapperCfg, pImpl) != 0) {
+    dError("vgId:%d, failed to open vnode mgmt since %s", vgId, terrstr());
+    return -1;
+  }
+
+  if (vnodeStart(pImpl) != 0) {
+    dError("vgId:%d, failed to start sync since %s", vgId, terrstr());
     return -1;
   }
 

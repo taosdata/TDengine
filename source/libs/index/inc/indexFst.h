@@ -290,21 +290,21 @@ bool fstVerify(Fst* fst);
 // refactor this function
 bool fstBuilderNodeCompileTo(FstBuilderNode* b, IdxFstFile* wrt, CompiledAddr lastAddr, CompiledAddr startAddr);
 
-typedef struct StreamState {
+typedef struct FstStreamState {
   FstNode*  node;
   uint64_t  trans;
   FstOutput out;
   void*     autState;
-} StreamState;
+} FstStreamState;
 
-void streamStateDestroy(void* s);
+void fstStreamStateDestroy(void* s);
 
 typedef struct FStmSt {
   Fst*              fst;
   FAutoCtx*         aut;
   SArray*           inp;
   FstOutput         emptyOutput;
-  SArray*           stack;  // <StreamState>
+  SArray*           stack;  // <FstStreamState>
   FstBoundWithData* endAt;
 } FStmSt;
 
@@ -317,14 +317,14 @@ typedef struct FStmStRslt {
 FStmStRslt* swsResultCreate(FstSlice* data, FstOutput fOut, void* state);
 void        swsResultDestroy(FStmStRslt* result);
 
-typedef void* (*StreamCallback)(void*);
+typedef void* (*streamCallback__fn)(void*);
 FStmSt* stmStCreate(Fst* fst, FAutoCtx* automation, FstBoundWithData* min, FstBoundWithData* max);
 
 void stmStDestroy(FStmSt* sws);
 
 bool stmStSeekMin(FStmSt* sws, FstBoundWithData* min);
 
-FStmStRslt* stmStNextWith(FStmSt* sws, StreamCallback callback);
+FStmStRslt* stmStNextWith(FStmSt* sws, streamCallback__fn callback);
 
 FStmBuilder* stmBuilderCreate(Fst* fst, FAutoCtx* aut);
 

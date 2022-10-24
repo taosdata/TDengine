@@ -254,10 +254,12 @@ static int32_t getCacheSize(struct SDataSinkHandle* pHandle, uint64_t* size) {
 
 int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle,
                           void* pParam) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
   SDataDeleterHandle* deleter = taosMemoryCalloc(1, sizeof(SDataDeleterHandle));
   if (NULL == deleter) {
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _end;
   }
 
   SDataDeleterNode* pDeleterNode = (SDataDeleterNode*)pDataSink;
@@ -270,17 +272,30 @@ int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pData
   deleter->pManager = pManager;
   deleter->pDeleter = pDeleterNode;
   deleter->pSchema = pDataSink->pInputDataBlockDesc;
+
+  if(pParam == NULL) {
+    code = TSDB_CODE_QRY_INVALID_INPUT;
+    qError("invalid input param in creating data deleter, code%s", tstrerror(code));
+    goto _end;
+  }
+
   deleter->pParam = pParam;
   deleter->status = DS_BUF_EMPTY;
   deleter->queryEnd = false;
   deleter->pDataBlocks = taosOpenQueue();
   taosThreadMutexInit(&deleter->mutex, NULL);
   if (NULL == deleter->pDataBlocks) {
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _end;
+  }
+
+  *pHandle = deleter;
+  return code;
+
+  _end:
+  if (deleter != NULL) {
     destroyDataSinker((SDataSinkHandle*)deleter);
     taosMemoryFree(deleter);
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
-  *pHandle = deleter;
-  return TSDB_CODE_SUCCESS;
+  return code;
 }

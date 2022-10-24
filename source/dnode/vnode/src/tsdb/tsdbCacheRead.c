@@ -37,6 +37,8 @@ static void saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pRea
   int32_t numOfRows = pBlock->info.rows;
 
   if (HASTYPE(pReader->type, CACHESCAN_RETRIEVE_LAST)) {
+    bool allNullRow = true;
+
     for (int32_t i = 0; i < pReader->numOfCols; ++i) {
       SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
       SFirstLastRes*   p = (SFirstLastRes*)varDataVal(pRes[i]);
@@ -46,12 +48,15 @@ static void saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pRea
         p->ts = pColVal->ts;
         p->bytes = TSDB_KEYSIZE;
         *(int64_t*)p->buf = pColVal->ts;
+        allNullRow = false;
       } else {
         int32_t   slotId = slotIds[i];
         SLastCol* pColVal = (SLastCol*)taosArrayGet(pRow, slotId);
 
         p->ts = pColVal->ts;
         p->isNull = !COL_VAL_IS_VALUE(&pColVal->colVal);
+        allNullRow = p->isNull & allNullRow;
+
         if (!p->isNull) {
           if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
             varDataSetLen(p->buf, pColVal->colVal.value.nData);
@@ -69,6 +74,8 @@ static void saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pRea
       varDataSetLen(pRes[i], pColInfoData->info.bytes - VARSTR_HEADER_SIZE);
       colDataAppend(pColInfoData, numOfRows, (const char*)pRes[i], false);
     }
+
+    pBlock->info.rows += allNullRow? 0:1;
   } else {
     ASSERT(HASTYPE(pReader->type, CACHESCAN_RETRIEVE_LAST_ROW));
 
@@ -96,9 +103,9 @@ static void saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pRea
         }
       }
     }
-  }
 
-  pBlock->info.rows += 1;
+    pBlock->info.rows += 1;
+  }
 }
 
 int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, SArray* pTableIdList, int32_t numOfCols, void** pReader) {

@@ -17,7 +17,8 @@ IF (TD_WEBSOCKET)
             PATCH_COMMAND
             COMMAND     git clean -f -d
             BUILD_COMMAND
-            COMMAND cargo build --release -p taos-ws-sys
+            COMMAND cargo update
+            COMMAND cargo build --release -p taos-ws-sys --features native-tls-vendored
             COMMAND ./taos-ws-sys/ci/package.sh
             INSTALL_COMMAND
             COMMAND cmake -E copy target/libtaosws/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib
@@ -36,7 +37,8 @@ IF (TD_WEBSOCKET)
             PATCH_COMMAND
             COMMAND     git clean -f -d
             BUILD_COMMAND
-            COMMAND cargo build --release -p taos-ws-sys
+            COMMAND cargo update
+            COMMAND cargo build --release -p taos-ws-sys --features native-tls-vendored
             COMMAND ./taos-ws-sys/ci/package.sh
             INSTALL_COMMAND
             COMMAND cmake -E copy target/libtaosws/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib

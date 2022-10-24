@@ -893,16 +893,26 @@ void tTagFree(STag *pTag) {
 }
 
 char *tTagValToData(const STagVal *value, bool isJson) {
-  if (!value) return NULL;
+  if (!value) {
+    return NULL;
+  }
+
   char  *data = NULL;
   int8_t typeBytes = 0;
   if (isJson) {
     typeBytes = CHAR_BYTES;
   }
+
   if (IS_VAR_DATA_TYPE(value->type)) {
     data = taosMemoryCalloc(1, typeBytes + VARSTR_HEADER_SIZE + value->nData);
-    if (data == NULL) return NULL;
-    if (isJson) *data = value->type;
+    if (data == NULL) {
+      return NULL;
+    }
+
+    if (isJson) {
+      *data = value->type;
+    }
+
     varDataLen(data + typeBytes) = value->nData;
     memcpy(varDataVal(data + typeBytes), value->pData, value->nData);
   } else {

@@ -67,6 +67,24 @@ static void mmProcessRpcMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
+static void mmProcessSyncCtrlMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
+  SMnodeMgmt *pMgmt = pInfo->ahandle;
+  pMsg->info.node = pMgmt->pMnode;
+
+  const STraceId *trace = &pMsg->info.traceId;
+  dGTrace("msg:%p, get from mnode-sync-ctrl queue", pMsg);
+
+  SMsgHead *pHead = pMsg->pCont;
+  pHead->contLen = ntohl(pHead->contLen);
+  pHead->vgId = ntohl(pHead->vgId);
+
+  int32_t code = mndProcessSyncCtrlMsg(pMsg);
+
+  dGTrace("msg:%p, is freed, code:0x%x", pMsg, code);
+  rpcFreeCont(pMsg->pCont);
+  taosFreeQitem(pMsg);
+}
+
 static void mmProcessSyncMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SMnodeMgmt *pMgmt = pInfo->ahandle;
   pMsg->info.node = pMgmt->pMnode;
@@ -108,6 +126,10 @@ int32_t mmPutMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->syncWorker, pMsg);
 }
 
+int32_t mmPutMsgToSyncCtrlQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return mmPutMsgToWorker(pMgmt, &pMgmt->syncCtrlWorker, pMsg);
+}
+
 int32_t mmPutMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutMsgToWorker(pMgmt, &pMgmt->readWorker, pMsg);
 }
@@ -143,6 +165,9 @@ int32_t mmPutMsgToQueue(SMnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
       break;
     case SYNC_QUEUE:
       pWorker = &pMgmt->syncWorker;
+      break;
+    case SYNC_CTRL_QUEUE:
+      pWorker = &pMgmt->syncCtrlWorker;
       break;
     default:
       terrno = TSDB_CODE_INVALID_PARA;
@@ -223,6 +248,18 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
     return -1;
   }
 
+  SSingleWorkerCfg scCfg = {
+      .min = 1,
+      .max = 1,
+      .name = "mnode-sync-ctrl",
+      .fp = (FItem)mmProcessSyncCtrlMsg,
+      .param = pMgmt,
+  };
+  if (tSingleWorkerInit(&pMgmt->syncCtrlWorker, &scCfg) != 0) {
+    dError("failed to start mnode mnode-sync-ctrl worker since %s", terrstr());
+    return -1;
+  }
+
   dDebug("mnode workers are initialized");
   return 0;
 }
@@ -235,5 +272,6 @@ void mmStopWorker(SMnodeMgmt *pMgmt) {
   tSingleWorkerCleanup(&pMgmt->readWorker);
   tSingleWorkerCleanup(&pMgmt->writeWorker);
   tSingleWorkerCleanup(&pMgmt->syncWorker);
+  tSingleWorkerCleanup(&pMgmt->syncCtrlWorker);
   dDebug("mnode workers are closed");
 }
