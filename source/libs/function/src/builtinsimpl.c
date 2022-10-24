@@ -5371,7 +5371,7 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SColumnInfoData*     pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   int32_t              currentRow = pBlock->info.rows;
 
-  int32_t resIndex;
+  int32_t resIndex = -1;
   int32_t maxCount = 0;
   for (int32_t i = 0; i < pInfo->numOfPoints; ++i) {
     SModeItem* pItem = (SModeItem*)(pInfo->pItems + i * (sizeof(SModeItem) + pInfo->colBytes));
@@ -5381,6 +5381,7 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     }
   }
 
+  ASSERT(resIndex >= 0);
   SModeItem* pResItem = (SModeItem*)(pInfo->pItems + resIndex * (sizeof(SModeItem) + pInfo->colBytes));
   colDataAppend(pCol, currentRow, pResItem->data, (maxCount == 0) ? true : false);
 
