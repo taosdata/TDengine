@@ -90,7 +90,7 @@ void syncCleanUp() {
 int64_t syncOpen(SSyncInfo* pSyncInfo) {
   SSyncNode* pSyncNode = syncNodeOpen(pSyncInfo);
   if (pSyncNode == NULL) {
-    sError("failed to open sync node. vgId:%d", pSyncInfo->vgId);
+    sError("vgId:%d, failed to open sync node", pSyncInfo->vgId);
     return -1;
   }
 
@@ -106,7 +106,7 @@ int64_t syncOpen(SSyncInfo* pSyncInfo) {
 }
 
 void syncStart(int64_t rid) {
-  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  SSyncNode* pSyncNode = taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
     return;
   }
@@ -121,7 +121,7 @@ void syncStart(int64_t rid) {
 }
 
 void syncStartNormal(int64_t rid) {
-  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  SSyncNode* pSyncNode = taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
     return;
   }
@@ -131,7 +131,7 @@ void syncStartNormal(int64_t rid) {
 }
 
 void syncStartStandBy(int64_t rid) {
-  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  SSyncNode* pSyncNode = taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
     return;
   }
@@ -141,7 +141,7 @@ void syncStartStandBy(int64_t rid) {
 }
 
 void syncStop(int64_t rid) {
-  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  SSyncNode* pSyncNode = taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) return;
   int32_t vgId = pSyncNode->vgId;
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
@@ -151,7 +151,7 @@ void syncStop(int64_t rid) {
 }
 
 int32_t syncSetStandby(int64_t rid) {
-  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  SSyncNode* pSyncNode = taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     sError("failed to set standby since accquire ref error, rid:%" PRId64, rid);
@@ -1089,17 +1089,13 @@ int32_t syncHbTimerStop(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer) {
   return ret;
 }
 
-// open/close --------------
-SSyncNode* syncNodeOpen(SSyncInfo* pOldSyncInfo) {
-  SSyncInfo* pSyncInfo = (SSyncInfo*)pOldSyncInfo;
-
-  SSyncNode* pSyncNode = (SSyncNode*)taosMemoryCalloc(1, sizeof(SSyncNode));
+SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
+  SSyncNode* pSyncNode = taosMemoryCalloc(1, sizeof(SSyncNode));
   if (pSyncNode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
 
-  int32_t ret = 0;
   if (!taosDirExist((char*)(pSyncInfo->path))) {
     if (taosMkDir(pSyncInfo->path) != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -1111,30 +1107,42 @@ SSyncNode* syncNodeOpen(SSyncInfo* pOldSyncInfo) {
   snprintf(pSyncNode->configPath, sizeof(pSyncNode->configPath), "%s%sraft_config.json", pSyncInfo->path, TD_DIRSEP);
   if (!taosCheckExistFile(pSyncNode->configPath)) {
     // create a new raft config file
-    SRaftCfgMeta meta;
+    SRaftCfgMeta meta = {0};
     meta.isStandBy = pSyncInfo->isStandBy;
     meta.snapshotStrategy = pSyncInfo->snapshotStrategy;
     meta.lastConfigIndex = SYNC_INDEX_INVALID;
     meta.batchSize = pSyncInfo->batchSize;
-    ret = raftCfgCreateFile((SSyncCfg*)&(pSyncInfo->syncCfg), meta, pSyncNode->configPath);
-    if (ret != 0) {
-      sError("failed to create raft cfg file. configPath: %s", pSyncNode->configPath);
+    if (raftCfgCreateFile(&pSyncInfo->syncCfg, meta, pSyncNode->configPath) != 0) {
+      sError("vgId:%d, failed to create raft cfg file at %s", pSyncNode->vgId, pSyncNode->configPath);
       goto _error;
     }
     if (pSyncInfo->syncCfg.replicaNum == 0) {
+      sInfo("vgId:%d, sync config not input", pSyncNode->vgId);
       pSyncInfo->syncCfg = pSyncNode->pRaftCfg->cfg;
     }
   } else {
     // update syncCfg by raft_config.json
     pSyncNode->pRaftCfg = raftCfgOpen(pSyncNode->configPath);
     if (pSyncNode->pRaftCfg == NULL) {
-      sError("failed to open raft cfg file. path:%s", pSyncNode->configPath);
+      sError("vgId:%d, failed to open raft cfg file at %s", pSyncNode->vgId, pSyncNode->configPath);
       goto _error;
     }
-    pSyncInfo->syncCfg = pSyncNode->pRaftCfg->cfg;
+    if (pSyncInfo->syncCfg.replicaNum > 0 && pSyncInfo->syncCfg.replicaNum != pSyncNode->pRaftCfg->cfg.replicaNum) {
+      sInfo("vgId:%d, use sync config from input options", pSyncNode->vgId);
+    } else {
+      sInfo("vgId:%d, use sync config from raft cfg file", pSyncNode->vgId);
+      pSyncInfo->syncCfg = pSyncNode->pRaftCfg->cfg;
+    }
 
     raftCfgClose(pSyncNode->pRaftCfg);
     pSyncNode->pRaftCfg = NULL;
+  }
+
+  SSyncCfg* pCfg = &pSyncInfo->syncCfg;
+  sDebug("vgId:%d, replica:%d selfIndex:%d", pSyncNode->vgId, pCfg->replicaNum, pCfg->myIndex);
+  for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
+    SNodeInfo* pNode = &pCfg->nodeInfo[i];
+    sDebug("vgId:%d, index:%d ep:%s:%u", pSyncNode->vgId, i, pNode->nodeFqdn, pNode->nodePort);
   }
 
   // init by SSyncInfo
