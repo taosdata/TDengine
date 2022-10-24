@@ -1062,7 +1062,7 @@ int32_t metaFilterCreateTime(SMeta *pMeta, SMetaFltParam *param, SArray *pUids) 
   if (tdbTbcMoveTo(pCursor->pCur, &ctimeKey, sizeof(ctimeKey), &cmp) < 0) {
     goto END;
   }
-  bool    first = true;
+
   int32_t valid = 0;
   while (1) {
     void   *entryKey = NULL;
