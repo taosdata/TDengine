@@ -1488,8 +1488,13 @@ static int32_t sclGetMinusOperatorResType(SOperatorNode *pOp) {
 }
 
 static int32_t sclGetMathOperatorResType(SOperatorNode *pOp) {
+  if (pOp == NULL || pOp->pLeft == NULL || pOp->pRight == NULL) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
   SDataType ldt = ((SExprNode *)(pOp->pLeft))->resType;
   SDataType rdt = ((SExprNode *)(pOp->pRight))->resType;
+
   if ((TSDB_DATA_TYPE_TIMESTAMP == ldt.type && TSDB_DATA_TYPE_TIMESTAMP == rdt.type) ||
       (TSDB_DATA_TYPE_TIMESTAMP == ldt.type && (IS_VAR_DATA_TYPE(rdt.type) || IS_FLOAT_TYPE(rdt.type))) ||
       (TSDB_DATA_TYPE_TIMESTAMP == rdt.type && (IS_VAR_DATA_TYPE(ldt.type) || IS_FLOAT_TYPE(ldt.type)))) {
@@ -1510,7 +1515,12 @@ static int32_t sclGetMathOperatorResType(SOperatorNode *pOp) {
 }
 
 static int32_t sclGetCompOperatorResType(SOperatorNode *pOp) {
+  if (pOp == NULL || pOp->pLeft == NULL || pOp->pRight == NULL) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
   SDataType ldt = ((SExprNode *)(pOp->pLeft))->resType;
+
   if (OP_TYPE_IN == pOp->opType || OP_TYPE_NOT_IN == pOp->opType) {
     ((SExprNode *)(pOp->pRight))->resType = ldt;
   } else if (nodesIsRegularOp(pOp)) {
@@ -1526,8 +1536,13 @@ static int32_t sclGetCompOperatorResType(SOperatorNode *pOp) {
 }
 
 static int32_t sclGetJsonOperatorResType(SOperatorNode *pOp) {
+  if (pOp == NULL || pOp->pLeft == NULL || pOp->pRight == NULL) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
   SDataType ldt = ((SExprNode *)(pOp->pLeft))->resType;
   SDataType rdt = ((SExprNode *)(pOp->pRight))->resType;
+
   if (TSDB_DATA_TYPE_JSON != ldt.type || !IS_STR_DATA_TYPE(rdt.type)) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
