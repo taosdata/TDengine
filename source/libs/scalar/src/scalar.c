@@ -331,7 +331,10 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
 
       ASSERT(param->columnData == NULL);
       param->numOfRows = 1;
-      /*int32_t code = */ sclCreateColumnInfoData(&valueNode->node.resType, 1, param);
+      int32_t code = sclCreateColumnInfoData(&valueNode->node.resType, 1, param);
+      if (code != TSDB_CODE_SUCCESS) {
+        SCL_RET(TSDB_CODE_OUT_OF_MEMORY);
+      }
       if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type || valueNode->isNull) {
         colDataAppendNULL(param->columnData, 0);
       } else {
