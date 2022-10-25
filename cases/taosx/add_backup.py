@@ -50,6 +50,7 @@ class AddBackup(TDCase):
         self.drop_flag = 'yes'
         self.start_timestamp = 1601481600000
         self.child_table_exist_flag = 'no'
+        self.replica = [1,3]
         # add_start_timestamp >= start_timestamp + row_num
         self.add_drop_flag = 'no'
         self.add_start_timestamp = 1601481610000
@@ -267,12 +268,14 @@ class AddBackup(TDCase):
                 
 
     def run(self):
-        self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root)
-        # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num,'create',self.ntb_starttimestamp)
-        self.add_backup_db_stb('db')
-        self.add_backup_db_stb('stb')
-        # self.add_backup_ctb()
-        # self.add_backup_ntb()
+        for replica in self.replica:
+            self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
+            self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root,replica)
+            # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num,'create',self.ntb_starttimestamp)
+            self.add_backup_db_stb('db')
+            self.add_backup_db_stb('stb')
+            # self.add_backup_ctb()
+            # self.add_backup_ntb()
     def cleanup(self):
         pass
 

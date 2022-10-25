@@ -221,7 +221,8 @@ class FullBackup(TDCase):
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'rm -rf {self.run_log_dir}/{self.source_taosd_list[source][0]}_backup_{source}')
 
     def run(self):
-        
+        for replica in self.replica:
+            self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
             self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root,replica)
             self.full_backup_db_stb('db')
             self.full_backup_db_stb('stb')
