@@ -58,17 +58,19 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
 
   // partition by tbname
   if (taosArrayGetSize(pTableList->pGroupList) == taosArrayGetSize(pTableList->pTableList)) {
-    pInfo->retrieveType = CACHESCAN_RETRIEVE_TYPE_ALL|(pScanNode->ignoreNull? CACHESCAN_RETRIEVE_LAST:CACHESCAN_RETRIEVE_LAST_ROW);
+    pInfo->retrieveType =
+        CACHESCAN_RETRIEVE_TYPE_ALL | (pScanNode->ignoreNull ? CACHESCAN_RETRIEVE_LAST : CACHESCAN_RETRIEVE_LAST_ROW);
     code = tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pTableList->pTableList,
-                                   taosArrayGetSize(pInfo->pColMatchInfo), &pInfo->pLastrowReader);
+                                   taosArrayGetSize(pInfo->pColMatchInfo), pTableList->suid, &pInfo->pLastrowReader);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
 
     pInfo->pBufferredRes = createOneDataBlock(pInfo->pRes, false);
     blockDataEnsureCapacity(pInfo->pBufferredRes, pOperator->resultInfo.capacity);
-  } else { // by tags
-    pInfo->retrieveType = CACHESCAN_RETRIEVE_TYPE_SINGLE|(pScanNode->ignoreNull? CACHESCAN_RETRIEVE_LAST:CACHESCAN_RETRIEVE_LAST_ROW);
+  } else {  // by tags
+    pInfo->retrieveType = CACHESCAN_RETRIEVE_TYPE_SINGLE |
+                          (pScanNode->ignoreNull ? CACHESCAN_RETRIEVE_LAST : CACHESCAN_RETRIEVE_LAST_ROW);
   }
 
   if (pScanNode->scan.pScanPseudoCols != NULL) {
@@ -184,7 +186,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       SArray* pGroupTableList = taosArrayGetP(pTableList->pGroupList, pInfo->currentGroupIndex);
 
       tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pGroupTableList,
-                              taosArrayGetSize(pInfo->pColMatchInfo), &pInfo->pLastrowReader);
+                              taosArrayGetSize(pInfo->pColMatchInfo), pTableList->suid, &pInfo->pLastrowReader);
       taosArrayClear(pInfo->pUidList);
 
       int32_t code = tsdbRetrieveCacheRows(pInfo->pLastrowReader, pInfo->pRes, pInfo->pSlotIds, pInfo->pUidList);

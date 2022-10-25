@@ -298,29 +298,6 @@ int32_t tsdbMerge(STsdb *pTsdb);
 #define TSDB_CACHE_LAST_ROW(c) (((c).cacheLast & 1) > 0)
 #define TSDB_CACHE_LAST(c)     (((c).cacheLast & 2) > 0)
 
-// tsdbCache ==============================================================================================
-typedef struct {
-  TSKEY   ts;
-  SColVal colVal;
-} SLastCol;
-
-int32_t tsdbOpenCache(STsdb *pTsdb);
-void    tsdbCloseCache(STsdb *pTsdb);
-int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row, STsdb *pTsdb);
-int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, STSRow *row, bool dup);
-int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHandle **h);
-int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, STsdb *pTsdb, LRUHandle **h);
-int32_t tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h);
-
-int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
-int32_t tsdbCacheDeleteLast(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
-int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
-
-void   tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity);
-size_t tsdbCacheGetCapacity(SVnode *pVnode);
-
-int32_t tsdbCacheLastArray2Row(SArray *pLastArray, STSRow **ppRow, STSchema *pSchema);
-
 // tsdbDiskData ==============================================================================================
 int32_t tDiskDataBuilderCreate(SDiskDataBuilder **ppBuilder);
 void   *tDiskDataBuilderDestroy(SDiskDataBuilder *pBuilder);
@@ -728,6 +705,44 @@ SSttBlockLoadInfo *tCreateLastBlockLoadInfo(STSchema *pSchema, int16_t *colList,
 void               resetLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 void               getLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo, int64_t *blocks, double *el);
 void              *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
+
+// tsdbCache ==============================================================================================
+typedef struct SCacheRowsReader {
+  SVnode            *pVnode;
+  STSchema          *pSchema;
+  uint64_t           uid;
+  uint64_t           suid;
+  char             **transferBuf;  // todo remove it soon
+  int32_t            numOfCols;
+  int32_t            type;
+  int32_t            tableIndex;  // currently returned result tables
+  SArray            *pTableList;  // table id list
+  SSttBlockLoadInfo *pLoadInfo;
+  STsdbReadSnap     *pReadSnap;
+  SDataFReader      *pDataFReader;
+} SCacheRowsReader;
+
+typedef struct {
+  TSKEY   ts;
+  SColVal colVal;
+} SLastCol;
+
+int32_t tsdbOpenCache(STsdb *pTsdb);
+void    tsdbCloseCache(STsdb *pTsdb);
+int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row, STsdb *pTsdb);
+int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, STSRow *row, bool dup);
+int32_t tsdbCacheGetLastH(SLRUCache *pCache, tb_uid_t uid, SCacheRowsReader *pr, LRUHandle **h);
+int32_t tsdbCacheGetLastrowH(SLRUCache *pCache, tb_uid_t uid, SCacheRowsReader *pr, LRUHandle **h);
+int32_t tsdbCacheRelease(SLRUCache *pCache, LRUHandle *h);
+
+int32_t tsdbCacheDeleteLastrow(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
+int32_t tsdbCacheDeleteLast(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
+int32_t tsdbCacheDelete(SLRUCache *pCache, tb_uid_t uid, TSKEY eKey);
+
+void   tsdbCacheSetCapacity(SVnode *pVnode, size_t capacity);
+size_t tsdbCacheGetCapacity(SVnode *pVnode);
+
+int32_t tsdbCacheLastArray2Row(SArray *pLastArray, STSRow **ppRow, STSchema *pSchema);
 
 // ========== inline functions ==========
 static FORCE_INLINE int32_t tsdbKeyCmprFn(const void *p1, const void *p2) {
