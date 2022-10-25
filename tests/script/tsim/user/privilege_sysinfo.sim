@@ -137,10 +137,9 @@ sql_error show create database d2
 sql       show create table d2.stb2;
 sql       show create table d2.ctb2;
 sql       show create table d2.ntb2;
-sql_error show variables;
 sql       show local variables;
 sql_error show dnode 1 variables;
-sql_error show variables;
+sql       show variables;
 
 
 print =============== check information_schema
