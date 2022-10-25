@@ -43,7 +43,13 @@ class TDTestCase:
                         f'today(),3,3.333,333.333333,now()',
                         f'today()-1d,10,11.11,99.999999,now()',
                         f'today()+1d,1,1.55,100.555555,today()']
-        self.db_percision = ['ms','us','ns']
+        
+        self.rest_tag = str(conn).lower().split('.')[0].replace("<taos","")
+        if self.rest_tag != 'rest':
+            self.db_percision = ['ms','us','ns']
+        else:
+            self.db_percision = ['ms','us']
+            
     def set_create_normaltable_sql(self, ntbname, column_dict):
         column_sql = ''
         for k, v in column_dict.items():

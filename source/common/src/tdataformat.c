@@ -114,7 +114,7 @@ static void setBitMap(uint8_t *pb, uint8_t v, int32_t idx, uint8_t flags) {
       ((uint32_t *)(p))[i] = (n);  \
     }                              \
   } while (0)
-
+#if 0
 int32_t tTSRowNew(STSRowBuilder *pBuilder, SArray *pArray, STSchema *pTSchema, STSRow2 **ppRow) {
   int32_t code = 0;
 #if 0
@@ -432,7 +432,6 @@ void tTSRowFree(STSRow2 *pRow) {
 }
 
 void tTSRowGet(STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
-#if 0
   uint8_t   isTuple = ((pRow->flags & 0xf0) == 0) ? 1 : 0;
   STColumn *pTColumn = &pTSchema->columns[iCol];
   uint8_t   flags = pRow->flags & (uint8_t)0xf;
@@ -577,12 +576,10 @@ _return_null:
 _return_value:
   *pColVal = COL_VAL_VALUE(pTColumn->colId, pTColumn->type, value);
   return;
-#endif
 }
 
 int32_t tTSRowToArray(STSRow2 *pRow, STSchema *pTSchema, SArray **ppArray) {
   int32_t code = 0;
-#if 0
   SColVal cv;
 
   (*ppArray) = taosArrayInit(pTSchema->numOfCols, sizeof(SColVal));
@@ -596,11 +593,11 @@ int32_t tTSRowToArray(STSRow2 *pRow, STSchema *pTSchema, SArray **ppArray) {
     taosArrayPush(*ppArray, &cv);
   }
 
-#endif
+
 _exit:
   return code;
 }
-
+#endif
 int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow) {
   int32_t n = 0;
 
@@ -896,16 +893,26 @@ void tTagFree(STag *pTag) {
 }
 
 char *tTagValToData(const STagVal *value, bool isJson) {
-  if (!value) return NULL;
+  if (!value) {
+    return NULL;
+  }
+
   char  *data = NULL;
   int8_t typeBytes = 0;
   if (isJson) {
     typeBytes = CHAR_BYTES;
   }
+
   if (IS_VAR_DATA_TYPE(value->type)) {
     data = taosMemoryCalloc(1, typeBytes + VARSTR_HEADER_SIZE + value->nData);
-    if (data == NULL) return NULL;
-    if (isJson) *data = value->type;
+    if (data == NULL) {
+      return NULL;
+    }
+
+    if (isJson) {
+      *data = value->type;
+    }
+
     varDataLen(data + typeBytes) = value->nData;
     memcpy(varDataVal(data + typeBytes), value->pData, value->nData);
   } else {

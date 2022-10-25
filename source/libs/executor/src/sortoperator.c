@@ -64,7 +64,7 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
   //  there are headers, so pageSize = rowSize + header pInfo->sortBufSize  = pInfo->bufPageSize * 16;
   // TODO dynamic set the available sort buffer
 
-  pOperator->fpSet = createOperatorFpSet(doOpenSortOperator, doSort, NULL, NULL, destroyOrderOperatorInfo, NULL, NULL,
+  pOperator->fpSet = createOperatorFpSet(doOpenSortOperator, doSort, NULL, NULL, destroyOrderOperatorInfo,
                                          getExplainExecInfo);
 
   int32_t code = appendDownstream(pOperator, &downstream, 1);
@@ -515,7 +515,7 @@ SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSort
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doGroupSort, NULL, NULL, destroyGroupSortOperatorInfo,
-                                         NULL, NULL, getGroupSortExplainExecInfo);
+                                         getGroupSortExplainExecInfo);
 
   int32_t code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -719,11 +719,15 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   SOperatorInfo*              pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   SDataBlockDescNode*         pDescNode = pPhyNode->pOutputDataBlockDesc;
 
-  pInfo->binfo.pRes = createResDataBlock(pDescNode);
-  int32_t rowSize = pInfo->binfo.pRes->info.rowSize;
-  if (pInfo == NULL || pOperator == NULL || rowSize > 100 * 1024 * 1024) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pInfo == NULL || pOperator == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
     goto _error;
   }
+
+  pInfo->binfo.pRes = createResDataBlock(pDescNode);
+  int32_t rowSize = pInfo->binfo.pRes->info.rowSize;
+  ASSERT(rowSize < 100 * 1024 * 1024);
 
   SArray* pSortInfo = createSortInfo(pMergePhyNode->pMergeKeys);
   int32_t numOfOutputCols = 0;
@@ -737,6 +741,9 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   pInfo->pSortInfo = pSortInfo;
   pInfo->pColMatchInfo = pColMatchColInfo;
   pInfo->pInputBlock = pInputBlock;
+  pInfo->bufPageSize = getProperSortPageSize(rowSize);
+  pInfo->sortBufSize = pInfo->bufPageSize * (numStreams + 1);  // one additional is reserved for merged result.
+
   pOperator->name = "MultiwayMerge";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_MERGE;
   pOperator->blocking = false;
@@ -744,15 +751,10 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   pOperator->info = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
 
-  pInfo->bufPageSize = getProperSortPageSize(rowSize);
-
-  // one additional is reserved for merged result.
-  pInfo->sortBufSize = pInfo->bufPageSize * (numStreams + 1);
-
   pOperator->fpSet = createOperatorFpSet(doOpenMultiwayMergeOperator, doMultiwayMerge, NULL, NULL,
-                                         destroyMultiwayMergeOperatorInfo, NULL, NULL, getMultiwayMergeExplainExecInfo);
+                                         destroyMultiwayMergeOperatorInfo, getMultiwayMergeExplainExecInfo);
 
-  int32_t code = appendDownstream(pOperator, downStreams, numStreams);
+  code = appendDownstream(pOperator, downStreams, numStreams);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }

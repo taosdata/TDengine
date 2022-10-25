@@ -1429,57 +1429,6 @@ void vectorAssign(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut,
   pOut->numOfQualified = pRight->numOfQualified * pOut->numOfRows;
 }
 
-void vectorConcat(SScalarParam *pLeft, SScalarParam *pRight, void *out, int32_t _ord) {
-#if 0
-  int32_t len = pLeft->bytes + pRight->bytes;
-
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
-  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-
-  char *output = (char *)out;
-  if (pLeft->numOfRows == pRight->numOfRows) {
-    for (; i < pRight->numOfRows && i >= 0; i += step, output += len) {
-      char* left = POINTER_SHIFT(pLeft->data, pLeft->bytes * i);
-      char* right = POINTER_SHIFT(pRight->data, pRight->bytes * i);
-
-      if (isNull(left, pLeftCol->info.type) || isNull(right, pRight->info.type)) {
-        setVardataNull(output, TSDB_DATA_TYPE_BINARY);
-        continue;
-      }
-
-      // todo define a macro
-      memcpy(varDataVal(output), varDataVal(left), varDataLen(left));
-      memcpy(varDataVal(output) + varDataLen(left), varDataVal(right), varDataLen(right));
-      varDataSetLen(output, varDataLen(left) + varDataLen(right));
-    }
-  } else if (pLeft->numOfRows == 1) {
-    for (; i >= 0 && i < pRight->numOfRows; i += step, output += len) {
-      char *right = POINTER_SHIFT(pRight->data, pRight->bytes * i);
-      if (isNull(pLeft->data, pLeftCol->info.type) || isNull(right, pRight->info.type)) {
-        setVardataNull(output, TSDB_DATA_TYPE_BINARY);
-        continue;
-      }
-
-      memcpy(varDataVal(output), varDataVal(pLeft->data), varDataLen(pLeft->data));
-      memcpy(varDataVal(output) + varDataLen(pLeft->data), varDataVal(right), varDataLen(right));
-      varDataSetLen(output, varDataLen(pLeft->data) + varDataLen(right));
-    }
-  } else if (pRight->numOfRows == 1) {
-    for (; i >= 0 && i < pLeft->numOfRows; i += step, output += len) {
-      char* left = POINTER_SHIFT(pLeft->data, pLeft->bytes * i);
-      if (isNull(left, pLeftCol->info.type) || isNull(pRight->data, pRight->info.type)) {
-        SET_DOUBLE_NULL(output);
-        continue;
-      }
-
-      memcpy(varDataVal(output), varDataVal(left), varDataLen(pRight->data));
-      memcpy(varDataVal(output) + varDataLen(left), varDataVal(pRight->data), varDataLen(pRight->data));
-      varDataSetLen(output, varDataLen(left) + varDataLen(pRight->data));
-    }
-  }
-#endif
-}
-
 static void vectorBitAndHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRightCol, SColumnInfoData *pOutputCol,
                                int32_t numOfRows, int32_t step, int32_t i) {
   _getBigintValue_fn_t getVectorBigintValueFnLeft = getVectorBigintValueFn(pLeftCol->info.type);

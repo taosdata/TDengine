@@ -203,6 +203,7 @@ int32_t nodesReleaseAllocator(int64_t allocatorId) {
   return taosReleaseRef(g_allocatorReqRefPool, allocatorId);
 }
 
+
 int64_t nodesMakeAllocatorWeakRef(int64_t allocatorId) {
   if (allocatorId <= 0) {
     return 0;
@@ -1826,7 +1827,7 @@ static EDealRes collectFuncs(SNode* pNode, void* pContext) {
   if (QUERY_NODE_FUNCTION == nodeType(pNode) && pCxt->classifier(((SFunctionNode*)pNode)->funcId) &&
       !(((SExprNode*)pNode)->orderAlias)) {
     SExprNode* pExpr = (SExprNode*)pNode;
-    if (NULL == taosHashGet(pCxt->pFuncsSet, &pExpr, POINTER_BYTES)) {
+    if (NULL == taosHashGet(pCxt->pFuncsSet, &pExpr, sizeof(SExprNode*))) {
       pCxt->errCode = nodesListStrictAppend(pCxt->pFuncs, nodesCloneNode(pNode));
       taosHashPut(pCxt->pFuncsSet, &pExpr, POINTER_BYTES, &pExpr, POINTER_BYTES);
     }

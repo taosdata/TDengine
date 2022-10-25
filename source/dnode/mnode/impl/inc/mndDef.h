@@ -204,7 +204,8 @@ typedef struct {
   int32_t    id;
   int64_t    createdTime;
   int64_t    updateTime;
-  ESyncState state;
+  ESyncState syncState;
+  bool       syncRestore;
   int64_t    stateStartTime;
   SDnodeObj* pDnode;
 } SMnodeObj;
@@ -324,7 +325,8 @@ typedef struct {
 
 typedef struct {
   int32_t    dnodeId;
-  ESyncState role;
+  ESyncState syncState;
+  bool       syncRestore;
 } SVnodeGid;
 
 typedef struct {
@@ -611,6 +613,7 @@ typedef struct {
   // config
   int8_t  igExpired;
   int8_t  trigger;
+  int8_t  fillHistory;
   int64_t triggerParam;
   int64_t watermark;
   // source and target

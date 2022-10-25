@@ -36,6 +36,7 @@ typedef struct SStreamTask SStreamTask;
 enum {
   STREAM_STATUS__NORMAL = 0,
   STREAM_STATUS__STOP,
+  STREAM_STATUS__INIT,
   STREAM_STATUS__FAILED,
   STREAM_STATUS__RECOVER,
 };
@@ -291,6 +292,9 @@ typedef struct SStreamTask {
   int64_t recoverSnapVer;
   int64_t startVer;
 
+  // fill history
+  int8_t fillHistory;
+
   // children info
   SArray* childEpInfo;  // SArray<SStreamChildEpInfo*>
   int32_t nextCheckId;
@@ -534,7 +538,7 @@ typedef struct SStreamMeta {
 SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc);
 void         streamMetaClose(SStreamMeta* streamMeta);
 
-int32_t      streamMetaAddTask(SStreamMeta* pMeta, SStreamTask* pTask);
+// int32_t      streamMetaAddTask(SStreamMeta* pMeta, SStreamTask* pTask);
 int32_t      streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t startVer, char* msg, int32_t msgLen);
 int32_t      streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
 SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId);

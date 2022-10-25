@@ -497,8 +497,13 @@ static char* shellFormatTimestamp(char* buf, int64_t val, int32_t precision) {
 static void shellDumpFieldToFile(TdFilePtr pFile, const char* val, TAOS_FIELD* field, int32_t length,
                                  int32_t precision) {
   if (val == NULL) {
+    taosFprintfFile(pFile, "NULL");
     return;
   }
+
+  char quotationStr[2];
+  quotationStr[0] = '\"';
+  quotationStr[1] = 0;
 
   int  n;
   char buf[TSDB_MAX_BYTES_PER_ROW];
@@ -545,33 +550,23 @@ static void shellDumpFieldToFile(TdFilePtr pFile, const char* val, TAOS_FIELD* f
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON:
       {
-        char quotationStr[2];
         int32_t bufIndex = 0;
-        quotationStr[0] = 0;
-        quotationStr[1] = 0;
         for (int32_t i = 0; i < length; i++) {
           buf[bufIndex] = val[i];
           bufIndex++;
           if (val[i] == '\"') {
             buf[bufIndex] = val[i];
             bufIndex++;
-            quotationStr[0] = '\"';
-          }
-          if (val[i] == ',') {
-            quotationStr[0] = '\"';
           }
         }
         buf[bufIndex] = 0;
-        if (length == 0) {
-          quotationStr[0] = '\"';
-        }
         
         taosFprintfFile(pFile, "%s%s%s", quotationStr, buf, quotationStr);
       }
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
       shellFormatTimestamp(buf, *(int64_t*)val, precision);
-      taosFprintfFile(pFile, "%s", buf);
+      taosFprintfFile(pFile, "%s%s%s", quotationStr, buf, quotationStr);
       break;
     default:
       break;
@@ -1262,7 +1257,7 @@ void* ombProduceThreadFunc(void* param) {
 
   printf("Produce Info: totalSendLoopTimes: %d, batchPerTblTimes: %d, producerRate: %d\n", totalSendLoopTimes, batchPerTblTimes, pInfo->producerRate);
 
-  char  ctbName[64] = {0};
+  char ctbName[128] = {0};
   sprintf(ctbName, "%s.ctb%d", g_stConfInfo.dbName, pInfo->consumerId);
 
   int64_t	 lastPrintTime = taosGetTimestampUs();

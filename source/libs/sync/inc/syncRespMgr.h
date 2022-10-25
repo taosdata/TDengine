@@ -32,9 +32,9 @@ typedef struct SRespStub {
 } SRespStub;
 
 typedef struct SSyncRespMgr {
-  SHashObj     *pRespHash;
+  SHashObj *    pRespHash;
   int64_t       ttl;
-  void         *data;
+  void *        data;
   TdThreadMutex mutex;
   uint64_t      seqNum;
 } SSyncRespMgr;

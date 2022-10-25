@@ -30,6 +30,7 @@ void shellClearScreen(int32_t ecmd_pos, int32_t cursor_pos);
 void shellGetPrevCharSize(const char* str, int32_t pos, int32_t* size, int32_t* width);
 void shellShowOnScreen(SShellCmd* cmd);
 void shellInsertChar(SShellCmd* cmd, char* c, int size);
+void shellInsertStr(SShellCmd* cmd, char* str, int size);
 bool appendAfterSelect(TAOS* con, SShellCmd* cmd, char* p, int32_t len);
 
 typedef struct SAutoPtr {
@@ -562,23 +563,15 @@ void parseCommand(SWords* command, bool pattern) {
 
 // free SShellCmd
 void freeCommand(SWords* command) {
-  SWord* word = command->head;
-  if (word == NULL) {
-    return;
-  }
-
+  SWord* item = command->head;
   // loop
-  while (word->next) {
-    SWord* tmp = word;
-    word = word->next;
+  while (item) {
+    SWord* tmp = item;
+    item = item->next;
     // if malloc need free
     if (tmp->free && tmp->word) taosMemoryFree(tmp->word);
     taosMemoryFree(tmp);
   }
-
-  // if malloc need free
-  if (word->free && word->word) taosMemoryFree(word->word);
-  taosMemoryFree(word);
 }
 
 void GenerateVarType(int type, char** p, int count) {
@@ -1107,7 +1100,7 @@ void printScreen(TAOS* con, SShellCmd* cmd, SWords* match) {
   }
 
   // insert new
-  shellInsertChar(cmd, (char*)str, strLen);
+  shellInsertStr(cmd, (char*)str, strLen);
 }
 
 // main key press tab , matched return true else false
@@ -1204,11 +1197,11 @@ bool nextMatchCommand(TAOS* con, SShellCmd* cmd, SWords* firstMatch) {
 #endif
 
   // free
+  freeCommand(input);
   if (input->source) {
     taosMemoryFree(input->source);
     input->source = NULL;
   }
-  freeCommand(input);
   taosMemoryFree(input);
 
   return true;
@@ -1228,7 +1221,7 @@ bool fillWithType(TAOS* con, SShellCmd* cmd, char* pre, int type) {
 
   // show
   int count = strlen(part);
-  shellInsertChar(cmd, part, count);
+  shellInsertStr(cmd, part, count);
   cntDel = count;  // next press tab delete current append count
 
   taosMemoryFree(str);
@@ -1255,7 +1248,7 @@ bool fillTableName(TAOS* con, SShellCmd* cmd, char* pre) {
 
   // show
   int count = strlen(part);
-  shellInsertChar(cmd, part, count);
+  shellInsertStr(cmd, part, count);
   cntDel = count;  // next press tab delete current append count
 
   taosMemoryFree(str);
@@ -1377,9 +1370,9 @@ bool appendAfterSelect(TAOS* con, SShellCmd* cmd, char* sql, int32_t len) {
   bool  ret = false;
   if (from == NULL) {
     bool fieldEnd = fieldsInputEnd(p);
-    // cheeck fields input end then insert from keyword
+    // check fields input end then insert from keyword
     if (fieldEnd && p[len - 1] == ' ') {
-      shellInsertChar(cmd, "from", 4);
+      shellInsertStr(cmd, "from", 4);
       taosMemoryFree(p);
       return true;
     }
@@ -1577,7 +1570,7 @@ bool matchOther(TAOS* con, SShellCmd* cmd) {
   if (p[len - 1] == '\\') {
     // append '\G'
     char a[] = "G;";
-    shellInsertChar(cmd, a, 2);
+    shellInsertStr(cmd, a, 2);
     return true;
   }
 

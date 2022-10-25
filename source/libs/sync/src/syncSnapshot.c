@@ -41,6 +41,8 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
     }
     memset(pSender, 0, sizeof(*pSender));
 
+    int64_t timeNow = taosGetTimestampMs();
+
     pSender->start = false;
     pSender->seq = SYNC_SNAPSHOT_SEQ_INVALID;
     pSender->ack = SYNC_SNAPSHOT_SEQ_INVALID;
@@ -51,7 +53,8 @@ SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaI
     pSender->pSyncNode = pSyncNode;
     pSender->replicaIndex = replicaIndex;
     pSender->term = pSyncNode->pRaftStore->currentTerm;
-    pSender->privateTerm = taosGetTimestampMs() + 100;
+    pSender->privateTerm = timeNow + 100;
+    pSender->startTime = timeNow;
     pSender->pSyncNode->pFsm->FpGetSnapshotInfo(pSender->pSyncNode->pFsm, &(pSender->snapshot));
     pSender->finish = false;
   } else {
@@ -402,6 +405,24 @@ char *snapshotSender2SimpleStr(SSyncSnapshotSender *pSender, char *event) {
   return s;
 }
 
+int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId) {
+  // calculate <start, end> index
+
+  syncNodeEventLog(pSyncNode, "start snapshot ...");
+
+  SSyncSnapshotSender *pSender = syncNodeGetSnapshotSender(pSyncNode, pDestId);
+  if (pSender == NULL) {
+    // create sender
+  } else {
+    // if <start, end> is same
+    // return 0;
+  }
+
+  // send begin msg
+
+  return 0;
+}
+
 // -------------------------------------
 SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode, SRaftId fromId) {
   bool condition = (pSyncNode->pFsm->FpSnapshotStartWrite != NULL) && (pSyncNode->pFsm->FpSnapshotStopWrite != NULL) &&
@@ -721,7 +742,7 @@ char *snapshotReceiver2SimpleStr(SSyncSnapshotReceiver *pReceiver, char *event) 
 // condition 3, recv SYNC_SNAPSHOT_SEQ_FORCE_CLOSE, force close
 // condition 4, got data, update ack
 //
-int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
+int32_t syncNodeOnSnapshot(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
   // get receiver
   SSyncSnapshotReceiver *pReceiver = pSyncNode->pNewNodeReceiver;
   bool                   needRsp = false;
@@ -834,7 +855,7 @@ int32_t syncNodeOnSnapshotSendCb(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg) {
 // condition 2 sender receives ack, set seq = ack + 1, send msg from seq
 // condition 3 sender receives error msg, just print error log
 //
-int32_t syncNodeOnSnapshotRspCb(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
+int32_t syncNodeOnSnapshotReply(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
   // if already drop replica, do not process
   if (!syncNodeInRaftGroup(pSyncNode, &(pMsg->srcId)) && pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     sError("vgId:%d, recv sync-snapshot-rsp, maybe replica already dropped", pSyncNode->vgId);

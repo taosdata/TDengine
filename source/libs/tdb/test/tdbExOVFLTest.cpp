@@ -119,13 +119,13 @@ static int tDefaultKeyCmpr(const void *pKey1, int keyLen1, const void *pKey2, in
   return cret;
 }
 
-TEST(TdbOVFLPagesTest, DISABLED_TbUpsertTest) {
-  // TEST(TdbOVFLPagesTest, TbUpsertTest) {
-}
+// TEST(TdbOVFLPagesTest, DISABLED_TbUpsertTest) {
+//  TEST(TdbOVFLPagesTest, TbUpsertTest) {
+//}
 
-TEST(TdbOVFLPagesTest, DISABLED_TbPGetTest) {
-  // TEST(TdbOVFLPagesTest, TbPGetTest) {
-}
+// TEST(TdbOVFLPagesTest, DISABLED_TbPGetTest) {
+//  TEST(TdbOVFLPagesTest, TbPGetTest) {
+//}
 
 static void generateBigVal(char *val, int valLen) {
   for (int i = 0; i < valLen; ++i) {
@@ -140,7 +140,7 @@ static void generateBigVal(char *val, int valLen) {
 static TDB *openEnv(char const *envName, int const pageSize, int const pageNum) {
   TDB *pEnv = NULL;
 
-  int ret = tdbOpen(envName, pageSize, pageNum, &pEnv);
+  int ret = tdbOpen(envName, pageSize, pageNum, &pEnv, 0);
   if (ret) {
     pEnv = NULL;
   }
@@ -162,8 +162,8 @@ static void insertOfp(void) {
   // open db
   TTB          *pDb = NULL;
   tdb_cmpr_fn_t compFunc = tKeyCmpr;
-  // ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb);
-  ret = tdbTbOpen("ofp_insert.db", 12, -1, compFunc, pEnv, &pDb);
+  // ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
+  ret = tdbTbOpen("ofp_insert.db", 12, -1, compFunc, pEnv, &pDb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   // open the pool
@@ -193,10 +193,8 @@ static void insertOfp(void) {
   tdbTxnClose(&txn);
 }
 
-TEST(TdbOVFLPagesTest, DISABLED_TbInsertTest) {
-  // TEST(TdbOVFLPagesTest, TbInsertTest) {
-  insertOfp();
-}
+// TEST(TdbOVFLPagesTest, DISABLED_TbInsertTest) {
+TEST(TdbOVFLPagesTest, TbInsertTest) { insertOfp(); }
 
 // TEST(TdbOVFLPagesTest, DISABLED_TbGetTest) {
 TEST(TdbOVFLPagesTest, TbGetTest) {
@@ -211,8 +209,8 @@ TEST(TdbOVFLPagesTest, TbGetTest) {
   // open db
   TTB          *pDb = NULL;
   tdb_cmpr_fn_t compFunc = tKeyCmpr;
-  // int           ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb);
-  int ret = tdbTbOpen("ofp_insert.db", 12, -1, compFunc, pEnv, &pDb);
+  // int           ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
+  int ret = tdbTbOpen("ofp_insert.db", 12, -1, compFunc, pEnv, &pDb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   // generate value payload
@@ -253,7 +251,7 @@ TEST(TdbOVFLPagesTest, TbDeleteTest) {
   // open db
   TTB          *pDb = NULL;
   tdb_cmpr_fn_t compFunc = tKeyCmpr;
-  ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb);
+  ret = tdbTbOpen("ofp_insert.db", -1, -1, compFunc, pEnv, &pDb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   // open the pool
@@ -354,12 +352,12 @@ TEST(tdb_test, simple_insert1) {
   taosRemoveDir("tdb");
 
   // Open Env
-  ret = tdbOpen("tdb", pageSize, 64, &pEnv);
+  ret = tdbOpen("tdb", pageSize, 64, &pEnv, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
   compFunc = tKeyCmpr;
-  ret = tdbTbOpen("db.db", -1, -1, compFunc, pEnv, &pDb);
+  ret = tdbTbOpen("db.db", -1, -1, compFunc, pEnv, &pDb, 0);
   GTEST_ASSERT_EQ(ret, 0);
 
   {
@@ -422,13 +420,13 @@ TEST(tdb_test, simple_insert1) {
 
       for (int i = 1; i <= nData; i++) {
         sprintf(key, "key%d", i);
-        sprintf(val, "value%d", i);
+        // sprintf(val, "value%d", i);
 
         ret = tdbTbGet(pDb, key, strlen(key), &pVal, &vLen);
         ASSERT(ret == 0);
         GTEST_ASSERT_EQ(ret, 0);
 
-        GTEST_ASSERT_EQ(vLen, strlen(val));
+        GTEST_ASSERT_EQ(vLen, sizeof(val) / sizeof(val[0]));
         GTEST_ASSERT_EQ(memcmp(val, pVal, vLen), 0);
       }
 

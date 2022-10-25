@@ -131,7 +131,7 @@ class TDDnode:
             "qDebugFlag": "143",
             "rpcDebugFlag": "143",
             "tmrDebugFlag": "131",
-            "uDebugFlag": "131",
+            "uDebugFlag": "143",
             "sDebugFlag": "143",
             "wDebugFlag": "143",
             "numOfLogLines": "100000000",

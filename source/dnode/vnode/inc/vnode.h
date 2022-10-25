@@ -50,6 +50,7 @@ extern const SVnodeCfg vnodeCfgDefault;
 int32_t vnodeInit(int32_t nthreads);
 void    vnodeCleanup();
 int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs);
+int32_t vnodeAlter(const char *path, SAlterVnodeReplicaReq *pReq, STfs *pTfs);
 void    vnodeDestroy(const char *path, STfs *pTfs);
 SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb);
 void    vnodePreClose(SVnode *pVnode);
@@ -82,6 +83,7 @@ int32_t vnodePreprocessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
 
 int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg *pRsp);
 int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+int32_t vnodeProcessSyncCtrlMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 void    vnodeProposeWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs);
@@ -118,7 +120,11 @@ typedef struct SMetaFltParam {
 
 } SMetaFltParam;
 
+// TODO, refactor later
 int32_t metaFilterTableIds(SMeta *pMeta, SMetaFltParam *param, SArray *results);
+int32_t metaFilterCreateTime(SMeta *pMeta, SMetaFltParam *parm, SArray *pUids);
+int32_t metaFilterTableName(SMeta *pMeta, SMetaFltParam *param, SArray *pUids);
+int32_t metaFilterTtl(SMeta *pMeta, SMetaFltParam *param, SArray *pUids);
 
 #if 1  // refact APIs below (TODO)
 typedef SVCreateTbReq   STbCfg;

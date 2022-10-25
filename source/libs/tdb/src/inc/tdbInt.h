@@ -190,12 +190,14 @@ int  tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate, SBTree *pBt);
 int  tdbPagerWrite(SPager *pPager, SPage *pPage);
 int  tdbPagerBegin(SPager *pPager, TXN *pTxn);
 int  tdbPagerCommit(SPager *pPager, TXN *pTxn);
+int  tdbPagerPostCommit(SPager *pPager, TXN *pTxn);
 int  tdbPagerAbort(SPager *pPager, TXN *pTxn);
 int  tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *, int), void *arg,
                        TXN *pTxn);
 void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn);
 int  tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
 int  tdbPagerRestore(SPager *pPager, SBTree *pBt);
+int  tdbPagerRollback(SPager *pPager);
 
 // tdbPCache.c ====================================
 #define TDB_PCACHE_PAGE    \
