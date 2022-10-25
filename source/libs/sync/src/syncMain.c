@@ -2802,6 +2802,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
   }
   syncTimeoutDestroy(pSyncMsg);
 
+#if 0
   // reset timer ms
   if (syncEnvIsStart() && pSyncNode->electBaseLine > 0) {
     pSyncNode->electTimerMS = syncUtilElectRandomMS(pSyncNode->electBaseLine, 2 * pSyncNode->electBaseLine);
@@ -2810,6 +2811,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
   } else {
     sError("sync env is stop, syncNodeEqElectTimer");
   }
+#endif
 }
 
 static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
