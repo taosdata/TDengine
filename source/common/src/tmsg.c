@@ -5988,7 +5988,6 @@ int32_t tDecodeSMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
         if (pSW == NULL) return -1;
         if (tDecodeSSchemaWrapper(pDecoder, pSW) < 0) return -1;
         taosArrayPush(pRsp->blockSchema, &pSW);
-        taosMemoryFree(pSW);
       }
 
       if (pRsp->withTbName) {
