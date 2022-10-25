@@ -2,6 +2,12 @@
 # Deps options
 # =========================================================
 
+option(
+    BUILD_TEST
+    "If build unit tests using googletest"
+    OFF
+)
+
 IF(${TD_WINDOWS})
 
     MESSAGE("build pthread Win32")
@@ -45,20 +51,48 @@ IF(${TD_WINDOWS})
                 "If build wingetopt on Windows"
             ON
         )
-
+    
     option(
-        BUILD_TEST 
-        "If build unit tests using googletest" 
-        ON
-    )
-ELSE ()
-
+            TDENGINE_3
+            "TDengine 3.x for taos-tools"
+            ON
+        )
+    
     option(
-        BUILD_TEST 
-        "If build unit tests using googletest" 
-        ON
-    )
+            BUILD_CRASHDUMP
+            "If build crashdump on Windows" 
+            ON
+        )
+
+ELSEIF (TD_DARWIN_64)
+    IF(${BUILD_TEST})
+        add_definitions(-DCOMPILER_SUPPORTS_CXX13)
+    ENDIF ()
 ENDIF ()
+
+option(
+    BUILD_SHARED_LIBS
+    ""
+    OFF
+    )
+
+option(
+    RUST_BINDINGS
+    "If build with rust-bindings"
+    ON
+    )
+
+option(
+    JEMALLOC_ENABLED
+    "If build with jemalloc"
+    OFF
+    )
+
+option(
+    BUILD_SANITIZER
+    "If build sanitizer"
+    OFF
+    )
 
 option(
     BUILD_ADDR2LINE
@@ -113,18 +147,6 @@ option(
     BUILD_WITH_UV_TRANS
     "If build with libuv_trans " 
     ON 
-)
-
-option(
-    BUILD_WITH_CRAFT
-    "If build with canonical-raft"
-    OFF
-)
-
-option(
-    BUILD_WITH_TRAFT
-    "If build with traft"
-    OFF
 )
 
 IF(${TD_LINUX} MATCHES TRUE)

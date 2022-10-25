@@ -33,7 +33,7 @@ typedef struct {
   SDiskSize size;
 } SDiskSpace;
 
-bool    taosCheckSystemIsSmallEnd();
+bool    taosCheckSystemIsLittleEnd();
 void    taosGetSystemInfo();
 int32_t taosGetEmail(char *email, int32_t maxLen);
 int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen);
@@ -54,10 +54,10 @@ void    taosSetCoreDump(bool enable);
 
 #if !defined(LINUX)
 
-#define _UTSNAME_LENGTH 65
+#define _UTSNAME_LENGTH         65
 #define _UTSNAME_MACHINE_LENGTH _UTSNAME_LENGTH
 
-#endif // WINDOWS
+#endif  // WINDOWS
 
 typedef struct {
   char sysname[_UTSNAME_MACHINE_LENGTH];
@@ -68,6 +68,7 @@ typedef struct {
 } SysNameInfo;
 
 SysNameInfo taosGetSysNameInfo();
+bool        taosCheckCurrentInDll();
 
 #ifdef __cplusplus
 }

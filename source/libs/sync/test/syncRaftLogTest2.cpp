@@ -54,7 +54,7 @@ void init() {
   pSyncNode->pWal = pWal;
 
   pSyncNode->pFsm = (SSyncFSM*)taosMemoryMalloc(sizeof(SSyncFSM));
-  pSyncNode->pFsm->FpGetSnapshot = GetSnapshotCb;
+  pSyncNode->pFsm->FpGetSnapshotInfo = GetSnapshotCb;
 }
 
 void cleanup() {
@@ -69,6 +69,7 @@ void test1() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest1 ----- ", pLogStore);
 
   if (gAssert) {
@@ -88,6 +89,7 @@ void test1() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest1 restart ----- ", pLogStore);
 
   if (gAssert) {
@@ -110,7 +112,9 @@ void test2() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
-  pLogStore->syncLogSetBeginIndex(pLogStore, 5);
+  pSyncNode->pLogStore = pLogStore;
+  // pLogStore->syncLogSetBeginIndex(pLogStore, 5);
+  pLogStore->syncLogRestoreFromSnapshot(pLogStore, 4);
   logStoreLog2((char*)"\n\n\ntest2 ----- ", pLogStore);
 
   if (gAssert) {
@@ -130,6 +134,7 @@ void test2() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest2 restart ----- ", pLogStore);
 
   if (gAssert) {
@@ -152,6 +157,7 @@ void test3() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest3 ----- ", pLogStore);
 
   if (gAssert) {
@@ -198,6 +204,7 @@ void test3() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest3 restart ----- ", pLogStore);
 
   if (gAssert) {
@@ -220,8 +227,10 @@ void test4() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest4 ----- ", pLogStore);
-  pLogStore->syncLogSetBeginIndex(pLogStore, 5);
+  // pLogStore->syncLogSetBeginIndex(pLogStore, 5);
+  pLogStore->syncLogRestoreFromSnapshot(pLogStore, 4);
 
   for (int i = 5; i <= 9; ++i) {
     int32_t         dataLen = 10;
@@ -257,6 +266,7 @@ void test4() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest4 restart ----- ", pLogStore);
 
   if (gAssert) {
@@ -279,8 +289,10 @@ void test5() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest5 ----- ", pLogStore);
-  pLogStore->syncLogSetBeginIndex(pLogStore, 5);
+  // pLogStore->syncLogSetBeginIndex(pLogStore, 5);
+  pLogStore->syncLogRestoreFromSnapshot(pLogStore, 4);
 
   for (int i = 5; i <= 9; ++i) {
     int32_t         dataLen = 10;
@@ -329,6 +341,7 @@ void test5() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest5 restart ----- ", pLogStore);
 
   if (gAssert) {
@@ -351,8 +364,10 @@ void test6() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
   logStoreLog2((char*)"\n\n\ntest6 ----- ", pLogStore);
-  pLogStore->syncLogSetBeginIndex(pLogStore, 5);
+  // pLogStore->syncLogSetBeginIndex(pLogStore, 5);
+  pLogStore->syncLogRestoreFromSnapshot(pLogStore, 4);
 
   for (int i = 5; i <= 9; ++i) {
     int32_t         dataLen = 10;
@@ -394,6 +409,13 @@ void test6() {
     assert(pLogStore->syncLogLastTerm(pLogStore) == 0);
   }
 
+  do {
+    SyncIndex firstVer = walGetFirstVer(pWal);
+    SyncIndex lastVer = walGetLastVer(pWal);
+    bool      isEmpty = walIsEmpty(pWal);
+    printf("before -------- firstVer:%" PRId64 " lastVer:%" PRId64 " isEmpty:%d \n", firstVer, lastVer, isEmpty);
+  } while (0);
+
   logStoreDestory(pLogStore);
   cleanup();
 
@@ -401,6 +423,15 @@ void test6() {
   init();
   pLogStore = logStoreCreate(pSyncNode);
   assert(pLogStore);
+  pSyncNode->pLogStore = pLogStore;
+
+  do {
+    SyncIndex firstVer = walGetFirstVer(pWal);
+    SyncIndex lastVer = walGetLastVer(pWal);
+    bool      isEmpty = walIsEmpty(pWal);
+    printf("after -------- firstVer:%" PRId64 " lastVer:%" PRId64 " isEmpty:%d \n", firstVer, lastVer, isEmpty);
+  } while (0);
+
   logStoreLog2((char*)"\n\n\ntest6 restart ----- ", pLogStore);
 
   if (gAssert) {
@@ -420,17 +451,20 @@ void test6() {
 int main(int argc, char** argv) {
   tsAsyncLog = 0;
   sDebugFlag = DEBUG_TRACE + DEBUG_INFO + DEBUG_SCREEN + DEBUG_FILE;
+  gRaftDetailLog = true;
 
   if (argc == 2) {
     gAssert = atoi(argv[1]);
   }
   sTrace("gAssert : %d", gAssert);
 
-  test1();
-  test2();
-  test3();
-  test4();
-  test5();
+  /*
+    test1();
+    test2();
+    test3();
+    test4();
+    test5();
+  */
   test6();
 
   return 0;

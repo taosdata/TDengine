@@ -20,36 +20,39 @@
 extern "C" {
 #endif
 
-#include "tcommon.h"
 #include "dataSinkMgt.h"
 #include "plannodes.h"
+#include "tcommon.h"
 
 struct SDataSink;
 struct SDataSinkHandle;
 
 typedef struct SDataSinkManager {
   SDataSinkMgtCfg cfg;
-  TdThreadMutex mutex;
+  TdThreadMutex   mutex;
 } SDataSinkManager;
 
 typedef int32_t (*FPutDataBlock)(struct SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue);
 typedef void (*FEndPut)(struct SDataSinkHandle* pHandle, uint64_t useconds);
-typedef void (*FGetDataLength)(struct SDataSinkHandle* pHandle, int32_t* pLen, bool* pQueryEnd);
+typedef void (*FGetDataLength)(struct SDataSinkHandle* pHandle, int64_t* pLen, bool* pQueryEnd);
 typedef int32_t (*FGetDataBlock)(struct SDataSinkHandle* pHandle, SOutputData* pOutput);
 typedef int32_t (*FDestroyDataSinker)(struct SDataSinkHandle* pHandle);
 typedef int32_t (*FGetCacheSize)(struct SDataSinkHandle* pHandle, uint64_t* size);
 
 typedef struct SDataSinkHandle {
-  FPutDataBlock fPut;
-  FEndPut fEndPut;
-  FGetDataLength fGetLen;
-  FGetDataBlock fGetData;
+  FPutDataBlock      fPut;
+  FEndPut            fEndPut;
+  FGetDataLength     fGetLen;
+  FGetDataBlock      fGetData;
   FDestroyDataSinker fDestroy;
-  FGetCacheSize fGetCacheSize;
+  FGetCacheSize      fGetCacheSize;
 } SDataSinkHandle;
 
 int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle);
-int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle, void *pParam);
+int32_t createDataDeleter(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle,
+                          void* pParam);
+int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle,
+                           void* pParam);
 
 #ifdef __cplusplus
 }

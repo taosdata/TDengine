@@ -1,0 +1,28 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== step2
+sql create database db
+sql show create database db
+
+if $rows != 1 then
+  return -1
+endi
+
+print =============== step3
+sql use db
+sql show create database db
+
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != db then
+  return -1
+endi
+
+sql drop database db
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

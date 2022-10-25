@@ -25,52 +25,35 @@ static bool mmDeployRequired(const SMgmtInputOpt *pInput) {
 }
 
 static int32_t mmRequire(const SMgmtInputOpt *pInput, bool *required) {
-  SMnodeMgmt mgmt = {0};
-  mgmt.path = pInput->path;
-  if (mmReadFile(&mgmt, required) != 0) {
+  SMnodeOpt option = {0};
+  if (mmReadFile(pInput->path, &option) != 0) {
     return -1;
   }
 
-  if (!(*required)) {
+  if (!option.deploy) {
     *required = mmDeployRequired(pInput);
+  } else {
+    *required = true;
   }
 
   return 0;
 }
 
 static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, const SMgmtInputOpt *pInput, SMnodeOpt *pOption) {
-  pOption->standby = false;
   pOption->deploy = true;
   pOption->msgCb = pMgmt->msgCb;
   pOption->dnodeId = pMgmt->pData->dnodeId;
-
-  pOption->replica = 1;
   pOption->selfIndex = 0;
-
-  SReplica *pReplica = &pOption->replicas[0];
-  pReplica->id = 1;
-  pReplica->port = tsServerPort;
-  tstrncpy(pReplica->fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
+  pOption->numOfReplicas = 1;
+  pOption->replicas[0].id = 1;
+  pOption->replicas[0].port = tsServerPort;
+  tstrncpy(pOption->replicas[0].fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
 }
 
 static void mmBuildOptionForOpen(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
   pOption->deploy = false;
-  pOption->standby = false;
   pOption->msgCb = pMgmt->msgCb;
   pOption->dnodeId = pMgmt->pData->dnodeId;
-
-  if (pMgmt->replica > 0) {
-    pOption->standby = true;
-    pOption->replica = 1;
-    pOption->selfIndex = 0;
-    SReplica *pReplica = &pOption->replicas[0];
-    for (int32_t i = 0; i < pMgmt->replica; ++i) {
-      if (pMgmt->replicas[i].id != pMgmt->pData->dnodeId) continue;
-      pReplica->id = pMgmt->replicas[i].id;
-      pReplica->port = pMgmt->replicas[i].port;
-      memcpy(pReplica->fqdn, pMgmt->replicas[i].fqdn, TSDB_FQDN_LEN);
-    }
-  }
 }
 
 static void mmClose(SMnodeMgmt *pMgmt) {
@@ -105,19 +88,18 @@ static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->path = pInput->path;
   pMgmt->name = pInput->name;
   pMgmt->msgCb = pInput->msgCb;
-  pMgmt->msgCb.putToQueueFp = (PutToQueueFp)mmPutRpcMsgToQueue;
+  pMgmt->msgCb.putToQueueFp = (PutToQueueFp)mmPutMsgToQueue;
   pMgmt->msgCb.mgmt = pMgmt;
   taosThreadRwlockInit(&pMgmt->lock, NULL);
 
-  bool deployed = false;
-  if (mmReadFile(pMgmt, &deployed) != 0) {
+  SMnodeOpt option = {0};
+  if (mmReadFile(pMgmt->path, &option) != 0) {
     dError("failed to read file since %s", terrstr());
     mmClose(pMgmt);
     return -1;
   }
 
-  SMnodeOpt option = {0};
-  if (!deployed) {
+  if (!option.deploy) {
     dInfo("mnode start to deploy");
     pMgmt->pData->dnodeId = 1;
     mmBuildOptionForDeploy(pMgmt, pInput, &option);
@@ -141,10 +123,10 @@ static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   }
   tmsgReportStartup("mnode-worker", "initialized");
 
-  if (!deployed || pMgmt->replica > 0) {
-    pMgmt->replica = 0;
-    deployed = true;
-    if (mmWriteFile(pMgmt, NULL, deployed) != 0) {
+  if (option.numOfReplicas > 0) {
+    option.deploy = true;
+    option.numOfReplicas = 0;
+    if (mmWriteFile(pMgmt->path, &option) != 0) {
       dError("failed to write mnode file since %s", terrstr());
       return -1;
     }
@@ -162,6 +144,11 @@ static int32_t mmStart(SMnodeMgmt *pMgmt) {
 
 static void mmStop(SMnodeMgmt *pMgmt) {
   dDebug("mnode-mgmt start to stop");
+  mndPreClose(pMgmt->pMnode);
+  taosThreadRwlockWrlock(&pMgmt->lock);
+  pMgmt->stopped = 1;
+  taosThreadRwlockUnlock(&pMgmt->lock);
+
   mndStop(pMgmt->pMnode);
 }
 
@@ -177,23 +164,4 @@ SMgmtFunc mmGetMgmtFunc() {
   mgmtFunc.getHandlesFp = mmGetMsgHandles;
 
   return mgmtFunc;
-}
-
-int32_t mmAcquire(SMnodeMgmt *pMgmt) {
-  int32_t code = 0;
-
-  taosThreadRwlockRdlock(&pMgmt->lock);
-  if (pMgmt->stopped) {
-    code = -1;
-  } else {
-    atomic_add_fetch_32(&pMgmt->refCount, 1);
-  }
-  taosThreadRwlockUnlock(&pMgmt->lock);
-  return code;
-}
-
-void mmRelease(SMnodeMgmt *pMgmt) {
-  taosThreadRwlockRdlock(&pMgmt->lock);
-  atomic_sub_fetch_32(&pMgmt->refCount, 1);
-  taosThreadRwlockUnlock(&pMgmt->lock);
 }

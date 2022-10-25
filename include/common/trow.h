@@ -30,7 +30,7 @@
 extern "C" {
 #endif
 
-typedef struct {
+typedef struct STSRow {
   TSKEY ts;
   union {
     uint32_t info;
@@ -38,7 +38,8 @@ typedef struct {
       uint16_t type : 2;
       uint16_t del : 1;
       uint16_t endian : 1;
-      uint16_t reserve : 12;
+      uint16_t statis : 1;  // 0 all normal, 1 has null or none
+      uint16_t reserve : 11;
       uint16_t sver;
     };
   };
@@ -149,6 +150,8 @@ typedef struct {
   void    *pBitmap;
   void    *pOffset;
   int32_t  extendedRowSize;
+  bool     hasNone;
+  bool     hasNull;
 } SRowBuilder;
 
 #define TD_ROW_HEAD_LEN  (sizeof(STSRow))
@@ -168,7 +171,7 @@ typedef struct {
 
 // N.B. If without STSchema, getExtendedRowSize() is used to get the rowMaxBytes and
 // (int32_t)ceil((double)nCols/TD_VTYPE_PARTS) should be added if TD_SUPPORT_BITMAP defined.
-#define TD_ROW_MAX_BYTES_FROM_SCHEMA(s) (schemaTLen(s) + TD_ROW_HEAD_LEN)
+#define TD_ROW_MAX_BYTES_FROM_SCHEMA(s) ((s)->tlen + TD_ROW_HEAD_LEN)
 
 #define TD_ROW_SET_INFO(r, i)  (TD_ROW_INFO(r) = (i))
 #define TD_ROW_SET_TYPE(r, t)  (TD_ROW_TYPE(r) = (t))
@@ -223,9 +226,10 @@ int32_t                     tdSetBitmapValTypeN(void *pBitmap, int16_t nEle, TDR
 static FORCE_INLINE int32_t tdGetBitmapValType(const void *pBitmap, int16_t colIdx, TDRowValT *pValType,
                                                int8_t bitmapMode);
 bool                        tdIsBitmapBlkNorm(const void *pBitmap, int32_t numOfBits, int8_t bitmapMode);
-int32_t tdAppendValToDataCol(SDataCol *pCol, TDRowValT valType, const void *val, int32_t numOfRows, int32_t maxPoints,
-                             int8_t bitmapMode, bool isMerge);
-int32_t tdAppendSTSRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols, bool isMerge);
+// int32_t tdAppendValToDataCol(SDataCol *pCol, TDRowValT valType, const void *val, int32_t numOfRows, int32_t
+// maxPoints,
+//                              int8_t bitmapMode, bool isMerge);
+// int32_t tdAppendSTSRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols, bool isMerge);
 
 int32_t tdGetBitmapValTypeII(const void *pBitmap, int16_t colIdx, TDRowValT *pValType);
 int32_t tdSetBitmapValTypeI(void *pBitmap, int16_t colIdx, TDRowValT valType);
@@ -251,7 +255,7 @@ static FORCE_INLINE void *tdGetBitmapAddrKv(STSRow *pRow, col_id_t nKvCols) {
 void   *tdGetBitmapAddr(STSRow *pRow, uint8_t rowType, uint32_t flen, col_id_t nKvCols);
 int32_t tdSetBitmapValType(void *pBitmap, int16_t colIdx, TDRowValT valType, int8_t bitmapMode);
 int32_t tdSetBitmapValTypeII(void *pBitmap, int16_t colIdx, TDRowValT valType);
-bool    tdIsBitmapValTypeNorm(const void *pBitmap, int16_t idx, int8_t bitmapMode);
+// bool    tdIsBitmapValTypeNorm(const void *pBitmap, int16_t idx, int8_t bitmapMode);
 int32_t tdGetBitmapValType(const void *pBitmap, int16_t colIdx, TDRowValT *pValType, int8_t bitmapMode);
 
 // ----------------- Tuple row structure(STpRow)
@@ -281,14 +285,18 @@ static FORCE_INLINE void tdSRowInit(SRowBuilder *pBuilder, int16_t sver) {
   pBuilder->rowType = TD_ROW_TP;  // default STpRow
   pBuilder->sver = sver;
 }
-int32_t tdSRowSetInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen);
-int32_t tdSRowSetTpInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t flen);
-int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen,
-                              int32_t allNullLen, int32_t boundNullLen);
-int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf);
+int32_t                  tdSRowSetInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen);
+int32_t                  tdSRowSetTpInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t flen);
+int32_t                  tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols, int32_t flen,
+                                               int32_t allNullLen, int32_t boundNullLen);
+int32_t                  tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf);
+static FORCE_INLINE void tdSRowEnd(SRowBuilder *pBuilder) {
+  STSRow *pRow = (STSRow *)pBuilder->pBuf;
+  if (pBuilder->hasNull || pBuilder->hasNone) {
+    pRow->statis = 1;
+  }
+}
 int32_t tdSRowGetBuf(SRowBuilder *pBuilder, void *pBuf);
-int32_t tdSRowInitEx(SRowBuilder *pBuilder, void *pBuf, uint32_t allNullLen, uint32_t boundNullLen, int32_t nCols,
-                     int32_t nBoundCols, int32_t flen);
 void    tdSRowReset(SRowBuilder *pBuilder);
 int32_t tdAppendColValToTpRow(SRowBuilder *pBuilder, TDRowValT valType, const void *val, bool isCopyVarData,
                               int8_t colType, int16_t colIdx, int32_t offset);
@@ -299,6 +307,7 @@ int32_t tdAppendColValToRow(SRowBuilder *pBuilder, col_id_t colId, int8_t colTyp
 int32_t tdGetTpRowValOfCol(SCellVal *output, STSRow *pRow, void *pBitmap, int8_t colType, int32_t offset,
                            int16_t colIdx);
 int32_t tdGetKvRowValOfCol(SCellVal *output, STSRow *pRow, void *pBitmap, int32_t offset, int16_t colIdx);
+void    tTSRowGetVal(STSRow *pRow, STSchema *pTSchema, int16_t iCol, SColVal *pColVal);
 
 typedef struct {
   STSchema *pSchema;
@@ -310,19 +319,13 @@ typedef struct {
   col_id_t  kvIdx;   // [0, nKvCols)
 } STSRowIter;
 
-void    tdSTSRowIterReset(STSRowIter *pIter, STSRow *pRow);
-void    tdSTSRowIterInit(STSRowIter *pIter, STSchema *pSchema);
+void tdSTSRowIterInit(STSRowIter *pIter, STSchema *pSchema);
+void tdSTSRowIterReset(STSRowIter *pIter, STSRow *pRow);
+bool tdSTSRowIterFetch(STSRowIter *pIter, col_id_t colId, col_type_t colType, SCellVal *pVal);
+bool tdSTSRowIterNext(STSRowIter *pIter, SCellVal *pVal);
+
+int32_t tdSTSRowNew(SArray *pArray, STSchema *pTSchema, STSRow **ppRow);
 bool    tdSTSRowGetVal(STSRowIter *pIter, col_id_t colId, col_type_t colType, SCellVal *pVal);
-bool    tdGetTpRowDataOfCol(STSRowIter *pIter, col_type_t colType, int32_t offset, SCellVal *pVal);
-bool    tdGetKvRowValOfColEx(STSRowIter *pIter, col_id_t colId, col_type_t colType, col_id_t *nIdx, SCellVal *pVal);
-bool    tdSTSRowIterNext(STSRowIter *pIter, col_id_t colId, col_type_t colType, SCellVal *pVal);
-STSRow *mergeTwoRows(void *buffer, STSRow *row1, STSRow *row2, STSchema *pSchema1, STSchema *pSchema2);
-int32_t tdGetColDataOfRow(SCellVal *pVal, SDataCol *pCol, int32_t row, int8_t bitmapMode);
-bool    tdSTpRowGetVal(STSRow *pRow, col_id_t colId, col_type_t colType, int32_t flen, uint32_t offset, col_id_t colIdx,
-                       SCellVal *pVal);
-bool    tdSKvRowGetVal(STSRow *pRow, col_id_t colId, uint32_t offset, col_id_t colIdx, SCellVal *pVal);
-int32_t dataColGetNEleLen(SDataCol *pDataCol, int32_t rows, int8_t bitmapMode);
-void    tdSCellValPrint(SCellVal *pVal, int8_t colType);
 void    tdSRowPrint(STSRow *row, STSchema *pSchema, const char *tag);
 
 #ifdef __cplusplus

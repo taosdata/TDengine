@@ -1,0 +1,26 @@
+You can use `apt-get` to install TDengine from the official package repository.
+
+**Configure the package repository**
+
+```
+wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
+echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
+```
+
+You can install beta versions by configuring the following package repository:
+
+```
+echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo tee /etc/apt/sources.list.d/tdengine-beta.list
+```
+
+**Install TDengine with `apt-get`**
+
+```
+sudo apt-get update
+apt-cache policy tdengine
+sudo apt-get install tdengine
+```
+
+:::tip
+This installation method is supported only for Debian and Ubuntu.
+::::

@@ -30,6 +30,12 @@ static int32_t STSBufUpdateHeader(STSBuf* pTSBuf, STSBufFileHeader* pHeader);
  * @return
  */
 STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
+  if (!osTempSpaceAvailable()) {
+    terrno = TSDB_CODE_TSC_NO_DISKSPACE;
+    // tscError("tmp file created failed since %s", terrstr());
+    return NULL;
+  }
+
   STSBuf* pTSBuf = taosMemoryCalloc(1, sizeof(STSBuf));
   if (pTSBuf == NULL) {
     return NULL;
@@ -46,10 +52,13 @@ STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
   }
 
   if (!autoDelete) {
-    taosRemoveFile(pTSBuf->path);
+    if (taosRemoveFile(pTSBuf->path) != 0) {
+      taosMemoryFree(pTSBuf);
+      return NULL;
+    }
   }
 
-  if (NULL == allocResForTSBuf(pTSBuf)) {
+  if (allocResForTSBuf(pTSBuf) == NULL) {
     return NULL;
   }
 
@@ -200,7 +209,8 @@ static STSGroupBlockInfoEx* addOneGroupInfo(STSBuf* pTSBuf, int32_t id) {
     uint32_t newSize = (uint32_t)(pTSBuf->numOfAlloc * 1.5);
     assert((int32_t)newSize > pTSBuf->numOfAlloc);
 
-    STSGroupBlockInfoEx* tmp = (STSGroupBlockInfoEx*)taosMemoryRealloc(pTSBuf->pData, sizeof(STSGroupBlockInfoEx) * newSize);
+    STSGroupBlockInfoEx* tmp =
+        (STSGroupBlockInfoEx*)taosMemoryRealloc(pTSBuf->pData, sizeof(STSGroupBlockInfoEx) * newSize);
     if (tmp == NULL) {
       return NULL;
     }
@@ -845,11 +855,7 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf) {
 
   int64_t offset = getDataStartOffset();
   int32_t size = (int32_t)pSrcBuf->fileSize - (int32_t)offset;
-#if defined(_TD_DARWIN_64)
-  int64_t written = taosFSendFile(pDestBuf->pFile->fp, pSrcBuf->pFile->fp, &offset, size);
-#else
   int64_t written = taosFSendFile(pDestBuf->pFile, pSrcBuf->pFile, &offset, size);
-#endif
 
   if (written == -1 || written != size) {
     return -1;

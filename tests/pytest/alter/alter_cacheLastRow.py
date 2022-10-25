@@ -41,7 +41,7 @@ class TDTestCase:
 
     def run(self):
         tdSql.prepare()
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkData(0,15,0)
         buildPath = self.getBuildPath()
         if (buildPath == ""):
@@ -67,8 +67,8 @@ class TDTestCase:
         slow = 0 #count time where lastRow on is slower
         for i in range(5): 
             #switch lastRow to off and check
-            tdSql.execute('alter database db cachelast 0') 
-            tdSql.query('show databases')
+            tdSql.execute('alter database db cachemodel 'none'') 
+            tdSql.query('select * from information_schema.ins_databases')
             tdSql.checkData(0,15,0)
 
             #run last_row(*) query 500 times       
@@ -79,8 +79,8 @@ class TDTestCase:
             tdLog.debug(f'time used:{lastRow_Off_end-lastRow_Off_start}')
 
             #switch lastRow to on and check
-            tdSql.execute('alter database db cachelast 1')
-            tdSql.query('show databases')
+            tdSql.execute('alter database db cachemodel 'last_row'')
+            tdSql.query('select * from information_schema.ins_databases')
             tdSql.checkData(0,15,1)
         
             #run last_row(*) query 500 times 

@@ -1,0 +1,14 @@
+# 使用说明
+
+## 创建使用db
+```shell
+$ taos
+
+> create database mp_test
+```
+
+## 执行测试用例
+
+```shell
+$ mvn clean test
+```

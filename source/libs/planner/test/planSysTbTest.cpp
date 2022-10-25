@@ -30,5 +30,11 @@ TEST_F(PlanSysTableTest, show) {
 TEST_F(PlanSysTableTest, informationSchema) {
   useDb("root", "information_schema");
 
-  run("SELECT * FROM information_schema.user_databases WHERE name = 'information_schema'");
+  run("SELECT * FROM information_schema.ins_databases WHERE name = 'information_schema'");
+}
+
+TEST_F(PlanSysTableTest, withAgg) {
+  useDb("root", "information_schema");
+
+  run("SELECT COUNT(1) FROM ins_users");
 }

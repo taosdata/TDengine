@@ -1,0 +1,72 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql drop database if exists indb
+sql create database if not exists indb
+sql use indb
+
+$inFileName = '/tmp/data.sql'
+system_content printf %OS%
+if $system_content == Windows_NT then
+  $inFileName = 'C:\\Windows\\Temp\\data.sql'
+endi
+system tsim/parser/gendata.sh
+
+sql create table stbx (ts TIMESTAMP, collect_area NCHAR(12), device_id BINARY(16), imsi BINARY(16),  imei BINARY(16),  mdn BINARY(10), net_type BINARY(4), mno NCHAR(4), province NCHAR(10), city NCHAR(16), alarm BINARY(2)) tags(a int, b binary(12));
+
+sql create table tbx (ts TIMESTAMP, collect_area NCHAR(12), device_id BINARY(16), imsi BINARY(16),  imei BINARY(16),  mdn BINARY(10), net_type BINARY(4), mno NCHAR(4), province NCHAR(10), city NCHAR(16), alarm BINARY(2))
+print ====== create tables success, starting insert data
+
+sql insert into tbx file $inFileName
+sql import into tbx file $inFileName
+
+sql select count(*) from tbx
+if $rows != 1 then
+  print expect 1, actual: $rows
+  return -1
+endi
+
+if $data00 != 3 then
+  return -1
+endi
+
+sql drop table tbx;
+
+sql insert into tbx using stbx tags(1,'abc') file $inFileName ;
+sql insert into tbx using stbx tags(1,'abc') file $inFileName ;
+
+sql select count(*) from tbx
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 3 then
+  return -1
+endi
+
+sql drop table tbx;
+sql insert into tbx using stbx(b) tags('abcf') file $inFileName ;
+
+sql select ts,a,b from tbx;
+if $rows != 3 then
+  return -1
+endi
+
+if $data00 != @20-01-01 01:01:01.000@ then
+  print expect 20-01-01 01:01:01.000 , actual: $data00
+  return -1
+endi
+
+if $data01 != NULL then
+  return -1
+endi
+
+if $data02 != @abcf@ then
+  return -1
+endi
+
+system rm -f $inFileName
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

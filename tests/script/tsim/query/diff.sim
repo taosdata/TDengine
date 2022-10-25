@@ -1,26 +1,6 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
-
-$loop_cnt = 0
-check_dnode_ready:
-	$loop_cnt = $loop_cnt + 1
-	sleep 200
-	if $loop_cnt == 10 then
-	  print ====> dnode not ready!
-		return -1
-	endi
-sql show dnodes
-print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
-if $data00 != 1 then
-  return -1
-endi
-if $data04 != ready then
-  goto check_dnode_ready
-endi
-
 sql connect
 
 $dbPrefix = db
@@ -45,17 +25,17 @@ $i = 0
 while $i < $tbNum
   $tb = $tbPrefix . $i
   sql create table $tb using $mt tags( $i )
-  
+
   $x = 0
   while $x < $rowNum
     $cc = $x * 60000
     $ms = 1601481600000 + $cc
-    sql insert into $tb values ($ms , $x ) 
+    sql insert into $tb values ($ms , $x )
     $x = $x + 1
-  endw 
- 
+  endw
+
   $i = $i + 1
-endw 
+endw
 
 sleep 100
 
@@ -81,7 +61,7 @@ sql select _rowts, diff(tbcol) from $tb where ts > $ms
 print ===> rows: $rows
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
-if $data11 != 1 then 
+if $data11 != 1 then
   return -1
 endi
 
@@ -92,7 +72,7 @@ sql select _rowts, diff(tbcol) from $tb where ts <= $ms
 print ===> rows: $rows
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
-if $data11 != 1 then 
+if $data11 != 1 then
   return -1
 endi
 
@@ -102,7 +82,7 @@ sql select _rowts, diff(tbcol) as b from $tb
 print ===> rows: $rows
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
-if $data11 != 1 then 
+if $data11 != 1 then
   return -1
 endi
 
@@ -122,7 +102,7 @@ step6:
 
 print =============== clear
 sql drop database $db
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 2 then
   return -1
 endi

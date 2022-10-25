@@ -1,0 +1,12 @@
+```js title=一次绑定一行
+{{#include docs/examples/node/nativeexample/param_bind_example.js}}
+```
+
+```js title=一次绑定多行
+{{#include docs/examples/node/nativeexample/multi_bind_example.js:insertData}}
+```
+
+:::info
+一次绑定一行效率不如一次绑定多行，但支持非 INSERT 语句。一次绑定多行效率更高，但仅支持 INSERT 语句。
+
+:::

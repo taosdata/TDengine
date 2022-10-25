@@ -13,18 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
 #include "catalog.h"
-#include "functionMgt.h"
 #include "clientInt.h"
 #include "clientLog.h"
+#include "functionMgt.h"
+#include "os.h"
 #include "query.h"
+#include "qworker.h"
 #include "scheduler.h"
 #include "tcache.h"
 #include "tglobal.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
+#include "tsched.h"
 #include "ttime.h"
 
 #define TSC_VAR_NOT_RELEASE 1
@@ -34,21 +36,19 @@ SAppInfo appInfo;
 int32_t  clientReqRefPool = -1;
 int32_t  clientConnRefPool = -1;
 
+int32_t timestampDeltaLimit = 900;  // s
+
 static TdThreadOnce tscinit = PTHREAD_ONCE_INIT;
 volatile int32_t    tscInitRes = 0;
 
-static void registerRequest(SRequestObj *pRequest) {
-  STscObj *pTscObj = acquireTscObj(pRequest->pTscObj->id);
-
-  assert(pTscObj != NULL);
-
+static int32_t registerRequest(SRequestObj *pRequest, STscObj *pTscObj) {
   // connection has been released already, abort creating request.
   pRequest->self = taosAddRef(clientReqRefPool, pRequest);
 
   int32_t num = atomic_add_fetch_32(&pTscObj->numOfReqs, 1);
 
   if (pTscObj->pAppInfo) {
-    SInstanceSummary *pSummary = &pTscObj->pAppInfo->summary;
+    SAppClusterSummary *pSummary = &pTscObj->pAppInfo->summary;
 
     int32_t total = atomic_add_fetch_64((int64_t *)&pSummary->totalRequests, 1);
     int32_t currentInst = atomic_add_fetch_64((int64_t *)&pSummary->currentRequests, 1);
@@ -56,40 +56,79 @@ static void registerRequest(SRequestObj *pRequest) {
              ", current:%d, app current:%d, total:%d, reqId:0x%" PRIx64,
              pRequest->self, pRequest->pTscObj->id, num, currentInst, total, pRequest->requestId);
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static void deregisterRequest(SRequestObj *pRequest) {
+  const static int64_t SLOW_QUERY_INTERVAL = 3000000L;  // todo configurable
   assert(pRequest != NULL);
 
-  STscObj          *pTscObj = pRequest->pTscObj;
-  SInstanceSummary *pActivity = &pTscObj->pAppInfo->summary;
+  STscObj            *pTscObj = pRequest->pTscObj;
+  SAppClusterSummary *pActivity = &pTscObj->pAppInfo->summary;
 
   int32_t currentInst = atomic_sub_fetch_64((int64_t *)&pActivity->currentRequests, 1);
   int32_t num = atomic_sub_fetch_32(&pTscObj->numOfReqs, 1);
 
   int64_t duration = taosGetTimestampUs() - pRequest->metric.start;
-  tscDebug("0x%" PRIx64 " free Request from connObj: 0x%" PRIx64 ", reqId:0x%" PRIx64 " elapsed:%" PRIu64
-           " ms, current:%d, app current:%d",
-           pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000, num, currentInst);
+  tscDebug("0x%" PRIx64 " free Request from connObj: 0x%" PRIx64 ", reqId:0x%" PRIx64
+           " elapsed:%.2f ms, "
+           "current:%d, app current:%d",
+           pRequest->self, pTscObj->id, pRequest->requestId, duration / 1000.0, num, currentInst);
+
+  if (QUERY_NODE_VNODE_MODIF_STMT == pRequest->stmtType) {
+    tscPerf("insert duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
+            "us, exec:%" PRId64 "us",
+            duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart,
+            pRequest->metric.ctgEnd - pRequest->metric.ctgStart, pRequest->metric.semanticEnd - pRequest->metric.ctgEnd,
+            pRequest->metric.execEnd - pRequest->metric.semanticEnd);
+    atomic_add_fetch_64((int64_t *)&pActivity->insertElapsedTime, duration);
+  } else if (QUERY_NODE_SELECT_STMT == pRequest->stmtType) {
+    tscPerf("select duration %" PRId64 "us: syntax:%" PRId64 "us, ctg:%" PRId64 "us, semantic:%" PRId64
+            "us, planner:%" PRId64 "us, exec:%" PRId64 "us, reqId:0x%" PRIx64,
+            duration, pRequest->metric.syntaxEnd - pRequest->metric.syntaxStart,
+            pRequest->metric.ctgEnd - pRequest->metric.ctgStart, pRequest->metric.semanticEnd - pRequest->metric.ctgEnd,
+            pRequest->metric.planEnd - pRequest->metric.semanticEnd,
+            pRequest->metric.resultReady - pRequest->metric.planEnd, pRequest->requestId);
+
+    atomic_add_fetch_64((int64_t *)&pActivity->queryElapsedTime, duration);
+  }
+
+  if (duration >= SLOW_QUERY_INTERVAL) {
+    atomic_add_fetch_64((int64_t *)&pActivity->numOfSlowQueries, 1);
+  }
+
   releaseTscObj(pTscObj->id);
 }
 
 // todo close the transporter properly
-void closeTransporter(STscObj *pTscObj) {
-  if (pTscObj == NULL || pTscObj->pAppInfo->pTransporter == NULL) {
+void closeTransporter(SAppInstInfo *pAppInfo) {
+  if (pAppInfo == NULL || pAppInfo->pTransporter == NULL) {
     return;
   }
 
-  tscDebug("free transporter:%p in connObj: 0x%" PRIx64, pTscObj->pAppInfo->pTransporter, pTscObj->id);
-  rpcClose(pTscObj->pAppInfo->pTransporter);
+  tscDebug("free transporter:%p in app inst %p", pAppInfo->pTransporter, pAppInfo);
+  rpcClose(pAppInfo->pTransporter);
 }
 
-static bool clientRpcRfp(int32_t code) {
-  if (code == TSDB_CODE_RPC_REDIRECT) {
+static bool clientRpcRfp(int32_t code, tmsg_t msgType) {
+  if (NEED_REDIRECT_ERROR(code)) {
+    if (msgType == TDMT_SCH_QUERY || msgType == TDMT_SCH_MERGE_QUERY || msgType == TDMT_SCH_FETCH ||
+        msgType == TDMT_SCH_MERGE_FETCH || msgType == TDMT_SCH_QUERY_HEARTBEAT || msgType == TDMT_SCH_DROP_TASK) {
+      return false;
+    }
     return true;
   } else {
     return false;
   }
+}
+
+// start timer for particular msgType
+static bool clientRpcTfp(int32_t code, tmsg_t msgType) {
+  if (msgType == TDMT_VND_SUBMIT || msgType == TDMT_VND_CREATE_TABLE) {
+    return true;
+  }
+  return false;
 }
 
 // TODO refactor
@@ -101,10 +140,12 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.numOfThreads = numOfThread;
   rpcInit.cfp = processMsgFromServer;
   rpcInit.rfp = clientRpcRfp;
+  // rpcInit.tfp = clientRpcTfp;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = (char *)user;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
+  rpcInit.compressSize = tsCompressMsgSize;
   void *pDnodeConn = rpcOpen(&rpcInit);
   if (pDnodeConn == NULL) {
     tscError("failed to init connection to server");
@@ -114,32 +155,83 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   return pDnodeConn;
 }
 
-void closeAllRequests(SHashObj *pRequests) {
+void destroyAllRequests(SHashObj *pRequests) {
   void *pIter = taosHashIterate(pRequests, NULL);
   while (pIter != NULL) {
     int64_t *rid = pIter;
 
-    releaseRequest(*rid);
+    SRequestObj *pRequest = acquireRequest(*rid);
+    if (pRequest) {
+      destroyRequest(pRequest);
+      releaseRequest(*rid);
+    }
 
     pIter = taosHashIterate(pRequests, pIter);
   }
 }
 
+void stopAllRequests(SHashObj *pRequests) {
+  void *pIter = taosHashIterate(pRequests, NULL);
+  while (pIter != NULL) {
+    int64_t *rid = pIter;
+
+    SRequestObj *pRequest = acquireRequest(*rid);
+    if (pRequest) {
+      taos_stop_query(pRequest);
+      releaseRequest(*rid);
+    }
+
+    pIter = taosHashIterate(pRequests, pIter);
+  }
+}
+
+void destroyAppInst(SAppInstInfo *pAppInfo) {
+  tscDebug("destroy app inst mgr %p", pAppInfo);
+
+  taosThreadMutexLock(&appInfo.mutex);
+
+  hbRemoveAppHbMrg(&pAppInfo->pAppHbMgr);
+  taosHashRemove(appInfo.pInstMap, pAppInfo->instKey, strlen(pAppInfo->instKey));
+
+  taosThreadMutexUnlock(&appInfo.mutex);
+
+  taosMemoryFreeClear(pAppInfo->instKey);
+  closeTransporter(pAppInfo);
+
+  taosThreadMutexLock(&pAppInfo->qnodeMutex);
+  taosArrayDestroy(pAppInfo->pQnodeList);
+  taosThreadMutexUnlock(&pAppInfo->qnodeMutex);
+
+  taosMemoryFree(pAppInfo);
+}
+
 void destroyTscObj(void *pObj) {
+  if (NULL == pObj) {
+    return;
+  }
+
   STscObj *pTscObj = pObj;
+  int64_t  tscId = pTscObj->id;
+  tscTrace("begin to destroy tscObj %" PRIx64 " p:%p", tscId, pTscObj);
 
   SClientHbKey connKey = {.tscRid = pTscObj->id, .connType = pTscObj->connType};
   hbDeregisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey);
-  int64_t connNum = atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
-  closeAllRequests(pTscObj->pRequests);
+
+  destroyAllRequests(pTscObj->pRequests);
+  taosHashCleanup(pTscObj->pRequests);
+
   schedulerStopQueryHb(pTscObj->pAppInfo->pTransporter);
+  tscDebug("connObj 0x%" PRIx64 " p:%p destroyed, remain inst totalConn:%" PRId64, pTscObj->id, pTscObj,
+           pTscObj->pAppInfo->numOfConns);
+
+  int64_t connNum = atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
   if (0 == connNum) {
-    // TODO 
-    //closeTransporter(pTscObj);
+    destroyAppInst(pTscObj->pAppInfo);
   }
-  tscDebug("connObj 0x%" PRIx64 " destroyed, totalConn:%" PRId64, pTscObj->id, pTscObj->pAppInfo->numOfConns);
   taosThreadMutexDestroy(&pTscObj->mutex);
-  taosMemoryFreeClear(pTscObj);
+  taosMemoryFree(pTscObj);
+
+  tscTrace("end to destroy tscObj %" PRIx64 " p:%p", tscId, pTscObj);
 }
 
 void *createTscObj(const char *user, const char *auth, const char *db, int32_t connType, SAppInstInfo *pAppInfo) {
@@ -169,7 +261,9 @@ void *createTscObj(const char *user, const char *auth, const char *db, int32_t c
   pObj->id = taosAddRef(clientConnRefPool, pObj);
   pObj->schemalessType = 1;
 
-  tscDebug("connObj created, 0x%" PRIx64, pObj->id);
+  atomic_add_fetch_64(&pObj->pAppInfo->numOfConns, 1);
+
+  tscDebug("connObj created, 0x%" PRIx64 ",p:%p", pObj->id, pObj);
   return pObj;
 }
 
@@ -177,29 +271,39 @@ STscObj *acquireTscObj(int64_t rid) { return (STscObj *)taosAcquireRef(clientCon
 
 int32_t releaseTscObj(int64_t rid) { return taosReleaseRef(clientConnRefPool, rid); }
 
-void *createRequest(STscObj *pObj, int32_t type) {
-  assert(pObj != NULL);
-
+void *createRequest(uint64_t connId, int32_t type) {
   SRequestObj *pRequest = (SRequestObj *)taosMemoryCalloc(1, sizeof(SRequestObj));
   if (NULL == pRequest) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return NULL;
   }
 
+  STscObj *pTscObj = acquireTscObj(connId);
+  if (pTscObj == NULL) {
+    taosMemoryFree(pRequest);
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return NULL;
+  }
+
   pRequest->resType = RES_TYPE__QUERY;
-  pRequest->pDb = getDbOfConnection(pObj);
   pRequest->requestId = generateRequestId();
   pRequest->metric.start = taosGetTimestampUs();
 
   pRequest->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
-
   pRequest->type = type;
-  pRequest->pTscObj = pObj;
+  pRequest->allocatorRefId = -1;
+
+  pRequest->pDb = getDbOfConnection(pTscObj);
+  pRequest->pTscObj = pTscObj;
+
   pRequest->msgBuf = taosMemoryCalloc(1, ERROR_MSG_BUF_DEFAULT_SIZE);
   pRequest->msgBufLen = ERROR_MSG_BUF_DEFAULT_SIZE;
   tsem_init(&pRequest->body.rspSem, 0, 0);
 
-  registerRequest(pRequest);
+  if (registerRequest(pRequest, pTscObj)) {
+    doDestroyRequest(pRequest);
+    return NULL;
+  }
 
   return pRequest;
 }
@@ -211,6 +315,7 @@ void doFreeReqResultInfo(SReqResultInfo *pResInfo) {
   taosMemoryFreeClear(pResInfo->pCol);
   taosMemoryFreeClear(pResInfo->fields);
   taosMemoryFreeClear(pResInfo->userFields);
+  taosMemoryFreeClear(pResInfo->convertJson);
 
   if (pResInfo->convertBuf != NULL) {
     for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
@@ -220,32 +325,50 @@ void doFreeReqResultInfo(SReqResultInfo *pResInfo) {
   }
 }
 
-static void doDestroyRequest(void *p) {
-  assert(p != NULL);
+SRequestObj *acquireRequest(int64_t rid) { return (SRequestObj *)taosAcquireRef(clientReqRefPool, rid); }
+
+int32_t releaseRequest(int64_t rid) { return taosReleaseRef(clientReqRefPool, rid); }
+
+int32_t removeRequest(int64_t rid) { return taosRemoveRef(clientReqRefPool, rid); }
+
+void doDestroyRequest(void *p) {
+  if (NULL == p) {
+    return;
+  }
+
   SRequestObj *pRequest = (SRequestObj *)p;
 
-  assert(RID_VALID(pRequest->self));
+  uint64_t reqId = pRequest->requestId;
+  tscTrace("begin to destroy request %" PRIx64 " p:%p", reqId, pRequest);
 
   taosHashRemove(pRequest->pTscObj->pRequests, &pRequest->self, sizeof(pRequest->self));
 
-  if (pRequest->body.queryJob != 0) {
-    schedulerFreeJob(pRequest->body.queryJob);
-  }
+  schedulerFreeJob(&pRequest->body.queryJob, 0);
 
   taosMemoryFreeClear(pRequest->msgBuf);
-  taosMemoryFreeClear(pRequest->sqlstr);
   taosMemoryFreeClear(pRequest->pDb);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
-  qDestroyQueryPlan(pRequest->body.pDag);
 
   taosArrayDestroy(pRequest->tableList);
   taosArrayDestroy(pRequest->dbList);
+  taosArrayDestroy(pRequest->targetTableList);
+  qDestroyQuery(pRequest->pQuery);
+  nodesDestroyAllocator(pRequest->allocatorRefId);
 
   destroyQueryExecRes(&pRequest->body.resInfo.execRes);
 
-  deregisterRequest(pRequest);
-  taosMemoryFreeClear(pRequest);
+  if (pRequest->self) {
+    deregisterRequest(pRequest);
+  }
+
+  if (pRequest->syncQuery) {
+    taosMemoryFree(pRequest->body.param);
+  }
+
+  taosMemoryFreeClear(pRequest->sqlstr);
+  taosMemoryFree(pRequest);
+  tscTrace("end to destroy request %" PRIx64 " p:%p", reqId, pRequest);
 }
 
 void destroyRequest(SRequestObj *pRequest) {
@@ -253,18 +376,14 @@ void destroyRequest(SRequestObj *pRequest) {
     return;
   }
 
-  taosRemoveRef(clientReqRefPool, pRequest->self);
+  taos_stop_query(pRequest);
+  removeRequest(pRequest->self);
 }
-
-SRequestObj *acquireRequest(int64_t rid) { return (SRequestObj *)taosAcquireRef(clientReqRefPool, rid); }
-
-int32_t releaseRequest(int64_t rid) { return taosReleaseRef(clientReqRefPool, rid); }
 
 void taos_init_imp(void) {
   // In the APIs of other program language, taos_cleanup is not available yet.
   // So, to make sure taos_cleanup will be invoked to clean up the allocated resource to suppress the valgrind warning.
   atexit(taos_cleanup);
-
   errno = TSDB_CODE_SUCCESS;
   taosSeedRand(taosGetTimestampSec());
 
@@ -282,19 +401,23 @@ void taos_init_imp(void) {
 
   initQueryModuleMsgHandle();
 
+  taosConvInit();
+
   rpcInit();
 
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
   catalogInit(&cfg);
 
-  SSchedulerCfg scfg = {.maxJobNum = 100};
-  schedulerInit(&scfg);
+  schedulerInit();
   tscDebug("starting to initialize TAOS driver");
 
+#ifndef WINDOWS
   taosSetCoreDump(true);
+#endif
 
   initTaskQueue();
   fmFuncMgtInit();
+  nodesInitAllocatorSet();
 
   clientConnRefPool = taosOpenRef(200, destroyTscObj);
   clientReqRefPool = taosOpenRef(40960, doDestroyRequest);
@@ -315,21 +438,18 @@ int taos_init() {
 }
 
 int taos_options_imp(TSDB_OPTION option, const char *str) {
-  if (option != TSDB_OPTION_CONFIGDIR) {
-    taos_init();  // initialize global config
-  } else {
+  if (option == TSDB_OPTION_CONFIGDIR) {
     tstrncpy(configDir, str, PATH_MAX);
     tscInfo("set cfg:%s to %s", configDir, str);
     return 0;
+  } else {
+    taos_init();  // initialize global config
   }
 
   SConfig     *pCfg = taosGetCfg();
   SConfigItem *pItem = NULL;
 
   switch (option) {
-    case TSDB_OPTION_CONFIGDIR:
-      pItem = cfgGetItem(pCfg, "configDir");
-      break;
     case TSDB_OPTION_SHELL_ACTIVITY_TIMER:
       pItem = cfgGetItem(pCfg, "shellActivityTimer");
       break;
@@ -372,7 +492,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
  */
 uint64_t generateRequestId() {
   static uint64_t hashId = 0;
-  static int32_t  requestSerialId = 0;
+  static uint32_t requestSerialId = 0;
 
   if (hashId == 0) {
     char    uid[64] = {0};
@@ -391,7 +511,8 @@ uint64_t generateRequestId() {
   while (true) {
     int64_t  ts = taosGetTimestampMs();
     uint64_t pid = taosGetPId();
-    int32_t  val = atomic_add_fetch_32(&requestSerialId, 1);
+    uint32_t val = atomic_add_fetch_32(&requestSerialId, 1);
+    if (val >= 0xFFFF) atomic_store_32(&requestSerialId, 0);
 
     id = ((hashId & 0x0FFF) << 52) | ((pid & 0x0FFF) << 40) | ((ts & 0xFFFFFF) << 16) | (val & 0xFFFF);
     if (id) {

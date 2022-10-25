@@ -1,0 +1,157 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print =============== step0
+sql select * from information_schema.ins_users
+if $data(root)[1] != 1 then
+  return -1
+endi
+if $data(root)[2] != 1 then
+  return -1
+endi
+if $data(root)[3] != 1 then
+  return -1
+endi
+
+sql alter user root pass 'taosdata'
+
+sql_error ALTER USER root SYSINFO 0
+sql_error ALTER USER root SYSINFO 1
+sql_error ALTER USER root enable 0
+sql_error ALTER USER root enable 1
+
+#sql_error create database db vgroups 1;
+sql_error GRANT read ON db.* to root;
+sql_error GRANT read ON *.* to root;
+sql_error REVOKE read ON db.* from root;
+sql_error REVOKE read ON *.* from root;
+sql_error GRANT write ON db.* to root;
+sql_error GRANT write ON *.* to root;
+sql_error REVOKE write ON db.* from root;
+sql_error REVOKE write ON *.* from root;
+sql_error REVOKE write ON *.* from root;
+
+sql_error GRANT all ON *.* to root;
+sql_error REVOKE all ON *.* from root;
+sql_error GRANT read,write ON *.* to root;
+sql_error REVOKE read,write ON *.* from root;
+
+print =============== step1: sysinfo create
+sql CREATE USER u1 PASS 'taosdata' SYSINFO 0;
+sql select * from information_schema.ins_users
+if $rows != 2 then 
+  return -1
+endi
+if $data(u1)[1] != 0 then
+  return -1
+endi
+if $data(u1)[2] != 1 then
+  return -1
+endi
+if $data(u1)[3] != 0 then
+  return -1
+endi
+
+sql CREATE USER u2 PASS 'taosdata' SYSINFO 1;
+sql select * from information_schema.ins_users
+if $rows != 3 then 
+  return -1
+endi
+if $data(u2)[1] != 0 then
+  return -1
+endi
+if $data(u2)[2] != 1 then
+  return -1
+endi
+if $data(u2)[3] != 1 then
+  return -1
+endi
+
+print =============== step2: sysinfo alter
+sql ALTER USER u1 SYSINFO 1
+sql select * from information_schema.ins_users
+if $data(u1)[1] != 0 then
+  return -1
+endi
+if $data(u1)[2] != 1 then
+  return -1
+endi
+if $data(u1)[3] != 1 then
+  return -1
+endi
+
+sql ALTER USER u1 SYSINFO 0
+sql select * from information_schema.ins_users
+if $data(u1)[1] != 0 then
+  return -1
+endi
+if $data(u1)[2] != 1 then
+  return -1
+endi
+if $data(u1)[3] != 0 then
+  return -1
+endi
+
+sql ALTER USER u1 SYSINFO 0
+sql ALTER USER u1 SYSINFO 0
+
+sql drop user u1
+sql select * from information_schema.ins_users
+if $rows != 2 then 
+  return -1
+endi
+
+print =============== step3: enable alter
+sql ALTER USER u2 enable 0
+sql select * from information_schema.ins_users
+if $rows != 2 then 
+  return -1
+endi
+if $data(u2)[1] != 0 then
+  return -1
+endi
+if $data(u2)[2] != 0 then
+  return -1
+endi
+if $data(u2)[3] != 1 then
+  return -1
+endi
+
+sql ALTER USER u2 enable 1
+sql select * from information_schema.ins_users
+if $data(u2)[1] != 0 then
+  return -1
+endi
+if $data(u2)[2] != 1 then
+  return -1
+endi
+if $data(u2)[3] != 1 then
+  return -1
+endi
+
+sql ALTER USER u2 enable 1
+sql ALTER USER u2 enable 1
+
+print =============== restart taosd
+system sh/exec.sh -n dnode1 -s stop
+system sh/exec.sh -n dnode1 -s start
+
+print =============== step4: enable privilege
+sql select * from information_schema.ins_users
+if $rows != 2 then 
+  return -1
+endi
+if $data(u2)[1] != 0 then
+  return -1
+endi
+if $data(u2)[2] != 1 then
+  return -1
+endi
+if $data(u2)[3] != 1 then
+  return -1
+endi
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

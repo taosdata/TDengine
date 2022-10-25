@@ -1,4 +1,5 @@
 add_executable(syncTest "")
+add_executable(syncRaftIdCheck "")
 add_executable(syncEnvTest "")
 add_executable(syncPingTimerTest "")
 add_executable(syncIOTickQTest "")
@@ -16,11 +17,15 @@ add_executable(syncVotesRespondTest "")
 add_executable(syncIndexMgrTest "")
 add_executable(syncLogStoreTest "")
 add_executable(syncEntryTest "")
+add_executable(syncEntryCacheTest "")
+add_executable(syncHashCacheTest "")
 add_executable(syncRequestVoteTest "")
 add_executable(syncRequestVoteReplyTest "")
 add_executable(syncAppendEntriesTest "")
+add_executable(syncAppendEntriesBatchTest "")
 add_executable(syncAppendEntriesReplyTest "")
 add_executable(syncClientRequestTest "")
+add_executable(syncClientRequestBatchTest "")
 add_executable(syncTimeoutTest "")
 add_executable(syncPingTest "")
 add_executable(syncPingReplyTest "")
@@ -33,6 +38,7 @@ add_executable(syncWriteTest "")
 add_executable(syncReplicateTest "")
 add_executable(syncRefTest "")
 add_executable(syncLogStoreCheck "")
+add_executable(syncLogStoreCheck2 "")
 add_executable(syncRaftCfgTest "")
 add_executable(syncRespMgrTest "")
 add_executable(syncSnapshotTest "")
@@ -48,11 +54,20 @@ add_executable(syncRaftLogTest "")
 add_executable(syncRaftLogTest2 "")
 add_executable(syncRaftLogTest3 "")
 add_executable(syncLeaderTransferTest "")
+add_executable(syncReconfigFinishTest "")
+add_executable(syncRestoreFromSnapshot "")
+add_executable(syncRaftCfgIndexTest "")
+add_executable(syncHeartbeatTest "")
+add_executable(syncHeartbeatReplyTest "")
 
 
 target_sources(syncTest
     PRIVATE
     "syncTest.cpp"
+)
+target_sources(syncRaftIdCheck
+    PRIVATE
+    "syncRaftIdCheck.cpp"
 )
 target_sources(syncEnvTest
     PRIVATE
@@ -122,6 +137,14 @@ target_sources(syncEntryTest
     PRIVATE
     "syncEntryTest.cpp"
 )
+target_sources(syncEntryCacheTest
+    PRIVATE
+    "syncEntryCacheTest.cpp"
+)
+target_sources(syncHashCacheTest
+    PRIVATE
+    "syncHashCacheTest.cpp"
+)
 target_sources(syncRequestVoteTest
     PRIVATE
     "syncRequestVoteTest.cpp"
@@ -134,6 +157,10 @@ target_sources(syncAppendEntriesTest
     PRIVATE
     "syncAppendEntriesTest.cpp"
 )
+target_sources(syncAppendEntriesBatchTest
+    PRIVATE
+    "syncAppendEntriesBatchTest.cpp"
+)
 target_sources(syncAppendEntriesReplyTest
     PRIVATE
     "syncAppendEntriesReplyTest.cpp"
@@ -141,6 +168,10 @@ target_sources(syncAppendEntriesReplyTest
 target_sources(syncClientRequestTest
     PRIVATE
     "syncClientRequestTest.cpp"
+)
+target_sources(syncClientRequestBatchTest
+    PRIVATE
+    "syncClientRequestBatchTest.cpp"
 )
 target_sources(syncTimeoutTest
     PRIVATE
@@ -189,6 +220,10 @@ target_sources(syncRefTest
 target_sources(syncLogStoreCheck
     PRIVATE
     "syncLogStoreCheck.cpp"
+)
+target_sources(syncLogStoreCheck2
+    PRIVATE
+    "syncLogStoreCheck2.cpp"
 )
 target_sources(syncRaftCfgTest
     PRIVATE
@@ -250,9 +285,34 @@ target_sources(syncLeaderTransferTest
     PRIVATE
     "syncLeaderTransferTest.cpp"
 )
+target_sources(syncReconfigFinishTest
+    PRIVATE
+    "syncReconfigFinishTest.cpp"
+)
+target_sources(syncRestoreFromSnapshot
+    PRIVATE
+    "syncRestoreFromSnapshot.cpp"
+)
+target_sources(syncRaftCfgIndexTest
+    PRIVATE
+    "syncRaftCfgIndexTest.cpp"
+)
+target_sources(syncHeartbeatTest
+    PRIVATE
+    "syncHeartbeatTest.cpp"
+)
+target_sources(syncHeartbeatReplyTest
+    PRIVATE
+    "syncHeartbeatReplyTest.cpp"
+)
 
 
 target_include_directories(syncTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncRaftIdCheck
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
@@ -342,6 +402,16 @@ target_include_directories(syncEntryTest
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+target_include_directories(syncEntryCacheTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncHashCacheTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 target_include_directories(syncRequestVoteTest
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/sync"
@@ -357,12 +427,22 @@ target_include_directories(syncAppendEntriesTest
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+target_include_directories(syncAppendEntriesBatchTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 target_include_directories(syncAppendEntriesReplyTest
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncClientRequestTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncClientRequestBatchTest
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
@@ -423,6 +503,11 @@ target_include_directories(syncRefTest
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncLogStoreCheck
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncLogStoreCheck2
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
@@ -502,9 +587,38 @@ target_include_directories(syncLeaderTransferTest
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+target_include_directories(syncReconfigFinishTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncRestoreFromSnapshot
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncRaftCfgIndexTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncHeartbeatTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncHeartbeatReplyTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 
 
 target_link_libraries(syncTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncRaftIdCheck
     sync
     gtest_main
 )
@@ -576,6 +690,14 @@ target_link_libraries(syncEntryTest
     sync
     gtest_main
 )
+target_link_libraries(syncEntryCacheTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncHashCacheTest
+    sync
+    gtest_main
+)
 target_link_libraries(syncRequestVoteTest
     sync
     gtest_main
@@ -588,11 +710,19 @@ target_link_libraries(syncAppendEntriesTest
     sync
     gtest_main
 )
+target_link_libraries(syncAppendEntriesBatchTest
+    sync
+    gtest_main
+)
 target_link_libraries(syncAppendEntriesReplyTest
     sync
     gtest_main
 )
 target_link_libraries(syncClientRequestTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncClientRequestBatchTest
     sync
     gtest_main
 )
@@ -641,6 +771,10 @@ target_link_libraries(syncRefTest
     gtest_main
 )
 target_link_libraries(syncLogStoreCheck
+    sync
+    gtest_main
+)
+target_link_libraries(syncLogStoreCheck2
     sync
     gtest_main
 )
@@ -701,6 +835,26 @@ target_link_libraries(syncRaftLogTest3
     gtest_main
 )
 target_link_libraries(syncLeaderTransferTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncReconfigFinishTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncRestoreFromSnapshot
+    sync
+    gtest_main
+)
+target_link_libraries(syncRaftCfgIndexTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncHeartbeatTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncHeartbeatReplyTest
     sync
     gtest_main
 )

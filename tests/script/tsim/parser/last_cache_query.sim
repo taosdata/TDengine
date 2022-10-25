@@ -1,0 +1,388 @@
+
+sql connect
+
+$db = testdb
+sql use $db
+print "test tb1"
+
+sql select last(ts) from tb1
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-12 10:10:12.000@ then
+  print $data00
+  return -1
+endi
+
+sql select last(f1) from tb1
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 6 then
+  print $data00
+  return -1
+endi
+
+sql select last(*) from tb1
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-12 10:10:12.000@ then
+  print $data00
+  return -1
+endi
+if $data01 != 6 then
+  return -1
+endi
+if $data02 != 5.000000000 then
+  print $data02
+  return -1
+endi
+if $data03 != 3 then
+  print expect 3, actual: $data03
+  return -1
+endi
+if $data04 != @70-01-01 07:59:57.000@ then
+  return -1
+endi
+
+sql select last(tb1.*,ts,f4) from tb1
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-12 10:10:12.000@ then
+  print $data00
+  return -1
+endi
+if $data01 != 6 then
+  return -1
+endi
+if $data02 != 5.000000000 then
+  print $data02
+  return -1
+endi
+if $data03 != 3 then
+  return -1
+endi
+if $data04 != @70-01-01 07:59:57.000@ then
+  return -1
+endi
+if $data05 != @21-05-12 10:10:12.000@ then
+  print $data00
+  return -1
+endi
+if $data06 != @70-01-01 07:59:57.000@ then
+  return -1
+endi
+
+print "test tb2"
+sql select last(ts) from tb2
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-11 10:11:15.000@ then
+  print $data00
+  return -1
+endi
+
+sql select last(f1) from tb2
+if $rows != 1 then
+  return -1
+endi
+if $data00 != -6 then
+  print $data00
+  return -1
+endi
+
+sql select last(*) from tb2
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-11 10:11:15.000@ then
+  print $data00
+  return -1
+endi
+if $data01 != -6 then
+  return -1
+endi
+if $data02 != -7.000000000 then
+  print $data02
+  return -1
+endi
+if $data03 != -8 then
+  return -1
+endi
+if $data04 != @70-01-01 07:59:56.999@ then
+  if $data04 != @70-01-01 07:59:57.-01@ then
+    return -1
+  endi
+endi
+
+sql select last(tb2.*,ts,f4) from tb2
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-11 10:11:15.000@ then
+  print $data00
+  return -1
+endi
+if $data01 != -6 then
+  return -1
+endi
+if $data02 != -7.000000000 then
+  print $data02
+  return -1
+endi
+if $data03 != -8 then
+  return -1
+endi
+if $data04 != @70-01-01 07:59:56.999@ then
+  if $data04 != @70-01-01 07:59:57.-01@ then
+    return -1
+  endi
+endi
+if $data05 != @21-05-11 10:11:15.000@ then
+  print $data00
+  return -1
+endi
+if $data06 != @70-01-01 07:59:56.999@ then
+  if $data04 != @70-01-01 07:59:57.-01@ then
+    return -1
+  endi
+endi
+
+print "test tbd"
+sql select last(*) from tbd
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-11 10:12:29.000@ then
+  print $data00
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+if $data02 != NULL then
+  print $data02
+  return -1
+endi
+if $data03 != NULL then
+  return -1
+endi
+if $data04 != NULL then
+  return -1
+endi
+
+print "test tbe"
+sql select last(*) from tbe
+if $rows != 0 then
+  return -1
+endi
+
+print "test stable"
+sql select last(ts) from st2
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-12 10:10:12.000@ then
+  print $data00
+  return -1
+endi
+
+sql select last(f1) from st2
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 6 then
+  print $data00
+  return -1
+endi
+
+sql select last(*) from st2
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-12 10:10:12.000@ then
+  print $data00
+  return -1
+endi
+if $data01 != 6 then
+  return -1
+endi
+if $data02 != 37.000000000 then
+  print expect 37.000000000 actual: $data02
+  return -1
+endi
+if $data03 != 27 then
+  return -1
+endi
+if $data04 != @70-01-01 07:59:57.000@ then
+  return -1
+endi
+
+
+sql select last(st2.*,ts,f4) from st2
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-12 10:10:12.000@ then
+  print $data00
+  return -1
+endi
+if $data01 != 6 then
+  return -1
+endi
+if $data02 != 37.000000000 then
+  print expect 37.000000000, acutal: $data02
+  return -1
+endi
+if $data03 != 27 then
+  return -1
+endi
+if $data04 != @70-01-01 07:59:57.000@ then
+  return -1
+endi
+if $data05 != @21-05-12 10:10:12.000@ then
+  print $data00
+  return -1
+endi
+if $data06 != @70-01-01 07:59:57.000@ then
+  return -1
+endi
+
+sql select last(*), id from st2 group by id order by id
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+print ===> $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
+print ===> $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
+print ===> $data30 $data31 $data32 $data33 $data34 $data35 $data36 $data37 $data38 $data39
+print ===> $data40 $data41 $data42 $data43 $data44 $data45 $data46 $data47 $data48 $data49
+
+if $rows != 5 then
+  return -1
+endi
+if $data00 != @21-05-12 10:10:12.000@ then
+  return -1
+endi
+if $data01 != 6 then
+  return -1
+endi
+if $data02 != 5.000000000 then
+  print $data02
+  return -1
+endi
+if $data03 != 21 then
+  return -1
+endi
+if $data04 != @70-01-01 07:59:57.000@ then
+  return -1
+endi
+if $data05 != 1 then
+  return -1
+endi
+if $data10 != @21-05-11 10:12:23.000@ then
+  return -1
+endi
+if $data11 != 22 then
+  return -1
+endi
+if $data12 != 23.000000000 then
+  print $data02
+  return -1
+endi
+if $data13 != -8 then
+  return -1
+endi
+if $data14 != @70-01-01 07:59:58.-04@ then
+  return -1
+endi
+if $data15 != 2 then
+  return -1
+endi
+if $data20 != @21-05-10 10:12:24.000@ then
+  return -1
+endi
+if $data21 != 24 then
+  return -1
+endi
+if $data22 != 11.000000000 then
+  print expect 11.000000000 actual: $data22
+  return -1
+endi
+if $data23 != 25 then
+  return -1
+endi
+if $data24 != @70-01-01 07:59:57.-04@ then =
+  return -1
+endi
+if $data25 != 3 then
+  return -1
+endi
+if $data30 != @21-05-11 10:12:25.000@ then
+  return -1
+endi
+if $data31 != 26 then
+  return -1
+endi
+if $data32 != 17.000000000 then
+  print $data02
+  return -1
+endi
+if $data33 != 27 then
+  return -1
+endi
+if $data34 != @70-01-01 07:59:56.-04@ then
+  return -1
+endi
+if $data35 != 4 then
+  return -1
+endi
+if $data40 != @21-05-11 10:12:29.000@ then
+  return -1
+endi
+if $data41 != 36 then
+  return -1
+endi
+if $data42 != 37.000000000 then
+  print $data02
+  return -1
+endi
+if $data43 != 35 then
+  return -1
+endi
+if $data44 != @70-01-01 07:59:56.-05@ then
+  return -1
+endi
+if $data45 != 5 then
+  return -1
+endi
+
+print "test tbn"
+sql create table if not exists tbn (ts timestamp, f1 int, f2 double, f3 binary(10), f4 timestamp)
+sql insert into tbn values ("2021-05-09 10:10:10", 1, 2.0, '3',  -1000)
+sql insert into tbn values ("2021-05-10 10:10:11", 4, 5.0, NULL, -2000)
+sql insert into tbn values ("2021-05-12 10:10:12", 6,NULL, NULL, -3000)
+sql insert into tbn values ("2021-05-13 10:10:12", NULL,NULL, NULL,NULL)
+
+sql select last(*) from tbn;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-05-13 10:10:12.000@ then
+  print $data00
+  return -1
+endi
+if $data01 != 6 then
+  return -1
+endi
+if $data02 != 5.000000000 then
+  print $data02
+  return -1
+endi
+if $data03 != 3 then
+  return -1
+endi
+if $data04 != @70-01-01 07:59:57.000@ then
+  return -1
+endi
+

@@ -24,6 +24,7 @@
 #include "tcache.h"
 #include "tdatablock.h"
 #include "tglobal.h"
+#include "tgrant.h"
 #include "tqueue.h"
 #include "ttime.h"
 #include "version.h"
@@ -34,12 +35,19 @@ extern "C" {
 #endif
 
 // clang-format off
-#define mFatal(...) { if (mDebugFlag & DEBUG_FATAL) { taosPrintLog("MND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}
-#define mError(...) { if (mDebugFlag & DEBUG_ERROR) { taosPrintLog("MND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}
-#define mWarn(...)  { if (mDebugFlag & DEBUG_WARN)  { taosPrintLog("MND WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}
-#define mInfo(...)  { if (mDebugFlag & DEBUG_INFO)  { taosPrintLog("MND ", DEBUG_INFO, 255, __VA_ARGS__); }}
-#define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND ", DEBUG_DEBUG, mDebugFlag, __VA_ARGS__); }}
-#define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", DEBUG_TRACE, mDebugFlag, __VA_ARGS__); }}
+#define mFatal(...) { if (mDebugFlag & DEBUG_FATAL) { taosPrintLog("MND FATAL ", DEBUG_FATAL, 255,        __VA_ARGS__); }}
+#define mError(...) { if (mDebugFlag & DEBUG_ERROR) { taosPrintLog("MND ERROR ", DEBUG_ERROR, 255,        __VA_ARGS__); }}
+#define mWarn(...)  { if (mDebugFlag & DEBUG_WARN)  { taosPrintLog("MND WARN ",  DEBUG_WARN,  255,        __VA_ARGS__); }}
+#define mInfo(...)  { if (mDebugFlag & DEBUG_INFO)  { taosPrintLog("MND ",       DEBUG_INFO,  255,        __VA_ARGS__); }}
+#define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND ",       DEBUG_DEBUG, mDebugFlag, __VA_ARGS__); }}
+#define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ",       DEBUG_TRACE, mDebugFlag, __VA_ARGS__); }}
+
+#define mGFatal(param, ...) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); mFatal(param ", gtid:%s", __VA_ARGS__, buf);}
+#define mGError(param, ...) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); mError(param ", gtid:%s", __VA_ARGS__, buf);}
+#define mGWarn(param, ...)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); mWarn (param ", gtid:%s", __VA_ARGS__, buf);}
+#define mGInfo(param, ...)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); mInfo (param ", gtid:%s", __VA_ARGS__, buf);}
+#define mGDebug(param, ...) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); mDebug(param ", gtid:%s", __VA_ARGS__, buf);}
+#define mGTrace(param, ...) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); mTrace(param ", gtid:%s", __VA_ARGS__, buf);}
 // clang-format on
 
 #define SYSTABLE_SCH_TABLE_NAME_LEN ((TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
@@ -67,7 +75,8 @@ typedef struct {
 } SShowMgmt;
 
 typedef struct {
-  SCacheObj *cache;
+  SCacheObj *connCache;
+  SCacheObj *appCache;
 } SProfileMgmt;
 
 typedef struct {
@@ -76,11 +85,15 @@ typedef struct {
 } STelemMgmt;
 
 typedef struct {
-  sem_t   syncSem;
-  int64_t sync;
-  bool    standby;
-  int32_t errCode;
-  int32_t transId;
+  tsem_t   syncSem;
+  int64_t  sync;
+  int32_t  errCode;
+  int32_t  transId;
+  SRWLatch lock;
+  int8_t   leaderTransferFinish;
+  int8_t   selfIndex;
+  int8_t   numOfReplicas;
+  SReplica replicas[TSDB_MAX_REPLICA];
 } SSyncMgmt;
 
 typedef struct {
@@ -98,9 +111,6 @@ typedef struct SMnode {
   bool           stopped;
   bool           restored;
   bool           deploy;
-  int8_t         replica;
-  int8_t         selfIndex;
-  SReplica       replicas[TSDB_MAX_REPLICA];
   char          *path;
   int64_t        checkTime;
   SSdb          *pSdb;
@@ -119,15 +129,12 @@ typedef struct SMnode {
 } SMnode;
 
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
-int64_t mndGenerateUid(char *name, int32_t len);
+int64_t mndGenerateUid(const char *name, int32_t len);
 
-int32_t mndAcquireRpcRef(SMnode *pMnode);
-void    mndReleaseRpcRef(SMnode *pMnode);
-void    mndSetRestore(SMnode *pMnode, bool restored);
-void    mndSetStop(SMnode *pMnode);
-bool    mndGetStop(SMnode *pMnode);
-int32_t mndAcquireSyncRef(SMnode *pMnode);
-void    mndReleaseSyncRef(SMnode *pMnode);
+void mndSetRestored(SMnode *pMnode, bool restored);
+bool mndGetRestored(SMnode *pMnode);
+void mndSetStop(SMnode *pMnode);
+bool mndGetStop(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

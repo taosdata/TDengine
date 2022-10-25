@@ -7,7 +7,6 @@
 #include "index.h"
 #include "indexCache.h"
 #include "indexFst.h"
-#include "indexFstCountingWriter.h"
 #include "indexFstUtil.h"
 #include "indexInt.h"
 #include "indexTfile.h"
@@ -20,7 +19,7 @@ class FstWriter {
  public:
   FstWriter() {
     taosRemoveFile(fileName.c_str());
-    _wc = writerCtxCreate(TFile, fileName.c_str(), false, 64 * 1024 * 1024);
+    _wc = idxFileCtxCreate(TFILE, fileName.c_str(), false, 64 * 1024 * 1024);
     _b = fstBuilderCreate(_wc, 0);
   }
   bool Put(const std::string& key, uint64_t val) {
@@ -35,28 +34,28 @@ class FstWriter {
     return ok;
   }
   ~FstWriter() {
-    fstBuilderFinish(_b);
+    // fstBuilderFinish(_b);
     fstBuilderDestroy(_b);
 
-    writerCtxDestroy(_wc, false);
+    idxFileCtxDestroy(_wc, false);
   }
 
  private:
   FstBuilder* _b;
-  WriterCtx*  _wc;
+  IFileCtx*   _wc;
 };
 
 class FstReadMemory {
  public:
   FstReadMemory(int32_t size, const std::string& fileName = TD_TMP_DIR_PATH "tindex.tindex") {
-    _wc = writerCtxCreate(TFile, fileName.c_str(), true, 64 * 1024);
-    _w = fstCountingWriterCreate(_wc);
+    _wc = idxFileCtxCreate(TFILE, fileName.c_str(), true, 64 * 1024);
+    _w = idxFileCreate(_wc);
     _size = size;
     memset((void*)&_s, 0, sizeof(_s));
   }
   bool init() {
     char* buf = (char*)taosMemoryCalloc(1, sizeof(char) * _size);
-    int   nRead = fstCountingWriterRead(_w, (uint8_t*)buf, _size);
+    int   nRead = idxFileRead(_w, (uint8_t*)buf, _size);
     if (nRead <= 0) {
       return false;
     }
@@ -141,18 +140,18 @@ class FstReadMemory {
   }
 
   ~FstReadMemory() {
-    fstCountingWriterDestroy(_w);
+    idxFileDestroy(_w);
     fstDestroy(_fst);
     fstSliceDestroy(&_s);
-    writerCtxDestroy(_wc, false);
+    idxFileCtxDestroy(_wc, false);
   }
 
  private:
-  FstCountingWriter* _w;
-  Fst*               _fst;
-  FstSlice           _s;
-  WriterCtx*         _wc;
-  int32_t            _size;
+  IdxFstFile* _w;
+  Fst*        _fst;
+  FstSlice    _s;
+  IFileCtx*   _wc;
+  int32_t     _size;
 };
 
 #define L 100
@@ -599,7 +598,9 @@ void fst_get(Fst* fst) {
 void validateTFile(char* arg) {
   std::thread threads[NUM_OF_THREAD];
   // std::vector<std::thread> threads;
-  TFileReader* reader = tfileReaderOpen(arg, 0, 20000000, "tag1");
+  SIndex* index = (SIndex*)taosMemoryCalloc(1, sizeof(SIndex));
+  index->path = strdup(arg);
+  TFileReader* reader = tfileReaderOpen(index, 0, 20000000, "tag1");
 
   for (int i = 0; i < NUM_OF_THREAD; i++) {
     threads[i] = std::thread(fst_get, reader->fst);
@@ -618,7 +619,7 @@ void iterTFileReader(char* path, char* uid, char* colName, char* ver) {
   uint64_t suid = atoi(uid);
   int      version = atoi(ver);
 
-  TFileReader* reader = tfileReaderOpen(path, suid, version, colName);
+  TFileReader* reader = tfileReaderOpen(NULL, suid, version, colName);
 
   Iterate* iter = tfileIteratorCreate(reader);
   bool     tn = iter ? iter->next(iter) : false;

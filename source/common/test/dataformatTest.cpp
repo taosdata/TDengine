@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#if 0
 #include <gtest/gtest.h>
 
 #include <taoserror.h>
@@ -116,7 +117,7 @@ STSchema *genSTSchema(int16_t nCols) {
   }
 
   STSchema *pResult = NULL;
-  pResult = tdGetSTSChemaFromSSChema(&pSchema, nCols);
+  pResult = tdGetSTSChemaFromSSChema(pSchema, nCols, 1);
 
   taosMemoryFree(pSchema);
   return pResult;
@@ -133,11 +134,11 @@ static int32_t genTestData(const char **data, int16_t nCols, SArray **pArray) {
     SColVal colVal = {0};
     colVal.cid = PRIMARYKEY_TIMESTAMP_COL_ID + i;
     if (strncasecmp(data[i], NONE_CSTR, NONE_LEN) == 0) {
-      colVal.isNone = 1;
+      colVal.flag = CV_FLAG_NONE;
       taosArrayPush(*pArray, &colVal);
       continue;
     } else if (strncasecmp(data[i], NULL_CSTR, NULL_LEN) == 0) {
-      colVal.isNull = 1;
+      colVal.flag = CV_FLAG_NULL;
       taosArrayPush(*pArray, &colVal);
       continue;
     }
@@ -204,11 +205,11 @@ static int32_t genTestData(const char **data, int16_t nCols, SArray **pArray) {
 }
 
 int32_t debugPrintSColVal(SColVal *cv, int8_t type) {
-  if (cv->isNone) {
+  if (COL_VAL_IS_NONE(cv)) {
     printf("None ");
     return 0;
   }
-  if (cv->isNull) {
+  if (COL_VAL_IS_NULL(cv)) {
     printf("Null ");
     return 0;
   }
@@ -285,8 +286,8 @@ int32_t debugPrintSColVal(SColVal *cv, int8_t type) {
 }
 
 void debugPrintTSRow(STSRow2 *row, STSchema *pTSchema, const char *tags, int32_t ln) {
-  printf("%s:%d %s:v%d:%d ", tags, ln, (row->flags & 0xf0) ? "KV" : "TP", row->sver, row->nData);
-  for (int16_t i = 0; i < schemaNCols(pTSchema); ++i) {
+  // printf("%s:%d %s:v%d:%d ", tags, ln, (row->flags & 0xf0) ? "KV" : "TP", row->sver, row->nData);
+  for (int16_t i = 0; i < pTSchema->numOfCols; ++i) {
     SColVal cv = {0};
     tTSRowGet(row, pTSchema, i, &cv);
     debugPrintSColVal(&cv, pTSchema->columns[i].type);
@@ -298,11 +299,11 @@ void debugPrintTSRow(STSRow2 *row, STSchema *pTSchema, const char *tags, int32_t
 static int32_t checkSColVal(const char *rawVal, SColVal *cv, int8_t type) {
   ASSERT(rawVal);
 
-  if (cv->isNone) {
+  if (COL_VAL_IS_NONE(cv)) {
     EXPECT_STRCASEEQ(rawVal, NONE_CSTR);
     return 0;
   }
-  if (cv->isNull) {
+  if (COL_VAL_IS_NULL(cv)) {
     EXPECT_STRCASEEQ(rawVal, NULL_CSTR);
     return 0;
   }
@@ -393,7 +394,7 @@ static int32_t checkSColVal(const char *rawVal, SColVal *cv, int8_t type) {
 }
 
 static void checkTSRow(const char **data, STSRow2 *row, STSchema *pTSchema) {
-  for (int16_t i = 0; i < schemaNCols(pTSchema); ++i) {
+  for (int16_t i = 0; i < pTSchema->numOfCols; ++i) {
     SColVal cv = {0};
     tTSRowGet(row, pTSchema, i, &cv);
     checkSColVal(data[i], &cv, pTSchema->columns[i].type);
@@ -476,4 +477,5 @@ TEST(testCase, NoneTest) {
   taosArrayDestroy(pArray);
   taosMemoryFree(pTSchema);
 }
+#endif
 #endif

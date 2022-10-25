@@ -146,6 +146,25 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
     case QUERY_NODE_TARGET:
       res = walkExpr(((STargetNode*)pNode)->pExpr, order, walker, pContext);
       break;
+    case QUERY_NODE_WHEN_THEN: {
+      SWhenThenNode* pWhenThen = (SWhenThenNode*)pNode;
+      res = walkExpr(pWhenThen->pWhen, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pWhenThen->pThen, order, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_CASE_WHEN: {
+      SCaseWhenNode* pCaseWhen = (SCaseWhenNode*)pNode;
+      res = walkExpr(pCaseWhen->pCase, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pCaseWhen->pElse, order, walker, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExprs(pCaseWhen->pWhenThenList, order, walker, pContext);
+      }
+      break;
+    }
     default:
       break;
   }
@@ -168,7 +187,7 @@ static EDealRes walkExprs(SNodeList* pNodeList, ETraversalOrder order, FNodeWalk
   return DEAL_RES_CONTINUE;
 }
 
-void nodesWalkExpr(SNodeptr pNode, FNodeWalker walker, void* pContext) {
+void nodesWalkExpr(SNode* pNode, FNodeWalker walker, void* pContext) {
   (void)walkExpr(pNode, TRAVERSAL_PREORDER, walker, pContext);
 }
 
@@ -176,7 +195,7 @@ void nodesWalkExprs(SNodeList* pNodeList, FNodeWalker walker, void* pContext) {
   (void)walkExprs(pNodeList, TRAVERSAL_PREORDER, walker, pContext);
 }
 
-void nodesWalkExprPostOrder(SNodeptr pNode, FNodeWalker walker, void* pContext) {
+void nodesWalkExprPostOrder(SNode* pNode, FNodeWalker walker, void* pContext) {
   (void)walkExpr(pNode, TRAVERSAL_POSTORDER, walker, pContext);
 }
 
@@ -291,6 +310,25 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
     case QUERY_NODE_TARGET:
       res = rewriteExpr(&(((STargetNode*)pNode)->pExpr), order, rewriter, pContext);
       break;
+    case QUERY_NODE_WHEN_THEN: {
+      SWhenThenNode* pWhenThen = (SWhenThenNode*)pNode;
+      res = rewriteExpr(&pWhenThen->pWhen, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pWhenThen->pThen, order, rewriter, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_CASE_WHEN: {
+      SCaseWhenNode* pCaseWhen = (SCaseWhenNode*)pNode;
+      res = rewriteExpr(&pCaseWhen->pCase, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&pCaseWhen->pElse, order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExprs(pCaseWhen->pWhenThenList, order, rewriter, pContext);
+      }
+      break;
+    }
     default:
       break;
   }
@@ -340,12 +378,15 @@ void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker wa
       nodesWalkExpr(pSelect->pWhere, walker, pContext);
     case SQL_CLAUSE_WHERE:
       nodesWalkExprs(pSelect->pPartitionByList, walker, pContext);
+      nodesWalkExprs(pSelect->pTags, walker, pContext);
+      nodesWalkExpr(pSelect->pSubtable, walker, pContext);
     case SQL_CLAUSE_PARTITION_BY:
       nodesWalkExpr(pSelect->pWindow, walker, pContext);
     case SQL_CLAUSE_WINDOW:
       if (NULL != pSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
         nodesWalkExpr(((SIntervalWindowNode*)pSelect->pWindow)->pFill, walker, pContext);
       }
+    case SQL_CLAUSE_FILL:
       nodesWalkExprs(pSelect->pGroupByList, walker, pContext);
     case SQL_CLAUSE_GROUP_BY:
       nodesWalkExpr(pSelect->pHaving, walker, pContext);
@@ -373,12 +414,15 @@ void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewrit
       nodesRewriteExpr(&(pSelect->pWhere), rewriter, pContext);
     case SQL_CLAUSE_WHERE:
       nodesRewriteExprs(pSelect->pPartitionByList, rewriter, pContext);
+      nodesRewriteExprs(pSelect->pTags, rewriter, pContext);
+      nodesRewriteExpr(&(pSelect->pSubtable), rewriter, pContext);
     case SQL_CLAUSE_PARTITION_BY:
       nodesRewriteExpr(&(pSelect->pWindow), rewriter, pContext);
     case SQL_CLAUSE_WINDOW:
       if (NULL != pSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
         nodesRewriteExpr(&(((SIntervalWindowNode*)pSelect->pWindow)->pFill), rewriter, pContext);
       }
+    case SQL_CLAUSE_FILL:
       nodesRewriteExprs(pSelect->pGroupByList, rewriter, pContext);
     case SQL_CLAUSE_GROUP_BY:
       nodesRewriteExpr(&(pSelect->pHaving), rewriter, pContext);
@@ -468,8 +512,11 @@ static EDealRes dispatchPhysiPlan(SNode* pNode, ETraversalOrder order, FNodeWalk
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_MERGE_JOIN: {
-      SJoinPhysiNode* pJoin = (SJoinPhysiNode*)pNode;
+      SSortMergeJoinPhysiNode* pJoin = (SSortMergeJoinPhysiNode*)pNode;
       res = walkPhysiNode((SPhysiNode*)pNode, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkPhysiPlan(pJoin->pMergeCondition, order, walker, pContext);
+      }
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkPhysiPlan(pJoin->pOnConditions, order, walker, pContext);
       }
@@ -500,7 +547,8 @@ static EDealRes dispatchPhysiPlan(SNode* pNode, ETraversalOrder order, FNodeWalk
       }
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_SORT: {
+    case QUERY_NODE_PHYSICAL_PLAN_SORT:
+    case QUERY_NODE_PHYSICAL_PLAN_GROUP_SORT: {
       SSortPhysiNode* pSort = (SSortPhysiNode*)pNode;
       res = walkPhysiNode((SPhysiNode*)pNode, order, walker, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
@@ -531,7 +579,8 @@ static EDealRes dispatchPhysiPlan(SNode* pNode, ETraversalOrder order, FNodeWalk
       }
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_PARTITION: {
+    case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_PARTITION: {
       SPartitionPhysiNode* pPart = (SPartitionPhysiNode*)pNode;
       res = walkPhysiNode((SPhysiNode*)pNode, order, walker, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {

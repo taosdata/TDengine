@@ -16,8 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #ifdef WINDOWS
-#include "windows.h"
 #include "wincrypt.h"
+#include "windows.h"
 #else
 #include <sys/file.h>
 #include <unistd.h>
@@ -27,19 +27,23 @@ void taosSeedRand(uint32_t seed) { return srand(seed); }
 
 uint32_t taosRand(void) { return rand(); }
 
-uint32_t taosRandR(uint32_t *pSeed) {
+uint32_t taosRandR(uint32_t* pSeed) {
 #ifdef WINDOWS
-  return rand_s(pSeed); 
+  return rand_s(pSeed);
 #else
-  return rand_r(pSeed); 
+  return rand_r(pSeed);
 #endif
 }
 
 uint32_t taosSafeRand(void) {
 #ifdef WINDOWS
-  uint32_t seed;
+  uint32_t   seed = taosRand();
   HCRYPTPROV hCryptProv;
-  if (!CryptAcquireContext(&hCryptProv, NULL, NULL, PROV_RSA_FULL, 0)) return seed;
+  if (!CryptAcquireContext(&hCryptProv, NULL, NULL, PROV_RSA_FULL, 0)) {
+    if (!CryptAcquireContext(&hCryptProv, NULL, NULL, PROV_RSA_FULL, CRYPT_NEWKEYSET)) {
+      return seed;
+    }
+  }
   if (hCryptProv != NULL) {
     if (!CryptGenRandom(hCryptProv, 4, &seed)) return seed;
   }
@@ -47,7 +51,7 @@ uint32_t taosSafeRand(void) {
   return seed;
 #else
   TdFilePtr pFile;
-  int seed;
+  int       seed;
 
   pFile = taosOpenFile("/dev/urandom", TD_FILE_READ);
   if (pFile == NULL) {

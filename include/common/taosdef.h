@@ -34,11 +34,10 @@ typedef enum {
   TSDB_SUPER_TABLE = 1,   // super table
   TSDB_CHILD_TABLE = 2,   // table created from super table
   TSDB_NORMAL_TABLE = 3,  // ordinary table
-  TSDB_STREAM_TABLE = 4,  // table created from stream computing
-  TSDB_TEMP_TABLE = 5,    // temp table created by nest query
-  TSDB_SYSTEM_TABLE = 6,
-  TSDB_TSMA_TABLE = 7,  // time-range-wise sma
-  TSDB_TABLE_MAX = 8
+  TSDB_TEMP_TABLE = 4,    // temp table created by nest query
+  TSDB_SYSTEM_TABLE = 5,
+  TSDB_TSMA_TABLE = 6,  // time-range-wise sma
+  TSDB_TABLE_MAX = 7
 } ETableType;
 
 typedef enum {
@@ -65,13 +64,6 @@ typedef enum {
   TSDB_STATIS_OK = 0,    // statis part exist and load successfully
   TSDB_STATIS_NONE = 1,  // statis part not exist
 } ETsdbStatisStatus;
-
-typedef enum {
-  TSDB_SMA_STAT_UNKNOWN = -1,  // unknown
-  TSDB_SMA_STAT_OK = 0,        // ready to provide service
-  TSDB_SMA_STAT_EXPIRED = 1,   // not ready or expired
-  TSDB_SMA_STAT_DROPPED = 2,   // sma dropped
-} ETsdbSmaStat;                // bit operation
 
 typedef enum {
   TSDB_SMA_TYPE_BLOCK = 0,       // Block-wise SMA

@@ -19,7 +19,7 @@
 static int32_t sdbCreateDir(SSdb *pSdb);
 
 SSdb *sdbInit(SSdbOpt *pOption) {
-  mDebug("start to init sdb in %s", pOption->path);
+  mInfo("start to init sdb in %s", pOption->path);
 
   SSdb *pSdb = taosMemoryCalloc(1, sizeof(SSdb));
   if (pSdb == NULL) {
@@ -53,21 +53,23 @@ SSdb *sdbInit(SSdbOpt *pOption) {
   }
 
   pSdb->pWal = pOption->pWal;
-  pSdb->curVer = -1;
-  pSdb->curTerm = -1;
-  pSdb->lastCommitVer = -1;
-  pSdb->lastCommitTerm = -1;
-  pSdb->curConfig = -1;
+  pSdb->sync = pOption->sync;
+  pSdb->applyIndex = -1;
+  pSdb->applyTerm = -1;
+  pSdb->applyConfig = -1;
+  pSdb->commitIndex = -1;
+  pSdb->commitTerm = -1;
+  pSdb->commitConfig = -1;
   pSdb->pMnode = pOption->pMnode;
   taosThreadMutexInit(&pSdb->filelock, NULL);
-  mDebug("sdb init successfully");
+  mInfo("sdb init success");
   return pSdb;
 }
 
 void sdbCleanup(SSdb *pSdb) {
-  mDebug("start to cleanup sdb");
+  mInfo("start to cleanup sdb");
 
-  sdbWriteFile(pSdb);
+  sdbWriteFile(pSdb, 0);
 
   if (pSdb->currDir != NULL) {
     taosMemoryFreeClear(pSdb->currDir);
@@ -102,12 +104,12 @@ void sdbCleanup(SSdb *pSdb) {
     pSdb->hashObjs[i] = NULL;
     memset(&pSdb->locks[i], 0, sizeof(pSdb->locks[i]));
 
-    mDebug("sdb table:%s is cleaned up", sdbTableName(i));
+    mInfo("sdb table:%s is cleaned up", sdbTableName(i));
   }
 
   taosThreadMutexDestroy(&pSdb->filelock);
   taosMemoryFree(pSdb);
-  mDebug("sdb is cleaned up");
+  mInfo("sdb is cleaned up");
 }
 
 int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
@@ -130,7 +132,7 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
     hashType = TSDB_DATA_TYPE_BINARY;
   }
 
-  SHashObj *hash = taosHashInit(64, taosGetDefaultHashFunction(hashType), true, HASH_NO_LOCK);
+  SHashObj *hash = taosHashInit(64, taosGetDefaultHashFunction(hashType), true, HASH_ENTRY_LOCK);
   if (hash == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -138,7 +140,7 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
 
   pSdb->maxId[sdbType] = 0;
   pSdb->hashObjs[sdbType] = hash;
-  mDebug("sdb table:%s is initialized", sdbTableName(sdbType));
+  mInfo("sdb table:%s is initialized", sdbTableName(sdbType));
 
   return 0;
 }
@@ -159,23 +161,44 @@ static int32_t sdbCreateDir(SSdb *pSdb) {
   return 0;
 }
 
-void sdbSetApplyIndex(SSdb *pSdb, int64_t index) { pSdb->curVer = index; }
-
-void sdbSetApplyTerm(SSdb *pSdb, int64_t term) { pSdb->curTerm = term; }
-
-void sdbSetCurConfig(SSdb *pSdb, int64_t config) {
-  if (pSdb->curConfig != config) {
-    mDebug("mnode sync config set from %" PRId64 " to %" PRId64, pSdb->curConfig, config);
-    pSdb->curConfig = config;
-  }
+void sdbSetApplyInfo(SSdb *pSdb, int64_t index, int64_t term, int64_t config) {
+#if 1
+  mTrace("mnode apply info changed from index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " to index:%" PRId64
+         " term:%" PRId64 " config:%" PRId64,
+         pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, index, term, config);
+#endif
+  pSdb->applyIndex = index;
+  pSdb->applyTerm = term;
+  pSdb->applyConfig = config;
 }
 
-int64_t sdbGetApplyIndex(SSdb *pSdb) { return pSdb->curVer; }
+void sdbGetCommitInfo(SSdb *pSdb, int64_t *index, int64_t *term, int64_t *config) {
+  *index = pSdb->commitIndex;
+  *term = pSdb->commitTerm;
+  *config = pSdb->commitConfig;
+#if 1
+  mTrace("mnode current info, apply index:%" PRId64 " term:%" PRId64 " config:%" PRId64 ", commit index:%" PRId64
+         " term:%" PRId64 " config:%" PRId64,
+         pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, *index, *term, *config);
+#endif
+}
 
-int64_t sdbGetApplyTerm(SSdb *pSdb) { return pSdb->curTerm; }
+void sdbWriteLock(SSdb *pSdb, int32_t type) {
+  TdThreadRwlock *pLock = &pSdb->locks[type];
+  // mTrace("sdb table:%d start write lock:%p", type, pLock);
+  taosThreadRwlockWrlock(pLock);
+  // mTrace("sdb table:%d stop write lock:%p", type, pLock);
+}
 
-int64_t sdbGetCommitIndex(SSdb *pSdb) { return pSdb->lastCommitVer; }
+void sdbReadLock(SSdb *pSdb, int32_t type) {
+  TdThreadRwlock *pLock = &pSdb->locks[type];
+  // mTrace("sdb table:%d start read lock:%p", type, pLock);
+  taosThreadRwlockRdlock(pLock);
+  // mTrace("sdb table:%d stop read lock:%p", type, pLock);
+}
 
-int64_t sdbGetCommitTerm(SSdb *pSdb) { return pSdb->lastCommitTerm; }
-
-int64_t sdbGetCurConfig(SSdb *pSdb) { return pSdb->curConfig; }
+void sdbUnLock(SSdb *pSdb, int32_t type) {
+  TdThreadRwlock *pLock = &pSdb->locks[type];
+  // mTrace("sdb table:%d unlock:%p", type, pLock);
+  taosThreadRwlockUnlock(pLock);
+}

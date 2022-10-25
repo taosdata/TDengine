@@ -47,7 +47,7 @@ if [ -d ${top_dir}/tools/taos-tools/packaging/deb ]; then
   cd ${top_dir}/tools/taos-tools/packaging/deb
   [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
-  taostools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}')
+  taostools_ver=$(git tag |grep -v taos | sort | tail -1)
   taostools_install_dir="${release_dir}/${clientName}Tools-${taostools_ver}"
 
   cd ${curr_dir}
@@ -60,7 +60,7 @@ if [ "$pagMode" == "lite" ]; then
   strip ${build_dir}/bin/${serverName}
   strip ${build_dir}/bin/${clientName}
   # lite version doesn't include taosadapter,  which will lead to no restful interface
-  bin_files="${build_dir}/bin/${serverName} ${build_dir}/bin/${clientName} ${script_dir}/remove.sh ${script_dir}/startPre.sh ${build_dir}/bin/taosBenchmark"
+  bin_files="${build_dir}/bin/${serverName} ${build_dir}/bin/${clientName} ${script_dir}/remove.sh ${script_dir}/startPre.sh ${build_dir}/bin/taosBenchmark "
   taostools_bin_files=""
 else
 
@@ -80,21 +80,25 @@ else
       ${build_dir}/bin/taosBenchmark \
       ${build_dir}/bin/TDinsight.sh \
       $tdinsight_caches"
+  [ -f ${build_dir}/bin/taosx ] && taosx_bin="${build_dir}/bin/taosx"
 
   bin_files="${build_dir}/bin/${serverName} \
       ${build_dir}/bin/${clientName} \
       ${taostools_bin_files} \
+      ${taosx_bin} \
       ${build_dir}/bin/taosadapter \
-      ${build_dir}/bin/tarbitrator\
+      ${build_dir}/bin/udfd \
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
-      ${script_dir}/run_taosd_and_taosadapter.sh \
       ${script_dir}/startPre.sh \
       ${script_dir}/taosd-dump-cfg.gdb"
 fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"
-header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h"
+wslib_files="${build_dir}/lib/libtaosws.so"
+header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h ${code_dir}/include/libs/function/taosudf.h"
+
+wsheader_files="${build_dir}/include/taosws.h"
 
 if [ "$dbName" != "taos" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
@@ -103,16 +107,17 @@ else
 fi
 
 install_files="${script_dir}/install.sh"
-nginx_dir="${top_dir}/../enterprise/src/plugins/web"
+web_dir="${top_dir}/../enterprise/src/plugins/web"
 
 init_file_deb=${script_dir}/../deb/taosd
 init_file_rpm=${script_dir}/../rpm/taosd
-init_file_tarbitrator_deb=${script_dir}/../deb/tarbitratord
-init_file_tarbitrator_rpm=${script_dir}/../rpm/tarbitratord
 
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
+
+[ -f ${wsheader_files} ] && cp ${wsheader_files} ${install_dir}/inc || :
+
 mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/${configFile} ${install_dir}/cfg/${configFile}
 
 if [ -f "${compile_dir}/test/cfg/taosadapter.toml" ]; then
@@ -127,19 +132,9 @@ if [ -f "${cfg_dir}/${serverName}.service" ]; then
   cp ${cfg_dir}/${serverName}.service ${install_dir}/cfg || :
 fi
 
-if [ -f "${top_dir}/packaging/cfg/tarbitratord.service" ]; then
-  cp ${top_dir}/packaging/cfg/tarbitratord.service ${install_dir}/cfg || :
-fi
-
-if [ -f "${top_dir}/packaging/cfg/nginxd.service" ]; then
-  cp ${top_dir}/packaging/cfg/nginxd.service ${install_dir}/cfg || :
-fi
-
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/${serverName}.deb
 mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/${serverName}.rpm
-mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_deb} ${install_dir}/init.d/tarbitratord.deb || :
-mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_rpm} ${install_dir}/init.d/tarbitratord.rpm || :
 
 if [ $adapterName != "taosadapter" ]; then
   mv ${install_dir}/cfg/taosadapter.toml ${install_dir}/cfg/$adapterName.toml
@@ -152,7 +147,6 @@ if [ $adapterName != "taosadapter" ]; then
   sed -i "s/taosadapter/${adapterName}/g" ${install_dir}/cfg/$adapterName.service
 
   mv ${install_dir}/bin/taosadapter ${install_dir}/bin/${adapterName}
-  mv ${install_dir}/bin/run_taosd_and_taosadapter.sh ${install_dir}/bin/run_${serverName}_and_${adapterName}.sh
   mv ${install_dir}/bin/taosd-dump-cfg.gdb ${install_dir}/bin/${serverName}-dump-cfg.gdb
 fi
 
@@ -224,16 +218,6 @@ if [ "$verMode" == "cluster" ]; then
   sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove.sh >>remove_temp.sh
   mv remove_temp.sh ${install_dir}/bin/remove.sh
 
-  mkdir -p ${install_dir}/nginxd && cp -r ${nginx_dir}/* ${install_dir}/nginxd
-  cp ${nginx_dir}/png/taos.png ${install_dir}/nginxd/admin/images/taos.png
-  rm -rf ${install_dir}/nginxd/png
-
-  if [ "$cpuType" == "aarch64" ]; then
-    cp -f ${install_dir}/nginxd/sbin/arm/64bit/nginx ${install_dir}/nginxd/sbin/
-  elif [ "$cpuType" == "aarch32" ]; then
-    cp -f ${install_dir}/nginxd/sbin/arm/32bit/nginx ${install_dir}/nginxd/sbin/
-  fi
-  rm -rf ${install_dir}/nginxd/sbin/arm
 fi
 
 cd ${install_dir}
@@ -290,22 +274,28 @@ if [[ $dbName == "taos" ]]; then
     cp -r ${examples_dir}/C# ${install_dir}/examples
     mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
   fi
+
+  # Add web files
+  if [ -d "${web_dir}/admin" ]; then
+    mkdir -p ${install_dir}/share/
+    cp ${web_dir}/admin ${install_dir}/share/ -r
+    cp ${web_dir}/png/taos.png ${install_dir}/share/admin/images/taos.png
+  fi
 fi
 
 # Copy driver
 mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo "${versionComp}" >${install_dir}/driver/vercomp.txt
+[ -f ${wslib_files} ] && cp ${wslib_files} ${install_dir}/driver || :
 
 # Copy connector
 if [ "$verMode" == "cluster" ]; then
     connector_dir="${code_dir}/connector"
     mkdir -p ${install_dir}/connector
     if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-        cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
-        if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
-            cp -r ${connector_dir}/go ${install_dir}/connector
-        else
-            echo "WARNING: go connector not found, please check if want to use it!"
-        fi
+        [ -f ${build_dir}/lib/*.jar ] && cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
+        git clone --depth 1 https://github.com/taosdata/driver-go ${install_dir}/connector/go
+        rm -rf ${install_dir}/connector/go/.git ||:
+
         git clone --depth 1 https://github.com/taosdata/taos-connector-python ${install_dir}/connector/python
         rm -rf ${install_dir}/connector/python/.git ||:
 
@@ -317,13 +307,14 @@ if [ "$verMode" == "cluster" ]; then
 
         git clone --depth 1 https://github.com/taosdata/libtaos-rs ${install_dir}/connector/rust
         rm -rf ${install_dir}/connector/rust/.git ||:
+
         # cp -r ${connector_dir}/python ${install_dir}/connector
         # cp -r ${connector_dir}/nodejs ${install_dir}/connector
     fi
 fi
 
 # Copy release note
-cp ${script_dir}/release_note ${install_dir}
+# cp ${script_dir}/release_note ${install_dir}
 
 # exit 1
 

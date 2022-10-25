@@ -29,15 +29,15 @@ extern "C" {
 #include "tqueue.h"
 #include "trpc.h"
 
-#define TICK_Q_TIMER_MS 1000
+#define TICK_Q_TIMER_MS    1000
 #define TICK_Ping_TIMER_MS 1000
 
 typedef struct SSyncIO {
   STaosQueue *pMsgQ;
-  STaosQset * pQset;
+  STaosQset  *pQset;
   TdThread    consumerTid;
-  void *      serverRpc;
-  void *      clientRpc;
+  void       *serverRpc;
+  void       *clientRpc;
   SEpSet      myAddr;
   SMsgCb      msgcb;
 
@@ -50,15 +50,14 @@ typedef struct SSyncIO {
   void *pSyncNode;
   int32_t (*FpOnSyncPing)(SSyncNode *pSyncNode, SyncPing *pMsg);
   int32_t (*FpOnSyncPingReply)(SSyncNode *pSyncNode, SyncPingReply *pMsg);
-  int32_t (*FpOnSyncClientRequest)(SSyncNode *pSyncNode, SyncClientRequest *pMsg);
+  int32_t (*FpOnSyncClientRequest)(SSyncNode *pSyncNode, SyncClientRequest *pMsg, SyncIndex *pRetIndex);
   int32_t (*FpOnSyncRequestVote)(SSyncNode *pSyncNode, SyncRequestVote *pMsg);
   int32_t (*FpOnSyncRequestVoteReply)(SSyncNode *pSyncNode, SyncRequestVoteReply *pMsg);
   int32_t (*FpOnSyncAppendEntries)(SSyncNode *pSyncNode, SyncAppendEntries *pMsg);
   int32_t (*FpOnSyncAppendEntriesReply)(SSyncNode *pSyncNode, SyncAppendEntriesReply *pMsg);
   int32_t (*FpOnSyncTimeout)(SSyncNode *pSyncNode, SyncTimeout *pMsg);
-
-  int32_t (*FpOnSyncSnapshotSend)(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg);
-  int32_t (*FpOnSyncSnapshotRsp)(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg);
+  int32_t (*FpOnSyncSnapshot)(SSyncNode *pSyncNode, SyncSnapshotSend *pMsg);
+  int32_t (*FpOnSyncSnapshotReply)(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg);
 
   int8_t isStart;
 

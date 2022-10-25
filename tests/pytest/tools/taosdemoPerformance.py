@@ -94,7 +94,7 @@ class taosdemoPerformace:
             "user": "root",
             "password": "taosdata",
             "thread_count": 10,
-            "thread_count_create_tbl": 4,
+            "create_table_thread_count": 4,
             "result_file": "./insert_res.txt",
             "databases": [db]
         }

@@ -35,7 +35,7 @@ Python 2.7.18
 
 下载地址：https://www.taosdata.com/cn/all-downloads/，选择一个合适的windows-client下载（client应该尽量与server端的版本保持一致）
 
-使用client的taos shell连接server
+使用client的TDengine CLI连接server
 
 ```shell
 >taos -h node5

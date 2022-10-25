@@ -10,7 +10,7 @@
 ```xml
 <bean id="dataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource">
     <property name="driverClassName" value="com.taosdata.jdbc.TSDBDriver"></property>
-    <property name="url" value="jdbc:TAOS://127.0.0.1:6030/log"></property>
+    <property name="url" value="jdbc:TAOS://127.0.0.1:6030/test"></property>
     <property name="username" value="root"></property>
     <property name="password" value="taosdata"></property>
 </bean>
@@ -28,5 +28,5 @@ mvn clean package
 ```
 打包成功之后，进入 `target/` 目录下，执行以下命令就可运行测试：
 ```shell
-java -jar SpringJdbcTemplate-1.0-SNAPSHOT-jar-with-dependencies.jar 
+java -jar target/SpringJdbcTemplate-1.0-SNAPSHOT-jar-with-dependencies.jar
 ```

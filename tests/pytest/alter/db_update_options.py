@@ -21,7 +21,7 @@ class TDTestCase:
         # check default update value 
         sql = "create database if not exists db"
         tdSql.execute(sql)
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkRows(1)
         tdSql.checkData(0,16,0)
 
@@ -29,14 +29,14 @@ class TDTestCase:
 
         # check update value 
         tdSql.execute(sql)
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkRows(1)
         tdSql.checkData(0,16,1)
 
 
         sql = "alter database db update 0"
         tdSql.execute(sql)
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkRows(1)
         tdSql.checkData(0,16,0)
 
@@ -46,7 +46,7 @@ class TDTestCase:
         sql = "alter database db update 100"
         tdSql.error(sql)
 
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkRows(1)
         tdSql.checkData(0,16,0)
 
@@ -56,7 +56,7 @@ class TDTestCase:
 
         tdSql.execute('create database db update 1')
 
-        tdSql.query('show databases')
+        tdSql.query('select * from information_schema.ins_databases')
         tdSql.checkRows(1)
         tdSql.checkData(0,16,1)
 

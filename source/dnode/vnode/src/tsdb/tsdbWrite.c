@@ -28,18 +28,20 @@ int tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq *pMsg, SSubmitRsp *
   // scan and convert
   if (tsdbScanAndConvertSubmitMsg(pTsdb, pMsg) < 0) {
     if (terrno != TSDB_CODE_TDB_TABLE_RECONFIGURE) {
-      tsdbError("vgId:%d, failed to insert data since %s", REPO_ID(pTsdb), tstrerror(terrno));
+      tsdbError("vgId:%d, failed to insert data since %s", TD_VID(pTsdb->pVnode), tstrerror(terrno));
     }
     return -1;
   }
 
   // loop to insert
-  tInitSubmitMsgIter(pMsg, &msgIter);
+  if (tInitSubmitMsgIter(pMsg, &msgIter) < 0) {
+    return -1;
+  }
   while (true) {
     SSubmitBlkRsp r = {0};
     tGetSubmitMsgNext(&msgIter, &pBlock);
     if (pBlock == NULL) break;
-    if (tsdbInsertTableData(pTsdb, version, &msgIter, pBlock, &r) < 0) {
+    if ((terrno = tsdbInsertTableData(pTsdb, version, &msgIter, pBlock, &r)) < 0) {
       return -1;
     }
 
@@ -77,7 +79,7 @@ static FORCE_INLINE int tsdbCheckRowRange(STsdb *pTsdb, tb_uid_t uid, STSRow *ro
   if (rowKey < minKey || rowKey > maxKey) {
     tsdbError("vgId:%d, table uid %" PRIu64 " timestamp is out of range! now %" PRId64 " minKey %" PRId64
               " maxKey %" PRId64 " row key %" PRId64,
-              REPO_ID(pTsdb), uid, now, minKey, maxKey, rowKey);
+              TD_VID(pTsdb->pVnode), uid, now, minKey, maxKey, rowKey);
     terrno = TSDB_CODE_TDB_TIMESTAMP_OUT_OF_RANGE;
     return -1;
   }
@@ -92,7 +94,7 @@ int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
   SSubmitBlk    *pBlock = NULL;
   SSubmitBlkIter blkIter = {0};
   STSRow        *row = NULL;
-  STsdbKeepCfg  *pCfg = REPO_KEEP_CFG(pTsdb);
+  STsdbKeepCfg  *pCfg = &pTsdb->keepCfg;
   TSKEY          now = taosGetTimestamp(pCfg->precision);
   TSKEY          minKey = now - tsTickPerMin[pCfg->precision] * pCfg->keep2;
   TSKEY          maxKey = now + tsTickPerMin[pCfg->precision] * pCfg->days;
@@ -111,7 +113,7 @@ int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
       // pBlock->sversion = htonl(pBlock->sversion);
       // pBlock->dataLen = htonl(pBlock->dataLen);
       // pBlock->schemaLen = htonl(pBlock->schemaLen);
-      // pBlock->numOfRows = htons(pBlock->numOfRows);
+      // pBlock->numOfRows = htonl(pBlock->numOfRows);
 
 #if 0
     if (pBlock->tid <= 0 || pBlock->tid >= pMeta->maxTables) {

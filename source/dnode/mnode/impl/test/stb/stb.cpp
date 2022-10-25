@@ -32,7 +32,8 @@ class MndTestStb : public ::testing::Test {
   void* BuildAlterStbUpdateTagBytesReq(const char* stbname, const char* tagname, int32_t bytes, int32_t* pContLen);
   void* BuildAlterStbAddColumnReq(const char* stbname, const char* colname, int32_t* pContLen);
   void* BuildAlterStbDropColumnReq(const char* stbname, const char* colname, int32_t* pContLen);
-  void* BuildAlterStbUpdateColumnBytesReq(const char* stbname, const char* colname, int32_t bytes, int32_t* pContLen, int32_t verInBlock);
+  void* BuildAlterStbUpdateColumnBytesReq(const char* stbname, const char* colname, int32_t bytes, int32_t* pContLen,
+                                          int32_t verInBlock);
 };
 
 Testbase MndTestStb::test;
@@ -50,13 +51,13 @@ void* MndTestStb::BuildCreateDbReq(const char* dbname, int32_t* pContLen) {
   createReq.daysToKeep2 = 3650;
   createReq.minRows = 100;
   createReq.maxRows = 4096;
-  createReq.fsyncPeriod = 3000;
+  createReq.walFsyncPeriod = 3000;
   createReq.walLevel = 1;
   createReq.precision = 0;
   createReq.compression = 2;
   createReq.replications = 1;
   createReq.strict = 1;
-  createReq.cacheLastRow = 0;
+  createReq.cacheLast = 0;
   createReq.ignoreExist = 1;
 
   int32_t contLen = tSerializeSCreateDbReq(NULL, 0, &createReq);
@@ -277,8 +278,6 @@ void* MndTestStb::BuildAlterStbUpdateColumnBytesReq(const char* stbname, const c
   req.numOfFields = 1;
   req.pFields = taosArrayInit(1, sizeof(SField));
   req.alterType = TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES;
-  req.tagVer = verInBlock;
-  req.colVer = verInBlock;
 
   SField field = {0};
   field.bytes = bytes;
@@ -315,7 +314,7 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
   }
 
   {
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 
@@ -396,7 +395,7 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
   test.Restart();
 
   {
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 
@@ -414,7 +413,7 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
   }
 
   {
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 0);
   }
 
@@ -476,7 +475,7 @@ TEST_F(MndTestStb, 02_Alter_Stb_AddTag) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
   }
 
   {
@@ -516,7 +515,7 @@ TEST_F(MndTestStb, 03_Alter_Stb_DropTag) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 
@@ -580,7 +579,7 @@ TEST_F(MndTestStb, 04_Alter_Stb_AlterTagName) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 
@@ -632,7 +631,7 @@ TEST_F(MndTestStb, 05_Alter_Stb_AlterTagBytes) {
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 
@@ -693,7 +692,7 @@ TEST_F(MndTestStb, 06_Alter_Stb_AddColumn) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 
@@ -753,7 +752,7 @@ TEST_F(MndTestStb, 07_Alter_Stb_DropColumn) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 
@@ -811,16 +810,16 @@ TEST_F(MndTestStb, 08_Alter_Stb_AlterTagBytes) {
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 
   {
     void*    pReq = BuildAlterStbUpdateColumnBytesReq(stbname, "col_not_exist", 20, &contLen, 1);
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
-    ASSERT_EQ(pRsp->code, 0);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_COLUMN_NOT_EXIST);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_STB, "user_stables", dbname);
+    test.SendShowReq(TSDB_MGMT_TABLE_STB, "ins_stables", dbname);
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 

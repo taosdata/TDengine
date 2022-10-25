@@ -1,0 +1,371 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = tb_db
+$tbPrefix = tb_tb
+$stbPrefix = tb_stb
+$tbNum = 10
+$rowNum = 1000
+$totalNum = $tbNum * $rowNum
+$loops = 200000
+$log = 10000
+$ts0 = 1537146000000
+$delta = 600000
+print ========== topbot.sim
+$i = 0
+$db = $dbPrefix . $i
+$stb = $stbPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db maxrows 4096 keep 36500
+print ====== create tables
+sql use $db
+sql create table $stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 smallint, c6 tinyint, c7 bool, c8 binary(10), c9 nchar(10)) tags(t1 int)
+
+$i = 0
+$ts = $ts0
+$halfNum = $tbNum / 2
+while $i < $halfNum
+  $tbId = $i + $halfNum
+  $tb = $tbPrefix . $i
+  $tb1 = $tbPrefix . $tbId
+  sql create table $tb using $stb tags( $i )
+  sql create table $tb1 using $stb tags( $tbId )
+
+  $x = 0
+  while $x < $rowNum
+    $xs = $x * $delta
+    $ts = $ts0 + $xs
+    $c = $x / 10
+    $c = $c * 10
+    $c = $x - $c
+    $binary = 'binary . $c
+    $binary = $binary . '
+    $nchar = 'nchar . $c
+    $nchar = $nchar . '
+    sql insert into $tb values ( $ts , $c , $c , $c , $c , $c , $c , true, $binary , $nchar )
+    sql insert into $tb1 values ( $ts , $c , NULL , $c , NULL , $c , $c , true, $binary , $nchar )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+endw
+print ====== tables created
+
+sql use $db
+##### select from table
+print ====== select top/bot from table and check num of rows returned
+sql select top(c1, 100) from tb_stb0
+if $row != 100 then
+  return -1
+endi
+
+sql select bottom(c1, 100) from tb_stb0
+if $row != 100 then
+  return -1
+endi
+
+sql select _wstart, bottom(c3, 5) from tb_tb1 interval(1y);
+if $rows != 5 then
+  return -1
+endi
+
+if $data01 != 0.00000 then
+  print expect 0.00000, actual:$data01
+  return -1
+endi
+
+if $data11 != 0.00000 then
+  return -1
+endi
+
+if $data21 != 0.00000 then
+  return -1
+endi
+
+if $data31 != 0.00000 then
+  return -1
+endi
+
+sql select _wstart, top(c4, 5) from tb_tb1 interval(1y);
+if $rows != 5 then
+  return -1
+endi
+
+if $data01 != 9.000000000 then
+  print expect 9.000000000, acutal:$data01
+  return -1
+endi
+
+if $data11 != 9.000000000 then
+  return -1
+endi
+
+if $data21 != 9.000000000 then
+  return -1
+endi
+
+if $data31 != 9.000000000 then
+  return -1
+endi
+
+sql select _wstart, top(c3, 5) from tb_tb1 interval(40h)
+if $rows != 25 then
+  return -1
+endi
+
+if $data01 != 9.00000 then
+  print expect 9.00000, actual:$data01
+  return -1
+endi
+
+sql select last(*) from tb_tb9
+if $row != 1 then
+  return -1
+endi
+
+sql select last(c2) from tb_tb9
+if $row != 0 then
+  return -1
+endi
+
+sql select first(c2), last(c2) from tb_tb9
+if $row != 0 then
+  return -1
+endi
+
+sql create table test(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, col7 bool, col8 binary(20), col9 nchar(20)) tags(loc nchar(20));
+sql create table test1 using test tags('beijing');
+sql insert into test1 values(1537146000000, 1, 1, 1, 1, 0.100000, 0.100000, 0, 'taosdata1', '涛思数据1');
+sql insert into test1 values(1537146000001, 2, 2, 2, 2, 1.100000, 1.100000, 1, 'taosdata2', '涛思数据2');
+sql insert into test1 values(1537146000002, 3, 3, 3, 3, 2.100000, 2.100000, 0, 'taosdata3', '涛思数据3');
+sql insert into test1 values(1537146000003, 4, 4, 4, 4, 3.100000, 3.100000, 1, 'taosdata4', '涛思数据4');
+sql insert into test1 values(1537146000004, 5, 5, 5, 5, 4.100000, 4.100000, 0, 'taosdata5', '涛思数据5');
+sql insert into test1 values(1537146000005, 6, 6, 6, 6, 5.100000, 5.100000, 1, 'taosdata6', '涛思数据6');
+sql insert into test1 values(1537146000006, 7, 7, 7, 7, 6.100000, 6.100000, 0, 'taosdata7', '涛思数据7');
+sql insert into test1 values(1537146000007, 8, 8, 8, 8, 7.100000, 7.100000, 1, 'taosdata8', '涛思数据8');
+sql insert into test1 values(1537146000008, 9, 9, 9, 9, 8.100000, 8.100000, 0, 'taosdata9', '涛思数据9');
+sql insert into test1 values(1537146000009, 10, 10, 10, 10, 9.100000, 9.100000, 1, 'taosdata10', '涛思数据10');
+sql select ts, bottom(col5, 10) from test order by col5;
+if $rows != 10 then
+  return -1
+endi
+
+if $data01 != 0.10000 then
+  print expect 0.10000 actual: $data01
+  return -1
+endi
+
+if $data11 != 1.10000 then
+  print expect 1.10000 actual: $data11
+  return -1
+endi
+
+if $data21 != 2.10000 then
+  print expect 2.10000 actual: $data21
+  return -1
+endi
+
+print =====================td-1302 case
+sql create database t1 keep 36500
+sql use t1;
+sql create table test(ts timestamp, k int);
+sql insert into test values(29999, 1)(70000, 2)(80000, 3)
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+sql connect
+
+sql select count(*) from t1.test where ts > 10000 and ts < 90000 interval(5000a)
+if $rows != 3 then
+ return -1
+endi
+
+print ==============>td-1308
+sql create database db keep 36500
+sql use db;
+
+sql create table stb (ts timestamp, c1 int, c2 binary(10)) tags(t1 binary(10));
+sql create table tb1 using stb tags('a1');
+
+sql insert into tb1 values('2020-09-03 15:30:48.812', 0, 'tb1');
+sql select count(*) from stb where ts > '2020-09-03 15:30:44' interval(4s);
+if $rows != 1 then
+  return -1
+endi
+
+sql create table tb4 using stb tags('a4');
+sql select count(*) from stb where ts > '2020-09-03 15:30:44' interval(4s);
+if $rows != 1 then
+  return -1
+endi
+
+print =======================>td-1446
+sql create table t(ts timestamp, k int)
+$ts = 6000
+while $ts < 7000
+  sql insert into t values ( $ts , $ts )
+  $ts = $ts + 1
+endw
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+sql connect
+sql use db;
+
+$ts = 1000
+while $ts < 5096
+  sql insert into t values ( $ts , $ts )
+  $ts = $ts + 1
+endw
+
+sql select * from t where ts < 6500
+if $rows != 4596 then
+  print expect 4596, actual: $rows
+  return -1
+endi
+
+sql select * from t where ts < 7000
+if $rows != 5096 then
+  return -1
+endi
+
+sql select * from t where ts <= 6000
+if $rows != 4097 then
+  return -1
+endi
+
+sql select * from t where ts <= 6001
+if $rows != 4098 then
+  return -1
+endi
+
+print ======================>td-1454
+sql select count(*)/10, count(*)+99 from t
+if $rows != 1  then
+  return -1
+endi
+
+if $data00 != 509.600000000 then
+  return -1
+endi
+
+if $data01 != 5195.000000000 then
+  return -1
+endi
+
+print =======================>td-1596
+sql create table t2(ts timestamp, k int)
+sql insert into t2 values('2020-1-2 1:1:1', 1);
+sql insert into t2 values('2020-2-2 1:1:1', 1);
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql use db
+sql select _wstart, count(*), first(ts), last(ts) from t2 interval(1d);
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != @20-01-02 00:00:00.000@ then
+  print expect 20-01-02 00:00:00.000, actual: $data00
+  return -1
+endi
+
+if $data10 != @20-02-02 00:00:00.000@ then
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+if $data11 != 1 then
+  return -1
+endi
+
+if $data02 != @20-01-02 01:01:01.000@ then
+  return -1
+endi
+
+if $data12 != @20-02-02 01:01:01.000@ then
+  return -1
+endi
+
+if $data03 != @20-01-02 01:01:01.000@ then
+  return -1
+endi
+
+if $data13 != @20-02-02 01:01:01.000@ then
+  return -1
+endi
+
+print ===============================>td-3361
+sql create table ttm1(ts timestamp, k int) tags(a nchar(12));
+sql create table ttm1_t1 using ttm1 tags('abcdef')
+sql insert into ttm1_t1 values(now, 1)
+sql select * from ttm1 where a=123456789012
+if $row != 0 then
+  return -1
+endi
+
+print ===============================>td-3621
+sql create table ttm2(ts timestamp, k bool);
+sql insert into ttm2 values('2021-1-1 1:1:1', true)
+sql insert into ttm2 values('2021-1-1 1:1:2', NULL)
+sql insert into ttm2 values('2021-1-1 1:1:3', false)
+sql select * from ttm2 where k is not null
+if $row !=  2 then
+  return -1
+endi
+
+if $data00 != @21-01-01 01:01:01.000@ then
+  print expect 21-01-01 01:01:01.000, actual $data00
+  return -1
+endi
+
+sql select * from ttm2 where k is null
+if $row != 1 then
+  return -1
+endi
+
+if $data00 != @21-01-01 01:01:02.000@ then
+  return -1
+endi
+
+sql select * from ttm2 where k=true
+if $row != 1 then
+  return -1
+endi
+
+if $data00 != @21-01-01 01:01:01.000@ then
+  return -1
+endi
+
+sql select * from ttm2 where k=false
+if $row != 1 then
+  return -1
+endi
+
+if $data00 != @21-01-01 01:01:03.000@ then
+  return -1
+endi
+
+sql select * from ttm2 where k<>false
+if $row != 1 then
+  return -1
+endi
+
+sql select * from ttm2 where k=null
+sql select * from ttm2 where k<>null
+sql_error select * from ttm2 where k like null
+sql select * from ttm2 where k<null
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -13,32 +13,44 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tutil.h"
 #include "vnd.h"
 
-const SVnodeCfg vnodeCfgDefault = {
-    .vgId = -1,
-    .dbname = "",
-    .dbId = 0,
-    .szPage = 4096,
-    .szCache = 256,
-    .szBuf = 96 * 1024 * 1024,
-    .isHeap = false,
-    .isWeak = 0,
-    .tsdbCfg = {.precision = TSDB_TIME_PRECISION_MILLI,
-                .update = 1,
-                .compression = 2,
-                .slLevel = 5,
-                .days = 10,
-                .minRows = 100,
-                .maxRows = 4096,
-                .keep2 = 3650,
-                .keep0 = 3650,
-                .keep1 = 3650},
-    .walCfg =
-        {.vgId = -1, .fsyncPeriod = 0, .retentionPeriod = 0, .rollPeriod = 0, .segSize = 0, .level = TAOS_WAL_WRITE},
-    .hashBegin = 0,
-    .hashEnd = 0,
-    .hashMethod = 0};
+const SVnodeCfg vnodeCfgDefault = {.vgId = -1,
+                                   .dbname = "",
+                                   .dbId = 0,
+                                   .szPage = 4096,
+                                   .szCache = 256,
+                                   .cacheLast = 3,
+                                   .cacheLastSize = 8,
+                                   .szBuf = 96 * 1024 * 1024,
+                                   .isHeap = false,
+                                   .isWeak = 0,
+                                   .tsdbCfg = {.precision = TSDB_TIME_PRECISION_MILLI,
+                                               .update = 1,
+                                               .compression = 2,
+                                               .slLevel = 5,
+                                               .days = 14400,
+                                               .minRows = 100,
+                                               .maxRows = 4096,
+                                               .keep2 = 5256000,
+                                               .keep0 = 5256000,
+                                               .keep1 = 5256000},
+                                   .walCfg =
+                                       {
+                                           .vgId = -1,
+                                           .fsyncPeriod = 0,
+                                           .retentionPeriod = -1,
+                                           .rollPeriod = 0,
+                                           .segSize = 0,
+                                           .retentionSize = -1,
+                                           .level = TAOS_WAL_WRITE,
+                                       },
+                                   .hashBegin = 0,
+                                   .hashEnd = 0,
+                                   .hashMethod = 0,
+                                   .sttTrigger = TSDB_DEFAULT_STT_FILE,
+                                   .tsdbPageSize = TSDB_DEFAULT_PAGE_SIZE};
 
 int vnodeCheckCfg(const SVnodeCfg *pCfg) {
   // TODO
@@ -53,6 +65,8 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "dbId", pCfg->dbId) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "szPage", pCfg->szPage) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "szCache", pCfg->szCache) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "cacheLast", pCfg->cacheLast) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "cacheLastSize", pCfg->cacheLastSize) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "szBuf", pCfg->szBuf) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "isHeap", pCfg->isHeap) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "isWeak", pCfg->isWeak) < 0) return -1;
@@ -79,7 +93,7 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
     SJson *pNodeRetentions = tjsonCreateArray();
     tjsonAddItemToObject(pJson, "retentions", pNodeRetentions);
     for (int32_t i = 0; i < nRetention; ++i) {
-      SJson      *pNodeRetention = tjsonCreateObject();
+      SJson            *pNodeRetention = tjsonCreateObject();
       const SRetention *pRetention = pCfg->tsdbCfg.retentions + i;
       tjsonAddIntegerToObject(pNodeRetention, "freq", pRetention->freq);
       tjsonAddIntegerToObject(pNodeRetention, "freqUnit", pRetention->freqUnit);
@@ -95,12 +109,23 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "wal.retentionSize", pCfg->walCfg.retentionSize) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.segSize", pCfg->walCfg.segSize) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.level", pCfg->walCfg.level) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "sstTrigger", pCfg->sttTrigger) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashBegin", pCfg->hashBegin) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashEnd", pCfg->hashEnd) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashMethod", pCfg->hashMethod) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "hashPrefix", pCfg->hashPrefix) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "hashSuffix", pCfg->hashSuffix) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "tsdbPageSize", pCfg->tsdbPageSize) < 0) return -1;
 
   if (tjsonAddIntegerToObject(pJson, "syncCfg.replicaNum", pCfg->syncCfg.replicaNum) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "syncCfg.myIndex", pCfg->syncCfg.myIndex) < 0) return -1;
+
+  if (tjsonAddIntegerToObject(pJson, "vndStats.stables", pCfg->vndStats.numOfSTables) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "vndStats.ctables", pCfg->vndStats.numOfCTables) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "vndStats.ntables", pCfg->vndStats.numOfNTables) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "vndStats.timeseries", pCfg->vndStats.numOfTimeSeries) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "vndStats.ntimeseries", pCfg->vndStats.numOfNTimeSeries) < 0) return -1;
+
   SJson *pNodeInfoArr = tjsonCreateArray();
   tjsonAddItemToObject(pJson, "syncCfg.nodeInfo", pNodeInfoArr);
   for (int i = 0; i < pCfg->syncCfg.replicaNum; ++i) {
@@ -110,6 +135,9 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
     tjsonAddItemToArray(pNodeInfoArr, pNodeInfo);
   }
 
+  // add tsdb page size config
+  if (tjsonAddIntegerToObject(pJson, "tsdbPageSize", pCfg->tsdbPageSize) < 0) return -1;
+
   return 0;
 }
 
@@ -118,45 +146,49 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
 
   int32_t code;
   tjsonGetNumberValue(pJson, "vgId", pCfg->vgId, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   if (tjsonGetStringValue(pJson, "dbname", pCfg->dbname) < 0) return -1;
   tjsonGetNumberValue(pJson, "dbId", pCfg->dbId, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "szPage", pCfg->szPage, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "szCache", pCfg->szCache, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "cacheLast", pCfg->cacheLast, code);
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "cacheLastSize", pCfg->cacheLastSize, code);
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "szBuf", pCfg->szBuf, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "isHeap", pCfg->isHeap, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "isWeak", pCfg->isWeak, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "isTsma", pCfg->isTsma, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "isRsma", pCfg->isRsma, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "precision", pCfg->tsdbCfg.precision, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "update", pCfg->tsdbCfg.update, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "compression", pCfg->tsdbCfg.compression, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "slLevel", pCfg->tsdbCfg.slLevel, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "daysPerFile", pCfg->tsdbCfg.days, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "minRows", pCfg->tsdbCfg.minRows, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "maxRows", pCfg->tsdbCfg.maxRows, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "keep0", pCfg->tsdbCfg.keep0, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "keep1", pCfg->tsdbCfg.keep1, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "keep2", pCfg->tsdbCfg.keep2, code);
-  if(code < 0) return -1;
-  SJson *pNodeRetentions = tjsonGetObjectItem(pJson, "retentions");
+  if (code < 0) return -1;
+  SJson  *pNodeRetentions = tjsonGetObjectItem(pJson, "retentions");
   int32_t nRetention = tjsonGetArraySize(pNodeRetentions);
   if (nRetention > TSDB_RETENTION_MAX) {
     nRetention = TSDB_RETENTION_MAX;
@@ -170,30 +202,47 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     tjsonGetNumberValue(pNodeRetention, "keepUnit", (pCfg->tsdbCfg.retentions)[i].keepUnit, code);
   }
   tjsonGetNumberValue(pJson, "wal.vgId", pCfg->walCfg.vgId, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "wal.fsyncPeriod", pCfg->walCfg.fsyncPeriod, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "wal.retentionPeriod", pCfg->walCfg.retentionPeriod, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "wal.rollPeriod", pCfg->walCfg.rollPeriod, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "wal.retentionSize", pCfg->walCfg.retentionSize, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "wal.segSize", pCfg->walCfg.segSize, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "wal.level", pCfg->walCfg.level, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "sstTrigger", pCfg->sttTrigger, code);
+  if (code < 0) pCfg->sttTrigger = TSDB_DEFAULT_SST_TRIGGER;
   tjsonGetNumberValue(pJson, "hashBegin", pCfg->hashBegin, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "hashEnd", pCfg->hashEnd, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "hashMethod", pCfg->hashMethod, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "hashPrefix", pCfg->hashPrefix, code);
+  if (code < 0) pCfg->hashPrefix = TSDB_DEFAULT_HASH_PREFIX;
+  tjsonGetNumberValue(pJson, "hashSuffix", pCfg->hashSuffix, code);
+  if (code < 0) pCfg->hashSuffix = TSDB_DEFAULT_HASH_SUFFIX;
 
   tjsonGetNumberValue(pJson, "syncCfg.replicaNum", pCfg->syncCfg.replicaNum, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
   tjsonGetNumberValue(pJson, "syncCfg.myIndex", pCfg->syncCfg.myIndex, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
+
+  tjsonGetNumberValue(pJson, "vndStats.stables", pCfg->vndStats.numOfSTables, code);
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "vndStats.ctables", pCfg->vndStats.numOfCTables, code);
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "vndStats.ntables", pCfg->vndStats.numOfNTables, code);
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "vndStats.timeseries", pCfg->vndStats.numOfTimeSeries, code);
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "vndStats.ntimeseries", pCfg->vndStats.numOfNTimeSeries, code);
+  if (code < 0) return -1;
 
   SJson *pNodeInfoArr = tjsonGetObjectItem(pJson, "syncCfg.nodeInfo");
   int    arraySize = tjsonGetArraySize(pNodeInfoArr);
@@ -206,6 +255,9 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
     tjsonGetStringValue(pNodeInfo, "nodeFqdn", (pCfg->syncCfg.nodeInfo)[i].nodeFqdn);
   }
 
+  tjsonGetNumberValue(pJson, "tsdbPageSize", pCfg->tsdbPageSize, code);
+  if (code < 0) pCfg->tsdbPageSize = TSDB_DEFAULT_TSDB_PAGESIZE * 1024;
+
   return 0;
 }
 
@@ -214,17 +266,15 @@ int vnodeValidateTableHash(SVnode *pVnode, char *tableFName) {
 
   switch (pVnode->config.hashMethod) {
     default:
-      hashValue = MurmurHash3_32(tableFName, strlen(tableFName));
+      hashValue = taosGetTbHashVal(tableFName, strlen(tableFName), pVnode->config.hashMethod, pVnode->config.hashPrefix,
+                                   pVnode->config.hashSuffix);
       break;
   }
 
-    // TODO OPEN THIS !!!!!!!
-#if 0
-  if (hashValue < pVnodeOptions->hashBegin || hashValue > pVnodeOptions->hashEnd) {
+  if (hashValue < pVnode->config.hashBegin || hashValue > pVnode->config.hashEnd) {
     terrno = TSDB_CODE_VND_HASH_MISMATCH;
     return TSDB_CODE_VND_HASH_MISMATCH;
   }
-#endif
 
   return 0;
 }

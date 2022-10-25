@@ -30,17 +30,20 @@ void Testbase::InitLog(const char* path) {
   tsdbDebugFlag = 0;
   tsLogEmbedded = 1;
   tsAsyncLog = 0;
-  tsRpcQueueMemoryAllowed = 1024 * 1024 * 64;
 
   taosRemoveDir(path);
   taosMkDir(path);
   tstrncpy(tsLogDir, path, PATH_MAX);
+
+  taosGetSystemInfo();
+  tsRpcQueueMemoryAllowed = tsTotalMemoryKB * 0.1;
   if (taosInitLog("taosdlog", 1) != 0) {
     printf("failed to init log file\n");
   }
 }
 
 void Testbase::Init(const char* path, int16_t port) {
+  osDefaultInit();
   tsServerPort = port;
   strcpy(tsLocalFqdn, "localhost");
   snprintf(tsLocalEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);
@@ -102,6 +105,7 @@ int32_t Testbase::SendShowReq(int8_t showType, const char* tb, const char* db) {
   ASSERT(pRsp->pCont != nullptr);
 
   if (pRsp->contLen == 0) return -1;
+  if (pRsp->code != 0) return -1;
 
   showRsp = (SRetrieveMetaTableRsp*)pRsp->pCont;
   showRsp->handle = htobe64(showRsp->handle);  // show Id

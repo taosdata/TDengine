@@ -30,7 +30,7 @@ class TDTestCase:
         tdSql.execute(s)
         s = 'drop database if exists db'
         tdSql.execute(s)
-        s = 'create database db days 30'
+        s = 'create database db duration 30'
         tdSql.execute(s)
         s = 'use db'
         tdSql.execute(s)

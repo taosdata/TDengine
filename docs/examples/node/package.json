@@ -1,0 +1,10 @@
+{
+  "name": "examples",
+  "version": "1.0.0",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "@tdengine/client": "^3.0.1",
+    "@tdengine/rest": "^3.0.0"
+  }
+}

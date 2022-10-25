@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "sdb.h"
+#include "sync.h"
 #include "tchecksum.h"
 #include "wal.h"
 
@@ -23,25 +24,25 @@
 #define SDB_FILE_VER     1
 
 static int32_t sdbDeployData(SSdb *pSdb) {
-  mDebug("start to deploy sdb");
+  mInfo("start to deploy sdb");
 
   for (int32_t i = SDB_MAX - 1; i >= 0; --i) {
     SdbDeployFp fp = pSdb->deployFps[i];
     if (fp == NULL) continue;
 
-    mDebug("start to deploy sdb:%s", sdbTableName(i));
+    mInfo("start to deploy sdb:%s", sdbTableName(i));
     if ((*fp)(pSdb->pMnode) != 0) {
       mError("failed to deploy sdb:%s since %s", sdbTableName(i), terrstr());
       return -1;
     }
   }
 
-  mDebug("sdb deploy successfully");
+  mInfo("sdb deploy success");
   return 0;
 }
 
 static void sdbResetData(SSdb *pSdb) {
-  mDebug("start to reset sdb");
+  mInfo("start to reset sdb");
 
   for (ESdbType i = 0; i < SDB_MAX; ++i) {
     SHashObj *hash = pSdb->hashObjs[i];
@@ -64,14 +65,16 @@ static void sdbResetData(SSdb *pSdb) {
     taosHashClear(pSdb->hashObjs[i]);
     pSdb->tableVer[i] = 0;
     pSdb->maxId[i] = 0;
-    mDebug("sdb:%s is reset", sdbTableName(i));
+    mInfo("sdb:%s is reset", sdbTableName(i));
   }
 
-  pSdb->curVer = -1;
-  pSdb->curTerm = -1;
-  pSdb->lastCommitVer = -1;
-  pSdb->lastCommitTerm = -1;
-  mDebug("sdb reset successfully");
+  pSdb->applyIndex = -1;
+  pSdb->applyTerm = -1;
+  pSdb->applyConfig = -1;
+  pSdb->commitIndex = -1;
+  pSdb->commitTerm = -1;
+  pSdb->commitConfig = -1;
+  mInfo("sdb reset success");
 }
 
 static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
@@ -90,7 +93,7 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
     return -1;
   }
 
-  ret = taosReadFile(pFile, &pSdb->curVer, sizeof(int64_t));
+  ret = taosReadFile(pFile, &pSdb->applyIndex, sizeof(int64_t));
   if (ret < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -100,7 +103,7 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
     return -1;
   }
 
-  ret = taosReadFile(pFile, &pSdb->curTerm, sizeof(int64_t));
+  ret = taosReadFile(pFile, &pSdb->applyTerm, sizeof(int64_t));
   if (ret < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -110,7 +113,7 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
     return -1;
   }
 
-  ret = taosReadFile(pFile, &pSdb->curConfig, sizeof(int64_t));
+  ret = taosReadFile(pFile, &pSdb->applyConfig, sizeof(int64_t));
   if (ret < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -173,17 +176,17 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
     return -1;
   }
 
-  if (taosWriteFile(pFile, &pSdb->curVer, sizeof(int64_t)) != sizeof(int64_t)) {
+  if (taosWriteFile(pFile, &pSdb->applyIndex, sizeof(int64_t)) != sizeof(int64_t)) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
-  if (taosWriteFile(pFile, &pSdb->curTerm, sizeof(int64_t)) != sizeof(int64_t)) {
+  if (taosWriteFile(pFile, &pSdb->applyTerm, sizeof(int64_t)) != sizeof(int64_t)) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
-  if (taosWriteFile(pFile, &pSdb->curConfig, sizeof(int64_t)) != sizeof(int64_t)) {
+  if (taosWriteFile(pFile, &pSdb->applyConfig, sizeof(int64_t)) != sizeof(int64_t)) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -227,9 +230,9 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
   char    file[PATH_MAX] = {0};
 
   snprintf(file, sizeof(file), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
-  mDebug("start to read sdb file:%s", file);
+  mInfo("start to read sdb file:%s", file);
 
-  SSdbRaw *pRaw = taosMemoryMalloc(WAL_MAX_SIZE + 100);
+  SSdbRaw *pRaw = taosMemoryMalloc(TSDB_MAX_MSG_SIZE + 100);
   if (pRaw == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed read sdb file since %s", terrstr());
@@ -300,11 +303,12 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
   }
 
   code = 0;
-  pSdb->lastCommitVer = pSdb->curVer;
-  pSdb->lastCommitTerm = pSdb->curTerm;
+  pSdb->commitIndex = pSdb->applyIndex;
+  pSdb->commitTerm = pSdb->applyTerm;
+  pSdb->commitConfig = pSdb->applyConfig;
   memcpy(pSdb->tableVer, tableVer, sizeof(tableVer));
-  mDebug("read sdb file:%s successfully, index:%" PRId64 " term:%" PRId64 " config:%" PRId64, file, pSdb->lastCommitVer,
-         pSdb->lastCommitTerm, pSdb->curConfig);
+  mInfo("read sdb file:%s success, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64, file, pSdb->commitIndex,
+        pSdb->commitTerm, pSdb->commitConfig);
 
 _OVER:
   taosCloseFile(&pFile);
@@ -336,9 +340,10 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
   char curfile[PATH_MAX] = {0};
   snprintf(curfile, sizeof(curfile), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
 
-  mDebug("start to write sdb file, current ver:%" PRId64 " term:%" PRId64 ", commit ver:%" PRId64 " term:%" PRId64
-         " file:%s",
-         pSdb->curVer, pSdb->curTerm, pSdb->lastCommitVer, pSdb->lastCommitTerm, curfile);
+  mInfo("start to write sdb file, apply index:%" PRId64 " term:%" PRId64 " config:%" PRId64 ", commit index:%" PRId64
+        " term:%" PRId64 " config:%" PRId64 ", file:%s",
+        pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, pSdb->commitIndex, pSdb->commitTerm, pSdb->commitConfig,
+        curfile);
 
   TdFilePtr pFile = taosOpenFile(tmpfile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
@@ -357,11 +362,10 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
     SdbEncodeFp encodeFp = pSdb->encodeFps[i];
     if (encodeFp == NULL) continue;
 
-    mDebug("write %s to sdb file, total %d rows", sdbTableName(i), sdbGetSize(pSdb, i));
+    mInfo("write %s to sdb file, total %d rows", sdbTableName(i), sdbGetSize(pSdb, i));
 
-    SHashObj       *hash = pSdb->hashObjs[i];
-    TdThreadRwlock *pLock = &pSdb->locks[i];
-    taosThreadRwlockWrlock(pLock);
+    SHashObj *hash = pSdb->hashObjs[i];
+    sdbWriteLock(pSdb, i);
 
     SSdbRow **ppRow = taosHashIterate(hash, NULL);
     while (ppRow != NULL) {
@@ -406,7 +410,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
       sdbFreeRaw(pRaw);
       ppRow = taosHashIterate(hash, ppRow);
     }
-    taosThreadRwlockUnlock(pLock);
+    sdbUnLock(pSdb, i);
   }
 
   if (code == 0) {
@@ -430,32 +434,48 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
   if (code != 0) {
     mError("failed to write sdb file:%s since %s", curfile, tstrerror(code));
   } else {
-    pSdb->lastCommitVer = pSdb->curVer;
-    pSdb->lastCommitTerm = pSdb->curTerm;
-    mDebug("write sdb file successfully, index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " file:%s",
-           pSdb->lastCommitVer, pSdb->lastCommitTerm, pSdb->curConfig, curfile);
+    pSdb->commitIndex = pSdb->applyIndex;
+    pSdb->commitTerm = pSdb->applyTerm;
+    pSdb->commitConfig = pSdb->applyConfig;
+    mInfo("write sdb file success, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " file:%s",
+          pSdb->commitIndex, pSdb->commitTerm, pSdb->commitConfig, curfile);
   }
 
   terrno = code;
   return code;
 }
 
-int32_t sdbWriteFile(SSdb *pSdb) {
+int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
   int32_t code = 0;
-  if (pSdb->curVer == pSdb->lastCommitVer) {
+  if (pSdb->applyIndex == pSdb->commitIndex) {
+    return 0;
+  }
+
+  if (pSdb->applyIndex - pSdb->commitIndex < delta) {
     return 0;
   }
 
   taosThreadMutexLock(&pSdb->filelock);
   if (pSdb->pWal != NULL) {
-    code = walBeginSnapshot(pSdb->pWal, pSdb->curVer);
+    // code = walBeginSnapshot(pSdb->pWal, pSdb->applyIndex);
+    if (pSdb->sync == 0) {
+      code = 0;
+    } else {
+      code = syncBeginSnapshot(pSdb->sync, pSdb->applyIndex);
+    }
   }
   if (code == 0) {
     code = sdbWriteFileImp(pSdb);
   }
   if (code == 0) {
     if (pSdb->pWal != NULL) {
-      code = walEndSnapshot(pSdb->pWal);
+      // code = walEndSnapshot(pSdb->pWal);
+
+      if (pSdb->sync == 0) {
+        code = 0;
+      } else {
+        code = syncEndSnapshot(pSdb->sync);
+      }
     }
   }
   if (code != 0) {
@@ -470,7 +490,7 @@ int32_t sdbDeploy(SSdb *pSdb) {
     return -1;
   }
 
-  if (sdbWriteFile(pSdb) != 0) {
+  if (sdbWriteFile(pSdb, 0) != 0) {
     return -1;
   }
 
@@ -505,7 +525,7 @@ static void sdbCloseIter(SSdbIter *pIter) {
   }
 
   if (pIter->name != NULL) {
-    taosRemoveFile(pIter->name);
+    (void)taosRemoveFile(pIter->name);
     taosMemoryFree(pIter->name);
     pIter->name = NULL;
   }
@@ -514,7 +534,7 @@ static void sdbCloseIter(SSdbIter *pIter) {
   taosMemoryFree(pIter);
 }
 
-int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter) {
+int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter, int64_t *index, int64_t *term, int64_t *config) {
   SSdbIter *pIter = sdbCreateIter(pSdb);
   if (pIter == NULL) return -1;
 
@@ -522,9 +542,9 @@ int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter) {
   snprintf(datafile, sizeof(datafile), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
 
   taosThreadMutexLock(&pSdb->filelock);
-  int64_t commitIndex = pSdb->lastCommitVer;
-  int64_t commitTerm = pSdb->lastCommitTerm;
-  int64_t curConfig = pSdb->curConfig;
+  int64_t commitIndex = pSdb->commitIndex;
+  int64_t commitTerm = pSdb->commitTerm;
+  int64_t commitConfig = pSdb->commitConfig;
   if (taosCopyFile(datafile, pIter->name) < 0) {
     taosThreadMutexUnlock(&pSdb->filelock);
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -543,8 +563,12 @@ int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter) {
   }
 
   *ppIter = pIter;
-  mInfo("sdbiter:%p, is created to read snapshot, index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " file:%s", pIter,
-        commitIndex, commitTerm, curConfig, pIter->name);
+  if (index != NULL) *index = commitIndex;
+  if (term != NULL) *term = commitTerm;
+  if (config != NULL) *config = commitConfig;
+
+  mInfo("sdbiter:%p, is created to read snapshot, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " file:%s",
+        pIter, commitIndex, commitTerm, commitConfig, pIter->name);
   return 0;
 }
 
@@ -554,7 +578,7 @@ int32_t sdbStopRead(SSdb *pSdb, SSdbIter *pIter) {
 }
 
 int32_t sdbDoRead(SSdb *pSdb, SSdbIter *pIter, void **ppBuf, int32_t *len) {
-  int32_t maxlen = 100;
+  int32_t maxlen = 4096;
   void   *pBuf = taosMemoryCalloc(1, maxlen);
   if (pBuf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -592,6 +616,7 @@ int32_t sdbStartWrite(SSdb *pSdb, SSdbIter **ppIter) {
   if (pIter->file == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("failed to open %s since %s", pIter->name, terrstr());
+    sdbCloseIter(pIter);
     return -1;
   }
 
@@ -600,12 +625,12 @@ int32_t sdbStartWrite(SSdb *pSdb, SSdbIter **ppIter) {
   return 0;
 }
 
-int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply) {
+int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, int64_t term, int64_t config) {
   int32_t code = 0;
 
   if (!isApply) {
-    sdbCloseIter(pIter);
     mInfo("sdbiter:%p, not apply to sdb", pIter);
+    sdbCloseIter(pIter);
     return 0;
   }
 
@@ -622,13 +647,27 @@ int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply) {
     return -1;
   }
 
-  sdbCloseIter(pIter);
   if (sdbReadFile(pSdb) != 0) {
     mError("sdbiter:%p, failed to read from %s since %s", pIter, datafile, terrstr());
+    sdbCloseIter(pIter);
     return -1;
   }
 
-  mInfo("sdbiter:%p, successfully applyed to sdb", pIter);
+  if (config > 0) {
+    ASSERT(pSdb->commitConfig == config);
+    pSdb->commitConfig = config;
+  }
+  if (term > 0) {
+    ASSERT(pSdb->commitTerm == term);
+    pSdb->commitTerm = term;
+  }
+  if (index > 0) {
+    ASSERT(pSdb->commitIndex == index);
+    pSdb->commitIndex = index;
+  }
+
+  mInfo("sdbiter:%p, success applyed to sdb", pIter);
+  sdbCloseIter(pIter);
   return 0;
 }
 

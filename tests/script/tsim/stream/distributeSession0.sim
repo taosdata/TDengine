@@ -1,0 +1,82 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+
+system sh/exec.sh -n dnode1 -s start 
+sleep 50
+sql connect
+
+sql create dnode $hostname2 port 7200
+
+system sh/exec.sh -n dnode2 -s start
+
+print ===== step1
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 2 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
+endi
+if $data(2)[4] != ready then
+  goto step1
+endi
+
+print ===== step2
+
+sql create database test  vgroups 4;
+sql use test;
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table ts1 using st tags(1,1,1);
+sql create table ts2 using st tags(2,2,2);
+sql create stream stream_t1 trigger at_once  into streamtST as select  _wstart, count(*) c1, sum(a) c2 ,  max(b)  c3 from st session(ts, 10s) ;
+
+sleep 1000
+
+sql insert into ts1 values(1648791211000,1,1,1) (1648791211005,1,1,1);
+sql insert into ts2 values(1648791221004,1,2,3) (1648791221008,2,2,3);
+sql insert into ts1 values(1648791211005,1,1,1);
+sql insert into ts2 values(1648791221006,5,5,5) (1648791221007,5,5,5);
+sql insert into ts2 values(1648791221008,5,5,5) (1648791221008,5,5,5)(1648791221006,5,5,5);
+sql insert into ts1 values(1648791231000,1,1,1) (1648791231002,1,1,1) (1648791231006,1,1,1);
+sql insert into ts1 values(1648791211000,6,6,6) (1648791231002,2,2,2);
+sql insert into ts1 values(1648791211002,7,7,7);
+sql insert into ts1 values(1648791211002,7,7,7) ts2 values(1648791221008,5,5,5) ;
+
+$loop_count = 0
+loop1:
+sql select * from streamtST;
+
+sleep 300
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+# row 0
+if $data01 != 10 then
+  print =====data01=$data01
+  goto loop1
+endi
+
+if $data02 != 34 then
+  print =====data02=$data02
+  goto loop1
+endi
+
+if $data03 != 7 then
+  print ======$data03
+  return -1
+endi
+
+system sh/stop_dnodes.sh

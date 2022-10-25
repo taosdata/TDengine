@@ -1,0 +1,71 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = lm2_db
+$tbPrefix = lm2_tb
+$stbPrefix = lm2_stb
+$tbNum = 10
+$rowNum = 10000
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 600000
+$tsu = $rowNum * $delta
+$tsu = $tsu - $delta
+$tsu = $tsu + $ts0
+
+print ========== limit2.sim
+$i = 0
+$db = $dbPrefix . $i
+$stb = $stbPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+print ====== create tables
+sql use $db
+sql create table $stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 smallint, c6 tinyint, c7 bool, c8 binary(10), c9 nchar(10)) tags(t1 int, t2 nchar(20), t3 binary(20), t4 bigint, t5 smallint, t6 double)
+
+$i = 0
+$ts = $ts0
+$halfNum = $tbNum / 2
+while $i < $halfNum
+  $i1 = $i + $halfNum
+  $tb = $tbPrefix . $i
+  $tb1 = $tbPrefix . $i1
+  $tgstr = 'tb . $i
+  $tgstr = $tgstr . '
+  $tgstr1 = 'tb . $i1
+  $tgstr1 = $tgstr1 . '
+  sql create table $tb using $stb tags( $i , $tgstr , $tgstr , $i , $i , $i )
+  sql create table $tb1 using $stb tags( $i1 , $tgstr1 , $tgstr1 , $i , $i , $i )
+
+  $x = 0
+  while $x < $rowNum
+    $xs = $x * $delta
+    $ts = $ts0 + $xs
+    $c = $x / 10
+    $c = $c * 10
+    $c = $x - $c
+    $binary = 'binary . $c
+    $binary = $binary . '
+    $nchar = 'nchar . $c
+    $nchar = $nchar . '
+    sql insert into $tb values ( $ts , $c , $c , $c , $c , $c , $c , true, $binary , $nchar )
+    sql insert into $tb1 values ( $ts , $c , NULL , $c , NULL , $c , $c , true, $binary , $nchar )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+endw
+print ====== tables created
+
+run tsim/parser/limit2_query.sim
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+
+run tsim/parser/limit2_query.sim

@@ -1,0 +1,140 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======== step1 create db
+sql create database keepdb replica 1 keep 30 duration 7 vgroups 2
+sql use keepdb
+sql create table tb (ts timestamp, i int)
+
+$x = 1
+while $x < 41
+  $time = $x . d
+  sql insert into tb values (now - $time , $x ) -x step2
+  step2:
+  $x = $x + 1
+endw
+
+sql select * from tb
+print ===> rows $rows last $data01
+if $rows >= 40 then
+	return -1
+endi
+
+print ======== step2 stop dnode
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s start
+
+sql select * from tb
+print ===> rows $rows last $data01
+if $rows >= 40 then
+	return -1
+endi
+if $rows <= 20 then
+	return -1
+endi
+
+$num1 = $rows + 40
+
+print ======== step3 alter db
+sql alter database keepdb keep 60
+sql flush database keepdb
+sql select * from information_schema.ins_databases
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07
+if $data22 != 2 then
+  return -1
+endi
+if $data27 != 86400m,86400m,86400m then
+  return -1
+endi
+
+print ======== step4 insert data
+$x = 41
+while $x < 81
+  $time = $x . d
+  sql insert into tb values (now - $time , $x ) -x step4
+  step4:
+  $x = $x + 1
+endw
+
+sql select * from tb
+print ===> rows $rows last $data01
+if $rows >= 80 then
+	return -1
+endi
+if $rows <= 45 then
+	return -1
+endi
+
+print ======== step5 stop dnode
+system sh/exec.sh -n dnode2 -s stop -x SIGKILL
+system sh/exec.sh -n dnode2 -s start
+
+sql select * from tb
+print ===> rows $rows last $data01
+if $rows >= 80 then
+	return -1
+endi
+if $rows <= 45 then
+	return -1
+endi
+
+print ======== step6 alter db
+sql alter database keepdb keep 30
+sql select * from information_schema.ins_databases
+if $data22 != 2 then
+  return -1
+endi
+if $data27 != 43200m,43200m,43200m then
+  return -1
+endi
+
+print ======== step7 stop dnode
+system sh/exec.sh -n dnode2 -s stop -x SIGKILL
+system sh/exec.sh -n dnode2 -s start
+
+sql select * from tb
+print ===> rows $rows last $data01
+if $rows >= 40 then
+	return -1
+endi
+if $rows <= 20 then
+	return -1
+endi
+
+print ======== step8 insert data
+$x = 81
+while $x < 121
+  $time = $x . d
+  sql insert into tb values (now - $time , $x ) -x step8
+  step8:
+  $x = $x + 1
+endw
+
+sql select * from tb
+print ===> rows $rows last $data01
+if $rows >= 40 then
+	return -1
+endi
+if $rows <= 20 then
+	return -1
+endi
+
+print ======== step9 alter db
+sql alter database keepdb keep -1 -x error1
+  return -1
+error1:
+
+sql alter database keepdb keep 0 -x error2
+  return -1
+error2:
+
+sql alter database keepdb duration 1 -x error3
+  return -1
+error3:
+
+print ======= test success
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT

@@ -81,7 +81,7 @@ int main(int argc, char** argv) {
   for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
     SyncIndex idx = syncIndexMgrGetIndex(pSyncIndexMgr, &ids[i]);
     // SyncTerm  term = syncIndexMgrGetTerm(pSyncIndexMgr, &ids[i]);
-    // printf("%d: index:%ld term:%lu \n", i, idx, term);
+    // printf("%d: index:%" PRId64 " term:%" PRIu64 " \n", i, idx, term);
   }
   printf("---------------------------------------\n");
 

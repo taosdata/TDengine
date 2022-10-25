@@ -1,0 +1,338 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+system sh/deploy.sh -n dnode5 -i 5
+system sh/deploy.sh -n dnode6 -i 6
+system sh/cfg.sh -n dnode1 -c supportVnodes -v 4
+system sh/cfg.sh -n dnode2 -c supportVnodes -v 4
+system sh/cfg.sh -n dnode3 -c supportVnodes -v 4
+system sh/cfg.sh -n dnode4 -c supportVnodes -v 4
+system sh/cfg.sh -n dnode5 -c supportVnodes -v 4
+system sh/cfg.sh -n dnode6 -c supportVnodes -v 4
+
+print ========== step1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create dnode $hostname port 7200
+sql create dnode $hostname port 7300
+sql create dnode $hostname port 7400
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode4 -s start
+
+$x = 0
+stepa:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+print ===> $data30 $data31 $data32 $data33 $data34 $data35
+if $rows != 4 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto stepa
+endi
+if $data(2)[4] != ready then
+  goto stepa
+endi
+if $data(3)[4] != ready then
+  goto stepa
+endi
+if $data(4)[4] != ready then
+  goto stepa
+endi
+
+sql create database ir3db replica 3 duration 7 vgroups 1
+sql use ir3db
+$x = 0
+stepb:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+$leaderExist = 0
+if $rows != 1 then
+  return -1
+endi
+if $data(2)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto stepb
+endi
+
+sql create table tb(ts timestamp, i bigint)
+
+print ================= step1
+sql insert into tb values(1520000010000, 1520000010000)
+sql select * from tb;
+print $rows
+if $rows != 1 then 
+  return -1
+endi
+
+print ================= step2
+sql insert into tb values(1520000008000, 1520000008000)
+print $rows
+sql select * from tb;
+if $rows != 2 then 
+  return -1
+endi
+
+print ================= step3
+sql insert into tb values(1520000020000, 1520000020000)
+sql select * from tb;
+print $rows
+if $rows != 3 then 
+  return -1
+endi
+
+print ================= step4
+sql insert into tb values(1520000009000, 1520000009000)
+sql insert into tb values(1520000015000, 1520000015000)
+sql insert into tb values(1520000030000, 1520000030000)
+sql select * from tb;
+print $rows
+if $rows != 6 then 
+  return -1
+endi
+
+print ================= step5
+sql insert into tb values(1520000008000, 1520000008000)
+sql insert into tb values(1520000014000, 1520000014000)
+sql insert into tb values(1520000025000, 1520000025000)
+sql insert into tb values(1520000040000, 1520000040000)
+sql select * from tb;
+print $rows
+if $rows != 9 then 
+  return -1
+endi
+
+print ================= step6
+sql insert into tb values(1520000007000, 1520000007000)
+sql insert into tb values(1520000012000, 1520000012000)
+sql insert into tb values(1520000023000, 1520000023000)
+sql insert into tb values(1520000034000, 1520000034000)
+sql insert into tb values(1520000050000, 1520000050000)
+sql select * from tb;
+print $rows
+if $rows != 14 then 
+  return -1
+endi
+
+print ================== step7
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s start
+$x = 0
+step7:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show vgroups -x step7
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+$leaderExist = 0
+if $data(2)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step7
+endi
+
+print ================= step7
+sql insert into tb values(1520000007001, 1520000007001)
+sql insert into tb values(1520000012001, 1520000012001)
+sql insert into tb values(1520000023001, 1520000023001)
+sql insert into tb values(1520000034001, 1520000034001)
+sql insert into tb values(1520000050001, 1520000050001)
+sql select * from tb;
+print $rows
+if $rows != 19 then
+  print expect 19, actual: $rows
+  return -1
+endi
+
+print ================= step8
+sql insert into tb values(1520000008002, 1520000008002)
+sql insert into tb values(1520000014002, 1520000014002)
+sql insert into tb values(1520000025002, 1520000025002)
+sql insert into tb values(1520000060000, 1520000060000)
+sql select * from tb;
+print $rows
+if $rows != 23 then 
+  return -1
+endi
+
+print ================= step9
+sql insert into tb values(1517408000000, 1517408000000)
+sql insert into tb values(1518272000000, 1518272000000)
+sql insert into tb values(1519136000000, 1519136000000)
+sql insert into tb values(1519568000000, 1519568000000)
+sql insert into tb values(1519654400000, 1519654400000)
+sql insert into tb values(1519827200000, 1519827200000)
+sql insert into tb values(1520345600000, 1520345600000)
+sql insert into tb values(1520691200000, 1520691200000)
+sql insert into tb values(1520864000000, 1520864000000)
+sql insert into tb values(1521900800000, 1521900800000)
+sql insert into tb values(1523110400000, 1523110400000)
+sql insert into tb values(1521382400000, 1521382400000)
+sql select * from tb;
+print $rows
+if $rows != 35 then 
+  return -1
+endi
+
+print ================= step10
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s start
+$x = 0
+step10:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show vgroups -x step10
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+$leaderExist = 0
+if $data(2)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step10
+endi
+
+sql select * from tb;
+print $rows
+if $rows != 35 then 
+  return -1
+endi
+
+print ================= step11
+sql insert into tb values(1515680000000, 1) (1515852800000, 2) (1516025600000, 3) (1516198400000, 4) (1516371200000, 5)
+sql select * from tb;
+if $rows != 40 then 
+  return -1
+endi
+
+print ================= step12
+sql insert into tb values(1518358400000, 6) (1518444800000, 7) (1518531200000, 8) (1518617600000, 9) (1518704000000, 10) (1518790400000, 11) (1518876800000, 12) (1518963200000, 13) (1519049600000, 14)
+sql select * from tb;
+print $rows
+if $rows != 49 then 
+  return -1
+endi
+
+print ================= step13
+system sh/exec.sh -n dnode4 -s stop -x SIGINT
+system sh/exec.sh -n dnode4 -s start
+$x = 0
+step13:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show vgroups -x step13
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+$leaderExist = 0
+if $data(2)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step13
+endi
+
+print ================= step14
+sql insert into tb values(1515852800001, -48)
+sql insert into tb values(1516716800000, -38)
+sql insert into tb values(1517580800000, -28)
+
+sql select * from tb;
+print $rows
+if $rows != 52 then 
+  return -1
+endi
+
+print ================= step15
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s start
+$x = 0
+step15:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show vgroups -x step15
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+$leaderExist = 0
+if $data(2)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step15
+endi
+
+sql select * from tb;
+if $rows != 52 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

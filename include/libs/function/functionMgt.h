@@ -105,7 +105,7 @@ typedef enum EFunctionType {
   // system function
   FUNCTION_TYPE_DATABASE = 3000,
   FUNCTION_TYPE_CLIENT_VERSION,
-  FUNCTION_TYPE_SERVER_SERSION,
+  FUNCTION_TYPE_SERVER_VERSION,
   FUNCTION_TYPE_SERVER_STATUS,
   FUNCTION_TYPE_CURRENT_USER,
   FUNCTION_TYPE_USER,
@@ -113,18 +113,26 @@ typedef enum EFunctionType {
   // pseudo column function
   FUNCTION_TYPE_ROWTS = 3500,
   FUNCTION_TYPE_TBNAME,
-  FUNCTION_TYPE_QSTARTTS,
-  FUNCTION_TYPE_QENDTS,
-  FUNCTION_TYPE_WSTARTTS,
-  FUNCTION_TYPE_WENDTS,
+  FUNCTION_TYPE_QSTART,
+  FUNCTION_TYPE_QEND,
+  FUNCTION_TYPE_QDURATION,
+  FUNCTION_TYPE_WSTART,
+  FUNCTION_TYPE_WEND,
   FUNCTION_TYPE_WDURATION,
+  FUNCTION_TYPE_IROWTS,
+  FUNCTION_TYPE_TAGS,
 
   // internal function
-  FUNCTION_TYPE_SELECT_VALUE,
-  FUNCTION_TYPE_BLOCK_DIST,  // block distribution aggregate function
+  FUNCTION_TYPE_SELECT_VALUE = 3750,
+  FUNCTION_TYPE_BLOCK_DIST,       // block distribution aggregate function
+  FUNCTION_TYPE_BLOCK_DIST_INFO,  // block distribution pseudo column function
+  FUNCTION_TYPE_TO_COLUMN,
+  FUNCTION_TYPE_GROUP_KEY,
+  FUNCTION_TYPE_CACHE_LAST_ROW,
+  FUNCTION_TYPE_CACHE_LAST,
 
   // distributed splitting functions
-  FUNCTION_TYPE_APERCENTILE_PARTIAL,
+  FUNCTION_TYPE_APERCENTILE_PARTIAL = 4000,
   FUNCTION_TYPE_APERCENTILE_MERGE,
   FUNCTION_TYPE_SPREAD_PARTIAL,
   FUNCTION_TYPE_SPREAD_MERGE,
@@ -135,9 +143,29 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_ELAPSED_PARTIAL,
   FUNCTION_TYPE_ELAPSED_MERGE,
 
+  FUNCTION_TYPE_TOP_PARTIAL,
+  FUNCTION_TYPE_TOP_MERGE,
+  FUNCTION_TYPE_BOTTOM_PARTIAL,
+  FUNCTION_TYPE_BOTTOM_MERGE,
+  FUNCTION_TYPE_FIRST_PARTIAL,
+  FUNCTION_TYPE_FIRST_MERGE,
+  FUNCTION_TYPE_LAST_PARTIAL,
+  FUNCTION_TYPE_LAST_MERGE,
+  FUNCTION_TYPE_AVG_PARTIAL,
+  FUNCTION_TYPE_AVG_MERGE,
+  FUNCTION_TYPE_STDDEV_PARTIAL,
+  FUNCTION_TYPE_STDDEV_MERGE,
+
   // user defined funcion
   FUNCTION_TYPE_UDF = 10000
 } EFunctionType;
+
+typedef enum EFuncReturnRows {
+  FUNC_RETURN_ROWS_NORMAL = 1,
+  FUNC_RETURN_ROWS_INDEFINITE,
+  FUNC_RETURN_ROWS_N,
+  FUNC_RETURN_ROWS_N_MINUS_1
+} EFuncReturnRows;
 
 struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
@@ -149,7 +177,10 @@ void fmFuncMgtDestroy();
 
 int32_t fmGetFuncInfo(SFunctionNode* pFunc, char* pMsg, int32_t msgLen);
 
-bool fmIsBuiltinFunc(const char* pFunc);
+EFuncReturnRows fmGetFuncReturnRows(SFunctionNode* pFunc);
+
+bool          fmIsBuiltinFunc(const char* pFunc);
+EFunctionType fmGetFuncType(const char* pFunc);
 
 bool fmIsAggFunc(int32_t funcId);
 bool fmIsScalarFunc(int32_t funcId);
@@ -171,6 +202,22 @@ bool fmIsRepeatScanFunc(int32_t funcId);
 bool fmIsUserDefinedFunc(int32_t funcId);
 bool fmIsDistExecFunc(int32_t funcId);
 bool fmIsForbidFillFunc(int32_t funcId);
+bool fmIsForbidStreamFunc(int32_t funcId);
+bool fmIsForbidSuperTableFunc(int32_t funcId);
+bool fmIsIntervalInterpoFunc(int32_t funcId);
+bool fmIsInterpFunc(int32_t funcId);
+bool fmIsLastRowFunc(int32_t funcId);
+bool fmIsNotNullOutputFunc(int32_t funcId);
+bool fmIsSelectValueFunc(int32_t funcId);
+bool fmIsSystemInfoFunc(int32_t funcId);
+bool fmIsImplicitTsFunc(int32_t funcId);
+bool fmIsClientPseudoColumnFunc(int32_t funcId);
+bool fmIsMultiRowsFunc(int32_t funcId);
+bool fmIsKeepOrderFunc(int32_t funcId);
+bool fmIsCumulativeFunc(int32_t funcId);
+bool fmIsInterpPseudoColumnFunc(int32_t funcId);
+
+void getLastCacheDataType(SDataType* pType);
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc);
 
@@ -182,6 +229,7 @@ typedef enum EFuncDataRequired {
 } EFuncDataRequired;
 
 EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
+EFuncDataRequired fmFuncDynDataRequired(int32_t funcId, void* pRes, STimeWindow* pTimeWindow);
 
 int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);

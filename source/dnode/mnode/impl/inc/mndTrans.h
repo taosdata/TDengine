@@ -27,6 +27,7 @@ typedef enum {
   TRANS_STOP_FUNC_TEST = 2,
   TRANS_START_FUNC_MQ_REB = 3,
   TRANS_STOP_FUNC_MQ_REB = 4,
+  TRANS_FUNC_RECOVER_STREAM_STEP_NEXT = 5,
 } ETrnFunc;
 
 typedef enum {
@@ -39,8 +40,10 @@ typedef struct {
   int32_t   id;
   int32_t   errCode;
   int32_t   acceptableCode;
-  ETrnStage stage;
+  int32_t   retryCode;
   ETrnAct   actionType;
+  ETrnStage stage;
+  int8_t    reserved;
   int8_t    rawWritten;
   int8_t    msgSent;
   int8_t    msgReceived;
@@ -58,7 +61,8 @@ void    mndCleanupTrans(SMnode *pMnode);
 STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId);
 void    mndReleaseTrans(SMnode *pMnode, STrans *pTrans);
 
-STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, const SRpcMsg *pReq);
+STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnConflct conflict, const SRpcMsg *pReq,
+                       const char *opername);
 void    mndTransDrop(STrans *pTrans);
 int32_t mndTransAppendRedolog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendUndolog(STrans *pTrans, SSdbRaw *pRaw);
@@ -68,14 +72,16 @@ int32_t mndTransAppendRedoAction(STrans *pTrans, STransAction *pAction);
 int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
 void    mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen);
 void    mndTransSetCb(STrans *pTrans, ETrnFunc startFunc, ETrnFunc stopFunc, void *param, int32_t paramLen);
-void    mndTransSetDbName(STrans *pTrans, const char *dbname);
+void    mndTransSetDbName(STrans *pTrans, const char *dbname, const char *stbname);
 void    mndTransSetSerial(STrans *pTrans);
+void    mndTransSetOper(STrans *pTrans, EOperType oper);
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
 int32_t mndTransProcessRsp(SRpcMsg *pRsp);
 void    mndTransPullup(SMnode *pMnode);
 int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans);
 void    mndTransExecute(SMnode *pMnode, STrans *pTrans);
+int32_t mndSetRpcInfoForDbTrans(SMnode *pMnode, SRpcMsg *pMsg, EOperType oper, const char *dbname);
 
 #ifdef __cplusplus
 }

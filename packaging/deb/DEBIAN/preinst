@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if [ -f /var/lib/taos/dnode/dnodeCfg.json ]; then
+  echo -e "The default data directory \033[41;37m/var/lib/taos\033[0m contains old data of tdengine 2.x, please clear it before installing!"
+  exit 1
+fi
+
 csudo=""
 if command -v sudo > /dev/null; then
     csudo="sudo "
@@ -37,4 +42,5 @@ if [ -f "${install_main_dir}/taosadapter.service" ]; then
 fi
 
 # there can not libtaos.so*, otherwise ln -s  error
-${csudo}rm -f ${install_main_dir}/driver/libtaos*   || :
+${csudo}rm -f ${install_main_dir}/driver/libtaos.*   || :
+[ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}rm -f ${install_main_dir}/driver/libtaosws.so   || :

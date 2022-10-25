@@ -1,26 +1,6 @@
-#### session windows
-
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
-
-$loop_cnt = 0
-check_dnode_ready:
-	$loop_cnt = $loop_cnt + 1
-	sleep 200
-	if $loop_cnt == 10 then
-	  print ====> dnode not ready!
-		return -1
-	endi
-sql show dnodes
-print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
-if $data00 != 1 then
-  return -1
-endi
-if $data04 != ready then
-  goto check_dnode_ready
-endi
-
 sql connect
 
 $vgroups  = 4
@@ -28,7 +8,7 @@ $dbNamme  = d0
 
 print ====> create database $dbNamme vgroups $vgroups
 sql create database $dbNamme vgroups $vgroups
-sql show databases
+sql select * from information_schema.ins_databases
 print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
 print $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
 #print $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
@@ -55,8 +35,8 @@ sql INSERT INTO dev_001 VALUES('2020-05-13 13:00:00.001', 12)
 sql INSERT INTO dev_001 VALUES('2020-05-14 13:00:00.001', 13)
 sql INSERT INTO dev_001 VALUES('2020-05-15 14:00:00.000', 14)
 sql INSERT INTO dev_001 VALUES('2020-05-20 10:00:00.000', 15)
-sql INSERT INTO dev_001 VALUES('2020-05-27 10:00:00.001', 16) 
-           
+sql INSERT INTO dev_001 VALUES('2020-05-27 10:00:00.001', 16)
+
 sql INSERT INTO dev_002 VALUES('2020-05-13 10:00:00.000', 1)
 sql INSERT INTO dev_002 VALUES('2020-05-13 10:00:00.005', 2)
 sql INSERT INTO dev_002 VALUES('2020-05-13 10:00:00.009', 3)
@@ -66,7 +46,7 @@ sql INSERT INTO dev_002 VALUES('2020-05-13 10:00:00.036', 6)
 sql INSERT INTO dev_002 VALUES('2020-05-13 10:00:00.51', 7)
 
 # vnode does not return the precision of the table
-print ====> create database d1 precision 'us' 
+print ====> create database d1 precision 'us'
 sql create database d1 precision 'us'
 sql use d1
 sql create table dev_001 (ts timestamp ,i timestamp ,j int)
@@ -74,14 +54,14 @@ sql insert into dev_001 values(1623046993681000,now,1)(1623046993681001,now+1s,2
 sql create table secondts(ts timestamp,t2 timestamp,i int)
 sql insert into secondts values(1623046993681000,now,1)(1623046993681001,now+1s,2)(1623046993681002,now+2s,3)(1623046993681004,now+5s,4)
 
-$loop_test = 0  
+$loop_test = 0
 loop_test_pos:
 
 sql use $dbNamme
 
 # session(ts,5a)
 print ====> select count(*) from dev_001 session(ts,5a)
-sql select _wstartts, count(*) from dev_001 session(ts,5a)
+sql select _wstart, count(*) from dev_001 session(ts,5a)
 print ====> rows: $rows
 print ====> $data00 $data01 $data02 $data03 $data04 $data05
 print ====> $data10 $data11 $data12 $data13 $data14 $data15
@@ -102,7 +82,7 @@ endi
 
 #
 #print ====> select count(*) from (select * from dev_001) session(ts,5a)
-#sql select _wstartts, count(*) from (select * from dev_001) session(ts,5a)
+#sql select _wstart, count(*) from (select * from dev_001) session(ts,5a)
 #if $rows != 15 then
 #  return -1
 #endi
@@ -111,7 +91,7 @@ endi
 #endi
 
 print ====> select count(*) from dev_001 session(ts,1s)
-sql select _wstartts, count(*) from dev_001 session(ts,1s)
+sql select _wstart, count(*) from dev_001 session(ts,1s)
 if $rows != 12 then
   return -1
 endi
@@ -120,7 +100,7 @@ if $data01 != 5 then
 endi
 
 #print ====> select count(*) from (select * from dev_001) session(ts,1s)
-#sql select _wstartts, count(*) from (select * from dev_001) session(ts,1s)
+#sql select _wstart, count(*) from (select * from dev_001) session(ts,1s)
 #if $rows != 12 then
 #  return -1
 #endi
@@ -129,7 +109,7 @@ endi
 #endi
 
 print ====> select count(*) from dev_001 session(ts,1000a)
-sql select _wstartts, count(*) from dev_001 session(ts,1000a)
+sql select _wstart, count(*) from dev_001 session(ts,1000a)
 if $rows != 12 then
   return -1
 endi
@@ -138,7 +118,7 @@ if $data01 != 5 then
 endi
 
 #print ====> select count(*) from  (select * from dev_001) session(ts,1000a)
-#sql select _wstartts, count(*) from  (select * from dev_001) session(ts,1000a)
+#sql select _wstart, count(*) from  (select * from dev_001) session(ts,1000a)
 #if $rows != 12 then
 #  return -1
 #endi
@@ -147,7 +127,7 @@ endi
 #endi
 
 print ====> select count(*) from dev_001 session(ts,1m)
-sql select _wstartts, count(*) from dev_001 session(ts,1m)
+sql select _wstart, count(*) from dev_001 session(ts,1m)
 if $rows != 9 then
   return -1
 endi
@@ -156,7 +136,7 @@ if $data01 != 8 then
 endi
 
 #print ====> select count(*) from (select * from dev_001) session(ts,1m)
-#sql select _wstartts, count(*) from (select * from dev_001) session(ts,1m)
+#sql select _wstart, count(*) from (select * from dev_001) session(ts,1m)
 #if $rows != 9 then
 #  return -1
 #endi
@@ -165,7 +145,7 @@ endi
 #endi
 
 print ====> select count(*) from dev_001 session(ts,1h)
-sql select _wstartts, count(*) from dev_001 session(ts,1h)
+sql select _wstart, count(*) from dev_001 session(ts,1h)
 if $rows != 6 then
   return -1
 endi
@@ -174,7 +154,7 @@ if $data01 != 11 then
 endi
 
 #print ====> select count(*) from (select * from dev_001) session(ts,1h)
-#sql select _wstartts, count(*) from (select * from dev_001) session(ts,1h)
+#sql select _wstart, count(*) from (select * from dev_001) session(ts,1h)
 #if $rows != 6 then
 #  return -1
 #endi
@@ -183,7 +163,7 @@ endi
 #endi
 
 print ====> select count(*) from dev_001 session(ts,1d)
-sql select _wstartts, count(*) from dev_001 session(ts,1d)
+sql select _wstart, count(*) from dev_001 session(ts,1d)
 if $rows != 4 then
   return -1
 endi
@@ -192,7 +172,7 @@ if $data01 != 13 then
 endi
 
 #print ====> select count(*) from (select * from dev_001) session(ts,1d)
-#sql select _wstartts, count(*) from (select * from dev_001) session(ts,1d)
+#sql select _wstart, count(*) from (select * from dev_001) session(ts,1d)
 #if $rows != 4 then
 #  return -1
 #endi
@@ -201,7 +181,7 @@ endi
 #endi
 
 print ====> select count(*) from dev_001 session(ts,1w)
-sql select _wstartts, count(*) from dev_001 session(ts,1w)
+sql select _wstart, count(*) from dev_001 session(ts,1w)
 if $rows != 2 then
   return -1
 endi
@@ -210,7 +190,7 @@ if $data01 != 15 then
 endi
 
 #print ====> select count(*) from (select * from dev_001) session(ts,1w)
-#sql select _wstartts, count(*) from (select * from dev_001) session(ts,1w)
+#sql select _wstart, count(*) from (select * from dev_001) session(ts,1w)
 #if $rows != 2 then
 #  return -1
 #endi
@@ -298,7 +278,7 @@ sql_error select count(*) from dev_001 session(i,1y)
 sql_error select count(*) from dev_001 session(ts,1d) where ts <'2020-05-20 0:0:0'
 
 #print ====> select count(*) from dev_001 session(ts,1u)
-#sql select _wstartts, count(*) from dev_001 session(ts,1u)
+#sql select _wstart, count(*) from dev_001 session(ts,1u)
 #print rows: $rows
 #print $data00 $data01 $data02 $data03
 #print $data10 $data11 $data12 $data13
@@ -319,7 +299,7 @@ if $loop_test == 0 then
   print =============== stop and restart taosd
   system sh/exec.sh -n dnode1 -s stop -x SIGINT
   system sh/exec.sh -n dnode1 -s start
-  
+
   $loop_cnt = 0
   check_dnode_ready_0:
   	$loop_cnt = $loop_cnt + 1
@@ -328,7 +308,7 @@ if $loop_test == 0 then
   	  print ====> dnode not ready!
   		return -1
   	endi
-  sql show dnodes
+  sql select * from information_schema.ins_dnodes
   print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
   if $data00 != 1 then
     return -1
@@ -337,7 +317,7 @@ if $loop_test == 0 then
     goto check_dnode_ready_0
   endi
 
-  $loop_test = 1  
+  $loop_test = 1
   goto loop_test_pos
 endi
 

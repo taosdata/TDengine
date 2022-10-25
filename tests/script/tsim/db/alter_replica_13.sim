@@ -20,7 +20,7 @@ step1:
 	  print ====> dnode not ready!
 		return -1
 	endi
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 if $rows != 2 then
@@ -35,21 +35,21 @@ endi
 
 print =============== step2: create database
 sql create database db vgroups 1
-sql show databases
-if $rows != 3 then 
+sql select * from information_schema.ins_databases
+if $rows != 3 then
   return -1
 endi
-if $data(db)[4] != 1 then 
+if $data(db)[4] != 1 then
   return -1
 endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $data(2)[2] != 1 then
   return -1
 endi
 
 # vnodes
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $data(2)[2] != 1 then
   return -1
 endi
@@ -81,8 +81,8 @@ step3:
 	  print ====> dnode not ready!
 		return -1
 	endi
-sql show dnodes
-print ===> rows: $rows 
+sql select * from information_schema.ins_dnodes
+print ===> rows: $rows
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 print ===> $data20 $data21 $data22 $data23 $data24 $data25
@@ -115,7 +115,7 @@ step4:
 		return -1
 	endi
 sql show db.vgroups
-print ===> rows: $rows 
+print ===> rows: $rows
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 if $data[0][4] != leader then
   goto step4
@@ -127,13 +127,33 @@ if $data[0][8] != follower then
   goto step4
 endi
 
-print ============= step5: stop dnode 2
+print ============= step5: result
+$i = 0
+while $i < 10
+  $i = $i + 1
 
+  sleep 1000
+  sql show db.vgroups
+  print ===> loop: $i | v0: $data03 $data04 | v1: $data05 $data06 | v2:  $data07 $data08 
+  if $data[0][4] != leader then
+    return -1
+  endi
+  if $data[0][6] != follower then
+    return -1
+  endi
+  if $data[0][8] != follower then
+    return -1
+  endi
+endw 
+
+
+print ============= step5: stop dnode 2
 sql select * from db.stb
 if $rows != 1 then
   return -1
 endi
 
+return
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 system sh/exec.sh -n dnode3 -s stop -x SIGINT

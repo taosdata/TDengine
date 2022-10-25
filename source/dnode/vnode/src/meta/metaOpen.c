@@ -22,11 +22,15 @@ static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
 static int ttlIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int uidIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int smaIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
+static int taskIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
+
+static int ctimeIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
+static int ncolIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
 static int32_t metaInitLock(SMeta *pMeta) { return taosThreadRwlockInit(&pMeta->lock, NULL); }
 static int32_t metaDestroyLock(SMeta *pMeta) { return taosThreadRwlockDestroy(&pMeta->lock); }
 
-int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
+int metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
   SMeta *pMeta = NULL;
   int    ret;
   int    slen;
@@ -34,7 +38,11 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
   *ppMeta = NULL;
 
   // create handle
-  slen = strlen(tfsGetPrimaryPath(pVnode->pTfs)) + strlen(pVnode->path) + strlen(VNODE_META_DIR) + 3;
+  if (pVnode->pTfs) {
+    slen = strlen(tfsGetPrimaryPath(pVnode->pTfs)) + strlen(pVnode->path) + strlen(VNODE_META_DIR) + 3;
+  } else {
+    slen = strlen(pVnode->path) + strlen(VNODE_META_DIR) + 2;
+  }
   if ((pMeta = taosMemoryCalloc(1, sizeof(*pMeta) + slen)) == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -42,8 +50,12 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
 
   metaInitLock(pMeta);
   pMeta->path = (char *)&pMeta[1];
-  sprintf(pMeta->path, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
-          VNODE_META_DIR);
+  if (pVnode->pTfs) {
+    sprintf(pMeta->path, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
+            VNODE_META_DIR);
+  } else {
+    sprintf(pMeta->path, "%s%s%s", pVnode->path, TD_DIRSEP, VNODE_META_DIR);
+  }
   taosRealPath(pMeta->path, NULL, slen);
   pMeta->pVnode = pVnode;
 
@@ -51,81 +63,115 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
   taosMkDir(pMeta->path);
 
   // open env
-  ret = tdbOpen(pMeta->path, pVnode->config.szPage, pVnode->config.szCache, &pMeta->pEnv);
+  ret = tdbOpen(pMeta->path, pVnode->config.szPage, pVnode->config.szCache, &pMeta->pEnv, rollback);
   if (ret < 0) {
     metaError("vgId:%d, failed to open meta env since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pTbDb
-  ret = tdbTbOpen("table.db", sizeof(STbDbKey), -1, tbDbKeyCmpr, pMeta->pEnv, &pMeta->pTbDb);
+  ret = tdbTbOpen("table.db", sizeof(STbDbKey), -1, tbDbKeyCmpr, pMeta->pEnv, &pMeta->pTbDb, 0);
   if (ret < 0) {
     metaError("vgId:%d, failed to open meta table db since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pSkmDb
-  ret = tdbTbOpen("schema.db", sizeof(SSkmDbKey), -1, skmDbKeyCmpr, pMeta->pEnv, &pMeta->pSkmDb);
+  ret = tdbTbOpen("schema.db", sizeof(SSkmDbKey), -1, skmDbKeyCmpr, pMeta->pEnv, &pMeta->pSkmDb, 0);
   if (ret < 0) {
     metaError("vgId:%d, failed to open meta schema db since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pUidIdx
-  ret = tdbTbOpen("uid.idx", sizeof(tb_uid_t), sizeof(int64_t), uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pUidIdx);
+  ret = tdbTbOpen("uid.idx", sizeof(tb_uid_t), sizeof(SUidIdxVal), uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pUidIdx, 0);
   if (ret < 0) {
     metaError("vgId:%d, failed to open meta uid idx since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pNameIdx
-  ret = tdbTbOpen("name.idx", -1, sizeof(tb_uid_t), NULL, pMeta->pEnv, &pMeta->pNameIdx);
+  ret = tdbTbOpen("name.idx", -1, sizeof(tb_uid_t), NULL, pMeta->pEnv, &pMeta->pNameIdx, 0);
   if (ret < 0) {
     metaError("vgId:%d, failed to open meta name index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pCtbIdx
-  ret = tdbTbOpen("ctb.idx", sizeof(SCtbIdxKey), 0, ctbIdxKeyCmpr, pMeta->pEnv, &pMeta->pCtbIdx);
+  ret = tdbTbOpen("ctb.idx", sizeof(SCtbIdxKey), -1, ctbIdxKeyCmpr, pMeta->pEnv, &pMeta->pCtbIdx, 0);
   if (ret < 0) {
     metaError("vgId:%d, failed to open meta child table index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
-  // open pTagIdx
-  // TODO(yihaoDeng), refactor later
+  // open pSuidIdx
+  ret = tdbTbOpen("suid.idx", sizeof(tb_uid_t), 0, uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pSuidIdx, 0);
+  if (ret < 0) {
+    metaError("vgId:%d, failed to open meta super table index since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
   char indexFullPath[128] = {0};
   sprintf(indexFullPath, "%s/%s", pMeta->path, "invert");
   taosMkDir(indexFullPath);
-  ret = indexOpen(indexOptsCreate(), indexFullPath, (SIndex **)&pMeta->pTagIvtIdx);
+
+  SIndexOpts opts = {.cacheSize = 8 * 1024 * 1024};
+  ret = indexOpen(&opts, indexFullPath, (SIndex **)&pMeta->pTagIvtIdx);
   if (ret < 0) {
     metaError("vgId:%d, failed to open meta tag index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
-  ret = tdbTbOpen("tag.idx", -1, 0, tagIdxKeyCmpr, pMeta->pEnv, &pMeta->pTagIdx);
+  ret = tdbTbOpen("tag.idx", -1, 0, tagIdxKeyCmpr, pMeta->pEnv, &pMeta->pTagIdx, 0);
   if (ret < 0) {
     metaError("vgId:%d, failed to open meta tag index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pTtlIdx
-  ret = tdbTbOpen("ttl.idx", sizeof(STtlIdxKey), 0, ttlIdxKeyCmpr, pMeta->pEnv, &pMeta->pTtlIdx);
+  ret = tdbTbOpen("ttl.idx", sizeof(STtlIdxKey), 0, ttlIdxKeyCmpr, pMeta->pEnv, &pMeta->pTtlIdx, 0);
   if (ret < 0) {
     metaError("vgId:%d, failed to open meta ttl index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pSmaIdx
-  ret = tdbTbOpen("sma.idx", sizeof(SSmaIdxKey), 0, smaIdxKeyCmpr, pMeta->pEnv, &pMeta->pSmaIdx);
+  ret = tdbTbOpen("sma.idx", sizeof(SSmaIdxKey), 0, smaIdxKeyCmpr, pMeta->pEnv, &pMeta->pSmaIdx, 0);
   if (ret < 0) {
     metaError("vgId:%d, failed to open meta sma index since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
+  // idx table create time
+  ret = tdbTbOpen("ctime.idx", sizeof(SCtimeIdxKey), 0, ctimeIdxCmpr, pMeta->pEnv, &pMeta->pCtimeIdx, 0);
+  if (ret < 0) {
+    metaError("vgId:%d, failed to open meta ctime index since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
+  // idx num of col, normal table only
+  ret = tdbTbOpen("ncol.idx", sizeof(SNcolIdxKey), 0, ncolIdxCmpr, pMeta->pEnv, &pMeta->pNcolIdx, 0);
+  if (ret < 0) {
+    metaError("vgId:%d, failed to open meta ncol index since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
+  ret = tdbTbOpen("stream.task.db", sizeof(int64_t), -1, taskIdxKeyCmpr, pMeta->pEnv, &pMeta->pStreamDb, 0);
+  if (ret < 0) {
+    metaError("vgId:%d, failed to open meta stream task index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open index
   if (metaOpenIdx(pMeta) < 0) {
     metaError("vgId:%d, failed to open meta index since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
+  int32_t code = metaCacheOpen(pMeta);
+  if (code) {
+    terrno = code;
+    metaError("vgId:%d, failed to open meta cache since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
@@ -136,11 +182,15 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
 
 _err:
   if (pMeta->pIdx) metaCloseIdx(pMeta);
+  if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
+  if (pMeta->pNcolIdx) tdbTbClose(pMeta->pNcolIdx);
+  if (pMeta->pCtimeIdx) tdbTbClose(pMeta->pCtimeIdx);
   if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);
   if (pMeta->pTtlIdx) tdbTbClose(pMeta->pTtlIdx);
   if (pMeta->pTagIvtIdx) indexClose(pMeta->pTagIvtIdx);
   if (pMeta->pTagIdx) tdbTbClose(pMeta->pTagIdx);
   if (pMeta->pCtbIdx) tdbTbClose(pMeta->pCtbIdx);
+  if (pMeta->pSuidIdx) tdbTbClose(pMeta->pSuidIdx);
   if (pMeta->pNameIdx) tdbTbClose(pMeta->pNameIdx);
   if (pMeta->pUidIdx) tdbTbClose(pMeta->pUidIdx);
   if (pMeta->pSkmDb) tdbTbClose(pMeta->pSkmDb);
@@ -153,15 +203,17 @@ _err:
 
 int metaClose(SMeta *pMeta) {
   if (pMeta) {
+    if (pMeta->pCache) metaCacheClose(pMeta);
     if (pMeta->pIdx) metaCloseIdx(pMeta);
+    if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
+    if (pMeta->pNcolIdx) tdbTbClose(pMeta->pNcolIdx);
+    if (pMeta->pCtimeIdx) tdbTbClose(pMeta->pCtimeIdx);
     if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);
     if (pMeta->pTtlIdx) tdbTbClose(pMeta->pTtlIdx);
-#ifdef USE_INVERTED_INDEX
     if (pMeta->pTagIvtIdx) indexClose(pMeta->pTagIvtIdx);
-#else
     if (pMeta->pTagIdx) tdbTbClose(pMeta->pTagIdx);
-#endif
     if (pMeta->pCtbIdx) tdbTbClose(pMeta->pCtbIdx);
+    if (pMeta->pSuidIdx) tdbTbClose(pMeta->pSuidIdx);
     if (pMeta->pNameIdx) tdbTbClose(pMeta->pNameIdx);
     if (pMeta->pUidIdx) tdbTbClose(pMeta->pUidIdx);
     if (pMeta->pSkmDb) tdbTbClose(pMeta->pSkmDb);
@@ -174,11 +226,47 @@ int metaClose(SMeta *pMeta) {
   return 0;
 }
 
-int32_t metaRLock(SMeta *pMeta) { return taosThreadRwlockRdlock(&pMeta->lock); }
+int metaAlterCache(SMeta *pMeta, int32_t nPage) {
+  metaWLock(pMeta);
 
-int32_t metaWLock(SMeta *pMeta) { return taosThreadRwlockWrlock(&pMeta->lock); }
+  if (tdbAlter(pMeta->pEnv, nPage) < 0) {
+    metaULock(pMeta);
+    return -1;
+  }
 
-int32_t metaULock(SMeta *pMeta) { return taosThreadRwlockUnlock(&pMeta->lock); }
+  metaULock(pMeta);
+  return 0;
+}
+
+int32_t metaRLock(SMeta *pMeta) {
+  int32_t ret = 0;
+
+  metaTrace("meta rlock %p", &pMeta->lock);
+
+  ret = taosThreadRwlockRdlock(&pMeta->lock);
+
+  return ret;
+}
+
+int32_t metaWLock(SMeta *pMeta) {
+  int32_t ret = 0;
+
+  metaTrace("meta wlock %p", &pMeta->lock);
+
+  ret = taosThreadRwlockWrlock(&pMeta->lock);
+
+  return ret;
+}
+
+int32_t metaULock(SMeta *pMeta) {
+  int32_t ret = 0;
+
+  metaTrace("meta ulock %p", &pMeta->lock);
+
+  ret = taosThreadRwlockUnlock(&pMeta->lock);
+
+  return ret;
+}
 
 static int tbDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
   STbDbKey *pTbDbKey1 = (STbDbKey *)pKey1;
@@ -253,7 +341,7 @@ static int ctbIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
 static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
   STagIdxKey *pTagIdxKey1 = (STagIdxKey *)pKey1;
   STagIdxKey *pTagIdxKey2 = (STagIdxKey *)pKey2;
-  tb_uid_t    uid1, uid2;
+  tb_uid_t    uid1 = 0, uid2 = 0;
   int         c;
 
   // compare suid
@@ -279,16 +367,18 @@ static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
     return 1;
   } else if (!pTagIdxKey1->isNull && !pTagIdxKey2->isNull) {
     // all not NULL, compr tag vals
-    c = doCompare(pTagIdxKey1->data, pTagIdxKey2->data, pTagIdxKey1->type, 0);
+    __compar_fn_t func = getComparFunc(pTagIdxKey1->type, 0);
+    c = func(pTagIdxKey1->data, pTagIdxKey2->data);
     if (c) return c;
+  }
 
-    if (IS_VAR_DATA_TYPE(pTagIdxKey1->type)) {
-      uid1 = *(tb_uid_t *)(pTagIdxKey1->data + varDataTLen(pTagIdxKey1->data));
-      uid2 = *(tb_uid_t *)(pTagIdxKey2->data + varDataTLen(pTagIdxKey2->data));
-    } else {
-      uid1 = *(tb_uid_t *)(pTagIdxKey1->data + tDataTypes[pTagIdxKey1->type].bytes);
-      uid2 = *(tb_uid_t *)(pTagIdxKey2->data + tDataTypes[pTagIdxKey2->type].bytes);
-    }
+  // both null or tag values are equal, then continue to compare uids
+  if (IS_VAR_DATA_TYPE(pTagIdxKey1->type)) {
+    uid1 = *(tb_uid_t *)(pTagIdxKey1->data + varDataTLen(pTagIdxKey1->data));
+    uid2 = *(tb_uid_t *)(pTagIdxKey2->data + varDataTLen(pTagIdxKey2->data));
+  } else {
+    uid1 = *(tb_uid_t *)(pTagIdxKey1->data + tDataTypes[pTagIdxKey1->type].bytes);
+    uid2 = *(tb_uid_t *)(pTagIdxKey2->data + tDataTypes[pTagIdxKey2->type].bytes);
   }
 
   // compare uid
@@ -322,6 +412,43 @@ static int ttlIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
   return 0;
 }
 
+static int ctimeIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
+  SCtimeIdxKey *pCtimeIdxKey1 = (SCtimeIdxKey *)pKey1;
+  SCtimeIdxKey *pCtimeIdxKey2 = (SCtimeIdxKey *)pKey2;
+  if (pCtimeIdxKey1->ctime > pCtimeIdxKey2->ctime) {
+    return 1;
+  } else if (pCtimeIdxKey1->ctime < pCtimeIdxKey2->ctime) {
+    return -1;
+  }
+
+  if (pCtimeIdxKey1->uid > pCtimeIdxKey2->uid) {
+    return 1;
+  } else if (pCtimeIdxKey1->uid < pCtimeIdxKey2->uid) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static int ncolIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
+  SNcolIdxKey *pNcolIdxKey1 = (SNcolIdxKey *)pKey1;
+  SNcolIdxKey *pNcolIdxKey2 = (SNcolIdxKey *)pKey2;
+
+  if (pNcolIdxKey1->ncol > pNcolIdxKey2->ncol) {
+    return 1;
+  } else if (pNcolIdxKey1->ncol < pNcolIdxKey2->ncol) {
+    return -1;
+  }
+
+  if (pNcolIdxKey1->uid > pNcolIdxKey2->uid) {
+    return 1;
+  } else if (pNcolIdxKey1->uid < pNcolIdxKey2->uid) {
+    return -1;
+  }
+
+  return 0;
+}
+
 static int smaIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
   SSmaIdxKey *pSmaIdxKey1 = (SSmaIdxKey *)pKey1;
   SSmaIdxKey *pSmaIdxKey2 = (SSmaIdxKey *)pKey2;
@@ -335,6 +462,19 @@ static int smaIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
   if (pSmaIdxKey1->smaUid > pSmaIdxKey2->smaUid) {
     return 1;
   } else if (pSmaIdxKey1->smaUid < pSmaIdxKey2->smaUid) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static int taskIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
+  int32_t uid1 = *(int32_t *)pKey1;
+  int32_t uid2 = *(int32_t *)pKey2;
+
+  if (uid1 > uid2) {
+    return 1;
+  } else if (uid1 < uid2) {
     return -1;
   }
 

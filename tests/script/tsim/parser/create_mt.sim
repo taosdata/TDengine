@@ -1,0 +1,248 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======================== dnode1 start
+
+$dbPrefix = fi_in_db
+$tbPrefix = fi_in_tb
+$mtPrefix = fi_in_mt
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print excuting test script create_mt.sim
+print =============== set up
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+
+sql create database $db
+sql use $db
+
+# case1: case_insensitivity test
+print =========== create_mt.sim case1: case insensitivity test
+sql CREATE TABLE $mt (TS TIMESTAMP, COL1 INT, COL2 BIGINT, COL3 FLOAT, COL4 DOUBLE, COL5 BINARY(10), COL6 BOOL, COL7 SMALLINT, COL8 TINYINT, COL9 NCHAR(10)) TAGS (TAG1 INT, TAG2 BIGINT, TAG3 DOUBLE, TAG4 BINARY(10), TAG5 BOOL, TAG6 NCHAR(10))
+sql show stables
+
+if $rows != 1 then
+  return -1
+endi
+if $data00 != $mt then
+  return -1
+endi
+sql_error DROP METRIC $mt
+
+sql DROP TABLE $mt
+sql show stables
+
+if $rows != 0 then
+  return -1
+endi
+print case_insensitivity test passed
+
+# case2: illegal_metric_name test
+print =========== create_mt.sim case2: illegal_mt_name test
+$illegal_tb1 = 1db
+$illegal_tb2 = d@b
+
+sql_error create table $illegal_tb1 (ts timestamp, tcol int) tags (tag1 int)
+
+sql_error create table $illegal_tb2 (ts timestamp, tcol int) tags (tag1 int)
+
+print illegal_metric_name test passed
+
+## case3: illegal_data_types_in_data_column test
+print ========== create_mt.sim case3: metric illegal data types test
+
+$i_ts = time # illegal ts
+$i_binary = binary # illegal binary
+$i_bigint = long # illegal bigint
+$i_smallint = short # illegal smallint
+$i_tinyint = byte # illegal tinyint
+$i_binary2 = varchar(20) # illegal string
+$i_nchar = nchar # unspecified nchar length
+
+sql_error create table $mt (ts $i_ts , col int) tags (tag1 int)
+sql_error create table $mt (ts timestamp, col $i_binary ) tags (tag1 int)
+sql_error create table $mt (ts timestamp, col $i_bigint ) tags (tag1 int)
+sql_error create table $mt (ts timestamp, col $i_smallint ) tags (tag1 int)
+sql create table $mt (ts timestamp, col $i_binary2 ) tags (tag1 int)
+sql drop table $mt
+sql_error create table $mt (ts timestamp, col $i_tinyint ) tags (tag1 int)
+sql_error create table $mt (ts timestamp, col $i_nchar ) tags (tag1 int)
+
+# correct using of nchar
+sql create table $mt (ts timestamp, col nchar(10)) tags (tag1 int)
+sql show stables
+if $rows != 1 then
+  return -1
+endi
+if $data00 != $mt then
+  return -1
+endi
+sql drop table $mt
+print illegal_data_type_in_tags test passed
+
+## case4: illegal_data_type_in_tags test
+$i_ts = time # illegal ts
+$i_binary = binary # illegal binary
+$i_bigint = long # illegal bigint
+$i_smallint = short # illegal smallint
+$i_tinyint = byte # illegal tinyint
+$i_binary2 = varchar(20) # illegal string
+$i_bool = boolean
+$nchar = nchar # nchar with unspecified length
+print ========== create_mt.sim case4: illegal data types in tags test
+##sql_error create table $mt (ts timestamp, col int) tags (tag1 timestamp )
+sql_error create table $mt (ts timestamp, col int) tags (tag1 $i_ts )
+sql_error create table $mt (ts timestamp, col int) tags (tag1 $i_binary )
+sql_error create table $mt (ts timestamp, col int) tags (tag1 $i_bigint )
+sql_error create table $mt (ts timestamp, col int) tags (tag1 $i_smallint )
+sql_error create table $mt (ts timestamp, col int) tags (tag1 $i_tinyint )
+sql create table $mt (ts timestamp, col int) tags (tag1 $i_binary2 )
+sql drop table $mt
+sql_error create table $mt (ts timestamp, col int) tags (tag1 $i_bool )
+sql_error create table $mt (ts timestamp, col int) tags (tag1 $nchar )
+# correct use of nchar in tags
+sql create table $mt (ts timestamp, col int) tags (tag1 nchar(20))
+sql show stables
+if $rows != 1 then
+  return -1
+endi
+if $data00 != $mt then
+  return -1
+endi
+sql drop table $mt
+print illegal_data_type_in_tags test passed
+
+# illegal_tag_name test
+# Only frequently used key words are tested here
+$tb_ = table
+$tbs = tables
+$db_ = database
+$dbs = databases
+$ses = session
+$int = int
+$bint = bigint
+$binary = binary
+$str = string
+$tag = tag
+$tags = tags
+$sint = smallint
+$tint = tinyint
+$nchar = nchar
+$bool = bool
+$stable = stable
+$stables = stables
+
+sql_error create table $mt (ts timestamp, col1 int) tags ( $tb_ int)
+sql_error create table $mt (ts timestamp, col1 int) tags ( $tbs int)
+sql_error create table $mt (ts timestamp, col1 int) tags ( $db_ int)
+sql_error create table $mt (ts timestamp, col1 int) tags ( $dbs int)
+sql_error create table $mt (ts timestamp, col1 int) tags ( $ses int)
+sql_error create table $mt (ts timestamp, col1 int) tags ( $int int)
+sql_error create table $mt (ts timestamp, col1 int) tags ( $bint int)
+sql_error create table $mt (ts timestamp, col1 int) tags ( $binary int)
+sql create table $mt (ts timestamp, col1 int) tags ( $str int)
+sql drop table $mt
+sql_error create table $mt (ts timestamp, col1 int) tags ( $tag int)
+sql_error create table $mt (ts timestamp, col1 int) tags ( $tags int)
+sql_error create table $mt (ts timestamp, col1 int) tags ( $sint int)
+sql_error create table $mt (ts timestamp, col1 int) tags ( $tint int)
+sql_error create table $mt (ts timestamp, col1 int) tags ( $nchar int)
+sql_error create table $mt (ts timestamp, col1 int) tags ( $stable int)
+sql_error create table $mt (ts timestamp, col1 int) tags ( $stables int)
+sql_error create table $mt (ts timestamp, col1 int) tags ( $bool int)
+
+print illegal_column_name test passed
+
+# case: negative tag values
+sql create table $mt (ts timestamp, col1 int) tags (tg int)
+sql create table $tb using $mt tags (-1)
+# -x ng_tag_v
+#  return -1
+#ng_tag_v:
+sql show tags from $tb
+if $data05 != -1 then
+  return -1
+endi
+sql drop table $tb
+
+# case: unmatched_tag_types
+print create_mt.sim unmatched_tag_types
+sql reset query cache
+sql create table $tb using $mt tags ('123')
+sql show tags from $tb
+print data05 = $data05
+if $data05 != 123 then
+  return -1
+endi
+sql drop table $tb
+
+sql_error create table $tb using $mt tags (abc)
+#the case below might need more consideration
+sql_error create table $tb using $mt tags ('abc')
+sql drop table if exists $tb
+sql reset query cache
+sql_error create table $tb using $mt tags (1e1)
+
+sql_error create table $tb using $mt tags ('1e1')
+sql_error create table $tb using $mt tags (2147483649)
+
+## case: chinese_char_in_metric
+print ========== create_mt.sim chinese_char_in_metrics_support test
+$CN_char = 涛思
+$mt1 = mt1
+$mt2 = mt2
+# no chinese char allowed in db, metric, table, column names
+#sql_error create table $CN_char (ts timestamp, col1 int) tags (tag1 int)
+#sql_error create table $mt1 (ts timestamp, $CN_char int) tags (tag1 int)
+#sql_error create table $mt2 (ts timestamp, col1 int) tags ( $CN_char int)
+#sql show metrics
+#if $rows != 3 then
+#  return -1
+#endi
+##print expected: $CN_char
+##print returned: $data00
+#if $data00 != $CN_char then
+#  return -1
+#endi
+##print expected: $mt1
+##print returned: $data10
+#if $data10 != $mt1 then
+#  return -1
+#endi
+##print expected: $mt2
+##print returned: $data20
+#if $data20 != $mt2 then
+#  return -1
+#endi
+#sql select tg from  $mt1
+##print expected $CN_char
+##print returned $data10
+#if $data10 != $CN_char then
+#  return -1
+#endi
+#sql select tg from  $mt2
+##print expected: $CN_char
+##print returned: $data20
+#if $data20 != $CN_char then
+#  return -1
+#endi
+#
+#sql drop table $CN_char
+#sql drop table $mt1
+#sql drop table $mt2
+
+print chinese_char_in_metrics test passed
+
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

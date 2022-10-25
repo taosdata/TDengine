@@ -1,0 +1,313 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======================== dnode1 start
+
+$dbPrefix = nchar_db
+$tbPrefix = nchar_tb
+$mtPrefix = nchar_stb
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+$col = NCHAR
+
+print =============== set up
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+sql create database $db
+sql use $db
+
+# case1: create_metric_with_nchar_data
+print ========== nchar.sim case1: create_table_with_nchar_data test
+
+# unspecified nchar length
+sql_error create table $mt (ts timestamp, col nchar)
+sql_error create table $mt (ts timestamp, col int) tags (tg nchar)
+# nchar as column or tag names
+sql_error create table $mt (ts timestamp, nchar int)
+sql_error create table $mt (ts timestamp, col int) tags (nchar int)
+sql create table $mt (ts timestamp, col nchar(60)) tags (tg nchar(60))
+sql show stables
+if $rows != 1 then
+  return -1
+endi
+if $data00 != $mt then
+  return -1
+endi
+sql describe $mt
+if $rows != 3 then
+  return -1
+endi
+if $data11 != NCHAR then
+  return -1
+endi
+sql create table $tb using $mt tags ('tag1')
+sql describe $tb
+if $data11 != NCHAR then
+  return -1
+endi
+if $data21 != NCHAR then
+  return -1
+endi
+sql drop table $tb
+sql drop table $mt
+print create_metric_with_nchar_data test passed
+
+# case2 : insert_nchar_data
+#print ========== nchar.sim case2: insert_nchar_data
+sql create table $mt (ts timestamp, col nchar(10)) tags(tg nchar(10))
+sql create table $tb using $mt tags ('tag1')
+sql describe $mt
+#print expected: NCHAR
+#print returned: $data11
+if $data11 != NCHAR then
+  return -1
+endi
+
+# insert nchar data with a pair of single quotes
+$col = 'NCHAR'
+$col_ = NCHAR
+sql insert into $tb values (now+1s, $col )
+sql select * from $tb order by ts desc
+print expected: $col_
+print returned: $data01
+if $data01 != $col_ then
+  return -1
+endi
+
+# insert nchar data with a pair of double quotes
+$col = "NCHAR"
+$col_ = NCHAR
+sql insert into $tb values (now+2s, $col )
+sql select * from $tb order by ts desc
+print expected: $col_
+print returned: $data01
+if $data01 != $col_ then
+  return -1
+endi
+
+# insert nchar data without quotes
+$col = NCHAR
+$col_ = nchar
+sql_error insert into $tb values (now+3s, $col )
+sql select * from $tb order by ts desc
+#print expected: $col_
+#print returned: $data01
+#if $data01 != $col_ then
+#  return -1
+#endi
+
+# insert nchar data with space and no quotes
+sql_error insert into $tb values (now+4s, n char )
+
+# insert nchar data with space and a pair of single quotes
+sql insert into $tb values (now+5s, 'NCHAR' )
+sql select * from $tb order by ts desc
+print expected: NCHAR
+print returned: $data01
+$quote = '
+$ret1 = $quote . $data01
+$ret2 = $ret1 . $quote
+print $ret2
+
+if $ret2 != 'NCHAR' then
+  return -1
+endi
+
+label1:
+
+# insert nchar data with space and a pair of double quotes
+sql insert into $tb values (now+6s, "NCHAR" )
+sql select * from $tb order by ts desc
+print expected: N CHAR
+print returned: $data01
+$quote = "
+$ret1 = $quote . $data01
+$ret2 = $ret1 . $quote
+print $ret2
+if $ret2 = "NCHAR" then
+  goto label2
+else
+  return -1
+endi
+label2:
+
+sql insert into $tb values (now+7s, "涛思" )
+sql select * from $tb order by ts desc
+print expected: 涛思
+print returned: $data01
+if $data01 != 涛思 then
+  return -1
+endi
+
+# insert nchar data with a single quote and a double quote
+#sql insert into $tb values (now+8s, 'NCHAR")
+sql_error insert into $tb values (now+9s, 'NCHAR")
+sql_error insert into $tb values (now+10s, 'NCHAR])
+
+sql drop table $tb
+sql drop table $mt
+sql reset query cache
+# create multiple metrics and tables and insert nchar type data
+sql create table $mt (ts timestamp, tbcol nchar(10), tbcol1 int) TAGS(tgcol nchar(10))
+$i = 0
+while $i < 5
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( '0' )
+  $x = 0
+  while $x < $rowNum
+    $ms = $x . m
+    sql insert into $tb values (now + $ms , '0', $x )
+    $x = $x + 1
+  endw
+  $i = $i + 1
+endw
+while $i < 10
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( '1' )
+  $x = 0
+  while $x < $rowNum
+    $ms = $x . m
+    sql insert into $tb values (now + $ms , '1', $x )
+    $x = $x + 1
+  endw
+  $i = $i + 1
+endw
+
+# case5: query_with_tag_filtering
+print ========== nchar.sim case5: query test
+# simple query with nchar tag filtering
+sql select * from $mt where tgcol = '1' -x step1
+  goto step2
+step1:
+print reset query cache
+sql reset query cache
+sql select * from $mt where tgcol = '1'
+step2:
+if $rows != 100  then
+  print expect 100, actual: $rows
+  return -1
+endi
+
+#sql select * from $mt where tgcol > '0'
+##print rows = $rows
+#if $rows != 100 then
+#  return -1
+#endi
+##print $data03
+#if $data03 != 1 then
+#  return -1
+#endi
+
+# cumulative query with nchar tag filtering
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tgcol = '1'
+if $rows != 1 then
+  return -1
+endi
+sql select count(tbcol1), avg(tbcol1), sum(tbcol1), min(tbcol1), max(tbcol1), first(tbcol1), last(tbcol1) from $mt where tbcol1 = 1 group by tgcol
+if $rows != 2 then
+  return -1
+endi
+sql select count(tbcol) from $mt where tbcol1 = 1 group by tgcol
+if $rows != 2 then
+  return -1
+endi
+print data00 = $data00
+if $data00 != 5 then
+  print expect 5, actual: $data00
+  return -1
+endi
+if $data10 != 5 then
+  return -1
+endi
+sql_error select avg(tbcol) from $mt where tbcol1 = 1 group by tgcol
+sql_error select sum(tbcol) from $mt where tbcol1 = 1 group by tgcol
+sql_error select min(tbcol) from $mt where tbcol1 = 1 group by tgcol
+sql_error select max(tbcol) from $mt where tbcol1 = 1 group by tgcol
+
+sql select first(tbcol), tgcol from $mt where tbcol1 = 1 group by tgcol order by tgcol
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+if $data11 != 1 then
+  return -1
+endi
+
+sql select last(tbcol), tgcol from $mt where tbcol1 = 1 group by tgcol order by tgcol
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 0 then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data10 != 1 then
+  return -1
+endi
+if $data11 != 1 then
+  return -1
+endi
+
+sql create table stbb (ts timestamp, c1 nchar(5)) tags (t1 int)
+sql create table tbb1 using stbb tags(1)
+sql insert into tbb1 values ('2018-09-17 09:00:00', '涛思')
+sql insert into tbb1 values ('2018-09-17 09:00:01', 'insrt')
+
+sql select * from tbb1 order by ts asc
+if $rows != 2 then
+  return -1
+endi
+print data11 = $data11
+if $data11 != insrt then
+  return -1
+endi
+
+sql select * from stbb
+if $rows != 2 then
+  return -1
+endi
+if $data11 != insrt then
+  return -1
+endi
+
+# nchar data column currently does not support filtering, 2018/09/27
+# sql select * from $mt where tbcol = '0'
+# if $rows != 100 then
+#   return -1
+# endi
+#
+# sql select * from $mt where ts > now + 4m and tbcol = '1'
+# if $rows != 75 then
+#   return -1
+# endi
+#
+# sql_error select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol = '1' group by tgcol
+#
+# sql_error select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where ts < now + 4m and tbcol = '1' group by tgcol
+#
+# sql_error select count(tbcol), avg(tbcol), sum(tbcol), min(tbcol), max(tbcol), first(tbcol), last(tbcol) from $mt where tbcol = '1' interval(1d) group by tgcol
+#
+# case: query_with_wildcard
+# print =============== clear
+# sql drop database $db
+# sql select * from information_schema.ins_databases
+# if $rows != 0 then
+#   return -1
+# endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

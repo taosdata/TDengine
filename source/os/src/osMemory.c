@@ -14,7 +14,11 @@
  */
 
 #define ALLOW_FORBID_FUNC
+#ifdef _TD_DARWIN_64
+#include <malloc/malloc.h>
+#else
 #include <malloc.h>
+#endif
 #include "os.h"
 
 #if defined(USE_TD_MEMORY) || defined(USE_ADDR2LINE)
@@ -48,36 +52,38 @@ int32_t taosBackTrace(void **buffer, int32_t size) {
 #pragma comment(lib, "dbghelp.lib")
 
 void taosPrintBackTrace() {
-	#define MAX_STACK_FRAMES 20
-	
-	void *pStack[MAX_STACK_FRAMES];
- 
-	HANDLE process = GetCurrentProcess();
-	SymInitialize(process, NULL, TRUE);
-	WORD frames = CaptureStackBackTrace(1, MAX_STACK_FRAMES, pStack, NULL);
- 
+#define MAX_STACK_FRAMES 20
+
+  void *pStack[MAX_STACK_FRAMES];
+
+  HANDLE process = GetCurrentProcess();
+  SymInitialize(process, NULL, TRUE);
+  WORD frames = CaptureStackBackTrace(1, MAX_STACK_FRAMES, pStack, NULL);
+
   char buf_tmp[1024];
-	for (WORD i = 0; i < frames; ++i) {
-		DWORD64 address = (DWORD64)(pStack[i]);
- 
-		DWORD64 displacementSym = 0;
-		char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
-		PSYMBOL_INFO pSymbol = (PSYMBOL_INFO)buffer;
-		pSymbol->SizeOfStruct = sizeof(SYMBOL_INFO);
-		pSymbol->MaxNameLen = MAX_SYM_NAME;
- 
-		DWORD displacementLine = 0;
-		IMAGEHLP_LINE64 line;
-		//SymSetOptions(SYMOPT_LOAD_LINES);
-		line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
- 
-		if (SymFromAddr(process, address, &displacementSym, pSymbol) && SymGetLineFromAddr64(process, address, &displacementLine, &line)) {
-      snprintf(buf_tmp,sizeof(buf_tmp),"BackTrace %08" PRId64 " %s:%d %s\n", taosGetSelfPthreadId(), line.FileName, line.LineNumber, pSymbol->Name);
-		} else {
-			snprintf(buf_tmp,sizeof(buf_tmp),"BackTrace error: %d\n",GetLastError());
-		}
-    write(1,buf_tmp,strlen(buf_tmp));
-	}
+  for (WORD i = 0; i < frames; ++i) {
+    DWORD64 address = (DWORD64)(pStack[i]);
+
+    DWORD64      displacementSym = 0;
+    char         buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
+    PSYMBOL_INFO pSymbol = (PSYMBOL_INFO)buffer;
+    pSymbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+    pSymbol->MaxNameLen = MAX_SYM_NAME;
+
+    DWORD           displacementLine = 0;
+    IMAGEHLP_LINE64 line;
+    // SymSetOptions(SYMOPT_LOAD_LINES);
+    line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
+
+    if (SymFromAddr(process, address, &displacementSym, pSymbol) &&
+        SymGetLineFromAddr64(process, address, &displacementLine, &line)) {
+      snprintf(buf_tmp, sizeof(buf_tmp), "BackTrace %08" PRId64 " %s:%d %s\n", taosGetSelfPthreadId(), line.FileName,
+               line.LineNumber, pSymbol->Name);
+    } else {
+      snprintf(buf_tmp, sizeof(buf_tmp), "BackTrace error: %d\n", GetLastError());
+    }
+    write(1, buf_tmp, strlen(buf_tmp));
+  }
 }
 #endif
 #else
@@ -122,27 +128,26 @@ int32_t taosBackTrace(void **buffer, int32_t size) {
 
 #ifdef USE_ADDR2LINE
 
-#include "osThread.h"
-#include "libdwarf.h"
 #include "dwarf.h"
+#include "libdwarf.h"
+#include "osThread.h"
 
 #define DW_PR_DUu "llu"
 
-typedef struct lookup_table
-{
-    Dwarf_Line *table;
-    Dwarf_Line_Context *ctxts;
-    int cnt;
-    Dwarf_Addr low;
-    Dwarf_Addr high;
+typedef struct lookup_table {
+  Dwarf_Line         *table;
+  Dwarf_Line_Context *ctxts;
+  int                 cnt;
+  Dwarf_Addr          low;
+  Dwarf_Addr          high;
 } lookup_tableT;
 
-extern int create_lookup_table(Dwarf_Debug dbg, lookup_tableT *lookup_table);
+extern int  create_lookup_table(Dwarf_Debug dbg, lookup_tableT *lookup_table);
 extern void delete_lookup_table(lookup_tableT *lookup_table);
 
-size_t addr = 0;
-lookup_tableT lookup_table;
-Dwarf_Debug tDbg;
+size_t              addr = 0;
+lookup_tableT       lookup_table;
+Dwarf_Debug         tDbg;
 static TdThreadOnce traceThreadInit = PTHREAD_ONCE_INIT;
 
 void endTrace() {
@@ -153,7 +158,7 @@ void endTrace() {
   }
 }
 void startTrace() {
-  int ret;
+  int       ret;
   Dwarf_Ptr errarg = 0;
 
   FILE *fp = fopen("/proc/self/maps", "r");
@@ -174,7 +179,7 @@ void startTrace() {
   atexit(endTrace);
 }
 static void print_line(Dwarf_Debug dbg, Dwarf_Line line, Dwarf_Addr pc) {
-  char *linesrc = "??";
+  char          *linesrc = "??";
   Dwarf_Unsigned lineno = 0;
 
   if (line) {
@@ -185,18 +190,18 @@ static void print_line(Dwarf_Debug dbg, Dwarf_Line line, Dwarf_Addr pc) {
   if (line) dwarf_dealloc(dbg, linesrc, DW_DLA_STRING);
 }
 void taosPrintBackTrace() {
-  int size = 20;
-  void **buffer[20];
+  int        size = 20;
+  void     **buffer[20];
   Dwarf_Addr pc;
-  int32_t frame = 0;
-  void **ebp;
-  void **ret = NULL;
-  size_t func_frame_distance = 0;
+  int32_t    frame = 0;
+  void     **ebp;
+  void     **ret = NULL;
+  size_t     func_frame_distance = 0;
 
   taosThreadOnce(&traceThreadInit, startTrace);
 
   if (buffer != NULL && size > 0) {
-      ebp = taosGetEbp();
+    ebp = taosGetEbp();
     func_frame_distance = (size_t)*ebp - (size_t)ebp;
     while (ebp && frame < size && (func_frame_distance < (1ULL << 24)) && (func_frame_distance > 0)) {
       ret = ebp + 1;
@@ -223,7 +228,7 @@ void taosPrintBackTrace() {
 void taosPrintBackTrace() { return; }
 #endif
 
-void *taosMemoryMalloc(int32_t size) {
+void *taosMemoryMalloc(int64_t size) {
 #ifdef USE_TD_MEMORY
   void *tmp = malloc(size + sizeof(TdMemoryInfo));
   if (tmp == NULL) return NULL;
@@ -239,7 +244,7 @@ void *taosMemoryMalloc(int32_t size) {
 #endif
 }
 
-void *taosMemoryCalloc(int32_t num, int32_t size) {
+void *taosMemoryCalloc(int64_t num, int64_t size) {
 #ifdef USE_TD_MEMORY
   int32_t memorySize = num * size;
   char   *tmp = calloc(memorySize + sizeof(TdMemoryInfo), 1);
@@ -256,7 +261,7 @@ void *taosMemoryCalloc(int32_t num, int32_t size) {
 #endif
 }
 
-void *taosMemoryRealloc(void *ptr, int32_t size) {
+void *taosMemoryRealloc(void *ptr, int64_t size) {
 #ifdef USE_TD_MEMORY
   if (ptr == NULL) return taosMemoryMalloc(size);
 
@@ -278,14 +283,14 @@ void *taosMemoryRealloc(void *ptr, int32_t size) {
 #endif
 }
 
-void *taosMemoryStrDup(void *ptr) {
+void *taosMemoryStrDup(const char *ptr) {
 #ifdef USE_TD_MEMORY
   if (ptr == NULL) return NULL;
 
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char *)ptr - sizeof(TdMemoryInfo));
   assert(pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL);
 
-  void *tmp = tstrdup((const char *)pTdMemoryInfo);
+  void *tmp = tstrdup(pTdMemoryInfo);
   if (tmp == NULL) return NULL;
 
   memcpy(tmp, pTdMemoryInfo, sizeof(TdMemoryInfo));
@@ -293,11 +298,12 @@ void *taosMemoryStrDup(void *ptr) {
 
   return (char *)tmp + sizeof(TdMemoryInfo);
 #else
-  return tstrdup((const char *)ptr);
+  return tstrdup(ptr);
 #endif
 }
 
 void taosMemoryFree(void *ptr) {
+  if (NULL == ptr) return;
 #ifdef USE_TD_MEMORY
   TdMemoryInfoPtr pTdMemoryInfo = (TdMemoryInfoPtr)((char *)ptr - sizeof(TdMemoryInfo));
   if (pTdMemoryInfo->symbol == TD_MEMORY_SYMBOL) {
@@ -312,7 +318,7 @@ void taosMemoryFree(void *ptr) {
 #endif
 }
 
-int32_t taosMemorySize(void *ptr) {
+int64_t taosMemorySize(void *ptr) {
   if (ptr == NULL) return 0;
 
 #ifdef USE_TD_MEMORY
@@ -323,6 +329,8 @@ int32_t taosMemorySize(void *ptr) {
 #else
 #ifdef WINDOWS
   return _msize(ptr);
+#elif defined(_TD_DARWIN_64)
+  return malloc_size(ptr);
 #else
   return malloc_usable_size(ptr);
 #endif

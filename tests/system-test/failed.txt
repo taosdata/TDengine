@@ -1,0 +1,2 @@
+#python3 ./test.py -f 2-query/last.py -Q  3
+#./test.sh -f tsim/mnode/basic4.sim

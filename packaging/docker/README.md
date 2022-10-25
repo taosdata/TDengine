@@ -47,7 +47,7 @@ taos> show databases;
 Query OK, 1 row(s) in set (0.002843s)
 ```
 
-Since TDengine use container hostname to establish connections, it's a bit more complex to use taos shell and native connectors(such as JDBC-JNI) with TDengine container instance. This is the recommended way to expose ports and use TDengine with docker in simple cases. If you want to use taos shell or taosc/connectors smoothly outside the `tdengine` container, see next use cases that match you need.
+Since TDengine use container hostname to establish connections, it's a bit more complex to use TDengine CLI and native connectors(such as JDBC-JNI) with TDengine container instance. This is the recommended way to expose ports and use TDengine with docker in simple cases. If you want to use TDengine CLI or taosc/connectors smoothly outside the `tdengine` container, see next use cases that match you need.
 
 ### Start with host network
 
@@ -87,7 +87,7 @@ docker run -d \
 
 This command starts a docker container with TDengine server running and maps the container's TCP ports from 6030 to 6049 to the host's ports from 6030 to 6049 with TCP protocol and UDP ports range 6030-6039 to the host's UDP ports 6030-6039. If the host is already running TDengine server and occupying the same port(s), you need to map the container's port to a different unused port segment. (Please see TDengine 2.0 Port Description for details). In order to support TDengine clients accessing TDengine server services, both TCP and UDP ports need to be exposed by default(unless `rpcForceTcp` is set to `1`).
 
-If you want to use taos shell or native connectors([JDBC-JNI](https://www.taosdata.com/cn/documentation/connector/java), or [driver-go](https://github.com/taosdata/driver-go)), you need to make sure the `TAOS_FQDN` is resolvable at `/etc/hosts` or with custom DNS service.
+If you want to use TDengine CLI or native connectors([JDBC-JNI](https://www.taosdata.com/cn/documentation/connector/java), or [driver-go](https://github.com/taosdata/driver-go)), you need to make sure the `TAOS_FQDN` is resolvable at `/etc/hosts` or with custom DNS service.
 
 If you set the `TAOS_FQDN` to host's hostname, it will works as using `hosts` network like previous use case. Otherwise, like in `-e TAOS_FQDN=tdengine`, you can add the hostname record `tdengine` into `/etc/hosts` (use `127.0.0.1` here in host path, if use TDengine client/application in other hosts, you should set the right ip to the host eg. `192.168.10.1`(check the real ip in host with `hostname -i` or `ip route list default`) to make the TDengine endpoint resolvable):
 
@@ -158,7 +158,7 @@ When you build your application with docker, you should add the TDengine client 
 FROM ubuntu:20.04
 RUN apt-get update && apt-get install -y wget
 ENV TDENGINE_VERSION=2.4.0.0
-RUN wget -c https://www.taosdata.com/assets-download/TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
+RUN wget -c https://www.taosdata.com/assets-download/3.0/TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && tar xvf TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && cd TDengine-client-${TDENGINE_VERSION} \
    && ./install_client.sh \
@@ -265,7 +265,7 @@ Full version of dockerfile could be:
 ```dockerfile
 FROM golang:1.17.6-buster as builder
 ENV TDENGINE_VERSION=2.4.0.0
-RUN wget -c https://www.taosdata.com/assets-download/TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
+RUN wget -c https://www.taosdata.com/assets-download/3.0/TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && tar xvf TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && cd TDengine-client-${TDENGINE_VERSION} \
    && ./install_client.sh \
@@ -279,7 +279,7 @@ RUN go env && go mod tidy && go build
 FROM ubuntu:20.04
 RUN apt-get update && apt-get install -y wget
 ENV TDENGINE_VERSION=2.4.0.0
-RUN wget -c https://www.taosdata.com/assets-download/TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
+RUN wget -c https://www.taosdata.com/assets-download/3.0/TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && tar xvf TDengine-client-${TDENGINE_VERSION}-Linux-x64.tar.gz \
    && cd TDengine-client-${TDENGINE_VERSION} \
    && ./install_client.sh \
@@ -391,7 +391,7 @@ test_td-1_1         /usr/bin/entrypoint.sh taosd     Up      6030/tcp, 6031/tcp,
 test_td-2_1         /usr/bin/entrypoint.sh taosd     Up      6030/tcp, 6031/tcp, 6032/tcp, 6033/tcp, 6034/tcp, 6035/tcp, 6036/tcp, 6037/tcp, 6038/tcp, 6039/tcp, 6040/tcp, 6041/tcp, 6042/tcp
 ```
 
-Check dnodes with taos shell:
+Check dnodes with TDengine CLI:
 
 ```bash
 $ docker-compose exec td-1 taos -s "show dnodes"

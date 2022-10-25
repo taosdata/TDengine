@@ -1,0 +1,637 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ========== columnValues.sim
+
+sql drop database if exists db
+sql create database db
+sql use db
+
+#### test the value of all data types in four cases: static create table, insert column value, synamic create table, alter tag value
+
+######## case 0: bool
+print ========== bool
+sql create table mt_bool (ts timestamp, c bool) tags (tagname bool)
+
+## case 00: static create table for test tag values
+sql create table st_bool_0  using mt_bool tags (NULL)
+sql show tags from st_bool_0
+if $data05 != NULL then
+  print ==1== expect: NULL, actually: $data05
+  return -1
+endi
+sql create table st_bool_1  using mt_bool tags (NULL)
+sql show tags from st_bool_1
+if $data05 != NULL then
+  print ==2== expect: NULL, actually: $data05
+  return -1
+endi
+sql create table st_bool_2  using mt_bool tags ('NULL')
+sql show tags from st_bool_2
+if $data05 != false then
+  print ==3== expect: false, actually: $data05
+  return -1
+endi
+sql create table st_bool_3  using mt_bool tags ('NULL')
+sql show tags from st_bool_3
+if $data05 != false then
+  print ==4== expect: false, actually: $data05
+  return -1
+endi
+sql create table st_bool_4  using mt_bool tags ("NULL")
+sql show tags from st_bool_4
+if $data05 != false then
+  print ==5== expect: false, actually: $data05
+  return -1
+endi
+sql create table st_bool_5  using mt_bool tags ("NULL")
+sql show tags from st_bool_5
+if $data05 != false then
+  print ==6== expect: false, actually: $data05
+  return -1
+endi
+sql create table st_bool_6  using mt_bool tags ("true")
+sql show tags from st_bool_6
+if $data05 != true then
+  print ==7== expect: 1, actually: $data05
+  return -1
+endi
+sql create table st_bool_7  using mt_bool tags ('true')
+sql show tags from st_bool_7
+if $data05 != true then
+  print ==8== expect: 1, actually: $data05
+  return -1
+endi
+sql create table st_bool_8  using mt_bool tags (true)
+sql show tags from st_bool_8
+if $data05 != true then
+  print ==9== expect: 1, actually: $data05
+  return -1
+endi
+sql create table st_bool_9  using mt_bool tags ("false")
+sql show tags from st_bool_9
+if $data05 != false then
+  print ==10== expect: 0, actually: $data05
+  return -1
+endi
+sql create table st_bool_10 using mt_bool tags ('false')
+sql show tags from st_bool_10
+if $data05 != false then
+  print ==11== expect: 0, actually: $data05
+  return -1
+endi
+sql create table st_bool_11 using mt_bool tags (false)
+sql show tags from st_bool_11
+if $data05 != false then
+  print ==12== expect: 0, actually: $data05
+  return -1
+endi
+sql create table st_bool_12 using mt_bool tags (0)
+sql show tags from st_bool_12
+if $data05 != false then
+  print ==13== expect: 0, actually: $data05
+  return -1
+endi
+sql create table st_bool_13 using mt_bool tags (1)
+sql show tags from st_bool_13
+if $data05 != true then
+  print ==14== expect: 1, actually: $data05
+  return -1
+endi
+sql create table st_bool_14 using mt_bool tags (6.9)
+sql show tags from st_bool_14
+if $data05 != true then
+  print ==15== expect: 1, actually: $data05
+  return -1
+endi
+sql create table st_bool_15 using mt_bool tags (-3)
+sql show tags from st_bool_15
+if $data05 != true then
+  print ==16== expect: 1, actually: $data00
+  return -1
+endi
+sql create table st_bool_15_0 using mt_bool tags (+300)
+sql show tags from st_bool_15_0
+if $data05 != true then
+  print ==16== expect: 1, actually: $data00
+  return -1
+endi
+sql create table st_bool_15_1 using mt_bool tags (-8.03)
+sql show tags from st_bool_15_1
+if $data05 != true then
+  print ==16== expect: 1, actually: $data00
+  return -1
+endi
+
+## case 01: insert values  for test column values
+sql insert into st_bool_0  values (now, NULL)
+sql select * from st_bool_0
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  print ==17== expect: NULL, actually: $data01
+  return -1
+endi
+sql insert into st_bool_1  values (now, NULL)
+sql select * from st_bool_1
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  print ==18== expect: NULL, actually: $data01
+  return -1
+endi
+sql insert into st_bool_2  values (now, 'NULL')
+sql select * from st_bool_2
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  print ==19== expect: NULL, actually: $data01
+  return -1
+endi
+sql insert into st_bool_3  values (now, 'NULL')
+sql select * from st_bool_3
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  print ==20== expect: NULL, actually: $data01
+  return -1
+endi
+sql insert into st_bool_4  values (now, "NULL")
+sql select * from st_bool_4
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  print ==21== expect: NULL, actually: $data01
+  return -1
+endi
+sql insert into st_bool_5  values (now, "NULL")
+sql select * from st_bool_5
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  print ==22== expect: NULL, actually: $data01
+  return -1
+endi
+sql insert into st_bool_6  values (now, "true")
+sql select * from st_bool_6
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  print ==23== expect: 1, actually: $data01
+  return -1
+endi
+sql insert into st_bool_7  values (now, 'true')
+sql select * from st_bool_7
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  print ==24== expect: 1, actually: $data01
+  return -1
+endi
+sql insert into st_bool_8  values (now, true)
+sql select * from st_bool_8
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  print ==25== expect: 1, actually: $data01
+  return -1
+endi
+sql insert into st_bool_9  values (now, "false")
+sql select * from st_bool_9
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 0 then
+  print ==26== expect: false, actually: $data01
+  return -1
+endi
+sql insert into st_bool_10 values (now, 'false')
+sql select * from st_bool_10
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 0 then
+  print ==27== expect: false, actually: $data01
+  return -1
+endi
+sql insert into st_bool_11 values (now, false)
+sql select * from st_bool_11
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 0 then
+  print ==28== expect: false, actually: $data01
+  return -1
+endi
+sql insert into st_bool_12 values (now, 0)
+sql select * from st_bool_12
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 0 then
+  print ==29== expect: false, actually: $data01
+  return -1
+endi
+sql insert into st_bool_13 values (now, 1)
+sql select * from st_bool_13
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  print ==30== expect: 1, actually: $data01
+  return -1
+endi
+sql insert into st_bool_14 values (now, 6.9)
+sql select * from st_bool_14
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  print ==31== expect: 1, actually: $data01
+  return -1
+endi
+sql insert into st_bool_15 values (now, -3)
+sql select * from st_bool_15
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  print ==32== expect: true, actually: $data01
+  return -1
+endi
+sql insert into st_bool_15_0 values (now, +300)
+sql select * from st_bool_15_0
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  print ==32== expect: true, actually: $data01
+  return -1
+endi
+sql insert into st_bool_15_1 values (now, -3.15)
+sql select * from st_bool_15_1
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  print ==32== expect: true, actually: $data01
+  return -1
+endi
+
+## case 02: dynamic create table for test tag values
+sql insert into st_bool_16 using mt_bool tags (NULL)   values (now, NULL)
+sql show tags from st_bool_16
+if $data05 != NULL then
+  print ==33== expect: NULL, actually: $data00
+  return -1
+endi
+sql select * from st_bool_16
+if $data01 != NULL then
+  print ==34== expect: NULL, actually: $data01
+  return -1
+endi
+
+sql insert into st_bool_17 using mt_bool tags (NULL)   values (now, NULL)
+sql show tags from st_bool_17
+if $data05 != NULL then
+  print ==35== expect: NULL, actually: $data00
+  return -1
+endi
+sql select * from st_bool_17
+if $data01 != NULL then
+  print ==36== expect: NULL, actually: $data01
+  return -1
+endi
+sql insert into st_bool_18 using mt_bool tags ('NULL') values (now, 'NULL')
+sql show tags from st_bool_18
+if $data05 != NULL then
+  print ==37== expect: NULL, actually: $data00
+  return -1
+endi
+sql select * from st_bool_18
+if $data01 != NULL then
+  print ==38== expect: NULL, actually: $data01
+  return -1
+endi
+sql insert into st_bool_19 using mt_bool tags ('NULL') values (now, 'NULL')
+sql show tags from st_bool_19
+if $data05 != NULL then
+  print ==39== expect: NULL, actually: $data00
+  return -1
+endi
+sql select * from st_bool_19
+if $data01 != NULL then
+  print ==40== expect: NULL, actually: $data01
+  return -1
+endi
+sql insert into st_bool_20 using mt_bool tags ("NULL") values (now, "NULL")
+sql show tags from st_bool_20
+if $data05 != NULL then
+  print ==41== expect: NULL, actually: $data00
+  return -1
+endi
+sql select * from st_bool_20
+if $data01 != NULL then
+  print ==42== expect: NULL, actually: $data01
+  return -1
+endi
+sql insert into st_bool_21 using mt_bool tags ("NULL") values (now, "NULL")
+sql show tags from st_bool_21
+if $data05 != NULL then
+  print ==43== expect: NULL, actually: $data00
+  return -1
+endi
+sql select * from st_bool_21
+if $data01 != NULL then
+  print ==44== expect: NULL, actually: $data01
+  return -1
+endi
+sql insert into st_bool_22 using mt_bool tags ("true")  values (now, "true")
+sql show tags from st_bool_22
+if $data05 != true then
+  print ==45== expect: 1, actually: $data00
+  return -1
+endi
+sql select * from st_bool_22
+if $data01 != 1 then
+  print ==46== expect: 1, actually: $data01
+  return -1
+endi
+sql insert into st_bool_23 using mt_bool tags ('true')  values (now, 'true')
+sql show tags from st_bool_23
+if $data05 != true then
+  print ==47== expect: 1, actually: $data00
+  return -1
+endi
+sql select * from st_bool_23
+if $data01 != 1 then
+  print ==48== expect: 1, actually: $data01
+  return -1
+endi
+sql insert into st_bool_24 using mt_bool tags (true)    values (now, true)
+sql show tags from st_bool_24
+if $data05 != true then
+  print ==49== expect: 1, actually: $data00
+  return -1
+endi
+sql select * from st_bool_24
+if $data01 != 1 then
+  print ==50== expect: 1, actually: $data01
+  return -1
+endi
+sql insert into st_bool_25 using mt_bool tags ("false") values (now, "false")
+sql show tags from st_bool_25
+if $data05 != false then
+  print ==51== expect: 0, actually: $data00
+  return -1
+endi
+sql select * from st_bool_25
+if $data01 != 0 then
+  print ==52== expect: 0, actually: $data01
+  return -1
+endi
+sql insert into st_bool_26 using mt_bool tags ('false') values (now, 'false')
+sql show tags from st_bool_26
+if $data05 != false then
+  print ==53== expect: 0, actually: $data00
+  return -1
+endi
+sql select * from st_bool_26
+if $data01 != 0 then
+  print ==54== expect: 0, actually: $data01
+  return -1
+endi
+sql insert into st_bool_27 using mt_bool tags (false)   values (now, false)
+sql show tags from st_bool_27
+if $data05 != false then
+  print ==55== expect: 0, actually: $data00
+  return -1
+endi
+sql select * from st_bool_27
+if $data01 != 0 then
+  print ==56== expect: 0, actually: $data01
+  return -1
+endi
+sql insert into st_bool_28 using mt_bool tags (0)       values (now, 0)
+sql show tags from st_bool_28
+if $data05 != false then
+  print ==57== expect: 0, actually: $data00
+  return -1
+endi
+sql select * from st_bool_28
+if $data01 != 0 then
+  print ==58== expect: 0, actually: $data01
+  return -1
+endi
+sql insert into st_bool_29 using mt_bool tags (1)       values (now, 1)
+sql show tags from st_bool_29
+if $data05 != true then
+  print ==59== expect: 1, actually: $data00
+  return -1
+endi
+sql select * from st_bool_29
+if $data01 != 1 then
+  print ==60== expect: 1, actually: $data01
+  return -1
+endi
+sql insert into st_bool_30 using mt_bool tags (6.9)     values (now, 6.9)
+sql show tags from st_bool_30
+if $data05 != true then
+  print ==61== expect: 1, actually: $data00
+  return -1
+endi
+sql select * from st_bool_30
+if $data01 != 1 then
+  print ==62== expect: 1, actually: $data01
+  return -1
+endi
+sql insert into st_bool_31 using mt_bool tags (-3)      values (now, -3)
+sql show tags from st_bool_31
+if $data05 != true then
+  print ==63== expect: 1, actually: $data00
+  return -1
+endi
+sql select * from st_bool_31
+if $data01 != 1 then
+  print ==64== expect: 1, actually: $data01
+  return -1
+endi
+sql insert into st_bool_32 using mt_bool tags (+300)      values (now, +300)
+sql show tags from st_bool_32
+if $data05 != true then
+  print ==63== expect: 1, actually: $data00
+  return -1
+endi
+sql select * from st_bool_32
+if $data01 != 1 then
+  print ==64== expect: 1, actually: $data01
+  return -1
+endi
+sql insert into st_bool_33 using mt_bool tags (+30.890)      values (now, +30.890)
+sql show tags from st_bool_33
+if $data05 != true then
+  print ==63== expect: 1, actually: $data00
+  return -1
+endi
+sql select * from st_bool_33
+if $data01 != 1 then
+  print ==64== expect: 1, actually: $data01
+  return -1
+endi
+
+
+
+
+
+
+## case 03: alter tag values
+#sql alter table st_bool_0 set tag tagname=true
+#sql show tags from st_bool_0
+#if $data00 != true then
+#  return -1
+#endi
+#sql alter table st_bool_0 set tag tagname=NULL
+#sql show tags from st_bool_0
+#if $data00 != NULL then
+#  return -1
+#endi
+#sql alter table st_bool_0 set tag tagname=false
+#sql show tags from st_bool_0
+#if $data00 != false then
+#  return -1
+#endi
+#sql alter table st_bool_0 set tag tagname=NULL
+#sql show tags from st_bool_0
+#if $data00 != NULL then
+#  return -1
+#endi
+#sql alter table st_bool_0 set tag tagname='true'
+#sql show tags from st_bool_0
+#if $data00 != true then
+#  return -1
+#endi
+#sql alter table st_bool_0 set tag tagname='NULL'
+#sql show tags from st_bool_0
+#if $data00 != NULL then
+#  return -1
+#endi
+#sql alter table st_bool_0 set tag tagname='false'
+#sql show tags from st_bool_0
+#if $data00 != false then
+#  return -1
+#endi
+#sql alter table st_bool_0 set tag tagname='NULL'
+#sql show tags from st_bool_0
+#if $data00 != NULL then
+#  return -1
+#endi
+#sql alter table st_bool_0 set tag tagname="true"
+#sql show tags from st_bool_0
+#if $data00 != true then
+#  return -1
+#endi
+#sql alter table st_bool_0 set tag tagname="NULL"
+#sql show tags from st_bool_0
+#if $data00 != NULL then
+#  return -1
+#endi
+#sql alter table st_bool_0 set tag tagname="false"
+#sql show tags from st_bool_0
+#if $data00 != false then
+#  return -1
+#endi
+#sql alter table st_bool_0 set tag tagname="NULL"
+#sql show tags from st_bool_0
+#if $data00 != NULL then
+#  return -1
+#endi
+#sql alter table st_bool_0 set tag tagname=1
+#sql show tags from st_bool_0
+#if $data00 != true then
+#  return -1
+#endi
+#sql alter table st_bool_0 set tag tagname=0
+#sql show tags from st_bool_0
+#if $data00 != false then
+#  return -1
+#endi
+#sql alter table st_bool_0 set tag tagname=6.9
+#sql show tags from st_bool_0
+#if $data00 != true then
+#  return -1
+#endi
+#sql alter table st_bool_0 set tag tagname=-3
+#sql show tags from st_bool_0
+#if $data00 != true then
+#  return -1
+#endi
+
+# case 04: illegal input
+sql_error create table st_bool_e0 using mt_bool tags (123abc)
+sql create table st_bool_e1 using mt_bool tags ("123abc")
+sql create table st_bool_e2 using mt_bool tags ("123")
+sql_error create table st_bool_e3 using mt_bool tags (abc)
+sql create table st_bool_e4 using mt_bool tags ("abc")
+sql create table st_bool_e5 using mt_bool tags (" ")
+sql create table st_bool_e6 using mt_bool tags ('')
+
+sql create table st_bool_f0 using mt_bool tags (true)
+sql create table st_bool_f1 using mt_bool tags (true)
+sql create table st_bool_f2 using mt_bool tags (true)
+sql create table st_bool_f3 using mt_bool tags (true)
+sql create table st_bool_f4 using mt_bool tags (true)
+sql create table st_bool_f5 using mt_bool tags (true)
+sql create table st_bool_f6 using mt_bool tags (true)
+
+sql_error insert into st_bool_g0 values (now, 123abc)
+sql_error insert into st_bool_g1 values (now, "123abc")
+sql_error insert into st_bool_g2 values (now, "123")
+sql_error insert into st_bool_g3 values (now, abc)
+sql_error insert into st_bool_g4 values (now, "abc")
+sql_error insert into st_bool_g5 values (now, " ")
+sql_error insert into st_bool_g6 values (now, '')
+
+sql_error insert into st_bool_h0 using mt_bool tags (123abc)   values (now, 1)
+sql_error insert into st_bool_h1 using mt_bool tags ("123abc") values (now, 1)
+sql_error insert into st_bool_h2 using mt_bool tags ("123")    values (now, 1)
+sql_error insert into st_bool_h3 using mt_bool tags (abc)      values (now, 1)
+sql_error insert into st_bool_h4 using mt_bool tags ("abc")    values (now, 1)
+sql_error insert into st_bool_h5 using mt_bool tags (" ")      values (now, 1)
+sql_error insert into st_bool_h6 using mt_bool tags ('')       values (now, 1)
+
+sql_error insert into st_bool_h0 using mt_bool tags (1) values (now, 123abc)
+sql_error insert into st_bool_h1 using mt_bool tags (1) values (now, "123abc")
+sql_error insert into st_bool_h2 using mt_bool tags (1) values (now, "123")
+sql_error insert into st_bool_h3 using mt_bool tags (1) values (now, abc)
+sql_error insert into st_bool_h4 using mt_bool tags (1) values (now, "abc")
+sql_error insert into st_bool_h5 using mt_bool tags (1) values (now, " ")
+sql_error insert into st_bool_h6 using mt_bool tags (1) values (now, '')
+
+sql insert into st_bool_i0 using mt_bool tags (1) values (now, 1)
+sql insert into st_bool_i1 using mt_bool tags (1) values (now, 1)
+sql insert into st_bool_i2 using mt_bool tags (1) values (now, 1)
+sql insert into st_bool_i3 using mt_bool tags (1) values (now, 1)
+sql insert into st_bool_i4 using mt_bool tags (1) values (now, 1)
+sql insert into st_bool_i5 using mt_bool tags (1) values (now, 1)
+sql insert into st_bool_i6 using mt_bool tags (1) values (now, 1)
+
+sql_error alter table st_bool_i0 set tag tagname=123abc
+sql alter table st_bool_i1 set tag tagname="123abc"
+sql alter table st_bool_i2 set tag tagname="123"
+sql_error alter table st_bool_i3 set tag tagname=abc
+sql alter table st_bool_i4 set tag tagname="abc"
+sql alter table st_bool_i5 set tag tagname=" "
+sql alter table st_bool_i6 set tag tagname=''
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT

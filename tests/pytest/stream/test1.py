@@ -18,7 +18,7 @@ class TDTestCase:
         tdSql.execute('create table ownsampling_ct1 using downsampling_stb tags(10, 10.1, "beijing", True);')
         tdSql.execute('create table if not exists scalar_stb (ts timestamp, c1 int, c2 double, c3 binary(20)) tags (t1 int);')
         tdSql.execute('create table scalar_ct1 using scalar_stb tags(10);')
-        tdSql.execute('create stream downsampling_stream into output_downsampling_stb as select _wstartts AS start, min(c1), max(c2), sum(c1) from downsampling_stb interval(10m);')
+        tdSql.execute('create stream downsampling_stream into output_downsampling_stb as select _wstart AS start, min(c1), max(c2), sum(c1) from downsampling_stb interval(10m);')
         tdSql.execute('create stream scalar_stream into output_scalar_stb as select ts, abs(c1) a1 , abs(c2) a2 from scalar_stb;')
         tdSql.execute('insert into scalar_ct1 values (1653471881952, 100, 100.1, "beijing");')
         tdSql.execute('insert into scalar_ct1 values (1653471881952+1s, -50, -50.1, "tianjin");')

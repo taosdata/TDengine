@@ -58,10 +58,10 @@ class TDTestCase:
 
     def __join_condition(self, tb_list, filter=PRIMARY_COL, INNER=False):
         table_reference = tb_list[0]
-        join_condition = table_reference
+        join_condition = f'{table_reference} {table_reference.split(".")[-1]}'
         join = "inner join" if INNER else "join"
         for i in range(len(tb_list[1:])):
-            join_condition += f" {join} {tb_list[i+1]} on {table_reference}.{filter}={tb_list[i+1]}.{filter}"
+            join_condition += f" {join} {tb_list[i+1]} {tb_list[i+1].split('.')[-1]} on {table_reference.split('.')[-1]}.{filter}={tb_list[i+1].split('.')[-1]}.{filter}"
 
         return join_condition
 
@@ -75,7 +75,6 @@ class TDTestCase:
                 query_conditon = query_conditon[4:-1]
             elif query_conditon.startswith("min"):
                 query_conditon = query_conditon[4:-1]
-
 
         if query_conditon:
             return f" where {query_conditon} is not null"
@@ -108,10 +107,10 @@ class TDTestCase:
         return f"select {select_clause} from {from_clause} {where_condition} {group_condition}"
 
     @property
-    def __join_tblist(self):
+    def __join_tblist(self, dbname="db"):
         return [
-            ["ct1", "t1"],
-            ["ct4", "t1"],
+            [f"{dbname}.ct1", f"{dbname}.t1"],
+            [f"{dbname}.ct4", f"{dbname}.t1"],
             # ["ct1", "ct2", "ct4"],
             # ["ct1", "ct2", "t1"],
             # ["ct1", "ct4", "t1"],
@@ -120,10 +119,10 @@ class TDTestCase:
         ]
 
     @property
-    def __tb_liast(self):
+    def __tb_list(self, dbname="db"):
         return [
-            "ct1",
-            "ct4",
+            f"{dbname}.ct1",
+            f"{dbname}.ct4",
         ]
 
     def sql_list(self):
@@ -131,7 +130,8 @@ class TDTestCase:
         __join_tblist = self.__join_tblist
         for join_tblist in __join_tblist:
             for join_tb in join_tblist:
-                select_claus_list = self.__query_condition(join_tb)
+                join_tb_name = join_tb.split(".")[-1]
+                select_claus_list = self.__query_condition(join_tb_name)
                 for select_claus in select_claus_list:
                     group_claus = self.__group_condition( col=select_claus)
                     where_claus = self.__where_condition(query_conditon=select_claus)
@@ -141,9 +141,10 @@ class TDTestCase:
                             self.__single_sql(select_claus, self.__join_condition(join_tblist, INNER=True), where_claus, having_claus),
                         )
                     )
-        __no_join_tblist = self.__tb_liast
+        __no_join_tblist = self.__tb_list
         for tb in __no_join_tblist:
-                select_claus_list = self.__query_condition(tb)
+                tb_name = join_tb.split(".")[-1]
+                select_claus_list = self.__query_condition(tb_name)
                 for select_claus in select_claus_list:
                     group_claus = self.__group_condition(col=select_claus)
                     where_claus = self.__where_condition(query_conditon=select_claus)
@@ -230,31 +231,29 @@ class TDTestCase:
                 else:
                     tdSql.error(f"{sqls[i]} union {sqls[j+i]}")
 
-    def __test_error(self):
+    def __test_error(self, dbname="db"):
 
-        tdSql.error( "show tables union show tables" )
-        tdSql.error( "create table errtb1 union all create table errtb2" )
-        tdSql.error( "drop table ct1 union all drop table ct3" )
-        tdSql.error( "select c1 from ct1 union all drop table ct3" )
-        tdSql.error( "select c1 from ct1 union all '' " )
-        tdSql.error( " '' union all select c1 from ct1 " )
-        # tdSql.error( "select c1 from ct1 union select c1 from ct2 union select c1 from ct4 ")
+        tdSql.error( f"show {dbname}.tables union show {dbname}.tables" )
+        tdSql.error( f"create table {dbname}.errtb1 union all create table {dbname}.errtb2" )
+        tdSql.error( f"drop table {dbname}.ct1 union all drop table {dbname}.ct3" )
+        tdSql.error( f"select c1 from {dbname}.ct1 union all drop table {dbname}.ct3" )
+        tdSql.error( f"select c1 from {dbname}.ct1 union all '' " )
+        tdSql.error( f" '' union all select c1 from{dbname}. ct1 " )
 
     def all_test(self):
         self.__test_error()
         self.union_check()
 
-
-    def __create_tb(self):
+    def __create_tb(self, dbname="db"):
 
         tdLog.printNoPrefix("==========step1:create table")
-        create_stb_sql  =  f'''create table stb1(
+        create_stb_sql  =  f'''create table {dbname}.stb1(
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
                  {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
                  {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
-            ) tags (t1 int)
+            ) tags (tag1 int)
             '''
-        create_ntb_sql = f'''create table t1(
+        create_ntb_sql = f'''create table {dbname}.t1(
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
                  {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
                  {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
@@ -264,30 +263,29 @@ class TDTestCase:
         tdSql.execute(create_ntb_sql)
 
         for i in range(4):
-            tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
-            { i % 32767 }, { i % 127}, { i * 1.11111 }, { i * 1000.1111 }, { i % 2}
+            tdSql.execute(f'create table {dbname}.ct{i+1} using {dbname}.stb1 tags ( {i+1} )')
 
-    def __insert_data(self, rows):
+    def __insert_data(self, rows, dbname="db"):
         now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
         for i in range(rows):
             tdSql.execute(
-                f"insert into ct1 values ( { now_time - i * 1000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
+                f"insert into {dbname}.ct1 values ( { now_time - i * 1000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
             )
             tdSql.execute(
-                f"insert into ct4 values ( { now_time - i * 7776000000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
+                f"insert into {dbname}.ct4 values ( { now_time - i * 7776000000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
             )
             tdSql.execute(
-                f"insert into ct2 values ( { now_time - i * 7776000000 }, {-i},  {-11111 * i}, {-111 * i % 32767 }, {-11 * i % 127}, {-1.11*i}, {-1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
+                f"insert into {dbname}.ct2 values ( { now_time - i * 7776000000 }, {-i},  {-11111 * i}, {-111 * i % 32767 }, {-11 * i % 127}, {-1.11*i}, {-1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
             )
         tdSql.execute(
-            f'''insert into ct1 values
+            f'''insert into {dbname}.ct1 values
             ( { now_time - rows * 5 }, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar_测试_0', { now_time + 8 } )
             ( { now_time + 10000 }, { rows }, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar_测试_9', { now_time + 9 } )
             '''
         )
 
         tdSql.execute(
-            f'''insert into ct4 values
+            f'''insert into {dbname}.ct4 values
             ( { now_time - rows * 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( { now_time - rows * 3888000000 + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( { now_time +  7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
@@ -303,7 +301,7 @@ class TDTestCase:
         )
 
         tdSql.execute(
-            f'''insert into ct2 values
+            f'''insert into {dbname}.ct2 values
             ( { now_time - rows * 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( { now_time - rows * 3888000000 + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( { now_time + 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
@@ -319,13 +317,13 @@ class TDTestCase:
         )
 
         for i in range(rows):
-            insert_data = f'''insert into t1 values
+            insert_data = f'''insert into {dbname}.t1 values
                 ( { now_time - i * 3600000 }, {i}, {i * 11111}, { i % 32767 }, { i % 127}, { i * 1.11111 }, { i * 1000.1111 }, { i % 2},
                 "binary_{i}", "nchar_测试_{i}", { now_time - 1000 * i } )
                 '''
             tdSql.execute(insert_data)
         tdSql.execute(
-            f'''insert into t1 values
+            f'''insert into {dbname}.t1 values
             ( { now_time + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( { now_time - (( rows // 2 ) * 60 + 30) * 60000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( { now_time - rows * 3600000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
@@ -341,7 +339,6 @@ class TDTestCase:
             '''
         )
 
-
     def run(self):
         tdSql.prepare()
 
@@ -355,8 +352,7 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step3:all check")
         self.all_test()
 
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
+        tdSql.execute("flush database db")
 
         tdSql.execute("use db")
 

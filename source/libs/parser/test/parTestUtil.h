@@ -20,14 +20,17 @@
 
 #define ALLOW_FORBID_FUNC
 
+#include "cmdnodes.h"
 #include "querynodes.h"
 #include "taoserror.h"
+#include "tglobal.h"
+#include "ttime.h"
 
 namespace ParserTest {
 
 class ParserTestBaseImpl;
 
-enum ParserStage { PARSER_STAGE_PARSE, PARSER_STAGE_TRANSLATE, PARSER_STAGE_CALC_CONST, PARSER_STAGE_ALL };
+enum ParserStage { PARSER_STAGE_PARSE = 1, PARSER_STAGE_TRANSLATE, PARSER_STAGE_CALC_CONST };
 
 class ParserTestBase : public testing::Test {
  public:
@@ -51,12 +54,6 @@ class ParserDdlTest : public ParserTestBase {
   virtual void checkDdl(const SQuery* pQuery, ParserStage stage) {
     ASSERT_NE(pQuery, nullptr);
     ASSERT_NE(pQuery->pRoot, nullptr);
-    if (QUERY_EXEC_MODE_RPC == pQuery->execMode) {
-      ASSERT_EQ(pQuery->haveResultSet, false);
-      ASSERT_EQ(pQuery->numOfResCols, 0);
-      ASSERT_EQ(pQuery->pResSchema, nullptr);
-      ASSERT_EQ(pQuery->precision, 0);
-    }
     if (nullptr != checkDdl_) {
       checkDdl_(pQuery, stage);
     }

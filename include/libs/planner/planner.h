@@ -24,19 +24,22 @@ extern "C" {
 #include "taos.h"
 
 typedef struct SPlanContext {
-  uint64_t queryId;
-  int32_t  acctId;
-  SEpSet   mgmtEpSet;
-  SNode*   pAstRoot;
-  bool     topicQuery;
-  bool     streamQuery;
-  bool     rSmaQuery;
-  bool     showRewrite;
-  int8_t   triggerType;
-  int64_t  watermark;
-  char*    pMsg;
-  int32_t  msgLen;
-  double   filesFactor;
+  uint64_t    queryId;
+  int32_t     acctId;
+  SEpSet      mgmtEpSet;
+  SNode*      pAstRoot;
+  bool        topicQuery;
+  bool        streamQuery;
+  bool        rSmaQuery;
+  bool        showRewrite;
+  int8_t      triggerType;
+  int64_t     watermark;
+  int8_t      igExpired;
+  char*       pMsg;
+  int32_t     msgLen;
+  const char* pUser;
+  bool        sysInfo;
+  int64_t     allocatorId;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.
@@ -48,9 +51,15 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
 // @pSource one execution location of this group of datasource subplans
 int32_t qSetSubplanExecutionNode(SSubplan* pSubplan, int32_t groupId, SDownstreamSourceNode* pSource);
 
-// Convert to subplan to string for the scheduler to send to the executor
+void qClearSubplanExecutionNode(SSubplan* pSubplan);
+
+// Convert to subplan to display string for the scheduler to send to the executor
 int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen);
 int32_t qStringToSubplan(const char* pStr, SSubplan** pSubplan);
+
+// Convert to subplan to msg for the scheduler to send to the executor
+int32_t qSubPlanToMsg(const SSubplan* pSubplan, char** pStr, int32_t* pLen);
+int32_t qMsgToSubplan(const char* pStr, int32_t len, SSubplan** pSubplan);
 
 char*       qQueryPlanToString(const SQueryPlan* pPlan);
 SQueryPlan* qStringToQueryPlan(const char* pStr);

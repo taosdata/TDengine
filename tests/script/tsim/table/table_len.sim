@@ -1,0 +1,102 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$i = 0
+$dbPrefix = lm_tb_db
+$tbPrefix = lm_tb_tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+print =============== step1
+sql create database $db
+sql use $db
+
+sql drop table dd -x step0
+	return -1
+step0:
+
+sql create table (ts timestamp, speed int) -x step1
+	return -1
+step1:
+
+sql show tables
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== step2
+sql create table a (ts timestamp, speed int) 
+sql show tables
+if $rows != 1 then 
+  return -1
+endi
+
+sql drop table a
+sql show tables
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== step3
+sql create table a0123456789 (ts timestamp, speed int) 
+sql show tables
+if $rows != 1 then 
+  return -1
+endi
+
+sql drop table a0123456789
+sql show tables
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== step4
+sql create table ab01234567890123456789a0123456789a0123456789ab01234567890123456789a0123456789a0123456789ab01234567890123456789a0123456789a0123456789ab01234567890123456789a0123456789a0123456789ab01234567890123456789a0123456789a0123456789ab01234567890123456789a0123456789a0123456789 (ts timestamp, speed int)  -x step4
+	return -1
+step4:
+sql show tables
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== step5
+sql create table a;1 (ts timestamp, speed int) -x step5
+	return -1
+step5:
+sql show tables
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== step6
+sql create table a'1  (ts timestamp, speed int) -x step6
+	return -1
+step6:
+sql show tables
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== step7
+sql create table (a)  (ts timestamp, speed int) -x step7
+	return -1
+step7:
+sql show tables
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== step8
+sql create table a.1  (ts timestamp, speed int) -x step8
+  return -1
+step8:
+
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

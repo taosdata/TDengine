@@ -39,7 +39,7 @@ extern "C" {
 //               /\ voterLog'       = [voterLog EXCEPT ![i] = [j \in {} |-> <<>>]]
 //               /\ UNCHANGED <<messages, leaderVars, logVars>>
 //
-int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg);
+int32_t syncNodeOnTimer(SSyncNode* ths, SyncTimeout* pMsg);
 
 #ifdef __cplusplus
 }

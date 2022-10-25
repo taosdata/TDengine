@@ -20,8 +20,8 @@
 #include <tglobal.h>
 #include <iostream>
 
-#include <vnodeInt.h>
 #include <tmsg.h>
+#include <vnodeInt.h>
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -121,7 +121,7 @@ TEST(testCase, tSma_Meta_Encode_Decode_Test) {
 
   // decode
   STSmaWrapper dstTSmaWrapper = {0};
-  void        *result = tDecodeTSmaWrapper(pSW, &dstTSmaWrapper);
+  void        *result = tDecodeTSmaWrapper(pSW, &dstTSmaWrapper, false);
   EXPECT_NE(result, nullptr);
 
   EXPECT_EQ(tSmaWrapper.number, dstTSmaWrapper.number);
@@ -395,9 +395,8 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
     pBlk->uid = htobe64(tbUid);
     pBlk->suid = htobe64(tbUid);
     pBlk->sversion = htonl(schemaVer);
-    pBlk->padding = htonl(0);
     pBlk->schemaLen = htonl(0);
-    pBlk->numOfRows = htons(mockRowNum);
+    pBlk->numOfRows = htonl(mockRowNum);
     pBlk->dataLen = htonl(mockRowNum * mockRowLen);
     for (uint32_t r = 0; r < mockRowNum; ++r) {
       pRow = (STSRow *)POINTER_SHIFT(pBlk, sizeof(SSubmitBlk) + r * mockRowLen);
@@ -425,7 +424,7 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
                                           TSDB_DATA_TYPE_DOUBLE,    TSDB_DATA_TYPE_VARCHAR,  TSDB_DATA_TYPE_NCHAR};
   // last 2 columns for group by tags
   // int32_t tSmaTypeArray[tSmaNumOfCols] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BOOL};
-  const char *tSmaGroupbyTags[tSmaGroupSize * tSmaNumOfTags] = {"BeiJing",  "HaiDian", "BeiJing",   "ChaoYang",
+  const char *tSmaGroupbyTags[tSmaGroupSize * tSmaNumOfTags] = {"BeiJing",  "HaiDian", "BeiJing",  "ChaoYang",
                                                                 "ShangHai", "PuDong",  "ShangHai", "MinHang"};
   TSKEY       tSmaSKeyMs = (int64_t)1648535332 * 1000;
   int64_t     tSmaIntervalMs = tSma.interval * 60 * 1000;
@@ -435,14 +434,13 @@ TEST(testCase, tSma_Data_Insert_Query_Test) {
     SSDataBlock *pDataBlock = (SSDataBlock *)taosMemoryCalloc(1, sizeof(SSDataBlock));
     EXPECT_NE(pDataBlock, nullptr);
     pDataBlock->pBlockAgg = NULL;
-    pDataBlock->info.numOfCols = tSmaNumOfCols;
+    taosArrayGetSize(pDataBlock->pDataBlock) = tSmaNumOfCols;
     pDataBlock->info.rows = tSmaNumOfRows;
     pDataBlock->info.groupId = tSmaGroupId + g;
 
     pDataBlock->pDataBlock = taosArrayInit(tSmaNumOfCols, sizeof(SColumnInfoData *));
     EXPECT_NE(pDataBlock->pDataBlock, nullptr);
     for (int32_t c = 0; c < tSmaNumOfCols; ++c) {
-      
       SColumnInfoData *pColInfoData = (SColumnInfoData *)taosMemoryCalloc(1, sizeof(SColumnInfoData));
       EXPECT_NE(pColInfoData, nullptr);
 

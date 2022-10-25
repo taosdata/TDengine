@@ -40,8 +40,10 @@ void cleanup() { walCleanUp(); }
 void CommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256] = {0};
   snprintf(logBuf, sizeof(logBuf),
-           "==callback== ==CommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s, flag:%lu, term:%lu "
-           "currentTerm:%lu \n",
+           "==callback== ==CommitCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s, flag:%" PRIu64
+           ", term:%" PRIu64
+           " "
+           "currentTerm:%" PRIu64 " \n",
            pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state),
            cbMeta.flag, cbMeta.term, cbMeta.currentTerm);
   syncRpcMsgLog2(logBuf, (SRpcMsg*)pMsg);
@@ -50,8 +52,10 @@ void CommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
 void PreCommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256] = {0};
   snprintf(logBuf, sizeof(logBuf),
-           "==callback== ==PreCommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s, flag:%lu, term:%lu "
-           "currentTerm:%lu \n",
+           "==callback== ==PreCommitCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s, flag:%" PRIu64
+           ", term:%" PRIu64
+           " "
+           "currentTerm:%" PRIu64 " \n",
            pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state),
            cbMeta.flag, cbMeta.term, cbMeta.currentTerm);
   syncRpcMsgLog2(logBuf, (SRpcMsg*)pMsg);
@@ -60,8 +64,10 @@ void PreCommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) 
 void RollBackCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256] = {0};
   snprintf(logBuf, sizeof(logBuf),
-           "==callback== ==RollBackCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s, flag:%lu, term:%lu "
-           "currentTerm:%lu \n",
+           "==callback== ==RollBackCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s, flag:%" PRIu64
+           ", term:%" PRIu64
+           " "
+           "currentTerm:%" PRIu64 " \n",
            pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state),
            cbMeta.flag, cbMeta.term, cbMeta.currentTerm);
   syncRpcMsgLog2(logBuf, (SRpcMsg*)pMsg);
@@ -74,7 +80,7 @@ int32_t GetSnapshotCb(struct SSyncFSM* pFsm, SSnapshot* pSnapshot) {
   return 0;
 }
 
-int32_t SnapshotStartRead(struct SSyncFSM* pFsm, void** ppReader) {
+int32_t SnapshotStartRead(struct SSyncFSM* pFsm, void* pParam, void** ppReader) {
   *ppReader = (void*)0xABCD;
   char logBuf[256] = {0};
   snprintf(logBuf, sizeof(logBuf), "==callback== ==SnapshotStartRead== pFsm:%p, *ppReader:%p", pFsm, *ppReader);
@@ -111,7 +117,7 @@ int32_t SnapshotDoRead(struct SSyncFSM* pFsm, void* pReader, void** ppBuf, int32
   return 0;
 }
 
-int32_t SnapshotStartWrite(struct SSyncFSM* pFsm, void** ppWriter) {
+int32_t SnapshotStartWrite(struct SSyncFSM* pFsm, void* pParam, void** ppWriter) {
   *ppWriter = (void*)0xCDEF;
   char logBuf[256] = {0};
 
@@ -120,7 +126,7 @@ int32_t SnapshotStartWrite(struct SSyncFSM* pFsm, void** ppWriter) {
   return 0;
 }
 
-int32_t SnapshotStopWrite(struct SSyncFSM* pFsm, void* pWriter, bool isApply) {
+int32_t SnapshotStopWrite(struct SSyncFSM* pFsm, void* pWriter, bool isApply, SSnapshot* pSnapshot) {
   if (isApply) {
     gSnapshotLastApplyIndex = gFinishLastApplyIndex;
     gSnapshotLastApplyTerm = gFinishLastApplyTerm;
@@ -128,8 +134,9 @@ int32_t SnapshotStopWrite(struct SSyncFSM* pFsm, void* pWriter, bool isApply) {
 
   char logBuf[256] = {0};
   snprintf(logBuf, sizeof(logBuf),
-           "==callback== ==SnapshotStopWrite== pFsm:%p, pWriter:%p, isApply:%d, gSnapshotLastApplyIndex:%ld, "
-           "gSnapshotLastApplyTerm:%ld",
+           "==callback== ==SnapshotStopWrite== pFsm:%p, pWriter:%p, isApply:%d, gSnapshotLastApplyIndex:%" PRId64
+           ", "
+           "gSnapshotLastApplyTerm:%" PRId64,
            pFsm, pWriter, isApply, gSnapshotLastApplyIndex, gSnapshotLastApplyTerm);
   sTrace("%s", logBuf);
 
@@ -146,11 +153,24 @@ int32_t SnapshotDoWrite(struct SSyncFSM* pFsm, void* pWriter, void* pBuf, int32_
 
 void RestoreFinishCb(struct SSyncFSM* pFsm) { sTrace("==callback== ==RestoreFinishCb== pFsm:%p", pFsm); }
 
-void ReConfigCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta cbMeta) {
+void ReConfigCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta* cbMeta) {
   char* s = syncCfg2Str(&(cbMeta.newCfg));
-  sTrace("==callback== ==ReConfigCb== flag:0x%lX, isDrop:%d, index:%ld, code:%d, currentTerm:%lu, term:%lu, newCfg:%s",
-         cbMeta.flag, cbMeta.isDrop, cbMeta.index, cbMeta.code, cbMeta.currentTerm, cbMeta.term, s);
+  sTrace("==callback== ==ReConfigCb== flag:0x%lX, index:%" PRId64 ", code:%d, currentTerm:%" PRIu64 ", term:%" PRIu64
+         ", newCfg:%s",
+         cbMeta->flag, cbMeta->index, cbMeta->code, cbMeta->currentTerm, cbMeta->term, s);
   taosMemoryFree(s);
+}
+
+void LeaderTransferCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
+  char logBuf[256] = {0};
+  snprintf(logBuf, sizeof(logBuf),
+           "==callback== ==LeaderTransferCb== pFsm:%p, index:%" PRId64
+           ", isWeak:%d, code:%d, state:%d %s, flag:%" PRIu64 ", term:%" PRIu64
+           " "
+           "currentTerm:%" PRIu64 " \n",
+           pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state),
+           cbMeta.flag, cbMeta.term, cbMeta.currentTerm);
+  syncRpcMsgLog2(logBuf, (SRpcMsg*)pMsg);
 }
 
 SSyncFSM* createFsm() {
@@ -162,7 +182,7 @@ SSyncFSM* createFsm() {
   pFsm->FpRollBackCb = RollBackCb;
 
   pFsm->FpReConfigCb = ReConfigCb;
-  pFsm->FpGetSnapshot = GetSnapshotCb;
+  pFsm->FpGetSnapshotInfo = GetSnapshotCb;
   pFsm->FpRestoreFinishCb = RestoreFinishCb;
 
   pFsm->FpSnapshotStartRead = SnapshotStartRead;
@@ -171,6 +191,8 @@ SSyncFSM* createFsm() {
   pFsm->FpSnapshotStartWrite = SnapshotStartWrite;
   pFsm->FpSnapshotStopWrite = SnapshotStopWrite;
   pFsm->FpSnapshotDoWrite = SnapshotDoWrite;
+
+  pFsm->FpLeaderTransferCb = LeaderTransferCb;
 
   return pFsm;
 }
@@ -191,7 +213,7 @@ SWal* createWal(char* path, int32_t vgId) {
 }
 
 int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* pWal, char* path, bool isStandBy,
-                       bool enableSnapshot) {
+                       ESyncStrategy enableSnapshot) {
   SSyncInfo syncInfo;
   syncInfo.vgId = vgId;
   syncInfo.msgcb = &gSyncIO->msgcb;
@@ -201,7 +223,7 @@ int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* 
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s_sync_replica%d_index%d", path, replicaNum, myIndex);
   syncInfo.pWal = pWal;
   syncInfo.isStandBy = isStandBy;
-  syncInfo.snapshotEnable = enableSnapshot;
+  syncInfo.snapshotStrategy = enableSnapshot;
 
   SSyncCfg* pCfg = &syncInfo.syncCfg;
 
@@ -244,14 +266,12 @@ int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* 
   gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
   gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
   gSyncIO->FpOnSyncClientRequest = pSyncNode->FpOnClientRequest;
-
   gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
   gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
   gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
   gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
-
-  gSyncIO->FpOnSyncSnapshotSend = pSyncNode->FpOnSnapshotSend;
-  gSyncIO->FpOnSyncSnapshotRsp = pSyncNode->FpOnSnapshotRsp;
+  gSyncIO->FpOnSyncSnapshot = pSyncNode->FpOnSnapshot;
+  gSyncIO->FpOnSyncSnapshotReply = pSyncNode->FpOnSnapshotReply;
 
   gSyncIO->pSyncNode = pSyncNode;
   syncNodeRelease(pSyncNode);
@@ -277,47 +297,51 @@ void usage(char* exe) {
   printf(
       "usage: %s  replicaNum(1-5)  myIndex(0-..)  enableSnapshot(0/1)  lastApplyIndex(>=-1)  lastApplyTerm(>=0)  "
       "writeRecordNum(>=0)  "
-      "isStandBy(0/1)  isConfigChange(0-5)  iterTimes(>=0)  finishLastApplyIndex(>=-1)  finishLastApplyTerm(>=0) \n",
+      "isStandBy(0/1)  isConfigChange(0-5)  iterTimes(>=0)  finishLastApplyIndex(>=-1)  finishLastApplyTerm(>=0) "
+      "leaderTransfer(0/1) \n",
       exe);
 }
 
 SRpcMsg* createRpcMsg(int i, int count, int myIndex) {
   SRpcMsg* pMsg = (SRpcMsg*)taosMemoryMalloc(sizeof(SRpcMsg));
   memset(pMsg, 0, sizeof(SRpcMsg));
-  pMsg->msgType = 9999;
+  pMsg->msgType = TDMT_VND_SUBMIT;
   pMsg->contLen = 256;
   pMsg->pCont = rpcMallocCont(pMsg->contLen);
-  snprintf((char*)(pMsg->pCont), pMsg->contLen, "value-myIndex:%u-%d-%d-%ld", myIndex, i, count, taosGetTimestampMs());
+  snprintf((char*)(pMsg->pCont), pMsg->contLen, "value-myIndex:%u-%d-%d-" PRId64, myIndex, i, count,
+           taosGetTimestampMs());
   return pMsg;
 }
 
 int main(int argc, char** argv) {
   sprintf(tsTempDir, "%s", ".");
   tsAsyncLog = 0;
-  sDebugFlag = DEBUG_SCREEN + DEBUG_FILE + DEBUG_TRACE + DEBUG_INFO + DEBUG_ERROR;
+  sDebugFlag = DEBUG_SCREEN + DEBUG_FILE + DEBUG_TRACE + DEBUG_INFO + DEBUG_ERROR + DEBUG_DEBUG;
 
-  if (argc != 12) {
+  if (argc != 13) {
     usage(argv[0]);
     exit(-1);
   }
 
-  int32_t replicaNum = atoi(argv[1]);
-  int32_t myIndex = atoi(argv[2]);
-  bool    enableSnapshot = atoi(argv[3]);
-  int32_t lastApplyIndex = atoi(argv[4]);
-  int32_t lastApplyTerm = atoi(argv[5]);
-  int32_t writeRecordNum = atoi(argv[6]);
-  bool    isStandBy = atoi(argv[7]);
-  int32_t isConfigChange = atoi(argv[8]);
-  int32_t iterTimes = atoi(argv[9]);
-  int32_t finishLastApplyIndex = atoi(argv[10]);
-  int32_t finishLastApplyTerm = atoi(argv[11]);
+  int32_t       replicaNum = atoi(argv[1]);
+  int32_t       myIndex = atoi(argv[2]);
+  ESyncStrategy enableSnapshot = (ESyncStrategy)atoi(argv[3]);
+  int32_t       lastApplyIndex = atoi(argv[4]);
+  int32_t       lastApplyTerm = atoi(argv[5]);
+  int32_t       writeRecordNum = atoi(argv[6]);
+  bool          isStandBy = atoi(argv[7]);
+  int32_t       isConfigChange = atoi(argv[8]);
+  int32_t       iterTimes = atoi(argv[9]);
+  int32_t       finishLastApplyIndex = atoi(argv[10]);
+  int32_t       finishLastApplyTerm = atoi(argv[11]);
+  int32_t       leaderTransfer = atoi(argv[12]);
 
-  sTrace(
+  sInfo(
       "args: replicaNum:%d, myIndex:%d, enableSnapshot:%d, lastApplyIndex:%d, lastApplyTerm:%d, writeRecordNum:%d, "
-      "isStandBy:%d, isConfigChange:%d, iterTimes:%d, finishLastApplyIndex:%d, finishLastApplyTerm:%d",
+      "isStandBy:%d, isConfigChange:%d, iterTimes:%d, finishLastApplyIndex:%d, finishLastApplyTerm:%d, "
+      "leaderTransfer:%d",
       replicaNum, myIndex, enableSnapshot, lastApplyIndex, lastApplyTerm, writeRecordNum, isStandBy, isConfigChange,
-      iterTimes, finishLastApplyIndex, finishLastApplyTerm);
+      iterTimes, finishLastApplyIndex, finishLastApplyTerm, leaderTransfer);
 
   // check parameter
   assert(replicaNum >= 1 && replicaNum <= 5);
@@ -363,24 +387,33 @@ int main(int argc, char** argv) {
 
   //---------------------------
   int32_t alreadySend = 0;
+  int32_t leaderTransferWait = 0;
   while (1) {
     char* simpleStr = syncNode2SimpleStr(pSyncNode);
+
+    leaderTransferWait++;
+    if (leaderTransferWait == 7) {
+      if (leaderTransfer) {
+        sTrace("begin leader transfer ...");
+        int32_t ret = syncLeaderTransfer(rid);
+      }
+    }
 
     if (alreadySend < writeRecordNum) {
       SRpcMsg* pRpcMsg = createRpcMsg(alreadySend, writeRecordNum, myIndex);
       int32_t  ret = syncPropose(rid, pRpcMsg, false);
-      if (ret == TAOS_SYNC_PROPOSE_NOT_LEADER) {
-        sTrace("%s value%d write not leader", simpleStr, alreadySend);
+      if (ret == -1 && terrno == TSDB_CODE_SYN_NOT_LEADER) {
+        sTrace("%s value%d write not leader, leaderTransferWait:%d", simpleStr, alreadySend, leaderTransferWait);
       } else {
         assert(ret == 0);
-        sTrace("%s value%d write ok", simpleStr, alreadySend);
+        sTrace("%s value%d write ok, leaderTransferWait:%d", simpleStr, alreadySend, leaderTransferWait);
       }
       alreadySend++;
 
       rpcFreeCont(pRpcMsg->pCont);
       taosMemoryFree(pRpcMsg);
     } else {
-      sTrace("%s", simpleStr);
+      sTrace("%s, leaderTransferWait:%d", simpleStr, leaderTransferWait);
     }
 
     taosMsleep(1000);

@@ -280,7 +280,7 @@ static void dmPrintEps(SDnodeData *pData) {
   dDebug("print dnode list, num:%d", numOfEps);
   for (int32_t i = 0; i < numOfEps; i++) {
     SDnodeEp *pEp = taosArrayGet(pData->dnodeEps, i);
-    dDebug("dnode:%d, fqdn:%s port:%u is_mnode:%d", pEp->id, pEp->ep.fqdn, pEp->ep.port, pEp->isMnode);
+    dDebug("dnode:%d, fqdn:%s port:%u isMnode:%d", pEp->id, pEp->ep.fqdn, pEp->ep.port, pEp->isMnode);
   }
 }
 

@@ -16,7 +16,7 @@
 #include "tdbInt.h"
 
 struct STTB {
-  TDB *   pEnv;
+  TDB    *pEnv;
   SBTree *pBt;
 };
 
@@ -24,13 +24,18 @@ struct STBC {
   SBTC btc;
 };
 
-int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn, TDB *pEnv, TTB **ppTb) {
-  TTB *   pTb;
+int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn, TDB *pEnv, TTB **ppTb,
+              int8_t rollback) {
+  TTB    *pTb;
   SPager *pPager;
   int     ret;
   char    fFullName[TDB_FILENAME_LEN];
-  SPage * pPage;
+  SPage  *pPage;
   SPgno   pgno;
+  void   *pKey = NULL;
+  int     nKey = 0;
+  void   *pData = NULL;
+  int     nData = 0;
 
   *ppTb = NULL;
 
@@ -42,23 +47,81 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
   // pTb->pEnv
   pTb->pEnv = pEnv;
 
+#ifdef USE_MAINDB
+  snprintf(fFullName, TDB_FILENAME_LEN, "%s/%s", pEnv->dbName, TDB_MAINDB_NAME);
+
+  if (strcmp(TDB_MAINDB_NAME, tbname)) {
+    pPager = tdbEnvGetPager(pEnv, fFullName);
+    if (!pPager) {
+      tdbOsFree(pTb);
+      return -1;
+    }
+
+    ret = tdbTbGet(pPager->pEnv->pMainDb, tbname, strlen(tbname) + 1, &pData, &nData);
+    if (ret < 0) {
+      // new pgno & insert into main db
+      pgno = 0;
+    } else {
+      pgno = *(SPgno *)pData;
+
+      tdbFree(pKey);
+      tdbFree(pData);
+    }
+
+  } else {
+    pPager = tdbEnvGetPager(pEnv, fFullName);
+    if (pPager == NULL) {
+      ret = tdbPagerOpen(pEnv->pCache, fFullName, &pPager);
+      if (ret < 0) {
+        tdbOsFree(pTb);
+        return -1;
+      }
+
+      tdbEnvAddPager(pEnv, pPager);
+
+      pPager->pEnv = pEnv;
+    }
+
+    if (pPager->dbOrigSize > 0) {
+      pgno = 1;
+    } else {
+      pgno = 0;
+    }
+  }
+
+#else
+
   pPager = tdbEnvGetPager(pEnv, tbname);
   if (pPager == NULL) {
     snprintf(fFullName, TDB_FILENAME_LEN, "%s/%s", pEnv->dbName, tbname);
     ret = tdbPagerOpen(pEnv->pCache, fFullName, &pPager);
     if (ret < 0) {
+      tdbOsFree(pTb);
       return -1;
     }
 
     tdbEnvAddPager(pEnv, pPager);
   }
 
+#endif
+
   ASSERT(pPager != NULL);
 
   // pTb->pBt
-  ret = tdbBtreeOpen(keyLen, valLen, pPager, keyCmprFn, &(pTb->pBt));
+  ret = tdbBtreeOpen(keyLen, valLen, pPager, tbname, pgno, keyCmprFn, &(pTb->pBt));
   if (ret < 0) {
+    tdbOsFree(pTb);
     return -1;
+  }
+
+  if (rollback) {
+    tdbPagerRollback(pPager);
+  } else {
+    ret = tdbPagerRestore(pPager, pTb->pBt);
+    if (ret < 0) {
+      tdbOsFree(pTb);
+      return -1;
+    }
   }
 
   *ppTb = pTb;
@@ -130,6 +193,10 @@ int tdbTbcDelete(TBC *pTbc) { return tdbBtcDelete(&pTbc->btc); }
 
 int tdbTbcNext(TBC *pTbc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
   return tdbBtreeNext(&pTbc->btc, ppKey, kLen, ppVal, vLen);
+}
+
+int tdbTbcPrev(TBC *pTbc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
+  return tdbBtreePrev(&pTbc->btc, ppKey, kLen, ppVal, vLen);
 }
 
 int tdbTbcUpsert(TBC *pTbc, const void *pKey, int nKey, const void *pData, int nData, int insert) {

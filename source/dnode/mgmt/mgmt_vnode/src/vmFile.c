@@ -31,9 +31,8 @@ SVnodeObj **vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes) {
     SVnodeObj  *pVnode = *ppVnode;
     if (pVnode && num < size) {
       int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
-      // dTrace("vgId:%d, acquire vnode, refCount:%d", pVnode->vgId, refCount);
-      pVnodes[num] = (*ppVnode);
-      num++;
+      // dTrace("vgId:%d, acquire vnode list, ref:%d", pVnode->vgId, refCount);
+      pVnodes[num++] = (*ppVnode);
       pIter = taosHashIterate(pMgmt->hash, pIter);
     } else {
       taosHashCancelIterate(pMgmt->hash, pIter);
@@ -95,6 +94,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
     pCfgs = taosMemoryCalloc(vnodesNum, sizeof(SWrapperCfg));
     if (pCfgs == NULL) {
       dError("failed to read %s since out of memory", file);
+      code = TSDB_CODE_OUT_OF_MEMORY;
       goto _OVER;
     }
 
@@ -105,6 +105,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
       cJSON *vgId = cJSON_GetObjectItem(vnode, "vgId");
       if (!vgId || vgId->type != cJSON_Number) {
         dError("failed to read %s since vgId not found", file);
+        taosMemoryFree(pCfgs);
         goto _OVER;
       }
       pCfg->vgId = vgId->valueint;
@@ -113,6 +114,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
       cJSON *dropped = cJSON_GetObjectItem(vnode, "dropped");
       if (!dropped || dropped->type != cJSON_Number) {
         dError("failed to read %s since dropped not found", file);
+        taosMemoryFree(pCfgs);
         goto _OVER;
       }
       pCfg->dropped = dropped->valueint;
@@ -120,6 +122,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
       cJSON *vgVersion = cJSON_GetObjectItem(vnode, "vgVersion");
       if (!vgVersion || vgVersion->type != cJSON_Number) {
         dError("failed to read %s since vgVersion not found", file);
+        taosMemoryFree(pCfgs);
         goto _OVER;
       }
       pCfg->vgVersion = vgVersion->valueint;
@@ -142,8 +145,9 @@ _OVER:
 }
 
 int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
-  char file[PATH_MAX] = {0};
-  char realfile[PATH_MAX] = {0};
+  int32_t code = 0;
+  char    file[PATH_MAX] = {0};
+  char    realfile[PATH_MAX] = {0};
   snprintf(file, sizeof(file), "%s%svnodes.json.bak", pMgmt->path, TD_DIRSEP);
   snprintf(realfile, sizeof(file), "%s%svnodes.json", pMgmt->path, TD_DIRSEP);
 
@@ -155,20 +159,28 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   }
 
   int32_t     numOfVnodes = 0;
-  SVnodeObj **pVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
+  SVnodeObj **ppVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
+  if (ppVnodes == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = -1;
+    goto _OVER;
+  }
 
   int32_t len = 0;
   int32_t maxLen = MAX_CONTENT_LEN;
   char   *content = taosMemoryCalloc(1, maxLen + 1);
   if (content == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
+    code = -1;
+    goto _OVER;
   }
 
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"vnodes\": [\n");
   for (int32_t i = 0; i < numOfVnodes; ++i) {
-    SVnodeObj *pVnode = pVnodes[i];
+    SVnodeObj *pVnode = ppVnodes[i];
+    if (pVnode == NULL) continue;
+
     len += snprintf(content + len, maxLen - len, "    {\n");
     len += snprintf(content + len, maxLen - len, "      \"vgId\": %d,\n", pVnode->vgId);
     len += snprintf(content + len, maxLen - len, "      \"dropped\": %d,\n", pVnode->dropped);
@@ -181,21 +193,25 @@ int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
   }
   len += snprintf(content + len, maxLen - len, "  ]\n");
   len += snprintf(content + len, maxLen - len, "}\n");
+  terrno = 0;
 
+_OVER:
   taosWriteFile(pFile, content, len);
   taosFsyncFile(pFile);
   taosCloseFile(&pFile);
   taosMemoryFree(content);
-  terrno = 0;
 
-  for (int32_t i = 0; i < numOfVnodes; ++i) {
-    SVnodeObj *pVnode = pVnodes[i];
-    vmReleaseVnode(pMgmt, pVnode);
+  if (ppVnodes != NULL) {
+    for (int32_t i = 0; i < numOfVnodes; ++i) {
+      SVnodeObj *pVnode = ppVnodes[i];
+      if (pVnode != NULL) {
+        vmReleaseVnode(pMgmt, pVnode);
+      }
+    }
+    taosMemoryFree(ppVnodes);
   }
 
-  if (pVnodes != NULL) {
-    taosMemoryFree(pVnodes);
-  }
+  if (code != 0) return -1;
 
   dDebug("successed to write %s, numOfVnodes:%d", realfile, numOfVnodes);
   return taosRenameFile(file, realfile);

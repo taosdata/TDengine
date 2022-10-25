@@ -142,7 +142,7 @@ class TwoClients:
         tdSql.init(cur2, True)
 
         # check data correct 
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
         tdSql.execute("use db2")
         tdSql.query("select count (tbname) from stb0")
         tdSql.checkData(0, 0, 1)

@@ -1,0 +1,50 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = ic_db
+$tbPrefix = ic_tb
+$stbPrefix = ic_stb
+$tbNum = 1
+#$rowNum = 166
+$rowNum = 1361
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 600000
+print ========== limit.sim
+$i = 0
+$db = $dbPrefix . $i
+$stb = $stbPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+print ====== create tables
+sql use $db
+
+$i = 0
+$ts = $ts0
+$tb = $tbPrefix . $i
+sql create table $tb (ts timestamp, c1 int)
+$x = 0
+while $x < $rowNum
+  $xs = $x * $delta
+  $ts = $ts0 + $xs
+  sql insert into $tb values ( $ts , $x )
+  $x = $x + 1
+endw
+print ====== tables created
+
+$ts = $ts0 + $delta
+$ts = $ts + 1
+sql import into $tb values ( $ts , -1)
+sql select count(*) from $tb
+$res = $rowNum + 1
+if $data00 != $res then
+  print expected: $res
+  print returned: $rows
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

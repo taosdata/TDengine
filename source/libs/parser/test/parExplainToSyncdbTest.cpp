@@ -40,6 +40,12 @@ TEST_F(ParserExplainToSyncdbTest, grant) {
   run("GRANT READ, WRITE ON test.* TO wxy");
 }
 
+TEST_F(ParserExplainToSyncdbTest, insert) {
+  useDb("root", "test");
+
+  run("INSERT INTO t1 SELECT * FROM t1");
+}
+
 // todo kill connection
 // todo kill query
 // todo kill stream

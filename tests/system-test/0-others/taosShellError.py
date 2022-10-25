@@ -18,7 +18,7 @@ from util.dnodes import *
 def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key1='', value1=''):
     if len(key) == 0:
         tdLog.exit("taos test key is null!")
-    
+
     if platform.system().lower() == 'windows':
         taosCmd = buildPath + '\\build\\bin\\taos.exe '
         taosCmd = taosCmd.replace('\\','\\\\')
@@ -48,21 +48,21 @@ def taos_command (buildPath, key, value, expectString, cfgDir, sqlString='', key
     #output = child.readline()
     #print (output.decode())
     if len(expectString) != 0:
-        i = child.expect([expectString, taosExpect.TIMEOUT, taosExpect.EOF], timeout=6)
+        i = child.expect([expectString, taosExpect.TIMEOUT, taosExpect.EOF], timeout=20)
     else:
-        i = child.expect([taosExpect.TIMEOUT, taosExpect.EOF], timeout=6)
+        i = child.expect([taosExpect.TIMEOUT, taosExpect.EOF], timeout=20)
 
     if platform.system().lower() == 'windows':
         retResult = child.before
     else:
         retResult = child.before.decode()
     print("cmd return result:\n%s\n"%retResult)
-    #print(child.after.decode())
+    # print(child.after.decode())
     if i == 0:
         print ('taos login success! Here can run sql, taos> ')
         if len(sqlString) != 0:
             child.sendline (sqlString)
-            w = child.expect(["Query OK", taosExpect.TIMEOUT, taosExpect.EOF], timeout=1)
+            w = child.expect(["Query OK", taosExpect.TIMEOUT, taosExpect.EOF], timeout=10)
             if platform.system().lower() == 'windows':
                 retResult = child.before
             else:
@@ -162,28 +162,28 @@ class TDTestCase:
         keyDict['h'] = 'abc'
         retCode, retVal = taos_command(buildPath, "h", keyDict['h'], "taos>", keyDict['c'], '')
         if (retCode == "TAOS_FAIL") and ("Unable to establish connection" in retVal):
-            tdLog.info("taos -h %s test suceess"%keyDict['h'])
+            tdLog.info("taos -h %s test success"%keyDict['h'])
         else:
             tdLog.exit("taos -h %s fail"%keyDict['h'])
 
         keyDict['h'] = '\'abc\''
         retCode, retVal = taos_command(buildPath, "h", keyDict['h'], "taos>", keyDict['c'], '')
         if (retCode == "TAOS_FAIL") and ("Unable to establish connection" in retVal):
-            tdLog.info("taos -h %s test suceess"%keyDict['h'])
+            tdLog.info("taos -h %s test success"%keyDict['h'])
         else:
             tdLog.exit("taos -h %s fail"%keyDict['h'])
 
         keyDict['h'] = '3'
         retCode, retVal = taos_command(buildPath, "h", keyDict['h'], "taos>", keyDict['c'], '')
         if (retCode == "TAOS_FAIL") and ("Unable to establish connection" in retVal):
-            tdLog.info("taos -h %s test suceess"%keyDict['h'])
+            tdLog.info("taos -h %s test success"%keyDict['h'])
         else:
             tdLog.exit("taos -h %s fail"%keyDict['h'])
 
         keyDict['h'] = '\'3\''
         retCode, retVal = taos_command(buildPath, "h", keyDict['h'], "taos>", keyDict['c'], '')
         if (retCode == "TAOS_FAIL") and ("Unable to establish connection" in retVal):
-            tdLog.info("taos -h %s test suceess"%keyDict['h'])
+            tdLog.info("taos -h %s test success"%keyDict['h'])
         else:
             tdLog.exit("taos -h %s fail"%keyDict['h'])
 
@@ -193,45 +193,45 @@ class TDTestCase:
         keyDict['P'] = 'abc'
         retCode, retVal = taos_command(buildPath, "P", keyDict['P'], "taos>", keyDict['c'], '')
         if (retCode == "TAOS_FAIL") and ("Invalid port" in retVal):
-            tdLog.info("taos -P %s test suceess"%keyDict['P'])
+            tdLog.info("taos -P %s test success"%keyDict['P'])
         else:
             tdLog.exit("taos -P %s fail"%keyDict['P'])
 
         keyDict['P'] = '\'abc\''
         retCode, retVal = taos_command(buildPath, "P", keyDict['P'], "taos>", keyDict['c'], '')
         if (retCode == "TAOS_FAIL") and ("Invalid port" in retVal):
-            tdLog.info("taos -P %s test suceess"%keyDict['P'])
+            tdLog.info("taos -P %s test success"%keyDict['P'])
         else:
             tdLog.exit("taos -P %s fail"%keyDict['P'])
 
         keyDict['P'] = '3'
         retCode, retVal = taos_command(buildPath, "P", keyDict['P'], "taos>", keyDict['c'], '')
         if (retCode == "TAOS_FAIL") and ("Unable to establish connection" in retVal):
-            tdLog.info("taos -P %s test suceess"%keyDict['P'])
+            tdLog.info("taos -P %s test success"%keyDict['P'])
         else:
             tdLog.exit("taos -P %s fail"%keyDict['P'])
 
         keyDict['P'] = '\'3\''
         retCode, retVal = taos_command(buildPath, "P", keyDict['P'], "taos>", keyDict['c'], '')
         if (retCode == "TAOS_FAIL") and ("Unable to establish connection" in retVal):
-            tdLog.info("taos -P %s test suceess"%keyDict['P'])
+            tdLog.info("taos -P %s test success"%keyDict['P'])
         else:
             tdLog.exit("taos -P %s fail"%keyDict['P'])
 
         keyDict['P'] = '12ab'
         retCode, retVal = taos_command(buildPath, "P", keyDict['P'], "taos>", keyDict['c'], '')
         if (retCode == "TAOS_FAIL") and ("Unable to establish connection" in retVal):
-            tdLog.info("taos -P %s test suceess"%keyDict['P'])
+            tdLog.info("taos -P %s test success"%keyDict['P'])
         else:
             tdLog.exit("taos -P %s fail"%keyDict['P'])
 
         keyDict['P'] = '\'12ab\''
         retCode, retVal = taos_command(buildPath, "P", keyDict['P'], "taos>", keyDict['c'], '')
         if (retCode == "TAOS_FAIL") and ("Unable to establish connection" in retVal):
-            tdLog.info("taos -P %s test suceess"%keyDict['P'])
+            tdLog.info("taos -P %s test success"%keyDict['P'])
         else:
             tdLog.exit("taos -P %s fail"%keyDict['P'])
- 
+
         tdLog.printNoPrefix("================================ parameter: -f with error sql ")
         pwd=os.getcwd()
         newDbName="dbf"
@@ -240,15 +240,15 @@ class TDTestCase:
         sql2 = "echo use " + newDbName + " >> " + sqlFile
         if platform.system().lower() == 'windows':
             sql3 = "echo create table ntbf (ts timestamp, c binary(40)) no this item >> " + sqlFile
-            sql4 = "echo insert into ntbf values (\"2021-04-01 08:00:00.000\", \"test taos -f1\")(\"2021-04-01 08:00:01.000\", \"test taos -f2\") >> " + sqlFile 
+            sql4 = "echo insert into ntbf values (\"2021-04-01 08:00:00.000\", \"test taos -f1\")(\"2021-04-01 08:00:01.000\", \"test taos -f2\") >> " + sqlFile
         else:
             sql3 = "echo 'create table ntbf (ts timestamp, c binary(40)) no this item' >> " + sqlFile
-            sql4 = "echo 'insert into ntbf values (\"2021-04-01 08:00:00.000\", \"test taos -f1\")(\"2021-04-01 08:00:01.000\", \"test taos -f2\")' >> " + sqlFile 
-        sql5 = "echo show databases >> " + sqlFile       
-        os.system(sql1)       
-        os.system(sql2)       
-        os.system(sql3)       
-        os.system(sql4)      
+            sql4 = "echo 'insert into ntbf values (\"2021-04-01 08:00:00.000\", \"test taos -f1\")(\"2021-04-01 08:00:01.000\", \"test taos -f2\")' >> " + sqlFile
+        sql5 = "echo show databases >> " + sqlFile
+        os.system(sql1)
+        os.system(sql2)
+        os.system(sql3)
+        os.system(sql4)
         os.system(sql5)
 
         keyDict['f'] = pwd + "/0-others/sql.txt"
@@ -258,7 +258,7 @@ class TDTestCase:
             tdLog.exit("taos -f fail")
 
         print ("========== check new db ==========")
-        tdSql.query("show databases")        
+        tdSql.query("select * from information_schema.ins_databases")
         for i in range(tdSql.queryRows):
             #print ("dbseq: %d, dbname: %s"%(i, tdSql.getData(i, 0)))
             if tdSql.getData(i, 0) == newDbName:
@@ -266,9 +266,9 @@ class TDTestCase:
         else:
             tdLog.exit("create db fail after taos -f fail")
 
-        sqlString = "select * from " + newDbName + ".ntbf"    
+        sqlString = "select * from " + newDbName + ".ntbf"
         tdSql.error(sqlString)
-        
+
         shellCmd = "rm -f " + sqlFile
         os.system(shellCmd)
 
@@ -281,19 +281,19 @@ class TDTestCase:
         tdSql.query('drop database %s'%newDbName)
 
         tdLog.printNoPrefix("================================ parameter: -a with error value")
-        #newDbName="dba"          
-        errorPassword = 'errorPassword'      
+        #newDbName="dba"
+        errorPassword = 'errorPassword'
         sqlString = 'create database ' + newDbName + ';'
         retCode, retVal = taos_command(buildPath, "u", keyDict['u'], "taos>", keyDict['c'], sqlString, 'a', errorPassword)
         if retCode != "TAOS_FAIL":
             tdLog.exit("taos -u %s -a %s"%(keyDict['u'], errorPassword))
 
         tdLog.printNoPrefix("================================ parameter: -p with error value")
-        #newDbName="dba"          
-        keyDict['p'] = 'errorPassword'  
+        #newDbName="dba"
+        keyDict['p'] = 'errorPassword'
         retCode, retVal = taos_command(buildPath, "u", keyDict['u'], "taos>", keyDict['c'], sqlString, 'p', keyDict['p'])
         if retCode == "TAOS_FAIL" and "Authentication failure" in retVal:
-            tdLog.info("taos -p %s test suceess"%keyDict['p'])
+            tdLog.info("taos -p %s test success"%keyDict['p'])
         else:
             tdLog.exit("taos -u %s -p %s"%(keyDict['u'], keyDict['p']))
 

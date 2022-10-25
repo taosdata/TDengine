@@ -202,9 +202,8 @@ int32_t tjsonGetBigIntValue(const SJson* pJson, const char* pName, int64_t* pVal
     return TSDB_CODE_FAILED;
   }
 #ifdef WINDOWS
-  sscanf(p, "%lld", pVal);
+  sscanf(p, "%" PRId64, pVal);
 #else
-  // sscanf(p,"%ld",pVal);
   *pVal = taosStr2Int64(p, NULL, 10);
 #endif
   return TSDB_CODE_SUCCESS;
@@ -237,9 +236,8 @@ int32_t tjsonGetUBigIntValue(const SJson* pJson, const char* pName, uint64_t* pV
     return TSDB_CODE_FAILED;
   }
 #ifdef WINDOWS
-  sscanf(p, "%llu", pVal);
+  sscanf(p, "%" PRIu64, pVal);
 #else
-  // sscanf(p,"%ld",pVal);
   *pVal = taosStr2UInt64(p, NULL, 10);
 #endif
   return TSDB_CODE_SUCCESS;

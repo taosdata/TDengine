@@ -201,6 +201,9 @@ static void monGenClusterJson(SMonInfo *pMonitor) {
   tjsonAddStringToObject(pJson, "version", pInfo->version);
   tjsonAddDoubleToObject(pJson, "master_uptime", pInfo->master_uptime);
   tjsonAddDoubleToObject(pJson, "monitor_interval", pInfo->monitor_interval);
+  tjsonAddDoubleToObject(pJson, "dbs_total", pInfo->dbs_total);
+  tjsonAddDoubleToObject(pJson, "tbs_total", pInfo->tbs_total);
+  tjsonAddDoubleToObject(pJson, "stbs_total", pInfo->stbs_total);
   tjsonAddDoubleToObject(pJson, "vgroups_total", pInfo->vgroups_total);
   tjsonAddDoubleToObject(pJson, "vgroups_alive", pInfo->vgroups_alive);
   tjsonAddDoubleToObject(pJson, "vnodes_total", pInfo->vnodes_total);
@@ -274,6 +277,27 @@ static void monGenVgroupJson(SMonInfo *pMonitor) {
 
       if (tjsonAddItemToArray(pVnodesJson, pVnodeJson) != 0) tjsonDelete(pVnodeJson);
     }
+  }
+}
+
+static void monGenStbJson(SMonInfo *pMonitor) {
+  SMonStbInfo *pInfo = &pMonitor->mmInfo.stb;
+  if (pMonitor->mmInfo.cluster.first_ep_dnode_id == 0) return;
+
+  SJson *pJson = tjsonAddArrayToObject(pMonitor->pJson, "stb_infos");
+  if (pJson == NULL) return;
+
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->stbs); ++i) {
+    SJson *pStbJson = tjsonCreateObject();
+    if (pStbJson == NULL) continue;
+    if (tjsonAddItemToArray(pJson, pStbJson) != 0) {
+      tjsonDelete(pStbJson);
+      continue;
+    }
+
+    SMonStbDesc *pStbDesc = taosArrayGet(pInfo->stbs, i);
+    tjsonAddStringToObject(pStbJson, "stb_name", pStbDesc->stb_name);
+    tjsonAddStringToObject(pStbJson, "database_name", pStbDesc->database_name);
   }
 }
 
@@ -377,7 +401,6 @@ static void monGenDnodeJson(SMonInfo *pMonitor) {
   tjsonAddDoubleToObject(pJson, "has_mnode", pInfo->has_mnode);
   tjsonAddDoubleToObject(pJson, "has_qnode", pInfo->has_qnode);
   tjsonAddDoubleToObject(pJson, "has_snode", pInfo->has_snode);
-  tjsonAddDoubleToObject(pJson, "has_bnode", pInfo->has_bnode);
 }
 
 static void monGenDiskJson(SMonInfo *pMonitor) {
@@ -427,17 +450,10 @@ static void monGenDiskJson(SMonInfo *pMonitor) {
 }
 
 static const char *monLogLevelStr(ELogLevel level) {
-  switch (level) {
-    case DEBUG_ERROR:
-      return "error";
-    case DEBUG_INFO:
-      return "info";
-    case DEBUG_DEBUG:
-      return "debug";
-    case DEBUG_TRACE:
-      return "trace";
-    default:
-      return "undefine";
+  if (level == DEBUG_ERROR) {
+    return "error";
+  } else {
+    return "info";
   }
 }
 
@@ -524,6 +540,7 @@ void monSendReport() {
   monGenBasicJson(pMonitor);
   monGenClusterJson(pMonitor);
   monGenVgroupJson(pMonitor);
+  monGenStbJson(pMonitor);
   monGenGrantJson(pMonitor);
   monGenDnodeJson(pMonitor);
   monGenDiskJson(pMonitor);
@@ -531,7 +548,7 @@ void monSendReport() {
 
   char *pCont = tjsonToString(pMonitor->pJson);
   // uDebugL("report cont:%s\n", pCont);
-    if (pCont != NULL) {
+  if (pCont != NULL) {
     EHttpCompFlag flag = tsMonitor.cfg.comp ? HTTP_GZIP : HTTP_FLAT;
     if (taosSendHttpReport(tsMonitor.cfg.server, tsMonitor.cfg.port, pCont, strlen(pCont), flag) != 0) {
       uError("failed to send monitor msg");

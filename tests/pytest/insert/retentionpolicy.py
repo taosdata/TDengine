@@ -51,7 +51,7 @@ class TDTestRetetion:
     def run(self):
         
         tdLog.info("=============== step1")
-        tdSql.execute('create database test keep 3 days 1;')
+        tdSql.execute('create database test keep 3 duration 1;')
         tdSql.execute('use test;')
         tdSql.execute('create table test(ts timestamp,i int);')
 

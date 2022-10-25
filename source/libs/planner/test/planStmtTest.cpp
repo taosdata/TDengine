@@ -24,6 +24,16 @@ class PlanStmtTest : public PlannerTestBase {
     return (TAOS_MULTI_BIND*)taosMemoryCalloc(nParams, sizeof(TAOS_MULTI_BIND));
   }
 
+  void destoryBindParams(TAOS_MULTI_BIND* pParams, int32_t nParams) {
+    for (int32_t i = 0; i < nParams; ++i) {
+      TAOS_MULTI_BIND* pParam = pParams + i;
+      taosMemoryFree(pParam->buffer);
+      taosMemoryFree(pParam->length);
+      taosMemoryFree(pParam->is_null);
+    }
+    taosMemoryFree(pParams);
+  }
+
   TAOS_MULTI_BIND* buildIntegerParam(TAOS_MULTI_BIND* pBindParams, int32_t index, int64_t val, int32_t type) {
     TAOS_MULTI_BIND* pBindParam = initParam(pBindParams, index, type, 0);
 
@@ -127,8 +137,10 @@ TEST_F(PlanStmtTest, basic) {
   useDb("root", "test");
 
   prepare("SELECT * FROM t1 WHERE c1 = ?");
-  bindParams(buildIntegerParam(createBindParams(1), 0, 10, TSDB_DATA_TYPE_INT), 0);
+  TAOS_MULTI_BIND* pBindParams = buildIntegerParam(createBindParams(1), 0, 10, TSDB_DATA_TYPE_INT);
+  bindParams(pBindParams, 0);
   exec();
+  destoryBindParams(pBindParams, 1);
 
   {
     prepare("SELECT * FROM t1 WHERE c1 = ? AND c2 = ?");
@@ -137,7 +149,7 @@ TEST_F(PlanStmtTest, basic) {
     buildStringParam(pBindParams, 1, "abc", TSDB_DATA_TYPE_VARCHAR, strlen("abc"));
     bindParams(pBindParams, -1);
     exec();
-    taosMemoryFreeClear(pBindParams);
+    destoryBindParams(pBindParams, 2);
   }
 
   {
@@ -147,7 +159,7 @@ TEST_F(PlanStmtTest, basic) {
     buildIntegerParam(pBindParams, 1, 20, TSDB_DATA_TYPE_INT);
     bindParams(pBindParams, -1);
     exec();
-    taosMemoryFreeClear(pBindParams);
+    destoryBindParams(pBindParams, 2);
   }
 }
 
@@ -155,12 +167,16 @@ TEST_F(PlanStmtTest, multiExec) {
   useDb("root", "test");
 
   prepare("SELECT * FROM t1 WHERE c1 = ?");
-  bindParams(buildIntegerParam(createBindParams(1), 0, 10, TSDB_DATA_TYPE_INT), 0);
+  TAOS_MULTI_BIND* pBindParams = buildIntegerParam(createBindParams(1), 0, 10, TSDB_DATA_TYPE_INT);
+  bindParams(pBindParams, 0);
   exec();
-  bindParams(buildIntegerParam(createBindParams(1), 0, 20, TSDB_DATA_TYPE_INT), 0);
+  destoryBindParams(pBindParams, 1);
+  pBindParams = buildIntegerParam(createBindParams(1), 0, 20, TSDB_DATA_TYPE_INT);
+  bindParams(pBindParams, 0);
   exec();
-  bindParams(buildIntegerParam(createBindParams(1), 0, 30, TSDB_DATA_TYPE_INT), 0);
+  destoryBindParams(pBindParams, 1);
+  pBindParams = buildIntegerParam(createBindParams(1), 0, 30, TSDB_DATA_TYPE_INT);
+  bindParams(pBindParams, 0);
   exec();
+  destoryBindParams(pBindParams, 1);
 }
-
-TEST_F(PlanStmtTest, allDataType) { useDb("root", "test"); }

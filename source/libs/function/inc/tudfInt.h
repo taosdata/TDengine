@@ -35,37 +35,35 @@ enum {
 };
 
 typedef struct SUdfSetupRequest {
-  char udfName[TSDB_FUNC_NAME_LEN];
+  char udfName[TSDB_FUNC_NAME_LEN + 1];
 } SUdfSetupRequest;
 
 typedef struct SUdfSetupResponse {
   int64_t udfHandle;
-  int8_t outputType;
+  int8_t  outputType;
   int32_t outputLen;
   int32_t bufSize;
 } SUdfSetupResponse;
 
 typedef struct SUdfCallRequest {
   int64_t udfHandle;
-  int8_t callType;
+  int8_t  callType;
 
-  SSDataBlock block;
+  SSDataBlock  block;
   SUdfInterBuf interBuf;
   SUdfInterBuf interBuf2;
-  int8_t initFirst;
+  int8_t       initFirst;
 } SUdfCallRequest;
 
 typedef struct SUdfCallResponse {
-  int8_t callType;
-  SSDataBlock resultData;
+  int8_t       callType;
+  SSDataBlock  resultData;
   SUdfInterBuf resultBuf;
 } SUdfCallResponse;
-
 
 typedef struct SUdfTeardownRequest {
   int64_t udfHandle;
 } SUdfTeardownRequest;
-
 
 typedef struct SUdfTeardownResponse {
 #ifdef WINDOWS
@@ -79,8 +77,8 @@ typedef struct SUdfRequest {
 
   int8_t type;
   union {
-    SUdfSetupRequest setup;
-    SUdfCallRequest call;
+    SUdfSetupRequest    setup;
+    SUdfCallRequest     call;
     SUdfTeardownRequest teardown;
   };
 } SUdfRequest;
@@ -89,29 +87,29 @@ typedef struct SUdfResponse {
   int32_t msgLen;
   int64_t seqNum;
 
-  int8_t type;
+  int8_t  type;
   int32_t code;
   union {
-    SUdfSetupResponse setupRsp;
-    SUdfCallResponse callRsp;
+    SUdfSetupResponse    setupRsp;
+    SUdfCallResponse     callRsp;
     SUdfTeardownResponse teardownRsp;
   };
 } SUdfResponse;
 
-int32_t encodeUdfRequest(void **buf, const SUdfRequest* request);
-void* decodeUdfRequest(const void *buf, SUdfRequest* request);
+int32_t encodeUdfRequest(void **buf, const SUdfRequest *request);
+void   *decodeUdfRequest(const void *buf, SUdfRequest *request);
 
 int32_t encodeUdfResponse(void **buf, const SUdfResponse *response);
-void* decodeUdfResponse(const void* buf, SUdfResponse *response);
+void   *decodeUdfResponse(const void *buf, SUdfResponse *response);
 
 void freeUdfColumnData(SUdfColumnData *data, SUdfColumnMeta *meta);
-void freeUdfColumn(SUdfColumn* col);
+void freeUdfColumn(SUdfColumn *col);
 void freeUdfDataDataBlock(SUdfDataBlock *block);
 
 int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlock);
 int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block);
 
-int32_t getUdfdPipeName(char* pipeName, int32_t size);
+int32_t getUdfdPipeName(char *pipeName, int32_t size);
 #ifdef __cplusplus
 }
 #endif

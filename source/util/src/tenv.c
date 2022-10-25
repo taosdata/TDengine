@@ -59,12 +59,12 @@ int32_t taosEnvToCfg(const char *envStr, char *cfgStr) {
   }
   if (cfgStr != envStr) strcpy(cfgStr, envStr);
   char *p = strchr(cfgStr, '=');
-  
+
   if (p != NULL) {
     char buf[CFG_NAME_MAX_LEN];
-    if (*(p+1) == '\'') {
-      *(p+1)= ' ';
-      char *pEnd = &cfgStr[strlen(cfgStr)-1];
+    if (*(p + 1) == '\'') {
+      *(p + 1) = ' ';
+      char *pEnd = &cfgStr[strlen(cfgStr) - 1];
       if (*pEnd == '\'') *pEnd = '\0';
     }
     *p = '\0';
@@ -72,6 +72,9 @@ int32_t taosEnvToCfg(const char *envStr, char *cfgStr) {
     if (cfgNameLen > 0) {
       memcpy(cfgStr, buf, cfgNameLen);
       memset(&cfgStr[cfgNameLen], ' ', p - cfgStr - cfgNameLen + 1);
+    } else {
+      *cfgStr = '\0';
+      return -1;
     }
   }
   return strlen(cfgStr);

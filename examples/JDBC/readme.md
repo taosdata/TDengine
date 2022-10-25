@@ -10,4 +10,4 @@
 |  6   |      taosdemo      | This is an internal tool for testing Our JDBC-JNI, JDBC-RESTful, RESTful interfaces |
 
 
-more detail: https://www.taosdata.com/cn//documentation20/connector-java/
+more detail: https://docs.taosdata.com/reference/connector/java/

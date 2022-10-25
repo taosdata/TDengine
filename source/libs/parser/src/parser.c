@@ -19,23 +19,37 @@
 #include "parInt.h"
 #include "parToken.h"
 
-bool qIsInsertSql(const char* pStr, size_t length) {
+bool qIsInsertValuesSql(const char* pStr, size_t length) {
   if (NULL == pStr) {
     return false;
   }
 
+  const char* pSql = pStr;
+
   int32_t index = 0;
+  SToken  t = tStrGetToken((char*)pStr, &index, false);
+  if (TK_INSERT != t.type && TK_IMPORT != t.type) {
+    return false;
+  }
 
   do {
-    SToken t0 = tStrGetToken((char*)pStr, &index, false);
-    if (t0.type != TK_NK_LP) {
-      return t0.type == TK_INSERT || t0.type == TK_IMPORT;
+    pStr += index;
+    index = 0;
+    t = tStrGetToken((char*)pStr, &index, false);
+    if (TK_USING == t.type || TK_VALUES == t.type || TK_FILE == t.type) {
+      return true;
+    } else if (TK_SELECT == t.type) {
+      return false;
     }
-  } while (1);
+    if (0 == t.type || 0 == t.n) {
+      break;
+    }
+  } while (pStr - pSql < length);
+  return false;
 }
 
-static int32_t analyseSemantic(SParseContext* pCxt, SQuery* pQuery) {
-  int32_t code = authenticate(pCxt, pQuery);
+static int32_t analyseSemantic(SParseContext* pCxt, SQuery* pQuery, SParseMetaCache* pMetaCache) {
+  int32_t code = authenticate(pCxt, pQuery, pMetaCache);
 
   if (TSDB_CODE_SUCCESS == code && pQuery->placeholderNum > 0) {
     TSWAP(pQuery->pPrepareRoot, pQuery->pRoot);
@@ -43,7 +57,7 @@ static int32_t analyseSemantic(SParseContext* pCxt, SQuery* pQuery) {
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = translate(pCxt, pQuery);
+    code = translate(pCxt, pQuery, pMetaCache);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = calculateConstant(pCxt, pQuery);
@@ -54,25 +68,30 @@ static int32_t analyseSemantic(SParseContext* pCxt, SQuery* pQuery) {
 static int32_t parseSqlIntoAst(SParseContext* pCxt, SQuery** pQuery) {
   int32_t code = parse(pCxt, pQuery);
   if (TSDB_CODE_SUCCESS == code) {
-    code = analyseSemantic(pCxt, *pQuery);
+    code = analyseSemantic(pCxt, *pQuery, NULL);
   }
   return code;
 }
 
-static int32_t parseSqlSyntax(SParseContext* pCxt, SQuery** pQuery) {
+static int32_t parseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, SParseMetaCache* pMetaCache) {
   int32_t code = parse(pCxt, pQuery);
   if (TSDB_CODE_SUCCESS == code) {
-    code = collectMetaKey(pCxt, *pQuery);
+    code = collectMetaKey(pCxt, *pQuery, pMetaCache);
   }
   return code;
 }
 
 static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
+  if (IS_VAR_DATA_TYPE(pVal->node.resType.type)) {
+    taosMemoryFreeClear(pVal->datum.p);
+  }
+
   if (pParam->is_null && 1 == *(pParam->is_null)) {
     pVal->node.resType.type = TSDB_DATA_TYPE_NULL;
     pVal->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_NULL].bytes;
     return TSDB_CODE_SUCCESS;
   }
+
   int32_t inputSize = (NULL != pParam->length ? *(pParam->length) : tDataTypes[pParam->buffer_type].bytes);
   pVal->node.resType.type = pParam->buffer_type;
   pVal->node.resType.bytes = inputSize;
@@ -117,8 +136,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
 }
 
 static EDealRes rewriteQueryExprAliasImpl(SNode* pNode, void* pContext) {
-  if (nodesIsExprNode(pNode) && QUERY_NODE_COLUMN != nodeType(pNode) && '\0' == ((SExprNode*)pNode)->userAlias[0]) {
-    strcpy(((SExprNode*)pNode)->userAlias, ((SExprNode*)pNode)->aliasName);
+  if (nodesIsExprNode(pNode) && QUERY_NODE_COLUMN != nodeType(pNode)) {
     sprintf(((SExprNode*)pNode)->aliasName, "#%d", *(int32_t*)pContext);
     ++(*(int32_t*)pContext);
   }
@@ -148,8 +166,8 @@ static void rewriteExprAlias(SNode* pRoot) {
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (qIsInsertSql(pCxt->pSql, pCxt->sqlLen)) {
-    code = parseInsertSql(pCxt, pQuery);
+  if (qIsInsertValuesSql(pCxt->pSql, pCxt->sqlLen)) {
+    code = parseInsertSql(pCxt, pQuery, NULL);
   } else {
     code = parseSqlIntoAst(pCxt, pQuery);
   }
@@ -158,29 +176,55 @@ int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery) {
 }
 
 int32_t qParseSqlSyntax(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (qIsInsertSql(pCxt->pSql, pCxt->sqlLen)) {
-    code = parseInsertSyntax(pCxt, pQuery);
-  } else {
-    code = parseSqlSyntax(pCxt, pQuery);
+  SParseMetaCache metaCache = {0};
+  int32_t         code = nodesAcquireAllocator(pCxt->allocatorId);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (qIsInsertValuesSql(pCxt->pSql, pCxt->sqlLen)) {
+      code = parseInsertSyntax(pCxt, pQuery, &metaCache);
+    } else {
+      code = parseSqlSyntax(pCxt, pQuery, &metaCache);
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildCatalogReq((*pQuery)->pMetaCache, pCatalogReq);
+    code = buildCatalogReq(pCxt, &metaCache, pCatalogReq);
   }
+  nodesReleaseAllocator(pCxt->allocatorId);
+  destoryParseMetaCache(&metaCache, true);
   terrno = code;
   return code;
 }
 
 int32_t qAnalyseSqlSemantic(SParseContext* pCxt, const struct SCatalogReq* pCatalogReq,
                             const struct SMetaData* pMetaData, SQuery* pQuery) {
-  int32_t code = putMetaDataToCache(pCatalogReq, pMetaData, pQuery->pMetaCache);
-  if (NULL == pQuery->pRoot) {
-    return parseInsertSql(pCxt, &pQuery);
+  SParseMetaCache metaCache = {0};
+  int32_t         code = nodesAcquireAllocator(pCxt->allocatorId);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = putMetaDataToCache(pCatalogReq, pMetaData, &metaCache, NULL == pQuery->pRoot);
   }
-  return analyseSemantic(pCxt, pQuery);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (NULL == pQuery->pRoot) {
+      code = parseInsertSql(pCxt, &pQuery, &metaCache);
+    } else {
+      code = analyseSemantic(pCxt, pQuery, &metaCache);
+    }
+  }
+  nodesReleaseAllocator(pCxt->allocatorId);
+  destoryParseMetaCache(&metaCache, false);
+  terrno = code;
+  return code;
 }
 
-void qDestroyQuery(SQuery* pQueryNode) { nodesDestroyNode(pQueryNode); }
+void qDestroyParseContext(SParseContext* pCxt) {
+  if (NULL == pCxt) {
+    return;
+  }
+
+  taosArrayDestroy(pCxt->pTableMetaPos);
+  taosArrayDestroy(pCxt->pTableVgroupPos);
+  taosMemoryFree(pCxt);
+}
+
+void qDestroyQuery(SQuery* pQueryNode) { nodesDestroyNode((SNode*)pQueryNode); }
 
 int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {
   return extractResultSchema(pRoot, numOfCols, pSchema);
@@ -198,6 +242,8 @@ int32_t qSetSTableIdForRsma(SNode* pStmt, int64_t uid) {
   return TSDB_CODE_FAILED;
 }
 
+void qCleanupKeywordsTable() { taosCleanupKeywordsTable(); }
+
 int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -214,6 +260,7 @@ int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx
   }
 
   if (TSDB_CODE_SUCCESS == code && (colIdx < 0 || colIdx + 1 == pQuery->placeholderNum)) {
+    nodesDestroyNode(pQuery->pRoot);
     pQuery->pRoot = nodesCloneNode(pQuery->pPrepareRoot);
     if (NULL == pQuery->pRoot) {
       code = TSDB_CODE_OUT_OF_MEMORY;
@@ -226,10 +273,9 @@ int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx
 }
 
 int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery) {
-  int32_t code = translate(pCxt, pQuery);
+  int32_t code = translate(pCxt, pQuery, NULL);
   if (TSDB_CODE_SUCCESS == code) {
     code = calculateConstant(pCxt, pQuery);
   }
-
   return code;
 }

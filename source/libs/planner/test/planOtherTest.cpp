@@ -32,12 +32,20 @@ TEST_F(PlanOtherTest, createStream) {
 
   run("create stream if not exists s1 trigger window_close watermark 10s into st1 as select count(*) from t1 "
       "interval(10s)");
+
+  run("CREATE STREAM s1 INTO st3 TAGS(tname VARCHAR(10), id INT) SUBTABLE(CONCAT('new-', tname)) "
+      "AS SELECT _WSTART wstart, COUNT(*) cnt FROM st1 PARTITION BY TBNAME tname, c1 id INTERVAL(10S)");
+
+  run("CREATE STREAM s1 INTO st3 TAGS(tname VARCHAR(10), id INT) SUBTABLE(CONCAT('new-', tname)) "
+      "AS SELECT _WSTART wstart, COUNT(*) cnt FROM st1 PARTITION BY TBNAME tname, tag1 id INTERVAL(10S)");
 }
 
 TEST_F(PlanOtherTest, createStreamUseSTable) {
   useDb("root", "test");
 
-  run("create stream if not exists s1 as select count(*) from st1 interval(10s)");
+  run("CREATE STREAM IF NOT EXISTS s1 into st1 as SELECT COUNT(*) FROM st1 INTERVAL(10s)");
+
+  run("CREATE STREAM IF NOT EXISTS s1 into st1 as SELECT COUNT(*) FROM st1 PARTITION BY TBNAME INTERVAL(10s)");
 }
 
 TEST_F(PlanOtherTest, createSmaIndex) {
@@ -47,7 +55,7 @@ TEST_F(PlanOtherTest, createSmaIndex) {
 
   run("SELECT SUM(c4) FROM t1 INTERVAL(10s)");
 
-  run("SELECT _WSTARTTS, MIN(c3 + 10) FROM t1 "
+  run("SELECT _WSTART, MIN(c3 + 10) FROM t1 "
       "WHERE ts BETWEEN TIMESTAMP '2022-04-01 00:00:00' AND TIMESTAMP '2022-04-30 23:59:59.999' INTERVAL(10s)");
 
   run("SELECT SUM(c4), MAX(c3) FROM t1 INTERVAL(10s)");
@@ -70,6 +78,16 @@ TEST_F(PlanOtherTest, show) {
   useDb("root", "test");
 
   run("SHOW DATABASES");
+
+  run("SHOW TABLE DISTRIBUTED t1");
+
+  run("SHOW TABLE DISTRIBUTED st1");
+
+  run("SHOW DNODE 1 VARIABLES");
+
+  run("SHOW TAGS FROM st1s1");
+
+  run("SHOW TABLE TAGS FROM st1");
 }
 
 TEST_F(PlanOtherTest, delete) {
@@ -82,4 +100,14 @@ TEST_F(PlanOtherTest, delete) {
   run("DELETE FROM st1");
 
   run("DELETE FROM st1 WHERE ts > now - 2d and ts < now - 1d AND tag1 = 10");
+}
+
+TEST_F(PlanOtherTest, insert) {
+  useDb("root", "test");
+
+  run("INSERT INTO t1 SELECT * FROM t1");
+
+  run("INSERT INTO t1 (ts, c1, c2) SELECT ts, c1, c2 FROM st1");
+
+  run("INSERT INTO t1 (ts, c1, c2) SELECT ts, c1, c2 FROM st1s1 UNION ALL SELECT ts, c1, c2 FROM st2");
 }

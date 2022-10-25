@@ -75,18 +75,18 @@ void MonitorTest::GetSysInfo(SMonSysInfo *pInfo) {
   pInfo->cpu_engine = 2.1;
   pInfo->cpu_system = 2.1;
   pInfo->cpu_cores = 2;
-  pInfo->mem_engine = 3.1;
-  pInfo->mem_system = 3.2;
-  pInfo->mem_total = 3.3;
-  pInfo->disk_engine = 4.1;
-  pInfo->disk_used = 4.2;
-  pInfo->disk_total = 4.3;
-  pInfo->net_in = 5.1;
-  pInfo->net_out = 5.2;
-  pInfo->io_read = 6.1;
-  pInfo->io_write = 6.2;
-  pInfo->io_read_disk = 7.1;
-  pInfo->io_write_disk = 7.2;
+  pInfo->mem_engine = 3;
+  pInfo->mem_system = 3;
+  pInfo->mem_total = 3;
+  pInfo->disk_engine = 4;
+  pInfo->disk_used = 4;
+  pInfo->disk_total = 4;
+  pInfo->net_in = 5;
+  pInfo->net_out = 5;
+  pInfo->io_read = 6;
+  pInfo->io_write = 6;
+  pInfo->io_read_disk = 7;
+  pInfo->io_write_disk = 7;
 }
 
 void MonitorTest::GetClusterInfo(SMonClusterInfo *pInfo) {

@@ -65,6 +65,7 @@ typedef struct {
 } FstRegex;
 
 FstRegex *regexCreate(const char *str);
+void      regexDestroy(FstRegex *regex);
 
 uint32_t regexAutomStart(FstRegex *regex);
 bool     regexAutomIsMatch(FstRegex *regex, uint32_t state);

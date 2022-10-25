@@ -23,8 +23,9 @@
 extern "C" {
 #endif
 
-typedef struct SMetaIdx SMetaIdx;
-typedef struct SMetaDB  SMetaDB;
+typedef struct SMetaIdx   SMetaIdx;
+typedef struct SMetaDB    SMetaDB;
+typedef struct SMetaCache SMetaCache;
 
 // metaDebug ==================
 // clang-format off
@@ -57,6 +58,19 @@ int  metaRemoveTableFromIdx(SMeta* pMeta, tb_uid_t uid);
 // metaCommit ==================
 static FORCE_INLINE tb_uid_t metaGenerateUid(SMeta* pMeta) { return tGenIdPI64(); }
 
+// metaTable ==================
+int metaHandleEntry(SMeta* pMeta, const SMetaEntry* pME);
+
+// metaCache ==================
+int32_t metaCacheOpen(SMeta* pMeta);
+void    metaCacheClose(SMeta* pMeta);
+int32_t metaCacheUpsert(SMeta* pMeta, SMetaInfo* pInfo);
+int32_t metaCacheDrop(SMeta* pMeta, int64_t uid);
+
+int32_t metaStatsCacheUpsert(SMeta* pMeta, SMetaStbStats* pInfo);
+int32_t metaStatsCacheDrop(SMeta* pMeta, int64_t uid);
+int32_t metaStatsCacheGet(SMeta* pMeta, int64_t uid, SMetaStbStats* pInfo);
+
 struct SMeta {
   TdThreadRwlock lock;
 
@@ -69,13 +83,24 @@ struct SMeta {
   TTB*    pUidIdx;
   TTB*    pNameIdx;
   TTB*    pCtbIdx;
+  TTB*    pSuidIdx;
   // ivt idx and idx
   void* pTagIvtIdx;
-  TTB*  pTagIdx;
-  TTB*  pTtlIdx;
 
-  TTB*      pSmaIdx;
+  TTB* pTagIdx;
+  TTB* pTtlIdx;
+
+  TTB* pCtimeIdx;  // table created time idx
+  TTB* pNcolIdx;   // ncol of table idx, normal table only
+
+  TTB* pSmaIdx;
+
+  // stream
+  TTB* pStreamDb;
+
   SMetaIdx* pIdx;
+
+  SMetaCache* pCache;
 };
 
 typedef struct {
@@ -84,6 +109,12 @@ typedef struct {
 } STbDbKey;
 
 #pragma pack(push, 1)
+typedef struct {
+  tb_uid_t suid;
+  int64_t  version;
+  int32_t  skmVer;
+} SUidIdxVal;
+
 typedef struct {
   tb_uid_t uid;
   int32_t  sver;
@@ -114,6 +145,16 @@ typedef struct {
   tb_uid_t uid;
   int64_t  smaUid;
 } SSmaIdxKey;
+
+typedef struct {
+  int64_t  ctime;
+  tb_uid_t uid;
+} SCtimeIdxKey;
+
+typedef struct {
+  int64_t  ncol;
+  tb_uid_t uid;
+} SNcolIdxKey;
 
 // metaTable ==================
 int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void* pTagData, int32_t nTagData, int8_t type, tb_uid_t uid,

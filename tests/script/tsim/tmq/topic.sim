@@ -27,11 +27,11 @@ if $loop_cnt == 10 then
   print ====> database not ready!
   return -1
 endi
-sql show databases
+sql select * from information_schema.ins_databases
 print ==> rows: $rows
 print ==> $data(db)[0] $data(db)[1] $data(db)[2] $data(db)[3] $data(db)[4] $data(db)[5] $data(db)[6] $data(db)[7] $data(db)[8] $data(db)[9] $data(db)[10] $data(db)[11] $data(db)[12]
 print     $data(db)[13] $data(db)[14] $data(db)[15] $data(db)[16] $data(db)[17] $data(db)[18] $data(db)[19] $data(db)[20]
-if $data(db)[19] != ready then
+if $data(db)[15] != ready then
   sleep 100
   $loop_cnt = $loop_cnt + 1
   goto check_db_ready  
@@ -72,15 +72,31 @@ sql create topic topic_ntb_column as select ts, c3 from ntb0
 sql create topic topic_ntb_all as select * from ntb0
 sql create topic topic_ntb_function as select ts, abs(c1), sin(c2) from ntb0
 
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
 
-print == show topics 
 sql show topics
 if $rows != 9 then 
   return -1
 endi
 
-print == drop topic
 sql drop topic topic_stb_column
+
+sql show topics
+if $rows != 8 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+
+print == show topics 
+sql show topics
+if $rows != 8 then 
+  return -1
+endi
+
+print == drop topic
 sql drop topic topic_ctb_column
 sql drop topic topic_ntb_column
 
@@ -90,4 +106,4 @@ if $rows != 6 then
   return -1
 endi
 
-
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

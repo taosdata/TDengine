@@ -25,12 +25,12 @@
 #define INDEX_DATA_BOOL_NULL      0x02
 #define INDEX_DATA_TINYINT_NULL   0x80
 #define INDEX_DATA_SMALLINT_NULL  0x8000
-#define INDEX_DATA_INT_NULL       0x80000000L
-#define INDEX_DATA_BIGINT_NULL    0x8000000000000000L
+#define INDEX_DATA_INT_NULL       0x80000000LL
+#define INDEX_DATA_BIGINT_NULL    0x8000000000000000LL
 #define INDEX_DATA_TIMESTAMP_NULL TSDB_DATA_BIGINT_NULL
 
-#define INDEX_DATA_FLOAT_NULL    0x7FF00000           // it is an NAN
-#define INDEX_DATA_DOUBLE_NULL   0x7FFFFF0000000000L  // an NAN
+#define INDEX_DATA_FLOAT_NULL    0x7FF00000            // it is an NAN
+#define INDEX_DATA_DOUBLE_NULL   0x7FFFFF0000000000LL  // an NAN
 #define INDEX_DATA_NCHAR_NULL    0xFFFFFFFF
 #define INDEX_DATA_BINARY_NULL   0xFF
 #define INDEX_DATA_JSON_NULL     0xFFFFFFFF
@@ -81,28 +81,28 @@ __compar_fn_t idxGetCompar(int8_t type) {
   }
   return getComparFunc(type, 0);
 }
-static TExeCond tCompareLessThan(void* a, void* b, int8_t type) {
+static FORCE_INLINE TExeCond tCompareLessThan(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
   return tCompare(func, QUERY_LESS_THAN, a, b, type);
 }
-static TExeCond tCompareLessEqual(void* a, void* b, int8_t type) {
+static FORCE_INLINE TExeCond tCompareLessEqual(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
   return tCompare(func, QUERY_LESS_EQUAL, a, b, type);
 }
-static TExeCond tCompareGreaterThan(void* a, void* b, int8_t type) {
+static FORCE_INLINE TExeCond tCompareGreaterThan(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
   return tCompare(func, QUERY_GREATER_THAN, a, b, type);
 }
-static TExeCond tCompareGreaterEqual(void* a, void* b, int8_t type) {
+static FORCE_INLINE TExeCond tCompareGreaterEqual(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
   return tCompare(func, QUERY_GREATER_EQUAL, a, b, type);
 }
 
-static TExeCond tCompareContains(void* a, void* b, int8_t type) {
+static FORCE_INLINE TExeCond tCompareContains(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
   return tCompare(func, QUERY_TERM, a, b, type);
 }
-static TExeCond tCompareEqual(void* a, void* b, int8_t type) {
+static FORCE_INLINE TExeCond tCompareEqual(void* a, void* b, int8_t type) {
   __compar_fn_t func = idxGetCompar(type);
   return tCompare(func, QUERY_TERM, a, b, type);
 }
@@ -171,15 +171,16 @@ TExeCond tCompare(__compar_fn_t func, int8_t cmptype, void* a, void* b, int8_t d
     return tDoCompare(func, cmptype, &va, &vb);
   }
   assert(0);
+  return BREAK;
 #endif
 }
 TExeCond tDoCompare(__compar_fn_t func, int8_t comparType, void* a, void* b) {
   // optime later
   int32_t ret = func(a, b);
   switch (comparType) {
-    case QUERY_LESS_THAN: {
+    case QUERY_LESS_THAN:
       if (ret < 0) return MATCH;
-    } break;
+      break;
     case QUERY_LESS_EQUAL: {
       if (ret <= 0) return MATCH;
       break;
@@ -366,7 +367,7 @@ int32_t idxConvertData(void* src, int8_t type, void** dst) {
       tlen = taosEncodeBinary(dst, src, strlen(src));
       break;
     default:
-      TASSERT(0);
+      ASSERT(0);
       break;
   }
   *dst = (char*)*dst - tlen;
@@ -374,6 +375,10 @@ int32_t idxConvertData(void* src, int8_t type, void** dst) {
   return tlen;
 }
 int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
+  if (src == NULL) {
+    *dst = strndup(INDEX_DATA_NULL_STR, (int)strlen(INDEX_DATA_NULL_STR));
+    return (int32_t)strlen(INDEX_DATA_NULL_STR);
+  }
   int     tlen = tDataTypes[type].bytes;
   int32_t bufSize = 64;
   switch (type) {
@@ -422,6 +427,7 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       *dst = taosMemoryCalloc(1, bufSize + 1);
       idxInt2str(*(uint64_t*)src, *dst, 1);
       tlen = strlen(*dst);
+      break;
     case TSDB_DATA_TYPE_FLOAT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
       sprintf(*dst, "%.9lf", *(float*)src);
@@ -453,7 +459,7 @@ int32_t idxConvertDataToStr(void* src, int8_t type, void** dst) {
       *dst = (char*)*dst - tlen;
       break;
     default:
-      TASSERT(0);
+      ASSERT(0);
       break;
   }
   return tlen;

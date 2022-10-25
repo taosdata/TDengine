@@ -24,11 +24,11 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
     def run(self):
-        tdSql.query("show users")
+        tdSql.query("select * from information_schema.ins_users")
         rows = tdSql.queryRows
 
         tdSql.execute("create user test PASS 'test' ")
-        tdSql.query("show users")
+        tdSql.query("select * from information_schema.ins_users")
         tdSql.checkRows(rows + 1)
 
         tdSql.error("create user tdenginetdenginetdengine PASS 'test' ")

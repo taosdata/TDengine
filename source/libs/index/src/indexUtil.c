@@ -21,7 +21,7 @@ typedef struct MergeIndex {
   int len;
 } MergeIndex;
 
-static int iBinarySearch(SArray *arr, int s, int e, uint64_t k) {
+static FORCE_INLINE int iBinarySearch(SArray *arr, int s, int e, uint64_t k) {
   uint64_t v;
   int32_t  m;
   while (s <= e) {
@@ -152,7 +152,7 @@ int verdataCompare(const void *a, const void *b) {
 
   int32_t cmp = compareUint64Val(&va->data, &vb->data);
   if (cmp == 0) {
-    cmp = 0 - compareUint32Val(&va->ver, &vb->data);
+    cmp = 0 - compareUint32Val(&va->ver, &vb->ver);
     return cmp;
   }
   return cmp;
@@ -181,6 +181,7 @@ void idxTRsltDestroy(SIdxTRslt *tr) {
   taosArrayDestroy(tr->total);
   taosArrayDestroy(tr->add);
   taosArrayDestroy(tr->del);
+  taosMemoryFree(tr);
 }
 void idxTRsltMergeTo(SIdxTRslt *tr, SArray *result) {
   taosArraySort(tr->total, uidCompare);

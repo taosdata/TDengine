@@ -18,6 +18,7 @@ script_dir=$(dirname $(readlink -f "$0"))
 
 clientName="taos"
 serverName="taosd"
+udfdName="udfd"
 configFile="taos.cfg"
 productName="TDengine"
 emailName="taosdata.com"
@@ -32,6 +33,7 @@ adapterName="taosadapter"
 benchmarkName="taosBenchmark"
 dumpName="taosdump"
 demoName="taosdemo"
+xname="taosx"
 
 data_dir=${dataDir}
 log_dir=${logDir}
@@ -48,8 +50,7 @@ install_main_dir=${installDir}
 bin_dir="${installDir}/bin"
 
 service_config_dir="/etc/systemd/system"
-nginx_port=6060
-nginx_dir="/usr/local/nginxd"
+web_port=6041
 
 # Color setting
 RED='\033[0;31m'
@@ -68,7 +69,7 @@ prompt_force=0
 
 initd_mod=0
 service_mod=2
-if pidof systemd &>/dev/null; then
+if ps aux | grep -v grep | grep systemd &>/dev/null; then
   service_mod=0
 elif $(which service &>/dev/null); then
   service_mod=1
@@ -180,7 +181,7 @@ function install_main_path() {
   ${csudo}mkdir -p ${install_main_dir}/include
   #  ${csudo}mkdir -p ${install_main_dir}/init.d
   if [ "$verMode" == "cluster" ]; then
-    ${csudo}mkdir -p ${nginx_dir}
+    ${csudo}mkdir -p ${install_main_dir}/share
   fi
 
   if [[ -e ${script_dir}/email ]]; then
@@ -192,11 +193,14 @@ function install_bin() {
   # Remove links
   ${csudo}rm -f ${bin_link_dir}/${clientName} || :
   ${csudo}rm -f ${bin_link_dir}/${serverName} || :
+  ${csudo}rm -f ${bin_link_dir}/${udfdName} || :
   ${csudo}rm -f ${bin_link_dir}/${adapterName} || :
   ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
-  ${csudo}rm -f ${bin_link_dir}/tarbitrator || :
+  ${csudo}rm -f ${bin_link_dir}/${demoName} || :
+  ${csudo}rm -f ${bin_link_dir}/${benchmarkName} || :
+  ${csudo}rm -f ${bin_link_dir}/${dumpName} || :
+  ${csudo}rm -f ${bin_link_dir}/${xname} || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
-  ${csudo}rm -f ${bin_link_dir}/run_${serverName}_and_${adapterName}.sh || :
   ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
 
   ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo}chmod 0555 ${install_main_dir}/bin/*
@@ -204,21 +208,15 @@ function install_bin() {
   #Make link
   [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName} || :
   [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} || :
+  [ -x ${install_main_dir}/bin/${udfdName} ] && ${csudo}ln -s ${install_main_dir}/bin/${udfdName} ${bin_link_dir}/${udfdName} || :
   [ -x ${install_main_dir}/bin/${adapterName} ] && ${csudo}ln -s ${install_main_dir}/bin/${adapterName} ${bin_link_dir}/${adapterName} || :
   [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${demoName} || :
   [ -x ${install_main_dir}/bin/${benchmarkName} ] && ${csudo}ln -s ${install_main_dir}/bin/${benchmarkName} ${bin_link_dir}/${benchmarkName} || :
   [ -x ${install_main_dir}/bin/${dumpName} ] && ${csudo}ln -s ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${dumpName} || :
+  [ -x ${install_main_dir}/bin/${xname} ] && ${csudo}ln -s ${install_main_dir}/bin/${dumpName} ${bin_link_dir}/${xname} || :
   [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -s ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
   [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
-  [ -x ${install_main_dir}/bin/run_${serverName}_and_${adapterName}.sh ] && ${csudo}ln -s ${install_main_dir}/bin/run_${serverName}_and_${adapterName}.sh ${bin_link_dir}/run_${serverName}_and_${adapterName}.sh || :
-  [ -x ${install_main_dir}/bin/tarbitrator ] && ${csudo}ln -s ${install_main_dir}/bin/tarbitrator ${bin_link_dir}/tarbitrator || :
-
-  if [ "$verMode" == "cluster" ]; then
-    ${csudo}cp -r ${script_dir}/nginxd/* ${nginx_dir} && ${csudo}chmod 0555 ${nginx_dir}/*
-    ${csudo}mkdir -p ${nginx_dir}/logs
-    ${csudo}chmod 777 ${nginx_dir}/sbin/nginx
-  fi
 }
 
 function install_lib() {
@@ -231,9 +229,13 @@ function install_lib() {
   ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.so.1
   ${csudo}ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
 
+  [ -f ${install_main_dir}/driver/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/driver/libtaosws.so ${lib_link_dir}/libtaosws.so || :
+
   if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
     ${csudo}ln -s ${install_main_dir}/driver/libtaos.* ${lib64_link_dir}/libtaos.so.1 || :
     ${csudo}ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so || :
+
+    [ -f ${install_main_dir}/libtaosws.so ] && ${csudo}ln -sf ${install_main_dir}/libtaosws.so ${lib64_link_dir}/libtaosws.so || :
   fi
 
   ${csudo}ldconfig
@@ -316,11 +318,17 @@ function install_jemalloc() {
 }
 
 function install_header() {
-  ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h || :
+  ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/taosudf.h || :
+
+  [ -f ${inc_link_dir}/taosws.h ] && ${csudo}rm -f ${inc_link_dir}/taosws.h || :
+
   ${csudo}cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo}chmod 644 ${install_main_dir}/include/*
   ${csudo}ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
   ${csudo}ln -s ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
   ${csudo}ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
+  ${csudo}ln -s ${install_main_dir}/include/taosudf.h ${inc_link_dir}/taosudf.h  
+
+  [ -f ${install_main_dir}/include/taosws.h ] && ${csudo}ln -sf ${install_main_dir}/include/taosws.h ${inc_link_dir}/taosws.h || :
 }
 
 function add_newHostname_to_hosts() {
@@ -559,12 +567,19 @@ function install_examples() {
   fi
 }
 
+function install_web() {
+  if [ -d "${script_dir}/share" ]; then
+    ${csudo}cp -rf ${script_dir}/share/* ${install_main_dir}/share
+  fi
+}
+
+
 function clean_service_on_sysvinit() {
-  if pidof ${serverName} &>/dev/null; then
+  if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
     ${csudo}service ${serverName} stop || :
   fi
 
-  if pidof tarbitrator &>/dev/null; then
+  if ps aux | grep -v grep | grep tarbitrator &>/dev/null; then
     ${csudo}service tarbitratord stop || :
   fi
 
@@ -607,28 +622,19 @@ function install_service_on_sysvinit() {
   if ((${os_type} == 1)); then
     #    ${csudo}cp -f ${script_dir}/init.d/${serverName}.deb ${install_main_dir}/init.d/${serverName}
     ${csudo}cp ${script_dir}/init.d/${serverName}.deb ${service_config_dir}/${serverName} && ${csudo}chmod a+x ${service_config_dir}/${serverName}
-    #    ${csudo}cp -f ${script_dir}/init.d/tarbitratord.deb ${install_main_dir}/init.d/tarbitratord
-    ${csudo}cp ${script_dir}/init.d/tarbitratord.deb ${service_config_dir}/tarbitratord && ${csudo}chmod a+x ${service_config_dir}/tarbitratord
   elif ((${os_type} == 2)); then
     #    ${csudo}cp -f ${script_dir}/init.d/${serverName}.rpm ${install_main_dir}/init.d/${serverName}
     ${csudo}cp ${script_dir}/init.d/${serverName}.rpm ${service_config_dir}/${serverName} && ${csudo}chmod a+x ${service_config_dir}/${serverName}
-    #    ${csudo}cp -f ${script_dir}/init.d/tarbitratord.rpm ${install_main_dir}/init.d/tarbitratord
-    ${csudo}cp ${script_dir}/init.d/tarbitratord.rpm ${service_config_dir}/tarbitratord && ${csudo}chmod a+x ${service_config_dir}/tarbitratord
   fi
 
   if ((${initd_mod} == 1)); then
     ${csudo}chkconfig --add ${serverName} || :
     ${csudo}chkconfig --level 2345 ${serverName} on || :
-    ${csudo}chkconfig --add tarbitratord || :
-    ${csudo}chkconfig --level 2345 tarbitratord on || :
   elif ((${initd_mod} == 2)); then
     ${csudo}insserv ${serverName} || :
     ${csudo}insserv -d ${serverName} || :
-    ${csudo}insserv tarbitratord || :
-    ${csudo}insserv -d tarbitratord || :
   elif ((${initd_mod} == 3)); then
     ${csudo}update-rc.d ${serverName} defaults || :
-    ${csudo}update-rc.d tarbitratord defaults || :
   fi
 }
 
@@ -648,16 +654,6 @@ function clean_service_on_systemd() {
   fi
   ${csudo}systemctl disable tarbitratord &>/dev/null || echo &>/dev/null
   ${csudo}rm -f ${tarbitratord_service_config}
-
-  if [ "$verMode" == "cluster" ]; then
-    nginx_service_config="${service_config_dir}/nginxd.service"
-    if systemctl is-active --quiet nginxd; then
-      echo "Nginx for ${productName} is running, stopping it..."
-      ${csudo}systemctl stop nginxd &>/dev/null || echo &>/dev/null
-    fi
-    ${csudo}systemctl disable nginxd &>/dev/null || echo &>/dev/null
-    ${csudo}rm -f ${nginx_service_config}
-  fi
 }
 
 function install_service_on_systemd() {
@@ -670,23 +666,7 @@ function install_service_on_systemd() {
 
   ${csudo}systemctl enable ${serverName}
 
-  [ -f ${script_dir}/cfg/tarbitratord.service ] &&
-    ${csudo}cp ${script_dir}/cfg/tarbitratord.service \
-      ${service_config_dir}/ || :
   ${csudo}systemctl daemon-reload
-
-  if [ "$verMode" == "cluster" ]; then
-    [ -f ${script_dir}/cfg/nginxd.service ] &&
-      ${csudo}cp ${script_dir}/cfg/nginxd.service \
-        ${service_config_dir}/ || :
-    ${csudo}systemctl daemon-reload
-
-    if ! ${csudo}systemctl enable nginxd &>/dev/null; then
-      ${csudo}systemctl daemon-reexec
-      ${csudo}systemctl enable nginxd
-    fi
-    ${csudo}systemctl start nginxd
-  fi
 }
 
 function install_adapter_service() {
@@ -745,7 +725,7 @@ function is_version_compatible() {
   fi
 
   exist_version=$(${installDir}/bin/${serverName} -V | head -1 | cut -d ' ' -f 3)
-  vercomp $exist_version "2.0.16.0"
+  vercomp $exist_version "3.0.0.0"
   case $? in
   2)
     prompt_force=1
@@ -779,7 +759,7 @@ function updateProduct() {
 
   echo -e "${GREEN}Start to update ${productName}...${NC}"
   # Stop the service if running
-  if pidof ${serverName} &>/dev/null; then
+  if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
     if ((${service_mod} == 0)); then
       ${csudo}systemctl stop ${serverName} || :
     elif ((${service_mod} == 1)); then
@@ -788,19 +768,6 @@ function updateProduct() {
       kill_process ${serverName}
     fi
     sleep 1
-  fi
-
-  if [ "$verMode" == "cluster" ]; then
-    if pidof nginx &>/dev/null; then
-      if ((${service_mod} == 0)); then
-        ${csudo}systemctl stop nginxd || :
-      elif ((${service_mod} == 1)); then
-        ${csudo}service nginxd stop || :
-      else
-        kill_process nginx
-      fi
-      sleep 1
-    fi
   fi
 
   install_main_path
@@ -814,6 +781,7 @@ function updateProduct() {
   fi
 
   install_examples
+  install_web
   if [ -z $1 ]; then
     install_bin
     install_service
@@ -822,33 +790,27 @@ function updateProduct() {
     install_adapter_config
 
     openresty_work=false
-    if [ "$verMode" == "cluster" ]; then
-      # Check if openresty is installed
-      # Check if nginx is installed successfully
-      if type curl &>/dev/null; then
-        if curl -sSf http://127.0.0.1:${nginx_port} &>/dev/null; then
-          echo -e "\033[44;32;1mNginx for ${productName} is updated successfully!${NC}"
-          openresty_work=true
-        else
-          echo -e "\033[44;31;5mNginx for ${productName} does not work! Please try again!\033[0m"
-        fi
-      fi
-    fi
 
     echo
     echo -e "${GREEN_DARK}To configure ${productName} ${NC}: edit ${cfg_install_dir}/${configFile}"
-    echo -e "${GREEN_DARK}To configure Adapter (if has) ${NC}: edit ${cfg_install_dir}/${adapterName}.toml"
+    [ -f ${configDir}/taosadapter.toml ] && [ -f ${installDir}/bin/taosadapter ] && \
+      echo -e "${GREEN_DARK}To configure Taos Adapter ${NC}: edit ${configDir}/taosadapter.toml"
     if ((${service_mod} == 0)); then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
+      [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
+        echo -e "${GREEN_DARK}To start Taos Adatper ${NC}: ${csudo}systemctl start taosadapter ${NC}"
     elif ((${service_mod} == 1)); then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}service ${serverName} start${NC}"
+      [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
+        echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: ${csudo}service taosadapter start${NC}"
     else
-      echo -e "${GREEN_DARK}To start Adapter (if has)${NC}: ${adapterName} &${NC}"
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ./${serverName}${NC}"
+      [ -f ${installDir}/bin/taosadapter ] && \
+        echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: taosadapter &${NC}"
     fi
 
     if [ ${openresty_work} = 'true' ]; then
-      echo -e "${GREEN_DARK}To access ${productName}    ${NC}: use ${GREEN_UNDERLINE}${clientName} -h $serverFqdn${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
+      echo -e "${GREEN_DARK}To access ${productName}    ${NC}: use ${GREEN_UNDERLINE}${clientName} -h $serverFqdn${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${web_port}${NC}"
     else
       echo -e "${GREEN_DARK}To access ${productName}    ${NC}: use ${GREEN_UNDERLINE}${clientName} -h $serverFqdn${NC} in shell${NC}"
     fi
@@ -897,6 +859,7 @@ function installProduct() {
       install_connector
   fi
   install_examples
+  install_web
 
   if [ -z $1 ]; then # install service and client
     # For installing new
@@ -906,31 +869,26 @@ function installProduct() {
     install_adapter_config
 
     openresty_work=false
-    if [ "$verMode" == "cluster" ]; then
-      # Check if nginx is installed successfully
-      if type curl &>/dev/null; then
-        if curl -sSf http://127.0.0.1:${nginx_port} &>/dev/null; then
-          echo -e "\033[44;32;1mNginx for ${productName} is installed successfully!${NC}"
-          openresty_work=true
-        else
-          echo -e "\033[44;31;5mNginx for ${productName} does not work! Please try again!\033[0m"
-        fi
-      fi
-    fi
 
     install_config
 
     # Ask if to start the service
     echo
     echo -e "${GREEN_DARK}To configure ${productName} ${NC}: edit ${cfg_install_dir}/${configFile}"
-    echo -e "${GREEN_DARK}To configure ${adapterName} (if has) ${NC}: edit ${cfg_install_dir}/${adapterName}.toml"
+    [ -f ${configDir}/taosadapter.toml ] && [ -f ${installDir}/bin/taosadapter ] && \
+      echo -e "${GREEN_DARK}To configure Taos Adapter ${NC}: edit ${configDir}/taosadapter.toml"
     if ((${service_mod} == 0)); then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
+      [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
+        echo -e "${GREEN_DARK}To start Taos Adatper ${NC}: ${csudo}systemctl start taosadapter ${NC}"
     elif ((${service_mod} == 1)); then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}service ${serverName} start${NC}"
+      [ -f ${service_config_dir}/taosadapter.service ] && [ -f ${installDir}/bin/taosadapter ] && \
+        echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: ${csudo}service taosadapter start${NC}"
     else
-      echo -e "${GREEN_DARK}To start Adapter (if has)${NC}: ${adapterName} &${NC}"
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${serverName}${NC}"
+      [ -f ${installDir}/bin/taosadapter ] && \
+        echo -e "${GREEN_DARK}To start Taos Adapter ${NC}: taosadapter &${NC}"
     fi
 
     if [ ! -z "$firstEp" ]; then
@@ -969,12 +927,17 @@ function installProduct() {
 ## ==============================Main program starts from here============================
 serverFqdn=$(hostname)
 if [ "$verType" == "server" ]; then
-  # Install server and client
-  if [ -x ${bin_dir}/${serverName} ]; then
-    update_flag=1
-    updateProduct
+  # Check default 2.x data file.
+  if [ -x ${data_dir}/dnode/dnodeCfg.json ]; then
+    echo -e "\033[44;31;5mThe default data directory ${data_dir} contains old data of tdengine 2.x, please clear it before installing!\033[0m"
   else
-    installProduct
+    # Install server and client
+    if [ -x ${bin_dir}/${serverName} ]; then
+      update_flag=1
+      updateProduct
+    else
+      installProduct
+    fi
   fi
 elif [ "$verType" == "client" ]; then
   interactiveFqdn=no

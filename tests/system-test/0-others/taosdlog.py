@@ -45,7 +45,7 @@ class TDTestCase:
 
         tdDnodes.stop(1)
         time.sleep(2)
-        tdSql.error("show databases")
+        tdSql.error("select * from information_schema.ins_databases")
         os.system("rm -rf  %s" % logPath)
         if os.path.exists(logPath) == True:
             tdLog.exit("log pat still exist!")
@@ -55,7 +55,7 @@ class TDTestCase:
         if os.path.exists(logPath) != True:
             tdLog.exit("log pat is not generated!")
 
-        tdSql.query("show databases")
+        tdSql.query("select * from information_schema.ins_databases")
 
     def stop(self):
         tdSql.close()

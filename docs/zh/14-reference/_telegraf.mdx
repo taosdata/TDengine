@@ -1,0 +1,26 @@
+
+在 Telegraf 配置文件（默认位置 /etc/telegraf/telegraf.conf） 增加 outputs.http 输出模块配置：
+
+```
+[[outputs.http]]
+  url = "http://<taosAdapter's host>:<REST service port>/influxdb/v1/write?db=<database name>"
+  ...
+  username = "<TDengine's username>"
+  password = "<TDengine's password>"
+  ...
+```
+
+其中 <taosAdapter's host\> 请填写运行 taosAdapter 服务的服务器域名或 IP 地址，<REST service port\> 请填写 REST 服务的端口（默认为 6041），<TDengine's username\> 和 <TDengine's password\> 请填写当前运行的 TDengine 实际配置，<database name\> 请填写希望在 TDengine 保存 Telegraf 数据的数据库名。
+
+示例如下：
+
+```
+[[outputs.http]]
+  url = "http://127.0.0.1:6041/influxdb/v1/write?db=telegraf"
+  method = "POST"
+  timeout = "5s"
+  username = "root"
+  password = "taosdata"
+  data_format = "influx"
+```
+

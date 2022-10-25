@@ -6,7 +6,7 @@
 	"user": "root",
 	"password": "taosdata",
 	"thread_count": 4,
-	"thread_count_create_tbl": 1,
+	"create_table_thread_count": 1,
 	"result_file": "./insert_res.txt",
         "confirm_parameter_prompt": "no",
 	"databases": [{
@@ -15,17 +15,17 @@
 			"drop": "no",
 			"replica": 1,
 			"days": 2,
-			"cache": 16,
-			"blocks": 8,
+
+
 			"precision": "ms",
 			"keep": 365,
 			"minRows": 100,
 			"maxRows": 4096,
-			"comp":2,
-			"walLevel":1,
-			"quorum":1,
-			"fsync":3000,
-			"update": 0
+			"comp":2
+
+
+
+
 		},
 		"super_tables": [{
 			"name": "stb",

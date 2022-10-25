@@ -1,9 +1,6 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c wal -v 1
 system sh/exec.sh -n dnode1 -s start
-sleep 500
 sql connect
 
 $dbPrefix = m_in_db
@@ -82,8 +79,8 @@ print =============== step4
 #$cc = 1 * 60000
 #$ms2 = 1601481600000 - $cc
 
-sql select _wstartts, _wendts, _wduration, _qstartts, _qendts, count(tbcol) from $tb  interval(1m)
-print ===> select _wstartts, _wendts, _wduration, _qstartts, _qendts, count(tbcol) from $tb  interval(1m)
+sql select _wstart, _wend, _wduration, _qstart, _qend, count(tbcol) from $tb  interval(1m)
+print ===> select _wstart, _wend, _wduration, _qstart, _qend, count(tbcol) from $tb  interval(1m)
 print ===> $rows $data01 $data05
 if $rows != $rowNum then
   return -1
@@ -175,7 +172,7 @@ endi
 
 print =============== clear
 #sql drop database $db
-#sql show databases
+#sql select * from information_schema.ins_databases
 #if $rows != 0 then
 #  return -1
 #endi

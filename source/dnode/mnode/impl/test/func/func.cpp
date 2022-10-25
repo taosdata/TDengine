@@ -29,7 +29,7 @@ class MndTestFunc : public ::testing::Test {
 
 Testbase MndTestFunc::test;
 
-void MndTestFunc::SetCode(SCreateFuncReq *pReq, const char *pCode, int32_t size) {
+void MndTestFunc::SetCode(SCreateFuncReq* pReq, const char* pCode, int32_t size) {
   pReq->pCode = (char*)taosMemoryMalloc(size);
   memcpy(pReq->pCode, pCode, size);
   pReq->codeLen = size;
@@ -41,12 +41,10 @@ void MndTestFunc::SetComment(SCreateFuncReq* pReq, const char* pComment) {
   strcpy(pReq->pComment, pComment);
 }
 
-void MndTestFunc::SetBufSize(SCreateFuncReq* pReq, int32_t size) {
-  pReq->bufSize = size;
-}
+void MndTestFunc::SetBufSize(SCreateFuncReq* pReq, int32_t size) { pReq->bufSize = size; }
 
 TEST_F(MndTestFunc, 01_Show_Func) {
-  test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "user_functions", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "ins_functions", "");
   EXPECT_EQ(test.GetShowRows(), 0);
 }
 
@@ -159,7 +157,7 @@ TEST_F(MndTestFunc, 02_Create_Func) {
     }
   }
 
-  test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "user_functions", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "ins_functions", "");
   EXPECT_EQ(test.GetShowRows(), 1);
 }
 
@@ -270,7 +268,7 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "user_functions", "");
+    test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "ins_functions", "");
     EXPECT_EQ(test.GetShowRows(), 2);
   }
 
@@ -435,13 +433,13 @@ TEST_F(MndTestFunc, 04_Drop_Func) {
     ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "user_functions", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "ins_functions", "");
   EXPECT_EQ(test.GetShowRows(), 1);
 
   // restart
   test.Restart();
 
-  test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "user_functions", "");
+  test.SendShowReq(TSDB_MGMT_TABLE_FUNC, "ins_functions", "");
   EXPECT_EQ(test.GetShowRows(), 1);
 }
 
@@ -505,9 +503,8 @@ TEST_F(MndTestFunc, 05_Actual_code) {
     EXPECT_EQ(pFuncInfo->signature, 5);
     EXPECT_STREQ("comment1", pFuncInfo->pComment);
     for (int32_t i = 0; i < 300; ++i) {
-        EXPECT_EQ(pFuncInfo->pCode[i], (i) % 20);
+      EXPECT_EQ(pFuncInfo->pCode[i], (i) % 20);
     }
     tFreeSRetrieveFuncRsp(&retrieveRsp);
   }
-
 }

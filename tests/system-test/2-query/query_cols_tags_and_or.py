@@ -19,7 +19,7 @@ class TDTestCase:
     def init(self, conn, logSql):
         ## add for TD-6672
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor(), logSql)
+        tdSql.init(conn.cursor(), False)
 
     def insertData(self, tb_name):
         insert_sql_list = [f'insert into {tb_name} values ("2021-01-01 12:00:00", 1, 1, 1, 3, 1.1, 1.1, "binary", "nchar", true, 1, 2, 3, 4)',
@@ -37,28 +37,29 @@ class TDTestCase:
         for sql in insert_sql_list:
             tdSql.execute(sql)
 
-    def initTb(self):
-        tdCom.cleanTb()
-        tb_name = tdCom.getLongName(8, "letters")
+    def initTb(self, dbname="db"):
+        tdCom.cleanTb(dbname)
+        tb_name = f'{dbname}.{tdCom.getLongName(8, "letters")}'
         tdSql.execute(
             f"CREATE TABLE {tb_name} (ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 float, c6 double, c7 binary(100), c8 nchar(200), c9 bool, c10 tinyint unsigned, c11 smallint unsigned, c12 int unsigned, c13 bigint unsigned)")
         self.insertData(tb_name)
         return tb_name
 
-    def initStb(self, count=5):
-        tdCom.cleanTb()
-        tb_name = tdCom.getLongName(8, "letters")
+    def initStb(self, count=5, dbname="db"):
+        tdCom.cleanTb(dbname)
+        tb_name = f'{dbname}.{tdCom.getLongName(8, "letters")}'
         tdSql.execute(
             f"CREATE TABLE {tb_name} (ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 float, c6 double, c7 binary(100), c8 nchar(200), c9 bool, c10 tinyint unsigned, c11 smallint unsigned, c12 int unsigned, c13 bigint unsigned) tags (t1 tinyint, t2 smallint, t3 int, t4 bigint, t5 float, t6 double, t7 binary(100), t8 nchar(200), t9 bool, t10 tinyint unsigned, t11 smallint unsigned, t12 int unsigned, t13 bigint unsigned)")
-        for i in range(1, count+1):    
+        for i in range(1, count+1):
             tdSql.execute(
                 f'CREATE TABLE {tb_name}_sub_{i} using {tb_name} tags ({i}, {i}, {i}, {i}, {i}.{i}, {i}.{i}, "binary{i}", "nchar{i}", true, {i}, {i}, {i}, {i})')
             self.insertData(f'{tb_name}_sub_{i}')
         return tb_name
 
-    def initTwoStb(self):
-        tdCom.cleanTb()
-        tb_name = tdCom.getLongName(8, "letters")
+    def initTwoStb(self, dbname="db"):
+        tdCom.cleanTb(dbname)
+        tb_name = f'{dbname}.{tdCom.getLongName(8, "letters")}'
+        # tb_name = tdCom.getLongName(8, "letters")
         tb_name1 = f'{tb_name}1'
         tb_name2 = f'{tb_name}2'
         tdSql.execute(
@@ -412,7 +413,7 @@ class TDTestCase:
         query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c1 > 2 and c1 >= 3 or c1 < 1 or c1 <= 0 or c1 =2 or c1 != 1 or c1 <> 1 and c1 is null or c1 between 2 and 3 and c1 not between 1 and 1 and c1 in (2, 3) and c1 not in (1, 2)'
         res = tdSql.query(query_sql)
         tdSql.checkRows(1)
-    
+
     def queryUtinyintCol(self, tb_name, check_elm=None):
         select_elm = "*" if check_elm is None else check_elm
         # >
@@ -497,7 +498,7 @@ class TDTestCase:
         query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c10 > 2 and c10 >= 3 or c10 < 1 or c10 <= 0 or c10 =2 or c10 != 1 or c10 <> 1 and c10 is null or c10 between 2 and 3 and c10 not between 1 and 1 and c10 in (2, 3) and c10 not in (1, 2)'
         res = tdSql.query(query_sql)
         tdSql.checkRows(10)
-    
+
     def querySmallintCol(self, tb_name, check_elm=None):
         select_elm = "*" if check_elm is None else check_elm
         # >
@@ -582,7 +583,7 @@ class TDTestCase:
         query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c2 > 0 and c2 >= 1 or c2 < 4 and c2 <= 3 and c2 != 1 and c2 <> 2 and c2 = 3 or c2 is not null and c2 between 2 and 3 and c2 not between 1 and 2 and c2 in (2,3) and c2 not in (1,2)'
         tdSql.query(query_sql)
         tdSql.checkRows(11)
-    
+
     def queryUsmallintCol(self, tb_name, check_elm=None):
         select_elm = "*" if check_elm is None else check_elm
         # >
@@ -752,7 +753,7 @@ class TDTestCase:
         query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c3 > 0 and c3 >= 1 or c3 < 5 and c3 <= 4 and c3 != 2 and c3 <> 2 and c3 = 4 or c3 is not null and c3 between 2 and 4 and c3 not between 1 and 2 and c3 in (2,4) and c3 not in (1,2)'
         tdSql.query(query_sql)
         tdSql.checkRows(11)
-    
+
     def queryUintCol(self, tb_name, check_elm=None):
         select_elm = "*" if check_elm is None else check_elm
         # >
@@ -1066,7 +1067,7 @@ class TDTestCase:
         tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
         # in
         query_sql = f'select {select_elm} from {tb_name} where c5 in (1, 6.6)'
-        tdSql.error(query_sql)
+        tdSql.query(query_sql)
         # not in
         query_sql = f'select {select_elm} from {tb_name} where c5 not in (2, 3)'
         tdSql.query(query_sql)
@@ -1074,10 +1075,10 @@ class TDTestCase:
         tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
         # and
         query_sql = f'select {select_elm} from {tb_name} where c5 > 0 and c5 >= 1 and c5 < 7 and c5 <= 6.6 and c5 != 2 and c5 <> 2 and c5 = 6.6 and c5 is not null and c5 between 2 and 6.6 and c5 not between 1 and 2 and c5 in (2,6.6) and c5 not in (1,2)'
-        tdSql.error(query_sql)
+        tdSql.query(query_sql)
         # or
         query_sql = f'select {select_elm} from {tb_name} where c5 > 6 or c5 >= 6.6 or c5 < 1 or c5 <= 0 or c5 != 1.1 or c5 <> 1.1 or c5 = 5 or c5 is null or c5 between 4 and 5 or c5 not between 1 and 3 or c5 in (4,5) or c5 not in (1.1,3)'
-        tdSql.error(query_sql)
+        tdSql.query(query_sql)
         # and or
         query_sql = f'select {select_elm} from {tb_name} where c5 > 0 and c5 >= 1 or c5 < 5 and c5 <= 6.6 and c5 != 2 and c5 <> 2 and c5 = 4 or c5 is not null and c5 between 2 and 4 and c5 not between 1 and 2 and c5 in (2,4) and c5 not in (1,2)'
         tdSql.query(query_sql)
@@ -1086,7 +1087,7 @@ class TDTestCase:
         query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c5 > 0 and c5 >= 1 or c5 < 5 and c5 <= 6.6 and c5 != 2 and c5 <> 2 and c5 = 4 or c5 is not null and c5 between 2 and 4 and c5 not between 1 and 2 and c5 in (2,4) and c5 not in (1,2)'
         tdSql.query(query_sql)
         tdSql.checkRows(11)
-    
+
     def queryDoubleCol(self, tb_name, check_elm=None):
         select_elm = "*" if check_elm is None else check_elm
         # >
@@ -1145,7 +1146,7 @@ class TDTestCase:
         tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
         # in
         query_sql = f'select {select_elm} from {tb_name} where c6 in (1, 7.7)'
-        tdSql.error(query_sql)
+        tdSql.query(query_sql)
         # not in
         query_sql = f'select {select_elm} from {tb_name} where c6 not in (2, 3)'
         tdSql.query(query_sql)
@@ -1153,10 +1154,10 @@ class TDTestCase:
         tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
         # and
         query_sql = f'select {select_elm} from {tb_name} where c6 > 0 and c6 >= 1 and c6 < 8 and c6 <= 7.7 and c6 != 2 and c6 <> 2 and c6 = 7.7 and c6 is not null and c6 between 2 and 7.7 and c6 not between 1 and 2 and c6 in (2,7.7) and c6 not in (1,2)'
-        tdSql.error(query_sql)
+        tdSql.query(query_sql)
         # or
         query_sql = f'select {select_elm} from {tb_name} where c6 > 7 or c6 >= 7.7 or c6 < 1 or c6 <= 0 or c6 != 1.1 or c6 <> 1.1 or c6 = 5 or c6 is null or c6 between 4 and 5 or c6 not between 1 and 3 or c6 in (4,5) or c6 not in (1.1,3)'
-        tdSql.error(query_sql)
+        tdSql.query(query_sql)
         # and or
         query_sql = f'select {select_elm} from {tb_name} where c6 > 0 and c6 >= 1 or c6 < 5 and c6 <= 7.7 and c6 != 2 and c6 <> 2 and c6 = 4 or c6 is not null and c6 between 2 and 4 and c6 not between 1 and 2 and c6 in (2,4) and c6 not in (1,2)'
         tdSql.query(query_sql)
@@ -1398,7 +1399,7 @@ class TDTestCase:
         tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
         # in
         query_sql = f'select {select_elm} from {tb_name} where c9 in ("binar", false)'
-        tdSql.error(query_sql)
+        tdSql.query(query_sql)
         # # not in
         query_sql = f'select {select_elm} from {tb_name} where c9 not in (true)'
         tdSql.query(query_sql)
@@ -1407,13 +1408,13 @@ class TDTestCase:
 
         # # and
         query_sql = f'select {select_elm} from {tb_name} where c9 = true and c9 != "false" and c9 <> "binary" and c9 is not null and c9 in ("binary", true) and c9 not in ("binary")'
-        tdSql.error(query_sql)
+        tdSql.query(query_sql)
         # # or
         query_sql = f'select {select_elm} from {tb_name} where c9 = true or c9 != "false" or c9 <> "binary" or c9 = "true" or c9 is not null or c9 in ("binary", true) or c9 not in ("binary")'
-        tdSql.error(query_sql)
+        tdSql.query(query_sql)
         # # and or
         query_sql = f'select {select_elm} from {tb_name} where c9 = true and c9 != "false" or c9 <> "binary" or c9 = "true" and c9 is not null or c9 in ("binary", true) or c9 not in ("binary")'
-        tdSql.error(query_sql)
+        tdSql.query(query_sql)
         query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c9 > "binary" and c9 >= "binary8" or c9 < "binary9" and c9 <= "binary" and c9 != 2 and c9 <> 2 and c9 = 4 or c9 is not null and c9 between 2 and 4 and c9 not between 1 and 2 and c9 in (2,4) and c9 not in (1,2)'
         tdSql.query(query_sql)
         tdSql.checkRows(9)
@@ -1711,19 +1712,19 @@ class TDTestCase:
         tdSql.checkRows(4)
         tdSql.checkEqual(self.queryLastC10(query_sql), 7)
 
-        ## condition_A or (condition_B and condition_C) or (condition_D and condition_E) and condition_F 
+        ## condition_A or (condition_B and condition_C) or (condition_D and condition_E) and condition_F
         query_sql = f'select * from {tb_name} where c1 != 1 or (c2 <= 1 and c3 <4) or (c3 >= 4 or c7 is not Null) and c9 <> true'
         tdSql.query(query_sql)
         tdSql.checkRows(3)
         tdSql.checkEqual(self.queryLastC10(query_sql), 10)
 
-        ## (condition_A or (condition_B and condition_C) or (condition_D and condition_E)) and condition_F 
+        ## (condition_A or (condition_B and condition_C) or (condition_D and condition_E)) and condition_F
         query_sql = f'select * from {tb_name} where (c1 != 1 or (c2 <= 2 and c3 >= 4) or (c3 >= 4 or c7 is not Null)) and c9 != false'
         tdSql.query(query_sql)
         tdSql.checkRows(9)
         tdSql.checkEqual(self.queryLastC10(query_sql), 9)
 
-        ## (condition_A or condition_B) or (condition_C or condition_D) and (condition_E or condition_F or condition_G) 
+        ## (condition_A or condition_B) or (condition_C or condition_D) and (condition_E or condition_F or condition_G)
         query_sql = f'select * from {tb_name} where c1 != 1 or (c2 <= 3 and c3 > 4) and c3 <= 5 and (c7 is not Null and c9 != false)'
         tdSql.query(query_sql)
         tdSql.checkRows(2)
@@ -1780,17 +1781,17 @@ class TDTestCase:
         tdSql.query(query_sql)
         tdSql.checkRows(55)
 
-        ## condition_A or (condition_B and condition_C) or (condition_D and condition_E) and condition_F 
+        ## condition_A or (condition_B and condition_C) or (condition_D and condition_E) and condition_F
         query_sql = f'select * from {tb_name} where t1 != 1 or (t2 <= 1 and t3 <4) or (t3 >= 4 or t7 is not Null) and t9 <> true'
         tdSql.query(query_sql)
         tdSql.checkRows(55)
 
-        ## (condition_A or (condition_B and condition_C) or (condition_D and condition_E)) and condition_F 
+        ## (condition_A or (condition_B and condition_C) or (condition_D and condition_E)) and condition_F
         query_sql = f'select * from {tb_name} where (t1 != 1 or (t2 <= 2 and t3 >= 4) or (t3 >= 4 or t7 is not Null)) and t9 != false'
         tdSql.query(query_sql)
         tdSql.checkRows(55)
 
-        ## (condition_A or condition_B) or (condition_C or condition_D) and (condition_E or condition_F or condition_G) 
+        ## (condition_A or condition_B) or (condition_C or condition_D) and (condition_E or condition_F or condition_G)
         query_sql = f'select * from {tb_name} where t1 != 1 or (t2 <= 3 and t3 > 4) and t3 <= 5 and (t7 is not Null and t9 != false)'
         tdSql.query(query_sql)
         tdSql.checkRows(44)
@@ -2033,7 +2034,7 @@ class TDTestCase:
             self.checkColType(tb_name, check_elm)
         else:
             self.checkColType(stb_name, check_elm)
-        
+
     def checkStbTagTypeOperator(self):
         '''
             Super table full tag type and operator
@@ -2089,7 +2090,7 @@ class TDTestCase:
         tb_name = self.initStb()
         self.queryColPreCal(f'{tb_name}_sub_1')
         self.queryTagPreCal(tb_name)
-   
+
     def checkMultiTb(self):
         '''
             test "or" in multi ordinary table
@@ -2110,7 +2111,7 @@ class TDTestCase:
         '''
         tb_name = self.initStb()
         self.queryMultiTbWithTag(tb_name)
-    
+
     def checkMultiStbJoin(self):
         '''
             join test

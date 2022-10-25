@@ -8,7 +8,7 @@ target_include_directories(
 
 target_link_libraries(
         command
-        PRIVATE os util nodes catalog function transport qcom
+        PRIVATE os util nodes catalog function transport qcom scheduler
 )
 
 if(${BUILD_TEST})

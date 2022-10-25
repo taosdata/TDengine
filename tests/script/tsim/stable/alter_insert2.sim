@@ -3,7 +3,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 sql connect
 
-print ======== step1 
+print ======== step1
 sql create database d4
 sql use d4
 sql create table tb (ts timestamp, a int, b smallint, c tinyint, d int, e bigint, f float, g double, h binary(10))
@@ -604,9 +604,7 @@ sql_error alter table tb drop column a
 
 print ======== step9
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 3000
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
 
 sql select * from tb order by ts desc
 if $rows != 7 then

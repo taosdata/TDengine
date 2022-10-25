@@ -1,12 +1,11 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
-sleep 50
 sql connect
 
 print =============== create database
-sql create database db  days 300 keep 365000d,365000d,365000d
-sql show databases
+sql create database db  duration 300 keep 365000d,365000d,365000d
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -64,24 +63,7 @@ reboot_and_check:
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start
 
-$loop_cnt = 0
-check_dnode_ready:
-	$loop_cnt = $loop_cnt + 1
-	sleep 200
-	if $loop_cnt == 10 then
-	  print ====> dnode not ready!
-		return -1
-	endi
-sql show dnodes
-print ===> $rows $data00 $data01 $data02 $data03 $data04 $data05
-if $data00 != 1 then
-  return -1
-endi
-if $data04 != ready then
-  goto check_dnode_ready
-endi
-
-print =============== insert duplicated records to memory - loop $reboot_max - $reboot_cnt 
+print =============== insert duplicated records to memory - loop $reboot_max - $reboot_cnt
 sql use db
 sql insert into ct1 values ('2022-05-01 18:30:27.001', 0.0);
 sql insert into ct4 values ('2022-04-28 18:30:27.002', 0.0);
@@ -109,7 +91,7 @@ sql insert into ct4 values ('2018-05-01 18:30:27.023', NULL) ;
 sql insert into ct4 values ('2021-03-01 18:30:27.024', NULL) ;
 sql insert into ct4 values ('2022-08-01 18:30:27.025', NULL) ;
 
-print =============== select * from ct1 - merge memory and file - loop $reboot_max - $reboot_cnt 
+print =============== select * from ct1 - merge memory and file - loop $reboot_max - $reboot_cnt
 sql select * from ct1;
 if $rows != 13 then
   print rows = $rows != 13
@@ -181,8 +163,8 @@ if $data[12][1] != -99.990000000 then
     print $data[12][1] != -99.990000000
     return -1
 endi
- 
-print =============== select * from ct4 - merge memory and file - loop $reboot_max - $reboot_cnt 
+
+print =============== select * from ct4 - merge memory and file - loop $reboot_max - $reboot_cnt
 sql select * from ct4;
 if $rows != 12 then
   print rows = $rows != 12
@@ -260,3 +242,5 @@ else
     $reboot_cnt = $reboot_cnt + 1
     goto reboot_and_check
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

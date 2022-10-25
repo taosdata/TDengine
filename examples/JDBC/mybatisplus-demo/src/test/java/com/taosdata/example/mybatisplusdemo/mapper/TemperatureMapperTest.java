@@ -83,26 +83,14 @@ public class TemperatureMapperTest {
     }
 
     /***
-     * test SelectOne
-     * **/
-    @Test
-    public void testSelectOne() {
-        QueryWrapper<Temperature> wrapper = new QueryWrapper<>();
-        wrapper.eq("location", "beijing");
-        Temperature one = mapper.selectOne(wrapper);
-        System.out.println(one);
-        Assert.assertNotNull(one);
-    }
-
-    /***
      * test  select By map
      * ***/
     @Test
     public void testSelectByMap() {
         Map<String, Object> map = new HashMap<>();
-        map.put("location", "beijing");
+        map.put("location", "北京");
         List<Temperature> temperatures = mapper.selectByMap(map);
-        Assert.assertEquals(1, temperatures.size());
+        Assert.assertTrue(temperatures.size() > 1);
     }
 
     /***
@@ -120,7 +108,7 @@ public class TemperatureMapperTest {
     @Test
     public void testSelectCount() {
         int count = mapper.selectCount(null);
-        Assert.assertEquals(5, count);
+        Assert.assertEquals(10, count);
     }
 
     /****

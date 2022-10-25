@@ -25,15 +25,14 @@
 #pragma GCC diagnostic ignored "-Wsign-compare"
 #include "os.h"
 
-#include "executorimpl.h"
 #include "executor.h"
-#include "stub.h"
+#include "executorimpl.h"
 #include "taos.h"
+#include "tcompare.h"
 #include "tdatablock.h"
 #include "tdef.h"
 #include "trpc.h"
 #include "tvariant.h"
-#include "tcompare.h"
 
 namespace {
 typedef struct {
@@ -45,8 +44,7 @@ typedef struct {
 
 int16_t VARCOUNT = 16;
 
-float rand_f2()
-{
+float rand_f2() {
   unsigned r = taosRand();
   r &= 0x007fffff;
   r |= 0x40800000;
@@ -54,95 +52,89 @@ float rand_f2()
 }
 
 static const int32_t TEST_NUMBER = 1;
-#define bigendian()     ((*(char *)&TEST_NUMBER) == 0)
+#define bigendian() ((*(char*)&TEST_NUMBER) == 0)
 
 SSDataBlock* getSingleColDummyBlock(void* param) {
-  _info* pInfo = (_info*) param;
+  _info* pInfo = (_info*)param;
   if (--pInfo->count < 0) {
     return NULL;
   }
 
-  SSDataBlock* pBlock = static_cast<SSDataBlock*>(taosMemoryCalloc(1, sizeof(SSDataBlock)));
-  pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
+  SSDataBlock* pBlock = createDataBlock();
 
   SColumnInfoData colInfo = {0};
   colInfo.info.type = pInfo->type;
-  if (pInfo->type == TSDB_DATA_TYPE_NCHAR){
+  if (pInfo->type == TSDB_DATA_TYPE_NCHAR) {
     colInfo.info.bytes = TSDB_NCHAR_SIZE * VARCOUNT + VARSTR_HEADER_SIZE;
-    colInfo.varmeta.offset = static_cast<int32_t *>(taosMemoryCalloc(pInfo->pageRows, sizeof(int32_t)));
-  } else if(pInfo->type == TSDB_DATA_TYPE_BINARY) {
+  } else if (pInfo->type == TSDB_DATA_TYPE_BINARY) {
     colInfo.info.bytes = VARCOUNT + VARSTR_HEADER_SIZE;
-    colInfo.varmeta.offset = static_cast<int32_t *>(taosMemoryCalloc(pInfo->pageRows, sizeof(int32_t)));
-  } else{
+  } else {
     colInfo.info.bytes = tDataTypes[pInfo->type].bytes;
-    colInfo.pData = static_cast<char*>(taosMemoryCalloc(pInfo->pageRows, colInfo.info.bytes));
-    colInfo.nullbitmap = static_cast<char*>(taosMemoryCalloc(1, (pInfo->pageRows + 7) / 8));
   }
   colInfo.info.colId = 1;
 
-  taosArrayPush(pBlock->pDataBlock, &colInfo);
+  blockDataAppendColInfo(pBlock, &colInfo);
+  blockDataEnsureCapacity(pBlock, pInfo->pageRows);
 
   for (int32_t i = 0; i < pInfo->pageRows; ++i) {
     SColumnInfoData* pColInfo = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 0));
 
-    if (pInfo->type == TSDB_DATA_TYPE_NCHAR){
+    if (pInfo->type == TSDB_DATA_TYPE_NCHAR) {
       int32_t size = taosRand() % VARCOUNT;
-      char str[128] = {0};
-      char strOri[128] = {0};
+      char    str[128] = {0};
+      char    strOri[128] = {0};
       taosRandStr(strOri, size);
       int32_t len = 0;
-      bool ret = taosMbsToUcs4(strOri, size, (TdUcs4*)varDataVal(str), size * TSDB_NCHAR_SIZE, &len);
-      if (!ret){
+      bool    ret = taosMbsToUcs4(strOri, size, (TdUcs4*)varDataVal(str), size * TSDB_NCHAR_SIZE, &len);
+      if (!ret) {
         printf("error\n");
         return NULL;
       }
       varDataSetLen(str, len);
       colDataAppend(pColInfo, i, reinterpret_cast<const char*>(str), false);
       pBlock->info.hasVarCol = true;
-      printf("nchar: %s\n",strOri);
-    } else if(pInfo->type == TSDB_DATA_TYPE_BINARY){
+      printf("nchar: %s\n", strOri);
+    } else if (pInfo->type == TSDB_DATA_TYPE_BINARY) {
       int32_t size = taosRand() % VARCOUNT;
-      char str[64] = {0};
+      char    str[64] = {0};
       taosRandStr(varDataVal(str), size);
       varDataSetLen(str, size);
       colDataAppend(pColInfo, i, reinterpret_cast<const char*>(str), false);
       pBlock->info.hasVarCol = true;
       printf("binary: %s\n", varDataVal(str));
-    } else if(pInfo->type == TSDB_DATA_TYPE_DOUBLE || pInfo->type == TSDB_DATA_TYPE_FLOAT) {
+    } else if (pInfo->type == TSDB_DATA_TYPE_DOUBLE || pInfo->type == TSDB_DATA_TYPE_FLOAT) {
       double v = rand_f2();
       colDataAppend(pColInfo, i, reinterpret_cast<const char*>(&v), false);
       printf("float: %f\n", v);
-    } else{
+    } else {
       int64_t v = ++pInfo->startVal;
-      char *result = static_cast<char*>(taosMemoryCalloc(tDataTypes[pInfo->type].bytes, 1));
-      if (!bigendian()){
+      char*   result = static_cast<char*>(taosMemoryCalloc(tDataTypes[pInfo->type].bytes, 1));
+      if (!bigendian()) {
         memcpy(result, &v, tDataTypes[pInfo->type].bytes);
-      }else{
+      } else {
         memcpy(result, (char*)(&v) + sizeof(int64_t) - tDataTypes[pInfo->type].bytes, tDataTypes[pInfo->type].bytes);
       }
 
       colDataAppend(pColInfo, i, result, false);
-      printf("int: %ld\n", v);
+      printf("int: %" PRId64 "\n", v);
       taosMemoryFree(result);
     }
   }
 
   pBlock->info.rows = pInfo->pageRows;
-  pBlock->info.numOfCols = 1;
   return pBlock;
 }
 
-
 int32_t docomp(const void* p1, const void* p2, void* param) {
-  int32_t pLeftIdx  = *(int32_t *)p1;
-  int32_t pRightIdx = *(int32_t *)p2;
+  int32_t pLeftIdx = *(int32_t*)p1;
+  int32_t pRightIdx = *(int32_t*)p2;
 
-  SMsortComparParam *pParam = (SMsortComparParam *)param;
-  SSortSource** px = reinterpret_cast<SSortSource**>(pParam->pSources);
+  SMsortComparParam* pParam = (SMsortComparParam*)param;
+  SSortSource**      px = reinterpret_cast<SSortSource**>(pParam->pSources);
 
-  SArray *pInfo = pParam->orderInfo;
+  SArray* pInfo = pParam->orderInfo;
 
-  SSortSource* pLeftSource  = px[pLeftIdx];
+  SSortSource* pLeftSource = px[pLeftIdx];
   SSortSource* pRightSource = px[pRightIdx];
 
   // this input is exhausted, set the special value to denote this
@@ -157,36 +149,38 @@ int32_t docomp(const void* p1, const void* p2, void* param) {
   SSDataBlock* pLeftBlock = pLeftSource->src.pBlock;
   SSDataBlock* pRightBlock = pRightSource->src.pBlock;
 
-  for(int32_t i = 0; i < pInfo->size; ++i) {
+  for (int32_t i = 0; i < pInfo->size; ++i) {
     SBlockOrderInfo* pOrder = (SBlockOrderInfo*)TARRAY_GET_ELEM(pInfo, i);
 
     SColumnInfoData* pLeftColInfoData = (SColumnInfoData*)TARRAY_GET_ELEM(pLeftBlock->pDataBlock, pOrder->slotId);
 
-    bool leftNull  = false;
+    bool leftNull = false;
     if (pLeftColInfoData->hasNull) {
-      leftNull = colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, pLeftSource->src.rowIndex, pLeftBlock->pBlockAgg[pOrder->slotId]);
+      leftNull = colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, pLeftSource->src.rowIndex,
+                               pLeftBlock->pBlockAgg[pOrder->slotId]);
     }
 
-    SColumnInfoData* pRightColInfoData = (SColumnInfoData*) TARRAY_GET_ELEM(pRightBlock->pDataBlock, pOrder->slotId);
-    bool rightNull = false;
+    SColumnInfoData* pRightColInfoData = (SColumnInfoData*)TARRAY_GET_ELEM(pRightBlock->pDataBlock, pOrder->slotId);
+    bool             rightNull = false;
     if (pRightColInfoData->hasNull) {
-      rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, pRightSource->src.rowIndex, pRightBlock->pBlockAgg[pOrder->slotId]);
+      rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, pRightSource->src.rowIndex,
+                                pRightBlock->pBlockAgg[pOrder->slotId]);
     }
 
     if (leftNull && rightNull) {
-      continue; // continue to next slot
+      continue;  // continue to next slot
     }
 
     if (rightNull) {
-      return pOrder->nullFirst? 1:-1;
+      return pOrder->nullFirst ? 1 : -1;
     }
 
     if (leftNull) {
-      return pOrder->nullFirst? -1:1;
+      return pOrder->nullFirst ? -1 : 1;
     }
 
-    void* left1  = colDataGetData(pLeftColInfoData, pLeftSource->src.rowIndex);
-    void* right1 = colDataGetData(pRightColInfoData, pRightSource->src.rowIndex);
+    void*         left1 = colDataGetData(pLeftColInfoData, pLeftSource->src.rowIndex);
+    void*         right1 = colDataGetData(pRightColInfoData, pRightSource->src.rowIndex);
     __compar_fn_t fn = getKeyComparFunc(pLeftColInfoData->info.type, pOrder->order);
 
     int ret = fn(left1, right1);
@@ -201,7 +195,7 @@ int32_t docomp(const void* p1, const void* p2, void* param) {
 }
 }  // namespace
 
-#if 1
+#if 0
 TEST(testCase, inMem_sort_Test) {
   SBlockOrderInfo oi = {0};
   oi.order = TSDB_ORDER_ASC;
@@ -209,7 +203,7 @@ TEST(testCase, inMem_sort_Test) {
   SArray* orderInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
   taosArrayPush(orderInfo, &oi);
 
-  SSortHandle* phandle = tsortCreateSortHandle(orderInfo, NULL, SORT_SINGLESOURCE_SORT, 1024, 5, NULL, "test_abc");
+  SSortHandle* phandle = tsortCreateSortHandle(orderInfo, SORT_SINGLESOURCE_SORT, 1024, 5, NULL, "test_abc");
   tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock, NULL, NULL);
 
   _info* pInfo = (_info*) taosMemoryCalloc(1, sizeof(_info));
@@ -298,7 +292,7 @@ TEST(testCase, external_mem_sort_Test) {
     SArray* orderInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
     taosArrayPush(orderInfo, &oi);
 
-    SSortHandle* phandle = tsortCreateSortHandle(orderInfo, NULL, SORT_SINGLESOURCE_SORT, 128, 3, NULL, "test_abc");
+    SSortHandle* phandle = tsortCreateSortHandle(orderInfo, SORT_SINGLESOURCE_SORT, 128, 3, NULL, "test_abc");
     tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock, NULL, NULL);
 
     SSortSource* ps = static_cast<SSortSource*>(taosMemoryCalloc(1, sizeof(SSortSource)));
@@ -338,7 +332,7 @@ TEST(testCase, external_mem_sort_Test) {
         }else{
           memcpy((char*)(&result) + sizeof(int64_t) - tDataTypes[pInfo[i].type].bytes, v, tDataTypes[pInfo[i].type].bytes);
         }
-        printf("%d: %ld\n", row++, result);
+        printf("%d: %" PRId64 "\n", row++, result);
       }
     }
     taosArrayDestroy(orderInfo);
@@ -354,18 +348,13 @@ TEST(testCase, ordered_merge_sort_Test) {
   SArray* orderInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
   taosArrayPush(orderInfo, &oi);
 
-  SSDataBlock* pBlock = static_cast<SSDataBlock*>(taosMemoryCalloc(1, sizeof(SSDataBlock)));
-  pBlock->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
-  pBlock->info.numOfCols = 1;
-  for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-    SColumnInfoData colInfo = {0};
-    colInfo.info.type = TSDB_DATA_TYPE_INT;
-    colInfo.info.bytes = sizeof(int32_t);
-    colInfo.info.colId = 1;
-    taosArrayPush(pBlock->pDataBlock, &colInfo);
+  SSDataBlock* pBlock = createDataBlock();
+  for (int32_t i = 0; i < 1; ++i) {
+    SColumnInfoData colInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+    blockDataAppendColInfo(pBlock, &colInfo);
   }
 
-  SSortHandle* phandle = tsortCreateSortHandle(orderInfo, NULL, SORT_MULTISOURCE_MERGE, 1024, 5, pBlock,"test_abc");
+  SSortHandle* phandle = tsortCreateSortHandle(orderInfo, SORT_MULTISOURCE_MERGE, 1024, 5, pBlock,"test_abc");
   tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock, NULL, NULL);
   tsortSetComparFp(phandle, docomp);
 
@@ -392,7 +381,7 @@ TEST(testCase, ordered_merge_sort_Test) {
     }
 
     void* v = tsortGetValue(pTupleHandle, 0);
-    printf("%d: %d\n", row, *(int32_t*) v);
+//    printf("%d: %d\n", row, *(int32_t*) v);
     ASSERT_EQ(row++, *(int32_t*) v);
 
   }

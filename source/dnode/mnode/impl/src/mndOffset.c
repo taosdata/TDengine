@@ -15,10 +15,10 @@
 
 #define _DEFAULT_SOURCE
 #include "mndOffset.h"
-#include "mndAuth.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
+#include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndStb.h"
 #include "mndTopic.h"
@@ -36,13 +36,15 @@ static int32_t mndOffsetActionUpdate(SSdb *pSdb, SMqOffsetObj *pOffset, SMqOffse
 static int32_t mndProcessCommitOffsetReq(SRpcMsg *pReq);
 
 int32_t mndInitOffset(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_OFFSET,
-                     .keyType = SDB_KEY_BINARY,
-                     .encodeFp = (SdbEncodeFp)mndOffsetActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndOffsetActionDecode,
-                     .insertFp = (SdbInsertFp)mndOffsetActionInsert,
-                     .updateFp = (SdbUpdateFp)mndOffsetActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndOffsetActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_OFFSET,
+      .keyType = SDB_KEY_BINARY,
+      .encodeFp = (SdbEncodeFp)mndOffsetActionEncode,
+      .decodeFp = (SdbDecodeFp)mndOffsetActionDecode,
+      .insertFp = (SdbInsertFp)mndOffsetActionInsert,
+      .updateFp = (SdbUpdateFp)mndOffsetActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndOffsetActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_COMMIT_OFFSET, mndProcessCommitOffsetReq);
 
@@ -159,7 +161,7 @@ int32_t mndCreateOffsets(STrans *pTrans, const char *cgroup, const char *topicNa
     if (pOffsetRaw == NULL) {
       return -1;
     }
-    sdbSetRawStatus(pOffsetRaw, SDB_STATUS_READY);
+    (void)sdbSetRawStatus(pOffsetRaw, SDB_STATUS_READY);
     // commit log or redo log?
     if (mndTransAppendRedolog(pTrans, pOffsetRaw) < 0) {
       return -1;
@@ -179,11 +181,16 @@ static int32_t mndProcessCommitOffsetReq(SRpcMsg *pMsg) {
 
   tDecodeSMqCMCommitOffsetReq(&decoder, &commitOffsetReq);
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_CONFLICT_NOTHING, pMsg, "commit-offset");
+  if (pTrans == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    tDecoderClear(&decoder);
+    return -1;
+  }
 
   for (int32_t i = 0; i < commitOffsetReq.num; i++) {
     SMqOffset *pOffset = &commitOffsetReq.offsets[i];
-    mInfo("commit offset %ld to vg %d of consumer group %s on topic %s", pOffset->offset, pOffset->vgId,
+    mInfo("commit offset %" PRId64 " to vgId:%d of consumer group %s on topic %s", pOffset->offset, pOffset->vgId,
           pOffset->cgroup, pOffset->topicName);
     if (mndMakePartitionKey(key, pOffset->cgroup, pOffset->topicName, pOffset->vgId) < 0) {
       mError("submit offset to topic %s failed", pOffset->topicName);
@@ -206,7 +213,7 @@ static int32_t mndProcessCommitOffsetReq(SRpcMsg *pMsg) {
     }
     pOffsetObj->offset = pOffset->offset;
     SSdbRaw *pOffsetRaw = mndOffsetActionEncode(pOffsetObj);
-    sdbSetRawStatus(pOffsetRaw, SDB_STATUS_READY);
+    (void)sdbSetRawStatus(pOffsetRaw, SDB_STATUS_READY);
     mndTransAppendCommitlog(pTrans, pOffsetRaw);
     if (create) {
       taosMemoryFree(pOffsetObj);
@@ -279,7 +286,7 @@ static int32_t mndSetDropOffsetRedoLogs(SMnode *pMnode, STrans *pTrans, SMqOffse
 }
 
 int32_t mndDropOffsetByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
-  int32_t code = -1;
+  int32_t code = 0;
   SSdb   *pSdb = pMnode->pSdb;
 
   void         *pIter = NULL;
@@ -295,14 +302,14 @@ int32_t mndDropOffsetByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
 
     if (mndSetDropOffsetCommitLogs(pMnode, pTrans, pOffset) < 0) {
       sdbRelease(pSdb, pOffset);
-      goto END;
+      sdbCancelFetch(pSdb, pIter);
+      code = -1;
+      break;
     }
 
     sdbRelease(pSdb, pOffset);
   }
 
-  code = 0;
-END:
   return code;
 }
 

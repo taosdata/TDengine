@@ -1,0 +1,198 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$i = 0
+$dbPrefix = tb_2f_db
+$tbPrefix = tb_2f_tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+print =============== step1
+sql drop database -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $tb (ts timestamp, speed int)
+
+#commit to file will trigger if insert 82 rows
+$N = 82
+
+print =============== step 1
+$x = $N * 2
+$y = $N
+$expect = $N
+while $x > $y
+  $ms = $x . m
+  $xt = - . $x
+  sql insert into $tb values (now - $ms , $xt )
+  $x = $x - 1
+endw
+
+sql select * from $tb
+print sql select * from $tb -> $rows points
+if $rows != $expect then
+  return -1
+endi
+
+$x = $N
+$y = $N * 2
+$expect = $N * 2
+while $x < $y
+  $ms = $x . m
+  sql insert into $tb values (now + $ms , $x )
+  $x = $x + 1
+endw
+sql select * from $tb
+print sql select * from $tb -> $rows points
+if $rows != $expect then
+  return -1
+endi
+
+print =============== step 2
+
+$R = 4
+$y = $N * $R
+
+$expect = $y + $N
+$expect = $expect + $N
+
+$x = $N * 3
+$y = $y + $x
+
+while $x < $y
+  $ms = $x . m
+  sql insert into $tb values (now + $ms , $x )
+  $x = $x + 1
+endw
+
+sql select * from $tb
+print sql select * from $tb -> $rows points
+if $rows != $expect then
+  return -1
+endi
+
+
+print =============== step 2
+
+$N2 = $N
+$result1 = $N
+$result2 = 2 * $N
+$N1 = $result2 + 1
+$step = $N1 . m
+
+$start1 = now- . $step
+$start2 = now
+$start3 = now+ . $step
+$end1 = now- . $step
+$end2 = now
+$end3 = now+ . $step
+
+sql select * from $tb where ts < $start1 and ts > $end1
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start1 and ts > $end2
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start1 and ts > $end3
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start2 and ts > $end1
+print select * from $tb where ts < $start2 and ts > $end1 ->  $rows points
+if $rows != $result1 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start2 and ts > $end2
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start2 and ts > $end3
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start3 and ts > $end1
+print sql select * from $tb where ts < $start3 and ts > $end1 -> $rows points
+if $rows != $result2 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start3 and ts > $end2
+print sql select * from $tb where ts < $start3 and ts > $end2 -> $rows points
+if $rows != $result1 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start3 and ts > $end3
+if $rows != 0 then
+  return -1
+endi
+
+print ================= order by ts desc
+
+sql select * from $tb where ts < $start1 and ts > $end1 order by ts desc
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start1 and ts > $end2 order by ts desc
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start1 and ts > $end3 order by ts desc
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start2 and ts > $end1 order by ts desc
+print select * from $tb where ts < $start2 and ts > $end1  order by ts desc  ->  $rows points
+if $rows != $result1 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start2 and ts > $end2  order by ts desc
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start2 and ts > $end3 order by ts desc
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start3 and ts > $end1 order by ts desc
+print sql select * from $tb where ts < $start3 and ts > $end1  order by ts desc  -> $rows points
+if $rows != $result2 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start3 and ts > $end2 order by ts desc
+print sql select * from $tb where ts < $start3 and ts > $end2  order by ts desc  -> $rows points
+if $rows != $result1 then
+  return -1
+endi
+
+sql select * from $tb where ts < $start3 and ts > $end3   order by ts desc
+if $rows != 0 then
+  return -1
+endi
+
+clear:
+
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

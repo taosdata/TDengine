@@ -1,0 +1,258 @@
+{
+  "filetype": "insert",
+  "cfgdir": "/etc/taos",
+  "host": "127.0.0.1",
+  "port": 6030,
+  "user": "root",
+  "password": "taosdata",
+  "thread_count": 4,
+  "connection_pool_size": 20,
+  "result_file": "./insert_res.txt",
+  "confirm_parameter_prompt": "no",
+  "prepared_rand": 10,
+  "chinese": "no",
+  "insert_interval": 0,
+  "num_of_records_per_req": 10,
+  "databases": [
+    {
+      "dbinfo": {
+        "name": "db2",
+        "drop": "yes",
+        "replica": 1,
+        "precision": "ms",
+        "keep": 36500,
+        "minRows": 100,
+        "maxRows": 4096
+      },
+      "super_tables": [
+        {
+          "name": "stb1",
+          "child_table_exists": "no",
+          "childtable_count": 8,
+          "childtable_prefix": "stb1_",
+          "escape_character": "no",
+          "auto_create_table": "no",
+          "batch_create_tbl_num": 10,
+          "data_source": "rand",
+          "insert_mode": "sml-rest",
+          "line_protocol": "line",
+          "childtable_limit": 0,
+          "childtable_offset": 0,
+          "insert_rows": 20,
+          "insert_interval": 0,
+          "interlace_rows": 0,
+          "disorder_ratio": 0,
+          "disorder_range": 1000,
+          "timestamp_step": 1,
+          "start_timestamp": "now",
+          "sample_file": "",
+          "use_sample_ts": "no",
+          "tags_file": "",
+          "columns": [
+            {
+              "type": "INT"
+            },
+            {
+              "type": "BIGINT"
+            },
+            {
+              "type": "FLOAT"
+            },
+            {
+              "type": "DOUBLE"
+            },
+            {
+              "type": "SMALLINT"
+            },
+            {
+              "type": "TINYINT"
+            },
+            {
+              "type": "BOOL"
+            },
+            {
+              "type": "NCHAR",
+              "len": 17,
+              "count": 1
+            },
+            {
+              "type": "UINT"
+            },
+            {
+              "type": "UBIGINT"
+            },
+            {
+              "type": "UTINYINT"
+            },
+            {
+              "type": "USMALLINT"
+            },
+            {
+              "type": "BINARY",
+              "len": 19,
+              "count": 1
+            }
+          ],
+          "tags": [
+            {
+              "type": "INT"
+            },
+            {
+              "type": "BIGINT"
+            },
+            {
+              "type": "FLOAT"
+            },
+            {
+              "type": "DOUBLE"
+            },
+            {
+              "type": "SMALLINT"
+            },
+            {
+              "type": "TINYINT"
+            },
+            {
+              "type": "BOOL"
+            },
+            {
+              "type": "NCHAR",
+              "len": 17,
+              "count": 1
+            },
+            {
+              "type": "UINT"
+            },
+            {
+              "type": "UBIGINT"
+            },
+            {
+              "type": "UTINYINT"
+            },
+            {
+              "type": "USMALLINT"
+            },
+            {
+              "type": "BINARY",
+              "len": 19,
+              "count": 1
+            }
+          ]
+        },{
+          "name": "stb2",
+          "child_table_exists": "no",
+          "childtable_count": 8,
+          "childtable_prefix": "stb2_",
+          "escape_character": "no",
+          "auto_create_table": "no",
+          "batch_create_tbl_num": 10,
+          "data_source": "rand",
+          "insert_mode": "sml-rest",
+          "line_protocol": "line",
+          "childtable_limit": 0,
+          "childtable_offset": 0,
+          "insert_rows": 20,
+          "insert_interval": 0,
+          "interlace_rows": 6,
+          "disorder_ratio": 0,
+          "disorder_range": 1000,
+          "timestamp_step": 1,
+          "start_timestamp": "now",
+          "sample_file": "",
+          "use_sample_ts": "no",
+          "tags_file": "",
+          "columns": [
+            {
+              "type": "INT"
+            },
+            {
+              "type": "BIGINT"
+            },
+            {
+              "type": "FLOAT"
+            },
+            {
+              "type": "DOUBLE"
+            },
+            {
+              "type": "SMALLINT"
+            },
+            {
+              "type": "TINYINT"
+            },
+            {
+              "type": "BOOL"
+            },
+            {
+              "type": "NCHAR",
+              "len": 17,
+              "count": 1
+            },
+            {
+              "type": "UINT"
+            },
+            {
+              "type": "UBIGINT"
+            },
+            {
+              "type": "UTINYINT"
+            },
+            {
+              "type": "USMALLINT"
+            },
+            {
+              "type": "BINARY",
+              "len": 19,
+              "count": 1
+            }
+          ],
+          "tags": [
+            {
+              "type": "INT"
+            },
+            {
+              "type": "BIGINT"
+            },
+            {
+              "type": "FLOAT"
+            },
+            {
+              "type": "DOUBLE"
+            },
+            {
+              "type": "SMALLINT"
+            },
+            {
+              "type": "TINYINT"
+            },
+            {
+              "type": "BOOL"
+            },
+            {
+              "type": "NCHAR",
+              "len": 17,
+              "count": 1
+            },
+            {
+              "type": "UINT"
+            },
+            {
+              "type": "UBIGINT"
+            },
+            {
+              "type": "UTINYINT"
+            },
+            {
+              "type": "USMALLINT"
+            },
+            {
+              "type": "BINARY",
+              "len": 19,
+              "count": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

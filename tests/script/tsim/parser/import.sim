@@ -1,0 +1,81 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = impt_db
+$tbPrefix = tb
+$stbPrefix = stb
+$tbNum = 10
+$rowNum = 10
+$totalNum = $tbNum * $rowNum
+print ========== import.sim
+$i = 0
+$db = $dbPrefix . $i
+$stb = $stbPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+print ====== create tables
+sql use $db
+sql create table tb (ts timestamp, c1 int, c2 timestamp)
+sql insert into tb values ('2019-05-05 11:30:00.000', 1, now)
+sql insert into tb values ('2019-05-05 12:00:00.000', 1, now)
+sql import into tb values ('2019-05-05 11:00:00.000', -1, now)
+sql import into tb values ('2019-05-05 11:59:00.000', -1, now)
+sql import into tb values ('2019-05-04 08:00:00.000', -1, now)
+sql import into tb values ('2019-05-04 07:59:00.000', -1, now)
+
+sql select * from tb
+if $rows != 6 then
+  return -1
+endi
+if $data00 != @19-05-04 07:59:00.000@ then
+  return -1
+endi
+if $data10 != @19-05-04 08:00:00.000@ then
+  return -1
+endi
+if $data20 != @19-05-05 11:00:00.000@ then
+  return -1
+endi
+if $data30 != @19-05-05 11:30:00.000@ then
+  return -1
+endi
+if $data40 != @19-05-05 11:59:00.000@ then
+  return -1
+endi
+if $data50 != @19-05-05 12:00:00.000@ then
+  return -1
+endi
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+sql connect
+
+sql use $db
+sql select * from tb
+if $rows != 6 then
+  return -1
+endi
+if $data00 != @19-05-04 07:59:00.000@ then
+  return -1
+endi
+if $data10 != @19-05-04 08:00:00.000@ then
+  return -1
+endi
+if $data20 != @19-05-05 11:00:00.000@ then
+  return -1
+endi
+if $data30 != @19-05-05 11:30:00.000@ then
+  return -1
+endi
+if $data40 != @19-05-05 11:59:00.000@ then
+  return -1
+endi
+if $data50 != @19-05-05 12:00:00.000@ then
+  return -1
+endi

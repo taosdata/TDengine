@@ -30,16 +30,16 @@ class TDSimClient:
         self.path = path
         self.cfgDict = {
             "numOfLogLines": "100000000",
-            "numOfThreadsPerCore": "2.0",
             "locale": "en_US.UTF-8",
             "charset": "UTF-8",
             "asyncLog": "0",
             "rpcDebugFlag": "143",
             "tmrDebugFlag": "131",
             "cDebugFlag": "143",
-            "udebugFlag": "143",
-            "jnidebugFlag": "143",
-            "qdebugFlag": "143",
+            "uDebugFlag": "143",
+            "jniDebugFlag": "143",
+            "qDebugFlag": "143",
+            "supportVnodes": "1024",
             "telemetryReporting": "0",
         }
 
@@ -96,9 +96,9 @@ class TDSimClient:
 
         for key, value in self.cfgDict.items():
             self.cfg(key, value)
-        
+
         try:
-            if bool(updatecfgDict) and updatecfgDict[0] and updatecfgDict[0][0]:                    
+            if bool(updatecfgDict) and updatecfgDict[0] and updatecfgDict[0][0]:
                 clientCfg = dict (updatecfgDict[0][0].get('clientCfg'))
                 for key, value in clientCfg.items():
                     self.cfg(key, value)
@@ -117,8 +117,6 @@ class TDDnode:
         self.valgrind = 0
         self.remoteIP = ""
         self.cfgDict = {
-            "walLevel": "2",
-            "fsync": "1000",
             "monitor": "0",
             "maxShellConns": "30000",
             "locale": "en_US.UTF-8",
@@ -134,11 +132,11 @@ class TDDnode:
             "rpcDebugFlag": "143",
             "tmrDebugFlag": "131",
             "uDebugFlag": "143",
-            "sDebugFlag": "135",
+            "sDebugFlag": "143",
             "wDebugFlag": "143",
-            "qdebugFlag": "143",
             "numOfLogLines": "100000000",
             "statusInterval": "1",
+            "supportVnodes": "1024",
             "telemetryReporting": "0"
         }
 
@@ -244,7 +242,6 @@ class TDDnode:
         # print(updatecfgDict)
         isFirstDir = 1
         if bool(updatecfgDict) and updatecfgDict[0] and updatecfgDict[0][0]:
-            print(updatecfgDict[0][0])
             for key, value in updatecfgDict[0][0].items():
                 if key == "clientCfg" and self.remoteIP == "" and not platform.system().lower() == 'windows':
                     continue
@@ -287,6 +284,87 @@ class TDDnode:
                 return ""
         return paths[0]
 
+    def starttaosd(self):
+        binPath = self.getPath()
+
+        if (binPath == ""):
+            tdLog.exit("taosd not found!")
+        else:
+            tdLog.info("taosd found: %s" % binPath)
+
+        if self.deployed == 0:
+            tdLog.exit("dnode:%d is not deployed" % (self.index))
+
+        if self.valgrind == 0:
+            if platform.system().lower() == 'windows':
+                cmd = "mintty -h never %s -c %s" % (
+                    binPath, self.cfgDir)
+            else:
+                cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
+                    binPath, self.cfgDir)
+        else:
+            valgrindCmdline = "valgrind --log-file=\"%s/../log/valgrind.log\"  --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"%self.cfgDir
+
+            if platform.system().lower() == 'windows':
+                cmd = "mintty -h never %s %s -c %s" % (
+                    valgrindCmdline, binPath, self.cfgDir)
+            else:
+                cmd = "nohup %s %s -c %s 2>&1 & " % (
+                    valgrindCmdline, binPath, self.cfgDir)
+
+            print(cmd)
+
+        if (not self.remoteIP == ""):
+            self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].deployed=1\ntdDnodes.dnodes[%d].logDir=\"%%s/sim/dnode%%d/log\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.dnodes[%d].cfgDir=\"%%s/sim/dnode%%d/cfg\"%%(tdDnodes.dnodes[%d].path,%d)\ntdDnodes.start(%d)"%(self.index-1,self.index-1,self.index-1,self.index,self.index-1,self.index-1,self.index,self.index))
+            self.running = 1
+        else:
+            if os.system(cmd) != 0:
+                tdLog.exit(cmd)
+            self.running = 1
+            tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
+            if self.valgrind == 0:
+                time.sleep(0.1)
+                key1 = 'from offline to online'
+                bkey1 = bytes(key1, encoding="utf8")
+                key2= 'TDengine initialized successfully'
+                bkey2 = bytes(key2, encoding="utf8")
+                logFile = self.logDir + "/taosdlog.0"
+                i = 0
+                # while not os.path.exists(logFile):
+                #     sleep(0.1)
+                #     i += 1
+                #     if i > 10:
+                #         break
+                # tailCmdStr = 'tail -f '
+                # if platform.system().lower() == 'windows':
+                #     tailCmdStr = 'tail -n +0 -f '
+                # popen = subprocess.Popen(
+                #     tailCmdStr + logFile,
+                #     stdout=subprocess.PIPE,
+                #     stderr=subprocess.PIPE,
+                #     shell=True)
+                # pid = popen.pid
+                # # print('Popen.pid:' + str(pid))
+                # timeout = time.time() + 60 * 2
+                # while True:
+                #     line = popen.stdout.readline().strip()
+                #     print(line)
+                #     if bkey1 in line:
+                #         popen.kill()
+                #         break
+                #     elif bkey2 in line:
+                #         popen.kill()
+                #         break
+                #     if time.time() > timeout:
+                #         print(time.time(),timeout)
+                #         tdLog.exit('wait too long for taosd start')
+                tdLog.debug("the dnode:%d has been started." % (self.index))
+            else:
+                tdLog.debug(
+                    "wait 10 seconds for the dnode:%d to start." %
+                    (self.index))
+                time.sleep(10)
+
     def start(self):
         binPath = self.getPath()
 
@@ -300,7 +378,7 @@ class TDDnode:
 
         if self.valgrind == 0:
             if platform.system().lower() == 'windows':
-                cmd = "mintty -h never -w hide %s -c %s" % (
+                cmd = "mintty -h never %s -c %s" % (
                     binPath, self.cfgDir)
             else:
                 cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
@@ -309,7 +387,7 @@ class TDDnode:
             valgrindCmdline = "valgrind --log-file=\"%s/../log/valgrind.log\"  --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"%self.cfgDir
 
             if platform.system().lower() == 'windows':
-                cmd = "mintty -h never -w hide %s %s -c %s" % (
+                cmd = "mintty -h never %s %s -c %s" % (
                     valgrindCmdline, binPath, self.cfgDir)
             else:
                 cmd = "nohup %s %s -c %s 2>&1 & " % (
@@ -325,7 +403,6 @@ class TDDnode:
             if os.system(cmd) != 0:
                 tdLog.exit(cmd)
             self.running = 1
-            print("dnode:%d is running with %s " % (self.index, cmd))
             tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
             if self.valgrind == 0:
                 time.sleep(0.1)
@@ -338,23 +415,15 @@ class TDDnode:
                     i += 1
                     if i > 50:
                         break
-                tailCmdStr = 'tail -f '
-                popen = subprocess.Popen(
-                    tailCmdStr + logFile,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    shell=True)
-                pid = popen.pid
-                # print('Popen.pid:' + str(pid))
-                timeout = time.time() + 60 * 2
-                while True:
-                    line = popen.stdout.readline().strip()
-                    if bkey in line:
-                        popen.kill()
-                        break
-                    if time.time() > timeout:
-                        tdLog.exit('wait too long for taosd start')
-                tdLog.debug("the dnode:%d has been started." % (self.index))
+                with open(logFile) as f:
+                    timeout = time.time() + 60 * 2
+                    while True:
+                        line = f.readline().encode('utf-8')
+                        if bkey in line:
+                            break
+                        if time.time() > timeout:
+                            tdLog.exit('wait too long for taosd start')
+                    tdLog.debug("the dnode:%d has been started." % (self.index))
             else:
                 tdLog.debug(
                     "wait 10 seconds for the dnode:%d to start." %
@@ -403,20 +472,59 @@ class TDDnode:
             toBeKilled = "valgrind.bin"
 
         if self.running != 0:
-            psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % toBeKilled
+            psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs" % toBeKilled
             processID = subprocess.check_output(
-                psCmd, shell=True).decode("utf-8")
+                psCmd, shell=True).decode("utf-8").strip()
 
+            onlyKillOnceWindows = 0
             while(processID):
-                killCmd = "kill -INT %s > /dev/null 2>&1" % processID
-                os.system(killCmd)
+                if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
+                    killCmd = "kill -INT %s > /dev/null 2>&1" % processID
+                    if platform.system().lower() == 'windows':
+                        killCmd = "kill -INT %s > nul 2>&1" % processID
+                    os.system(killCmd)
+                    onlyKillOnceWindows = 1
                 time.sleep(1)
                 processID = subprocess.check_output(
-                    psCmd, shell=True).decode("utf-8")
+                    psCmd, shell=True).decode("utf-8").strip()
             if not platform.system().lower() == 'windows':
                 for port in range(6030, 6041):
                     fuserCmd = "fuser -k -n tcp %d > /dev/null" % port
                     os.system(fuserCmd)
+            if self.valgrind:
+                time.sleep(2)
+
+            self.running = 0
+            tdLog.debug("dnode:%d is stopped by kill -INT" % (self.index))
+
+
+    def stoptaosd(self):
+        if (not self.remoteIP == ""):
+            self.remoteExec(self.cfgDict, "tdDnodes.dnodes[%d].running=1\ntdDnodes.dnodes[%d].stop()"%(self.index-1,self.index-1))
+            tdLog.info("stop dnode%d"%self.index)
+            return
+        if self.valgrind == 0:
+            toBeKilled = "taosd"
+        else:
+            toBeKilled = "valgrind.bin"
+
+        if self.running != 0:
+            if platform.system().lower() == 'windows':
+                psCmd = "for /f %%a in ('wmic process where \"name='taosd.exe' and CommandLine like '%%dnode%d%%'\" get processId ^| xargs echo ^| awk ^'{print $2}^' ^&^& echo aa') do @(ps | grep %%a | awk '{print $1}' | xargs)" % (self.index)
+            else:
+                psCmd = "ps -ef|grep -w %s| grep dnode%d|grep -v grep | awk '{print $2}' | xargs" % (toBeKilled,self.index)
+            processID = subprocess.check_output(
+                psCmd, shell=True).decode("utf-8").strip()
+
+            onlyKillOnceWindows = 0
+            while(processID):
+                if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
+                    killCmd = "kill -INT %s > /dev/null 2>&1" % processID
+                    os.system(killCmd)
+                    onlyKillOnceWindows = 1
+                time.sleep(1)
+                processID = subprocess.check_output(
+                    psCmd, shell=True).decode("utf-8").strip()
             if self.valgrind:
                 time.sleep(2)
 
@@ -433,16 +541,19 @@ class TDDnode:
             toBeKilled = "valgrind.bin"
 
         if self.running != 0:
-            psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}'" % toBeKilled
+            psCmd = "ps -ef|grep -w %s| grep -v grep | awk '{print $2}' | xargs" % toBeKilled
             processID = subprocess.check_output(
-                psCmd, shell=True).decode("utf-8")
+                psCmd, shell=True).decode("utf-8").strip()
 
+            onlyKillOnceWindows = 0
             while(processID):
-                killCmd = "kill -KILL %s > /dev/null 2>&1" % processID
-                os.system(killCmd)
+                if not platform.system().lower() == 'windows' or (onlyKillOnceWindows == 0 and platform.system().lower() == 'windows'):
+                    killCmd = "kill -KILL %s > /dev/null 2>&1" % processID
+                    os.system(killCmd)
+                    onlyKillOnceWindows = 1
                 time.sleep(1)
                 processID = subprocess.check_output(
-                    psCmd, shell=True).decode("utf-8")
+                    psCmd, shell=True).decode("utf-8").strip()
             for port in range(6030, 6041):
                 fuserCmd = "fuser -k -n tcp %d" % port
                 os.system(fuserCmd)
@@ -535,6 +646,14 @@ class TDDnodes:
         self.check(index)
         self.dnodes[index - 1].cfg(option, value)
 
+    def starttaosd(self, index):
+        self.check(index)
+        self.dnodes[index - 1].starttaosd()
+
+    def stoptaosd(self, index):
+        self.check(index)
+        self.dnodes[index - 1].stoptaosd()
+
     def start(self, index):
         self.check(index)
         self.dnodes[index - 1].start()
@@ -579,15 +698,15 @@ class TDDnodes:
         for i in range(len(self.dnodes)):
             self.dnodes[i].stop()
 
-        psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}'"
-        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+        psCmd = "ps -ef | grep -w taosd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
+        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
         if processID:
             cmd = "sudo systemctl stop taosd"
             os.system(cmd)
         # if os.system(cmd) != 0 :
         # tdLog.exit(cmd)
-        psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}'"
-        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+        psCmd = "ps -ef|grep -w taosd| grep -v grep| grep -v defunct | awk '{print $2}' | xargs"
+        processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
         while(processID):
             if platform.system().lower() == 'windows':
                 killCmd = "kill -9 %s > nul 2>&1" % processID
@@ -596,11 +715,11 @@ class TDDnodes:
             os.system(killCmd)
             time.sleep(1)
             processID = subprocess.check_output(
-                psCmd, shell=True).decode("utf-8")
+                psCmd, shell=True).decode("utf-8").strip()
 
         if self.killValgrind == 1:
-            psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}'"
-            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8")
+            psCmd = "ps -ef|grep -w valgrind.bin| grep -v grep | awk '{print $2}' | xargs"
+            processID = subprocess.check_output(psCmd, shell=True).decode("utf-8").strip()
             while(processID):
                 if platform.system().lower() == 'windows':
                     killCmd = "kill -TERM %s > nul 2>&1" % processID
@@ -609,7 +728,7 @@ class TDDnodes:
                 os.system(killCmd)
                 time.sleep(1)
                 processID = subprocess.check_output(
-                    psCmd, shell=True).decode("utf-8")
+                    psCmd, shell=True).decode("utf-8").strip()
 
         # if os.system(cmd) != 0 :
         # tdLog.exit(cmd)

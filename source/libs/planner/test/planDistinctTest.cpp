@@ -40,3 +40,9 @@ TEST_F(PlanDistinctTest, withOrderBy) {
 
   run("select distinct c1 + 10 a from t1 order by a");
 }
+
+TEST_F(PlanDistinctTest, withLimit) {
+  useDb("root", "test");
+
+  run("SELECT DISTINCT c1 FROM t1 LIMIT 3");
+}

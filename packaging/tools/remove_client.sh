@@ -28,7 +28,7 @@ if command -v sudo > /dev/null; then
 fi
 
 function kill_client() {
-  if [ -n "$(pidof ${clientName})" ]; then
+  if [ -n "$(ps aux | grep -v grep | grep ${clientName})" ]; then
     ${csudo}kill -9 $pid   || :
   fi
 }
@@ -54,6 +54,7 @@ function clean_header() {
     ${csudo}rm -f ${inc_link_dir}/taos.h           || :
     ${csudo}rm -f ${inc_link_dir}/taosdef.h        || :
     ${csudo}rm -f ${inc_link_dir}/taoserror.h      || :
+    ${csudo}rm -f ${inc_link_dir}/taosudf.h      || :    
 }
 
 function clean_config() {

@@ -32,7 +32,7 @@ uint64_t syncUtilAddr2U64(const char* host, uint16_t port);
 void     syncUtilU642Addr(uint64_t u64, char* host, size_t len, uint16_t* port);
 void     syncUtilnodeInfo2EpSet(const SNodeInfo* pNodeInfo, SEpSet* pEpSet);
 void     syncUtilraftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet);
-void     syncUtilnodeInfo2raftId(const SNodeInfo* pNodeInfo, SyncGroupId vgId, SRaftId* raftId);
+bool     syncUtilnodeInfo2raftId(const SNodeInfo* pNodeInfo, SyncGroupId vgId, SRaftId* raftId);
 bool     syncUtilSameId(const SRaftId* pId1, const SRaftId* pId2);
 bool     syncUtilEmptyId(const SRaftId* pId);
 

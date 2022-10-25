@@ -55,15 +55,15 @@ class TDTestCase:
             logFile = cfgPath + '/../log/valgrind-tmq.log'
             shellCmd = 'nohup valgrind --log-file=' + logFile
             shellCmd += '--tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all --num-callers=20 -v --workaround-gcc296-bugs=yes '
-        
+
         shellCmd += buildPath + '/build/bin/tmq_sim -c ' + cfgPath
-        shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName) 
-        shellCmd += "> /dev/null 2>&1 &"        
+        shellCmd += " -y %d -d %s -g %d -r %d -w %s "%(pollDelay, dbName, showMsg, showRow, cdbName)
+        shellCmd += "> /dev/null 2>&1 &"
         tdLog.info(shellCmd)
         os.system(shellCmd)
 
     def create_tables(self,tsql, dbName,vgroups,stbName,ctbNum,rowsPerTbl):
-        tsql.execute("create database if not exists %s vgroups %d"%(dbName, vgroups))        
+        tsql.execute("create database if not exists %s vgroups %d"%(dbName, vgroups))
         tsql.execute("use %s" %dbName)
         tsql.execute("create table  if not exists %s (ts timestamp, c1 bigint, c2 binary(16)) tags(t1 int)"%stbName)
         pre_create = "create table"
@@ -76,8 +76,8 @@ class TDTestCase:
                 sql = pre_create
         if sql != pre_create:
             tsql.execute(sql)
-        
-        event.set()    
+
+        event.set()
         tdLog.debug("complete to create database[%s], stable[%s] and %d child tables" %(dbName, stbName, ctbNum))
         return
 
@@ -104,7 +104,7 @@ class TDTestCase:
             tsql.execute(sql)
         tdLog.debug("insert data ............ [OK]")
         return
-        
+
     def prepareEnv(self, **parameterDict):
         print ("input parameters:")
         print (parameterDict)
@@ -123,7 +123,7 @@ class TDTestCase:
                          parameterDict["ctbNum"],\
                          parameterDict["rowsPerTbl"],\
                          parameterDict["batchNum"],\
-                         parameterDict["startTs"])                           
+                         parameterDict["startTs"])
         return
 
     def tmqCase1(self, cfgPath, buildPath):
@@ -144,12 +144,12 @@ class TDTestCase:
 
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
-        
+
         tdLog.info("create topics from db")
         topicName1 = 'topic_db1'
-        
+
         tdSql.execute("create topic %s as %s" %(topicName1, parameterDict['dbName']))
-        
+
         tdLog.info("create consume info table and consume result table")
         cdbName = parameterDict["dbName"]
         tdSql.query("create table %s.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int)"%cdbName)
@@ -166,20 +166,20 @@ class TDTestCase:
         sql = "insert into %s.consumeinfo values "%cdbName
         sql += "(now, %d, '%s', '%s', %d, %d)"%(consumerId, topicList, keyList, expectrowcnt, ifcheckdata)
         tdSql.query(sql)
-        
+
         event.wait()
 
         tdLog.info("start consume processor")
         pollDelay = 5
         showMsg   = 1
         showRow   = 1
-        
+
         valgrind = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow, cdbName,valgrind)
 
         # wait for data ready
         prepareEnvThread.join()
-        
+
         tdLog.info("insert process end, and start to check consume result")
         while 1:
             tdSql.query("select * from %s.consumeresult"%cdbName)
@@ -217,12 +217,12 @@ class TDTestCase:
 
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
-        
+
         tdLog.info("create topics from db")
         topicName1 = 'topic_db1'
-        
+
         tdSql.execute("create topic %s as %s" %(topicName1, parameterDict['dbName']))
-        
+
         tdLog.info("create consume info table and consume result table")
         cdbName = parameterDict["dbName"]
         tdSql.query("create table %s.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int)"%cdbName)
@@ -239,25 +239,25 @@ class TDTestCase:
         sql = "insert into %s.consumeinfo values "%cdbName
         sql += "(now, %d, '%s', '%s', %d, %d)"%(consumerId, topicList, keyList, expectrowcnt, ifcheckdata)
         tdSql.query(sql)
-        
+
         consumerId   = 1
         sql = "insert into %s.consumeinfo values "%cdbName
         sql += "(now, %d, '%s', '%s', %d, %d)"%(consumerId, topicList, keyList, expectrowcnt, ifcheckdata)
         tdSql.query(sql)
-        
+
         event.wait()
 
         tdLog.info("start consume processor")
         pollDelay = 5
         showMsg   = 1
         showRow   = 1
-        
+
         valgrind = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow, cdbName,valgrind)
 
         # wait for data ready
         prepareEnvThread.join()
-        
+
         tdLog.info("insert process end, and start to check consume result")
         while 1:
             tdSql.query("select * from %s.consumeresult"%cdbName)
@@ -317,9 +317,9 @@ class TDTestCase:
 
         tdLog.info("create topics from db")
         topicName1 = 'topic_db1'
-        
+
         tdSql.execute("create topic %s as %s" %(topicName1, parameterDict['dbName']))
-        
+
         tdLog.info("create consume info table and consume result table")
         cdbName = parameterDict["dbName"]
         tdSql.query("create table %s.consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int)"%cdbName)
@@ -336,25 +336,25 @@ class TDTestCase:
         sql = "insert into %s.consumeinfo values "%cdbName
         sql += "(now, %d, '%s', '%s', %d, %d)"%(consumerId, topicList, keyList, expectrowcnt, ifcheckdata)
         tdSql.query(sql)
-        
+
         # consumerId   = 1
         # sql = "insert into %s.consumeinfo values "%cdbName
         # sql += "(now, %d, '%s', '%s', %d, %d)"%(consumerId, topicList, keyList, expectrowcnt, ifcheckdata)
         # tdSql.query(sql)
-        
+
         event.wait()
 
         tdLog.info("start consume processor")
         pollDelay = 5
         showMsg   = 1
-        showRow   = 1        
+        showRow   = 1
         valgrind  = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow, cdbName,valgrind)
 
         # wait for data ready
-        prepareEnvThread.join()        
+        prepareEnvThread.join()
         prepareEnvThread2.join()
-        
+
         tdLog.info("insert process end, and start to check consume result")
         while 1:
             tdSql.query("select * from %s.consumeresult"%cdbName)
@@ -392,7 +392,7 @@ class TDTestCase:
         tdLog.info("cfgPath: %s" % cfgPath)
 
         self.tmqCase1(cfgPath, buildPath)
-        #self.tmqCase2(cfgPath, buildPath)        
+        #self.tmqCase2(cfgPath, buildPath)
         #self.tmqCase3(cfgPath, buildPath)
 
     def stop(self):

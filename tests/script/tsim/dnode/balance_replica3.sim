@@ -1,0 +1,359 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+system sh/deploy.sh -n dnode5 -i 5
+system sh/cfg.sh -n dnode1 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode2 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode3 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode4 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode5 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode1 -c supportVnodes -v 0
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode4 -s start
+sql connect
+
+print =============== step1 create dnode2
+sql create dnode $hostname port 7200
+sql create dnode $hostname port 7300
+sql create dnode $hostname port 7400
+sql create dnode $hostname port 7500
+
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+print ===> $data30 $data31 $data32 $data33 $data34 $data35
+print ===> $data40 $data41 $data42 $data43 $data44 $data45
+if $rows != 5 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
+endi
+if $data(2)[4] != ready then
+  goto step1
+endi
+if $data(3)[4] != ready then
+  goto step1
+endi
+if $data(4)[4] != ready then
+  goto step1
+endi
+
+print =============== step2: create db
+sql create database d1 vgroups 4 replica 3
+
+print =============== step32 wait vgroup2
+$x = 0
+step32:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+print ===> $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
+print ===> $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
+print ===> $data30 $data31 $data32 $data33 $data34 $data35 $data36 $data37 $data38 $data39
+if $rows != 4 then
+  return -1
+endi
+if $data(2)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step32
+endi
+
+print =============== step33 wait vgroup3
+$x = 0
+step33:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+print ===> $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
+print ===> $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
+print ===> $data30 $data31 $data32 $data33 $data34 $data35 $data36 $data37 $data38 $data39
+if $rows != 4 then
+  return -1
+endi
+if $data(3)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(3)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(3)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step33
+endi
+
+print =============== step34 wait vgroup4
+$x = 0
+step34:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+print ===> $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
+print ===> $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
+print ===> $data30 $data31 $data32 $data33 $data34 $data35 $data36 $data37 $data38 $data39
+if $rows != 4 then
+  return -1
+endi
+if $data(4)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(4)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(4)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step34
+endi
+
+print =============== step35 wait vgroup5
+$x = 0
+step35:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+print ===> $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
+print ===> $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
+print ===> $data30 $data31 $data32 $data33 $data34 $data35 $data36 $data37 $data38 $data39
+if $rows != 4 then
+  return -1
+endi
+if $data(4)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(4)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(4)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step35
+endi
+
+print =============== step36: create table
+sql use d1
+sql create table d1.st (ts timestamp, i int) tags (j int)
+sql create table d1.c1 using st tags(1)
+sql create table d1.c2 using st tags(1)
+sql create table d1.c3 using st tags(1)
+sql create table d1.c4 using st tags(1)
+sql create table d1.c5 using st tags(1)
+sql create table d1.c6 using st tags(1)
+sql show d1.tables
+if $rows != 6 then
+  return -1
+endi
+
+print =============== step4: start dnode5
+system sh/exec.sh -n dnode5 -s start
+$x = 0
+step4:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+print ===> $data20 $data21 $data22 $data23 $data24 $data25
+print ===> $data30 $data31 $data32 $data33 $data34 $data35
+print ===> $data40 $data41 $data42 $data43 $data44 $data45
+if $rows != 5 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step4
+endi
+if $data(2)[4] != ready then
+  goto step4
+endi
+if $data(3)[4] != ready then
+  goto step4
+endi
+if $data(4)[4] != ready then
+  goto step4
+endi
+if $data(5)[4] != ready then
+  goto step4
+endi
+
+print =============== step5: balance
+sql balance vgroup
+
+print =============== step62 wait vgroup2
+$x = 0
+step62:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+print ===> $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
+print ===> $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
+print ===> $data30 $data31 $data32 $data33 $data34 $data35 $data36 $data37 $data38 $data39
+if $rows != 4 then
+  return -1
+endi
+if $data(2)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(2)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step62
+endi
+
+print =============== step63 wait vgroup3
+$x = 0
+step63:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+print ===> $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
+print ===> $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
+print ===> $data30 $data31 $data32 $data33 $data34 $data35 $data36 $data37 $data38 $data39
+if $rows != 4 then
+  return -1
+endi
+if $data(3)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(3)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(3)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step63
+endi
+
+print =============== step64 wait vgroup4
+$x = 0
+step64:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+print ===> $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
+print ===> $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
+print ===> $data30 $data31 $data32 $data33 $data34 $data35 $data36 $data37 $data38 $data39
+if $rows != 4 then
+  return -1
+endi
+if $data(4)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(4)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(4)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step64
+endi
+
+print =============== step65 wait vgroup5
+$x = 0
+step65:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> db not ready!
+		return -1
+	endi
+sql show d1.vgroups
+print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+print ===> $data10 $data11 $data12 $data13 $data14 $data15 $data16 $data17 $data18 $data19
+print ===> $data20 $data21 $data22 $data23 $data24 $data25 $data26 $data27 $data28 $data29
+print ===> $data30 $data31 $data32 $data33 $data34 $data35 $data36 $data37 $data38 $data39
+if $rows != 4 then
+  return -1
+endi
+if $data(4)[4] == leader then
+  $leaderExist = 1
+endi
+if $data(4)[6] == leader then
+  $leaderExist = 1
+endi
+if $data(4)[8] == leader then
+  $leaderExist = 1
+endi
+if  $leaderExist != 1 then
+  goto step65
+endi
+
+print =============== step7: select data
+sql show d1.tables
+print rows $rows
+if $rows != 6 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop -x SIGINT

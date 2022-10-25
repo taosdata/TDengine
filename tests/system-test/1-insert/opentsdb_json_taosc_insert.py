@@ -27,13 +27,13 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-        self._conn = conn 
+        self._conn = conn
         self.defaultJSONStrType_value = "NCHAR"
 
     def createDb(self, name="test", db_update_tag=0, protocol=None):
         if protocol == "telnet-tcp":
             name = "opentsdb_telnet"
-            
+
         if db_update_tag == 0:
             tdSql.execute(f"drop database if exists {name}")
             tdSql.execute(f"create database if not exists {name} precision 'ms' schemaless 1")
@@ -225,7 +225,7 @@ class TDTestCase:
 
     def genTagValue(self, t0_type="bool", t0_value="", t1_type="tinyint", t1_value=127, t2_type="smallint", t2_value=32767,
                     t3_type="int", t3_value=2147483647, t4_type="bigint", t4_value=9223372036854775807,
-                    t5_type="float", t5_value=11.12345027923584, t6_type="double", t6_value=22.123456789, 
+                    t5_type="float", t5_value=11.12345027923584, t6_type="double", t6_value=22.123456789,
                     t7_type="binary", t7_value="binaryTagValue", t8_type="nchar", t8_value="ncharTagValue", value_type="obj"):
         if t0_value == "":
             t0_value = random.choice([True, False])
@@ -256,9 +256,9 @@ class TDTestCase:
             }
         return tag_value
 
-    def genFullTypeJson(self, ts_value="", col_value="", tag_value="", stb_name="", tb_name="", 
+    def genFullTypeJson(self, ts_value="", col_value="", tag_value="", stb_name="", tb_name="",
                         id_noexist_tag=None, id_change_tag=None, id_upper_tag=None, id_mixul_tag=None, id_double_tag=None,
-                        t_add_tag=None, t_mul_tag=None, c_multi_tag=None, c_blank_tag=None, t_blank_tag=None, 
+                        t_add_tag=None, t_mul_tag=None, c_multi_tag=None, c_blank_tag=None, t_blank_tag=None,
                         chinese_tag=None, multi_field_tag=None, point_trans_tag=None, value_type="obj"):
         if value_type == "obj":
             if stb_name == "":
@@ -370,7 +370,7 @@ class TDTestCase:
             if point_trans_tag is not None:
                 sql_json = {"metric": ".point.trans.test", "timestamp": ts_value, "value": col_value, "tags": tag_value}
         return sql_json, stb_name
-    
+
     def genMulTagColDict(self, genType, count=1, value_type="obj"):
         """
             genType must be tag/col
@@ -459,7 +459,7 @@ class TDTestCase:
             normal tags and cols, one for every elm
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(value_type=value_type)
         self.resCmp(input_json, stb_name)
 
@@ -468,7 +468,7 @@ class TDTestCase:
             check all normal type
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         full_type_list = ["f", "F", "false", "False", "t", "T", "true", "True"]
         for t_type in full_type_list:
             input_json_list = [self.genFullTypeJson(tag_value=self.genTagValue(t0_value=t_type))[0],
@@ -479,22 +479,22 @@ class TDTestCase:
                     raise Exception("should not reach here")
                 except SchemalessError as err:
                     tdSql.checkNotEqual(err.errno, 0)
-        
+
     def symbolsCheckCase(self, value_type="obj"):
         """
-            check symbols = `~!@#$%^&*()_-+={[}]\|:;'\",<.>/? 
+            check symbols = `~!@#$%^&*()_-+={[}]\|:;'\",<.>/?
         """
         '''
             please test :
             binary_symbols = '\"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal"\'\'"\"'
         '''
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         binary_symbols = '"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal"'
         nchar_symbols = binary_symbols
-        input_sql1, stb_name1 = self.genFullTypeJson(col_value=self.genTsColValue(value=binary_symbols, t_type="binary", value_type=value_type), 
+        input_sql1, stb_name1 = self.genFullTypeJson(col_value=self.genTsColValue(value=binary_symbols, t_type="binary", value_type=value_type),
                                     tag_value=self.genTagValue(t7_value=binary_symbols, t8_value=nchar_symbols, value_type=value_type))
-        input_sql2, stb_name2 = self.genFullTypeJson(col_value=self.genTsColValue(value=nchar_symbols, t_type="nchar", value_type=value_type), 
+        input_sql2, stb_name2 = self.genFullTypeJson(col_value=self.genTsColValue(value=nchar_symbols, t_type="nchar", value_type=value_type),
                                     tag_value=self.genTagValue(t7_value=binary_symbols, t8_value=nchar_symbols, value_type=value_type))
         self.resCmp(input_sql1, stb_name1)
         self.resCmp(input_sql2, stb_name2)
@@ -505,7 +505,7 @@ class TDTestCase:
             # ! us级时间戳都为0时，数据库中查询显示，但python接口拿到的结果不显示 .000000的情况请确认，目前修改时间处理代码可以通过
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         ts_list = ["1626006833639000000ns", "1626006833639019us", "1626006833640ms", "1626006834s", "1626006834", 0]
         for ts in ts_list:
             if "s" in str(ts):
@@ -571,17 +571,17 @@ class TDTestCase:
             eg: t0=**,id=**,t1=**
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(id_change_tag=True, value_type=value_type)
         self.resCmp(input_json, stb_name)
-    
+
     def idLetterCheckCase(self, value_type="obj"):
         """
             check id param
             eg: id and ID
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(id_upper_tag=True, value_type=value_type)
         self.resCmp(input_json, stb_name)
         input_json, stb_name = self.genFullTypeJson(id_mixul_tag=True, value_type=value_type)
@@ -594,7 +594,7 @@ class TDTestCase:
             id not exist
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(id_noexist_tag=True, value_type=value_type)
         self.resCmp(input_json, stb_name)
         query_sql = f"select tbname from {stb_name}"
@@ -610,22 +610,22 @@ class TDTestCase:
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         for input_json in [self.genLongJson(128, value_type)[0]]:
-            tdCom.cleanTb()
+            tdCom.cleanTb(dbname="test")
             self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         for input_json in [self.genLongJson(129, value_type)[0]]:
-            tdCom.cleanTb()
+            tdCom.cleanTb(dbname="test")
             try:
                 self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
-            
+
     def idIllegalNameCheckCase(self, value_type="obj"):
         """
             test illegal id name
             mix "`~!@#$¥%^&*()-+={}|[]、「」【】\:;《》<>?"
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         rstr = list("`~!@#$¥%^&*()-+={}|[]、「」【】\:;《》<>?")
         for i in rstr:
             input_json = self.genFullTypeJson(tb_name=f'aa{i}bb', value_type=value_type)[0]
@@ -639,7 +639,7 @@ class TDTestCase:
             id is start with num
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = self.genFullTypeJson(tb_name="1aaabbb", value_type=value_type)[0]
         try:
             self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -651,7 +651,7 @@ class TDTestCase:
             check now unsupported
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = self.genFullTypeJson(ts_value=self.genTsColValue(value="now", t_type="ns", value_type=value_type))[0]
         try:
             self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -663,19 +663,19 @@ class TDTestCase:
             check date format ts unsupported
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = self.genFullTypeJson(ts_value=self.genTsColValue(value="2021-07-21\ 19:01:46.920", t_type="ns", value_type=value_type))[0]
         try:
             self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
-    
+
     def illegalTsCheckCase(self, value_type="obj"):
         """
             check ts format like 16260068336390us19
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = self.genFullTypeJson(ts_value=self.genTsColValue(value="16260068336390us19", t_type="us", value_type=value_type))[0]
         try:
             self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -690,7 +690,7 @@ class TDTestCase:
             length of stb_name tb_name <= 192
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tdSql.execute('reset query cache')
         stb_name_192 = tdCom.getLongName(len=192, mode="letters")
         tb_name_192 = tdCom.getLongName(len=192, mode="letters")
@@ -715,7 +715,7 @@ class TDTestCase:
             check tag name limit <= 62
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tag_name = tdCom.getLongName(61, "letters")
         tag_name = f't{tag_name}'
         stb_name = tdCom.getLongName(7, "letters")
@@ -726,14 +726,14 @@ class TDTestCase:
             self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
-            tdSql.checkNotEqual(err.errno, 0)   
+            tdSql.checkNotEqual(err.errno, 0)
 
     def tagValueLengthCheckCase(self, value_type="obj"):
         """
             check full type tag value limit
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         # i8
         for t1 in [-127, 127]:
             input_json, stb_name = self.genFullTypeJson(tag_value=self.genTagValue(t1_value=t1, value_type=value_type))
@@ -770,11 +770,11 @@ class TDTestCase:
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
-        #i64 
+        #i64
         for t4 in [-9223372036854775807, 9223372036854775807]:
             input_json, stb_name = self.genFullTypeJson(tag_value=self.genTagValue(t4_value=t4, value_type=value_type))
             self.resCmp(input_json, stb_name)
-            
+
         for t4 in [-9223372036854775808, 9223372036854775808]:
             input_json = self.genFullTypeJson(tag_value=self.genTagValue(t4_value=t4))[0]
             try:
@@ -809,7 +809,7 @@ class TDTestCase:
                 tdSql.checkNotEqual(err.errno, 0)
 
         if value_type == "obj":
-            # binary 
+            # binary
             stb_name = tdCom.getLongName(7, "letters")
             input_json = {"metric": stb_name, "timestamp": {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': True, 'type': 'bool'}, "tags": {"t0": {'value': True, 'type': 'bool'}, "t1":{'value': tdCom.getLongName(16374, "letters"), 'type': 'binary'}}}
             self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -854,12 +854,12 @@ class TDTestCase:
             check full type col value limit
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         # i8
         for value in [-128, 127]:
             input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="tinyint", value_type=value_type))
             self.resCmp(input_json, stb_name)
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         for value in [-129, 128]:
             input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="tinyint"))[0]
             try:
@@ -868,11 +868,11 @@ class TDTestCase:
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
         # i16
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         for value in [-32768]:
             input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="smallint", value_type=value_type))
             self.resCmp(input_json, stb_name)
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         for value in [-32769, 32768]:
             input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="smallint"))[0]
             try:
@@ -882,11 +882,11 @@ class TDTestCase:
                 tdSql.checkNotEqual(err.errno, 0)
 
         # i32
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         for value in [-2147483648]:
             input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="int", value_type=value_type))
             self.resCmp(input_json, stb_name)
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         for value in [-2147483649, 2147483648]:
             input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="int"))[0]
             try:
@@ -895,13 +895,13 @@ class TDTestCase:
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
-        # i64 
-        tdCom.cleanTb()
+        # i64
+        tdCom.cleanTb(dbname="test")
         for value in [-9223372036854775808]:
             input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="bigint", value_type=value_type))
             self.resCmp(input_json, stb_name)
         # ! bug
-        # tdCom.cleanTb()
+        # tdCom.cleanTb(dbname="test")
         # for value in [-9223372036854775809, 9223372036854775808]:
         #     print(value)
         #     input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="bigint"))[0]
@@ -912,13 +912,13 @@ class TDTestCase:
         #     except SchemalessError as err:
         #         tdSql.checkNotEqual(err.errno, 0)
 
-        # f32       
-        tdCom.cleanTb()
+        # f32
+        tdCom.cleanTb(dbname="test")
         for value in [-3.4028234663852885981170418348451692544*(10**38), 3.4028234663852885981170418348451692544*(10**38)]:
             input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="float", value_type=value_type))
             self.resCmp(input_json, stb_name)
         # * limit set to 4028234664*(10**38)
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         for value in [-3.4028234664*(10**38), 3.4028234664*(10**38)]:
             input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="float"))[0]
             try:
@@ -928,12 +928,12 @@ class TDTestCase:
                 tdSql.checkNotEqual(err.errno, 0)
 
         # f64
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         for value in [-1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308), -1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308)]:
             input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="double", value_type=value_type))
             self.resCmp(input_json, stb_name)
         # * limit set to 1.797693134862316*(10**308)
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         for value in [-1.797693134862316*(10**308), -1.797693134862316*(10**308)]:
             input_json = self.genFullTypeJson(col_value=self.genTsColValue(value=value, t_type="double", value_type=value_type))[0]
             try:
@@ -943,13 +943,13 @@ class TDTestCase:
                 tdSql.checkNotEqual(err.errno, 0)
 
         # if value_type == "obj":
-        #     # binary 
-        #     tdCom.cleanTb()
+        #     # binary
+        #     tdCom.cleanTb(dbname="test")
         #     stb_name = tdCom.getLongName(7, "letters")
         #     input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(16374, "letters"), 'type': 'binary'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
         #     self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
-            
-        #     tdCom.cleanTb()
+
+        #     tdCom.cleanTb(dbname="test")
         #     input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(16375, "letters"), 'type': 'binary'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
         #     try:
         #         self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -959,12 +959,12 @@ class TDTestCase:
 
         #     # nchar
         #     # * legal nchar could not be larger than 16374/4
-        #     tdCom.cleanTb()
+        #     tdCom.cleanTb(dbname="test")
         #     stb_name = tdCom.getLongName(7, "letters")
         #     input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(4093, "letters"), 'type': 'nchar'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
         #     self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
 
-        #     tdCom.cleanTb()
+        #     tdCom.cleanTb(dbname="test")
         #     input_json = {"metric": stb_name, "timestamp":  {'value': 1626006833639000000, 'type': 'ns'}, "value": {'value': tdCom.getLongName(4094, "letters"), 'type': 'nchar'}, "tags": {"t0": {'value': True, 'type': 'bool'}}}
         #     try:
         #         self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -972,15 +972,15 @@ class TDTestCase:
         #     except SchemalessError as err:
         #         tdSql.checkNotEqual(err.errno, 0)
         # elif value_type == "default":
-        #     # binary 
-        #     tdCom.cleanTb()
+        #     # binary
+        #     tdCom.cleanTb(dbname="test")
         #     stb_name = tdCom.getLongName(7, "letters")
         #     if tdSql.getVariable("defaultJSONStrType")[0].lower() == "binary":
         #         input_json = {"metric": stb_name, "timestamp": 1626006834, "value": tdCom.getLongName(16374, "letters"), "tags": {"t0": {'value': True, 'type': 'bool'}}}
         #     elif tdSql.getVariable("defaultJSONStrType")[0].lower() == "nchar":
         #         input_json = {"metric": stb_name, "timestamp": 1626006834, "value": tdCom.getLongName(4093, "letters"), "tags": {"t0": {'value': True, 'type': 'bool'}}}
         #     self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
-        #     tdCom.cleanTb()
+        #     tdCom.cleanTb(dbname="test")
         #     if tdSql.getVariable("defaultJSONStrType")[0].lower() == "binary":
         #         input_json = {"metric": stb_name, "timestamp": 1626006834, "value": tdCom.getLongName(16375, "letters"), "tags": {"t0": {'value': True, 'type': 'bool'}}}
         #     elif tdSql.getVariable("defaultJSONStrType")[0].lower() == "nchar":
@@ -997,7 +997,7 @@ class TDTestCase:
             test illegal tag col value
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         # bool
         for i in ["TrUe", "tRue", "trUe", "truE", "FalsE", "fAlse", "faLse", "falSe", "falsE"]:
             try:
@@ -1010,12 +1010,12 @@ class TDTestCase:
 
         # i8 i16 i32 i64 f32 f64
         for input_json in [
-                self.genFullTypeJson(tag_value=self.genTagValue(t1_value="1s2"))[0], 
-                self.genFullTypeJson(tag_value=self.genTagValue(t2_value="1s2"))[0], 
-                self.genFullTypeJson(tag_value=self.genTagValue(t3_value="1s2"))[0], 
-                self.genFullTypeJson(tag_value=self.genTagValue(t4_value="1s2"))[0], 
-                self.genFullTypeJson(tag_value=self.genTagValue(t5_value="11.1s45"))[0], 
-                self.genFullTypeJson(tag_value=self.genTagValue(t6_value="11.1s45"))[0], 
+                self.genFullTypeJson(tag_value=self.genTagValue(t1_value="1s2"))[0],
+                self.genFullTypeJson(tag_value=self.genTagValue(t2_value="1s2"))[0],
+                self.genFullTypeJson(tag_value=self.genTagValue(t3_value="1s2"))[0],
+                self.genFullTypeJson(tag_value=self.genTagValue(t4_value="1s2"))[0],
+                self.genFullTypeJson(tag_value=self.genTagValue(t5_value="11.1s45"))[0],
+                self.genFullTypeJson(tag_value=self.genTagValue(t6_value="11.1s45"))[0],
             ]:
             try:
                 self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -1033,7 +1033,7 @@ class TDTestCase:
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
 
-        # check accepted binary and nchar symbols 
+        # check accepted binary and nchar symbols
         # # * ~!@#$¥%^&*()-+={}|[]、「」:;
         for symbol in list('~!@#$¥%^&*()-+={}|[]、「」:;'):
             input_json1 = self.genFullTypeJson(col_value=self.genTsColValue(value=f"abc{symbol}aaa", t_type="binary", value_type=value_type))[0]
@@ -1046,7 +1046,7 @@ class TDTestCase:
             check duplicate Id Tag Col
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = self.genFullTypeJson(id_double_tag=True, value_type=value_type)[0]
         print(input_json)
         try:
@@ -1068,7 +1068,7 @@ class TDTestCase:
             case no id when stb exist
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(tb_name="sub_table_0123456", col_value=self.genTsColValue(value=True, t_type="bool", value_type=value_type), tag_value=self.genTagValue(t0_value=True, value_type=value_type))
         self.resCmp(input_json, stb_name)
         input_json, stb_name = self.genFullTypeJson(stb_name=stb_name, id_noexist_tag=True, col_value=self.genTsColValue(value=True, t_type="bool", value_type=value_type), tag_value=self.genTagValue(t0_value=True, value_type=value_type))
@@ -1081,7 +1081,7 @@ class TDTestCase:
             check duplicate insert when stb exist
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(value_type=value_type)
         self.resCmp(input_json, stb_name)
         self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -1091,7 +1091,7 @@ class TDTestCase:
         """
             check length increase
         """
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(value_type=value_type)
         self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         self.resCmp(input_json, stb_name)
@@ -1105,7 +1105,7 @@ class TDTestCase:
             check length increase
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         stb_name = "test_crash"
         input_json = self.genFullTypeJson(stb_name=stb_name)[0]
         self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -1123,12 +1123,12 @@ class TDTestCase:
             check tag count add, stb and tb duplicate
             * tag: alter table ...
             * col: when update==0 and ts is same, unchange
-            * so this case tag&&value will be added, 
+            * so this case tag&&value will be added,
             * col is added without value when update==0
             * col is added with value when update==1
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         for db_update_tag in [0, 1]:
             if db_update_tag == 1 :
@@ -1139,14 +1139,14 @@ class TDTestCase:
             if db_update_tag == 1 :
                 self.resCmp(input_json, stb_name, condition=f'where tbname like "{tb_name}"', none_check_tag=True)
                 tdSql.query(f'select * from {stb_name} where tbname like "{tb_name}"')
-                tdSql.checkData(0, 11, None)  
-                tdSql.checkData(0, 12, None)  
+                tdSql.checkData(0, 11, None)
+                tdSql.checkData(0, 12, None)
             else:
                 self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
                 tdSql.query(f'select * from {stb_name} where tbname like "{tb_name}"')
-                tdSql.checkData(0, 1, True)  
-                tdSql.checkData(0, 11, None)  
-                tdSql.checkData(0, 12, None)  
+                tdSql.checkData(0, 1, True)
+                tdSql.checkData(0, 11, None)
+                tdSql.checkData(0, 12, None)
             self.createDb()
 
     def tagAddCheckCase(self, value_type="obj"):
@@ -1154,7 +1154,7 @@ class TDTestCase:
             check tag count add
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value=True, t_type="bool", value_type=value_type), tag_value=self.genTagValue(t0_value=True, value_type=value_type))
         self.resCmp(input_json, stb_name)
@@ -1171,7 +1171,7 @@ class TDTestCase:
             insert two table, keep tag unchange, change col
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value=True, t_type="bool", value_type=value_type), tag_value=self.genTagValue(t0_value=True, value_type=value_type), id_noexist_tag=True)
         self.resCmp(input_json, stb_name)
         tb_name1 = self.getNoIdTbName(stb_name)
@@ -1194,7 +1194,7 @@ class TDTestCase:
             every binary and nchar must be length+2
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         stb_name = tdCom.getLongName(7, "letters")
         tb_name = f'{stb_name}_1'
         tag_value = {"t0": {"value": True, "type": "bool"}}
@@ -1216,7 +1216,7 @@ class TDTestCase:
                 tag_value["t2"] = tdCom.getLongName(1, "letters")
         tag_value.pop('id')
         self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
-        
+
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(2)
         if value_type == "obj":
@@ -1240,7 +1240,7 @@ class TDTestCase:
             check nchar length limit
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         stb_name = tdCom.getLongName(7, "letters")
         tb_name = f'{stb_name}_1'
         tag_value = {"t0": True}
@@ -1284,7 +1284,7 @@ class TDTestCase:
             test batch insert
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         stb_name = "stb_name"
         tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 bigint)')
         input_json = [{"metric": "st123456", "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": {"value": 1, "type": "bigint"}, "tags": {"t1": {"value": 3, "type": "bigint"}, "t2": {"value": 4, "type": "double"}, "t3": {"value": "t3", "type": "binary"}}},
@@ -1313,13 +1313,13 @@ class TDTestCase:
         tdSql.checkRows(6)
         tdSql.query('select * from st123456')
         tdSql.checkRows(5)
-    
+
     def multiInsertCheckCase(self, count, value_type="obj"):
         """
             test multi insert
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         sql_list = list()
         stb_name = tdCom.getLongName(8, "letters")
         tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 bigint)')
@@ -1335,7 +1335,7 @@ class TDTestCase:
             test batch error insert
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = [{"metric": "st123456", "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": {"value": "tt", "type": "bool"}, "tags": {"t1": {"value": 3, "type": "bigint"}, "t2": {"value": 4, "type": "double"}, "t3": {"value": "t3", "type": "binary"}}},
                     {"metric": "st123456", "timestamp": {"value": 1626006933641000000, "type": "ns"}, "value": {"value": 9, "type": "bigint"}, "tags": {"t1": {"value": 4, "type": "bigint"}, "t3": {"value": "t4", "type": "binary"}, "t2": {"value": 5, "type": "double"}, "t4": {"value": 5, "type": "double"}}}]
         try:
@@ -1349,20 +1349,20 @@ class TDTestCase:
             test multi cols insert
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = self.genFullTypeJson(c_multi_tag=True, value_type=value_type)[0]
         try:
             self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
-    
+
     def blankColInsertCheckCase(self, value_type="obj"):
         """
             test blank col insert
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = self.genFullTypeJson(c_blank_tag=True, value_type=value_type)[0]
         try:
             self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -1375,20 +1375,20 @@ class TDTestCase:
             test blank tag insert
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = self.genFullTypeJson(t_blank_tag=True, value_type=value_type)[0]
         try:
             self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             raise Exception("should not reach here")
         except SchemalessError as err:
             tdSql.checkNotEqual(err.errno, 0)
-    
+
     def chineseCheckCase(self):
         """
             check nchar ---> chinese
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(chinese_tag=True)
         self.resCmp(input_json, stb_name)
 
@@ -1397,7 +1397,7 @@ class TDTestCase:
             multi_field
         '''
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = self.genFullTypeJson(multi_field_tag=True, value_type=value_type)[0]
         try:
             self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
@@ -1407,7 +1407,7 @@ class TDTestCase:
 
     def spellCheckCase(self):
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         stb_name = tdCom.getLongName(8, "letters")
         input_json_list = [{"metric": f'{stb_name}_1', "timestamp": {"value": 1626006833639000000, "type": "Ns"}, "value": {"value": 1, "type": "Bigint"}, "tags": {"t1": {"value": 127, "type": "tinYint"}}},
                         {"metric": f'{stb_name}_2', "timestamp": {"value": 1626006833639000001, "type": "nS"}, "value": {"value": 32767, "type": "smallInt"}, "tags": {"t1": {"value": 32767, "type": "smallInt"}}},
@@ -1419,14 +1419,14 @@ class TDTestCase:
                         {"metric": f'{stb_name}_8', "timestamp": {"value": 1626006833641, "type": "mS"}, "value": {"value": "vozamcts", "type": "nchAr"}, "tags": {"t1": {"value": "vozamcts", "type": "nchAr"}}},
                         {"metric": f'{stb_name}_9', "timestamp": {"value": 1626006833642, "type": "MS"}, "value": {"value": "vozamcts", "type": "nchAr"}, "tags": {"t1": {"value": "vozamcts", "type": "nchAr"}}},
                         {"metric": f'{stb_name}_10', "timestamp": {"value": 1626006834, "type": "S"}, "value": {"value": "vozamcts", "type": "nchAr"}, "tags": {"t1": {"value": "vozamcts", "type": "nchAr"}}}]
-       
+
         for input_sql in input_json_list:
             stb_name = input_sql["metric"]
             self.resCmp(input_sql, stb_name)
 
     def tbnameTagsColsNameCheckCase(self):
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = {'metric': 'rFa$sta', 'timestamp': {'value': 1626006834, 'type': 's'}, 'value': {'value': True, 'type': 'bool'}, 'tags': {'Tt!0': {'value': False, 'type': 'bool'}, 'tT@1': {'value': 127, 'type': 'tinyint'}, 't@2': {'value': 32767, 'type': 'smallint'}, 't$3': {'value': 2147483647, 'type': 'int'}, 't%4': {'value': 9223372036854775807, 'type': 'bigint'}, 't^5': {'value': 11.12345027923584, 'type': 'float'}, 't&6': {'value': 22.123456789, 'type': 'double'}, 't*7': {'value': 'binaryTagValue', 'type': 'binary'}, 't!@#$%^&*()_+[];:<>?,9': {'value': 'ncharTagValue', 'type': 'nchar'}, 'id': 'rFas$ta_1'}}
         self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         query_sql = 'select * from `rFa$sta`'
@@ -1441,7 +1441,7 @@ class TDTestCase:
             metric value "." trans to "_"
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = self.genFullTypeJson(point_trans_tag=True, value_type=value_type)[0]
         self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
         tdSql.execute("drop table `.point.trans.test`")
@@ -1509,18 +1509,18 @@ class TDTestCase:
             thread input different stb
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json = self.genSqlList(value_type=value_type)[0]
         self.multiThreadRun(self.genMultiThreadSeq(input_json))
         tdSql.query(f"show tables;")
         tdSql.checkRows(5)
-    
+
     def sStbStbDdataInsertMultiThreadCheckCase(self, value_type="obj"):
         """
             thread input same stb tb, different data, result keep first data
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value="binaryTagValue", t_type="binary", value_type=value_type))
         self.resCmp(input_json, stb_name)
@@ -1538,7 +1538,7 @@ class TDTestCase:
             thread input same stb tb, different data, add columes and tags,  result keep first data
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value="binaryTagValue", t_type="binary", value_type=value_type))
         self.resCmp(input_json, stb_name)
@@ -1550,13 +1550,13 @@ class TDTestCase:
         tdSql.checkEqual(tb_name, expected_tb_name)
         tdSql.query(f"select * from {stb_name};")
         tdSql.checkRows(1)
-    
+
     def sStbStbDdataMtInsertMultiThreadCheckCase(self, value_type="obj"):
         """
             thread input same stb tb, different data, minus columes and tags,  result keep first data
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value="binaryTagValue", t_type="binary", value_type=value_type))
         self.resCmp(input_json, stb_name)
@@ -1574,7 +1574,7 @@ class TDTestCase:
             thread input same stb, different tb, different data
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value="binaryTagValue", t_type="binary", value_type=value_type))
         self.resCmp(input_json, stb_name)
         s_stb_d_tb_list = self.genSqlList(stb_name=stb_name, value_type=value_type)[4]
@@ -1587,7 +1587,7 @@ class TDTestCase:
             thread input same stb, different tb, different data, add col, mul tag
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value="binaryTagValue", t_type="binary"))
         self.resCmp(input_json, stb_name)
         s_stb_d_tb_m_tag_list = [({"metric": stb_name, "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": "omfdhyom", "tags": {"t0": {"value": False, "type": "bool"}, "t1": {"value": 127, "type": "tinyint"}, "t2": {"value": 32767, "type": "smallint"}, "t3": {"value": 2147483647, "type": "int"}, "t4": {"value": 9223372036854775807, "type": "bigint"}, "t5": {"value": 11.12345, "type": "float"}, "t6": {"value": 22.123456789, "type": "double"}}}, 'yzwswz'),
@@ -1595,7 +1595,7 @@ class TDTestCase:
                                 ({"metric": stb_name, "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": "plgkckpv", "tags": {"t0": {"value": False, "type": "bool"}, "t1": {"value": 127, "type": "tinyint"}, "t2": {"value": 32767, "type": "smallint"}, "t3": {"value": 2147483647, "type": "int"}, "t4": {"value": 9223372036854775807, "type": "bigint"}, "t5": {"value": 11.12345, "type": "float"}, "t6": {"value": 22.123456789, "type": "double"}}}, 'yzwswz'),
                                 ({"metric": stb_name, "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": "cujyqvlj", "tags": {"t0": {"value": False, "type": "bool"}, "t1": {"value": 127, "type": "tinyint"}, "t2": {"value": 32767, "type": "smallint"}, "t3": {"value": 2147483647, "type": "int"}, "t4": {"value": 9223372036854775807, "type": "bigint"}, "t5": {"value": 11.12345, "type": "float"}, "t6": {"value": 22.123456789, "type": "double"}}}, 'yzwswz'),
                                 ({"metric": stb_name, "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": "twjxisat", "tags": {"t0": {"value": False, "type": "bool"}, "t1": {"value": 127, "type": "tinyint"}, "t2": {"value": 32767, "type": "smallint"}, "t3": {"value": 2147483647, "type": "int"}, "t4": {"value": 9223372036854775807, "type": "bigint"}, "t5": {"value": 11.12345, "type": "float"}, "t6": {"value": 22.123456789, "type": "double"}}}, 'yzwswz')]
-       
+
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_d_tb_m_tag_list))
         tdSql.query(f"show tables;")
         tdSql.checkRows(2)
@@ -1605,7 +1605,7 @@ class TDTestCase:
             thread input same stb, different tb, different data, add tag, mul col
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value="binaryTagValue", t_type="binary", value_type=value_type))
         self.resCmp(input_json, stb_name)
         s_stb_d_tb_a_tag_list = self.genSqlList(stb_name=stb_name, value_type=value_type)[6]
@@ -1618,7 +1618,7 @@ class TDTestCase:
             thread input same stb tb, different ts
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value="binaryTagValue", t_type="binary"))
         self.resCmp(input_json, stb_name)
@@ -1638,14 +1638,14 @@ class TDTestCase:
             thread input same stb tb, different ts, add col, mul tag
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value="binaryTagValue", t_type="binary"))
         self.resCmp(input_json, stb_name)
-        s_stb_s_tb_d_ts_m_tag_list = [({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': 'pjndapjb', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'tuzsfrom', 'type': 'binary'}, 'id': tb_name}}, 'punftb'), 
-                                    ({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': 'llqzvgvw', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'nttjdzgi', 'type': 'binary'}, 'id': tb_name}}, 'punftb'), 
-                                    ({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': 'tclbosqc', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'uatpzgpi', 'type': 'binary'}, 'id': tb_name}}, 'punftb'), 
-                                    ({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': 'rlpuzodt', 'tags': {'t0': {'value': True, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'cwnpdnng', 'type': 'binary'}, 'id': tb_name}}, 'punftb'), 
+        s_stb_s_tb_d_ts_m_tag_list = [({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': 'pjndapjb', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'tuzsfrom', 'type': 'binary'}, 'id': tb_name}}, 'punftb'),
+                                    ({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': 'llqzvgvw', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'nttjdzgi', 'type': 'binary'}, 'id': tb_name}}, 'punftb'),
+                                    ({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': 'tclbosqc', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'uatpzgpi', 'type': 'binary'}, 'id': tb_name}}, 'punftb'),
+                                    ({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': 'rlpuzodt', 'tags': {'t0': {'value': True, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'cwnpdnng', 'type': 'binary'}, 'id': tb_name}}, 'punftb'),
                                     ({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': 'rhnikvfq', 'tags': {'t0': {'value': True, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'afcibyeb', 'type': 'binary'}, 'id': tb_name}}, 'punftb')]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_d_ts_m_tag_list))
         tdSql.query(f"show tables;")
@@ -1660,14 +1660,14 @@ class TDTestCase:
             thread input same stb tb, different ts, add tag, mul col
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         tb_name = tdCom.getLongName(7, "letters")
         input_json, stb_name = self.genFullTypeJson(tb_name=tb_name, col_value=self.genTsColValue(value="binaryTagValue", t_type="binary"))
         self.resCmp(input_json, stb_name)
-        s_stb_s_tb_d_ts_a_tag_list = [({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': 'pjndapjb', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'tuzsfrom', 'type': 'binary'}, 't8': {'value': 'ncharTagValue', 'type': 'nchar'}, 't11': {'value': 127, 'type': 'tinyint'}, 't10': {'value': 'ncharTagValue', 'type': 'nchar'}, 'id': tb_name}}, 'punftb'), 
-                                    ({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': 'llqzvgvw', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'nttjdzgi', 'type': 'binary'}, 't8': {'value': 'ncharTagValue', 'type': 'nchar'}, 't11': {'value': 127, 'type': 'tinyint'}, 't10': {'value': 'ncharTagValue', 'type': 'nchar'}, 'id': tb_name}}, 'punftb'), 
-                                    ({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': {'value': 'tclbosqc', 'type': 'binary'}, 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'uatpzgpi', 'type': 'binary'}, 't8': {'value': 'ncharTagValue', 'type': 'nchar'}, 't11': {'value': 127, 'type': 'tinyint'}, 't10': {'value': 'ncharTagValue', 'type': 'nchar'}, 'id': tb_name}}, 'punftb'), 
-                                    ({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': 'rlpuzodt', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'cwnpdnng', 'type': 'binary'}, 't8': {'value': 'ncharTagValue', 'type': 'nchar'}, 't11': {'value': 127, 'type': 'tinyint'}, 't10': {'value': 'ncharTagValue', 'type': 'nchar'}, 'id': tb_name}}, 'punftb'), 
+        s_stb_s_tb_d_ts_a_tag_list = [({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': 'pjndapjb', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'tuzsfrom', 'type': 'binary'}, 't8': {'value': 'ncharTagValue', 'type': 'nchar'}, 't11': {'value': 127, 'type': 'tinyint'}, 't10': {'value': 'ncharTagValue', 'type': 'nchar'}, 'id': tb_name}}, 'punftb'),
+                                    ({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': 'llqzvgvw', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'nttjdzgi', 'type': 'binary'}, 't8': {'value': 'ncharTagValue', 'type': 'nchar'}, 't11': {'value': 127, 'type': 'tinyint'}, 't10': {'value': 'ncharTagValue', 'type': 'nchar'}, 'id': tb_name}}, 'punftb'),
+                                    ({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': {'value': 'tclbosqc', 'type': 'binary'}, 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'uatpzgpi', 'type': 'binary'}, 't8': {'value': 'ncharTagValue', 'type': 'nchar'}, 't11': {'value': 127, 'type': 'tinyint'}, 't10': {'value': 'ncharTagValue', 'type': 'nchar'}, 'id': tb_name}}, 'punftb'),
+                                    ({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': 'rlpuzodt', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'cwnpdnng', 'type': 'binary'}, 't8': {'value': 'ncharTagValue', 'type': 'nchar'}, 't11': {'value': 127, 'type': 'tinyint'}, 't10': {'value': 'ncharTagValue', 'type': 'nchar'}, 'id': tb_name}}, 'punftb'),
                                     ({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': {'value': 'rhnikvfq', 'type': 'binary'}, 'tags': {'t0': {'value': True, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'afcibyeb', 'type': 'binary'}, 't8': {'value': 'ncharTagValue', 'type': 'nchar'}, 't11': {'value': 127, 'type': 'tinyint'}, 't10': {'value': 'ncharTagValue', 'type': 'nchar'}, 'id': tb_name}}, 'punftb')]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_d_ts_a_tag_list))
         tdSql.query(f"show tables;")
@@ -1683,7 +1683,7 @@ class TDTestCase:
             thread input same stb, different tb, data, ts
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value="binaryTagValue", t_type="binary", value_type=value_type))
         self.resCmp(input_json, stb_name)
         s_stb_d_tb_d_ts_list = self.genSqlList(stb_name=stb_name, value_type=value_type)[10]
@@ -1696,13 +1696,13 @@ class TDTestCase:
             thread input same stb, different tb, data, ts, add col, mul tag
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
-        tdCom.cleanTb()
+        tdCom.cleanTb(dbname="test")
         input_json, stb_name = self.genFullTypeJson(col_value=self.genTsColValue(value="binaryTagValue", t_type="binary"))
         self.resCmp(input_json, stb_name)
-        s_stb_d_tb_d_ts_m_tag_list = [({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': 'pjndapjb', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}}}, 'punftb'), 
-                                    ({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': {'value': 'llqzvgvw', 'type': 'binary'}, 'tags': {'t0': {'value': True, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}}}, 'punftb'), 
-                                    ({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': 'tclbosqc', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}}}, 'punftb'), 
-                                    ({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': {'value': 'rlpuzodt', 'type': 'binary'}, 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}}}, 'punftb'), 
+        s_stb_d_tb_d_ts_m_tag_list = [({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': 'pjndapjb', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}}}, 'punftb'),
+                                    ({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': {'value': 'llqzvgvw', 'type': 'binary'}, 'tags': {'t0': {'value': True, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}}}, 'punftb'),
+                                    ({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': 'tclbosqc', 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}}}, 'punftb'),
+                                    ({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': {'value': 'rlpuzodt', 'type': 'binary'}, 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}}}, 'punftb'),
                                     ({'metric': stb_name, 'timestamp': {'value': 0, 'type': 'ns'}, 'value': {'value': 'rhnikvfq', 'type': 'binary'}, 'tags': {'t0': {'value': False, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {"value": 9223372036854775807, "type": "bigint"}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}}}, 'punftb')]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_d_tb_d_ts_m_tag_list))
         tdSql.query(f"show tables;")
@@ -1713,7 +1713,7 @@ class TDTestCase:
             input_json = f'test_nchar 0 L"涛思数据" t0=f,t1=L"涛思数据",t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64'
             self._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
             # input_json, stb_name = self.genFullTypeJson()
-            # self.resCmp(input_json, stb_name)        
+            # self.resCmp(input_json, stb_name)
         except SchemalessError as err:
             print(err.errno)
 

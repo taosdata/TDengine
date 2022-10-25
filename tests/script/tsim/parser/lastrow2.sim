@@ -1,0 +1,91 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create database d1;
+sql use d1;
+
+print ========>td-1317, empty table last_row query crashed
+sql drop table if exists m1;
+sql create table m1(ts timestamp, k int) tags (a int);
+sql create table t1 using m1 tags(1);
+sql create table t2 using m1 tags(2);
+
+sql select last_row(*) from t1
+if $rows != 0 then
+  return -1
+endi
+sql select last_row(*) from m1
+if $rows != 0 then
+  return -1
+endi
+sql select last_row(*) from m1 where tbname in ('t1')
+if $rows != 0 then
+  return -1
+endi
+
+sql insert into t1 values('2019-1-1 1:1:1', 1);
+print ===================> last_row query against normal table along with ts/tbname
+sql select last_row(*),ts,'k' from t1;
+if $rows != 1 then
+  return -1
+endi
+
+print ===================> last_row + user-defined column + normal tables
+sql select last_row(ts), 'abc', 1234.9384, ts from t1
+if $rows != 1 then
+  return -1
+endi
+if $data01 != @abc@ then
+  print expect abc, actual $data02
+  return -1
+endi
+if $data02 !=  1234.938400000 then
+  return -1
+endi
+if $data03 != @19-01-01 01:01:01.000@ then
+  print expect 19-01-01 01:01:01.000, actual:$data03
+  return -1
+endi
+
+print ===================> last_row + stable + ts/tag column + condition + udf
+sql select last_row(*), ts, 'abc', 123.981, tbname from m1
+if $rows != 1 then
+  return -1
+endi
+if $data02 != @19-01-01 01:01:01.000@ then
+    return -1
+endi
+if $data03 != @abc@ then
+    return -1
+endi
+if $data04 != 123.981000000 then
+    print expect 123.981000000, actual: $data04
+    return -1
+endi
+
+sql create table tu(ts timestamp, k int)
+sql select last_row(*) from tu
+if $row != 0 then
+  return -1
+endi
+
+print =================== last_row + nested query
+sql create table lr_nested(ts timestamp, f int)
+sql insert into lr_nested values(now, 1)
+sql insert into lr_nested values(now+1s, null)
+sql select last_row(*) from (select * from lr_nested)
+if $rows != 1 then
+  return -1
+endi
+if $data01 != NULL then
+  return -1
+endi
+
+#sql select last_row(*) from (select f from lr_nested)
+#if $rows != 1 then
+#  return -1
+#endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

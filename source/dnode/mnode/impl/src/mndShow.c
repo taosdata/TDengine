@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndShow.h"
+#include "mndPrivilege.h"
 #include "systable.h"
 
 #define SHOW_STEP_SIZE 100
@@ -59,25 +60,25 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_MODULE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_QNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_QNODE;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_BNODES, len) == 0) {
-    type = TSDB_MGMT_TABLE_BNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_SNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_SNODE;
   } else if (strncasecmp(name, TSDB_INS_TABLE_CLUSTER, len) == 0) {
     type = TSDB_MGMT_TABLE_CLUSTER;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_DATABASES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_DATABASES, len) == 0) {
     type = TSDB_MGMT_TABLE_DB;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_FUNCTIONS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_FUNCTIONS, len) == 0) {
     type = TSDB_MGMT_TABLE_FUNC;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_INDEXES, len) == 0) {
-    //    type = TSDB_MGMT_TABLE_INDEX;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_STABLES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_INDEXES, len) == 0) {
+    type = TSDB_MGMT_TABLE_INDEX;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_STABLES, len) == 0) {
     type = TSDB_MGMT_TABLE_STB;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TABLES, len) == 0) {
     type = TSDB_MGMT_TABLE_TABLE;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TAGS, len) == 0) {
+    type = TSDB_MGMT_TABLE_TAG;
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TABLE_DISTRIBUTED, len) == 0) {
     //    type = TSDB_MGMT_TABLE_DIST;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_USER_USERS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_USERS, len) == 0) {
     type = TSDB_MGMT_TABLE_USER;
   } else if (strncasecmp(name, TSDB_INS_TABLE_LICENCES, len) == 0) {
     type = TSDB_MGMT_TABLE_GRANTS;
@@ -85,7 +86,7 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_VGROUP;
   } else if (strncasecmp(name, TSDB_PERFS_TABLE_CONSUMERS, len) == 0) {
     type = TSDB_MGMT_TABLE_CONSUMERS;
-  } else if (strncasecmp(name, TSDB_PERFS_TABLE_SUBSCRIPTIONS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_SUBSCRIPTIONS, len) == 0) {
     type = TSDB_MGMT_TABLE_SUBSCRIPTIONS;
   } else if (strncasecmp(name, TSDB_PERFS_TABLE_TRANS, len) == 0) {
     type = TSDB_MGMT_TABLE_TRANS;
@@ -99,10 +100,12 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_QUERIES;
   } else if (strncasecmp(name, TSDB_INS_TABLE_VNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_VNODES;
-  } else if (strncasecmp(name, TSDB_PERFS_TABLE_TOPICS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_TOPICS, len) == 0) {
     type = TSDB_MGMT_TABLE_TOPICS;
-  } else if (strncasecmp(name, TSDB_PERFS_TABLE_STREAMS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_INS_TABLE_STREAMS, len) == 0) {
     type = TSDB_MGMT_TABLE_STREAMS;
+  } else if (strncasecmp(name, TSDB_PERFS_TABLE_APPS, len) == 0) {
+    type = TSDB_MGMT_TABLE_APPS;
   } else {
     //    ASSERT(0);
   }
@@ -119,6 +122,7 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SRetrieveTableReq *pReq) {
   int32_t size = sizeof(SShowObj);
 
   SShowObj showObj = {0};
+
   showObj.id = showId;
   showObj.pMnode = pMnode;
   showObj.type = convertToRetrieveType(pReq->tb, tListLen(pReq->tb));
@@ -227,11 +231,18 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   }
 
   mDebug("show:0x%" PRIx64 ", start retrieve data, type:%d", pShow->id, pShow->type);
+  if (retrieveReq.user[0] != 0) {
+    memcpy(pReq->info.conn.user, retrieveReq.user, TSDB_USER_LEN);
+  } else {
+    memcpy(pReq->info.conn.user, TSDB_DEFAULT_USER, strlen(TSDB_DEFAULT_USER) + 1);
+  }
+  if (retrieveReq.db[0] && mndCheckShowPrivilege(pMnode, pReq->info.conn.user, pShow->type, retrieveReq.db) != 0) {
+    return -1;
+  }
 
   int32_t      numOfCols = pShow->pMeta->numOfColumns;
   SSDataBlock *pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
   pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
-  pBlock->info.numOfCols = numOfCols;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData idata = {0};
@@ -266,7 +277,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
   }
 
   size = sizeof(SRetrieveMetaTableRsp) + sizeof(int32_t) + sizeof(SSysTableSchema) * pShow->pMeta->numOfColumns +
-         blockDataGetSize(pBlock) + blockDataGetSerialMetaSize(pBlock->info.numOfCols);
+         blockDataGetSize(pBlock) + blockDataGetSerialMetaSize(taosArrayGetSize(pBlock->pDataBlock));
 
   SRetrieveMetaTableRsp *pRsp = rpcMallocCont(size);
   if (pRsp == NULL) {
@@ -296,7 +307,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
     }
 
     int32_t len = 0;
-    blockCompressEncode(pBlock, pStart, &len, pShow->pMeta->numOfColumns, false);
+    blockEncode(pBlock, pStart, &len, pShow->pMeta->numOfColumns, false);
   }
 
   pRsp->numOfRows = htonl(rowsRead);

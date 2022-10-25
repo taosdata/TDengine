@@ -20,17 +20,16 @@
 extern "C" {
 #endif
 
+extern int32_t exchangeObjRefPool;
+
 typedef struct {
-  char*           pData;
-  bool            isNull;
-  int16_t         type;
-  int32_t         bytes;
+  char*   pData;
+  bool    isNull;
+  int16_t type;
+  int32_t bytes;
 } SGroupKeys, SStateKeys;
 
-int32_t initGroupOptrInfo(SArray** pGroupColVals, int32_t* keyLen, char** keyBuf, const SArray* pGroupColList);
 uint64_t calcGroupId(char* pData, int32_t len);
-void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSDataBlock* pBlock, int32_t rowIndex);
-int32_t buildGroupKeys(void* pKey, const SArray* pGroupColVals);
 #ifdef __cplusplus
 }
 #endif

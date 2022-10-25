@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndAcct.h"
+#include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 
@@ -76,16 +77,17 @@ static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
 
   SSdbRaw *pRaw = mndAcctActionEncode(&acctObj);
   if (pRaw == NULL) return -1;
-  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+  (void)sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
-  mDebug("acct:%s, will be created when deploying, raw:%p", acctObj.acct, pRaw);
+  mInfo("acct:%s, will be created when deploying, raw:%p", acctObj.acct, pRaw);
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_NOTHING, NULL, "create-acct");
   if (pTrans == NULL) {
+    sdbFreeRaw(pRaw);
     mError("acct:%s, failed to create since %s", acctObj.acct, terrstr());
     return -1;
   }
-  mDebug("trans:%d, used to create acct:%s", pTrans->id, acctObj.acct);
+  mInfo("trans:%d, used to create acct:%s", pTrans->id, acctObj.acct);
 
   if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
     mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
@@ -212,18 +214,30 @@ static int32_t mndAcctActionUpdate(SSdb *pSdb, SAcctObj *pOld, SAcctObj *pNew) {
 }
 
 static int32_t mndProcessCreateAcctReq(SRpcMsg *pReq) {
+  if (mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_CREATE_ACCT) != 0) {
+    return -1;
+  }
+
   terrno = TSDB_CODE_MSG_NOT_PROCESSED;
   mError("failed to process create acct request since %s", terrstr());
   return -1;
 }
 
 static int32_t mndProcessAlterAcctReq(SRpcMsg *pReq) {
+  if (mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_ALTER_ACCT) != 0) {
+    return -1;
+  }
+
   terrno = TSDB_CODE_MSG_NOT_PROCESSED;
   mError("failed to process create acct request since %s", terrstr());
   return -1;
 }
 
 static int32_t mndProcessDropAcctReq(SRpcMsg *pReq) {
+  if (mndCheckOperPrivilege(pReq->info.node, pReq->info.conn.user, MND_OPER_DROP_ACCT) != 0) {
+    return -1;
+  }
+
   terrno = TSDB_CODE_MSG_NOT_PROCESSED;
   mError("failed to process create acct request since %s", terrstr());
   return -1;

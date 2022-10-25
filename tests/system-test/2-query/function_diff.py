@@ -30,7 +30,7 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
 
-    def diff_query_form(self, col="c1",  alias="", table_expr="t1", condition=""):
+    def diff_query_form(self, col="c1",  alias="", table_expr="db.t1", condition=""):
 
         '''
         diff function:
@@ -44,7 +44,7 @@ class TDTestCase:
 
         return f"select diff({col}) {alias} from {table_expr} {condition}"
 
-    def checkdiff(self,col="c1", alias="", table_expr="t1", condition="" ):
+    def checkdiff(self,col="c1", alias="", table_expr="db.t1", condition="" ):
         line = sys._getframe().f_back.f_lineno
         pre_sql = self.diff_query_form(
             col=col, table_expr=table_expr, condition=condition
@@ -60,7 +60,7 @@ class TDTestCase:
             return
 
         if "order by tbname" in condition:
-            tdSql.error(self.diff_query_form(
+            tdSql.query(self.diff_query_form(
                 col=col, alias=alias, table_expr=table_expr, condition=condition
             ))
             return
@@ -164,9 +164,9 @@ class TDTestCase:
         self.checkdiff(**case6)
 
         # case7~8: nested query
-        # case7 = {"table_expr": "(select c1 from stb1)"}
+        # case7 = {"table_expr": "(select c1 from db.stb1)"}
         # self.checkdiff(**case7)
-        # case8 = {"table_expr": "(select diff(c1) c1 from stb1 group by tbname)"}
+        # case8 = {"table_expr": "(select diff(c1) c1 from db.stb1 group by tbname)"}
         # self.checkdiff(**case8)
 
         # case9~10: mix with tbname/ts/tag/col
@@ -193,43 +193,38 @@ class TDTestCase:
 
         # case17: only support normal table join
         case17 = {
-            "col": "t1.c1",
-            "table_expr": "t1, t2",
-            "condition": "where t1.ts=t2.ts"
+            "col": "table1.c1 ",
+            "table_expr": "db.t1 as table1, db.t2 as table2",
+            "condition": "where table1.ts=table2.ts"
         }
         self.checkdiff(**case17)
-        # case18~19: with group by
-        # case18 = {
-        #     "table_expr": "t1",
-        #     "condition": "group by c6"
-        # }
-        # self.checkdiff(**case18)
-        # case19 = {
-        #     "table_expr": "stb1",
-        #     "condition": "partition by tbname"  # partition by tbname
-        # }
-        # self.checkdiff(**case19)
+        # case18~19: with group by , function diff not support group by 
+    
+        case19 = {
+            "table_expr": "db.stb1 where tbname =='t0' ",
+            "condition": "partition by tbname order by tbname"  # partition by tbname
+        }
+        self.checkdiff(**case19)
 
-        # # case20~21: with order by
-        # case20 = {"condition": "order by ts"}
-        # self.checkdiff(**case20)
+        # case20~21: with order by , Not a single-group group function
 
-        # # case22: with union
+        # case22: with union
         # case22 = {
-        #     "condition": "union all select diff(c1) from t2"
+        #     "condition": "union all select diff(c1) from db.t2  "
         # }
         # self.checkdiff(**case22)
+        tdSql.query("select count(c1)  from db.t1 union all select count(c1) from db.t2")
 
         # case23: with limit/slimit
         case23 = {
             "condition": "limit 1"
         }
         self.checkdiff(**case23)
-        # case24 = {
-        #     "table_expr": "stb1",
-        #     "condition": "group by tbname slimit 1 soffset 1"
-        # }
-        # self.checkdiff(**case24)
+        case24 = {
+            "table_expr": "db.stb1",
+            "condition": "partition by tbname order by tbname slimit 1 soffset 1"
+        }
+        self.checkdiff(**case24)
 
         pass
 
@@ -241,13 +236,13 @@ class TDTestCase:
         #
         # form test
         tdSql.error(self.diff_query_form(col=""))   # no col
-        tdSql.error("diff(c1) from stb1")           # no select
-        tdSql.error("select diff from t1")          # no diff condition
-        tdSql.error("select diff c1 from t1")       # no brackets
-        tdSql.error("select diff(c1)   t1")         # no from
+        tdSql.error("diff(c1) from db.stb1")           # no select
+        tdSql.error("select diff from db.t1")          # no diff condition
+        tdSql.error("select diff c1 from db.t1")       # no brackets
+        tdSql.error("select diff(c1)   db.t1")         # no from
         tdSql.error("select diff( c1 )  from ")     # no table_expr
         # tdSql.error(self.diff_query_form(col="st1"))    # tag col
-        tdSql.query("select diff(st1) from t1 ")
+        tdSql.query("select diff(st1) from db.t1")
         # tdSql.error(self.diff_query_form(col=1))        # col is a value
         tdSql.error(self.diff_query_form(col="'c1'"))   # col is a string
         tdSql.error(self.diff_query_form(col=None))     # col is NULL 1
@@ -256,22 +251,20 @@ class TDTestCase:
         tdSql.error(self.diff_query_form(col='c%'))     # col is spercial char 1
         tdSql.error(self.diff_query_form(col='c_'))     # col is spercial char 2
         tdSql.error(self.diff_query_form(col='c.'))     # col is spercial char 3
-        tdSql.error(self.diff_query_form(col='c3'))     # timestamp col
-        tdSql.error(self.diff_query_form(col='ts'))     # Primary key
         tdSql.error(self.diff_query_form(col='avg(c1)'))    # expr col
         # tdSql.error(self.diff_query_form(col='c6'))     # bool col
-        tdSql.query("select diff(c6) from t1")
+        tdSql.query("select diff(c6) from db.t1")
         tdSql.error(self.diff_query_form(col='c4'))     # binary col
         tdSql.error(self.diff_query_form(col='c10'))    # nachr col
         tdSql.error(self.diff_query_form(col='c10'))    # not table_expr col
-        tdSql.error(self.diff_query_form(col='t1'))     # tbname
-        tdSql.error(self.diff_query_form(col='stb1'))   # stbname
+        tdSql.error(self.diff_query_form(col='db.t1'))     # tbname
+        tdSql.error(self.diff_query_form(col='db.stb1'))   # stbname
         tdSql.error(self.diff_query_form(col='db'))     # datbasename
         # tdSql.error(self.diff_query_form(col=True))     # col is BOOL 1
         # tdSql.error(self.diff_query_form(col='True'))   # col is BOOL 2
         tdSql.error(self.diff_query_form(col='*'))      # col is all col
-        tdSql.error("select diff[c1] from t1")          # sql form error 1
-        tdSql.error("select diff{c1} from t1")          # sql form error 2
+        tdSql.error("select diff[c1] from db.t1")          # sql form error 1
+        tdSql.error("select diff{c1} from db.t1")          # sql form error 2
         tdSql.error(self.diff_query_form(col="[c1]"))   # sql form error 3
         # tdSql.error(self.diff_query_form(col="c1, c2")) # sql form error 3
         # tdSql.error(self.diff_query_form(col="c1, 2"))  # sql form error 3
@@ -280,33 +273,33 @@ class TDTestCase:
         tdSql.error(self.diff_query_form(alias=", min(c1)"))    # mix with select function 1
         tdSql.error(self.diff_query_form(alias=", top(c1, 5)")) # mix with select function 2
         tdSql.error(self.diff_query_form(alias=", spread(c1)")) # mix with calculation function  1
-        tdSql.error(self.diff_query_form(alias=", diff(c1)"))   # mix with calculation function  2
+        tdSql.query(self.diff_query_form(alias=", diff(c1)"))   # mix with calculation function  2
         # tdSql.error(self.diff_query_form(alias=" + 2"))         # mix with arithmetic 1
         tdSql.error(self.diff_query_form(alias=" + avg(c1)"))   # mix with arithmetic 2
-        tdSql.error(self.diff_query_form(alias=", c2"))         # mix with other 1
-        # tdSql.error(self.diff_query_form(table_expr="stb1"))    # select stb directly
+        tdSql.query(self.diff_query_form(alias=", c2"))         # mix with other 1
+        # tdSql.error(self.diff_query_form(table_expr="db.stb1"))    # select stb directly
         stb_join = {
-            "col": "stb1.c1",
-            "table_expr": "stb1, stb2",
-            "condition": "where stb1.ts=stb2.ts and stb1.st1=stb2.st2 order by stb1.ts"
+            "col": "stable1.c1",
+            "table_expr": "db.stb1 as stable1, db.stb2 as stable2",
+            "condition": "where stable1.ts=stable2.ts and stable1.st1=stable2.st2 order by stable1.ts"
         }
-        tdSql.error(self.diff_query_form(**stb_join))           # stb join
+        tdSql.query(self.diff_query_form(**stb_join))           # stb join
         interval_sql = {
             "condition": "where ts>0 and ts < now interval(1h) fill(next)"
         }
         tdSql.error(self.diff_query_form(**interval_sql))       # interval
         group_normal_col = {
-            "table_expr": "t1",
+            "table_expr": "db.t1",
             "condition": "group by c6"
         }
         tdSql.error(self.diff_query_form(**group_normal_col))       # group by normal col
         slimit_soffset_sql = {
-            "table_expr": "stb1",
+            "table_expr": "db.stb1",
             "condition": "group by tbname slimit 1 soffset 1"
         }
         # tdSql.error(self.diff_query_form(**slimit_soffset_sql))
         order_by_tbname_sql = {
-            "table_expr": "stb1",
+            "table_expr": "db.stb1",
             "condition": "group by tbname order by tbname"
         }
         tdSql.error(self.diff_query_form(**order_by_tbname_sql))
@@ -317,20 +310,20 @@ class TDTestCase:
         for i in range(tbnum):
             for j in range(data_row):
                 tdSql.execute(
-                    f"insert into t{i} values ("
+                    f"insert into db.t{i} values ("
                     f"{basetime + (j+1)*10}, {random.randint(-200, -1)}, {random.uniform(200, -1)}, {basetime + random.randint(-200, -1)}, "
                     f"'binary_{j}', {random.uniform(-200, -1)}, {random.choice([0,1])}, {random.randint(-200,-1)}, "
                     f"{random.randint(-200, -1)}, {random.randint(-127, -1)}, 'nchar_{j}' )"
                 )
 
                 tdSql.execute(
-                    f"insert into t{i} values ("
+                    f"insert into db.t{i} values ("
                     f"{basetime - (j+1) * 10}, {random.randint(1, 200)}, {random.uniform(1, 200)}, {basetime - random.randint(1, 200)}, "
                     f"'binary_{j}_1', {random.uniform(1, 200)}, {random.choice([0, 1])}, {random.randint(1,200)}, "
                     f"{random.randint(1,200)}, {random.randint(1,127)}, 'nchar_{j}_1' )"
                 )
                 tdSql.execute(
-                    f"insert into tt{i} values ( {basetime-(j+1) * 10}, {random.randint(1, 200)} )"
+                    f"insert into db.tt{i} values ( {basetime-(j+1) * 10}, {random.randint(1, 200)} )"
                 )
 
         pass
@@ -351,13 +344,44 @@ class TDTestCase:
             "create stable db.stb2 (ts timestamp, c1 int) tags(st2 int)"
         )
         for i in range(tbnum):
-            tdSql.execute(f"create table t{i} using stb1 tags({i})")
-            tdSql.execute(f"create table tt{i} using stb2 tags({i})")
+            tdSql.execute(f"create table db.t{i} using db.stb1 tags({i})")
+            tdSql.execute(f"create table db.tt{i} using db.stb2 tags({i})")
 
         pass
+    def diff_support_stable(self):
+        tdSql.query(" select diff(1) from db.stb1 ")
+        tdSql.checkRows(229)
+        tdSql.checkData(0,0,0)
+        tdSql.query("select diff(c1) from db.stb1 partition by tbname ")
+        tdSql.checkRows(190)
+      
+        tdSql.query("select diff(st1+c1) from db.stb1 partition by tbname")
+        tdSql.checkRows(190)
+        tdSql.query("select diff(st1+c1) from db.stb1 partition by tbname")
+        tdSql.checkRows(190)
+        tdSql.query("select diff(st1+c1) from db.stb1 partition by tbname")
+        tdSql.checkRows(190)
+
+        # bug need fix
+        tdSql.query("select diff(st1+c1) from db.stb1 partition by tbname")
+        tdSql.checkRows(190)
+
+        # bug need fix
+        tdSql.query("select tbname , diff(c1) from db.stb1 partition by tbname")
+        tdSql.checkRows(190)
+        tdSql.query("select tbname , diff(st1) from db.stb1 partition by tbname")
+        tdSql.checkRows(220)
+
+
+        # partition by tags
+        tdSql.query("select st1 , diff(c1) from db.stb1 partition by st1")
+        tdSql.checkRows(190)
+        tdSql.query("select diff(c1) from db.stb1 partition by st1")
+        tdSql.checkRows(190)
+
 
     def diff_test_run(self) :
-        tdLog.printNoPrefix("==========TD-10594==========")
+        tdLog.printNoPrefix("==========run test case for diff function==========")
         tbnum = 10
         nowtime = int(round(time.time() * 1000))
         per_table_rows = 10
@@ -369,25 +393,25 @@ class TDTestCase:
 
         tdLog.printNoPrefix("######## insert only NULL test:")
         for i in range(tbnum):
-            tdSql.execute(f"insert into t{i}(ts) values ({nowtime - 5})")
-            tdSql.execute(f"insert into t{i}(ts) values ({nowtime + 5})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime - 5})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime + 5})")
         self.diff_current_query()
         self.diff_error_query()
 
         tdLog.printNoPrefix("######## insert data in the range near the max(bigint/double):")
         self.diff_test_table(tbnum)
-        tdSql.execute(f"insert into t1(ts, c1,c2,c5,c7) values "
+        tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7) values "
                       f"({nowtime - (per_table_rows + 1) * 10}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
-        tdSql.execute(f"insert into t1(ts, c1,c2,c5,c7) values "
+        tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7) values "
                       f"({nowtime - (per_table_rows + 2) * 10}, {2**31-1}, {3.4*10**38}, {1.7*10**308}, {2**63-1})")
         self.diff_current_query()
         self.diff_error_query()
 
         tdLog.printNoPrefix("######## insert data in the range near the min(bigint/double):")
         self.diff_test_table(tbnum)
-        tdSql.execute(f"insert into t1(ts, c1,c2,c5,c7) values "
+        tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7) values "
                       f"({nowtime - (per_table_rows + 1) * 10}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {1-2**63})")
-        tdSql.execute(f"insert into t1(ts, c1,c2,c5,c7) values "
+        tdSql.execute(f"insert into db.t1(ts, c1,c2,c5,c7) values "
                       f"({nowtime - (per_table_rows + 2) * 10}, {1-2**31}, {-3.4*10**38}, {-1.7*10**308}, {512-2**63})")
         self.diff_current_query()
         self.diff_error_query()
@@ -401,16 +425,16 @@ class TDTestCase:
 
         tdLog.printNoPrefix("######## insert data mix with NULL test:")
         for i in range(tbnum):
-            tdSql.execute(f"insert into t{i}(ts) values ({nowtime})")
-            tdSql.execute(f"insert into t{i}(ts) values ({nowtime-(per_table_rows+3)*10})")
-            tdSql.execute(f"insert into t{i}(ts) values ({nowtime+(per_table_rows+3)*10})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime-(per_table_rows+3)*10})")
+            tdSql.execute(f"insert into db.t{i}(ts) values ({nowtime+(per_table_rows+3)*10})")
         self.diff_current_query()
         self.diff_error_query()
 
 
 
         tdLog.printNoPrefix("######## check after WAL test:")
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         index = tdSql.getData(0, 0)
         tdDnodes.stop(index)
         tdDnodes.start(index)
@@ -422,6 +446,7 @@ class TDTestCase:
         try:
             # run in  develop branch
             self.diff_test_run()
+            self.diff_support_stable()
             pass
         except Exception as e:
             traceback.print_exc()

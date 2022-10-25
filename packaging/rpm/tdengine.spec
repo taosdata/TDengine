@@ -42,6 +42,7 @@ echo version: %{_version}
 echo buildroot: %{buildroot}
 
 libfile="libtaos.so.%{_version}"
+wslibfile="libtaosws.so"
 
 # create install path, and cp file
 mkdir -p %{buildroot}%{homepath}/bin
@@ -68,15 +69,19 @@ cp %{_compiledir}/../packaging/tools/set_core.sh    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/../packaging/tools/taosd-dump-cfg.gdb    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taos                    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosd                   %{buildroot}%{homepath}/bin
-#cp %{_compiledir}/build/bin/taosBenchmark           %{buildroot}%{homepath}/bin
+cp %{_compiledir}/build/bin/udfd                    %{buildroot}%{homepath}/bin
+cp %{_compiledir}/build/bin/taosBenchmark           %{buildroot}%{homepath}/bin
 
 if [ -f %{_compiledir}/build/bin/taosadapter ]; then
     cp %{_compiledir}/build/bin/taosadapter                    %{buildroot}%{homepath}/bin ||:
 fi
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
+[ -f %{_compiledir}/build/lib/${wslibfile} ] && cp %{_compiledir}/build/lib/${wslibfile}            %{buildroot}%{homepath}/driver ||:
 cp %{_compiledir}/../include/client/taos.h          %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/common/taosdef.h       %{buildroot}%{homepath}/include
 cp %{_compiledir}/../include/util/taoserror.h       %{buildroot}%{homepath}/include
+cp %{_compiledir}/../include/libs/function/taosudf.h       %{buildroot}%{homepath}/include
+[ -f %{_compiledir}/build/include/taosws.h ] && cp %{_compiledir}/build/include/taosws.h            %{buildroot}%{homepath}/include ||:
 #cp -r %{_compiledir}/../src/connector/python        %{buildroot}%{homepath}/connector
 #cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
 #cp -r %{_compiledir}/../src/connector/nodejs        %{buildroot}%{homepath}/connector
@@ -128,6 +133,10 @@ fi
 
 #Scripts executed before installation
 %pre
+if [ -f /var/lib/taos/dnode/dnodeCfg.json ]; then
+  echo -e "The default data directory \033[41;37m/var/lib/taos\033[0m contains old data of tdengine 2.x, please clear it before installing!"
+  exit 1
+fi
 csudo=""
 if command -v sudo > /dev/null; then
     csudo="sudo "
@@ -196,11 +205,13 @@ if [ $1 -eq 0 ];then
     # Remove all links
     ${csudo}rm -f ${bin_link_dir}/taos       || :
     ${csudo}rm -f ${bin_link_dir}/taosd      || :
+    ${csudo}rm -f ${bin_link_dir}/udfd       || :
     ${csudo}rm -f ${bin_link_dir}/taosadapter       || :
     ${csudo}rm -f ${cfg_link_dir}/*          || :
     ${csudo}rm -f ${inc_link_dir}/taos.h     || :
     ${csudo}rm -f ${inc_link_dir}/taosdef.h     || :
     ${csudo}rm -f ${inc_link_dir}/taoserror.h     || :
+    ${csudo}rm -f ${inc_link_dir}/taosudf.h     || :    
     ${csudo}rm -f ${lib_link_dir}/libtaos.*  || :
 
     ${csudo}rm -f ${log_link_dir}            || :

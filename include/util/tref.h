@@ -29,11 +29,11 @@ int32_t taosOpenRef(int32_t max, void (*fp)(void *));
 
 // close the reference set, refId is the return value by taosOpenRef
 // return 0 if success. On error, -1 is returned, and terrno is set appropriately
-int32_t taosCloseRef(int32_t refId);
+int32_t taosCloseRef(int32_t rsetId);
 
 // add ref, p is the pointer to resource or pointer ID
 // return Reference ID(rid) allocated. On error, -1 is returned, and terrno is set appropriately
-int64_t taosAddRef(int32_t refId, void *p);
+int64_t taosAddRef(int32_t rsetId, void *p);
 
 // remove ref, rid is the reference ID returned by taosAddRef
 // return 0 if success. On error, -1 is returned, and terrno is set appropriately

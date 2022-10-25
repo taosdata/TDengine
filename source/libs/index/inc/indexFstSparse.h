@@ -23,17 +23,18 @@ extern "C" {
 #endif
 
 typedef struct FstSparseSet {
-  uint32_t *dense;
-  uint32_t *sparse;
-  int32_t   size;
+  int32_t *dense;
+  int32_t *sparse;
+  int32_t  size;
+  int32_t  cap;
 } FstSparseSet;
 
 FstSparseSet *sparSetCreate(int32_t sz);
 void          sparSetDestroy(FstSparseSet *s);
 uint32_t      sparSetLen(FstSparseSet *ss);
-uint32_t      sparSetAdd(FstSparseSet *ss, uint32_t ip);
-uint32_t      sparSetGet(FstSparseSet *ss, uint32_t i);
-bool          sparSetContains(FstSparseSet *ss, uint32_t ip);
+bool          sparSetAdd(FstSparseSet *ss, int32_t ip, int32_t *val);
+bool          sparSetGet(FstSparseSet *ss, int32_t i, int32_t *val);
+bool          sparSetContains(FstSparseSet *ss, int32_t ip);
 void          sparSetClear(FstSparseSet *ss);
 
 #ifdef __cplusplus

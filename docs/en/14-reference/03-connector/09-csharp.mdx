@@ -1,0 +1,297 @@
+---
+toc_max_heading_level: 4
+sidebar_label: C#
+title: C# Connector
+---
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+import Preparition from "./_preparation.mdx"
+import CSInsert from "../../07-develop/03-insert-data/_cs_sql.mdx"
+import CSInfluxLine from "../../07-develop/03-insert-data/_cs_line.mdx"
+import CSOpenTSDBTelnet from "../../07-develop/03-insert-data/_cs_opts_telnet.mdx"
+import CSOpenTSDBJson from "../../07-develop/03-insert-data/_cs_opts_json.mdx"
+import CSQuery from "../../07-develop/04-query-data/_cs.mdx"
+import CSAsyncQuery from "../../07-develop/04-query-data/_cs_async.mdx"
+
+`TDengine.Connector` is a C# language connector provided by TDengine that allows C# developers to develop C# applications that access TDengine cluster data.
+
+The `TDengine.Connector` connector supports connect to TDengine instances via the TDengine client driver (taosc), providing data writing, querying, subscription, schemaless writing, bind interface, etc.The `TDengine.Connector` also supports WebSocket and developers can build connection through DSN, which supports data writing, querying, and parameter binding, etc.
+
+This article describes how to install `TDengine.Connector` in a Linux or Windows environment and connect to TDengine clusters via `TDengine.Connector` to perform basic operations such as data writing and querying.
+
+Note: TDengine Connector 3.x is not compatible with TDengine 2.x. In an environment with TDengine 2.x, you must use TDengine.Connector 1.x for the C# connector.
+
+The source code of `TDengine.Connector` is hosted on [GitHub](https://github.com/taosdata/taos-connector-dotnet/tree/3.0).
+
+## Supported platforms
+
+The supported platforms are the same as those supported by the TDengine client driver.
+
+## Version support
+
+Please refer to [version support list](/reference/connector#version-support)
+
+## Supported features
+
+<Tabs defaultValue="native">
+
+<TabItem value="native" label="Native Connection">
+
+1. Connection Management
+2. General Query
+3. Continuous Query
+4. Parameter Binding
+5. Subscription
+6. Schemaless
+
+</TabItem>
+
+<TabItem value="rest" label="WebSocket Connection">
+
+1. Connection Management
+2. General Query
+3. Continuous Query
+4. Parameter Binding
+
+</TabItem>
+</Tabs>
+
+## Installation Steps
+
+### Pre-installation preparation
+
+* Install the [.NET SDK](https://dotnet.microsoft.com/download)
+* [Nuget Client](https://docs.microsoft.com/en-us/nuget/install-nuget-client-tools) (optional installation)
+* Install TDengine client driver, please refer to [Install client driver](/reference/connector/#install-client-driver) for details
+
+### Install via dotnet CLI
+
+<Tabs defaultValue="CLI">
+<TabItem value="CLI" label="Get C# driver using dotnet CLI">
+
+You can reference the `TDengine.Connector` published in Nuget to the current project via the `dotnet` command under the path of the existing .NET project.
+
+``` bash
+dotnet add package TDengine.Connector
+```
+
+</TabItem>
+<TabItem value="source" label="Use source code to get C# driver">
+
+You can [download the source code](https://github.com/taosdata/taos-connector-dotnet/tree/3.0) and directly reference the latest version of the TDengine.Connector library.
+
+```bash
+git clone -b 3.0 https://github.com/taosdata/taos-connector-dotnet.git
+cd taos-connector-dotnet
+cp -r src/ myProject
+
+cd myProject
+dotnet add exmaple.csproj reference src/TDengine.csproj
+```
+
+</TabItem>
+</Tabs>
+
+## Establish a Connection
+
+
+<Tabs defaultValue="rest">
+
+<TabItem value="native" label="Native Connection">
+
+``` csharp
+using TDengineDriver;
+
+namespace TDengineExample
+{
+
+    internal class EstablishConnection
+    {
+        static void Main(String[] args)
+        {
+            string host = "localhost";
+            short port = 6030;
+            string username = "root";
+            string password = "taosdata";
+            string dbname = "";
+
+            var conn = TDengine.Connect(host, username, password, dbname, port);
+            if (conn == IntPtr.Zero)
+            {
+                Console.WriteLine("Connect to TDengine failed");
+            }
+            else
+            {
+                Console.WriteLine("Connect to TDengine success");
+            }
+            TDengine.Close(conn);
+            TDengine.Cleanup();
+        }
+    }
+}
+
+```
+
+</TabItem>
+
+<TabItem value="rest" label="WebSocket Connection">
+
+The structure of the DSN description string is as follows:
+
+```text
+[<protocol>]://[[<username>:<password>@]<host>:<port>][/<database>][?<p1>=<v1>[&<p2>=<v2>]]
+|------------|---|-----------|-----------|------|------|------------|-----------------------|
+|   protocol |   | username  | password  | host | port |  database  |  params               |
+```
+
+The parameters are described as follows:
+
+* **protocol**: Specify which connection method to use (support http/ws). For example, `ws://localhost:6041` uses Websocket to establish connections. 
+* **username/password**: Username and password used to create connections.
+* **host/port**: Specifies the server and port to establish a connection. Websocket connections default to `localhost:6041`.
+* **database**: Specify the default database to connect to. It's optional.
+* **params**：Optional parameters.
+
+A sample DSN description string is as follows:
+
+```text
+ws://localhost:6041/test
+```
+
+``` csharp
+{{#include docs/examples/csharp/wsConnect/Program.cs}}
+```
+
+</TabItem>
+</Tabs>
+
+## Usage examples
+
+### Write data
+
+#### SQL Write
+
+<Tabs defaultValue="rest">
+
+<TabItem value="native" label="Native Connection">
+
+<CSInsert />
+
+</TabItem>
+
+<TabItem value="rest" label="WebSocket Connection">
+
+```csharp
+{{#include docs/examples/csharp/wsInsert/Program.cs}}
+```
+
+</TabItem>
+</Tabs>
+
+#### InfluxDB line protocol write
+
+<CSInfluxLine />
+
+#### OpenTSDB Telnet line protocol write
+
+<CSOpenTSDBTelnet />
+
+#### OpenTSDB JSON line protocol write
+
+<CSOpenTSDBJson />
+
+#### Parameter Binding
+
+<Tabs defaultValue="rest">
+
+<TabItem value="native" label="Native Connection">
+
+``` csharp
+{{#include docs/examples/csharp/stmtInsert/Program.cs}}
+```
+
+</TabItem>
+
+<TabItem value="rest" label="WebSocket Connection">
+
+```csharp
+{{#include docs/examples/csharp/wsStmt/Program.cs}}
+```
+
+</TabItem>
+</Tabs>
+
+### Query data
+
+#### Synchronous Query
+
+<Tabs defaultValue="rest">
+
+<TabItem value="native" label="Native Connection">
+
+<CSQuery />
+
+</TabItem>
+
+<TabItem value="rest" label="WebSocket Connection">
+
+```csharp
+{{#include docs/examples/csharp/wsQuery/Program.cs}}
+```
+
+</TabItem>
+</Tabs>
+
+#### Asynchronous query
+
+<CSAsyncQuery />
+
+### More sample programs
+
+|Sample program |Sample program description |
+|--------------------------------------------------------------------------------------------------------------------|--------------------------------------------|
+| [CURD](https://github.com/taosdata/taos-connector-dotnet/blob/3.0/examples/Query/Query.cs)                         | Table creation, data insertion, and query examples with TDengine.Connector    |
+| [JSON Tag](https://github.com/taosdata/taos-connector-dotnet/blob/3.0/examples/JSONTag)                             | Writing and querying JSON tag data with TDengine Connector |
+| [stmt](https://github.com/taosdata/taos-connector-dotnet/tree/3.0/examples/Stmt)                                   | Parameter binding with TDengine Connector |
+| [schemaless](https://github.com/taosdata/taos-connector-dotnet/blob/3.0/examples/schemaless)                       | Schemaless writes with TDengine Connector |
+| [async query](https://github.com/taosdata/taos-connector-dotnet/blob/3.0/examples/AsyncQuery/QueryAsync.cs) | Asynchronous queries with TDengine Connector |
+| [Subscription](https://github.com/taosdata/taos-connector-dotnet/blob/3.0/examples/TMQ/TMQ.cs)      | Subscription example with TDengine Connector |
+| [Basic WebSocket Usage](https://github.com/taosdata/taos-connector-dotnet/blob/5a4a7cd0dbcda114447cdc6d0c6dedd8e84a52da/examples/WS/WebSocketSample.cs)      | WebSocket basic data in and out with TDengine connector  |
+| [WebSocket Parameter Binding](https://github.com/taosdata/taos-connector-dotnet/blob/5a4a7cd0dbcda114447cdc6d0c6dedd8e84a52da/examples/WS/WebSocketSTMT.cs)      | WebSocket parameter binding example |
+
+## Important update records
+
+| TDengine.Connector | Description |
+|--------------------|--------------------------------|
+|        3.0.1       | Support WebSocket and Cloud，With function query, insert, and parameter binding|
+|        3.0.0       | Supports TDengine 3.0.0.0. TDengine 2.x is not supported. Added `TDengine.Impl.GetData()` interface to deserialize query results. |
+|        1.0.7       | Fixed TDengine.Query() memory leak. |
+| 1.0.6 | Fix schemaless bug in 1.0.4 and 1.0.5. |
+| 1.0.5 | Fix Windows sync query Chinese error bug. | 1.0.4 | Fix schemaless bug.   |
+| 1.0.4 | Add asynchronous query, subscription, and other functions. Fix the binding parameter bug.    |
+| 1.0.3 | Add parameter binding, schemaless, JSON tag, etc. |
+| 1.0.2 | Add connection management, synchronous query, error messages, etc.   |
+
+## Other descriptions
+
+### Third-party driver
+
+`Taos` is an ADO.NET connector for TDengine, supporting Linux and Windows platforms. Community contributor `Maikebing@@maikebing contributes the connector`. Please refer to:
+
+* Interface download:<https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos>
+
+## Frequently Asked Questions
+
+1. "Unable to establish connection", "Unable to resolve FQDN"
+
+  Usually, it's caused by an incorrect FQDN configuration. Please refer to this section in the [FAQ](https://docs.tdengine.com/2.4/train-faq/faq/#2-how-to-handle-unable-to-establish-connection) to troubleshoot.
+
+2. Unhandled exception. System.DllNotFoundException: Unable to load DLL 'taos' or one of its dependencies: The specified module cannot be found.
+
+  This is usually because the program did not find the dependent client driver. The solution is to copy `C:\TDengine\driver\taos.dll` to the `C:\Windows\System32\` directory on Windows, and create the following soft link on Linux `ln -s /usr/local/taos/driver/libtaos.so.x.x .x.x /usr/lib/libtaos.so` will work.
+
+## API Reference
+
+[API Reference](https://docs.taosdata.com/api/connector-csharp/html/860d2ac1-dd52-39c9-e460-0829c4e5a40b.htm)

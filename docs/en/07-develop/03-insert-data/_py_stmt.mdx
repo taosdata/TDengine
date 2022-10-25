@@ -1,0 +1,12 @@
+```py title=Single Row Binding
+{{#include docs/examples/python/bind_param_example.py}}
+```
+
+```py title=Multiple Row Binding
+{{#include docs/examples/python/multi_bind_example.py:bind_batch}}
+```
+
+:::info
+Multiple row binding is better in performance than single row binding, but it can only be used with `INSERT` statement while single row binding can be used for other SQL statements besides `INSERT`.
+
+:::

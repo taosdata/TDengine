@@ -26,6 +26,9 @@ int32_t  mndInitSma(SMnode *pMnode);
 void     mndCleanupSma(SMnode *pMnode);
 SSmaObj *mndAcquireSma(SMnode *pMnode, char *smaName);
 void     mndReleaseSma(SMnode *pMnode, SSmaObj *pSma);
+int32_t  mndDropSmasByStb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb);
+int32_t  mndDropSmasByDb(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
+int32_t  mndGetTableSma(SMnode *pMnode, char *tbFName, STableIndexRsp *rsp, bool *exist);
 
 #ifdef __cplusplus
 }

@@ -1,0 +1,95 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======== step1
+sql alter dnode 1 'resetlog'
+sql alter dnode 1 'monitor' '1'
+sql alter dnode 1 'monitor' '0'
+sql alter dnode 1 'monitor 1'
+sql alter dnode 1 'monitor 0'
+
+print ======== step2
+sql_error alter dnode 1 'resetquerycache'
+sql alter dnode 1 'debugFlag 135'
+sql alter dnode 1 'dDebugFlag 131'
+sql alter dnode 1 'vDebugFlag 131'
+sql alter dnode 1 'mDebugFlag 131'
+sql alter dnode 1 'wDebugFlag 131'
+sql alter dnode 1 'sDebugFlag 131'
+sql alter dnode 1 'tsdbDebugFlag 131'
+sql alter dnode 1 'tqDebugFlag 131'
+sql alter dnode 1 'fsDebugFlag 131'
+sql alter dnode 1 'udfDebugFlag 131'
+sql alter dnode 1 'smaDebugFlag 131'
+sql alter dnode 1 'idxDebugFlag 131'
+sql alter dnode 1 'tdbDebugFlag 131'
+sql alter dnode 1 'tmrDebugFlag 131'
+sql alter dnode 1 'uDebugFlag 131'
+sql alter dnode 1 'smaDebugFlag 131'
+sql alter dnode 1 'rpcDebugFlag 131'
+sql alter dnode 1 'qDebugFlag 131'
+sql alter dnode 1 'metaDebugFlag 131'
+
+sql alter dnode 1 'debugFlag' '135'
+sql alter dnode 1 'dDebugFlag' '131'
+sql alter dnode 1 'vDebugFlag' '131'
+sql alter dnode 1 'mDebugFlag' '131'
+sql alter dnode 1 'wDebugFlag' '131'
+sql alter dnode 1 'sDebugFlag' '131'
+sql alter dnode 1 'tsdbDebugFlag' '131'
+sql alter dnode 1 'tqDebugFlag' '131'
+sql alter dnode 1 'fsDebugFlag' '131'
+sql alter dnode 1 'udfDebugFlag' '131'
+sql alter dnode 1 'smaDebugFlag' '131'
+sql alter dnode 1 'idxDebugFlag' '131'
+sql alter dnode 1 'tdbDebugFlag' '131'
+sql alter dnode 1 'tmrDebugFlag' '131'
+sql alter dnode 1 'uDebugFlag' '131'
+sql alter dnode 1 'smaDebugFlag' '131'
+sql alter dnode 1 'rpcDebugFlag' '131'
+sql alter dnode 1 'qDebugFlag' '131'
+sql alter dnode 1 'metaDebugFlag' '131'
+
+sql_error alter dnode 2 'wDebugFlag 135'
+sql_error alter dnode 2 'tmrDebugFlag 135'
+sql_error alter dnode 1 'monDebugFlag 131'
+sql_error alter dnode 1 'cqDebugFlag 131'
+sql_error alter dnode 1 'httpDebugFlag 131'
+sql_error alter dnode 1 'mqttDebugFlag 131'
+
+sql_error alter dnode 2 'wDebugFlag' '135'
+sql_error alter dnode 2 'tmrDebugFlag' '135'
+sql_error alter dnode 1 'monDebugFlag' '131'
+sql_error alter dnode 1 'cqDebugFlag' '131'
+sql_error alter dnode 1 'httpDebugFlag' '131'
+sql_error alter dnode 1 'mqttDebugFlag' '131'
+
+print ======== step3
+sql_error alter $hostname1 debugFlag 135
+sql_error alter $hostname1 monDebugFlag 135
+sql_error alter $hostname1 vDebugFlag 135
+sql_error alter $hostname1 mDebugFlag 135
+sql_error alter dnode $hostname2 debugFlag 135
+sql_error alter dnode $hostname2 monDebugFlag 135
+sql_error alter dnode $hostname2 vDebugFlag 135
+sql_error alter dnode $hostname2 mDebugFlag 135
+sql_error alter dnode $hostname1 debugFlag 135
+sql_error alter dnode $hostname1 monDebugFlag 135
+sql_error alter dnode $hostname1 vDebugFlag 135
+sql_error alter dnode $hostname1 tmrDebugFlag 131
+
+print ======== step4
+sql_error sql alter dnode 1 balance 0
+sql_error sql alter dnode 1 balance vnode:1-dnode:1
+sql_error sql alter dnode 1 balance "vnode:1"
+sql_error sql alter dnode 1 balance "vnode:1-dnode:1"
+sql_error sql alter dnode 1 balance "dnode:1-vnode:1"
+sql_error sql alter dnode 1 balance "dnode:1-"
+sql_error sql alter dnode 1 balance "vnode:2-dnod"
+sql alter dnode 1 balance "vnode:2-dnode:1" -x step4
+step4:
+
+print ======= over
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

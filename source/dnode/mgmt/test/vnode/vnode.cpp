@@ -45,7 +45,7 @@ TEST_F(DndTestVnode, 01_Create_Vnode) {
     createReq.compression = 2;
     createReq.replica = 1;
     createReq.strict = 1;
-    createReq.cacheLastRow = 0;
+    createReq.cacheLast = 0;
     createReq.selfIndex = 0;
     for (int r = 0; r < createReq.replica; ++r) {
       SReplica* pReplica = &createReq.replicas[r];
@@ -70,7 +70,7 @@ TEST_F(DndTestVnode, 01_Create_Vnode) {
 
 TEST_F(DndTestVnode, 02_Alter_Vnode) {
   for (int i = 0; i < 3; ++i) {
-    SAlterVnodeReq alterReq = {0};
+    SAlterVnodeConfigReq alterReq = {0};
     alterReq.vgVersion = 2;
     alterReq.daysPerFile = 10;
     alterReq.daysToKeep0 = 3650;
@@ -80,7 +80,7 @@ TEST_F(DndTestVnode, 02_Alter_Vnode) {
     alterReq.walLevel = 1;
     alterReq.replica = 1;
     alterReq.strict = 1;
-    alterReq.cacheLastRow = 0;
+    alterReq.cacheLast = 0;
     alterReq.selfIndex = 0;
     for (int r = 0; r < alterReq.replica; ++r) {
       SReplica* pReplica = &alterReq.replicas[r];

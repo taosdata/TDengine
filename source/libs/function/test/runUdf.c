@@ -45,37 +45,36 @@ int scalarFuncTest() {
   for (int k = 0; k < 1; ++k) {
     SSDataBlock  block = {0};
     SSDataBlock *pBlock = &block;
-    pBlock->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
-    pBlock->info.numOfCols = 1;
+    for (int32_t i = 0; i < 1; ++i) {
+      SColumnInfoData colInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+      blockDataAppendColInfo(pBlock, &colInfo);
+    }
+
+    blockDataEnsureCapacity(pBlock, 1024);
     pBlock->info.rows = 1024;
-    for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-      SColumnInfoData colInfo = {0};
-      colInfo.info.type = TSDB_DATA_TYPE_INT;
-      colInfo.info.bytes = sizeof(int32_t);
-      colInfo.info.colId = 1;
-      colInfoDataEnsureCapacity(&colInfo, 0, pBlock->info.rows);
-      for (int32_t j = 0; j < pBlock->info.rows; ++j) {
-        colDataAppendInt32(&colInfo, j, &j);
-      }
-      taosArrayPush(pBlock->pDataBlock, &colInfo);
+
+    SColumnInfoData *pCol = taosArrayGet(pBlock->pDataBlock, 0);
+    for (int32_t j = 0; j < pBlock->info.rows; ++j) {
+      colDataAppendInt32(pCol, j, &j);
     }
 
     SScalarParam input = {0};
     input.numOfRows = pBlock->info.rows;
     input.columnData = taosArrayGet(pBlock->pDataBlock, 0);
+
     SScalarParam output = {0};
     doCallUdfScalarFunc(handle, &input, 1, &output);
     taosArrayDestroy(pBlock->pDataBlock);
+
     SColumnInfoData *col = output.columnData;
     for (int32_t i = 0; i < output.numOfRows; ++i) {
-      if (i % 100 == 0)
-        fprintf(stderr, "%d\t%d\n", i, *(int32_t *)(col->pData + i * sizeof(int32_t)));
+      if (i % 100 == 0) fprintf(stderr, "%d\t%d\n", i, *(int32_t *)(col->pData + i * sizeof(int32_t)));
     }
     colDataDestroy(output.columnData);
     taosMemoryFree(output.columnData);
   }
   int64_t end = taosGetTimestampUs();
-  fprintf(stderr, "time: %f\n", (end-beg)/1000.0);
+  fprintf(stderr, "time: %f\n", (end - beg) / 1000.0);
   doTeardownUdf(handle);
 
   return 0;
@@ -89,21 +88,18 @@ int aggregateFuncTest() {
     return -1;
   }
 
-  SSDataBlock  block = {0};
-  SSDataBlock *pBlock = &block;
-  pBlock->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
-  pBlock->info.numOfCols = 1;
+  SSDataBlock *pBlock = createDataBlock();
+  for (int32_t i = 0; i < taosArrayGetSize(pBlock->pDataBlock); ++i) {
+    SColumnInfoData colInfo = createColumnInfoData(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1);
+    blockDataAppendColInfo(pBlock, &colInfo);
+  }
+
+  blockDataEnsureCapacity(pBlock, 1024);
   pBlock->info.rows = 1024;
-  for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-    SColumnInfoData colInfo = {0};
-    colInfo.info.type = TSDB_DATA_TYPE_INT;
-    colInfo.info.bytes = sizeof(int32_t);
-    colInfo.info.colId = 1;
-    colInfoDataEnsureCapacity(&colInfo, 0, pBlock->info.rows);
-    for (int32_t j = 0; j < pBlock->info.rows; ++j) {
-      colDataAppendInt32(&colInfo, j, &j);
-    }
-    taosArrayPush(pBlock->pDataBlock, &colInfo);
+
+  SColumnInfoData *pColInfo = bdGetColumnInfoData(pBlock, 0);
+  for (int32_t j = 0; j < pBlock->info.rows; ++j) {
+    colDataAppendInt32(pColInfo, j, &j);
   }
 
   SUdfInterBuf buf = {0};
@@ -114,13 +110,17 @@ int aggregateFuncTest() {
   taosArrayDestroy(pBlock->pDataBlock);
 
   doCallUdfAggFinalize(handle, &newBuf, &resultBuf);
-  fprintf(stderr, "agg result: %f\n", *(double*)resultBuf.buf);
-
+  if (resultBuf.buf != NULL) {
+    fprintf(stderr, "agg result: %f\n", *(double *)resultBuf.buf);
+  } else {
+    fprintf(stderr, "result buffer is null");
+  }
   freeUdfInterBuf(&buf);
   freeUdfInterBuf(&newBuf);
   freeUdfInterBuf(&resultBuf);
   doTeardownUdf(handle);
 
+  blockDataDestroy(pBlock);
   return 0;
 }
 

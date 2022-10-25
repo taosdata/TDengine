@@ -18,6 +18,10 @@
 
 #include <gtest/gtest.h>
 
+#define ALLOW_FORBID_FUNC
+
+#include "planInt.h"
+
 class PlannerTestBaseImpl;
 struct TAOS_MULTI_BIND;
 
@@ -26,7 +30,7 @@ class PlannerTestBase : public testing::Test {
   PlannerTestBase();
   virtual ~PlannerTestBase();
 
-  void useDb(const std::string& acctId, const std::string& db);
+  void useDb(const std::string& user, const std::string& db);
   void run(const std::string& sql);
   // stmt mode APIs
   void prepare(const std::string& sql);
@@ -37,9 +41,12 @@ class PlannerTestBase : public testing::Test {
   std::unique_ptr<PlannerTestBaseImpl> impl_;
 };
 
-extern void    setDumpModule(const char* pModule);
-extern void    setSkipSqlNum(const char* pNum);
-extern void    setLogLevel(const char* pLogLevel);
+extern void    setDumpModule(const char* pArg);
+extern void    setSkipSqlNum(const char* pArg);
+extern void    setLimitSqlNum(const char* pArg);
+extern void    setLogLevel(const char* pArg);
+extern void    setQueryPolicy(const char* pArg);
+extern void    setUseNodeAllocator(const char* pArg);
 extern int32_t getLogLevel();
 
 #endif  // PLAN_TEST_UTIL_H

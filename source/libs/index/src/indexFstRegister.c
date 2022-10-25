@@ -16,7 +16,7 @@
 #include "indexFstRegistry.h"
 #include "os.h"
 
-uint64_t fstRegistryHash(FstRegistry* registry, FstBuilderNode* bNode) {
+static FORCE_INLINE uint64_t fstRegistryHash(FstRegistry* registry, FstBuilderNode* bNode) {
   // TODO(yihaoDeng): refactor later
   const uint64_t FNV_PRIME = 1099511628211;
   uint64_t       h = 14695981039346656037u;

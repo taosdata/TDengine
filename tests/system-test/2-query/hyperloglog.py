@@ -25,6 +25,7 @@ BOOLEAN_COL = [ BOOL_COL, ]
 TS_TYPE_COL = [ TS_COL, ]
 
 ALL_COL = [ INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, BOOL_COL, BINARY_COL, NCHAR_COL, TS_COL ]
+DBNAME = "db"
 
 class TDTestCase:
 
@@ -33,54 +34,11 @@ class TDTestCase:
         tdSql.init(conn.cursor())
 
     def __query_condition(self,tbname):
-        query_condition = [f"cast({col} as bigint)" for col in ALL_COL]
-        for num_col in NUM_COL:
-            query_condition.extend(
-                (
-                    f"{tbname}.{num_col}",
-                    f"abs( {tbname}.{num_col} )",
-                    f"acos( {tbname}.{num_col} )",
-                    f"asin( {tbname}.{num_col} )",
-                    f"atan( {tbname}.{num_col} )",
-                    f"avg( {tbname}.{num_col} )",
-                    f"ceil( {tbname}.{num_col} )",
-                    f"cos( {tbname}.{num_col} )",
-                    f"count( {tbname}.{num_col} )",
-                    f"floor( {tbname}.{num_col} )",
-                    f"log( {tbname}.{num_col},  {tbname}.{num_col})",
-                    f"max( {tbname}.{num_col} )",
-                    f"min( {tbname}.{num_col} )",
-                    f"pow( {tbname}.{num_col}, 2)",
-                    f"round( {tbname}.{num_col} )",
-                    f"sum( {tbname}.{num_col} )",
-                    f"sin( {tbname}.{num_col} )",
-                    f"sqrt( {tbname}.{num_col} )",
-                    f"tan( {tbname}.{num_col} )",
-                    f"cast( {tbname}.{num_col} as timestamp)",
-                )
-            )
-            query_condition.extend((f"{num_col} + {any_col}" for any_col in ALL_COL))
-        for char_col in CHAR_COL:
-            query_condition.extend(
-                (
-                    f"count({tbname}.{char_col})",
-                    f"sum(cast({tbname}.{char_col}) as bigint)",
-                    f"max(cast({tbname}.{char_col}) as bigint)",
-                    f"min(cast({tbname}.{char_col}) as bigint)",
-                    f"avg(cast({tbname}.{char_col}) as bigint)",
-                )
-            )
-        # query_condition.extend(
-        #     (
-        #         1010,
-        #     )
-        # )
-
-        return query_condition
+        return [ f"{any_col}" for any_col in ALL_COL ]
 
     def __join_condition(self, tb_list, filter=PRIMARY_COL, INNER=False):
         table_reference = tb_list[0]
-        join_condition = table_reference
+        join_condition = zwtable_reference
         join = "inner join" if INNER else "join"
         for i in range(len(tb_list[1:])):
             join_condition += f" {join} {tb_list[i+1]} on {table_reference}.{filter}={tb_list[i+1]}.{filter}"
@@ -124,127 +82,98 @@ class TDTestCase:
         return f" group by {col} having {having}" if having else f" group by {col} "
 
     def __single_sql(self, select_clause, from_clause, where_condition="", group_condition=""):
-        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0] != from_clause.split(".")[0]:
+        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0].split("(")[-1] != from_clause.split(".")[0]:
             return
         return f"select hyperloglog({select_clause}) from {from_clause} {where_condition} {group_condition}"
 
     @property
-    def __tb_list(self):
+    def __tb_list(self, dbname=DBNAME):
         return [
-            "ct1",
-            "ct4",
-            "t1",
-            "ct2",
-            "stb1",
+            f"{dbname}.ct1",
+            f"{dbname}.ct4",
+            f"{dbname}.t1",
+            f"{dbname}.ct2",
+            f"{dbname}.stb1",
         ]
 
     def sql_list(self):
         sqls = []
         __no_join_tblist = self.__tb_list
         for tb in __no_join_tblist:
-                select_claus_list = self.__query_condition(tb)
-                for select_claus in select_claus_list:
-                    group_claus = self.__group_condition(col=select_claus)
-                    where_claus = self.__where_condition(query_conditon=select_claus)
-                    having_claus = self.__group_condition(col=select_claus, having=f"{select_claus} is not null")
-                    sqls.extend(
-                        (
-                            self.__single_sql(select_claus, tb, where_claus, having_claus),
-                            self.__single_sql(select_claus, tb,),
-                            self.__single_sql(select_claus, tb, where_condition=where_claus),
-                            self.__single_sql(select_claus, tb, group_condition=group_claus),
-                        )
+            tbname = tb.split(".")[-1]
+            select_claus_list = self.__query_condition(tbname)
+            for select_claus in select_claus_list:
+                group_claus = self.__group_condition(col=select_claus)
+                where_claus = self.__where_condition(query_conditon=select_claus)
+                having_claus = self.__group_condition(col=select_claus, having=f"{select_claus} is not null")
+                sqls.extend(
+                    (
+                        self.__single_sql(select_claus, tb, where_claus, having_claus),
+                        self.__single_sql(select_claus, tb,),
+                        self.__single_sql(select_claus, tb, where_condition=where_claus),
+                        self.__single_sql(select_claus, tb, group_condition=group_claus),
                     )
+                )
 
         # return filter(None, sqls)
         return list(filter(None, sqls))
 
-    def __get_type(self, col):
-        if tdSql.cursor.istype(col, "BOOL"):
-            return "BOOL"
-        if tdSql.cursor.istype(col, "INT"):
-            return "INT"
-        if tdSql.cursor.istype(col, "BIGINT"):
-            return "BIGINT"
-        if tdSql.cursor.istype(col, "TINYINT"):
-            return "TINYINT"
-        if tdSql.cursor.istype(col, "SMALLINT"):
-            return "SMALLINT"
-        if tdSql.cursor.istype(col, "FLOAT"):
-            return "FLOAT"
-        if tdSql.cursor.istype(col, "DOUBLE"):
-            return "DOUBLE"
-        if tdSql.cursor.istype(col, "BINARY"):
-            return "BINARY"
-        if tdSql.cursor.istype(col, "NCHAR"):
-            return "NCHAR"
-        if tdSql.cursor.istype(col, "TIMESTAMP"):
-            return "TIMESTAMP"
-        if tdSql.cursor.istype(col, "JSON"):
-            return "JSON"
-        if tdSql.cursor.istype(col, "TINYINT UNSIGNED"):
-            return "TINYINT UNSIGNED"
-        if tdSql.cursor.istype(col, "SMALLINT UNSIGNED"):
-            return "SMALLINT UNSIGNED"
-        if tdSql.cursor.istype(col, "INT UNSIGNED"):
-            return "INT UNSIGNED"
-        if tdSql.cursor.istype(col, "BIGINT UNSIGNED"):
-            return "BIGINT UNSIGNED"
 
-    def spread_check(self):
+    def hyperloglog_check(self):
         sqls = self.sql_list()
         tdLog.printNoPrefix("===step 1: curent case, must return query OK")
         for i in range(len(sqls)):
             tdLog.info(f"sql: {sqls[i]}")
             tdSql.query(sqls[i])
 
-    def __test_current(self):
-        tdSql.query("select hyperloglog(ts) from ct1")
+    def __test_current(self, dbname=DBNAME):
+        tdSql.query(f"select hyperloglog(ts) from {dbname}.ct1")
         tdSql.checkRows(1)
-        tdSql.query("select hyperloglog(c1) from ct2")
+        tdSql.query(f"select hyperloglog(c1) from {dbname}.ct2")
         tdSql.checkRows(1)
-        tdSql.query("select hyperloglog(c1) from ct4 group by c1")
+        tdSql.query(f"select hyperloglog(c1) from {dbname}.ct4 group by c1")
         tdSql.checkRows(self.rows + 3)
-        tdSql.query("select hyperloglog(c1) from ct4 group by c7")
+        tdSql.query(f"select hyperloglog(c1) from {dbname}.ct4 group by c7")
         tdSql.checkRows(3)
-        tdSql.query("select hyperloglog(ct2.c1) from ct4 join ct2 on ct4.ts=ct2.ts")
+        tdSql.query(f"select hyperloglog(ct2.c1) from {dbname}.ct4 ct4 join {dbname}.ct2 ct2 on ct4.ts=ct2.ts")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, self.rows + 2)
-        tdSql.query("select hyperloglog(c1), c1 from stb1 group by c1")
+        tdSql.query(f"select hyperloglog(c1), c1 from {dbname}.stb1 group by c1")
         for i in range(tdSql.queryRows):
             tdSql.checkData(i, 0, 1) if  tdSql.queryResult[i][1] is not None else tdSql.checkData(i, 0, 0)
 
+        self.hyperloglog_check()
 
-
-        self.spread_check()
-
-    def __test_error(self):
+    def __test_error(self, dbname=DBNAME):
 
         tdLog.printNoPrefix("===step 0: err case, must return err")
-        tdSql.error( "select hyperloglog() from ct1" )
-        tdSql.error( "select hyperloglog(c1, c2) from ct2" )
-        # tdSql.error( "select hyperloglog(1) from ct2" )
-        tdSql.error( f"select hyperloglog({NUM_COL[0]}, {NUM_COL[1]}) from ct4" )
-        tdSql.error( ''' select hyperloglog(['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10'])
-                    from ct1
+        tdSql.error( f"select hyperloglog() from {dbname}.ct1" )
+        tdSql.error( f"select hyperloglog(c1, c2) from {dbname}.ct2" )
+        # tdSql.error( f"select hyperloglog(1) from {dbname}.stb1" )
+        # tdSql.error( f"select hyperloglog(abs(c1)) from {dbname}.ct4" )
+        tdSql.error( f"select hyperloglog(count(c1)) from {dbname}.t1" )
+        # tdSql.error( f"select hyperloglog(1) from {dbname}.ct2" )
+        tdSql.error( f"select hyperloglog({NUM_COL[0]}, {NUM_COL[1]}) from {dbname}.ct4" )
+        tdSql.error( f'''select hyperloglog(['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10'])
+                    from {dbname}.ct1
                     where ['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10'] is not null
                     group by ['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10']
-                    having ['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10'] is not null ''' )
+                    having ['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10'] is not null''' )
 
     def all_test(self):
         self.__test_error()
         self.__test_current()
 
-    def __create_tb(self):
+    def __create_tb(self, dbname=DBNAME):
 
         tdLog.printNoPrefix("==========step1:create table")
-        create_stb_sql  =  f'''create table stb1(
+        create_stb_sql  =  f'''create table {dbname}.stb1(
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
                  {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
                  {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
             ) tags (t1 int)
             '''
-        create_ntb_sql = f'''create table t1(
+        create_ntb_sql = f'''create table {dbname}.t1(
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
                  {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
                  {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
@@ -254,30 +183,99 @@ class TDTestCase:
         tdSql.execute(create_ntb_sql)
 
         for i in range(4):
-            tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
+            tdSql.execute(f'create table {dbname}.ct{i+1} using {dbname}.stb1 tags ( {i+1} )')
             { i % 32767 }, { i % 127}, { i * 1.11111 }, { i * 1000.1111 }, { i % 2}
+    def __create_stable(self, dbname=DBNAME, stbname='stb',column_dict={'ts':'timestamp','col1': 'tinyint','col2': 'smallint','col3': 'int',
+                                                        'col4': 'bigint','col5': 'tinyint unsigned','col6': 'smallint unsigned','col7': 'int unsigned',
+                                                        'col8': 'bigint unsigned','col9': 'float','col10': 'double','col11': 'bool','col12': 'binary(20)','col13': 'nchar(20)'},
+                                            tag_dict={'ts_tag':'timestamp','t1': 'tinyint','t2': 'smallint','t3': 'int',
+                                                        't4': 'bigint','t5': 'tinyint unsigned','t6': 'smallint unsigned','t7': 'int unsigned',
+                                                        't8': 'bigint unsigned','t9': 'float','t10': 'double','t11': 'bool','t12': 'binary(20)','t13': 'nchar(20)'}):
+        column_sql = ''
+        tag_sql = ''
+        for k,v in column_dict.items():
+            column_sql += f"{k} {v},"
+        for k,v in tag_dict.items():
+            tag_sql += f"{k} {v},"
+        tdSql.execute(f'create table if not exists {dbname}.{stbname} ({column_sql[:-1]}) tags({tag_sql[:-1]})')
 
-    def __insert_data(self, rows):
+    def __hyperloglog_check_distribute(self):
+        dbname = "dbtest"
+        stbname = "stb"
+        childtable_num = 20
+        vgroups_num = 4
+        row_num = 10
+        ts = 1537146000000
+        binary_str = 'taosdata'
+        nchar_str = '涛思数据'
+        column_dict = {
+            'ts':'timestamp',
+            'col1': 'tinyint',
+            'col2': 'smallint',
+            'col3': 'int',
+            'col4': 'bigint',
+            'col5': 'tinyint unsigned',
+            'col6': 'smallint unsigned',
+            'col7': 'int unsigned',
+            'col8': 'bigint unsigned',
+            'col9': 'float',
+            'col10': 'double',
+            'col11': 'bool',
+            'col12': 'binary(20)',
+            'col13': 'nchar(20)'
+        }
+        tag_dict = {
+            'loc':'nchar(20)'
+        }
+        tdSql.execute(f"create database if not exists {dbname} vgroups {vgroups_num}")
+        tdSql.execute(f'use {dbname}')
+        self.__create_stable(dbname, stbname,column_dict,tag_dict)
+        for i in range(childtable_num):
+            tdSql.execute(f"create table {dbname}.{stbname}_{i} using {dbname}.{stbname} tags('beijing')")
+        tdSql.query(f"select * from information_schema.ins_tables where db_name = '{dbname}'")
+        vgroup_list = []
+        for i in range(len(tdSql.queryResult)):
+            vgroup_list.append(tdSql.queryResult[i][6])
+        vgroup_list_set = set(vgroup_list)
+        for i in vgroup_list_set:
+            vgroups_num = vgroup_list.count(i)
+            if vgroups_num >=2:
+                tdLog.info(f'This scene with {vgroups_num} vgroups is ok!')
+                continue
+            else:
+                tdLog.exit(f'This scene does not meet the requirements with {vgroups_num} vgroup!\n')
+        for i in range(row_num):
+            tdSql.execute(f"insert into {dbname}.stb_1 values(%d, %d, %d, %d, %d, %d, %d, %d, %d, %f, %f, %d, '{binary_str}%d', '{nchar_str}%d')"
+                          % (ts + i, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
+        for k in column_dict.keys():
+            tdSql.query(f"select hyperloglog({k}) from {dbname}.{stbname}")
+            tdSql.checkRows(1)
+            tdSql.query(f"select hyperloglog({k}) from {dbname}.{stbname} group by {k}")
+
+        tdSql.execute(f'drop database {dbname}')
+
+
+    def __insert_data(self, rows, dbname=DBNAME):
         now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
         for i in range(rows):
             tdSql.execute(
-                f"insert into ct1 values ( { now_time - i * 1000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
+                f"insert into {dbname}.ct1 values ( { now_time - i * 1000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
             )
             tdSql.execute(
-                f"insert into ct4 values ( { now_time - i * 7776000000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
+                f"insert into {dbname}.ct4 values ( { now_time - i * 7776000000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
             )
             tdSql.execute(
-                f"insert into ct2 values ( { now_time - i * 7776000000 }, {-i},  {-11111 * i}, {-111 * i % 32767 }, {-11 * i % 127}, {-1.11*i}, {-1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
+                f"insert into {dbname}.ct2 values ( { now_time - i * 7776000000 }, {-i},  {-11111 * i}, {-111 * i % 32767 }, {-11 * i % 127}, {-1.11*i}, {-1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
             )
         tdSql.execute(
-            f'''insert into ct1 values
+            f'''insert into {dbname}.ct1 values
             ( { now_time - rows * 5 }, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar_测试_0', { now_time + 8 } )
             ( { now_time + 10000 }, { rows }, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar_测试_9', { now_time + 9 } )
             '''
         )
 
         tdSql.execute(
-            f'''insert into ct4 values
+            f'''insert into {dbname}.ct4 values
             ( { now_time - rows * 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( { now_time - rows * 3888000000 + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( { now_time +  7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
@@ -293,7 +291,7 @@ class TDTestCase:
         )
 
         tdSql.execute(
-            f'''insert into ct2 values
+            f'''insert into {dbname}.ct2 values
             ( { now_time - rows * 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( { now_time - rows * 3888000000 + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( { now_time + 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
@@ -309,13 +307,13 @@ class TDTestCase:
         )
 
         for i in range(rows):
-            insert_data = f'''insert into t1 values
+            insert_data = f'''insert into {dbname}.t1 values
                 ( { now_time - i * 3600000 }, {i}, {i * 11111}, { i % 32767 }, { i % 127}, { i * 1.11111 }, { i * 1000.1111 }, { i % 2},
                 "binary_{i}", "nchar_测试_{i}", { now_time - 1000 * i } )
                 '''
             tdSql.execute(insert_data)
         tdSql.execute(
-            f'''insert into t1 values
+            f'''insert into {dbname}.t1 values
             ( { now_time + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( { now_time - (( rows // 2 ) * 60 + 30) * 60000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( { now_time - rows * 3600000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
@@ -333,25 +331,26 @@ class TDTestCase:
 
 
     def run(self):
-        tdSql.prepare()
+        tdSql.prepare(dbname=DBNAME)
 
         tdLog.printNoPrefix("==========step1:create table")
-        self.__create_tb()
+        self.__create_tb(dbname=DBNAME)
 
         tdLog.printNoPrefix("==========step2:insert data")
         self.rows = 10
-        self.__insert_data(self.rows)
+        self.__insert_data(self.rows,dbname=DBNAME)
 
         tdLog.printNoPrefix("==========step3:all check")
         self.all_test()
 
-        tdDnodes.stop(1)
-        tdDnodes.start(1)
-
-        tdSql.execute("use db")
+        tdSql.execute("flush database db")
 
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
         self.all_test()
+
+        tdLog.printNoPrefix("==========step5: distribute scene check")
+        self.__hyperloglog_check_distribute()
+
 
     def stop(self):
         tdSql.close()

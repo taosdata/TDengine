@@ -14,7 +14,37 @@
  */
 
 #include "command.h"
+#include "catalog.h"
+#include "commandInt.h"
+#include "scheduler.h"
+#include "systable.h"
 #include "tdatablock.h"
+#include "tglobal.h"
+#include "tgrant.h"
+
+extern SConfig* tsCfg;
+
+static int32_t buildRetrieveTableRsp(SSDataBlock* pBlock, int32_t numOfCols, SRetrieveTableRsp** pRsp) {
+  size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
+  *pRsp = taosMemoryCalloc(1, rspSize);
+  if (NULL == *pRsp) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  (*pRsp)->useconds = 0;
+  (*pRsp)->completed = 1;
+  (*pRsp)->precision = 0;
+  (*pRsp)->compressed = 0;
+  (*pRsp)->compLen = 0;
+  (*pRsp)->numOfRows = htonl(pBlock->info.rows);
+  (*pRsp)->numOfCols = htonl(numOfCols);
+
+  int32_t len = 0;
+  blockEncode(pBlock, (*pRsp)->data, &len, numOfCols, false);
+  ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
+
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t getSchemaBytes(const SSchema* pSchema) {
   switch (pSchema->type) {
@@ -28,108 +58,699 @@ static int32_t getSchemaBytes(const SSchema* pSchema) {
   }
 }
 
-static SSDataBlock* buildDescResultDataBlock() {
-  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  pBlock->info.numOfCols = DESCRIBE_RESULT_COLS;
-  pBlock->info.hasVarCol = true;
-
-  pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
-
-  SColumnInfoData infoData = {0};
-  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = DESCRIBE_RESULT_FIELD_LEN;
-
-  taosArrayPush(pBlock->pDataBlock, &infoData);
-
-  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = DESCRIBE_RESULT_TYPE_LEN;
-  taosArrayPush(pBlock->pDataBlock, &infoData);
-
-  infoData.info.type = TSDB_DATA_TYPE_INT;
-  infoData.info.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;;
-  taosArrayPush(pBlock->pDataBlock, &infoData);
-
-  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
-  infoData.info.bytes = DESCRIBE_RESULT_NOTE_LEN;
-  taosArrayPush(pBlock->pDataBlock, &infoData);
-
-  return pBlock;
-}
-
-static void setDescResultIntoDataBlock(SSDataBlock* pBlock, int32_t numOfRows, STableMeta* pMeta) {
-  blockDataEnsureCapacity(pBlock, numOfRows);
-  pBlock->info.rows = numOfRows;
-
-  // field
-  SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
-  char buf[DESCRIBE_RESULT_FIELD_LEN] = {0};
-  for (int32_t i = 0; i < numOfRows; ++i) {
-    STR_TO_VARSTR(buf, pMeta->schema[i].name);
-    colDataAppend(pCol1, i, buf, false);
-  }
-
-  // Type
-  SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
-  for (int32_t i = 0; i < numOfRows; ++i) {
-    STR_TO_VARSTR(buf, tDataTypes[pMeta->schema[i].type].name);
-    colDataAppend(pCol2, i, buf, false);
-  }
-
-  // Length
-  SColumnInfoData* pCol3 = taosArrayGet(pBlock->pDataBlock, 2);
-  for (int32_t i = 0; i < numOfRows; ++i) {
-    int32_t bytes = getSchemaBytes(pMeta->schema + i);
-    colDataAppend(pCol3, i, (const char*)&bytes, false);
-  }
-
-  // Note
-  SColumnInfoData* pCol4 = taosArrayGet(pBlock->pDataBlock, 3);
-  for (int32_t i = 0; i < numOfRows; ++i) {
-    STR_TO_VARSTR(buf, i >= pMeta->tableInfo.numOfColumns ? "TAG" : "");
-    colDataAppend(pCol4, i, buf, false);
-  }
-}
-
-static int32_t execDescribe(SNode* pStmt, SRetrieveTableRsp** pRsp) {
-  SDescribeStmt* pDesc = (SDescribeStmt*) pStmt;
-  int32_t numOfRows = TABLE_TOTAL_COL_NUM(pDesc->pMeta);
-
-  SSDataBlock* pBlock = buildDescResultDataBlock();
-  setDescResultIntoDataBlock(pBlock, numOfRows, pDesc->pMeta);
-
-  size_t rspSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
-  *pRsp = taosMemoryCalloc(1, rspSize);
-  if (NULL == *pRsp) {
+static int32_t buildDescResultDataBlock(SSDataBlock** pOutput) {
+  SSDataBlock* pBlock = createDataBlock();
+  if (NULL == pBlock) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  (*pRsp)->useconds = 0;
-  (*pRsp)->completed = 1;
-  (*pRsp)->precision = 0;
-  (*pRsp)->compressed = 0;
-  (*pRsp)->compLen = 0;
-  (*pRsp)->numOfRows = htonl(numOfRows);
-  (*pRsp)->numOfCols = htonl(DESCRIBE_RESULT_COLS);
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_FIELD_LEN, 1);
+  int32_t         code = blockDataAppendColInfo(pBlock, &infoData);
+  if (TSDB_CODE_SUCCESS == code) {
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_TYPE_LEN, 2);
+    code = blockDataAppendColInfo(pBlock, &infoData);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_INT, tDataTypes[TSDB_DATA_TYPE_INT].bytes, 3);
+    code = blockDataAppendColInfo(pBlock, &infoData);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, DESCRIBE_RESULT_NOTE_LEN, 4);
+    code = blockDataAppendColInfo(pBlock, &infoData);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOutput = pBlock;
+  } else {
+    blockDataDestroy(pBlock);
+  }
+  return code;
+}
+
+static void setDescResultIntoDataBlock(bool sysInfoUser, SSDataBlock* pBlock, int32_t numOfRows, STableMeta* pMeta) {
+  blockDataEnsureCapacity(pBlock, numOfRows);
+  pBlock->info.rows = 0;
+
+  // field
+  SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+  // Type
+  SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
+  // Length
+  SColumnInfoData* pCol3 = taosArrayGet(pBlock->pDataBlock, 2);
+  // Note
+  SColumnInfoData* pCol4 = taosArrayGet(pBlock->pDataBlock, 3);
+  char             buf[DESCRIBE_RESULT_FIELD_LEN] = {0};
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    if (invisibleColumn(sysInfoUser, pMeta->tableType, pMeta->schema[i].flags)) {
+      continue;
+    }
+    STR_TO_VARSTR(buf, pMeta->schema[i].name);
+    colDataAppend(pCol1, pBlock->info.rows, buf, false);
+    STR_TO_VARSTR(buf, tDataTypes[pMeta->schema[i].type].name);
+    colDataAppend(pCol2, pBlock->info.rows, buf, false);
+    int32_t bytes = getSchemaBytes(pMeta->schema + i);
+    colDataAppend(pCol3, pBlock->info.rows, (const char*)&bytes, false);
+    STR_TO_VARSTR(buf, i >= pMeta->tableInfo.numOfColumns ? "TAG" : "");
+    colDataAppend(pCol4, pBlock->info.rows, buf, false);
+    ++(pBlock->info.rows);
+  }
+}
+
+static int32_t execDescribe(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp) {
+  SDescribeStmt* pDesc = (SDescribeStmt*)pStmt;
+  int32_t        numOfRows = TABLE_TOTAL_COL_NUM(pDesc->pMeta);
+
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildDescResultDataBlock(&pBlock);
+  if (TSDB_CODE_SUCCESS == code) {
+    setDescResultIntoDataBlock(sysInfoUser, pBlock, numOfRows, pDesc->pMeta);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildRetrieveTableRsp(pBlock, DESCRIBE_RESULT_COLS, pRsp);
+  }
+  blockDataDestroy(pBlock);
+  return code;
+}
+
+static int32_t execResetQueryCache() { return catalogClearCache(); }
+
+static int32_t buildCreateDBResultDataBlock(SSDataBlock** pOutput) {
+  SSDataBlock* pBlock = createDataBlock();
+  if (NULL == pBlock) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_DB_RESULT_COLS, 1);
+  int32_t         code = blockDataAppendColInfo(pBlock, &infoData);
+  if (TSDB_CODE_SUCCESS == code) {
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_DB_RESULT_FIELD2_LEN, 2);
+    code = blockDataAppendColInfo(pBlock, &infoData);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOutput = pBlock;
+  } else {
+    blockDataDestroy(pBlock);
+  }
+  return code;
+}
+
+int64_t getValOfDiffPrecision(int8_t unit, int64_t val) {
+  int64_t v = 0;
+  switch (unit) {
+    case 's':
+      v = val / 1000;
+      break;
+    case 'm':
+      v = val / tsTickPerMin[TSDB_TIME_PRECISION_MILLI];
+      break;
+    case 'h':
+      v = val / (tsTickPerMin[TSDB_TIME_PRECISION_MILLI] * 60);
+      break;
+    case 'd':
+      v = val / (tsTickPerMin[TSDB_TIME_PRECISION_MILLI] * 24 * 60);
+      break;
+    case 'w':
+      v = val / (tsTickPerMin[TSDB_TIME_PRECISION_MILLI] * 24 * 60 * 7);
+      break;
+    default:
+      break;
+  }
+
+  return v;
+}
+
+char* buildRetension(SArray* pRetension) {
+  size_t size = taosArrayGetSize(pRetension);
+  if (size == 0) {
+    return NULL;
+  }
+
+  char*       p1 = taosMemoryCalloc(1, 100);
+  SRetention* p = taosArrayGet(pRetension, 0);
 
   int32_t len = 0;
-  blockCompressEncode(pBlock, (*pRsp)->data, &len, DESCRIBE_RESULT_COLS, false);
-  ASSERT(len == rspSize - sizeof(SRetrieveTableRsp));
 
+  int64_t v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
+  int64_t v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
+  len += sprintf(p1 + len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+
+  if (size > 1) {
+    len += sprintf(p1 + len, ",");
+    p = taosArrayGet(pRetension, 1);
+
+    v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
+    v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
+    len += sprintf(p1 + len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+  }
+
+  if (size > 2) {
+    len += sprintf(p1 + len, ",");
+    p = taosArrayGet(pRetension, 2);
+
+    v1 = getValOfDiffPrecision(p->freqUnit, p->freq);
+    v2 = getValOfDiffPrecision(p->keepUnit, p->keep);
+    len += sprintf(p1 + len, "%" PRId64 "%c:%" PRId64 "%c", v1, p->freqUnit, v2, p->keepUnit);
+  }
+
+  return p1;
+}
+
+static const char* cacheModelStr(int8_t cacheModel) {
+  switch (cacheModel) {
+    case TSDB_CACHE_MODEL_NONE:
+      return TSDB_CACHE_MODEL_NONE_STR;
+    case TSDB_CACHE_MODEL_LAST_ROW:
+      return TSDB_CACHE_MODEL_LAST_ROW_STR;
+    case TSDB_CACHE_MODEL_LAST_VALUE:
+      return TSDB_CACHE_MODEL_LAST_VALUE_STR;
+    case TSDB_CACHE_MODEL_BOTH:
+      return TSDB_CACHE_MODEL_BOTH_STR;
+    default:
+      break;
+  }
+  return TSDB_CACHE_MODEL_NONE_STR;
+}
+
+static const char* strictStr(int8_t strict) {
+  return TSDB_DB_STRICT_ON == strict ? TSDB_DB_STRICT_ON_STR : TSDB_DB_STRICT_OFF_STR;
+}
+
+static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, SDbCfgInfo* pCfg) {
+  blockDataEnsureCapacity(pBlock, 1);
+  pBlock->info.rows = 1;
+
+  SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+  char             buf1[SHOW_CREATE_DB_RESULT_FIELD1_LEN] = {0};
+  STR_TO_VARSTR(buf1, dbFName);
+  colDataAppend(pCol1, 0, buf1, false);
+
+  SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
+  char             buf2[SHOW_CREATE_DB_RESULT_FIELD2_LEN] = {0};
+  int32_t          len = 0;
+  char*            prec = NULL;
+  switch (pCfg->precision) {
+    case TSDB_TIME_PRECISION_MILLI:
+      prec = TSDB_TIME_PRECISION_MILLI_STR;
+      break;
+    case TSDB_TIME_PRECISION_MICRO:
+      prec = TSDB_TIME_PRECISION_MICRO_STR;
+      break;
+    case TSDB_TIME_PRECISION_NANO:
+      prec = TSDB_TIME_PRECISION_NANO_STR;
+      break;
+    default:
+      prec = "none";
+      break;
+  }
+
+  char* retentions = buildRetension(pCfg->pRetensions);
+
+  len += sprintf(
+      buf2 + VARSTR_HEADER_SIZE,
+      "CREATE DATABASE `%s` BUFFER %d CACHESIZE %d CACHEMODEL '%s' COMP %d DURATION %dm "
+      "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d KEEP %dm,%dm,%dm PAGES %d PAGESIZE %d PRECISION '%s' REPLICA %d "
+      "STRICT '%s' WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d",
+      dbFName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->compression, pCfg->daysPerFile, pCfg->walFsyncPeriod,
+      pCfg->maxRows, pCfg->minRows, pCfg->daysToKeep0, pCfg->daysToKeep1, pCfg->daysToKeep2, pCfg->pages,
+      pCfg->pageSize, prec, pCfg->replications, strictStr(pCfg->strict), pCfg->walLevel, pCfg->numOfVgroups,
+      1 == pCfg->numOfStables);
+
+  if (retentions) {
+    len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, " RETENTIONS %s", retentions);
+    taosMemoryFree(retentions);
+  }
+
+  (varDataLen(buf2)) = len;
+
+  colDataAppend(pCol2, 0, buf2, false);
+}
+
+static int32_t execShowCreateDatabase(SShowCreateDatabaseStmt* pStmt, SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildCreateDBResultDataBlock(&pBlock);
+  if (TSDB_CODE_SUCCESS == code) {
+    setCreateDBResultIntoDataBlock(pBlock, pStmt->dbName, pStmt->pCfg);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_DB_RESULT_COLS, pRsp);
+  }
   blockDataDestroy(pBlock);
+  return code;
+}
+
+static int32_t buildCreateTbResultDataBlock(SSDataBlock** pOutput) {
+  SSDataBlock* pBlock = createDataBlock();
+  if (NULL == pBlock) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SColumnInfoData infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_TB_RESULT_FIELD1_LEN, 1);
+  int32_t         code = blockDataAppendColInfo(pBlock, &infoData);
+  if (TSDB_CODE_SUCCESS == code) {
+    infoData = createColumnInfoData(TSDB_DATA_TYPE_VARCHAR, SHOW_CREATE_TB_RESULT_FIELD2_LEN, 2);
+    code = blockDataAppendColInfo(pBlock, &infoData);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOutput = pBlock;
+  } else {
+    blockDataDestroy(pBlock);
+  }
+  return code;
+}
+
+void appendColumnFields(char* buf, int32_t* len, STableCfg* pCfg) {
+  for (int32_t i = 0; i < pCfg->numOfColumns; ++i) {
+    SSchema* pSchema = pCfg->pSchemas + i;
+    char     type[32];
+    sprintf(type, "%s", tDataTypes[pSchema->type].name);
+    if (TSDB_DATA_TYPE_VARCHAR == pSchema->type) {
+      sprintf(type + strlen(type), "(%d)", (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
+    } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
+      sprintf(type + strlen(type), "(%d)", (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+    }
+
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s` %s", ((i > 0) ? ", " : ""), pSchema->name, type);
+  }
+}
+
+void appendTagFields(char* buf, int32_t* len, STableCfg* pCfg) {
+  for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
+    SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
+    char     type[32];
+    sprintf(type, "%s", tDataTypes[pSchema->type].name);
+    if (TSDB_DATA_TYPE_VARCHAR == pSchema->type) {
+      sprintf(type + strlen(type), "(%d)", (int32_t)(pSchema->bytes - VARSTR_HEADER_SIZE));
+    } else if (TSDB_DATA_TYPE_NCHAR == pSchema->type) {
+      sprintf(type + strlen(type), "(%d)", (int32_t)((pSchema->bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE));
+    }
+
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s` %s", ((i > 0) ? ", " : ""), pSchema->name, type);
+  }
+}
+
+void appendTagNameFields(char* buf, int32_t* len, STableCfg* pCfg) {
+  for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
+    SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s`%s`", ((i > 0) ? ", " : ""), pSchema->name);
+  }
+}
+
+int32_t appendTagValues(char* buf, int32_t* len, STableCfg* pCfg) {
+  SArray* pTagVals = NULL;
+  STag*   pTag = (STag*)pCfg->pTags;
+
+  if (NULL == pCfg->pTags || pCfg->numOfTags <= 0) {
+    qError("tag missed in table cfg, pointer:%p, numOfTags:%d", pCfg->pTags, pCfg->numOfTags);
+    return TSDB_CODE_APP_ERROR;
+  }
+
+  if (tTagIsJson(pTag)) {
+    char* pJson = parseTagDatatoJson(pTag);
+    if (pJson) {
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s", pJson);
+      taosMemoryFree(pJson);
+    }
+
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = tTagToValArray((const STag*)pCfg->pTags, &pTagVals);
+  if (code) {
+    return code;
+  }
+
+  int16_t valueNum = taosArrayGetSize(pTagVals);
+  int32_t num = 0;
+  int32_t j = 0;
+  for (int32_t i = 0; i < pCfg->numOfTags; ++i) {
+    SSchema* pSchema = pCfg->pSchemas + pCfg->numOfColumns + i;
+    if (i > 0) {
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ", ");
+    }
+
+    if (j >= valueNum) {
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "NULL");
+      continue;
+    }
+
+    STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, j);
+    if (pSchema->colId > pTagVal->cid) {
+      qError("tag value and column mismatch, schemaId:%d, valId:%d", pSchema->colId, pTagVal->cid);
+      taosArrayDestroy(pTagVals);
+      return TSDB_CODE_APP_ERROR;
+    } else if (pSchema->colId == pTagVal->cid) {
+      char    type = pTagVal->type;
+      int32_t tlen = 0;
+
+      if (IS_VAR_DATA_TYPE(type)) {
+        dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, type, pTagVal->pData, pTagVal->nData, &tlen);
+      } else {
+        dataConverToStr(buf + VARSTR_HEADER_SIZE + *len, type, &pTagVal->i64, tDataTypes[type].bytes, &tlen);
+      }
+      *len += tlen;
+      j++;
+    } else {
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "NULL");
+    }
+
+    /*
+    if (type == TSDB_DATA_TYPE_BINARY) {
+      if (pTagVal->nData > 0) {
+        if (num) {
+          *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ", ");
+        }
+
+        memcpy(buf + VARSTR_HEADER_SIZE + *len, pTagVal->pData, pTagVal->nData);
+        *len += pTagVal->nData;
+      }
+    } else if (type == TSDB_DATA_TYPE_NCHAR) {
+      if (pTagVal->nData > 0) {
+        if (num) {
+          *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ", ");
+        }
+        int32_t tlen = taosUcs4ToMbs((TdUcs4 *)pTagVal->pData, pTagVal->nData, buf + VARSTR_HEADER_SIZE + *len);
+      }
+    } else if (type == TSDB_DATA_TYPE_DOUBLE) {
+      double val = *(double *)(&pTagVal->i64);
+      int    len = 0;
+      term = indexTermCreate(suid, ADD_VALUE, type, key, nKey, (const char *)&val, len);
+    } else if (type == TSDB_DATA_TYPE_BOOL) {
+      int val = *(int *)(&pTagVal->i64);
+      int len = 0;
+      term = indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_INT, key, nKey, (const char *)&val, len);
+    }
+    */
+  }
+
+  taosArrayDestroy(pTagVals);
+
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t execResetQueryCache() {
-  // todo
+void appendTableOptions(char* buf, int32_t* len, SDbCfgInfo* pDbCfg, STableCfg* pCfg) {
+  if (pCfg->commentLen > 0) {
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " COMMENT '%s'", pCfg->pComment);
+  } else if (0 == pCfg->commentLen) {
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " COMMENT ''");
+  }
+
+  if (NULL != pDbCfg->pRetensions && pCfg->watermark1 > 0) {
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " WATERMARK %" PRId64 "a", pCfg->watermark1);
+    if (pCfg->watermark2 > 0) {
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ", %" PRId64 "a", pCfg->watermark2);
+    }
+  }
+
+  if (NULL != pDbCfg->pRetensions && pCfg->delay1 > 0) {
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " MAX_DELAY %" PRId64 "a", pCfg->delay1);
+    if (pCfg->delay2 > 0) {
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ", %" PRId64 "a", pCfg->delay2);
+    }
+  }
+
+  int32_t funcNum = taosArrayGetSize(pCfg->pFuncs);
+  if (NULL != pDbCfg->pRetensions && funcNum > 0) {
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " ROLLUP(");
+    for (int32_t i = 0; i < funcNum; ++i) {
+      char* pFunc = taosArrayGet(pCfg->pFuncs, i);
+      *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, "%s%s", ((i > 0) ? ", " : ""), pFunc);
+    }
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, ")");
+  }
+
+  if (pCfg->ttl > 0) {
+    *len += sprintf(buf + VARSTR_HEADER_SIZE + *len, " TTL %d", pCfg->ttl);
+  }
+}
+
+static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* pDbCfg, char* tbName, STableCfg* pCfg) {
+  int32_t code = 0;
+  blockDataEnsureCapacity(pBlock, 1);
+  pBlock->info.rows = 1;
+
+  SColumnInfoData* pCol1 = taosArrayGet(pBlock->pDataBlock, 0);
+  char             buf1[SHOW_CREATE_TB_RESULT_FIELD1_LEN] = {0};
+  STR_TO_VARSTR(buf1, tbName);
+  colDataAppend(pCol1, 0, buf1, false);
+
+  SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
+  char*            buf2 = taosMemoryMalloc(SHOW_CREATE_TB_RESULT_FIELD2_LEN);
+  if (NULL == buf2) {
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return terrno;
+  }
+  
+  int32_t          len = 0;
+
+  if (TSDB_SUPER_TABLE == pCfg->tableType) {
+    len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE STABLE `%s` (", tbName);
+    appendColumnFields(buf2, &len, pCfg);
+    len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ") TAGS (");
+    appendTagFields(buf2, &len, pCfg);
+    len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ")");
+    appendTableOptions(buf2, &len, pDbCfg, pCfg);
+  } else if (TSDB_CHILD_TABLE == pCfg->tableType) {
+    len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE TABLE `%s` USING `%s` (", tbName, pCfg->stbName);
+    appendTagNameFields(buf2, &len, pCfg);
+    len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ") TAGS (");
+    code = appendTagValues(buf2, &len, pCfg);
+    if (code) {
+      taosMemoryFree(buf2);
+      return code;
+    }
+    len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ")");
+    appendTableOptions(buf2, &len, pDbCfg, pCfg);
+  } else {
+    len += sprintf(buf2 + VARSTR_HEADER_SIZE, "CREATE TABLE `%s` (", tbName);
+    appendColumnFields(buf2, &len, pCfg);
+    len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ")");
+    appendTableOptions(buf2, &len, pDbCfg, pCfg);
+  }
+
+  varDataLen(buf2) = len;
+
+  colDataAppend(pCol2, 0, buf2, false);
+
+  taosMemoryFree(buf2);
+  
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qExecCommand(SNode* pStmt, SRetrieveTableRsp** pRsp) {
+static int32_t execShowCreateTable(SShowCreateTableStmt* pStmt, SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildCreateTbResultDataBlock(&pBlock);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setCreateTBResultIntoDataBlock(pBlock, pStmt->pDbCfg, pStmt->tableName, pStmt->pTableCfg);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildRetrieveTableRsp(pBlock, SHOW_CREATE_TB_RESULT_COLS, pRsp);
+  }
+  blockDataDestroy(pBlock);
+  return code;
+}
+
+static int32_t execShowCreateSTable(SShowCreateTableStmt* pStmt, SRetrieveTableRsp** pRsp) {
+  STableCfg* pCfg = (STableCfg*)pStmt->pTableCfg;
+  if (TSDB_SUPER_TABLE != pCfg->tableType) {
+    terrno = TSDB_CODE_TSC_NOT_STABLE_ERROR;
+    return terrno;
+  }
+
+  return execShowCreateTable(pStmt, pRsp);
+}
+
+static int32_t execAlterCmd(char* cmd, char* value, bool* processed) {
+  int32_t code = 0;
+
+  if (0 == strcasecmp(cmd, COMMAND_RESET_LOG)) {
+    taosResetLog();
+    cfgDumpCfg(tsCfg, 0, false);
+  } else if (0 == strcasecmp(cmd, COMMAND_SCHEDULE_POLICY)) {
+    code = schedulerUpdatePolicy(atoi(value));
+  } else if (0 == strcasecmp(cmd, COMMAND_ENABLE_RESCHEDULE)) {
+    code = schedulerEnableReSchedule(atoi(value));
+  } else {
+    goto _return;
+  }
+
+  *processed = true;
+
+_return:
+
+  if (code) {
+    terrno = code;
+  }
+
+  return code;
+}
+
+static int32_t execAlterLocal(SAlterLocalStmt* pStmt) {
+  bool processed = false;
+
+  if (execAlterCmd(pStmt->config, pStmt->value, &processed)) {
+    return terrno;
+  }
+
+  if (processed) {
+    goto _return;
+  }
+
+  bool forbidden = false;
+  taosLocalCfgForbiddenToChange(pStmt->config, &forbidden);
+  if (forbidden) {
+    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
+    return terrno;
+  }
+
+  if (cfgSetItem(tsCfg, pStmt->config, pStmt->value, CFG_STYPE_ALTER_CMD)) {
+    return terrno;
+  }
+
+  if (taosSetCfg(tsCfg, pStmt->config)) {
+    return terrno;
+  }
+
+_return:
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t buildLocalVariablesResultDataBlock(SSDataBlock** pOutput) {
+  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+  if (NULL == pBlock) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  pBlock->info.hasVarCol = true;
+
+  pBlock->pDataBlock = taosArrayInit(SHOW_LOCAL_VARIABLES_RESULT_COLS, sizeof(SColumnInfoData));
+
+  SColumnInfoData infoData = {0};
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN;
+
+  taosArrayPush(pBlock->pDataBlock, &infoData);
+
+  infoData.info.type = TSDB_DATA_TYPE_VARCHAR;
+  infoData.info.bytes = SHOW_LOCAL_VARIABLES_RESULT_FIELD2_LEN;
+  taosArrayPush(pBlock->pDataBlock, &infoData);
+
+  *pOutput = pBlock;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t setLocalVariablesResultIntoDataBlock(SSDataBlock* pBlock) {
+  int32_t numOfCfg = taosArrayGetSize(tsCfg->array);
+  int32_t numOfRows = 0;
+  blockDataEnsureCapacity(pBlock, numOfCfg);
+
+  for (int32_t i = 0, c = 0; i < numOfCfg; ++i, c = 0) {
+    SConfigItem* pItem = taosArrayGet(tsCfg->array, i);
+    GRANT_CFG_SKIP;
+    char name[TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(name, pItem->name, TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE);
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
+    colDataAppend(pColInfo, i, name, false);
+
+    char    value[TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE] = {0};
+    int32_t valueLen = 0;
+    cfgDumpItemValue(pItem, &value[VARSTR_HEADER_SIZE], TSDB_CONFIG_VALUE_LEN, &valueLen);
+    varDataSetLen(value, valueLen);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, c++);
+    colDataAppend(pColInfo, i, value, false);
+
+    numOfRows++;
+  }
+
+  pBlock->info.rows = numOfRows;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t execShowLocalVariables(SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = buildLocalVariablesResultDataBlock(&pBlock);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = setLocalVariablesResultIntoDataBlock(pBlock);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildRetrieveTableRsp(pBlock, SHOW_LOCAL_VARIABLES_RESULT_COLS, pRsp);
+  }
+  blockDataDestroy(pBlock);
+  return code;
+}
+
+static int32_t createSelectResultDataBlock(SNodeList* pProjects, SSDataBlock** pOutput) {
+  SSDataBlock* pBlock = createDataBlock();
+  if (NULL == pBlock) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  SNode* pProj = NULL;
+  FOREACH(pProj, pProjects) {
+    SColumnInfoData infoData = {0};
+    infoData.info.type = ((SExprNode*)pProj)->resType.type;
+    infoData.info.bytes = ((SExprNode*)pProj)->resType.bytes;
+    blockDataAppendColInfo(pBlock, &infoData);
+  }
+  *pOutput = pBlock;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t buildSelectResultDataBlock(SNodeList* pProjects, SSDataBlock* pBlock) {
+  blockDataEnsureCapacity(pBlock, 1);
+
+  int32_t index = 0;
+  SNode*  pProj = NULL;
+  FOREACH(pProj, pProjects) {
+    if (QUERY_NODE_VALUE != nodeType(pProj)) {
+      return TSDB_CODE_PAR_INVALID_SELECTED_EXPR;
+    } else {
+      if (((SValueNode*)pProj)->isNull) {
+        colDataAppend(taosArrayGet(pBlock->pDataBlock, index++), 0, NULL, true);
+      } else {
+        colDataAppend(taosArrayGet(pBlock->pDataBlock, index++), 0, nodesGetValueFromNode((SValueNode*)pProj), false);
+      }
+    }
+  }
+
+  pBlock->info.rows = 1;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t execSelectWithoutFrom(SSelectStmt* pSelect, SRetrieveTableRsp** pRsp) {
+  SSDataBlock* pBlock = NULL;
+  int32_t      code = createSelectResultDataBlock(pSelect->pProjectionList, &pBlock);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildSelectResultDataBlock(pSelect->pProjectionList, pBlock);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildRetrieveTableRsp(pBlock, LIST_LENGTH(pSelect->pProjectionList), pRsp);
+  }
+  blockDataDestroy(pBlock);
+  return code;
+}
+
+int32_t qExecCommand(bool sysInfoUser, SNode* pStmt, SRetrieveTableRsp** pRsp) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_DESCRIBE_STMT:
-      return execDescribe(pStmt, pRsp);
+      return execDescribe(sysInfoUser, pStmt, pRsp);
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:
       return execResetQueryCache();
+    case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
+      return execShowCreateDatabase((SShowCreateDatabaseStmt*)pStmt, pRsp);
+    case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
+      return execShowCreateTable((SShowCreateTableStmt*)pStmt, pRsp);
+    case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
+      return execShowCreateSTable((SShowCreateTableStmt*)pStmt, pRsp);
+    case QUERY_NODE_ALTER_LOCAL_STMT:
+      return execAlterLocal((SAlterLocalStmt*)pStmt);
+    case QUERY_NODE_SHOW_LOCAL_VARIABLES_STMT:
+      return execShowLocalVariables(pRsp);
+    case QUERY_NODE_SELECT_STMT:
+      return execSelectWithoutFrom((SSelectStmt*)pStmt, pRsp);
     default:
       break;
   }

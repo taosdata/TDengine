@@ -16,6 +16,7 @@
 #include "functionMgt.h"
 
 #include "builtins.h"
+#include "builtinsimpl.h"
 #include "functionMgtInt.h"
 #include "taos.h"
 #include "taoserror.h"
@@ -25,11 +26,6 @@
 typedef struct SFuncMgtService {
   SHashObj* pFuncNameHashTable;
 } SFuncMgtService;
-
-typedef struct SUdfInfo {
-  SDataType outputDt;
-  int8_t    funcType;
-} SUdfInfo;
 
 static SFuncMgtService gFunMgtService;
 static TdThreadOnce    functionHashTableInit = PTHREAD_ONCE_INIT;
@@ -70,17 +66,43 @@ int32_t fmFuncMgtInit() {
 }
 
 int32_t fmGetFuncInfo(SFunctionNode* pFunc, char* pMsg, int32_t msgLen) {
-  void* pVal = taosHashGet(gFunMgtService.pFuncNameHashTable, pFunc->functionName, strlen(pFunc->functionName));
-  if (NULL != pVal) {
-    pFunc->funcId = *(int32_t*)pVal;
-    pFunc->funcType = funcMgtBuiltins[pFunc->funcId].type;
-    return funcMgtBuiltins[pFunc->funcId].translateFunc(pFunc, pMsg, msgLen);
+  if (NULL != gFunMgtService.pFuncNameHashTable) {
+    void* pVal = taosHashGet(gFunMgtService.pFuncNameHashTable, pFunc->functionName, strlen(pFunc->functionName));
+    if (NULL != pVal) {
+      pFunc->funcId = *(int32_t*)pVal;
+      pFunc->funcType = funcMgtBuiltins[pFunc->funcId].type;
+      return funcMgtBuiltins[pFunc->funcId].translateFunc(pFunc, pMsg, msgLen);
+    }
+    return TSDB_CODE_FUNC_NOT_BUILTIN_FUNTION;
+  }
+  for (int32_t i = 0; i < funcMgtBuiltinsNum; ++i) {
+    if (0 == strcmp(funcMgtBuiltins[i].name, pFunc->functionName)) {
+      pFunc->funcId = i;
+      pFunc->funcType = funcMgtBuiltins[pFunc->funcId].type;
+      return funcMgtBuiltins[pFunc->funcId].translateFunc(pFunc, pMsg, msgLen);
+    }
   }
   return TSDB_CODE_FUNC_NOT_BUILTIN_FUNTION;
 }
 
+EFuncReturnRows fmGetFuncReturnRows(SFunctionNode* pFunc) {
+  if (NULL != funcMgtBuiltins[pFunc->funcId].estimateReturnRowsFunc) {
+    return funcMgtBuiltins[pFunc->funcId].estimateReturnRowsFunc(pFunc);
+  }
+  return (fmIsIndefiniteRowsFunc(pFunc->funcId) || fmIsMultiRowsFunc(pFunc->funcId)) ? FUNC_RETURN_ROWS_INDEFINITE
+                                                                                     : FUNC_RETURN_ROWS_NORMAL;
+}
+
 bool fmIsBuiltinFunc(const char* pFunc) {
   return NULL != taosHashGet(gFunMgtService.pFuncNameHashTable, pFunc, strlen(pFunc));
+}
+
+EFunctionType fmGetFuncType(const char* pFunc) {
+  void* pVal = taosHashGet(gFunMgtService.pFuncNameHashTable, pFunc, strlen(pFunc));
+  if (NULL != pVal) {
+    return funcMgtBuiltins[*(int32_t*)pVal].type;
+  }
+  return FUNCTION_TYPE_UDF;
 }
 
 EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
@@ -91,6 +113,23 @@ EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWin
     return FUNC_DATA_REQUIRED_DATA_LOAD;
   }
   return funcMgtBuiltins[pFunc->funcId].dataRequiredFunc(pFunc, pTimeWindow);
+}
+
+EFuncDataRequired fmFuncDynDataRequired(int32_t funcId, void* pRes, STimeWindow* pTimeWindow) {
+  if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return TSDB_CODE_FAILED;
+  }
+
+  const char* name = funcMgtBuiltins[funcId].name;
+  if ((strcmp(name, "_group_key") == 0) || (strcmp(name, "_select_value") == 0)) {
+    return FUNC_DATA_REQUIRED_NOT_LOAD;
+  }
+
+  if (funcMgtBuiltins[funcId].dynDataRequiredFunc == NULL) {
+    return FUNC_DATA_REQUIRED_DATA_LOAD;
+  } else {
+    return funcMgtBuiltins[funcId].dynDataRequiredFunc(pRes, pTimeWindow);
+  }
 }
 
 int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
@@ -129,7 +168,7 @@ bool fmIsAggFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MG
 
 bool fmIsScalarFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_SCALAR_FUNC); }
 
-bool fmIsVectorFunc(int32_t funcId) { return !fmIsScalarFunc(funcId); }
+bool fmIsVectorFunc(int32_t funcId) { return !fmIsScalarFunc(funcId) && !fmIsPseudoColumnFunc(funcId); }
 
 bool fmIsSelectFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_SELECT_FUNC); }
 
@@ -161,6 +200,59 @@ bool fmIsUserDefinedFunc(int32_t funcId) { return funcId > FUNC_UDF_ID_START; }
 
 bool fmIsForbidFillFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_FILL_FUNC); }
 
+bool fmIsIntervalInterpoFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_INTERVAL_INTERPO_FUNC); }
+
+bool fmIsForbidStreamFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_STREAM_FUNC); }
+
+bool fmIsSystemInfoFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_SYSTEM_INFO_FUNC); }
+
+bool fmIsImplicitTsFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_IMPLICIT_TS_FUNC); }
+
+bool fmIsClientPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_CLIENT_PC_FUNC); }
+
+bool fmIsMultiRowsFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_MULTI_ROWS_FUNC); }
+
+bool fmIsKeepOrderFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_KEEP_ORDER_FUNC); }
+
+bool fmIsCumulativeFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_CUMULATIVE_FUNC); }
+
+bool fmIsForbidSuperTableFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_STABLE_FUNC); }
+
+bool fmIsInterpFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_INTERP == funcMgtBuiltins[funcId].type;
+}
+
+bool fmIsInterpPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_INTERP_PC_FUNC); }
+
+bool fmIsLastRowFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_LAST_ROW == funcMgtBuiltins[funcId].type;
+}
+
+bool fmIsNotNullOutputFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_LAST == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_LAST_PARTIAL == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_LAST_MERGE == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_FIRST == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_FIRST_PARTIAL == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_FIRST_MERGE == funcMgtBuiltins[funcId].type;
+}
+
+bool fmIsSelectValueFunc(int32_t funcId) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNCTION_TYPE_SELECT_VALUE == funcMgtBuiltins[funcId].type;
+}
+
 void fmFuncMgtDestroy() {
   void* m = gFunMgtService.pFuncNameHashTable;
   if (m != NULL && atomic_val_compare_exchange_ptr((void**)&gFunMgtService.pFuncNameHashTable, m, 0) == m) {
@@ -191,8 +283,8 @@ bool fmIsInvertible(int32_t funcId) {
     case FUNCTION_TYPE_SUM:
     case FUNCTION_TYPE_STDDEV:
     case FUNCTION_TYPE_AVG:
-    case FUNCTION_TYPE_WSTARTTS:
-    case FUNCTION_TYPE_WENDTS:
+    case FUNCTION_TYPE_WSTART:
+    case FUNCTION_TYPE_WEND:
     case FUNCTION_TYPE_WDURATION:
       res = true;
       break;
@@ -202,44 +294,60 @@ bool fmIsInvertible(int32_t funcId) {
   return res;
 }
 
+// function has same input/output type
+bool fmIsSameInOutType(int32_t funcId) {
+  bool res = false;
+  switch (funcMgtBuiltins[funcId].type) {
+    case FUNCTION_TYPE_MAX:
+    case FUNCTION_TYPE_MIN:
+    case FUNCTION_TYPE_TOP:
+    case FUNCTION_TYPE_BOTTOM:
+    case FUNCTION_TYPE_FIRST:
+    case FUNCTION_TYPE_LAST:
+    case FUNCTION_TYPE_SAMPLE:
+    case FUNCTION_TYPE_TAIL:
+    case FUNCTION_TYPE_UNIQUE:
+      res = true;
+      break;
+    default:
+      break;
+  }
+  return res;
+}
+
+void getLastCacheDataType(SDataType* pType) {
+  pType->bytes = getFirstLastInfoSize(pType->bytes) + VARSTR_HEADER_SIZE;
+  pType->type = TSDB_DATA_TYPE_BINARY;
+}
+
 static int32_t getFuncInfo(SFunctionNode* pFunc) {
-  char msg[64] = {0};
-  if (NULL != gFunMgtService.pFuncNameHashTable) {
-    return fmGetFuncInfo(pFunc, msg, sizeof(msg));
-  }
-  for (int32_t i = 0; i < funcMgtBuiltinsNum; ++i) {
-    if (0 == strcmp(funcMgtBuiltins[i].name, pFunc->functionName)) {
-      pFunc->funcId = i;
-      pFunc->funcType = funcMgtBuiltins[pFunc->funcId].type;
-      return funcMgtBuiltins[pFunc->funcId].translateFunc(pFunc, msg, sizeof(msg));
-    }
-  }
-  return TSDB_CODE_FUNC_NOT_BUILTIN_FUNTION;
+  char msg[128] = {0};
+  return fmGetFuncInfo(pFunc, msg, sizeof(msg));
 }
 
 static SFunctionNode* createFunction(const char* pName, SNodeList* pParameterList) {
-  SFunctionNode* pFunc = nodesMakeNode(QUERY_NODE_FUNCTION);
+  SFunctionNode* pFunc = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   if (NULL == pFunc) {
     return NULL;
   }
-  strcpy(pFunc->functionName, pName);
+  snprintf(pFunc->functionName, sizeof(pFunc->functionName), "%s", pName);
   pFunc->pParameterList = pParameterList;
   if (TSDB_CODE_SUCCESS != getFuncInfo(pFunc)) {
     pFunc->pParameterList = NULL;
-    nodesDestroyNode(pFunc);
+    nodesDestroyNode((SNode*)pFunc);
     return NULL;
   }
   return pFunc;
 }
 
-static SColumnNode* createColumnByFunc(const SFunctionNode* pFunc) {
-  SColumnNode* pCol = nodesMakeNode(QUERY_NODE_COLUMN);
+static SNode* createColumnByFunc(const SFunctionNode* pFunc) {
+  SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
   if (NULL == pCol) {
     return NULL;
   }
   strcpy(pCol->colName, pFunc->node.aliasName);
   pCol->node.resType = pFunc->node.resType;
-  return pCol;
+  return (SNode*)pCol;
 }
 
 bool fmIsDistExecFunc(int32_t funcId) {
@@ -267,17 +375,43 @@ static int32_t createPartialFunction(const SFunctionNode* pSrcFunc, SFunctionNod
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t createMergeFuncPara(const SFunctionNode* pSrcFunc, const SFunctionNode* pPartialFunc,
+                                   SNodeList** pParameterList) {
+  SNode* pRes = createColumnByFunc(pPartialFunc);
+  if (NULL != funcMgtBuiltins[pSrcFunc->funcId].createMergeParaFuc) {
+    return funcMgtBuiltins[pSrcFunc->funcId].createMergeParaFuc(pSrcFunc->pParameterList, pRes, pParameterList);
+  } else {
+    return nodesListMakeStrictAppend(pParameterList, pRes);
+  }
+}
+
 static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctionNode* pPartialFunc,
                                    SFunctionNode** pMergeFunc) {
-  SNodeList* pParameterList = NULL;
-  nodesListMakeStrictAppend(&pParameterList, createColumnByFunc(pPartialFunc));
-  *pMergeFunc = createFunction(funcMgtBuiltins[pSrcFunc->funcId].pMergeFunc, pParameterList);
-  if (NULL == *pMergeFunc) {
-    nodesDestroyList(pParameterList);
-    return TSDB_CODE_OUT_OF_MEMORY;
+  SNodeList*     pParameterList = NULL;
+  SFunctionNode* pFunc = NULL;
+
+  int32_t code = createMergeFuncPara(pSrcFunc, pPartialFunc, &pParameterList);
+  if (TSDB_CODE_SUCCESS == code) {
+    pFunc = createFunction(funcMgtBuiltins[pSrcFunc->funcId].pMergeFunc, pParameterList);
+    if (NULL == pFunc) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
-  strcpy((*pMergeFunc)->node.aliasName, pSrcFunc->node.aliasName);
-  return TSDB_CODE_SUCCESS;
+  if (TSDB_CODE_SUCCESS == code) {
+    // overwrite function restype set by translate function
+    if (fmIsSameInOutType(pSrcFunc->funcId)) {
+      pFunc->node.resType = pSrcFunc->node.resType;
+    }
+    strcpy(pFunc->node.aliasName, pSrcFunc->node.aliasName);
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
+    *pMergeFunc = pFunc;
+  } else {
+    nodesDestroyList(pParameterList);
+  }
+
+  return code;
 }
 
 int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc, SFunctionNode** pMergeFunc) {
@@ -291,8 +425,8 @@ int32_t fmGetDistMethod(const SFunctionNode* pFunc, SFunctionNode** pPartialFunc
   }
 
   if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode(*pPartialFunc);
-    nodesDestroyNode(*pMergeFunc);
+    nodesDestroyNode((SNode*)*pPartialFunc);
+    nodesDestroyNode((SNode*)*pMergeFunc);
   }
 
   return code;

@@ -1,0 +1,119 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = first_db
+$tbPrefix = first_tb
+$stbPrefix = first_stb
+$tbNum = 10
+$rowNum = 1000
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 60000
+print ========== first_last.sim
+$i = 0
+$db = $dbPrefix . $i
+$stb = $stbPrefix . $i
+
+sql drop database $db -x step1
+step1:
+
+sql create database $db maxrows 400
+
+sql use $db
+sql create table $stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 smallint, c6 tinyint, c7 bool, c8 binary(10), c9 nchar(10)) tags(t1 int)
+
+$i = 0
+$ts = $ts0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $stb tags( $i )
+
+  $x = 0
+  while $x < $rowNum
+    $xs = $x * $delta
+    $ts = $ts0 + $xs
+    $c6 =  $x / 128
+    $c6 = $c6 * 128
+    $c6 = $x - $c6
+    sql insert into $tb values ( $ts , $x , $x , $x , $x , $x , $c6 , true, 'BINARY', 'NCHAR' )
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+endw
+
+$ts = $ts + 60000
+$tb = $tbPrefix . 0
+sql insert into $tb (ts) values ( $ts )
+$tb = $tbPrefix . 1
+sql insert into $tb (ts) values ( $ts )
+$tb = $tbPrefix . 2
+sql insert into $tb (ts) values ( $ts )
+$tb = $tbPrefix . 3
+sql insert into $tb (ts) values ( $ts )
+$tb = $tbPrefix . 4
+sql insert into $tb (ts) values ( $ts )
+$ts = $ts0 - 60000
+$tb = $tbPrefix . 0
+sql import into $tb (ts) values ( $ts )
+$tb = $tbPrefix . 1
+sql import into $tb (ts) values ( $ts )
+$tb = $tbPrefix . 2
+sql import into $tb (ts) values ( $ts )
+$tb = $tbPrefix . 3
+sql import into $tb (ts) values ( $ts )
+$tb = $tbPrefix . 4
+sql import into $tb (ts) values ( $ts )
+
+print ====== test data created
+
+run tsim/parser/first_last_query.sim
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+sql connect
+
+run tsim/parser/first_last_query.sim
+
+print =================> insert data regression test
+sql create database test keep 36500
+sql use test
+sql create table tm0 (ts timestamp, k int)
+
+print =========================> td-2298
+$ts0 = 1537146000000
+$xs  = 6000
+
+$x = 0
+while $x < 5000
+    $ts = $ts0 + $xs
+    $ts1 = $ts + $xs
+    $x1 = $x + 1
+
+    sql insert into tm0 values ( $ts , $x ) ( $ts1 , $x1 )
+    $x = $x1
+    $ts0 = $ts1
+endw
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+sql connect
+
+sql use test
+sql select count(*), last(ts) from tm0 interval(1s)
+if $rows != 10000 then
+  print expect 10000, actual: $rows
+  return -1
+endi
+
+sql select last(ts) from tm0 interval(1s)
+if $rows != 10000 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

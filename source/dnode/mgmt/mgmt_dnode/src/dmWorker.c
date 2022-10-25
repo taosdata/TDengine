@@ -101,7 +101,8 @@ void dmStopMonitorThread(SDnodeMgmt *pMgmt) {
 static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SDnodeMgmt *pMgmt = pInfo->ahandle;
   int32_t     code = -1;
-  dTrace("msg:%p, will be processed in dnode queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+  STraceId   *trace = &pMsg->info.traceId;
+  dGTrace("msg:%p, will be processed in dnode queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
 
   switch (pMsg->msgType) {
     case TDMT_DND_CONFIG_DNODE:
@@ -131,14 +132,14 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_DND_DROP_SNODE:
       code = (*pMgmt->processDropNodeFp)(SNODE, pMsg);
       break;
-    case TDMT_DND_CREATE_BNODE:
-      code = (*pMgmt->processCreateNodeFp)(BNODE, pMsg);
-      break;
-    case TDMT_DND_DROP_BNODE:
-      code = (*pMgmt->processDropNodeFp)(BNODE, pMsg);
-      break;
     case TDMT_DND_SERVER_STATUS:
       code = dmProcessServerRunStatus(pMgmt, pMsg);
+      break;
+    case TDMT_DND_SYSTABLE_RETRIEVE:
+      code = dmProcessRetrieve(pMgmt, pMsg);
+      break;
+    case TDMT_MND_GRANT:
+      code = dmProcessGrantReq(pMsg);
       break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;

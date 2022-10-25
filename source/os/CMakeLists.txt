@@ -39,12 +39,20 @@ endif()
 target_link_libraries(
     os PUBLIC pthread
 )
-if(NOT TD_WINDOWS)
+if(TD_WINDOWS)
     target_link_libraries(
-        os PUBLIC dl m rt
+        os PUBLIC ws2_32 iconv msvcregex wcwidth winmm crashdump
+    )
+elseif(TD_DARWIN_64)
+    target_link_libraries(
+        os PUBLIC dl m iconv
     )
 else()
     target_link_libraries(
-        os PUBLIC ws2_32 iconv msvcregex wcwidth winmm
+        os PUBLIC dl m rt
     )
-endif(NOT TD_WINDOWS)
+endif()
+
+IF (JEMALLOC_ENABLED)
+    target_link_libraries(os PUBLIC -ljemalloc)
+ENDIF ()

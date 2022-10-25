@@ -20,13 +20,7 @@
 extern "C" {
 #endif
 
-typedef struct SCtgTaskCallbackParam {
-  uint64_t                queryId;
-  int64_t                 refId;
-  uint64_t                taskId;
-  int32_t                 reqType;
-} SCtgTaskCallbackParam;
-
+#define CTG_MAX_REQ_IN_BATCH 1048576
 
 #ifdef __cplusplus
 }

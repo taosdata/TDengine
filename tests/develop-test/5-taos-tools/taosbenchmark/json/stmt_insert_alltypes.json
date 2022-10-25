@@ -1,0 +1,63 @@
+{
+  "filetype": "insert",
+  "cfgdir": "/etc/taos",
+  "host": "127.0.0.1",
+  "port": 6030,
+  "user": "root",
+  "password": "taosdata",
+  "thread_count": 4,
+  "connection_pool_size": 20,
+  "result_file": "./insert_res.txt",
+  "confirm_parameter_prompt": "no",
+  "prepared_rand": 10,
+  "chinese": "no",
+  "insert_interval": 0,
+  "num_of_records_per_req": 10,
+  "databases": [{
+    "dbinfo": {
+      "name": "db",
+      "drop": "yes",
+      "replica": 1,
+      "precision": "ms",
+      "keep": 36500,
+      "minRows": 100,
+      "maxRows": 4096,
+      "comp":2
+    },
+    "super_tables": [{
+      "name": "stb",
+      "child_table_exists":"no",
+      "childtable_count": 8,
+      "childtable_prefix": "stb_",
+      "escape_character": "yes",
+      "auto_create_table": "no",
+      "batch_create_tbl_num": 10,
+      "data_source": "rand",
+      "insert_mode": "stmt",
+      "line_protocol": "line",
+      "childtable_limit": 0,
+      "childtable_offset": 0,
+      "insert_rows": 20,
+      "insert_interval": 0,
+      "interlace_rows": 0,
+      "disorder_ratio": 0,
+      "disorder_range": 1000,
+      "timestamp_step": 1,
+      "start_timestamp": "2020-10-01 00:00:00.000",
+      "sample_file": "./sample.csv",
+      "use_sample_ts": "no",
+      "tags_file": "",
+      "partial_col_num": 999,
+      "columns": [{"type": "TIMESTAMP","max": 10, "min": 0},{"type": "INT","max": 10, "min": 0}, {"type": "BIGINT","max": 10, "min": 0}, {"type": "FLOAT","max": 10, "min": 0}, {"type": "DOUBLE","max": 10, "min": 0}, {"type": "SMALLINT","max": 10, "min": 0}, {"type": "TINYINT","max": 10, "min": 0}, {"type": "BOOL","max": 10, "min": 0}, {"type": "NCHAR","len": 29, "count":1,
+        "values": ["d1", "d2"]
+      }, {"type": "UINT","max": 10, "min": 0}, {"type": "UBIGINT","max": 10, "min": 0}, {"type": "UTINYINT","max": 10, "min": 0}, {"type": "USMALLINT","max": 10, "min": 0}, {"type": "BINARY", "len": 23, "count":1,
+        "values": ["b1","b2"]
+      }],
+      "tags": [{"type": "TIMESTAMP","max": 10, "min": 0},{"type": "INT","max": 10, "min": 0}, {"type": "BIGINT","max": 10, "min": 0}, {"type": "FLOAT","max": 10, "min": 0}, {"type": "DOUBLE","max": 10, "min": 0}, {"type": "SMALLINT","max": 10, "min": 0}, {"type": "TINYINT","max": 10, "min": 0}, {"type": "BOOL","max": 10, "min": 0}, {"type": "NCHAR","len": 17, "count":1,
+        "values": ["d1", "d2"]
+      }, {"type": "UINT","max": 10, "min": 0}, {"type": "UBIGINT","max": 10, "min": 0}, {"type": "UTINYINT","max": 10, "min": 0}, {"type": "USMALLINT","max": 10, "min": 0}, {"type": "BINARY", "len": 19, "count":1,
+        "values": ["b1","b2"]
+      }]
+    }]
+  }]
+}

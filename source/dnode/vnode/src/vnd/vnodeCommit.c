@@ -15,64 +15,57 @@
 
 #include "vnd.h"
 
-#define VND_INFO_FNAME     "vnode.json"
+#define VND_INFO_FNAME "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
 
 static int  vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData);
 static int  vnodeDecodeInfo(uint8_t *pData, SVnodeInfo *pInfo);
-static int  vnodeStartCommit(SVnode *pVnode);
-static int  vnodeEndCommit(SVnode *pVnode);
 static int  vnodeCommitImpl(void *arg);
 static void vnodeWaitCommit(SVnode *pVnode);
 
 int vnodeBegin(SVnode *pVnode) {
   // alloc buffer pool
-  /* pthread_mutex_lock(); */
+  taosThreadMutexLock(&pVnode->mutex);
 
   while (pVnode->pPool == NULL) {
-    /* pthread_cond_wait(); */
+    taosThreadCondWait(&pVnode->poolNotEmpty, &pVnode->mutex);
   }
 
   pVnode->inUse = pVnode->pPool;
+  pVnode->inUse->nRef = 1;
   pVnode->pPool = pVnode->inUse->next;
   pVnode->inUse->next = NULL;
-  /* ref pVnode->inUse buffer pool */
 
-  /* pthread_mutex_unlock(); */
+  taosThreadMutexUnlock(&pVnode->mutex);
 
+  pVnode->state.commitID++;
   // begin meta
-  if (metaBegin(pVnode->pMeta) < 0) {
+  if (metaBegin(pVnode->pMeta, 0) < 0) {
     vError("vgId:%d, failed to begin meta since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
 
   // begin tsdb
-  if (pVnode->pSma) {
-    if (tsdbBegin(VND_RSMA0(pVnode)) < 0) {
-      vError("vgId:%d, failed to begin rsma0 since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
+  if (tsdbBegin(pVnode->pTsdb) < 0) {
+    vError("vgId:%d, failed to begin tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
+    return -1;
+  }
 
-    if (tsdbBegin(VND_RSMA1(pVnode)) < 0) {
-      vError("vgId:%d, failed to begin rsma1 since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
-
-    if (tsdbBegin(VND_RSMA2(pVnode)) < 0) {
-      vError("vgId:%d, failed to begin rsma2 since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
-  } else {
-    if (tsdbBegin(pVnode->pTsdb) < 0) {
-      vError("vgId:%d, failed to begin tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
+  // begin sma
+  if (VND_IS_RSMA(pVnode) && smaBegin(pVnode->pSma) < 0) {
+    vError("vgId:%d, failed to begin sma since %s", TD_VID(pVnode), tstrerror(terrno));
+    return -1;
   }
 
   return 0;
 }
 
-int vnodeShouldCommit(SVnode *pVnode) { return pVnode->inUse->size > pVnode->config.szBuf / 3; }
+int vnodeShouldCommit(SVnode *pVnode) {
+  if (pVnode->inUse) {
+    return osDataSpaceAvailable() && (pVnode->inUse->size > pVnode->inUse->node.size);
+  }
+  return false;
+}
 
 int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   char      fname[TSDB_FILENAME_LEN];
@@ -85,22 +78,26 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   data = NULL;
 
   if (vnodeEncodeInfo(pInfo, &data) < 0) {
+    vError("failed to encode json info.");
     return -1;
   }
 
   // save info to a vnode_tmp.json
   pFile = taosOpenFile(fname, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
+    vError("failed to open info file:%s for write:%s", fname, terrstr());
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
   if (taosWriteFile(pFile, data, strlen(data)) < 0) {
+    vError("failed to write info file:%s error:%s", fname, terrstr());
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
   if (taosFsyncFile(pFile) < 0) {
+    vError("failed to fsync info file:%s error:%s", fname, terrstr());
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
@@ -110,7 +107,7 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   // free info binary
   taosMemoryFree(data);
 
-  vInfo("vgId:%d, vnode info is saved, fname: %s", pInfo->config.vgId, fname);
+  vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d", pInfo->config.vgId, fname, pInfo->config.syncCfg.replicaNum);
 
   return 0;
 
@@ -207,70 +204,112 @@ int vnodeSyncCommit(SVnode *pVnode) {
 }
 
 int vnodeCommit(SVnode *pVnode) {
+  int32_t    code = 0;
+  int32_t    lino = 0;
   SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN];
 
-  vInfo("vgId:%d, start to commit, version: %" PRId64, TD_VID(pVnode), pVnode->state.applied);
+  vInfo("vgId:%d, start to commit, commit ID:%" PRId64 " version:%" PRId64, TD_VID(pVnode), pVnode->state.commitID,
+        pVnode->state.applied);
 
-  pVnode->onCommit = pVnode->inUse;
-  pVnode->inUse = NULL;
+  pVnode->state.commitTerm = pVnode->state.applyTerm;
 
   // save info
   info.config = pVnode->config;
   info.state.committed = pVnode->state.applied;
-  snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
-  if (vnodeSaveInfo(dir, &info) < 0) {
-    ASSERT(0);
-    return -1;
+  info.state.commitTerm = pVnode->state.applyTerm;
+  info.state.commitID = pVnode->state.commitID;
+  if (pVnode->pTfs) {
+    snprintf(dir, TSDB_FILENAME_LEN, "%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path);
+  } else {
+    snprintf(dir, TSDB_FILENAME_LEN, "%s", pVnode->path);
   }
+  if (vnodeSaveInfo(dir, &info) < 0) {
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  // walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
+  syncBeginSnapshot(pVnode->sync, pVnode->state.applied);
+
+  code = smaPreCommit(pVnode->pSma);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  vnodeBufPoolUnRef(pVnode->inUse);
+  pVnode->inUse = NULL;
 
   // commit each sub-system
   if (metaCommit(pVnode->pMeta) < 0) {
-    ASSERT(0);
-    return -1;
+    code = TSDB_CODE_FAILED;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
+  code = tsdbCommit(pVnode->pTsdb);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   if (VND_IS_RSMA(pVnode)) {
-    if (tsdbCommit(VND_RSMA0(pVnode)) < 0) {
-      ASSERT(0);
-      return -1;
-    }
-    if (tsdbCommit(VND_RSMA1(pVnode)) < 0) {
-      ASSERT(0);
-      return -1;
-    }
-    if (tsdbCommit(VND_RSMA2(pVnode)) < 0) {
-      ASSERT(0);
-      return -1;
-    }
-  } else {
-    if (tsdbCommit(pVnode->pTsdb) < 0) {
-      ASSERT(0);
-      return -1;
-    }
+    code = smaCommit(pVnode->pSma);
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
 
   if (tqCommit(pVnode->pTq) < 0) {
-    ASSERT(0);
-    return -1;
+    code = TSDB_CODE_FAILED;
+    TSDB_CHECK_CODE(code, lino, _exit);
   }
-  // walCommit (TODO)
 
   // commit info
   if (vnodeCommitInfo(dir, &info) < 0) {
-    ASSERT(0);
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  code = tsdbFinishCommit(pVnode->pTsdb);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  if (VND_IS_RSMA(pVnode)) {
+    code = smaFinishCommit(pVnode->pSma);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  if (metaFinishCommit(pVnode->pMeta) < 0) {
+    code = terrno;
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
+
+  pVnode->state.committed = info.state.committed;
+
+  if (smaPostCommit(pVnode->pSma) < 0) {
+    vError("vgId:%d, failed to post-commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
 
   // apply the commit (TODO)
-  vnodeBufPoolReset(pVnode->onCommit);
-  pVnode->onCommit->next = pVnode->pPool;
-  pVnode->pPool = pVnode->onCommit;
-  pVnode->onCommit = NULL;
+  // walEndSnapshot(pVnode->pWal);
+  syncEndSnapshot(pVnode->sync);
 
-  vInfo("vgId:%d, commit over", TD_VID(pVnode));
-
+_exit:
+  if (code) {
+    vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+  } else {
+    vInfo("vgId:%d, commit end", TD_VID(pVnode));
+  }
   return 0;
+}
+
+bool vnodeShouldRollback(SVnode *pVnode) {
+  char tFName[TSDB_FILENAME_LEN] = {0};
+  snprintf(tFName, TSDB_FILENAME_LEN, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
+           VND_INFO_FNAME_TMP);
+
+  return taosCheckExistFile(tFName);
+}
+
+void vnodeRollback(SVnode *pVnode) {
+  char tFName[TSDB_FILENAME_LEN] = {0};
+  snprintf(tFName, TSDB_FILENAME_LEN, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
+           VND_INFO_FNAME_TMP);
+
+  (void)taosRemoveFile(tFName);
 }
 
 static int vnodeCommitImpl(void *arg) {
@@ -278,20 +317,10 @@ static int vnodeCommitImpl(void *arg) {
 
   // metaCommit(pVnode->pMeta);
   tqCommit(pVnode->pTq);
-  tsdbCommit(pVnode->pTsdb);
+  // tsdbCommit(pVnode->pTsdb, );
 
   // vnodeBufPoolRecycle(pVnode);
   tsem_post(&(pVnode->canCommit));
-  return 0;
-}
-
-static int vnodeStartCommit(SVnode *pVnode) {
-  // TODO
-  return 0;
-}
-
-static int vnodeEndCommit(SVnode *pVnode) {
-  // TODO
   return 0;
 }
 
@@ -301,7 +330,8 @@ static int vnodeEncodeState(const void *pObj, SJson *pJson) {
   const SVState *pState = (SVState *)pObj;
 
   if (tjsonAddIntegerToObject(pJson, "commit version", pState->committed) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "applied version", pState->applied) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "commit ID", pState->commitID) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "commit term", pState->commitTerm) < 0) return -1;
 
   return 0;
 }
@@ -311,9 +341,11 @@ static int vnodeDecodeState(const SJson *pJson, void *pObj) {
 
   int32_t code;
   tjsonGetNumberValue(pJson, "commit version", pState->committed, code);
-  if(code < 0) return -1;
-  tjsonGetNumberValue(pJson, "applied version", pState->applied, code);
-  if(code < 0) return -1;
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "commit ID", pState->commitID, code);
+  if (code < 0) return -1;
+  tjsonGetNumberValue(pJson, "commit term", pState->commitTerm, code);
+  if (code < 0) return -1;
 
   return 0;
 }

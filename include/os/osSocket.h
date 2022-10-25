@@ -64,7 +64,6 @@
 #include <osEok.h>
 #else
 #include <netinet/in.h>
-#include <sys/epoll.h>
 #endif
 #endif
 
@@ -76,16 +75,13 @@ extern "C" {
 typedef int socklen_t;
 #define TAOS_EPOLL_WAIT_TIME 100
 typedef SOCKET eventfd_t;
-#define eventfd(a, b)      -1
-#define EpollClose(pollFd) epoll_close(pollFd)
+#define eventfd(a, b) -1
 #ifndef EPOLLWAKEUP
 #define EPOLLWAKEUP (1u << 29)
 #endif
 #elif defined(_TD_DARWIN_64)
 #define TAOS_EPOLL_WAIT_TIME 500
 typedef int32_t SOCKET;
-typedef SOCKET  EpollFd;
-#define EpollClose(pollFd)   epoll_close(pollFd)
 #else
 #define TAOS_EPOLL_WAIT_TIME 500
 typedef int32_t SOCKET;
@@ -122,17 +118,9 @@ typedef SOCKET  EpollFd;
 typedef int32_t  SocketFd;
 typedef SocketFd EpollFd;
 
-typedef struct TdSocket {
-#if SOCKET_WITH_LOCK
-  TdThreadRwlock rwlock;
-#endif
-  int      refId;
-  SocketFd fd;
-} * TdSocketPtr, TdSocket;
-
 typedef struct TdSocketServer *TdSocketServerPtr;
-typedef struct TdSocket *      TdSocketPtr;
-typedef struct TdEpoll *       TdEpollPtr;
+typedef struct TdSocket       *TdSocketPtr;
+typedef struct TdEpoll        *TdEpollPtr;
 
 int32_t taosSendto(TdSocketPtr pSocket, void *msg, int len, unsigned int flags, const struct sockaddr *to, int tolen);
 int32_t taosWriteSocket(TdSocketPtr pSocket, void *msg, int len);
@@ -157,7 +145,10 @@ int32_t taosNonblockwrite(TdSocketPtr pSocket, char *ptr, int32_t nbytes);
 int64_t taosCopyFds(TdSocketPtr pSrcSocket, TdSocketPtr pDestSocket, int64_t len);
 void    taosWinSocketInit();
 
-int taosCreateSocketWithTimeOutOpt(uint32_t conn_timeout_sec);
+/*
+ * set timeout(ms)
+ */
+int32_t taosCreateSocketWithTimeout(uint32_t timeout);
 
 TdSocketPtr       taosOpenUdpSocket(uint32_t localIp, uint16_t localPort);
 TdSocketPtr       taosOpenTcpClientSocket(uint32_t ip, uint16_t port, uint32_t localIp);
@@ -176,12 +167,7 @@ uint32_t    ip2uint(const char *const ip_addr);
 void        taosIgnSIGPIPE();
 void        taosSetMaskSIGPIPE();
 uint32_t    taosInetAddr(const char *ipAddr);
-const char *taosInetNtoa(struct in_addr ipInt);
-
-TdEpollPtr taosCreateEpoll(int32_t size);
-int32_t    taosCtlEpoll(TdEpollPtr pEpoll, int32_t epollOperate, TdSocketPtr pSocket, struct epoll_event *event);
-int32_t    taosWaitEpoll(TdEpollPtr pEpoll, struct epoll_event *event, int32_t maxEvents, int32_t timeout);
-int32_t    taosCloseEpoll(TdEpollPtr *ppEpoll);
+const char *taosInetNtoa(struct in_addr ipInt, char *dstStr, int32_t len);
 
 #ifdef __cplusplus
 }

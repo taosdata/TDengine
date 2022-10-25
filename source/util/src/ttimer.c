@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "ttimer.h"
 #include "taoserror.h"
+#include "tdef.h"
 #include "tlog.h"
 #include "tsched.h"
 
@@ -103,21 +104,21 @@ typedef struct timer_map_t {
 
 typedef struct time_wheel_t {
   TdThreadMutex mutex;
-  int64_t         nextScanAt;
-  uint32_t        resolution;
-  uint16_t        size;
-  uint16_t        index;
-  tmr_obj_t**     slots;
+  int64_t       nextScanAt;
+  uint32_t      resolution;
+  uint16_t      size;
+  uint16_t      index;
+  tmr_obj_t**   slots;
 } time_wheel_t;
 
-static int32_t tsMaxTmrCtrl = 512;
+static int32_t tsMaxTmrCtrl = TSDB_MAX_VNODES_PER_DB + 100;
 
 static TdThreadOnce  tmrModuleInit = PTHREAD_ONCE_INIT;
 static TdThreadMutex tmrCtrlMutex;
-static tmr_ctrl_t*     tmrCtrls;
-static tmr_ctrl_t*     unusedTmrCtrl = NULL;
-static void*           tmrQhandle;
-static int32_t         numOfTmrCtrl = 0;
+static tmr_ctrl_t*   tmrCtrls;
+static tmr_ctrl_t*   unusedTmrCtrl = NULL;
+static void*         tmrQhandle;
+static int32_t       numOfTmrCtrl = 0;
 
 int32_t          taosTmrThreads = 1;
 static uintptr_t nextTimerId = 0;
@@ -132,7 +133,7 @@ static timer_map_t timerMap;
 static uintptr_t getNextTimerId() {
   uintptr_t id;
   do {
-    id = (uintptr_t)atomic_add_fetch_ptr((void **)&nextTimerId, (void*)1);
+    id = (uintptr_t)atomic_add_fetch_ptr((void**)&nextTimerId, 1);
   } while (id == 0);
   return id;
 }
@@ -554,7 +555,7 @@ static void taosTmrModuleInit(void) {
     return;
   }
 
-  tmrQhandle = taosInitScheduler(10000, taosTmrThreads, "tmr");
+  tmrQhandle = taosInitScheduler(10000, taosTmrThreads, "tmr", NULL);
   taosInitTimer(taosTimerLoopFunc, MSECONDS_PER_TICK);
 
   tmrDebug("timer module is initialized, number of threads: %d", taosTmrThreads);
@@ -605,6 +606,7 @@ void taosTmrCleanUp(void* handle) {
     taosUninitTimer();
 
     taosCleanUpScheduler(tmrQhandle);
+    taosMemoryFreeClear(tmrQhandle);
 
     for (int32_t i = 0; i < tListLen(wheels); i++) {
       time_wheel_t* wheel = wheels + i;

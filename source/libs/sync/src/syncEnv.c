@@ -14,7 +14,7 @@
  */
 
 #include "syncEnv.h"
-// #include <assert.h>
+// #include <ASSERT.h>
 
 SSyncEnv *gSyncEnv = NULL;
 
@@ -35,11 +35,12 @@ bool syncEnvIsStart() {
 }
 
 int32_t syncEnvStart() {
-  int32_t ret = 0;
-  taosSeedRand(taosGetTimestampSec());
+  int32_t  ret = 0;
+  uint32_t seed = (uint32_t)(taosGetTimestampNs() & 0x00000000FFFFFFFF);
+  taosSeedRand(seed);
   // gSyncEnv = doSyncEnvStart(gSyncEnv);
   gSyncEnv = doSyncEnvStart();
-  assert(gSyncEnv != NULL);
+  ASSERT(gSyncEnv != NULL);
   sTrace("sync env start ok");
   return ret;
 }
@@ -85,7 +86,7 @@ static void syncEnvTick(void *param, void *tmrId) {
 
 static SSyncEnv *doSyncEnvStart() {
   SSyncEnv *pSyncEnv = (SSyncEnv *)taosMemoryMalloc(sizeof(SSyncEnv));
-  assert(pSyncEnv != NULL);
+  ASSERT(pSyncEnv != NULL);
   memset(pSyncEnv, 0, sizeof(SSyncEnv));
 
   pSyncEnv->envTickTimerCounter = 0;
@@ -102,7 +103,7 @@ static SSyncEnv *doSyncEnvStart() {
 }
 
 static int32_t doSyncEnvStop(SSyncEnv *pSyncEnv) {
-  assert(pSyncEnv == gSyncEnv);
+  ASSERT(pSyncEnv == gSyncEnv);
   if (pSyncEnv != NULL) {
     atomic_store_8(&(pSyncEnv->isStart), 0);
     taosTmrCleanUp(pSyncEnv->pTimerManager);

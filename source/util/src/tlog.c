@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tlog.h"
 #include "os.h"
+#include "tconfig.h"
 #include "tutil.h"
 
 #define LOG_MAX_LINE_SIZE             (1024)
@@ -39,7 +40,7 @@
 #define LOG_BUF_MUTEX(x)  ((x)->buffMutex)
 
 typedef struct {
-  char *        buffer;
+  char         *buffer;
   int32_t       buffStart;
   int32_t       buffEnd;
   int32_t       buffSize;
@@ -58,14 +59,16 @@ typedef struct {
   int32_t       openInProgress;
   pid_t         pid;
   char          logName[LOG_FILE_NAME_LEN];
-  SLogBuff *    logHandle;
+  SLogBuff     *logHandle;
   TdThreadMutex logMutex;
 } SLogObj;
 
-static int8_t  tsLogInited = 0;
-static SLogObj tsLogObj = {.fileNum = 1};
-static int64_t tsAsyncLogLostLines = 0;
-static int32_t tsWriteInterval = LOG_DEFAULT_INTERVAL;
+extern SConfig *tsCfg;
+static int8_t   tsLogInited = 0;
+static SLogObj  tsLogObj = {.fileNum = 1};
+static int64_t  tsAsyncLogLostLines = 0;
+static int32_t  tsWriteInterval = LOG_DEFAULT_INTERVAL;
+static int32_t  tsDaylightActive; /* Currently in daylight saving time. */
 
 bool    tsLogEmbedded = 0;
 bool    tsAsyncLog = true;
@@ -80,7 +83,7 @@ int64_t tsNumOfTraceLogs = 0;
 // log
 int32_t dDebugFlag = 135;
 int32_t vDebugFlag = 135;
-int32_t mDebugFlag = 131;
+int32_t mDebugFlag = 135;
 int32_t cDebugFlag = 131;
 int32_t jniDebugFlag = 131;
 int32_t tmrDebugFlag = 131;
@@ -94,8 +97,8 @@ int32_t tdbDebugFlag = 131;
 int32_t tqDebugFlag = 135;
 int32_t fsDebugFlag = 135;
 int32_t metaDebugFlag = 135;
-int32_t fnDebugFlag = 135;
-int32_t smaDebugFlag = 135;
+int32_t udfDebugFlag = 135;
+int32_t smaDebugFlag = 131;
 int32_t idxDebugFlag = 135;
 
 int64_t dbgEmptyW = 0;
@@ -104,12 +107,22 @@ int64_t dbgSmallWN = 0;
 int64_t dbgBigWN = 0;
 int64_t dbgWSize = 0;
 
-static void *    taosAsyncOutputLog(void *param);
+static void     *taosAsyncOutputLog(void *param);
 static int32_t   taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msgLen);
 static SLogBuff *taosLogBuffNew(int32_t bufSize);
 static void      taosCloseLogByFd(TdFilePtr pFile);
 static int32_t   taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum);
 static int32_t   taosCompressFile(char *srcFileName, char *destFileName);
+
+static FORCE_INLINE void taosUpdateDaylight() {
+  struct tm      Tm, *ptm;
+  struct timeval timeSecs;
+  taosGetTimeOfDay(&timeSecs);
+  time_t curTime = timeSecs.tv_sec;
+  ptm = taosLocalTime(&curTime, &Tm);
+  tsDaylightActive = ptm->tm_isdst;
+}
+static FORCE_INLINE int32_t taosGetDaylight() { return tsDaylightActive; }
 
 static int32_t taosStartLog() {
   TdThreadAttr threadAttr;
@@ -126,7 +139,12 @@ int32_t taosInitLog(const char *logName, int32_t maxFiles) {
   osUpdate();
 
   char fullName[PATH_MAX] = {0};
-  snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logName);
+  if (strlen(tsLogDir) != 0) {
+    snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logName);
+  } else {
+    snprintf(fullName, PATH_MAX, "%s", logName);
+  }
+  taosUpdateDaylight();
 
   tsLogObj.logHandle = taosLogBuffNew(LOG_DEFAULT_BUF_SIZE);
   if (tsLogObj.logHandle == NULL) return -1;
@@ -416,19 +434,22 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
 
   taosGetTimeOfDay(&timeSecs);
   time_t curTime = timeSecs.tv_sec;
-  ptm = taosLocalTime(&curTime, &Tm);
+  ptm = taosLocalTimeNolock(&Tm, &curTime, taosGetDaylight());
 
   return sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " %s", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
                  ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId(), flags);
 }
 
 static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *buffer, int32_t len) {
-  if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL) {
+  if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL && osLogSpaceAvailable()) {
     taosUpdateLogNums(level);
-    if (tsAsyncLog) {
+    if (tsAsyncLog && level != DEBUG_FATAL) {
       taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
     } else {
       taosWriteFile(tsLogObj.logHandle->pFile, buffer, len);
+      if (level == DEBUG_FATAL) {
+        taosFsyncFile(tsLogObj.logHandle->pFile);
+      }
     }
 
     if (tsLogObj.maxLines > 0) {
@@ -440,12 +461,14 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
   }
 
   if (dflag & DEBUG_SCREEN) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-result"
     write(1, buffer, (uint32_t)len);
+#pragma GCC diagnostic pop
   }
 }
 
 void taosPrintLog(const char *flags, ELogLevel level, int32_t dflag, const char *format, ...) {
-  if (!osLogSpaceAvailable()) return;
   if (!(dflag & DEBUG_FILE) && !(dflag & DEBUG_SCREEN)) return;
 
   char    buffer[LOG_MAX_LINE_BUFFER_SIZE];
@@ -685,12 +708,24 @@ static void taosWriteLog(SLogBuff *pLogBuf) {
 static void *taosAsyncOutputLog(void *param) {
   SLogBuff *pLogBuf = (SLogBuff *)param;
   setThreadName("log");
-
+  int32_t count = 0;
+  int32_t updateCron = 0;
   while (1) {
+    count += tsWriteInterval;
+    updateCron++;
     taosMsleep(tsWriteInterval);
+    if (count > 1000) {
+      osUpdate();
+      count = 0;
+    }
 
     // Polling the buffer
     taosWriteLog(pLogBuf);
+
+    if (updateCron >= 3600 * 24 * 40 / 2) {
+      taosUpdateDaylight();
+      updateCron = 0;
+    }
 
     if (pLogBuf->stop) break;
   }
@@ -702,7 +737,7 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
   int32_t compressSize = 163840;
   int32_t ret = 0;
   int32_t len = 0;
-  char *  data = taosMemoryMalloc(compressSize);
+  char   *data = taosMemoryMalloc(compressSize);
   //  gzFile  dstFp = NULL;
 
   // srcFp = fopen(srcFileName, "r");
@@ -740,27 +775,4 @@ cmp_end:
   taosMemoryFree(data);
 
   return ret;
-}
-
-void taosSetAllDebugFlag(int32_t flag) {
-  if (!(flag & DEBUG_TRACE || flag & DEBUG_DEBUG || flag & DEBUG_DUMP)) return;
-
-  dDebugFlag = flag;
-  vDebugFlag = flag;
-  mDebugFlag = flag;
-  cDebugFlag = flag;
-  jniDebugFlag = flag;
-  uDebugFlag = flag;
-  rpcDebugFlag = flag;
-  qDebugFlag = flag;
-  wDebugFlag = flag;
-  sDebugFlag = flag;
-  tsdbDebugFlag = flag;
-  tqDebugFlag = flag;
-  fsDebugFlag = flag;
-  fnDebugFlag = flag;
-  smaDebugFlag = flag;
-  idxDebugFlag = flag;
-
-  uInfo("all debug flag are set to %d", flag);
 }

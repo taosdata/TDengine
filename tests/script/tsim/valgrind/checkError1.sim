@@ -1,0 +1,162 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/cfg.sh -n dnode1 -c debugflag -v 131
+system sh/cfg.sh -n dnode2 -c debugflag -v 131
+system sh/exec.sh -n dnode1 -s start -v
+system sh/exec.sh -n dnode2 -s start -v
+sql connect
+
+
+print =============== step1: create alter drop show user
+sql create user u1 pass 'taosdata'
+sql select * from information_schema.ins_users
+sql alter user u1 sysinfo 1
+sql alter user u1 enable 1
+sql alter user u1 pass 'taosdata'
+sql drop user u1
+sql_error alter user u2 sysinfo 0
+
+print =============== step2 create drop dnode
+sql create dnode $hostname port 7200
+sql create dnode $hostname port 7300
+sql drop dnode 3
+sql alter dnode 1 'debugflag 131'
+
+print =============== step3: select * from information_schema.ins_dnodes
+$x = 0
+step3:
+	$x = $x + 1
+	sleep 1000
+	if $x == 60 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 2 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step3
+endi
+if $data(2)[4] != ready then
+  goto step3
+endi
+
+print =============== create database, stable, table
+sql create database db vgroups 3
+sql use db
+sql create table stb (ts timestamp, c int) tags (t int)
+sql create table t0 using stb tags (0)
+sql create table tba (ts timestamp, c1 binary(10), c2 nchar(10));
+
+print =============== run show xxxx
+sql select * from information_schema.ins_dnodes
+if $rows != 2 then 
+  return -1
+endi
+
+sql select * from information_schema.ins_mnodes
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from information_schema.ins_databases
+if $rows != 3 then
+  return -1
+endi
+
+sql show stables
+if $rows != 1 then 
+  return -1
+endi
+
+sql show tables
+if $rows != 2 then 
+  return -1
+endi
+
+sql select * from information_schema.ins_users
+if $rows != 1 then 
+  return -1
+endi
+
+print =============== run select * from information_schema.xxxx
+sql select * from information_schema.ins_dnodes
+if $rows != 2 then 
+  return -1
+endi
+
+sql select * from information_schema.ins_mnodes
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from information_schema.ins_databases
+if $rows != 3 then
+  return -1
+endi
+
+sql select * from information_schema.ins_stables
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from information_schema.ins_tables
+if $rows <= 0 then
+  return -1
+endi
+
+sql select * from information_schema.ins_users
+if $rows != 1 then 
+  return -1
+endi
+
+sql select * from information_schema.ins_vgroups
+if $rows != 3 then 
+  return -1
+endi
+
+sql show variables;
+if $rows != 4 then
+  return -1
+endi
+
+sql show dnode 1 variables;
+if $rows <= 0 then
+  return -1
+endi
+
+sql show local variables;
+if $rows <= 0 then
+  return -1
+endi
+
+print =============== stop
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+
+print =============== check
+$null=
+
+system_content sh/checkValgrind.sh -n dnode1 
+print cmd return result ----> [ $system_content ]
+if $system_content > 0 then
+  return -1
+endi 
+
+if $system_content == $null then
+  return -1
+endi 
+
+system_content sh/checkValgrind.sh -n dnode2
+print cmd return result ----> [ $system_content ]
+if $system_content > 0 then
+  return -1
+endi 
+
+if $system_content == $null then
+  return -1
+endi 

@@ -1,0 +1,44 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$i = 0
+$dbPrefix = tb_mf_db
+$tbPrefix = tb_mf_tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+print =============== step1
+sql drop database -x step1
+step1:
+sql create database $db
+sql use $db
+
+sql create table $tb (ts timestamp, speed int)
+
+$N = 20000
+
+$x = 0
+
+while $x < $N
+  $ms = $x . s
+  #print insert into $tb values (now + $ms , $x )
+  sql insert into $tb values (now + $ms , $x ) -x error_insert
+  $x = $x + 1
+endw
+error_insert:
+
+sql select * from $tb
+print $rows points data are retrieved -> exepct $N rows
+if $rows < $N then
+  return -1
+endi
+
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

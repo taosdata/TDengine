@@ -1,0 +1,104 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql drop database if exists ecdb
+sql create database ecdb
+sql use ecdb
+
+sql create table tbx (ts timestamp, c1 int, c2 binary(20))
+sql insert into tbx values ('2019-10-05 18:00:01.000', 1, '\'')
+sql insert into tbx values ('2019-10-05 18:00:02.000', 2, '\'abc')
+sql insert into tbx values ('2019-10-05 18:00:03.000', 3, '123\'')
+sql select * from tbx
+print "=====rows:$rows, line0:$data02, line1:$data12, line2:$data22"
+if $data02 != @'@ then
+  return -1
+endi
+
+if $data12 != @'abc@ then
+  return -1
+endi
+
+if $data22 != @123'@ then
+  return -1
+endi
+
+sql create table tb (ts timestamp, c1 binary(20))
+sql insert into tb values ('2019-10-05 18:00:01.000', 'abc''001')
+sql insert into tb values ('2019-10-05 18:00:02.000', 'abc\'002')
+sql insert into tb values ('2019-10-05 18:00:03.000', 'abc\\003')
+sql insert into tb values ('2019-10-05 18:00:04.000', 'abc"004')
+sql insert into tb values ('2019-10-05 18:00:05.000', 'abc\005')
+
+sql insert into tb values ('2019-10-05 18:00:06.000', "udp""001")
+sql insert into tb values ('2019-10-05 18:00:07.000', "udp\"002")
+sql insert into tb values ('2019-10-05 18:00:08.000', "udp\\003")
+sql insert into tb values ('2019-10-05 18:00:09.000', "udp'004")
+sql insert into tb values ('2019-10-05 18:00:10.000', "udp\005")
+
+sql select * from tb limit 5
+print "====rows: $rows "
+if $rows != 5 then
+  return -1
+endi
+
+print "Single quotation ==== data01~05: $data01, $data11, $data21, $data31, $data41 "
+
+if $data01 != @abc'001@ then
+  return -1
+endi
+if $data11 != @abc'002@ then
+  return -1
+endi
+if $data21 != @abc\003@ then
+  #return -1
+  print "[ERROR] expect: abc\003, act:$data21"
+endi
+if $data31 != @abc"004@ then
+  return -1
+endi
+if $data41 != @abc005@ then
+  #return -1
+  print "[ERROR] expect: abc005, act:$data41"
+endi
+
+sql select * from tb limit 5 offset 5
+
+if $rows != 5 then
+  return -1
+endi
+
+print "Double quotation  ==== data01~05: $data01, $data11, $data21, $data31, $data41 "
+
+if $data01 != @udp"001@ then
+  return -1
+endi
+if $data11 != @udp"002@ then
+  return -1
+endi
+if $data21 != @udp\003@ then
+ # return -1
+  print "[ERROR] expect: udp\003, act:$data21"
+endi
+if $data31 != @udp'004@ then
+  return -1
+endi
+if $data41 != @udp005@ then
+  #return -1
+  print "[ERROR] expect: udp005, act:$data41"
+endi
+
+print ---------------------> TD-3967
+sql insert into tb values(now, '\\abc\\\\');
+sql insert into tb values(now, '\\abc\\\\');
+sql insert into tb values(now, '\\\\');
+
+print ------------->sim bug
+# sql_error insert into tb values(now, '\\\');
+sql_error insert into tb values(now, '\');
+#sql_error insert into tb values(now, '\\\n');
+sql insert into tb values(now, '\n');
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

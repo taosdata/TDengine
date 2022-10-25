@@ -16,10 +16,13 @@
 #include <string>
 
 #include <gtest/gtest.h>
+
 #include "functionMgt.h"
 #include "getopt.h"
 #include "mockCatalog.h"
+#include "parser.h"
 #include "planTestUtil.h"
+#include "tglobal.h"
 
 class PlannerEnv : public testing::Environment {
  public:
@@ -28,16 +31,24 @@ class PlannerEnv : public testing::Environment {
     initMetaDataEnv();
     generateMetaData();
     initLog(TD_TMP_DIR_PATH "td");
+    initCfg();
+    nodesInitAllocatorSet();
   }
 
-  virtual void TearDown() { destroyMetaDataEnv(); }
+  virtual void TearDown() {
+    destroyMetaDataEnv();
+    qCleanupKeywordsTable();
+    fmFuncMgtDestroy();
+    taosCloseLog();
+    nodesDestroyAllocatorSet();
+  }
 
   PlannerEnv() {}
   virtual ~PlannerEnv() {}
 
  private:
   void initLog(const char* path) {
-    int32_t logLevel = getLogLevel();
+    int32_t logLevel = getLogLevel() | DEBUG_SCREEN;
     dDebugFlag = logLevel;
     vDebugFlag = logLevel;
     mDebugFlag = logLevel;
@@ -60,6 +71,8 @@ class PlannerEnv : public testing::Environment {
       std::cout << "failed to init log file" << std::endl;
     }
   }
+
+  void initCfg() { tsQueryPlannerTrace = true; }
 };
 
 static void parseArg(int argc, char* argv[]) {
@@ -69,7 +82,10 @@ static void parseArg(int argc, char* argv[]) {
   static struct option long_options[] = {
     {"dump", optional_argument, NULL, 'd'},
     {"skipSql", required_argument, NULL, 's'},
+    {"limitSql", required_argument, NULL, 'i'},
     {"log", required_argument, NULL, 'l'},
+    {"queryPolicy", required_argument, NULL, 'q'},
+    {"useNodeAllocator", required_argument, NULL, 'a'},
     {0, 0, 0, 0}
   };
   // clang-format on
@@ -81,8 +97,17 @@ static void parseArg(int argc, char* argv[]) {
       case 's':
         setSkipSqlNum(optarg);
         break;
+      case 'i':
+        setLimitSqlNum(optarg);
+        break;
       case 'l':
         setLogLevel(optarg);
+        break;
+      case 'q':
+        setQueryPolicy(optarg);
+        break;
+      case 'a':
+        setUseNodeAllocator(optarg);
         break;
       default:
         break;

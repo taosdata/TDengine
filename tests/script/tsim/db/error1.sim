@@ -16,7 +16,7 @@ create1:
 		return -1
 	endi
 
-sql show dnodes
+sql select * from information_schema.ins_dnodes
 if $data4_2 != ready then
 	goto create1
 endi
@@ -41,7 +41,7 @@ re-create1:
 
 sql create database d1 vgroups 2 -x re-create1
 
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi
@@ -80,7 +80,7 @@ re-create2:
 
 sql create database d1 vgroups 5 -x re-create2
 
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then
   return -1
 endi

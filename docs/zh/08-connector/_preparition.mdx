@@ -1,0 +1,11 @@
+- 已安装客户端驱动（使用原生连接必须安装，使用 REST 连接无需安装）
+
+:::info
+
+由于 TDengine 的客户端驱动使用 C 语言编写，使用原生连接时需要加载系统对应安装在本地的客户端驱动共享库文件，通常包含在 TDengine 安装包。TDengine Linux 服务端安装包附带了 TDengine 客户端，也可以单独安装 [Linux 客户端](/get-started/) 。在 Windows 环境开发时需要安装 TDengine 对应的 [Windows 客户端](https://www.taosdata.com/cn/all-downloads/#TDengine-Windows-Client) 。
+
+- libtaos.so: 在 Linux 系统中成功安装 TDengine 后，依赖的 Linux 版客户端驱动 libtaos.so 文件会被自动拷贝至 /usr/lib/libtaos.so，该目录包含在 Linux 自动扫描路径上，无需单独指定。
+- taos.dll: 在 Windows 系统中安装完客户端之后，依赖的 Windows 版客户端驱动 taos.dll 文件会自动拷贝到系统默认搜索路径 C:/Windows/System32 下，同样无需要单独指定。
+- libtaos.dylib: 在 macOS 系统中成功安装 TDengine 后，依赖的 macOS 版客户端驱动 libtaos.dylib 文件会被自动拷贝至 /usr/local/lib/libtaos.dylib，该目录包含在 macOS 自动扫描路径上，无需单独指定。
+
+:::

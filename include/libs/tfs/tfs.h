@@ -16,15 +16,15 @@
 #ifndef _TD_TFS_H_
 #define _TD_TFS_H_
 
-#include "tdef.h"
 #include "monitor.h"
+#include "tdef.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
-typedef struct STfs STfs;
+typedef struct STfs    STfs;
 typedef struct STfsDir STfsDir;
 
 typedef struct {
@@ -68,6 +68,14 @@ void tfsUpdateSize(STfs *pTfs);
  * @param pTfs The fs object.
  */
 SDiskSize tfsGetSize(STfs *pTfs);
+
+/**
+ * @brief Get level of multi-tier storage.
+ *
+ * @param pTfs
+ * @return int32_t
+ */
+int32_t tfsGetLevel(STfs *pTfs);
 
 /**
  * @brief Allocate an existing available tier level from fs.

@@ -24,12 +24,9 @@ class TDSimClient:
 
         self.cfgDict = {
             "numOfLogLines": "100000000",
-            "numOfThreadsPerCore": "2.0",
             "locale": "en_US.UTF-8",
             "charset": "UTF-8",
             "asyncLog": "0",
-            "anyIp": "0",
-            "sdbDebugFlag": "135",
             "rpcDebugFlag": "135",
             "tmrDebugFlag": "131",
             "cDebugFlag": "135",

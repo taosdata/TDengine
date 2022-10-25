@@ -46,7 +46,7 @@ class TwoClients:
         for i in range(10):
             os.system("taosdemo -f manualTest/TD-5114/insertDataDb3Replica2.json -y ")
         # # check data correct 
-        tdSql.execute("show databases")
+        tdSql.execute("select * from information_schema.ins_databases")
         tdSql.execute("use db3")
         tdSql.query("select count (tbname) from stb0")
         tdSql.checkData(0, 0, 20000)
@@ -78,7 +78,7 @@ class TwoClients:
         #                     % (j, self.ts + i*1000, i + 1, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))
 
         # # check data correct 
-        # tdSql.execute("show databases")
+        # tdSql.execute("select * from information_schema.ins_databases")
         # tdSql.execute("use db3")
         # tdSql.query("select count (tbname) from test")
         # tdSql.checkData(0, 0, 200) 

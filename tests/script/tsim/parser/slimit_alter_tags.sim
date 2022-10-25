@@ -1,0 +1,152 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$dbPrefix = slm_alt_tg_db
+
+print ========== slimit_alter_tag.sim
+# make sure the data in each table crosses a file block boundary
+$rowNum = 300
+$ts0 = 1537146000000
+$delta = 600000
+$db = $dbPrefix
+
+sql drop database if exists $db
+sql create database $db maxrows 200
+sql use $db
+
+sql create table stb (ts timestamp, c1 int, c2 bigint, c3 double) tags(t1 int, t2 int)
+# If grouped by t2, some groups should have tables from different vnodes
+sql create table tb0 using stb tags (0, 0)
+sql create table tb1 using stb tags (1, 0)
+sql create table tb2 using stb tags (2, 0)
+sql create table tb3 using stb tags (3, 1)
+sql create table tb4 using stb tags (4, 1)
+sql create table tb5 using stb tags (5, 1)
+sql create table tb6 using stb tags (6, 2)
+sql create table tb7 using stb tags (7, 2)
+sql create table tb8 using stb tags (8, 2)
+# tb9 is intentionally set the same tags with tb8
+sql create table tb9 using stb tags (8, 2)
+
+$i = 0
+$tbNum = 10
+while $i < $tbNum
+  $tb = tb . $i
+  $x = 0
+  while $x < $rowNum
+    $xs = $x * $delta
+    $ts = $ts0 + $xs
+    $c1 = $x * 10
+    $c1 = $c1 + $i
+    sql insert into $tb values ( $ts , $c1 , $c1 , $c1 )
+    $x = $x + 1
+  endw
+  $i = $i + 1
+endw
+
+print ================== tables and data created
+
+print ================== add a tag
+sql alter table stb add tag tg_added binary(15)
+sql describe stb
+if $rows != 7 then
+  return -1
+endi
+if $data60 != tg_added then
+  return -1
+endi
+
+sql select count(*) from stb group by tg_added order by tg_added asc
+if $rows != 1 then
+   return -1
+endi
+$res = $rowNum * 10
+if $data00 != $res then
+  return -1
+endi
+#if $data01 != NULL then
+#  return -1
+#endi
+
+print ================== change tag values
+$i = 0
+while $i < 10
+  $tb = tb . $i
+  $tg_added = ' . $tb
+  $tg_added = $tg_added . '
+  sql alter table $tb set tag tg_added = $tg_added
+  $i = $i + 1
+endw
+
+sql select t1,t2,tg_added from tb0
+if $rows != 300 then
+  return -1
+endi
+if $data02 != tb0 then
+  return -1
+endi
+
+sql reset query cache
+sql select count(*), first(ts), tg_added from stb partition by tg_added slimit 5 soffset 3
+if $rows != 5 then
+  print ===== result: $rows
+  return -1
+endi
+if $data00 != $rowNum then
+  return -1
+endi
+if $data10 != $rowNum then
+  return -1
+endi
+if $data20 != $rowNum then
+  return -1
+endi
+if $data30 != $rowNum then
+  return -1
+endi
+if $data40 != $rowNum then
+  return -1
+endi
+
+sql alter table tb9 set tag t2 = 3
+sql select count(*), first(*) from stb partition by t2 slimit 6 soffset 1
+if $rows != 3 then
+  return -1
+endi
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+
+sql use $db
+### repeat above queries
+sql select count(*), first(ts) from stb partition by tg_added slimit 5 soffset 3;
+if $rows != 5 then
+  return -1
+endi
+if $data00 != $rowNum then
+  print expect $rowNum , actual: $data00
+  return -1
+endi
+if $data10 != $rowNum then
+  return -1
+endi
+if $data20 != $rowNum then
+  return -1
+endi
+if $data30 != $rowNum then
+  return -1
+endi
+if $data40 != $rowNum then
+  return -1
+endi
+
+sql select count(*), first(*) from stb partition by t2 slimit 6 soffset 1
+if $rows != 3 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -68,13 +68,21 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
   }
 
   *ppPage = pPage;
+
+  tdbDebug("page/create: %p %p", pPage, xMalloc);
   return 0;
 }
 
 int tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg) {
   u8 *ptr;
 
+  tdbDebug("page/destroy: %p %p", pPage, xFree);
   ASSERT(xFree);
+
+  for (int iOvfl = 0; iOvfl < pPage->nOverflow; iOvfl++) {
+    tdbDebug("tdbPage/destroy/free ovfl cell: %p/%p", pPage->apOvfl[iOvfl], pPage);
+    tdbOsFree(pPage->apOvfl[iOvfl]);
+  }
 
   ptr = pPage->pData;
   xFree(arg, ptr);
@@ -82,7 +90,8 @@ int tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg)
   return 0;
 }
 
-void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *)) {
+void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt)) {
+  tdbDebug("page/zero: %p %" PRIu8 " %p", pPage, szAmHdr, xCellSize);
   pPage->pPageHdr = pPage->pData + szAmHdr;
   TDB_PAGE_NCELLS_SET(pPage, 0);
   TDB_PAGE_CCELLS_SET(pPage, pPage->pageSize - sizeof(SPageFtr));
@@ -98,7 +107,8 @@ void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell
   ASSERT((u8 *)pPage->pPageFtr == pPage->pFreeEnd);
 }
 
-void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *)) {
+void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *, int, TXN *, SBTree *pBt)) {
+  tdbDebug("page/init: %p %" PRIu8 " %p", pPage, szAmHdr, xCellSize);
   pPage->pPageHdr = pPage->pData + szAmHdr;
   pPage->pCellIdx = pPage->pPageHdr + TDB_PAGE_HDR_SIZE(pPage);
   pPage->pFreeStart = pPage->pCellIdx + TDB_PAGE_OFFSET_SIZE(pPage) * TDB_PAGE_NCELLS(pPage);
@@ -122,9 +132,8 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
 
   nFree = TDB_PAGE_NFREE(pPage);
   nCells = TDB_PAGE_NCELLS(pPage);
-  iOvfl = 0;
 
-  for (; iOvfl < pPage->nOverflow; iOvfl++) {
+  for (iOvfl = 0; iOvfl < pPage->nOverflow; ++iOvfl) {
     if (pPage->aiOvfl[iOvfl] >= idx) {
       break;
     }
@@ -143,6 +152,8 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
     // TODO: here has memory leak
     pNewCell = (SCell *)tdbOsMalloc(szCell);
     memcpy(pNewCell, pCell, szCell);
+
+    tdbDebug("tdbPage/insert/new ovfl cell: %p/%p", pNewCell, pPage);
 
     pPage->apOvfl[iOvfl] = pNewCell;
     pPage->aiOvfl[iOvfl] = idx;
@@ -171,12 +182,12 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
   return 0;
 }
 
-int tdbPageUpdateCell(SPage *pPage, int idx, SCell *pCell, int szCell) {
-  tdbPageDropCell(pPage, idx);
+int tdbPageUpdateCell(SPage *pPage, int idx, SCell *pCell, int szCell, TXN *pTxn, SBTree *pBt) {
+  tdbPageDropCell(pPage, idx, pTxn, pBt);
   return tdbPageInsertCell(pPage, idx, pCell, szCell, 0);
 }
 
-int tdbPageDropCell(SPage *pPage, int idx) {
+int tdbPageDropCell(SPage *pPage, int idx, TXN *pTxn, SBTree *pBt) {
   int    lidx;
   SCell *pCell;
   int    szCell;
@@ -191,6 +202,8 @@ int tdbPageDropCell(SPage *pPage, int idx) {
   for (; iOvfl < pPage->nOverflow; iOvfl++) {
     if (pPage->aiOvfl[iOvfl] == idx) {
       // remove the over flow cell
+      tdbOsFree(pPage->apOvfl[iOvfl]);
+      tdbDebug("tdbPage/drop/free ovfl cell: %p", pPage->apOvfl[iOvfl]);
       for (; (++iOvfl) < pPage->nOverflow;) {
         pPage->aiOvfl[iOvfl - 1] = pPage->aiOvfl[iOvfl] - 1;
         pPage->apOvfl[iOvfl - 1] = pPage->apOvfl[iOvfl];
@@ -205,7 +218,7 @@ int tdbPageDropCell(SPage *pPage, int idx) {
 
   lidx = idx - iOvfl;
   pCell = TDB_PAGE_CELL_AT(pPage, lidx);
-  szCell = (*pPage->xCellSize)(pPage, pCell);
+  szCell = (*pPage->xCellSize)(pPage, pCell, 1, pTxn, pBt);
   tdbPageFree(pPage, lidx, pCell, szCell);
   TDB_PAGE_NCELLS_SET(pPage, nCells - 1);
 
@@ -217,7 +230,7 @@ int tdbPageDropCell(SPage *pPage, int idx) {
   return 0;
 }
 
-void tdbPageCopy(SPage *pFromPage, SPage *pToPage) {
+void tdbPageCopy(SPage *pFromPage, SPage *pToPage, int deepCopyOvfl) {
   int delta, nFree;
 
   pToPage->pFreeStart = pToPage->pPageHdr + (pFromPage->pFreeStart - pFromPage->pPageHdr);
@@ -238,22 +251,33 @@ void tdbPageCopy(SPage *pFromPage, SPage *pToPage) {
 
   // Copy the overflow cells
   for (int iOvfl = 0; iOvfl < pFromPage->nOverflow; iOvfl++) {
+    SCell *pNewCell = pFromPage->apOvfl[iOvfl];
+    if (deepCopyOvfl) {
+      int szCell = (*pFromPage->xCellSize)(pFromPage, pFromPage->apOvfl[iOvfl], 0, NULL, NULL);
+      pNewCell = (SCell *)tdbOsMalloc(szCell);
+      memcpy(pNewCell, pFromPage->apOvfl[iOvfl], szCell);
+      tdbDebug("tdbPage/copy/new ovfl cell: %p/%p/%p", pNewCell, pToPage, pFromPage);
+    }
+
+    pToPage->apOvfl[iOvfl] = pNewCell;
     pToPage->aiOvfl[iOvfl] = pFromPage->aiOvfl[iOvfl];
-    pToPage->apOvfl[iOvfl] = pFromPage->apOvfl[iOvfl];
   }
   pToPage->nOverflow = pFromPage->nOverflow;
 }
 
 int tdbPageCapacity(int pageSize, int amHdrSize) {
   int szPageHdr;
+  int minCellIndexSize;  // at least one cell in cell index
 
   if (pageSize < 65536) {
     szPageHdr = pageMethods.szPageHdr;
+    minCellIndexSize = pageMethods.szOffset;
   } else {
     szPageHdr = pageLargeMethods.szPageHdr;
+    minCellIndexSize = pageLargeMethods.szOffset;
   }
 
-  return pageSize - szPageHdr - amHdrSize;
+  return pageSize - szPageHdr - amHdrSize - sizeof(SPageFtr) - minCellIndexSize;
 }
 
 static int tdbPageAllocate(SPage *pPage, int szCell, SCell **ppCell) {
@@ -417,7 +441,7 @@ static int tdbPageDefragment(SPage *pPage) {
 
     ASSERT(pCell != NULL);
 
-    szCell = (*pPage->xCellSize)(pPage, pCell);
+    szCell = (*pPage->xCellSize)(pPage, pCell, 0, NULL, NULL);
 
     ASSERT(pCell + szCell <= pNextCell);
     if (pCell + szCell < pNextCell) {
@@ -562,7 +586,7 @@ static inline void setLPageNFree(SPage *pPage, int nFree) {
 
 // cell offset
 static inline int getLPageCellOffset(SPage *pPage, int idx) {
-  ASSERT(idx >= 0 && idx < getPageCellNum(pPage));
+  ASSERT(idx >= 0 && idx < getLPageCellNum(pPage));
   return TDB_GET_U24(pPage->pCellIdx + 3 * idx);
 }
 

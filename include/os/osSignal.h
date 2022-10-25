@@ -21,30 +21,34 @@ extern "C" {
 #endif
 
 #ifndef SIGALRM
-  #define SIGALRM 1234
+#define SIGALRM 1234
 #endif
 
 #ifndef SIGHUP
-  #define SIGHUP 1230
+#define SIGHUP 1230
 #endif
 
 #ifndef SIGCHLD
-  #define SIGCHLD 1234
+#define SIGCHLD 1234
 #endif
 
 #ifndef SIGUSR1
-  #define SIGUSR1 1234
+#define SIGUSR1 1234
 #endif
 
 #ifndef SIGUSR2
-  #define SIGUSR2 1234
+#define SIGUSR2 1234
 #endif
 
 #ifndef SIGBREAK
-  #define SIGBREAK 1234
+#define SIGBREAK 1234
 #endif
 
+#ifdef WINDOWS
+typedef BOOL (*FSignalHandler)(DWORD fdwCtrlType);
+#else
 typedef void (*FSignalHandler)(int32_t signum, void *sigInfo, void *context);
+#endif
 void taosSetSignal(int32_t signum, FSignalHandler sigfp);
 void taosIgnSignal(int32_t signum);
 void taosDflSignal(int32_t signum);
@@ -55,4 +59,4 @@ void taosKillChildOnParentStopped();
 }
 #endif
 
-#endif  /*_TD_OS_SIGNAL_H_*/
+#endif /*_TD_OS_SIGNAL_H_*/

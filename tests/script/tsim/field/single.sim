@@ -1,0 +1,216 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ======================== dnode1 start
+
+$dbPrefix = db
+$tbPrefix = tb
+$mtPrefix = st
+$rowNum = 20
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+
+sql create database $db
+sql use $db
+sql create table $tb (ts timestamp, tbcol int)
+
+  $x = 0
+  while $x < $rowNum
+    $ms = $x . m 
+    sql insert into $tb values (1626739200000 + $ms , $x ) 
+    $x = $x + 1
+  endw  
+ 
+print =============== step2
+sql select * from $tb
+if $rows != $rowNum then 
+  return -1
+endi
+
+sql select * from $tb where tbcol = 10
+if $rows != 1 then 
+  return -1
+endi
+if $data01 != 10 then 
+  return -1
+endi
+
+sql select * from $tb where tbcol = 8
+if $rows != 1 then 
+  return -1
+endi
+if $data01 != 8 then 
+  return -1
+endi
+
+sql select * from $tb where tbcol < 10
+if $rows != 10 then 
+  return -1
+endi
+if $data91 != 9 then 
+  return -1
+endi
+
+sql select * from $tb where tbcol <= 10
+if $rows != 11 then 
+  return -1
+endi
+if $data81 != 8 then 
+  return -1
+endi
+
+sql select * from $tb where tbcol > 10
+if $rows != 9 then 
+  return -1
+endi
+if $data81 != 19 then 
+  return -1
+endi
+
+sql select * from $tb where tbcol > 10 order by ts asc
+if $rows != 9 then 
+  return -1
+endi
+if $data01 != 11 then 
+  return -1
+endi
+
+sql select * from $tb where tbcol < 10 and tbcol > 5 order by ts desc
+if $rows != 4 then 
+  return -1
+endi
+if $data01 != 9 then 
+  return -1
+endi
+if $data31 != 6 then 
+  return -1
+endi
+
+sql select * from $tb where tbcol < 10 and tbcol > 5  order by ts asc
+if $rows != 4 then 
+  return -1
+endi
+if $data01 != 6 then 
+  return -1
+endi
+if $data31 != 9 then 
+  return -1
+endi
+
+sql select * from $tb where tbcol > 10 and tbcol < 5  order by ts asc
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== step3
+sql select * from $tb where ts < 1626739440001
+if $rows != 5 then 
+  return -1
+endi
+
+sql select * from $tb where tbcol = 10 and ts < 1626739440001
+print  select * from $tb where tbcol = 10 and ts < 1626739440001
+if $rows != 0 then 
+  return -1
+endi
+
+sql select * from $tb where tbcol = 4 and ts < 1626739440001 order by ts desc
+if $rows != 1 then 
+  return -1
+endi
+if $data01 != 4 then 
+  return -1
+endi
+
+sql select * from $tb where tbcol < 10  and ts < 1626739440001 order by ts desc
+if $rows != 5 then 
+  return -1
+endi
+if $data01 != 4 then 
+  return -1
+endi
+
+sql select * from $tb where tbcol < 10 and ts > 1626739440001 and ts < 1626739500001 order by ts desc
+print $rows $data00 $data01
+if $rows != 1 then 
+  return -1
+endi
+if $data01 != 5 then 
+  return -1
+endi
+
+print =============== step4
+sql select count(*) from $tb
+if $data00 != $rowNum then 
+  return -1
+endi
+
+sql select count(*) from $tb where tbcol = 10
+if $data00 != 1 then 
+  return -1
+endi
+
+#sql select count(*) from $tb where tbcol = 8 or tbcol = 9
+#if $data00 != 2 then 
+#  return -1
+#endi
+
+sql select count(*) from $tb where tbcol < 10
+if $data00 != 10 then 
+  return -1
+endi
+
+sql select count(*) from $tb where tbcol <= 10
+if $data00 != 11 then 
+  return -1
+endi
+
+sql select count(*) from $tb where tbcol < 10 and tbcol > 5
+if $data00 != 4 then 
+  return -1
+endi
+
+sql select count(*) from $tb where tbcol < 10 and tbcol > 5 order by ts asc -x step4
+#  return -1
+step4:
+
+print =============== step5
+sql select count(*) from $tb where ts < 1626739440001
+if $data00 != 5 then 
+  return -1
+endi
+
+#sql select count(*) from $tb where tbcol = 10 and ts < 1626739440001
+#if $data00 != 0 then 
+#  return -1
+#endi
+
+sql select count(*) from $tb where tbcol = 4 and ts < 1626739440001
+if $data00 != 1 then 
+  return -1
+endi
+
+sql select count(*) from $tb where tbcol < 10  and ts < 1626739440001
+if $data00 != 5 then 
+  return -1
+endi
+
+sql select count(*) from $tb where tbcol < 10 and ts > 1626739440001 and ts < 1626739500001
+if $data00 != 1 then 
+  return -1
+endi
+
+print =============== clear
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

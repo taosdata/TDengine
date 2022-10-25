@@ -33,7 +33,7 @@ class ClusterTestcase:
         nodes.node3.stopTaosd()
 
         tdLog.sleep(10)
-        tdSql.query("show dnodes")
+        tdSql.query("select * from information_schema.ins_dnodes")
         tdSql.checkRows(3)
         tdSql.checkData(2, 4, "offline")
 

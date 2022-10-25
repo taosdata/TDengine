@@ -9,6 +9,24 @@ endfunction(cat IN_FILE OUT_FILE)
 set(CONTRIB_TMP_FILE "${CMAKE_BINARY_DIR}/deps_tmp_CMakeLists.txt.in")
 configure_file("${TD_SUPPORT_DIR}/deps_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 
+# taos-tools
+if(${BUILD_TOOLS})
+    cat("${TD_SUPPORT_DIR}/taostools_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif()
+
+# taosws-rs
+if(${WEBSOCKET})
+    cat("${TD_SUPPORT_DIR}/taosws_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif()
+
+# taosadapter
+if(${BUILD_HTTP})
+    MESSAGE("BUILD_HTTP is on")
+else ()
+    MESSAGE("BUILD_HTTP is off, use taosAdapter")
+    cat("${TD_SUPPORT_DIR}/taosadapter_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif()
+
 # pthread
 if(${BUILD_PTHREAD})
     cat("${TD_SUPPORT_DIR}/pthread_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
@@ -17,6 +35,11 @@ endif()
 # iconv
 if(${BUILD_WITH_ICONV})
     cat("${TD_SUPPORT_DIR}/iconv_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif()
+
+# jemalloc
+if(${JEMALLOC_ENABLED})
+    cat("${TD_SUPPORT_DIR}/jemalloc_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif()
 
 # msvc regex
@@ -98,6 +121,11 @@ if(${BUILD_WITH_NURAFT})
     cat("${TD_SUPPORT_DIR}/nuraft_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 endif(${BUILD_WITH_NURAFT})
 
+# crashdump
+if(${BUILD_CRASHDUMP})
+    cat("${TD_SUPPORT_DIR}/crashdump_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif(${BUILD_CRASHDUMP})
+
 # addr2line
 if(${BUILD_ADDR2LINE})
     if(NOT ${TD_WINDOWS})
@@ -118,6 +146,7 @@ execute_process(COMMAND "${CMAKE_COMMAND}" --build .
 # ================================================================================================
 # googletest
 if(${BUILD_TEST})
+    set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
     add_subdirectory(googletest EXCLUDE_FROM_ALL)
     target_include_directories(
         gtest
@@ -226,12 +255,35 @@ endif(${BUILD_WITH_NURAFT})
 
 # pthread
 if(${BUILD_PTHREAD})
-    set(CMAKE_BUILD_TYPE release)
+    set(CMAKE_BUILD_TYPE debug)
     add_definitions(-DPTW32_STATIC_LIB)
     add_subdirectory(pthread EXCLUDE_FROM_ALL)
     set_target_properties(libpthreadVC3 PROPERTIES OUTPUT_NAME pthread)
     add_library(pthread INTERFACE)
     target_link_libraries(pthread INTERFACE libpthreadVC3)
+endif()
+
+# jemalloc
+if(${JEMALLOC_ENABLED})
+    include(ExternalProject)
+    ExternalProject_Add(jemalloc
+        PREFIX        "jemalloc"
+        SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/jemalloc
+        BUILD_IN_SOURCE     1
+        CONFIGURE_COMMAND   ./autogen.sh COMMAND ./configure --prefix=${CMAKE_BINARY_DIR}/build/ --disable-initial-exec-tls --with-malloc-conf='background_thread:true,metadata_thp:auto'
+        BUILD_COMMAND       ${MAKE}
+    )
+    INCLUDE_DIRECTORIES(${CMAKE_BINARY_DIR}/build/include)
+endif()
+
+# crashdump
+if(${BUILD_CRASHDUMP})
+    add_executable(dumper "crashdump/dumper/dumper.c")
+    target_link_libraries(dumper User32.lib dbghelp.lib)
+    file(READ "crashdump/crasher/crasher.c" CRASHDUMP_CONTENT)
+    string(REPLACE "main(" "main_crashdump(" CRASHDUMP_CONTENT "${CRASHDUMP_CONTENT}")
+    file(WRITE "crashdump/crasher/crasher.c" "${CRASHDUMP_CONTENT}")
+    add_library(crashdump STATIC "crashdump/crasher/crasher.c")
 endif()
 
 # iconv
@@ -259,7 +311,7 @@ if(${BUILD_MSVCREGEX})
     SET_TARGET_PROPERTIES(msvcregex PROPERTIES OUTPUT_NAME msvcregex)
 endif(${BUILD_MSVCREGEX})
 
-# msvcregex
+# wcwidth
 if(${BUILD_WCWIDTH})
     add_library(wcwidth STATIC "")
     target_sources(wcwidth
@@ -297,9 +349,11 @@ endif(${BUILD_WITH_TRAFT})
 
 # LIBUV
 if(${BUILD_WITH_UV})
-    if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Windows")
-        MESSAGE("Windows need set no-sign-compare")
-        add_compile_options(-Wno-sign-compare)
+    if (TD_WINDOWS)
+        # There is no GetHostNameW function on win7.
+        file(READ "libuv/src/win/util.c" LIBUV_WIN_UTIL_CONTENT)
+        string(REPLACE "if (GetHostNameW(buf, UV_MAXHOSTNAMESIZE" "DWORD  nSize = UV_MAXHOSTNAMESIZE;\n  if (GetComputerNameW(buf, &nSize" LIBUV_WIN_UTIL_CONTENT "${LIBUV_WIN_UTIL_CONTENT}")
+        file(WRITE "libuv/src/win/util.c" "${LIBUV_WIN_UTIL_CONTENT}")
     endif ()
     add_subdirectory(libuv EXCLUDE_FROM_ALL)
 endif(${BUILD_WITH_UV})

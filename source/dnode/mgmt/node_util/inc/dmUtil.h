@@ -34,23 +34,33 @@
 
 #include "dnode.h"
 #include "mnode.h"
-#include "qnode.h"
 #include "monitor.h"
+#include "qnode.h"
 #include "sync.h"
 #include "wal.h"
 
 #include "libs/function/function.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define dFatal(...) { if (dDebugFlag & DEBUG_FATAL) { taosPrintLog("DND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}
-#define dError(...) { if (dDebugFlag & DEBUG_ERROR) { taosPrintLog("DND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}
-#define dWarn(...)  { if (dDebugFlag & DEBUG_WARN)  { taosPrintLog("DND WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}
-#define dInfo(...)  { if (dDebugFlag & DEBUG_INFO)  { taosPrintLog("DND ", DEBUG_INFO, 255, __VA_ARGS__); }}
-#define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND ", DEBUG_DEBUG, dDebugFlag, __VA_ARGS__); }}
-#define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", DEBUG_TRACE, dDebugFlag, __VA_ARGS__); }}
+// clang-format off
+
+#define dFatal(...) { if (dDebugFlag & DEBUG_FATAL) { taosPrintLog("DND FATAL ", DEBUG_FATAL, 255,        __VA_ARGS__); }}
+#define dError(...) { if (dDebugFlag & DEBUG_ERROR) { taosPrintLog("DND ERROR ", DEBUG_ERROR, 255,        __VA_ARGS__); }}
+#define dWarn(...)  { if (dDebugFlag & DEBUG_WARN)  { taosPrintLog("DND WARN ",  DEBUG_WARN,  255,        __VA_ARGS__); }}
+#define dInfo(...)  { if (dDebugFlag & DEBUG_INFO)  { taosPrintLog("DND ",       DEBUG_INFO,  255,        __VA_ARGS__); }}
+#define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND ",       DEBUG_DEBUG, dDebugFlag, __VA_ARGS__); }}
+#define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ",       DEBUG_TRACE, dDebugFlag, __VA_ARGS__); }}
+
+#define dGFatal(param, ...) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dFatal(param ", gtid:%s", __VA_ARGS__, buf);}
+#define dGError(param, ...) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dError(param ", gtid:%s", __VA_ARGS__, buf);}
+#define dGWarn(param, ...)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dWarn (param ", gtid:%s", __VA_ARGS__, buf);}
+#define dGInfo(param, ...)  { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dInfo (param ", gtid:%s", __VA_ARGS__, buf);}
+#define dGDebug(param, ...) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dDebug(param ", gtid:%s", __VA_ARGS__, buf);}
+#define dGTrace(param, ...) { char buf[40] = {0}; TRACE_TO_STR(trace, buf); dTrace(param ", gtid:%s", __VA_ARGS__, buf);}
+
+// clang-format on
 
 typedef enum {
   DNODE = 0,
@@ -58,8 +68,7 @@ typedef enum {
   VNODE = 2,
   QNODE = 3,
   SNODE = 4,
-  BNODE = 5,
-  NODE_END = 6,
+  NODE_END = 5,
 } EDndNodeType;
 
 typedef enum {
@@ -73,20 +82,6 @@ typedef enum {
   DND_ENV_READY,
   DND_ENV_CLEANUP,
 } EDndEnvStatus;
-
-typedef enum {
-  DND_PROC_SINGLE,
-  DND_PROC_CHILD,
-  DND_PROC_PARENT,
-  DND_PROC_TEST,
-} EDndProcType;
-
-typedef enum {
-  DND_FUNC_REQ = 1,
-  DND_FUNC_RSP = 2,
-  DND_FUNC_REGIST = 3,
-  DND_FUNC_RELEASE = 4,
-} EProcFuncType;
 
 typedef int32_t (*ProcessCreateNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef int32_t (*ProcessDropNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
@@ -156,11 +151,7 @@ typedef struct {
 
 // dmUtil.c
 const char *dmStatStr(EDndRunStatus stype);
-const char *dmNodeLogName(EDndNodeType ntype);
-const char *dmNodeProcName(EDndNodeType ntype);
 const char *dmNodeName(EDndNodeType ntype);
-const char *dmProcStr(EDndProcType ptype);
-const char *dmFuncStr(EProcFuncType etype);
 void       *dmSetMgmtHandle(SArray *pArray, tmsg_t msgType, void *nodeMsgFp, bool needCheckVgId);
 void        dmGetMonitorSystemInfo(SMonSysInfo *pInfo);
 
@@ -168,8 +159,6 @@ void        dmGetMonitorSystemInfo(SMonSysInfo *pInfo);
 int32_t   dmReadFile(const char *path, const char *name, bool *pDeployed);
 int32_t   dmWriteFile(const char *path, const char *name, bool deployed);
 TdFilePtr dmCheckRunning(const char *dataDir);
-int32_t   dmReadShmFile(const char *path, const char *name, EDndNodeType runType, SShm *pShm);
-int32_t   dmWriteShmFile(const char *path, const char *name, const SShm *pShm);
 
 // dmEps.c
 int32_t dmReadEps(SDnodeData *pData);

@@ -1,0 +1,89 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+$i = 0
+$dbPrefix = lm_bo_db
+$tbPrefix = lm_bo_tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+print =============== step1
+sql create database $db
+sql use $db
+$x = 0
+sql create table $tb (ts timestamp, speed bool)
+
+sql insert into $tb values (now, true)
+sql select * from $tb
+if $rows != 1 then 
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+print =============== step2
+sql insert into $tb values (now+1m, 1)
+sql select * from $tb order by ts desc
+if $rows != 2 then 
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+print =============== step3
+sql insert into $tb values (now+2m, 2)
+sql select * from $tb order by ts desc
+if $rows != 3 then 
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+print =============== step4
+sql insert into $tb values (now+3m, 0)
+sql select * from $tb order by ts desc
+if $rows != 4 then 
+  return -1
+endi
+
+if $data01 != 0 then
+  return -1
+endi
+
+print =============== step5
+sql insert into $tb values (now+4m, -1)
+sql select * from $tb order by ts desc
+if $rows != 5 then 
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+print =============== step6
+sql insert into $tb values (now+5m, false)
+sql select * from $tb order by ts desc
+if $rows != 6 then 
+  return -1
+endi
+
+if $data01 != 0 then
+  return -1
+endi
+
+sql drop database $db
+sql select * from information_schema.ins_databases
+if $rows != 2 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

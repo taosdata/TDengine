@@ -14,10 +14,10 @@
  */
 
 #include "executor.h"
+#include "libs/function/function.h"
 #include "qndInt.h"
 #include "query.h"
 #include "qworker.h"
-#include "libs/function/function.h"
 
 SQnode *qndOpen(const SQnodeOpt *pOption) {
   SQnode *pQnode = taosMemoryCalloc(1, sizeof(SQnode));
@@ -26,7 +26,7 @@ SQnode *qndOpen(const SQnodeOpt *pOption) {
     return NULL;
   }
 
-  if (qWorkerInit(NODE_TYPE_QNODE, pQnode->qndId, NULL, (void **)&pQnode->pQuery, &pOption->msgCb)) {
+  if (qWorkerInit(NODE_TYPE_QNODE, pQnode->qndId, (void **)&pQnode->pQuery, &pOption->msgCb)) {
     taosMemoryFreeClear(pQnode);
     return NULL;
   }
@@ -40,8 +40,8 @@ void qndClose(SQnode *pQnode) {
   taosMemoryFree(pQnode);
 }
 
-int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) { 
-  SReadHandle handle = {.pMsgCb = &pQnode->msgCb};
+int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) {
+  SReadHandle  handle = {.pMsgCb = &pQnode->msgCb};
   SQWorkerStat stat = {0};
 
   int32_t code = qWorkerGetStat(&handle, pQnode->pQuery, &stat);
@@ -60,12 +60,12 @@ int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) {
   pLoad->numOfProcessedDrop = stat.dropProcessed;
   pLoad->numOfProcessedHb = stat.hbProcessed;
   pLoad->numOfProcessedDelete = stat.deleteProcessed;
-  
-  return 0; 
+
+  return 0;
 }
 
-int32_t qndPreprocessQueryMsg(SQnode *pQnode, SRpcMsg * pMsg) {
-  if (TDMT_VND_QUERY != pMsg->msgType) {
+int32_t qndPreprocessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
+  if (TDMT_SCH_QUERY != pMsg->msgType && TDMT_SCH_MERGE_QUERY != pMsg->msgType) {
     return 0;
   }
 
@@ -78,28 +78,27 @@ int32_t qndProcessQueryMsg(SQnode *pQnode, int64_t ts, SRpcMsg *pMsg) {
   qTrace("message in qnode queue is processing");
 
   switch (pMsg->msgType) {
-    case TDMT_VND_QUERY:
+    case TDMT_SCH_QUERY:
+    case TDMT_SCH_MERGE_QUERY:
       code = qWorkerProcessQueryMsg(&handle, pQnode->pQuery, pMsg, ts);
       break;
-    case TDMT_VND_QUERY_CONTINUE:
+    case TDMT_SCH_QUERY_CONTINUE:
       code = qWorkerProcessCQueryMsg(&handle, pQnode->pQuery, pMsg, ts);
       break;
-    case TDMT_VND_FETCH:
+    case TDMT_SCH_FETCH:
+    case TDMT_SCH_MERGE_FETCH:
       code = qWorkerProcessFetchMsg(pQnode, pQnode->pQuery, pMsg, ts);
       break;
-    case TDMT_VND_FETCH_RSP:
-      code = qWorkerProcessFetchRsp(pQnode, pQnode->pQuery, pMsg, ts);
-      break;
-    case TDMT_VND_CANCEL_TASK:
+    case TDMT_SCH_CANCEL_TASK:
       code = qWorkerProcessCancelMsg(pQnode, pQnode->pQuery, pMsg, ts);
       break;
-    case TDMT_VND_DROP_TASK:
+    case TDMT_SCH_DROP_TASK:
       code = qWorkerProcessDropMsg(pQnode, pQnode->pQuery, pMsg, ts);
       break;
     case TDMT_VND_CONSUME:
       // code =  tqProcessConsumeReq(pQnode->pTq, pMsg);
       // break;
-    case TDMT_VND_QUERY_HEARTBEAT:
+    case TDMT_SCH_QUERY_HEARTBEAT:
       code = qWorkerProcessHbMsg(pQnode, pQnode->pQuery, pMsg, ts);
       break;
     default:

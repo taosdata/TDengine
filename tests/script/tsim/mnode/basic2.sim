@@ -5,8 +5,8 @@ system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
 sql connect
 
-print =============== show dnodes
-sql show mnodes;
+print =============== select * from information_schema.ins_dnodes
+sql select * from information_schema.ins_mnodes;
 if $rows != 1 then 
   return -1
 endi
@@ -28,7 +28,7 @@ step1:
 	if $x == 20 then
 		return -1
 	endi
-sql show dnodes -x step1
+sql select * from information_schema.ins_dnodes -x step1
 if $data(1)[4] != ready then
   goto step1
 endi
@@ -46,7 +46,7 @@ step2:
 	if $x == 20 then
 		return -1
 	endi
-sql show mnodes
+sql select * from information_schema.ins_mnodes
 print $data(1)[0] $data(1)[1] $data(1)[2] 
 print $data(2)[0] $data(2)[1] $data(2)[2] 
 
@@ -68,13 +68,13 @@ endi
 
 print =============== create user
 sql create user user1 PASS 'user1'
-sql show users
+sql select * from information_schema.ins_users
 if $rows != 2 then 
   return -1
 endi
 
 sql create database db
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then 
   return -1
 endi
@@ -88,19 +88,19 @@ system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
 
 sql connect
-sql show mnodes
+sql select * from information_schema.ins_mnodes
 if $rows != 2 then 
   return -1
 endi
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 
-sql show users
+sql select * from information_schema.ins_users
 if $rows != 2 then 
   return -1
 endi
 
-sql show databases
+sql select * from information_schema.ins_databases
 if $rows != 3 then 
   return -1
 endi
@@ -112,7 +112,7 @@ step3:
 	if $x == 20 then
 		return -1
 	endi
-sql show dnodes -x step3
+sql select * from information_schema.ins_dnodes -x step3
 print ===> $data00 $data01 $data02 $data03 $data04 $data05
 print ===> $data10 $data11 $data12 $data13 $data14 $data15
 if $data(1)[4] != ready then

@@ -24,6 +24,7 @@ SyncAppendEntriesReply *createMsg() {
   pMsg->matchIndex = 77;
   pMsg->term = 33;
   pMsg->privateTerm = 44;
+  pMsg->startTime = taosGetTimestampMs();
   return pMsg;
 }
 
@@ -36,7 +37,7 @@ void test1() {
 void test2() {
   SyncAppendEntriesReply *pMsg = createMsg();
   uint32_t                len = pMsg->bytes;
-  char *                  serialized = (char *)taosMemoryMalloc(len);
+  char                   *serialized = (char *)taosMemoryMalloc(len);
   syncAppendEntriesReplySerialize(pMsg, serialized, len);
   SyncAppendEntriesReply *pMsg2 = syncAppendEntriesReplyBuild(1000);
   syncAppendEntriesReplyDeserialize(serialized, len, pMsg2);
@@ -51,7 +52,7 @@ void test2() {
 void test3() {
   SyncAppendEntriesReply *pMsg = createMsg();
   uint32_t                len;
-  char *                  serialized = syncAppendEntriesReplySerialize2(pMsg, &len);
+  char                   *serialized = syncAppendEntriesReplySerialize2(pMsg, &len);
   SyncAppendEntriesReply *pMsg2 = syncAppendEntriesReplyDeserialize2(serialized, len);
   syncAppendEntriesReplyLog2((char *)"test3: syncAppendEntriesReplySerialize3 -> syncAppendEntriesReplyDeserialize2 ",
                              pMsg2);
@@ -89,6 +90,8 @@ void test5() {
 }
 
 int main() {
+  gRaftDetailLog = true;
+
   tsAsyncLog = 0;
   sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
   logTest();

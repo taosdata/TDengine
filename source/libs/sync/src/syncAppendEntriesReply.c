@@ -20,6 +20,7 @@
 #include "syncRaftCfg.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
+#include "syncReplication.h"
 #include "syncSnapshot.h"
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
@@ -37,199 +38,101 @@
 //    /\ Discard(m)
 //    /\ UNCHANGED <<serverVars, candidateVars, logVars, elections>>
 //
-int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
-  int32_t ret = 0;
 
-  char logBuf[128] = {0};
-  snprintf(logBuf, sizeof(logBuf), "==syncNodeOnAppendEntriesReplyCb== term:%lu", ths->pRaftStore->currentTerm);
-  syncAppendEntriesReplyLog2(logBuf, pMsg);
+// only start once
+static void syncNodeStartSnapshotOnce(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, SyncTerm lastApplyTerm,
+                                      SyncAppendEntriesReply* pMsg) {
+  if (beginIndex > endIndex) {
+    do {
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "snapshot param error, start:%" PRId64 ", end:%" PRId64, beginIndex, endIndex);
+      syncNodeErrorLog(ths, logBuf);
+    } while (0);
 
-  if (pMsg->term < ths->pRaftStore->currentTerm) {
-    sTrace("DropStaleResponse, receive term:%" PRIu64 ", current term:%" PRIu64 "", pMsg->term,
-           ths->pRaftStore->currentTerm);
-    return ret;
+    return;
   }
 
-  syncIndexMgrLog2("==syncNodeOnAppendEntriesReplyCb== before pNextIndex", ths->pNextIndex);
-  syncIndexMgrLog2("==syncNodeOnAppendEntriesReplyCb== before pMatchIndex", ths->pMatchIndex);
+  // get sender
+  SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(pMsg->srcId));
+  ASSERT(pSender != NULL);
 
-  // no need this code, because if I receive reply.term, then I must have sent for that term.
-  //  if (pMsg->term > ths->pRaftStore->currentTerm) {
-  //    syncNodeUpdateTerm(ths, pMsg->term);
-  //  }
+  if (snapshotSenderIsStart(pSender)) {
+    do {
+      char* eventLog = snapshotSender2SimpleStr(pSender, "snapshot sender already start");
+      syncNodeErrorLog(ths, eventLog);
+      taosMemoryFree(eventLog);
+    } while (0);
 
-  if (pMsg->term > ths->pRaftStore->currentTerm) {
-    char logBuf[128] = {0};
-    snprintf(logBuf, sizeof(logBuf), "syncNodeOnAppendEntriesReplyCb error term, receive:%lu current:%lu", pMsg->term,
-             ths->pRaftStore->currentTerm);
-    syncNodeLog2(logBuf, ths);
-    sError("%s", logBuf);
-    return ret;
+    return;
   }
 
-  assert(pMsg->term == ths->pRaftStore->currentTerm);
+  SSnapshot snapshot = {
+      .data = NULL, .lastApplyIndex = endIndex, .lastApplyTerm = lastApplyTerm, .lastConfigIndex = SYNC_INDEX_INVALID};
+  void*          pReader = NULL;
+  SSnapshotParam readerParam = {.start = beginIndex, .end = endIndex};
+  int32_t        code = ths->pFsm->FpSnapshotStartRead(ths->pFsm, &readerParam, &pReader);
+  ASSERT(code == 0);
 
-  if (pMsg->success) {
-    // nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.mmatchIndex + 1]
-    syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), pMsg->matchIndex + 1);
-
-    // matchIndex' = [matchIndex EXCEPT ![i][j] = m.mmatchIndex]
-    syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), pMsg->matchIndex);
-
-    // maybe commit
-    syncMaybeAdvanceCommitIndex(ths);
+  if (pMsg->privateTerm < pSender->privateTerm) {
+    ASSERT(pReader != NULL);
+    snapshotSenderStart(pSender, readerParam, snapshot, pReader);
 
   } else {
-    SyncIndex nextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
-
-    // notice! int64, uint64
-    if (nextIndex > SYNC_INDEX_BEGIN) {
-      --nextIndex;
-    } else {
-      nextIndex = SYNC_INDEX_BEGIN;
+    if (pReader != NULL) {
+      ths->pFsm->FpSnapshotStopRead(ths->pFsm, pReader);
     }
-    syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), nextIndex);
   }
-
-  syncIndexMgrLog2("==syncNodeOnAppendEntriesReplyCb== after pNextIndex", ths->pNextIndex);
-  syncIndexMgrLog2("==syncNodeOnAppendEntriesReplyCb== after pMatchIndex", ths->pMatchIndex);
-
-  return ret;
 }
 
-int32_t syncNodeOnAppendEntriesReplySnapshotCb(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
+int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
   int32_t ret = 0;
 
-  // print log
-  char logBuf[128] = {0};
-  snprintf(logBuf, sizeof(logBuf), "recv SyncAppendEntriesReply, vgId:%d, term:%lu", ths->vgId,
-           ths->pRaftStore->currentTerm);
-  syncAppendEntriesReplyLog2(logBuf, pMsg);
-
   // if already drop replica, do not process
-  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId)) && !ths->pRaftCfg->isStandBy) {
-    sInfo("recv SyncAppendEntriesReply,  maybe replica already dropped");
-    return ret;
+  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
+    syncLogRecvAppendEntriesReply(ths, pMsg, "not in my config");
+    return 0;
   }
 
   // drop stale response
   if (pMsg->term < ths->pRaftStore->currentTerm) {
-    sTrace("recv SyncAppendEntriesReply, drop stale response, receive_term:%lu current_term:%lu", pMsg->term,
-           ths->pRaftStore->currentTerm);
-    return ret;
+    syncLogRecvAppendEntriesReply(ths, pMsg, "drop stale response");
+    return 0;
   }
 
-  syncIndexMgrLog2("recv SyncAppendEntriesReply, before pNextIndex:", ths->pNextIndex);
-  syncIndexMgrLog2("recv SyncAppendEntriesReply, before pMatchIndex:", ths->pMatchIndex);
-  if (gRaftDetailLog) {
-    SSnapshot snapshot;
-    ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
-    sTrace("recv SyncAppendEntriesReply, before snapshot.lastApplyIndex:%ld, snapshot.lastApplyTerm:%lu",
-           snapshot.lastApplyIndex, snapshot.lastApplyTerm);
-  }
-
-  // no need this code, because if I receive reply.term, then I must have sent for that term.
-  //  if (pMsg->term > ths->pRaftStore->currentTerm) {
-  //    syncNodeUpdateTerm(ths, pMsg->term);
-  //  }
-
-  if (pMsg->term > ths->pRaftStore->currentTerm) {
-    char logBuf[128] = {0};
-    snprintf(logBuf, sizeof(logBuf), "recv SyncAppendEntriesReply, error term, receive_term:%lu current_term:%lu",
-             pMsg->term, ths->pRaftStore->currentTerm);
-    syncNodeLog2(logBuf, ths);
-    sError("%s", logBuf);
-    return ret;
-  }
-
-  ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
-
-  if (pMsg->success) {
-    // nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.mmatchIndex + 1]
-    syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), pMsg->matchIndex + 1);
-
-    if (gRaftDetailLog) {
-      sTrace("update next match, index:%ld, success:%d", pMsg->matchIndex + 1, pMsg->success);
+  if (ths->state == TAOS_SYNC_STATE_LEADER) {
+    if (pMsg->term > ths->pRaftStore->currentTerm) {
+      syncLogRecvAppendEntriesReply(ths, pMsg, "error term");
+      syncNodeStepDown(ths, pMsg->term);
+      return -1;
     }
 
-    // matchIndex' = [matchIndex EXCEPT ![i][j] = m.mmatchIndex]
-    syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), pMsg->matchIndex);
+    ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
 
-    // maybe commit
-    if (ths->state == TAOS_SYNC_STATE_LEADER) {
-      syncMaybeAdvanceCommitIndex(ths);
-    }
-
-  } else {
-    SyncIndex nextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
-    if (gRaftDetailLog) {
-      sTrace("update next index not match, begin, index:%ld, success:%d", nextIndex, pMsg->success);
-    }
-
-    // notice! int64, uint64
-    if (nextIndex > SYNC_INDEX_BEGIN) {
-      --nextIndex;
-
-      // get sender
-      SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(ths, &(pMsg->srcId));
-      ASSERT(pSender != NULL);
-      bool      hasSnapshot = syncNodeHasSnapshot(ths);
-      SSnapshot snapshot;
-      ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
-
-      // start sending snapshot first time
-      // start here, stop by receiver
-      if (hasSnapshot && nextIndex <= snapshot.lastApplyIndex + 1 && !snapshotSenderIsStart(pSender) &&
-          pMsg->privateTerm < pSender->privateTerm) {
-        snapshotSenderStart(pSender);
-
-        char     host[128];
-        uint16_t port;
-        syncUtilU642Addr(pSender->pSyncNode->replicasId[pSender->replicaIndex].addr, host, sizeof(host), &port);
-
-        if (gRaftDetailLog) {
-          char* s = snapshotSender2Str(pSender);
-          sDebug(
-              "vgId:%d sync event snapshot send to %s:%d start sender first time, lastApplyIndex:%ld lastApplyTerm:%lu "
-              "lastConfigIndex:%ld"
-              "sender:%s",
-              ths->vgId, host, port, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm,
-              pSender->snapshot.lastConfigIndex, s);
-          taosMemoryFree(s);
-        } else {
-          sDebug(
-              "vgId:%d sync event snapshot send to %s:%d start sender first time, lastApplyIndex:%ld "
-              "lastApplyTerm:%lu lastConfigIndex:%ld",
-              ths->vgId, host, port, pSender->snapshot.lastApplyIndex, pSender->snapshot.lastApplyTerm,
-              pSender->snapshot.lastConfigIndex);
-        }
+    if (pMsg->success) {
+      SyncIndex oldMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
+      if (pMsg->matchIndex > oldMatchIndex) {
+        syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), pMsg->matchIndex);
+        syncMaybeAdvanceCommitIndex(ths);
       }
-
-      SyncIndex sentryIndex = pSender->snapshot.lastApplyIndex + 1;
-
-      // update nextIndex to sentryIndex
-      if (nextIndex <= sentryIndex) {
-        nextIndex = sentryIndex;
-      }
+      syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), pMsg->matchIndex + 1);
 
     } else {
-      nextIndex = SYNC_INDEX_BEGIN;
+      SyncIndex nextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
+      if (nextIndex > SYNC_INDEX_BEGIN) {
+        --nextIndex;
+      }
+      syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), nextIndex);
     }
 
-    syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), nextIndex);
-    if (gRaftDetailLog) {
-      sTrace("update next index not match, end, index:%ld, success:%d", nextIndex, pMsg->success);
+    // send next append entries
+    SPeerState* pState = syncNodeGetPeerState(ths, &(pMsg->srcId));
+    ASSERT(pState != NULL);
+
+    if (pMsg->lastSendIndex == pState->lastSendIndex) {
+      syncNodeReplicateOne(ths, &(pMsg->srcId));
     }
   }
 
-  syncIndexMgrLog2("recv SyncAppendEntriesReply, after pNextIndex:", ths->pNextIndex);
-  syncIndexMgrLog2("recv SyncAppendEntriesReply, after pMatchIndex:", ths->pMatchIndex);
-  if (gRaftDetailLog) {
-    SSnapshot snapshot;
-    ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
-    sTrace("recv SyncAppendEntriesReply, after snapshot.lastApplyIndex:%ld, snapshot.lastApplyTerm:%lu",
-           snapshot.lastApplyIndex, snapshot.lastApplyTerm);
-  }
-
-  return ret;
+  syncLogRecvAppendEntriesReply(ths, pMsg, "process");
+  return 0;
 }
