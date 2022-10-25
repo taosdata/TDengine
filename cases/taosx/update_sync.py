@@ -40,26 +40,26 @@ class AddSync(TDCase):
         self.test_root = os.environ['TEST_ROOT']
         self.taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
         #param for taosBenchmark
-        self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
+        
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
-        self.tb_num = 100
+        self.tb_num = 10
         self.row_num = 100
         self.drop_flag = 'yes'
         self.start_timestamp = 1601481600000
         self.child_table_exist_flag = 'no'
+        self.replica = [1,3]
         # update param
         self.add_drop_flag = 'no'
         self.add_child_table_exist_flag = 'yes'
-        self.add_row_num = 100
+        self.add_row_num = 10
         # param for taosBenchmark with ntb check
         self.ntb_dbname = ['test1','test2']
         self.ntb_name_m = ['nd','nt']
-        self.ntb_num = 100
+        self.ntb_num = 10
         self.ntb_row_num = 100
         #param for taosx
         self.timeout = '5s'
-        self.target_dbname = 'target'
     
     
     def data_insert_ntb(self,source_taosd_list,dbname,ntbname_m,tb_num,row_num,create_flag,start_timestamp):
@@ -206,9 +206,12 @@ class AddSync(TDCase):
 
         pass
     def run(self):
-        self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root)
-        self.update_sync_db_stb('db')
-        self.update_sync_db_stb('stable')
+        for replica in self.replica:
+            self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
+            self.target_dbname = self.tdCom.get_long_name(5)
+            self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root,replica)
+            self.update_sync_db_stb('db')
+            self.update_sync_db_stb('stable')
         # self.update_sync_ctb()
         # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num,'create',self.start_timestamp)
         # self.update_sync_ntb()

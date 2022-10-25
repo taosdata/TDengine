@@ -46,11 +46,12 @@ class UpdateBackup(TDCase):
         self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
-        self.tb_num = 100
-        self.row_num = 1000
+        self.tb_num = 10
+        self.row_num = 100
         self.drop_flag = 'yes'
         self.start_timestamp = 1601481600000
         self.child_table_exist_flag = 'no'
+        self.replica = [1,3]
         # update param
         self.add_drop_flag = 'no'
         self.add_child_table_exist_flag = 'yes'
@@ -263,9 +264,11 @@ class UpdateBackup(TDCase):
                     taosd_backup.execute(f'drop database {self.ntb_dbname[source]}')   
 
     def run(self):
-        self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root)
-        self.update_backup_db_stb('db')
-        self.update_backup_db_stb('stable')
+        for replica in self.replica:
+            self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
+            self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root,replica)
+            self.update_backup_db_stb('db')
+            self.update_backup_db_stb('stable')
         # self.update_backup_ctb()
         # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num,'create',self.start_timestamp)
         # self.update_backup_ntb()

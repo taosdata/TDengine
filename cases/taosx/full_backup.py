@@ -44,22 +44,23 @@ class FullBackup(TDCase):
         self.test_root = os.environ['TEST_ROOT']
         self.taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
         # param for taosBenchmark with db,stb and ctb check
-        self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
+        
         self.stbname = ['stb1','stb2']
         self.tbname_m = ['d','t']
-        self.tb_num = 100
-        self.row_num = 1000
+        self.tb_num = 10
+        self.row_num = 100
         self.start_timestamp = "2020-10-01 00:00:00.000"
         self.drop_flag = 'yes'
         self.child_table_exist_flag = 'no'
         # param for taosBenchmark with ntb check
         self.ntb_dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
         self.ntb_name_m = ['nd','nt']
-        self.ntb_num = 100
+        self.ntb_num = 10
         self.ntb_row_num = 100
         # param for taosx
         self.timeout = '5s'
         self.target_dbname = 'target'
+        self.replica = [1,3]
     def data_insert_ntb(self,source_taosd_list,dbname,ntbname_m,tb_num,row_num):
         taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
         thread_list = []
@@ -220,9 +221,10 @@ class FullBackup(TDCase):
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'rm -rf {self.run_log_dir}/{self.source_taosd_list[source][0]}_backup_{source}')
 
     def run(self):
-        self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root)
-        self.full_backup_db_stb('db')
-        self.full_backup_db_stb('stb')
+        
+            self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root,replica)
+            self.full_backup_db_stb('db')
+            self.full_backup_db_stb('stb')
         # self.full_backup_ctb()
         # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)
         # self.full_backup_ntb()
