@@ -900,14 +900,13 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
           } else {
             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
           }
-        }
-       } else {
+        } else {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
         }
       }
 
-      break;
-    }
+    break;
+  }
 
     case TSDB_SQL_CFG_LOCAL: {
       SMiscInfo  *pMiscInfo = pInfo->pMiscInfo;
