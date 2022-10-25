@@ -21,7 +21,7 @@ class Runtaosx():
     def __init__(self,logger):
         self.logger = logger
         self.remote: Remote = Remote(self.logger)
-    def get_json(self,json_path,host,port,dbname,stbname,tbname_m,tb_num,start_timestamp,row_num,drop_flag,child_table_exist):
+    def get_json(self,json_path,host,port,dbname,stbname,tbname_m,tb_num,start_timestamp,row_num,drop_flag,child_table_exist,replica):
         dict = {}
         with open(json_path,'rb') as file:
             params = json.load(file)
@@ -29,6 +29,7 @@ class Runtaosx():
             params['port'] = port
             params['databases'][0]['dbinfo']['name'] = dbname
             params['databases'][0]['dbinfo']['drop'] = drop_flag
+            params['databases'][0]['dbinfo']['replica'] = replica
             params['databases'][0]['super_tables'][0]['name'] = stbname
             params['databases'][0]['super_tables'][0]['childtable_count'] = tb_num
             params['databases'][0]['super_tables'][0]['child_table_exists'] = child_table_exist
@@ -42,13 +43,13 @@ class Runtaosx():
         with open(json_path, 'w') as r:
             json.dump(dict, r)
         r.close()
-    def data_insert(self,source_taosd_list,dbname,stbname,tbname_m,tb_num,row_num,start_timestamp,drop_flag,child_table_exist_flag,taosBenchmark_fqdn,test_root):
+    def data_insert(self,source_taosd_list,dbname,stbname,tbname_m,tb_num,row_num,start_timestamp,drop_flag,child_table_exist_flag,taosBenchmark_fqdn,test_root,replica=1):
         thread_list = []
         for source in range(len(source_taosd_list)):
             host = source_taosd_list[source][0]
             port = source_taosd_list[source][1]
             self.write_json(f'{test_root}/cases/taosx/basic{source}.json', self.get_json(f'{test_root}/cases/taosx/basic.json',
-                            host, int(port), dbname[source], stbname[source], tbname_m[source],tb_num,start_timestamp,row_num,drop_flag,child_table_exist_flag))
+                            host, int(port), dbname[source], stbname[source], tbname_m[source],tb_num,start_timestamp,row_num,drop_flag,child_table_exist_flag,replica))
             self.remote.put(
                 taosBenchmark_fqdn[0], f'{test_root}/cases/taosx/basic{source}.json', f'/tmp/basic{source}')
         for source in range(len(source_taosd_list)):   

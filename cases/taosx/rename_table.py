@@ -40,18 +40,18 @@ class RenameTable(TDCase):
         self.target_taosd = self.firstEP[-1].split(':')
         self.test_root = os.environ['TEST_ROOT']
         # param for taosBenchmark with db,stb and ctb check
-        self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
         self.stbname = [[self.tdCom.get_long_name(6),self.tdCom.get_long_name(6)],[self.tdCom.get_long_name(6),self.tdCom.get_long_name(6)]]
         self.tbname_m = [[self.tdCom.get_long_name(3),self.tdCom.get_long_name(3)],[self.tdCom.get_long_name(3),self.tdCom.get_long_name(3)]]
         self.tb_num = 10
         self.row_num = 100
         self.start_timestamp = "2020-10-01 00:00:00.000"
-        self.drop_flag = 'no'
+        self.drop_flag = 'yes'
         self.child_table_exist_flag = 'no'
+        self.replica = [1,3]
         # param for taosBenchmark with ntb check
-        #self.ntb_dbname = ['test1','test2']
+        self.ntb_dbname = [self.tdCom.get_long_name(6),self.tdCom.get_long_name(6)]
         self.ntb_name_m = [self.tdCom.get_long_name(2),self.tdCom.get_long_name(2)]
-        self.ntb_num = 100
+        self.ntb_num = 10
         self.ntb_row_num = 100
         self.prefix_list = ['first','second']
         self.suffix_list = ['one','two']
@@ -60,8 +60,7 @@ class RenameTable(TDCase):
             {'prefix':'second','suffix':'two'}]
         # param for taosx
         self.timeout = '1s'
-        self.target_dbname = 'target'
-    def get_json(self,json_path,host,port,dbname,stbname,tbname_m,tb_num,row_num,start_timestamp,drop_flag,child_table_exist_flag):
+    def get_json(self,json_path,host,port,dbname,stbname,tbname_m,tb_num,row_num,start_timestamp,drop_flag,child_table_exist_flag,replica):
         dict = {}
         with open(json_path,'rb') as file:
             params = json.load(file)
@@ -70,6 +69,7 @@ class RenameTable(TDCase):
             for num in range(len(stbname)):
                 params['databases'][0]['dbinfo']['name'] = dbname
                 params['databases'][0]['dbinfo']['drop'] = drop_flag
+                params['databases'][0]['dbinfo']['replica'] = replica
                 params['databases'][0]['super_tables'][num]['name'] = stbname[num]
                 params['databases'][0]['super_tables'][num]['childtable_count'] = tb_num
                 params['databases'][0]['super_tables'][num]['child_table_exists'] = child_table_exist_flag
@@ -79,14 +79,14 @@ class RenameTable(TDCase):
             dict = params
         file.close()
         return dict
-    def data_insert(self,source_taosd_list,dbname,stbname,tbname_m,tb_num,row_num,start_timestamp,drop_flag,child_table_exist_flag):
+    def data_insert(self,source_taosd_list,dbname,stbname,tbname_m,tb_num,row_num,start_timestamp,drop_flag,child_table_exist_flag,replica):
         taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
         thread_list = []
         for source in range(len(source_taosd_list)):
             host = source_taosd_list[source][0]
             port = source_taosd_list[source][1]
             self.tdTaosx.write_json(f'{self.test_root}/cases/taosx/two_stb{source}.json', self.get_json(f'{self.test_root}/cases/taosx/two_stb.json',
-                            host, int(port), dbname[source], stbname[source], tbname_m[source],tb_num,row_num,start_timestamp,drop_flag,child_table_exist_flag))
+                            host, int(port), dbname[source], stbname[source], tbname_m[source],tb_num,row_num,start_timestamp,drop_flag,child_table_exist_flag,replica))
             self.remote.put(
                 taosBenchmark_fqdn[0], f'{self.test_root}/cases/taosx/two_stb{source}.json', f'/tmp/two_stb{source}')
         for source in range(len(source_taosd_list)):   
@@ -323,11 +323,14 @@ class RenameTable(TDCase):
                         self.tdSql.checkEqual(master_sum_ctb[i][0]['sum(voltage)'], backup_sum_ctb[i][0]['sum(voltage)'])
                     taosd_backup.execute(f'drop database {self.target_dbname}')
     def run(self):
-        self.data_insert_ntb(self.source_taosd_list,self.dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)
-        self.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag)
-        self.rename_table_check()
-        self.rename_stable_check()
-        self.rename_ctable_check()
+        for replica in self.replica:
+            self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
+            self.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,replica)
+            self.target_dbname = self.tdCom.get_long_name(3)
+            self.rename_stable_check()
+            # self.rename_ctable_check()
+        # self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)
+        # self.rename_table_check()
     def cleanup(self):
         pass
 

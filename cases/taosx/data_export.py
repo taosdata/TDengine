@@ -50,7 +50,7 @@ class DataExportTest(TDCase):
         self.start_timestamp = "2020-10-01 00:00:00.000"
         self.drop_flag = 'yes'
         self.child_table_exist_flag = 'no'
-
+        self.replica = [1,3]
         self.ntb_dbname = ['test1','test2']
         self.ntb_name_m = ['nd','nt']
         self.ntb_num = 1000
@@ -133,9 +133,10 @@ class DataExportTest(TDCase):
                         all_data = read_parquet(f'{self.run_log_dir}/{self.ntb_name_m[source]}0.{file_type}')
                         self.tdSql.checkEqual(count_rows[0]['count(*)'],all_data.size / len(all_data.columns))
     def run(self):
-        self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root)
-        self.export_stb_check()
-        self.export_ctb_check()
+        for replica in self.replica:
+            self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root,replica)
+            self.export_stb_check()
+            self.export_ctb_check()
         
         self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)
         self.export_ntb_check()
