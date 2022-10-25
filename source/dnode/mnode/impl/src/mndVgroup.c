@@ -260,6 +260,12 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
     return NULL;
   }
 
+  mInfo("vgId:%d, build create vnode req, replica:%d selfIndex:%d strict:%d", createReq.vgId, createReq.replica,
+        createReq.selfIndex, createReq.strict);
+  for (int32_t i = 0; i < createReq.replica; ++i) {
+    mInfo("vgId:%d, replica:%d ep:%s:%u", createReq.vgId, i, createReq.replicas[i].fqdn, createReq.replicas[i].port);
+  }
+
   int32_t contLen = tSerializeSCreateVnodeReq(NULL, 0, &createReq);
   if (contLen < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -293,6 +299,7 @@ static void *mndBuildAlterVnodeConfigReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pV
   alterReq.strict = pDb->cfg.strict;
   alterReq.cacheLast = pDb->cfg.cacheLast;
 
+  mInfo("vgId:%d, build alter vnode config req", pVgroup->vgId);
   int32_t contLen = tSerializeSAlterVnodeConfigReq(NULL, 0, &alterReq);
   if (contLen < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -342,7 +349,7 @@ static void *mndBuildAlterVnodeReplicaReq(SMnode *pMnode, SDbObj *pDb, SVgObj *p
     }
   }
   alterReq.replica = pVgroup->replica;
-  mInfo("vgId:%d, start to alter vnode, replica:%d selfIndex:%d strict:%d", alterReq.vgId, alterReq.replica,
+  mInfo("vgId:%d, build alter vnode req, replica:%d selfIndex:%d strict:%d", alterReq.vgId, alterReq.replica,
         alterReq.selfIndex, alterReq.strict);
   for (int32_t i = 0; i < alterReq.replica; ++i) {
     mInfo("vgId:%d, replica:%d ep:%s:%u", alterReq.vgId, i, alterReq.replicas[i].fqdn, alterReq.replicas[i].port);
@@ -377,6 +384,7 @@ void *mndBuildDropVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgOb
   memcpy(dropReq.db, pDb->name, TSDB_DB_FNAME_LEN);
   dropReq.dbUid = pDb->uid;
 
+  mInfo("vgId:%d, build drop vnode req", dropReq.vgId);
   int32_t contLen = tSerializeSDropVnodeReq(NULL, 0, &dropReq);
   if (contLen < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
