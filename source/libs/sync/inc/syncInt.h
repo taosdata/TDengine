@@ -248,7 +248,6 @@ typedef struct SSyncNode {
   tmr_h             pElectTimer;
   int32_t           electTimerMS;
   uint64_t          electTimerLogicClock;
-  uint64_t          electTimerLogicClockUser;
   TAOS_TMR_CALLBACK FpElectTimerCB;  // Timer Fp
   uint64_t          electTimerCounter;
 
