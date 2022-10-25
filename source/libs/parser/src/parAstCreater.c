@@ -1372,11 +1372,12 @@ SNode* createShowTableDistributedStmt(SAstCreateContext* pCxt, SNode* pRealTable
   return (SNode*)pStmt;
 }
 
-SNode* createShowDnodeVariablesStmt(SAstCreateContext* pCxt, SNode* pDnodeId) {
+SNode* createShowDnodeVariablesStmt(SAstCreateContext* pCxt, SNode* pDnodeId, SNode* pLikePattern) {
   CHECK_PARSER_STATUS(pCxt);
   SShowDnodeVariablesStmt* pStmt = (SShowDnodeVariablesStmt*)nodesMakeNode(QUERY_NODE_SHOW_DNODE_VARIABLES_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->pDnodeId = pDnodeId;
+  pStmt->pLikePattern = pLikePattern;
   return (SNode*)pStmt;
 }
 

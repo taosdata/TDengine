@@ -650,10 +650,10 @@ int32_t streamStateSessionGetKey(SStreamState* pState, const SSessionKey* key, S
     if (code == 0 && sessionKeyCmpr(key, &tmpKey) == 0) {
       res = 0;
       resKey = tmpKey;
+      streamStateCurPrev(pState, pCur);
     } else {
       break;
     }
-    streamStateCurPrev(pState, pCur);
   }
   *curKey = resKey;
   streamStateFreeCur(pCur);
@@ -700,9 +700,14 @@ int32_t streamStateStateAddIfNotExist(SStreamState* pState, SSessionKey* key, ch
       memcpy(tmp, *pVal, valSize);
       goto _end;
     }
+
+    streamStateCurNext(pState, pCur);
+  } else {
+    *key = tmpKey;
+    streamStateFreeCur(pCur);
+    pCur = streamStateSessionSeekKeyNext(pState, key);
   }
 
-  streamStateCurNext(pState, pCur);
   code = streamStateSessionGetKVByCur(pCur, key, (const void**)pVal, pVLen);
   if (code == 0) {
     void* stateKey = (char*)(*pVal) + (valSize - keyDataLen);

@@ -307,6 +307,10 @@ int32_t vmGetQueueSize(SVnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
     }
     vmReleaseVnode(pMgmt, pVnode);
   }
+  if (size < 0) {
+    dError("vgId:%d, can't get size from queue since %s, qtype:%d", vgId, terrstr(), qtype);
+    size = 0;
+  }
   return size;
 }
 

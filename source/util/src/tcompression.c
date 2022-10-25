@@ -371,6 +371,7 @@ int32_t tsDecompressBoolImp(const char *const input, const int32_t nelements, ch
   return nelements;
 }
 
+#if 0
 /* Run Length Encoding(RLE) Method */
 int32_t tsCompressBoolRLEImp(const char *const input, const int32_t nelements, char *const output) {
   int32_t _pos = 0;
@@ -419,6 +420,7 @@ int32_t tsDecompressBoolRLEImp(const char *const input, const int32_t nelements,
     }
   }
 }
+#endif
 
 /* ----------------------------------------------String Compression
  * ---------------------------------------------- */
@@ -2274,6 +2276,9 @@ int32_t tsCompressBool(void *pIn, int32_t nIn, int32_t nEle, void *pOut, int32_t
     return tsCompressBoolImp(pIn, nEle, pOut);
   } else if (cmprAlg == TWO_STAGE_COMP) {
     int32_t len = tsCompressBoolImp(pIn, nEle, pBuf);
+    if (len < 0) {
+      return -1;
+    }
     return tsCompressStringImp(pBuf, len, pOut, nOut);
   } else {
     assert(0);

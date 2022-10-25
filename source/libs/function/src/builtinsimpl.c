@@ -429,14 +429,6 @@ typedef struct SGroupKeyInfo {
     (_p).val = (_v);                \
   } while (0)
 
-bool dummyGetEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* UNUSED_PARAM(pEnv)) { return true; }
-
-bool dummyInit(SqlFunctionCtx* UNUSED_PARAM(pCtx), SResultRowEntryInfo* UNUSED_PARAM(pResultInfo)) { return true; }
-
-int32_t dummyProcess(SqlFunctionCtx* UNUSED_PARAM(pCtx)) { return 0; }
-
-int32_t dummyFinalize(SqlFunctionCtx* UNUSED_PARAM(pCtx), SSDataBlock* UNUSED_PARAM(pBlock)) { return 0; }
-
 bool functionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
   if (pResultInfo->initialized) {
     return false;
@@ -1861,7 +1853,7 @@ int32_t stddevFunction(SqlFunctionCtx* pCtx) {
         numOfElem += 1;
         pStddevRes->count += 1;
         pStddevRes->usum += plist[i];
-        pStddevRes->quadraticISum += plist[i] * plist[i];
+        pStddevRes->quadraticUSum += plist[i] * plist[i];
       }
 
       break;
@@ -1877,7 +1869,7 @@ int32_t stddevFunction(SqlFunctionCtx* pCtx) {
         numOfElem += 1;
         pStddevRes->count += 1;
         pStddevRes->usum += plist[i];
-        pStddevRes->quadraticISum += plist[i] * plist[i];
+        pStddevRes->quadraticUSum += plist[i] * plist[i];
       }
       break;
     }
@@ -1892,7 +1884,7 @@ int32_t stddevFunction(SqlFunctionCtx* pCtx) {
         numOfElem += 1;
         pStddevRes->count += 1;
         pStddevRes->usum += plist[i];
-        pStddevRes->quadraticISum += plist[i] * plist[i];
+        pStddevRes->quadraticUSum += plist[i] * plist[i];
       }
 
       break;
@@ -1908,7 +1900,7 @@ int32_t stddevFunction(SqlFunctionCtx* pCtx) {
         numOfElem += 1;
         pStddevRes->count += 1;
         pStddevRes->usum += plist[i];
-        pStddevRes->quadraticISum += plist[i] * plist[i];
+        pStddevRes->quadraticUSum += plist[i] * plist[i];
       }
       break;
     }
@@ -5359,7 +5351,7 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SColumnInfoData*     pCol = taosArrayGet(pBlock->pDataBlock, slotId);
   int32_t              currentRow = pBlock->info.rows;
 
-  int32_t resIndex;
+  int32_t resIndex = -1;
   int32_t maxCount = 0;
   for (int32_t i = 0; i < pInfo->numOfPoints; ++i) {
     SModeItem* pItem = (SModeItem*)(pInfo->pItems + i * (sizeof(SModeItem) + pInfo->colBytes));
@@ -5369,8 +5361,12 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     }
   }
 
-  SModeItem* pResItem = (SModeItem*)(pInfo->pItems + resIndex * (sizeof(SModeItem) + pInfo->colBytes));
-  colDataAppend(pCol, currentRow, pResItem->data, (maxCount == 0) ? true : false);
+  if (maxCount != 0) {
+    SModeItem* pResItem = (SModeItem*)(pInfo->pItems + resIndex * (sizeof(SModeItem) + pInfo->colBytes));
+    colDataAppend(pCol, currentRow, pResItem->data, false);
+  } else {
+    colDataAppendNULL(pCol, currentRow);
+  }
 
   return pResInfo->numOfRes;
 }

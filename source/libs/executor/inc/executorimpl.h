@@ -46,12 +46,7 @@ extern "C" {
 
 typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int32_t order);
 
-#define IS_QUERY_KILLED(_q)   ((_q)->code == TSDB_CODE_TSC_QUERY_CANCELLED)
-#define Q_STATUS_EQUAL(p, s)  (((p) & (s)) != 0u)
-#define QUERY_IS_ASC_QUERY(q) (GET_FORWARD_DIRECTION_FACTOR((q)->order.order) == QUERY_ASC_FORWARD_STEP)
-
-#define NEEDTO_COMPRESS_QUERY(size) ((size) > tsCompressColData ? 1 : 0)
-
+#define Q_STATUS_EQUAL(p, s)                 (((p) & (s)) != 0u)
 #define IS_VALID_SESSION_WIN(winInfo)        ((winInfo).sessionWin.win.skey > 0)
 #define SET_SESSION_WIN_INVALID(winInfo)     ((winInfo).sessionWin.win.skey = INT64_MIN)
 #define IS_INVALID_SESSION_WIN_KEY(winKey)   ((winKey).win.skey <= 0)
@@ -292,15 +287,6 @@ typedef struct SExchangeInfo {
   SLimitInfo          limitInfo;
 } SExchangeInfo;
 
-typedef struct SColMatchInfo {
-  int32_t srcSlotId;  // source slot id
-  int32_t colId;
-  int32_t targetSlotId;
-  bool    output;  // todo remove this?
-  bool    reserved;
-  int32_t matchType;  // determinate the source according to col id or slot id
-} SColMatchInfo;
-
 typedef struct SScanInfo {
   int32_t numOfAsc;
   int32_t numOfDesc;
@@ -342,7 +328,7 @@ typedef struct STableScanInfo {
   SNode*                 pFilterNode;  // filter info, which is push down by optimizer
 
   SSDataBlock*         pResBlock;
-  SArray*              pColMatchInfo;
+  SColMatchInfo        matchInfo;
   SExprSupp            pseudoSup;
   SQueryTableDataCond  cond;
   int32_t              scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
@@ -368,10 +354,9 @@ typedef struct STableMergeScanInfo {
   uint32_t        sortBufSize;  // max buffer size for in-memory sort
   SArray*         pSortInfo;
   SSortHandle*    pSortHandle;
-
-  SSDataBlock* pSortInputBlock;
-  int64_t      startTs;  // sort start time
-  SArray*      sortSourceParams;
+  SSDataBlock*    pSortInputBlock;
+  int64_t         startTs;  // sort start time
+  SArray*         sortSourceParams;
 
   SFileBlockLoadRecorder readRecorder;
   int64_t                numOfRows;
@@ -383,43 +368,40 @@ typedef struct STableMergeScanInfo {
   int32_t*               rowEntryInfoOffset;
   SExprInfo*             pExpr;
   SSDataBlock*           pResBlock;
-  SArray*                pColMatchInfo;
+  SColMatchInfo          matchInfo;
   int32_t                numOfOutput;
-
-  SExprSupp pseudoSup;
-
-  SQueryTableDataCond cond;
-  int32_t             scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
-  int32_t             dataBlockLoadFlag;
+  SExprSupp              pseudoSup;
+  SQueryTableDataCond    cond;
+  int32_t                scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
+  int32_t                dataBlockLoadFlag;
   // if the upstream is an interval operator, the interval info is also kept here to get the time
   // window to check if current data block needs to be loaded.
   SInterval       interval;
   SSampleExecInfo sample;  // sample execution info
-
-  SSortExecInfo sortExecInfo;
+  SSortExecInfo   sortExecInfo;
 } STableMergeScanInfo;
 
 typedef struct STagScanInfo {
   SColumnInfo*    pCols;
   SSDataBlock*    pRes;
-  SArray*         pColMatchInfo;
+  SColMatchInfo   matchInfo;
   int32_t         curPos;
   SReadHandle     readHandle;
   STableListInfo* pTableList;
 } STagScanInfo;
 
 typedef struct SLastrowScanInfo {
-  SSDataBlock* pRes;
-  SReadHandle  readHandle;
-  void*        pLastrowReader;
-  SArray*      pColMatchInfo;
-  int32_t*     pSlotIds;
-  SExprSupp    pseudoExprSup;
-  int32_t      retrieveType;
-  int32_t      currentGroupIndex;
-  SSDataBlock* pBufferredRes;
-  SArray*      pUidList;
-  int32_t      indexOfBufferedRes;
+  SSDataBlock*  pRes;
+  SReadHandle   readHandle;
+  void*         pLastrowReader;
+  SColMatchInfo matchInfo;
+  int32_t*      pSlotIds;
+  SExprSupp     pseudoExprSup;
+  int32_t       retrieveType;
+  int32_t       currentGroupIndex;
+  SSDataBlock*  pBufferredRes;
+  SArray*       pUidList;
+  int32_t       indexOfBufferedRes;
 } SLastrowScanInfo;
 
 typedef enum EStreamScanMode {
@@ -486,16 +468,16 @@ typedef struct STimeWindowAggSupp {
 } STimeWindowAggSupp;
 
 typedef struct SStreamScanInfo {
-  uint64_t    tableUid;  // queried super table uid
-  SExprInfo*  pPseudoExpr;
-  int32_t     numOfPseudoExpr;
-  SExprSupp   tbnameCalSup;
-  SExprSupp   tagCalSup;
-  int32_t     primaryTsIndex;  // primary time stamp slot id
-  SReadHandle readHandle;
-  SInterval   interval;       // if the upstream is an interval operator, the interval info is also kept here.
-  SArray*     pColMatchInfo;  //
-  SNode*      pCondition;
+  uint64_t      tableUid;  // queried super table uid
+  SExprInfo*    pPseudoExpr;
+  int32_t       numOfPseudoExpr;
+  SExprSupp     tbnameCalSup;
+  SExprSupp     tagCalSup;
+  int32_t       primaryTsIndex;  // primary time stamp slot id
+  SReadHandle   readHandle;
+  SInterval     interval;  // if the upstream is an interval operator, the interval info is also kept here.
+  SColMatchInfo matchInfo;
+  SNode*        pCondition;
 
   SArray*      pBlockLists;  // multiple SSDatablock.
   SSDataBlock* pRes;         // result SSDataBlock
@@ -563,7 +545,7 @@ typedef struct SSysTableScanInfo {
   SNode*                 pCondition;  // db_name filter condition, to discard data that are not in current database
   SMTbCursor*            pCur;        // cursor for iterate the local table meta store.
   SSysTableIndex*        pIdx;        // idx for local table meta
-  SArray*                scanCols;    // SArray<int16_t> scan column id list
+  SColMatchInfo          matchInfo;
   SName                  name;
   SSDataBlock*           pRes;
   int64_t                numOfBlocks;  // extract basic running information.
@@ -683,7 +665,7 @@ typedef struct SFillOperatorInfo {
   SSDataBlock*      existNewGroupBlock;
   STimeWindow       win;
   SNode*            pCondition;
-  SArray*           pColMatchColInfo;
+  SColMatchInfo     matchInfo;
   int32_t           primaryTsCol;
   int32_t           primarySrcSlotId;
   uint64_t          curGroupId;  // current handled group id
@@ -822,7 +804,7 @@ typedef struct SStreamFillOperatorInfo {
   int32_t               srcDelRowIndex;
   SSDataBlock*          pDelRes;
   SNode*                pCondition;
-  SArray*               pColMatchColInfo;
+  SColMatchInfo         matchInfo;
   int32_t               primaryTsCol;
   int32_t               primarySrcSlotId;
   SStreamFillInfo*      pFillInfo;
@@ -866,7 +848,7 @@ typedef struct SSortOperatorInfo {
   uint32_t       sortBufSize;  // max buffer size for in-memory sort
   SArray*        pSortInfo;
   SSortHandle*   pSortHandle;
-  SArray*        pColMatchInfo;  // for index map from table scan output
+  SColMatchInfo  matchInfo;
   int32_t        bufPageSize;
   int64_t        startTs;      // sort start time
   uint64_t       sortElapsed;  // sort elapsed time, time to flush to disk not included.
@@ -899,8 +881,7 @@ typedef struct SJoinOperatorInfo {
 void doDestroyExchangeOperatorInfo(void* param);
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t streamFn,
-                                   __optr_fn_t cleanup, __optr_close_fn_t closeFn, __optr_encode_fn_t encode,
-                                   __optr_decode_fn_t decode, __optr_explain_fn_t explain);
+                                   __optr_fn_t cleanup, __optr_close_fn_t closeFn, __optr_explain_fn_t explain);
 
 int32_t operatorDummyOpenFn(SOperatorInfo* pOperator);
 int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t num);
@@ -936,7 +917,7 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
 int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaultBufsz);
 
 void    doSetOperatorCompleted(SOperatorInfo* pOperator);
-void    doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, const SArray* pColMatchInfo, SFilterInfo* pFilterInfo);
+void    doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, SColMatchInfo* pColMatchInfo, SFilterInfo* pFilterInfo);
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int32_t numOfPseudoExpr,
                                SSDataBlock* pBlock, const char* idStr);
 

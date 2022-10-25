@@ -572,8 +572,12 @@ static int metaBuildCtimeIdxKey(SCtimeIdxKey *ctimeKey, const SMetaEntry *pME) {
 }
 
 static int metaBuildNColIdxKey(SNcolIdxKey *ncolKey, const SMetaEntry *pME) {
-  ncolKey->ncol = pME->ntbEntry.schemaRow.nCols;
-  ncolKey->uid = pME->uid;
+  if (pME->type == TSDB_NORMAL_TABLE) {
+    ncolKey->ncol = pME->ntbEntry.schemaRow.nCols;
+    ncolKey->uid = pME->uid;
+  } else {
+    return -1;
+  }
   return 0;
 }
 
@@ -777,9 +781,13 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
     terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
     goto _err;
   }
-
   // search the column to add/drop/update
   pSchema = &entry.ntbEntry.schemaRow;
+
+  // save old entry
+  SMetaEntry oldEntry = {.type = TSDB_NORMAL_TABLE, .uid = entry.uid};
+  oldEntry.ntbEntry.schemaRow.nCols = pSchema->nCols;
+
   int32_t iCol = 0;
   for (;;) {
     pColumn = NULL;
@@ -853,6 +861,10 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
       pColumn->bytes = pAlterTbReq->colModBytes;
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+      if (pAlterTbReq->colNewName == NULL) {
+        terrno = TSDB_CODE_INVALID_MSG;
+        goto _err;
+      }
       if (pColumn == NULL) {
         terrno = TSDB_CODE_VND_TABLE_COL_NOT_EXISTS;
         goto _err;
@@ -867,6 +879,9 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   }
 
   entry.version = version;
+
+  metaDeleteNcolIdx(pMeta, &oldEntry);
+  metaUpdateNcolIdx(pMeta, &entry);
 
   // do actual write
   metaWLock(pMeta);

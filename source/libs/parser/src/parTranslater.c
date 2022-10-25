@@ -4847,6 +4847,11 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
   }
 
+  int32_t tagsLen = 0;
+  for (int32_t i = 0; i < pTableMeta->tableInfo.numOfTags; ++i) {
+    tagsLen += pTagsSchema[i].bytes;
+  }
+
   if (TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType ||
       TSDB_ALTER_TABLE_UPDATE_TAG_BYTES == pStmt->alterType) {
     if (TSDB_SUPER_TABLE != pTableMeta->tableType) {
@@ -4860,7 +4865,38 @@ static int32_t checkAlterSuperTableBySchema(STranslateContext* pCxt, SAlterTable
                pSchema->bytes >= calcTypeBytes(pStmt->dataType)) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_MODIFY_COL);
     }
+
+    if (TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES == pStmt->alterType &&
+        pTableMeta->tableInfo.rowSize + calcTypeBytes(pStmt->dataType) - pSchema->bytes > TSDB_MAX_BYTES_PER_ROW) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ROW_LENGTH, TSDB_MAX_BYTES_PER_ROW);
+    }
+
+    if (TSDB_ALTER_TABLE_UPDATE_TAG_BYTES == pStmt->alterType &&
+        tagsLen + calcTypeBytes(pStmt->dataType) - pSchema->bytes > TSDB_MAX_TAGS_LEN) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_LENGTH, TSDB_MAX_TAGS_LEN);
+    }
   }
+
+  if (TSDB_ALTER_TABLE_ADD_COLUMN == pStmt->alterType) {
+    if (TSDB_MAX_COLUMNS == pTableMeta->tableInfo.numOfColumns) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TOO_MANY_COLUMNS);
+    }
+
+    if (pTableMeta->tableInfo.rowSize + calcTypeBytes(pStmt->dataType) > TSDB_MAX_BYTES_PER_ROW) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ROW_LENGTH, TSDB_MAX_BYTES_PER_ROW);
+    }
+  }
+
+  if (TSDB_ALTER_TABLE_ADD_TAG == pStmt->alterType) {
+    if (TSDB_MAX_TAGS == pTableMeta->tableInfo.numOfTags) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_NUM);
+    }
+
+    if (tagsLen + calcTypeBytes(pStmt->dataType) > TSDB_MAX_TAGS_LEN) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_LENGTH, TSDB_MAX_TAGS_LEN);
+    }
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -6259,16 +6295,28 @@ static int32_t rewriteShowStableTags(STranslateContext* pCxt, SQuery* pQuery) {
 }
 
 static int32_t rewriteShowDnodeVariables(STranslateContext* pCxt, SQuery* pQuery) {
-  SSelectStmt* pStmt = NULL;
-  int32_t      code = createSelectStmtForShow(nodeType(pQuery->pRoot), &pStmt);
+  SShowDnodeVariablesStmt* pStmt = (SShowDnodeVariablesStmt*)pQuery->pRoot;
+  SNode*                   pDnodeCond = NULL;
+  SNode*                   pLikeCond = NULL;
+  SSelectStmt*             pSelect = NULL;
+  int32_t                  code = createSelectStmtForShow(nodeType(pQuery->pRoot), &pSelect);
   if (TSDB_CODE_SUCCESS == code) {
-    code = createOperatorNode(OP_TYPE_EQUAL, "dnode_id", ((SShowDnodeVariablesStmt*)pQuery->pRoot)->pDnodeId,
-                              &pStmt->pWhere);
+    code = createOperatorNode(OP_TYPE_EQUAL, "dnode_id", pStmt->pDnodeId, &pDnodeCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createOperatorNode(OP_TYPE_LIKE, "name", pStmt->pLikePattern, &pLikeCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (NULL != pLikeCond) {
+      code = createLogicCondNode(pDnodeCond, pLikeCond, &pSelect->pWhere);
+    } else {
+      pSelect->pWhere = pDnodeCond;
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     pQuery->showRewrite = true;
     nodesDestroyNode(pQuery->pRoot);
-    pQuery->pRoot = (SNode*)pStmt;
+    pQuery->pRoot = (SNode*)pSelect;
   }
   return code;
 }
@@ -7066,6 +7114,14 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
   }
 
+  if (TSDB_MAX_COLUMNS == pTableMeta->tableInfo.numOfColumns) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TOO_MANY_COLUMNS);
+  }
+
+  if (pTableMeta->tableInfo.rowSize + calcTypeBytes(pStmt->dataType) > TSDB_MAX_BYTES_PER_ROW) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ROW_LENGTH, TSDB_MAX_BYTES_PER_ROW);
+  }
+
   pReq->colName = strdup(pStmt->colName);
   if (NULL == pReq->colName) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -7073,7 +7129,6 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
 
   pReq->type = pStmt->dataType.type;
   pReq->flags = COL_SMA_ON;
-  // pReq->bytes = pStmt->dataType.bytes;
   pReq->bytes = calcTypeBytes(pStmt->dataType);
   return TSDB_CODE_SUCCESS;
 }
@@ -7109,6 +7164,10 @@ static int32_t buildUpdateColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt
   } else if (!IS_VAR_DATA_TYPE(pSchema->type) || pSchema->type != pStmt->dataType.type ||
              pSchema->bytes >= pReq->colModBytes) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_MODIFY_COL);
+  }
+
+  if (pTableMeta->tableInfo.rowSize + pReq->colModBytes - pSchema->bytes > TSDB_MAX_BYTES_PER_ROW) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ROW_LENGTH, TSDB_MAX_BYTES_PER_ROW);
   }
 
   pReq->colName = strdup(pStmt->colName);

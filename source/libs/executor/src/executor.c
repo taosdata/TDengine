@@ -355,7 +355,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
     goto _error;
   }
 
-  SDataSinkMgtCfg cfg = {.maxDataBlockNum = 10000, .maxDataBlockNumPerQuery = 5000};
+  SDataSinkMgtCfg cfg = {.maxDataBlockNum = 500, .maxDataBlockNumPerQuery = 50};
   code = dsDataSinkMgtInit(&cfg);
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to dsDataSinkMgtInit, code:%s, %s", tstrerror(code), (*pTask)->id.str);
@@ -672,7 +672,7 @@ int32_t qStreamSourceRecoverStep1(qTaskInfo_t tinfo, int64_t ver) {
 int32_t qStreamSourceRecoverStep2(qTaskInfo_t tinfo, int64_t ver) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   ASSERT(pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM);
-  pTaskInfo->streamInfo.recoverStartVer = pTask->streamInfo.recoverEndVer;
+  pTaskInfo->streamInfo.recoverStartVer = pTaskInfo->streamInfo.recoverEndVer;
   pTaskInfo->streamInfo.recoverEndVer = ver;
   pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__PREPARE2;
   return 0;

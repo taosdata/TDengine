@@ -1082,7 +1082,12 @@ int32_t filterAddUnitImpl(SFilterInfo *info, uint8_t optr, SFilterFieldId *left,
   if (info->unitNum >= info->unitSize) {
     uint32_t psize = info->unitSize;
     info->unitSize += FILTER_DEFAULT_UNIT_SIZE;
-    info->units = taosMemoryRealloc(info->units, info->unitSize * sizeof(SFilterUnit));
+
+    void *tmp = taosMemoryRealloc(info->units, info->unitSize * sizeof(SFilterUnit));
+    if (tmp == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    info->units = tmp;
     memset(info->units + psize, 0, sizeof(*info->units) * FILTER_DEFAULT_UNIT_SIZE);
   }
 
@@ -1135,7 +1140,12 @@ int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFi
 int32_t filterAddUnitToGroup(SFilterGroup *group, uint32_t unitIdx) {
   if (group->unitNum >= group->unitSize) {
     group->unitSize += FILTER_DEFAULT_UNIT_SIZE;
-    group->unitIdxs = taosMemoryRealloc(group->unitIdxs, group->unitSize * sizeof(*group->unitIdxs));
+
+    void *tmp = taosMemoryRealloc(group->unitIdxs, group->unitSize * sizeof(*group->unitIdxs));
+    if (tmp == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    group->unitIdxs = tmp;
   }
 
   group->unitIdxs[group->unitNum++] = unitIdx;
@@ -3712,7 +3722,7 @@ EDealRes fltReviseRewriter(SNode **pNode, void *pContext) {
     SListCell           *cell = node->pParameterList->pHead;
     for (int32_t i = 0; i < node->pParameterList->length; ++i) {
       if (NULL == cell || NULL == cell->pNode) {
-        fltError("invalid cell, cell:%p, pNode:%p", cell, cell->pNode);
+        fltError("invalid cell");
         stat->code = TSDB_CODE_QRY_INVALID_INPUT;
         return DEAL_RES_ERROR;
       }
@@ -4065,6 +4075,10 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SC
   } else {
     *p = output.columnData;
     output.numOfRows = pSrc->info.rows;
+
+    if (*p == NULL) {
+      return false;
+    }
 
     bool keep = (*info->func)(info, pSrc->info.rows, *p, statis, numOfCols, &output.numOfQualified);
 

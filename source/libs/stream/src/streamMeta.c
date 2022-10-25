@@ -136,7 +136,7 @@ int32_t streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask) {
   if (code < 0) {
     return -1;
   }
-  buf = taosMemoryCalloc(1, sizeof(len));
+  buf = taosMemoryCalloc(1, len);
   if (buf == NULL) {
     return -1;
   }
@@ -144,13 +144,13 @@ int32_t streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask) {
   SEncoder encoder;
   tEncoderInit(&encoder, buf, len);
   tEncodeSStreamTask(&encoder, pTask);
-  tEncoderClear(&encoder);
 
   if (tdbTbUpsert(pMeta->pTaskDb, &pTask->taskId, sizeof(int32_t), buf, len, &pMeta->txn) < 0) {
     ASSERT(0);
     return -1;
   }
 
+  taosMemoryFree(buf);
   taosHashPut(pMeta->pTasks, &pTask->taskId, sizeof(int32_t), &pTask, sizeof(void*));
 
   return 0;
