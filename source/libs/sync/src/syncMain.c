@@ -2790,6 +2790,12 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
       syncTimeoutDestroy(pSyncMsg);
       return;
     }
+
+    do {
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "eq elect timer lc:%ld", pSyncMsg->logicClock);
+    } while (0);
+
   } else {
     sTrace("syncNodeEqElectTimer FpEqMsg is NULL");
   }
