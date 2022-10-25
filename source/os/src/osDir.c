@@ -388,8 +388,15 @@ char *taosDirEntryBaseName(char *name) {
   _splitpath(name, NULL, NULL, Filename1, Ext1);
   return name + (strlen(name) - strlen(Filename1) - strlen(Ext1));
 #else
-  char *pPoint = strchr(name, '.');
-  if (pPoint != NULL) pPoint = 0;
+  if (name == NULL || (name[0] == '/' && name[1] == '\0')) return name;
+  char *pPoint = strrchr(name, '/');
+  if (pPoint != NULL) {
+    if (*(pPoint + 1) == '\0') {
+        *pPoint = '\0';
+        return taosDirEntryBaseName(name);
+    }
+    return pPoint + 1;
+  }
   return name;
 #endif
 }

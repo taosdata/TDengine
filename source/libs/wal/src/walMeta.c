@@ -528,7 +528,7 @@ int walCheckAndRepairIdxFile(SWal* pWal, int32_t fileIdx) {
              idxEntry.offset, fLogNameStr);
       goto _err;
     }
-    wWarn("vgId:%d wal idx append new entry %" PRId64 " %" PRId64, pWal->cfg.vgId, idxEntry.ver, idxEntry.offset);
+    wWarn("vgId:%d, wal idx append new entry %" PRId64 " %" PRId64, pWal->cfg.vgId, idxEntry.ver, idxEntry.offset);
     if (taosWriteFile(pIdxFile, &idxEntry, sizeof(SWalIdxEntry)) < 0) {
       wError("vgId:%d, failed to append file since %s. file:%s", pWal->cfg.vgId, terrstr(), fnameStr);
       goto _err;
@@ -812,7 +812,7 @@ int walLoadMeta(SWal* pWal) {
   // find existing meta file
   int metaVer = walFindCurMetaVer(pWal);
   if (metaVer == -1) {
-    wDebug("vgId:%d wal find meta ver %d", pWal->cfg.vgId, metaVer);
+    wDebug("vgId:%d, wal find meta ver %d", pWal->cfg.vgId, metaVer);
     return -1;
   }
   char fnameStr[WAL_FILE_LEN];
@@ -822,7 +822,7 @@ int walLoadMeta(SWal* pWal) {
   taosStatFile(fnameStr, &fileSize, NULL);
   if (fileSize == 0) {
     taosRemoveFile(fnameStr);
-    wDebug("vgId:%d wal find empty meta ver %d", pWal->cfg.vgId, metaVer);
+    wDebug("vgId:%d, wal find empty meta ver %d", pWal->cfg.vgId, metaVer);
     return -1;
   }
   int   size = (int)fileSize;

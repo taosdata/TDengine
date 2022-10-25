@@ -127,7 +127,7 @@ python3 ./test.py -f 2-query/leastsquares.py -R
 python3 ./test.py -f 2-query/length.py
 python3 ./test.py -f 2-query/length.py -R
 python3 ./test.py -f 2-query/log.py
-# python3 ./test.py -f 2-query/log.py -R
+python3 ./test.py -f 2-query/log.py -R
 python3 ./test.py -f 2-query/lower.py
 python3 ./test.py -f 2-query/lower.py -R
 python3 ./test.py -f 2-query/ltrim.py
@@ -175,11 +175,11 @@ python3 ./test.py -f 2-query/sum.py -R
 python3 ./test.py -f 2-query/tail.py
 python3 ./test.py -f 2-query/tail.py -R
 python3 ./test.py -f 2-query/tan.py
-# python3 ./test.py -f 2-query/tan.py -R
+python3 ./test.py -f 2-query/tan.py -R
 python3 ./test.py -f 2-query/Timediff.py
 python3 ./test.py -f 2-query/Timediff.py -R
 python3 ./test.py -f 2-query/timetruncate.py
-# python3 ./test.py -f 2-query/timetruncate.py -R
+python3 ./test.py -f 2-query/timetruncate.py -R
 python3 ./test.py -f 2-query/timezone.py
 python3 ./test.py -f 2-query/timezone.py -R
 python3 ./test.py -f 2-query/To_iso8601.py
@@ -187,7 +187,7 @@ python3 ./test.py -f 2-query/To_iso8601.py -R
 python3 ./test.py -f 2-query/To_unixtimestamp.py
 python3 ./test.py -f 2-query/To_unixtimestamp.py -R
 python3 ./test.py -f 2-query/Today.py
-# python3 ./test.py -f 2-query/Today.py -R
+python3 ./test.py -f 2-query/Today.py -R
 python3 ./test.py -f 2-query/top.py
 python3 ./test.py -f 2-query/top.py -R
 python3 ./test.py -f 2-query/tsbsQuery.py
@@ -209,6 +209,7 @@ python3 ./test.py -f 2-query/varchar.py -R
 python3 ./test.py -f 1-insert/update_data.py
 
 python3 ./test.py -f 1-insert/delete_data.py
+python3 ./test.py -f 1-insert/keep_expired.py
 
 python3 ./test.py -f 2-query/join2.py
 python3 ./test.py -f 2-query/union1.py
@@ -217,10 +218,12 @@ python3 ./test.py -f 2-query/concat2.py
 
 python3 ./test.py -f 2-query/json_tag.py
 
-# python3 ./test.py -f 2-query/nestedQuery.py
-# TD-15983 subquery output duplicate name column.
-# Please Xiangyang Guo modify the following script
-# python3 ./test.py -f 2-query/nestedQuery_str.py
+python3 ./test.py -f 2-query/nestedQuery.py
+python3 ./test.py -f 2-query/nestedQuery_str.py
+python3 ./test.py -f 2-query/nestedQuery_math.py
+python3 ./test.py -f 2-query/nestedQuery_time.py
+python3 ./test.py -f 2-query/stablity.py
+python3 ./test.py -f 2-query/stablity_1.py
 
 python3 ./test.py -f 2-query/elapsed.py
 python3 ./test.py -f 2-query/csum.py
@@ -248,8 +251,8 @@ python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 5 -
 
 python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 6 -M 3 -C 5
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStopInsert.py
-python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
-python3 test.py -f 6-cluster/5dnode3mnodeStopConnect.py -N 5 -M 3
+# TD-19646 python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
+# TD-19646 python3 test.py -f 6-cluster/5dnode3mnodeStopConnect.py -N 5 -M 3
 
 python3 ./test.py -f 6-cluster/5dnode3mnodeRecreateMnode.py  -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStopFollowerLeader.py  -N 5 -M 3
@@ -287,7 +290,7 @@ python3 ./test.py -f 7-tmq/subscribeDb0.py
 python3 ./test.py -f 7-tmq/subscribeDb1.py
 python3 ./test.py -f 7-tmq/subscribeDb2.py
 python3 ./test.py -f 7-tmq/subscribeDb3.py
-#python3 ./test.py -f 7-tmq/subscribeDb4.py
+python3 ./test.py -f 7-tmq/subscribeDb4.py
 python3 ./test.py -f 7-tmq/subscribeStb.py
 python3 ./test.py -f 7-tmq/subscribeStb0.py
 python3 ./test.py -f 7-tmq/subscribeStb1.py
@@ -302,14 +305,14 @@ python3 ./test.py -f 7-tmq/tmqCheckData.py
 python3 ./test.py -f 7-tmq/tmqCheckData1.py
 #python3 ./test.py -f 7-tmq/tmq3mnodeSwitch.py -N 5
 python3 ./test.py -f 7-tmq/tmqConsumerGroup.py
-#python3 ./test.py -f 7-tmq/tmqShow.py
+python3 ./test.py -f 7-tmq/tmqShow.py
 python3 ./test.py -f 7-tmq/tmqAlterSchema.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-mutilVg.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb-1ctb.py
-# python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb.py
+python3 ./test.py -f 7-tmq/tmqConsFromTsdb1-1ctb.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb-1ctb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb-funcNFilter.py
 python3 ./test.py -f 7-tmq/tmqConsFromTsdb-mutilVg-mutilCtb.py
@@ -609,4 +612,3 @@ python3 ./test.py -f 2-query/last_row.py -Q 4
 python3 ./test.py -f 2-query/tsbsQuery.py -Q 4
 #python3 ./test.py -f 2-query/sml.py -Q 4
 python3 ./test.py -f 2-query/interp.py -Q 4
-

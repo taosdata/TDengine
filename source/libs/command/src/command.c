@@ -268,10 +268,10 @@ static void setCreateDBResultIntoDataBlock(SSDataBlock* pBlock, char* dbFName, S
 
   len += sprintf(
       buf2 + VARSTR_HEADER_SIZE,
-      "CREATE DATABASE `%s` BUFFER %d CACHEMODEL '%s' COMP %d DURATION %dm "
+      "CREATE DATABASE `%s` BUFFER %d CACHESIZE %d CACHEMODEL '%s' COMP %d DURATION %dm "
       "WAL_FSYNC_PERIOD %d MAXROWS %d MINROWS %d KEEP %dm,%dm,%dm PAGES %d PAGESIZE %d PRECISION '%s' REPLICA %d "
       "STRICT '%s' WAL_LEVEL %d VGROUPS %d SINGLE_STABLE %d",
-      dbFName, pCfg->buffer, cacheModelStr(pCfg->cacheLast), pCfg->compression, pCfg->daysPerFile, pCfg->walFsyncPeriod,
+      dbFName, pCfg->buffer, pCfg->cacheSize, cacheModelStr(pCfg->cacheLast), pCfg->compression, pCfg->daysPerFile, pCfg->walFsyncPeriod,
       pCfg->maxRows, pCfg->minRows, pCfg->daysToKeep0, pCfg->daysToKeep1, pCfg->daysToKeep2, pCfg->pages,
       pCfg->pageSize, prec, pCfg->replications, strictStr(pCfg->strict), pCfg->walLevel, pCfg->numOfVgroups,
       1 == pCfg->numOfStables);
@@ -496,7 +496,12 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
   colDataAppend(pCol1, 0, buf1, false);
 
   SColumnInfoData* pCol2 = taosArrayGet(pBlock->pDataBlock, 1);
-  char             buf2[SHOW_CREATE_TB_RESULT_FIELD2_LEN] = {0};
+  char*            buf2 = taosMemoryMalloc(SHOW_CREATE_TB_RESULT_FIELD2_LEN);
+  if (NULL == buf2) {
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return terrno;
+  }
+  
   int32_t          len = 0;
 
   if (TSDB_SUPER_TABLE == pCfg->tableType) {
@@ -512,6 +517,7 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
     len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ") TAGS (");
     code = appendTagValues(buf2, &len, pCfg);
     if (code) {
+      taosMemoryFree(buf2);
       return code;
     }
     len += sprintf(buf2 + VARSTR_HEADER_SIZE + len, ")");
@@ -527,6 +533,8 @@ static int32_t setCreateTBResultIntoDataBlock(SSDataBlock* pBlock, SDbCfgInfo* p
 
   colDataAppend(pCol2, 0, buf2, false);
 
+  taosMemoryFree(buf2);
+  
   return TSDB_CODE_SUCCESS;
 }
 

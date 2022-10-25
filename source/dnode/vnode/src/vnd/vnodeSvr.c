@@ -1089,18 +1089,18 @@ static int32_t vnodeProcessAlterConfigReq(SVnode *pVnode, int64_t version, void 
   }
 
   if (pVnode->config.szBuf != req.buffer * 1024LL * 1024LL) {
-    vInfo("vgId:%d vnode buffer is changed from %" PRId64 " to %" PRId64, TD_VID(pVnode), pVnode->config.szBuf,
+    vInfo("vgId:%d, vnode buffer is changed from %" PRId64 " to %" PRId64, TD_VID(pVnode), pVnode->config.szBuf,
           (uint64_t)(req.buffer * 1024LL * 1024LL));
     pVnode->config.szBuf = req.buffer * 1024LL * 1024LL;
   }
 
   if (pVnode->config.szCache != req.pages) {
     if (metaAlterCache(pVnode->pMeta, req.pages) < 0) {
-      vError("vgId:%d failed to change vnode pages from %d to %d failed since %s", TD_VID(pVnode),
+      vError("vgId:%d, failed to change vnode pages from %d to %d failed since %s", TD_VID(pVnode),
              pVnode->config.szCache, req.pages, tstrerror(errno));
       return errno;
     } else {
-      vInfo("vgId:%d vnode pages is changed from %d to %d", TD_VID(pVnode), pVnode->config.szCache, req.pages);
+      vInfo("vgId:%d, vnode pages is changed from %d to %d", TD_VID(pVnode), pVnode->config.szCache, req.pages);
       pVnode->config.szCache = req.pages;
     }
   }
