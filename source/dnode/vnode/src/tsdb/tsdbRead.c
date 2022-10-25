@@ -111,7 +111,7 @@ typedef struct SDataBlockIter {
   int32_t   index;
   SArray*   blockList;  // SArray<SFileDataBlockInfo>
   int32_t   order;
-  SDataBlk  block;  // current SDataBlk data
+  SDataBlk  block;      // current SDataBlk data
   SHashObj* pTableMap;
 } SDataBlockIter;
 
@@ -1209,19 +1209,19 @@ static int32_t dataBlockPartiallyRequired(STimeWindow* pWindow, SVersionRange* p
          (pVerRange->maxVer < pBlock->maxVer && pVerRange->maxVer >= pBlock->minVer);
 }
 
-static SDataBlk* getNeighborBlockOfSameTable(SFileDataBlockInfo* pFBlockInfo, STableBlockScanInfo* pTableBlockScanInfo,
+static SDataBlk* getNeighborBlockOfSameTable(SFileDataBlockInfo* pBlockInfo, STableBlockScanInfo* pTableBlockScanInfo,
                                              int32_t* nextIndex, int32_t order) {
   bool asc = ASCENDING_TRAVERSE(order);
-  if (asc && pFBlockInfo->tbBlockIdx >= taosArrayGetSize(pTableBlockScanInfo->pBlockList) - 1) {
+  if (asc && pBlockInfo->tbBlockIdx >= taosArrayGetSize(pTableBlockScanInfo->pBlockList) - 1) {
     return NULL;
   }
 
-  if (!asc && pFBlockInfo->tbBlockIdx == 0) {
+  if (!asc && pBlockInfo->tbBlockIdx == 0) {
     return NULL;
   }
 
   int32_t step = asc ? 1 : -1;
-  *nextIndex = pFBlockInfo->tbBlockIdx + step;
+  *nextIndex = pBlockInfo->tbBlockIdx + step;
 
   SDataBlk* pBlock = taosMemoryCalloc(1, sizeof(SDataBlk));
   int32_t*  indexInMapdata = taosArrayGet(pTableBlockScanInfo->pBlockList, *nextIndex);
@@ -1631,7 +1631,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
       }
 
       code = doMergeRowsInBuf(pIter, pBlockScanInfo->uid, k.ts, pBlockScanInfo->delSkyline, &merge, pReader);
-      if (code != TSDB_CODE_SUCCESS) {
+      if (code != TSDB_CODE_SUCCESS || merge.pTSchema == NULL) {
         return code;
       }
     }
@@ -3766,6 +3766,15 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
   }
 
   return false;
+}
+
+bool tsdbTableNextDataBlock(STsdbReader* pReader, uint64_t uid) {
+  STableBlockScanInfo* pBlockScanInfo = taosHashGet(pReader->status.pTableMap, &uid, sizeof(uid));
+  if (pBlockScanInfo == NULL) { // no data block for the table of given uid
+    return false;
+  }
+
+  return true;
 }
 
 static void setBlockInfo(STsdbReader* pReader, SDataBlockInfo* pDataBlockInfo) {
