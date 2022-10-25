@@ -1707,8 +1707,6 @@ void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock) {
 
     if (IS_VAR_DATA_TYPE(data.info.type)) {
       buf = taosDecodeBinary(buf, (void**)&data.varmeta.offset, pBlock->info.rows * sizeof(int32_t));
-      data.varmeta.length = pBlock->info.rows * sizeof(int32_t);
-      data.varmeta.allocLen = data.varmeta.length;
     } else {
       buf = taosDecodeBinary(buf, (void**)&data.nullbitmap, BitmapLen(pBlock->info.rows));
     }
@@ -1717,6 +1715,10 @@ void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock) {
     buf = taosDecodeFixedI32(buf, &len);
     buf = taosDecodeBinary(buf, (void**)&data.pData, len);
     taosArrayPush(pBlock->pDataBlock, &data);
+    if (IS_VAR_DATA_TYPE(data.info.type)) {
+      data.varmeta.length = len;
+      data.varmeta.allocLen = len;
+    }
   }
   return (void*)buf;
 }
