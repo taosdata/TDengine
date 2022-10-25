@@ -781,13 +781,13 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
     terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
     goto _err;
   }
+  // search the column to add/drop/update
+  pSchema = &entry.ntbEntry.schemaRow;
 
   // save old entry
   SMetaEntry oldEntry = {.type = TSDB_NORMAL_TABLE, .uid = entry.uid};
   oldEntry.ntbEntry.schemaRow.nCols = pSchema->nCols;
 
-  // search the column to add/drop/update
-  pSchema = &entry.ntbEntry.schemaRow;
   int32_t iCol = 0;
   for (;;) {
     pColumn = NULL;

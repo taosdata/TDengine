@@ -975,7 +975,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   srv->port = port;
   uv_loop_init(srv->loop);
 
-  char pipeName[64];
+  char pipeName[PATH_MAX];
 #ifdef WINDOWS
   int ret = uv_pipe_init(srv->loop, &srv->pipeListen, 0);
   if (ret != 0) {
@@ -984,9 +984,9 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   }
 
   snprintf(pipeName, sizeof(pipeName), "\\\\?\\pipe\\trans.rpc.%d-%" PRIu64, taosSafeRand(), GetCurrentProcessId());
-  char pipeName[PATH_MAX] = {0};
-  snprintf(pipeName, sizeof(pipeName), "%s%spipe.trans.rpc.%08d-%" PRIu64, tsTempDir, TD_DIRSEP, taosSafeRand(),
-           taosGetSelfPthreadId());
+  // char pipeName[PATH_MAX] = {0};
+  // snprintf(pipeName, sizeof(pipeName), "%s%spipe.trans.rpc.%08d-%" PRIu64, tsTempDir, TD_DIRSEP, taosSafeRand(),
+  //          taosGetSelfPthreadId());
 
   ret = uv_pipe_bind(&srv->pipeListen, pipeName);
   if (ret != 0) {
