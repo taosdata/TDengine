@@ -862,6 +862,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       const char* msg3 = "name too long";
       const char* msg5 = "invalid user rights";
       const char* msg7 = "not support options";
+      const char* msg8 = "tags filter string length must less than 255 bytes.";
 
       pCmd->command = pInfo->type;
 
@@ -900,6 +901,9 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
           } else {
             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg5);
           }
+        } else if (pUser->type == TSDB_ALTER_USER_TAGS) {
+          SStrToken* pTags = &pUser->tags;
+          if (pTags->n < 4) return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
         } else {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
         }
