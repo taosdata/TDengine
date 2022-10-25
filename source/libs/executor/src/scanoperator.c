@@ -2881,7 +2881,7 @@ int optSysDoCompare(__compar_fn_t func, int8_t comparType, void* a, void* b) {
     default:
       return -1;
   }
-  return 1;
+  return cmp;
 }
 
 static int optSysFilterFuncImpl__LowerThan(void* a, void* b, int16_t dtype) {
@@ -2987,10 +2987,6 @@ static int32_t sysFilte__TableName(void* arg, SNode* pNode, SArray* result) {
                          .val = pVal->datum.p,
                          .reverse = reverse,
                          .filterFunc = func};
-
-  int32_t ret = metaFilterCreateTime(pMeta, &param, result);
-  if (ret == 0) return 0;
-
   return -1;
 }
 
@@ -3002,15 +2998,17 @@ static int32_t sysFilte__CreateTime(void* arg, SNode* pNode, SArray* result) {
   bool           reverse = false;
 
   __optSysFilter func = optSysGetFilterFunc(pOper->opType, &reverse);
-  SMetaFltParam  param = {.suid = 0,
-                          .cid = 0,
-                          .type = TSDB_DATA_TYPE_BIGINT,
-                          .val = &pVal->datum.i,
-                          .reverse = reverse,
-                          .filterFunc = func};
-  int32_t        ret = metaFilterCreateTime(pMeta, &param, result);
   if (func == NULL) return -1;
-  return 0;
+
+  SMetaFltParam param = {.suid = 0,
+                         .cid = 0,
+                         .type = TSDB_DATA_TYPE_BIGINT,
+                         .val = &pVal->datum.i,
+                         .reverse = reverse,
+                         .filterFunc = func};
+
+  int32_t ret = metaFilterCreateTime(pMeta, &param, result);
+  return ret;
 }
 static int32_t sysFilte__Ncolumn(void* arg, SNode* pNode, SArray* result) {
   void* pMeta = ((SSTabFltArg*)arg)->pMeta;
@@ -3073,7 +3071,7 @@ static int32_t sysChkFilter__Comm(SNode* pNode) {
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   EOperatorType  opType = pOper->opType;
   if (opType != OP_TYPE_EQUAL && opType != OP_TYPE_LOWER_EQUAL && opType != OP_TYPE_LOWER_THAN &&
-      OP_TYPE_GREATER_EQUAL && opType != OP_TYPE_GREATER_THAN) {
+      opType != OP_TYPE_GREATER_EQUAL && opType != OP_TYPE_GREATER_THAN) {
     return -1;
   }
   return 0;

@@ -40,8 +40,7 @@ int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash
 
   // merge according to vgId
   if (taosHashGetSize(insertCtx.pTableBlockHashObj) > 0) {
-    CHECK_CODE(
-        insMergeTableDataBlocks(insertCtx.pTableBlockHashObj, modifyNode->payloadType, &insertCtx.pVgDataBlocks));
+    CHECK_CODE(insMergeTableDataBlocks(insertCtx.pTableBlockHashObj, &insertCtx.pVgDataBlocks));
   }
 
   CHECK_CODE(insBuildOutput(&insertCtx));

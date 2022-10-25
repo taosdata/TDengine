@@ -6259,16 +6259,28 @@ static int32_t rewriteShowStableTags(STranslateContext* pCxt, SQuery* pQuery) {
 }
 
 static int32_t rewriteShowDnodeVariables(STranslateContext* pCxt, SQuery* pQuery) {
-  SSelectStmt* pStmt = NULL;
-  int32_t      code = createSelectStmtForShow(nodeType(pQuery->pRoot), &pStmt);
+  SShowDnodeVariablesStmt* pStmt = (SShowDnodeVariablesStmt*)pQuery->pRoot;
+  SNode*                   pDnodeCond = NULL;
+  SNode*                   pLikeCond = NULL;
+  SSelectStmt*             pSelect = NULL;
+  int32_t                  code = createSelectStmtForShow(nodeType(pQuery->pRoot), &pSelect);
   if (TSDB_CODE_SUCCESS == code) {
-    code = createOperatorNode(OP_TYPE_EQUAL, "dnode_id", ((SShowDnodeVariablesStmt*)pQuery->pRoot)->pDnodeId,
-                              &pStmt->pWhere);
+    code = createOperatorNode(OP_TYPE_EQUAL, "dnode_id", pStmt->pDnodeId, &pDnodeCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createOperatorNode(OP_TYPE_LIKE, "name", pStmt->pLikePattern, &pLikeCond);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    if (NULL != pLikeCond) {
+      code = createLogicCondNode(pDnodeCond, pLikeCond, &pSelect->pWhere);
+    } else {
+      pSelect->pWhere = pDnodeCond;
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     pQuery->showRewrite = true;
     nodesDestroyNode(pQuery->pRoot);
-    pQuery->pRoot = (SNode*)pStmt;
+    pQuery->pRoot = (SNode*)pSelect;
   }
   return code;
 }

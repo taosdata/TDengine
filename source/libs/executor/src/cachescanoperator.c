@@ -280,8 +280,8 @@ int32_t removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SColMatchInfo* pC
     return TSDB_CODE_SUCCESS;
   }
 
-  size_t  size = taosArrayGetSize(pColMatchInfo->pList);
-  SArray* pMatchInfo = taosArrayInit(size, sizeof(SColMatchInfo));
+  size_t size = taosArrayGetSize(pColMatchInfo->pList);
+  SArray* pMatchInfo = taosArrayInit(size, sizeof(SColMatchItem));
 
   for (int32_t i = 0; i < size; ++i) {
     SColMatchItem* pColInfo = taosArrayGet(pColMatchInfo->pList, i);
