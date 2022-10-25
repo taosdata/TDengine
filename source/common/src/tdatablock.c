@@ -1797,15 +1797,15 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 void blockDebugShowDataBlock(SSDataBlock* pBlock, const char* flag) {
   SArray* dataBlocks = taosArrayInit(1, sizeof(SSDataBlock*));
   taosArrayPush(dataBlocks, &pBlock);
-  blockDebugShowDataBlocks(dataBlocks, flag);
+  blockDebugShowDataBlocks(dataBlocks, true, flag);
   taosArrayDestroy(dataBlocks);
 }
 
-void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
+void blockDebugShowDataBlocks(const SArray* dataBlocks, bool isPtr, const char* flag) {
   char    pBuf[128] = {0};
   int32_t sz = taosArrayGetSize(dataBlocks);
   for (int32_t i = 0; i < sz; i++) {
-    SSDataBlock* pDataBlock = taosArrayGetP(dataBlocks, i);
+    SSDataBlock* pDataBlock = isPtr ? taosArrayGetP(dataBlocks, i) : taosArrayGet(dataBlocks, i);
     size_t       numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
 
     int32_t rows = pDataBlock->info.rows;

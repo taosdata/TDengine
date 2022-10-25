@@ -245,7 +245,7 @@ void blockEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_
 const char* blockDecode(SSDataBlock* pBlock, const char* pData);
 
 void blockDebugShowDataBlock(SSDataBlock* pBlock, const char* flag);
-void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag);
+void blockDebugShowDataBlocks(const SArray* dataBlocks, bool isPtr, const char* flag);
 // for debug
 char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** dumpBuf);
 
