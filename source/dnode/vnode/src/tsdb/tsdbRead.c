@@ -1631,7 +1631,7 @@ static int32_t doMergeBufAndFileRows(STsdbReader* pReader, STableBlockScanInfo* 
       }
 
       code = doMergeRowsInBuf(pIter, pBlockScanInfo->uid, k.ts, pBlockScanInfo->delSkyline, &merge, pReader);
-      if (code != TSDB_CODE_SUCCESS) {
+      if (code != TSDB_CODE_SUCCESS || merge.pTSchema == NULL) {
         return code;
       }
     }
@@ -3766,6 +3766,15 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
   }
 
   return false;
+}
+
+bool tsdbTableNextDataBlock(STsdbReader* pReader, uint64_t uid) {
+  void* pBlockScanInfo = taosHashGet(pReader->status.pTableMap, &uid, sizeof(uid));
+  if (pBlockScanInfo == NULL) { // no data block for the table of given uid
+    return false;
+  }
+
+
 }
 
 static void setBlockInfo(STsdbReader* pReader, SDataBlockInfo* pDataBlockInfo) {
