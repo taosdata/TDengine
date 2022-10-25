@@ -1714,11 +1714,11 @@ void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock) {
     int32_t len = 0;
     buf = taosDecodeFixedI32(buf, &len);
     buf = taosDecodeBinary(buf, (void**)&data.pData, len);
-    taosArrayPush(pBlock->pDataBlock, &data);
     if (IS_VAR_DATA_TYPE(data.info.type)) {
       data.varmeta.length = len;
       data.varmeta.allocLen = len;
     }
+    taosArrayPush(pBlock->pDataBlock, &data);
   }
   return (void*)buf;
 }
