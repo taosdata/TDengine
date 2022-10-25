@@ -2285,6 +2285,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
       }
       if (FUNCTION_TYPE_LAST == funcType) {
         nodesWalkExpr(nodesListGetNode(pFunc->pParameterList, 0), lastRowScanOptSetColDataType, &cxt);
+        nodesListErase(pFunc->pParameterList, nodesListGetCell(pFunc->pParameterList, 1));
       }
     }
   }
@@ -2294,7 +2295,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   pScan->igLastNull = pAgg->hasLast ? true : false;
   if (NULL != cxt.pLastCols) {
     cxt.doAgg = false;
-    nodesWalkExprs(pScan->pScanCols, lastRowScanOptSetColDataType, &cxt);
+    lastRowScanOptSetLastTargets(pScan->pScanCols, cxt.pLastCols);
     nodesWalkExprs(pScan->pScanPseudoCols, lastRowScanOptSetColDataType, &cxt);
     lastRowScanOptSetLastTargets(pScan->node.pTargets, cxt.pLastCols);
     nodesClearList(cxt.pLastCols);
