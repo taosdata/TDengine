@@ -2504,6 +2504,7 @@ static int32_t mnodeChangeNormalTableColumn(SMnodeMsg *pMsg) {
   SSchema *schema = (SSchema *) (pTable->schema + col);
   ASSERT(schema->type == TSDB_DATA_TYPE_BINARY || schema->type == TSDB_DATA_TYPE_NCHAR);
   schema->bytes = pAlter->schema[0].bytes;
+  ++pTable->sversion;
 
   mInfo("msg:%p, app:%p ctable %s, start to modify column %s len to %d", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId,
          name, schema->bytes);
