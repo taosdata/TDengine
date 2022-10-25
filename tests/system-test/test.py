@@ -321,7 +321,7 @@ if __name__ == "__main__":
             for dnode in tdDnodes.dnodes:
                 tdDnodes.starttaosd(dnode.index)
             tdCases.logSql(logSql)
-
+                            
             if restful:
                 tAdapter.deploy(adapter_cfg_dict)
                 tAdapter.start()
@@ -341,6 +341,26 @@ if __name__ == "__main__":
                     print("check dnode ready")
             except Exception as r:
                 print(r)
+            if queryPolicy != 1:
+                queryPolicy=int(queryPolicy)
+                if restful:
+                    conn = taosrest.connect(url=f"http://{host}:6041")
+                else:
+                    conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
+
+                cursor = conn.cursor()
+                cursor.execute("create qnode on dnode 1")
+                cursor.execute(f'alter local "queryPolicy" "{queryPolicy}"')
+                cursor.execute("show local variables")
+                res = cursor.fetchall()
+                for i in range(cursor.rowcount):
+                    if res[i][0] == "queryPolicy" :
+                        if int(res[i][1]) == int(queryPolicy):
+                            tdLog.success(f'alter queryPolicy to {queryPolicy} successfully')
+                        else:
+                            tdLog.debug(res)
+                            tdLog.exit(f"alter queryPolicy to  {queryPolicy} failed")
+                            
         if ucase is not None and hasattr(ucase, 'noConn') and ucase.noConn == True:
             conn = None
         else:
@@ -455,6 +475,26 @@ if __name__ == "__main__":
             except Exception as r:
                 print(r)
 
+            if queryPolicy != 1:
+                queryPolicy=int(queryPolicy)
+                if restful:
+                    conn = taosrest.connect(url=f"http://{host}:6041")
+                else:
+                    conn = taos.connect(host,config=tdDnodes.getSimCfgPath())
+
+                cursor = conn.cursor()
+                cursor.execute("create qnode on dnode 1")
+                cursor.execute(f'alter local "queryPolicy" "{queryPolicy}"')
+                cursor.execute("show local variables")
+                res = cursor.fetchall()
+                for i in range(cursor.rowcount):
+                    if res[i][0] == "queryPolicy" :
+                        if int(res[i][1]) == int(queryPolicy):
+                            tdLog.success(f'alter queryPolicy to {queryPolicy} successfully')
+                        else:
+                            tdLog.debug(res)
+                            tdLog.exit(f"alter queryPolicy to  {queryPolicy} failed")
+                            
 
         if testCluster:
             tdLog.info("Procedures for testing cluster")
