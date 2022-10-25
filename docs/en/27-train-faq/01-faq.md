@@ -106,11 +106,11 @@ ALTER LOCAL local_option
  
 local_option: {
     'resetLog'
-  | 'rpcDebugFlag' value
-  | 'tmrDebugFlag' value
-  | 'cDebugFlag' value
-  | 'uDebugFlag' value
-  | 'debugFlag' value
+  | 'rpcDebugFlag' 'value'
+  | 'tmrDebugFlag' 'value'
+  | 'cDebugFlag' 'value'
+  | 'uDebugFlag' 'value'
+  | 'debugFlag' 'value'
 }
 ```
 

@@ -40,25 +40,25 @@ ALTER ALL DNODES dnode_option
 
 dnode_option: {
     'resetLog'
-  | 'balance' value
-  | 'monitor' value
-  | 'debugFlag' value
-  | 'monDebugFlag' value
-  | 'vDebugFlag' value
-  | 'mDebugFlag' value
-  | 'cDebugFlag' value
-  | 'httpDebugFlag' value
-  | 'qDebugflag' value
-  | 'sdbDebugFlag' value
-  | 'uDebugFlag' value
-  | 'tsdbDebugFlag' value
-  | 'sDebugflag' value
-  | 'rpcDebugFlag' value
-  | 'dDebugFlag' value
-  | 'mqttDebugFlag' value
-  | 'wDebugFlag' value
-  | 'tmrDebugFlag' value
-  | 'cqDebugFlag' value
+  | 'balance' 'value'
+  | 'monitor' 'value'
+  | 'debugFlag' 'value'
+  | 'monDebugFlag' 'value'
+  | 'vDebugFlag' 'value'
+  | 'mDebugFlag' 'value'
+  | 'cDebugFlag' 'value'
+  | 'httpDebugFlag' 'value'
+  | 'qDebugflag' 'value'
+  | 'sdbDebugFlag' 'value'
+  | 'uDebugFlag' 'value'
+  | 'tsdbDebugFlag' 'value'
+  | 'sDebugflag' 'value'
+  | 'rpcDebugFlag' 'value'
+  | 'dDebugFlag' 'value'
+  | 'mqttDebugFlag' 'value'
+  | 'wDebugFlag' 'value'
+  | 'tmrDebugFlag' 'value'
+  | 'cqDebugFlag' 'value'
 }
 ```
 
@@ -127,11 +127,11 @@ ALTER LOCAL local_option
 
 local_option: {
     'resetLog'
-  | 'rpcDebugFlag' value
-  | 'tmrDebugFlag' value
-  | 'cDebugFlag' value
-  | 'uDebugFlag' value
-  | 'debugFlag' value
+  | 'rpcDebugFlag' 'value'
+  | 'tmrDebugFlag' 'value'
+  | 'cDebugFlag' 'value'
+  | 'uDebugFlag' 'value'
+  | 'debugFlag' 'value'
 }
 ```
 
