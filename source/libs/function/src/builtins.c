@@ -2004,11 +2004,6 @@ static int32_t translateBlockDistInfoFunc(SFunctionNode* pFunc, char* pErrBuf, i
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateGroupKeyFunc(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  pFunc->node.resType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
-  return TSDB_CODE_SUCCESS;
-}
-
 static bool getBlockDistFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(STableBlockDistInfo);
   return true;
