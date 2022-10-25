@@ -95,9 +95,13 @@ TEST_F(PlanOptimizeTest, eliminateProjection) {
   useDb("root", "test");
 
   run("SELECT c1, sum(c3) FROM t1 GROUP BY c1");
+
   run("SELECT c1 FROM t1");
+
   run("SELECT * FROM st1");
+
   run("SELECT c1 FROM st1s3");
+
   // run("select 1-abs(c1) from (select unique(c1) c1 from st1s3) order by 1 nulls first");
 }
 
@@ -136,4 +140,14 @@ TEST_F(PlanOptimizeTest, tagScan) {
   run("select tag1 from st1 group by tag1");
   run("select distinct tag1 from st1");
   run("select tag1*tag1 from st1 group by tag1*tag1");
+}
+
+TEST_F(PlanOptimizeTest, pushDownLimit) {
+  useDb("root", "test");
+
+  run("SELECT c1 FROM t1 LIMIT 1");
+
+  run("SELECT c1 FROM st1 LIMIT 1");
+
+  run("SELECT c1 FROM st1 LIMIT 20 OFFSET 10");
 }
