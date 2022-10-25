@@ -2801,7 +2801,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
 
     do {
       char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "eq elect timer lc:%ld", pSyncMsg->logicClock);
+      snprintf(logBuf, sizeof(logBuf), "eq elect timer lc:%" PRIu64, pSyncMsg->logicClock);
       syncNodeEventLog(pSyncNode, logBuf);
     } while (0);
 
