@@ -948,10 +948,8 @@ int32_t tdAppendColValToRow(SRowBuilder *pBuilder, col_id_t colId, int8_t colTyp
 #ifdef TD_SUPPORT_BITMAP
     if (valType == TD_VTYPE_NORM) {
       terrno = TSDB_CODE_INVALID_PTR;
-    } else {
-      terrno = TSDB_CODE_INVALID_PARA;
+      return terrno;
     }
-    return terrno;
 #else
     TASSERT(0);
     terrno = TSDB_CODE_INVALID_PARA;
