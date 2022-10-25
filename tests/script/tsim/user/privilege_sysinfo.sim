@@ -166,7 +166,7 @@ sql select * from information_schema.ins_subscriptions
 sql select * from information_schema.ins_streams
 sql_error select * from information_schema.ins_grants
 sql_error select * from information_schema.ins_vgroups
-sql_error select * from information_schema.ins_configs
+sql select * from information_schema.ins_configs
 sql_error select * from information_schema.ins_dnode_variables
 
 print =============== check performance_schema
