@@ -2,7 +2,7 @@ settings:
   - name: taosd
     fqdn: [u1-43, u1-44, u1-64]
     spec:
-      version: 3.0.0.0  # 默认最新版
+      version: 3.0.0.99  # 默认最新版
       config: # common config for all dnodes
         firstEP: u1-43:6030
       dnodes:
@@ -35,8 +35,8 @@ settings:
   - name: taospy
     fqdn: [u1-43]
     spec:
-      version: 3.0.0.0
-      client_version: 3.0.0.0
+      version: 3.0.0.99
+      client_version: 3.0.0.99
       config:
         firstEP: u1-43:6030
         dataDir: /var/lib/taos
@@ -47,7 +47,7 @@ settings:
   - name: taosAdapter
     fqdn: [u1-43]
     spec:
-      version: 3.0.0.0
+      version: 3.0.0.99
       config_file: /etc/taos/taosadaper.toml
       adapter_config:
         logLevel: info
