@@ -1,7 +1,7 @@
 {
     "filetype": "query",
     "cfgdir": "/etc/taos",
-    "host": "ceph01",
+    "host": "localhost",
     "port": 6030,
     "rest_port": 6041,
     "user": "root",
