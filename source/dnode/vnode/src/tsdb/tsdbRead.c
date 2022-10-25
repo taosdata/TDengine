@@ -1910,6 +1910,10 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
 
     if (minKey == k.ts) {
       if (init) {
+        if (merge.pTSchema == NULL) {
+          return code;
+        }
+
         tRowMerge(&merge, pRow);
       } else {
         STSchema* pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(pRow), pReader, pBlockScanInfo->uid);
@@ -1964,7 +1968,7 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
         tRowMerge(&merge, &fRow1);
       } else {
         init = true;
-        int32_t code = tRowMergerInit(&merge, &fRow1, pReader->pSchema);
+        code = tRowMergerInit(&merge, &fRow1, pReader->pSchema);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
@@ -1975,15 +1979,22 @@ static int32_t doMergeMultiLevelRows(STsdbReader* pReader, STableBlockScanInfo* 
     if (minKey == key) {
       TSDBROW fRow = tsdbRowFromBlockData(pBlockData, pDumpInfo->rowIndex);
       if (!init) {
-        int32_t code = tRowMergerInit(&merge, &fRow, pReader->pSchema);
+        code = tRowMergerInit(&merge, &fRow, pReader->pSchema);
         if (code != TSDB_CODE_SUCCESS) {
           return code;
         }
       } else {
+        if (merge.pTSchema == NULL) {
+          return code;
+        }
         tRowMerge(&merge, &fRow);
       }
       doMergeRowsInFileBlocks(pBlockData, pBlockScanInfo, pReader, &merge);
     }
+  }
+
+  if (merge.pTSchema == NULL)  {
+    return code;
   }
 
   code = tRowMergerGetRow(&merge, &pTSRow);
@@ -3232,7 +3243,7 @@ int32_t doMergeMemIMemRows(TSDBROW* pRow, TSDBROW* piRow, STableBlockScanInfo* p
     STSchema* pSchema = doGetSchemaForTSRow(TSDBROW_SVERSION(pRow), pReader, pBlockScanInfo->uid);
 
     int32_t code = tRowMergerInit(&merge, pRow, pSchema);
-    if (code != TSDB_CODE_SUCCESS) {
+    if (code != TSDB_CODE_SUCCESS || merge.pTSchema == NULL) {
       return code;
     }
 

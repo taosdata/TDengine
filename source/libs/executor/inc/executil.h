@@ -74,7 +74,6 @@ typedef struct SResultRowPosition {
 typedef struct SResKeyPos {
   SResultRowPosition pos;
   uint64_t           groupId;
-  // char               parTbName[TSDB_TABLE_NAME_LEN];
   char key[];
 } SResKeyPos;
 
@@ -83,6 +82,18 @@ typedef struct SResultRowInfo {
   SResultRowPosition cur;
   SList*             openWindow;
 } SResultRowInfo;
+
+typedef struct SColMatchItem {
+  int32_t colId;
+  int32_t srcSlotId;
+  int32_t dstSlotId;
+  bool    needOutput;
+} SColMatchItem;
+
+typedef struct SColMatchInfo {
+  SArray* pList;      // SArray<SColMatchItem>
+  int32_t matchType;  // determinate the source according to col id or slot id
+} SColMatchInfo;
 
 struct SqlFunctionCtx;
 
@@ -121,8 +132,8 @@ size_t   getTableTagsBufLen(const SNodeList* pGroups);
 
 SArray* createSortInfo(SNodeList* pNodeList);
 SArray* extractPartitionColInfo(SNodeList* pNodeList);
-SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
-                            int32_t type);
+int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
+                            int32_t type, SColMatchInfo* pMatchInfo);
 
 void       createExprFromOneNode(SExprInfo* pExp, SNode* pNode, int16_t slotId);
 void       createExprFromTargetNode(SExprInfo* pExp, STargetNode* pTargetNode);

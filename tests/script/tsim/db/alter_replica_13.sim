@@ -127,8 +127,27 @@ if $data[0][8] != follower then
   goto step4
 endi
 
-print ============= step5: stop dnode 2
+print ============= step5: result
+$i = 0
+while $i < 10
+  $i = $i + 1
 
+  sleep 1000
+  sql show db.vgroups
+  print ===> loop: $i | v0: $data03 $data04 | v1: $data05 $data06 | v2:  $data07 $data08 
+  if $data[0][4] != leader then
+    return -1
+  endi
+  if $data[0][6] != follower then
+    return -1
+  endi
+  if $data[0][8] != follower then
+    return -1
+  endi
+endw 
+
+
+print ============= step5: stop dnode 2
 sql select * from db.stb
 if $rows != 1 then
   return -1
