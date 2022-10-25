@@ -1369,7 +1369,6 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
     goto end;
   }
   SVnodeModifOpStmt* nodeStmt = (SVnodeModifOpStmt*)(pQuery->pRoot);
-  nodeStmt->payloadType = PAYLOAD_TYPE_KV;
   nodeStmt->pDataBlocks = taosArrayInit(1, POINTER_BYTES);
 
   SVgDataBlocks* dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
@@ -1625,7 +1624,6 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
     goto end;
   }
   SVnodeModifOpStmt* nodeStmt = (SVnodeModifOpStmt*)(pQuery->pRoot);
-  nodeStmt->payloadType = PAYLOAD_TYPE_KV;
 
   int32_t numOfVg = taosHashGetSize(pVgHash);
   nodeStmt->pDataBlocks = taosArrayInit(numOfVg, POINTER_BYTES);
@@ -1929,7 +1927,6 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
     goto end;
   }
   SVnodeModifOpStmt* nodeStmt = (SVnodeModifOpStmt*)(pQuery->pRoot);
-  nodeStmt->payloadType = PAYLOAD_TYPE_KV;
 
   int32_t numOfVg = taosHashGetSize(pVgHash);
   nodeStmt->pDataBlocks = taosArrayInit(numOfVg, POINTER_BYTES);
