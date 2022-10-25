@@ -335,11 +335,10 @@ bool appendTagsFilter(SSqlObj* pSql) {
   }
 
   // check tags is blank
-  size_t len = strlen(pTscObj->tags);
-  char* p = pTscObj->tags;
+  char* p1 = pTscObj->tags;
   bool blank = true;
-  while(*p != 0) {
-    if(*p != ' ') {
+  while(*p1 != 0) {
+    if(*p1 != ' ') {
       blank = false;
       break;
     }
