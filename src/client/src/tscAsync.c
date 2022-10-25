@@ -342,6 +342,7 @@ bool appendTagsFilter(SSqlObj* pSql) {
       blank = false;
       break;
     }
+    ++p1;
   }
   // result
   if(blank) {
