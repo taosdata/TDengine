@@ -334,8 +334,12 @@ bool appendTagsFilter(SSqlObj* pSql) {
     return false;
   }
 
-  // check tags is blank
+  // check tags is blank or ''
   char* p1 = pTscObj->tags;
+  if (strcmp(p1, "\'\'") == 0) {
+    tscDebug("TAGS 0x%" PRIx64 " tags is empty. user=%s", pSql->self, pTscObj->user);
+    return false;
+  }
   bool blank = true;
   while(*p1 != 0) {
     if(*p1 != ' ') {
