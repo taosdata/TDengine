@@ -14,6 +14,7 @@ from util.log import *
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
+from util.cluster import *
 
 class TDTestCase:
     #updatecfgDict = {'clientCfg': {'serverPort': 7080, 'firstEp': 'trd02:7080', 'secondEp':'trd02:7080'},\
@@ -155,11 +156,15 @@ class TDTestCase:
         # keyDict['h'] = self.hostname
         # keyDict['c'] = cfgPath
         # keyDict['P'] = self.serverPort
+        tdDnodes=cluster.dnodes
+        for i in range(5):
+            tdDnodes[i].stoptaosd()  
+        
+        
         startAction = " -s -c " + taosdCfgPath 
         tdLog.printNoPrefix("================================ parameter: %s"%startAction)
         self.taosdCommandExe(startAction,taosdCmdRun)
 
-        tdDnodes.stop(1)        
 
         startAction = " --help"
         tdLog.printNoPrefix("================================ parameter: %s"%startAction)
