@@ -2242,6 +2242,26 @@ static EDealRes lastRowScanOptSetColDataType(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+static void lastRowScanOptSetLastTargets(SNodeList* pTargets, SNodeList* pLastCols) {
+  SNode* pTarget = NULL;
+  WHERE_EACH(pTarget, pTargets) {
+    bool   found = false;
+    SNode* pCol = NULL;
+    FOREACH(pCol, pLastCols) {
+      if (nodesEqualNode(pCol, pTarget)) {
+        getLastCacheDataType(&(((SColumnNode*)pTarget)->node.resType));
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      ERASE_NODE(pTargets);
+      continue;
+    }
+    WHERE_NEXT;
+  }
+}
+
 static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   SAggLogicNode* pAgg = (SAggLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, lastRowScanOptMayBeOptimized);
 
@@ -2276,7 +2296,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
     cxt.doAgg = false;
     nodesWalkExprs(pScan->pScanCols, lastRowScanOptSetColDataType, &cxt);
     nodesWalkExprs(pScan->pScanPseudoCols, lastRowScanOptSetColDataType, &cxt);
-    nodesWalkExprs(pScan->node.pTargets, lastRowScanOptSetColDataType, &cxt);
+    lastRowScanOptSetLastTargets(pScan->node.pTargets, cxt.pLastCols);
     nodesClearList(cxt.pLastCols);
   }
   pAgg->hasLastRow = false;
