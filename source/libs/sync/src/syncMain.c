@@ -1564,7 +1564,13 @@ int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms) {
   int32_t ret = 0;
   if (syncEnvIsStart()) {
     pSyncNode->electTimerMS = ms;
-    taosTmrReset(pSyncNode->FpElectTimerCB, pSyncNode->electTimerMS, pSyncNode, gSyncEnv->pTimerManager,
+
+    SElectTimer* pElectTimer = taosMemoryMalloc(sizeof(SElectTimer));
+    pElectTimer->logicClock = pSyncNode->electTimerLogicClock;
+    pElectTimer->pSyncNode = pSyncNode;
+    pElectTimer->pData = NULL;
+
+    taosTmrReset(pSyncNode->FpElectTimerCB, pSyncNode->electTimerMS, pElectTimer, gSyncEnv->pTimerManager,
                  &pSyncNode->pElectTimer);
 
   } else {
@@ -2776,10 +2782,11 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
 }
 
 static void syncNodeEqElectTimer(void* param, void* tmrId) {
-  SSyncNode* pSyncNode = (SSyncNode*)param;
+  SElectTimer* pElectTimer = (SElectTimer*)param;
+  SSyncNode*   pSyncNode = pElectTimer->pSyncNode;
 
-  SyncTimeout* pSyncMsg = syncTimeoutBuild2(SYNC_TIMEOUT_ELECTION, atomic_load_64(&pSyncNode->electTimerLogicClock),
-                                            pSyncNode->electTimerMS, pSyncNode->vgId, pSyncNode);
+  SyncTimeout* pSyncMsg = syncTimeoutBuild2(SYNC_TIMEOUT_ELECTION, pElectTimer->logicClock, pSyncNode->electTimerMS,
+                                            pSyncNode->vgId, pSyncNode);
   SRpcMsg      rpcMsg;
   syncTimeout2RpcMsg(pSyncMsg, &rpcMsg);
   if (pSyncNode->FpEqMsg != NULL) {
@@ -2788,6 +2795,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
       sError("vgId:%d, sync enqueue elect msg error, code:%d", pSyncNode->vgId, code);
       rpcFreeCont(rpcMsg.pCont);
       syncTimeoutDestroy(pSyncMsg);
+      taosMemoryFree(pElectTimer);
       return;
     }
 
@@ -2800,7 +2808,9 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
   } else {
     sTrace("syncNodeEqElectTimer FpEqMsg is NULL");
   }
+
   syncTimeoutDestroy(pSyncMsg);
+  taosMemoryFree(pElectTimer);
 
 #if 0
   // reset timer ms
