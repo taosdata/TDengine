@@ -30,6 +30,7 @@ void shellClearScreen(int32_t ecmd_pos, int32_t cursor_pos);
 void shellGetPrevCharSize(const char* str, int32_t pos, int32_t* size, int32_t* width);
 void shellShowOnScreen(SShellCmd* cmd);
 void shellInsertChar(SShellCmd* cmd, char* c, int size);
+void shellInsertStr(SShellCmd* cmd, char* str, int size);
 bool appendAfterSelect(TAOS* con, SShellCmd* cmd, char* p, int32_t len);
 
 typedef struct SAutoPtr {
@@ -563,6 +564,7 @@ void parseCommand(SWords* command, bool pattern) {
 // free SShellCmd
 void freeCommand(SWords* command) {
   SWord* item = command->head;
+  command->head = NULL;
   // loop
   while (item) {
     SWord* tmp = item;
@@ -814,7 +816,9 @@ char* matchNextPrefix(STire* tire, char* pre) {
       match = enumAll(tire);
     } else {
       // NOT EMPTY
-      match = matchPrefix(tire, pre, NULL);
+      match = (SMatch*)taosMemoryMalloc(sizeof(SMatch));
+      memset(match, 0, sizeof(SMatch));
+      matchPrefix(tire, pre, match);
     }
 
     // save to lastMatch
@@ -827,7 +831,7 @@ char* matchNextPrefix(STire* tire, char* pre) {
   // check valid
   if (match == NULL || match->head == NULL) {
     // no one matched
-    return false;
+    return NULL;
   }
 
   if (cursorVar == -1) {
@@ -1099,7 +1103,7 @@ void printScreen(TAOS* con, SShellCmd* cmd, SWords* match) {
   }
 
   // insert new
-  shellInsertChar(cmd, (char*)str, strLen);
+  shellInsertStr(cmd, (char*)str, strLen);
 }
 
 // main key press tab , matched return true else false
@@ -1220,7 +1224,7 @@ bool fillWithType(TAOS* con, SShellCmd* cmd, char* pre, int type) {
 
   // show
   int count = strlen(part);
-  shellInsertChar(cmd, part, count);
+  shellInsertStr(cmd, part, count);
   cntDel = count;  // next press tab delete current append count
 
   taosMemoryFree(str);
@@ -1247,7 +1251,7 @@ bool fillTableName(TAOS* con, SShellCmd* cmd, char* pre) {
 
   // show
   int count = strlen(part);
-  shellInsertChar(cmd, part, count);
+  shellInsertStr(cmd, part, count);
   cntDel = count;  // next press tab delete current append count
 
   taosMemoryFree(str);
@@ -1371,7 +1375,7 @@ bool appendAfterSelect(TAOS* con, SShellCmd* cmd, char* sql, int32_t len) {
     bool fieldEnd = fieldsInputEnd(p);
     // check fields input end then insert from keyword
     if (fieldEnd && p[len - 1] == ' ') {
-      shellInsertChar(cmd, "from", 4);
+      shellInsertStr(cmd, "from", 4);
       taosMemoryFree(p);
       return true;
     }
@@ -1569,7 +1573,7 @@ bool matchOther(TAOS* con, SShellCmd* cmd) {
   if (p[len - 1] == '\\') {
     // append '\G'
     char a[] = "G;";
-    shellInsertChar(cmd, a, 2);
+    shellInsertStr(cmd, a, 2);
     return true;
   }
 

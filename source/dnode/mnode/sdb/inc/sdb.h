@@ -169,6 +169,7 @@ typedef struct SSdbRow {
 typedef struct SSdb {
   SMnode        *pMnode;
   SWal          *pWal;
+  int64_t        sync;
   char          *currDir;
   char          *tmpDir;
   int64_t        commitIndex;
@@ -212,6 +213,7 @@ typedef struct SSdbOpt {
   const char *path;
   SMnode     *pMnode;
   SWal       *pWal;
+  int64_t     sync;
 } SSdbOpt;
 
 /**

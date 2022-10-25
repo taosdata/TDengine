@@ -263,29 +263,14 @@ static void saveColData(SArray* rowBuf, int32_t columnIndex, const char* src, bo
 static void copyCurrentRowIntoBuf(SFillInfo* pFillInfo, int32_t rowIndex, SArray* pRow) {
   for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
     int32_t type = pFillInfo->pFillCol[i].pExpr->pExpr->nodeType;
-    if (type == QUERY_NODE_COLUMN) {
+    if (type == QUERY_NODE_COLUMN || type == QUERY_NODE_OPERATOR || type == QUERY_NODE_FUNCTION) {
       int32_t srcSlotId = GET_DEST_SLOT_ID(&pFillInfo->pFillCol[i]);
 
       SColumnInfoData* pSrcCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, srcSlotId);
 
       bool  isNull = colDataIsNull_s(pSrcCol, rowIndex);
       char* p = colDataGetData(pSrcCol, rowIndex);
-      saveColData(pRow, i, p, isNull);
-    } else if (type == QUERY_NODE_OPERATOR) {
-      int32_t srcSlotId = GET_DEST_SLOT_ID(&pFillInfo->pFillCol[i]);
 
-      SColumnInfoData* pSrcCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, srcSlotId);
-
-      bool  isNull = colDataIsNull_s(pSrcCol, rowIndex);
-      char* p = colDataGetData(pSrcCol, rowIndex);
-      saveColData(pRow, i, p, isNull);
-    } else if (type == QUERY_NODE_FUNCTION) {
-      int32_t srcSlotId = GET_DEST_SLOT_ID(&pFillInfo->pFillCol[i]);
-
-      SColumnInfoData* pSrcCol = taosArrayGet(pFillInfo->pSrcBlock->pDataBlock, srcSlotId);
-
-      bool  isNull = colDataIsNull_s(pSrcCol, rowIndex);
-      char* p = colDataGetData(pSrcCol, rowIndex);
       saveColData(pRow, i, p, isNull);
     } else {
       ASSERT(0);
@@ -737,7 +722,7 @@ void destroyStreamFillOperatorInfo(void* param) {
   pInfo->pSrcBlock = blockDataDestroy(pInfo->pSrcBlock);
   pInfo->pPrevSrcBlock = blockDataDestroy(pInfo->pPrevSrcBlock);
   pInfo->pDelRes = blockDataDestroy(pInfo->pDelRes);
-  pInfo->pColMatchColInfo = taosArrayDestroy(pInfo->pColMatchColInfo);
+  pInfo->matchInfo.pList = taosArrayDestroy(pInfo->matchInfo.pList);
   taosMemoryFree(pInfo);
 }
 
@@ -1514,7 +1499,7 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
     }
 
     doStreamFillImpl(pOperator);
-    doFilter(pInfo->pCondition, pInfo->pRes, pInfo->pColMatchColInfo, NULL);
+    doFilter(pInfo->pCondition, pInfo->pRes, &pInfo->matchInfo, NULL);
     memcpy(pInfo->pRes->info.parTbName, pInfo->pSrcBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
     pOperator->resultInfo.totalRows += pInfo->pRes->info.rows;
     if (pInfo->pRes->info.rows > 0) {
@@ -1639,7 +1624,6 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
     goto _error;
   }
 
-  SResultInfo* pResultInfo = &pOperator->resultInfo;
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   pInfo->pRes = createResDataBlock(pPhyFillNode->node.pOutputDataBlockDesc);
   pInfo->pSrcBlock = createResDataBlock(pPhyFillNode->node.pOutputDataBlockDesc);
@@ -1691,11 +1675,10 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
   pInfo->primarySrcSlotId = ((SColumnNode*)((STargetNode*)pPhyFillNode->pWStartTs)->pExpr)->slotId;
 
   int32_t numOfOutputCols = 0;
-  SArray* pColMatchColInfo = extractColMatchInfo(pPhyFillNode->pFillExprs, pPhyFillNode->node.pOutputDataBlockDesc,
-                                                 &numOfOutputCols, COL_MATCH_FROM_SLOT_ID);
+  int32_t code = extractColMatchInfo(pPhyFillNode->pFillExprs, pPhyFillNode->node.pOutputDataBlockDesc,
+                                     &numOfOutputCols, COL_MATCH_FROM_SLOT_ID, &pInfo->matchInfo);
   pInfo->pCondition = pPhyFillNode->node.pConditions;
-  pInfo->pColMatchColInfo = pColMatchColInfo;
-  int32_t code = initExprSupp(&pOperator->exprSupp, pFillExprInfo, numOfFillCols);
+  code = initExprSupp(&pOperator->exprSupp, pFillExprInfo, numOfFillCols);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -1709,7 +1692,7 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
   pOperator->info = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doStreamFill, NULL, NULL, destroyStreamFillOperatorInfo,
-                                         NULL, NULL, NULL);
+                                         NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {

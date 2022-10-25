@@ -16,6 +16,7 @@
 #include "syncTimeout.h"
 #include "syncElection.h"
 #include "syncRaftCfg.h"
+#include "syncRaftLog.h"
 #include "syncReplication.h"
 #include "syncRespMgr.h"
 
@@ -60,12 +61,36 @@ static void syncNodeCleanConfigIndex(SSyncNode* ths) {
 int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   syncNodeEventLog(ths, "timer routines");
 
-  if (ths->vgId == 1) {
+  // timer replicate
+  syncNodeReplicate(ths);
+
+  // clean mnode index
+  if (syncNodeIsMnode(ths)) {
     syncNodeCleanConfigIndex(ths);
   }
 
+  // end timeout wal snapshot
+  int64_t timeNow = taosGetTimestampMs();
+  if (timeNow - ths->snapshottingIndex > SYNC_DEL_WAL_MS &&
+      atomic_load_64(&ths->snapshottingIndex) != SYNC_INDEX_INVALID) {
+    SSyncLogStoreData* pData = ths->pLogStore->data;
+    int32_t            code = walEndSnapshot(pData->pWal);
+    if (code != 0) {
+      sError("vgId:%d, wal snapshot end error since:%s", ths->vgId, terrstr(terrno));
+      return -1;
+    } else {
+      do {
+        char logBuf[256];
+        snprintf(logBuf, sizeof(logBuf), "wal snapshot end, index:%" PRId64, atomic_load_64(&ths->snapshottingIndex));
+        syncNodeEventLog(ths, logBuf);
+      } while (0);
+
+      atomic_store_64(&ths->snapshottingIndex, SYNC_INDEX_INVALID);
+    }
+  }
+
 #if 0
-  if (ths->vgId != 1) {
+  if (!syncNodeIsMnode(ths)) {
     syncRespClean(ths->pSyncRespMgr);
   }
 #endif
@@ -73,9 +98,9 @@ int32_t syncNodeTimerRoutine(SSyncNode* ths) {
   return 0;
 }
 
-int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg) {
+int32_t syncNodeOnTimer(SSyncNode* ths, SyncTimeout* pMsg) {
   int32_t ret = 0;
-  syncTimeoutLog2("==syncNodeOnTimeoutCb==", pMsg);
+  syncLogRecvTimer(ths, pMsg, "");
 
   if (pMsg->timeoutType == SYNC_TIMEOUT_PING) {
     if (atomic_load_64(&ths->pingTimerLogicClockUser) <= pMsg->logicClock) {
@@ -84,27 +109,29 @@ int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg) {
       // syncNodePingAll(ths);
       // syncNodePingPeers(ths);
 
-      // sTrace("vgId:%d, sync timeout, type:ping count:%d", ths->vgId, ths->pingTimerCounter);
       syncNodeTimerRoutine(ths);
     }
 
   } else if (pMsg->timeoutType == SYNC_TIMEOUT_ELECTION) {
     if (atomic_load_64(&ths->electTimerLogicClockUser) <= pMsg->logicClock) {
       ++(ths->electTimerCounter);
-      sTrace("vgId:%d, sync timer, type:election count:%" PRId64 ", electTimerLogicClockUser:%" PRId64 "", ths->vgId,
+      sTrace("vgId:%d, sync timer, type:election count:%" PRIu64 ", lc-user:%" PRIu64, ths->vgId,
              ths->electTimerCounter, ths->electTimerLogicClockUser);
+
       syncNodeElect(ths);
     }
 
   } else if (pMsg->timeoutType == SYNC_TIMEOUT_HEARTBEAT) {
     if (atomic_load_64(&ths->heartbeatTimerLogicClockUser) <= pMsg->logicClock) {
       ++(ths->heartbeatTimerCounter);
-      sTrace("vgId:%d, sync timer, type:replicate count:%" PRId64 ", heartbeatTimerLogicClockUser:%" PRId64 "",
-             ths->vgId, ths->heartbeatTimerCounter, ths->heartbeatTimerLogicClockUser);
-      syncNodeReplicate(ths, true);
+      sTrace("vgId:%d, sync timer, type:replicate count:%" PRIu64 ", lc-user:%" PRIu64, ths->vgId,
+             ths->heartbeatTimerCounter, ths->heartbeatTimerLogicClockUser);
+
+      // syncNodeReplicate(ths, true);
     }
+
   } else {
-    sError("vgId:%d, unknown timeout-type:%d", ths->vgId, pMsg->timeoutType);
+    sError("vgId:%d, recv unknown timer-type:%d", ths->vgId, pMsg->timeoutType);
   }
 
   return ret;

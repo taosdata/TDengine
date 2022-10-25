@@ -36,7 +36,7 @@ void test1() {
 void test2() {
   SyncHeartbeatReply *pMsg = createMsg();
   uint32_t            len = pMsg->bytes;
-  char               *serialized = (char *)taosMemoryMalloc(len);
+  char *              serialized = (char *)taosMemoryMalloc(len);
   syncHeartbeatReplySerialize(pMsg, serialized, len);
   SyncHeartbeatReply *pMsg2 = syncHeartbeatReplyBuild(1000);
   syncHeartbeatReplyDeserialize(serialized, len, pMsg2);
@@ -50,7 +50,7 @@ void test2() {
 void test3() {
   SyncHeartbeatReply *pMsg = createMsg();
   uint32_t            len;
-  char               *serialized = syncHeartbeatReplySerialize2(pMsg, &len);
+  char *              serialized = syncHeartbeatReplySerialize2(pMsg, &len);
   SyncHeartbeatReply *pMsg2 = syncHeartbeatReplyDeserialize2(serialized, len);
   syncHeartbeatReplyLog2((char *)"test3: syncHeartbeatReplySerialize3 -> syncHeartbeatReplyDeserialize2 ", pMsg2);
 

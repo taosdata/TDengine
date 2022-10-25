@@ -148,14 +148,22 @@ static FORCE_INLINE void clientRecvCb(uv_stream_t* handle, ssize_t nread, const 
   } else {
     uTrace("http-report succ to recv %d bytes", (int32_t)nread);
   }
-  uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
+  if (!uv_is_closing((uv_handle_t*)&cli->tcp)) {
+    uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
+  } else {
+    destroyHttpClient(cli);
+  }
 }
 static void clientSentCb(uv_write_t* req, int32_t status) {
   SHttpClient* cli = req->data;
   if (status != 0) {
     terrno = TAOS_SYSTEM_ERROR(status);
     uError("http-report failed to send data %s", uv_strerror(status));
-    uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
+    if (!uv_is_closing((uv_handle_t*)&cli->tcp)) {
+      uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
+    } else {
+      destroyHttpClient(cli);
+    }
     return;
   } else {
     uTrace("http-report succ to send data");
@@ -176,7 +184,11 @@ static void clientConnCb(uv_connect_t* req, int32_t status) {
   if (status != 0) {
     terrno = TAOS_SYSTEM_ERROR(status);
     uError("http-report failed to conn to server, reason:%s, dst:%s:%d", uv_strerror(status), cli->addr, cli->port);
-    uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
+    if (!uv_is_closing((uv_handle_t*)&cli->tcp)) {
+      uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
+    } else {
+      destroyHttpClient(cli);
+    }
     return;
   }
   status = uv_write(&cli->req, (uv_stream_t*)&cli->tcp, cli->wbuf, 2, clientSentCb);
@@ -234,7 +246,15 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
   cli->addr = tstrdup(server);
   cli->port = port;
 
-  uv_loop_t* loop = uv_default_loop();
+  uv_loop_t* loop = taosMemoryMalloc(sizeof(uv_loop_t));
+  int        err = uv_loop_init(loop);
+  if (err != 0) {
+    uError("http-report failed to init uv_loop, reason: %s", uv_strerror(err));
+    taosMemoryFree(loop);
+    terrno = TAOS_SYSTEM_ERROR(err);
+    destroyHttpClient(cli);
+    return terrno;
+  }
   uv_tcp_init(loop, &cli->tcp);
   // set up timeout to avoid stuck;
   int32_t fd = taosCreateSocketWithTimeout(5);
@@ -258,5 +278,6 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32
 
   uv_run(loop, UV_RUN_DEFAULT);
   uv_loop_close(loop);
+  taosMemoryFree(loop);
   return terrno;
 }

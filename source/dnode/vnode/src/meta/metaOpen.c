@@ -24,6 +24,9 @@ static int uidIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
 static int smaIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int taskIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
+static int ctimeIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
+static int ncolIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
+
 static int32_t metaInitLock(SMeta *pMeta) { return taosThreadRwlockInit(&pMeta->lock, NULL); }
 static int32_t metaDestroyLock(SMeta *pMeta) { return taosThreadRwlockDestroy(&pMeta->lock); }
 
@@ -139,6 +142,20 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
     goto _err;
   }
 
+  // idx table create time
+  ret = tdbTbOpen("ctime.idx", sizeof(SCtimeIdxKey), 0, ctimeIdxCmpr, pMeta->pEnv, &pMeta->pCtimeIdx, 0);
+  if (ret < 0) {
+    metaError("vgId:%d, failed to open meta ctime index since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
+  // idx num of col, normal table only
+  ret = tdbTbOpen("ncol.idx", sizeof(SNcolIdxKey), 0, ncolIdxCmpr, pMeta->pEnv, &pMeta->pNcolIdx, 0);
+  if (ret < 0) {
+    metaError("vgId:%d, failed to open meta ncol index since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
   ret = tdbTbOpen("stream.task.db", sizeof(int64_t), -1, taskIdxKeyCmpr, pMeta->pEnv, &pMeta->pStreamDb, 0);
   if (ret < 0) {
     metaError("vgId:%d, failed to open meta stream task index since %s", TD_VID(pVnode), tstrerror(terrno));
@@ -166,6 +183,8 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta, int8_t rollback) {
 _err:
   if (pMeta->pIdx) metaCloseIdx(pMeta);
   if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
+  if (pMeta->pNcolIdx) tdbTbClose(pMeta->pNcolIdx);
+  if (pMeta->pCtimeIdx) tdbTbClose(pMeta->pCtimeIdx);
   if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);
   if (pMeta->pTtlIdx) tdbTbClose(pMeta->pTtlIdx);
   if (pMeta->pTagIvtIdx) indexClose(pMeta->pTagIvtIdx);
@@ -187,6 +206,8 @@ int metaClose(SMeta *pMeta) {
     if (pMeta->pCache) metaCacheClose(pMeta);
     if (pMeta->pIdx) metaCloseIdx(pMeta);
     if (pMeta->pStreamDb) tdbTbClose(pMeta->pStreamDb);
+    if (pMeta->pNcolIdx) tdbTbClose(pMeta->pNcolIdx);
+    if (pMeta->pCtimeIdx) tdbTbClose(pMeta->pCtimeIdx);
     if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);
     if (pMeta->pTtlIdx) tdbTbClose(pMeta->pTtlIdx);
     if (pMeta->pTagIvtIdx) indexClose(pMeta->pTagIvtIdx);
@@ -385,6 +406,43 @@ static int ttlIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
   if (pTtlIdxKey1->uid > pTtlIdxKey2->uid) {
     return 1;
   } else if (pTtlIdxKey1->uid < pTtlIdxKey2->uid) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static int ctimeIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
+  SCtimeIdxKey *pCtimeIdxKey1 = (SCtimeIdxKey *)pKey1;
+  SCtimeIdxKey *pCtimeIdxKey2 = (SCtimeIdxKey *)pKey2;
+  if (pCtimeIdxKey1->ctime > pCtimeIdxKey2->ctime) {
+    return 1;
+  } else if (pCtimeIdxKey1->ctime < pCtimeIdxKey2->ctime) {
+    return -1;
+  }
+
+  if (pCtimeIdxKey1->uid > pCtimeIdxKey2->uid) {
+    return 1;
+  } else if (pCtimeIdxKey1->uid < pCtimeIdxKey2->uid) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static int ncolIdxCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
+  SNcolIdxKey *pNcolIdxKey1 = (SNcolIdxKey *)pKey1;
+  SNcolIdxKey *pNcolIdxKey2 = (SNcolIdxKey *)pKey2;
+
+  if (pNcolIdxKey1->ncol > pNcolIdxKey2->ncol) {
+    return 1;
+  } else if (pNcolIdxKey1->ncol < pNcolIdxKey2->ncol) {
+    return -1;
+  }
+
+  if (pNcolIdxKey1->uid > pNcolIdxKey2->uid) {
+    return 1;
+  } else if (pNcolIdxKey1->uid < pNcolIdxKey2->uid) {
     return -1;
   }
 

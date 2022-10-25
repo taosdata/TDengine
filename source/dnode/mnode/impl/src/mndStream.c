@@ -143,8 +143,10 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   SDecoder decoder;
   tDecoderInit(&decoder, buf, tlen + 1);
   if (tDecodeSStreamObj(&decoder, pStream) < 0) {
+    tDecoderClear(&decoder);
     goto STREAM_DECODE_OVER;
   }
+  tDecoderClear(&decoder);
 
   terrno = TSDB_CODE_SUCCESS;
 
@@ -280,6 +282,7 @@ static int32_t mndBuildStreamObjFromCreateReq(SMnode *pMnode, SStreamObj *pObj, 
   pObj->trigger = pCreate->triggerType;
   pObj->triggerParam = pCreate->maxDelay;
   pObj->watermark = pCreate->watermark;
+  pObj->fillHistory = pCreate->fillHistory;
 
   memcpy(pObj->sourceDb, pCreate->sourceDB, TSDB_DB_FNAME_LEN);
   SDbObj *pSourceDb = mndAcquireDb(pMnode, pCreate->sourceDB);
@@ -686,7 +689,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     mError("stream:%s, failed to create since %s", createStreamReq.name, terrstr());
     goto _OVER;
   }
-  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb);  // hack way
+  mndTransSetDbName(pTrans, createStreamReq.sourceDB, streamObj.targetDb);
   mInfo("trans:%d, used to create stream:%s", pTrans->id, createStreamReq.name);
 
   // create stb for stream
