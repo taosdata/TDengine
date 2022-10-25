@@ -835,7 +835,9 @@ void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
     sInfo("vgId:%d, sync get retry epset: index:%d %s:%d", pSyncNode->vgId, i, pEpSet->eps[i].fqdn,
           pEpSet->eps[i].port);
   }
-  pEpSet->inUse = (pSyncNode->pRaftCfg->cfg.myIndex + 1) % pEpSet->numOfEps;
+  if (pEpSet->numOfEps > 0) {
+    pEpSet->inUse = (pSyncNode->pRaftCfg->cfg.myIndex + 1) % pEpSet->numOfEps;
+  }
   sInfo("vgId:%d, sync get retry epset in-use:%d", pSyncNode->vgId, pEpSet->inUse);
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
@@ -1438,11 +1440,12 @@ void syncNodeStartStandBy(SSyncNode* pSyncNode) {
 }
 
 void syncNodeClose(SSyncNode* pSyncNode) {
-  syncNodeEventLog(pSyncNode, "sync close");
   if (pSyncNode == NULL) {
     return;
   }
   int32_t ret;
+
+  syncNodeEventLog(pSyncNode, "sync close");
 
   ret = raftStoreClose(pSyncNode->pRaftStore);
   ASSERT(ret == 0);
@@ -1879,6 +1882,10 @@ char* syncNode2Str(const SSyncNode* pSyncNode) {
 }
 
 inline void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
+  if (pSyncNode == NULL) {
+    return;
+  }
+
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
   if (pSyncNode->pFsm != NULL && pSyncNode->pFsm->FpGetSnapshotInfo != NULL) {
     pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
@@ -1954,6 +1961,10 @@ inline void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
 }
 
 inline void syncNodeErrorLog(const SSyncNode* pSyncNode, char* str) {
+  if (pSyncNode == NULL) {
+    return;
+  }
+
   int32_t userStrLen = strlen(str);
 
   SSnapshot snapshot = {.data = NULL, .lastApplyIndex = -1, .lastApplyTerm = 0};
@@ -2937,6 +2948,7 @@ static int32_t syncNodeEqNoop(SSyncNode* ths) {
     sTrace("syncNodeEqNoop pSyncNode->FpEqMsg is NULL");
   }
 
+  syncEntryDestory(pEntry);
   taosMemoryFree(serialized);
   syncClientRequestDestroy(pSyncMsg);
 
@@ -3003,13 +3015,14 @@ int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg) {
   syncPingReply2RpcMsg(pMsgReply, &rpcMsg);
 
   /*
-    // htonl
-    SMsgHead* pHead = rpcMsg.pCont;
-    pHead->contLen = htonl(pHead->contLen);
-    pHead->vgId = htonl(pHead->vgId);
-  */
+  // htonl
+  SMsgHead* pHead = rpcMsg.pCont;
+  pHead->contLen = htonl(pHead->contLen);
+  pHead->vgId = htonl(pHead->vgId);
+*/
 
   syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg);
+  syncPingReplyDestroy(pMsgReply);
 
   return ret;
 }
@@ -3058,6 +3071,7 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg) {
 
   // reply
   syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg);
+  syncHeartbeatReplyDestroy(pMsgReply);
 
   return 0;
 }
@@ -3329,17 +3343,23 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
     return 0;
   }
 
-  // advance commit index to sanpshot first
-  SSnapshot snapshot = {0};
-  ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
-  if (snapshot.lastApplyIndex >= 0 && snapshot.lastApplyIndex >= beginIndex) {
-    char eventLog[128];
-    snprintf(eventLog, sizeof(eventLog), "commit by snapshot from index:%" PRId64 " to index:%" PRId64, beginIndex,
-             snapshot.lastApplyIndex);
-    syncNodeEventLog(ths, eventLog);
+  if (ths == NULL) {
+    return -1;
+  }
 
-    // update begin index
-    beginIndex = snapshot.lastApplyIndex + 1;
+  if (ths->pFsm != NULL && ths->pFsm->FpGetSnapshotInfo != NULL) {
+    // advance commit index to sanpshot first
+    SSnapshot snapshot = {0};
+    ths->pFsm->FpGetSnapshotInfo(ths->pFsm, &snapshot);
+    if (snapshot.lastApplyIndex >= 0 && snapshot.lastApplyIndex >= beginIndex) {
+      char eventLog[128];
+      snprintf(eventLog, sizeof(eventLog), "commit by snapshot from index:%" PRId64 " to index:%" PRId64, beginIndex,
+               snapshot.lastApplyIndex);
+      syncNodeEventLog(ths, eventLog);
+
+      // update begin index
+      beginIndex = snapshot.lastApplyIndex + 1;
+    }
   }
 
   int32_t    code = 0;
@@ -3413,8 +3433,10 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
 
         // config change finish
         if (pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE_FINISH) {
-          code = syncNodeConfigChangeFinish(ths, &rpcMsg, pEntry);
-          ASSERT(code == 0);
+          if (rpcMsg.pCont != NULL) {
+            code = syncNodeConfigChangeFinish(ths, &rpcMsg, pEntry);
+            ASSERT(code == 0);
+          }
         }
 
 #if 0
@@ -3528,7 +3550,7 @@ bool syncNodeCanChange(SSyncNode* pSyncNode) {
 
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
     SSyncSnapshotSender* pSender = syncNodeGetSnapshotSender(pSyncNode, &(pSyncNode->peersId)[i]);
-    if (pSender->start) {
+    if (pSender != NULL && pSender->start) {
       sError("sync cannot change3");
       return false;
     }

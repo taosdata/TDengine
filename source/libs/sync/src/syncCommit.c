@@ -45,6 +45,11 @@
 //     /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, log>>
 //
 void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
+  if (pSyncNode == NULL) {
+    sError("pSyncNode is NULL");
+    return;
+  }
+
   if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
     syncNodeErrorLog(pSyncNode, "not leader, can not advance commit index");
     return;
@@ -172,6 +177,7 @@ static inline int64_t syncNodeAbs64(int64_t a, int64_t b) {
 int32_t syncNodeDynamicQuorum(const SSyncNode* pSyncNode) {
   return pSyncNode->quorum;
 
+#if 0
   int32_t quorum = 1;  // self
 
   int64_t timeNow = taosGetTimestampMs();
@@ -228,6 +234,7 @@ int32_t syncNodeDynamicQuorum(const SSyncNode* pSyncNode) {
   }
 
   return quorum;
+#endif
 }
 
 /*
