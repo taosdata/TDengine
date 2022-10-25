@@ -8,7 +8,7 @@
     "password": "taosdata",
     "confirm_parameter_prompt": "no",
     "databases": "db",
-    "query_times": 1,
+    "query_times": 1000,
     "query_mode": "taosc",
     "specified_table_query": {
 	"query_interval": 0,

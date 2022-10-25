@@ -12,7 +12,7 @@
     "query_mode": "taosc",
     "specified_table_query": {
 	"query_interval": 0,
-	"threads": 100,
+	"threads": 1,
 	"sql_file": "meters.sql",
 	"sqls": [
 	]

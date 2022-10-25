@@ -8,11 +8,11 @@
     "password": "taosdata",
     "confirm_parameter_prompt": "no",
     "databases": "db",
-    "query_times": 1,
+    "query_times": 50,
     "query_mode": "taosc",
     "specified_table_query": {
 	"query_interval": 0,
-	"threads": 100,
+	"threads": 1000,
 	"sql_file": "meters.sql",
 	"sqls": [
 	]
