@@ -3072,7 +3072,7 @@ static int32_t sysChkFilter__Comm(SNode* pNode) {
   SOperatorNode* pOper = (SOperatorNode*)pNode;
   EOperatorType  opType = pOper->opType;
   if (opType != OP_TYPE_EQUAL && opType != OP_TYPE_LOWER_EQUAL && opType != OP_TYPE_LOWER_THAN &&
-      OP_TYPE_GREATER_EQUAL && opType != OP_TYPE_GREATER_THAN) {
+      opType != OP_TYPE_GREATER_EQUAL && opType != OP_TYPE_GREATER_THAN) {
     return -1;
   }
   return 0;
