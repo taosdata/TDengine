@@ -888,10 +888,11 @@ static int32_t udfdUvInit() {
   }
   global.loop = loop;
 
-  uv_pipe_init(global.loop, &global.ctrlPipe, 1);
-  uv_pipe_open(&global.ctrlPipe, 0);
-  uv_read_start((uv_stream_t *)&global.ctrlPipe, udfdCtrlAllocBufCb, udfdCtrlReadCb);
-
+  if (tsStartUdfd) { // udfd is started by taosd, which shall exit when taosd exit
+    uv_pipe_init(global.loop, &global.ctrlPipe, 1);
+    uv_pipe_open(&global.ctrlPipe, 0);
+    uv_read_start((uv_stream_t *)&global.ctrlPipe, udfdCtrlAllocBufCb, udfdCtrlReadCb);
+  }
   getUdfdPipeName(global.listenPipeName, sizeof(global.listenPipeName));
 
   removeListeningPipe();
