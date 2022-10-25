@@ -1369,7 +1369,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
 
   // merge according to vgId
   if (taosHashGetSize(pCxt->pTableBlockHashObj) > 0) {
-    CHECK_CODE(insMergeTableDataBlocks(pCxt->pTableBlockHashObj, pCxt->pOutput->payloadType, &pCxt->pVgDataBlocks));
+    CHECK_CODE(insMergeTableDataBlocks(pCxt->pTableBlockHashObj, &pCxt->pVgDataBlocks));
   }
   return insBuildOutput(pCxt);
 }
@@ -1390,7 +1390,7 @@ static int32_t parseInsertBodyAgain(SInsertParseContext* pCxt) {
   parserDebug("0x%" PRIx64 " insert again input rows: %d", pCxt->pComCxt->requestId, pCxt->totalNum);
   // merge according to vgId
   if (taosHashGetSize(pCxt->pTableBlockHashObj) > 0) {
-    CHECK_CODE(insMergeTableDataBlocks(pCxt->pTableBlockHashObj, pCxt->pOutput->payloadType, &pCxt->pVgDataBlocks));
+    CHECK_CODE(insMergeTableDataBlocks(pCxt->pTableBlockHashObj, &pCxt->pVgDataBlocks));
   }
   return insBuildOutput(pCxt);
 }
@@ -1471,8 +1471,6 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery, SParseMetaCache
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
-
-  context.pOutput->payloadType = PAYLOAD_TYPE_KV;
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (!context.pComCxt->needMultiParse) {

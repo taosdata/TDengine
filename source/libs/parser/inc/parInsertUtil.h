@@ -152,7 +152,7 @@ int32_t insInitRowBuilder(SRowBuilder *pBuilder, int16_t schemaVer, SParsedDataC
 int32_t insGetDataBlockFromList(SHashObj *pHashList, void *id, int32_t idLen, int32_t size, int32_t startOffset,
                                 int32_t rowSize, STableMeta *pTableMeta, STableDataBlocks **dataBlocks,
                                 SArray *pBlockList, SVCreateTbReq *pCreateTbReq);
-int32_t insMergeTableDataBlocks(SHashObj *pHashObj, uint8_t payloadType, SArray **pVgDataBlocks);
+int32_t insMergeTableDataBlocks(SHashObj *pHashObj, SArray **pVgDataBlocks);
 int32_t insBuildCreateTbMsg(STableDataBlocks *pBlocks, SVCreateTbReq *pCreateTbReq);
 int32_t insAllocateMemForSize(STableDataBlocks *pDataBlock, int32_t allSize);
 int32_t insCreateSName(SName *pName, struct SToken *pTableName, int32_t acctId, const char *dbName, SMsgBuf *pMsgBuf);
