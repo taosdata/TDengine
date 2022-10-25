@@ -163,7 +163,10 @@ int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftI
   syncNodeSendMsgById(destRaftId, pSyncNode, &rpcMsg);
 
   SPeerState* pState = syncNodeGetPeerState(pSyncNode, destRaftId);
-  ASSERT(pState != NULL);
+  if (pState == NULL) {
+    sError("vgId:%d, replica maybe dropped", pSyncNode->vgId);
+    return 0;
+  }
 
   if (pMsg->dataLen > 0) {
     pState->lastSendIndex = pMsg->prevLogIndex + 1;
