@@ -23,31 +23,31 @@ def sync_source() {
             sh '''
                 cd ${WKC}
                 git clean -fxd
-                git checkout master
+                git checkout -f  master
             '''
         } else if (env.CHANGE_TARGET == '2.0') {
             sh '''
                 cd ${WKC}
                 git clean -fxd
-                git checkout 2.0
+                git checkout -f   2.0
             '''
         } else if (env.CHANGE_TARGET == '2.4') {
             sh '''
                 cd ${WKC}
                 git clean -fxd
-                git checkout 2.4
+                git checkout -f   2.4
             '''
         } else if (env.CHANGE_TARGET == '2.6') {
             sh '''
                 cd ${WKC}
                 git clean -fxd
-                git checkout 2.6
+                git checkout -f   2.6
             '''
         } else {
             sh '''
                 cd ${WKC}
                 git clean -fxd
-                git checkout develop
+                git checkout  -f   develop
             '''
         }
     }
@@ -79,7 +79,7 @@ def sync_source() {
         } else if (env.CHANGE_TARGET == '2.6') {
             sh '''
                 cd ${WK}
-                git checkout 2.6
+                git checkout -f 2.6
             '''
         } else {
             sh '''
@@ -194,47 +194,47 @@ def pre_test_win(){
         if (env.CHANGE_TARGET == 'master') {
             bat '''
                 cd %WIN_INTERNAL_ROOT%
-                git checkout master
+                git checkout -f  master
             '''
             bat '''
                 cd %WIN_COMMUNITY_ROOT%
-                git checkout master
+                git checkout -f master
             '''
         } else if (env.CHANGE_TARGET == '2.0') {
             bat '''
                 cd %WIN_INTERNAL_ROOT%
-                git checkout 2.0
+                git checkout -f 2.0
             '''
             bat '''
                 cd %WIN_COMMUNITY_ROOT%
-                git checkout 2.0
+                git checkout -f 2.0
             '''
         } else if (env.CHANGE_TARGET == '2.4') {
             bat '''
                 cd %WIN_INTERNAL_ROOT%
-                git checkout 2.4
+                git checkout -f 2.4
             '''
             bat '''
                 cd %WIN_COMMUNITY_ROOT%
-                git checkout 2.4
+                git checkout -f  2.4
             '''
         } else if (env.CHANGE_TARGET == '2.6') {
             bat '''
                 cd %WIN_INTERNAL_ROOT%
-                git checkout 2.6
+                git checkout -f 2.6
             '''
             bat '''
                 cd %WIN_COMMUNITY_ROOT%
-                git checkout 2.6
+                git checkout -f  2.6
             '''
         } else {
             bat '''
                 cd %WIN_INTERNAL_ROOT%
-                git checkout develop
+                git checkout -f  develop
             '''
             bat '''
                 cd %WIN_COMMUNITY_ROOT%
-                git checkout develop
+                git checkout -f develop
             '''
         }
     }
