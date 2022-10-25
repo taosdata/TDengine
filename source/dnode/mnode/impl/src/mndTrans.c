@@ -918,13 +918,19 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
       sendRsp = true;
     }
   } else {
-    if (pTrans->stage == TRN_STAGE_REDO_ACTION && pTrans->failedTimes > 6) {
+    if (pTrans->stage == TRN_STAGE_REDO_ACTION && ((code == TSDB_CODE_APP_NOT_READY && pTrans->failedTimes > 60) ||
+                                                   (code != TSDB_CODE_APP_NOT_READY && pTrans->failedTimes > 6))) {
       if (code == 0) code = TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
       sendRsp = true;
     }
   }
 
-  if (!sendRsp) return;
+  if (!sendRsp) {
+    return;
+  } else {
+    mInfo("trans:%d, send rsp, stage:%s failedTimes:%d code:0x%x", pTrans->id, mndTransStr(pTrans->stage),
+          pTrans->failedTimes, code);
+  }
 
   int32_t size = taosArrayGetSize(pTrans->pRpcArray);
   if (size <= 0) return;
