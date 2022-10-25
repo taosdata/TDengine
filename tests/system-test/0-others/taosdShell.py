@@ -159,52 +159,52 @@ class TDTestCase:
         tdLog.printNoPrefix("================================ parameter: %s"%startAction)
         self.taosdCommandExe(startAction,taosdCmdRun)
 
-        # tdDnodes.stop(1)        
+        tdDnodes.stop(1)        
 
-        # startAction = " --help"
-        # tdLog.printNoPrefix("================================ parameter: %s"%startAction)
-        # self.taosdCommandExe(startAction,taosdCmdRun)
+        startAction = " --help"
+        tdLog.printNoPrefix("================================ parameter: %s"%startAction)
+        self.taosdCommandExe(startAction,taosdCmdRun)
 
-        # startAction = " -h"
-        # tdLog.printNoPrefix("================================ parameter: %s"%startAction)
-        # self.taosdCommandExe(startAction,taosdCmdRun)
+        startAction = " -h"
+        tdLog.printNoPrefix("================================ parameter: %s"%startAction)
+        self.taosdCommandExe(startAction,taosdCmdRun)
 
-        # startAction=" -a  jsonFile:./taosdCaseTmp.json"
-        # tdLog.printNoPrefix("================================ parameter: %s"%startAction)
-        # os.system("echo \'{\"queryPolicy\":\"3\"}\' > taosdCaseTmp.json")
-        # self.taosdCommandStop(startAction,taosdCmdRun)
+        startAction=" -a  jsonFile:./taosdCaseTmp.json"
+        tdLog.printNoPrefix("================================ parameter: %s"%startAction)
+        os.system("echo \'{\"queryPolicy\":\"3\"}\' > taosdCaseTmp.json")
+        self.taosdCommandStop(startAction,taosdCmdRun)
 
-        # startAction = " -a  jsonFile:./taosdCaseTmp.json -C "
-        # tdLog.printNoPrefix("================================ parameter: %s"%startAction)
-        # self.taosdCommandExe(startAction,taosdCmdRun)
+        startAction = " -a  jsonFile:./taosdCaseTmp.json -C "
+        tdLog.printNoPrefix("================================ parameter: %s"%startAction)
+        self.taosdCommandExe(startAction,taosdCmdRun)
 
-        # os.system("rm -rf  taosdCaseTmp.json") 
+        os.system("rm -rf  taosdCaseTmp.json") 
 
-        # startAction = " -c " + taosdCfgPath 
-        # tdLog.printNoPrefix("================================ parameter: %s"%startAction)
-        # self.taosdCommandStop(startAction,taosdCmdRun)
-
-
-
-        # startAction = " -e  TAOS_QUERY_POLICY=2 "
-        # tdLog.printNoPrefix("================================ parameter: %s"%startAction)
-        # self.taosdCommandStop(startAction,taosdCmdRun)
+        startAction = " -c " + taosdCfgPath 
+        tdLog.printNoPrefix("================================ parameter: %s"%startAction)
+        self.taosdCommandStop(startAction,taosdCmdRun)
 
 
-        # startAction=" -E taosdCaseTmp/.env"
-        # tdLog.printNoPrefix("================================ parameter: %s"%startAction)
-        # os.system(" mkdir -p taosdCaseTmp/.env ") 
-        # os.system("echo \'TAOS_QUERY_POLICY=3\' > taosdCaseTmp/.env ")
-        # self.taosdCommandStop(startAction,taosdCmdRun)
-        # os.system(" rm -rf taosdCaseTmp/.env ") 
 
-        # startAction = " -V"
-        # tdLog.printNoPrefix("================================ parameter: %s"%startAction)
-        # self.taosdCommandExe(startAction,taosdCmdRun)
+        startAction = " -e  TAOS_QUERY_POLICY=2 "
+        tdLog.printNoPrefix("================================ parameter: %s"%startAction)
+        self.taosdCommandStop(startAction,taosdCmdRun)
 
-        # startAction = " -k"
-        # tdLog.printNoPrefix("================================ parameter: %s"%startAction)
-        # self.taosdCommandExe(startAction,taosdCmdRun)
+
+        startAction=" -E taosdCaseTmp/.env"
+        tdLog.printNoPrefix("================================ parameter: %s"%startAction)
+        os.system(" mkdir -p taosdCaseTmp/.env ") 
+        os.system("echo \'TAOS_QUERY_POLICY=3\' > taosdCaseTmp/.env ")
+        self.taosdCommandStop(startAction,taosdCmdRun)
+        os.system(" rm -rf taosdCaseTmp/.env ") 
+
+        startAction = " -V"
+        tdLog.printNoPrefix("================================ parameter: %s"%startAction)
+        self.taosdCommandExe(startAction,taosdCmdRun)
+
+        startAction = " -k"
+        tdLog.printNoPrefix("================================ parameter: %s"%startAction)
+        self.taosdCommandExe(startAction,taosdCmdRun)
     
     def stop(self):
         tdSql.close()
