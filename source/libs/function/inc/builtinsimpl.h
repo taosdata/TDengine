@@ -23,11 +23,6 @@ extern "C" {
 #include "function.h"
 #include "functionMgt.h"
 
-bool    dummyGetEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* UNUSED_PARAM(pEnv));
-bool    dummyInit(SqlFunctionCtx* UNUSED_PARAM(pCtx), SResultRowEntryInfo* UNUSED_PARAM(pResultInfo));
-int32_t dummyProcess(SqlFunctionCtx* UNUSED_PARAM(pCtx));
-int32_t dummyFinalize(SqlFunctionCtx* UNUSED_PARAM(pCtx), SSDataBlock* UNUSED_PARAM(pBlock));
-
 bool    functionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t functionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t functionFinalizeWithResultBuf(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, char* finalResult);
