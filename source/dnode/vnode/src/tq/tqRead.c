@@ -525,7 +525,7 @@ int tqReaderSetTbUidList(STqReader* pReader, const SArray* tbUidList) {
   if (pReader->tbIdHash) {
     taosHashClear(pReader->tbIdHash);
   } else {
-    pReader->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+    pReader->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   }
 
   if (pReader->tbIdHash == NULL) {
@@ -543,7 +543,7 @@ int tqReaderSetTbUidList(STqReader* pReader, const SArray* tbUidList) {
 
 int tqReaderAddTbUidList(STqReader* pReader, const SArray* tbUidList) {
   if (pReader->tbIdHash == NULL) {
-    pReader->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
+    pReader->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
     if (pReader->tbIdHash == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
