@@ -5369,9 +5369,12 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     }
   }
 
-  ASSERT(resIndex >= 0);
-  SModeItem* pResItem = (SModeItem*)(pInfo->pItems + resIndex * (sizeof(SModeItem) + pInfo->colBytes));
-  colDataAppend(pCol, currentRow, pResItem->data, (maxCount == 0) ? true : false);
+  if (maxCount != 0) {
+    SModeItem* pResItem = (SModeItem*)(pInfo->pItems + resIndex * (sizeof(SModeItem) + pInfo->colBytes));
+    colDataAppend(pCol, currentRow, pResItem->data, false);
+  } else {
+    colDataAppendNULL(pCol, currentRow);
+  }
 
   return pResInfo->numOfRes;
 }
