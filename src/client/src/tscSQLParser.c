@@ -903,7 +903,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
           }
         } else if (pUser->type == TSDB_ALTER_USER_TAGS) {
           SStrToken* pTags = &pUser->tags;
-          if (pTags->n < 4) return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
+          if (pTags->n > TSDB_TAGS_LEN - 1 ) return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg8);
         } else {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
         }
