@@ -439,3 +439,8 @@ FREE:
   taosFreeQitem(pBlock);
   return code;
 }
+
+int32_t streamDispatchRecoverFinishReq(SStreamTask* pTask) {
+  //
+  return 0;
+}

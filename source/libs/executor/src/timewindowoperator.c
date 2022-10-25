@@ -1776,11 +1776,11 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPh
   }
 
   SInterval interval = {.interval = pPhyNode->interval,
-      .sliding = pPhyNode->sliding,
-      .intervalUnit = pPhyNode->intervalUnit,
-      .slidingUnit = pPhyNode->slidingUnit,
-      .offset = pPhyNode->offset,
-      .precision = ((SColumnNode*)pPhyNode->window.pTspk)->node.resType.precision};
+                        .sliding = pPhyNode->sliding,
+                        .intervalUnit = pPhyNode->intervalUnit,
+                        .slidingUnit = pPhyNode->slidingUnit,
+                        .offset = pPhyNode->offset,
+                        .precision = ((SColumnNode*)pPhyNode->window.pTspk)->node.resType.precision};
 
   STimeWindowAggSupp as = {
       .waterMark = pPhyNode->window.watermark,
@@ -4235,6 +4235,13 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
       .minTs = INT64_MAX,
   };
 
+  if (pTaskInfo->streamInfo.fillHistoryVer1 != -1) {
+    pTaskInfo->streamInfo.triggerSaved = pInfo->twAggSup.calTrigger;
+    pTaskInfo->streamInfo.deleteMarkSaved = pInfo->twAggSup.deleteMark;
+    pInfo->twAggSup.calTrigger = STREAM_TRIGGER_AT_ONCE;
+    pInfo->twAggSup.deleteMark = INT64_MAX;
+  }
+
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
 
   pInfo->primaryTsIndex = ((SColumnNode*)pSessionNode->window.pTspk)->slotId;
@@ -4741,6 +4748,14 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
       .maxTs = INT64_MIN,
       .minTs = INT64_MAX,
   };
+
+  if (pTaskInfo->streamInfo.fillHistoryVer1 != -1) {
+    pTaskInfo->streamInfo.triggerSaved = pInfo->twAggSup.calTrigger;
+    pTaskInfo->streamInfo.deleteMarkSaved = pInfo->twAggSup.deleteMark;
+    pInfo->twAggSup.calTrigger = STREAM_TRIGGER_AT_ONCE;
+    pInfo->twAggSup.deleteMark = INT64_MAX;
+  }
+
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
 
   SExprSupp*   pSup = &pOperator->exprSupp;
@@ -5530,6 +5545,14 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   };
 
   ASSERT(twAggSupp.calTrigger != STREAM_TRIGGER_MAX_DELAY);
+
+  if (pTaskInfo->streamInfo.fillHistoryVer1 != -1) {
+    pTaskInfo->streamInfo.triggerSaved = twAggSupp.calTrigger;
+    pTaskInfo->streamInfo.deleteMarkSaved = twAggSupp.deleteMark;
+    twAggSupp.calTrigger = STREAM_TRIGGER_AT_ONCE;
+    twAggSupp.deleteMark = INT64_MAX;
+  }
+
   pOperator->pTaskInfo = pTaskInfo;
   pInfo->interval = interval;
   pInfo->twAggSup = twAggSupp;

@@ -1770,11 +1770,17 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
 #endif
 
 #if 1
-  if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE) {
+  if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE1 ||
+      pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE2) {
     STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
     memcpy(&pTSInfo->cond, &pTaskInfo->streamInfo.tableCond, sizeof(SQueryTableDataCond));
-    pTSInfo->cond.startVersion = -1;
-    pTSInfo->cond.endVersion = pTaskInfo->streamInfo.fillHistoryVer1;
+    if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE1) {
+      pTSInfo->cond.startVersion = -1;
+      pTSInfo->cond.endVersion = pTaskInfo->streamInfo.fillHistoryVer1;
+    } else {
+      pTSInfo->cond.startVersion = pTaskInfo->streamInfo.fillHistoryVer1 + 1;
+      pTSInfo->cond.endVersion = pTaskInfo->streamInfo.fillHistoryVer2;
+    }
     pTSInfo->scanTimes = 0;
     pTSInfo->currentGroupId = -1;
     pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__SCAN;
@@ -2286,7 +2292,8 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
       pTSInfo->scanMode = TABLE_SCAN__TABLE_ORDER;
       pTSInfo->dataReader = NULL;
       if (tsdbReaderOpen(pHandle->vnode, &pTSInfo->cond, tableList, &pTSInfo->dataReader, NULL) < 0) {
-        ASSERT(0);
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        goto _error;
       }
     }
 
@@ -2322,6 +2329,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
   } else {
     taosArrayDestroy(pColIds);
   }
+  pTaskInfo->streamInfo.fillHistoryVer1 = pHandle->fillHistoryVer1;
 
   // create the pseduo columns info
   if (pTableScanNode->scan.pScanPseudoCols != NULL) {

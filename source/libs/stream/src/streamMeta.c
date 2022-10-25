@@ -17,7 +17,7 @@
 #include "streamInc.h"
 #include "ttimer.h"
 
-SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc) {
+SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId) {
   SStreamMeta* pMeta = taosMemoryCalloc(1, sizeof(SStreamMeta));
   if (pMeta == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -86,7 +86,8 @@ void streamMetaClose(SStreamMeta* pMeta) {
   taosMemoryFree(pMeta);
 }
 
-int32_t streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t startVer, char* msg, int32_t msgLen) {
+#if 0
+int32_t streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t ver, char* msg, int32_t msgLen) {
   SStreamTask* pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
   if (pTask == NULL) {
     return -1;
@@ -99,7 +100,7 @@ int32_t streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t startVer, char* 
   }
   tDecoderClear(&decoder);
 
-  if (pMeta->expandFunc(pMeta->ahandle, pTask) < 0) {
+  if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
     ASSERT(0);
     goto FAIL;
   }
@@ -114,26 +115,20 @@ int32_t streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t startVer, char* 
     goto FAIL;
   }
 
-  if (pTask->fillHistory) {
-    // pipeline exec
-    // if finished, dispatch a stream-prepare-finished msg to downstream task
-    // set status normal
-  }
-
   return 0;
 
 FAIL:
   if (pTask) tFreeSStreamTask(pTask);
   return -1;
 }
+#endif
 
-#if 0
-int32_t streamMetaAddTask(SStreamMeta* pMeta, SStreamTask* pTask) {
+#if 1
+int32_t streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask) {
   void* buf = NULL;
-  if (pMeta->expandFunc(pMeta->ahandle, pTask) < 0) {
+  if (pMeta->expandFunc(pMeta->ahandle, pTask, ver) < 0) {
     return -1;
   }
-  taosHashPut(pMeta->pTasks, &pTask->taskId, sizeof(int32_t), &pTask, sizeof(void*));
 
   int32_t len;
   int32_t code;
@@ -149,11 +144,14 @@ int32_t streamMetaAddTask(SStreamMeta* pMeta, SStreamTask* pTask) {
   SEncoder encoder;
   tEncoderInit(&encoder, buf, len);
   tEncodeSStreamTask(&encoder, pTask);
+  tEncoderClear(&encoder);
 
   if (tdbTbUpsert(pMeta->pTaskDb, &pTask->taskId, sizeof(int32_t), buf, len, &pMeta->txn) < 0) {
     ASSERT(0);
     return -1;
   }
+
+  taosHashPut(pMeta->pTasks, &pTask->taskId, sizeof(int32_t), &pTask, sizeof(void*));
 
   return 0;
 }
@@ -269,7 +267,7 @@ int32_t streamLoadTasks(SStreamMeta* pMeta) {
     tDecodeSStreamTask(&decoder, pTask);
     tDecoderClear(&decoder);
 
-    if (pMeta->expandFunc(pMeta->ahandle, pTask) < 0) {
+    if (pMeta->expandFunc(pMeta->ahandle, pTask, -1) < 0) {
       tdbFree(pKey);
       tdbFree(pVal);
       tdbTbcClose(pCur);

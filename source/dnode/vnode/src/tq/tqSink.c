@@ -530,6 +530,7 @@ void tqSinkToTablePipeline(SStreamTask* pTask, void* vnode, int64_t ver, void* d
   taosArrayDestroy(tagArray);
 }
 
+#if 0
 void tqSinkToTableMerge(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
   const SArray*   pRes = (const SArray*)data;
   SVnode*         pVnode = (SVnode*)vnode;
@@ -585,3 +586,4 @@ void tqSinkToTableMerge(SStreamTask* pTask, void* vnode, int64_t ver, void* data
     tqDebug("failed to put into write-queue since %s", terrstr());
   }
 }
+#endif

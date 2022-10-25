@@ -53,7 +53,8 @@ typedef struct {
 
   void* sContext;  // SSnapContext*
 
-  void* pStateBackend;
+  void*   pStateBackend;
+  int64_t fillHistoryVer1;
 } SReadHandle;
 
 // in queue mode, data streams are seperated by msg
@@ -176,6 +177,7 @@ int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len);
 
 int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t len);
 
+STimeWindow getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key);
 /**
  * return the scan info, in the form of tuple of two items, including table uid and current timestamp
  * @param tinfo
@@ -207,9 +209,11 @@ int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
 
 int32_t qStreamInput(qTaskInfo_t tinfo, void* pItem);
 
-int32_t qStreamPrepareRecover(qTaskInfo_t tinfo, int64_t startVer, int64_t endVer);
-
-STimeWindow getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key);
+int32_t qStreamSetParamForRecover(qTaskInfo_t tinfo);
+int32_t qStreamSourceRecoverStep1(qTaskInfo_t tinfo, int64_t ver);
+int32_t qStreamSourceRecoverStep2(qTaskInfo_t tinfo, int64_t ver);
+int32_t qStreamRecoverFinish(qTaskInfo_t tinfo);
+int32_t qStreamRestoreParam(qTaskInfo_t tinfo);
 
 #ifdef __cplusplus
 }
