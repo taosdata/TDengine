@@ -1531,7 +1531,6 @@ static SSmlHandle *smlBuildSmlInfo(STscObj *pTscObj, SRequestObj *request, SMLPr
     uError("SML:0x%" PRIx64 " create info->pQuery->pRoot error", info->id);
     goto cleanup;
   }
-  ((SVnodeModifOpStmt *)(info->pQuery->pRoot))->payloadType = PAYLOAD_TYPE_KV;
 
   if (pTscObj) {
     info->taos = pTscObj;
