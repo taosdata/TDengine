@@ -1515,15 +1515,21 @@ static int32_t sclGetMathOperatorResType(SOperatorNode *pOp) {
 }
 
 static int32_t sclGetCompOperatorResType(SOperatorNode *pOp) {
-  if (pOp == NULL || pOp->pLeft == NULL || pOp->pRight == NULL) {
+  if (pOp == NULL || pOp->pLeft == NULL) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
   SDataType ldt = ((SExprNode *)(pOp->pLeft))->resType;
 
   if (OP_TYPE_IN == pOp->opType || OP_TYPE_NOT_IN == pOp->opType) {
+    if (pOp->pRight == NULL) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
     ((SExprNode *)(pOp->pRight))->resType = ldt;
   } else if (nodesIsRegularOp(pOp)) {
+    if (pOp->pRight == NULL) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
     SDataType rdt = ((SExprNode *)(pOp->pRight))->resType;
     if (!IS_VAR_DATA_TYPE(ldt.type) || QUERY_NODE_VALUE != nodeType(pOp->pRight) ||
         (!IS_STR_DATA_TYPE(rdt.type) && (rdt.type != TSDB_DATA_TYPE_NULL))) {
