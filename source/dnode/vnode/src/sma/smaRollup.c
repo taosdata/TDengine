@@ -697,7 +697,7 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
 #if 0
     char flag[10] = {0};
     snprintf(flag, 10, "level %" PRIi8, pItem->level);
-    blockDebugShowDataBlocks(pResList, true, flag);
+    blockDebugShowDataBlocks(pResList, flag);
 #endif
     for (int32_t i = 0; i < taosArrayGetSize(pResList); ++i) {
       SSDataBlock *output = taosArrayGetP(pResList, i);
