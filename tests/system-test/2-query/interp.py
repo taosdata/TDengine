@@ -915,8 +915,8 @@ class TDTestCase:
         tdSql.query(f"select interp(c0) from {dbname}.{ctbname1} range('2020-02-01 00:00:04', '2020-02-01 00:00:16') every(1s) fill(null)")
         tdSql.checkRows(13)
 
-        tdSql.query(f"select interp(c0) from {dbname}.{stbname} range('2020-02-01 00:00:04', '2020-02-02 00:00:16') partition by tbname every(1s) fill(null)")
-        tdSql.checkRows(13)
+        #tdSql.query(f"select interp(c0) from {dbname}.{stbname} partition by tbname range('2020-02-01 00:00:04', '2020-02-02 00:00:16') every(1s) fill(null)")
+        #tdSql.checkRows(13)
 
         #tdSql.query(f"select _irowts,interp(c0) from {dbname}.{stbname} partition by tbname range('2020-02-01 00:00:04', '2020-02-02 00:00:16') every(1h) fill(prev)")
         #tdSql.query(f"select tbname,_irowts,interp(c0) from {dbname}.{stbname} partition by tbname range('2020-02-01 00:00:04', '2020-02-02 00:00:16') every(1h) fill(prev)")
