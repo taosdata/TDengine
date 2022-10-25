@@ -980,13 +980,13 @@ int32_t udfdDeinitResidentFuncs() {
     char* funcName = taosArrayGet(global.residentFuncs, i);
     SUdf** udfInHash =  taosHashGet(global.udfsHash, funcName, strlen(funcName));
     if (udfInHash) {
-      taosHashRemove(global.udfsHash, funcName, strlen(funcName));
       SUdf* udf = *udfInHash;
       if (udf->destroyFunc) {
         (udf->destroyFunc)();
       }
       uv_dlclose(&udf->lib);
       taosMemoryFree(udf);
+      taosHashRemove(global.udfsHash, funcName, strlen(funcName));
     }
   }
   taosArrayDestroy(global.residentFuncs);
