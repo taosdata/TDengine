@@ -25,7 +25,7 @@ IF (NOT EXISTS ${TD_SOURCE_DIR}/community/source)
 ENDIF ()
 
 # grant-lib
-IF ((NOT BUILD_WITH_CFG_GRANTS) AND (NOT EXISTS ${TD_SOURCE_DIR}/enterprise/contrib/grant-lib))
+IF (NOT BUILD_WITH_CFG_GRANTS)
         cat("${TD_SOURCE_DIR}/enterprise/cmake/grant-lib_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
 ENDIF ()
 
