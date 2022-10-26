@@ -694,25 +694,7 @@ class TDTestCase:
         tdSql.query(f"select cast('123' as tinyint unsigned) as b from {self.dbname}.stb1 partition by tbname")
 
         # uion with cast and common cols
-
-        '''
-        desc stb1 
-                            field              |         type         |   length    |   note   |
-        =================================================================================
-        ts                             | TIMESTAMP            |           8 |          |
-        c1                             | INT                  |           4 |          |
-        c2                             | BIGINT               |           8 |          |
-        c3                             | SMALLINT             |           2 |          |
-        c4                             | TINYINT              |           1 |          |
-        c5                             | FLOAT                |           4 |          |
-        c6                             | DOUBLE               |           8 |          |
-        c7                             | BOOL                 |           1 |          |
-        c8                             | VARCHAR              |          16 |          |
-        c9                             | NCHAR                |          32 |          |
-        c10                            | TIMESTAMP            |           8 |          |
-        t1                             | INT                  |           4 | TAG      |
-        '''
-
+        
         tdSql.query(f"select cast(c2 as int) as b from {self.dbname}.stb1 union all select c1 from {self.dbname}.stb1 ")
         tdSql.query(f"select cast(c3 as bool) as b from {self.dbname}.stb1 union all select c7 from {self.dbname}.ct1 ")
         tdSql.query(f"select cast(c4 as tinyint) as b from {self.dbname}.stb1 union all select c4 from {self.dbname}.stb1")
