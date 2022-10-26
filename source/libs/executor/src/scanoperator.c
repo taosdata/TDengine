@@ -845,7 +845,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
 
   if (pInfo->pFilterNode != NULL) {
     code = filterInitFromNode((SNode*)pInfo->pFilterNode, &pOperator->exprSupp.pFilterInfo, 0);
-    if (code != TSDB_CODE_OUT_OF_MEMORY) {
+    if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
   }
@@ -870,10 +870,12 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   return pOperator;
 
 _error:
-  taosMemoryFreeClear(pInfo);
-  taosMemoryFreeClear(pOperator);
+  if (pInfo != NULL) {
+    destroyTableScanOperatorInfo(pInfo);
+  }
 
-  pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+  taosMemoryFreeClear(pOperator);
+  pTaskInfo->code = code;
   return NULL;
 }
 
