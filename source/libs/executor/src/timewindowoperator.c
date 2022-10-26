@@ -1541,7 +1541,8 @@ static void deleteIntervalDiscBuf(SStreamState* pState, SHashObj* pPullDataMap, 
     }
   }
 
-  if (qDebugFlag & DEBUG_DEBUG) {
+  // for debug
+  if (qDebugFlag & DEBUG_DEBUG && mark > 0) {
     SStreamStateCur* pCur = streamStateGetCur(pState, key);
     int32_t          code = streamStateCurPrev(pState, pCur);
     if (code == TSDB_CODE_SUCCESS) {

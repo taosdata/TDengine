@@ -85,3 +85,4 @@ echo statusInterval         1                  >> %TAOS_CFG%
 echo asyncLog               0                  >> %TAOS_CFG%
 echo locale                 en_US.UTF-8        >> %TAOS_CFG%
 echo telemetryReporting     0                  >> %TAOS_CFG%
+echo querySmaOptimize       1                  >> %TAOS_CFG%

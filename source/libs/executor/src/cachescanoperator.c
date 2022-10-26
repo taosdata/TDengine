@@ -279,7 +279,7 @@ int32_t removeRedundantTsCol(SLastRowScanPhysiNode* pScanNode, SColMatchInfo* pC
   }
 
   size_t size = taosArrayGetSize(pColMatchInfo->pList);
-  SArray* pMatchInfo = taosArrayInit(size, sizeof(SColMatchInfo));
+  SArray* pMatchInfo = taosArrayInit(size, sizeof(SColMatchItem));
 
   for (int32_t i = 0; i < size; ++i) {
     SColMatchItem* pColInfo = taosArrayGet(pColMatchInfo->pList, i);

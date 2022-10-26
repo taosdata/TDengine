@@ -50,11 +50,11 @@
 # unsupport ./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica1.sim
 # unsupport ./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica3.sim
 ./test.sh -f tsim/dnode/offline_reason.sim
-# unsupport ./test.sh -f tsim/dnode/redistribute_vgroup_replica1.sim
-# unsupport ./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v1_leader.sim
-# unsupport ./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v1_follower.sim
-# unsupport ./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v2.sim
-# unsupport ./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v3.sim
+./test.sh -f tsim/dnode/redistribute_vgroup_replica1.sim
+./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v1_leader.sim
+./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v1_follower.sim
+./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v2.sim
+./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v3.sim
 # unsupport ./test.sh -f tsim/dnode/vnode_clean.sim
 ./test.sh -f tsim/dnode/use_dropped_dnode.sim 
 
