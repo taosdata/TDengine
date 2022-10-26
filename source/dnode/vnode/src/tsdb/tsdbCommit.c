@@ -1506,7 +1506,7 @@ static int32_t tsdbCommitTableData(SCommitter *pCommitter, TABLEID id) {
         TSDB_CHECK_CODE(code, lino, _exit);
       }
 #else
-      if (pCommitter->dWriter.bData.nRow >= pCommitter->maxRow) {
+      if (pCommitter->dWriter.bDatal.nRow >= pCommitter->maxRow) {
         code = tsdbWriteSttBlock(pCommitter->dWriter.pWriter, &pCommitter->dWriter.bDatal, pCommitter->dWriter.aSttBlk,
                                  pCommitter->cmprAlg);
         TSDB_CHECK_CODE(code, lino, _exit);

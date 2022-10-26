@@ -113,10 +113,8 @@ int32_t syncNodeOnTimer(SSyncNode* ths, SyncTimeout* pMsg) {
     }
 
   } else if (pMsg->timeoutType == SYNC_TIMEOUT_ELECTION) {
-    if (atomic_load_64(&ths->electTimerLogicClockUser) <= pMsg->logicClock) {
+    if (atomic_load_64(&ths->electTimerLogicClock) <= pMsg->logicClock) {
       ++(ths->electTimerCounter);
-      sTrace("vgId:%d, sync timer, type:election count:%" PRIu64 ", lc-user:%" PRIu64, ths->vgId,
-             ths->electTimerCounter, ths->electTimerLogicClockUser);
 
       syncNodeElect(ths);
     }
