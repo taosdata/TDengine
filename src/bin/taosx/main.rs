@@ -1,4 +1,4 @@
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 use clap::{Parser, Subcommand};
 use log::Level;
 use pretty_env_logger::env_logger::fmt::{Color, StyledValue};
@@ -64,46 +64,47 @@ async fn main() -> Result<()> {
     let debug = args.globals.debug;
     builder
         .format_module_path(true)
-        .format(move |buf, record| -> std::result::Result<(), std::io::Error> {
-            fn colored_level<'a>(
-                style: &'a mut pretty_env_logger::env_logger::fmt::Style,
-                level: Level,
-            ) -> StyledValue<'a, &'static str> {
-                match level {
-                    Level::Trace => style.set_color(Color::Magenta).value("TRACE"),
-                    Level::Debug => style.set_color(Color::Blue).value("DEBUG"),
-                    Level::Info => style.set_color(Color::Green).value("INFO"),
-                    Level::Warn => style.set_color(Color::Yellow).value("WARN "),
-                    Level::Error => style.set_color(Color::Red).value("ERROR"),
+        .format(
+            move |buf, record| -> std::result::Result<(), std::io::Error> {
+                fn colored_level<'a>(
+                    style: &'a mut pretty_env_logger::env_logger::fmt::Style,
+                    level: Level,
+                ) -> StyledValue<'a, &'static str> {
+                    match level {
+                        Level::Trace => style.set_color(Color::Magenta).value("TRACE"),
+                        Level::Debug => style.set_color(Color::Blue).value("DEBUG"),
+                        Level::Info => style.set_color(Color::Green).value("INFO"),
+                        Level::Warn => style.set_color(Color::Yellow).value("WARN "),
+                        Level::Error => style.set_color(Color::Red).value("ERROR"),
+                    }
                 }
-            }
-            let mut style = buf.style();
-            let level = colored_level(&mut style, record.level());
-            let mut mod_path = buf.style();
+                let mut style = buf.style();
+                let level = colored_level(&mut style, record.level());
+                let mut mod_path = buf.style();
 
-            let mod_path = if debug {
-                mod_path.set_bold(true).value(format!(
-                    "{}:{}",
-                    record.file().unwrap_or("unknown"),
-                    record.line().unwrap_or(0),
-                ))
-            } else {
-                mod_path.set_bold(true).value(format!(
-                    "{}",
-                    record.module_path().unwrap_or_default(),
-                ))
-            };
+                let mod_path = if debug {
+                    mod_path.set_bold(true).value(format!(
+                        "{}:{}",
+                        record.file().unwrap_or("unknown"),
+                        record.line().unwrap_or(0),
+                    ))
+                } else {
+                    mod_path
+                        .set_bold(true)
+                        .value(format!("{}", record.module_path().unwrap_or_default(),))
+                };
 
-            use std::io::Write;
-            writeln!(
-                buf,
-                "[{:29}] {: <5} {} > {}",
-                chrono::Local::now().to_rfc3339_opts(chrono::SecondsFormat::Nanos, true),
-                level,
-                mod_path,
-                record.args()
-            )
-        })
+                use std::io::Write;
+                writeln!(
+                    buf,
+                    "[{:29}] {: <5} {} > {}",
+                    chrono::Local::now().to_rfc3339_opts(chrono::SecondsFormat::Nanos, true),
+                    level,
+                    mod_path,
+                    record.args()
+                )
+            },
+        )
         .init();
     if let Some(cmd) = args.commands {
         match cmd {

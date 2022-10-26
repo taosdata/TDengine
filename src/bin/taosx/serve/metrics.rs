@@ -1,7 +1,7 @@
 use actix_web::{get, Responder};
 use metrics::{describe_gauge, gauge, register_gauge};
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle, PrometheusRecorder};
-use std::{collections::HashSet,  time::Duration};
+use std::{collections::HashSet, time::Duration};
 
 #[derive(Debug, Default)]
 pub struct Metrics {

@@ -203,11 +203,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                         {
                             Ok(Some((_, sql))) => Some(sql),
                             Err(err) => {
-                                log::warn!(
-                                    "SHOW CREATE DATABASE `{}` error: {}",
-                                    database,
-                                    err
-                                );
+                                log::warn!("SHOW CREATE DATABASE `{}` error: {}", database, err);
                                 None
                             }
                             _ => unreachable!(),
@@ -342,11 +338,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                         {
                             Ok(Some((_, sql))) => Some(sql),
                             Err(err) => {
-                                log::warn!(
-                                    "SHOW CREATE DATABASE `{}` error: {}",
-                                    database,
-                                    err
-                                );
+                                log::warn!("SHOW CREATE DATABASE `{}` error: {}", database, err);
                                 None
                             }
                             _ => unreachable!(),
