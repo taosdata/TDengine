@@ -175,7 +175,7 @@ def pre_test_build_mac() {
         cd ${WK}/debug
         cmake .. -DBUILD_TEST=true
         make -j10
-        ctest  || exit 7
+        ctest -j10 || exit 7
     '''
     sh '''
         date
