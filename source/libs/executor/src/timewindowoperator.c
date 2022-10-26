@@ -2324,9 +2324,6 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
           genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock);
           pSliceInfo->current =
               taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
-          if (pResBlock->info.rows >= pResBlock->info.capacity) {
-            break;
-          }
         }
       }
 
@@ -2336,6 +2333,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
       }
 
       if (ts == pSliceInfo->current) {
+        blockDataEnsureCapacity(pResBlock, pResBlock->info.rows + 1);
         for (int32_t j = 0; j < pOperator->exprSupp.numOfExprs; ++j) {
           SExprInfo* pExprInfo = &pOperator->exprSupp.pExprInfo[j];
 
@@ -2376,9 +2374,6 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
                 genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock);
                 pSliceInfo->current = taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit,
                                                   pInterval->precision);
-                if (pResBlock->info.rows >= pResBlock->info.capacity) {
-                  break;
-                }
               }
 
               if (pSliceInfo->current > pSliceInfo->win.ekey) {
@@ -2395,10 +2390,6 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
               taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
           if (pSliceInfo->current > pSliceInfo->win.ekey) {
             doSetOperatorCompleted(pOperator);
-            break;
-          }
-
-          if (pResBlock->info.rows >= pResBlock->info.capacity) {
             break;
           }
         }
@@ -2418,9 +2409,6 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
                 genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock);
                 pSliceInfo->current = taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit,
                                                   pInterval->precision);
-                if (pResBlock->info.rows >= pResBlock->info.capacity) {
-                  break;
-                }
               }
 
               if (pSliceInfo->current > pSliceInfo->win.ekey) {
@@ -2442,9 +2430,6 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
                 genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock);
                 pSliceInfo->current = taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit,
                                                   pInterval->precision);
-                if (pResBlock->info.rows >= pResBlock->info.capacity) {
-                  break;
-                }
               }
 
               if (pSliceInfo->current > pSliceInfo->win.ekey) {
@@ -2466,13 +2451,11 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
           genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock);
           pSliceInfo->current =
               taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
-          if (pResBlock->info.rows >= pResBlock->info.capacity) {
-            break;
-          }
         }
 
         // add current row if timestamp match
         if (ts == pSliceInfo->current && pSliceInfo->current <= pSliceInfo->win.ekey) {
+          blockDataEnsureCapacity(pResBlock, pResBlock->info.rows + 1);
           for (int32_t j = 0; j < pOperator->exprSupp.numOfExprs; ++j) {
             SExprInfo* pExprInfo = &pOperator->exprSupp.pExprInfo[j];
 
@@ -2509,9 +2492,6 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
                   genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock);
                   pSliceInfo->current = taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit,
                                                     pInterval->precision);
-                  if (pResBlock->info.rows >= pResBlock->info.capacity) {
-                    break;
-                  }
                 }
 
                 if (pSliceInfo->current > pSliceInfo->win.ekey) {
@@ -2527,9 +2507,6 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
             pSliceInfo->current =
                 taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
 
-            if (pResBlock->info.rows >= pResBlock->info.capacity) {
-              break;
-            }
           }
         }
 
@@ -2548,9 +2525,6 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
     genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock);
     pSliceInfo->current =
         taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
-    if (pResBlock->info.rows >= pResBlock->info.capacity) {
-      break;
-    }
   }
 
   // restore the value
