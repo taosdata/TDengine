@@ -448,11 +448,10 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
   relocateColumnData(pBlock, pTableScanInfo->matchInfo.pList, pCols, true);
   doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo);
 
+  // restore the previous value
+  pCost->totalRows -= pBlock->info.rows;
+
   if (pTableScanInfo->pFilterNode != NULL) {
-
-    // restore the previous value
-    pCost->totalRows -= pBlock->info.rows;
-
     int64_t st = taosGetTimestampUs();
     doFilter(pTableScanInfo->pFilterNode, pBlock, &pTableScanInfo->matchInfo, pOperator->exprSupp.pFilterInfo);
 
@@ -466,16 +465,24 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
     } else {
       qDebug("%s data block filter applied, elapsed time:%.2f ms", GET_TASKID(pTaskInfo), el);
     }
-
-    pCost->totalRows += pBlock->info.rows;
   }
 
-  pInfo->limitInfo.numOfOutputRows = pCost->totalRows;
   SLimit* pLimit = &pInfo->limitInfo.limit;
 
-  if (pLimit->limit != -1 && pLimit->limit < pInfo->limitInfo.numOfOutputRows && pBlock->info.rows > 0) {
+  if (pLimit->offset > 0 && pInfo->limitInfo.remainOffset > 0) {
+    if (pInfo->limitInfo.remainOffset >= pBlock->info.rows) {
+      pInfo->limitInfo.remainOffset -= pBlock->info.rows;
+      pBlock->info.rows = 0;
+      qDebug("current block ignore due to offset, current:%"PRId64", %s", pInfo->limitInfo.remainOffset, GET_TASKID(pTaskInfo));
+    } else {
+      blockDataTrimFirstNRows(pBlock, pInfo->limitInfo.remainOffset);
+      pInfo->limitInfo.remainOffset = 0;
+    }
+  }
+
+  if (pLimit->limit != -1 && pLimit->limit <= (pInfo->limitInfo.numOfOutputRows + pBlock->info.rows)) {
     // limit the output rows
-    int32_t overflowRows = pInfo->limitInfo.numOfOutputRows - pLimit->limit;
+    int32_t overflowRows = pInfo->limitInfo.numOfOutputRows + pBlock->info.rows - pLimit->limit;
     int32_t keep = pBlock->info.rows - overflowRows;
 
     blockDataKeepFirstNRows(pBlock, keep);
@@ -484,6 +491,8 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
     pOperator->status = OP_EXEC_DONE;
   }
 
+  pCost->totalRows += pBlock->info.rows;
+  pInfo->limitInfo.numOfOutputRows = pCost->totalRows;
   return TSDB_CODE_SUCCESS;
 }
 
