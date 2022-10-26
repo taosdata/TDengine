@@ -47,7 +47,9 @@ enum {
   TASK_STATUS__FAIL,
   TASK_STATUS__STOP,
   TASK_STATUS__RECOVER_DOWNSTREAM,
-  TASK_STATUS__RECOVER_SELF,
+  TASK_STATUS__RECOVER_PREPARE,
+  TASK_STATUS__RECOVER1,
+  TASK_STATUS__RECOVER2,
 };
 
 enum {
@@ -329,6 +331,9 @@ typedef struct SStreamTask {
   // state backend
   SStreamState* pState;
 
+  // do not serialize
+  int32_t recoverWaitingChild;
+
 } SStreamTask;
 
 int32_t tEncodeStreamEpInfo(SEncoder* pEncoder, const SStreamChildEpInfo* pInfo);
@@ -435,6 +440,20 @@ typedef struct {
   int32_t rspToTaskId;
 } SStreamRetrieveRsp;
 
+typedef struct {
+  int64_t streamId;
+  int32_t taskId;
+} SStreamRecoverStep1Req, SStreamRecoverStep2Req;
+
+typedef struct {
+  int64_t streamId;
+  int32_t taskId;
+  int32_t childId;
+} SStreamRecoverFinishReq;
+
+int32_t tEncodeSStreamRecoverFinishReq(SEncoder* pEncoder, const SStreamRecoverFinishReq* pReq);
+int32_t tDecodeSStreamRecoverFinishReq(SDecoder* pDecoder, SStreamRecoverFinishReq* pReq);
+
 #if 0
 typedef struct {
   int64_t streamId;
@@ -521,8 +540,29 @@ int32_t streamProcessRetrieveRsp(SStreamTask* pTask, SStreamRetrieveRsp* pRsp);
 int32_t streamTryExec(SStreamTask* pTask);
 int32_t streamSchedExec(SStreamTask* pTask);
 
-typedef int32_t FTaskExpand(void* ahandle, SStreamTask* pTask);
+int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz);
 
+// recover and fill history
+// common
+int32_t streamSetParamForRecover(SStreamTask* pTask);
+int32_t streamRestoreParam(SStreamTask* pTask);
+int32_t streamSetStatusNormal(SStreamTask* pTask);
+// source level
+int32_t streamSourceRecoverPrepareStep1(SStreamTask* pTask, int64_t ver);
+int32_t streamBuildSourceRecover1Req(SStreamTask* pTask, SStreamRecoverStep1Req* pReq);
+int32_t streamSourceRecoverScanStep1(SStreamTask* pTask);
+int32_t streamBuildSourceRecover2Req(SStreamTask* pTask, SStreamRecoverStep2Req* pReq);
+int32_t streamSourceRecoverScanStep2(SStreamTask* pTask, int64_t ver);
+int32_t streamDispatchRecoverFinishReq(SStreamTask* pTask);
+// agg level
+int32_t streamAggRecoverPrepare(SStreamTask* pTask);
+// int32_t streamAggChildrenRecoverFinish(SStreamTask* pTask);
+int32_t streamProcessRecoverFinishReq(SStreamTask* pTask, int32_t childId);
+
+// expand and deploy
+typedef int32_t FTaskExpand(void* ahandle, SStreamTask* pTask, int64_t ver);
+
+// meta
 typedef struct SStreamMeta {
   char*        path;
   TDB*         db;
@@ -533,12 +573,13 @@ typedef struct SStreamMeta {
   void*        ahandle;
   TXN          txn;
   FTaskExpand* expandFunc;
+  int32_t      vgId;
 } SStreamMeta;
 
-SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc);
+SStreamMeta* streamMetaOpen(const char* path, void* ahandle, FTaskExpand expandFunc, int32_t vgId);
 void         streamMetaClose(SStreamMeta* streamMeta);
 
-// int32_t      streamMetaAddTask(SStreamMeta* pMeta, SStreamTask* pTask);
+int32_t      streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask);
 int32_t      streamMetaAddSerializedTask(SStreamMeta* pMeta, int64_t startVer, char* msg, int32_t msgLen);
 int32_t      streamMetaRemoveTask(SStreamMeta* pMeta, int32_t taskId);
 SStreamTask* streamMetaGetTask(SStreamMeta* pMeta, int32_t taskId);

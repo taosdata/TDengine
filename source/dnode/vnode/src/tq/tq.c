@@ -98,7 +98,7 @@ STQ* tqOpen(const char* path, SVnode* pVnode) {
     ASSERT(0);
   }
 
-  pTq->pStreamMeta = streamMetaOpen(path, pTq, (FTaskExpand*)tqExpandTask);
+  pTq->pStreamMeta = streamMetaOpen(path, pTq, (FTaskExpand*)tqExpandTask, pTq->pVnode->config.vgId);
   if (pTq->pStreamMeta == NULL) {
     ASSERT(0);
   }
@@ -872,7 +872,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLe
   return 0;
 }
 
-int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask) {
+int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
   if (pTask->taskLevel == TASK_LEVEL__AGG) {
     ASSERT(taosArrayGetSize(pTask->childEpInfo) != 0);
   }
@@ -891,6 +891,8 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask) {
 
   pTask->pMsgCb = &pTq->pVnode->msgCb;
 
+  pTask->startVer = ver;
+
   // expand executor
   if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
     pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false, -1, -1);
@@ -906,6 +908,10 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask) {
     };
     pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);
     ASSERT(pTask->exec.executor);
+
+    if (pTask->fillHistory) {
+      pTask->taskStatus = TASK_STATUS__RECOVER_PREPARE;
+    }
   } else if (pTask->taskLevel == TASK_LEVEL__AGG) {
     pTask->pState = streamStateOpen(pTq->pStreamMeta->path, pTask, false, -1, -1);
     if (pTask->pState == NULL) {
@@ -945,8 +951,163 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask) {
 }
 
 int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen) {
-  //
-  return streamMetaAddSerializedTask(pTq->pStreamMeta, version, msg, msgLen);
+  int32_t code;
+#if 0
+  code = streamMetaAddSerializedTask(pTq->pStreamMeta, version, msg, msgLen);
+  if (code < 0) return code;
+#endif
+
+  // 1.deserialize msg and build task
+  SStreamTask* pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
+  if (pTask == NULL) {
+    return -1;
+  }
+  SDecoder decoder;
+  tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
+  code = tDecodeSStreamTask(&decoder, pTask);
+  if (code < 0) {
+    tDecoderClear(&decoder);
+    taosMemoryFree(pTask);
+    return -1;
+  }
+  tDecoderClear(&decoder);
+
+  // 2.save task
+  code = streamMetaAddTask(pTq->pStreamMeta, version, pTask);
+  if (code < 0) {
+    return -1;
+  }
+
+  // 3.go through recover steps to fill history
+  if (pTask->fillHistory) {
+    streamSetParamForRecover(pTask);
+    if (pTask->taskLevel == TASK_LEVEL__SOURCE) {
+      streamSourceRecoverPrepareStep1(pTask, version);
+
+      SStreamRecoverStep1Req req;
+      streamBuildSourceRecover1Req(pTask, &req);
+
+      void*   serialziedReq = (void*)&req;
+      int32_t len = sizeof(SStreamRecoverStep1Req);
+
+      SRpcMsg rpcMsg = {
+          .contLen = len,
+          .pCont = serialziedReq,
+          .msgType = TDMT_VND_STREAM_RECOVER_STEP1,
+      };
+
+      tmsgPutToQueue(&pTq->pVnode->msgCb, STREAM_QUEUE, &rpcMsg);
+
+    } else if (pTask->taskLevel == TASK_LEVEL__AGG) {
+      streamAggRecoverPrepare(pTask);
+    } else if (pTask->taskLevel == TASK_LEVEL__SINK) {
+      // do nothing
+    }
+  }
+
+  return 0;
+}
+
+int32_t tqProcessTaskRecover1Req(STQ* pTq, char* msg, int32_t msgLen) {
+  int32_t                 code;
+  SStreamRecoverStep1Req* pReq = (SStreamRecoverStep1Req*)msg;
+  SStreamTask*            pTask = streamMetaGetTask(pTq->pStreamMeta, pReq->taskId);
+  if (pTask == NULL) {
+    return -1;
+  }
+
+  // check param
+  int64_t fillVer1 = pTask->startVer;
+  if (fillVer1 <= 0) {
+    ASSERT(0);
+    return -1;
+  }
+
+  // do recovery step 1
+  streamSourceRecoverScanStep1(pTask);
+
+  // build msg to launch next step
+  SStreamRecoverStep2Req req;
+  code = streamBuildSourceRecover2Req(pTask, &req);
+  if (code < 0) {
+    return -1;
+  }
+
+  // serialize msg
+  int32_t len = sizeof(SStreamRecoverStep2Req);
+  void*   serializedReq = (void*)&req;
+
+  // dispatch msg
+  SRpcMsg rpcMsg = {
+      .code = 0,
+      .contLen = len,
+      .msgType = TDMT_VND_STREAM_RECOVER_STEP2,
+      .pCont = (void*)serializedReq,
+  };
+
+  tmsgPutToQueue(&pTq->pVnode->msgCb, WRITE_QUEUE, &rpcMsg);
+
+  return 0;
+}
+
+int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t version, char* msg, int32_t msgLen) {
+  int32_t                 code;
+  SStreamRecoverStep2Req* pReq = (SStreamRecoverStep2Req*)msg;
+  SStreamTask*            pTask = streamMetaGetTask(pTq->pStreamMeta, pReq->taskId);
+  if (pTask == NULL) {
+    return -1;
+  }
+
+  // do recovery step 2
+  code = streamSourceRecoverScanStep2(pTask, version);
+  if (code < 0) {
+    return -1;
+  }
+
+  // restore param
+  code = streamRestoreParam(pTask);
+  if (code < 0) {
+    return -1;
+  }
+
+  // set status normal
+  code = streamSetStatusNormal(pTask);
+  if (code < 0) {
+    return -1;
+  }
+
+  // dispatch recover finish req to all related downstream task
+  code = streamDispatchRecoverFinishReq(pTask);
+  if (code < 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
+int32_t tqProcessTaskRecoverFinishReq(STQ* pTq, char* msg, int32_t msgLen) {
+  int32_t code;
+
+  // deserialize
+  int32_t                 len;
+  SStreamRecoverFinishReq req;
+
+  SDecoder decoder;
+  tDecoderInit(&decoder, msg, sizeof(SStreamRecoverFinishReq));
+  tDecodeSStreamRecoverFinishReq(&decoder, &req);
+  tDecoderClear(&decoder);
+
+  // find task
+  SStreamTask* pTask = streamMetaGetTask(pTq->pStreamMeta, req.taskId);
+  if (pTask == NULL) {
+    return -1;
+  }
+  // do process request
+  if (streamProcessRecoverFinishReq(pTask, req.childId) < 0) {
+    return -1;
+  }
+
+  return 0;
 }
 
 int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver) {
@@ -1081,6 +1242,7 @@ int32_t tqProcessSubmitReq(STQ* pTq, SSubmitReq* pReq, int64_t ver) {
     if (pIter == NULL) break;
     SStreamTask* pTask = *(SStreamTask**)pIter;
     if (pTask->taskLevel != TASK_LEVEL__SOURCE) continue;
+    if (pTask->taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->taskStatus == TASK_STATUS__RECOVER1) continue;
 
     qDebug("data submit enqueue stream task: %d, ver: %" PRId64, pTask->taskId, ver);
 
