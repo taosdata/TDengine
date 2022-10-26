@@ -230,7 +230,21 @@ int32_t tsdbCacheInsertLastrow(SLRUCache *pCache, STsdb *pTsdb, tb_uid_t uid, ST
             break;
           }
         } else {
-          taosArraySet(pLast, iCol, &(SLastCol){.ts = keyTs, .colVal = colVal});
+          SLastCol lastCol = {.ts = keyTs, .colVal = colVal};
+          if (IS_VAR_DATA_TYPE(colVal.type) && colVal.value.nData > 0) {
+            SLastCol *pLastCol = (SLastCol *)taosArrayGet(pLast, iCol);
+            taosMemoryFree(pLastCol->colVal.value.pData);
+
+            lastCol.colVal.value.pData = taosMemoryMalloc(colVal.value.nData);
+            if (lastCol.colVal.value.pData == NULL) {
+              terrno = TSDB_CODE_OUT_OF_MEMORY;
+              code = TSDB_CODE_OUT_OF_MEMORY;
+              goto _invalidate;
+            }
+            memcpy(lastCol.colVal.value.pData, colVal.value.pData, colVal.value.nData);
+          }
+
+          taosArraySet(pLast, iCol, &lastCol);
         }
       }
     }
@@ -342,7 +356,21 @@ int32_t tsdbCacheInsertLast(SLRUCache *pCache, tb_uid_t uid, STSRow *row, STsdb 
             break;
           }
         } else {
-          taosArraySet(pLast, iCol, &(SLastCol){.ts = keyTs, .colVal = colVal});
+          SLastCol lastCol = {.ts = keyTs, .colVal = colVal};
+          if (IS_VAR_DATA_TYPE(colVal.type) && colVal.value.nData > 0) {
+            SLastCol *pLastCol = (SLastCol *)taosArrayGet(pLast, iCol);
+            taosMemoryFree(pLastCol->colVal.value.pData);
+
+            lastCol.colVal.value.pData = taosMemoryMalloc(colVal.value.nData);
+            if (lastCol.colVal.value.pData == NULL) {
+              terrno = TSDB_CODE_OUT_OF_MEMORY;
+              code = TSDB_CODE_OUT_OF_MEMORY;
+              goto _invalidate;
+            }
+            memcpy(lastCol.colVal.value.pData, colVal.value.pData, colVal.value.nData);
+          }
+
+          taosArraySet(pLast, iCol, &lastCol);
         }
       }
     }
