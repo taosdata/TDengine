@@ -593,7 +593,7 @@ python3 ./test.py -f 2-query/arccos.py -Q  4
 python3 ./test.py -f 2-query/arctan.py -Q  4
 python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q  4
 
-#python3 ./test.py -f 2-query/nestedQuery.py -Q 4
+python3 ./test.py -f 2-query/nestedQuery.py -Q 4
 python3 ./test.py -f 2-query/nestedQuery_str.py -Q 4
 python3 ./test.py -f 2-query/nestedQuery_math.py -Q 4
 python3 ./test.py -f 2-query/nestedQuery_time.py -Q 4
