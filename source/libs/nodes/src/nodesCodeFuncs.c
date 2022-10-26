@@ -111,6 +111,8 @@ const char* nodesNodeName(ENodeType type) {
       return "DropSuperTableStmt";
     case QUERY_NODE_ALTER_TABLE_STMT:
       return "AlterTableStmt";
+    case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
+      return "AlterSuperTableStmt";
     case QUERY_NODE_CREATE_USER_STMT:
       return "CreateUserStmt";
     case QUERY_NODE_ALTER_USER_STMT:
@@ -669,7 +671,7 @@ static int32_t logicProjectNodeToJson(const void* pObj, SJson* pJson) {
     code = nodeListToJson(pJson, jkProjectLogicPlanProjections, pNode->pProjections);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkProjectLogicPlanIgnoreGroupId, pNode->ignoreGroupId);
+    code = tjsonAddBoolToObject(pJson, jkProjectLogicPlanIgnoreGroupId, pNode->ignoreGroupId);
   }
 
   return code;
@@ -2758,6 +2760,20 @@ static int32_t logicAggNodeToJson(const void* pObj, SJson* pJson) {
   return code;
 }
 
+static int32_t jsonToLogicAggNode(const SJson* pJson, void* pObj) {
+  SAggLogicNode* pNode = (SAggLogicNode*)pObj;
+
+  int32_t code = jsonToLogicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkAggLogicPlanGroupKeys, &pNode->pGroupKeys);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeList(pJson, jkAggLogicPlanAggFuncs, &pNode->pAggFuncs);
+  }
+
+  return code;
+}
+
 static const char* jkDataTypeType = "Type";
 static const char* jkDataTypePrecision = "Precision";
 static const char* jkDataTypeScale = "Scale";
@@ -4735,6 +4751,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToDeleteStmt(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return jsonToLogicScanNode(pJson, pObj);
+    case QUERY_NODE_LOGIC_PLAN_AGG:
+      return jsonToLogicAggNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       return jsonToLogicProjectNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_VNODE_MODIFY:

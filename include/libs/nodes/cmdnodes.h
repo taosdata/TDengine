@@ -374,6 +374,7 @@ typedef struct SStreamOptions {
   int8_t    triggerType;
   SNode*    pDelay;
   SNode*    pWatermark;
+  int8_t    fillHistory;
   int8_t    ignoreExpired;
 } SStreamOptions;
 
