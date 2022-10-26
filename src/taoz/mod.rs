@@ -319,7 +319,7 @@ mod tests {
                         println!("rows: {}", rows);
                         // taos.write_raw_data(data[0]).await?
                     }
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 },
                 Err(err) => {
                     dbg!(&err);

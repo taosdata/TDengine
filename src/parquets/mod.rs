@@ -161,7 +161,10 @@ pub async fn query_to_parquet(mut from: Dsn, to: Dsn, force: bool) -> Result<()>
 
     let (blocks, rows) = rs.summary();
 
-    log::info!("write {rows} rows(in {blocks} blocks) to parquet: {}", filename);
+    log::info!(
+        "write {rows} rows(in {blocks} blocks) to parquet: {}",
+        filename
+    );
 
     Ok(())
 }
