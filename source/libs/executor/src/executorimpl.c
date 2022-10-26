@@ -3426,7 +3426,7 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
 
 bool groupbyTbname(SNodeList* pGroupList) {
   bool bytbname = false;
-  if (LIST_LENGTH(pGroupList) > 0) {
+  if (LIST_LENGTH(pGroupList) == 1) {
     SNode* p = nodesListGetNode(pGroupList, 0);
     if (p->type == QUERY_NODE_FUNCTION) {
       // partition by tbname/group by tbname
@@ -3639,9 +3639,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     return pOperator;
   }
 
-  int32_t num = 0;
-  size_t  size = LIST_LENGTH(pPhyNode->pChildren);
-
+  size_t          size = LIST_LENGTH(pPhyNode->pChildren);
   SOperatorInfo** ops = taosMemoryCalloc(size, POINTER_BYTES);
   for (int32_t i = 0; i < size; ++i) {
     SPhysiNode* pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, i);
@@ -3949,8 +3947,11 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
     goto _complete;
   }
 
-  if (pHandle && pHandle->pStateBackend) {
-    (*pTaskInfo)->streamInfo.pState = pHandle->pStateBackend;
+  if (pHandle) {
+    /*(*pTaskInfo)->streamInfo.fillHistoryVer1 = pHandle->fillHistoryVer1;*/
+    if (pHandle->pStateBackend) {
+      (*pTaskInfo)->streamInfo.pState = pHandle->pStateBackend;
+    }
   }
 
   (*pTaskInfo)->sql = sql;
