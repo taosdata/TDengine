@@ -177,8 +177,10 @@ class AddSync(TDCase):
                         master_sum[source][0]['sum(voltage)'], backup_sum[source][0]['sum(voltage)'])
                 taosd_backup.execute(f'drop database {self.target_dbname}')
     def add_sync_ntb(self):
-        for source_task in ['','+ws']:
-            for target_task in ['','+ws']:
+        for source_task in ['']:
+            for target_task in ['']:
+        # for source_task in ['','+ws']:
+        #     for target_task in ['','+ws']:
                 thread_list = []
                 master_count_rows = []
                 master_sum = []

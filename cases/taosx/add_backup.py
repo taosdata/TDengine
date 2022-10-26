@@ -171,7 +171,7 @@ class AddBackup(TDCase):
                 thread_list_source = []
                 for source in range(len(self.source_taosd_list)):
                     target_file_dir = f'{self.run_log_dir}/{self.source_taosd_list[source][0]}_backup'
-                    self.remote.cmd(self.taosx_setting['fqdn'][0],f'mkdir {target_file_dir}')
+                    
                     if source_task.lower() == '+ws':
                         self.tdTaosx.run_backup_tb_from_ws_to_local(thread_list_source,self.taosx_setting,source_task,target_file_dir,self.source_taosd_list,self.dbname,self.tbname_m,source,group_id,self.timeout)
                     elif source_task.lower() == '':
