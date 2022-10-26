@@ -85,11 +85,11 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
   while (1) {
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;
-    tqDebug("tmq task start to execute");
+    tqDebug("vgId:%d, tmq task start to execute", pTq->pVnode->config.vgId);
     if (qExecTask(task, &pDataBlock, &ts) < 0) {
       ASSERT(0);
     }
-    tqDebug("tmq task executed, get %p", pDataBlock);
+    tqDebug("vgId:%d, tmq task executed, get %p", pTq->pVnode->config.vgId, pDataBlock);
 
     if (pDataBlock == NULL) {
       break;
