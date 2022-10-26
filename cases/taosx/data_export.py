@@ -68,7 +68,8 @@ class DataExportTest(TDCase):
             thread.join()
  
     def export_stb_check(self):
-        for source_task in ['', '+ws']:
+        for source_task in ['']:
+        # for source_task in ['', '+ws']:
             for file_type in ['csv','parquet']:
                 for source in range(len(self.source_taosd_list)):
                     taosd_master = taos.connect(host=self.source_taosd_list[source][0], port=int(self.source_taosd_list[source][1]))
@@ -134,12 +135,13 @@ class DataExportTest(TDCase):
                         self.tdSql.checkEqual(count_rows[0]['count(*)'],all_data.size / len(all_data.columns))
     def run(self):
         for replica in self.replica:
+            self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
             self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root,replica)
             self.export_stb_check()
             self.export_ctb_check()
-        
-        self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)
-        self.export_ntb_check()
+            self.ntb_dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
+            self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num)
+            self.export_ntb_check()
     def cleanup(self):
         pass
 
