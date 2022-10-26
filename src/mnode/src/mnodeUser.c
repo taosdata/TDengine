@@ -97,7 +97,7 @@ static int32_t mnodeUserActionDecode(SSdbRow *pRow) {
   SUserObj *pUser = (SUserObj *)calloc(1, sizeof(SUserObj));
   if (pUser == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
-  memcpy(pUser, pRow->rowData, tsUserUpdateSize);
+  memcpy(pUser, pRow->rowData, pRow->rowSize);
   pRow->pObj = pUser;
   return TSDB_CODE_SUCCESS;
 }
