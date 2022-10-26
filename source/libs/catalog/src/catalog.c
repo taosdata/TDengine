@@ -570,7 +570,7 @@ int32_t catalogInit(SCatalogCfg* cfg) {
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  atomic_store_8((int8_t*)&gCtgMgmt.exit, false);
+  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
 
   if (cfg) {
     memcpy(&gCtgMgmt.cfg, cfg, sizeof(*cfg));
