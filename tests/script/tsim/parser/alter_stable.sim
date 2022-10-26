@@ -34,7 +34,7 @@ sql alter table tb1 set tag len = 379
 
 # case TD-5594
 sql create stable st5520(ts timestamp, f int) tags(t0 bool, t1 nchar(4093), t2 nchar(1))
-sql alter stable st5520 modify tag t2 nchar(2);
+sql_error alter stable st5520 modify tag t2 nchar(2);
 # test end
 sql drop database $db
 

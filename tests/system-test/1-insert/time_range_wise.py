@@ -565,15 +565,18 @@ class TDTestCase:
         tdSql.checkData(0, 0 , 111)
 
         tdSql.execute(f"flush database {DBNAME}")
+        
+        tdLog.printNoPrefix("==========step1.5 : drop index")
+        tdSql.execute(f"drop index {DBNAME}.sma_index_name1")
 
-        tdLog.printNoPrefix("==========step1.5 : drop child table")
+        tdLog.printNoPrefix("==========step1.6 : drop child table")
         tdSql.execute(f"drop table {CTBNAME}")
         tdSql.query(f"select max({INT_COL}), max({BINT_COL}), min({INT_COL}) from {DBNAME}.{STBNAME} interval(6m,10s) sliding(6m)")
         tdSql.checkData(0, 0, self.rows - 1)
         tdSql.checkData(0, 1, (self.rows - 1) * 2 )
         tdSql.checkData(tdSql.queryRows - 1, 2, 0)
 
-        tdLog.printNoPrefix("==========step1.6 : drop stable")
+        tdLog.printNoPrefix("==========step1.7 : drop stable")
         tdSql.execute(f"drop table {STBNAME}")
         tdSql.error(f"select * from {DBNAME}.{STBNAME}")
 

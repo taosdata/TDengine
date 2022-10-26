@@ -86,7 +86,7 @@ class TDTestCase:
                     'rowsPerTbl': 10000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  15,
+                    'pollDelay':  25,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   1}
@@ -157,7 +157,7 @@ class TDTestCase:
                     'rowsPerTbl': 10000,
                     'batchNum':   10,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  10,
+                    'pollDelay':  25,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   1}

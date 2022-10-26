@@ -1541,7 +1541,8 @@ static void deleteIntervalDiscBuf(SStreamState* pState, SHashObj* pPullDataMap, 
     }
   }
 
-  if (qDebugFlag & DEBUG_DEBUG) {
+  // for debug
+  if (qDebugFlag & DEBUG_DEBUG && mark > 0) {
     SStreamStateCur* pCur = streamStateGetCur(pState, key);
     int32_t          code = streamStateCurPrev(pState, pCur);
     if (code == TSDB_CODE_SUCCESS) {
@@ -1776,11 +1777,11 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPh
   }
 
   SInterval interval = {.interval = pPhyNode->interval,
-      .sliding = pPhyNode->sliding,
-      .intervalUnit = pPhyNode->intervalUnit,
-      .slidingUnit = pPhyNode->slidingUnit,
-      .offset = pPhyNode->offset,
-      .precision = ((SColumnNode*)pPhyNode->window.pTspk)->node.resType.precision};
+                        .sliding = pPhyNode->sliding,
+                        .intervalUnit = pPhyNode->intervalUnit,
+                        .slidingUnit = pPhyNode->slidingUnit,
+                        .offset = pPhyNode->offset,
+                        .precision = ((SColumnNode*)pPhyNode->window.pTspk)->node.resType.precision};
 
   STimeWindowAggSupp as = {
       .waterMark = pPhyNode->window.watermark,
@@ -1831,7 +1832,8 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SIntervalPh
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
 
-  pOperator->fpSet = createOperatorFpSet(doOpenIntervalAgg, doBuildIntervalResult, NULL, NULL, destroyIntervalOperatorInfo, NULL);
+  pOperator->fpSet =
+      createOperatorFpSet(doOpenIntervalAgg, doBuildIntervalResult, NULL, NULL, destroyIntervalOperatorInfo, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2323,9 +2325,6 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
           genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock);
           pSliceInfo->current =
               taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
-          if (pResBlock->info.rows >= pResBlock->info.capacity) {
-            break;
-          }
         }
       }
 
@@ -2335,6 +2334,7 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
       }
 
       if (ts == pSliceInfo->current) {
+        blockDataEnsureCapacity(pResBlock, pResBlock->info.rows + 1);
         for (int32_t j = 0; j < pOperator->exprSupp.numOfExprs; ++j) {
           SExprInfo* pExprInfo = &pOperator->exprSupp.pExprInfo[j];
 
@@ -2375,9 +2375,6 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
                 genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock);
                 pSliceInfo->current = taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit,
                                                   pInterval->precision);
-                if (pResBlock->info.rows >= pResBlock->info.capacity) {
-                  break;
-                }
               }
 
               if (pSliceInfo->current > pSliceInfo->win.ekey) {
@@ -2394,10 +2391,6 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
               taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
           if (pSliceInfo->current > pSliceInfo->win.ekey) {
             doSetOperatorCompleted(pOperator);
-            break;
-          }
-
-          if (pResBlock->info.rows >= pResBlock->info.capacity) {
             break;
           }
         }
@@ -2417,9 +2410,6 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
                 genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock);
                 pSliceInfo->current = taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit,
                                                   pInterval->precision);
-                if (pResBlock->info.rows >= pResBlock->info.capacity) {
-                  break;
-                }
               }
 
               if (pSliceInfo->current > pSliceInfo->win.ekey) {
@@ -2441,9 +2431,6 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
                 genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock);
                 pSliceInfo->current = taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit,
                                                   pInterval->precision);
-                if (pResBlock->info.rows >= pResBlock->info.capacity) {
-                  break;
-                }
               }
 
               if (pSliceInfo->current > pSliceInfo->win.ekey) {
@@ -2465,13 +2452,11 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
           genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock);
           pSliceInfo->current =
               taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
-          if (pResBlock->info.rows >= pResBlock->info.capacity) {
-            break;
-          }
         }
 
         // add current row if timestamp match
         if (ts == pSliceInfo->current && pSliceInfo->current <= pSliceInfo->win.ekey) {
+          blockDataEnsureCapacity(pResBlock, pResBlock->info.rows + 1);
           for (int32_t j = 0; j < pOperator->exprSupp.numOfExprs; ++j) {
             SExprInfo* pExprInfo = &pOperator->exprSupp.pExprInfo[j];
 
@@ -2508,9 +2493,6 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
                   genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock);
                   pSliceInfo->current = taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit,
                                                     pInterval->precision);
-                  if (pResBlock->info.rows >= pResBlock->info.capacity) {
-                    break;
-                  }
                 }
 
                 if (pSliceInfo->current > pSliceInfo->win.ekey) {
@@ -2526,9 +2508,6 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
             pSliceInfo->current =
                 taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
 
-            if (pResBlock->info.rows >= pResBlock->info.capacity) {
-              break;
-            }
           }
         }
 
@@ -2547,9 +2526,6 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
     genInterpolationResult(pSliceInfo, &pOperator->exprSupp, pResBlock);
     pSliceInfo->current =
         taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
-    if (pResBlock->info.rows >= pResBlock->info.capacity) {
-      break;
-    }
   }
 
   // restore the value
@@ -2637,7 +2613,8 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SPhysiNode
   pOperator->info = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
 
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTimeslice, NULL, NULL, destroyTimeSliceOperatorInfo, NULL);
+  pOperator->fpSet =
+      createOperatorFpSet(operatorDummyOpenFn, doTimeslice, NULL, NULL, destroyTimeSliceOperatorInfo, NULL);
 
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
 
@@ -2707,8 +2684,8 @@ SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SStateWi
   pOperator->pTaskInfo = pTaskInfo;
   pOperator->info = pInfo;
 
-  pOperator->fpSet = createOperatorFpSet(openStateWindowAggOptr, doStateWindowAgg, NULL, NULL,
-                                         destroyStateWindowOperatorInfo, NULL);
+  pOperator->fpSet =
+      createOperatorFpSet(openStateWindowAggOptr, doStateWindowAgg, NULL, NULL, destroyStateWindowOperatorInfo, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2781,8 +2758,8 @@ SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionW
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
 
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doSessionWindowAgg, NULL, NULL,
-                                         destroySWindowOperatorInfo, NULL);
+  pOperator->fpSet =
+      createOperatorFpSet(operatorDummyOpenFn, doSessionWindowAgg, NULL, NULL, destroySWindowOperatorInfo, NULL);
   pOperator->pTaskInfo = pTaskInfo;
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -4256,9 +4233,8 @@ SOperatorInfo* createStreamSessionAggOperatorInfo(SOperatorInfo* downstream, SPh
   pOperator->blocking = true;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
-  pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doStreamSessionAgg, NULL, NULL, destroyStreamSessionAggOperatorInfo,
-                          NULL);
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doStreamSessionAgg, NULL, NULL,
+                                         destroyStreamSessionAggOperatorInfo, NULL);
   if (downstream) {
     initDownStream(downstream, &pInfo->streamAggSup, pInfo->twAggSup.waterMark, pOperator->operatorType,
                    pInfo->primaryTsIndex);
@@ -4403,9 +4379,8 @@ SOperatorInfo* createStreamFinalSessionAggOperatorInfo(SOperatorInfo* downstream
     pInfo->pUpdateRes = createSpecialDataBlock(STREAM_CLEAR);
     blockDataEnsureCapacity(pInfo->pUpdateRes, 128);
     pOperator->name = "StreamSessionSemiAggOperator";
-    pOperator->fpSet =
-        createOperatorFpSet(operatorDummyOpenFn, doStreamSessionSemiAgg, NULL, NULL,
-                            destroyStreamSessionAggOperatorInfo, NULL);
+    pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doStreamSessionSemiAgg, NULL, NULL,
+                                           destroyStreamSessionAggOperatorInfo, NULL);
   }
 
   pInfo->pGroupIdTbNameMap =
@@ -4738,6 +4713,7 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
       .maxTs = INT64_MIN,
       .minTs = INT64_MAX,
   };
+
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
 
   SExprSupp*   pSup = &pOperator->exprSupp;
@@ -4773,8 +4749,8 @@ SOperatorInfo* createStreamStateAggOperatorInfo(SOperatorInfo* downstream, SPhys
   pOperator->status = OP_NOT_OPENED;
   pOperator->pTaskInfo = pTaskInfo;
   pOperator->info = pInfo;
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doStreamStateAgg, NULL, NULL,
-                                         destroyStreamStateOperatorInfo, NULL);
+  pOperator->fpSet =
+      createOperatorFpSet(operatorDummyOpenFn, doStreamStateAgg, NULL, NULL, destroyStreamStateOperatorInfo, NULL);
   initDownStream(downstream, &pInfo->streamAggSup, pInfo->twAggSup.waterMark, pOperator->operatorType,
                  pInfo->primaryTsIndex);
   code = appendDownstream(pOperator, &downstream, 1);
@@ -5050,8 +5026,8 @@ SOperatorInfo* createMergeAlignedIntervalOperatorInfo(SOperatorInfo* downstream,
   pOperator->pTaskInfo = pTaskInfo;
   pOperator->info = miaInfo;
 
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, mergeAlignedIntervalAgg, NULL, NULL,
-                                         destroyMAIOperatorInfo, NULL);
+  pOperator->fpSet =
+      createOperatorFpSet(operatorDummyOpenFn, mergeAlignedIntervalAgg, NULL, NULL, destroyMAIOperatorInfo, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -5362,8 +5338,8 @@ SOperatorInfo* createMergeIntervalOperatorInfo(SOperatorInfo* downstream, SMerge
   pOperator->pTaskInfo = pTaskInfo;
   pOperator->info = pMergeIntervalInfo;
 
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doMergeIntervalAgg, NULL, NULL,
-                                         destroyMergeIntervalOperatorInfo, NULL);
+  pOperator->fpSet =
+      createOperatorFpSet(operatorDummyOpenFn, doMergeIntervalAgg, NULL, NULL, destroyMergeIntervalOperatorInfo, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -5527,6 +5503,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   };
 
   ASSERT(twAggSupp.calTrigger != STREAM_TRIGGER_MAX_DELAY);
+
   pOperator->pTaskInfo = pTaskInfo;
   pInfo->interval = interval;
   pInfo->twAggSup = twAggSupp;
@@ -5594,9 +5571,8 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SPhys
   pOperator->blocking = true;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
-  pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doStreamIntervalAgg, NULL, NULL, destroyStreamFinalIntervalOperatorInfo,
-                          NULL);
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doStreamIntervalAgg, NULL, NULL,
+                                         destroyStreamFinalIntervalOperatorInfo, NULL);
 
   initIntervalDownStream(downstream, pPhyNode->type, &pInfo->aggSup, &pInfo->interval, &pInfo->twAggSup);
   code = appendDownstream(pOperator, &downstream, 1);

@@ -2242,6 +2242,26 @@ static EDealRes lastRowScanOptSetColDataType(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
+static void lastRowScanOptSetLastTargets(SNodeList* pTargets, SNodeList* pLastCols) {
+  SNode* pTarget = NULL;
+  WHERE_EACH(pTarget, pTargets) {
+    bool   found = false;
+    SNode* pCol = NULL;
+    FOREACH(pCol, pLastCols) {
+      if (nodesEqualNode(pCol, pTarget)) {
+        getLastCacheDataType(&(((SColumnNode*)pTarget)->node.resType));
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      ERASE_NODE(pTargets);
+      continue;
+    }
+    WHERE_NEXT;
+  }
+}
+
 static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
   SAggLogicNode* pAgg = (SAggLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, lastRowScanOptMayBeOptimized);
 
@@ -2265,6 +2285,7 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
       }
       if (FUNCTION_TYPE_LAST == funcType) {
         nodesWalkExpr(nodesListGetNode(pFunc->pParameterList, 0), lastRowScanOptSetColDataType, &cxt);
+        nodesListErase(pFunc->pParameterList, nodesListGetCell(pFunc->pParameterList, 1));
       }
     }
   }
@@ -2274,9 +2295,9 @@ static int32_t lastRowScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogic
   pScan->igLastNull = pAgg->hasLast ? true : false;
   if (NULL != cxt.pLastCols) {
     cxt.doAgg = false;
-    nodesWalkExprs(pScan->pScanCols, lastRowScanOptSetColDataType, &cxt);
+    lastRowScanOptSetLastTargets(pScan->pScanCols, cxt.pLastCols);
     nodesWalkExprs(pScan->pScanPseudoCols, lastRowScanOptSetColDataType, &cxt);
-    nodesWalkExprs(pScan->node.pTargets, lastRowScanOptSetColDataType, &cxt);
+    lastRowScanOptSetLastTargets(pScan->node.pTargets, cxt.pLastCols);
     nodesClearList(cxt.pLastCols);
   }
   pAgg->hasLastRow = false;
@@ -2365,7 +2386,7 @@ static int32_t mergeProjectsOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLog
   return mergeProjectsOptimizeImpl(pCxt, pLogicSubplan, pProjectNode);
 }
 
-static bool tagScanMayBeOptimized(SLogicNode* pNode) {
+static bool tagScanOptShouldBeOptimized(SLogicNode* pNode) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(pNode) || (SCAN_TYPE_TAG == ((SScanLogicNode*)pNode)->scanType)) {
     return false;
   }
@@ -2397,7 +2418,7 @@ static bool tagScanMayBeOptimized(SLogicNode* pNode) {
 }
 
 static int32_t tagScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
-  SScanLogicNode* pScanNode = (SScanLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, tagScanMayBeOptimized);
+  SScanLogicNode* pScanNode = (SScanLogicNode*)optFindPossibleNode(pLogicSubplan->pNode, tagScanOptShouldBeOptimized);
   if (NULL == pScanNode) {
     return TSDB_CODE_SUCCESS;
   }
@@ -2440,6 +2461,29 @@ static int32_t tagScanOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubp
   return TSDB_CODE_SUCCESS;
 }
 
+static bool pushDownLimitOptShouldBeOptimized(SLogicNode* pNode) {
+  if (NULL == pNode->pLimit || 1 != LIST_LENGTH(pNode->pChildren) ||
+      QUERY_NODE_LOGIC_PLAN_SCAN != nodeType(nodesListGetNode(pNode->pChildren, 0))) {
+    return false;
+  }
+  return true;
+}
+
+static int32_t pushDownLimitOptimize(SOptimizeContext* pCxt, SLogicSubplan* pLogicSubplan) {
+  SLogicNode* pNode = optFindPossibleNode(pLogicSubplan->pNode, pushDownLimitOptShouldBeOptimized);
+  if (NULL == pNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SLogicNode* pChild = (SLogicNode*)nodesListGetNode(pNode->pChildren, 0);
+  nodesDestroyNode(pChild->pLimit);
+  pChild->pLimit = pNode->pLimit;
+  pNode->pLimit = NULL;
+  pCxt->optimized = true;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 // clang-format off
 static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "ScanPath",                   .optimizeFunc = scanPathOptimize},
@@ -2453,7 +2497,8 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "RewriteTail",                .optimizeFunc = rewriteTailOptimize},
   {.pName = "RewriteUnique",              .optimizeFunc = rewriteUniqueOptimize},
   {.pName = "LastRowScan",                .optimizeFunc = lastRowScanOptimize},
-  {.pName = "TagScan",                    .optimizeFunc = tagScanOptimize}
+  {.pName = "TagScan",                    .optimizeFunc = tagScanOptimize},
+  // {.pName = "PushDownLimit",              .optimizeFunc = pushDownLimitOptimize}
 };
 // clang-format on
 

@@ -1073,7 +1073,7 @@ int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
 
   pMatchInfo->matchType = type;
 
-  SArray* pList = taosArrayInit(numOfCols, sizeof(SColMatchInfo));
+  SArray* pList = taosArrayInit(numOfCols, sizeof(SColMatchItem));
   if (pList == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     return code;
