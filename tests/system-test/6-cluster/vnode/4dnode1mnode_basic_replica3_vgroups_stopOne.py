@@ -30,8 +30,8 @@ class TDTestCase:
         self.replica = 1
         self.vgroups = 2
         self.tb_nums = 10
-        self.row_nums = 100
-        self.max_vote_time_cost = 10  # seconds
+        self.row_nums = 10
+        self.max_vote_time_cost = 20  # seconds
         self.stop_dnode = None
 
     def getBuildPath(self):
@@ -341,7 +341,7 @@ class TDTestCase:
 
         # create database replica 3 vgroups 100
         db3 = 'db_3'
-        create_db_replica_3_vgroups_100 = "create database {} replica 3 vgroups 100".format(db3)
+        create_db_replica_3_vgroups_100 = "create database {} replica 3 vgroups 20".format(db3)
         tdLog.notice('=======database {} replica 3 vgroups 100 ======'.format(db3))
         tdSql.execute(create_db_replica_3_vgroups_100)
         self.vote_leader_time_costs(db3)
