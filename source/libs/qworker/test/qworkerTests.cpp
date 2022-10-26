@@ -796,7 +796,7 @@ void *fetchQueueThread(void *param) {
         qWorkerProcessFetchMsg(mockPointer, mgmt, fetchRpc, 0);
         break;
       case TDMT_SCH_CANCEL_TASK:
-        qWorkerProcessCancelMsg(mockPointer, mgmt, fetchRpc, 0);
+        //qWorkerProcessCancelMsg(mockPointer, mgmt, fetchRpc, 0);
         break;
       case TDMT_SCH_DROP_TASK:
         qWorkerProcessDropMsg(mockPointer, mgmt, fetchRpc, 0);

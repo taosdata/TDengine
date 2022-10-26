@@ -57,6 +57,7 @@ enum {
   CTGT_RSP_CTBMETA,
   CTGT_RSP_STBMETA,
   CTGT_RSP_MSTBMETA,
+  CTGT_RSP_INDEXINFO_E,
   CTGT_RSP_TBMETA_NOT_EXIST,
 };
 
@@ -507,6 +508,14 @@ void ctgTestRspMultiSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRp
   tFreeSTableMetaRsp(&metaRsp);
 }
 
+
+void ctgTestRspErrIndexInfo(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  pRsp->code = TSDB_CODE_MND_DB_INDEX_NOT_EXIST;
+  pRsp->contLen = 0;
+  pRsp->pCont = NULL;
+}
+
+
 void ctgTestRspByIdx(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   switch (ctgTestRspFunc[ctgTestRspIdx]) {
     case CTGT_RSP_VGINFO:
@@ -523,6 +532,9 @@ void ctgTestRspByIdx(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp
       break;
     case CTGT_RSP_MSTBMETA:
       ctgTestRspMultiSTableMeta(shandle, pEpSet, pMsg, pRsp);
+      break;
+    case CTGT_RSP_INDEXINFO_E:
+      ctgTestRspErrIndexInfo(shandle, pEpSet, pMsg, pRsp);
       break;
     case CTGT_RSP_TBMETA_NOT_EXIST:
       ctgTestRspTableMetaNotExist(shandle, pEpSet, pMsg, pRsp);
@@ -1410,6 +1422,33 @@ TEST(tableMeta, updateStbMeta) {
 
   catalogDestroy();
   memset(&gCtgMgmt.stat, 0, sizeof(gCtgMgmt.stat));
+}
+
+TEST(getIndexInfo, notExists) {
+  struct SCatalog  *pCtg = NULL;
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)0x1;
+  SVgroupInfo       vgInfo = {0};
+  SArray           *vgList = NULL;
+
+  ctgTestInitLogFile();
+
+  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  ctgTestRspIdx = 0;
+  ctgTestRspFunc[0] = CTGT_RSP_INDEXINFO_E;
+
+  ctgTestSetRspByIdx();
+
+  initQueryModuleMsgHandle();
+
+  int32_t code = catalogInit(NULL);
+  ASSERT_EQ(code, 0);
+
+  code = catalogGetHandle(ctgTestClusterId, &pCtg);
+  ASSERT_EQ(code, 0);
+
+  SIndexInfo info;
+  code = catalogGetIndexMeta(pCtg, mockPointer, "index1", &info);
+  ASSERT_TRUE(code != 0);
 }
 
 TEST(refreshGetMeta, normal2normal) {
