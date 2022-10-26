@@ -3,49 +3,29 @@ IF (TD_WEBSOCKET)
         SET(websocket_lib_file "libtaosws.so")
     ELSEIF (TD_DARWIN)
         SET(websocket_lib_file "libtaosws.dylib")
+    ELSEIF (TD_WINDOWS)
+        SET(websocket_lib_file "{taosws.dll,taosws.dll.lib}")
     ENDIF ()
     MESSAGE("${Green} use libtaos-ws${ColourReset}")
-    IF (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs/target/release/${websocket_lib_file}" OR "${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs/target/release/${websocket_lib_file}" IS_NEWER_THAN "${CMAKE_SOURCE_DIR}/.git/modules/tools/taosws-rs/FETCH_HEAD")
-        include(ExternalProject)
-        ExternalProject_Add(taosws-rs
-            PREFIX        "taosws-rs"
-            SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs
-            BUILD_ALWAYS         off
-            DEPENDS             taos
-            BUILD_IN_SOURCE     1
-            CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
-            PATCH_COMMAND
-            COMMAND     git clean -f -d
-            BUILD_COMMAND
-            COMMAND cargo update
-            COMMAND cargo build --release -p taos-ws-sys --features native-tls-vendored
-            COMMAND ./taos-ws-sys/ci/package.sh
-            INSTALL_COMMAND
-            COMMAND cmake -E copy target/libtaosws/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib
-            COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/build/include
-            COMMAND cmake -E copy target/libtaosws/taosws.h ${CMAKE_BINARY_DIR}/build/include
-            )
-    ELSE()
-        include(ExternalProject)
-        ExternalProject_Add(taosws-rs
-            PREFIX        "taosws-rs"
-            SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs
-            BUILD_ALWAYS         on
-            DEPENDS             taos
-            BUILD_IN_SOURCE     1
-            CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
-            PATCH_COMMAND
-            COMMAND     git clean -f -d
-            BUILD_COMMAND
-            COMMAND cargo update
-            COMMAND cargo build --release -p taos-ws-sys --features native-tls-vendored
-            COMMAND ./taos-ws-sys/ci/package.sh
-            INSTALL_COMMAND
-            COMMAND cmake -E copy target/libtaosws/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib
-            COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/build/include
-            COMMAND cmake -E copy target/libtaosws/taosws.h ${CMAKE_BINARY_DIR}/build/include
-            )
-    ENDIF ()
+
+    include(ExternalProject)
+    ExternalProject_Add(taosws-rs
+        PREFIX        "taosws-rs"
+        SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs
+        BUILD_ALWAYS         on
+        DEPENDS             taos
+        BUILD_IN_SOURCE     1
+        CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"
+        PATCH_COMMAND
+        COMMAND     git clean -f -d
+        BUILD_COMMAND
+        COMMAND cargo update
+        COMMAND cargo build --release -p taos-ws-sys --features native-tls-vendored
+        INSTALL_COMMAND
+        COMMAND cp target/release/${websocket_lib_file} ${CMAKE_BINARY_DIR}/build/lib
+        COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/build/include
+        COMMAND cmake -E copy target/release/taosws.h ${CMAKE_BINARY_DIR}/build/include
+        )
 ENDIF ()
 
 IF (TD_TAOS_TOOLS)
