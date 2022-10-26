@@ -899,6 +899,7 @@ void    doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo,
 int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock, bool holdDataInBuf);
 bool    hasLimitOffsetInfo(SLimitInfo* pLimitInfo);
 void    initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimitInfo);
+void applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo, SOperatorInfo* pOperator);
 
 void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfoData* pTimeWindowData, int32_t offset,
                       int32_t forwardStep, int32_t numOfTotal, int32_t numOfOutput);

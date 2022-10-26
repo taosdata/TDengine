@@ -355,8 +355,8 @@ static void doSetTagColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* pBlo
   }
 }
 
-static void applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo,
-                             SOperatorInfo* pOperator) {
+// todo handle the slimit info
+void applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo, SOperatorInfo* pOperator) {
   SLimit* pLimit = &pLimitInfo->limit;
 
   if (pLimit->offset > 0 && pLimitInfo->remainOffset > 0) {
@@ -377,7 +377,8 @@ static void applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecT
 
     blockDataKeepFirstNRows(pBlock, keep);
     qDebug("output limit %"PRId64" has reached, %s", pLimit->limit, GET_TASKID(pTaskInfo));
-    setTaskStatus(pTaskInfo, TASK_COMPLETED);
+
+//    setTaskStatus(pTaskInfo, TASK_COMPLETED);
     pOperator->status = OP_EXEC_DONE;
   }
 }
