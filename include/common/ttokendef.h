@@ -164,9 +164,9 @@
 #define TK_SCORES               146
 #define TK_TOPICS               147
 #define TK_VARIABLES            148
-#define TK_BNODES               149
-#define TK_SNODES               150
-#define TK_CLUSTER              151
+#define TK_CLUSTER              149
+#define TK_BNODES               150
+#define TK_SNODES               151
 #define TK_TRANSACTIONS         152
 #define TK_DISTRIBUTED          153
 #define TK_CONSUMERS            154

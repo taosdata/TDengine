@@ -85,6 +85,8 @@ TEST_F(PlanOtherTest, show) {
 
   run("SHOW DNODE 1 VARIABLES");
 
+  run("SHOW DNODE 1 VARIABLES LIKE '%debug%'");
+
   run("SHOW TAGS FROM st1s1");
 
   run("SHOW TABLE TAGS FROM st1");

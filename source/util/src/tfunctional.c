@@ -16,6 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "tfunctional.h"
 
+FORCE_INLINE void* genericInvoke(tGenericSavedFunc* const pSavedFunc) { return pSavedFunc->func(pSavedFunc->args); }
+
+#if 0
 tGenericSavedFunc* genericSavedFuncInit(GenericVaFunc func, int32_t numOfArgs) {
   tGenericSavedFunc* pSavedFunc = taosMemoryMalloc(sizeof(tGenericSavedFunc) + numOfArgs * (sizeof(void*)));
   if (pSavedFunc == NULL) return NULL;
@@ -37,10 +40,9 @@ tVoidSavedFunc* voidSavedFuncInit(VoidVaFunc func, int32_t numOfArgs) {
   return pSavedFunc;
 }
 
-FORCE_INLINE void* genericInvoke(tGenericSavedFunc* const pSavedFunc) { return pSavedFunc->func(pSavedFunc->args); }
-
 FORCE_INLINE int32_t i32Invoke(tI32SavedFunc* const pSavedFunc) { return pSavedFunc->func(pSavedFunc->args); }
 
 FORCE_INLINE void voidInvoke(tVoidSavedFunc* const pSavedFunc) {
   if (pSavedFunc) pSavedFunc->func(pSavedFunc->args);
 }
+#endif
