@@ -1645,7 +1645,9 @@ int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
 
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
     SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->peersId[i]));
-    syncHbTimerStart(pSyncNode, pSyncTimer);
+    if (pSyncTimer != NULL) {
+      syncHbTimerStart(pSyncNode, pSyncTimer);
+    }
   }
 
   return ret;
@@ -1662,7 +1664,9 @@ int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
 
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
     SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->peersId[i]));
-    syncHbTimerStop(pSyncNode, pSyncTimer);
+    if (pSyncTimer != NULL) {
+      syncHbTimerStop(pSyncNode, pSyncTimer);
+    }
   }
 
   return ret;
