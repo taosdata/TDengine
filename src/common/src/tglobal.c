@@ -129,7 +129,7 @@ int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 
 // The tsc async write batching feature (using ABWD).
 bool    tsWriteBatchThreadLocal = false;    // if thread local enable, each thread will allocate a dispatcher.
-int32_t tsWriteBatchSize = 96;              // suggest: 64 - 512, 0 means disable batching.
+int32_t tsWriteBatchSize = 0;               // suggest: 64 - 512, default 0, 0 means disable batching.
 int32_t tsWriteBatchTimeout = 10;           // suggest: 2 - 100 (unit: milliseconds)
 
 // the maximum allowed query buffer size during query processing for each data node.

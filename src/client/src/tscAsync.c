@@ -411,7 +411,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
 
 // TODO return the correct error code to client in tscQueueAsyncError
 void taos_query_a(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *param) {
-  taos_query_ra(taos, sqlstr, fp, param, true);
+  taos_query_ra(taos, sqlstr, fp, param, tsWriteBatchSize > 0);
 }
 
 TAOS_RES * taos_query_ra(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *param, bool enableBatch) {
