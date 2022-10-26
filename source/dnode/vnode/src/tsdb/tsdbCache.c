@@ -951,7 +951,8 @@ typedef struct {
 } CacheNextRowIter;
 
 static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTsdb, STSchema *pTSchema, tb_uid_t suid,
-                               SSttBlockLoadInfo *pLoadInfo, STsdbReadSnap *pReadSnap, SDataFReader **pDataFReader) {
+                               SSttBlockLoadInfo *pLoadInfo, STsdbReadSnap *pReadSnap, SDataFReader **pDataFReader,
+                               SDataFReader **pDataFReaderLast) {
   int code = 0;
 
   STbData *pMem = NULL;
@@ -1006,7 +1007,7 @@ static int32_t nextRowIterOpen(CacheNextRowIter *pIter, tb_uid_t uid, STsdb *pTs
   pIter->fsLastState.suid = suid;
   pIter->fsLastState.uid = uid;
   pIter->fsLastState.pLoadInfo = pLoadInfo;
-  pIter->fsLastState.pDataFReader = pDataFReader;
+  pIter->fsLastState.pDataFReader = pDataFReaderLast;
 
   pIter->fsState.state = SFSNEXTROW_FS;
   pIter->fsState.pTsdb = pTsdb;
@@ -1148,7 +1149,8 @@ static int32_t mergeLastRow(tb_uid_t uid, STsdb *pTsdb, bool *dup, SArray **ppCo
   TSKEY lastRowTs = TSKEY_MAX;
 
   CacheNextRowIter iter = {0};
-  nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->suid, pr->pLoadInfo, pr->pReadSnap, &pr->pDataFReader);
+  nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->suid, pr->pLoadInfo, pr->pReadSnap, &pr->pDataFReader,
+                  &pr->pDataFReaderLast);
 
   do {
     TSDBROW *pRow = NULL;
@@ -1272,7 +1274,8 @@ static int32_t mergeLast(tb_uid_t uid, STsdb *pTsdb, SArray **ppLastArray, SCach
   TSKEY lastRowTs = TSKEY_MAX;
 
   CacheNextRowIter iter = {0};
-  nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->suid, pr->pLoadInfo, pr->pReadSnap, &pr->pDataFReader);
+  nextRowIterOpen(&iter, uid, pTsdb, pTSchema, pr->suid, pr->pLoadInfo, pr->pReadSnap, &pr->pDataFReader,
+                  &pr->pDataFReaderLast);
 
   do {
     TSDBROW *pRow = NULL;

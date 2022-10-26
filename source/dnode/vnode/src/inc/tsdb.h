@@ -720,6 +720,7 @@ typedef struct SCacheRowsReader {
   SSttBlockLoadInfo *pLoadInfo;
   STsdbReadSnap     *pReadSnap;
   SDataFReader      *pDataFReader;
+  SDataFReader      *pDataFReaderLast;
 } SCacheRowsReader;
 
 typedef struct {

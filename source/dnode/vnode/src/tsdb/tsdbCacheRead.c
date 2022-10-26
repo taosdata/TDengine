@@ -64,7 +64,7 @@ static void saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pRea
       colDataAppend(pColInfoData, numOfRows, (const char*)pRes[i], false);
     }
 
-    pBlock->info.rows += allNullRow? 0:1;
+    pBlock->info.rows += allNullRow ? 0 : 1;
   } else {
     ASSERT(HASTYPE(pReader->type, CACHESCAN_RETRIEVE_LAST_ROW));
 
@@ -239,6 +239,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
   tsdbTakeReadSnap(pr->pVnode->pTsdb, &pr->pReadSnap, "cache-l");
   pr->pDataFReader = NULL;
+  pr->pDataFReaderLast = NULL;
 
   // retrieve the only one last row of all tables in the uid list.
   if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_SINGLE)) {
@@ -334,6 +335,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
   }
 
 _end:
+  tsdbDataFReaderClose(&pr->pDataFReaderLast);
   tsdbDataFReaderClose(&pr->pDataFReader);
 
   tsdbUntakeReadSnap(pr->pVnode->pTsdb, pr->pReadSnap, "cache-l");
