@@ -3058,12 +3058,14 @@ static EDealRes checkStateExpr(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-static bool isPartitionByTbname(SNodeList* pPartitionByList) {
-  if (1 != LIST_LENGTH(pPartitionByList)) {
-    return false;
+static bool hasPartitionByTbname(SNodeList* pPartitionByList) {
+  SNode* pPartKey = NULL;
+  FOREACH(pPartKey, pPartitionByList) {
+    if (QUERY_NODE_FUNCTION == nodeType(pPartKey) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pPartKey)->funcType) {
+      return true;
+    }
   }
-  SNode* pPartKey = nodesListGetNode(pPartitionByList, 0);
-  return QUERY_NODE_FUNCTION == nodeType(pPartKey) && FUNCTION_TYPE_TBNAME == ((SFunctionNode*)pPartKey)->funcType;
+  return false;
 }
 
 static int32_t checkStateWindowForStream(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -3071,7 +3073,7 @@ static int32_t checkStateWindowForStream(STranslateContext* pCxt, SSelectStmt* p
     return TSDB_CODE_SUCCESS;
   }
   if (TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType &&
-      !isPartitionByTbname(pSelect->pPartitionByList)) {
+      !hasPartitionByTbname(pSelect->pPartitionByList)) {
     return generateSyntaxErrMsgExt(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY, "Unsupported stream query");
   }
   return TSDB_CODE_SUCCESS;
@@ -5365,12 +5367,12 @@ static int32_t translateKillTransaction(STranslateContext* pCxt, SKillStmt* pStm
 static bool crossTableWithoutAggOper(SSelectStmt* pSelect) {
   return NULL == pSelect->pWindow && !pSelect->hasAggFuncs && !pSelect->hasIndefiniteRowsFunc &&
          !pSelect->hasInterpFunc && TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType &&
-         !isPartitionByTbname(pSelect->pPartitionByList);
+         !hasPartitionByTbname(pSelect->pPartitionByList);
 }
 
 static bool crossTableWithUdaf(SSelectStmt* pSelect) {
   return pSelect->hasUdaf && TSDB_SUPER_TABLE == ((SRealTableNode*)pSelect->pFromTable)->pMeta->tableType &&
-         !isPartitionByTbname(pSelect->pPartitionByList);
+         !hasPartitionByTbname(pSelect->pPartitionByList);
 }
 
 static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
