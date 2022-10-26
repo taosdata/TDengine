@@ -316,27 +316,25 @@ typedef struct {
 } SAggOptrPushDownInfo;
 
 typedef struct STableScanInfo {
-  STsdbReader* dataReader;
-  SReadHandle  readHandle;
-
+  STsdbReader*           dataReader;
+  SReadHandle            readHandle;
+  SLimitInfo             limitInfo;
   SFileBlockLoadRecorder readRecorder;
   SScanInfo              scanInfo;
   int32_t                scanTimes;
   SNode*                 pFilterNode;  // filter info, which is push down by optimizer
-
-  SSDataBlock*         pResBlock;
-  SColMatchInfo        matchInfo;
-  SExprSupp            pseudoSup;
-  SQueryTableDataCond  cond;
-  int32_t              scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
-  int32_t              dataBlockLoadFlag;
-  SSampleExecInfo      sample;  // sample execution info
-  int32_t              currentGroupId;
-  int32_t              currentTable;
-  int8_t               scanMode;
-  int8_t               noTable;
-  SAggOptrPushDownInfo pdInfo;
-  int8_t               assignBlockUid;
+  SSDataBlock*           pResBlock;
+  SColMatchInfo          matchInfo;
+  SExprSupp              pseudoSup;
+  SQueryTableDataCond    cond;
+  int32_t                scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
+  int32_t                dataBlockLoadFlag;
+  SSampleExecInfo        sample;  // sample execution info
+  int32_t                currentGroupId;
+  int32_t                currentTable;
+  int8_t                 scanMode;
+  SAggOptrPushDownInfo   pdInfo;
+  int8_t                 assignBlockUid;
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {
