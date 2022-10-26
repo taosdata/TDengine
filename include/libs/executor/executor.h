@@ -53,8 +53,7 @@ typedef struct {
 
   void* sContext;  // SSnapContext*
 
-  void*   pStateBackend;
-  int64_t fillHistoryVer1;
+  void* pStateBackend;
 } SReadHandle;
 
 // in queue mode, data streams are seperated by msg

@@ -62,8 +62,12 @@ int32_t streamSourceRecoverScanStep2(SStreamTask* pTask, int64_t ver) {
 }
 
 int32_t streamDispatchRecoverFinishReq(SStreamTask* pTask) {
+  SStreamRecoverFinishReq req = {
+      .streamId = pTask->streamId,
+      .taskId = pTask->taskId,
+      .childId = pTask->selfChildId,
+  };
   if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
-    /*SStreamFillFinish*/
   } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
   }
   return 0;
@@ -87,6 +91,7 @@ int32_t streamAggChildrenRecoverFinish(SStreamTask* pTask) {
   if (qStreamRecoverFinish(exec) < 0) {
     return -1;
   }
+  streamSetStatusNormal(pTask);
   return 0;
 }
 
@@ -99,6 +104,22 @@ int32_t streamProcessRecoverFinishReq(SStreamTask* pTask, int32_t childId) {
   return 0;
 }
 
+int32_t tEncodeSStreamRecoverFinishReq(SEncoder* pEncoder, const SStreamRecoverFinishReq* pReq) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->childId) < 0) return -1;
+  tEndEncode(pEncoder);
+  return pEncoder->pos;
+}
+int32_t tDecodeSStreamRecoverFinishReq(SDecoder* pDecoder, SStreamRecoverFinishReq* pReq) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->childId) < 0) return -1;
+  tEndDecode(pDecoder);
+  return 0;
+}
 #if 0
 int32_t tEncodeStreamTaskRecoverReq(SEncoder* pEncoder, const SStreamTaskRecoverReq* pReq) {
   if (tStartEncode(pEncoder) < 0) return -1;
@@ -216,6 +237,7 @@ int32_t tDecodeSStreamMultiVgCheckpointInfo(SDecoder* pDecoder, SStreamMultiVgCh
   return 0;
 }
 
+#if 0
 int32_t tEncodeSStreamTaskRecoverReq(SEncoder* pEncoder, const SStreamRecoverDownstreamReq* pReq) {
   if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
   if (tEncodeI32(pEncoder, pReq->downstreamTaskId) < 0) return -1;
@@ -258,6 +280,7 @@ int32_t tDecodeSStreamTaskRecoverRsp(SDecoder* pDecoder, SStreamRecoverDownstrea
   }
   return 0;
 }
+#endif
 
 int32_t streamSaveStateInfo(SStreamMeta* pMeta, SStreamTask* pTask) {
 #if 0
@@ -353,6 +376,7 @@ int32_t streamSaveAggLevel(SStreamMeta* pMeta, SStreamTask* pTask) {
   return 0;
 }
 
+#if 0
 int32_t streamFetchRecoverStatus(SStreamTask* pTask, const SVgroupInfo* pVgInfo) {
   int32_t                     taskId = pVgInfo->taskId;
   int32_t                     nodeId = pVgInfo->vgId;
@@ -423,6 +447,7 @@ int32_t streamFetchDownstreamStatus(SStreamMeta* pMeta, SStreamTask* pTask) {
   }
   return 0;
 }
+#endif
 
 #if 0
 int32_t streamProcessFetchStatusRsp(SStreamMeta* pMeta, SStreamTask* pTask, SStreamRecoverDownstreamRsp* pRsp) {

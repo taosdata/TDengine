@@ -905,7 +905,6 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int64_t ver) {
         .vnode = pTq->pVnode,
         .initTqReader = 1,
         .pStateBackend = pTask->pState,
-        .fillHistoryVer1 = pTask->fillHistory ? ver : -1,
     };
     pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);
     ASSERT(pTask->exec.executor);
@@ -1090,9 +1089,24 @@ int32_t tqProcessTaskRecoverFinishReq(STQ* pTq, char* msg, int32_t msgLen) {
   int32_t code;
 
   // deserialize
+  int32_t                 len;
+  SStreamRecoverFinishReq req;
+
+  SDecoder decoder;
+  tDecoderInit(&decoder, msg, sizeof(SStreamRecoverFinishReq));
+  tDecodeSStreamRecoverFinishReq(&decoder, &req);
+  tDecoderClear(&decoder);
+
   // find task
+  SStreamTask* pTask = streamMetaGetTask(pTq->pStreamMeta, req.taskId);
+  if (pTask == NULL) {
+    return -1;
+  }
   // do process request
-  //
+  if (streamProcessRecoverFinishReq(pTask, req.childId) < 0) {
+    return -1;
+  }
+
   return 0;
 }
 

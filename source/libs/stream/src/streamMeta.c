@@ -141,9 +141,10 @@ int32_t streamMetaAddTask(SStreamMeta* pMeta, int64_t ver, SStreamTask* pTask) {
     return -1;
   }
 
-  SEncoder encoder;
+  SEncoder encoder = {0};
   tEncoderInit(&encoder, buf, len);
   tEncodeSStreamTask(&encoder, pTask);
+  tEncoderClear(&encoder);
 
   if (tdbTbUpsert(pMeta->pTaskDb, &pTask->taskId, sizeof(int32_t), buf, len, &pMeta->txn) < 0) {
     ASSERT(0);

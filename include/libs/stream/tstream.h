@@ -445,6 +445,15 @@ typedef struct {
   int32_t taskId;
 } SStreamRecoverStep1Req, SStreamRecoverStep2Req;
 
+typedef struct {
+  int64_t streamId;
+  int32_t taskId;
+  int32_t childId;
+} SStreamRecoverFinishReq;
+
+int32_t tEncodeSStreamRecoverFinishReq(SEncoder* pEncoder, const SStreamRecoverFinishReq* pReq);
+int32_t tDecodeSStreamRecoverFinishReq(SDecoder* pDecoder, SStreamRecoverFinishReq* pReq);
+
 #if 0
 typedef struct {
   int64_t streamId;
