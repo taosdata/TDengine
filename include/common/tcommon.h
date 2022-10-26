@@ -161,6 +161,7 @@ typedef enum EStreamType {
   STREAM_RETRIEVE,
   STREAM_PULL_DATA,
   STREAM_PULL_OVER,
+  STREAM_FILL_OVER,
 } EStreamType;
 
 typedef struct {

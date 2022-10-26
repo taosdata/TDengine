@@ -2139,12 +2139,13 @@ static int64_t getCurrentKeyInLastBlock(SLastBlockReader* pLastBlockReader) {
 }
 
 static bool hasDataInLastBlock(SLastBlockReader* pLastBlockReader) { return pLastBlockReader->mergeTree.pIter != NULL; }
-bool        hasDataInFileBlock(const SBlockData* pBlockData, const SFileBlockDumpInfo* pDumpInfo) {
-         if (pBlockData->nRow > 0) {
-           ASSERT(pBlockData->nRow == pDumpInfo->totalRows);
+
+bool hasDataInFileBlock(const SBlockData* pBlockData, const SFileBlockDumpInfo* pDumpInfo) {
+  if (pBlockData->nRow > 0) {
+    ASSERT(pBlockData->nRow == pDumpInfo->totalRows);
   }
 
-         return pBlockData->nRow > 0 && (!pDumpInfo->allDumped);
+  return pBlockData->nRow > 0 && (!pDumpInfo->allDumped);
 }
 
 int32_t mergeRowsInFileBlocks(SBlockData* pBlockData, STableBlockScanInfo* pBlockScanInfo, int64_t key,
@@ -2619,6 +2620,7 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
       ASSERT(tsLast >= pBlock->maxKey.ts);
       tBlockDataReset(&pReader->status.fileBlockData);
 
+      tsdbDebug("load data in last block firstly, due to desc scan data, %s", pReader->idStr);
       code = buildComposedDataBlock(pReader);
     } else {  // whole block is required, return it directly
       SDataBlockInfo* pInfo = &pReader->pResBlock->info;

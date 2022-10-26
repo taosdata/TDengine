@@ -38,7 +38,6 @@ extern "C" {
 #define TARRAY_MIN_SIZE               8
 #define TARRAY_GET_ELEM(array, index) ((void*)((char*)((array)->pData) + (index) * (array)->elemSize))
 #define TARRAY_ELEM_IDX(array, ele)   (POINTER_DISTANCE(ele, (array)->pData) / (array)->elemSize)
-#define TARRAY_GET_START(array)       ((array)->pData)
 
 typedef struct SArray {
   size_t   size;
@@ -70,14 +69,6 @@ int32_t taosArrayEnsureCap(SArray* pArray, size_t tsize);
  * @return
  */
 void* taosArrayAddBatch(SArray* pArray, const void* pData, int32_t nEles);
-
-/**
- *
- * @param pArray
- * @param pData           position array list
- * @param numOfElems      the number of removed position
- */
-void taosArrayRemoveBatch(SArray* pArray, const int32_t* pData, int32_t numOfElems);
 
 /**
  *
@@ -267,13 +258,6 @@ void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t compa
 int32_t taosArraySearchIdx(const SArray* pArray, const void* key, __compar_fn_t comparFn, int32_t flags);
 
 /**
- * search the array
- * @param pArray
- * @param key
- */
-char* taosArraySearchString(const SArray* pArray, const char* key, __compar_fn_t comparFn, int32_t flags);
-
-/**
  * sort the pointer data in the array
  * @param pArray
  * @param compar
@@ -286,8 +270,6 @@ void taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void* par
 int32_t taosEncodeArray(void** buf, const SArray* pArray, FEncode encode);
 void*   taosDecodeArray(const void* buf, SArray** pArray, FDecode decode, int32_t dataSz);
 
-char* taosShowStrArray(const SArray* pArray);
-
 /**
  * swap array
  * @param a
@@ -295,6 +277,7 @@ char* taosShowStrArray(const SArray* pArray);
  * @return
  */
 void taosArraySwap(SArray* a, SArray* b);
+
 #ifdef __cplusplus
 }
 #endif

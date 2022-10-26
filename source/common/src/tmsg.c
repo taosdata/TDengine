@@ -4853,6 +4853,7 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
   if (tEncodeCStr(&encoder, pReq->sourceDB) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->targetStbFullName) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->igExists) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->fillHistory) < 0) return -1;
   if (tEncodeI32(&encoder, sqlLen) < 0) return -1;
   if (tEncodeI32(&encoder, astLen) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->triggerType) < 0) return -1;
@@ -4889,6 +4890,7 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
   if (tDecodeCStrTo(&decoder, pReq->sourceDB) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->targetStbFullName) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->igExists) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->fillHistory) < 0) return -1;
   if (tDecodeI32(&decoder, &sqlLen) < 0) return -1;
   if (tDecodeI32(&decoder, &astLen) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->triggerType) < 0) return -1;
