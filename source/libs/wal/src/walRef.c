@@ -32,6 +32,7 @@ SWalRef *walOpenRef(SWal *pWal) {
   return pRef;
 }
 
+#if 0
 void walCloseRef(SWal *pWal, int64_t refId) {
   SWalRef **ppRef = taosHashGet(pWal->pRefHash, &refId, sizeof(int64_t));
   if (ppRef == NULL) return;
@@ -39,6 +40,7 @@ void walCloseRef(SWal *pWal, int64_t refId) {
   taosHashRemove(pWal->pRefHash, &refId, sizeof(int64_t));
   taosMemoryFree(pRef);
 }
+#endif
 
 int32_t walRefVer(SWalRef *pRef, int64_t ver) {
   SWal *pWal = pRef->pWal;
@@ -65,10 +67,12 @@ int32_t walRefVer(SWalRef *pRef, int64_t ver) {
   return 0;
 }
 
+#if 0
 void walUnrefVer(SWalRef *pRef) {
   pRef->refId = -1;
   pRef->refFile = -1;
 }
+#endif
 
 SWalRef *walRefCommittedVer(SWal *pWal) {
   SWalRef *pRef = walOpenRef(pWal);

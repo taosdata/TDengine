@@ -5988,7 +5988,11 @@ int32_t tDecodeSMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
       if (pRsp->withSchema) {
         SSchemaWrapper *pSW = (SSchemaWrapper *)taosMemoryCalloc(1, sizeof(SSchemaWrapper));
         if (pSW == NULL) return -1;
-        if (tDecodeSSchemaWrapper(pDecoder, pSW) < 0) return -1;
+        if (tDecodeSSchemaWrapper(pDecoder, pSW) < 0) {
+          taosMemoryFree(pSW);
+          return -1;
+        }
+
         taosArrayPush(pRsp->blockSchema, &pSW);
       }
 
@@ -6069,7 +6073,10 @@ int32_t tDecodeSTaosxRsp(SDecoder *pDecoder, STaosxRsp *pRsp) {
       if (pRsp->withSchema) {
         SSchemaWrapper *pSW = (SSchemaWrapper *)taosMemoryCalloc(1, sizeof(SSchemaWrapper));
         if (pSW == NULL) return -1;
-        if (tDecodeSSchemaWrapper(pDecoder, pSW) < 0) return -1;
+        if (tDecodeSSchemaWrapper(pDecoder, pSW) < 0) {
+          taosMemoryFree(pSW);
+          return -1;
+        }
         taosArrayPush(pRsp->blockSchema, &pSW);
       }
 

@@ -433,16 +433,9 @@ static int32_t tqInitDataRsp(SMqDataRsp* pRsp, const SMqPollReq* pReq, int8_t su
   }
 #endif
 
-  if (subType == TOPIC_SUB_TYPE__COLUMN) {
-    pRsp->withSchema = false;
-  } else {
-    pRsp->withSchema = true;
-    pRsp->blockSchema = taosArrayInit(0, sizeof(void*));
-    if (pRsp->blockSchema == NULL) {
-      // TODO free
-      return -1;
-    }
-  }
+  ASSERT(subType == TOPIC_SUB_TYPE__COLUMN);
+  pRsp->withSchema = false;
+
   return 0;
 }
 

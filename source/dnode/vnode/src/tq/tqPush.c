@@ -270,7 +270,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
             break;
           }
 
-          tqAddBlockDataToRsp(pDataBlock, pRsp, pExec->numOfCols);
+          tqAddBlockDataToRsp(pDataBlock, pRsp, pExec->numOfCols, pTq->pVnode->config.tsdbCfg.precision);
           pRsp->blockNum++;
         }
 
