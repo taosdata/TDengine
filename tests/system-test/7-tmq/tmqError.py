@@ -237,18 +237,19 @@ class TDTestCase:
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
 
-        time.sleep(3)
+        #time.sleep(3)
+        tmqCom.getStartConsumeNotifyFromTmqsim()
         tdLog.info("================= stop dnode, and remove data file, then start dnode ===========================")
         tdDnodes.stop(1)
         
-        # time.sleep(5)
+        time.sleep(5)
         dataPath = buildPath + "/../sim/dnode1/data/*"
         shellCmd = 'rm -rf ' + dataPath
         tdLog.info(shellCmd)
         os.system(shellCmd)
         #tdDnodes.start(1)
         tdDnodes.starttaosd(1)
-        time.sleep(2)
+        time.sleep(5)
 
         ######### redo to consume
         self.initConsumerTable()
