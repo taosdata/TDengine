@@ -3424,7 +3424,7 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
 
         // config change finish
         if (pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE_FINISH) {
-          if (rpcMsg.pCont != NULL) {
+          if (rpcMsg.pCont != NULL && rpcMsg.contLen > 0) {
             code = syncNodeConfigChangeFinish(ths, &rpcMsg, pEntry);
             ASSERT(code == 0);
           }
