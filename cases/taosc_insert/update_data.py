@@ -16,6 +16,7 @@ import sys
 from datetime import datetime
 from taostest import TDCase, T
 from taostest.util.common import TDCom
+import os
 class UpdateData(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
@@ -25,6 +26,7 @@ class UpdateData(TDCase):
         self.ctbname = 'ctb'
         self.ts = 1537146000000
         self.str_length = 20
+        self.default_replica = 3
         self.column_dict = {
             'col1': 'tinyint',
             'col2': 'smallint',
@@ -41,6 +43,10 @@ class UpdateData(TDCase):
             'col13': f'nchar({self.str_length})',
             'col_ts'  : 'timestamp'
         }
+        self.taosd_setting = self.tdCom.get_components_setting(self.env_setting["settings"], "taosd")
+        self.fqdn = self.taosd_setting["fqdn"][0]
+        self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
+        self.endpoint = self.taosd_setting["spec"]["config"]["firstEP"]
 
     def data_check(self,tbname,col_name,col_type,value,dbname):
         self.tdSql.query(f'select {col_name} from {dbname}.{tbname}')
@@ -199,7 +205,12 @@ class UpdateData(TDCase):
                 self.tdSql.execute(f'drop table {dbname}.{stbname}')
     def update_check(self):
         self.tdSql.execute(f'drop database if exists {self.dbname}')
-        self.tdSql.execute(f'create database {self.dbname}')
+        if TDCom.taostest_database_replicas_variable in os.environ:
+            if os.environ[TDCom.taostest_database_replicas_variable] == self.default_replica:
+                replica_value = self.default_replica
+        else:
+            replica_value = 1
+        self.tdSql.execute(f'create database {self.dbname} replica {replica_value}')
         self.tdSql.execute(f'use {self.dbname}')
         self.update_data_check(self.ntbname,self.column_dict,self.dbname,'ntb')
         for col_name,col_type in self.column_dict.items():
