@@ -3775,7 +3775,7 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
   return false;
 }
 
-bool tsdbTableNextDataBlock(STsdbReader* pReader, uint64_t uid) {
+bool tsdbTableNextDataBlock(STsdbReader* pReader, int64_t uid) {
   STableBlockScanInfo* pBlockScanInfo = taosHashGet(pReader->status.pTableMap, &uid, sizeof(uid));
   if (pBlockScanInfo == NULL) {  // no data block for the table of given uid
     return false;
