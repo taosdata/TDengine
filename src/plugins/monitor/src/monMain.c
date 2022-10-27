@@ -139,6 +139,29 @@ typedef enum {
   MON_STATE_INITED
 } EMonState;
 
+typedef enum {
+  // create
+  MON_DDL_CMD_CREATE_DATABASE,
+  MON_DDL_CMD_CREATE_TABLE,
+  MON_DDL_CMD_CREATE_CHILD_TABLE,
+  MON_DDL_CMD_CREATE_SUPER_TABLE,
+  // drop
+  MON_DDL_CMD_DROP_DATABASE,
+  MON_DDL_CMD_DROP_TABLE,
+  MON_DDL_CMD_DROP_CHILD_TABLE,
+  MON_DDL_CMD_DROP_SUPER_TABLE,
+  // alter
+  MON_DDL_CMD_ALTER_DATABASE,
+  MON_DDL_CMD_ADD_COLUMN,
+  MON_DDL_CMD_DROP_COLUMN,
+  MON_DDL_CMD_MODIFY_COLUMN,
+  MON_DDL_CMD_ADD_TAG,
+  MON_DDL_CMD_DROP_TAG,
+  MON_DDL_CMD_CHANGE_TAG,
+  MON_DDL_CMD_MODIFY_TAG,
+  MON_DDL_CMD_SET_TAG,
+} EMonDDLCmdType;
+
 typedef struct {
   pthread_t thread;
   void *    conn;
@@ -291,6 +314,7 @@ static void *monAuditFunc(void *param) {
     return NULL;
   }
 
+  // create database
   char sql[512] = {0};
   snprintf(sql, sizeof(sql),
            "create database if not exists %s replica 1 days 10 keep %s cache %d "
@@ -302,10 +326,25 @@ static void *monAuditFunc(void *param) {
   taos_free_result(res);
 
   if (code != 0) {
-    monError("failed to exec sql:%s, reason:%s", sql, tstrerror(code));
+    monError("failed to create database: %s, sql:%s, reason:%s", tsAuditDbName, sql, tstrerror(code));
     return NULL;
-  } else {
-    monDebug("successfully to exec sql:%s", sql);
+  }
+
+  // create table
+  memset(sql, 0, sizeof(sql));
+  snprintf(sql, sizeof(sql),
+           "create table if not exists %s.ddl(ts timestamp"
+           ", user_name binary(10), ip_addr binary(%d), type binary(10)"
+           ", object binary(64), result bool"
+           ")", tsAuditDbName, IP_LEN_STR);
+
+  res = taos_query(conn, sql);
+  code = taos_errno(res);
+  taos_free_result(res);
+
+  if (code != 0) {
+    monError("failed to create table: ddl, exec sql:%s, reason:%s", sql, tstrerror(code));
+    return NULL;
   }
 
   return NULL;
@@ -1378,6 +1417,108 @@ static void monExecSqlCb(void *param, TAOS_RES *result, int32_t code) {
   taos_free_result(result);
 }
 
+static bool monConvDDLType2Str(int8_t type, char *buf, int32_t len) {
+  if (buf == NULL) {
+    return false;
+  }
+
+  switch (type) {
+    case MON_DDL_CMD_CREATE_DATABASE: {
+      strncpy(buf, "CREATE DATABASE", len);
+      break;
+    }
+    case MON_DDL_CMD_CREATE_TABLE: {
+      strncpy(buf, "CREATE TABLE", len);
+      break;
+    }
+    case MON_DDL_CMD_CREATE_CHILD_TABLE: {
+      strncpy(buf, "CREATE CHILD TABLE", len);
+      break;
+    }
+    case MON_DDL_CMD_CREATE_SUPER_TABLE: {
+      strncpy(buf, "CREATE SUPER TABLE", len);
+      break;
+    }
+    case MON_DDL_CMD_DROP_DATABASE: {
+      strncpy(buf, "DROP DATABASE", len);
+      break;
+    }
+    case MON_DDL_CMD_DROP_TABLE: {
+      strncpy(buf, "DROP TABLE", len);
+      break;
+    }
+    case MON_DDL_CMD_DROP_CHILD_TABLE: {
+      strncpy(buf, "DROP CHILD TABLE", len);
+      break;
+    }
+    case MON_DDL_CMD_DROP_SUPER_TABLE: {
+      strncpy(buf, "DROP SUPER TABLE", len);
+      break;
+    }
+    case MON_DDL_CMD_DROP_COLUMN: {
+      strncpy(buf, "DROP COLUMN", len);
+      break;
+    }
+    case MON_DDL_CMD_DROP_TAG: {
+      strncpy(buf, "DROP TAG", len);
+      break;
+    }
+    case MON_DDL_CMD_ALTER_DATABASE: {
+      strncpy(buf, "ALTER DATABASE", len);
+      break;
+    }
+    case MON_DDL_CMD_ADD_COLUMN: {
+      strncpy(buf, "ADD COLUMN", len);
+      break;
+    }
+    case MON_DDL_CMD_ADD_TAG: {
+      strncpy(buf, "ADD TAG", len);
+      break;
+    }
+    case MON_DDL_CMD_MODIFY_COLUMN: {
+      strncpy(buf, "MODIFY COLUMN", len);
+      break;
+    }
+    case MON_DDL_CMD_MODIFY_TAG: {
+      strncpy(buf, "MODIFY TAG", len);
+      break;
+    }
+    case MON_DDL_CMD_CHANGE_TAG: {
+      strncpy(buf, "CHANGE TAG", len);
+      break;
+    }
+    default: {
+      return false;
+    }
+  }
+  return true;
+}
+
+void monSaveAuditLog(int8_t type, const char *user, const char *obj, bool result) {
+  char sql[1024] = {0};
+  char typeStr[64] = {0};
+
+  if (!monConvDDLType2Str(type, typeStr, (int32_t)sizeof(typeStr))) {
+    monError("unknown DDL type: %d ", type);
+    return;
+  }
+
+  snprintf(sql, 1023,
+          "insert into %s.ddl values(now, "
+          SQL_STR_FMT", "SQL_STR_FMT", "
+          SQL_STR_FMT", "SQL_STR_FMT", "
+          SQL_STR_FMT")",
+          tsAuditDbName,
+          (user != NULL) ? user : "NULL",
+          tsLocalEp,
+          (obj != NULL) ? obj : "NULL",
+          typeStr,
+          result ? "success" : "fail");
+
+  monDebug("save ddl info, sql:%s", sql);
+  taos_query_a(tsMonitor.conn, sql, monExecSqlCb, "account info");
+}
+
 void monSaveAcctLog(SAcctMonitorObj *pMon) {
   if (tsMonitor.state != MON_STATE_INITED) return;
 
@@ -1453,6 +1594,7 @@ void monSaveDnodeLog(int32_t level, const char *const format, ...) {
   monDebug("save dnode log, sql: %s", sql);
   taos_query_a(tsMonitor.conn, sql, monExecSqlCb, "log");
 }
+
 
 void monExecuteSQL(char *sql) {
   if (tsMonitor.state != MON_STATE_INITED) return;
