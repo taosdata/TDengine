@@ -237,7 +237,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     taosArrayPush(pLastCols, &p);
   }
 
-  tsdbTakeReadSnap(pr->pVnode->pTsdb, &pr->pReadSnap, "cache-l");
+  tsdbTakeReadSnap(NULL, &pr->pReadSnap);
   pr->pDataFReader = NULL;
   pr->pDataFReaderLast = NULL;
 
@@ -338,7 +338,7 @@ _end:
   tsdbDataFReaderClose(&pr->pDataFReaderLast);
   tsdbDataFReaderClose(&pr->pDataFReader);
 
-  tsdbUntakeReadSnap(pr->pVnode->pTsdb, pr->pReadSnap, "cache-l");
+  tsdbUntakeReadSnap(NULL, pr->pReadSnap);
 
   for (int32_t j = 0; j < pr->numOfCols; ++j) {
     taosMemoryFree(pRes[j]);

@@ -4150,7 +4150,7 @@ int32_t tsdbTakeReadSnap(STsdbReader* pReader, STsdbReadSnap** ppSnap) {
     goto _exit;
   }
 
-  tsdbTrace("vgId:%d, take read snapshot, %s", TD_VID(pTsdb->pVnode), idStr);
+  tsdbTrace("vgId:%d, take read snapshot", TD_VID(pTsdb->pVnode));
 _exit:
   return code;
 }
@@ -4170,7 +4170,7 @@ void tsdbUntakeReadSnap(STsdbReader* pReader, STsdbReadSnap* pSnap) {
     tsdbFSUnref(pTsdb, &pSnap->fs);
     taosMemoryFree(pSnap);
   }
-  tsdbTrace("vgId:%d, untake read snapshot", TD_VID(pTsdb->pVnode), pReader->idStr);
+  tsdbTrace("vgId:%d, untake read snapshot", TD_VID(pTsdb->pVnode));
 }
 
 int32_t tsdbSetQueryReseek(void* pQHandle) {

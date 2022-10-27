@@ -1054,12 +1054,6 @@ static int32_t tsdbEndCommit(SCommitter *pCommitter, int32_t eno) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  pTsdb->imem = NULL;
-
-  // unlock
-  taosThreadRwlockUnlock(&pTsdb->rwLock);
-
-  tsdbUnrefMemTable(pMemTable, NULL);
 _exit:
   tsdbFSDestroy(&pCommitter->fs);
   taosArrayDestroy(pCommitter->aTbDataP);
@@ -1658,7 +1652,7 @@ int32_t tsdbFinishCommit(STsdb *pTsdb) {
   // unlock
   taosThreadRwlockUnlock(&pTsdb->rwLock);
   if (pMemTable) {
-    tsdbUnrefMemTable(pMemTable);
+    tsdbUnrefMemTable(pMemTable, NULL);
   }
 
 _exit:
