@@ -28,7 +28,7 @@
   do {                       \
     ASSERT((_c) != -1);      \
     longjmp((_obj), (_c));   \
-  } while (0);
+  } while (0)
 
 #define SET_RES_WINDOW_KEY(_k, _ori, _len, _uid)     \
   do {                                               \
@@ -94,6 +94,21 @@ typedef struct SColMatchInfo {
   SArray* pList;      // SArray<SColMatchItem>
   int32_t matchType;  // determinate the source according to col id or slot id
 } SColMatchInfo;
+
+typedef struct {
+  bool      oneTableForEachGroup;
+  int32_t   numOfGroups;
+  int32_t*  groupOffset;   // keep the offset value for each group in the tableList
+  SArray*   pTableList;
+  SHashObj* map;           // speedup acquire the tableQueryInfo by table uid
+  uint64_t  suid;
+} STableListInfo;
+
+void     destroyTableList(STableListInfo* pTableList);
+int32_t  getNumOfGroups(STableListInfo* pTableList);
+uint64_t getTableGroupId(STableListInfo* pTableList, uint64_t tableUid);
+int32_t  getTablesOfGroup(STableListInfo* pTableList, int32_t ordinalIndex, STableKeyInfo** pKeyInfo, int32_t* num);
+uint64_t getTotalTables(STableListInfo* pTableList);
 
 struct SqlFunctionCtx;
 

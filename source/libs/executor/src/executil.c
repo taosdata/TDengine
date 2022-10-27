@@ -544,6 +544,7 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
+
   ctx.index = 0;
   ctx.cInfoList = taosArrayInit(4, sizeof(SColumnInfo));
   if (ctx.cInfoList == NULL) {
@@ -606,6 +607,7 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
       } else {
         void* tag = taosHashGet(tags, uid, sizeof(int64_t));
         ASSERT(tag);
+
         STagVal tagVal = {0};
         tagVal.cid = pColInfo->info.colId;
         const char* p = metaGetTableTagVal(tag, pColInfo->info.type, &tagVal);
@@ -636,6 +638,7 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
       }
     }
   }
+
   pResBlock->info.rows = rows;
 
   //  int64_t st1 = taosGetTimestampUs();
@@ -661,10 +664,12 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
         }
         break;
       }
+
       default:
         code = TSDB_CODE_OPS_NOT_SUPPORT;
         goto end;
     }
+
     if (nodeType(pNode) == QUERY_NODE_COLUMN) {
       SColumnNode*     pSColumnNode = (SColumnNode*)pNode;
       SColumnInfoData* pColInfo = (SColumnInfoData*)taosArrayGet(pResBlock->pDataBlock, pSColumnNode->slotId);
@@ -674,10 +679,12 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
     } else {
       code = scalarCalculate(pNode, pBlockList, &output);
     }
+
     if (code != TSDB_CODE_SUCCESS) {
       releaseColInfoData(output.columnData);
       goto end;
     }
+
     taosArrayPush(groupData, &output.columnData);
   }
 
@@ -696,6 +703,7 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto end;
   }
+
   for (int i = 0; i < rows; i++) {
     STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
 
@@ -946,14 +954,6 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
   }
 
   taosArrayDestroy(res);
-
-  pListInfo->pGroupList = taosArrayInit(4, POINTER_BYTES);
-  if (pListInfo->pGroupList == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  // put into list as default group, remove it if grouping sorting is required later
-  taosArrayPush(pListInfo->pGroupList, &pListInfo->pTableList);
   return code;
 }
 
@@ -1603,4 +1603,64 @@ void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimit
   pLimitInfo->slimit = slimit;
   pLimitInfo->remainOffset = limit.offset;
   pLimitInfo->remainGroupOffset = slimit.offset;
+}
+
+uint64_t getTotalTables(STableListInfo* pTableList) {
+  if (pTableList->map != NULL) {
+    ASSERT(taosArrayGetSize(pTableList->pTableList) == taosHashGetSize(pTableList->map));
+  }
+
+  return taosArrayGetSize(pTableList->pTableList);
+}
+
+uint64_t getTableGroupId(STableListInfo* pTableList, uint64_t tableUid) {
+  uint64_t* groupId = taosHashGet(pTableList->map, &tableUid, sizeof(tableUid));
+  if (groupId != NULL) {
+    return *groupId;
+  } else {
+    return 0;
+  }
+}
+
+int32_t getTablesOfGroup(STableListInfo* pTableList, int32_t ordinalGroupIndex, STableKeyInfo** pKeyInfo, int32_t* size) {
+  int32_t total = getNumOfGroups(pTableList);
+  if (ordinalGroupIndex < 0 || ordinalGroupIndex >= total) {
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  // here handle two special cases:
+  // 1. only one group exists, and 2. one table exists for each group.
+  if (pTableList->numOfGroups == 1) {
+    *size = getTotalTables(pTableList);
+    *pKeyInfo = taosArrayGet(pTableList->pTableList, 0);
+    return TSDB_CODE_SUCCESS;
+  } else if (pTableList->numOfGroups == getTotalTables(pTableList)) {
+    *size = 1;
+    *pKeyInfo = taosArrayGet(pTableList->pTableList, ordinalGroupIndex);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t offset = pTableList->groupOffset[ordinalGroupIndex];
+  if (ordinalGroupIndex < total - 1) {
+    *size = pTableList->groupOffset[offset + 1] - pTableList->groupOffset[offset];
+  } else {
+    *size = total - pTableList->groupOffset[offset] - 1;
+  }
+
+  *pKeyInfo = taosArrayGet(pTableList->pTableList, offset);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t  getNumOfGroups(STableListInfo* pTableList) {
+  return pTableList->numOfGroups;
+}
+
+void destroyTableList(STableListInfo* pTableqinfoList) {
+  pTableqinfoList->pTableList = taosArrayDestroy(pTableqinfoList->pTableList);
+  taosMemoryFreeClear(pTableqinfoList->groupOffset);
+
+  taosHashCleanup(pTableqinfoList->map);
+
+  pTableqinfoList->pTableList = NULL;
+  pTableqinfoList->map = NULL;
 }

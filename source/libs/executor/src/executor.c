@@ -811,14 +811,18 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       ASSERT(found);
 
       if (pTableScanInfo->dataReader == NULL) {
-        if (tsdbReaderOpen(pTableScanInfo->readHandle.vnode, &pTableScanInfo->cond,
-                           pTaskInfo->tableqinfoList.pTableList, &pTableScanInfo->dataReader, NULL) < 0 ||
+
+        STableKeyInfo* pList = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, 0);
+        int32_t num = taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList);
+        if (tsdbReaderOpen(pTableScanInfo->readHandle.vnode, &pTableScanInfo->cond, pList, num,
+                           &pTableScanInfo->dataReader, NULL) < 0 ||
             pTableScanInfo->dataReader == NULL) {
           ASSERT(0);
         }
       }
 
-      tsdbSetTableId(pTableScanInfo->dataReader, uid);
+      STableKeyInfo tki = {.uid = uid};
+      tsdbSetTableList(pTableScanInfo->dataReader, &tki, 1);
       int64_t oldSkey = pTableScanInfo->cond.twindows.skey;
       pTableScanInfo->cond.twindows.skey = ts + 1;
       tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond);
@@ -848,9 +852,15 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
     initQueryTableDataCondForTmq(&pTaskInfo->streamInfo.tableCond, sContext, &mtInfo);
     pTaskInfo->streamInfo.tableCond.twindows.skey = pOffset->ts;
-    pTaskInfo->tableqinfoList.pTableList = taosArrayInit(1, sizeof(STableKeyInfo));
-    taosArrayPush(pTaskInfo->tableqinfoList.pTableList, &(STableKeyInfo){.uid = mtInfo.uid, .groupId = 0});
-    tsdbReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pTaskInfo->tableqinfoList.pTableList,
+
+    STableListInfo* pListInfo = &pTaskInfo->tableqinfoList;
+
+    pListInfo->pTableList = taosArrayInit(1, sizeof(STableKeyInfo));
+    taosArrayPush(pListInfo->pTableList, &(STableKeyInfo){.uid = mtInfo.uid, .groupId = 0});
+
+    STableKeyInfo* pList = taosArrayGet(pListInfo->pTableList, 0);
+
+    tsdbReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pList, taosArrayGetSize(pListInfo->pTableList),
                    &pInfo->dataReader, NULL);
 
     cleanupQueryTableDataCond(&pTaskInfo->streamInfo.tableCond);
