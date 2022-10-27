@@ -516,17 +516,28 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
           tqOffsetResetToLog(&fetchOffsetNew, walGetFirstVer(pTq->pVnode->pWal));
         }
       } else if (reqOffset.type == TMQ_OFFSET__RESET_LATEST) {
-        SMqDataRsp dataRsp = {0};
-        tqInitDataRsp(&dataRsp, pReq, pHandle->execHandle.subType);
+        if (pHandle->execHandle.subType == TOPIC_SUB_TYPE__COLUMN) {
+          SMqDataRsp dataRsp = {0};
+          tqInitDataRsp(&dataRsp, pReq, pHandle->execHandle.subType);
 
-        tqOffsetResetToLog(&dataRsp.rspOffset, walGetLastVer(pTq->pVnode->pWal));
-        tqDebug("tmq poll: consumer %" PRId64 ", subkey %s, vg %d, offset reset to %" PRId64, consumerId,
-                pHandle->subKey, TD_VID(pTq->pVnode), dataRsp.rspOffset.version);
-        if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
-          code = -1;
+          tqOffsetResetToLog(&dataRsp.rspOffset, walGetLastVer(pTq->pVnode->pWal));
+          tqDebug("tmq poll: consumer %" PRId64 ", subkey %s, vg %d, offset reset to %" PRId64, consumerId,
+                  pHandle->subKey, TD_VID(pTq->pVnode), dataRsp.rspOffset.version);
+          if (tqSendDataRsp(pTq, pMsg, pReq, &dataRsp) < 0) {
+            code = -1;
+          }
+          tDeleteSMqDataRsp(&dataRsp);
+          return code;
+        } else {
+          STaosxRsp taosxRsp = {0};
+          tqInitTaosxRsp(&taosxRsp, pReq);
+          tqOffsetResetToLog(&taosxRsp.rspOffset, walGetLastVer(pTq->pVnode->pWal));
+          if (tqSendTaosxRsp(pTq, pMsg, pReq, &taosxRsp) < 0) {
+            code = -1;
+          }
+          tDeleteSTaosxRsp(&taosxRsp);
+          return code;
         }
-        tDeleteSMqDataRsp(&dataRsp);
-        return code;
       } else if (reqOffset.type == TMQ_OFFSET__RESET_NONE) {
         tqError("tmq poll: subkey %s, no offset committed for consumer %" PRId64
                 " in vg %d, subkey %s, reset none failed",

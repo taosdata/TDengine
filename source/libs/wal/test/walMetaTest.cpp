@@ -257,6 +257,39 @@ TEST_F(WalCleanEnv, rollback) {
   ASSERT_EQ(code, 0);
 }
 
+TEST_F(WalCleanEnv, rollbackMultiFile) {
+  int code;
+  for (int i = 0; i < 10; i++) {
+    code = walWrite(pWal, i, i + 1, (void*)ranStr, ranStrLen);
+    ASSERT_EQ(code, 0);
+    ASSERT_EQ(pWal->vers.lastVer, i);
+    if (i == 5) {
+      walBeginSnapshot(pWal, i);
+      walEndSnapshot(pWal);
+    }
+  }
+  code = walRollback(pWal, 12);
+  ASSERT_NE(code, 0);
+  ASSERT_EQ(pWal->vers.lastVer, 9);
+  code = walRollback(pWal, 9);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pWal->vers.lastVer, 8);
+  code = walRollback(pWal, 5);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pWal->vers.lastVer, 4);
+  code = walRollback(pWal, 3);
+  ASSERT_EQ(code, 0);
+
+  ASSERT_EQ(pWal->vers.lastVer, 2);
+
+  code = walWrite(pWal, 3, 3, (void*)ranStr, ranStrLen);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pWal->vers.lastVer, 3);
+
+  code = walSaveMeta(pWal);
+  ASSERT_EQ(code, 0);
+}
+
 TEST_F(WalCleanDeleteEnv, roll) {
   int code;
   int i;
