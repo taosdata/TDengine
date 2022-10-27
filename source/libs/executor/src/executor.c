@@ -30,6 +30,46 @@ static void cleanupRefPool() {
   taosCloseRef(ref);
 }
 
+static int32_t doSetSMABlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, char* id) {
+  ASSERT(pOperator != NULL);
+  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+    if (pOperator->numOfDownstream == 0) {
+      qError("failed to find stream scan operator to set the input data block, %s" PRIx64, id);
+      return TSDB_CODE_QRY_APP_ERROR;
+    }
+
+    if (pOperator->numOfDownstream > 1) {  // not handle this in join query
+      qError("join not supported for stream block scan, %s" PRIx64, id);
+      return TSDB_CODE_QRY_APP_ERROR;
+    }
+    pOperator->status = OP_NOT_OPENED;
+    return doSetSMABlock(pOperator->pDownstream[0], input, numOfBlocks, type, id);
+  } else {
+    pOperator->status = OP_NOT_OPENED;
+
+    SStreamScanInfo* pInfo = pOperator->info;
+
+    if (type == STREAM_INPUT__MERGED_SUBMIT) {
+      for (int32_t i = 0; i < numOfBlocks; i++) {
+        SSubmitReq* pReq = *(void**)POINTER_SHIFT(input, i * sizeof(void*));
+        taosArrayPush(pInfo->pBlockLists, &pReq);
+      }
+      pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
+    } else if (type == STREAM_INPUT__DATA_SUBMIT) {
+      taosArrayPush(pInfo->pBlockLists, &input);
+      pInfo->blockType = STREAM_INPUT__DATA_SUBMIT;
+    } else if (type == STREAM_INPUT__DATA_BLOCK) {
+      for (int32_t i = 0; i < numOfBlocks; ++i) {
+        SSDataBlock* pDataBlock = &((SSDataBlock*)input)[i];
+        taosArrayPush(pInfo->pBlockLists, &pDataBlock);
+      }
+      pInfo->blockType = STREAM_INPUT__DATA_BLOCK;
+    }
+
+    return TSDB_CODE_SUCCESS;
+  }
+}
+
 static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t numOfBlocks, int32_t type, char* id) {
   ASSERT(pOperator != NULL);
   if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
@@ -95,6 +135,27 @@ int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numO
     qError("%s failed to set the stream block data", GET_TASKID(pTaskInfo));
   } else {
     qDebug("%s set the stream block successfully", GET_TASKID(pTaskInfo));
+  }
+
+  return code;
+}
+
+int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type) {
+  if (tinfo == NULL) {
+    return TSDB_CODE_QRY_APP_ERROR;
+  }
+
+  if (pBlocks == NULL || numOfBlocks == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+
+  int32_t code = doSetSMABlock(pTaskInfo->pRoot, (void*)pBlocks, numOfBlocks, type, GET_TASKID(pTaskInfo));
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("%s failed to set the sma block data", GET_TASKID(pTaskInfo));
+  } else {
+    qDebug("%s set the sma block successfully", GET_TASKID(pTaskInfo));
   }
 
   return code;

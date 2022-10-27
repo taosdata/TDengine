@@ -15,11 +15,11 @@
 
 #include "sma.h"
 
-#define RSMA_QTASKEXEC_SMOOTH_SIZE (100)                                                 // cnt
-#define RSMA_SUBMIT_BATCH_SIZE     (1024)                                                // cnt
-#define RSMA_FETCH_DELAY_MAX       (120000)                                              // ms
-#define RSMA_FETCH_ACTIVE_MAX      (1000)                                                // ms
-#define RSMA_FETCH_INTERVAL        (5000)                                                // ms
+#define RSMA_QTASKEXEC_SMOOTH_SIZE (100)     // cnt
+#define RSMA_SUBMIT_BATCH_SIZE     (1024)    // cnt
+#define RSMA_FETCH_DELAY_MAX       (120000)  // ms
+#define RSMA_FETCH_ACTIVE_MAX      (1000)    // ms
+#define RSMA_FETCH_INTERVAL        (5000)    // ms
 
 SSmaMgmt smaMgmt = {
     .inited = 0,
@@ -839,7 +839,7 @@ static int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t msgSize, 
     tdRsmaPrintSubmitReq(pSma, pReq);
   }
 #endif
-  if (qSetMultiStreamInput(qTaskInfo, pMsg, msgSize, inputType) < 0) {
+  if (qSetSMAInput(qTaskInfo, pMsg, msgSize, inputType) < 0) {
     smaError("vgId:%d, rsma %" PRIi8 " qSetStreamInput failed since %s", SMA_VID(pSma), level, tstrerror(terrno));
     return TSDB_CODE_FAILED;
   }
@@ -1404,7 +1404,7 @@ static int32_t tdRSmaFetchAllResult(SSma *pSma, SRSmaInfo *pInfo) {
 
       pItem->nScanned = 0;
 
-      if ((terrno = qSetMultiStreamInput(taskInfo, &dataBlock, 1, STREAM_INPUT__DATA_BLOCK)) < 0) {
+      if ((terrno = qSetSMAInput(taskInfo, &dataBlock, 1, STREAM_INPUT__DATA_BLOCK)) < 0) {
         goto _err;
       }
       if (tdRSmaExecAndSubmitResult(pSma, taskInfo, pItem, pInfo->pTSchema, pInfo->suid) < 0) {
