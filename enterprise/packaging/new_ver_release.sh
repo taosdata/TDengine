@@ -59,7 +59,7 @@ do
       echo "                     -l [full | lite]  "
       echo "                     -v [cluster, edge ,all] cluster is enterprise, edge is community  "
       echo "                     -V [stable | beta] "
-      echo "                     -d [no | build | push]   "
+      echo "                     -d [no | build | push | latest]   "
       exit 0
       ;;
     ?) #unknow option
@@ -73,18 +73,18 @@ if [ "$dockerMode" == "latest" ];then
   bash generate_docker.sh     $version $branchName $verType $cpuType $verMode $dockerMode
 fi
 
-# if [ "$verMode" == "all" ];then
-#   bash generate_community.sh  $version $versionComp $branchName $verType $cpuType
-#   bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType
-# elif [ "$verMode" == "edge" ];then
-#   bash generate_community.sh  $version $versionComp $branchName $verType $cpuType
-# elif [ "$verMode" == "cluster" ];then
-#   bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType
-# elif [ "$verMode" == "cloud" ];then
-#   bash generate_cloud.sh $version $versionComp $branchName $verType $cpuType
-# else
-#   echo "please input right Specified para "
-# fi
+if [ "$verMode" == "all" ];then
+  bash generate_community.sh  $version $versionComp $branchName $verType $cpuType
+  bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType
+elif [ "$verMode" == "edge" ];then
+  bash generate_community.sh  $version $versionComp $branchName $verType $cpuType
+elif [ "$verMode" == "cluster" ];then
+  bash generate_enterprise.sh $version $versionComp $branchName $verType $cpuType
+elif [ "$verMode" == "cloud" ];then
+  bash generate_cloud.sh $version $versionComp $branchName $verType $cpuType
+else
+  echo "please input right Specified para "
+fi
 
 if [ "$dockerMode" == "build" ] || [ "$dockerMode" == "push" ];then
   bash generate_docker.sh     $version $branchName $verType $cpuType $verMode $dockerMode

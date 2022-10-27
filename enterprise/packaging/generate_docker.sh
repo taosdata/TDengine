@@ -25,6 +25,7 @@ if [ "$verMode" == "cluster" ];then
   tdengineNameType="-enterprise"
   dockerParam=""
 elif [ "$verMode" == "cloud" ];then
+  chmod u+x ${communityDir}/packaging/docker/run.sh
   cp docker/run.sh ${communityDir}/packaging/docker/
   tdengineNameType="-cloud"
   dockerParam="-d y"
