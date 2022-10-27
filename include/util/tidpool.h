@@ -23,10 +23,10 @@ extern "C" {
 #endif
 
 typedef struct {
-  int32_t         maxId;
-  int32_t         numOfFree;
-  int32_t         freeSlot;
-  bool           *freeList;
+  int32_t       maxId;
+  int32_t       numOfFree;
+  int32_t       freeSlot;
+  bool         *freeList;
   TdThreadMutex mutex;
 } id_pool_t;
 

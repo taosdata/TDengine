@@ -18,6 +18,7 @@
 #include "mndConsumer.h"
 
 int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
+  if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeCStr(pEncoder, pObj->name) < 0) return -1;
 
   if (tEncodeI64(pEncoder, pObj->createTime) < 0) return -1;
@@ -31,6 +32,7 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
 
   if (tEncodeI8(pEncoder, pObj->igExpired) < 0) return -1;
   if (tEncodeI8(pEncoder, pObj->trigger) < 0) return -1;
+  if (tEncodeI8(pEncoder, pObj->fillHistory) < 0) return -1;
   if (tEncodeI64(pEncoder, pObj->triggerParam) < 0) return -1;
   if (tEncodeI64(pEncoder, pObj->watermark) < 0) return -1;
 
@@ -42,9 +44,23 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   if (tEncodeI64(pEncoder, pObj->targetStbUid) < 0) return -1;
   if (tEncodeI32(pEncoder, pObj->fixedSinkVgId) < 0) return -1;
 
-  if (tEncodeCStr(pEncoder, pObj->sql) < 0) return -1;
-  if (tEncodeCStr(pEncoder, pObj->ast) < 0) return -1;
-  if (tEncodeCStr(pEncoder, pObj->physicalPlan) < 0) return -1;
+  if (pObj->sql != NULL) {
+    if (tEncodeCStr(pEncoder, pObj->sql) < 0) return -1;
+  } else {
+    if (tEncodeCStr(pEncoder, "") < 0) return -1;
+  }
+
+  if (pObj->ast != NULL) {
+    if (tEncodeCStr(pEncoder, pObj->ast) < 0) return -1;
+  } else {
+    if (tEncodeCStr(pEncoder, "") < 0) return -1;
+  }
+
+  if (pObj->physicalPlan != NULL) {
+    if (tEncodeCStr(pEncoder, pObj->physicalPlan) < 0) return -1;
+  } else {
+    if (tEncodeCStr(pEncoder, "") < 0) return -1;
+  }
 
   int32_t sz = taosArrayGetSize(pObj->tasks);
   if (tEncodeI32(pEncoder, sz) < 0) return -1;
@@ -60,10 +76,12 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
 
   if (tEncodeSSchemaWrapper(pEncoder, &pObj->outputSchema) < 0) return -1;
 
+  tEndEncode(pEncoder);
   return pEncoder->pos;
 }
 
 int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
+  if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pObj->name) < 0) return -1;
 
   if (tDecodeI64(pDecoder, &pObj->createTime) < 0) return -1;
@@ -77,6 +95,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
 
   if (tDecodeI8(pDecoder, &pObj->igExpired) < 0) return -1;
   if (tDecodeI8(pDecoder, &pObj->trigger) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pObj->fillHistory) < 0) return -1;
   if (tDecodeI64(pDecoder, &pObj->triggerParam) < 0) return -1;
   if (tDecodeI64(pDecoder, &pObj->watermark) < 0) return -1;
 
@@ -103,8 +122,15 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
       SArray *pArray = taosArrayInit(innerSz, sizeof(void *));
       for (int32_t j = 0; j < innerSz; j++) {
         SStreamTask *pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
-        if (pTask == NULL) return -1;
-        if (tDecodeSStreamTask(pDecoder, pTask) < 0) return -1;
+        if (pTask == NULL) {
+          taosArrayDestroy(pArray);
+          return -1;
+        }
+        if (tDecodeSStreamTask(pDecoder, pTask) < 0) {
+          taosMemoryFree(pTask);
+          taosArrayDestroy(pArray);
+          return -1;
+        }
         taosArrayPush(pArray, &pTask);
       }
       taosArrayPush(pObj->tasks, &pArray);
@@ -113,6 +139,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
 
   if (tDecodeSSchemaWrapper(pDecoder, &pObj->outputSchema) < 0) return -1;
 
+  tEndDecode(pDecoder);
   return 0;
 }
 
@@ -145,7 +172,10 @@ SMqVgEp *tCloneSMqVgEp(const SMqVgEp *pVgEp) {
 }
 
 void tDeleteSMqVgEp(SMqVgEp *pVgEp) {
-  if (pVgEp->qmsg) taosMemoryFree(pVgEp->qmsg);
+  if (pVgEp) {
+    taosMemoryFreeClear(pVgEp->qmsg);
+    taosMemoryFree(pVgEp);
+  }
 }
 
 int32_t tEncodeSMqVgEp(void **buf, const SMqVgEp *pVgEp) {
@@ -200,18 +230,10 @@ SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_L
 }
 
 void tDeleteSMqConsumerObj(SMqConsumerObj *pConsumer) {
-  if (pConsumer->currentTopics) {
-    taosArrayDestroyP(pConsumer->currentTopics, (FDelete)taosMemoryFree);
-  }
-  if (pConsumer->rebNewTopics) {
-    taosArrayDestroyP(pConsumer->rebNewTopics, (FDelete)taosMemoryFree);
-  }
-  if (pConsumer->rebRemovedTopics) {
-    taosArrayDestroyP(pConsumer->rebRemovedTopics, (FDelete)taosMemoryFree);
-  }
-  if (pConsumer->assignedTopics) {
-    taosArrayDestroyP(pConsumer->assignedTopics, (FDelete)taosMemoryFree);
-  }
+  taosArrayDestroyP(pConsumer->currentTopics, (FDelete)taosMemoryFree);
+  taosArrayDestroyP(pConsumer->rebNewTopics, (FDelete)taosMemoryFree);
+  taosArrayDestroyP(pConsumer->rebRemovedTopics, (FDelete)taosMemoryFree);
+  taosArrayDestroyP(pConsumer->assignedTopics, (FDelete)taosMemoryFree);
 }
 
 int32_t tEncodeSMqConsumerObj(void **buf, const SMqConsumerObj *pConsumer) {
@@ -343,8 +365,8 @@ SMqConsumerEp *tCloneSMqConsumerEp(const SMqConsumerEp *pConsumerEpOld) {
   return pConsumerEpNew;
 }
 
-void tDeleteSMqConsumerEp(SMqConsumerEp *pConsumerEp) {
-  //
+void tDeleteSMqConsumerEp(void *data) {
+  SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)data;
   taosArrayDestroyP(pConsumerEp->vgs, (FDelete)tDeleteSMqVgEp);
 }
 
@@ -428,6 +450,13 @@ SMqSubscribeObj *tCloneSubscribeObj(const SMqSubscribeObj *pSub) {
 }
 
 void tDeleteSubscribeObj(SMqSubscribeObj *pSub) {
+  void *pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pSub->consumerHash, pIter);
+    if (pIter == NULL) break;
+    SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIter;
+    taosArrayDestroyP(pConsumerEp->vgs, (FDelete)tDeleteSMqVgEp);
+  }
   taosHashCleanup(pSub->consumerHash);
   taosArrayDestroyP(pSub->unassignedVgs, (FDelete)tDeleteSMqVgEp);
 }

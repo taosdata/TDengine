@@ -17,14 +17,7 @@
 #include "dmMgmt.h"
 #include "qworker.h"
 
-static inline void dmSendRsp(SRpcMsg *pMsg) {
-  SMgmtWrapper *pWrapper = pMsg->info.wrapper;
-  if (InChildProc(pWrapper)) {
-    dmPutToProcPQueue(&pWrapper->proc, pMsg, DND_FUNC_RSP);
-  } else {
-    rpcSendResponse(pMsg);
-  }
-}
+static inline void dmSendRsp(SRpcMsg *pMsg) { rpcSendResponse(pMsg); }
 
 static inline void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
   SEpSet epSet = {0};
@@ -157,11 +150,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
   dGTrace("msg:%p, is created, type:%s handle:%p", pMsg, TMSG_INFO(pRpc->msgType), pMsg->info.handle);
 
-  if (InParentProc(pWrapper)) {
-    code = dmPutToProcCQueue(&pWrapper->proc, pMsg, DND_FUNC_REQ);
-  } else {
-    code = dmProcessNodeMsg(pWrapper, pMsg);
-  }
+  code = dmProcessNodeMsg(pWrapper, pMsg);
 
 _OVER:
   if (code != 0) {
@@ -233,24 +222,9 @@ static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   }
 }
 
-static inline void dmRegisterBrokenLinkArg(SRpcMsg *pMsg) {
-  SMgmtWrapper *pWrapper = pMsg->info.wrapper;
-  if (InChildProc(pWrapper)) {
-    dmPutToProcPQueue(&pWrapper->proc, pMsg, DND_FUNC_REGIST);
-  } else {
-    rpcRegisterBrokenLinkArg(pMsg);
-  }
-}
+static inline void dmRegisterBrokenLinkArg(SRpcMsg *pMsg) { rpcRegisterBrokenLinkArg(pMsg); }
 
-static inline void dmReleaseHandle(SRpcHandleInfo *pHandle, int8_t type) {
-  SMgmtWrapper *pWrapper = pHandle->wrapper;
-  if (InChildProc(pWrapper)) {
-    SRpcMsg msg = {.code = type, .info = *pHandle};
-    dmPutToProcPQueue(&pWrapper->proc, &msg, DND_FUNC_RELEASE);
-  } else {
-    rpcReleaseHandle(pHandle, type);
-  }
-}
+static inline void dmReleaseHandle(SRpcHandleInfo *pHandle, int8_t type) { rpcReleaseHandle(pHandle, type); }
 
 static bool rpcRfp(int32_t code, tmsg_t msgType) {
   if (code == TSDB_CODE_RPC_REDIRECT || code == TSDB_CODE_RPC_NETWORK_UNAVAIL || code == TSDB_CODE_NODE_NOT_DEPLOYED ||
@@ -270,13 +244,14 @@ int32_t dmInitClient(SDnode *pDnode) {
 
   SRpcInit rpcInit = {0};
   rpcInit.label = "DND-C";
-  rpcInit.numOfThreads = 1;
+  rpcInit.numOfThreads = 4;
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.parent = pDnode;
   rpcInit.rfp = rpcRfp;
+  rpcInit.compressSize = tsCompressMsgSize;
 
   pTrans->clientRpc = rpcOpen(&rpcInit);
   if (pTrans->clientRpc == NULL) {
@@ -301,7 +276,7 @@ int32_t dmInitServer(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
   SRpcInit rpcInit = {0};
-  strncpy(rpcInit.localFqdn, tsLocalFqdn, TSDB_FQDN_LEN);
+  tstrncpy(rpcInit.localFqdn, tsLocalFqdn, TSDB_FQDN_LEN);
   rpcInit.localPort = tsServerPort;
   rpcInit.label = "DND-S";
   rpcInit.numOfThreads = tsNumOfRpcThreads;

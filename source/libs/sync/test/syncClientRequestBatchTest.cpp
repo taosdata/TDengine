@@ -33,7 +33,7 @@ SyncClientRequestBatch *createMsg() {
   for (int32_t i = 0; i < 5; ++i) {
     SRpcMsg *pRpcMsg = createRpcMsg(i, 20);
     rpcMsgPArr[i] = pRpcMsg;
-    //taosMemoryFree(pRpcMsg);
+    // taosMemoryFree(pRpcMsg);
   }
 
   SRaftMeta raftArr[5];

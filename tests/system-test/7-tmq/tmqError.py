@@ -240,12 +240,14 @@ class TDTestCase:
         time.sleep(3)
         tdLog.info("================= stop dnode, and remove data file, then start dnode ===========================")
         tdDnodes.stop(1)
+        
         # time.sleep(5)
         dataPath = buildPath + "/../sim/dnode1/data/*"
         shellCmd = 'rm -rf ' + dataPath
         tdLog.info(shellCmd)
         os.system(shellCmd)
-        tdDnodes.start(1)
+        #tdDnodes.start(1)
+        tdDnodes.starttaosd(1)
         time.sleep(2)
 
         ######### redo to consume

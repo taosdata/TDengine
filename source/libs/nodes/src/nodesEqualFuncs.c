@@ -140,6 +140,19 @@ static bool functionNodeEqual(const SFunctionNode* a, const SFunctionNode* b) {
   return true;
 }
 
+static bool whenThenNodeEqual(const SWhenThenNode* a, const SWhenThenNode* b) {
+  COMPARE_NODE_FIELD(pWhen);
+  COMPARE_NODE_FIELD(pThen);
+  return true;
+}
+
+static bool caseWhenNodeEqual(const SCaseWhenNode* a, const SCaseWhenNode* b) {
+  COMPARE_NODE_FIELD(pCase);
+  COMPARE_NODE_FIELD(pElse);
+  COMPARE_NODE_LIST_FIELD(pWhenThenList);
+  return true;
+}
+
 bool nodesEqualNode(const SNode* a, const SNode* b) {
   if (a == b) {
     return true;
@@ -164,13 +177,17 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
       return logicConditionNodeEqual((const SLogicConditionNode*)a, (const SLogicConditionNode*)b);
     case QUERY_NODE_FUNCTION:
       return functionNodeEqual((const SFunctionNode*)a, (const SFunctionNode*)b);
+    case QUERY_NODE_WHEN_THEN:
+      return whenThenNodeEqual((const SWhenThenNode*)a, (const SWhenThenNode*)b);
+    case QUERY_NODE_CASE_WHEN:
+      return caseWhenNodeEqual((const SCaseWhenNode*)a, (const SCaseWhenNode*)b);
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
     case QUERY_NODE_JOIN_TABLE:
     case QUERY_NODE_GROUPING_SET:
     case QUERY_NODE_ORDER_BY_EXPR:
     case QUERY_NODE_LIMIT:
-      return false;  // todo
+      return false;
     default:
       break;
   }

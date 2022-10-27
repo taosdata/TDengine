@@ -70,11 +70,11 @@ taos --dump-config
 
 ### serverPort
 
-| 属性     | 说明                                                                                                                    |
-| -------- | ----------------------------------------------------------------------------------------------------------------------- |
-| 适用范围 | 仅服务端适用                                                                                                            |
-| 含义     | taosd 启动后，对外服务的端口号                                                                                          |
-| 缺省值   | 6030                                                                                                                    |
+| 属性     | 说明                           |
+| -------- | ------------------------------ |
+| 适用范围 | 仅服务端适用                   |
+| 含义     | taosd 启动后，对外服务的端口号 |
+| 缺省值   | 6030                           |
 
 :::note
 确保集群中所有主机在端口 6030 上的 TCP 协议能够互通。（详细的端口情况请参见下表）
@@ -173,15 +173,23 @@ taos --dump-config
 
 1: 表示使用 sma index，对符合的语句，直接从预计算的结果进行查询 |
 
-
 ### maxNumOfDistinctRes
 
 | 属性     | 说明                             |
-| -------- | -------------------------------- | --- |
+| -------- | -------------------------------- |
 | 适用范围 | 仅服务端适用                     |
 | 含义     | 允许返回的 distinct 结果最大行数 |
 | 取值范围 | 默认值为 10 万，最大值 1 亿      |
 | 缺省值   | 10 万                            |
+
+### keepColumnName
+
+| 属性     | 说明                             |
+| -------- | -------------------------------- |
+| 适用范围 | 仅客户端适用                     |
+| 含义     | Last、First、LastRow 函数查询时，返回的列名是否包含函数名。 |
+| 取值范围 | 0 表示包含函数名，1 表示不包含函数名。      |
+| 缺省值   | 0                            |
 
 ## 区域相关
 
@@ -196,7 +204,7 @@ taos --dump-config
 :::info
 为应对多时区的数据写入和查询问题，TDengine 采用 Unix 时间戳(Unix Timestamp)来记录和存储时间戳。Unix 时间戳的特点决定了任一时刻不论在任何时区，产生的时间戳均一致。需要注意的是，Unix 时间戳是在客户端完成转换和记录。为了确保客户端其他形式的时间转换为正确的 Unix 时间戳，需要设置正确的时区。
 
-在 Linux 系统中，客户端会自动读取系统设置的时区信息。用户也可以采用多种方式在配置文件设置时区。例如：
+在 Linux/macOS 中，客户端会自动读取系统设置的时区信息。用户也可以采用多种方式在配置文件设置时区。例如：
 
 ```
 timezone UTC-8
@@ -239,9 +247,9 @@ SELECT count(*) FROM table_name WHERE TS<1554984068000;
 :::info
 TDengine 为存储中文、日文、韩文等非 ASCII 编码的宽字符，提供一种专门的字段类型 nchar。写入 nchar 字段的数据将统一采用 UCS4-LE 格式进行编码并发送到服务器。需要注意的是，编码正确性是客户端来保证。因此，如果用户想要正常使用 nchar 字段来存储诸如中文、日文、韩文等非 ASCII 字符，需要正确设置客户端的编码格式。
 
-客户端的输入的字符均采用操作系统当前默认的编码格式，在 Linux 系统上多为 UTF-8，部分中文系统编码则可能是 GB18030 或 GBK 等。在 docker 环境中默认的编码是 POSIX。在中文版 Windows 系统中，编码则是 CP936。客户端需要确保正确设置自己所使用的字符集，即客户端运行的操作系统当前编码字符集，才能保证 nchar 中的数据正确转换为 UCS4-LE 编码格式。
+客户端的输入的字符均采用操作系统当前默认的编码格式，在 Linux/macOS 系统上多为 UTF-8，部分中文系统编码则可能是 GB18030 或 GBK 等。在 docker 环境中默认的编码是 POSIX。在中文版 Windows 系统中，编码则是 CP936。客户端需要确保正确设置自己所使用的字符集，即客户端运行的操作系统当前编码字符集，才能保证 nchar 中的数据正确转换为 UCS4-LE 编码格式。
 
-在 Linux 中 locale 的命名规则为: <语言>\_<地区>.<字符集编码> 如：zh_CN.UTF-8，zh 代表中文，CN 代表大陆地区，UTF-8 表示字符集。字符集编码为客户端正确解析本地字符串提供编码转换的说明。Linux 系统与 Mac OSX 系统可以通过设置 locale 来确定系统的字符编码，由于 Windows 使用的 locale 中不是 POSIX 标准的 locale 格式，因此在 Windows 下需要采用另一个配置参数 charset 来指定字符编码。在 Linux 系统中也可以使用 charset 来指定字符编码。
+在 Linux/macOS 中 locale 的命名规则为: <语言>\_<地区>.<字符集编码> 如：zh_CN.UTF-8，zh 代表中文，CN 代表大陆地区，UTF-8 表示字符集。字符集编码为客户端正确解析本地字符串提供编码转换的说明。Linux/macOS 可以通过设置 locale 来确定系统的字符编码，由于 Windows 使用的 locale 中不是 POSIX 标准的 locale 格式，因此在 Windows 下需要采用另一个配置参数 charset 来指定字符编码。在 Linux/macOS 中也可以使用 charset 来指定字符编码。
 
 :::
 
@@ -254,9 +262,9 @@ TDengine 为存储中文、日文、韩文等非 ASCII 编码的宽字符，提�
 | 缺省值   | 系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过 API 设置 |
 
 :::info
-如果配置文件中不设置 charset，在 Linux 系统中，taos 在启动时候，自动读取系统当前的 locale 信息，并从 locale 信息中解析提取 charset 编码格式。如果自动读取 locale 信息失败，则尝试读取 charset 配置，如果读取 charset 配置也失败，则中断启动过程。
+如果配置文件中不设置 charset，在 Linux/macOS 中，taos 在启动时候，自动读取系统当前的 locale 信息，并从 locale 信息中解析提取 charset 编码格式。如果自动读取 locale 信息失败，则尝试读取 charset 配置，如果读取 charset 配置也失败，则中断启动过程。
 
-在 Linux 系统中，locale 信息包含了字符编码信息，因此正确设置了 Linux 系统 locale 以后可以不用再单独设置 charset。例如：
+在 Linux/macOS 中，locale 信息包含了字符编码信息，因此正确设置了 Linux/macOS 的 locale 以后可以不用再单独设置 charset。例如：
 
 ```
 locale zh_CN.UTF-8
@@ -270,7 +278,7 @@ charset CP936
 
 如果需要调整字符编码，请查阅当前操作系统使用的编码，并在配置文件中正确设置。
 
-在 Linux 系统中，如果用户同时设置了 locale 和字符集编码 charset，并且 locale 和 charset 的不一致，后设置的值将覆盖前面设置的值。
+在 Linux/macOS 中，如果用户同时设置了 locale 和字符集编码 charset，并且 locale 和 charset 的不一致，后设置的值将覆盖前面设置的值。
 
 ```
 locale zh_CN.UTF-8
@@ -325,7 +333,7 @@ charset 的有效值是 UTF-8。
 | 适用范围 | 仅服务端适用                |
 | 含义     | dnode 支持的最大 vnode 数目 |
 | 取值范围 | 0-4096                      |
-| 缺省值   | 256                         |
+| 缺省值   | CPU 核数的 2 倍                         |
 
 ## 时间相关
 
@@ -616,7 +624,7 @@ charset 的有效值是 UTF-8。
 | 适用范围 | 仅客户端适用                         |
 | 含义     | schemaless tag 为空时默认的 tag 名字 |
 | 类型     | 字符串                               |
-| 缺省值   | _tag_null                                 |
+| 缺省值   | \_tag_null                           |
 
 ### smlDataFormat
 
@@ -649,172 +657,178 @@ charset 的有效值是 UTF-8。
 | 缺省值   | 1                  |
 
 ## 2.X 与 3.0 配置参数对比
-| #   | **参数**             | **适用于 2.X 版本** | **适用于 3.0 版本** |
-| --- | :-----------------: | ---------------    | ---------------   |
-| 1   | firstEp | 是 | 是 |
-| 2   | secondEp | 是 | 是 |
-| 3   | fqdn | 是 | 是 |
-| 4   | serverPort | 是 | 是 |
-| 5   | maxShellConns | 是 | 是 |
-| 6   | monitor | 是 | 是 |
-| 7   | monitorFqdn | 否 | 是 |
-| 8   | monitorPort | 否 | 是 |
-| 9   | monitorInterval | 是 | 是 |
-| 10  | monitorMaxLogs | 否 | 是 |
-| 11  | monitorComp | 否 | 是 |
-| 12  | telemetryReporting | 是 | 是 |
-| 13  | telemetryInterval | 否 | 是 |
-| 14  | telemetryServer | 否 | 是 |
-| 15  | telemetryPort | 否 | 是 |
-| 16  | queryPolicy | 否 | 是 |
-| 17  | querySmaOptimize | 否 | 是 |
-| 18  | queryBufferSize | 是 | 是 |
-| 19  | maxNumOfDistinctRes | 是 | 是 |
-| 20  | minSlidingTime | 是 | 是 |
-| 21  | minIntervalTime | 是 | 是 |
-| 22  | countAlwaysReturnValue | 是 | 是 |
-| 23  | dataDir | 是 | 是 |
-| 24  | minimalDataDirGB | 是 | 是 |
-| 25  | supportVnodes | 否 | 是 |
-| 26  | tempDir | 是 | 是 |
-| 27  | minimalTmpDirGB | 是 | 是 |
-| 28  | compressMsgSize | 是 | 是 |
-| 29  | compressColData | 是 | 是 |
-| 30  | smlChildTableName | 是 | 是 |
-| 31  | smlTagName | 是 | 是 |
-| 32  | smlDataFormat | 否 | 是 |
-| 33  | statusInterval | 是 | 是 |
-| 34  | shellActivityTimer | 是 | 是 |
-| 35  | transPullupInterval | 否 | 是 |
-| 36  | mqRebalanceInterval | 否 | 是 |
-| 37  | ttlUnit | 否 | 是 |
-| 38  | ttlPushInterval | 否 | 是 |
-| 39  | numOfTaskQueueThreads | 否 | 是 |
-| 40  | numOfRpcThreads | 否 | 是 |
-| 41  | numOfCommitThreads | 是 | 是 |
-| 42  | numOfMnodeReadThreads | 否 | 是 |
-| 43  | numOfVnodeQueryThreads | 否 | 是 |
-| 44  | numOfVnodeStreamThreads | 否 | 是 |
-| 45  | numOfVnodeFetchThreads | 否 | 是 |
-| 46  | numOfVnodeWriteThreads | 否 | 是 |
-| 47  | numOfVnodeSyncThreads | 否 | 是 |
-| 48  | numOfVnodeRsmaThreads | 否 | 是 | 
-| 49  | numOfQnodeQueryThreads | 否 | 是 |
-| 50  | numOfQnodeFetchThreads | 否 | 是 |
-| 51  | numOfSnodeSharedThreads | 否 | 是 |
-| 52  | numOfSnodeUniqueThreads | 否 | 是 |
-| 53  | rpcQueueMemoryAllowed | 否 | 是 |
-| 54  | logDir | 是 | 是 |
-| 55  | minimalLogDirGB | 是 | 是 |
-| 56  | numOfLogLines | 是 | 是 |
-| 57  | asyncLog | 是 | 是 |
-| 58  | logKeepDays | 是 | 是 |
-| 59  | debugFlag | 是 | 是 |
-| 60  | tmrDebugFlag | 是 | 是 |
-| 61  | uDebugFlag | 是 | 是 |
-| 62  | rpcDebugFlag | 是 | 是 |
-| 63  | jniDebugFlag | 是 | 是 |
-| 64  | qDebugFlag | 是 | 是 |
-| 65  | cDebugFlag | 是 | 是 |
-| 66  | dDebugFlag | 是 | 是 |
-| 67  | vDebugFlag | 是 | 是 |
-| 68  | mDebugFlag | 是 | 是 |
-| 69  | wDebugFlag | 是 | 是 |
-| 70  | sDebugFlag | 是 | 是 |
-| 71  | tsdbDebugFlag | 是 | 是 |
-| 72  | tqDebugFlag | 否 | 是 |
-| 73  | fsDebugFlag | 是 | 是 |
-| 74  | udfDebugFlag | 否 | 是 |
-| 75  | smaDebugFlag | 否 | 是 |
-| 76  | idxDebugFlag | 否 | 是 |
-| 77  | tdbDebugFlag | 否 | 是 |
-| 78  | metaDebugFlag | 否 | 是 |
-| 79  | timezone | 是 | 是 |
-| 80  | locale | 是 | 是 |
-| 81  | charset | 是 | 是 |
-| 82  | udf | 是 | 是 |
-| 83  | enableCoreFile | 是 | 是 |
-| 84  | arbitrator | 是 | 否 |
-| 85  | numOfThreadsPerCore | 是 | 否 |
-| 86  | numOfMnodes | 是 | 否 |
-| 87  | vnodeBak | 是 | 否 |
-| 88  | balance | 是 | 否 |
-| 89  | balanceInterval | 是 | 否 |
-| 90  | offlineThreshold | 是 | 否 |
-| 91  | role | 是 | 否 |
-| 92  | dnodeNopLoop | 是 | 否 |
-| 93  | keepTimeOffset | 是 | 否 |
-| 94  | rpcTimer | 是 | 否 |
-| 95  | rpcMaxTime | 是 | 否 |
-| 96  | rpcForceTcp | 是 | 否 |
-| 97  | tcpConnTimeout | 是 | 否 |
-| 98  | syncCheckInterval | 是 | 否 |
-| 99  | maxTmrCtrl | 是 | 否 |
-| 100 | monitorReplica | 是 | 否 |
-| 101 | smlTagNullName | 是 | 否 |
-| 102 | keepColumnName | 是 | 否 |
-| 103 | ratioOfQueryCores | 是 | 否 |
-| 104 | maxStreamCompDelay | 是 | 否 |
-| 105 | maxFirstStreamCompDelay | 是 | 否 |
-| 106 | retryStreamCompDelay | 是 | 否 |
-| 107 | streamCompDelayRatio | 是 | 否 |
-| 108 | maxVgroupsPerDb | 是 | 否 |
-| 109 | maxTablesPerVnode | 是 | 否 |
-| 110 | minTablesPerVnode | 是 | 否 |
-| 111 | tableIncStepPerVnode | 是 | 否 |
-| 112 | cache | 是 | 否 |
-| 113 | blocks | 是 | 否 |
-| 114 | days | 是 | 否 |
-| 115 | keep | 是 | 否 |
-| 116 | minRows | 是 | 否 |
-| 117 | maxRows | 是 | 否 |
-| 118 | quorum | 是 | 否 |
-| 119 | comp | 是 | 否 |
-| 120 | walLevel | 是 | 否 |
-| 121 | fsync | 是 | 否 |
-| 122 | replica | 是 | 否 |
-| 123 | partitions | 是 | 否 |
-| 124 | quorum | 是 | 否 |
-| 125 | update | 是 | 否 |
-| 126 | cachelast | 是 | 否 |
-| 127 | maxSQLLength | 是 | 否 |
-| 128 | maxWildCardsLength | 是 | 否 |
-| 129 | maxRegexStringLen | 是 | 否 |
-| 130 | maxNumOfOrderedRes | 是 | 否 |
-| 131 | maxConnections | 是 | 否 |
-| 132 | mnodeEqualVnodeNum | 是 | 否 |
-| 133 | http | 是 | 否 |
-| 134 | httpEnableRecordSql | 是 | 否 |
-| 135 | httpMaxThreads | 是 | 否 |
-| 136 | restfulRowLimit | 是 | 否 |
-| 137 | httpDbNameMandatory | 是 | 否 |
-| 138 | httpKeepAlive | 是 | 否 |
-| 139 | enableRecordSql | 是 | 否 |
-| 140 | maxBinaryDisplayWidth | 是 | 否 |
-| 141 | stream | 是 | 否 |
-| 142 | retrieveBlockingModel | 是 | 否 |
-| 143 | tsdbMetaCompactRatio | 是 | 否 |
-| 144 | defaultJSONStrType | 是 | 否 |
-| 145 | walFlushSize | 是 | 否 |
-| 146 | keepTimeOffset | 是 | 否 |
-| 147 | flowctrl | 是 | 否 |
-| 148 | slaveQuery | 是 | 否 |
-| 149 | adjustMaster | 是 | 否 |
-| 150 | topicBinaryLen | 是 | 否 |
-| 151 | telegrafUseFieldNum | 是 | 否 |
-| 152 | deadLockKillQuery | 是 | 否 |
-| 153 | clientMerge | 是 | 否 |
-| 154 | sdbDebugFlag | 是 | 否 |
-| 155 | odbcDebugFlag | 是 | 否 |
-| 156 | httpDebugFlag | 是 | 否 |
-| 157 | monDebugFlag | 是 | 否 |
-| 158 | cqDebugFlag | 是 | 否 |
-| 159 | shortcutFlag | 是 | 否 |
-| 160 | probeSeconds | 是 | 否 |
-| 161 | probeKillSeconds | 是 | 否 |
-| 162 | probeInterval | 是 | 否 |
-| 163 | lossyColumns | 是 | 否 |
-| 164 | fPrecision | 是 | 否 |
-| 165 | dPrecision | 是 | 否 |
-| 166 | maxRange | 是 | 否 |
-| 167 | range | 是 | 否 |
+
+:::note
+对于 2.x 版本中适用但在 3.0 版本中废弃的参数，其当前行为会有特别说明
+
+:::
+
+| #   |        **参数**         | **适用于 2.X ** | **适用于 3.0 ** | 3.0 版本的当前行为                                |
+| --- | :---------------------: | --------------- | --------------- | ------------------------------------------------- |
+| 1   |         firstEp         | 是              | 是              |                                                   |
+| 2   |        secondEp         | 是              | 是              |                                                   |
+| 3   |          fqdn           | 是              | 是              |                                                   |
+| 4   |       serverPort        | 是              | 是              |                                                   |
+| 5   |      maxShellConns      | 是              | 是              |                                                   |
+| 6   |         monitor         | 是              | 是              |                                                   |
+| 7   |       monitorFqdn       | 否              | 是              |                                                   |
+| 8   |       monitorPort       | 否              | 是              |                                                   |
+| 9   |     monitorInterval     | 是              | 是              |                                                   |
+| 10  |     monitorMaxLogs      | 否              | 是              |                                                   |
+| 11  |       monitorComp       | 否              | 是              |                                                   |
+| 12  |   telemetryReporting    | 是              | 是              |                                                   |
+| 13  |    telemetryInterval    | 否              | 是              |                                                   |
+| 14  |     telemetryServer     | 否              | 是              |                                                   |
+| 15  |      telemetryPort      | 否              | 是              |                                                   |
+| 16  |       queryPolicy       | 否              | 是              |                                                   |
+| 17  |    querySmaOptimize     | 否              | 是              |                                                   |
+| 18  |    queryRsmaTolerance     | 否              | 是              |                                                   |
+| 19  |     queryBufferSize     | 是              | 是              |                                                   |
+| 20  |   maxNumOfDistinctRes   | 是              | 是              |                                                   |
+| 21  |     minSlidingTime      | 是              | 是              |                                                   |
+| 22  |     minIntervalTime     | 是              | 是              |                                                   |
+| 23  | countAlwaysReturnValue  | 是              | 是              |                                                   |
+| 24  |         dataDir         | 是              | 是              |                                                   |
+| 25  |    minimalDataDirGB     | 是              | 是              |                                                   |
+| 26  |      supportVnodes      | 否              | 是              |                                                   |
+| 27  |         tempDir         | 是              | 是              |                                                   |
+| 28  |     minimalTmpDirGB     | 是              | 是              |                                                   |
+| 29  |     compressMsgSize     | 是              | 是              |                                                   |
+| 30  |     compressColData     | 是              | 是              |                                                   |
+| 31  |    smlChildTableName    | 是              | 是              |                                                   |
+| 32  |       smlTagName        | 是              | 是              |                                                   |
+| 33  |      smlDataFormat      | 否              | 是              |                                                   |
+| 34  |     statusInterval      | 是              | 是              |                                                   |
+| 35  |   shellActivityTimer    | 是              | 是              |                                                   |
+| 36  |   transPullupInterval   | 否              | 是              |                                                   |
+| 37  |   mqRebalanceInterval   | 否              | 是              |                                                   |
+| 38  |         ttlUnit         | 否              | 是              |                                                   |
+| 39  |     ttlPushInterval     | 否              | 是              |                                                   |
+| 40  |  numOfTaskQueueThreads  | 否              | 是              |                                                   |
+| 41  |     numOfRpcThreads     | 否              | 是              |                                                   |
+| 42  |   numOfCommitThreads    | 是              | 是              |                                                   |
+| 43  |  numOfMnodeReadThreads  | 否              | 是              |                                                   |
+| 44  | numOfVnodeQueryThreads  | 否              | 是              |                                                   |
+| 45  | numOfVnodeStreamThreads | 否              | 是              |                                                   |
+| 46  | numOfVnodeFetchThreads  | 否              | 是              |                                                   |
+| 47  | numOfVnodeWriteThreads  | 否              | 是              |                                                   |
+| 48  |  numOfVnodeSyncThreads  | 否              | 是              |                                                   |
+| 49  |  numOfVnodeRsmaThreads  | 否              | 是              |                                                   |
+| 50  | numOfQnodeQueryThreads  | 否              | 是              |                                                   |
+| 51  | numOfQnodeFetchThreads  | 否              | 是              |                                                   |
+| 52  | numOfSnodeSharedThreads | 否              | 是              |                                                   |
+| 53  | numOfSnodeUniqueThreads | 否              | 是              |                                                   |
+| 54  |  rpcQueueMemoryAllowed  | 否              | 是              |                                                   |
+| 55  |         logDir          | 是              | 是              |                                                   |
+| 56  |     minimalLogDirGB     | 是              | 是              |                                                   |
+| 57  |      numOfLogLines      | 是              | 是              |                                                   |
+| 58  |        asyncLog         | 是              | 是              |                                                   |
+| 59  |       logKeepDays       | 是              | 是              |                                                   |
+| 60  |        debugFlag        | 是              | 是              |                                                   |
+| 61  |      tmrDebugFlag       | 是              | 是              |                                                   |
+| 62  |       uDebugFlag        | 是              | 是              |                                                   |
+| 63  |      rpcDebugFlag       | 是              | 是              |                                                   |
+| 64  |      jniDebugFlag       | 是              | 是              |                                                   |
+| 65  |       qDebugFlag        | 是              | 是              |                                                   |
+| 66  |       cDebugFlag        | 是              | 是              |                                                   |
+| 67  |       dDebugFlag        | 是              | 是              |                                                   |
+| 68  |       vDebugFlag        | 是              | 是              |                                                   |
+| 69  |       mDebugFlag        | 是              | 是              |                                                   |
+| 70  |       wDebugFlag        | 是              | 是              |                                                   |
+| 71  |       sDebugFlag        | 是              | 是              |                                                   |
+| 72  |      tsdbDebugFlag      | 是              | 是              |                                                   |
+| 73  |       tqDebugFlag       | 否              | 是              |                                                   |
+| 74  |       fsDebugFlag       | 是              | 是              |                                                   |
+| 75  |      udfDebugFlag       | 否              | 是              |                                                   |
+| 76  |      smaDebugFlag       | 否              | 是              |                                                   |
+| 77  |      idxDebugFlag       | 否              | 是              |                                                   |
+| 78  |      tdbDebugFlag       | 否              | 是              |                                                   |
+| 79  |      metaDebugFlag      | 否              | 是              |                                                   |
+| 80  |        timezone         | 是              | 是              |                                                   |
+| 81  |         locale          | 是              | 是              |                                                   |
+| 82  |         charset         | 是              | 是              |                                                   |
+| 83  |           udf           | 是              | 是              |                                                   |
+| 84  |     enableCoreFile      | 是              | 是              |                                                   |
+| 85  |       arbitrator        | 是              | 否              | 通过 RAFT 协议选主                                |
+| 86  |   numOfThreadsPerCore   | 是              | 否              | 有其它参数设置多种线程池的大小                    |
+| 87  |       numOfMnodes       | 是              | 否              | 通过 create mnode 命令动态创建 mnode              |
+| 88  |        vnodeBak         | 是              | 否              | 3.0 行为未知                                      |
+| 89  |         balance         | 是              | 否              | 负载均衡功能由 split/merge vgroups 实现           |
+| 90  |     balanceInterval     | 是              | 否              | 随着 balance 参数失效                             |
+| 91  |    offlineThreshold     | 是              | 否              | 3.0 行为未知                                      |
+| 92  |          role           | 是              | 否              | 由 supportVnode 决定是否能够创建                  |
+| 93  |      dnodeNopLoop       | 是              | 否              | 2.6 文档中未找到此参数                            |
+| 94  |     keepTimeOffset      | 是              | 否              | 2.6 文档中未找到此参数                            |
+| 95  |        rpcTimer         | 是              | 否              | 3.0 行为未知                                      |
+| 96  |       rpcMaxTime        | 是              | 否              | 3.0 行为未知                                      |
+| 97  |       rpcForceTcp       | 是              | 否              | 默认为 TCP                                        |
+| 98  |     tcpConnTimeout      | 是              | 否              | 3.0 行为未知                                      |
+| 99  |    syncCheckInterval    | 是              | 否              | 3.0 行为未知                                      |
+| 100  |       maxTmrCtrl        | 是              | 否              | 3.0 行为未知                                      |
+| 101 |     monitorReplica      | 是              | 否              | 由 RAFT 协议管理多副本                            |
+| 102 |     smlTagNullName      | 是              | 否              | 3.0 行为未知                                      |
+| 103 |     keepColumnName      | 是              | 否              | 3.0 行为未知                                      |
+| 104 |    ratioOfQueryCores    | 是              | 否              | 由 线程池 相关配置参数决定                        |
+| 105 |   maxStreamCompDelay    | 是              | 否              | 3.0 行为未知                                      |
+| 106 | maxFirstStreamCompDelay | 是              | 否              | 3.0 行为未知                                      |
+| 107 |  retryStreamCompDelay   | 是              | 否              | 3.0 行为未知                                      |
+| 108 |  streamCompDelayRatio   | 是              | 否              | 3.0 行为未知                                      |
+| 109 |     maxVgroupsPerDb     | 是              | 否              | 由 create db 的参数 vgroups 指定实际 vgroups 数量 |
+| 110 |    maxTablesPerVnode    | 是              | 否              | DB 中的所有表近似平均分配到各个 vgroup            |
+| 111 |    minTablesPerVnode    | 是              | 否              | DB 中的所有表近似平均分配到各个 vgroup            |
+| 112 |  tableIncStepPerVnode   | 是              | 否              | DB 中的所有表近似平均分配到各个 vgroup            |
+| 113 |          cache          | 是              | 否              | 由 buffer 代替 cache\*blocks                      |
+| 114 |         blocks          | 是              | 否              | 由 buffer 代替 cache\*blocks                      |
+| 115 |          days           | 是              | 否              | 由 create db 的参数 duration 取代                 |
+| 116 |          keep           | 是              | 否              | 由 create db 的参数 keep 取代                     |
+| 117 |         minRows         | 是              | 否              | 由 create db 的参数 minRows 取代                  |
+| 118 |         maxRows         | 是              | 否              | 由 create db 的参数 maxRows 取代                  |
+| 119 |         quorum          | 是              | 否              | 由 RAFT 协议决定                                  |
+| 120 |          comp           | 是              | 否              | 由 create db 的参数 comp 取代                     |
+| 121 |        walLevel         | 是              | 否              | 由 create db 的参数 wal_level 取代                |
+| 122 |          fsync          | 是              | 否              | 由 create db 的参数 wal_fsync_period 取代         |
+| 123 |         replica         | 是              | 否              | 由 create db 的参数 replica 取代                  |
+| 124 |       partitions        | 是              | 否              | 3.0 行为未知                                      |
+| 125 |         update          | 是              | 否              | 允许更新部分列                                    |
+| 126 |        cachelast        | 是              | 否              | 由 create db 的参数 cacheModel 取代               |
+| 127 |      maxSQLLength       | 是              | 否              | SQL 上限为 1MB，无需参数控制                      |
+| 128 |   maxWildCardsLength    | 是              | 否              | 3.0 行为未知                                      |
+| 129 |    maxRegexStringLen    | 是              | 否              | 3.0 行为未知                                      |
+| 130 |   maxNumOfOrderedRes    | 是              | 否              | 3.0 行为未知                                      |
+| 131 |     maxConnections      | 是              | 否              | 取决于系统配置和系统处理能力，详见后面的 Note     |
+| 132 |   mnodeEqualVnodeNum    | 是              | 否              | 3.0 行为未知                                      |
+| 133 |          http           | 是              | 否              | http 服务由 taosAdapter 提供                      |
+| 134 |   httpEnableRecordSql   | 是              | 否              | taosd 不提供 http 服务                            |
+| 135 |     httpMaxThreads      | 是              | 否              | taosd 不提供 http 服务                            |
+| 136 |     restfulRowLimit     | 是              | 否              | taosd 不提供 http 服务                            |
+| 137 |   httpDbNameMandatory   | 是              | 否              | taosd 不提供 http 服务                            |
+| 138 |      httpKeepAlive      | 是              | 否              | taosd 不提供 http 服务                            |
+| 139 |     enableRecordSql     | 是              | 否              | 3.0 行为未知                                      |
+| 140 |  maxBinaryDisplayWidth  | 是              | 否              | 3.0 行为未知                                      |
+| 141 |         stream          | 是              | 否              | 默认启用连续查询                                  |
+| 142 |  retrieveBlockingModel  | 是              | 否              | 3.0 行为未知                                      |
+| 143 |  tsdbMetaCompactRatio   | 是              | 否              | 3.0 行为未知                                      |
+| 144 |   defaultJSONStrType    | 是              | 否              | 3.0 行为未知                                      |
+| 145 |      walFlushSize       | 是              | 否              | 3.0 行为未知                                      |
+| 146 |     keepTimeOffset      | 是              | 否              | 3.0 行为未知                                      |
+| 147 |        flowctrl         | 是              | 否              | 3.0 行为未知                                      |
+| 148 |       slaveQuery        | 是              | 否              | 3.0 行为未知： slave vnode 是否能够处理查询？     |
+| 149 |      adjustMaster       | 是              | 否              | 3.0 行为未知                                      |
+| 150 |     topicBinaryLen      | 是              | 否              | 3.0 行为未知                                      |
+| 151 |   telegrafUseFieldNum   | 是              | 否              | 3.0 行为未知                                      |
+| 152 |    deadLockKillQuery    | 是              | 否              | 3.0 行为未知                                      |
+| 153 |       clientMerge       | 是              | 否              | 3.0 行为未知                                      |
+| 154 |      sdbDebugFlag       | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                    |
+| 155 |      odbcDebugFlag      | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                    |
+| 156 |      httpDebugFlag      | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                    |
+| 157 |      monDebugFlag       | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                    |
+| 158 |       cqDebugFlag       | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                    |
+| 159 |      shortcutFlag       | 是              | 否              | 参考 3.0 的 DebugFlag 系列参数                    |
+| 160 |      probeSeconds       | 是              | 否              | 3.0 行为未知                                      |
+| 161 |    probeKillSeconds     | 是              | 否              | 3.0 行为未知                                      |
+| 162 |      probeInterval      | 是              | 否              | 3.0 行为未知                                      |
+| 163 |      lossyColumns       | 是              | 否              | 3.0 行为未知                                      |
+| 164 |       fPrecision        | 是              | 否              | 3.0 行为未知                                      |
+| 165 |       dPrecision        | 是              | 否              | 3.0 行为未知                                      |
+| 166 |        maxRange         | 是              | 否              | 3.0 行为未知                                      |
+| 167 |          range          | 是              | 否              | 3.0 行为未知                                      |

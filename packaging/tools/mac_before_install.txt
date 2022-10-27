@@ -1,0 +1,6 @@
+TDengine is a high-efficient, scalable, high-available distributed time-series database, which makes a lot of optimizations on inserting and querying data, which is far more efficient than normal regular databases. So TDengine can meet the high requirements of IOT and other areas on storing and querying a large amount of data. 
+
+To configure TDengine : edit /etc/taos/taos.cfg
+To start service : launchctl start com.tdengine.taosd
+To start Taos Adapter : launchctl start com.tdengine.taosadapter
+To access TDengine : use taos in shell

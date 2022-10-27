@@ -70,7 +70,7 @@ TEST_F(DndTestVnode, 01_Create_Vnode) {
 
 TEST_F(DndTestVnode, 02_Alter_Vnode) {
   for (int i = 0; i < 3; ++i) {
-    SAlterVnodeReq alterReq = {0};
+    SAlterVnodeConfigReq alterReq = {0};
     alterReq.vgVersion = 2;
     alterReq.daysPerFile = 10;
     alterReq.daysToKeep0 = 3650;

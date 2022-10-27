@@ -34,7 +34,7 @@ extern "C" {
 
 #define SHOW_CREATE_TB_RESULT_COLS       2
 #define SHOW_CREATE_TB_RESULT_FIELD1_LEN (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE)
-#define SHOW_CREATE_TB_RESULT_FIELD2_LEN (TSDB_MAX_BINARY_LEN + VARSTR_HEADER_SIZE)
+#define SHOW_CREATE_TB_RESULT_FIELD2_LEN (TSDB_MAX_ALLOWED_SQL_LEN * 3)
 
 #define SHOW_LOCAL_VARIABLES_RESULT_COLS       2
 #define SHOW_LOCAL_VARIABLES_RESULT_FIELD1_LEN (TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE)
@@ -119,6 +119,7 @@ typedef struct SFlushDatabaseStmt {
 typedef struct STrimDatabaseStmt {
   ENodeType type;
   char      dbName[TSDB_DB_NAME_LEN];
+  int32_t   maxSpeed;
 } STrimDatabaseStmt;
 
 typedef struct STableOptions {
@@ -273,6 +274,7 @@ typedef struct SShowTableDistributedStmt {
 typedef struct SShowDnodeVariablesStmt {
   ENodeType type;
   SNode*    pDnodeId;
+  SNode*    pLikePattern;
 } SShowDnodeVariablesStmt;
 
 typedef struct SShowVnodesStmt {
@@ -383,6 +385,8 @@ typedef struct SCreateStreamStmt {
   bool            ignoreExists;
   SStreamOptions* pOptions;
   SNode*          pQuery;
+  SNodeList*      pTags;
+  SNode*          pSubtable;
 } SCreateStreamStmt;
 
 typedef struct SDropStreamStmt {

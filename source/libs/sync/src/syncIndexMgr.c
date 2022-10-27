@@ -20,7 +20,10 @@
 
 SSyncIndexMgr *syncIndexMgrCreate(SSyncNode *pSyncNode) {
   SSyncIndexMgr *pSyncIndexMgr = taosMemoryMalloc(sizeof(SSyncIndexMgr));
-  ASSERT(pSyncIndexMgr != NULL);
+  if (pSyncIndexMgr == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
   memset(pSyncIndexMgr, 0, sizeof(SSyncIndexMgr));
 
   pSyncIndexMgr->replicas = &(pSyncNode->replicasId);
@@ -80,6 +83,10 @@ void syncIndexMgrSetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, 
 }
 
 SyncIndex syncIndexMgrGetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId) {
+  if (pSyncIndexMgr == NULL) {
+    return SYNC_INDEX_INVALID;
+  }
+
   for (int i = 0; i < pSyncIndexMgr->replicaNum; ++i) {
     if (syncUtilSameId(&((*(pSyncIndexMgr->replicas))[i]), pRaftId)) {
       SyncIndex idx = (pSyncIndexMgr->index)[i];
@@ -197,28 +204,28 @@ int64_t syncIndexMgrGetRecvTime(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRa
 // for debug -------------------
 void syncIndexMgrPrint(SSyncIndexMgr *pObj) {
   char *serialized = syncIndexMgr2Str(pObj);
-  printf("syncIndexMgrPrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("syncIndexMgrPrint | len:%" PRIu64 " | %s \n", (uint64_t)strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncIndexMgrPrint2(char *s, SSyncIndexMgr *pObj) {
   char *serialized = syncIndexMgr2Str(pObj);
-  printf("syncIndexMgrPrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("syncIndexMgrPrint2 | len:%" PRIu64 " | %s | %s \n", (uint64_t)strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void syncIndexMgrLog(SSyncIndexMgr *pObj) {
   char *serialized = syncIndexMgr2Str(pObj);
-  sTrace("syncIndexMgrLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTrace("syncIndexMgrLog | len:%" PRIu64 " | %s", (uint64_t)strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void syncIndexMgrLog2(char *s, SSyncIndexMgr *pObj) {
   if (gRaftDetailLog) {
     char *serialized = syncIndexMgr2Str(pObj);
-    sTrace("syncIndexMgrLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+    sTrace("syncIndexMgrLog2 | len:%" PRIu64 " | %s | %s", (uint64_t)strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }

@@ -248,8 +248,12 @@ int32_t getNumOfTags(const STableMeta* pTableMeta) { return getTableInfo(pTableM
 STableComInfo getTableInfo(const STableMeta* pTableMeta) { return pTableMeta->tableInfo; }
 
 STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
-  size_t size = TABLE_META_SIZE(pTableMeta);
+  int32_t numOfFields = TABLE_TOTAL_COL_NUM(pTableMeta);
+  if (numOfFields > TSDB_MAX_COLUMNS || numOfFields < TSDB_MIN_COLUMNS) {
+    return NULL;
+  }
 
+  size_t      size = sizeof(STableMeta) + numOfFields * sizeof(SSchema);
   STableMeta* p = taosMemoryMalloc(size);
   memcpy(p, pTableMeta, size);
   return p;
@@ -381,6 +385,7 @@ int32_t parseJsontoTagData(const char* json, SArray* pTagVals, STag** ppTag, voi
         uError("charset:%s to %s. val:%s, errno:%s, convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, jsonValue,
                strerror(errno));
         retCode = buildSyntaxErrMsg(pMsgBuf, "charset convert json error", jsonValue);
+        taosMemoryFree(tmp);
         goto end;
       }
       val.nData = valLen;
@@ -410,8 +415,83 @@ end:
   if (retCode == TSDB_CODE_SUCCESS) {
     tTagNew(pTagVals, 1, true, ppTag);
   }
+  for (int i = 0; i < taosArrayGetSize(pTagVals); ++i) {
+    STagVal* p = (STagVal*)taosArrayGet(pTagVals, i);
+    if (IS_VAR_DATA_TYPE(p->type)) {
+      taosMemoryFreeClear(p->pData);
+    }
+  }
   cJSON_Delete(root);
   return retCode;
+}
+
+static int32_t getInsTagsTableTargetNameFromOp(int32_t acctId, SOperatorNode* pOper, SName* pName) {
+  if (OP_TYPE_EQUAL != pOper->opType) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SColumnNode* pCol = NULL;
+  SValueNode*  pVal = NULL;
+  if (QUERY_NODE_COLUMN == nodeType(pOper->pLeft)) {
+    pCol = (SColumnNode*)pOper->pLeft;
+  } else if (QUERY_NODE_VALUE == nodeType(pOper->pLeft)) {
+    pVal = (SValueNode*)pOper->pLeft;
+  }
+  if (QUERY_NODE_COLUMN == nodeType(pOper->pRight)) {
+    pCol = (SColumnNode*)pOper->pRight;
+  } else if (QUERY_NODE_VALUE == nodeType(pOper->pRight)) {
+    pVal = (SValueNode*)pOper->pRight;
+  }
+  if (NULL == pCol || NULL == pVal) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (0 == strcmp(pCol->colName, "db_name")) {
+    return tNameSetDbName(pName, acctId, pVal->literal, strlen(pVal->literal));
+  } else if (0 == strcmp(pCol->colName, "table_name")) {
+    return tNameAddTbName(pName, pVal->literal, strlen(pVal->literal));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static void getInsTagsTableTargetObjName(int32_t acctId, SNode* pNode, SName* pName) {
+  if (QUERY_NODE_OPERATOR == nodeType(pNode)) {
+    getInsTagsTableTargetNameFromOp(acctId, (SOperatorNode*)pNode, pName);
+  }
+}
+
+static int32_t getInsTagsTableTargetNameFromCond(int32_t acctId, SLogicConditionNode* pCond, SName* pName) {
+  if (LOGIC_COND_TYPE_AND != pCond->condType) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pNode = NULL;
+  FOREACH(pNode, pCond->pParameterList) { getInsTagsTableTargetObjName(acctId, pNode, pName); }
+  if ('\0' == pName->dbname[0]) {
+    pName->type = 0;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t getInsTagsTableTargetName(int32_t acctId, SNode* pWhere, SName* pName) {
+  if (NULL == pWhere) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (QUERY_NODE_OPERATOR == nodeType(pWhere)) {
+    int32_t code = getInsTagsTableTargetNameFromOp(acctId, (SOperatorNode*)pWhere, pName);
+    if (TSDB_CODE_SUCCESS == code && '\0' == pName->dbname[0]) {
+      pName->type = 0;
+    }
+    return code;
+  }
+
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pWhere)) {
+    return getInsTagsTableTargetNameFromCond(acctId, (SLogicConditionNode*)pWhere, pName);
+  }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t userAuthToString(int32_t acctId, const char* pUser, const char* pDb, AUTH_TYPE type, char* pStr) {
@@ -577,8 +657,8 @@ static int32_t buildCatalogReqForInsert(SParseContext* pCxt, const SParseMetaCac
     }
 
     SUserAuthInfo auth = {0};
-    strcpy(auth.user, pCxt->pUser);
-    strcpy(auth.dbFName, p->dbFName);
+    snprintf(auth.user, sizeof(auth.user), "%s", pCxt->pUser);
+    snprintf(auth.dbFName, sizeof(auth.dbFName), "%s", p->dbFName);
     auth.type = AUTH_TYPE_WRITE;
     taosArrayPush(pCatalogReq->pUser, &auth);
 
@@ -1124,7 +1204,7 @@ int32_t getTableMetaFromCacheForInsert(SArray* pTableMetaPos, SParseMetaCache* p
   int32_t   reqIndex = *(int32_t*)taosArrayGet(pTableMetaPos, tableNo);
   SMetaRes* pRes = taosArrayGet(pMetaCache->pTableMetaData, reqIndex);
   if (TSDB_CODE_SUCCESS == pRes->code) {
-    *pMeta = tableMetaDup(pRes->pRes);
+    *pMeta = tableMetaDup((const STableMeta*)pRes->pRes);
     if (NULL == *pMeta) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
@@ -1167,7 +1247,7 @@ void destoryParseMetaCache(SParseMetaCache* pMetaCache, bool request) {
     taosArrayDestroy(p->pTableVgroupReq);
 
     p = taosHashIterate(pMetaCache->pInsertTables, p);
-  }  
+  }
   taosHashCleanup(pMetaCache->pInsertTables);
   taosHashCleanup(pMetaCache->pDbVgroup);
   taosHashCleanup(pMetaCache->pDbCfg);

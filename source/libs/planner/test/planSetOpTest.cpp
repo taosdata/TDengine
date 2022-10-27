@@ -44,6 +44,8 @@ TEST_F(PlanSetOpTest, unionAllWithSubquery) {
   run("SELECT ts FROM (SELECT ts FROM st1s1) UNION ALL SELECT ts FROM (SELECT ts FROM st1s2)");
   // super table
   run("SELECT ts FROM (SELECT ts FROM st1) UNION ALL SELECT ts FROM (SELECT ts FROM st1)");
+
+  run("(SELECT SERVER_STATUS()) UNION ALL (SELECT SERVER_STATUS())");
 }
 
 TEST_F(PlanSetOpTest, unionAllWithOrderBy) {

@@ -23,12 +23,13 @@ extern "C" {
 #include "os.h"
 #include "taosdef.h"
 #include "tcommon.h"
+#include "tsimplehash.h"
 
 struct SSDataBlock;
 
 typedef struct SFillColInfo {
-  SExprInfo *pExpr;
-  bool       notFillCol;      // denote if this column needs fill operation
+  SExprInfo* pExpr;
+  bool       notFillCol;  // denote if this column needs fill operation
   SVariant   fillVal;
 } SFillColInfo;
 
@@ -51,46 +52,96 @@ typedef struct {
 } SRowVal;
 
 typedef struct SFillInfo {
-  TSKEY     start;                // start timestamp
-  TSKEY     end;                  // endKey for fill
-  TSKEY     currentKey;           // current active timestamp, the value may be changed during the fill procedure.
-  int32_t   tsSlotId;             // primary time stamp slot id
-  int32_t   srcTsSlotId;          // timestamp column id in the source data block.
-  int32_t   order;                // order [TSDB_ORDER_ASC|TSDB_ORDER_DESC]
-  int32_t   type;                 // fill type
-  int32_t   numOfRows;            // number of rows in the input data block
-  int32_t   index;                // active row index
-  int32_t   numOfTotal;           // number of filled rows in one round
-  int32_t   numOfCurrent;         // number of filled rows in current results
-  int32_t   numOfCols;            // number of columns, including the tags columns
-  SInterval interval;
-  SRowVal   prev;
-  SRowVal   next;
-  SSDataBlock *pSrcBlock;
-  int32_t   alloc;                // data buffer size in rows
+  TSKEY        start;         // start timestamp
+  TSKEY        end;           // endKey for fill
+  TSKEY        currentKey;    // current active timestamp, the value may be changed during the fill procedure.
+  int32_t      tsSlotId;      // primary time stamp slot id
+  int32_t      srcTsSlotId;   // timestamp column id in the source data block.
+  int32_t      order;         // order [TSDB_ORDER_ASC|TSDB_ORDER_DESC]
+  int32_t      type;          // fill type
+  int32_t      numOfRows;     // number of rows in the input data block
+  int32_t      index;         // active row index
+  int32_t      numOfTotal;    // number of filled rows in one round
+  int32_t      numOfCurrent;  // number of filled rows in current results
+  int32_t      numOfCols;     // number of columns, including the tags columns
+  SInterval    interval;
+  SRowVal      prev;
+  SRowVal      next;
+  SSDataBlock* pSrcBlock;
+  int32_t      alloc;  // data buffer size in rows
 
-  SFillColInfo* pFillCol;         // column info for fill operations
-  SFillTagColInfo* pTags;         // tags value for filling gap
-  const char* id;
+  SFillColInfo*    pFillCol;  // column info for fill operations
+  SFillTagColInfo* pTags;     // tags value for filling gap
+  const char*      id;
 } SFillInfo;
+
+typedef struct SResultCellData {
+  bool    isNull;
+  int8_t  type;
+  int32_t bytes;
+  char    pData[];
+} SResultCellData;
+
+typedef struct SResultRowData {
+  TSKEY            key;
+  SResultCellData* pRowVal;
+} SResultRowData;
+
+typedef struct SStreamFillLinearInfo {
+  TSKEY   nextEnd;
+  SArray* pDeltaVal;      // double. value for Fill(linear).
+  SArray* pNextDeltaVal;  // double. value for Fill(linear).
+  int64_t winIndex;
+  bool    hasNext;
+} SStreamFillLinearInfo;
+
+typedef struct SStreamFillInfo {
+  TSKEY                  start;    // startKey for fill
+  TSKEY                  end;      // endKey for fill
+  TSKEY                  current;  // current Key for fill
+  TSKEY                  preRowKey;
+  TSKEY                  nextRowKey;
+  SResultRowData*        pResRow;
+  SStreamFillLinearInfo* pLinearInfo;
+  bool                   needFill;
+  int32_t                type;  // fill type
+  int32_t                pos;
+  SArray*                delRanges;
+  int32_t                delIndex;
+} SStreamFillInfo;
+
+typedef struct SStreamFillSupporter {
+  int32_t        type;  // fill type
+  SInterval      interval;
+  SResultRowData prev;
+  SResultRowData cur;
+  SResultRowData next;
+  SResultRowData nextNext;
+  SFillColInfo*  pAllColInfo;   // fill exprs and not fill exprs
+  int32_t        numOfAllCols;  // number of all exprs, including the tags columns
+  int32_t        numOfFillCols;
+  int32_t        numOfNotFillCols;
+  int32_t        rowSize;
+  SSHashObj*     pResMap;
+  bool           hasDelete;
+} SStreamFillSupporter;
 
 int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, int64_t ekey, int32_t maxNumOfRows);
 
-
-void taosFillSetStartInfo(struct SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
-void taosResetFillInfo(struct SFillInfo* pFillInfo, TSKEY startTimestamp);
-void taosFillSetInputDataBlock(struct SFillInfo* pFillInfo, const struct SSDataBlock* pInput);
-struct SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprInfo* pNotFillExpr, int32_t numOfNotFillCols, const struct SNodeListNode* val);
-bool taosFillHasMoreResults(struct SFillInfo* pFillInfo);
+void                 taosFillSetStartInfo(struct SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
+void                 taosResetFillInfo(struct SFillInfo* pFillInfo, TSKEY startTimestamp);
+void                 taosFillSetInputDataBlock(struct SFillInfo* pFillInfo, const struct SSDataBlock* pInput);
+struct SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfFillExpr, SExprInfo* pNotFillExpr,
+                                       int32_t numOfNotFillCols, const struct SNodeListNode* val);
+bool                 taosFillHasMoreResults(struct SFillInfo* pFillInfo);
 
 SFillInfo* taosCreateFillInfo(TSKEY skey, int32_t numOfFillCols, int32_t numOfNotFillCols, int32_t capacity,
                               SInterval* pInterval, int32_t fillType, struct SFillColInfo* pCol, int32_t slotId,
                               int32_t order, const char* id);
 
-void* taosDestroyFillInfo(struct SFillInfo *pFillInfo);
+void*   taosDestroyFillInfo(struct SFillInfo* pFillInfo);
 int64_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* p, int32_t capacity);
-int64_t getFillInfoStart(struct SFillInfo *pFillInfo);
-
+int64_t getFillInfoStart(struct SFillInfo* pFillInfo);
 
 #ifdef __cplusplus
 }

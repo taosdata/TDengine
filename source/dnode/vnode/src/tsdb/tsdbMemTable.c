@@ -168,6 +168,7 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
     goto _err;
   }
 
+  ASSERT(pPool != NULL);
   // do delete
   SDelData *pDelData = (SDelData *)vnodeBufPoolMalloc(pPool, sizeof(*pDelData));
   if (pDelData == NULL) {
@@ -362,6 +363,7 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   SVBufPool *pPool = pMemTable->pTsdb->pVnode->inUse;
   int8_t     maxLevel = pMemTable->pTsdb->pVnode->config.tsdbCfg.slLevel;
 
+  ASSERT(pPool != NULL);
   pTbData = vnodeBufPoolMalloc(pPool, sizeof(*pTbData) + SL_NODE_SIZE(maxLevel) * 2);
   if (pTbData == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -501,6 +503,7 @@ static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListN
 
   // node
   level = tsdbMemSkipListRandLevel(&pTbData->sl);
+  ASSERT(pPool != NULL);
   pNode = (SMemSkipListNode *)vnodeBufPoolMalloc(pPool, SL_NODE_SIZE(level) + tPutTSDBRow(NULL, pRow));
   if (pNode == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -568,6 +571,8 @@ static int32_t tsdbInsertTableDataImpl(SMemTable *pMemTable, STbData *pTbData, i
 
   // backward put first data
   row.pTSRow = tGetSubmitBlkNext(&blkIter);
+  if (row.pTSRow == NULL) return code;
+
   key.ts = row.pTSRow->ts;
   nRow++;
   tbDataMovePosTo(pTbData, pos, &key, SL_MOVE_BACKWARD);

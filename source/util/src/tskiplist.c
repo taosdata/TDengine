@@ -87,7 +87,6 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, _
 #if SKIP_LIST_RECORD_PERFORMANCE
   pSkipList->state.nTotalMemSize += sizeof(SSkipList);
 #endif
-  pSkipList->insertHandleFn = NULL;
 
   return pSkipList;
 }
@@ -104,8 +103,6 @@ void tSkipListDestroy(SSkipList *pSkipList) {
     pNode = SL_NODE_GET_FORWARD_POINTER(pNode, 0);
     tSkipListFreeNode(pTemp);
   }
-
-  taosMemoryFreeClear(pSkipList->insertHandleFn);
 
   tSkipListUnlock(pSkipList);
   if (pSkipList->lock != NULL) {
@@ -145,7 +142,10 @@ void tSkipListPutBatchByIter(SSkipList *pSkipList, void *iter, iter_next_fn_t it
   tSkipListWLock(pSkipList);
 
   void *pData = iterate(iter);
-  if (pData == NULL) return;
+  if (pData == NULL) {
+    tSkipListUnlock(pSkipList);
+    return;
+  }
 
   // backward to put the first data
   hasDup = tSkipListGetPosToPut(pSkipList, backward, pData);
@@ -681,35 +681,14 @@ static SSkipListNode *tSkipListPutImpl(SSkipList *pSkipList, void *pData, SSkipL
       } else {
         pNode = SL_NODE_GET_BACKWARD_POINTER(direction[0], 0);
       }
-      if (pSkipList->insertHandleFn) {
-        pSkipList->insertHandleFn->args[0] = pData;
-        pSkipList->insertHandleFn->args[1] = pNode->pData;
-        pData = genericInvoke(pSkipList->insertHandleFn);
-      }
       if (pData) {
         atomic_store_ptr(&(pNode->pData), pData);
-      }
-    } else {
-      // for compatiblity, duplicate key inserted when update=0 should be also calculated as affected rows!
-      if (pSkipList->insertHandleFn) {
-        pSkipList->insertHandleFn->args[0] = NULL;
-        pSkipList->insertHandleFn->args[1] = NULL;
-        genericInvoke(pSkipList->insertHandleFn);
       }
     }
   } else {
     pNode = tSkipListNewNode(getSkipListRandLevel(pSkipList));
     if (pNode != NULL) {
-      // insertHandleFn will be assigned only for timeseries data,
-      // in which case, pData is pointed to an memory to be freed later;
-      // while for metadata, the mem alloc will not be called.
-      if (pSkipList->insertHandleFn) {
-        pSkipList->insertHandleFn->args[0] = pData;
-        pSkipList->insertHandleFn->args[1] = NULL;
-        pData = genericInvoke(pSkipList->insertHandleFn);
-      }
       pNode->pData = pData;
-
       tSkipListDoInsert(pSkipList, direction, pNode, isForward);
     }
   }

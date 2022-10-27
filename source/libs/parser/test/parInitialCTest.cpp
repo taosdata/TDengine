@@ -27,25 +27,6 @@ TEST_F(ParserInitialCTest, createAccount) {
   run("CREATE ACCOUNT ac_wxy PASS '123456'", TSDB_CODE_PAR_EXPRIE_STATEMENT, PARSER_STAGE_PARSE);
 }
 
-TEST_F(ParserInitialCTest, createBnode) {
-  useDb("root", "test");
-
-  SMCreateQnodeReq expect = {0};
-
-  auto setCreateQnodeReq = [&](int32_t dnodeId) { expect.dnodeId = dnodeId; };
-
-  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
-    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_BNODE_STMT);
-    SMCreateQnodeReq req = {0};
-    ASSERT_TRUE(TSDB_CODE_SUCCESS ==
-                tDeserializeSCreateDropMQSBNodeReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
-    ASSERT_EQ(req.dnodeId, expect.dnodeId);
-  });
-
-  setCreateQnodeReq(1);
-  run("CREATE BNODE ON DNODE 1");
-}
-
 /*
  * CREATE DATABASE [IF NOT EXISTS] db_name [database_options]
  *
@@ -610,6 +591,20 @@ TEST_F(ParserInitialCTest, createStream) {
     expect.igExpired = igExpired;
   };
 
+  auto addTag = [&](const char* pFieldName, uint8_t type, int32_t bytes = 0) {
+    SField field = {0};
+    strcpy(field.name, pFieldName);
+    field.type = type;
+    field.bytes = bytes > 0 ? bytes : tDataTypes[type].bytes;
+    field.flags |= COL_SMA_ON;
+
+    if (NULL == expect.pTags) {
+      expect.pTags = taosArrayInit(TARRAY_MIN_SIZE, sizeof(SField));
+    }
+    taosArrayPush(expect.pTags, &field);
+    expect.numOfTags += 1;
+  };
+
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_STREAM_STMT);
     SCMCreateStreamReq req = {0};
@@ -625,6 +620,19 @@ TEST_F(ParserInitialCTest, createStream) {
     ASSERT_EQ(req.maxDelay, expect.maxDelay);
     ASSERT_EQ(req.watermark, expect.watermark);
     ASSERT_EQ(req.igExpired, expect.igExpired);
+    ASSERT_EQ(req.numOfTags, expect.numOfTags);
+    if (expect.numOfTags > 0) {
+      ASSERT_EQ(taosArrayGetSize(req.pTags), expect.numOfTags);
+      ASSERT_EQ(taosArrayGetSize(req.pTags), taosArrayGetSize(expect.pTags));
+      for (int32_t i = 0; i < expect.numOfTags; ++i) {
+        SField* pField = (SField*)taosArrayGet(req.pTags, i);
+        SField* pExpectField = (SField*)taosArrayGet(expect.pTags, i);
+        ASSERT_EQ(std::string(pField->name), std::string(pExpectField->name));
+        ASSERT_EQ(pField->type, pExpectField->type);
+        ASSERT_EQ(pField->bytes, pExpectField->bytes);
+        ASSERT_EQ(pField->flags, pExpectField->flags);
+      }
+    }
     tFreeSCMCreateStreamReq(&req);
   });
 
@@ -639,6 +647,17 @@ TEST_F(ParserInitialCTest, createStream) {
                          0);
   run("CREATE STREAM IF NOT EXISTS s1 TRIGGER MAX_DELAY 20s WATERMARK 10s IGNORE EXPIRED 0 INTO st1 AS SELECT COUNT(*) "
       "FROM t1 INTERVAL(10S)");
+  clearCreateStreamReq();
+
+  setCreateStreamReqFunc(
+      "s1", "test",
+      "create stream s1 into st3 tags(tname varchar(10), id int) subtable(concat('new-', tname)) as "
+      "select _wstart wstart, count(*) cnt from st1 partition by tbname tname, tag1 id interval(10s)",
+      "st3");
+  addTag("tname", TSDB_DATA_TYPE_VARCHAR, 10 + VARSTR_HEADER_SIZE);
+  addTag("id", TSDB_DATA_TYPE_INT);
+  run("CREATE STREAM s1 INTO st3 TAGS(tname VARCHAR(10), id INT) SUBTABLE(CONCAT('new-', tname)) "
+      "AS SELECT _WSTART wstart, COUNT(*) cnt FROM st1 PARTITION BY TBNAME tname, tag1 id INTERVAL(10S)");
   clearCreateStreamReq();
 }
 

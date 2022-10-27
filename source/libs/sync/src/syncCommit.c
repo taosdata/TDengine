@@ -45,8 +45,15 @@
 //     /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, log>>
 //
 void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
-  syncIndexMgrLog2("==syncNodeMaybeAdvanceCommitIndex== pNextIndex", pSyncNode->pNextIndex);
-  syncIndexMgrLog2("==syncNodeMaybeAdvanceCommitIndex== pMatchIndex", pSyncNode->pMatchIndex);
+  if (pSyncNode == NULL) {
+    sError("pSyncNode is NULL");
+    return;
+  }
+
+  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+    syncNodeErrorLog(pSyncNode, "not leader, can not advance commit index");
+    return;
+  }
 
   // advance commit index to sanpshot first
   SSnapshot snapshot;
@@ -69,15 +76,31 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
 
     if (agree) {
       // term
-      SSyncRaftEntry* pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, index);
-      ASSERT(pEntry != NULL);
-
+      SSyncRaftEntry* pEntry = NULL;
+      SLRUCache*      pCache = pSyncNode->pLogStore->pCache;
+      LRUHandle*      h = taosLRUCacheLookup(pCache, &index, sizeof(index));
+      if (h) {
+        pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
+      } else {
+        int32_t code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, index, &pEntry);
+        if (code != 0) {
+          char logBuf[128];
+          snprintf(logBuf, sizeof(logBuf), "advance commit index error, read wal index:%" PRId64, index);
+          syncNodeErrorLog(pSyncNode, logBuf);
+          return;
+        }
+      }
       // cannot commit, even if quorum agree. need check term!
       if (pEntry->term <= pSyncNode->pRaftStore->currentTerm) {
         // update commit index
         newCommitIndex = index;
 
-        syncEntryDestory(pEntry);
+        if (h) {
+          taosLRUCacheRelease(pCache, h, false);
+        } else {
+          syncEntryDestory(pEntry);
+        }
+
         break;
       } else {
         do {
@@ -88,7 +111,11 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
         } while (0);
       }
 
-      syncEntryDestory(pEntry);
+      if (h) {
+        taosLRUCacheRelease(pCache, h, false);
+      } else {
+        syncEntryDestory(pEntry);
+      }
     }
   }
 
@@ -107,12 +134,18 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
     pSyncNode->commitIndex = newCommitIndex;
 
     // call back Wal
-    pSyncNode->pLogStore->updateCommitIndex(pSyncNode->pLogStore, pSyncNode->commitIndex);
+    pSyncNode->pLogStore->syncLogUpdateCommitIndex(pSyncNode->pLogStore, pSyncNode->commitIndex);
 
     // execute fsm
     if (pSyncNode->pFsm != NULL) {
-      int32_t code = syncNodeCommit(pSyncNode, beginIndex, endIndex, pSyncNode->state);
-      ASSERT(code == 0);
+      int32_t code = syncNodeDoCommit(pSyncNode, beginIndex, endIndex, pSyncNode->state);
+      if (code != 0) {
+        char logBuf[128];
+        snprintf(logBuf, sizeof(logBuf), "advance commit index error, do commit begin:%" PRId64 ", end:%" PRId64,
+                 beginIndex, endIndex);
+        syncNodeErrorLog(pSyncNode, logBuf);
+        return;
+      }
     }
   }
 }
@@ -142,6 +175,9 @@ static inline int64_t syncNodeAbs64(int64_t a, int64_t b) {
 }
 
 int32_t syncNodeDynamicQuorum(const SSyncNode* pSyncNode) {
+  return pSyncNode->quorum;
+
+#if 0
   int32_t quorum = 1;  // self
 
   int64_t timeNow = taosGetTimestampMs();
@@ -198,8 +234,10 @@ int32_t syncNodeDynamicQuorum(const SSyncNode* pSyncNode) {
   }
 
   return quorum;
+#endif
 }
 
+/*
 bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
   int agreeCount = 0;
   for (int i = 0; i < pSyncNode->replicaNum; ++i) {
@@ -212,8 +250,8 @@ bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
   }
   return false;
 }
+*/
 
-/*
 bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
   int agreeCount = 0;
   for (int i = 0; i < pSyncNode->replicaNum; ++i) {
@@ -226,4 +264,3 @@ bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
   }
   return false;
 }
-*/

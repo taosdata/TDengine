@@ -41,29 +41,35 @@ ALTER ALL DNODES dnode_option
 
 dnode_option: {
     'resetLog'
-  | 'balance' value
-  | 'monitor' value
-  | 'debugFlag' value
-  | 'monDebugFlag' value
-  | 'vDebugFlag' value
-  | 'mDebugFlag' value
-  | 'cDebugFlag' value
-  | 'httpDebugFlag' value
-  | 'qDebugflag' value
-  | 'sdbDebugFlag' value
-  | 'uDebugFlag' value
-  | 'tsdbDebugFlag' value
-  | 'sDebugflag' value
-  | 'rpcDebugFlag' value
-  | 'dDebugFlag' value
-  | 'mqttDebugFlag' value
-  | 'wDebugFlag' value
-  | 'tmrDebugFlag' value
-  | 'cqDebugFlag' value
+  | 'balance' 'value'
+  | 'monitor' 'value'
+  | 'debugFlag' 'value'
+  | 'monDebugFlag' 'value'
+  | 'vDebugFlag' 'value'
+  | 'mDebugFlag' 'value'
+  | 'cDebugFlag' 'value'
+  | 'httpDebugFlag' 'value'
+  | 'qDebugflag' 'value'
+  | 'sdbDebugFlag' 'value'
+  | 'uDebugFlag' 'value'
+  | 'tsdbDebugFlag' 'value'
+  | 'sDebugflag' 'value'
+  | 'rpcDebugFlag' 'value'
+  | 'dDebugFlag' 'value'
+  | 'mqttDebugFlag' 'value'
+  | 'wDebugFlag' 'value'
+  | 'tmrDebugFlag' 'value'
+  | 'cqDebugFlag' 'value'
 }
 ```
 
 上面语法中的这些可修改配置项其配置方式与 dnode 配置文件中的配置方式相同，区别是修改是动态的立即生效，且不需要重启 dnode。
+
+value 是参数的值，需要是字符格式。如修改 dnode 1 的日志输出级别为 debug：
+
+```sql
+ALTER DNODE 1 'debugFlag' '143';
+```
 
 ## 添加管理节点
 
@@ -122,11 +128,11 @@ ALTER LOCAL local_option
 
 local_option: {
     'resetLog'
-  | 'rpcDebugFlag' value
-  | 'tmrDebugFlag' value
-  | 'cDebugFlag' value
-  | 'uDebugFlag' value
-  | 'debugFlag' value
+  | 'rpcDebugFlag' 'value'
+  | 'tmrDebugFlag' 'value'
+  | 'cDebugFlag' 'value'
+  | 'uDebugFlag' 'value'
+  | 'debugFlag' 'value'
 }
 ```
 
@@ -137,19 +143,3 @@ local_option: {
 ```sql
 SHOW LOCAL VARIABLES;
 ```
-
-## 合并 vgroup
-
-```sql
-MERGE VGROUP vgroup_no1 vgroup_no2;
-```
-
-如果在系统实际运行一段时间后，因为不同时间线的数据特征不同导致在 vgroups 之间的数据和负载分布不均衡，可以通过合并或拆分 vgroups 的方式逐步实现负载均衡。
-
-## 拆分 vgroup
-
-```sql
-SPLIT VGROUP vgroup_no;
-```
-
-会创建一个新的 vgroup，并将指定 vgroup 中的数据按照一致性 HASH 迁移一部分到新的 vgroup 中。此过程中，原 vgroup 可以正常提供读写服务。

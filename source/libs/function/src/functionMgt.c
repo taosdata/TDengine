@@ -16,6 +16,7 @@
 #include "functionMgt.h"
 
 #include "builtins.h"
+#include "builtinsimpl.h"
 #include "functionMgtInt.h"
 #include "taos.h"
 #include "taoserror.h"
@@ -25,11 +26,6 @@
 typedef struct SFuncMgtService {
   SHashObj* pFuncNameHashTable;
 } SFuncMgtService;
-
-typedef struct SUdfInfo {
-  SDataType outputDt;
-  int8_t    funcType;
-} SUdfInfo;
 
 static SFuncMgtService gFunMgtService;
 static TdThreadOnce    functionHashTableInit = PTHREAD_ONCE_INIT;
@@ -220,14 +216,14 @@ bool fmIsKeepOrderFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, F
 
 bool fmIsCumulativeFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_CUMULATIVE_FUNC); }
 
-bool fmIsForbidSuperTableFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_FORBID_STABLE_FUNC); }
-
 bool fmIsInterpFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;
   }
   return FUNCTION_TYPE_INTERP == funcMgtBuiltins[funcId].type;
 }
+
+bool fmIsInterpPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_INTERP_PC_FUNC); }
 
 bool fmIsLastRowFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
@@ -317,6 +313,11 @@ bool fmIsSameInOutType(int32_t funcId) {
   return res;
 }
 
+void getLastCacheDataType(SDataType* pType) {
+  pType->bytes = getFirstLastInfoSize(pType->bytes) + VARSTR_HEADER_SIZE;
+  pType->type = TSDB_DATA_TYPE_BINARY;
+}
+
 static int32_t getFuncInfo(SFunctionNode* pFunc) {
   char msg[128] = {0};
   return fmGetFuncInfo(pFunc, msg, sizeof(msg));
@@ -327,7 +328,7 @@ static SFunctionNode* createFunction(const char* pName, SNodeList* pParameterLis
   if (NULL == pFunc) {
     return NULL;
   }
-  strcpy(pFunc->functionName, pName);
+  snprintf(pFunc->functionName, sizeof(pFunc->functionName), "%s", pName);
   pFunc->pParameterList = pParameterList;
   if (TSDB_CODE_SUCCESS != getFuncInfo(pFunc)) {
     pFunc->pParameterList = NULL;
@@ -405,10 +406,6 @@ static int32_t createMergeFunction(const SFunctionNode* pSrcFunc, const SFunctio
   if (TSDB_CODE_SUCCESS == code) {
     *pMergeFunc = pFunc;
   } else {
-    if (NULL != pFunc) {
-      pFunc->pParameterList = NULL;
-      nodesDestroyNode((SNode*)pFunc);
-    }
     nodesDestroyList(pParameterList);
   }
 

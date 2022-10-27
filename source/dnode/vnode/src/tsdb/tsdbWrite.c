@@ -34,7 +34,9 @@ int tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq *pMsg, SSubmitRsp *
   }
 
   // loop to insert
-  tInitSubmitMsgIter(pMsg, &msgIter);
+  if (tInitSubmitMsgIter(pMsg, &msgIter) < 0) {
+    return -1;
+  }
   while (true) {
     SSubmitBlkRsp r = {0};
     tGetSubmitMsgNext(&msgIter, &pBlock);

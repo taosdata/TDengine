@@ -26,10 +26,10 @@ extern int wcswidth(const wchar_t *s, size_t n);
 
 #ifdef WINDOWS
 char *strsep(char **stringp, const char *delim) {
-  char *      s;
+  char       *s;
   const char *spanp;
   int32_t     c, sc;
-  char *      tok;
+  char       *tok;
   if ((s = *stringp) == NULL) return (NULL);
   for (tok = s;;) {
     c = *s++;
@@ -50,7 +50,7 @@ char *strsep(char **stringp, const char *delim) {
 /* Duplicate a string, up to at most size characters */
 char *strndup(const char *s, int size) {
   size_t l;
-  char * s2;
+  char  *s2;
   l = strlen(s);
   if (l > size) l = size;
   s2 = malloc(l + 1);
@@ -139,7 +139,7 @@ typedef struct {
   int8_t  inUse;
 } SConv;
 
-SConv *gConv = NULL;
+SConv  *gConv = NULL;
 int32_t convUsed = 0;
 int32_t gConvMaxNum = 0;
 
@@ -167,7 +167,7 @@ iconv_t taosAcquireConv(int32_t *idx) {
     *idx = -1;
     return iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
   }
-  
+
   while (true) {
     int32_t used = atomic_add_fetch_32(&convUsed, 1);
     if (used > gConvMaxNum) {
@@ -175,7 +175,7 @@ iconv_t taosAcquireConv(int32_t *idx) {
       sched_yield();
       continue;
     }
-    
+
     break;
   }
 
@@ -306,8 +306,6 @@ int32_t taosMbsToWchars(TdWchar *pWchars, const char *pStrs, int32_t size) { ret
 
 int32_t taosWcharToMb(char *pStr, TdWchar wchar) { return wctomb(pStr, wchar); }
 
-int32_t taosWcharsToMbs(char *pStrs, TdWchar *pWchars, int32_t size) { return wcstombs(pStrs, pWchars, size); }
-
 char *taosStrCaseStr(const char *str, const char *pattern) {
   size_t i;
 
@@ -326,6 +324,9 @@ char *taosStrCaseStr(const char *str, const char *pattern) {
 
 int64_t taosStr2Int64(const char *str, char **pEnd, int32_t radix) {
   int64_t tmp = strtoll(str, pEnd, radix);
+#ifdef DARWIN
+  if (errno == EINVAL) errno = 0;
+#endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
   assert(errno != ERANGE);
   assert(errno != EINVAL);
@@ -335,6 +336,9 @@ int64_t taosStr2Int64(const char *str, char **pEnd, int32_t radix) {
 
 uint64_t taosStr2UInt64(const char *str, char **pEnd, int32_t radix) {
   uint64_t tmp = strtoull(str, pEnd, radix);
+#ifdef DARWIN
+  if (errno == EINVAL) errno = 0;
+#endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
   assert(errno != ERANGE);
   assert(errno != EINVAL);
@@ -344,6 +348,9 @@ uint64_t taosStr2UInt64(const char *str, char **pEnd, int32_t radix) {
 
 int32_t taosStr2Int32(const char *str, char **pEnd, int32_t radix) {
   int32_t tmp = strtol(str, pEnd, radix);
+#ifdef DARWIN
+  if (errno == EINVAL) errno = 0;
+#endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
   assert(errno != ERANGE);
   assert(errno != EINVAL);
@@ -353,6 +360,9 @@ int32_t taosStr2Int32(const char *str, char **pEnd, int32_t radix) {
 
 uint32_t taosStr2UInt32(const char *str, char **pEnd, int32_t radix) {
   uint32_t tmp = strtol(str, pEnd, radix);
+#ifdef DARWIN
+  if (errno == EINVAL) errno = 0;
+#endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
   assert(errno != ERANGE);
   assert(errno != EINVAL);
@@ -362,6 +372,9 @@ uint32_t taosStr2UInt32(const char *str, char **pEnd, int32_t radix) {
 
 int16_t taosStr2Int16(const char *str, char **pEnd, int32_t radix) {
   int32_t tmp = strtol(str, pEnd, radix);
+#ifdef DARWIN
+  if (errno == EINVAL) errno = 0;
+#endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
   assert(errno != ERANGE);
   assert(errno != EINVAL);
@@ -373,6 +386,9 @@ int16_t taosStr2Int16(const char *str, char **pEnd, int32_t radix) {
 
 uint16_t taosStr2UInt16(const char *str, char **pEnd, int32_t radix) {
   uint32_t tmp = strtoul(str, pEnd, radix);
+#ifdef DARWIN
+  if (errno == EINVAL) errno = 0;
+#endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
   assert(errno != ERANGE);
   assert(errno != EINVAL);
@@ -394,6 +410,9 @@ int8_t taosStr2Int8(const char *str, char **pEnd, int32_t radix) {
 
 uint8_t taosStr2UInt8(const char *str, char **pEnd, int32_t radix) {
   uint32_t tmp = strtoul(str, pEnd, radix);
+#ifdef DARWIN
+  if (errno == EINVAL) errno = 0;
+#endif
 #ifdef TD_CHECK_STR_TO_INT_ERROR
   assert(errno != ERANGE);
   assert(errno != EINVAL);

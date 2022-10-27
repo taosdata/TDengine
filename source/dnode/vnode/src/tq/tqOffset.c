@@ -22,10 +22,10 @@ struct STqOffsetStore {
   SHashObj* pHash;  // SHashObj<subscribeKey, offset>
 };
 
-char* tqOffsetBuildFName(const char* path, int32_t ver) {
+char* tqOffsetBuildFName(const char* path, int32_t fVer) {
   int32_t len = strlen(path);
   char*   fname = taosMemoryCalloc(1, len + 40);
-  snprintf(fname, len + 40, "%s/offset-ver%d", path, ver);
+  snprintf(fname, len + 40, "%s/offset-ver%d", path, fVer);
   return fname;
 }
 
@@ -145,8 +145,10 @@ int32_t tqOffsetCommitFile(STqOffsetStore* pStore) {
       ASSERT(0);
       tqError("write offset incomplete, len %d, write len %" PRId64, bodyLen, writeLen);
       taosHashCancelIterate(pStore->pHash, pIter);
+      taosMemoryFree(buf);
       return -1;
     }
+    taosMemoryFree(buf);
   }
   // close and rename file
   taosCloseFile(&pFile);

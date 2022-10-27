@@ -19,6 +19,7 @@
 #define _XOPEN_SOURCE
 #define _DEFAULT_SOURCE
 #include "shellInt.h"
+#include "shellAuto.h"
 
 static bool    shellIsEmptyCommand(const char *cmd);
 static int32_t shellRunSingleCommand(char *command);
@@ -87,9 +88,15 @@ int32_t shellRunSingleCommand(char *command) {
   if (shellRegexMatch(command, "^[ \t]*source[\t ]+[^ ]+[ \t;]*$", REG_EXTENDED | REG_ICASE)) {
     /* If source file. */
     char *c_ptr = strtok(command, " ;");
-    assert(c_ptr != NULL);
+    if (c_ptr == NULL) {
+      shellRunSingleCommandImp(command);
+      return 0;
+    }
     c_ptr = strtok(NULL, " ;");
-    assert(c_ptr != NULL);
+    if (c_ptr == NULL) {
+      shellRunSingleCommandImp(command);
+      return 0;
+    }
     shellSourceFile(c_ptr);
     return 0;
   }
@@ -193,6 +200,9 @@ void shellRunSingleCommandImp(char *command) {
     fprintf(stdout, "Database changed.\r\n\r\n");
     fflush(stdout);
 
+    // call back auto tab module
+    callbackAutoTab(command, pSql, true);
+
     taos_free_result(pSql);
 
     return;
@@ -207,16 +217,19 @@ void shellRunSingleCommandImp(char *command) {
 
     et = taosGetTimestampUs();
     if (error_no == 0) {
-      printf("Query OK, %d rows in database (%.6fs)\r\n", numOfRows, (et - st) / 1E6);
+      printf("Query OK, %d row(s) in set (%.6fs)\r\n", numOfRows, (et - st) / 1E6);
     } else {
-      printf("Query interrupted (%s), %d rows affected (%.6fs)\r\n", taos_errstr(pSql), numOfRows, (et - st) / 1E6);
+      printf("Query interrupted (%s), %d row(s) in set (%.6fs)\r\n", taos_errstr(pSql), numOfRows, (et - st) / 1E6);
     }
     taos_free_result(pSql);
   } else {
     int32_t num_rows_affacted = taos_affected_rows(pSql);
     taos_free_result(pSql);
     et = taosGetTimestampUs();
-    printf("Query OK, %d of %d rows affected (%.6fs)\r\n", num_rows_affacted, num_rows_affacted, (et - st) / 1E6);
+    printf("Query OK, %d row(s) affected in set (%.6fs)\r\n", num_rows_affacted, (et - st) / 1E6);
+
+    // call auto tab
+    callbackAutoTab(command, NULL, false);
   }
 
   printf("\r\n");
@@ -269,8 +282,13 @@ char *shellFormatTimestamp(char *buf, int64_t val, int32_t precision) {
 
 void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, int32_t length, int32_t precision) {
   if (val == NULL) {
+    taosFprintfFile(pFile, "NULL");
     return;
   }
+
+  char quotationStr[2];
+  quotationStr[0] = '\"';
+  quotationStr[1] = 0;
 
   int  n;
   char buf[TSDB_MAX_BYTES_PER_ROW];
@@ -317,33 +335,23 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_JSON:
       {
-        char quotationStr[2];
         int32_t bufIndex = 0;
-        quotationStr[0] = 0;
-        quotationStr[1] = 0;
         for (int32_t i = 0; i < length; i++) {
           buf[bufIndex] = val[i];
           bufIndex++;
           if (val[i] == '\"') {
             buf[bufIndex] = val[i];
             bufIndex++;
-            quotationStr[0] = '\"';
-          }
-          if (val[i] == ',') {
-            quotationStr[0] = '\"';
           }
         }
         buf[bufIndex] = 0;
-        if (length == 0) {
-          quotationStr[0] = '\"';
-        }
         
         taosFprintfFile(pFile, "%s%s%s", quotationStr, buf, quotationStr);
       }
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
       shellFormatTimestamp(buf, *(int64_t *)val, precision);
-      taosFprintfFile(pFile, "%s", buf);
+      taosFprintfFile(pFile, "%s%s%s", quotationStr, buf, quotationStr);
       break;
     default:
       break;
@@ -774,9 +782,9 @@ void shellReadHistory() {
   TdFilePtr      pFile = taosOpenFile(pHistory->file, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) return;
 
-  char   *line = NULL;
+  char    *line = taosMemoryMalloc(TSDB_MAX_ALLOWED_SQL_LEN + 1);
   int32_t read_size = 0;
-  while ((read_size = taosGetLineFile(pFile, &line)) != -1) {
+  while ((read_size = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) != -1) {
     line[read_size - 1] = '\0';
     taosMemoryFree(pHistory->hist[pHistory->hend]);
     pHistory->hist[pHistory->hend] = strdup(line);
@@ -788,7 +796,7 @@ void shellReadHistory() {
     }
   }
 
-  if (line != NULL) taosMemoryFree(line);
+  taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
   int64_t file_size;
   if (taosStatFile(pHistory->file, &file_size, NULL) == 0 && file_size > SHELL_MAX_COMMAND_SIZE) {
@@ -852,7 +860,6 @@ void shellSourceFile(const char *file) {
   int32_t read_len = 0;
   char   *cmd = taosMemoryCalloc(1, TSDB_MAX_ALLOWED_SQL_LEN + 1);
   size_t  cmd_len = 0;
-  char   *line = NULL;
   char    fullname[PATH_MAX] = {0};
   char    sourceFileCommand[PATH_MAX + 8] = {0};
 
@@ -870,7 +877,8 @@ void shellSourceFile(const char *file) {
     return;
   }
 
-  while ((read_len = taosGetLineFile(pFile, &line)) != -1) {
+  char   *line = taosMemoryMalloc(TSDB_MAX_ALLOWED_SQL_LEN + 1);
+  while ((read_len = taosGetsFile(pFile, TSDB_MAX_ALLOWED_SQL_LEN, line)) != -1) {
     if (read_len >= TSDB_MAX_ALLOWED_SQL_LEN) continue;
     line[--read_len] = '\0';
 
@@ -897,7 +905,7 @@ void shellSourceFile(const char *file) {
   }
 
   taosMemoryFree(cmd);
-  if (line != NULL) taosMemoryFree(line);
+  taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
 }
 
@@ -985,7 +993,9 @@ void *shellCancelHandler(void *arg) {
 		shell.stop_query = true;
 	} else {
 #endif
-		taos_kill_query(shell.conn);
+    if (shell.conn) {
+		  taos_kill_query(shell.conn);
+		}
 #ifdef WEBSOCKET
 	}
 #endif
@@ -1053,6 +1063,7 @@ int32_t shellExecute() {
   }
 #endif
 
+  shellSetConn(shell.conn);
   shellReadHistory();
 
   if (pArgs->commands != NULL || pArgs->file[0] != 0) {
@@ -1098,6 +1109,9 @@ int32_t shellExecute() {
 #ifdef WEBSOCKET
   if (!shell.args.restful && !shell.args.cloud) {
 #endif
+#ifndef WINDOWS
+  printfIntroduction();
+#endif  
 	shellGetGrantInfo();
 #ifdef WEBSOCKET
   }

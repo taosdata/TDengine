@@ -166,7 +166,7 @@ int32_t vnodeSnapRead(SVSnapReader *pReader, uint8_t **ppData, uint32_t *nData) 
       if (*ppData) {
         goto _exit;
       } else {
-        pReader->tqHandleDone = 1;
+        pReader->tqOffsetDone = 1;
         code = tqOffsetReaderClose(&pReader->pTqOffsetReader);
         if (code) goto _err;
       }
@@ -219,7 +219,7 @@ _exit:
   return code;
 
 _err:
-  vError("vgId:% vnode snapshot read failed since %s", TD_VID(pReader->pVnode), tstrerror(code));
+  vError("vgId:%d, vnode snapshot read failed since %s", TD_VID(pReader->pVnode), tstrerror(code));
   return code;
 }
 
@@ -260,7 +260,10 @@ int32_t vnodeSnapWriterOpen(SVnode *pVnode, int64_t sver, int64_t ever, SVSnapWr
 
   // commit it
   code = vnodeCommit(pVnode);
-  if (code) goto _err;
+  if (code) {
+    taosMemoryFree(pWriter);
+    goto _err;
+  }
 
   // inc commit ID
   pVnode->state.commitID++;

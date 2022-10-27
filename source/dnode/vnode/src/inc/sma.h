@@ -146,6 +146,7 @@ struct SRSmaInfoItem {
   uint16_t nScanned;
   int32_t  maxDelay;  // ms
   tmr_h    tmrId;
+  void    *pStreamState;
 };
 
 struct SRSmaInfo {
@@ -224,8 +225,10 @@ int32_t tdRSmaProcessCreateImpl(SSma *pSma, SRSmaParam *param, int64_t suid, con
 int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type);
 int32_t tdRSmaPersistExecImpl(SRSmaStat *pRSmaStat, SHashObj *pInfoHash);
 int32_t tdRSmaProcessRestoreImpl(SSma *pSma, int8_t type, int64_t qtaskFileVer);
-void    tdRSmaQTaskInfoGetFileName(int32_t vid, int64_t version, char *outputName);
-void    tdRSmaQTaskInfoGetFullName(int32_t vid, int64_t version, const char *path, char *outputName);
+void    tdRSmaQTaskInfoGetFileName(int32_t vgId, int64_t version, char *outputName);
+void    tdRSmaQTaskInfoGetFullName(int32_t vgId, int64_t version, const char *path, char *outputName);
+void    tdRSmaQTaskInfoGetFullPath(int32_t vgId, int8_t level, const char *path, char *outputName);
+void    tdRSmaQTaskInfoGetFullPathEx(int32_t vgId, tb_uid_t suid, int8_t level, const char *path, char *outputName);
 
 static FORCE_INLINE void tdRefRSmaInfo(SSma *pSma, SRSmaInfo *pRSmaInfo) {
   int32_t ref = T_REF_INC(pRSmaInfo);
@@ -255,6 +258,7 @@ enum {
   TD_FTYPE_RSMA_QTASKINFO = 0,
 };
 
+#if 0
 struct STFile {
   uint8_t   state;
   STFInfo   info;
@@ -284,6 +288,7 @@ int32_t tdUpdateTFileHeader(STFile *pTFile);
 void    tdUpdateTFileMagic(STFile *pTFile, void *pCksm);
 void    tdCloseTFile(STFile *pTFile);
 void    tdDestroyTFile(STFile *pTFile);
+#endif
 
 void tdGetVndFileName(int32_t vgId, const char *pdname, const char *dname, const char *fname, int64_t version,
                       char *outputName);

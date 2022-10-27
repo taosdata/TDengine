@@ -39,6 +39,8 @@ release_dir="${top_dir}/release"
 #package_name='linux'
 if [ "$verMode" == "cluster" ]; then
   install_dir="${release_dir}/${productName}-enterprise-server-${version}"
+elif [ "$verMode" == "cloud" ]; then
+  install_dir="${release_dir}/${productName}-cloud-server-${version}"
 else
   install_dir="${release_dir}/${productName}-server-${version}"
 fi
@@ -47,7 +49,7 @@ if [ -d ${top_dir}/tools/taos-tools/packaging/deb ]; then
   cd ${top_dir}/tools/taos-tools/packaging/deb
   [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
-  taostools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}')
+  taostools_ver=$(git tag |grep -v taos | sort | tail -1)
   taostools_install_dir="${release_dir}/${clientName}Tools-${taostools_ver}"
 
   cd ${curr_dir}
@@ -107,7 +109,7 @@ else
 fi
 
 install_files="${script_dir}/install.sh"
-nginx_dir="${top_dir}/../enterprise/src/plugins/web"
+web_dir="${top_dir}/../enterprise/src/plugins/web"
 
 init_file_deb=${script_dir}/../deb/taosd
 init_file_rpm=${script_dir}/../rpm/taosd
@@ -130,10 +132,6 @@ fi
 
 if [ -f "${cfg_dir}/${serverName}.service" ]; then
   cp ${cfg_dir}/${serverName}.service ${install_dir}/cfg || :
-fi
-
-if [ -f "${top_dir}/packaging/cfg/nginxd.service" ]; then
-  cp ${top_dir}/packaging/cfg/nginxd.service ${install_dir}/cfg || :
 fi
 
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
@@ -221,17 +219,10 @@ fi
 if [ "$verMode" == "cluster" ]; then
   sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/bin/remove.sh >>remove_temp.sh
   mv remove_temp.sh ${install_dir}/bin/remove.sh
-
-  mkdir -p ${install_dir}/nginxd && cp -r ${nginx_dir}/* ${install_dir}/nginxd
-  cp ${nginx_dir}/png/taos.png ${install_dir}/nginxd/admin/images/taos.png
-  rm -rf ${install_dir}/nginxd/png
-
-  if [ "$cpuType" == "aarch64" ]; then
-    cp -f ${install_dir}/nginxd/sbin/arm/64bit/nginx ${install_dir}/nginxd/sbin/
-  elif [ "$cpuType" == "aarch32" ]; then
-    cp -f ${install_dir}/nginxd/sbin/arm/32bit/nginx ${install_dir}/nginxd/sbin/
-  fi
-  rm -rf ${install_dir}/nginxd/sbin/arm
+fi
+if [ "$verMode" == "cloud" ]; then
+  sed 's/verMode=edge/verMode=cloud/g' ${install_dir}/bin/remove.sh >>remove_temp.sh
+  mv remove_temp.sh ${install_dir}/bin/remove.sh
 fi
 
 cd ${install_dir}
@@ -246,6 +237,10 @@ cd ${curr_dir}
 cp ${install_files} ${install_dir}
 if [ "$verMode" == "cluster" ]; then
   sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/install.sh >>install_temp.sh
+  mv install_temp.sh ${install_dir}/install.sh
+fi
+if [ "$verMode" == "cloud" ]; then
+  sed 's/verMode=edge/verMode=cloud/g' ${install_dir}/install.sh >>install_temp.sh
   mv install_temp.sh ${install_dir}/install.sh
 fi
 if [ "$pagMode" == "lite" ]; then
@@ -288,6 +283,13 @@ if [[ $dbName == "taos" ]]; then
     cp -r ${examples_dir}/C# ${install_dir}/examples
     mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
   fi
+
+  # Add web files
+  if [ -d "${web_dir}/admin" ]; then
+    mkdir -p ${install_dir}/share/
+    cp ${web_dir}/admin ${install_dir}/share/ -r
+    cp ${web_dir}/png/taos.png ${install_dir}/share/admin/images/taos.png
+  fi
 fi
 
 # Copy driver
@@ -295,7 +297,7 @@ mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo 
 [ -f ${wslib_files} ] && cp ${wslib_files} ${install_dir}/driver || :
 
 # Copy connector
-if [ "$verMode" == "cluster" ]; then
+if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then
     connector_dir="${code_dir}/connector"
     mkdir -p ${install_dir}/connector
     if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then

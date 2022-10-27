@@ -202,8 +202,8 @@ elif [[ ${packgeName} =~ "tar" ]];then
         cd  ${oriInstallPath}/${originTdpPath}  && tar xf ${subFile}
     fi
 
-    cd  ${oriInstallPath}/${originTdpPath} && tree  >  ${installPath}/base_${originversion}_checkfile
-    cd ${installPath}/${tdPath}   && tree > ${installPath}/now_${version}_checkfile
+    cd  ${oriInstallPath}/${originTdpPath} && tree -I "driver" >  ${installPath}/base_${originversion}_checkfile
+    cd ${installPath}/${tdPath}   && tree -I "driver" > ${installPath}/now_${version}_checkfile
     
     cd ${installPath} 
     diff  ${installPath}/base_${originversion}_checkfile   ${installPath}/now_${version}_checkfile  > ${installPath}/diffFile.log
@@ -215,6 +215,7 @@ elif [[ ${packgeName} =~ "tar" ]];then
         exit -1
     else 
         echoColor G "The number and names of files are the same as previous installation packages"
+        rm -rf ${installPath}/diffFile.log
     fi
     echoColor YD  "===== install Package of tar ====="
     cd ${installPath}/${tdPath}
@@ -250,6 +251,9 @@ if [[ ${packgeName} =~ "server" ]] ;then
     rm -rf /var/lib/taos/*
     systemctl restart taosd
 fi
+
+rm -rf ${installPath}/${packgeName}
+rm -rf ${installPath}/${tdPath}/
 
 # if ([[ ${packgeName} =~ "Lite" ]] &&  [[ ${packgeName} =~ "tar" ]]) ||   [[ ${packgeName} =~ "client" ]] ;then
 #     echoColor G "===== install taos-tools when package is lite or client ====="

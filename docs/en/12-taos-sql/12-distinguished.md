@@ -46,7 +46,7 @@ The following restrictions apply:
 
 ### Other Rules
 
-- The window clause must occur after the PARTITION BY clause and before the GROUP BY clause. It cannot be used with a GROUP BY clause.
+- The window clause must occur after the PARTITION BY clause. It cannot be used with a GROUP BY clause.
 - SELECT clauses on windows can contain only the following expressions:
   - Constants
   - Aggregate functions
@@ -78,7 +78,7 @@ These pseudocolumns occur after the aggregation clause.
 
 1. A huge volume of interpolation output may be returned using `FILL`, so it's recommended to specify the time range when using `FILL`. The maximum number of interpolation values that can be returned in a single query is 10,000,000.
 2. The result set is in ascending order of timestamp when you aggregate by time window.
-3. If aggregate by window is used on STable, the aggregate function is performed on all the rows matching the filter conditions. If `PARTITION BY` is not used in the query, the result set will be returned in strict ascending order of timestamp; otherwise the result set is not exactly in the order of ascending timestamp in each group.
+3. If aggregate by window is used on STable, the aggregate function is performed on all the rows matching the filter conditions. If `PARTITION BY` is not used in the query, the result set will be returned in strict ascending order of timestamp; otherwise the result set will be returned in the order of ascending timestamp in each group.
 
 :::
 
@@ -118,6 +118,12 @@ In case of using integer, bool, or string to represent the status of a device at
 
 ```
 SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status);
+```
+
+Only care about the information of the status window when the status is 2. For example:
+
+```
+SELECT * FROM (SELECT COUNT(*) AS cnt, FIRST(ts) AS fst, status FROM temp_tb_1 STATE_WINDOW(status)) t WHERE status = 2;
 ```
 
 ### Session Window

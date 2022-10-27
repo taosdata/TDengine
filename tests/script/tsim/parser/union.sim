@@ -116,7 +116,7 @@ sql_error (select c1 from union_tb0 limit 1 union all select c1 from union_tb1 l
 sql_error (select c1 from union_tb0 limit 1 union all select c1 from union_tb1 limit 1) limit 1
 
 # sql with parenthese
-sql (((select c1 from union_tb0)))
+sql (select c1 from union_tb0)
 if $rows != 10000 then
   return -1
 endi

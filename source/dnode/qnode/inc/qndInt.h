@@ -20,8 +20,8 @@
 
 #include "tlog.h"
 #include "tmsg.h"
-#include "trpc.h"
 #include "tmsgcb.h"
+#include "trpc.h"
 
 #include "qnode.h"
 

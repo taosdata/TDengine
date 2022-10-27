@@ -28,7 +28,7 @@ SRaftStore *raftStoreOpen(const char *path) {
 
   SRaftStore *pRaftStore = taosMemoryMalloc(sizeof(SRaftStore));
   if (pRaftStore == NULL) {
-    sError("raftStoreOpen malloc error");
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   memset(pRaftStore, 0, sizeof(*pRaftStore));
@@ -46,7 +46,7 @@ SRaftStore *raftStoreOpen(const char *path) {
   ASSERT(pRaftStore->pFile != NULL);
 
   int len = taosReadFile(pRaftStore->pFile, storeBuf, RAFT_STORE_BLOCK_SIZE);
-  ASSERT(len == RAFT_STORE_BLOCK_SIZE);
+  ASSERT(len > 0);
 
   ret = raftStoreDeserialize(pRaftStore, storeBuf, len);
   ASSERT(ret == 0);
@@ -72,7 +72,9 @@ static int32_t raftStoreInit(SRaftStore *pRaftStore) {
 }
 
 int32_t raftStoreClose(SRaftStore *pRaftStore) {
-  ASSERT(pRaftStore != NULL);
+  if (pRaftStore == NULL) {
+    return 0;
+  }
 
   taosCloseFile(&pRaftStore->pFile);
   taosMemoryFree(pRaftStore);
@@ -216,7 +218,7 @@ cJSON *raftStore2Json(SRaftStore *pRaftStore) {
 
 char *raftStore2Str(SRaftStore *pRaftStore) {
   cJSON *pJson = raftStore2Json(pRaftStore);
-  char * serialized = cJSON_Print(pJson);
+  char  *serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
@@ -224,25 +226,25 @@ char *raftStore2Str(SRaftStore *pRaftStore) {
 // for debug -------------------
 void raftStorePrint(SRaftStore *pObj) {
   char *serialized = raftStore2Str(pObj);
-  printf("raftStorePrint | len:%" PRIu64 " | %s \n", strlen(serialized), serialized);
+  printf("raftStorePrint | len:%d | %s \n", (int32_t)strlen(serialized), serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void raftStorePrint2(char *s, SRaftStore *pObj) {
   char *serialized = raftStore2Str(pObj);
-  printf("raftStorePrint2 | len:%" PRIu64 " | %s | %s \n", strlen(serialized), s, serialized);
+  printf("raftStorePrint2 | len:%d | %s | %s \n", (int32_t)strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 void raftStoreLog(SRaftStore *pObj) {
   char *serialized = raftStore2Str(pObj);
-  sTrace("raftStoreLog | len:%" PRIu64 " | %s", strlen(serialized), serialized);
+  sTrace("raftStoreLog | len:%d | %s", (int32_t)strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void raftStoreLog2(char *s, SRaftStore *pObj) {
   char *serialized = raftStore2Str(pObj);
-  sTrace("raftStoreLog2 | len:%" PRIu64 " | %s | %s", strlen(serialized), s, serialized);
+  sTrace("raftStoreLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
   taosMemoryFree(serialized);
 }

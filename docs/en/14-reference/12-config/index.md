@@ -164,7 +164,7 @@ The parameters described in this document by the effect that they have on the sy
 | Attribute     | Description                            |
 | -------- | -------------------- |
 | Applicable | Client only                                           |
-| 含义     | SMA index optimization policy |
+| Meaning  | SMA index optimization policy |
 | Unit     | None                            |
 | Default Value | 0                                                 |
 | Notes |
@@ -177,11 +177,20 @@ The parameters described in this document by the effect that they have on the sy
 ### maxNumOfDistinctRes
 
 | Attribute     | Description                                                                                                                                                                         |
-| -------- | -------------------------------- | --- |
+| -------- | -------------------------------- |
 | Applicable    | Server Only                                                                                                                                                                         |
 | Meaning       | The maximum number of distinct rows returned |
 | Value Range   | [100,000 - 100,000,000]                      |
 | Default Value | 100,000                                      |
+
+### keepColumnName
+
+| Attribute     | Description                             |
+| -------- | -------------------------------- |
+| Applicable | Client only                     |
+| Meaning     | When the Last, First, LastRow function is queried, whether the returned column name contains the function name. |
+| Value Range | 0 means including the function name, 1 means not including the function name.     |
+| Default Value   | 0                            |
 
 ## Locale Parameters
 
@@ -196,7 +205,7 @@ The parameters described in this document by the effect that they have on the sy
 :::info
 To handle the data insertion and data query from multiple timezones, Unix Timestamp is used and stored in TDengine. The timestamp generated from any timezones at same time is same in Unix timestamp. Note that Unix timestamps are converted and recorded on the client side. To make sure the time on client side can be converted to Unix timestamp correctly, the timezone must be set properly.
 
-On Linux system, TDengine clients automatically obtain timezone from the host. Alternatively, the timezone can be configured explicitly in configuration file `taos.cfg` like below. For example:
+On Linux/macOS, TDengine clients automatically obtain timezone from the host. Alternatively, the timezone can be configured explicitly in configuration file `taos.cfg` like below. For example:
 
 ```
 timezone UTC-8
@@ -239,9 +248,9 @@ To avoid the problems of using time strings, Unix timestamp can be used directly
 :::info
 A specific type "nchar" is provided in TDengine to store non-ASCII characters such as Chinese, Japanese, and Korean. The characters to be stored in nchar type are firstly encoded in UCS4-LE before sending to server side. Note that the correct encoding is determined by the user. To store non-ASCII characters correctly, the encoding format of the client side needs to be set properly.
 
-The characters input on the client side are encoded using the default system encoding, which is UTF-8 on Linux, or GB18030 or GBK on some systems in Chinese, POSIX in docker, CP936 on Windows in Chinese. The encoding of the operating system in use must be set correctly so that the characters in nchar type can be converted to UCS4-LE.
+The characters input on the client side are encoded using the default system encoding, which is UTF-8 on Linux/macOS, or GB18030 or GBK on some systems in Chinese, POSIX in docker, CP936 on Windows in Chinese. The encoding of the operating system in use must be set correctly so that the characters in nchar type can be converted to UCS4-LE.
 
-The locale definition standard on Linux is: <Language\>\_<Region\>.<charset\>, for example, in "zh_CN.UTF-8", "zh" means Chinese, "CN" means China mainland, "UTF-8" means charset. The charset indicates how to display the characters. On Linux and Mac OSX, the charset can be set by locale in the system. On Windows system another configuration parameter `charset` must be used to configure charset because the locale used on Windows is not POSIX standard. Of course, `charset` can also be used on Linux to specify the charset.
+The locale definition standard on Linux/macOS is: <Language\>\_<Region\>.<charset\>, for example, in "zh_CN.UTF-8", "zh" means Chinese, "CN" means China mainland, "UTF-8" means charset. The charset indicates how to display the characters. On Linux/macOS, the charset can be set by locale in the system. On Windows system another configuration parameter `charset` must be used to configure charset because the locale used on Windows is not POSIX standard. Of course, `charset` can also be used on Linux/macOS to specify the charset.
 
 :::
 
@@ -254,9 +263,9 @@ The locale definition standard on Linux is: <Language\>\_<Region\>.<charset\>, f
 | Default Value | charset set in the system |
 
 :::info
-On Linux, if `charset` is not set in `taos.cfg`, when `taos` is started, the charset is obtained from system locale. If obtaining charset from system locale fails, `taos` would fail to start.
+On Linux/macOS, if `charset` is not set in `taos.cfg`, when `taos` is started, the charset is obtained from system locale. If obtaining charset from system locale fails, `taos` would fail to start.
 
-So on Linux system, if system locale is set properly, it's not necessary to set `charset` in `taos.cfg`. For example:
+So on Linux/macOS, if system locale is set properly, it's not necessary to set `charset` in `taos.cfg`. For example:
 
 ```
 locale zh_CN.UTF-8
@@ -270,7 +279,7 @@ charset CP936
 
 Refer to the documentation for your operating system before changing the charset.
 
-On a Linux system, if the charset contained in `locale` is not consistent with that set by `charset`, the later setting in the configuration file takes precedence.
+On a Linux/macOS, if the charset contained in `locale` is not consistent with that set by `charset`, the later setting in the configuration file takes precedence.
 
 ```
 locale zh_CN.UTF-8
@@ -325,7 +334,7 @@ The charset that takes effect is UTF-8.
 | Applicable    | Server Only                                                    |
 | Meaning     | Maximum number of vnodes per dnode |
 | Value Range | 0-4096                                     |
-| Default Value | 256                                                    |
+| Default Value | 2x the CPU cores                                                    |
 
 ## Time Parameters
 
@@ -666,7 +675,7 @@ To prevent system resource from being exhausted by multiple concurrent streams, 
 | Meaning       | Whether to generate core file when server crashes                                                                                                                       |
 | Value Range   | 0: false, 1: true                                                                                                                                                       |
 | Default Value | 1                                                                                                                                                                       |
-| Note          | The core file is generated under root directory `systemctl start taosd` is used to start, or under the working directory if `taosd` is started directly on Linux Shell. |
+| Note          | The core file is generated under root directory `systemctl start taosd`/`launchctl start com.tdengine.taosd` is used to start, or under the working directory if `taosd` is started directly on Linux/macOS Shell. |
 
 ### udf
 
@@ -697,152 +706,154 @@ To prevent system resource from being exhausted by multiple concurrent streams, 
 | 15  | telemetryPort | No | Yes |
 | 16  | queryPolicy | No | Yes |
 | 17  | querySmaOptimize | No | Yes |
-| 18  | queryBufferSize | Yes | Yes |
-| 19  | maxNumOfDistinctRes | Yes | Yes |
-| 20  | minSlidingTime | Yes | Yes |
-| 21  | minIntervalTime | Yes | Yes |
-| 22  | countAlwaysReturnValue | Yes | Yes |
-| 23  | dataDir | Yes | Yes |
-| 24  | minimalDataDirGB | Yes | Yes |
-| 25  | supportVnodes | No | Yes |
-| 26  | tempDir | Yes | Yes |
-| 27  | minimalTmpDirGB | Yes | Yes |
-| 28  | compressMsgSize | Yes | Yes |
-| 29  | compressColData | Yes | Yes |
-| 30  | smlChildTableName | Yes | Yes |
-| 31  | smlTagName | Yes | Yes |
-| 32  | smlDataFormat | No | Yes |
-| 33  | statusInterval | Yes | Yes |
-| 34  | shellActivityTimer | Yes | Yes |
-| 35  | transPullupInterval | No | Yes |
-| 36  | mqRebalanceInterval | No | Yes |
-| 37  | ttlUnit | No | Yes |
-| 38  | ttlPushInterval | No | Yes |
-| 39  | numOfTaskQueueThreads | No | Yes |
-| 40  | numOfRpcThreads | No | Yes |
-| 41  | numOfCommitThreads | Yes | Yes |
-| 42  | numOfMnodeReadThreads | No | Yes |
-| 43  | numOfVnodeQueryThreads | No | Yes |
-| 44  | numOfVnodeStreamThreads | No | Yes |
-| 45  | numOfVnodeFetchThreads | No | Yes |
-| 46  | numOfVnodeWriteThreads | No | Yes |
-| 47  | numOfVnodeSyncThreads | No | Yes |
-| 48  | numOfQnodeQueryThreads | No | Yes |
-| 49  | numOfQnodeFetchThreads | No | Yes |
-| 50  | numOfSnodeSharedThreads | No | Yes |
-| 51  | numOfSnodeUniqueThreads | No | Yes |
-| 52  | rpcQueueMemoryAllowed | No | Yes |
-| 53  | logDir | Yes | Yes |
-| 54  | minimalLogDirGB | Yes | Yes |
-| 55  | numOfLogLines | Yes | Yes |
-| 56  | asyncLog | Yes | Yes |
-| 57  | logKeepDays | Yes | Yes |
-| 58  | debugFlag | Yes | Yes |
-| 59  | tmrDebugFlag | Yes | Yes |
-| 60  | uDebugFlag | Yes | Yes |
-| 61  | rpcDebugFlag | Yes | Yes |
-| 62  | jniDebugFlag | Yes | Yes |
-| 63  | qDebugFlag | Yes | Yes |
-| 64  | cDebugFlag | Yes | Yes |
-| 65  | dDebugFlag | Yes | Yes |
-| 66  | vDebugFlag | Yes | Yes |
-| 67  | mDebugFlag | Yes | Yes |
-| 68  | wDebugFlag | Yes | Yes |
-| 69  | sDebugFlag | Yes | Yes |
-| 70  | tsdbDebugFlag | Yes | Yes |
-| 71  | tqDebugFlag | No | Yes |
-| 72  | fsDebugFlag | Yes | Yes |
-| 73  | udfDebugFlag | No | Yes |
-| 74  | smaDebugFlag | No | Yes |
-| 75  | idxDebugFlag | No | Yes |
-| 76  | tdbDebugFlag | No | Yes |
-| 77  | metaDebugFlag | No | Yes |
-| 78  | timezone | Yes | Yes |
-| 79  | locale | Yes | Yes |
-| 80  | charset | Yes | Yes |
-| 81  | udf | Yes | Yes |
-| 82  | enableCoreFile | Yes | Yes |
-| 83  | arbitrator | Yes | No |
-| 84  | numOfThreadsPerCore | Yes | No |
-| 85  | numOfMnodes | Yes | No |
-| 86  | vnodeBak | Yes | No |
-| 87  | balance | Yes | No |
-| 88  | balanceInterval | Yes | No |
-| 89  | offlineThreshold | Yes | No |
-| 90  | role | Yes | No |
-| 91  | dnodeNopLoop | Yes | No |
-| 92  | keepTimeOffset | Yes | No |
-| 93  | rpcTimer | Yes | No |
-| 94  | rpcMaxTime | Yes | No |
-| 95  | rpcForceTcp | Yes | No |
-| 96  | tcpConnTimeout | Yes | No |
-| 97  | syncCheckInterval | Yes | No |
-| 98  | maxTmrCtrl | Yes | No |
-| 99  | monitorReplica | Yes | No |
-| 100 | smlTagNullName | Yes | No |
-| 101 | keepColumnName | Yes | No |
-| 102 | ratioOfQueryCores | Yes | No |
-| 103 | maxStreamCompDelay | Yes | No |
-| 104 | maxFirstStreamCompDelay | Yes | No |
-| 105 | retryStreamCompDelay | Yes | No |
-| 106 | streamCompDelayRatio | Yes | No |
-| 107 | maxVgroupsPerDb | Yes | No |
-| 108 | maxTablesPerVnode | Yes | No |
-| 109 | minTablesPerVnode | Yes | No |
-| 110 | tableIncStepPerVnode | Yes | No |
-| 111 | cache | Yes | No |
-| 112 | blocks | Yes | No |
-| 113 | days | Yes | No |
-| 114 | keep | Yes | No |
-| 115 | minRows | Yes | No |
-| 116 | maxRows | Yes | No |
-| 117 | quorum | Yes | No |
-| 118 | comp | Yes | No |
-| 119 | walLevel | Yes | No |
-| 120 | fsync | Yes | No |
-| 121 | replica | Yes | No |
-| 122 | partitions | Yes | No |
-| 123 | quorum | Yes | No |
-| 124 | update | Yes | No |
-| 125 | cachelast | Yes | No |
-| 126 | maxSQLLength | Yes | No |
-| 127 | maxWildCardsLength | Yes | No |
-| 128 | maxRegexStringLen | Yes | No |
-| 129 | maxNumOfOrderedRes | Yes | No |
-| 130 | maxConnections | Yes | No |
-| 131 | mnodeEqualVnodeNum | Yes | No |
-| 132 | http | Yes | No |
-| 133 | httpEnableRecordSql | Yes | No |
-| 134 | httpMaxThreads | Yes | No |
-| 135 | restfulRowLimit | Yes | No |
-| 136 | httpDbNameMandatory | Yes | No |
-| 137 | httpKeepAlive | Yes | No |
-| 138 | enableRecordSql | Yes | No |
-| 139 | maxBinaryDisplayWidth | Yes | No |
-| 140 | stream | Yes | No |
-| 141 | retrieveBlockingModel | Yes | No |
-| 142 | tsdbMetaCompactRatio | Yes | No |
-| 143 | defaultJSONStrType | Yes | No |
-| 144 | walFlushSize | Yes | No |
-| 145 | keepTimeOffset | Yes | No |
-| 146 | flowctrl | Yes | No |
-| 147 | slaveQuery | Yes | No |
-| 148 | adjustMaster | Yes | No |
-| 149 | topicBinaryLen | Yes | No |
-| 150 | telegrafUseFieldNum | Yes | No |
-| 151 | deadLockKillQuery | Yes | No |
-| 152 | clientMerge | Yes | No |
-| 153 | sdbDebugFlag | Yes | No |
-| 154 | odbcDebugFlag | Yes | No |
-| 155 | httpDebugFlag | Yes | No |
-| 156 | monDebugFlag | Yes | No |
-| 157 | cqDebugFlag | Yes | No |
-| 158 | shortcutFlag | Yes | No |
-| 159 | probeSeconds | Yes | No |
-| 160 | probeKillSeconds | Yes | No |
-| 161 | probeInterval | Yes | No |
-| 162 | lossyColumns | Yes | No |
-| 163 | fPrecision | Yes | No |
-| 164 | dPrecision | Yes | No |
-| 165 | maxRange | Yes | No |
-| 166 | range | Yes | No |
+| 18  | queryRsmaTolerance | No | Yes |
+| 19  | queryBufferSize | Yes | Yes |
+| 20  | maxNumOfDistinctRes | Yes | Yes |
+| 21  | minSlidingTime | Yes | Yes |
+| 22  | minIntervalTime | Yes | Yes |
+| 23  | countAlwaysReturnValue | Yes | Yes |
+| 24  | dataDir | Yes | Yes |
+| 25  | minimalDataDirGB | Yes | Yes |
+| 26  | supportVnodes | No | Yes |
+| 27  | tempDir | Yes | Yes |
+| 28  | minimalTmpDirGB | Yes | Yes |
+| 29  | compressMsgSize | Yes | Yes |
+| 30  | compressColData | Yes | Yes |
+| 31  | smlChildTableName | Yes | Yes |
+| 32  | smlTagName | Yes | Yes |
+| 33  | smlDataFormat | No | Yes |
+| 34  | statusInterval | Yes | Yes |
+| 35  | shellActivityTimer | Yes | Yes |
+| 36  | transPullupInterval | No | Yes |
+| 37  | mqRebalanceInterval | No | Yes |
+| 38  | ttlUnit | No | Yes |
+| 39  | ttlPushInterval | No | Yes |
+| 40  | numOfTaskQueueThreads | No | Yes |
+| 41  | numOfRpcThreads | No | Yes |
+| 42  | numOfCommitThreads | Yes | Yes |
+| 43  | numOfMnodeReadThreads | No | Yes |
+| 44  | numOfVnodeQueryThreads | No | Yes |
+| 45  | numOfVnodeStreamThreads | No | Yes |
+| 46  | numOfVnodeFetchThreads | No | Yes |
+| 47  | numOfVnodeWriteThreads | No | Yes |
+| 48  | numOfVnodeSyncThreads | No | Yes |
+| 49  | numOfVnodeRsmaThreads | No | Yes | 
+| 50  | numOfQnodeQueryThreads | No | Yes |
+| 51  | numOfQnodeFetchThreads | No | Yes |
+| 52  | numOfSnodeSharedThreads | No | Yes |
+| 53  | numOfSnodeUniqueThreads | No | Yes |
+| 54  | rpcQueueMemoryAllowed | No | Yes |
+| 55  | logDir | Yes | Yes |
+| 56  | minimalLogDirGB | Yes | Yes |
+| 57  | numOfLogLines | Yes | Yes |
+| 58  | asyncLog | Yes | Yes |
+| 59  | logKeepDays | Yes | Yes |
+| 60  | debugFlag | Yes | Yes |
+| 61  | tmrDebugFlag | Yes | Yes |
+| 62  | uDebugFlag | Yes | Yes |
+| 63  | rpcDebugFlag | Yes | Yes |
+| 64  | jniDebugFlag | Yes | Yes |
+| 65  | qDebugFlag | Yes | Yes |
+| 66  | cDebugFlag | Yes | Yes |
+| 67  | dDebugFlag | Yes | Yes |
+| 68  | vDebugFlag | Yes | Yes |
+| 69  | mDebugFlag | Yes | Yes |
+| 70  | wDebugFlag | Yes | Yes |
+| 71  | sDebugFlag | Yes | Yes |
+| 72  | tsdbDebugFlag | Yes | Yes |
+| 73  | tqDebugFlag | No | Yes |
+| 74  | fsDebugFlag | Yes | Yes |
+| 75  | udfDebugFlag | No | Yes |
+| 76  | smaDebugFlag | No | Yes |
+| 77  | idxDebugFlag | No | Yes |
+| 78  | tdbDebugFlag | No | Yes |
+| 79  | metaDebugFlag | No | Yes |
+| 80  | timezone | Yes | Yes |
+| 81  | locale | Yes | Yes |
+| 82  | charset | Yes | Yes |
+| 83  | udf | Yes | Yes |
+| 84  | enableCoreFile | Yes | Yes |
+| 85  | arbitrator | Yes | No |
+| 86  | numOfThreadsPerCore | Yes | No |
+| 87  | numOfMnodes | Yes | No |
+| 88  | vnodeBak | Yes | No |
+| 89  | balance | Yes | No |
+| 90  | balanceInterval | Yes | No |
+| 91  | offlineThreshold | Yes | No |
+| 92  | role | Yes | No |
+| 93  | dnodeNopLoop | Yes | No |
+| 94  | keepTimeOffset | Yes | No |
+| 95  | rpcTimer | Yes | No |
+| 96  | rpcMaxTime | Yes | No |
+| 97  | rpcForceTcp | Yes | No |
+| 98  | tcpConnTimeout | Yes | No |
+| 99  | syncCheckInterval | Yes | No |
+| 100 | maxTmrCtrl | Yes | No |
+| 101 | monitorReplica | Yes | No |
+| 102 | smlTagNullName | Yes | No |
+| 103 | keepColumnName | Yes | No |
+| 104 | ratioOfQueryCores | Yes | No |
+| 105 | maxStreamCompDelay | Yes | No |
+| 106 | maxFirstStreamCompDelay | Yes | No |
+| 107 | retryStreamCompDelay | Yes | No |
+| 108 | streamCompDelayRatio | Yes | No |
+| 109 | maxVgroupsPerDb | Yes | No |
+| 110 | maxTablesPerVnode | Yes | No |
+| 111 | minTablesPerVnode | Yes | No |
+| 112 | tableIncStepPerVnode | Yes | No |
+| 113 | cache | Yes | No |
+| 114 | blocks | Yes | No |
+| 115 | days | Yes | No |
+| 116 | keep | Yes | No |
+| 117 | minRows | Yes | No |
+| 118 | maxRows | Yes | No |
+| 119 | quorum | Yes | No |
+| 120 | comp | Yes | No |
+| 121 | walLevel | Yes | No |
+| 122 | fsync | Yes | No |
+| 123 | replica | Yes | No |
+| 124 | partitions | Yes | No |
+| 125 | quorum | Yes | No |
+| 126 | update | Yes | No |
+| 127 | cachelast | Yes | No |
+| 128 | maxSQLLength | Yes | No |
+| 129 | maxWildCardsLength | Yes | No |
+| 130 | maxRegexStringLen | Yes | No |
+| 131 | maxNumOfOrderedRes | Yes | No |
+| 132 | maxConnections | Yes | No |
+| 133 | mnodeEqualVnodeNum | Yes | No |
+| 134 | http | Yes | No |
+| 135 | httpEnableRecordSql | Yes | No |
+| 136 | httpMaxThreads | Yes | No |
+| 137 | restfulRowLimit | Yes | No |
+| 138 | httpDbNameMandatory | Yes | No |
+| 139 | httpKeepAlive | Yes | No |
+| 140 | enableRecordSql | Yes | No |
+| 141 | maxBinaryDisplayWidth | Yes | No |
+| 142 | stream | Yes | No |
+| 143 | retrieveBlockingModel | Yes | No |
+| 144 | tsdbMetaCompactRatio | Yes | No |
+| 145 | defaultJSONStrType | Yes | No |
+| 146 | walFlushSize | Yes | No |
+| 147 | keepTimeOffset | Yes | No |
+| 148 | flowctrl | Yes | No |
+| 149 | slaveQuery | Yes | No |
+| 150 | adjustMaster | Yes | No |
+| 151 | topicBinaryLen | Yes | No |
+| 152 | telegrafUseFieldNum | Yes | No |
+| 153 | deadLockKillQuery | Yes | No |
+| 154 | clientMerge | Yes | No |
+| 155 | sdbDebugFlag | Yes | No |
+| 156 | odbcDebugFlag | Yes | No |
+| 157 | httpDebugFlag | Yes | No |
+| 158 | monDebugFlag | Yes | No |
+| 159 | cqDebugFlag | Yes | No |
+| 160 | shortcutFlag | Yes | No |
+| 161 | probeSeconds | Yes | No |
+| 162 | probeKillSeconds | Yes | No |
+| 163 | probeInterval | Yes | No |
+| 164 | lossyColumns | Yes | No |
+| 165 | fPrecision | Yes | No |
+| 166 | dPrecision | Yes | No |
+| 167 | maxRange | Yes | No |
+| 168 | range | Yes | No |

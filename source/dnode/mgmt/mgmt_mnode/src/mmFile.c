@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
 
-int32_t mmReadFile(SMnodeMgmt *pMgmt, SReplica *pReplica, bool *pDeployed) {
+int32_t mmReadFile(const char *path, SMnodeOpt *pOption) {
   int32_t   code = TSDB_CODE_INVALID_JSON_FORMAT;
   int32_t   len = 0;
   int32_t   maxLen = 4096;
@@ -25,7 +25,7 @@ int32_t mmReadFile(SMnodeMgmt *pMgmt, SReplica *pReplica, bool *pDeployed) {
   char      file[PATH_MAX] = {0};
   TdFilePtr pFile = NULL;
 
-  snprintf(file, sizeof(file), "%s%smnode.json", pMgmt->path, TD_DIRSEP);
+  snprintf(file, sizeof(file), "%s%smnode.json", path, TD_DIRSEP);
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
     code = 0;
@@ -50,38 +50,69 @@ int32_t mmReadFile(SMnodeMgmt *pMgmt, SReplica *pReplica, bool *pDeployed) {
     dError("failed to read %s since deployed not found", file);
     goto _OVER;
   }
-  *pDeployed = deployed->valueint;
+  pOption->deploy = deployed->valueint;
 
-  cJSON *id = cJSON_GetObjectItem(root, "id");
-  if (id) {
-    if (id->type != cJSON_Number) {
-      dError("failed to read %s since id not found", file);
+  cJSON *selfIndex = cJSON_GetObjectItem(root, "selfIndex");
+  if (selfIndex) {
+    if (selfIndex->type != cJSON_Number) {
+      dError("failed to read %s since selfIndex not found", file);
       goto _OVER;
     }
-    if (pReplica) {
-      pReplica->id = id->valueint;
-    }
+    pOption->selfIndex = selfIndex->valueint;
   }
 
-  cJSON *fqdn = cJSON_GetObjectItem(root, "fqdn");
-  if (fqdn) {
-    if (fqdn->type != cJSON_String || fqdn->valuestring == NULL) {
-      dError("failed to read %s since fqdn not found", file);
+  cJSON *replicas = cJSON_GetObjectItem(root, "replicas");
+  if (replicas) {
+    if (replicas->type != cJSON_Array) {
+      dError("failed to read %s since replicas not found", file);
       goto _OVER;
     }
-    if (pReplica) {
-      tstrncpy(pReplica->fqdn, fqdn->valuestring, TSDB_FQDN_LEN);
-    }
-  }
 
-  cJSON *port = cJSON_GetObjectItem(root, "port");
-  if (port) {
-    if (port->type != cJSON_Number) {
-      dError("failed to read %s since port not found", file);
+    int32_t numOfReplicas = cJSON_GetArraySize(replicas);
+    if (numOfReplicas <= 0) {
+      dError("failed to read %s since numOfReplicas:%d invalid", file, numOfReplicas);
       goto _OVER;
     }
-    if (pReplica) {
-      pReplica->port = (uint16_t)port->valueint;
+    pOption->numOfReplicas = numOfReplicas;
+
+    for (int32_t i = 0; i < numOfReplicas; ++i) {
+      SReplica *pReplica = pOption->replicas + i;
+
+      cJSON *replica = cJSON_GetArrayItem(replicas, i);
+      if (replica == NULL) break;
+
+      cJSON *id = cJSON_GetObjectItem(replica, "id");
+      if (id) {
+        if (id->type != cJSON_Number) {
+          dError("failed to read %s since id not found", file);
+          goto _OVER;
+        }
+        if (pReplica) {
+          pReplica->id = id->valueint;
+        }
+      }
+
+      cJSON *fqdn = cJSON_GetObjectItem(replica, "fqdn");
+      if (fqdn) {
+        if (fqdn->type != cJSON_String || fqdn->valuestring == NULL) {
+          dError("failed to read %s since fqdn not found", file);
+          goto _OVER;
+        }
+        if (pReplica) {
+          tstrncpy(pReplica->fqdn, fqdn->valuestring, TSDB_FQDN_LEN);
+        }
+      }
+
+      cJSON *port = cJSON_GetObjectItem(replica, "port");
+      if (port) {
+        if (port->type != cJSON_Number) {
+          dError("failed to read %s since port not found", file);
+          goto _OVER;
+        }
+        if (pReplica) {
+          pReplica->port = (uint16_t)port->valueint;
+        }
+      }
     }
   }
 
@@ -92,18 +123,18 @@ _OVER:
   if (root != NULL) cJSON_Delete(root);
   if (pFile != NULL) taosCloseFile(&pFile);
   if (code == 0) {
-    dDebug("succcessed to read file %s, deployed:%d", file, *pDeployed);
+    dDebug("succcessed to read file %s, deployed:%d", file, pOption->deploy);
   }
 
   terrno = code;
   return code;
 }
 
-int32_t mmWriteFile(SMnodeMgmt *pMgmt, const SReplica *pReplica, bool deployed) {
+int32_t mmWriteFile(const char *path, const SMnodeOpt *pOption) {
   char file[PATH_MAX] = {0};
   char realfile[PATH_MAX] = {0};
-  snprintf(file, sizeof(file), "%s%smnode.json.bak", pMgmt->path, TD_DIRSEP);
-  snprintf(realfile, sizeof(realfile), "%s%smnode.json", pMgmt->path, TD_DIRSEP);
+  snprintf(file, sizeof(file), "%s%smnode.json.bak", path, TD_DIRSEP);
+  snprintf(realfile, sizeof(realfile), "%s%smnode.json", path, TD_DIRSEP);
 
   TdFilePtr pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
@@ -117,12 +148,25 @@ int32_t mmWriteFile(SMnodeMgmt *pMgmt, const SReplica *pReplica, bool deployed) 
   char   *content = taosMemoryCalloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
-  if (pReplica != NULL && pReplica->id > 0) {
-    len += snprintf(content + len, maxLen - len, "  \"id\": %d,\n", pReplica->id);
-    len += snprintf(content + len, maxLen - len, "  \"fqdn\": \"%s\",\n", pReplica->fqdn);
-    len += snprintf(content + len, maxLen - len, "  \"port\": %u\n,", pReplica->port);
+  if (pOption->deploy && pOption->numOfReplicas > 0) {
+    len += snprintf(content + len, maxLen - len, "  \"selfIndex\": %d,\n", pOption->selfIndex);
+    len += snprintf(content + len, maxLen - len, "  \"replicas\": [{\n");
+
+    for (int32_t i = 0; i < pOption->numOfReplicas; ++i) {
+      const SReplica *pReplica = pOption->replicas + i;
+      if (pReplica != NULL && pReplica->id > 0) {
+        len += snprintf(content + len, maxLen - len, "    \"id\": %d,\n", pReplica->id);
+        len += snprintf(content + len, maxLen - len, "    \"fqdn\": \"%s\",\n", pReplica->fqdn);
+        len += snprintf(content + len, maxLen - len, "    \"port\": %u\n", pReplica->port);
+      }
+      if (i < pOption->numOfReplicas - 1) {
+        len += snprintf(content + len, maxLen - len, "  },{\n");
+      } else {
+        len += snprintf(content + len, maxLen - len, "  }],\n");
+      }
+    }
   }
-  len += snprintf(content + len, maxLen - len, "  \"deployed\": %d\n", deployed);
+  len += snprintf(content + len, maxLen - len, "  \"deployed\": %d\n", pOption->deploy);
   len += snprintf(content + len, maxLen - len, "}\n");
 
   taosWriteFile(pFile, content, len);
@@ -136,6 +180,6 @@ int32_t mmWriteFile(SMnodeMgmt *pMgmt, const SReplica *pReplica, bool deployed) 
     return -1;
   }
 
-  dDebug("successed to write %s, deployed:%d", realfile, deployed);
+  dDebug("successed to write %s, deployed:%d", realfile, pOption->deploy);
   return 0;
 }
