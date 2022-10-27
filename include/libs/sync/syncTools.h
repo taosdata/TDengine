@@ -679,6 +679,10 @@ void syncReconfigFinishLog(const SyncReconfigFinish* pMsg);
 void syncReconfigFinishLog2(char* s, const SyncReconfigFinish* pMsg);
 
 // ---------------------------------------------
+typedef enum {
+  SYNC_STEP_DOWN = 0,
+} ESyncLocalCmd;
+
 typedef struct SyncLocalCmd {
   uint32_t bytes;
   int32_t  vgId;
@@ -686,8 +690,8 @@ typedef struct SyncLocalCmd {
   SRaftId  srcId;
   SRaftId  destId;
 
-  int8_t   cmd;
-  SyncTerm sdNewTerm  // step down new term
+  int32_t  cmd;
+  SyncTerm sdNewTerm;  // step down new term
 
 } SyncLocalCmd;
 
