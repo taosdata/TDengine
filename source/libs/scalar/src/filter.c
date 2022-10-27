@@ -248,9 +248,9 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
     }
   }
 
-  if (optr == OP_TYPE_JSON_CONTAINS && type == TSDB_DATA_TYPE_JSON) {
-    return 28;
-  }
+//  if (optr == OP_TYPE_JSON_CONTAINS && type == TSDB_DATA_TYPE_JSON) {
+//    return 28;
+//  }
 
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:

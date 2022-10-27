@@ -355,6 +355,34 @@ static void doSetTagColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* pBlo
   }
 }
 
+// todo handle the slimit info
+void applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo, SOperatorInfo* pOperator) {
+  SLimit* pLimit = &pLimitInfo->limit;
+
+  if (pLimit->offset > 0 && pLimitInfo->remainOffset > 0) {
+    if (pLimitInfo->remainOffset >= pBlock->info.rows) {
+      pLimitInfo->remainOffset -= pBlock->info.rows;
+      pBlock->info.rows = 0;
+      qDebug("current block ignore due to offset, current:%"PRId64", %s", pLimitInfo->remainOffset, GET_TASKID(pTaskInfo));
+    } else {
+      blockDataTrimFirstNRows(pBlock, pLimitInfo->remainOffset);
+      pLimitInfo->remainOffset = 0;
+    }
+  }
+
+  if (pLimit->limit != -1 && pLimit->limit <= (pLimitInfo->numOfOutputRows + pBlock->info.rows)) {
+    // limit the output rows
+    int32_t overflowRows = pLimitInfo->numOfOutputRows + pBlock->info.rows - pLimit->limit;
+    int32_t keep = pBlock->info.rows - overflowRows;
+
+    blockDataKeepFirstNRows(pBlock, keep);
+    qDebug("output limit %"PRId64" has reached, %s", pLimit->limit, GET_TASKID(pTaskInfo));
+
+//    setTaskStatus(pTaskInfo, TASK_COMPLETED);
+    pOperator->status = OP_EXEC_DONE;
+  }
+}
+
 static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableScanInfo, SSDataBlock* pBlock,
                              uint32_t* status) {
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
@@ -364,6 +392,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
 
   pCost->totalBlocks += 1;
   pCost->totalRows += pBlock->info.rows;
+
   bool loadSMA = false;
 
   *status = pInfo->dataBlockLoadFlag;
@@ -379,6 +408,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
     qDebug("%s data block filter out, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
            pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
     pCost->filterOutBlocks += 1;
+    pCost->totalRows += pBlock->info.rows;
     return TSDB_CODE_SUCCESS;
   } else if (*status == FUNC_DATA_REQUIRED_NOT_LOAD) {
     qDebug("%s data block skipped, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
@@ -446,6 +476,9 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
   relocateColumnData(pBlock, pTableScanInfo->matchInfo.pList, pCols, true);
   doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo);
 
+  // restore the previous value
+  pCost->totalRows -= pBlock->info.rows;
+
   if (pTableScanInfo->pFilterNode != NULL) {
     int64_t st = taosGetTimestampUs();
     doFilter(pTableScanInfo->pFilterNode, pBlock, &pTableScanInfo->matchInfo, pOperator->exprSupp.pFilterInfo);
@@ -462,6 +495,10 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
     }
   }
 
+  applyLimitOffset(&pInfo->limitInfo, pBlock, pTaskInfo, pOperator);
+
+  pCost->totalRows += pBlock->info.rows;
+  pInfo->limitInfo.numOfOutputRows = pCost->totalRows;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -691,10 +728,6 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
   // if scan table by table
   if (pInfo->scanMode == TABLE_SCAN__TABLE_ORDER) {
-    if (pInfo->noTable) {
-      return NULL;
-    }
-
     int32_t numOfTables = taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList);
 
     while (1) {
@@ -727,7 +760,6 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
     }
 
     SArray* tableList = taosArrayGetP(pTaskInfo->tableqinfoList.pGroupList, pInfo->currentGroupId);
-
     tsdbReaderClose(pInfo->dataReader);
 
     int32_t code = tsdbReaderOpen(pInfo->readHandle.vnode, &pInfo->cond, tableList, (STsdbReader**)&pInfo->dataReader,
@@ -748,9 +780,6 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
     setTaskStatus(pTaskInfo, TASK_COMPLETED);
     return NULL;
   }
-
-  SArray* tableList = taosArrayGetP(pTaskInfo->tableqinfoList.pGroupList, pInfo->currentGroupId);
-  //  tsdbSetTableList(pInfo->dataReader, tableList);
 
   tsdbReaderReset(pInfo->dataReader, &pInfo->cond);
   pInfo->scanTimes = 0;
@@ -798,9 +827,15 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   }
 
   SDataBlockDescNode* pDescNode = pTableScanNode->scan.node.pOutputDataBlockDesc;
-  int32_t             numOfCols = 0;
+
+  int32_t numOfCols = 0;
   int32_t code = extractColMatchInfo(pTableScanNode->scan.pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID,
                                      &pInfo->matchInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
+  initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
 
   code = initQueryTableDataCond(&pInfo->cond, pTableScanNode);
   if (code != TSDB_CODE_SUCCESS) {
@@ -825,6 +860,9 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
 
   if (pInfo->pFilterNode != NULL) {
     code = filterInitFromNode((SNode*)pInfo->pFilterNode, &pOperator->exprSupp.pFilterInfo, 0);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _error;
+    }
   }
 
   pInfo->scanFlag = MAIN_SCAN;
@@ -847,10 +885,12 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   return pOperator;
 
 _error:
-  taosMemoryFreeClear(pInfo);
-  taosMemoryFreeClear(pOperator);
+  if (pInfo != NULL) {
+    destroyTableScanOperatorInfo(pInfo);
+  }
 
-  pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+  taosMemoryFreeClear(pOperator);
+  pTaskInfo->code = code;
   return NULL;
 }
 
@@ -3484,7 +3524,6 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
 static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
-  qError("%p buildUserTable", pTaskInfo);
   SSysTableScanInfo* pInfo = pOperator->info;
   if (pInfo->pCur == NULL) {
     pInfo->pCur = metaOpenTbCursor(pInfo->readHandle.meta);
@@ -4440,6 +4479,9 @@ SSDataBlock* getSortedTableMergeScanBlockData(SSortHandle* pHandle, SSDataBlock*
   }
 
   qDebug("%s get sorted row blocks, rows:%d", GET_TASKID(pTaskInfo), pResBlock->info.rows);
+  applyLimitOffset(&pInfo->limitInfo, pResBlock, pTaskInfo, pOperator);
+  pInfo->limitInfo.numOfOutputRows += pResBlock->info.rows;
+
   return (pResBlock->info.rows > 0) ? pResBlock : NULL;
 }
 
@@ -4455,6 +4497,7 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
+
   size_t tableListSize = taosArrayGetSize(pInfo->tableListInfo->pTableList);
   if (!pInfo->hasGroupId) {
     pInfo->hasGroupId = true;
@@ -4467,6 +4510,7 @@ SSDataBlock* doTableMergeScan(SOperatorInfo* pOperator) {
     pInfo->groupId = ((STableKeyInfo*)taosArrayGet(pInfo->tableListInfo->pTableList, pInfo->tableStartIndex))->groupId;
     startGroupTableMergeScan(pOperator);
   }
+
   SSDataBlock* pBlock = NULL;
   while (pInfo->tableStartIndex < tableListSize) {
     pBlock = getSortedTableMergeScanBlockData(pInfo->pSortHandle, pInfo->pResBlock, pOperator->resultInfo.capacity,
@@ -4554,6 +4598,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   if (pInfo == NULL || pOperator == NULL) {
     goto _error;
   }
+
   if (pTableScanNode->pGroupTags) {
     taosArraySort(pTableListInfo->pTableList, compareTableKeyInfoByGid);
   }
@@ -4592,6 +4637,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 
   pInfo->pSortInfo = generateSortByTsInfo(pInfo->matchInfo.pList, pInfo->cond.order);
   pInfo->pSortInputBlock = createOneDataBlock(pInfo->pResBlock, false);
+  initLimitInfo(pTableScanNode->scan.node.pLimit, pTableScanNode->scan.node.pSlimit, &pInfo->limitInfo);
 
   int32_t rowSize = pInfo->pResBlock->info.rowSize;
   pInfo->bufPageSize = getProperSortPageSize(rowSize);

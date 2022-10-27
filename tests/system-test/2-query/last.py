@@ -17,6 +17,7 @@ class TDTestCase:
         self.ts = 1537146000000
         self.binary_str = 'taosdata'
         self.nchar_str = '涛思数据'
+        self.cachemodel = None
 
     def set_create_normaltable_sql(self, ntbname, column_dict):
         column_sql = ''
@@ -36,7 +37,8 @@ class TDTestCase:
         return create_stb_sql
 
     def last_check_stb_tb_base(self):
-        tdSql.prepare()
+        tdSql.execute(
+            f'create database if not exists db cachemodel "{self.cachemodel}"')
         stbname = f'db.{tdCom.getLongName(5, "letters")}'
         column_dict = {
             'col1': 'tinyint',
@@ -112,7 +114,8 @@ class TDTestCase:
         tdSql.execute('drop database db')
 
     def last_check_ntb_base(self):
-        tdSql.prepare()
+        tdSql.execute(
+            f'create database if not exists db cachemodel "{self.cachemodel}"')
         ntbname = f'db.{tdCom.getLongName(5, "letters")}'
         column_dict = {
             'col1': 'tinyint',
@@ -191,7 +194,7 @@ class TDTestCase:
         }
 
         tdSql.execute(
-            f"create database if not exists {dbname} vgroups {vgroup_num}")
+            f'create database if not exists {dbname} vgroups {vgroup_num}  cachemodel "{self.cachemodel}"')
         tdSql.execute(f'use {dbname}')
 
         # build 20 child tables,every table insert 10 rows
@@ -244,9 +247,11 @@ class TDTestCase:
         tdSql.execute(f'drop database {dbname}')
 
     def run(self):
-        self.last_check_stb_tb_base()
-        self.last_check_ntb_base()
-        self.last_check_stb_distribute()
+        for cachemodel in ["None", "last_row", "last_value", "both"]:
+            self.cachemodel = cachemodel
+            self.last_check_stb_tb_base()
+            self.last_check_ntb_base()
+            self.last_check_stb_distribute()
 
     def stop(self):
         tdSql.close()

@@ -1084,6 +1084,35 @@ int sml_19221_Test() {
   return code;
 }
 
+int sml_time_Test() {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db schemaless 1");
+  taos_free_result(pRes);
+
+  const char *sql[] = {
+      "meters,location=California.LosAngeles,groupid=2 current=11.8,voltage=221,phase='2022-02-02 10:22:22' 1626006833639000000",
+  };
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  char* tmp = (char*)taosMemoryCalloc(1024, 1);
+  memcpy(tmp, sql[0], strlen(sql[0]));
+  *(char*)(tmp+44) = 0;
+  int32_t totalRows = 0;
+  pRes = taos_schemaless_insert_raw(taos, tmp, strlen(sql[0]), &totalRows, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+
+  ASSERT(totalRows == 3);
+  printf("%s result:%s\n", __FUNCTION__, taos_errstr(pRes));
+  int code = taos_errno(pRes);
+  taos_free_result(pRes);
+  taos_close(taos);
+  taosMemoryFree(tmp);
+
+  return code;
+}
+
 int main(int argc, char *argv[]) {
   int ret = 0;
   ret = smlProcess_influx_Test();

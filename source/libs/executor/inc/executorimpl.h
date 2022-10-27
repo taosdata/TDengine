@@ -319,27 +319,25 @@ typedef struct {
 } SAggOptrPushDownInfo;
 
 typedef struct STableScanInfo {
-  STsdbReader* dataReader;
-  SReadHandle  readHandle;
-
+  STsdbReader*           dataReader;
+  SReadHandle            readHandle;
+  SLimitInfo             limitInfo;
   SFileBlockLoadRecorder readRecorder;
   SScanInfo              scanInfo;
   int32_t                scanTimes;
   SNode*                 pFilterNode;  // filter info, which is push down by optimizer
-
-  SSDataBlock*         pResBlock;
-  SColMatchInfo        matchInfo;
-  SExprSupp            pseudoSup;
-  SQueryTableDataCond  cond;
-  int32_t              scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
-  int32_t              dataBlockLoadFlag;
-  SSampleExecInfo      sample;  // sample execution info
-  int32_t              currentGroupId;
-  int32_t              currentTable;
-  int8_t               scanMode;
-  int8_t               noTable;
-  SAggOptrPushDownInfo pdInfo;
-  int8_t               assignBlockUid;
+  SSDataBlock*           pResBlock;
+  SColMatchInfo          matchInfo;
+  SExprSupp              pseudoSup;
+  SQueryTableDataCond    cond;
+  int32_t                scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
+  int32_t                dataBlockLoadFlag;
+  SSampleExecInfo        sample;  // sample execution info
+  int32_t                currentGroupId;
+  int32_t                currentTable;
+  int8_t                 scanMode;
+  SAggOptrPushDownInfo   pdInfo;
+  int8_t                 assignBlockUid;
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {
@@ -357,7 +355,7 @@ typedef struct STableMergeScanInfo {
   SSDataBlock*    pSortInputBlock;
   int64_t         startTs;  // sort start time
   SArray*         sortSourceParams;
-
+  SLimitInfo      limitInfo;
   SFileBlockLoadRecorder readRecorder;
   int64_t                numOfRows;
   SScanInfo              scanInfo;
@@ -374,6 +372,7 @@ typedef struct STableMergeScanInfo {
   SQueryTableDataCond    cond;
   int32_t                scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
   int32_t                dataBlockLoadFlag;
+
   // if the upstream is an interval operator, the interval info is also kept here to get the time
   // window to check if current data block needs to be loaded.
   SInterval       interval;
@@ -903,6 +902,7 @@ void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SG
 int32_t handleLimitOffset(SOperatorInfo* pOperator, SLimitInfo* pLimitInfo, SSDataBlock* pBlock, bool holdDataInBuf);
 bool    hasLimitOffsetInfo(SLimitInfo* pLimitInfo);
 void    initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimitInfo);
+void applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo, SOperatorInfo* pOperator);
 
 void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, SColumnInfoData* pTimeWindowData, int32_t offset,
                       int32_t forwardStep, int32_t numOfTotal, int32_t numOfOutput);

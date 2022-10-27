@@ -809,23 +809,6 @@ static int32_t savePullWindow(SPullWindowInfo* pPullInfo, SArray* pPullWins) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t compareResKey(void* pKey, void* data, int32_t index) {
-  SArray*     res = (SArray*)data;
-  SResKeyPos* pos = taosArrayGetP(res, index);
-  SWinKey*    pData = (SWinKey*)pKey;
-  if (pData->ts == *(int64_t*)pos->key) {
-    if (pData->groupId > pos->groupId) {
-      return 1;
-    } else if (pData->groupId < pos->groupId) {
-      return -1;
-    }
-    return 0;
-  } else if (pData->ts > *(int64_t*)pos->key) {
-    return 1;
-  }
-  return -1;
-}
-
 static int32_t saveResult(SResultWindowInfo winInfo, SSHashObj* pStUpdated) {
   winInfo.sessionWin.win.ekey = winInfo.sessionWin.win.skey;
   return tSimpleHashPut(pStUpdated, &winInfo.sessionWin, sizeof(SSessionKey), &winInfo, sizeof(SResultWindowInfo));
@@ -861,12 +844,6 @@ static void removeResults(SArray* pWins, SHashObj* pUpdatedMap) {
       taosHashRemove(pUpdatedMap, pW, sizeof(SWinKey));
     }
   }
-}
-
-int64_t getWinReskey(void* data, int32_t index) {
-  SArray*  res = (SArray*)data;
-  SWinKey* pos = taosArrayGet(res, index);
-  return pos->ts;
 }
 
 int32_t compareWinRes(void* pKey, void* data, int32_t index) {
@@ -1307,27 +1284,6 @@ static SSDataBlock* doBuildIntervalResult(SOperatorInfo* pOperator) {
   }
 }
 
-// todo merged with the build group result.
-static void finalizeUpdatedResult(int32_t numOfOutput, SDiskbasedBuf* pBuf, SArray* pUpdateList,
-                                  int32_t* rowEntryInfoOffset) {
-  size_t num = taosArrayGetSize(pUpdateList);
-
-  for (int32_t i = 0; i < num; ++i) {
-    SResKeyPos* pPos = taosArrayGetP(pUpdateList, i);
-
-    SFilePage*  bufPage = getBufPage(pBuf, pPos->pos.pageId);
-    SResultRow* pRow = (SResultRow*)((char*)bufPage + pPos->pos.offset);
-
-    for (int32_t j = 0; j < numOfOutput; ++j) {
-      SResultRowEntryInfo* pEntry = getResultEntryInfo(pRow, j, rowEntryInfoOffset);
-      if (pRow->numOfRows < pEntry->numOfRes) {
-        pRow->numOfRows = pEntry->numOfRes;
-      }
-    }
-
-    releaseBufPage(pBuf, bufPage);
-  }
-}
 static void setInverFunction(SqlFunctionCtx* pCtx, int32_t num, EStreamType type) {
   for (int i = 0; i < num; i++) {
     if (type == STREAM_INVERT) {
@@ -1576,16 +1532,6 @@ static void closeChildIntervalWindow(SOperatorInfo* pOperator, SArray* pChildren
     closeStreamIntervalWindow(pChInfo->aggSup.pResultRowHashTable, &pChInfo->twAggSup, &pChInfo->interval, NULL, NULL,
                               NULL, pOperator);
   }
-}
-
-static void freeAllPages(SArray* pageIds, SDiskbasedBuf* pDiskBuf) {
-  int32_t size = taosArrayGetSize(pageIds);
-  for (int32_t i = 0; i < size; i++) {
-    int32_t pageId = *(int32_t*)taosArrayGet(pageIds, i);
-    // SFilePage* bufPage = getBufPage(pDiskBuf, pageId);
-    // dBufSetBufPageRecycled(pDiskBuf, bufPage);
-  }
-  taosArrayClear(pageIds);
 }
 
 static void doBuildDeleteResult(SStreamIntervalOperatorInfo* pInfo, SArray* pWins, int32_t* index,
@@ -3353,7 +3299,9 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
       .calTrigger = pIntervalPhyNode->window.triggerType,
       .maxTs = INT64_MIN,
       .minTs = INT64_MAX,
-      .deleteMark = INT64_MAX,
+      // for test 315360000000
+      .deleteMark = 1000LL * 60LL * 60LL * 24LL * 365LL * 10LL,
+      // .deleteMark = INT64_MAX,
   };
   ASSERT(pInfo->twAggSup.calTrigger != STREAM_TRIGGER_MAX_DELAY);
   pInfo->primaryTsIndex = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->slotId;

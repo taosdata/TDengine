@@ -38,7 +38,7 @@ extern bool gRaftDetailLog;
 #define SYNC_DEL_WAL_MS              (1000 * 60)
 #define SYNC_ADD_QUORUM_COUNT        3
 #define SYNC_MNODE_LOG_RETENTION     10000
-#define SYNC_VNODE_LOG_RETENTION     500
+#define SYNC_VNODE_LOG_RETENTION     100
 
 #define SYNC_APPEND_ENTRIES_TIMEOUT_MS 10000
 
