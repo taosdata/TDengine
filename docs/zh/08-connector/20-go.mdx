@@ -465,6 +465,54 @@ func main() {
 
 完整订阅示例参见 [GitHub 示例文件](https://github.com/taosdata/driver-go/blob/3.0/examples/tmqoverws/main.go)
 
+### 通过 WebSocket 进行参数绑定
+
+* `func NewConnector(config *Config) (*Connector, error)`
+
+  创建连接。
+
+* `func (c *Connector) Init() (*Stmt, error)`
+
+  初始化参数。
+
+* `func (c *Connector) Close() error`
+
+  关闭连接。
+
+* `func (s *Stmt) Prepare(sql string) error`
+
+  参数绑定预处理 SQL 语句。
+
+* `func (s *Stmt) SetTableName(name string) error`
+
+  参数绑定设置表名。
+
+* `func (s *Stmt) SetTags(tags *param.Param, bindType *param.ColumnType) error`
+
+  参数绑定设置标签。
+
+* `func (s *Stmt) BindParam(params []*param.Param, bindType *param.ColumnType) error`
+
+  参数绑定多行数据。
+
+* `func (s *Stmt) AddBatch() error`
+
+  添加到参数绑定批处理。
+
+* `func (s *Stmt) Exec() error`
+
+  执行参数绑定。
+
+* `func (s *Stmt) GetAffectedRows() int`
+
+  获取参数绑定插入受影响行数。
+
+* `func (s *Stmt) Close() error`
+
+  结束参数绑定。
+
+完整参数绑定示例参见 [GitHub 示例文件](https://github.com/taosdata/driver-go/blob/3.0/examples/stmtoverws/main.go)
+
 ## API 参考
 
 全部 API 见 [driver-go 文档](https://pkg.go.dev/github.com/taosdata/driver-go/v3)
