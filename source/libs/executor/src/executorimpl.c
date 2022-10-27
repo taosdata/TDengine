@@ -3658,13 +3658,17 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       }
 
       SQueryTableDataCond cond = {0};
-      int32_t             code = initTableblockDistQueryCond(pBlockNode->suid, &cond);
+
+      int32_t code = initTableblockDistQueryCond(pBlockNode->suid, &cond);
       if (code != TSDB_CODE_SUCCESS) {
         return NULL;
       }
 
-      void* pList = taosArrayGet(pTableListInfo->pTableList, 0);
-      size_t num = taosArrayGetSize(pTableListInfo->pTableList);
+      size_t num = getTotalTables(pTableListInfo);
+      void*  pList = NULL;
+      if (num > 0) {
+        pList = taosArrayGet(pTableListInfo->pTableList, 0);
+      }
 
       STsdbReader* pReader = NULL;
       tsdbReaderOpen(pHandle->vnode, &cond, pList, num, &pReader, "");

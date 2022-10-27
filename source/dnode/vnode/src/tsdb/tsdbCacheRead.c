@@ -100,7 +100,6 @@ static void saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pRea
 int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, int32_t numOfTables, int32_t numOfCols,
                                 uint64_t suid, void** pReader) {
   *pReader = NULL;
-
   SCacheRowsReader* p = taosMemoryCalloc(1, sizeof(SCacheRowsReader));
   if (p == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -119,6 +118,7 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, 
   STableKeyInfo* pKeyInfo = &((STableKeyInfo*)pTableIdList)[0];
   p->pSchema = metaGetTbTSchema(p->pVnode->pMeta, pKeyInfo->uid, -1, 1);
   p->pTableList = pTableIdList;
+  p->numOfTables = numOfTables;
 
   p->transferBuf = taosMemoryCalloc(p->pSchema->numOfCols, POINTER_BYTES);
   if (p->transferBuf == NULL) {
@@ -205,7 +205,6 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
   SLRUCache* lruCache = pr->pVnode->pTsdb->lruCache;
   LRUHandle* h = NULL;
   SArray*    pRow = NULL;
-//  size_t     numOfTables = taosArrayGetSize(pr->pTableList);
   bool       hasRes = false;
   SArray*    pLastCols = NULL;
 

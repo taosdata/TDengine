@@ -95,7 +95,7 @@ typedef struct SColMatchInfo {
   int32_t matchType;  // determinate the source according to col id or slot id
 } SColMatchInfo;
 
-typedef struct {
+typedef struct STableListInfo {
   bool      oneTableForEachGroup;
   int32_t   numOfGroups;
   int32_t*  groupOffset;   // keep the offset value for each group in the tableList
