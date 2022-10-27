@@ -55,7 +55,7 @@ class StreamComputingTest(TDCase):
         self.offset = 1000
         self.interation = 10
         self.range_count = 5
-        self.vgroups = 1
+        self.vgroups = 10
         self.vgroups_list = [1, self.vgroups]
         self.des_table_suffix = "_output"
         self.stream_suffix = "_stream"
@@ -1435,21 +1435,20 @@ class StreamComputingTest(TDCase):
             self.stream_tandem()
             self.udf_test(8, "int")
             self.udaf_test(10, 8, "double")
-        #     # self.vgroups = 2
+            
             self.at_once_interval(interval=random.randint(10, 15), partition="tbname")
             self.at_once_interval(interval=random.randint(10, 15), partition="c1")
             self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)")
             self.at_once_interval(interval=random.randint(10, 15), partition="tbname", delete=True)
-            # # # ! TD-19896
-            # ## self.at_once_interval(interval=random.randint(10, 15), partition="c1", delete=True)
-            # ## self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)", delete=True)
+            self.at_once_interval(interval=random.randint(10, 15), partition="c1", delete=True)
+            self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)", delete=True)
             self.at_once_state_window(state_window="c1", partiton="tbname")
             self.at_once_state_window(state_window="c1", partiton="c1")
             self.at_once_state_window(state_window="c1", partiton="abs(c1)")
             self.at_once_state_window(state_window="c1", partiton="tbname", delete=True)
-            # # # ! TD-19898
-            # ## self.at_once_state_window(state_window="c1", partiton="c1", delete=True)
-            # ## self.at_once_state_window(state_window="c1", partiton="abs(c1)", delete=True)
+            # # ! TD-19898
+            # self.at_once_state_window(state_window="c1", partiton="c1", delete=True)
+            # self.at_once_state_window(state_window="c1", partiton="abs(c1)", delete=True)
             self.at_once_session(session=random.randint(10, 15), partition="tbname")
             self.at_once_session(session=random.randint(10, 15), partition="c1")
             self.at_once_session(session=random.randint(10, 15), partition="abs(c1)")
