@@ -4551,7 +4551,7 @@ static SSDataBlock* getTableDataBlockTemp(void* param) {
       pBlock->info.groupId = *groupId;
     }
 
-    pOperator->resultInfo.totalRows = pTableScanInfo->readRecorder.totalRows;
+    pOperator->resultInfo.totalRows += pBlock->info.rows;  // pTableScanInfo->readRecorder.totalRows;
     pTableScanInfo->readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
 
     tsdbReaderClose(pInfo->pReader);
