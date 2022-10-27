@@ -180,7 +180,8 @@ class TDTestCase:
             date_time = self.get_time.time_transform(self.ts_str,precision)
             self.data_check(date_time,precision,'ctb')
             self.data_check(date_time,precision,'stb')
-
+    
+   
     def run(self):
         self.function_check_ntb()
         self.function_check_stb()

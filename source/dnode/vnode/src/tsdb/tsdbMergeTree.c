@@ -152,8 +152,8 @@ static SBlockData *loadLastBlock(SLDataIter *pIter, const char *idStr) {
   pInfo->loadBlocks += 1;
 
   tsdbDebug("read last block, total load:%d, trigger by uid:%" PRIu64
-            ", last file index:%d, last block index:%d, entry:%d, %p, elapsed time:%.2f ms, %s",
-            pInfo->loadBlocks, pIter->uid, pIter->iStt, pIter->iSttBlk, pInfo->currentLoadBlockIndex, pBlock, el,
+            ", last file index:%d, last block index:%d, entry:%d, rows:%d, %p, elapsed time:%.2f ms, %s",
+            pInfo->loadBlocks, pIter->uid, pIter->iStt, pIter->iSttBlk, pInfo->currentLoadBlockIndex, pBlock->nRow, pBlock, el,
             idStr);
 
   pInfo->blockIndex[pInfo->currentLoadBlockIndex] = pIter->iSttBlk;

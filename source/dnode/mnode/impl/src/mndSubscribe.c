@@ -19,7 +19,6 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
-#include "mndOffset.h"
 #include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndStb.h"
@@ -76,7 +75,6 @@ int32_t mndInitSubscribe(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_VND_MQ_VG_CHANGE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_MQ_VG_DELETE_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_MND_MQ_DO_REBALANCE, mndProcessRebalanceReq);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_DO_REBALANCE, mndProcessRebalanceReq);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_DROP_CGROUP, mndProcessDropCgroupReq);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_DROP_CGROUP_RSP, mndTransProcessRsp);
@@ -683,12 +681,6 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pReq) {
   }
 
   mInfo("trans:%d, used to drop cgroup:%s on topic %s", pTrans->id, dropReq.cgroup, dropReq.topic);
-
-  if (mndDropOffsetBySubKey(pMnode, pTrans, pSub->key) < 0) {
-    mndReleaseSubscribe(pMnode, pSub);
-    mndTransDrop(pTrans);
-    return -1;
-  }
 
   if (mndSetDropSubCommitLogs(pMnode, pTrans, pSub) < 0) {
     mError("cgroup %s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());

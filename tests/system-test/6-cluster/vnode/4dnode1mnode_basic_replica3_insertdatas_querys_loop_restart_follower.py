@@ -30,9 +30,9 @@ class TDTestCase:
         self.vgroups = 10
         self.tb_nums = 10 
         self.row_nums = 100
-        self.max_restart_time = 20
-        self.restart_server_times = 5
-        self.query_times = 100 
+        self.max_restart_time = 30
+        self.restart_server_times = 2
+        self.query_times = 5
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -91,6 +91,7 @@ class TDTestCase:
 
         tdSql.execute("drop database if exists test")
         tdSql.execute("create database if not exists test replica 1 duration 300")
+        time.sleep(3)
         tdSql.execute("use test")
         tdSql.execute(
         '''create table stb1
@@ -135,7 +136,9 @@ class TDTestCase:
 
         tdLog.notice(" ==== create database {} and insert rows begin =====".format(dbname))
         newTdSql.execute(drop_db_sql)
+        time.sleep(3)
         newTdSql.execute(create_db_sql)
+        time.sleep(5)
         newTdSql.execute("use {}".format(dbname))
         newTdSql.execute(
         '''create table stb1

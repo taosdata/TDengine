@@ -18,7 +18,6 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
-#include "mndOffset.h"
 #include "mndShow.h"
 #include "mndSnode.h"
 #include "mndStb.h"

@@ -1085,7 +1085,8 @@ EDealRes sclRewriteNonConstOperator(SNode **pNode, SScalarCtx *ctx) {
 EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
   SFunctionNode *node = (SFunctionNode *)*pNode;
   SNode         *tnode = NULL;
-  if (!fmIsScalarFunc(node->funcId) && (!ctx->dual)) {
+  if ((!fmIsScalarFunc(node->funcId) && (!ctx->dual)) ||
+      fmIsUserDefinedFunc(node->funcId)) {
     return DEAL_RES_CONTINUE;
   }
 
