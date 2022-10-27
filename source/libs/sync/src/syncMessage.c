@@ -3097,7 +3097,7 @@ void syncReconfigFinishLog2(char* s, const SyncReconfigFinish* pMsg) {
 }
 
 // ---------------------------------------------
-SyncLocalCmd* syncLocalCmdBuild(uint32_t dataLen, int32_t vgId) {
+SyncLocalCmd* syncLocalCmdBuild(int32_t vgId) {
   uint32_t      bytes = sizeof(SyncLocalCmd);
   SyncLocalCmd* pMsg = taosMemoryMalloc(bytes);
   memset(pMsg, 0, bytes);
@@ -3206,7 +3206,7 @@ cJSON* syncLocalCmd2Json(const SyncLocalCmd* pMsg) {
   }
 
   cJSON* pJson = cJSON_CreateObject();
-  cJSON_AddItemToObject(pJson, "SyncSnapshotRsp", pRoot);
+  cJSON_AddItemToObject(pJson, "SyncLocalCmd2Json", pRoot);
   return pJson;
 }
 

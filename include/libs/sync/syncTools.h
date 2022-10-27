@@ -680,7 +680,7 @@ void syncReconfigFinishLog2(char* s, const SyncReconfigFinish* pMsg);
 
 // ---------------------------------------------
 typedef enum {
-  SYNC_STEP_DOWN = 0,
+  SYNC_LOCAL_CMD_STEP_DOWN = 100,
 } ESyncLocalCmd;
 
 typedef struct SyncLocalCmd {
@@ -695,7 +695,7 @@ typedef struct SyncLocalCmd {
 
 } SyncLocalCmd;
 
-SyncLocalCmd* syncLocalCmdBuild(uint32_t dataLen, int32_t vgId);
+SyncLocalCmd* syncLocalCmdBuild(int32_t vgId);
 void          syncLocalCmdDestroy(SyncLocalCmd* pMsg);
 void          syncLocalCmdSerialize(const SyncLocalCmd* pMsg, char* buf, uint32_t bufLen);
 void          syncLocalCmdDeserialize(const char* buf, uint32_t len, SyncLocalCmd* pMsg);
