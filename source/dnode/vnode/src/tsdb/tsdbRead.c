@@ -3559,8 +3559,8 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
     if (pReader->pSchema == NULL) {
       tsdbError("failed to get table schema, suid:%" PRIu64 ", ver:-1, %s", pReader->suid, pReader->idStr);
     }
-  } else if (taosArrayGetSize(pTableList) > 0) {
-    STableKeyInfo* pKey = taosArrayGet(pTableList, 0);
+  } else if (numOfTables > 0) {
+    STableKeyInfo* pKey = pTableList;
     pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pKey->uid, -1, 1);
     if (pReader->pSchema == NULL) {
       tsdbError("failed to get table schema, uid:%" PRIu64 ", ver:-1, %s", pKey->uid, pReader->idStr);
