@@ -200,12 +200,18 @@ class TDTestCase:
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
 
-        # time.sleep(3)
-        tmqCom.getStartCommitNotifyFromTmqsim()
+        tmqCom.getStartCommitNotifyFromTmqsim('cdb',1)
+
+        tdLog.info("create some new child table and insert data for latest mode")
+        paraDict["batchNum"] = 100
+        paraDict["ctbPrefix"] = 'newCtb'
+        paraDict["ctbNum"]     = 10
+        paraDict["rowsPerTbl"] = 10
+        tmqCom.insert_data_with_autoCreateTbl(tdSql,paraDict["dbName"],paraDict["stbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"])
+
         tdLog.info("================= restart dnode ===========================")
         tdDnodes.stoptaosd(1)
         tdDnodes.starttaosd(1)
-        # time.sleep(3)
 
         tdLog.info(" restart taosd end and wait to check consume result")
         expectRows = 1
@@ -214,8 +220,7 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
 
-        tdSql.query(queryString)
-        totalRowsFromQury = tdSql.getRows()
+        totalRowsFromQury = paraDict["ctbNum"] * paraDict["rowsPerTbl"]
 
         tdLog.info("act consume rows: %d, act query rows: %d"%(totalConsumeRows, totalRowsFromQury))
         if (totalConsumeRows < totalRowsFromQury):
