@@ -56,7 +56,7 @@ step1:
 	endi
 sql show db.vgroups
 print ===> $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
-if $rows != 4 then
+if $rows != 1 then
   return -1
 endi
 if $data(2)[4] == leader then

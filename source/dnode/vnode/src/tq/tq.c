@@ -671,8 +671,6 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg) {
         if (tqTaosxScanLog(pTq, pHandle, pCont, &taosxRsp) < 0) {
           /*ASSERT(0);*/
         }
-        // TODO batch optimization:
-        // TODO continue scan until meeting batch requirement
         if (taosxRsp.blockNum > 0 /* threshold */) {
           tqOffsetResetToLog(&taosxRsp.rspOffset, fetchVer);
           if (tqSendTaosxRsp(pTq, pMsg, pReq, &taosxRsp) < 0) {

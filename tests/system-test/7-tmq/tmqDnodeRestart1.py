@@ -40,9 +40,9 @@ class TDTestCase:
                     'ctbStartIdx': 0,
                     'ctbNum':     100,
                     'rowsPerTbl': 1000,
-                    'batchNum':   10,
+                    'batchNum':   100,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  3,
+                    'pollDelay':  30,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
@@ -87,7 +87,7 @@ class TDTestCase:
                     'rowsPerTbl': 1000,
                     'batchNum':   100,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  10,
+                    'pollDelay':  30,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
@@ -101,6 +101,7 @@ class TDTestCase:
         topicFromStb = 'topic_stb'
         queryString = "select * from %s.%s"%(paraDict['dbName'], paraDict['stbName'])
         sqlString = "create topic %s as stable %s.%s" %(topicFromStb, paraDict['dbName'], paraDict['stbName'])
+        #sqlString = "create topic %s as %s" %(topicFromStb, queryString)
         tdLog.info("create topic sql: %s"%sqlString)
         tdSql.execute(sqlString)
 
@@ -111,7 +112,7 @@ class TDTestCase:
         ifManualCommit = 0
         keyList        = 'group.id:cgrp1,\
                         enable.auto.commit:true,\
-                        auto.commit.interval.ms:1000,\
+                        auto.commit.interval.ms:200,\
                         auto.offset.reset:latest'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
@@ -119,7 +120,15 @@ class TDTestCase:
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
 
         # time.sleep(3)
-        tmqCom.getStartCommitNotifyFromTmqsim()
+        tmqCom.getStartCommitNotifyFromTmqsim('cdb',1)
+
+        tdLog.info("create some new child table and insert data for latest mode")
+        paraDict["batchNum"] = 100
+        paraDict["ctbPrefix"] = 'newCtb'
+        paraDict["ctbNum"]     = 10
+        paraDict["rowsPerTbl"] = 10
+        tmqCom.insert_data_with_autoCreateTbl(tdSql,paraDict["dbName"],paraDict["stbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"])
+
         tdLog.info("================= restart dnode ===========================")
         tdDnodes.stoptaosd(1)
         tdDnodes.starttaosd(1)
@@ -132,8 +141,7 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
 
-        tdSql.query(queryString)
-        totalRowsFromQury = tdSql.getRows()
+        totalRowsFromQury = paraDict["ctbNum"] * paraDict["rowsPerTbl"]
 
         tdLog.info("act consume rows: %d, act query rows: %d"%(totalConsumeRows, totalRowsFromQury))
         if (totalConsumeRows < totalRowsFromQury):
@@ -161,7 +169,7 @@ class TDTestCase:
                     'rowsPerTbl': 1000,
                     'batchNum':   100,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  10,
+                    'pollDelay':  30,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
@@ -185,19 +193,25 @@ class TDTestCase:
         ifManualCommit = 0
         keyList        = 'group.id:cgrp1,\
                         enable.auto.commit:true,\
-                        auto.commit.interval.ms:1000,\
+                        auto.commit.interval.ms:200,\
                         auto.offset.reset:latest'
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume processor")
         tmqCom.startTmqSimProcess(pollDelay=paraDict['pollDelay'],dbName=paraDict["dbName"],showMsg=paraDict['showMsg'], showRow=paraDict['showRow'],snapshot=paraDict['snapshot'])
 
-        # time.sleep(3)
-        tmqCom.getStartCommitNotifyFromTmqsim()
+        tmqCom.getStartCommitNotifyFromTmqsim('cdb',1)
+
+        tdLog.info("create some new child table and insert data for latest mode")
+        paraDict["batchNum"] = 100
+        paraDict["ctbPrefix"] = 'newCtb'
+        paraDict["ctbNum"]     = 10
+        paraDict["rowsPerTbl"] = 10
+        tmqCom.insert_data_with_autoCreateTbl(tdSql,paraDict["dbName"],paraDict["stbName"],paraDict["ctbPrefix"],paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"])
+
         tdLog.info("================= restart dnode ===========================")
         tdDnodes.stoptaosd(1)
         tdDnodes.starttaosd(1)
-        # time.sleep(3)
 
         tdLog.info(" restart taosd end and wait to check consume result")
         expectRows = 1
@@ -206,8 +220,7 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
 
-        tdSql.query(queryString)
-        totalRowsFromQury = tdSql.getRows()
+        totalRowsFromQury = paraDict["ctbNum"] * paraDict["rowsPerTbl"]
 
         tdLog.info("act consume rows: %d, act query rows: %d"%(totalConsumeRows, totalRowsFromQury))
         if (totalConsumeRows < totalRowsFromQury):

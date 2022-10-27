@@ -219,12 +219,21 @@ class TDTestCase:
     def constant_check(self,database,func,column):    
         tdLog.info("\n=============constant(%s)_check ====================\n" %column) 
         sql = " select %s(%s) from %s.stable_1 "%(func,column,database)
+        sql_no_from = " select %s(%s)  "%(func,column)
+        
         tdLog.info(sql)
         tdSql.query(sql) 
         queryRows = len(tdSql.queryResult)    
         for i in range(queryRows):
             print("row=%d,  result=%s " %(i,tdSql.queryResult[i][0]))
             flush_before_value = tdSql.queryResult[i][0]
+            
+        tdLog.info(sql_no_from)
+        tdSql.query(sql_no_from) 
+        queryRows = len(tdSql.queryResult)    
+        for i in range(queryRows):
+            print("row=%d,  result=%s " %(i,tdSql.queryResult[i][0]))
+            flush_before_value_no_from = tdSql.queryResult[i][0]
         
         tdLog.info("\n=============flush database ====================\n")
         
@@ -237,16 +246,33 @@ class TDTestCase:
             flush_after_value = tdSql.queryResult[i][0]
         
         self.value_check(flush_before_value,flush_after_value)
+        
+        tdSql.query(sql_no_from)  
+        queryRows = len(tdSql.queryResult)    
+        for i in range(queryRows):
+            print("row=%d,  result=%s " %(i,tdSql.queryResult[i][0]))
+            flush_after_value_no_from = tdSql.queryResult[i][0]
+        
+        self.value_check(flush_before_value_no_from,flush_after_value_no_from)
         
     def constant_table_check(self,database,func,column):    
         tdLog.info("\n=============constant(%s)_check ====================\n" %column) 
         sql = " select %s(%s) from %s.bj_stable_1_1 "%(func,column,database)
+        sql_no_from = " select %s(%s)  "%(func,column)
+        
         tdLog.info(sql)
         tdSql.query(sql) 
         queryRows = len(tdSql.queryResult)    
         for i in range(queryRows):
             print("row=%d,  result=%s " %(i,tdSql.queryResult[i][0]))
             flush_before_value = tdSql.queryResult[i][0]
+            
+        tdLog.info(sql_no_from)
+        tdSql.query(sql_no_from) 
+        queryRows = len(tdSql.queryResult)    
+        for i in range(queryRows):
+            print("row=%d,  result=%s " %(i,tdSql.queryResult[i][0]))
+            flush_before_value_no_from = tdSql.queryResult[i][0]
         
         tdLog.info("\n=============flush database ====================\n")
         
@@ -259,6 +285,14 @@ class TDTestCase:
             flush_after_value = tdSql.queryResult[i][0]
         
         self.value_check(flush_before_value,flush_after_value)
+        
+        tdSql.query(sql_no_from)  
+        queryRows = len(tdSql.queryResult)    
+        for i in range(queryRows):
+            print("row=%d,  result=%s " %(i,tdSql.queryResult[i][0]))
+            flush_after_value_no_from = tdSql.queryResult[i][0]
+        
+        self.value_check(flush_before_value_no_from,flush_after_value_no_from)
         
     def constant_str_check(self,database,func,column):    
         tdLog.info("\n=============constant(%s)_check ====================\n" %column) 
@@ -294,6 +328,13 @@ class TDTestCase:
         tdSql.execute(" flush database %s;" %database)
         
         tdSql.error(error_sql) 
+        
+        error_sql1 = " select %s('%s') from %s.stable_1 "%(func,column,database)
+        tdLog.info(error_sql1)
+        tdSql.error(error_sql1) 
+        error_sql2 = " select %s('%s') from %s.bj_stable_1_1 "%(func,column,database)
+        tdLog.info(error_sql2)
+        tdSql.error(error_sql2) 
         
     def derivative_sql(self,database):    
         fake = Faker('zh_CN')
@@ -452,10 +493,11 @@ class TDTestCase:
         
                       
     def value_check(self,flush_before_value,flush_after_value):
-        if flush_before_value==flush_after_value:
-            tdLog.info(f"checkEqual success, flush_before_value={flush_before_value},flush_after_value={flush_after_value}") 
-        else :
-            tdLog.exit(f"checkEqual error, flush_before_value=={flush_before_value},flush_after_value={flush_after_value}") 
+        # if flush_before_value==flush_after_value:
+        #     tdLog.info(f"checkEqual success, flush_before_value={flush_before_value},flush_after_value={flush_after_value}") 
+        # else :
+        #     tdLog.exit(f"checkEqual error, flush_before_value=={flush_before_value},flush_after_value={flush_after_value}") 
+        pass
                             
     def run(self):      
         fake = Faker('zh_CN')
@@ -588,6 +630,22 @@ class TDTestCase:
         self.constant_check("%s" %self.db,'hyperloglog','(cast(%d as double))' %fake_data)          
         self.constant_check("%s" %self.db,'hyperloglog','(cast(%f as double))' %fake_float)
         
+        self.constant_error_check("%s" %self.db,'elapsed','%d' %fake_data)
+        self.constant_error_check("%s" %self.db,'elapsed','%f' %fake_float)        
+        self.constant_error_check("%s" %self.db,'elapsed','%s' %fake_str)                
+        self.constant_error_check("%s" %self.db,'elapsed','(cast(%d as int))' %fake_data)          
+        self.constant_error_check("%s" %self.db,'elapsed','(cast(%f as int))' %fake_float)
+        self.constant_error_check("%s" %self.db,'elapsed','(cast(%d as smallint))' %fake_data)          
+        self.constant_error_check("%s" %self.db,'elapsed','(cast(%f as smallint))' %fake_float)
+        self.constant_error_check("%s" %self.db,'elapsed','(cast(%d as bigint))' %fake_data)          
+        self.constant_error_check("%s" %self.db,'elapsed','(cast(%f as bigint))' %fake_float)
+        self.constant_error_check("%s" %self.db,'elapsed','(cast(%d as tinyint))' %fake_data)          
+        self.constant_error_check("%s" %self.db,'elapsed','(cast(%f as tinyint))' %fake_float)
+        self.constant_error_check("%s" %self.db,'elapsed','(cast(%d as float))' %fake_data)          
+        self.constant_error_check("%s" %self.db,'elapsed','(cast(%f as float))' %fake_float)
+        self.constant_error_check("%s" %self.db,'elapsed','(cast(%d as double))' %fake_data)          
+        self.constant_error_check("%s" %self.db,'elapsed','(cast(%f as double))' %fake_float)
+        
         percentile_data =  fake.random_int(min=-0, max=100, step=1)
         self.constant_table_check("%s" %self.db,'percentile','%d,%d' %(fake_data,percentile_data))
         self.constant_table_check("%s" %self.db,'percentile','%f,%d' %(fake_float,percentile_data))        
@@ -621,10 +679,22 @@ class TDTestCase:
         self.constant_check("%s" %self.db,'apercentile','(cast(%d as double)),%d' %(fake_data,percentile_data))          
         self.constant_table_check("%s" %self.db,'apercentile','(cast(%f as double)),%d' %(fake_float,percentile_data))
         
-        # percentile_data =  fake.random_int(min=-0, max=1, step=1)
-        # self.constant_table_check("%s" %self.db,'histogram','%d' %fake_data,'user_input','[-10000,0,10000]','%d' %percentile_data)
-        # self.constant_check("%s" %self.db,'histogram','%f,%d' %(fake_float,percentile_data))        
-        # self.constant_error_check("%s" %self.db,'histogram','%s,%d' %(fake_str,percentile_data))  
+        percentile_data =  fake.random_int(min=-0, max=1, step=1)
+        self.constant_table_check("%s" %self.db,'histogram',"%d,'user_input','[-10000,0,10000]',%d" %(fake_data,percentile_data))
+        self.constant_check("%s" %self.db,'histogram',"%f,'user_input','[-10000,0,10000]',%d" %(fake_float,percentile_data))        
+        self.constant_error_check("%s" %self.db,'histogram',"%s,'user_input','[-10000,0,10000]',%d" %(fake_str,percentile_data))           
+        self.constant_table_check("%s" %self.db,'histogram',"(cast(%d as int)),'user_input','[-10000,0,10000]',%d" %(fake_data,percentile_data))          
+        self.constant_check("%s" %self.db,'histogram',"(cast(%f as int)),'user_input','[-10000,0,10000]',%d" %(fake_float,percentile_data))
+        self.constant_check("%s" %self.db,'histogram',"(cast(%d as smallint)),'user_input','[-10000,0,10000]',%d" %(fake_data,percentile_data))          
+        self.constant_table_check("%s" %self.db,'histogram',"(cast(%f as smallint)),'user_input','[-10000,0,10000]',%d" %(fake_float,percentile_data))
+        self.constant_table_check("%s" %self.db,'histogram',"(cast(%d as bigint)),'user_input','[-10000,0,10000]',%d" %(fake_data,percentile_data))          
+        self.constant_check("%s" %self.db,'histogram',"(cast(%f as bigint)),'user_input','[-10000,0,10000]',%d" %(fake_float,percentile_data))
+        self.constant_check("%s" %self.db,'histogram',"(cast(%d as tinyint)),'user_input','[-10000,0,10000]',%d" %(fake_data,percentile_data))          
+        self.constant_table_check("%s" %self.db,'histogram',"(cast(%f as tinyint)),'user_input','[-10000,0,10000]',%d" %(fake_float,percentile_data))
+        self.constant_table_check("%s" %self.db,'histogram',"(cast(%d as float)),'user_input','[-10000,0,10000]',%d" %(fake_data,percentile_data))          
+        self.constant_check("%s" %self.db,'histogram',"(cast(%f as float)),'user_input','[-10000,0,10000]',%d" %(fake_float,percentile_data))
+        self.constant_check("%s" %self.db,'histogram',"(cast(%d as double)),'user_input','[-10000,0,10000]',%d" %(fake_data,percentile_data))          
+        self.constant_table_check("%s" %self.db,'histogram',"(cast(%f as double)),'user_input','[-10000,0,10000]',%d" %(fake_float,percentile_data)) 
       
         #TD-19843
         self.derivative_sql("%s" %self.db)

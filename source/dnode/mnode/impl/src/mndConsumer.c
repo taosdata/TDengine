@@ -18,7 +18,6 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
-#include "mndOffset.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndStb.h"
@@ -408,12 +407,6 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
             .offset = -1,
         };
 
-        // 2.2.2 fetch vg offset
-        SMqOffsetObj *pOffsetObj = mndAcquireOffset(pMnode, offsetKey);
-        if (pOffsetObj != NULL) {
-          vgEp.offset = atomic_load_64(&pOffsetObj->offset);
-          mndReleaseOffset(pMnode, pOffsetObj);
-        }
         taosArrayPush(topicEp.vgs, &vgEp);
       }
       taosArrayPush(rsp.topics, &topicEp);

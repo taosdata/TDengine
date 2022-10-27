@@ -621,14 +621,18 @@ int32_t ctgEnqueue(SCatalog *pCtg, SCtgCacheOperation *operation) {
   node->op = operation;
 
   CTG_LOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
+
   if (gCtgMgmt.queue.stopQueue) {
     ctgFreeQNode(node);
     CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
     CTG_RET(TSDB_CODE_CTG_EXIT);
   }
-  gCtgMgmt.queue.stopQueue = operation->stopQueue;
+
   gCtgMgmt.queue.tail->next = node;
   gCtgMgmt.queue.tail = node;
+
+  gCtgMgmt.queue.stopQueue = operation->stopQueue;
+
   CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.queue.qlock);
 
   ctgDebug("action [%s] added into queue", opName);
@@ -1997,6 +2001,59 @@ _return:
   CTG_RET(code);
 }
 
+void ctgFreeCacheOperationData(SCtgCacheOperation *op) {
+  if (NULL == op || NULL == op->data) {
+    return;
+  }
+
+  switch (op->opId) {
+    case CTG_OP_UPDATE_VGROUP: {
+      SCtgUpdateVgMsg *msg = op->data;
+      ctgFreeVgInfo(msg->dbInfo);
+      taosMemoryFreeClear(op->data);
+      break;
+    }
+    case CTG_OP_UPDATE_TB_META: {
+      SCtgUpdateTbMetaMsg *msg = op->data;
+      taosMemoryFreeClear(msg->pMeta->tbMeta);
+      taosMemoryFreeClear(msg->pMeta);
+      taosMemoryFreeClear(op->data);
+      break;
+    }
+    case CTG_OP_DROP_DB_CACHE:
+    case CTG_OP_DROP_DB_VGROUP:
+    case CTG_OP_DROP_STB_META:
+    case CTG_OP_DROP_TB_META:
+    case CTG_OP_UPDATE_VG_EPSET:
+    case CTG_OP_DROP_TB_INDEX:
+    case CTG_OP_CLEAR_CACHE: {
+      taosMemoryFreeClear(op->data);
+      break;
+    }
+    case CTG_OP_UPDATE_USER: {
+      SCtgUpdateUserMsg *msg = op->data;
+      taosHashCleanup(msg->userAuth.createdDbs);
+      taosHashCleanup(msg->userAuth.readDbs);
+      taosHashCleanup(msg->userAuth.writeDbs);
+      taosMemoryFreeClear(op->data);
+      break;
+    }
+    case CTG_OP_UPDATE_TB_INDEX: {
+      SCtgUpdateTbIndexMsg *msg = op->data;
+      if (msg->pIndex) {
+        taosArrayDestroyEx(msg->pIndex->pIndex, tFreeSTableIndexInfo);
+        taosMemoryFreeClear(msg->pIndex);
+      }
+      taosMemoryFreeClear(op->data);
+      break;
+    }
+    default: {
+      qError("invalid cache op id:%d", op->opId);
+      break;
+    }
+  }
+}
+
 void ctgCleanupCacheQueue(void) {
   SCtgQNode          *node = NULL;
   SCtgQNode          *nodeNext = NULL;
@@ -2015,7 +2072,7 @@ void ctgCleanupCacheQueue(void) {
           stopQueue = true;
           CTG_RT_STAT_INC(numOfOpDequeue, 1);
         } else {
-          taosMemoryFree(op->data);
+          ctgFreeCacheOperationData(op);
           CTG_RT_STAT_INC(numOfOpAbort, 1);
         }
 
@@ -2053,7 +2110,7 @@ void *ctgUpdateThreadFunc(void *param) {
       qError("ctg tsem_wait failed, error:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
     }
 
-    if (atomic_load_8((int8_t *)&gCtgMgmt.exit)) {
+    if (atomic_load_8((int8_t *)&gCtgMgmt.queue.stopQueue)) {
       ctgCleanupCacheQueue();
       break;
     }
