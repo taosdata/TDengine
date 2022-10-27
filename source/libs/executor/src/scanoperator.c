@@ -4443,7 +4443,7 @@ static int32_t loadDataBlockFromOneTable(SOperatorInfo* pOperator, STableMergeSc
   pCost->totalCheckedRows += pBlock->info.rows;
   pCost->loadBlocks += 1;
 
-  STsdbReader* reader = taosArrayGetP(pTableScanInfo->dataReaders, readerIdx);
+  STsdbReader* reader = pTableScanInfo->pReader;  // taosArrayGetP(pTableScanInfo->dataReaders, readerIdx);
   SArray*      pCols = tsdbRetrieveDataBlock(reader, NULL);
   if (pCols == NULL) {
     return terrno;
@@ -4529,7 +4529,11 @@ static SSDataBlock* getTableDataBlockTemp(void* param) {
     pBlock->info.window = binfo.window;
     pBlock->info.rows = binfo.rows;
 
-    pQueryCond->twindows.skey = pBlock->info.window.ekey + 1;
+    if (tsdbIsAscendingOrder(pInfo->pReader)) {
+      pQueryCond->twindows.skey = pBlock->info.window.ekey + 1;
+    } else {
+      pQueryCond->twindows.ekey = pBlock->info.window.skey - 1;
+    }
 
     uint32_t status = 0;
     int32_t  code = loadDataBlockFromOneTable(pOperator, pTableScanInfo, readIdx, pBlock, &status);
@@ -4551,9 +4555,11 @@ static SSDataBlock* getTableDataBlockTemp(void* param) {
     pTableScanInfo->readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
 
     tsdbReaderClose(pInfo->pReader);
+    pInfo->pReader = NULL;
     return pBlock;
   }
   tsdbReaderClose(pInfo->pReader);
+  pInfo->pReader = NULL;
   return NULL;
 }
 static SSDataBlock* getTableDataBlock2(void* param) {
@@ -4648,7 +4654,6 @@ static SSDataBlock* getTableDataBlock(void* param) {
 
     uint32_t status = 0;
     int32_t  code = loadDataBlockFromOneTable(pOperator, pTableScanInfo, readerIdx, pBlock, &status);
-    //    int32_t  code = loadDataBlockOnDemand(pOperator->pRuntimeEnv, pTableScanInfo, pBlock, &status);
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pOperator->pTaskInfo->env, code);
     }

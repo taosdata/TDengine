@@ -152,9 +152,10 @@ typedef struct STsdbReader STsdbReader;
 #define CACHESCAN_RETRIEVE_LAST_ROW    0x4
 #define CACHESCAN_RETRIEVE_LAST        0x8
 
-int32_t  tsdbSetTableId(STsdbReader *pReader, int64_t uid);
-int32_t  tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, SArray *pTableList, STsdbReader **ppReader,
-                        const char *idstr);
+int32_t tsdbSetTableId(STsdbReader *pReader, int64_t uid);
+int32_t tsdbReaderOpen(SVnode *pVnode, SQueryTableDataCond *pCond, SArray *pTableList, STsdbReader **ppReader,
+                       const char *idstr);
+
 void     tsdbReaderClose(STsdbReader *pReader);
 bool     tsdbNextDataBlock(STsdbReader *pReader);
 bool     tsdbTableNextDataBlock(STsdbReader *pReader, int64_t uid);
@@ -164,6 +165,7 @@ SArray  *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdLi
 int32_t  tsdbReaderReset(STsdbReader *pReader, SQueryTableDataCond *pCond);
 int32_t  tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
 int64_t  tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
+bool     tsdbIsAscendingOrder(STsdbReader *pReader);
 void    *tsdbGetIdx(SMeta *pMeta);
 void    *tsdbGetIvtIdx(SMeta *pMeta);
 uint64_t getReaderMaxVersion(STsdbReader *pReader);
