@@ -91,7 +91,8 @@ class DataExportTest(TDCase):
                         self.tdSql.checkEqual(count_rows[0]['count(*)'],all_data.size / len(all_data.columns))
 
     def export_ctb_check(self):
-        for source_task in ['', '+ws']:
+        for source_task in ['']:
+        # for source_task in ['', '+ws']:
             for file_type in ['csv','parquet']:
                 for source in range(len(self.source_taosd_list)):
                     taosd_master = taos.connect(host=self.source_taosd_list[source][0], port=int(self.source_taosd_list[source][1]))
@@ -113,7 +114,8 @@ class DataExportTest(TDCase):
                         self.tdSql.checkEqual(count_rows[0]['count(*)'],all_data.size / len(all_data.columns))
 
     def export_ntb_check(self):
-        for source_task in ['', '+ws']:
+        for source_task in ['']:
+        # for source_task in ['', '+ws']:
             for file_type in ['csv','parquet']:
                 for source in range(len(self.source_taosd_list)):
                     taosd_master = taos.connect(host=self.source_taosd_list[source][0], port=int(self.source_taosd_list[source][1]))
