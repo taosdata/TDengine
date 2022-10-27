@@ -74,8 +74,10 @@ class AddSync(TDCase):
                 self.remote.cmd(
                     taosBenchmark_fqdn[0], f'taosBenchmark -h {host} -P {port} -n {row_num} -t {tb_num} -d {dbname[source]} -m {ntbname_m[source]} -N -y -U -s {start_timestamp}')
     def update_sync_db_stb(self,source_type):
-        for source_task in ['','+ws']:
-            for target_task in ['','+ws']:
+        for source_task in ['']:
+            for target_task in ['']:
+        # for source_task in ['','+ws']:
+        #     for target_task in ['','+ws']:
                 thread_list = []
                 master_count_rows = []
                 master_sum = []
@@ -122,8 +124,10 @@ class AddSync(TDCase):
                     self.tdSql.checkEqual(master_sum[source][0]['sum(voltage)'], backup_sum[source][0]['sum(voltage)'])
                 taosd_backup.execute(f'drop database {self.target_dbname}')
     def update_sync_ctb(self):
-        for source_task in ['','+ws']:
-            for target_task in ['','+ws']:
+        for source_task in ['']:
+            for target_task in ['']:
+        # for source_task in ['','+ws']:
+        #     for target_task in ['','+ws']:
                 thread_list = []
                 master_count_rows = []
                 master_sum = []
@@ -163,8 +167,10 @@ class AddSync(TDCase):
                         master_sum[source][0]['sum(voltage)'], backup_sum[source][0]['sum(voltage)'])
                 taosd_backup.execute(f'drop database {self.target_dbname}')
     def update_sync_ntb(self):
-        for source_task in ['','+ws']:
-            for target_task in ['','+ws']:
+        for source_task in ['']:
+            for target_task in ['']:
+        # for source_task in ['','+ws']:
+        #     for target_task in ['','+ws']:
                 thread_list = []
                 master_count_rows = []
                 master_sum = []
@@ -204,7 +210,6 @@ class AddSync(TDCase):
                         master_sum[source][0]['sum(c1)'], backup_sum[source][0]['sum(c1)'])
                 taosd_backup.execute(f'drop database {self.target_dbname}')
 
-        pass
     def run(self):
         for replica in self.replica:
             self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]

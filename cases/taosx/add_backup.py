@@ -79,8 +79,10 @@ class AddBackup(TDCase):
                 self.remote.cmd(
                     taosBenchmark_fqdn[0], f'taosBenchmark -h {host} -P {port} -n {row_num} -t {tb_num} -d {dbname[source]} -m {ntbname_m[source]} -N -y -U -s {start_timestamp} ')
     def add_backup_db_stb(self,source_type):
-        for source_task in ['','+ws']:
-            for target_task in ['','+ws']:
+        for source_task in ['']:
+            for target_task in ['']:
+        # for source_task in ['','+ws']:
+        #     for target_task in ['','+ws']:
                 thread_list_source = []
                 thread_list_target = []
                 master_count_rows = []
@@ -149,8 +151,10 @@ class AddBackup(TDCase):
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'rm -rf {self.run_log_dir}/{self.source_taosd_list[source][0]}_backup_{source}')
                     taosd_backup.execute(f'drop database {self.dbname[source]}')
     def add_backup_ctb(self):
-        for source_task in ['','+ws']:
-            for target_task in ['','+ws']:
+        for source_task in ['']:
+            for target_task in ['']:
+        # for source_task in ['','+ws']:
+        #     for target_task in ['','+ws']:
                 thread_list_source = []
                 thread_list_target = []
                 master_count_rows = []
@@ -158,7 +162,7 @@ class AddBackup(TDCase):
                 group_id = self.tdCom.get_long_name(5)
                 taosd_backup = taos.connect(host=self.target_taosd[0],port=int(self.target_taosd[1]))
                 for source in range(len(self.source_taosd_list)):
-                    target_file_dir = f'{self.run_log_dir}/{self.source_taosd_list[source][0]}_backup'
+                    target_file_dir = f'{self.run_log_dir}/{self.source_taosd_list[source][0]}_backup_{source}'
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'mkdir {target_file_dir}')
                     if source_task.lower() == '+ws':
                         self.tdTaosx.run_backup_tb_from_ws_to_local(thread_list_source,self.taosx_setting,source_task,target_file_dir,self.source_taosd_list,self.dbname,self.tbname_m,source,group_id,self.timeout)
@@ -170,8 +174,7 @@ class AddBackup(TDCase):
                     thread.join()
                 thread_list_source = []
                 for source in range(len(self.source_taosd_list)):
-                    target_file_dir = f'{self.run_log_dir}/{self.source_taosd_list[source][0]}_backup'
-                    
+                    target_file_dir = f'{self.run_log_dir}/{self.source_taosd_list[source][0]}_backup_{source}'
                     if source_task.lower() == '+ws':
                         self.tdTaosx.run_backup_tb_from_ws_to_local(thread_list_source,self.taosx_setting,source_task,target_file_dir,self.source_taosd_list,self.dbname,self.tbname_m,source,group_id,self.timeout)
                     elif source_task.lower() == '':
@@ -206,11 +209,11 @@ class AddBackup(TDCase):
                     self.remote.cmd(self.taosx_setting['fqdn'][0],f'rm -rf {self.run_log_dir}/{self.source_taosd_list[source][0]}_backup_{source}')
                     taosd_backup.execute(f'drop database {self.dbname[source]}')
 
-        pass
-    
     def add_backup_ntb(self):
-        for target_task in ['','+ws']:
-            for source_task in ['', '+ws']:
+        for source_task in ['']:
+            for target_task in ['']:
+        # for target_task in ['','+ws']:
+        #     for source_task in ['', '+ws']:
                 thread_list_source = []
                 thread_list_target = []
                 master_count_rows = []
@@ -271,10 +274,10 @@ class AddBackup(TDCase):
         for replica in self.replica:
             self.dbname = [self.tdCom.get_long_name(5),self.tdCom.get_long_name(5)]
             self.tdTaosx.data_insert(self.source_taosd_list,self.dbname,self.stbname,self.tbname_m,self.tb_num,self.row_num,self.start_timestamp,self.drop_flag,self.child_table_exist_flag,self.taosBenchmark_fqdn,self.test_root,replica)
-            self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num,'create',self.ntb_starttimestamp)
             self.add_backup_db_stb('db')
             self.add_backup_db_stb('stb')
             self.add_backup_ctb()
+            self.data_insert_ntb(self.source_taosd_list,self.ntb_dbname,self.ntb_name_m,self.ntb_num,self.ntb_row_num,'create',self.ntb_starttimestamp)
             self.add_backup_ntb()
     def cleanup(self):
         pass
