@@ -1738,8 +1738,10 @@ static int32_t filterDelBlockByUid(SSDataBlock* pDst, const SSDataBlock* pSrc, S
       j++;
     }
   }
+  uint32_t cap = pDst->info.capacity;
   pDst->info = pSrc->info;
   pDst->info.rows = j;
+  pDst->info.capacity = cap;
 
   return 0;
 }
