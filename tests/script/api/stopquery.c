@@ -36,7 +36,7 @@ int64_t st, et;
 char hostName[128];
 char dbName[128];
 char tbName[128];
-int32_t runTimes = 1000;
+int32_t runTimes = 10;
 
 typedef struct {
   int       id;
