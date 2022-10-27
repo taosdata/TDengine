@@ -154,7 +154,7 @@
 ./test.sh -f tsim/parser/select_with_tags.sim
 ./test.sh -f tsim/parser/selectResNum.sim
 ./test.sh -f tsim/parser/set_tag_vals.sim
-# TD-19572 ./test.sh -f tsim/parser/single_row_in_tb.sim
+./test.sh -f tsim/parser/single_row_in_tb.sim
 ./test.sh -f tsim/parser/sliding.sim
 ./test.sh -f tsim/parser/slimit_alter_tags.sim
 ./test.sh -f tsim/parser/slimit.sim
@@ -302,7 +302,6 @@
 # --- sma
 ./test.sh -f tsim/sma/drop_sma.sim
 ./test.sh -f tsim/sma/tsmaCreateInsertQuery.sim
-# temp disable
 ./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
 ./test.sh -f tsim/sma/rsmaPersistenceRecovery.sim
 
@@ -318,13 +317,13 @@
 ./test.sh -f tsim/valgrind/checkUdf.sim
 
 # --- vnode ----
-# unsupport ./test.sh -f tsim/vnode/replica3_basic.sim
-# unsupport ./test.sh -f tsim/vnode/replica3_repeat.sim
-# unsupport ./test.sh -f tsim/vnode/replica3_vgroup.sim
-# unsupport ./test.sh -f tsim/vnode/replica3_many.sim
-# unsupport ./test.sh -f tsim/vnode/replica3_import.sim
-# unsupport ./test.sh -f tsim/vnode/stable_balance_replica1.sim
-# unsupport ./test.sh -f tsim/vnode/stable_dnode2_stop.sim
+./test.sh -f tsim/vnode/replica3_basic.sim
+./test.sh -f tsim/vnode/replica3_repeat.sim
+./test.sh -f tsim/vnode/replica3_vgroup.sim
+./test.sh -f tsim/vnode/replica3_many.sim
+./test.sh -f tsim/vnode/replica3_import.sim
+./test.sh -f tsim/vnode/stable_balance_replica1.sim
+./test.sh -f tsim/vnode/stable_dnode2_stop.sim
 ./test.sh -f tsim/vnode/stable_dnode2.sim
 ./test.sh -f tsim/vnode/stable_dnode3.sim
 ./test.sh -f tsim/vnode/stable_replica3_dnode6.sim
