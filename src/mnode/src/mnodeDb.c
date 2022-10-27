@@ -1128,6 +1128,8 @@ static int32_t mnodeAlterDbFp(SMnodeMsg *pMsg) {
   mDebug("db:%s, all vgroups is altered", pDb->name);
   mLInfo("db:%s, is alterd by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
 
+  monSaveAuditLog(MON_DDL_CMD_ALTER_DATABASE, mnodeGetUserFromMsg(pMsg), pDb->name, true);
+
   // in case there is no vnode for this db currently(no table in db,etc.)
   if (pMsg->expected == 0) {
     SSdbRow row = {
@@ -1184,7 +1186,7 @@ static int32_t mnodeAlterDb(SDbObj *pDb, SAlterDbMsg *pAlter, void *pMsg) {
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
       mError("db:%s, failed to alter, reason:%s", pDb->name, tstrerror(code));
     }
-}
+  }
 
   return code;
 }
@@ -1214,6 +1216,7 @@ static int32_t mnodeDropDbCb(SMnodeMsg *pMsg, int32_t code) {
   } else {
     mLInfo("db:%s, is dropped by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
   }
+  monSaveAuditLog(MON_DDL_CMD_DROP_DATABASE, mnodeGetUserFromMsg(pMsg), pDb->name, !code);
 
   return code;
 }

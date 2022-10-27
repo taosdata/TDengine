@@ -38,6 +38,7 @@
 #include "mnodeSdb.h"
 #include "mnodeShow.h"
 #include "mnodeTable.h"
+#include "mnodeUser.h"
 #include "mnodeVgroup.h"
 #include "mnodeWrite.h"
 #include "mnodeRead.h"
@@ -1047,7 +1048,7 @@ static int32_t mnodeCreateSuperTableCb(SMnodeMsg *pMsg, int32_t code) {
   if (code == TSDB_CODE_SUCCESS) {
     mLInfo("stable:%s, is created in sdb, uid:%" PRIu64, pTable->info.tableId, pTable->uid);
     if(pMsg->pBatchMasterMsg)
-      pMsg->pBatchMasterMsg->successed ++;    
+      pMsg->pBatchMasterMsg->successed ++;
   } else {
     mError("msg:%p, app:%p stable:%s, failed to create in sdb, reason:%s", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId,
            tstrerror(code));
@@ -1056,11 +1057,12 @@ static int32_t mnodeCreateSuperTableCb(SMnodeMsg *pMsg, int32_t code) {
     if(pMsg->pBatchMasterMsg)
       pMsg->pBatchMasterMsg->received ++;
   }
+  monSaveAuditLog(MON_DDL_CMD_CREATE_SUPER_TABLE, mnodeGetUserFromMsg(pMsg), pTable->info.tableId, !code);
 
   // if super table create by batch msg, check done and send finished to client
   if(pMsg->pBatchMasterMsg) {
     if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received >= pMsg->pBatchMasterMsg->expected)
-      dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, code);    
+      dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, code);
   }
 
   return code;
@@ -1171,11 +1173,12 @@ static int32_t mnodeDropSuperTableCb(SMnodeMsg *pMsg, int32_t code) {
   SSTableObj *pTable = (SSTableObj *)pMsg->pTable;
   if (code != TSDB_CODE_SUCCESS) {
     mError("msg:%p, app:%p stable:%s, failed to drop, sdb error", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId);
-
+    monSaveAuditLog(MON_DDL_CMD_DROP_SUPER_TABLE, mnodeGetUserFromMsg(pMsg), pTable->info.tableId, false);
     return code;
   }
 
   mLInfo("msg:%p, app:%p stable:%s, is dropped from sdb", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId);
+  monSaveAuditLog(MON_DDL_CMD_DROP_SUPER_TABLE, mnodeGetUserFromMsg(pMsg), pTable->info.tableId, true);
 
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
   if (pStable->vgHash != NULL /*pStable->numOfTables != 0*/) {
@@ -1250,6 +1253,8 @@ static int32_t mnodeAddSuperTableTagCb(SMnodeMsg *pMsg, int32_t code) {
   if (code == TSDB_CODE_SUCCESS) {
     code = mnodeGetSuperTableMeta(pMsg);
   }
+  monSaveAuditLog(MON_DDL_CMD_ADD_TAG, mnodeGetUserFromMsg(pMsg), pStable->info.tableId, !code);
+
   return code;
 }
 
@@ -1308,6 +1313,8 @@ static int32_t mnodeDropSuperTableTagCb(SMnodeMsg *pMsg, int32_t code) {
   if (code == TSDB_CODE_SUCCESS) {
     code = mnodeGetSuperTableMeta(pMsg);
   }
+  monSaveAuditLog(MON_DDL_CMD_DROP_TAG, mnodeGetUserFromMsg(pMsg), pStable->info.tableId, !code);
+
   return code;
 }
 
@@ -1345,6 +1352,8 @@ static int32_t mnodeModifySuperTableTagNameCb(SMnodeMsg *pMsg, int32_t code) {
   if (code == TSDB_CODE_SUCCESS) {
     code = mnodeGetSuperTableMeta(pMsg);
   }
+  monSaveAuditLog(MON_DDL_CMD_CHANGE_TAG, mnodeGetUserFromMsg(pMsg), pStable->info.tableId, !code);
+
   return code;
 }
 
@@ -1403,6 +1412,8 @@ static int32_t mnodeAddSuperTableColumnCb(SMnodeMsg *pMsg, int32_t code) {
   if (code == TSDB_CODE_SUCCESS) {
     code = mnodeGetSuperTableMeta(pMsg);
   }
+
+  monSaveAuditLog(MON_DDL_CMD_ADD_COLUMN, mnodeGetUserFromMsg(pMsg), pStable->info.tableId, !code);
   return code;
 }
 
@@ -1474,6 +1485,8 @@ static int32_t mnodeDropSuperTableColumnCb(SMnodeMsg *pMsg, int32_t code) {
   if (code == TSDB_CODE_SUCCESS) {
     code = mnodeGetSuperTableMeta(pMsg);
   }
+  monSaveAuditLog(MON_DDL_CMD_DROP_COLUMN, mnodeGetUserFromMsg(pMsg), pStable->info.tableId, !code);
+
   return code;
 }
 
@@ -1522,6 +1535,8 @@ static int32_t mnodeChangeSuperTableColumnCb(SMnodeMsg *pMsg, int32_t code) {
   if (code == TSDB_CODE_SUCCESS) {
     code = mnodeGetSuperTableMeta(pMsg);
   }
+  monSaveAuditLog(MON_DDL_CMD_MODIFY_COLUMN, mnodeGetUserFromMsg(pMsg), pStable->info.tableId, !code);
+
   return code;
 }
 
@@ -2294,6 +2309,7 @@ static int32_t mnodeSendDropChildTableMsg(SMnodeMsg *pMsg, bool needReturn) {
   if (pDrop == NULL) {
     mError("msg:%p, app:%p ctable:%s, failed to drop ctable, no enough memory", pMsg, pMsg->rpcMsg.ahandle,
            pTable->info.tableId);
+    monSaveAuditLog(MON_DDL_CMD_DROP_TABLE, mnodeGetUserFromMsg(pMsg), pTable->info.tableId, false);
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
 
@@ -2307,6 +2323,8 @@ static int32_t mnodeSendDropChildTableMsg(SMnodeMsg *pMsg, bool needReturn) {
 
   mInfo("msg:%p, app:%p ctable:%s, send drop ctable msg, vgId:%d sid:%d uid:%" PRIu64, pMsg, pMsg->rpcMsg.ahandle,
         pDrop->tableFname, pTable->vgId, pTable->tid, pTable->uid);
+
+  monSaveAuditLog(MON_DDL_CMD_DROP_TABLE, mnodeGetUserFromMsg(pMsg), pTable->info.tableId, true);
 
   SRpcMsg rpcMsg = {
     .ahandle = pMsg,
@@ -2327,6 +2345,7 @@ static int32_t mnodeDropChildTableCb(SMnodeMsg *pMsg, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) {
     SCTableObj *pTable = (SCTableObj *)pMsg->pTable;
     mError("msg:%p, app:%p ctable:%s, failed to drop, sdb error", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId);
+    monSaveAuditLog(MON_DDL_CMD_DROP_TABLE, mnodeGetUserFromMsg(pMsg), pTable->info.tableId, false);
     return code;
   }
 
@@ -3559,7 +3578,7 @@ static int32_t mnodeRetrieveStreamTables(SShowObj *pShow, char *data, int32_t ro
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pTable->sql, pShow->bytes[cols]);    
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pTable->sql, pShow->bytes[cols]);
     cols++;
 
     numOfRows++;
@@ -3594,13 +3613,13 @@ static int32_t mnodeCompactSuperTables() {
     };
 
     //mInfo("compact super %" PRIu64, pTable->uid);
-    
+
     sdbInsertCompactRow(&row);
   }
 
   mInfo("end to compact super table...");
 
-  return 0; 
+  return 0;
 }
 
 static int32_t mnodeCompactChildTables() {
@@ -3620,13 +3639,13 @@ static int32_t mnodeCompactChildTables() {
     };
 
     //mInfo("compact child %" PRIu64 ":%d", pTable->uid, pTable->tid);
-    
+
     sdbInsertCompactRow(&row);
   }
 
   mInfo("end to compact child table...");
 
-  return 0; 
+  return 0;
 }
 
 int32_t mnodeCompactTables() {
