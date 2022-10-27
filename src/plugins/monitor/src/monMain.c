@@ -1461,15 +1461,11 @@ static bool monConvDDLType2Str(int8_t type, char *buf, int32_t len) {
       break;
     }
     case MON_DDL_CMD_MODIFY_COLUMN: {
-      strncpy(buf, "MODIFY COLUMN", len);
-      break;
-    }
-    case MON_DDL_CMD_MODIFY_TAG: {
-      strncpy(buf, "MODIFY TAG", len);
+      strncpy(buf, "MODIFY COLUMN/TAG LENGTH", len);
       break;
     }
     case MON_DDL_CMD_CHANGE_TAG: {
-      strncpy(buf, "CHANGE TAG", len);
+      strncpy(buf, "CHANGE TAG NAME", len);
       break;
     }
     default: {

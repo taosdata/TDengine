@@ -2088,6 +2088,9 @@ static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
   SCreateTableMsg *pCreate = (SCreateTableMsg*) ((char*)pMsg->rpcMsg.pCont + sizeof(SCMCreateTableMsg));
   assert(pTable);
 
+  monSaveAuditLog((pTable->info.type == TSDB_CHILD_TABLE) ? MON_DDL_CMD_CREATE_CHILD_TABLE : MON_DDL_CMD_CREATE_TABLE,
+                  mnodeGetUserFromMsg(pMsg), pTable->info.tableId, !code);
+
   if (code == TSDB_CODE_SUCCESS) {
     if (pCreate->getMeta) {
       mDebug("msg:%p, app:%p table:%s, created in dnode and continue to get meta, thandle:%p", pMsg,
@@ -2116,6 +2119,7 @@ static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
   } else {
     mError("msg:%p, app:%p table:%s, failed to create table sid:%d, uid:%" PRIu64 ", reason:%s", pMsg,
            pMsg->rpcMsg.ahandle, pTable->info.tableId, pTable->tid, pTable->uid, tstrerror(code));
+
     SSdbRow desc = {.type = SDB_OPER_GLOBAL, .pObj = pTable, .pTable = tsChildTableSdb};
     sdbDeleteRow(&desc);
 
@@ -2433,6 +2437,7 @@ static int32_t mnodeAddNormalTableColumn(SMnodeMsg *pMsg, SSchema schema[], int3
   SDbObj *pDb = pMsg->pDb;
   if (ncols <= 0) {
     mError("msg:%p, app:%p ctable:%s, add column, ncols:%d <= 0", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId, ncols);
+    monSaveAuditLog(MON_DDL_CMD_ADD_COLUMN, mnodeGetUserFromMsg(pMsg), pTable->info.tableId, false);
     return TSDB_CODE_MND_APP_ERROR;
   }
 
@@ -2440,6 +2445,7 @@ static int32_t mnodeAddNormalTableColumn(SMnodeMsg *pMsg, SSchema schema[], int3
     if (mnodeFindNormalTableColumnIndex(pTable, schema[i].name) > 0) {
       mError("msg:%p, app:%p ctable:%s, add column, column:%s already exist", pMsg, pMsg->rpcMsg.ahandle,
              pTable->info.tableId, schema[i].name);
+      monSaveAuditLog(MON_DDL_CMD_ADD_COLUMN, mnodeGetUserFromMsg(pMsg), pTable->info.tableId, false);
       return TSDB_CODE_MND_FIELD_ALREAY_EXIST;
     }
   }
@@ -2464,6 +2470,7 @@ static int32_t mnodeAddNormalTableColumn(SMnodeMsg *pMsg, SSchema schema[], int3
   }
 
   mInfo("msg:%p, app:%p ctable %s, start to add column", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId);
+  monSaveAuditLog(MON_DDL_CMD_ADD_COLUMN, mnodeGetUserFromMsg(pMsg), pTable->info.tableId, true);
 
   SSdbRow row = {
     .type   = SDB_OPER_GLOBAL,
@@ -2483,6 +2490,7 @@ static int32_t mnodeDropNormalTableColumn(SMnodeMsg *pMsg, char *colName) {
   if (col <= 0) {
     mError("msg:%p, app:%p ctable:%s, drop column, column:%s not exist", pMsg, pMsg->rpcMsg.ahandle,
            pTable->info.tableId, colName);
+    monSaveAuditLog(MON_DDL_CMD_DROP_COLUMN, mnodeGetUserFromMsg(pMsg), pTable->info.tableId, false);
     return TSDB_CODE_MND_FIELD_NOT_EXIST;
   }
 
@@ -2497,6 +2505,7 @@ static int32_t mnodeDropNormalTableColumn(SMnodeMsg *pMsg, char *colName) {
   }
 
   mInfo("msg:%p, app:%p ctable %s, start to drop column %s", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId, colName);
+  monSaveAuditLog(MON_DDL_CMD_DROP_COLUMN, mnodeGetUserFromMsg(pMsg), pTable->info.tableId, true);
 
   SSdbRow row = {
     .type   = SDB_OPER_GLOBAL,
@@ -2517,6 +2526,7 @@ static int32_t mnodeChangeNormalTableColumn(SMnodeMsg *pMsg) {
   if (col < 0) {
     mError("msg:%p, app:%p ctable:%s, change column, name: %s", pMsg, pMsg->rpcMsg.ahandle,
            pTable->info.tableId, name);
+    monSaveAuditLog(MON_DDL_CMD_MODIFY_COLUMN, mnodeGetUserFromMsg(pMsg), pTable->info.tableId, false);
     return TSDB_CODE_MND_FIELD_NOT_EXIST;
   }
 
@@ -2527,6 +2537,7 @@ static int32_t mnodeChangeNormalTableColumn(SMnodeMsg *pMsg) {
 
   mInfo("msg:%p, app:%p ctable %s, start to modify column %s len to %d", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId,
          name, schema->bytes);
+  monSaveAuditLog(MON_DDL_CMD_MODIFY_COLUMN, mnodeGetUserFromMsg(pMsg), pTable->info.tableId, true);
 
   SSdbRow row = {
     .type   = SDB_OPER_GLOBAL,

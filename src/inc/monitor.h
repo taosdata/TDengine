@@ -46,8 +46,6 @@ typedef enum {
   MON_DDL_CMD_ADD_TAG,
   MON_DDL_CMD_DROP_TAG,
   MON_DDL_CMD_CHANGE_TAG,
-  MON_DDL_CMD_MODIFY_TAG,
-  MON_DDL_CMD_SET_TAG,
 } EMonDDLCmdType;
 
 typedef struct {
