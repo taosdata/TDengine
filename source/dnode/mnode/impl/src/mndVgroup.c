@@ -1890,9 +1890,6 @@ _OVER:
 }
 
 static int32_t mndProcessBalanceVgroupMsg(SRpcMsg *pReq) {
-#if 1
-  return TSDB_CODE_OPS_NOT_SUPPORT;
-#else
   SMnode *pMnode = pReq->info.node;
   int32_t code = -1;
   SArray *pArray = NULL;
@@ -1941,7 +1938,6 @@ _OVER:
 
   taosArrayDestroy(pArray);
   return code;
-#endif
 }
 
 bool mndVgroupInDb(SVgObj *pVgroup, int64_t dbUid) { return !pVgroup->isTsma && pVgroup->dbUid == dbUid; }
