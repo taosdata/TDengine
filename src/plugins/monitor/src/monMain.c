@@ -42,6 +42,8 @@
 #define QUERY_ID_LEN        24
 #define CHECK_INTERVAL      1000
 #define AUDIT_MAX_RETRIES   10
+#define MAX_DDL_TYPE_LEN    20
+#define MAX_DDL_OBJ_LEN     512
 
 #define SQL_STR_FMT "\"%s\""
 
@@ -139,29 +141,6 @@ typedef enum {
   MON_STATE_INITED
 } EMonState;
 
-typedef enum {
-  // create
-  MON_DDL_CMD_CREATE_DATABASE,
-  MON_DDL_CMD_CREATE_TABLE,
-  MON_DDL_CMD_CREATE_CHILD_TABLE,
-  MON_DDL_CMD_CREATE_SUPER_TABLE,
-  // drop
-  MON_DDL_CMD_DROP_DATABASE,
-  MON_DDL_CMD_DROP_TABLE,
-  MON_DDL_CMD_DROP_CHILD_TABLE,
-  MON_DDL_CMD_DROP_SUPER_TABLE,
-  // alter
-  MON_DDL_CMD_ALTER_DATABASE,
-  MON_DDL_CMD_ADD_COLUMN,
-  MON_DDL_CMD_DROP_COLUMN,
-  MON_DDL_CMD_MODIFY_COLUMN,
-  MON_DDL_CMD_ADD_TAG,
-  MON_DDL_CMD_DROP_TAG,
-  MON_DDL_CMD_CHANGE_TAG,
-  MON_DDL_CMD_MODIFY_TAG,
-  MON_DDL_CMD_SET_TAG,
-} EMonDDLCmdType;
-
 typedef struct {
   pthread_t thread;
   void *    conn;
@@ -185,6 +164,7 @@ typedef struct {
 } SMonStat;
 
 static void *monHttpStatusHashTable;
+static void *auditConn;
 
 static SMonConn tsMonitor = {0};
 static SMonStat tsMonStat = {{0}};
@@ -295,12 +275,10 @@ static void *monAuditFunc(void *param) {
   setThreadName("audit");
   taosMsleep(1000);
 
-  void *conn = NULL;
-
   int32_t try = 0;
   for (; try < AUDIT_MAX_RETRIES; ++try) {
-    conn = taos_connect(NULL, "root", "taosdata", "", 0);
-    if (conn == NULL) {
+    auditConn = taos_connect(NULL, "root", "taosdata", "", 0);
+    if (auditConn == NULL) {
       monDebug("audit retry connect, tries: %d", try);
       taosMsleep(1000);
     } else {
@@ -321,7 +299,7 @@ static void *monAuditFunc(void *param) {
            "blocks %d precision 'us'",
            tsAuditDbName, keepValue, TSDB_MIN_CACHE_BLOCK_SIZE, TSDB_MIN_TOTAL_BLOCKS);
 
-  void *res = taos_query(conn, sql);
+  void *res = taos_query(auditConn, sql);
   int32_t code = taos_errno(res);
   taos_free_result(res);
 
@@ -334,11 +312,13 @@ static void *monAuditFunc(void *param) {
   memset(sql, 0, sizeof(sql));
   snprintf(sql, sizeof(sql),
            "create table if not exists %s.ddl(ts timestamp"
-           ", user_name binary(10), ip_addr binary(%d), type binary(10)"
-           ", object binary(64), result bool"
-           ")", tsAuditDbName, IP_LEN_STR);
+           ", user_name binary(%d), ip_addr binary(%d), type binary(%d)"
+           ", object binary(%d), result binary(10)"
+           ")",
+           tsAuditDbName, TSDB_USER_LEN, IP_LEN_STR,
+           MAX_DDL_TYPE_LEN, MAX_DDL_OBJ_LEN);
 
-  res = taos_query(conn, sql);
+  res = taos_query(auditConn, sql);
   code = taos_errno(res);
   taos_free_result(res);
 
@@ -586,6 +566,11 @@ void monCleanupSystem() {
   monStopSystem();
   if (taosCheckPthreadValid(tsMonitor.thread)) {
     pthread_join(tsMonitor.thread, NULL);
+  }
+
+  if (auditConn != NULL) {
+    taos_close(tsMonitor.conn);
+    auditConn = NULL;
   }
 
   if (tsMonitor.conn != NULL) {
@@ -1511,12 +1496,20 @@ void monSaveAuditLog(int8_t type, const char *user, const char *obj, bool result
           tsAuditDbName,
           (user != NULL) ? user : "NULL",
           tsLocalEp,
-          (obj != NULL) ? obj : "NULL",
           typeStr,
+          (obj != NULL) ? obj : "NULL",
           result ? "success" : "fail");
 
   monDebug("save ddl info, sql:%s", sql);
-  taos_query_a(tsMonitor.conn, sql, monExecSqlCb, "account info");
+  void *res = taos_query(auditConn, sql);
+  int32_t code = taos_errno(res);
+  taos_free_result(res);
+
+  if (code != 0) {
+    monError("failed to save audit info, reason:%s, sql:%s", tstrerror(code), sql);
+  } else {
+    monDebug("successfully save audit info, sql:%s", sql);
+  }
 }
 
 void monSaveAcctLog(SAcctMonitorObj *pMon) {

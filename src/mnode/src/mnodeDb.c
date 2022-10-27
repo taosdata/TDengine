@@ -409,6 +409,7 @@ static int32_t mnodeCreateDbCb(SMnodeMsg *pMsg, int32_t code) {
   } else {
     mError("db:%s, failed to create by %s, reason:%s", pDb->name, mnodeGetUserFromMsg(pMsg), tstrerror(code));
   }
+  monSaveAuditLog(MON_DDL_CMD_CREATE_DATABASE, mnodeGetUserFromMsg(pMsg), pDb->name, !code);
 
   return code;
 }
