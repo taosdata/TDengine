@@ -215,7 +215,7 @@ int32_t monInitSystem() {
     monError("failed to create thread for monitor module, reason:%s", strerror(errno));
     return -1;
   }
-  monError("monitor thread is launched");
+  monDebug("monitor thread is launched");
 
   pthread_t auditThread;
   pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_DETACHED);
@@ -224,7 +224,7 @@ int32_t monInitSystem() {
     return -1;
   }
 
-  monError("audit thread is launched");
+  monDebug("audit thread is launched");
   pthread_attr_destroy(&thAttr);
 
   monStartSystemFp = monStartSystem;
@@ -270,7 +270,7 @@ SMonHttpStatus *monGetHttpStatusHashTableEntry(int32_t code) {
 static void *monAuditFunc(void *param) {
   monDebug("starting to initialize audit database...");
   setThreadName("audit");
-  //taosMsleep(30000);
+  taosMsleep(1000);
 
   void *conn = NULL;
 
@@ -292,7 +292,7 @@ static void *monAuditFunc(void *param) {
   }
 
   char sql[512] = {0};
-  snprintf(sql, SQL_LENGTH,
+  snprintf(sql, sizeof(sql),
            "create database if not exists %s replica 1 days 10 keep %s cache %d "
            "blocks %d precision 'us'",
            tsAuditDbName, keepValue, TSDB_MIN_CACHE_BLOCK_SIZE, TSDB_MIN_TOTAL_BLOCKS);
