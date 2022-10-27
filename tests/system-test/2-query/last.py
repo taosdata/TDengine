@@ -261,7 +261,7 @@ class TDTestCase:
         vgroup_num = 10
         buffer_size = 3
         tables = 100
-        rows = 12
+        rows = 50
         str = self.generateString(1024)
         column_dict = {
             'c1': 'int',
@@ -280,10 +280,10 @@ class TDTestCase:
         tdSql.execute(create_ntb_sql)
 
         for i in range(tables):
-            sql = f"create table sub_tb{i} using {stbname} tags({i})"
+            sql = f"create table {dbname}.sub_tb{i} using {stbname} tags({i})"
             tdSql.execute(sql)
             for j in range(rows):
-                tdSql.execute(f"insert into sub_tb{i} values(%d, %d, '%s', '%s')" % (self.ts + j, i, str, str))
+                tdSql.execute(f"insert into {dbname}.sub_tb{i} values(%d, %d, '%s', '%s')" % (self.ts + j, i, str, str))
                 
         tdSql.query(f"select * from {stbname}")
         tdSql.checkRows(tables * rows)
