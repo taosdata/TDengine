@@ -1148,6 +1148,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
     pSyncNode->pRaftCfg = NULL;
   }
 
+  // init by SSyncInfo
+  pSyncNode->vgId = pSyncInfo->vgId;
   SSyncCfg* pCfg = &pSyncInfo->syncCfg;
   sDebug("vgId:%d, replica:%d selfIndex:%d", pSyncNode->vgId, pCfg->replicaNum, pCfg->myIndex);
   for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
@@ -1155,8 +1157,6 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
     sDebug("vgId:%d, index:%d ep:%s:%u", pSyncNode->vgId, i, pNode->nodeFqdn, pNode->nodePort);
   }
 
-  // init by SSyncInfo
-  pSyncNode->vgId = pSyncInfo->vgId;
   memcpy(pSyncNode->path, pSyncInfo->path, sizeof(pSyncNode->path));
   snprintf(pSyncNode->raftStorePath, sizeof(pSyncNode->raftStorePath), "%s%sraft_store.json", pSyncInfo->path,
            TD_DIRSEP);
