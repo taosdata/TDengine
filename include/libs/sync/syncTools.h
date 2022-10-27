@@ -679,8 +679,8 @@ void syncReconfigFinishLog(const SyncReconfigFinish* pMsg);
 void syncReconfigFinishLog2(char* s, const SyncReconfigFinish* pMsg);
 
 // on message ----------------------
-int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
-int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
+int32_t syncNodeOnPing(SSyncNode* ths, SyncPing* pMsg);
+int32_t syncNodeOnPingReply(SSyncNode* ths, SyncPingReply* pMsg);
 int32_t syncNodeOnTimer(SSyncNode* ths, SyncTimeout* pMsg);
 
 int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg);
