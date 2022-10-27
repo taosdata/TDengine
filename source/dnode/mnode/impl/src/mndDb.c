@@ -17,7 +17,6 @@
 #include "mndDb.h"
 #include "mndCluster.h"
 #include "mndDnode.h"
-#include "mndOffset.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndSma.h"
