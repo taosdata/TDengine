@@ -36,26 +36,26 @@
 ./test.sh -f tsim/db/taosdlog.sim
 
 # ---- dnode
-# unsupport ./test.sh -f tsim/dnode/balance_replica1.sim
-# unsupport ./test.sh -f tsim/dnode/balance_replica3.sim
-# unsupport ./test.sh -f tsim/dnode/balance1.sim
-# unsupport ./test.sh -f tsim/dnode/balance2.sim
-# unsupport ./test.sh -f tsim/dnode/balance3.sim
-# unsupport ./test.sh -f tsim/dnode/balancex.sim
+./test.sh -f tsim/dnode/balance_replica1.sim
+./test.sh -f tsim/dnode/balance_replica3.sim
+./test.sh -f tsim/dnode/balance1.sim
+./test.sh -f tsim/dnode/balance2.sim
+./test.sh -f tsim/dnode/balance3.sim
+./test.sh -f tsim/dnode/balancex.sim
 ./test.sh -f tsim/dnode/create_dnode.sim
 ./test.sh -f tsim/dnode/drop_dnode_has_mnode.sim
 # unsupport ./test.sh -f tsim/dnode/drop_dnode_has_qnode_snode.sim
-# unsupport ./test.sh -f tsim/dnode/drop_dnode_has_vnode_replica1.sim
-# unsupport ./test.sh -f tsim/dnode/drop_dnode_has_vnode_replica3.sim
-# unsupport ./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica1.sim
-# unsupport ./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica3.sim
+./test.sh -f tsim/dnode/drop_dnode_has_vnode_replica1.sim
+./test.sh -f tsim/dnode/drop_dnode_has_vnode_replica3.sim
+./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica1.sim
+./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica3.sim
 ./test.sh -f tsim/dnode/offline_reason.sim
 ./test.sh -f tsim/dnode/redistribute_vgroup_replica1.sim
 ./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v1_leader.sim
 ./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v1_follower.sim
 ./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v2.sim
 ./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v3.sim
-# unsupport ./test.sh -f tsim/dnode/vnode_clean.sim
+./test.sh -f tsim/dnode/vnode_clean.sim
 ./test.sh -f tsim/dnode/use_dropped_dnode.sim 
 
 # ---- import ----

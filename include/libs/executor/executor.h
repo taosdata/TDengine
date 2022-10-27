@@ -90,6 +90,16 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* n
 int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type);
 
 /**
+ * Set block for sma
+ * @param tinfo
+ * @param pBlocks
+ * @param numOfInputBlock
+ * @param type
+ * @return
+ */
+int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type);
+
+/**
  * Update the table id list, add or remove.
  *
  * @param tinfo

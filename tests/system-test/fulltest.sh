@@ -551,7 +551,7 @@ python3 ./test.py -f 2-query/upper.py -Q  4
 python3 ./test.py -f 2-query/lower.py -Q  4
 python3 ./test.py -f 2-query/join.py -Q  4
 python3 ./test.py -f 2-query/join2.py -Q  4
-python3 ./test.py -f 2-query/cast.py -Q  4
+#python3 ./test.py -f 2-query/cast.py -Q  4
 python3 ./test.py -f 2-query/substr.py -Q  4
 python3 ./test.py -f 2-query/union.py -Q  4
 python3 ./test.py -f 2-query/union1.py -Q  4
