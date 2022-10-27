@@ -15,7 +15,7 @@ VALGRIND=0
 UNIQUE=0
 UNAME_BIN=`which uname`
 OS_TYPE=`$UNAME_BIN`
-while getopts "f:avum" arg
+while getopts "f:agvum" arg
 do
   case $arg in
     f)
@@ -27,6 +27,9 @@ do
     u)
       UNIQUE=1
       ;;
+    g)
+      VALGRIND=2
+      ;;  
     ?)
       echo "unknow argument"
       ;;
@@ -125,6 +128,9 @@ if [ -n "$FILE_NAME" ]; then
     FLAG="-v"
     echo valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --child-silent-after-fork=yes --show-leak-kinds=all --num-callers=20 -v  --workaround-gcc296-bugs=yes  --log-file=${LOG_DIR}/valgrind-tsim.log $PROGRAM -c $CFG_DIR -f $FILE_NAME $FLAG
     valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --child-silent-after-fork=yes --show-leak-kinds=all --num-callers=20 -v  --workaround-gcc296-bugs=yes  --log-file=${LOG_DIR}/valgrind-tsim.log $PROGRAM -c $CFG_DIR -f $FILE_NAME $FLAG
+  elif [ $VALGRIND -eq 2 ]; then
+    echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f $FILE_NAME -v
+    $PROGRAM -c $CFG_DIR -f $FILE_NAME -v
   else
     echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f $FILE_NAME  
     $PROGRAM -c $CFG_DIR -f $FILE_NAME
