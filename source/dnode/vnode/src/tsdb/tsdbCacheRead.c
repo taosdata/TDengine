@@ -194,6 +194,12 @@ static void freeItem(void* pItem) {
   }
 }
 
+static int32_t tsdbCacheQueryReseek(void* pQHandle) {
+  int32_t code = 0;
+
+  return code;
+}
+
 int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32_t* slotIds, SArray* pTableUidList) {
   if (pReader == NULL || pResBlock == NULL) {
     return TSDB_CODE_INVALID_PARA;
@@ -237,7 +243,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     taosArrayPush(pLastCols, &p);
   }
 
-  tsdbTakeReadSnap(NULL, &pr->pReadSnap);
+  tsdbTakeReadSnap(NULL, tsdbCacheQueryReseek, &pr->pReadSnap);
   pr->pDataFReader = NULL;
   pr->pDataFReaderLast = NULL;
 

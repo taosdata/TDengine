@@ -207,10 +207,12 @@ int32_t tsdbDecmprColData(uint8_t *pIn, SBlockCol *pBlockCol, int8_t cmprAlg, in
                           uint8_t **ppBuf);
 // tsdbMemTable ==============================================================================================
 // SMemTable
+typedef int32_t (*_tsdb_reseek_func_t)(void *pQHandle);
+
 int32_t  tsdbMemTableCreate(STsdb *pTsdb, SMemTable **ppMemTable);
 void     tsdbMemTableDestroy(SMemTable *pMemTable);
 STbData *tsdbGetTbDataFromMemTable(SMemTable *pMemTable, tb_uid_t suid, tb_uid_t uid);
-int32_t  tsdbRefMemTable(SMemTable *pMemTable, void *pQHandle, SQueryNode **ppNode);
+int32_t  tsdbRefMemTable(SMemTable *pMemTable, void *pQHandle, _tsdb_reseek_func_t reseek, SQueryNode **ppNode);
 int32_t  tsdbUnrefMemTable(SMemTable *pMemTable, SQueryNode *pNode);
 SArray  *tsdbMemTableGetTbDataArray(SMemTable *pMemTable);
 // STbDataIter
@@ -290,7 +292,7 @@ int32_t tsdbDelFReaderClose(SDelFReader **ppReader);
 int32_t tsdbReadDelData(SDelFReader *pReader, SDelIdx *pDelIdx, SArray *aDelData);
 int32_t tsdbReadDelIdx(SDelFReader *pReader, SArray *aDelIdx);
 // tsdbRead.c ==============================================================================================
-int32_t tsdbTakeReadSnap(STsdbReader *pReader, STsdbReadSnap **ppSnap);
+int32_t tsdbTakeReadSnap(STsdbReader *pReader, _tsdb_reseek_func_t reseek, STsdbReadSnap **ppSnap);
 void    tsdbUntakeReadSnap(STsdbReader *pReader, STsdbReadSnap *pSnap);
 // tsdbMerge.c ==============================================================================================
 int32_t tsdbMerge(STsdb *pTsdb);
@@ -362,9 +364,10 @@ struct STbData {
 };
 
 struct SQueryNode {
-  SQueryNode  *pNext;
-  SQueryNode **ppNext;
-  void        *pQHandle;
+  SQueryNode         *pNext;
+  SQueryNode        **ppNext;
+  void               *pQHandle;
+  _tsdb_reseek_func_t reseek;
 };
 
 struct SMemTable {

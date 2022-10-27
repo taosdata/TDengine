@@ -3489,6 +3489,8 @@ static int32_t doOpenReaderImpl(STsdbReader* pReader) {
 }
 
 // ====================================== EXPOSED APIs ======================================
+static int32_t tsdbSetQueryReseek(void* pQHandle);
+
 int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTableList, STsdbReader** ppReader,
                        const char* idstr) {
   STimeWindow window = pCond->twindows;
@@ -3570,7 +3572,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
   }
 
   if (numOfTables > 0) {
-    code = tsdbTakeReadSnap(pReader, &pReader->pReadSnap);
+    code = tsdbTakeReadSnap(pReader, tsdbSetQueryReseek, &pReader->pReadSnap);
     if (code != TSDB_CODE_SUCCESS) {
       goto _err;
     }
@@ -4106,7 +4108,7 @@ int32_t tsdbGetTableSchema(SVnode* pVnode, int64_t uid, STSchema** pSchema, int6
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tsdbTakeReadSnap(STsdbReader* pReader, STsdbReadSnap** ppSnap) {
+int32_t tsdbTakeReadSnap(STsdbReader* pReader, _tsdb_reseek_func_t reseek, STsdbReadSnap** ppSnap) {
   int32_t        code = 0;
   STsdb*         pTsdb = pReader->pTsdb;
   SVersionRange* pRange = &pReader->verRange;
@@ -4127,12 +4129,12 @@ int32_t tsdbTakeReadSnap(STsdbReader* pReader, STsdbReadSnap** ppSnap) {
 
   // take snapshot
   if (pTsdb->mem && (pRange->minVer <= pTsdb->mem->maxVer && pRange->maxVer >= pTsdb->mem->minVer)) {
-    tsdbRefMemTable(pTsdb->mem, pReader, &(*ppSnap)->pNode);
+    tsdbRefMemTable(pTsdb->mem, pReader, reseek, &(*ppSnap)->pNode);
     (*ppSnap)->pMem = pTsdb->mem;
   }
 
   if (pTsdb->imem && (pRange->minVer <= pTsdb->imem->maxVer && pRange->maxVer >= pTsdb->imem->minVer)) {
-    tsdbRefMemTable(pTsdb->imem, pReader, &(*ppSnap)->pINode);
+    tsdbRefMemTable(pTsdb->imem, pReader, reseek, &(*ppSnap)->pINode);
     (*ppSnap)->pIMem = pTsdb->imem;
   }
 
@@ -4173,7 +4175,7 @@ void tsdbUntakeReadSnap(STsdbReader* pReader, STsdbReadSnap* pSnap) {
   tsdbTrace("vgId:%d, untake read snapshot", TD_VID(pTsdb->pVnode));
 }
 
-int32_t tsdbSetQueryReseek(void* pQHandle) {
+static int32_t tsdbSetQueryReseek(void* pQHandle) {
   int32_t code = 0;
 
   // lock handle

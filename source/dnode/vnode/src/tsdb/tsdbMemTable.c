@@ -636,7 +636,7 @@ _err:
 
 int32_t tsdbGetNRowsInTbData(STbData *pTbData) { return pTbData->sl.size; }
 
-int32_t tsdbRefMemTable(SMemTable *pMemTable, void *pQHandle, SQueryNode **ppNode) {
+int32_t tsdbRefMemTable(SMemTable *pMemTable, void *pQHandle, _tsdb_reseek_func_t reseek, SQueryNode **ppNode) {
   int32_t code = 0;
 
   int32_t nRef = atomic_fetch_add_32(&pMemTable->nRef, 1);
@@ -649,6 +649,7 @@ int32_t tsdbRefMemTable(SMemTable *pMemTable, void *pQHandle, SQueryNode **ppNod
     goto _exit;
   }
   (*ppNode)->pQHandle = pQHandle;
+  (*ppNode)->reseek = reseek;
   (*ppNode)->pNext = pMemTable->qList.pNext;
   (*ppNode)->ppNext = &pMemTable->qList.pNext;
   pMemTable->qList.pNext->ppNext = &(*ppNode)->pNext;
@@ -714,8 +715,6 @@ _exit:
   return aTbDataP;
 }
 
-extern int32_t tsdbSetQueryReseek(void *pQHandle);
-
 int32_t tsdbRecycleMemTable(SMemTable *pMemTable) {
   int32_t code = 0;
 
@@ -725,11 +724,11 @@ int32_t tsdbRecycleMemTable(SMemTable *pMemTable) {
     SQueryNode *pNextNode = pNode->pNext;
 
     if (pNextNode == &pMemTable->qList) {
-      code = tsdbSetQueryReseek(pNode->pQHandle);
+      code = (*pNode->reseek)(pNode->pQHandle);
       if (code) goto _exit;
       break;
     } else {
-      code = tsdbSetQueryReseek(pNode->pQHandle);
+      code = (*pNode->reseek)(pNode->pQHandle);
       if (code) goto _exit;
       pNode = pMemTable->qList.pNext;
       ASSERT(pNode == pNextNode);
