@@ -4891,6 +4891,12 @@ void destroyTableMergeScanOperatorInfo(void* param) {
 
   tsdbReaderClose(pTableScanInfo->pReader);
 
+  for (int i = 0; i < taosArrayGetSize(pTableScanInfo->queryConds); i++) {
+    SQueryTableDataCond* pCond = taosArrayGet(pTableScanInfo->queryConds, i);
+    taosMemoryFree(pCond->colList);
+  }
+  taosArrayDestroy(pTableScanInfo->queryConds);
+
   if (pTableScanInfo->matchInfo.pList != NULL) {
     taosArrayDestroy(pTableScanInfo->matchInfo.pList);
   }
