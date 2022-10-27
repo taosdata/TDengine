@@ -625,23 +625,6 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t* useconds) {
   return pTaskInfo->code;
 }
 
-int32_t qKillTask(qTaskInfo_t qinfo) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)qinfo;
-  if (pTaskInfo == NULL) {
-    return TSDB_CODE_QRY_INVALID_QHANDLE;
-  }
-
-  qAsyncKillTask(qinfo);
-
-  // Wait for the query executing thread being stopped/
-  // Once the query is stopped, the owner of qHandle will be cleared immediately.
-  while (pTaskInfo->owner != 0) {
-    taosMsleep(100);
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t qAsyncKillTask(qTaskInfo_t qinfo) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)qinfo;
 

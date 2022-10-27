@@ -298,7 +298,7 @@ class TDTestCase:
     def all_test(self):
         self.test_create_sma()
 
-    def __create_tb(self):
+    def __create_tb(self, rollup=None):
         tdLog.printNoPrefix("==========step: create table")
         create_stb_sql = f'''create table {STBNAME}(
                 ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
@@ -316,8 +316,12 @@ class TDTestCase:
                 {INT_UN_COL} int unsigned, {BINT_UN_COL} bigint unsigned
             )
             '''
-        tdSql.execute(create_stb_sql)
-        tdSql.execute(create_ntb_sql)
+        if rollup is not None:
+            create_stb_sql += f" rollup({rollup})"
+            tdSql.execute(create_stb_sql)
+        else:
+            tdSql.execute(create_stb_sql)
+            tdSql.execute(create_ntb_sql)
 
         for i in range(4):
             tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
@@ -343,7 +347,7 @@ class TDTestCase:
 
         return data_set
 
-    def __insert_data(self):
+    def __insert_data(self, rollup=None):
         tdLog.printNoPrefix("==========step: start inser data into tables now.....")
         data = self.__data_set(rows=self.rows)
 
@@ -369,8 +373,9 @@ class TDTestCase:
                 f"insert into ct2 values ( {NOW - i * int(TIME_STEP * 0.6)}, {neg_row_data} )")
             tdSql.execute(
                 f"insert into ct4 values ( {NOW - i * int(TIME_STEP * 0.8) }, {row_data} )")
-            tdSql.execute(
-                f"insert into {NTBNAME} values ( {NOW - i * int(TIME_STEP * 1.2)}, {row_data} )")
+            if rollup is None:
+                tdSql.execute(
+                    f"insert into {NTBNAME} values ( {NOW - i * int(TIME_STEP * 1.2)}, {row_data} )")
 
         tdSql.execute(
             f"insert into ct2 values ( {NOW + int(TIME_STEP * 0.6)}, {null_data} )")
@@ -385,13 +390,13 @@ class TDTestCase:
             f"insert into ct4 values ( {NOW - (self.rows + 1) * int(TIME_STEP * 0.8)}, {null_data} )")
         tdSql.execute(
             f"insert into ct4 values ( {NOW - self.rows * int(TIME_STEP * 0.39)}, {null_data} )")
-
-        tdSql.execute(
-            f"insert into {NTBNAME} values ( {NOW + int(TIME_STEP * 1.2)}, {null_data} )")
-        tdSql.execute(
-            f"insert into {NTBNAME} values ( {NOW - (self.rows + 1) * int(TIME_STEP * 1.2)}, {null_data} )")
-        tdSql.execute(
-            f"insert into {NTBNAME} values ( {NOW - self.rows * int(TIME_STEP * 0.59)}, {null_data} )")
+        if rollup is None:
+            tdSql.execute(
+                f"insert into {NTBNAME} values ( {NOW + int(TIME_STEP * 1.2)}, {null_data} )")
+            tdSql.execute(
+                f"insert into {NTBNAME} values ( {NOW - (self.rows + 1) * int(TIME_STEP * 1.2)}, {null_data} )")
+            tdSql.execute(
+                f"insert into {NTBNAME} values ( {NOW - self.rows * int(TIME_STEP * 0.59)}, {null_data} )")
 
     def run(self):
         self.rows = 10
@@ -420,6 +425,15 @@ class TDTestCase:
 
         tdDnodes.stop(1)
         tdDnodes.start(1)
+
+        tdLog.printNoPrefix("==========step3:insert and flush in rollup database")
+        tdSql.execute("create database db4 retentions 1s:4m,2s:8m,3s:12m")
+        tdSql.execute("use db4")
+        self.__create_tb(rollup="first")
+        self.__insert_data(rollup="first")
+        tdSql.execute(f'drop stable if exists {STBNAME}')
+        tdSql.execute(f'flush database db4')
+
 
         tdLog.printNoPrefix("==========step4:after wal, all check again ")
         tdSql.prepare()
