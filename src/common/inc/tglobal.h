@@ -148,6 +148,7 @@ extern int32_t  tsHttpKeepAlive;
 extern int8_t  tsEnableMonitorModule;
 extern int8_t  tsMonitorReplica;
 extern char    tsMonitorDbName[];
+extern char    tsAuditDbName[];
 extern char    tsInternalPass[];
 extern int32_t tsMonitorInterval;
 

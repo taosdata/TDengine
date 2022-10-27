@@ -41,6 +41,7 @@
 #define DNODE_INFO_LEN      128
 #define QUERY_ID_LEN        24
 #define CHECK_INTERVAL      1000
+#define AUDIT_MAX_RETRIES   10
 
 #define SQL_STR_FMT "\"%s\""
 
@@ -175,15 +176,23 @@ static void  monSaveDisksInfo();
 static void  monSaveGrantsInfo();
 static void  monSaveHttpReqInfo();
 static void  monGetSysStats();
-static void *monThreadFunc(void *param);
+static void  *monThreadFunc(void *param);
+static void  *monAuditFunc(void *param);
 static void  monBuildMonitorSql(char *sql, int32_t cmd);
-static void monInitHttpStatusHashTable();
-static void monCleanupHttpStatusHashTable();
+static void  monInitHttpStatusHashTable();
+static void  monCleanupHttpStatusHashTable();
 
 extern int32_t (*monStartSystemFp)();
 extern void    (*monStopSystemFp)();
 extern void    (*monExecuteSQLFp)(char *sql);
 extern char *  strptime(const char *buf, const char *fmt, struct tm *tm); //make the compilation pass
+
+#ifdef _STORAGE
+  char *keepValue = "30,30,30";
+#else
+  char *keepValue = "30";
+#endif
+
 
 int32_t monInitSystem() {
   if (tsMonitor.ep[0] == 0) {
@@ -203,12 +212,20 @@ int32_t monInitSystem() {
   pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
 
   if (pthread_create(&tsMonitor.thread, &thAttr, monThreadFunc, NULL)) {
-    monError("failed to create thread to for monitor module, reason:%s", strerror(errno));
+    monError("failed to create thread for monitor module, reason:%s", strerror(errno));
+    return -1;
+  }
+  monError("monitor thread is launched");
+
+  pthread_t auditThread;
+  pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_DETACHED);
+  if (pthread_create(&auditThread, &thAttr, monAuditFunc, NULL)) {
+    monError("failed to create audit thread, reason:%s", strerror(errno));
     return -1;
   }
 
+  monError("audit thread is launched");
   pthread_attr_destroy(&thAttr);
-  monDebug("monitor thread is launched");
 
   monStartSystemFp = monStartSystem;
   monStopSystemFp = monStopSystem;
@@ -248,6 +265,50 @@ SMonHttpStatus *monGetHttpStatusHashTableEntry(int32_t code) {
     return NULL;
   }
   return (SMonHttpStatus*)taosHashGet(monHttpStatusHashTable, &code, sizeof(int32_t));
+}
+
+static void *monAuditFunc(void *param) {
+  monDebug("starting to initialize audit database...");
+  setThreadName("audit");
+  //taosMsleep(30000);
+
+  void *conn = NULL;
+
+  int32_t try = 0;
+  for (; try < AUDIT_MAX_RETRIES; ++try) {
+    conn = taos_connect(NULL, "root", "taosdata", "", 0);
+    if (conn == NULL) {
+      monDebug("audit retry connect, tries: %d", try);
+      taosMsleep(1000);
+    } else {
+      monDebug("audit successfuly connect to database");
+      break;
+    }
+  }
+
+  if (try == AUDIT_MAX_RETRIES) {
+    monError("audit failed to connect to database, reason:%s", tstrerror(terrno));
+    return NULL;
+  }
+
+  char sql[512] = {0};
+  snprintf(sql, SQL_LENGTH,
+           "create database if not exists %s replica 1 days 10 keep %s cache %d "
+           "blocks %d precision 'us'",
+           tsAuditDbName, keepValue, TSDB_MIN_CACHE_BLOCK_SIZE, TSDB_MIN_TOTAL_BLOCKS);
+
+  void *res = taos_query(conn, sql);
+  int32_t code = taos_errno(res);
+  taos_free_result(res);
+
+  if (code != 0) {
+    monError("failed to exec sql:%s, reason:%s", sql, tstrerror(code));
+    return NULL;
+  } else {
+    monDebug("successfully to exec sql:%s", sql);
+  }
+
+  return NULL;
 }
 
 static void *monThreadFunc(void *param) {
@@ -334,12 +395,6 @@ static void *monThreadFunc(void *param) {
 
 static void monBuildMonitorSql(char *sql, int32_t cmd) {
   memset(sql, 0, SQL_LENGTH);
-
-#ifdef _STORAGE
-  char *keepValue = "30,30,30";
-#else
-  char *keepValue = "30";
-#endif
 
   if (cmd == MON_CMD_CREATE_DB) {
     snprintf(sql, SQL_LENGTH,

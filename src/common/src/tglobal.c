@@ -197,6 +197,7 @@ int32_t  tsHttpKeepAlive = 30000;
 int8_t  tsEnableMonitorModule = 1;
 int8_t  tsMonitorReplica = 1;
 char    tsMonitorDbName[TSDB_DB_NAME_LEN] = "log";
+char    tsAuditDbName[TSDB_DB_NAME_LEN] = "audit";
 char    tsInternalPass[] = "secretkey";
 int32_t tsMonitorInterval = 30;  // seconds
 
