@@ -19,6 +19,13 @@ if [ ! -d $archiveDir ]; then
 fi
 
 echo "generate commnunity package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+if [ ! -d $communityDir ]; then
+  cd $topDir
+  mkdir -p debug
+  cd debug
+  cmake ..
+fi
+
 cd $communityDir
 ###git checkout $branchName
 #git checkout -- .

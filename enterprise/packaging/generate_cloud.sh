@@ -17,7 +17,13 @@ if [ ! -d $archiveDir ]; then
   mkdir -p $archiveDir || echo -e "failed to create $archiveDir"
 fi
 
-echo "generate enterprise package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+echo "generate cloud package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+if [ ! -d $communityDir ]; then
+  cd $topDir
+  mkdir -p debug
+  cd debug
+  cmake ..
+fi
 
 cd $communityDir
 rm -rf release/*

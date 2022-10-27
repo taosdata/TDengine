@@ -13,7 +13,13 @@ password="tbase125!"
 scriptDir=$(dirname $(readlink -f $0))
 topDir=${scriptDir}/../..         # TDinternal
 communityDir=${topDir}/community  # community
-echo "make docker for community version >>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+echo "make docker for $verMode version >>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+if [ ! -d $communityDir ]; then
+  cd $topDir
+  mkdir -p debug
+  cd debug
+  cmake ..
+fi
 
 if [ "${dockerMode}" == "latest" ]; then
   cd ${communityDir}/packaging/docker
