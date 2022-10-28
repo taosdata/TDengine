@@ -702,7 +702,7 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
 #endif
     for (int32_t i = 0; i < taosArrayGetSize(pResList); ++i) {
       SSDataBlock *output = taosArrayGetP(pResList, i);
-      smaError("uid:%ld, groupid:%ld", output->info.uid, output->info.groupId);
+      smaDebug("uid:%ld, groupid:%ld", output->info.uid, output->info.groupId);
 
       STsdb       *sinkTsdb = (pItem->level == TSDB_RETENTION_L1 ? pSma->pRSmaTsdb[0] : pSma->pRSmaTsdb[1]);
       SSubmitReq  *pReq = NULL;
