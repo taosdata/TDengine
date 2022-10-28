@@ -3397,9 +3397,9 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
     }
   }
 
-  pTableListInfo->numOfGroups = taosArrayGetSize(pList);
-  pTableListInfo->groupOffset = taosMemoryMalloc(sizeof(int32_t) * pTableListInfo->numOfGroups);
-  memcpy(pTableListInfo->groupOffset, taosArrayGet(pList, 0), sizeof(int32_t) * pTableListInfo->numOfGroups);
+  pTableListInfo->numOfOuputGroups = taosArrayGetSize(pList);
+  pTableListInfo->groupOffset = taosMemoryMalloc(sizeof(int32_t) * pTableListInfo->numOfOuputGroups);
+  memcpy(pTableListInfo->groupOffset, taosArrayGet(pList, 0), sizeof(int32_t) * pTableListInfo->numOfOuputGroups);
   taosArrayDestroy(pList);
 
 # if 0
@@ -3490,13 +3490,15 @@ bool groupbyTbname(SNodeList* pGroupList) {
 }
 
 int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* group, bool groupSort) {
+  int32_t code = TSDB_CODE_SUCCESS;
   if (group == NULL) {
-    return TDB_CODE_SUCCESS;
+    return code;
   }
 
   pTableListInfo->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (pTableListInfo->map == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    return code;
   }
 
   bool   assignUid = groupbyTbname(group);
@@ -3508,21 +3510,23 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
       info->groupId = info->uid;
       taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), &info->groupId, sizeof(uint64_t));
     }
+
     pTableListInfo->oneTableForEachGroup = true;
-    pTableListInfo->numOfGroups = numOfTables;
+    if (groupSort) {
+      pTableListInfo->numOfOuputGroups = numOfTables;
+    }
   } else {
-    int32_t code = getColInfoResultForGroupby(pHandle->meta, group, pTableListInfo);
+    code = getColInfoResultForGroupby(pHandle->meta, group, pTableListInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
     if (groupSort) {
-      return sortTableGroup(pTableListInfo);
+      code = sortTableGroup(pTableListInfo);
     }
   }
 
-  qDebug("-------------------, %d", (int) taosHashGetSize(pTableListInfo->map));
-  return TDB_CODE_SUCCESS;
+  return code;
 }
 
 static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pCond) {

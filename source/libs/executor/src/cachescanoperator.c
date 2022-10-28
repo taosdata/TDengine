@@ -62,7 +62,7 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
   pInfo->pUidList = taosArrayInit(4, sizeof(int64_t));
 
   // partition by tbname, todo opt perf
-  if (getNumOfGroups(pTableList) == getTotalTables(pTableList)) {
+  if (oneTableForEachGroup(pTableList)) {
     pInfo->retrieveType =
         CACHESCAN_RETRIEVE_TYPE_ALL | (pScanNode->ignoreNull ? CACHESCAN_RETRIEVE_LAST : CACHESCAN_RETRIEVE_LAST_ROW);
 
@@ -189,7 +189,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       return NULL;
     }
   } else {
-    size_t totalGroups = getNumOfGroups(pTableList);
+    size_t totalGroups = getNumOfOutputGroups(pTableList);
 
     while (pInfo->currentGroupIndex < totalGroups) {
 

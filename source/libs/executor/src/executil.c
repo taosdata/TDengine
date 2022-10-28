@@ -1665,6 +1665,11 @@ uint64_t getTotalTables(const STableListInfo* pTableList) {
 }
 
 uint64_t getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid) {
+  if (pTableList->oneTableForEachGroup) {
+    ASSERT(pTableList->map == NULL);
+    return tableUid;
+  }
+
   uint64_t* groupId = taosHashGet(pTableList->map, &tableUid, sizeof(tableUid));
   if (groupId != NULL) {
     return *groupId;
@@ -1677,25 +1682,25 @@ int32_t addTableIntoTableList(STableListInfo* pTableList, uint64_t uid, uint64_t
   STableKeyInfo keyInfo = {.uid = uid, .groupId = gid};
 
   taosArrayPush(pTableList->pTableList, &keyInfo);
-  if (pTableList->oneTableForEachGroup || pTableList->numOfGroups > 1) {
+  if (pTableList->oneTableForEachGroup || pTableList->numOfOuputGroups > 1) {
     taosHashPut(pTableList->map, &uid, sizeof(uid), &keyInfo.groupId, sizeof(keyInfo.groupId));
   }
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t getTablesOfGroup(const STableListInfo* pTableList, int32_t ordinalGroupIndex, STableKeyInfo** pKeyInfo, int32_t* size) {
-  int32_t total = getNumOfGroups(pTableList);
+  int32_t total = getNumOfOutputGroups(pTableList);
   if (ordinalGroupIndex < 0 || ordinalGroupIndex >= total) {
     return TSDB_CODE_INVALID_PARA;
   }
 
   // here handle two special cases:
   // 1. only one group exists, and 2. one table exists for each group.
-  if (pTableList->numOfGroups == 1) {
+  if (total == 1) {
     *size = getTotalTables(pTableList);
     *pKeyInfo = taosArrayGet(pTableList->pTableList, 0);
     return TSDB_CODE_SUCCESS;
-  } else if (pTableList->numOfGroups == getTotalTables(pTableList)) {
+  } else if (total == getTotalTables(pTableList)) {
     *size = 1;
     *pKeyInfo = taosArrayGet(pTableList->pTableList, ordinalGroupIndex);
     return TSDB_CODE_SUCCESS;
@@ -1712,8 +1717,12 @@ int32_t getTablesOfGroup(const STableListInfo* pTableList, int32_t ordinalGroupI
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t  getNumOfGroups(const STableListInfo* pTableList) {
-  return pTableList->numOfGroups;
+int32_t  getNumOfOutputGroups(const STableListInfo* pTableList) {
+  return pTableList->numOfOuputGroups;
+}
+
+bool     oneTableForEachGroup(const STableListInfo* pTableList) {
+  return pTableList->oneTableForEachGroup;
 }
 
 void destroyTableList(STableListInfo* pTableqinfoList) {
