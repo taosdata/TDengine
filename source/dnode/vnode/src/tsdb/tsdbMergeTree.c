@@ -290,7 +290,7 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
     // only apply to the child tables, ordinary tables will not incur this filter procedure.
     size = taosArrayGetSize(pBlockLoadInfo->aSttBlk);
 
-    if (size > 1) {
+    if (size >= 1) {
       SSttBlk *pStart = taosArrayGet(pBlockLoadInfo->aSttBlk, 0);
       SSttBlk *pEnd = taosArrayGet(pBlockLoadInfo->aSttBlk, size - 1);
 
@@ -323,14 +323,6 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
 
         taosArrayDestroy(pBlockLoadInfo->aSttBlk);
         pBlockLoadInfo->aSttBlk = pTmp;
-      }
-    } else {  // size == 1
-      SSttBlk *pStart = taosArrayGet(pBlockLoadInfo->aSttBlk, 0);
-      if (pStart->suid != suid) {
-        (*pIter)->iSttBlk = -1;
-        double el = (taosGetTimestampUs() - st) / 1000.0;
-        tsdbDebug("load the last file info completed, elapsed time:%.2fms, %s", el, idStr);
-        return code;
       }
     }
 
