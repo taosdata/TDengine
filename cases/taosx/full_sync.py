@@ -80,7 +80,6 @@ class StaticFullSync(TDCase):
                 taosd_backup = taos.connect(
                     host=self.target_taosd[0], port=int(self.target_taosd[1]))
                 taosd_backup.execute(f'drop database if  exists {self.target_dbname}')
-                taosd_backup.execute(f'create database if not exists {self.target_dbname}')
                 for source in range(len(self.source_taosd_list)):
                     group_id = self.tdCom.get_long_name(5)
                     taosd_master = taos.connect(host=self.source_taosd_list[source][0], port=int(

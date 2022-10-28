@@ -186,7 +186,6 @@ class AddSync(TDCase):
                 master_sum = []
                 taosd_backup = taos.connect(host=self.target_taosd[0],port=int(self.target_taosd[1]))
                 taosd_backup.execute(f'drop database if exists {self.target_dbname}')
-                taosd_backup.execute(f'create database if not exists {self.target_dbname}')
                 for source in range(len(self.source_taosd_list)):
                     group_id = self.tdCom.get_long_name(5)
                     if source_task.lower() == '+ws' and target_task.lower() == '+ws':
