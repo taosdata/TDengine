@@ -4188,22 +4188,6 @@ int32_t createMultipleDataReaders(SQueryTableDataCond* pQueryCond, SReadHandle* 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t createMultipleDataReaders2(SQueryTableDataCond* pQueryCond, SReadHandle* pHandle,
-                                   STableListInfo* pTableListInfo, int32_t tableStartIdx, int32_t tableEndIdx,
-                                   STsdbReader** ppReader, const char* idstr) {
-  STsdbReader* pReader = NULL;
-  void* pStart = taosArrayGet(pTableListInfo->pTableList, tableStartIdx);
-  int32_t num = tableEndIdx - tableStartIdx + 1;
-
-  int32_t code = tsdbReaderOpen(pHandle->vnode, pQueryCond, pStart, num, &pReader, idstr);
-  if (code != 0) {
-    return code;
-  }
-
-  *ppReader = pReader;
-  return TSDB_CODE_SUCCESS;
-}
-
 // todo refactor
 static int32_t loadDataBlockFromOneTable(SOperatorInfo* pOperator, STableMergeScanInfo* pTableScanInfo,
                                          int32_t readerIdx, SSDataBlock* pBlock, uint32_t* status) {
