@@ -1,7 +1,8 @@
 mod csv;
+mod legacy;
 mod local_to_taos;
 mod parquets;
-pub mod taoz;
+mod taoz;
 mod tmq;
 mod tmq_to_local;
 mod tmq_to_td;
@@ -10,6 +11,7 @@ mod transform;
 use taos::{Dsn, IntoDsn};
 
 pub use csv::*;
+pub use legacy::legacy_to_taos;
 pub use local_to_taos::local_to_taos;
 pub use parquets::*;
 pub use tmq_to_local::tmq_to_local;
@@ -89,6 +91,9 @@ impl TaskOpts {
                 }
                 ("local", "taos") => {
                     local_to_taos(from, to, jobs, force).await?;
+                }
+                ("taos", "taos") => {
+                    legacy_to_taos(from, transform, to, jobs).await?;
                 }
                 ("taos", "csv") => {
                     query_to_csv(from, to).await?;

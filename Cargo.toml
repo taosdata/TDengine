@@ -28,6 +28,7 @@ log = "0.4"
 parquet = "23.0.0"
 pretty_env_logger = "0.4"
 regex = "1"
+scc = "0.11.1"
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
 thiserror = "1"
@@ -35,9 +36,8 @@ tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7" }
 toml = "0.5.9"
 zstd = "0.11.2"
-scc = "0.11.1"
 
-taos = { version = "0.4.0" }
+taos = { version = "0.4.0", default-features = false, features = ["optin", "ws"] }
 
 actix-web = "4"
 serde_json = "1.0"
