@@ -48,6 +48,10 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
   int32_t numOfCols = 0;
   code =
       extractColMatchInfo(pScanNode->scan.pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID, &pInfo->matchInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   removeRedundantTsCol(pScanNode, &pInfo->matchInfo);
 
   code = extractCacheScanSlotId(pInfo->matchInfo.pList, pTaskInfo, &pInfo->pSlotIds);
@@ -62,7 +66,7 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
   pInfo->pUidList = taosArrayInit(4, sizeof(int64_t));
 
   // partition by tbname, todo opt perf
-  if (oneTableForEachGroup(pTableList)) {
+  if (oneTableForEachGroup(pTableList) || (getTotalTables(pTableList) == 1)) {
     pInfo->retrieveType =
         CACHESCAN_RETRIEVE_TYPE_ALL | (pScanNode->ignoreNull ? CACHESCAN_RETRIEVE_LAST : CACHESCAN_RETRIEVE_LAST_ROW);
 
@@ -171,16 +175,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
         }
       }
 
-      if (pTableList->map != NULL) {
-        int64_t* groupId = taosHashGet(pTableList->map, &pInfo->pRes->info.uid, sizeof(int64_t));
-        if (groupId != NULL) {
-          pInfo->pRes->info.groupId = *groupId;
-        }
-      } else {
-        ASSERT(taosArrayGetSize(pTableList->pTableList) == 1);
-        STableKeyInfo* pKeyInfo = taosArrayGet(pTableList->pTableList, 0);
-        pInfo->pRes->info.groupId = pKeyInfo->groupId;
-      }
+      pInfo->pRes->info.groupId = getTableGroupId(pTableList, pInfo->pRes->info.uid);
 
       pInfo->indexOfBufferedRes += 1;
       return pInfo->pRes;
