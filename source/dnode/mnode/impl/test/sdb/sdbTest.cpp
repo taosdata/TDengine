@@ -367,6 +367,8 @@ bool sdbTraverseFail(SMnode *pMnode, SStrObj *pObj, int32_t *p1, int32_t *p2, in
   return false;
 }
 
+#ifndef WINDOWS
+
 TEST_F(MndTestSdb, 00_API) {
   SMnode  mnode = {0};
   SSdbOpt opt = {0};
@@ -437,7 +439,8 @@ TEST_F(MndTestSdb, 00_API) {
   ASSERT_NE(sdbWriteWithoutFree(pSdb, pRaw4), 0);
 }
 
-#if 0
+#endif
+
 TEST_F(MndTestSdb, 01_Write_Str) {
   void    *pIter = NULL;
   int32_t  num = 0;
@@ -1006,5 +1009,3 @@ TEST_F(MndTestSdb, 01_Read_Str) {
   ASSERT_EQ(mnode.insertTimes, 9);
   ASSERT_EQ(mnode.deleteTimes, 9);
 }
-
-#endif
