@@ -45,7 +45,9 @@ typedef struct SHttpMsg {
 static TdThreadOnce transHttpInit = PTHREAD_ONCE_INIT;
 static SHttpModule* http = NULL;
 
-static void httpHandleReq(SHttpMsg* msg);
+static void    httpHandleReq(SHttpMsg* msg);
+static int32_t taosSendHttpReportImpl(const char* server, uint16_t port, char* pCont, int32_t contLen,
+                                      EHttpCompFlag flag);
 
 static void* httpThread(void* arg) {
   SHttpModule* http = (SHttpModule*)arg;
@@ -297,73 +299,11 @@ static FORCE_INLINE int32_t taosBuildDstAddr(const char* server, uint16_t port, 
   return 0;
 }
 int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32_t contLen, EHttpCompFlag flag) {
-  struct sockaddr_in dest = {0};
-  if (taosBuildDstAddr(server, port, &dest) < 0) {
-    return -1;
-  }
-  if (flag == HTTP_GZIP) {
-    int32_t dstLen = taosCompressHttpRport(pCont, contLen);
-    if (dstLen > 0) {
-      contLen = dstLen;
-    } else {
-      flag = HTTP_FLAT;
-    }
-  }
-  terrno = 0;
-
-  int32_t len = 2048;
-  char*   header = taosMemoryCalloc(1, len);
-  int32_t headLen = taosBuildHttpHeader(server, contLen, header, len, flag);
-
-  uv_buf_t* wb = taosMemoryCalloc(2, sizeof(uv_buf_t));
-  wb[0] = uv_buf_init((char*)header, strlen(header));  //  heap var
-  wb[1] = uv_buf_init((char*)pCont, contLen);          //  heap var
-
-  SHttpClient* cli = taosMemoryCalloc(1, sizeof(SHttpClient));
-  cli->conn.data = cli;
-  cli->tcp.data = cli;
-  cli->req.data = cli;
-  cli->wbuf = wb;
-  cli->rbuf = taosMemoryCalloc(1, HTTP_RECV_BUF_SIZE);
-  cli->addr = tstrdup(server);
-  cli->port = port;
-
-  uv_loop_t* loop = taosMemoryMalloc(sizeof(uv_loop_t));
-  int        err = uv_loop_init(loop);
-  if (err != 0) {
-    uError("http-report failed to init uv_loop, reason: %s", uv_strerror(err));
-    taosMemoryFree(loop);
-    terrno = TAOS_SYSTEM_ERROR(err);
-    destroyHttpClient(cli);
-    return terrno;
-  }
-  uv_tcp_init(loop, &cli->tcp);
-  // set up timeout to avoid stuck;
-  int32_t fd = taosCreateSocketWithTimeout(5);
-
-  int ret = uv_tcp_open((uv_tcp_t*)&cli->tcp, fd);
-  if (ret != 0) {
-    uError("http-report failed to open socket, reason:%s, dst:%s:%d", uv_strerror(ret), cli->addr, cli->port);
-    destroyHttpClient(cli);
-    uv_stop(loop);
-    terrno = TAOS_SYSTEM_ERROR(ret);
-  } else {
-    ret = uv_tcp_connect(&cli->conn, &cli->tcp, (const struct sockaddr*)&dest, clientConnCb);
-    if (ret != 0) {
-      uError("http-report failed to connect to http-server, reason:%s, dst:%s:%d", uv_strerror(ret), cli->addr,
-             cli->port);
-      destroyHttpClient(cli);
-      uv_stop(loop);
-      terrno = TAOS_SYSTEM_ERROR(ret);
-    }
-  }
-
-  uv_run(loop, UV_RUN_DEFAULT);
-  uv_loop_close(loop);
-  taosMemoryFree(loop);
-  return terrno;
+  taosThreadOnce(&transHttpInit, transHttpEnvInit);
+  return taosSendHttpReportImpl(server, port, pCont, contLen, flag);
 }
-int32_t taosSendHttpReportImpl(const char* server, uint16_t port, char* pCont, int32_t contLen, EHttpCompFlag flag) {
+static int32_t taosSendHttpReportImpl(const char* server, uint16_t port, char* pCont, int32_t contLen,
+                                      EHttpCompFlag flag) {
   SHttpMsg* msg = taosMemoryMalloc(sizeof(SHttpMsg));
   msg->server = strdup(server);
   msg->port = port;
