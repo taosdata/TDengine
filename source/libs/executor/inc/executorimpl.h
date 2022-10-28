@@ -174,12 +174,13 @@ typedef struct {
 } SSchemaInfo;
 
 typedef struct SExecTaskInfo {
-  STaskIdInfo           id;
-  uint32_t              status;
-  int32_t               code;
-  STimeWindow           window;
-  STaskCostInfo         cost;
-  int64_t               owner;  // if it is in execution
+  STaskIdInfo   id;
+  uint32_t      status;
+  STimeWindow   window;
+  STaskCostInfo cost;
+  int64_t       owner;  // if it is in execution
+  int32_t       code;
+
   int64_t               version;  // used for stream to record wal version
   SStreamTaskInfo       streamInfo;
   SSchemaInfo           schemaInfo;
@@ -1076,7 +1077,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsColIndex);
 
 bool    groupbyTbname(SNodeList* pGroupList);
-int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* groupKey, bool groupSort);
+int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* groupKey);
 void*   destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput);
 int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pState, SSDataBlock* pBlock, SExprSupp* pSup,
                                    SGroupResInfo* pGroupResInfo);

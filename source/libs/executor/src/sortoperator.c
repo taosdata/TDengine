@@ -654,7 +654,6 @@ _retry:
       SColumnInfoData* pDst = taosArrayGet(pDataBlock->pDataBlock, pmInfo->dstSlotId);
       colDataAssign(pDst, pSrc, p->info.rows, &pDataBlock->info);
     }
-
     pInfo->limitInfo.numOfOutputRows += p->info.rows;
     pDataBlock->info.rows = p->info.rows;
     pDataBlock->info.groupId = pInfo->groupId;

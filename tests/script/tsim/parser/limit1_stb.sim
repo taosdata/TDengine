@@ -39,7 +39,6 @@ endi
 $val = $totalNum - 1
 sql select * from $stb limit $totalNum offset 1
 if $rows != $val then
-  print expect $val , actual: $rows
   return -1
 endi
 if $data01 != 1 then
@@ -493,9 +492,3 @@ sql select max(c1), min(c2), avg(c3), sum(c5), spread(c6), first(c7), last(c8), 
 if $rows != 6 then
   return -1
 endi
-
-sql select * from $stb partition by tbname limit 1
-if $rows != 10 then
-  return -1
-endi
-
