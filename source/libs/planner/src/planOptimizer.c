@@ -1724,7 +1724,7 @@ static int32_t rewriteTailOptCreateLimit(SNode* pLimit, SNode* pOffset, SNode** 
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pLimitNode->limit = NULL == pLimit ? -1 : ((SValueNode*)pLimit)->datum.i;
-  pLimitNode->offset = NULL == pOffset ? -1 : ((SValueNode*)pOffset)->datum.i;
+  pLimitNode->offset = NULL == pOffset ? 0 : ((SValueNode*)pOffset)->datum.i;
   *pOutput = (SNode*)pLimitNode;
   return TSDB_CODE_SUCCESS;
 }
