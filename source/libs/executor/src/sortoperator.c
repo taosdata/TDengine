@@ -38,7 +38,8 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
   SExprInfo*   pExprInfo = createExprInfo(pSortNode->pExprs, NULL, &numOfCols);
 
   int32_t numOfOutputCols = 0;
-  int32_t code = extractColMatchInfo(pSortNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID, &pInfo->matchInfo);
+  int32_t code =
+      extractColMatchInfo(pSortNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID, &pInfo->matchInfo);
 
   pOperator->exprSupp.pCtx = createSqlFunctionCtx(pExprInfo, numOfCols, &pOperator->exprSupp.rowEntryInfoOffset);
 
@@ -62,8 +63,8 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
   //  there are headers, so pageSize = rowSize + header pInfo->sortBufSize  = pInfo->bufPageSize * 16;
   // TODO dynamic set the available sort buffer
 
-  pOperator->fpSet = createOperatorFpSet(doOpenSortOperator, doSort, NULL, NULL, destroyOrderOperatorInfo,
-                                         getExplainExecInfo);
+  pOperator->fpSet =
+      createOperatorFpSet(doOpenSortOperator, doSort, NULL, NULL, destroyOrderOperatorInfo, getExplainExecInfo);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -126,7 +127,7 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
     int32_t numOfCols = taosArrayGetSize(pColMatchInfo);
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColMatchItem* pmInfo = taosArrayGet(pColMatchInfo, i);
-//      ASSERT(pmInfo->matchType == COL_MATCH_FROM_SLOT_ID);
+      //      ASSERT(pmInfo->matchType == COL_MATCH_FROM_SLOT_ID);
 
       SColumnInfoData* pSrc = taosArrayGet(p->pDataBlock, pmInfo->srcSlotId);
       SColumnInfoData* pDst = taosArrayGet(pDataBlock->pDataBlock, pmInfo->dstSlotId);
@@ -316,7 +317,7 @@ SSDataBlock* getGroupSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlo
     int32_t numOfCols = taosArrayGetSize(pColMatchInfo);
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColMatchItem* pmInfo = taosArrayGet(pColMatchInfo, i);
-//      ASSERT(pmInfo->matchType == COL_MATCH_FROM_SLOT_ID);
+      //      ASSERT(pmInfo->matchType == COL_MATCH_FROM_SLOT_ID);
 
       SColumnInfoData* pSrc = taosArrayGet(p->pDataBlock, pmInfo->srcSlotId);
       SColumnInfoData* pDst = taosArrayGet(pDataBlock->pDataBlock, pmInfo->dstSlotId);
@@ -592,7 +593,7 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
 
   blockDataEnsureCapacity(p, capacity);
 
-  _retry:
+_retry:
   while (1) {
     STupleHandle* pTupleHandle = NULL;
     if (pInfo->groupSort) {
@@ -647,13 +648,13 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
     int32_t numOfCols = taosArrayGetSize(pColMatchInfo);
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColMatchItem* pmInfo = taosArrayGet(pColMatchInfo, i);
-//      ASSERT(pColMatchInfo-> == COL_MATCH_FROM_SLOT_ID);
+      //      ASSERT(pColMatchInfo-> == COL_MATCH_FROM_SLOT_ID);
 
       SColumnInfoData* pSrc = taosArrayGet(p->pDataBlock, pmInfo->srcSlotId);
       SColumnInfoData* pDst = taosArrayGet(pDataBlock->pDataBlock, pmInfo->dstSlotId);
       colDataAssign(pDst, pSrc, p->info.rows, &pDataBlock->info);
     }
-
+    pInfo->limitInfo.numOfOutputRows += p->info.rows;
     pDataBlock->info.rows = p->info.rows;
     pDataBlock->info.groupId = pInfo->groupId;
   }
@@ -734,7 +735,8 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   SArray* pSortInfo = createSortInfo(pMergePhyNode->pMergeKeys);
   int32_t numOfOutputCols = 0;
 
-  code = extractColMatchInfo(pMergePhyNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID, &pInfo->matchInfo);
+  code = extractColMatchInfo(pMergePhyNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID,
+                             &pInfo->matchInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
