@@ -671,7 +671,6 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
   while (1) {
     uint64_t ts;
     bool     hasMore = false;
-//    ASSERT(0);
     int32_t  code = qExecTaskOpt(taskInfo, pResList, &ts, &hasMore, NULL);
     if (code < 0) {
       if (code == TSDB_CODE_QRY_IN_EXEC) {
