@@ -198,7 +198,7 @@ class TDTestCase:
 
         startAction=" -E taosdCaseTmp/.env"
         tdLog.printNoPrefix("================================ parameter: %s"%startAction)
-        os.system(" mkdir -p taosdCaseTmp/.env ") 
+        os.system(" mkdir -p taosdCaseTmp ") 
         os.system("echo \'TAOS_QUERY_POLICY=3\' > taosdCaseTmp/.env ")
         self.taosdCommandStop(startAction,taosdCmdRun)
         os.system(" rm -rf taosdCaseTmp/.env ") 
