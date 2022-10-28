@@ -1037,7 +1037,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     srv->pThreadObj[i] = thrd;
 
     uv_os_sock_t fds[2];
-    if (uv_socketpair(AF_UNIX, SOCK_STREAM, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE) != 0) {
+    if (uv_socketpair(SOCK_STREAM, 0, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE) != 0) {
       goto End;
     }
 
