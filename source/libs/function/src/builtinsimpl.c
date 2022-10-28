@@ -5060,15 +5060,19 @@ int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return pInfo->numSampled;
 }
 
+
 bool getTailFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+#if 0
   SColumnNode* pCol = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
   SValueNode*  pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
   int32_t      numOfPoints = pVal->datum.i;
   pEnv->calcMemSize = sizeof(STailInfo) + numOfPoints * (POINTER_BYTES + sizeof(STailItem) + pCol->node.resType.bytes);
+#endif
   return true;
 }
 
 bool tailFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
+#if 0
   if (!functionSetup(pCtx, pResultInfo)) {
     return false;
   }
@@ -5096,11 +5100,13 @@ bool tailFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
     pInfo->pItems[i] = (STailItem*)(pItem + i * unitSize);
     pInfo->pItems[i]->isNull = false;
   }
+#endif
 
   return true;
 }
 
 static void tailAssignResult(STailItem* pItem, char* data, int32_t colBytes, TSKEY ts, bool isNull) {
+#if 0
   pItem->timestamp = ts;
   if (isNull) {
     pItem->isNull = true;
@@ -5108,8 +5114,10 @@ static void tailAssignResult(STailItem* pItem, char* data, int32_t colBytes, TSK
     pItem->isNull = false;
     memcpy(pItem->data, data, colBytes);
   }
+#endif
 }
 
+#if 0
 static int32_t tailCompFn(const void* p1, const void* p2, const void* param) {
   STailItem* d1 = *(STailItem**)p1;
   STailItem* d2 = *(STailItem**)p2;
@@ -5127,8 +5135,10 @@ static void doTailAdd(STailInfo* pInfo, char* data, TSKEY ts, bool isNull) {
     taosheapadjust((void*)pList, sizeof(STailItem**), 0, pInfo->numOfPoints - 1, NULL, tailCompFn, NULL, 0);
   }
 }
+#endif
 
 int32_t tailFunction(SqlFunctionCtx* pCtx) {
+#if 0
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   STailInfo*           pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
@@ -5162,9 +5172,12 @@ int32_t tailFunction(SqlFunctionCtx* pCtx) {
   }
 
   return pInfo->numOfPoints;
+#endif
+  return 0;
 }
 
 int32_t tailFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+#if 0
   SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
   STailInfo*           pInfo = GET_ROWCELL_INTERBUF(pEntryInfo);
   pEntryInfo->complete = true;
@@ -5183,14 +5196,19 @@ int32_t tailFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   return pEntryInfo->numOfRes;
+#endif
+  return 0;
 }
 
 bool getUniqueFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+#if 0
   pEnv->calcMemSize = sizeof(SUniqueInfo) + UNIQUE_MAX_RESULT_SIZE;
+#endif
   return true;
 }
 
 bool uniqueFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
+#if 0
   if (!functionSetup(pCtx, pResInfo)) {
     return false;
   }
@@ -5204,9 +5222,11 @@ bool uniqueFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   } else {
     pInfo->pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   }
+#endif
   return true;
 }
 
+#if 0
 static void doUniqueAdd(SUniqueInfo* pInfo, char* data, TSKEY ts, bool isNull) {
   // handle null elements
   if (isNull == true) {
@@ -5237,8 +5257,10 @@ static void doUniqueAdd(SUniqueInfo* pInfo, char* data, TSKEY ts, bool isNull) {
     pHashItem->timestamp = ts;
   }
 }
+#endif
 
 int32_t uniqueFunction(SqlFunctionCtx* pCtx) {
+#if 0
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SUniqueInfo*         pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
@@ -5273,6 +5295,8 @@ int32_t uniqueFunction(SqlFunctionCtx* pCtx) {
   }
 
   return pInfo->numOfPoints;
+#endif
+  return 0;
 }
 
 bool getModeFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {

@@ -236,7 +236,43 @@ endi
 print loop3 over
 
 
+sql drop stream if exists streams1;
+sql drop database if exists test1;
+sql create database test1  vgroups 4 keep 7000;
+sql use test1;
+sql create stable st(ts timestamp,a int,b int,c int) tags(ta int,tb int,tc int);
+sql create table t1 using st tags(1,1,1);
+sql create table t2 using st tags(2,2,2);
+sql create stream streams1 trigger at_once  into streamt1 as select  _wstart as c0, count(*) c1, count(a) c2  from st interval(10s) ;
 
+sql insert into t1 values(1648791211000,1,2,3);
+
+sql insert into t1 values(1262275200000,2,2,3);
+sql insert into t2 values(1262275200000,1,2,3);
+
+$loop_count = 0
+loop4:
+sleep 300
+sql select * from streamt1 order by c0;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+# row 0
+if $rows != 2 then
+  print =====loop4=rows=$rows
+  goto loop4
+endi
+
+if $data01 != 2 then
+  print =====loop4=data11=$data11
+  goto loop4
+endi
+
+
+print loop4 over
 
 
 #==system sh/exec.sh -n dnode1 -s stop -x SIGINT

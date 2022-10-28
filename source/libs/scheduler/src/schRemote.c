@@ -145,8 +145,10 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
   int32_t msgType = pMsg->msgType;
 
   bool dropExecNode = (msgType == TDMT_SCH_LINK_BROKEN || SCH_NETWORK_ERR(rspCode));
-  SCH_ERR_JRET(schUpdateTaskHandle(pJob, pTask, dropExecNode, pMsg->handle, execId));
-
+  if (SCH_IS_QUERY_JOB(pJob)) {
+    SCH_ERR_JRET(schUpdateTaskHandle(pJob, pTask, dropExecNode, pMsg->handle, execId));
+  }
+  
   SCH_ERR_JRET(schValidateRspMsgType(pJob, pTask, msgType));
 
   int32_t reqType = IsReq(pMsg) ? pMsg->msgType : (pMsg->msgType - 1);

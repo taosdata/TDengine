@@ -111,13 +111,13 @@ endi
 if $data21_db != 1000 then  # wal_level fsyncperiod
   return -1
 endi
-if $data22_db != 345600 then  # wal_retention_period
+if $data22_db != 0 then  # wal_retention_period
   return -1
 endi
-if $data23_db != -1 then  # wal_retention_size
+if $data23_db != 0 then  # wal_retention_size
   return -1
 endi
-if $data24_db != 86400 then  # wal_roll_period
+if $data24_db != 0 then  # wal_roll_period
   return -1
 endi
 if $data25_db != 0 then  # wal_segment_size

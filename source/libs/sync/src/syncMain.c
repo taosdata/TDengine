@@ -1148,6 +1148,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
     pSyncNode->pRaftCfg = NULL;
   }
 
+  // init by SSyncInfo
+  pSyncNode->vgId = pSyncInfo->vgId;
   SSyncCfg* pCfg = &pSyncInfo->syncCfg;
   sDebug("vgId:%d, replica:%d selfIndex:%d", pSyncNode->vgId, pCfg->replicaNum, pCfg->myIndex);
   for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
@@ -1155,8 +1157,6 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
     sDebug("vgId:%d, index:%d ep:%s:%u", pSyncNode->vgId, i, pNode->nodeFqdn, pNode->nodePort);
   }
 
-  // init by SSyncInfo
-  pSyncNode->vgId = pSyncInfo->vgId;
   memcpy(pSyncNode->path, pSyncInfo->path, sizeof(pSyncNode->path));
   snprintf(pSyncNode->raftStorePath, sizeof(pSyncNode->raftStorePath), "%s%sraft_store.json", pSyncInfo->path,
            TD_DIRSEP);
@@ -1645,7 +1645,9 @@ int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
 
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
     SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->peersId[i]));
-    syncHbTimerStart(pSyncNode, pSyncTimer);
+    if (pSyncTimer != NULL) {
+      syncHbTimerStart(pSyncNode, pSyncTimer);
+    }
   }
 
   return ret;
@@ -1662,7 +1664,9 @@ int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
 
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
     SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->peersId[i]));
-    syncHbTimerStop(pSyncNode, pSyncTimer);
+    if (pSyncTimer != NULL) {
+      syncHbTimerStop(pSyncNode, pSyncTimer);
+    }
   }
 
   return ret;
@@ -3424,7 +3428,7 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
 
         // config change finish
         if (pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE_FINISH) {
-          if (rpcMsg.pCont != NULL) {
+          if (rpcMsg.pCont != NULL && rpcMsg.contLen > 0) {
             code = syncNodeConfigChangeFinish(ths, &rpcMsg, pEntry);
             ASSERT(code == 0);
           }

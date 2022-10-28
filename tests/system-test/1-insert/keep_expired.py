@@ -29,6 +29,7 @@ class TDTestCase:
         time.sleep(self.offset_time * 2)
         tdSql.query(f'select * from {self.dbname}.{self.ctbname}')
         tdSql.checkEqual(tdSql.queryRows, 0)
+        tdSql.execute(f'TRIM DATABASE {self.dbname}')
 
     def stop(self):
         tdSql.close()

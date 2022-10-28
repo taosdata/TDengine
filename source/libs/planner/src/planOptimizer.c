@@ -2452,7 +2452,7 @@ static const SOptimizeRule optimizeRuleSet[] = {
   {.pName = "RewriteUnique",              .optimizeFunc = rewriteUniqueOptimize},
   {.pName = "LastRowScan",                .optimizeFunc = lastRowScanOptimize},
   {.pName = "TagScan",                    .optimizeFunc = tagScanOptimize},
-  // {.pName = "PushDownLimit",              .optimizeFunc = pushDownLimitOptimize}
+  {.pName = "PushDownLimit",              .optimizeFunc = pushDownLimitOptimize}
 };
 // clang-format on
 

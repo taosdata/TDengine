@@ -82,6 +82,7 @@ bool tsSmlDataFormat = false;
 // query
 int32_t tsQueryPolicy = 1;
 int32_t tsQueryRspPolicy = 0;
+bool    tsEnableQueryHb = false;
 int32_t tsQuerySmaOptimize = 0;
 int32_t tsQueryRsmaTolerance = 1000;  // the tolerance time (ms) to judge from which level to query rsma data.
 bool    tsQueryPlannerTrace = false;
@@ -284,6 +285,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "compressMsgSize", tsCompressMsgSize, -1, 100000000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "compressColData", tsCompressColData, -1, 100000000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryPolicy", tsQueryPolicy, 1, 4, 1) != 0) return -1;
+  if (cfgAddBool(pCfg, "enableQueryHb", tsEnableQueryHb, false) != 0) return -1;
   if (cfgAddInt32(pCfg, "querySmaOptimize", tsQuerySmaOptimize, 0, 1, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "queryPlannerTrace", tsQueryPlannerTrace, true) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryNodeChunkSize", tsQueryNodeChunkSize, 1024, 128 * 1024, true) != 0) return -1;
@@ -644,6 +646,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsCompressColData = cfgGetItem(pCfg, "compressColData")->i32;
   tsNumOfTaskQueueThreads = cfgGetItem(pCfg, "numOfTaskQueueThreads")->i32;
   tsQueryPolicy = cfgGetItem(pCfg, "queryPolicy")->i32;
+  tsEnableQueryHb = cfgGetItem(pCfg, "enableQueryHb")->bval;
   tsQuerySmaOptimize = cfgGetItem(pCfg, "querySmaOptimize")->i32;
   tsQueryPlannerTrace = cfgGetItem(pCfg, "queryPlannerTrace")->bval;
   tsQueryNodeChunkSize = cfgGetItem(pCfg, "queryNodeChunkSize")->i32;
@@ -780,6 +783,8 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
       if (strcasecmp("enableCoreFile", name) == 0) {
         bool enableCore = cfgGetItem(pCfg, "enableCoreFile")->bval;
         taosSetCoreDump(enableCore);
+      } else if (strcasecmp("enableQueryHb", name) == 0) {
+        tsEnableQueryHb = cfgGetItem(pCfg, "enableQueryHb")->bval;
       }
       break;
     }

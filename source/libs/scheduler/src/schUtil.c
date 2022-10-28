@@ -17,6 +17,7 @@
 #include "command.h"
 #include "query.h"
 #include "schInt.h"
+#include "tglobal.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
@@ -184,6 +185,10 @@ void schDeregisterTaskHb(SSchJob *pJob, SSchTask *pTask) {
 }
 
 int32_t schEnsureHbConnection(SSchJob *pJob, SSchTask *pTask) {
+  if (!tsEnableQueryHb) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
   SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
   SQueryNodeEpId  epId = {0};
 

@@ -91,6 +91,7 @@ extern bool    tsQueryPlannerTrace;
 extern int32_t tsQueryNodeChunkSize;
 extern bool    tsQueryUseNodeAllocator;
 extern bool    tsKeepColumnName;
+extern bool    tsEnableQueryHb;
 
 // client
 extern int32_t tsMinSlidingTime;
