@@ -72,7 +72,7 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
   int64_t  capacity = 0;
   int64_t  readSize = 0;
   char*    buf = NULL;
-  char*    found = NULL;
+  int64_t  found = -1;
   bool     firstTrial = pFileInfo->fileSize < fileSize;
 
   // search for the valid last WAL entry, e.g. block by block
@@ -114,18 +114,22 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
 
     char* candidate = NULL;
     char* haystack = buf;
+    int64_t     pos = 0;
+    SWalCkHead* logContent = NULL;
 
     while ((candidate = tmemmem(haystack, readSize - (haystack - buf), (char*)&magic, sizeof(magic))) != NULL) {
+      pos = candidate - buf;
+
       // validate head
-      int64_t len = readSize - (candidate - buf);
+      int64_t len = readSize - pos;
       if (len < walCkHeadSz) {
         break;
       }
-      SWalCkHead* logContent = (SWalCkHead*)candidate;
+      logContent = (SWalCkHead*)(buf + pos);
       if (walValidHeadCksum(logContent) != 0) {
         wWarn("vgId:%d, failed to validate checksum of wal entry header. offset:%" PRId64 ", file:%s", pWal->cfg.vgId,
-              offset + ((char*)(logContent)-buf), fnameStr);
-        haystack = candidate + 1;
+              offset + pos, fnameStr);
+        haystack = buf + pos + 1;
         if (firstTrial) {
           break;
         } else {
@@ -160,11 +164,13 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
           break;
         }
       }
+
+      logContent = (SWalCkHead*)(buf + pos);
       if (walValidBodyCksum(logContent) != 0) {
         terrno = TSDB_CODE_WAL_CHKSUM_MISMATCH;
         wWarn("vgId:%d, failed to validate checksum of wal entry body. offset:%" PRId64 ", file:%s", pWal->cfg.vgId,
-              offset + ((char*)(logContent)-buf), fnameStr);
-        haystack = candidate + 1;
+              offset + pos, fnameStr);
+        haystack = buf + pos + 1;
         if (firstTrial) {
           break;
         } else {
@@ -173,19 +179,19 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
       }
 
       // found one
-      found = candidate;
-      haystack = candidate + 1;
+      found = pos;
+      haystack = buf + pos + 1;
     }
 
-    if (found || offset == 0) break;
+    if (found >= 0 || offset == 0) break;
 
     // go backwards, e.g. by at most one WAL scan buf size
-    end = offset + walCkHeadSz - 1;
+    end = TMIN(offset + walCkHeadSz - 1, fileSize);
     firstTrial = false;
   }
 
   // determine end of last entry
-  SWalCkHead* lastEntry = (SWalCkHead*)found;
+  SWalCkHead* lastEntry = (found >= 0) ? (SWalCkHead*)(buf + found) : NULL;
   int64_t     retVer = -1;
   int64_t     lastEntryBeginOffset = 0;
   int64_t     lastEntryEndOffset = 0;

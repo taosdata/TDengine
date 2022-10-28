@@ -1739,6 +1739,8 @@ int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
+static void doDestroyTableList(STableListInfo* pTableqinfoList);
+
 typedef struct SFetchRspHandleWrapper {
   uint32_t exchangeId;
   int32_t  sourceIndex;
@@ -3364,116 +3366,62 @@ static void cleanupTableSchemaInfo(SSchemaInfo* pSchemaInfo) {
 
 static void cleanupStreamInfo(SStreamTaskInfo* pStreamInfo) { tDeleteSSchemaWrapper(pStreamInfo->schema); }
 
-static int32_t orderbyGroupIdComparFn(const void* p1, const void* p2) {
-  STableKeyInfo* pInfo1 = (STableKeyInfo*) p1;
-  STableKeyInfo* pInfo2 = (STableKeyInfo*) p2;
-
-  if (pInfo1->groupId == pInfo2->groupId) {
-    return 0;
-  } else {
-    return pInfo1->groupId < pInfo2->groupId? -1:1;
-  }
-}
-
 static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
-  taosArraySort(pTableListInfo->pTableList, orderbyGroupIdComparFn);
-  int32_t size = getTotalTables(pTableListInfo);
-
-  SArray* pList = taosArrayInit(4, sizeof(int32_t));
-
-  STableKeyInfo* pInfo = taosArrayGet(pTableListInfo->pTableList, 0);
-  uint64_t gid = pInfo->groupId;
-
-  int32_t start = 0;
-  taosArrayPush(pList, &start);
-
-  for(int32_t i = 1; i < size; ++i) {
-    pInfo = taosArrayGet(pTableListInfo->pTableList, i);
-    if (pInfo->groupId != gid) {
-      taosArrayPush(pList, &i);
-      gid = pInfo->groupId;
-    }
-  }
-
-  pTableListInfo->numOfOuputGroups = taosArrayGetSize(pList);
-  pTableListInfo->groupOffset = taosMemoryMalloc(sizeof(int32_t) * pTableListInfo->numOfOuputGroups);
-  memcpy(pTableListInfo->groupOffset, taosArrayGet(pList, 0), sizeof(int32_t) * pTableListInfo->numOfOuputGroups);
-  taosArrayDestroy(pList);
-
-# if 0
-
+  taosArrayClear(pTableListInfo->pGroupList);
   SArray* sortSupport = taosArrayInit(16, sizeof(uint64_t));
-  if (sortSupport == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  size_t num = taosArrayGetSize(pTableListInfo->pTableList);
-  for (int32_t i = 0; i < num; i++) {
+  if (sortSupport == NULL) return TSDB_CODE_OUT_OF_MEMORY;
+  for (int32_t i = 0; i < taosArrayGetSize(pTableListInfo->pTableList); i++) {
     STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
     uint64_t*      groupId = taosHashGet(pTableListInfo->map, &info->uid, sizeof(uint64_t));
 
     int32_t index = taosArraySearchIdx(sortSupport, groupId, compareUint64Val, TD_EQ);
     if (index == -1) {
       void*   p = taosArraySearch(sortSupport, groupId, compareUint64Val, TD_GT);
-
       SArray* tGroup = taosArrayInit(8, sizeof(STableKeyInfo));
       if (tGroup == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _error;
+        taosArrayDestroy(sortSupport);
+        return TSDB_CODE_OUT_OF_MEMORY;
       }
-
       if (taosArrayPush(tGroup, info) == NULL) {
         qError("taos push info array error");
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _error;
+        taosArrayDestroy(sortSupport);
+        return TSDB_CODE_QRY_APP_ERROR;
       }
-
       if (p == NULL) {
         if (taosArrayPush(sortSupport, groupId) == NULL) {
           qError("taos push support array error");
-          code = TSDB_CODE_OUT_OF_MEMORY;
-          goto _error;
+          taosArrayDestroy(sortSupport);
+          return TSDB_CODE_QRY_APP_ERROR;
         }
-
         if (taosArrayPush(pTableListInfo->pGroupList, &tGroup) == NULL) {
           qError("taos push group array error");
-          code = TSDB_CODE_OUT_OF_MEMORY;
-          goto _error;
+          taosArrayDestroy(sortSupport);
+          return TSDB_CODE_QRY_APP_ERROR;
         }
       } else {
         int32_t pos = TARRAY_ELEM_IDX(sortSupport, p);
         if (taosArrayInsert(sortSupport, pos, groupId) == NULL) {
           qError("taos insert support array error");
-          code = TSDB_CODE_OUT_OF_MEMORY;
-          goto _error;
+          taosArrayDestroy(sortSupport);
+          return TSDB_CODE_QRY_APP_ERROR;
         }
-
         if (taosArrayInsert(pTableListInfo->pGroupList, pos, &tGroup) == NULL) {
           qError("taos insert group array error");
-          code = TSDB_CODE_OUT_OF_MEMORY;
-          goto _error;
+          taosArrayDestroy(sortSupport);
+          return TSDB_CODE_QRY_APP_ERROR;
         }
       }
     } else {
       SArray* tGroup = (SArray*)taosArrayGetP(pTableListInfo->pGroupList, index);
       if (taosArrayPush(tGroup, info) == NULL) {
         qError("taos push uid array error");
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _error;
+        taosArrayDestroy(sortSupport);
+        return TSDB_CODE_QRY_APP_ERROR;
       }
     }
   }
-
   taosArrayDestroy(sortSupport);
-#endif
-
   return TDB_CODE_SUCCESS;
-
-  _error:
-//  taosArrayDestroy(sortSupport);
-  return code;
 }
 
 bool groupbyTbname(SNodeList* pGroupList) {
@@ -3489,44 +3437,38 @@ bool groupbyTbname(SNodeList* pGroupList) {
   return bytbname;
 }
 
-int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* group, bool groupSort) {
-  int32_t code = TSDB_CODE_SUCCESS;
+int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* group) {
   if (group == NULL) {
-    return code;
+    return TDB_CODE_SUCCESS;
   }
 
   pTableListInfo->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (pTableListInfo->map == NULL) {
-    code = TSDB_CODE_OUT_OF_MEMORY;
-    return code;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  bool   assignUid = groupbyTbname(group);
+  bool assignUid = groupbyTbname(group);
+
   size_t numOfTables = taosArrayGetSize(pTableListInfo->pTableList);
 
-  if (assignUid) { // in case of group/partition by tbname, the group id is equalled to the uid of table
+  if (assignUid) {
     for (int32_t i = 0; i < numOfTables; i++) {
       STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
       info->groupId = info->uid;
       taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), &info->groupId, sizeof(uint64_t));
     }
-
-    pTableListInfo->oneTableForEachGroup = true;
-    if (groupSort) {
-      pTableListInfo->numOfOuputGroups = numOfTables;
-    }
   } else {
-    code = getColInfoResultForGroupby(pHandle->meta, group, pTableListInfo);
+    int32_t code = getColInfoResultForGroupby(pHandle->meta, group, pTableListInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
-
-    if (groupSort) {
-      code = sortTableGroup(pTableListInfo);
-    }
   }
 
-  return code;
+  if (pTableListInfo->needSortTableByGroupId) {
+    return sortTableGroup(pTableListInfo);
+  }
+
+  return TDB_CODE_SUCCESS;
 }
 
 static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pCond) {
@@ -3562,12 +3504,6 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     SOperatorInfo* pOperator = NULL;
     if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == type) {
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
-
-      // NOTE: this is an patch to fix the physical plan
-      // TODO remove it later
-      if (pTableScanNode->scan.node.pLimit != NULL) {
-        pTableScanNode->groupSort = true;
-      }
 
       int32_t code =
           createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort, pHandle,
@@ -3627,10 +3563,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         int32_t sz = taosArrayGetSize(pTableListInfo->pTableList);
         for (int32_t i = 0; i < sz; i++) {
           STableKeyInfo* pKeyInfo = taosArrayGet(pTableListInfo->pTableList, i);
-          qDebug("creating stream task: add table uid:%" PRIu64, pKeyInfo->uid);
+          qDebug("creating stream task: add table %" PRId64, pKeyInfo->uid);
         }
-
-        qDebug("table in hashmap, %d", (int32_t) getTotalTables(pTableListInfo));
 #endif
       }
 
@@ -3665,20 +3599,13 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       }
 
       SQueryTableDataCond cond = {0};
-
-      int32_t code = initTableblockDistQueryCond(pBlockNode->suid, &cond);
+      int32_t             code = initTableblockDistQueryCond(pBlockNode->suid, &cond);
       if (code != TSDB_CODE_SUCCESS) {
         return NULL;
       }
 
-      size_t num = getTotalTables(pTableListInfo);
-      void*  pList = NULL;
-      if (num > 0) {
-        pList = taosArrayGet(pTableListInfo->pTableList, 0);
-      }
-
       STsdbReader* pReader = NULL;
-      tsdbReaderOpen(pHandle->vnode, &cond, pList, num, &pReader, "");
+      tsdbReaderOpen(pHandle->vnode, &cond, pTableListInfo->pTableList, &pReader, "");
       cleanupQueryTableDataCond(&cond);
 
       pOperator = createDataBlockInfoScanOperator(pReader, pHandle, cond.suid, pBlockNode, pTaskInfo);
@@ -3712,8 +3639,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     return pOperator;
   }
 
-  size_t  size = LIST_LENGTH(pPhyNode->pChildren);
-
+  size_t          size = LIST_LENGTH(pPhyNode->pChildren);
   SOperatorInfo** ops = taosMemoryCalloc(size, POINTER_BYTES);
   for (int32_t i = 0; i < size; ++i) {
     SPhysiNode* pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, i);
@@ -4049,10 +3975,28 @@ _complete:
   return code;
 }
 
+void doDestroyTableList(STableListInfo* pTableqinfoList) {
+  taosArrayDestroy(pTableqinfoList->pTableList);
+  taosHashCleanup(pTableqinfoList->map);
+  if (pTableqinfoList->needSortTableByGroupId) {
+    for (int32_t i = 0; i < taosArrayGetSize(pTableqinfoList->pGroupList); i++) {
+      SArray* tmp = taosArrayGetP(pTableqinfoList->pGroupList, i);
+      if (tmp == pTableqinfoList->pTableList) {
+        continue;
+      }
+      taosArrayDestroy(tmp);
+    }
+  }
+  taosArrayDestroy(pTableqinfoList->pGroupList);
+
+  pTableqinfoList->pTableList = NULL;
+  pTableqinfoList->map = NULL;
+}
+
 void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   qDebug("%s execTask is freed", GET_TASKID(pTaskInfo));
 
-  destroyTableList(&pTaskInfo->tableqinfoList);
+  doDestroyTableList(&pTaskInfo->tableqinfoList);
   destroyOperatorInfo(pTaskInfo->pRoot);
   cleanupTableSchemaInfo(&pTaskInfo->schemaInfo);
   cleanupStreamInfo(&pTaskInfo->streamInfo);

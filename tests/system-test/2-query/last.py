@@ -19,6 +19,13 @@ class TDTestCase:
         self.nchar_str = '涛思数据'
         self.cachemodel = None
 
+    def generateString(self, length):
+        chars = string.ascii_uppercase + string.ascii_lowercase
+        v = ""
+        for i in range(length):
+            v += random.choice(chars)
+        return v
+
     def set_create_normaltable_sql(self, ntbname, column_dict):
         column_sql = ''
         for k, v in column_dict.items():
@@ -168,6 +175,8 @@ class TDTestCase:
                 # nchar
                 elif 'nchar' in v.lower():
                     tdSql.checkData(0, 0, f'{self.nchar_str}{self.rowNum}')
+        
+        
 
         tdSql.error(
             f"select {list(column_dict.keys())[0]} from {ntbname} where last({list(column_dict.keys())[9]})='涛思数据10'")
@@ -246,12 +255,45 @@ class TDTestCase:
                     tdSql.checkData(0, 0, f'{self.nchar_str}{self.rowNum}')
         tdSql.execute(f'drop database {dbname}')
 
+    def last_file_check(self):
+        dbname = tdCom.getLongName(10, "letters")
+        stbname = f'{dbname}.{tdCom.getLongName(5, "letters")}'
+        vgroup_num = 10
+        buffer_size = 3
+        tables = 100
+        rows = 50
+        str = self.generateString(1024)
+        column_dict = {
+            'c1': 'int',
+            'c2': 'binary(1024)',
+            'c3': 'nchar(1024)'
+        }
+        tag_dict = {
+            't1':'int'
+        }                
+        
+        tdSql.execute(
+            f"create database if not exists {dbname} vgroups {vgroup_num} buffer {buffer_size}")
+        tdSql.execute(f'use {dbname}')
+
+        create_ntb_sql = self.set_create_stable_sql(stbname, column_dict, tag_dict)
+        tdSql.execute(create_ntb_sql)
+
+        for i in range(tables):
+            sql = f"create table {dbname}.sub_tb{i} using {stbname} tags({i})"
+            tdSql.execute(sql)
+            for j in range(rows):
+                tdSql.execute(f"insert into {dbname}.sub_tb{i} values(%d, %d, '%s', '%s')" % (self.ts + j, i, str, str))
+                
+        tdSql.query(f"select * from {stbname}")
+        tdSql.checkRows(tables * rows)
+
+
     def run(self):
-        for cachemodel in ["None", "last_row", "last_value", "both"]:
-            self.cachemodel = cachemodel
-            self.last_check_stb_tb_base()
-            self.last_check_ntb_base()
-            self.last_check_stb_distribute()
+        self.last_check_stb_tb_base()
+        self.last_check_ntb_base()
+        self.last_check_stb_distribute()
+        self.last_file_check()
 
     def stop(self):
         tdSql.close()

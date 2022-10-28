@@ -596,18 +596,6 @@ static int32_t pushDownCondOptPushCondToOnCond(SOptimizeContext* pCxt, SJoinLogi
   return pushDownCondOptAppendCond(&pJoin->pOnConditions, pCond);
 }
 
-static int32_t pushDownCondOptPushCondToScan(SOptimizeContext* pCxt, SScanLogicNode* pScan, SNode** pCond) {
-  return pushDownCondOptAppendCond(&pScan->node.pConditions, pCond);
-}
-
-static int32_t pushDownCondOptPushCondToProject(SOptimizeContext* pCxt, SProjectLogicNode* pProject, SNode** pCond) {
-  return pushDownCondOptAppendCond(&pProject->node.pConditions, pCond);
-}
-
-static int32_t pushDownCondOptPushCondToJoin(SOptimizeContext* pCxt, SJoinLogicNode* pJoin, SNode** pCond) {
-  return pushDownCondOptAppendCond(&pJoin->node.pConditions, pCond);
-}
-
 static int32_t pushDownCondOptPushCondToChild(SOptimizeContext* pCxt, SLogicNode* pChild, SNode** pCond) {
   return pushDownCondOptAppendCond(&pChild->pConditions, pCond);
 }
@@ -1201,40 +1189,6 @@ static bool smaIndexOptMayBeOptimized(SLogicNode* pNode) {
   return true;
 }
 
-static int32_t smaIndexOptCreateMerge(SLogicNode* pChild, SNodeList* pMergeKeys, SNodeList* pTargets,
-                                      SLogicNode** pOutput) {
-  SMergeLogicNode* pMerge = (SMergeLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_MERGE);
-  if (NULL == pMerge) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  pMerge->node.precision = pChild->precision;
-  pMerge->numOfChannels = 2;
-  pMerge->pMergeKeys = pMergeKeys;
-  pMerge->node.pTargets = pTargets;
-  pMerge->pInputs = nodesCloneList(pChild->pTargets);
-  if (NULL == pMerge->pInputs) {
-    nodesDestroyNode((SNode*)pMerge);
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  *pOutput = (SLogicNode*)pMerge;
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t smaIndexOptRecombinationNode(SLogicSubplan* pLogicSubplan, SLogicNode* pInterval, SLogicNode* pMerge,
-                                            SLogicNode* pSmaScan) {
-  int32_t code = nodesListMakeAppend(&pMerge->pChildren, (SNode*)pInterval);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListMakeAppend(&pMerge->pChildren, (SNode*)pSmaScan);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = replaceLogicNode(pLogicSubplan, pInterval, pMerge);
-    pSmaScan->pParent = pMerge;
-    pInterval->pParent = pMerge;
-  }
-  return code;
-}
-
 static int32_t smaIndexOptCreateSmaScan(SScanLogicNode* pScan, STableIndexInfo* pIndex, SNodeList* pCols,
                                         SLogicNode** pOutput) {
   SScanLogicNode* pSmaScan = (SScanLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_SCAN);
@@ -1770,7 +1724,7 @@ static int32_t rewriteTailOptCreateLimit(SNode* pLimit, SNode* pOffset, SNode** 
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   pLimitNode->limit = NULL == pLimit ? -1 : ((SValueNode*)pLimit)->datum.i;
-  pLimitNode->offset = NULL == pOffset ? -1 : ((SValueNode*)pOffset)->datum.i;
+  pLimitNode->offset = NULL == pOffset ? 0 : ((SValueNode*)pOffset)->datum.i;
   *pOutput = (SNode*)pLimitNode;
   return TSDB_CODE_SUCCESS;
 }

@@ -270,27 +270,24 @@ static void resetDataBlockScanInfo(SHashObj* pTableMap, int64_t ts) {
   }
 }
 
-static void clearBlockScanInfo(STableBlockScanInfo* p) {
-  p->iterInit = false;
-  p->iiter.hasVal = false;
-
-  if (p->iter.iter != NULL) {
-    p->iter.iter = tsdbTbDataIterDestroy(p->iter.iter);
-  }
-
-  if (p->iiter.iter != NULL) {
-    p->iiter.iter = tsdbTbDataIterDestroy(p->iiter.iter);
-  }
-
-  p->delSkyline = taosArrayDestroy(p->delSkyline);
-  p->pBlockList = taosArrayDestroy(p->pBlockList);
-  tMapDataClear(&p->mapData);
-}
-
 static void destroyBlockScanInfo(SHashObj* pTableMap) {
   STableBlockScanInfo* p = NULL;
+
   while ((p = taosHashIterate(pTableMap, p)) != NULL) {
-    clearBlockScanInfo(p);
+    p->iterInit = false;
+    p->iiter.hasVal = false;
+
+    if (p->iter.iter != NULL) {
+      p->iter.iter = tsdbTbDataIterDestroy(p->iter.iter);
+    }
+
+    if (p->iiter.iter != NULL) {
+      p->iiter.iter = tsdbTbDataIterDestroy(p->iiter.iter);
+    }
+
+    p->delSkyline = taosArrayDestroy(p->delSkyline);
+    p->pBlockList = taosArrayDestroy(p->pBlockList);
+    tMapDataClear(&p->mapData);
   }
 
   taosHashCleanup(pTableMap);
@@ -3455,23 +3452,13 @@ int32_t buildDataBlockFromBufImpl(STableBlockScanInfo* pBlockScanInfo, int64_t e
   return TSDB_CODE_SUCCESS;
 }
 
-// TODO refactor: with createDataBlockScanInfo
-int32_t tsdbSetTableList(STsdbReader* pReader, const void* pTableList, int32_t num) {
+// todo refactor, use arraylist instead
+int32_t tsdbSetTableId(STsdbReader* pReader, int64_t uid) {
   ASSERT(pReader != NULL);
-
-  STableBlockScanInfo* p = NULL;
-  while ((p = taosHashIterate(pReader->status.pTableMap, p)) != NULL) {
-    clearBlockScanInfo(p);
-  }
-
   taosHashClear(pReader->status.pTableMap);
 
-  STableKeyInfo* pList = (STableKeyInfo*) pTableList;
-  for(int32_t i = 0; i < num; ++i) {
-    STableBlockScanInfo info = {.lastKey = 0, .uid = pList[i].uid};
-    taosHashPut(pReader->status.pTableMap, &info.uid, sizeof(uint64_t), &info, sizeof(info));
-  }
-
+  STableBlockScanInfo info = {.lastKey = 0, .uid = uid};
+  taosHashPut(pReader->status.pTableMap, &info.uid, sizeof(uint64_t), &info, sizeof(info));
   return TDB_CODE_SUCCESS;
 }
 
@@ -3507,8 +3494,8 @@ static int32_t doOpenReaderImpl(STsdbReader* pReader) {
 }
 
 // ====================================== EXPOSED APIs ======================================
-int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableList, int32_t numOfTables,
-                       STsdbReader** ppReader, const char* idstr) {
+int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTableList, STsdbReader** ppReader,
+                       const char* idstr) {
   STimeWindow window = pCond->twindows;
   if (pCond->type == TIMEWINDOW_RANGE_EXTERNAL) {
     pCond->twindows.skey += 1;
@@ -3567,8 +3554,8 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
     if (pReader->pSchema == NULL) {
       tsdbError("failed to get table schema, suid:%" PRIu64 ", ver:-1, %s", pReader->suid, pReader->idStr);
     }
-  } else if (numOfTables > 0) {
-    STableKeyInfo* pKey = pTableList;
+  } else if (taosArrayGetSize(pTableList) > 0) {
+    STableKeyInfo* pKey = taosArrayGet(pTableList, 0);
     pReader->pSchema = metaGetTbTSchema(pReader->pTsdb->pVnode->pMeta, pKey->uid, -1, 1);
     if (pReader->pSchema == NULL) {
       tsdbError("failed to get table schema, uid:%" PRIu64 ", ver:-1, %s", pKey->uid, pReader->idStr);
@@ -3577,7 +3564,8 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
 
   STsdbReader* p = pReader->innerReader[0] != NULL ? pReader->innerReader[0] : pReader;
 
-  pReader->status.pTableMap = createDataBlockScanInfo(p, pTableList, numOfTables);
+  int32_t numOfTables = taosArrayGetSize(pTableList);
+  pReader->status.pTableMap = createDataBlockScanInfo(p, pTableList->pData, numOfTables);
   if (pReader->status.pTableMap == NULL) {
     tsdbReaderClose(pReader);
     *ppReader = NULL;
@@ -3787,7 +3775,7 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
   return false;
 }
 
-bool tsdbTableNextDataBlock(STsdbReader* pReader, uint64_t uid) {
+bool tsdbTableNextDataBlock(STsdbReader* pReader, int64_t uid) {
   STableBlockScanInfo* pBlockScanInfo = taosHashGet(pReader->status.pTableMap, &uid, sizeof(uid));
   if (pBlockScanInfo == NULL) {  // no data block for the table of given uid
     return false;
@@ -4186,3 +4174,4 @@ void tsdbUntakeReadSnap(STsdb* pTsdb, STsdbReadSnap* pSnap, const char* idStr) {
   }
   tsdbTrace("vgId:%d, untake read snapshot, %s", TD_VID(pTsdb->pVnode), idStr);
 }
+bool tsdbIsAscendingOrder(STsdbReader* pReader) { return ASCENDING_TRAVERSE(pReader->order); }

@@ -32,7 +32,7 @@
 #include "tname.h"
 #include "tuuid.h"
 
-extern bool tsSchedStreamToSnode;
+extern bool tsDeployOnSnode;
 
 static int32_t mndAddTaskToTaskSet(SArray* pArray, SStreamTask* pTask) {
   int32_t childId = taosArrayGetSize(pArray);
@@ -190,7 +190,7 @@ int32_t mndAssignTaskToSnode(SMnode* pMnode, SStreamTask* pTask, SSubplan* plan,
   pTask->nodeId = SNODE_HANDLE;
   pTask->epSet = mndAcquireEpFromSnode(pMnode, pSnode);
 
-  plan->execNode.nodeId = 0;
+  plan->execNode.nodeId = SNODE_HANDLE;
   plan->execNode.epSet = pTask->epSet;
 
   if (qSubPlanToString(plan, &pTask->exec.qmsg, &msgLen) < 0) {
@@ -373,7 +373,7 @@ int32_t mndScheduleStream(SMnode* pMnode, SStreamObj* pStream) {
         return -1;
       }
 
-      if (tsSchedStreamToSnode) {
+      if (tsDeployOnSnode) {
         SSnodeObj* pSnode = mndSchedFetchOneSnode(pMnode);
         if (pSnode == NULL) {
           SVgObj* pVgroup = mndSchedFetchOneVg(pMnode, pStream->sourceDbUid);

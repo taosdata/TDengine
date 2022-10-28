@@ -584,6 +584,7 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  pSubplan->showRewrite = pScanLogicNode->showRewrite;
   pScan->showRewrite = pScanLogicNode->showRewrite;
   pScan->accountId = pCxt->pPlanCxt->acctId;
   pScan->sysInfo = pCxt->pPlanCxt->sysInfo;
