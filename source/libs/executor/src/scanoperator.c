@@ -1565,7 +1565,6 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   if (groupIdPre) {
     pInfo->pRes->info.groupId = *groupIdPre;
   } else {
-    ASSERT(0);
     pInfo->pRes->info.groupId = 0;
   }
 
