@@ -390,6 +390,8 @@ pub async fn tmq_to_td(from: Dsn, actions: Vec<Action>, mut to: Dsn, jobs: usize
     for handle in handles {
         handle.await??;
     }
+    drop(target);
+    log::info!("done");
 
     // let tmq = TmqBuilder::from_dsn(&from)?;
     // let target = TaosBuilder::from_dsn(to)?;
