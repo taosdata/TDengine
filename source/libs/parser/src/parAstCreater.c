@@ -1372,11 +1372,12 @@ SNode* createShowTableDistributedStmt(SAstCreateContext* pCxt, SNode* pRealTable
   return (SNode*)pStmt;
 }
 
-SNode* createShowDnodeVariablesStmt(SAstCreateContext* pCxt, SNode* pDnodeId) {
+SNode* createShowDnodeVariablesStmt(SAstCreateContext* pCxt, SNode* pDnodeId, SNode* pLikePattern) {
   CHECK_PARSER_STATUS(pCxt);
   SShowDnodeVariablesStmt* pStmt = (SShowDnodeVariablesStmt*)nodesMakeNode(QUERY_NODE_SHOW_DNODE_VARIABLES_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->pDnodeId = pDnodeId;
+  pStmt->pLikePattern = pLikePattern;
   return (SNode*)pStmt;
 }
 
@@ -1701,6 +1702,7 @@ SNode* createStreamOptions(SAstCreateContext* pCxt) {
   SStreamOptions* pOptions = (SStreamOptions*)nodesMakeNode(QUERY_NODE_STREAM_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
   pOptions->triggerType = STREAM_TRIGGER_AT_ONCE;
+  pOptions->fillHistory = STREAM_DEFAULT_FILL_HISTORY;
   pOptions->ignoreExpired = STREAM_DEFAULT_IGNORE_EXPIRED;
   return (SNode*)pOptions;
 }

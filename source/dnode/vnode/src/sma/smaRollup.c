@@ -15,11 +15,11 @@
 
 #include "sma.h"
 
-#define RSMA_QTASKEXEC_SMOOTH_SIZE (100)                                                 // cnt
-#define RSMA_SUBMIT_BATCH_SIZE     (1024)                                                // cnt
-#define RSMA_FETCH_DELAY_MAX       (120000)                                              // ms
-#define RSMA_FETCH_ACTIVE_MAX      (1000)                                                // ms
-#define RSMA_FETCH_INTERVAL        (5000)                                                // ms
+#define RSMA_QTASKEXEC_SMOOTH_SIZE (100)     // cnt
+#define RSMA_SUBMIT_BATCH_SIZE     (1024)    // cnt
+#define RSMA_FETCH_DELAY_MAX       (120000)  // ms
+#define RSMA_FETCH_ACTIVE_MAX      (1000)    // ms
+#define RSMA_FETCH_INTERVAL        (5000)    // ms
 
 SSmaMgmt smaMgmt = {
     .inited = 0,
@@ -342,7 +342,7 @@ static int32_t tdSetRSmaInfoItemParams(SSma *pSma, SRSmaParam *param, SRSmaStat 
 
     smaInfo("vgId:%d, item:%p table:%" PRIi64 " level:%" PRIi8 " maxdelay:%" PRIi64 " watermark:%" PRIi64
             ", finally maxdelay:%" PRIi32,
-            TD_VID(pVnode), pItem, pRSmaInfo->suid, idx + 1, param->maxdelay[idx], param->watermark[idx],
+            TD_VID(pVnode), pItem, pRSmaInfo->suid, (int8_t)(idx + 1), param->maxdelay[idx], param->watermark[idx],
             pItem->maxDelay);
   }
   return TSDB_CODE_SUCCESS;
@@ -839,7 +839,7 @@ static int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int32_t msgSize, 
     tdRsmaPrintSubmitReq(pSma, pReq);
   }
 #endif
-  if (qSetMultiStreamInput(qTaskInfo, pMsg, msgSize, inputType) < 0) {
+  if (qSetSMAInput(qTaskInfo, pMsg, msgSize, inputType) < 0) {
     smaError("vgId:%d, rsma %" PRIi8 " qSetStreamInput failed since %s", SMA_VID(pSma), level, tstrerror(terrno));
     return TSDB_CODE_FAILED;
   }
@@ -1387,7 +1387,7 @@ static int32_t tdRSmaFetchAllResult(SSma *pSma, SRSmaInfo *pInfo) {
       }
 
       if ((++pItem->nScanned * pItem->maxDelay) > RSMA_FETCH_DELAY_MAX) {
-        smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nScanned:%" PRIi8 " maxDelay:%d, fetch executed",
+        smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nScanned:%" PRIi16 " maxDelay:%d, fetch executed",
                  SMA_VID(pSma), pInfo->suid, i, pItem->nScanned, pItem->maxDelay);
       } else {
         int64_t curMs = taosGetTimestampMs();
@@ -1404,17 +1404,17 @@ static int32_t tdRSmaFetchAllResult(SSma *pSma, SRSmaInfo *pInfo) {
 
       pItem->nScanned = 0;
 
-      if ((terrno = qSetMultiStreamInput(taskInfo, &dataBlock, 1, STREAM_INPUT__DATA_BLOCK)) < 0) {
+      if ((terrno = qSetSMAInput(taskInfo, &dataBlock, 1, STREAM_INPUT__DATA_BLOCK)) < 0) {
         goto _err;
       }
       if (tdRSmaExecAndSubmitResult(pSma, taskInfo, pItem, pInfo->pTSchema, pInfo->suid) < 0) {
         goto _err;
       }
 
-      smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nScanned:%" PRIi8 " maxDelay:%d, fetch finished",
+      smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nScanned:%" PRIi16 " maxDelay:%d, fetch finished",
                SMA_VID(pSma), pInfo->suid, i, pItem->nScanned, pItem->maxDelay);
     } else {
-      smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nScanned:%" PRIi8
+      smaDebug("vgId:%d, suid:%" PRIi64 " level:%" PRIi8 " nScanned:%" PRIi16
                " maxDelay:%d, fetch not executed as fetch level is %" PRIi8,
                SMA_VID(pSma), pInfo->suid, i, pItem->nScanned, pItem->maxDelay, pItem->fetchLevel);
     }
@@ -1513,7 +1513,7 @@ int32_t tdRSmaProcessExecImpl(SSma *pSma, ERsmaExecType type) {
               int32_t qallItemSize = taosQallItemSize(pInfo->qall);
               if (qallItemSize > 0) {
                 tdRSmaBatchExec(pSma, pInfo, pInfo->qall, pSubmitArr, type);
-                smaDebug("vgId:%d, batchSize:%d, execType:%" PRIi8, SMA_VID(pSma), qallItemSize, type);
+                smaDebug("vgId:%d, batchSize:%d, execType:%" PRIi32, SMA_VID(pSma), qallItemSize, type);
               }
 
               if (RSMA_INFO_ITEM(pInfo, 0)->fetchLevel || RSMA_INFO_ITEM(pInfo, 1)->fetchLevel) {

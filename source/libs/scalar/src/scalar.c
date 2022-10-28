@@ -331,7 +331,10 @@ int32_t sclInitParam(SNode *node, SScalarParam *param, SScalarCtx *ctx, int32_t 
 
       ASSERT(param->columnData == NULL);
       param->numOfRows = 1;
-      /*int32_t code = */ sclCreateColumnInfoData(&valueNode->node.resType, 1, param);
+      int32_t code = sclCreateColumnInfoData(&valueNode->node.resType, 1, param);
+      if (code != TSDB_CODE_SUCCESS) {
+        SCL_RET(TSDB_CODE_OUT_OF_MEMORY);
+      }
       if (TSDB_DATA_TYPE_NULL == valueNode->node.resType.type || valueNode->isNull) {
         colDataAppendNULL(param->columnData, 0);
       } else {
@@ -1082,7 +1085,8 @@ EDealRes sclRewriteNonConstOperator(SNode **pNode, SScalarCtx *ctx) {
 EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
   SFunctionNode *node = (SFunctionNode *)*pNode;
   SNode         *tnode = NULL;
-  if (!fmIsScalarFunc(node->funcId) && (!ctx->dual)) {
+  if ((!fmIsScalarFunc(node->funcId) && (!ctx->dual)) ||
+      fmIsUserDefinedFunc(node->funcId)) {
     return DEAL_RES_CONTINUE;
   }
 
@@ -1485,8 +1489,13 @@ static int32_t sclGetMinusOperatorResType(SOperatorNode *pOp) {
 }
 
 static int32_t sclGetMathOperatorResType(SOperatorNode *pOp) {
+  if (pOp == NULL || pOp->pLeft == NULL || pOp->pRight == NULL) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
   SDataType ldt = ((SExprNode *)(pOp->pLeft))->resType;
   SDataType rdt = ((SExprNode *)(pOp->pRight))->resType;
+
   if ((TSDB_DATA_TYPE_TIMESTAMP == ldt.type && TSDB_DATA_TYPE_TIMESTAMP == rdt.type) ||
       (TSDB_DATA_TYPE_TIMESTAMP == ldt.type && (IS_VAR_DATA_TYPE(rdt.type) || IS_FLOAT_TYPE(rdt.type))) ||
       (TSDB_DATA_TYPE_TIMESTAMP == rdt.type && (IS_VAR_DATA_TYPE(ldt.type) || IS_FLOAT_TYPE(ldt.type)))) {
@@ -1507,10 +1516,21 @@ static int32_t sclGetMathOperatorResType(SOperatorNode *pOp) {
 }
 
 static int32_t sclGetCompOperatorResType(SOperatorNode *pOp) {
+  if (pOp == NULL || pOp->pLeft == NULL) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
   SDataType ldt = ((SExprNode *)(pOp->pLeft))->resType;
+
   if (OP_TYPE_IN == pOp->opType || OP_TYPE_NOT_IN == pOp->opType) {
+    if (pOp->pRight == NULL) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
     ((SExprNode *)(pOp->pRight))->resType = ldt;
   } else if (nodesIsRegularOp(pOp)) {
+    if (pOp->pRight == NULL) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
     SDataType rdt = ((SExprNode *)(pOp->pRight))->resType;
     if (!IS_VAR_DATA_TYPE(ldt.type) || QUERY_NODE_VALUE != nodeType(pOp->pRight) ||
         (!IS_STR_DATA_TYPE(rdt.type) && (rdt.type != TSDB_DATA_TYPE_NULL))) {
@@ -1523,8 +1543,13 @@ static int32_t sclGetCompOperatorResType(SOperatorNode *pOp) {
 }
 
 static int32_t sclGetJsonOperatorResType(SOperatorNode *pOp) {
+  if (pOp == NULL || pOp->pLeft == NULL || pOp->pRight == NULL) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
   SDataType ldt = ((SExprNode *)(pOp->pLeft))->resType;
   SDataType rdt = ((SExprNode *)(pOp->pRight))->resType;
+
   if (TSDB_DATA_TYPE_JSON != ldt.type || !IS_STR_DATA_TYPE(rdt.type)) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }

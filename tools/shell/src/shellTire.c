@@ -308,28 +308,21 @@ void matchPrefixFromTree(STire* tire, char* prefix, SMatch* match) {
   }
 }
 
-SMatch* matchPrefix(STire* tire, char* prefix, SMatch* match) {
+void matchPrefix(STire* tire, char* prefix, SMatch* match) {
   if (match == NULL) {
-    match = (SMatch*)taosMemoryMalloc(sizeof(SMatch));
-    memset(match, 0, sizeof(SMatch));
+    return;
   }
 
   switch (tire->type) {
     case TIRE_TREE:
       matchPrefixFromTree(tire, prefix, match);
+      break;
     case TIRE_LIST:
       matchPrefixFromList(tire, prefix, match);
+      break;
     default:
       break;
   }
-
-  // return if need
-  if (match->count == 0) {
-    freeMatch(match);
-    match = NULL;
-  }
-
-  return match;
 }
 
 // get all items from tires tree
@@ -363,10 +356,11 @@ void enumFromTree(STire* tire, SMatch* match) {
     }
 
     // this branch have data
-    if (c->end)
+    if (c->end) {
       addWordToMatch(match, pre);
-    else
+    } else {
       matchPrefix(tire, pre, match);
+    }
   }
 }
 
@@ -378,8 +372,10 @@ SMatch* enumAll(STire* tire) {
   switch (tire->type) {
     case TIRE_TREE:
       enumFromTree(tire, match);
+      break;
     case TIRE_LIST:
       enumFromList(tire, match);
+      break;
     default:
       break;
   }

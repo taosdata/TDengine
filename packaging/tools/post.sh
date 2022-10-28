@@ -118,6 +118,7 @@ function kill_taosd() {
 }
 
 function install_include() {
+    ${csudo}mkdir -p ${inc_link_dir}
     ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/taosudf.h || :
     [ -f ${inc_link_dir}/taosws.h ] && ${csudo}rm -f ${inc_link_dir}/taosws.h ||:
 

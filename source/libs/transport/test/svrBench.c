@@ -134,7 +134,7 @@ int main(int argc, char *argv[]) {
       dDebugFlag = rpcDebugFlag;
       uDebugFlag = rpcDebugFlag;
     } else {
-      printf("\nusage:% [options] \n", argv[0]);
+      printf("\nusage:%s [options] \n", argv[0]);
       printf("  [-p port]: server port number, default is:%d\n", rpcInit.localPort);
       printf("  [-t threads]: number of rpc threads, default is:%d\n", rpcInit.numOfThreads);
       printf("  [-s sessions]: number of sessions, default is:%d\n", rpcInit.sessions);

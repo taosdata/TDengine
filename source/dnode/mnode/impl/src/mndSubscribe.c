@@ -19,7 +19,6 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
-#include "mndOffset.h"
 #include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndStb.h"
@@ -76,7 +75,6 @@ int32_t mndInitSubscribe(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_VND_MQ_VG_CHANGE_RSP, mndTransProcessRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_MQ_VG_DELETE_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_MND_MQ_DO_REBALANCE, mndProcessRebalanceReq);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_DO_REBALANCE, mndProcessRebalanceReq);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_DROP_CGROUP, mndProcessDropCgroupReq);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_DROP_CGROUP_RSP, mndTransProcessRsp);
@@ -426,10 +424,10 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
       if (pIter == NULL) break;
       SMqConsumerEp *pConsumerEp = (SMqConsumerEp *)pIter;
       int32_t        sz = taosArrayGetSize(pConsumerEp->vgs);
-      mInfo("mq rebalance: final cfg: consumer %ld has %d vg", pConsumerEp->consumerId, sz);
+      mInfo("mq rebalance: final cfg: consumer %" PRId64 " has %d vg", pConsumerEp->consumerId, sz);
       for (int32_t i = 0; i < sz; i++) {
         SMqVgEp *pVgEp = taosArrayGetP(pConsumerEp->vgs, i);
-        mInfo("mq rebalance: final cfg: vg %d to consumer %ld", pVgEp->vgId, pConsumerEp->consumerId);
+        mInfo("mq rebalance: final cfg: vg %d to consumer %" PRId64 "", pVgEp->vgId, pConsumerEp->consumerId);
       }
     }
   }
@@ -550,7 +548,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
 
   // 6. execution
   if (mndTransPrepare(pMnode, pTrans) != 0) {
-    ASSERT(0);
+    mError("failed to prepare trans rebalance since %s", terrstr());
     goto REB_FAIL;
   }
 
@@ -683,12 +681,6 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pReq) {
   }
 
   mInfo("trans:%d, used to drop cgroup:%s on topic %s", pTrans->id, dropReq.cgroup, dropReq.topic);
-
-  if (mndDropOffsetBySubKey(pMnode, pTrans, pSub->key) < 0) {
-    mndReleaseSubscribe(pMnode, pSub);
-    mndTransDrop(pTrans);
-    return -1;
-  }
 
   if (mndSetDropSubCommitLogs(pMnode, pTrans, pSub) < 0) {
     mError("cgroup %s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());

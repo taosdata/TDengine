@@ -17,7 +17,7 @@ set -e
 #             -H [ false | true]
 
 # set parameters by default value
-verMode=edge    # [cluster, edge]
+verMode=edge    # [cluster, edge, cloud]
 verType=stable  # [stable, beta]
 cpuType=x64     # [aarch32 | aarch64 | x64 | x86 | mips64 ...]
 osType=Linux    # [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...]
@@ -169,7 +169,7 @@ build_time=$(date +"%F %R")
 # get commint id from git
 gitinfo=$(git rev-parse --verify HEAD)
 
-if [[ "$verMode" == "cluster" ]]; then
+if [[ "$verMode" == "cluster" ]] || [[ "$verMode" == "cloud" ]]; then
   enterprise_dir="${top_dir}/../enterprise"
   cd ${enterprise_dir}
   gitinfoOfInternal=$(git rev-parse --verify HEAD)
@@ -205,7 +205,7 @@ else
   BUILD_HTTP=false
 fi
 
-if [[ "$verMode" == "cluster" ]]; then
+if [[ "$verMode" == "cluster" ]] || [[ "$verMode" == "cloud" ]]; then
   BUILD_HTTP=internal
 fi
 
@@ -217,10 +217,12 @@ fi
 
 # check support cpu type
 if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "arm64" ]] || [[ "$cpuType" == "arm32" ]] || [[ "$cpuType" == "mips64" ]]; then
-  if [ "$verMode" != "cluster" ]; then
+  if [ "$verMode" == "edge" ]; then
     # community-version compile
     cmake ../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
-  else
+  elif [ "$verMode" == "cloud" ]; then
+    cmake ../../ -DCPUTYPE=${cpuType} -DWEBSOCKET=true -DBUILD_CLOUD=true -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DBUILD_HTTP=${BUILD_HTTP} -DBUILD_TOOLS=${BUILD_TOOLS} ${allocator_macro}
+  elif [ "$verMode" == "cluster" ]; then
     if [[ "$dbName" != "taos" ]]; then
       replace_enterprise_$dbName
     fi
@@ -244,7 +246,7 @@ cd ${curr_dir}
 
 # 3. Call the corresponding script for packaging
 if [ "$osType" != "Darwin" ]; then
-  if [[ "$verMode" != "cluster" ]] && [[ "$pagMode" == "full" ]] && [[ "$cpuType" == "x64" ]] && [[ "$dbName" == "taos" ]]; then
+  if [[ "$verMode" != "cluster" ]] && [[ "$verMode" != "cloud" ]] && [[ "$pagMode" == "full" ]] && [[ "$cpuType" == "x64" ]] && [[ "$dbName" == "taos" ]]; then
     ret='0'
     command -v dpkg >/dev/null 2>&1 || { ret='1'; }
     if [ "$ret" -eq 0 ]; then

@@ -60,6 +60,7 @@ bool osTempSpaceSufficient();
 
 void osSetTimezone(const char *timezone);
 void osSetSystemLocale(const char *inLocale, const char *inCharSet);
+void osSetProcPath(int32_t argc, char **argv);
 
 #ifdef __cplusplus
 }

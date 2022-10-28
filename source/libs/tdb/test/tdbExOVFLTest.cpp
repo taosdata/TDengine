@@ -119,13 +119,13 @@ static int tDefaultKeyCmpr(const void *pKey1, int keyLen1, const void *pKey2, in
   return cret;
 }
 
-TEST(TdbOVFLPagesTest, DISABLED_TbUpsertTest) {
-  // TEST(TdbOVFLPagesTest, TbUpsertTest) {
-}
+// TEST(TdbOVFLPagesTest, DISABLED_TbUpsertTest) {
+//  TEST(TdbOVFLPagesTest, TbUpsertTest) {
+//}
 
-TEST(TdbOVFLPagesTest, DISABLED_TbPGetTest) {
-  // TEST(TdbOVFLPagesTest, TbPGetTest) {
-}
+// TEST(TdbOVFLPagesTest, DISABLED_TbPGetTest) {
+//  TEST(TdbOVFLPagesTest, TbPGetTest) {
+//}
 
 static void generateBigVal(char *val, int valLen) {
   for (int i = 0; i < valLen; ++i) {
@@ -193,10 +193,8 @@ static void insertOfp(void) {
   tdbTxnClose(&txn);
 }
 
-TEST(TdbOVFLPagesTest, DISABLED_TbInsertTest) {
-  // TEST(TdbOVFLPagesTest, TbInsertTest) {
-  insertOfp();
-}
+// TEST(TdbOVFLPagesTest, DISABLED_TbInsertTest) {
+TEST(TdbOVFLPagesTest, TbInsertTest) { insertOfp(); }
 
 // TEST(TdbOVFLPagesTest, DISABLED_TbGetTest) {
 TEST(TdbOVFLPagesTest, TbGetTest) {
@@ -422,13 +420,13 @@ TEST(tdb_test, simple_insert1) {
 
       for (int i = 1; i <= nData; i++) {
         sprintf(key, "key%d", i);
-        sprintf(val, "value%d", i);
+        // sprintf(val, "value%d", i);
 
         ret = tdbTbGet(pDb, key, strlen(key), &pVal, &vLen);
         ASSERT(ret == 0);
         GTEST_ASSERT_EQ(ret, 0);
 
-        GTEST_ASSERT_EQ(vLen, strlen(val));
+        GTEST_ASSERT_EQ(vLen, sizeof(val) / sizeof(val[0]));
         GTEST_ASSERT_EQ(memcmp(val, pVal, vLen), 0);
       }
 

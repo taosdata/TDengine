@@ -18,7 +18,6 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
-#include "mndOffset.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndStb.h"
@@ -278,7 +277,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
 
   SMqConsumerObj *pConsumer = mndAcquireConsumer(pMnode, consumerId);
   if (pConsumer == NULL) {
-    mError("consumer %ld not exist", consumerId);
+    mError("consumer %" PRId64 " not exist", consumerId);
     terrno = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
     return -1;
   }
@@ -288,7 +287,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
   int32_t status = atomic_load_32(&pConsumer->status);
 
   if (status == MQ_CONSUMER_STATUS__LOST_REBD) {
-    mInfo("try to recover consumer %ld", consumerId);
+    mInfo("try to recover consumer %" PRId64 "", consumerId);
     SMqConsumerRecoverMsg *pRecoverMsg = rpcMallocCont(sizeof(SMqConsumerRecoverMsg));
 
     pRecoverMsg->consumerId = consumerId;
@@ -327,7 +326,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
 
 #if 1
   if (status == MQ_CONSUMER_STATUS__LOST_REBD) {
-    mInfo("try to recover consumer %ld", consumerId);
+    mInfo("try to recover consumer %" PRId64 "", consumerId);
     SMqConsumerRecoverMsg *pRecoverMsg = rpcMallocCont(sizeof(SMqConsumerRecoverMsg));
 
     pRecoverMsg->consumerId = consumerId;
@@ -341,7 +340,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
 #endif
 
   if (status != MQ_CONSUMER_STATUS__READY) {
-    mInfo("consumer %ld not ready, status: %s", consumerId, mndConsumerStatusName(status));
+    mInfo("consumer %" PRId64 " not ready, status: %s", consumerId, mndConsumerStatusName(status));
     terrno = TSDB_CODE_MND_CONSUMER_NOT_READY;
     return -1;
   }
@@ -408,12 +407,6 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
             .offset = -1,
         };
 
-        // 2.2.2 fetch vg offset
-        SMqOffsetObj *pOffsetObj = mndAcquireOffset(pMnode, offsetKey);
-        if (pOffsetObj != NULL) {
-          vgEp.offset = atomic_load_64(&pOffsetObj->offset);
-          mndReleaseOffset(pMnode, pOffsetObj);
-        }
         taosArrayPush(topicEp.vgs, &vgEp);
       }
       taosArrayPush(rsp.topics, &topicEp);

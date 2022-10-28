@@ -33,7 +33,7 @@ int32_t dsDataSinkGetCacheSize(SDataSinkStat* pStat) {
   return 0;
 }
 
-int32_t dsCreateDataSinker(const SDataSinkNode* pDataSink, DataSinkHandle* pHandle, void* pParam) {
+int32_t dsCreateDataSinker(const SDataSinkNode* pDataSink, DataSinkHandle* pHandle, void* pParam, const char* id) {
   switch ((int)nodeType(pDataSink)) {
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
       return createDataDispatcher(&gDataSinkManager, pDataSink, pHandle);
@@ -42,7 +42,9 @@ int32_t dsCreateDataSinker(const SDataSinkNode* pDataSink, DataSinkHandle* pHand
     case QUERY_NODE_PHYSICAL_PLAN_QUERY_INSERT:
       return createDataInserter(&gDataSinkManager, pDataSink, pHandle, pParam);
   }
-  return TSDB_CODE_FAILED;
+
+  qError("invalid input node type:%d, %s", nodeType(pDataSink), id);
+  return TSDB_CODE_QRY_INVALID_INPUT;
 }
 
 int32_t dsPutDataBlock(DataSinkHandle handle, const SInputData* pInput, bool* pContinue) {

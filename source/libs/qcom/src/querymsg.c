@@ -529,7 +529,7 @@ int32_t queryProcessGetDbCfgRsp(void *output, char *msg, int32_t msgSize) {
   }
 
   if (tDeserializeSDbCfgRsp(msg, msgSize, &out) != 0) {
-    qError("tDeserializeSDbCfgRsp failed, msgSize:%d", msgSize);
+    qError("tDeserializeSDbCfgRsp failed, msgSize:%d,dbCfgRsp:%lu", msgSize, sizeof(out));
     return TSDB_CODE_INVALID_MSG;
   }
 

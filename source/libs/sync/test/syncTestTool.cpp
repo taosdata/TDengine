@@ -266,14 +266,12 @@ int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* 
   gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
   gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
   gSyncIO->FpOnSyncClientRequest = pSyncNode->FpOnClientRequest;
-
   gSyncIO->FpOnSyncRequestVote = pSyncNode->FpOnRequestVote;
   gSyncIO->FpOnSyncRequestVoteReply = pSyncNode->FpOnRequestVoteReply;
   gSyncIO->FpOnSyncAppendEntries = pSyncNode->FpOnAppendEntries;
   gSyncIO->FpOnSyncAppendEntriesReply = pSyncNode->FpOnAppendEntriesReply;
-
-  gSyncIO->FpOnSyncSnapshotSend = pSyncNode->FpOnSnapshotSend;
-  gSyncIO->FpOnSyncSnapshotRsp = pSyncNode->FpOnSnapshotRsp;
+  gSyncIO->FpOnSyncSnapshot = pSyncNode->FpOnSnapshot;
+  gSyncIO->FpOnSyncSnapshotReply = pSyncNode->FpOnSnapshotReply;
 
   gSyncIO->pSyncNode = pSyncNode;
   syncNodeRelease(pSyncNode);

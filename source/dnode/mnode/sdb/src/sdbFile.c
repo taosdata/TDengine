@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "sdb.h"
+#include "sync.h"
 #include "tchecksum.h"
 #include "wal.h"
 
@@ -456,14 +457,25 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
 
   taosThreadMutexLock(&pSdb->filelock);
   if (pSdb->pWal != NULL) {
-    code = walBeginSnapshot(pSdb->pWal, pSdb->applyIndex);
+    // code = walBeginSnapshot(pSdb->pWal, pSdb->applyIndex);
+    if (pSdb->sync == 0) {
+      code = 0;
+    } else {
+      code = syncBeginSnapshot(pSdb->sync, pSdb->applyIndex);
+    }
   }
   if (code == 0) {
     code = sdbWriteFileImp(pSdb);
   }
   if (code == 0) {
     if (pSdb->pWal != NULL) {
-      code = walEndSnapshot(pSdb->pWal);
+      // code = walEndSnapshot(pSdb->pWal);
+
+      if (pSdb->sync == 0) {
+        code = 0;
+      } else {
+        code = syncEndSnapshot(pSdb->sync);
+      }
     }
   }
   if (code != 0) {
@@ -642,15 +654,12 @@ int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, i
   }
 
   if (config > 0) {
-    ASSERT(pSdb->commitConfig == config);
     pSdb->commitConfig = config;
   }
   if (term > 0) {
-    ASSERT(pSdb->commitTerm == term);
     pSdb->commitTerm = term;
   }
   if (index > 0) {
-    ASSERT(pSdb->commitIndex == index);
     pSdb->commitIndex = index;
   }
 

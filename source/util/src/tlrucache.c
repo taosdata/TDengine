@@ -337,6 +337,7 @@ static int taosLRUCacheShardInit(SLRUCacheShard *shard, size_t capacity, bool st
 
   taosThreadMutexInit(&shard->mutex, NULL);
 
+  taosThreadMutexLock(&shard->mutex);
   shard->capacity = 0;
   shard->highPriPoolUsage = 0;
   shard->strictCapacity = strict;
@@ -349,6 +350,7 @@ static int taosLRUCacheShardInit(SLRUCacheShard *shard, size_t capacity, bool st
   shard->lru.next = &shard->lru;
   shard->lru.prev = &shard->lru;
   shard->lruLowPri = &shard->lru;
+  taosThreadMutexUnlock(&shard->mutex);
 
   taosLRUCacheShardSetCapacity(shard, capacity);
 

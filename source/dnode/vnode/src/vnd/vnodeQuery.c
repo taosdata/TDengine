@@ -15,10 +15,13 @@
 
 #include "vnd.h"
 
-#define VNODE_GET_LOAD_RESET_VALS(pVar, oVal, vType)                   \
-  do {                                                                 \
-    int##vType##_t newVal = atomic_sub_fetch_##vType(&(pVar), (oVal)); \
-    ASSERT(newVal >= 0);                                               \
+#define VNODE_GET_LOAD_RESET_VALS(pVar, oVal, vType, tags)                                                   \
+  do {                                                                                                       \
+    int##vType##_t newVal = atomic_sub_fetch_##vType(&(pVar), (oVal));                                       \
+    ASSERT(newVal >= 0);                                                                                     \
+    if (newVal < 0) {                                                                                        \
+      vWarn("vgId:%d %s, abnormal val:%" PRIi64 ", old val:%" PRIi64, TD_VID(pVnode), tags, newVal, (oVal)); \
+    }                                                                                                        \
   } while (0)
 
 int vnodeQueryOpen(SVnode *pVnode) {
@@ -285,14 +288,42 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   }
 
   for (int32_t i = 0; i < msgNum; ++i) {
+    if (offset >= pMsg->contLen) {
+      qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      taosArrayDestroy(batchRsp);
+      return -1;
+    }    
+
     req.msgIdx = ntohl(*(int32_t *)((char *)pMsg->pCont + offset));
     offset += sizeof(req.msgIdx);
+
+    if (offset >= pMsg->contLen) {
+      qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      taosArrayDestroy(batchRsp);
+      return -1;
+    } 
 
     req.msgType = ntohl(*(int32_t *)((char *)pMsg->pCont + offset));
     offset += sizeof(req.msgType);
 
+    if (offset >= pMsg->contLen) {
+      qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      taosArrayDestroy(batchRsp);
+      return -1;
+    } 
+
     req.msgLen = ntohl(*(int32_t *)((char *)pMsg->pCont + offset));
     offset += sizeof(req.msgLen);
+
+    if (offset >= pMsg->contLen) {
+      qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      taosArrayDestroy(batchRsp);
+      return -1;
+    } 
 
     req.msg = (char *)pMsg->pCont + offset;
     offset += req.msgLen;
@@ -385,6 +416,7 @@ _exit:
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->vgId = TD_VID(pVnode);
   pLoad->syncState = syncGetMyRole(pVnode->sync);
+  pLoad->syncRestore = pVnode->restored;
   pLoad->cacheUsage = tsdbCacheGetUsage(pVnode);
   pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
   pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta);
@@ -406,10 +438,10 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
  * @param pLoad
  */
 void vnodeResetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
-  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nInsert, pLoad->numOfInsertReqs, 64);
-  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nInsertSuccess, pLoad->numOfInsertSuccessReqs, 64);
-  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nBatchInsert, pLoad->numOfBatchInsertReqs, 64);
-  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nBatchInsertSuccess, pLoad->numOfBatchInsertSuccessReqs, 64);
+  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nInsert, pLoad->numOfInsertReqs, 64, "nInsert");
+  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nInsertSuccess, pLoad->numOfInsertSuccessReqs, 64, "nInsertSuccess");
+  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nBatchInsert, pLoad->numOfBatchInsertReqs, 64, "nBatchInsert");
+  VNODE_GET_LOAD_RESET_VALS(pVnode->statis.nBatchInsertSuccess, pLoad->numOfBatchInsertSuccessReqs, 64, "nBatchInsertSuccess");
 }
 
 void vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId) {

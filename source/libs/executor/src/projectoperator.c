@@ -105,7 +105,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
   pOperator->info = pInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doProjectOperation, NULL, NULL,
-                                         destroyProjectOperatorInfo, NULL, NULL, NULL);
+                                         destroyProjectOperatorInfo, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -210,8 +210,6 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     pOperator->status = OP_OPENED;
   }
 
-  qDebug("enter project");
-
   if (pOperator->status == OP_EXEC_DONE) {
     if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
       pOperator->status = OP_OPENED;
@@ -285,7 +283,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
         T_LONG_JMP(pTaskInfo->env, code);
       }
 
-      setInputDataBlock(pOperator, pSup->pCtx, pBlock, order, scanFlag, false);
+      setInputDataBlock(pSup, pBlock, order, scanFlag, false);
       blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
 
       code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,
@@ -405,7 +403,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   pOperator->info = pInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doApplyIndefinitFunction, NULL, NULL,
-                                         destroyIndefinitOperatorInfo, NULL, NULL, NULL);
+                                         destroyIndefinitOperatorInfo, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -446,7 +444,7 @@ static void doHandleDataBlock(SOperatorInfo* pOperator, SSDataBlock* pBlock, SOp
     }
   }
 
-  setInputDataBlock(pOperator, pSup->pCtx, pBlock, order, scanFlag, false);
+  setInputDataBlock(pSup, pBlock, order, scanFlag, false);
   blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
 
   code = projectApplyFunctions(pSup->pExprInfo, pInfo->pRes, pBlock, pSup->pCtx, pSup->numOfExprs,

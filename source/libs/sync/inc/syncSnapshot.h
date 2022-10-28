@@ -28,10 +28,10 @@ extern "C" {
 #include "syncMessage.h"
 #include "taosdef.h"
 
-#define SYNC_SNAPSHOT_SEQ_INVALID     -1
+#define SYNC_SNAPSHOT_SEQ_INVALID -1
 #define SYNC_SNAPSHOT_SEQ_FORCE_CLOSE -2
-#define SYNC_SNAPSHOT_SEQ_BEGIN       0
-#define SYNC_SNAPSHOT_SEQ_END         0x7FFFFFFF
+#define SYNC_SNAPSHOT_SEQ_BEGIN 0
+#define SYNC_SNAPSHOT_SEQ_END 0x7FFFFFFF
 
 #define SYNC_SNAPSHOT_RETRY_MS 5000
 
@@ -51,6 +51,7 @@ typedef struct SSyncSnapshotSender {
   int32_t        replicaIndex;
   SyncTerm       term;
   SyncTerm       privateTerm;
+  int64_t        startTime;
   bool           finish;
 } SSyncSnapshotSender;
 
@@ -66,6 +67,8 @@ int32_t              snapshotReSend(SSyncSnapshotSender *pSender);
 cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender);
 char  *snapshotSender2Str(SSyncSnapshotSender *pSender);
 char  *snapshotSender2SimpleStr(SSyncSnapshotSender *pSender, char *event);
+
+int32_t syncNodeStartSnapshot(SSyncNode *pSyncNode, SRaftId *pDestId);
 
 //---------------------------------------------------
 typedef struct SSyncSnapshotReceiver {
@@ -94,8 +97,8 @@ char  *snapshotReceiver2SimpleStr(SSyncSnapshotReceiver *pReceiver, char *event)
 
 //---------------------------------------------------
 // on message
-int32_t syncNodeOnSnapshotSendCb(SSyncNode *ths, SyncSnapshotSend *pMsg);
-int32_t syncNodeOnSnapshotRspCb(SSyncNode *ths, SyncSnapshotRsp *pMsg);
+int32_t syncNodeOnSnapshot(SSyncNode *ths, SyncSnapshotSend *pMsg);
+int32_t syncNodeOnSnapshotReply(SSyncNode *ths, SyncSnapshotRsp *pMsg);
 
 #ifdef __cplusplus
 }

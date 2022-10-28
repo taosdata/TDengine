@@ -15,7 +15,7 @@
 
 #include "vnd.h"
 
-#define VND_INFO_FNAME     "vnode.json"
+#define VND_INFO_FNAME "vnode.json"
 #define VND_INFO_FNAME_TMP "vnode_tmp.json"
 
 static int  vnodeEncodeInfo(const SVnodeInfo *pInfo, char **ppData);
@@ -51,20 +51,11 @@ int vnodeBegin(SVnode *pVnode) {
     return -1;
   }
 
-  if (pVnode->pSma) {
-    if (VND_RSMA1(pVnode) && tsdbBegin(VND_RSMA1(pVnode)) < 0) {
-      vError("vgId:%d, failed to begin rsma1 since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
-
-    if (VND_RSMA2(pVnode) && tsdbBegin(VND_RSMA2(pVnode)) < 0) {
-      vError("vgId:%d, failed to begin rsma2 since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
-  }
-
   // begin sma
-  smaBegin(pVnode->pSma);  // TODO: refactor to include the rsma1/rsma2 tsdbBegin() after tsdb_refact branch merged
+  if (VND_IS_RSMA(pVnode) && smaBegin(pVnode->pSma) < 0) {
+    vError("vgId:%d, failed to begin sma since %s", TD_VID(pVnode), tstrerror(terrno));
+    return -1;
+  }
 
   return 0;
 }
@@ -116,7 +107,7 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   // free info binary
   taosMemoryFree(data);
 
-  vInfo("vgId:%d, vnode info is saved, fname:%s", pInfo->config.vgId, fname);
+  vInfo("vgId:%d, vnode info is saved, fname:%s replica:%d", pInfo->config.vgId, fname, pInfo->config.syncCfg.replicaNum);
 
   return 0;
 
@@ -237,12 +228,12 @@ int vnodeCommit(SVnode *pVnode) {
     code = terrno;
     TSDB_CHECK_CODE(code, lino, _exit);
   }
-  walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
 
-  if (smaPreCommit(pVnode->pSma) < 0) {
-    vError("vgId:%d, failed to pre-commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
-    return -1;
-  }
+  // walBeginSnapshot(pVnode->pWal, pVnode->state.applied);
+  syncBeginSnapshot(pVnode->sync, pVnode->state.applied);
+
+  code = smaPreCommit(pVnode->pSma);
+  TSDB_CHECK_CODE(code, lino, _exit);
 
   vnodeBufPoolUnRef(pVnode->inUse);
   pVnode->inUse = NULL;
@@ -253,13 +244,11 @@ int vnodeCommit(SVnode *pVnode) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
+  code = tsdbCommit(pVnode->pTsdb);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
   if (VND_IS_RSMA(pVnode)) {
-    if (smaCommit(pVnode->pSma) < 0) {
-      vError("vgId:%d, failed to commit sma since %s", TD_VID(pVnode), tstrerror(terrno));
-      return -1;
-    }
-  } else {
-    code = tsdbCommit(pVnode->pTsdb);
+    code = smaCommit(pVnode->pSma);
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
@@ -274,7 +263,13 @@ int vnodeCommit(SVnode *pVnode) {
     TSDB_CHECK_CODE(code, lino, _exit);
   }
 
-  tsdbFinishCommit(pVnode->pTsdb);
+  code = tsdbFinishCommit(pVnode->pTsdb);
+  TSDB_CHECK_CODE(code, lino, _exit);
+
+  if (VND_IS_RSMA(pVnode)) {
+    code = smaFinishCommit(pVnode->pSma);
+    TSDB_CHECK_CODE(code, lino, _exit);
+  }
 
   if (metaFinishCommit(pVnode->pMeta) < 0) {
     code = terrno;
@@ -289,11 +284,12 @@ int vnodeCommit(SVnode *pVnode) {
   }
 
   // apply the commit (TODO)
-  walEndSnapshot(pVnode->pWal);
+  // walEndSnapshot(pVnode->pWal);
+  syncEndSnapshot(pVnode->sync);
 
 _exit:
   if (code) {
-    vError("vgId:%d %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
+    vError("vgId:%d, %s failed at line %d since %s", TD_VID(pVnode), __func__, lino, tstrerror(code));
   } else {
     vInfo("vgId:%d, commit end", TD_VID(pVnode));
   }

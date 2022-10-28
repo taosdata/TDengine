@@ -253,7 +253,7 @@ int32_t qwDbgEnableDebug(char *option) {
   }
 
   if (0 == strcasecmp(option, "dead")) {
-    gQWDebug.sleepSimulate = true;
+    gQWDebug.deadSimulate = true;
     qError("qw dead debug enabled");
     return TSDB_CODE_SUCCESS;
   }
