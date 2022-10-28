@@ -719,7 +719,6 @@ typedef struct SCacheRowsReader {
 
   STableKeyInfo     *pTableList;  // table id list
   int32_t            numOfTables;
-
   SSttBlockLoadInfo *pLoadInfo;
   STsdbReadSnap     *pReadSnap;
   SDataFReader      *pDataFReader;

@@ -426,7 +426,17 @@ class TDTestCase:
         tdDnodes.stop(1)
         tdDnodes.start(1)
 
-        tdLog.printNoPrefix("==========step3:insert and flush in rollup database")
+
+        tdLog.printNoPrefix("==========step3: sleep 20s for catalogUpdateTableIndex")
+        tdSql.execute("create database db_s20")
+        tdSql.execute("use db_s20")
+        tdSql.execute(f"create stable stb1 (ts timestamp, c1 int) tags (t1 int) sma(c1);")
+        tdSql.execute("alter stable stb1 add column tinyint_col tinyint")
+        time.sleep(20)
+        tdSql.query("select count(*) from stb1")
+        tdSql.execute("drop database if exists db_s20 ")
+
+        tdLog.printNoPrefix("==========step4:insert and flush in rollup database")
         tdSql.execute("create database db4 retentions 1s:4m,2s:8m,3s:12m")
         tdSql.execute("use db4")
         self.__create_tb(rollup="first")
@@ -435,7 +445,7 @@ class TDTestCase:
         tdSql.execute(f'flush database db4')
 
 
-        tdLog.printNoPrefix("==========step4:after wal, all check again ")
+        tdLog.printNoPrefix("==========step5:after wal, all check again ")
         tdSql.prepare()
         self.__create_tb()
         self.__insert_data()

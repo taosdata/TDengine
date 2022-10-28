@@ -134,7 +134,11 @@ class TDTestCase:
         tdSql.query("create stream s1 into source_db.output_stb as select _wstart AS start, min(k), max(k), sum(k) from source_db.stb interval(10m);")
 
 
+        #TD-19944 -Q=3 
+        tdsqlN=tdCom.newTdSql()
 
+        tdsqlN.query("select * from source_db.stb")
+        tdsqlN.query("select * from db0.stb")
 
     def run(self):  
         # tdSql.prepare()
@@ -164,6 +168,7 @@ class TDTestCase:
         startAction = " -s -c " + taosdCfgPath 
         tdLog.printNoPrefix("================================ parameter: %s"%startAction)
         self.taosdCommandExe(startAction,taosdCmdRun)
+        os.system(" rm -rf sdb.json ") 
 
 
         startAction = " --help"
@@ -198,7 +203,7 @@ class TDTestCase:
 
         startAction=" -E taosdCaseTmp/.env"
         tdLog.printNoPrefix("================================ parameter: %s"%startAction)
-        os.system(" mkdir -p taosdCaseTmp/.env ") 
+        os.system(" mkdir -p taosdCaseTmp ") 
         os.system("echo \'TAOS_QUERY_POLICY=3\' > taosdCaseTmp/.env ")
         self.taosdCommandStop(startAction,taosdCmdRun)
         os.system(" rm -rf taosdCaseTmp/.env ") 

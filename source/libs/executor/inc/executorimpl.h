@@ -174,12 +174,13 @@ typedef struct {
 } SSchemaInfo;
 
 typedef struct SExecTaskInfo {
-  STaskIdInfo           id;
-  uint32_t              status;
-  int32_t               code;
-  STimeWindow           window;
-  STaskCostInfo         cost;
-  int64_t               owner;  // if it is in execution
+  STaskIdInfo   id;
+  uint32_t      status;
+  STimeWindow   window;
+  STaskCostInfo cost;
+  int64_t       owner;  // if it is in execution
+  int32_t       code;
+
   int64_t               version;  // used for stream to record wal version
   SStreamTaskInfo       streamInfo;
   SSchemaInfo           schemaInfo;
@@ -340,21 +341,23 @@ typedef struct STableScanInfo {
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {
-  STableListInfo* tableListInfo;
-  int32_t         tableStartIndex;
-  int32_t         tableEndIndex;
-  bool            hasGroupId;
-  uint64_t        groupId;
-  SArray*         dataReaders;  // array of tsdbReaderT*
-  SReadHandle     readHandle;
-  int32_t         bufPageSize;
-  uint32_t        sortBufSize;  // max buffer size for in-memory sort
-  SArray*         pSortInfo;
-  SSortHandle*    pSortHandle;
-  SSDataBlock*    pSortInputBlock;
-  int64_t         startTs;  // sort start time
-  SArray*         sortSourceParams;
-  SLimitInfo      limitInfo;
+  STableListInfo*        tableListInfo;
+  int32_t                tableStartIndex;
+  int32_t                tableEndIndex;
+  bool                   hasGroupId;
+  uint64_t               groupId;
+  SArray*                dataReaders;  // array of tsdbReaderT*
+  SArray*                queryConds;   // array of queryTableDataCond
+  STsdbReader*           pReader;
+  SReadHandle            readHandle;
+  int32_t                bufPageSize;
+  uint32_t               sortBufSize;  // max buffer size for in-memory sort
+  SArray*                pSortInfo;
+  SSortHandle*           pSortHandle;
+  SSDataBlock*           pSortInputBlock;
+  int64_t                startTs;  // sort start time
+  SArray*                sortSourceParams;
+  SLimitInfo             limitInfo;
   SFileBlockLoadRecorder readRecorder;
   int64_t                numOfRows;
   SScanInfo              scanInfo;
@@ -1074,7 +1077,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsColIndex);
 
 bool    groupbyTbname(SNodeList* pGroupList);
-int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* groupKey, bool groupSort);
+int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* group, bool groupSort);
 void*   destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput);
 int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pState, SSDataBlock* pBlock, SExprSupp* pSup,
                                    SGroupResInfo* pGroupResInfo);

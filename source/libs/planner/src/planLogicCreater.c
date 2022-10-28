@@ -339,29 +339,6 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   return code;
 }
 
-static int32_t createColumnByLastRow(SNodeList* pFuncs, SNodeList** pOutput) {
-  int32_t    code = TSDB_CODE_SUCCESS;
-  SNodeList* pCols = NULL;
-  SNode*     pFunc = NULL;
-  FOREACH(pFunc, pFuncs) {
-    SFunctionNode* pLastRow = (SFunctionNode*)pFunc;
-    SColumnNode*   pCol = (SColumnNode*)nodesListGetNode(pLastRow->pParameterList, 0);
-    snprintf(pCol->colName, sizeof(pCol->colName), "%s", pLastRow->node.aliasName);
-    snprintf(pCol->node.aliasName, sizeof(pCol->colName), "%s", pLastRow->node.aliasName);
-    NODES_CLEAR_LIST(pLastRow->pParameterList);
-    code = nodesListMakeStrictAppend(&pCols, (SNode*)pCol);
-    if (TSDB_CODE_SUCCESS != code) {
-      break;
-    }
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    *pOutput = pCols;
-  } else {
-    nodesDestroyList(pCols);
-  }
-  return code;
-}
-
 static int32_t createSubqueryLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, STempTableNode* pTable,
                                        SLogicNode** pLogicNode) {
   return createQueryLogicNode(pCxt, pTable->pSubquery, pLogicNode);
@@ -489,20 +466,6 @@ static SNode* createGroupingSetNode(SNode* pExpr) {
     return NULL;
   }
   return (SNode*)pGroupingSet;
-}
-
-static int32_t createGroupKeysFromPartKeys(SNodeList* pPartKeys, SNodeList** pOutput) {
-  SNodeList* pGroupKeys = NULL;
-  SNode*     pPartKey = NULL;
-  FOREACH(pPartKey, pPartKeys) {
-    int32_t code = nodesListMakeStrictAppend(&pGroupKeys, createGroupingSetNode(pPartKey));
-    if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyList(pGroupKeys);
-      return code;
-    }
-  }
-  *pOutput = pGroupKeys;
-  return TSDB_CODE_SUCCESS;
 }
 
 static EGroupAction getGroupAction(SLogicPlanContext* pCxt, SSelectStmt* pSelect) {

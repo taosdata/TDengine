@@ -621,12 +621,9 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     binfo.capacity = binfo.rows;
     blockDataEnsureCapacity(pBlock, binfo.rows);
     pBlock->info = binfo;
-    ASSERT(binfo.uid != 0);
 
-    uint64_t* groupId = taosHashGet(pTaskInfo->tableqinfoList.map, &pBlock->info.uid, sizeof(int64_t));
-    if (groupId) {
-      pBlock->info.groupId = *groupId;
-    }
+    ASSERT(binfo.uid != 0);
+    pBlock->info.groupId = getTableGroupId(&pTaskInfo->tableqinfoList, pBlock->info.uid);
 
     uint32_t status = 0;
     int32_t  code = loadDataBlock(pOperator, pTableScanInfo, pBlock, &status);
@@ -765,6 +762,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
     SSDataBlock* result = doTableScanGroup(pOperator);
     if (result != NULL) {
+      ASSERT(result->info.uid != 0);
       return result;
     }
 
@@ -822,7 +820,7 @@ static void destroyTableScanOperatorInfo(void* param) {
 }
 
 SOperatorInfo*  createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, SReadHandle* readHandle,
-                                           SExecTaskInfo* pTaskInfo) {
+                                            SExecTaskInfo* pTaskInfo) {
   STableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableScanInfo));
   SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -886,7 +884,7 @@ SOperatorInfo*  createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode,
   pOperator->cost.openCost = 0;
   return pOperator;
 
-_error:
+  _error:
   if (pInfo != NULL) {
     destroyTableScanOperatorInfo(pInfo);
   }
@@ -1034,7 +1032,7 @@ SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SReadHandle* re
       createOperatorFpSet(operatorDummyOpenFn, doBlockInfoScan, NULL, NULL, destroyBlockDistScanOperatorInfo, NULL);
   return pOperator;
 
-_error:
+  _error:
   taosMemoryFreeClear(pInfo);
   taosMemoryFreeClear(pOperator);
   return NULL;
@@ -1124,7 +1122,7 @@ static SSDataBlock* readPreVersionData(SOperatorInfo* pTableScanOp, uint64_t tbU
 
   tsdbReaderClose(pReader);
   qDebug("retrieve prev rows:%d, skey:%" PRId64 ", ekey:%" PRId64 " uid:%" PRIu64 ", max ver:%" PRId64
-         ", suid:%" PRIu64, pBlock->info.rows, startTs, endTs, tbUid, maxVersion, cond.suid);
+             ", suid:%" PRIu64, pBlock->info.rows, startTs, endTs, tbUid, maxVersion, cond.suid);
 
   return pBlock->info.rows > 0 ? pBlock : NULL;
 }
@@ -1713,7 +1711,7 @@ static SSDataBlock* doQueueScan(SOperatorInfo* pOperator) {
       }
     }
 #if 0
-  } else if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
+    } else if (pTaskInfo->streamInfo.prepareStatus.type == TMQ_OFFSET__SNAPSHOT_DATA) {
     SSDataBlock* pResult = doTableScan(pInfo->pTableScanOp);
     if (pResult && pResult->info.rows > 0) {
       qDebug("stream scan tsdb return %d rows", pResult->info.rows);
@@ -1861,7 +1859,7 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
 
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
   // TODO: refactor
-FETCH_NEXT_BLOCK:
+  FETCH_NEXT_BLOCK:
   if (pInfo->blockType == STREAM_INPUT__DATA_BLOCK) {
     if (pInfo->validBlockIndex >= total) {
       doClearBufferedBlocks(pInfo);
@@ -1988,7 +1986,7 @@ FETCH_NEXT_BLOCK:
 
     int32_t totBlockNum = taosArrayGetSize(pInfo->pBlockLists);
 
-  NEXT_SUBMIT_BLK:
+    NEXT_SUBMIT_BLK:
     while (1) {
       if (pInfo->tqReader->pMsg == NULL) {
         if (pInfo->validBlockIndex >= totBlockNum) {
@@ -2243,7 +2241,7 @@ SOperatorInfo* createRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pT
   pOperator->fpSet = createOperatorFpSet(NULL, doRawScan, NULL, NULL, destroyRawScanOperatorInfo, NULL);
   return pOperator;
 
-_end:
+  _end:
   taosMemoryFree(pInfo);
   taosMemoryFree(pOperator);
   pTaskInfo->code = code;
@@ -2428,7 +2426,7 @@ SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhys
 
   return pOperator;
 
-_error:
+  _error:
   if (pColIds != NULL) {
     taosArrayDestroy(pColIds);
   }
@@ -3052,11 +3050,11 @@ static int32_t sysFilte__TableName(void* arg, SNode* pNode, SArray* result) {
   if (func == NULL) return -1;
 
   SMetaFltParam param = {.suid = 0,
-                         .cid = 0,
-                         .type = TSDB_DATA_TYPE_VARCHAR,
-                         .val = pVal->datum.p,
-                         .reverse = reverse,
-                         .filterFunc = func};
+      .cid = 0,
+      .type = TSDB_DATA_TYPE_VARCHAR,
+      .val = pVal->datum.p,
+      .reverse = reverse,
+      .filterFunc = func};
   return -1;
 }
 
@@ -3071,11 +3069,11 @@ static int32_t sysFilte__CreateTime(void* arg, SNode* pNode, SArray* result) {
   if (func == NULL) return -1;
 
   SMetaFltParam param = {.suid = 0,
-                         .cid = 0,
-                         .type = TSDB_DATA_TYPE_BIGINT,
-                         .val = &pVal->datum.i,
-                         .reverse = reverse,
-                         .filterFunc = func};
+      .cid = 0,
+      .type = TSDB_DATA_TYPE_BIGINT,
+      .val = &pVal->datum.i,
+      .reverse = reverse,
+      .filterFunc = func};
 
   int32_t ret = metaFilterCreateTime(pMeta, &param, result);
   return ret;
@@ -3995,7 +3993,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
 
   return pOperator;
 
-_error:
+  _error:
   taosMemoryFreeClear(pInfo);
   taosMemoryFreeClear(pOperator);
   terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
@@ -4134,7 +4132,7 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
 
   return pOperator;
 
-_error:
+  _error:
   taosMemoryFree(pInfo);
   taosMemoryFree(pOperator);
   terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -4678,7 +4676,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   pOperator->cost.openCost = 0;
   return pOperator;
 
-_error:
+  _error:
   pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
   taosMemoryFree(pInfo);
   taosMemoryFree(pOperator);

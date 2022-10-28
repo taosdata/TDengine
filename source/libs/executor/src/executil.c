@@ -337,8 +337,8 @@ static EDealRes getColumn(SNode** pNode, void* pContext) {
     taosHashPut(pData->colHash, &pSColumnNode->colId, sizeof(pSColumnNode->colId), pNode, sizeof((*pNode)));
     pSColumnNode->slotId = pData->index++;
     SColumnInfo cInfo = {.colId = pSColumnNode->colId,
-                         .type = pSColumnNode->node.resType.type,
-                         .bytes = pSColumnNode->node.resType.bytes};
+        .type = pSColumnNode->node.resType.type,
+        .bytes = pSColumnNode->node.resType.bytes};
 #if TAG_FILTER_DEBUG
     qDebug("tagfilter build column info, slotId:%d, colId:%d, type:%d", pSColumnNode->slotId, cInfo.colId, cInfo.type);
 #endif
@@ -507,7 +507,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray*
   //  int64_t st2 = taosGetTimestampUs();
   //  qDebug("calculate tag block rows:%d, cost:%ld us", rows, st2-st1);
 
-end:
+  end:
   taosHashCleanup(tags);
   taosHashCleanup(ctx.colHash);
   taosArrayDestroy(ctx.cInfoList);
@@ -747,7 +747,7 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
   //  int64_t st2 = taosGetTimestampUs();
   //  qDebug("calculate tag block rows:%d, cost:%ld us", rows, st2-st1);
 
-end:
+  end:
   taosMemoryFreeClear(keyBuf);
   taosHashCleanup(tags);
   taosHashCleanup(ctx.colHash);

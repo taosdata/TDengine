@@ -106,7 +106,7 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
   pOperator->cost.openCost = 0;
   return pOperator;
 
-_error:
+  _error:
   pTaskInfo->code = code;
   destroyLastrowScanOperator(pInfo);
   taosMemoryFree(pOperator);

@@ -440,7 +440,7 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
 
   qDebug("subplan task create completed, TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, pSubplan->id.queryId);
 
-_error:
+  _error:
   // if failed to add ref for all tables in this query, abort current query
   return code;
 }
