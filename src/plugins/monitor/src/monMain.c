@@ -1476,6 +1476,10 @@ static bool monConvDDLType2Str(int8_t type, char *buf, int32_t len) {
 }
 
 void monSaveAuditLog(int8_t type, const char *user, const char *obj, bool result) {
+  if (tsEnableAudit == 0) { //audit not enabled
+    return;
+  }
+
   char sql[1024] = {0};
   char typeStr[64] = {0};
 
@@ -1502,9 +1506,9 @@ void monSaveAuditLog(int8_t type, const char *user, const char *obj, bool result
   taos_free_result(res);
 
   if (code != 0) {
-    monError("failed to save audit info, reason:%s, sql:%s", tstrerror(code), sql);
+    monError("failed to save audit ddl info, reason:%s, sql:%s", tstrerror(code), sql);
   } else {
-    monDebug("successfully save audit info, sql:%s", sql);
+    monDebug("successfully save audit ddl info, sql:%s", sql);
   }
 }
 
