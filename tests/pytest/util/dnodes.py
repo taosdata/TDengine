@@ -40,6 +40,7 @@ class TDSimClient:
             "jniDebugFlag": "143",
             "qDebugFlag": "143",
             "supportVnodes": "1024",
+            "enableQueryHb": "1",
             "telemetryReporting": "0",
         }
 
@@ -136,6 +137,7 @@ class TDDnode:
             "wDebugFlag": "143",
             "numOfLogLines": "100000000",
             "statusInterval": "1",
+            "enableQueryHb": "1",
             "supportVnodes": "1024",
             "telemetryReporting": "0"
         }

@@ -12,7 +12,7 @@ IF (TD_WEBSOCKET)
     ExternalProject_Add(taosws-rs
         PREFIX        "taosws-rs"
         SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/taosws-rs
-        BUILD_ALWAYS         on
+        BUILD_ALWAYS        off
         DEPENDS             taos
         BUILD_IN_SOURCE     1
         CONFIGURE_COMMAND cmake -E echo "taosws-rs no need cmake to config"

@@ -640,12 +640,8 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
   }
 
   if (pAlter->pageSize > 0 && pAlter->pageSize != pDb->cfg.pageSize) {
-#if 1
-    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
-#else
     pDb->cfg.pageSize = pAlter->pageSize;
     terrno = 0;
-#endif
   }
 
   if (pAlter->daysPerFile > 0 && pAlter->daysPerFile != pDb->cfg.daysPerFile) {

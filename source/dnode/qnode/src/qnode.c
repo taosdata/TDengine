@@ -90,7 +90,7 @@ int32_t qndProcessQueryMsg(SQnode *pQnode, int64_t ts, SRpcMsg *pMsg) {
       code = qWorkerProcessFetchMsg(pQnode, pQnode->pQuery, pMsg, ts);
       break;
     case TDMT_SCH_CANCEL_TASK:
-      code = qWorkerProcessCancelMsg(pQnode, pQnode->pQuery, pMsg, ts);
+      //code = qWorkerProcessCancelMsg(pQnode, pQnode->pQuery, pMsg, ts);
       break;
     case TDMT_SCH_DROP_TASK:
       code = qWorkerProcessDropMsg(pQnode, pQnode->pQuery, pMsg, ts);

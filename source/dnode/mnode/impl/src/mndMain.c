@@ -422,7 +422,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     return NULL;
   }
 
-  mInfo("mnode open successfully ");
+  mInfo("mnode open successfully");
   return pMnode;
 }
 

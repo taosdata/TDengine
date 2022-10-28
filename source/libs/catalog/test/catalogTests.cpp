@@ -27,8 +27,8 @@
 #ifdef WINDOWS
 #define TD_USE_WINSOCK
 #endif
-#include "catalog.h"
 #include "catalogInt.h"
+#include "catalog.h"
 #include "os.h"
 #include "stub.h"
 #include "taos.h"
@@ -49,14 +49,13 @@ void ctgTestSetRspCTableMeta();
 void ctgTestSetRspSTableMeta();
 void ctgTestSetRspMultiSTableMeta();
 
-// extern "C" SCatalogMgmt gCtgMgmt;
-
 enum {
   CTGT_RSP_VGINFO = 1,
   CTGT_RSP_TBMETA,
   CTGT_RSP_CTBMETA,
   CTGT_RSP_STBMETA,
   CTGT_RSP_MSTBMETA,
+  CTGT_RSP_INDEXINFO_E,
   CTGT_RSP_TBMETA_NOT_EXIST,
 };
 
@@ -284,6 +283,8 @@ void ctgTestBuildSTableMetaRsp(STableMetaRsp *rspMsg) {
 }
 
 void ctgTestRspDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  rpcFreeCont(pMsg->pCont);
+  
   SUseDbRsp usedbRsp = {0};
   strcpy(usedbRsp.db, ctgTestDbname);
   usedbRsp.vgVersion = ctgTestVgVersion;
@@ -321,9 +322,13 @@ void ctgTestRspDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *
   pRsp->code = 0;
   pRsp->contLen = contLen;
   pRsp->pCont = pReq;
+
+  taosArrayDestroy(usedbRsp.pVgroupInfos);
 }
 
 void ctgTestRspTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  rpcFreeCont(pMsg->pCont);
+  
   STableMetaRsp metaRsp = {0};
   strcpy(metaRsp.dbFName, ctgTestDbname);
   strcpy(metaRsp.tbName, ctgTestTablename);
@@ -363,10 +368,14 @@ void ctgTestRspTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *
 }
 
 void ctgTestRspTableMetaNotExist(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  rpcFreeCont(pMsg->pCont);
+  
   pRsp->code = CTG_ERR_CODE_TABLE_NOT_EXIST;
 }
 
 void ctgTestRspCTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  rpcFreeCont(pMsg->pCont);
+  
   STableMetaRsp metaRsp = {0};
   strcpy(metaRsp.dbFName, ctgTestDbname);
   strcpy(metaRsp.tbName, ctgTestCurrentCTableName ? ctgTestCurrentCTableName : ctgTestCTablename);
@@ -413,6 +422,8 @@ void ctgTestRspCTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg 
 }
 
 void ctgTestRspSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  rpcFreeCont(pMsg->pCont);
+  
   STableMetaRsp metaRsp = {0};
   strcpy(metaRsp.dbFName, ctgTestDbname);
   strcpy(metaRsp.tbName, ctgTestCurrentSTableName ? ctgTestCurrentSTableName : ctgTestSTablename);
@@ -459,6 +470,8 @@ void ctgTestRspSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg 
 }
 
 void ctgTestRspMultiSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  rpcFreeCont(pMsg->pCont);
+  
   static int32_t idx = 1;
 
   STableMetaRsp metaRsp = {0};
@@ -508,6 +521,16 @@ void ctgTestRspMultiSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRp
   tFreeSTableMetaRsp(&metaRsp);
 }
 
+
+void ctgTestRspErrIndexInfo(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  rpcFreeCont(pMsg->pCont);
+  
+  pRsp->code = TSDB_CODE_MND_DB_INDEX_NOT_EXIST;
+  pRsp->contLen = 0;
+  pRsp->pCont = NULL;
+}
+
+
 void ctgTestRspByIdx(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   switch (ctgTestRspFunc[ctgTestRspIdx]) {
     case CTGT_RSP_VGINFO:
@@ -524,6 +547,9 @@ void ctgTestRspByIdx(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp
       break;
     case CTGT_RSP_MSTBMETA:
       ctgTestRspMultiSTableMeta(shandle, pEpSet, pMsg, pRsp);
+      break;
+    case CTGT_RSP_INDEXINFO_E:
+      ctgTestRspErrIndexInfo(shandle, pEpSet, pMsg, pRsp);
       break;
     case CTGT_RSP_TBMETA_NOT_EXIST:
       ctgTestRspTableMetaNotExist(shandle, pEpSet, pMsg, pRsp);
@@ -969,6 +995,8 @@ TEST(tableMeta, normalTable) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
+  taosMemoryFree(tableMeta);
+
   while (true) {
     uint32_t n = ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
     if (0 == n) {
@@ -989,6 +1017,8 @@ TEST(tableMeta, normalTable) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, 0);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
+
+  taosMemoryFree(tableMeta);
 
   SDbVgVersion   *dbs = NULL;
   SSTableVersion *stb = NULL;
@@ -1026,7 +1056,6 @@ TEST(tableMeta, normalTable) {
   ASSERT_EQ(allStbNum, 0);
 
   catalogDestroy();
-  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
 }
 
 TEST(tableMeta, childTableCase) {
@@ -1064,6 +1093,8 @@ TEST(tableMeta, childTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
+  taosMemoryFree(tableMeta);
+
   while (true) {
     uint32_t n = ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
     if (0 == n) {
@@ -1098,6 +1129,8 @@ TEST(tableMeta, childTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
+
+  taosMemoryFree(tableMeta);
 
   SDbVgVersion   *dbs = NULL;
   SSTableVersion *stb = NULL;
@@ -1135,7 +1168,6 @@ TEST(tableMeta, childTableCase) {
   ASSERT_EQ(allStbNum, 1);
 
   catalogDestroy();
-  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
 }
 
 TEST(tableMeta, superTableCase) {
@@ -1173,6 +1205,8 @@ TEST(tableMeta, superTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
+  taosMemoryFree(tableMeta);
+
   while (true) {
     uint32_t n = ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
     if (0 == n) {
@@ -1199,6 +1233,8 @@ TEST(tableMeta, superTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
+  taosMemoryFree(tableMeta);
+
   while (true) {
     uint32_t n = ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
     if (2 != n) {
@@ -1219,6 +1255,8 @@ TEST(tableMeta, superTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
+
+  taosMemoryFree(tableMeta);
 
   SDbVgVersion   *dbs = NULL;
   SSTableVersion *stb = NULL;
@@ -1257,7 +1295,6 @@ TEST(tableMeta, superTableCase) {
   ASSERT_EQ(allStbNum, 1);
 
   catalogDestroy();
-  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
 }
 
 TEST(tableMeta, rmStbMeta) {
@@ -1297,6 +1334,8 @@ TEST(tableMeta, rmStbMeta) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
+  taosMemoryFree(tableMeta);
+
   while (true) {
     uint32_t n = ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
     if (0 == n) {
@@ -1326,7 +1365,6 @@ TEST(tableMeta, rmStbMeta) {
   ASSERT_EQ(ctgdGetClusterCacheNum(pCtg, CTG_DBG_STB_RENT_NUM), 0);
 
   catalogDestroy();
-  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
 }
 
 TEST(tableMeta, updateStbMeta) {
@@ -1416,7 +1454,36 @@ TEST(tableMeta, updateStbMeta) {
   taosMemoryFreeClear(tableMeta);
 
   catalogDestroy();
-  memset(&gCtgMgmt.stat, 0, sizeof(gCtgMgmt.stat));
+}
+
+TEST(getIndexInfo, notExists) {
+  struct SCatalog  *pCtg = NULL;
+  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
+  SVgroupInfo       vgInfo = {0};
+  SArray           *vgList = NULL;
+
+  ctgTestInitLogFile();
+
+  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  ctgTestRspIdx = 0;
+  ctgTestRspFunc[0] = CTGT_RSP_INDEXINFO_E;
+
+  ctgTestSetRspByIdx();
+
+  initQueryModuleMsgHandle();
+
+  int32_t code = catalogInit(NULL);
+  ASSERT_EQ(code, 0);
+
+  code = catalogGetHandle(ctgTestClusterId, &pCtg);
+  ASSERT_EQ(code, 0);
+
+  SIndexInfo info;
+  code = catalogGetIndexMeta(pCtg, mockPointer, "index1", &info);
+  ASSERT_TRUE(code != 0);
+  
+  catalogDestroy();
 }
 
 TEST(refreshGetMeta, normal2normal) {
@@ -1496,7 +1563,6 @@ TEST(refreshGetMeta, normal2normal) {
   taosMemoryFreeClear(tableMeta);
 
   catalogDestroy();
-  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
 }
 
 TEST(refreshGetMeta, normal2notexist) {
@@ -1567,7 +1633,6 @@ TEST(refreshGetMeta, normal2notexist) {
   ASSERT_TRUE(tableMeta == NULL);
 
   catalogDestroy();
-  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
 }
 
 TEST(refreshGetMeta, normal2child) {
@@ -1649,7 +1714,6 @@ TEST(refreshGetMeta, normal2child) {
   taosMemoryFreeClear(tableMeta);
 
   catalogDestroy();
-  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
   ctgTestCurrentCTableName = NULL;
   ctgTestCurrentSTableName = NULL;
 }
@@ -1737,7 +1801,6 @@ TEST(refreshGetMeta, stable2child) {
   taosMemoryFreeClear(tableMeta);
 
   catalogDestroy();
-  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
   ctgTestCurrentCTableName = NULL;
   ctgTestCurrentSTableName = NULL;
 }
@@ -1824,7 +1887,6 @@ TEST(refreshGetMeta, stable2stable) {
   taosMemoryFreeClear(tableMeta);
 
   catalogDestroy();
-  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
   ctgTestCurrentCTableName = NULL;
   ctgTestCurrentSTableName = NULL;
 }
@@ -1911,7 +1973,6 @@ TEST(refreshGetMeta, child2stable) {
   taosMemoryFreeClear(tableMeta);
 
   catalogDestroy();
-  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
   ctgTestCurrentCTableName = NULL;
   ctgTestCurrentSTableName = NULL;
 }
@@ -1951,7 +2012,6 @@ TEST(tableDistVgroup, normalTable) {
   ASSERT_TRUE(code != 0);
 
   catalogDestroy();
-  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
 }
 
 TEST(tableDistVgroup, childTableCase) {
@@ -1990,7 +2050,6 @@ TEST(tableDistVgroup, childTableCase) {
   ASSERT_TRUE(code != 0);
 
   catalogDestroy();
-  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
 }
 
 TEST(tableDistVgroup, superTableCase) {
@@ -2037,8 +2096,9 @@ TEST(tableDistVgroup, superTableCase) {
   ASSERT_EQ(vgInfo->vgId, 3);
   ASSERT_EQ(vgInfo->epSet.numOfEps, 3);
 
+  taosArrayDestroy(vgList);
+
   catalogDestroy();
-  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
 }
 
 TEST(dbVgroup, getSetDbVgroupCase) {
@@ -2076,6 +2136,8 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   code = catalogGetDBVgList(pCtg, mockPointer, ctgTestDbname, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), ctgTestVgNum);
+
+  taosArrayDestroy(vgList);
 
   while (true) {
     uint64_t n = 0;
@@ -2117,7 +2179,6 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   ASSERT_TRUE(code != 0);
 
   catalogDestroy();
-  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
 }
 
 TEST(multiThread, getSetRmSameDbVgroup) {
@@ -2170,7 +2231,6 @@ TEST(multiThread, getSetRmSameDbVgroup) {
   taosSsleep(1);
 
   catalogDestroy();
-  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
 }
 
 TEST(multiThread, getSetRmDiffDbVgroup) {
@@ -2223,7 +2283,6 @@ TEST(multiThread, getSetRmDiffDbVgroup) {
   taosSsleep(1);
 
   catalogDestroy();
-  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
 }
 
 TEST(multiThread, ctableMeta) {
@@ -2275,7 +2334,6 @@ TEST(multiThread, ctableMeta) {
   taosSsleep(2);
 
   catalogDestroy();
-  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
 }
 
 TEST(rentTest, allRent) {
@@ -2323,6 +2381,8 @@ TEST(rentTest, allRent) {
     ASSERT_EQ(tableMeta->tableInfo.precision, 1);
     ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
+    taosMemoryFree(tableMeta);
+
     while (ctgdGetClusterCacheNum(pCtg, CTG_DBG_META_NUM) < i) {
       taosMsleep(50);
     }
@@ -2353,7 +2413,6 @@ TEST(rentTest, allRent) {
   }
 
   catalogDestroy();
-  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
 }
 
 
