@@ -58,7 +58,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                 .await
                 .ok()
                 .unwrap_or_default()
-                .unwrap_or(0);
+                .unwrap_or(2);
 
             let database_sql = match source
                 .query_one::<_, ((), String)>(format!("SHOW CREATE DATABASE `{}`", topic.db_name()))
@@ -66,7 +66,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
             {
                 Ok(Some((_, sql))) => Some(sql),
                 Err(err) => {
-                    log::warn!("SHOW CREATE DATABASE `{}` error: {}", topic.db_name(), err);
+                    log::warn!("SHOW CREATE DATABASE `{}` error: {}, so that we can't automatically create a same database", topic.db_name(), err);
                     None
                 }
                 _ => unreachable!(),
@@ -100,7 +100,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                 .await
                 .ok()
                 .unwrap_or_default()
-                .unwrap_or(0);
+                .unwrap_or(2);
 
             let database_sql = match source
                 .query_one::<_, ((), String)>(format!("SHOW CREATE DATABASE `{}`", database))
