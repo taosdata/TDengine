@@ -173,8 +173,8 @@ def pre_test_build_mac() {
     '''
     sh '''
         cd ${WK}/debug
-        cmake .. -DBUILD_TEST=true
-        make -j8
+        cmake .. -DBUILD_TEST=true -DBUILD_HTTPS=false
+        make -j10
     '''
     sh '''
         date
@@ -428,7 +428,7 @@ pipeline {
                                         date
                                         rm -rf ${WKC}/debug
                                         cd ${WKC}/tests/parallel_test
-                                        time ./container_build.sh -w ${WKDIR} -t 8 -e
+                                        time ./container_build.sh -w ${WKDIR} -t 10 -e
                                         rm -f /tmp/cases.task
                                         ./collect_cases.sh -e
                                     '''
