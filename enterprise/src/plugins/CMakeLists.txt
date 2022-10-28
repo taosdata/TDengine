@@ -51,74 +51,28 @@ IF(TD_BUILD_TAOSA_INTERNAL)
       COMMAND cd ..
       )
 
-  IF (TD_LINUX)
-      include(ExternalProject)
-      set(_upx_prefix "$ENV{HOME}/.taos/externals/upx")
-      ExternalProject_Add(upx
-              PREFIX              "${_upx_prefix}"
-              URL                 https://github.com/upx/upx/releases/download/v3.96/upx-3.96-${PLATFORM_ARCH_STR}_linux.tar.xz
-              CONFIGURE_COMMAND   ""
-              BUILD_COMMAND       ""
-              INSTALL_COMMAND     ""
-              )
+    include(ExternalProject)
 
-      ExternalProject_Add(taosainternal
-          PREFIX        "taosainternal"
-          SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/taosainternal
-          BUILD_ALWAYS         off
-          DEPENDS             taos
-          BUILD_IN_SOURCE     1
-          CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
-          PATCH_COMMAND
-          COMMAND     git clean -f -d
-          BUILD_COMMAND
-          COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../../../community/include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib go build -a -o taosadapter -ldflags "-s -w -X github.com/taosdata/taosadapter/v3/version.Version=${taos_version} -X github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}"
-          COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../../../community/include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib go build -a -o taosadapter-debug -ldflags "-X github.com/taosdata/taosadapter/v3/version.Version=${taos_version} -X github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}"
-          INSTALL_COMMAND
-          COMMAND ${_upx_prefix}/src/upx/upx taosadapter
-          COMMAND cmake -E copy taosadapter ${CMAKE_BINARY_DIR}/build/bin
-          COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
-          COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/taosadapter/example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/
-          COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/taosadapter/taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/
-          COMMAND cmake -E copy taosadapter-debug ${CMAKE_BINARY_DIR}/build/bin
-          )
-      unset(_upx_prefix)
-
-  ELSEIF (TD_WINDOWS)
-      include(ExternalProject)
-      set(_upx_prefix "${CMAKE_BINARY_DIR}/.taos/externals/upx")
-      ExternalProject_Add(upx
-              PREFIX              "${_upx_prefix}"
-              URL                 https://github.com/upx/upx/releases/download/v3.96/upx-3.96-win32.zip
-              CONFIGURE_COMMAND   ""
-              BUILD_COMMAND       ""
-              INSTALL_COMMAND     ""
-              )
-
-      ExternalProject_Add(taosadapter
-              PREFIX        "taosadapter"
-              SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/taosadapter
-              BUILD_ALWAYS         off
-              DEPENDS             taos
-              BUILD_IN_SOURCE     1
-              CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
-              PATCH_COMMAND
-              COMMAND     git clean -f -d
-              BUILD_COMMAND
-              COMMAND set CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../../../community/include/client
-              COMMAND set CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib
-              COMMAND go build -a -o taosadapter.exe -ldflags "-s -w -X github.com/taosdata/taosadapter/v3/version.Version=${taos_version} -X github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}"
-              COMMAND go build -a -o taosadapter-debug.exe -ldflags "-X github.com/taosdata/taosadapter/v3/version.Version=${taos_version} -X github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}"
-              INSTALL_COMMAND
-              COMMAND ${_upx_prefix}/src/upx/upx taosadapter
-              COMMAND cmake -E copy taosadapter.exe ${CMAKE_BINARY_DIR}/build/bin
-              COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
-              COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/taosadapter/example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/
-              COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/taosadapter/taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/
-              COMMAND cmake -E copy taosadapter-debug.exe ${CMAKE_BINARY_DIR}/build/bin
-              )
-      unset(_upx_prefix)
-  ENDIF ()
+    ExternalProject_Add(taosainternal
+        PREFIX        "taosainternal"
+        SOURCE_DIR    ${CMAKE_CURRENT_SOURCE_DIR}/taosainternal
+        BUILD_ALWAYS         off
+        DEPENDS             taos
+        BUILD_IN_SOURCE     1
+        CONFIGURE_COMMAND cmake -E echo "taosadapter no need cmake to config"
+        PATCH_COMMAND
+        COMMAND     git clean -f -d
+        BUILD_COMMAND
+        COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../../../community/include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib go build -a -o taosadapter -ldflags "-s -w -X github.com/taosdata/taosadapter/v3/version.Version=${taos_version} -X github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}"
+        COMMAND CGO_CFLAGS=-I${CMAKE_CURRENT_SOURCE_DIR}/../../../community/include/client CGO_LDFLAGS=-L${CMAKE_BINARY_DIR}/build/lib go build -a -o taosadapter-debug -ldflags "-X github.com/taosdata/taosadapter/v3/version.Version=${taos_version} -X github.com/taosdata/taosadapter/v3/version.CommitID=${taosadapter_commit_sha1}"
+        INSTALL_COMMAND
+        COMMAND upx taosadapter || :
+        COMMAND cmake -E copy taosadapter ${CMAKE_BINARY_DIR}/build/bin
+        COMMAND cmake -E make_directory ${CMAKE_BINARY_DIR}/test/cfg/
+        COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/taosadapter/example/config/taosadapter.toml ${CMAKE_BINARY_DIR}/test/cfg/
+        COMMAND cmake -E copy ${CMAKE_CURRENT_SOURCE_DIR}/../../../community/tools/taosadapter/taosadapter.service ${CMAKE_BINARY_DIR}/test/cfg/
+        COMMAND cmake -E copy taosadapter-debug ${CMAKE_BINARY_DIR}/build/bin
+        )
 ENDIF ()
 
 IF ("${BUILD_TAOSX}" MATCHES "true")

@@ -44,15 +44,7 @@ build_binary() {
     true
   else
     go build -ldflags="-s -w"
-    export PATH=$HOME/bin:$PATH
-    command -v upx > /dev/null || (
-      upxenv=$(go env |grep -Eo 'GOARCH="(.*)"' |sed -E 's/GOARCH="|"//g') && \
-      wget -c https://github.com/upx/upx/releases/download/v3.96/upx-3.96-${upxenv}_linux.tar.xz && \
-      tar xf upx-3.96-${upxenv}_linux.tar.xz upx-3.96-${upxenv}_linux/upx && \
-      mkdir $HOME/bin && cp upx-3.96-${upxenv}_linux/upx $HOME/bin/upx && \
-      rm -rf upx-3.96-${upxenv}_linux upx-3.96-${upxenv}_linux.tar.gz
-    )
-    upx taoskeeper > /dev/null 2>&1
+    upx taoskeeper > /dev/null 2>&1 || :
   fi
   readlink -f taoskeeper
 }
