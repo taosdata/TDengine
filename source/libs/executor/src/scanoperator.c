@@ -1299,6 +1299,9 @@ static int32_t generateSessionScanRange(SStreamScanInfo* pInfo, SSDataBlock* pSr
     SSessionKey startWin = {0};
     getCurSessionWindow(pInfo->windowSup.pStreamAggSup, startData[i], endData[i], groupId, &startWin);
     if (IS_INVALID_SESSION_WIN_KEY(startWin)) {
+      // char* tmp = streamStateSessionDump(pInfo->windowSup.pStreamAggSup->pState);
+      // qInfo("%s", tmp);
+      // taosMemoryFree(tmp);
       // window has been closed.
       continue;
     }
