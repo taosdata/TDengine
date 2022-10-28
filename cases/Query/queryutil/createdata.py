@@ -889,7 +889,7 @@ class TDCreateData():
             self.logger.info(("===list_abs+e+===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         else:
             self.logger.info(("sql1:'%s' result != sql2:'%s' result") %(sql1,sql2))
-            self.logger.info(("=====list_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            #self.logger.info(("=====list_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             return self.tdSql.checkEqual(list1,list2)
 
     def dataequal_hyperloglog(self, sql1,row1,col1, sql2,row2,col2):
@@ -910,14 +910,14 @@ class TDCreateData():
                 list2.append(self.tdSql.getData(i2,j2))
        
         if  (list1 == list2) and len(list2)>0:
-            self.logger.info(("=====list_hyperlog===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            #self.logger.info(("=====list_hyperlog===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("===list=_hyperlog===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         elif abs(float(str(list1).replace("]","").replace("[","")) - float(str(list2).replace("]","").replace("[",""))) < 10:
-            self.logger.info(("=====list_abs_hyperlog===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            #self.logger.info(("=====list_abs_hyperlog===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("===list_abs_hyperlog===sql1:'%s' result = sql2:'%s' result") %(sql1,sql2))
         else:
             self.logger.info(("sql1:'%s' hyperlog result != sql2:'%s' result") %(sql1,sql2))
-            self.logger.info(("=====list_error_hyperlog===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            #self.logger.info(("=====list_error_hyperlog===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             return self.tdSql.checkEqual(list1,list2)
          
     def data_matrix_equal(self, sql1,row1_s,row1_e,col1_s,col1_e, sql2,row2_s,row2_e,col2_s,col2_e):
@@ -934,7 +934,7 @@ class TDCreateData():
                 #self.logger.info("jjjj=%d"%j1)
                 #self.logger.info("data=%s" %(self.tdSql.getData(i1,j1)))
                 list1.append(self.tdSql.getData(i1,j1))
-            self.logger.info("=====list1-------list1---=%s" %set(list1))
+            #self.logger.info("=====list1-------list1---=%s" %set(list1))
         
         self.tdSql.execute("reset query cache;") #TD=16766
         self.sql2 = sql2  
@@ -946,7 +946,7 @@ class TDCreateData():
                 #self.logger.info("jjjj222=%d"%j2)
                 #self.logger.info("data=%s" %(self.tdSql.getData(i2,j2)))
                 list2.append(self.tdSql.getData(i2,j2))
-            self.logger.info("=====list2-------list2---=%s" %set(list2)) 
+            #self.logger.info("=====list2-------list2---=%s" %set(list2)) 
        
         if  (list1 == list2) and len(list2)>0:
             # self.logger.info(("=====matrix===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
@@ -956,21 +956,21 @@ class TDCreateData():
             # self.logger.info(("=====list_issubset==matrix2in1-true===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("===matrix_issubset===sql1:'%s' matrix_set_result = sql2:'%s' matrix_set_result") %(sql1,sql2))
         elif abs(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None","")) - float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None",""))) <= 0.0001:
-            self.logger.info(("=====matrix_abs+e+===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
-            self.logger.info(("=====matrix_abs+e+replace_after===sql1.list1:'%s',sql2.list2:'%s'") %(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None","")),float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None",""))))
+            #self.logger.info(("=====matrix_abs+e+===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            #self.logger.info(("=====matrix_abs+e+replace_after===sql1.list1:'%s',sql2.list2:'%s'") %(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None","")),float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None",""))))
             self.logger.info(("===matrix_abs+e+===sql1:'%s' matrix_result = sql2:'%s' matrix_result") %(sql1,sql2))
         elif abs(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None","")) - float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None",""))) <= 0.1:
             #{datetime.datetime(2021, 8, 27, 1, 46, 40), -441.46841430664057}replace
-            self.logger.info(("=====matrix_abs+replace===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
-            self.logger.info(("=====matrix_abs+replace_after===sql1.list1:'%s',sql2.list2:'%s'") %(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None","")),float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None",""))))
+            #self.logger.info(("=====matrix_abs+replace===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            #self.logger.info(("=====matrix_abs+replace_after===sql1.list1:'%s',sql2.list2:'%s'") %(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None","")),float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None",""))))
             self.logger.info(("===matrix_abs+replace===sql1:'%s' matrix_result = sql2:'%s' matrix_result") %(sql1,sql2))
         elif abs(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None","")) - float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None",""))) <= 0.5:
-            self.logger.info(("=====matrix_abs===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
-            self.logger.info(("=====matrix_abs===sql1.list1:'%s',sql2.list2:'%s'") %(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None","")),float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None",""))))
+            #self.logger.info(("=====matrix_abs===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            #self.logger.info(("=====matrix_abs===sql1.list1:'%s',sql2.list2:'%s'") %(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None","")),float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","").replace("None",""))))
             self.logger.info(("===matrix_abs======sql1:'%s' matrix_result = sql2:'%s' matrix_result") %(sql1,sql2))
         else:
             self.logger.info(("sql1:'%s' matrix_result != sql2:'%s' matrix_result") %(sql1,sql2))
-            self.logger.info(("=====matrix_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            #self.logger.info(("=====matrix_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             return self.tdSql.checkEqual(list1,list2)
                           
     def data2in1(self, sql1,row1_s,row1_e,col1_s,col1_e, sql2,row2_s,row2_e,col2_s,col2_e):
@@ -1003,9 +1003,9 @@ class TDCreateData():
             #self.logger.info(("=====data2in1-true===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("===data2in1-true===sql1:'%s' result include sql2:'%s' result") %(sql1,sql2))
         else:
-            self.logger.info(("=====data2in1-false===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
-            self.logger.info(("\n\n\n=====data2in1-list1-list2===sql1.list2 in list1:'%s'") %(set(list1)-set(list2)))
-            self.logger.info(("\n\n\n=====data2in1-list2-list1===sql2.list2 not in list1:'%s'") %(set(list2)-set(list1)))
+            #self.logger.info(("=====data2in1-false===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            #self.logger.info(("\n\n\n=====data2in1-list1-list2===sql1.list2 in list1:'%s'") %(set(list1)-set(list2)))
+            #self.logger.info(("\n\n\n=====data2in1-list2-list1===sql2.list2 not in list1:'%s'") %(set(list2)-set(list1)))
             self.logger.info(("sql1:'%s' result not include sql2:'%s' row:'%s' col'%s' result '%s'") %(sql1,sql2,i2,j2,self.tdSql.getData(i2,j2)))
             #return self.tdSql.checkEqual(list1,self.tdSql.getData(i2,j2))
             return self.tdSql.checkEqual(list1,list2)
