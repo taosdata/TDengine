@@ -99,6 +99,8 @@ int32_t streamStateSeekLast(SStreamState* pState, SStreamStateCur* pCur);
 int32_t streamStateCurNext(SStreamState* pState, SStreamStateCur* pCur);
 int32_t streamStateCurPrev(SStreamState* pState, SStreamStateCur* pCur);
 
+// char* streamStateSessionDump(SStreamState* pState);
+
 #ifdef __cplusplus
 }
 #endif

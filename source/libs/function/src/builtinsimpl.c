@@ -380,7 +380,7 @@ typedef struct SGroupKeyInfo {
       numOfElem += 1;                                              \
       pStddevRes->count -= 1;                                      \
       sumT -= plist[i];                                            \
-      pStddevRes->quadraticISum -= plist[i] * plist[i];            \
+      pStddevRes->quadraticISum -= (int64_t)(plist[i] * plist[i]); \
     }                                                              \
   } while (0)
 
@@ -2526,8 +2526,9 @@ int32_t apercentileFunction(SqlFunctionCtx* pCtx) {
     // might be a race condition here that pHisto can be overwritten or setup function
     // has not been called, need to relink the buffer pHisto points to.
     buildHistogramInfo(pInfo);
-    qDebug("%s before add %d elements into histogram, total:%" PRId64 ", numOfEntry:%d, pHisto:%p, elems: %p", __FUNCTION__,
-           numOfElems, pInfo->pHisto->numOfElems, pInfo->pHisto->numOfEntries, pInfo->pHisto, pInfo->pHisto->elems);
+    qDebug("%s before add %d elements into histogram, total:%" PRId64 ", numOfEntry:%d, pHisto:%p, elems: %p",
+           __FUNCTION__, numOfElems, pInfo->pHisto->numOfElems, pInfo->pHisto->numOfEntries, pInfo->pHisto,
+           pInfo->pHisto->elems);
     for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
       if (colDataIsNull_f(pCol->nullbitmap, i)) {
         continue;

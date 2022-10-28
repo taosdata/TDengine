@@ -42,7 +42,7 @@ int32_t tqBuildDeleteReq(SVnode* pVnode, const char* stbFullName, const SSDataBl
     if (metaGetTableEntryByName(&mr, name) < 0) {
       metaReaderClear(&mr);
       taosMemoryFree(name);
-      return -1;
+      continue;
     }
 
     int64_t uid = mr.me.uid;
