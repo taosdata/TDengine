@@ -261,20 +261,6 @@ async fn sync(
 pub async fn tmq_to_td(from: Dsn, actions: Vec<Action>, mut to: Dsn, jobs: usize) -> Result<()> {
     let (mut from, topics) = check_tmq_dsn(from).await?;
 
-    if let Some(database) = to.subject.take() {
-        let taos = TaosBuilder::from_dsn(&to)?.build()?;
-        if !taos.database_exists(&database).await? {
-            log::warn!(
-                "Target database name `{database}` does not exist, create it with default option"
-            );
-            taos.exec(format!("create database if not exists `{database}`"))
-                .await?;
-        }
-        to.subject = Some(database);
-    } else {
-        anyhow::bail!("Database not specified in DSN: {}", to);
-    }
-
     // auto generate group.id if not exists
     let mut from_params = from.drain_params();
     if from_params.get("group.id").is_none() {
@@ -291,8 +277,42 @@ pub async fn tmq_to_td(from: Dsn, actions: Vec<Action>, mut to: Dsn, jobs: usize
 
     let mut handles = Vec::new();
     let mut task_id = 0;
+
+    let target_database = to.subject.take();
     let target = TaosBuilder::from_dsn(&to)?;
+
+    let global_taos = target.build()?;
+
     for topic in topics {
+        let target_database = if let Some(target) = target_database.as_ref() {
+            if !global_taos.database_exists(&target).await? {
+                log::info!(
+                    "target database not exist, create database `{target}` with the same parameter in the backup"
+                );
+                if let Some(sql) = topic.database_sql.as_deref() {
+                    let mut sql = sql.replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS");
+                    if &topic.database != target {
+                        sql = sql.replace(&format!("`{}`", topic.database), &format!("`{target}`"));
+                    }
+                    global_taos.exec(sql).await?;
+                } else {
+                    anyhow::bail!("can not get database params to create a same one");
+                }
+            }
+            target
+        } else {
+            if !global_taos.database_exists(&topic.database).await? {
+                if let Some(sql) = topic.database_sql.as_deref() {
+                    global_taos
+                        .exec(sql.replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS"))
+                        .await?;
+                } else {
+                    anyhow::bail!("can not get database params to create a same one");
+                }
+            }
+            &topic.database
+        };
+
         let jobs = if jobs == 0 || jobs >= topic.vgroups {
             topic.vgroups
         } else {
@@ -301,9 +321,7 @@ pub async fn tmq_to_td(from: Dsn, actions: Vec<Action>, mut to: Dsn, jobs: usize
         if let Some(table) = topic.table.as_ref() {
             // schema rebuild
             let taos = target.build()?;
-            if to.subject.is_none() {
-                taos.exec(format!("use {}", topic.database)).await?;
-            }
+            taos.exec(format!("use {target_database}")).await?;
 
             if let Some(sql) = table.stable_sql.as_deref() {
                 let mut sql = sql.replace("CREATE STABLE", "CREATE STABLE IF NOT EXISTS");
@@ -390,6 +408,7 @@ pub async fn tmq_to_td(from: Dsn, actions: Vec<Action>, mut to: Dsn, jobs: usize
     for handle in handles {
         handle.await??;
     }
+    drop(global_taos);
     drop(target);
     log::info!("done");
 
