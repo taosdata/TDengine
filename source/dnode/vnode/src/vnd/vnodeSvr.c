@@ -369,8 +369,8 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return qWorkerProcessFetchMsg(pVnode, pVnode->pQuery, pMsg, 0);
     case TDMT_SCH_FETCH_RSP:
       return qWorkerProcessRspMsg(pVnode, pVnode->pQuery, pMsg, 0);
-    //case TDMT_SCH_CANCEL_TASK:
-    //  return qWorkerProcessCancelMsg(pVnode, pVnode->pQuery, pMsg, 0);
+    // case TDMT_SCH_CANCEL_TASK:
+    //   return qWorkerProcessCancelMsg(pVnode, pVnode->pQuery, pMsg, 0);
     case TDMT_SCH_DROP_TASK:
       return qWorkerProcessDropMsg(pVnode, pVnode->pQuery, pMsg, 0);
     case TDMT_SCH_QUERY_HEARTBEAT:
@@ -385,9 +385,10 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return tqProcessPollReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_RUN:
       return tqProcessTaskRunReq(pVnode->pTq, pMsg);
+#if 0
     case TDMT_STREAM_TASK_DISPATCH:
-      //      return tqProcessTaskDispatchReq(pVnode->pTq, pMsg, pInfo->workerId != 0);
       return tqProcessTaskDispatchReq(pVnode->pTq, pMsg, true);
+#endif
       /*case TDMT_STREAM_TASK_RECOVER:*/
       /*return tqProcessTaskRecoverReq(pVnode->pTq, pMsg);*/
     case TDMT_STREAM_RETRIEVE:
