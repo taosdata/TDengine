@@ -3601,16 +3601,6 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, SArray* pTabl
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
-
-      code = doOpenReaderImpl(pNextReader);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
-
-      code = doOpenReaderImpl(pReader);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
     }
   }
 
@@ -3741,9 +3731,14 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
 
   if (pReader->innerReader[0] != NULL && pReader->step == 0) {
     bool ret = doTsdbNextDataBlock(pReader->innerReader[0]);
-    resetDataBlockScanInfo(pReader->innerReader[0]->status.pTableMap, pReader->innerReader[0]->window.ekey);
-    pReader->step = EXTERNAL_ROWS_PREV;
 
+    // prepare for the main scan
+    int32_t code = doOpenReaderImpl(pReader);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    pReader->step = EXTERNAL_ROWS_PREV;
     if (ret) {
       return ret;
     }
@@ -3759,7 +3754,12 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
   }
 
   if (pReader->innerReader[1] != NULL && pReader->step == EXTERNAL_ROWS_MAIN) {
-    resetDataBlockScanInfo(pReader->innerReader[1]->status.pTableMap, pReader->window.ekey);
+    // prepare for the next row scan
+    int32_t code = doOpenReaderImpl(pReader->innerReader[1]);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
     bool ret1 = doTsdbNextDataBlock(pReader->innerReader[1]);
     pReader->step = EXTERNAL_ROWS_NEXT;
     if (ret1) {
