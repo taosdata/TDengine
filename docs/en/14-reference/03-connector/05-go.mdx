@@ -353,7 +353,7 @@ The `af` package encapsulates TDengine advanced functions such as connection man
 
   Closes the connection.
 
-#### Subscribe to
+#### Subscribe
 
 * `func NewConsumer(conf *Config) (*Consumer, error)`
 
@@ -387,7 +387,7 @@ Close consumer.
 
 * `func (conn *Connector) InfluxDBInsertLines(lines []string, precision string) error`
 
-  Write to influxDB line protocol.
+  Write to InfluxDB line protocol.
 
 * `func (conn *Connector) OpenTSDBInsertTelnetLines(lines []string) error`
 
@@ -413,7 +413,7 @@ Close consumer.
 
 * `func (stmt *InsertStmt) SetTableName(name string) error`
 
-  Bind the set table name parameter.
+  Bind the table name parameter.
 
 * `func (stmt *InsertStmt) SetSubTableName(name string) error`
 
@@ -462,6 +462,54 @@ Close consumer.
    Close consumer.
 
 For a complete example see [GitHub sample file](https://github.com/taosdata/driver-go/blob/3.0/examples/tmqoverws/main.go)
+
+### parameter binding via WebSocket
+
+* `func NewConnector(config *Config) (*Connector, error)`
+
+  Create a connection.
+
+* `func (c *Connector) Init() (*Stmt, error)`
+
+  Initialize the parameters.
+
+* `func (c *Connector) Close() error`
+
+  Close the connection.
+
+* `func (s *Stmt) Prepare(sql string) error`
+
+  Parameter binding preprocessing SQL statement.
+
+* `func (s *Stmt) SetTableName(name string) error`
+
+  Bind the table name parameter.
+
+* `func (s *Stmt) SetTags(tags *param.Param, bindType *param.ColumnType) error`
+
+  Set tags.
+
+* `func (s *Stmt) BindParam(params []*param.Param, bindType *param.ColumnType) error`
+
+  Parameter bind multiple rows of data.
+
+* `func (s *Stmt) AddBatch() error`
+
+  Add to a parameter-bound batch.
+
+* `func (s *Stmt) Exec() error`
+
+  Execute a parameter binding.
+
+* `func (s *Stmt) GetAffectedRows() int`
+
+  Gets the number of affected rows inserted by the parameter binding.
+
+* `func (s *Stmt) Close() error`
+
+  Closes the parameter binding.
+
+For a complete example see [GitHub sample file](https://github.com/taosdata/driver-go/blob/3.0/examples/stmtoverws/main.go)
 
 ## API Reference
 
