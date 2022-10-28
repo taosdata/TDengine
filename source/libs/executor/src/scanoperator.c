@@ -624,11 +624,6 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
 
     ASSERT(binfo.uid != 0);
     pBlock->info.groupId = getTableGroupId(&pTaskInfo->tableqinfoList, pBlock->info.uid);
-    ASSERT(pBlock->info.groupId != 0);
-//    uint64_t* groupId = taosHashGet(pTaskInfo->tableqinfoList.map, &pBlock->info.uid, sizeof(int64_t));
-//    if (groupId) {
-//      pBlock->info.groupId = *groupId;
-//    }
 
     uint32_t status = 0;
     int32_t  code = loadDataBlock(pOperator, pTableScanInfo, pBlock, &status);
@@ -1570,6 +1565,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   if (groupIdPre) {
     pInfo->pRes->info.groupId = *groupIdPre;
   } else {
+    ASSERT(0);
     pInfo->pRes->info.groupId = 0;
   }
 
@@ -4438,6 +4434,7 @@ static int32_t loadDataBlockFromOneTable(SOperatorInfo* pOperator, STableMergeSc
 typedef struct STableMergeScanSortSourceParam {
   SOperatorInfo* pOperator;
   int32_t        readerIdx;
+  int64_t        uid;
   SSDataBlock*   inputBlock;
 } STableMergeScanSortSourceParam;
 
@@ -4514,8 +4511,10 @@ static SSDataBlock* getTableDataBlockTemp(void* param) {
   }
   tsdbReaderClose(pInfo->pReader);
   pInfo->pReader = NULL;
+
   return NULL;
 }
+
 static SSDataBlock* getTableDataBlock2(void* param) {
   STableMergeScanSortSourceParam* source = param;
   SOperatorInfo*                  pOperator = source->pOperator;

@@ -340,21 +340,23 @@ typedef struct STableScanInfo {
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {
-  STableListInfo* tableListInfo;
-  int32_t         tableStartIndex;
-  int32_t         tableEndIndex;
-  bool            hasGroupId;
-  uint64_t        groupId;
-  SArray*         dataReaders;  // array of tsdbReaderT*
-  SReadHandle     readHandle;
-  int32_t         bufPageSize;
-  uint32_t        sortBufSize;  // max buffer size for in-memory sort
-  SArray*         pSortInfo;
-  SSortHandle*    pSortHandle;
-  SSDataBlock*    pSortInputBlock;
-  int64_t         startTs;  // sort start time
-  SArray*         sortSourceParams;
-  SLimitInfo      limitInfo;
+  STableListInfo*        tableListInfo;
+  int32_t                tableStartIndex;
+  int32_t                tableEndIndex;
+  bool                   hasGroupId;
+  uint64_t               groupId;
+  SArray*                dataReaders;  // array of tsdbReaderT*
+  SArray*                queryConds;   // array of queryTableDataCond
+  STsdbReader*           pReader;
+  SReadHandle            readHandle;
+  int32_t                bufPageSize;
+  uint32_t               sortBufSize;  // max buffer size for in-memory sort
+  SArray*                pSortInfo;
+  SSortHandle*           pSortHandle;
+  SSDataBlock*           pSortInputBlock;
+  int64_t                startTs;  // sort start time
+  SArray*                sortSourceParams;
+  SLimitInfo             limitInfo;
   SFileBlockLoadRecorder readRecorder;
   int64_t                numOfRows;
   SScanInfo              scanInfo;
@@ -371,7 +373,6 @@ typedef struct STableMergeScanInfo {
   SQueryTableDataCond    cond;
   int32_t                scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
   int32_t                dataBlockLoadFlag;
-  STsdbReader*           pReader;
 
   // if the upstream is an interval operator, the interval info is also kept here to get the time
   // window to check if current data block needs to be loaded.

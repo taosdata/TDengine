@@ -5384,6 +5384,8 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
 
     maxTs = TMAX(maxTs, pBlock->info.window.ekey);
     minTs = TMIN(minTs, pBlock->info.window.skey);
+    qDebug("-------------------------groupId:%ld", pBlock->info.groupId);
+
     doStreamIntervalAggImpl(pOperator, pBlock, pBlock->info.groupId, pUpdatedMap);
   }
   pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, maxTs);
