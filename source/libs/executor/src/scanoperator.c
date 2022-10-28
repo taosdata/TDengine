@@ -4796,6 +4796,13 @@ int32_t stopGroupTableMergeScan(SOperatorInfo* pOperator) {
     STsdbReader* reader = taosArrayGetP(pInfo->dataReaders, i);
     tsdbReaderClose(reader);
   }
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->queryConds); i++) {
+    SQueryTableDataCond* cond = taosArrayGet(pInfo->queryConds, i);
+    taosMemoryFree(cond->colList);
+  }
+  taosArrayDestroy(pInfo->queryConds);
+  pInfo->queryConds = NULL;
+
   taosArrayDestroy(pInfo->dataReaders);
   pInfo->dataReaders = NULL;
   return TSDB_CODE_SUCCESS;
