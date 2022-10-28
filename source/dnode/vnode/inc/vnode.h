@@ -165,7 +165,6 @@ SArray  *tsdbRetrieveDataBlock(STsdbReader *pTsdbReadHandle, SArray *pColumnIdLi
 int32_t  tsdbReaderReset(STsdbReader *pReader, SQueryTableDataCond *pCond);
 int32_t  tsdbGetFileBlocksDistInfo(STsdbReader *pReader, STableBlockDistInfo *pTableBlockInfo);
 int64_t  tsdbGetNumOfRowsInMemTable(STsdbReader *pHandle);
-bool     tsdbIsAscendingOrder(STsdbReader *pReader);
 void    *tsdbGetIdx(SMeta *pMeta);
 void    *tsdbGetIvtIdx(SMeta *pMeta);
 uint64_t getReaderMaxVersion(STsdbReader *pReader);
