@@ -173,7 +173,7 @@ def pre_test_build_mac() {
     '''
     sh '''
         cd ${WK}/debug
-        cmake .. -DBUILD_TEST=true -DBUILD_HTTPS=false -DBUILD_TOOLS=true -DWEBSOCKET=true 
+        cmake .. -DBUILD_TEST=true -DBUILD_HTTPS=false
         make -j10
     '''
     sh '''
