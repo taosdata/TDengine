@@ -371,6 +371,7 @@ typedef struct STableMergeScanInfo {
   SQueryTableDataCond    cond;
   int32_t                scanFlag;  // table scan flag to denote if it is a repeat/reverse/main scan
   int32_t                dataBlockLoadFlag;
+  STsdbReader*           pReader;
 
   // if the upstream is an interval operator, the interval info is also kept here to get the time
   // window to check if current data block needs to be loaded.
