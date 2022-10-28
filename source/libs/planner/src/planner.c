@@ -142,15 +142,6 @@ int32_t qMsgToSubplan(const char* pStr, int32_t len, SSubplan** pSubplan) {
   return nodesMsgToNode(pStr, len, (SNode**)pSubplan);
 }
 
-char* qQueryPlanToString(const SQueryPlan* pPlan) {
-  char*   pStr = NULL;
-  int32_t len = 0;
-  if (TSDB_CODE_SUCCESS != nodesNodeToString((SNode*)pPlan, false, &pStr, &len)) {
-    return NULL;
-  }
-  return pStr;
-}
-
 SQueryPlan* qStringToQueryPlan(const char* pStr) {
   SQueryPlan* pPlan = NULL;
   if (TSDB_CODE_SUCCESS != nodesStringToNode(pStr, (SNode**)&pPlan)) {
