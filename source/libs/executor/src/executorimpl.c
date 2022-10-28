@@ -3521,6 +3521,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
     }
   }
 
+  qDebug("-------------------, %d", (int) taosHashGetSize(pTableListInfo->map));
   return TDB_CODE_SUCCESS;
 }
 
@@ -3622,8 +3623,10 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         int32_t sz = taosArrayGetSize(pTableListInfo->pTableList);
         for (int32_t i = 0; i < sz; i++) {
           STableKeyInfo* pKeyInfo = taosArrayGet(pTableListInfo->pTableList, i);
-          qDebug("creating stream task: add table %" PRId64, pKeyInfo->uid);
+          qDebug("creating stream task: add table uid:%" PRIu64, pKeyInfo->uid);
         }
+
+        qDebug("table in hashmap, %d", (int32_t) getTotalTables(pTableListInfo));
 #endif
       }
 

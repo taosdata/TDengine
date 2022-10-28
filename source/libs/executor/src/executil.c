@@ -825,38 +825,86 @@ static int32_t removeInvalidTable(SArray* uids, SHashObj* tags) {
   taosArrayDestroy(validUid);
   return 0;
 }
+
+static int32_t nameComparFn(const void* p1, const void* p2) {
+  const char* pName1 = *(const char**) p1;
+  const char* pName2 = *(const char**) p2;
+
+  int32_t ret = strcmp(pName1, pName2);
+  if (ret == 0) {
+    return 0;
+  } else {
+    return (ret > 0)? 1:-1;
+  }
+}
+
+static SArray* getTableNameList(const SNodeListNode* pList) {
+  int32_t len = LIST_LENGTH(pList->pNodeList);
+  SListCell* cell = pList->pNodeList->pHead;
+
+  SArray* pTbList = taosArrayInit(len, POINTER_BYTES);
+  for (int i = 0; i < pList->pNodeList->length; i++) {
+    SValueNode* valueNode = (SValueNode*) cell->pNode;
+    if (!IS_VAR_DATA_TYPE(valueNode->node.resType.type)) {
+      terrno = TSDB_CODE_INVALID_PARA;
+      taosArrayDestroy(pTbList);
+      return NULL;
+    }
+
+    char* name = varDataVal(valueNode->datum.p);
+    taosArrayPush(pTbList, &name);
+    cell = cell->pNext;
+  }
+
+  size_t numOfTables = taosArrayGetSize(pTbList);
+
+  // order the name
+  taosArraySort(pTbList, nameComparFn);
+
+  // remove the duplicates
+  SArray* pNewList = taosArrayInit(taosArrayGetSize(pTbList), sizeof(void*));
+  taosArrayPush(pNewList, taosArrayGet(pTbList, 0));
+
+  for (int32_t i = 1; i < numOfTables; ++i) {
+    char** name = taosArrayGetLast(pNewList);
+    char** nameInOldList = taosArrayGet(pTbList, i);
+    if (strcmp(*name, *nameInOldList) == 0) {
+      continue;
+    }
+
+    taosArrayPush(pNewList, nameInOldList);
+  }
+
+  taosArrayDestroy(pTbList);
+  return pNewList;
+}
+
 static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* list, SNode* pTagCond) {
   if (nodeType(pTagCond) != QUERY_NODE_OPERATOR) {
     return -1;
   }
+
   SOperatorNode* pNode = (SOperatorNode*)pTagCond;
   if (pNode->opType != OP_TYPE_IN) {
     return -1;
   }
+
   if ((pNode->pLeft != NULL && nodeType(pNode->pLeft) == QUERY_NODE_COLUMN &&
        ((SColumnNode*)pNode->pLeft)->colType == COLUMN_TYPE_TBNAME) &&
       (pNode->pRight != NULL && nodeType(pNode->pRight) == QUERY_NODE_NODE_LIST)) {
     SNodeListNode* pList = (SNodeListNode*)pNode->pRight;
 
     int32_t len = LIST_LENGTH(pList->pNodeList);
-    if (len <= 0) return -1;
-
-    SListCell* cell = pList->pNodeList->pHead;
-
-    SArray* pTbList = taosArrayInit(len, sizeof(void*));
-    for (int i = 0; i < pList->pNodeList->length; i++) {
-      SValueNode* valueNode = (SValueNode*)cell->pNode;
-      if (!IS_VAR_DATA_TYPE(valueNode->node.resType.type)) {
-        taosArrayDestroy(pTbList);
-        return -1;
-      }
-      char* name = varDataVal(valueNode->datum.p);
-      taosArrayPush(pTbList, &name);
-      cell = cell->pNext;
+    if (len <= 0) {
+      return -1;
     }
 
-    for (int i = 0; i < taosArrayGetSize(pTbList); i++) {
-      char*    name = taosArrayGetP(pTbList, i);
+    SArray* pTbList = getTableNameList(pList);
+    int32_t numOfTables = taosArrayGetSize(pTbList);
+
+    for (int i = 0; i < numOfTables; i++) {
+      char* name = taosArrayGetP(pTbList, i);
+
       uint64_t uid = 0;
       if (metaGetTableUidByName(metaHandle, name, &uid) == 0) {
         ETableType tbType = TSDB_TABLE_MAX;
@@ -871,11 +919,14 @@ static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* 
         terrno = 0;
       }
     }
+
     taosArrayDestroy(pTbList);
     return 0;
   }
+
   return -1;
 }
+
 int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond,
                      STableListInfo* pListInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1605,7 +1656,7 @@ void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimit
   pLimitInfo->remainGroupOffset = slimit.offset;
 }
 
-uint64_t getTotalTables(STableListInfo* pTableList) {
+uint64_t getTotalTables(const STableListInfo* pTableList) {
   if (pTableList->map != NULL) {
     ASSERT(taosArrayGetSize(pTableList->pTableList) == taosHashGetSize(pTableList->map));
   }
@@ -1613,7 +1664,7 @@ uint64_t getTotalTables(STableListInfo* pTableList) {
   return taosArrayGetSize(pTableList->pTableList);
 }
 
-uint64_t getTableGroupId(STableListInfo* pTableList, uint64_t tableUid) {
+uint64_t getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid) {
   uint64_t* groupId = taosHashGet(pTableList->map, &tableUid, sizeof(tableUid));
   if (groupId != NULL) {
     return *groupId;
@@ -1622,7 +1673,17 @@ uint64_t getTableGroupId(STableListInfo* pTableList, uint64_t tableUid) {
   }
 }
 
-int32_t getTablesOfGroup(STableListInfo* pTableList, int32_t ordinalGroupIndex, STableKeyInfo** pKeyInfo, int32_t* size) {
+int32_t addTableIntoTableList(STableListInfo* pTableList, uint64_t uid, uint64_t gid) {
+  STableKeyInfo keyInfo = {.uid = uid, .groupId = gid};
+
+  taosArrayPush(pTableList->pTableList, &keyInfo);
+  if (pTableList->oneTableForEachGroup || pTableList->numOfGroups > 1) {
+    taosHashPut(pTableList->map, &uid, sizeof(uid), &keyInfo.groupId, sizeof(keyInfo.groupId));
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t getTablesOfGroup(const STableListInfo* pTableList, int32_t ordinalGroupIndex, STableKeyInfo** pKeyInfo, int32_t* size) {
   int32_t total = getNumOfGroups(pTableList);
   if (ordinalGroupIndex < 0 || ordinalGroupIndex >= total) {
     return TSDB_CODE_INVALID_PARA;
@@ -1651,7 +1712,7 @@ int32_t getTablesOfGroup(STableListInfo* pTableList, int32_t ordinalGroupIndex, 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t  getNumOfGroups(STableListInfo* pTableList) {
+int32_t  getNumOfGroups(const STableListInfo* pTableList) {
   return pTableList->numOfGroups;
 }
 

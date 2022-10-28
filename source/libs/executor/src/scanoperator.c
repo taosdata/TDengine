@@ -1078,21 +1078,9 @@ void resetTableScanInfo(STableScanInfo* pTableScanInfo, STimeWindow* pWin) {
   pTableScanInfo->cond.twindows = *pWin;
   pTableScanInfo->scanTimes = 0;
   pTableScanInfo->currentGroupId = -1;
+  tsdbReaderClose(pTableScanInfo->dataReader);
+  pTableScanInfo->dataReader = NULL;
 }
-
-//static void freeArray(void* array) { taosArrayDestroy(array); }
-//
-//static void resetTableScanOperator(SOperatorInfo* pTableScanOp) {
-//  STableScanInfo* pTableScanInfo = pTableScanOp->info;
-//  pTableScanInfo->cond.startVersion = -1;
-//  pTableScanInfo->cond.endVersion = -1;
-////  SArray* gpTbls = pTableScanOp->pTaskInfo->tableqinfoList.pGroupList;
-////  SArray* allTbls = pTableScanOp->pTaskInfo->tableqinfoList.pTableList;
-////  taosArrayClearP(gpTbls, freeArray);
-////  taosArrayPush(gpTbls, &allTbls);
-//  STimeWindow win = {.skey = INT64_MIN, .ekey = INT64_MAX};
-//  resetTableScanInfo(pTableScanOp->info, &win);
-//}
 
 static SSDataBlock* readPreVersionData(SOperatorInfo* pTableScanOp, uint64_t tbUid, TSKEY startTs, TSKEY endTs,
                                        int64_t maxVersion) {
@@ -4104,6 +4092,9 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, STagScanPhysi
   SExprInfo* pExprInfo = createExprInfo(pPhyNode->pScanPseudoCols, NULL, &numOfExprs);
   int32_t    code =
       extractColMatchInfo(pPhyNode->pScanPseudoCols, pDescNode, &num, COL_MATCH_FROM_COL_ID, &pInfo->matchInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
   code = initExprSupp(&pOperator->exprSupp, pExprInfo, numOfExprs);
   if (code != TSDB_CODE_SUCCESS) {

@@ -105,10 +105,11 @@ typedef struct STableListInfo {
 } STableListInfo;
 
 void     destroyTableList(STableListInfo* pTableList);
-int32_t  getNumOfGroups(STableListInfo* pTableList);
-uint64_t getTableGroupId(STableListInfo* pTableList, uint64_t tableUid);
-int32_t  getTablesOfGroup(STableListInfo* pTableList, int32_t ordinalIndex, STableKeyInfo** pKeyInfo, int32_t* num);
-uint64_t getTotalTables(STableListInfo* pTableList);
+int32_t  getNumOfGroups(const STableListInfo* pTableList);
+uint64_t getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid);
+int32_t  addTableIntoTableList(STableListInfo* pTableList, uint64_t uid, uint64_t gid);
+int32_t  getTablesOfGroup(const STableListInfo* pTableList, int32_t ordinalIndex, STableKeyInfo** pKeyInfo, int32_t* num);
+uint64_t getTotalTables(const STableListInfo* pTableList);
 
 struct SqlFunctionCtx;
 

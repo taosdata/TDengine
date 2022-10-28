@@ -3463,6 +3463,7 @@ int32_t tsdbSetTableList(STsdbReader* pReader, const void* pTableList, int32_t n
   while ((p = taosHashIterate(pReader->status.pTableMap, p)) != NULL) {
     clearBlockScanInfo(p);
   }
+
   taosHashClear(pReader->status.pTableMap);
 
   STableKeyInfo* pList = (STableKeyInfo*) pTableList;
