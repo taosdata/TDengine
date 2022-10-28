@@ -59,6 +59,10 @@ enum {
   CTGT_RSP_USERAUTH,
   CTGT_RSP_TBLCFG,
   CTGT_RSP_TBLINDEX,
+  CTGT_RSP_DBCFG,
+  CTGT_RSP_QNODELIST,
+  CTGT_RSP_UDF,
+  CTGT_RSP_SVRVER,
   CTGT_RSP_TBMETA_NOT_EXIST,
 };
 
@@ -74,7 +78,10 @@ int32_t  ctgTestVgVersion = 1;
 int32_t  ctgTestVgNum = 10;
 int32_t  ctgTestColNum = 2;
 int32_t  ctgTestTagNum = 1;
+int32_t  ctgTestQnodeNum = 3;
 int32_t  ctgTestIndexNum = 3;
+int32_t  ctgTestFuncNum = 2;
+int32_t  ctgTestFuncType = 3;
 int32_t  ctgTestSVersion = 1;
 int32_t  ctgTestTVersion = 1;
 int32_t  ctgTestSuid = 2;
@@ -617,6 +624,84 @@ void ctgTestRspTableIndex(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg 
   tFreeSTableIndexRsp(&tblRsp);
 }
 
+void ctgTestRspDBCfg(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  rpcFreeCont(pMsg->pCont);
+  
+  static int32_t idx = 1;
+
+  SDbCfgRsp dbRsp = {0};
+  dbRsp.numOfVgroups = ctgTestVgNum;
+  
+  int32_t contLen = tSerializeSDbCfgRsp(NULL, 0, &dbRsp);
+  void   *pReq = rpcMallocCont(contLen);
+  tSerializeSDbCfgRsp(pReq, contLen, &dbRsp);
+
+  pRsp->code = 0;
+  pRsp->contLen = contLen;
+  pRsp->pCont = pReq;
+}
+
+void ctgTestRspQnodeList(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  rpcFreeCont(pMsg->pCont);
+
+  SQnodeListRsp qlistRsp = {0};
+  qlistRsp.qnodeList = taosArrayInit(10, sizeof(SQueryNodeLoad));
+  for (int32_t i = 0; i < ctgTestQnodeNum; ++i) {
+    SQueryNodeLoad nodeLoad = {0};
+    nodeLoad.addr.nodeId = i;
+    
+    (void)taosArrayPush(qlistRsp.qnodeList, &nodeLoad);
+  }
+
+  int32_t rspLen = tSerializeSQnodeListRsp(NULL, 0, &qlistRsp);
+  void   *pReq = rpcMallocCont(rspLen);
+  tSerializeSQnodeListRsp(pReq, rspLen, &qlistRsp);
+
+  pRsp->code = 0;
+  pRsp->contLen = rspLen;
+  pRsp->pCont = pReq;
+
+  tFreeSQnodeListRsp(&qlistRsp);
+}
+
+void ctgTestRspUdfInfo(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  rpcFreeCont(pMsg->pCont);
+
+  SRetrieveFuncRsp funcRsp = {0};
+  funcRsp.numOfFuncs = 1;
+  funcRsp.pFuncInfos = taosArrayInit(1, sizeof(SFuncInfo));
+  SFuncInfo funcInfo = {0};
+  strcpy(funcInfo.name, "func1");
+  funcInfo.funcType = ctgTestFuncType;
+    
+  (void)taosArrayPush(funcRsp.pFuncInfos, &funcInfo);
+
+  int32_t rspLen = tSerializeSRetrieveFuncRsp(NULL, 0, &funcRsp);
+  void   *pReq = rpcMallocCont(rspLen);
+  tSerializeSRetrieveFuncRsp(pReq, rspLen, &funcRsp);
+
+  pRsp->code = 0;
+  pRsp->contLen = rspLen;
+  pRsp->pCont = pReq;
+
+  tFreeSRetrieveFuncRsp(&funcRsp);
+}
+
+void ctgTestRspSvrVer(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  rpcFreeCont(pMsg->pCont);
+
+  SServerVerRsp verRsp = {0};
+  strcpy(verRsp.ver, "1.0");
+  
+  int32_t rspLen = tSerializeSServerVerRsp(NULL, 0, &verRsp);
+  void   *pReq = rpcMallocCont(rspLen);
+  tSerializeSServerVerRsp(pReq, rspLen, &verRsp);
+
+  pRsp->code = 0;
+  pRsp->contLen = rspLen;
+  pRsp->pCont = pReq;
+}
+
 
 void ctgTestRspAuto(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   switch (pMsg->msgType) {
@@ -629,6 +714,18 @@ void ctgTestRspAuto(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp)
       break;
     case TDMT_MND_GET_TABLE_INDEX:
       ctgTestRspTableIndex(shandle, pEpSet, pMsg, pRsp);
+      break;
+    case TDMT_MND_GET_DB_CFG:
+      ctgTestRspDBCfg(shandle, pEpSet, pMsg, pRsp);
+      break;
+    case TDMT_MND_QNODE_LIST:
+      ctgTestRspQnodeList(shandle, pEpSet, pMsg, pRsp);  
+      break;
+    case TDMT_MND_RETRIEVE_FUNC:
+      ctgTestRspUdfInfo(shandle, pEpSet, pMsg, pRsp);
+      break;
+    case TDMT_MND_SERVER_VERSION:
+      ctgTestRspSvrVer(shandle, pEpSet, pMsg, pRsp);
       break;
     default:
       break;
@@ -669,6 +766,18 @@ void ctgTestRspByIdx(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp
       break;
     case CTGT_RSP_TBLINDEX:
       ctgTestRspTableIndex(shandle, pEpSet, pMsg, pRsp);
+      break;
+    case CTGT_RSP_DBCFG:
+      ctgTestRspDBCfg(shandle, pEpSet, pMsg, pRsp);
+      break;
+    case CTGT_RSP_QNODELIST:
+      ctgTestRspQnodeList(shandle, pEpSet, pMsg, pRsp);
+      break;
+    case CTGT_RSP_UDF:
+      ctgTestRspUdfInfo(shandle, pEpSet, pMsg, pRsp);
+      break;
+    case CTGT_RSP_SVRVER:
+      ctgTestRspSvrVer(shandle, pEpSet, pMsg, pRsp);
       break;
     default:
       ctgTestRspAuto(shandle, pEpSet, pMsg, pRsp);
@@ -2708,6 +2817,133 @@ TEST(apiTest, catalogGetTableIndex_test) {
   ASSERT_EQ(taosArrayGetSize(pRes), ctgTestIndexNum);
 
   taosArrayDestroyEx(pRes, tFreeSTableIndexInfo);
+
+  catalogDestroy();
+}
+
+TEST(apiTest, catalogGetDBCfg_test) {
+  struct SCatalog  *pCtg = NULL;
+  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
+
+  ctgTestInitLogFile();
+
+  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  ctgTestRspIdx = 0;
+  ctgTestRspFunc[0] = CTGT_RSP_DBCFG;
+
+  ctgTestSetRspByIdx();
+
+  initQueryModuleMsgHandle();
+
+  int32_t code = catalogInit(NULL);
+  ASSERT_EQ(code, 0);
+
+  code = catalogGetHandle(ctgTestClusterId, &pCtg);
+  ASSERT_EQ(code, 0);
+
+  SName n = {TSDB_TABLE_NAME_T, 1, {0}, {0}};
+  strcpy(n.dbname, "db1");
+  strcpy(n.tname, ctgTestTablename);
+
+  SDbCfgInfo cfgInfo = {0};
+  code = catalogGetDBCfg(pCtg, mockPointer, ctgTestDbname, &cfgInfo);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(cfgInfo.numOfVgroups, ctgTestVgNum);
+
+  catalogDestroy();
+}
+
+TEST(apiTest, catalogGetQnodeList_test) {
+  struct SCatalog  *pCtg = NULL;
+  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
+
+  ctgTestInitLogFile();
+
+  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  ctgTestRspIdx = 0;
+  ctgTestRspFunc[0] = CTGT_RSP_QNODELIST;
+
+  ctgTestSetRspByIdx();
+
+  initQueryModuleMsgHandle();
+
+  int32_t code = catalogInit(NULL);
+  ASSERT_EQ(code, 0);
+
+  code = catalogGetHandle(ctgTestClusterId, &pCtg);
+  ASSERT_EQ(code, 0);
+
+  SArray *qnodeList = taosArrayInit(10, sizeof(SQueryNodeLoad));
+  code = catalogGetQnodeList(pCtg, mockPointer, qnodeList);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(taosArrayGetSize(qnodeList), ctgTestQnodeNum);
+
+  for (int32_t i = 0; i < ctgTestQnodeNum; ++i) {
+    SQueryNodeLoad * pLoad = (SQueryNodeLoad *)taosArrayGet(qnodeList, i);
+    ASSERT_EQ(pLoad->addr.nodeId, i);
+  }
+
+  catalogDestroy();
+}
+
+
+TEST(apiTest, catalogGetUdfInfo_test) {
+  struct SCatalog  *pCtg = NULL;
+  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
+
+  ctgTestInitLogFile();
+
+  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  ctgTestRspIdx = 0;
+  ctgTestRspFunc[0] = CTGT_RSP_UDF;
+
+  ctgTestSetRspByIdx();
+
+  initQueryModuleMsgHandle();
+
+  int32_t code = catalogInit(NULL);
+  ASSERT_EQ(code, 0);
+
+  code = catalogGetHandle(ctgTestClusterId, &pCtg);
+  ASSERT_EQ(code, 0);
+
+  SFuncInfo funcInfo = {0};
+  code = catalogGetUdfInfo(pCtg, mockPointer, "func1", &funcInfo);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(funcInfo.funcType, ctgTestFuncType);
+
+  catalogDestroy();
+}
+
+
+TEST(apiTest, catalogGetServerVersion_test) {
+  struct SCatalog  *pCtg = NULL;
+  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
+
+  ctgTestInitLogFile();
+
+  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  ctgTestRspIdx = 0;
+  ctgTestRspFunc[0] = CTGT_RSP_SVRVER;
+
+  ctgTestSetRspByIdx();
+
+  initQueryModuleMsgHandle();
+
+  int32_t code = catalogInit(NULL);
+  ASSERT_EQ(code, 0);
+
+  code = catalogGetHandle(ctgTestClusterId, &pCtg);
+  ASSERT_EQ(code, 0);
+
+  char* ver = NULL;
+  code = catalogGetServerVersion(pCtg, mockPointer, &ver);
+  ASSERT_EQ(code, 0);
+  ASSERT_TRUE(0 == strcmp(ver, "1.0"));
 
   catalogDestroy();
 }
