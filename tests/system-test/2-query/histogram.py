@@ -454,13 +454,26 @@ class TDTestCase:
         tdSql.checkData(2, 0, '{"lower_bin":6, "upper_bin":9, "count":3}')
 
         #  if (4 != numOfParams) 
-        # tdSql.error("select HISTOGRAM(c_int, \"linear_bin\", \"{\"start\": -200, \"width\": 100, \"count\": 20, \"infinity\": false}\", 1 , InvalidNumber) from db.nt1 where c_int < 10")
-        tdSql.error('SELECT HISTOGRAM(c_int, "linear_bin", "{"start": -200, "width": 100, "count": 20, "infinity": false}", 0 ,InvalidNumber ) from %s.nt1 '%dbname)
-        tdSql.error('SELECT HISTOGRAM(c_int, "linear_bin", "{"start": -200, "width": 100, "count": 20, "infinity": false}" ) from %s.nt1 '%dbname)
-        tdSql.error('SELECT HISTOGRAM(c_int, 54321, "[0,3,6,9]", 1 ) from %s.nt1 '%dbname) 
-        tdSql.error('SELECT HISTOGRAM(c_int, "USER_INPUT", 54321, 0  ) from %s.nt1'%dbname) 
-        tdSql.error('SELECT HISTOGRAM(c_int, "USER_INPUT", "[0,3,6,9]", InvalidNumber ) from %s.nt1'%dbname) 
-        tdSql.error('SELECT HISTOGRAM(c_int, "USER_INPUT", "[0,3,6,9]", -100 ) from %s.nt1'%dbname) 
+        # tdSql.error("select HISTOGRAM(c_int, \"linear_bin\", \"{\"start\": -200, \"width\": 100, \"count\": 20, \"infinity\": false}\", 1 , InvalidNumber) from db.stb1 where c_int < 10")
+        tdSql.error('SELECT HISTOGRAM(c_int, "linear_bin", \'{"start": -200, "width": 100, "count": 20, "infinity": false}\', 0 ,InvalidNumber ) from %s.stb1 '%dbname)
+        tdSql.error('SELECT HISTOGRAM(c_int, "linear_bin", \'{"start": -200, "width": 100, "count": 20, "infinity": false}\' ) from %s.stb1 '%dbname)
+        tdSql.error('SELECT HISTOGRAM(c_int, 54321, "[0,3,6,9]", 1 ) from %s.stb1 '%dbname) 
+        tdSql.error('SELECT HISTOGRAM(c_int, "USER_INPUT", 54321, 0  ) from %s.stb1'%dbname) 
+        tdSql.error('SELECT HISTOGRAM(c_int, "USER_INPUT", "[0,3,6,9]", InvalidNumber ) from %s.stb1'%dbname) 
+        tdSql.error('SELECT HISTOGRAM(c_int, "USER_INPUT", "[0,3,6,9]", -100 ) from %s.stb1'%dbname) 
+        tdSql.error('SELECT HISTOGRAM(c_int, c_int, "[0,3,6,9]", 1 ) from %s.stb1'%dbname) 
+        tdSql.error('SELECT HISTOGRAM(c_int, "USER_INPUT", c_int, 1 ) from %s.stb1'%dbname) 
+        tdSql.error('SELECT HISTOGRAM(c_int, "USER_INPUT", "[0,3,6,9]", c_int ) from %s.stb1'%dbname) 
+        tdSql.query('SELECT HISTOGRAM(123, "USER_INPUT", "[0,3,6,9]", 0 ) from %s.stb1'%dbname) 
+        tdSql.error('SELECT HISTOGRAM(c_binary, "USER_INPUT", "[0,3,6,9]", 0 ) from %s.stb1'%dbname) 
+        tdSql.error('SELECT HISTOGRAM("c_binary", "USER_INPUT", "[0,3,6,9]", 0 ) from %s.stb1'%dbname) 
+        tdSql.query('SELECT HISTOGRAM(123, "linear_bin", \'{"start": 1, "width": 10, "count": 20, "infinity": false}\',0 ) from %s.stb1 '%dbname)
+        tdSql.error('SELECT HISTOGRAM(c_binary, "linear_bin", \'{"start": 1, "width": 10, "count": 20, "infinity": false}\',0 ) from %s.stb1 '%dbname)
+        tdSql.error('SELECT HISTOGRAM("c_binary", "linear_bin", \'{"start": 1, "width": 10, "count": 20, "infinity": false}\',0 ) from %s.stb1 '%dbname)
+
+        tdSql.error('SELECT HISTOGRAM(c_int, "c_int", \'{"start": 1, "width": 10, "count": 20, "infinity": false}\',0 ) from %s.stb1 '%dbname)
+        tdSql.error('SELECT HISTOGRAM(c_int, "linear_bin", c_int,0 ) from %s.stb1 '%dbname)
+        tdSql.error('SELECT HISTOGRAM(c_int, "linear_bin", \'{"start": 1, "width": 10, "count": 20, "infinity": false}\',c_int ) from %s.stb1 '%dbname)
 
 
     def all_test(self, dbname=DBNAME):

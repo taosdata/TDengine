@@ -1312,24 +1312,26 @@ class TDTestCase:
 
         # ts can't be used at outer query
 
-        tdSql.query("select elapsed(ts,1s) from (select ts from regular_table_1 );")
+        tdSql.query("select elapsed(ts,1s) from (select ts from stable_1 );")
 
         # case : TD-12164
 
-        tdSql.error("select elapsed(ts,1s) from (select qint ts from regular_table_1 );")
-        tdSql.error("select elapsed(tbname ,1s) from (select qint tbname from regular_table_1 );")
-        tdSql.error("select elapsed(tsc ,1s) from (select q_int tsc from regular_table_1) ;")
-        tdSql.error("select elapsed(tsv ,1s) from (select elapsed(ts,1s) tsv from regular_table_1);")
-        tdSql.error("select elapsed(ts ,1s) from (select elapsed(ts,1s) ts from regular_table_1);")
+        tdSql.error("select elapsed(ts,1s) from (select qint ts from stable_1 );")
+        tdSql.error("select elapsed(tbname ,1s) from (select qint tbname from stable_1 );")
+        tdSql.error("select elapsed(tsc ,1s) from (select q_int tsc from stable_1) ;")
+        tdSql.error("select elapsed(tsv ,1s) from (select elapsed(ts,1s) tsv from stable_1);")
+        tdSql.error("select elapsed(ts ,1s) from (select elapsed(ts,1s) ts from stable_1);")
         # # bug fix
-        tdSql.error("select elapsed(tsc ,1s) from (select tscol tsc from regular_table_1) ;")
+        tdSql.error("select elapsed(tsc ,1s) from (select tscol tsc from stable_1) ;")
 
         #TD-19911
-        tdSql.error("select elapsed(ts,1s,123) from (select ts,tbname from regular_table_1 order by ts asc );")
-        tdSql.error("select elapsed() from (select ts,tbname from regular_table_1 order by ts asc );")
-        tdSql.error("select elapsed(tscol,1s) from (select ts,tbname from regular_table_1 order by ts asc );")
-        tdSql.error("select elapsed(ts,1n) from (select ts,tbname from regular_table_1 order by ts asc );")
-        tdSql.error("select elapsed(ts,1y) from (select ts,tbname from regular_table_1 order by ts asc );")
+        tdSql.error("select elapsed(ts,1s,123) from (select ts,tbname from stable_1 order by ts asc );")
+        tdSql.error("select elapsed() from (select ts,tbname from stable_1 order by ts asc );")
+        tdSql.error("select elapsed(tscol,1s) from (select ts,tbname from stable_1 order by ts asc );")
+        tdSql.error("select elapsed(ts,1n) from (select ts,tbname from stable_1 order by ts asc );")
+        tdSql.error("select elapsed(ts,1y) from (select ts,tbname from stable_1 order by ts asc );")
+        tdSql.error("select elapsed(ts,tscol) from (select ts,tbname from stable_1 order by ts asc );")
+        tdSql.error("select elapsed(bin_chars,tscol) from (select ts,tbname from stable_1 order by ts asc );")
 
         # case TD-12276
         tdSql.query("select elapsed(ts,1s) from (select ts,tbname from regular_table_1 order by ts asc );")
