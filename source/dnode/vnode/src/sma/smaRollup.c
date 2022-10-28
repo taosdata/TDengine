@@ -706,20 +706,20 @@ static int32_t tdRSmaExecAndSubmitResult(SSma *pSma, qTaskInfo_t taskInfo, SRSma
 
       // TODO: the schema update should be handled later(TD-17965)
       if (buildSubmitReqFromDataBlock(&pReq, output, pTSchema, SMA_VID(pSma), suid) < 0) {
-        smaError("vgId:%d, build submit req for rsma table %" PRIi64 " level %" PRIi8 " failed since %s", SMA_VID(pSma),
-                 suid, pItem->level, terrstr());
+        smaError("vgId:%d, build submit req for rsma table suid:%" PRIu64 ", uid:%"PRIu64", level %" PRIi8 " failed since %s", SMA_VID(pSma),
+                 suid, output->info.groupId, pItem->level, terrstr());
         goto _err;
       }
 
       if (pReq && tdProcessSubmitReq(sinkTsdb, output->info.version, pReq) < 0) {
         taosMemoryFreeClear(pReq);
-        smaError("vgId:%d, process submit req for rsma table %" PRIi64 " level %" PRIi8 " failed since %s",
-                 SMA_VID(pSma), suid, pItem->level, terrstr());
+        smaError("vgId:%d, process submit req for rsma table suid:%" PRIu64 ", uid:%"PRIu64", level %" PRIi8 " failed since %s",
+                 SMA_VID(pSma), suid, output->info.groupId, pItem->level, terrstr());
         goto _err;
       }
 
-      smaDebug("vgId:%d, process submit req for rsma table %" PRIi64 " level %" PRIi8 " ver %" PRIi64 " len %" PRIu32,
-               SMA_VID(pSma), suid, pItem->level, output->info.version, htonl(pReq->header.contLen));
+      smaDebug("vgId:%d, process submit req for rsma table suid:%" PRIu64 ", uid:%"PRIu64", level %" PRIi8 " ver %" PRIi64 " len %" PRIu32,
+               SMA_VID(pSma), suid, output->info.groupId, pItem->level, output->info.version, htonl(pReq->header.contLen));
 
       taosMemoryFreeClear(pReq);
     }

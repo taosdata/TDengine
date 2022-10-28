@@ -1679,11 +1679,15 @@ uint64_t getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid) {
 
 int32_t addTableIntoTableList(STableListInfo* pTableList, uint64_t uid, uint64_t gid) {
   STableKeyInfo keyInfo = {.uid = uid, .groupId = gid};
-
   taosArrayPush(pTableList->pTableList, &keyInfo);
-  if (pTableList->oneTableForEachGroup || pTableList->numOfOuputGroups > 1) {
+  if (!pTableList->oneTableForEachGroup) {
+    if (pTableList->map == NULL) {
+      pTableList->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+    }
+
     taosHashPut(pTableList->map, &uid, sizeof(uid), &keyInfo.groupId, sizeof(keyInfo.groupId));
   }
+
   return TSDB_CODE_SUCCESS;
 }
 
