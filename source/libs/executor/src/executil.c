@@ -1666,7 +1666,6 @@ uint64_t getTotalTables(const STableListInfo* pTableList) {
 
 uint64_t getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid) {
   if (pTableList->oneTableForEachGroup) {
-    ASSERT(pTableList->map == NULL);
     return tableUid;
   }
 
