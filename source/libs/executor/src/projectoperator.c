@@ -159,6 +159,7 @@ static int32_t setInfoForNewGroup(SSDataBlock* pBlock, SLimitInfo* pLimitInfo, S
 
     // reset the value for a new group data
     // existing rows that belongs to previous group.
+    // TODO refactor with doTableScan
     pLimitInfo->numOfOutputRows = 0;
     pLimitInfo->remainOffset = pLimitInfo->limit.offset;
   }
