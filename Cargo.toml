@@ -1,6 +1,6 @@
 [package]
 name = "taosx"
-version = "0.0.0"
+version = "0.1.0"
 edition = "2021"
 homepage = "https://taosdata.com"
 description = "taosX - TDengine data integration tool"
@@ -51,10 +51,13 @@ metrics-exporter-prometheus = { version = "0.11.0", default-features = false, fe
 palaver = "0.2.8"
 procfs = "0.14.0"
 psutil = { version = "3.2.0", default-features = false, features = ["cpu", "process"] }
+shadow-rs = "0.17.1"
+const_format = "0.2.30"
 
 [build-dependencies]
 sqlx = { version = "0.6", features = ["runtime-tokio-native-tls", "sqlite", "chrono"] }
 dotenv = "0.15.0"
+shadow-rs = "0.17.1"
 
 [features]
 default = ["sys"]
