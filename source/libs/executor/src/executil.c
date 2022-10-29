@@ -741,7 +741,8 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
 
     int32_t len = (int32_t)(pStart - (char*)keyBuf);
     info->groupId = calcGroupId(keyBuf, len);
-    taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), &info->groupId, sizeof(uint64_t));
+
+    taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), &i, sizeof(int32_t));
   }
 
   //  int64_t st2 = taosGetTimestampUs();
@@ -1665,29 +1666,29 @@ uint64_t getTotalTables(const STableListInfo* pTableList) {
 }
 
 uint64_t getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid) {
-  if (pTableList->oneTableForEachGroup) {
-    return tableUid;
-  }
+  ASSERT(pTableList->map != NULL);
+  int32_t* slot = taosHashGet(pTableList->map, &tableUid, sizeof(tableUid));
+  ASSERT(slot != NULL);
 
-  uint64_t* groupId = taosHashGet(pTableList->map, &tableUid, sizeof(tableUid));
-  if (groupId != NULL) {
-    return *groupId;
-  } else {
-    return 0;
-  }
+  STableKeyInfo* pKeyInfo = taosArrayGet(pTableList->pTableList, *slot);
+  ASSERT(pKeyInfo->uid == tableUid);
+
+  return pKeyInfo->groupId;
 }
 
 int32_t addTableIntoTableList(STableListInfo* pTableList, uint64_t uid, uint64_t gid) {
-  STableKeyInfo keyInfo = {.uid = uid, .groupId = gid};
-  taosArrayPush(pTableList->pTableList, &keyInfo);
-  if (!pTableList->oneTableForEachGroup) {
-    if (pTableList->map == NULL) {
-      pTableList->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
-    }
-
-    taosHashPut(pTableList->map, &uid, sizeof(uid), &keyInfo.groupId, sizeof(keyInfo.groupId));
+  if (pTableList->map == NULL) {
+    ASSERT(taosArrayGetSize(pTableList->pTableList) == 0);
+    pTableList->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   }
 
+  STableKeyInfo keyInfo = {.uid = uid, .groupId = gid};
+  taosArrayPush(pTableList->pTableList, &keyInfo);
+
+  int32_t slot = (int32_t)taosArrayGetSize(pTableList->pTableList) - 1;
+  taosHashPut(pTableList->map, &uid, sizeof(uid), &slot, sizeof(slot));
+
+  qDebug("uid:%"PRIu64", groupId:%"PRIu64" added into table list, slot:%d, %d", uid, gid, slot, slot + 1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1724,6 +1725,7 @@ int32_t  getNumOfOutputGroups(const STableListInfo* pTableList) {
   return pTableList->numOfOuputGroups;
 }
 
+// todo remove it
 bool     oneTableForEachGroup(const STableListInfo* pTableList) {
   return pTableList->oneTableForEachGroup;
 }

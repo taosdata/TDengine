@@ -360,6 +360,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
 
       if (!exists) {
 #endif
+
       addTableIntoTableList(pTableListInfo, keyInfo.uid, keyInfo.groupId);
     }
 

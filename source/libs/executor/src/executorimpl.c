@@ -3489,11 +3489,8 @@ bool groupbyTbname(SNodeList* pGroupList) {
   return bytbname;
 }
 
-int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* group, bool groupSort) {
+int32_t setGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* group, bool groupSort) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (group == NULL) {
-    return code;
-  }
 
   pTableListInfo->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (pTableListInfo->map == NULL) {
@@ -3501,19 +3498,22 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
     return code;
   }
 
-  bool   assignUid = groupbyTbname(group);
+  bool groupByTbname = groupbyTbname(group);
   size_t numOfTables = taosArrayGetSize(pTableListInfo->pTableList);
-
-  if (assignUid) { // in case of group/partition by tbname, the group id is equalled to the uid of table
+  if (group == NULL || groupByTbname) {
     for (int32_t i = 0; i < numOfTables; i++) {
       STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
-      info->groupId = info->uid;
-      taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), &info->groupId, sizeof(uint64_t));
+      info->groupId = groupByTbname? info->uid:0;
+
+      taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), &i, sizeof(int32_t));
     }
 
-    pTableListInfo->oneTableForEachGroup = true;
-    if (groupSort) {
+    pTableListInfo->oneTableForEachGroup = groupByTbname;
+
+    if (groupSort && groupByTbname) {
       pTableListInfo->numOfOuputGroups = numOfTables;
+    } else {
+      pTableListInfo->numOfOuputGroups = 1;
     }
   } else {
     code = getColInfoResultForGroupby(pHandle->meta, group, pTableListInfo);

@@ -1137,12 +1137,13 @@ static uint64_t getGroupIdByCol(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts, 
 }
 
 static uint64_t getGroupIdByUid(SStreamScanInfo* pInfo, uint64_t uid) {
-  SHashObj* map = pInfo->pTableScanOp->pTaskInfo->tableqinfoList.map;
-  uint64_t* groupId = taosHashGet(map, &uid, sizeof(int64_t));
-  if (groupId) {
-    return *groupId;
-  }
-  return 0;
+  return getTableGroupId(&pInfo->pTableScanOp->pTaskInfo->tableqinfoList, uid);
+//  SHashObj* map = pInfo->pTableScanOp->pTaskInfo->tableqinfoList.map;
+//  uint64_t* groupId = taosHashGet(map, &uid, sizeof(int64_t));
+//  if (groupId) {
+//    return *groupId;
+//  }
+//  return 0;
 }
 
 static uint64_t getGroupIdByData(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts, int64_t maxVersion) {
@@ -1561,12 +1562,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   pInfo->pRes->info.type = STREAM_NORMAL;
   pInfo->pRes->info.version = pBlock->info.version;
 
-  uint64_t* groupIdPre = taosHashGet(pTaskInfo->tableqinfoList.map, &pBlock->info.uid, sizeof(int64_t));
-  if (groupIdPre) {
-    pInfo->pRes->info.groupId = *groupIdPre;
-  } else {
-    pInfo->pRes->info.groupId = 0;
-  }
+  pInfo->pRes->info.groupId = getTableGroupId(&pTaskInfo->tableqinfoList, pBlock->info.uid);
 
   // todo extract method
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->matchInfo.pList); ++i) {
@@ -4236,7 +4232,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
   }
 
   pTableListInfo->numOfOuputGroups = 1;
-  code = generateGroupIdMap(pTableListInfo, pHandle, pGroupTags, groupSort);
+  code = setGroupIdMapForAllTables(pTableListInfo, pHandle, pGroupTags, groupSort);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -4566,10 +4562,7 @@ static SSDataBlock* getTableDataBlockTemp(void* param) {
       continue;
     }
 
-    uint64_t* groupId = taosHashGet(pOperator->pTaskInfo->tableqinfoList.map, &pBlock->info.uid, sizeof(int64_t));
-    if (groupId) {
-      pBlock->info.groupId = *groupId;
-    }
+    pBlock->info.groupId = getTableGroupId(&pOperator->pTaskInfo->tableqinfoList, pBlock->info.uid);
 
     pOperator->resultInfo.totalRows += pBlock->info.rows;  // pTableScanInfo->readRecorder.totalRows;
     pTableScanInfo->readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
@@ -4626,11 +4619,7 @@ static SSDataBlock* getTableDataBlock2(void* param) {
       continue;
     }
 
-    uint64_t* groupId = taosHashGet(pOperator->pTaskInfo->tableqinfoList.map, &pBlock->info.uid, sizeof(int64_t));
-    if (groupId) {
-      pBlock->info.groupId = *groupId;
-    }
-
+    pBlock->info.groupId = getTableGroupId(&pOperator->pTaskInfo->tableqinfoList, pBlock->info.uid);
     pOperator->resultInfo.totalRows = pTableScanInfo->readRecorder.totalRows;
     pTableScanInfo->readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
 
@@ -4684,11 +4673,7 @@ static SSDataBlock* getTableDataBlock(void* param) {
       continue;
     }
 
-    uint64_t* groupId = taosHashGet(pOperator->pTaskInfo->tableqinfoList.map, &pBlock->info.uid, sizeof(int64_t));
-    if (groupId) {
-      pBlock->info.groupId = *groupId;
-    }
-
+    pBlock->info.groupId = getTableGroupId(&pOperator->pTaskInfo->tableqinfoList, pBlock->info.uid);
     pOperator->resultInfo.totalRows = pTableScanInfo->readRecorder.totalRows;
     pTableScanInfo->readRecorder.elapsedTime += (taosGetTimestampUs() - st) / 1000.0;
 
