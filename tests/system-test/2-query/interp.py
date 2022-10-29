@@ -36,7 +36,7 @@ class TDTestCase:
         tdSql.execute(f"insert into {dbname}.{tbname} values ('2020-02-01 00:00:05', 5, 5, 5, 5, 5.0, 5.0, true, 'varchar', 'nchar')")
         tdSql.execute(f"insert into {dbname}.{tbname} values ('2020-02-01 00:00:10', 10, 10, 10, 10, 10.0, 10.0, true, 'varchar', 'nchar')")
         tdSql.execute(f"insert into {dbname}.{tbname} values ('2020-02-01 00:00:15', 15, 15, 15, 15, 15.0, 15.0, true, 'varchar', 'nchar')")
-        
+
         tdSql.execute(f"insert into {dbname}.{tbname} (ts) values (now)")
 
         tdLog.printNoPrefix("==========step3:fill null")
@@ -886,7 +886,7 @@ class TDTestCase:
         tdSql.query(f"select interp(c0),interp(c1),interp(c2),interp(c3),interp(c4),interp(c5) from {dbname}.{tbname} range('2020-02-09 00:00:05', '2020-02-13 00:00:05') every(1d) fill(linear)")
         tdSql.checkRows(3)
         tdSql.checkCols(6)
-        
+
         for i in range (tdSql.queryCols):
             tdSql.checkData(0, i, 13)
 
