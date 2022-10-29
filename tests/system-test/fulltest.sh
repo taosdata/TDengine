@@ -13,7 +13,7 @@ python3 ./test.py -f 0-others/udf_restart_taosd.py
 python3 ./test.py -f 0-others/cachemodel.py
 python3 ./test.py -f 0-others/udf_cfg1.py
 python3 ./test.py -f 0-others/udf_cfg2.py
-
+python3 ./test.py -f 0-others/taosdShell.py -N 5 -M 3 -Q 3
 python3 ./test.py -f 0-others/sysinfo.py
 python3 ./test.py -f 0-others/user_control.py
 python3 ./test.py -f 0-others/fsync.py
@@ -207,8 +207,10 @@ python3 ./test.py -f 2-query/varchar.py -R
 
 
 python3 ./test.py -f 1-insert/update_data.py
+python3 ./test.py -f 1-insert/tb_100w_data_order.py
 
 python3 ./test.py -f 1-insert/delete_data.py
+python3 ./test.py -f 1-insert/keep_expired.py
 
 python3 ./test.py -f 2-query/join2.py
 python3 ./test.py -f 2-query/union1.py
@@ -250,7 +252,7 @@ python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 5 -
 
 python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 6 -M 3 -C 5
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStopInsert.py
-# TD-19646 python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
+python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
 # TD-19646 python3 test.py -f 6-cluster/5dnode3mnodeStopConnect.py -N 5 -M 3
 
 python3 ./test.py -f 6-cluster/5dnode3mnodeRecreateMnode.py  -N 5 -M 3
@@ -272,7 +274,7 @@ python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_query
 # python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_stop_follower_unsync_force_stop.py -N 4 -M 1
 # python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_stop_follower_unsync.py -N 4 -M 1
 # python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_stop_leader_forece_stop.py -N 4 -M 1
-python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_stop_leader.py -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_stop_leader.py -N 4 -M 1
 # python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_mnode3_insertdatas_querys.py -N 4 -M 1
 # python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_querydatas_stop_follower_force_stop.py -N 4 -M 1
 # python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_querydatas_stop_follower.py -N 4 -M 1
@@ -362,7 +364,7 @@ python3 ./test.py -f 2-query/concat.py -Q 2
 python3 ./test.py -f 2-query/concat2.py -Q 2
 python3 ./test.py -f 2-query/concat_ws.py -Q 2
 python3 ./test.py -f 2-query/concat_ws2.py -Q 2
-#python3 ./test.py -f 2-query/check_tsdb.py -Q 2
+python3 ./test.py -f 2-query/check_tsdb.py -Q 2
 python3 ./test.py -f 2-query/spread.py -Q 2
 python3 ./test.py -f 2-query/hyperloglog.py -Q 2
 python3 ./test.py -f 2-query/explain.py -Q 2
@@ -401,13 +403,17 @@ python3 ./test.py -f 2-query/arctan.py -Q 2
 python3 ./test.py -f 2-query/query_cols_tags_and_or.py  -Q 2
 python3 ./test.py -f 2-query/interp.py  -Q 2
 
-# python3 ./test.py -f 2-query/nestedQuery.py  -Q 2
-# python3 ./test.py -f 2-query/nestedQuery_str.py  -Q 2
+python3 ./test.py -f 2-query/nestedQuery.py -Q 2
+python3 ./test.py -f 2-query/nestedQuery_str.py -Q 2
+python3 ./test.py -f 2-query/nestedQuery_math.py -Q 2
+python3 ./test.py -f 2-query/nestedQuery_time.py -Q 2
+python3 ./test.py -f 2-query/stablity.py -Q 2
+python3 ./test.py -f 2-query/stablity_1.py -Q 2
 
 python3 ./test.py -f 2-query/avg.py   -Q 2
-# python3 ./test.py -f 2-query/elapsed.py  -Q 2
+python3 ./test.py -f 2-query/elapsed.py  -Q 2
 python3 ./test.py -f 2-query/csum.py  -Q 2
-#python3 ./test.py -f 2-query/mavg.py  -Q 2
+python3 ./test.py -f 2-query/mavg.py  -Q 2
 python3 ./test.py -f 2-query/sample.py  -Q 2
 python3 ./test.py -f 2-query/function_diff.py  -Q 2
 python3 ./test.py -f 2-query/unique.py  -Q 2
@@ -431,8 +437,9 @@ python3 ./test.py -f 2-query/count_partition.py -Q 2
 python3 ./test.py -f 2-query/max_partition.py -Q 2
 python3 ./test.py -f 2-query/last_row.py -Q 2
 python3 ./test.py -f 2-query/tsbsQuery.py -Q 2
-#------------querPolicy  3-----------
+python3 ./test.py -f 2-query/sml.py -Q 2
 
+#------------querPolicy  3-----------
 python3 ./test.py -f 2-query/between.py -Q  3
 python3 ./test.py -f 2-query/distinct.py -Q  3
 python3 ./test.py -f 2-query/varchar.py -Q  3
@@ -452,7 +459,7 @@ python3 ./test.py -f 2-query/concat.py -Q  3
 python3 ./test.py -f 2-query/concat2.py -Q  3
 python3 ./test.py -f 2-query/concat_ws.py -Q  3
 python3 ./test.py -f 2-query/concat_ws2.py -Q  3
-#python3 ./test.py -f 2-query/check_tsdb.py -Q  3
+python3 ./test.py -f 2-query/check_tsdb.py -Q  3
 python3 ./test.py -f 2-query/spread.py -Q  3
 python3 ./test.py -f 2-query/hyperloglog.py -Q  3
 python3 ./test.py -f 2-query/explain.py -Q  3
@@ -463,7 +470,7 @@ python3 ./test.py -f 2-query/Today.py -Q  3
 python3 ./test.py -f 2-query/max.py -Q  3
 python3 ./test.py -f 2-query/min.py -Q  3
 python3 ./test.py -f 2-query/count.py -Q  3
-#python3 ./test.py -f 2-query/last.py -Q  3
+python3 ./test.py -f 2-query/last.py -Q  3
 python3 ./test.py -f 2-query/first.py -Q  3
 python3 ./test.py -f 2-query/To_iso8601.py -Q  3
 python3 ./test.py -f 2-query/To_unixtimestamp.py -Q  3
@@ -489,12 +496,18 @@ python3 ./test.py -f 2-query/arcsin.py -Q  3
 python3 ./test.py -f 2-query/arccos.py -Q  3
 python3 ./test.py -f 2-query/arctan.py -Q  3
 python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q  3
-# python3 ./test.py -f 2-query/nestedQuery.py -Q  3
-# python3 ./test.py -f 2-query/nestedQuery_str.py -Q  3
-# python3 ./test.py -f 2-query/avg.py -Q  3
-# python3 ./test.py -f 2-query/elapsed.py -Q  3
+
+python3 ./test.py -f 2-query/nestedQuery.py -Q 3
+python3 ./test.py -f 2-query/nestedQuery_str.py -Q 3
+python3 ./test.py -f 2-query/nestedQuery_math.py -Q 3
+python3 ./test.py -f 2-query/nestedQuery_time.py -Q 3
+python3 ./test.py -f 2-query/stablity.py -Q 3
+python3 ./test.py -f 2-query/stablity_1.py -Q 3
+
+python3 ./test.py -f 2-query/avg.py -Q  3
+python3 ./test.py -f 2-query/elapsed.py -Q  3
 python3 ./test.py -f 2-query/csum.py -Q  3
-#python3 ./test.py -f 2-query/mavg.py -Q  3
+python3 ./test.py -f 2-query/mavg.py -Q  3
 python3 ./test.py -f 2-query/sample.py -Q  3
 python3 ./test.py -f 2-query/function_diff.py -Q  3
 python3 ./test.py -f 2-query/unique.py -Q  3
@@ -535,7 +548,7 @@ python3 ./test.py -f 2-query/upper.py -Q  4
 python3 ./test.py -f 2-query/lower.py -Q  4
 python3 ./test.py -f 2-query/join.py -Q  4
 python3 ./test.py -f 2-query/join2.py -Q  4
-python3 ./test.py -f 2-query/cast.py -Q  4
+#python3 ./test.py -f 2-query/cast.py -Q  4
 python3 ./test.py -f 2-query/substr.py -Q  4
 python3 ./test.py -f 2-query/union.py -Q  4
 python3 ./test.py -f 2-query/union1.py -Q  4
@@ -543,7 +556,7 @@ python3 ./test.py -f 2-query/concat.py -Q  4
 python3 ./test.py -f 2-query/concat2.py -Q  4
 python3 ./test.py -f 2-query/concat_ws.py -Q  4
 python3 ./test.py -f 2-query/concat_ws2.py -Q  4
-#python3 ./test.py -f 2-query/check_tsdb.py -Q  4
+python3 ./test.py -f 2-query/check_tsdb.py -Q  4
 python3 ./test.py -f 2-query/spread.py -Q  4
 python3 ./test.py -f 2-query/hyperloglog.py -Q  4
 python3 ./test.py -f 2-query/explain.py -Q  4
@@ -554,7 +567,7 @@ python3 ./test.py -f 2-query/Today.py -Q  4
 python3 ./test.py -f 2-query/max.py -Q  4
 python3 ./test.py -f 2-query/min.py -Q  4
 python3 ./test.py -f 2-query/count.py -Q  4
-#python3 ./test.py -f 2-query/last.py -Q  4
+python3 ./test.py -f 2-query/last.py -Q  4
 python3 ./test.py -f 2-query/first.py -Q  4
 python3 ./test.py -f 2-query/To_iso8601.py -Q  4
 python3 ./test.py -f 2-query/To_unixtimestamp.py -Q  4
@@ -580,12 +593,19 @@ python3 ./test.py -f 2-query/arcsin.py -Q  4
 python3 ./test.py -f 2-query/arccos.py -Q  4
 python3 ./test.py -f 2-query/arctan.py -Q  4
 python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q  4
-# python3 ./test.py -f 2-query/nestedQuery.py -Q  4
-# python3 ./test.py -f 2-query/nestedQuery_str.py -Q  4
-# python3 ./test.py -f 2-query/avg.py -Q  4
-# python3 ./test.py -f 2-query/elapsed.py -Q  4
+
+python3 ./test.py -f 2-query/nestedQuery.py -Q 4
+python3 ./test.py -f 2-query/nestedQuery_str.py -Q 4
+python3 ./test.py -f 2-query/nestedQuery_math.py -Q 4
+python3 ./test.py -f 2-query/nestedQuery_time.py -Q 4
+python3 ./test.py -f 2-query/stablity.py -Q 4
+python3 ./test.py -f 2-query/stablity_1.py -Q 4
+
+
+python3 ./test.py -f 2-query/avg.py -Q  4
+python3 ./test.py -f 2-query/elapsed.py -Q  4
 python3 ./test.py -f 2-query/csum.py -Q  4
-#python3 ./test.py -f 2-query/mavg.py -Q  4
+python3 ./test.py -f 2-query/mavg.py -Q  4
 python3 ./test.py -f 2-query/sample.py -Q  4
 python3 ./test.py -f 2-query/function_diff.py -Q  4
 python3 ./test.py -f 2-query/unique.py -Q  4
@@ -609,5 +629,5 @@ python3 ./test.py -f 2-query/count_partition.py -Q 4
 python3 ./test.py -f 2-query/max_partition.py -Q 4
 python3 ./test.py -f 2-query/last_row.py -Q 4
 python3 ./test.py -f 2-query/tsbsQuery.py -Q 4
-#python3 ./test.py -f 2-query/sml.py -Q 4
+python3 ./test.py -f 2-query/sml.py -Q 4
 python3 ./test.py -f 2-query/interp.py -Q 4

@@ -203,6 +203,14 @@ int32_t catalogUpdateTableMeta(SCatalog* pCatalog, STableMetaRsp* rspMsg);
 
 int32_t catalogUpdateTableMeta(SCatalog* pCatalog, STableMetaRsp* rspMsg);
 
+int32_t catalogGetCachedTableMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, STableMeta** pTableMeta);
+
+int32_t catalogGetCachedSTableMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,
+                            STableMeta** pTableMeta);
+
+int32_t catalogGetCachedTableHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,
+                                  SVgroupInfo* pVgroup, bool* exists);
+
 /**
  * Force refresh DB's local cached vgroup info.
  * @param pCtg (input, got with catalogGetHandle)

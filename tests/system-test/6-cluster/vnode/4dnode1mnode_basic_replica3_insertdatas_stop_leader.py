@@ -289,7 +289,7 @@ class TDTestCase:
     def start_benchmark_inserts(self,dbname , json_file):
         benchmark_build_path = self.getBuildPath() + '/build/bin/taosBenchmark'
         tdLog.notice("==== start taosBenchmark insert datas of database {} ==== ".format(dbname))
-        os.system(" {} -f {} >>/dev/null 2>&1 ".format(benchmark_build_path , json_file))
+        os.system(" {} -y -n 10 -t 10 >>/dev/null 2>&1 ".format(benchmark_build_path , json_file))
 
     def stop_leader_when_Benchmark_inserts(self,dbname , total_rows , json_file ):
 
@@ -366,7 +366,7 @@ class TDTestCase:
         # basic insert and check of cluster
         # self.check_setup_cluster_status()
         json = os.path.dirname(__file__) + '/insert_10W_rows.json'
-        self.stop_leader_when_Benchmark_inserts('db_1' , 100000 ,json)
+        self.stop_leader_when_Benchmark_inserts('db_1' , 100 ,json)
         # tdLog.notice( " ===== start insert 100W rows  ==== ")
         # json = os.path.dirname(__file__) + '/insert_100W_rows.json'
         # self.stop_leader_when_Benchmark_inserts('db_2' , 1000000 ,json)

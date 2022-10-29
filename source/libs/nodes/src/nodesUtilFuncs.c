@@ -203,7 +203,6 @@ int32_t nodesReleaseAllocator(int64_t allocatorId) {
   return taosReleaseRef(g_allocatorReqRefPool, allocatorId);
 }
 
-
 int64_t nodesMakeAllocatorWeakRef(int64_t allocatorId) {
   if (allocatorId <= 0) {
     return 0;
@@ -329,6 +328,7 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:
       return makeNode(type, sizeof(SDropSuperTableStmt));
     case QUERY_NODE_ALTER_TABLE_STMT:
+    case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
       return makeNode(type, sizeof(SAlterTableStmt));
     case QUERY_NODE_CREATE_USER_STMT:
       return makeNode(type, sizeof(SCreateUserStmt));
@@ -936,6 +936,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
       nodesDestroyNode(((SShowDnodeVariablesStmt*)pNode)->pDnodeId);
+      nodesDestroyNode(((SShowDnodeVariablesStmt*)pNode)->pLikePattern);
       break;
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       taosMemoryFreeClear(((SShowCreateDatabaseStmt*)pNode)->pCfg);

@@ -158,7 +158,7 @@ int32_t taosMulMkDir(const char *dirname) {
 #ifdef WINDOWS
       code = _mkdir(temp, 0755);
 #elif defined(DARWIN)
-      code = mkdir(dirname, 0777);
+      code = mkdir(temp, 0777);
 #else
       code = mkdir(temp, 0755);
 #endif

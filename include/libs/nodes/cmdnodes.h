@@ -274,6 +274,7 @@ typedef struct SShowTableDistributedStmt {
 typedef struct SShowDnodeVariablesStmt {
   ENodeType type;
   SNode*    pDnodeId;
+  SNode*    pLikePattern;
 } SShowDnodeVariablesStmt;
 
 typedef struct SShowVnodesStmt {
@@ -373,6 +374,7 @@ typedef struct SStreamOptions {
   int8_t    triggerType;
   SNode*    pDelay;
   SNode*    pWatermark;
+  int8_t    fillHistory;
   int8_t    ignoreExpired;
 } SStreamOptions;
 

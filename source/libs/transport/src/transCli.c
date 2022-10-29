@@ -1612,8 +1612,8 @@ int transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) {
 
   SCvtAddr cvtAddr = {0};
   if (ip != NULL && fqdn != NULL) {
-    if (strlen(ip) <= sizeof(cvtAddr.ip)) memcpy(cvtAddr.ip, ip, strlen(ip));
-    if (strlen(fqdn) <= sizeof(cvtAddr.fqdn)) memcpy(cvtAddr.fqdn, fqdn, strlen(fqdn));
+    tstrncpy(cvtAddr.ip, ip, sizeof(cvtAddr.ip));
+    tstrncpy(cvtAddr.fqdn, fqdn, sizeof(cvtAddr.fqdn));
     cvtAddr.cvt = true;
   }
   for (int i = 0; i < pTransInst->numOfThreads; i++) {

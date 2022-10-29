@@ -66,7 +66,12 @@ bool voteGrantedMajority(SVotesGranted *pVotesGranted) {
 
 void voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg) {
   ASSERT(pMsg->voteGranted == true);
-  ASSERT(pMsg->term == pVotesGranted->term);
+
+  if (pMsg->term != pVotesGranted->term) {
+    syncNodeEventLog(pVotesGranted->pSyncNode, "vote grant vnode error");
+    return;
+  }
+
   ASSERT(syncUtilSameId(&pVotesGranted->pSyncNode->myRaftId, &pMsg->destId));
 
   int j = -1;
@@ -201,7 +206,11 @@ bool votesResponded(SVotesRespond *pVotesRespond, const SRaftId *pRaftId) {
 }
 
 void votesRespondAdd(SVotesRespond *pVotesRespond, const SyncRequestVoteReply *pMsg) {
-  ASSERT(pVotesRespond->term == pMsg->term);
+  if (pVotesRespond->term != pMsg->term) {
+    syncNodeEventLog(pVotesRespond->pSyncNode, "vote respond add error");
+    return;
+  }
+
   for (int i = 0; i < pVotesRespond->replicaNum; ++i) {
     if (syncUtilSameId(&((*(pVotesRespond->replicas))[i]), &pMsg->srcId)) {
       // ASSERT(pVotesRespond->isRespond[i] == false);

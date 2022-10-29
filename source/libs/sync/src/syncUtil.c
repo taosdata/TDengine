@@ -209,7 +209,8 @@ bool syncUtilCanPrint(char c) {
 }
 
 char* syncUtilprintBin(char* ptr, uint32_t len) {
-  char* s = taosMemoryMalloc(len + 1);
+  int64_t memLen = (int64_t)(len + 1);
+  char*   s = taosMemoryMalloc(memLen);
   ASSERT(s != NULL);
   memset(s, 0, len + 1);
   memcpy(s, ptr, len);

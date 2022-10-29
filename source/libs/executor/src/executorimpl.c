@@ -2301,8 +2301,8 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, SExchangePhysiNode
   pOperator->exprSupp.numOfExprs = taosArrayGetSize(pInfo->pDummyBlock->pDataBlock);
   pOperator->pTaskInfo = pTaskInfo;
 
-  pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, doLoadRemoteData, NULL, NULL,
-                                         destroyExchangeOperatorInfo, NULL);
+  pOperator->fpSet =
+      createOperatorFpSet(prepareLoadRemoteData, doLoadRemoteData, NULL, NULL, destroyExchangeOperatorInfo, NULL);
   return pOperator;
 
 _error:
@@ -3026,8 +3026,8 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
   pOperator->info = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
 
-  pOperator->fpSet = createOperatorFpSet(doOpenAggregateOptr, getAggregateResult, NULL, NULL, destroyAggOperatorInfo,
-                                         NULL);
+  pOperator->fpSet =
+      createOperatorFpSet(doOpenAggregateOptr, getAggregateResult, NULL, NULL, destroyAggOperatorInfo, NULL);
 
   if (downstream->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
     STableScanInfo* pTableScanInfo = downstream->info;
@@ -3253,8 +3253,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
   pOperator->info = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
 
-  pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doFill, NULL, NULL, destroyFillOperatorInfo, NULL);
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doFill, NULL, NULL, destroyFillOperatorInfo, NULL);
 
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
@@ -3427,7 +3426,7 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
 
 bool groupbyTbname(SNodeList* pGroupList) {
   bool bytbname = false;
-  if (LIST_LENGTH(pGroupList) > 0) {
+  if (LIST_LENGTH(pGroupList) == 1) {
     SNode* p = nodesListGetNode(pGroupList, 0);
     if (p->type == QUERY_NODE_FUNCTION) {
       // partition by tbname/group by tbname
@@ -3443,7 +3442,7 @@ int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle,
     return TDB_CODE_SUCCESS;
   }
 
-  pTableListInfo->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  pTableListInfo->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (pTableListInfo->map == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -3948,8 +3947,11 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
     goto _complete;
   }
 
-  if (pHandle && pHandle->pStateBackend) {
-    (*pTaskInfo)->streamInfo.pState = pHandle->pStateBackend;
+  if (pHandle) {
+    /*(*pTaskInfo)->streamInfo.fillHistoryVer1 = pHandle->fillHistoryVer1;*/
+    if (pHandle->pStateBackend) {
+      (*pTaskInfo)->streamInfo.pState = pHandle->pStateBackend;
+    }
   }
 
   (*pTaskInfo)->sql = sql;

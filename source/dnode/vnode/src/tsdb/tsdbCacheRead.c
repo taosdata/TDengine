@@ -18,18 +18,7 @@
 #include "tcommon.h"
 #include "tsdb.h"
 
-typedef struct SCacheRowsReader {
-  SVnode*   pVnode;
-  STSchema* pSchema;
-  uint64_t  uid;
-  char**    transferBuf;  // todo remove it soon
-  int32_t   numOfCols;
-  int32_t   type;
-  int32_t   tableIndex;  // currently returned result tables
-  SArray*   pTableList;  // table id list
-} SCacheRowsReader;
-
-#define HASTYPE(_type, _t)  (((_type) & (_t)) == (_t))
+#define HASTYPE(_type, _t) (((_type) & (_t)) == (_t))
 
 static void saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pReader, const int32_t* slotIds,
                        void** pRes) {
@@ -61,7 +50,7 @@ static void saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pRea
           if (IS_VAR_DATA_TYPE(pColVal->colVal.type)) {
             varDataSetLen(p->buf, pColVal->colVal.value.nData);
             memcpy(varDataVal(p->buf), pColVal->colVal.value.pData, pColVal->colVal.value.nData);
-            p->bytes = pColVal->colVal.value.nData + VARSTR_HEADER_SIZE;   // binary needs to plus the header size
+            p->bytes = pColVal->colVal.value.nData + VARSTR_HEADER_SIZE;  // binary needs to plus the header size
           } else {
             memcpy(p->buf, &pColVal->colVal.value, pReader->pSchema->columns[slotId].bytes);
             p->bytes = pReader->pSchema->columns[slotId].bytes;
@@ -75,7 +64,7 @@ static void saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pRea
       colDataAppend(pColInfoData, numOfRows, (const char*)pRes[i], false);
     }
 
-    pBlock->info.rows += allNullRow? 0:1;
+    pBlock->info.rows += allNullRow ? 0 : 1;
   } else {
     ASSERT(HASTYPE(pReader->type, CACHESCAN_RETRIEVE_LAST_ROW));
 
@@ -108,7 +97,8 @@ static void saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pRea
   }
 }
 
-int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, SArray* pTableIdList, int32_t numOfCols, void** pReader) {
+int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, SArray* pTableIdList, int32_t numOfCols, uint64_t suid,
+                                void** pReader) {
   *pReader = NULL;
 
   SCacheRowsReader* p = taosMemoryCalloc(1, sizeof(SCacheRowsReader));
@@ -119,6 +109,7 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, SArray* pTableIdList
   p->type = type;
   p->pVnode = pVnode;
   p->numOfCols = numOfCols;
+  p->suid = suid;
 
   if (taosArrayGetSize(pTableIdList) == 0) {
     *pReader = p;
@@ -145,6 +136,12 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, SArray* pTableIdList
     }
   }
 
+  p->pLoadInfo = tCreateLastBlockLoadInfo(p->pSchema, NULL, 0);
+  if (p->pLoadInfo == NULL) {
+    tsdbCacherowsReaderClose(p);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   *pReader = p;
   return TSDB_CODE_SUCCESS;
 }
@@ -161,6 +158,8 @@ void* tsdbCacherowsReaderClose(void* pReader) {
     taosMemoryFree(p->pSchema);
   }
 
+  destroyLastBlockLoadInfo(p->pLoadInfo);
+
   taosMemoryFree(pReader);
   return NULL;
 }
@@ -171,9 +170,9 @@ static int32_t doExtractCacheRow(SCacheRowsReader* pr, SLRUCache* lruCache, uint
   *pRow = NULL;
 
   if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_LAST_ROW)) {
-    code = tsdbCacheGetLastrowH(lruCache, uid, pr->pVnode->pTsdb, h);
+    code = tsdbCacheGetLastrowH(lruCache, uid, pr, h);
   } else {
-    code = tsdbCacheGetLastH(lruCache, uid, pr->pVnode->pTsdb, h);
+    code = tsdbCacheGetLastH(lruCache, uid, pr, h);
   }
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -189,7 +188,7 @@ static int32_t doExtractCacheRow(SCacheRowsReader* pr, SLRUCache* lruCache, uint
 }
 
 static void freeItem(void* pItem) {
-  SLastCol* pCol = (SLastCol*) pItem;
+  SLastCol* pCol = (SLastCol*)pItem;
   if (IS_VAR_DATA_TYPE(pCol->colVal.type)) {
     taosMemoryFree(pCol->colVal.value.pData);
   }
@@ -230,13 +229,17 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
   for (int32_t i = 0; i < pr->pSchema->numOfCols; ++i) {
     struct STColumn* pCol = &pr->pSchema->columns[i];
-    SLastCol p = {.ts = INT64_MIN, .colVal.type = pCol->type};
+    SLastCol         p = {.ts = INT64_MIN, .colVal.type = pCol->type};
 
     if (IS_VAR_DATA_TYPE(pCol->type)) {
       p.colVal.value.pData = taosMemoryCalloc(pCol->bytes, sizeof(char));
     }
     taosArrayPush(pLastCols, &p);
   }
+
+  tsdbTakeReadSnap(pr->pVnode->pTsdb, &pr->pReadSnap, "cache-l");
+  pr->pDataFReader = NULL;
+  pr->pDataFReaderLast = NULL;
 
   // retrieve the only one last row of all tables in the uid list.
   if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_SINGLE)) {
@@ -306,7 +309,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
   } else if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_ALL)) {
     for (int32_t i = pr->tableIndex; i < numOfTables; ++i) {
-      STableKeyInfo* pKeyInfo = (STableKeyInfo*) taosArrayGet(pr->pTableList, i);
+      STableKeyInfo* pKeyInfo = (STableKeyInfo*)taosArrayGet(pr->pTableList, i);
       code = doExtractCacheRow(pr, lruCache, pKeyInfo->uid, &pRow, &h);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -331,7 +334,12 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     code = TSDB_CODE_INVALID_PARA;
   }
 
-  _end:
+_end:
+  tsdbDataFReaderClose(&pr->pDataFReaderLast);
+  tsdbDataFReaderClose(&pr->pDataFReader);
+
+  tsdbUntakeReadSnap(pr->pVnode->pTsdb, pr->pReadSnap, "cache-l");
+
   for (int32_t j = 0; j < pr->numOfCols; ++j) {
     taosMemoryFree(pRes[j]);
   }

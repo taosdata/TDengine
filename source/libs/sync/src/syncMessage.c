@@ -411,32 +411,40 @@ SyncPing* syncPingDeserialize3(void* buf, int32_t bufLen) {
   pMsg->bytes = bytes;
 
   if (tDecodeI32(&decoder, &pMsg->vgId) < 0) {
+    taosMemoryFree(pMsg);
     return NULL;
   }
   if (tDecodeU32(&decoder, &pMsg->msgType) < 0) {
+    taosMemoryFree(pMsg);
     return NULL;
   }
   if (tDecodeU64(&decoder, &pMsg->srcId.addr) < 0) {
+    taosMemoryFree(pMsg);
     return NULL;
   }
   if (tDecodeI32(&decoder, &pMsg->srcId.vgId) < 0) {
+    taosMemoryFree(pMsg);
     return NULL;
   }
   if (tDecodeU64(&decoder, &pMsg->destId.addr) < 0) {
+    taosMemoryFree(pMsg);
     return NULL;
   }
   if (tDecodeI32(&decoder, &pMsg->destId.vgId) < 0) {
+    taosMemoryFree(pMsg);
     return NULL;
   }
   if (tDecodeU32(&decoder, &pMsg->dataLen) < 0) {
+    taosMemoryFree(pMsg);
     return NULL;
   }
   uint32_t len;
   char*    data = NULL;
   if (tDecodeBinary(&decoder, (uint8_t**)(&data), &len) < 0) {
+    taosMemoryFree(pMsg);
     return NULL;
   }
-  ASSERT(len = pMsg->dataLen);
+  ASSERT(len == pMsg->dataLen);
   memcpy(pMsg->data, data, len);
 
   tEndDecode(&decoder);
@@ -673,32 +681,40 @@ SyncPingReply* syncPingReplyDeserialize3(void* buf, int32_t bufLen) {
   pMsg->bytes = bytes;
 
   if (tDecodeI32(&decoder, &pMsg->vgId) < 0) {
+    taosMemoryFree(pMsg);
     return NULL;
   }
   if (tDecodeU32(&decoder, &pMsg->msgType) < 0) {
+    taosMemoryFree(pMsg);
     return NULL;
   }
   if (tDecodeU64(&decoder, &pMsg->srcId.addr) < 0) {
+    taosMemoryFree(pMsg);
     return NULL;
   }
   if (tDecodeI32(&decoder, &pMsg->srcId.vgId) < 0) {
+    taosMemoryFree(pMsg);
     return NULL;
   }
   if (tDecodeU64(&decoder, &pMsg->destId.addr) < 0) {
+    taosMemoryFree(pMsg);
     return NULL;
   }
   if (tDecodeI32(&decoder, &pMsg->destId.vgId) < 0) {
+    taosMemoryFree(pMsg);
     return NULL;
   }
   if (tDecodeU32(&decoder, &pMsg->dataLen) < 0) {
+    taosMemoryFree(pMsg);
     return NULL;
   }
   uint32_t len;
   char*    data = NULL;
   if (tDecodeBinary(&decoder, (uint8_t**)(&data), &len) < 0) {
+    taosMemoryFree(pMsg);
     return NULL;
   }
-  ASSERT(len = pMsg->dataLen);
+  ASSERT(len == pMsg->dataLen);
   memcpy(pMsg->data, data, len);
 
   tEndDecode(&decoder);
@@ -3010,7 +3026,7 @@ void syncReconfigFinishFromRpcMsg(const SRpcMsg* pRpcMsg, SyncReconfigFinish* pM
 }
 
 SyncReconfigFinish* syncReconfigFinishFromRpcMsg2(const SRpcMsg* pRpcMsg) {
-  SyncReconfigFinish* pMsg = syncReconfigFinishDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  SyncReconfigFinish* pMsg = syncReconfigFinishDeserialize2(pRpcMsg->pCont, (uint32_t)(pRpcMsg->contLen));
   ASSERT(pMsg != NULL);
   return pMsg;
 }

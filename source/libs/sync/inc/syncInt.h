@@ -79,6 +79,12 @@ typedef struct SSyncTimer {
   void*             pData;
 } SSyncTimer;
 
+typedef struct SElectTimer {
+  uint64_t   logicClock;
+  SSyncNode* pSyncNode;
+  void*      pData;
+} SElectTimer;
+
 int32_t syncHbTimerInit(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer, SRaftId destId);
 int32_t syncHbTimerStart(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer);
 int32_t syncHbTimerStop(SSyncNode* pSyncNode, SSyncTimer* pSyncTimer);
@@ -155,7 +161,6 @@ typedef struct SSyncNode {
   tmr_h             pElectTimer;
   int32_t           electTimerMS;
   uint64_t          electTimerLogicClock;
-  uint64_t          electTimerLogicClockUser;
   TAOS_TMR_CALLBACK FpElectTimerCB;  // Timer Fp
   uint64_t          electTimerCounter;
 

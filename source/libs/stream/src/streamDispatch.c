@@ -210,6 +210,46 @@ static int32_t streamAddBlockToDispatchMsg(const SSDataBlock* pBlock, SStreamDis
   return 0;
 }
 
+int32_t streamDispatchOneRecoverFinishReq(SStreamTask* pTask, const SStreamRecoverFinishReq* pReq, int32_t vgId,
+                                          SEpSet* pEpSet) {
+  void*   buf = NULL;
+  int32_t code = -1;
+  SRpcMsg msg = {0};
+
+  int32_t tlen;
+  tEncodeSize(tEncodeSStreamRecoverFinishReq, pReq, tlen, code);
+  if (code < 0) {
+    return -1;
+  }
+
+  buf = rpcMallocCont(sizeof(SMsgHead) + tlen);
+  if (buf == NULL) {
+    return -1;
+  }
+
+  ((SMsgHead*)buf)->vgId = htonl(vgId);
+  void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+
+  SEncoder encoder;
+  tEncoderInit(&encoder, abuf, tlen);
+  if ((code = tEncodeSStreamRecoverFinishReq(&encoder, pReq)) < 0) {
+    goto FAIL;
+  }
+  tEncoderClear(&encoder);
+
+  msg.contLen = tlen + sizeof(SMsgHead);
+  msg.pCont = buf;
+  msg.msgType = TDMT_VND_STREAM_RECOVER_FINISH;
+
+  tmsgSendReq(pEpSet, &msg);
+
+  code = 0;
+  return 0;
+FAIL:
+  if (buf) rpcFreeCont(buf);
+  return code;
+}
+
 int32_t streamDispatchOneReq(SStreamTask* pTask, const SStreamDispatchReq* pReq, int32_t vgId, SEpSet* pEpSet) {
   void*   buf = NULL;
   int32_t code = -1;
@@ -244,9 +284,10 @@ int32_t streamDispatchOneReq(SStreamTask* pTask, const SStreamDispatchReq* pReq,
   tmsgSendReq(pEpSet, &msg);
 
   code = 0;
-FAIL:
-  if (code < 0 && buf) rpcFreeCont(buf);
   return 0;
+FAIL:
+  if (buf) rpcFreeCont(buf);
+  return code;
 }
 
 int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, SSDataBlock* pDataBlock, int32_t vgSz,
@@ -439,3 +480,4 @@ FREE:
   taosFreeQitem(pBlock);
   return code;
 }
+
