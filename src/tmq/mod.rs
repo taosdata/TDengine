@@ -32,14 +32,15 @@ pub(crate) struct Topic {
 ///     4.3       then if the `table` is STable, create a topic named `database_table` with meta as stable.
 ///     4.4            if the `table` is child table or normal, create a topic named `database_table` as select * from table.
 ///     4.5            else, bail unexpected input topics error to upstream.
-pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
+pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, TaosBuilder, Vec<Topic>)> {
     let database = from.subject.take().ok_or(RawError::new(
         Code::Failed,
         format!("requires topic or database in source dsn: {from}"),
     ))?;
     // dbg!(&from, &database);
 
-    let source = TaosBuilder::from_dsn(&from)?.build()?;
+    let builder = TaosBuilder::from_dsn(&from)?;
+    let source = builder.build()?;
     let source_topics = source.topics().await?;
 
     let topics = database.split(",").map(|s| s.trim()).collect_vec();
@@ -74,6 +75,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
 
             Ok((
                 from,
+                builder,
                 vec![Topic {
                     name: topic.name().to_string(),
                     database: topic.db_name().to_string(),
@@ -115,6 +117,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
             };
             Ok((
                 from,
+                builder,
                 vec![Topic {
                     name: topic.to_string(),
                     database: database.to_string(),
@@ -170,6 +173,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                         };
                         return Ok((
                             from,
+                            builder,
                             vec![Topic {
                                 name: topic.name().to_string(),
                                 database: topic.db_name().to_string(),
@@ -210,6 +214,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                         };
                         return Ok((
                             from,
+                            builder,
                             vec![Topic {
                                 name: topic,
                                 database: database.to_string(),
@@ -283,6 +288,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                         };
                         return Ok((
                             from,
+                            builder,
                             vec![Topic {
                                 name: topic.name().to_string(),
                                 database: topic.db_name().to_string(),
@@ -346,6 +352,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
 
                         return Ok((
                             from,
+                            builder,
                             vec![Topic {
                                 name: topic,
                                 database: database.to_string(),
@@ -400,7 +407,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
         }
         if topics.len() == out.len() {
             // ok;
-            return Ok((from, out));
+            return Ok((from, builder, out));
         } else {
             let invalids = topics
                 .into_iter()
@@ -441,7 +448,7 @@ pub(crate) async fn check_tmq_dsn(mut from: Dsn) -> Result<(Dsn, Vec<Topic>)> {
                     });
                 }
             }
-            return Ok((from, out));
+            return Ok((from, builder, out));
         }
     }
 }

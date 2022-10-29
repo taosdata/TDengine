@@ -259,7 +259,7 @@ async fn sync(
 }
 
 pub async fn tmq_to_td(from: Dsn, actions: Vec<Action>, mut to: Dsn, jobs: usize) -> Result<()> {
-    let (mut from, topics) = check_tmq_dsn(from).await?;
+    let (mut from, builder, topics) = check_tmq_dsn(from).await?;
 
     // auto generate group.id if not exists
     let mut from_params = from.drain_params();
@@ -397,6 +397,7 @@ pub async fn tmq_to_td(from: Dsn, actions: Vec<Action>, mut to: Dsn, jobs: usize
         for _ in 0..jobs {
             let consumer = consumers.pop().unwrap();
             let taos = target.build()?;
+            taos.exec(format!("use {target_database}")).await?;
             let table = topic.table.as_ref().map(|t| t.table.clone());
             let actions = actions.to_vec();
             let handle =
@@ -410,6 +411,8 @@ pub async fn tmq_to_td(from: Dsn, actions: Vec<Action>, mut to: Dsn, jobs: usize
     }
     drop(global_taos);
     drop(target);
+    drop(builder);
+    tokio::time::sleep(Duration::from_millis(1000)).await;
     log::info!("done");
 
     // let tmq = TmqBuilder::from_dsn(&from)?;
