@@ -20,7 +20,7 @@ static void *dmStatusThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
   setThreadName("dnode-status");
-
+  
   while (1) {
     taosMsleep(200);
     if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
@@ -28,6 +28,7 @@ static void *dmStatusThreadFp(void *param) {
     int64_t curTime = taosGetTimestampMs();
     float   interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsStatusInterval) {
+      taosMemoryTrim(0); 
       dmSendStatusReq(pMgmt);
       lastTime = curTime;
     }

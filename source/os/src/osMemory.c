@@ -336,3 +336,7 @@ int64_t taosMemorySize(void *ptr) {
 #endif
 #endif
 }
+
+void taosMemoryTrim(int32_t size) {
+    malloc_trim(size);
+}
