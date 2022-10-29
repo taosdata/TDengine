@@ -626,10 +626,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     pBlock->info = binfo;
     ASSERT(binfo.uid != 0);
 
-    uint64_t* groupId = taosHashGet(pTaskInfo->tableqinfoList.map, &pBlock->info.uid, sizeof(int64_t));
-    if (groupId) {
-      pBlock->info.groupId = *groupId;
-    }
+    pBlock->info.groupId = getTableGroupId(&pTaskInfo->tableqinfoList, pBlock->info.uid);
 
     uint32_t status = 0;
     int32_t  code = loadDataBlock(pOperator, pTableScanInfo, pBlock, &status);
@@ -683,10 +680,7 @@ static SSDataBlock* doTableScanGroup(SOperatorInfo* pOperator) {
     if (pTableScanInfo->scanTimes < pTableScanInfo->scanInfo.numOfAsc) {
       setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
       pTableScanInfo->scanFlag = REPEAT_SCAN;
-      qDebug(
-          "%s start to repeat ascending order scan data SELECT last_row(*),hostname from cpu group by hostname;blocks "
-          "due to query func required",
-          GET_TASKID(pTaskInfo));
+      qDebug( "%s start to repeat ascending order scan data blocks due to query func required", GET_TASKID(pTaskInfo));
 
       // do prepare for the next round table scan operation
       tsdbReaderReset(pTableScanInfo->dataReader, &pTableScanInfo->cond);
@@ -755,8 +749,12 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
 
   if (pInfo->currentGroupId == -1) {
     pInfo->currentGroupId++;
-    if (pInfo->currentGroupId >= taosArrayGetSize(pTaskInfo->tableqinfoList.pGroupList)) {
-      setTaskStatus(pTaskInfo, TASK_COMPLETED);
+    qDebug("number:------------------------%d, %d", (int)taosArrayGetSize(pTaskInfo->tableqinfoList.pGroupList),
+           getNumOfOutputGroups(&pTaskInfo->tableqinfoList));
+    if (pInfo->currentGroupId >= getNumOfOutputGroups(&pTaskInfo->tableqinfoList)/*taosArrayGetSize(pTaskInfo->tableqinfoList.pGroupList)*/) {
+//    if (pInfo->currentGroupId >= taosArrayGetSize(pTaskInfo->tableqinfoList.pGroupList)) {
+//      setTaskStatus(pTaskInfo, TASK_COMPLETED);
+      doSetOperatorCompleted(pOperator);
       return NULL;
     }
 
@@ -790,7 +788,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
     return result;
   }
 
-  setTaskStatus(pTaskInfo, TASK_COMPLETED);
+  doSetOperatorCompleted(pOperator);
   return NULL;
 }
 
@@ -1122,12 +1120,7 @@ static uint64_t getGroupIdByCol(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts, 
 }
 
 static uint64_t getGroupIdByUid(SStreamScanInfo* pInfo, uint64_t uid) {
-  SHashObj* map = pInfo->pTableScanOp->pTaskInfo->tableqinfoList.map;
-  uint64_t* groupId = taosHashGet(map, &uid, sizeof(int64_t));
-  if (groupId) {
-    return *groupId;
-  }
-  return 0;
+  return getTableGroupId(&pInfo->pTableScanOp->pTaskInfo->tableqinfoList, uid);
 }
 
 static uint64_t getGroupIdByData(SStreamScanInfo* pInfo, uint64_t uid, TSKEY ts, int64_t maxVersion) {
@@ -1549,12 +1542,13 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   pInfo->pRes->info.type = STREAM_NORMAL;
   pInfo->pRes->info.version = pBlock->info.version;
 
-  uint64_t* groupIdPre = taosHashGet(pTaskInfo->tableqinfoList.map, &pBlock->info.uid, sizeof(int64_t));
-  if (groupIdPre) {
-    pInfo->pRes->info.groupId = *groupIdPre;
-  } else {
-    pInfo->pRes->info.groupId = 0;
-  }
+  pInfo->pRes->info.groupId = getTableGroupId(&pTaskInfo->tableqinfoList, pBlock->info.uid);
+//  uint64_t* groupIdPre = taosHashGet(pTaskInfo->tableqinfoList.map, &pBlock->info.uid, sizeof(int64_t));
+//  if (groupIdPre) {
+//    pInfo->pRes->info.groupId = *groupIdPre;
+//  } else {
+//    pInfo->pRes->info.groupId = 0;
+//  }
 
   // todo extract method
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->matchInfo.pList); ++i) {
@@ -4202,6 +4196,8 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
     return code;
   }
 
+  pTableListInfo->numOfOuputGroups = 1;
+
   int64_t st1 = taosGetTimestampUs();
   qDebug("generate queried table list completed, elapsed time:%.2f ms %s", (st1 - st) / 1000.0, idStr);
 
@@ -4211,7 +4207,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
   }
 
   pTableListInfo->needSortTableByGroupId = groupSort;
-  code = generateGroupIdMap(pTableListInfo, pHandle, pGroupTags);
+  code = setGroupIdMapForAllTables(pTableListInfo, pHandle, pGroupTags, groupSort);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }

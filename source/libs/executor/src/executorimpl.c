@@ -3366,7 +3366,47 @@ static void cleanupTableSchemaInfo(SSchemaInfo* pSchemaInfo) {
 
 static void cleanupStreamInfo(SStreamTaskInfo* pStreamInfo) { tDeleteSSchemaWrapper(pStreamInfo->schema); }
 
+
+static int32_t orderbyGroupIdComparFn(const void* p1, const void* p2) {
+  STableKeyInfo* pInfo1 = (STableKeyInfo*) p1;
+  STableKeyInfo* pInfo2 = (STableKeyInfo*) p2;
+
+  if (pInfo1->groupId == pInfo2->groupId) {
+    return 0;
+  } else {
+    return pInfo1->groupId < pInfo2->groupId? -1:1;
+  }
+}
+
 static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  taosArraySort(pTableListInfo->pTableList, orderbyGroupIdComparFn);
+  int32_t size = taosArrayGetSize(pTableListInfo->pTableList);
+
+  SArray* pList = taosArrayInit(4, sizeof(int32_t));
+
+  STableKeyInfo* pInfo = taosArrayGet(pTableListInfo->pTableList, 0);
+  uint64_t gid = pInfo->groupId;
+
+  int32_t start = 0;
+  taosArrayPush(pList, &start);
+
+  for(int32_t i = 1; i < size; ++i) {
+    pInfo = taosArrayGet(pTableListInfo->pTableList, i);
+    if (pInfo->groupId != gid) {
+      taosArrayPush(pList, &i);
+      gid = pInfo->groupId;
+    }
+  }
+
+  pTableListInfo->numOfOuputGroups = taosArrayGetSize(pList);
+  pTableListInfo->groupOffset = taosMemoryMalloc(sizeof(int32_t) * pTableListInfo->numOfOuputGroups);
+  memcpy(pTableListInfo->groupOffset, taosArrayGet(pList, 0), sizeof(int32_t) * pTableListInfo->numOfOuputGroups);
+  taosArrayDestroy(pList);
+  return TSDB_CODE_SUCCESS;
+
+#if 0
   taosArrayClear(pTableListInfo->pGroupList);
   SArray* sortSupport = taosArrayInit(16, sizeof(uint64_t));
   if (sortSupport == NULL) return TSDB_CODE_OUT_OF_MEMORY;
@@ -3422,6 +3462,7 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
   }
   taosArrayDestroy(sortSupport);
   return TDB_CODE_SUCCESS;
+#endif
 }
 
 bool groupbyTbname(SNodeList* pGroupList) {
@@ -3437,35 +3478,41 @@ bool groupbyTbname(SNodeList* pGroupList) {
   return bytbname;
 }
 
-int32_t generateGroupIdMap(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* group) {
-  if (group == NULL) {
-    return TDB_CODE_SUCCESS;
-  }
-
+int32_t setGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* group, bool groupSort) {
   pTableListInfo->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (pTableListInfo->map == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  bool assignUid = groupbyTbname(group);
-
+  bool groupByTbname = groupbyTbname(group);
   size_t numOfTables = taosArrayGetSize(pTableListInfo->pTableList);
 
-  if (assignUid) {
+  if (groupByTbname || group == NULL) {
     for (int32_t i = 0; i < numOfTables; i++) {
       STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
-      info->groupId = info->uid;
-      taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), &info->groupId, sizeof(uint64_t));
+      info->groupId = groupByTbname? info->uid:0;
+    }
+
+    pTableListInfo->oneTableForEachGroup = groupByTbname;
+
+    if (groupSort && groupByTbname) {
+      taosArraySort(pTableListInfo->pTableList, orderbyGroupIdComparFn);
+      pTableListInfo->numOfOuputGroups = numOfTables;
     }
   } else {
     int32_t code = getColInfoResultForGroupby(pHandle->meta, group, pTableListInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
+
+    if (groupSort) {
+      return sortTableGroup(pTableListInfo);
+    }
   }
 
-  if (pTableListInfo->needSortTableByGroupId) {
-    return sortTableGroup(pTableListInfo);
+  for(int32_t i = 0; i < numOfTables; ++i) {
+    STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
+    taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), &i, sizeof(int32_t));
   }
 
   return TDB_CODE_SUCCESS;
@@ -3551,7 +3598,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
       if (pHandle->vnode) {
         int32_t code =
-            createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
+            createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, /*pTableScanNode->groupSort*/false,
                                     pHandle, pTableListInfo, pTagCond, pTagIndexCond, GET_TASKID(pTaskInfo));
         if (code) {
           pTaskInfo->code = code;

@@ -167,17 +167,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
         }
       }
 
-      if (pTableList->map != NULL) {
-        int64_t* groupId = taosHashGet(pTableList->map, &pInfo->pRes->info.uid, sizeof(int64_t));
-        if (groupId != NULL) {
-          pInfo->pRes->info.groupId = *groupId;
-        }
-      } else {
-        ASSERT(taosArrayGetSize(pTableList->pTableList) == 1);
-        STableKeyInfo* pKeyInfo = taosArrayGet(pTableList->pTableList, 0);
-        pInfo->pRes->info.groupId = pKeyInfo->groupId;
-      }
-
+      pInfo->pRes->info.groupId = getTableGroupId(pTableList, pInfo->pRes->info.uid);
       pInfo->indexOfBufferedRes += 1;
       return pInfo->pRes;
     } else {
