@@ -286,10 +286,10 @@ pub async fn tmq_to_td(from: Dsn, actions: Vec<Action>, mut to: Dsn, jobs: usize
     for topic in topics {
         let target_database = if let Some(target) = target_database.as_ref() {
             if !global_taos.database_exists(&target).await? {
-                log::info!(
-                    "target database not exist, create database `{target}` with the same parameter in the backup"
-                );
                 if let Some(sql) = topic.database_sql.as_deref() {
+                    log::info!(
+                        "target database not exist, try create database `{target}` with the same parameter from the source"
+                    );
                     let mut sql = sql.replace("CREATE DATABASE", "CREATE DATABASE IF NOT EXISTS");
                     if &topic.database != target {
                         sql = sql.replace(&format!("`{}`", topic.database), &format!("`{target}`"));
