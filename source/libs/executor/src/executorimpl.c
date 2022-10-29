@@ -3630,12 +3630,12 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
 #ifndef NDEBUG
         int32_t sz = taosArrayGetSize(pTableListInfo->pTableList);
+        qDebug("create stream task, total:%d", sz);
+
         for (int32_t i = 0; i < sz; i++) {
           STableKeyInfo* pKeyInfo = taosArrayGet(pTableListInfo->pTableList, i);
-          qDebug("creating stream task: add table uid:%" PRIu64, pKeyInfo->uid);
+          qDebug("add table uid:%" PRIu64", gid:%"PRIu64, pKeyInfo->uid, pKeyInfo->groupId);
         }
-
-        qDebug("table in hashmap, %d", (int32_t) getTotalTables(pTableListInfo));
 #endif
       }
 

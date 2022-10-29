@@ -4225,6 +4225,8 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
     return code;
   }
 
+  pTableListInfo->numOfOuputGroups = 1;
+
   int64_t st1 = taosGetTimestampUs();
   qDebug("generate queried table list completed, elapsed time:%.2f ms %s", (st1 - st) / 1000.0, idStr);
 
@@ -4233,7 +4235,6 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
     return TSDB_CODE_SUCCESS;
   }
 
-  pTableListInfo->numOfOuputGroups = 1;
   code = setGroupIdMapForAllTables(pTableListInfo, pHandle, pGroupTags, groupSort);
   if (code != TSDB_CODE_SUCCESS) {
     return code;

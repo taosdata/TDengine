@@ -1697,7 +1697,12 @@ int32_t getTablesOfGroup(const STableListInfo* pTableList, int32_t ordinalGroupI
   // 1. only one group exists, and 2. one table exists for each group.
   if (total == 1) {
     *size = getTotalTables(pTableList);
-    *pKeyInfo = taosArrayGet(pTableList->pTableList, 0);
+    if (*size > 0) {
+      *pKeyInfo = taosArrayGet(pTableList->pTableList, 0);
+    } else {
+      *pKeyInfo = NULL;
+    }
+
     return TSDB_CODE_SUCCESS;
   } else if (total == getTotalTables(pTableList)) {
     *size = 1;
