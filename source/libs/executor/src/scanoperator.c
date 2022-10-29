@@ -4461,7 +4461,7 @@ static int32_t loadDataBlockFromOneTable(SOperatorInfo* pOperator, STableMergeSc
   pCost->totalCheckedRows += pBlock->info.rows;
   pCost->loadBlocks += 1;
 
-  STsdbReader* reader = taosArrayGetP(pTableScanInfo->dataReaders, readerIdx);
+  STsdbReader* reader = pTableScanInfo->pReader;
   SArray*      pCols = tsdbRetrieveDataBlock(reader, NULL);
   if (pCols == NULL) {
     return terrno;
