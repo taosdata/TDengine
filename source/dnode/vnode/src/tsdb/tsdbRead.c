@@ -426,7 +426,7 @@ static bool filesetIteratorNext(SFilesetIter* pIter, STsdbReader* pReader) {
     return true;
   }
 
-  _err:
+_err:
   return false;
 }
 
@@ -528,7 +528,7 @@ static int32_t tsdbReaderCreate(SVnode* pVnode, SQueryTableDataCond* pCond, STsd
   *ppReader = pReader;
   return code;
 
-  _end:
+_end:
   tsdbReaderClose(pReader);
   *ppReader = NULL;
   return code;
@@ -580,7 +580,7 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFReader* pFileReader,
 
   pReader->cost.headFileLoadTime += (et1 - st) / 1000.0;
 
-  _end:
+_end:
   taosArrayDestroy(aBlockIdx);
   return code;
 }
@@ -1405,8 +1405,8 @@ static bool fileBlockShouldLoad(STsdbReader* pReader, SFileDataBlockInfo* pBlock
   // log the reason why load the datablock for profile
   if (loadDataBlock) {
     tsdbDebug("%p uid:%" PRIu64
-                  " need to load the datablock, overlapwithneighborblock:%d, hasDup:%d, partiallyRequired:%d, "
-                  "overlapWithKey:%d, greaterThanBuf:%d, overlapWithDel:%d, overlapWithlastBlock:%d, %s",
+              " need to load the datablock, overlapwithneighborblock:%d, hasDup:%d, partiallyRequired:%d, "
+              "overlapWithKey:%d, greaterThanBuf:%d, overlapWithDel:%d, overlapWithlastBlock:%d, %s",
               pReader, pBlockInfo->uid, info.overlapWithNeighborBlock, info.hasDupTs, info.partiallyRequired,
               info.overlapWithKeyInBuf, info.moreThanCapcity, info.overlapWithDelInfo, info.overlapWithLastBlock,
               pReader->idStr);
@@ -2039,7 +2039,7 @@ static int32_t initMemDataIterator(STableBlockScanInfo* pBlockScanInfo, STsdbRea
         pBlockScanInfo->iter.hasVal = (tsdbTbDataIterGet(pBlockScanInfo->iter.iter) != NULL);
 
         tsdbDebug("%p uid:%" PRId64 ", check data in mem from skey:%" PRId64 ", order:%d, ts range in buf:%" PRId64
-                      "-%" PRId64 " %s",
+                  "-%" PRId64 " %s",
                   pReader, pBlockScanInfo->uid, startKey.ts, pReader->order, d->minKey, d->maxKey, pReader->idStr);
       } else {
         tsdbError("%p uid:%" PRId64 ", failed to create iterator for imem, code:%s, %s", pReader, pBlockScanInfo->uid,
@@ -2060,7 +2060,7 @@ static int32_t initMemDataIterator(STableBlockScanInfo* pBlockScanInfo, STsdbRea
         pBlockScanInfo->iiter.hasVal = (tsdbTbDataIterGet(pBlockScanInfo->iiter.iter) != NULL);
 
         tsdbDebug("%p uid:%" PRId64 ", check data in imem from skey:%" PRId64 ", order:%d, ts range in buf:%" PRId64
-                      "-%" PRId64 " %s",
+                  "-%" PRId64 " %s",
                   pReader, pBlockScanInfo->uid, startKey.ts, pReader->order, di->minKey, di->maxKey, pReader->idStr);
       } else {
         tsdbError("%p uid:%" PRId64 ", failed to create iterator for mem, code:%s, %s", pReader, pBlockScanInfo->uid,
@@ -2295,7 +2295,7 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
     }
   }
 
-  _end:
+_end:
   pResBlock->info.uid = (pBlockScanInfo != NULL) ? pBlockScanInfo->uid : 0;
   blockDataUpdateTsWindow(pResBlock, 0);
 
@@ -2388,13 +2388,13 @@ int32_t initDelSkylineIterator(STableBlockScanInfo* pBlockScanInfo, STsdbReader*
 
   taosArrayDestroy(pDelData);
   pBlockScanInfo->iter.index =
-          ASCENDING_TRAVERSE(pReader->order) ? 0 : taosArrayGetSize(pBlockScanInfo->delSkyline) - 1;
+      ASCENDING_TRAVERSE(pReader->order) ? 0 : taosArrayGetSize(pBlockScanInfo->delSkyline) - 1;
   pBlockScanInfo->iiter.index = pBlockScanInfo->iter.index;
   pBlockScanInfo->fileDelIndex = pBlockScanInfo->iter.index;
   pBlockScanInfo->lastBlockDelIndex = pBlockScanInfo->iter.index;
   return code;
 
-  _err:
+_err:
   taosArrayDestroy(pDelData);
   return code;
 }
@@ -2725,7 +2725,7 @@ static int32_t buildBlockFromFiles(STsdbReader* pReader) {
   SDataBlockIter* pBlockIter = &pReader->status.blockIter;
 
   if (pBlockIter->numOfBlocks == 0) {
-    _begin:
+  _begin:
     code = doLoadLastBlockSequentially(pReader);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
