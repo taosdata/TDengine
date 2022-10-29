@@ -3379,7 +3379,7 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   taosArraySort(pTableListInfo->pTableList, orderbyGroupIdComparFn);
-  int32_t size = getTotalTables(pTableListInfo);
+  int32_t size = taosArrayGetSize(pTableListInfo->pTableList);
 
   SArray* pList = taosArrayInit(4, sizeof(int32_t));
 
@@ -3403,7 +3403,6 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
   taosArrayDestroy(pList);
 
 # if 0
-
   SArray* sortSupport = taosArrayInit(16, sizeof(uint64_t));
   if (sortSupport == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -3504,13 +3503,12 @@ int32_t setGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* p
     for (int32_t i = 0; i < numOfTables; i++) {
       STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
       info->groupId = groupByTbname? info->uid:0;
-
-      taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), &i, sizeof(int32_t));
     }
 
     pTableListInfo->oneTableForEachGroup = groupByTbname;
 
     if (groupSort && groupByTbname) {
+      taosArraySort(pTableListInfo->pTableList, orderbyGroupIdComparFn);
       pTableListInfo->numOfOuputGroups = numOfTables;
     } else {
       pTableListInfo->numOfOuputGroups = 1;
@@ -3524,6 +3522,13 @@ int32_t setGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* p
     if (groupSort) {
       code = sortTableGroup(pTableListInfo);
     }
+  }
+
+  // add all table entry in the hash map
+  size_t size = taosArrayGetSize(pTableListInfo->pTableList);
+  for(int32_t i = 0; i < size; ++i) {
+    STableKeyInfo* p = taosArrayGet(pTableListInfo->pTableList, i);
+    taosHashPut(pTableListInfo->map, &p->uid, sizeof(uint64_t), &i, sizeof(int32_t));
   }
 
   return code;
@@ -3590,7 +3595,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == type) {
       STableMergeScanPhysiNode* pTableScanNode = (STableMergeScanPhysiNode*)pPhyNode;
       int32_t                   code =
-          createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort, pHandle,
+          createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, /*pTableScanNode->groupSort*/true, pHandle,
                                   pTableListInfo, pTagCond, pTagIndexCond, GET_TASKID(pTaskInfo));
       if (code) {
         pTaskInfo->code = code;
@@ -3652,16 +3657,23 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     } else if (QUERY_NODE_PHYSICAL_PLAN_BLOCK_DIST_SCAN == type) {
       SBlockDistScanPhysiNode* pBlockNode = (SBlockDistScanPhysiNode*)pPhyNode;
       pTableListInfo->pTableList = taosArrayInit(4, sizeof(STableKeyInfo));
+      pTableListInfo->numOfOuputGroups = 1;
 
       if (pBlockNode->tableType == TSDB_SUPER_TABLE) {
-        int32_t code = vnodeGetAllTableList(pHandle->vnode, pBlockNode->uid, pTableListInfo->pTableList);
+        SArray* pList = taosArrayInit(4, sizeof(STableKeyInfo));
+        int32_t code = vnodeGetAllTableList(pHandle->vnode, pBlockNode->uid, pList);
         if (code != TSDB_CODE_SUCCESS) {
           pTaskInfo->code = terrno;
           return NULL;
         }
+
+        for(int32_t i = 0; i < taosArrayGetSize(pTableListInfo->pTableList); ++i) {
+          STableKeyInfo* p = taosArrayGet(pList, i);
+          addTableIntoTableList(pTableListInfo, p->uid, 0);
+        }
+        taosArrayDestroy(pList);
       } else {  // Create one table group.
-        STableKeyInfo info = {.uid = pBlockNode->uid, .groupId = 0};
-        taosArrayPush(pTableListInfo->pTableList, &info);
+        addTableIntoTableList(pTableListInfo, pBlockNode->uid, 0);
       }
 
       SQueryTableDataCond cond = {0};

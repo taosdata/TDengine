@@ -741,8 +741,6 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
 
     int32_t len = (int32_t)(pStart - (char*)keyBuf);
     info->groupId = calcGroupId(keyBuf, len);
-
-    taosHashPut(pTableListInfo->map, &(info->uid), sizeof(uint64_t), &i, sizeof(int32_t));
   }
 
   //  int64_t st2 = taosGetTimestampUs();

@@ -1118,6 +1118,8 @@ static SSDataBlock* readPreVersionData(SOperatorInfo* pTableScanOp, uint64_t tbU
 
     relocateColumnData(pBlock, pTableScanInfo->matchInfo.pList, pCols, true);
     doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo);
+
+    pBlock->info.groupId = getTableGroupId(&pTaskInfo->tableqinfoList, binfo.uid);
   }
 
   tsdbReaderClose(pReader);
@@ -3050,11 +3052,11 @@ static int32_t sysFilte__TableName(void* arg, SNode* pNode, SArray* result) {
   if (func == NULL) return -1;
 
   SMetaFltParam param = {.suid = 0,
-      .cid = 0,
-      .type = TSDB_DATA_TYPE_VARCHAR,
-      .val = pVal->datum.p,
-      .reverse = reverse,
-      .filterFunc = func};
+                         .cid = 0,
+                         .type = TSDB_DATA_TYPE_VARCHAR,
+                         .val = pVal->datum.p,
+                         .reverse = reverse,
+                         .filterFunc = func};
   return -1;
 }
 
@@ -3069,11 +3071,11 @@ static int32_t sysFilte__CreateTime(void* arg, SNode* pNode, SArray* result) {
   if (func == NULL) return -1;
 
   SMetaFltParam param = {.suid = 0,
-      .cid = 0,
-      .type = TSDB_DATA_TYPE_BIGINT,
-      .val = &pVal->datum.i,
-      .reverse = reverse,
-      .filterFunc = func};
+                         .cid = 0,
+                         .type = TSDB_DATA_TYPE_BIGINT,
+                         .val = &pVal->datum.i,
+                         .reverse = reverse,
+                         .filterFunc = func};
 
   int32_t ret = metaFilterCreateTime(pMeta, &param, result);
   return ret;
@@ -4746,9 +4748,6 @@ int32_t startGroupTableMergeScan(SOperatorInfo* pOperator) {
   pInfo->queryConds = taosArrayInit(numOfTable, sizeof(SQueryTableDataCond));
 
   for (int32_t i = 0; i < numOfTable; ++i) {
-    STableKeyInfo* tableKeyInfo = taosArrayGet(pInfo->tableListInfo->pTableList, i + tableStartIdx);
-    size_t numReaders = taosArrayGetSize(pInfo->dataReaders);
-
     STableMergeScanSortSourceParam param = {0};
     param.readerIdx = i;
     param.pOperator = pOperator;
@@ -4959,10 +4958,6 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
     goto _error;
   }
 
-  if (pTableScanNode->pGroupTags) {
-    taosArraySort(pTableListInfo->pTableList, compareTableKeyInfoByGid);
-  }
-
   SDataBlockDescNode* pDescNode = pTableScanNode->scan.node.pOutputDataBlockDesc;
 
   int32_t numOfCols = 0;
@@ -5016,7 +5011,7 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
   pOperator->cost.openCost = 0;
   return pOperator;
 
-  _error:
+_error:
   pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
   taosMemoryFree(pInfo);
   taosMemoryFree(pOperator);
