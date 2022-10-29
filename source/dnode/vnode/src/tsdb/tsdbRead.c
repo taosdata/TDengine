@@ -3478,6 +3478,7 @@ static int32_t doOpenReaderImpl(STsdbReader* pReader) {
 
   initFilesetIterator(&pReader->status.fileIter, pReader->pReadSnap->fs.aDFileSet, pReader);
   resetDataBlockIterator(&pReader->status.blockIter, pReader->order);
+//  resetDataBlockScanInfo(pReader->status.pTableMap, pReader->window.skey);
 
   // no data in files, let's try buffer in memory
   if (pReader->status.fileIter.numOfFiles == 0) {
@@ -3731,13 +3732,6 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
 
   if (pReader->innerReader[0] != NULL && pReader->step == 0) {
     bool ret = doTsdbNextDataBlock(pReader->innerReader[0]);
-
-    // prepare for the main scan
-    int32_t code = doOpenReaderImpl(pReader);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-
     pReader->step = EXTERNAL_ROWS_PREV;
     if (ret) {
       return ret;
@@ -3745,6 +3739,14 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
   }
 
   if (pReader->step == EXTERNAL_ROWS_PREV) {
+    // prepare for the main scan
+    int32_t code = doOpenReaderImpl(pReader);
+    resetDataBlockScanInfo(pReader->status.pTableMap, pReader->innerReader[0]->window.ekey);
+
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
     pReader->step = EXTERNAL_ROWS_MAIN;
   }
 
@@ -3756,6 +3758,7 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
   if (pReader->innerReader[1] != NULL && pReader->step == EXTERNAL_ROWS_MAIN) {
     // prepare for the next row scan
     int32_t code = doOpenReaderImpl(pReader->innerReader[1]);
+    resetDataBlockScanInfo(pReader->innerReader[1]->status.pTableMap, pReader->window.ekey);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
