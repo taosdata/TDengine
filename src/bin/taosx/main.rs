@@ -2,6 +2,12 @@ use anyhow::{bail, Result};
 use clap::{Parser, Subcommand};
 use log::Level;
 use pretty_env_logger::env_logger::fmt::{Color, StyledValue};
+use const_format::concatcp;
+use shadow_rs::shadow;
+
+shadow!(build);
+
+const CLAP_SHORT_VERSION: &str = concatcp!(build::PKG_VERSION, "-", build::SHORT_COMMIT, " (",build::BUILD_OS,  " ", build::COMMIT_DATE_3339, ")");
 
 mod run;
 mod serve;
@@ -45,7 +51,7 @@ enum Commands {
 ///
 /// $ taosx run -f <FROM> -t <TO>
 #[derive(Parser, Debug)]
-#[clap(author, version, about)]
+#[clap(author, version = CLAP_SHORT_VERSION, about)]
 struct Args {
     #[clap(flatten)]
     globals: GlobalOpts,
