@@ -1658,17 +1658,13 @@ void initLimitInfo(const SNode* pLimit, const SNode* pSLimit, SLimitInfo* pLimit
 }
 
 uint64_t getTotalTables(const STableListInfo* pTableList) {
-  if (pTableList->map != NULL) {
-    ASSERT(taosArrayGetSize(pTableList->pTableList) == taosHashGetSize(pTableList->map));
-  }
-
+  ASSERT(taosArrayGetSize(pTableList->pTableList) == taosHashGetSize(pTableList->map));
   return taosArrayGetSize(pTableList->pTableList);
 }
 
 uint64_t getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid) {
-  ASSERT(pTableList->map != NULL);
   int32_t* slot = taosHashGet(pTableList->map, &tableUid, sizeof(tableUid));
-  ASSERT(slot != NULL);
+  ASSERT(pTableList->map != NULL && slot != NULL);
 
   STableKeyInfo* pKeyInfo = taosArrayGet(pTableList->pTableList, *slot);
   ASSERT(pKeyInfo->uid == tableUid);
@@ -1688,7 +1684,7 @@ int32_t addTableIntoTableList(STableListInfo* pTableList, uint64_t uid, uint64_t
   int32_t slot = (int32_t)taosArrayGetSize(pTableList->pTableList) - 1;
   taosHashPut(pTableList->map, &uid, sizeof(uid), &slot, sizeof(slot));
 
-  qDebug("uid:%"PRIu64", groupId:%"PRIu64" added into table list, slot:%d, %d", uid, gid, slot, slot + 1);
+  qDebug("uid:%"PRIu64", groupId:%"PRIu64" added into table list, slot:%d, total:%d", uid, gid, slot, slot + 1);
   return TSDB_CODE_SUCCESS;
 }
 
