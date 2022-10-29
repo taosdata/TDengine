@@ -244,7 +244,7 @@ impl LocalConfig {
 }
 
 pub async fn tmq_to_local(from: Dsn, mut to: Dsn, jobs: usize, force: bool) -> Result<()> {
-    let (mut from, topics) = check_tmq_dsn(from).await?;
+    let (mut from, builder, topics) = check_tmq_dsn(from).await?;
     let mut from_params = from.drain_params();
 
     // let (mut from, mut from_params) = from.split_params();
