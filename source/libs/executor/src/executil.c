@@ -337,8 +337,8 @@ static EDealRes getColumn(SNode** pNode, void* pContext) {
     taosHashPut(pData->colHash, &pSColumnNode->colId, sizeof(pSColumnNode->colId), pNode, sizeof((*pNode)));
     pSColumnNode->slotId = pData->index++;
     SColumnInfo cInfo = {.colId = pSColumnNode->colId,
-        .type = pSColumnNode->node.resType.type,
-        .bytes = pSColumnNode->node.resType.bytes};
+                         .type = pSColumnNode->node.resType.type,
+                         .bytes = pSColumnNode->node.resType.bytes};
 #if TAG_FILTER_DEBUG
     qDebug("tagfilter build column info, slotId:%d, colId:%d, type:%d", pSColumnNode->slotId, cInfo.colId, cInfo.type);
 #endif
@@ -507,7 +507,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray*
   //  int64_t st2 = taosGetTimestampUs();
   //  qDebug("calculate tag block rows:%d, cost:%ld us", rows, st2-st1);
 
-  end:
+end:
   taosHashCleanup(tags);
   taosHashCleanup(ctx.colHash);
   taosArrayDestroy(ctx.cInfoList);
@@ -748,7 +748,7 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
   //  int64_t st2 = taosGetTimestampUs();
   //  qDebug("calculate tag block rows:%d, cost:%ld us", rows, st2-st1);
 
-  end:
+end:
   taosMemoryFreeClear(keyBuf);
   taosHashCleanup(tags);
   taosHashCleanup(ctx.colHash);
@@ -828,24 +828,24 @@ static int32_t removeInvalidTable(SArray* uids, SHashObj* tags) {
 }
 
 static int32_t nameComparFn(const void* p1, const void* p2) {
-  const char* pName1 = *(const char**) p1;
-  const char* pName2 = *(const char**) p2;
+  const char* pName1 = *(const char**)p1;
+  const char* pName2 = *(const char**)p2;
 
   int32_t ret = strcmp(pName1, pName2);
   if (ret == 0) {
     return 0;
   } else {
-    return (ret > 0)? 1:-1;
+    return (ret > 0) ? 1 : -1;
   }
 }
 
 static SArray* getTableNameList(const SNodeListNode* pList) {
-  int32_t len = LIST_LENGTH(pList->pNodeList);
+  int32_t    len = LIST_LENGTH(pList->pNodeList);
   SListCell* cell = pList->pNodeList->pHead;
 
   SArray* pTbList = taosArrayInit(len, POINTER_BYTES);
   for (int i = 0; i < pList->pNodeList->length; i++) {
-    SValueNode* valueNode = (SValueNode*) cell->pNode;
+    SValueNode* valueNode = (SValueNode*)cell->pNode;
     if (!IS_VAR_DATA_TYPE(valueNode->node.resType.type)) {
       terrno = TSDB_CODE_INVALID_PARA;
       taosArrayDestroy(pTbList);
@@ -1120,7 +1120,7 @@ SArray* extractPartitionColInfo(SNodeList* pNodeList) {
 
 int32_t extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
                             int32_t type, SColMatchInfo* pMatchInfo) {
-  size_t numOfCols = LIST_LENGTH(pNodeList);
+  size_t  numOfCols = LIST_LENGTH(pNodeList);
   int32_t code = 0;
 
   pMatchInfo->matchType = type;
@@ -1463,10 +1463,10 @@ void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray
   while (i < numOfSrcCols && j < taosArrayGetSize(pColMatchInfo)) {
     SColumnInfoData* p = taosArrayGet(pCols, i);
     SColMatchItem*   pmInfo = taosArrayGet(pColMatchInfo, j);
-/*    if (!outputEveryColumn && pmInfo->reserved) {
-      j++;
-      continue;
-    }*/
+    /*    if (!outputEveryColumn && pmInfo->reserved) {
+          j++;
+          continue;
+        }*/
 
     if (p->info.colId == pmInfo->colId) {
       SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, pmInfo->dstSlotId);
@@ -1684,11 +1684,12 @@ int32_t addTableIntoTableList(STableListInfo* pTableList, uint64_t uid, uint64_t
   int32_t slot = (int32_t)taosArrayGetSize(pTableList->pTableList) - 1;
   taosHashPut(pTableList->map, &uid, sizeof(uid), &slot, sizeof(slot));
 
-  qDebug("uid:%"PRIu64", groupId:%"PRIu64" added into table list, slot:%d, total:%d", uid, gid, slot, slot + 1);
+  qDebug("uid:%" PRIu64 ", groupId:%" PRIu64 " added into table list, slot:%d, total:%d", uid, gid, slot, slot + 1);
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getTablesOfGroup(const STableListInfo* pTableList, int32_t ordinalGroupIndex, STableKeyInfo** pKeyInfo, int32_t* size) {
+int32_t getTablesOfGroup(const STableListInfo* pTableList, int32_t ordinalGroupIndex, STableKeyInfo** pKeyInfo,
+                         int32_t* size) {
   int32_t total = getNumOfOutputGroups(pTableList);
   if (ordinalGroupIndex < 0 || ordinalGroupIndex >= total) {
     return TSDB_CODE_INVALID_PARA;
@@ -1717,14 +1718,10 @@ int32_t getTablesOfGroup(const STableListInfo* pTableList, int32_t ordinalGroupI
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t  getNumOfOutputGroups(const STableListInfo* pTableList) {
-  return pTableList->numOfOuputGroups;
-}
+int32_t getNumOfOutputGroups(const STableListInfo* pTableList) { return pTableList->numOfOuputGroups; }
 
 // todo remove it
-bool     oneTableForEachGroup(const STableListInfo* pTableList) {
-  return pTableList->oneTableForEachGroup;
-}
+bool oneTableForEachGroup(const STableListInfo* pTableList) { return pTableList->oneTableForEachGroup; }
 
 void destroyTableList(STableListInfo* pTableqinfoList) {
   pTableqinfoList->pTableList = taosArrayDestroy(pTableqinfoList->pTableList);
