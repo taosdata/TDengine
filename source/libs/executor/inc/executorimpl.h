@@ -184,7 +184,7 @@ typedef struct SExecTaskInfo {
   int64_t               version;  // used for stream to record wal version
   SStreamTaskInfo       streamInfo;
   SSchemaInfo           schemaInfo;
-  STableListInfo        tableqinfoList;  // this is a table list
+  STableListInfo*       pTableInfoList;  // this is a table list
   const char*           sql;             // query sql string
   jmp_buf               env;             // jump to this position when error happens.
   EOPTR_EXEC_MODEL      execModel;       // operator execution model [batch model|stream model]
@@ -1077,7 +1077,6 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsColIndex);
 
 bool    groupbyTbname(SNodeList* pGroupList);
-int32_t setGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* group, bool groupSort);
 void*   destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput);
 int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pState, SSDataBlock* pBlock, SExprSupp* pSup,
                                    SGroupResInfo* pGroupResInfo);
