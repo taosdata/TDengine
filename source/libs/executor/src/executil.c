@@ -496,6 +496,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray*
       }
     }
   }
+
   pResBlock->info.rows = rows;
 
   //  int64_t st1 = taosGetTimestampUs();
@@ -945,11 +946,6 @@ static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* 
 int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond,
                      STableListInfo* pListInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
-
-  pListInfo->pTableList = taosArrayInit(8, sizeof(STableKeyInfo));
-  if (pListInfo->pTableList == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
 
   uint64_t tableUid = pScanNode->uid;
   pListInfo->suid = pScanNode->suid;
@@ -1960,7 +1956,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
     return code;
   }
 
-  pTableListInfo->numOfOuputGroups = 1;
+  ASSERT(pTableListInfo->numOfOuputGroups == 1);
 
   int64_t st1 = taosGetTimestampUs();
   qDebug("generate queried table list completed, elapsed time:%.2f ms %s", (st1 - st) / 1000.0, idStr);
