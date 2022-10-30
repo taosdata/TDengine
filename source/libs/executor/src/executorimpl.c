@@ -4026,15 +4026,15 @@ void doDestroyTableList(STableListInfo* pTableqinfoList) {
   taosArrayDestroy(pTableqinfoList->pTableList);
   taosHashCleanup(pTableqinfoList->map);
   if (pTableqinfoList->needSortTableByGroupId) {
-    for (int32_t i = 0; i < taosArrayGetSize(pTableqinfoList->pGroupList); i++) {
-      SArray* tmp = taosArrayGetP(pTableqinfoList->pGroupList, i);
-      if (tmp == pTableqinfoList->pTableList) {
-        continue;
-      }
-      taosArrayDestroy(tmp);
-    }
+//    for (int32_t i = 0; i < taosArrayGetSize(pTableqinfoList->pGroupList); i++) {
+//      SArray* tmp = taosArrayGetP(pTableqinfoList->pGroupList, i);
+//      if (tmp == pTableqinfoList->pTableList) {
+//        continue;
+//      }
+//      taosArrayDestroy(tmp);
+//    }
   }
-  taosArrayDestroy(pTableqinfoList->pGroupList);
+//  taosArrayDestroy(pTableqinfoList->pGroupList);
 
   pTableqinfoList->pTableList = NULL;
   pTableqinfoList->map = NULL;

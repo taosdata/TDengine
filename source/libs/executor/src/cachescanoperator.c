@@ -62,7 +62,7 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
   pInfo->pUidList = taosArrayInit(4, sizeof(int64_t));
 
   // partition by tbname
-  if (taosArrayGetSize(pTableList->pGroupList) == taosArrayGetSize(pTableList->pTableList)) {
+  if (oneTableForEachGroup(pTableList) || (getTotalTables(pTableList) == 1)) {
     pInfo->retrieveType =
         CACHESCAN_RETRIEVE_TYPE_ALL | (pScanNode->ignoreNull ? CACHESCAN_RETRIEVE_LAST : CACHESCAN_RETRIEVE_LAST_ROW);
     code = tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pTableList->pTableList,
@@ -175,12 +175,18 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       return NULL;
     }
   } else {
-    size_t totalGroups = taosArrayGetSize(pTableList->pGroupList);
+    size_t num = getNumOfOutputGroups(pTableList);
+    while (pInfo->currentGroupIndex < num) {
 
-    while (pInfo->currentGroupIndex < totalGroups) {
-      SArray* pGroupTableList = taosArrayGetP(pTableList->pGroupList, pInfo->currentGroupIndex);
+      STableKeyInfo* p = NULL;
+      int32_t s = 0;
+      getTablesOfGroup(pTableList, pInfo->currentGroupIndex, &p, &s);
+      SArray* x = taosArrayInit(4, sizeof(STableKeyInfo));
+      for(int32_t i = 0; i < s; ++i) {
+        taosArrayPush(x, &p[i]);
+      }
 
-      tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pGroupTableList,
+      tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, x,
                               taosArrayGetSize(pInfo->matchInfo.pList), pTableList->suid, &pInfo->pLastrowReader);
       taosArrayClear(pInfo->pUidList);
 
@@ -195,9 +201,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       if (pInfo->pRes->info.rows > 0) {
         if (pInfo->pseudoExprSup.numOfExprs > 0) {
           SExprSupp* pSup = &pInfo->pseudoExprSup;
-
-          STableKeyInfo* pKeyInfo = taosArrayGet(pGroupTableList, 0);
-          pInfo->pRes->info.groupId = pKeyInfo->groupId;
+          pInfo->pRes->info.groupId = p->groupId;
 
           if (taosArrayGetSize(pInfo->pUidList) > 0) {
             ASSERT((pInfo->retrieveType & CACHESCAN_RETRIEVE_LAST_ROW) == CACHESCAN_RETRIEVE_LAST_ROW);

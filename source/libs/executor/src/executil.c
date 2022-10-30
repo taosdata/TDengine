@@ -997,14 +997,6 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
   }
 
   taosArrayDestroy(res);
-
-  pListInfo->pGroupList = taosArrayInit(4, POINTER_BYTES);
-  if (pListInfo->pGroupList == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  // put into list as default group, remove it if grouping sorting is required later
-  taosArrayPush(pListInfo->pGroupList, &pListInfo->pTableList);
   return code;
 }
 
@@ -1698,7 +1690,7 @@ int32_t getTablesOfGroup(const STableListInfo* pTableList, int32_t ordinalGroupI
   // 1. only one group exists, and 2. one table exists for each group.
   if (total == 1) {
     *size = getTotalTables(pTableList);
-    *pKeyInfo = taosArrayGet(pTableList->pTableList, 0);
+    *pKeyInfo = (*size == 0)? NULL:taosArrayGet(pTableList->pTableList, 0);
     return TSDB_CODE_SUCCESS;
   } else if (total == getTotalTables(pTableList)) {
     *size = 1;
