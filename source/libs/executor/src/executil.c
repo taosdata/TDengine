@@ -1697,12 +1697,7 @@ int32_t getTablesOfGroup(const STableListInfo* pTableList, int32_t ordinalGroupI
   // 1. only one group exists, and 2. one table exists for each group.
   if (total == 1) {
     *size = getTotalTables(pTableList);
-    if (*size > 0) {
-      *pKeyInfo = taosArrayGet(pTableList->pTableList, 0);
-    } else {
-      *pKeyInfo = NULL;
-    }
-
+    *pKeyInfo = (*size == 0)? NULL:taosArrayGet(pTableList->pTableList, 0);
     return TSDB_CODE_SUCCESS;
   } else if (total == getTotalTables(pTableList)) {
     *size = 1;
@@ -1723,7 +1718,6 @@ int32_t getTablesOfGroup(const STableListInfo* pTableList, int32_t ordinalGroupI
 
 int32_t getNumOfOutputGroups(const STableListInfo* pTableList) { return pTableList->numOfOuputGroups; }
 
-// todo remove it
 bool oneTableForEachGroup(const STableListInfo* pTableList) { return pTableList->oneTableForEachGroup; }
 
 void destroyTableList(STableListInfo* pTableqinfoList) {
