@@ -3376,8 +3376,12 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
           pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
         } else {
           code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, i, &pEntry);
-          ASSERT(code == 0);
-          ASSERT(pEntry != NULL);
+          // ASSERT(code == 0);
+          // ASSERT(pEntry != NULL);
+          if (code != 0 || pEntry == NULL) {
+			syncNodeErrorLog(ths, "get log entry error");
+            continue;
+          }
         }
 
         SRpcMsg rpcMsg;
