@@ -97,10 +97,9 @@ static void saveOneRow(SArray* pRow, SSDataBlock* pBlock, SCacheRowsReader* pRea
   }
 }
 
-int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, SArray* pTableIdList, int32_t numOfCols, uint64_t suid,
-                                void** pReader) {
+int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, void* pTableIdList, int32_t numOfTables, int32_t numOfCols,
+                                uint64_t suid, void** pReader) {
   *pReader = NULL;
-
   SCacheRowsReader* p = taosMemoryCalloc(1, sizeof(SCacheRowsReader));
   if (p == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -111,14 +110,15 @@ int32_t tsdbCacherowsReaderOpen(void* pVnode, int32_t type, SArray* pTableIdList
   p->numOfCols = numOfCols;
   p->suid = suid;
 
-  if (taosArrayGetSize(pTableIdList) == 0) {
+  if (numOfTables == 0) {
     *pReader = p;
     return TSDB_CODE_SUCCESS;
   }
 
-  STableKeyInfo* pKeyInfo = taosArrayGet(pTableIdList, 0);
+  STableKeyInfo* pKeyInfo = &((STableKeyInfo*)pTableIdList)[0];
   p->pSchema = metaGetTbTSchema(p->pVnode->pMeta, pKeyInfo->uid, -1, 1);
   p->pTableList = pTableIdList;
+  p->numOfTables = numOfTables;
 
   p->transferBuf = taosMemoryCalloc(p->pSchema->numOfCols, POINTER_BYTES);
   if (p->transferBuf == NULL) {
@@ -205,7 +205,6 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
   SLRUCache* lruCache = pr->pVnode->pTsdb->lruCache;
   LRUHandle* h = NULL;
   SArray*    pRow = NULL;
-  size_t     numOfTables = taosArrayGetSize(pr->pTableList);
   bool       hasRes = false;
   SArray*    pLastCols = NULL;
 
@@ -243,8 +242,8 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
 
   // retrieve the only one last row of all tables in the uid list.
   if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_SINGLE)) {
-    for (int32_t i = 0; i < numOfTables; ++i) {
-      STableKeyInfo* pKeyInfo = taosArrayGet(pr->pTableList, i);
+    for (int32_t i = 0; i < pr->numOfTables; ++i) {
+      STableKeyInfo* pKeyInfo = &pr->pTableList[i];
 
       code = doExtractCacheRow(pr, lruCache, pKeyInfo->uid, &pRow, &h);
       if (code != TSDB_CODE_SUCCESS) {
@@ -308,8 +307,8 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     }
 
   } else if (HASTYPE(pr->type, CACHESCAN_RETRIEVE_TYPE_ALL)) {
-    for (int32_t i = pr->tableIndex; i < numOfTables; ++i) {
-      STableKeyInfo* pKeyInfo = (STableKeyInfo*)taosArrayGet(pr->pTableList, i);
+    for (int32_t i = pr->tableIndex; i < pr->numOfTables; ++i) {
+      STableKeyInfo* pKeyInfo = &pr->pTableList[i];
       code = doExtractCacheRow(pr, lruCache, pKeyInfo->uid, &pRow, &h);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -334,7 +333,7 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     code = TSDB_CODE_INVALID_PARA;
   }
 
-_end:
+  _end:
   tsdbDataFReaderClose(&pr->pDataFReaderLast);
   tsdbDataFReaderClose(&pr->pDataFReader);
 
