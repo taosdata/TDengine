@@ -73,7 +73,13 @@ void tdSCellValPrint(SCellVal *pVal, int8_t colType) {
   } else if (tdValTypeIsNone(pVal->valType)) {
     printf("NONE ");
     return;
+  } 
+  if(!pVal->val) {
+    ASSERT(0);
+    printf("BadVal ");
+    return;
   }
+
   switch (colType) {
     case TSDB_DATA_TYPE_BOOL:
       printf("%s ", (*(int8_t *)pVal->val) == 0 ? "false" : "true");
@@ -678,6 +684,10 @@ int32_t tdAppendColValToRow(SRowBuilder *pBuilder, col_id_t colId, int8_t colTyp
   }
   // TS KEY is stored in STSRow.ts and not included in STSRow.data field.
   if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+    if (!val) {
+      terrno = TSDB_CODE_INVALID_PARA;
+      return terrno;
+    }
     TD_ROW_KEY(pRow) = *(TSKEY *)val;
     // The primary TS key is Norm all the time, thus its valType is not stored in bitmap.
     return TSDB_CODE_SUCCESS;
