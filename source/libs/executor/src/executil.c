@@ -1695,6 +1695,7 @@ uint64_t getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid) {
   return pKeyInfo->groupId;
 }
 
+// TODO handle the group offset info, fix it, the rule of group output will be broken by this function
 int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t gid) {
   if (pTableList->map == NULL) {
     ASSERT(taosArrayGetSize(pTableList->pTableList) == 0);

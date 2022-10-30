@@ -23,6 +23,7 @@
 #include "tpagedbuf.h"
 #include "tsimplehash.h"
 #include "vnode.h"
+#include "executor.h"
 
 #define T_LONG_JMP(_obj, _c) \
   do {                       \
@@ -98,7 +99,10 @@ typedef struct SColMatchInfo {
 typedef struct STableListInfo STableListInfo;
 struct SqlFunctionCtx;
 
-STableListInfo*tableListCreate();
+int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
+                                STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond, const char* id);
+
+STableListInfo* tableListCreate();
 void*          tableListDestroy(STableListInfo* pTableListInfo);
 void           tableListClear(STableListInfo* pTableListInfo);
 int32_t        tableListGetOutputGroups(const STableListInfo* pTableList);
