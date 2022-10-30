@@ -97,8 +97,8 @@ void test1() {
   sTrace("lastIndex: %" PRId64, lastIndex);
   sTrace("lastTerm: %" PRIu64, lastTerm);
   sTrace("syncStartIndex: %" PRId64, syncStartIndex);
-  sTrace("" PRId64 "'s preIndex: %" PRId64, testIndex, preIndex);
-  sTrace("" PRId64 "'s preTerm: %" PRIu64, testIndex, preTerm);
+  sTrace("testIndex: %" PRId64 " preIndex: %" PRId64, testIndex, preIndex);
+  sTrace("testIndex: %" PRId64 " preTerm: %" PRIu64, testIndex, preTerm);
 
   if (gAssert) {
     assert(lastIndex == -1);
@@ -170,8 +170,8 @@ void test2() {
     SyncIndex preIndex = syncNodeGetPreIndex(pSyncNode, i);
     SyncTerm  preTerm = syncNodeGetPreTerm(pSyncNode, i);
 
-    sTrace("" PRId64 "'s preIndex: %" PRId64, i, preIndex);
-    sTrace("" PRId64 "'s preTerm: %" PRIu64, i, preTerm);
+    sTrace("i: %" PRId64 " preIndex: %" PRId64, i, preIndex);
+    sTrace("i: %" PRId64 " preTerm: %" PRIu64, i, preTerm);
 
     if (gAssert) {
       SyncIndex preIndexArr[12] = {-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
@@ -292,8 +292,8 @@ void test4() {
     SyncIndex preIndex = syncNodeGetPreIndex(pSyncNode, i);
     SyncTerm  preTerm = syncNodeGetPreTerm(pSyncNode, i);
 
-    sTrace("" PRId64 "'s preIndex: %" PRId64, i, preIndex);
-    sTrace("" PRId64 "'s preTerm: %" PRIu64, i, preTerm);
+    sTrace("i: %" PRId64 " preIndex: %" PRId64, i, preIndex);
+    sTrace("i: %" PRId64 " preTerm: %" PRIu64, i, preTerm);
   }
 
   logStoreDestory(pLogStore);
@@ -354,8 +354,8 @@ void test5() {
     SyncIndex preIndex = syncNodeGetPreIndex(pSyncNode, i);
     SyncTerm  preTerm = syncNodeGetPreTerm(pSyncNode, i);
 
-    sTrace("" PRId64 "'s preIndex: %" PRId64, i, preIndex);
-    sTrace("" PRId64 "'s preTerm: %" PRIu64, i, preTerm);
+    sTrace("i: %" PRId64 " preIndex: %" PRId64, i, preIndex);
+    sTrace("i: %" PRId64 " preTerm: %" PRIu64, i, preTerm);
 
     if (gAssert) {
       SyncIndex preIndexArr[12] = {9999, 9999, 9999, 9999, 9999, 9999, 5, 6, 7, 8, 9, 10};

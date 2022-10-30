@@ -3496,6 +3496,7 @@ static int32_t doOpenReaderImpl(STsdbReader* pReader) {
 
   initFilesetIterator(&pReader->status.fileIter, pReader->pReadSnap->fs.aDFileSet, pReader);
   resetDataBlockIterator(&pReader->status.blockIter, pReader->order);
+//  resetDataBlockScanInfo(pReader->status.pTableMap, pReader->window.skey);
 
   // no data in files, let's try buffer in memory
   if (pReader->status.fileIter.numOfFiles == 0) {
@@ -3615,16 +3616,6 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
       pNextReader->pReadSnap = pReader->pReadSnap;
 
       code = doOpenReaderImpl(pPrevReader);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
-
-      code = doOpenReaderImpl(pNextReader);
-      if (code != TSDB_CODE_SUCCESS) {
-        return code;
-      }
-
-      code = doOpenReaderImpl(pReader);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -3758,15 +3749,21 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
 
   if (pReader->innerReader[0] != NULL && pReader->step == 0) {
     bool ret = doTsdbNextDataBlock(pReader->innerReader[0]);
-    resetDataBlockScanInfo(pReader->innerReader[0]->status.pTableMap, pReader->innerReader[0]->window.ekey);
     pReader->step = EXTERNAL_ROWS_PREV;
-
     if (ret) {
       return ret;
     }
   }
 
   if (pReader->step == EXTERNAL_ROWS_PREV) {
+    // prepare for the main scan
+    int32_t code = doOpenReaderImpl(pReader);
+    resetDataBlockScanInfo(pReader->status.pTableMap, pReader->innerReader[0]->window.ekey);
+
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
     pReader->step = EXTERNAL_ROWS_MAIN;
   }
 
@@ -3776,7 +3773,13 @@ bool tsdbNextDataBlock(STsdbReader* pReader) {
   }
 
   if (pReader->innerReader[1] != NULL && pReader->step == EXTERNAL_ROWS_MAIN) {
+    // prepare for the next row scan
+    int32_t code = doOpenReaderImpl(pReader->innerReader[1]);
     resetDataBlockScanInfo(pReader->innerReader[1]->status.pTableMap, pReader->window.ekey);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
     bool ret1 = doTsdbNextDataBlock(pReader->innerReader[1]);
     pReader->step = EXTERNAL_ROWS_NEXT;
     if (ret1) {
