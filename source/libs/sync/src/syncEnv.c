@@ -71,7 +71,7 @@ int64_t syncNodeAdd(SSyncNode *pNode) {
   if (pNode->rid < 0) return -1;
 
   sDebug("vgId:%d, sync rid:%" PRId64 " is added to rsetId:%d", pNode->vgId, pNode->rid, gNodeRefId);
-  return 0;
+  return pNode->rid;
 }
 
 void syncNodeRemove(SSyncNode *pNode) {
