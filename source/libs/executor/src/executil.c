@@ -1788,6 +1788,10 @@ void* tableListDestroy(STableListInfo* pTableListInfo) {
 }
 
 void tableListClear(STableListInfo* pTableListInfo) {
+  if (pTableListInfo == NULL) {
+    return;
+  }
+
   taosArrayClear(pTableListInfo->pTableList);
   taosHashClear(pTableListInfo->map);
   taosMemoryFree(pTableListInfo->groupOffset);
