@@ -343,7 +343,7 @@ static void httpHandleReq(SHttpMsg* msg) {
   SHttpModule* http = msg->http;
 
   struct sockaddr_in dest = {0};
-  if (taosBuildDstAddr(msg->server, msg->port + 1, &dest) < 0) {
+  if (taosBuildDstAddr(msg->server, msg->port, &dest) < 0) {
     goto END;
   }
   if (msg->flag == HTTP_GZIP) {
