@@ -1212,25 +1212,24 @@ static int32_t dataBlockPartiallyRequired(STimeWindow* pWindow, SVersionRange* p
          (pVerRange->maxVer < pBlock->maxVer && pVerRange->maxVer >= pBlock->minVer);
 }
 
-static SDataBlk* getNeighborBlockOfSameTable(SFileDataBlockInfo* pBlockInfo, STableBlockScanInfo* pTableBlockScanInfo,
-                                             int32_t* nextIndex, int32_t order) {
+static bool getNeighborBlockOfSameTable(SFileDataBlockInfo* pBlockInfo, STableBlockScanInfo* pTableBlockScanInfo,
+                                        int32_t* nextIndex, int32_t order, SDataBlk* pBlock) {
   bool asc = ASCENDING_TRAVERSE(order);
   if (asc && pBlockInfo->tbBlockIdx >= taosArrayGetSize(pTableBlockScanInfo->pBlockList) - 1) {
-    return NULL;
+    return false;
   }
 
   if (!asc && pBlockInfo->tbBlockIdx == 0) {
-    return NULL;
+    return false;
   }
 
   int32_t step = asc ? 1 : -1;
   *nextIndex = pBlockInfo->tbBlockIdx + step;
 
-  SDataBlk* pBlock = taosMemoryCalloc(1, sizeof(SDataBlk));
-  int32_t*  indexInMapdata = taosArrayGet(pTableBlockScanInfo->pBlockList, *nextIndex);
+  int32_t* indexInMapdata = taosArrayGet(pTableBlockScanInfo->pBlockList, *nextIndex);
 
   tMapDataGetItemByIdx(&pTableBlockScanInfo->mapData, *indexInMapdata, pBlock, tGetDataBlk);
-  return pBlock;
+  return true;
 }
 
 static int32_t findFileBlockInfoIndex(SDataBlockIter* pBlockIter, SFileDataBlockInfo* pFBlockInfo) {
@@ -1364,13 +1363,14 @@ typedef struct {
 static void getBlockToLoadInfo(SDataBlockToLoadInfo* pInfo, SFileDataBlockInfo* pBlockInfo, SDataBlk* pBlock,
                                STableBlockScanInfo* pScanInfo, TSDBKEY keyInBuf, SLastBlockReader* pLastBlockReader,
                                STsdbReader* pReader) {
-  int32_t   neighborIndex = 0;
-  SDataBlk* pNeighbor = getNeighborBlockOfSameTable(pBlockInfo, pScanInfo, &neighborIndex, pReader->order);
+  int32_t  neighborIndex = 0;
+  SDataBlk block = {0};
+
+  bool hasNeighbor = getNeighborBlockOfSameTable(pBlockInfo, pScanInfo, &neighborIndex, pReader->order, &block);
 
   // overlap with neighbor
-  if (pNeighbor) {
-    pInfo->overlapWithNeighborBlock = overlapWithNeighborBlock(pBlock, pNeighbor, pReader->order);
-    taosMemoryFree(pNeighbor);
+  if (hasNeighbor) {
+    pInfo->overlapWithNeighborBlock = overlapWithNeighborBlock(pBlock, &block, pReader->order);
   }
 
   // has duplicated ts of different version in this block
@@ -3067,15 +3067,14 @@ static int32_t checkForNeighborFileBlock(STsdbReader* pReader, STableBlockScanIn
   *state = CHECK_FILEBLOCK_QUIT;
   int32_t step = ASCENDING_TRAVERSE(pReader->order) ? 1 : -1;
 
-  int32_t   nextIndex = -1;
-  SDataBlk* pNeighborBlock = getNeighborBlockOfSameTable(pFBlock, pScanInfo, &nextIndex, pReader->order);
-  if (pNeighborBlock == NULL) {  // do nothing
+  int32_t  nextIndex = -1;
+  SDataBlk block = {0};
+  bool hasNeighbor = getNeighborBlockOfSameTable(pFBlock, pScanInfo, &nextIndex, pReader->order, &block);
+  if (!hasNeighbor) {  // do nothing
     return 0;
   }
 
-  bool overlap = overlapWithNeighborBlock(pBlock, pNeighborBlock, pReader->order);
-  taosMemoryFree(pNeighborBlock);
-
+  bool overlap = overlapWithNeighborBlock(pBlock, &block, pReader->order);
   if (overlap) {  // load next block
     SReaderStatus*  pStatus = &pReader->status;
     SDataBlockIter* pBlockIter = &pStatus->blockIter;
