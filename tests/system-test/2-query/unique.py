@@ -437,6 +437,10 @@ class TDTestCase:
         tdSql.checkData(0,0,4)
         tdSql.checkData(1,0,1)
 
+        # TD-19911
+        tdSql.error("select  unique(mode(12)) from (select _rowts , t1 , tbname from  db.stb1 );")
+        tdSql.error("select  unique(mode(t1,1)) from (select _rowts , t1 , tbname from  db.stb1 );")
+
     def check_boundary_values(self, dbname="bound_test"):
 
         tdSql.execute(f"drop database if exists {dbname}")

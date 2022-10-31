@@ -798,7 +798,7 @@ static void *taosHashReleaseNode(SHashObj *pHashObj, void *p, int *slot) {
 }
 
 void *taosHashIterate(SHashObj *pHashObj, void *p) {
-  if (pHashObj == NULL) return NULL;
+  if (pHashObj == NULL || pHashObj->size == 0) return NULL;
 
   int   slot = 0;
   char *data = NULL;

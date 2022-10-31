@@ -23,7 +23,6 @@
 #include "mndGrant.h"
 #include "mndInfoSchema.h"
 #include "mndMnode.h"
-#include "mndOffset.h"
 #include "mndPerfSchema.h"
 #include "mndPrivilege.h"
 #include "mndProfile.h"
@@ -305,7 +304,6 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-topic", mndInitTopic, mndCleanupTopic) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-consumer", mndInitConsumer, mndCleanupConsumer) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-subscribe", mndInitSubscribe, mndCleanupSubscribe) != 0) return -1;
-  if (mndAllocStep(pMnode, "mnode-offset", mndInitOffset, mndCleanupOffset) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-vgroup", mndInitVgroup, mndCleanupVgroup) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-stb", mndInitStb, mndCleanupStb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-sma", mndInitSma, mndCleanupSma) != 0) return -1;
@@ -424,7 +422,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     return NULL;
   }
 
-  mInfo("mnode open successfully ");
+  mInfo("mnode open successfully");
   return pMnode;
 }
 
@@ -540,12 +538,12 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
 
   } else if (pMsg->msgType == TDMT_SYNC_PING) {
     SyncPing *pSyncMsg = syncPingFromRpcMsg2(pMsg);
-    code = syncNodeOnPingCb(pSyncNode, pSyncMsg);
+    code = syncNodeOnPing(pSyncNode, pSyncMsg);
     syncPingDestroy(pSyncMsg);
 
   } else if (pMsg->msgType == TDMT_SYNC_PING_REPLY) {
     SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pMsg);
-    code = syncNodeOnPingReplyCb(pSyncNode, pSyncMsg);
+    code = syncNodeOnPingReply(pSyncNode, pSyncMsg);
     syncPingReplyDestroy(pSyncMsg);
 
   } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {

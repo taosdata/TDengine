@@ -97,6 +97,7 @@ static int32_t splCreateExchangeNode(SSplitContext* pCxt, SLogicNode* pChild, SE
     if (NULL == pExchange->node.pLimit) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
+    ((SLimitNode*)pChild->pLimit)->limit += ((SLimitNode*)pChild->pLimit)->offset;
     ((SLimitNode*)pChild->pLimit)->offset = 0;
   }
 
@@ -469,6 +470,12 @@ static int32_t stbSplCreateMergeNode(SSplitContext* pCxt, SLogicSubplan* pSubpla
   }
   if (NULL == pMerge->node.pTargets || NULL == pMerge->pInputs) {
     code = TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pSplitNode->pLimit) {
+    pMerge->node.pLimit = nodesCloneNode(pSplitNode->pLimit);
+    if (NULL == pMerge->node.pLimit) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
   if (TSDB_CODE_SUCCESS == code) {
     if (NULL == pSubplan) {
@@ -934,6 +941,7 @@ static int32_t stbSplSplitScanNodeWithoutPartTags(SSplitContext* pCxt, SStableSp
       if (NULL == pSplitNode->pLimit) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
+      ((SLimitNode*)pInfo->pSplitNode->pLimit)->limit += ((SLimitNode*)pInfo->pSplitNode->pLimit)->offset;
       ((SLimitNode*)pInfo->pSplitNode->pLimit)->offset = 0;
     }
   }
@@ -1021,6 +1029,10 @@ static int32_t stbSplSplitMergeScanNode(SSplitContext* pCxt, SLogicSubplan* pSub
   SNodeList*  pMergeKeys = NULL;
   int32_t     code = stbSplCreateMergeScanNode(pScan, &pMergeScan, &pMergeKeys);
   if (TSDB_CODE_SUCCESS == code) {
+    if (NULL != pMergeScan->pLimit) {
+      ((SLimitNode*)pMergeScan->pLimit)->limit += ((SLimitNode*)pMergeScan->pLimit)->offset;
+      ((SLimitNode*)pMergeScan->pLimit)->offset = 0;
+    }
     code = stbSplCreateMergeNode(pCxt, pSubplan, (SLogicNode*)pScan, pMergeKeys, pMergeScan, groupSort);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -1407,7 +1419,8 @@ typedef struct SQnodeSplitInfo {
 static bool qndSplFindSplitNode(SSplitContext* pCxt, SLogicSubplan* pSubplan, SLogicNode* pNode,
                                 SQnodeSplitInfo* pInfo) {
   if (QUERY_NODE_LOGIC_PLAN_SCAN == nodeType(pNode) && NULL != pNode->pParent &&
-      ((SScanLogicNode*)pNode)->scanSeq[0] < 1 && ((SScanLogicNode*)pNode)->scanSeq[1] < 1) {
+      QUERY_NODE_LOGIC_PLAN_INTERP_FUNC != nodeType(pNode->pParent) && ((SScanLogicNode*)pNode)->scanSeq[0] <= 1 &&
+      ((SScanLogicNode*)pNode)->scanSeq[1] <= 1) {
     pInfo->pSplitNode = pNode;
     pInfo->pSubplan = pSubplan;
     return true;

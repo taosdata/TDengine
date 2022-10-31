@@ -28,7 +28,7 @@
   do {                       \
     ASSERT((_c) != -1);      \
     longjmp((_obj), (_c));   \
-  } while (0);
+  } while (0)
 
 #define SET_RES_WINDOW_KEY(_k, _ori, _len, _uid)     \
   do {                                               \
@@ -94,6 +94,25 @@ typedef struct SColMatchInfo {
   SArray* pList;      // SArray<SColMatchItem>
   int32_t matchType;  // determinate the source according to col id or slot id
 } SColMatchInfo;
+
+// If the numOfOutputGroups is 1, the data blocks that belongs to different groups will be provided randomly
+// The numOfOutputGroups is specified by physical plan. and will not be affect by numOfGroups
+typedef struct STableListInfo {
+  bool      oneTableForEachGroup;
+  int32_t   numOfOuputGroups; // the data block will be generated one by one
+  int32_t*  groupOffset;      // keep the offset value for each group in the tableList
+  SArray*   pTableList;
+  SHashObj* map;              // speedup acquire the tableQueryInfo by table uid
+  uint64_t  suid;
+} STableListInfo;
+
+void     destroyTableList(STableListInfo* pTableList);
+int32_t  getNumOfOutputGroups(const STableListInfo* pTableList);
+bool     oneTableForEachGroup(const STableListInfo* pTableList);
+uint64_t getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid);
+int32_t  addTableIntoTableList(STableListInfo* pTableList, uint64_t uid, uint64_t gid);
+int32_t  getTablesOfGroup(const STableListInfo* pTableList, int32_t ordinalIndex, STableKeyInfo** pKeyInfo, int32_t* num);
+uint64_t getTotalTables(const STableListInfo* pTableList);
 
 struct SqlFunctionCtx;
 

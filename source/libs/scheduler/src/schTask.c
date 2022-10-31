@@ -127,6 +127,7 @@ int32_t schDropTaskExecNode(SSchJob *pJob, SSchTask *pTask, void *handle, int32_
 
   if (taosHashRemove(pTask->execNodes, &execId, sizeof(execId))) {
     SCH_TASK_DLOG("execId %d already not in execNodeList", execId);
+    SCH_ERR_RET(TSDB_CODE_SCH_IGNORE_ERROR);
   } else {
     SCH_TASK_DLOG("execId %d removed from execNodeList", execId);
   }
@@ -914,7 +915,7 @@ int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask) {
   SCH_ERR_RET(schSetTaskCandidateAddrs(pJob, pTask));
 
   if (SCH_IS_QUERY_JOB(pJob)) {
-//    SCH_ERR_RET(schEnsureHbConnection(pJob, pTask));
+    SCH_ERR_RET(schEnsureHbConnection(pJob, pTask));
   }
 
   SCH_RET(schBuildAndSendMsg(pJob, pTask, NULL, plan->msgType));

@@ -146,6 +146,7 @@ int32_t qwBuildAndSendFetchRsp(int32_t rspType, SRpcHandleInfo *pConn, SRetrieve
   return TSDB_CODE_SUCCESS;
 }
 
+#if 0
 int32_t qwBuildAndSendCancelRsp(SRpcHandleInfo *pConn, int32_t code) {
   STaskCancelRsp *pRsp = (STaskCancelRsp *)rpcMallocCont(sizeof(STaskCancelRsp));
   pRsp->code = code;
@@ -177,6 +178,7 @@ int32_t qwBuildAndSendDropRsp(SRpcHandleInfo *pConn, int32_t code) {
   tmsgSendRsp(&rpcRsp);
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 int32_t qwBuildAndSendDropMsg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
   STaskDropReq *req = (STaskDropReq *)rpcMallocCont(sizeof(STaskDropReq));
@@ -490,6 +492,7 @@ int32_t qWorkerProcessRspMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64
   return TSDB_CODE_SUCCESS;
 }
 
+#if 0
 int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {
   if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
     return TSDB_CODE_QRY_INVALID_INPUT;
@@ -530,6 +533,7 @@ _return:
 
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg, int64_t ts) {
   if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {

@@ -184,6 +184,7 @@ class TDTestCase:
         tdSql.query("select count(*) from hn_table_1_r;")
         tdSql.checkData(0,0,num_random*n)
         
+        sleep(5)
         # stream data check
         tdSql.query("select start,wend,max_int from stream_max_stable_1 ;")
         tdSql.checkRows(20)

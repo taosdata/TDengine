@@ -41,7 +41,7 @@ class TDTestCase:
                     'rowsPerTbl': 4000,
                     'batchNum':   15,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  20,
+                    'pollDelay':  30,
                     'showMsg':    1,
                     'showRow':    1}
 
@@ -124,7 +124,7 @@ class TDTestCase:
         tdLog.info("async insert data")
         pThread = tmqCom.asyncInsertData(paraDict)
 
-        tmqCom.getStartConsumeNotifyFromTmqsim();
+        tmqCom.getStartConsumeNotifyFromTmqsim()
         #time.sleep(5)
         tdLog.info("check show consumers")
         tdSql.query("show consumers")

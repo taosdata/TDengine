@@ -229,6 +229,36 @@ class TDTestCase:
         tdSql.query(f"select log(c6 ,2) from {dbname}.ct3")
         tdSql.checkRows(0)
 
+        # log used for different param types
+
+        tdSql.query(f"select log(c1,c2) from {dbname}.ct1;")
+        tdSql.query(f"select log(c1,c2) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select log(c1,2) from {dbname}.ct1;")
+        tdSql.query(f"select log(c1,2) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select log(2,c2) from {dbname}.ct1;")
+        tdSql.query(f"select log(2,c2) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select log(2,1) from {dbname}.ct1;")
+        tdSql.query(f"select log(2,2) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select log(2,floor(1)) from {dbname}.ct1;")
+        tdSql.query(f"select log(2,floor(2)) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select log(abs(2),floor(1)) from {dbname}.ct1;")
+        tdSql.query(f"select log(abs(2),floor(2)) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select log(abs(c2),c1) from {dbname}.ct1;")
+        tdSql.query(f"select log(abs(c2),c1) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select log(c2,abs(c1)) from {dbname}.ct1;")
+        tdSql.query(f"select log(c2,abs(c1)) from {dbname}.stb1 partition by tbname order by tbname;")
+
+        tdSql.query(f"select log(abs(c2),2) from {dbname}.ct1;")
+        tdSql.query(f"select log(abs(c2),2) from {dbname}.stb1 partition by tbname order by tbname;")
+
+
 
         # # used for regular table
         tdSql.query(f"select log(c1 ,2) from {dbname}.t1")
@@ -291,6 +321,7 @@ class TDTestCase:
         tdSql.query(f"select log(c1, 2) from {dbname}.stb1")
         tdSql.checkRows(25)
 
+        
 
         # used for not exists table
         tdSql.error(f"select log(c1, 2) from {dbname}.stbbb1")
