@@ -10,6 +10,8 @@
     "databases": "db",
     "query_times": 1,
     "query_mode": "taosc",
+    "kill_slow_query_threshold": "120",
+    "kill_slow_query_interval": "10",
     "specified_table_query": {
 	"query_interval": 0,
 	"threads": 1,
