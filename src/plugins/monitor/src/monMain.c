@@ -42,7 +42,7 @@
 #define QUERY_ID_LEN        24
 #define CHECK_INTERVAL      1000
 #define AUDIT_MAX_RETRIES   10
-#define MAX_DDL_TYPE_LEN    20
+#define MAX_DDL_TYPE_LEN    32
 #define MAX_DDL_OBJ_LEN     512
 
 #define SQL_STR_FMT "\"%s\""
