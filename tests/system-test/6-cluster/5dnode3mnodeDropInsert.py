@@ -26,7 +26,7 @@ class MyDnodes(TDDnodes):
 
 class TDTestCase:
 
-    def init(self,conn ,logSql):
+    def init(self, conn, logSql, replicaVar=1):
         tdLog.debug(f"start to excute {__file__}")
         self.TDDnodes = None
         self.ts = 1500000000000

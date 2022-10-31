@@ -78,7 +78,7 @@ class TDTestCase:
     def insert_data(self, tbname, ts_start, count):
         pre_insert = "insert into %s values"%tbname
         sql = pre_insert
-        tdLog.debug("doing insert table %s rows=%d ..."%(tbname, count))
+        tdLog.debug("insert table %s rows=%d ..."%(tbname, count))
         for i in range(count):
             sql += " (%d,%d)"%(ts_start + i*1000, i )
             if i >0 and i%30000 == 0:
@@ -94,7 +94,7 @@ class TDTestCase:
     def insert_data1(self, tbname, ts_start, count):
         pre_insert = "insert into %s values"%tbname
         sql = pre_insert
-        tdLog.debug("doing insert table %s rows=%d ..."%(tbname, count))
+        tdLog.debug("insert table %s rows=%d ..."%(tbname, count))
         for i in range(count):
             sql += " (%d,%d,%d)"%(ts_start + i*1000, i , i+1)
             if i >0 and i%30000 == 0:
