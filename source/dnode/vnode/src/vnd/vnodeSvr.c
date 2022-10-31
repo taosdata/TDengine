@@ -369,8 +369,8 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return qWorkerProcessFetchMsg(pVnode, pVnode->pQuery, pMsg, 0);
     case TDMT_SCH_FETCH_RSP:
       return qWorkerProcessRspMsg(pVnode, pVnode->pQuery, pMsg, 0);
-    //case TDMT_SCH_CANCEL_TASK:
-    //  return qWorkerProcessCancelMsg(pVnode, pVnode->pQuery, pMsg, 0);
+    // case TDMT_SCH_CANCEL_TASK:
+    //   return qWorkerProcessCancelMsg(pVnode, pVnode->pQuery, pMsg, 0);
     case TDMT_SCH_DROP_TASK:
       return qWorkerProcessDropMsg(pVnode, pVnode->pQuery, pMsg, 0);
     case TDMT_SCH_QUERY_HEARTBEAT:
@@ -385,9 +385,10 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return tqProcessPollReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_RUN:
       return tqProcessTaskRunReq(pVnode->pTq, pMsg);
+#if 0
     case TDMT_STREAM_TASK_DISPATCH:
-      //      return tqProcessTaskDispatchReq(pVnode->pTq, pMsg, pInfo->workerId != 0);
       return tqProcessTaskDispatchReq(pVnode->pTq, pMsg, true);
+#endif
       /*case TDMT_STREAM_TASK_RECOVER:*/
       /*return tqProcessTaskRecoverReq(pVnode->pTq, pMsg);*/
     case TDMT_STREAM_RETRIEVE:
@@ -1163,8 +1164,10 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t version, void 
   for (int32_t i = 0; i < sz; i++) {
     SSingleDeleteReq *pOneReq = taosArrayGet(deleteReq.deleteReqs, i);
     int32_t code = tsdbDeleteTableData(pVnode->pTsdb, version, deleteReq.suid, pOneReq->uid, pOneReq->ts, pOneReq->ts);
-    if (code) {
-      // TODO
+    if (code < 0) {
+      terrno = code;
+      vError("vgId:%d, delete error since %s, suid:%" PRId64 ", uid:%" PRId64 ", start ts:%" PRId64 ", end ts:%" PRId64,
+             TD_VID(pVnode), terrstr(), deleteReq.suid, pOneReq->uid, pOneReq->ts, pOneReq->ts);
     }
   }
   taosArrayDestroy(deleteReq.deleteReqs);

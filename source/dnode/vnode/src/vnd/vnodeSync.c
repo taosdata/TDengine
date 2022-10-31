@@ -301,13 +301,13 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   } else if (pMsg->msgType == TDMT_SYNC_PING) {
     SyncPing *pSyncMsg = syncPingFromRpcMsg2(pMsg);
     ASSERT(pSyncMsg != NULL);
-    code = syncNodeOnPingCb(pSyncNode, pSyncMsg);
+    code = syncNodeOnPing(pSyncNode, pSyncMsg);
     syncPingDestroy(pSyncMsg);
 
   } else if (pMsg->msgType == TDMT_SYNC_PING_REPLY) {
     SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pMsg);
     ASSERT(pSyncMsg != NULL);
-    code = syncNodeOnPingReplyCb(pSyncNode, pSyncMsg);
+    code = syncNodeOnPingReply(pSyncNode, pSyncMsg);
     syncPingReplyDestroy(pSyncMsg);
 
   } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {

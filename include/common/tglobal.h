@@ -60,8 +60,8 @@ extern int32_t tsNumOfVnodeSyncThreads;
 extern int32_t tsNumOfVnodeRsmaThreads;
 extern int32_t tsNumOfQnodeQueryThreads;
 extern int32_t tsNumOfQnodeFetchThreads;
-extern int32_t tsNumOfSnodeSharedThreads;
-extern int32_t tsNumOfSnodeUniqueThreads;
+extern int32_t tsNumOfSnodeStreamThreads;
+extern int32_t tsNumOfSnodeWriteThreads;
 extern int64_t tsRpcQueueMemoryAllowed;
 
 // monitor

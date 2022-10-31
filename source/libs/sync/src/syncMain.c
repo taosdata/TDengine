@@ -49,8 +49,8 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths);
 static void    syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId);
 
 // process message ----
-int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
-int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
+int32_t syncNodeOnPing(SSyncNode* ths, SyncPing* pMsg);
+int32_t syncNodeOnPingReply(SSyncNode* ths, SyncPingReply* pMsg);
 
 // ---------------------------------
 static void syncNodeFreeCb(void* param) {
@@ -1327,8 +1327,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   }
 
   // init callback
-  pSyncNode->FpOnPing = syncNodeOnPingCb;
-  pSyncNode->FpOnPingReply = syncNodeOnPingReplyCb;
+  pSyncNode->FpOnPing = syncNodeOnPing;
+  pSyncNode->FpOnPingReply = syncNodeOnPingReply;
   pSyncNode->FpOnClientRequest = syncNodeOnClientRequest;
   pSyncNode->FpOnTimeout = syncNodeOnTimer;
   pSyncNode->FpOnSnapshot = syncNodeOnSnapshot;
@@ -3003,18 +3003,19 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
 }
 
 // on message ----
-int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg) {
-  // log state
+int32_t syncNodeOnPing(SSyncNode* ths, SyncPing* pMsg) {
+  sTrace("vgId:%d, recv sync-ping", ths->vgId);
+
   SyncPingReply* pMsgReply = syncPingReplyBuild3(&ths->myRaftId, &pMsg->srcId, ths->vgId);
   SRpcMsg        rpcMsg;
   syncPingReply2RpcMsg(pMsgReply, &rpcMsg);
 
   /*
-  // htonl
-  SMsgHead* pHead = rpcMsg.pCont;
-  pHead->contLen = htonl(pHead->contLen);
-  pHead->vgId = htonl(pHead->vgId);
-*/
+    // htonl
+    SMsgHead* pHead = rpcMsg.pCont;
+    pHead->contLen = htonl(pHead->contLen);
+    pHead->vgId = htonl(pHead->vgId);
+  */
 
   syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg);
   syncPingReplyDestroy(pMsgReply);
@@ -3022,9 +3023,9 @@ int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg) {
   return 0;
 }
 
-int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg) {
+int32_t syncNodeOnPingReply(SSyncNode* ths, SyncPingReply* pMsg) {
   int32_t ret = 0;
-  syncPingReplyLog2("==syncNodeOnPingReplyCb==", pMsg);
+  sTrace("vgId:%d, recv sync-ping-reply", ths->vgId);
   return ret;
 }
 
@@ -3375,8 +3376,12 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
           pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
         } else {
           code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, i, &pEntry);
-          ASSERT(code == 0);
-          ASSERT(pEntry != NULL);
+          // ASSERT(code == 0);
+          // ASSERT(pEntry != NULL);
+          if (code != 0 || pEntry == NULL) {
+			syncNodeErrorLog(ths, "get log entry error");
+            continue;
+          }
         }
 
         SRpcMsg rpcMsg;

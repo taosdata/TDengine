@@ -617,8 +617,6 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
       indexError("failed to write data: %s, offset: %d len: %d", v->colVal, v->offset,
                  (int)taosArrayGetSize(v->tableId));
     } else {
-      indexInfo("success to write data: %s, offset: %d len: %d", v->colVal, v->offset,
-                (int)taosArrayGetSize(v->tableId));
     }
   }
   fstBuilderDestroy(tw->fb);
