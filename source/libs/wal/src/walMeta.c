@@ -589,6 +589,7 @@ int walRollFileInfo(SWal* pWal) {
   pNewInfo->createTs = ts;
   pNewInfo->closeTs = -1;
   pNewInfo->fileSize = 0;
+  pNewInfo->syncedOffset = 0;
   taosArrayPush(pArray, pNewInfo);
   taosMemoryFree(pNewInfo);
   return 0;
@@ -739,6 +740,12 @@ static int walFindCurMetaVer(SWal* pWal) {
   return metaVer;
 }
 
+void walUpdateSyncedOffset(SWal* pWal) {
+  SWalFileInfo* pFileInfo = walGetCurFileInfo(pWal);
+  if (pFileInfo == NULL) return;
+  pFileInfo->syncedOffset = pFileInfo->fileSize;
+}
+
 int walSaveMeta(SWal* pWal) {
   int  metaVer = walFindCurMetaVer(pWal);
   char fnameStr[WAL_FILE_LEN];
@@ -757,6 +764,9 @@ int walSaveMeta(SWal* pWal) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
+
+  // update synced offset
+  (void)walUpdateSyncedOffset(pWal);
 
   // flush to a tmpfile
   n = walBuildTmpMetaName(pWal, tmpFnameStr);
