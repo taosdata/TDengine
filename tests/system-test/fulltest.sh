@@ -2,35 +2,35 @@
 set -e
 set -x
 
-# python3 ./test.py -f 0-others/taosShell.py
-# python3 ./test.py -f 0-others/taosShellError.py
-# python3 ./test.py -f 0-others/taosShellNetChk.py
-# python3 ./test.py -f 0-others/telemetry.py
-# python3 ./test.py -f 0-others/taosdMonitor.py
-# python3 ./test.py -f 0-others/udfTest.py
-# python3 ./test.py -f 0-others/udf_create.py
-# python3 ./test.py -f 0-others/udf_restart_taosd.py
-# python3 ./test.py -f 0-others/cachemodel.py
-# python3 ./test.py -f 0-others/udf_cfg1.py
-# python3 ./test.py -f 0-others/udf_cfg2.py
-# python3 ./test.py -f 0-others/taosdShell.py -N 5 -M 3 -Q 3
-# python3 ./test.py -f 0-others/sysinfo.py
-# python3 ./test.py -f 0-others/user_control.py
-# python3 ./test.py -f 0-others/fsync.py
-# python3 ./test.py  -f 0-others/compatibility.py   
-# python3 ./test.py -f 1-insert/alter_database.py
-# python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
-# python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
-# python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
-# python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
-# python3 ./test.py -f 1-insert/test_stmt_set_tbname_tag.py
-# python3 ./test.py -f 1-insert/alter_stable.py
-# python3 ./test.py -f 1-insert/alter_table.py
-# python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
-# python3 ./test.py -f 1-insert/table_comment.py
-# python3 ./test.py -f 1-insert/time_range_wise.py
-# python3 ./test.py -f 1-insert/block_wise.py
-# python3 ./test.py -f 1-insert/create_retentions.py
+python3 ./test.py -f 0-others/taosShell.py
+python3 ./test.py -f 0-others/taosShellError.py
+python3 ./test.py -f 0-others/taosShellNetChk.py
+python3 ./test.py -f 0-others/telemetry.py
+python3 ./test.py -f 0-others/taosdMonitor.py
+python3 ./test.py -f 0-others/udfTest.py
+python3 ./test.py -f 0-others/udf_create.py
+python3 ./test.py -f 0-others/udf_restart_taosd.py
+python3 ./test.py -f 0-others/cachemodel.py
+python3 ./test.py -f 0-others/udf_cfg1.py
+python3 ./test.py -f 0-others/udf_cfg2.py
+python3 ./test.py -f 0-others/taosdShell.py -N 5 -M 3 -Q 3
+python3 ./test.py -f 0-others/sysinfo.py
+python3 ./test.py -f 0-others/user_control.py
+python3 ./test.py -f 0-others/fsync.py
+python3 ./test.py  -f 0-others/compatibility.py   
+python3 ./test.py -f 1-insert/alter_database.py
+python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
+python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
+python3 ./test.py -f 1-insert/opentsdb_json_taosc_insert.py
+python3 ./test.py -f 1-insert/test_stmt_muti_insert_query.py
+python3 ./test.py -f 1-insert/test_stmt_set_tbname_tag.py
+python3 ./test.py -f 1-insert/alter_stable.py
+python3 ./test.py -f 1-insert/alter_table.py
+python3 ./test.py -f 1-insert/insertWithMoreVgroup.py
+python3 ./test.py -f 1-insert/table_comment.py
+python3 ./test.py -f 1-insert/time_range_wise.py
+python3 ./test.py -f 1-insert/block_wise.py
+python3 ./test.py -f 1-insert/create_retentions.py
 python3 ./test.py -f 1-insert/table_param_ttl.py
 python3 ./test.py -f 1-insert/mutil_stage.py
 python3 ./test.py -f 1-insert/table_param_ttl.py -R
@@ -239,7 +239,8 @@ python3 ./test.py -f 6-cluster/5dnode3mnodeStopLoop.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 5 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDbRep3.py -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDbRep3.py -N 6 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDbRep3.py -N 6 -M 3 -n 3
 
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateStb.py  -N 5 -M 3
