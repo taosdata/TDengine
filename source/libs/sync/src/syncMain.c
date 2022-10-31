@@ -47,6 +47,7 @@ static void    syncNodeEqHeartbeatTimer(void* param, void* tmrId);
 static int32_t syncNodeEqNoop(SSyncNode* ths);
 static int32_t syncNodeAppendNoop(SSyncNode* ths);
 static void    syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId);
+static bool    syncIsConfigChanged(const SSyncCfg* pOldCfg, const SSyncCfg* pNewCfg);
 
 // process message ----
 int32_t syncNodeOnPing(SSyncNode* ths, SyncPing* pMsg);
@@ -1146,7 +1147,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
       sError("vgId:%d, failed to open raft cfg file at %s", pSyncNode->vgId, pSyncNode->configPath);
       goto _error;
     }
-    if (pSyncInfo->syncCfg.replicaNum > 0 && pSyncInfo->syncCfg.replicaNum != pSyncNode->pRaftCfg->cfg.replicaNum) {
+
+    if (pSyncInfo->syncCfg.replicaNum > 0 && syncIsConfigChanged(&pSyncNode->pRaftCfg->cfg, &pSyncInfo->syncCfg)) {
       sInfo("vgId:%d, use sync config from input options and write to cfg file", pSyncNode->vgId);
       pSyncNode->pRaftCfg->cfg = pSyncInfo->syncCfg;
       if (raftCfgPersist(pSyncNode->pRaftCfg) != 0) {
@@ -2109,12 +2111,11 @@ static bool syncIsConfigChanged(const SSyncCfg* pOldCfg, const SSyncCfg* pNewCfg
 
 void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncIndex lastConfigChangeIndex) {
   SSyncCfg oldConfig = pSyncNode->pRaftCfg->cfg;
-#if 1
   if (!syncIsConfigChanged(&oldConfig, pNewConfig)) {
     sInfo("vgId:1, sync not reconfig since not changed");
     return;
   }
-#endif
+
   pSyncNode->pRaftCfg->cfg = *pNewConfig;
   pSyncNode->pRaftCfg->lastConfigIndex = lastConfigChangeIndex;
 

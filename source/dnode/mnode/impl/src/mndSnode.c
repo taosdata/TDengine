@@ -360,11 +360,13 @@ static int32_t mndSetDropSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SSn
   return 0;
 }
 
-int32_t mndSetDropSnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SSnodeObj *pObj) {
+int32_t mndSetDropSnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SSnodeObj *pObj, bool force) {
   if (pObj == NULL) return 0;
   if (mndSetDropSnodeRedoLogs(pTrans, pObj) != 0) return -1;
   if (mndSetDropSnodeCommitLogs(pTrans, pObj) != 0) return -1;
-  if (mndSetDropSnodeRedoActions(pTrans, pObj->pDnode, pObj) != 0) return -1;
+  if (!force) {
+    if (mndSetDropSnodeRedoActions(pTrans, pObj->pDnode, pObj) != 0) return -1;
+  }
   return 0;
 }
 
@@ -375,7 +377,7 @@ static int32_t mndDropSnode(SMnode *pMnode, SRpcMsg *pReq, SSnodeObj *pObj) {
   if (pTrans == NULL) goto _OVER;
 
   mInfo("trans:%d, used to drop snode:%d", pTrans->id, pObj->id);
-  if (mndSetDropSnodeInfoToTrans(pMnode, pTrans, pObj) != 0) goto _OVER;
+  if (mndSetDropSnodeInfoToTrans(pMnode, pTrans, pObj, false) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
   code = 0;
@@ -386,9 +388,9 @@ _OVER:
 }
 
 static int32_t mndProcessDropSnodeReq(SRpcMsg *pReq) {
-  SMnode *pMnode = pReq->info.node;
-  int32_t code = -1;
-  SSnodeObj *pObj = NULL;
+  SMnode        *pMnode = pReq->info.node;
+  int32_t        code = -1;
+  SSnodeObj     *pObj = NULL;
   SMDropSnodeReq dropReq = {0};
 
   if (tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
