@@ -382,6 +382,17 @@ void applyLimitOffset(SLimitInfo* pLimitInfo, SSDataBlock* pBlock, SExecTaskInfo
   }
 }
 
+static void ensureBlockCapacity(SSDataBlock* pBlock, int32_t capacity) {
+  // keep the value of rows temporarily
+  int32_t rows = pBlock->info.rows;
+
+  pBlock->info.rows = 0;
+  blockDataEnsureCapacity(pBlock, capacity);
+
+  // restore the rows number
+  pBlock->info.rows = rows;
+}
+
 static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableScanInfo, SSDataBlock* pBlock,
                              uint32_t* status) {
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
@@ -413,6 +424,8 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
     qDebug("%s data block skipped, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
            pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
 
+    // NOTE:  here the tag value only load for one row
+    ensureBlockCapacity(pBlock, 1);
     doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo);
     pCost->skipBlocks += 1;
     return TSDB_CODE_SUCCESS;
@@ -423,6 +436,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
     if (success) {  // failed to load the block sma data, data block statistics does not exist, load data block instead
       qDebug("%s data block SMA loaded, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
              pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
+      ensureBlockCapacity(pBlock, 1);
       doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo);
       return TSDB_CODE_SUCCESS;
     } else {
@@ -472,12 +486,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
     return terrno;
   }
 
-  int32_t rows = pBlock->info.rows;
-  pBlock->info.rows = 0;
-
-  blockDataEnsureCapacity(pBlock, rows);
-  pBlock->info.rows = rows;
-
+  ensureBlockCapacity(pBlock, pBlock->info.rows);
   relocateColumnData(pBlock, pTableScanInfo->matchInfo.pList, pCols, true);
   doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo);
 
