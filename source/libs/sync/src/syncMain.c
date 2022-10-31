@@ -528,6 +528,20 @@ int32_t syncEndSnapshot(int64_t rid) {
   return code;
 }
 
+int32_t syncStepDown(int64_t rid, SyncTerm newTerm) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return -1;
+  }
+  ASSERT(rid == pSyncNode->rid);
+
+  syncNodeStepDown(pSyncNode, newTerm);
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return 0;
+}
+
 int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
   if (pSyncNode->peersNum == 0) {
     sDebug("only one replica, cannot leader transfer");
@@ -3041,12 +3055,6 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg) {
   SRpcMsg rpcMsg;
   syncHeartbeatReply2RpcMsg(pMsgReply, &rpcMsg);
 
-#if 1
-  if (pMsg->term >= ths->pRaftStore->currentTerm && ths->state != TAOS_SYNC_STATE_FOLLOWER) {
-    syncNodeStepDown(ths, pMsg->term);
-  }
-#endif
-
   if (pMsg->term == ths->pRaftStore->currentTerm && ths->state != TAOS_SYNC_STATE_LEADER) {
     syncNodeResetElectTimer(ths);
     ths->minMatchIndex = pMsg->minMatchIndex;
@@ -3057,6 +3065,12 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg) {
     }
 #endif
   }
+
+#if 1
+  if (pMsg->term >= ths->pRaftStore->currentTerm && ths->state != TAOS_SYNC_STATE_FOLLOWER) {
+    syncNodeStepDown(ths, pMsg->term);
+  }
+#endif
 
   /*
     // htonl
@@ -3077,6 +3091,17 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, SyncHeartbeatReply* pMsg) {
 
   // update last reply time, make decision whether the other node is alive or not
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &(pMsg->destId), pMsg->startTime);
+
+  return 0;
+}
+
+int32_t syncNodeOnLocalCmd(SSyncNode* ths, SyncLocalCmd* pMsg) {
+  if (pMsg->cmd == SYNC_LOCAL_CMD_STEP_DOWN) {
+    syncNodeStepDown(ths, pMsg->sdNewTerm);
+
+  } else {
+    syncNodeErrorLog(ths, "error local cmd");
+  }
 
   return 0;
 }
@@ -3379,7 +3404,7 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
           // ASSERT(code == 0);
           // ASSERT(pEntry != NULL);
           if (code != 0 || pEntry == NULL) {
-			syncNodeErrorLog(ths, "get log entry error");
+            syncNodeErrorLog(ths, "get log entry error");
             continue;
           }
         }
