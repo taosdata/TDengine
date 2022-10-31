@@ -6,7 +6,7 @@ import numpy as np
 
 class TDTestCase:
     updatecfgDict = {"maxTablesPerVnode":2 ,"minTablesPerVnode":2,"tableIncStepPerVnode":2 }
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
 
