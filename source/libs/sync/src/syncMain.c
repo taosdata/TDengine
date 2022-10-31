@@ -47,6 +47,7 @@ static void    syncNodeEqHeartbeatTimer(void* param, void* tmrId);
 static int32_t syncNodeEqNoop(SSyncNode* ths);
 static int32_t syncNodeAppendNoop(SSyncNode* ths);
 static void    syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId);
+static bool    syncIsConfigChanged(const SSyncCfg* pOldCfg, const SSyncCfg* pNewCfg);
 
 // process message ----
 int32_t syncNodeOnPing(SSyncNode* ths, SyncPing* pMsg);
@@ -526,6 +527,20 @@ int32_t syncEndSnapshot(int64_t rid) {
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   return code;
+}
+
+int32_t syncStepDown(int64_t rid, SyncTerm newTerm) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return -1;
+  }
+  ASSERT(rid == pSyncNode->rid);
+
+  syncNodeStepDown(pSyncNode, newTerm);
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return 0;
 }
 
 int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
@@ -1132,7 +1147,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
       sError("vgId:%d, failed to open raft cfg file at %s", pSyncNode->vgId, pSyncNode->configPath);
       goto _error;
     }
-    if (pSyncInfo->syncCfg.replicaNum > 0 && pSyncInfo->syncCfg.replicaNum != pSyncNode->pRaftCfg->cfg.replicaNum) {
+
+    if (pSyncInfo->syncCfg.replicaNum > 0 && syncIsConfigChanged(&pSyncNode->pRaftCfg->cfg, &pSyncInfo->syncCfg)) {
       sInfo("vgId:%d, use sync config from input options and write to cfg file", pSyncNode->vgId);
       pSyncNode->pRaftCfg->cfg = pSyncInfo->syncCfg;
       if (raftCfgPersist(pSyncNode->pRaftCfg) != 0) {
@@ -2095,12 +2111,11 @@ static bool syncIsConfigChanged(const SSyncCfg* pOldCfg, const SSyncCfg* pNewCfg
 
 void syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* pNewConfig, SyncIndex lastConfigChangeIndex) {
   SSyncCfg oldConfig = pSyncNode->pRaftCfg->cfg;
-#if 1
   if (!syncIsConfigChanged(&oldConfig, pNewConfig)) {
     sInfo("vgId:1, sync not reconfig since not changed");
     return;
   }
-#endif
+
   pSyncNode->pRaftCfg->cfg = *pNewConfig;
   pSyncNode->pRaftCfg->lastConfigIndex = lastConfigChangeIndex;
 
@@ -3041,12 +3056,6 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg) {
   SRpcMsg rpcMsg;
   syncHeartbeatReply2RpcMsg(pMsgReply, &rpcMsg);
 
-#if 1
-  if (pMsg->term >= ths->pRaftStore->currentTerm && ths->state != TAOS_SYNC_STATE_FOLLOWER) {
-    syncNodeStepDown(ths, pMsg->term);
-  }
-#endif
-
   if (pMsg->term == ths->pRaftStore->currentTerm && ths->state != TAOS_SYNC_STATE_LEADER) {
     syncNodeResetElectTimer(ths);
     ths->minMatchIndex = pMsg->minMatchIndex;
@@ -3056,6 +3065,28 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg) {
       syncNodeFollowerCommit(ths, pMsg->commitIndex);
     }
 #endif
+  }
+
+  if (pMsg->term >= ths->pRaftStore->currentTerm && ths->state != TAOS_SYNC_STATE_FOLLOWER) {
+    // syncNodeStepDown(ths, pMsg->term);
+    SyncLocalCmd* pSyncMsg = syncLocalCmdBuild(ths->vgId);
+    pSyncMsg->cmd = SYNC_LOCAL_CMD_STEP_DOWN;
+    pSyncMsg->sdNewTerm = pMsg->term;
+
+    SRpcMsg rpcMsgLocalCmd;
+    syncLocalCmd2RpcMsg(pSyncMsg, &rpcMsgLocalCmd);
+
+    if (ths->FpEqMsg != NULL && ths->msgcb != NULL) {
+      int32_t code = ths->FpEqMsg(ths->msgcb, &rpcMsgLocalCmd);
+      if (code != 0) {
+        sError("vgId:%d, sync enqueue step-down msg error, code:%d", ths->vgId, code);
+        rpcFreeCont(rpcMsgLocalCmd.pCont);
+      } else {
+        sTrace("vgId:%d, sync enqueue step-down msg, new-term: %" PRIu64, ths->vgId, pSyncMsg->sdNewTerm);
+      }
+    }
+
+    syncLocalCmdDestroy(pSyncMsg);
   }
 
   /*
@@ -3077,6 +3108,19 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, SyncHeartbeatReply* pMsg) {
 
   // update last reply time, make decision whether the other node is alive or not
   syncIndexMgrSetRecvTime(ths->pMatchIndex, &(pMsg->destId), pMsg->startTime);
+
+  return 0;
+}
+
+int32_t syncNodeOnLocalCmd(SSyncNode* ths, SyncLocalCmd* pMsg) {
+  syncLogRecvLocalCmd(ths, pMsg, "");
+
+  if (pMsg->cmd == SYNC_LOCAL_CMD_STEP_DOWN) {
+    syncNodeStepDown(ths, pMsg->sdNewTerm);
+
+  } else {
+    syncNodeErrorLog(ths, "error local cmd");
+  }
 
   return 0;
 }
@@ -3742,5 +3786,12 @@ void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* p
   char logBuf[256];
   snprintf(logBuf, sizeof(logBuf), "recv sync-heartbeat-reply from %s:%d {term:%" PRIu64 ", pterm:%" PRIu64 "}, %s",
            host, port, pMsg->term, pMsg->privateTerm, s);
+  syncNodeEventLog(pSyncNode, logBuf);
+}
+
+void syncLogRecvLocalCmd(SSyncNode* pSyncNode, const SyncLocalCmd* pMsg, const char* s) {
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf), "recv sync-local-cmd {cmd:%d-%s, sd-new-term:%" PRIu64 "}, %s", pMsg->cmd,
+           syncLocalCmdGetStr(pMsg->cmd), pMsg->sdNewTerm, s);
   syncNodeEventLog(pSyncNode, logBuf);
 }

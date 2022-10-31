@@ -586,6 +586,11 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
     SRpcMsg rsp = {.code = code, .info = pMsg->info};
     tmsgSendRsp(&rsp);
 
+  } else if (pMsg->msgType == TDMT_SYNC_LOCAL_CMD) {
+    SyncLocalCmd *pSyncMsg = syncLocalCmdFromRpcMsg2(pMsg);
+    code = syncNodeOnLocalCmd(pSyncNode, pSyncMsg);
+    syncLocalCmdDestroy(pSyncMsg);
+
   } else {
     mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));
     code = -1;
