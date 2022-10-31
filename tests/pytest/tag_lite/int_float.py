@@ -808,7 +808,7 @@ class TDTestCase:
         tdLog.info('show databases')
         tdSql.query('show databases')
         # TSIM: if $rows != 0 then
-        tdLog.info('tdSql.checkRow(0)')
+        tdLog.info('tdSql.checkRow(1)')
         tdSql.checkRows(1)
         # TSIM: return -1
         # TSIM: endi

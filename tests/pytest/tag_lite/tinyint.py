@@ -565,8 +565,8 @@ class TDTestCase:
         tdLog.info('show databases')
         tdSql.query('show databases')
         # TSIM: if $rows != 0 then
-        tdLog.info('tdSql.checkRow(0)')
-        tdSql.checkRows(0)
+        tdLog.info('tdSql.checkRow(1)')
+        tdSql.checkRows(1)
         # TSIM: return -1
         # TSIM: endi
         # TSIM:
@@ -581,15 +581,15 @@ class TDTestCase:
             'CREATE TABLE if not exists dev_001 using st tags(%d)' % pow(2, 7))
         tdSql.error(
             'CREATE TABLE if not exists dev_001 using st tags(%d)' % (-1 * pow(2, 7)))
-        
+
         tdSql.execute(
             'CREATE TABLE if not exists dev_001 using st tags(%d)' % (pow(2, 7) - 1))
         tdSql.execute(
             'CREATE TABLE if not exists dev_002 using st tags(%d)' % (-1 * pow(2, 7) + 1))
 
-        print("==============step2")    
+        print("==============step2")
         tdSql.query("show tables")
-        tdSql.checkRows(2)   
+        tdSql.checkRows(2)
 
     def stop(self):
         tdSql.close()
