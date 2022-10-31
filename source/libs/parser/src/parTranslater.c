@@ -4995,6 +4995,7 @@ static int32_t translateDropDnode(STranslateContext* pCxt, SDropDnodeStmt* pStmt
   dropReq.dnodeId = pStmt->dnodeId;
   strcpy(dropReq.fqdn, pStmt->fqdn);
   dropReq.port = pStmt->port;
+  dropReq.force = pStmt->force;
 
   return buildCmdMsg(pCxt, TDMT_MND_DROP_DNODE, (FSerializeFunc)tSerializeSDropDnodeReq, &dropReq);
 }
