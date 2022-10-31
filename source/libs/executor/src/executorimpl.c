@@ -3378,34 +3378,11 @@ bool groupbyTbname(SNodeList* pGroupList) {
   return bytbname;
 }
 
-static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pCond) {
-  memset(pCond, 0, sizeof(SQueryTableDataCond));
-
-  pCond->order = TSDB_ORDER_ASC;
-  pCond->numOfCols = 1;
-  pCond->colList = taosMemoryCalloc(1, sizeof(SColumnInfo));
-  if (pCond->colList == NULL) {
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    return terrno;
-  }
-
-  pCond->colList->colId = 1;
-  pCond->colList->type = TSDB_DATA_TYPE_TIMESTAMP;
-  pCond->colList->bytes = sizeof(TSKEY);
-
-  pCond->twindows = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
-  pCond->suid = uid;
-  pCond->type = TIMEWINDOW_RANGE_CONTAINED;
-  pCond->startVersion = -1;
-  pCond->endVersion = -1;
-
-  return TSDB_CODE_SUCCESS;
-}
-
-SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle,
-                                  STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
-                                  const char* pUser) {
+SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, SNode* pTagCond,
+                                  SNode* pTagIndexCond, const char* pUser) {
   int32_t type = nodeType(pPhyNode);
+  STableListInfo* pTableListInfo = pTaskInfo->pTableInfoList;
+  const char* idstr = GET_TASKID(pTaskInfo);
 
   if (pPhyNode->pChildren == NULL || LIST_LENGTH(pPhyNode->pChildren) == 0) {
     SOperatorInfo* pOperator = NULL;
@@ -3420,10 +3397,10 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
       int32_t code =
           createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort, pHandle,
-                                  pTableListInfo, pTagCond, pTagIndexCond, GET_TASKID(pTaskInfo));
+                                  pTableListInfo, pTagCond, pTagIndexCond, idstr);
       if (code) {
         pTaskInfo->code = code;
-        qError("failed to createScanTableListInfo, code:%s, %s", tstrerror(code), GET_TASKID(pTaskInfo));
+        qError("failed to createScanTableListInfo, code:%s, %s", tstrerror(code), idstr);
         return NULL;
       }
 
@@ -3440,7 +3417,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       STableMergeScanPhysiNode* pTableScanNode = (STableMergeScanPhysiNode*)pPhyNode;
       int32_t                   code =
           createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, /*pTableScanNode->groupSort*/true, pHandle,
-                                  pTableListInfo, pTagCond, pTagIndexCond, GET_TASKID(pTaskInfo));
+                                  pTableListInfo, pTagCond, pTagIndexCond, idstr);
       if (code) {
         pTaskInfo->code = code;
         qError("failed to createScanTableListInfo, code: %s", tstrerror(code));
@@ -3465,7 +3442,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       if (pHandle->vnode) {
         int32_t code =
             createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
-                                    pHandle, pTableListInfo, pTagCond, pTagIndexCond, GET_TASKID(pTaskInfo));
+                                    pHandle, pTableListInfo, pTagCond, pTagIndexCond, idstr);
         if (code) {
           pTaskInfo->code = code;
           qError("failed to createScanTableListInfo, code: %s", tstrerror(code));
@@ -3492,7 +3469,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       STagScanPhysiNode* pScanPhyNode = (STagScanPhysiNode*)pPhyNode;
 
       int32_t code = createScanTableListInfo(pScanPhyNode, NULL, false, pHandle, pTableListInfo, pTagCond,
-                                             pTagIndexCond, GET_TASKID(pTaskInfo));
+                                             pTagIndexCond, idstr);
       if (code != TSDB_CODE_SUCCESS) {
         pTaskInfo->code = code;
         qError("failed to getTableList, code: %s", tstrerror(code));
@@ -3516,30 +3493,16 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
           tableListAddTableInfo(pTableListInfo, p->uid, 0);
         }
         taosArrayDestroy(pList);
-      } else {  // Create one table group.
+      } else {  // Create group with only one table
         tableListAddTableInfo(pTableListInfo, pBlockNode->uid, 0);
       }
 
-      SQueryTableDataCond cond = {0};
-
-      int32_t code = initTableblockDistQueryCond(pBlockNode->suid, &cond);
-      if (code != TSDB_CODE_SUCCESS) {
-        return NULL;
-      }
-
-      size_t num = tableListGetSize(pTableListInfo);
-      void*  pList = tableListGetInfo(pTableListInfo, 0);
-
-      STsdbReader* pReader = NULL;
-      tsdbReaderOpen(pHandle->vnode, &cond, pList, num, &pReader, "");
-      cleanupQueryTableDataCond(&cond);
-
-      pOperator = createDataBlockInfoScanOperator(pReader, pHandle, cond.suid, pBlockNode, pTaskInfo);
+      pOperator = createDataBlockInfoScanOperator(pHandle, pBlockNode, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_LAST_ROW_SCAN == type) {
       SLastRowScanPhysiNode* pScanNode = (SLastRowScanPhysiNode*)pPhyNode;
 
       int32_t code = createScanTableListInfo(&pScanNode->scan, pScanNode->pGroupTags, true, pHandle, pTableListInfo,
-                                             pTagCond, pTagIndexCond, GET_TASKID(pTaskInfo));
+                                             pTagCond, pTagIndexCond, idstr);
       if (code != TSDB_CODE_SUCCESS) {
         pTaskInfo->code = code;
         return NULL;
@@ -3566,17 +3529,18 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
   }
 
   size_t  size = LIST_LENGTH(pPhyNode->pChildren);
-
   SOperatorInfo** ops = taosMemoryCalloc(size, POINTER_BYTES);
+  if (ops == NULL) {
+    return NULL;
+  }
+
   for (int32_t i = 0; i < size; ++i) {
     SPhysiNode* pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, i);
-    ops[i] = createOperatorTree(pChildNode, pTaskInfo, pHandle, pTableListInfo, pTagCond, pTagIndexCond, pUser);
+    ops[i] = createOperatorTree(pChildNode, pTaskInfo, pHandle, pTagCond, pTagIndexCond, pUser);
     if (ops[i] == NULL) {
       taosMemoryFree(ops);
       return NULL;
     }
-
-    ops[i]->resultDataBlockId = pChildNode->pOutputDataBlockDesc->dataBlockId;
   }
 
   SOperatorInfo* pOptr = NULL;
@@ -3888,8 +3852,8 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
   sql = NULL;
 
   (*pTaskInfo)->pSubplan = pPlan;
-  (*pTaskInfo)->pRoot = createOperatorTree(pPlan->pNode, *pTaskInfo, pHandle, (*pTaskInfo)->pTableInfoList,
-                                           pPlan->pTagCond, pPlan->pTagIndexCond, pPlan->user);
+  (*pTaskInfo)->pRoot =
+      createOperatorTree(pPlan->pNode, *pTaskInfo, pHandle, pPlan->pTagCond, pPlan->pTagIndexCond, pPlan->user);
 
   if (NULL == (*pTaskInfo)->pRoot) {
     code = (*pTaskInfo)->code;

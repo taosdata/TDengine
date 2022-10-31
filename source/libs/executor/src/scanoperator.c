@@ -1000,8 +1000,31 @@ static void destroyBlockDistScanOperatorInfo(void* param) {
   taosMemoryFreeClear(param);
 }
 
-SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SReadHandle* readHandle, uint64_t uid,
-                                               SBlockDistScanPhysiNode* pBlockScanNode, SExecTaskInfo* pTaskInfo) {
+static int32_t initTableblockDistQueryCond(uint64_t uid, SQueryTableDataCond* pCond) {
+  memset(pCond, 0, sizeof(SQueryTableDataCond));
+
+  pCond->order = TSDB_ORDER_ASC;
+  pCond->numOfCols = 1;
+  pCond->colList = taosMemoryCalloc(1, sizeof(SColumnInfo));
+  if (pCond->colList == NULL) {
+    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return terrno;
+  }
+
+  pCond->colList->colId = 1;
+  pCond->colList->type = TSDB_DATA_TYPE_TIMESTAMP;
+  pCond->colList->bytes = sizeof(TSKEY);
+
+  pCond->twindows = (STimeWindow){.skey = INT64_MIN, .ekey = INT64_MAX};
+  pCond->suid = uid;
+  pCond->type = TIMEWINDOW_RANGE_CONTAINED;
+  pCond->startVersion = -1;
+  pCond->endVersion = -1;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanPhysiNode* pBlockScanNode, SExecTaskInfo* pTaskInfo) {
   SBlockDistInfo* pInfo = taosMemoryCalloc(1, sizeof(SBlockDistInfo));
   SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -1009,9 +1032,24 @@ SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SReadHandle* re
     goto _error;
   }
 
-  pInfo->pHandle = dataReader;
+  {
+    SQueryTableDataCond cond = {0};
+
+    int32_t code = initTableblockDistQueryCond(pBlockScanNode->suid, &cond);
+    if (code != TSDB_CODE_SUCCESS) {
+      return NULL;
+    }
+
+    STableListInfo* pTableListInfo = pTaskInfo->pTableInfoList;
+    size_t num = tableListGetSize(pTableListInfo);
+    void*  pList = tableListGetInfo(pTableListInfo, 0);
+
+    tsdbReaderOpen(readHandle->vnode, &cond, pList, num, &pInfo->pHandle, pTaskInfo->id.str);
+    cleanupQueryTableDataCond(&cond);
+  }
+
   pInfo->readHandle = *readHandle;
-  pInfo->uid = uid;
+  pInfo->uid = pBlockScanNode->suid;
   pInfo->pResBlock = createResDataBlock(pBlockScanNode->node.pOutputDataBlockDesc);
 
   int32_t    numOfCols = 0;

@@ -1772,6 +1772,10 @@ _error:
 }
 
 void* tableListDestroy(STableListInfo* pTableListInfo) {
+  if (pTableListInfo == NULL) {
+    return NULL;
+  }
+
   pTableListInfo->pTableList = taosArrayDestroy(pTableListInfo->pTableList);
   taosMemoryFreeClear(pTableListInfo->groupOffset);
 
