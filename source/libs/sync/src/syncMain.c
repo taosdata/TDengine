@@ -3066,11 +3066,27 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg) {
 #endif
   }
 
-#if 1
   if (pMsg->term >= ths->pRaftStore->currentTerm && ths->state != TAOS_SYNC_STATE_FOLLOWER) {
-    syncNodeStepDown(ths, pMsg->term);
+    // syncNodeStepDown(ths, pMsg->term);
+    SyncLocalCmd* pSyncMsg = syncLocalCmdBuild(ths->vgId);
+    pSyncMsg->cmd = SYNC_LOCAL_CMD_STEP_DOWN;
+    pSyncMsg->sdNewTerm = pMsg->term;
+
+    SRpcMsg rpcMsgLocalCmd;
+    syncLocalCmd2RpcMsg(pSyncMsg, &rpcMsgLocalCmd);
+
+    if (ths->FpEqMsg != NULL && ths->msgcb != NULL) {
+      int32_t code = ths->FpEqMsg(ths->msgcb, &rpcMsgLocalCmd);
+      if (code != 0) {
+        sError("vgId:%d, sync enqueue step-down msg error, code:%d", ths->vgId, code);
+        rpcFreeCont(rpcMsgLocalCmd.pCont);
+      } else {
+        sTrace("vgId:%d, sync enqueue step-down msg, new-term: %" PRIu64, ths->vgId, pSyncMsg->sdNewTerm);
+      }
+    }
+
+    syncLocalCmdDestroy(pSyncMsg);
   }
-#endif
 
   /*
     // htonl
@@ -3096,6 +3112,8 @@ int32_t syncNodeOnHeartbeatReply(SSyncNode* ths, SyncHeartbeatReply* pMsg) {
 }
 
 int32_t syncNodeOnLocalCmd(SSyncNode* ths, SyncLocalCmd* pMsg) {
+  syncLogRecvLocalCmd(ths, pMsg, "");
+
   if (pMsg->cmd == SYNC_LOCAL_CMD_STEP_DOWN) {
     syncNodeStepDown(ths, pMsg->sdNewTerm);
 
@@ -3766,5 +3784,12 @@ void syncLogRecvHeartbeatReply(SSyncNode* pSyncNode, const SyncHeartbeatReply* p
   char logBuf[256];
   snprintf(logBuf, sizeof(logBuf), "recv sync-heartbeat-reply from %s:%d {term:%" PRIu64 ", pterm:%" PRIu64 "}, %s",
            host, port, pMsg->term, pMsg->privateTerm, s);
+  syncNodeEventLog(pSyncNode, logBuf);
+}
+
+void syncLogRecvLocalCmd(SSyncNode* pSyncNode, const SyncLocalCmd* pMsg, const char* s) {
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf), "recv sync-local-cmd {cmd:%d-%s, sd-new-term:%" PRIu64 "}, %s", pMsg->cmd,
+           syncLocalCmdGetStr(pMsg->cmd), pMsg->sdNewTerm, s);
   syncNodeEventLog(pSyncNode, logBuf);
 }
