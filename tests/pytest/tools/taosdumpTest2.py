@@ -94,8 +94,9 @@ class TDTestCase:
             binPath)
 
         tdSql.execute("drop database db")
+        time.sleep(1)
         tdSql.query("show databases")
-        tdSql.checkRows(0)
+        tdSql.checkRows(1)
 
         os.system("%s -i ./taosdumptest/tmp -y" % binPath)
 

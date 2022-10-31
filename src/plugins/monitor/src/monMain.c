@@ -271,6 +271,10 @@ SMonHttpStatus *monGetHttpStatusHashTableEntry(int32_t code) {
 }
 
 static void *monAuditFunc(void *param) {
+  if (!tsEnableAudit) {
+    return NULL;
+  }
+
   monDebug("starting to initialize audit database...");
   setThreadName("audit");
   taosMsleep(1000);
