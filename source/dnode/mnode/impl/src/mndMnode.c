@@ -472,7 +472,8 @@ static int32_t mndSetDropMnodeCommitLogs(SMnode *pMnode, STrans *pTrans, SMnodeO
   return 0;
 }
 
-static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnodeObj *pDnode, SMnodeObj *pObj, bool force) {
+static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnodeObj *pDnode, SMnodeObj *pObj,
+                                          bool force) {
   SSdb          *pSdb = pMnode->pSdb;
   void          *pIter = NULL;
   SDDropMnodeReq dropReq = {0};
@@ -752,7 +753,7 @@ static void mndReloadSyncConfig(SMnode *pMnode) {
     mInfo("vgId:1, mnode sync not reconfig since readyMnodes:%d updatingMnodes:%d", readyMnodes, updatingMnodes);
     return;
   }
-    // ASSERT(0);
+  // ASSERT(0);
 
   if (cfg.myIndex == -1) {
 #if 1

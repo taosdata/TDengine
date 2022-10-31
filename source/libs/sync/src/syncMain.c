@@ -1133,8 +1133,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
       sError("vgId:%d, failed to open raft cfg file at %s", pSyncNode->vgId, pSyncNode->configPath);
       goto _error;
     }
-    
-    if (syncIsConfigChanged(&pSyncNode->pRaftCfg->cfg, &pSyncInfo->syncCfg)) {
+
+    if (pSyncInfo->syncCfg.replicaNum > 0 && syncIsConfigChanged(&pSyncNode->pRaftCfg->cfg, &pSyncInfo->syncCfg)) {
       sInfo("vgId:%d, use sync config from input options and write to cfg file", pSyncNode->vgId);
       pSyncNode->pRaftCfg->cfg = pSyncInfo->syncCfg;
       if (raftCfgPersist(pSyncNode->pRaftCfg) != 0) {
@@ -3380,7 +3380,7 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
           // ASSERT(code == 0);
           // ASSERT(pEntry != NULL);
           if (code != 0 || pEntry == NULL) {
-			syncNodeErrorLog(ths, "get log entry error");
+            syncNodeErrorLog(ths, "get log entry error");
             continue;
           }
         }

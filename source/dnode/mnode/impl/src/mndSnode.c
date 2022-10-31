@@ -388,9 +388,9 @@ _OVER:
 }
 
 static int32_t mndProcessDropSnodeReq(SRpcMsg *pReq) {
-  SMnode *pMnode = pReq->info.node;
-  int32_t code = -1;
-  SSnodeObj *pObj = NULL;
+  SMnode        *pMnode = pReq->info.node;
+  int32_t        code = -1;
+  SSnodeObj     *pObj = NULL;
   SMDropSnodeReq dropReq = {0};
 
   if (tDeserializeSCreateDropMQSNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {

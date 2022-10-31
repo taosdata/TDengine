@@ -1116,7 +1116,7 @@ int32_t mndSetMoveVgroupInfoToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb,
     if (mndAddAlterVnodeConfirmAction(pMnode, pTrans, pDb, &newVg) != 0) return -1;
 
     if (newVg.replica == 1) {
-      mInfo("vgId:%d, all data is dropped since replica=1 and dnode force dropped, stable should be recreated in this vgroup, but we not support it yet", pVgroup->vgId);
+      mInfo("vgId:%d, all data is dropped since replica=1", pVgroup->vgId);
     }
   }
 
