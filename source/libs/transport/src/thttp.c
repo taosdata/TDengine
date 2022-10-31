@@ -107,13 +107,14 @@ static void transHttpEnvDestroy() {
 }
 
 typedef struct SHttpClient {
-  uv_connect_t conn;
-  uv_tcp_t     tcp;
-  uv_write_t   req;
-  uv_buf_t*    wbuf;
-  char*        rbuf;
-  char*        addr;
-  uint16_t     port;
+  uv_connect_t       conn;
+  uv_tcp_t           tcp;
+  uv_write_t         req;
+  uv_buf_t*          wbuf;
+  char*              rbuf;
+  char*              addr;
+  uint16_t           port;
+  struct sockaddr_in dest;
 } SHttpClient;
 
 static int32_t taosBuildHttpHeader(const char* server, int32_t contLen, char* pHead, int32_t headLen,
@@ -240,8 +241,7 @@ static FORCE_INLINE void clientRecvCb(uv_stream_t* handle, ssize_t nread, const 
 static void clientSentCb(uv_write_t* req, int32_t status) {
   SHttpClient* cli = req->data;
   if (status != 0) {
-    terrno = TAOS_SYSTEM_ERROR(status);
-    uError("http-report failed to send data %s", uv_strerror(status));
+    uError("http-report failed to send data, reason: %s, dst:%s:%d", uv_strerror(status), cli->addr, cli->port);
     if (!uv_is_closing((uv_handle_t*)&cli->tcp)) {
       uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
     } else {
@@ -253,7 +253,6 @@ static void clientSentCb(uv_write_t* req, int32_t status) {
   }
   status = uv_read_start((uv_stream_t*)&cli->tcp, clientAllocBuffCb, clientRecvCb);
   if (status != 0) {
-    terrno = TAOS_SYSTEM_ERROR(status);
     uError("http-report failed to recv data,reason:%s, dst:%s:%d", uv_strerror(status), cli->addr, cli->port);
     if (!uv_is_closing((uv_handle_t*)&cli->tcp)) {
       uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
@@ -265,7 +264,6 @@ static void clientSentCb(uv_write_t* req, int32_t status) {
 static void clientConnCb(uv_connect_t* req, int32_t status) {
   SHttpClient* cli = req->data;
   if (status != 0) {
-    terrno = TAOS_SYSTEM_ERROR(status);
     uError("http-report failed to conn to server, reason:%s, dst:%s:%d", uv_strerror(status), cli->addr, cli->port);
     if (!uv_is_closing((uv_handle_t*)&cli->tcp)) {
       uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
@@ -276,7 +274,6 @@ static void clientConnCb(uv_connect_t* req, int32_t status) {
   }
   status = uv_write(&cli->req, (uv_stream_t*)&cli->tcp, cli->wbuf, 2, clientSentCb);
   if (0 != status) {
-    terrno = TAOS_SYSTEM_ERROR(status);
     uError("http-report failed to send data,reason:%s, dst:%s:%d", uv_strerror(status), cli->addr, cli->port);
     if (!uv_is_closing((uv_handle_t*)&cli->tcp)) {
       uv_close((uv_handle_t*)&cli->tcp, clientCloseCb);
@@ -289,7 +286,6 @@ static void clientConnCb(uv_connect_t* req, int32_t status) {
 static FORCE_INLINE int32_t taosBuildDstAddr(const char* server, uint16_t port, struct sockaddr_in* dest) {
   uint32_t ip = taosGetIpv4FromFqdn(server);
   if (ip == 0xffffffff) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
     uError("http-report failed to get http server:%s since %s", server, errno == 0 ? "invalid http server" : terrstr());
     return -1;
   }
@@ -309,6 +305,7 @@ static int32_t taosSendHttpReportImpl(const char* server, uint16_t port, char* p
   msg->port = port;
   msg->cont = taosMemoryMalloc(contLen);
   memcpy(msg->cont, pCont, contLen);
+  msg->len = contLen;
   msg->flag = flag;
 
   transAsyncSend(http->asyncPool, &(msg->q));
@@ -329,8 +326,6 @@ static void httpHandleReq(SHttpMsg* msg) {
     }
   }
 
-  terrno = 0;
-
   int32_t len = 2048;
   char*   header = taosMemoryCalloc(1, len);
   int32_t headLen = taosBuildHttpHeader(msg->server, msg->len, header, len, msg->flag);
@@ -347,6 +342,7 @@ static void httpHandleReq(SHttpMsg* msg) {
   cli->rbuf = taosMemoryCalloc(1, HTTP_RECV_BUF_SIZE);
   cli->addr = msg->server;
   cli->port = msg->port;
+  cli->dest = dest;
 
   taosMemoryFree(msg);
 
@@ -361,7 +357,7 @@ static void httpHandleReq(SHttpMsg* msg) {
     return;
   }
 
-  ret = uv_tcp_connect(&cli->conn, &cli->tcp, (const struct sockaddr*)&dest, clientConnCb);
+  ret = uv_tcp_connect(&cli->conn, &cli->tcp, (const struct sockaddr*)&cli->dest, clientConnCb);
   if (ret != 0) {
     uError("http-report failed to connect to http-server, reason:%s, dst:%s:%d", uv_strerror(ret), cli->addr,
            cli->port);
