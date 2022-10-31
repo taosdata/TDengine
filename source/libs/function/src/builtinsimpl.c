@@ -497,7 +497,7 @@ bool getCountFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   return true;
 }
 
-static FORCE_INLINE int32_t getNumOfElems(SqlFunctionCtx* pCtx) {
+static int32_t getNumOfElems(SqlFunctionCtx* pCtx) {
   int32_t numOfElem = 0;
 
   /*

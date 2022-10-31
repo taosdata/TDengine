@@ -1186,6 +1186,7 @@ static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* 
 }
 
 void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows) {
+  pColumn->hasNull = false;
   if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
     pColumn->varmeta.length = 0;
     if (pColumn->varmeta.offset != NULL) {

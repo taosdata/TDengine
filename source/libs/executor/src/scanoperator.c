@@ -344,11 +344,11 @@ static bool doLoadBlockSMA(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, 
   return true;
 }
 
-static void doSetTagColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo) {
+static void doSetTagColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo, int32_t rows) {
   if (pTableScanInfo->pseudoSup.numOfExprs > 0) {
     SExprSupp* pSup = &pTableScanInfo->pseudoSup;
 
-    int32_t code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pBlock,
+    int32_t code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pBlock, rows,
                                           GET_TASKID(pTaskInfo));
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
@@ -426,7 +426,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
 
     // NOTE:  here the tag value only load for one row
     ensureBlockCapacity(pBlock, 1);
-    doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo);
+    doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, 1);
     pCost->skipBlocks += 1;
     return TSDB_CODE_SUCCESS;
   } else if (*status == FUNC_DATA_REQUIRED_STATIS_LOAD) {
@@ -437,7 +437,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
       qDebug("%s data block SMA loaded, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
              pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
       ensureBlockCapacity(pBlock, 1);
-      doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo);
+      doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, 1);
       return TSDB_CODE_SUCCESS;
     } else {
       qDebug("%s failed to load SMA, since not all columns have SMA", GET_TASKID(pTaskInfo));
@@ -488,7 +488,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
 
   ensureBlockCapacity(pBlock, pBlock->info.rows);
   relocateColumnData(pBlock, pTableScanInfo->matchInfo.pList, pCols, true);
-  doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo);
+  doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, pBlock->info.rows);
 
   // restore the previous value
   pCost->totalRows -= pBlock->info.rows;
@@ -528,27 +528,30 @@ static void prepareForDescendingScan(STableScanInfo* pTableScanInfo, SqlFunction
 }
 
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int32_t numOfPseudoExpr,
-                               SSDataBlock* pBlock, const char* idStr) {
+                               SSDataBlock* pBlock, int32_t rows, const char* idStr) {
   // currently only the tbname pseudo column
   if (numOfPseudoExpr == 0) {
     return TSDB_CODE_SUCCESS;
   }
 
+  // backup the rows
+  int32_t backupRows = pBlock->info.rows;
+  pBlock->info.rows = rows;
+
   SMetaReader mr = {0};
   metaReaderInit(&mr, pHandle->meta, 0);
   int32_t code = metaGetTableEntryByUid(&mr, pBlock->info.uid);
+  metaReaderReleaseLock(&mr);
+
   if (code != TSDB_CODE_SUCCESS) {
     qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
     metaReaderClear(&mr);
     return terrno;
   }
 
-  metaReaderReleaseLock(&mr);
-
   for (int32_t j = 0; j < numOfPseudoExpr; ++j) {
     SExprInfo* pExpr = &pPseudoExpr[j];
-
-    int32_t dstSlotId = pExpr->base.resSchema.slotId;
+    int32_t    dstSlotId = pExpr->base.resSchema.slotId;
 
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotId);
     colInfoDataCleanup(pColInfoData, pBlock->info.rows);
@@ -587,6 +590,9 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int
   }
 
   metaReaderClear(&mr);
+
+  // restore the rows
+  pBlock->info.rows = backupRows;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -630,7 +636,6 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     }
 
     blockDataCleanup(pBlock);
-
 
     SDataBlockInfo* pBInfo = &pBlock->info;
     tsdbRetrieveDataBlockInfo(pTableScanInfo->dataReader, &pBInfo->rows, &pBInfo->uid, &pBInfo->window);
@@ -1167,7 +1172,7 @@ static SSDataBlock* readPreVersionData(SOperatorInfo* pTableScanOp, uint64_t tbU
     pBlock->info.rows = rows;
 
     relocateColumnData(pBlock, pTableScanInfo->matchInfo.pList, pCols, true);
-    doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo);
+    doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, rows);
 
     pBlock->info.groupId = getTableGroupId(pTaskInfo->pTableInfoList, pBInfo->uid);
   }
@@ -1638,7 +1643,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   // currently only the tbname pseudo column
   if (pInfo->numOfPseudoExpr > 0) {
     int32_t code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes,
-                                          GET_TASKID(pTaskInfo));
+                                          pInfo->pRes->info.rows, GET_TASKID(pTaskInfo));
     if (code != TSDB_CODE_SUCCESS) {
       blockDataFreeRes((SSDataBlock*)pBlock);
       T_LONG_JMP(pTaskInfo->env, code);
@@ -1648,11 +1653,11 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   if (filter) {
     doFilter(pInfo->pCondition, pInfo->pRes, NULL, NULL);
   }
+
   blockDataUpdateTsWindow(pInfo->pRes, pInfo->primaryTsIndex);
   blockDataFreeRes((SSDataBlock*)pBlock);
 
   calBlockTbName(&pInfo->tbnameCalSup, pInfo->pRes);
-
   return 0;
 }
 
@@ -4368,7 +4373,7 @@ static int32_t loadDataBlockFromOneTable2(SOperatorInfo* pOperator, STableMergeS
   // currently only the tbname pseudo column
   if (pTableScanInfo->pseudoSup.numOfExprs > 0) {
     int32_t code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pTableScanInfo->pseudoSup.pExprInfo,
-                                          pTableScanInfo->pseudoSup.numOfExprs, pBlock, GET_TASKID(pTaskInfo));
+                                          pTableScanInfo->pseudoSup.numOfExprs, pBlock, pBlock->info.rows, GET_TASKID(pTaskInfo));
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
@@ -4485,7 +4490,7 @@ static int32_t loadDataBlockFromOneTable(SOperatorInfo* pOperator, STableMergeSc
   // currently only the tbname pseudo column
   if (pTableScanInfo->pseudoSup.numOfExprs > 0) {
     int32_t code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pTableScanInfo->pseudoSup.pExprInfo,
-                                          pTableScanInfo->pseudoSup.numOfExprs, pBlock, GET_TASKID(pTaskInfo));
+                                          pTableScanInfo->pseudoSup.numOfExprs, pBlock, pBlock->info.rows, GET_TASKID(pTaskInfo));
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
