@@ -36,6 +36,7 @@ int32_t streamSourceRecoverPrepareStep1(SStreamTask* pTask, int64_t ver) {
 }
 
 int32_t streamBuildSourceRecover1Req(SStreamTask* pTask, SStreamRecoverStep1Req* pReq) {
+  pReq->msgHead.vgId = pTask->nodeId;
   pReq->streamId = pTask->streamId;
   pReq->taskId = pTask->taskId;
   return 0;
@@ -48,6 +49,7 @@ int32_t streamSourceRecoverScanStep1(SStreamTask* pTask) {
 }
 
 int32_t streamBuildSourceRecover2Req(SStreamTask* pTask, SStreamRecoverStep2Req* pReq) {
+  pReq->msgHead.vgId = pTask->nodeId;
   pReq->streamId = pTask->streamId;
   pReq->taskId = pTask->taskId;
   return 0;

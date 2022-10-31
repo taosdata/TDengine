@@ -239,7 +239,7 @@ int32_t streamDispatchOneRecoverFinishReq(SStreamTask* pTask, const SStreamRecov
 
   msg.contLen = tlen + sizeof(SMsgHead);
   msg.pCont = buf;
-  msg.msgType = TDMT_VND_STREAM_RECOVER_FINISH;
+  msg.msgType = TDMT_STREAM_RECOVER_FINISH;
 
   tmsgSendReq(pEpSet, &msg);
 
@@ -292,13 +292,19 @@ FAIL:
 
 int32_t streamSearchAndAddBlock(SStreamTask* pTask, SStreamDispatchReq* pReqs, SSDataBlock* pDataBlock, int32_t vgSz,
                                 int64_t groupId) {
-  char* ctbName;
+  char* ctbName = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
+  if (ctbName == NULL) {
+    return -1;
+  }
+
   if (pDataBlock->info.parTbName[0]) {
-    ctbName = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN);
     snprintf(ctbName, TSDB_TABLE_NAME_LEN, "%s.%s", pTask->shuffleDispatcher.dbInfo.db, pDataBlock->info.parTbName);
   } else {
-    ctbName = buildCtbNameByGroupId(pTask->shuffleDispatcher.stbFullName, groupId);
+    char* ctbShortName = buildCtbNameByGroupId(pTask->shuffleDispatcher.stbFullName, groupId);
+    snprintf(ctbName, TSDB_TABLE_NAME_LEN, "%s.%s", pTask->shuffleDispatcher.dbInfo.db, ctbShortName);
+    taosMemoryFree(ctbShortName);
   }
+
   SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
 
   /*uint32_t hashValue = MurmurHash3_32(ctbName, strlen(ctbName));*/

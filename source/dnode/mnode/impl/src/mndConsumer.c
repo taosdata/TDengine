@@ -63,12 +63,12 @@ int32_t mndInitConsumer(SMnode *pMnode) {
       .deleteFp = (SdbDeleteFp)mndConsumerActionDelete,
   };
 
-  mndSetMsgHandle(pMnode, TDMT_MND_SUBSCRIBE, mndProcessSubscribeReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_MQ_HB, mndProcessMqHbReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_MQ_ASK_EP, mndProcessAskEpReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_SUBSCRIBE, mndProcessSubscribeReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_HB, mndProcessMqHbReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_ASK_EP, mndProcessAskEpReq);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_TIMER, mndProcessMqTimerMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_MQ_CONSUMER_LOST, mndProcessConsumerLostMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_MQ_CONSUMER_RECOVER, mndProcessConsumerRecoverMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_CONSUMER_LOST, mndProcessConsumerLostMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_CONSUMER_RECOVER, mndProcessConsumerRecoverMsg);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONSUMERS, mndRetrieveConsumer);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONSUMERS, mndCancelGetNextConsumer);
@@ -207,7 +207,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
 
       pLostMsg->consumerId = pConsumer->consumerId;
       SRpcMsg pRpcMsg = {
-          .msgType = TDMT_MND_MQ_CONSUMER_LOST,
+          .msgType = TDMT_MND_TMQ_CONSUMER_LOST,
           .pCont = pLostMsg,
           .contLen = sizeof(SMqConsumerLostMsg),
       };
@@ -256,7 +256,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
   if (taosHashGetSize(pRebMsg->rebSubHash) != 0) {
     mInfo("mq rebalance will be triggered");
     SRpcMsg rpcMsg = {
-        .msgType = TDMT_MND_MQ_DO_REBALANCE,
+        .msgType = TDMT_MND_TMQ_DO_REBALANCE,
         .pCont = pRebMsg,
         .contLen = sizeof(SMqDoRebalanceMsg),
     };
@@ -292,7 +292,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
 
     pRecoverMsg->consumerId = consumerId;
     SRpcMsg pRpcMsg = {
-        .msgType = TDMT_MND_MQ_CONSUMER_RECOVER,
+        .msgType = TDMT_MND_TMQ_CONSUMER_RECOVER,
         .pCont = pRecoverMsg,
         .contLen = sizeof(SMqConsumerRecoverMsg),
     };
@@ -331,7 +331,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
 
     pRecoverMsg->consumerId = consumerId;
     SRpcMsg pRpcMsg = {
-        .msgType = TDMT_MND_MQ_CONSUMER_RECOVER,
+        .msgType = TDMT_MND_TMQ_CONSUMER_RECOVER,
         .pCont = pRecoverMsg,
         .contLen = sizeof(SMqConsumerRecoverMsg),
     };

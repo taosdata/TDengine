@@ -261,18 +261,52 @@ int32_t sndProcessWriteMsg(SSnode *pSnode, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   return 0;
 }
 
+int32_t sndProcessTaskRecoverFinishReq(SSnode *pSnode, SRpcMsg *pMsg) {
+  char   *msg = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
+
+  // deserialize
+  SStreamRecoverFinishReq req;
+
+  SDecoder decoder;
+  tDecoderInit(&decoder, msg, msgLen);
+  tDecodeSStreamRecoverFinishReq(&decoder, &req);
+  tDecoderClear(&decoder);
+
+  // find task
+  SStreamTask *pTask = streamMetaGetTask(pSnode->pMeta, req.taskId);
+  if (pTask == NULL) {
+    return -1;
+  }
+  // do process request
+  if (streamProcessRecoverFinishReq(pTask, req.childId) < 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
+int32_t sndProcessTaskRecoverFinishRsp(SSnode *pSnode, SRpcMsg *pMsg) {
+  //
+  return 0;
+}
+
 int32_t sndProcessStreamMsg(SSnode *pSnode, SRpcMsg *pMsg) {
   switch (pMsg->msgType) {
     case TDMT_STREAM_TASK_RUN:
       return sndProcessTaskRunReq(pSnode, pMsg);
     case TDMT_STREAM_TASK_DISPATCH:
       return sndProcessTaskDispatchReq(pSnode, pMsg, true);
-    case TDMT_STREAM_RETRIEVE:
-      return sndProcessTaskRetrieveReq(pSnode, pMsg);
     case TDMT_STREAM_TASK_DISPATCH_RSP:
       return sndProcessTaskDispatchRsp(pSnode, pMsg);
+    case TDMT_STREAM_RETRIEVE:
+      return sndProcessTaskRetrieveReq(pSnode, pMsg);
     case TDMT_STREAM_RETRIEVE_RSP:
       return sndProcessTaskRetrieveRsp(pSnode, pMsg);
+    case TDMT_STREAM_RECOVER_FINISH:
+      return sndProcessTaskRecoverFinishReq(pSnode, pMsg);
+    case TDMT_STREAM_RECOVER_FINISH_RSP:
+      return sndProcessTaskRecoverFinishRsp(pSnode, pMsg);
     default:
       ASSERT(0);
   }
