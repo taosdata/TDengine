@@ -618,13 +618,14 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
 
     blockDataCleanup(pBlock);
 
-    SDataBlockInfo binfo = pBlock->info;
-    tsdbRetrieveDataBlockInfo(pTableScanInfo->dataReader, &binfo);
+    SDataBlockInfo* pBInfo = &pBlock->info;
 
-    binfo.capacity = binfo.rows;
-    blockDataEnsureCapacity(pBlock, binfo.rows);
-    pBlock->info = binfo;
-    ASSERT(binfo.uid != 0);
+    int32_t rows = 0;
+    tsdbRetrieveDataBlockInfo(pTableScanInfo->dataReader, &rows, &pBInfo->uid, &pBInfo->window);
+    blockDataEnsureCapacity(pBlock, rows);
+    pBlock->info.rows = rows;
+
+    ASSERT(pBInfo->uid != 0);
 
     pBlock->info.groupId = getTableGroupId(&pTaskInfo->tableqinfoList, pBlock->info.uid);
 
@@ -1120,20 +1121,19 @@ static SSDataBlock* readPreVersionData(SOperatorInfo* pTableScanOp, uint64_t tbU
 
   bool hasBlock = tsdbNextDataBlock(pReader);
   if (hasBlock) {
-    SDataBlockInfo binfo = {0};
-    tsdbRetrieveDataBlockInfo(pReader, &binfo);
+    SDataBlockInfo* pBInfo = &pBlock->info;
+
+    int32_t rows = 0;
+    tsdbRetrieveDataBlockInfo(pReader, &rows, &pBInfo->uid, &pBInfo->window);
 
     SArray* pCols = tsdbRetrieveDataBlock(pReader, NULL);
-    blockDataEnsureCapacity(pBlock, binfo.rows);
-
-    pBlock->info.window = binfo.window;
-    pBlock->info.uid = binfo.uid;
-    pBlock->info.rows = binfo.rows;
+    blockDataEnsureCapacity(pBlock, pBInfo->rows);
+    pBInfo->rows = rows;
 
     relocateColumnData(pBlock, pTableScanInfo->matchInfo.pList, pCols, true);
     doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo);
 
-    pBlock->info.groupId = getTableGroupId(&pTaskInfo->tableqinfoList, binfo.uid);
+    pBlock->info.groupId = getTableGroupId(&pTaskInfo->tableqinfoList, pBInfo->uid);
   }
 
   tsdbReaderClose(pReader);
@@ -2121,7 +2121,9 @@ static SSDataBlock* doRawScan(SOperatorInfo* pOperator) {
         longjmp(pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
       }
 
-      tsdbRetrieveDataBlockInfo(pInfo->dataReader, &pBlock->info);
+      int32_t rows = 0;
+      tsdbRetrieveDataBlockInfo(pInfo->dataReader, &rows, &pBlock->info.uid, &pBlock->info.window);
+      pBlock->info.rows = rows;
 
       SArray* pCols = tsdbRetrieveDataBlock(pInfo->dataReader, NULL);
       pBlock->pDataBlock = pCols;
@@ -4561,14 +4563,11 @@ static SSDataBlock* getTableDataBlockTemp(void* param) {
     }
 
     blockDataCleanup(pBlock);
-    SDataBlockInfo binfo = pBlock->info;
-    tsdbRetrieveDataBlockInfo(reader, &binfo);
 
-    blockDataEnsureCapacity(pBlock, binfo.rows);
-    pBlock->info.type = binfo.type;
-    pBlock->info.uid = binfo.uid;
-    pBlock->info.window = binfo.window;
-    pBlock->info.rows = binfo.rows;
+    int32_t rows = 0;
+    tsdbRetrieveDataBlockInfo(reader, &rows, &pBlock->info.uid, &pBlock->info.window);
+    blockDataEnsureCapacity(pBlock, rows);
+    pBlock->info.rows = rows;
 
     if (tsdbIsAscendingOrder(pInfo->pReader)) {
       pQueryCond->twindows.skey = pBlock->info.window.ekey + 1;
@@ -4627,14 +4626,11 @@ static SSDataBlock* getTableDataBlock2(void* param) {
     }
 
     blockDataCleanup(pBlock);
-    SDataBlockInfo binfo = pBlock->info;
-    tsdbRetrieveDataBlockInfo(reader, &binfo);
 
-    blockDataEnsureCapacity(pBlock, binfo.rows);
-    pBlock->info.type = binfo.type;
-    pBlock->info.uid = binfo.uid;
-    pBlock->info.window = binfo.window;
-    pBlock->info.rows = binfo.rows;
+    int32_t rows = 0;
+    tsdbRetrieveDataBlockInfo(reader, &rows, &pBlock->info.uid, &pBlock->info.window);
+    blockDataEnsureCapacity(pBlock, rows);
+    pBlock->info.rows = rows;
 
     uint32_t status = 0;
     int32_t  code = loadDataBlockFromOneTable2(pOperator, pTableScanInfo, pBlock, &status);
@@ -4684,14 +4680,11 @@ static SSDataBlock* getTableDataBlock(void* param) {
     }
 
     blockDataCleanup(pBlock);
-    SDataBlockInfo binfo = pBlock->info;
-    tsdbRetrieveDataBlockInfo(reader, &binfo);
 
-    blockDataEnsureCapacity(pBlock, binfo.rows);
-    pBlock->info.type = binfo.type;
-    pBlock->info.uid = binfo.uid;
-    pBlock->info.window = binfo.window;
-    pBlock->info.rows = binfo.rows;
+    int32_t rows = 0;
+    tsdbRetrieveDataBlockInfo(reader, &rows, &pBlock->info.uid, &pBlock->info.window);
+    blockDataEnsureCapacity(pBlock, rows);
+    pBlock->info.rows = rows;
 
     uint32_t status = 0;
     int32_t  code = loadDataBlockFromOneTable(pOperator, pTableScanInfo, readerIdx, pBlock, &status);

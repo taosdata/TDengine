@@ -3787,24 +3787,24 @@ bool tsdbTableNextDataBlock(STsdbReader* pReader, int64_t uid) {
   return true;
 }
 
-static void setBlockInfo(STsdbReader* pReader, SDataBlockInfo* pDataBlockInfo) {
-  ASSERT(pDataBlockInfo != NULL && pReader != NULL);
-  pDataBlockInfo->rows = pReader->pResBlock->info.rows;
-  pDataBlockInfo->uid = pReader->pResBlock->info.uid;
-  pDataBlockInfo->window = pReader->pResBlock->info.window;
+static void setBlockInfo(const STsdbReader* pReader, int32_t* rows, uint64_t* uid, STimeWindow* pWindow) {
+  ASSERT(pReader != NULL);
+  *rows = pReader->pResBlock->info.rows;
+  *uid = pReader->pResBlock->info.uid;
+  *pWindow = pReader->pResBlock->info.window;
 }
 
-void tsdbRetrieveDataBlockInfo(STsdbReader* pReader, SDataBlockInfo* pDataBlockInfo) {
+void tsdbRetrieveDataBlockInfo(const STsdbReader* pReader, int32_t* rows, uint64_t* uid, STimeWindow* pWindow) {
   if (pReader->type == TIMEWINDOW_RANGE_EXTERNAL) {
     if (pReader->step == EXTERNAL_ROWS_MAIN) {
-      setBlockInfo(pReader, pDataBlockInfo);
+      setBlockInfo(pReader, rows, uid, pWindow);
     } else if (pReader->step == EXTERNAL_ROWS_PREV) {
-      setBlockInfo(pReader->innerReader[0], pDataBlockInfo);
+      setBlockInfo(pReader->innerReader[0], rows, uid, pWindow);
     } else {
-      setBlockInfo(pReader->innerReader[1], pDataBlockInfo);
+      setBlockInfo(pReader->innerReader[1], rows, uid, pWindow);
     }
   } else {
-    setBlockInfo(pReader, pDataBlockInfo);
+    setBlockInfo(pReader, rows, uid, pWindow);
   }
 }
 
