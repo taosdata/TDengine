@@ -309,8 +309,11 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
 
 void mndSyncStart(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+  if (syncStart(pMgmt->sync) < 0) {
+    mError("vgId:1, failed to start sync subsystem");
+    return;
+  }
   syncSetMsgCb(pMgmt->sync, &pMnode->msgCb);
-  syncStart(pMgmt->sync);
   mInfo("vgId:1, sync started, id:%" PRId64, pMgmt->sync);
 }
 

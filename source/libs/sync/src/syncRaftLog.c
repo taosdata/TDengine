@@ -152,7 +152,6 @@ static int32_t raftLogEntryCount(struct SSyncLogStore* pLogStore) {
 }
 
 static SyncIndex raftLogLastIndex(struct SSyncLogStore* pLogStore) {
-  SyncIndex          lastIndex;
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
   SyncIndex          lastVer = walGetLastVer(pWal);
@@ -207,7 +206,7 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
   syncMeta.isWeek = pEntry->isWeak;
   syncMeta.seqNum = pEntry->seqNum;
   syncMeta.term = pEntry->term;
-  index = walAppendLog(pWal, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
+  index = walAppendLog(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
   if (index < 0) {
     int32_t     err = terrno;
     const char* errStr = tstrerror(err);
@@ -218,11 +217,10 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
     snprintf(logBuf, sizeof(logBuf), "wal write error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
              pEntry->index, err, err, errStr, sysErr, sysErrStr);
     syncNodeErrorLog(pData->pSyncNode, logBuf);
-
-    ASSERT(0);
     return -1;
   }
-  pEntry->index = index;
+
+  ASSERT(pEntry->index == index);
 
   do {
     char eventLog[128];
@@ -326,8 +324,7 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
     const char* sysErrStr = strerror(errno);
     sError("vgId:%d, wal truncate error, from-index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
            pData->pSyncNode->vgId, fromIndex, err, err, errStr, sysErr, sysErrStr);
-
-    ASSERT(0);
+    return -1;
   }
 
   // event log
@@ -365,7 +362,6 @@ static int32_t raftLogGetLastEntry(SSyncLogStore* pLogStore, SSyncRaftEntry** pp
 int32_t raftLogUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  // ASSERT(walCommit(pWal, index) == 0);
   int32_t code = walCommit(pWal, index);
   if (code != 0) {
     int32_t     err = terrno;
@@ -374,8 +370,7 @@ int32_t raftLogUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
     const char* sysErrStr = strerror(errno);
     sError("vgId:%d, wal update commit index error, index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
            pData->pSyncNode->vgId, index, err, err, errStr, sysErr, sysErrStr);
-
-    ASSERT(0);
+    return -1;
   }
   return 0;
 }
@@ -427,7 +422,7 @@ cJSON* logStore2Json(SSyncLogStore* pLogStore) {
         raftLogGetEntry(pLogStore, i, &pEntry);
 
         cJSON_AddItemToArray(pEntries, syncEntry2Json(pEntry));
-        syncEntryDestory(pEntry);
+        syncEntryDestroy(pEntry);
       }
     }
   }

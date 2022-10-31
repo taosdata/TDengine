@@ -88,6 +88,44 @@ typedef struct SPeerState {
   int64_t   lastSendTime;
 } SPeerState;
 
+typedef struct SSyncLogBufEntry {
+  SSyncRaftEntry* pItem;
+  SyncIndex       prevLogIndex;
+  SyncTerm        prevLogTerm;
+} SSyncLogBufEntry;
+
+typedef struct SSyncLogBuffer {
+  SSyncLogBufEntry entries[TSDB_SYNC_LOG_BUFFER_SIZE];
+  int64_t          startIndex;
+  int64_t          commitIndex;
+  int64_t          matchIndex;
+  int64_t          endIndex;
+  int64_t          size;
+  TdThreadMutex    mutex;
+} SSyncLogBuffer;
+
+SSyncLogBuffer* syncLogBufferCreate();
+void            syncLogBufferDestroy(SSyncLogBuffer* pBuf);
+int32_t         syncLogBufferInit(SSyncLogBuffer* pBuf, SSyncNode* pNode);
+
+// access
+int64_t syncLogBufferGetEndIndex(SSyncLogBuffer* pBuf);
+int32_t syncLogBufferAppend(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry);
+int32_t syncLogBufferAccept(SSyncLogBuffer* pBuf, SSyncNode* pNode, SSyncRaftEntry* pEntry, SyncTerm prevTerm);
+int64_t syncLogBufferLoad(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex toIndex);
+int64_t syncLogBufferProceed(SSyncLogBuffer* pBuf, SSyncNode* pNode);
+int32_t syncLogBufferCommit(SSyncLogBuffer* pBuf, SSyncNode* pNode, int64_t commitIndex);
+
+int64_t            syncNodeUpdateCommitIndex(SSyncNode* ths, SyncIndex commtIndex);
+SyncAppendEntries* syncLogToAppendEntries(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex index);
+
+// private
+int32_t syncLogBufferValidate(SSyncLogBuffer* pBuf);
+int32_t syncLogBufferRollback(SSyncLogBuffer* pBuf, SyncIndex toIndex);
+int32_t syncLogBufferReplicate(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex index);
+void syncIndexMgrSetIndex(SSyncIndexMgr* pSyncIndexMgr, const SRaftId* pRaftId, SyncIndex index);
+bool syncNodeAgreedUpon(SSyncNode* pNode, SyncIndex index);
+
 typedef struct SSyncNode {
   // init by SSyncInfo
   SyncGroupId vgId;
@@ -97,6 +135,7 @@ typedef struct SSyncNode {
   char        configPath[TSDB_FILENAME_LEN * 2];
 
   // sync io
+  SSyncLogBuffer* pLogBuf;
   SWal*         pWal;
   const SMsgCb* msgcb;
   int32_t (*FpSendMsg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
@@ -186,7 +225,7 @@ typedef struct SSyncNode {
   SSyncRespMgr* pSyncRespMgr;
 
   // restore state
-  bool restoreFinish;
+  _Atomic bool restoreFinish;
   // SSnapshot*             pSnapshot;
   SSyncSnapshotSender*   senders[TSDB_MAX_REPLICA];
   SSyncSnapshotReceiver* pNewNodeReceiver;
@@ -208,10 +247,11 @@ typedef struct SSyncNode {
 
 // open/close --------------
 SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo);
-void       syncNodeStart(SSyncNode* pSyncNode);
-void       syncNodeStartStandBy(SSyncNode* pSyncNode);
+int32_t    syncNodeStart(SSyncNode* pSyncNode);
+int32_t    syncNodeStartStandBy(SSyncNode* pSyncNode);
 void       syncNodeClose(SSyncNode* pSyncNode);
 int32_t    syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak);
+int32_t    syncNodeRestore(SSyncNode* pSyncNode);
 
 // option
 bool          syncNodeSnapshotEnable(SSyncNode* pSyncNode);
@@ -298,7 +338,7 @@ int32_t syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
 int32_t syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct SSnapshotMeta* sMeta);
 
 void syncStartNormal(int64_t rid);
-void syncStartStandBy(int64_t rid);
+int32_t syncStartStandBy(int64_t rid);
 
 bool syncNodeCanChange(SSyncNode* pSyncNode);
 bool syncNodeCheckNewConfig(SSyncNode* pSyncNode, const SSyncCfg* pNewCfg);

@@ -44,7 +44,95 @@
 //        IN commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
 //     /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, log>>
 //
+
 void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
+  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+    syncNodeErrorLog(pSyncNode, "not leader, can not advance commit index");
+    return;
+  }
+
+  // update commit index
+  SyncIndex newCommitIndex = pSyncNode->commitIndex;
+  for (SyncIndex index = syncNodeGetLastIndex(pSyncNode); index > pSyncNode->commitIndex; --index) {
+    bool agree = syncAgree(pSyncNode, index);
+
+    if (agree) {
+      // term
+      SSyncRaftEntry* pEntry = NULL;
+      SLRUCache*      pCache = pSyncNode->pLogStore->pCache;
+      LRUHandle*      h = taosLRUCacheLookup(pCache, &index, sizeof(index));
+      if (h) {
+        pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
+      } else {
+        int32_t code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, index, &pEntry);
+        if (code != 0) {
+          char logBuf[128];
+          snprintf(logBuf, sizeof(logBuf), "advance commit index error, read wal index:%" PRId64, index);
+          syncNodeErrorLog(pSyncNode, logBuf);
+          return;
+        }
+      }
+      // cannot commit, even if quorum agree. need check term!
+      if (pEntry->term <= pSyncNode->pRaftStore->currentTerm) {
+        // update commit index
+        newCommitIndex = index;
+
+        if (h) {
+          taosLRUCacheRelease(pCache, h, false);
+        } else {
+          syncEntryDestroy(pEntry);
+        }
+
+        break;
+      } else {
+        do {
+          char logBuf[128];
+          snprintf(logBuf, sizeof(logBuf), "can not commit due to term not equal, index:%" PRId64 ", term:%" PRIu64,
+                   pEntry->index, pEntry->term);
+          syncNodeEventLog(pSyncNode, logBuf);
+        } while (0);
+      }
+
+      if (h) {
+        taosLRUCacheRelease(pCache, h, false);
+      } else {
+        syncEntryDestroy(pEntry);
+      }
+    }
+  }
+
+  // advance commit index as large as possible
+  SyncIndex walCommitVer = logStoreWalCommitVer(pSyncNode->pLogStore);
+  if (walCommitVer > newCommitIndex) {
+    newCommitIndex = walCommitVer;
+  }
+
+  // maybe execute fsm
+  if (newCommitIndex > pSyncNode->commitIndex) {
+    SyncIndex beginIndex = pSyncNode->commitIndex + 1;
+    SyncIndex endIndex = newCommitIndex;
+
+    // update commit index
+    pSyncNode->commitIndex = newCommitIndex;
+
+    // call back Wal
+    pSyncNode->pLogStore->syncLogUpdateCommitIndex(pSyncNode->pLogStore, pSyncNode->commitIndex);
+
+    // execute fsm
+    if (pSyncNode->pFsm != NULL) {
+      int32_t code = syncNodeDoCommit(pSyncNode, beginIndex, endIndex, pSyncNode->state);
+      if (code != 0) {
+        char logBuf[128];
+        snprintf(logBuf, sizeof(logBuf), "advance commit index error, do commit begin:%" PRId64 ", end:%" PRId64,
+                 beginIndex, endIndex);
+        syncNodeErrorLog(pSyncNode, logBuf);
+        return;
+      }
+    }
+  }
+}
+
+void syncMaybeAdvanceCommitIndexOld(SSyncNode* pSyncNode) {
   if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
     syncNodeErrorLog(pSyncNode, "not leader, can not advance commit index");
     return;
@@ -93,7 +181,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
         if (h) {
           taosLRUCacheRelease(pCache, h, false);
         } else {
-          syncEntryDestory(pEntry);
+          syncEntryDestroy(pEntry);
         }
 
         break;
@@ -109,7 +197,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
       if (h) {
         taosLRUCacheRelease(pCache, h, false);
       } else {
-        syncEntryDestory(pEntry);
+        syncEntryDestroy(pEntry);
       }
     }
   }
@@ -245,13 +333,28 @@ bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
 }
 */
 
-bool syncAgree(SSyncNode* pSyncNode, SyncIndex index) {
+bool syncNodeAgreedUpon(SSyncNode* pNode, SyncIndex index) {
+  int            count = 0;
+  SSyncIndexMgr* pMatches = pNode->pMatchIndex;
+  ASSERT(pNode->replicaNum == pMatches->replicaNum);
+
+  for (int i = 0; i < pNode->replicaNum; i++) {
+    SyncIndex matchIndex = pMatches->index[i];
+    if (matchIndex >= index) {
+      count++;
+    }
+  }
+
+  return count >= pNode->quorum;
+}
+
+bool syncAgree(SSyncNode* pNode, SyncIndex index) {
   int agreeCount = 0;
-  for (int i = 0; i < pSyncNode->replicaNum; ++i) {
-    if (syncAgreeIndex(pSyncNode, &(pSyncNode->replicasId[i]), index)) {
+  for (int i = 0; i < pNode->replicaNum; ++i) {
+    if (syncAgreeIndex(pNode, &(pNode->replicasId[i]), index)) {
       ++agreeCount;
     }
-    if (agreeCount >= pSyncNode->quorum) {
+    if (agreeCount >= pNode->quorum) {
       return true;
     }
   }

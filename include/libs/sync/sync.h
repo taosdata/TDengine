@@ -45,7 +45,7 @@ extern bool gRaftDetailLog;
 #define SYNC_MAX_BATCH_SIZE 1
 #define SYNC_INDEX_BEGIN    0
 #define SYNC_INDEX_INVALID  -1
-#define SYNC_TERM_INVALID   0xFFFFFFFFFFFFFFFF
+#define SYNC_TERM_INVALID   -1  // 0xFFFFFFFFFFFFFFFF
 
 typedef enum {
   SYNC_STRATEGY_NO_SNAPSHOT = 0,
@@ -56,7 +56,7 @@ typedef enum {
 typedef uint64_t SyncNodeId;
 typedef int32_t  SyncGroupId;
 typedef int64_t  SyncIndex;
-typedef uint64_t SyncTerm;
+typedef int64_t  SyncTerm;
 
 typedef struct SSyncNode      SSyncNode;
 typedef struct SSyncBuffer    SSyncBuffer;
@@ -201,7 +201,7 @@ typedef struct SSyncInfo {
 int32_t     syncInit();
 void        syncCleanUp();
 int64_t     syncOpen(SSyncInfo* pSyncInfo);
-void        syncStart(int64_t rid);
+int32_t     syncStart(int64_t rid);
 void        syncStop(int64_t rid);
 int32_t     syncSetStandby(int64_t rid);
 ESyncState  syncGetMyRole(int64_t rid);

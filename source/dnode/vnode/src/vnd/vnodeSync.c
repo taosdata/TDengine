@@ -665,9 +665,13 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
   return 0;
 }
 
-void vnodeSyncStart(SVnode *pVnode) {
+int32_t vnodeSyncStart(SVnode *pVnode) {
+  if (syncStart(pVnode->sync) < 0) {
+    vError("vgId:%d, failed to start sync subsystem since %s", pVnode->config.vgId, terrstr());
+    return -1;
+  }
   syncSetMsgCb(pVnode->sync, &pVnode->msgCb);
-  syncStart(pVnode->sync);
+  return 0;
 }
 
 void vnodeSyncClose(SVnode *pVnode) { syncStop(pVnode->sync); }

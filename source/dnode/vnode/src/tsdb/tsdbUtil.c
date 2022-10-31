@@ -714,7 +714,8 @@ int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
         taosArraySet(pMerger->pArray, iCol, pColVal);
       }
     } else {
-      ASSERT(0);
+      // ASSERT(0);
+      tsdbError("dup key accounted: key version:%" PRId64 ", merger version:%" PRId64, key.version, pMerger->version);
     }
   }
 
@@ -888,7 +889,6 @@ int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SAr
       code = TSDB_CODE_OUT_OF_MEMORY;
       goto _clear;
     }
-
     midx = (sidx + eidx) / 2;
 
     code = tsdbBuildDeleteSkyline(aDelData, sidx, midx, aSkyline1);

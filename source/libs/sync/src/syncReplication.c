@@ -55,7 +55,11 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId) {
   // maybe start snapshot
   SyncIndex logStartIndex = pSyncNode->pLogStore->syncLogBeginIndex(pSyncNode->pLogStore);
   SyncIndex logEndIndex = pSyncNode->pLogStore->syncLogEndIndex(pSyncNode->pLogStore);
-  if (nextIndex < logStartIndex || nextIndex - 1 > logEndIndex) {
+  if (nextIndex > logEndIndex) {
+    return 0;
+  }
+
+  if (nextIndex < logStartIndex) {
     char logBuf[128];
     snprintf(logBuf, sizeof(logBuf), "start snapshot for next-index:%" PRId64 ", start:%" PRId64 ", end:%" PRId64,
              nextIndex, logStartIndex, logEndIndex);
@@ -90,7 +94,7 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId) {
     memcpy(pMsg->data, serialized, len);
 
     taosMemoryFree(serialized);
-    syncEntryDestory(pEntry);
+    syncEntryDestroy(pEntry);
 
   } else {
     if (terrno == TSDB_CODE_WAL_LOG_NOT_EXIST) {
@@ -154,8 +158,10 @@ int32_t syncNodeReplicate(SSyncNode* pSyncNode) {
   return 0;
 }
 
-int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntries* pMsg) {
+int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, SRaftId* destRaftId, SyncAppendEntries* pMsg) {
   int32_t ret = 0;
+  pMsg->destId = *destRaftId;
+
   syncLogSendAppendEntries(pSyncNode, pMsg, "");
 
   SRpcMsg rpcMsg;
@@ -163,7 +169,10 @@ int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftI
   syncNodeSendMsgById(destRaftId, pSyncNode, &rpcMsg);
 
   SPeerState* pState = syncNodeGetPeerState(pSyncNode, destRaftId);
-  ASSERT(pState != NULL);
+  if (pState == NULL) {
+    sError("vgId:%d, failed to get peer state for addr:0x%016" PRIx64 "", pSyncNode->vgId, destRaftId->addr);
+    return -1;
+  }
 
   if (pMsg->dataLen > 0) {
     pState->lastSendIndex = pMsg->prevLogIndex + 1;
@@ -173,7 +182,7 @@ int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftI
   return ret;
 }
 
-int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntries* pMsg) {
+int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, SRaftId* destRaftId, SyncAppendEntries* pMsg) {
   int32_t ret = 0;
   if (syncNodeNeedSendAppendEntries(pSyncNode, destRaftId, pMsg)) {
     ret = syncNodeSendAppendEntries(pSyncNode, destRaftId, pMsg);

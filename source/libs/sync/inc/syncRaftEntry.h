@@ -47,7 +47,7 @@ SSyncRaftEntry* syncEntryBuild2(SyncClientRequest* pMsg, SyncTerm term, SyncInde
 SSyncRaftEntry* syncEntryBuild3(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index);
 SSyncRaftEntry* syncEntryBuild4(SRpcMsg* pOriginalMsg, SyncTerm term, SyncIndex index);
 SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId);
-void            syncEntryDestory(SSyncRaftEntry* pEntry);
+void            syncEntryDestroy(SSyncRaftEntry* pEntry);
 char*           syncEntrySerialize(const SSyncRaftEntry* pEntry, uint32_t* len);  // step 5
 SSyncRaftEntry* syncEntryDeserialize(const char* buf, uint32_t len);              // step 6
 cJSON*          syncEntry2Json(const SSyncRaftEntry* pEntry);

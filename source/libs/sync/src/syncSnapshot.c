@@ -139,7 +139,7 @@ int32_t snapshotSenderStart(SSyncSnapshotSender *pSender, SSnapshotParam snapsho
       getLastConfig = true;
 
       rpcFreeCont(rpcMsg.pCont);
-      syncEntryDestory(pEntry);
+      syncEntryDestroy(pEntry);
     } else {
       if (pSender->snapshot.lastConfigIndex == pSender->pSyncNode->pRaftCfg->lastConfigIndex) {
         sTrace("vgId:%d, sync sender get cfg from local", pSender->pSyncNode->vgId);

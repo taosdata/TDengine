@@ -96,7 +96,7 @@ SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId)
   return pEntry;
 }
 
-void syncEntryDestory(SSyncRaftEntry* pEntry) {
+void syncEntryDestroy(SSyncRaftEntry* pEntry) {
   if (pEntry != NULL) {
     taosMemoryFree(pEntry);
   }
@@ -454,7 +454,7 @@ static int cmpFn(const void* p1, const void* p2) { return memcmp(p1, p2, sizeof(
 
 static void freeRaftEntry(void* param) {
   SSyncRaftEntry* pEntry = (SSyncRaftEntry*)param;
-  syncEntryDestory(pEntry);
+  syncEntryDestroy(pEntry);
 }
 
 SRaftEntryCache* raftEntryCacheCreate(SSyncNode* pSyncNode, int32_t maxCount) {
@@ -588,7 +588,7 @@ int32_t raftEntryCacheClear(struct SRaftEntryCache* pCache, int32_t count) {
       SSkipListNode* pNode = tSkipListIterGet(pIter);
       ASSERT(pNode != NULL);
       SSyncRaftEntry* pEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(pNode);
-      syncEntryDestory(pEntry);
+      syncEntryDestroy(pEntry);
       ++returnCnt;
     }
     tSkipListDestroyIter(pIter);
@@ -617,7 +617,7 @@ int32_t raftEntryCacheClear(struct SRaftEntryCache* pCache, int32_t count) {
       ++returnCnt;
       SSyncRaftEntry* pEntry = (SSyncRaftEntry*)SL_GET_NODE_DATA(pNode);
 
-      // syncEntryDestory(pEntry);
+      // syncEntryDestroy(pEntry);
       taosRemoveRef(pCache->refMgr, pEntry->rid);
     }
     tSkipListDestroyIter(pIter);

@@ -84,7 +84,128 @@ static void syncNodeStartSnapshotOnce(SSyncNode* ths, SyncIndex beginIndex, Sync
   }
 }
 
+int64_t syncNodeUpdateCommitIndex(SSyncNode* ths, SyncIndex commitIndex) {
+  ths->commitIndex = TMAX(commitIndex, ths->commitIndex);
+  SyncIndex lastVer = ths->pLogStore->syncLogLastIndex(ths->pLogStore);
+  commitIndex = TMIN(ths->commitIndex, lastVer);
+  ths->pLogStore->syncLogUpdateCommitIndex(ths->pLogStore, commitIndex);
+  return commitIndex;
+}
+
+int64_t syncNodeCheckCommitIndex(SSyncNode* ths, SyncIndex indexLikely) {
+  if (indexLikely > ths->commitIndex && syncNodeAgreedUpon(ths, indexLikely)) {
+    SyncIndex commitIndex = indexLikely;
+    syncNodeUpdateCommitIndex(ths, commitIndex);
+    sInfo("vgId:%d, agreed upon. role:%d, term:%" PRId64 ", index: %" PRId64 "", ths->vgId, ths->state,
+          ths->pRaftStore->currentTerm, commitIndex);
+  }
+  return ths->commitIndex;
+}
+
+int32_t syncLogBufferCatchingUpReplicate(SSyncLogBuffer* pBuf, SSyncNode* pNode, SyncIndex fromIndex, SRaftId destId) {
+  taosThreadMutexLock(&pBuf->mutex);
+  SyncAppendEntries* pMsgOut = NULL;
+  SyncIndex          index = fromIndex;
+
+  if (pNode->state != TAOS_SYNC_STATE_LEADER || pNode->replicaNum <= 1) {
+    goto _out;
+  }
+
+  if (index < pBuf->startIndex) {
+    sError("vgId:%d, (not implemented yet) replication fromIndex: %" PRId64
+           " that is less than pBuf->startIndex: %" PRId64 ". destId: 0x%016" PRId64 "",
+           pNode->vgId, fromIndex, pBuf->startIndex, destId.addr);
+    goto _out;
+  }
+
+  if (index > pBuf->matchIndex) {
+    goto _out;
+  }
+
+  do {
+    pMsgOut = syncLogToAppendEntries(pBuf, pNode, index);
+    if (pMsgOut == NULL) {
+      sError("vgId:%d, failed to assembly append entries msg since %s. index: %" PRId64 "", pNode->vgId, terrstr(),
+             index);
+      goto _out;
+    }
+
+    if (syncNodeSendAppendEntries(pNode, &destId, pMsgOut) < 0) {
+      sWarn("vgId:%d, failed to send append entries msg since %s. index: %" PRId64 ", dest: 0x%016" PRIx64 "",
+            pNode->vgId, terrstr(), index, destId.addr);
+      goto _out;
+    }
+
+    index += 1;
+    syncAppendEntriesDestroy(pMsgOut);
+    pMsgOut = NULL;
+  } while (false && index <= pBuf->commitIndex);
+
+_out:
+  syncAppendEntriesDestroy(pMsgOut);
+  pMsgOut = NULL;
+  taosThreadMutexUnlock(&pBuf->mutex);
+  return 0;
+}
+
 int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
+  int32_t ret = 0;
+
+  // if already drop replica, do not process
+  if (!syncNodeInRaftGroup(ths, &(pMsg->srcId))) {
+    syncLogRecvAppendEntriesReply(ths, pMsg, "not in my config");
+    return 0;
+  }
+
+  // drop stale response
+  if (pMsg->term < ths->pRaftStore->currentTerm) {
+    syncLogRecvAppendEntriesReply(ths, pMsg, "drop stale response");
+    return 0;
+  }
+
+  if (ths->state == TAOS_SYNC_STATE_LEADER) {
+    if (pMsg->term > ths->pRaftStore->currentTerm) {
+      syncLogRecvAppendEntriesReply(ths, pMsg, "error term");
+      syncNodeStepDown(ths, pMsg->term);
+      return -1;
+    }
+
+    ASSERT(pMsg->term == ths->pRaftStore->currentTerm);
+
+    sInfo("vgId:%d received append entries reply. srcId:0x%016" PRIx64 ",  term:%" PRId64 ", matchIndex:%" PRId64 "",
+          pMsg->vgId, pMsg->srcId.addr, pMsg->term, pMsg->matchIndex);
+
+    if (pMsg->success) {
+      SyncIndex oldMatchIndex = syncIndexMgrGetIndex(ths->pMatchIndex, &(pMsg->srcId));
+      if (pMsg->matchIndex > oldMatchIndex) {
+        syncIndexMgrSetIndex(ths->pMatchIndex, &(pMsg->srcId), pMsg->matchIndex);
+      }
+
+      // commit if needed
+      SyncIndex indexLikely = TMIN(pMsg->matchIndex, ths->pLogBuf->matchIndex);
+      SyncIndex commitIndex = syncNodeCheckCommitIndex(ths, indexLikely);
+      (void)syncLogBufferCommit(ths->pLogBuf, ths, commitIndex);
+    } else {
+      SyncIndex nextIndex = syncIndexMgrGetIndex(ths->pNextIndex, &(pMsg->srcId));
+      if (nextIndex > SYNC_INDEX_BEGIN) {
+        --nextIndex;
+      }
+      syncIndexMgrSetIndex(ths->pNextIndex, &(pMsg->srcId), nextIndex);
+    }
+
+    // send next append entries
+    SPeerState* pState = syncNodeGetPeerState(ths, &(pMsg->srcId));
+    ASSERT(pState != NULL);
+
+    if (pMsg->lastSendIndex == pState->lastSendIndex) {
+      syncNodeReplicateOne(ths, &(pMsg->srcId));
+    }
+  }
+
+  return 0;
+}
+
+int32_t syncNodeOnAppendEntriesReplyOld(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
   int32_t ret = 0;
 
   // if already drop replica, do not process
