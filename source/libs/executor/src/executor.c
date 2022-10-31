@@ -293,10 +293,6 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
     qDebug("add %d tables id into query list, %s", (int32_t)taosArrayGetSize(tableIdList), pTaskInfo->id.str);
   }
 
-  if (pListInfo->map == NULL) {
-    pListInfo->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
-  }
-
   // traverse to the stream scanner node to add this table id
   SOperatorInfo* pInfo = pTaskInfo->pRoot;
   while (pInfo->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
@@ -358,8 +354,8 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
 
       if (!exists) {
 #endif
-      taosArrayPush(pTaskInfo->tableqinfoList.pTableList, &keyInfo);
-      taosHashPut(pTaskInfo->tableqinfoList.map, uid, sizeof(*uid), &keyInfo.groupId, sizeof(keyInfo.groupId));
+
+      addTableIntoTableList(&pTaskInfo->tableqinfoList, keyInfo.uid, keyInfo.groupId);
     }
 
     if (keyBuf != NULL) {

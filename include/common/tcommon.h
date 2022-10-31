@@ -164,14 +164,6 @@ typedef enum EStreamType {
   STREAM_FILL_OVER,
 } EStreamType;
 
-typedef struct {
-  SArray*   pGroupList;
-  SArray*   pTableList;
-  SHashObj* map;  // speedup acquire the tableQueryInfo by table uid
-  bool      needSortTableByGroupId;
-  uint64_t  suid;
-} STableListInfo;
-
 #pragma pack(push, 1)
 typedef struct SColumnDataAgg {
   int16_t colId;
