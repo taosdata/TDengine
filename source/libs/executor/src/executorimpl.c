@@ -3479,7 +3479,7 @@ bool groupbyTbname(SNodeList* pGroupList) {
 }
 
 int32_t setGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* group, bool groupSort) {
-  pTableListInfo->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  pTableListInfo->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
   if (pTableListInfo->map == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }

@@ -626,8 +626,6 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
 
     SDataBlockInfo* pBInfo = &pBlock->info;
     tsdbRetrieveDataBlockInfo(pTableScanInfo->dataReader, &pBInfo->rows, &pBInfo->uid, &pBInfo->window);
-//    blockDataEnsureCapacity(pBlock, rows);
-//    pBlock->info.rows = rows;
 
     ASSERT(pBInfo->uid != 0);
     pBlock->info.groupId = getTableGroupId(&pTaskInfo->tableqinfoList, pBlock->info.uid);

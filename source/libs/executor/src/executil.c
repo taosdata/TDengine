@@ -1666,7 +1666,7 @@ uint64_t getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid) {
 int32_t addTableIntoTableList(STableListInfo* pTableList, uint64_t uid, uint64_t gid) {
   if (pTableList->map == NULL) {
     ASSERT(taosArrayGetSize(pTableList->pTableList) == 0);
-    pTableList->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+    pTableList->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
   }
 
   STableKeyInfo keyInfo = {.uid = uid, .groupId = gid};
