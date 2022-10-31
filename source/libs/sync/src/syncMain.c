@@ -508,7 +508,7 @@ int32_t syncEndSnapshot(int64_t rid) {
     SSyncLogStoreData* pData = pSyncNode->pLogStore->data;
     code = walEndSnapshot(pData->pWal);
     if (code != 0) {
-      sError("vgId:%d, wal snapshot end error since:%s", pSyncNode->vgId, terrstr(terrno));
+      sError("vgId:%d, wal snapshot end error since:%s", pSyncNode->vgId, terrstr());
 
       taosReleaseRef(tsNodeRefId, pSyncNode->rid);
       return -1;
@@ -2793,7 +2793,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
                                             pSyncNode->vgId, pSyncNode);
   SRpcMsg      rpcMsg;
   syncTimeout2RpcMsg(pSyncMsg, &rpcMsg);
-  if (pSyncNode->FpEqMsg != NULL) {
+  if (pSyncNode->FpEqMsg != NULL && pSyncNode->msgcb != NULL && pSyncNode->msgcb->putToQueueFp != NULL) {
     int32_t code = pSyncNode->FpEqMsg(pSyncNode->msgcb, &rpcMsg);
     if (code != 0) {
       sError("vgId:%d, sync enqueue elect msg error, code:%d", pSyncNode->vgId, code);
@@ -3379,8 +3379,8 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
           // ASSERT(code == 0);
           // ASSERT(pEntry != NULL);
           if (code != 0 || pEntry == NULL) {
-			syncNodeErrorLog(ths, "get log entry error");
-			sFatal("vgId:%d, get log entry %" PRId64 " error when commit since %s", ths->vgId, i, terrstr());
+            syncNodeErrorLog(ths, "get log entry error");
+            sFatal("vgId:%d, get log entry %" PRId64 " error when commit since %s", ths->vgId, i, terrstr());
             continue;
           }
         }
