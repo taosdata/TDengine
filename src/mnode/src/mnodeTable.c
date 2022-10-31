@@ -2313,7 +2313,8 @@ static int32_t mnodeSendDropChildTableMsg(SMnodeMsg *pMsg, bool needReturn) {
   if (pDrop == NULL) {
     mError("msg:%p, app:%p ctable:%s, failed to drop ctable, no enough memory", pMsg, pMsg->rpcMsg.ahandle,
            pTable->info.tableId);
-    monSaveAuditLog(MON_DDL_CMD_DROP_TABLE, mnodeGetUserFromMsg(pMsg), pTable->info.tableId, false);
+    monSaveAuditLog((pTable->info.type == TSDB_CHILD_TABLE) ? MON_DDL_CMD_DROP_CHILD_TABLE : MON_DDL_CMD_DROP_TABLE,
+                    mnodeGetUserFromMsg(pMsg), pTable->info.tableId, false);
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
 
@@ -2328,7 +2329,8 @@ static int32_t mnodeSendDropChildTableMsg(SMnodeMsg *pMsg, bool needReturn) {
   mInfo("msg:%p, app:%p ctable:%s, send drop ctable msg, vgId:%d sid:%d uid:%" PRIu64, pMsg, pMsg->rpcMsg.ahandle,
         pDrop->tableFname, pTable->vgId, pTable->tid, pTable->uid);
 
-  monSaveAuditLog(MON_DDL_CMD_DROP_TABLE, mnodeGetUserFromMsg(pMsg), pTable->info.tableId, true);
+  monSaveAuditLog((pTable->info.type == TSDB_CHILD_TABLE) ? MON_DDL_CMD_DROP_CHILD_TABLE : MON_DDL_CMD_DROP_TABLE,
+                  mnodeGetUserFromMsg(pMsg), pTable->info.tableId, true);
 
   SRpcMsg rpcMsg = {
     .ahandle = pMsg,
@@ -2349,7 +2351,8 @@ static int32_t mnodeDropChildTableCb(SMnodeMsg *pMsg, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) {
     SCTableObj *pTable = (SCTableObj *)pMsg->pTable;
     mError("msg:%p, app:%p ctable:%s, failed to drop, sdb error", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId);
-    monSaveAuditLog(MON_DDL_CMD_DROP_TABLE, mnodeGetUserFromMsg(pMsg), pTable->info.tableId, false);
+    monSaveAuditLog((pTable->info.type == TSDB_CHILD_TABLE) ? MON_DDL_CMD_DROP_CHILD_TABLE : MON_DDL_CMD_DROP_TABLE,
+                    mnodeGetUserFromMsg(pMsg), pTable->info.tableId, false);
     return code;
   }
 
