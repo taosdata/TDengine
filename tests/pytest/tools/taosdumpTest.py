@@ -110,7 +110,7 @@ class TDTestCase:
 
         tdSql.execute("use db")
         tdSql.query("show databases")
-        tdSql.checkRows(2)
+        tdSql.checkRows(3)
         dbresult = tdSql.queryResult
         # 6--days,7--keep0,keep1,keep, 12--block,
 
