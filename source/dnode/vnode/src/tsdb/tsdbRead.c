@@ -635,8 +635,8 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
         continue;
       }
 
-      void* p = taosArrayPush(pScanInfo->pBlockList,
-                              &(SBlockIndex){.ordinalIndex = j, .inFileoffset = block.aSubBlock->offset});
+      SBlockIndex bIndex = {.ordinalIndex = j, .inFileoffset = block.aSubBlock->offset};
+      void* p = taosArrayPush(pScanInfo->pBlockList, &bIndex);
       if (p == NULL) {
         tMapDataClear(&pScanInfo->mapData);
         return TSDB_CODE_OUT_OF_MEMORY;
