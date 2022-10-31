@@ -1001,11 +1001,14 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     initQueryTableDataCondForTmq(&pTaskInfo->streamInfo.tableCond, sContext, &mtInfo);
     pTaskInfo->streamInfo.tableCond.twindows.skey = pOffset->ts;
 
-    STableListInfo* pListInfo = pTaskInfo->pTableInfoList;
-    tableListAddTableInfo(pListInfo, mtInfo.uid, 0);
+    if (pTaskInfo->pTableInfoList == NULL)  {
+      pTaskInfo->pTableInfoList = tableListCreate();
+    }
 
-    STableKeyInfo* pList = tableListGetInfo(pListInfo, 0);
-    int32_t size = tableListGetSize(pListInfo);
+    tableListAddTableInfo(pTaskInfo->pTableInfoList, mtInfo.uid, 0);
+
+    STableKeyInfo* pList = tableListGetInfo(pTaskInfo->pTableInfoList, 0);
+    int32_t size = tableListGetSize(pTaskInfo->pTableInfoList);
     ASSERT(size == 1);
 
     tsdbReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pList, size, &pInfo->dataReader, NULL);
