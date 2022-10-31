@@ -474,6 +474,12 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
     return terrno;
   }
 
+  int32_t rows = pBlock->info.rows;
+  pBlock->info.rows = 0;
+
+  blockDataEnsureCapacity(pBlock, rows);
+  pBlock->info.rows = rows;
+
   relocateColumnData(pBlock, pTableScanInfo->matchInfo.pList, pCols, true);
   doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo);
 
@@ -619,14 +625,11 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     blockDataCleanup(pBlock);
 
     SDataBlockInfo* pBInfo = &pBlock->info;
-
-    int32_t rows = 0;
-    tsdbRetrieveDataBlockInfo(pTableScanInfo->dataReader, &rows, &pBInfo->uid, &pBInfo->window);
-    blockDataEnsureCapacity(pBlock, rows);
-    pBlock->info.rows = rows;
+    tsdbRetrieveDataBlockInfo(pTableScanInfo->dataReader, &pBInfo->rows, &pBInfo->uid, &pBInfo->window);
+//    blockDataEnsureCapacity(pBlock, rows);
+//    pBlock->info.rows = rows;
 
     ASSERT(pBInfo->uid != 0);
-
     pBlock->info.groupId = getTableGroupId(&pTaskInfo->tableqinfoList, pBlock->info.uid);
 
     uint32_t status = 0;
