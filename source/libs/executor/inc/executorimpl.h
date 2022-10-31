@@ -184,7 +184,7 @@ typedef struct SExecTaskInfo {
   int64_t               version;  // used for stream to record wal version
   SStreamTaskInfo       streamInfo;
   SSchemaInfo           schemaInfo;
-  STableListInfo        tableqinfoList;  // this is a table list
+  STableListInfo*       pTableInfoList;  // this is a table list
   const char*           sql;             // query sql string
   jmp_buf               env;             // jump to this position when error happens.
   EOPTR_EXEC_MODEL      execModel;       // operator execution model [batch model|stream model]
@@ -555,7 +555,7 @@ typedef struct SSysTableScanInfo {
 
 typedef struct SBlockDistInfo {
   SSDataBlock* pResBlock;
-  void*        pHandle;
+  STsdbReader* pHandle;
   SReadHandle  readHandle;
   uint64_t     uid;  // table uid
 } SBlockDistInfo;
@@ -970,8 +970,8 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
 SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SSessionWinodwPhysiNode* pSessionNode,
                                             SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode* pAggNode, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SReadHandle* readHandle, uint64_t uid,
-                                               SBlockDistScanPhysiNode* pBlockScanNode, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDistScanPhysiNode* pBlockScanNode,
+                                               SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createStreamScanOperatorInfo(SReadHandle* pHandle, STableScanPhysiNode* pTableScanNode, SNode* pTagCond,
                                             SExecTaskInfo* pTaskInfo);
@@ -1065,10 +1065,6 @@ uint64_t calGroupIdByData(SPartitionBySupporter* pParSup, SExprSupp* pExprSup, S
 int32_t finalizeResultRows(SDiskbasedBuf* pBuf, SResultRowPosition* resultRowPosition, SExprSupp* pSup,
                            SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 
-int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
-                                STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
-                                const char* idstr);
-
 SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSortPhysiNode* pSortPhyNode,
                                            SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanNode, STableListInfo* pTableListInfo,
@@ -1077,7 +1073,6 @@ SOperatorInfo* createTableMergeScanOperatorInfo(STableScanPhysiNode* pTableScanN
 void copyUpdateDataBlock(SSDataBlock* pDest, SSDataBlock* pSource, int32_t tsColIndex);
 
 bool    groupbyTbname(SNodeList* pGroupList);
-int32_t setGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* group, bool groupSort);
 void*   destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput);
 int32_t buildDataBlockFromGroupRes(SOperatorInfo* pOperator, SStreamState* pState, SSDataBlock* pBlock, SExprSupp* pSup,
                                    SGroupResInfo* pGroupResInfo);

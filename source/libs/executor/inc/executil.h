@@ -23,6 +23,7 @@
 #include "tpagedbuf.h"
 #include "tsimplehash.h"
 #include "vnode.h"
+#include "executor.h"
 
 #define T_LONG_JMP(_obj, _c) \
   do {                       \
@@ -95,26 +96,23 @@ typedef struct SColMatchInfo {
   int32_t matchType;  // determinate the source according to col id or slot id
 } SColMatchInfo;
 
-// If the numOfOutputGroups is 1, the data blocks that belongs to different groups will be provided randomly
-// The numOfOutputGroups is specified by physical plan. and will not be affect by numOfGroups
-typedef struct STableListInfo {
-  bool      oneTableForEachGroup;
-  int32_t   numOfOuputGroups; // the data block will be generated one by one
-  int32_t*  groupOffset;      // keep the offset value for each group in the tableList
-  SArray*   pTableList;
-  SHashObj* map;              // speedup acquire the tableQueryInfo by table uid
-  uint64_t  suid;
-} STableListInfo;
-
-void     destroyTableList(STableListInfo* pTableList);
-int32_t  getNumOfOutputGroups(const STableListInfo* pTableList);
-bool     oneTableForEachGroup(const STableListInfo* pTableList);
-uint64_t getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid);
-int32_t  addTableIntoTableList(STableListInfo* pTableList, uint64_t uid, uint64_t gid);
-int32_t  getTablesOfGroup(const STableListInfo* pTableList, int32_t ordinalIndex, STableKeyInfo** pKeyInfo, int32_t* num);
-uint64_t getTotalTables(const STableListInfo* pTableList);
-
+typedef struct STableListInfo STableListInfo;
 struct SqlFunctionCtx;
+
+int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
+                                STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond, const char* id);
+
+STableListInfo* tableListCreate();
+void*          tableListDestroy(STableListInfo* pTableListInfo);
+void           tableListClear(STableListInfo* pTableListInfo);
+int32_t        tableListGetOutputGroups(const STableListInfo* pTableList);
+bool           oneTableForEachGroup(const STableListInfo* pTableList);
+uint64_t       getTableGroupId(const STableListInfo* pTableList, uint64_t tableUid);
+int32_t        tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t gid);
+int32_t        tableListGetGroupList(const STableListInfo* pTableList, int32_t ordinalIndex, STableKeyInfo** pKeyInfo, int32_t* num);
+uint64_t       tableListGetSize(const STableListInfo* pTableList);
+uint64_t       tableListGetSuid(const STableListInfo* pTableList);
+STableKeyInfo* tableListGetInfo(const STableListInfo* pTableList, int32_t index);
 
 size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void   initResultRowInfo(SResultRowInfo* pResultRowInfo);
@@ -128,6 +126,7 @@ static FORCE_INLINE SResultRow* getResultRowByPos(SDiskbasedBuf* pBuf, SResultRo
   if (forUpdate) {
     setBufPageDirty(bufPage, true);
   }
+
   SResultRow* pRow = (SResultRow*)((char*)bufPage + pos->offset);
   return pRow;
 }
@@ -143,10 +142,7 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode);
 
 EDealRes doTranslateTagExpr(SNode** pNode, void* pContext);
-int32_t  getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond, SNode* pTagIndexCond,
-                      STableListInfo* pListInfo);
 int32_t  getGroupIdFromTagsVal(void* pMeta, uint64_t uid, SNodeList* pGroupNode, char* keyBuf, uint64_t* pGroupId);
-int32_t  getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableListInfo* pTableListInfo);
 size_t   getTableTagsBufLen(const SNodeList* pGroups);
 
 SArray* createSortInfo(SNodeList* pNodeList);
@@ -169,9 +165,7 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
 void    cleanupQueryTableDataCond(SQueryTableDataCond* pCond);
 
 int32_t convertFillType(int32_t mode);
-
 int32_t resultrowComparAsc(const void* p1, const void* p2);
-
 int32_t isQualifiedTable(STableKeyInfo* info, SNode* pTagCond, void* metaHandle, bool* pQualified);
 
 #endif  // TDENGINE_QUERYUTIL_H
