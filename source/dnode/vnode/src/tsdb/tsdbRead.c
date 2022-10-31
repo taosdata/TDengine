@@ -35,11 +35,16 @@ typedef struct {
   int32_t numOfLastFiles;
 } SBlockNumber;
 
+typedef struct SBlockIndex {
+  int32_t ordinalIndex;
+  int64_t inFileoffset;
+} SBlockIndex;
+
 typedef struct STableBlockScanInfo {
   uint64_t  uid;
   TSKEY     lastKey;
   SMapData  mapData;            // block info (compressed)
-  SArray*   pBlockList;         // block data index list
+  SArray*   pBlockList;         // block data index list, SArray<SBlockIndex>
   SIterInfo iter;               // mem buffer skip list iterator
   SIterInfo iiter;              // imem buffer skip list iterator
   SArray*   delSkyline;         // delete info for this table
@@ -568,7 +573,7 @@ static int32_t doLoadBlockIndex(STsdbReader* pReader, SDataFReader* pFileReader,
 
     STableBlockScanInfo* pScanInfo = p;
     if (pScanInfo->pBlockList == NULL) {
-      pScanInfo->pBlockList = taosArrayInit(4, sizeof(int32_t));
+      pScanInfo->pBlockList = taosArrayInit(4, sizeof(SBlockIndex));
     }
 
     taosArrayPush(pIndexList, pBlockIdx);
@@ -630,7 +635,8 @@ static int32_t doLoadFileBlock(STsdbReader* pReader, SArray* pIndexList, SBlockN
         continue;
       }
 
-      void* p = taosArrayPush(pScanInfo->pBlockList, &j);
+      void* p = taosArrayPush(pScanInfo->pBlockList,
+                              &(SBlockIndex){.ordinalIndex = j, .inFileoffset = block.aSubBlock->offset});
       if (p == NULL) {
         tMapDataClear(&pScanInfo->mapData);
         return TSDB_CODE_OUT_OF_MEMORY;
@@ -1059,8 +1065,8 @@ static int32_t doSetCurrentBlock(SDataBlockIter* pBlockIter, const char* idStr) 
       return TSDB_CODE_INVALID_PARA;
     }
 
-    int32_t* mapDataIndex = taosArrayGet(pScanInfo->pBlockList, pBlockInfo->tbBlockIdx);
-    tMapDataGetItemByIdx(&pScanInfo->mapData, *mapDataIndex, &pBlockIter->block, tGetDataBlk);
+    SBlockIndex* pIndex = taosArrayGet(pScanInfo->pBlockList, pBlockInfo->tbBlockIdx);
+    tMapDataGetItemByIdx(&pScanInfo->mapData, pIndex->ordinalIndex, &pBlockIter->block, tGetDataBlk);
   }
 
 #if 0
@@ -1073,6 +1079,7 @@ static int32_t doSetCurrentBlock(SDataBlockIter* pBlockIter, const char* idStr) 
 static int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIter, int32_t numOfBlocks) {
   bool asc = ASCENDING_TRAVERSE(pReader->order);
 
+  SBlockOrderSupporter sup = {0};
   pBlockIter->numOfBlocks = numOfBlocks;
   taosArrayClear(pBlockIter->blockList);
   pBlockIter->pTableMap = pReader->status.pTableMap;
@@ -1081,9 +1088,7 @@ static int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIte
   int32_t numOfTables = (int32_t)taosHashGetSize(pReader->status.pTableMap);
 
   int64_t st = taosGetTimestampUs();
-
-  SBlockOrderSupporter sup = {0};
-  int32_t              code = initBlockOrderSupporter(&sup, numOfTables);
+  int32_t code = initBlockOrderSupporter(&sup, numOfTables);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -1111,17 +1116,11 @@ static int32_t initBlockIterator(STsdbReader* pReader, SDataBlockIter* pBlockIte
     }
 
     sup.pDataBlockInfo[sup.numOfTables] = (SBlockOrderWrapper*)buf;
-    SDataBlk block = {0};
+
     for (int32_t k = 0; k < num; ++k) {
-      SBlockOrderWrapper wrapper = {0};
-
-      int32_t* mapDataIndex = taosArrayGet(pTableScanInfo->pBlockList, k);
-      tMapDataGetItemByIdx(&pTableScanInfo->mapData, *mapDataIndex, &block, tGetDataBlk);
-
-      wrapper.uid = pTableScanInfo->uid;
-      wrapper.offset = block.aSubBlock[0].offset;
-
-      sup.pDataBlockInfo[sup.numOfTables][k] = wrapper;
+      SBlockIndex* pIndex = taosArrayGet(pTableScanInfo->pBlockList, k);
+      sup.pDataBlockInfo[sup.numOfTables][k] =
+          (SBlockOrderWrapper){.uid = pTableScanInfo->uid, .offset = pIndex->inFileoffset};
       cnt++;
     }
 
@@ -1226,9 +1225,8 @@ static bool getNeighborBlockOfSameTable(SFileDataBlockInfo* pBlockInfo, STableBl
   int32_t step = asc ? 1 : -1;
   *nextIndex = pBlockInfo->tbBlockIdx + step;
 
-  int32_t* indexInMapdata = taosArrayGet(pTableBlockScanInfo->pBlockList, *nextIndex);
-
-  tMapDataGetItemByIdx(&pTableBlockScanInfo->mapData, *indexInMapdata, pBlock, tGetDataBlk);
+  SBlockIndex* pIndex = taosArrayGet(pTableBlockScanInfo->pBlockList, *nextIndex);
+  tMapDataGetItemByIdx(&pTableBlockScanInfo->mapData, pIndex->ordinalIndex, pBlock, tGetDataBlk);
   return true;
 }
 
@@ -3495,7 +3493,6 @@ static int32_t doOpenReaderImpl(STsdbReader* pReader) {
 
   initFilesetIterator(&pReader->status.fileIter, pReader->pReadSnap->fs.aDFileSet, pReader);
   resetDataBlockIterator(&pReader->status.blockIter, pReader->order);
-//  resetDataBlockScanInfo(pReader->status.pTableMap, pReader->window.skey);
 
   // no data in files, let's try buffer in memory
   if (pReader->status.fileIter.numOfFiles == 0) {
