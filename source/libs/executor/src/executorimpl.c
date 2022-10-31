@@ -3490,7 +3490,9 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       pOperator = createSysTableScanOperatorInfo(pHandle, pSysScanPhyNode, pUser, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN == type) {
       STagScanPhysiNode* pScanPhyNode = (STagScanPhysiNode*)pPhyNode;
-      int32_t code = getTableList(pHandle->meta, pHandle->vnode, pScanPhyNode, pTagCond, pTagIndexCond, pTableListInfo);
+
+      int32_t code = createScanTableListInfo(pScanPhyNode, NULL, false, pHandle, pTableListInfo, pTagCond,
+                                             pTagIndexCond, GET_TASKID(pTaskInfo));
       if (code != TSDB_CODE_SUCCESS) {
         pTaskInfo->code = code;
         qError("failed to getTableList, code: %s", tstrerror(code));

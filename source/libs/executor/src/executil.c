@@ -46,6 +46,8 @@ typedef struct tagFilterAssist {
 static int32_t removeInvalidTable(SArray* uids, SHashObj* tags);
 static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list, SNode* pTagCond, SHashObj* tags);
 static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* list, SNode* pTagCond);
+static int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, SNode* pTagCond,
+                            SNode* pTagIndexCond, STableListInfo* pListInfo);
 
 static int64_t getLimit(const SNode* pLimit) { return NULL == pLimit ? -1 : ((SLimitNode*)pLimit)->limit; }
 static int64_t getOffset(const SNode* pLimit) { return NULL == pLimit ? -1 : ((SLimitNode*)pLimit)->offset; }
@@ -1006,13 +1008,14 @@ int32_t getTableList(void* metaHandle, void* pVnode, SScanPhysiNode* pScanNode, 
   size_t numOfTables = taosArrayGetSize(res);
   for (int i = 0; i < numOfTables; i++) {
     STableKeyInfo info = {.uid = *(uint64_t*)taosArrayGet(res, i), .groupId = 0};
-    void*         p = taosArrayPush(pListInfo->pTableList, &info);
+
+    void* p = taosArrayPush(pListInfo->pTableList, &info);
     if (p == NULL) {
       taosArrayDestroy(res);
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
-    qDebug("tagfilter get uid:%" PRId64 "", info.uid);
+    qDebug("tagfilter get uid:%" PRIu64 "", info.uid);
   }
 
   taosArrayDestroy(res);
@@ -1825,81 +1828,10 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
   pTableListInfo->groupOffset = taosMemoryMalloc(sizeof(int32_t) * pTableListInfo->numOfOuputGroups);
   memcpy(pTableListInfo->groupOffset, taosArrayGet(pList, 0), sizeof(int32_t) * pTableListInfo->numOfOuputGroups);
   taosArrayDestroy(pList);
-
-# if 0
-  SArray* sortSupport = taosArrayInit(16, sizeof(uint64_t));
-  if (sortSupport == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  size_t num = taosArrayGetSize(pTableListInfo->pTableList);
-  for (int32_t i = 0; i < num; i++) {
-    STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
-    uint64_t*      groupId = taosHashGet(pTableListInfo->map, &info->uid, sizeof(uint64_t));
-
-    int32_t index = taosArraySearchIdx(sortSupport, groupId, compareUint64Val, TD_EQ);
-    if (index == -1) {
-      void*   p = taosArraySearch(sortSupport, groupId, compareUint64Val, TD_GT);
-
-      SArray* tGroup = taosArrayInit(8, sizeof(STableKeyInfo));
-      if (tGroup == NULL) {
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _error;
-      }
-
-      if (taosArrayPush(tGroup, info) == NULL) {
-        qError("taos push info array error");
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _error;
-      }
-
-      if (p == NULL) {
-        if (taosArrayPush(sortSupport, groupId) == NULL) {
-          qError("taos push support array error");
-          code = TSDB_CODE_OUT_OF_MEMORY;
-          goto _error;
-        }
-
-        if (taosArrayPush(pTableListInfo->pGroupList, &tGroup) == NULL) {
-          qError("taos push group array error");
-          code = TSDB_CODE_OUT_OF_MEMORY;
-          goto _error;
-        }
-      } else {
-        int32_t pos = TARRAY_ELEM_IDX(sortSupport, p);
-        if (taosArrayInsert(sortSupport, pos, groupId) == NULL) {
-          qError("taos insert support array error");
-          code = TSDB_CODE_OUT_OF_MEMORY;
-          goto _error;
-        }
-
-        if (taosArrayInsert(pTableListInfo->pGroupList, pos, &tGroup) == NULL) {
-          qError("taos insert group array error");
-          code = TSDB_CODE_OUT_OF_MEMORY;
-          goto _error;
-        }
-      }
-    } else {
-      SArray* tGroup = (SArray*)taosArrayGetP(pTableListInfo->pGroupList, index);
-      if (taosArrayPush(tGroup, info) == NULL) {
-        qError("taos push uid array error");
-        code = TSDB_CODE_OUT_OF_MEMORY;
-        goto _error;
-      }
-    }
-  }
-
-  taosArrayDestroy(sortSupport);
-#endif
-
   return TDB_CODE_SUCCESS;
-
-  _error:
-//  taosArrayDestroy(sortSupport);
-  return code;
 }
 
-int32_t setGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* group, bool groupSort) {
+int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* group, bool groupSort) {
   int32_t code = TSDB_CODE_SUCCESS;
   ASSERT(pTableListInfo->map != NULL);
 
@@ -1966,7 +1898,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
     return TSDB_CODE_SUCCESS;
   }
 
-  code = setGroupIdMapForAllTables(pTableListInfo, pHandle, pGroupTags, groupSort);
+  code = buildGroupIdMapForAllTables(pTableListInfo, pHandle, pGroupTags, groupSort);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
