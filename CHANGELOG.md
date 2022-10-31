@@ -1,3 +1,13 @@
+<a name="v0.1.1"></a>
+## v0.1.1 TDengine Data Replication Toolkit (2022-10-31)
+
+
+#### Bug Fixes
+
+*   fix cargo install error in build.rs ([14264884](https://github.com/taosdata/taosx.git/commit/14264884a6cf2045e5f5d9c49a500c2d585e7135))
+
+
+
 <a name="v0.1.0"></a>
 ## v0.1.0 TDengine Data Replication Toolkit (2022-10-29)
 
