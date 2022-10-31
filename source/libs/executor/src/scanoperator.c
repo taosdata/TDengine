@@ -331,7 +331,8 @@ static bool doLoadBlockSMA(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, 
     }
   }
 
-  for (int32_t i = 0; i < taosArrayGetSize(pTableScanInfo->matchInfo.pList); ++i) {
+  size_t num = taosArrayGetSize(pTableScanInfo->matchInfo.pList);
+  for (int32_t i = 0; i < num; ++i) {
     SColMatchItem* pColMatchInfo = taosArrayGet(pTableScanInfo->matchInfo.pList, i);
     if (!pColMatchInfo->needOutput) {
       continue;

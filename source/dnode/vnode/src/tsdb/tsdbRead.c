@@ -3868,7 +3868,9 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SColumnDataAgg*** pBlockS
   size_t numOfCols = blockDataGetNumOfCols(pReader->pResBlock);
 
   int32_t i = 0, j = 0;
-  while (j < numOfCols && i < taosArrayGetSize(pSup->pColAgg)) {
+  size_t size = taosArrayGetSize(pSup->pColAgg);
+
+  while (j < numOfCols && i < size) {
     SColumnDataAgg* pAgg = taosArrayGet(pSup->pColAgg, i);
     if (pAgg->colId == pSup->colIds[j]) {
       if (IS_BSMA_ON(&(pReader->pSchema->columns[i]))) {
