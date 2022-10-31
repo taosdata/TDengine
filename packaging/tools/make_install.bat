@@ -47,6 +47,15 @@ copy %binary_dir%\\build\\bin\\udfd.exe %tagert_dir% > nul
 if exist %binary_dir%\\build\\bin\\taosBenchmark.exe (
     copy %binary_dir%\\build\\bin\\taosBenchmark.exe %tagert_dir% > nul
 )
+if exist %binary_dir%\\build\\lib\\taosws.dll.lib (
+    copy %binary_dir%\\build\\lib\\taosws.dll.lib %tagert_dir%\\driver  > nul
+)
+if exist %binary_dir%\\build\\lib\\taosws.dll (
+    copy %binary_dir%\\build\\lib\\taosws.dll %tagert_dir%\\driver  > nul
+)
+if exist %binary_dir%\\build\\bin\\taosdump.exe (
+    copy %binary_dir%\\build\\bin\\taosdump.exe %tagert_dir% > nul
+)
 if exist %binary_dir%\\build\\bin\\taosadapter.exe (
     copy %binary_dir%\\build\\bin\\taosadapter.exe %tagert_dir% > nul
 )
@@ -54,4 +63,7 @@ if exist %binary_dir%\\build\\bin\\taosadapter.exe (
 mshta vbscript:createobject("shell.application").shellexecute("%~s0",":hasAdmin","","runas",1)(window.close)&& echo To start/stop TDengine with administrator privileges: sc start/stop taosd &goto :eof
 :hasAdmin
 copy /y C:\\TDengine\\driver\\taos.dll C:\\Windows\\System32 > nul
+if exist C:\\TDengine\\driver\\taosws.dll (
+    copy /y C:\\TDengine\\driver\\taosws.dll C:\\Windows\\System32 > nul
+)
 sc query "taosd" >nul || sc create "taosd" binPath= "C:\\TDengine\\taosd.exe --win_service" start= DEMAND

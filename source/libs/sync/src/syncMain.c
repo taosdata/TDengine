@@ -49,8 +49,8 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths);
 static void    syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId);
 
 // process message ----
-int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
-int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
+int32_t syncNodeOnPing(SSyncNode* ths, SyncPing* pMsg);
+int32_t syncNodeOnPingReply(SSyncNode* ths, SyncPingReply* pMsg);
 
 // ---------------------------------
 static void syncNodeFreeCb(void* param) {
@@ -1148,6 +1148,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
     pSyncNode->pRaftCfg = NULL;
   }
 
+  // init by SSyncInfo
+  pSyncNode->vgId = pSyncInfo->vgId;
   SSyncCfg* pCfg = &pSyncInfo->syncCfg;
   sDebug("vgId:%d, replica:%d selfIndex:%d", pSyncNode->vgId, pCfg->replicaNum, pCfg->myIndex);
   for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
@@ -1155,8 +1157,6 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
     sDebug("vgId:%d, index:%d ep:%s:%u", pSyncNode->vgId, i, pNode->nodeFqdn, pNode->nodePort);
   }
 
-  // init by SSyncInfo
-  pSyncNode->vgId = pSyncInfo->vgId;
   memcpy(pSyncNode->path, pSyncInfo->path, sizeof(pSyncNode->path));
   snprintf(pSyncNode->raftStorePath, sizeof(pSyncNode->raftStorePath), "%s%sraft_store.json", pSyncInfo->path,
            TD_DIRSEP);
@@ -1327,8 +1327,8 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
   }
 
   // init callback
-  pSyncNode->FpOnPing = syncNodeOnPingCb;
-  pSyncNode->FpOnPingReply = syncNodeOnPingReplyCb;
+  pSyncNode->FpOnPing = syncNodeOnPing;
+  pSyncNode->FpOnPingReply = syncNodeOnPingReply;
   pSyncNode->FpOnClientRequest = syncNodeOnClientRequest;
   pSyncNode->FpOnTimeout = syncNodeOnTimer;
   pSyncNode->FpOnSnapshot = syncNodeOnSnapshot;
@@ -1645,7 +1645,9 @@ int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
 
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
     SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->peersId[i]));
-    syncHbTimerStart(pSyncNode, pSyncTimer);
+    if (pSyncTimer != NULL) {
+      syncHbTimerStart(pSyncNode, pSyncTimer);
+    }
   }
 
   return ret;
@@ -1662,7 +1664,9 @@ int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
 
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
     SSyncTimer* pSyncTimer = syncNodeGetHbTimer(pSyncNode, &(pSyncNode->peersId[i]));
-    syncHbTimerStop(pSyncNode, pSyncTimer);
+    if (pSyncTimer != NULL) {
+      syncHbTimerStop(pSyncNode, pSyncTimer);
+    }
   }
 
   return ret;
@@ -2999,18 +3003,19 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
 }
 
 // on message ----
-int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg) {
-  // log state
+int32_t syncNodeOnPing(SSyncNode* ths, SyncPing* pMsg) {
+  sTrace("vgId:%d, recv sync-ping", ths->vgId);
+
   SyncPingReply* pMsgReply = syncPingReplyBuild3(&ths->myRaftId, &pMsg->srcId, ths->vgId);
   SRpcMsg        rpcMsg;
   syncPingReply2RpcMsg(pMsgReply, &rpcMsg);
 
   /*
-  // htonl
-  SMsgHead* pHead = rpcMsg.pCont;
-  pHead->contLen = htonl(pHead->contLen);
-  pHead->vgId = htonl(pHead->vgId);
-*/
+    // htonl
+    SMsgHead* pHead = rpcMsg.pCont;
+    pHead->contLen = htonl(pHead->contLen);
+    pHead->vgId = htonl(pHead->vgId);
+  */
 
   syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg);
   syncPingReplyDestroy(pMsgReply);
@@ -3018,9 +3023,9 @@ int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg) {
   return 0;
 }
 
-int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg) {
+int32_t syncNodeOnPingReply(SSyncNode* ths, SyncPingReply* pMsg) {
   int32_t ret = 0;
-  syncPingReplyLog2("==syncNodeOnPingReplyCb==", pMsg);
+  sTrace("vgId:%d, recv sync-ping-reply", ths->vgId);
   return ret;
 }
 
@@ -3371,8 +3376,12 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
           pEntry = (SSyncRaftEntry*)taosLRUCacheValue(pCache, h);
         } else {
           code = ths->pLogStore->syncLogGetEntry(ths->pLogStore, i, &pEntry);
-          ASSERT(code == 0);
-          ASSERT(pEntry != NULL);
+          // ASSERT(code == 0);
+          // ASSERT(pEntry != NULL);
+          if (code != 0 || pEntry == NULL) {
+			syncNodeErrorLog(ths, "get log entry error");
+            continue;
+          }
         }
 
         SRpcMsg rpcMsg;
@@ -3424,7 +3433,7 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
 
         // config change finish
         if (pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE_FINISH) {
-          if (rpcMsg.pCont != NULL) {
+          if (rpcMsg.pCont != NULL && rpcMsg.contLen > 0) {
             code = syncNodeConfigChangeFinish(ths, &rpcMsg, pEntry);
             ASSERT(code == 0);
           }

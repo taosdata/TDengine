@@ -33,16 +33,16 @@ extern "C" {
 #define wTrace(...) { if (wDebugFlag & DEBUG_TRACE) { taosPrintLog("WAL ",       DEBUG_TRACE, wDebugFlag, __VA_ARGS__); }}
 // clang-format on
 
-#define WAL_PROTO_VER     0
-#define WAL_NOSUFFIX_LEN  20
-#define WAL_SUFFIX_AT     (WAL_NOSUFFIX_LEN + 1)
-#define WAL_LOG_SUFFIX    "log"
-#define WAL_INDEX_SUFFIX  "idx"
-#define WAL_REFRESH_MS    1000
-#define WAL_PATH_LEN      (TSDB_FILENAME_LEN + 12)
-#define WAL_FILE_LEN      (WAL_PATH_LEN + 32)
-#define WAL_MAGIC         0xFAFBFCFDF4F3F2F1ULL
-#define WAL_SCAN_BUF_SIZE (1024 * 1024 * 3)
+#define WAL_PROTO_VER        0
+#define WAL_NOSUFFIX_LEN     20
+#define WAL_SUFFIX_AT        (WAL_NOSUFFIX_LEN + 1)
+#define WAL_LOG_SUFFIX       "log"
+#define WAL_INDEX_SUFFIX     "idx"
+#define WAL_REFRESH_MS       1000
+#define WAL_PATH_LEN         (TSDB_FILENAME_LEN + 12)
+#define WAL_FILE_LEN         (WAL_PATH_LEN + 32)
+#define WAL_MAGIC            0xFAFBFCFDF4F3F2F1ULL
+#define WAL_SCAN_BUF_SIZE    (1024 * 1024 * 3)
 #define WAL_RECOV_SIZE_LIMIT (100 * WAL_SCAN_BUF_SIZE)
 
 typedef enum {
@@ -204,7 +204,6 @@ SWalRef *walRefCommittedVer(SWal *);
 SWalRef *walOpenRef(SWal *);
 void     walCloseRef(SWal *pWal, int64_t refId);
 int32_t  walRefVer(SWalRef *, int64_t ver);
-int32_t  walPreRefVer(SWalRef *pRef, int64_t ver);
 void     walUnrefVer(SWalRef *);
 
 // helper function for raft

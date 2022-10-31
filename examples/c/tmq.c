@@ -47,7 +47,7 @@ static int32_t msg_process(TAOS_RES* msg) {
     int32_t     precision = taos_result_precision(msg);
     rows++;
     taos_print_row(buf, row, fields, numOfFields);
-    printf("row content: %s\n", buf);
+    printf("precision: %d, row content: %s\n", precision, buf);
   }
 
   return rows;
@@ -70,7 +70,7 @@ static int32_t init_env() {
   taos_free_result(pRes);
 
   // create database
-  pRes = taos_query(pConn, "create database tmqdb");
+  pRes = taos_query(pConn, "create database tmqdb precision 'ns'");
   if (taos_errno(pRes) != 0) {
     printf("error in create tmqdb, reason:%s\n", taos_errstr(pRes));
     return -1;

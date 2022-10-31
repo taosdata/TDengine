@@ -90,6 +90,16 @@ qTaskInfo_t qCreateQueueExecTaskInfo(void* msg, SReadHandle* readers, int32_t* n
 int32_t qSetMultiStreamInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type);
 
 /**
+ * Set block for sma
+ * @param tinfo
+ * @param pBlocks
+ * @param numOfInputBlock
+ * @param type
+ * @return
+ */
+int32_t qSetSMAInput(qTaskInfo_t tinfo, const void* pBlocks, size_t numOfBlocks, int32_t type);
+
+/**
  * Update the table id list, add or remove.
  *
  * @param tinfo
@@ -169,6 +179,7 @@ int32_t qSerializeTaskStatus(qTaskInfo_t tinfo, char** pOutput, int32_t* len);
 
 int32_t qDeserializeTaskStatus(qTaskInfo_t tinfo, const char* pInput, int32_t len);
 
+STimeWindow getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key);
 /**
  * return the scan info, in the form of tuple of two items, including table uid and current timestamp
  * @param tinfo
@@ -200,9 +211,11 @@ int32_t qExtractStreamScanner(qTaskInfo_t tinfo, void** scanner);
 
 int32_t qStreamInput(qTaskInfo_t tinfo, void* pItem);
 
-int32_t qStreamPrepareRecover(qTaskInfo_t tinfo, int64_t startVer, int64_t endVer);
-
-STimeWindow getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key);
+int32_t qStreamSetParamForRecover(qTaskInfo_t tinfo);
+int32_t qStreamSourceRecoverStep1(qTaskInfo_t tinfo, int64_t ver);
+int32_t qStreamSourceRecoverStep2(qTaskInfo_t tinfo, int64_t ver);
+int32_t qStreamRecoverFinish(qTaskInfo_t tinfo);
+int32_t qStreamRestoreParam(qTaskInfo_t tinfo);
 
 #ifdef __cplusplus
 }

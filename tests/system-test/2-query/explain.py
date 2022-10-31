@@ -298,14 +298,14 @@ class TDTestCase:
 
         self.explain_check()
         
-        # tdSql.query(f"explain verbose true select {INT_COL} from {dbname}.ct1")
-        # tdSql.query(f"explain verbose true select 1 from {dbname}.ct2")
-        # tdSql.query(f"explain verbose true select cast(ceil({DOUBLE_COL}) as bigint) from {dbname}.ct4 group by {DOUBLE_COL}")
-        # tdSql.query(f"explain verbose true select count({SINT_COL}) from {dbname}.ct4 group by {BOOL_COL} having count({SINT_COL}) > 0")
-        # tdSql.query(f"explain verbose true select ct2.{SINT_COL} from {dbname}.ct4 ct4 join {dbname}.ct2 ct2 on ct4.ts=ct2.ts")
-        # tdSql.query(f"explain verbose true select {INT_COL} from {dbname}.stb1 where {INT_COL} is not null and {INT_COL} in (0, 1, 2) or {INT_COL} between 2 and 100 ")
+        tdSql.query(f"explain verbose true select {INT_COL} from {dbname}.ct1")
+        tdSql.query(f"explain verbose true select 1 from {dbname}.ct2")
+        tdSql.query(f"explain verbose true select cast(ceil({DOUBLE_COL}) as bigint) from {dbname}.ct4 group by {DOUBLE_COL}")
+        tdSql.query(f"explain verbose true select count({SINT_COL}) from {dbname}.ct4 group by {BOOL_COL} having count({SINT_COL}) > 0")
+        tdSql.query(f"explain verbose true select ct2.{SINT_COL} from {dbname}.ct4 ct4 join {dbname}.ct2 ct2 on ct4.ts=ct2.ts")
+        tdSql.query(f"explain verbose true select {INT_COL} from {dbname}.stb1 where {INT_COL} is not null and {INT_COL} in (0, 1, 2) or {INT_COL} between 2 and 100 ")
 
-        # self.explain_check()
+        self.explain_check()
         
         tdSql.query(f"explain verbose false select {INT_COL} from {dbname}.ct1")
         tdSql.query(f"explain verbose false select 1 from {dbname}.ct2")
@@ -326,14 +326,14 @@ class TDTestCase:
 
         self.explain_check()
         
-        # tdSql.query(f"explain ratio {ratio} verbose true select {INT_COL} from {dbname}.ct1")
-        # tdSql.query(f"explain ratio {ratio} verbose true select 1 from {dbname}.ct2")
-        # tdSql.query(f"explain ratio {ratio} verbose true select cast(ceil({DOUBLE_COL}) as bigint) from {dbname}.ct4 group by {DOUBLE_COL}")
-        # tdSql.query(f"explain ratio {ratio} verbose true select count({SINT_COL}) from {dbname}.ct4 group by {BOOL_COL} having count({SINT_COL}) > 0")
-        # tdSql.query(f"explain ratio {ratio} verbose true select ct2.{SINT_COL} from {dbname}.ct4 ct4 join {dbname}.ct2 ct2 on ct4.ts=ct2.ts")
-        # tdSql.query(f"explain ratio {ratio} verbose true select {INT_COL} from {dbname}.stb1 where {INT_COL} is not null and {INT_COL} in (0, 1, 2) or {INT_COL} between 2 and 100 ")
+        tdSql.query(f"explain ratio {ratio} verbose true select {INT_COL} from {dbname}.ct1")
+        tdSql.query(f"explain ratio {ratio} verbose true select 1 from {dbname}.ct2")
+        tdSql.query(f"explain ratio {ratio} verbose true select cast(ceil({DOUBLE_COL}) as bigint) from {dbname}.ct4 group by {DOUBLE_COL}")
+        tdSql.query(f"explain ratio {ratio} verbose true select count({SINT_COL}) from {dbname}.ct4 group by {BOOL_COL} having count({SINT_COL}) > 0")
+        tdSql.query(f"explain ratio {ratio} verbose true select ct2.{SINT_COL} from {dbname}.ct4 ct4 join {dbname}.ct2 ct2 on ct4.ts=ct2.ts")
+        tdSql.query(f"explain ratio {ratio} verbose true select {INT_COL} from {dbname}.stb1 where {INT_COL} is not null and {INT_COL} in (0, 1, 2) or {INT_COL} between 2 and 100 ")
 
-        # self.explain_check()
+        self.explain_check()
         
         tdSql.query(f"explain ratio {ratio} verbose false select {INT_COL} from {dbname}.ct1")
         tdSql.query(f"explain ratio {ratio} verbose false select 1 from {dbname}.ct2")
@@ -353,14 +353,14 @@ class TDTestCase:
 
         self.explain_check()
         
-        # tdSql.query(f"explain analyze verbose true select {INT_COL} from {dbname}.ct1")
-        # tdSql.query(f"explain analyze verbose true select 1 from {dbname}.ct2")
-        # tdSql.query(f"explain analyze verbose true select cast(ceil({DOUBLE_COL}) as bigint) from {dbname}.ct4 group by {DOUBLE_COL}")
-        # tdSql.query(f"explain analyze verbose true select count({SINT_COL}) from {dbname}.ct4 group by {BOOL_COL} having count({SINT_COL}) > 0")
-        # tdSql.query(f"explain analyze verbose true select ct2.{SINT_COL} from {dbname}.ct4 ct4 join {dbname}.ct2 ct2 on ct4.ts=ct2.ts")
-        # tdSql.query(f"explain analyze verbose true select {INT_COL} from {dbname}.stb1 where {INT_COL} is not null and {INT_COL} in (0, 1, 2) or {INT_COL} between 2 and 100 ")
+        tdSql.query(f"explain analyze verbose true select {INT_COL} from {dbname}.ct1")
+        tdSql.query(f"explain analyze verbose true select 1 from {dbname}.ct2")
+        tdSql.query(f"explain analyze verbose true select cast(ceil({DOUBLE_COL}) as bigint) from {dbname}.ct4 group by {DOUBLE_COL}")
+        tdSql.query(f"explain analyze verbose true select count({SINT_COL}) from {dbname}.ct4 group by {BOOL_COL} having count({SINT_COL}) > 0")
+        tdSql.query(f"explain analyze verbose true select ct2.{SINT_COL} from {dbname}.ct4 ct4 join {dbname}.ct2 ct2 on ct4.ts=ct2.ts")
+        tdSql.query(f"explain analyze verbose true select {INT_COL} from {dbname}.stb1 where {INT_COL} is not null and {INT_COL} in (0, 1, 2) or {INT_COL} between 2 and 100 ")
 
-        # self.explain_check()
+        self.explain_check()
         
         tdSql.query(f"explain analyze verbose false select {INT_COL} from {dbname}.ct1")
         tdSql.query(f"explain analyze verbose false select 1 from {dbname}.ct2")
@@ -381,14 +381,14 @@ class TDTestCase:
 
         self.explain_check()
         
-        # tdSql.query(f"explain analyze ratio {ratio} verbose true select {INT_COL} from {dbname}.ct1")
-        # tdSql.query(f"explain analyze ratio {ratio} verbose true select 1 from {dbname}.ct2")
-        # tdSql.query(f"explain analyze ratio {ratio} verbose true select cast(ceil({DOUBLE_COL}) as bigint) from {dbname}.ct4 group by {DOUBLE_COL}")
-        # tdSql.query(f"explain analyze ratio {ratio} verbose true select count({SINT_COL}) from {dbname}.ct4 group by {BOOL_COL} having count({SINT_COL}) > 0")
-        # tdSql.query(f"explain analyze ratio {ratio} verbose true select ct2.{SINT_COL} from {dbname}.ct4 ct4 join {dbname}.ct2 ct2 on ct4.ts=ct2.ts")
-        # tdSql.query(f"explain analyze ratio {ratio} verbose true select {INT_COL} from {dbname}.stb1 where {INT_COL} is not null and {INT_COL} in (0, 1, 2) or {INT_COL} between 2 and 100 ")
+        tdSql.query(f"explain analyze ratio {ratio} verbose true select {INT_COL} from {dbname}.ct1")
+        tdSql.query(f"explain analyze ratio {ratio} verbose true select 1 from {dbname}.ct2")
+        tdSql.query(f"explain analyze ratio {ratio} verbose true select cast(ceil({DOUBLE_COL}) as bigint) from {dbname}.ct4 group by {DOUBLE_COL}")
+        tdSql.query(f"explain analyze ratio {ratio} verbose true select count({SINT_COL}) from {dbname}.ct4 group by {BOOL_COL} having count({SINT_COL}) > 0")
+        tdSql.query(f"explain analyze ratio {ratio} verbose true select ct2.{SINT_COL} from {dbname}.ct4 ct4 join {dbname}.ct2 ct2 on ct4.ts=ct2.ts")
+        tdSql.query(f"explain analyze ratio {ratio} verbose true select {INT_COL} from {dbname}.stb1 where {INT_COL} is not null and {INT_COL} in (0, 1, 2) or {INT_COL} between 2 and 100 ")
 
-        # self.explain_check()
+        self.explain_check()
         
         tdSql.query(f"explain analyze ratio {ratio} verbose false select {INT_COL} from {dbname}.ct1")
         tdSql.query(f"explain analyze ratio {ratio} verbose false select 1 from {dbname}.ct2")

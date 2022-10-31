@@ -59,6 +59,7 @@ add_executable(syncRestoreFromSnapshot "")
 add_executable(syncRaftCfgIndexTest "")
 add_executable(syncHeartbeatTest "")
 add_executable(syncHeartbeatReplyTest "")
+add_executable(syncLocalCmdTest "")
 
 
 target_sources(syncTest
@@ -304,6 +305,10 @@ target_sources(syncHeartbeatTest
 target_sources(syncHeartbeatReplyTest
     PRIVATE
     "syncHeartbeatReplyTest.cpp"
+)
+target_sources(syncLocalCmdTest
+    PRIVATE
+    "syncLocalCmdTest.cpp"
 )
 
 
@@ -612,6 +617,11 @@ target_include_directories(syncHeartbeatReplyTest
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+target_include_directories(syncLocalCmdTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 
 
 target_link_libraries(syncTest
@@ -855,6 +865,10 @@ target_link_libraries(syncHeartbeatTest
     gtest_main
 )
 target_link_libraries(syncHeartbeatReplyTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncLocalCmdTest
     sync
     gtest_main
 )

@@ -842,11 +842,17 @@ static int32_t translateElapsedImpl(SFunctionNode* pFunc, char* pErrBuf, int32_t
 }
 
 static int32_t translateElapsedPartial(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+#if 0
   return translateElapsedImpl(pFunc, pErrBuf, len, true);
+#endif
+  return 0;
 }
 
 static int32_t translateElapsedMerge(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+#if 0
   return translateElapsedImpl(pFunc, pErrBuf, len, false);
+#endif
+  return 0;
 }
 
 static int32_t translateLeastSQR(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -1645,7 +1651,7 @@ static int32_t translateMode(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 
 static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
-  if (numOfParams == 0 || numOfParams > 2) {
+  if (numOfParams > 2) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -2348,8 +2354,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = elapsedFinalize,
     .invertFunc   = NULL,
     .combineFunc  = elapsedCombine,
-    .pPartialFunc = "_elapsed_partial",
-    .pMergeFunc   = "_elapsed_merge"
   },
   {
     .name = "_elapsed_partial",
