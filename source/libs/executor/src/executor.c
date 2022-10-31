@@ -287,13 +287,10 @@ static SArray* filterUnqualifiedTables(const SStreamScanInfo* pScanInfo, const S
 
 int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd) {
   SExecTaskInfo*  pTaskInfo = (SExecTaskInfo*)tinfo;
-  STableListInfo* pListInfo = &pTaskInfo->tableqinfoList;
 
   if (isAdd) {
     qDebug("add %d tables id into query list, %s", (int32_t)taosArrayGetSize(tableIdList), pTaskInfo->id.str);
   }
-
-
 
   // traverse to the stream scanner node to add this table id
   SOperatorInfo* pInfo = pTaskInfo->pRoot;
@@ -328,7 +325,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
       }
     }
 
-    STableListInfo* pTableListInfo = &pTaskInfo->tableqinfoList;
+    STableListInfo* pTableListInfo = pTaskInfo->pTableInfoList;
 
     for (int32_t i = 0; i < numOfQualifiedTables; ++i) {
       uint64_t*     uid = taosArrayGet(qa, i);
@@ -361,7 +358,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
       if (!exists) {
 #endif
 
-      addTableIntoTableList(pTableListInfo, keyInfo.uid, keyInfo.groupId);
+      tableListAddTableInfo(pTableListInfo, keyInfo.uid, keyInfo.groupId);
     }
 
     if (keyBuf != NULL) {
@@ -925,8 +922,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       int64_t ts = pOffset->ts;
 
       if (uid == 0) {
-        if (taosArrayGetSize(pTaskInfo->tableqinfoList.pTableList) != 0) {
-          STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, 0);
+        if (tableListGetSize(pTaskInfo->pTableInfoList) != 0) {
+          STableKeyInfo* pTableInfo = tableListGetInfo(pTaskInfo->pTableInfoList, 0);
           uid = pTableInfo->uid;
           ts = INT64_MIN;
         } else {
@@ -937,7 +934,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       /*if (pTaskInfo->streamInfo.lastStatus.type != TMQ_OFFSET__SNAPSHOT_DATA ||*/
       /*pTaskInfo->streamInfo.lastStatus.uid != uid || pTaskInfo->streamInfo.lastStatus.ts != ts) {*/
       STableScanInfo* pTableScanInfo = pInfo->pTableScanOp->info;
-      int32_t         numOfTables = getTotalTables(&pTaskInfo->tableqinfoList);
+      int32_t         numOfTables = tableListGetSize(pTaskInfo->pTableInfoList);
 
 #ifndef NDEBUG
       qDebug("switch to next table %" PRId64 " (cursor %d), %" PRId64 " rows returned", uid,
@@ -947,7 +944,7 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
 
       bool found = false;
       for (int32_t i = 0; i < numOfTables; i++) {
-        STableKeyInfo* pTableInfo = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, i);
+        STableKeyInfo* pTableInfo = tableListGetInfo(pTaskInfo->pTableInfoList, i);
         if (pTableInfo->uid == uid) {
           found = true;
           pTableScanInfo->currentTable = i;
@@ -959,8 +956,8 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
       ASSERT(found);
 
       if (pTableScanInfo->dataReader == NULL) {
-        STableKeyInfo* pList = taosArrayGet(pTaskInfo->tableqinfoList.pTableList, 0);
-        int32_t num = getTotalTables(&pTaskInfo->tableqinfoList);
+        STableKeyInfo* pList = tableListGetInfo(pTaskInfo->pTableInfoList, 0);
+        int32_t num = tableListGetSize(pTaskInfo->pTableInfoList);
 
         if (tsdbReaderOpen(pTableScanInfo->readHandle.vnode, &pTableScanInfo->cond, pList, num,
                            &pTableScanInfo->dataReader, NULL) < 0 || pTableScanInfo->dataReader == NULL) {
@@ -993,22 +990,28 @@ int32_t qStreamPrepareScan(qTaskInfo_t tinfo, STqOffsetVal* pOffset, int8_t subT
     SMetaTableInfo mtInfo = getUidfromSnapShot(sContext);
     tsdbReaderClose(pInfo->dataReader);
     pInfo->dataReader = NULL;
+
     cleanupQueryTableDataCond(&pTaskInfo->streamInfo.tableCond);
-    taosArrayDestroy(pTaskInfo->tableqinfoList.pTableList);
-    if (mtInfo.uid == 0) return 0;  // no data
+    tableListClear(pTaskInfo->pTableInfoList);
+
+    if (mtInfo.uid == 0) {
+      return 0;  // no data
+    }
 
     initQueryTableDataCondForTmq(&pTaskInfo->streamInfo.tableCond, sContext, &mtInfo);
     pTaskInfo->streamInfo.tableCond.twindows.skey = pOffset->ts;
 
-    STableListInfo* pListInfo = &pTaskInfo->tableqinfoList;
+    if (pTaskInfo->pTableInfoList == NULL)  {
+      pTaskInfo->pTableInfoList = tableListCreate();
+    }
 
-    pListInfo->pTableList = taosArrayInit(1, sizeof(STableKeyInfo));
-    taosArrayPush(pListInfo->pTableList, &(STableKeyInfo){.uid = mtInfo.uid, .groupId = 0});
+    tableListAddTableInfo(pTaskInfo->pTableInfoList, mtInfo.uid, 0);
 
-    STableKeyInfo* pList = taosArrayGet(pListInfo->pTableList, 0);
+    STableKeyInfo* pList = tableListGetInfo(pTaskInfo->pTableInfoList, 0);
+    int32_t size = tableListGetSize(pTaskInfo->pTableInfoList);
+    ASSERT(size == 1);
 
-    tsdbReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pList, taosArrayGetSize(pListInfo->pTableList),
-                   &pInfo->dataReader, NULL);
+    tsdbReaderOpen(pInfo->vnode, &pTaskInfo->streamInfo.tableCond, pList, size, &pInfo->dataReader, NULL);
 
     cleanupQueryTableDataCond(&pTaskInfo->streamInfo.tableCond);
     strcpy(pTaskInfo->streamInfo.tbName, mtInfo.tbName);
