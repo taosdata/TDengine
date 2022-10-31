@@ -17,7 +17,11 @@ fn main() {
     if std::env::var("DATABASE_URL").is_err() {
         let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         let root = std::path::Path::new(&manifest_dir);
-        let db = root.join("target").join("taosx.dev.db");
+        let target = root.join("target");
+        if !target.exists() {
+            std::fs::create_dir_all(&target).unwrap();
+        }
+        let db = target.join("taosx.dev.db");
         let dsn = format!("sqlite:{}", db.display());
         std::env::set_var("DATABASE_URL", &dsn);
 
