@@ -101,7 +101,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   taosThreadMutexLock(&pWal->mutex);
   int64_t code;
   char    fnameStr[WAL_FILE_LEN];
-  if (ver > pWal->vers.lastVer || ver < pWal->vers.commitVer) {
+  if (ver > pWal->vers.lastVer || ver < pWal->vers.commitVer || ver <= pWal->vers.snapshotVer) {
     terrno = TSDB_CODE_WAL_INVALID_VER;
     taosThreadMutexUnlock(&pWal->mutex);
     return -1;
