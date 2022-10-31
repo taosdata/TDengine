@@ -24,6 +24,8 @@ extern "C" {
 #include "syncTools.h"
 #include "tlog.h"
 #include "ttimer.h"
+#include "taosdef.h"
+#include "ttimer.h"
 
 // clang-format off
 #define sFatal(...) do { if (sDebugFlag & DEBUG_FATAL) { taosPrintLog("SYN FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
@@ -255,9 +257,6 @@ void      syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* newConfig, Sync
 SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode);
 char*     syncNodePeerState2Str(const SSyncNode* pSyncNode);
 
-SSyncNode* syncNodeAcquire(int64_t rid);
-void       syncNodeRelease(SSyncNode* pNode);
-
 // raft state change --------------
 void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term);
 void syncNodeUpdateTermWithoutStepDown(SSyncNode* pSyncNode, SyncTerm term);
@@ -301,9 +300,6 @@ bool syncNodeNeedSendAppendEntries(SSyncNode* ths, const SRaftId* pDestId, const
 
 int32_t syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
 int32_t syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct SSnapshotMeta* sMeta);
-
-void syncStartNormal(int64_t rid);
-void syncStartStandBy(int64_t rid);
 
 bool syncNodeCanChange(SSyncNode* pSyncNode);
 bool syncNodeCheckNewConfig(SSyncNode* pSyncNode, const SSyncCfg* pNewCfg);

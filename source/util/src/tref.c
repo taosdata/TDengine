@@ -57,7 +57,7 @@ static void    taosIncRsetCount(SRefSet *pSet);
 static void    taosDecRsetCount(SRefSet *pSet);
 static int32_t taosDecRefCount(int32_t rsetId, int64_t rid, int32_t remove);
 
-int32_t taosOpenRef(int32_t max, void (*fp)(void *)) {
+int32_t taosOpenRef(int32_t max, RefFp fp) {
   SRefNode **nodeList;
   SRefSet   *pSet;
   int64_t   *lockedBy;
