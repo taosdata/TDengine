@@ -48,6 +48,10 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
   int32_t numOfCols = 0;
   code =
       extractColMatchInfo(pScanNode->scan.pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID, &pInfo->matchInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   removeRedundantTsCol(pScanNode, &pInfo->matchInfo);
 
   code = extractCacheScanSlotId(pInfo->matchInfo.pList, pTaskInfo, &pInfo->pSlotIds);
@@ -55,18 +59,23 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
     goto _error;
   }
 
-  STableListInfo* pTableList = &pTaskInfo->tableqinfoList;
+  STableListInfo* pTableList = pTaskInfo->pTableInfoList;
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
   pInfo->pUidList = taosArrayInit(4, sizeof(int64_t));
 
-  // partition by tbname
-  if (oneTableForEachGroup(pTableList) || (getTotalTables(pTableList) == 1)) {
+  // partition by tbname, todo opt perf
+  if (oneTableForEachGroup(pTableList) || (tableListGetSize(pTableList) == 1)) {
     pInfo->retrieveType =
         CACHESCAN_RETRIEVE_TYPE_ALL | (pScanNode->ignoreNull ? CACHESCAN_RETRIEVE_LAST : CACHESCAN_RETRIEVE_LAST_ROW);
-    code = tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pTableList->pTableList,
-                                   taosArrayGetSize(pInfo->matchInfo.pList), pTableList->suid, &pInfo->pLastrowReader);
+
+    STableKeyInfo* pList = tableListGetInfo(pTableList, 0);
+
+    size_t   num = tableListGetSize(pTableList);
+    uint64_t suid = tableListGetSuid(pTableList);
+    code = tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pList, num,
+                                   taosArrayGetSize(pInfo->matchInfo.pList), suid, &pInfo->pLastrowReader);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -98,7 +107,7 @@ SOperatorInfo* createCacherowsScanOperator(SLastRowScanPhysiNode* pScanNode, SRe
   pOperator->cost.openCost = 0;
   return pOperator;
 
-_error:
+  _error:
   pTaskInfo->code = code;
   destroyLastrowScanOperator(pInfo);
   taosMemoryFree(pOperator);
@@ -112,8 +121,10 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
 
   SLastrowScanInfo* pInfo = pOperator->info;
   SExecTaskInfo*    pTaskInfo = pOperator->pTaskInfo;
-  STableListInfo*   pTableList = &pTaskInfo->tableqinfoList;
-  int32_t           size = taosArrayGetSize(pTableList->pTableList);
+  STableListInfo*   pTableList = pTaskInfo->pTableInfoList;
+
+  uint64_t suid = tableListGetSuid(pTableList);
+  int32_t  size = tableListGetSize(pTableList);
   if (size == 0) {
     doSetOperatorCompleted(pOperator);
     return NULL;
@@ -168,6 +179,7 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       }
 
       pInfo->pRes->info.groupId = getTableGroupId(pTableList, pInfo->pRes->info.uid);
+
       pInfo->indexOfBufferedRes += 1;
       return pInfo->pRes;
     } else {
@@ -175,24 +187,24 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       return NULL;
     }
   } else {
-    size_t num = getNumOfOutputGroups(pTableList);
-    while (pInfo->currentGroupIndex < num) {
+    size_t totalGroups = tableListGetOutputGroups(pTableList);
 
-      STableKeyInfo* p = NULL;
-      int32_t s = 0;
-      getTablesOfGroup(pTableList, pInfo->currentGroupIndex, &p, &s);
-      SArray* x = taosArrayInit(4, sizeof(STableKeyInfo));
-      for(int32_t i = 0; i < s; ++i) {
-        taosArrayPush(x, &p[i]);
+    while (pInfo->currentGroupIndex < totalGroups) {
+      STableKeyInfo* pList = NULL;
+      int32_t num = 0;
+
+      int32_t code = tableListGetGroupList(pTableList, pInfo->currentGroupIndex, &pList, &num);
+      if (code != TSDB_CODE_SUCCESS) {
+        T_LONG_JMP(pTaskInfo->env, code);
       }
 
-      tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, x,
-                              taosArrayGetSize(pInfo->matchInfo.pList), pTableList->suid, &pInfo->pLastrowReader);
+      tsdbCacherowsReaderOpen(pInfo->readHandle.vnode, pInfo->retrieveType, pList, num,
+                              taosArrayGetSize(pInfo->matchInfo.pList), suid, &pInfo->pLastrowReader);
       taosArrayClear(pInfo->pUidList);
 
-      int32_t code = tsdbRetrieveCacheRows(pInfo->pLastrowReader, pInfo->pRes, pInfo->pSlotIds, pInfo->pUidList);
+      code = tsdbRetrieveCacheRows(pInfo->pLastrowReader, pInfo->pRes, pInfo->pSlotIds, pInfo->pUidList);
       if (code != TSDB_CODE_SUCCESS) {
-        longjmp(pTaskInfo->env, code);
+        T_LONG_JMP(pTaskInfo->env, code);
       }
 
       pInfo->currentGroupIndex += 1;
@@ -201,7 +213,9 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       if (pInfo->pRes->info.rows > 0) {
         if (pInfo->pseudoExprSup.numOfExprs > 0) {
           SExprSupp* pSup = &pInfo->pseudoExprSup;
-          pInfo->pRes->info.groupId = p->groupId;
+
+          STableKeyInfo* pKeyInfo = &((STableKeyInfo*)pTableList)[0];
+          pInfo->pRes->info.groupId = pKeyInfo->groupId;
 
           if (taosArrayGetSize(pInfo->pUidList) > 0) {
             ASSERT((pInfo->retrieveType & CACHESCAN_RETRIEVE_LAST_ROW) == CACHESCAN_RETRIEVE_LAST_ROW);
