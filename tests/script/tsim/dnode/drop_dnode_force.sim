@@ -50,18 +50,23 @@ endi
 print =============== step2 create database
 sql create database d1 vgroups 1 replica 3
 sql use d1
-sql create table d1.st (ts timestamp, i int) tags (j int)
-sql create table d1.c0 using st tags(0)
-sql create table d1.c1 using st tags(1)
-sql create table d1.c2 using st tags(2)
-sql create table d1.c3 using st tags(3)
-sql create table d1.c4 using st tags(4)
-sql create table d1.c5 using st tags(5)
-sql create table d1.c6 using st tags(6)
-sql create table d1.c7 using st tags(7)
-sql create table d1.c8 using st tags(8)
-sql create table d1.c9 using st tags(9)
+sql create table d1.st0 (ts timestamp, i int) tags (j int)
+sql create table d1.c0 using st0 tags(0)
+sql create table d1.c1 using st0 tags(1)
+sql create table d1.c2 using st0 tags(2)
+sql create table d1.c3 using st0 tags(3)
+sql create table d1.c4 using st0 tags(4)
+sql create table d1.c5 using st0 tags(5)
+sql create table d1.c6 using st0 tags(6)
+sql create table d1.c7 using st0 tags(7)
+sql create table d1.c8 using st0 tags(8)
+sql create table d1.c9 using st0 tags(9)
 sql show d1.tables
+if $rows != 10 then
+  return -1
+endi
+print d1.rows ===> $rows
+sql select * from information_schema.ins_tables where stable_name = 'st0' and db_name = 'd1'
 if $rows != 10 then
   return -1
 endi
@@ -79,10 +84,18 @@ sql create table d2.c16 using st1 tags(6)
 sql create table d2.c17 using st1 tags(7)
 sql create table d2.c18 using st1 tags(8)
 sql create table d2.c19 using st1 tags(9)
+sql create table d2.c190 using st1 tags(9)
 sql show d2.tables
-if $rows != 10 then
+if $rows != 11 then
   return -1
 endi
+sql reset query cache
+sql select * from information_schema.ins_tables where stable_name = 'st1' and db_name = 'd2'
+print d2.st1.tables ===> $rows
+if $rows != 11 then
+  return -1
+endi
+
 sql create table d2.st2 (ts timestamp, i int) tags (j int)
 sql create table d2.c20 using st2 tags(0)
 sql create table d2.c21 using st2 tags(1)
@@ -94,8 +107,16 @@ sql create table d2.c26 using st2 tags(6)
 sql create table d2.c27 using st2 tags(7)
 sql create table d2.c28 using st2 tags(8)
 sql create table d2.c29 using st2 tags(9)
+sql create table d2.c290 using st2 tags(9)
+sql create table d2.c291 using st2 tags(9)
 sql show d2.tables
-if $rows != 20 then
+if $rows != 23 then
+  return -1
+endi
+sql reset query cache
+sql select * from information_schema.ins_tables where stable_name = 'st2' and db_name = 'd2'
+print d2.st2.tables ===> $rows
+if $rows != 12 then
   return -1
 endi
 
@@ -204,6 +225,7 @@ if $rows != 0 then
 endi
 
 print =============== step6: check d1
+sql reset query cache
 sql show d1.tables
 if $rows != 10 then
   return -1
@@ -211,31 +233,19 @@ endi
 
 print =============== step7: check d2
 sql show d2.tables
-print ===> rows: $rows remained
-if $rows > 10 then
+print ===> d2.tables: $rows remained
+if $rows > 23 then
   return -1
 endi
-$remain = $rows
-
-return 
-print =============== step8: alter stable
-sql alter table d2.s1 add column b smallint
-sql create table d2.c30 using st tags(0)
-sql create table d2.c31 using st tags(1)
-sql create table d2.c32 using st tags(2)
-sql create table d2.c33 using st tags(3)
-sql create table d2.c34 using st tags(4)
-sql create table d2.c35 using st tags(5)
-sql create table d2.c36 using st tags(6)
-sql create table d2.c37 using st tags(7)
-sql create table d2.c38 using st tags(8)
-sql create table d2.c39 using st tags(9)
-sql show d2.tables
-if $rows != 10 then
+if $rows <= 0 then
   return -1
 endi
 
-print =============== step9: drop stable and recreate it
+print =============== step8: drop stable and recreate it
+sql select * from information_schema.ins_tables where stable_name = 'st2' and db_name = 'd2'
+print d2.st2.tables ==> $rows
+
+sql drop table d2.st2;
 sql create table d2.st2 (ts timestamp, i int) tags (j int)
 sql create table d2.c20 using st2 tags(0)
 sql create table d2.c21 using st2 tags(1)
@@ -247,11 +257,45 @@ sql create table d2.c26 using st2 tags(6)
 sql create table d2.c27 using st2 tags(7)
 sql create table d2.c28 using st2 tags(8)
 sql create table d2.c29 using st2 tags(9)
-sql show d2.tables
-if $rows != 20 then
+sql create table d2.c30 using st2 tags(9)
+sql create table d2.c31 using st2 tags(9)
+sql create table d2.c32 using st2 tags(9)
+
+sql select * from information_schema.ins_tables where stable_name = 'st2' and db_name = 'd2'
+print d2.st2.tables ==> $rows
+if $rows != 13 then
   return -1
 endi
 
+print =============== step9: alter stable
+return 
+print By modifying the stable, the missing stable information can be reconstructed in the vnode.
+print However, currently, getting the stable meta from the vnode, and return the table not exist 
+print To handle this, we need to modify the way stable-meta is fetched 
+
+sql select * from information_schema.ins_tables where stable_name = 'st1' and db_name = 'd2'
+print d2.st1.tables ==> $rows
+$remains = $rows
+
+sql alter table d2.st1 add column b smallint
+return
+sql create table d2.c30 using st tags(0)
+sql create table d2.c31 using st tags(1)
+sql create table d2.c32 using st tags(2)
+sql create table d2.c33 using st tags(3)
+sql create table d2.c34 using st tags(4)
+sql create table d2.c35 using st tags(5)
+sql create table d2.c36 using st tags(6)
+sql create table d2.c37 using st tags(7)
+sql create table d2.c38 using st tags(8)
+sql create table d2.c39 using st tags(9)
+sql show d2.tables
+print d2.st1.tables ==> $rows
+
+$total = $remains + 10
+if $rows != $total then
+  return -1
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
