@@ -3380,6 +3380,7 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
           // ASSERT(pEntry != NULL);
           if (code != 0 || pEntry == NULL) {
 			syncNodeErrorLog(ths, "get log entry error");
+			sFatal("vgId:%d, get log entry %" PRId64 " error when commit since %s", ths->vgId, i, terrstr());
             continue;
           }
         }
