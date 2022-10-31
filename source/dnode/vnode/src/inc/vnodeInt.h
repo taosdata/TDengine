@@ -56,6 +56,7 @@ typedef struct SSma               SSma;
 typedef struct STsdb              STsdb;
 typedef struct STQ                STQ;
 typedef struct SVState            SVState;
+typedef struct SVStatis           SVStatis;
 typedef struct SVBufPool          SVBufPool;
 typedef struct SQWorker           SQHandle;
 typedef struct STsdbKeepCfg       STsdbKeepCfg;
@@ -96,10 +97,11 @@ typedef struct SMCtbCursor SMCtbCursor;
 typedef struct SMStbCursor SMStbCursor;
 typedef struct STbUidStore STbUidStore;
 
-int             metaOpen(SVnode* pVnode, SMeta** ppMeta);
+int             metaOpen(SVnode* pVnode, SMeta** ppMeta, int8_t rollback);
 int             metaClose(SMeta* pMeta);
 int             metaBegin(SMeta* pMeta, int8_t fromSys);
 int             metaCommit(SMeta* pMeta);
+int             metaFinishCommit(SMeta* pMeta);
 int             metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int             metaAlterSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int             metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq, SArray* tbUidList);
@@ -141,21 +143,26 @@ typedef struct SMetaInfo {
 } SMetaInfo;
 int32_t metaGetInfo(SMeta* pMeta, int64_t uid, SMetaInfo* pInfo);
 
+typedef struct {
+  int64_t uid;
+  int64_t ctbNum;
+} SMetaStbStats;
+int32_t metaGetStbStats(SMeta* pMeta, int64_t uid, SMetaStbStats* pInfo);
+
 // tsdb
-int         tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg);
+int         tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg, int8_t rollback);
 int         tsdbClose(STsdb** pTsdb);
 int32_t     tsdbBegin(STsdb* pTsdb);
 int32_t     tsdbCommit(STsdb* pTsdb);
+int32_t     tsdbFinishCommit(STsdb* pTsdb);
+int32_t     tsdbRollbackCommit(STsdb* pTsdb);
 int32_t     tsdbDoRetention(STsdb* pTsdb, int64_t now);
 int         tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq* pMsg);
 int         tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq* pMsg, SSubmitRsp* pRsp);
 int32_t     tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock,
                                 SSubmitBlkRsp* pRsp);
 int32_t     tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
-STsdbReader tsdbQueryCacheLastT(STsdb* tsdb, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
-                                void* pMemRef);
 int32_t     tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
-int32_t     tsdbGetStbIdList(SMeta* pMeta, int64_t suid, SArray* list);
 
 // tq
 int     tqInit();
@@ -193,15 +200,16 @@ SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchem
 // sma
 int32_t smaInit();
 void    smaCleanUp();
-int32_t smaOpen(SVnode* pVnode);
+int32_t smaOpen(SVnode* pVnode, int8_t rollback);
 int32_t smaClose(SSma* pSma);
 int32_t smaBegin(SSma* pSma);
 int32_t smaSyncPreCommit(SSma* pSma);
 int32_t smaSyncCommit(SSma* pSma);
 int32_t smaSyncPostCommit(SSma* pSma);
-int32_t smaAsyncPreCommit(SSma* pSma);
-int32_t smaAsyncCommit(SSma* pSma);
-int32_t smaAsyncPostCommit(SSma* pSma);
+int32_t smaPreCommit(SSma* pSma);
+int32_t smaCommit(SSma* pSma);
+int32_t smaFinishCommit(SSma* pSma);
+int32_t smaPostCommit(SSma* pSma);
 int32_t smaDoRetention(SSma* pSma, int64_t now);
 
 int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
@@ -284,9 +292,17 @@ struct SVState {
   int64_t commitTerm;
 };
 
+struct SVStatis {
+  int64_t nInsert;              // delta
+  int64_t nInsertSuccess;       // delta
+  int64_t nBatchInsert;         // delta
+  int64_t nBatchInsertSuccess;  // delta
+};
+
 struct SVnodeInfo {
   SVnodeCfg config;
   SVState   state;
+  SVStatis  statis;
 };
 
 typedef enum {
@@ -309,6 +325,7 @@ struct SVnode {
   char*         path;
   SVnodeCfg     config;
   SVState       state;
+  SVStatis      statis;
   STfs*         pTfs;
   SMsgCb        msgCb;
   TdThreadMutex mutex;

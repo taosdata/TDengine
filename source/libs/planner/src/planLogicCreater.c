@@ -66,7 +66,8 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
   switch (nodeType(*pNode)) {
     case QUERY_NODE_OPERATOR:
     case QUERY_NODE_LOGIC_CONDITION:
-    case QUERY_NODE_FUNCTION: {
+    case QUERY_NODE_FUNCTION:
+    case QUERY_NODE_CASE_WHEN: {
       SRewriteExprCxt* pCxt = (SRewriteExprCxt*)pContext;
       SNode*           pExpr;
       int32_t          index = 0;
@@ -116,6 +117,17 @@ static EDealRes doNameExpr(SNode* pNode, void* pContext) {
   }
 
   return DEAL_RES_CONTINUE;
+}
+
+static int32_t rewriteExprForSelect(SNode* pExpr, SSelectStmt* pSelect, ESqlClause clause) {
+  nodesWalkExpr(pExpr, doNameExpr, NULL);
+  SRewriteExprCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pExprs = NULL};
+  cxt.errCode = nodesListMakeAppend(&cxt.pExprs, pExpr);
+  if (TSDB_CODE_SUCCESS == cxt.errCode) {
+    nodesRewriteSelectStmt(pSelect, clause, doRewriteExpr, &cxt);
+    nodesClearList(cxt.pExprs);
+  }
+  return cxt.errCode;
 }
 
 static int32_t rewriteExprsForSelect(SNodeList* pExprs, SSelectStmt* pSelect, ESqlClause clause) {
@@ -327,29 +339,6 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   return code;
 }
 
-static int32_t createColumnByLastRow(SNodeList* pFuncs, SNodeList** pOutput) {
-  int32_t    code = TSDB_CODE_SUCCESS;
-  SNodeList* pCols = NULL;
-  SNode*     pFunc = NULL;
-  FOREACH(pFunc, pFuncs) {
-    SFunctionNode* pLastRow = (SFunctionNode*)pFunc;
-    SColumnNode*   pCol = (SColumnNode*)nodesListGetNode(pLastRow->pParameterList, 0);
-    snprintf(pCol->colName, sizeof(pCol->colName), "%s", pLastRow->node.aliasName);
-    snprintf(pCol->node.aliasName, sizeof(pCol->colName), "%s", pLastRow->node.aliasName);
-    NODES_CLEAR_LIST(pLastRow->pParameterList);
-    code = nodesListMakeStrictAppend(&pCols, (SNode*)pCol);
-    if (TSDB_CODE_SUCCESS != code) {
-      break;
-    }
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    *pOutput = pCols;
-  } else {
-    nodesDestroyList(pCols);
-  }
-  return code;
-}
-
 static int32_t createSubqueryLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, STempTableNode* pTable,
                                        SLogicNode** pLogicNode) {
   return createQueryLogicNode(pCxt, pTable->pSubquery, pLogicNode);
@@ -459,9 +448,9 @@ static SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) 
     return NULL;
   }
   pCol->node.resType = pExpr->resType;
-  strcpy(pCol->colName, pExpr->aliasName);
+  snprintf(pCol->colName, sizeof(pCol->colName), "%s", pExpr->aliasName);
   if (NULL != pStmtName) {
-    strcpy(pCol->tableAlias, pStmtName);
+    snprintf(pCol->tableAlias, sizeof(pCol->tableAlias), "%s", pStmtName);
   }
   return pCol;
 }
@@ -477,20 +466,6 @@ static SNode* createGroupingSetNode(SNode* pExpr) {
     return NULL;
   }
   return (SNode*)pGroupingSet;
-}
-
-static int32_t createGroupKeysFromPartKeys(SNodeList* pPartKeys, SNodeList** pOutput) {
-  SNodeList* pGroupKeys = NULL;
-  SNode*     pPartKey = NULL;
-  FOREACH(pPartKey, pPartKeys) {
-    int32_t code = nodesListMakeStrictAppend(&pGroupKeys, createGroupingSetNode(pPartKey));
-    if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyList(pGroupKeys);
-      return code;
-    }
-  }
-  *pOutput = pGroupKeys;
-  return TSDB_CODE_SUCCESS;
 }
 
 static EGroupAction getGroupAction(SLogicPlanContext* pCxt, SSelectStmt* pSelect) {
@@ -514,6 +489,7 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
   }
 
   pAgg->hasLastRow = pSelect->hasLastRowFunc;
+  pAgg->hasLast = pSelect->hasLastFunc;
   pAgg->hasTimeLineFunc = pSelect->hasTimeLineFunc;
   pAgg->onlyHasKeepOrderFunc = pSelect->onlyHasKeepOrderFunc;
   pAgg->node.groupAction = getGroupAction(pCxt, pSelect);
@@ -611,8 +587,6 @@ static int32_t createIndefRowsFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt
   return code;
 }
 
-static bool isInterpFunc(int32_t funcId) { return fmIsInterpFunc(funcId) || fmIsInterpPseudoColumnFunc(funcId); }
-
 static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
   if (!pSelect->hasInterpFunc) {
     return TSDB_CODE_SUCCESS;
@@ -627,7 +601,8 @@ static int32_t createInterpFuncLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   pInterpFunc->node.requireDataOrder = getRequireDataOrder(true, pSelect);
   pInterpFunc->node.resultDataOrder = pInterpFunc->node.requireDataOrder;
 
-  int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, isInterpFunc, &pInterpFunc->pFuncs);
+  // interp functions and _group_key functions
+  int32_t code = nodesCollectFuncs(pSelect, SQL_CLAUSE_SELECT, fmIsVectorFunc, &pInterpFunc->pFuncs);
   if (TSDB_CODE_SUCCESS == code) {
     code = rewriteExprsForSelect(pInterpFunc->pFuncs, pSelect, SQL_CLAUSE_SELECT);
   }
@@ -710,8 +685,13 @@ static int32_t createWindowLogicNodeByState(SLogicPlanContext* pCxt, SStateWindo
     nodesDestroyNode((SNode*)pWindow);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  // rewrite the expression in subsequent clauses
+  int32_t code = rewriteExprForSelect(pWindow->pStateExpr, pSelect, SQL_CLAUSE_WINDOW);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
+  }
 
-  return createWindowLogicNodeFinalize(pCxt, pSelect, pWindow, pLogicNode);
+  return code;
 }
 
 static int32_t createWindowLogicNodeBySession(SLogicPlanContext* pCxt, SSessionWindowNode* pSession,

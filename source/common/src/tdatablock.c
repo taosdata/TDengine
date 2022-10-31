@@ -1707,8 +1707,6 @@ void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock) {
 
     if (IS_VAR_DATA_TYPE(data.info.type)) {
       buf = taosDecodeBinary(buf, (void**)&data.varmeta.offset, pBlock->info.rows * sizeof(int32_t));
-      data.varmeta.length = pBlock->info.rows * sizeof(int32_t);
-      data.varmeta.allocLen = data.varmeta.length;
     } else {
       buf = taosDecodeBinary(buf, (void**)&data.nullbitmap, BitmapLen(pBlock->info.rows));
     }
@@ -1716,6 +1714,10 @@ void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock) {
     int32_t len = 0;
     buf = taosDecodeFixedI32(buf, &len);
     buf = taosDecodeBinary(buf, (void**)&data.pData, len);
+    if (IS_VAR_DATA_TYPE(data.info.type)) {
+      data.varmeta.length = len;
+      data.varmeta.allocLen = len;
+    }
     taosArrayPush(pBlock->pDataBlock, &data);
   }
   return (void*)buf;
@@ -1836,10 +1838,10 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
             printf(" %15u |", *(uint32_t*)var);
             break;
           case TSDB_DATA_TYPE_BIGINT:
-            printf(" %15ld |", *(int64_t*)var);
+            printf(" %15" PRId64 " |", *(int64_t*)var);
             break;
           case TSDB_DATA_TYPE_UBIGINT:
-            printf(" %15lu |", *(uint64_t*)var);
+            printf(" %15" PRIu64 " |", *(uint64_t*)var);
             break;
           case TSDB_DATA_TYPE_FLOAT:
             printf(" %15f |", *(float*)var);
@@ -1858,7 +1860,7 @@ void blockDebugShowDataBlocks(const SArray* dataBlocks, const char* flag) {
             char*   pData = colDataGetVarData(pColInfoData, j);
             int32_t dataSize = TMIN(sizeof(pBuf), varDataLen(pData));
             memset(pBuf, 0, dataSize);
-            taosUcs4ToMbs((TdUcs4*)varDataVal(pData), dataSize, pBuf);
+            (void)taosUcs4ToMbs((TdUcs4*)varDataVal(pData), dataSize, pBuf);
             printf(" %15s |", pBuf);
           } break;
           default:
@@ -1892,12 +1894,13 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
 
     for (int32_t k = 0; k < colNum; k++) {
       SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
-      void*            var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
       if (colDataIsNull(pColInfoData, rows, j, NULL) || !pColInfoData->pData) {
         len += snprintf(dumpBuf + len, size - len, " %15s |", "NULL");
         if (len >= size - 1) return dumpBuf;
         continue;
       }
+
+      void* var = colDataGetData(pColInfoData, j);
       switch (pColInfoData->info.type) {
         case TSDB_DATA_TYPE_TIMESTAMP:
           memset(pBuf, 0, sizeof(pBuf));
@@ -1914,11 +1917,11 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
           if (len >= size - 1) return dumpBuf;
           break;
         case TSDB_DATA_TYPE_BIGINT:
-          len += snprintf(dumpBuf + len, size - len, " %15ld |", *(int64_t*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15" PRId64 " |", *(int64_t*)var);
           if (len >= size - 1) return dumpBuf;
           break;
         case TSDB_DATA_TYPE_UBIGINT:
-          len += snprintf(dumpBuf + len, size - len, " %15lu |", *(uint64_t*)var);
+          len += snprintf(dumpBuf + len, size - len, " %15" PRIu64 " |", *(uint64_t*)var);
           if (len >= size - 1) return dumpBuf;
           break;
         case TSDB_DATA_TYPE_FLOAT:
@@ -1926,8 +1929,8 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
           if (len >= size - 1) return dumpBuf;
           break;
         case TSDB_DATA_TYPE_DOUBLE:
-          len += snprintf(dumpBuf + len, size - len, " %15lf |", *(double*)var);
-          if (len >= size - 1) return dumpBuf;
+          // len += snprintf(dumpBuf + len, size - len, " %15lf |", *(double*)var);
+          // if (len >= size - 1) return dumpBuf;
           break;
         case TSDB_DATA_TYPE_BOOL:
           len += snprintf(dumpBuf + len, size - len, " %15d |", *(bool*)var);
@@ -1945,7 +1948,7 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
           char*   pData = colDataGetVarData(pColInfoData, j);
           int32_t dataSize = TMIN(sizeof(pBuf), varDataLen(pData));
           memset(pBuf, 0, sizeof(pBuf));
-          taosUcs4ToMbs((TdUcs4*)varDataVal(pData), dataSize, pBuf);
+          (void)taosUcs4ToMbs((TdUcs4*)varDataVal(pData), dataSize, pBuf);
           len += snprintf(dumpBuf + len, size - len, " %15s |", pBuf);
           if (len >= size - 1) return dumpBuf;
         } break;
@@ -2029,21 +2032,24 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataB
               tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID, TSDB_DATA_TYPE_TIMESTAMP, TD_VTYPE_NORM, var, true,
                                   offset, k);
 
+            } else if (colDataIsNull_s(pColInfoData, j)) {
+              tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_TIMESTAMP, TD_VTYPE_NULL, NULL,
+                                  false, offset, k);
             } else {
               tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_TIMESTAMP, TD_VTYPE_NORM, var,
                                   true, offset, k);
             }
             break;
-          case TSDB_DATA_TYPE_NCHAR: {
-            void* data = colDataGetData(pColInfoData, j);
-            tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_NCHAR, TD_VTYPE_NORM, data, true,
-                                offset, k);
-            break;
-          }
+          case TSDB_DATA_TYPE_NCHAR:
           case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
-            void* data = colDataGetData(pColInfoData, j);
-            tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, TSDB_DATA_TYPE_VARCHAR, TD_VTYPE_NORM, data, true,
-                                offset, k);
+            if (colDataIsNull_s(pColInfoData, j)) {
+              tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, pColInfoData->info.type, TD_VTYPE_NULL, NULL,
+                                  false, offset, k);
+            } else {
+              void* data = colDataGetData(pColInfoData, j);
+              tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, pColInfoData->info.type, TD_VTYPE_NORM, data,
+                                  true, offset, k);
+            }
             break;
           }
           case TSDB_DATA_TYPE_VARBINARY:
@@ -2052,11 +2058,14 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataB
           case TSDB_DATA_TYPE_JSON:
           case TSDB_DATA_TYPE_MEDIUMBLOB:
             uError("the column type %" PRIi16 " is defined but not implemented yet", pColInfoData->info.type);
-            TASSERT(0);
+            ASSERT(0);
             break;
           default:
             if (pColInfoData->info.type < TSDB_DATA_TYPE_MAX && pColInfoData->info.type > TSDB_DATA_TYPE_NULL) {
-              if (pCol->type == pColInfoData->info.type) {
+              if (colDataIsNull_s(pColInfoData, j)) {
+                tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type, TD_VTYPE_NULL, NULL, false, offset,
+                                    k);
+              } else if (pCol->type == pColInfoData->info.type) {
                 tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type, TD_VTYPE_NORM, var, true, offset,
                                     k);
               } else {
@@ -2083,7 +2092,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataB
               }
             } else {
               uError("the column type %" PRIi16 " is undefined\n", pColInfoData->info.type);
-              TASSERT(0);
+              ASSERT(0);
             }
             break;
         }

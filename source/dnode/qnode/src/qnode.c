@@ -14,10 +14,10 @@
  */
 
 #include "executor.h"
+#include "libs/function/function.h"
 #include "qndInt.h"
 #include "query.h"
 #include "qworker.h"
-#include "libs/function/function.h"
 
 SQnode *qndOpen(const SQnodeOpt *pOption) {
   SQnode *pQnode = taosMemoryCalloc(1, sizeof(SQnode));
@@ -40,8 +40,8 @@ void qndClose(SQnode *pQnode) {
   taosMemoryFree(pQnode);
 }
 
-int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) { 
-  SReadHandle handle = {.pMsgCb = &pQnode->msgCb};
+int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) {
+  SReadHandle  handle = {.pMsgCb = &pQnode->msgCb};
   SQWorkerStat stat = {0};
 
   int32_t code = qWorkerGetStat(&handle, pQnode->pQuery, &stat);
@@ -60,11 +60,11 @@ int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) {
   pLoad->numOfProcessedDrop = stat.dropProcessed;
   pLoad->numOfProcessedHb = stat.hbProcessed;
   pLoad->numOfProcessedDelete = stat.deleteProcessed;
-  
-  return 0; 
+
+  return 0;
 }
 
-int32_t qndPreprocessQueryMsg(SQnode *pQnode, SRpcMsg * pMsg) {
+int32_t qndPreprocessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
   if (TDMT_SCH_QUERY != pMsg->msgType && TDMT_SCH_MERGE_QUERY != pMsg->msgType) {
     return 0;
   }
@@ -90,7 +90,7 @@ int32_t qndProcessQueryMsg(SQnode *pQnode, int64_t ts, SRpcMsg *pMsg) {
       code = qWorkerProcessFetchMsg(pQnode, pQnode->pQuery, pMsg, ts);
       break;
     case TDMT_SCH_CANCEL_TASK:
-      code = qWorkerProcessCancelMsg(pQnode, pQnode->pQuery, pMsg, ts);
+      //code = qWorkerProcessCancelMsg(pQnode, pQnode->pQuery, pMsg, ts);
       break;
     case TDMT_SCH_DROP_TASK:
       code = qWorkerProcessDropMsg(pQnode, pQnode->pQuery, pMsg, ts);

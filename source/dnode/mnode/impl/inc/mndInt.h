@@ -51,8 +51,8 @@ extern "C" {
 // clang-format on
 
 #define SYSTABLE_SCH_TABLE_NAME_LEN ((TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
-#define SYSTABLE_SCH_DB_NAME_LEN ((TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
-#define SYSTABLE_SCH_COL_NAME_LEN ((TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
+#define SYSTABLE_SCH_DB_NAME_LEN    ((TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
+#define SYSTABLE_SCH_COL_NAME_LEN   ((TSDB_COL_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 
 typedef int32_t (*MndMsgFp)(SRpcMsg *pMsg);
 typedef int32_t (*MndInitFp)(SMnode *pMnode);
@@ -80,19 +80,20 @@ typedef struct {
 } SProfileMgmt;
 
 typedef struct {
-  SRWLatch lock;
-  char     email[TSDB_FQDN_LEN];
+  TdThreadMutex lock;
+  char           email[TSDB_FQDN_LEN];
 } STelemMgmt;
 
 typedef struct {
   tsem_t   syncSem;
   int64_t  sync;
-  SReplica replica;
   int32_t  errCode;
   int32_t  transId;
   SRWLatch lock;
-  int8_t   standby;
   int8_t   leaderTransferFinish;
+  int8_t   selfIndex;
+  int8_t   numOfReplicas;
+  SReplica replicas[TSDB_MAX_REPLICA];
 } SSyncMgmt;
 
 typedef struct {
@@ -130,11 +131,10 @@ typedef struct SMnode {
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
 int64_t mndGenerateUid(const char *name, int32_t len);
 
-int32_t mndAcquireRpcRef(SMnode *pMnode);
-void    mndReleaseRpcRef(SMnode *pMnode);
-void    mndSetRestore(SMnode *pMnode, bool restored);
-void    mndSetStop(SMnode *pMnode);
-bool    mndGetStop(SMnode *pMnode);
+void mndSetRestored(SMnode *pMnode, bool restored);
+bool mndGetRestored(SMnode *pMnode);
+void mndSetStop(SMnode *pMnode);
+bool mndGetStop(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

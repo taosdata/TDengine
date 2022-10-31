@@ -144,4 +144,4 @@ bool tsBufIsValidElem(STSElem* pElem);
 }
 #endif
 
-#endif  /*_TD_COMMON_TTSZIP_H_*/
+#endif /*_TD_COMMON_TTSZIP_H_*/

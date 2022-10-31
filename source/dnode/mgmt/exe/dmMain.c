@@ -15,22 +15,23 @@
 
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
-#include "tconfig.h"
 #include "mnode.h"
+#include "tconfig.h"
 
+// clang-format off
 #define DM_APOLLO_URL    "The apollo string to use when configuring the server, such as: -a 'jsonFile:./tests/cfg.json', cfg.json text can be '{\"fqdn\":\"td1\"}'."
 #define DM_CFG_DIR       "Configuration directory."
 #define DM_DMP_CFG       "Dump configuration."
 #define DM_SDB_INFO      "Dump sdb info."
 #define DM_ENV_CMD       "The env cmd variable string to use when configuring the server, such as: -e 'TAOS_FQDN=td1'."
 #define DM_ENV_FILE      "The env variable file path to use when configuring the server, default is './.env', .env text can be 'TAOS_FQDN=td1'."
-#define DM_NODE_TYPE     "Startup type of the node, default is 0."
 #define DM_MACHINE_CODE  "Get machine code."
 #define DM_VERSION       "Print program version."
 #define DM_EMAIL         "<support@taosdata.com>"
+// clang-format on
 static struct {
 #ifdef WINDOWS
-  bool         winServiceMode;
+  bool winServiceMode;
 #endif
   bool         dumpConfig;
   bool         dumpSdb;
@@ -42,7 +43,6 @@ static struct {
   char         apolloUrl[PATH_MAX];
   const char **envCmd;
   SArray      *pArgs;  // SConfigPair
-  EDndNodeType ntype;
 } global = {0};
 
 static void dmStopDnode(int signum, void *info, void *ctx) { dmStop(); }
@@ -57,13 +57,6 @@ static void dmSetSignalHandle() {
   taosSetSignal(SIGTSTP, dmStopDnode);
   taosSetSignal(SIGQUIT, dmStopDnode);
 #endif
-
-  if (!tsMultiProcess) {
-  } else if (global.ntype == DNODE || global.ntype == NODE_END) {
-    taosIgnSignal(SIGCHLD);
-  } else {
-    taosKillChildOnParentStopped();
-  }
 }
 
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
@@ -89,22 +82,16 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
       global.dumpSdb = true;
     } else if (strcmp(argv[i], "-E") == 0) {
       tstrncpy(global.envFile, argv[++i], PATH_MAX);
-    } else if (strcmp(argv[i], "-n") == 0) {
-      global.ntype = atoi(argv[++i]);
-      if (global.ntype <= DNODE || global.ntype > NODE_END) {
-        printf("'-n' range is [1 - %d], default is 0\n", NODE_END - 1);
-        return -1;
-      }
     } else if (strcmp(argv[i], "-k") == 0) {
       global.generateGrant = true;
     } else if (strcmp(argv[i], "-C") == 0) {
       global.dumpConfig = true;
     } else if (strcmp(argv[i], "-V") == 0) {
       global.printVersion = true;
-  #ifdef WINDOWS
+#ifdef WINDOWS
     } else if (strcmp(argv[i], "--win_service") == 0) {
       global.winServiceMode = true;
-  #endif
+#endif
     } else if (strcmp(argv[i], "-e") == 0) {
       global.envCmd[cmdEnvIndex] = argv[++i];
       cmdEnvIndex++;
@@ -140,7 +127,6 @@ static void dmPrintHelp() {
   printf("%s%s%s%s\n", indent, "-C,", indent, DM_DMP_CFG);
   printf("%s%s%s%s\n", indent, "-e,", indent, DM_ENV_CMD);
   printf("%s%s%s%s\n", indent, "-E,", indent, DM_ENV_FILE);
-  printf("%s%s%s%s\n", indent, "-n,", indent, DM_NODE_TYPE);
   printf("%s%s%s%s\n", indent, "-k,", indent, DM_MACHINE_CODE);
   printf("%s%s%s%s\n", indent, "-V,", indent, DM_VERSION);
 
@@ -153,17 +139,7 @@ static void dmDumpCfg() {
 }
 
 static int32_t dmInitLog() {
-  char logName[12] = {0};
-  snprintf(logName, sizeof(logName), "%slog", dmNodeLogName(global.ntype));
-  return taosCreateLog(logName, 1, configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0);
-}
-
-static void dmSetProcInfo(int32_t argc, char **argv) {
-  taosSetProcPath(argc, argv);
-  if (global.ntype != DNODE && global.ntype != NODE_END) {
-    const char *name = dmNodeProcName(global.ntype);
-    taosSetProcName(argc, argv, name);
-  }
+  return taosCreateLog("taosdlog", 1, configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0);
 }
 
 static void taosCleanupArgs() {
@@ -183,7 +159,7 @@ int main(int argc, char const *argv[]) {
   }
 
 #ifdef WINDOWS
-  int mainWindows(int argc,char** argv);
+  int mainWindows(int argc, char **argv);
   if (global.winServiceMode) {
     stratWindowsService(mainWindows);
   } else {
@@ -191,7 +167,7 @@ int main(int argc, char const *argv[]) {
   }
   return 0;
 }
-int mainWindows(int argc,char** argv) {
+int mainWindows(int argc, char **argv) {
 #endif
 
   if (global.generateGrant) {
@@ -224,7 +200,7 @@ int mainWindows(int argc,char** argv) {
     taosCleanupArgs();
     return -1;
   }
-  
+
   taosConvInit();
 
   if (global.dumpConfig) {
@@ -232,6 +208,7 @@ int mainWindows(int argc,char** argv) {
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();
+    taosConvDestroy();
     return 0;
   }
 
@@ -240,13 +217,14 @@ int mainWindows(int argc,char** argv) {
     taosCleanupCfg();
     taosCloseLog();
     taosCleanupArgs();
+    taosConvDestroy();
     return 0;
   }
 
-  dmSetProcInfo(argc, (char **)argv);
+  osSetProcPath(argc, (char **)argv);
   taosCleanupArgs();
 
-  if (dmInit(global.ntype) != 0) {
+  if (dmInit() != 0) {
     dError("failed to init dnode since %s", terrstr());
     return -1;
   }

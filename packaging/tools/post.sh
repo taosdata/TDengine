@@ -18,6 +18,7 @@ if [ "$osType" != "Darwin" ]; then
   script_dir=$(dirname $(readlink -f "$0"))
   verNumber=""
   lib_file_ext="so"
+  lib_file_ext_1="so.1"
 
   bin_link_dir="/usr/bin"
   lib_link_dir="/usr/lib"
@@ -29,6 +30,7 @@ else
   script_dir=${source_dir}/packaging/tools
   verNumber=`ls tdengine/driver | grep -E "libtaos\.[0-9]\.[0-9]" | sed "s/libtaos.//g" |  sed "s/.dylib//g" | head -n 1`
   lib_file_ext="dylib"
+  lib_file_ext_1="1.dylib"
 
   bin_link_dir="/usr/local/bin"
   lib_link_dir="/usr/local/lib"
@@ -73,7 +75,7 @@ fi
 
 initd_mod=0
 service_mod=2
-if pidof systemd &> /dev/null; then
+if ps aux | grep -v grep | grep systemd &> /dev/null; then
     service_mod=0
 elif $(which service &> /dev/null); then
     service_mod=1
@@ -116,6 +118,7 @@ function kill_taosd() {
 }
 
 function install_include() {
+    ${csudo}mkdir -p ${inc_link_dir}
     ${csudo}rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h ${inc_link_dir}/taosudf.h || :
     [ -f ${inc_link_dir}/taosws.h ] && ${csudo}rm -f ${inc_link_dir}/taosws.h ||:
 
@@ -134,14 +137,14 @@ function install_lib() {
     [ -f ${lib_link_dir}/libtaosws.${lib_file_ext} ] && ${csudo}rm -f ${lib_link_dir}/libtaosws.${lib_file_ext} || :
     [ -f ${lib64_link_dir}/libtaosws.${lib_file_ext} ] && ${csudo}rm -f ${lib64_link_dir}/libtaosws.${lib_file_ext} || :
 
-    ${csudo}ln -s ${lib_dir}/libtaos.* ${lib_link_dir}/libtaos.so.1
-    ${csudo}ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
+    ${csudo}ln -s ${lib_dir}/libtaos.* ${lib_link_dir}/libtaos.${lib_file_ext_1}
+    ${csudo}ln -s ${lib_link_dir}/libtaos.${lib_file_ext_1} ${lib_link_dir}/libtaos.${lib_file_ext}
 
     [ -f ${lib_dir}/libtaosws.${lib_file_ext} ] && ${csudo}ln -sf ${lib_dir}/libtaosws.${lib_file_ext} ${lib_link_dir}/libtaosws.${lib_file_ext} ||:
 
-    if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
-      ${csudo}ln -s ${lib_dir}/libtaos.* ${lib64_link_dir}/libtaos.so.1           || :
-      ${csudo}ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so   || :
+    if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.${lib_file_ext} ]]; then
+      ${csudo}ln -s ${lib_dir}/libtaos.* ${lib64_link_dir}/libtaos.${lib_file_ext_1}          || :
+      ${csudo}ln -s ${lib64_link_dir}/libtaos.${lib_file_ext_1} ${lib64_link_dir}/libtaos.${lib_file_ext}   || :
 
       [ -f ${lib_dir}/libtaosws.${lib_file_ext} ] && ${csudo}ln -sf ${lib_dir}/libtaosws.${lib_file_ext} ${lib64_link_dir}/libtaosws.${lib_file_ext} || :
     fi
@@ -419,7 +422,7 @@ function clean_service_on_sysvinit() {
     #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
     #${csudo}sed -i "\|${restart_config_str}|d" /etc/inittab || :
 
-    if pidof taosd &> /dev/null; then
+    if ps aux | grep -v grep | grep taosd &> /dev/null; then
         ${csudo}service taosd stop || :
     fi
 
@@ -509,6 +512,11 @@ function install_service_on_launchctl() {
     ${csudouser}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
     ${csudo}cp ${install_main_dir}/service/com.taosdata.taosd.plist /Library/LaunchDaemons/com.taosdata.taosd.plist || :
     ${csudouser}launchctl load -w /Library/LaunchDaemons/com.taosdata.taosd.plist || :
+  fi
+  if [ -f ${install_main_dir}/service/com.taosdata.taosadapter.plist ]; then
+    ${csudouser}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosadapter.plist > /dev/null 2>&1 || :
+    ${csudo}cp ${install_main_dir}/service/com.taosdata.taosadapter.plist /Library/LaunchDaemons/com.taosdata.taosadapter.plist || :
+    ${csudouser}launchctl load -w /Library/LaunchDaemons/com.taosdata.taosadapter.plist || :
   fi
 }
 

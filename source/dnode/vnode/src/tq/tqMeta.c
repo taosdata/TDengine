@@ -70,17 +70,17 @@ int32_t tDecodeSTqHandle(SDecoder* pDecoder, STqHandle* pHandle) {
 }
 
 int32_t tqMetaOpen(STQ* pTq) {
-  if (tdbOpen(pTq->path, 16 * 1024, 1, &pTq->pMetaDB) < 0) {
+  if (tdbOpen(pTq->path, 16 * 1024, 1, &pTq->pMetaDB, 0) < 0) {
     ASSERT(0);
     return -1;
   }
 
-  if (tdbTbOpen("tq.db", -1, -1, NULL, pTq->pMetaDB, &pTq->pExecStore) < 0) {
+  if (tdbTbOpen("tq.db", -1, -1, NULL, pTq->pMetaDB, &pTq->pExecStore, 0) < 0) {
     ASSERT(0);
     return -1;
   }
 
-  if (tdbTbOpen("tq.check.db", -1, -1, NULL, pTq->pMetaDB, &pTq->pCheckStore) < 0) {
+  if (tdbTbOpen("tq.check.db", -1, -1, NULL, pTq->pMetaDB, &pTq->pCheckStore, 0) < 0) {
     ASSERT(0);
     return -1;
   }
@@ -170,16 +170,19 @@ int32_t tqMetaRestoreCheckInfo(STQ* pTq) {
     tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
     if (tDecodeSTqCheckInfo(&decoder, &info) < 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
+      tdbFree(pKey);
       tdbTbcClose(pCur);
       return -1;
     }
     tDecoderClear(&decoder);
     if (taosHashPut(pTq->pCheckInfo, info.topic, strlen(info.topic), &info, sizeof(STqCheckInfo)) < 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
+      tdbFree(pKey);
       tdbTbcClose(pCur);
       return -1;
     }
   }
+  tdbFree(pKey);
   tdbTbcClose(pCur);
   return 0;
 }
@@ -190,8 +193,8 @@ int32_t tqMetaSaveHandle(STQ* pTq, const char* key, const STqHandle* pHandle) {
   tEncodeSize(tEncodeSTqHandle, pHandle, vlen, code);
   ASSERT(code == 0);
 
-  tqDebug("tq save %s(%d) consumer %ld vgId:%d", pHandle->subKey, (int32_t)strlen(pHandle->subKey), pHandle->consumerId,
-          TD_VID(pTq->pVnode));
+  tqDebug("tq save %s(%d) consumer %" PRId64 " vgId:%d", pHandle->subKey, (int32_t)strlen(pHandle->subKey),
+          pHandle->consumerId, TD_VID(pTq->pVnode));
 
   void* buf = taosMemoryCalloc(1, vlen);
   if (buf == NULL) {
@@ -326,4 +329,3 @@ int32_t tqMetaRestoreHandle(STQ* pTq) {
   tdbTbcClose(pCur);
   return 0;
 }
-

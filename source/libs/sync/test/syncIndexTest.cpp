@@ -9,11 +9,11 @@ void print(SHashObj *pNextIndex) {
   uint64_t *p = (uint64_t *)taosHashIterate(pNextIndex, NULL);
   while (p) {
     size_t len;
-    void * key = taosHashGetKey(p, &len);
+    void  *key = taosHashGetKey(p, &len);
 
     SRaftId *pRaftId = (SRaftId *)key;
 
-    printf("key:<" PRIu64 ", %d>, value:%" PRIu64 " \n", pRaftId->addr, pRaftId->vgId, *p);
+    printf("key:<%" PRIu64 ", %d>, value:%" PRIu64 " \n", pRaftId->addr, pRaftId->vgId, *p);
     p = (uint64_t *)taosHashIterate(pNextIndex, p);
   }
 }

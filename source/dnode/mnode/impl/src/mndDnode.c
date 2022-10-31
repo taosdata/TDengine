@@ -361,10 +361,12 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
       bool roleChanged = false;
       for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
         if (pVgroup->vnodeGid[vg].dnodeId == statusReq.dnodeId) {
-          if (pVgroup->vnodeGid[vg].role != pVload->syncState) {
+          if (pVgroup->vnodeGid[vg].syncState != pVload->syncState ||
+              pVgroup->vnodeGid[vg].syncRestore != pVload->syncRestore) {
+            pVgroup->vnodeGid[vg].syncState = pVload->syncState;
+            pVgroup->vnodeGid[vg].syncRestore = pVload->syncRestore;
             roleChanged = true;
           }
-          pVgroup->vnodeGid[vg].role = pVload->syncState;
           break;
         }
       }
@@ -378,10 +380,11 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
 
   SMnodeObj *pObj = mndAcquireMnode(pMnode, pDnode->id);
   if (pObj != NULL) {
-    if (pObj->state != statusReq.mload.syncState) {
-      mInfo("dnode:%d, mnode syncstate from %s to %s", pObj->id, syncStr(pObj->state),
-            syncStr(statusReq.mload.syncState));
-      pObj->state = statusReq.mload.syncState;
+    if (pObj->syncState != statusReq.mload.syncState || pObj->syncRestore != statusReq.mload.syncRestore) {
+      mInfo("dnode:%d, mnode syncState from %s to %s, restoreState from %d to %d", pObj->id, syncStr(pObj->syncState),
+            syncStr(statusReq.mload.syncState), pObj->syncRestore, statusReq.mload.syncRestore);
+      pObj->syncState = statusReq.mload.syncState;
+      pObj->syncRestore = statusReq.mload.syncRestore;
       pObj->stateStartTime = taosGetTimestampMs();
     }
     mndReleaseMnode(pMnode, pObj);
@@ -423,7 +426,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
         goto _OVER;
       } else {
         pDnode->accessTimes++;
-        mTrace("dnode:%d, status received, access times %d", pDnode->id, pDnode->accessTimes);
+        mDebug("dnode:%d, status received, access times %d", pDnode->id, pDnode->accessTimes);
       }
     }
 
@@ -440,7 +443,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
             statusReq.memAvail, statusReq.memTotal, statusReq.numOfCores);
     } else {
       mInfo("dnode:%d, send dnode epset, online:%d dnodeVer:%" PRId64 ":%" PRId64 " reboot:%d", pDnode->id, online,
-             statusReq.dnodeVer, dnodeVer, reboot);
+            statusReq.dnodeVer, dnodeVer, reboot);
     }
 
     pDnode->rebootTime = statusReq.rebootTime;
@@ -471,6 +474,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   }
 
   pDnode->lastAccessTime = curMs;
+  pDnode->accessTimes++;
   code = 0;
 
 _OVER:
@@ -770,11 +774,6 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
              numOfVnodes);
       goto _OVER;
     }
-  }
-
-  if (numOfVnodes > 0) {
-    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
-    goto _OVER;
   }
 
   code = mndDropDnode(pMnode, pReq, pDnode, pMObj, pQObj, pSObj, numOfVnodes);

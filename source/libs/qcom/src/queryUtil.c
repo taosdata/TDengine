@@ -202,6 +202,7 @@ char* jobTaskStatusStr(int32_t status) {
   return "UNKNOWN";
 }
 
+#if 0
 SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name) {
   SSchema s = {0};
   s.type = type;
@@ -211,6 +212,7 @@ SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* nam
   tstrncpy(s.name, name, tListLen(s.name));
   return s;
 }
+#endif
 
 void freeSTableMetaRspPointer(void *p) {
   tFreeSTableMetaRsp(*(void**)p);
@@ -357,8 +359,7 @@ char* parseTagDatatoJson(void* p) {
   for (int j = 0; j < nCols; ++j) {
     STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, j);
     // json key  encode by binary
-    memset(tagJsonKey, 0, sizeof(tagJsonKey));
-    memcpy(tagJsonKey, pTagVal->pKey, strlen(pTagVal->pKey));
+    tstrncpy(tagJsonKey, pTagVal->pKey, sizeof(tagJsonKey));
     // json value
     char type = pTagVal->type;
     if (type == TSDB_DATA_TYPE_NULL) {
@@ -424,7 +425,14 @@ int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
     return TSDB_CODE_SUCCESS;
   }
 
-  int32_t metaSize = sizeof(STableMeta) + (pSrc->tableInfo.numOfColumns + pSrc->tableInfo.numOfTags) * sizeof(SSchema);
+  int32_t numOfField = pSrc->tableInfo.numOfColumns + pSrc->tableInfo.numOfTags;
+  if (numOfField > TSDB_MAX_COL_TAG_NUM || numOfField < TSDB_MIN_COLUMNS) {
+    *pDst = NULL;
+    qError("too many column and tag num:%d,%d", pSrc->tableInfo.numOfColumns, pSrc->tableInfo.numOfTags);
+    return TSDB_CODE_INVALID_PARA;
+  }
+
+  int32_t metaSize = sizeof(STableMeta) + numOfField * sizeof(SSchema);
   *pDst = taosMemoryMalloc(metaSize);
   if (NULL == *pDst) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;

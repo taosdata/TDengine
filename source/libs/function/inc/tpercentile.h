@@ -61,10 +61,10 @@ typedef struct tMemBucket {
   MinMaxEntry        range;        // value range
   int32_t            times;        // count that has been checked for deciding the correct data value buckets.
   __compar_fn_t      comparFn;
-  tMemBucketSlot*    pSlots;
-  SDiskbasedBuf*     pBuffer;
+  tMemBucketSlot    *pSlots;
+  SDiskbasedBuf     *pBuffer;
   __perc_hash_func_t hashFunc;
-  SHashObj*          groupPagesMap; // disk page map for different groups;
+  SHashObj          *groupPagesMap;  // disk page map for different groups;
 } tMemBucket;
 
 tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval, double maxval);

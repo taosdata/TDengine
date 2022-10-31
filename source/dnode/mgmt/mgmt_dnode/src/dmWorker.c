@@ -101,7 +101,7 @@ void dmStopMonitorThread(SDnodeMgmt *pMgmt) {
 static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SDnodeMgmt *pMgmt = pInfo->ahandle;
   int32_t     code = -1;
-  STraceId *  trace = &pMsg->info.traceId;
+  STraceId   *trace = &pMsg->info.traceId;
   dGTrace("msg:%p, will be processed in dnode queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
 
   switch (pMsg->msgType) {
@@ -131,12 +131,6 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       break;
     case TDMT_DND_DROP_SNODE:
       code = (*pMgmt->processDropNodeFp)(SNODE, pMsg);
-      break;
-    case TDMT_DND_CREATE_BNODE:
-      code = (*pMgmt->processCreateNodeFp)(BNODE, pMsg);
-      break;
-    case TDMT_DND_DROP_BNODE:
-      code = (*pMgmt->processDropNodeFp)(BNODE, pMsg);
       break;
     case TDMT_DND_SERVER_STATUS:
       code = dmProcessServerRunStatus(pMgmt, pMsg);

@@ -291,6 +291,7 @@ typedef struct SSelectStmt {
   bool        hasTailFunc;
   bool        hasInterpFunc;
   bool        hasLastRowFunc;
+  bool        hasLastFunc;
   bool        hasTimeLineFunc;
   bool        hasUdaf;
   bool        hasStateKey;
@@ -346,23 +347,17 @@ typedef struct SInsertStmt {
   uint8_t    precision;
 } SInsertStmt;
 
-typedef enum {
-  PAYLOAD_TYPE_KV = 0,
-  PAYLOAD_TYPE_RAW = 1,
-} EPayloadType;
-
 typedef struct SVgDataBlocks {
   SVgroupInfo vg;
   int32_t     numOfTables;  // number of tables in current submit block
   uint32_t    size;
-  char*       pData;  // SMsgDesc + SSubmitReq + SSubmitBlk + ...
+  void*       pData;  // SMsgDesc + SSubmitReq + SSubmitBlk + ...
 } SVgDataBlocks;
 
 typedef struct SVnodeModifOpStmt {
   ENodeType   nodeType;
   ENodeType   sqlNodeType;
   SArray*     pDataBlocks;  // data block for each vgroup, SArray<SVgDataBlocks*>.
-  uint8_t     payloadType;  // EPayloadType. 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert
   uint32_t    insertType;   // insert data from [file|sql statement| bound statement]
   const char* sql;          // current sql statement position
 } SVnodeModifOpStmt;
@@ -385,7 +380,6 @@ typedef struct SCmdMsgInfo {
   SEpSet  epSet;
   void*   pMsg;
   int32_t msgLen;
-  void*   pExtension;  // todo remove it soon
 } SCmdMsgInfo;
 
 typedef enum EQueryExecMode {

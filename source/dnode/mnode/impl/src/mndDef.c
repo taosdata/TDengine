@@ -18,6 +18,7 @@
 #include "mndConsumer.h"
 
 int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
+  if (tStartEncode(pEncoder) < 0) return -1;
   if (tEncodeCStr(pEncoder, pObj->name) < 0) return -1;
 
   if (tEncodeI64(pEncoder, pObj->createTime) < 0) return -1;
@@ -31,6 +32,7 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
 
   if (tEncodeI8(pEncoder, pObj->igExpired) < 0) return -1;
   if (tEncodeI8(pEncoder, pObj->trigger) < 0) return -1;
+  if (tEncodeI8(pEncoder, pObj->fillHistory) < 0) return -1;
   if (tEncodeI64(pEncoder, pObj->triggerParam) < 0) return -1;
   if (tEncodeI64(pEncoder, pObj->watermark) < 0) return -1;
 
@@ -74,10 +76,12 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
 
   if (tEncodeSSchemaWrapper(pEncoder, &pObj->outputSchema) < 0) return -1;
 
+  tEndEncode(pEncoder);
   return pEncoder->pos;
 }
 
 int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
+  if (tStartDecode(pDecoder) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pObj->name) < 0) return -1;
 
   if (tDecodeI64(pDecoder, &pObj->createTime) < 0) return -1;
@@ -91,6 +95,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
 
   if (tDecodeI8(pDecoder, &pObj->igExpired) < 0) return -1;
   if (tDecodeI8(pDecoder, &pObj->trigger) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pObj->fillHistory) < 0) return -1;
   if (tDecodeI64(pDecoder, &pObj->triggerParam) < 0) return -1;
   if (tDecodeI64(pDecoder, &pObj->watermark) < 0) return -1;
 
@@ -117,9 +122,13 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
       SArray *pArray = taosArrayInit(innerSz, sizeof(void *));
       for (int32_t j = 0; j < innerSz; j++) {
         SStreamTask *pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
-        if (pTask == NULL) return -1;
+        if (pTask == NULL) {
+          taosArrayDestroy(pArray);
+          return -1;
+        }
         if (tDecodeSStreamTask(pDecoder, pTask) < 0) {
           taosMemoryFree(pTask);
+          taosArrayDestroy(pArray);
           return -1;
         }
         taosArrayPush(pArray, &pTask);
@@ -130,6 +139,7 @@ int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
 
   if (tDecodeSSchemaWrapper(pDecoder, &pObj->outputSchema) < 0) return -1;
 
+  tEndDecode(pDecoder);
   return 0;
 }
 

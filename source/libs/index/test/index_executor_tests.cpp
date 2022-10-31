@@ -48,7 +48,7 @@ double  sifLeftVd = 21.0, sifRightVd = 10.0;
 void sifFreeDataBlock(void *block) { blockDataDestroy(*(SSDataBlock **)block); }
 
 void sifInitLogFile() {
-  const char *  defaultLogFileNamePrefix = "taoslog";
+  const char   *defaultLogFileNamePrefix = "taoslog";
   const int32_t maxLogFileNum = 10;
 
   tsAsyncLog = 0;
@@ -96,7 +96,7 @@ void sifAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t *sl
 }
 
 void sifMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
-  SNode *     node = (SNode *)nodesMakeNode(QUERY_NODE_VALUE);
+  SNode      *node = (SNode *)nodesMakeNode(QUERY_NODE_VALUE);
   SValueNode *vnode = (SValueNode *)node;
   vnode->node.resType.type = dataType;
 
@@ -113,7 +113,7 @@ void sifMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
 }
 
 void sifMakeColumnNode(SNode **pNode, const char *db, const char *colName, EColumnType colType, uint8_t colValType) {
-  SNode *      node = (SNode *)nodesMakeNode(QUERY_NODE_COLUMN);
+  SNode       *node = (SNode *)nodesMakeNode(QUERY_NODE_COLUMN);
   SColumnNode *rnode = (SColumnNode *)node;
   memcpy(rnode->dbName, db, strlen(db));
   memcpy(rnode->colName, colName, strlen(colName));
@@ -125,7 +125,7 @@ void sifMakeColumnNode(SNode **pNode, const char *db, const char *colName, EColu
 }
 
 void sifMakeOpNode(SNode **pNode, EOperatorType opType, int32_t resType, SNode *pLeft, SNode *pRight) {
-  SNode *        node = (SNode *)nodesMakeNode(QUERY_NODE_OPERATOR);
+  SNode         *node = (SNode *)nodesMakeNode(QUERY_NODE_OPERATOR);
   SOperatorNode *onode = (SOperatorNode *)node;
   onode->node.resType.type = resType;
   onode->node.resType.bytes = tDataTypes[resType].bytes;
@@ -138,7 +138,7 @@ void sifMakeOpNode(SNode **pNode, EOperatorType opType, int32_t resType, SNode *
 }
 
 void sifMakeListNode(SNode **pNode, SNodeList *list, int32_t resType) {
-  SNode *        node = (SNode *)nodesMakeNode(QUERY_NODE_NODE_LIST);
+  SNode         *node = (SNode *)nodesMakeNode(QUERY_NODE_NODE_LIST);
   SNodeListNode *lnode = (SNodeListNode *)node;
   lnode->dataType.type = resType;
   lnode->pNodeList = list;
@@ -147,7 +147,7 @@ void sifMakeListNode(SNode **pNode, SNodeList *list, int32_t resType) {
 }
 
 void sifMakeLogicNode(SNode **pNode, ELogicConditionType opType, SNode **nodeList, int32_t nodeNum) {
-  SNode *              node = (SNode *)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+  SNode               *node = (SNode *)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
   SLogicConditionNode *onode = (SLogicConditionNode *)node;
   onode->condType = opType;
   onode->node.resType.type = TSDB_DATA_TYPE_BOOL;
@@ -162,7 +162,7 @@ void sifMakeLogicNode(SNode **pNode, ELogicConditionType opType, SNode **nodeLis
 }
 
 void sifMakeTargetNode(SNode **pNode, int16_t dataBlockId, int16_t slotId, SNode *snode) {
-  SNode *      node = (SNode *)nodesMakeNode(QUERY_NODE_TARGET);
+  SNode       *node = (SNode *)nodesMakeNode(QUERY_NODE_TARGET);
   STargetNode *onode = (STargetNode *)node;
   onode->pExpr = snode;
   onode->dataBlockId = dataBlockId;

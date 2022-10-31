@@ -265,7 +265,7 @@ function update_TDengine() {
     tar -zxf ${tarName}
     echo -e "${GREEN}Start to update ${productName} client...${NC}"
     # Stop the client shell if running
-    if pidof ${clientName} &> /dev/null; then
+    if ps aux | grep -v grep | grep ${clientName} &> /dev/null; then
         kill_client
         sleep 1
     fi

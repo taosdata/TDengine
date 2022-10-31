@@ -136,7 +136,7 @@ void syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl, bool rsp) {
 
   while (pStub) {
     size_t    len;
-    void     *key = taosHashGetKey(pStub, &len);
+    void *    key = taosHashGetKey(pStub, &len);
     uint64_t *pSeqNum = (uint64_t *)key;
     sum++;
 
@@ -177,7 +177,7 @@ void syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl, bool rsp) {
   for (int32_t i = 0; i < arraySize; ++i) {
     uint64_t *pSeqNum = taosArrayGet(delIndexArray, i);
     taosHashRemove(pObj->pRespHash, pSeqNum, sizeof(uint64_t));
-    sDebug("vgId:%d, resp mgr clean by ttl, seq:%d", pSyncNode->vgId, *pSeqNum);
+    sDebug("vgId:%d, resp mgr clean by ttl, seq:%" PRId64 "", pSyncNode->vgId, *pSeqNum);
   }
   taosArrayDestroy(delIndexArray);
 }

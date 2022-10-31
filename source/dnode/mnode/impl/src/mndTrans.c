@@ -53,7 +53,7 @@ static bool    mndTransPerformCommitActionStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerformCommitStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans);
 static bool    mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans);
-static bool    mndCannotExecuteTransAction(SMnode *pMnode) { return !pMnode->deploy && !mndIsMaster(pMnode); }
+static bool    mndCannotExecuteTransAction(SMnode *pMnode) { return !pMnode->deploy && !mndIsLeader(pMnode); }
 
 static void    mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans);
 static int32_t mndProcessTransTimer(SRpcMsg *pReq);
@@ -323,7 +323,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
       SDB_GET_INT32(pRaw, dataPos, &dataLen, _OVER)
       action.pRaw = taosMemoryMalloc(dataLen);
       if (action.pRaw == NULL) goto _OVER;
-      mTrace("raw:%p, is created", pData);
+      mTrace("raw:%p, is created", action.pRaw);
       SDB_GET_BINARY(pRaw, dataPos, (void *)action.pRaw, dataLen, _OVER);
       if (taosArrayPush(pTrans->redoActions, &action) == NULL) goto _OVER;
       action.pRaw = NULL;
@@ -778,7 +778,7 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
   mInfo("trans:%d, sync to other mnodes, stage:%s", pTrans->id, mndTransStr(pTrans->stage));
   int32_t code = mndSyncPropose(pMnode, pRaw, pTrans->id);
   if (code != 0) {
-    mError("trans:%d, failed to sync since %s", pTrans->id, terrstr());
+    mError("trans:%d, failed to sync, errno:%s code:%s", pTrans->id, terrstr(), tstrerror(code));
     sdbFreeRaw(pRaw);
     return -1;
   }
@@ -918,13 +918,19 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
       sendRsp = true;
     }
   } else {
-    if (pTrans->stage == TRN_STAGE_REDO_ACTION && pTrans->failedTimes > 6) {
+    if (pTrans->stage == TRN_STAGE_REDO_ACTION && ((code == TSDB_CODE_APP_NOT_READY && pTrans->failedTimes > 60) ||
+                                                   (code != TSDB_CODE_APP_NOT_READY && pTrans->failedTimes > 6))) {
       if (code == 0) code = TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
       sendRsp = true;
     }
   }
 
-  if (!sendRsp) return;
+  if (!sendRsp) {
+    return;
+  } else {
+    mInfo("trans:%d, send rsp, stage:%s failedTimes:%d code:0x%x", pTrans->id, mndTransStr(pTrans->stage),
+          pTrans->failedTimes, code);
+  }
 
   int32_t size = taosArrayGetSize(pTrans->pRpcArray);
   if (size <= 0) return;

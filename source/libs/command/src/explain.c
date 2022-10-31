@@ -685,7 +685,12 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
 
         EXPLAIN_ROW_NEW(level + 1, EXPLAIN_ON_CONDITIONS_FORMAT);
         QRY_ERR_RET(
-            nodesNodeToSQL(pJoinNode->pOnConditions, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+            nodesNodeToSQL(pJoinNode->pMergeCondition, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+        if (pJoinNode->pOnConditions) {
+          EXPLAIN_ROW_APPEND(" AND ");
+          QRY_ERR_RET(
+              nodesNodeToSQL(pJoinNode->pOnConditions, tbuf + VARSTR_HEADER_SIZE, TSDB_EXPLAIN_RESULT_ROW_SIZE, &tlen));
+        }
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));        
       }
@@ -1598,6 +1603,7 @@ int32_t qExplainGetRspFromCtx(void *ctx, SRetrieveTableRsp **pRsp) {
   SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)taosMemoryCalloc(1, rspSize);
   if (NULL == rsp) {
     qError("malloc SRetrieveTableRsp failed, size:%d", rspSize);
+    blockDataDestroy(pBlock);
     QRY_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 

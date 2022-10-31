@@ -207,7 +207,8 @@ static void taosKeepOldLog(char *oldName) {
   char    fileName[LOG_FILE_NAME_LEN + 20];
   snprintf(fileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64, tsLogObj.logName, fileSec);
 
-  taosRenameFile(oldName, fileName);
+  (void)taosRenameFile(oldName, fileName);
+
   if (tsLogKeepDays < 0) {
     char compressFileName[LOG_FILE_NAME_LEN + 20];
     snprintf(compressFileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64 ".gz", tsLogObj.logName, fileSec);
@@ -443,10 +444,13 @@ static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
 static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *buffer, int32_t len) {
   if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL && osLogSpaceAvailable()) {
     taosUpdateLogNums(level);
-    if (tsAsyncLog) {
+    if (tsAsyncLog && level != DEBUG_FATAL) {
       taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
     } else {
       taosWriteFile(tsLogObj.logHandle->pFile, buffer, len);
+      if (level == DEBUG_FATAL) {
+        taosFsyncFile(tsLogObj.logHandle->pFile);
+      }
     }
 
     if (tsLogObj.maxLines > 0) {

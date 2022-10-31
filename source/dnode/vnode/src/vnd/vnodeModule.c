@@ -46,10 +46,16 @@ int vnodeInit(int nthreads) {
     return 0;
   }
 
-  vnodeGlobal.stop = 0;
+  taosThreadMutexInit(&vnodeGlobal.mutex, NULL);
+  taosThreadCondInit(&vnodeGlobal.hasTask, NULL);
 
+  taosThreadMutexLock(&vnodeGlobal.mutex);
+
+  vnodeGlobal.stop = 0;
   vnodeGlobal.queue.next = &vnodeGlobal.queue;
   vnodeGlobal.queue.prev = &vnodeGlobal.queue;
+
+  taosThreadMutexUnlock(&(vnodeGlobal.mutex));
 
   vnodeGlobal.nthreads = nthreads;
   vnodeGlobal.threads = taosMemoryCalloc(nthreads, sizeof(TdThread));
@@ -58,9 +64,6 @@ int vnodeInit(int nthreads) {
     vError("failed to init vnode module since:%s", tstrerror(terrno));
     return -1;
   }
-
-  taosThreadMutexInit(&vnodeGlobal.mutex, NULL);
-  taosThreadCondInit(&vnodeGlobal.hasTask, NULL);
 
   for (int i = 0; i < nthreads; i++) {
     taosThreadCreate(&(vnodeGlobal.threads[i]), NULL, loop, NULL);

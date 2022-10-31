@@ -42,7 +42,7 @@ class TDTestCase:
                     'rowsPerTbl': 1000,
                     'batchNum':   500,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  3,
+                    'pollDelay':  20,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
@@ -52,7 +52,7 @@ class TDTestCase:
         paraDict['rowsPerTbl'] = self.rowsPerTbl
 
         tmqCom.initConsumerTable()
-        tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1)
+        tdCom.create_database(tdSql, paraDict["dbName"],paraDict["dropFlag"], vgroups=paraDict["vgroups"],replica=1, wal_retention_size=-1,wal_retention_period=-1)
         tdLog.info("create stb")
         tmqCom.create_stable(tdSql, dbName=paraDict["dbName"],stbName=paraDict["stbName"])
         # tdLog.info("create ctb")
@@ -87,7 +87,7 @@ class TDTestCase:
                     'rowsPerTbl': 1000,
                     'batchNum':   500,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  5,
+                    'pollDelay':  20,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
@@ -160,7 +160,7 @@ class TDTestCase:
                     'rowsPerTbl': 1000,
                     'batchNum':   1000,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  5,
+                    'pollDelay':  20,
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}

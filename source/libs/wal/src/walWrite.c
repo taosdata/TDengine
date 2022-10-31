@@ -42,10 +42,22 @@ int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
       SWalFileInfo *pFileInfo = taosArrayGet(pWal->fileInfoSet, i);
       char          fnameStr[WAL_FILE_LEN];
       walBuildLogName(pWal, pFileInfo->firstVer, fnameStr);
-      taosRemoveFile(fnameStr);
+      if (taosRemoveFile(fnameStr) < 0) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        wError("vgId:%d, restore from snapshot, cannot remove file %s since %s", pWal->cfg.vgId, fnameStr, terrstr());
+        taosThreadMutexUnlock(&pWal->mutex);
+        return -1;
+      }
+      wInfo("vgId:%d, restore from snapshot, remove file %s", pWal->cfg.vgId, fnameStr);
 
       walBuildIdxName(pWal, pFileInfo->firstVer, fnameStr);
-      taosRemoveFile(fnameStr);
+      if (taosRemoveFile(fnameStr) < 0) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        wError("vgId:%d, cannot remove file %s since %s", pWal->cfg.vgId, fnameStr, terrstr());
+        taosThreadMutexUnlock(&pWal->mutex);
+        return -1;
+      }
+      wInfo("vgId:%d, restore from snapshot, remove file %s", pWal->cfg.vgId, fnameStr);
     }
   }
   walRemoveMeta(pWal);
@@ -209,10 +221,12 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   taosCloseFile(&pIdxFile);
   taosCloseFile(&pLogFile);
 
-  taosFsyncFile(pWal->pLogFile);
-  taosFsyncFile(pWal->pIdxFile);
-
-  walSaveMeta(pWal);
+  code = walSaveMeta(pWal);
+  if (code < 0) {
+    wError("vgId:%d, failed to save meta since %s", pWal->cfg.vgId, terrstr());
+    taosThreadMutexUnlock(&pWal->mutex);
+    return -1;
+  }
 
   // unlock
   taosThreadMutexUnlock(&pWal->mutex);
@@ -243,6 +257,8 @@ static FORCE_INLINE int32_t walCheckAndRoll(SWal *pWal) {
 
 int32_t walBeginSnapshot(SWal *pWal, int64_t ver) {
   pWal->vers.verInSnapshotting = ver;
+  wDebug("vgId:%d, wal begin snapshot for version %" PRId64 ", first ver %" PRId64 ", last ver %" PRId64,
+         pWal->cfg.vgId, ver, pWal->vers.firstVer, pWal->vers.lastVer);
   // check file rolling
   if (pWal->cfg.retentionPeriod == 0) {
     taosThreadMutexLock(&pWal->mutex);
@@ -259,6 +275,10 @@ int32_t walEndSnapshot(SWal *pWal) {
   int32_t code = 0;
   taosThreadMutexLock(&pWal->mutex);
   int64_t ver = pWal->vers.verInSnapshotting;
+
+  wDebug("vgId:%d, wal end snapshot for version %" PRId64 ", first ver %" PRId64 ", last ver %" PRId64, pWal->cfg.vgId,
+         ver, pWal->vers.firstVer, pWal->vers.lastVer);
+
   if (ver == -1) {
     code = -1;
     goto END;
@@ -273,7 +293,8 @@ int32_t walEndSnapshot(SWal *pWal) {
     if (pIter == NULL) break;
     SWalRef *pRef = *(SWalRef **)pIter;
     if (pRef->refVer == -1) continue;
-    ver = TMIN(ver, pRef->refVer);
+    ver = TMIN(ver, pRef->refVer - 1);
+    wDebug("vgId:%d, wal found ref %" PRId64 ", refId %" PRId64, pWal->cfg.vgId, pRef->refVer, pRef->refId);
   }
 
   int          deleteCnt = 0;
@@ -284,7 +305,12 @@ int32_t walEndSnapshot(SWal *pWal) {
   SWalFileInfo *pInfo = taosArraySearch(pWal->fileInfoSet, &tmp, compareWalFileInfo, TD_LE);
   if (pInfo) {
     if (ver >= pInfo->lastVer) {
-      pInfo++;
+      pInfo--;
+    }
+    if (POINTER_DISTANCE(pInfo, pWal->fileInfoSet->pData) > 0) {
+      wDebug("vgId:%d, begin remove from %" PRId64, pWal->cfg.vgId, pInfo->firstVer);
+    } else {
+      wDebug("vgId:%d, no remove", pWal->cfg.vgId);
     }
     // iterate files, until the searched result
     for (SWalFileInfo *iter = pWal->fileInfoSet->pData; iter < pInfo; iter++) {
@@ -301,10 +327,12 @@ int32_t walEndSnapshot(SWal *pWal) {
     for (int i = 0; i < deleteCnt; i++) {
       pInfo = taosArrayGet(pWal->fileInfoSet, i);
       walBuildLogName(pWal, pInfo->firstVer, fnameStr);
+      wDebug("vgId:%d, remove file %s", pWal->cfg.vgId, fnameStr);
       if (taosRemoveFile(fnameStr) < 0) {
         goto UPDATE_META;
       }
       walBuildIdxName(pWal, pInfo->firstVer, fnameStr);
+      wDebug("vgId:%d, remove file %s", pWal->cfg.vgId, fnameStr);
       if (taosRemoveFile(fnameStr) < 0) {
         ASSERT(0);
       }
@@ -384,33 +412,52 @@ int32_t walRollImpl(SWal *pWal) {
 
   pWal->lastRollSeq = walGetSeq();
 
-  walSaveMeta(pWal);
+  code = walSaveMeta(pWal);
+  if (code < 0) {
+    wError("vgId:%d, failed to save meta since %s", pWal->cfg.vgId, terrstr());
+    goto END;
+  }
 
 END:
   return code;
 }
 
 static int32_t walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
-  SWalIdxEntry entry = {.ver = ver, .offset = offset};
-  int64_t      idxOffset = taosLSeekFile(pWal->pIdxFile, 0, SEEK_END);
+  SWalIdxEntry  entry = {.ver = ver, .offset = offset};
+  SWalFileInfo *pFileInfo = walGetCurFileInfo(pWal);
+  ASSERT(pFileInfo != NULL);
+  ASSERT(pFileInfo->firstVer >= 0);
+  int64_t idxOffset = (entry.ver - pFileInfo->firstVer) * sizeof(SWalIdxEntry);
   wDebug("vgId:%d, write index, index:%" PRId64 ", offset:%" PRId64 ", at %" PRId64, pWal->cfg.vgId, ver, offset,
          idxOffset);
+
   int64_t size = taosWriteFile(pWal->pIdxFile, &entry, sizeof(SWalIdxEntry));
   if (size != sizeof(SWalIdxEntry)) {
+    wError("vgId:%d, failed to write idx entry due to %s. ver:%" PRId64, pWal->cfg.vgId, strerror(errno), ver);
     terrno = TAOS_SYSTEM_ERROR(errno);
-    // TODO truncate
     return -1;
   }
+
+  // check alignment of idx entries
+  int64_t endOffset = taosLSeekFile(pWal->pIdxFile, 0, SEEK_END);
+  if (endOffset < 0) {
+    wFatal("vgId:%d, failed to seek end of idxfile due to %s. ver:%" PRId64 "", pWal->cfg.vgId, strerror(errno), ver);
+  }
+  ASSERT(endOffset == idxOffset + sizeof(SWalIdxEntry) && "Offset of idx entries misaligned");
   return 0;
 }
 
-// TODO  gurantee atomicity by truncate failed writing
 static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgType, SWalSyncInfo syncMeta,
                                          const void *body, int32_t bodyLen) {
   int64_t code = 0;
 
-  int64_t offset = walGetCurFileOffset(pWal);
+  int64_t       offset = walGetCurFileOffset(pWal);
+  SWalFileInfo *pFileInfo = walGetCurFileInfo(pWal);
+  ASSERT(pFileInfo != NULL);
 
+  if (pFileInfo->firstVer == -1) {
+    pFileInfo->firstVer = index;
+  }
   pWal->writeHead.head.version = index;
   pWal->writeHead.head.bodyLen = bodyLen;
   pWal->writeHead.head.msgType = msgType;
@@ -421,11 +468,14 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
 
   pWal->writeHead.cksumHead = walCalcHeadCksum(&pWal->writeHead);
   pWal->writeHead.cksumBody = walCalcBodyCksum(body, bodyLen);
+  wDebug("vgId:%d, wal write log %" PRId64 ", msgType: %s", pWal->cfg.vgId, index, TMSG_INFO(msgType));
 
-  wDebug("vgId:%d, wal write log %ld, msgType: %s", pWal->cfg.vgId, index, TMSG_INFO(msgType));
+  code = walWriteIndex(pWal, index, offset);
+  if (code < 0) {
+    goto END;
+  }
 
   if (taosWriteFile(pWal->pLogFile, &pWal->writeHead, sizeof(SWalCkHead)) != sizeof(SWalCkHead)) {
-    // TODO ftruncate
     terrno = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
            strerror(errno));
@@ -434,7 +484,6 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
   }
 
   if (taosWriteFile(pWal->pLogFile, (char *)body, bodyLen) != bodyLen) {
-    // TODO ftruncate
     terrno = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
            strerror(errno));
@@ -442,24 +491,31 @@ static FORCE_INLINE int32_t walWriteImpl(SWal *pWal, int64_t index, tmsg_t msgTy
     goto END;
   }
 
-  code = walWriteIndex(pWal, index, offset);
-  if (code < 0) {
-    // TODO ftruncate
-    goto END;
-  }
-
   // set status
   if (pWal->vers.firstVer == -1) pWal->vers.firstVer = index;
   pWal->vers.lastVer = index;
   pWal->totSize += sizeof(SWalCkHead) + bodyLen;
-  if (walGetCurFileInfo(pWal)->firstVer == -1) {
-    walGetCurFileInfo(pWal)->firstVer = index;
-  }
-  walGetCurFileInfo(pWal)->lastVer = index;
-  walGetCurFileInfo(pWal)->fileSize += sizeof(SWalCkHead) + bodyLen;
+  pFileInfo->lastVer = index;
+  pFileInfo->fileSize += sizeof(SWalCkHead) + bodyLen;
 
   return 0;
+
 END:
+  // recover in a reverse order
+  if (taosFtruncateFile(pWal->pLogFile, offset) < 0) {
+    wFatal("vgId:%d, failed to ftruncate logfile to offset:%" PRId64 " during recovery due to %s", pWal->cfg.vgId,
+           offset, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    ASSERT(0 && "failed to recover from error");
+  }
+
+  int64_t idxOffset = (index - pFileInfo->firstVer) * sizeof(SWalIdxEntry);
+  if (taosFtruncateFile(pWal->pIdxFile, idxOffset) < 0) {
+    wFatal("vgId:%d, failed to ftruncate idxfile to offset:%" PRId64 "during recovery due to %s", pWal->cfg.vgId,
+           idxOffset, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    ASSERT(0 && "failed to recover from error");
+  }
   return -1;
 }
 
@@ -540,6 +596,11 @@ int32_t walWrite(SWal *pWal, int64_t index, tmsg_t msgType, const void *body, in
 
 void walFsync(SWal *pWal, bool forceFsync) {
   if (forceFsync || (pWal->cfg.level == TAOS_WAL_FSYNC && pWal->cfg.fsyncPeriod == 0)) {
+    wTrace("vgId:%d, fileId:%" PRId64 ".idx, do fsync", pWal->cfg.vgId, walGetCurFileFirstVer(pWal));
+    if (taosFsyncFile(pWal->pIdxFile) < 0) {
+      wError("vgId:%d, file:%" PRId64 ".idx, fsync failed since %s", pWal->cfg.vgId, walGetCurFileFirstVer(pWal),
+             strerror(errno));
+    }
     wTrace("vgId:%d, fileId:%" PRId64 ".log, do fsync", pWal->cfg.vgId, walGetCurFileFirstVer(pWal));
     if (taosFsyncFile(pWal->pLogFile) < 0) {
       wError("vgId:%d, file:%" PRId64 ".log, fsync failed since %s", pWal->cfg.vgId, walGetCurFileFirstVer(pWal),

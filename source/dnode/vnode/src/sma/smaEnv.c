@@ -455,7 +455,7 @@ static int32_t tdRsmaStopExecutor(const SSma *pSma) {
 
     for (int32_t i = 0; i < tsNumOfVnodeRsmaThreads; ++i) {
       if (taosCheckPthreadValid(pthread[i])) {
-        smaDebug("vgId:%d, start to join pthread for rsma:%" PRId64, SMA_VID(pSma), pthread[i]);
+        smaDebug("vgId:%d, start to join pthread for rsma:%" PRId64 "", SMA_VID(pSma), taosGetPthreadId(pthread[i]));
         taosThreadJoin(pthread[i], NULL);
       }
     }

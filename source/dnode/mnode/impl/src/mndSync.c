@@ -51,9 +51,9 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
   int32_t transId = sdbGetIdFromRaw(pMnode->pSdb, pRaw);
   pMgmt->errCode = cbMeta.code;
   mInfo("trans:%d, is proposed, saved:%d code:0x%x, apply index:%" PRId64 " term:%" PRIu64 " config:%" PRId64
-         " role:%s raw:%p",
-         transId, pMgmt->transId, cbMeta.code, cbMeta.index, cbMeta.term, cbMeta.lastConfigIndex, syncStr(cbMeta.state),
-         pRaw);
+        " role:%s raw:%p",
+        transId, pMgmt->transId, cbMeta.code, cbMeta.index, cbMeta.term, cbMeta.lastConfigIndex, syncStr(cbMeta.state),
+        pRaw);
 
   if (pMgmt->errCode == 0) {
     sdbWriteWithoutFree(pMnode->pSdb, pRaw);
@@ -71,8 +71,8 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
       mInfo("trans:%d, is proposed and post sem", transId);
     }
     pMgmt->transId = 0;
-    taosWUnLockLatch(&pMgmt->lock);
     tsem_post(&pMgmt->syncSem);
+    taosWUnLockLatch(&pMgmt->lock);
   } else {
     taosWUnLockLatch(&pMgmt->lock);
     STrans *pTrans = mndAcquireTrans(pMnode, transId);
@@ -107,33 +107,13 @@ void mndRestoreFinish(struct SSyncFSM *pFsm) {
   if (!pMnode->deploy) {
     mInfo("vgId:1, sync restore finished, and will handle outstanding transactions");
     mndTransPullup(pMnode);
-    mndSetRestore(pMnode, true);
+    mndSetRestored(pMnode, true);
   } else {
     mInfo("vgId:1, sync restore finished");
   }
 }
 
-void mndReConfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta *cbMeta) {
-  SMnode    *pMnode = pFsm->data;
-  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-
-  pMgmt->errCode = cbMeta->code;
-  mInfo("trans:-1, sync reconfig is proposed, saved:%d code:0x%x, index:%" PRId64 " term:%" PRId64, pMgmt->transId,
-        cbMeta->code, cbMeta->index, cbMeta->term);
-
-  taosWLockLatch(&pMgmt->lock);
-  if (pMgmt->transId == -1) {
-    if (pMgmt->errCode != 0) {
-      mError("trans:-1, failed to propose sync reconfig since %s, post sem", tstrerror(pMgmt->errCode));
-    } else {
-      mInfo("trans:-1, sync reconfig is proposed, saved:%d code:0x%x, index:%" PRId64 " term:%" PRId64 " post sem",
-            pMgmt->transId, cbMeta->code, cbMeta->index, cbMeta->term);
-    }
-    pMgmt->transId = 0;
-    tsem_post(&pMgmt->syncSem);
-  }
-  taosWUnLockLatch(&pMgmt->lock);
-}
+void mndReConfig(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SReConfigCbMeta *cbMeta) {}
 
 int32_t mndSnapshotStartRead(struct SSyncFSM *pFsm, void *pParam, void **ppReader) {
   mInfo("start to read snapshot from sdb");
@@ -179,11 +159,14 @@ void mndLeaderTransfer(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cb
 
 static void mndBecomeFollower(struct SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
-  mInfo("vgId:1, become follower and post sem");
+  mInfo("vgId:1, become follower");
 
   taosWLockLatch(&pMnode->syncMgmt.lock);
   if (pMnode->syncMgmt.transId != 0) {
+    mInfo("vgId:1, become follower and post sem, trans:%d, failed to propose since not leader",
+          pMnode->syncMgmt.transId);
     pMnode->syncMgmt.transId = 0;
+    pMnode->syncMgmt.errCode = TSDB_CODE_SYN_NOT_LEADER;
     tsem_post(&pMnode->syncMgmt.syncSem);
   }
   taosWUnLockLatch(&pMnode->syncMgmt.lock);
@@ -221,22 +204,29 @@ int32_t mndInitSync(SMnode *pMnode) {
   taosInitRWLatch(&pMgmt->lock);
   pMgmt->transId = 0;
 
-  SSyncInfo syncInfo = {.vgId = 1, .FpSendMsg = mndSyncSendMsg, .FpEqMsg = mndSyncEqMsg};
-  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s%ssync", pMnode->path, TD_DIRSEP);
-  syncInfo.pWal = pMnode->pWal;
-  syncInfo.pFsm = mndSyncMakeFsm(pMnode);
-  syncInfo.isStandBy = pMgmt->standby;
-  syncInfo.snapshotStrategy = SYNC_STRATEGY_STANDARD_SNAPSHOT;
+  SSyncInfo syncInfo = {
+      .snapshotStrategy = SYNC_STRATEGY_STANDARD_SNAPSHOT,
+      .batchSize = 1,
+      .vgId = 1,
+      .pWal = pMnode->pWal,
+      .msgcb = NULL,
+      .FpSendMsg = mndSyncSendMsg,
+      .FpEqMsg = mndSyncEqMsg,
+      .FpEqCtrlMsg = NULL,
+  };
 
-  mInfo("vgId:1, start to open sync, standby:%d", pMgmt->standby);
-  if (pMgmt->standby || pMgmt->replica.id > 0) {
-    SSyncCfg *pCfg = &syncInfo.syncCfg;
-    pCfg->replicaNum = 1;
-    pCfg->myIndex = 0;
-    SNodeInfo *pNode = &pCfg->nodeInfo[0];
-    tstrncpy(pNode->nodeFqdn, pMgmt->replica.fqdn, sizeof(pNode->nodeFqdn));
-    pNode->nodePort = pMgmt->replica.port;
-    mInfo("vgId:1, ep:%s:%u", pNode->nodeFqdn, pNode->nodePort);
+  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s%ssync", pMnode->path, TD_DIRSEP);
+  syncInfo.pFsm = mndSyncMakeFsm(pMnode);
+
+  mInfo("vgId:1, start to open sync, replica:%d selfIndex:%d", pMgmt->numOfReplicas, pMgmt->selfIndex);
+  SSyncCfg *pCfg = &syncInfo.syncCfg;
+  pCfg->replicaNum = pMgmt->numOfReplicas;
+  pCfg->myIndex = pMgmt->selfIndex;
+  for (int32_t i = 0; i < pMgmt->numOfReplicas; ++i) {
+    SNodeInfo *pNode = &pCfg->nodeInfo[i];
+    tstrncpy(pNode->nodeFqdn, pMgmt->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
+    pNode->nodePort = pMgmt->replicas[i].port;
+    mInfo("vgId:1, index:%d ep:%s:%u", i, pNode->nodeFqdn, pNode->nodePort);
   }
 
   tsem_init(&pMgmt->syncSem, 0, 0);
@@ -250,10 +240,6 @@ int32_t mndInitSync(SMnode *pMnode) {
   setPingTimerMS(pMgmt->sync, 5000);
   setElectTimerMS(pMgmt->sync, 3000);
   setHeartbeatTimerMS(pMgmt->sync, 500);
-  /*
-    setElectTimerMS(pMgmt->sync, 600);
-    setHeartbeatTimerMS(pMgmt->sync, 300);
-  */
 
   mInfo("mnode-sync is opened, id:%" PRId64, pMgmt->sync);
   return 0;
@@ -297,13 +283,26 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
   int32_t    code = syncPropose(pMgmt->sync, &req, isWeak);
 
   if (code == 0) {
+    mInfo("trans:%d, is proposing and wait sem", pMgmt->transId);
     tsem_wait(&pMgmt->syncSem);
-  } else if (code == -1 && terrno == TSDB_CODE_SYN_NOT_LEADER) {
-    terrno = TSDB_CODE_APP_NOT_READY;
-  } else if (code == -1 && terrno == TSDB_CODE_SYN_INTERNAL_ERROR) {
-    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+  } else if (code > 0) {
+    mInfo("trans:%d, confirm at once since replica is 1, continue execute", transId);
+    taosWLockLatch(&pMgmt->lock);
+    pMgmt->transId = 0;
+    taosWUnLockLatch(&pMgmt->lock);
+    sdbWriteWithoutFree(pMnode->pSdb, pRaw);
+    sdbSetApplyInfo(pMnode->pSdb, req.info.conn.applyIndex, req.info.conn.applyTerm, SYNC_INDEX_INVALID);
+    code = 0;
   } else {
-    terrno = TSDB_CODE_APP_ERROR;
+    taosWLockLatch(&pMgmt->lock);
+    mInfo("trans:%d, failed to proposed since %s", transId, terrstr());
+    pMgmt->transId = 0;
+    taosWUnLockLatch(&pMgmt->lock);
+    if (terrno == TSDB_CODE_SYN_NOT_LEADER) {
+      terrno = TSDB_CODE_APP_NOT_READY;
+    } else {
+      terrno = TSDB_CODE_APP_ERROR;
+    }
   }
 
   rpcFreeCont(req.pCont);
@@ -312,6 +311,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
     return code;
   }
 
+  if (pMgmt->errCode != 0) terrno = pMgmt->errCode;
   return pMgmt->errCode;
 }
 
@@ -319,19 +319,20 @@ void mndSyncStart(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   syncSetMsgCb(pMgmt->sync, &pMnode->msgCb);
   syncStart(pMgmt->sync);
-  mInfo("vgId:1, sync started, id:%" PRId64 " standby:%d", pMgmt->sync, pMgmt->standby);
+  mInfo("vgId:1, sync started, id:%" PRId64, pMgmt->sync);
 }
 
 void mndSyncStop(SMnode *pMnode) {
   taosWLockLatch(&pMnode->syncMgmt.lock);
   if (pMnode->syncMgmt.transId != 0) {
+    mInfo("vgId:1, is stopped and post sem, trans:%d", pMnode->syncMgmt.transId);
     pMnode->syncMgmt.transId = 0;
     tsem_post(&pMnode->syncMgmt.syncSem);
   }
   taosWUnLockLatch(&pMnode->syncMgmt.lock);
 }
 
-bool mndIsMaster(SMnode *pMnode) {
+bool mndIsLeader(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
 
   if (!syncIsReady(pMgmt->sync)) {
@@ -340,7 +341,7 @@ bool mndIsMaster(SMnode *pMnode) {
     return false;
   }
 
-  if (!pMnode->restored) {
+  if (!mndGetRestored(pMnode)) {
     terrno = TSDB_CODE_APP_NOT_READY;
     return false;
   }

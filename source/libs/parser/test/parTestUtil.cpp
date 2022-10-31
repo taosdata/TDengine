@@ -295,6 +295,10 @@ class ParserTestBaseImpl {
     char*   pStr = NULL;
     int32_t len = 0;
     DO_WITH_THROW(nodesNodeToString, pRoot, false, &pStr, &len)
+    // check toObject
+    SNode* pCopy = NULL;
+    DO_WITH_THROW(nodesStringToNode, pStr, &pCopy)
+    nodesDestroyNode(pCopy);
     string str(pStr);
     taosMemoryFreeClear(pStr);
     return str;
@@ -343,7 +347,6 @@ class ParserTestBaseImpl {
 
       unique_ptr<SQuery*, void (*)(SQuery**)> query((SQuery**)taosMemoryCalloc(1, sizeof(SQuery*)), destroyQuery);
       doParseSql(&cxt, query.get());
-      SQuery* pQuery = *(query.get());
 
       if (g_dump) {
         dump();

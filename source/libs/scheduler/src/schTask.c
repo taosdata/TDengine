@@ -16,12 +16,12 @@
 #include "catalog.h"
 #include "command.h"
 #include "query.h"
+#include "qworker.h"
 #include "schInt.h"
+#include "tglobal.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
-#include "qworker.h"
-#include "tglobal.h"
 
 void schFreeTask(SSchJob *pJob, SSchTask *pTask) {
   schDeregisterTaskHb(pJob, pTask);
@@ -94,7 +94,7 @@ int32_t schRecordTaskSucceedNode(SSchJob *pJob, SSchTask *pTask) {
   if (SCH_IS_LOCAL_EXEC_TASK(pJob, pTask)) {
     return TSDB_CODE_SUCCESS;
   }
-  
+
   SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
   if (NULL == addr) {
     SCH_TASK_ELOG("taosArrayGet candidate addr failed, idx:%d, size:%d", pTask->candidateIdx,
@@ -127,6 +127,7 @@ int32_t schDropTaskExecNode(SSchJob *pJob, SSchTask *pTask, void *handle, int32_
 
   if (taosHashRemove(pTask->execNodes, &execId, sizeof(execId))) {
     SCH_TASK_DLOG("execId %d already not in execNodeList", execId);
+    SCH_ERR_RET(TSDB_CODE_SCH_IGNORE_ERROR);
   } else {
     SCH_TASK_DLOG("execId %d removed from execNodeList", execId);
   }
@@ -162,14 +163,15 @@ int32_t schUpdateTaskHandle(SSchJob *pJob, SSchTask *pTask, bool dropExecNode, v
   if (dropExecNode) {
     SCH_RET(schDropTaskExecNode(pJob, pTask, handle, execId));
   }
-  
+
   schUpdateTaskExecNode(pJob, pTask, handle, execId);
 
   if ((execId != pTask->execId) || pTask->waitRetry) {  // ignore it
-    SCH_TASK_DLOG("handle not updated since execId %d is already not current execId %d, waitRetry %d", execId, pTask->execId, pTask->waitRetry);
+    SCH_TASK_DLOG("handle not updated since execId %d is already not current execId %d, waitRetry %d", execId,
+                  pTask->execId, pTask->waitRetry);
     SCH_ERR_RET(TSDB_CODE_SCH_IGNORE_ERROR);
   }
-  
+
   SCH_SET_TASK_HANDLE(pTask, handle);
 
   return TSDB_CODE_SUCCESS;
@@ -429,7 +431,8 @@ int32_t schHandleRedirect(SSchJob *pJob, SSchTask *pTask, SDataBuf *pData, int32
   if (SCH_IS_DATA_BIND_TASK(pTask)) {
     if (NULL == pData->pEpSet) {
       SCH_TASK_ELOG("no epset updated while got error %s", tstrerror(rspCode));
-      SCH_ERR_JRET(rspCode);
+      code = rspCode;
+      goto _return;
     }
   }
 
@@ -837,17 +840,18 @@ int32_t schHandleExplainRes(SArray *pExplainRes) {
     goto _return;
   }
 
-  SSchTask              *pTask = NULL;
-  SSchJob               *pJob = NULL;
+  SSchTask *pTask = NULL;
+  SSchJob  *pJob = NULL;
 
   for (int32_t i = 0; i < resNum; ++i) {
-    SExplainLocalRsp* localRsp = taosArrayGet(pExplainRes, i);
+    SExplainLocalRsp *localRsp = taosArrayGet(pExplainRes, i);
 
     qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ", begin to handle LOCAL explain rsp msg", localRsp->qId, localRsp->tId);
 
     pJob = schAcquireJob(localRsp->rId);
     if (NULL == pJob) {
-      qWarn("QID:0x%" PRIx64 ",TID:0x%" PRIx64 "job no exist, may be dropped, refId:0x%" PRIx64, localRsp->qId, localRsp->tId, localRsp->rId);
+      qWarn("QID:0x%" PRIx64 ",TID:0x%" PRIx64 "job no exist, may be dropped, refId:0x%" PRIx64, localRsp->qId,
+            localRsp->tId, localRsp->rId);
       SCH_ERR_JRET(TSDB_CODE_QRY_JOB_NOT_EXIST);
     }
 
@@ -857,16 +861,17 @@ int32_t schHandleExplainRes(SArray *pExplainRes) {
       schReleaseJob(pJob->refId);
       SCH_ERR_JRET(TSDB_CODE_SCH_IGNORE_ERROR);
     }
-    
+
     code = schGetTaskInJob(pJob, localRsp->tId, &pTask);
 
     if (TSDB_CODE_SUCCESS == code) {
       code = schProcessExplainRsp(pJob, pTask, &localRsp->rsp);
     }
-    
+
     schReleaseJob(pJob->refId);
 
-    qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ", end to handle LOCAL explain rsp msg, code:%x", localRsp->qId, localRsp->tId, code);
+    qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 ", end to handle LOCAL explain rsp msg, code:%x", localRsp->qId,
+           localRsp->tId, code);
 
     SCH_ERR_JRET(code);
 
@@ -879,7 +884,7 @@ int32_t schHandleExplainRes(SArray *pExplainRes) {
 _return:
 
   for (int32_t i = 0; i < resNum; ++i) {
-    SExplainLocalRsp* localRsp = taosArrayGet(pExplainRes, i);
+    SExplainLocalRsp *localRsp = taosArrayGet(pExplainRes, i);
     tFreeSExplainRsp(&localRsp->rsp);
   }
 
@@ -890,7 +895,7 @@ _return:
 
 int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask) {
   SSubplan *plan = pTask->plan;
-  int32_t code = 0;
+  int32_t   code = 0;
 
   if (NULL == pTask->msg) {  // TODO add more detailed reason for failure
     code = qSubPlanToMsg(plan, &pTask->msg, &pTask->msgLen);
@@ -899,9 +904,9 @@ int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask) {
                     pTask->msgLen);
       SCH_ERR_RET(code);
     } else if (tsQueryPlannerTrace) {
-      char *msg = NULL;
+      char   *msg = NULL;
       int32_t msgLen = 0;
-      qSubPlanToString(plan, &msg, &msgLen);
+      SCH_ERR_RET(qSubPlanToString(plan, &msg, &msgLen));
       SCH_TASK_DLOGL("physical plan len:%d, %s", msgLen, msg);
       taosMemoryFree(msg);
     }
@@ -912,18 +917,19 @@ int32_t schLaunchRemoteTask(SSchJob *pJob, SSchTask *pTask) {
   if (SCH_IS_QUERY_JOB(pJob)) {
     SCH_ERR_RET(schEnsureHbConnection(pJob, pTask));
   }
-  
+
   SCH_RET(schBuildAndSendMsg(pJob, pTask, NULL, plan->msgType));
 }
 
 int32_t schLaunchLocalTask(SSchJob *pJob, SSchTask *pTask) {
-  //SCH_ERR_JRET(schSetTaskCandidateAddrs(pJob, pTask));
+  // SCH_ERR_JRET(schSetTaskCandidateAddrs(pJob, pTask));
   if (NULL == schMgmt.queryMgmt) {
     SCH_ERR_RET(qWorkerInit(NODE_TYPE_CLIENT, CLIENT_HANDLE, (void **)&schMgmt.queryMgmt, NULL));
   }
 
   SArray *explainRes = NULL;
-  SQWMsg qwMsg = {0};
+  int32_t code = 0;
+  SQWMsg  qwMsg = {0};
   qwMsg.msgInfo.taskType = TASK_TYPE_TEMP;
   qwMsg.msgInfo.explain = SCH_IS_EXPLAIN_JOB(pJob);
   qwMsg.msgInfo.needFetch = SCH_TASK_NEED_FETCH(pTask);
@@ -934,14 +940,22 @@ int32_t schLaunchLocalTask(SSchJob *pJob, SSchTask *pTask) {
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
     explainRes = taosArrayInit(pJob->taskNum, sizeof(SExplainLocalRsp));
   }
-    
-  SCH_ERR_RET(qWorkerProcessLocalQuery(schMgmt.queryMgmt, schMgmt.sId, pJob->queryId, pTask->taskId, pJob->refId, pTask->execId, &qwMsg, explainRes));
+
+  SCH_ERR_JRET(qWorkerProcessLocalQuery(schMgmt.queryMgmt, schMgmt.sId, pJob->queryId, pTask->taskId, pJob->refId,
+                                       pTask->execId, &qwMsg, explainRes));
 
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
     SCH_ERR_RET(schHandleExplainRes(explainRes));
+    explainRes = NULL;
   }
 
-  SCH_RET(schProcessOnTaskSuccess(pJob, pTask));
+  SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
+
+_return:
+
+  taosArrayDestroy(explainRes);
+
+  SCH_RET(code);
 }
 
 int32_t schLaunchTaskImpl(void *param) {
@@ -958,17 +972,17 @@ int32_t schLaunchTaskImpl(void *param) {
   if (pCtx->asyncLaunch) {
     SCH_LOCK_TASK(pTask);
   }
-  
-  int8_t    status = 0;
-  int32_t   code = 0;
+
+  int8_t  status = 0;
+  int32_t code = 0;
 
   atomic_add_fetch_32(&pTask->level->taskLaunchedNum, 1);
   pTask->execId++;
   pTask->retryTimes++;
   pTask->waitRetry = false;
 
-  SCH_TASK_DLOG("start to launch %s task, execId %d, retry %d", SCH_IS_LOCAL_EXEC_TASK(pJob, pTask) ? "LOCAL" : "REMOTE", 
-                pTask->execId, pTask->retryTimes);
+  SCH_TASK_DLOG("start to launch %s task, execId %d, retry %d",
+                SCH_IS_LOCAL_EXEC_TASK(pJob, pTask) ? "LOCAL" : "REMOTE", pTask->execId, pTask->retryTimes);
 
   SCH_LOG_TASK_START_TS(pTask);
 
@@ -988,6 +1002,12 @@ int32_t schLaunchTaskImpl(void *param) {
   } else {
     SCH_ERR_JRET(schLaunchRemoteTask(pJob, pTask));
   }
+
+#if 0
+  if (SCH_IS_QUERY_JOB(pJob)) {
+    SCH_ERR_JRET(schEnsureHbConnection(pJob, pTask));
+  }
+#endif
 
 _return:
 
@@ -1086,22 +1106,29 @@ int32_t schExecRemoteFetch(SSchJob *pJob, SSchTask *pTask) {
 }
 
 int32_t schExecLocalFetch(SSchJob *pJob, SSchTask *pTask) {
-  void  *pRsp = NULL;
+  void   *pRsp = NULL;
+  int32_t code = 0;
   SArray *explainRes = NULL;
 
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
     explainRes = taosArrayInit(pJob->taskNum, sizeof(SExplainLocalRsp));
   }
 
-  SCH_ERR_RET(qWorkerProcessLocalFetch(schMgmt.queryMgmt, schMgmt.sId, pJob->queryId, pTask->taskId, pJob->refId, pTask->execId, &pRsp, explainRes));
+  SCH_ERR_JRET(qWorkerProcessLocalFetch(schMgmt.queryMgmt, schMgmt.sId, pJob->queryId, pTask->taskId, pJob->refId,
+                                       pTask->execId, &pRsp, explainRes));
 
   if (SCH_IS_EXPLAIN_JOB(pJob)) {
     SCH_ERR_RET(schHandleExplainRes(explainRes));
+    explainRes = NULL;
   }
-  
+
   SCH_ERR_RET(schProcessFetchRsp(pJob, pTask, pRsp, TSDB_CODE_SUCCESS));
 
-  return TSDB_CODE_SUCCESS;
+_return:
+
+  taosArrayDestroy(explainRes);
+
+  SCH_RET(code);
 }
 
 // Note: no more error processing, handled in function internal

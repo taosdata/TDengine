@@ -32,41 +32,42 @@ TEST(testCase, linear_hash_Tests) {
 
   int64_t st = taosGetTimestampUs();
 
-  SLHashObj* pHashObj = tHashInit(4098*4*2, 512, fn, 40);
-  for(int32_t i = 0; i < 1000000; ++i) {
+  SLHashObj* pHashObj = tHashInit(4098 * 4 * 2, 512, fn, 40);
+  for (int32_t i = 0; i < 1000000; ++i) {
     int32_t code = tHashPut(pHashObj, &i, sizeof(i), &i, sizeof(i));
     assert(code == 0);
   }
 
-//  tHashPrint(pHashObj, LINEAR_HASH_STATIS);
+  //  tHashPrint(pHashObj, LINEAR_HASH_STATIS);
   int64_t et = taosGetTimestampUs();
 
-  for(int32_t i = 0; i < 1000000; ++i) {
+  for (int32_t i = 0; i < 1000000; ++i) {
     if (i == 950000) {
       printf("kf\n");
     }
     char* v = tHashGet(pHashObj, &i, sizeof(i));
     if (v != NULL) {
-//      printf("find value: %d, key:%d\n", *(int32_t*) v, i);
+      //      printf("find value: %d, key:%d\n", *(int32_t*) v, i);
     } else {
-//      printf("failed to found key:%d in hash\n", i);
+      //      printf("failed to found key:%d in hash\n", i);
     }
   }
 
-//  tHashPrint(pHashObj, LINEAR_HASH_STATIS);
+  //  tHashPrint(pHashObj, LINEAR_HASH_STATIS);
   tHashCleanup(pHashObj);
   int64_t et1 = taosGetTimestampUs();
 
   SHashObj* pHashObj1 = taosHashInit(1000, fn, false, HASH_NO_LOCK);
-  for(int32_t i = 0; i < 1000000; ++i) {
+  for (int32_t i = 0; i < 1000000; ++i) {
     taosHashPut(pHashObj1, &i, sizeof(i), &i, sizeof(i));
   }
 
-  for(int32_t i = 0; i < 1000000; ++i) {
+  for (int32_t i = 0; i < 1000000; ++i) {
     void* v = taosHashGet(pHashObj1, &i, sizeof(i));
   }
   taosHashCleanup(pHashObj1);
 
   int64_t et2 = taosGetTimestampUs();
-  printf("linear hash time:%.2f ms, buildHash:%.2f ms, hash:%.2f\n", (et1-st)/1000.0, (et-st)/1000.0, (et2-et1)/1000.0);
+  printf("linear hash time:%.2f ms, buildHash:%.2f ms, hash:%.2f\n", (et1 - st) / 1000.0, (et - st) / 1000.0,
+         (et2 - et1) / 1000.0);
 }

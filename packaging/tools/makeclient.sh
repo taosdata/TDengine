@@ -39,6 +39,8 @@ release_dir="${top_dir}/release"
 
 if [ "$verMode" == "cluster" ]; then
   install_dir="${release_dir}/${productName}-enterprise-client-${version}"
+elif [ "$verMode" == "cloud" ]; then
+  install_dir="${release_dir}/${productName}-cloud-client-${version}"
 else
   install_dir="${release_dir}/${productName}-client-${version}"
 fi
@@ -138,6 +140,10 @@ if [ "$verMode" == "cluster" ]; then
   sed 's/verMode=edge/verMode=cluster/g' ${install_dir}/install_client.sh >>install_client_temp.sh
   mv install_client_temp.sh ${install_dir}/install_client.sh
 fi
+if [ "$verMode" == "cloud" ]; then
+  sed 's/verMode=edge/verMode=cloud/g' ${install_dir}/install_client.sh >>install_client_temp.sh
+  mv install_client_temp.sh ${install_dir}/install_client.sh
+fi
 
 if [ "$pagMode" == "lite" ]; then
   sed 's/pagMode=full/pagMode=lite/g' ${install_dir}/install_client.sh >>install_client_temp.sh
@@ -161,7 +167,7 @@ if [[ $productName == "TDengine" ]]; then
     mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
   fi
 
-  if [ "$verMode" == "cluster" ]; then
+  if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then
       # Copy connector
       connector_dir="${code_dir}/connector"
       mkdir -p ${install_dir}/connector

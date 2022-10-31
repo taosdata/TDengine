@@ -7,8 +7,8 @@
 
 static int32_t stmtCreateRequest(STscStmt* pStmt) {
   int32_t code = 0;
-  
-  if (pStmt->exec.pRequest == NULL)  {
+
+  if (pStmt->exec.pRequest == NULL) {
     code = buildRequest(pStmt->taos->id, pStmt->sql.sqlStr, pStmt->sql.sqlLen, NULL, false, &pStmt->exec.pRequest);
     if (TSDB_CODE_SUCCESS == code) {
       pStmt->exec.pRequest->syncQuery = true;
@@ -152,7 +152,7 @@ int32_t stmtUpdateBindInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags, 
   pStmt->bInfo.tbType = pTableMeta->tableType;
   pStmt->bInfo.boundTags = tags;
   pStmt->bInfo.tagsCached = false;
-  strcpy(pStmt->bInfo.stbFName, sTableName);
+  tstrncpy(pStmt->bInfo.stbFName, sTableName, sizeof(pStmt->bInfo.stbFName));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -201,6 +201,9 @@ int32_t stmtCacheBlock(STscStmt* pStmt) {
   }
 
   STableDataBlocks** pSrc = taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
+  if(!pSrc){
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   STableDataBlocks*  pDst = NULL;
 
   STMT_ERR_RET(qCloneStmtDataBlock(&pDst, *pSrc));
@@ -232,7 +235,7 @@ int32_t stmtParseSql(STscStmt* pStmt) {
   };
 
   STMT_ERR_RET(stmtCreateRequest(pStmt));
-  
+
   STMT_ERR_RET(parseSql(pStmt->exec.pRequest, false, &pStmt->sql.pQuery, &stmtCb));
 
   pStmt->bInfo.needParse = false;
@@ -402,7 +405,7 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
         STMT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
       }
 
-      tscDebug("reuse stmt block for tb %s in sqlBlock, suid:0x%" PRIx64 , pStmt->bInfo.tbFName, pStmt->bInfo.tbSuid);
+      tscDebug("reuse stmt block for tb %s in sqlBlock, suid:0x%" PRIx64, pStmt->bInfo.tbFName, pStmt->bInfo.tbSuid);
 
       return TSDB_CODE_SUCCESS;
     }
@@ -600,8 +603,9 @@ int stmtSetTbTags(TAOS_STMT* stmt, TAOS_MULTI_BIND* tags) {
   }
 
   tscDebug("start to bind stmt tag values");
-  STMT_ERR_RET(qBindStmtTagsValue(*pDataBlock, pStmt->bInfo.boundTags, pStmt->bInfo.tbSuid, pStmt->bInfo.stbFName, pStmt->bInfo.sname.tname,
-                                  tags, pStmt->exec.pRequest->msgBuf, pStmt->exec.pRequest->msgBufLen));
+  STMT_ERR_RET(qBindStmtTagsValue(*pDataBlock, pStmt->bInfo.boundTags, pStmt->bInfo.tbSuid, pStmt->bInfo.stbFName,
+                                  pStmt->bInfo.sname.tname, tags, pStmt->exec.pRequest->msgBuf,
+                                  pStmt->exec.pRequest->msgBufLen));
 
   return TSDB_CODE_SUCCESS;
 }

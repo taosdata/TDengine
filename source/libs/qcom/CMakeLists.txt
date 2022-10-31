@@ -8,7 +8,7 @@ target_include_directories(
 
 target_link_libraries(
     qcom
-    PRIVATE os util transport nodes
+    PRIVATE os util transport
 )
 
 if(${BUILD_TEST})

@@ -30,6 +30,7 @@ void shellClearScreen(int32_t ecmd_pos, int32_t cursor_pos);
 void shellGetPrevCharSize(const char* str, int32_t pos, int32_t* size, int32_t* width);
 void shellShowOnScreen(SShellCmd* cmd);
 void shellInsertChar(SShellCmd* cmd, char* c, int size);
+void shellInsertStr(SShellCmd* cmd, char* str, int size);
 bool appendAfterSelect(TAOS* con, SShellCmd* cmd, char* p, int32_t len);
 
 typedef struct SAutoPtr {
@@ -325,24 +326,23 @@ int        cntDel = 0;        // delete byte count after next press tab
 
 // show auto tab introduction
 void printfIntroduction() {
-  printf("   ****************************  How To Use TAB Key  ********************************\n");
-  printf("   *   TDengine Command Line supports pressing TAB key to complete word,            *\n");
-  printf("   *   including database name, table name, function name and keywords.             *\n");
-  printf("   *   Press TAB key anywhere, you'll get surprise.                                 *\n");
-  printf("   *   KEYBOARD SHORTCUT:                                                           *\n");
-  printf("   *    [ TAB ]        ......  Complete the word or show help if no input           *\n");
-  printf("   *    [ Ctrl + A ]   ......  move cursor to [A]head of line                       *\n");
-  printf("   *    [ Ctrl + E ]   ......  move cursor to [E]nd of line                         *\n");
-  printf("   *    [ Ctrl + W ]   ......  move cursor to line of middle                        *\n");
-  printf("   *    [ Ctrl + L ]   ......  clean screen                                         *\n");
-  printf("   *    [ Ctrl + K ]   ......  clean after cursor                                   *\n");
-  printf("   *    [ Ctrl + U ]   ......  clean before cursor                                  *\n");
-  printf("   *                                                                                *\n");
+  printf("   ******************************  Tab Completion  **********************************\n");
+  printf("   *   The TDengine CLI supports tab completion for a variety of items,             *\n");
+  printf("   *   including database names, table names, function names and keywords.          *\n");
+  printf("   *   The full list of shortcut keys is as follows:                                *\n");
+  printf("   *    [ TAB ]        ......  complete the current word                            *\n");
+  printf("   *                   ......  if used on a blank line, display all valid commands  *\n");
+  printf("   *    [ Ctrl + A ]   ......  move cursor to the st[A]rt of the line               *\n");
+  printf("   *    [ Ctrl + E ]   ......  move cursor to the [E]nd of the line                 *\n");
+  printf("   *    [ Ctrl + W ]   ......  move cursor to the middle of the line                *\n");
+  printf("   *    [ Ctrl + L ]   ......  clear the entire screen                              *\n");
+  printf("   *    [ Ctrl + K ]   ......  clear the screen after the cursor                    *\n");
+  printf("   *    [ Ctrl + U ]   ......  clear the screen before the cursor                   *\n");
   printf("   **********************************************************************************\n\n");
 }
 
 void showHelp() {
-  printf("\nThe following are supported commands for TDengine Command Line:");
+  printf("\nThe TDengine CLI supports the following commands:");
   printf(
       "\n\
   ----- A ----- \n\
@@ -563,23 +563,16 @@ void parseCommand(SWords* command, bool pattern) {
 
 // free SShellCmd
 void freeCommand(SWords* command) {
-  SWord* word = command->head;
-  if (word == NULL) {
-    return;
-  }
-
+  SWord* item = command->head;
+  command->head = NULL;
   // loop
-  while (word->next) {
-    SWord* tmp = word;
-    word = word->next;
+  while (item) {
+    SWord* tmp = item;
+    item = item->next;
     // if malloc need free
     if (tmp->free && tmp->word) taosMemoryFree(tmp->word);
     taosMemoryFree(tmp);
   }
-
-  // if malloc need free
-  if (word->free && word->word) taosMemoryFree(word->word);
-  taosMemoryFree(word);
 }
 
 void GenerateVarType(int type, char** p, int count) {
@@ -823,7 +816,9 @@ char* matchNextPrefix(STire* tire, char* pre) {
       match = enumAll(tire);
     } else {
       // NOT EMPTY
-      match = matchPrefix(tire, pre, NULL);
+      match = (SMatch*)taosMemoryMalloc(sizeof(SMatch));
+      memset(match, 0, sizeof(SMatch));
+      matchPrefix(tire, pre, match);
     }
 
     // save to lastMatch
@@ -836,7 +831,7 @@ char* matchNextPrefix(STire* tire, char* pre) {
   // check valid
   if (match == NULL || match->head == NULL) {
     // no one matched
-    return false;
+    return NULL;
   }
 
   if (cursorVar == -1) {
@@ -1108,7 +1103,7 @@ void printScreen(TAOS* con, SShellCmd* cmd, SWords* match) {
   }
 
   // insert new
-  shellInsertChar(cmd, (char*)str, strLen);
+  shellInsertStr(cmd, (char*)str, strLen);
 }
 
 // main key press tab , matched return true else false
@@ -1133,6 +1128,10 @@ bool firstMatchCommand(TAOS* con, SShellCmd* cmd) {
 
   // print to screen
   printScreen(con, cmd, match);
+#ifdef WINDOWS
+  printf("\r");
+  shellShowOnScreen(cmd);
+#endif
   freeCommand(input);
   taosMemoryFree(input);
   return true;
@@ -1195,13 +1194,17 @@ bool nextMatchCommand(TAOS* con, SShellCmd* cmd, SWords* firstMatch) {
 
   // print to screen
   printScreen(con, cmd, match);
+#ifdef WINDOWS
+  printf("\r");
+  shellShowOnScreen(cmd);
+#endif
 
   // free
+  freeCommand(input);
   if (input->source) {
     taosMemoryFree(input->source);
     input->source = NULL;
   }
-  freeCommand(input);
   taosMemoryFree(input);
 
   return true;
@@ -1221,7 +1224,7 @@ bool fillWithType(TAOS* con, SShellCmd* cmd, char* pre, int type) {
 
   // show
   int count = strlen(part);
-  shellInsertChar(cmd, part, count);
+  shellInsertStr(cmd, part, count);
   cntDel = count;  // next press tab delete current append count
 
   taosMemoryFree(str);
@@ -1248,7 +1251,7 @@ bool fillTableName(TAOS* con, SShellCmd* cmd, char* pre) {
 
   // show
   int count = strlen(part);
-  shellInsertChar(cmd, part, count);
+  shellInsertStr(cmd, part, count);
   cntDel = count;  // next press tab delete current append count
 
   taosMemoryFree(str);
@@ -1370,9 +1373,9 @@ bool appendAfterSelect(TAOS* con, SShellCmd* cmd, char* sql, int32_t len) {
   bool  ret = false;
   if (from == NULL) {
     bool fieldEnd = fieldsInputEnd(p);
-    // cheeck fields input end then insert from keyword
+    // check fields input end then insert from keyword
     if (fieldEnd && p[len - 1] == ' ') {
-      shellInsertChar(cmd, "from", 4);
+      shellInsertStr(cmd, "from", 4);
       taosMemoryFree(p);
       return true;
     }
@@ -1570,7 +1573,7 @@ bool matchOther(TAOS* con, SShellCmd* cmd) {
   if (p[len - 1] == '\\') {
     // append '\G'
     char a[] = "G;";
-    shellInsertChar(cmd, a, 2);
+    shellInsertStr(cmd, a, 2);
     return true;
   }
 

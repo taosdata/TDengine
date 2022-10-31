@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "sdb.h"
+#include "sync.h"
 #include "tchecksum.h"
 #include "wal.h"
 
@@ -306,8 +307,8 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
   pSdb->commitTerm = pSdb->applyTerm;
   pSdb->commitConfig = pSdb->applyConfig;
   memcpy(pSdb->tableVer, tableVer, sizeof(tableVer));
-  mInfo("read sdb file:%s success, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64, file,
-         pSdb->commitIndex, pSdb->commitTerm, pSdb->commitConfig);
+  mInfo("read sdb file:%s success, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64, file, pSdb->commitIndex,
+        pSdb->commitTerm, pSdb->commitConfig);
 
 _OVER:
   taosCloseFile(&pFile);
@@ -340,9 +341,9 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
   snprintf(curfile, sizeof(curfile), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
 
   mInfo("start to write sdb file, apply index:%" PRId64 " term:%" PRId64 " config:%" PRId64 ", commit index:%" PRId64
-         " term:%" PRId64 " config:%" PRId64 ", file:%s",
-         pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, pSdb->commitIndex, pSdb->commitTerm, pSdb->commitConfig,
-         curfile);
+        " term:%" PRId64 " config:%" PRId64 ", file:%s",
+        pSdb->applyIndex, pSdb->applyTerm, pSdb->applyConfig, pSdb->commitIndex, pSdb->commitTerm, pSdb->commitConfig,
+        curfile);
 
   TdFilePtr pFile = taosOpenFile(tmpfile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
@@ -363,9 +364,8 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
 
     mInfo("write %s to sdb file, total %d rows", sdbTableName(i), sdbGetSize(pSdb, i));
 
-    SHashObj       *hash = pSdb->hashObjs[i];
-    TdThreadRwlock *pLock = &pSdb->locks[i];
-    taosThreadRwlockWrlock(pLock);
+    SHashObj *hash = pSdb->hashObjs[i];
+    sdbWriteLock(pSdb, i);
 
     SSdbRow **ppRow = taosHashIterate(hash, NULL);
     while (ppRow != NULL) {
@@ -410,7 +410,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
       sdbFreeRaw(pRaw);
       ppRow = taosHashIterate(hash, ppRow);
     }
-    taosThreadRwlockUnlock(pLock);
+    sdbUnLock(pSdb, i);
   }
 
   if (code == 0) {
@@ -438,7 +438,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
     pSdb->commitTerm = pSdb->applyTerm;
     pSdb->commitConfig = pSdb->applyConfig;
     mInfo("write sdb file success, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " file:%s",
-           pSdb->commitIndex, pSdb->commitTerm, pSdb->commitConfig, curfile);
+          pSdb->commitIndex, pSdb->commitTerm, pSdb->commitConfig, curfile);
   }
 
   terrno = code;
@@ -457,14 +457,25 @@ int32_t sdbWriteFile(SSdb *pSdb, int32_t delta) {
 
   taosThreadMutexLock(&pSdb->filelock);
   if (pSdb->pWal != NULL) {
-    code = walBeginSnapshot(pSdb->pWal, pSdb->applyIndex);
+    // code = walBeginSnapshot(pSdb->pWal, pSdb->applyIndex);
+    if (pSdb->sync == 0) {
+      code = 0;
+    } else {
+      code = syncBeginSnapshot(pSdb->sync, pSdb->applyIndex);
+    }
   }
   if (code == 0) {
     code = sdbWriteFileImp(pSdb);
   }
   if (code == 0) {
     if (pSdb->pWal != NULL) {
-      code = walEndSnapshot(pSdb->pWal);
+      // code = walEndSnapshot(pSdb->pWal);
+
+      if (pSdb->sync == 0) {
+        code = 0;
+      } else {
+        code = syncEndSnapshot(pSdb->sync);
+      }
     }
   }
   if (code != 0) {
@@ -556,9 +567,8 @@ int32_t sdbStartRead(SSdb *pSdb, SSdbIter **ppIter, int64_t *index, int64_t *ter
   if (term != NULL) *term = commitTerm;
   if (config != NULL) *config = commitConfig;
 
-  mInfo("sdbiter:%p, is created to read snapshot, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64
-         " file:%s",
-         pIter, commitIndex, commitTerm, commitConfig, pIter->name);
+  mInfo("sdbiter:%p, is created to read snapshot, commit index:%" PRId64 " term:%" PRId64 " config:%" PRId64 " file:%s",
+        pIter, commitIndex, commitTerm, commitConfig, pIter->name);
   return 0;
 }
 
@@ -644,15 +654,12 @@ int32_t sdbStopWrite(SSdb *pSdb, SSdbIter *pIter, bool isApply, int64_t index, i
   }
 
   if (config > 0) {
-    ASSERT(pSdb->commitConfig == config);
     pSdb->commitConfig = config;
   }
   if (term > 0) {
-    ASSERT(pSdb->commitTerm == term);
     pSdb->commitTerm = term;
   }
   if (index > 0) {
-    ASSERT(pSdb->commitIndex == index);
     pSdb->commitIndex = index;
   }
 
