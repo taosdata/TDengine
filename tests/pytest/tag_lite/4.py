@@ -1855,6 +1855,7 @@ class TDTestCase:
         # TSIM: sql drop database $db
         tdLog.info('drop database db')
         tdSql.execute('drop database db')
+        time.sleep(1)
         # TSIM: sql show databases
         tdLog.info('show databases')
         tdSql.query('show databases')
