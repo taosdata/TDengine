@@ -138,7 +138,7 @@ typedef struct SReaderStatus {
   bool                 loadFromFile;       // check file stage
   bool                 composedDataBlock;  // the returned data block is a composed block or not
   SHashObj*            pTableMap;          // SHash<STableBlockScanInfo>
-  STableBlockScanInfo**pTableIter;         // table iterator used in building in-memory buffer data blocks.
+  STableBlockScanInfo** pTableIter;         // table iterator used in building in-memory buffer data blocks.
   SUidOrderCheckInfo   uidCheckInfo;       // check all table in uid order
   SFileBlockDumpInfo   fBlockDumpInfo;
   SDFileSet*           pCurrentFileset;  // current opened file set
@@ -334,7 +334,6 @@ static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, const STableK
 
 static void resetAllDataBlockScanInfo(SHashObj* pTableMap, int64_t ts) {
   STableBlockScanInfo** p = NULL;
-
   while ((p = taosHashIterate(pTableMap, p)) != NULL) {
     STableBlockScanInfo* pInfo = *(STableBlockScanInfo**) p;
 
@@ -367,7 +366,7 @@ static void clearBlockScanInfo(STableBlockScanInfo* p) {
 }
 
 static void destroyAllBlockScanInfo(SHashObj* pTableMap) {
-  STableBlockScanInfo* p = NULL;
+  void* p = NULL;
   while ((p = taosHashIterate(pTableMap, p)) != NULL) {
     clearBlockScanInfo(*(STableBlockScanInfo**)p);
   }
@@ -3534,18 +3533,23 @@ int32_t buildDataBlockFromBufImpl(STableBlockScanInfo* pBlockScanInfo, int64_t e
 // TODO refactor: with createDataBlockScanInfo
 int32_t tsdbSetTableList(STsdbReader* pReader, const void* pTableList, int32_t num) {
   ASSERT(pReader != NULL);
+  int32_t size = taosHashGetSize(pReader->status.pTableMap);
 
   STableBlockScanInfo** p = NULL;
   while ((p = taosHashIterate(pReader->status.pTableMap, p)) != NULL) {
     clearBlockScanInfo(*p);
   }
 
+  // todo handle the case where size is less than the value of num
+  ASSERT(size >= num);
+
   taosHashClear(pReader->status.pTableMap);
 
   STableKeyInfo* pList = (STableKeyInfo*) pTableList;
   for(int32_t i = 0; i < num; ++i) {
-    STableBlockScanInfo info = {.lastKey = 0, .uid = pList[i].uid};
-    taosHashPut(pReader->status.pTableMap, &info.uid, sizeof(uint64_t), &info, sizeof(info));
+    STableBlockScanInfo* pInfo = getPosInBlockInfoBuf(&pReader->blockInfoBuf, i);
+    pInfo->uid = pList[i].uid;
+    taosHashPut(pReader->status.pTableMap, &pInfo->uid, sizeof(uint64_t), &pInfo, POINTER_BYTES);
   }
 
   return TDB_CODE_SUCCESS;
@@ -4017,6 +4021,8 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
     return TSDB_CODE_SUCCESS;
   }
 
+  SDataBlockIter* pBlockIter = &pReader->status.blockIter;
+
   pReader->order = pCond->order;
   pReader->type = TIMEWINDOW_RANGE_CONTAINED;
   pReader->status.loadFromFile = true;
@@ -4033,13 +4039,12 @@ int32_t tsdbReaderReset(STsdbReader* pReader, SQueryTableDataCond* pCond) {
   int32_t numOfTables = taosHashGetSize(pReader->status.pTableMap);
 
   initFilesetIterator(&pReader->status.fileIter, pReader->pReadSnap->fs.aDFileSet, pReader);
-  resetDataBlockIterator(&pReader->status.blockIter, pReader->order);
+  resetDataBlockIterator(pBlockIter, pReader->order);
 
   int64_t ts = ASCENDING_TRAVERSE(pReader->order) ? pReader->window.skey - 1 : pReader->window.ekey + 1;
   resetAllDataBlockScanInfo(pReader->status.pTableMap, ts);
 
-  int32_t         code = 0;
-  SDataBlockIter* pBlockIter = &pReader->status.blockIter;
+  int32_t code = 0;
 
   // no data in files, let's try buffer in memory
   if (pReader->status.fileIter.numOfFiles == 0) {
