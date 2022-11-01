@@ -71,7 +71,7 @@ class TDTestCase:
         time.sleep(3)
 
         ret = tdSql.query('show vnodes "{}"'.format(dnodeEndpoint))
-        tdSql.checkRows(2)
+        tdSql.checkRows(1)
         tdSql.checkData(0, 0, 2)
         tdSql.checkData(0, 1, "leader")
 

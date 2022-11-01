@@ -101,9 +101,8 @@ class TDTestCase:
 
         tdSql.execute("drop database db")
         tdSql.execute("drop database db1")
-        time.sleep(1)
         tdSql.query("show databases")
-        tdSql.checkRows(1)
+        tdSql.checkRows(0)
 
         os.system("%s -i ./taosdumptest/tmp1" % binPath)
         os.system("%s -i ./taosdumptest/tmp2" % binPath)

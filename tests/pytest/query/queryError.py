@@ -70,7 +70,6 @@ class TDTestCase:
         tdSql.error("select * from dev_001 where \"name\" = 'first'")
 
         # TS-1577
-        time.sleep(1)
         tdSql.query("show databases")
         rows = tdSql.queryRows
 
