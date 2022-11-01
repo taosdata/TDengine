@@ -156,6 +156,9 @@ char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPR
 // udf
 bool tsStartUdfd = true;
 
+// wal
+int64_t tsWalRecoverSizeLimit = (600 * 1024 * 1024L);
+
 // internal
 int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;
@@ -421,6 +424,8 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "ttlPushInterval", tsTtlPushInterval, 1, 100000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "uptimeInterval", tsUptimeInterval, 1, 100000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryRsmaTolerance", tsQueryRsmaTolerance, 0, 900000, 0) != 0) return -1;
+
+  if (cfgAddInt64(pCfg, "walRecoverSizeLimit", tsWalRecoverSizeLimit, 3 * 1024 * 1024, INT64_MAX, 0) != 0) return -1;
 
   if (cfgAddBool(pCfg, "udf", tsStartUdfd, 0) != 0) return -1;
   if (cfgAddString(pCfg, "udfdResFuncs", tsUdfdResFuncs, 0) != 0) return -1;
@@ -719,6 +724,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsTtlPushInterval = cfgGetItem(pCfg, "ttlPushInterval")->i32;
   tsUptimeInterval = cfgGetItem(pCfg, "uptimeInterval")->i32;
   tsQueryRsmaTolerance = cfgGetItem(pCfg, "queryRsmaTolerance")->i32;
+
+  tsWalRecoverSizeLimit = cfgGetItem(pCfg, "walRecoverSizeLimit")->i64;
 
   tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
   tstrncpy(tsUdfdResFuncs, cfgGetItem(pCfg, "udfdResFuncs")->str, sizeof(tsUdfdResFuncs));

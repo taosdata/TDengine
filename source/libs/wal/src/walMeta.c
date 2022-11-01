@@ -16,6 +16,7 @@
 #include "cJSON.h"
 #include "os.h"
 #include "taoserror.h"
+#include "tglobal.h"
 #include "tutil.h"
 #include "walInt.h"
 
@@ -69,15 +70,23 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
   uint64_t magic = WAL_MAGIC;
   int64_t  walCkHeadSz = sizeof(SWalCkHead);
   int64_t  end = fileSize;
-  int64_t  offset = 0;
   int64_t  capacity = 0;
   int64_t  readSize = 0;
   char*    buf = NULL;
   int64_t  found = -1;
   bool     firstTrial = pFileInfo->fileSize < fileSize;
-  int64_t  border = TMIN(pFileInfo->fileSize, fileSize);
-  int64_t  offsetForward = border - stepSize + walCkHeadSz - 1;
-  int64_t  offsetBackward = border;
+  int64_t  offset = TMIN(pFileInfo->fileSize, fileSize);
+  int64_t  offsetForward = offset - stepSize + walCkHeadSz - 1;
+  int64_t  offsetBackward = offset;
+  int64_t  recoverSize = end - offset;
+
+  if (tsWalRecoverSizeLimit < recoverSize) {
+    wError("vgId:%d, possibly corrupted WAL range exceeds size limit (i.e. %" PRId64 " bytes). offset:%" PRId64
+           ", end:%" PRId64 ", file:%s",
+           pWal->cfg.vgId, tsWalRecoverSizeLimit, offset, end, fnameStr);
+    terrno = TSDB_CODE_WAL_SIZE_LIMIT;
+    goto _err;
+  }
 
   // search for the valid last WAL entry, e.g. block by block
   while (1) {
