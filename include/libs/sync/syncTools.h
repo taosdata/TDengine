@@ -514,6 +514,37 @@ void syncHeartbeatReplyLog(const SyncHeartbeatReply* pMsg);
 void syncHeartbeatReplyLog2(char* s, const SyncHeartbeatReply* pMsg);
 
 // ---------------------------------------------
+typedef struct SyncPreSnapshot {
+  uint32_t bytes;
+  int32_t  vgId;
+  uint32_t msgType;
+  SRaftId  srcId;
+  SRaftId  destId;
+
+  // private data
+  SyncTerm term;
+
+} SyncPreSnapshot;
+
+SyncPreSnapshot* syncPreSnapshotBuild(int32_t vgId);
+void             syncPreSnapshotDestroy(SyncPreSnapshot* pMsg);
+void             syncPreSnapshotSerialize(const SyncPreSnapshot* pMsg, char* buf, uint32_t bufLen);
+void             syncPreSnapshotDeserialize(const char* buf, uint32_t len, SyncPreSnapshot* pMsg);
+char*            syncPreSnapshotSerialize2(const SyncPreSnapshot* pMsg, uint32_t* len);
+SyncPreSnapshot* syncPreSnapshotDeserialize2(const char* buf, uint32_t len);
+void             syncPreSnapshot2RpcMsg(const SyncPreSnapshot* pMsg, SRpcMsg* pRpcMsg);
+void             syncPreSnapshotFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPreSnapshot* pMsg);
+SyncPreSnapshot* syncPreSnapshotFromRpcMsg2(const SRpcMsg* pRpcMsg);
+cJSON*           syncPreSnapshot2Json(const SyncPreSnapshot* pMsg);
+char*            syncPreSnapshot2Str(const SyncPreSnapshot* pMsg);
+
+// for debug ----------------------
+void syncPreSnapshotPrint(const SyncPreSnapshot* pMsg);
+void syncPreSnapshotPrint2(char* s, const SyncPreSnapshot* pMsg);
+void syncPreSnapshotLog(const SyncPreSnapshot* pMsg);
+void syncPreSnapshotLog2(char* s, const SyncPreSnapshot* pMsg);
+
+// ---------------------------------------------
 typedef struct SyncApplyMsg {
   uint32_t   bytes;
   int32_t    vgId;
