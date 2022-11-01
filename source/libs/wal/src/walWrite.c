@@ -253,7 +253,7 @@ static FORCE_INLINE int32_t walCheckAndRoll(SWal *pWal) {
     }
   }
 
-  if (walGetLastFileCachedSize(pWal) > tsWalRecoverSizeLimit / 2) {
+  if (walGetLastFileCachedSize(pWal) > tsWalFsyncDataSizeLimit) {
     if (walSaveMeta(pWal) < 0) {
       return -1;
     }

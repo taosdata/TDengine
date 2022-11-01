@@ -80,10 +80,10 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
   int64_t  offsetBackward = offset;
   int64_t  recoverSize = end - offset;
 
-  if (tsWalRecoverSizeLimit < recoverSize) {
+  if (2 * tsWalFsyncDataSizeLimit < recoverSize) {
     wError("vgId:%d, possibly corrupted WAL range exceeds size limit (i.e. %" PRId64 " bytes). offset:%" PRId64
            ", end:%" PRId64 ", file:%s",
-           pWal->cfg.vgId, tsWalRecoverSizeLimit, offset, end, fnameStr);
+           pWal->cfg.vgId, 2 * tsWalFsyncDataSizeLimit, offset, end, fnameStr);
     terrno = TSDB_CODE_WAL_SIZE_LIMIT;
     goto _err;
   }
