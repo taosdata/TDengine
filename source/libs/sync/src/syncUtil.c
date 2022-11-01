@@ -177,18 +177,6 @@ char* syncUtilRaftId2Str(const SRaftId* p) {
 }
 
 const char* syncUtilState2String(ESyncState state) {
-  /*
-    if (state == TAOS_SYNC_STATE_FOLLOWER) {
-      return "TAOS_SYNC_STATE_FOLLOWER";
-    } else if (state == TAOS_SYNC_STATE_CANDIDATE) {
-      return "TAOS_SYNC_STATE_CANDIDATE";
-    } else if (state == TAOS_SYNC_STATE_LEADER) {
-      return "TAOS_SYNC_STATE_LEADER";
-    } else {
-      return "TAOS_SYNC_STATE_UNKNOWN";
-    }
-  */
-
   if (state == TAOS_SYNC_STATE_FOLLOWER) {
     return "follower";
   } else if (state == TAOS_SYNC_STATE_CANDIDATE) {

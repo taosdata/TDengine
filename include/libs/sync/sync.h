@@ -193,9 +193,13 @@ typedef struct SSyncInfo {
   SWal*         pWal;
   SSyncFSM*     pFsm;
   SMsgCb*       msgcb;
-  int32_t (*FpSendMsg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
-  int32_t (*FpEqMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
-  int32_t (*FpEqCtrlMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
+  int32_t       pingMs;
+  int32_t       electMs;
+  int32_t       heartbeatMs;
+
+  int32_t (*syncSendMSg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
+  int32_t (*syncEqMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
+  int32_t (*syncEqCtrlMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
 } SSyncInfo;
 
 int32_t     syncInit();
@@ -227,6 +231,8 @@ int32_t syncEndSnapshot(int64_t rid);
 int32_t syncStepDown(int64_t rid, SyncTerm newTerm);
 
 int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg);
+
+const char* syncUtilState2String(ESyncState state);
 
 #ifdef __cplusplus
 }

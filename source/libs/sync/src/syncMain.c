@@ -56,6 +56,12 @@ int64_t syncOpen(SSyncInfo* pSyncInfo) {
     return -1;
   }
 
+  pSyncNode->pingBaseLine = pSyncInfo->pingMs;
+  pSyncNode->pingTimerMS = pSyncInfo->pingMs;
+  pSyncNode->electBaseLine = pSyncInfo->electMs;
+  pSyncNode->hbBaseLine = pSyncInfo->heartbeatMs;
+  pSyncNode->heartbeatTimerMS = pSyncInfo->heartbeatMs;
+  pSyncNode->msgcb = pSyncInfo->msgcb;
   return pSyncNode->rid;
 }
 
@@ -747,18 +753,6 @@ static void syncGetAndDelRespRpc(SSyncNode* pSyncNode, uint64_t index, SRpcHandl
   sTrace("vgId:%d, get seq:%" PRIu64 " rpc handle:%p", pSyncNode->vgId, index, pInfo->handle);
 }
 
-void syncSetMsgCb(int64_t rid, const SMsgCb* msgcb) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    sTrace("syncSetQ get pSyncNode is NULL, rid:%" PRId64, rid);
-    return;
-  }
-  ASSERT(rid == pSyncNode->rid);
-  pSyncNode->msgcb = msgcb;
-
-  syncNodeRelease(pSyncNode);
-}
-
 char* sync2SimpleStr(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
@@ -770,41 +764,6 @@ char* sync2SimpleStr(int64_t rid) {
   syncNodeRelease(pSyncNode);
 
   return s;
-}
-
-void setPingTimerMS(int64_t rid, int32_t pingTimerMS) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    return;
-  }
-  ASSERT(rid == pSyncNode->rid);
-  pSyncNode->pingBaseLine = pingTimerMS;
-  pSyncNode->pingTimerMS = pingTimerMS;
-
-  syncNodeRelease(pSyncNode);
-}
-
-void setElectTimerMS(int64_t rid, int32_t electTimerMS) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    return;
-  }
-  ASSERT(rid == pSyncNode->rid);
-  pSyncNode->electBaseLine = electTimerMS;
-
-  syncNodeRelease(pSyncNode);
-}
-
-void setHeartbeatTimerMS(int64_t rid, int32_t hbTimerMS) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    return;
-  }
-  ASSERT(rid == pSyncNode->rid);
-  pSyncNode->hbBaseLine = hbTimerMS;
-  pSyncNode->heartbeatTimerMS = hbTimerMS;
-
-  syncNodeRelease(pSyncNode);
 }
 
 int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
@@ -903,7 +862,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
       }
 
     } else {
-      if (pSyncNode->FpEqMsg != NULL && (*pSyncNode->FpEqMsg)(pSyncNode->msgcb, &rpcMsg) == 0) {
+      if (pSyncNode->syncEqMsg != NULL && (*pSyncNode->syncEqMsg)(pSyncNode->msgcb, &rpcMsg) == 0) {
         ret = 0;
       } else {
         ret = -1;
@@ -1034,9 +993,9 @@ SSyncNode* syncNodeOpen(SSyncInfo* pSyncInfo) {
 
   pSyncNode->pWal = pSyncInfo->pWal;
   pSyncNode->msgcb = pSyncInfo->msgcb;
-  pSyncNode->FpSendMsg = pSyncInfo->FpSendMsg;
-  pSyncNode->FpEqMsg = pSyncInfo->FpEqMsg;
-  pSyncNode->FpEqCtrlMsg = pSyncInfo->FpEqCtrlMsg;
+  pSyncNode->syncSendMSg = pSyncInfo->syncSendMSg;
+  pSyncNode->syncEqMsg = pSyncInfo->syncEqMsg;
+  pSyncNode->syncEqCtrlMsg = pSyncInfo->syncEqCtrlMsg;
 
   // init raft config
   pSyncNode->pRaftCfg = raftCfgOpen(pSyncNode->configPath);
@@ -1552,12 +1511,12 @@ int32_t syncNodeRestartHeartbeatTimer(SSyncNode* pSyncNode) {
 int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
   SEpSet epSet;
   syncUtilraftId2EpSet(destRaftId, &epSet);
-  if (pSyncNode->FpSendMsg != NULL) {
+  if (pSyncNode->syncSendMSg != NULL) {
     // htonl
     syncUtilMsgHtoN(pMsg->pCont);
 
     pMsg->info.noResp = 1;
-    pSyncNode->FpSendMsg(&epSet, pMsg);
+    pSyncNode->syncSendMSg(&epSet, pMsg);
   } else {
     sError("vgId:%d, sync send msg by id error, fp-send-msg is null", pSyncNode->vgId);
     return -1;
@@ -1569,12 +1528,12 @@ int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRp
 int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
   SEpSet epSet;
   syncUtilnodeInfo2EpSet(nodeInfo, &epSet);
-  if (pSyncNode->FpSendMsg != NULL) {
+  if (pSyncNode->syncSendMSg != NULL) {
     // htonl
     syncUtilMsgHtoN(pMsg->pCont);
 
     pMsg->info.noResp = 1;
-    pSyncNode->FpSendMsg(&epSet, pMsg);
+    pSyncNode->syncSendMSg(&epSet, pMsg);
   } else {
     sError("vgId:%d, sync send msg by info error, fp-send-msg is null", pSyncNode->vgId);
   }
@@ -1598,13 +1557,13 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
 
     snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->msgcb);
     cJSON_AddStringToObject(pRoot, "rpcClient", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpSendMsg);
-    cJSON_AddStringToObject(pRoot, "FpSendMsg", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->syncSendMSg);
+    cJSON_AddStringToObject(pRoot, "syncSendMSg", u64buf);
 
     snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->msgcb);
     cJSON_AddStringToObject(pRoot, "queue", u64buf);
-    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpEqMsg);
-    cJSON_AddStringToObject(pRoot, "FpEqMsg", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->syncEqMsg);
+    cJSON_AddStringToObject(pRoot, "syncEqMsg", u64buf);
 
     // init internal
     cJSON* pMe = syncUtilNodeInfo2Json(&pSyncNode->myNodeInfo);
@@ -2617,8 +2576,8 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     SRpcMsg      rpcMsg;
     syncTimeout2RpcMsg(pSyncMsg, &rpcMsg);
     syncRpcMsgLog2((char*)"==syncNodeEqPingTimer==", &rpcMsg);
-    if (pSyncNode->FpEqMsg != NULL) {
-      int32_t code = pSyncNode->FpEqMsg(pSyncNode->msgcb, &rpcMsg);
+    if (pSyncNode->syncEqMsg != NULL) {
+      int32_t code = pSyncNode->syncEqMsg(pSyncNode->msgcb, &rpcMsg);
       if (code != 0) {
         sError("vgId:%d, sync enqueue ping msg error, code:%d", pSyncNode->vgId, code);
         rpcFreeCont(rpcMsg.pCont);
@@ -2626,7 +2585,7 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
         return;
       }
     } else {
-      sTrace("syncNodeEqPingTimer pSyncNode->FpEqMsg is NULL");
+      sTrace("syncNodeEqPingTimer pSyncNode->syncEqMsg is NULL");
     }
     syncTimeoutDestroy(pSyncMsg);
 
@@ -2651,8 +2610,8 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
                                             pSyncNode->vgId, pSyncNode);
   SRpcMsg      rpcMsg;
   syncTimeout2RpcMsg(pSyncMsg, &rpcMsg);
-  if (pSyncNode->FpEqMsg != NULL) {
-    int32_t code = pSyncNode->FpEqMsg(pSyncNode->msgcb, &rpcMsg);
+  if (pSyncNode->syncEqMsg != NULL) {
+    int32_t code = pSyncNode->syncEqMsg(pSyncNode->msgcb, &rpcMsg);
     if (code != 0) {
       sError("vgId:%d, sync enqueue elect msg error, code:%d", pSyncNode->vgId, code);
       rpcFreeCont(rpcMsg.pCont);
@@ -2668,7 +2627,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
     } while (0);
 
   } else {
-    sTrace("syncNodeEqElectTimer FpEqMsg is NULL");
+    sTrace("syncNodeEqElectTimer syncEqMsg is NULL");
   }
 
   syncTimeoutDestroy(pSyncMsg);
@@ -2700,8 +2659,8 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
       SRpcMsg rpcMsg;
       syncTimeout2RpcMsg(pSyncMsg, &rpcMsg);
       syncRpcMsgLog2((char*)"==syncNodeEqHeartbeatTimer==", &rpcMsg);
-      if (pSyncNode->FpEqMsg != NULL) {
-        int32_t code = pSyncNode->FpEqMsg(pSyncNode->msgcb, &rpcMsg);
+      if (pSyncNode->syncEqMsg != NULL) {
+        int32_t code = pSyncNode->syncEqMsg(pSyncNode->msgcb, &rpcMsg);
         if (code != 0) {
           sError("vgId:%d, sync enqueue timer msg error, code:%d", pSyncNode->vgId, code);
           rpcFreeCont(rpcMsg.pCont);
@@ -2709,7 +2668,7 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
           return;
         }
       } else {
-        sError("vgId:%d, enqueue msg cb ptr (i.e. FpEqMsg) not set.", pSyncNode->vgId);
+        sError("vgId:%d, enqueue msg cb ptr (i.e. syncEqMsg) not set.", pSyncNode->vgId);
       }
       syncTimeoutDestroy(pSyncMsg);
 
@@ -2756,8 +2715,8 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
 
 // eq msg
 #if 0
-      if (pSyncNode->FpEqCtrlMsg != NULL) {
-        int32_t code = pSyncNode->FpEqCtrlMsg(pSyncNode->msgcb, &rpcMsg);
+      if (pSyncNode->syncEqCtrlMsg != NULL) {
+        int32_t code = pSyncNode->syncEqCtrlMsg(pSyncNode->msgcb, &rpcMsg);
         if (code != 0) {
           sError("vgId:%d, sync ctrl enqueue timer msg error, code:%d", pSyncNode->vgId, code);
           rpcFreeCont(rpcMsg.pCont);
@@ -2765,7 +2724,7 @@ static void syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId) {
           return;
         }
       } else {
-        sError("vgId:%d, enqueue ctrl msg cb ptr (i.e. FpEqMsg) not set.", pSyncNode->vgId);
+        sError("vgId:%d, enqueue ctrl msg cb ptr (i.e. syncEqMsg) not set.", pSyncNode->vgId);
       }
 #endif
 
@@ -2805,10 +2764,10 @@ static int32_t syncNodeEqNoop(SSyncNode* ths) {
 
   SRpcMsg rpcMsg = {0};
   syncClientRequest2RpcMsg(pSyncMsg, &rpcMsg);
-  if (ths->FpEqMsg != NULL) {
-    ths->FpEqMsg(ths->msgcb, &rpcMsg);
+  if (ths->syncEqMsg != NULL) {
+    ths->syncEqMsg(ths->msgcb, &rpcMsg);
   } else {
-    sTrace("syncNodeEqNoop pSyncNode->FpEqMsg is NULL");
+    sTrace("syncNodeEqNoop pSyncNode->syncEqMsg is NULL");
   }
 
   syncEntryDestory(pEntry);
@@ -2919,8 +2878,8 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg) {
     SRpcMsg rpcMsgLocalCmd;
     syncLocalCmd2RpcMsg(pSyncMsg, &rpcMsgLocalCmd);
 
-    if (ths->FpEqMsg != NULL && ths->msgcb != NULL) {
-      int32_t code = ths->FpEqMsg(ths->msgcb, &rpcMsgLocalCmd);
+    if (ths->syncEqMsg != NULL && ths->msgcb != NULL) {
+      int32_t code = ths->syncEqMsg(ths->msgcb, &rpcMsgLocalCmd);
       if (code != 0) {
         sError("vgId:%d, sync enqueue step-down msg error, code:%d", ths->vgId, code);
         rpcFreeCont(rpcMsgLocalCmd.pCont);

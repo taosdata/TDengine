@@ -503,9 +503,12 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
       .syncCfg = pVnode->config.syncCfg,
       .pWal = pVnode->pWal,
       .msgcb = NULL,
-      .FpSendMsg = vnodeSyncSendMsg,
-      .FpEqMsg = vnodeSyncEqMsg,
-      .FpEqCtrlMsg = vnodeSyncEqCtrlMsg,
+      .syncSendMSg = vnodeSyncSendMsg,
+      .syncEqMsg = vnodeSyncEqMsg,
+      .syncEqCtrlMsg = vnodeSyncEqCtrlMsg,
+      .pingMs = 5000,
+      .electMs = 4000,
+      .heartbeatMs = 700,
   };
 
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s%ssync", path, TD_DIRSEP);
@@ -524,15 +527,11 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
     return -1;
   }
 
-  setPingTimerMS(pVnode->sync, 5000);
-  setElectTimerMS(pVnode->sync, 4000);
-  setHeartbeatTimerMS(pVnode->sync, 700);
   return 0;
 }
 
 void vnodeSyncStart(SVnode *pVnode) {
   vDebug("vgId:%d, start sync", pVnode->config.vgId);
-  syncSetMsgCb(pVnode->sync, &pVnode->msgCb);
   syncStart(pVnode->sync);
 }
 

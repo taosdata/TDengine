@@ -202,9 +202,12 @@ int32_t mndInitSync(SMnode *pMnode) {
       .vgId = 1,
       .pWal = pMnode->pWal,
       .msgcb = NULL,
-      .FpSendMsg = mndSyncSendMsg,
-      .FpEqMsg = mndSyncEqMsg,
-      .FpEqCtrlMsg = NULL,
+      .syncSendMSg = mndSyncSendMsg,
+      .syncEqMsg = mndSyncEqMsg,
+      .syncEqCtrlMsg = NULL,
+      .pingMs = 5000,
+      .electMs = 3000,
+      .heartbeatMs = 500,
   };
 
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s%ssync", pMnode->path, TD_DIRSEP);
@@ -227,11 +230,6 @@ int32_t mndInitSync(SMnode *pMnode) {
     mError("failed to open sync since %s", terrstr());
     return -1;
   }
-
-  // decrease election timer
-  setPingTimerMS(pMgmt->sync, 5000);
-  setElectTimerMS(pMgmt->sync, 3000);
-  setHeartbeatTimerMS(pMgmt->sync, 500);
 
   mInfo("mnode-sync is opened, id:%" PRId64, pMgmt->sync);
   return 0;
@@ -303,7 +301,6 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
 
 void mndSyncStart(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-  syncSetMsgCb(pMgmt->sync, &pMnode->msgCb);
   syncStart(pMgmt->sync);
   mInfo("vgId:1, sync started, id:%" PRId64, pMgmt->sync);
 }

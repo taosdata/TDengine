@@ -87,8 +87,8 @@ void initFsm() {
 SSyncNode *syncNodeInit() {
   syncInfo.vgId = 1234;
   syncInfo.msgcb = &gSyncIO->msgcb;
-  syncInfo.FpSendMsg = syncIOSendMsg;
-  syncInfo.FpEqMsg = syncIOEqMsg;
+  syncInfo.syncSendMSg = syncIOSendMsg;
+  syncInfo.syncEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", pDir);
 
@@ -204,7 +204,7 @@ int main(int argc, char **argv) {
     SyncClientRequest *pSyncClientRequest = pMsg1;
     SRpcMsg            rpcMsg;
     syncClientRequest2RpcMsg(pSyncClientRequest, &rpcMsg);
-    gSyncNode->FpEqMsg(gSyncNode->msgcb, &rpcMsg);
+    gSyncNode->syncEqMsg(gSyncNode->msgcb, &rpcMsg);
 
     taosMsleep(1000);
   }
