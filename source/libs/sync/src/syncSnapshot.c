@@ -922,3 +922,13 @@ int32_t syncNodeOnSnapshotReply(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
 
   return 0;
 }
+
+int32_t syncNodeOnPreSnapshot(SSyncNode *ths, SyncPreSnapshot *pMsg) {
+  syncLogRecvSyncPreSnapshot(ths, pMsg, "");
+  return 0;
+}
+
+int32_t syncNodeOnPreSnapshotReply(SSyncNode *ths, SyncPreSnapshotReply *pMsg) {
+  syncLogRecvSyncPreSnapshotReply(ths, pMsg, "");
+  return 0;
+}
