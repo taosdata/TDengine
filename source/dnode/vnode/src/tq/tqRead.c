@@ -219,17 +219,20 @@ int64_t tqFetchLog(STQ* pTq, STqHandle* pHandle, int64_t* fetchOffset, SWalCkHea
         SWalCont* pHead = &((*ppCkHead)->head);
         if (IS_META_MSG(pHead->msgType)) {
           code = walFetchBody(pHandle->pWalReader, ppCkHead);
-
           if (code < 0) {
             ASSERT(0);
             *fetchOffset = offset;
             code = -1;
             goto END;
           }
+
           if (isValValidForTable(pHandle, pHead)) {
             *fetchOffset = offset;
             code = 0;
             goto END;
+          } else {
+            offset++;
+            continue;
           }
         }
       }
