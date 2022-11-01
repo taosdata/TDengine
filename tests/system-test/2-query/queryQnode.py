@@ -64,7 +64,7 @@ class TDTestCase:
         return buildPath
 
     # init
-    def init(self, conn, logSql=True):
+    def init(self, conn, logSql=True, replicaVar=1):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
         # tdSql.prepare()

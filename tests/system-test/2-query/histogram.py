@@ -144,7 +144,7 @@ class Hsgschema:
 
 class TDTestCase:
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
 
@@ -306,7 +306,9 @@ class TDTestCase:
         err_sqls.append( Hsgschema( col=INT_COL, bin_type="USER_INPUT", user_input="[0,3,6,9,'a']", normalized=1 ) )
         err_sqls.append( Hsgschema( col=INT_COL, bin_type="USER_INPUT", user_input="['a']", normalized=1 ) )
         err_sqls.append( Hsgschema( col=INT_COL, bin_type="linear_bin", linear_bin=['{"start": 1, "width": 3, "count": 10, "infinity": false}'], normalized=1 ) )
-        err_sqls.append( Hsgschema( col=INT_COL, bin_type="linear_bin", linear_bin='[{"start": 1, "width": 3, "count": 10, "infinity": false}]', normalized=1 ) )
+        # err_sqls.append( Hsgschema( col=INT_COL, bin_type="linear_bin", linear_bin='{"start": 1, "width": 2, "count": 10, "infinity": false}', normalized=1 , "123" ) )
+        err_sqls.append( Hsgschema( col=INT_COL, bin_type="linear_bin", linear_bin='{"start": 1, "width": float("inf"), "count": 10, "infinity": false}', normalized=1 ) )
+        err_sqls.append( Hsgschema( col=INT_COL, bin_type="linear_bin",  linear_bin='{"start": float("inf"), "width": 10, "count": 10, "infinity": false}', normalized=1 ) )
         err_sqls.append( Hsgschema( col=INT_COL, bin_type="linear_bin", linear_bin='{"begin": 1, "width": 3, "count": 10, "infinity": false}', normalized=1 ) )
         err_sqls.append( Hsgschema( col=INT_COL, bin_type="linear_bin", linear_bin='{"start": 1, "length": 3, "count": 10, "infinity": false}', normalized=1 ) )
         err_sqls.append( Hsgschema( col=INT_COL, bin_type="linear_bin", linear_bin='{"start": 1, "width": 3, "num": 10, "infinity": false}', normalized=1 ) )
@@ -325,6 +327,11 @@ class TDTestCase:
         err_sqls.append( Hsgschema( col=INT_COL, bin_type="log_bin", log_bin=['{"start": 1, "factor": 4, "count": 4, "infinity": true}'], normalized=1 ) )
         err_sqls.append( Hsgschema( col=INT_COL, bin_type="log_bin", log_bin='[{"start": 1, "factor": 4, "count": 4, "infinity": true}]', normalized=1 ) )
         err_sqls.append( Hsgschema( col=INT_COL, bin_type="log_bin", log_bin='{"begin": 1, "factor": 4, "count": 4, "infinity": true}', normalized=1 ) )
+        err_sqls.append( Hsgschema( col=INT_COL, bin_type="log_bin", log_bin='{"start": 1, "factor": -10, "count": 4,  "infinity": true}', normalized=1 ) )
+        err_sqls.append( Hsgschema( col=INT_COL, bin_type="log_bin", log_bin='{"start": 1, "factor": 0, "count": 4, "infinity": true}', normalized=1 ) )
+        err_sqls.append( Hsgschema( col=INT_COL, bin_type="log_bin", log_bin='{"start": 1, "factor": 0, "count": 4, "infinity": true}', normalized=1 ) )
+        err_sqls.append( Hsgschema( col=INT_COL, bin_type="log_bin", log_bin='{"start": 1, "factor": -10, "width": NULL, "count": 4, "infinity": true}', normalized=1 ) )
+
         err_sqls.append( Hsgschema( col=INT_COL, bin_type="log_bin", log_bin='{"start": 1, "step": 4, "count": 4, "infinity": true}', normalized=1 ) )
         err_sqls.append( Hsgschema( col=INT_COL, bin_type="log_bin", log_bin='{"start": 1, "factor": 4, "num": 4, "infinity": true}', normalized=1 ) )
         err_sqls.append( Hsgschema( col=INT_COL, bin_type="log_bin", log_bin='{"start": 1, "factor": 4, "count": 4, "witgnull": true}', normalized=1 ) )
@@ -338,6 +345,13 @@ class TDTestCase:
         err_sqls.append( Hsgschema( col=INT_COL, bin_type="log_bin", log_bin='{"start": 1, "factor": -10, "count": 4, "infinity": true}', normalized=1 ) )
         err_sqls.append( Hsgschema( col=INT_COL, bin_type="log_bin", log_bin='{"start": 1, "factor": 10, "count": 0, "infinity": true}', normalized=1 ) )
         err_sqls.append( Hsgschema( col=INT_COL, bin_type="log_bin", log_bin='{"start": 1, "factor": 10, "count": -10, "infinity": true}', normalized=1 ) )
+        err_sqls.append( Hsgschema( col=INT_COL, bin_type="log_bin", log_bin='{"start": 1, "factor": 10, "count": 10001, "infinity": true}', normalized=1 ) )
+        err_sqls.append( Hsgschema( col=INT_COL, bin_type="log_bin", log_bin='{"start": 1, "factor": 10, "count": "123", "infinity": true}', normalized=1 ) )
+        err_sqls.append( Hsgschema( col=INT_COL, bin_type="log_bin", log_bin='{"start": 1, "factor": 10, "count": float("inf"), "infinity": false}', normalized=1 ) )
+        err_sqls.append( Hsgschema( col=INT_COL, bin_type="log_bin", log_bin='{"start": 1, "factor": float("inf"), "count": 10, "infinity": false}', normalized=1 ) )
+        err_sqls.append( Hsgschema( col=INT_COL, bin_type="log_bin", log_bin='{"start": float("inf"), "factor": 10, "count": 10, "infinity": false}', normalized=1 ) )
+        err_sqls.append( Hsgschema( col=INT_COL, bin_type="log_bin", log_bin='{"start": float("-inf"), "factor": 10, "count": 10, "infinity": false}', normalized=1 ) )
+
         err_sqls.append( Hsgschema( col=INT_COL, bin_type="log_bin", log_bin='{"start": 1, "factor": 10, "count": 10, "infinity": "true"}', normalized=1 ) )
         err_sqls.append( Hsgschema( col=INT_COL, bin_type="log_bin", log_bin='{"start": 1, "factor": 10, "count": 10, "infinity": null}', normalized=1 ) )
         err_sqls.append( Hsgschema( col=INT_COL, bin_type="log_bin", log_bin='{"start": 1, "factor": 10, "count": 10, "infinity": false}', where_clause=f"count({INT_COL}) >= 0 ") )
@@ -452,6 +466,21 @@ class TDTestCase:
         tdSql.checkData(0, 0, '{"lower_bin":0, "upper_bin":3, "count":3}')
         tdSql.checkData(1, 0, '{"lower_bin":3, "upper_bin":6, "count":3}')
         tdSql.checkData(2, 0, '{"lower_bin":6, "upper_bin":9, "count":3}')
+        
+        #error sql 
+        # tdSql.error(f"SELECT HISTOGRAM(c_int, 'linear_bin', '{"start": -200, "width": 100, "count": 20, "infinity": false}', 0 ,1 ) from {dbname}.nt1 where c_int < 10")
+
+        # tdSql.error(f"SELECT HISTOGRAM(c_int, 'linear_bin', '{"start": -200, "width": 100, "count": -10, "infinity": false}', 0 ) from {dbname}.nt1 where c_int < 10")
+
+        # tdSql.error(f"SELECT HISTOGRAM(c_int, 'linear_bin', '{"start": -200, "width": 100, "count": 1001, "infinity": false}', 0 ) from {dbname}.nt1 where c_int < 10")
+
+        tdSql.error(f"SELECT HISTOGRAM(c_int, 'log_bin', '[0,3,6,9]', 0 ,1 ) from {dbname}.nt1 where c_int < 10")
+
+        tdSql.error(f"SELECT HISTOGRAM(c_int, 'USER_INPUT', '[0,3,6,9]', 0 ,1 ) from {dbname}.nt1 where c_int < 10")
+        tdSql.error(f"SELECT HISTOGRAM(c_int, 'USER_INPUT', '[0,3,6,9]' ) from {dbname}.nt1 where c_int < 10")
+        tdSql.error(f"SELECT HISTOGRAM('123', 'USER_INPUT', '[0,3,6,9]', 0 ) from {dbname}.nt1 where c_int < 10")
+        tdSql.error(f"SELECT HISTOGRAM('123', 123 ,123 ,123 ) from {dbname}.nt1 where c_int < 10")
+        tdSql.error(f"SELECT HISTOGRAM(123, '123' ,'123' ,'123' ) from {dbname}.nt1 where c_int < 10")
 
         #  if (4 != numOfParams) 
         # tdSql.error("select HISTOGRAM(c_int, \"linear_bin\", \"{\"start\": -200, \"width\": 100, \"count\": 20, \"infinity\": false}\", 1 , InvalidNumber) from db.stb1 where c_int < 10")
