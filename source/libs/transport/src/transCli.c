@@ -187,18 +187,8 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
     snprintf(key, sizeof(key), "%s:%d", ip, (int)port); \
   } while (0)
 
-#define CONN_HOST_THREAD_IDX1(idx, exh, refId, pThrd) \
-  do {                                                \
-    if (exh == NULL) {                                \
-      idx = -1;                                       \
-    } else {                                          \
-      ASYNC_CHECK_HANDLE((exh), refId);               \
-      pThrd = (SCliThrd*)(exh)->pThrd;                \
-    }                                                 \
-  } while (0)
-#define CONN_PERSIST_TIME(para)    ((para) <= 90000 ? 90000 : (para))
-#define CONN_GET_HOST_THREAD(conn) (conn ? ((SCliConn*)conn)->hostThrd : NULL)
-#define CONN_GET_INST_LABEL(conn)  (((STrans*)(((SCliThrd*)(conn)->hostThrd)->pTransInst))->label)
+#define CONN_PERSIST_TIME(para)   ((para) <= 90000 ? 90000 : (para))
+#define CONN_GET_INST_LABEL(conn) (((STrans*)(((SCliThrd*)(conn)->hostThrd)->pTransInst))->label)
 
 #define CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle)                         \
   do {                                                                    \
@@ -217,6 +207,7 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
       tDebug("msg found, %" PRIu64 "", ahandle);                          \
     }                                                                     \
   } while (0)
+
 #define CONN_GET_NEXT_SENDMSG(conn)                 \
   do {                                              \
     int i = 0;                                      \
@@ -229,21 +220,6 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
     if (pCliMsg == NULL) {                          \
       goto _RETURN;                                 \
     }                                               \
-  } while (0)
-
-#define CONN_HANDLE_THREAD_QUIT(thrd) \
-  do {                                \
-    if (thrd->quit) {                 \
-      return;                         \
-    }                                 \
-  } while (0)
-
-#define CONN_HANDLE_BROKEN(conn) \
-  do {                           \
-    if (conn->broken) {          \
-      cliHandleExcept(conn);     \
-      return;                    \
-    }                            \
   } while (0)
 
 #define CONN_SET_PERSIST_BY_APP(conn) \

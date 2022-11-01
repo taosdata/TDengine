@@ -1687,7 +1687,9 @@ void initIntervalDownStream(SOperatorInfo* downstream, uint16_t type, SAggSuppor
   SStreamScanInfo* pScanInfo = downstream->info;
   pScanInfo->windowSup.parentType = type;
   pScanInfo->windowSup.pIntervalAggSup = pSup;
-  pScanInfo->pUpdateInfo = updateInfoInitP(pInterval, pTwSup->waterMark);
+  if (!pScanInfo->pUpdateInfo) {
+    pScanInfo->pUpdateInfo = updateInfoInitP(pInterval, pTwSup->waterMark);
+  }
   pScanInfo->interval = *pInterval;
   pScanInfo->twAggSup = *pTwSup;
 }
@@ -2453,7 +2455,6 @@ static SSDataBlock* doTimeslice(SOperatorInfo* pOperator) {
           } else {  // non-linear interpolation
             pSliceInfo->current =
                 taosTimeAdd(pSliceInfo->current, pInterval->interval, pInterval->intervalUnit, pInterval->precision);
-
           }
         }
 
