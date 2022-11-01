@@ -61,6 +61,7 @@ add_executable(syncHeartbeatTest "")
 add_executable(syncHeartbeatReplyTest "")
 add_executable(syncLocalCmdTest "")
 add_executable(syncPreSnapshotTest "")
+add_executable(syncPreSnapshotReplyTest "")
 
 
 target_sources(syncTest
@@ -314,6 +315,10 @@ target_sources(syncLocalCmdTest
 target_sources(syncPreSnapshotTest
     PRIVATE
     "syncPreSnapshotTest.cpp"
+)
+target_sources(syncPreSnapshotReplyTest
+    PRIVATE
+    "syncPreSnapshotReplyTest.cpp"
 )
 
 
@@ -632,6 +637,11 @@ target_include_directories(syncPreSnapshotTest
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+target_include_directories(syncPreSnapshotReplyTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 
 
 target_link_libraries(syncTest
@@ -883,6 +893,10 @@ target_link_libraries(syncLocalCmdTest
     gtest_main
 )
 target_link_libraries(syncPreSnapshotTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncPreSnapshotReplyTest
     sync
     gtest_main
 )
