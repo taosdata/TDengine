@@ -469,6 +469,8 @@ taosx follows the [OpenAPI Specification 3.x][oas3] and provides a [SwaggerUI] i
 - **POST /tasks/replicate**: create a replication task with explicit options.
 - **POST /tasks/subscribe**: create a subscription task with explicit options.
 - **GET /tasks/{id}**: get task status by `id`.
+- **POST /tasks/{id}/start**: start a task by `id` if not running.
+- **POST /tasks/{id}/stop**: stop a running tasks by `id`, do nothing if not running.
 - **DELETE /tasks/{id}**: delete task by `id`, will cancel unfinished tasks and delete the task(taosx will mark the task as deleted indeed, and can't list it in *GET /tasks* action).
 
 A task schema might be:
