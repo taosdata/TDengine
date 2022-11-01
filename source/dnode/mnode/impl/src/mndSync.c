@@ -234,7 +234,7 @@ int32_t mndInitSync(SMnode *pMnode) {
       .batchSize = 1,
       .vgId = 1,
       .pWal = pMnode->pWal,
-      .msgcb = NULL,
+      .msgcb = &pMnode->msgCb,
       .syncSendMSg = mndSyncSendMsg,
       .syncEqMsg = mndSyncEqMsg,
       .syncEqCtrlMsg = mndSyncEqCtrlMsg,

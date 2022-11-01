@@ -325,13 +325,13 @@ static void vnodeSyncApplyMsg(const SSyncFSM *pFsm, const SRpcMsg *pMsg, const S
 
 static void vnodeSyncCommitMsg(const SSyncFSM *pFsm, const SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   if (pMeta->isWeak == 0) {
-    vnodeSyncApplyMsg(pFsm->data, pMsg, pMeta);
+    vnodeSyncApplyMsg(pFsm, pMsg, pMeta);
   }
 }
 
 static void vnodeSyncPreCommitMsg(const SSyncFSM *pFsm, const SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   if (pMeta->isWeak == 1) {
-    vnodeSyncApplyMsg(pFsm->data, pMsg, pMeta);
+    vnodeSyncApplyMsg(pFsm, pMsg, pMeta);
   }
 }
 
@@ -514,7 +514,7 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
       .vgId = pVnode->config.vgId,
       .syncCfg = pVnode->config.syncCfg,
       .pWal = pVnode->pWal,
-      .msgcb = NULL,
+      .msgcb = &pVnode->msgCb,
       .syncSendMSg = vnodeSyncSendMsg,
       .syncEqMsg = vnodeSyncEqMsg,
       .syncEqCtrlMsg = vnodeSyncEqCtrlMsg,
