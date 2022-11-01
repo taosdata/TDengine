@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "sync.h"
 #include "syncAppendEntries.h"
 #include "syncAppendEntriesReply.h"
@@ -34,8 +35,6 @@
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
 
-// ------ local funciton ---------
-// enqueue message ----
 static void    syncNodeEqPingTimer(void* param, void* tmrId);
 static void    syncNodeEqElectTimer(void* param, void* tmrId);
 static void    syncNodeEqHeartbeatTimer(void* param, void* tmrId);
@@ -44,158 +43,145 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths);
 static void    syncNodeEqPeerHeartbeatTimer(void* param, void* tmrId);
 static bool    syncIsConfigChanged(const SSyncCfg* pOldCfg, const SSyncCfg* pNewCfg);
 
-// process message ----
-int32_t syncNodeOnPing(SSyncNode* ths, SyncPing* pMsg);
-int32_t syncNodeOnPingReply(SSyncNode* ths, SyncPingReply* pMsg);
-
 int64_t syncOpen(SSyncInfo* pSyncInfo) {
-  SSyncNode* pNode = syncNodeOpen(pSyncInfo);
-  if (pNode == NULL) {
+  SSyncNode* pSyncNode = syncNodeOpen(pSyncInfo);
+  if (pSyncNode == NULL) {
     sError("vgId:%d, failed to open sync node", pSyncInfo->vgId);
     return -1;
   }
 
-  pNode->rid = syncNodeAdd(pNode);
-  if (pNode->rid < 0) {
-    syncNodeClose(pNode);
+  pSyncNode->rid = syncNodeAdd(pSyncNode);
+  if (pSyncNode->rid < 0) {
+    syncNodeClose(pSyncNode);
     return -1;
   }
 
-  return pNode->rid;
+  return pSyncNode->rid;
 }
 
 void syncStart(int64_t rid) {
-  SSyncNode* pNode = syncNodeAcquire(rid);
-  if (pNode != NULL) {
-    syncNodeStart(pNode);
-    syncNodeRelease(pNode);
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode != NULL) {
+    syncNodeStart(pSyncNode);
+    syncNodeRelease(pSyncNode);
   }
 }
 
 void syncStop(int64_t rid) {
-  SSyncNode* pNode = syncNodeAcquire(rid);
-  if (pNode != NULL) {
-    syncNodeRelease(pNode);
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode != NULL) {
+    syncNodeRelease(pSyncNode);
     syncNodeRemove(rid);
   }
 }
 
-bool syncNodeCheckNewConfig(SSyncNode* pSyncNode, const SSyncCfg* pNewCfg) {
-  bool IamInNew = syncNodeInConfig(pSyncNode, pNewCfg);
-  if (!IamInNew) {
-    return false;
-  }
-
-  if (pNewCfg->replicaNum > pSyncNode->replicaNum + 1) {
-    return false;
-  }
-
-  if (pNewCfg->replicaNum < pSyncNode->replicaNum - 1) {
-    return false;
-  }
-
-  return true;
-}
-
-int32_t syncReconfigBuild(int64_t rid, const SSyncCfg* pNewCfg, SRpcMsg* pRpcMsg) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-    return -1;
-  }
-  ASSERT(rid == pSyncNode->rid);
-  int32_t ret = 0;
-
-  if (!syncNodeCheckNewConfig(pSyncNode, pNewCfg)) {
-    syncNodeRelease(pSyncNode);
-    terrno = TSDB_CODE_SYN_NEW_CONFIG_ERROR;
-    sError("invalid new config. vgId:%d", pSyncNode->vgId);
-    return -1;
-  }
-
-  char* newconfig = syncCfg2Str((SSyncCfg*)pNewCfg);
-  pRpcMsg->msgType = TDMT_SYNC_CONFIG_CHANGE;
-  pRpcMsg->info.noResp = 1;
-  pRpcMsg->contLen = strlen(newconfig) + 1;
-  pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
-  snprintf(pRpcMsg->pCont, pRpcMsg->contLen, "%s", newconfig);
-  taosMemoryFree(newconfig);
-
-  syncNodeRelease(pSyncNode);
-  return ret;
+static bool syncNodeCheckNewConfig(SSyncNode* pSyncNode, const SSyncCfg* pCfg) {
+  if (!syncNodeInConfig(pSyncNode, pCfg)) return false;
+  return abs(pCfg->replicaNum - pSyncNode->replicaNum) <= 1;
 }
 
 int32_t syncReconfig(int64_t rid, SSyncCfg* pNewCfg) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-    return -1;
-  }
-  ASSERT(rid == pSyncNode->rid);
+  if (pSyncNode == NULL) return -1;
 
   if (!syncNodeCheckNewConfig(pSyncNode, pNewCfg)) {
     syncNodeRelease(pSyncNode);
     terrno = TSDB_CODE_SYN_NEW_CONFIG_ERROR;
-    sError("invalid new config. vgId:%d", pSyncNode->vgId);
+    sError("vgId:%d, failed to reconfig since invalid new config", pSyncNode->vgId);
     return -1;
   }
 
-#if 0
-  char*   newconfig = syncCfg2Str((SSyncCfg*)pNewCfg);
-  int32_t ret = 0;
-
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.msgType = TDMT_SYNC_CONFIG_CHANGE;
-  rpcMsg.info.noResp = 1;
-  rpcMsg.contLen = strlen(newconfig) + 1;
-  rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
-  snprintf(rpcMsg.pCont, rpcMsg.contLen, "%s", newconfig);
-  taosMemoryFree(newconfig);
-  ret = syncNodePropose(pSyncNode, &rpcMsg, false);
-
-  syncNodeRelease(pSyncNode);
-  return ret;
-#else
   syncNodeUpdateNewConfigIndex(pSyncNode, pNewCfg);
   syncNodeDoConfigChange(pSyncNode, pNewCfg, SYNC_INDEX_INVALID);
+
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
     syncNodeStopHeartbeatTimer(pSyncNode);
 
     for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
-      syncHbTimerInit(pSyncNode, &(pSyncNode->peerHeartbeatTimerArr[i]), (pSyncNode->replicasId)[i]);
+      syncHbTimerInit(pSyncNode, &pSyncNode->peerHeartbeatTimerArr[i], pSyncNode->replicasId[i]);
     }
 
     syncNodeStartHeartbeatTimer(pSyncNode);
-
     syncNodeReplicate(pSyncNode);
   }
+
   syncNodeRelease(pSyncNode);
   return 0;
-#endif
+}
+
+int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg) {
+  int32_t code = -1;
+  if (!syncIsInit()) return code;
+
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) return code;
+
+  if (pMsg->msgType == TDMT_SYNC_HEARTBEAT) {
+    SyncHeartbeat* pSyncMsg = syncHeartbeatFromRpcMsg2(pMsg);
+    code = syncNodeOnHeartbeat(pSyncNode, pSyncMsg);
+    syncHeartbeatDestroy(pSyncMsg);
+  } else if (pMsg->msgType == TDMT_SYNC_HEARTBEAT_REPLY) {
+    SyncHeartbeatReply* pSyncMsg = syncHeartbeatReplyFromRpcMsg2(pMsg);
+    code = syncNodeOnHeartbeatReply(pSyncNode, pSyncMsg);
+    syncHeartbeatReplyDestroy(pSyncMsg);
+  } else if (pMsg->msgType == TDMT_SYNC_TIMEOUT) {
+    SyncTimeout* pSyncMsg = syncTimeoutFromRpcMsg2(pMsg);
+    code = syncNodeOnTimer(pSyncNode, pSyncMsg);
+    syncTimeoutDestroy(pSyncMsg);
+  } else if (pMsg->msgType == TDMT_SYNC_PING) {
+    SyncPing* pSyncMsg = syncPingFromRpcMsg2(pMsg);
+    code = syncNodeOnPing(pSyncNode, pSyncMsg);
+    syncPingDestroy(pSyncMsg);
+  } else if (pMsg->msgType == TDMT_SYNC_PING_REPLY) {
+    SyncPingReply* pSyncMsg = syncPingReplyFromRpcMsg2(pMsg);
+    code = syncNodeOnPingReply(pSyncNode, pSyncMsg);
+    syncPingReplyDestroy(pSyncMsg);
+  } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
+    SyncClientRequest* pSyncMsg = syncClientRequestFromRpcMsg2(pMsg);
+    code = syncNodeOnClientRequest(pSyncNode, pSyncMsg, NULL);
+    syncClientRequestDestroy(pSyncMsg);
+  } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
+    SyncRequestVote* pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
+    code = syncNodeOnRequestVote(pSyncNode, pSyncMsg);
+    syncRequestVoteDestroy(pSyncMsg);
+  } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE_REPLY) {
+    SyncRequestVoteReply* pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pMsg);
+    code = syncNodeOnRequestVoteReply(pSyncNode, pSyncMsg);
+    syncRequestVoteReplyDestroy(pSyncMsg);
+  } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES) {
+    SyncAppendEntries* pSyncMsg = syncAppendEntriesFromRpcMsg2(pMsg);
+    code = syncNodeOnAppendEntries(pSyncNode, pSyncMsg);
+    syncAppendEntriesDestroy(pSyncMsg);
+  } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES_REPLY) {
+    SyncAppendEntriesReply* pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pMsg);
+    code = syncNodeOnAppendEntriesReply(pSyncNode, pSyncMsg);
+    syncAppendEntriesReplyDestroy(pSyncMsg);
+  } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_SEND) {
+    SyncSnapshotSend* pSyncMsg = syncSnapshotSendFromRpcMsg2(pMsg);
+    code = syncNodeOnSnapshot(pSyncNode, pSyncMsg);
+    syncSnapshotSendDestroy(pSyncMsg);
+  } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_RSP) {
+    SyncSnapshotRsp* pSyncMsg = syncSnapshotRspFromRpcMsg2(pMsg);
+    code = syncNodeOnSnapshotReply(pSyncNode, pSyncMsg);
+    syncSnapshotRspDestroy(pSyncMsg);
+  } else if (pMsg->msgType == TDMT_SYNC_LOCAL_CMD) {
+    SyncLocalCmd* pSyncMsg = syncLocalCmdFromRpcMsg2(pMsg);
+    code = syncNodeOnLocalCmd(pSyncNode, pSyncMsg);
+    syncLocalCmdDestroy(pSyncMsg);
+  } else {
+    sError("vgId:%d, failed to process msg:%p since invalid type:%s", pSyncNode->vgId, pMsg, TMSG_INFO(pMsg->msgType));
+    code = -1;
+  }
+
+  syncNodeRelease(pSyncNode);
+  return code;
 }
 
 int32_t syncLeaderTransfer(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-    return -1;
-  }
-  ASSERT(rid == pSyncNode->rid);
+  if (pSyncNode == NULL) return -1;
 
   int32_t ret = syncNodeLeaderTransfer(pSyncNode);
-  syncNodeRelease(pSyncNode);
-  return ret;
-}
-
-int32_t syncLeaderTransferTo(int64_t rid, SNodeInfo newLeader) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-    return -1;
-  }
-  ASSERT(rid == pSyncNode->rid);
-
-  int32_t ret = syncNodeLeaderTransferTo(pSyncNode, newLeader);
   syncNodeRelease(pSyncNode);
   return ret;
 }

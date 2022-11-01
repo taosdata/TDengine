@@ -67,24 +67,6 @@ static void mmProcessRpcMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
-static void mmProcessSyncCtrlMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
-  SMnodeMgmt *pMgmt = pInfo->ahandle;
-  pMsg->info.node = pMgmt->pMnode;
-
-  const STraceId *trace = &pMsg->info.traceId;
-  dGTrace("msg:%p, get from mnode-sync-ctrl queue", pMsg);
-
-  SMsgHead *pHead = pMsg->pCont;
-  pHead->contLen = ntohl(pHead->contLen);
-  pHead->vgId = ntohl(pHead->vgId);
-
-  int32_t code = mndProcessSyncCtrlMsg(pMsg);
-
-  dGTrace("msg:%p, is freed, code:0x%x", pMsg, code);
-  rpcFreeCont(pMsg->pCont);
-  taosFreeQitem(pMsg);
-}
-
 static void mmProcessSyncMsg(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SMnodeMgmt *pMgmt = pInfo->ahandle;
   pMsg->info.node = pMgmt->pMnode;
@@ -252,7 +234,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
       .min = 1,
       .max = 1,
       .name = "mnode-sync-ctrl",
-      .fp = (FItem)mmProcessSyncCtrlMsg,
+      .fp = (FItem)mmProcessSyncMsg,
       .param = pMgmt,
   };
   if (tSingleWorkerInit(&pMgmt->syncCtrlWorker, &scCfg) != 0) {
