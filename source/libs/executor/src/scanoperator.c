@@ -344,7 +344,8 @@ static bool doLoadBlockSMA(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, 
   return true;
 }
 
-static void doSetTagColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo, int32_t rows) {
+static void doSetTagColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo,
+                               int32_t rows) {
   if (pTableScanInfo->pseudoSup.numOfExprs > 0) {
     SExprSupp* pSup = &pTableScanInfo->pseudoSup;
 
@@ -1878,7 +1879,6 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   }
 #endif
 
-#if 1
   if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE1 ||
       pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE2) {
     STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
@@ -1914,7 +1914,6 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
 
     return NULL;
   }
-#endif
 
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
 // TODO: refactor
@@ -2296,7 +2295,7 @@ SOperatorInfo* createRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pT
   pInfo->vnode = pHandle->vnode;
 
   pInfo->sContext = pHandle->sContext;
-  pOperator->name = "RawStreamScanOperator";
+  pOperator->name = "RawScanOperator";
   pOperator->info = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
 
@@ -4384,8 +4383,9 @@ static int32_t loadDataBlockFromOneTable2(SOperatorInfo* pOperator, STableMergeS
 
   // currently only the tbname pseudo column
   if (pTableScanInfo->pseudoSup.numOfExprs > 0) {
-    int32_t code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pTableScanInfo->pseudoSup.pExprInfo,
-                                          pTableScanInfo->pseudoSup.numOfExprs, pBlock, pBlock->info.rows, GET_TASKID(pTaskInfo));
+    int32_t code =
+        addTagPseudoColumnData(&pTableScanInfo->readHandle, pTableScanInfo->pseudoSup.pExprInfo,
+                               pTableScanInfo->pseudoSup.numOfExprs, pBlock, pBlock->info.rows, GET_TASKID(pTaskInfo));
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
@@ -4501,8 +4501,9 @@ static int32_t loadDataBlockFromOneTable(SOperatorInfo* pOperator, STableMergeSc
 
   // currently only the tbname pseudo column
   if (pTableScanInfo->pseudoSup.numOfExprs > 0) {
-    int32_t code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pTableScanInfo->pseudoSup.pExprInfo,
-                                          pTableScanInfo->pseudoSup.numOfExprs, pBlock, pBlock->info.rows, GET_TASKID(pTaskInfo));
+    int32_t code =
+        addTagPseudoColumnData(&pTableScanInfo->readHandle, pTableScanInfo->pseudoSup.pExprInfo,
+                               pTableScanInfo->pseudoSup.numOfExprs, pBlock, pBlock->info.rows, GET_TASKID(pTaskInfo));
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
