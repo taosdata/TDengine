@@ -232,6 +232,8 @@ int32_t syncLeaderTransferTo(int64_t rid, SNodeInfo newLeader);
 int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex);
 int32_t syncEndSnapshot(int64_t rid);
 
+int32_t syncStepDown(int64_t rid, SyncTerm newTerm);
+
 #ifdef __cplusplus
 }
 #endif
