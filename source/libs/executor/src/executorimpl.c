@@ -1400,40 +1400,18 @@ void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SG
   }
 }
 
-static int32_t compressQueryColData(SColumnInfoData* pColRes, int32_t numOfRows, char* data, int8_t compressed) {
-  int32_t colSize = pColRes->info.bytes * numOfRows;
-  return (*(tDataTypes[pColRes->info.type].compFunc))(pColRes->pData, colSize, numOfRows, data,
-                                                      colSize + COMP_OVERFLOW_BYTES, compressed, NULL, 0);
-}
-
 void queryCostStatis(SExecTaskInfo* pTaskInfo) {
   STaskCostInfo* pSummary = &pTaskInfo->cost;
-
-  //  uint64_t hashSize = taosHashGetMemSize(pQInfo->runtimeEnv.pResultRowHashTable);
-  //  hashSize += taosHashGetMemSize(pRuntimeEnv->tableqinfoGroupInfo.map);
-  //  pSummary->hashSize = hashSize;
-
-  //  SResultRowPool* p = pTaskInfo->pool;
-  //  if (p != NULL) {
-  //    pSummary->winInfoSize = getResultRowPoolMemSize(p);
-  //    pSummary->numOfTimeWindows = getNumOfAllocatedResultRows(p);
-  //  } else {
-  //    pSummary->winInfoSize = 0;
-  //    pSummary->numOfTimeWindows = 0;
-  //  }
 
   SFileBlockLoadRecorder* pRecorder = pSummary->pRecoder;
   if (pSummary->pRecoder != NULL) {
     qDebug(
-        "%s :cost summary: elapsed time:%.2f ms, total blocks:%d, load block SMA:%d, load data block:%d, total "
-        "rows:%" PRId64 ", check rows:%" PRId64,
-        GET_TASKID(pTaskInfo), pSummary->elapsedTime / 1000.0, pRecorder->totalBlocks, pRecorder->loadBlockStatis,
-        pRecorder->loadBlocks, pRecorder->totalRows, pRecorder->totalCheckedRows);
+        "%s :cost summary: elapsed time:%.2f ms, extract tableList:%.2f ms, createGroupIdMap:%.2f ms, total blocks:%d, "
+        "load block SMA:%d, load data block:%d, total rows:%" PRId64 ", check rows:%" PRId64,
+        GET_TASKID(pTaskInfo), pSummary->elapsedTime / 1000.0, pSummary->extractListTime, pSummary->groupIdMapTime,
+        pRecorder->totalBlocks, pRecorder->loadBlockStatis, pRecorder->loadBlocks, pRecorder->totalRows,
+        pRecorder->totalCheckedRows);
   }
-
-  // qDebug("QInfo:0x%"PRIx64" :cost summary: winResPool size:%.2f Kb, numOfWin:%"PRId64", tableInfoSize:%.2f Kb,
-  // hashTable:%.2f Kb", pQInfo->qId, pSummary->winInfoSize/1024.0,
-  //      pSummary->numOfTimeWindows, pSummary->tableInfoSize/1024.0, pSummary->hashSize/1024.0);
 }
 
 // static void updateOffsetVal(STaskRuntimeEnv *pRuntimeEnv, SDataBlockInfo *pBlockInfo) {
@@ -3220,6 +3198,11 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
 
 static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPTR_EXEC_MODEL model, char* dbFName) {
   SExecTaskInfo* pTaskInfo = taosMemoryCalloc(1, sizeof(SExecTaskInfo));
+  if (pTaskInfo == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
   setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
 
   pTaskInfo->schemaInfo.dbname = strdup(dbFName);
@@ -3350,7 +3333,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
       int32_t code =
           createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort, pHandle,
-                                  pTableListInfo, pTagCond, pTagIndexCond, idstr);
+                                  pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo);
       if (code) {
         pTaskInfo->code = code;
         qError("failed to createScanTableListInfo, code:%s, %s", tstrerror(code), idstr);
@@ -3368,9 +3351,9 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       pTaskInfo->cost.pRecoder = &pScanInfo->readRecorder;
     } else if (QUERY_NODE_PHYSICAL_PLAN_TABLE_MERGE_SCAN == type) {
       STableMergeScanPhysiNode* pTableScanNode = (STableMergeScanPhysiNode*)pPhyNode;
-      int32_t                   code =
-          createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, /*pTableScanNode->groupSort*/true, pHandle,
-                                  pTableListInfo, pTagCond, pTagIndexCond, idstr);
+
+      int32_t code = createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, true, pHandle,
+                                             pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo);
       if (code) {
         pTaskInfo->code = code;
         qError("failed to createScanTableListInfo, code: %s", tstrerror(code));
@@ -3395,7 +3378,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       if (pHandle->vnode) {
         int32_t code =
             createScanTableListInfo(&pTableScanNode->scan, pTableScanNode->pGroupTags, pTableScanNode->groupSort,
-                                    pHandle, pTableListInfo, pTagCond, pTagIndexCond, idstr);
+                                    pHandle, pTableListInfo, pTagCond, pTagIndexCond, pTaskInfo);
         if (code) {
           pTaskInfo->code = code;
           qError("failed to createScanTableListInfo, code: %s", tstrerror(code));
@@ -3422,7 +3405,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       STagScanPhysiNode* pScanPhyNode = (STagScanPhysiNode*)pPhyNode;
 
       int32_t code = createScanTableListInfo(pScanPhyNode, NULL, false, pHandle, pTableListInfo, pTagCond,
-                                             pTagIndexCond, idstr);
+                                             pTagIndexCond, pTaskInfo);
       if (code != TSDB_CODE_SUCCESS) {
         pTaskInfo->code = code;
         qError("failed to getTableList, code: %s", tstrerror(code));
@@ -3455,7 +3438,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       SLastRowScanPhysiNode* pScanNode = (SLastRowScanPhysiNode*)pPhyNode;
 
       int32_t code = createScanTableListInfo(&pScanNode->scan, pScanNode->pGroupTags, true, pHandle, pTableListInfo,
-                                             pTagCond, pTagIndexCond, idstr);
+                                             pTagCond, pTagIndexCond, pTaskInfo);
       if (code != TSDB_CODE_SUCCESS) {
         pTaskInfo->code = code;
         return NULL;
@@ -3787,10 +3770,8 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
                                char* sql, EOPTR_EXEC_MODEL model) {
   uint64_t queryId = pPlan->id.queryId;
 
-  int32_t code = TSDB_CODE_SUCCESS;
   *pTaskInfo = createExecTaskInfo(queryId, taskId, model, pPlan->dbFName);
   if (*pTaskInfo == NULL) {
-    code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto _complete;
   }
 
@@ -3809,17 +3790,16 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
       createOperatorTree(pPlan->pNode, *pTaskInfo, pHandle, pPlan->pTagCond, pPlan->pTagIndexCond, pPlan->user);
 
   if (NULL == (*pTaskInfo)->pRoot) {
-    code = (*pTaskInfo)->code;
+    terrno = (*pTaskInfo)->code;
     goto _complete;
   }
 
-  return code;
+  return TSDB_CODE_SUCCESS;
 
-  _complete:
+_complete:
   taosMemoryFree(sql);
   doDestroyTask(*pTaskInfo);
-  terrno = code;
-  return code;
+  return terrno;
 }
 
 void doDestroyTask(SExecTaskInfo* pTaskInfo) {

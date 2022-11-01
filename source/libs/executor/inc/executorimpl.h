@@ -89,25 +89,10 @@ typedef struct STableScanAnalyzeInfo SFileBlockLoadRecorder;
 typedef struct STaskCostInfo {
   int64_t  created;
   int64_t  start;
-  uint64_t loadStatisTime;
-  uint64_t loadFileBlockTime;
-  uint64_t loadDataInCacheTime;
-  uint64_t loadStatisSize;
-  uint64_t loadFileBlockSize;
-  uint64_t loadDataInCacheSize;
-
-  uint64_t loadDataTime;
-
+  uint64_t elapsedTime;
+  double   extractListTime;
+  double   groupIdMapTime;
   SFileBlockLoadRecorder* pRecoder;
-  uint64_t                elapsedTime;
-
-  uint64_t winInfoSize;
-  uint64_t tableInfoSize;
-  uint64_t hashSize;
-  uint64_t numOfTimeWindows;
-
-  SArray*   queryProfEvents;      // SArray<SQueryProfEvent>
-  SHashObj* operatorProfResults;  // map<operator_type, SQueryProfEvent>
 } STaskCostInfo;
 
 typedef struct SOperatorCostInfo {
