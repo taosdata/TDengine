@@ -2068,8 +2068,8 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataB
           default:
             if (pColInfoData->info.type < TSDB_DATA_TYPE_MAX && pColInfoData->info.type > TSDB_DATA_TYPE_NULL) {
               if (colDataIsNull_s(pColInfoData, j)) {
-                tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type, TD_VTYPE_NULL, NULL, false, offset,
-                                    k);
+                tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type, TD_VTYPE_NULL, NULL, false,
+                                    offset, k);
               } else if (pCol->type == pColInfoData->info.type) {
                 tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID + k, pCol->type, TD_VTYPE_NORM, var, true, offset,
                                     k);
@@ -2142,10 +2142,26 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SSDataBlock* pDataB
   return TSDB_CODE_SUCCESS;
 }
 
-char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId) {
-  ASSERT(stbName[0] != 0);
+char* buildCtbNameByGroupId(const char* stbFullName, uint64_t groupId) {
+  ASSERT(stbFullName[0] != 0);
   SArray* tags = taosArrayInit(0, sizeof(void*));
+  if (tags == NULL) {
+    return NULL;
+  }
+
   SSmlKv* pTag = taosMemoryCalloc(1, sizeof(SSmlKv));
+  if (pTag == NULL) {
+    taosArrayDestroy(tags);
+    return NULL;
+  }
+
+  void* cname = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1);
+  if (cname == NULL) {
+    taosArrayDestroy(tags);
+    taosMemoryFree(pTag);
+    return NULL;
+  }
+
   pTag->key = "group_id";
   pTag->keyLen = strlen(pTag->key);
   pTag->type = TSDB_DATA_TYPE_UBIGINT;
@@ -2153,13 +2169,11 @@ char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId) {
   pTag->length = sizeof(uint64_t);
   taosArrayPush(tags, &pTag);
 
-  void* cname = taosMemoryCalloc(1, TSDB_TABLE_NAME_LEN + 1);
-
   RandTableName rname = {
       .tags = tags,
-      .sTableName = stbName,
-      .sTableNameLen = strlen(stbName),
-      .childTableName = cname,
+      .stbFullName = stbFullName,
+      .stbFullNameLen = strlen(stbFullName),
+      .ctbShortName = cname,
   };
 
   buildChildTableName(&rname);
@@ -2167,8 +2181,8 @@ char* buildCtbNameByGroupId(const char* stbName, uint64_t groupId) {
   taosMemoryFree(pTag);
   taosArrayDestroy(tags);
 
-  ASSERT(rname.childTableName && rname.childTableName[0]);
-  return rname.childTableName;
+  ASSERT(rname.ctbShortName && rname.ctbShortName[0]);
+  return rname.ctbShortName;
 }
 
 void blockEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols, int8_t needCompress) {

@@ -90,6 +90,8 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
 
   void* exec = pTask->exec.executor;
 
+  qSetStreamOpOpen(exec);
+
   while (1) {
     SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
     if (pRes == NULL) {
@@ -127,7 +129,10 @@ int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
     qRes->type = STREAM_INPUT__DATA_BLOCK;
     qRes->blocks = pRes;
     streamTaskOutput(pTask, qRes);
-    // TODO stream sched dispatch
+
+    if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH || pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+      streamDispatch(pTask);
+    }
   }
   return 0;
 }

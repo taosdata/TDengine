@@ -3303,6 +3303,8 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
       // for test 315360000000
       .deleteMark = 1000LL * 60LL * 60LL * 24LL * 365LL * 10LL,
       // .deleteMark = INT64_MAX,
+      .deleteMarkSaved = 0,
+      .calTriggerSaved = 0,
   };
   ASSERT(pInfo->twAggSup.calTrigger != STREAM_TRIGGER_MAX_DELAY);
   pInfo->primaryTsIndex = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->slotId;

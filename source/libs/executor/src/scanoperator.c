@@ -1890,6 +1890,11 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       pTSInfo->cond.startVersion = pTaskInfo->streamInfo.fillHistoryVer1 + 1;
       pTSInfo->cond.endVersion = pTaskInfo->streamInfo.fillHistoryVer2;
     }
+
+    /*resetTableScanInfo(pTSInfo, pWin);*/
+    tsdbReaderClose(pTSInfo->dataReader);
+    pTSInfo->dataReader = NULL;
+
     pTSInfo->scanTimes = 0;
     pTSInfo->currentGroupId = -1;
     pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__SCAN;
@@ -1903,6 +1908,10 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       return pBlock;
     }
     pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__NONE;
+    STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
+    pTSInfo->cond.startVersion = 0;
+    pTSInfo->cond.endVersion = -1;
+
     return NULL;
   }
 #endif
