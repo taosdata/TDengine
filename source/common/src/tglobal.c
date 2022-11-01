@@ -725,7 +725,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsUptimeInterval = cfgGetItem(pCfg, "uptimeInterval")->i32;
   tsQueryRsmaTolerance = cfgGetItem(pCfg, "queryRsmaTolerance")->i32;
 
-  tsWalRecoverSizeLimit = cfgGetItem(pCfg, "walRecoverSizeLimit")->i32;
+  tsWalRecoverSizeLimit = cfgGetItem(pCfg, "walRecoverSizeLimit")->i64;
 
   tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
   tstrncpy(tsUdfdResFuncs, cfgGetItem(pCfg, "udfdResFuncs")->str, sizeof(tsUdfdResFuncs));
