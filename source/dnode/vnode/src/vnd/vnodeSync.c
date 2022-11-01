@@ -230,142 +230,16 @@ void vnodeApplyWriteMsg(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   }
 }
 
-int32_t vnodeProcessSyncCtrlMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  int32_t         code = 0;
-  const STraceId *trace = &pMsg->info.traceId;
-
-  if (!syncIsInit()) {
-    vGError("vgId:%d, msg:%p failed to process since sync env not start", pVnode->config.vgId, pMsg);
-    terrno = TSDB_CODE_APP_ERROR;
-    return -1;
-  }
-
-  SSyncNode *pSyncNode = syncNodeAcquire(pVnode->sync);
-  if (pSyncNode == NULL) {
-    vGError("vgId:%d, msg:%p failed to process since invalid sync node", pVnode->config.vgId, pMsg);
-    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-    return -1;
-  }
-
-  vGTrace("vgId:%d, sync msg:%p will be processed, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
-
-  if (pMsg->msgType == TDMT_SYNC_HEARTBEAT) {
-    SyncHeartbeat *pSyncMsg = syncHeartbeatFromRpcMsg2(pMsg);
-    code = syncNodeOnHeartbeat(pSyncNode, pSyncMsg);
-    syncHeartbeatDestroy(pSyncMsg);
-
-  } else if (pMsg->msgType == TDMT_SYNC_HEARTBEAT_REPLY) {
-    SyncHeartbeatReply *pSyncMsg = syncHeartbeatReplyFromRpcMsg2(pMsg);
-    code = syncNodeOnHeartbeatReply(pSyncNode, pSyncMsg);
-    syncHeartbeatReplyDestroy(pSyncMsg);
-
-  } else {
-    vGError("vgId:%d, msg:%p failed to process since error msg type:%d", pVnode->config.vgId, pMsg, pMsg->msgType);
-    code = -1;
-  }
-
-  vTrace("vgId:%d, sync msg:%p is processed, type:%s code:0x%x", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType),
-         code);
-  syncNodeRelease(pSyncNode);
-  if (code != 0 && terrno == 0) {
-    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-  }
-  return code;
-}
-
 int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  int32_t         code = 0;
   const STraceId *trace = &pMsg->info.traceId;
-
-  if (!syncIsInit()) {
-    vGError("vgId:%d, msg:%p failed to process since sync env not start", pVnode->config.vgId, pMsg);
-    terrno = TSDB_CODE_APP_ERROR;
-    return -1;
-  }
-
-  SSyncNode *pSyncNode = syncNodeAcquire(pVnode->sync);
-  if (pSyncNode == NULL) {
-    vGError("vgId:%d, msg:%p failed to process since invalid sync node", pVnode->config.vgId, pMsg);
-    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-    return -1;
-  }
-
   vGTrace("vgId:%d, sync msg:%p will be processed, type:%s", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType));
 
-  if (pMsg->msgType == TDMT_SYNC_TIMEOUT) {
-    SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pMsg);
-    ASSERT(pSyncMsg != NULL);
-    code = syncNodeOnTimer(pSyncNode, pSyncMsg);
-    syncTimeoutDestroy(pSyncMsg);
-
-  } else if (pMsg->msgType == TDMT_SYNC_PING) {
-    SyncPing *pSyncMsg = syncPingFromRpcMsg2(pMsg);
-    ASSERT(pSyncMsg != NULL);
-    code = syncNodeOnPing(pSyncNode, pSyncMsg);
-    syncPingDestroy(pSyncMsg);
-
-  } else if (pMsg->msgType == TDMT_SYNC_PING_REPLY) {
-    SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pMsg);
-    ASSERT(pSyncMsg != NULL);
-    code = syncNodeOnPingReply(pSyncNode, pSyncMsg);
-    syncPingReplyDestroy(pSyncMsg);
-
-  } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
-    SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pMsg);
-    ASSERT(pSyncMsg != NULL);
-    code = syncNodeOnClientRequest(pSyncNode, pSyncMsg, NULL);
-    syncClientRequestDestroy(pSyncMsg);
-
-  } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE) {
-    SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
-    ASSERT(pSyncMsg != NULL);
-    code = syncNodeOnRequestVote(pSyncNode, pSyncMsg);
-    syncRequestVoteDestroy(pSyncMsg);
-
-  } else if (pMsg->msgType == TDMT_SYNC_REQUEST_VOTE_REPLY) {
-    SyncRequestVoteReply *pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pMsg);
-    ASSERT(pSyncMsg != NULL);
-    code = syncNodeOnRequestVoteReply(pSyncNode, pSyncMsg);
-    syncRequestVoteReplyDestroy(pSyncMsg);
-
-  } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES) {
-    SyncAppendEntries *pSyncMsg = syncAppendEntriesFromRpcMsg2(pMsg);
-    ASSERT(pSyncMsg != NULL);
-    code = syncNodeOnAppendEntries(pSyncNode, pSyncMsg);
-    syncAppendEntriesDestroy(pSyncMsg);
-
-  } else if (pMsg->msgType == TDMT_SYNC_APPEND_ENTRIES_REPLY) {
-    SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pMsg);
-    ASSERT(pSyncMsg != NULL);
-    code = syncNodeOnAppendEntriesReply(pSyncNode, pSyncMsg);
-    syncAppendEntriesReplyDestroy(pSyncMsg);
-
-  } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_SEND) {
-    SyncSnapshotSend *pSyncMsg = syncSnapshotSendFromRpcMsg2(pMsg);
-    code = syncNodeOnSnapshot(pSyncNode, pSyncMsg);
-    syncSnapshotSendDestroy(pSyncMsg);
-
-  } else if (pMsg->msgType == TDMT_SYNC_SNAPSHOT_RSP) {
-    SyncSnapshotRsp *pSyncMsg = syncSnapshotRspFromRpcMsg2(pMsg);
-    code = syncNodeOnSnapshotReply(pSyncNode, pSyncMsg);
-    syncSnapshotRspDestroy(pSyncMsg);
-
-  } else if (pMsg->msgType == TDMT_SYNC_LOCAL_CMD) {
-    SyncLocalCmd *pSyncMsg = syncLocalCmdFromRpcMsg2(pMsg);
-    code = syncNodeOnLocalCmd(pSyncNode, pSyncMsg);
-    syncLocalCmdDestroy(pSyncMsg);
-
-  } else {
-    vGError("vgId:%d, msg:%p failed to process since error msg type:%d", pVnode->config.vgId, pMsg, pMsg->msgType);
-    code = -1;
+  int32_t code = syncProcessMsg(pVnode->sync, pMsg);
+  if (code != 0) {
+    vGError("vgId:%d, failed to process sync msg:%p type:%s since %s", pVnode->config.vgId, pMsg,
+           TMSG_INFO(pMsg->msgType), terrstr());
   }
 
-  vTrace("vgId:%d, sync msg:%p is processed, type:%s code:0x%x", pVnode->config.vgId, pMsg, TMSG_INFO(pMsg->msgType),
-         code);
-  syncNodeRelease(pSyncNode);
-  if (code != 0 && terrno == 0) {
-    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-  }
   return code;
 }
 
