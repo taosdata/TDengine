@@ -26,7 +26,7 @@ const Z_CURRENT_VERSION: Version = Version(0, 0);
 pub struct Version(u8, u8);
 
 impl Version {
-    pub const CURRENT: Version = Z_CURRENT_VERSION;
+    // pub const CURRENT: Version = Z_CURRENT_VERSION;
 }
 impl Display for Version {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::{Duration, Instant}};
 
 use actix_web::{
     delete, get, post,
@@ -11,6 +11,7 @@ use sqlx::migrate::Migrator;
 use sqlx::SqlitePool;
 use std::str::FromStr;
 use taos::{Code, Dsn};
+use taosx::TaskOpts;
 use tokio::{runtime::Runtime, sync::RwLock};
 use tokio_util::sync::CancellationToken;
 use utoipa::*;
@@ -132,6 +133,7 @@ impl TaskController {
         let handle = self.runtime.as_ref().unwrap().spawn(async move {
             tokio::select! {
                 _ = cloned_token.cancelled() => {
+                    log::debug!("cancel task {id}");
                     let now = Local::now();
                     let status = Status::Cancelled;
                     let _ = sqlx::query!(
@@ -143,37 +145,112 @@ impl TaskController {
                     .execute(&pool)
                     .await?;
                 }
-                result = opts.run() => {
-                    match result {
-                        Ok(_) => {
-                            let now = Local::now();
-                            let status = Status::Completed;
-                            let _ = sqlx::query!(
-                                "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
-                                now,
-                                status,
-                                id
-                            )
-                            .execute(&pool)
-                            .await?;
+                result = async {
+                    if opts.from.driver == "tmq" && opts.from.get("timeout").map(|s| s == "never").unwrap_or(false) {
+                        let mut restarts = 0;
+                        let mut sleep = Duration::from_secs(2);
+                        loop {
+                            if restarts > 0 {
+                                log::info!("resume task {id} as {restarts} restarts");
 
+                                    let now = Local::now();
+                                    let _ = sqlx::query!(
+                                        "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
+                                        now,
+                                        Status::Running,
+                                        id
+                                    )
+                                    .execute(&pool)
+                                    .await?;
+                            } else {
+                                log::info!("start task {id}");
+
+                                    let now = Local::now();
+                                    let _ = sqlx::query!(
+                                        "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
+                                        now,
+                                        Status::Running,
+                                        id
+                                    )
+                                    .execute(&pool)
+                                    .await?;
+                            }
+                            {
+
+                            }
+                            let result = opts.clone().run().await;
+                            match result {
+                                Ok(_) => {
+                                    let now = Local::now();
+                                    let _ = sqlx::query!(
+                                        "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
+                                        now,
+                                        Status::Interrupted,
+                                        id
+                                    )
+                                    .execute(&pool)
+                                    .await?;
+
+                                }
+                                Err(err) => {
+                                    log::error!("run task {id} failed: {err}, wait for resume...");
+                                    let err = err.to_string();
+                                    let now = Local::now();
+                                    let _ = sqlx::query!(
+                                        "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
+                                        now,
+                                        Status::Failed,
+                                        err,
+                                        id
+                                    )
+                                    .execute(&pool)
+                                    .await?;
+                                }
+                            }
+                            log::info!("resume task {id} in {sleep:?}");
+                            tokio::time::sleep(sleep).await;
+                            if sleep < Duration::from_secs(60 * 60) {
+                                sleep = sleep * 2;
+                            }
+                            restarts += 1;
                         }
-                        Err(err) => {
-                            log::error!("run task {id} failed: {err}");
-                            let err = err.to_string();
-                            let now = Local::now();
-                            let status = Status::Failed;
-                            let _ = sqlx::query!(
-                                "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
-                                now,
-                                status,
-                                err,
-                                id
-                            )
-                            .execute(&pool)
-                            .await?;
+                    } else {
+                        let result = opts.run().await;
+                        match result {
+                            Ok(_) => {
+                                let now = Local::now();
+                                let status = Status::Completed;
+                                let _ = sqlx::query!(
+                                    "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
+                                    now,
+                                    status,
+                                    id
+                                )
+                                .execute(&pool)
+                                .await?;
+
+                            }
+                            Err(err) => {
+                                log::error!("run task {id} failed: {err}");
+                                let err = err.to_string();
+                                let now = Local::now();
+                                let status = Status::Failed;
+                                let _ = sqlx::query!(
+                                    "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
+                                    now,
+                                    status,
+                                    err,
+                                    id
+                                )
+                                .execute(&pool)
+                                .await?;
+                            }
                         }
                     }
+                    return Ok::<(), anyhow::Error>(())
+                } => {
+                    let _ = result?;
+                    log::info!("task {} done", id);
                 }
             }
             Ok(())
@@ -181,6 +258,165 @@ impl TaskController {
         self.tasks.write().await.insert(id, (handle, token));
 
         Ok(task)
+    }
+
+    pub async fn start(&self, id: i64) -> anyhow::Result<Option<()>> {
+        let task = sqlx::query_as_unchecked!(Task, "select *, `status` == 'completed' as `completed`, `status` == 'cancelled' as `cancelled` from tasks where id = ?", id)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if task.is_none() {
+            return Ok(None);
+        }
+
+        let task = task.unwrap();
+
+        if self.tasks.read().await.get(&id).is_some() {
+            anyhow::bail!("task {id} is running");
+        }
+
+        let opts = TaskOpts {
+            transform: vec![],
+            from: task.from.parse()?,
+            to: task.to.parse()?,
+            jobs: task.jobs as _,
+            compression_level: task.compression_level.map(Into::into),
+            force: task.force,
+        };
+
+        let pool = self.pool.clone();
+        // let (tx, rx) = tokio::sync::oneshot::channel();
+        let token = tokio_util::sync::CancellationToken::new();
+        let cloned_token = token.clone();
+        let handle = self.runtime.as_ref().unwrap().spawn(async move {
+            let total = Instant::now();
+            tokio::select! {
+                _ = cloned_token.cancelled() => {
+                    log::debug!("cancelling task {id}");
+                    let now = Local::now();
+                    let status = Status::Cancelled;
+                    let _ = sqlx::query!(
+                        "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
+                        now,
+                        status,
+                        id
+                    )
+                    .execute(&pool)
+                    .await?;
+                }
+                result = async {
+                    if opts.from.driver == "tmq" && opts.from.get("timeout").map(|s| s == "never").unwrap_or(false) {
+                        let mut restarts = 0;
+                        let mut sleep = Duration::from_secs(2);
+                        loop {
+                            if restarts > 0 {
+                                log::info!("resume task {id} as {restarts} restarts");
+
+                                    let now = Local::now();
+                                    let _ = sqlx::query!(
+                                        "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
+                                        now,
+                                        Status::Running,
+                                        id
+                                    )
+                                    .execute(&pool)
+                                    .await?;
+                            } else {
+                                log::info!("start task {id}");
+
+                                    let now = Local::now();
+                                    let _ = sqlx::query!(
+                                        "UPDATE tasks SET last_modified_at = ?, status = ? WHERE id = ?",
+                                        now,
+                                        Status::Running,
+                                        id
+                                    )
+                                    .execute(&pool)
+                                    .await?;
+                            }
+                            {
+
+                            }
+                            let result = opts.clone().run().await;
+                            match result {
+                                Ok(_) => {
+                                    let now = Local::now();
+                                    let _ = sqlx::query!(
+                                        "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
+                                        now,
+                                        Status::Interrupted,
+                                        id
+                                    )
+                                    .execute(&pool)
+                                    .await?;
+
+                                }
+                                Err(err) => {
+                                    log::error!("run task {id} failed: {err}, wait for resume...");
+                                    let err = err.to_string();
+                                    let now = Local::now();
+                                    let _ = sqlx::query!(
+                                        "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
+                                        now,
+                                        Status::Failed,
+                                        err,
+                                        id
+                                    )
+                                    .execute(&pool)
+                                    .await?;
+                                }
+                            }
+                            log::info!("resume task {id} in {sleep:?}");
+                            tokio::time::sleep(sleep).await;
+                            if sleep < Duration::from_secs(60 * 60) {
+                                sleep = sleep * 2;
+                            }
+                            restarts += 1;
+                        }
+                    } else {
+                        let result = opts.run().await;
+                        match result {
+                            Ok(_) => {
+                                let now = Local::now();
+                                let status = Status::Completed;
+                                let _ = sqlx::query!(
+                                    "UPDATE tasks SET finished_at = ?, status = ? WHERE id = ?",
+                                    now,
+                                    status,
+                                    id
+                                )
+                                .execute(&pool)
+                                .await?;
+
+                            }
+                            Err(err) => {
+                                log::error!("run task {id} failed: {err}");
+                                let err = err.to_string();
+                                let now = Local::now();
+                                let status = Status::Failed;
+                                let _ = sqlx::query!(
+                                    "UPDATE tasks SET finished_at = ?, status = ?, reason = ? WHERE id = ?",
+                                    now,
+                                    status,
+                                    err,
+                                    id
+                                )
+                                .execute(&pool)
+                                .await?;
+                            }
+                        }
+                    }
+                    return Ok::<(), anyhow::Error>(())
+                } => {
+                    let _ = result?;
+                    log::info!("task {} done", id);
+                }
+            }
+            log::info!("Task {id} has been stopped in {:?}", total.elapsed());
+            Ok(())
+        });
+        self.tasks.write().await.insert(id, (handle, token));
+        Ok(Some(()))
     }
 
     pub async fn get(&self, id: i64) -> anyhow::Result<Option<Task>> {
@@ -199,13 +435,43 @@ impl TaskController {
                 let _ = handle.await;
             }
         }
-        let res =
-            sqlx::query_as_unchecked!(Task, "UPDATE tasks SET `deleted` = TRUE where id = ?", id)
-                .execute(&self.pool)
-                .await?;
+        let now = Local::now();
+        let res = sqlx::query_as_unchecked!(
+            Task,
+            "UPDATE tasks SET `deleted` = TRUE, `last_modified_at` = ? where id = ?",
+            now,
+            id
+        )
+        .execute(&self.pool)
+        .await?;
         // dbg!(res);
         if res.rows_affected() == 1 {
             log::info!("successfully deleted task by id {id}");
+        }
+        Ok(Some(()))
+    }
+    pub async fn stop(&self, id: i64) -> anyhow::Result<Option<()>> {
+        if let Some((handle, token)) = self.tasks.write().await.remove(&id) {
+            token.cancel();
+            if !handle.is_finished() {
+                // token.cancel();
+                log::error!("Cancel task by id {id}");
+                let _ = handle.await;
+            }
+        }
+        let now = Local::now();
+        let res = sqlx::query_as_unchecked!(
+            Task,
+            "UPDATE tasks SET `last_modified_at` = ?, `status` = ? where id = ?",
+            now,
+            Status::Stopped,
+            id
+        )
+        .execute(&self.pool)
+        .await?;
+        // dbg!(res);
+        if res.rows_affected() == 1 {
+            log::info!("successfully stop task by id {id}");
         }
         Ok(Some(()))
     }
@@ -246,13 +512,15 @@ pub(super) fn configure(store: Data<TaskController>) -> impl FnOnce(&mut Service
             .service(replicate)
             .service(subscribe)
             .service(get_task_by_id)
+            .service(start_task)
+            .service(stop_task)
             .service(metrics_exporter)
             // .service(update_task)
             ;
     }
 }
 
-#[derive(Serialize, Deserialize, ToSchema, Clone, Debug)]
+#[derive(Serialize, Deserialize, ToSchema, Clone, Debug, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 #[derive(sqlx::Type)]
 pub(super) enum Status {
@@ -261,6 +529,8 @@ pub(super) enum Status {
     Cancelled,
     Completed,
     Failed,
+    Interrupted,
+    Stopped,
 }
 
 /// A streaming workflow task description.
@@ -278,6 +548,16 @@ pub(super) struct Task {
     /// The target of the stream.
     #[schema(example = "local:/path/to/backup/test")]
     to: String,
+
+    /// Number of jobs for task running.
+    #[schema(example = 0)]
+    jobs: u16,
+
+    /// Compression level when need (for backup only)
+    compression_level: Option<u8>,
+
+    /// Force for some risking steps.
+    force: bool,
 
     /// Created time.
     #[schema(read_only)]
@@ -332,11 +612,11 @@ pub(super) struct NewTask {
     to: String,
 
     /// Jobs number
-    #[schema(example = "0")]
+    #[schema(example = 0)]
     #[serde(default)]
-    jobs: usize,
+    jobs: u16,
     #[serde(default)]
-    compression_level: Option<usize>,
+    compression_level: Option<u8>,
     #[serde(default)]
     force: bool,
 }
@@ -357,8 +637,8 @@ impl TryFrom<NewTask> for taosx::TaskOpts {
             from: from.parse()?,
             transform: Vec::new(),
             to: to.parse()?,
-            jobs,
-            compression_level,
+            jobs: jobs as _,
+            compression_level: compression_level.map(Into::into),
             force,
         })
     }
@@ -705,6 +985,66 @@ pub(super) async fn get_task_by_id(
     match task_store.get(id).await {
         Ok(Some(task)) => HttpResponse::Ok().json(task),
         Ok(None) => HttpResponse::NotFound().finish(),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: Code::Failed,
+            message: err.to_string(),
+        }),
+    }
+}
+
+/// Start [Task] by given path variable id.
+///
+/// If storage does not contain `Task` with given id 404 not found will be returned.
+#[utoipa::path(
+    responses(
+        (status = 200, description = "Task started successfully"),
+        (status = 404, description = "Task not found by id", body = Failed),
+        (status = 500, description = "Server error", body = Failed),
+
+    ),
+    params(
+        ("id", description = "Unique storage id of Task")
+    ),
+)]
+#[post("/tasks/{id}/start")]
+pub(super) async fn start_task(id: Path<i64>, task_store: Data<TaskController>) -> impl Responder {
+    let id = id.into_inner();
+    match task_store.start(id).await {
+        Ok(Some(_)) => HttpResponse::Ok().finish(),
+        Ok(None) => HttpResponse::NotFound().json(Failed {
+            code: Code::Failed,
+            message: format!("Task {id} not found"),
+        }),
+        Err(err) => HttpResponse::InternalServerError().json(Failed {
+            code: Code::Failed,
+            message: err.to_string(),
+        }),
+    }
+}
+
+/// Stop [Task] by given path variable id.
+///
+/// If storage does not contain `Task` with given id 404 not found will be returned.
+#[utoipa::path(
+    responses(
+        (status = 200, description = "Task stopped successfully"),
+        (status = 404, description = "Task not found by id", body = Failed),
+        (status = 500, description = "Server error", body = Failed),
+
+    ),
+    params(
+        ("id", description = "Unique storage id of Task")
+    ),
+)]
+#[post("/tasks/{id}/stop")]
+pub(super) async fn stop_task(id: Path<i64>, task_store: Data<TaskController>) -> impl Responder {
+    let id = id.into_inner();
+    match task_store.stop(id).await {
+        Ok(Some(_)) => HttpResponse::Ok().finish(),
+        Ok(None) => HttpResponse::NotFound().json(Failed {
+            code: Code::Failed,
+            message: format!("Task {id} not found"),
+        }),
         Err(err) => HttpResponse::InternalServerError().json(Failed {
             code: Code::Failed,
             message: err.to_string(),

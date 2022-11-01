@@ -31,7 +31,7 @@ enum Compression {
     Zstd,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct TaskOpts {
     pub from: Dsn,
     pub transform: Vec<Action>,
