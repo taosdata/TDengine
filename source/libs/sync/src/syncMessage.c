@@ -2568,8 +2568,8 @@ cJSON* syncPreSnapshotReply2Json(const SyncPreSnapshotReply* pMsg) {
     snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->term);
     cJSON_AddStringToObject(pRoot, "term", u64buf);
 
-    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->matchIndex);
-    cJSON_AddStringToObject(pRoot, "match-index", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->snapStart);
+    cJSON_AddStringToObject(pRoot, "snap-start", u64buf);
   }
 
   cJSON* pJson = cJSON_CreateObject();

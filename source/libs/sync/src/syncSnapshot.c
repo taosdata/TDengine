@@ -925,10 +925,60 @@ int32_t syncNodeOnSnapshotReply(SSyncNode *pSyncNode, SyncSnapshotRsp *pMsg) {
 
 int32_t syncNodeOnPreSnapshot(SSyncNode *ths, SyncPreSnapshot *pMsg) {
   syncLogRecvSyncPreSnapshot(ths, pMsg, "");
+
+  SyncPreSnapshotReply *pMsgReply = syncPreSnapshotReplyBuild(ths->vgId);
+  pMsgReply->srcId = ths->myRaftId;
+  pMsgReply->destId = pMsg->srcId;
+  pMsgReply->term = ths->pRaftStore->currentTerm;
+
+  SSyncLogStoreData *pData = ths->pLogStore->data;
+  SWal              *pWal = pData->pWal;
+
+  if (syncNodeIsMnode(ths)) {
+    pMsgReply->snapStart = SYNC_INDEX_BEGIN;
+
+  } else {
+    bool    isEmpty = ths->pLogStore->syncLogIsEmpty(ths->pLogStore);
+    int64_t walCommitVer = walGetCommittedVer(pWal);
+
+    if (!isEmpty && ths->commitIndex != walCommitVer) {
+      char logBuf[128];
+      snprintf(logBuf, sizeof(logBuf), "commit not same, wal-commit:%" PRId64 ", commit:%" PRId64 ", ignore",
+               walCommitVer, ths->commitIndex);
+      syncNodeErrorLog(ths, logBuf);
+
+      goto _IGNORE;
+    }
+
+    pMsgReply->snapStart = ths->commitIndex + 1;
+
+    // make local log clean
+    int32_t code = ths->pLogStore->syncLogTruncate(ths->pLogStore, pMsgReply->snapStart);
+    if (code != 0) {
+      syncNodeErrorLog(ths, "truncate wal error");
+      goto _IGNORE;
+    }
+  }
+
+  // can not write behind _RESPONSE
+  SRpcMsg rpcMsg;
+
+_RESPONSE:
+  syncPreSnapshotReply2RpcMsg(pMsgReply, &rpcMsg);
+  syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg);
+
+  syncPreSnapshotReplyDestroy(pMsgReply);
+  return 0;
+
+_IGNORE:
+  syncPreSnapshotReplyDestroy(pMsgReply);
   return 0;
 }
 
 int32_t syncNodeOnPreSnapshotReply(SSyncNode *ths, SyncPreSnapshotReply *pMsg) {
   syncLogRecvSyncPreSnapshotReply(ths, pMsg, "");
+
+  // start snapshot
+
   return 0;
 }

@@ -550,7 +550,7 @@ typedef struct SyncPreSnapshotReply {
 
   // private data
   SyncTerm  term;
-  SyncIndex matchIndex;
+  SyncIndex snapStart;
 
 } SyncPreSnapshotReply;
 
