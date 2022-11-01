@@ -1,13 +1,36 @@
 use anyhow::{bail, Result};
 use clap::{Parser, Subcommand};
+use const_format::concatcp;
 use log::Level;
 use pretty_env_logger::env_logger::fmt::{Color, StyledValue};
-use const_format::concatcp;
 use shadow_rs::shadow;
 
 shadow!(build);
 
-const CLAP_SHORT_VERSION: &str = concatcp!(build::PKG_VERSION, "-", build::SHORT_COMMIT, " (",build::BUILD_OS,  " ", build::COMMIT_DATE_3339, ")");
+const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
+    concatcp!(
+        build::PKG_VERSION,
+        "-",
+        build::SHORT_COMMIT,
+        " (built ",
+        build::BUILD_OS,
+        " ",
+        build::BUILD_TIME,
+        ")"
+    )
+} else {
+    concatcp!(
+        build::PKG_VERSION,
+        "-",
+        build::SHORT_COMMIT,
+        "-dirty",
+        " (built ",
+        build::BUILD_OS,
+        " ",
+        build::BUILD_TIME,
+        ")"
+    )
+};
 
 mod run;
 mod serve;

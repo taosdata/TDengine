@@ -1,13 +1,7 @@
-use std::time::Duration;
-
-use anyhow::{bail, Context};
 use serde::Deserialize;
-use taos::{Consumer, *};
+use taos::*;
 
-use crate::{
-    tmq::{check_tmq_dsn, group_id_hash},
-    Action,
-};
+use crate::Action;
 
 struct Opts {
     batch_size: usize,
@@ -119,7 +113,7 @@ struct TableRecord {
 
 async fn sync_schema(from: &Taos, to: &Taos) -> Result<(), Error> {
     let v1: String = from.query_one("SELECT server_version()").await?.unwrap();
-    let v2: String = to.query_one("SELECT server_version()").await?.unwrap();
+    // let v2: String = to.query_one("SELECT server_version()").await?.unwrap();
     if v1.starts_with('2') {
         // get stable list.
         let mut res = from.query("SHOW STABLES").await?;
@@ -183,7 +177,7 @@ async fn sync_tables_only(from: &Taos, to: &Taos) -> Result<(), Error> {
     }
     Ok(())
 }
-async fn sync(id: usize, from: Taos, to: Taos) -> Result<(), Error> {
+async fn sync(_id: usize, from: Taos, to: Taos) -> Result<(), Error> {
     sync_schema(&from, &to).await?;
     sync_tables_only(&from, &to).await?;
     Ok(())
@@ -191,20 +185,20 @@ async fn sync(id: usize, from: Taos, to: Taos) -> Result<(), Error> {
 
 pub async fn legacy_to_taos(
     from: Dsn,
-    actions: Vec<Action>,
+    _actions: Vec<Action>,
     to: Dsn,
-    jobs: usize,
+    _jobs: usize,
 ) -> anyhow::Result<()> {
     let from_builder = TaosBuilder::from_dsn(&from)?;
     let to_builder = TaosBuilder::from_dsn(&to)?;
 
     let from = from_builder.build()?;
     let to = to_builder.build()?;
-    let from_is_v3 = from
-        .query_one::<_, String>("SELECT server_version()")
-        .await?
-        .unwrap()
-        .starts_with('3');
+    // let from_is_v3 = from
+    //     .query_one::<_, String>("SELECT server_version()")
+    //     .await?
+    //     .unwrap()
+    //     .starts_with('3');
     let to_is_v3 = to
         .query_one::<_, String>("SELECT server_version()")
         .await?

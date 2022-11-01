@@ -66,21 +66,21 @@ pub fn process_metrics() -> anyhow::Result<()> {
     let tcp6 = procfs::net::tcp6().unwrap();
     for entry in tcp.into_iter().chain(tcp6) {
         // find the process (if any) that has an open FD to this entry's inode
-        let local_address = format!("{}", entry.local_address);
-        let remote_addr = format!("{}", entry.remote_address);
-        let state = format!("{:?}", entry.state);
+        // let local_address = format!("{}", entry.local_address);
+        // let remote_addr = format!("{}", entry.remote_address);
+        // let state = format!("{:?}", entry.state);
         if inodes.contains(&entry.inode) {
-            log::debug!(
-                "{:<26} {:<26} {:<15} {:<12} {}/{} {}/{}",
-                local_address,
-                remote_addr,
-                state,
-                entry.inode,
-                stat.pid,
-                stat.comm,
-                entry.rx_queue,
-                entry.tx_queue
-            );
+            // log::debug!(
+            //     "{:<26} {:<26} {:<15} {:<12} {}/{} {}/{}",
+            //     local_address,
+            //     remote_addr,
+            //     state,
+            //     entry.inode,
+            //     stat.pid,
+            //     stat.comm,
+            //     entry.rx_queue,
+            //     entry.tx_queue
+            // );
             rx += entry.rx_queue;
             tx += entry.tx_queue;
         }

@@ -54,6 +54,8 @@ impl Cli {
                 task::get_tasks,
                 task::create_task,
                 task::delete_task,
+                task::start_task,
+                task::stop_task,
                 task::get_task_by_id,
                 task::replicate,
                 task::subscribe,
@@ -114,6 +116,7 @@ impl Cli {
                 // done
                 store_cloned.clear().await?;
                 drop(store_cloned);
+                 log::info!("server stopped");
             }
         };
 
