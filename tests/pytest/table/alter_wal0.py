@@ -43,7 +43,7 @@ class TDTestCase:
 
         print("==============step2")
         tdDnodes.stopAll()
-        path = tdDnodes.getDnodesRootDir()
+        path = tdDnodes.getDnodesRootDir()        
         filename = path + '/dnode1/data/mnode/wal/wal0'
 
         with open(filename, 'rb') as f1:
@@ -54,7 +54,7 @@ class TDTestCase:
 
         tdDnodes.start(1)
         print("==============remove last tow bytes of file 'wal0' and restart taosd")
-
+        
         print("==============step3")
         tdSql.execute("use demo;")
         tdSql.query('show tables;')

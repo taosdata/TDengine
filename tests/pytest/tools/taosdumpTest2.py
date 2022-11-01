@@ -101,7 +101,7 @@ class TDTestCase:
         os.system("%s -i ./taosdumptest/tmp -y" % binPath)
 
         tdSql.query("show databases")
-        tdSql.checkRows(2)
+        tdSql.checkRows(1)
         tdSql.checkData(0, 0, 'db')
 
         tdSql.execute("use db")
@@ -130,7 +130,7 @@ class TDTestCase:
 
         tdSql.execute("drop database test")
         tdSql.query("show databases")
-        tdSql.checkRows(2)
+        tdSql.checkRows(1)
 
         os.system("%s -i ./taosdumptest/tmp -y" % binPath)
 
