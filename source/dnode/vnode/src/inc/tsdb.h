@@ -723,6 +723,9 @@ void              *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 
 // tsdbCache ==============================================================================================
 typedef struct SCacheRowsReader {
+  STsdb             *pTsdb;
+  SVersionRange      verRange;
+  TdThreadMutex      readerMutex;
   SVnode            *pVnode;
   STSchema          *pSchema;
   uint64_t           uid;
