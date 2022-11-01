@@ -100,7 +100,7 @@ class TDTestCase:
         # tmqCom.insert_data_with_autoCreateTbl(tsql=tdSql,dbName=paraDict["dbName"],stbName=paraDict["stbName"],ctbPrefix="ctbx",
         #                                       ctbNum=paraDict["ctbNum"],rowsPerTbl=paraDict["rowsPerTbl"],batchNum=paraDict["batchNum"],
         #                                       startTs=paraDict["startTs"],ctbStartIdx=paraDict['ctbStartIdx'])
-        tmqCom.asyncInsertDataByInterlace(paraDict)
+        pThread = tmqCom.asyncInsertDataByInterlace(paraDict)
 
         tdLog.info("wait some data inserted")
         exitFlag = 1
@@ -128,6 +128,7 @@ class TDTestCase:
         cluster.dnodes[4].stoptaosd()
         cluster.dnodes[4].starttaosd()
 
+        pThread.join()
         # tdLog.info("restart taosd to ensure that the data falls into the disk")
         # tdSql.query("flush database %s"%(paraDict['dbName']))
         return
@@ -290,6 +291,7 @@ class TDTestCase:
     def run(self):
         self.prepareTestEnv()
         self.tmqCase1()
+        self.prepareTestEnv()
         self.tmqCase2()
 
     def stop(self):
