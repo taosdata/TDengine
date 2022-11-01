@@ -1883,7 +1883,6 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
   }
 #endif
 
-#if 1
   if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE1 ||
       pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE2) {
     STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
@@ -1919,7 +1918,6 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
 
     return NULL;
   }
-#endif
 
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
 // TODO: refactor
@@ -2301,7 +2299,7 @@ SOperatorInfo* createRawScanOperatorInfo(SReadHandle* pHandle, SExecTaskInfo* pT
   pInfo->vnode = pHandle->vnode;
 
   pInfo->sContext = pHandle->sContext;
-  pOperator->name = "RawStreamScanOperator";
+  pOperator->name = "RawScanOperator";
   pOperator->info = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
 
