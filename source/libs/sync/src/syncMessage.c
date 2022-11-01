@@ -3097,6 +3097,14 @@ void syncReconfigFinishLog2(char* s, const SyncReconfigFinish* pMsg) {
 }
 
 // ---------------------------------------------
+const char* syncLocalCmdGetStr(int32_t cmd) {
+  if (cmd == SYNC_LOCAL_CMD_STEP_DOWN) {
+    return "step-down";
+  }
+
+  return "unknown-local-cmd";
+}
+
 SyncLocalCmd* syncLocalCmdBuild(int32_t vgId) {
   uint32_t      bytes = sizeof(SyncLocalCmd);
   SyncLocalCmd* pMsg = taosMemoryMalloc(bytes);

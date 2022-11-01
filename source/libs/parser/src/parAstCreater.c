@@ -1457,7 +1457,7 @@ SNode* createCreateDnodeStmt(SAstCreateContext* pCxt, const SToken* pFqdn, const
   return (SNode*)pStmt;
 }
 
-SNode* createDropDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode) {
+SNode* createDropDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, bool force) {
   CHECK_PARSER_STATUS(pCxt);
   SDropDnodeStmt* pStmt = (SDropDnodeStmt*)nodesMakeNode(QUERY_NODE_DROP_DNODE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
@@ -1469,6 +1469,7 @@ SNode* createDropDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode) {
       return NULL;
     }
   }
+  pStmt->force = force;
   return (SNode*)pStmt;
 }
 
