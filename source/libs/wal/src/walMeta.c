@@ -73,14 +73,16 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
   int64_t  capacity = 0;
   int64_t  readSize = 0;
   char*    buf = NULL;
-  int64_t  found = -1;
   bool     firstTrial = pFileInfo->fileSize < fileSize;
   int64_t  offset = TMIN(pFileInfo->fileSize, fileSize);
   int64_t  offsetForward = offset - stepSize + walCkHeadSz - 1;
   int64_t  offsetBackward = offset;
-  int64_t  recoverSize = end - offset;
+  int64_t  retVer = -1;
+  int64_t  lastEntryBeginOffset = 0;
+  int64_t  lastEntryEndOffset = 0;
 
-  if (2 * tsWalFsyncDataSizeLimit < recoverSize) {
+  // check recover size
+  if (2 * tsWalFsyncDataSizeLimit + offset < end) {
     wWarn("vgId:%d, possibly corrupted WAL range exceeds size limit (i.e. %" PRId64 " bytes). offset:%" PRId64
           ", end:%" PRId64 ", file:%s",
           pWal->cfg.vgId, 2 * tsWalFsyncDataSizeLimit, offset, end, fnameStr);
@@ -190,44 +192,41 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
       }
 
       // found one
-      found = pos;
+      retVer = logContent->head.version;
+      lastEntryBeginOffset = offset + pos;
+      lastEntryEndOffset = offset + pos + sizeof(SWalCkHead) + logContent->head.bodyLen;
+
+      // try next
       haystack = buf + pos + 1;
     }
 
     if (end == fileSize) firstTrial = false;
     if (firstTrial && terrno == TSDB_CODE_SUCCESS) continue;
-    if (found >= 0 || offset == 0) break;
+    if (retVer >= 0 || offset == 0) break;
   }
 
-  // determine end of last entry
-  SWalCkHead* lastEntry = (found >= 0) ? (SWalCkHead*)(buf + found) : NULL;
-  int64_t     retVer = -1;
-  int64_t     lastEntryBeginOffset = 0;
-  int64_t     lastEntryEndOffset = 0;
-
-  if (lastEntry == NULL) {
+  if (retVer < 0) {
     terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
-  } else {
-    retVer = lastEntry->head.version;
-    lastEntryBeginOffset = offset + (int64_t)((char*)lastEntry - (char*)buf);
-    lastEntryEndOffset = lastEntryBeginOffset + sizeof(SWalCkHead) + lastEntry->head.bodyLen;
   }
 
   // truncate file
   if (lastEntryEndOffset != fileSize) {
     wWarn("vgId:%d, repair meta truncate file %s to %" PRId64 ", orig size %" PRId64, pWal->cfg.vgId, fnameStr,
           lastEntryEndOffset, fileSize);
+
     if (taosFtruncateFile(pFile, lastEntryEndOffset) < 0) {
       wError("failed to truncate file due to %s. file:%s", strerror(errno), fnameStr);
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
+
     if (taosFsyncFile(pFile) < 0) {
       wError("failed to fsync file due to %s. file:%s", strerror(errno), fnameStr);
       terrno = TAOS_SYSTEM_ERROR(errno);
       goto _err;
     }
   }
+
   pFileInfo->fileSize = lastEntryEndOffset;
 
   taosCloseFile(&pFile);
