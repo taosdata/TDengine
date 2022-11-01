@@ -28,8 +28,6 @@ typedef struct SRaftId {
   SyncGroupId vgId;
 } SRaftId;
 
-int32_t syncGetRespRpc(int64_t rid, uint64_t index, SRpcMsg* msg);
-int32_t syncGetAndDelRespRpc(int64_t rid, uint64_t index, SRpcHandleInfo* pInfo);
 void    syncSetMsgCb(int64_t rid, const SMsgCb* msgcb);
 char*   sync2SimpleStr(int64_t rid);
 

@@ -737,30 +737,7 @@ void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
   syncNodeRelease(pSyncNode);
 }
 
-int32_t syncGetRespRpc(int64_t rid, uint64_t index, SRpcMsg* msg) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    return TAOS_SYNC_STATE_ERROR;
-  }
-  ASSERT(rid == pSyncNode->rid);
-
-  SRespStub stub;
-  int32_t   ret = syncRespMgrGet(pSyncNode->pSyncRespMgr, index, &stub);
-  if (ret == 1) {
-    memcpy(msg, &(stub.rpcMsg), sizeof(SRpcMsg));
-  }
-
-  syncNodeRelease(pSyncNode);
-  return ret;
-}
-
-int32_t syncGetAndDelRespRpc(int64_t rid, uint64_t index, SRpcHandleInfo* pInfo) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    return TAOS_SYNC_STATE_ERROR;
-  }
-  ASSERT(rid == pSyncNode->rid);
-
+static void syncGetAndDelRespRpc(SSyncNode* pSyncNode, uint64_t index, SRpcHandleInfo* pInfo) {
   SRespStub stub;
   int32_t   ret = syncRespMgrGetAndDel(pSyncNode->pSyncRespMgr, index, &stub);
   if (ret == 1) {
@@ -768,8 +745,6 @@ int32_t syncGetAndDelRespRpc(int64_t rid, uint64_t index, SRpcHandleInfo* pInfo)
   }
 
   sTrace("vgId:%d, get seq:%" PRIu64 " rpc handle:%p", pSyncNode->vgId, index, pInfo->handle);
-  syncNodeRelease(pSyncNode);
-  return ret;
 }
 
 void syncSetMsgCb(int64_t rid, const SMsgCb* msgcb) {
@@ -3127,17 +3102,18 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
   }
 
   if (ths->pFsm->FpLeaderTransferCb != NULL) {
-    SFsmCbMeta cbMeta = {0};
-    cbMeta.code = 0;
-    cbMeta.currentTerm = ths->pRaftStore->currentTerm;
-    cbMeta.flag = 0;
-    cbMeta.index = pEntry->index;
-    cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
-    cbMeta.isWeak = pEntry->isWeak;
-    cbMeta.seqNum = pEntry->seqNum;
-    cbMeta.state = ths->state;
-    cbMeta.term = pEntry->term;
-    ths->pFsm->FpLeaderTransferCb(ths->pFsm, pRpcMsg, cbMeta);
+    SFsmCbMeta cbMeta = {
+        cbMeta.code = 0,
+        cbMeta.currentTerm = ths->pRaftStore->currentTerm,
+        cbMeta.flag = 0,
+        cbMeta.index = pEntry->index,
+        cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, pEntry->index),
+        cbMeta.isWeak = pEntry->isWeak,
+        cbMeta.seqNum = pEntry->seqNum,
+        cbMeta.state = ths->state,
+        cbMeta.term = pEntry->term,
+    };
+    ths->pFsm->FpLeaderTransferCb(ths->pFsm, pRpcMsg, &cbMeta);
   }
 
   syncLeaderTransferDestroy(pSyncLeaderTransfer);
@@ -3314,18 +3290,20 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
 
           // execute fsm in apply thread, or execute outside syncPropose
           if (internalExecute) {
-            SFsmCbMeta cbMeta = {0};
-            cbMeta.index = pEntry->index;
-            cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, cbMeta.index);
-            cbMeta.isWeak = pEntry->isWeak;
-            cbMeta.code = 0;
-            cbMeta.state = ths->state;
-            cbMeta.seqNum = pEntry->seqNum;
-            cbMeta.term = pEntry->term;
-            cbMeta.currentTerm = ths->pRaftStore->currentTerm;
-            cbMeta.flag = flag;
+            SFsmCbMeta cbMeta = {
+                .index = pEntry->index,
+                .lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, pEntry->index),
+                .isWeak = pEntry->isWeak,
+                .code = 0,
+                .state = ths->state,
+                .seqNum = pEntry->seqNum,
+                .term = pEntry->term,
+                .currentTerm = ths->pRaftStore->currentTerm,
+                .flag = flag,
+            };
 
-            ths->pFsm->FpCommitCb(ths->pFsm, &rpcMsg, cbMeta);
+            syncGetAndDelRespRpc(ths, cbMeta.seqNum, &rpcMsg.info);
+            ths->pFsm->FpCommitCb(ths->pFsm, &rpcMsg, &cbMeta);
           }
         }
 

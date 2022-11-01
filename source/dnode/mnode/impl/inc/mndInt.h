@@ -90,7 +90,6 @@ typedef struct {
   int32_t  errCode;
   int32_t  transId;
   SRWLatch lock;
-  int8_t   leaderTransferFinish;
   int8_t   selfIndex;
   int8_t   numOfReplicas;
   SReplica replicas[TSDB_MAX_REPLICA];
