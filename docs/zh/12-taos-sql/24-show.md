@@ -201,7 +201,7 @@ SHOW TOPICS;
 SHOW TRANSACTIONS;
 ```
 
-显示当前系统中正在执行的事务的信息
+显示当前系统中正在执行的事务的信息(该事务仅针对除普通表以外的元数据级别)
 
 ## SHOW USERS
 

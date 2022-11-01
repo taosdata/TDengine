@@ -172,6 +172,8 @@ int32_t rpcInit() {
 }
 void rpcCleanup(void) {
   transCleanup();
+  transHttpEnvDestroy();
+
   return;
 }
 

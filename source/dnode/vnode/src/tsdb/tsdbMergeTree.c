@@ -290,7 +290,7 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
     // only apply to the child tables, ordinary tables will not incur this filter procedure.
     size = taosArrayGetSize(pBlockLoadInfo->aSttBlk);
 
-    if (size > 1) {
+    if (size >= 1) {
       SSttBlk *pStart = taosArrayGet(pBlockLoadInfo->aSttBlk, 0);
       SSttBlk *pEnd = taosArrayGet(pBlockLoadInfo->aSttBlk, size - 1);
 

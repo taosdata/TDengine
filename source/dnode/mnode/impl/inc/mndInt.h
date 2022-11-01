@@ -80,8 +80,8 @@ typedef struct {
 } SProfileMgmt;
 
 typedef struct {
-  SRWLatch lock;
-  char     email[TSDB_FQDN_LEN];
+  TdThreadMutex lock;
+  char           email[TSDB_FQDN_LEN];
 } STelemMgmt;
 
 typedef struct {

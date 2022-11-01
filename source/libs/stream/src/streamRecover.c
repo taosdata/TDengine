@@ -36,6 +36,7 @@ int32_t streamSourceRecoverPrepareStep1(SStreamTask* pTask, int64_t ver) {
 }
 
 int32_t streamBuildSourceRecover1Req(SStreamTask* pTask, SStreamRecoverStep1Req* pReq) {
+  pReq->msgHead.vgId = pTask->nodeId;
   pReq->streamId = pTask->streamId;
   pReq->taskId = pTask->taskId;
   return 0;
@@ -44,10 +45,10 @@ int32_t streamBuildSourceRecover1Req(SStreamTask* pTask, SStreamRecoverStep1Req*
 int32_t streamSourceRecoverScanStep1(SStreamTask* pTask) {
   //
   return streamScanExec(pTask, 100);
-  // TODO next: dispatch msg to launch scan step2
 }
 
 int32_t streamBuildSourceRecover2Req(SStreamTask* pTask, SStreamRecoverStep2Req* pReq) {
+  pReq->msgHead.vgId = pTask->nodeId;
   pReq->streamId = pTask->streamId;
   pReq->taskId = pTask->taskId;
   return 0;
@@ -64,11 +65,20 @@ int32_t streamSourceRecoverScanStep2(SStreamTask* pTask, int64_t ver) {
 int32_t streamDispatchRecoverFinishReq(SStreamTask* pTask) {
   SStreamRecoverFinishReq req = {
       .streamId = pTask->streamId,
-      .taskId = pTask->taskId,
       .childId = pTask->selfChildId,
   };
+  // serialize
   if (pTask->outputType == TASK_OUTPUT__FIXED_DISPATCH) {
+    req.taskId = pTask->fixedEpDispatcher.taskId;
+    streamDispatchOneRecoverFinishReq(pTask, &req, pTask->fixedEpDispatcher.nodeId, &pTask->fixedEpDispatcher.epSet);
   } else if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
+    SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
+    int32_t vgSz = taosArrayGetSize(vgInfo);
+    for (int32_t i = 0; i < vgSz; i++) {
+      SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
+      req.taskId = pVgInfo->taskId;
+      streamDispatchOneRecoverFinishReq(pTask, &req, pVgInfo->vgId, &pVgInfo->epSet);
+    }
   }
   return 0;
 }
@@ -76,9 +86,9 @@ int32_t streamDispatchRecoverFinishReq(SStreamTask* pTask) {
 // agg
 int32_t streamAggRecoverPrepare(SStreamTask* pTask) {
   void* exec = pTask->exec.executor;
-  if (qStreamSetParamForRecover(exec) < 0) {
-    return -1;
-  }
+  /*if (qStreamSetParamForRecover(exec) < 0) {*/
+  /*return -1;*/
+  /*}*/
   pTask->recoverWaitingChild = taosArrayGetSize(pTask->childEpInfo);
   return 0;
 }
@@ -96,10 +106,12 @@ int32_t streamAggChildrenRecoverFinish(SStreamTask* pTask) {
 }
 
 int32_t streamProcessRecoverFinishReq(SStreamTask* pTask, int32_t childId) {
-  int32_t left = atomic_sub_fetch_32(&pTask->recoverWaitingChild, 1);
-  ASSERT(left >= 0);
-  if (left == 0) {
-    streamAggChildrenRecoverFinish(pTask);
+  if (pTask->taskLevel == TASK_LEVEL__AGG) {
+    int32_t left = atomic_sub_fetch_32(&pTask->recoverWaitingChild, 1);
+    ASSERT(left >= 0);
+    if (left == 0) {
+      streamAggChildrenRecoverFinish(pTask);
+    }
   }
   return 0;
 }
