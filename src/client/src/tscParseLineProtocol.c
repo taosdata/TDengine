@@ -2116,7 +2116,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx, int32_t sqlLen,
       switch (tag_state) {
       case tag_common:
         if (back_slash == true) {
-          if (*cur != ',' && *cur != '=' && *cur != ' ' && *cur != 'n' ) {
+          if (*cur != ',' && *cur != '=' && *cur != ' ' && *cur != 'n' && *cur != 't' && *cur != 'r') {
             tscError("SML:0x%"PRIx64" tag value: state(%d), incorrect character(%c) escaped", info->id, tag_state, *cur);
             ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
             goto error;
@@ -2176,7 +2176,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx, int32_t sqlLen,
         break;
       case tag_lqoute:
         if (back_slash == true) {
-          if (*cur != ',' && *cur != '=' && *cur != ' ' && *cur != 'n') {
+          if (*cur != ',' && *cur != '=' && *cur != ' ' && *cur != 'n' && *cur != 't' && *cur != 'r') {
             tscError("SML:0x%"PRIx64" tag value: state(%d), incorrect character(%c) escaped", info->id, tag_state, *cur);
             ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
             goto error;
@@ -2231,7 +2231,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx, int32_t sqlLen,
       switch (val_state) {
       case val_common:
         if (back_slash == true) {
-          if (*cur != '\\' && *cur != '"' && *cur != 'n') {
+          if (*cur != '\\' && *cur != '"' && *cur != 'n' && *cur != 't' && *cur != 'r') {
             tscError("SML:0x%"PRIx64" field value: state(%d), incorrect character(%c) escaped", info->id, val_state, *cur);
             ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
             goto error;
@@ -2319,7 +2319,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **idx, int32_t sqlLen,
         break;
       case val_lqoute:
         if (back_slash == true) {
-          if (*cur != '\\' && *cur != '"' && *cur != 'n') {
+          if (*cur != '\\' && *cur != '"' && *cur != 'n' && *cur != 't' && *cur != 'r') {
             tscError("SML:0x%"PRIx64" field value: state(%d), incorrect character(%c) escaped", info->id, val_state, *cur);
             ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
             goto error;
