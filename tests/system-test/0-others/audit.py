@@ -21,6 +21,9 @@ from util.sql import tdSql
 
 
 class TDTestCase:
+
+    updatecfgDict = {'audit': 1}
+
     def caseDescription(self):
         '''
         TS-1887 Create Audit db for DDL storage
