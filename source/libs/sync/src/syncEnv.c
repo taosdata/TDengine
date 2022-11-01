@@ -74,10 +74,7 @@ int64_t syncNodeAdd(SSyncNode *pNode) {
   return pNode->rid;
 }
 
-void syncNodeRemove(SSyncNode *pNode) {
-  taosRemoveRef(gNodeRefId, pNode->rid);
-  sDebug("vgId:%d, sync rid:%" PRId64 " is removed from rsetId:%d", pNode->vgId, pNode->rid, gNodeRefId);
-}
+void syncNodeRemove(int64_t rid) { taosRemoveRef(gNodeRefId, rid); }
 
 SSyncNode *syncNodeAcquire(int64_t rid) {
   SSyncNode *pNode = taosAcquireRef(gNodeRefId, rid);

@@ -76,7 +76,7 @@ void syncStop(int64_t rid) {
   SSyncNode* pNode = syncNodeAcquire(rid);
   if (pNode != NULL) {
     syncNodeRelease(pNode);
-    syncNodeRemove(pNode);
+    syncNodeRemove(rid);
   }
 }
 
