@@ -150,18 +150,13 @@ typedef struct {
 
   SSchemaWrapper*     schema;
   char                tbName[TSDB_TABLE_NAME_LEN];
-  SSDataBlock*        pullOverBlk;  // for streaming
-  SWalFilterCond      cond;
-  int64_t             lastScanUid;
   int8_t              recoverStep;
   SQueryTableDataCond tableCond;
-  int64_t             recoverStartVer;
-  int64_t             recoverEndVer;
   int64_t             fillHistoryVer1;
   int64_t             fillHistoryVer2;
 
-  int8_t        triggerSaved;
-  int64_t       deleteMarkSaved;
+  // int8_t        triggerSaved;
+  // int64_t       deleteMarkSaved;
   SStreamState* pState;
 } SStreamTaskInfo;
 
@@ -461,8 +456,10 @@ typedef struct SPartitionDataInfo {
 
 typedef struct STimeWindowAggSupp {
   int8_t          calTrigger;
-  int64_t         waterMark;
+  int8_t          calTriggerSaved;
   int64_t         deleteMark;
+  int64_t         deleteMarkSaved;
+  int64_t         waterMark;
   TSKEY           maxTs;
   TSKEY           minTs;
   SColumnInfoData timeWindowData;  // query time window info for scalar function execution.

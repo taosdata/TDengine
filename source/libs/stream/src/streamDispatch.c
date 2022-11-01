@@ -250,7 +250,7 @@ FAIL:
   return code;
 }
 
-int32_t streamDispatchOneReq(SStreamTask* pTask, const SStreamDispatchReq* pReq, int32_t vgId, SEpSet* pEpSet) {
+int32_t streamDispatchOneDataReq(SStreamTask* pTask, const SStreamDispatchReq* pReq, int32_t vgId, SEpSet* pEpSet) {
   void*   buf = NULL;
   int32_t code = -1;
   SRpcMsg msg = {0};
@@ -371,7 +371,7 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
     qDebug("dispatch from task %d (child id %d) to down stream task %d in vnode %d", pTask->taskId, pTask->selfChildId,
            downstreamTaskId, vgId);
 
-    if (streamDispatchOneReq(pTask, &req, vgId, pEpSet) < 0) {
+    if (streamDispatchOneDataReq(pTask, &req, vgId, pEpSet) < 0) {
       goto FAIL_FIXED_DISPATCH;
     }
     code = 0;
@@ -433,7 +433,7 @@ int32_t streamDispatchAllBlocks(SStreamTask* pTask, const SStreamDataBlock* pDat
       if (pReqs[i].blockNum > 0) {
         // send
         SVgroupInfo* pVgInfo = taosArrayGet(vgInfo, i);
-        if (streamDispatchOneReq(pTask, &pReqs[i], pVgInfo->vgId, &pVgInfo->epSet) < 0) {
+        if (streamDispatchOneDataReq(pTask, &pReqs[i], pVgInfo->vgId, &pVgInfo->epSet) < 0) {
           goto FAIL_SHUFFLE_DISPATCH;
         }
       }

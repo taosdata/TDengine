@@ -1259,7 +1259,7 @@ int32_t tqProcessSubmitReq(STQ* pTq, SSubmitReq* pReq, int64_t ver) {
   pSubmit = streamDataSubmitNew(pReq);
   if (pSubmit == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    qError("failed to create data submit for stream since out of memory");
+    tqError("failed to create data submit for stream since out of memory");
     failed = true;
   }
 
@@ -1268,18 +1268,21 @@ int32_t tqProcessSubmitReq(STQ* pTq, SSubmitReq* pReq, int64_t ver) {
     if (pIter == NULL) break;
     SStreamTask* pTask = *(SStreamTask**)pIter;
     if (pTask->taskLevel != TASK_LEVEL__SOURCE) continue;
-    if (pTask->taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->taskStatus == TASK_STATUS__RECOVER1) continue;
+    if (pTask->taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->taskStatus == TASK_STATUS__RECOVER1) {
+      tqDebug("skip push task %d, task status %d", pTask->taskId, pTask->taskStatus);
+      continue;
+    }
 
-    qDebug("data submit enqueue stream task: %d, ver: %" PRId64, pTask->taskId, ver);
+    tqDebug("data submit enqueue stream task: %d, ver: %" PRId64, pTask->taskId, ver);
 
     if (!failed) {
       if (streamTaskInput(pTask, (SStreamQueueItem*)pSubmit) < 0) {
-        qError("stream task input failed, task id %d", pTask->taskId);
+        tqError("stream task input failed, task id %d", pTask->taskId);
         continue;
       }
 
       if (streamSchedExec(pTask) < 0) {
-        qError("stream task launch failed, task id %d", pTask->taskId);
+        tqError("stream task launch failed, task id %d", pTask->taskId);
         continue;
       }
     } else {

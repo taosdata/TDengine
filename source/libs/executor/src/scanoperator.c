@@ -1841,6 +1841,10 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
       return pBlock;
     }
     pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__NONE;
+    STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
+    pTSInfo->cond.startVersion = 0;
+    pTSInfo->cond.endVersion = -1;
+
     return NULL;
   }
 #endif
