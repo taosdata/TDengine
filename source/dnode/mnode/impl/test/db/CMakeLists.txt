@@ -6,6 +6,7 @@ target_link_libraries(
 )
 
 add_test(
-   NAME dbTest
-   COMMAND dbTest
+    NAME dbTest
+    COMMAND dbTest
 )
+

@@ -9,6 +9,6 @@ target_link_libraries(
 )
 
 add_test(
-   NAME tfs_test
-   COMMAND tfs_test
+  NAME tfs_test
+  COMMAND tfs_test
 )
