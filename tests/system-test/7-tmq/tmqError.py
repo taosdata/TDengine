@@ -244,7 +244,7 @@ class TDTestCase:
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume processor")
-        pollDelay = 9000000   # Forever loop
+        paraDict['pollDelay'] = 9000000   # Forever loop
         showMsg   = 1
         showRow   = 1
         #self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)

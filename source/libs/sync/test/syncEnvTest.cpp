@@ -22,7 +22,7 @@ int main() {
 
   logTest();
 
-  ret = syncEnvStart();
+  ret = syncInit();
   assert(ret == 0);
 
   for (int i = 0; i < 5; ++i) {
@@ -37,8 +37,6 @@ int main() {
     taosMsleep(5000);
   }
 
-  ret = syncEnvStop();
-  assert(ret == 0);
-
+  syncCleanUp();
   return 0;
 }

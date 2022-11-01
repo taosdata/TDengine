@@ -456,6 +456,7 @@ int32_t cloneDbVgInfo(SDBVgInfo* pSrc, SDBVgInfo** pDst) {
     (*pDst)->vgHash = taosHashInit(taosHashGetSize(pSrc->vgHash), taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true,
                                    HASH_ENTRY_LOCK);
     if (NULL == (*pDst)->vgHash) {
+      taosMemoryFreeClear(*pDst);
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
 

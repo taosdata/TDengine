@@ -152,7 +152,7 @@ int main(int argc, char **argv) {
   int32_t ret = syncIOStart((char *)"127.0.0.1", ports[myIndex]);
   assert(ret == 0);
 
-  ret = syncEnvStart();
+  ret = syncInit();
   assert(ret == 0);
 
   taosRemoveDir("./wal_test");

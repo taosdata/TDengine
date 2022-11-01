@@ -2771,9 +2771,29 @@ TEST(apiTest, catalogChkAuth_test) {
   ASSERT_EQ(code, 0);
 
   bool pass = false;
+  bool exists = false;
+  code = catalogChkAuthFromCache(pCtg, mockPointer, ctgTestUsername, ctgTestDbname, AUTH_TYPE_READ, &pass, &exists);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(exists, false);
+  
   code = catalogChkAuth(pCtg, mockPointer, ctgTestUsername, ctgTestDbname, AUTH_TYPE_READ, &pass);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(pass, true);
+
+  while (true) {
+    uint64_t n = 0;
+    ctgdGetStatNum("runtime.numOfOpDequeue", (void *)&n);
+    if (n != 1) {
+      taosMsleep(50);
+    } else {
+      break;
+    }
+  }
+
+  code = catalogChkAuthFromCache(pCtg, mockPointer, ctgTestUsername, ctgTestDbname, AUTH_TYPE_READ, &pass, &exists);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(pass, true);
+  ASSERT_EQ(exists, true);
 
   catalogDestroy();
 }
