@@ -3677,3 +3677,42 @@ void syncLogRecvLocalCmd(SSyncNode* pSyncNode, const SyncLocalCmd* pMsg, const c
            syncLocalCmdGetStr(pMsg->cmd), pMsg->sdNewTerm, s);
   syncNodeEventLog(pSyncNode, logBuf);
 }
+
+void syncLogSendSyncPreSnapshot(SSyncNode* pSyncNode, const SyncPreSnapshot* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf), "send sync-pre-snapshot to %s:%d {term:%" PRIu64 "}, %s", host, port, pMsg->term, s);
+  syncNodeEventLog(pSyncNode, logBuf);
+}
+
+void syncLogRecvSyncPreSnapshot(SSyncNode* pSyncNode, const SyncPreSnapshot* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf), "recv sync-pre-snapshot from %s:%d {term:%" PRIu64 "}, %s", host, port, pMsg->term,
+           s);
+  syncNodeEventLog(pSyncNode, logBuf);
+}
+
+void syncLogSendSyncPreSnapshotReply(SSyncNode* pSyncNode, const SyncPreSnapshotReply* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->destId.addr, host, sizeof(host), &port);
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf), "send sync-pre-snapshot-reply to %s:%d {term:%" PRIu64 ", match:%" PRId64 "}, %s",
+           host, port, pMsg->term, pMsg->matchIndex, s);
+  syncNodeEventLog(pSyncNode, logBuf);
+}
+
+void syncLogRecvSyncPreSnapshotReply(SSyncNode* pSyncNode, const SyncPreSnapshotReply* pMsg, const char* s) {
+  char     host[64];
+  uint16_t port;
+  syncUtilU642Addr(pMsg->srcId.addr, host, sizeof(host), &port);
+  char logBuf[256];
+  snprintf(logBuf, sizeof(logBuf), "recv sync-pre-snapshot-reply from %s:%d {term:%" PRIu64 ", match:%" PRId64 "}, %s",
+           host, port, pMsg->term, pMsg->matchIndex, s);
+  syncNodeEventLog(pSyncNode, logBuf);
+}
