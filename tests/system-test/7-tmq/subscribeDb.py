@@ -20,7 +20,7 @@ class TDTestCase:
     #updatecfgDict["rpcDebugFlag"] = rpcDebugFlagVal
     #print ("===================: ", updatecfgDict)
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
@@ -209,7 +209,7 @@ class TDTestCase:
         # wait for data ready
         prepareEnvThread.join()
 
-        tdLog.info("insert process end, and start to check consume result")
+        tdLog.info("1-insert process end, and start to check consume result")
         expectRows = 1
         resultList = self.selectConsumeResult(expectRows)
         totalConsumeRows = 0
@@ -310,7 +310,7 @@ class TDTestCase:
         # wait for data ready
         prepareEnvThread.join()
 
-        tdLog.info("insert process end, and start to check consume result")
+        tdLog.info("2-insert process end, and start to check consume result")
         expectRows = 2
         resultList = self.selectConsumeResult(expectRows)
         totalConsumeRows = 0
@@ -379,7 +379,7 @@ class TDTestCase:
         # wait for data ready
         prepareEnvThread.join()
 
-        tdLog.info("insert process end, and start to check consume result")
+        tdLog.info("3-insert process end, and start to check consume result")
         expectRows = 2
         resultList = self.selectConsumeResult(expectRows)
         totalConsumeRows = 0
@@ -459,7 +459,7 @@ class TDTestCase:
         prepareEnvThread.join()
         prepareEnvThread2.join()
 
-        tdLog.info("insert process end, and start to check consume result")
+        tdLog.info("4-insert process end, and start to check consume result")
         expectRows = 1
         resultList = self.selectConsumeResult(expectRows)
         totalConsumeRows = 0

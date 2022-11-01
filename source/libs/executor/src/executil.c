@@ -775,75 +775,6 @@ end:
   return code;
 }
 
-static int tableUidCompare(const void* a, const void* b) {
-  int64_t u1 = *(uint64_t*)a;
-  int64_t u2 = *(uint64_t*)b;
-  if (u1 == u2) {
-    return 0;
-  }
-  return u1 < u2 ? -1 : 1;
-}
-
-static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list, SNode* cond, SHashObj* tags) {
-  int32_t ret = -1;
-  if (nodeType(cond) == QUERY_NODE_OPERATOR) {
-    ret = optimizeTbnameInCondImpl(metaHandle, suid, list, cond);
-    if (ret != -1) {
-      metaGetTableTagsByUids(metaHandle, suid, list, tags);
-      removeInvalidTable(list, tags);
-    }
-  }
-
-  if (nodeType(cond) != QUERY_NODE_LOGIC_CONDITION || ((SLogicConditionNode*)cond)->condType != LOGIC_COND_TYPE_AND) {
-    return ret;
-  }
-
-  bool                 hasTbnameCond = false;
-  SLogicConditionNode* pNode = (SLogicConditionNode*)cond;
-  SNodeList*           pList = (SNodeList*)pNode->pParameterList;
-
-  int32_t len = LIST_LENGTH(pList);
-  if (len <= 0) return ret;
-
-  SListCell* cell = pList->pHead;
-  for (int i = 0; i < len; i++) {
-    if (cell == NULL) break;
-    if (optimizeTbnameInCondImpl(metaHandle, suid, list, cell->pNode) == 0) {
-      hasTbnameCond = true;
-      break;
-    }
-    cell = cell->pNext;
-  }
-  taosArraySort(list, tableUidCompare);
-  taosArrayRemoveDuplicate(list, tableUidCompare, NULL);
-
-  if (hasTbnameCond) {
-    ret = metaGetTableTagsByUids(metaHandle, suid, list, tags);
-    removeInvalidTable(list, tags);
-  }
-  return ret;
-}
-
-/*
- * handle invalid uid
- */
-static int32_t removeInvalidTable(SArray* uids, SHashObj* tags) {
-  if (taosArrayGetSize(uids) <= 0) return 0;
-
-  SArray* validUid = taosArrayInit(taosArrayGetSize(uids), sizeof(int64_t));
-
-  for (int32_t i = 0; i < taosArrayGetSize(uids); i++) {
-    int64_t* uid = taosArrayGet(uids, i);
-    if (taosHashGet(tags, uid, sizeof(int64_t)) != NULL) {
-      taosArrayPush(validUid, uid);
-    }
-  }
-
-  taosArraySwap(uids, validUid);
-  taosArrayDestroy(validUid);
-  return 0;
-}
-
 static int32_t nameComparFn(const void* p1, const void* p2) {
   const char* pName1 = *(const char**)p1;
   const char* pName2 = *(const char**)p2;
@@ -895,6 +826,81 @@ static SArray* getTableNameList(const SNodeListNode* pList) {
 
   taosArrayDestroy(pTbList);
   return pNewList;
+}
+
+static int tableUidCompare(const void* a, const void* b) {
+  uint64_t u1 = *(uint64_t*)a;
+  uint64_t u2 = *(uint64_t*)b;
+
+  if (u1 == u2) {
+    return 0;
+  }
+
+  return u1 < u2 ? -1 : 1;
+}
+
+static int32_t optimizeTbnameInCond(void* metaHandle, int64_t suid, SArray* list, SNode* cond, SHashObj* tags) {
+  int32_t ret = -1;
+  if (nodeType(cond) == QUERY_NODE_OPERATOR) {
+    ret = optimizeTbnameInCondImpl(metaHandle, suid, list, cond);
+    if (ret != -1) {
+      metaGetTableTagsByUids(metaHandle, suid, list, tags);
+      removeInvalidTable(list, tags);
+    }
+  }
+
+  if (nodeType(cond) != QUERY_NODE_LOGIC_CONDITION || ((SLogicConditionNode*)cond)->condType != LOGIC_COND_TYPE_AND) {
+    return ret;
+  }
+
+  bool                 hasTbnameCond = false;
+  SLogicConditionNode* pNode = (SLogicConditionNode*)cond;
+  SNodeList*           pList = (SNodeList*)pNode->pParameterList;
+
+  int32_t len = LIST_LENGTH(pList);
+  if (len <= 0) {
+    return ret;
+  }
+
+  SListCell* cell = pList->pHead;
+  for (int i = 0; i < len; i++) {
+    if (cell == NULL) break;
+    if (optimizeTbnameInCondImpl(metaHandle, suid, list, cell->pNode) == 0) {
+      hasTbnameCond = true;
+      break;
+    }
+    cell = cell->pNext;
+  }
+
+  taosArraySort(list, tableUidCompare);
+  taosArrayRemoveDuplicate(list, tableUidCompare, NULL);
+
+  if (hasTbnameCond) {
+    ret = metaGetTableTagsByUids(metaHandle, suid, list, tags);
+    removeInvalidTable(list, tags);
+  }
+
+  return ret;
+}
+
+/*
+ * handle invalid uid
+ */
+static int32_t removeInvalidTable(SArray* uids, SHashObj* tags) {
+  if (taosArrayGetSize(uids) <= 0) return 0;
+
+  SArray* validUid = taosArrayInit(taosArrayGetSize(uids), sizeof(int64_t));
+
+  for (int32_t i = 0; i < taosArrayGetSize(uids); i++) {
+    int64_t* uid = taosArrayGet(uids, i);
+    if (taosHashGet(tags, uid, sizeof(int64_t)) != NULL) {
+      taosArrayPush(validUid, uid);
+    }
+  }
+
+  taosArraySwap(uids, validUid);
+  taosArrayDestroy(validUid);
+  return 0;
 }
 
 static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* list, SNode* pTagCond) {
@@ -1757,7 +1763,7 @@ STableListInfo* tableListCreate() {
     goto _error;
   }
 
-  pListInfo->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+  pListInfo->map = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
   if (pListInfo->map == NULL) {
     goto _error;
   }

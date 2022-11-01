@@ -574,6 +574,9 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
   // if the source equals to the destination, it is to create a new column as the result of scalar
   // function or some operators.
   bool createNewColModel = (pResult == pSrcBlock);
+  if (createNewColModel) {
+    blockDataEnsureCapacity(pResult, pResult->info.rows);
+  }
 
   int32_t numOfRows = 0;
 
@@ -623,6 +626,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
 
       int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
       ASSERT(pResult->info.capacity > 0);
+
       colDataMergeCol(pResColData, startOffset, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
       colDataDestroy(&idata);
 
@@ -843,57 +847,6 @@ STimeWindow getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int
 
   return win;
 }
-
-#if 0
-static bool overlapWithTimeWindow(STaskAttr* pQueryAttr, SDataBlockInfo* pBlockInfo) {
-  STimeWindow w = {0};
-
-  TSKEY sk = TMIN(pQueryAttr->window.skey, pQueryAttr->window.ekey);
-  TSKEY ek = TMAX(pQueryAttr->window.skey, pQueryAttr->window.ekey);
-
-  if (true) {
-    //    getAlignQueryTimeWindow(pQueryAttr, pBlockInfo->window.skey, sk, ek, &w);
-    assert(w.ekey >= pBlockInfo->window.skey);
-
-    if (w.ekey < pBlockInfo->window.ekey) {
-      return true;
-    }
-
-    while (1) {
-      //      getNextTimeWindow(pQueryAttr, &w);
-      if (w.skey > pBlockInfo->window.ekey) {
-        break;
-      }
-
-      assert(w.ekey > pBlockInfo->window.ekey);
-      if (w.skey <= pBlockInfo->window.ekey && w.skey > pBlockInfo->window.skey) {
-        return true;
-      }
-    }
-  } else {
-    //    getAlignQueryTimeWindow(pQueryAttr, pBlockInfo->window.ekey, sk, ek, &w);
-    assert(w.skey <= pBlockInfo->window.ekey);
-
-    if (w.skey > pBlockInfo->window.skey) {
-      return true;
-    }
-
-    while (1) {
-      //      getNextTimeWindow(pQueryAttr, &w);
-      if (w.ekey < pBlockInfo->window.skey) {
-        break;
-      }
-
-      assert(w.skey < pBlockInfo->window.skey);
-      if (w.ekey < pBlockInfo->window.ekey && w.ekey >= pBlockInfo->window.skey) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
-#endif
 
 int32_t loadDataBlockOnDemand(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableScanInfo, SSDataBlock* pBlock,
                               uint32_t* status) {

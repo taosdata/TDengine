@@ -28,10 +28,6 @@ typedef struct SRaftId {
   SyncGroupId vgId;
 } SRaftId;
 
-// ------------------ control -------------------
-SSyncNode* syncNodeAcquire(int64_t rid);
-void       syncNodeRelease(SSyncNode* pNode);
-
 int32_t syncGetRespRpc(int64_t rid, uint64_t index, SRpcMsg* msg);
 int32_t syncGetAndDelRespRpc(int64_t rid, uint64_t index, SRpcHandleInfo* pInfo);
 void    syncSetMsgCb(int64_t rid, const SMsgCb* msgcb);
@@ -679,9 +675,12 @@ void syncReconfigFinishLog(const SyncReconfigFinish* pMsg);
 void syncReconfigFinishLog2(char* s, const SyncReconfigFinish* pMsg);
 
 // ---------------------------------------------
+
 typedef enum {
   SYNC_LOCAL_CMD_STEP_DOWN = 100,
 } ESyncLocalCmd;
+
+const char* syncLocalCmdGetStr(int32_t cmd);
 
 typedef struct SyncLocalCmd {
   uint32_t bytes;

@@ -72,8 +72,9 @@ if __name__ == "__main__":
     queryPolicy = 1
     createDnodeNums = 1
     restful = False
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RD:', [
-        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums','queryPolicy','createDnodeNums','restful','adaptercfgupdate'])
+    replicaVar = 1
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:k:e:N:M:Q:C:RD:n:', [
+        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'killv', 'execCmd','dnodeNums','mnodeNums','queryPolicy','createDnodeNums','restful','adaptercfgupdate','replicaVar'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -95,8 +96,7 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-C create Dnode Numbers in one cluster')
             tdLog.printNoPrefix('-R restful realization form')
             tdLog.printNoPrefix('-D taosadapter update cfg dict ')
-
-
+            tdLog.printNoPrefix('-n the number of replicas')
             sys.exit(0)
 
         if key in ['-r', '--restart']:
@@ -167,6 +167,9 @@ if __name__ == "__main__":
             except:
                 print('adapter cfg update convert fail.')
                 sys.exit(0)
+
+        if key in ['-n', '--replicaVar']:
+            replicaVar = value
 
     if not execCmd == "":
         if restful:
@@ -512,7 +515,7 @@ if __name__ == "__main__":
             if fileName == "all":
                 tdCases.runAllLinux(conn)
             else:
-                tdCases.runOneLinux(conn, fileName)
+                tdCases.runOneLinux(conn, fileName, replicaVar)
 
         if restart:
             if fileName == "all":
@@ -529,7 +532,7 @@ if __name__ == "__main__":
                         conn = taosrest.connect(url=f"http://{host}:6041")
                     tdLog.info("Procedures for tdengine deployed in %s" % (host))
                     tdLog.info("query test after taosd restart")
-                    tdCases.runOneLinux(conn, sp[0] + "_" + "restart.py")
+                    tdCases.runOneLinux(conn, sp[0] + "_" + "restart.py", replicaVar)
                 else:
                     tdLog.info("not need to query")
 

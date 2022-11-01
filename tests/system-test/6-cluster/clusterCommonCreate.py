@@ -33,7 +33,7 @@ from util.common import *
 #     INSERT_DATA     = 3
 
 class ClusterComCreate:
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
         tdSql.init(conn.cursor())
         # tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
