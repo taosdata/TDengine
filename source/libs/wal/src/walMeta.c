@@ -65,6 +65,7 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
   // ensure size as non-negative
   pFileInfo->fileSize = TMAX(0, pFileInfo->fileSize);
 
+  int64_t  stepSize = WAL_SCAN_BUF_SIZE;
   uint64_t magic = WAL_MAGIC;
   int64_t  walCkHeadSz = sizeof(SWalCkHead);
   int64_t  end = fileSize;
@@ -74,22 +75,24 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
   char*    buf = NULL;
   int64_t  found = -1;
   bool     firstTrial = pFileInfo->fileSize < fileSize;
+  int64_t  border = TMIN(pFileInfo->fileSize, fileSize);
+  int64_t  offsetForward = border - stepSize + walCkHeadSz - 1;
+  int64_t  offsetBackward = border;
 
   // search for the valid last WAL entry, e.g. block by block
   while (1) {
-    offset = (firstTrial) ? pFileInfo->fileSize : TMAX(0, end - WAL_SCAN_BUF_SIZE);
+    offset = (firstTrial) ? TMIN(fileSize, offsetForward + stepSize - walCkHeadSz + 1)
+                          : TMAX(0, offsetBackward - stepSize + walCkHeadSz - 1);
+    end = TMIN(offset + stepSize, fileSize);
+    if (firstTrial) {
+      offsetForward = offset;
+    } else {
+      offsetBackward = offset;
+    }
+
     ASSERT(offset <= end);
     readSize = end - offset;
     capacity = readSize + sizeof(magic);
-
-    int64_t limit = WAL_RECOV_SIZE_LIMIT;
-    if (limit < readSize) {
-      wError("vgId:%d, possibly corrupted WAL range exceeds size limit (i.e. %" PRId64 " bytes). offset:%" PRId64
-             ", end:%" PRId64 ", file:%s",
-             pWal->cfg.vgId, limit, offset, end, fnameStr);
-      terrno = TSDB_CODE_WAL_SIZE_LIMIT;
-      goto _err;
-    }
 
     void* ptr = taosMemoryRealloc(buf, capacity);
     if (ptr == NULL) {
@@ -127,6 +130,7 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
       }
       logContent = (SWalCkHead*)(buf + pos);
       if (walValidHeadCksum(logContent) != 0) {
+        terrno = TSDB_CODE_WAL_CHKSUM_MISMATCH;
         wWarn("vgId:%d, failed to validate checksum of wal entry header. offset:%" PRId64 ", file:%s", pWal->cfg.vgId,
               offset + pos, fnameStr);
         haystack = buf + pos + 1;
@@ -183,11 +187,9 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
       haystack = buf + pos + 1;
     }
 
+    if (end == fileSize) firstTrial = false;
+    if (firstTrial && terrno == TSDB_CODE_SUCCESS) continue;
     if (found >= 0 || offset == 0) break;
-
-    // go backwards, e.g. by at most one WAL scan buf size
-    end = TMIN(offset + walCkHeadSz - 1, fileSize);
-    firstTrial = false;
   }
 
   // determine end of last entry
