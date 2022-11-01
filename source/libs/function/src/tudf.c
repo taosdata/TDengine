@@ -130,7 +130,7 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   size_t udfdLdLibPathLen = strlen(tsUdfdLdLibPath);
   strncpy(udfdPathLdLib, tsUdfdLdLibPath, udfdLdLibPathLen);
   udfdPathLdLib[udfdLdLibPathLen] = ':';
-  strncpy(udfdPathLdLib + udfdLdLibPathLen + 1, pathTaosdLdLib, sizeof(udfdPathLdLib) - udfdLdLibPathLen);
+  strncpy(udfdPathLdLib + udfdLdLibPathLen + 1, pathTaosdLdLib, sizeof(udfdPathLdLib) - udfdLdLibPathLen - 1);
   if (udfdLdLibPathLen + taosdLdLibPathLen < 1024) {
     fnInfo("udfd LD_LIBRARY_PATH: %s", udfdPathLdLib);
   } else {
