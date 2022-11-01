@@ -322,7 +322,7 @@
 
 # --- vnode ----
 ./test.sh -f tsim/vnode/replica3_basic.sim
-./test.sh -f tsim/vnode/replica3_repeat.sim
+# TD-20089 ./test.sh -f tsim/vnode/replica3_repeat.sim
 ./test.sh -f tsim/vnode/replica3_vgroup.sim
 ./test.sh -f tsim/vnode/replica3_many.sim
 ./test.sh -f tsim/vnode/replica3_import.sim

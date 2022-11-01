@@ -924,6 +924,11 @@ int32_t ctgGetVgInfosFromHashValue(SCatalog* pCtg, SCtgTaskReq* tReq, SDBVgInfo*
 
   if (1 == vgNum) {
     void* pIter = taosHashIterate(dbInfo->vgHash, NULL);
+    if (NULL == pIter) {
+      ctgError("empty vgHash, db:%s, vgroup number:%d", dbFName, vgNum);
+      CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    }
+    
     for (int32_t i = 0; i < tbNum; ++i) {
       vgInfo = taosMemoryMalloc(sizeof(SVgroupInfo));
       if (NULL == vgInfo) {

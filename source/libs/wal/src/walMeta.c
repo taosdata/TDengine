@@ -288,6 +288,33 @@ void walAlignVersions(SWal* pWal) {
   pWal->vers.appliedVer = TMIN(pWal->vers.commitVer, pWal->vers.appliedVer);
 }
 
+bool walLogEntriesComplete(const SWal* pWal) {
+  int32_t sz = taosArrayGetSize(pWal->fileInfoSet);
+  bool    complete = true;
+  int32_t fileIdx = -1;
+  int64_t index = pWal->vers.firstVer;
+
+  while (++fileIdx < sz) {
+    SWalFileInfo* pFileInfo = taosArrayGet(pWal->fileInfoSet, fileIdx);
+    if (pFileInfo->firstVer != index) {
+      break;
+    }
+    index = pFileInfo->lastVer + ((fileIdx + 1 < sz) ? 1 : 0);
+  }
+  // empty is regarded as complete
+  if (sz != 0) {
+    complete = (index == pWal->vers.lastVer);
+  }
+
+  if (!complete) {
+    wError("vgId:%d, WAL log entries incomplete in range [%" PRId64 ", %" PRId64 "], aligned with snaphotVer:%" PRId64,
+           pWal->cfg.vgId, pWal->vers.firstVer, pWal->vers.lastVer, pWal->vers.snapshotVer);
+    terrno = TSDB_CODE_WAL_LOG_INCOMPLETE;
+  }
+
+  return complete;
+}
+
 int walCheckAndRepairMeta(SWal* pWal) {
   // load log files, get first/snapshot/last version info
   const char* logPattern = "^[0-9]+.log$";
@@ -401,6 +428,11 @@ int walCheckAndRepairMeta(SWal* pWal) {
   if (updateMeta) {
     (void)walSaveMeta(pWal);
   }
+
+  if (!walLogEntriesComplete(pWal)) {
+    return -1;
+  }
+
   return 0;
 }
 
