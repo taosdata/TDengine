@@ -38,7 +38,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   int    slen = 0;
 
   *ppTsdb = NULL;
-  slen = PATH_MAX;
+  slen = TD_PATH_MAX;
 
   // create handle
   pTsdb = (STsdb *)taosMemoryCalloc(1, sizeof(*pTsdb) + slen);
@@ -48,7 +48,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   }
 
   pTsdb->path = (char *)&pTsdb[1];
-  snprintf(pTsdb->path, PATH_MAX, "%s%s%s", pVnode->path, TD_DIRSEP, dir);
+  snprintf(pTsdb->path, TD_PATH_MAX, "%s%s%s", pVnode->path, TD_DIRSEP, dir);
   taosRealPath(pTsdb->path, NULL, slen);
   pTsdb->pVnode = pVnode;
   taosThreadRwlockInit(&pTsdb->rwLock, NULL);
