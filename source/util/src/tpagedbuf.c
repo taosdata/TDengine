@@ -534,7 +534,9 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
     }
   }
 
-  taosRemoveFile(pBuf->path);
+  if (taosRemoveFile(pBuf->path) < 0) {
+    uDebug("WARNING tPage remove file failed. path=%s", pBuf->path);
+  }
   taosMemoryFreeClear(pBuf->path);
 
   size_t n = taosArrayGetSize(pBuf->pIdList);

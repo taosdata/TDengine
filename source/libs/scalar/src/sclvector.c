@@ -344,8 +344,11 @@ static FORCE_INLINE void varToNchar(char *buf, SScalarParam *pOut, int32_t rowIn
   int32_t outputMaxLen = (inputLen + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
 
   char *t = taosMemoryCalloc(1, outputMaxLen);
-  /*int32_t resLen = */ taosMbsToUcs4(varDataVal(buf), inputLen, (TdUcs4 *)varDataVal(t),
-                                      outputMaxLen - VARSTR_HEADER_SIZE, &len);
+  int32_t ret = taosMbsToUcs4(varDataVal(buf), inputLen, (TdUcs4 *)varDataVal(t),
+                                  outputMaxLen - VARSTR_HEADER_SIZE, &len);
+  if (!ret) {
+   sclError("failed to convert to NCHAR");
+  }
   varDataSetLen(t, len);
 
   colDataAppend(pOut->columnData, rowIndex, t, false);
@@ -502,7 +505,7 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
     (*pLeftData)++;
   }
   if (typeRight == TSDB_DATA_TYPE_JSON) {
-    if (tTagIsJson(*pLeftData)) {
+    if (tTagIsJson(*pRightData)) {
       terrno = TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR;
       return false;
     }

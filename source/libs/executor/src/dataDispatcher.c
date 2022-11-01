@@ -51,22 +51,6 @@ typedef struct SDataDispatchHandle {
   TdThreadMutex       mutex;
 } SDataDispatchHandle;
 
-static bool needCompress(const SSDataBlock* pData, int32_t numOfCols) {
-  if (tsCompressColData < 0 || 0 == pData->info.rows) {
-    return false;
-  }
-
-  for (int32_t col = 0; col < numOfCols; ++col) {
-    SColumnInfoData* pColRes = taosArrayGet(pData->pDataBlock, col);
-    int32_t          colSize = pColRes->info.bytes * pData->info.rows;
-    if (NEEDTO_COMPRESS_QUERY(colSize)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 // clang-format off
 // data format:
 // +----------------+------------------+--------------+--------------+------------------+--------------------------------------------+------------------------------------+-------------+-----------+-------------+-----------+
@@ -86,7 +70,7 @@ static void toDataCacheEntry(SDataDispatchHandle* pHandle, const SInputData* pIn
     }
   }
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pBuf->pData;
-  pEntry->compressed = (int8_t)needCompress(pInput->pData, numOfCols);
+  pEntry->compressed = 0;
   pEntry->numOfRows = pInput->pData->info.rows;
   pEntry->numOfCols = numOfCols;
   pEntry->dataLen = 0;

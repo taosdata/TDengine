@@ -202,6 +202,7 @@ char* jobTaskStatusStr(int32_t status) {
   return "UNKNOWN";
 }
 
+#if 0
 SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name) {
   SSchema s = {0};
   s.type = type;
@@ -211,6 +212,7 @@ SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* nam
   tstrncpy(s.name, name, tListLen(s.name));
   return s;
 }
+#endif
 
 void freeSTableMetaRspPointer(void *p) {
   tFreeSTableMetaRsp(*(void**)p);

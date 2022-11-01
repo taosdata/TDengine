@@ -1478,6 +1478,7 @@ typedef struct {
   int32_t dnodeId;
   char    fqdn[TSDB_FQDN_LEN];
   int32_t port;
+  int8_t  force;
 } SDropDnodeReq;
 
 int32_t tSerializeSDropDnodeReq(void* buf, int32_t bufLen, SDropDnodeReq* pReq);
@@ -1726,6 +1727,9 @@ typedef struct {
 #define STREAM_TRIGGER_WINDOW_CLOSE   2
 #define STREAM_TRIGGER_MAX_DELAY      3
 #define STREAM_DEFAULT_IGNORE_EXPIRED 0
+#define STREAM_FILL_HISTORY_ON        1
+#define STREAM_FILL_HISTORY_OFF       0
+#define STREAM_DEFAULT_FILL_HISTORY   STREAM_FILL_HISTORY_OFF
 
 typedef struct {
   char    name[TSDB_STREAM_FNAME_LEN];

@@ -355,8 +355,6 @@ char *raftCfg2Str(SRaftCfg *pRaftCfg) {
 }
 
 int32_t raftCfgCreateFile(SSyncCfg *pCfg, SRaftCfgMeta meta, const char *path) {
-  ASSERT(pCfg != NULL);
-
   TdFilePtr pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE);
   if (pFile == NULL) {
     int32_t     err = terrno;

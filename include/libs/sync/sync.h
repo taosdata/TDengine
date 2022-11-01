@@ -38,7 +38,7 @@ extern bool gRaftDetailLog;
 #define SYNC_DEL_WAL_MS              (1000 * 60)
 #define SYNC_ADD_QUORUM_COUNT        3
 #define SYNC_MNODE_LOG_RETENTION     10000
-#define SYNC_VNODE_LOG_RETENTION     500
+#define SYNC_VNODE_LOG_RETENTION     100
 
 #define SYNC_APPEND_ENTRIES_TIMEOUT_MS 10000
 
@@ -231,6 +231,8 @@ int32_t syncLeaderTransferTo(int64_t rid, SNodeInfo newLeader);
 
 int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex);
 int32_t syncEndSnapshot(int64_t rid);
+
+int32_t syncStepDown(int64_t rid, SyncTerm newTerm);
 
 #ifdef __cplusplus
 }

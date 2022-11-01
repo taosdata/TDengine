@@ -55,7 +55,7 @@ sql_error alter table tb modify column c3 nchar(10);
 sql_error alter table tb modify column c3 nchar(0);
 sql_error alter table tb modify column c3 nchar(-1);
 sql_error alter table tb modify column c3 binary(80);
-sql alter table tb modify column c3 nchar(17000);
+sql_error alter table tb modify column c3 nchar(17000);
 sql_error alter table tb modify column c3 nchar(100), c2 binary(30);
 sql_error alter table tb modify column c1 nchar(100), c2 binary(30);
 sql_error alter stable tb modify column c2 binary(30);

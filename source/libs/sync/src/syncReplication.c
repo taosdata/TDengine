@@ -57,7 +57,7 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId) {
   SyncIndex logEndIndex = pSyncNode->pLogStore->syncLogEndIndex(pSyncNode->pLogStore);
   if (nextIndex < logStartIndex || nextIndex - 1 > logEndIndex) {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "start snapshot for next-index:%" PRId64 ", start:%" PRId64 ", end:%" PRId64,
+    snprintf(logBuf, sizeof(logBuf), "maybe start snapshot for next-index:%" PRId64 ", start:%" PRId64 ", end:%" PRId64,
              nextIndex, logStartIndex, logEndIndex);
     syncNodeEventLog(pSyncNode, logBuf);
 
@@ -163,7 +163,10 @@ int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftI
   syncNodeSendMsgById(destRaftId, pSyncNode, &rpcMsg);
 
   SPeerState* pState = syncNodeGetPeerState(pSyncNode, destRaftId);
-  ASSERT(pState != NULL);
+  if (pState == NULL) {
+    sError("vgId:%d, replica maybe dropped", pSyncNode->vgId);
+    return 0;
+  }
 
   if (pMsg->dataLen > 0) {
     pState->lastSendIndex = pMsg->prevLogIndex + 1;

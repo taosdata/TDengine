@@ -137,6 +137,8 @@ int32_t taosQueueItemSize(STaosQueue *queue) {
   taosThreadMutexLock(&queue->mutex);
   int32_t numOfItems = queue->numOfItems;
   taosThreadMutexUnlock(&queue->mutex);
+
+  uTrace("queue:%p, numOfItems:%d memOfItems:%" PRId64, queue, queue->numOfItems, queue->memOfItems);
   return numOfItems;
 }
 

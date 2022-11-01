@@ -28,7 +28,7 @@ class TDTestCase:
     "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
     "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"fnDebugFlag":143}
     
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
@@ -39,7 +39,7 @@ class TDTestCase:
         self.num = 10
         self.fornum = 5
         
-        self.db_nest = "nest"
+        self.db_nest = "stab"
         self.dropandcreateDB_random("%s" %self.db_nest, 1)
         
         # regular column select
@@ -780,7 +780,7 @@ class TDTestCase:
         print("==========%s===start=============" %mathlist)       
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
         
-        self.dropandcreateDB_random("%s" %self.db_nest, 1)
+        #self.dropandcreateDB_random("%s" %self.db_nest, 1)
         
         if (mathlist == ['ABS','SQRT']) or (mathlist == ['SIN','COS','TAN','ASIN','ACOS','ATAN']) or (mathlist == ['FLOOR','CEIL','ROUND']) \
             or (mathlist == ['CSUM']) :
@@ -842,7 +842,7 @@ class TDTestCase:
             
         elif (mathlist == ['POW','LOG']) or (mathlist == ['MAVG']) or (mathlist == ['SAMPLE']) :
             math_functions = mathlist       
-            num = random.randint(0, 1000)  
+            num = random.randint(1, 1000)  
             fun_fix_column = ['(q_bigint,num)','(q_smallint,num)','(q_tinyint,num)','(q_int,num)','(q_float,num)','(q_double,num)',
                               '(q_bigint_null,num)','(q_smallint_null,num)','(q_tinyint_null,num)','(q_int_null,num)','(q_float_null,num)','(q_double_null,num)']        
             fun_column_1 = random.sample(math_functions,1)+random.sample(fun_fix_column,1)
@@ -1470,7 +1470,7 @@ class TDTestCase:
         print("==========%s===start=============" %strlist)       
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
         
-        self.dropandcreateDB_random("%s" %self.db_nest, 1)
+        #self.dropandcreateDB_random("%s" %self.db_nest, 1)
         
         if (strlist == ['LTRIM','RTRIM','LOWER','UPPER']) or (strlist == ['LENGTH','CHAR_LENGTH'])  \
             or (strlist == ['']):
@@ -2206,7 +2206,7 @@ class TDTestCase:
         print("==========%s===start=============" %timelist)       
         os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename)) 
         
-        self.dropandcreateDB_random("%s" %self.db_nest, 1)
+        #self.dropandcreateDB_random("%s" %self.db_nest, 1)
         
         if (timelist == ['NOW','TODAY']) or (timelist == ['TIMEZONE']):
             time_functions = timelist          
@@ -4881,7 +4881,9 @@ class TDTestCase:
         
         startTime = time.time() 
 
-        self.function_before_26()       
+        #self.function_before_26()  
+        
+        self.dropandcreateDB_random("%s" %self.db_nest, 1)     
                
         self.math_nest(['UNIQUE'])
         self.math_nest(['MODE']) 

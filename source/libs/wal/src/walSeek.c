@@ -19,6 +19,7 @@
 #include "tref.h"
 #include "walInt.h"
 
+#if 0
 static int64_t walSeekWritePos(SWal* pWal, int64_t ver) {
   int64_t code = 0;
 
@@ -47,6 +48,7 @@ static int64_t walSeekWritePos(SWal* pWal, int64_t ver) {
   }
   return 0;
 }
+#endif
 
 int walInitWriteFile(SWal* pWal) {
   TdFilePtr     pIdxTFile, pLogTFile;
@@ -134,6 +136,7 @@ int64_t walChangeWrite(SWal* pWal, int64_t ver) {
   return fileFirstVer;
 }
 
+#if 0
 int walSeekWriteVer(SWal* pWal, int64_t ver) {
   int64_t code;
   if (ver == pWal->vers.lastVer) {
@@ -158,3 +161,4 @@ int walSeekWriteVer(SWal* pWal, int64_t ver) {
 
   return 0;
 }
+#endif

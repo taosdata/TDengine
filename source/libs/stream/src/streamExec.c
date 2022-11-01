@@ -85,6 +85,54 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, const void* data, SArray* 
   return 0;
 }
 
+int32_t streamScanExec(SStreamTask* pTask, int32_t batchSz) {
+  ASSERT(pTask->taskLevel == TASK_LEVEL__SOURCE);
+
+  void* exec = pTask->exec.executor;
+
+  while (1) {
+    SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
+    if (pRes == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+
+    int32_t batchCnt = 0;
+    while (1) {
+      SSDataBlock* output = NULL;
+      uint64_t     ts = 0;
+      if (qExecTask(exec, &output, &ts) < 0) {
+        ASSERT(0);
+      }
+      if (output == NULL) break;
+
+      SSDataBlock block = {0};
+      assignOneDataBlock(&block, output);
+      block.info.childId = pTask->selfChildId;
+      taosArrayPush(pRes, &block);
+
+      if (++batchCnt >= batchSz) break;
+    }
+    if (taosArrayGetSize(pRes) == 0) {
+      taosArrayDestroy(pRes);
+      break;
+    }
+    SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
+    if (qRes == NULL) {
+      taosArrayDestroyEx(pRes, (FDelete)blockDataFreeRes);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+
+    qRes->type = STREAM_INPUT__DATA_BLOCK;
+    qRes->blocks = pRes;
+    streamTaskOutput(pTask, qRes);
+    // TODO stream sched dispatch
+  }
+  return 0;
+}
+
+#if 0
 int32_t streamPipelineExec(SStreamTask* pTask, int32_t batchNum, bool dispatch) {
   ASSERT(pTask->taskLevel != TASK_LEVEL__SINK);
 
@@ -144,6 +192,7 @@ int32_t streamPipelineExec(SStreamTask* pTask, int32_t batchNum, bool dispatch) 
 
   return 0;
 }
+#endif
 
 int32_t streamExecForAll(SStreamTask* pTask) {
   while (1) {

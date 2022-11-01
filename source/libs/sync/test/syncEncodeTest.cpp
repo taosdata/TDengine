@@ -186,7 +186,7 @@ int main(int argc, char **argv) {
   int32_t code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, pEntry->index, &pEntry);
   ASSERT(code == 0);
 
-  syncEntryLog2((char *)"==pEntry2==", pEntry2);
+  syncEntryLog2((char *)"==pEntry==", pEntry);
 
   // step5
   uint32_t len;

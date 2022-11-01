@@ -129,7 +129,7 @@ endi
 
 print ============= step5: result
 $i = 0
-while $i < 1000
+while $i < 10
   $i = $i + 1
 
   sleep 1000

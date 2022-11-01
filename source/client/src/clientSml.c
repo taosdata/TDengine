@@ -1531,7 +1531,6 @@ static SSmlHandle *smlBuildSmlInfo(STscObj *pTscObj, SRequestObj *request, SMLPr
     uError("SML:0x%" PRIx64 " create info->pQuery->pRoot error", info->id);
     goto cleanup;
   }
-  ((SVnodeModifOpStmt *)(info->pQuery->pRoot))->payloadType = PAYLOAD_TYPE_KV;
 
   if (pTscObj) {
     info->taos = pTscObj;
@@ -2394,7 +2393,7 @@ static int32_t smlParseLine(SSmlHandle *info, char *lines[], char* rawLine, char
       code = smlParseJSON(info, rawLine);
     }
     if (code != TSDB_CODE_SUCCESS) {
-      uError("SML:0x%" PRIx64 " smlParseJSON failed:%s", info->id, *lines);
+      uError("SML:0x%" PRIx64 " smlParseJSON failed:%s", info->id, lines?*lines:rawLine);
       return code;
     }
     return code;
