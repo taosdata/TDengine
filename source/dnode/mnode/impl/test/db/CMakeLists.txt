@@ -9,4 +9,3 @@ add_test(
     NAME dbTest
     COMMAND dbTest
 )
-
