@@ -71,3 +71,13 @@ settings:
         logDir: /var/log/taos
         debugFlag: 143
         numOfLogLines: 50000000
+  - name: taosBenchmark
+    fqdn: [u1-43]
+    spec:
+      version: 3.0.0.99
+      taos_version: 3.0.0.99
+      config_dir: /etc/taos
+      taos_config:
+        firstEP: u1-43:6030
+        logDir: /root/data/taosd
+        debugFlag: 131
