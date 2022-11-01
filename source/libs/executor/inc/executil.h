@@ -96,11 +96,12 @@ typedef struct SColMatchInfo {
   int32_t matchType;  // determinate the source according to col id or slot id
 } SColMatchInfo;
 
+typedef struct SExecTaskInfo SExecTaskInfo;
 typedef struct STableListInfo STableListInfo;
 struct SqlFunctionCtx;
 
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
-                                STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond, const char* id);
+                                STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond, SExecTaskInfo* pTaskInfo);
 
 STableListInfo* tableListCreate();
 void*          tableListDestroy(STableListInfo* pTableListInfo);

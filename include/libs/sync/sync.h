@@ -220,21 +220,13 @@ const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);
 int32_t     syncGetSnapshotByIndex(int64_t rid, SyncIndex index, SSnapshot* pSnapshot);
 
-int32_t syncReconfig(int64_t rid, SSyncCfg* pNewCfg);
-
-// build SRpcMsg, need to call syncPropose with SRpcMsg
-int32_t syncReconfigBuild(int64_t rid, const SSyncCfg* pNewCfg, SRpcMsg* pRpcMsg);
-
+int32_t syncReconfig(int64_t rid, SSyncCfg* pCfg);
 int32_t syncLeaderTransfer(int64_t rid);
-int32_t syncLeaderTransferTo(int64_t rid, SNodeInfo newLeader);
-
 int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex);
 int32_t syncEndSnapshot(int64_t rid);
-
 int32_t syncStepDown(int64_t rid, SyncTerm newTerm);
 
-SSyncNode* syncNodeAcquire(int64_t rid);
-void       syncNodeRelease(SSyncNode* pNode);
+int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg);
 
 #ifdef __cplusplus
 }
