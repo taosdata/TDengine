@@ -132,27 +132,27 @@ typedef struct SSnapshotMeta {
 typedef struct SSyncFSM {
   void* data;
 
-  void (*FpCommitCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
-  void (*FpPreCommitCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
-  void (*FpRollBackCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
+  void (*FpCommitCb)(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, const SFsmCbMeta *pMeta);
+  void (*FpPreCommitCb)(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
+  void (*FpRollBackCb)(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
 
-  void (*FpRestoreFinishCb)(struct SSyncFSM* pFsm);
-  void (*FpReConfigCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta* cbMeta);
-  void (*FpLeaderTransferCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
+  void (*FpRestoreFinishCb)(const struct SSyncFSM* pFsm);
+  void (*FpReConfigCb)(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, const SReConfigCbMeta* pMeta);
+  void (*FpLeaderTransferCb)(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
 
-  void (*FpBecomeLeaderCb)(struct SSyncFSM* pFsm);
-  void (*FpBecomeFollowerCb)(struct SSyncFSM* pFsm);
+  void (*FpBecomeLeaderCb)(const struct SSyncFSM* pFsm);
+  void (*FpBecomeFollowerCb)(const struct SSyncFSM* pFsm);
 
-  int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot, void* pReaderParam, void** ppReader);
-  int32_t (*FpGetSnapshotInfo)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
+  int32_t (*FpGetSnapshot)(const struct SSyncFSM* pFsm, SSnapshot* pSnapshot, void* pReaderParam, void** ppReader);
+  int32_t (*FpGetSnapshotInfo)(const struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
 
-  int32_t (*FpSnapshotStartRead)(struct SSyncFSM* pFsm, void* pReaderParam, void** ppReader);
-  int32_t (*FpSnapshotStopRead)(struct SSyncFSM* pFsm, void* pReader);
-  int32_t (*FpSnapshotDoRead)(struct SSyncFSM* pFsm, void* pReader, void** ppBuf, int32_t* len);
+  int32_t (*FpSnapshotStartRead)(const struct SSyncFSM* pFsm, void* pReaderParam, void** ppReader);
+  int32_t (*FpSnapshotStopRead)(const struct SSyncFSM* pFsm, void* pReader);
+  int32_t (*FpSnapshotDoRead)(const struct SSyncFSM* pFsm, void* pReader, void** ppBuf, int32_t* len);
 
-  int32_t (*FpSnapshotStartWrite)(struct SSyncFSM* pFsm, void* pWriterParam, void** ppWriter);
-  int32_t (*FpSnapshotStopWrite)(struct SSyncFSM* pFsm, void* pWriter, bool isApply, SSnapshot* pSnapshot);
-  int32_t (*FpSnapshotDoWrite)(struct SSyncFSM* pFsm, void* pWriter, void* pBuf, int32_t len);
+  int32_t (*FpSnapshotStartWrite)(const struct SSyncFSM* pFsm, void* pWriterParam, void** ppWriter);
+  int32_t (*FpSnapshotStopWrite)(const struct SSyncFSM* pFsm, void* pWriter, bool isApply, SSnapshot* pSnapshot);
+  int32_t (*FpSnapshotDoWrite)(const struct SSyncFSM* pFsm, void* pWriter, void* pBuf, int32_t len);
 
 } SSyncFSM;
 
@@ -193,9 +193,13 @@ typedef struct SSyncInfo {
   SWal*         pWal;
   SSyncFSM*     pFsm;
   SMsgCb*       msgcb;
-  int32_t (*FpSendMsg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
-  int32_t (*FpEqMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
-  int32_t (*FpEqCtrlMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
+  int32_t       pingMs;
+  int32_t       electMs;
+  int32_t       heartbeatMs;
+
+  int32_t (*syncSendMSg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
+  int32_t (*syncEqMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
+  int32_t (*syncEqCtrlMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
 } SSyncInfo;
 
 int32_t     syncInit();
@@ -227,6 +231,8 @@ int32_t syncEndSnapshot(int64_t rid);
 int32_t syncStepDown(int64_t rid, SyncTerm newTerm);
 
 int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg);
+
+const char* syncUtilState2String(ESyncState state);
 
 #ifdef __cplusplus
 }
