@@ -424,8 +424,9 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
     qDebug("%s data block skipped, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
            pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
 
-    // NOTE:  here the tag value only load for one row
-    ensureBlockCapacity(pBlock, 1);
+    if (pTableScanInfo->pseudoSup.numOfExprs > 0) {
+      ensureBlockCapacity(pBlock, pBlock->info.rows);
+    }
     doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, 1);
     pCost->skipBlocks += 1;
     return TSDB_CODE_SUCCESS;
@@ -436,7 +437,10 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
     if (success) {  // failed to load the block sma data, data block statistics does not exist, load data block instead
       qDebug("%s data block SMA loaded, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
              pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
-      ensureBlockCapacity(pBlock, 1);
+      if (pTableScanInfo->pseudoSup.numOfExprs > 0) {
+        ensureBlockCapacity(pBlock, pBlock->info.rows);
+      }
+
       doSetTagColumnData(pTableScanInfo, pBlock, pTaskInfo, 1);
       return TSDB_CODE_SUCCESS;
     } else {

@@ -3837,7 +3837,7 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SColumnDataAgg*** pBlockS
   SFileDataBlockInfo* pFBlock = getCurrentBlockInfo(&pReader->status.blockIter);
 
   SDataBlk* pBlock = getCurrentBlock(&pReader->status.blockIter);
-  int64_t   stime = taosGetTimestampUs();
+//  int64_t   stime = taosGetTimestampUs();
 
   SBlockLoadSuppInfo* pSup = &pReader->suppInfo;
 
@@ -3887,14 +3887,10 @@ int32_t tsdbRetrieveDatablockSMA(STsdbReader* pReader, SColumnDataAgg*** pBlockS
     }
   }
 
-  double elapsed = (taosGetTimestampUs() - stime) / 1000.0;
-  pReader->cost.smaLoadTime += elapsed;
   pReader->cost.smaDataLoad += 1;
-
   *pBlockStatis = pSup->plist;
 
-  tsdbDebug("vgId:%d, succeed to load block SMA for uid %" PRIu64 ", elapsed time:%.2f ms, %s", 0, pFBlock->uid,
-            elapsed, pReader->idStr);
+  tsdbDebug("vgId:%d, succeed to load block SMA for uid %" PRIu64 ", %s", 0, pFBlock->uid, pReader->idStr);
 
   return code;
 }

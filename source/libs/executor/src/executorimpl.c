@@ -574,6 +574,9 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
   // if the source equals to the destination, it is to create a new column as the result of scalar
   // function or some operators.
   bool createNewColModel = (pResult == pSrcBlock);
+  if (createNewColModel) {
+    blockDataEnsureCapacity(pResult, pResult->info.rows);
+  }
 
   int32_t numOfRows = 0;
 
@@ -623,6 +626,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
 
       int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
       ASSERT(pResult->info.capacity > 0);
+
       colDataMergeCol(pResColData, startOffset, (int32_t*)&pResult->info.capacity, &idata, dest.numOfRows);
       colDataDestroy(&idata);
 

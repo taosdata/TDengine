@@ -1132,6 +1132,10 @@ void blockDataCleanup(SSDataBlock* pDataBlock) {
   pDataBlock->info.window.ekey = 0;
   pDataBlock->info.window.skey = 0;
 
+  if (pDataBlock->info.capacity == 0) {
+    return;
+  }
+
   size_t numOfCols = taosArrayGetSize(pDataBlock->pDataBlock);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
