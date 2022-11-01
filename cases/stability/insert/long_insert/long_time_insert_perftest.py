@@ -21,6 +21,8 @@ from taostest.performance.perfor_basic import InsertFile
 from taostest.performance.result_reduction import Perf_Base_func
 import time
 from taostest.util.remote import Remote
+from apscheduler.schedulers.background import BackgroundScheduler
+
 
 
 class LongTimeInsert(TDCase):
@@ -32,6 +34,7 @@ class LongTimeInsert(TDCase):
         self.des_table_suffix = "_output"
         self.non_prikey_ts_col_name = ""
         self.restart_timeout = 10
+        self.query_interval = 7200
         self._remote: Remote = Remote(self.logger)
         self.taosd_setting = self.tdCom.get_components_setting(
             self.env_setting["settings"], "taosd"
@@ -39,58 +42,32 @@ class LongTimeInsert(TDCase):
         self.taosadapter_setting = self.tdCom.get_components_setting(
             self.env_setting["settings"], "taosadapter"
         )
-        self.fqdn = self.taosd_setting["fqdn"][0]
+        self.fqdn_list = self.taosd_setting["fqdn"]
+        self.counter = len(self.fqdn_list)
         self.firstEp = self.taosd_setting["spec"]["config"]["firstEP"]
         self.data_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"]
         self.log_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["logDir"]
         self.streams = None
+        self.result_file_name = ""
         # now - 3d and now + 3d
         self.date_timespan = 6
 
-    def get_batch_query_sql(self, ori_str, pos_str, str_add):
-        str_list = ori_str.split(",")
-        for i in str_list:
-            if pos_str in i:
-                insert_index = str_list.index(i)
-        str_list.insert(insert_index, str_add)
-        return ",".join(str_list)
+    def restart_dnode(self):
+        f = open(self.result_file_name, 'a')
+        for i in range(self.counter):
+            self._remote.cmd(self.fqdn_list[i], [killCmd])
+        self.tdSql.query(f'select last_row(*) from perf_db1.stb1 group by tbname;')
+        f.write(f'--------- select last_row(*) from perf_db1.stb1 group by tbname--- {self.tdSql.query_data[0][0]} \t--------\n')
+        self.tdSql.query(f'select last_row(*) from perf_db1.stb2 group by tbname;')
+        f.write(f'--------- select last_row(*) from perf_db1.stb2 group by tbname--- {self.tdSql.query_data[0][0]} \t--------\n')
+        self.tdSql.query(f'select last_row(*) from perf_db1.stb3 group by tbname;')
+        f.write(f'--------- select last_row(*) from perf_db1.stb3 group by tbname--- {self.tdSql.query_data[0][0]} \t--------\n')
+        self.tdSql.query(f'select last_row(*) from perf_db1.stb4 group by tbname;')
+        f.write(f'--------- select last_row(*) from perf_db1.stb4 group by tbname--- {self.tdSql.query_data[0][0]} \t--------\n')
+        self.tdSql.query(f'select last_row(*) from perf_db1.stb5 group by tbname;')
+        f.write(f'--------- select last_row(*) from perf_db1.stb5 group by tbname--- {self.tdSql.query_data[0][0]} \t--------\n')
+        f.close()
 
-    def clean_and_restart_taosd(self):
-        killCmd = "systemctl stop taosd"
-        startCmd = "systemctl start taosd"
-        self._remote.cmd(self.fqdn, [killCmd])
-        self._remote.cmd(self.fqdn, [f"rm -rf {self.data_dir} {self.log_dir}"])
-        self._remote.cmd(self.fqdn, [startCmd])
-        taosd_process_count = self._remote.cmd(
-            self.fqdn,
-            [
-                f"ps -ef | grep taosd | grep -v grep | grep -v sudo | grep -v defunct | wc -l"
-            ],
-        )
-        if int(taosd_process_count) > 0:
-            ready_count = self._remote.cmd(
-                self.fqdn,
-                [f'taos -s "show dnodes" | grep {self.firstEp} | grep ready | wc -l'],
-            )
-            ready_flag = 0
-            while int(ready_count) != 1:
-                taosd_process_count = self._remote.cmd(
-                    self.fqdn,
-                    [
-                        f"ps -ef | grep taosd | grep -v grep | grep -v sudo | grep -v defunct | wc -l"
-                    ],
-                )
-                if ready_flag < self.restart_timeout and int(taosd_process_count) > 0:
-                    ready_flag += 0.5
-                    time.sleep(0.5)
-                    ready_count = self._remote.cmd(
-                        self.fqdn,
-                        [
-                            f'taos -s "show dnodes" | grep {self.firstEp} | grep ready | wc -l'
-                        ],
-                    )
-                else:
-                    return
 
     def desc(self):
         pass
@@ -181,7 +158,9 @@ class LongTimeInsert(TDCase):
                                      drop=cfg[cases][json_file]["db_info"]["drop"],
                                      replica=cfg[cases][json_file]["db_info"]["replica"],
                                      precision=cfg[cases][json_file]["db_info"]["precision"],
-                                     vgroups=cfg[cases][json_file]["db_info"]["vgroups"]
+                                     vgroups=cfg[cases][json_file]["db_info"]["vgroups"],
+                                     duration=cfg[cases][json_file]["db_info"]["duration"],
+                                     keep=cfg[cases][json_file]["db_info"]["keep"]
                                      )
                 if "retentions" in cfg[cases][json_file]["db_info"]:
                     db = jfile.setDBinfo(name=cfg[cases][json_file]["db_info"]["db_name"],
@@ -190,6 +169,7 @@ class LongTimeInsert(TDCase):
                                         precision=cfg[cases][json_file]["db_info"]["precision"],
                                         vgroups=cfg[cases][json_file]["db_info"]["vgroups"],
                                         duration=cfg[cases][json_file]["db_info"]["duration"],
+                                        keep=cfg[cases][json_file]["db_info"]["keep"],
                                         retentions=cfg[cases][json_file]["db_info"]["retentions"],
                                         )
                 if "stream_info" in cfg[cases][json_file]:
@@ -203,8 +183,8 @@ class LongTimeInsert(TDCase):
                                                 watermark=watermark,
                                                 source_sql=cfg[cases][json_file]["stream_info"]["source_sql"],
                                                 drop=cfg[cases][json_file]["stream_info"]["drop"])
-                start_timestamp =  (datetime.now() + timedelta(days=-3)).strftime("%Y-%m-%d %H:%M:%S")
-                timestamp_step = int(self.date_timespan / 2 * 86400 / int(cfg[cases][json_file]["stb_info"]["insert_rows"]) * 1000)
+                # start_timestamp =  (datetime.now() + timedelta(days=-1)).strftime("%Y-%m-%d %H:%M:%S")
+                # timestamp_step = int(self.date_timespan / 2 * 86400 / int(cfg[cases][json_file]["stb_info"]["insert_rows"]) * 1000)
                 stb_name = cfg[cases][json_file]["stb_info"]["stb_name"]
                 # if cfg[cases][json_file]["stb_info"]["tcp_transfer"] == "yes":
                 #     stb_name = self.taosadapter_setting["spec"]["adapter_config"]["opentsdb_telnet"]["dbs"][0]
@@ -214,10 +194,11 @@ class LongTimeInsert(TDCase):
                                        childtable_count=cfg[cases][json_file]["stb_info"]["childtable_count"],
                                        insert_rows=cfg[cases][json_file]["stb_info"]["insert_rows"], columns=col,
                                        tags=tag,
-                                       timestamp_step=timestamp_step,
-                                       start_timestamp=start_timestamp,
+                                       timestamp_step=cfg[cases][json_file]["stb_info"]["timestamp_step"],
+                                       start_timestamp=cfg[cases][json_file]["stb_info"]["start_timestamp"],
                                        insert_mode=cfg[cases][json_file]["stb_info"]["insert_mode"],
                                        max_sql_len=cfg[cases][json_file]["stb_info"]["max_sql_len"],
+                                       partial_col_num=cfg[cases][json_file]["stb_info"]["partial_col_num"],
                                        auto_create_table=cfg[cases][json_file]["stb_info"]["auto_create_table"],
                                        interlace_rows=cfg[cases][json_file]["stb_info"]["interlace_rows"],
                                        line_protocol=cfg[cases][json_file]["stb_info"]["line_protocol"],
@@ -230,9 +211,10 @@ class LongTimeInsert(TDCase):
                                         childtable_count=cfg[cases][json_file]["stb_info"]["childtable_count"],
                                         insert_rows=cfg[cases][json_file]["stb_info"]["insert_rows"], columns=col,
                                         tags=tag,
-                                        timestamp_step=timestamp_step,
-                                        start_timestamp=start_timestamp,
+                                        timestamp_step=cfg[cases][json_file]["stb_info"]["timestamp_step"],
+                                        start_timestamp=cfg[cases][json_file]["stb_info"]["start_timestamp"],
                                         insert_mode=cfg[cases][json_file]["stb_info"]["insert_mode"],
+                                        partial_col_num=cfg[cases][json_file]["stb_info"]["partial_col_num"],
                                         max_sql_len=cfg[cases][json_file]["stb_info"]["max_sql_len"],
                                         auto_create_table=cfg[cases][json_file]["stb_info"]["auto_create_table"],
                                         interlace_rows=cfg[cases][json_file]["stb_info"]["interlace_rows"],
@@ -259,10 +241,17 @@ class LongTimeInsert(TDCase):
 
             # put the file to target
             Insert_file.put_file(taosBenchmark_iplist, json_data, file_name)
-            result_file_name = self.run_log_dir + "/perf_report.txt"
-            f = open(result_file_name, "a")
+            self.result_file_name = self.run_log_dir + "/perf_report.txt"
+            f = open(self.result_file_name, "a")
             f.write("-------- \tinsert\t" + str(cases) + ":\tinsert result--------\n")
             f.close()
+            # scheduler = BackgroundScheduler()
+            # scheduler.add_job(self.restart_dnode, 'interval', seconds=self.query_interval, max_instances=10)
+            # for stbname in self.stb_list:
+            #     scheduler.add_job(self.query_last_row, 'interval', seconds=self.query_interval, max_instances=10, args=[f'{cfg[cases][json_file]["db_info"]["db_name"]}.{stbname}'])
+            # for stbname in self.stb_list:
+            #     scheduler.add_job(self.query_count, 'interval', seconds=self.query_interval, max_instances=10, args=[f'{cfg[cases][json_file]["db_info"]["db_name"]}.{stbname}'])
+            # scheduler.start()
             timestamp_start = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
             # # run taosBenchmark
             taosBenchmark_env_setting = self.get_component_by_name("taosBenchmark")
@@ -282,4 +271,4 @@ class LongTimeInsert(TDCase):
             env_setting = self.get_component_by_name("prometheus")
             Insert_file.get_process_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
             Insert_file.get_node_exporter_info(env_setting, 1, timestamp_start, timestamp_end)
-            print(result_file_name)
+            print(self.result_file_name)
