@@ -235,6 +235,7 @@ typedef struct SDropDnodeStmt {
   int32_t   dnodeId;
   char      fqdn[TSDB_FQDN_LEN];
   int32_t   port;
+  bool      force;
 } SDropDnodeStmt;
 
 typedef struct SAlterDnodeStmt {

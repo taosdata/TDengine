@@ -1114,6 +1114,7 @@ int32_t catalogGetCachedTableHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn,
   CTG_API_LEAVE(ctgGetTbHashVgroup(pCtg, pConn, pTableName, pVgroup, exists));
 }
 
+#if 0
 int32_t catalogGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SCatalogReq* pReq, SMetaData* pRsp) {
   CTG_API_ENTER();
 
@@ -1176,6 +1177,7 @@ _return:
 
   CTG_API_LEAVE(code);
 }
+#endif
 
 int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SCatalogReq* pReq, catalogCallback fp,
                                void* param, int64_t* jobId) {

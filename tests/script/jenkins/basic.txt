@@ -48,6 +48,7 @@
 ./test.sh -f tsim/dnode/drop_dnode_has_vnode_replica3.sim
 ./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica1.sim
 ./test.sh -f tsim/dnode/drop_dnode_has_multi_vnode_replica3.sim
+./test.sh -f tsim/dnode/drop_dnode_force.sim
 ./test.sh -f tsim/dnode/offline_reason.sim
 ./test.sh -f tsim/dnode/redistribute_vgroup_replica1.sim
 ./test.sh -f tsim/dnode/redistribute_vgroup_replica3_v1_leader.sim

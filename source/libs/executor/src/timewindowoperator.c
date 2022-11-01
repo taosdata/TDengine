@@ -1687,7 +1687,9 @@ void initIntervalDownStream(SOperatorInfo* downstream, uint16_t type, SAggSuppor
   SStreamScanInfo* pScanInfo = downstream->info;
   pScanInfo->windowSup.parentType = type;
   pScanInfo->windowSup.pIntervalAggSup = pSup;
-  pScanInfo->pUpdateInfo = updateInfoInitP(pInterval, pTwSup->waterMark);
+  if (!pScanInfo->pUpdateInfo) {
+    pScanInfo->pUpdateInfo = updateInfoInitP(pInterval, pTwSup->waterMark);
+  }
   pScanInfo->interval = *pInterval;
   pScanInfo->twAggSup = *pTwSup;
 }
@@ -5385,6 +5387,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
 
     maxTs = TMAX(maxTs, pBlock->info.window.ekey);
     minTs = TMIN(minTs, pBlock->info.window.skey);
+
     doStreamIntervalAggImpl(pOperator, pBlock, pBlock->info.groupId, pUpdatedMap);
   }
   pInfo->twAggSup.maxTs = TMAX(pInfo->twAggSup.maxTs, maxTs);

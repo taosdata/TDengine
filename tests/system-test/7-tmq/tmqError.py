@@ -29,7 +29,7 @@ class TDTestCase:
     #updatecfgDict["rpcDebugFlag"] = rpcDebugFlagVal
     #print ("===================: ", updatecfgDict)
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
@@ -244,7 +244,7 @@ class TDTestCase:
         tmqCom.insertConsumerInfo(consumerId, expectrowcnt,topicList,keyList,ifcheckdata,ifManualCommit)
 
         tdLog.info("start consume processor")
-        pollDelay = 9000000   # Forever loop
+        paraDict['pollDelay'] = 9000000   # Forever loop
         showMsg   = 1
         showRow   = 1
         #self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)

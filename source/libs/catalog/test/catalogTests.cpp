@@ -63,6 +63,7 @@ enum {
   CTGT_RSP_QNODELIST,
   CTGT_RSP_UDF,
   CTGT_RSP_SVRVER,
+  CTGT_RSP_DNODElIST,
   CTGT_RSP_TBMETA_NOT_EXIST,
 };
 
@@ -702,6 +703,30 @@ void ctgTestRspSvrVer(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRs
   pRsp->pCont = pReq;
 }
 
+void ctgTestRspDndeList(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
+  rpcFreeCont(pMsg->pCont);
+
+  SDnodeListRsp dRsp = {0};
+  dRsp.dnodeList = taosArrayInit(1, sizeof(SEpSet));
+  SEpSet epSet = {0};
+  epSet.numOfEps = 1;
+  tstrncpy(epSet.eps[0].fqdn, "localhost", TSDB_FQDN_LEN);
+  epSet.eps[0].port = 6030;
+  
+  (void)taosArrayPush(dRsp.dnodeList, &epSet);
+  
+  int32_t rspLen = tSerializeSDnodeListRsp(NULL, 0, &dRsp);
+  void   *pReq = rpcMallocCont(rspLen);
+  tSerializeSDnodeListRsp(pReq, rspLen, &dRsp);
+
+  pRsp->code = 0;
+  pRsp->contLen = rspLen;
+  pRsp->pCont = pReq;
+
+  tFreeSDnodeListRsp(&dRsp);
+}
+
+
 
 void ctgTestRspAuto(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   switch (pMsg->msgType) {
@@ -726,6 +751,9 @@ void ctgTestRspAuto(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp)
       break;
     case TDMT_MND_SERVER_VERSION:
       ctgTestRspSvrVer(shandle, pEpSet, pMsg, pRsp);
+      break;
+    case TDMT_MND_DNODE_LIST:
+      ctgTestRspDndeList(shandle, pEpSet, pMsg, pRsp);
       break;
     default:
       break;
@@ -778,6 +806,9 @@ void ctgTestRspByIdx(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp
       break;
     case CTGT_RSP_SVRVER:
       ctgTestRspSvrVer(shandle, pEpSet, pMsg, pRsp);
+      break;
+    case CTGT_RSP_DNODElIST:
+      ctgTestRspDndeList(shandle, pEpSet, pMsg, pRsp);
       break;
     default:
       ctgTestRspAuto(shandle, pEpSet, pMsg, pRsp);
@@ -2948,6 +2979,69 @@ TEST(apiTest, catalogGetServerVersion_test) {
   catalogDestroy();
 }
 
+TEST(apiTest, catalogUpdateTableIndex_test) {
+  struct SCatalog  *pCtg = NULL;
+  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
+
+  ctgTestInitLogFile();
+
+  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  ctgTestRspIdx = 0;
+  ctgTestRspFunc[0] = CTGT_RSP_SVRVER;
+
+  ctgTestSetRspByIdx();
+
+  initQueryModuleMsgHandle();
+
+  int32_t code = catalogInit(NULL);
+  ASSERT_EQ(code, 0);
+
+  code = catalogGetHandle(ctgTestClusterId, &pCtg);
+  ASSERT_EQ(code, 0);
+
+  STableIndexRsp rsp = {0};
+  strcpy(rsp.dbFName, ctgTestDbname);
+  strcpy(rsp.tbName, ctgTestSTablename);
+  rsp.suid = ctgTestSuid;
+  rsp.version = 1;
+  code = catalogUpdateTableIndex(pCtg, &rsp);
+  ASSERT_EQ(code, 0);
+
+  catalogDestroy();
+}
+
+
+TEST(apiTest, catalogGetDnodeList_test) {
+  struct SCatalog  *pCtg = NULL;
+  SRequestConnInfo connInfo = {0};  
+  SRequestConnInfo *mockPointer = (SRequestConnInfo *)&connInfo;
+
+  ctgTestInitLogFile();
+
+  memset(ctgTestRspFunc, 0, sizeof(ctgTestRspFunc));
+  ctgTestRspIdx = 0;
+  ctgTestRspFunc[0] = CTGT_RSP_DNODElIST;
+
+  ctgTestSetRspByIdx();
+
+  initQueryModuleMsgHandle();
+
+  int32_t code = catalogInit(NULL);
+  ASSERT_EQ(code, 0);
+
+  code = catalogGetHandle(ctgTestClusterId, &pCtg);
+  ASSERT_EQ(code, 0);
+
+  SArray* pList = NULL;
+  code = catalogGetDnodeList(pCtg, mockPointer, &pList);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(taosArrayGetSize(pList), 1);
+
+  taosArrayDestroy(pList);
+
+  catalogDestroy();
+}
 
 
 int main(int argc, char **argv) {

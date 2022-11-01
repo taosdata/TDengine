@@ -117,10 +117,29 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   char dnodeIdEnvItem[32] = {0};
   char thrdPoolSizeEnvItem[32] = {0};
   snprintf(dnodeIdEnvItem, 32, "%s=%d", "DNODE_ID", pData->dnodeId);
+
   float numCpuCores = 4;
   taosGetCpuCores(&numCpuCores);
   snprintf(thrdPoolSizeEnvItem, 32, "%s=%d", "UV_THREADPOOL_SIZE", (int)numCpuCores * 2);
-  char *envUdfd[] = {dnodeIdEnvItem, thrdPoolSizeEnvItem, NULL};
+
+  char pathTaosdLdLib[512] = {0};
+  size_t taosdLdLibPathLen = sizeof(pathTaosdLdLib);
+  uv_os_getenv("LD_LIBRARY_PATH", pathTaosdLdLib, &taosdLdLibPathLen);
+
+  char udfdPathLdLib[1024] = {0};
+  size_t udfdLdLibPathLen = strlen(tsUdfdLdLibPath);
+  strncpy(udfdPathLdLib, tsUdfdLdLibPath, udfdLdLibPathLen);
+  udfdPathLdLib[udfdLdLibPathLen] = ':';
+  strncpy(udfdPathLdLib + udfdLdLibPathLen + 1, pathTaosdLdLib, sizeof(udfdPathLdLib) - udfdLdLibPathLen);
+  if (udfdLdLibPathLen + taosdLdLibPathLen < 1024) {
+    fnInfo("udfd LD_LIBRARY_PATH: %s", udfdPathLdLib);
+  } else {
+    fnError("can not set correct udfd LD_LIBRARY_PATH");
+  }
+  char ldLibPathEnvItem[1024 + 32] = {0};
+  snprintf(ldLibPathEnvItem, 1024 + 32, "%s=%s", "LD_LIBRARY_PATH", udfdPathLdLib);
+
+  char *envUdfd[] = {dnodeIdEnvItem, thrdPoolSizeEnvItem, ldLibPathEnvItem, NULL};
   options.env = envUdfd;
 
   int err = uv_spawn(&pData->loop, &pData->process, &options);

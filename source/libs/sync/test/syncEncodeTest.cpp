@@ -152,7 +152,7 @@ int main(int argc, char **argv) {
   int32_t ret = syncIOStart((char *)"127.0.0.1", ports[myIndex]);
   assert(ret == 0);
 
-  ret = syncEnvStart();
+  ret = syncInit();
   assert(ret == 0);
 
   taosRemoveDir("./wal_test");
@@ -186,7 +186,7 @@ int main(int argc, char **argv) {
   int32_t code = pSyncNode->pLogStore->syncLogGetEntry(pSyncNode->pLogStore, pEntry->index, &pEntry);
   ASSERT(code == 0);
 
-  syncEntryLog2((char *)"==pEntry2==", pEntry2);
+  syncEntryLog2((char *)"==pEntry==", pEntry);
 
   // step5
   uint32_t len;

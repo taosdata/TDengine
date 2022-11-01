@@ -21,7 +21,7 @@ class TDTestCase:
         self.ctbNum     = 1000
         self.rowsPerTbl = 10
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
 

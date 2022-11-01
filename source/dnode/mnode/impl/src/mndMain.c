@@ -481,7 +481,7 @@ int32_t mndProcessSyncCtrlMsg(SRpcMsg *pMsg) {
 
   mInfo("vgId:%d, process sync ctrl msg", 1);
 
-  if (!syncEnvIsStart()) {
+  if (!syncIsInit()) {
     mError("failed to process sync msg:%p type:%s since syncEnv stop", pMsg, TMSG_INFO(pMsg->msgType));
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
@@ -518,7 +518,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   int32_t    code = 0;
 
-  if (!syncEnvIsStart()) {
+  if (!syncIsInit()) {
     mError("failed to process sync msg:%p type:%s since syncEnv stop", pMsg, TMSG_INFO(pMsg->msgType));
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
@@ -538,12 +538,12 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
 
   } else if (pMsg->msgType == TDMT_SYNC_PING) {
     SyncPing *pSyncMsg = syncPingFromRpcMsg2(pMsg);
-    code = syncNodeOnPingCb(pSyncNode, pSyncMsg);
+    code = syncNodeOnPing(pSyncNode, pSyncMsg);
     syncPingDestroy(pSyncMsg);
 
   } else if (pMsg->msgType == TDMT_SYNC_PING_REPLY) {
     SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pMsg);
-    code = syncNodeOnPingReplyCb(pSyncNode, pSyncMsg);
+    code = syncNodeOnPingReply(pSyncNode, pSyncMsg);
     syncPingReplyDestroy(pSyncMsg);
 
   } else if (pMsg->msgType == TDMT_SYNC_CLIENT_REQUEST) {
@@ -581,10 +581,10 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
     code = syncNodeOnSnapshotReply(pSyncNode, pSyncMsg);
     syncSnapshotRspDestroy(pSyncMsg);
 
-  } else if (pMsg->msgType == TDMT_SYNC_SET_MNODE_STANDBY) {
-    code = syncSetStandby(pMgmt->sync);
-    SRpcMsg rsp = {.code = code, .info = pMsg->info};
-    tmsgSendRsp(&rsp);
+  } else if (pMsg->msgType == TDMT_SYNC_LOCAL_CMD) {
+    SyncLocalCmd *pSyncMsg = syncLocalCmdFromRpcMsg2(pMsg);
+    code = syncNodeOnLocalCmd(pSyncNode, pSyncMsg);
+    syncLocalCmdDestroy(pSyncMsg);
 
   } else {
     mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));

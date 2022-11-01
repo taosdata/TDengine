@@ -36,6 +36,7 @@ void   *taosMemoryStrDup(const char *ptr);
 void    taosMemoryFree(void *ptr);
 int64_t taosMemorySize(void *ptr);
 void    taosPrintBackTrace();
+void    taosMemoryTrim(int32_t size);
 
 #define taosMemoryFreeClear(ptr)   \
   do {                             \

@@ -915,7 +915,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
   int32_t olen, vlen, vlen2, vlen3;
   int32_t code = 0;
   if (url == NULL || strlen(url) == 0) {
-    uInfo("fail to load apoll url");
+    uInfo("apoll url not load");
     return 0;
   }
 

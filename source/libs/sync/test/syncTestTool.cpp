@@ -154,7 +154,7 @@ int32_t SnapshotDoWrite(struct SSyncFSM* pFsm, void* pWriter, void* pBuf, int32_
 void RestoreFinishCb(struct SSyncFSM* pFsm) { sTrace("==callback== ==RestoreFinishCb== pFsm:%p", pFsm); }
 
 void ReConfigCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SReConfigCbMeta* cbMeta) {
-  char* s = syncCfg2Str(&(cbMeta.newCfg));
+  char* s = syncCfg2Str(&(cbMeta->newCfg));
   sTrace("==callback== ==ReConfigCb== flag:0x%lX, index:%" PRId64 ", code:%d, currentTerm:%" PRIu64 ", term:%" PRIu64
          ", newCfg:%s",
          cbMeta->flag, cbMeta->index, cbMeta->code, cbMeta->currentTerm, cbMeta->term, s);
@@ -308,7 +308,7 @@ SRpcMsg* createRpcMsg(int i, int count, int myIndex) {
   pMsg->msgType = TDMT_VND_SUBMIT;
   pMsg->contLen = 256;
   pMsg->pCont = rpcMallocCont(pMsg->contLen);
-  snprintf((char*)(pMsg->pCont), pMsg->contLen, "value-myIndex:%u-%d-%d-" PRId64, myIndex, i, count,
+  snprintf((char*)(pMsg->pCont), pMsg->contLen, "value-myIndex:%u-%d-%d-%" PRId64, myIndex, i, count,
            taosGetTimestampMs());
   return pMsg;
 }

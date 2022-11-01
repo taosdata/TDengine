@@ -336,3 +336,12 @@ int64_t taosMemorySize(void *ptr) {
 #endif
 #endif
 }
+
+void taosMemoryTrim(int32_t size) {
+#if defined(WINDOWS) || defined(DARWIN)
+  // do nothing
+  return;
+#else
+  malloc_trim(size);
+#endif
+}
