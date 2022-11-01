@@ -77,8 +77,7 @@ class TDTestQuery(TDCase):
         #删除子表
         for i in range(n):
             self.tdSql.execute("drop table %s.stb%d;"%(database,i))
-            
-        
+                   
             
     def where_filter_old(self): 
         fake = Faker('zh_CN') 
@@ -135,15 +134,19 @@ class TDTestQuery(TDCase):
         return(data_filter,like_match_filter,in_filter,orderby_filter,groupby_filter,partitionby_filter,limit_filter)
 
     def where_filter(self): 
-        data_filters = ['c1 >= -127 ' , 'c1 <= 127 ' , 'c0 <= 2147483647 ' , 'c0 >= -2147483647 ',  'c2 >= -1.7E308 ','c2 <= 1.7E308 ', 't0 >= -127 ' , 't0 <= 127 ' ,
-                    'c0 between -2147483647 2147483647 ','c1 between -127 127  ','c2 between -1.7E308 1.7E308 ' ,'t0 between -127 127  ',
-                    'current is not null ', 'voltage is not null ' ,'phase is not null ' ,'t0 is not null ' ,
-                    'c3 is not null ' , 'c4 is not null ', 't0 is not null '
-                    'ts is not null ' ,'_c0 is not null ' ,'_C0 is not null ' ,'_rowts is not null ' ,
-                    'ts <= now ' , 'ts >= 1651334400000 ' ,' ts between 1651330000000 and now +1h  ', 
-                    '_c0 <= now +100h ' , '_c0 >= 1651334400000 ' , ' _c0 between 1651330000000 and now +1h  ' ,
-                    '_C0 <= now +1h ' ,  '_C0 >= 1651330000000 ' ,' _C0 between 1651330000000 and now +1h  ',
-                    '_rowts <= now +1h ' ,'_rowts >= 1651330000000 ' ,' _rowts between 1651330000000 and now +1h  ']        
+        data_filters = ['voltage >= -127 ' , 'voltage <= 127 ' , 'voltage <= 2147483647 ' , 'voltage >= -2147483647 ',  
+                        'current >= -1.7E308 ','current <= 1.7E308 ', 
+                        'phase >= -1.7E308 ','phase <= 1.7E308 ', 
+                        'groupid >= -127 ' , 'groupid <= 127 ' ,'groupid <= 2147483647 ' , 'groupid >= -2147483647 ',
+                        'voltage between -2147483647 and 2147483647 ','voltage between -127 and 127  ',
+                        'current between -1.7E308 and 1.7E308 ' ,'phase between -1.7E308 and 1.7E308 ' ,
+                        'groupid between -127 and 127 ','groupid between -2147483647 and 2147483647 ',
+                        'current is not null ', 'voltage is not null ' ,'phase is not null ' ,'t0 is not null ' ,                   
+                        'ts is not null ' ,'_c0 is not null ' ,'_C0 is not null ' ,'_rowts is not null ' ,
+                        'ts <= now ' , 'ts >= 1651334400000 ' ,' ts between 1651330000000 and now +1h  ', 
+                        '_c0 <= now +100h ' , '_c0 >= 1651334400000 ' , ' _c0 between 1651330000000 and now +1h  ' ,
+                        '_C0 <= now +1h ' ,  '_C0 >= 1651330000000 ' ,' _C0 between 1651330000000 and now +1h  ',
+                        '_rowts <= now +1h ' ,'_rowts >= 1651330000000 ' ,' _rowts between 1651330000000 and now +1h  ']        
         data_filter = random.sample(data_filters,1)
 
         like_filters = ['c3 like \'varchar%\' and ','(c3 like \'varchar%\'  or c3 = \'0\'  or c3 = \'varchar_\' or c3 is not null ) and ','c4 like \'nchar%\' and ','(c4 like \'nchar%\' or c4 = \'0\'  or c4 = \'nchar_\' or c4 is not null  ) and ','t1 like \'varchar%\' and ','(t1 like \'varchar%\' or t1 = \'0\'  or t1 = \'varchar_\'  or t1 is not null ) and ',]
@@ -163,12 +166,25 @@ class TDTestQuery(TDCase):
         in_filters = [q_tinyint_list , t_tinyint_list]        
         in_filter = str(random.sample(in_filters,1)).replace("[","").replace("]","").replace("'","").replace("\" ","").replace(" \"","")
         
-        orderby_filters = ['ts','_c0','_C0','_rowts','c1','c2','c3','c4','t0','t1']
+        orderby_filters = ['ts','_c0','_C0','_rowts','current','voltage','phase','groupid','location']
         i = random.randint(1,8)
         orderby_filter = str(random.sample(orderby_filters,i)).replace("[","").replace("]","").replace("'","")
         orderby_filter = str('order by ' + orderby_filter).replace("[","").replace("]","").replace("'","")
         
-        return(data_filter,like_match_filter,in_filter,orderby_filter)
+        groupby_filters = ['ts','_c0','_C0','_rowts','c1','c2','c3','c4','t0','t1']
+        i = random.randint(1,8)
+        groupby_filter = str(random.sample(groupby_filters,i)).replace("[","").replace("]","").replace("'","")
+        groupby_filter = str('group by ' + groupby_filter).replace("[","").replace("]","").replace("'","")
+        
+        partitionby_filters = ['ts','_c0','_C0','_rowts','c1','c2','c3','c4','t0','t1']
+        i = random.randint(1,8)
+        partitionby_filter = str(random.sample(partitionby_filters,i)).replace("[","").replace("]","").replace("'","")
+        partitionby_filter = str('partition by ' + partitionby_filter).replace("[","").replace("]","").replace("'","")
+        
+        limit_filters = ['limit 100000','limit 100000,1000','limit 100000 offset 10000','slimit 100000','slimit 100000,1000','slimit 100000 soffset 10000']
+        limit_filter = str(random.sample(limit_filters,1)).replace("[","").replace("]","").replace("'","")
+        
+        return(data_filter,like_match_filter,in_filter,orderby_filter,groupby_filter,partitionby_filter,limit_filter)
     
     def time_window(self,i):  
         
@@ -216,8 +232,7 @@ class TDTestQuery(TDCase):
             return self.tdSql.checkEqual(base_value,check_value)
                
           
-    def sql_check(self,dbname,sql1,sql2) :
-        
+    def sql_base_check(self,dbname,sql1,sql2) :        
         sql1 = "select count(*) from %s.meters" %dbname
         self.tdSql.query(sql1)
         base_data = self.tdSql.getData(0,0)
@@ -228,7 +243,17 @@ class TDTestQuery(TDCase):
         
         self.value_check(base_data,check_data,sql1,sql2)
         
+          
+    def sql_check(self,dbname,sql1,sql2) :  
+        self.logger.info(("sql1:'%s' |||||| sql2:'%s' ") %(sql1,sql2))      
+        self.tdSql.query(sql1)
+        base_data = self.tdSql.getData(0,0)
         
+        self.tdSql.query(sql2)
+        check_data = self.tdSql.getData(0,0)
+        
+        self.value_check(base_data,check_data,sql1,sql2)
+                
             
     # def after_flush_check(self,dbname,sql):
     #落盘后检查，暂时不用
@@ -256,20 +281,67 @@ class TDTestQuery(TDCase):
                     
     def column_select(self,num):
         column = ''
-        column_lists = ['ts','_c0','_C0','_rowts','c1','c2','c3','c4','t0','t1',]
+        column_lists = ['ts','_c0 as ts1','_C0 as ts2','_rowts as ts3','current','voltage','phase','groupid','location',]
         if num == 0:    
             column = '*'
         elif num == 1:    
             column = str(column_lists).replace("[","").replace("]","").replace("'","")
         elif num == 2:            
-            i = random.randint(1,10)
+            i = random.randint(1,9)
             column = str(random.sample(column_lists,i)).replace("[","").replace("]","").replace("'","")
         elif num == 3:            
             column = str(random.sample(column_lists,1)).replace("[","").replace("]","").replace("'","")
             
-        return column    
+        return column   
+     
+    def select_column(self,dbname):
+        self.logger.info("\n==========================select_column==========================\n")
+                          
+        for i in (1,):
+            func = self.base_function_all(i)
+            try:                
+                self.tdSql.execute('use %s;' %dbname)                          
+                where_filters = self.where_filter()
+                print(where_filters[0])
+                for i in range(0,len(where_filters[0])+1):
+                    data_filter = list(combinations(where_filters[0],i))
+                    for data_filter in data_filter:
+                        data_filter = str(data_filter).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
+                        like_match_filter = where_filters[1]
+                        in_filter = where_filters[2] 
+                        orderby_filter = where_filters[3]  
+                        groupby_filter = where_filters[4] 
+                        # partitonby_filter = where_filters[5] 
+                        # limit_filter = where_filters[6]  
+                        sql1 =  "select count(*) from %s.meters " %(dbname)                     
+                        
+                        sql2 = "select count(*) from (select %s from %s.meters)" %(self.column_select(0),dbname)
+                        self.sql_check(dbname,sql1,sql2)                       
+                        sql2 = "select count(*) from (select %s from %s.meters)" %(self.column_select(1),dbname)
+                        self.sql_check(dbname,sql1,sql2)
+                        sql2 = "select count(*) from (select %s from %s.meters)" %(self.column_select(2),dbname)
+                        self.sql_check(dbname,sql1,sql2)
+                        sql2 = "select count(*) from (select %s from %s.meters)" %(self.column_select(3),dbname)
+                        self.sql_check(dbname,sql1,sql2)
+                        
+                        sql2 = "select count(*) from (select %s from %s.meters %s)" %(self.column_select(0),dbname,orderby_filter)
+                        self.sql_check(dbname,sql1,sql2)                       
+                        sql2 = "select count(*) from (select %s from %s.meters %s)" %(self.column_select(1),dbname,orderby_filter)
+                        self.sql_check(dbname,sql1,sql2)
+                        sql2 = "select count(*) from (select %s from %s.meters %s)" %(self.column_select(2),dbname,orderby_filter)
+                        self.sql_check(dbname,sql1,sql2)
+                        sql2 = "select count(*) from (select %s from %s.meters %s)" %(self.column_select(3),dbname,orderby_filter)
+                        self.sql_check(dbname,sql1,sql2)
+
+                        # sql2 = "select %s from %s.meters where  %s %s %s " %(self.column_select(1),dbname,data_filter,like_match_filter,in_filter)
+                        # self.data_check(sql2)
+                                                
+
+            except Exception as e:
+                raise e   
+                    
                               
-    def select_column(self):
+    def select_column_old(self):
         self.logger.info("\n==========================select_column==========================\n")
                           
         for i in (1,):
@@ -716,15 +788,15 @@ class TDTestQuery(TDCase):
                 raise e   
         
 
-    def benchmark_insert_stb(self,source_taosd_list,db,tb_m,tb_num,row_num,replica):
+    def benchmark_insert_stb(self,source_taosd_list,dbname,tb_m,table_num,table_per_row,replica):
         # 创建库    
         taosBenchmark_fqdn = self.get_fqdn('taosBenchmark')
         for source in range(len(source_taosd_list)):
             host = source_taosd_list[source][0]
             print(host)
             port = source_taosd_list[source][1]
-            self.remote.cmd(taosBenchmark_fqdn[0], f'taosBenchmark -h {host} -P {port} -n {row_num} -t {tb_num} -d {db} -m {tb_m} -a {replica} -y')
-            self.base_sql_count(db,tb_num,row_num)
+            self.remote.cmd(taosBenchmark_fqdn[0], f'taosBenchmark -h {host} -P {port} -t {table_num} -n {table_per_row} -d {dbname} -m {tb_m} -a {replica} -y')
+            self.base_sql_count(dbname,table_num,table_per_row)
 
             
     def base_sql_count(self,dbname,table_num,table_per_row):
@@ -736,12 +808,14 @@ class TDTestQuery(TDCase):
                             
     def count_db_common(self,dbname): 
         #每个库的通用检查
-        self.sql_check(dbname,sql1='',sql2='') 
-        self.drop_all_table(dbname,99) 
-        self.sql_check(dbname,sql1='',sql2='') 
+        self.sql_base_check(dbname,sql1='',sql2='') 
+        self.select_column(dbname)
+        
+        self.drop_all_table(dbname,9) 
+        self.sql_base_check(dbname,sql1='',sql2='') 
         self.tdSql.execute("flush database %s;" %dbname) 
         #self.after_flush_check(dbname,sql='')
-        self.sql_check(dbname,sql1='',sql2='')
+        self.sql_base_check(dbname,sql1='',sql2='')
         self.tdSql.execute("drop database %s;" %dbname) 
         self.tdSql.error("flush database %s;" %dbname) 
         self.tdSql.error("select * from %s.meters;" %dbname) 
@@ -782,8 +856,8 @@ class TDTestQuery(TDCase):
         
 
         self.countdb_1w_table100_row100(replica=1)
-        self.countdb_2w_table100_row200(replica=1)
-        self.countdb_10w_table100_row1000(replica=1)
+        # self.countdb_2w_table100_row200(replica=1)
+        # self.countdb_10w_table100_row1000(replica=1)
         
     
 
