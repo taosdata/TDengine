@@ -206,7 +206,7 @@ char    tsInternalPass[] = "secretkey";
 int32_t tsMonitorInterval = 30;  // seconds
 
 // audit
-int8_t  tsEnableAudit = 1;
+int8_t  tsEnableAudit = 0;
 char    tsAuditDbName[TSDB_DB_NAME_LEN] = "audit";
 
 // stream

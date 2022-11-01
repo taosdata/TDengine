@@ -281,7 +281,7 @@ static void *monAuditFunc(void *param) {
 
   int32_t try = 0;
   for (; try < AUDIT_MAX_RETRIES; ++try) {
-    auditConn = taos_connect(NULL, "root", "taosdata", "", 0);
+    auditConn = taos_connect(NULL, "monitor", tsInternalPass, "", 0);
     if (auditConn == NULL) {
       monDebug("audit retry connect, tries: %d", try);
       taosMsleep(1000);
