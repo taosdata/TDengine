@@ -98,7 +98,7 @@ int main(int argc, char** argv) {
   init();
   int32_t ret = syncIOStart((char*)"127.0.0.1", gPorts[myIndex]);
   assert(ret == 0);
-  ret = syncEnvStart();
+  ret = syncInit();
   assert(ret == 0);
 
   char walPath[128];

@@ -200,10 +200,10 @@ typedef struct SSyncInfo {
 
 int32_t     syncInit();
 void        syncCleanUp();
+bool        syncIsInit();
 int64_t     syncOpen(SSyncInfo* pSyncInfo);
 void        syncStart(int64_t rid);
 void        syncStop(int64_t rid);
-int32_t     syncSetStandby(int64_t rid);
 ESyncState  syncGetMyRole(int64_t rid);
 bool        syncIsReady(int64_t rid);
 const char* syncGetMyRoleStr(int64_t rid);
@@ -216,7 +216,6 @@ void        syncGetEpSet(int64_t rid, SEpSet* pEpSet);
 void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);
 int32_t     syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak);
 // int32_t     syncProposeBatch(int64_t rid, SRpcMsg** pMsgPArr, bool* pIsWeakArr, int32_t arrSize);
-bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);
 int32_t     syncGetSnapshotByIndex(int64_t rid, SyncIndex index, SSnapshot* pSnapshot);
@@ -233,6 +232,9 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex);
 int32_t syncEndSnapshot(int64_t rid);
 
 int32_t syncStepDown(int64_t rid, SyncTerm newTerm);
+
+SSyncNode* syncNodeAcquire(int64_t rid);
+void       syncNodeRelease(SSyncNode* pNode);
 
 #ifdef __cplusplus
 }

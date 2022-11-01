@@ -76,7 +76,7 @@ int32_t syncNodeTimerRoutine(SSyncNode* ths) {
     SSyncLogStoreData* pData = ths->pLogStore->data;
     int32_t            code = walEndSnapshot(pData->pWal);
     if (code != 0) {
-      sError("vgId:%d, wal snapshot end error since:%s", ths->vgId, terrstr(terrno));
+      sError("vgId:%d, timer wal snapshot end error since:%s", ths->vgId, terrstr());
       return -1;
     } else {
       do {

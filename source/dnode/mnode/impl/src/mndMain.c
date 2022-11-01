@@ -481,7 +481,7 @@ int32_t mndProcessSyncCtrlMsg(SRpcMsg *pMsg) {
 
   mInfo("vgId:%d, process sync ctrl msg", 1);
 
-  if (!syncEnvIsStart()) {
+  if (!syncIsInit()) {
     mError("failed to process sync msg:%p type:%s since syncEnv stop", pMsg, TMSG_INFO(pMsg->msgType));
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
@@ -518,7 +518,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   int32_t    code = 0;
 
-  if (!syncEnvIsStart()) {
+  if (!syncIsInit()) {
     mError("failed to process sync msg:%p type:%s since syncEnv stop", pMsg, TMSG_INFO(pMsg->msgType));
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
@@ -580,11 +580,6 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
     SyncSnapshotRsp *pSyncMsg = syncSnapshotRspFromRpcMsg2(pMsg);
     code = syncNodeOnSnapshotReply(pSyncNode, pSyncMsg);
     syncSnapshotRspDestroy(pSyncMsg);
-
-  } else if (pMsg->msgType == TDMT_SYNC_SET_MNODE_STANDBY) {
-    code = syncSetStandby(pMgmt->sync);
-    SRpcMsg rsp = {.code = code, .info = pMsg->info};
-    tmsgSendRsp(&rsp);
 
   } else if (pMsg->msgType == TDMT_SYNC_LOCAL_CMD) {
     SyncLocalCmd *pSyncMsg = syncLocalCmdFromRpcMsg2(pMsg);

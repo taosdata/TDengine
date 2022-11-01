@@ -17,10 +17,43 @@
 #include "mndSync.h"
 #include "mndTrans.h"
 
-static int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
+static int32_t mndSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
+  if (pMsg == NULL || pMsg->pCont == NULL) {
+    return -1;
+  }
+
   SMsgHead *pHead = pMsg->pCont;
   pHead->contLen = htonl(pHead->contLen);
   pHead->vgId = htonl(pHead->vgId);
+
+  if (msgcb == NULL || msgcb->putToQueueFp == NULL) {
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
+    return -1;
+  }
+
+  int32_t code = tmsgPutToQueue(msgcb, SYNC_CTRL_QUEUE, pMsg);
+  if (code != 0) {
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
+  }
+  return code;
+}
+
+static int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
+  if (pMsg == NULL || pMsg->pCont == NULL) {
+    return -1;
+  }
+
+  SMsgHead *pHead = pMsg->pCont;
+  pHead->contLen = htonl(pHead->contLen);
+  pHead->vgId = htonl(pHead->vgId);
+
+  if (msgcb == NULL || msgcb->putToQueueFp == NULL) {
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
+    return -1;
+  }
 
   int32_t code = tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg);
   if (code != 0) {
@@ -212,7 +245,7 @@ int32_t mndInitSync(SMnode *pMnode) {
       .msgcb = NULL,
       .FpSendMsg = mndSyncSendMsg,
       .FpEqMsg = mndSyncEqMsg,
-      .FpEqCtrlMsg = NULL,
+      .FpEqCtrlMsg = mndSyncEqCtrlMsg,
   };
 
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s%ssync", pMnode->path, TD_DIRSEP);

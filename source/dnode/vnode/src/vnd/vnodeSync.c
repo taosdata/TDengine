@@ -234,7 +234,7 @@ int32_t vnodeProcessSyncCtrlMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   int32_t         code = 0;
   const STraceId *trace = &pMsg->info.traceId;
 
-  if (!syncEnvIsStart()) {
+  if (!syncIsInit()) {
     vGError("vgId:%d, msg:%p failed to process since sync env not start", pVnode->config.vgId, pMsg);
     terrno = TSDB_CODE_APP_ERROR;
     return -1;
@@ -277,7 +277,7 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   int32_t         code = 0;
   const STraceId *trace = &pMsg->info.traceId;
 
-  if (!syncEnvIsStart()) {
+  if (!syncIsInit()) {
     vGError("vgId:%d, msg:%p failed to process since sync env not start", pVnode->config.vgId, pMsg);
     terrno = TSDB_CODE_APP_ERROR;
     return -1;
@@ -370,7 +370,13 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 }
 
 static int32_t vnodeSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
-  if (msgcb == NULL) {
+  if (pMsg == NULL || pMsg->pCont == NULL) {
+    return -1;
+  }
+
+  if (msgcb == NULL || msgcb->putToQueueFp == NULL) {
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
     return -1;
   }
 
@@ -383,7 +389,13 @@ static int32_t vnodeSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
 }
 
 static int32_t vnodeSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
-  if (msgcb == NULL) {
+  if (pMsg == NULL || pMsg->pCont == NULL) {
+    return -1;
+  }
+
+  if (msgcb == NULL || msgcb->putToQueueFp == NULL) {
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
     return -1;
   }
 
