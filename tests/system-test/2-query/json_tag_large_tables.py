@@ -30,7 +30,7 @@ class TDTestCase:
         '''
         return
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
         self.testcasePath = os.path.split(__file__)[0]
         self.testcaseFilename = os.path.split(__file__)[-1]
         # os.system("rm -rf %s/%s.sql" % (self.testcasePath,self.testcaseFilename))

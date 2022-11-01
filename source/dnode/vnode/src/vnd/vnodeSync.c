@@ -244,7 +244,13 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 }
 
 static int32_t vnodeSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
-  if (msgcb == NULL) {
+  if (pMsg == NULL || pMsg->pCont == NULL) {
+    return -1;
+  }
+
+  if (msgcb == NULL || msgcb->putToQueueFp == NULL) {
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
     return -1;
   }
 
@@ -257,7 +263,13 @@ static int32_t vnodeSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
 }
 
 static int32_t vnodeSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
-  if (msgcb == NULL) {
+  if (pMsg == NULL || pMsg->pCont == NULL) {
+    return -1;
+  }
+
+  if (msgcb == NULL || msgcb->putToQueueFp == NULL) {
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
     return -1;
   }
 

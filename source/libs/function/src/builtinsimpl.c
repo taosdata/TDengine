@@ -497,7 +497,7 @@ bool getCountFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   return true;
 }
 
-static FORCE_INLINE int32_t getNumOfElems(SqlFunctionCtx* pCtx) {
+static int32_t getNumOfElems(SqlFunctionCtx* pCtx) {
   int32_t numOfElem = 0;
 
   /*
@@ -2183,6 +2183,56 @@ int32_t leastSQRFunction(SqlFunctionCtx* pCtx) {
 
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t* plist = (int64_t*)pCol->pData;
+      for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+
+        numOfElem++;
+        LEASTSQR_CAL(param, x, plist, i, pInfo->stepVal);
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_UTINYINT: {
+      uint8_t* plist = (uint8_t*)pCol->pData;
+      for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+        numOfElem++;
+        LEASTSQR_CAL(param, x, plist, i, pInfo->stepVal);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      uint16_t* plist = (uint16_t*)pCol->pData;
+      for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+
+        numOfElem++;
+        LEASTSQR_CAL(param, x, plist, i, pInfo->stepVal);
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_UINT: {
+      uint32_t* plist = (uint32_t*)pCol->pData;
+      for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+
+        numOfElem++;
+        LEASTSQR_CAL(param, x, plist, i, pInfo->stepVal);
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_UBIGINT: {
+      uint64_t* plist = (uint64_t*)pCol->pData;
       for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
         if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
           continue;

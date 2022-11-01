@@ -452,6 +452,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_WAL_INVALID_VER,              "WAL use invalid versi
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_OUT_OF_MEMORY,            "WAL out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_LOG_NOT_EXIST,            "WAL log not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_CHKSUM_MISMATCH,          "WAL checksum mismatch")
+TAOS_DEFINE_ERROR(TSDB_CODE_WAL_LOG_INCOMPLETE,           "WAL log incomplete")
 
 // tfs
 TAOS_DEFINE_ERROR(TSDB_CODE_FS_INVLD_CFG,                 "tfs invalid mount config")

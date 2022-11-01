@@ -119,6 +119,7 @@ extern SDiskCfg tsDiskCfg[];
 // udf
 extern bool tsStartUdfd;
 extern char tsUdfdResFuncs[];
+extern char tsUdfdLdLibPath[];
 
 // schemaless
 extern char tsSmlChildTableName[];

@@ -216,6 +216,7 @@ bool fmIsMultiRowsFunc(int32_t funcId);
 bool fmIsKeepOrderFunc(int32_t funcId);
 bool fmIsCumulativeFunc(int32_t funcId);
 bool fmIsInterpPseudoColumnFunc(int32_t funcId);
+bool fmIsGroupKeyFunc(int32_t funcId);
 
 void getLastCacheDataType(SDataType* pType);
 

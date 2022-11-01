@@ -176,8 +176,8 @@ int32_t tqCheckColModifiable(STQ* pTq, int64_t tbUid, int32_t colId);
 // tq-mq
 int32_t tqProcessAddCheckInfoReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessDelCheckInfoReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
-int32_t tqProcessVgChangeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
-int32_t tqProcessVgDeleteReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessSubscribeReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessDeleteSubReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessOffsetCommitReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
 // tq-stream
@@ -187,11 +187,15 @@ int32_t tqProcessSubmitReq(STQ* pTq, SSubmitReq* data, int64_t ver);
 int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver);
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec);
-int32_t tqProcessTaskRecoverReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
-int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg);
+// int32_t tqProcessTaskRecoverReq(STQ* pTq, SRpcMsg* pMsg);
+// int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskRecover2Req(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessTaskRecoverFinishReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskRecoverFinishRsp(STQ* pTq, SRpcMsg* pMsg);
 
 SSubmitReq* tqBlockToSubmit(SVnode* pVnode, const SArray* pBlocks, const STSchema* pSchema,
                             SSchemaWrapper* pTagSchemaWrapper, bool createTb, int64_t suid, const char* stbFullName,
