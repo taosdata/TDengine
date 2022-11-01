@@ -72,6 +72,7 @@ typedef struct SIOCostSummary {
   double  lastBlockLoadTime;
   int64_t composedBlocks;
   double  buildComposedBlockTime;
+  double  createScanInfoList;
 } SIOCostSummary;
 
 typedef struct SBlockLoadSuppInfo {
@@ -234,6 +235,8 @@ static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, const STableK
     return NULL;
   }
 
+  int64_t st = taosGetTimestampUs();
+
   for (int32_t j = 0; j < numOfTables; ++j) {
     STableBlockScanInfo info = {.lastKey = 0, .uid = idList[j].uid};
     if (ASCENDING_TRAVERSE(pTsdbReader->order)) {
@@ -249,8 +252,10 @@ static SHashObj* createDataBlockScanInfo(STsdbReader* pTsdbReader, const STableK
               pTsdbReader->idStr);
   }
 
-  tsdbDebug("%p create %d tables scan-info, size:%.2f Kb, %s", pTsdbReader, numOfTables,
-            (sizeof(STableBlockScanInfo) * numOfTables) / 1024.0, pTsdbReader->idStr);
+  pTsdbReader->cost.createScanInfoList = (taosGetTimestampUs() - st) / 1000.0;
+  tsdbDebug("%p create %d tables scan-info, size:%.2f Kb, elapsed time:%.2f ms, %s", pTsdbReader, numOfTables,
+            (sizeof(STableBlockScanInfo) * numOfTables) / 1024.0, pTsdbReader->cost.createScanInfoList,
+            pTsdbReader->idStr);
 
   return pTableMap;
 }
@@ -3697,15 +3702,16 @@ void tsdbReaderClose(STsdbReader* pReader) {
     taosMemoryFree(pLReader);
   }
 
-  tsdbDebug(
-      "%p :io-cost summary: head-file:%" PRIu64 ", head-file time:%.2f ms, SMA:%" PRId64
-      " SMA-time:%.2f ms, fileBlocks:%" PRId64
-      ", fileBlocks-load-time:%.2f ms, "
-      "build in-memory-block-time:%.2f ms, lastBlocks:%" PRId64 ", lastBlocks-time:%.2f ms, composed-blocks:%" PRId64
-      ", composed-blocks-time:%.2fms, STableBlockScanInfo size:%.2f Kb %s",
-      pReader, pCost->headFileLoad, pCost->headFileLoadTime, pCost->smaDataLoad, pCost->smaLoadTime, pCost->numOfBlocks,
-      pCost->blockLoadTime, pCost->buildmemBlock, pCost->lastBlockLoad, pCost->lastBlockLoadTime, pCost->composedBlocks,
-      pCost->buildComposedBlockTime, numOfTables * sizeof(STableBlockScanInfo) / 1000.0, pReader->idStr);
+  tsdbDebug("%p :io-cost summary: head-file:%" PRIu64 ", head-file time:%.2f ms, SMA:%" PRId64
+            " SMA-time:%.2f ms, fileBlocks:%" PRId64
+            ", fileBlocks-load-time:%.2f ms, "
+            "build in-memory-block-time:%.2f ms, lastBlocks:%" PRId64
+            ", lastBlocks-time:%.2f ms, composed-blocks:%" PRId64
+            ", composed-blocks-time:%.2fms, STableBlockScanInfo size:%.2f Kb, creatTime:%.2f ms, %s",
+            pReader, pCost->headFileLoad, pCost->headFileLoadTime, pCost->smaDataLoad, pCost->smaLoadTime,
+            pCost->numOfBlocks, pCost->blockLoadTime, pCost->buildmemBlock, pCost->lastBlockLoad,
+            pCost->lastBlockLoadTime, pCost->composedBlocks, pCost->buildComposedBlockTime,
+            numOfTables * sizeof(STableBlockScanInfo) / 1000.0, pCost->createScanInfoList, pReader->idStr);
 
   taosMemoryFree(pReader->idStr);
   taosMemoryFree(pReader->pSchema);

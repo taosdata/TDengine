@@ -1882,8 +1882,9 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
 
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
                                 STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
-                                const char* idStr) {
+                                struct SExecTaskInfo* pTaskInfo) {
   int64_t st = taosGetTimestampUs();
+  const char* idStr = GET_TASKID(pTaskInfo);
 
   if (pHandle == NULL) {
     qError("invalid handle, in creating operator tree, %s", idStr);
@@ -1899,7 +1900,8 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
   ASSERT(pTableListInfo->numOfOuputGroups == 1);
 
   int64_t st1 = taosGetTimestampUs();
-  qDebug("generate queried table list completed, elapsed time:%.2f ms %s", (st1 - st) / 1000.0, idStr);
+  pTaskInfo->cost.extractListTime = (st1 - st) / 1000.0;
+  qDebug("extract queried table list completed, elapsed time:%.2f ms %s", pTaskInfo->cost.extractListTime, idStr);
 
   if (taosArrayGetSize(pTableListInfo->pTableList) == 0) {
     qDebug("no table qualified for query, %s" PRIx64, idStr);
@@ -1911,8 +1913,8 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
     return code;
   }
 
-  int64_t st2 = taosGetTimestampUs();
-  qDebug("generate group id map completed, elapsed time:%.2f ms %s", (st2 - st1) / 1000.0, idStr);
+  pTaskInfo->cost.groupIdMapTime = (taosGetTimestampUs() - st1)/1000.0;
+  qDebug("generate group id map completed, elapsed time:%.2f ms %s", pTaskInfo->cost.groupIdMapTime, idStr);
 
   return TSDB_CODE_SUCCESS;
 }
