@@ -156,6 +156,9 @@ char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPR
 // udf
 bool tsStartUdfd = true;
 
+// wal
+int64_t tsWalRecoverSizeLimit = (600 * 1024 * 1024L);
+
 // internal
 int32_t tsTransPullupInterval = 2;
 int32_t tsMqRebalanceInterval = 2;

@@ -16,6 +16,7 @@
 #include "os.h"
 #include "taoserror.h"
 #include "tchecksum.h"
+#include "tglobal.h"
 #include "walInt.h"
 
 int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
@@ -252,7 +253,7 @@ static FORCE_INLINE int32_t walCheckAndRoll(SWal *pWal) {
     }
   }
 
-  if (walGetLastFileCachedSize(pWal) > WAL_RECOV_SIZE_LIMIT / 2) {
+  if (walGetLastFileCachedSize(pWal) > tsWalRecoverSizeLimit / 2) {
     if (walSaveMeta(pWal) < 0) {
       return -1;
     }

@@ -18,6 +18,7 @@
 #include "taoserror.h"
 #include "tutil.h"
 #include "walInt.h"
+#include "tglobal.h"
 
 bool FORCE_INLINE walLogExist(SWal* pWal, int64_t ver) {
   return !walIsEmpty(pWal) && walGetFirstVer(pWal) <= ver && walGetLastVer(pWal) >= ver;
@@ -82,11 +83,10 @@ static FORCE_INLINE int64_t walScanLogGetLastVer(SWal* pWal, int32_t fileIdx) {
     readSize = end - offset;
     capacity = readSize + sizeof(magic);
 
-    int64_t limit = WAL_RECOV_SIZE_LIMIT;
-    if (limit < readSize) {
+    if (tsWalRecoverSizeLimit < readSize) {
       wError("vgId:%d, possibly corrupted WAL range exceeds size limit (i.e. %" PRId64 " bytes). offset:%" PRId64
              ", end:%" PRId64 ", file:%s",
-             pWal->cfg.vgId, limit, offset, end, fnameStr);
+             pWal->cfg.vgId, tsWalRecoverSizeLimit, offset, end, fnameStr);
       terrno = TSDB_CODE_WAL_SIZE_LIMIT;
       goto _err;
     }
