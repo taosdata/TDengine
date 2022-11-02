@@ -285,8 +285,8 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
     case TDMT_VND_COMMIT:
       goto _do_commit;
     default:
-      ASSERT(0);
-      break;
+      vError("vgId:%d, unprocessed msg, %d", TD_VID(pVnode), pMsg->msgType);
+      return -1;
   }
 
   vTrace("vgId:%d, process %s request, code:0x%x index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), pRsp->code,
