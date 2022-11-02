@@ -414,9 +414,11 @@ _exit:
 }
 
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
+  SSyncState state = syncGetState(pVnode->sync);
+
   pLoad->vgId = TD_VID(pVnode);
-  pLoad->syncState = syncGetMyRole(pVnode->sync);
-  pLoad->syncRestore = pVnode->restored;
+  pLoad->syncState = state.state;
+  pLoad->syncRestore = state.restored;
   pLoad->cacheUsage = tsdbCacheGetUsage(pVnode);
   pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
   pLoad->numOfTimeSeries = metaGetTimeSeriesNum(pVnode->pMeta);

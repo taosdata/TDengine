@@ -44,8 +44,8 @@ void CommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
            ", term:%" PRIu64
            " "
            "currentTerm:%" PRIu64 " \n",
-           pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state),
-           cbMeta.flag, cbMeta.term, cbMeta.currentTerm);
+           pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncStr(cbMeta.state), cbMeta.flag,
+           cbMeta.term, cbMeta.currentTerm);
   syncRpcMsgLog2(logBuf, (SRpcMsg*)pMsg);
 }
 
@@ -56,8 +56,8 @@ void PreCommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) 
            ", term:%" PRIu64
            " "
            "currentTerm:%" PRIu64 " \n",
-           pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state),
-           cbMeta.flag, cbMeta.term, cbMeta.currentTerm);
+           pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncStr(cbMeta.state), cbMeta.flag,
+           cbMeta.term, cbMeta.currentTerm);
   syncRpcMsgLog2(logBuf, (SRpcMsg*)pMsg);
 }
 
@@ -68,8 +68,8 @@ void RollBackCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
            ", term:%" PRIu64
            " "
            "currentTerm:%" PRIu64 " \n",
-           pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state),
-           cbMeta.flag, cbMeta.term, cbMeta.currentTerm);
+           pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncStr(cbMeta.state), cbMeta.flag,
+           cbMeta.term, cbMeta.currentTerm);
   syncRpcMsgLog2(logBuf, (SRpcMsg*)pMsg);
 }
 
@@ -168,8 +168,8 @@ void LeaderTransferCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbM
            ", isWeak:%d, code:%d, state:%d %s, flag:%" PRIu64 ", term:%" PRIu64
            " "
            "currentTerm:%" PRIu64 " \n",
-           pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state),
-           cbMeta.flag, cbMeta.term, cbMeta.currentTerm);
+           pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncStr(cbMeta.state), cbMeta.flag,
+           cbMeta.term, cbMeta.currentTerm);
   syncRpcMsgLog2(logBuf, (SRpcMsg*)pMsg);
 }
 

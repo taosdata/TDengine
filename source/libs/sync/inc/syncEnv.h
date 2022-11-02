@@ -52,6 +52,7 @@ typedef struct SSyncEnv {
 } SSyncEnv;
 
 SSyncEnv* syncEnv();
+bool      syncIsInit();
 
 int64_t    syncNodeAdd(SSyncNode* pNode);
 void       syncNodeRemove(int64_t rid);
