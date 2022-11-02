@@ -22,9 +22,9 @@ extern "C" {
 
 #include "sync.h"
 #include "syncTools.h"
-#include "tlog.h"
-#include "ttimer.h"
 #include "taosdef.h"
+#include "tlog.h"
+#include "trpc.h"
 #include "ttimer.h"
 
 // clang-format off

@@ -349,11 +349,15 @@ void mndSyncStop(SMnode *pMnode) {
 }
 
 bool mndIsLeader(SMnode *pMnode) {
-  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+  SSyncState state = syncGetState(pMnode->syncMgmt.sync);
 
-  if (!syncIsReady(pMgmt->sync)) {
-    // get terrno from syncIsReady
-    // terrno = TSDB_CODE_SYN_NOT_LEADER;
+  if (state.state != TAOS_SYNC_STATE_LEADER || !state.restored) {
+    if (state.state != TAOS_SYNC_STATE_LEADER) {
+      terrno = TSDB_CODE_SYN_NOT_LEADER;
+    } else {
+      terrno = TSDB_CODE_APP_NOT_READY;
+    }
+    mDebug("vgId:1, mnode not ready, state:%s, restore:%d", syncStr(state.state), state.restored);
     return false;
   }
 

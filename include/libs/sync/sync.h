@@ -25,8 +25,6 @@ extern "C" {
 #include "tlrucache.h"
 #include "tmsgcb.h"
 
-extern bool gRaftDetailLog;
-
 #define SYNC_RESP_TTL_MS             10000000
 #define SYNC_SPEED_UP_HB_TIMER       400
 #define SYNC_SPEED_UP_AFTER_MS       (1000 * 20)
@@ -132,7 +130,7 @@ typedef struct SSnapshotMeta {
 typedef struct SSyncFSM {
   void* data;
 
-  void (*FpCommitCb)(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, const SFsmCbMeta *pMeta);
+  void (*FpCommitCb)(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
   void (*FpPreCommitCb)(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
   void (*FpRollBackCb)(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
 
@@ -202,37 +200,27 @@ typedef struct SSyncInfo {
   int32_t (*syncEqCtrlMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
 } SSyncInfo;
 
-int32_t     syncInit();
-void        syncCleanUp();
-bool        syncIsInit();
-int64_t     syncOpen(SSyncInfo* pSyncInfo);
-void        syncStart(int64_t rid);
-void        syncStop(int64_t rid);
-ESyncState  syncGetMyRole(int64_t rid);
-bool        syncIsReady(int64_t rid);
-const char* syncGetMyRoleStr(int64_t rid);
-bool        syncRestoreFinish(int64_t rid);
-SyncTerm    syncGetMyTerm(int64_t rid);
-SyncIndex   syncGetLastIndex(int64_t rid);
-SyncIndex   syncGetCommitIndex(int64_t rid);
-SyncGroupId syncGetVgId(int64_t rid);
-void        syncGetEpSet(int64_t rid, SEpSet* pEpSet);
-void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);
-int32_t     syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak);
-// int32_t     syncProposeBatch(int64_t rid, SRpcMsg** pMsgPArr, bool* pIsWeakArr, int32_t arrSize);
-const char* syncStr(ESyncState state);
-bool        syncIsRestoreFinish(int64_t rid);
-int32_t     syncGetSnapshotByIndex(int64_t rid, SyncIndex index, SSnapshot* pSnapshot);
+typedef struct SSyncState {
+  ESyncState state;
+  bool       restored;
+} SSyncState;
 
+int32_t syncInit();
+void    syncCleanUp();
+int64_t syncOpen(SSyncInfo* pSyncInfo);
+void    syncStart(int64_t rid);
+void    syncStop(int64_t rid);
+int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak);
+int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg);
 int32_t syncReconfig(int64_t rid, SSyncCfg* pCfg);
-int32_t syncLeaderTransfer(int64_t rid);
 int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex);
 int32_t syncEndSnapshot(int64_t rid);
+int32_t syncLeaderTransfer(int64_t rid);
 int32_t syncStepDown(int64_t rid, SyncTerm newTerm);
 
-int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg);
-
-const char* syncUtilState2String(ESyncState state);
+SSyncState  syncGetState(int64_t rid);
+void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);
+const char* syncStr(ESyncState state);
 
 #ifdef __cplusplus
 }

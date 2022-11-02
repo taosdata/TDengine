@@ -487,14 +487,14 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
   }
   if (mndAcquireRpc(pMsg->info.node) == 0) return 0;
 
-  SMnode     *pMnode = pMsg->info.node;
-  const char *role = syncGetMyRoleStr(pMnode->syncMgmt.sync);
-  bool        restored = syncIsRestoreFinish(pMnode->syncMgmt.sync);
+  SMnode    *pMnode = pMsg->info.node;
+  SSyncState state = syncGetState(pMnode->syncMgmt.sync);
+
   if (pMsg->msgType == TDMT_MND_TMQ_TIMER || pMsg->msgType == TDMT_MND_TELEM_TIMER ||
       pMsg->msgType == TDMT_MND_TRANS_TIMER || pMsg->msgType == TDMT_MND_TTL_TIMER ||
       pMsg->msgType == TDMT_MND_UPTIME_TIMER) {
     mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
-           pMnode->stopped, restored, role);
+           pMnode->stopped, state.restored, syncStr(state.restored));
     return -1;
   }
 
@@ -505,8 +505,8 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
   mDebug(
       "msg:%p, type:%s failed to process since %s, mnode restored:%d stopped:%d, sync restored:%d "
       "role:%s, redirect numOfEps:%d inUse:%d",
-      pMsg, TMSG_INFO(pMsg->msgType), terrstr(), pMnode->restored, pMnode->stopped, restored, role, epSet.numOfEps,
-      epSet.inUse);
+      pMsg, TMSG_INFO(pMsg->msgType), terrstr(), pMnode->restored, pMnode->stopped, state.restored,
+      syncStr(state.restored), epSet.numOfEps, epSet.inUse);
 
   if (epSet.numOfEps > 0) {
     for (int32_t i = 0; i < epSet.numOfEps; ++i) {
@@ -729,8 +729,9 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
 }
 
 int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad) {
-  pLoad->syncState = syncGetMyRole(pMnode->syncMgmt.sync);
-  pLoad->syncRestore = pMnode->restored;
+  SSyncState state = syncGetState(pMnode->syncMgmt.sync);
+  pLoad->syncState = state.state;
+  pLoad->syncRestore = state.restored;
   mTrace("mnode current syncState is %s, syncRestore:%d", syncStr(pLoad->syncState), pLoad->syncRestore);
   return 0;
 }

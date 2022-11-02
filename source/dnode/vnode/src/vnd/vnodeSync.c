@@ -309,13 +309,13 @@ static void vnodeSyncApplyMsg(const SSyncFSM *pFsm, const SRpcMsg *pMsg, const S
     const STraceId *trace = &pMsg->info.traceId;
     vGTrace("vgId:%d, commit-cb is excuted, fsm:%p, index:%" PRId64 ", term:%" PRIu64 ", msg-index:%" PRId64
             ", weak:%d, code:%d, state:%d %s, type:%s",
-            syncGetVgId(pVnode->sync), pFsm, pMeta->index, pMeta->term, rpcMsg.info.conn.applyIndex, pMeta->isWeak,
-            pMeta->code, pMeta->state, syncUtilState2String(pMeta->state), TMSG_INFO(pMsg->msgType));
+            pVnode->config.vgId, pFsm, pMeta->index, pMeta->term, rpcMsg.info.conn.applyIndex, pMeta->isWeak,
+            pMeta->code, pMeta->state, syncStr(pMeta->state), TMSG_INFO(pMsg->msgType));
 
     tmsgPutToQueue(&pVnode->msgCb, APPLY_QUEUE, &rpcMsg);
   } else {
     SRpcMsg rsp = {.code = pMeta->code, .info = pMsg->info};
-    vError("vgId:%d, commit-cb execute error, type:%s, index:%" PRId64 ", error:0x%x %s", syncGetVgId(pVnode->sync),
+    vError("vgId:%d, commit-cb execute error, type:%s, index:%" PRId64 ", error:0x%x %s", pVnode->config.vgId,
            TMSG_INFO(pMsg->msgType), pMeta->index, pMeta->code, tstrerror(pMeta->code));
     if (rsp.info.handle != NULL) {
       tmsgSendRsp(&rsp);
@@ -338,8 +338,8 @@ static void vnodeSyncPreCommitMsg(const SSyncFSM *pFsm, const SRpcMsg *pMsg, con
 static void vnodeSyncRollBackMsg(const SSyncFSM *pFsm, const SRpcMsg *pMsg, const SFsmCbMeta *pMeta) {
   SVnode *pVnode = pFsm->data;
   vTrace("vgId:%d, rollback-cb is excuted, fsm:%p, index:%" PRId64 ", weak:%d, code:%d, state:%d %s, type:%s",
-         syncGetVgId(pVnode->sync), pFsm, pMeta->index, pMeta->isWeak, pMeta->code, pMeta->state,
-         syncUtilState2String(pMeta->state), TMSG_INFO(pMsg->msgType));
+         pVnode->config.vgId, pFsm, pMeta->index, pMeta->isWeak, pMeta->code, pMeta->state, syncStr(pMeta->state),
+         TMSG_INFO(pMsg->msgType));
 }
 
 #define USE_TSDB_SNAPSHOT
@@ -552,12 +552,21 @@ void vnodeSyncClose(SVnode *pVnode) {
   syncStop(pVnode->sync);
 }
 
-bool vnodeIsRoleLeader(SVnode *pVnode) { return syncGetMyRole(pVnode->sync) == TAOS_SYNC_STATE_LEADER; }
+bool vnodeIsRoleLeader(SVnode *pVnode) {
+  SSyncState state = syncGetState(pVnode->sync);
+  return state.state == TAOS_SYNC_STATE_LEADER;
+}
 
 bool vnodeIsLeader(SVnode *pVnode) {
-  if (!syncIsReady(pVnode->sync)) {
-    vDebug("vgId:%d, vnode not ready, state:%s, restore:%d", pVnode->config.vgId, syncGetMyRoleStr(pVnode->sync),
-           syncRestoreFinish(pVnode->sync));
+  SSyncState state = syncGetState(pVnode->sync);
+
+  if (state.state != TAOS_SYNC_STATE_LEADER || !state.restored) {
+    if (state.state != TAOS_SYNC_STATE_LEADER) {
+      terrno = TSDB_CODE_SYN_NOT_LEADER;
+    } else {
+      terrno = TSDB_CODE_APP_NOT_READY;
+    }
+    vDebug("vgId:%d, vnode not ready, state:%s, restore:%d", pVnode->config.vgId, syncStr(state.state), state.restored);
     return false;
   }
 
