@@ -24,6 +24,7 @@ from util.common import *
 
 class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor())
         self.dbname = 'db_test'
