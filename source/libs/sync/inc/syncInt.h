@@ -24,6 +24,7 @@ extern "C" {
 #include "syncTools.h"
 #include "taosdef.h"
 #include "tlog.h"
+#include "trpc.h"
 #include "ttimer.h"
 
 // clang-format off
@@ -106,9 +107,9 @@ typedef struct SSyncNode {
   // sync io
   SWal*         pWal;
   const SMsgCb* msgcb;
-  int32_t (*FpSendMsg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
-  int32_t (*FpEqMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
-  int32_t (*FpEqCtrlMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
+  int32_t (*syncSendMSg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
+  int32_t (*syncEqMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
+  int32_t (*syncEqCtrlMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
 
   // init internal
   SNodeInfo myNodeInfo;
@@ -301,7 +302,6 @@ int32_t syncGetSnapshotMeta(int64_t rid, struct SSnapshotMeta* sMeta);
 int32_t syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct SSnapshotMeta* sMeta);
 
 bool syncNodeCanChange(SSyncNode* pSyncNode);
-bool syncNodeCheckNewConfig(SSyncNode* pSyncNode, const SSyncCfg* pNewCfg);
 
 int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode);
 int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader);

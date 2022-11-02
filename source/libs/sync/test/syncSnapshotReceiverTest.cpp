@@ -37,9 +37,12 @@ SSyncSnapshotReceiver* createReceiver() {
   SSyncNode* pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(*pSyncNode));
   pSyncNode->pRaftStore = (SRaftStore*)taosMemoryMalloc(sizeof(*(pSyncNode->pRaftStore)));
   pSyncNode->pFsm = (SSyncFSM*)taosMemoryMalloc(sizeof(*(pSyncNode->pFsm)));
+
+#if 0 
   pSyncNode->pFsm->FpSnapshotStartWrite = SnapshotStartWrite;
   pSyncNode->pFsm->FpSnapshotStopWrite = SnapshotStopWrite;
   pSyncNode->pFsm->FpSnapshotDoWrite = SnapshotDoWrite;
+#endif
 
   SRaftId id;
   id.addr = syncUtilAddr2U64("1.2.3.4", 99);

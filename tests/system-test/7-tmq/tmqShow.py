@@ -138,8 +138,9 @@ class TDTestCase:
         tdSql.query("show subscriptions")
         # tdLog.debug(tdSql.queryResult)
         rows = tdSql.getRows()
-        tdLog.info("show subscriptions rows: %d"%rows)
-        if rows != paraDict['vgroups'] * len(topicNameList):
+        expectSubscriptions = paraDict['vgroups'] * len(topicNameList)
+        tdLog.info("show subscriptions rows: %d, expect Subscriptions: %d"%(rows,expectSubscriptions))
+        if rows != expectSubscriptions:
             tdLog.exit("show subscriptions rows error")
 
         pThread.join()
