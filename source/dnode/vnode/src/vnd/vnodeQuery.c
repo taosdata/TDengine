@@ -290,7 +290,7 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   for (int32_t i = 0; i < msgNum; ++i) {
     if (offset >= pMsg->contLen) {
       qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
-      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      terrno = TSDB_CODE_INVALID_MSG_LEN;
       taosArrayDestroy(batchRsp);
       return -1;
     }    
@@ -300,7 +300,7 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
 
     if (offset >= pMsg->contLen) {
       qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
-      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      terrno = TSDB_CODE_INVALID_MSG_LEN;
       taosArrayDestroy(batchRsp);
       return -1;
     } 
@@ -310,7 +310,7 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
 
     if (offset >= pMsg->contLen) {
       qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
-      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      terrno = TSDB_CODE_INVALID_MSG_LEN;
       taosArrayDestroy(batchRsp);
       return -1;
     } 
@@ -320,7 +320,7 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
 
     if (offset >= pMsg->contLen) {
       qError("vnode offset %d is bigger than contLen %d", offset, pMsg->contLen);
-      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      terrno = TSDB_CODE_INVALID_MSG_LEN;
       taosArrayDestroy(batchRsp);
       return -1;
     } 
@@ -362,6 +362,7 @@ int32_t vnodeGetBatchMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   offset = 0;
 
   if (rspSize > MAX_META_BATCH_RSP_SIZE) {
+    qError("rspSize:%d overload", rspSize);
     code = TSDB_CODE_INVALID_MSG_LEN;
     goto _exit;
   }
