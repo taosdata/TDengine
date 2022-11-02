@@ -639,3 +639,15 @@ python3 ./test.py -f 2-query/last_row.py -Q 4
 python3 ./test.py -f 2-query/tsbsQuery.py -Q 4
 python3 ./test.py -f 2-query/sml.py -Q 4
 python3 ./test.py -f 2-query/interp.py -Q 4
+
+# ========= replica 3 for tmq cases ===========
+python3 ./test.py -f 7-tmq/stbFilter.py -N 3 -n 3
+python3 ./test.py -f 7-tmq/stbTagFilter-1ctb.py -N 3 -n 3
+python3 ./test.py -f 7-tmq/stbTagFilter-multiCtb.py -N 3 -n 3
+python3 ./test.py -f 7-tmq/subscribeDb.py -N 3 -n 3
+python3 ./test.py -f 7-tmq/subscribeDb0.py -N 3 -n 3
+python3 ./test.py -f 7-tmq/subscribeDb1.py -N 3 -n 3
+python3 ./test.py -f 7-tmq/subscribeDb2.py -N 3 -n 3
+python3 ./test.py -f 7-tmq/subscribeDb3.py -N 3 -n 3
+python3 ./test.py -f 7-tmq/subscribeDb4.py -N 3 -n 3
+python3 ./test.py -f 7-tmq/subscribeStb.py -N 3 -n 3
