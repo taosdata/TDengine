@@ -1299,28 +1299,52 @@ static bool keyOverlapFileBlock(TSDBKEY key, SDataBlk* pBlock, SVersionRange* pV
          (pBlock->minVer <= pVerRange->maxVer);
 }
 
-static bool doCheckforDatablockOverlap(STableBlockScanInfo* pBlockScanInfo, const SDataBlk* pBlock) {
+static bool doCheckforDatablockOverlap(STableBlockScanInfo* pBlockScanInfo, const SDataBlk* pBlock, int32_t order) {
   size_t num = taosArrayGetSize(pBlockScanInfo->delSkyline);
 
-  for (int32_t i = pBlockScanInfo->fileDelIndex; i < num; i += 1) {
+  int32_t step = ASCENDING_TRAVERSE(order) ? 1 : -1;
+  for (int32_t i = pBlockScanInfo->fileDelIndex; i < num; i += step) {
     TSDBKEY* p = taosArrayGet(pBlockScanInfo->delSkyline, i);
     if (p->ts >= pBlock->minKey.ts && p->ts <= pBlock->maxKey.ts) {
-      if (p->version >= pBlock->minVer) {
-        return true;
-      }
-    } else if (p->ts < pBlock->minKey.ts) {  // p->ts < pBlock->minKey.ts
-      if (p->version >= pBlock->minVer) {
-        if (i < num - 1) {
-          TSDBKEY* pnext = taosArrayGet(pBlockScanInfo->delSkyline, i + 1);
-          if (pnext->ts >= pBlock->minKey.ts) {
-            return true;
-          }
-        } else {  // it must be the last point
-          ASSERT(p->version == 0);
+      if (ASCENDING_TRAVERSE(order)) {
+        if (p->version >= pBlock->minVer) {
+          return true;
+        }
+      } else {
+        if (p->version <= pBlock->minVer) {
+          return true;
         }
       }
+    } else if (p->ts < pBlock->minKey.ts) {  // p->ts < pBlock->minKey.ts
+      if (ASCENDING_TRAVERSE(order)) {
+        if (p->version >= pBlock->minVer) {
+          if (i < num - 1) {
+            TSDBKEY* pnext = taosArrayGet(pBlockScanInfo->delSkyline, i + 1);
+            if (pnext->ts >= pBlock->minKey.ts) {
+              return true;
+            }
+          } else {  // it must be the last point
+            ASSERT(p->version == 0);
+          }
+        }
+      } else {
+        return false;
+      }
     } else {  // (p->ts > pBlock->maxKey.ts) {
-      return false;
+      if (!ASCENDING_TRAVERSE(order)) {
+        if (p->version <= pBlock->minVer) {
+          if (i > 0) {
+            TSDBKEY* pnext = taosArrayGet(pBlockScanInfo->delSkyline, i - 1);
+            if (pnext->ts <= pBlock->maxKey.ts) {
+              return true;
+            }
+          } else {  // it must be the first point
+            ASSERT(p->version > 0);
+          }
+        }
+      } else {
+        return false;
+      }
     }
   }
 
@@ -1341,7 +1365,7 @@ static bool overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SDa
 
   // version is not overlap
   if (ASCENDING_TRAVERSE(order)) {
-    return doCheckforDatablockOverlap(pBlockScanInfo, pBlock);
+    return doCheckforDatablockOverlap(pBlockScanInfo, pBlock, order);
   } else {
     int32_t index = pBlockScanInfo->fileDelIndex;
     while (1) {
@@ -1353,7 +1377,7 @@ static bool overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SDa
       }
     }
 
-    return doCheckforDatablockOverlap(pBlockScanInfo, pBlock);
+    return doCheckforDatablockOverlap(pBlockScanInfo, pBlock, order);
   }
 }
 
