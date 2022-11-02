@@ -31,7 +31,9 @@ extern "C" {
 #endif
 
 typedef struct SSnode {
-  SMsgCb msgCb;
+  char*        path;
+  SStreamMeta* pMeta;
+  SMsgCb       msgCb;
 } SSnode;
 
 #if 0

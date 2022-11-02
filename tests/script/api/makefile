@@ -17,6 +17,5 @@ exe:
 
 clean:
 	rm $(ROOT)batchprepare
-	rm $(ROOT)stmtBatchTest
-	rm $(ROOT)stmtTest
-	rm $(ROOT)stmt_function
+	rm $(ROOT)stopquery
+	rm $(ROOT)dbTableRoute

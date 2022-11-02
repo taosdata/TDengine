@@ -20,7 +20,6 @@
 
 #include "sdb.h"
 #include "sync.h"
-#include "syncTools.h"
 #include "tcache.h"
 #include "tdatablock.h"
 #include "tglobal.h"
@@ -80,8 +79,8 @@ typedef struct {
 } SProfileMgmt;
 
 typedef struct {
-  SRWLatch lock;
-  char     email[TSDB_FQDN_LEN];
+  TdThreadMutex lock;
+  char           email[TSDB_FQDN_LEN];
 } STelemMgmt;
 
 typedef struct {
@@ -90,7 +89,6 @@ typedef struct {
   int32_t  errCode;
   int32_t  transId;
   SRWLatch lock;
-  int8_t   leaderTransferFinish;
   int8_t   selfIndex;
   int8_t   numOfReplicas;
   SReplica replicas[TSDB_MAX_REPLICA];

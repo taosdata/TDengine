@@ -1485,6 +1485,7 @@ int32_t tSerializeSDropDnodeReq(void *buf, int32_t bufLen, SDropDnodeReq *pReq) 
   if (tEncodeI32(&encoder, pReq->dnodeId) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->fqdn) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->port) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->force) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1500,6 +1501,7 @@ int32_t tDeserializeSDropDnodeReq(void *buf, int32_t bufLen, SDropDnodeReq *pReq
   if (tDecodeI32(&decoder, &pReq->dnodeId) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->fqdn) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->port) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->force) < 0) return -1;
   tEndDecode(&decoder);
 
   tDecoderClear(&decoder);
@@ -4853,6 +4855,7 @@ int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateS
   if (tEncodeCStr(&encoder, pReq->sourceDB) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->targetStbFullName) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->igExists) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->fillHistory) < 0) return -1;
   if (tEncodeI32(&encoder, sqlLen) < 0) return -1;
   if (tEncodeI32(&encoder, astLen) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->triggerType) < 0) return -1;
@@ -4889,6 +4892,7 @@ int32_t tDeserializeSCMCreateStreamReq(void *buf, int32_t bufLen, SCMCreateStrea
   if (tDecodeCStrTo(&decoder, pReq->sourceDB) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->targetStbFullName) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->igExists) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->fillHistory) < 0) return -1;
   if (tDecodeI32(&decoder, &sqlLen) < 0) return -1;
   if (tDecodeI32(&decoder, &astLen) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->triggerType) < 0) return -1;
@@ -4994,6 +4998,7 @@ int32_t tDeserializeSMRecoverStreamReq(void *buf, int32_t bufLen, SMRecoverStrea
 }
 
 void tFreeSCMCreateStreamReq(SCMCreateStreamReq *pReq) {
+  taosArrayDestroy(pReq->pTags);
   taosMemoryFreeClear(pReq->sql);
   taosMemoryFreeClear(pReq->ast);
 }
@@ -5986,7 +5991,11 @@ int32_t tDecodeSMqDataRsp(SDecoder *pDecoder, SMqDataRsp *pRsp) {
       if (pRsp->withSchema) {
         SSchemaWrapper *pSW = (SSchemaWrapper *)taosMemoryCalloc(1, sizeof(SSchemaWrapper));
         if (pSW == NULL) return -1;
-        if (tDecodeSSchemaWrapper(pDecoder, pSW) < 0) return -1;
+        if (tDecodeSSchemaWrapper(pDecoder, pSW) < 0) {
+          taosMemoryFree(pSW);
+          return -1;
+        }
+
         taosArrayPush(pRsp->blockSchema, &pSW);
       }
 
@@ -6067,7 +6076,10 @@ int32_t tDecodeSTaosxRsp(SDecoder *pDecoder, STaosxRsp *pRsp) {
       if (pRsp->withSchema) {
         SSchemaWrapper *pSW = (SSchemaWrapper *)taosMemoryCalloc(1, sizeof(SSchemaWrapper));
         if (pSW == NULL) return -1;
-        if (tDecodeSSchemaWrapper(pDecoder, pSW) < 0) return -1;
+        if (tDecodeSSchemaWrapper(pDecoder, pSW) < 0) {
+          taosMemoryFree(pSW);
+          return -1;
+        }
         taosArrayPush(pRsp->blockSchema, &pSW);
       }
 

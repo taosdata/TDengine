@@ -47,13 +47,14 @@ class ClusterComCheck:
             for i in range(dnodeNumbers):
                 if tdSql.queryResult[i][4] == "ready":
                     status+=1
-            tdLog.info(status)
+            # tdLog.info(status)
 
             if status == dnodeNumbers:
-                tdLog.success("it find cluster with %d dnodes and check that all cluster dnodes are ready within %ds! " % (dnodeNumbers, count))
+                tdLog.success("it find cluster with %d dnodes and check that all cluster dnodes are ready within %ds! " % (dnodeNumbers, count+1))
                 return True
-            count+=1
             time.sleep(1)
+            count+=1
+            
         else:
             tdSql.query("select * from information_schema.ins_dnodes")
             tdLog.debug(tdSql.queryResult)
@@ -74,10 +75,10 @@ class ClusterComCheck:
             tdLog.debug(tdSql.queryResult)
             tdLog.exit("we find %d databases but expect %d in clusters! " %(tdSql.queryRows,dbNumbers))
 
-    def checkDb(self,dbNumbers,restartNumber,dbNameIndex):
+    def checkDb(self,dbNumbers,restartNumber,dbNameIndex, timeout=100):
         count=0
         alldbNumbers=(dbNumbers*restartNumber)+2
-        while count < 5:
+        while count < timeout:
             query_status=0
             for j in range(dbNumbers):
                 for i in range(alldbNumbers):
@@ -87,22 +88,24 @@ class ClusterComCheck:
                             query_status+=1
                             tdLog.debug("check %s_%d that status is ready "%(dbNameIndex,j))
                         else:
+                            sleep(1)
                             continue
             # print(query_status)
-            count+=1
             if query_status == dbNumbers:
-                tdLog.success(" check %d database and  all databases  are ready within 5s! " %dbNumbers)
+                tdLog.success(" check %d database and  all databases  are ready within %ds! " %(dbNumbers,count+1))
                 return True
+            count+=1
+
         else:
             tdLog.debug(tdSql.queryResult)
             tdLog.debug("query status is %d"%query_status)
-            tdLog.exit("database is not ready within 5s")
+            tdLog.exit("database is not ready within %ds"%(timeout+1))
 
     def checkData(self,dbname,stbname,stableCount,CtableCount,rowsPerSTable,):
         tdSql.execute("use %s"%dbname)
-        tdSql.query("show stables")
+        tdSql.query("show %s.stables"%dbname)
         tdSql.checkRows(stableCount)
-        tdSql.query("show tables")
+        tdSql.query("show  %s.tables"%dbname)
         tdSql.checkRows(CtableCount)
         for i in range(stableCount):
             tdSql.query("select count(*) from %s%d"%(stbname,i))

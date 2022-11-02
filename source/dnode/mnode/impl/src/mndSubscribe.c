@@ -19,7 +19,6 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
-#include "mndOffset.h"
 #include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndStb.h"
@@ -74,12 +73,11 @@ int32_t mndInitSubscribe(SMnode *pMnode) {
       .deleteFp = (SdbDeleteFp)mndSubActionDelete,
   };
 
-  mndSetMsgHandle(pMnode, TDMT_VND_MQ_VG_CHANGE_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_VND_MQ_VG_DELETE_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_MND_MQ_DO_REBALANCE, mndProcessRebalanceReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_MQ_DO_REBALANCE, mndProcessRebalanceReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_MQ_DROP_CGROUP, mndProcessDropCgroupReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_MQ_DROP_CGROUP_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_TMQ_SUBSCRIBE_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_TMQ_DELETE_SUB_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_DO_REBALANCE, mndProcessRebalanceReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_DROP_CGROUP, mndProcessDropCgroupReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_DROP_CGROUP_RSP, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_SUBSCRIPTIONS, mndRetrieveSubscribe);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TOPICS, mndCancelGetNextSubscribe);
@@ -166,7 +164,7 @@ static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, const SM
   action.epSet = mndGetVgroupEpset(pMnode, pVgObj);
   action.pCont = buf;
   action.contLen = tlen;
-  action.msgType = TDMT_VND_MQ_VG_CHANGE;
+  action.msgType = TDMT_VND_TMQ_SUBSCRIBE;
 
   mndReleaseVgroup(pMnode, pVgObj);
   if (mndTransAppendRedoAction(pTrans, &action) != 0) {
@@ -684,12 +682,6 @@ static int32_t mndProcessDropCgroupReq(SRpcMsg *pReq) {
 
   mInfo("trans:%d, used to drop cgroup:%s on topic %s", pTrans->id, dropReq.cgroup, dropReq.topic);
 
-  if (mndDropOffsetBySubKey(pMnode, pTrans, pSub->key) < 0) {
-    mndReleaseSubscribe(pMnode, pSub);
-    mndTransDrop(pTrans);
-    return -1;
-  }
-
   if (mndSetDropSubCommitLogs(pMnode, pTrans, pSub) < 0) {
     mError("cgroup %s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
     mndReleaseSubscribe(pMnode, pSub);
@@ -928,7 +920,7 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
       action.epSet = pVgEp->epSet;
       action.pCont = pReq;
       action.contLen = sizeof(SMqVDeleteReq);
-      action.msgType = TDMT_VND_MQ_VG_DELETE;
+      action.msgType = TDMT_VND_TMQ_DELETE_SUB;
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         taosMemoryFree(pReq);
         return -1;

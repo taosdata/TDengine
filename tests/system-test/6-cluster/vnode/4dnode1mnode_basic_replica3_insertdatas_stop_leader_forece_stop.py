@@ -19,7 +19,7 @@ import threading
 sys.path.append(os.path.dirname(__file__))
 
 class TDTestCase:
-    def init(self,conn ,logSql):
+    def init(self, conn, logSql, replicaVar=1):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         self.host = socket.gethostname()
@@ -33,9 +33,9 @@ class TDTestCase:
         self.tb_nums = 10
         self.row_nums = 100
         self.stop_dnode_id = None
-        self.loop_restart_times = 5
+        self.loop_restart_times = 1
         self.current_thread = None
-        self.max_restart_time = 5
+        self.max_restart_time = 30
         self.try_check_times = 10
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))

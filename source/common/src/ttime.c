@@ -507,29 +507,29 @@ int64_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char
   double  tmp = time;
   switch (toUnit) {
     case 's': {
-      tmp /= (NANOSECOND_PER_SEC / factors[fromPrecision]);  // the result of division is an integer
       time /= (NANOSECOND_PER_SEC / factors[fromPrecision]);
+      tmp = (double)time;
       break;
     }
     case 'm':
-      tmp /= (NANOSECOND_PER_MINUTE / factors[fromPrecision]);  // the result of division is an integer
       time /= (NANOSECOND_PER_MINUTE / factors[fromPrecision]);
+      tmp = (double)time;
       break;
     case 'h':
-      tmp /= (NANOSECOND_PER_HOUR / factors[fromPrecision]);  // the result of division is an integer
       time /= (NANOSECOND_PER_HOUR / factors[fromPrecision]);
+      tmp = (double)time;
       break;
     case 'd':
-      tmp /= (NANOSECOND_PER_DAY / factors[fromPrecision]);  // the result of division is an integer
       time /= (NANOSECOND_PER_DAY / factors[fromPrecision]);
+      tmp = (double)time;
       break;
     case 'w':
-      tmp /= (NANOSECOND_PER_WEEK / factors[fromPrecision]);  // the result of division is an integer
       time /= (NANOSECOND_PER_WEEK / factors[fromPrecision]);
+      tmp = (double)time;
       break;
     case 'a':
-      tmp /= (NANOSECOND_PER_MSEC / factors[fromPrecision]);  // the result of division is an integer
       time /= (NANOSECOND_PER_MSEC / factors[fromPrecision]);
+      tmp = (double)time;
       break;
     case 'u':
       // the result of (NANOSECOND_PER_USEC/(double)factors[fromPrecision]) maybe a double
@@ -540,13 +540,13 @@ int64_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char
           break;
         }
         case TSDB_TIME_PRECISION_MICRO: {
-          tmp /= 1;
           time /= 1;
+          tmp = (double)time;
           break;
         }
         case TSDB_TIME_PRECISION_NANO: {
-          tmp /= 1000;
           time /= 1000;
+          tmp = (double)time;
           break;
         }
       }

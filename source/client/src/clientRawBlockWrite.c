@@ -1181,7 +1181,7 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
   pVgData = NULL;
   pArray = NULL;
   code = pRequest->code;
-  if (code == TSDB_CODE_VND_TABLE_NOT_EXIST) {
+  if (code == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
     code = TSDB_CODE_SUCCESS;
   }
 

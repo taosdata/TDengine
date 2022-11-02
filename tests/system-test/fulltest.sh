@@ -207,6 +207,7 @@ python3 ./test.py -f 2-query/varchar.py -R
 
 
 python3 ./test.py -f 1-insert/update_data.py
+python3 ./test.py -f 1-insert/tb_100w_data_order.py
 
 python3 ./test.py -f 1-insert/delete_data.py
 python3 ./test.py -f 1-insert/keep_expired.py
@@ -235,23 +236,31 @@ python3 ./test.py -f 6-cluster/5dnode2mnode.py  -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeStopLoop.py -N 5 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 5 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 5 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 5 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDbRep3.py -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 6 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 6 -M 3 -n 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 6 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 6 -M 3 -n 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 6 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 6 -M 3 -n 3
 
-python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 5 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateStb.py  -N 5 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateStb.py  -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 6 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 6 -M 3 -n 3 
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateStb.py  -N 6 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateStb.py  -N 6 -M 3 -n 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateStb.py  -N 6 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateStb.py  -N 6 -M 3  -n 3
 
-python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 5 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 5 -M 3
-# python3 ./test.py -f 6-cluster/5dnode3mnodeRestartMnodeInsertData.py -N 5 -M 3
-# python3 ./test.py -f 6-cluster/5dnode3mnodeRestartVnodeInsertData.py -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 6 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 6 -M 3 -n 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3 -n 3
 
-python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 6 -M 3 -C 5
+
+python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6
+python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6 -n 3
+
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStopInsert.py
-# TD-19646 python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
+python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
 # TD-19646 python3 test.py -f 6-cluster/5dnode3mnodeStopConnect.py -N 5 -M 3
 
 python3 ./test.py -f 6-cluster/5dnode3mnodeRecreateMnode.py  -N 5 -M 3
@@ -273,7 +282,7 @@ python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_query
 # python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_stop_follower_unsync_force_stop.py -N 4 -M 1
 # python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_stop_follower_unsync.py -N 4 -M 1
 # python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_stop_leader_forece_stop.py -N 4 -M 1
-python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_stop_leader.py -N 4 -M 1
+# python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_insertdatas_stop_leader.py -N 4 -M 1
 # python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_mnode3_insertdatas_querys.py -N 4 -M 1
 # python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_querydatas_stop_follower_force_stop.py -N 4 -M 1
 # python3 test.py -f 6-cluster/vnode/4dnode1mnode_basic_replica3_querydatas_stop_follower.py -N 4 -M 1
@@ -547,7 +556,7 @@ python3 ./test.py -f 2-query/upper.py -Q  4
 python3 ./test.py -f 2-query/lower.py -Q  4
 python3 ./test.py -f 2-query/join.py -Q  4
 python3 ./test.py -f 2-query/join2.py -Q  4
-python3 ./test.py -f 2-query/cast.py -Q  4
+#python3 ./test.py -f 2-query/cast.py -Q  4
 python3 ./test.py -f 2-query/substr.py -Q  4
 python3 ./test.py -f 2-query/union.py -Q  4
 python3 ./test.py -f 2-query/union1.py -Q  4
@@ -593,7 +602,7 @@ python3 ./test.py -f 2-query/arccos.py -Q  4
 python3 ./test.py -f 2-query/arctan.py -Q  4
 python3 ./test.py -f 2-query/query_cols_tags_and_or.py -Q  4
 
-#python3 ./test.py -f 2-query/nestedQuery.py -Q 4
+python3 ./test.py -f 2-query/nestedQuery.py -Q 4
 python3 ./test.py -f 2-query/nestedQuery_str.py -Q 4
 python3 ./test.py -f 2-query/nestedQuery_math.py -Q 4
 python3 ./test.py -f 2-query/nestedQuery_time.py -Q 4

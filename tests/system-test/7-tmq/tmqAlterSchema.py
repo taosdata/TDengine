@@ -32,7 +32,7 @@ class TDTestCase:
         self.portStep = 100
         self.dnodeOfLeader = 0
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file

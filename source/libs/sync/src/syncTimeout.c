@@ -76,7 +76,7 @@ int32_t syncNodeTimerRoutine(SSyncNode* ths) {
     SSyncLogStoreData* pData = ths->pLogStore->data;
     int32_t            code = walEndSnapshot(pData->pWal);
     if (code != 0) {
-      sError("vgId:%d, wal snapshot end error since:%s", ths->vgId, terrstr(terrno));
+      sError("vgId:%d, timer wal snapshot end error since:%s", ths->vgId, terrstr());
       return -1;
     } else {
       do {
@@ -113,10 +113,8 @@ int32_t syncNodeOnTimer(SSyncNode* ths, SyncTimeout* pMsg) {
     }
 
   } else if (pMsg->timeoutType == SYNC_TIMEOUT_ELECTION) {
-    if (atomic_load_64(&ths->electTimerLogicClockUser) <= pMsg->logicClock) {
+    if (atomic_load_64(&ths->electTimerLogicClock) <= pMsg->logicClock) {
       ++(ths->electTimerCounter);
-      sTrace("vgId:%d, sync timer, type:election count:%" PRIu64 ", lc-user:%" PRIu64, ths->vgId,
-             ths->electTimerCounter, ths->electTimerLogicClockUser);
 
       syncNodeElect(ths);
     }

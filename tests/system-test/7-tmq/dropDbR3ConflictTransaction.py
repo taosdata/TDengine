@@ -26,7 +26,7 @@ class TDTestCase:
         self.ctbNum     = 2
         self.rowsPerTbl = 2
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file

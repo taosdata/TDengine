@@ -896,6 +896,10 @@ int32_t sclExecCaseWhen(SCaseWhenNode *node, SScalarCtx *ctx, SScalarParam *outp
 
   SCL_ERR_JRET(sclGetNodeRes(pWhenThen->pWhen, ctx, &pWhen));
   SCL_ERR_JRET(sclGetNodeRes(pWhenThen->pThen, ctx, &pThen));
+  if (NULL == pWhen || NULL == pThen) {
+    sclError("invalid when/then in whenThen list");
+    SCL_ERR_JRET(TSDB_CODE_INVALID_PARA);
+  }
 
   if (pCase) {
     vectorCompare(pCase, pWhen, &comp, TSDB_ORDER_ASC, OP_TYPE_EQUAL);
@@ -1085,7 +1089,8 @@ EDealRes sclRewriteNonConstOperator(SNode **pNode, SScalarCtx *ctx) {
 EDealRes sclRewriteFunction(SNode **pNode, SScalarCtx *ctx) {
   SFunctionNode *node = (SFunctionNode *)*pNode;
   SNode         *tnode = NULL;
-  if (!fmIsScalarFunc(node->funcId) && (!ctx->dual)) {
+  if ((!fmIsScalarFunc(node->funcId) && (!ctx->dual)) ||
+      fmIsUserDefinedFunc(node->funcId)) {
     return DEAL_RES_CONTINUE;
   }
 

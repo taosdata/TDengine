@@ -374,7 +374,11 @@ The configuration parameters for specifying super table tag columns and data col
 
 ### Query scenario configuration parameters
 
-`filetype` must be set to `query` in the query scenario. See [General Configuration Parameters](#General Configuration Parameters) for details of this parameter and other general parameters
+`filetype` must be set to `query` in the query scenario.
+
+To control the query scenario by setting `kill_slow_query_threshold` and `kill_slow_query_interval` parameters to kill the execution of slow query statements. Threshold controls exec_usec of query command will be killed by taosBenchmark after the specified time, in seconds; interval controls sleep time to avoid continuous querying of slow queries consuming CPU in seconds.
+
+See [General Configuration Parameters](#General Configuration Parameters) for details of other general parameters.
 
 #### Configuration parameters for executing the specified query statement
 

@@ -995,3 +995,22 @@ endi
 if $data00 != 0.000000000 then
   return -1
 endi
+
+sql create table ft1(ts timestamp, a int, b int , c int, d double);
+
+sql insert into ft1 values(1648791213000,1,2,3,1.0);
+sql_error select sum(_wduration), a from ft1 state_window(a);
+
+sql_error select count(_wduration), a from ft1 state_window(a);
+
+sql_error select max(_wduration), a from ft1 state_window(a);
+
+sql_error select sum(1 + _wduration), a from ft1 state_window(a);
+
+sql_error select sum(cast(_wstart as bigint)), a from ft1 state_window(a);
+
+sql_error select sum(cast(_wend as bigint)), a from ft1 state_window(a);
+
+sql_error create stream streams1 trigger at_once  into streamt as select  _wstart, sum(_wduration) from ft1 interval(10s);
+
+sql_error create stream streams1 trigger at_once  into streamt as select  _wstart, sum(cast(_wend as bigint)) from ft1 interval(10s);

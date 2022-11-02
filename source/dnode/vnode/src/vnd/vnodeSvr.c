@@ -173,7 +173,7 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
   int32_t ret;
 
   if (!pVnode->inUse) {
-    terrno = TSDB_CODE_VND_NOT_SYNCED;
+    terrno = TSDB_CODE_VND_NO_AVAIL_BUFPOOL;
     vError("vgId:%d, not ready to write since %s", TD_VID(pVnode), terrstr());
     return -1;
   }
@@ -228,30 +228,30 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
       if (vnodeProcessBatchDeleteReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
       break;
     /* TQ */
-    case TDMT_VND_MQ_VG_CHANGE:
-      if (tqProcessVgChangeReq(pVnode->pTq, version, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
-                               pMsg->contLen - sizeof(SMsgHead)) < 0) {
+    case TDMT_VND_TMQ_SUBSCRIBE:
+      if (tqProcessSubscribeReq(pVnode->pTq, version, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
+                                pMsg->contLen - sizeof(SMsgHead)) < 0) {
         goto _err;
       }
       break;
-    case TDMT_VND_MQ_VG_DELETE:
-      if (tqProcessVgDeleteReq(pVnode->pTq, version, pMsg->pCont, pMsg->contLen) < 0) {
+    case TDMT_VND_TMQ_DELETE_SUB:
+      if (tqProcessDeleteSubReq(pVnode->pTq, version, pMsg->pCont, pMsg->contLen) < 0) {
         goto _err;
       }
       break;
-    case TDMT_VND_MQ_COMMIT_OFFSET:
+    case TDMT_VND_TMQ_COMMIT_OFFSET:
       if (tqProcessOffsetCommitReq(pVnode->pTq, version, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
                                    pMsg->contLen - sizeof(SMsgHead)) < 0) {
         goto _err;
       }
       break;
-    case TDMT_VND_ADD_CHECK_INFO:
+    case TDMT_VND_TMQ_ADD_CHECKINFO:
       if (tqProcessAddCheckInfoReq(pVnode->pTq, version, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
                                    pMsg->contLen - sizeof(SMsgHead)) < 0) {
         goto _err;
       }
       break;
-    case TDMT_VND_DELETE_CHECK_INFO:
+    case TDMT_VND_TMQ_DEL_CHECKINFO:
       if (tqProcessDelCheckInfoReq(pVnode->pTq, version, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
                                    pMsg->contLen - sizeof(SMsgHead)) < 0) {
         goto _err;
@@ -268,6 +268,11 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
         goto _err;
       }
     } break;
+    case TDMT_VND_STREAM_RECOVER_STEP2: {
+      if (tqProcessTaskRecover2Req(pVnode->pTq, version, pMsg->pCont, pMsg->contLen) < 0) {
+        goto _err;
+      }
+    } break;
     case TDMT_VND_ALTER_CONFIRM:
       vnodeProcessAlterConfirmReq(pVnode, version, pReq, len, pRsp);
       break;
@@ -280,11 +285,12 @@ int32_t vnodeProcessWriteMsg(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRp
     case TDMT_VND_COMMIT:
       goto _do_commit;
     default:
-      ASSERT(0);
-      break;
+      vError("vgId:%d, unprocessed msg, %d", TD_VID(pVnode), pMsg->msgType);
+      return -1;
   }
 
-  vTrace("vgId:%d, process %s request success, index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), version);
+  vTrace("vgId:%d, process %s request, code:0x%x index:%" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), pRsp->code,
+         version);
 
   walApplyVer(pVnode->pWal, version);
 
@@ -342,7 +348,7 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
       return qWorkerProcessCQueryMsg(&handle, pVnode->pQuery, pMsg, 0);
     default:
       vError("unknown msg type:%d in query queue", pMsg->msgType);
-      return TSDB_CODE_VND_APP_ERROR;
+      return TSDB_CODE_APP_ERROR;
   }
 }
 
@@ -355,13 +361,10 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     return 0;
   }
 
-  if (pMsg->msgType == TDMT_VND_CONSUME && !pVnode->restored) {
+  if (pMsg->msgType == TDMT_VND_TMQ_CONSUME && !pVnode->restored) {
     vnodeRedirectRpcMsg(pVnode, pMsg);
     return 0;
   }
-
-  char   *msgstr = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
-  int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
 
   switch (pMsg->msgType) {
     case TDMT_SCH_FETCH:
@@ -369,8 +372,8 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return qWorkerProcessFetchMsg(pVnode, pVnode->pQuery, pMsg, 0);
     case TDMT_SCH_FETCH_RSP:
       return qWorkerProcessRspMsg(pVnode, pVnode->pQuery, pMsg, 0);
-    case TDMT_SCH_CANCEL_TASK:
-      return qWorkerProcessCancelMsg(pVnode, pVnode->pQuery, pMsg, 0);
+    // case TDMT_SCH_CANCEL_TASK:
+    //   return qWorkerProcessCancelMsg(pVnode, pVnode->pQuery, pMsg, 0);
     case TDMT_SCH_DROP_TASK:
       return qWorkerProcessDropMsg(pVnode, pVnode->pQuery, pMsg, 0);
     case TDMT_SCH_QUERY_HEARTBEAT:
@@ -381,26 +384,29 @@ int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return vnodeGetTableCfg(pVnode, pMsg, true);
     case TDMT_VND_BATCH_META:
       return vnodeGetBatchMeta(pVnode, pMsg);
-    case TDMT_VND_CONSUME:
+    case TDMT_VND_TMQ_CONSUME:
       return tqProcessPollReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_TASK_RUN:
       return tqProcessTaskRunReq(pVnode->pTq, pMsg);
+#if 0
     case TDMT_STREAM_TASK_DISPATCH:
-      //      return tqProcessTaskDispatchReq(pVnode->pTq, pMsg, pInfo->workerId != 0);
       return tqProcessTaskDispatchReq(pVnode->pTq, pMsg, true);
-      /*case TDMT_STREAM_TASK_RECOVER:*/
-      /*return tqProcessTaskRecoverReq(pVnode->pTq, pMsg);*/
-    case TDMT_STREAM_RETRIEVE:
-      return tqProcessTaskRetrieveReq(pVnode->pTq, pMsg);
+#endif
     case TDMT_STREAM_TASK_DISPATCH_RSP:
       return tqProcessTaskDispatchRsp(pVnode->pTq, pMsg);
-      /*case TDMT_STREAM_TASK_RECOVER_RSP:*/
-      /*return tqProcessTaskRecoverRsp(pVnode->pTq, pMsg);*/
+    case TDMT_STREAM_RETRIEVE:
+      return tqProcessTaskRetrieveReq(pVnode->pTq, pMsg);
     case TDMT_STREAM_RETRIEVE_RSP:
       return tqProcessTaskRetrieveRsp(pVnode->pTq, pMsg);
+    case TDMT_VND_STREAM_RECOVER_STEP1:
+      return tqProcessTaskRecover1Req(pVnode->pTq, pMsg);
+    case TDMT_STREAM_RECOVER_FINISH:
+      return tqProcessTaskRecoverFinishReq(pVnode->pTq, pMsg);
+    case TDMT_STREAM_RECOVER_FINISH_RSP:
+      return tqProcessTaskRecoverFinishRsp(pVnode->pTq, pMsg);
     default:
       vError("unknown msg type:%d in fetch queue", pMsg->msgType);
-      return TSDB_CODE_VND_APP_ERROR;
+      return TSDB_CODE_APP_ERROR;
   }
 }
 
@@ -766,7 +772,7 @@ static int32_t vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq
     /* code */
     ret = metaDropTable(pVnode->pMeta, version, pDropTbReq, tbUids, &tbUid);
     if (ret < 0) {
-      if (pDropTbReq->igNotExists && terrno == TSDB_CODE_VND_TABLE_NOT_EXIST) {
+      if (pDropTbReq->igNotExists && terrno == TSDB_CODE_TDB_TABLE_NOT_EXIST) {
         dropTbRsp.code = TSDB_CODE_SUCCESS;
       } else {
         dropTbRsp.code = terrno;
@@ -1163,8 +1169,10 @@ static int32_t vnodeProcessBatchDeleteReq(SVnode *pVnode, int64_t version, void 
   for (int32_t i = 0; i < sz; i++) {
     SSingleDeleteReq *pOneReq = taosArrayGet(deleteReq.deleteReqs, i);
     int32_t code = tsdbDeleteTableData(pVnode->pTsdb, version, deleteReq.suid, pOneReq->uid, pOneReq->ts, pOneReq->ts);
-    if (code) {
-      // TODO
+    if (code < 0) {
+      terrno = code;
+      vError("vgId:%d, delete error since %s, suid:%" PRId64 ", uid:%" PRId64 ", start ts:%" PRId64 ", end ts:%" PRId64,
+             TD_VID(pVnode), terrstr(), deleteReq.suid, pOneReq->uid, pOneReq->ts, pOneReq->ts);
     }
   }
   taosArrayDestroy(deleteReq.deleteReqs);

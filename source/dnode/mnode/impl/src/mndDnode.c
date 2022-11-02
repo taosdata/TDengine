@@ -403,6 +403,10 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
   bool    needCheck = !online || dnodeChanged || reboot;
 
+  pDnode->accessTimes++;
+  mTrace("dnode:%d, status received, access times:%d check:%d online:%d reboot:%d changed:%d", pDnode->id,
+         pDnode->accessTimes, needCheck, online, reboot, dnodeChanged);
+
   if (needCheck) {
     if (statusReq.sver != tsVersion) {
       if (pDnode != NULL) {
@@ -424,9 +428,6 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
                pMnode->clusterId);
         terrno = TSDB_CODE_MND_INVALID_CLUSTER_ID;
         goto _OVER;
-      } else {
-        pDnode->accessTimes++;
-        mDebug("dnode:%d, status received, access times %d", pDnode->id, pDnode->accessTimes);
       }
     }
 
@@ -670,7 +671,7 @@ _OVER:
 }
 
 static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMnodeObj *pMObj, SQnodeObj *pQObj,
-                            SSnodeObj *pSObj, int32_t numOfVnodes) {
+                            SSnodeObj *pSObj, int32_t numOfVnodes, bool force) {
   int32_t  code = -1;
   SSdbRaw *pRaw = NULL;
   STrans  *pTrans = NULL;
@@ -678,7 +679,7 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
   pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_CONFLICT_GLOBAL, pReq, "drop-dnode");
   if (pTrans == NULL) goto _OVER;
   mndTransSetSerial(pTrans);
-  mInfo("trans:%d, used to drop dnode:%d", pTrans->id, pDnode->id);
+  mInfo("trans:%d, used to drop dnode:%d, force:%d", pTrans->id, pDnode->id, force);
 
   pRaw = mndDnodeActionEncode(pDnode);
   if (pRaw == NULL) goto _OVER;
@@ -694,22 +695,22 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SM
 
   if (pMObj != NULL) {
     mInfo("trans:%d, mnode on dnode:%d will be dropped", pTrans->id, pDnode->id);
-    if (mndSetDropMnodeInfoToTrans(pMnode, pTrans, pMObj) != 0) goto _OVER;
+    if (mndSetDropMnodeInfoToTrans(pMnode, pTrans, pMObj, force) != 0) goto _OVER;
   }
 
   if (pQObj != NULL) {
     mInfo("trans:%d, qnode on dnode:%d will be dropped", pTrans->id, pDnode->id);
-    if (mndSetDropQnodeInfoToTrans(pMnode, pTrans, pQObj) != 0) goto _OVER;
+    if (mndSetDropQnodeInfoToTrans(pMnode, pTrans, pQObj, force) != 0) goto _OVER;
   }
 
   if (pSObj != NULL) {
     mInfo("trans:%d, snode on dnode:%d will be dropped", pTrans->id, pDnode->id);
-    if (mndSetDropSnodeInfoToTrans(pMnode, pTrans, pSObj) != 0) goto _OVER;
+    if (mndSetDropSnodeInfoToTrans(pMnode, pTrans, pSObj, force) != 0) goto _OVER;
   }
 
   if (numOfVnodes > 0) {
     mInfo("trans:%d, %d vnodes on dnode:%d will be dropped", pTrans->id, numOfVnodes, pDnode->id);
-    if (mndSetMoveVgroupsInfoToTrans(pMnode, pTrans, pDnode->id) != 0) goto _OVER;
+    if (mndSetMoveVgroupsInfoToTrans(pMnode, pTrans, pDnode->id, force) != 0) goto _OVER;
   }
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
@@ -767,21 +768,16 @@ static int32_t mndProcessDropDnodeReq(SRpcMsg *pReq) {
   }
 
   int32_t numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
-  if (numOfVnodes > 0 || pMObj != NULL) {
+  if ((numOfVnodes > 0 || pMObj != NULL || pSObj != NULL || pQObj != NULL) && !dropReq.force) {
     if (!mndIsDnodeOnline(pDnode, taosGetTimestampMs())) {
       terrno = TSDB_CODE_NODE_OFFLINE;
-      mError("dnode:%d, failed to drop since %s, has_mnode:%d numOfVnodes:%d", pDnode->id, terrstr(), pMObj != NULL,
-             numOfVnodes);
+      mError("dnode:%d, failed to drop since %s, vnodes:%d mnode:%d qnode:%d snode:%d", pDnode->id, terrstr(),
+             numOfVnodes, pMObj != NULL, pQObj != NULL, pSObj != NULL);
       goto _OVER;
     }
   }
 
-  if (numOfVnodes > 0) {
-    terrno = TSDB_CODE_OPS_NOT_SUPPORT;
-    goto _OVER;
-  }
-
-  code = mndDropDnode(pMnode, pReq, pDnode, pMObj, pQObj, pSObj, numOfVnodes);
+  code = mndDropDnode(pMnode, pReq, pDnode, pMObj, pQObj, pSObj, numOfVnodes, dropReq.force);
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
