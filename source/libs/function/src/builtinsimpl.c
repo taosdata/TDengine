@@ -2713,7 +2713,9 @@ int32_t apercentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
       taosMemoryFree(res);
     } else {  // no need to free
       // setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
-      return TSDB_CODE_SUCCESS;
+      // return TSDB_CODE_SUCCESS;
+      qDebug("%s get the final res, elements:%" PRId64 ", numOfEntry:%d. result is null", __FUNCTION__,
+             pInfo->pHisto->numOfElems, pInfo->pHisto->numOfEntries);
     }
   }
 
