@@ -30,6 +30,7 @@ class TDTestCase:
         self.TDDnodes = None
         tdSql.init(conn.cursor())
         self.host = socket.gethostname()
+        self.replicaVar = int(replicaVar)
 
 
     def getBuildPath(self):
@@ -88,6 +89,7 @@ class TDTestCase:
         vnodeNumbers = int(dnodeNumbers-mnodeNums)
         allDbNumbers=(paraDict['dbNumbers']*restartNumbers)
         allStbNumbers=(paraDict['stbNumbers']*restartNumbers)
+        paraDict['replica'] = self.replicaVar
 
         tdLog.info("first check dnode and mnode")
         tdSql.query("select * from information_schema.ins_dnodes;")
@@ -171,7 +173,7 @@ class TDTestCase:
 
     def run(self):
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=10,stopRole='vnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=10,stopRole='vnode')
 
     def stop(self):
         tdSql.close()
