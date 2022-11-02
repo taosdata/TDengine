@@ -32,9 +32,9 @@ class TDTestQuery(TDTestQuery):
     def run(self):
         startTime = time.time() 
         
-        self.countdb_1w_table100_row100(replica=3)
-        self.countdb_2w_table100_row200(replica=3)
-        self.countdb_10w_table100_row1000(replica=3)
+        # self.countdb_1w_table100_row100(replica=3)
+        # self.countdb_2w_table100_row200(replica=3)
+        # self.countdb_10w_table100_row1000(replica=3)
         
         self.countdb_10w_table1w_row10(replica=3)
         self.countdb_20w_table1w_row20(replica=3)
