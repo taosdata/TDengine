@@ -55,7 +55,8 @@ SSyncSnapshotSender* createSender() {
   pSender->snapshot.lastApplyTerm = 88;
   pSender->sendingMS = 77;
   pSender->term = 66;
-  pSender->privateTerm = 99;
+  
+  //pSender->privateTerm = 99;
 
   return pSender;
 }

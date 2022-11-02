@@ -2873,8 +2873,8 @@ cJSON* syncSnapshotSend2Json(const SyncSnapshotSend* pMsg) {
     snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->term);
     cJSON_AddStringToObject(pRoot, "term", u64buf);
 
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->privateTerm);
-    cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->startTime);
+    cJSON_AddStringToObject(pRoot, "startTime", u64buf);
 
     snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->beginIndex);
     cJSON_AddStringToObject(pRoot, "beginIndex", u64buf);
@@ -3048,8 +3048,8 @@ cJSON* syncSnapshotRsp2Json(const SyncSnapshotRsp* pMsg) {
     snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->term);
     cJSON_AddStringToObject(pRoot, "term", u64buf);
 
-    snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->privateTerm);
-    cJSON_AddStringToObject(pRoot, "privateTerm", u64buf);
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->startTime);
+    cJSON_AddStringToObject(pRoot, "startTime", u64buf);
 
     snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->lastIndex);
     cJSON_AddStringToObject(pRoot, "lastIndex", u64buf);
@@ -3059,6 +3059,9 @@ cJSON* syncSnapshotRsp2Json(const SyncSnapshotRsp* pMsg) {
 
     cJSON_AddNumberToObject(pRoot, "ack", pMsg->ack);
     cJSON_AddNumberToObject(pRoot, "code", pMsg->code);
+
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->snapBeginIndex);
+    cJSON_AddStringToObject(pRoot, "snap-begin", u64buf);
   }
 
   cJSON* pJson = cJSON_CreateObject();

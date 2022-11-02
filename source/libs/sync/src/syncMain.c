@@ -2355,6 +2355,7 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
   // init peer mgr
   syncNodePeerStateInit(pSyncNode);
 
+#if 0
   // update sender private term
   SSyncSnapshotSender* pMySender = syncNodeGetSnapshotSender(pSyncNode, &(pSyncNode->myRaftId));
   if (pMySender != NULL) {
@@ -2365,6 +2366,7 @@ void syncNodeBecomeLeader(SSyncNode* pSyncNode, const char* debugStr) {
     }
     (pMySender->privateTerm) += 100;
   }
+#endif
 
   // close receiver
   if (snapshotReceiverIsStart(pSyncNode->pNewNodeReceiver)) {
@@ -3718,3 +3720,11 @@ void syncLogRecvSyncPreSnapshotReply(SSyncNode* pSyncNode, const SyncPreSnapshot
            pMsg->term, pMsg->snapStart, s);
   syncNodeEventLog(pSyncNode, logBuf);
 }
+
+void syncLogSendSyncSnapshotSend(SSyncNode* pSyncNode, const SyncSnapshotSend* pMsg, const char* s) {}
+
+void syncLogRecvSyncSnapshotSend(SSyncNode* pSyncNode, const SyncSnapshotSend* pMsg, const char* s) {}
+
+void syncLogSendSyncSnapshotRsp(SSyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s) {}
+
+void syncLogRecvSyncSnapshotRsp(SSyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s) {}

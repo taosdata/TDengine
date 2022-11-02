@@ -50,7 +50,6 @@ SSyncSnapshotReceiver* createReceiver() {
   pReceiver->ack = 20;
   pReceiver->pWriter = (void*)0x11;
   pReceiver->term = 66;
-  pReceiver->privateTerm = 99;
 
   return pReceiver;
 }
