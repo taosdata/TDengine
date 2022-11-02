@@ -33,20 +33,33 @@ class TDTestQuery(TDTestQuery):
         startTime = time.time() 
         
         self.countdb_10w_table1w_row10(replica=1)
+        self.countdb_10w_table1w_row10(replica=3)
         self.countdb_20w_table1w_row20(replica=1)
+        self.countdb_20w_table1w_row20(replica=3)
         self.countdb_40w_table1w_row40(replica=1)
+        self.countdb_40w_table1w_row40(replica=3)
         self.countdb_80w_table1w_row80(replica=1)
+        self.countdb_80w_table1w_row80(replica=3)
         
         self.countdb_100w_table1w_row100(replica=1)
+        self.countdb_100w_table1w_row100(replica=3)
         self.countdb_200w_table1w_row200(replica=1)
+        self.countdb_200w_table1w_row200(replica=3)
         self.countdb_400w_table1w_row400(replica=1)
+        self.countdb_400w_table1w_row400(replica=3)
         self.countdb_800w_table1w_row800(replica=1)
+        self.countdb_800w_table1w_row800(replica=3)
         
         self.countdb_1000w_table1w_row1000(replica=1)
+        self.countdb_1000w_table1w_row1000(replica=3)
         self.countdb_2000w_table1w_row2000(replica=1)
+        self.countdb_2000w_table1w_row2000(replica=3)
         self.countdb_4000w_table1w_row4000(replica=1)
+        self.countdb_4000w_table1w_row4000(replica=3)
         self.countdb_8000w_table1w_row8000(replica=1)
+        self.countdb_8000w_table1w_row8000(replica=3)
         self.countdb_10000w_table1w_row1w(replica=1)
+        self.countdb_10000w_table1w_row1w(replica=3)
         
         
         endTime = time.time()

@@ -66,13 +66,23 @@ class TDTestQuery(TDCase):
         self.tdSql.query(sql,queryTimes=1) 
         
     
-    def drop_n_table(self,database,n):
-        #删除部分子表
-        for i in range(n):
-            
-        
-            pass
-    
+    # def drop_n_table(self,database,n):
+    #     #删除部分子表
+    #     for i in range(n):
+    #         ii = random.randint(1,100)
+    #         self.tdSql.execute("drop table %s.stb%d;"%(database,ii))
+
+    def drop_n_table(self,database,n,flush):
+        #删除结尾为n的子表
+        for i in range(10000):
+            table_name = '%s.stb%d' %(database,i)
+            if int(str(table_name)[-1]) == n and flush == 'N':         
+                self.tdSql.execute("drop table %s.stb%d;"%(database,i))
+            elif int(str(table_name)[-1]) == n and flush == 'Y': 
+                self.tdSql.execute("drop table %s.stb%d;"%(database,i))
+                self.tdSql.execute("flush database %s;" %database) 
+                
+                
     def drop_all_table(self,database,n):
         #删除子表
         for i in range(n):
@@ -141,7 +151,7 @@ class TDTestQuery(TDCase):
                         'voltage between -2147483647 and 2147483647 ','voltage between -127 and 127  ',
                         'current between -1.7E308 and 1.7E308 ' ,'phase between -1.7E308 and 1.7E308 ' ,
                         'groupid between -127 and 127 ','groupid between -2147483647 and 2147483647 ',
-                        'current is not null ', 'voltage is not null ' ,'phase is not null ' ,'t0 is not null ' ,                   
+                        'current is not null ', 'voltage is not null ' ,'phase is not null ' ,'groupid is not null ' ,'location is not null ' ,                   
                         'ts is not null ' ,'_c0 is not null ' ,'_C0 is not null ' ,'_rowts is not null ' ,
                         'ts <= now ' , 'ts >=  1500000000000' ,' ts between 1500000000000 and now +1h  ', 
                         '_c0 <= now +100h ' , '_c0 >= 1500000000000 ' , ' _c0 between 1500000000000 and now +1h  ' ,
@@ -336,6 +346,15 @@ class TDTestQuery(TDCase):
                         sql2 = "select count(*) from (select %s from %s.meters %s)" %(self.column_select(3),dbname,orderby_filter)
                         self.sql_check(dbname,sql1,sql2)
                         
+                        sql2 = "select count(*) from (select %s from %s.meters %s desc)" %(self.column_select(0),dbname,orderby_filter)
+                        self.sql_check(dbname,sql1,sql2)                       
+                        sql2 = "select count(*) from (select %s from %s.meters %s desc)" %(self.column_select(1),dbname,orderby_filter)
+                        self.sql_check(dbname,sql1,sql2)
+                        sql2 = "select count(*) from (select %s from %s.meters %s desc)" %(self.column_select(2),dbname,orderby_filter)
+                        self.sql_check(dbname,sql1,sql2)
+                        sql2 = "select count(*) from (select %s from %s.meters %s desc)" %(self.column_select(3),dbname,orderby_filter)
+                        self.sql_check(dbname,sql1,sql2)
+                        
                         sql2 = "select count(*) from (select %s from %s.meters where  %s)" %(self.column_select(0),dbname,data_filter)
                         self.sql_check(dbname,sql1,sql2)                       
                         sql2 = "select count(*) from (select %s from %s.meters where  %s)" %(self.column_select(1),dbname,data_filter)
@@ -352,6 +371,15 @@ class TDTestQuery(TDCase):
                         sql2 = "select count(*) from (select %s from %s.meters where  %s %s)" %(self.column_select(2),dbname,data_filter,orderby_filter)
                         self.sql_check(dbname,sql1,sql2)
                         sql2 = "select count(*) from (select %s from %s.meters where  %s %s)" %(self.column_select(3),dbname,data_filter,orderby_filter)
+                        self.sql_check(dbname,sql1,sql2)
+                        
+                        sql2 = "select count(*) from (select %s from %s.meters where  %s %s desc)" %(self.column_select(0),dbname,data_filter,orderby_filter)
+                        self.sql_check(dbname,sql1,sql2)                       
+                        sql2 = "select count(*) from (select %s from %s.meters where  %s %s desc)" %(self.column_select(1),dbname,data_filter,orderby_filter)
+                        self.sql_check(dbname,sql1,sql2)
+                        sql2 = "select count(*) from (select %s from %s.meters where  %s %s desc)" %(self.column_select(2),dbname,data_filter,orderby_filter)
+                        self.sql_check(dbname,sql1,sql2)
+                        sql2 = "select count(*) from (select %s from %s.meters where  %s %s desc)" %(self.column_select(3),dbname,data_filter,orderby_filter)
                         self.sql_check(dbname,sql1,sql2)
 
                         # sql2 = "select %s from %s.meters where  %s %s %s " %(self.column_select(1),dbname,data_filter,like_match_filter,in_filter)
@@ -843,8 +871,15 @@ class TDTestQuery(TDCase):
         self.sql_base_check(dbname,sql1='',sql2='') 
         self.select_column(dbname)
         
-        self.drop_all_table(dbname,9) 
+        self.drop_n_table(dbname,random.randint(1,5),flush='N')  
         self.sql_base_check(dbname,sql1='',sql2='') 
+        self.select_column(dbname)
+        
+        #self.drop_all_table(dbname,9) 
+        self.drop_n_table(dbname,random.randint(6,9),flush='Y')  
+        self.sql_base_check(dbname,sql1='',sql2='') 
+        self.select_column(dbname)
+        
         self.tdSql.execute("flush database %s;" %dbname) 
         #self.after_flush_check(dbname,sql='')
         self.sql_base_check(dbname,sql1='',sql2='')
@@ -855,8 +890,8 @@ class TDTestQuery(TDCase):
     def countdb_1w_table100_row100(self,replica):
         #每个库的个性设置+数据创建+通用检查，支持单/3副本，下同
         dbname = 'db_1w'
-        table_num = 100
-        table_per_row = 100
+        table_num = 10000
+        table_per_row = 1
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica)  
         self.count_db_common(dbname)
           
