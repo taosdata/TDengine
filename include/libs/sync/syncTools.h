@@ -617,7 +617,7 @@ typedef struct SyncSnapshotSend {
   SyncTerm  lastTerm;         // snapshot.lastTerm
   SyncIndex lastConfigIndex;  // snapshot.lastConfigIndex
   SSyncCfg  lastConfig;
-  SyncTerm  privateTerm;
+  int64_t   startTime;
   int32_t   seq;
   uint32_t  dataLen;
   char      data[];
@@ -652,9 +652,10 @@ typedef struct SyncSnapshotRsp {
   SyncTerm  term;
   SyncIndex lastIndex;
   SyncTerm  lastTerm;
-  SyncTerm  privateTerm;
+  int64_t   startTime;
   int32_t   ack;
   int32_t   code;
+  SyncIndex snapBeginIndex;  // when ack = SYNC_SNAPSHOT_SEQ_BEGIN, it's valid
 } SyncSnapshotRsp;
 
 SyncSnapshotRsp* syncSnapshotRspBuild(int32_t vgId);
