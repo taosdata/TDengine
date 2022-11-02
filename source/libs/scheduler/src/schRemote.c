@@ -280,7 +280,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t execId, SDa
         }
 
         atomic_add_fetch_32(&pJob->resNumOfRows, rsp->affectedRows);
-        SCH_TASK_DLOG("submit succeed, affectedRows:%d", rsp->affectedRows);
+        SCH_TASK_DLOG("submit succeed, affectedRows:%d, blocks:%d", rsp->affectedRows, rsp->nBlocks);
 
         SCH_LOCK(SCH_WRITE, &pJob->resLock);
         if (pJob->execRes.res) {

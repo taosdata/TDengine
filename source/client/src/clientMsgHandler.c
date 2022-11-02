@@ -45,8 +45,12 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
 }
 
 int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
-  SRequestObj* pRequest = param;
-
+  SRequestObj *pRequest = acquireRequest(*(int64_t*)param);
+  if (NULL == pRequest) {
+    tsem_post(&pRequest->body.rspSem);
+    goto End;
+  }
+  
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
@@ -119,6 +123,11 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   tsem_post(&pRequest->body.rspSem);
 End:
 
+  if (pRequest) {
+    releaseRequest(pRequest->self);
+  }
+  
+  taosMemoryFree(param);
   taosMemoryFree(pMsg->pEpSet);
   taosMemoryFree(pMsg->pData);
   return code;

@@ -856,6 +856,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
   SEncoder       encoder = {0};
   SArray        *newTbUids = NULL;
   SVStatis       statis = {0};
+  bool           tbCreated = false;
   terrno = TSDB_CODE_SUCCESS;
 
   pRsp->code = 0;
@@ -889,11 +890,10 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
     if (pBlock == NULL) break;
 
     SSubmitBlkRsp submitBlkRsp = {0};
+    tbCreated = false;
 
     // create table for auto create table mode
     if (msgIter.schemaLen > 0) {
-      submitBlkRsp.hashMeta = 1;
-
       tDecoderInit(&decoder, pBlock->data, msgIter.schemaLen);
       if (tDecodeSVCreateTbReq(&decoder, &createTbReq) < 0) {
         pRsp->code = TSDB_CODE_INVALID_MSG;
@@ -930,12 +930,13 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
         }
 
         taosArrayPush(newTbUids, &createTbReq.uid);
+
+        submitBlkRsp.uid = createTbReq.uid;
+        submitBlkRsp.tblFName = taosMemoryMalloc(strlen(pVnode->config.dbname) + strlen(createTbReq.name) + 2);
+        sprintf(submitBlkRsp.tblFName, "%s.%s", pVnode->config.dbname, createTbReq.name);
+        tbCreated = true;
       }
-
-      submitBlkRsp.uid = createTbReq.uid;
-      submitBlkRsp.tblFName = taosMemoryMalloc(strlen(pVnode->config.dbname) + strlen(createTbReq.name) + 2);
-      sprintf(submitBlkRsp.tblFName, "%s.%s", pVnode->config.dbname, createTbReq.name);
-
+      
       msgIter.uid = createTbReq.uid;
       if (createTbReq.type == TSDB_CHILD_TABLE) {
         msgIter.suid = createTbReq.ctb.suid;
@@ -948,10 +949,7 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
 #endif
       tDecoderClear(&decoder);
       taosArrayDestroy(createTbReq.ctb.tagName);
-    } else {
-      submitBlkRsp.tblFName = taosMemoryMalloc(TSDB_TABLE_FNAME_LEN);
-      sprintf(submitBlkRsp.tblFName, "%s.", pVnode->config.dbname);
-    }
+    } 
 
     if (tsdbInsertTableData(pVnode->pTsdb, version, &msgIter, pBlock, &submitBlkRsp) < 0) {
       submitBlkRsp.code = terrno;
@@ -959,7 +957,9 @@ static int32_t vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq
 
     submitRsp.numOfRows += submitBlkRsp.numOfRows;
     submitRsp.affectedRows += submitBlkRsp.affectedRows;
-    taosArrayPush(submitRsp.pArray, &submitBlkRsp);
+    if (tbCreated || submitBlkRsp.code) {
+      taosArrayPush(submitRsp.pArray, &submitBlkRsp);
+    }
   }
 
   if (taosArrayGetSize(newTbUids) > 0) {
