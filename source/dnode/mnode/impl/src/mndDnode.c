@@ -403,6 +403,10 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
   bool    needCheck = !online || dnodeChanged || reboot;
 
+  pDnode->accessTimes++;
+  mTrace("dnode:%d, status received, access times:%d check:%d online:%d reboot:%d changed:%d", pDnode->id,
+         pDnode->accessTimes, needCheck, online, reboot, dnodeChanged);
+
   if (needCheck) {
     if (statusReq.sver != tsVersion) {
       if (pDnode != NULL) {
@@ -424,9 +428,6 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
                pMnode->clusterId);
         terrno = TSDB_CODE_MND_INVALID_CLUSTER_ID;
         goto _OVER;
-      } else {
-        pDnode->accessTimes++;
-        mDebug("dnode:%d, status received, access times %d", pDnode->id, pDnode->accessTimes);
       }
     }
 
