@@ -505,50 +505,20 @@ int32_t syncForwardToPeer(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
   return ret;
 }
 
-ESyncState syncGetMyRole(int64_t rid) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    return TAOS_SYNC_STATE_ERROR;
-  }
-  ASSERT(rid == pSyncNode->rid);
-  ESyncState state = pSyncNode->state;
+SSyncState syncGetState(int64_t rid) {
+  SSyncState state = {.state = TAOS_SYNC_STATE_ERROR};
 
-  syncNodeRelease(pSyncNode);
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode != NULL) {
+    state.state = pSyncNode->state;
+    state.restored = pSyncNode->restoreFinish;
+    syncNodeRelease(pSyncNode);
+  }
+
   return state;
 }
 
-bool syncIsReady(int64_t rid) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    return false;
-  }
-  ASSERT(rid == pSyncNode->rid);
-  bool b = (pSyncNode->state == TAOS_SYNC_STATE_LEADER) && pSyncNode->restoreFinish;
-  syncNodeRelease(pSyncNode);
-
-  // if false, set error code
-  if (false == b) {
-    if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
-      terrno = TSDB_CODE_SYN_NOT_LEADER;
-    } else {
-      terrno = TSDB_CODE_APP_NOT_READY;
-    }
-  }
-  return b;
-}
-
-bool syncIsRestoreFinish(int64_t rid) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    return false;
-  }
-  ASSERT(rid == pSyncNode->rid);
-  bool b = pSyncNode->restoreFinish;
-
-  syncNodeRelease(pSyncNode);
-  return b;
-}
-
+#if 0
 int32_t syncGetSnapshotByIndex(int64_t rid, SyncIndex index, SSnapshot* pSnapshot) {
   if (index < SYNC_INDEX_BEGIN) {
     return -1;
@@ -618,6 +588,7 @@ int32_t syncGetSnapshotMetaByIndex(int64_t rid, SyncIndex snapshotIndex, struct 
   syncNodeRelease(pSyncNode);
   return 0;
 }
+#endif
 
 SyncIndex syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapshotLastApplyIndex) {
   ASSERT(pSyncNode->pRaftCfg->configIndexCount >= 1);
@@ -635,23 +606,7 @@ SyncIndex syncNodeGetSnapshotConfigIndex(SSyncNode* pSyncNode, SyncIndex snapsho
   return lastIndex;
 }
 
-const char* syncGetMyRoleStr(int64_t rid) {
-  const char* s = syncUtilState2String(syncGetMyRole(rid));
-  return s;
-}
-
-bool syncRestoreFinish(int64_t rid) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    return false;
-  }
-  ASSERT(rid == pSyncNode->rid);
-  bool restoreFinish = pSyncNode->restoreFinish;
-
-  syncNodeRelease(pSyncNode);
-  return restoreFinish;
-}
-
+#if 0
 SyncTerm syncGetMyTerm(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
@@ -719,6 +674,7 @@ void syncGetEpSet(int64_t rid, SEpSet* pEpSet) {
 
   syncNodeRelease(pSyncNode);
 }
+#endif
 
 void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
@@ -742,7 +698,6 @@ void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
 
   syncNodeRelease(pSyncNode);
 }
-
 static void syncGetAndDelRespRpc(SSyncNode* pSyncNode, uint64_t index, SRpcHandleInfo* pInfo) {
   SRespStub stub;
   int32_t   ret = syncRespMgrGetAndDel(pSyncNode->pSyncRespMgr, index, &stub);
@@ -877,7 +832,7 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
   } else {
     ret = -1;
     terrno = TSDB_CODE_SYN_NOT_LEADER;
-    sError("vgId:%d, sync propose not leader, %s, type:%s", pSyncNode->vgId, syncUtilState2String(pSyncNode->state),
+    sError("vgId:%d, sync propose not leader, %s, type:%s", pSyncNode->vgId, syncStr(pSyncNode->state),
            TMSG_INFO(pMsg->msgType));
     goto _END;
   }
@@ -1603,7 +1558,7 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
 
     // tla+ server vars
     cJSON_AddNumberToObject(pRoot, "state", pSyncNode->state);
-    cJSON_AddStringToObject(pRoot, "state_str", syncUtilState2String(pSyncNode->state));
+    cJSON_AddStringToObject(pRoot, "state_str", syncStr(pSyncNode->state));
     cJSON_AddItemToObject(pRoot, "pRaftStore", raftStore2Json(pSyncNode->pRaftStore));
 
     // tla+ candidate vars
@@ -1743,7 +1698,7 @@ inline void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
                "stgy:%d, bch:%d, "
                "r-num:%d, "
                "lcfg:%" PRId64 ", chging:%d, rsto:%d, dquorum:%d, elt:%" PRId64 ", hb:%" PRId64 ", %s, %s",
-               pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
+               pSyncNode->vgId, syncStr(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, pSyncNode->minMatchIndex, snapshot.lastApplyIndex,
                snapshot.lastApplyTerm, pSyncNode->pRaftCfg->isStandBy, pSyncNode->pRaftCfg->snapshotStrategy,
                pSyncNode->pRaftCfg->batchSize, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
@@ -1767,7 +1722,7 @@ inline void syncNodeEventLog(const SSyncNode* pSyncNode, char* str) {
                "stgy:%d, bch:%d, "
                "r-num:%d, "
                "lcfg:%" PRId64 ", chging:%d, rsto:%d, dquorum:%d, elt:%" PRId64 ", hb:%" PRId64 ", %s, %s",
-               pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
+               pSyncNode->vgId, syncStr(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, pSyncNode->minMatchIndex, snapshot.lastApplyIndex,
                snapshot.lastApplyTerm, pSyncNode->pRaftCfg->isStandBy, pSyncNode->pRaftCfg->snapshotStrategy,
                pSyncNode->pRaftCfg->batchSize, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
@@ -1821,7 +1776,7 @@ inline void syncNodeErrorLog(const SSyncNode* pSyncNode, char* str) {
                "stgy:%d, bch:%d, "
                "r-num:%d, "
                "lcfg:%" PRId64 ", chging:%d, rsto:%d, dquorum:%d, elt:%" PRId64 ", hb:%" PRId64 ", %s",
-               pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
+               pSyncNode->vgId, syncStr(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, pSyncNode->minMatchIndex, snapshot.lastApplyIndex,
                snapshot.lastApplyTerm, pSyncNode->pRaftCfg->isStandBy, pSyncNode->pRaftCfg->snapshotStrategy,
                pSyncNode->pRaftCfg->batchSize, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
@@ -1843,7 +1798,7 @@ inline void syncNodeErrorLog(const SSyncNode* pSyncNode, char* str) {
                "stgy:%d, bch:%d, "
                "r-num:%d, "
                "lcfg:%" PRId64 ", chging:%d, rsto:%d, dquorum:%d, elt:%" PRId64 ", hb:%" PRId64 ", %s",
-               pSyncNode->vgId, syncUtilState2String(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
+               pSyncNode->vgId, syncStr(pSyncNode->state), str, pSyncNode->pRaftStore->currentTerm,
                pSyncNode->commitIndex, logBeginIndex, logLastIndex, pSyncNode->minMatchIndex, snapshot.lastApplyIndex,
                snapshot.lastApplyTerm, pSyncNode->pRaftCfg->isStandBy, pSyncNode->pRaftCfg->snapshotStrategy,
                pSyncNode->pRaftCfg->batchSize, pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex,
@@ -1875,9 +1830,9 @@ inline char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
            ", sby:%d, "
            "r-num:%d, "
            "lcfg:%" PRId64 ", chging:%d, rsto:%d",
-           pSyncNode->vgId, syncUtilState2String(pSyncNode->state), pSyncNode->pRaftStore->currentTerm,
-           pSyncNode->commitIndex, logBeginIndex, logLastIndex, snapshot.lastApplyIndex, pSyncNode->pRaftCfg->isStandBy,
-           pSyncNode->replicaNum, pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing, pSyncNode->restoreFinish);
+           pSyncNode->vgId, syncStr(pSyncNode->state), pSyncNode->pRaftStore->currentTerm, pSyncNode->commitIndex,
+           logBeginIndex, logLastIndex, snapshot.lastApplyIndex, pSyncNode->pRaftCfg->isStandBy, pSyncNode->replicaNum,
+           pSyncNode->pRaftCfg->lastConfigIndex, pSyncNode->changing, pSyncNode->restoreFinish);
 
   return s;
 }

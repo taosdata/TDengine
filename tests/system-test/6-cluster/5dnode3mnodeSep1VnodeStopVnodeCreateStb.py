@@ -30,7 +30,7 @@ class TDTestCase:
         self.TDDnodes = None
         tdSql.init(conn.cursor())
         self.host = socket.gethostname()
-        print(tdSql)
+        self.replicaVar = int(replicaVar)
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -112,8 +112,8 @@ class TDTestCase:
         vnodeNumbers = int(dnodeNumbers-mnodeNums)
         allStbNumbers=(paraDict['stbNumbers']*restartNumbers)
         dbNumbers = 1
+        paraDict['replica'] = self.replicaVar
 
-        print(tdSql)
         tdLog.info("first check dnode and mnode")
         tdSql.query("select * from information_schema.ins_dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
@@ -175,7 +175,7 @@ class TDTestCase:
 
             # dnodeNumbers don't include database of schema
             if clusterComCheck.checkDnodes(dnodeNumbers):
-                tdLog.info("123")
+                tdLog.info("check numbers of dnodes right ")
             else:
                 print("456")
 
@@ -192,14 +192,15 @@ class TDTestCase:
 
         tdSql.execute("use %s" %(paraDict["dbName"]))
         tdSql.query("show stables")
-        tdLog.debug("we find %d stables but exepect to create %d  stables "%(tdSql.queryRows,allStbNumbers))
         # # tdLog.info("check Stable Rows:")
-        tdSql.checkRows(allStbNumbers)
-
+        if self.replicaVar==1:
+            tdSql.checkRows(allStbNumbers)
+        else:
+            tdLog.debug("we find %d stables but exepect to create %d  stables "%(tdSql.queryRows,allStbNumbers))
 
     def run(self):
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=2,stopRole='vnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=2,stopRole='vnode')
 
     def stop(self):
         tdSql.close()

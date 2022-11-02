@@ -2413,7 +2413,7 @@ cJSON* syncApplyMsg2Json(const SyncApplyMsg* pMsg) {
     cJSON_AddNumberToObject(pRoot, "fsmMeta.isWeak", pMsg->fsmMeta.isWeak);
     cJSON_AddNumberToObject(pRoot, "fsmMeta.code", pMsg->fsmMeta.code);
     cJSON_AddNumberToObject(pRoot, "fsmMeta.state", pMsg->fsmMeta.state);
-    cJSON_AddStringToObject(pRoot, "fsmMeta.state.str", syncUtilState2String(pMsg->fsmMeta.state));
+    cJSON_AddStringToObject(pRoot, "fsmMeta.state.str", syncStr(pMsg->fsmMeta.state));
     snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->fsmMeta.seqNum);
     cJSON_AddStringToObject(pRoot, "fsmMeta.seqNum", u64buf);
 
