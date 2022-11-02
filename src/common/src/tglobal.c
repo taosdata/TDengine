@@ -205,6 +205,10 @@ char    tsMonitorDbName[TSDB_DB_NAME_LEN] = "log";
 char    tsInternalPass[] = "secretkey";
 int32_t tsMonitorInterval = 30;  // seconds
 
+// audit
+int8_t  tsEnableAudit = 0;
+char    tsAuditDbName[TSDB_DB_NAME_LEN] = "audit";
+
 // stream
 int8_t tsEnableStream = 1;
 
@@ -1284,6 +1288,16 @@ static void doInitGlobalConfig(void) {
 
   cfg.option = "monitor";
   cfg.ptr = &tsEnableMonitorModule;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "audit";
+  cfg.ptr = &tsEnableAudit;
   cfg.valType = TAOS_CFG_VTYPE_INT8;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 0;

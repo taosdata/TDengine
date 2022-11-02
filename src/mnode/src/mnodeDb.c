@@ -160,7 +160,7 @@ static int32_t mnodeDbActionEncode(SSdbRow *pRow) {
 static int32_t mnodeDbActionDecode(SSdbRow *pRow) {
   SDbObj *pDb = (SDbObj *) calloc(1, sizeof(SDbObj));
   if (pDb == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
-  
+
   memcpy(pDb, pRow->rowData, tsDbUpdateSize);
   pRow->pObj = pDb;
   return TSDB_CODE_SUCCESS;
@@ -205,8 +205,8 @@ int32_t mnodeInitDbs() {
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_DB, mnodeGetDbMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_DB, mnodeRetrieveDbs);
   mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_DB, mnodeCancelGetNextDb);
-  
-  
+
+
   mDebug("table:dbs table is created");
   return tpInit();
 }
@@ -224,11 +224,11 @@ SDbObj *mnodeGetDb(char *db) {
 }
 
 void mnodeIncDbRef(SDbObj *pDb) {
-  sdbIncRef(tsDbSdb, pDb); 
+  sdbIncRef(tsDbSdb, pDb);
 }
 
-void mnodeDecDbRef(SDbObj *pDb) { 
-  sdbDecRef(tsDbSdb, pDb); 
+void mnodeDecDbRef(SDbObj *pDb) {
+  sdbDecRef(tsDbSdb, pDb);
 }
 
 SDbObj *mnodeGetDbByTableName(char *tableName) {
@@ -409,6 +409,7 @@ static int32_t mnodeCreateDbCb(SMnodeMsg *pMsg, int32_t code) {
   } else {
     mError("db:%s, failed to create by %s, reason:%s", pDb->name, mnodeGetUserFromMsg(pMsg), tstrerror(code));
   }
+  monSaveAuditLog(MON_DDL_CMD_CREATE_DATABASE, mnodeGetUserFromMsg(pMsg), pDb->name, !code);
 
   return code;
 }
@@ -419,7 +420,7 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate, SMnodeMsg *
 
   SDbObj *pDb = mnodeGetDb(pCreate->db);
   if (pDb != NULL) {
-    mnodeDecDbRef(pDb); 
+    mnodeDecDbRef(pDb);
     if (pCreate->ignoreExist) {
       mDebug("db:%s, already exist, ignore exist is set", pCreate->db);
       return TSDB_CODE_SUCCESS;
@@ -434,8 +435,8 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate, SMnodeMsg *
 
   pDb = calloc(1, sizeof(SDbObj));
   tstrncpy(pDb->name, pCreate->db, sizeof(pDb->name));
-  tstrncpy(pDb->acct, pAcct->user, sizeof(pDb->acct)); 
-  pDb->createdTime = taosGetTimestampMs(); 
+  tstrncpy(pDb->acct, pAcct->user, sizeof(pDb->acct));
+  pDb->createdTime = taosGetTimestampMs();
   pDb->cfg = (SDbCfg) {
     .cacheBlockSize      = pCreate->cacheBlockSize,
     .totalBlocks         = pCreate->totalBlocks,
@@ -499,7 +500,7 @@ bool mnodeCheckIsMonitorDB(char *db, char *monitordb) {
 
 #if 0
 void mnodePrintVgroups(SDbObj *pDb, char *row) {
-  mInfo("db:%s, vgroup link from head, row:%s", pDb->name, row);  
+  mInfo("db:%s, vgroup link from head, row:%s", pDb->name, row);
   SVgObj *pVgroup = pDb->pHead;
   while (pVgroup != NULL) {
     mInfo("vgId:%d", pVgroup->vgId);
@@ -621,7 +622,7 @@ static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn
   pShow->bytes[cols] = 24 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
 
-#ifdef _STORAGE  
+#ifdef _STORAGE
   strcpy(pSchema[cols].name, "keep0,keep1,keep2");
 #else
   strcpy(pSchema[cols].name, "keep");
@@ -638,13 +639,13 @@ static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn
     strcpy(pSchema[cols].name, "cache(MB)");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
-    
+
     pShow->bytes[cols] = 4;
     pSchema[cols].type = TSDB_DATA_TYPE_INT;
     strcpy(pSchema[cols].name, "blocks");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
-    
+
     pShow->bytes[cols] = 4;
     pSchema[cols].type = TSDB_DATA_TYPE_INT;
     strcpy(pSchema[cols].name, "minrows");
@@ -743,7 +744,7 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
 
     cols = 0;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;  
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     char* name = mnodeGetDbStr(pDb->name);
     if (name != NULL) {
       STR_WITH_MAXSIZE_TO_VARSTR(pWrite, name, pShow->bytes[cols]);
@@ -789,10 +790,10 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
 #endif
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    
+
     char tmp[128] = {0};
-#ifdef _STORAGE      
-    if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) { 
+#ifdef _STORAGE
+    if (pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep1 || pDb->cfg.daysToKeep0 > pDb->cfg.daysToKeep2) {
       sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2, pDb->cfg.daysToKeep0);
     } else {
       sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep0, pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2);
@@ -821,7 +822,7 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int32_t *)pWrite = pDb->cfg.maxRowsPerFileBlock;
       cols++;
-      
+
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int8_t *)pWrite = pDb->cfg.walLevel;
       cols++;
@@ -912,7 +913,7 @@ static int32_t mnodeSetDbDropping(SDbObj *pDb) {
 }
 
 static int32_t mnodeProcessCreateDbMsg(SMnodeMsg *pMsg) {
-  SCreateDbMsg *pCreate    = pMsg->rpcMsg.pCont;  
+  SCreateDbMsg *pCreate    = pMsg->rpcMsg.pCont;
   pCreate->maxTables       = htonl(pCreate->maxTables);
   pCreate->cacheBlockSize  = htonl(pCreate->cacheBlockSize);
   pCreate->totalBlocks     = htonl(pCreate->totalBlocks);
@@ -925,7 +926,7 @@ static int32_t mnodeProcessCreateDbMsg(SMnodeMsg *pMsg) {
   pCreate->partitions      = htons(pCreate->partitions);
   pCreate->minRowsPerFileBlock = htonl(pCreate->minRowsPerFileBlock);
   pCreate->maxRowsPerFileBlock = htonl(pCreate->maxRowsPerFileBlock);
-  
+
   int32_t code;
 #ifdef GRANT_CHECK_WRITE
   if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
@@ -963,7 +964,7 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
   int8_t  cacheLastRow   = pAlter->cacheLastRow;
   int8_t  dbType         = pAlter->dbType;
   int16_t partitions     = htons(pAlter->partitions);
-  
+
   terrno = TSDB_CODE_SUCCESS;
 
   //UPGRATE FROM LOW VERSION, reorder it
@@ -1127,6 +1128,8 @@ static int32_t mnodeAlterDbFp(SMnodeMsg *pMsg) {
   mDebug("db:%s, all vgroups is altered", pDb->name);
   mLInfo("db:%s, is alterd by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
 
+  monSaveAuditLog(MON_DDL_CMD_ALTER_DATABASE, mnodeGetUserFromMsg(pMsg), pDb->name, true);
+
   // in case there is no vnode for this db currently(no table in db,etc.)
   if (pMsg->expected == 0) {
     SSdbRow row = {
@@ -1183,7 +1186,7 @@ static int32_t mnodeAlterDb(SDbObj *pDb, SAlterDbMsg *pAlter, void *pMsg) {
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
       mError("db:%s, failed to alter, reason:%s", pDb->name, tstrerror(code));
     }
-}
+  }
 
   return code;
 }
@@ -1197,7 +1200,7 @@ int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg) {
     mError("db:%s, failed to alter, invalid db", pAlter->db);
     return TSDB_CODE_MND_INVALID_DB;
   }
-  
+
   if (pMsg->pDb->status != TSDB_DB_STATUS_READY) {
     mError("db:%s, status:%d, in dropping", pAlter->db, pMsg->pDb->status);
     return TSDB_CODE_MND_DB_IN_DROPPING;
@@ -1213,13 +1216,14 @@ static int32_t mnodeDropDbCb(SMnodeMsg *pMsg, int32_t code) {
   } else {
     mLInfo("db:%s, is dropped by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
   }
+  monSaveAuditLog(MON_DDL_CMD_DROP_DATABASE, mnodeGetUserFromMsg(pMsg), pDb->name, !code);
 
   return code;
 }
 
 static int32_t mnodeDropDb(SMnodeMsg *pMsg) {
   if (pMsg == NULL) return TSDB_CODE_MND_APP_ERROR;
-  
+
   SDbObj *pDb = pMsg->pDb;
   mInfo("db:%s, drop db from sdb", pDb->name);
 
@@ -1259,7 +1263,7 @@ static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg) {
     mError("db:%s, can't drop monitor database", pDrop->db);
     return TSDB_CODE_MND_MONITOR_DB_FORBIDDEN;
   }
-#endif   
+#endif
 
   int32_t code = mnodeSetDbDropping(pMsg->pDb);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
@@ -1292,15 +1296,15 @@ static int32_t mnodeSyncDb(SDbObj *pDb, SMnodeMsg *pMsg) {
 
 
 static int32_t mnodeCompact(SDbObj *pDb, SCompactMsg *pCompactMsg) {
-  int32_t count = ntohs(pCompactMsg->numOfVgroup);  
-  int32_t *buf  = malloc(sizeof(int32_t) * count); 
+  int32_t count = ntohs(pCompactMsg->numOfVgroup);
+  int32_t *buf  = malloc(sizeof(int32_t) * count);
   if (buf == NULL) {
     return  TSDB_CODE_MND_OUT_OF_MEMORY;
   }
   for (int32_t i = 0; i < count; i++) {
     buf[i] = ntohs(pCompactMsg->vgid[i]);
   }
-   
+
   // copy from mnodeSyncDb, so ugly
   for (int32_t i = 0; i < count; i++) {
     SVgObj *pVgroup = NULL;
@@ -1312,7 +1316,7 @@ static int32_t mnodeCompact(SDbObj *pDb, SCompactMsg *pCompactMsg) {
       if (pVgroup->pDb == pDb && pVgroup->vgId == buf[i]) {
         mnodeSendCompactVgroupMsg(pVgroup);
         mnodeDecVgroupRef(pVgroup);
-        valid = true; 
+        valid = true;
         break;
       }
       mnodeDecVgroupRef(pVgroup);
@@ -1321,7 +1325,7 @@ static int32_t mnodeCompact(SDbObj *pDb, SCompactMsg *pCompactMsg) {
       mLError("db:%s, cannot find valid vgId: %d", pDb->name, buf[i]);
     }
   }
-  free(buf); 
+  free(buf);
 
   mLInfo("db:%s, trigger compact", pDb->name);
   return TSDB_CODE_SUCCESS;
@@ -1352,14 +1356,14 @@ static int32_t mnodeProcessSyncDbMsg(SMnodeMsg *pMsg) {
 static int32_t mnodeProcessCompactMsg(SMnodeMsg *pMsg) {
   SCompactMsg *pCompact = pMsg->rpcMsg.pCont;
   mDebug("db:%s, compact is received from thandle:%p", pCompact->db, pMsg->rpcMsg.handle);
-  
+
   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pCompact->db);
   if (pMsg->pDb == NULL) return TSDB_CODE_MND_DB_NOT_SELECTED;
-  
+
   if (pMsg->pDb->status != TSDB_DB_STATUS_READY) {
     mError("db:%s, status:%d, in dropping, ignore compact request", pCompact->db, pMsg->pDb->status);
     return TSDB_CODE_MND_DB_IN_DROPPING;
-  } 
+  }
 
   return mnodeCompact(pMsg->pDb, pCompact);
 }
@@ -1382,7 +1386,7 @@ void  mnodeDropAllDbs(SAcctObj *pAcct)  {
         .pTable = tsDbSdb,
         .pObj   = pDb
       };
-      
+
       sdbDeleteRow(&row);
       numOfDbs++;
     }
@@ -1410,11 +1414,11 @@ int32_t mnodeCompactDbs() {
     };
 
     mInfo("compact dbs %s", pDb->name);
-    
+
     sdbInsertCompactRow(&row);
   }
 
   mInfo("end to compact dbs table...");
 
-  return 0; 
+  return 0;
 }

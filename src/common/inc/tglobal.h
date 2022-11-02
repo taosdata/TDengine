@@ -154,6 +154,10 @@ extern char    tsMonitorDbName[];
 extern char    tsInternalPass[];
 extern int32_t tsMonitorInterval;
 
+// audit
+extern int8_t  tsEnableAudit;
+extern char    tsAuditDbName[];
+
 // stream
 extern int8_t tsEnableStream;
 
