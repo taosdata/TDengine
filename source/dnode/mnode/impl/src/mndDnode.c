@@ -404,6 +404,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
   bool    needCheck = !online || dnodeChanged || reboot;
 
   pDnode->accessTimes++;
+  pDnode->lastAccessTime = curMs;
   mTrace("dnode:%d, status received, access times:%d check:%d online:%d reboot:%d changed:%d", pDnode->id,
          pDnode->accessTimes, needCheck, online, reboot, dnodeChanged);
 
@@ -474,8 +475,6 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     pReq->info.rsp = pHead;
   }
 
-  pDnode->lastAccessTime = curMs;
-  pDnode->accessTimes++;
   code = 0;
 
 _OVER:
