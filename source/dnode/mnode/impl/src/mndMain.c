@@ -105,7 +105,7 @@ static void mndCalMqRebalance(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_MQ_TIMER, .pCont = pReq, .contLen = contLen};
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_TMQ_TIMER, .pCont = pReq, .contLen = contLen};
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 }
@@ -428,18 +428,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
 
 void mndPreClose(SMnode *pMnode) {
   if (pMnode != NULL) {
-    atomic_store_8(&(pMnode->syncMgmt.leaderTransferFinish), 0);
     syncLeaderTransfer(pMnode->syncMgmt.sync);
-
-#if 0
-    mInfo("vgId:1, mnode start leader transfer");
-    // wait for leader transfer finish
-    while (!atomic_load_8(&(pMnode->syncMgmt.leaderTransferFinish))) {
-      taosMsleep(10);
-      mInfo("vgId:1, mnode waiting for leader transfer");
-    }
-    mInfo("vgId:1, mnode finish leader transfer");
-#endif
   }
 }
 
@@ -501,7 +490,7 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
   SMnode     *pMnode = pMsg->info.node;
   const char *role = syncGetMyRoleStr(pMnode->syncMgmt.sync);
   bool        restored = syncIsRestoreFinish(pMnode->syncMgmt.sync);
-  if (pMsg->msgType == TDMT_MND_MQ_TIMER || pMsg->msgType == TDMT_MND_TELEM_TIMER ||
+  if (pMsg->msgType == TDMT_MND_TMQ_TIMER || pMsg->msgType == TDMT_MND_TELEM_TIMER ||
       pMsg->msgType == TDMT_MND_TRANS_TIMER || pMsg->msgType == TDMT_MND_TTL_TIMER ||
       pMsg->msgType == TDMT_MND_UPTIME_TIMER) {
     mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,

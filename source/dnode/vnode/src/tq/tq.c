@@ -1268,7 +1268,7 @@ int32_t tqProcessSubmitReq(STQ* pTq, SSubmitReq* pReq, int64_t ver) {
     if (pIter == NULL) break;
     SStreamTask* pTask = *(SStreamTask**)pIter;
     if (pTask->taskLevel != TASK_LEVEL__SOURCE) continue;
-    if (pTask->taskStatus == TASK_STATUS__RECOVER_PREPARE || pTask->taskStatus == TASK_STATUS__RECOVER1) {
+    if (pTask->taskStatus == TASK_STATUS__RECOVER_PREPARE) {
       tqDebug("skip push task %d, task status %d", pTask->taskId, pTask->taskStatus);
       continue;
     }

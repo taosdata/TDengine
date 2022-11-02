@@ -16,6 +16,7 @@
 #include "os.h"
 #include "taoserror.h"
 #include "tchecksum.h"
+#include "tglobal.h"
 #include "walInt.h"
 
 int32_t walRestoreFromSnapshot(SWal *pWal, int64_t ver) {
@@ -252,23 +253,36 @@ static FORCE_INLINE int32_t walCheckAndRoll(SWal *pWal) {
     }
   }
 
+  if (walGetLastFileCachedSize(pWal) > tsWalFsyncDataSizeLimit) {
+    if (walSaveMeta(pWal) < 0) {
+      return -1;
+    }
+  }
+
   return 0;
 }
 
 int32_t walBeginSnapshot(SWal *pWal, int64_t ver) {
+  taosThreadMutexLock(&pWal->mutex);
+
   pWal->vers.verInSnapshotting = ver;
   wDebug("vgId:%d, wal begin snapshot for version %" PRId64 ", first ver %" PRId64 ", last ver %" PRId64,
          pWal->cfg.vgId, ver, pWal->vers.firstVer, pWal->vers.lastVer);
   // check file rolling
   if (pWal->cfg.retentionPeriod == 0) {
-    taosThreadMutexLock(&pWal->mutex);
     if (walGetLastFileSize(pWal) != 0) {
-      walRollImpl(pWal);
+      if (walRollImpl(pWal) < 0) {
+        wError("vgId:%d, failed to roll wal files since %s", pWal->cfg.vgId, terrstr());
+        goto _err;
+      }
     }
-    taosThreadMutexUnlock(&pWal->mutex);
   }
-
+  taosThreadMutexUnlock(&pWal->mutex);
   return 0;
+
+_err:
+  taosThreadMutexUnlock(&pWal->mutex);
+  return -1;
 }
 
 int32_t walEndSnapshot(SWal *pWal) {

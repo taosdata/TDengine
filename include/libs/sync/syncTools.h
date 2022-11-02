@@ -28,21 +28,10 @@ typedef struct SRaftId {
   SyncGroupId vgId;
 } SRaftId;
 
-int32_t syncGetRespRpc(int64_t rid, uint64_t index, SRpcMsg* msg);
-int32_t syncGetAndDelRespRpc(int64_t rid, uint64_t index, SRpcHandleInfo* pInfo);
-void    syncSetMsgCb(int64_t rid, const SMsgCb* msgcb);
 char*   sync2SimpleStr(int64_t rid);
-
-// set timer ms
-void setPingTimerMS(int64_t rid, int32_t pingTimerMS);
-void setElectTimerMS(int64_t rid, int32_t electTimerMS);
-void setHeartbeatTimerMS(int64_t rid, int32_t hbTimerMS);
 
 // for compatibility, the same as syncPropose
 int32_t syncForwardToPeer(int64_t rid, SRpcMsg* pMsg, bool isWeak);
-
-// utils
-const char* syncUtilState2String(ESyncState state);
 
 // ------------------ for debug -------------------
 void syncRpcMsgPrint(SRpcMsg* pMsg);
