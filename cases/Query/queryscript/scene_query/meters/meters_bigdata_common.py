@@ -143,10 +143,10 @@ class TDTestQuery(TDCase):
                         'groupid between -127 and 127 ','groupid between -2147483647 and 2147483647 ',
                         'current is not null ', 'voltage is not null ' ,'phase is not null ' ,'t0 is not null ' ,                   
                         'ts is not null ' ,'_c0 is not null ' ,'_C0 is not null ' ,'_rowts is not null ' ,
-                        'ts <= now ' , 'ts >= 1651334400000 ' ,' ts between 1651330000000 and now +1h  ', 
-                        '_c0 <= now +100h ' , '_c0 >= 1651334400000 ' , ' _c0 between 1651330000000 and now +1h  ' ,
-                        '_C0 <= now +1h ' ,  '_C0 >= 1651330000000 ' ,' _C0 between 1651330000000 and now +1h  ',
-                        '_rowts <= now +1h ' ,'_rowts >= 1651330000000 ' ,' _rowts between 1651330000000 and now +1h  ']        
+                        'ts <= now ' , 'ts >=  1500000000000' ,' ts between 1500000000000 and now +1h  ', 
+                        '_c0 <= now +100h ' , '_c0 >= 1500000000000 ' , ' _c0 between 1500000000000 and now +1h  ' ,
+                        '_C0 <= now +1h ' ,  '_C0 >= 1500000000000 ' ,' _C0 between 1500000000000 and now +1h  ',
+                        '_rowts <= now +1h ' ,'_rowts >= 1500000000000 ' ,' _rowts between 1500000000000 and now +1h  ']        
         data_filter = random.sample(data_filters,1)
 
         like_filters = ['c3 like \'varchar%\' and ','(c3 like \'varchar%\'  or c3 = \'0\'  or c3 = \'varchar_\' or c3 is not null ) and ','c4 like \'nchar%\' and ','(c4 like \'nchar%\' or c4 = \'0\'  or c4 = \'nchar_\' or c4 is not null  ) and ','t1 like \'varchar%\' and ','(t1 like \'varchar%\' or t1 = \'0\'  or t1 = \'varchar_\'  or t1 is not null ) and ',]
@@ -248,9 +248,11 @@ class TDTestQuery(TDCase):
         self.logger.info(("sql1:'%s' |||||| sql2:'%s' ") %(sql1,sql2))      
         self.tdSql.query(sql1)
         base_data = self.tdSql.getData(0,0)
+        self.explain_sql(sql1)
         
         self.tdSql.query(sql2)
         check_data = self.tdSql.getData(0,0)
+        self.explain_sql(sql2)
         
         self.value_check(base_data,check_data,sql1,sql2)
                 
@@ -304,7 +306,8 @@ class TDTestQuery(TDCase):
                 where_filters = self.where_filter()
                 print(where_filters[0])
                 for i in range(0,len(where_filters[0])+1):
-                    data_filter = list(combinations(where_filters[0],i))
+                    data_filter = list(combinations(where_filters[0],i+1))
+                    print(data_filter)
                     for data_filter in data_filter:
                         data_filter = str(data_filter).replace("(","").replace(")","").replace("'","").replace("\"","").replace(",","")
                         like_match_filter = where_filters[1]
@@ -331,6 +334,24 @@ class TDTestQuery(TDCase):
                         sql2 = "select count(*) from (select %s from %s.meters %s)" %(self.column_select(2),dbname,orderby_filter)
                         self.sql_check(dbname,sql1,sql2)
                         sql2 = "select count(*) from (select %s from %s.meters %s)" %(self.column_select(3),dbname,orderby_filter)
+                        self.sql_check(dbname,sql1,sql2)
+                        
+                        sql2 = "select count(*) from (select %s from %s.meters where  %s)" %(self.column_select(0),dbname,data_filter)
+                        self.sql_check(dbname,sql1,sql2)                       
+                        sql2 = "select count(*) from (select %s from %s.meters where  %s)" %(self.column_select(1),dbname,data_filter)
+                        self.sql_check(dbname,sql1,sql2)
+                        sql2 = "select count(*) from (select %s from %s.meters where  %s)" %(self.column_select(2),dbname,data_filter)
+                        self.sql_check(dbname,sql1,sql2)
+                        sql2 = "select count(*) from (select %s from %s.meters where  %s)" %(self.column_select(3),dbname,data_filter)
+                        self.sql_check(dbname,sql1,sql2)
+                        
+                        sql2 = "select count(*) from (select %s from %s.meters where  %s %s)" %(self.column_select(0),dbname,data_filter,orderby_filter)
+                        self.sql_check(dbname,sql1,sql2)                       
+                        sql2 = "select count(*) from (select %s from %s.meters where  %s %s)" %(self.column_select(1),dbname,data_filter,orderby_filter)
+                        self.sql_check(dbname,sql1,sql2)
+                        sql2 = "select count(*) from (select %s from %s.meters where  %s %s)" %(self.column_select(2),dbname,data_filter,orderby_filter)
+                        self.sql_check(dbname,sql1,sql2)
+                        sql2 = "select count(*) from (select %s from %s.meters where  %s %s)" %(self.column_select(3),dbname,data_filter,orderby_filter)
                         self.sql_check(dbname,sql1,sql2)
 
                         # sql2 = "select %s from %s.meters where  %s %s %s " %(self.column_select(1),dbname,data_filter,like_match_filter,in_filter)
@@ -797,7 +818,18 @@ class TDTestQuery(TDCase):
             port = source_taosd_list[source][1]
             self.remote.cmd(taosBenchmark_fqdn[0], f'taosBenchmark -h {host} -P {port} -t {table_num} -n {table_per_row} -d {dbname} -m {tb_m} -a {replica} -y')
             self.base_sql_count(dbname,table_num,table_per_row)
-
+            
+            if replica == 1 :
+                sql = " select name,`replica` from information_schema.ins_databases where name = '%s';" %dbname
+                self.tdSql.query(sql)
+                self.tdSql.checkData(0,0,'%s' %dbname)
+                self.tdSql.checkData(0,1,1)
+                
+            elif replica == 3 :
+                sql = " select name,`replica` from information_schema.ins_databases where name = '%s';" %dbname
+                self.tdSql.query(sql)
+                self.tdSql.checkData(0,0,'%s' %dbname)
+                self.tdSql.checkData(0,1,3)
             
     def base_sql_count(self,dbname,table_num,table_per_row):
         #创建完数据量check
@@ -842,7 +874,69 @@ class TDTestQuery(TDCase):
         table_num = 100
         table_per_row = 1000
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
+        self.count_db_common(dbname)  
+        
+                 
+
+    def countdb_10w_table1w_row10(self,replica):
+        dbname = 'db_10w'
+        table_num = 10000
+        table_per_row = 10
+        self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
+        self.count_db_common(dbname)   
+
+    def countdb_20w_table1w_row20(self,replica):
+        dbname = 'db_20w'
+        table_num = 10000
+        table_per_row = 20
+        self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
+        self.count_db_common(dbname)    
+
+    def countdb_40w_table1w_row40(self,replica):
+        dbname = 'db_40w'
+        table_num = 10000
+        table_per_row = 40
+        self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
+        self.count_db_common(dbname)   
+
+    def countdb_80w_table1w_row80(self,replica):
+        dbname = 'db_80w'
+        table_num = 10000
+        table_per_row = 80
+        self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
+        self.count_db_common(dbname)        
+        
+            
+
+    def countdb_100w_table1w_row100(self,replica):
+        dbname = 'db_100w'
+        table_num = 10000
+        table_per_row = 100
+        self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
         self.count_db_common(dbname)           
+
+    def countdb_200w_table1w_row200(self,replica):
+        dbname = 'db_200w'
+        table_num = 10000
+        table_per_row = 200
+        self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
+        self.count_db_common(dbname)    
+
+    def countdb_400w_table1w_row400(self,replica):
+        dbname = 'db_400w'
+        table_num = 10000
+        table_per_row = 400
+        self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
+        self.count_db_common(dbname)   
+
+    def countdb_800w_table1w_row800(self,replica):
+        dbname = 'db_800w'
+        table_num = 10000
+        table_per_row = 800
+        self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
+        self.count_db_common(dbname)       
+        
+             
 
     def countdb_1000w_table1w_row1000(self,replica):
         dbname = 'db_1000w'
@@ -850,7 +944,35 @@ class TDTestQuery(TDCase):
         table_per_row = 1000
         self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
         self.count_db_common(dbname)   
-                                                  
+
+    def countdb_2000w_table1w_row2000(self,replica):
+        dbname = 'db_2000w'
+        table_num = 10000
+        table_per_row = 2000
+        self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
+        self.count_db_common(dbname)    
+
+    def countdb_4000w_table1w_row4000(self,replica):
+        dbname = 'db_4000w'
+        table_num = 10000
+        table_per_row = 4000
+        self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
+        self.count_db_common(dbname)   
+
+    def countdb_8000w_table1w_row8000(self,replica):
+        dbname = 'db_8000w'
+        table_num = 10000
+        table_per_row = 8000
+        self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
+        self.count_db_common(dbname)    
+
+    def countdb_10000w_table1w_row1w(self,replica):
+        dbname = 'db_10000w'
+        table_num = 10000
+        table_per_row = 10000
+        self.benchmark_insert_stb(self.source_taosd_list,dbname,'stb',table_num,table_per_row,replica) 
+        self.count_db_common(dbname)   
+                                                          
     def run(self):
         startTime = time.time() 
         
@@ -859,6 +981,21 @@ class TDTestQuery(TDCase):
         # self.countdb_2w_table100_row200(replica=1)
         # self.countdb_10w_table100_row1000(replica=1)
         
+        # self.countdb_10w_table1w_row10()
+        # self.countdb_20w_table1w_row20()
+        # self.countdb_40w_table1w_row40()
+        # self.countdb_80w_table1w_row80()
+        
+        # self.countdb_100w_table1w_row100()
+        # self.countdb_200w_table1w_row200()
+        # self.countdb_400w_table1w_row400()
+        # self.countdb_800w_table1w_row800()
+        
+        # self.countdb_1000w_table1w_row1000()
+        # self.countdb_2000w_table1w_row2000()
+        # self.countdb_4000w_table1w_row4000()
+        # self.countdb_8000w_table1w_row8000()
+        # self.countdb_10000w_table1w_row1w()
     
 
         endTime = time.time()
