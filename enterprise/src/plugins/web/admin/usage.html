@@ -36,12 +36,14 @@
 					<li><a href="dbs.html">DBs</a></li>
 					<li><a href="stables.html">Stables</a></li>
 					<li><a href="tables.html">Tables</a></li>
+					<li><a href="udfs.html">Udfs</a></li>
 					<li><a href="users.html">Users</a></li>
 					<li id="dnodeLiId" style="display:none"><a href="dnodes.html">DNodes</a></li>
 					<li id="monitorLiId" style="display:none"><a href="monitor.html">Monitor</a></li>
 					<li class="active"><a href="usage.html">Usage</a></li>
 					<li><a href="query.html">Queries</a></li>
 					<li><a href="shell.html">Shell</a></li>
+					<li style="display:none" id="jupyterLi"><a href="jupyter.html">Jupyter</a></li>
 				</ul>
 				<ul class="nav navbar-nav navbar-right">
 					<li><a href="userInfo.html" id="user"></a></li>
@@ -57,7 +59,7 @@
 		<div class="panel panel-default dbpanel">
 			<div class="panel-body dbheadforbody" style="border-bottom:1px solid #ddd; padding-right:5px">
 				<label class="control-label" style="font-weight:bold;padding-top:4px;height:1px">Usage</label>	
-				<button type="button" class="btn btn-default btn-sm" style="float:right;margin-right:4px" onclick="dbGotoMonitor()">
+				<button type="button" class="btn btn-default btn-sm" style="float:right;margin-right:4px" onclick="dbQueryAll()">
 					<span class="glyphicon glyphicon-refresh"></span> 
 					Refresh
 				</button>				
@@ -82,7 +84,7 @@
 			</div>
 			
 			<div class="row" style="margin-bottom:0px;margin-right:5px;margin-left:5px" id="dbShowGraphDiv">
-				<div class="col-sm-6 col-xs-12 dbcol" style="height:223px;">					
+				<div class="col-sm-6 col-xs-12 dbcol" style="height:223px;display: none;">					
 					<div class="row" >
 						<div class="col-sm-12 col-xs-12 dbcol2" id="storageDivId" style="height:213px;">
 						</div>
@@ -101,20 +103,20 @@
 						</div>
 					</div>
 				</div>
-				<div class="col-sm-6 col-xs-12 dbcol" style="height:223px;">
+				<div class="col-sm-6 col-xs-12 dbcol" style="height:223px;display: none;">
 					<div class="row " >
 						<div class="col-sm-12 col-xs-12 dbcol2" id="usersDivId" style="height:213px;">
 						</div>
 					</div>
 				</div>
 			
-				<div class="col-sm-6 col-xs-12 dbcol" style="height:223px;">					
+				<div class="col-sm-6 col-xs-12 dbcol" style="height:223px;display: none;">					
 					<div class="row" >
 						<div class="col-sm-12 col-xs-12 dbcol2" id="streamsDivId" style="height:213px;">
 						</div>
 					</div>
 				</div>
-				<div class="col-sm-6 col-xs-12 dbcol" style="height:233px;">
+				<div class="col-sm-6 col-xs-12 dbcol" style="height:233px;display: none;">
 					<div class="row " >
 						<div class="col-sm-12 col-xs-12 dbcol2" id="querytimeDivId" style="height:213px;">
 						</div>
@@ -280,9 +282,9 @@
 	{
 		$.ajax({
 			type: "post",
-			url: "admin/sql",
+			url: "rest/sql",
 			headers: {
-				'Authorization' : "Taosd " + DbSession.GetToken()
+				'Authorization' : DbSession.GetToken()
 			},
 			dataType: "json",
 			data: "show users",
@@ -300,18 +302,8 @@
 	
 	function dbQueryAcctCallback(d) 
 	{
-		if (d == null || d.status == null) {
-			DbUtil.Error(DB_CODE_INVALID_FORMAT);
-			return;
-		} 
-		if (d.status == "error") {
-			DbUtil.HandleError(d);
-		}
-		else if (d.status == "succ") {
+		if (DbUtil.CheckResponse(d)) {
 			dbSetAcctInfo(d.data);
-		}	
-		else{
-			DbUtil.Error(DB_CODE_UNKNOWN);
 		}
 	}
 	
@@ -333,83 +325,72 @@
 	function dbQueryAll(dnode)
 	{
 		var interval = "interval(1m)";
-		var begintime = Number(new Date());
-		var endtime = begintime;
+		var begintime = "now";
+		var endtime = "now";
 		
 		if (dbUsageIntervalId == "last1hour") {
 			interval = "interval(1m)";	//60
-			begintime -= 60*60*1000;
+			begintime += " - 1h";
 		}
 		else if (dbUsageIntervalId == "last4hours") {
 			interval = "interval(2m)";	//120
-			begintime -= 60*60*1000*4;
+			begintime += " - 2h";
 		}
 		else if (dbUsageIntervalId == "last12hours") {
 			interval = "interval(5m)";	//144
-			begintime -= 60*60*1000*12;
+			begintime += " - 12h";
 		}
 		else if (dbUsageIntervalId == "last1day") {
 			interval = "interval(10m)";	//144
-			begintime -= 60*60*1000*24;
+			begintime += " - 24h";
 		}
 		else if (dbUsageIntervalId == "last7days") {
 			interval = "interval(1h)";	//164
-			begintime -= 60*60*1000*24*7;
+			begintime += " - 7d";
 		}
 		else if (dbUsageIntervalId == "last30days") {
 			interval = "interval(4h)";	//180
-			begintime -= 60*60*1000*24*30;
+			begintime += " - 30d";
 		}
 		else {}
 		//begintime = "now-1h";
 		//endtime='now';
 		
 		var user = DbSession.GetUser();
-
-        begintime *= 1000;
-        endtime *= 1000;
 		//log. sys.
-		var sql = "select avg(currentPointsPerSecond), last(maxPointsPerSecond), avg(totalTimeSeries), last(maxTimeSeries), avg(totalStorage), last(maxStorage), avg(totalQueryTime), last(maxQueryTime), avg(totalInbound), last(maxInbound), avg(totalOutbound), last(maxOutbound), avg(totalDbs), last(maxDbs), avg(totalUsers), last(maxUsers), avg(totalStreams), last(maxStreams) from log.acct_" + DbSession.GetAcct() + " where ts>=" + begintime + " and ts<=" + endtime + " " + interval + " fill(prev);";
+		// elect _wstart, (last(expire_time) - first(expire_time)) / (60), last(expire_time), avg(timeseries_used), last(timeseries_total), last(dbs_total) from (select grants_info.ts as ts, expire_time,timeseries_used,timeseries_total,dbs_total from log.grants_info, log.cluster_info where grants_info.ts = cluster_info.ts) interval(1m);
+
+		var sql = "select _wstart, (last(expire_time) - first(expire_time)) / (60), last(expire_time), avg(timeseries_used), last(timeseries_total), last(dbs_total) from (select grants_info.ts as ts, expire_time,timeseries_used,timeseries_total,dbs_total from log.grants_info, log.cluster_info where grants_info.ts = cluster_info.ts and grants_info.ts>=" + begintime + " and grants_info.ts<=" + endtime + ") where ts >= " + begintime + " and ts <= " + endtime + " " + interval + " fill(prev);";
 
 		dbQuery(sql, dbMonitorCallback)
 	}
 	
 	function dbMonitorCallback(d)
 	{
-		if (d == null || d.status == null) {
-			DbUtil.Error(DB_CODE_INVALID_FORMAT);
-			return;
-		} 
-		if (d.status == "error") {
-			DbUtil.HandleError(d);
-		}
-		else if (d.status == "succ") {
+		if (DbUtil.CheckResponse(d)) {
 			for (var row = 0; row < d.data.length; ++row) {
-				for (var col = 1; col < 19; col++) {
+				for (var col = 1; col < d.head.length; col++) {
 					if (d.data[row][col] == "NULL" || d.data[row][col] == "null")
-						d.data[row][col] = 0;
+						d.data[row][col] = NaN;
 				}				
 			}
 			
-			for (var row = 0; row < d.data.length; ++row) {
-				d.data[row][5] /= (1024*1024*1024);
-				d.data[row][6] /= (1024*1024*1024);
-				d.data[row][7] /= (3600);
-				d.data[row][8] /= (3600);				
-			}
+			// for (var row = 0; row < d.data.length; ++row) {
+			// 	d.data[row][5] /= (1024*1024*1024);
+			// 	d.data[row][6] /= (1024*1024*1024);
+			// 	d.data[row][7] /= (3600);
+			// 	d.data[row][8] /= (3600);				
+			// }
 			
-			DbStorageChart.OnData(d);
-			DbQueryTimeChart.OnData(d);
+			// DbStorageChart.OnData(d);
+			// DbQueryTimeChart.OnData(d);
 			DbTimeSeriesChart.OnData(d);
-			DbStreamsChart.OnData(d);
+			// DbStreamsChart.OnData(d);
 			DbDbsChart.OnData(d);
-			DbUsersChart.OnData(d);
+			// DbUsersChart.OnData(d);
 			
 			DbCache.Clear();
 			DbCache.OnData(d);
-		}	
-		else{
-			DbUtil.Error(DB_CODE_UNKNOWN);
 		}
 	}
 		
@@ -419,11 +400,11 @@
 		
 		$.ajax({
 			type: "post",
-			url: "admin/sql",
-
+			url: "rest/sql",
+			contentType: "text/plain",
 			//sys monitor
 			headers: {
-				'Authorization' : "Basic " + DbBase64.encode("monitor:secretkey")
+				'Authorization' : DbSession.GetToken(),
 			},
 			data: sql,
 			dataType: "json",
@@ -441,18 +422,8 @@
 	
 	function dbQueryCb(d) 
 	{
-		if (d == null || d.status == null) {
-			DbUtil.Error(DB_CODE_INVALID_FORMAT);
-			return;
-		} 
-		if (d.status == "error") {
-			DbUtil.HandleError(d);
-		}
-		else if (d.status == "succ") {
+		if (DbUtil.CheckResponse(d)) {
 			dbCallback(d);
-		}	
-		else{
-			DbUtil.Error(DB_CODE_UNKNOWN);
 		}
 	}
 	
@@ -475,36 +446,36 @@
 			
 			var curTimeSeries = data[3];
 			var maxTimeSeries = data[4];
-			var curStorage = data[5].toFixed(1);
-			var maxStorage = data[6].toFixed(1);
-			var curQueryTime = data[7].toFixed(2);
-			var maxQueryTime = data[8].toFixed(2);
-			var curDatabases = data[13];
-			var maxDatabases = data[14];
-			var curUsers = data[15];
-			var maxUsers = data[16];
-			var curStreams = data[17];
-			var maxStreams = data[18];
+			var curStorage = data[5];
+			// var maxStorage = data[6].toFixed(1);
+			// var curQueryTime = data[7].toFixed(2);
+			// var maxQueryTime = data[8].toFixed(2);
+			// var curDatabases = data[13];
+			// var maxDatabases = data[14];
+			// var curUsers = data[15];
+			// var maxUsers = data[16];
+			// var curStreams = data[17];
+			// var maxStreams = data[18];
 			
 			row = row + colBegin + ts + colEnd;
 			row = row + colBegin + curTimeSeries + colEnd;
 			row = row + colBegin + maxTimeSeries + colEnd;
 			row = row + colBegin + curStorage + colEnd;
-			row = row + colBegin + maxStorage + colEnd;
-			row = row + colBegin + curQueryTime + colEnd;
-			row = row + colBegin + maxQueryTime + colEnd;
-			row = row + colBegin + curDatabases + colEnd;
-			row = row + colBegin + maxDatabases + colEnd;
-			row = row + colBegin + curUsers + colEnd;
-			row = row + colBegin + maxUsers + colEnd;
-			row = row + colBegin + curStreams + colEnd;
-			row = row + colBegin + maxStreams + colEnd;
+			// row = row + colBegin + maxStorage + colEnd;
+			// row = row + colBegin + curQueryTime + colEnd;
+			// row = row + colBegin + maxQueryTime + colEnd;
+			// row = row + colBegin + curDatabases + colEnd;
+			// row = row + colBegin + maxDatabases + colEnd;
+			// row = row + colBegin + curUsers + colEnd;
+			// row = row + colBegin + maxUsers + colEnd;
+			// row = row + colBegin + curStreams + colEnd;
+			// row = row + colBegin + maxStreams + colEnd;
 			
 			bodyContent += row;
 		}
 		for (; rowIndex < DbCache.RowsPerPage(); ++rowIndex) {
 			var row = rowBegin + colBegin + '-' + colEnd;
-			for (colIndex = 0; colIndex < 13; colIndex++) {
+			for (colIndex = 0; colIndex < colNum; colIndex++) {
 				row = row + colBegin + colEnd;
 			}
 			bodyContent += row;
@@ -1497,18 +1468,19 @@ var DbDbsChart = new function() {
 		var length = d.data.length;
 		for (var row = 0; row < length; ++row) {
 			var data = d.data[row]; 	
+			console.log(data[0],data[5]);
 			this.option.xAxis.data[row] = data[0];
 			if (dbIsUseTime) {
-				this.option.series[0].data[row] = [data[0],data[13]];
-				this.option.series[1].data[row] = [data[0],data[14]];				
+				this.option.series[0].data[row] = [data[0],data[5]];
+				this.option.series[1].data[row] = [data[0],data[5]];				
 			}
 			else {
-				this.option.series[0].data[row] = data[13];
-				this.option.series[1].data[row] = data[14];
+				this.option.series[0].data[row] = data[5];
+				this.option.series[1].data[row] = data[5];
 			}
 			this.option.title.text = "Databases";
-			this.maxVal = Math.max(this.maxVal, data[13]);
-			this.maxVal = Math.max(this.maxVal, data[14]);
+			this.maxVal = Math.max(this.maxVal, data[5]);
+			this.maxVal = Math.max(this.maxVal, data[5]);
 		}
 		
 		this.graph.setOption(this.option);
@@ -1728,6 +1700,7 @@ function dbGetValue(value, maxVal)
 	<!-- Placed at the end of the document so the pages load faster -->
 	<script src="js/echarts.common.min.js"></script>
 	<script src="js/jquery-2.0.2.min.js"></script>
+	<script type="text/javascript" src="js/lodash.core.min.js"></script>
 	<script src="bootstrap-3.3.7-dist/js/bootstrap.min.js"></script>
 </body>
 </html>

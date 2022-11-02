@@ -10,15 +10,14 @@ cpuType=$5
 
 topDir=$scriptDir/../..         # TDinternal
 communityDir=$topDir/community
-archiveDir=/nas/TDengine/v$version/enterprise  # version’package directory
-enterpriseDir=$topDir/enterprise
+archiveDir=/nas/TDengine/v$version/cloud  # version’package directory
 allocator=jemalloc              # glibc  or  jemalloc, default is jemalloc
 
 if [ ! -d $archiveDir ]; then
   mkdir -p $archiveDir || echo -e "failed to create $archiveDir"
 fi
 
-echo "generate enterprise package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+echo "generate cloud package>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 if [ ! -d $communityDir ]; then
   cd $topDir
   mkdir -p debug
@@ -26,45 +25,17 @@ if [ ! -d $communityDir ]; then
   cmake ..
 fi
 
-# cd $communityDir
-# # git checkout $branchName
-# # git checkout -- .
-# # git pull
-# # git checkout -- .
-# rm -rf release/*
-
-# cd $enterpriseDir
-# # git checkout $branchName
-# # git checkout -- .
-# # git pull
-
 cd $communityDir
 rm -rf release/*
 rm -rf debs/*
 rm -rf rpms/*
-./packaging/release.sh -v cluster -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
+./packaging/release.sh -v cloud -a $allocator -n $version -m $versionComp -V $verType -c $cpuType
 
-# if [ ! -d  "$archiveDir/v$version" ]; then
-#   mkdir -p "$archiveDir/v$version"
-# fi
-
-# if [ ! -d enterprise ]; then
-#     mkdir enterprise
-# fi
-
-# cd enterprise
-
-#echo "build new version branch >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
-#cd $enterpriseDir
-#git branch -d release/v$version
-#git checkout -b release/v$version
-#git merge master
-#git push origin release/v$version
 
 # modify tar.gz to append taoskeeper
 cd $communityDir/release
 
-server_tar=$(ls *-enterprise-server-*.tar.gz)
+server_tar=$(ls *-cloud-server-*.tar.gz)
 [ "$server_tar" == "" ] && exit # build taoskeeper only with server
 
 echo "build taoskeeper"
@@ -83,7 +54,7 @@ taoskeeper_binary=`$scriptDir/build_taoskeeper.sh --arch $arch --repo taoskeeper
 
 set -e
 # unpack server package and repack with taoskeeper binary and service file.
-prefix=$(echo $server_tar |grep -Eo ".*-enterprise-server-[^\-]+")
+prefix=$(echo $server_tar |grep -Eo ".*-cloud-server-[^\-]+")
 tar axf $server_tar
 [ -d "$prefix/taos" ] || mkdir $prefix/taos
 tar axf $prefix/taos.tar.gz -C $prefix/taos/
@@ -95,7 +66,7 @@ cat $scriptDir/install_taoskeeper.sh >> $prefix/install.sh
 cd $prefix/taos && tar acf ../taos.tar.gz ./ && cd ../../
 rm -rf $prefix/taos $prefix/taos.tar
 tar acf $server_tar $prefix
-echo "append taoskeeper to enterprise server package"
+echo "append taoskeeper to cloud server package"
 rm -rf $prefix/
 rm -rf build-taoskeeper
 

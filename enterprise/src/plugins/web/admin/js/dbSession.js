@@ -4,7 +4,7 @@
  */
 
 var DbSession = new function() {
-	
+
 	this.SetToken = function(token) {
 		localStorage.setItem("dbToken", token);
 	}
@@ -26,7 +26,7 @@ var DbSession = new function() {
 			return "";
 		return user;
 	}
-	
+
 	this.SetAcct = function(acct) {
 		localStorage.setItem("dbAcct", acct);
 	}
@@ -37,7 +37,7 @@ var DbSession = new function() {
 			return "";
 		return acct;
 	}
-	
+
 	// a simple way for authority
 	this.IsRoot = function() {
 		var user = localStorage.getItem("dbUser");
@@ -64,6 +64,17 @@ var DbSession = new function() {
 		if (db == null || db == undefined || db == "undefined" )
 			return "";
 		return db;
+	}
+
+	this.SetServerVersion = function(ver) {
+		localStorage.setItem("srvVer", ver);
+	}
+
+	this.GetServerVersion = function() {
+		var ver = localStorage.getItem("srvVer");
+		if (ver == null || ver == undefined || ver == "undefined")
+			return "";
+		return ver;
 	}
 
 	this.ClearDbList = function()
@@ -155,7 +166,7 @@ var DbSession = new function() {
 	 * for logout
 	 */
 	this.Clear = function()
-	{	
+	{
 		this.SetToken("");
 		this.SetUser("");
 		this.SetDate("");
@@ -163,7 +174,7 @@ var DbSession = new function() {
 		this.ClearTableList("");
 		this.ClearDbList("");
 		this.ClearUserList("");
-		
+
 		this.Logout();
 	}
 
@@ -173,20 +184,8 @@ var DbSession = new function() {
 		if (token == null || token == "invalid" || token == "" || token == undefined || token == "undefined") {
 			return;
 		}
-		$.ajax({
-			type: "post",
-			url: "admin/logout",
-			headers: {
-				'Authorization' : 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  + token
-			},
-			data: "logout",
-			dataType: "json",
-			success: function(d) {			
-			},
-			error: function(msg) { 
-				DbUtil.Error(DB_CODE_INVALID_SERVER);
-			}		
-		});	
+		this.Clear();
+		DbUtil.GotoPage("login.html");
 	}
 
 	/**
@@ -210,12 +209,18 @@ var DbSession = new function() {
 				var monitorLi = $('#monitorLiId');
 				if (monitorLi == null || monitorLi == undefined) return;
 				monitorLi.show();
-				
+
 				var dnodeLi = $('#dnodeLiId');
 				if (dnodeLi == null || dnodeLi == undefined) return;
 				dnodeLi.show();
+				var jupyterLi = $('#jupyterLi');
+				$.ajax({type: "head", url: "/jupyter/", success: function() { jupyterLi.show(); }, error: function(res) { if (res.status < 500) jupyterLi.show();}})
 			}
-		}	
+		}
+	}
+
+	this.AdminInfo = function() {
+		
 	}
 };
 

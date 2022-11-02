@@ -35,12 +35,14 @@
 					<li><a href="dbs.html">DBs</a></li>
 					<li><a href="stables.html">Stables</a></li>
 					<li><a href="tables.html">Tables</a></li>
+					<li><a href="udfs.html">Udfs</a></li>
 					<li><a href="users.html">Users</a></li>
 					<li id="dnodeLiId" style="display:none"><a href="dnodes.html">DNodes</a></li>
 					<li id="monitorLiId" style="display:none"><a href="monitor.html">Monitor</a></li>
 					<li><a href="usage.html">Usage</a></li>
 					<li><a href="query.html">Queries</a></li>
 					<li class="active"><a href="shell.html">Shell</a></li>
+					<li style="display:none" id="jupyterLi"><a href="jupyter.html">Jupyter</a></li>
 				</ul>
 				<ul class="nav navbar-nav navbar-right">
 					<li><a href="userInfo.html" id="user"></a></li>
@@ -156,12 +158,11 @@
 			dbPrefix = DbSession.GetDb() + ".";
 		}
 		
-		//show tables
-		//show stables
-		//show tables;
-		//show stables
-		// show   stables
-		// show  a.stables
+		// show tables
+		// show stables
+		// show tables;
+		// show stables
+		// show a.stables
 		if (sql.substring(0, 4).toLowerCase() == "show") {
 			var remain = dbRemoveFirstBlank(sql.substring(4));
 			if (remain.substring(0, 6).toLowerCase() == "tables" || remain.substring(0, 7).toLowerCase() == "stables" || remain.substring(0, 7).toLowerCase() == "vgroups") {
@@ -181,23 +182,41 @@
 		//select * c  from  where c;
 		//select c d  from  c  where a
 		//select c d  from  c.d  where a
-		else if (sql.substring(0, 6).toLowerCase() == "select") {
+		//select * from (select demo(i) from t1 interval(5m)) a, (select demo(i) from t2 interval(5m)) b where a.ts = b.ts;
+		else if (sql.substring(0, 6).toLowerCase() == "select" ||( sql[0]=="(" && dbRemoveFirstBlank(sql.substring(1, 7)).toLowerCase() == "select")) {
 			var from = sql.toLowerCase().indexOf("from");
+			var where = sql.toLowerCase().lastIndexOf("where");
 			if (from != -1) {
-				var remain = dbRemoveFirstBlank(sql.substring(from+4));
-				if (remain != "") {
-					var table = remain.split(' ')[0];
-					var dot = table.indexOf(".");
-					if (dot == -1) {
-						return sql.substring(0, from+4) + " " + dbPrefix + remain;
-					}
+				if (where != -1){
+					var tablesStr = dbRemoveFirstBlank(sql.substring(from+4, where-1))
+					var remain = dbRemoveFirstBlank(sql.substring(where));
+				} else {
+					var tablesStr = dbRemoveFirstBlank(sql.substring(from+4))
+					var remain = ""
 				}
+
+				var tables = tablesStr.split(",")
+				for (var i = 0; i < tables.length; ++i) {
+					var select = tables[i].indexOf("select");
+					if(select == -1){
+						var dot = tables[i].indexOf(".");
+						if(dot == -1){
+							tables[i] = dbPrefix + dbRemoveFirstBlank(tables[i])
+						}
+					} else {
+						//Nested statement
+						tables[i] = dbUpdateSqlWithUseDb(tables[i])
+					}
+
+				}
+				return sql.substring(0, from+4) + " " + tables.join(",") + " " + remain;
+
 			}
 		}
 		// insert into a
 		// insert into a values()
 		// import   into  dc values values()
-		//  import  xx into dc value 
+		//  import  xx into dc value
 		// insert into cc dd values()
 		// insert into values values()
 		else if (sql.substring(0, 6).toLowerCase() == "insert" || sql.substring(0, 6).toLowerCase() == "import") {
@@ -211,7 +230,7 @@
 					if (dot == -1) {
 						return sql.substring(0, into+4) + " " + dbPrefix + table + " " + sql.substring(values);
 					}
-					
+
 				}
 			}
 		}
@@ -259,7 +278,7 @@
 		}
 		return sql;
 	}
-	
+
 	function dbSetPlaceHolder(result)
 	{
 		var db = DbSession.GetDb();
@@ -385,12 +404,13 @@
 		dbCallback = callback;
 	    $.ajax({
 			type: "post",
-			url: "admin/sql",
+			url: "rest/sql",
 			headers: {
-				'Authorization' : "Taosd " + DbSession.GetToken()
+				'Authorization' : DbSession.GetToken()
 			},
 			data: sql,
 			dataType: "json",
+			contentType:"text/html; charset=utf-8",
 			success: dbQueryCb,
 			error: function(msg) { 
 				if (msg != null && msg.responseJSON != null) {
@@ -406,18 +426,8 @@
 	
 	function dbQueryCb(d)
 	{
-		if (d == null || d.status == null) {
-			dbHidePanel(DB_CODE_INVALID_FORMAT);
-			return;
-		} 
-		if (d.status == "error") {
-			dbHidePanelWithDesc(d.desc);
-		}
-		else if (d.status == "succ") {
+		if (DbUtil.CheckResponse(d)) {
 			dbCallback(d);
-		}	
-		else{
-			dbHidePanel(DB_CODE_UNKNOWN);
 		}
 	}
 	
@@ -482,6 +492,7 @@
 	================================================== -->
 	<!-- Placed at the end of the document so the pages load faster -->
 	<script src="js/jquery-2.0.2.min.js"></script>
+	<script type="text/javascript" src="js/lodash.core.min.js"></script>
 	<script src="bootstrap-3.3.7-dist/js/bootstrap.min.js"></script>
 </body>
 </html>

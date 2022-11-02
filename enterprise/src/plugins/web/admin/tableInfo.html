@@ -33,12 +33,14 @@
 					<li><a href="dbs.html">DBs</a></li>
 					<li><a href="stables.html">Stables</a></li>
 					<li class="active"><a href="tables.html">Tables</a></li>
+					<li><a href="udfs.html">Udfs</a></li>
 					<li><a href="users.html">Users</a></li>
 					<li id="dnodeLiId" style="display:none"><a href="dnodes.html">DNodes</a></li>
 					<li id="monitorLiId" style="display:none"><a href="monitor.html">Monitor</a></li>
 					<li><a href="usage.html">Usage</a></li>
 					<li><a href="query.html">Queries</a></li>
 					<li><a href="shell.html">Shell</a></li>
+					<li style="display:none" id="jupyterLi"><a href="jupyter.html">Jupyter</a></li>
 				</ul>
 				<ul class="nav navbar-nav navbar-right">
 					<li><a href="userInfo.html" id="user"></a></li>
@@ -106,14 +108,19 @@
 			DbUtil.Error(DB_CODE_TABLE_NAME_NULL);
 			return;
 		}
+		var tbName = dbTableName;
+		if (DbUtil.needEscape() == true) {
+			tbName = decodeURIComponent(tbName);
+			tbName = DbUtil.processEscape(tbName);
+		}
 		dbShowTableName(dbTableName);
 		$.ajax({
 			type: "post",
-			url: "admin/meta",
+			url: "rest/sql",
 			headers: {
-				'Authorization' : "Taosd " + DbSession.GetToken()
+				'Authorization' : DbSession.GetToken()
 			},
-			data: "select * from " + DbSession.GetDb() + "." + dbTableName,
+			data: "desc `" + DbSession.GetDb() + "`.`" + tbName + "`",
 			dataType: "json",
 			success: dbOnLoadCb,
 			error: function(msg) { 
@@ -130,18 +137,8 @@
 	
 	function dbOnLoadCb(d)
 	{
-		if (d == null || d.status == null) {
-			DbUtil.Error(DB_CODE_INVALID_FORMAT);
-			return;
-		} 
-		if (d.status == "error") {
-			DbUtil.HandleError(d);
-		}
-		else if (d.status == "succ") {
+		if (DbUtil.CheckResponse(d)) {
 			dbOnData(d);
-		}
-		else{
-			DbUtil.Error(DB_CODE_UNKNOWN);
 		}
 	}
 	
@@ -241,6 +238,7 @@
 	================================================== -->
 	<!-- Placed at the end of the document so the pages load faster -->
 	<script src="js/jquery-2.0.2.min.js"></script>
+	<script type="text/javascript" src="js/lodash.core.min.js"></script>
 	<script src="bootstrap-3.3.7-dist/js/bootstrap.min.js"></script>
 </body>
 </html>

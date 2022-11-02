@@ -6,7 +6,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="description" content="">
 	<meta name="author" content="">
-	<title>Users</title>
+	<title>Udfs</title>
 	<link rel="icon" href="images/db.png">
 	<link type="text/css" href="bootstrap-3.3.7-dist/css/bootstrap.min.css" rel="stylesheet">
 	<link type="text/css" href="css/info.css" rel="stylesheet">
@@ -35,8 +35,8 @@
 					<li><a href="dbs.html">DBs</a></li>
 					<li><a href="stables.html">Stables</a></li>
 					<li><a href="tables.html">Tables</a></li>
-					<li><a href="udfs.html">Udfs</a></li>
-					<li class="active"><a href="users.html">Users</a></li>
+					<li class="active"><a href="udfs.html">Udfs</a></li>
+					<li><a href="users.html">Users</a></li>
 					<li id="dnodeLiId" style="display:none"><a href="dnodes.html">DNodes</a></li>
 					<li id="monitorLiId" style="display:none"><a href="monitor.html">Monitor</a></li>
 					<li><a href="usage.html">Usage</a></li>
@@ -57,11 +57,15 @@
 	<div class="container">
 		<div class="panel panel-default dbpanel">
 			<div class="panel-heading dbhead">
-				<label class="control-label" style="font-weight:bold;padding-top:4px;height:1px">User List</label>
-				<a id="download" style="display:none" download="user.csv" href="#">download</a>  
-				<button type="button" class="btn btn-default btn-sm" style="float:right;" onclick="dbAdd()">
+				<label id="dbDbName" class="control-label" style="font-weight:bold;padding-top:4px;height:1px">Udf List</label>
+				<a id="download" style="display:none" download="table.csv" href="#">download</a>  
+				<button type="button" class="btn btn-default btn-sm" style="float:right;  margin-left: 8px;" onclick="udfAdd(1)">
 					<span class="glyphicon glyphicon-plus-sign"></span> 
-					Add
+					Add Script
+				</button>
+				<button type="button" class="btn btn-default btn-sm" style="float:right;" onclick="udfAdd(0)">
+					<span class="glyphicon glyphicon-plus-sign"></span> 
+					Add File
 				</button>
 			</div>
 			<div class="table-responsive">
@@ -69,8 +73,9 @@
 				<thead id="dbTableHead">
 					<tr>
 						<th style="font-weight: normal">No</th>
-						<th style="font-weight: normal">User Name</th>
+						<th style="font-weight: normal">Table Name</th>
 						<th style="font-weight: normal">created time</th>
+						<th style="font-weight: normal">columns</th>
 						<th style="font-weight: normal">operation</th>
 					</tr>
 				</thead>
@@ -83,8 +88,8 @@
 					<span class="glyphicon glyphicon-export"></span> 
 					Export
 				</button>
-				<div class="btn-group btn-group-sm" style="float:right">
-					<button class="btn btn-default" type="button" onclick="DbCache.First()">
+				<div class="btn-group btn-group-sm"  style="float:right;">
+					<button class="btn btn-default" type="button" onclick="DbCacfhe.First()">
 						<span><<</span> 
 					</button>
 					<button class="btn btn-default" type="button" onclick="DbCache.Prev()">
@@ -143,7 +148,8 @@
 		DbSession.ValidSession();
 		DbCache.Clear();
 		DbCache.Init(dbFillTableHead, dbFillTableBody);
-		dbQuery("sql");
+		dbQuery()
+		
 	}
 		
 	//file the head of dbTableHead
@@ -179,7 +185,13 @@
 		var colBegin = "<td>";
 		var colEnd = "</td>";
 		
-		var operBegin = '<a class="dboper" onclick="dbDelete(\'';
+		var operInfoBegin = '<a class="dboper" onclick="goShell(\'';
+		var operInfoEnd = '\')">Execute</a>&nbsp&nbsp';
+
+		// var operEditBegin = '<a class="dboper" onclick="udfEdit(\'';
+		// var operEditEnd = '\')">Edit</a>&nbsp&nbsp';
+		
+		var operBegin = '<a class="dboper" onclick="udfDelete(\'';
 		var operEnd = '\')">Delete</a>';
 		
 		var rowIndex = 0;
@@ -191,8 +203,10 @@
 				row = row + colBegin + data[colIndex] + colEnd;
 			}
 			
+			var operInfo = operInfoBegin + data[0] + operInfoEnd;
+			// var operEdit = operEditBegin + data + operEditEnd;
 			var oper = operBegin + data[0] + operEnd;
-			row = row + colBegin + oper + colEnd + rowEnd;	
+			row = row + colBegin + operInfo + oper + colEnd + rowEnd;	
 			bodyContent += row;
 		}
 		for (; rowIndex < DbCache.RowsPerPage(); ++rowIndex) {
@@ -206,15 +220,16 @@
 		}
 		
 		$('#dbTableBody').html(bodyContent);
-	}
+	}		
 	
 	//while push delete button
-	var dbUserName = "";
-	function dbDelete(id)
+	var udfName = "";
+	function udfDelete(id)
 	{		
-		dbUserName = id;
-		DbUtil.ConfirmDialog(DB_CODE_CONFIRM, "drop user: " + dbUserName);
-	}
+		udfName = id;
+		DbUtil.ConfirmDialog(DB_CODE_CONFIRM, "drop function " + udfName);
+	}	
+
 	
 	//while confirm delete
 	function dbExecuteDelete()
@@ -225,7 +240,7 @@
 			headers: {
 				'Authorization' : DbSession.GetToken()
 			},
-			data: "drop user " + dbUserName,
+			data: "drop function " + udfName,
 			dataType: "json",
 			success: dbExecuteDeleteCb,
 			error: function(msg) { 
@@ -239,7 +254,7 @@
 			}		
 		});		
 	}
-	
+			
 	function dbExecuteDeleteCb(d)
 	{
 		if (DbUtil.CheckResponse(d)) {
@@ -247,24 +262,29 @@
 				DbUtil.Error(DB_CODE_EXEC_ERROR);
 			}
 			else {
-				DbUtil.GotoPage("users.html");
+				DbUtil.GotoPage("udfs.html");
 			}
 		}
 	}
-					
-	function dbAdd()
+			
+	function udfAdd(type)
 	{
-		DbUtil.GotoPage("user.html");
+		DbUtil.GotoPage("udf.html?type=" + type);
+	}
+
+	function goShell()
+	{
+		DbUtil.GotoPage("shell.html");
 	}
 	
-	function dbQuery(path) {
+	function dbQuery() {
 		$.ajax({
 			type: "post",
-			url: "rest/" + path,
+			url: "rest/sql",
 			headers: {
 				'Authorization' : DbSession.GetToken()
 			},
-			data: "show users",
+			data: "show functions",
 			dataType: "json",
 			success: dbQueryCb,
 			error: function(msg) { 
@@ -281,10 +301,11 @@
 	
 	function dbQueryCb(d)
 	{
-		if (DbUtil.CheckResponse(d)) {
+		if (DbUtil.CheckResponse(d)){
 			DbCache.OnData(d);
 		}
 	}
+	
 	</script>
 	
 	<!-- Bootstrap core JavaScript

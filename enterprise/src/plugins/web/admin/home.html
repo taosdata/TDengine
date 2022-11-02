@@ -33,12 +33,14 @@
 					<li><a href="dbs.html">DBs</a></li>
 					<li><a href="stables.html">Stables</a></li>
 					<li><a href="tables.html">Tables</a></li>
+					<li><a href="udfs.html">Udfs</a></li>
 					<li><a href="users.html">Users</a></li>
 					<li id="dnodeLiId" style="display:none"><a href="dnodes.html">DNodes</a></li>
 					<li id="monitorLiId" style="display:none"><a href="monitor.html">Monitor</a></li>
 					<li><a href="usage.html">Usage</a></li>
 					<li><a href="query.html">Queries</a></li>
 					<li><a href="shell.html">Shell</a></li>
+					<li style="display:none" id="jupyterLi"><a href="jupyter.html">Jupyter</a></li>
 				</ul>
 				<ul class="nav navbar-nav navbar-right">
 					<li><a href="userInfo.html" id="user"></a></li>
@@ -104,36 +106,31 @@
 	
 	function dbQuerySummary()
 	{
-		$.ajax({
-			type: "post",
-			url: "admin/info",
-			headers: {
-				'Authorization' : "Taosd " + DbSession.GetToken()
-			},
-			dataType: "json",
-			success: dbQuerySummaryCallback,
-			error: function(msg) { 
-				if (msg != null && msg.responseJSON != null) {
-					dbQuerySummaryCallback(msg.responseJSON);
-				} else if (msg != null) {
-					DbUtil.ErrorWithMsg(DB_CODE_INVALID_FORMAT, msg);
-				} else {
-					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
-				}
-			}		
-		});		
+		let d = {"code":0,"data":[{"dbs":1,"tables":11,"users":3,"mnodes":1,"dnodes":1}]};
+		dbQuerySummaryCallback(d)
+		// $.ajax({
+		// 	type: "post",
+		// 	url: "admin/info",
+		// 	headers: {
+		// 		'Authorization' : "Basic " + DbSession.GetToken()
+		// 	},
+		// 	dataType: "json",
+		// 	success: dbQuerySummaryCallback,
+		// 	error: function(msg) { 
+		// 		if (msg != null && msg.responseJSON != null) {
+		// 			dbQuerySummaryCallback(msg.responseJSON);
+		// 		} else if (msg != null) {
+		// 			DbUtil.ErrorWithMsg(DB_CODE_INVALID_FORMAT, msg);
+		// 		} else {
+		// 			DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
+		// 		}
+		// 	}		
+		// });		
 	}
 	
 	function dbQuerySummaryCallback(d)
 	{
-		if (d == null || d.status == null) {
-			DbUtil.Error(DB_CODE_INVALID_FORMAT);
-			return;
-		} 
-		if (d.status == "error") {
-			DbUtil.HandleError(d);
-		}
-		else if (d.status == "succ") {
+		if (DbUtil.CheckResponse(d)) {
 			for (i = 0; i < d.data.length; ++i) {
 				data = d.data[i];
 				$('#DBs').text(data.dbs + " DBs");
@@ -147,9 +144,6 @@
 					$('#DNodes').hide();
 				}
 			}
-		}	
-		else{
-			DbUtil.Error(DB_CODE_UNKNOWN);
 		}
 	}
 	
@@ -160,7 +154,7 @@
 		case 1: return "Warning";
 		case 2: return "Error";
 		}
-		return "Undefine";
+		return level;
 	}
 	
 	function dbQueryEvents()
@@ -182,11 +176,11 @@
 		
 		$.ajax({
 			type: "post",
-			url: "admin/sql",
+			url: "rest/sql",
 			headers: {
-				'Authorization' : "Taosd " + DbSession.GetToken()
+				'Authorization' : DbSession.GetToken()
 			},
-			data: "select * from log.log limit 13",
+			data: "select * from log.logs limit 13",
 			dataType: "json",
 			success: dbQueryEventsCb,
 			error: function(msg) { 
@@ -203,19 +197,14 @@
 	
 	function dbQueryEventsCb(d)
 	{
-		if (d == null || d.status == null) {
-			DbUtil.Error(DB_CODE_INVALID_FORMAT);
-			return;
-		} 
-		if (d.status == "error") {
-			DbUtil.HandleError(d);
-		}
-		else if (d.status == "succ") {
+		if (DbUtil.CheckResponse(d)) {
 			var eventHtml = "";
+			eventHtml += "<tr>" + _.map(d.head, function(name) { return "<td>" + name + "</td>"}).join("                ") + "</tr>";
+			
 			for (i = 0; i < d.data.length; ++i) {
 				data = d.data[i];		
 				//eventHtml += "<tr><td>" + data[0] + "</td><td>" + data[1] +  "</td><td>" + data[2] + "</td><td>" + data[3] + "</td><tr>";
-				eventHtml += "<tr><td>" + data[0] + "</td><td>" + dbGetLevelStr(data[1]) +  "</td><td>" + data[2] + "</td><td>" + data[3] + "</td><tr>";
+				eventHtml += "<tr><td>" + data[0] + "</td><td>" + dbGetLevelStr(data[1]) +  "</td><td>" + data[2] + "</td><td>" + data[3] + "</td><td>" + data[4] + "</td><td>" + data[5] + "</td><tr>";
 				if (i > 13) {
 					break;
 				}
@@ -223,9 +212,6 @@
 			if (eventHtml != "") {
 				$('#events').html(eventHtml);
 			}
-		}	
-		else{
-			DbUtil.Error(DB_CODE_UNKNOWN);
 		}
 	} 
 
@@ -239,6 +225,7 @@
 	================================================== -->
 	<!-- Placed at the end of the document so the pages load faster -->
 	<script src="js/jquery-2.0.2.min.js"></script>
+	<script type="text/javascript" src="js/lodash.core.min.js"></script>
 	<script src="bootstrap-3.3.7-dist/js/bootstrap.min.js"></script>
 </body>
 </html>
