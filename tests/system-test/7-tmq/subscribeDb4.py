@@ -55,14 +55,15 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         logSql = False
         tdSql.init(conn.cursor(), logSql)
+        self.replica = replicaVar
 
     def tmqCase12(self):
         tdLog.printNoPrefix("======== test case 12: ")
         tdLog.info("step 1: create database, stb, ctb and insert data")
 
         tmqCom.initConsumerTable(self.cdbName)
-
-        tdCom.create_database(tdSql,self.paraDict["dbName"],self.paraDict["dropFlag"])
+        
+        tdCom.create_database(tdSql,self.paraDict["dbName"],self.paraDict["dropFlag"], replica=self.replica)
 
         self.paraDict["stbName"] = 'stb1'
         tdCom.create_stable(tdSql,dbname=self.paraDict["dbName"],stbname=self.paraDict["stbName"],column_elm_list=self.paraDict["colSchema"],tag_elm_list=self.paraDict["tagSchema"],count=1, default_stbname_prefix=self.paraDict["stbName"])

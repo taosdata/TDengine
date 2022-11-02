@@ -20,10 +20,12 @@ class TDTestCase:
         self.vgroups    = 4
         self.ctbNum     = 100
         self.rowsPerTbl = 1000
+        self.replica    = 1
 
     def init(self, conn, logSql, replicaVar=1):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(), False)
+        self.replica = replicaVar
 
     def prepareTestEnv(self):
         tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
@@ -46,6 +48,7 @@ class TDTestCase:
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
+        paraDict["replica"] = self.replica 
 
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
@@ -91,6 +94,7 @@ class TDTestCase:
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
+        paraDict["replica"] = self.replica 
         paraDict['snapshot'] = self.snapshot
         paraDict['vgroups'] = self.vgroups
         paraDict['ctbNum'] = self.ctbNum
@@ -170,6 +174,7 @@ class TDTestCase:
                     'showMsg':    1,
                     'showRow':    1,
                     'snapshot':   0}
+        paraDict["replica"] = self.replica 
 
         paraDict['snapshot'] = self.snapshot
         paraDict['vgroups'] = self.vgroups

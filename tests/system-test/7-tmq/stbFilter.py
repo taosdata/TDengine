@@ -15,10 +15,14 @@ sys.path.append("./7-tmq")
 from tmqCommon import *
 
 class TDTestCase:
+    def __init__(self):
+        self.replica = 1
+
     def init(self, conn, logSql, replicaVar=1):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
+        self.replica = replicaVar
 
     def prepareTestEnv(self):
         tdLog.printNoPrefix("======== prepare test env include database, stable, ctables, and insert data: ")
@@ -41,6 +45,7 @@ class TDTestCase:
                     'pollDelay':  10,
                     'showMsg':    1,
                     'showRow':    1}
+        paraDict["replica"] = self.replica            
 
         tmqCom.initConsumerTable()
         tmqCom.create_database(tsql=tdSql, dbName=paraDict["dbName"],dropFlag=paraDict["dropFlag"], vgroups=paraDict['vgroups'],replica=paraDict['replica'])
@@ -74,7 +79,8 @@ class TDTestCase:
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
                     'pollDelay':  10,
                     'showMsg':    1,
-                    'showRow':    1}
+                    'showRow':    1}                    
+        paraDict["replica"] = self.replica 
 
         topicNameList = ['topic1', 'topic2', 'topic3']
         expectRowsList = []
@@ -182,6 +188,7 @@ class TDTestCase:
                     'pollDelay':  10,
                     'showMsg':    1,
                     'showRow':    1}
+        paraDict["replica"] = self.replica  
 
         topicNameList = ['topic1', 'topic2', 'topic3']
         expectRowsList = []

@@ -24,6 +24,7 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
+        self.replica = replicaVar
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -178,7 +179,7 @@ class TDTestCase:
 
         self.initConsumerTable()
 
-        tdSql.execute("create database if not exists %s vgroups %d" %(parameterDict['dbName'], parameterDict['vgroups']))
+        tdSql.execute("create database if not exists %s vgroups %d replica %d" %(parameterDict['dbName'], parameterDict['vgroups'], self.replica))
 
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
@@ -275,7 +276,7 @@ class TDTestCase:
 
         self.initConsumerTable()
 
-        tdSql.execute("create database if not exists %s vgroups %d" %(parameterDict['dbName'], parameterDict['vgroups']))
+        tdSql.execute("create database if not exists %s vgroups %d replica %d" %(parameterDict['dbName'], parameterDict['vgroups'], self.replica))
 
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
@@ -341,7 +342,7 @@ class TDTestCase:
 
         self.initConsumerTable()
 
-        tdSql.execute("create database if not exists %s vgroups %d" %(parameterDict['dbName'], parameterDict['vgroups']))
+        tdSql.execute("create database if not exists %s vgroups %d replica %d" %(parameterDict['dbName'], parameterDict['vgroups'], self.replica))
         tdSql.execute("create table  if not exists %s.%s (ts timestamp, c1 bigint, c2 binary(16)) tags(t1 int)"%(parameterDict['dbName'], parameterDict['stbName']))
 
         tdLog.info("create topics from db")
@@ -410,7 +411,7 @@ class TDTestCase:
 
         self.initConsumerTable()
 
-        tdSql.execute("create database if not exists %s vgroups %d" %(parameterDict['dbName'], parameterDict['vgroups']))
+        tdSql.execute("create database if not exists %s vgroups %d replica %d" %(parameterDict['dbName'], parameterDict['vgroups'], self.replica))
 
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()

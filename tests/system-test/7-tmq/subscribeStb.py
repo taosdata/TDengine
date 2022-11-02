@@ -31,6 +31,7 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
+        self.replica = replicaVar
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -174,7 +175,7 @@ class TDTestCase:
         tsql=self.newcur(parameterDict['cfg'], 'localhost', 6030)
 
         if parameterDict["actionType"] == actionType.CREATE_DATABASE:
-            self.create_database(tsql, parameterDict["dbName"])
+            self.create_database(tsql, parameterDict["dbName"], parameterDict["dropFlag"], parameterDict["vgroups"], self.replica)
         elif parameterDict["actionType"] == actionType.CREATE_STABLE:
             self.create_stable(tsql, parameterDict["dbName"], parameterDict["stbName"])
         elif parameterDict["actionType"] == actionType.CREATE_CTABLE:
@@ -206,7 +207,7 @@ class TDTestCase:
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
 
-        self.create_database(tdSql, parameterDict["dbName"])
+        self.create_database(tdSql, parameterDict["dbName"], parameterDict["dropFlag"], parameterDict["vgroups"], self.replica)
         self.create_stable(tdSql, parameterDict["dbName"], parameterDict["stbName"])
 
         tdLog.info("create topics from stb1")
@@ -286,7 +287,7 @@ class TDTestCase:
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict2['cfg'] = cfgPath
 
-        self.create_database(tdSql, parameterDict["dbName"])
+        self.create_database(tdSql, parameterDict["dbName"], parameterDict["dropFlag"], parameterDict["vgroups"], self.replica)
         self.create_stable(tdSql, parameterDict["dbName"], parameterDict["stbName"])
         self.create_stable(tdSql, parameterDict2["dbName"], parameterDict2["stbName"])
 

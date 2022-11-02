@@ -24,6 +24,7 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
+        self.replica = replicaVar
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -51,7 +52,7 @@ class TDTestCase:
 
     def initConsumerTable(self,cdbName='cdb'):
         tdLog.info("create consume database, and consume info table, and consume result table")
-        tdSql.query("create database if not exists %s vgroups 1"%(cdbName))
+        tdSql.query("create database if not exists %s vgroups 1 replica %d"%(cdbName, self.replica))
         tdSql.query("drop table if exists %s.consumeinfo "%(cdbName))
         tdSql.query("drop table if exists %s.consumeresult "%(cdbName))
 
@@ -98,7 +99,7 @@ class TDTestCase:
         os.system(shellCmd)
 
     def create_tables(self,tsql, dbName,vgroups,stbName,ctbNum):
-        tsql.execute("create database if not exists %s vgroups %d"%(dbName, vgroups))
+        tsql.execute("create database if not exists %s vgroups %d replica %d"%(dbName, vgroups, self.replica))
         tsql.execute("use %s" %dbName)
         tsql.execute("create table  if not exists %s (ts timestamp, c1 bigint, c2 binary(16)) tags(t1 int)"%stbName)
         pre_create = "create table"
@@ -178,7 +179,7 @@ class TDTestCase:
 
         self.initConsumerTable()
 
-        tdSql.execute("create database if not exists %s vgroups %d" %(parameterDict['dbName'], parameterDict['vgroups']))
+        tdSql.execute("create database if not exists %s vgroups %d replica %d" %(parameterDict['dbName'], parameterDict['vgroups'], self.replica))
 
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
@@ -193,7 +194,7 @@ class TDTestCase:
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
 
-        tdSql.execute("create database if not exists %s vgroups %d" %(parameterDict2['dbName'], parameterDict2['vgroups']))
+        tdSql.execute("create database if not exists %s vgroups %d replica %d" %(parameterDict2['dbName'], parameterDict2['vgroups'], self.replica))
 
         prepareEnvThread2 = threading.Thread(target=self.prepareEnv, kwargs=parameterDict2)
         prepareEnvThread2.start()
@@ -263,7 +264,7 @@ class TDTestCase:
 
         self.initConsumerTable()
 
-        tdSql.execute("create database if not exists %s vgroups %d" %(parameterDict['dbName'], parameterDict['vgroups']))
+        tdSql.execute("create database if not exists %s vgroups %d replica %d" %(parameterDict['dbName'], parameterDict['vgroups'], self.replica))
 
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
@@ -278,7 +279,7 @@ class TDTestCase:
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
 
-        tdSql.execute("create database if not exists %s vgroups %d" %(parameterDict2['dbName'], parameterDict2['vgroups']))
+        tdSql.execute("create database if not exists %s vgroups %d replica %d" %(parameterDict2['dbName'], parameterDict2['vgroups'], self.replica))
 
         prepareEnvThread2 = threading.Thread(target=self.prepareEnv, kwargs=parameterDict2)
         prepareEnvThread2.start()

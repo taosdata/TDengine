@@ -25,6 +25,7 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
+        self.replica = replicaVar
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -99,7 +100,7 @@ class TDTestCase:
         os.system(shellCmd)
 
     def create_tables(self,tsql, dbName,vgroups,stbName,ctbNum,rowsPerTbl):
-        tsql.execute("create database if not exists %s vgroups %d"%(dbName, vgroups))
+        tsql.execute("create database if not exists %s vgroups %d replica %d"%(dbName, vgroups, self.replica))
         tsql.execute("use %s" %dbName)
         tsql.execute("create table  if not exists %s (ts timestamp, c1 bigint, c2 binary(16)) tags(t1 int)"%stbName)
         pre_create = "create table"
@@ -184,7 +185,7 @@ class TDTestCase:
 
         self.initConsumerTable()
 
-        tdSql.execute("create database if not exists %s vgroups %d" %(parameterDict['dbName'], parameterDict['vgroups']))
+        tdSql.execute("create database if not exists %s vgroups %d replica %d" %(parameterDict['dbName'], parameterDict['vgroups'], self.replica))
 
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
@@ -262,7 +263,7 @@ class TDTestCase:
 
         self.initConsumerTable()
 
-        tdSql.execute("create database if not exists %s vgroups %d" %(parameterDict['dbName'], parameterDict['vgroups']))
+        tdSql.execute("create database if not exists %s vgroups %d replica %d" %(parameterDict['dbName'], parameterDict['vgroups'], self.replica))
 
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
