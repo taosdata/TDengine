@@ -280,10 +280,9 @@ static int32_t sdbReadFileImp(SSdb *pSdb) {
       if (pNewRaw == NULL) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         mError("failed read sdb file since malloc new sdbRaw size:%d failed", pRaw->dataLen + TSDB_MAX_MSG_SIZE);
-        return -1;
-      } else {
-        mInfo("malloc new sdbRaw size:%d, type:%d",pRaw->dataLen + TSDB_MAX_MSG_SIZE, pRaw->type);
+        goto _OVER;
       }
+      mInfo("malloc new sdbRaw size:%d, type:%d", pRaw->dataLen + TSDB_MAX_MSG_SIZE, pRaw->type);
       memcpy(pNewRaw, pRaw, sizeof(SSdbRaw));
       sdbFreeRaw(pRaw);
       pRaw = pNewRaw;
