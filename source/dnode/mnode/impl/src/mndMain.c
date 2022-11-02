@@ -105,7 +105,7 @@ static void mndCalMqRebalance(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   if (pReq != NULL) {
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_MQ_TIMER, .pCont = pReq, .contLen = contLen};
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_TMQ_TIMER, .pCont = pReq, .contLen = contLen};
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 }
@@ -490,7 +490,7 @@ static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
   SMnode    *pMnode = pMsg->info.node;
   SSyncState state = syncGetState(pMnode->syncMgmt.sync);
 
-  if (pMsg->msgType == TDMT_MND_MQ_TIMER || pMsg->msgType == TDMT_MND_TELEM_TIMER ||
+  if (pMsg->msgType == TDMT_MND_TMQ_TIMER || pMsg->msgType == TDMT_MND_TELEM_TIMER ||
       pMsg->msgType == TDMT_MND_TRANS_TIMER || pMsg->msgType == TDMT_MND_TTL_TIMER ||
       pMsg->msgType == TDMT_MND_UPTIME_TIMER) {
     mTrace("timer not process since mnode restored:%d stopped:%d, sync restored:%d role:%s ", pMnode->restored,
