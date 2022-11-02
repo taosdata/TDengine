@@ -2112,7 +2112,7 @@ static bool isValidFileBlockRow(SBlockData* pBlockData, SFileBlockDumpInfo* pDum
 
 static bool initLastBlockReader(SLastBlockReader* pLBlockReader, STableBlockScanInfo* pScanInfo, STsdbReader* pReader) {
   // the last block reader has been initialized for this table.
-  if (pLBlockReader->uid == pScanInfo->uid) {
+  if (pLBlockReader->uid == pScanInfo->uid && hasDataInLastBlock(pLBlockReader)) {
     return true;
   }
 
