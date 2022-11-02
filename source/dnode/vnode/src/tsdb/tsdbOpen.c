@@ -38,7 +38,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   int    slen = 0;
 
   *ppTsdb = NULL;
-  slen = strlen(pVnode->path) + strlen(dir) + 3;
+  slen = TD_PATH_MAX;
 
   if (slen > TD_PATH_MAX) {
     terrno = TSDB_CODE_OUT_OF_RANGE;
