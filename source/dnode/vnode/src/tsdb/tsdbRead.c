@@ -2640,6 +2640,11 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
     }
   }
 
+  if (code == TSDB_CODE_SUCCESS) {
+    STimeWindow* pWin = &pReader->pResBlock->info.window;
+    pScanInfo->lastKey = ASCENDING_TRAVERSE(pReader->order)? pWin->ekey:pWin->skey;
+  }
+
   return code;
 }
 
