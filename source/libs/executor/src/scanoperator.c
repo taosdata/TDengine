@@ -1062,7 +1062,7 @@ SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDi
 
     int32_t code = initTableblockDistQueryCond(pBlockScanNode->suid, &cond);
     if (code != TSDB_CODE_SUCCESS) {
-      return NULL;
+      goto _error;
     }
 
     STableListInfo* pTableListInfo = pTaskInfo->pTableInfoList;
@@ -1070,8 +1070,8 @@ SOperatorInfo* createDataBlockInfoScanOperator(SReadHandle* readHandle, SBlockDi
     void*           pList = tableListGetInfo(pTableListInfo, 0);
 
     code = tsdbReaderOpen(readHandle->vnode, &cond, pList, num, &pInfo->pHandle, pTaskInfo->id.str);
+    cleanupQueryTableDataCond(&cond);
     if (code != 0) {
-      cleanupQueryTableDataCond(&cond);
       goto _error;
     }
   }
