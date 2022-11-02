@@ -1364,21 +1364,7 @@ static bool overlapWithDelSkyline(STableBlockScanInfo* pBlockScanInfo, const SDa
   }
 
   // version is not overlap
-  if (ASCENDING_TRAVERSE(order)) {
-    return doCheckforDatablockOverlap(pBlockScanInfo, pBlock, order);
-  } else {
-    int32_t index = pBlockScanInfo->fileDelIndex;
-    while (1) {
-      TSDBKEY* p = taosArrayGet(pBlockScanInfo->delSkyline, index);
-      if (p->ts > pBlock->minKey.ts && index > 0) {
-        index -= 1;
-      } else {  // find the first point that is smaller than the minKey.ts of dataBlock.
-        break;
-      }
-    }
-
-    return doCheckforDatablockOverlap(pBlockScanInfo, pBlock, order);
-  }
+  return doCheckforDatablockOverlap(pBlockScanInfo, pBlock, order);
 }
 
 typedef struct {
