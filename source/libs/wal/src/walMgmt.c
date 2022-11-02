@@ -187,6 +187,13 @@ int32_t walAlter(SWal *pWal, SWalCfg *pCfg) {
   return 0;
 }
 
+int32_t walPersist(SWal *pWal) {
+  taosThreadMutexLock(&pWal->mutex);
+  int32_t ret = walSaveMeta(pWal);
+  taosThreadMutexUnlock(&pWal->mutex);
+  return ret;
+}
+
 void walClose(SWal *pWal) {
   taosThreadMutexLock(&pWal->mutex);
   (void)walSaveMeta(pWal);

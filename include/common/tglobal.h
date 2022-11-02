@@ -119,11 +119,15 @@ extern SDiskCfg tsDiskCfg[];
 // udf
 extern bool tsStartUdfd;
 extern char tsUdfdResFuncs[];
+extern char tsUdfdLdLibPath[];
 
 // schemaless
 extern char tsSmlChildTableName[];
 extern char tsSmlTagName[];
 extern bool tsSmlDataFormat;
+
+// wal
+extern int64_t tsWalFsyncDataSizeLimit;
 
 // internal
 extern int32_t tsTransPullupInterval;

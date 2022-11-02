@@ -20,13 +20,7 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "syncInt.h"
-#include "taosdef.h"
-#include "trpc.h"
-#include "ttimer.h"
 
 #define TIMER_MAX_MS         0x7FFFFFFF
 #define ENV_TICK_TIMER_MS    1000
@@ -57,12 +51,12 @@ typedef struct SSyncEnv {
 
 } SSyncEnv;
 
-extern SSyncEnv* gSyncEnv;
+SSyncEnv* syncEnv();
 
-int32_t syncEnvStart();
-int32_t syncEnvStop();
-int32_t syncEnvStartTimer();
-int32_t syncEnvStopTimer();
+int64_t    syncNodeAdd(SSyncNode* pNode);
+void       syncNodeRemove(int64_t rid);
+SSyncNode* syncNodeAcquire(int64_t rid);
+void       syncNodeRelease(SSyncNode* pNode);
 
 #ifdef __cplusplus
 }

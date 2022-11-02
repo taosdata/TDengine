@@ -2029,7 +2029,7 @@ static int32_t mndSetDropStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
     action.pCont = pReq;
     action.contLen = contLen;
     action.msgType = TDMT_VND_DROP_STB;
-    action.acceptableCode = TSDB_CODE_VND_TB_NOT_EXIST;
+    action.acceptableCode = TSDB_CODE_TDB_STB_NOT_EXIST;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       taosMemoryFree(pReq);
       sdbCancelFetch(pSdb, pIter);

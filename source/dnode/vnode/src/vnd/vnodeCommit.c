@@ -212,6 +212,12 @@ int vnodeCommit(SVnode *pVnode) {
   vInfo("vgId:%d, start to commit, commit ID:%" PRId64 " version:%" PRId64, TD_VID(pVnode), pVnode->state.commitID,
         pVnode->state.applied);
 
+  // persist wal before starting
+  if (walPersist(pVnode->pWal) < 0) {
+    vError("vgId:%d, failed to persist wal since %s", TD_VID(pVnode), terrstr());
+    return -1;
+  }
+
   pVnode->state.commitTerm = pVnode->state.applyTerm;
 
   // save info

@@ -441,8 +441,9 @@ typedef struct {
 } SStreamRetrieveRsp;
 
 typedef struct {
-  int64_t streamId;
-  int32_t taskId;
+  SMsgHead msgHead;
+  int64_t  streamId;
+  int32_t  taskId;
 } SStreamRecoverStep1Req, SStreamRecoverStep2Req;
 
 typedef struct {
