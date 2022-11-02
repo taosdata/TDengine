@@ -2307,6 +2307,12 @@ int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   double param00 = param[0][0] - param[1][0] * (param[0][1] / param[1][1]);
   double param02 = param[0][2] - param[1][2] * (param[0][1] / param[1][1]);
+
+  if (0 == param00) {
+    colDataAppendNULL(pCol, currentRow);
+    return 0;
+  }
+
   // param[0][1] = 0;
   double param12 = param[1][2] - param02 * (param[1][0] / param00);
   // param[1][0] = 0;

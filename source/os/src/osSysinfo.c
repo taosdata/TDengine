@@ -227,9 +227,7 @@ void taosGetSystemInfo() {
 #ifdef WINDOWS
   taosGetCpuCores(&tsNumOfCores);
   taosGetTotalMemory(&tsTotalMemoryKB);
-
-  double tmp1, tmp2, tmp3, tmp4;
-  taosGetCpuUsage(&tmp1, &tmp2);
+  taosGetCpuUsage(NULL, NULL);
 #elif defined(_TD_DARWIN_64)
   long physical_pages = sysconf(_SC_PHYS_PAGES);
   long page_size = sysconf(_SC_PAGESIZE);
@@ -240,9 +238,7 @@ void taosGetSystemInfo() {
   taosGetProcIOnfos();
   taosGetCpuCores(&tsNumOfCores);
   taosGetTotalMemory(&tsTotalMemoryKB);
-
-  double tmp1, tmp2, tmp3, tmp4;
-  taosGetCpuUsage(&tmp1, &tmp2);
+  taosGetCpuUsage(NULL, NULL);
 #endif
 }
 
@@ -447,8 +443,8 @@ void taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
   static int64_t curSysTotal = 0;
   static int64_t curProcTotal = 0;
 
-  *cpu_system = 0;
-  *cpu_engine = 0;
+  if (cpu_system != NULL) *cpu_system = 0;
+  if (cpu_engine != NULL) *cpu_engine = 0;
 
   SysCpuInfo  sysCpu = {0};
   ProcCpuInfo procCpu = {0};
@@ -458,8 +454,12 @@ void taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
     curProcTotal = procCpu.utime + procCpu.stime + procCpu.cutime + procCpu.cstime;
 
     if (curSysTotal > lastSysTotal && curSysUsed >= lastSysUsed && curProcTotal >= lastProcTotal) {
-      *cpu_engine = (curSysUsed - lastSysUsed) / (double)(curSysTotal - lastSysTotal) * 100;
-      *cpu_system = (curProcTotal - lastProcTotal) / (double)(curSysTotal - lastSysTotal) * 100;
+      if (cpu_system != NULL) {
+        *cpu_system = (curSysUsed - lastSysUsed) / (double)(curSysTotal - lastSysTotal) * 100;
+      }
+      if (cpu_engine != NULL) {
+        *cpu_engine = (curProcTotal - lastProcTotal) / (double)(curSysTotal - lastSysTotal) * 100;
+      }
     }
 
     lastSysUsed = curSysUsed;

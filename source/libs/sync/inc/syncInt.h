@@ -22,9 +22,9 @@ extern "C" {
 
 #include "sync.h"
 #include "syncTools.h"
-#include "tlog.h"
-#include "ttimer.h"
 #include "taosdef.h"
+#include "tlog.h"
+#include "trpc.h"
 #include "ttimer.h"
 
 // clang-format off
@@ -107,9 +107,9 @@ typedef struct SSyncNode {
   // sync io
   SWal*         pWal;
   const SMsgCb* msgcb;
-  int32_t (*FpSendMsg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
-  int32_t (*FpEqMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
-  int32_t (*FpEqCtrlMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
+  int32_t (*syncSendMSg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
+  int32_t (*syncEqMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
+  int32_t (*syncEqCtrlMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
 
   // init internal
   SNodeInfo myNodeInfo;
