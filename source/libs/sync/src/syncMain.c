@@ -2112,7 +2112,13 @@ void syncNodeUpdateTermWithoutStepDown(SSyncNode* pSyncNode, SyncTerm term) {
 }
 
 void syncNodeStepDown(SSyncNode* pSyncNode, SyncTerm newTerm) {
-  ASSERT(pSyncNode->pRaftStore->currentTerm <= newTerm);
+  if (pSyncNode->pRaftStore->currentTerm > newTerm) {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "step down, ignore, new-term:%" PRIu64 ", current-term:%" PRIu64, newTerm,
+             pSyncNode->pRaftStore->currentTerm);
+    syncNodeEventLog(pSyncNode, logBuf);
+    return;
+  }
 
   do {
     char logBuf[128];
