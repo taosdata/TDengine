@@ -30,10 +30,10 @@
 // The numOfOutputGroups is specified by physical plan. and will not be affect by numOfGroups
 struct STableListInfo {
   bool      oneTableForEachGroup;
-  int32_t   numOfOuputGroups; // the data block will be generated one by one
-  int32_t*  groupOffset;      // keep the offset value for each group in the tableList
+  int32_t   numOfOuputGroups;  // the data block will be generated one by one
+  int32_t*  groupOffset;       // keep the offset value for each group in the tableList
   SArray*   pTableList;
-  SHashObj* map;              // speedup acquire the tableQueryInfo by table uid
+  SHashObj* map;  // speedup acquire the tableQueryInfo by table uid
   uint64_t  suid;
 };
 
@@ -1678,9 +1678,7 @@ uint64_t tableListGetSize(const STableListInfo* pTableList) {
   return taosArrayGetSize(pTableList->pTableList);
 }
 
-uint64_t tableListGetSuid(const STableListInfo* pTableList) {
-  return pTableList->suid;
-}
+uint64_t tableListGetSuid(const STableListInfo* pTableList) { return pTableList->suid; }
 
 STableKeyInfo* tableListGetInfo(const STableListInfo* pTableList, int32_t index) {
   if (taosArrayGetSize(pTableList->pTableList) == 0) {
@@ -1718,7 +1716,7 @@ int32_t tableListAddTableInfo(STableListInfo* pTableList, uint64_t uid, uint64_t
 }
 
 int32_t tableListGetGroupList(const STableListInfo* pTableList, int32_t ordinalGroupIndex, STableKeyInfo** pKeyInfo,
-                         int32_t* size) {
+                              int32_t* size) {
   int32_t total = tableListGetOutputGroups(pTableList);
   if (ordinalGroupIndex < 0 || ordinalGroupIndex >= total) {
     return TSDB_CODE_INVALID_PARA;
@@ -1728,7 +1726,7 @@ int32_t tableListGetGroupList(const STableListInfo* pTableList, int32_t ordinalG
   // 1. only one group exists, and 2. one table exists for each group.
   if (total == 1) {
     *size = tableListGetSize(pTableList);
-    *pKeyInfo = (*size == 0)? NULL:taosArrayGet(pTableList->pTableList, 0);
+    *pKeyInfo = (*size == 0) ? NULL : taosArrayGet(pTableList->pTableList, 0);
     return TSDB_CODE_SUCCESS;
   } else if (total == tableListGetSize(pTableList)) {
     *size = 1;
@@ -1806,13 +1804,13 @@ void tableListClear(STableListInfo* pTableListInfo) {
 }
 
 static int32_t orderbyGroupIdComparFn(const void* p1, const void* p2) {
-  STableKeyInfo* pInfo1 = (STableKeyInfo*) p1;
-  STableKeyInfo* pInfo2 = (STableKeyInfo*) p2;
+  STableKeyInfo* pInfo1 = (STableKeyInfo*)p1;
+  STableKeyInfo* pInfo2 = (STableKeyInfo*)p2;
 
   if (pInfo1->groupId == pInfo2->groupId) {
     return 0;
   } else {
-    return pInfo1->groupId < pInfo2->groupId? -1:1;
+    return pInfo1->groupId < pInfo2->groupId ? -1 : 1;
   }
 }
 
@@ -1825,12 +1823,12 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
   SArray* pList = taosArrayInit(4, sizeof(int32_t));
 
   STableKeyInfo* pInfo = taosArrayGet(pTableListInfo->pTableList, 0);
-  uint64_t gid = pInfo->groupId;
+  uint64_t       gid = pInfo->groupId;
 
   int32_t start = 0;
   taosArrayPush(pList, &start);
 
-  for(int32_t i = 1; i < size; ++i) {
+  for (int32_t i = 1; i < size; ++i) {
     pInfo = taosArrayGet(pTableListInfo->pTableList, i);
     if (pInfo->groupId != gid) {
       taosArrayPush(pList, &i);
@@ -1845,16 +1843,17 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
   return TDB_CODE_SUCCESS;
 }
 
-int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* group, bool groupSort) {
+int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle* pHandle, SNodeList* group,
+                                    bool groupSort) {
   int32_t code = TSDB_CODE_SUCCESS;
   ASSERT(pTableListInfo->map != NULL);
 
-  bool groupByTbname = groupbyTbname(group);
+  bool   groupByTbname = groupbyTbname(group);
   size_t numOfTables = taosArrayGetSize(pTableListInfo->pTableList);
   if (group == NULL || groupByTbname) {
     for (int32_t i = 0; i < numOfTables; i++) {
       STableKeyInfo* info = taosArrayGet(pTableListInfo->pTableList, i);
-      info->groupId = groupByTbname? info->uid:0;
+      info->groupId = groupByTbname ? info->uid : 0;
     }
 
     pTableListInfo->oneTableForEachGroup = groupByTbname;
@@ -1878,7 +1877,7 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
 
   // add all table entry in the hash map
   size_t size = taosArrayGetSize(pTableListInfo->pTableList);
-  for(int32_t i = 0; i < size; ++i) {
+  for (int32_t i = 0; i < size; ++i) {
     STableKeyInfo* p = taosArrayGet(pTableListInfo->pTableList, i);
     taosHashPut(pTableListInfo->map, &p->uid, sizeof(uint64_t), &i, sizeof(int32_t));
   }
@@ -1889,7 +1888,7 @@ int32_t buildGroupIdMapForAllTables(STableListInfo* pTableListInfo, SReadHandle*
 int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags, bool groupSort, SReadHandle* pHandle,
                                 STableListInfo* pTableListInfo, SNode* pTagCond, SNode* pTagIndexCond,
                                 struct SExecTaskInfo* pTaskInfo) {
-  int64_t st = taosGetTimestampUs();
+  int64_t     st = taosGetTimestampUs();
   const char* idStr = GET_TASKID(pTaskInfo);
 
   if (pHandle == NULL) {
@@ -1919,7 +1918,7 @@ int32_t createScanTableListInfo(SScanPhysiNode* pScanNode, SNodeList* pGroupTags
     return code;
   }
 
-  pTaskInfo->cost.groupIdMapTime = (taosGetTimestampUs() - st1)/1000.0;
+  pTaskInfo->cost.groupIdMapTime = (taosGetTimestampUs() - st1) / 1000.0;
   qDebug("generate group id map completed, elapsed time:%.2f ms %s", pTaskInfo->cost.groupIdMapTime, idStr);
 
   return TSDB_CODE_SUCCESS;
