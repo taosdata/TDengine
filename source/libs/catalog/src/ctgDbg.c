@@ -226,28 +226,45 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgdEnableDebug(char *option) {
+int32_t ctgdEnableDebug(char *option, bool enable) {
   if (0 == strcasecmp(option, "lock")) {
-    gCTGDebug.lockEnable = true;
-    qDebug("lock debug enabled");
+    gCTGDebug.lockEnable = enable;
+    qDebug("catalog lock debug set to %d", enable);
     return TSDB_CODE_SUCCESS;
   }
 
   if (0 == strcasecmp(option, "cache")) {
-    gCTGDebug.cacheEnable = true;
-    qDebug("cache debug enabled");
+    gCTGDebug.cacheEnable = enable;
+    qDebug("catalog cache debug set to %d", enable);
     return TSDB_CODE_SUCCESS;
   }
 
   if (0 == strcasecmp(option, "api")) {
-    gCTGDebug.apiEnable = true;
-    qDebug("api debug enabled");
+    gCTGDebug.apiEnable = enable;
+    qDebug("catalog api debug set to %d", enable);
     return TSDB_CODE_SUCCESS;
   }
 
   if (0 == strcasecmp(option, "meta")) {
-    gCTGDebug.metaEnable = true;
-    qDebug("api debug enabled");
+    gCTGDebug.metaEnable = enable;
+    qDebug("catalog meta debug set to %d", enable);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (0 == strcasecmp(option, "stopUpdate")) {
+    SCatalog *pCtg = NULL;
+    
+    void *pIter = taosHashIterate(gCtgMgmt.pCluster, NULL);
+    while (pIter) {
+      pCtg = *(SCatalog **)pIter;
+
+      pCtg->stopUpdate = enable;
+      
+      pIter = taosHashIterate(gCtgMgmt.pCluster, pIter);
+    }
+    
+    qDebug("catalog stopUpdate set to %d", enable);
+    
     return TSDB_CODE_SUCCESS;
   }
 
@@ -255,6 +272,77 @@ int32_t ctgdEnableDebug(char *option) {
 
   return TSDB_CODE_CTG_INTERNAL_ERROR;
 }
+
+int32_t ctgdHandleDbgCommand(char *command) {
+  if (NULL == command) {
+    CTG_RET(TSDB_CODE_INVALID_PARA);
+  }
+
+  if (strlen(command) > CTG_MAX_COMMAND_LEN) {
+    CTG_RET(TSDB_CODE_INVALID_PARA);
+  }
+
+  char *dup = strdup(command);
+  char *option = NULL;
+  char *param = NULL;
+  
+  int32_t i = 0;
+  bool newItem = true;
+  while (*(dup + i)) {
+    if (isspace(*(dup + i))) {
+      *(dup + i) = 0;
+      ++i;
+      newItem = true;
+      continue;
+    }
+
+    if (!newItem) {
+      ++i;
+      continue;
+    }
+    
+    newItem = false;
+    if (NULL == option) {
+      option = dup + i;
+      ++i;
+      continue;
+    }
+
+    if (NULL == param) {
+      param = dup + i;
+      ++i;
+      continue;
+    }
+
+    taosMemoryFree(dup);
+    CTG_RET(TSDB_CODE_INVALID_PARA);
+  }
+
+  bool enable = atoi(param);
+
+  int32_t code = ctgdEnableDebug(option, enable);
+
+  taosMemoryFree(dup);
+
+  CTG_RET(code);
+}
+
+int32_t ctgdGetOneHandle(SCatalog **pHandle) {
+  SCatalog *pCtg = NULL;
+
+  void *pIter = taosHashIterate(gCtgMgmt.pCluster, NULL);
+  while (pIter) {
+    pCtg = *(SCatalog **)pIter;
+
+    taosHashCancelIterate(gCtgMgmt.pCluster, pIter);
+    break;
+  }
+
+  *pHandle = pCtg;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t ctgdGetStatNum(char *option, void *res) {
   if (0 == strcasecmp(option, "runtime.numOfOpDequeue")) {
