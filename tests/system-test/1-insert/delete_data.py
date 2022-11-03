@@ -25,7 +25,7 @@ from util.sqlset import TDSetSql
 class TDTestCase:
     def init(self, conn, logSql, replicaVar=1):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), True)
         self.dbname = 'db_test'
         self.setsql = TDSetSql()
         self.stbname = 'stb'
