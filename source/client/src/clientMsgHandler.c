@@ -47,6 +47,7 @@ int32_t genericRspCallback(void* param, SDataBuf* pMsg, int32_t code) {
 int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
   SRequestObj *pRequest = acquireRequest(*(int64_t*)param);
   if (NULL == pRequest) {
+    setErrno(pRequest, TSDB_CODE_TSC_DISCONNECTED);
     tsem_post(&pRequest->body.rspSem);
     goto End;
   }
@@ -59,6 +60,12 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   STscObj* pTscObj = pRequest->pTscObj;
 
+  if (NULL == pTscObj->pAppInfo || NULL == pTscObj->pAppInfo->pAppHbMgr) {
+    setErrno(pRequest, TSDB_CODE_TSC_DISCONNECTED);
+    tsem_post(&pRequest->body.rspSem);
+    goto End;
+  }
+  
   SConnectRsp connectRsp = {0};
   if (tDeserializeSConnectRsp(pMsg->pData, pMsg->len, &connectRsp) != 0) {
     code = TSDB_CODE_TSC_INVALID_VERSION;
@@ -119,7 +126,7 @@ int32_t processConnectRsp(void* param, SDataBuf* pMsg, int32_t code) {
 
   tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, connectRsp.clusterId,
            pTscObj->pAppInfo->numOfConns);
-
+           
   tsem_post(&pRequest->body.rspSem);
 End:
 
