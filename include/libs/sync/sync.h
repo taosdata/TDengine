@@ -219,6 +219,7 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex);
 int32_t syncEndSnapshot(int64_t rid);
 int32_t syncLeaderTransfer(int64_t rid);
 int32_t syncStepDown(int64_t rid, SyncTerm newTerm);
+bool    syncIsReadyForRead(int64_t rid);
 
 SSyncState  syncGetState(int64_t rid);
 void        syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet);

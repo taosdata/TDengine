@@ -437,6 +437,39 @@ int32_t syncStepDown(int64_t rid, SyncTerm newTerm) {
   return 0;
 }
 
+bool syncIsReadyForRead(int64_t rid) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return false;
+  }
+  ASSERT(rid == pSyncNode->rid);
+
+  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER && pSyncNode->restoreFinish) {
+    syncNodeRelease(pSyncNode);
+    return true;
+  }
+
+  bool ready = false;
+  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER && !pSyncNode->restoreFinish) {
+    if (!pSyncNode->pLogStore->syncLogIsEmpty(pSyncNode->pLogStore)) {
+      SSyncRaftEntry* pEntry = NULL;
+      int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(
+          pSyncNode->pLogStore, pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore), &pEntry);
+      if (code == 0 && pEntry != NULL) {
+        if (pEntry->originalRpcType == TDMT_SYNC_NOOP && pEntry->term == pSyncNode->pRaftStore->currentTerm) {
+          ready = true;
+        }
+
+        syncEntryDestory(pEntry);
+      }
+    }
+  }
+
+  syncNodeRelease(pSyncNode);
+  return ready;
+}
+
 int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
   if (pSyncNode->peersNum == 0) {
     sDebug("only one replica, cannot leader transfer");
