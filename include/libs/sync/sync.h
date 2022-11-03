@@ -211,6 +211,7 @@ void    syncCleanUp();
 int64_t syncOpen(SSyncInfo* pSyncInfo);
 void    syncStart(int64_t rid);
 void    syncStop(int64_t rid);
+void    syncPreStop(int64_t rid);
 int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak);
 int32_t syncProcessMsg(int64_t rid, SRpcMsg* pMsg);
 int32_t syncReconfig(int64_t rid, SSyncCfg* pCfg);

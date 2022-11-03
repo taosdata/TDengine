@@ -245,6 +245,7 @@ _err:
 void vnodePreClose(SVnode *pVnode) {
   if (pVnode) {
     syncLeaderTransfer(pVnode->sync);
+    syncPreStop(pVnode->sync);
   }
 }
 
