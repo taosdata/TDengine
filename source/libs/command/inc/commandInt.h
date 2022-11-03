@@ -96,6 +96,7 @@ extern "C" {
 #define COMMAND_RESET_LOG "resetLog"
 #define COMMAND_SCHEDULE_POLICY "schedulePolicy"
 #define COMMAND_ENABLE_RESCHEDULE "enableReSchedule"
+#define COMMAND_CATALOG_DEBUG "catalogDebug"
 
 typedef struct SExplainGroup {
   int32_t   nodeNum;

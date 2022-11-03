@@ -177,6 +177,7 @@ SSyncFSM* createFsm() {
   SSyncFSM* pFsm = (SSyncFSM*)taosMemoryMalloc(sizeof(SSyncFSM));
   memset(pFsm, 0, sizeof(*pFsm));
 
+#if 0
   pFsm->FpCommitCb = CommitCb;
   pFsm->FpPreCommitCb = PreCommitCb;
   pFsm->FpRollBackCb = RollBackCb;
@@ -193,6 +194,7 @@ SSyncFSM* createFsm() {
   pFsm->FpSnapshotDoWrite = SnapshotDoWrite;
 
   pFsm->FpLeaderTransferCb = LeaderTransferCb;
+#endif
 
   return pFsm;
 }

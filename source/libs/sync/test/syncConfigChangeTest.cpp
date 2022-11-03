@@ -33,7 +33,7 @@ void init() {
 
 void cleanup() { walCleanUp(); }
 
-void CommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
+void CommitCb(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, const SFsmCbMeta cbMeta) {
   SyncIndex beginIndex = SYNC_INDEX_INVALID;
   if (pFsm->FpGetSnapshotInfo != NULL) {
     SSnapshot snapshot;
@@ -52,7 +52,7 @@ void CommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   }
 }
 
-void PreCommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
+void PreCommitCb(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256] = {0};
   snprintf(logBuf, sizeof(logBuf),
            "==callback== ==PreCommitCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s flag:%" PRIu64
@@ -61,7 +61,7 @@ void PreCommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) 
   syncRpcMsgLog2(logBuf, (SRpcMsg*)pMsg);
 }
 
-void RollBackCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
+void RollBackCb(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256];
   snprintf(logBuf, sizeof(logBuf),
            "==callback== ==RollBackCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s flag:%" PRIu64 "\n",
@@ -69,7 +69,7 @@ void RollBackCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   syncRpcMsgLog2(logBuf, (SRpcMsg*)pMsg);
 }
 
-int32_t GetSnapshotCb(struct SSyncFSM* pFsm, SSnapshot* pSnapshot) {
+int32_t GetSnapshotCb(const struct SSyncFSM* pFsm, SSnapshot* pSnapshot) {
   pSnapshot->data = NULL;
   pSnapshot->lastApplyIndex = gSnapshotLastApplyIndex;
   pSnapshot->lastApplyTerm = 100;
@@ -87,6 +87,7 @@ SSyncFSM* createFsm() {
   SSyncFSM* pFsm = (SSyncFSM*)taosMemoryMalloc(sizeof(SSyncFSM));
   memset(pFsm, 0, sizeof(*pFsm));
 
+#if 0
   pFsm->FpCommitCb = CommitCb;
   pFsm->FpPreCommitCb = PreCommitCb;
   pFsm->FpRollBackCb = RollBackCb;
@@ -95,6 +96,7 @@ SSyncFSM* createFsm() {
   pFsm->FpRestoreFinishCb = RestoreFinishCb;
 
   pFsm->FpReConfigCb = ReConfigCb;
+#endif
 
   return pFsm;
 }

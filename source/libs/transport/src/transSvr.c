@@ -363,9 +363,11 @@ void uvOnSendCb(uv_write_t* req, int status) {
     }
     transUnrefSrvHandle(conn);
   } else {
-    tError("conn %p failed to write data, %s", conn, uv_err_name(status));
-    conn->broken = true;
-    transUnrefSrvHandle(conn);
+    if (!uv_is_closing((uv_handle_t*)(conn->pTcp))) {
+      tError("conn %p failed to write data, %s", conn, uv_err_name(status));
+      conn->broken = true;
+      transUnrefSrvHandle(conn);
+    }
   }
 }
 static void uvOnPipeWriteCb(uv_write_t* req, int status) {

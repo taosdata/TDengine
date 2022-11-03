@@ -5436,9 +5436,12 @@ static int32_t tEncodeSSubmitBlkRsp(SEncoder *pEncoder, const SSubmitBlkRsp *pBl
   if (tStartEncode(pEncoder) < 0) return -1;
 
   if (tEncodeI32(pEncoder, pBlock->code) < 0) return -1;
-  if (tEncodeI8(pEncoder, pBlock->hashMeta) < 0) return -1;
   if (tEncodeI64(pEncoder, pBlock->uid) < 0) return -1;
-  if (tEncodeCStr(pEncoder, pBlock->tblFName) < 0) return -1;
+  if (pBlock->tblFName) {
+    if (tEncodeCStr(pEncoder, pBlock->tblFName) < 0) return -1;
+  } else {
+    if (tEncodeCStr(pEncoder, "") < 0) return -1;
+  }
   if (tEncodeI32v(pEncoder, pBlock->numOfRows) < 0) return -1;
   if (tEncodeI32v(pEncoder, pBlock->affectedRows) < 0) return -1;
   if (tEncodeI64v(pEncoder, pBlock->sver) < 0) return -1;
@@ -5455,7 +5458,6 @@ static int32_t tDecodeSSubmitBlkRsp(SDecoder *pDecoder, SSubmitBlkRsp *pBlock) {
   if (tStartDecode(pDecoder) < 0) return -1;
 
   if (tDecodeI32(pDecoder, &pBlock->code) < 0) return -1;
-  if (tDecodeI8(pDecoder, &pBlock->hashMeta) < 0) return -1;
   if (tDecodeI64(pDecoder, &pBlock->uid) < 0) return -1;
   pBlock->tblFName = taosMemoryCalloc(TSDB_TABLE_FNAME_LEN, 1);
   if (NULL == pBlock->tblFName) return -1;

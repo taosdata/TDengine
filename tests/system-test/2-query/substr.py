@@ -30,6 +30,7 @@ LENS        = 6
 class TDTestCase:
 
     def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor(),False)
 

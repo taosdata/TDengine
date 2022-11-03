@@ -62,8 +62,8 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId) {
     syncNodeEventLog(pSyncNode, logBuf);
 
     // start snapshot
-    int32_t code = syncNodeStartSnapshot(pSyncNode, pDestId);
-    ASSERT(code == 0);
+    // int32_t code = syncNodeStartSnapshot(pSyncNode, pDestId);
+
     return 0;
   }
 
