@@ -444,8 +444,12 @@ int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
     return -1;
   }
 
-  SNodeInfo newLeader = (pSyncNode->peersNodeInfo)[0];
-  int32_t   ret = syncNodeLeaderTransferTo(pSyncNode, newLeader);
+  int32_t ret = 0;
+  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+    SNodeInfo newLeader = (pSyncNode->peersNodeInfo)[0];
+    ret = syncNodeLeaderTransferTo(pSyncNode, newLeader);
+  }
+
   return ret;
 }
 
