@@ -67,3 +67,4 @@ if exist C:\\TDengine\\driver\\taosws.dll (
     copy /y C:\\TDengine\\driver\\taosws.dll C:\\Windows\\System32 > nul
 )
 sc query "taosd" >nul || sc create "taosd" binPath= "C:\\TDengine\\taosd.exe --win_service" start= DEMAND
+sc query "taosadapter" >nul || sc create "taosadapter" binPath= "C:\\TDengine\\taosadapter.exe" start= DEMAND
