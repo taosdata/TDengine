@@ -93,7 +93,9 @@ class TDTestCase:
         tdSql.query("select * from information_schema.ins_dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(4,1,'%s:6430'%self.host)
+        tdLog.info("===>1 first check dnode and mnode %d" % dnodeNumbers)
         clusterComCheck.checkDnodes(dnodeNumbers)
+        tdLog.info("===>2 first check dnode and mnode %d" % dnodeNumbers)
         clusterComCheck.checkMnodeStatus(1)
 
         # fisr add three mnodes;
@@ -172,7 +174,7 @@ class TDTestCase:
 
     def run(self):
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=2,stopRole='dnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=2,stopRole='dnode')
 
     def stop(self):
         tdSql.close()
