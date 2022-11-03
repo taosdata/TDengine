@@ -93,9 +93,7 @@ class TDTestCase:
         tdSql.query("select * from information_schema.ins_dnodes;")
         tdSql.checkData(0,1,'%s:6030'%self.host)
         tdSql.checkData(4,1,'%s:6430'%self.host)
-        tdLog.info("===>1 first check dnode and mnode %d" % dnodeNumbers)
         clusterComCheck.checkDnodes(dnodeNumbers)
-        tdLog.info("===>2 first check dnode and mnode %d" % dnodeNumbers)
         clusterComCheck.checkMnodeStatus(1)
 
         # fisr add three mnodes;
