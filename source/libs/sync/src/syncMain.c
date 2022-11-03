@@ -466,6 +466,14 @@ bool syncIsReadyForRead(int64_t rid) {
     }
   }
 
+  if (!ready) {
+    if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+      terrno = TSDB_CODE_SYN_NOT_LEADER;
+    } else {
+      terrno = TSDB_CODE_APP_NOT_READY;
+    }
+  }
+
   syncNodeRelease(pSyncNode);
   return ready;
 }
