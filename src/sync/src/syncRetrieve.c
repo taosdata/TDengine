@@ -216,7 +216,7 @@ static int32_t syncReadOneWalRecord(int32_t sfd, SWalHead *pHead) {
   }
 
   // check wal head valid
-  if (pHead->sver == 0 && !walValidateChecksum(pHead)) {
+  if (pHead->sver == 0 && !syncValidateChecksum(pHead)) {
     sError("sfd:%d, old wal head cksum is messed up, sver=%d version:%" PRIu64 " len:%d", sfd, pHead->sver, pHead->version, pHead->len);
     code = syncSkipCorruptedRecord(pHead, sfd);
     if (code != TSDB_CODE_SUCCESS) {
@@ -246,7 +246,7 @@ static int32_t syncReadOneWalRecord(int32_t sfd, SWalHead *pHead) {
     return -1;
   }
 
-  if (pHead->sver != 0 && !walValidateChecksum(pHead)) {
+  if (pHead->sver != 0 && !syncValidateChecksum(pHead)) {
     sError("sfd:%d, wal check sum failed, sver=%d version:%" PRIu64 " len:%d", sfd, pHead->sver, pHead->version, pHead->len);
     code = syncSkipCorruptedRecord(pHead, sfd);
     if (code != TSDB_CODE_SUCCESS) {
