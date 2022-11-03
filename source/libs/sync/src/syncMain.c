@@ -81,6 +81,15 @@ void syncStop(int64_t rid) {
   }
 }
 
+void syncPreStop(int64_t rid) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) return;
+
+  syncNodePreClose(pSyncNode);
+
+  syncNodeRelease(pSyncNode);
+}
+
 static bool syncNodeCheckNewConfig(SSyncNode* pSyncNode, const SSyncCfg* pCfg) {
   if (!syncNodeInConfig(pSyncNode, pCfg)) return false;
   return abs(pCfg->replicaNum - pSyncNode->replicaNum) <= 1;
@@ -435,8 +444,12 @@ int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
     return -1;
   }
 
-  SNodeInfo newLeader = (pSyncNode->peersNodeInfo)[0];
-  int32_t   ret = syncNodeLeaderTransferTo(pSyncNode, newLeader);
+  int32_t ret = 0;
+  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+    SNodeInfo newLeader = (pSyncNode->peersNodeInfo)[0];
+    ret = syncNodeLeaderTransferTo(pSyncNode, newLeader);
+  }
+
   return ret;
 }
 
@@ -1220,6 +1233,14 @@ void syncNodeStartStandBy(SSyncNode* pSyncNode) {
   ret = 0;
   ret = syncNodeStartPingTimer(pSyncNode);
   ASSERT(ret == 0);
+}
+
+void syncNodePreClose(SSyncNode* pSyncNode) {
+  // stop elect timer
+  syncNodeStopElectTimer(pSyncNode);
+
+  // stop heartbeat timer
+  syncNodeStopHeartbeatTimer(pSyncNode);
 }
 
 void syncNodeClose(SSyncNode* pSyncNode) {
@@ -2825,11 +2846,25 @@ int32_t syncNodeOnHeartbeat(SSyncNode* ths, SyncHeartbeat* pMsg) {
     syncNodeResetElectTimer(ths);
     ths->minMatchIndex = pMsg->minMatchIndex;
 
-#if 0
     if (ths->state == TAOS_SYNC_STATE_FOLLOWER) {
-      syncNodeFollowerCommit(ths, pMsg->commitIndex);
+      // syncNodeFollowerCommit(ths, pMsg->commitIndex);
+      SyncLocalCmd* pSyncMsg = syncLocalCmdBuild(ths->vgId);
+      pSyncMsg->cmd = SYNC_LOCAL_CMD_FOLLOWER_CMT;
+      pSyncMsg->fcIndex = pMsg->commitIndex;
+
+      SRpcMsg rpcMsgLocalCmd;
+      syncLocalCmd2RpcMsg(pSyncMsg, &rpcMsgLocalCmd);
+
+      if (ths->syncEqMsg != NULL && ths->msgcb != NULL) {
+        int32_t code = ths->syncEqMsg(ths->msgcb, &rpcMsgLocalCmd);
+        if (code != 0) {
+          sError("vgId:%d, sync enqueue fc-commit msg error, code:%d", ths->vgId, code);
+          rpcFreeCont(rpcMsgLocalCmd.pCont);
+        } else {
+          sTrace("vgId:%d, sync enqueue fc-commit msg, fc-index: %" PRIu64, ths->vgId, pSyncMsg->fcIndex);
+        }
+      }
     }
-#endif
   }
 
   if (pMsg->term >= ths->pRaftStore->currentTerm && ths->state != TAOS_SYNC_STATE_FOLLOWER) {
@@ -2882,6 +2917,9 @@ int32_t syncNodeOnLocalCmd(SSyncNode* ths, SyncLocalCmd* pMsg) {
 
   if (pMsg->cmd == SYNC_LOCAL_CMD_STEP_DOWN) {
     syncNodeStepDown(ths, pMsg->sdNewTerm);
+
+  } else if (pMsg->cmd == SYNC_LOCAL_CMD_FOLLOWER_CMT) {
+    syncNodeFollowerCommit(ths, pMsg->fcIndex);
 
   } else {
     syncNodeErrorLog(ths, "error local cmd");

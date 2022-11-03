@@ -3400,6 +3400,8 @@ void syncReconfigFinishLog2(char* s, const SyncReconfigFinish* pMsg) {
 const char* syncLocalCmdGetStr(int32_t cmd) {
   if (cmd == SYNC_LOCAL_CMD_STEP_DOWN) {
     return "step-down";
+  } else if (cmd == SYNC_LOCAL_CMD_FOLLOWER_CMT) {
+    return "follower-commit";
   }
 
   return "unknown-local-cmd";
@@ -3511,6 +3513,9 @@ cJSON* syncLocalCmd2Json(const SyncLocalCmd* pMsg) {
 
     snprintf(u64buf, sizeof(u64buf), "%" PRIu64, pMsg->sdNewTerm);
     cJSON_AddStringToObject(pRoot, "sd-new-term", u64buf);
+
+    snprintf(u64buf, sizeof(u64buf), "%" PRId64, pMsg->fcIndex);
+    cJSON_AddStringToObject(pRoot, "fc-index", u64buf);
   }
 
   cJSON* pJson = cJSON_CreateObject();

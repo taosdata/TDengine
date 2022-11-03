@@ -729,6 +729,7 @@ void syncReconfigFinishLog2(char* s, const SyncReconfigFinish* pMsg);
 
 typedef enum {
   SYNC_LOCAL_CMD_STEP_DOWN = 100,
+  SYNC_LOCAL_CMD_FOLLOWER_CMT,
 } ESyncLocalCmd;
 
 const char* syncLocalCmdGetStr(int32_t cmd);
@@ -742,6 +743,7 @@ typedef struct SyncLocalCmd {
 
   int32_t  cmd;
   SyncTerm sdNewTerm;  // step down new term
+  SyncIndex fcIndex;// follower commit index
 
 } SyncLocalCmd;
 
