@@ -1482,10 +1482,6 @@ void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray
   while (i < numOfSrcCols && j < taosArrayGetSize(pColMatchInfo)) {
     SColumnInfoData* p = taosArrayGet(pCols, i);
     SColMatchItem*   pmInfo = taosArrayGet(pColMatchInfo, j);
-    /*    if (!outputEveryColumn && pmInfo->reserved) {
-          j++;
-          continue;
-        }*/
 
     if (p->info.colId == pmInfo->colId) {
       SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, pmInfo->dstSlotId);
