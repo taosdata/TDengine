@@ -43,8 +43,6 @@ typedef enum {
   MND_OPER_CREATE_USER,
   MND_OPER_DROP_USER,
   MND_OPER_ALTER_USER,
-  MND_OPER_CREATE_BNODE,
-  MND_OPER_DROP_BNODE,
   MND_OPER_CREATE_DNODE,
   MND_OPER_DROP_DNODE,
   MND_OPER_CONFIG_DNODE,
@@ -206,7 +204,8 @@ typedef struct {
   int32_t    id;
   int64_t    createdTime;
   int64_t    updateTime;
-  ESyncState state;
+  ESyncState syncState;
+  bool       syncRestore;
   int64_t    stateStartTime;
   SDnodeObj* pDnode;
 } SMnodeObj;
@@ -225,13 +224,6 @@ typedef struct {
   int64_t    updateTime;
   SDnodeObj* pDnode;
 } SSnodeObj;
-
-typedef struct {
-  int32_t    id;
-  int64_t    createdTime;
-  int64_t    updateTime;
-  SDnodeObj* pDnode;
-} SBnodeObj;
 
 typedef struct {
   int32_t maxUsers;
@@ -333,7 +325,8 @@ typedef struct {
 
 typedef struct {
   int32_t    dnodeId;
-  ESyncState role;
+  ESyncState syncState;
+  bool       syncRestore;
 } SVnodeGid;
 
 typedef struct {
@@ -620,6 +613,7 @@ typedef struct {
   // config
   int8_t  igExpired;
   int8_t  trigger;
+  int8_t  fillHistory;
   int64_t triggerParam;
   int64_t watermark;
   // source and target

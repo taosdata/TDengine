@@ -18,7 +18,6 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
-#include "mndOffset.h"
 #include "mndPrivilege.h"
 #include "mndShow.h"
 #include "mndStb.h"
@@ -64,12 +63,12 @@ int32_t mndInitConsumer(SMnode *pMnode) {
       .deleteFp = (SdbDeleteFp)mndConsumerActionDelete,
   };
 
-  mndSetMsgHandle(pMnode, TDMT_MND_SUBSCRIBE, mndProcessSubscribeReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_MQ_HB, mndProcessMqHbReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_MQ_ASK_EP, mndProcessAskEpReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_MQ_TIMER, mndProcessMqTimerMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_MQ_CONSUMER_LOST, mndProcessConsumerLostMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_MQ_CONSUMER_RECOVER, mndProcessConsumerRecoverMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_SUBSCRIBE, mndProcessSubscribeReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_HB, mndProcessMqHbReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_ASK_EP, mndProcessAskEpReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_TIMER, mndProcessMqTimerMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_CONSUMER_LOST, mndProcessConsumerLostMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_CONSUMER_RECOVER, mndProcessConsumerRecoverMsg);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CONSUMERS, mndRetrieveConsumer);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CONSUMERS, mndCancelGetNextConsumer);
@@ -208,7 +207,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
 
       pLostMsg->consumerId = pConsumer->consumerId;
       SRpcMsg pRpcMsg = {
-          .msgType = TDMT_MND_MQ_CONSUMER_LOST,
+          .msgType = TDMT_MND_TMQ_CONSUMER_LOST,
           .pCont = pLostMsg,
           .contLen = sizeof(SMqConsumerLostMsg),
       };
@@ -257,7 +256,7 @@ static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
   if (taosHashGetSize(pRebMsg->rebSubHash) != 0) {
     mInfo("mq rebalance will be triggered");
     SRpcMsg rpcMsg = {
-        .msgType = TDMT_MND_MQ_DO_REBALANCE,
+        .msgType = TDMT_MND_TMQ_DO_REBALANCE,
         .pCont = pRebMsg,
         .contLen = sizeof(SMqDoRebalanceMsg),
     };
@@ -278,7 +277,7 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
 
   SMqConsumerObj *pConsumer = mndAcquireConsumer(pMnode, consumerId);
   if (pConsumer == NULL) {
-    mError("consumer %ld not exist", consumerId);
+    mError("consumer %" PRId64 " not exist", consumerId);
     terrno = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
     return -1;
   }
@@ -288,12 +287,12 @@ static int32_t mndProcessMqHbReq(SRpcMsg *pMsg) {
   int32_t status = atomic_load_32(&pConsumer->status);
 
   if (status == MQ_CONSUMER_STATUS__LOST_REBD) {
-    mInfo("try to recover consumer %ld", consumerId);
+    mInfo("try to recover consumer %" PRId64 "", consumerId);
     SMqConsumerRecoverMsg *pRecoverMsg = rpcMallocCont(sizeof(SMqConsumerRecoverMsg));
 
     pRecoverMsg->consumerId = consumerId;
     SRpcMsg pRpcMsg = {
-        .msgType = TDMT_MND_MQ_CONSUMER_RECOVER,
+        .msgType = TDMT_MND_TMQ_CONSUMER_RECOVER,
         .pCont = pRecoverMsg,
         .contLen = sizeof(SMqConsumerRecoverMsg),
     };
@@ -327,12 +326,12 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
 
 #if 1
   if (status == MQ_CONSUMER_STATUS__LOST_REBD) {
-    mInfo("try to recover consumer %ld", consumerId);
+    mInfo("try to recover consumer %" PRId64 "", consumerId);
     SMqConsumerRecoverMsg *pRecoverMsg = rpcMallocCont(sizeof(SMqConsumerRecoverMsg));
 
     pRecoverMsg->consumerId = consumerId;
     SRpcMsg pRpcMsg = {
-        .msgType = TDMT_MND_MQ_CONSUMER_RECOVER,
+        .msgType = TDMT_MND_TMQ_CONSUMER_RECOVER,
         .pCont = pRecoverMsg,
         .contLen = sizeof(SMqConsumerRecoverMsg),
     };
@@ -341,7 +340,7 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
 #endif
 
   if (status != MQ_CONSUMER_STATUS__READY) {
-    mInfo("consumer %ld not ready, status: %s", consumerId, mndConsumerStatusName(status));
+    mInfo("consumer %" PRId64 " not ready, status: %s", consumerId, mndConsumerStatusName(status));
     terrno = TSDB_CODE_MND_CONSUMER_NOT_READY;
     return -1;
   }
@@ -408,12 +407,6 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
             .offset = -1,
         };
 
-        // 2.2.2 fetch vg offset
-        SMqOffsetObj *pOffsetObj = mndAcquireOffset(pMnode, offsetKey);
-        if (pOffsetObj != NULL) {
-          vgEp.offset = atomic_load_64(&pOffsetObj->offset);
-          mndReleaseOffset(pMnode, pOffsetObj);
-        }
         taosArrayPush(topicEp.vgs, &vgEp);
       }
       taosArrayPush(rsp.topics, &topicEp);

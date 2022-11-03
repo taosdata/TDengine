@@ -45,6 +45,7 @@ int32_t smOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->name = pInput->name;
   pMgmt->msgCb = pInput->msgCb;
   pMgmt->msgCb.mgmt = pMgmt;
+  pMgmt->msgCb.putToQueueFp = (PutToQueueFp)smPutMsgToQueue;
 
   SSnodeOpt option = {0};
   smInitOption(pMgmt, &option);

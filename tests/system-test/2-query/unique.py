@@ -12,7 +12,8 @@ from util.cases import *
 
 class TDTestCase:
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
@@ -436,6 +437,10 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.checkData(0,0,4)
         tdSql.checkData(1,0,1)
+
+        # TD-19911
+        tdSql.error("select  unique(mode(12)) from (select _rowts , t1 , tbname from  db.stb1 );")
+        tdSql.error("select  unique(mode(t1,1)) from (select _rowts , t1 , tbname from  db.stb1 );")
 
     def check_boundary_values(self, dbname="bound_test"):
 

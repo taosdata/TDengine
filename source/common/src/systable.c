@@ -62,12 +62,6 @@ static const SSysDbTableSchema snodesSchema[] = {
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
 };
 
-static const SSysDbTableSchema bnodesSchema[] = {
-    {.name = "id", .bytes = 4, .type = TSDB_DATA_TYPE_INT, .sysInfo = true},
-    {.name = "endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
-    {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP, .sysInfo = true},
-};
-
 static const SSysDbTableSchema clusterSchema[] = {
     {.name = "id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT, .sysInfo = true},
     {.name = "name", .bytes = TSDB_CLUSTER_ID_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
@@ -236,8 +230,8 @@ static const SSysDbTableSchema transSchema[] = {
 };
 
 static const SSysDbTableSchema configSchema[] = {
-    {.name = "name", .bytes = TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
-    {.name = "value", .bytes = TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = true},
+    {.name = "name", .bytes = TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
+    {.name = "value", .bytes = TSDB_CONFIG_VALUE_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR, .sysInfo = false},
 };
 
 static const SSysDbTableSchema variablesSchema[] = {
@@ -276,8 +270,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_MNODES, mnodesSchema, tListLen(mnodesSchema), true},
     {TSDB_INS_TABLE_MODULES, modulesSchema, tListLen(modulesSchema), true},
     {TSDB_INS_TABLE_QNODES, qnodesSchema, tListLen(qnodesSchema), true},
-    //    {TSDB_INS_TABLE_SNODES, snodesSchema, tListLen(snodesSchema)},
-    //    {TSDB_INS_TABLE_BNODES, bnodesSchema, tListLen(bnodesSchema)},
+    {TSDB_INS_TABLE_SNODES, snodesSchema, tListLen(snodesSchema)},
     {TSDB_INS_TABLE_CLUSTER, clusterSchema, tListLen(clusterSchema), true},
     {TSDB_INS_TABLE_DATABASES, userDBSchema, tListLen(userDBSchema), false},
     {TSDB_INS_TABLE_FUNCTIONS, userFuncSchema, tListLen(userFuncSchema), false},
@@ -289,7 +282,7 @@ static const SSysTableMeta infosMeta[] = {
     {TSDB_INS_TABLE_USERS, userUsersSchema, tListLen(userUsersSchema), false},
     {TSDB_INS_TABLE_LICENCES, grantsSchema, tListLen(grantsSchema), true},
     {TSDB_INS_TABLE_VGROUPS, vgroupsSchema, tListLen(vgroupsSchema), true},
-    {TSDB_INS_TABLE_CONFIGS, configSchema, tListLen(configSchema), true},
+    {TSDB_INS_TABLE_CONFIGS, configSchema, tListLen(configSchema), false},
     {TSDB_INS_TABLE_DNODE_VARIABLES, variablesSchema, tListLen(variablesSchema), true},
     {TSDB_INS_TABLE_TOPICS, topicSchema, tListLen(topicSchema), false},
     {TSDB_INS_TABLE_SUBSCRIPTIONS, subscriptionSchema, tListLen(subscriptionSchema), false},

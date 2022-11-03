@@ -15,14 +15,14 @@
 
 #include "tq.h"
 
-int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols) {
+int32_t tqAddBlockDataToRsp(const SSDataBlock* pBlock, SMqDataRsp* pRsp, int32_t numOfCols, int8_t precision) {
   int32_t dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pBlock);
   void*   buf = taosMemoryCalloc(1, dataStrLen);
   if (buf == NULL) return -1;
 
   SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)buf;
   pRetrieve->useconds = 0;
-  pRetrieve->precision = TSDB_DEFAULT_PRECISION;
+  pRetrieve->precision = precision;
   pRetrieve->compressed = 0;
   pRetrieve->completed = 1;
   pRetrieve->numOfRows = htonl(pBlock->info.rows);
@@ -85,17 +85,17 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
   while (1) {
     SSDataBlock* pDataBlock = NULL;
     uint64_t     ts = 0;
-    tqDebug("tmq task start to execute");
+    tqDebug("vgId:%d, tmq task start to execute", pTq->pVnode->config.vgId);
     if (qExecTask(task, &pDataBlock, &ts) < 0) {
       ASSERT(0);
     }
-    tqDebug("tmq task executed, get %p", pDataBlock);
+    tqDebug("vgId:%d, tmq task executed, get %p", pTq->pVnode->config.vgId, pDataBlock);
 
     if (pDataBlock == NULL) {
       break;
     }
 
-    tqAddBlockDataToRsp(pDataBlock, pRsp, pExec->numOfCols);
+    tqAddBlockDataToRsp(pDataBlock, pRsp, pExec->numOfCols, pTq->pVnode->config.tsdbCfg.precision);
     pRsp->blockNum++;
 
     if (pOffset->type == TMQ_OFFSET__SNAPSHOT_DATA) {
@@ -123,7 +123,7 @@ int32_t tqScanData(STQ* pTq, const STqHandle* pHandle, SMqDataRsp* pRsp, STqOffs
   return 0;
 }
 
-int32_t tqScan(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMetaRsp* pMetaRsp, STqOffsetVal* pOffset) {
+int32_t tqScanTaosx(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMetaRsp* pMetaRsp, STqOffsetVal* pOffset) {
   const STqExecHandle* pExec = &pHandle->execHandle;
   qTaskInfo_t          task = pExec->task;
 
@@ -174,7 +174,8 @@ int32_t tqScan(STQ* pTq, const STqHandle* pHandle, STaosxRsp* pRsp, SMqMetaRsp* 
         }
       }
 
-      tqAddBlockDataToRsp(pDataBlock, (SMqDataRsp*)pRsp, taosArrayGetSize(pDataBlock->pDataBlock));
+      tqAddBlockDataToRsp(pDataBlock, (SMqDataRsp*)pRsp, taosArrayGetSize(pDataBlock->pDataBlock),
+                          pTq->pVnode->config.tsdbCfg.precision);
       pRsp->blockNum++;
       if (pOffset->type == TMQ_OFFSET__LOG) {
         continue;
@@ -256,7 +257,8 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp
           pRsp->createTableNum++;
         }
       }
-      tqAddBlockDataToRsp(&block, (SMqDataRsp*)pRsp, taosArrayGetSize(block.pDataBlock));
+      tqAddBlockDataToRsp(&block, (SMqDataRsp*)pRsp, taosArrayGetSize(block.pDataBlock),
+                          pTq->pVnode->config.tsdbCfg.precision);
       blockDataFreeRes(&block);
       tqAddBlockSchemaToRsp(pExec, (SMqDataRsp*)pRsp);
       pRsp->blockNum++;
@@ -291,7 +293,8 @@ int32_t tqTaosxScanLog(STQ* pTq, STqHandle* pHandle, SSubmitReq* pReq, STaosxRsp
           pRsp->createTableNum++;
         }
       }
-      tqAddBlockDataToRsp(&block, (SMqDataRsp*)pRsp, taosArrayGetSize(block.pDataBlock));
+      tqAddBlockDataToRsp(&block, (SMqDataRsp*)pRsp, taosArrayGetSize(block.pDataBlock),
+                          pTq->pVnode->config.tsdbCfg.precision);
       blockDataFreeRes(&block);
       tqAddBlockSchemaToRsp(pExec, (SMqDataRsp*)pRsp);
       pRsp->blockNum++;

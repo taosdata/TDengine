@@ -116,6 +116,13 @@ int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitMsgIter *pMsgI
   if (info.suid) {
     metaGetInfo(pTsdb->pVnode->pMeta, info.suid, &info);
   }
+  if (pMsgIter->sversion != info.skmVer) {
+    tsdbError("vgId:%d, req sver:%d, skmVer:%d suid:%" PRId64 " uid:%" PRId64,
+             TD_VID(pTsdb->pVnode), pMsgIter->sversion, info.skmVer, suid, uid);
+    code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+    goto _err;
+  }
+  
   pRsp->sver = info.skmVer;
 
   // create/get STbData to op
@@ -133,6 +140,7 @@ int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitMsgIter *pMsgI
   return code;
 
 _err:
+  terrno = code;
   return code;
 }
 
@@ -160,6 +168,7 @@ int32_t tsdbDeleteTableData(STsdb *pTsdb, int64_t version, tb_uid_t suid, tb_uid
     goto _err;
   }
 
+  ASSERT(pPool != NULL);
   // do delete
   SDelData *pDelData = (SDelData *)vnodeBufPoolMalloc(pPool, sizeof(*pDelData));
   if (pDelData == NULL) {
@@ -353,6 +362,7 @@ static int32_t tsdbGetOrCreateTbData(SMemTable *pMemTable, tb_uid_t suid, tb_uid
   SVBufPool *pPool = pMemTable->pTsdb->pVnode->inUse;
   int8_t     maxLevel = pMemTable->pTsdb->pVnode->config.tsdbCfg.slLevel;
 
+  ASSERT(pPool != NULL);
   pTbData = vnodeBufPoolMalloc(pPool, sizeof(*pTbData) + SL_NODE_SIZE(maxLevel) * 2);
   if (pTbData == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
@@ -492,6 +502,7 @@ static int32_t tbDataDoPut(SMemTable *pMemTable, STbData *pTbData, SMemSkipListN
 
   // node
   level = tsdbMemSkipListRandLevel(&pTbData->sl);
+  ASSERT(pPool != NULL);
   pNode = (SMemSkipListNode *)vnodeBufPoolMalloc(pPool, SL_NODE_SIZE(level) + tPutTSDBRow(NULL, pRow));
   if (pNode == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;

@@ -915,7 +915,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
   int32_t olen, vlen, vlen2, vlen3;
   int32_t code = 0;
   if (url == NULL || strlen(url) == 0) {
-    uInfo("fail to load apoll url");
+    uInfo("apoll url not load");
     return 0;
   }
 
@@ -944,6 +944,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
     if (taosReadFile(pFile, buf, fileSize) <= 0) {
       taosCloseFile(&pFile);
       uError("load json file error: %s", filepath);
+      taosMemoryFreeClear(buf);
       return -1;
     }
     taosCloseFile(&pFile);
@@ -953,6 +954,7 @@ int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url) {
       if (jsonParseError != NULL) {
         uError("load json file parse error: %s", jsonParseError);
       }
+      taosMemoryFreeClear(buf);
       return -1;
     }
     taosMemoryFreeClear(buf);

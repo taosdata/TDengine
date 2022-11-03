@@ -81,7 +81,7 @@ int32_t inserterCallback(void* param, SDataBuf* pMsg, int32_t code) {
     }
 
     pInserter->submitRes.affectedRows += pInserter->submitRes.pRsp->affectedRows;
-    qDebug("submit rsp received, affectedRows:%d, total:%d", pInserter->submitRes.pRsp->affectedRows,
+    qDebug("submit rsp received, affectedRows:%d, total:%"PRId64, pInserter->submitRes.pRsp->affectedRows,
            pInserter->submitRes.affectedRows);
 
     tFreeSSubmitRsp(pInserter->submitRes.pRsp);
@@ -323,10 +323,14 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
   int32_t code =
       tsdbGetTableSchema(inserter->pParam->readHandle->vnode, pInserterNode->tableId, &inserter->pSchema, &suid);
   if (code) {
+    destroyDataSinker((SDataSinkHandle*)inserter);
+    taosMemoryFree(inserter);
     return code;
   }
 
   if (pInserterNode->stableId != suid) {
+    destroyDataSinker((SDataSinkHandle*)inserter);
+    taosMemoryFree(inserter);
     terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
     return terrno;
   }
@@ -334,6 +338,8 @@ int32_t createDataInserter(SDataSinkManager* pManager, const SDataSinkNode* pDat
   inserter->pDataBlocks = taosArrayInit(1, POINTER_BYTES);
   taosThreadMutexInit(&inserter->mutex, NULL);
   if (NULL == inserter->pDataBlocks) {
+    destroyDataSinker((SDataSinkHandle*)inserter);
+    taosMemoryFree(inserter);
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }

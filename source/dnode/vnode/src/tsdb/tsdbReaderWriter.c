@@ -415,7 +415,7 @@ int32_t tsdbWriteBlockIdx(SDataFWriter *pWriter, SArray *aBlockIdx) {
   pHeadFile->size += size;
 
 _exit:
-  // tsdbTrace("vgId:%d write block idx, offset:%" PRId64 " size:%" PRId64 " nBlockIdx:%d",
+  // tsdbTrace("vgId:%d, write block idx, offset:%" PRId64 " size:%" PRId64 " nBlockIdx:%d",
   // TD_VID(pWriter->pTsdb->pVnode),
   //           pHeadFile->offset, size, taosArrayGetSize(aBlockIdx));
   return code;
@@ -498,12 +498,12 @@ int32_t tsdbWriteSttBlk(SDataFWriter *pWriter, SArray *aSttBlk) {
   pSttFile->size += size;
 
 _exit:
-  tsdbTrace("vgId:%d tsdb write stt block, loffset:%" PRId64 " size:%" PRId64, TD_VID(pWriter->pTsdb->pVnode),
+  tsdbTrace("vgId:%d, tsdb write stt block, loffset:%" PRId64 " size:%" PRId64, TD_VID(pWriter->pTsdb->pVnode),
             pSttFile->offset, size);
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb write blockl failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, tsdb write blockl failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -539,7 +539,7 @@ static int32_t tsdbWriteBlockSma(SDataFWriter *pWriter, SBlockData *pBlockData, 
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb write block sma failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, tsdb write block sma failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -601,13 +601,13 @@ int32_t tsdbWriteBlockData(SDataFWriter *pWriter, SBlockData *pBlockData, SBlock
   }
 
 _exit:
-  tsdbTrace("vgId:%d tsdb write block data, suid:%" PRId64 " uid:%" PRId64 " nRow:%d, offset:%" PRId64 " size:%d",
+  tsdbTrace("vgId:%d, tsdb write block data, suid:%" PRId64 " uid:%" PRId64 " nRow:%d, offset:%" PRId64 " size:%d",
             TD_VID(pWriter->pTsdb->pVnode), pBlockData->suid, pBlockData->uid, pBlockData->nRow, pBlkInfo->offset,
             pBlkInfo->szBlock);
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb write block data failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, tsdb write block data failed since %s", TD_VID(pWriter->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -732,7 +732,7 @@ int32_t tsdbWriteDiskData(SDataFWriter *pWriter, const SDiskData *pDiskData, SBl
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s failed at %d since %s", TD_VID(pWriter->pTsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -882,7 +882,7 @@ int32_t tsdbDataFReaderOpen(SDataFReader **ppReader, STsdb *pTsdb, SDFileSet *pS
 _exit:
   if (code) {
     *ppReader = NULL;
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
 
     if (pReader) {
       for (int32_t iStt = 0; iStt < pSet->nSttF; iStt++) tsdbCloseFile(&pReader->aSttFD[iStt]);
@@ -995,7 +995,7 @@ int32_t tsdbReadSttBlk(SDataFReader *pReader, int32_t iStt, SArray *aSttBlk) {
   return code;
 
 _err:
-  tsdbError("vgId:%d read stt blk failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, read stt blk failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -1058,7 +1058,7 @@ int32_t tsdbReadBlockSma(SDataFReader *pReader, SDataBlk *pDataBlk, SArray *aCol
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb read block sma failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, tsdb read block sma failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -1177,7 +1177,7 @@ _exit:
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb read block data impl failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, tsdb read block data impl failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -1200,7 +1200,7 @@ int32_t tsdbReadDataBlockEx(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockDat
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb read data block ex failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, tsdb read data block ex failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -1258,7 +1258,7 @@ int32_t tsdbReadDataBlock(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockData 
   return code;
 
 _err:
-  tsdbError("vgId:%d tsdb read data block failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
+  tsdbError("vgId:%d, tsdb read data block failed since %s", TD_VID(pReader->pTsdb->pVnode), tstrerror(code));
   return code;
 }
 
@@ -1271,7 +1271,7 @@ int32_t tsdbReadSttBlock(SDataFReader *pReader, int32_t iStt, SSttBlk *pSttBlk, 
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pReader->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s failed at %d since %s", TD_VID(pReader->pTsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -1294,7 +1294,7 @@ int32_t tsdbReadSttBlockEx(SDataFReader *pReader, int32_t iStt, SSttBlk *pSttBlk
 
 _exit:
   if (code) {
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pReader->pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s failed at %d since %s", TD_VID(pReader->pTsdb->pVnode), __func__, lino, tstrerror(code));
   }
   return code;
 }
@@ -1334,11 +1334,11 @@ int32_t tsdbDelFWriterOpen(SDelFWriter **ppWriter, SDelFile *pFile, STsdb *pTsdb
 _exit:
   if (code) {
     if (pDelFWriter) {
-      taosMemoryFree(pDelFWriter);
       tsdbCloseFile(&pDelFWriter->pWriteH);
+      taosMemoryFree(pDelFWriter);
     }
     *ppWriter = NULL;
-    tsdbError("vgId:%d %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(errno));
+    tsdbError("vgId:%d, %s failed at line %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(errno));
   } else {
     *ppWriter = pDelFWriter;
   }
@@ -1502,7 +1502,7 @@ int32_t tsdbDelFReaderOpen(SDelFReader **ppReader, SDelFile *pFile, STsdb *pTsdb
 _exit:
   if (code) {
     *ppReader = NULL;
-    tsdbError("vgId:%d %s failed at %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
+    tsdbError("vgId:%d, %s failed at %d since %s", TD_VID(pTsdb->pVnode), __func__, lino, tstrerror(code));
   } else {
     *ppReader = pDelFReader;
   }

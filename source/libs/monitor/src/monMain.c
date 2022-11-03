@@ -401,7 +401,6 @@ static void monGenDnodeJson(SMonInfo *pMonitor) {
   tjsonAddDoubleToObject(pJson, "has_mnode", pInfo->has_mnode);
   tjsonAddDoubleToObject(pJson, "has_qnode", pInfo->has_qnode);
   tjsonAddDoubleToObject(pJson, "has_snode", pInfo->has_snode);
-  tjsonAddDoubleToObject(pJson, "has_bnode", pInfo->has_bnode);
 }
 
 static void monGenDiskJson(SMonInfo *pMonitor) {
@@ -451,17 +450,10 @@ static void monGenDiskJson(SMonInfo *pMonitor) {
 }
 
 static const char *monLogLevelStr(ELogLevel level) {
-  switch (level) {
-    case DEBUG_ERROR:
-      return "error";
-    case DEBUG_INFO:
-      return "info";
-    case DEBUG_DEBUG:
-      return "debug";
-    case DEBUG_TRACE:
-      return "trace";
-    default:
-      return "undefine";
+  if (level == DEBUG_ERROR) {
+    return "error";
+  } else {
+    return "info";
   }
 }
 

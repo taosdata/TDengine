@@ -92,10 +92,12 @@ static SKeyword keywordTable[] = {
     {"EVERY",                TK_EVERY},
     {"FILE",                 TK_FILE},
     {"FILL",                 TK_FILL},
+    {"FILL_HISTORY",         TK_FILL_HISTORY},
     {"FIRST",                TK_FIRST},
     {"FLOAT",                TK_FLOAT},
     {"FLUSH",                TK_FLUSH},
     {"FROM",                 TK_FROM},
+    {"FORCE",                TK_FORCE},
     {"FUNCTION",             TK_FUNCTION},
     {"FUNCTIONS",            TK_FUNCTIONS},
     {"GRANT",                TK_GRANT},
@@ -597,6 +599,8 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
         *tokenId = TK_NK_BOOL;
         return i;
       }
+      *tokenId = tKeywordCode(z, i);
+      return i;
     }
     default: {
       if (((*z & 0x80) != 0) || !isIdChar[(uint8_t)*z]) {

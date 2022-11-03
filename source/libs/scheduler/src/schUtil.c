@@ -17,6 +17,7 @@
 #include "command.h"
 #include "query.h"
 #include "schInt.h"
+#include "tglobal.h"
 #include "tmsg.h"
 #include "tref.h"
 #include "trpc.h"
@@ -184,6 +185,10 @@ void schDeregisterTaskHb(SSchJob *pJob, SSchTask *pTask) {
 }
 
 int32_t schEnsureHbConnection(SSchJob *pJob, SSchTask *pTask) {
+  if (!tsEnableQueryHb) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
   SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
   SQueryNodeEpId  epId = {0};
 
@@ -242,7 +247,7 @@ uint64_t schGenUUID(void) {
 
   if (hashId == 0) {
     char    uid[64] = {0};
-    int32_t code = taosGetSystemUUID(uid, tListLen(uid));
+    int32_t code = taosGetSystemUUID(uid, tListLen(uid) - 1);
     if (code != TSDB_CODE_SUCCESS) {
       qError("Failed to get the system uid, reason:%s", tstrerror(TAOS_SYSTEM_ERROR(errno)));
     } else {

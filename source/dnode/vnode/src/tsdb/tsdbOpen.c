@@ -33,7 +33,7 @@ int32_t tsdbSetKeepCfg(STsdb *pTsdb, STsdbCfg *pCfg) {
  * @param dir
  * @return int
  */
-int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKeepCfg) {
+int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKeepCfg, int8_t rollback) {
   STsdb *pTsdb = NULL;
   int    slen = 0;
 
@@ -48,7 +48,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   }
 
   pTsdb->path = (char *)&pTsdb[1];
-  sprintf(pTsdb->path, "%s%s%s", pVnode->path, TD_DIRSEP, dir);
+  snprintf(pTsdb->path, TD_PATH_MAX, "%s%s%s", pVnode->path, TD_DIRSEP, dir);
   taosRealPath(pTsdb->path, NULL, slen);
   pTsdb->pVnode = pVnode;
   taosThreadRwlockInit(&pTsdb->rwLock, NULL);
@@ -66,7 +66,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   }
 
   // open tsdb
-  if (tsdbFSOpen(pTsdb) < 0) {
+  if (tsdbFSOpen(pTsdb, rollback) < 0) {
     goto _err;
   }
 

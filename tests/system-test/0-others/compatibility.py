@@ -22,7 +22,8 @@ class TDTestCase:
         '''
         return
 
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
@@ -81,6 +82,7 @@ class TDTestCase:
         dbname = "test"
         stb = f"{dbname}.meters"
         self.installTaosd(bPath,cPath)
+        os.system("echo 'debugFlag 143' > /etc/taos/taos.cfg ")
         tableNumbers=100
         recordNumbers1=100
         recordNumbers2=1000
@@ -96,8 +98,8 @@ class TDTestCase:
         tdLog.info(f"Base client version is {oldClientVersion}")
 
         tdLog.printNoPrefix(f"==========step1:prepare and check data in old version-{oldServerVersion}")
-        tdLog.info(f"taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
-        os.system(f"taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
+        tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
+        os.system(f"LD_LIBRARY_PATH=/usr/lib taosBenchmark -t {tableNumbers} -n {recordNumbers1} -y  ")
         sleep(3)
 
         # tdsqlF.query(f"select count(*) from {stb}")

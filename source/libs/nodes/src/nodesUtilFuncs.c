@@ -328,6 +328,7 @@ SNode* nodesMakeNode(ENodeType type) {
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:
       return makeNode(type, sizeof(SDropSuperTableStmt));
     case QUERY_NODE_ALTER_TABLE_STMT:
+    case QUERY_NODE_ALTER_SUPER_TABLE_STMT:
       return makeNode(type, sizeof(SAlterTableStmt));
     case QUERY_NODE_CREATE_USER_STMT:
       return makeNode(type, sizeof(SCreateUserStmt));
@@ -935,6 +936,7 @@ void nodesDestroyNode(SNode* pNode) {
     }
     case QUERY_NODE_SHOW_DNODE_VARIABLES_STMT:
       nodesDestroyNode(((SShowDnodeVariablesStmt*)pNode)->pDnodeId);
+      nodesDestroyNode(((SShowDnodeVariablesStmt*)pNode)->pLikePattern);
       break;
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
       taosMemoryFreeClear(((SShowCreateDatabaseStmt*)pNode)->pCfg);
@@ -1826,7 +1828,7 @@ static EDealRes collectFuncs(SNode* pNode, void* pContext) {
   if (QUERY_NODE_FUNCTION == nodeType(pNode) && pCxt->classifier(((SFunctionNode*)pNode)->funcId) &&
       !(((SExprNode*)pNode)->orderAlias)) {
     SExprNode* pExpr = (SExprNode*)pNode;
-    if (NULL == taosHashGet(pCxt->pFuncsSet, &pExpr, POINTER_BYTES)) {
+    if (NULL == taosHashGet(pCxt->pFuncsSet, &pExpr, sizeof(SExprNode*))) {
       pCxt->errCode = nodesListStrictAppend(pCxt->pFuncs, nodesCloneNode(pNode));
       taosHashPut(pCxt->pFuncsSet, &pExpr, POINTER_BYTES, &pExpr, POINTER_BYTES);
     }

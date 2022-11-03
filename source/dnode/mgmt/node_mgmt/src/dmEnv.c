@@ -51,32 +51,44 @@ static int32_t dmInitMonitor() {
 
 static bool dmCheckDiskSpace() {
   osUpdate();
+  // sufficiency
+  if (!osDataSpaceSufficient()) {
+    dWarn("free data disk size: %f GB, not sufficient, expected %f GB at least",
+          (double)tsDataSpace.size.avail / 1024.0 / 1024.0 / 1024.0,
+          (double)tsDataSpace.reserved / 1024.0 / 1024.0 / 1024.0);
+  }
+  if (!osLogSpaceSufficient()) {
+    dWarn("free log disk size: %f GB, not sufficient, expected %f GB at least",
+          (double)tsLogSpace.size.avail / 1024.0 / 1024.0 / 1024.0,
+          (double)tsLogSpace.reserved / 1024.0 / 1024.0 / 1024.0);
+  }
+  if (!osTempSpaceSufficient()) {
+    dWarn("free temp disk size: %f GB, not sufficient, expected %f GB at least",
+          (double)tsTempSpace.size.avail / 1024.0 / 1024.0 / 1024.0,
+          (double)tsTempSpace.reserved / 1024.0 / 1024.0 / 1024.0);
+  }
+  // availability
+  bool ret = true;
   if (!osDataSpaceAvailable()) {
-    dError("free disk size: %f GB, too little, require %f GB at least at least , quit",
-           (double)tsDataSpace.size.avail / 1024.0 / 1024.0 / 1024.0,
-           (double)tsDataSpace.reserved / 1024.0 / 1024.0 / 1024.0);
-    terrno = TSDB_CODE_NO_AVAIL_DISK;
-    return false;
+    dError("data disk space unavailable, i.e. %s", tsDataDir);
+    terrno = TSDB_CODE_NO_DISKSPACE;
+    ret = false;
   }
   if (!osLogSpaceAvailable()) {
-    dError("free disk size: %f GB, too little, require %f GB at least at least, quit",
-           (double)tsLogSpace.size.avail / 1024.0 / 1024.0 / 1024.0,
-           (double)tsLogSpace.reserved / 1024.0 / 1024.0 / 1024.0);
-    terrno = TSDB_CODE_NO_AVAIL_DISK;
-    return false;
+    dError("log disk space unavailable, i.e. %s", tsLogDir);
+    terrno = TSDB_CODE_NO_DISKSPACE;
+    ret = false;
   }
   if (!osTempSpaceAvailable()) {
-    dError("free disk size: %f GB, too little, require %f GB at least at least, quit",
-           (double)tsTempSpace.size.avail / 1024.0 / 1024.0 / 1024.0,
-           (double)tsTempSpace.reserved / 1024.0 / 1024.0 / 1024.0);
-    terrno = TSDB_CODE_NO_AVAIL_DISK;
-    return false;
+    dError("temp disk space unavailable, i.e. %s", tsTempDir);
+    terrno = TSDB_CODE_NO_DISKSPACE;
+    ret = false;
   }
-  return true;
+  return ret;
 }
 
 static bool dmCheckDataDirVersion() {
-  char checkDataDirJsonFileName[PATH_MAX];
+  char checkDataDirJsonFileName[PATH_MAX] = {0};
   snprintf(checkDataDirJsonFileName, PATH_MAX, "%s/dnode/dnodeCfg.json", tsDataDir);
   if (taosCheckExistFile(checkDataDirJsonFileName)) {
     dError("The default data directory %s contains old data of tdengine 2.x, please clear it before running!",
@@ -86,14 +98,14 @@ static bool dmCheckDataDirVersion() {
   return true;
 }
 
-int32_t dmInit(int8_t rtype) {
+int32_t dmInit() {
   dInfo("start to init dnode env");
   if (!dmCheckDataDirVersion()) return -1;
   if (!dmCheckDiskSpace()) return -1;
   if (dmCheckRepeatInit(dmInstance()) != 0) return -1;
   if (dmInitSystem() != 0) return -1;
   if (dmInitMonitor() != 0) return -1;
-  if (dmInitDnode(dmInstance(), rtype) != 0) return -1;
+  if (dmInitDnode(dmInstance()) != 0) return -1;
 
   dInfo("dnode env is initialized");
   return 0;
@@ -120,8 +132,8 @@ void dmCleanup() {
   taosStopCacheRefreshWorker();
   dInfo("dnode env is cleaned up");
 
-  taosCloseLog();
   taosCleanupCfg();
+  taosCloseLog();
 }
 
 void dmStop() {
@@ -168,7 +180,6 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     }
     pWrapper->deployed = true;
     pWrapper->required = true;
-    pWrapper->proc.ptype = pDnode->ptype;
   }
 
   taosThreadMutexUnlock(&pDnode->mutex);

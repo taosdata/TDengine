@@ -50,16 +50,15 @@ extern "C" {
 //                msource        |-> i,
 //                mdest          |-> j])
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
-//
-int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode);
-int32_t syncNodeAppendEntriesPeersSnapshot(SSyncNode* pSyncNode);
-int32_t syncNodeAppendEntriesPeersSnapshot2(SSyncNode* pSyncNode);
 
-int32_t syncNodeAppendEntriesOnePeer(SSyncNode* pSyncNode, SRaftId* pDestId, SyncIndex nextIndex);
+int32_t syncNodeHeartbeatPeers(SSyncNode* pSyncNode);
+int32_t syncNodeSendHeartbeat(SSyncNode* pSyncNode, const SRaftId* pDestId, const SyncHeartbeat* pMsg);
 
-int32_t syncNodeReplicate(SSyncNode* pSyncNode, bool isTimer);
-int32_t syncNodeAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntries* pMsg);
-int32_t syncNodeAppendEntriesBatch(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntriesBatch* pMsg);
+int32_t syncNodeReplicate(SSyncNode* pSyncNode);
+int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId);
+
+int32_t syncNodeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* pDestId, const SyncAppendEntries* pMsg);
+int32_t syncNodeMaybeSendAppendEntries(SSyncNode* pSyncNode, const SRaftId* pDestId, const SyncAppendEntries* pMsg);
 
 #ifdef __cplusplus
 }

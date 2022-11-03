@@ -19,7 +19,8 @@ import socket
 import subprocess
 
 class TDTestCase:
-    def init(self,conn ,logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         self.host = socket.gethostname()
@@ -30,8 +31,8 @@ class TDTestCase:
         self.replica = 1
         self.vgroups = 2
         self.tb_nums = 10
-        self.row_nums = 100
-        self.max_vote_time_cost = 10  # seconds
+        self.row_nums = 10
+        self.max_vote_time_cost = 20  # seconds
         self.stop_dnode = None
 
     def getBuildPath(self):
@@ -118,12 +119,12 @@ class TDTestCase:
             vgroup_id = vgroup_info[0]
             tmp_list = []
             for role in vgroup_info[3:-4]:
-                if role in ['leader','follower']:
+                if role in ['leader','leader*','follower']:
                     tmp_list.append(role)
             vgroups_infos[vgroup_id]=tmp_list
 
         for k , v in vgroups_infos.items():
-            if len(v) ==1 and v[0]=="leader":
+            if len(v) ==1 and v[0] in ['leader', 'leader*']:
                 tdLog.notice(" === create database replica only 1 role leader  check success of vgroup_id {} ======".format(k))
             else:
                 tdLog.exit(" === create database replica only 1 role leader  check fail of vgroup_id {} ======".format(k))
@@ -341,7 +342,7 @@ class TDTestCase:
 
         # create database replica 3 vgroups 100
         db3 = 'db_3'
-        create_db_replica_3_vgroups_100 = "create database {} replica 3 vgroups 100".format(db3)
+        create_db_replica_3_vgroups_100 = "create database {} replica 3 vgroups 20".format(db3)
         tdLog.notice('=======database {} replica 3 vgroups 100 ======'.format(db3))
         tdSql.execute(create_db_replica_3_vgroups_100)
         self.vote_leader_time_costs(db3)

@@ -55,7 +55,7 @@ fi
 
 initd_mod=0
 service_mod=2
-if pidof systemd &>/dev/null; then
+if ps aux | grep -v grep | grep systemd &>/dev/null; then
   service_mod=0
 elif $(which service &>/dev/null); then
   service_mod=1
@@ -171,12 +171,12 @@ function clean_service_on_systemd() {
 }
 
 function clean_service_on_sysvinit() {
-  if pidof ${serverName} &>/dev/null; then
+  if ps aux | grep -v grep | grep ${serverName} &>/dev/null; then
     echo "${productName} ${serverName} is running, stopping it..."
     ${csudo}service ${serverName} stop || :
   fi
 
-  if pidof tarbitrator &>/dev/null; then
+  if ps aux | grep -v grep | grep tarbitrator &>/dev/null; then
     echo "${productName} tarbitrator is running, stopping it..."
     ${csudo}service tarbitratord stop || :
   fi
@@ -215,6 +215,8 @@ function clean_service_on_sysvinit() {
 function clean_service_on_launchctl() {
   ${csudouser}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
   ${csudo}rm /Library/LaunchDaemons/com.taosdata.taosd.plist > /dev/null 2>&1 || :
+  ${csudouser}launchctl unload -w /Library/LaunchDaemons/com.taosdata.taosadapter.plist > /dev/null 2>&1 || :
+  ${csudo}rm /Library/LaunchDaemons/com.taosdata.taosadapter.plist > /dev/null 2>&1 || :
 }
 
 function clean_service() {

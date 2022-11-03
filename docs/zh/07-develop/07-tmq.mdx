@@ -247,7 +247,7 @@ CREATE TOPIC topic_name as subquery
 
 - 该类型 TOPIC 一旦创建则订阅数据的结构确定。
 - 被订阅或用于计算的列或标签不可被删除（`ALTER table DROP`）、修改（`ALTER table MODIFY`）。
-- 若发生表结构变更，新增的列不出现在结果中，若发生列删除则会报错。
+- 若发生表结构变更，新增的列不出现在结果中。
 
 ### 超级表订阅
 
@@ -269,10 +269,10 @@ CREATE TOPIC topic_name AS STABLE stb_name
 语法：
 
 ```sql
-CREATE TOPIC topic_name [WITH META] AS DATABASE db_name;
+CREATE TOPIC topic_name AS DATABASE db_name;
 ```
 
-通过该语句可创建一个包含数据库所有表数据的订阅，`WITH META` 可选择将数据库结构变动信息加入到订阅消息流，TMQ 将消费当前数据库下所有表结构的变动，包括超级表的创建与删除，列添加、删除或修改，子表的创建、删除及 TAG 变动信息等等。消费者可通过 API 来判断具体的消息类型。这一点也是与 Kafka 不同的地方。
+通过该语句可创建一个包含数据库所有表数据的订阅
 
 ## 创建消费者 *consumer*
 
@@ -282,16 +282,16 @@ CREATE TOPIC topic_name [WITH META] AS DATABASE db_name;
 | :----------------------------: | :-----: | -------------------------------------------------------- | ------------------------------------------- |
 |        `td.connect.ip`         | string  | 用于创建连接，同 `taos_connect`                          |                                             |
 |       `td.connect.user`        | string  | 用于创建连接，同 `taos_connect`                          |                                             |
-|       `td.connect.pass`        | string  | 用于创建连接，同 `taos_connect`                          |
-|       `td.connect.port`        | integer | 用于创建连接，同 `taos_connect`                          |
+|       `td.connect.pass`        | string  | 用于创建连接，同 `taos_connect`                          |                                             |
+|       `td.connect.port`        | integer | 用于创建连接，同 `taos_connect`                          |                                             |
 |           `group.id`           | string  | 消费组 ID，同一消费组共享消费进度                        | **必填项**。最大长度：192。                 |
 |          `client.id`           | string  | 客户端 ID                                                | 最大长度：192。                             |
-|      `auto.offset.reset`       |  enum   | 消费组订阅的初始位置                                     | 可选：`earliest`, `latest`, `none`(default) |
-|      `enable.auto.commit`      | boolean | 启用自动提交                                             | 合法值：`true`, `false`。                   |
-|   `auto.commit.interval.ms`    | integer | 以毫秒为单位的自动提交时间间隔                           |
-| `enable.heartbeat.background`  | boolean | 启用后台心跳，启用后即使长时间不 poll 消息也不会造成离线 |                                             |
-| `experimental.snapshot.enable` | boolean | 从 WAL 开始消费，还是从 TSBS 开始消费                    |                                             |
-|     `msg.with.table.name`      | boolean | 是否允许从消息中解析表名                                 |
+|      `auto.offset.reset`       |  enum   | 消费组订阅的初始位置                                     | 可选：`earliest`(default), `latest`, `none` |
+|      `enable.auto.commit`      | boolean | 是否启用消费位点自动提交                                 | 合法值：`true`, `false`。                   |
+|   `auto.commit.interval.ms`    | integer | 以毫秒为单位的消费记录自动提交消费位点时间间             | 默认 5000 m                                 |
+| `enable.heartbeat.background`  | boolean | 启用后台心跳，启用后即使长时间不 poll 消息也不会造成离线 | 默认开启                                    |
+| `experimental.snapshot.enable` | boolean | 是否允许从 TSDB 消费数据                                 | 实验功能，默认关闭                          |
+|     `msg.with.table.name`      | boolean | 是否允许从消息中解析表名, 不适用于列订阅（列订阅时可将 tbname 作为列写入 subquery 语句）               | |
 
 对于不同编程语言，其设置方式如下：
 
@@ -420,7 +420,18 @@ let mut consumer = tmq.build()?;
 
 <TabItem value="Python" label="Python">
 
-Python 使用以下配置项创建一个 Consumer 实例。
+Python 语言下引入 `taos` 库的 `TaosConsumer` 类，创建一个 Consumer 示例：
+
+```python
+from taos.tmq import TaosConsumer
+
+# Syntax: `consumer = TaosConsumer(*topics, **args)`
+#
+# Example:
+consumer = TaosConsumer('topic1', 'topic2', td_connect_ip = "127.0.0.1", group_id = "local")
+```
+
+其中，元组类型参数被视为 *Topics*，字典类型参数用于以下订阅配置设置：
 
 |            参数名称            |  类型  | 参数说明                                                 | 备注                                        |
 | :----------------------------: | :----: | -------------------------------------------------------- | ------------------------------------------- |
@@ -430,13 +441,13 @@ Python 使用以下配置项创建一个 Consumer 实例。
 |       `td_connect_port`        | string | 用于创建连接，同 `taos_connect`                          |                                             |
 |           `group_id`           | string | 消费组 ID，同一消费组共享消费进度                        | **必填项**。最大长度：192。                 |
 |          `client_id`           | string | 客户端 ID                                                | 最大长度：192。                             |
-|      `auto_offset_reset`       | string | 消费组订阅的初始位置                                     | 可选：`earliest`, `latest`, `none`(default) |
-|      `enable_auto_commit`      | string | 启用自动提交                                             | 合法值：`true`, `false`。                   |
-|   `auto_commit_interval_ms`    | string | 以毫秒为单位的自动提交时间间隔                           |                                             |
+|      `auto_offset_reset`       | string | 消费组订阅的初始位置                                     | 可选：`earliest`(default), `latest`, `none` |
+|      `enable_auto_commit`      | string | 启用自动提交                                             | 合法值：`true`, `false`，默认为 true        |
+|   `auto_commit_interval_ms`    | string | 以毫秒为单位的自动提交时间间隔                           | 默认值：5000 ms                             |
 | `enable_heartbeat_background`  | string | 启用后台心跳，启用后即使长时间不 poll 消息也不会造成离线 | 合法值：`true`, `false`                     |
-| `experimental_snapshot_enable` | string | 从 WAL 开始消费，还是从 TSBS 开始消费                    | 合法值：`true`, `false`                     |
-|     `msg_with_table_name`      | string | 是否允许从消息中解析表名                                 | 合法值：`true`, `false`                     |
-|           `timeout`            |  int   | 消费者拉去的超时时间                                     |                                             |
+| `experimental_snapshot_enable` | string | 是否允许从 TSDB 消费数据                                 | 合法值：`true`, `false`                     |
+|     `msg_with_table_name`      | string | 是否允许从消息中解析表名,不适用于列订阅                  | 合法值：`true`, `false`                     |
+|           `timeout`            |  int   | 消费者拉取数据的超时时间                                 |                                             |
 
 </TabItem>
 

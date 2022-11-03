@@ -428,6 +428,7 @@ void    transDestoryExHandle(void* handle);
 int32_t transGetRefMgt();
 int32_t transGetInstMgt();
 
+void transHttpEnvDestroy();
 #ifdef __cplusplus
 }
 #endif

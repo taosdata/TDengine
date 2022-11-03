@@ -344,8 +344,11 @@ static FORCE_INLINE void varToNchar(char *buf, SScalarParam *pOut, int32_t rowIn
   int32_t outputMaxLen = (inputLen + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
 
   char *t = taosMemoryCalloc(1, outputMaxLen);
-  /*int32_t resLen = */ taosMbsToUcs4(varDataVal(buf), inputLen, (TdUcs4 *)varDataVal(t),
-                                      outputMaxLen - VARSTR_HEADER_SIZE, &len);
+  int32_t ret = taosMbsToUcs4(varDataVal(buf), inputLen, (TdUcs4 *)varDataVal(t),
+                                  outputMaxLen - VARSTR_HEADER_SIZE, &len);
+  if (!ret) {
+   sclError("failed to convert to NCHAR");
+  }
   varDataSetLen(t, len);
 
   colDataAppend(pOut->columnData, rowIndex, t, false);
@@ -502,7 +505,7 @@ bool convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
     (*pLeftData)++;
   }
   if (typeRight == TSDB_DATA_TYPE_JSON) {
-    if (tTagIsJson(*pLeftData)) {
+    if (tTagIsJson(*pRightData)) {
       terrno = TSDB_CODE_QRY_JSON_NOT_SUPPORT_ERROR;
       return false;
     }
@@ -654,7 +657,7 @@ int32_t vectorConvertSingleColImpl(const SScalarParam* pIn, SScalarParam* pOut, 
     return TSDB_CODE_APP_ERROR;
   }
 
-  int32_t rstart = startIndex >= 0 ? startIndex : 0;
+  int32_t rstart = (startIndex >= 0 && startIndex < pIn->numOfRows) ? startIndex : 0;
   int32_t rend = numOfRows > 0 ? rstart + numOfRows - 1 : rstart + pIn->numOfRows - 1;
   SSclVectorConvCtx cCtx = {pIn, pOut, rstart, rend, pInputCol->info.type, pOutputCol->info.type};
 
@@ -862,25 +865,25 @@ int32_t vectorConvertSingleColImpl(const SScalarParam* pIn, SScalarParam* pOut, 
 
 int8_t gConvertTypes[TSDB_DATA_TYPE_BLOB + 1][TSDB_DATA_TYPE_BLOB + 1] = {
     /*         NULL BOOL TINY SMAL INT  BIG  FLOA DOUB VARC TIME NCHA UTIN USMA UINT UBIG JSON VARB DECI BLOB */
-    /*NULL*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0,
-    /*BOOL*/ 0, 0, 2, 3, 4, 5, 6, 7, 7, 9, 7, 11, 12, 13, 14, 0, 7, 0, 0,
-    /*TINY*/ 0, 0, 0, 3, 4, 5, 6, 7, 7, 9, 7, 3,  4,  5,  7,  0, 7, 0, 0,
-    /*SMAL*/ 0, 0, 0, 0, 4, 5, 6, 7, 7, 9, 7, 3,  4,  5,  7,  0, 7, 0, 0,
-    /*INT */ 0, 0, 0, 0, 0, 5, 6, 7, 7, 9, 7, 4,  4,  5,  7,  0, 7, 0, 0,
-    /*BIGI*/ 0, 0, 0, 0, 0, 0, 6, 7, 7, 9, 7, 5,  5,  5,  7,  0, 7, 0, 0,
-    /*FLOA*/ 0, 0, 0, 0, 0, 0, 0, 7, 7, 6, 7, 6,  6,  6,  6,  0, 7, 0, 0,
-    /*DOUB*/ 0, 0, 0, 0, 0, 0, 0, 0, 7, 7, 7, 7,  7,  7,  7,  0, 7, 0, 0,
-    /*VARC*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 8, 7,  7,  7,  7,  0, 0, 0, 0,
-    /*TIME*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 9,  9,  9,  7,  0, 7, 0, 0,
-    /*NCHA*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7,  7,  7,  7,  0, 0, 0, 0,
-    /*UTIN*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  12, 13, 14, 0, 7, 0, 0,
-    /*USMA*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  13, 14, 0, 7, 0, 0,
-    /*UINT*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  14, 0, 7, 0, 0,
-    /*UBIG*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 7, 0, 0,
-    /*JSON*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0,
-    /*VARB*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0,
-    /*DECI*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0,
-    /*BLOB*/ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0};
+    /*NULL*/   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0,
+    /*BOOL*/   0, 0, 2, 3, 4, 5, 6, 7, 5, 9, 7, 11, 12, 13, 14, 0, 7, 0, 0,
+    /*TINY*/   0, 0, 0, 3, 4, 5, 6, 7, 5, 9, 7, 3,  4,  5,  7,  0, 7, 0, 0,
+    /*SMAL*/   0, 0, 0, 0, 4, 5, 6, 7, 5, 9, 7, 3,  4,  5,  7,  0, 7, 0, 0,
+    /*INT */   0, 0, 0, 0, 0, 5, 6, 7, 5, 9, 7, 4,  4,  5,  7,  0, 7, 0, 0,
+    /*BIGI*/   0, 0, 0, 0, 0, 0, 6, 7, 5, 9, 7, 5,  5,  5,  7,  0, 7, 0, 0,
+    /*FLOA*/   0, 0, 0, 0, 0, 0, 0, 7, 7, 6, 7, 6,  6,  6,  6,  0, 7, 0, 0,
+    /*DOUB*/   0, 0, 0, 0, 0, 0, 0, 0, 7, 7, 7, 7,  7,  7,  7,  0, 7, 0, 0,
+    /*VARC*/   0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 8, 7,  7,  7,  7,  0, 0, 0, 0,
+    /*TIME*/   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 9, 9,  9,  9,  7,  0, 7, 0, 0,
+    /*NCHA*/   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 7,  7,  7,  7,  0, 0, 0, 0,
+    /*UTIN*/   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  12, 13, 14, 0, 7, 0, 0,
+    /*USMA*/   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  13, 14, 0, 7, 0, 0,
+    /*UINT*/   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  14, 0, 7, 0, 0,
+    /*UBIG*/   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 7, 0, 0,
+    /*JSON*/   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0,
+    /*VARB*/   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0,
+    /*DECI*/   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0,
+    /*BLOB*/   0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  0,  0,  0,  0, 0, 0, 0};
 
 int32_t vectorGetConvertType(int32_t type1, int32_t type2) {
   if (type1 == type2) {
@@ -1424,57 +1427,6 @@ void vectorAssign(SScalarParam *pLeft, SScalarParam *pRight, SScalarParam *pOut,
 
   ASSERT(pRight->numOfQualified == 1 || pRight->numOfQualified == 0);
   pOut->numOfQualified = pRight->numOfQualified * pOut->numOfRows;
-}
-
-void vectorConcat(SScalarParam *pLeft, SScalarParam *pRight, void *out, int32_t _ord) {
-#if 0
-  int32_t len = pLeft->bytes + pRight->bytes;
-
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->numOfRows, pRight->numOfRows) - 1;
-  int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-
-  char *output = (char *)out;
-  if (pLeft->numOfRows == pRight->numOfRows) {
-    for (; i < pRight->numOfRows && i >= 0; i += step, output += len) {
-      char* left = POINTER_SHIFT(pLeft->data, pLeft->bytes * i);
-      char* right = POINTER_SHIFT(pRight->data, pRight->bytes * i);
-
-      if (isNull(left, pLeftCol->info.type) || isNull(right, pRight->info.type)) {
-        setVardataNull(output, TSDB_DATA_TYPE_BINARY);
-        continue;
-      }
-
-      // todo define a macro
-      memcpy(varDataVal(output), varDataVal(left), varDataLen(left));
-      memcpy(varDataVal(output) + varDataLen(left), varDataVal(right), varDataLen(right));
-      varDataSetLen(output, varDataLen(left) + varDataLen(right));
-    }
-  } else if (pLeft->numOfRows == 1) {
-    for (; i >= 0 && i < pRight->numOfRows; i += step, output += len) {
-      char *right = POINTER_SHIFT(pRight->data, pRight->bytes * i);
-      if (isNull(pLeft->data, pLeftCol->info.type) || isNull(right, pRight->info.type)) {
-        setVardataNull(output, TSDB_DATA_TYPE_BINARY);
-        continue;
-      }
-
-      memcpy(varDataVal(output), varDataVal(pLeft->data), varDataLen(pLeft->data));
-      memcpy(varDataVal(output) + varDataLen(pLeft->data), varDataVal(right), varDataLen(right));
-      varDataSetLen(output, varDataLen(pLeft->data) + varDataLen(right));
-    }
-  } else if (pRight->numOfRows == 1) {
-    for (; i >= 0 && i < pLeft->numOfRows; i += step, output += len) {
-      char* left = POINTER_SHIFT(pLeft->data, pLeft->bytes * i);
-      if (isNull(left, pLeftCol->info.type) || isNull(pRight->data, pRight->info.type)) {
-        SET_DOUBLE_NULL(output);
-        continue;
-      }
-
-      memcpy(varDataVal(output), varDataVal(left), varDataLen(pRight->data));
-      memcpy(varDataVal(output) + varDataLen(left), varDataVal(pRight->data), varDataLen(pRight->data));
-      varDataSetLen(output, varDataLen(left) + varDataLen(pRight->data));
-    }
-  }
-#endif
 }
 
 static void vectorBitAndHelper(SColumnInfoData *pLeftCol, SColumnInfoData *pRightCol, SColumnInfoData *pOutputCol,

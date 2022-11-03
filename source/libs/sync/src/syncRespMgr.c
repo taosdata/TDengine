@@ -136,7 +136,7 @@ void syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl, bool rsp) {
 
   while (pStub) {
     size_t    len;
-    void     *key = taosHashGetKey(pStub, &len);
+    void *    key = taosHashGetKey(pStub, &len);
     uint64_t *pSeqNum = (uint64_t *)key;
     sum++;
 
@@ -145,16 +145,17 @@ void syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl, bool rsp) {
       taosArrayPush(delIndexArray, pSeqNum);
       cnt++;
 
-      SFsmCbMeta cbMeta = {0};
-      cbMeta.index = SYNC_INDEX_INVALID;
-      cbMeta.lastConfigIndex = SYNC_INDEX_INVALID;
-      cbMeta.isWeak = false;
-      cbMeta.code = TSDB_CODE_SYN_TIMEOUT;
-      cbMeta.state = pSyncNode->state;
-      cbMeta.seqNum = *pSeqNum;
-      cbMeta.term = SYNC_TERM_INVALID;
-      cbMeta.currentTerm = pSyncNode->pRaftStore->currentTerm;
-      cbMeta.flag = 0;
+      SFsmCbMeta cbMeta = {
+          cbMeta.index = SYNC_INDEX_INVALID,
+          cbMeta.lastConfigIndex = SYNC_INDEX_INVALID,
+          cbMeta.isWeak = false,
+          cbMeta.code = TSDB_CODE_SYN_TIMEOUT,
+          cbMeta.state = pSyncNode->state,
+          cbMeta.seqNum = *pSeqNum,
+          cbMeta.term = SYNC_TERM_INVALID,
+          cbMeta.currentTerm = pSyncNode->pRaftStore->currentTerm,
+          cbMeta.flag = 0,
+      };
 
       pStub->rpcMsg.pCont = NULL;
       pStub->rpcMsg.contLen = 0;
@@ -177,7 +178,7 @@ void syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl, bool rsp) {
   for (int32_t i = 0; i < arraySize; ++i) {
     uint64_t *pSeqNum = taosArrayGet(delIndexArray, i);
     taosHashRemove(pObj->pRespHash, pSeqNum, sizeof(uint64_t));
-    sDebug("vgId:%d, resp mgr clean by ttl, seq:%d", pSyncNode->vgId, *pSeqNum);
+    sDebug("vgId:%d, resp mgr clean by ttl, seq:%" PRId64 "", pSyncNode->vgId, *pSeqNum);
   }
   taosArrayDestroy(delIndexArray);
 }

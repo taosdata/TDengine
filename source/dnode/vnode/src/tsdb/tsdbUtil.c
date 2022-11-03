@@ -719,8 +719,6 @@ int32_t tRowMergerAdd(SRowMerger *pMerger, TSDBROW *pRow, STSchema *pTSchema) {
   }
 
   pMerger->version = key.version;
-
-_exit:
   return code;
 }
 

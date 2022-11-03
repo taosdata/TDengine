@@ -128,10 +128,10 @@ int transDumpFromBuffer(SConnBuffer* connBuf, char** buf) {
   static const int HEADSIZE = sizeof(STransMsgHead);
 
   SConnBuffer* p = connBuf;
-  if (p->left != 0) {
+  if (p->left != 0 || p->total <= 0) {
     return -1;
   }
-  int total = connBuf->total;
+  int total = p->total;
   if (total >= HEADSIZE && !p->invalid) {
     *buf = taosMemoryCalloc(1, total);
     memcpy(*buf, p->buf, total);
@@ -249,8 +249,8 @@ int transAsyncSend(SAsyncPool* pool, queue* q) {
   if (atomic_load_8(&pool->stop) == 1) {
     return -1;
   }
-  int idx = pool->index;
-  idx = idx % pool->nAsync;
+  int idx = pool->index % pool->nAsync;
+
   // no need mutex here
   if (pool->index++ > pool->nAsync) {
     pool->index = 0;

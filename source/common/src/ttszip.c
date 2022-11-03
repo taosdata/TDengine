@@ -31,7 +31,7 @@ static int32_t STSBufUpdateHeader(STSBuf* pTSBuf, STSBufFileHeader* pHeader);
  */
 STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
   if (!osTempSpaceAvailable()) {
-    terrno = TSDB_CODE_TSC_NO_DISKSPACE;
+    terrno = TSDB_CODE_NO_DISKSPACE;
     // tscError("tmp file created failed since %s", terrstr());
     return NULL;
   }
@@ -187,7 +187,9 @@ void* tsBufDestroy(STSBuf* pTSBuf) {
 
   if (pTSBuf->autoDelete) {
     //    ("tsBuf %p destroyed, delete tmp file:%s", pTSBuf, pTSBuf->path);
-    taosRemoveFile(pTSBuf->path);
+    if (taosRemoveFile(pTSBuf->path) != 0) {
+      // tscError("tsBuf %p destroyed, failed to remove tmp file:%s", pTSBuf, pTSBuf->path);
+    }
   } else {
     //    tscDebug("tsBuf %p destroyed, tmp file:%s, remains", pTSBuf, pTSBuf->path);
   }

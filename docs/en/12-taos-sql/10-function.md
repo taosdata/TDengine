@@ -863,6 +863,7 @@ INTERP(expr)
 
 - `INTERP` is used to get the value that matches the specified time slice from a column. If no such value exists an interpolation value will be returned based on `FILL` parameter.
 - The input data of `INTERP` is the value of the specified column and a `where` clause can be used to filter the original data. If no `where` condition is specified then all original data is the input.
+- `INTERP` must be used along with `RANGE`, `EVERY`, `FILL` keywords.
 - The output time range of `INTERP` is specified by `RANGE(timestamp1,timestamp2)` parameter, with timestamp1<=timestamp2. timestamp1 is the starting point of the output time range and must be specified. timestamp2 is the ending point of the output time range and must be specified.
 - The number of rows in the result set of `INTERP` is determined by the parameter `EVERY`. Starting from timestamp1, one interpolation is performed for every time interval specified `EVERY` parameter. The parameter `EVERY` must be an integer, with no quotes, with a time unit of: b(nanosecond), u(microsecond), a(millisecond)), s(second), m(minute), h(hour), d(day), or w(week). For example, `EVERY(500a)` will interpolate every 500 milliseconds.
 - Interpolation is performed based on `FILL` parameter.
@@ -945,7 +946,7 @@ MIN(expr)
 MODE(expr)
 ```
 
-**Description**:The value which has the highest frequency of occurrence. NULL is returned if there are multiple values which have highest frequency of occurrence.
+**Description**:The value which has the highest frequency of occurrence. One random value is returned if there are multiple values which have highest frequency of occurrence.
 
 **Return value type**: Same as the input data
 

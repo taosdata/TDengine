@@ -112,6 +112,8 @@ void vnodeBufPoolReset(SVBufPool *pPool) {
 void *vnodeBufPoolMalloc(SVBufPool *pPool, int size) {
   SVBufPoolNode *pNode;
   void          *p = NULL;
+  ASSERT(pPool != NULL);
+
   taosThreadSpinLock(&pPool->lock);
   if (pPool->node.size >= pPool->ptr - pPool->node.data + size) {
     // allocate from the anchor node
@@ -172,12 +174,12 @@ void vnodeBufPoolUnRef(SVBufPool *pPool) {
     if (pPool->node.size != size) {
       SVBufPool *pPoolT = NULL;
       if (vnodeBufPoolCreate(pVnode, size, &pPoolT) < 0) {
-        vWarn("vgId:%d try to change buf pools size from %" PRId64 " to %" PRId64 " since %s", TD_VID(pVnode),
+        vWarn("vgId:%d, try to change buf pools size from %" PRId64 " to %" PRId64 " since %s", TD_VID(pVnode),
               pPool->node.size, size, tstrerror(errno));
       } else {
         vnodeBufPoolDestroy(pPool);
         pPool = pPoolT;
-        vDebug("vgId:%d change buf pools size from %" PRId64 " to %" PRId64, TD_VID(pVnode), pPool->node.size, size);
+        vDebug("vgId:%d, change buf pools size from %" PRId64 " to %" PRId64, TD_VID(pVnode), pPool->node.size, size);
       }
     }
 

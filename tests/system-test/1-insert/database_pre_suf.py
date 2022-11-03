@@ -28,7 +28,8 @@ class TDTestCase:
     "jniDebugFlag":143 ,"simDebugFlag":143,"dDebugFlag":143, "dDebugFlag":143,"vDebugFlag":143,"mDebugFlag":143,"qDebugFlag":143,
     "wDebugFlag":143,"sDebugFlag":143,"tsdbDebugFlag":143,"tqDebugFlag":143 ,"fsDebugFlag":143 ,"fnDebugFlag":143}
     
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
@@ -184,6 +185,7 @@ class TDTestCase:
         tdSql.query("select count(*) from hn_table_1_r;")
         tdSql.checkData(0,0,num_random*n)
         
+        sleep(5)
         # stream data check
         tdSql.query("select start,wend,max_int from stream_max_stable_1 ;")
         tdSql.checkRows(20)
