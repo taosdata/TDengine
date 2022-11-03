@@ -21,6 +21,7 @@ import subprocess
 from taostest import TDCase
 from taostest.util.remote import Remote
 from taostest.util.common import TDCom
+from taostest.components import TaosD
 import threading
 import multiprocessing
 
@@ -29,6 +30,7 @@ class TDTestQuery(TDCase):
         super(TDTestQuery, self).init()
         self.tdCom = TDCom(self.tdSql)
         self.remote: Remote = Remote(self.logger)
+        self.taosd = TaosD(self.remote)
         
         self.firstEP = []       
         self.source_taosd_list = []
@@ -875,10 +877,14 @@ class TDTestQuery(TDCase):
         self.sql_base_check(dbname,sql1='',sql2='') 
         self.select_column(dbname)
         
-        #self.drop_all_table(dbname,9) 
+        self.taosd.kill_and_start(self.env_setting['settings'][0],3)
+        
+        #drop and flush database 
         self.drop_n_table(dbname,random.randint(6,9),flush='Y')  
         self.sql_base_check(dbname,sql1='',sql2='') 
         self.select_column(dbname)
+        
+        self.taosd.kill_and_start(self.env_setting['settings'][0],3)
         
         self.tdSql.execute("flush database %s;" %dbname) 
         #self.after_flush_check(dbname,sql='')
