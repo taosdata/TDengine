@@ -81,6 +81,15 @@ void syncStop(int64_t rid) {
   }
 }
 
+void syncPreStop(int64_t rid) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) return;
+
+  syncNodePreClose(pSyncNode);
+
+  syncNodeRelease(pSyncNode);
+}
+
 static bool syncNodeCheckNewConfig(SSyncNode* pSyncNode, const SSyncCfg* pCfg) {
   if (!syncNodeInConfig(pSyncNode, pCfg)) return false;
   return abs(pCfg->replicaNum - pSyncNode->replicaNum) <= 1;
@@ -1220,6 +1229,14 @@ void syncNodeStartStandBy(SSyncNode* pSyncNode) {
   ret = 0;
   ret = syncNodeStartPingTimer(pSyncNode);
   ASSERT(ret == 0);
+}
+
+void syncNodePreClose(SSyncNode* pSyncNode) {
+  // stop elect timer
+  syncNodeStopElectTimer(pSyncNode);
+
+  // stop heartbeat timer
+  syncNodeStopHeartbeatTimer(pSyncNode);
 }
 
 void syncNodeClose(SSyncNode* pSyncNode) {
