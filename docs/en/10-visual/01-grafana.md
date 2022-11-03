@@ -17,11 +17,11 @@ TDengine currently supports Grafana versions 7.5 and above. Users can go to the 
 
 The TDengine data source plugin is already published as a signed Grafana plugin. You can easily install it from Grafana Configuration GUI. In any platform you already installed Grafana, you can open the URL http://localhost:3000 then click plugin menu from left panel.
 
-![click plugin menu](./grafana/click-plugin-menu-from-config.png)
+![click plugin menu](./grafana/click-plugin-menu-from-config.webp)
 
 Then key in `TDengine` to search.
 
-![search TDengine](./grafana/search-tdengine-from-config.png)
+![search TDengine](./grafana/search-tdengine-from-config.webp)
 
 ### One-line installer
 
