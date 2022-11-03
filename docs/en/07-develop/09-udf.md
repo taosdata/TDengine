@@ -218,7 +218,7 @@ After compiling your function into a DLL, you add it to TDengine. For more infor
 
 ## Sample Code
 
-### Sample scalar function: [bit_and](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/bit_and.c)
+### Sample scalar function: [bit_and](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/bit_and.c)
 
 The bit_add function implements bitwise addition for multiple columns. If there is only one column, the column is returned. The bit_add function ignores null values.
 
@@ -231,7 +231,7 @@ The bit_add function implements bitwise addition for multiple columns. If there 
 
 </details>
 
-### Sample aggregate function: [l2norm](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/l2norm.c)
+### Sample aggregate function: [l2norm](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/l2norm.c)
 
 The l2norm function finds the second-order norm for all data in the input column. This squares the values, takes a cumulative sum, and finds the square root.
 
