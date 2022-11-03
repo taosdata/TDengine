@@ -112,8 +112,6 @@ void walRemoveAllOldFiles(void *handle) {
   pthread_mutex_unlock(&pWal->mutex);
 }
 
-
-
 static void walUpdateChecksum(SWalHead *pHead) {
   pHead->sver = 2;
   pHead->cksum = 0;

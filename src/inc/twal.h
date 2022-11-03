@@ -71,9 +71,6 @@ uint64_t walGetVersion(twalh);
 void     walResetVersion(twalh, uint64_t newVer);
 int64_t  walGetFSize(twalh);
 
-// sync read wal interface
-int walValidateChecksum(SWalHead *pHead);
-
 #ifdef __cplusplus
 }
 #endif

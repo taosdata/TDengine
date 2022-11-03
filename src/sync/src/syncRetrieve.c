@@ -23,6 +23,7 @@
 #include "tsocket.h"
 #include "twal.h"
 #include "tsync.h"
+#include "tfile.h"
 #include "syncInt.h"
 
 static int32_t syncGetWalVersion(SSyncNode *pNode, SSyncPeer *pPeer) {
@@ -134,10 +135,23 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
   return 0;
 }
 
+static int syncValidateChecksum(SWalHead *pHead) {
+  if (pHead->sver == 0) { // for compatible with wal before sver 1
+    return taosCheckChecksumWhole((uint8_t *)pHead, sizeof(*pHead));
+  } else {
+    // new wal format
+    uint32_t cksum = pHead->cksum;
+    pHead->cksum = 0;
+    int ret = taosCheckChecksum((uint8_t *)pHead, sizeof(*pHead) + pHead->len, cksum);
+    pHead->cksum = cksum;  // must restore cksum for next call walValiteCheckSum
+    return ret;
+  }
+}
+
 static int32_t syncSkipCorruptedRecord(SWalHead *pHead, int32_t fd) {
   int64_t pos = taosLSeek(fd, 0, SEEK_CUR);
   if (pos < 0) {
-    wError("fd:%d, skip corrupte taosLSeek return error. pos=%" PRId64, fd, pos);
+    sError("fd:%d, skip corrupte taosLSeek return error. pos=%" PRId64, fd, pos);
     return TSDB_CODE_WAL_FILE_CORRUPTED;
   }
   // save start bad bytes positioin
@@ -160,7 +174,7 @@ static int32_t syncSkipCorruptedRecord(SWalHead *pHead, int32_t fd) {
 
     if (pHead->sver == 0) {
       // old format wal, only check head crc
-      if (walValidateChecksum(pHead)) {
+      if (syncValidateChecksum(pHead)) {
         sInfo("fd:%d, old wal read head ok, pHead->len=%d, skip bad bytes=%" PRId64 " right pos:%" PRId64, fd, pHead->len, pos - start, pos);
         return TSDB_CODE_SUCCESS;
       }
@@ -171,7 +185,7 @@ static int32_t syncSkipCorruptedRecord(SWalHead *pHead, int32_t fd) {
         return TSDB_CODE_WAL_FILE_CORRUPTED;
       }
 
-      if (walValidateChecksum(pHead)) {
+      if (syncValidateChecksum(pHead)) {
         sInfo("fd:%d, wal read head ok, pHead->len=%d, skip bad bytes=%" PRId64 " right pos:%" PRId64, fd, pHead->len, pos - start, pos);
         return TSDB_CODE_SUCCESS;
       }
