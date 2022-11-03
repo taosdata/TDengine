@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{bail, Result};
 use taos::{Consumer, *};
 
 use crate::{
@@ -32,7 +32,7 @@ async fn sync(
                             log::warn!("write raw meta error with stable, but we'll continue");
                             // tokio::time::sleep(Duration::from_nanos(1000)).await;
                         } else {
-                            Err(err).context("write raw meta error")?;
+                            bail!("write raw meta error: {err}");
                         }
                     }
                 } else {
@@ -53,7 +53,7 @@ async fn sync(
                             log::warn!("write raw meta error with stable, but we'll continue");
                             // tokio::time::sleep(Duration::from_nanos(1000)).await;
                         } else {
-                            Err(err).context("write raw meta error")?;
+                            bail!("write raw meta error: {err}");
                         }
                     }
                 }
@@ -125,17 +125,15 @@ async fn sync(
                                     if err.to_string().contains("0x032C") {
                                         tokio::time::sleep(Duration::from_nanos(1000)).await;
                                     } else {
-                                        Err(err).context("create table error")?;
+                                        bail!("create table error: {err}");
                                     }
                                 };
-                                taos.write_raw_block(&raw)
-                                    .await
-                                    .context("write table data failed")?;
+                                taos.write_raw_block(&raw).await?;
                             } else {
-                                Err(err).context("write table failed")?;
+                                bail!("write table failed: {err}",);
                             }
                         } else {
-                            Err(err).context("write table failed")?;
+                            bail!("write table failed: {err}",);
                         }
                     };
                 }
@@ -152,7 +150,7 @@ async fn sync(
                             log::warn!("write raw meta error with stable, but we'll continue");
                             // tokio::time::sleep(Duration::from_nanos(1000)).await;
                         } else {
-                            Err(err).context("write raw meta error")?;
+                            bail!("write raw meta failed: {err}",);
                         }
                         continue;
                     }
@@ -172,7 +170,7 @@ async fn sync(
                             log::warn!("write raw meta error with stable, but we'll continue");
                             // tokio::time::sleep(Duration::from_nanos(1000)).await;
                         } else {
-                            Err(err).context("write raw meta error")?;
+                            bail!("write raw meta failed: {err}",);
                         }
                     }
                 }
@@ -237,17 +235,18 @@ async fn sync(
                                     if err.to_string().contains("0x032C") {
                                         tokio::time::sleep(Duration::from_nanos(1000)).await;
                                     } else {
-                                        Err(err).context("create table error")?;
+                                        bail!("write to table failed: {err}");
                                     }
                                 };
-                                taos.write_raw_block(&raw)
-                                    .await
-                                    .context("write table data failed")?;
+                                taos.write_raw_block(&raw).await?;
                             } else {
-                                Err(err).context("write table failed")?;
+                                bail!(
+                                    "write to table {:?} but not exists: {err}",
+                                    raw.table_name()
+                                );
                             }
                         } else {
-                            Err(err).context("write table failed")?;
+                            bail!("write to table failed: {err}",);
                         }
                     };
                 }
