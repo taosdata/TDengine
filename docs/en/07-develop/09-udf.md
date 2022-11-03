@@ -220,7 +220,7 @@ After compiling your function into a DLL, you add it to TDengine. For more infor
 
 ### Sample scalar function: [bit_and](https://github.com/taosdata/TDengine/blob/3.0/tests/script/sh/bit_and.c)
 
-The bit_add function implements bitwise addition for multiple columns. If there is only one column, the column is returned. The bit_add function ignores null values.
+The bit_and function implements bitwise addition for multiple columns. If there is only one column, the column is returned. The bit_and function ignores null values.
 
 <details>
 <summary>bit_and.c</summary>
