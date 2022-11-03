@@ -2973,7 +2973,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
 
   return pOperator;
 
-  _error:
+_error:
   if (pInfo != NULL) {
     destroyAggOperatorInfo(pInfo);
   }
@@ -3189,11 +3189,12 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
 
-  _error:
+_error:
   if (pInfo != NULL) {
     destroyFillOperatorInfo(pInfo);
   }
 
+  pTaskInfo->code = code;
   taosMemoryFreeClear(pOperator);
   return NULL;
 }
