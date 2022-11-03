@@ -55,7 +55,7 @@ int32_t mndProcessQueryMsg(SRpcMsg *pMsg) {
       code = qWorkerProcessHbMsg(pMnode, pMnode->pQuery, pMsg, 0);
       break;
     default:
-      terrno = TSDB_CODE_VND_APP_ERROR;
+      terrno = TSDB_CODE_APP_ERROR;
       mError("unknown msg type:%d in query queue", pMsg->msgType);
   }
 
@@ -92,7 +92,7 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
   for (int32_t i = 0; i < msgNum; ++i) {
     if (offset >= pMsg->contLen) {
       mError("offset %d is bigger than contLen %d", offset, pMsg->contLen);
-      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      terrno = TSDB_CODE_INVALID_MSG_LEN;
       taosArrayDestroy(batchRsp);
       return -1;
     }
@@ -101,7 +101,7 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
     offset += sizeof(req.msgIdx);
     if (offset >= pMsg->contLen) {
       mError("offset %d is bigger than contLen %d", offset, pMsg->contLen);
-      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      terrno = TSDB_CODE_INVALID_MSG_LEN;
       taosArrayDestroy(batchRsp);
       return -1;
     }
@@ -110,7 +110,7 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
     offset += sizeof(req.msgType);
     if (offset >= pMsg->contLen) {
       mError("offset %d is bigger than contLen %d", offset, pMsg->contLen);
-      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      terrno = TSDB_CODE_INVALID_MSG_LEN;
       taosArrayDestroy(batchRsp);
       return -1;
     }
@@ -119,7 +119,7 @@ int32_t mndProcessBatchMetaMsg(SRpcMsg *pMsg) {
     offset += sizeof(req.msgLen);
     if (offset >= pMsg->contLen) {
       mError("offset %d is bigger than contLen %d", offset, pMsg->contLen);
-      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+      terrno = TSDB_CODE_INVALID_MSG_LEN;
       taosArrayDestroy(batchRsp);
       return -1;
     }

@@ -89,25 +89,10 @@ typedef struct STableScanAnalyzeInfo SFileBlockLoadRecorder;
 typedef struct STaskCostInfo {
   int64_t  created;
   int64_t  start;
-  uint64_t loadStatisTime;
-  uint64_t loadFileBlockTime;
-  uint64_t loadDataInCacheTime;
-  uint64_t loadStatisSize;
-  uint64_t loadFileBlockSize;
-  uint64_t loadDataInCacheSize;
-
-  uint64_t loadDataTime;
-
+  uint64_t elapsedTime;
+  double   extractListTime;
+  double   groupIdMapTime;
   SFileBlockLoadRecorder* pRecoder;
-  uint64_t                elapsedTime;
-
-  uint64_t winInfoSize;
-  uint64_t tableInfoSize;
-  uint64_t hashSize;
-  uint64_t numOfTimeWindows;
-
-  SArray*   queryProfEvents;      // SArray<SQueryProfEvent>
-  SHashObj* operatorProfResults;  // map<operator_type, SQueryProfEvent>
 } STaskCostInfo;
 
 typedef struct SOperatorCostInfo {
@@ -150,18 +135,13 @@ typedef struct {
 
   SSchemaWrapper*     schema;
   char                tbName[TSDB_TABLE_NAME_LEN];
-  SSDataBlock*        pullOverBlk;  // for streaming
-  SWalFilterCond      cond;
-  int64_t             lastScanUid;
   int8_t              recoverStep;
   SQueryTableDataCond tableCond;
-  int64_t             recoverStartVer;
-  int64_t             recoverEndVer;
   int64_t             fillHistoryVer1;
   int64_t             fillHistoryVer2;
 
-  int8_t        triggerSaved;
-  int64_t       deleteMarkSaved;
+  // int8_t        triggerSaved;
+  // int64_t       deleteMarkSaved;
   SStreamState* pState;
 } SStreamTaskInfo;
 
@@ -461,8 +441,10 @@ typedef struct SPartitionDataInfo {
 
 typedef struct STimeWindowAggSupp {
   int8_t          calTrigger;
-  int64_t         waterMark;
+  int8_t          calTriggerSaved;
   int64_t         deleteMark;
+  int64_t         deleteMarkSaved;
+  int64_t         waterMark;
   TSKEY           maxTs;
   TSKEY           minTs;
   SColumnInfoData timeWindowData;  // query time window info for scalar function execution.

@@ -37,10 +37,13 @@ SSyncSnapshotSender* createSender() {
   SSyncNode* pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(*pSyncNode));
   pSyncNode->pRaftStore = (SRaftStore*)taosMemoryMalloc(sizeof(*(pSyncNode->pRaftStore)));
   pSyncNode->pFsm = (SSyncFSM*)taosMemoryMalloc(sizeof(*(pSyncNode->pFsm)));
+
+ #if 0 
   pSyncNode->pFsm->FpSnapshotStartRead = SnapshotStartRead;
   pSyncNode->pFsm->FpSnapshotStopRead = SnapshotStopRead;
   pSyncNode->pFsm->FpSnapshotDoRead = SnapshotDoRead;
   pSyncNode->pFsm->FpGetSnapshotInfo = GetSnapshot;
+#endif
 
   SSyncSnapshotSender* pSender = snapshotSenderCreate(pSyncNode, 2);
   pSender->start = true;
@@ -55,7 +58,8 @@ SSyncSnapshotSender* createSender() {
   pSender->snapshot.lastApplyTerm = 88;
   pSender->sendingMS = 77;
   pSender->term = 66;
-  pSender->privateTerm = 99;
+  
+  //pSender->privateTerm = 99;
 
   return pSender;
 }

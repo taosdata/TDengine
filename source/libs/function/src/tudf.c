@@ -124,13 +124,16 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
 
   char pathTaosdLdLib[512] = {0};
   size_t taosdLdLibPathLen = sizeof(pathTaosdLdLib);
-  uv_os_getenv("LD_LIBRARY_PATH", pathTaosdLdLib, &taosdLdLibPathLen);
+  int ret = uv_os_getenv("LD_LIBRARY_PATH", pathTaosdLdLib, &taosdLdLibPathLen);
+  if (ret != UV_ENOBUFS) {
+    taosdLdLibPathLen = strlen(pathTaosdLdLib);
+  }
 
   char udfdPathLdLib[1024] = {0};
   size_t udfdLdLibPathLen = strlen(tsUdfdLdLibPath);
   strncpy(udfdPathLdLib, tsUdfdLdLibPath, udfdLdLibPathLen);
   udfdPathLdLib[udfdLdLibPathLen] = ':';
-  strncpy(udfdPathLdLib + udfdLdLibPathLen + 1, pathTaosdLdLib, sizeof(udfdPathLdLib) - udfdLdLibPathLen);
+  strncpy(udfdPathLdLib + udfdLdLibPathLen + 1, pathTaosdLdLib, sizeof(udfdPathLdLib) - udfdLdLibPathLen - 1);
   if (udfdLdLibPathLen + taosdLdLibPathLen < 1024) {
     fnInfo("udfd LD_LIBRARY_PATH: %s", udfdPathLdLib);
   } else {

@@ -152,7 +152,7 @@ IFileCtx* idxFileCtxCreate(WriterType type, const char* path, bool readOnly, int
   if (ctx->type == TFILE) {
     // ugly code, refactor later
     ctx->file.readOnly = readOnly;
-    memcpy(ctx->file.buf, path, sizeof(ctx->file.buf));
+    memcpy(ctx->file.buf, path, strlen(path));
     if (readOnly == false) {
       ctx->file.pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
       taosFtruncateFile(ctx->file.pFile, 0);

@@ -31,6 +31,7 @@ class TDTestCase:
         self.TDDnodes = None
         tdSql.init(conn.cursor())
         self.host = socket.gethostname()
+        self.replicaVar = int(replicaVar)
 
 
     def getBuildPath(self):
@@ -118,6 +119,7 @@ class TDTestCase:
         rowsPerStb=paraDict["ctbNum"]*paraDict["rowsPerTbl"]
         rowsall=rowsPerStb*paraDict['stbNumbers']
         dbNumbers = 1
+        paraDict['replica'] = self.replicaVar
 
         tdLog.info("first check dnode and mnode")
         tdSql.query("select * from information_schema.ins_dnodes;")
@@ -167,8 +169,8 @@ class TDTestCase:
             threads.append(threading.Thread(target=clusterComCreate.insert_data, args=(newTdSql, paraDict["dbName"],stableName,paraDict["ctbNum"],paraDict["rowsPerTbl"],paraDict["batchNum"],paraDict["startTs"])))
         for tr in threads:
             tr.start()
-        dnode6Port=int(6030+5*100)
-        tdSql.execute("create dnode '%s:%d'"%(hostname,dnode6Port))
+        dnode7Port=int(6030+6*100)
+        tdSql.execute("create dnode '%s:%d'"%(hostname,dnode7Port))
         clusterComCheck.checkDnodes(dnodeNumbers)
         for tr in threads:
             tr.join()
@@ -219,7 +221,7 @@ class TDTestCase:
             tdSql.checkRows(rowsPerStb)
     def run(self):
         # print(self.master_dnode.cfgDict)
-        self.fiveDnodeThreeMnode(dnodeNumbers=5,mnodeNums=3,restartNumbers=2,stopRole='dnode')
+        self.fiveDnodeThreeMnode(dnodeNumbers=6,mnodeNums=3,restartNumbers=2,stopRole='dnode')
 
     def stop(self):
         tdSql.close()
