@@ -224,7 +224,7 @@ GROUP BY 子句中的表达式可以包含表或视图中的任何列，这些�
 该子句对行进行分组，但不保证结果集的顺序。若要对分组进行排序，请使用 ORDER BY 子句
 
 
-## PARTITON BY
+## PARTITION BY
 
 PARTITION BY 子句是 TDengine 特色语法，按 part_list 对数据进行切分，在每个切分的分片中进行计算。
 

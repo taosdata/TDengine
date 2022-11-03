@@ -35,7 +35,7 @@ void CommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256];
   snprintf(logBuf, sizeof(logBuf),
            "==callback== ==CommitCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s \n", pFsm,
-           cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state));
+           cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncStr(cbMeta.state));
   syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
 }
 
@@ -43,7 +43,7 @@ void PreCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) 
   char logBuf[256];
   snprintf(logBuf, sizeof(logBuf),
            "==callback== ==PreCommitCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s \n", pFsm,
-           cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state));
+           cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncStr(cbMeta.state));
   syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
 }
 
@@ -51,15 +51,19 @@ void RollBackCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256];
   snprintf(logBuf, sizeof(logBuf),
            "==callback== ==RollBackCb== pFsm:%p, index:%" PRId64 ", isWeak:%d, code:%d, state:%d %s \n", pFsm,
-           cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state));
+           cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncStr(cbMeta.state));
   syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
 }
 
 void initFsm() {
   pFsm = (SSyncFSM *)taosMemoryMalloc(sizeof(SSyncFSM));
+
+#if 0
   pFsm->FpCommitCb = CommitCb;
   pFsm->FpPreCommitCb = PreCommitCb;
   pFsm->FpRollBackCb = RollBackCb;
+#endif
+
 }
 
 SSyncNode *syncNodeInit() {
