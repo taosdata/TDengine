@@ -338,8 +338,7 @@ _end:
   tsdbDataFReaderClose(&pr->pDataFReader);
 
   tsdbUntakeReadSnap(pr->pVnode->pTsdb, pr->pReadSnap, "cache-l");
-  pr->pDataFReaderLast = NULL;
-  pr->pDataFReader = NULL;
+  resetLastBlockLoadInfo(pr->pLoadInfo);
 
   for (int32_t j = 0; j < pr->numOfCols; ++j) {
     taosMemoryFree(pRes[j]);
