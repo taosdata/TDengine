@@ -231,10 +231,10 @@ int32_t sndProcessTaskRetrieveReq(SSnode *pSnode, SRpcMsg *pMsg) {
 
 int32_t sndProcessTaskDispatchRsp(SSnode *pSnode, SRpcMsg *pMsg) {
   SStreamDispatchRsp *pRsp = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
-  int32_t             taskId = pRsp->taskId;
+  int32_t             taskId = pRsp->upstreamTaskId;
   SStreamTask        *pTask = streamMetaGetTask(pSnode->pMeta, taskId);
   if (pTask) {
-    streamProcessDispatchRsp(pTask, pRsp);
+    streamProcessDispatchRsp(pTask, pRsp, pMsg->code);
     return 0;
   } else {
     return -1;

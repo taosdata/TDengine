@@ -26,7 +26,7 @@ sql insert into t1 values(1648791243003,4,2,3,3.1);
 sql insert into t1 values(1648791213004,4,2,3,4.1);
 
 
-sleep 1000
+sleep 5000
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 if $rows != 4 then
@@ -466,9 +466,6 @@ if $data25 != 3 then
 endi
 
 
-
-
-
 sql create database test2 vgroups 1;
 sql select * from information_schema.ins_databases;
 
@@ -484,7 +481,7 @@ sql insert into t1 values(1648791213004,4,2,3,4.1);
 
 sql create stream stream2 trigger at_once fill_history 1 into streamt as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from t1 interval(10s);
 
-sleep 1000
+sleep 5000
 sql select `_wstart`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 if $rows != 4 then

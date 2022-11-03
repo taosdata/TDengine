@@ -58,7 +58,7 @@ static void smProcessStreamQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   dTrace("msg:%p, get from snode-stream queue", pMsg);
   int32_t code = sndProcessStreamMsg(pMgmt->pSnode, pMsg);
   if (code < 0) {
-    dGError("snd, msg:%p failed to process stream since %s", pMsg, terrstr(code));
+    dGError("snd, msg:%p failed to process stream msg %s since %s", pMsg, TMSG_INFO(pMsg->msgType), terrstr(code));
     smSendRsp(pMsg, terrno);
   }
 
