@@ -111,7 +111,9 @@ class TDTestCase:
         print(f"start taosd: nohup taosd -c {cPath} & ")
         os.system(f" nohup taosd -c {cPath} & " )
         sleep(2)
-        tdLog.info(f" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f compa4096.json -y  ")
+        tdLog.info(" LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y  ")
+        os.system("LD_LIBRARY_PATH=/usr/lib  taosBenchmark -f 0-others/compa4096.json -y")
+        os.system("pkill -9 taosd")
 
 
 

@@ -11,27 +11,26 @@
   "result_file": "taosBenchmark_result.log",
   "confirm_parameter_prompt": "no",
   "insert_interval": 0,
-  "num_of_records_per_req": 100,
+  "num_of_records_per_req": 1000000,
   "max_sql_len": 1024000,
   "databases": [
     {
       "dbinfo": {
-        "name": "taosc_sql",
+        "name": "db4096",
         "drop": "yes",
         "replica": 1,
         "duration": 10,
         "precision": "ms",
         "keep": 3650,
-        "minRows": 100,
-        "maxRows": 4096,
         "comp": 2,
-        "vgroups": 30
+        "vgroups": 3,
+        "buffer": 1000
       },
       "super_tables": [
         {
           "name": "stb0",
           "child_table_exists": "no",
-          "childtable_count": 100,
+          "childtable_count": 5,
           "childtable_prefix": "ctb0",
           "escape_character": "no",
           "auto_create_table": "no",
