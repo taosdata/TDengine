@@ -216,9 +216,14 @@ typedef struct SEp {
   uint16_t port;
 } SEp;
 
+#define SHOW_REWRITE_MASK() (1 << 0)
+
+#define TEST_SHOW_REWRITE_MASK(m) ((m) & SHOW_REWRITE_MASK() != 0)
+
 typedef struct {
   int32_t contLen;
   int32_t vgId;
+  int32_t msgMask;
 } SMsgHead;
 
 // Submit message for one table

@@ -786,6 +786,9 @@ int32_t taosSetCfg(SConfig *pCfg, char *name) {
     case 'd': {
       if (strcasecmp("dDebugFlag", name) == 0) {
         dDebugFlag = cfgGetItem(pCfg, "dDebugFlag")->i32;
+      } else if (strcasecmp("debugFlag", name) == 0) {
+        int32_t flag = cfgGetItem(pCfg, "debugFlag")->i32;
+        taosSetAllDebugFlag(flag, true);
       }
       break;
     }
