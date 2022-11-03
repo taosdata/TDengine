@@ -551,7 +551,7 @@ int32_t countFunction(SqlFunctionCtx* pCtx) {
   if (tsCountAlwaysReturnValue) {
     pResInfo->numOfRes = 1;
   } else {
-    SET_VAL(pResInfo, 1, 1);
+    SET_VAL(pResInfo, *((int64_t*)buf), 1);
   }
 
   return TSDB_CODE_SUCCESS;
