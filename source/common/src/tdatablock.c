@@ -1182,7 +1182,7 @@ static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* 
       return TSDB_CODE_OUT_OF_MEMORY;
     }
 
-    memset(tmp + pColumn->info.bytes * existedRows, 0, pColumn->info.bytes * (numOfRows - existedRows));
+//    memset(tmp + pColumn->info.bytes * existedRows, 0, pColumn->info.bytes * (numOfRows - existedRows));
     pColumn->pData = tmp;
   }
 
