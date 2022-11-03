@@ -1128,6 +1128,7 @@ typedef struct {
   SQnodeLoad  qload;
   SClusterCfg clusterCfg;
   SArray*     pVloads;  // array of SVnodeLoad
+  int32_t     statusSeq;
 } SStatusReq;
 
 int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
@@ -1149,6 +1150,7 @@ typedef struct {
   int64_t   dnodeVer;
   SDnodeCfg dnodeCfg;
   SArray*   pDnodeEps;  // Array of SDnodeEp
+  int32_t   statusSeq;
 } SStatusRsp;
 
 int32_t tSerializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);

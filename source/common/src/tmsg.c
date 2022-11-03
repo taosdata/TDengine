@@ -1020,6 +1020,7 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   if (tEncodeI64(&encoder, pReq->qload.timeInQueryQueue) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->qload.timeInFetchQueue) < 0) return -1;
 
+  if (tEncodeI32(&encoder, pReq->statusSeq) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1095,6 +1096,7 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
   if (tDecodeI64(&decoder, &pReq->qload.timeInQueryQueue) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->qload.timeInFetchQueue) < 0) return -1;
 
+  if (tDecodeI32(&decoder, &pReq->statusSeq) < 0) return -1;
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;
@@ -1126,6 +1128,7 @@ int32_t tSerializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
     if (tEncodeU16(&encoder, pDnodeEp->ep.port) < 0) return -1;
   }
 
+  if (tEncodeI32(&encoder, pRsp->statusSeq) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1167,6 +1170,7 @@ int32_t tDeserializeSStatusRsp(void *buf, int32_t bufLen, SStatusRsp *pRsp) {
     }
   }
 
+  if (tDecodeI32(&decoder, &pRsp->statusSeq) < 0) return -1;
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
   return 0;
