@@ -925,6 +925,15 @@ static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* 
 
     SArray* pTbList = getTableNameList(pList);
     int32_t numOfTables = taosArrayGetSize(pTbList);
+    SHashObj *uHash = NULL;
+    size_t    listlen = taosArrayGetSize(list);  // len > 0 means there already have uids
+    if (listlen > 0) {
+      uHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+      for (int i = 0; i < listlen; i++) {
+        int64_t *uid = taosArrayGet(list, i);
+        taosHashPut(uHash, uid, sizeof(int64_t), &i, sizeof(i));
+      }
+    }
 
     for (int i = 0; i < numOfTables; i++) {
       char* name = taosArrayGetP(pTbList, i);
@@ -933,9 +942,12 @@ static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* 
       if (metaGetTableUidByName(metaHandle, name, &uid) == 0) {
         ETableType tbType = TSDB_TABLE_MAX;
         if (metaGetTableTypeByName(metaHandle, name, &tbType) == 0 && tbType == TSDB_CHILD_TABLE) {
-          taosArrayPush(list, &uid);
+          if (NULL == uHash || taosHashGet(uHash, &uid, sizeof(uid)) == NULL) {
+            taosArrayPush(list, &uid);
+          }
         } else {
           taosArrayDestroy(pTbList);
+          taosHashCleanup(uHash);
           return -1;
         }
       } else {
@@ -944,6 +956,7 @@ static int32_t optimizeTbnameInCondImpl(void* metaHandle, int64_t suid, SArray* 
       }
     }
 
+    taosHashCleanup(uHash);
     taosArrayDestroy(pTbList);
     return 0;
   }
