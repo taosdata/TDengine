@@ -19,6 +19,9 @@
 extern "C" {
 #endif
 
+#define WAL_SIGNATURE  ((uint32_t)(0xFAFBFDFE))
+#define WAL_MAX_SIZE   (TSDB_MAX_WAL_SIZE + sizeof(SWalHead) + 16)
+
 typedef enum {
   TAOS_WAL_NOLOG = 0,
   TAOS_WAL_WRITE = 1,
@@ -67,6 +70,9 @@ int32_t  walGetWalFile(twalh, char *fileName, int64_t *fileId);
 uint64_t walGetVersion(twalh);
 void     walResetVersion(twalh, uint64_t newVer);
 int64_t  walGetFSize(twalh);
+
+// sync read wal interface
+int walValidateChecksum(SWalHead *pHead);
 
 #ifdef __cplusplus
 }
