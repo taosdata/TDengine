@@ -286,7 +286,6 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddDir(pCfg, "tempDir", tsTempDir, 1) != 0) return -1;
   if (cfgAddFloat(pCfg, "minimalTmpDirGB", 1.0f, 0.001f, 10000000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "shellActivityTimer", tsShellActivityTimer, 1, 120, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "countAlwaysReturnValue", tsCountAlwaysReturnValue, 0, 1, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "compressMsgSize", tsCompressMsgSize, -1, 100000000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "compressColData", tsCompressColData, -1, 100000000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryPolicy", tsQueryPolicy, 1, 4, 1) != 0) return -1;
@@ -653,7 +652,6 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
   tsCompressMsgSize = cfgGetItem(pCfg, "compressMsgSize")->i32;
   tsCompressColData = cfgGetItem(pCfg, "compressColData")->i32;
-  tsCountAlwaysReturnValue = cfgGetItem(pCfg, "countAlwaysReturnValue")->i32;
   tsNumOfTaskQueueThreads = cfgGetItem(pCfg, "numOfTaskQueueThreads")->i32;
   tsQueryPolicy = cfgGetItem(pCfg, "queryPolicy")->i32;
   tsEnableQueryHb = cfgGetItem(pCfg, "enableQueryHb")->bval;
