@@ -157,7 +157,11 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
 _OVER:
   if (code != 0) {
     if (terrno != 0) code = terrno;
-    dGTrace("msg:%p, failed to process %s since %s", pMsg, TMSG_INFO(pMsg->msgType), terrstr());
+    if (pMsg) {
+      dGTrace("msg:%p, failed to process %s since %s", pMsg, TMSG_INFO(pMsg->msgType), terrstr());
+    } else {
+      dGTrace("msg:%p, failed to process empty msg since %s", pMsg, terrstr());
+    }
 
     if (IsReq(pRpc)) {
       SRpcMsg rsp = {.code = code, .info = pRpc->info};
