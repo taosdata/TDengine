@@ -97,7 +97,7 @@ static int32_t mnodeUserActionDecode(SSdbRow *pRow) {
   SUserObj *pUser = (SUserObj *)calloc(1, sizeof(SUserObj));
   if (pUser == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
-  memcpy(pUser, pRow->rowData, tsUserUpdateSize);
+  memcpy(pUser, pRow->rowData, pRow->rowSize);
   pRow->pObj = pUser;
   return TSDB_CODE_SUCCESS;
 }
@@ -108,7 +108,7 @@ static void mnodePrintUserAuth() {
     mDebug("failed to auth.txt for write");
     return;
   }
-  
+
   void *    pIter = NULL;
   SUserObj *pUser = NULL;
 
@@ -181,7 +181,7 @@ int32_t mnodeInitUsers() {
   mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_USER, mnodeCancelGetNextUser);
 
   mnodeAddPeerMsgHandle(TSDB_MSG_TYPE_DM_AUTH, mnodeProcessAuthMsg);
-   
+
   mDebug("table:%s, hash is created", desc.name);
   return 0;
 }
@@ -195,20 +195,20 @@ SUserObj *mnodeGetUser(char *name) {
   return (SUserObj *)sdbGetRow(tsUserSdb, name);
 }
 
-void *mnodeGetNextUser(void *pIter, SUserObj **pUser) { 
-  return sdbFetchRow(tsUserSdb, pIter, (void **)pUser); 
+void *mnodeGetNextUser(void *pIter, SUserObj **pUser) {
+  return sdbFetchRow(tsUserSdb, pIter, (void **)pUser);
 }
 
 void mnodeCancelGetNextUser(void *pIter) {
  sdbFreeIter(tsUserSdb, pIter);
 }
 
-void mnodeIncUserRef(SUserObj *pUser) { 
-  sdbIncRef(tsUserSdb, pUser); 
+void mnodeIncUserRef(SUserObj *pUser) {
+  sdbIncRef(tsUserSdb, pUser);
 }
 
-void mnodeDecUserRef(SUserObj *pUser) { 
-  sdbDecRef(tsUserSdb, pUser); 
+void mnodeDecUserRef(SUserObj *pUser) {
+  sdbDecRef(tsUserSdb, pUser);
 }
 
 static int32_t mnodeUpdateUser(SUserObj *pUser, void *pMsg) {
@@ -464,7 +464,7 @@ char *mnodeGetUserFromMsg(void *pMsg) {
 
 static int32_t mnodeProcessCreateUserMsg(SMnodeMsg *pMsg) {
   SUserObj *pOperUser = pMsg->pUser;
-  
+
   if (pOperUser->superAuth) {
     SCreateUserMsg *pCreate = pMsg->rpcMsg.pCont;
     return mnodeCreateUser(pOperUser->pAcct, pCreate->user, pCreate->pass, pCreate->tags, pMsg);
@@ -477,7 +477,7 @@ static int32_t mnodeProcessCreateUserMsg(SMnodeMsg *pMsg) {
 static int32_t mnodeProcessAlterUserMsg(SMnodeMsg *pMsg) {
   int32_t code;
   SUserObj *pOperUser = pMsg->pUser;
-  
+
   SAlterUserMsg *pAlter = pMsg->rpcMsg.pCont;
   SUserObj *pUser = mnodeGetUser(pAlter->user);
   if (pUser == NULL) {
@@ -686,10 +686,10 @@ int32_t mnodeRetriveAuth(char *user, char *spi, char *encrypt, char *secret, cha
 static int32_t mnodeProcessAuthMsg(SMnodeMsg *pMsg) {
   SAuthMsg *pAuthMsg = pMsg->rpcMsg.pCont;
   SAuthRsp *pAuthRsp = rpcMallocCont(sizeof(SAuthRsp));
-  
+
   pMsg->rpcRsp.rsp = pAuthRsp;
   pMsg->rpcRsp.len = sizeof(SAuthRsp);
-  
+
   return mnodeRetriveAuth(pAuthMsg->user, &pAuthRsp->spi, &pAuthRsp->encrypt, pAuthRsp->secret, pAuthRsp->ckey);
 }
 
@@ -711,7 +711,7 @@ int32_t mnodeCompactUsers() {
     };
 
     mInfo("compact users %s", pUser->user);
-    
+
     sdbInsertCompactRow(&row);
   }
 

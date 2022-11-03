@@ -191,7 +191,7 @@ Query OK, 1 row(s) in set (0.000921s)
 SELECT MODE(field_name) FROM tb_name [WHERE clause];
 ```
 
-**Description**:The value which has the highest frequency of occurrence. NULL is returned if there are multiple values which have highest frequency of occurrence. It can't be used on timestamp column or tags.
+**Description**:The value which has the highest frequency of occurrence. One random value is returned if there are multiple values which have highest frequency of occurrence. It can't be used on timestamp column or tags.
 
 **Return value type**:Same as the data type of the column being operated upon
 

@@ -32,20 +32,20 @@ int32_t    tsGlobalConfigNum = 0;
                     }
 
 static char *tsGlobalUnit[] = {
-  " ", 
-  "(%)", 
-  "(GB)", 
-  "(Mb)", 
-  "(byte)", 
-  "(s)", 
+  " ",
+  "(%)",
+  "(GB)",
+  "(Mb)",
+  "(byte)",
+  "(s)",
   "(ms)"
 };
 
 char *tsCfgStatusStr[] = {
-  "none", 
-  "system default", 
-  "config file", 
-  "taos_options", 
+  "none",
+  "system default",
+  "config file",
+  "taos_options",
   "program argument list"
 };
 
@@ -335,7 +335,7 @@ bool taosReadConfigOption(const char *option, char *value, char *value2, char *v
            taosReadDataDirCfg(value, value2, value3);
            ret = true;
         } else {
-           ret = false;  
+           ret = false;
         }
         break;
       default:
@@ -365,8 +365,8 @@ void taosReadGlobalLogCfg() {
     wordfree(&full_path);
     return;
   }
-  
-  if (full_path.we_wordv != NULL && full_path.we_wordv[0] != NULL) {    
+
+  if (full_path.we_wordv != NULL && full_path.we_wordv[0] != NULL) {
     if (strlen(full_path.we_wordv[0]) >= TSDB_FILENAME_LEN) {
       printf("\nconfig file: %s path overflow max len %d, all variables are set to default\n", full_path.we_wordv[0], TSDB_FILENAME_LEN - 1);
       wordfree(&full_path);
@@ -380,7 +380,7 @@ void taosReadGlobalLogCfg() {
   wordfree(&full_path);
 
   taosReadLogOption("logDir", tsLogDir);
-  
+
   sprintf(fileName, "%s/taos.cfg", configDir);
   fp = fopen(fileName, "r");
   if (fp == NULL) {
@@ -391,10 +391,10 @@ void taosReadGlobalLogCfg() {
   ssize_t _bytes = 0;
   size_t len = 1024;
   line = calloc(1, len);
-  
+
   while (!feof(fp)) {
     memset(line, 0, len);
-    
+
     option = value = NULL;
     olen = vlen = 0;
 
@@ -443,7 +443,7 @@ bool taosReadGlobalCfg() {
   ssize_t _bytes = 0;
   size_t len = 1024;
   line = calloc(1, len);
-  
+
   while (!feof(fp)) {
     memset(line, 0, len);
 
@@ -457,7 +457,7 @@ bool taosReadGlobalCfg() {
     }
 
     line[len - 1] = 0;
-    
+
     paGetToken(line, &option, &olen);
     if (olen == 0) continue;
     option[olen] = 0;
@@ -495,7 +495,7 @@ void taosPrintGlobalCfg() {
     SGlobalCfg *cfg = tsGlobalConfig + i;
     if (tscEmbedded == 0 && !(cfg->cfgType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
     if (cfg->cfgType & TSDB_CFG_CTYPE_B_NOT_PRINT) continue;
-    
+
     int optionLen = (int)strlen(cfg->option);
     int blankLen = TSDB_CFG_PRINT_LEN - optionLen;
     blankLen = blankLen < 0 ? 0 : blankLen;

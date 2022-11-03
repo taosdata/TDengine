@@ -24,36 +24,44 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
-    def getBuildPath(self):
+    def getPath(self, tool="taosBenchmark"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
-        if ("community" in selfPath):
-            projPath = selfPath[:selfPath.find("community")]
+        if "community" in selfPath:
+            projPath = selfPath[: selfPath.find("community")]
+        elif "src" in selfPath:
+            projPath = selfPath[: selfPath.find("src")]
+        elif "/tools/" in selfPath:
+            projPath = selfPath[: selfPath.find("/tools/")]
+        elif "/tests/" in selfPath:
+            projPath = selfPath[: selfPath.find("/tests/")]
         else:
-            projPath = selfPath[:selfPath.find("tests")]
+            tdLog.exit("path: %s is not supported" % selfPath)
 
+        paths = []
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if (tool) in files:
                 rootRealPath = os.path.dirname(os.path.realpath(root))
-                if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root)-len("/build/bin")]
+                if "packaging" not in rootRealPath:
+                    paths.append(os.path.join(root, tool))
                     break
-        return buildPath
+        if len(paths) == 0:
+            return ""
+        return paths[0]
 
     def run(self):
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
-            tdLog.exit("taosd not found!")
+        binPath = self.getPath()
+        if binPath == "":
+            tdLog.exit("taosBenchmark not found!")
         else:
-            tdLog.info("taosd found in %s" % buildPath)
-        binPath = buildPath+ "/build/bin/"
+            tdLog.info("taosBenchmark found in %s" % binPath)
 
         testcaseFilename = os.path.split(__file__)[-1]
         os.system("rm -rf ./insert*_res.txt*")
-        os.system("rm -rf 5-taos-tools/taosbenchmark/%s.sql" % testcaseFilename )         
+        os.system("rm -rf 5-taos-tools/taosbenchmark/%s.sql" % testcaseFilename)
 
         # insert: create one  or mutiple tables per sql and insert multiple rows per sql
-        os.system("%staosBenchmark -f 5-taos-tools/taosbenchmark/insert-1s1tnt1r.json -y " % binPath)
+        os.system("%s -f 5-taos-tools/taosbenchmark/insert-1s1tnt1r.json -y " % binPath)
         tdSql.execute("use db")
         tdSql.query("select count (tbname) from stb0")
         tdSql.checkData(0, 0, 11)
@@ -69,7 +77,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 2000)
 
         # restful connector insert data
-        os.system("%staosBenchmark -f 5-taos-tools/taosbenchmark/insertRestful.json -y " % binPath)
+        os.system("%s -f 5-taos-tools/taosbenchmark/insertRestful.json -y " % binPath)
         tdSql.execute("use db")
         tdSql.query("select count (tbname) from stb0")
         tdSql.checkData(0, 0, 10)
@@ -84,19 +92,19 @@ class TDTestCase:
         tdSql.query("select count(*) from stb1")
         tdSql.checkData(0, 0, 200)
 
-        # default values json files 
-        tdSql.execute("drop database if exists db") 
-        os.system("%staosBenchmark -f 5-taos-tools/taosbenchmark/insert-default.json -y " % binPath)
+        # default values json files
+        tdSql.execute("drop database if exists db")
+        os.system("%s -f 5-taos-tools/taosbenchmark/insert-default.json -y " % binPath)
         tdSql.query("show databases;")
         for i in range(tdSql.queryRows):
-            if tdSql.queryResult[i][0] == 'db':
-                tdSql.checkData(i, 2, 100) 
-                tdSql.checkData(i, 4, 1)     
-                tdSql.checkData(i, 6, 10)       
-                tdSql.checkData(i, 16, 'ms')           
-    
+            if tdSql.queryResult[i][0] == "db":
+                tdSql.checkData(i, 2, 100)
+                tdSql.checkData(i, 4, 1)
+                tdSql.checkData(i, 6, 10)
+                tdSql.checkData(i, 16, "ms")
+
         # insert: create  mutiple tables per sql and insert one rows per sql .
-        os.system("%staosBenchmark -f 5-taos-tools/taosbenchmark/insert-1s1tntmr.json -y " % binPath)
+        os.system("%s -f 5-taos-tools/taosbenchmark/insert-1s1tntmr.json -y " % binPath)
         tdSql.execute("use db")
         tdSql.query("select count (tbname) from stb0")
         tdSql.checkData(0, 0, 10)
@@ -113,7 +121,9 @@ class TDTestCase:
 
         # insert: using parament "insert_interval to controls spped  of insert.
         # but We need to have accurate methods to control the speed, such as getting the speed value, checking the count and so on。
-        os.system("%staosBenchmark -f 5-taos-tools/taosbenchmark/insert-interval-speed.json -y" % binPath)
+        os.system(
+            "%s -f 5-taos-tools/taosbenchmark/insert-interval-speed.json -y" % binPath
+        )
         tdSql.execute("use db")
         tdSql.query("show stables")
         tdSql.checkData(0, 4, 10)
@@ -130,11 +140,6 @@ class TDTestCase:
 
         # rm useless files
         os.system("rm -rf ./insert*_res.txt*")
-
-
-        
-        
-        
 
     def stop(self):
         tdSql.close()

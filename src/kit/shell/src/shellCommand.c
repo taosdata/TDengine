@@ -79,11 +79,22 @@ void insertChar(Command *cmd, char *c, int size) {
   /* update the values */
   cmd->commandSize += size;
   cmd->cursorOffset += size;
-  for (int i = 0; i < size; i++) {
-    mbtowc(&wc, c + i, size);
-    cmd->screenOffset += wcwidth(wc);
-    cmd->endOffset += wcwidth(wc);
-  } 
+  cmd->screenOffset += wcwidth(wc);
+  cmd->endOffset += wcwidth(wc);
+  showOnScreen(cmd);
+}
+
+void insertStr(Command *cmd, char *str, int size) {
+  clearScreen(cmd->endOffset + prompt_size, cmd->screenOffset + prompt_size);
+  /* update the buffer */
+  memmove(cmd->command + cmd->cursorOffset + size, cmd->command + cmd->cursorOffset,
+          cmd->commandSize - cmd->cursorOffset);
+  memcpy(cmd->command + cmd->cursorOffset, str, size);
+  /* update the values */
+  cmd->commandSize += size;
+  cmd->cursorOffset += size;
+  cmd->screenOffset += size;
+  cmd->endOffset += size; 
   showOnScreen(cmd);
 }
 
