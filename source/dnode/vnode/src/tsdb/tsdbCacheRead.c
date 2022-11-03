@@ -333,11 +333,12 @@ int32_t tsdbRetrieveCacheRows(void* pReader, SSDataBlock* pResBlock, const int32
     code = TSDB_CODE_INVALID_PARA;
   }
 
-  _end:
+_end:
   tsdbDataFReaderClose(&pr->pDataFReaderLast);
   tsdbDataFReaderClose(&pr->pDataFReader);
 
   tsdbUntakeReadSnap(pr->pVnode->pTsdb, pr->pReadSnap, "cache-l");
+  resetLastBlockLoadInfo(pr->pLoadInfo);
 
   for (int32_t j = 0; j < pr->numOfCols; ++j) {
     taosMemoryFree(pRes[j]);
