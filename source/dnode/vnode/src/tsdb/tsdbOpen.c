@@ -38,14 +38,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   int    slen = 0;
 
   *ppTsdb = NULL;
-  slen = TD_PATH_MAX;
-
-  if (slen > TD_PATH_MAX) {
-    terrno = TSDB_CODE_OUT_OF_RANGE;
-    tsdbError("vgId:%d, tsdb open failed since %s, path: %s%s%s", TD_VID(pVnode), terrstr(), pVnode->path, TD_DIRSEP,
-              dir);
-    return -1;
-  }
+  slen = strlen(pVnode->path) + strlen(dir) + 2;
 
   // create handle
   pTsdb = (STsdb *)taosMemoryCalloc(1, sizeof(*pTsdb) + slen);
