@@ -298,51 +298,6 @@ static int32_t walSkipCorruptedRecord(SWal *pWal, SWalHead *pHead, int64_t tfd, 
   return TSDB_CODE_WAL_FILE_CORRUPTED;
 }
 
-static int32_t walSkipOldCorrupted(SWal *pWal, SWalHead *pHead, int64_t tfd, int64_t *offset) {
-  int64_t pos = *offset;
-  while (1) {
-    pos++;
-
-    if (tfLseek(tfd, pos, SEEK_SET) < 0) {
-      wError("vgId:%d, failed to seek from corrupted wal file since %s", pWal->vgId, strerror(errno));
-      return TSDB_CODE_WAL_FILE_CORRUPTED;
-    }
-
-    if (tfRead(tfd, pHead, sizeof(SWalHead)) <= 0) {
-      wError("vgId:%d, read to end of corrupted wal file, offset:%" PRId64, pWal->vgId, pos);
-      return TSDB_CODE_WAL_FILE_CORRUPTED;
-    }
-
-    if (pHead->signature != WAL_SIGNATURE) {
-      continue;
-    }
-
-
-    if (pHead->sver == 0 && walValidateChecksum(pHead)) {
-      wInfo("vgId:%d, wal head cksum check passed, offset:%" PRId64, pWal->vgId, pos);
-      *offset = pos;
-      return TSDB_CODE_SUCCESS;
-    }
-
-    if (pHead->sver >= 1) {
-      if (tfRead(tfd, pHead->cont, pHead->len) < pHead->len) {
-        wError("vgId:%d, read to end of corrupted wal file, offset:%" PRId64, pWal->vgId, pos);
-        return TSDB_CODE_WAL_FILE_CORRUPTED;
-      }
-
-      if (walValidateChecksum(pHead)) {
-        wInfo("vgId:%d, wal whole cksum check passed, offset:%" PRId64, pWal->vgId, pos);
-        *offset = pos;
-        return TSDB_CODE_SUCCESS;
-      }
-    }
-  }
-
-  return TSDB_CODE_WAL_FILE_CORRUPTED;
-}
-
-
-
 // Add SMemRowType ahead of SDataRow
 static void expandSubmitBlk(SSubmitBlk *pDest, SSubmitBlk *pSrc, int32_t *lenExpand) {
   // copy the header firstly

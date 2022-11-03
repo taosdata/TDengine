@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
+#include "tchecksum.h"
 #include "tlog.h"
 #include "tutil.h"
 #include "tglobal.h"
