@@ -1204,11 +1204,15 @@ int32_t ctgHandleGetTbMetasRsp(SCtgTaskReq* tReq, int32_t reqType, const SDataBu
           stbCtx.flag = flag;
           stbCtx.pName = &stbName;
 
-          taosMemoryFreeClear(pOut->tbMeta);
-          CTG_ERR_JRET(ctgReadTbMetaFromCache(pCtg, &stbCtx, &pOut->tbMeta));
-          if (pOut->tbMeta) {
+          STableMeta *stbMeta = NULL;
+          ctgReadTbMetaFromCache(pCtg, &stbCtx, &stbMeta);
+          if (stbMeta && stbMeta->sversion >= pOut->tbMeta->sversion) {
             ctgDebug("use cached stb meta, tbName:%s", tNameGetTableName(pName));
             exist = 1;
+          } else {
+            ctgDebug("need to get/update stb meta, tbName:%s", tNameGetTableName(pName));
+            taosMemoryFreeClear(pOut->tbMeta);
+            taosMemoryFreeClear(stbMeta);
           }
         }
 
@@ -1641,7 +1645,7 @@ int32_t ctgLaunchGetTbMetaTask(SCtgTask* pTask) {
     pMsgCtx->pBatchs = pJob->pBatchs;
   }
 
-  CTG_ERR_RET(ctgGetTbMetaFromCache(pCtg, pConn, (SCtgTbMetaCtx*)pTask->taskCtx, (STableMeta**)&pTask->res));
+  CTG_ERR_RET(ctgGetTbMetaFromCache(pCtg, (SCtgTbMetaCtx*)pTask->taskCtx, (STableMeta**)&pTask->res));
   if (pTask->res) {
     CTG_ERR_RET(ctgHandleTaskEnd(pTask, 0));
     return TSDB_CODE_SUCCESS;

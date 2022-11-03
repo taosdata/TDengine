@@ -73,6 +73,7 @@ static void syncNodeStartSnapshotOnce(SSyncNode* ths, SyncIndex beginIndex, Sync
   int32_t        code = ths->pFsm->FpSnapshotStartRead(ths->pFsm, &readerParam, &pReader);
   ASSERT(code == 0);
 
+#if 0
   if (pMsg->privateTerm < pSender->privateTerm) {
     ASSERT(pReader != NULL);
     snapshotSenderStart(pSender, readerParam, snapshot, pReader);
@@ -82,6 +83,7 @@ static void syncNodeStartSnapshotOnce(SSyncNode* ths, SyncIndex beginIndex, Sync
       ths->pFsm->FpSnapshotStopRead(ths->pFsm, pReader);
     }
   }
+#endif
 }
 
 int32_t syncNodeOnAppendEntriesReply(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
