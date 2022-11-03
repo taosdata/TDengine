@@ -1,7 +1,11 @@
+use std::time::Duration;
+
 use anyhow::{bail, Result};
 use taos::*;
 
-use taosx::{local_to_taos, query_to_csv, query_to_parquet, tmq_to_local, tmq_to_td, Action, legacy_to_taos};
+use taosx::{
+    legacy_to_taos, local_to_taos, query_to_csv, query_to_parquet, tmq_to_local, tmq_to_td, Action,
+};
 
 use clap::Parser;
 
@@ -85,10 +89,48 @@ impl Cli {
 
         match (args.from.driver.as_str(), args.to.driver.as_str()) {
             ("tmq", "taos") => {
-                tmq_to_td(args.from, args.transform, args.to, args.jobs).await?;
+                let mut sleep = Duration::from_millis(1000);
+                loop {
+                    match tmq_to_td(
+                        args.from.clone(),
+                        args.transform.clone(),
+                        args.to.clone(),
+                        args.jobs,
+                    )
+                    .await
+                    {
+                        Ok(_) => break,
+                        Err(err) if err.to_string().contains("[0xE002]") => {
+                            log::warn!("connection broken, retry after {sleep:?}.");
+                            tokio::time::sleep(sleep).await;
+                            sleep *= 2;
+                            continue;
+                        }
+                        Err(err) => Err(err)?,
+                    }
+                }
             }
             ("tmq", "local") => {
-                tmq_to_local(args.from, args.to, args.jobs, opts.yes_i_really_mean_it).await?;
+                let mut sleep = Duration::from_millis(1000);
+                loop {
+                    match tmq_to_local(
+                        args.from.clone(),
+                        args.to.clone(),
+                        args.jobs,
+                        opts.yes_i_really_mean_it,
+                    )
+                    .await
+                    {
+                        Ok(_) => break,
+                        Err(err) if err.to_string().contains("[0xE002]") => {
+                            log::warn!("connection broken, retry after {sleep:?}.");
+                            tokio::time::sleep(sleep).await;
+                            sleep *= 2;
+                            continue;
+                        }
+                        Err(err) => Err(err)?,
+                    }
+                }
             }
             ("local", "taos" | "tmq") => {
                 local_to_taos(args.from, args.to, args.jobs, opts.yes_i_really_mean_it).await?;

@@ -5,6 +5,13 @@ use log::Level;
 use pretty_env_logger::env_logger::fmt::{Color, StyledValue};
 use shadow_rs::shadow;
 
+#[cfg(not(target_env = "msvc"))]
+use jemallocator::Jemalloc;
+
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
+
 shadow!(build);
 
 const CLAP_SHORT_VERSION: &str = if build::GIT_CLEAN {
