@@ -612,14 +612,14 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
       mndReleaseSubscribe(pMnode, pSub);
     }
 
-    // TODO replace assert with error check
-    ASSERT(mndDoRebalance(pMnode, &rebInput, &rebOutput) == 0);
+    if (mndDoRebalance(pMnode, &rebInput, &rebOutput) < 0) {
+      mError("mq rebalance internal error");
+    }
 
     // if add more consumer to balanced subscribe,
     // possibly no vg is changed
     /*ASSERT(taosArrayGetSize(rebOutput.rebVgs) != 0);*/
 
-    // TODO replace assert with error check
     if (mndPersistRebResult(pMnode, pMsg, &rebOutput) < 0) {
       mError("mq rebalance persist rebalance output error, possibly vnode splitted or dropped");
     }

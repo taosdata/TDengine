@@ -1888,11 +1888,15 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
     memcpy(&pTSInfo->cond, &pTaskInfo->streamInfo.tableCond, sizeof(SQueryTableDataCond));
     if (pTaskInfo->streamInfo.recoverStep == STREAM_RECOVER_STEP__PREPARE1) {
-      pTSInfo->cond.startVersion = -1;
+      pTSInfo->cond.startVersion = 0;
       pTSInfo->cond.endVersion = pTaskInfo->streamInfo.fillHistoryVer1;
+      qDebug("stream recover step 1, from %" PRId64 " to %" PRId64, pTSInfo->cond.startVersion,
+             pTSInfo->cond.endVersion);
     } else {
       pTSInfo->cond.startVersion = pTaskInfo->streamInfo.fillHistoryVer1 + 1;
       pTSInfo->cond.endVersion = pTaskInfo->streamInfo.fillHistoryVer2;
+      qDebug("stream recover step 2, from %" PRId64 " to %" PRId64, pTSInfo->cond.startVersion,
+             pTSInfo->cond.endVersion);
     }
 
     /*resetTableScanInfo(pTSInfo, pWin);*/
@@ -1909,11 +1913,15 @@ static SSDataBlock* doStreamScan(SOperatorInfo* pOperator) {
     if (pBlock != NULL) {
       calBlockTbName(&pInfo->tbnameCalSup, pBlock);
       updateInfoFillBlockData(pInfo->pUpdateInfo, pBlock, pInfo->primaryTsIndex);
+      qDebug("stream recover scan get block, rows %d", pBlock->info.rows);
       return pBlock;
     }
     pTaskInfo->streamInfo.recoverStep = STREAM_RECOVER_STEP__NONE;
     STableScanInfo* pTSInfo = pInfo->pTableScanOp->info;
-    pTSInfo->cond.startVersion = 0;
+    tsdbReaderClose(pTSInfo->dataReader);
+    pTSInfo->dataReader = NULL;
+
+    pTSInfo->cond.startVersion = -1;
     pTSInfo->cond.endVersion = -1;
 
     return NULL;
