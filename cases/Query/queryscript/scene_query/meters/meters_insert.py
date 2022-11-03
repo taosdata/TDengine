@@ -108,7 +108,7 @@ class TDTestQuery(TDCase):
         
     
     def insert_data(self,database,n):
-        self.num_random = 2
+        self.num_random = 10
         fake = Faker('zh_CN')
         self.tdSql.execute('''use %s;'''%database)
 
