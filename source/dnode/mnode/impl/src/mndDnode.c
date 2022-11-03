@@ -345,6 +345,19 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     }
   }
 
+  int64_t dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE) + sdbGetTableVer(pMnode->pSdb, SDB_MNODE);
+  int64_t curMs = taosGetTimestampMs();
+  bool    online = mndIsDnodeOnline(pDnode, curMs);
+  bool    dnodeChanged = (statusReq.dnodeVer == 0) || (statusReq.dnodeVer != dnodeVer);
+  bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
+  bool    needCheck = !online || dnodeChanged || reboot;
+
+  pDnode->accessTimes++;
+  pDnode->lastAccessTime = curMs;
+  const STraceId *trace = &pReq->info.traceId;
+  mGTrace("dnode:%d, status received, accessTimes:%d check:%d online:%d reboot:%d changed:%d statusSeq:%d", pDnode->id,
+         pDnode->accessTimes, needCheck, online, reboot, dnodeChanged, statusReq.statusSeq);
+
   for (int32_t v = 0; v < taosArrayGetSize(statusReq.pVloads); ++v) {
     SVnodeLoad *pVload = taosArrayGet(statusReq.pVloads, v);
 
@@ -396,17 +409,6 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     mndReleaseQnode(pMnode, pQnode);
   }
 
-  int64_t dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE) + sdbGetTableVer(pMnode->pSdb, SDB_MNODE);
-  int64_t curMs = taosGetTimestampMs();
-  bool    online = mndIsDnodeOnline(pDnode, curMs);
-  bool    dnodeChanged = (statusReq.dnodeVer == 0) || (statusReq.dnodeVer != dnodeVer);
-  bool    reboot = (pDnode->rebootTime != statusReq.rebootTime);
-  bool    needCheck = !online || dnodeChanged || reboot;
-
-  pDnode->accessTimes++;
-  mTrace("dnode:%d, status received, access times:%d check:%d online:%d reboot:%d changed:%d", pDnode->id,
-         pDnode->accessTimes, needCheck, online, reboot, dnodeChanged);
-
   if (needCheck) {
     if (statusReq.sver != tsVersion) {
       if (pDnode != NULL) {
@@ -454,6 +456,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     pDnode->memTotal = statusReq.memTotal;
 
     SStatusRsp statusRsp = {0};
+    statusRsp.statusSeq++;
     statusRsp.dnodeVer = dnodeVer;
     statusRsp.dnodeCfg.dnodeId = pDnode->id;
     statusRsp.dnodeCfg.clusterId = pMnode->clusterId;
@@ -474,8 +477,6 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     pReq->info.rsp = pHead;
   }
 
-  pDnode->lastAccessTime = curMs;
-  pDnode->accessTimes++;
   code = 0;
 
 _OVER:

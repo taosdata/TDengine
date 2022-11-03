@@ -1913,6 +1913,22 @@ char* dumpBlockData(SSDataBlock* pDataBlock, const char* flag, char** pDataBuf) 
           len += snprintf(dumpBuf + len, size - len, " %25s |", pBuf);
           if (len >= size - 1) return dumpBuf;
           break;
+        case TSDB_DATA_TYPE_TINYINT:
+          len += snprintf(dumpBuf + len, size - len, " %15d |", *(int8_t*)var);
+          if (len >= size - 1) return dumpBuf;
+          break;
+        case TSDB_DATA_TYPE_UTINYINT:
+          len += snprintf(dumpBuf + len, size - len, " %15d |", *(uint8_t*)var);
+          if (len >= size - 1) return dumpBuf;
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+          len += snprintf(dumpBuf + len, size - len, " %15d |", *(int16_t*)var);
+          if (len >= size - 1) return dumpBuf;
+          break;
+        case TSDB_DATA_TYPE_USMALLINT:
+          len += snprintf(dumpBuf + len, size - len, " %15d |", *(uint16_t*)var);
+          if (len >= size - 1) return dumpBuf;
+          break;
         case TSDB_DATA_TYPE_INT:
           len += snprintf(dumpBuf + len, size - len, " %15d |", *(int32_t*)var);
           if (len >= size - 1) return dumpBuf;

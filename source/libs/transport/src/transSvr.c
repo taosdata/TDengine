@@ -127,7 +127,7 @@ static void uvFreeCb(uv_handle_t* handle);
 
 static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg);
 
-static void uvPrepareSendData(SSvrMsg* msg, uv_buf_t* wb);
+static int  uvPrepareSendData(SSvrMsg* msg, uv_buf_t* wb);
 static void uvStartSendResp(SSvrMsg* msg);
 
 static void uvNotifyLinkBrokenToApp(SSvrConn* conn);
@@ -363,9 +363,11 @@ void uvOnSendCb(uv_write_t* req, int status) {
     }
     transUnrefSrvHandle(conn);
   } else {
-    tError("conn %p failed to write data, %s", conn, uv_err_name(status));
-    conn->broken = true;
-    transUnrefSrvHandle(conn);
+    if (!uv_is_closing((uv_handle_t*)(conn->pTcp))) {
+      tError("conn %p failed to write data, %s", conn, uv_err_name(status));
+      conn->broken = true;
+      transUnrefSrvHandle(conn);
+    }
   }
 }
 static void uvOnPipeWriteCb(uv_write_t* req, int status) {
@@ -382,7 +384,7 @@ static void uvOnPipeWriteCb(uv_write_t* req, int status) {
   taosMemoryFree(req);
 }
 
-static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
+static int uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   SSvrConn*  pConn = smsg->pConn;
   STransMsg* pMsg = &smsg->msg;
   if (pMsg->pCont == 0) {
@@ -394,6 +396,13 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
   pHead->traceId = pMsg->info.traceId;
   pHead->hasEpSet = pMsg->info.hasEpSet;
   pHead->magicNum = htonl(TRANS_MAGIC_NUM);
+
+  // handle invalid drop_task resp, TD-20098
+  if (pMsg->msgType == TDMT_SCH_DROP_TASK && pMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
+    transQueuePop(&pConn->srvMsgs);
+    destroySmsg(smsg);
+    return -1;
+  }
 
   if (pConn->status == ConnNormal) {
     pHead->msgType = (0 == pMsg->msgType ? pConn->inType + 1 : pMsg->msgType);
@@ -429,6 +438,7 @@ static void uvPrepareSendData(SSvrMsg* smsg, uv_buf_t* wb) {
 
   wb->base = (char*)pHead;
   wb->len = len;
+  return 0;
 }
 
 static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg) {
@@ -438,7 +448,9 @@ static FORCE_INLINE void uvStartSendRespImpl(SSvrMsg* smsg) {
   }
 
   uv_buf_t wb;
-  uvPrepareSendData(smsg, &wb);
+  if (uvPrepareSendData(smsg, &wb) < 0) {
+    return;
+  }
 
   transRefSrvHandle(pConn);
   uv_write_t* req = transReqQueuePush(&pConn->wreqQueue);
@@ -449,8 +461,9 @@ static void uvStartSendResp(SSvrMsg* smsg) {
   SSvrConn* pConn = smsg->pConn;
   if (pConn->broken == true) {
     // persist by
-    transFreeMsg(smsg->msg.pCont);
-    taosMemoryFree(smsg);
+    destroySmsg(smsg);
+    // transFreeMsg(smsg->msg.pCont);
+    // taosMemoryFree(smsg);
     transUnrefSrvHandle(pConn);
     return;
   }
@@ -746,10 +759,11 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       return;
     }
     transSockInfo2Str(&sockname, pConn->src);
-    struct sockaddr_in addr = *(struct sockaddr_in*)&sockname;
 
+    struct sockaddr_in addr = *(struct sockaddr_in*)&peername;
     pConn->clientIp = addr.sin_addr.s_addr;
     pConn->port = ntohs(addr.sin_port);
+
     uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocRecvBufferCb, uvOnRecvCb);
 
   } else {
