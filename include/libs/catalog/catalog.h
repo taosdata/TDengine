@@ -203,13 +203,11 @@ int32_t catalogUpdateTableMeta(SCatalog* pCatalog, STableMetaRsp* rspMsg);
 
 int32_t catalogUpdateTableMeta(SCatalog* pCatalog, STableMetaRsp* rspMsg);
 
-int32_t catalogGetCachedTableMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, STableMeta** pTableMeta);
+int32_t catalogGetCachedTableMeta(SCatalog* pCtg, const SName* pTableName, STableMeta** pTableMeta);
 
-int32_t catalogGetCachedSTableMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,
-                            STableMeta** pTableMeta);
+int32_t catalogGetCachedSTableMeta(SCatalog* pCtg, const SName* pTableName, STableMeta** pTableMeta);
 
-int32_t catalogGetCachedTableHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,
-                                  SVgroupInfo* pVgroup, bool* exists);
+int32_t catalogGetCachedTableHashVgroup(SCatalog* pCtg, const SName* pTableName,           SVgroupInfo* pVgroup, bool* exists);
 
 /**
  * Force refresh DB's local cached vgroup info.
@@ -309,7 +307,7 @@ int32_t catalogGetUdfInfo(SCatalog* pCtg, SRequestConnInfo* pConn, const char* f
 int32_t catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, const char* dbFName, AUTH_TYPE type,
                        bool* pass);
 
-int32_t catalogChkAuthFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, const char* dbFName, AUTH_TYPE type,
+int32_t catalogChkAuthFromCache(SCatalog* pCtg, const char* user, const char* dbFName, AUTH_TYPE type,
                                        bool* pass, bool* exists);
 
 int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
@@ -325,6 +323,10 @@ int32_t catalogClearCache(void);
 SMetaData* catalogCloneMetaData(SMetaData* pData);
 
 void catalogFreeMetaData(SMetaData* pData);
+
+int32_t ctgdEnableDebug(char *option, bool enable);
+
+int32_t ctgdHandleDbgCommand(char *command);
 
 /**
  * Destroy catalog and relase all resources
