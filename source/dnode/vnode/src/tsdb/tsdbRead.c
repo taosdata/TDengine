@@ -534,7 +534,7 @@ static SSDataBlock* createResBlock(SQueryTableDataCond* pCond, int32_t capacity)
   }
 
   for (int32_t i = 0; i < pCond->numOfCols; ++i) {
-    SColumnInfoData colInfo = {{0}, 0};
+    SColumnInfoData colInfo = {0, {0}};
     colInfo.info = pCond->colList[i];
     blockDataAppendColInfo(pResBlock, &colInfo);
   }
