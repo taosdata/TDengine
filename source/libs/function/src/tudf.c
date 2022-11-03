@@ -122,15 +122,18 @@ static int32_t udfSpawnUdfd(SUdfdData *pData) {
   taosGetCpuCores(&numCpuCores);
   snprintf(thrdPoolSizeEnvItem, 32, "%s=%d", "UV_THREADPOOL_SIZE", (int)numCpuCores * 2);
 
-  char pathTaosdLdLib[512] = {0};
+  char   pathTaosdLdLib[512] = {0};
   size_t taosdLdLibPathLen = sizeof(pathTaosdLdLib);
-  uv_os_getenv("LD_LIBRARY_PATH", pathTaosdLdLib, &taosdLdLibPathLen);
+  int ret = uv_os_getenv("LD_LIBRARY_PATH", pathTaosdLdLib, &taosdLdLibPathLen);
+  if (ret != UV_ENOBUFS) {
+    taosdLdLibPathLen = strlen(pathTaosdLdLib);
+  }
 
-  char udfdPathLdLib[1024] = {0};
+  char   udfdPathLdLib[1024] = {0};
   size_t udfdLdLibPathLen = strlen(tsUdfdLdLibPath);
   strncpy(udfdPathLdLib, tsUdfdLdLibPath, udfdLdLibPathLen);
   udfdPathLdLib[udfdLdLibPathLen] = ':';
-  strncpy(udfdPathLdLib + udfdLdLibPathLen + 1, pathTaosdLdLib, sizeof(udfdPathLdLib) - udfdLdLibPathLen);
+  strncpy(udfdPathLdLib + udfdLdLibPathLen + 1, pathTaosdLdLib, sizeof(udfdPathLdLib) - udfdLdLibPathLen - 1);
   if (udfdLdLibPathLen + taosdLdLibPathLen < 1024) {
     fnInfo("udfd LD_LIBRARY_PATH: %s", udfdPathLdLib);
   } else {
@@ -359,7 +362,7 @@ typedef struct SUdfcProxy {
   SArray    *udfStubs;  // SUdfcFuncStub
 
   uv_mutex_t udfcUvMutex;
-  int8_t initialized;
+  int8_t     initialized;
 } SUdfcProxy;
 
 SUdfcProxy gUdfcProxy = {0};

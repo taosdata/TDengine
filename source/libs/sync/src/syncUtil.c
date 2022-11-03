@@ -176,18 +176,6 @@ char* syncUtilRaftId2Str(const SRaftId* p) {
   return serialized;
 }
 
-const char* syncUtilState2String(ESyncState state) {
-  if (state == TAOS_SYNC_STATE_FOLLOWER) {
-    return "follower";
-  } else if (state == TAOS_SYNC_STATE_CANDIDATE) {
-    return "candidate";
-  } else if (state == TAOS_SYNC_STATE_LEADER) {
-    return "leader";
-  } else {
-    return "state_error";
-  }
-}
-
 bool syncUtilCanPrint(char c) {
   if (c >= 32 && c <= 126) {
     return true;

@@ -2307,6 +2307,12 @@ int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   double param00 = param[0][0] - param[1][0] * (param[0][1] / param[1][1]);
   double param02 = param[0][2] - param[1][2] * (param[0][1] / param[1][1]);
+
+  if (0 == param00) {
+    colDataAppendNULL(pCol, currentRow);
+    return 0;
+  }
+
   // param[0][1] = 0;
   double param12 = param[1][2] - param02 * (param[1][0] / param00);
   // param[1][0] = 0;
@@ -2707,7 +2713,9 @@ int32_t apercentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
       taosMemoryFree(res);
     } else {  // no need to free
       // setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
-      return TSDB_CODE_SUCCESS;
+      // return TSDB_CODE_SUCCESS;
+      qDebug("%s get the final res, elements:%" PRId64 ", numOfEntry:%d. result is null", __FUNCTION__,
+             pInfo->pHisto->numOfElems, pInfo->pHisto->numOfEntries);
     }
   }
 

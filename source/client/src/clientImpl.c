@@ -133,6 +133,12 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
     taosThreadMutexInit(&p->qnodeMutex, NULL);
     p->pTransporter = openTransporter(user, secretEncrypt, tsNumOfCores);
     p->pAppHbMgr = appHbMgrInit(p, key);
+    if (NULL == p->pAppHbMgr) {
+      destroyAppInst(p);
+      taosThreadMutexUnlock(&appInfo.mutex);
+      taosMemoryFreeClear(key);
+      return NULL;
+    }
     taosHashPut(appInfo.pInstMap, key, strlen(key), &p, POINTER_BYTES);
     p->instKey = key;
     key = NULL;
@@ -1266,7 +1272,9 @@ static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest) {
   pMsgSendInfo->requestObjRefId = pRequest->self;
   pMsgSendInfo->requestId = pRequest->requestId;
   pMsgSendInfo->fp = getMsgRspHandle(pMsgSendInfo->msgType);
-  pMsgSendInfo->param = pRequest;
+  pMsgSendInfo->param = taosMemoryCalloc(1, sizeof(pRequest->self));
+
+  *(int64_t*)pMsgSendInfo->param = pRequest->self;
 
   SConnectReq connectReq = {0};
   STscObj*    pObj = pRequest->pTscObj;
