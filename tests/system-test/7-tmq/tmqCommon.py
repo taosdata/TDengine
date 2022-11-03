@@ -38,6 +38,7 @@ from util.common import *
 
 class TMQCom:
     def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdSql.init(conn.cursor())
         # tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
