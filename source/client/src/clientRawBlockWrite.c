@@ -410,7 +410,7 @@ static char* processAlterTable(SMqMetaRsp* metaRsp) {
   SDecoder     decoder = {0};
   SVAlterTbReq vAlterTbReq = {0};
   char*        string = NULL;
-  cJSON*       json   = NULL;
+  cJSON*       json = NULL;
 
   // decode
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
@@ -525,7 +525,7 @@ static char* processDropSTable(SMqMetaRsp* metaRsp) {
   SDecoder     decoder = {0};
   SVDropStbReq req = {0};
   char*        string = NULL;
-  cJSON*       json   = NULL;
+  cJSON*       json = NULL;
 
   // decode
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
@@ -558,7 +558,7 @@ static char* processDropTable(SMqMetaRsp* metaRsp) {
   SDecoder         decoder = {0};
   SVDropTbBatchReq req = {0};
   char*            string = NULL;
-  cJSON*           json   = NULL;
+  cJSON*           json = NULL;
 
   // decode
   void*   data = POINTER_SHIFT(metaRsp->metaRsp, sizeof(SMsgHead));
@@ -603,7 +603,7 @@ static int32_t taosCreateStb(TAOS* taos, void* meta, int32_t metaLen) {
   int32_t        code = TSDB_CODE_SUCCESS;
   SRequestObj*   pRequest = NULL;
 
-  code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest);
+  code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest, 0);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
@@ -692,7 +692,7 @@ static int32_t taosDropStb(TAOS* taos, void* meta, int32_t metaLen) {
   int32_t      code = TSDB_CODE_SUCCESS;
   SRequestObj* pRequest = NULL;
 
-  code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest);
+  code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest, 0);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
@@ -773,7 +773,7 @@ static int32_t taosCreateTable(TAOS* taos, void* meta, int32_t metaLen) {
   SQuery*            pQuery = NULL;
   SHashObj*          pVgroupHashmap = NULL;
 
-  code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest);
+  code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest, 0);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
@@ -926,7 +926,7 @@ static int32_t taosDropTable(TAOS* taos, void* meta, int32_t metaLen) {
   SQuery*          pQuery = NULL;
   SHashObj*        pVgroupHashmap = NULL;
 
-  code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest);
+  code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest, 0);
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
   }
@@ -1097,7 +1097,7 @@ static int32_t taosAlterTable(TAOS* taos, void* meta, int32_t metaLen) {
   SArray*        pArray = NULL;
   SVgDataBlocks* pVgData = NULL;
 
-  code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest);
+  code = buildRequest(*(int64_t*)taos, "", 0, NULL, false, &pRequest, 0);
 
   if (code != TSDB_CODE_SUCCESS) {
     goto end;
@@ -1217,7 +1217,7 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
   SQuery*     pQuery = NULL;
   SSubmitReq* subReq = NULL;
 
-  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT);
+  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
   if (!pRequest) {
     uError("WriteRaw:createRequest error request is null");
     code = terrno;
@@ -1281,7 +1281,7 @@ int taos_write_raw_block(TAOS* taos, int rows, char* pData, const char* tbname) 
   int32_t schemaLen = 0;
   int32_t submitLen = sizeof(SSubmitBlk) + schemaLen + rows * extendedRowSize;
 
-  int32_t     totalLen = sizeof(SSubmitReq) + submitLen;
+  int32_t totalLen = sizeof(SSubmitReq) + submitLen;
   subReq = taosMemoryCalloc(1, totalLen);
   SSubmitBlk* blk = POINTER_SHIFT(subReq, sizeof(SSubmitReq));
   void*       blkSchema = POINTER_SHIFT(blk, sizeof(SSubmitBlk));
@@ -1407,7 +1407,7 @@ static int32_t tmqWriteRawDataImpl(TAOS* taos, void* data, int32_t dataLen) {
   STableMeta* pTableMeta = NULL;
 
   terrno = TSDB_CODE_SUCCESS;
-  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT);
+  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
   if (!pRequest) {
     uError("WriteRaw:createRequest error request is null");
     return terrno;
@@ -1674,7 +1674,7 @@ static int32_t tmqWriteRawMetaDataImpl(TAOS* taos, void* data, int32_t dataLen) 
   STableMeta*    pTableMeta = NULL;
 
   terrno = TSDB_CODE_SUCCESS;
-  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT);
+  SRequestObj* pRequest = (SRequestObj*)createRequest(*(int64_t*)taos, TSDB_SQL_INSERT, 0);
   if (!pRequest) {
     uError("WriteRaw:createRequest error request is null");
     return terrno;
