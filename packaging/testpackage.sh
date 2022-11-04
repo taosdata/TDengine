@@ -211,7 +211,8 @@ elif [[ ${packgeName} =~ "tar" ]];then
 
     if [ ${diffNumbers} != 0 ];then
         echoColor R "The number and names of files is different from the previous installation package"
-        echoColor Y `cat ${installPath}/diffFile.log`
+        diffLog=`cat ${installPath}/diffFile.log`
+        echoColor Y "${diffLog}"
         exit -1
     else 
         echoColor G "The number and names of files are the same as previous installation packages"

@@ -286,7 +286,8 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
     return NULL;
   } else {
     // assert to avoid un-initialization error
-    ASSERT(0);
+    tscError("invalid result passed to taos_fetch_row");
+    return NULL;
   }
   return NULL;
 }

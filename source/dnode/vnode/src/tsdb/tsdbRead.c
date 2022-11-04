@@ -2186,7 +2186,7 @@ static bool isValidFileBlockRow(SBlockData* pBlockData, SFileBlockDumpInfo* pDum
 static bool initLastBlockReader(SLastBlockReader* pLBlockReader, STableBlockScanInfo* pScanInfo, STsdbReader* pReader) {
   // the last block reader has been initialized for this table.
   if (pLBlockReader->uid == pScanInfo->uid) {
-    return true;
+    return hasDataInLastBlock(pLBlockReader);
   }
 
   if (pLBlockReader->uid != 0) {
@@ -2319,6 +2319,9 @@ static int32_t buildComposedDataBlock(STsdbReader* pReader) {
       if (pReader->order == TSDB_ORDER_ASC ||
           (pReader->order == TSDB_ORDER_DESC && (!hasDataInLastBlock(pLastBlockReader)))) {
         copyBlockDataToSDataBlock(pReader, pBlockScanInfo);
+
+        // record the last key value
+        pBlockScanInfo->lastKey = ASCENDING_TRAVERSE(pReader->order)? pBlock->maxKey.ts:pBlock->minKey.ts;
         goto _end;
       }
     }
@@ -2710,6 +2713,9 @@ static int32_t doBuildDataBlock(STsdbReader* pReader) {
       pInfo->window = (STimeWindow){.skey = pBlock->minKey.ts, .ekey = pBlock->maxKey.ts};
       setComposedBlockFlag(pReader, false);
       setBlockAllDumped(&pStatus->fBlockDumpInfo, pBlock->maxKey.ts, pReader->order);
+
+      // update the last key for the corresponding table
+      pScanInfo->lastKey = ASCENDING_TRAVERSE(pReader->order)? pInfo->window.ekey:pInfo->window.skey;
     }
   }
 
