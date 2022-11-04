@@ -73,12 +73,13 @@ static void *tQWorkerThreadFp(SQWorker *worker) {
 
   taosBlockSIGPIPE();
   setThreadName(pool->name);
-  uInfo("worker:%s:%d is running, thread:%08" PRId64, pool->name, worker->id, taosGetSelfPthreadId());
+  worker->pid = taosGetSelfPthreadId();
+  uInfo("worker:%s:%d is running, thread:%08" PRId64, pool->name, worker->id, worker->pid);
 
   while (1) {
     if (taosReadQitemFromQset(pool->qset, (void **)&msg, &qinfo) == 0) {
       uInfo("worker:%s:%d qset:%p, got no message and exiting, thread:%08" PRId64, pool->name, worker->id, pool->qset,
-            taosGetSelfPthreadId());
+            worker->pid);
       break;
     }
 
@@ -125,7 +126,7 @@ STaosQueue *tQWorkerAllocQueue(SQWorkerPool *pool, void *ahandle, FItem fp) {
   }
 
   taosThreadMutexUnlock(&pool->mutex);
-  uDebug("worker:%s, queue:%p is allocated, ahandle:%p", pool->name, queue, ahandle);
+  uInfo("worker:%s, queue:%p is allocated, ahandle:%p", pool->name, queue, ahandle);
 
   return queue;
 }
@@ -192,13 +193,14 @@ static void *tWWorkerThreadFp(SWWorker *worker) {
 
   taosBlockSIGPIPE();
   setThreadName(pool->name);
-  uInfo("worker:%s:%d is running, thread:%08" PRId64, pool->name, worker->id, taosGetSelfPthreadId());
+  worker->pid = taosGetSelfPthreadId();
+  uInfo("worker:%s:%d is running, thread:%08" PRId64, pool->name, worker->id, worker->pid);
 
   while (1) {
     numOfMsgs = taosReadAllQitemsFromQset(worker->qset, worker->qall, &qinfo);
     if (numOfMsgs == 0) {
       uInfo("worker:%s:%d qset:%p, got no message and exiting, thread:%08" PRId64, pool->name, worker->id, worker->qset,
-            taosGetSelfPthreadId());
+            worker->pid);
       break;
     }
 
@@ -246,8 +248,9 @@ STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FItems fp) {
     pool->nextId = (pool->nextId + 1) % pool->max;
   }
 
-  queue->threadId = taosGetPthreadId(worker->thread);
-  uDebug("worker:%s, queue:%p is allocated, ahandle:%p thread:%08" PRId64, pool->name, queue, ahandle, queue->threadId);
+  while (worker->pid <= 0) taosMsleep(10);
+  queue->threadId = worker->pid;
+  uInfo("worker:%s, queue:%p is allocated, ahandle:%p thread:%08" PRId64, pool->name, queue, ahandle, queue->threadId);
   code = 0;
 
 _OVER:

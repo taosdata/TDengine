@@ -28,6 +28,7 @@ typedef struct SWWorkerPool SWWorkerPool;
 typedef struct SQWorker {
   int32_t       id;      // worker ID
   TdThread      thread;  // thread
+  int64_t       pid;
   SQWorkerPool *pool;
 } SQWorker;
 
@@ -44,6 +45,7 @@ typedef struct SQWorkerPool {
 typedef struct SWWorker {
   int32_t       id;      // worker id
   TdThread      thread;  // thread
+  int64_t       pid;
   STaosQall    *qall;
   STaosQset    *qset;  // queue set
   SWWorkerPool *pool;

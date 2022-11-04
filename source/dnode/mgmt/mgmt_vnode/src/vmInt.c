@@ -79,12 +79,13 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
 void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   char path[TSDB_FILENAME_LEN] = {0};
 
-  vnodePreClose(pVnode->pImpl);
-
   taosThreadRwlockWrlock(&pMgmt->lock);
   taosHashRemove(pMgmt->hash, &pVnode->vgId, sizeof(int32_t));
   taosThreadRwlockUnlock(&pMgmt->lock);
   vmReleaseVnode(pMgmt, pVnode);
+
+  dInfo("vgId:%d, pre close", pVnode->vgId);
+  vnodePreClose(pVnode->pImpl);
 
   dInfo("vgId:%d, wait for vnode ref become 0", pVnode->vgId);
   while (pVnode->refCount > 0) taosMsleep(10);
@@ -92,22 +93,29 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   dInfo("vgId:%d, wait for vnode write queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pWriteQ,
         pVnode->pWriteQ->threadId);
   while (!taosQueueEmpty(pVnode->pWriteQ)) taosMsleep(10);
+
   dInfo("vgId:%d, wait for vnode sync queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pSyncQ,
-        pVnode->pWriteQ->threadId);
+        pVnode->pSyncQ->threadId);
   while (!taosQueueEmpty(pVnode->pSyncQ)) taosMsleep(10);
+
   dInfo("vgId:%d, wait for vnode sync ctrl queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pSyncCtrlQ,
-        pVnode->pWriteQ->threadId);
+        pVnode->pSyncCtrlQ->threadId);
   while (!taosQueueEmpty(pVnode->pSyncCtrlQ)) taosMsleep(10);
+
   dInfo("vgId:%d, wait for vnode apply queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pApplyQ,
-        pVnode->pWriteQ->threadId);
+        pVnode->pApplyQ->threadId);
   while (!taosQueueEmpty(pVnode->pApplyQ)) taosMsleep(10);
+
   dInfo("vgId:%d, wait for vnode query queue:%p is empty", pVnode->vgId, pVnode->pQueryQ);
   while (!taosQueueEmpty(pVnode->pQueryQ)) taosMsleep(10);
+
   dInfo("vgId:%d, wait for vnode fetch queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pFetchQ,
-        pVnode->pWriteQ->threadId);
+        pVnode->pFetchQ->threadId);
   while (!taosQueueEmpty(pVnode->pFetchQ)) taosMsleep(10);
+
   dInfo("vgId:%d, wait for vnode stream queue:%p is empty", pVnode->vgId, pVnode->pStreamQ);
   while (!taosQueueEmpty(pVnode->pStreamQ)) taosMsleep(10);
+
   dInfo("vgId:%d, all vnode queues is empty", pVnode->vgId);
 
   vmFreeQueue(pMgmt, pVnode);

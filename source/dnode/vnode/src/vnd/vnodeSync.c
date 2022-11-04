@@ -474,12 +474,25 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
 }
 
 void vnodeSyncStart(SVnode *pVnode) {
-  vDebug("vgId:%d, start sync", pVnode->config.vgId);
+  vInfo("vgId:%d, start sync", pVnode->config.vgId);
   syncStart(pVnode->sync);
 }
 
+void vnodeSyncPreClose(SVnode *pVnode) {
+  vInfo("vgId:%d, pre close sync", pVnode->config.vgId);
+  syncLeaderTransfer(pVnode->sync);
+  syncPreStop(pVnode->sync);
+  taosThreadMutexLock(&pVnode->lock);
+  if (pVnode->blocked) {
+    vInfo("vgId:%d, post block after close sync", pVnode->config.vgId);
+    pVnode->blocked = false;
+    tsem_post(&pVnode->syncSem);
+  }
+  taosThreadMutexUnlock(&pVnode->lock);
+}
+
 void vnodeSyncClose(SVnode *pVnode) {
-  vDebug("vgId:%d, close sync", pVnode->config.vgId);
+  vInfo("vgId:%d, close sync", pVnode->config.vgId);
   syncStop(pVnode->sync);
 }
 
