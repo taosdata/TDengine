@@ -536,10 +536,10 @@ typedef struct SSysTableScanInfo {
 } SSysTableScanInfo;
 
 typedef struct SBlockDistInfo {
-  SSDataBlock* pResBlock;
-  STsdbReader* pHandle;
-  SReadHandle  readHandle;
-  uint64_t     uid;  // table uid
+  SSDataBlock*   pResBlock;
+  STsdbReader*   pHandle;
+  SReadHandle    readHandle;
+  uint64_t       uid;  // table uid
 } SBlockDistInfo;
 
 // todo remove this
@@ -550,7 +550,6 @@ typedef struct SOptrBasicInfo {
 } SOptrBasicInfo;
 
 typedef struct SIntervalAggOperatorInfo {
-  // SOptrBasicInfo should be first, SAggSupporter should be second for stream encode
   SOptrBasicInfo     binfo;              // basic info
   SAggSupporter      aggSup;             // aggregate supporter
   SExprSupp          scalarSupp;         // supporter for perform scalar function
@@ -571,7 +570,6 @@ typedef struct SIntervalAggOperatorInfo {
 typedef struct SMergeAlignedIntervalAggOperatorInfo {
   SIntervalAggOperatorInfo* intervalAggOperatorInfo;
 
-  //  bool         hasGroupId;
   uint64_t     groupId;  // current groupId
   int64_t      curTs;    // current ts
   SSDataBlock* prefetchedBlock;
@@ -839,10 +837,6 @@ typedef struct SSortOperatorInfo {
   SNode*         pCondition;
 } SSortOperatorInfo;
 
-typedef struct STagFilterOperatorInfo {
-  SOptrBasicInfo binfo;
-} STagFilterOperatorInfo;
-
 typedef struct SJoinOperatorInfo {
   SSDataBlock* pRes;
   int32_t      joinType;
@@ -907,7 +901,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int
 
 void cleanupAggSup(SAggSupporter* pAggSup);
 void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
-void setTbNameColData(void* pMeta, const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId);
+void setTbNameColData(const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId, const char* name);
 
 int32_t doPrepareScan(SOperatorInfo* pOperator, uint64_t uid, int64_t ts);
 int32_t doGetScanStatus(SOperatorInfo* pOperator, uint64_t* uid, int64_t* ts);

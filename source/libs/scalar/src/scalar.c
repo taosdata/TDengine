@@ -49,7 +49,7 @@ int32_t sclCreateColumnInfoData(SDataType *pType, int32_t numOfRows, SScalarPara
   pColumnData->info.scale = pType->scale;
   pColumnData->info.precision = pType->precision;
 
-  int32_t code = colInfoDataEnsureCapacity(pColumnData, numOfRows);
+  int32_t code = colInfoDataEnsureCapacity(pColumnData, numOfRows, true);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     taosMemoryFree(pColumnData);
@@ -70,7 +70,7 @@ int32_t sclConvertValueToSclParam(SValueNode* pValueNode, SScalarParam* out, int
 
   colDataAppend(in.columnData, 0, nodesGetValueFromNode(pValueNode), false);
 
-  colInfoDataEnsureCapacity(out->columnData, 1);
+  colInfoDataEnsureCapacity(out->columnData, 1, true);
   code = vectorConvertSingleColImpl(&in, out, overflow, -1, -1);
   sclFreeParam(&in);
 
@@ -88,7 +88,7 @@ int32_t sclExtendResRows(SScalarParam *pDst, SScalarParam *pSrc, SArray *pBlockL
   pLeft->numOfRows = pb->info.rows;
 
   if (pDst->numOfRows < pb->info.rows) {
-    colInfoDataEnsureCapacity(pDst->columnData, pb->info.rows);
+    colInfoDataEnsureCapacity(pDst->columnData, pb->info.rows, true);
   }
   
   _bin_scalar_fn_t OperatorFn = getBinScalarOperatorFn(OP_TYPE_ASSIGN);
@@ -1604,7 +1604,7 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
     if (1 == res->numOfRows) {
       SCL_ERR_JRET(sclExtendResRows(pDst, res, pBlockList));
     } else {
-      colInfoDataEnsureCapacity(pDst->columnData, res->numOfRows);
+      colInfoDataEnsureCapacity(pDst->columnData, res->numOfRows, true);
       colDataAssign(pDst->columnData, res->columnData, res->numOfRows, NULL);
       pDst->numOfRows = res->numOfRows;
       pDst->numOfQualified = res->numOfQualified;

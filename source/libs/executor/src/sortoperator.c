@@ -20,7 +20,7 @@ static SSDataBlock* doSort(SOperatorInfo* pOperator);
 static int32_t      doOpenSortOperator(SOperatorInfo* pOperator);
 static int32_t      getExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len);
 
-static void destroyOrderOperatorInfo(void* param);
+static void destroySortOperatorInfo(void* param);
 
 // todo add limit/offset impl
 SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode* pSortNode, SExecTaskInfo* pTaskInfo) {
@@ -64,7 +64,7 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
   // TODO dynamic set the available sort buffer
 
   pOperator->fpSet =
-      createOperatorFpSet(doOpenSortOperator, doSort, NULL, NULL, destroyOrderOperatorInfo, getExplainExecInfo);
+      createOperatorFpSet(doOpenSortOperator, doSort, NULL, NULL, destroySortOperatorInfo, getExplainExecInfo);
 
   code = appendDownstream(pOperator, &downstream, 1);
   if (code != TSDB_CODE_SUCCESS) {
@@ -249,7 +249,7 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
   return blockDataGetNumOfRows(pBlock) > 0 ? pBlock : NULL;
 }
 
-void destroyOrderOperatorInfo(void* param) {
+void destroySortOperatorInfo(void* param) {
   SSortOperatorInfo* pInfo = (SSortOperatorInfo*)param;
   pInfo->binfo.pRes = blockDataDestroy(pInfo->binfo.pRes);
 
@@ -729,12 +729,11 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
 
   initLimitInfo(pMergePhyNode->node.pLimit, pMergePhyNode->node.pSlimit, &pInfo->limitInfo);
   pInfo->binfo.pRes = createResDataBlock(pDescNode);
+
   int32_t rowSize = pInfo->binfo.pRes->info.rowSize;
   ASSERT(rowSize < 100 * 1024 * 1024);
 
-  SArray* pSortInfo = createSortInfo(pMergePhyNode->pMergeKeys);
   int32_t numOfOutputCols = 0;
-
   code = extractColMatchInfo(pMergePhyNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID,
                              &pInfo->matchInfo);
   if (code != TSDB_CODE_SUCCESS) {
@@ -746,7 +745,7 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   initResultSizeInfo(&pOperator->resultInfo, 1024);
 
   pInfo->groupSort = pMergePhyNode->groupSort;
-  pInfo->pSortInfo = pSortInfo;
+  pInfo->pSortInfo = createSortInfo(pMergePhyNode->pMergeKeys);
   pInfo->pInputBlock = pInputBlock;
   pInfo->bufPageSize = getProperSortPageSize(rowSize);
   pInfo->sortBufSize = pInfo->bufPageSize * (numStreams + 1);  // one additional is reserved for merged result.
@@ -768,11 +767,11 @@ SOperatorInfo* createMultiwayMergeOperatorInfo(SOperatorInfo** downStreams, size
   return pOperator;
 
 _error:
-  pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
   if (pInfo != NULL) {
     destroyMultiwayMergeOperatorInfo(pInfo);
   }
 
+  pTaskInfo->code = code;
   taosMemoryFree(pOperator);
   return NULL;
 }

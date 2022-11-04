@@ -170,14 +170,12 @@ SSDataBlock* doScanCache(SOperatorInfo* pOperator) {
       pRes->info.uid = *(tb_uid_t*)taosArrayGet(pInfo->pUidList, pInfo->indexOfBufferedRes);
       pRes->info.rows = 1;
 
-      if (pInfo->pseudoExprSup.numOfExprs > 0) {
-        SExprSupp* pSup = &pInfo->pseudoExprSup;
-        int32_t    code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pRes, pRes->info.rows,
-                                                 GET_TASKID(pTaskInfo));
-        if (code != TSDB_CODE_SUCCESS) {
-          pTaskInfo->code = code;
-          return NULL;
-        }
+      SExprSupp* pSup = &pInfo->pseudoExprSup;
+      int32_t code = addTagPseudoColumnData(&pInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pRes,
+                                            pRes->info.rows, GET_TASKID(pTaskInfo));
+      if (code != TSDB_CODE_SUCCESS) {
+        pTaskInfo->code = code;
+        return NULL;
       }
 
       pRes->info.groupId = getTableGroupId(pTableList, pRes->info.uid);

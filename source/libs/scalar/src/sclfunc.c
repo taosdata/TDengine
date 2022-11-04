@@ -6,7 +6,6 @@
 #include "tdatablock.h"
 #include "tjson.h"
 #include "ttime.h"
-#include "vnode.h"
 
 typedef float (*_float_fn)(float);
 typedef double (*_double_fn)(double);
@@ -1718,12 +1717,9 @@ int32_t winEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 
 int32_t qTbnameFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   ASSERT(inputNum == 1);
+  char* p = colDataGetVarData(pInput->columnData, 0);
 
-  uint64_t uid = *(uint64_t *)colDataGetData(pInput->columnData, 0);
-
-  char str[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
-  metaGetTableNameByUid(pInput->param, uid, str);
-  colDataAppendNItems(pOutput->columnData, pOutput->numOfRows, str, pInput->numOfRows);
+  colDataAppendNItems(pOutput->columnData, pOutput->numOfRows, p, pInput->numOfRows);
   pOutput->numOfRows += pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
 }
