@@ -244,16 +244,6 @@ int32_t vnodeProcessSyncMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 }
 
 static int32_t vnodeSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
-  if (pMsg == NULL || pMsg->pCont == NULL) {
-    return -1;
-  }
-
-  if (msgcb == NULL || msgcb->putToQueueFp == NULL) {
-    rpcFreeCont(pMsg->pCont);
-    pMsg->pCont = NULL;
-    return -1;
-  }
-
   int32_t code = tmsgPutToQueue(msgcb, SYNC_CTRL_QUEUE, pMsg);
   if (code != 0) {
     rpcFreeCont(pMsg->pCont);
@@ -263,16 +253,6 @@ static int32_t vnodeSyncEqCtrlMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
 }
 
 static int32_t vnodeSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
-  if (pMsg == NULL || pMsg->pCont == NULL) {
-    return -1;
-  }
-
-  if (msgcb == NULL || msgcb->putToQueueFp == NULL) {
-    rpcFreeCont(pMsg->pCont);
-    pMsg->pCont = NULL;
-    return -1;
-  }
-
   int32_t code = tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg);
   if (code != 0) {
     rpcFreeCont(pMsg->pCont);
@@ -342,52 +322,26 @@ static void vnodeSyncRollBackMsg(const SSyncFSM *pFsm, const SRpcMsg *pMsg, cons
          TMSG_INFO(pMsg->msgType));
 }
 
-#define USE_TSDB_SNAPSHOT
-
 static int32_t vnodeSnapshotStartRead(const SSyncFSM *pFsm, void *pParam, void **ppReader) {
-#ifdef USE_TSDB_SNAPSHOT
   SVnode         *pVnode = pFsm->data;
   SSnapshotParam *pSnapshotParam = pParam;
   int32_t code = vnodeSnapReaderOpen(pVnode, pSnapshotParam->start, pSnapshotParam->end, (SVSnapReader **)ppReader);
   return code;
-#else
-  *ppReader = taosMemoryMalloc(32);
-  return 0;
-#endif
 }
 
 static int32_t vnodeSnapshotStopRead(const SSyncFSM *pFsm, void *pReader) {
-#ifdef USE_TSDB_SNAPSHOT
   SVnode *pVnode = pFsm->data;
   int32_t code = vnodeSnapReaderClose(pReader);
   return code;
-#else
-  taosMemoryFree(pReader);
-  return 0;
-#endif
 }
 
 static int32_t vnodeSnapshotDoRead(const SSyncFSM *pFsm, void *pReader, void **ppBuf, int32_t *len) {
-#ifdef USE_TSDB_SNAPSHOT
   SVnode *pVnode = pFsm->data;
   int32_t code = vnodeSnapRead(pReader, (uint8_t **)ppBuf, len);
   return code;
-#else
-  static int32_t times = 0;
-  if (times++ < 5) {
-    *len = 64;
-    *ppBuf = taosMemoryMalloc(*len);
-    snprintf(*ppBuf, *len, "snapshot block %d", times);
-  } else {
-    *len = 0;
-    *ppBuf = NULL;
-  }
-  return 0;
-#endif
 }
 
 static int32_t vnodeSnapshotStartWrite(const SSyncFSM *pFsm, void *pParam, void **ppWriter) {
-#ifdef USE_TSDB_SNAPSHOT
   SVnode         *pVnode = pFsm->data;
   SSnapshotParam *pSnapshotParam = pParam;
 
@@ -404,14 +358,9 @@ static int32_t vnodeSnapshotStartWrite(const SSyncFSM *pFsm, void *pParam, void 
 
   int32_t code = vnodeSnapWriterOpen(pVnode, pSnapshotParam->start, pSnapshotParam->end, (SVSnapWriter **)ppWriter);
   return code;
-#else
-  *ppWriter = taosMemoryMalloc(32);
-  return 0;
-#endif
 }
 
 static int32_t vnodeSnapshotStopWrite(const SSyncFSM *pFsm, void *pWriter, bool isApply, SSnapshot *pSnapshot) {
-#ifdef USE_TSDB_SNAPSHOT
   SVnode *pVnode = pFsm->data;
   vInfo("vgId:%d, stop write vnode snapshot, apply:%d, index:%" PRId64 " term:%" PRIu64 " config:%" PRId64,
         pVnode->config.vgId, isApply, pSnapshot->lastApplyIndex, pSnapshot->lastApplyTerm, pSnapshot->lastConfigIndex);
@@ -419,22 +368,14 @@ static int32_t vnodeSnapshotStopWrite(const SSyncFSM *pFsm, void *pWriter, bool 
   int32_t code = vnodeSnapWriterClose(pWriter, !isApply, pSnapshot);
   vInfo("vgId:%d, apply vnode snapshot finished, code:0x%x", pVnode->config.vgId, code);
   return code;
-#else
-  taosMemoryFree(pWriter);
-  return 0;
-#endif
 }
 
 static int32_t vnodeSnapshotDoWrite(const SSyncFSM *pFsm, void *pWriter, void *pBuf, int32_t len) {
-#ifdef USE_TSDB_SNAPSHOT
   SVnode *pVnode = pFsm->data;
   vDebug("vgId:%d, continue write vnode snapshot, len:%d", pVnode->config.vgId, len);
   int32_t code = vnodeSnapWrite(pWriter, pBuf, len);
   vDebug("vgId:%d, continue write vnode snapshot finished, len:%d", pVnode->config.vgId, len);
   return code;
-#else
-  return 0;
-#endif
 }
 
 static void vnodeRestoreFinish(const SSyncFSM *pFsm) {
@@ -461,7 +402,6 @@ static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
   vDebug("vgId:%d, become follower", pVnode->config.vgId);
 
-  // clear old leader resource
   taosThreadMutexLock(&pVnode->lock);
   if (pVnode->blocked) {
     pVnode->blocked = false;
@@ -474,15 +414,6 @@ static void vnodeBecomeFollower(const SSyncFSM *pFsm) {
 static void vnodeBecomeLeader(const SSyncFSM *pFsm) {
   SVnode *pVnode = pFsm->data;
   vDebug("vgId:%d, become leader", pVnode->config.vgId);
-
-#if 0
-  taosThreadMutexLock(&pVnode->lock);
-  if (pVnode->blocked) {
-    pVnode->blocked = false;
-    tsem_post(&pVnode->syncSem);
-  }
-  taosThreadMutexUnlock(&pVnode->lock);
-#endif
 }
 
 static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {

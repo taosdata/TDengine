@@ -36,7 +36,7 @@ int32_t tQWorkerInit(SQWorkerPool *pool) {
     worker->pool = pool;
   }
 
-  uInfo("worker:%s is initialized, min:%d max:%d", pool->name, pool->min, pool->max);
+  uDebug("worker:%s is initialized, min:%d max:%d", pool->name, pool->min, pool->max);
   return 0;
 }
 
@@ -73,11 +73,12 @@ static void *tQWorkerThreadFp(SQWorker *worker) {
 
   taosBlockSIGPIPE();
   setThreadName(pool->name);
-  uDebug("worker:%s:%d is running", pool->name, worker->id);
+  uInfo("worker:%s:%d is running, thread:%08" PRId64, pool->name, worker->id, taosGetSelfPthreadId());
 
   while (1) {
     if (taosReadQitemFromQset(pool->qset, (void **)&msg, &qinfo) == 0) {
-      uDebug("worker:%s:%d qset:%p, got no message and exiting", pool->name, worker->id, pool->qset);
+      uInfo("worker:%s:%d qset:%p, got no message and exiting, thread:%08" PRId64, pool->name, worker->id, pool->qset,
+            taosGetSelfPthreadId());
       break;
     }
 
@@ -191,12 +192,13 @@ static void *tWWorkerThreadFp(SWWorker *worker) {
 
   taosBlockSIGPIPE();
   setThreadName(pool->name);
-  uDebug("worker:%s:%d is running", pool->name, worker->id);
+  uInfo("worker:%s:%d is running, thread:%08" PRId64, pool->name, worker->id, taosGetSelfPthreadId());
 
   while (1) {
     numOfMsgs = taosReadAllQitemsFromQset(worker->qset, worker->qall, &qinfo);
     if (numOfMsgs == 0) {
-      uDebug("worker:%s:%d qset:%p, got no message and exiting", pool->name, worker->id, worker->qset);
+      uInfo("worker:%s:%d qset:%p, got no message and exiting, thread:%08" PRId64, pool->name, worker->id, worker->qset,
+            taosGetSelfPthreadId());
       break;
     }
 
@@ -244,7 +246,8 @@ STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FItems fp) {
     pool->nextId = (pool->nextId + 1) % pool->max;
   }
 
-  uDebug("worker:%s, queue:%p is allocated, ahandle:%p", pool->name, queue, ahandle);
+  queue->threadId = taosGetPthreadId(worker->thread);
+  uDebug("worker:%s, queue:%p is allocated, ahandle:%p thread:%08" PRId64, pool->name, queue, ahandle, queue->threadId);
   code = 0;
 
 _OVER:
