@@ -65,11 +65,6 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, None)
 
-        tdSql.query(f"select tbname,count(c0) from {dbname}.stb partition by tbname")
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(1, 1, None)
-
         tdSql.query(f"select count(NULL)")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
@@ -94,11 +89,6 @@ class TDTestCase:
         tdSql.query(f"select c0,hyperloglog(c0) from {dbname}.stb group by c0")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, None)
-
-        tdSql.query(f"select tbname,hyperloglog(c0) from {dbname}.stb partition by tbname")
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 1, None)
-        tdSql.checkData(1, 1, None)
 
         tdSql.query(f"select hyperloglog(NULL)")
         tdSql.checkRows(1)
