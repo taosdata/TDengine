@@ -14,6 +14,9 @@ static int32_t stmtCreateRequest(STscStmt* pStmt) {
   if (pStmt->exec.pRequest == NULL) {
     code = buildRequest(pStmt->taos->id, pStmt->sql.sqlStr, pStmt->sql.sqlLen, NULL, false, &pStmt->exec.pRequest,
                         pStmt->reqid);
+    if (pStmt->reqid > 0) {
+      pStmt->reqid++;
+    }
     if (TSDB_CODE_SUCCESS == code) {
       pStmt->exec.pRequest->syncQuery = true;
     }
