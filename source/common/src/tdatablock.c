@@ -1208,16 +1208,6 @@ int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows) 
   return doEnsureCapacity(pColumn, &info, numOfRows);
 }
 
-void colInfoDataMemset(SColumnInfoData* pColumn, uint32_t numOfRows) {
-  if (!IS_VAR_DATA_TYPE(pColumn->info.type)) {
-    memset(pColumn->pData, 0, pColumn->info.bytes * numOfRows);
-  } else {
-    if (pColumn->varmeta.length > 0) {
-      memset(pColumn->pData, 0, pColumn->varmeta.length);
-    }
-  }
-}
-
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows) {
   int32_t code = 0;
   if (numOfRows == 0) {

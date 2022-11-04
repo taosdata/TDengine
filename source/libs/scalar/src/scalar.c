@@ -56,7 +56,6 @@ int32_t sclCreateColumnInfoData(SDataType *pType, int32_t numOfRows, SScalarPara
     return terrno;
   }
 
-  colInfoDataMemset(pColumnData, numOfRows);
   pParam->columnData = pColumnData;
   pParam->colAlloced = true;
   return TSDB_CODE_SUCCESS;
