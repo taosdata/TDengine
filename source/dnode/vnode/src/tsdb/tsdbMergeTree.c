@@ -279,7 +279,6 @@ int32_t tLDataIterOpen(struct SLDataIter **pIter, SDataFReader *pReader, int32_t
 
   (*pIter)->pBlockLoadInfo = pBlockLoadInfo;
 
-//  size_t size = taosArrayGetSize(pBlockLoadInfo->aSttBlk);
   if (!pBlockLoadInfo->sttBlockLoaded) {
     int64_t st = taosGetTimestampUs();
     pBlockLoadInfo->sttBlockLoaded = true;
