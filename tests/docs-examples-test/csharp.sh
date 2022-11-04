@@ -27,7 +27,7 @@ dotnet run --project optsTelnet/optstelnet.csproj
 taos -s "drop database if exists test"
 dotnet run --project optsJSON/optsJSON.csproj
 
-taos -s "create database if exists test"
+taos -s "create database if not exists test"
 dotnet run --project wsConnect/wsConnect.csproj
 dotnet run --project wsInsert/wsInsert.csproj
 dotnet run --project wsStmt/wsStmt.csproj
