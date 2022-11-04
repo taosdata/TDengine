@@ -1154,6 +1154,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       SCH_ERR_RET(schAppendTaskExecNode(pJob, pTask, addr, pTask->execId));
     }
   } else {
+    taosMemoryFree(msg);
     SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
   }
 #endif
