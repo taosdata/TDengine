@@ -15,12 +15,15 @@ import json
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.remote import Remote
+import os
+import copy
 
 class TestBuffer(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self.remote: Remote = Remote(self.logger)
         self.cfg = self.tdCom.Boundary.DB_PARAM_BUFFER_CONFIG
+        self.copy_cfg = copy.deepcopy(self.cfg)
         for env_setting in self.env_setting["settings"]:
             if env_setting["name"].lower() == "taosd":
                 self.taosd_setting = env_setting
@@ -53,6 +56,9 @@ class TestBuffer(TDCase):
         self.tdSql.execute(f'drop database {dbname}')
         # boundary
         dbname = self.tdCom.get_long_name()
+        if 'DATABASE_REPLICAS' in os.environ.keys():
+            if int(os.environ.get('DATABASE_REPLICAS')) == 3:
+                self.cfg["boundary"][1] = int(self.cfg["boundary"][0]) + 1
         for param_value in self.cfg["boundary"]:
             kv_dict = {test_param: param_value, "pagesize":1, "pages":64}
             self.tdCom.createDb(dbname, **kv_dict)
@@ -78,7 +84,7 @@ class TestBuffer(TDCase):
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
         self.tdSql.execute(f'drop database {dbname}')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][0] - 1}')
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.cfg["boundary"][-1] + 1}')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} {self.copy_cfg["boundary"][-1] + 1}')
 
     def run(self) -> bool:
         self.buffer_check()
