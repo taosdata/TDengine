@@ -361,7 +361,7 @@ int32_t taosListRef() {
 
     if (pSet->state == TSDB_REF_STATE_EMPTY) continue;
 
-    uInfo("rsetId:%d state:%d count::%d", i, pSet->state, pSet->count);
+    uInfo("rsetId:%d state:%d count:%d", i, pSet->state, pSet->count);
 
     for (int32_t j = 0; j < pSet->max; ++j) {
       pNode = pSet->nodeList[j];
