@@ -67,6 +67,7 @@ fi
 }
 
 
+
 function wgetFile {
 
 file=$1
@@ -75,7 +76,10 @@ if [ ! -f  ${file}  ];then
     echoColor  BD "wget https://www.taosdata.com/assets-download/3.0/${file}"
     wget https://www.taosdata.com/assets-download/3.0/${file}
 else
-    echoColor  YD "${file} already exists "
+    echoColor  YD "${file} already exists and use new file "
+    rm -rf ${file}
+    echoColor  BD "wget https://www.taosdata.com/assets-download/3.0/${file}"
+    wget https://www.taosdata.com/assets-download/3.0/${file}  
 fi
 }
 
