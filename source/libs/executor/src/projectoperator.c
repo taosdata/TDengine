@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <libs/scalar/filter.h>
 #include "executorimpl.h"
 #include "functionMgt.h"
 
@@ -71,13 +72,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
 
   pInfo->binfo.pRes = pResBlock;
   pInfo->pFinalRes = createOneDataBlock(pResBlock, false);
-  pInfo->pFilterNode = pProjPhyNode->node.pConditions;
-
-  if (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM) {
-    pInfo->mergeDataBlocks = false;
-  } else {
-    pInfo->mergeDataBlocks = pProjPhyNode->mergeDataBlock;
-  }
+  pInfo->mergeDataBlocks = (pTaskInfo->execModel == OPTR_EXEC_MODEL_STREAM)? false:pProjPhyNode->mergeDataBlock;
 
   int32_t numOfRows = 4096;
   size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
@@ -96,6 +91,11 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SProjectPhys
 
   initBasicInfo(&pInfo->binfo, pResBlock);
   setFunctionResultOutput(pOperator, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, numOfCols);
+
+  code = filterInitFromNode((SNode*)pProjPhyNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
   pInfo->pPseudoColInfo = setRowTsColumnOutputInfo(pOperator->exprSupp.pCtx, numOfCols);
   pOperator->name = "ProjectOperator";
@@ -313,7 +313,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
       }
 
       // do apply filter
-      doFilter(pProjectInfo->pFilterNode, pFinalRes, NULL, NULL);
+      doFilter(pFinalRes, pOperator->exprSupp.pFilterInfo, NULL);
 
       // when apply the limit/offset for each group, pRes->info.rows may be 0, due to limit constraint.
       if (pFinalRes->info.rows > 0 || (pOperator->status == OP_EXEC_DONE)) {
@@ -323,7 +323,7 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     } else {
       // do apply filter
       if (pRes->info.rows > 0) {
-        doFilter(pProjectInfo->pFilterNode, pRes, NULL, NULL);
+        doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
         if (pRes->info.rows == 0) {
           continue;
         }
@@ -391,9 +391,12 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   }
 
   setFunctionResultOutput(pOperator, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, numOfExpr);
+  code = filterInitFromNode((SNode*)pPhyNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
   pInfo->binfo.pRes = pResBlock;
-  pInfo->pCondition = pPhyNode->node.pConditions;
   pInfo->pPseudoColInfo = setRowTsColumnOutputInfo(pSup->pCtx, numOfExpr);
 
   pOperator->name = "IndefinitOperator";
@@ -516,7 +519,7 @@ SSDataBlock* doApplyIndefinitFunction(SOperatorInfo* pOperator) {
       }
     }
 
-    doFilter(pIndefInfo->pCondition, pInfo->pRes, NULL, NULL);
+    doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
     size_t rows = pInfo->pRes->info.rows;
     if (rows > 0 || pOperator->status == OP_EXEC_DONE) {
       break;
@@ -618,7 +621,7 @@ SSDataBlock* doGenerateSourceData(SOperatorInfo* pOperator) {
   }
 
   pRes->info.rows = 1;
-  doFilter(pProjectInfo->pFilterNode, pRes, NULL, NULL);
+  doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
 
   /*int32_t status = */ doIngroupLimitOffset(&pProjectInfo->limitInfo, 0, pRes, pOperator);
 

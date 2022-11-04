@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <libs/scalar/filter.h>
 #include "os.h"
 #include "query.h"
 #include "taosdef.h"
@@ -1499,7 +1500,7 @@ static SSDataBlock* doStreamFill(SOperatorInfo* pOperator) {
     }
 
     doStreamFillImpl(pOperator);
-    doFilter(pInfo->pCondition, pInfo->pRes, &pInfo->matchInfo, NULL);
+    doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, &pInfo->matchInfo);
     memcpy(pInfo->pRes->info.parTbName, pInfo->pSrcBlock->info.parTbName, TSDB_TABLE_NAME_LEN);
     pOperator->resultInfo.totalRows += pInfo->pRes->info.rows;
     if (pInfo->pRes->info.rows > 0) {
@@ -1677,7 +1678,12 @@ SOperatorInfo* createStreamFillOperatorInfo(SOperatorInfo* downstream, SStreamFi
   int32_t numOfOutputCols = 0;
   int32_t code = extractColMatchInfo(pPhyFillNode->pFillExprs, pPhyFillNode->node.pOutputDataBlockDesc,
                                      &numOfOutputCols, COL_MATCH_FROM_SLOT_ID, &pInfo->matchInfo);
-  pInfo->pCondition = pPhyFillNode->node.pConditions;
+
+  code = filterInitFromNode((SNode*)pPhyFillNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   code = initExprSupp(&pOperator->exprSupp, pFillExprInfo, numOfFillCols);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
