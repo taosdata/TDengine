@@ -219,7 +219,7 @@ static int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncRaftEntr
              pEntry->index, err, err, errStr, sysErr, sysErrStr);
     syncNodeErrorLog(pData->pSyncNode, logBuf);
 
-    ASSERT(0);
+    // ASSERT(0);
     return -1;
   }
   pEntry->index = index;
@@ -327,7 +327,7 @@ static int32_t raftLogTruncate(struct SSyncLogStore* pLogStore, SyncIndex fromIn
     sError("vgId:%d, wal truncate error, from-index:%" PRId64 ", err:%d %X, msg:%s, syserr:%d, sysmsg:%s",
            pData->pSyncNode->vgId, fromIndex, err, err, errStr, sysErr, sysErrStr);
 
-    ASSERT(0);
+    // ASSERT(0);
   }
 
   // event log
@@ -376,6 +376,7 @@ int32_t raftLogUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
            pData->pSyncNode->vgId, index, err, err, errStr, sysErr, sysErrStr);
 
     ASSERT(0);
+    return -1;
   }
   return 0;
 }
