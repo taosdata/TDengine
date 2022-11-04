@@ -2654,9 +2654,7 @@ end:
  *                  0 - influxDB line protocol
  *                  1 - OpenTSDB telnet line protocol
  *                  2 - OpenTSDB JSON format protocol
- * @return return zero for successful insertion. Otherwise return none-zero error code of
- *         failure reason.
- *
+ * @return TAOS_RES
  */
 
 TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLines, int protocol, int precision) {
