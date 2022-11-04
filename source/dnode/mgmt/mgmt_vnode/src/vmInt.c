@@ -90,21 +90,21 @@ void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   dInfo("vgId:%d, wait for vnode ref become 0", pVnode->vgId);
   while (pVnode->refCount > 0) taosMsleep(10);
 
-  dInfo("vgId:%d, wait for vnode write queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pWriteQ,
-        pVnode->pWriteQ->threadId);
-  while (!taosQueueEmpty(pVnode->pWriteQ)) taosMsleep(10);
+  dInfo("vgId:%d, wait for vnode write queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pWriteW.queue,
+        pVnode->pWriteW.queue->threadId);
+  tMultiWorkerCleanup(&pVnode->pWriteW);
 
-  dInfo("vgId:%d, wait for vnode sync queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pSyncQ,
-        pVnode->pSyncQ->threadId);
-  while (!taosQueueEmpty(pVnode->pSyncQ)) taosMsleep(10);
+  dInfo("vgId:%d, wait for vnode sync queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pSyncW.queue,
+        pVnode->pSyncW.queue->threadId);
+  tMultiWorkerCleanup(&pVnode->pSyncW);
 
-  dInfo("vgId:%d, wait for vnode sync ctrl queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pSyncCtrlQ,
-        pVnode->pSyncCtrlQ->threadId);
-  while (!taosQueueEmpty(pVnode->pSyncCtrlQ)) taosMsleep(10);
+  dInfo("vgId:%d, wait for vnode sync ctrl queue:%p is empty, thread:%08" PRId64, pVnode->vgId,
+        pVnode->pSyncCtrlW.queue, pVnode->pSyncCtrlW.queue->threadId);
+  tMultiWorkerCleanup(&pVnode->pSyncCtrlW);
 
-  dInfo("vgId:%d, wait for vnode apply queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pApplyQ,
-        pVnode->pApplyQ->threadId);
-  while (!taosQueueEmpty(pVnode->pApplyQ)) taosMsleep(10);
+  dInfo("vgId:%d, wait for vnode apply queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pApplyW.queue,
+        pVnode->pApplyW.queue->threadId);
+  tMultiWorkerCleanup(&pVnode->pApplyW);
 
   dInfo("vgId:%d, wait for vnode query queue:%p is empty", pVnode->vgId, pVnode->pQueryQ);
   while (!taosQueueEmpty(pVnode->pQueryQ)) taosMsleep(10);
