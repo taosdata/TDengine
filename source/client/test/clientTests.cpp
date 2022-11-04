@@ -112,7 +112,7 @@ void createNewTable(TAOS* pConn, int32_t index) {
   }
   taos_free_result(pRes);
 
-  for(int32_t i = 0; i < 10000; i += 20) {
+  for(int32_t i = 0; i < 20; i += 20) {
     char sql[1024] = {0};
     sprintf(sql,
             "insert into tu%d values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
@@ -692,6 +692,7 @@ TEST(testCase, insert_test) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
+#endif
 
 TEST(testCase, projection_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -703,7 +704,7 @@ TEST(testCase, projection_query_tables) {
   //  }
   //  taos_free_result(pRes);
 
-  TAOS_RES* pRes = taos_query(pConn, "use benchmarkcpu");
+  TAOS_RES* pRes = taos_query(pConn, "use abc2");
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "create stable st1 (ts timestamp, k int) tags(a int)");
@@ -725,7 +726,7 @@ TEST(testCase, projection_query_tables) {
   }
   taos_free_result(pRes);
 
-  for (int32_t i = 0; i < 2; ++i) {
+  for (int32_t i = 0; i < 200000; ++i) {
     printf("create table :%d\n", i);
     createNewTable(pConn, i);
   }
@@ -750,7 +751,9 @@ TEST(testCase, projection_query_tables) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
-#endif
+
+
+#if 0
 
 TEST(testCase, tsbs_perf_test) {
   TdThread qid[20] = {0};
@@ -761,7 +764,7 @@ TEST(testCase, tsbs_perf_test) {
   getchar();
 }
 
-#if 0
+
 TEST(testCase, projection_query_stables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
