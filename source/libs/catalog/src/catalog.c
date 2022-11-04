@@ -202,7 +202,7 @@ int32_t ctgGetTbMeta(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx
   int32_t           code = 0;
   STableMetaOutput* output = NULL;
 
-  CTG_ERR_RET(ctgGetTbMetaFromCache(pCtg, pConn, ctx, pTableMeta));
+  CTG_ERR_RET(ctgGetTbMetaFromCache(pCtg, ctx, pTableMeta));
   if (*pTableMeta || (ctx->flag & CTG_FLAG_ONLY_CACHE)) {
     goto _return;
   }
@@ -320,7 +320,7 @@ _return:
 }
 
 int32_t ctgChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, const char* dbFName, AUTH_TYPE type,
-                   bool* pass) {
+                   bool* pass, bool* exists) {
   bool    inCache = false;
   int32_t code = 0;
 
@@ -329,6 +329,13 @@ int32_t ctgChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, co
   CTG_ERR_RET(ctgChkAuthFromCache(pCtg, (char*)user, (char*)dbFName, type, &inCache, pass));
 
   if (inCache) {
+    if (exists) {
+      *exists = true;
+    }
+    
+    return TSDB_CODE_SUCCESS;
+  } else if (exists) {
+    *exists = false;
     return TSDB_CODE_SUCCESS;
   }
 
@@ -570,7 +577,7 @@ int32_t catalogInit(SCatalogCfg* cfg) {
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  atomic_store_8((int8_t*)&gCtgMgmt.exit, false);
+  memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
 
   if (cfg) {
     memcpy(&gCtgMgmt.cfg, cfg, sizeof(*cfg));
@@ -952,14 +959,14 @@ int32_t catalogGetTableMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SName
   CTG_API_LEAVE(ctgGetTbMeta(pCtg, pConn, &ctx, pTableMeta));
 }
 
-int32_t catalogGetCachedTableMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, STableMeta** pTableMeta) {
+int32_t catalogGetCachedTableMeta(SCatalog* pCtg, const SName* pTableName, STableMeta** pTableMeta) {
   CTG_API_ENTER();
 
   SCtgTbMetaCtx ctx = {0};
   ctx.pName = (SName*)pTableName;
   ctx.flag = CTG_FLAG_UNKNOWN_STB | CTG_FLAG_ONLY_CACHE;
 
-  CTG_API_LEAVE(ctgGetTbMeta(pCtg, pConn, &ctx, pTableMeta));
+  CTG_API_LEAVE(ctgGetTbMeta(pCtg, NULL, &ctx, pTableMeta));
 }
 
 
@@ -974,15 +981,14 @@ int32_t catalogGetSTableMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SNam
   CTG_API_LEAVE(ctgGetTbMeta(pCtg, pConn, &ctx, pTableMeta));
 }
 
-int32_t catalogGetCachedSTableMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,
-                            STableMeta** pTableMeta) {
+int32_t catalogGetCachedSTableMeta(SCatalog* pCtg, const SName* pTableName,          STableMeta** pTableMeta) {
   CTG_API_ENTER();
 
   SCtgTbMetaCtx ctx = {0};
   ctx.pName = (SName*)pTableName;
   ctx.flag = CTG_FLAG_STB | CTG_FLAG_ONLY_CACHE;
 
-  CTG_API_LEAVE(ctgGetTbMeta(pCtg, pConn, &ctx, pTableMeta));
+  CTG_API_LEAVE(ctgGetTbMeta(pCtg, NULL, &ctx, pTableMeta));
 }
 
 
@@ -1032,7 +1038,7 @@ int32_t catalogChkTbMetaVersion(SCatalog* pCtg, SRequestConnInfo* pConn, SArray*
       switch (tbType) {
         case TSDB_CHILD_TABLE: {
           SName stb = name;
-          strcpy(stb.tname, stbName);
+          tstrncpy(stb.tname, stbName, sizeof(stb.tname));
           ctgRemoveTbMeta(pCtg, &stb);
           break;
         }
@@ -1107,13 +1113,13 @@ int32_t catalogGetTableHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const
   CTG_API_LEAVE(ctgGetTbHashVgroup(pCtg, pConn, pTableName, pVgroup, NULL));
 }
 
-int32_t catalogGetCachedTableHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,
-                                  SVgroupInfo* pVgroup, bool* exists) {
+int32_t catalogGetCachedTableHashVgroup(SCatalog* pCtg, const SName* pTableName,           SVgroupInfo* pVgroup, bool* exists) {
   CTG_API_ENTER();
 
-  CTG_API_LEAVE(ctgGetTbHashVgroup(pCtg, pConn, pTableName, pVgroup, exists));
+  CTG_API_LEAVE(ctgGetTbHashVgroup(pCtg, NULL, pTableName, pVgroup, exists));
 }
 
+#if 0
 int32_t catalogGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SCatalogReq* pReq, SMetaData* pRsp) {
   CTG_API_ENTER();
 
@@ -1176,6 +1182,7 @@ _return:
 
   CTG_API_LEAVE(code);
 }
+#endif
 
 int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SCatalogReq* pReq, catalogCallback fp,
                                void* param, int64_t* jobId) {
@@ -1371,12 +1378,29 @@ int32_t catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user
   }
 
   int32_t code = 0;
-  CTG_ERR_JRET(ctgChkAuth(pCtg, pConn, user, dbFName, type, pass));
+  CTG_ERR_JRET(ctgChkAuth(pCtg, pConn, user, dbFName, type, pass, NULL));
 
 _return:
 
   CTG_API_LEAVE(code);
 }
+
+int32_t catalogChkAuthFromCache(SCatalog* pCtg, const char* user, const char* dbFName, AUTH_TYPE type,
+                                        bool* pass, bool* exists) {
+  CTG_API_ENTER();
+
+  if (NULL == pCtg || NULL == user || NULL == dbFName || NULL == pass || NULL == exists) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  int32_t code = 0;
+  CTG_ERR_JRET(ctgChkAuth(pCtg, NULL, user, dbFName, type, pass, exists));
+
+_return:
+
+  CTG_API_LEAVE(code);
+}
+
 
 int32_t catalogGetServerVersion(SCatalog* pCtg, SRequestConnInfo* pConn, char** pVersion) {
   CTG_API_ENTER();

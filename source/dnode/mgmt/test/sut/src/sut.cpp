@@ -53,7 +53,10 @@ void Testbase::Init(const char* path, int16_t port) {
   taosMkDir(path);
   InitLog(TD_TMP_DIR_PATH "td");
 
-  server.Start();
+  if (!server.Start()) {
+    printf("failed to start server, exit\n");
+    exit(0);
+  };
   client.Init("root", "taosdata");
   showRsp = NULL;
 }

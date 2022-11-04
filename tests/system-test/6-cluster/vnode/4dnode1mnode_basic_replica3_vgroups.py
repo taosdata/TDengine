@@ -17,7 +17,8 @@ import socket
 import subprocess
 
 class TDTestCase:
-    def init(self,conn ,logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         self.host = socket.gethostname()
@@ -28,7 +29,7 @@ class TDTestCase:
         self.replica = 1
         self.vgroups = 2
         self.tb_nums = 10
-        self.row_nums = 100
+        self.row_nums = 10
         self.max_vote_time_cost = 30  # seconds
 
     def getBuildPath(self):
@@ -185,7 +186,7 @@ class TDTestCase:
 
         # create database replica 3 vgroups 100
         db3 = 'db_3'
-        create_db_replica_3_vgroups_100 = "create database {} replica 3 vgroups 100".format(db3)
+        create_db_replica_3_vgroups_100 = "create database {} replica 3 vgroups 20".format(db3)
         tdLog.notice('=======database {} replica 3 vgroups 100 ======'.format(db3))
         tdSql.execute(create_db_replica_3_vgroups_100)
         self.vote_leader_time_costs(db3)

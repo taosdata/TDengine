@@ -187,18 +187,8 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
     snprintf(key, sizeof(key), "%s:%d", ip, (int)port); \
   } while (0)
 
-#define CONN_HOST_THREAD_IDX1(idx, exh, refId, pThrd) \
-  do {                                                \
-    if (exh == NULL) {                                \
-      idx = -1;                                       \
-    } else {                                          \
-      ASYNC_CHECK_HANDLE((exh), refId);               \
-      pThrd = (SCliThrd*)(exh)->pThrd;                \
-    }                                                 \
-  } while (0)
-#define CONN_PERSIST_TIME(para)    ((para) <= 90000 ? 90000 : (para))
-#define CONN_GET_HOST_THREAD(conn) (conn ? ((SCliConn*)conn)->hostThrd : NULL)
-#define CONN_GET_INST_LABEL(conn)  (((STrans*)(((SCliThrd*)(conn)->hostThrd)->pTransInst))->label)
+#define CONN_PERSIST_TIME(para)   ((para) <= 90000 ? 90000 : (para))
+#define CONN_GET_INST_LABEL(conn) (((STrans*)(((SCliThrd*)(conn)->hostThrd)->pTransInst))->label)
 
 #define CONN_GET_MSGCTX_BY_AHANDLE(conn, ahandle)                         \
   do {                                                                    \
@@ -217,6 +207,7 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
       tDebug("msg found, %" PRIu64 "", ahandle);                          \
     }                                                                     \
   } while (0)
+
 #define CONN_GET_NEXT_SENDMSG(conn)                 \
   do {                                              \
     int i = 0;                                      \
@@ -229,21 +220,6 @@ static void cliReleaseUnfinishedMsg(SCliConn* conn) {
     if (pCliMsg == NULL) {                          \
       goto _RETURN;                                 \
     }                                               \
-  } while (0)
-
-#define CONN_HANDLE_THREAD_QUIT(thrd) \
-  do {                                \
-    if (thrd->quit) {                 \
-      return;                         \
-    }                                 \
-  } while (0)
-
-#define CONN_HANDLE_BROKEN(conn) \
-  do {                           \
-    if (conn->broken) {          \
-      cliHandleExcept(conn);     \
-      return;                    \
-    }                            \
   } while (0)
 
 #define CONN_SET_PERSIST_BY_APP(conn) \
@@ -451,7 +427,7 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
 
     if (pCtx == NULL || pCtx->pSem == NULL) {
       if (transMsg.info.ahandle == NULL) {
-        if (REQUEST_NO_RESP(&pMsg->msg) || pMsg->type == Release) destroyCmsg(pMsg);
+        if (pMsg == NULL || REQUEST_NO_RESP(&pMsg->msg) || pMsg->type == Release) destroyCmsg(pMsg);
         once = true;
         continue;
       }
@@ -742,8 +718,10 @@ static void cliSendCb(uv_write_t* req, int status) {
   if (status == 0) {
     tTrace("%s conn %p data already was written out", CONN_GET_INST_LABEL(pConn), pConn);
   } else {
-    tError("%s conn %p failed to write:%s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(status));
-    cliHandleExcept(pConn);
+    if (!uv_is_closing((uv_handle_t*)&pConn->stream)) {
+      tError("%s conn %p failed to write:%s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(status));
+      cliHandleExcept(pConn);
+    }
     return;
   }
   if (cliHandleNoResp(pConn) == true) {
@@ -1612,8 +1590,8 @@ int transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn) {
 
   SCvtAddr cvtAddr = {0};
   if (ip != NULL && fqdn != NULL) {
-    if (strlen(ip) <= sizeof(cvtAddr.ip)) memcpy(cvtAddr.ip, ip, strlen(ip));
-    if (strlen(fqdn) <= sizeof(cvtAddr.fqdn)) memcpy(cvtAddr.fqdn, fqdn, strlen(fqdn));
+    tstrncpy(cvtAddr.ip, ip, sizeof(cvtAddr.ip));
+    tstrncpy(cvtAddr.fqdn, fqdn, sizeof(cvtAddr.fqdn));
     cvtAddr.cvt = true;
   }
   for (int i = 0; i < pTransInst->numOfThreads; i++) {

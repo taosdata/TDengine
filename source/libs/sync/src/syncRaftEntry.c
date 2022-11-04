@@ -532,7 +532,7 @@ int32_t raftEntryCacheGetEntry(struct SRaftEntryCache* pCache, SyncIndex index, 
   SSyncRaftEntry* pEntry = NULL;
   int32_t         code = raftEntryCacheGetEntryP(pCache, index, &pEntry);
   if (code == 1) {
-    *ppEntry = taosMemoryMalloc(pEntry->bytes);
+    *ppEntry = taosMemoryMalloc((int64_t)(pEntry->bytes));
     memcpy(*ppEntry, pEntry, pEntry->bytes);
     (*ppEntry)->rid = -1;
   } else {

@@ -57,13 +57,13 @@ int32_t syncNodeReplicateOne(SSyncNode* pSyncNode, SRaftId* pDestId) {
   SyncIndex logEndIndex = pSyncNode->pLogStore->syncLogEndIndex(pSyncNode->pLogStore);
   if (nextIndex < logStartIndex || nextIndex - 1 > logEndIndex) {
     char logBuf[128];
-    snprintf(logBuf, sizeof(logBuf), "start snapshot for next-index:%" PRId64 ", start:%" PRId64 ", end:%" PRId64,
+    snprintf(logBuf, sizeof(logBuf), "maybe start snapshot for next-index:%" PRId64 ", start:%" PRId64 ", end:%" PRId64,
              nextIndex, logStartIndex, logEndIndex);
     syncNodeEventLog(pSyncNode, logBuf);
 
     // start snapshot
-    int32_t code = syncNodeStartSnapshot(pSyncNode, pDestId);
-    ASSERT(code == 0);
+    // int32_t code = syncNodeStartSnapshot(pSyncNode, pDestId);
+
     return 0;
   }
 

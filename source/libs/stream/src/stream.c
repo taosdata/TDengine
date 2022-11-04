@@ -135,8 +135,11 @@ int32_t streamTaskEnqueue(SStreamTask* pTask, const SStreamDispatchReq* pReq, SR
   ((SMsgHead*)buf)->vgId = htonl(pReq->upstreamNodeId);
   SStreamDispatchRsp* pCont = POINTER_SHIFT(buf, sizeof(SMsgHead));
   pCont->inputStatus = status;
-  pCont->streamId = pReq->streamId;
-  pCont->taskId = pReq->upstreamTaskId;
+  pCont->streamId = htobe64(pReq->streamId);
+  pCont->upstreamNodeId = htonl(pReq->upstreamNodeId);
+  pCont->upstreamTaskId = htonl(pReq->upstreamTaskId);
+  pCont->downstreamNodeId = htonl(pTask->nodeId);
+  pCont->downstreamTaskId = htonl(pTask->taskId);
   pRsp->pCont = buf;
   pRsp->contLen = sizeof(SMsgHead) + sizeof(SStreamDispatchRsp);
   tmsgSendRsp(pRsp);
@@ -203,10 +206,10 @@ int32_t streamProcessDispatchReq(SStreamTask* pTask, SStreamDispatchReq* pReq, S
   return 0;
 }
 
-int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp) {
+int32_t streamProcessDispatchRsp(SStreamTask* pTask, SStreamDispatchRsp* pRsp, int32_t code) {
   ASSERT(pRsp->inputStatus == TASK_OUTPUT_STATUS__NORMAL || pRsp->inputStatus == TASK_OUTPUT_STATUS__BLOCKED);
 
-  qDebug("task %d receive dispatch rsp", pTask->taskId);
+  qDebug("task %d receive dispatch rsp, code: %x", pTask->taskId, code);
 
   if (pTask->outputType == TASK_OUTPUT__SHUFFLE_DISPATCH) {
     int32_t leftRsp = atomic_sub_fetch_32(&pTask->shuffleDispatcher.waitingRspCnt, 1);

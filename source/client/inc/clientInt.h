@@ -318,6 +318,7 @@ void*    createTscObj(const char* user, const char* auth, const char* db, int32_
 void     destroyTscObj(void* pObj);
 STscObj* acquireTscObj(int64_t rid);
 int32_t  releaseTscObj(int64_t rid);
+void destroyAppInst(SAppInstInfo *pAppInfo);
 
 uint64_t generateRequestId();
 

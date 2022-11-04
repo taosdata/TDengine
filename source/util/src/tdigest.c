@@ -183,6 +183,7 @@ void tdigestAdd(TDigest *t, double x, int64_t w) {
   if (t->num_buffered_pts >= t->threshold) tdigestCompress(t);
 }
 
+#if 0
 double tdigestCDF(TDigest *t, double x) {
   if (t == NULL) return 0;
 
@@ -233,6 +234,7 @@ double tdigestCDF(TDigest *t, double x) {
 
   return 1;
 }
+#endif
 
 double tdigestQuantile(TDigest *t, double q) {
   if (t == NULL) return 0;

@@ -571,6 +571,8 @@ static int32_t execAlterCmd(char* cmd, char* value, bool* processed) {
     code = schedulerUpdatePolicy(atoi(value));
   } else if (0 == strcasecmp(cmd, COMMAND_ENABLE_RESCHEDULE)) {
     code = schedulerEnableReSchedule(atoi(value));
+  } else if (0 == strcasecmp(cmd, COMMAND_CATALOG_DEBUG)) {
+    code = ctgdHandleDbgCommand(value);
   } else {
     goto _return;
   }

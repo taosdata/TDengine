@@ -17,7 +17,6 @@
 #define _TD_VND_H_
 
 #include "sync.h"
-#include "syncTools.h"
 #include "ttrace.h"
 #include "vnodeInt.h"
 

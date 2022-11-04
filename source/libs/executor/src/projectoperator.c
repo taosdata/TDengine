@@ -210,8 +210,6 @@ SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     pOperator->status = OP_OPENED;
   }
 
-  qDebug("enter project");
-
   if (pOperator->status == OP_EXEC_DONE) {
     if (pTaskInfo->execModel == OPTR_EXEC_MODEL_QUEUE) {
       pOperator->status = OP_OPENED;

@@ -25,12 +25,12 @@ import ctypes
 
 class TDTestCase:
 
-    def init(self,conn ,logSql):
+    def init(self, conn, logSql, replicaVar=1):
         tdLog.debug(f"start to excute {__file__}")
         self.TDDnodes = None
         tdSql.init(conn.cursor())
         self.host = socket.gethostname()
-
+        self.replicaVar = int(replicaVar)
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -87,6 +87,7 @@ class TDTestCase:
         vnodeNumbers = int(dnodeNumbers-mnodeNums)
         allStbNumbers=(paraDict['stbNumbers']*restartNumbers)
         dbNumbers = 1
+        paraDict['replica'] = self.replicaVar
 
         tdLog.info("first check dnode and mnode")
         tdSql.query("select * from information_schema.ins_dnodes;")

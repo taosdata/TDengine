@@ -244,6 +244,16 @@ void syslog(int unused, const char *format, ...);
 #define TD_CHARSET_LEN  64
 #define TD_TIMEZONE_LEN 96
 
+#ifdef WINDOWS
+#define TD_PATH_MAX 260
+#elif defined(PATH_MAX)
+#define TD_PATH_MAX PATH_MAX
+#elif defined(_XOPEN_PATH_MAX)
+#define TD_PATH_MAX _XOPEN_PATH_MAX
+#else
+#define TD_PATH_MAX _POSIX_PATH_MAX
+#endif
+
 #ifdef __cplusplus
 }
 #endif

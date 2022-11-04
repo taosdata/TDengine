@@ -241,9 +241,7 @@ int32_t sdbWriteWithoutFree(SSdb *pSdb, SSdbRaw *pRaw) {
 
   SdbDecodeFp decodeFp = pSdb->decodeFps[pRaw->type];
   SSdbRow    *pRow = (*decodeFp)(pRaw);
-  if (pRow == NULL) {
-    return terrno;
-  }
+  if (pRow == NULL) return terrno;
 
   pRow->type = pRaw->type;
 

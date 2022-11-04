@@ -15,7 +15,8 @@ sys.path.append("./7-tmq")
 from tmqCommon import *
 
 class TDTestCase:
-    def init(self, conn, logSql):
+    def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
         #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
@@ -41,7 +42,7 @@ class TDTestCase:
                     'rowsPerTbl': 4000,
                     'batchNum':   15,
                     'startTs':    1640966400000,  # 2022-01-01 00:00:00.000
-                    'pollDelay':  20,
+                    'pollDelay':  30,
                     'showMsg':    1,
                     'showRow':    1}
 
@@ -124,7 +125,7 @@ class TDTestCase:
         tdLog.info("async insert data")
         pThread = tmqCom.asyncInsertData(paraDict)
 
-        tmqCom.getStartConsumeNotifyFromTmqsim();
+        tmqCom.getStartConsumeNotifyFromTmqsim()
         #time.sleep(5)
         tdLog.info("check show consumers")
         tdSql.query("show consumers")
@@ -138,8 +139,9 @@ class TDTestCase:
         tdSql.query("show subscriptions")
         # tdLog.debug(tdSql.queryResult)
         rows = tdSql.getRows()
-        tdLog.info("show subscriptions rows: %d"%rows)
-        if rows != paraDict['vgroups'] * len(topicNameList):
+        expectSubscriptions = paraDict['vgroups'] * len(topicNameList)
+        tdLog.info("show subscriptions rows: %d, expect Subscriptions: %d"%(rows,expectSubscriptions))
+        if rows != expectSubscriptions:
             tdLog.exit("show subscriptions rows error")
 
         pThread.join()

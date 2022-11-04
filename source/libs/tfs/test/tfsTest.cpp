@@ -42,7 +42,7 @@ TEST_F(TfsTest, 01_Open_Close) {
   STfs *pTfs = tfsOpen(&dCfg, 1);
   ASSERT_EQ(pTfs, nullptr);
 
-  taosMkDir(root);
+  taosMulMkDir(root);
   pTfs = tfsOpen(&dCfg, 1);
   ASSERT_NE(pTfs, nullptr);
 

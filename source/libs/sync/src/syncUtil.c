@@ -176,30 +176,6 @@ char* syncUtilRaftId2Str(const SRaftId* p) {
   return serialized;
 }
 
-const char* syncUtilState2String(ESyncState state) {
-  /*
-    if (state == TAOS_SYNC_STATE_FOLLOWER) {
-      return "TAOS_SYNC_STATE_FOLLOWER";
-    } else if (state == TAOS_SYNC_STATE_CANDIDATE) {
-      return "TAOS_SYNC_STATE_CANDIDATE";
-    } else if (state == TAOS_SYNC_STATE_LEADER) {
-      return "TAOS_SYNC_STATE_LEADER";
-    } else {
-      return "TAOS_SYNC_STATE_UNKNOWN";
-    }
-  */
-
-  if (state == TAOS_SYNC_STATE_FOLLOWER) {
-    return "follower";
-  } else if (state == TAOS_SYNC_STATE_CANDIDATE) {
-    return "candidate";
-  } else if (state == TAOS_SYNC_STATE_LEADER) {
-    return "leader";
-  } else {
-    return "state_error";
-  }
-}
-
 bool syncUtilCanPrint(char c) {
   if (c >= 32 && c <= 126) {
     return true;
@@ -209,7 +185,8 @@ bool syncUtilCanPrint(char c) {
 }
 
 char* syncUtilprintBin(char* ptr, uint32_t len) {
-  char* s = taosMemoryMalloc(len + 1);
+  int64_t memLen = (int64_t)(len + 1);
+  char*   s = taosMemoryMalloc(memLen);
   ASSERT(s != NULL);
   memset(s, 0, len + 1);
   memcpy(s, ptr, len);

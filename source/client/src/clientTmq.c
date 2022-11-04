@@ -508,7 +508,7 @@ static int32_t tmqSendCommitReq(tmq_t* tmq, SMqClientVg* pVg, SMqClientTopic* pT
   pMsgSendInfo->param = pParam;
   pMsgSendInfo->paramFreeFp = taosMemoryFree;
   pMsgSendInfo->fp = tmqCommitCb;
-  pMsgSendInfo->msgType = TDMT_VND_MQ_COMMIT_OFFSET;
+  pMsgSendInfo->msgType = TDMT_VND_TMQ_COMMIT_OFFSET;
   // send msg
 
   atomic_add_fetch_32(&pParamSet->waitingRspNum, 1);
@@ -750,7 +750,7 @@ void tmqSendHbReq(void* param, void* tmrId) {
   sendInfo->requestObjRefId = 0;
   sendInfo->param = NULL;
   sendInfo->fp = tmqHbCb;
-  sendInfo->msgType = TDMT_MND_MQ_HB;
+  sendInfo->msgType = TDMT_MND_TMQ_HB;
 
   SEpSet epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
 
@@ -1038,7 +1038,7 @@ int32_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   sendInfo->requestObjRefId = 0;
   sendInfo->param = &param;
   sendInfo->fp = tmqSubscribeCb;
-  sendInfo->msgType = TDMT_MND_SUBSCRIBE;
+  sendInfo->msgType = TDMT_MND_TMQ_SUBSCRIBE;
 
   SEpSet epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
 
@@ -1420,7 +1420,7 @@ int32_t tmqAskEp(tmq_t* tmq, bool async) {
   sendInfo->requestObjRefId = 0;
   sendInfo->param = pParam;
   sendInfo->fp = tmqAskEpCb;
-  sendInfo->msgType = TDMT_MND_MQ_ASK_EP;
+  sendInfo->msgType = TDMT_MND_TMQ_ASK_EP;
 
   SEpSet epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
 
@@ -1573,7 +1573,7 @@ int32_t tmqPollImpl(tmq_t* tmq, int64_t timeout) {
       sendInfo->requestObjRefId = 0;
       sendInfo->param = pParam;
       sendInfo->fp = tmqPollCb;
-      sendInfo->msgType = TDMT_VND_CONSUME;
+      sendInfo->msgType = TDMT_VND_TMQ_CONSUME;
 
       int64_t transporterId = 0;
       /*printf("send poll\n");*/
@@ -1619,7 +1619,7 @@ void* tmqHandleAllRsp(tmq_t* tmq, int64_t timeout, bool pollIfReset) {
       taosGetQitem(tmq->qall, (void**)&rspWrapper);
 
       if (rspWrapper == NULL) {
-        tscDebug("consumer %" PRId64 " mqueue empty", tmq->consumerId);
+        /*tscDebug("consumer %" PRId64 " mqueue empty", tmq->consumerId);*/
         return NULL;
       }
     }
@@ -1732,6 +1732,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
 
   // in no topic status, delayed task also need to be processed
   if (atomic_load_8(&tmq->status) == TMQ_CONSUMER_STATUS__INIT) {
+    tscDebug("consumer:%" PRId64 ", poll return since consumer status is init", tmq->consumerId);
     return NULL;
   }
 
@@ -1755,7 +1756,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t timeout) {
 
     rspObj = tmqHandleAllRsp(tmq, timeout, false);
     if (rspObj) {
-      tscDebug("consumer:%" PRId64 ", return rsp", tmq->consumerId);
+      tscDebug("consumer:%" PRId64 ", return rsp %p", tmq->consumerId, rspObj);
       return (TAOS_RES*)rspObj;
     } else if (terrno == TSDB_CODE_TQ_NO_COMMITTED_OFFSET) {
       tscDebug("consumer:%" PRId64 ", return null since no committed offset", tmq->consumerId);
