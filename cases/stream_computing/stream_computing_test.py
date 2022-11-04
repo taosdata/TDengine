@@ -512,9 +512,9 @@ class StreamComputingTest(TDCase):
             # self.date_time += 1
             for tbname in [self.stb_name, self.ctb_name, self.tb_name]:
                 if tbname != self.tb_name:
-                    self.tdCom.check_query_data(f'select start, {self.stb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.stb_source_select_str}  from {tbname} partition by {partition} interval({self.dataDict["interval"]}s)', sorted=True)
+                    self.tdCom.check_query_data(f'select start, {self.stb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.stb_source_select_str}  from {tbname} partition by {partition} interval({self.dataDict["interval"]}s) order by start', sorted=True)
                 else:
-                    self.tdCom.check_query_data(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix}', f'select _wstart AS start, {self.tb_source_select_str}  from {tbname} partition by {partition} interval({self.dataDict["interval"]}s)', sorted=True)
+                    self.tdCom.check_query_data(f'select start, {self.tb_output_select_str} from {tbname}{self.des_table_suffix} order by start', f'select _wstart AS start, {self.tb_source_select_str}  from {tbname} partition by {partition} interval({self.dataDict["interval"]}s) order by start', sorted=True)
 
     def at_once_state_window(self, state_window, partiton="tbname", delete=False):
         self.delete = delete
@@ -1422,7 +1422,7 @@ class StreamComputingTest(TDCase):
             self.create_none_source_tb_col_stream()
             self.create_error_source_sql_stream()
             self.insert_after_restart()
-        #     # ! TD-18123
+            ## ! TD-18123
             # self.insert_after_recreate_source_table()
             self.query_after_drop_stream_db()
             self.data_filter()
@@ -1440,8 +1440,9 @@ class StreamComputingTest(TDCase):
             self.at_once_interval(interval=random.randint(10, 15), partition="c1")
             self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)")
             self.at_once_interval(interval=random.randint(10, 15), partition="tbname", delete=True)
-            self.at_once_interval(interval=random.randint(10, 15), partition="c1", delete=True)
-            self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)", delete=True)
+            ## ! TD-20195
+            ## self.at_once_interval(interval=random.randint(10, 15), partition="c1", delete=True)
+            ## self.at_once_interval(interval=random.randint(10, 15), partition="abs(c1)", delete=True)
             self.at_once_state_window(state_window="c1", partiton="tbname")
             self.at_once_state_window(state_window="c1", partiton="c1")
             self.at_once_state_window(state_window="c1", partiton="abs(c1)")
