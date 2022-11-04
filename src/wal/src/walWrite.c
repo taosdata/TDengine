@@ -445,6 +445,8 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
       break;
     }
 
+    bool contAlreadyRead = false;
+
     // sver == 0 is old wal format, other is new wal
     if (pHead->sver == 0 && !walValidateChecksum(pHead)) {
       wError("vgId:%d, file:%s, old wal head cksum is messed up, hver:%" PRIu64 " len:%d offset:%" PRId64, pWal->vgId, name,
@@ -454,6 +456,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
         walFtruncate(pWal, tfd, offset);
         break;
       }
+      if (pHead->sver != 0) contAlreadyRead = true;
     }
 
     if ( pHead->sver == 0 && (pHead->len < 0 || pHead->len > size - sizeof(SWalHead))) {
@@ -464,30 +467,33 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
         walFtruncate(pWal, tfd, offset);
         break;
       }
+      if (pHead->sver != 0) contAlreadyRead = true;
     }
 
-    ret = (int32_t)tfRead(tfd, pHead->cont, pHead->len);
-    if (ret < 0) {
-      wError("vgId:%d, file:%s, failed to read wal body since %s", pWal->vgId, name, strerror(errno));
-      code = TAOS_SYSTEM_ERROR(errno);
-      break;
-    }
-
-    if (ret < pHead->len) {
-      wError("vgId:%d, file:%s, failed to read wal body, ret:%d len:%d", pWal->vgId, name, ret, pHead->len);
-      offset += sizeof(SWalHead);
-      continue;
-    }
-
-    // check new wal sum head + body crc
-    if ((pHead->sver != 0) && !walValidateChecksum(pHead)) {
-      // new format wal corrupted
-      wError("vgId:%d, file:%s, wal whole cksum is messed up, hver:%" PRIu64 " len:%d offset:%" PRId64, pWal->vgId, name,
-             pHead->version, pHead->len, offset);
-      code = walSkipCorruptedRecord(pWal, pHead, tfd, &offset);
-      if (code != TSDB_CODE_SUCCESS) {
-        walFtruncate(pWal, tfd, offset);
+    if (!contAlreadyRead) {
+      ret = (int32_t)tfRead(tfd, pHead->cont, pHead->len);
+      if (ret < 0) {
+        wError("vgId:%d, file:%s, failed to read wal body since %s", pWal->vgId, name, strerror(errno));
+        code = TAOS_SYSTEM_ERROR(errno);
         break;
+      }
+
+      if (ret < pHead->len) {
+        wError("vgId:%d, file:%s, failed to read wal body, ret:%d len:%d", pWal->vgId, name, ret, pHead->len);
+        offset += sizeof(SWalHead);
+        continue;
+      }
+
+      // check new wal sum head + body crc
+      if ((pHead->sver != 0) && !walValidateChecksum(pHead)) {
+        // new format wal corrupted
+        wError("vgId:%d, file:%s, wal whole cksum is messed up, hver:%" PRIu64 " len:%d offset:%" PRId64, pWal->vgId,
+               name, pHead->version, pHead->len, offset);
+        code = walSkipCorruptedRecord(pWal, pHead, tfd, &offset);
+        if (code != TSDB_CODE_SUCCESS) {
+          walFtruncate(pWal, tfd, offset);
+          break;
+        }
       }
     }
 

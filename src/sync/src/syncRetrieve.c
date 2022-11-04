@@ -224,6 +224,8 @@ static int32_t syncReadOneWalRecord(int32_t sfd, SWalHead *pHead) {
       sError("sfd:%d, wal corrupted and skip failed crc check, code:%d", sfd, code);
       return -1;
     }
+    // found next valid item
+    if (pHead->sver != 0) return sizeof(SWalHead) + pHead->len;
   }
 
   if (pHead->len < 0 || pHead->len > WAL_MAX_SIZE - sizeof(SWalHead)) {
@@ -233,6 +235,8 @@ static int32_t syncReadOneWalRecord(int32_t sfd, SWalHead *pHead) {
       sError("sfd:%d, wal corrupted and skip failed length check, code:%d", sfd, code);
       return -1;
     }
+    // found next valid item
+    if (pHead->sver != 0) return sizeof(SWalHead) + pHead->len;
   }
 
   // read body
