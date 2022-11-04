@@ -143,13 +143,8 @@ int32_t walWrite(void *handle, SWalHead *pHead) {
   if (pHead->version <= pWal->version) return 0;
 
   pHead->signature = WAL_SIGNATURE;
-#if defined(WAL_CHECKSUM_WHOLE)
-  walUpdateChecksum(pHead);
-#else
-  pHead->sver = 0;
-  taosCalcChecksumAppend(0, (uint8_t *)pHead, sizeof(SWalHead));
-#endif
 
+  walUpdateChecksum(pHead);
   int32_t contLen = pHead->len + sizeof(SWalHead);
 
   pthread_mutex_lock(&pWal->mutex);
