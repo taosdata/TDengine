@@ -30,22 +30,17 @@ typedef struct SKvParam {
 } SKvParam;
 
 int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash) {
-  SVnodeModifOpStmt*  modifyNode = (SVnodeModifOpStmt*)pQuery->pRoot;
-  int32_t             code = 0;
-  SInsertParseContext insertCtx = {
-      .pVgroupsHashObj = pVgHash,
-      .pTableBlockHashObj = pBlockHash,
-      .pOutput = (SVnodeModifOpStmt*)pQuery->pRoot,
-  };
+  SVnodeModifOpStmt* modifyNode = (SVnodeModifOpStmt*)pQuery->pRoot;
+  int32_t            code = 0;
 
   // merge according to vgId
-  if (taosHashGetSize(insertCtx.pTableBlockHashObj) > 0) {
-    CHECK_CODE(insMergeTableDataBlocks(insertCtx.pTableBlockHashObj, &insertCtx.pVgDataBlocks));
+  if (taosHashGetSize(pBlockHash) > 0) {
+    CHECK_CODE(insMergeTableDataBlocks(pBlockHash, &modifyNode->pVgDataBlocks));
   }
 
-  CHECK_CODE(insBuildOutput(&insertCtx));
+  CHECK_CODE(insBuildOutput(modifyNode));
 
-  insDestroyBlockArrayList(insertCtx.pVgDataBlocks);
+  insDestroyBlockArrayList(modifyNode->pVgDataBlocks);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -222,11 +217,7 @@ int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, in
   }
 
   SSubmitBlk* pBlocks = (SSubmitBlk*)(pDataBlock->pData);
-  if (TSDB_CODE_SUCCESS != insSetBlockInfo(pBlocks, pDataBlock, bind->num)) {
-    return buildInvalidOperationMsg(&pBuf, "too many rows in sql, total number of rows should be less than INT32_MAX");
-  }
-
-  return TSDB_CODE_SUCCESS;
+  return insSetBlockInfo(pBlocks, pDataBlock, bind->num, &pBuf);
 }
 
 int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, int32_t colIdx,
@@ -308,10 +299,7 @@ int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBu
     pDataBlock->size += extendedRowSize * bind->num;
 
     SSubmitBlk* pBlocks = (SSubmitBlk*)(pDataBlock->pData);
-    if (TSDB_CODE_SUCCESS != insSetBlockInfo(pBlocks, pDataBlock, bind->num)) {
-      return buildInvalidOperationMsg(&pBuf,
-                                      "too many rows in sql, total number of rows should be less than INT32_MAX");
-    }
+    CHECK_CODE(insSetBlockInfo(pBlocks, pDataBlock, bind->num, &pBuf));
   }
 
   return TSDB_CODE_SUCCESS;

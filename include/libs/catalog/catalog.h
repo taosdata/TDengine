@@ -186,6 +186,8 @@ int32_t catalogRemoveStbMeta(SCatalog* pCtg, const char* dbFName, uint64_t dbId,
  */
 int32_t catalogGetTableMeta(SCatalog* pCatalog, SRequestConnInfo* pConn, const SName* pTableName,
                             STableMeta** pTableMeta);
+int32_t catalogGetCachedTableMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,
+                                  STableMeta** pTableMeta);
 
 /**
  * Get a super table's meta data.
@@ -198,6 +200,8 @@ int32_t catalogGetTableMeta(SCatalog* pCatalog, SRequestConnInfo* pConn, const S
  */
 int32_t catalogGetSTableMeta(SCatalog* pCatalog, SRequestConnInfo* pConn, const SName* pTableName,
                              STableMeta** pTableMeta);
+int32_t catalogGetCachedSTableMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,
+                                   STableMeta** pTableMeta);
 
 int32_t catalogUpdateTableMeta(SCatalog* pCatalog, STableMetaRsp* rspMsg);
 
@@ -261,7 +265,8 @@ int32_t catalogGetTableDistVgInfo(SCatalog* pCatalog, SRequestConnInfo* pConn, c
  * @return error code
  */
 int32_t catalogGetTableHashVgroup(SCatalog* pCatalog, SRequestConnInfo* pConn, const SName* pName, SVgroupInfo* vgInfo);
-
+int32_t catalogGetCachedTableHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,
+                                        SVgroupInfo* pVgroup, bool* exists);
 /**
  * Get all meta data required in pReq.
  * @param pCatalog (input, got with catalogGetHandle)
