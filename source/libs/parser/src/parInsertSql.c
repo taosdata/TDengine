@@ -556,12 +556,8 @@ static int32_t parseTagValue(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt
 }
 
 static void buildCreateTbReq(SVnodeModifOpStmt* pStmt, STag* pTag, SArray* pTagName) {
-  char tbFName[TSDB_TABLE_FNAME_LEN];
-  tNameExtractFullName(&pStmt->targetTableName, tbFName);
-  char stbFName[TSDB_TABLE_FNAME_LEN];
-  tNameExtractFullName(&pStmt->usingTableName, stbFName);
-  insBuildCreateTbReq(&pStmt->createTblReq, tbFName, pTag, pStmt->pTableMeta->suid, stbFName, pTagName,
-                      pStmt->pTableMeta->tableInfo.numOfTags);
+  insBuildCreateTbReq(&pStmt->createTblReq, pStmt->targetTableName.tname, pTag, pStmt->pTableMeta->suid,
+                      pStmt->usingTableName.tname, pTagName, pStmt->pTableMeta->tableInfo.numOfTags);
 }
 
 static int32_t checkAndTrimValue(SToken* pToken, char* tmpTokenBuf, SMsgBuf* pMsgBuf) {
@@ -671,6 +667,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SVnodeModifOpStmt* pSt
 }
 
 static int32_t storeTableMeta(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt) {
+  pStmt->pTableMeta->suid = pStmt->pTableMeta->uid;
   pStmt->pTableMeta->uid = pStmt->totalTbNum;
   pStmt->pTableMeta->tableType = TSDB_CHILD_TABLE;
 
