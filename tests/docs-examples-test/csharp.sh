@@ -2,8 +2,8 @@
 
 set -e
 
-pgrep taosd || taosd >> /dev/null 2>&1 &
-pgrep taosadapter || taosadapter >> /dev/null 2>&1 &
+pgrep taosd || taosd 2>&1 >/dev/null &	
+pgrep taosadapter || taosadapter 2>&1 >/dev/null &	 
 cd ../../docs/examples/csharp
 
 dotnet run --project connect/connect.csproj
@@ -27,7 +27,7 @@ dotnet run --project optsTelnet/optstelnet.csproj
 taos -s "drop database if exists test"
 dotnet run --project optsJSON/optsJSON.csproj
 
-taos -s "create database if exists test"
+taos -s "create database if not exist test"
 dotnet run --project wsConnect/wsConnect.csproj
 dotnet run --project wsInsert/wsInsert.csproj
 dotnet run --project wsStmt/wsStmt.csproj
