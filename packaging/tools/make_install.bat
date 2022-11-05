@@ -34,7 +34,6 @@ if exist %binary_dir%\\test\\cfg\\taosadapter.toml (
         copy %binary_dir%\\test\\cfg\\taosadapter.toml %tagert_dir%\\cfg\\taosadapter.toml > nul
     )
 )
-
 copy %source_dir%\\include\\client\\taos.h %tagert_dir%\\include > nul
 copy %source_dir%\\include\\util\\taoserror.h %tagert_dir%\\include > nul
 copy %source_dir%\\include\\libs\\function\\taosudf.h %tagert_dir%\\include > nul
@@ -52,6 +51,7 @@ if exist %binary_dir%\\build\\lib\\taosws.dll.lib (
 )
 if exist %binary_dir%\\build\\lib\\taosws.dll (
     copy %binary_dir%\\build\\lib\\taosws.dll %tagert_dir%\\driver  > nul
+    copy %source_dir%\\tools\\taosws-rs\\target\\release\\taosws.h %tagert_dir%\\include > nul
 )
 if exist %binary_dir%\\build\\bin\\taosdump.exe (
     copy %binary_dir%\\build\\bin\\taosdump.exe %tagert_dir% > nul
