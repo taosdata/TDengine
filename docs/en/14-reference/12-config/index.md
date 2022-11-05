@@ -106,7 +106,7 @@ The parameters described in this document by the effect that they have on the sy
 | Applicable | Server only                                           |
 | Meaning       | The switch for monitoring inside server. The main object of monitoring is to collect information about load on physical nodes, including CPU usage, memory usage, disk usage, and network bandwidth. Monitoring information is sent over HTTP to the taosKeeper service specified by `monitorFqdn` and `monitorProt`.
 | Value Range   | 0: monitoring disabled, 1: monitoring enabled                                                                                                                                                                |
-| Default   | 1                                                                                                                                                                                                  |
+| Default   | 0                                                                                                                                                                                                  |
 
 ### monitorFqdn
 
@@ -735,19 +735,17 @@ To prevent system resource from being exhausted by multiple concurrent streams, 
 | 44  | numOfVnodeQueryThreads | No | Yes |
 | 45  | numOfVnodeStreamThreads | No | Yes |
 | 46  | numOfVnodeFetchThreads | No | Yes |
-| 47  | numOfVnodeWriteThreads | No | Yes |
-| 48  | numOfVnodeSyncThreads | No | Yes |
-| 49  | numOfVnodeRsmaThreads | No | Yes | 
-| 50  | numOfQnodeQueryThreads | No | Yes |
-| 51  | numOfQnodeFetchThreads | No | Yes |
-| 52  | numOfSnodeSharedThreads | No | Yes |
-| 53  | numOfSnodeUniqueThreads | No | Yes |
-| 54  | rpcQueueMemoryAllowed | No | Yes |
-| 55  | logDir | Yes | Yes |
-| 56  | minimalLogDirGB | Yes | Yes |
-| 57  | numOfLogLines | Yes | Yes |
-| 58  | asyncLog | Yes | Yes |
-| 59  | logKeepDays | Yes | Yes |
+| 47  | numOfVnodeRsmaThreads | No | Yes | 
+| 48  | numOfQnodeQueryThreads | No | Yes |
+| 49  | numOfQnodeFetchThreads | No | Yes |
+| 50  | numOfSnodeSharedThreads | No | Yes |
+| 51  | numOfSnodeUniqueThreads | No | Yes |
+| 52  | rpcQueueMemoryAllowed | No | Yes |
+| 53  | logDir | Yes | Yes |
+| 54  | minimalLogDirGB | Yes | Yes |
+| 55  | numOfLogLines | Yes | Yes |
+| 56  | asyncLog | Yes | Yes |
+| 57  | logKeepDays | Yes | Yes |
 | 60  | debugFlag | Yes | Yes |
 | 61  | tmrDebugFlag | Yes | Yes |
 | 62  | uDebugFlag | Yes | Yes |

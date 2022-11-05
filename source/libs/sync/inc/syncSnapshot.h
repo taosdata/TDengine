@@ -28,10 +28,11 @@ extern "C" {
 #include "syncMessage.h"
 #include "taosdef.h"
 
-#define SYNC_SNAPSHOT_SEQ_INVALID -1
-#define SYNC_SNAPSHOT_SEQ_FORCE_CLOSE -2
-#define SYNC_SNAPSHOT_SEQ_BEGIN 0
-#define SYNC_SNAPSHOT_SEQ_END 0x7FFFFFFF
+#define SYNC_SNAPSHOT_SEQ_INVALID      -2
+#define SYNC_SNAPSHOT_SEQ_FORCE_CLOSE  -3
+#define SYNC_SNAPSHOT_SEQ_PRE_SNAPSHOT -1
+#define SYNC_SNAPSHOT_SEQ_BEGIN        0
+#define SYNC_SNAPSHOT_SEQ_END          0x7FFFFFFF
 
 #define SYNC_SNAPSHOT_RETRY_MS 5000
 
@@ -47,19 +48,19 @@ typedef struct SSyncSnapshotSender {
   SSnapshot      snapshot;
   SSyncCfg       lastConfig;
   int64_t        sendingMS;
-  SSyncNode     *pSyncNode;
-  int32_t        replicaIndex;
   SyncTerm       term;
-  SyncTerm       privateTerm;
   int64_t        startTime;
   bool           finish;
+
+  // init when create
+  SSyncNode *pSyncNode;
+  int32_t    replicaIndex;
 } SSyncSnapshotSender;
 
 SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode, int32_t replicaIndex);
 void                 snapshotSenderDestroy(SSyncSnapshotSender *pSender);
 bool                 snapshotSenderIsStart(SSyncSnapshotSender *pSender);
-int32_t              snapshotSenderStart(SSyncSnapshotSender *pSender, SSnapshotParam snapshotParam, SSnapshot snapshot,
-                                         void *pReader);
+int32_t              snapshotSenderStart(SSyncSnapshotSender *pSender);
 int32_t              snapshotSenderStop(SSyncSnapshotSender *pSender, bool finish);
 int32_t              snapshotSend(SSyncSnapshotSender *pSender);
 int32_t              snapshotReSend(SSyncSnapshotSender *pSender);
@@ -76,11 +77,13 @@ typedef struct SSyncSnapshotReceiver {
   int32_t        ack;
   void          *pWriter;
   SyncTerm       term;
-  SyncTerm       privateTerm;
   SSnapshotParam snapshotParam;
   SSnapshot      snapshot;
   SRaftId        fromId;
-  SSyncNode     *pSyncNode;
+  int64_t        startTime;
+
+  // init when create
+  SSyncNode *pSyncNode;
 
 } SSyncSnapshotReceiver;
 

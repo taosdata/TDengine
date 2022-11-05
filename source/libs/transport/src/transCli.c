@@ -427,7 +427,7 @@ void cliHandleExceptImpl(SCliConn* pConn, int32_t code) {
 
     if (pCtx == NULL || pCtx->pSem == NULL) {
       if (transMsg.info.ahandle == NULL) {
-        if (REQUEST_NO_RESP(&pMsg->msg) || pMsg->type == Release) destroyCmsg(pMsg);
+        if (pMsg == NULL || REQUEST_NO_RESP(&pMsg->msg) || pMsg->type == Release) destroyCmsg(pMsg);
         once = true;
         continue;
       }
@@ -718,8 +718,10 @@ static void cliSendCb(uv_write_t* req, int status) {
   if (status == 0) {
     tTrace("%s conn %p data already was written out", CONN_GET_INST_LABEL(pConn), pConn);
   } else {
-    tError("%s conn %p failed to write:%s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(status));
-    cliHandleExcept(pConn);
+    if (!uv_is_closing((uv_handle_t*)&pConn->stream)) {
+      tError("%s conn %p failed to write:%s", CONN_GET_INST_LABEL(pConn), pConn, uv_err_name(status));
+      cliHandleExcept(pConn);
+    }
     return;
   }
   if (cliHandleNoResp(pConn) == true) {

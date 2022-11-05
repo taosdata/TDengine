@@ -34,7 +34,6 @@ if exist %binary_dir%\\test\\cfg\\taosadapter.toml (
         copy %binary_dir%\\test\\cfg\\taosadapter.toml %tagert_dir%\\cfg\\taosadapter.toml > nul
     )
 )
-
 copy %source_dir%\\include\\client\\taos.h %tagert_dir%\\include > nul
 copy %source_dir%\\include\\util\\taoserror.h %tagert_dir%\\include > nul
 copy %source_dir%\\include\\libs\\function\\taosudf.h %tagert_dir%\\include > nul
@@ -52,6 +51,7 @@ if exist %binary_dir%\\build\\lib\\taosws.dll.lib (
 )
 if exist %binary_dir%\\build\\lib\\taosws.dll (
     copy %binary_dir%\\build\\lib\\taosws.dll %tagert_dir%\\driver  > nul
+    copy %source_dir%\\tools\\taosws-rs\\target\\release\\taosws.h %tagert_dir%\\include > nul
 )
 if exist %binary_dir%\\build\\bin\\taosdump.exe (
     copy %binary_dir%\\build\\bin\\taosdump.exe %tagert_dir% > nul
@@ -67,3 +67,4 @@ if exist C:\\TDengine\\driver\\taosws.dll (
     copy /y C:\\TDengine\\driver\\taosws.dll C:\\Windows\\System32 > nul
 )
 sc query "taosd" >nul || sc create "taosd" binPath= "C:\\TDengine\\taosd.exe --win_service" start= DEMAND
+sc query "taosadapter" >nul || sc create "taosadapter" binPath= "C:\\TDengine\\taosadapter.exe" start= DEMAND

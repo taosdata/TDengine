@@ -285,10 +285,14 @@ if [[ $dbName == "taos" ]]; then
   fi
 
   # Add web files
-  if [ -d "${web_dir}/admin" ]; then
-    mkdir -p ${install_dir}/share/
-    cp ${web_dir}/admin ${install_dir}/share/ -r
-    cp ${web_dir}/png/taos.png ${install_dir}/share/admin/images/taos.png
+  if [ "$verMode" == "cluster" ] || [ "$verMode" == "cloud" ]; then
+    if [ -d "${web_dir}/admin" ] ; then
+      mkdir -p ${install_dir}/share/
+      cp ${web_dir}/admin ${install_dir}/share/ -r
+      cp ${web_dir}/png/taos.png ${install_dir}/share/admin/images/taos.png
+    else
+      echo "directory not found for enterprise release: ${web_dir}/admin"
+    fi
   fi
 fi
 

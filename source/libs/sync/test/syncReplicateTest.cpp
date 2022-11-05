@@ -74,10 +74,14 @@ int32_t GetSnapshotCb(struct SSyncFSM* pFsm, SSnapshot* pSnapshot) {
 
 SSyncFSM* createFsm() {
   SSyncFSM* pFsm = (SSyncFSM*)taosMemoryMalloc(sizeof(SSyncFSM));
+
+#if 0 
   pFsm->FpCommitCb = CommitCb;
   pFsm->FpPreCommitCb = PreCommitCb;
   pFsm->FpRollBackCb = RollBackCb;
   pFsm->FpGetSnapshotInfo = GetSnapshotCb;
+#endif
+
   return pFsm;
 }
 
