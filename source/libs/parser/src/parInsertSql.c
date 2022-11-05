@@ -740,42 +740,46 @@ static int32_t parseUsingClauseBottom(SInsertParseContext* pCxt, SVnodeModifOpSt
   return code;
 }
 
-static int32_t checkAuth(SParseContext* pCxt, SName* pTbName) {
+static int32_t checkAuth(SParseContext* pCxt, SName* pTbName, bool* pMissCache) {
   char dbFName[TSDB_DB_FNAME_LEN];
   tNameGetFullDbName(pTbName, dbFName);
-  SRequestConnInfo conn = {.pTrans = pCxt->pTransporter,
-                           .requestId = pCxt->requestId,
-                           .requestObjRefId = pCxt->requestRid,
-                           .mgmtEps = pCxt->mgmtEpSet};
-  int32_t          code = TSDB_CODE_SUCCESS;
-  bool             pass = true;
+  int32_t code = TSDB_CODE_SUCCESS;
+  bool    pass = true;
+  bool    exists = true;
   if (pCxt->async) {
-    // todo replace with cached api
-    code = catalogChkAuth(pCxt->pCatalog, &conn, pCxt->pUser, dbFName, AUTH_TYPE_WRITE, &pass);
+    code = catalogChkAuthFromCache(pCxt->pCatalog, pCxt->pUser, dbFName, AUTH_TYPE_WRITE, &pass, &exists);
   } else {
+    SRequestConnInfo conn = {.pTrans = pCxt->pTransporter,
+                             .requestId = pCxt->requestId,
+                             .requestObjRefId = pCxt->requestRid,
+                             .mgmtEps = pCxt->mgmtEpSet};
     code = catalogChkAuth(pCxt->pCatalog, &conn, pCxt->pUser, dbFName, AUTH_TYPE_WRITE, &pass);
   }
-  if (TSDB_CODE_SUCCESS == code && !pass) {
-    code = TSDB_CODE_PAR_PERMISSION_DENIED;
+  if (TSDB_CODE_SUCCESS == code) {
+    if (!exists) {
+      *pMissCache = true;
+    } else if (!pass) {
+      code = TSDB_CODE_PAR_PERMISSION_DENIED;
+    }
   }
   return code;
 }
 
 static int32_t getTableMeta(SInsertParseContext* pCxt, SName* pTbName, bool isStb, STableMeta** pTableMeta,
                             bool* pMissCache) {
-  SParseContext*   pComCxt = pCxt->pComCxt;
-  SRequestConnInfo conn = {.pTrans = pComCxt->pTransporter,
-                           .requestId = pComCxt->requestId,
-                           .requestObjRefId = pComCxt->requestRid,
-                           .mgmtEps = pComCxt->mgmtEpSet};
-  int32_t          code = TSDB_CODE_SUCCESS;
+  SParseContext* pComCxt = pCxt->pComCxt;
+  int32_t        code = TSDB_CODE_SUCCESS;
   if (pComCxt->async) {
     if (isStb) {
-      code = catalogGetCachedSTableMeta(pComCxt->pCatalog, &conn, pTbName, pTableMeta);
+      code = catalogGetCachedSTableMeta(pComCxt->pCatalog, pTbName, pTableMeta);
     } else {
-      code = catalogGetCachedTableMeta(pComCxt->pCatalog, &conn, pTbName, pTableMeta);
+      code = catalogGetCachedTableMeta(pComCxt->pCatalog, pTbName, pTableMeta);
     }
   } else {
+    SRequestConnInfo conn = {.pTrans = pComCxt->pTransporter,
+                             .requestId = pComCxt->requestId,
+                             .requestObjRefId = pComCxt->requestRid,
+                             .mgmtEps = pComCxt->mgmtEpSet};
     if (isStb) {
       code = catalogGetSTableMeta(pComCxt->pCatalog, &conn, pTbName, pTableMeta);
     } else {
@@ -793,16 +797,16 @@ static int32_t getTableMeta(SInsertParseContext* pCxt, SName* pTbName, bool isSt
 }
 
 static int32_t getTableVgroup(SParseContext* pCxt, SVnodeModifOpStmt* pStmt, bool isStb, bool* pMissCache) {
-  SRequestConnInfo conn = {.pTrans = pCxt->pTransporter,
-                           .requestId = pCxt->requestId,
-                           .requestObjRefId = pCxt->requestRid,
-                           .mgmtEps = pCxt->mgmtEpSet};
-  int32_t          code = TSDB_CODE_SUCCESS;
-  SVgroupInfo      vg;
-  bool             exists = true;
+  int32_t     code = TSDB_CODE_SUCCESS;
+  SVgroupInfo vg;
+  bool        exists = true;
   if (pCxt->async) {
-    code = catalogGetCachedTableHashVgroup(pCxt->pCatalog, &conn, &pStmt->targetTableName, &vg, &exists);
+    code = catalogGetCachedTableHashVgroup(pCxt->pCatalog, &pStmt->targetTableName, &vg, &exists);
   } else {
+    SRequestConnInfo conn = {.pTrans = pCxt->pTransporter,
+                             .requestId = pCxt->requestId,
+                             .requestObjRefId = pCxt->requestRid,
+                             .mgmtEps = pCxt->mgmtEpSet};
     code = catalogGetTableHashVgroup(pCxt->pCatalog, &conn, &pStmt->targetTableName, &vg);
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -818,8 +822,8 @@ static int32_t getTableVgroup(SParseContext* pCxt, SVnodeModifOpStmt* pStmt, boo
 }
 
 static int32_t getTargetTableSchema(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt) {
-  int32_t code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName);
-  if (TSDB_CODE_SUCCESS == code) {
+  int32_t code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName, &pCxt->missCache);
+  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTableMeta(pCxt, &pStmt->targetTableName, false, &pStmt->pTableMeta, &pCxt->missCache);
   }
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
@@ -833,8 +837,8 @@ static int32_t preParseUsingTableName(SInsertParseContext* pCxt, SVnodeModifOpSt
 }
 
 static int32_t getUsingTableSchema(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt) {
-  int32_t code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName);
-  if (TSDB_CODE_SUCCESS == code) {
+  int32_t code = checkAuth(pCxt->pComCxt, &pStmt->targetTableName, &pCxt->missCache);
+  if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = getTableMeta(pCxt, &pStmt->usingTableName, true, &pStmt->pTableMeta, &pCxt->missCache);
   }
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
