@@ -246,9 +246,6 @@ STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FItems fp) {
     pool->nextId = (pool->nextId + 1) % pool->max;
   }
 
-  while (worker->pid <= 0) taosMsleep(10);
-  queue->threadId = worker->pid;
-  uInfo("worker:%s, queue:%p is allocated, ahandle:%p thread:%08" PRId64, pool->name, queue, ahandle, queue->threadId);
   code = 0;
 
 _OVER:
@@ -260,6 +257,9 @@ _OVER:
     if (worker->qall != NULL) taosFreeQall(worker->qall);
     return NULL;
   } else {
+    while (worker->pid <= 0) taosMsleep(10);
+    queue->threadId = worker->pid;
+    uInfo("worker:%s, queue:%p is allocated, ahandle:%p thread:%08" PRId64, pool->name, queue, ahandle, queue->threadId);
     return queue;
   }
 }

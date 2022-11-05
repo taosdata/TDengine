@@ -140,6 +140,9 @@ int32_t smPutMsgToQueue(SSnodeMgmt *pMgmt, EQueueType qtype, SRpcMsg *pRpc) {
   if (pSnode == NULL) {
     dError("snode: msg:%p failed to put into vnode queue since %s, type:%s qtype:%d", pMsg, terrstr(),
            TMSG_INFO(pMsg->msgType), qtype);
+    taosFreeQitem(pMsg);
+    rpcFreeCont(pRpc->pCont);
+    pRpc->pCont = NULL;
     return -1;
   }
 

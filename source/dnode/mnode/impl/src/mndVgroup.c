@@ -325,10 +325,10 @@ static void *mndBuildAlterVnodeConfigReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pV
 static void *mndBuildAlterVnodeReplicaReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup, int32_t dnodeId,
                                           int32_t *pContLen) {
   SAlterVnodeReplicaReq alterReq = {
-      alterReq.vgId = pVgroup->vgId,
-      alterReq.strict = pDb->cfg.strict,
-      alterReq.replica = pVgroup->replica,
-      alterReq.selfIndex = -1,
+      .vgId = pVgroup->vgId,
+      .strict = pDb->cfg.strict,
+      .replica = pVgroup->replica,
+      .selfIndex = -1,
   };
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
