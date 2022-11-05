@@ -106,7 +106,7 @@ taos --dump-config
 | 适用范围 | 仅服务端适用                                                                                                                                                                                       |
 | 含义     | 服务器内部的系统监控开关。监控主要负责收集物理节点的负载状况，包括 CPU、内存、硬盘、网络带宽的监控记录，监控信息将通过 HTTP 协议发送给由 `monitorFqdn` 和 `monitorProt` 指定的 TaosKeeper 监控服务 |
 | 取值范围 | 0：关闭监控服务， 1：激活监控服务。                                                                                                                                                                |
-| 缺省值   | 1                                                                                                                                                                                                  |
+| 缺省值   | 0                                                                                                                                                                                                  |
 
 ### monitorFqdn
 
@@ -711,19 +711,17 @@ charset 的有效值是 UTF-8。
 | 44  | numOfVnodeQueryThreads  | 否              | 是              |                                                   |
 | 45  | numOfVnodeStreamThreads | 否              | 是              |                                                   |
 | 46  | numOfVnodeFetchThreads  | 否              | 是              |                                                   |
-| 47  | numOfVnodeWriteThreads  | 否              | 是              |                                                   |
-| 48  |  numOfVnodeSyncThreads  | 否              | 是              |                                                   |
-| 49  |  numOfVnodeRsmaThreads  | 否              | 是              |                                                   |
-| 50  | numOfQnodeQueryThreads  | 否              | 是              |                                                   |
-| 51  | numOfQnodeFetchThreads  | 否              | 是              |                                                   |
-| 52  | numOfSnodeSharedThreads | 否              | 是              |                                                   |
-| 53  | numOfSnodeUniqueThreads | 否              | 是              |                                                   |
-| 54  |  rpcQueueMemoryAllowed  | 否              | 是              |                                                   |
-| 55  |         logDir          | 是              | 是              |                                                   |
-| 56  |     minimalLogDirGB     | 是              | 是              |                                                   |
-| 57  |      numOfLogLines      | 是              | 是              |                                                   |
-| 58  |        asyncLog         | 是              | 是              |                                                   |
-| 59  |       logKeepDays       | 是              | 是              |                                                   |
+| 47  |  numOfVnodeRsmaThreads  | 否              | 是              |                                                   |
+| 48  | numOfQnodeQueryThreads  | 否              | 是              |                                                   |
+| 49  | numOfQnodeFetchThreads  | 否              | 是              |                                                   |
+| 50  | numOfSnodeSharedThreads | 否              | 是              |                                                   |
+| 51  | numOfSnodeUniqueThreads | 否              | 是              |                                                   |
+| 52  |  rpcQueueMemoryAllowed  | 否              | 是              |                                                   |
+| 53  |         logDir          | 是              | 是              |                                                   |
+| 54  |     minimalLogDirGB     | 是              | 是              |                                                   |
+| 55  |      numOfLogLines      | 是              | 是              |                                                   |
+| 56  |        asyncLog         | 是              | 是              |                                                   |
+| 57  |       logKeepDays       | 是              | 是              |                                                   |
 | 60  |        debugFlag        | 是              | 是              |                                                   |
 | 61  |      tmrDebugFlag       | 是              | 是              |                                                   |
 | 62  |       uDebugFlag        | 是              | 是              |                                                   |

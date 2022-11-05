@@ -36,14 +36,13 @@ int32_t tQWorkerInit(SQWorkerPool *pool) {
     worker->pool = pool;
   }
 
-  uInfo("worker:%s is initialized, min:%d max:%d", pool->name, pool->min, pool->max);
+  uDebug("worker:%s is initialized, min:%d max:%d", pool->name, pool->min, pool->max);
   return 0;
 }
 
 void tQWorkerCleanup(SQWorkerPool *pool) {
   for (int32_t i = 0; i < pool->max; ++i) {
     SQWorker *worker = pool->workers + i;
-    // if (worker == NULL) continue;
     if (taosCheckPthreadValid(worker->thread)) {
       taosQsetThreadResume(pool->qset);
     }
@@ -51,7 +50,6 @@ void tQWorkerCleanup(SQWorkerPool *pool) {
 
   for (int32_t i = 0; i < pool->max; ++i) {
     SQWorker *worker = pool->workers + i;
-    // if (worker == NULL) continue;
     if (taosCheckPthreadValid(worker->thread)) {
       taosThreadJoin(worker->thread, NULL);
       taosThreadClear(&worker->thread);
@@ -73,11 +71,13 @@ static void *tQWorkerThreadFp(SQWorker *worker) {
 
   taosBlockSIGPIPE();
   setThreadName(pool->name);
-  uDebug("worker:%s:%d is running", pool->name, worker->id);
+  worker->pid = taosGetSelfPthreadId();
+  uInfo("worker:%s:%d is running, thread:%08" PRId64, pool->name, worker->id, worker->pid);
 
   while (1) {
     if (taosReadQitemFromQset(pool->qset, (void **)&msg, &qinfo) == 0) {
-      uDebug("worker:%s:%d qset:%p, got no message and exiting", pool->name, worker->id, pool->qset);
+      uInfo("worker:%s:%d qset:%p, got no message and exiting, thread:%08" PRId64, pool->name, worker->id, pool->qset,
+            worker->pid);
       break;
     }
 
@@ -124,7 +124,7 @@ STaosQueue *tQWorkerAllocQueue(SQWorkerPool *pool, void *ahandle, FItem fp) {
   }
 
   taosThreadMutexUnlock(&pool->mutex);
-  uDebug("worker:%s, queue:%p is allocated, ahandle:%p", pool->name, queue, ahandle);
+  uInfo("worker:%s, queue:%p is allocated, ahandle:%p", pool->name, queue, ahandle);
 
   return queue;
 }
@@ -191,12 +191,14 @@ static void *tWWorkerThreadFp(SWWorker *worker) {
 
   taosBlockSIGPIPE();
   setThreadName(pool->name);
-  uDebug("worker:%s:%d is running", pool->name, worker->id);
+  worker->pid = taosGetSelfPthreadId();
+  uInfo("worker:%s:%d is running, thread:%08" PRId64, pool->name, worker->id, worker->pid);
 
   while (1) {
     numOfMsgs = taosReadAllQitemsFromQset(worker->qset, worker->qall, &qinfo);
     if (numOfMsgs == 0) {
-      uDebug("worker:%s:%d qset:%p, got no message and exiting", pool->name, worker->id, worker->qset);
+      uInfo("worker:%s:%d qset:%p, got no message and exiting, thread:%08" PRId64, pool->name, worker->id, worker->qset,
+            worker->pid);
       break;
     }
 
@@ -244,7 +246,9 @@ STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FItems fp) {
     pool->nextId = (pool->nextId + 1) % pool->max;
   }
 
-  uDebug("worker:%s, queue:%p is allocated, ahandle:%p", pool->name, queue, ahandle);
+  while (worker->pid <= 0) taosMsleep(10);
+  queue->threadId = worker->pid;
+  uInfo("worker:%s, queue:%p is allocated, ahandle:%p thread:%08" PRId64, pool->name, queue, ahandle, queue->threadId);
   code = 0;
 
 _OVER:

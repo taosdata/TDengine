@@ -116,6 +116,13 @@ int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitMsgIter *pMsgI
   if (info.suid) {
     metaGetInfo(pTsdb->pVnode->pMeta, info.suid, &info);
   }
+  if (pMsgIter->sversion != info.skmVer) {
+    tsdbError("vgId:%d, req sver:%d, skmVer:%d suid:%" PRId64 " uid:%" PRId64,
+             TD_VID(pTsdb->pVnode), pMsgIter->sversion, info.skmVer, suid, uid);
+    code = TSDB_CODE_TDB_INVALID_TABLE_SCHEMA_VER;
+    goto _err;
+  }
+  
   pRsp->sver = info.skmVer;
 
   // create/get STbData to op
@@ -133,6 +140,7 @@ int32_t tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitMsgIter *pMsgI
   return code;
 
 _err:
+  terrno = code;
   return code;
 }
 

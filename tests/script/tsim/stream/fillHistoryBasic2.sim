@@ -1,0 +1,277 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+
+system sh/exec.sh -n dnode1 -s start 
+sleep 50
+sql connect
+
+sql create dnode $hostname2 port 7200
+
+system sh/exec.sh -n dnode2 -s start
+
+print ===== step1
+$x = 0
+step1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+	  print ====> dnode not ready!
+		return -1
+	endi
+sql select * from information_schema.ins_dnodes
+print ===> $data00 $data01 $data02 $data03 $data04 $data05
+print ===> $data10 $data11 $data12 $data13 $data14 $data15
+if $rows != 2 then
+  return -1
+endi
+if $data(1)[4] != ready then
+  goto step1
+endi
+if $data(2)[4] != ready then
+  goto step1
+endi
+
+print ===== step2
+sql drop stream if exists stream_t1;
+sql drop database if exists test;
+sql create database test  vgroups 4;
+sql use test;
+sql create stable st(ts timestamp, a int, b int , c int, d double) tags(ta int,tb int,tc int);
+sql create table ts1 using st tags(1,1,1);
+sql create table ts2 using st tags(2,2,2);
+sql create table ts3 using st tags(3,2,2);
+sql create table ts4 using st tags(4,2,2);
+
+sql insert into ts1 values(1648791213001,1,12,3,1.0);
+sql insert into ts2 values(1648791213001,1,12,3,1.0);
+
+sql insert into ts3 values(1648791213001,1,12,3,1.0);
+sql insert into ts4 values(1648791213001,1,12,3,1.0);
+
+sql insert into ts1 values(1648791213002,NULL,NULL,NULL,NULL);
+sql insert into ts2 values(1648791213002,NULL,NULL,NULL,NULL);
+
+sql insert into ts3 values(1648791213002,NULL,NULL,NULL,NULL);
+sql insert into ts4 values(1648791213002,NULL,NULL,NULL,NULL);
+
+sql insert into ts1 values(1648791223002,2,2,3,1.1);
+sql insert into ts1 values(1648791233003,3,2,3,2.1);
+sql insert into ts2 values(1648791243004,4,2,43,73.1);
+sql insert into ts1 values(1648791213002,24,22,23,4.1);
+sql insert into ts1 values(1648791243005,4,20,3,3.1);
+sql insert into ts2 values(1648791243006,4,2,3,3.1) (1648791243007,4,2,3,3.1) ;
+sql insert into ts1 values(1648791243008,4,2,30,3.1) (1648791243009,4,2,3,3.1)  (1648791243010,4,2,3,3.1)  ;
+sql insert into ts2 values(1648791243011,4,2,3,3.1) (1648791243012,34,32,33,3.1)  (1648791243013,4,2,3,3.1) (1648791243014,4,2,13,3.1);
+sql insert into ts1 values(1648791243005,4,42,3,3.1) (1648791243003,4,2,33,3.1) (1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0) (1648791223001,22,22,83,1.1) ;
+sql insert into ts2 values(1648791243005,4,42,3,3.1) (1648791243003,4,2,33,3.1) (1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0) (1648791223001,22,22,83,1.1) (1648791233004,13,12,13,2.1) ;
+sql insert into ts1 values(1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0)  (1648791223001,22,22,83,1.1) ;
+
+sql insert into ts3 values(1648791223002,2,2,3,1.1);
+sql insert into ts4 values(1648791233003,3,2,3,2.1);
+sql insert into ts3 values(1648791243004,4,2,43,73.1);
+sql insert into ts4 values(1648791213002,24,22,23,4.1);
+sql insert into ts3 values(1648791243005,4,20,3,3.1);
+sql insert into ts4 values(1648791243006,4,2,3,3.1) (1648791243007,4,2,3,3.1) ;
+sql insert into ts3 values(1648791243008,4,2,30,3.1) (1648791243009,4,2,3,3.1)  (1648791243010,4,2,3,3.1)  ;
+sql insert into ts4 values(1648791243011,4,2,3,3.1) (1648791243012,34,32,33,3.1)  (1648791243013,4,2,3,3.1) (1648791243014,4,2,13,3.1);
+sql insert into ts3 values(1648791243005,4,42,3,3.1) (1648791243003,4,2,33,3.1) (1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0) (1648791223001,22,22,83,1.1) ;
+sql insert into ts4 values(1648791243005,4,42,3,3.1) (1648791243003,4,2,33,3.1) (1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0) (1648791223001,22,22,83,1.1) (1648791233004,13,12,13,2.1) ;
+sql insert into ts3 values(1648791243006,4,2,3,3.1) (1648791213001,1,52,13,1.0)  (1648791223001,22,22,83,1.1) ;
+
+sql create stream stream_t1 trigger at_once fill_history 1 watermark 1d into streamtST1 as select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5 from st interval(10s);
+
+sleep 1000
+
+$loop_count = 0
+loop1:
+sleep 300
+sql select * from streamtST1;
+
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+# row 0
+if $data01 != 8 then
+  print =====data01=$data01
+  goto loop1
+endi
+
+if $data02 != 6 then
+  print =====data02=$data02
+  goto loop1
+endi
+
+if $data03 != 52 then
+  print ======data03=$data03
+  goto loop1
+endi
+
+if $data04 != 52 then
+  print ======data04=$data04
+  goto loop1
+endi
+
+if $data05 != 13 then
+  print ======data05=$data05
+  goto loop1
+endi
+
+# row 1
+if $data11 != 6 then
+  print =====data11=$data11
+  goto loop1
+endi
+
+if $data12 != 6 then
+  print =====data12=$data12
+  goto loop1
+endi
+
+if $data13 != 92 then
+  print ======$data13
+  return -1
+endi
+
+if $data14 != 22 then
+  print ======$data14
+  return -1
+endi
+
+if $data15 != 3 then
+  print ======$data15
+  return -1
+endi
+
+# row 2
+if $data21 != 4 then
+  print =====data21=$data21
+  goto loop1
+endi
+
+if $data22 != 4 then
+  print =====data22=$data22
+  goto loop1
+endi
+
+if $data23 != 32 then
+  print ======$data23
+  return -1
+endi
+
+if $data24 != 12 then
+  print ======$data24
+  return -1
+endi
+
+if $data25 != 3 then
+  print ======$data25
+  return -1
+endi
+
+# row 3
+if $data31 != 30 then
+  print =====data31=$data31
+  goto loop1
+endi
+
+if $data32 != 30 then
+  print =====data32=$data32
+  goto loop1
+endi
+
+if $data33 != 180 then
+  print ======$data33
+  return -1
+endi
+
+if $data34 != 42 then
+  print ======$data34
+  return -1
+endi
+
+if $data35 != 3 then
+  print ======$data35
+  return -1
+endi
+
+sql select  _wstart, count(*) c1, count(d) c2 , sum(a) c3 , max(b)  c4, min(c) c5, avg(d) from st interval(10s);
+
+
+sql create database test1  vgroups 4;
+sql use test1;
+sql create stable st(ts timestamp, a int, b int , c int) tags(ta int,tb int,tc int);
+sql create table ts1 using st tags(1,1,1);
+sql create table ts2 using st tags(2,2,2);
+
+sql insert into ts1 values(1648791211000,1,2,3);
+sql insert into ts1 values(1648791222001,2,2,3);
+sql insert into ts2 values(1648791211000,1,2,3);
+sql insert into ts2 values(1648791222001,2,2,3);
+
+sql create stream stream_t2 trigger at_once fill_history 1 watermark 20s into streamtST1 as select  _wstart, count(*) c1, count(a) c2 , sum(a) c3 ,  max(b)  c5, min(c) c6 from st interval(10s) ;
+
+$loop_count = 0
+loop2:
+sql select * from streamtST1;
+
+sleep 300
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+# row 0
+if $data01 != 2 then
+  print =====data01=$data01
+  goto loop2
+endi
+
+#rows 1
+if $data11 != 2 then
+  print =====data11=$data11
+  goto loop2
+endi
+
+#max,min selectivity
+sql create database test3  vgroups 4;
+sql use test3;
+sql create stable st(ts timestamp, a int, b int , c int) tags(ta int,tb int,tc int);
+sql create table ts1 using st tags(1,1,1);
+sql create table ts2 using st tags(2,2,2);
+sql create stream stream_t3 trigger at_once into streamtST3 as select ts, min(a) c6, a, b, c, ta, tb, tc from st interval(10s) ;
+
+sql insert into ts1 values(1648791211000,1,2,3);
+sleep 50
+sql insert into ts1 values(1648791222001,2,2,3);
+sleep 50
+sql insert into ts2 values(1648791211000,1,2,3);
+sleep 50
+sql insert into ts2 values(1648791222001,2,2,3);
+sleep 50
+
+$loop_count = 0
+loop3:
+sql select * from streamtST3;
+
+sleep 300
+$loop_count = $loop_count + 1
+if $loop_count == 10 then
+  return -1
+endi
+
+# row 0
+if $data02 != 1 then
+  print =====data02=$data02
+  goto loop3
+endi
+
+# row 1
+if $data12 != 2 then
+  print =====data12=$data12
+  goto loop3
+endi
+
+system sh/stop_dnodes.sh

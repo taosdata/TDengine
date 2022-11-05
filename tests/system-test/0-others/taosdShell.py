@@ -45,6 +45,7 @@ class TDTestCase:
     # print ("===================: ", updatecfgDict)
 
     def init(self, conn, logSql, replicaVar=1):
+        self.replicaVar = int(replicaVar)
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
@@ -90,7 +91,7 @@ class TDTestCase:
                 break
             else:
                 tdLog.info( "wait start taosd ,times: %d "%i)
-            sleep
+            time.sleep(1)
             i+= 1
         else :
             tdLog.exit("taosd %s is not running "%startAction)    
