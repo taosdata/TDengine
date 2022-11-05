@@ -49,6 +49,7 @@ extern "C" {
 //        IN commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
 //     /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, log>>
 //
+void syncOneReplicaAdvance(SSyncNode* pSyncNode);
 void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode);
 bool syncAgreeIndex(SSyncNode* pSyncNode, SRaftId* pRaftId, SyncIndex index);
 bool syncAgree(SSyncNode* pSyncNode, SyncIndex index);
