@@ -137,6 +137,9 @@ static FORCE_INLINE void colDataAppendNNULL(SColumnInfoData* pColumnInfoData, ui
     for (int32_t i = start; i < start + nRows; ++i) {
       colDataSetNull_f(pColumnInfoData->nullbitmap, i);
     }
+
+    int32_t bytes = pColumnInfoData->info.bytes;
+    memset(pColumnInfoData->pData + start * bytes, 0, nRows * bytes);
   }
 
   pColumnInfoData->hasNull = true;
