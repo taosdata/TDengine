@@ -282,6 +282,8 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
   pMgmt->errCode = 0;
 
   SRpcMsg req = {.msgType = TDMT_MND_APPLY_MSG, .contLen = sdbGetRawTotalSize(pRaw)};
+  if (req.contLen <= 0) return -1;
+  
   req.pCont = rpcMallocCont(req.contLen);
   if (req.pCont == NULL) return -1;
   memcpy(req.pCont, pRaw, req.contLen);
