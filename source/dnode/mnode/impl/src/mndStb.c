@@ -466,7 +466,7 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
 
   contLen += sizeof(SMsgHead);
 
-  SMsgHead *pHead = taosMemoryMalloc(contLen);
+  SMsgHead *pHead = taosMemoryCalloc(1, contLen);
   if (pHead == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
@@ -519,6 +519,7 @@ static void *mndBuildVDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb,
 
   pHead->contLen = htonl(contLen);
   pHead->vgId = htonl(pVgroup->vgId);
+  pHead->msgMask = htonl(0);
 
   void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
 

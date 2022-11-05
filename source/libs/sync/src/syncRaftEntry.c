@@ -72,6 +72,7 @@ SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId)
   SMsgHead head;
   head.vgId = vgId;
   head.contLen = sizeof(SMsgHead);
+  head.msgMask = 0;
   SRpcMsg rpcMsg;
   memset(&rpcMsg, 0, sizeof(SRpcMsg));
   rpcMsg.contLen = head.contLen;

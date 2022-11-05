@@ -145,6 +145,7 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
 
   pHead->contLen = ntohl(pHead->contLen);
   pHead->vgId = ntohl(pHead->vgId);
+  pHead->msgMask = ntohl(pHead->msgMask);
 
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, pHead->vgId);
   if (pVnode == NULL) {
@@ -155,7 +156,7 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
 
   switch (qtype) {
     case QUERY_QUEUE:
-      if ((pMsg->msgType == TDMT_SCH_QUERY) && (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS)) {
+      if ((pMsg->msgType == TDMT_SCH_QUERY) && (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) && !TEST_SHOW_REWRITE_MASK(pHead->msgMask)) {
         terrno = TSDB_CODE_GRANT_EXPIRED;
         code = terrno;
         dDebug("vgId:%d, msg:%p put into vnode-query queue failed since %s", pVnode->vgId, pMsg, terrstr(code));
