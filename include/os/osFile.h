@@ -42,6 +42,16 @@ extern "C" {
 #define PATH_MAX 256
 #endif
 
+#ifdef WINDOWS
+#define TD_PATH_MAX _MAX_PATH
+#elif defined(PATH_MAX)
+#define TD_PATH_MAX PATH_MAX
+#elif defined(_XOPEN_PATH_MAX)
+#define TD_PATH_MAX _XOPEN_PATH_MAX
+#else
+#define TD_PATH_MAX _POSIX_PATH_MAX
+#endif
+
 typedef struct TdFile *TdFilePtr;
 
 #define TD_FILE_CREATE   0x0001
