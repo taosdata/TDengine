@@ -214,7 +214,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 The parameters listed in this section apply to all function modes.
 
 - **filetype** : The function to be tested, with optional values `insert`, `query` and `subscribe`. These correspond to the insert, query, and subscribe functions, respectively. Users can specify only one of these in each configuration file.
-**cfgdir**: specify the TDengine cluster configuration file's directory. The default path is /etc/taos.
+**cfgdir**: specify the TDengine client configuration file's directory. The default path is /etc/taos.
 
 - **host**: Specify the FQDN of the TDengine server to connect. The default value is `localhost`.
 
