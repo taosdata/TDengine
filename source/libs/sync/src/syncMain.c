@@ -3010,7 +3010,11 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SyncClientRequest* pMsg, SyncInd
 
     // if only myself, maybe commit right now
     if (ths->replicaNum == 1) {
-      syncMaybeAdvanceCommitIndex(ths);
+      if (syncNodeIsMnode(ths)) {
+        syncMaybeAdvanceCommitIndex(ths);
+      } else {
+        syncOneReplicaAdvance(ths);
+      }
     }
   }
 
