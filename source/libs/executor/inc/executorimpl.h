@@ -621,10 +621,8 @@ typedef struct SIndefOperatorInfo {
   SAggSupporter  aggSup;
   SArray*        pPseudoColInfo;
   SExprSupp      scalarSup;
-  SNode*         pCondition;
   uint64_t       groupId;
-
-  SSDataBlock* pNextGroupRes;
+  SSDataBlock*   pNextGroupRes;
 } SIndefOperatorInfo;
 
 typedef struct SFillOperatorInfo {
@@ -649,7 +647,6 @@ typedef struct SGroupbyOperatorInfo {
   SAggSupporter  aggSup;
   SArray*        pGroupCols;     // group by columns, SArray<SColumn>
   SArray*        pGroupColVals;  // current group column values, SArray<SGroupKeys>
-  SNode*         pCondition;
   bool           isInit;       // denote if current val is initialized or not
   char*          keyBuf;       // group by keys for hash
   int32_t        groupKeyLen;  // total group by column width

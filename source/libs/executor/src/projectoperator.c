@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <libs/scalar/filter.h>
+#include "filter.h"
 #include "executorimpl.h"
 #include "functionMgt.h"
 
