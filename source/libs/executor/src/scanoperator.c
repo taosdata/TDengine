@@ -3684,6 +3684,7 @@ static SSDataBlock* sysTableBuildUserTablesByUids(SOperatorInfo* pOperator) {
   pInfo->loadInfo.totalRows += pInfo->pRes->info.rows;
   return (pInfo->pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
+
 static SSDataBlock* sysTableBuildUserTables(SOperatorInfo* pOperator) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
@@ -4094,20 +4095,28 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   }
 
   SScanPhysiNode* pScanNode = &pScanPhyNode->scan;
-
   SDataBlockDescNode* pDescNode = pScanNode->node.pOutputDataBlockDesc;
 
   int32_t num = 0;
   int32_t code = extractColMatchInfo(pScanNode->pScanCols, pDescNode, &num, COL_MATCH_FROM_COL_ID, &pInfo->matchInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
   pInfo->accountId = pScanPhyNode->accountId;
   pInfo->pUser = taosMemoryStrDup((void*)pUser);
   pInfo->sysInfo = pScanPhyNode->sysInfo;
   pInfo->showRewrite = pScanPhyNode->showRewrite;
   pInfo->pRes = createResDataBlock(pDescNode);
+
   pInfo->pCondition = pScanNode->node.pConditions;
+  code = filterInitFromNode(pScanNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
+  blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
 
   tNameAssign(&pInfo->name, &pScanNode->tableName);
   const char* name = tNameGetTableName(&pInfo->name);
@@ -4115,7 +4124,6 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   if (strncasecmp(name, TSDB_INS_TABLE_TABLES, TSDB_TABLE_FNAME_LEN) == 0 ||
       strncasecmp(name, TSDB_INS_TABLE_TAGS, TSDB_TABLE_FNAME_LEN) == 0) {
     pInfo->readHandle = *(SReadHandle*)readHandle;
-    blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
   } else {
     tsem_init(&pInfo->ready, 0, 0);
     pInfo->epSet = pScanPhyNode->mgmtEpSet;
@@ -4131,13 +4139,15 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSystemTableScan
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doSysTableScan, NULL, NULL, destroySysScanOperator, NULL);
-
   return pOperator;
 
 _error:
-  taosMemoryFreeClear(pInfo);
+  if (pInfo != NULL) {
+    destroySysScanOperator(pInfo);
+  }
+
   taosMemoryFreeClear(pOperator);
-  terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+  pTaskInfo->code = code;
   return NULL;
 }
 
