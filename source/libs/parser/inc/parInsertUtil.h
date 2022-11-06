@@ -138,7 +138,7 @@ void    insBuildCreateTbReq(SVCreateTbReq *pTbReq, const char *tname, STag *pTag
                             SArray *tagName, uint8_t tagNum);
 int32_t insMemRowAppend(SMsgBuf *pMsgBuf, const void *value, int32_t len, void *param);
 int32_t insCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start);
-int32_t insBuildOutput(SVnodeModifOpStmt *pStmt);
+int32_t insBuildOutput(SHashObj *pVgroupsHashObj, SArray *pVgDataBlocks, SArray **pDataBlocks);
 void    insDestroyDataBlock(STableDataBlocks *pDataBlock);
 
 #endif  // TDENGINE_PAR_INSERT_UTIL_H

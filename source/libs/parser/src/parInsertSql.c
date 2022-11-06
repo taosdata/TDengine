@@ -1448,8 +1448,19 @@ static int32_t parseInsertTableClauseBottom(SInsertParseContext* pCxt, SVnodeMod
   return code;
 }
 
+static void resetEnvPreTable(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt) {
+  destroyBoundColumnInfo(&pCxt->tags);
+  taosMemoryFreeClear(pStmt->pTableMeta);
+  tdDestroySVCreateTbReq(&pStmt->createTblReq);
+  pCxt->missCache = false;
+  pCxt->usingDuplicateTable = false;
+  pStmt->usingTableProcessing = false;
+  pStmt->fileProcessing = false;
+}
+
 // input pStmt->pSql: [(field1_name, ...)] [ USING ... ] VALUES ... | FILE ...
 static int32_t parseInsertTableClause(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt, SToken* pTbName) {
+  resetEnvPreTable(pCxt, pStmt);
   int32_t code = parseSchemaClauseTop(pCxt, pStmt, pTbName);
   if (TSDB_CODE_SUCCESS == code && !pCxt->missCache) {
     code = parseInsertTableClauseBottom(pCxt, pStmt);
@@ -1506,11 +1517,8 @@ static int32_t setStmtInfo(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt) 
   SStmtCallback* pStmtCb = pCxt->pComCxt->pStmtCb;
   char           tbFName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(&pStmt->targetTableName, tbFName);
-  char stbFName[TSDB_TABLE_FNAME_LEN];
-  tNameExtractFullName(&pStmt->usingTableName, stbFName);
-  int32_t code =
-      (*pStmtCb->setInfoFn)(pStmtCb->pStmt, pStmt->pTableMeta, tags, tbFName, '\0' != pStmt->usingTableName.tname[0],
-                            pStmt->pVgroupsHashObj, pStmt->pTableBlockHashObj, stbFName);
+  int32_t code = (*pStmtCb->setInfoFn)(pStmtCb->pStmt, pStmt->pTableMeta, tags, tbFName, pStmt->usingTableProcessing,
+                                       pStmt->pVgroupsHashObj, pStmt->pTableBlockHashObj, pStmt->usingTableName.tname);
 
   memset(&pCxt->tags, 0, sizeof(pCxt->tags));
   pStmt->pVgroupsHashObj = NULL;
@@ -1529,19 +1537,9 @@ static int32_t parseInsertBodyBottom(SInsertParseContext* pCxt, SVnodeModifOpStm
     code = insMergeTableDataBlocks(pStmt->pTableBlockHashObj, &pStmt->pVgDataBlocks);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = insBuildOutput(pStmt);
+    code = insBuildOutput(pStmt->pVgroupsHashObj, pStmt->pVgDataBlocks, &pStmt->pDataBlocks);
   }
   return code;
-}
-
-static void destroyEnvPreTable(SInsertParseContext* pCxt, SVnodeModifOpStmt* pStmt) {
-  destroyBoundColumnInfo(&pCxt->tags);
-  taosMemoryFreeClear(pStmt->pTableMeta);
-  tdDestroySVCreateTbReq(&pStmt->createTblReq);
-  pCxt->missCache = false;
-  pCxt->usingDuplicateTable = false;
-  pStmt->usingTableProcessing = false;
-  pStmt->fileProcessing = false;
 }
 
 // tb_name
@@ -1555,7 +1553,6 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt, SVnodeModifOpStmt* pSt
   bool    hasData = true;
   // for each table
   while (TSDB_CODE_SUCCESS == code && hasData && !pCxt->missCache && !pStmt->fileProcessing) {
-    destroyEnvPreTable(pCxt, pStmt);
     // pStmt->pSql -> tb_name ...
     NEXT_TOKEN(pStmt->pSql, token);
     code = checkTableClauseFirstToken(pCxt, pStmt, &token, &hasData);

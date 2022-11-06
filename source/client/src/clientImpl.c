@@ -931,7 +931,8 @@ void schedulerExecCb(SExecResult* pResult, void* param, int32_t code) {
     pRequest->code = code1;
   }
 
-  if (pRequest->code == TSDB_CODE_SUCCESS && incompletaFileParsing(pRequest->pQuery->pRoot)) {
+  if (pRequest->code == TSDB_CODE_SUCCESS && NULL != pRequest->pQuery &&
+      incompletaFileParsing(pRequest->pQuery->pRoot)) {
     continueInsertFromCsv(pWrapper, pRequest);
     return;
   }
@@ -1057,7 +1058,7 @@ static int32_t asyncExecSchQuery(SRequestObj* pRequest, SQuery* pQuery, SMetaDat
   }
   if (TSDB_CODE_SUCCESS == code && !pRequest->validateOnly) {
     SArray* pNodeList = NULL;
-    if (QUERY_NODE_VNODE_MODIF_STMT != nodeType(pRequest->pQuery->pRoot)) {
+    if (QUERY_NODE_VNODE_MODIF_STMT != nodeType(pQuery->pRoot)) {
       buildAsyncExecNodeList(pRequest, &pNodeList, pMnodeList, pResultMeta);
     }
 

@@ -832,6 +832,10 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
     }
   }
 
+  if (NULL != strchr(pName->tname, '.')) {
+    code = generateSyntaxErrMsgExt(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, "The table name cannot contain '.'");
+  }
+
   return code;
 }
 
@@ -930,24 +934,24 @@ static void buildMsgHeader(STableDataBlocks* src, SVgDataBlocks* blocks) {
   }
 }
 
-int32_t insBuildOutput(SVnodeModifOpStmt* pStmt) {
-  size_t numOfVg = taosArrayGetSize(pStmt->pVgDataBlocks);
-  pStmt->pDataBlocks = taosArrayInit(numOfVg, POINTER_BYTES);
-  if (NULL == pStmt->pDataBlocks) {
+int32_t insBuildOutput(SHashObj* pVgroupsHashObj, SArray* pVgDataBlocks, SArray** pDataBlocks) {
+  size_t numOfVg = taosArrayGetSize(pVgDataBlocks);
+  *pDataBlocks = taosArrayInit(numOfVg, POINTER_BYTES);
+  if (NULL == *pDataBlocks) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   for (size_t i = 0; i < numOfVg; ++i) {
-    STableDataBlocks* src = taosArrayGetP(pStmt->pVgDataBlocks, i);
+    STableDataBlocks* src = taosArrayGetP(pVgDataBlocks, i);
     SVgDataBlocks*    dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
     if (NULL == dst) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
-    taosHashGetDup(pStmt->pVgroupsHashObj, (const char*)&src->vgId, sizeof(src->vgId), &dst->vg);
+    taosHashGetDup(pVgroupsHashObj, (const char*)&src->vgId, sizeof(src->vgId), &dst->vg);
     dst->numOfTables = src->numOfTables;
     dst->size = src->size;
     TSWAP(dst->pData, src->pData);
     buildMsgHeader(src, dst);
-    taosArrayPush(pStmt->pDataBlocks, &dst);
+    taosArrayPush(*pDataBlocks, &dst);
   }
   return TSDB_CODE_SUCCESS;
 }

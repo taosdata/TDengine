@@ -30,18 +30,17 @@ typedef struct SKvParam {
 } SKvParam;
 
 int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash) {
-  SVnodeModifOpStmt* modifyNode = (SVnodeModifOpStmt*)pQuery->pRoot;
-  int32_t            code = 0;
-
+  int32_t code = TSDB_CODE_SUCCESS;
+  SArray* pVgDataBlocks = NULL;
   // merge according to vgId
   if (taosHashGetSize(pBlockHash) > 0) {
-    CHECK_CODE(insMergeTableDataBlocks(pBlockHash, &modifyNode->pVgDataBlocks));
+    code = insMergeTableDataBlocks(pBlockHash, &pVgDataBlocks);
   }
-
-  CHECK_CODE(insBuildOutput(modifyNode));
-
-  insDestroyBlockArrayList(modifyNode->pVgDataBlocks);
-  return TSDB_CODE_SUCCESS;
+  if (TSDB_CODE_SUCCESS == code) {
+    code = insBuildOutput(pVgHash, pVgDataBlocks, &((SVnodeModifOpStmt*)pQuery->pRoot)->pDataBlocks);
+  }
+  insDestroyBlockArrayList(pVgDataBlocks);
+  return code;
 }
 
 int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, const char* sTableName, char* tName,
