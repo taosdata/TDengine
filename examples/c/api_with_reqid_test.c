@@ -1,8 +1,6 @@
 // sample code to verify all TDengine API
 // to compile: gcc -o apitest apitest.c -ltaos
 
-#include "taoserror.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
