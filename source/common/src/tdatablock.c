@@ -1144,8 +1144,9 @@ void blockDataCleanup(SSDataBlock* pDataBlock) {
   }
 }
 
+// todo temporarily disable it
 static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* pBlockInfo, uint32_t numOfRows, bool clearPayload) {
-  ASSERT(numOfRows > 0 && pBlockInfo->capacity >= pBlockInfo->rows);
+  ASSERT(numOfRows > 0 /*&& pBlockInfo->capacity >= pBlockInfo->rows*/);
   if (numOfRows <= pBlockInfo->capacity) {
     return TSDB_CODE_SUCCESS;
   }

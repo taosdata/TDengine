@@ -1081,14 +1081,16 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
   }
   pInfo->partitionSup.needCalc = true;
 
-  SSDataBlock* pResBlock = createResDataBlock(pPartNode->part.node.pOutputDataBlockDesc);
-  if (!pResBlock) {
+  pInfo->binfo.pRes = createResDataBlock(pPartNode->part.node.pOutputDataBlockDesc);
+  if (pInfo->binfo.pRes == NULL) {
     goto _error;
   }
-  blockDataEnsureCapacity(pResBlock, 4096);
-  pInfo->binfo.pRes = pResBlock;
+
+  blockDataEnsureCapacity(pInfo->binfo.pRes, 4096);
+
   pInfo->parIte = NULL;
   pInfo->pInputDataBlock = NULL;
+
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pInfo->pPartitions = taosHashInit(1024, hashFn, false, HASH_NO_LOCK);
   pInfo->tsColIndex = 0;
