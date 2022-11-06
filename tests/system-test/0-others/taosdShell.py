@@ -91,7 +91,7 @@ class TDTestCase:
                 break
             else:
                 tdLog.info( "wait start taosd ,times: %d "%i)
-            sleep
+            time.sleep(1)
             i+= 1
         else :
             tdLog.exit("taosd %s is not running "%startAction)    

@@ -768,7 +768,7 @@ char* sync2SimpleStr(int64_t rid) {
     sTrace("syncSetRpc get pSyncNode is NULL, rid:%" PRId64, rid);
     return NULL;
   }
-  ASSERT(rid == pSyncNode->rid);
+
   char* s = syncNode2SimpleStr(pSyncNode);
   syncNodeRelease(pSyncNode);
 
@@ -778,11 +778,9 @@ char* sync2SimpleStr(int64_t rid) {
 int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
-    syncNodeRelease(pSyncNode);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
   }
-  ASSERT(rid == pSyncNode->rid);
 
   int32_t ret = syncNodePropose(pSyncNode, pMsg, isWeak);
   syncNodeRelease(pSyncNode);
@@ -3010,7 +3008,11 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SyncClientRequest* pMsg, SyncInd
 
     // if only myself, maybe commit right now
     if (ths->replicaNum == 1) {
-      syncMaybeAdvanceCommitIndex(ths);
+      if (syncNodeIsMnode(ths)) {
+        syncMaybeAdvanceCommitIndex(ths);
+      } else {
+        syncOneReplicaAdvance(ths);
+      }
     }
   }
 
@@ -3104,15 +3106,15 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
 
   if (ths->pFsm->FpLeaderTransferCb != NULL) {
     SFsmCbMeta cbMeta = {
-        cbMeta.code = 0,
-        cbMeta.currentTerm = ths->pRaftStore->currentTerm,
-        cbMeta.flag = 0,
-        cbMeta.index = pEntry->index,
-        cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, pEntry->index),
-        cbMeta.isWeak = pEntry->isWeak,
-        cbMeta.seqNum = pEntry->seqNum,
-        cbMeta.state = ths->state,
-        cbMeta.term = pEntry->term,
+        .code = 0,
+        .currentTerm = ths->pRaftStore->currentTerm,
+        .flag = 0,
+        .index = pEntry->index,
+        .lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, pEntry->index),
+        .isWeak = pEntry->isWeak,
+        .seqNum = pEntry->seqNum,
+        .state = ths->state,
+        .term = pEntry->term,
     };
     ths->pFsm->FpLeaderTransferCb(ths->pFsm, pRpcMsg, &cbMeta);
   }

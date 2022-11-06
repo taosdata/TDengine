@@ -209,7 +209,7 @@ python3 ./test.py -f 2-query/varchar.py -R
 python3 ./test.py -f 1-insert/update_data.py
 python3 ./test.py -f 1-insert/tb_100w_data_order.py
 
-python3 ./test.py -f 1-insert/delete_data.py
+# TD-20200 python3 ./test.py -f 1-insert/delete_data.py
 python3 ./test.py -f 1-insert/keep_expired.py
 
 python3 ./test.py -f 2-query/join2.py
@@ -232,12 +232,14 @@ python3 ./test.py -f 2-query/function_diff.py
 python3 ./test.py -f 2-query/queryQnode.py
 
 python3 ./test.py -f 6-cluster/5dnode1mnode.py
-python3 ./test.py -f 6-cluster/5dnode2mnode.py  -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode2mnode.py  -N 5
 python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3 -i False
 python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py -N 5 -M 3 -i False
 python3 ./test.py -f 6-cluster/5dnode3mnodeStopLoop.py -N 5 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 6 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 6 -M 3 -n 3
+# TD-20198 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 6 -M 3 -n 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 6 -M 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 6 -M 3 -n 3
 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 6 -M 3

@@ -15,10 +15,10 @@
 #define MyAppExeName "\*.exe"
 #define MyAppTaosExeName "\taos.bat"
 #define MyAppTaosdemoExeName "\taosBenchmark.exe"
-#define MyAppDLLName "\driver\taos.dll"
+#define MyAppDLLName "\driver\*.dll"
 ;#define MyAppVersion "3.0"
 ;#define MyAppInstallName "TDengine"
-
+;#define MyAppInstallName "TDengine"
 [Setup]
 VersionInfoVersion={#MyAppVersion}
 AppId={{A0F7A93C-79C4-485D-B2B8-F0D03DF42FAB}

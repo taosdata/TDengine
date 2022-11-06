@@ -79,29 +79,49 @@ int32_t vmOpenVnode(SVnodeMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
 void vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   char path[TSDB_FILENAME_LEN] = {0};
 
-  vnodePreClose(pVnode->pImpl);
-
   taosThreadRwlockWrlock(&pMgmt->lock);
   taosHashRemove(pMgmt->hash, &pVnode->vgId, sizeof(int32_t));
   taosThreadRwlockUnlock(&pMgmt->lock);
   vmReleaseVnode(pMgmt, pVnode);
 
-  dTrace("vgId:%d, wait for vnode ref become 0", pVnode->vgId);
-  while (pVnode->refCount > 0) taosMsleep(10);
-  dTrace("vgId:%d, wait for vnode queue is empty", pVnode->vgId);
+  dInfo("vgId:%d, pre close", pVnode->vgId);
+  vnodePreClose(pVnode->pImpl);
 
-  while (!taosQueueEmpty(pVnode->pWriteQ)) taosMsleep(10);
-  while (!taosQueueEmpty(pVnode->pSyncQ)) taosMsleep(10);
-  while (!taosQueueEmpty(pVnode->pApplyQ)) taosMsleep(10);
+  dInfo("vgId:%d, wait for vnode ref become 0", pVnode->vgId);
+  while (pVnode->refCount > 0) taosMsleep(10);
+
+  dInfo("vgId:%d, wait for vnode write queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pWriteW.queue,
+        pVnode->pWriteW.queue->threadId);
+  tMultiWorkerCleanup(&pVnode->pWriteW);
+
+  dInfo("vgId:%d, wait for vnode sync queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pSyncW.queue,
+        pVnode->pSyncW.queue->threadId);
+  tMultiWorkerCleanup(&pVnode->pSyncW);
+
+  dInfo("vgId:%d, wait for vnode sync ctrl queue:%p is empty, thread:%08" PRId64, pVnode->vgId,
+        pVnode->pSyncCtrlW.queue, pVnode->pSyncCtrlW.queue->threadId);
+  tMultiWorkerCleanup(&pVnode->pSyncCtrlW);
+
+  dInfo("vgId:%d, wait for vnode apply queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pApplyW.queue,
+        pVnode->pApplyW.queue->threadId);
+  tMultiWorkerCleanup(&pVnode->pApplyW);
+
+  dInfo("vgId:%d, wait for vnode query queue:%p is empty", pVnode->vgId, pVnode->pQueryQ);
   while (!taosQueueEmpty(pVnode->pQueryQ)) taosMsleep(10);
+
+  dInfo("vgId:%d, wait for vnode fetch queue:%p is empty, thread:%08" PRId64, pVnode->vgId, pVnode->pFetchQ,
+        pVnode->pFetchQ->threadId);
   while (!taosQueueEmpty(pVnode->pFetchQ)) taosMsleep(10);
+
+  dInfo("vgId:%d, wait for vnode stream queue:%p is empty", pVnode->vgId, pVnode->pStreamQ);
   while (!taosQueueEmpty(pVnode->pStreamQ)) taosMsleep(10);
-  dTrace("vgId:%d, vnode queue is empty", pVnode->vgId);
+
+  dInfo("vgId:%d, all vnode queues is empty", pVnode->vgId);
 
   vmFreeQueue(pMgmt, pVnode);
   vnodeClose(pVnode->pImpl);
   pVnode->pImpl = NULL;
-  dDebug("vgId:%d, vnode is closed", pVnode->vgId);
+  dInfo("vgId:%d, vnode is closed", pVnode->vgId);
 
   if (pVnode->dropped) {
     dInfo("vgId:%d, vnode is destroyed, dropped:%d", pVnode->vgId, pVnode->dropped);
