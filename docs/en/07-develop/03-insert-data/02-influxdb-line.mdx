@@ -39,7 +39,7 @@ meters,location=California.LosAngeles,groupid=2 current=13.4,voltage=223,phase=0
 - Multiple kinds of precision can be used for the `timestamp` field. Time precision can be from nanosecond (ns) to hour (h).
 - You can configure smlChildTableName in taos.cfg to specify table names, for example, `smlChildTableName=tname`. You can insert `st,tname=cpul,t1=4 c1=3 1626006833639000000` and the cpu1 table will be automatically created. Note that if multiple rows have the same tname but different tag_set values, the tag_set of the first row is used to create the table and the others are ignored.
 - It is assumed that the order of field_set in a supertable is consistent, meaning that the first record contains all fields and subsequent records store fields in the same order. If the order is not consistent, set smlDataFormat in taos.cfg to false. Otherwise, data will be written out of order and a database error will occur.(smlDataFormat in taos.cfg default to false after version of 3.0.1.3)
-  :::
+:::
 
 For more details please refer to [InfluxDB Line Protocol](https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/) and [TDengine Schemaless](/reference/schemaless/#Schemaless-Line-Protocol)
 
