@@ -280,16 +280,14 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, int32_t numOfRow1, int
     memcpy(pColumnInfoData->pData + oldLen, pSource->pData, len);
     pColumnInfoData->varmeta.length = len + oldLen;
   } else {
-    if (finalNumOfRows > *capacity || (numOfRow1 == 0 && pColumnInfoData->info.bytes != 0)) {
+    if (finalNumOfRows > (*capacity)) {
       // all data may be null, when the pColumnInfoData->info.type == 0, bytes == 0;
-      //      ASSERT(finalNumOfRows * pColumnInfoData->info.bytes);
       char* tmp = taosMemoryRealloc(pColumnInfoData->pData, finalNumOfRows * pColumnInfoData->info.bytes);
       if (tmp == NULL) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
 
       pColumnInfoData->pData = tmp;
-
       if (BitmapLen(numOfRow1) < BitmapLen(finalNumOfRows)) {
         char*    btmp = taosMemoryRealloc(pColumnInfoData->nullbitmap, BitmapLen(finalNumOfRows));
         uint32_t extend = BitmapLen(finalNumOfRows) - BitmapLen(numOfRow1);

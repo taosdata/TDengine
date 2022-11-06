@@ -384,6 +384,7 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
 
   initBasicInfo(&pInfo->binfo, pResBlock);
   initResultSizeInfo(&pOperator->resultInfo, numOfRows);
+  blockDataEnsureCapacity(pResBlock, numOfRows);
 
   int32_t code = initAggInfo(pSup, &pInfo->aggSup, pExprInfo, numOfExpr, keyBufSize, pTaskInfo->id.str);
   if (code != TSDB_CODE_SUCCESS) {
@@ -391,8 +392,6 @@ SOperatorInfo* createIndefinitOutputOperatorInfo(SOperatorInfo* downstream, SPhy
   }
 
   setFunctionResultOutput(pOperator, &pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, numOfExpr);
-
-  pInfo->binfo.pRes = pResBlock;
   pInfo->pCondition = pPhyNode->node.pConditions;
   pInfo->pPseudoColInfo = setRowTsColumnOutputInfo(pSup->pCtx, numOfExpr);
 

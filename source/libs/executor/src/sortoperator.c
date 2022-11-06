@@ -631,6 +631,8 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
                                         SOperatorInfo* pOperator) {
   SMultiwayMergeOperatorInfo* pInfo = pOperator->info;
 
+  int32_t capacity = pOperator->resultInfo.capacity;
+
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   blockDataCleanup(pDataBlock);
 
@@ -639,9 +641,7 @@ SSDataBlock* getMultiwaySortedBlockData(SSortHandle* pHandle, SSDataBlock* pData
     return NULL;
   }
 
-  int32_t capacity = pOperator->resultInfo.capacity;
   blockDataEnsureCapacity(p, capacity);
-
   while (1) {
     doGetSortedBlockData(pInfo, pHandle, capacity, p);
     if (p->info.rows == 0) {
@@ -697,6 +697,7 @@ SSDataBlock* doMultiwayMerge(SOperatorInfo* pOperator) {
   } else {
     doSetOperatorCompleted(pOperator);
   }
+
   return pBlock;
 }
 
