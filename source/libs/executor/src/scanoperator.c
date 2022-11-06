@@ -620,7 +620,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     int32_t rows = 0;
     tsdbRetrieveDataBlockInfo(pTableScanInfo->dataReader, &rows, &pBInfo->uid, &pBInfo->window);
 
-    blockDataEnsureCapacity(pBlock, rows);
+    blockDataEnsureCapacity(pBlock, rows);  // todo remove it latter
     pBInfo->rows = rows;
 
     ASSERT(pBInfo->uid != 0);
