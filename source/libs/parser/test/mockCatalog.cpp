@@ -228,8 +228,7 @@ int32_t __catalogGetTableMeta(struct SCatalog* pCatalog, SRequestConnInfo* pConn
   return g_mockCatalogService->catalogGetTableMeta(pTableName, pTableMeta);
 }
 
-int32_t __catalogGetCachedTableMeta(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,
-                                    STableMeta** pTableMeta) {
+int32_t __catalogGetCachedTableMeta(SCatalog* pCtg, const SName* pTableName, STableMeta** pTableMeta) {
   return g_mockCatalogService->catalogGetTableMeta(pTableName, pTableMeta, true);
 }
 
@@ -238,8 +237,7 @@ int32_t __catalogGetTableHashVgroup(struct SCatalog* pCatalog, SRequestConnInfo*
   return g_mockCatalogService->catalogGetTableHashVgroup(pTableName, vgInfo);
 }
 
-int32_t __catalogGetCachedTableHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName,
-                                          SVgroupInfo* pVgroup, bool* exists) {
+int32_t __catalogGetCachedTableHashVgroup(SCatalog* pCtg, const SName* pTableName, SVgroupInfo* pVgroup, bool* exists) {
   int32_t code = g_mockCatalogService->catalogGetTableHashVgroup(pTableName, pVgroup, true);
   *exists = 0 != pVgroup->vgId;
   return code;
@@ -266,6 +264,13 @@ int32_t __catalogGetDBCfg(SCatalog* pCtg, SRequestConnInfo* pConn, const char* d
 int32_t __catalogChkAuth(SCatalog* pCtg, SRequestConnInfo* pConn, const char* user, const char* dbFName, AUTH_TYPE type,
                          bool* pass) {
   *pass = true;
+  return 0;
+}
+
+int32_t __catalogChkAuthFromCache(SCatalog* pCtg, const char* user, const char* dbFName, AUTH_TYPE type, bool* pass,
+                                  bool* exists) {
+  *pass = true;
+  *exists = true;
   return 0;
 }
 
@@ -311,6 +316,7 @@ void initMetaDataEnv() {
   stub.set(catalogGetDBVgList, __catalogGetDBVgList);
   stub.set(catalogGetDBCfg, __catalogGetDBCfg);
   stub.set(catalogChkAuth, __catalogChkAuth);
+  stub.set(catalogChkAuthFromCache, __catalogChkAuthFromCache);
   stub.set(catalogGetUdfInfo, __catalogGetUdfInfo);
   stub.set(catalogRefreshGetTableMeta, __catalogRefreshGetTableMeta);
   stub.set(catalogRemoveTableMeta, __catalogRemoveTableMeta);
