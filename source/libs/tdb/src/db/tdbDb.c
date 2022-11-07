@@ -138,7 +138,24 @@ int32_t tdbPostCommit(TDB *pDb, TXN *pTxn) {
   for (pPager = pDb->pgrList; pPager; pPager = pPager->pNext) {
     ret = tdbPagerPostCommit(pPager, pTxn);
     if (ret < 0) {
-      tdbError("failed to commit pager since %s. dbName:%s, txnId:%" PRId64, tstrerror(terrno), pDb->dbName, pTxn->txnId);
+      tdbError("failed to commit pager since %s. dbName:%s, txnId:%" PRId64, tstrerror(terrno), pDb->dbName,
+               pTxn->txnId);
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+int32_t tdbPrepareAsyncCommit(TDB *pDb, TXN *pTxn) {
+  SPager *pPager;
+  int     ret;
+
+  for (pPager = pDb->pgrList; pPager; pPager = pPager->pNext) {
+    ret = tdbPagerPrepareAsyncCommit(pPager, pTxn);
+    if (ret < 0) {
+      tdbError("failed to commit pager since %s. dbName:%s, txnId:%" PRId64, tstrerror(terrno), pDb->dbName,
+               pTxn->txnId);
       return -1;
     }
   }
