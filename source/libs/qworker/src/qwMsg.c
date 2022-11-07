@@ -8,6 +8,7 @@
 #include "tcommon.h"
 #include "tmsg.h"
 #include "tname.h"
+#include "tgrant.h"
 
 int32_t qwMallocFetchRsp(int8_t rpcMalloc, int32_t length, SRetrieveTableRsp **rsp) {
   int32_t msgSize = sizeof(SRetrieveTableRsp) + length;
@@ -305,7 +306,7 @@ int32_t qwRegisterHbBrokenLinkArg(SQWorker *mgmt, uint64_t sId, SRpcHandleInfo *
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg) {
+int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg, bool chkGrant) {
   if (NULL == qWorkerMgmt || NULL == pMsg) {
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
@@ -326,6 +327,12 @@ int32_t qWorkerPreprocessQueryMsg(void *qWorkerMgmt, SRpcMsg *pMsg) {
   msg->execId = ntohl(msg->execId);
   msg->phyLen = ntohl(msg->phyLen);
   msg->sqlLen = ntohl(msg->sqlLen);
+  msg->msgMask = ntohl(msg->msgMask);
+
+  if (chkGrant && (!TEST_SHOW_REWRITE_MASK(msg->msgMask)) && (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS)) {
+    QW_ELOG("query failed cause of grant expired, msgMask:%d", msg->msgMask);
+    QW_ERR_RET(TSDB_CODE_GRANT_EXPIRED);
+  }
 
   uint64_t sId = msg->sId;
   uint64_t qId = msg->queryId;

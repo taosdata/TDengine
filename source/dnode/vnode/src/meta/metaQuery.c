@@ -153,7 +153,7 @@ bool metaIsTableExist(SMeta *pMeta, tb_uid_t uid) {
 
 int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   SMeta  *pMeta = pReader->pMeta;
-  int64_t version;
+  int64_t version1;
 
   // query uid.idx
   if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pReader->pBuf, &pReader->szBuf) < 0) {
@@ -161,8 +161,8 @@ int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
     return -1;
   }
 
-  version = ((SUidIdxVal *)pReader->pBuf)[0].version;
-  return metaGetTableEntryByVersion(pReader, version, uid);
+  version1 = ((SUidIdxVal *)pReader->pBuf)[0].version;
+  return metaGetTableEntryByVersion(pReader, version1, uid);
 }
 
 int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {

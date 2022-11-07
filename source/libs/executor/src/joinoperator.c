@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "filter.h"
 #include "executorimpl.h"
 #include "function.h"
 #include "os.h"
@@ -106,6 +107,11 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
     pInfo->pCondAfterMerge = nodesCloneNode(pJoinNode->node.pConditions);
   } else {
     pInfo->pCondAfterMerge = NULL;
+  }
+
+  code = filterInitFromNode(pInfo->pCondAfterMerge, &pOperator->exprSupp.pFilterInfo, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
   }
 
   pInfo->inputOrder = TSDB_ORDER_ASC;
@@ -400,8 +406,8 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
     if (numOfNewRows == 0) {
       break;
     }
-    if (pJoinInfo->pCondAfterMerge != NULL) {
-      doFilter(pJoinInfo->pCondAfterMerge, pRes, NULL, NULL);
+    if (pOperator->exprSupp.pFilterInfo != NULL) {
+      doFilter(pRes, pOperator->exprSupp.pFilterInfo, NULL);
     }
     if (pRes->info.rows >= pOperator->resultInfo.threshold) {
       break;
