@@ -519,8 +519,8 @@ static int32_t tsdbWriteBlockSma(SDataFWriter *pWriter, SBlockData *pBlockData, 
 
     if ((!pColData->smaOn) || IS_VAR_DATA_TYPE(pColData->type)) continue;
 
-    SColumnDataAgg sma;
-    tsdbCalcColDataSMA(pColData, &sma);
+    SColumnDataAgg sma = {.colId = pColData->cid};
+    tColDataCalcSMA[pColData->type](pColData, &sma.sum, &sma.max, &sma.min, &sma.numOfNull);
 
     code = tRealloc(&pWriter->aBuf[0], pSmaInfo->size + tPutColumnDataAgg(NULL, &sma));
     if (code) goto _err;

@@ -923,7 +923,7 @@ char *tTagValToData(const STagVal *value, bool isJson) {
 }
 
 bool tTagGet(const STag *pTag, STagVal *pTagVal) {
-  if(!pTag || !pTagVal){
+  if (!pTag || !pTagVal) {
     return false;
   }
 
@@ -1723,3 +1723,385 @@ int32_t tColDataCopy(SColData *pColDataSrc, SColData *pColDataDest) {
 _exit:
   return code;
 }
+
+#define CALC_SUM_MAX_MIN(SUM, MAX, MIN, VAL) \
+  do {                                       \
+    (SUM) += (VAL);                          \
+    if ((MAX) < (VAL)) (MAX) = (VAL);        \
+    if ((MIN) > (VAL)) (MIN) = (VAL);        \
+  } while (0)
+
+static FORCE_INLINE void tColDataCalcSMABool(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                             int16_t *numOfNull) {
+  *sum = 0;
+  *max = 0;
+  *min = 1;
+  *numOfNull = 0;
+
+  int8_t val;
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      val = ((int8_t *)pColData->pData)[iVal] ? 1 : 0;
+      CALC_SUM_MAX_MIN(*sum, *max, *min, val);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          *numOfNull++;
+          break;
+        case 2:
+          val = ((int8_t *)pColData->pData)[iVal] ? 1 : 0;
+          CALC_SUM_MAX_MIN(*sum, *max, *min, val);
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+    }
+  }
+}
+
+static FORCE_INLINE void tColDataCalcSMATinyInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                                int16_t *numOfNull) {
+  *sum = 0;
+  *max = INT8_MIN;
+  *min = INT8_MAX;
+  *numOfNull = 0;
+
+  int8_t val;
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      val = ((int8_t *)pColData->pData)[iVal];
+      CALC_SUM_MAX_MIN(*sum, *max, *min, val);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          *numOfNull++;
+          break;
+        case 2:
+          val = ((int8_t *)pColData->pData)[iVal];
+          CALC_SUM_MAX_MIN(*sum, *max, *min, val);
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+    }
+  }
+}
+
+static FORCE_INLINE void tColDataCalcSMATinySmallInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                                     int16_t *numOfNull) {
+  *sum = 0;
+  *max = INT16_MIN;
+  *min = INT16_MAX;
+  *numOfNull = 0;
+
+  int16_t val;
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      val = ((int16_t *)pColData->pData)[iVal];
+      CALC_SUM_MAX_MIN(*sum, *max, *min, val);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          *numOfNull++;
+          break;
+        case 2:
+          val = ((int16_t *)pColData->pData)[iVal];
+          CALC_SUM_MAX_MIN(*sum, *max, *min, val);
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+    }
+  }
+}
+
+static FORCE_INLINE void tColDataCalcSMAInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                            int16_t *numOfNull) {
+  *sum = 0;
+  *max = INT32_MIN;
+  *min = INT32_MAX;
+  *numOfNull = 0;
+
+  int32_t val;
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      val = ((int32_t *)pColData->pData)[iVal];
+      CALC_SUM_MAX_MIN(*sum, *max, *min, val);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          *numOfNull++;
+          break;
+        case 2:
+          val = ((int32_t *)pColData->pData)[iVal];
+          CALC_SUM_MAX_MIN(*sum, *max, *min, val);
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+    }
+  }
+}
+
+static FORCE_INLINE void tColDataCalcSMABigInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                               int16_t *numOfNull) {
+  *sum = 0;
+  *max = INT64_MIN;
+  *min = INT64_MAX;
+  *numOfNull = 0;
+
+  int64_t val;
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      val = ((int64_t *)pColData->pData)[iVal];
+      CALC_SUM_MAX_MIN(*sum, *max, *min, val);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          *numOfNull++;
+          break;
+        case 2:
+          val = ((int64_t *)pColData->pData)[iVal];
+          CALC_SUM_MAX_MIN(*sum, *max, *min, val);
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+    }
+  }
+}
+
+static FORCE_INLINE void tColDataCalcSMAFloat(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                              int16_t *numOfNull) {
+  *(double *)sum = 0;
+  *(double *)max = -FLT_MAX;
+  *(double *)min = FLT_MAX;
+  *numOfNull = 0;
+
+  float val;
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      val = ((float *)pColData->pData)[iVal];
+      CALC_SUM_MAX_MIN(*(double *)sum, *(double *)max, *(double *)min, val);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          *numOfNull++;
+          break;
+        case 2:
+          val = ((float *)pColData->pData)[iVal];
+          CALC_SUM_MAX_MIN(*(double *)sum, *(double *)max, *(double *)min, val);
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+    }
+  }
+}
+
+static FORCE_INLINE void tColDataCalcSMADouble(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                               int16_t *numOfNull) {
+  *(double *)sum = 0;
+  *(double *)max = -DBL_MAX;
+  *(double *)min = DBL_MAX;
+  *numOfNull = 0;
+
+  double val;
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      val = ((double *)pColData->pData)[iVal];
+      CALC_SUM_MAX_MIN(*(double *)sum, *(double *)max, *(double *)min, val);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          *numOfNull++;
+          break;
+        case 2:
+          val = ((double *)pColData->pData)[iVal];
+          CALC_SUM_MAX_MIN(*(double *)sum, *(double *)max, *(double *)min, val);
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+    }
+  }
+}
+
+static FORCE_INLINE void tColDataCalcSMAUTinyInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                                 int16_t *numOfNull) {
+  *(uint64_t *)sum = 0;
+  *(uint64_t *)max = 0;
+  *(uint64_t *)min = UINT8_MAX;
+  *numOfNull = 0;
+
+  uint8_t val;
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      val = ((uint8_t *)pColData->pData)[iVal];
+      CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          *numOfNull++;
+          break;
+        case 2:
+          val = ((uint8_t *)pColData->pData)[iVal];
+          CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+    }
+  }
+}
+
+static FORCE_INLINE void tColDataCalcSMATinyUSmallInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                                      int16_t *numOfNull) {
+  *(uint64_t *)sum = 0;
+  *(uint64_t *)max = 0;
+  *(uint64_t *)min = UINT16_MAX;
+  *numOfNull = 0;
+
+  uint16_t val;
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      val = ((uint16_t *)pColData->pData)[iVal];
+      CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          *numOfNull++;
+          break;
+        case 2:
+          val = ((uint16_t *)pColData->pData)[iVal];
+          CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+    }
+  }
+}
+
+static FORCE_INLINE void tColDataCalcSMAUInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                             int16_t *numOfNull) {
+  *(uint64_t *)sum = 0;
+  *(uint64_t *)max = 0;
+  *(uint64_t *)min = UINT32_MAX;
+  *numOfNull = 0;
+
+  uint32_t val;
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      val = ((uint32_t *)pColData->pData)[iVal];
+      CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          *numOfNull++;
+          break;
+        case 2:
+          val = ((uint32_t *)pColData->pData)[iVal];
+          CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+    }
+  }
+}
+
+static FORCE_INLINE void tColDataCalcSMAUBigInt(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min,
+                                                int16_t *numOfNull) {
+  *(uint64_t *)sum = 0;
+  *(uint64_t *)max = 0;
+  *(uint64_t *)min = UINT64_MAX;
+  *numOfNull = 0;
+
+  uint64_t val;
+  if (HAS_VALUE == pColData->flag) {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      val = ((uint64_t *)pColData->pData)[iVal];
+      CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
+    }
+  } else {
+    for (int32_t iVal = 0; iVal < pColData->nVal; iVal++) {
+      switch (tColDataGetBitValue(pColData, iVal)) {
+        case 0:
+        case 1:
+          *numOfNull++;
+          break;
+        case 2:
+          val = ((uint64_t *)pColData->pData)[iVal];
+          CALC_SUM_MAX_MIN(*(uint64_t *)sum, *(uint64_t *)max, *(uint64_t *)min, val);
+          break;
+        default:
+          ASSERT(0);
+          break;
+      }
+    }
+  }
+}
+
+void (*tColDataCalcSMA[])(SColData *pColData, int64_t *sum, int64_t *max, int64_t *min, int16_t *numOfNull) = {
+    NULL,
+    tColDataCalcSMABool,           // TSDB_DATA_TYPE_BOOL
+    tColDataCalcSMATinyInt,        // TSDB_DATA_TYPE_TINYINT
+    tColDataCalcSMATinySmallInt,   // TSDB_DATA_TYPE_SMALLINT
+    tColDataCalcSMAInt,            // TSDB_DATA_TYPE_INT
+    tColDataCalcSMABigInt,         // TSDB_DATA_TYPE_BIGINT
+    tColDataCalcSMAFloat,          // TSDB_DATA_TYPE_FLOAT
+    tColDataCalcSMADouble,         // TSDB_DATA_TYPE_DOUBLE
+    NULL,                          // TSDB_DATA_TYPE_VARCHAR
+    tColDataCalcSMABigInt,         // TSDB_DATA_TYPE_TIMESTAMP
+    NULL,                          // TSDB_DATA_TYPE_NCHAR
+    tColDataCalcSMAUTinyInt,       // TSDB_DATA_TYPE_UTINYINT
+    tColDataCalcSMATinyUSmallInt,  // TSDB_DATA_TYPE_USMALLINT
+    tColDataCalcSMAUInt,           // TSDB_DATA_TYPE_UINT
+    tColDataCalcSMAUBigInt,        // TSDB_DATA_TYPE_UBIGINT
+    NULL,                          // TSDB_DATA_TYPE_JSON
+    NULL,                          // TSDB_DATA_TYPE_VARBINARY
+    NULL,                          // TSDB_DATA_TYPE_DECIMAL
+    NULL,                          // TSDB_DATA_TYPE_BLOB
+    NULL                           // TSDB_DATA_TYPE_MEDIUMBLOB
+};

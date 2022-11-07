@@ -193,7 +193,6 @@ int32_t tsdbKeyFid(TSKEY key, int32_t minutes, int8_t precision);
 void    tsdbFidKeyRange(int32_t fid, int32_t minutes, int8_t precision, TSKEY *minKey, TSKEY *maxKey);
 int32_t tsdbFidLevel(int32_t fid, STsdbKeepCfg *pKeepCfg, int64_t now);
 int32_t tsdbBuildDeleteSkyline(SArray *aDelData, int32_t sidx, int32_t eidx, SArray *aSkyline);
-void    tsdbCalcColDataSMA(SColData *pColData, SColumnDataAgg *pColAgg);
 int32_t tPutColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg);
 int32_t tGetColumnDataAgg(uint8_t *p, SColumnDataAgg *pColAgg);
 int32_t tsdbCmprData(uint8_t *pIn, int32_t szIn, int8_t type, int8_t cmprAlg, uint8_t **ppOut, int32_t nOut,
@@ -716,14 +715,14 @@ void              *destroyLastBlockLoadInfo(SSttBlockLoadInfo *pLoadInfo);
 
 // tsdbCache ==============================================================================================
 typedef struct SCacheRowsReader {
-  SVnode            *pVnode;
-  STSchema          *pSchema;
-  uint64_t           uid;
-  uint64_t           suid;
-  char             **transferBuf;  // todo remove it soon
-  int32_t            numOfCols;
-  int32_t            type;
-  int32_t            tableIndex;  // currently returned result tables
+  SVnode   *pVnode;
+  STSchema *pSchema;
+  uint64_t  uid;
+  uint64_t  suid;
+  char    **transferBuf;  // todo remove it soon
+  int32_t   numOfCols;
+  int32_t   type;
+  int32_t   tableIndex;  // currently returned result tables
 
   STableKeyInfo     *pTableList;  // table id list
   int32_t            numOfTables;
