@@ -87,7 +87,7 @@ static void releaseQueryBuf(size_t numOfTables);
 
 static void destroyFillOperatorInfo(void* param);
 static void destroyProjectOperatorInfo(void* param);
-static void destroyOrderOperatorInfo(void* param);
+static void destroySortOperatorInfo(void* param);
 static void destroyAggOperatorInfo(void* param);
 
 static void destroyIntervalOperatorInfo(void* param);
@@ -322,7 +322,7 @@ void initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow
   pColData->info.type = TSDB_DATA_TYPE_TIMESTAMP;
   pColData->info.bytes = sizeof(int64_t);
 
-  colInfoDataEnsureCapacity(pColData, 5);
+  colInfoDataEnsureCapacity(pColData, 5, false);
   colDataAppendInt64(pColData, 0, &pQueryWindow->skey);
   colDataAppendInt64(pColData, 1, &pQueryWindow->ekey);
 
@@ -439,7 +439,7 @@ static int32_t doCreateConstantValColumnInfo(SInputColumnInfoData* pInput, SFunc
     pColInfo = pInput->pData[paramIndex];
   }
 
-  colInfoDataEnsureCapacity(pColInfo, numOfRows);
+  colInfoDataEnsureCapacity(pColInfo, numOfRows, false);
 
   int8_t type = pFuncParam->param.nType;
   if (type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_UBIGINT) {
@@ -1039,41 +1039,24 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
 static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const SColumnInfoData* p, bool keep,
                                                 int32_t status);
 
-void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, SColMatchInfo* pColMatchInfo, SFilterInfo* pFilterInfo) {
-  if (pFilterNode == NULL || pBlock->info.rows == 0) {
+void doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo) {
+  if (pFilterInfo == NULL || pBlock->info.rows == 0) {
     return;
   }
 
-  SFilterInfo* filter = pFilterInfo;
-  int64_t      st = taosGetTimestampUs();
-
-  //  pError("start filter");
-
-  // todo move to the initialization function
-  int32_t code = 0;
-  bool    needFree = false;
-  if (filter == NULL) {
-    needFree = true;
-    code = filterInitFromNode((SNode*)pFilterNode, &filter, 0);
-  }
-
   SFilterColumnParam param1 = {.numOfCols = taosArrayGetSize(pBlock->pDataBlock), .pDataBlock = pBlock->pDataBlock};
-  code = filterSetDataFromSlotId(filter, &param1);
+  int32_t code = filterSetDataFromSlotId(pFilterInfo, &param1);
 
   SColumnInfoData* p = NULL;
   int32_t          status = 0;
 
   // todo the keep seems never to be True??
-  bool keep = filterExecute(filter, pBlock, &p, NULL, param1.numOfCols, &status);
-
-  if (needFree) {
-    filterFreeInfo(filter);
-  }
-
+  bool keep = filterExecute(pFilterInfo, pBlock, &p, NULL, param1.numOfCols, &status);
   extractQualifiedTupleByFilterResult(pBlock, p, keep, status);
 
   if (pColMatchInfo != NULL) {
-    for (int32_t i = 0; i < taosArrayGetSize(pColMatchInfo->pList); ++i) {
+    size_t  size = taosArrayGetSize(pColMatchInfo->pList);
+    for (int32_t i = 0; i < size; ++i) {
       SColMatchItem* pInfo = taosArrayGet(pColMatchInfo->pList, i);
       if (pInfo->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, pInfo->dstSlotId);
@@ -2395,7 +2378,7 @@ static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
   while (1) {
     doBuildResultDatablock(pOperator, pInfo, &pAggInfo->groupResInfo, pAggInfo->aggSup.pResultBuf);
-    doFilter(pAggInfo->pCondition, pInfo->pRes, NULL, NULL);
+    doFilter(pInfo->pRes, pOperator->exprSupp.pFilterInfo, NULL);
 
     if (!hasRemainResults(&pAggInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
@@ -2728,7 +2711,7 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
       break;
     }
 
-    doFilter(pInfo->pCondition, fillResult, &pInfo->matchInfo, NULL);
+    doFilter(fillResult, pOperator->exprSupp.pFilterInfo, &pInfo->matchInfo );
     if (fillResult->info.rows > 0) {
       break;
     }
@@ -2783,8 +2766,10 @@ int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaul
     *defaultPgsz <<= 1u;
   }
 
+  // The default buffer for each operator in query is 10MB.
   // at least four pages need to be in buffer
-  *defaultBufsz = 4096 * 256;
+  // TODO: make this variable to be configurable.
+  *defaultBufsz = 4096 * 2560;
   if ((*defaultBufsz) <= (*defaultPgsz)) {
     (*defaultBufsz) = (*defaultPgsz) * 4;
   }
@@ -2945,9 +2930,13 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
     goto _error;
   }
 
+  code = filterInitFromNode((SNode*)pAggNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   pInfo->binfo.mergeResultBlock = pAggNode->mergeDataBlock;
   pInfo->groupId = UINT64_MAX;
-  pInfo->pCondition = pAggNode->node.pConditions;
   pOperator->name = "TableAggregate";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_HASH_AGG;
   pOperator->blocking = true;
@@ -2971,7 +2960,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
 
   return pOperator;
 
-  _error:
+_error:
   if (pInfo != NULL) {
     destroyAggOperatorInfo(pInfo);
   }
@@ -3173,7 +3162,11 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
   pInfo->pFinalRes = createOneDataBlock(pInfo->pRes, false);
   blockDataEnsureCapacity(pInfo->pFinalRes, pOperator->resultInfo.capacity);
 
-  pInfo->pCondition = pPhyFillNode->node.pConditions;
+  code = filterInitFromNode((SNode*)pPhyFillNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   pOperator->name = "FillOperator";
   pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
@@ -3187,11 +3180,12 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
 
-  _error:
+_error:
   if (pInfo != NULL) {
     destroyFillOperatorInfo(pInfo);
   }
 
+  pTaskInfo->code = code;
   taosMemoryFreeClear(pOperator);
   return NULL;
 }

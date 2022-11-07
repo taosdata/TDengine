@@ -181,6 +181,7 @@ typedef enum { UNKNOWN_BIN = 0, USER_INPUT_BIN, LINEAR_BIN, LOG_BIN } EHistoBinT
 
 typedef struct SHLLFuncInfo {
   uint64_t result;
+  uint64_t totalCount;
   uint8_t  buckets[HLL_BUCKETS];
 } SHLLInfo;
 
@@ -489,7 +490,7 @@ EFuncDataRequired countDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWind
   if (QUERY_NODE_COLUMN == nodeType(pParam) && PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pParam)->colId) {
     return FUNC_DATA_REQUIRED_NOT_LOAD;
   }
-  return FUNC_DATA_REQUIRED_STATIS_LOAD;
+  return FUNC_DATA_REQUIRED_SMA_LOAD;
 }
 
 bool getCountFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
@@ -551,7 +552,7 @@ int32_t countFunction(SqlFunctionCtx* pCtx) {
   if (tsCountAlwaysReturnValue) {
     pResInfo->numOfRes = 1;
   } else {
-    SET_VAL(pResInfo, 1, 1);
+    SET_VAL(pResInfo, *((int64_t*)buf), 1);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1103,7 +1104,7 @@ int32_t avgPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 }
 
 EFuncDataRequired statisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
-  return FUNC_DATA_REQUIRED_STATIS_LOAD;
+  return FUNC_DATA_REQUIRED_SMA_LOAD;
 }
 
 bool minmaxFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
@@ -4605,7 +4606,14 @@ int32_t hllFunction(SqlFunctionCtx* pCtx) {
     }
   }
 
-  SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
+  pInfo->totalCount += numOfElems;
+
+  if (pInfo->totalCount == 0 && !tsCountAlwaysReturnValue) {
+    SET_VAL(GET_RES_INFO(pCtx), 0, 1);
+  } else {
+    SET_VAL(GET_RES_INFO(pCtx), 1, 1);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -4615,6 +4623,7 @@ static void hllTransferInfo(SHLLInfo* pInput, SHLLInfo* pOutput) {
       pOutput->buckets[k] = pInput->buckets[k];
     }
   }
+  pOutput->totalCount += pInput->totalCount;
 }
 
 int32_t hllFunctionMerge(SqlFunctionCtx* pCtx) {
@@ -4632,7 +4641,12 @@ int32_t hllFunctionMerge(SqlFunctionCtx* pCtx) {
     hllTransferInfo(pInputInfo, pInfo);
   }
 
-  SET_VAL(GET_RES_INFO(pCtx), 1, 1);
+  if (pInfo->totalCount == 0 && !tsCountAlwaysReturnValue) {
+    SET_VAL(GET_RES_INFO(pCtx), 0, 1);
+  } else {
+    SET_VAL(GET_RES_INFO(pCtx), 1, 1);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -5450,6 +5464,8 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   } else {
     colDataAppendNULL(pCol, currentRow);
   }
+
+  taosHashCleanup(pInfo->pHash);
 
   return pResInfo->numOfRes;
 }

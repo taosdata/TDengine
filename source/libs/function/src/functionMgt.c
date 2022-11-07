@@ -241,7 +241,11 @@ bool fmIsNotNullOutputFunc(int32_t funcId) {
          FUNCTION_TYPE_LAST_MERGE == funcMgtBuiltins[funcId].type ||
          FUNCTION_TYPE_FIRST == funcMgtBuiltins[funcId].type ||
          FUNCTION_TYPE_FIRST_PARTIAL == funcMgtBuiltins[funcId].type ||
-         FUNCTION_TYPE_FIRST_MERGE == funcMgtBuiltins[funcId].type;
+         FUNCTION_TYPE_FIRST_MERGE == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_COUNT == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_HYPERLOGLOG == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_HYPERLOGLOG_PARTIAL == funcMgtBuiltins[funcId].type ||
+         FUNCTION_TYPE_HYPERLOGLOG_MERGE == funcMgtBuiltins[funcId].type;
 }
 
 bool fmIsSelectValueFunc(int32_t funcId) {

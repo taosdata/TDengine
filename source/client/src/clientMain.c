@@ -248,6 +248,9 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
 }
 
 TAOS_RES *taos_query(TAOS *taos, const char *sql) { return taosQueryImpl(taos, sql, false); }
+TAOS_RES *taos_query_with_reqid(TAOS *taos, const char *sql, int64_t reqid) {
+  return taosQueryImplWithReqid(taos, sql, false, reqid);
+}
 
 TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   if (res == NULL) {
@@ -824,6 +827,11 @@ void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param
   taosAsyncQueryImpl(connId, sql, fp, param, false);
 }
 
+void taos_query_a_with_reqid(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param, int64_t reqid) {
+  int64_t connId = *(int64_t *)taos;
+  taosAsyncQueryImplWithReqid(connId, sql, fp, param, false, reqid);
+}
+
 int32_t createParseContext(const SRequestObj *pRequest, SParseContext **pCxt) {
   const STscObj *pTscObj = pRequest->pTscObj;
 
@@ -1043,7 +1051,7 @@ int taos_get_db_route_info(TAOS *taos, const char *db, TAOS_DB_ROUTE_INFO *dbInf
   int64_t      connId = *(int64_t *)taos;
   SRequestObj *pRequest = NULL;
   char        *sql = "taos_get_db_route_info";
-  int32_t      code = buildRequest(connId, sql, strlen(sql), NULL, false, &pRequest);
+  int32_t      code = buildRequest(connId, sql, strlen(sql), NULL, false, &pRequest, 0);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     return terrno;
@@ -1092,7 +1100,7 @@ int taos_get_table_vgId(TAOS *taos, const char *db, const char *table, int *vgId
   int64_t      connId = *(int64_t *)taos;
   SRequestObj *pRequest = NULL;
   char        *sql = "taos_get_table_vgId";
-  int32_t      code = buildRequest(connId, sql, strlen(sql), NULL, false, &pRequest);
+  int32_t      code = buildRequest(connId, sql, strlen(sql), NULL, false, &pRequest, 0);
   if (code != TSDB_CODE_SUCCESS) {
     return terrno;
   }
@@ -1153,7 +1161,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   }
 
   char *sql = "taos_load_table_info";
-  code = buildRequest(connId, sql, strlen(sql), NULL, false, &pRequest);
+  code = buildRequest(connId, sql, strlen(sql), NULL, false, &pRequest, 0);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     goto _return;
@@ -1198,7 +1206,22 @@ TAOS_STMT *taos_stmt_init(TAOS *taos) {
     return NULL;
   }
 
-  TAOS_STMT *pStmt = stmtInit(pObj);
+  TAOS_STMT *pStmt = stmtInit(pObj, 0);
+
+  releaseTscObj(*(int64_t *)taos);
+
+  return pStmt;
+}
+
+TAOS_STMT *taos_stmt_init_with_reqid(TAOS *taos, int64_t reqid) {
+  STscObj *pObj = acquireTscObj(*(int64_t *)taos);
+  if (NULL == pObj) {
+    tscError("invalid parameter for %s", __FUNCTION__);
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return NULL;
+  }
+
+  TAOS_STMT *pStmt = stmtInit(pObj, reqid);
 
   releaseTscObj(*(int64_t *)taos);
 

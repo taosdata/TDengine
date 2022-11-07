@@ -154,8 +154,8 @@ STscObj* taos_connect_internal(const char* ip, const char* user, const char* pas
 }
 
 int32_t buildRequest(uint64_t connId, const char* sql, int sqlLen, void* param, bool validateSql,
-                     SRequestObj** pRequest) {
-  *pRequest = createRequest(connId, TSDB_SQL_SELECT);
+                     SRequestObj** pRequest, int64_t reqid) {
+  *pRequest = createRequest(connId, TSDB_SQL_SELECT, reqid);
   if (*pRequest == NULL) {
     tscError("failed to malloc sqlObj, %s", sql);
     return terrno;
@@ -1235,7 +1235,7 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
     return pTscObj;
   }
 
-  SRequestObj* pRequest = createRequest(pTscObj->id, TDMT_MND_CONNECT);
+  SRequestObj* pRequest = createRequest(pTscObj->id, TDMT_MND_CONNECT, 0);
   if (pRequest == NULL) {
     destroyTscObj(pTscObj);
     return NULL;
@@ -2239,7 +2239,37 @@ void taosAsyncQueryImpl(uint64_t connId, const char* sql, __taos_async_fn_t fp, 
   }
 
   SRequestObj* pRequest = NULL;
-  int32_t      code = buildRequest(connId, sql, sqlLen, param, validateOnly, &pRequest);
+  int32_t      code = buildRequest(connId, sql, sqlLen, param, validateOnly, &pRequest, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    fp(param, NULL, terrno);
+    return;
+  }
+
+  pRequest->body.queryFp = fp;
+  doAsyncQuery(pRequest, false);
+}
+void taosAsyncQueryImplWithReqid(uint64_t connId, const char* sql, __taos_async_fn_t fp, void* param, bool validateOnly,
+                                 int64_t reqid) {
+  if (sql == NULL || NULL == fp) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    if (fp) {
+      fp(param, NULL, terrno);
+    }
+
+    return;
+  }
+
+  size_t sqlLen = strlen(sql);
+  if (sqlLen > (size_t)TSDB_MAX_ALLOWED_SQL_LEN) {
+    tscError("sql string exceeds max length:%d", TSDB_MAX_ALLOWED_SQL_LEN);
+    terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
+    fp(param, NULL, terrno);
+    return;
+  }
+
+  SRequestObj* pRequest = NULL;
+  int32_t      code = buildRequest(connId, sql, sqlLen, param, validateOnly, &pRequest, reqid);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     fp(param, NULL, terrno);
@@ -2260,6 +2290,23 @@ TAOS_RES* taosQueryImpl(TAOS* taos, const char* sql, bool validateOnly) {
   tsem_init(&param->sem, 0, 0);
 
   taosAsyncQueryImpl(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly);
+  tsem_wait(&param->sem);
+  if (param->pRequest != NULL) {
+    param->pRequest->syncQuery = true;
+  }
+  return param->pRequest;
+}
+
+TAOS_RES* taosQueryImplWithReqid(TAOS* taos, const char* sql, bool validateOnly, int64_t reqid) {
+  if (NULL == taos) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return NULL;
+  }
+
+  SSyncQueryParam* param = taosMemoryCalloc(1, sizeof(SSyncQueryParam));
+  tsem_init(&param->sem, 0, 0);
+
+  taosAsyncQueryImplWithReqid(*(int64_t*)taos, sql, syncQueryFn, param, validateOnly, reqid);
   tsem_wait(&param->sem);
   if (param->pRequest != NULL) {
     param->pRequest->syncQuery = true;
