@@ -535,6 +535,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
   STableCachedVal val = {0};
 
   SMetaReader mr = {0};
+  LRUHandle* h = NULL;
 
   // 1. check if it is existed in meta cache
   if (pCache == NULL) {
@@ -555,7 +556,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
   } else {
     pCache->metaFetch += 1;
 
-    LRUHandle* h = taosLRUCacheLookup(pCache->pTableMetaEntryCache, &pBlock->info.uid, sizeof(pBlock->info.uid));
+    h = taosLRUCacheLookup(pCache->pTableMetaEntryCache, &pBlock->info.uid, sizeof(pBlock->info.uid));
     if (h == NULL) {
       metaReaderInit(&mr, pHandle->meta, 0);
       code = metaGetTableEntryByUid(&mr, pBlock->info.uid);
@@ -569,23 +570,28 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
 
       STableCachedVal* pVal = taosMemoryMalloc(sizeof(STableCachedVal));
       pVal->pName = strdup(mr.me.name);
-      STag* pTag = (STag*)mr.me.ctbEntry.pTags;
+      pVal->pTags = NULL;
 
-      pVal->pTags = taosMemoryMalloc(pTag->len);
-      memcpy(pVal->pTags, mr.me.ctbEntry.pTags, pTag->len);
+      // only child table has tag value
+      if (mr.me.type == TSDB_CHILD_TABLE) {
+        STag* pTag = (STag*)mr.me.ctbEntry.pTags;
+        pVal->pTags = taosMemoryMalloc(pTag->len);
+        memcpy(pVal->pTags, mr.me.ctbEntry.pTags, pTag->len);
+      }
 
+      val = *pVal;
       freeReader = true;
+
       int32_t ret = taosLRUCacheInsert(pCache->pTableMetaEntryCache, &pBlock->info.uid, sizeof(uint64_t), pVal, sizeof(STableCachedVal), freeCachedMetaItem, NULL, TAOS_LRU_PRIORITY_LOW);
       if (ret != TAOS_LRU_STATUS_OK) {
         qError("failed to put meta into lru cache, code:%d, %s", ret, idStr);
         freeTableCachedVal(pVal);
-      } else {
-        val = *pVal;
       }
     } else {
       pCache->cacheHit += 1;
       STableCachedVal* pVal = taosLRUCacheValue(pCache->pTableMetaEntryCache, h);
       val = *pVal;
+      taosLRUCacheRelease(pCache->pTableMetaEntryCache, h, false);
     }
 
     qDebug("retrieve table meta from cache:%"PRIu64", hit:%"PRIu64 " miss:%"PRIu64", %s", pCache->metaFetch, pCache->cacheHit,
