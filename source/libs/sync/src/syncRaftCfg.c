@@ -249,31 +249,16 @@ char *syncCfg2Str(SSyncCfg *pSyncCfg) {
   return serialized;
 }
 
-char *syncCfg2SimpleStr(SSyncCfg *pSyncCfg) {
-  if (pSyncCfg != NULL) {
-    int32_t len = 512;
-    char   *s = taosMemoryMalloc(len);
-    memset(s, 0, len);
+void syncCfg2SimpleStr(const SSyncCfg *pCfg, char *buf, int32_t bufLen) {
+  int32_t len = snprintf(buf, bufLen, "{r-num:%d, my:%d, ", pCfg->replicaNum, pCfg->myIndex);
 
-    snprintf(s, len, "{r-num:%d, my:%d, ", pSyncCfg->replicaNum, pSyncCfg->myIndex);
-    char *p = s + strlen(s);
-    for (int i = 0; i < pSyncCfg->replicaNum; ++i) {
-      /*
-      if (p + 128 + 32 > s + len) {
-        break;
-      }
-      */
-      char buf[128 + 32];
-      snprintf(buf, sizeof(buf), "%s:%d, ", pSyncCfg->nodeInfo[i].nodeFqdn, pSyncCfg->nodeInfo[i].nodePort);
-      strncpy(p, buf, sizeof(buf));
-      p = s + strlen(s);
+  for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
+    if (i < pCfg->replicaNum - 1) {
+      len += snprintf(buf + len, bufLen - len, "%s:%d, ", pCfg->nodeInfo[i].nodeFqdn, pCfg->nodeInfo[i].nodePort);
+    } else {
+      len += snprintf(buf + len, bufLen - len, "%s:%d}", pCfg->nodeInfo[i].nodeFqdn, pCfg->nodeInfo[i].nodePort);
     }
-    strcpy(p - 2, "}");
-
-    return s;
   }
-
-  return NULL;
 }
 
 int32_t syncCfgFromJson(const cJSON *pRoot, SSyncCfg *pSyncCfg) {
@@ -442,88 +427,3 @@ int32_t raftCfgFromStr(const char *s, SRaftCfg *pRaftCfg) {
   return 0;
 }
 
-// for debug ----------------------
-void syncCfgPrint(SSyncCfg *pCfg) {
-  char *serialized = syncCfg2Str(pCfg);
-  printf("syncCfgPrint | len:%d | %s \n", (int32_t)strlen(serialized), serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void syncCfgPrint2(char *s, SSyncCfg *pCfg) {
-  char *serialized = syncCfg2Str(pCfg);
-  printf("syncCfgPrint2 | len:%d | %s | %s \n", (int32_t)strlen(serialized), s, serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void syncCfgLog(SSyncCfg *pCfg) {
-  char *serialized = syncCfg2Str(pCfg);
-  sTrace("syncCfgLog | len:%d | %s", (int32_t)strlen(serialized), serialized);
-  taosMemoryFree(serialized);
-}
-
-void syncCfgLog2(char *s, SSyncCfg *pCfg) {
-  char *serialized = syncCfg2Str(pCfg);
-  sTrace("syncCfgLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
-}
-
-void syncCfgLog3(char *s, SSyncCfg *pCfg) {
-  char *serialized = syncCfg2SimpleStr(pCfg);
-  sTrace("syncCfgLog3 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
-}
-
-void raftCfgPrint(SRaftCfg *pCfg) {
-  char *serialized = raftCfg2Str(pCfg);
-  printf("raftCfgPrint | len:%d | %s \n", (int32_t)strlen(serialized), serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void raftCfgPrint2(char *s, SRaftCfg *pCfg) {
-  char *serialized = raftCfg2Str(pCfg);
-  printf("raftCfgPrint2 | len:%d | %s | %s \n", (int32_t)strlen(serialized), s, serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void raftCfgLog(SRaftCfg *pCfg) {
-  char *serialized = raftCfg2Str(pCfg);
-  sTrace("raftCfgLog | len:%d | %s", (int32_t)strlen(serialized), serialized);
-  taosMemoryFree(serialized);
-}
-
-void raftCfgLog2(char *s, SRaftCfg *pCfg) {
-  char *serialized = raftCfg2Str(pCfg);
-  sTrace("raftCfgLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
-}
-
-// ---------
-void raftCfgIndexPrint(SRaftCfgIndex *pCfg) {
-  char *serialized = raftCfgIndex2Str(pCfg);
-  printf("raftCfgIndexPrint | len:%d | %s \n", (int32_t)strlen(serialized), serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void raftCfgIndexPrint2(char *s, SRaftCfgIndex *pCfg) {
-  char *serialized = raftCfgIndex2Str(pCfg);
-  printf("raftCfgIndexPrint2 | len:%d | %s | %s \n", (int32_t)strlen(serialized), s, serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void raftCfgIndexLog(SRaftCfgIndex *pCfg) {
-  char *serialized = raftCfgIndex2Str(pCfg);
-  sTrace("raftCfgIndexLog | len:%d | %s", (int32_t)strlen(serialized), serialized);
-  taosMemoryFree(serialized);
-}
-
-void raftCfgIndexLog2(char *s, SRaftCfgIndex *pCfg) {
-  char *serialized = raftCfgIndex2Str(pCfg);
-  sTrace("raftCfgIndexLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
-}

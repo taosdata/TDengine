@@ -68,7 +68,7 @@ void voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg) {
   ASSERT(pMsg->voteGranted == true);
 
   if (pMsg->term != pVotesGranted->term) {
-    syncNodeEventLog(pVotesGranted->pSyncNode, "vote grant vnode error");
+    sNTrace(pVotesGranted->pSyncNode, "vote grant vnode error");
     return;
   }
 
@@ -207,7 +207,7 @@ bool votesResponded(SVotesRespond *pVotesRespond, const SRaftId *pRaftId) {
 
 void votesRespondAdd(SVotesRespond *pVotesRespond, const SyncRequestVoteReply *pMsg) {
   if (pVotesRespond->term != pMsg->term) {
-    syncNodeEventLog(pVotesRespond->pSyncNode, "vote respond add error");
+    sNTrace(pVotesRespond->pSyncNode, "vote respond add error");
     return;
   }
 

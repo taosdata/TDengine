@@ -85,20 +85,20 @@ cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg) {
   } else if (pRpcMsg->msgType == TDMT_SYNC_COMMON_RESPONSE) {
     pRoot = cJSON_CreateObject();
     char* s;
-    s = syncUtilprintBin((char*)(pRpcMsg->pCont), pRpcMsg->contLen);
+    s = syncUtilPrintBin((char*)(pRpcMsg->pCont), pRpcMsg->contLen);
     cJSON_AddStringToObject(pRoot, "pCont", s);
     taosMemoryFree(s);
-    s = syncUtilprintBin2((char*)(pRpcMsg->pCont), pRpcMsg->contLen);
+    s = syncUtilPrintBin2((char*)(pRpcMsg->pCont), pRpcMsg->contLen);
     cJSON_AddStringToObject(pRoot, "pCont2", s);
     taosMemoryFree(s);
 
   } else {
     pRoot = cJSON_CreateObject();
     char* s;
-    s = syncUtilprintBin((char*)(pRpcMsg->pCont), pRpcMsg->contLen);
+    s = syncUtilPrintBin((char*)(pRpcMsg->pCont), pRpcMsg->contLen);
     cJSON_AddStringToObject(pRoot, "pCont", s);
     taosMemoryFree(s);
-    s = syncUtilprintBin2((char*)(pRpcMsg->pCont), pRpcMsg->contLen);
+    s = syncUtilPrintBin2((char*)(pRpcMsg->pCont), pRpcMsg->contLen);
     cJSON_AddStringToObject(pRoot, "pCont2", s);
     taosMemoryFree(s);
   }
@@ -511,10 +511,10 @@ cJSON* syncPing2Json(const SyncPing* pMsg) {
 
     cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
     char* s;
-    s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
+    s = syncUtilPrintBin((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data", s);
     taosMemoryFree(s);
-    s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
+    s = syncUtilPrintBin2((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data2", s);
     taosMemoryFree(s);
   }
@@ -781,10 +781,10 @@ cJSON* syncPingReply2Json(const SyncPingReply* pMsg) {
 
     cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
     char* s;
-    s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
+    s = syncUtilPrintBin((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data", s);
     taosMemoryFree(s);
-    s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
+    s = syncUtilPrintBin2((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data2", s);
     taosMemoryFree(s);
   }
@@ -924,10 +924,10 @@ cJSON* syncClientRequest2Json(const SyncClientRequest* pMsg) {
     cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
 
     char* s;
-    s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
+    s = syncUtilPrintBin((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data", s);
     taosMemoryFree(s);
-    s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
+    s = syncUtilPrintBin2((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data2", s);
     taosMemoryFree(s);
   }
@@ -1094,10 +1094,10 @@ cJSON* syncClientRequestBatch2Json(const SyncClientRequestBatch* pMsg) {
     }
 
     char* s;
-    s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
+    s = syncUtilPrintBin((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data", s);
     taosMemoryFree(s);
-    s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
+    s = syncUtilPrintBin2((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data2", s);
     taosMemoryFree(s);
   }
@@ -1564,10 +1564,10 @@ cJSON* syncAppendEntries2Json(const SyncAppendEntries* pMsg) {
 
     cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
     char* s;
-    s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
+    s = syncUtilPrintBin((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data", s);
     taosMemoryFree(s);
-    s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
+    s = syncUtilPrintBin2((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data2", s);
     taosMemoryFree(s);
   }
@@ -1803,10 +1803,10 @@ cJSON* syncAppendEntriesBatch2Json(const SyncAppendEntriesBatch* pMsg) {
     }
 
     char* s;
-    s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
+    s = syncUtilPrintBin((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data", s);
     taosMemoryFree(s);
-    s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
+    s = syncUtilPrintBin2((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data2", s);
     taosMemoryFree(s);
   }
@@ -2716,10 +2716,10 @@ cJSON* syncApplyMsg2Json(const SyncApplyMsg* pMsg) {
 
     cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
     char* s;
-    s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
+    s = syncUtilPrintBin((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data", s);
     taosMemoryFree(s);
-    s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
+    s = syncUtilPrintBin2((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data2", s);
     taosMemoryFree(s);
   }
@@ -2893,10 +2893,10 @@ cJSON* syncSnapshotSend2Json(const SyncSnapshotSend* pMsg) {
 
     cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
     char* s;
-    s = syncUtilprintBin((char*)(pMsg->data), pMsg->dataLen);
+    s = syncUtilPrintBin((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data", s);
     taosMemoryFree(s);
-    s = syncUtilprintBin2((char*)(pMsg->data), pMsg->dataLen);
+    s = syncUtilPrintBin2((char*)(pMsg->data), pMsg->dataLen);
     cJSON_AddStringToObject(pRoot, "data2", s);
     taosMemoryFree(s);
   }

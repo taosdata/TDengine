@@ -49,17 +49,12 @@ static void syncNodeCleanConfigIndex(SSyncNode* ths) {
     int32_t code = raftCfgPersist(ths->pRaftCfg);
     ASSERT(code == 0);
 
-    do {
-      char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "clean config index arr, old-cnt:%d, new-cnt:%d", oldCnt,
-               ths->pRaftCfg->configIndexCount);
-      syncNodeEventLog(ths, logBuf);
-    } while (0);
+    sNTrace(ths, "clean config index arr, old-cnt:%d, new-cnt:%d", oldCnt, ths->pRaftCfg->configIndexCount);
   }
 }
 
 int32_t syncNodeTimerRoutine(SSyncNode* ths) {
-  syncNodeEventLog(ths, "timer routines");
+  sNTrace(ths, "timer routines");
 
   // timer replicate
   syncNodeReplicate(ths);
@@ -79,12 +74,7 @@ int32_t syncNodeTimerRoutine(SSyncNode* ths) {
       sError("vgId:%d, timer wal snapshot end error since:%s", ths->vgId, terrstr());
       return -1;
     } else {
-      do {
-        char logBuf[256];
-        snprintf(logBuf, sizeof(logBuf), "wal snapshot end, index:%" PRId64, atomic_load_64(&ths->snapshottingIndex));
-        syncNodeEventLog(ths, logBuf);
-      } while (0);
-
+      sNTrace(ths, "wal snapshot end, index:%" PRId64, atomic_load_64(&ths->snapshottingIndex));
       atomic_store_64(&ths->snapshottingIndex, SYNC_INDEX_INVALID);
     }
   }

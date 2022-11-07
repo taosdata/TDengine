@@ -20,48 +20,35 @@
 extern "C" {
 #endif
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "syncInt.h"
-#include "syncMessage.h"
-#include "taosdef.h"
 
-// ---- encode / decode
 uint64_t syncUtilAddr2U64(const char* host, uint16_t port);
-void     syncUtilU642Addr(uint64_t u64, char* host, size_t len, uint16_t* port);
-void     syncUtilnodeInfo2EpSet(const SNodeInfo* pNodeInfo, SEpSet* pEpSet);
+void     syncUtilU642Addr(uint64_t u64, char* host, int64_t len, uint16_t* port);
+void     syncUtilnodeInfo2EpSet(const SNodeInfo* pInfo, SEpSet* pEpSet);
 void     syncUtilraftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet);
-bool     syncUtilnodeInfo2raftId(const SNodeInfo* pNodeInfo, SyncGroupId vgId, SRaftId* raftId);
+bool     syncUtilnodeInfo2raftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* raftId);
 bool     syncUtilSameId(const SRaftId* pId1, const SRaftId* pId2);
 bool     syncUtilEmptyId(const SRaftId* pId);
 
-// ---- SSyncBuffer ----
-void syncUtilbufBuild(SSyncBuffer* syncBuf, size_t len);
-void syncUtilbufDestroy(SSyncBuffer* syncBuf);
-void syncUtilbufCopy(const SSyncBuffer* src, SSyncBuffer* dest);
-void syncUtilbufCopyDeep(const SSyncBuffer* src, SSyncBuffer* dest);
-
-// ---- misc ----
-int32_t     syncUtilRand(int32_t max);
 int32_t     syncUtilElectRandomMS(int32_t min, int32_t max);
 int32_t     syncUtilQuorum(int32_t replicaNum);
 cJSON*      syncUtilNodeInfo2Json(const SNodeInfo* p);
 cJSON*      syncUtilRaftId2Json(const SRaftId* p);
 char*       syncUtilRaftId2Str(const SRaftId* p);
 const char* syncStr(ESyncState state);
-bool        syncUtilCanPrint(char c);
-char*       syncUtilprintBin(char* ptr, uint32_t len);
-char*       syncUtilprintBin2(char* ptr, uint32_t len);
-SyncIndex   syncUtilMinIndex(SyncIndex a, SyncIndex b);
-SyncIndex   syncUtilMaxIndex(SyncIndex a, SyncIndex b);
+char*       syncUtilPrintBin(char* ptr, uint32_t len);
+char*       syncUtilPrintBin2(char* ptr, uint32_t len);
 void        syncUtilMsgHtoN(void* msg);
 void        syncUtilMsgNtoH(void* msg);
-bool        syncUtilIsData(tmsg_t msgType);
 bool        syncUtilUserPreCommit(tmsg_t msgType);
 bool        syncUtilUserCommit(tmsg_t msgType);
 bool        syncUtilUserRollback(tmsg_t msgType);
-void        syncUtilJson2Line(char* jsonStr);
+
+void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNode* pNode, const char* format, ...);
+void syncPrintSnapshotSenderLog(const char* flags, ELogLevel level, int32_t dflag, SSyncSnapshotSender* pSender,
+                                const char* format, ...);
+void syncPrintSnapshotReceiverLog(const char* flags, ELogLevel level, int32_t dflag, SSyncSnapshotReceiver* pReceiver,
+                                  const char* format, ...);
 
 #ifdef __cplusplus
 }

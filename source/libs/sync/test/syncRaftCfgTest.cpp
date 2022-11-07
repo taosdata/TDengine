@@ -53,14 +53,6 @@ SSyncCfg* createSyncCfg() {
   return pCfg;
 }
 
-void test1() {
-  SSyncCfg* pCfg = createSyncCfg();
-  syncCfgLog2((char*)__FUNCTION__, pCfg);
-  syncCfgLog3((char*)__FUNCTION__, pCfg);
-
-  taosMemoryFree(pCfg);
-}
-
 void test2() {
   SSyncCfg* pCfg = createSyncCfg();
   char*     s = syncCfg2Str(pCfg);
@@ -68,7 +60,6 @@ void test2() {
   SSyncCfg* pCfg2 = (SSyncCfg*)taosMemoryMalloc(sizeof(SSyncCfg));
   int32_t   ret = syncCfgFromStr(s, pCfg2);
   assert(ret == 0);
-  syncCfgLog2((char*)__FUNCTION__, pCfg2);
 
   taosMemoryFree(pCfg);
   taosMemoryFree(s);
@@ -97,8 +88,6 @@ void test3() {
 void test4() {
   SRaftCfg* pCfg = raftCfgOpen("./test3_raft_cfg.json");
   assert(pCfg != NULL);
-
-  raftCfgLog2((char*)__FUNCTION__, pCfg);
 
   int32_t ret = raftCfgClose(pCfg);
   assert(ret == 0);
@@ -135,7 +124,6 @@ int main() {
   sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
 
   logTest();
-  test1();
   test2();
   test3();
   test4();
