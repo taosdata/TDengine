@@ -155,9 +155,13 @@ static int32_t vmPutMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtyp
 
   switch (qtype) {
     case QUERY_QUEUE:
-      vnodePreprocessQueryMsg(pVnode->pImpl, pMsg);
-      dGTrace("vgId:%d, msg:%p put into vnode-query queue", pVnode->vgId, pMsg);
-      taosWriteQitem(pVnode->pQueryQ, pMsg);
+      code = vnodePreprocessQueryMsg(pVnode->pImpl, pMsg);
+      if (code) {
+        dError("vgId:%d, msg:%p preprocess query msg failed since %s", pVnode->vgId, pMsg, terrstr(code));
+      } else {
+        dGTrace("vgId:%d, msg:%p put into vnode-query queue", pVnode->vgId, pMsg);
+        taosWriteQitem(pVnode->pQueryQ, pMsg);
+      }
       break;
     case STREAM_QUEUE:
       dGTrace("vgId:%d, msg:%p put into vnode-stream queue", pVnode->vgId, pMsg);
