@@ -76,8 +76,8 @@ python3 ./test.py -f 2-query/count_partition.py
 python3 ./test.py -f 2-query/count_partition.py -R
 python3 ./test.py -f 2-query/count.py
 python3 ./test.py -f 2-query/count.py -R
-python3 ./test.py -f 2-query/countAlwaysReturnValue.py
-python3 ./test.py -f 2-query/countAlwaysReturnValue.py -R
+# python3 ./test.py -f 2-query/countAlwaysReturnValue.py
+# python3 ./test.py -f 2-query/countAlwaysReturnValue.py -R
 python3 ./test.py -f 2-query/db.py
 python3 ./test.py -f 2-query/db.py -R
 python3 ./test.py -f 2-query/diff.py
@@ -387,7 +387,7 @@ python3 ./test.py -f 2-query/Today.py -Q 2
 python3 ./test.py -f 2-query/max.py -Q 2
 python3 ./test.py -f 2-query/min.py -Q 2
 python3 ./test.py -f 2-query/count.py -Q 2
-python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 2
+# python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 2
 python3 ./test.py -f 2-query/last.py -Q 2
 python3 ./test.py -f 2-query/first.py -Q 2
 python3 ./test.py -f 2-query/To_iso8601.py -Q 2
@@ -483,7 +483,7 @@ python3 ./test.py -f 2-query/Today.py -Q  3
 python3 ./test.py -f 2-query/max.py -Q  3
 python3 ./test.py -f 2-query/min.py -Q  3
 python3 ./test.py -f 2-query/count.py -Q  3
-python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 3
+# python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 3
 python3 ./test.py -f 2-query/last.py -Q  3
 python3 ./test.py -f 2-query/first.py -Q  3
 python3 ./test.py -f 2-query/To_iso8601.py -Q  3
@@ -581,7 +581,7 @@ python3 ./test.py -f 2-query/Today.py -Q  4
 python3 ./test.py -f 2-query/max.py -Q  4
 python3 ./test.py -f 2-query/min.py -Q  4
 python3 ./test.py -f 2-query/count.py -Q  4
-python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 4
+# python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 4
 python3 ./test.py -f 2-query/last.py -Q  4
 python3 ./test.py -f 2-query/first.py -Q  4
 python3 ./test.py -f 2-query/To_iso8601.py -Q  4
