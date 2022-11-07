@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "filter.h"
 #include "executorimpl.h"
 #include "tdatablock.h"
 
@@ -42,12 +43,14 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSortPhysiNode*
       extractColMatchInfo(pSortNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID, &pInfo->matchInfo);
 
   pOperator->exprSupp.pCtx = createSqlFunctionCtx(pExprInfo, numOfCols, &pOperator->exprSupp.rowEntryInfoOffset);
-
   initResultSizeInfo(&pOperator->resultInfo, 1024);
+  code = filterInitFromNode((SNode*)pSortNode->node.pConditions, &pOperator->exprSupp.pFilterInfo, 0);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
   pInfo->binfo.pRes = pResBlock;
   pInfo->pSortInfo = createSortInfo(pSortNode->pSortKeys);
-  pInfo->pCondition = pSortNode->node.pConditions;
   initLimitInfo(pSortNode->node.pLimit, pSortNode->node.pSlimit, &pInfo->limitInfo);
 
   pOperator->name = "SortOperator";
@@ -215,7 +218,7 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
       return NULL;
     }
 
-    doFilter(pInfo->pCondition, pBlock, &pInfo->matchInfo, NULL);
+    doFilter(pBlock, pOperator->exprSupp.pFilterInfo, &pInfo->matchInfo);
     if (blockDataGetNumOfRows(pBlock) == 0) {
       continue;
     }

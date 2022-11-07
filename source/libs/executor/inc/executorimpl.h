@@ -311,7 +311,6 @@ typedef struct STableScanInfo {
   SFileBlockLoadRecorder readRecorder;
   SScanInfo              scanInfo;
   int32_t                scanTimes;
-  SNode*                 pFilterNode;  // filter info, which is push down by optimizer
   SSDataBlock*           pResBlock;
   SColMatchInfo          matchInfo;
   SExprSupp              pseudoSup;
@@ -348,7 +347,6 @@ typedef struct STableMergeScanInfo {
   int64_t                numOfRows;
   SScanInfo              scanInfo;
   int32_t                scanTimes;
-  SNode*                 pFilterNode;  // filter info, which is push down by optimizer
   SqlFunctionCtx*        pCtx;         // which belongs to the direct upstream operator operator query context
   SResultRowInfo*        pResultRowInfo;
   int32_t*               rowEntryInfoOffset;
@@ -466,7 +464,6 @@ typedef struct SStreamScanInfo {
   SReadHandle   readHandle;
   SInterval     interval;  // if the upstream is an interval operator, the interval info is also kept here.
   SColMatchInfo matchInfo;
-  SNode*        pCondition;
 
   SArray*      pBlockLists;  // multiple SSDatablock.
   SSDataBlock* pRes;         // result SSDataBlock
@@ -570,7 +567,6 @@ typedef struct SIntervalAggOperatorInfo {
   EOPTR_EXEC_MODEL   execModel;          // operator execution model [batch model|stream model]
   STimeWindowAggSupp twAggSup;
   SArray*            pPrevValues;  //  SArray<SGroupKeys> used to keep the previous not null value for interpolation.
-  SNode*             pCondition;
 } SIntervalAggOperatorInfo;
 
 typedef struct SMergeAlignedIntervalAggOperatorInfo {
@@ -579,12 +575,10 @@ typedef struct SMergeAlignedIntervalAggOperatorInfo {
   uint64_t     groupId;  // current groupId
   int64_t      curTs;    // current ts
   SSDataBlock* prefetchedBlock;
-  SNode*       pCondition;
   SResultRow*  pResultRow;
 } SMergeAlignedIntervalAggOperatorInfo;
 
 typedef struct SStreamIntervalOperatorInfo {
-  // SOptrBasicInfo should be first, SAggSupporter should be second for stream encode
   SOptrBasicInfo     binfo;           // basic info
   SAggSupporter      aggSup;          // aggregate supporter
   SExprSupp          scalarSupp;      // supporter for perform scalar function
@@ -610,26 +604,21 @@ typedef struct SStreamIntervalOperatorInfo {
 } SStreamIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
-  // SOptrBasicInfo should be first, SAggSupporter should be second for stream encode
-  SOptrBasicInfo binfo;
-  SAggSupporter  aggSup;
-
+  SOptrBasicInfo   binfo;
+  SAggSupporter    aggSup;
   STableQueryInfo* current;
   uint64_t         groupId;
   SGroupResInfo    groupResInfo;
   SExprSupp        scalarExprSup;
-  SNode*           pCondition;
 } SAggOperatorInfo;
 
 typedef struct SProjectOperatorInfo {
   SOptrBasicInfo binfo;
   SAggSupporter  aggSup;
-  SNode*         pFilterNode;  // filter info, which is push down by optimizer
   SArray*        pPseudoColInfo;
   SLimitInfo     limitInfo;
   bool           mergeDataBlocks;
   SSDataBlock*   pFinalRes;
-  SNode*         pCondition;
 } SProjectOperatorInfo;
 
 typedef struct SIndefOperatorInfo {
@@ -637,10 +626,8 @@ typedef struct SIndefOperatorInfo {
   SAggSupporter  aggSup;
   SArray*        pPseudoColInfo;
   SExprSupp      scalarSup;
-  SNode*         pCondition;
   uint64_t       groupId;
-
-  SSDataBlock* pNextGroupRes;
+  SSDataBlock*   pNextGroupRes;
 } SIndefOperatorInfo;
 
 typedef struct SFillOperatorInfo {
@@ -651,7 +638,6 @@ typedef struct SFillOperatorInfo {
   void**            p;
   SSDataBlock*      existNewGroupBlock;
   STimeWindow       win;
-  SNode*            pCondition;
   SColMatchInfo     matchInfo;
   int32_t           primaryTsCol;
   int32_t           primarySrcSlotId;
@@ -666,7 +652,6 @@ typedef struct SGroupbyOperatorInfo {
   SAggSupporter  aggSup;
   SArray*        pGroupCols;     // group by columns, SArray<SColumn>
   SArray*        pGroupColVals;  // current group column values, SArray<SGroupKeys>
-  SNode*         pCondition;
   bool           isInit;       // denote if current val is initialized or not
   char*          keyBuf;       // group by keys for hash
   int32_t        groupKeyLen;  // total group by column width
@@ -716,7 +701,6 @@ typedef struct SSessionAggOperatorInfo {
   int64_t            gap;       // session window gap
   int32_t            tsSlotId;  // primary timestamp slot id
   STimeWindowAggSupp twAggSup;
-  const SNode*       pCondition;
 } SSessionAggOperatorInfo;
 
 typedef struct SResultWindowInfo {
@@ -790,7 +774,6 @@ typedef struct SStreamFillOperatorInfo {
   SSDataBlock*          pSrcDelBlock;
   int32_t               srcDelRowIndex;
   SSDataBlock*          pDelRes;
-  SNode*                pCondition;
   SColMatchInfo         matchInfo;
   int32_t               primaryTsCol;
   int32_t               primarySrcSlotId;
@@ -827,7 +810,6 @@ typedef struct SStateWindowOperatorInfo {
   SStateKeys         stateKey;
   int32_t            tsSlotId;  // primary timestamp column slot id
   STimeWindowAggSupp twAggSup;
-  const SNode*       pCondition;
 } SStateWindowOperatorInfo;
 
 typedef struct SSortOperatorInfo {
@@ -840,7 +822,6 @@ typedef struct SSortOperatorInfo {
   int64_t        startTs;      // sort start time
   uint64_t       sortElapsed;  // sort elapsed time, time to flush to disk not included.
   SLimitInfo     limitInfo;
-  SNode*         pCondition;
 } SSortOperatorInfo;
 
 typedef struct SJoinOperatorInfo {
@@ -901,7 +882,7 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
 int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaultBufsz);
 
 void    doSetOperatorCompleted(SOperatorInfo* pOperator);
-void    doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, SColMatchInfo* pColMatchInfo, SFilterInfo* pFilterInfo);
+void    doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo);
 int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr,
                                SSDataBlock* pBlock, int32_t rows, const char* idStr, STableMetaCacheInfo * pCache);
 

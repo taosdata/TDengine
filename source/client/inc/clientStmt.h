@@ -101,11 +101,18 @@ typedef struct STscStmt {
   SStmtSQLInfo  sql;
   SStmtExecInfo exec;
   SStmtBindInfo bInfo;
+
+  int64_t reqid;
 } STscStmt;
 
 extern char *gStmtStatusStr[];
 
-#define STMT_LOG_SEQ(n) do { (pStmt)->seqId++; (pStmt)->seqIds[n]++; STMT_DLOG("the %dth:%d %s", (pStmt)->seqIds[n], (pStmt)->seqId, gStmtStatusStr[n]); } while (0)
+#define STMT_LOG_SEQ(n)                                                                 \
+  do {                                                                                  \
+    (pStmt)->seqId++;                                                                   \
+    (pStmt)->seqIds[n]++;                                                               \
+    STMT_DLOG("the %dth:%d %s", (pStmt)->seqIds[n], (pStmt)->seqId, gStmtStatusStr[n]); \
+  } while (0)
 
 #define STMT_STATUS_NE(S) (pStmt->sql.status != STMT_##S)
 #define STMT_STATUS_EQ(S) (pStmt->sql.status == STMT_##S)
@@ -141,7 +148,7 @@ extern char *gStmtStatusStr[];
 #define STMT_ELOG_E(param) qError("stmt:%p " param, pStmt)
 #define STMT_DLOG_E(param) qDebug("stmt:%p " param, pStmt)
 
-TAOS_STMT  *stmtInit(STscObj *taos);
+TAOS_STMT  *stmtInit(STscObj *taos, int64_t reqid);
 int         stmtClose(TAOS_STMT *stmt);
 int         stmtExec(TAOS_STMT *stmt);
 const char *stmtErrstr(TAOS_STMT *stmt);
