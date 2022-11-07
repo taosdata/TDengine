@@ -255,7 +255,7 @@ Note: If you include an ORDER BY clause, only one partition can be displayed.
 
 Some special query functions can be invoked without `FROM` sub-clause.
 
-## Obtain Current Database
+### Obtain Current Database
 
 The following SQL statement returns the current database. If a database has not been specified on login or with the `USE` command, a null value is returned.
 
@@ -270,7 +270,7 @@ SELECT CLIENT_VERSION();
 SELECT SERVER_VERSION();
 ```
 
-## Obtain Server Status
+### Obtain Server Status
 
 The following SQL statement returns the status of the TDengine server. An integer indicates that the server is running normally. An error code indicates that an error has occurred. This statement can also detect whether a connection pool or third-party tool is connected to TDengine properly. By using this statement, you can ensure that connections in a pool are not lost due to an incorrect heartbeat detection statement.
 
