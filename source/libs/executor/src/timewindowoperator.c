@@ -986,7 +986,8 @@ void doCloseWindow(SResultRowInfo* pResultRowInfo, const SIntervalAggOperatorInf
   // current result is done in computing final results.
   if (pInfo->timeWindowInterpo && isResultRowInterpolated(pResult, RESULT_ROW_END_INTERP)) {
     closeResultRow(pResult);
-    tdListPopHead(pResultRowInfo->openWindow);
+    SListNode *pNode = tdListPopHead(pResultRowInfo->openWindow);
+    taosMemoryFree(pNode);
   }
 }
 

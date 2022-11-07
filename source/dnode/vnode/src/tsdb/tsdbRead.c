@@ -544,7 +544,6 @@ static SSDataBlock* createResBlock(SQueryTableDataCond* pCond, int32_t capacity)
     taosMemoryFree(pResBlock);
     return NULL;
   }
-
   return pResBlock;
 }
 

@@ -489,7 +489,7 @@ EFuncDataRequired countDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWind
   if (QUERY_NODE_COLUMN == nodeType(pParam) && PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pParam)->colId) {
     return FUNC_DATA_REQUIRED_NOT_LOAD;
   }
-  return FUNC_DATA_REQUIRED_STATIS_LOAD;
+  return FUNC_DATA_REQUIRED_SMA_LOAD;
 }
 
 bool getCountFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
@@ -1103,7 +1103,7 @@ int32_t avgPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 }
 
 EFuncDataRequired statisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
-  return FUNC_DATA_REQUIRED_STATIS_LOAD;
+  return FUNC_DATA_REQUIRED_SMA_LOAD;
 }
 
 bool minmaxFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
@@ -5450,6 +5450,8 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   } else {
     colDataAppendNULL(pCol, currentRow);
   }
+
+  taosHashCleanup(pInfo->pHash);
 
   return pResInfo->numOfRes;
 }

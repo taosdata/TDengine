@@ -87,7 +87,7 @@ static void releaseQueryBuf(size_t numOfTables);
 
 static void destroyFillOperatorInfo(void* param);
 static void destroyProjectOperatorInfo(void* param);
-static void destroyOrderOperatorInfo(void* param);
+static void destroySortOperatorInfo(void* param);
 static void destroyAggOperatorInfo(void* param);
 
 static void destroyIntervalOperatorInfo(void* param);
@@ -322,7 +322,7 @@ void initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow
   pColData->info.type = TSDB_DATA_TYPE_TIMESTAMP;
   pColData->info.bytes = sizeof(int64_t);
 
-  colInfoDataEnsureCapacity(pColData, 5);
+  colInfoDataEnsureCapacity(pColData, 5, false);
   colDataAppendInt64(pColData, 0, &pQueryWindow->skey);
   colDataAppendInt64(pColData, 1, &pQueryWindow->ekey);
 
@@ -439,7 +439,7 @@ static int32_t doCreateConstantValColumnInfo(SInputColumnInfoData* pInput, SFunc
     pColInfo = pInput->pData[paramIndex];
   }
 
-  colInfoDataEnsureCapacity(pColInfo, numOfRows);
+  colInfoDataEnsureCapacity(pColInfo, numOfRows, false);
 
   int8_t type = pFuncParam->param.nType;
   if (type == TSDB_DATA_TYPE_BIGINT || type == TSDB_DATA_TYPE_UBIGINT) {

@@ -137,6 +137,9 @@ static FORCE_INLINE void colDataAppendNNULL(SColumnInfoData* pColumnInfoData, ui
     for (int32_t i = start; i < start + nRows; ++i) {
       colDataSetNull_f(pColumnInfoData->nullbitmap, i);
     }
+
+    int32_t bytes = pColumnInfoData->info.bytes;
+    memset(pColumnInfoData->pData + start * bytes, 0, nRows * bytes);
   }
 
   pColumnInfoData->hasNull = true;
@@ -215,7 +218,7 @@ size_t blockDataGetSerialMetaSize(uint32_t numOfCols);
 int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo);
 int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirst);
 
-int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows);
+int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, uint32_t numOfRows, bool clearPayload);
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
 
 void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows);

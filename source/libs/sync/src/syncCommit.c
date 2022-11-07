@@ -44,6 +44,56 @@
 //        IN commitIndex' = [commitIndex EXCEPT ![i] = newCommitIndex]
 //     /\ UNCHANGED <<messages, serverVars, candidateVars, leaderVars, log>>
 //
+void syncOneReplicaAdvance(SSyncNode* pSyncNode) {
+  if (pSyncNode == NULL) {
+    sError("pSyncNode is NULL");
+    return;
+  }
+
+  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+    syncNodeErrorLog(pSyncNode, "not leader, can not advance commit index");
+    return;
+  }
+
+  if (pSyncNode->replicaNum != 1) {
+    syncNodeErrorLog(pSyncNode, "not one replica, can not advance commit index");
+    return;
+  }
+
+  // advance commit index to snapshot first
+  SSnapshot snapshot;
+  pSyncNode->pFsm->FpGetSnapshotInfo(pSyncNode->pFsm, &snapshot);
+  if (snapshot.lastApplyIndex > 0 && snapshot.lastApplyIndex > pSyncNode->commitIndex) {
+    SyncIndex commitBegin = pSyncNode->commitIndex;
+    SyncIndex commitEnd = snapshot.lastApplyIndex;
+    pSyncNode->commitIndex = snapshot.lastApplyIndex;
+
+    char eventLog[128];
+    snprintf(eventLog, sizeof(eventLog), "commit by snapshot from index:%" PRId64 " to index:%" PRId64, commitBegin,
+             commitEnd);
+    syncNodeEventLog(pSyncNode, eventLog);
+  }
+
+  // advance commit index as large as possible
+  SyncIndex lastIndex = syncNodeGetLastIndex(pSyncNode);
+  if (lastIndex > pSyncNode->commitIndex) {
+    do {
+      char eventLog[128];
+      snprintf(eventLog, sizeof(eventLog), "commit by wal from index:%" PRId64 " to index:%" PRId64,
+               pSyncNode->commitIndex + 1, lastIndex);
+      syncNodeEventLog(pSyncNode, eventLog);
+    } while (0);
+
+    pSyncNode->commitIndex = lastIndex;
+  }
+
+  // call back Wal
+  SyncIndex walCommitVer = logStoreWalCommitVer(pSyncNode->pLogStore);
+  if (pSyncNode->commitIndex > walCommitVer) {
+    pSyncNode->pLogStore->syncLogUpdateCommitIndex(pSyncNode->pLogStore, pSyncNode->commitIndex);
+  }
+}
+
 void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
   if (pSyncNode == NULL) {
     sError("pSyncNode is NULL");

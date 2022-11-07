@@ -379,7 +379,7 @@ static int32_t createResultData(SDataType* pType, int32_t numOfRows, SScalarPara
   pColumnData->info.scale = pType->scale;
   pColumnData->info.precision = pType->precision;
 
-  int32_t code = colInfoDataEnsureCapacity(pColumnData, numOfRows);
+  int32_t code = colInfoDataEnsureCapacity(pColumnData, numOfRows, true);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     taosMemoryFree(pColumnData);
@@ -1824,8 +1824,6 @@ static int32_t orderbyGroupIdComparFn(const void* p1, const void* p2) {
 }
 
 static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
   taosArraySort(pTableListInfo->pTableList, orderbyGroupIdComparFn);
   int32_t size = taosArrayGetSize(pTableListInfo->pTableList);
 
@@ -1847,6 +1845,11 @@ static int32_t sortTableGroup(STableListInfo* pTableListInfo) {
 
   pTableListInfo->numOfOuputGroups = taosArrayGetSize(pList);
   pTableListInfo->groupOffset = taosMemoryMalloc(sizeof(int32_t) * pTableListInfo->numOfOuputGroups);
+  if (pTableListInfo->groupOffset == NULL) {
+    taosArrayDestroy(pList);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   memcpy(pTableListInfo->groupOffset, taosArrayGet(pList, 0), sizeof(int32_t) * pTableListInfo->numOfOuputGroups);
   taosArrayDestroy(pList);
   return TDB_CODE_SUCCESS;

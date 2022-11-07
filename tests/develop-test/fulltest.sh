@@ -18,3 +18,4 @@ python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_json_alltypes.py
 #python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_telnet_alltypes.py
 #python3 ./test.py -f 5-taos-tools/taosbenchmark/taosadapter_json.py
 #python3 ./test.py -f 5-taos-tools/taosbenchmark/telnet_tcp.py
+python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestQueryWithJson.py -R

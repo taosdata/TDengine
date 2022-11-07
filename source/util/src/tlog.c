@@ -81,25 +81,25 @@ int64_t tsNumOfDebugLogs = 0;
 int64_t tsNumOfTraceLogs = 0;
 
 // log
-int32_t dDebugFlag = 135;
-int32_t vDebugFlag = 135;
-int32_t mDebugFlag = 135;
+int32_t dDebugFlag = 131;
+int32_t vDebugFlag = 131;
+int32_t mDebugFlag = 131;
 int32_t cDebugFlag = 131;
 int32_t jniDebugFlag = 131;
 int32_t tmrDebugFlag = 131;
 int32_t uDebugFlag = 131;
 int32_t rpcDebugFlag = 131;
 int32_t qDebugFlag = 131;
-int32_t wDebugFlag = 135;
-int32_t sDebugFlag = 135;
+int32_t wDebugFlag = 131;
+int32_t sDebugFlag = 131;
 int32_t tsdbDebugFlag = 131;
 int32_t tdbDebugFlag = 131;
-int32_t tqDebugFlag = 135;
-int32_t fsDebugFlag = 135;
-int32_t metaDebugFlag = 135;
-int32_t udfDebugFlag = 135;
+int32_t tqDebugFlag = 131;
+int32_t fsDebugFlag = 131;
+int32_t metaDebugFlag = 131;
+int32_t udfDebugFlag = 131;
 int32_t smaDebugFlag = 131;
-int32_t idxDebugFlag = 135;
+int32_t idxDebugFlag = 131;
 
 int64_t dbgEmptyW = 0;
 int64_t dbgWN = 0;
