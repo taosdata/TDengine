@@ -218,8 +218,12 @@ SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode) {
 
 int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) return -1;
-
+  if (pSyncNode == NULL) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    sError("sync begin snapshot error");
+    return -1;
+  }
+  
   int32_t code = 0;
 
   if (syncNodeIsMnode(pSyncNode)) {
@@ -327,7 +331,10 @@ _DEL_WAL:
 
 int32_t syncEndSnapshot(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) return -1;
+  if (pSyncNode == NULL) {
+    sError("sync end snapshot error");
+    return -1;
+  }
 
   int32_t code = 0;
   if (atomic_load_64(&pSyncNode->snapshottingIndex) != SYNC_INDEX_INVALID) {
@@ -349,7 +356,10 @@ int32_t syncEndSnapshot(int64_t rid) {
 
 int32_t syncStepDown(int64_t rid, SyncTerm newTerm) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) return -1;
+  if (pSyncNode == NULL) {
+    sError("sync step down error");
+    return -1;
+  }
 
   syncNodeStepDown(pSyncNode, newTerm);
   syncNodeRelease(pSyncNode);
@@ -358,7 +368,10 @@ int32_t syncStepDown(int64_t rid, SyncTerm newTerm) {
 
 bool syncIsReadyForRead(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) return -1;
+  if (pSyncNode == NULL) {
+    sError("sync ready for read error");
+    return false;
+  }
 
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER && pSyncNode->restoreFinish) {
     syncNodeRelease(pSyncNode);
@@ -648,7 +661,10 @@ static void syncGetAndDelRespRpc(SSyncNode* pSyncNode, uint64_t index, SRpcHandl
 
 int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) return -1;
+  if (pSyncNode == NULL) {
+    sError("sync propose error");
+    return -1;
+  }
 
   int32_t ret = syncNodePropose(pSyncNode, pMsg, isWeak);
   syncNodeRelease(pSyncNode);
@@ -2537,9 +2553,19 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SyncClientRequest* pMsg, SyncInd
     // append entry
     code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
     if (code != 0) {
-      // del resp mgr, call FpCommitCb
-      ASSERT(0);
-      return -1;
+      if (ths->replicaNum == 1) {
+        if (h) {
+          taosLRUCacheRelease(ths->pLogStore->pCache, h, false);
+        } else {
+          syncEntryDestory(pEntry);
+        }
+        return -1;
+
+      } else {
+        // del resp mgr, call FpCommitCb
+        ASSERT(0);
+        return -1;
+      }
     }
 
     // if mulit replica, start replicate right now

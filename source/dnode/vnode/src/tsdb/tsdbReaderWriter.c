@@ -514,7 +514,7 @@ static int32_t tsdbWriteBlockSma(SDataFWriter *pWriter, SBlockData *pBlockData, 
   pSmaInfo->size = 0;
 
   // encode
-  for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockData->aIdx); iColData++) {
+  for (int32_t iColData = 0; iColData < pBlockData->nColData; iColData++) {
     SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
 
     if ((!pColData->smaOn) || IS_VAR_DATA_TYPE(pColData->type)) continue;
@@ -1112,7 +1112,7 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
   ASSERT(p - pReader->aBuf[0] == pBlkInfo->szKey);
 
   // read and decode columns
-  if (taosArrayGetSize(pBlockData->aIdx) == 0) goto _exit;
+  if (pBlockData->nColData == 0) goto _exit;
 
   if (hdr.szBlkCol > 0) {
     int64_t offset = pBlkInfo->offset + pBlkInfo->szKey;
@@ -1128,7 +1128,7 @@ static int32_t tsdbReadBlockDataImpl(SDataFReader *pReader, SBlockInfo *pBlkInfo
   SBlockCol *pBlockCol = &blockCol;
   int32_t    n = 0;
 
-  for (int32_t iColData = 0; iColData < taosArrayGetSize(pBlockData->aIdx); iColData++) {
+  for (int32_t iColData = 0; iColData < pBlockData->nColData; iColData++) {
     SColData *pColData = tBlockDataGetColDataByIdx(pBlockData, iColData);
 
     while (pBlockCol && pBlockCol->cid < pColData->cid) {
@@ -1211,49 +1211,6 @@ int32_t tsdbReadDataBlock(SDataFReader *pReader, SDataBlk *pDataBlk, SBlockData 
   if (code) goto _err;
 
   ASSERT(pDataBlk->nSubBlock == 1);
-
-#if 0
-  if (pDataBlk->nSubBlock > 1) {
-    SBlockData bData1;
-    SBlockData bData2;
-
-    // create
-    code = tBlockDataCreate(&bData1);
-    if (code) goto _err;
-    code = tBlockDataCreate(&bData2);
-    if (code) goto _err;
-
-    // init
-    tBlockDataInitEx(&bData1, pBlockData);
-    tBlockDataInitEx(&bData2, pBlockData);
-
-    for (int32_t iSubBlock = 1; iSubBlock < pDataBlk->nSubBlock; iSubBlock++) {
-      code = tsdbReadBlockDataImpl(pReader, &pDataBlk->aSubBlock[iSubBlock], &bData1);
-      if (code) {
-        tBlockDataDestroy(&bData1, 1);
-        tBlockDataDestroy(&bData2, 1);
-        goto _err;
-      }
-
-      code = tBlockDataCopy(pBlockData, &bData2);
-      if (code) {
-        tBlockDataDestroy(&bData1, 1);
-        tBlockDataDestroy(&bData2, 1);
-        goto _err;
-      }
-
-      code = tBlockDataMerge(&bData1, &bData2, pBlockData);
-      if (code) {
-        tBlockDataDestroy(&bData1, 1);
-        tBlockDataDestroy(&bData2, 1);
-        goto _err;
-      }
-    }
-
-    tBlockDataDestroy(&bData1, 1);
-    tBlockDataDestroy(&bData2, 1);
-  }
-#endif
 
   return code;
 
