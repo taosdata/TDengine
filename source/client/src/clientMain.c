@@ -801,8 +801,8 @@ static void doAsyncQueryFromParse(SMetaData *pResultMeta, void *param, int32_t c
              tstrerror(code), pWrapper->pRequest->requestId);
     destorySqlCallbackWrapper(pWrapper);
     terrno = code;
-    pWrapper->pRequest->code = code;
-    pWrapper->pRequest->body.queryFp(pWrapper->pRequest->body.param, pWrapper->pRequest, code);
+    pRequest->code = code;
+    pRequest->body.queryFp(pRequest->body.param, pRequest, code);
   }
 }
 
