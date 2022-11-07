@@ -425,6 +425,7 @@ int32_t schHandleCallback(void *param, SDataBuf *pMsg, int32_t rspCode) {
 _return:
 
   taosMemoryFreeClear(pMsg->pData);
+  taosMemoryFreeClear(pMsg->pEpSet);
 
   qDebug("end to handle rsp msg, type:%s, handle:%p, code:%s", TMSG_INFO(pMsg->msgType), pMsg->handle,
          tstrerror(rspCode));
@@ -438,6 +439,7 @@ int32_t schHandleDropCallback(void *param, SDataBuf *pMsg, int32_t code) {
          code);
   if (pMsg) {
     taosMemoryFree(pMsg->pData);
+    taosMemoryFree(pMsg->pEpSet);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -492,6 +494,7 @@ _return:
 
   tFreeSSchedulerHbRsp(&rsp);
   taosMemoryFree(pMsg->pData);
+  taosMemoryFree(pMsg->pEpSet);
   SCH_RET(code);
 }
 
