@@ -364,9 +364,9 @@ static void clearBlockScanInfo(STableBlockScanInfo* p) {
   tMapDataClear(&p->mapData);
 }
 
-static void destroyAllBlockScanInfo(SHashObj* pTableMap) {
+static void destroyAllBlockScanInfo(SHashObj* pTableMap, bool clearEntry) {
   void* p = NULL;
-  while ((p = taosHashIterate(pTableMap, p)) != NULL) {
+  while (clearEntry && ((p = taosHashIterate(pTableMap, p)) != NULL)) {
     clearBlockScanInfo(*(STableBlockScanInfo**)p);
   }
 
@@ -3763,7 +3763,7 @@ void tsdbReaderClose(STsdbReader* pReader) {
   cleanupDataBlockIterator(&pReader->status.blockIter);
 
   size_t numOfTables = taosHashGetSize(pReader->status.pTableMap);
-  destroyAllBlockScanInfo(pReader->status.pTableMap);
+  destroyAllBlockScanInfo(pReader->status.pTableMap, (pReader->innerReader[0] == NULL) ? true : false);
   blockDataDestroy(pReader->pResBlock);
   clearBlockScanInfoBuf(&pReader->blockInfoBuf);
 
