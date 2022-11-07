@@ -33,6 +33,7 @@ extern "C" {
 #define CTG_DEFAULT_MAX_RETRY_TIMES      3
 #define CTG_DEFAULT_BATCH_NUM            64
 #define CTG_DEFAULT_FETCH_NUM            8
+#define CTG_MAX_COMMAND_LEN              512
 
 #define CTG_RENT_SLOT_SECOND 1.5
 
@@ -223,6 +224,7 @@ typedef struct SCtgUserAuth {
 
 typedef struct SCatalog {
   uint64_t     clusterId;
+  bool         stopUpdate;
   SHashObj*    userCache;  // key:user, value:SCtgUserAuth
   SHashObj*    dbCache;    // key:dbname, value:SCtgDBCache
   SCtgRentMgmt dbRent;
@@ -671,7 +673,7 @@ void    ctgdShowClusterCache(SCatalog* pCtg);
 int32_t ctgdShowCacheInfo(void);
 
 int32_t ctgRemoveTbMetaFromCache(SCatalog* pCtg, SName* pTableName, bool syncReq);
-int32_t ctgGetTbMetaFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
+int32_t ctgGetTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta);
 int32_t ctgGetTbMetasFromCache(SCatalog* pCtg, SRequestConnInfo* pConn, SCtgTbMetasCtx* ctx, int32_t dbIdx,
                                int32_t* fetchIdx, int32_t baseResIdx, SArray* pList);
 
@@ -786,6 +788,7 @@ void    ctgFreeTbCacheImpl(SCtgTbCache* pCache);
 int32_t ctgRemoveTbMeta(SCatalog* pCtg, SName* pTableName);
 int32_t ctgGetTbHashVgroup(SCatalog* pCtg, SRequestConnInfo* pConn, const SName* pTableName, SVgroupInfo* pVgroup, bool* exists);
 SName*  ctgGetFetchName(SArray* pNames, SCtgFetch* pFetch);
+int32_t ctgdGetOneHandle(SCatalog **pHandle);
 
 extern SCatalogMgmt gCtgMgmt;
 extern SCtgDebug    gCTGDebug;

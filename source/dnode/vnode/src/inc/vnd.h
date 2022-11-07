@@ -17,7 +17,6 @@
 #define _TD_VND_H_
 
 #include "sync.h"
-#include "syncTools.h"
 #include "ttrace.h"
 #include "vnodeInt.h"
 
@@ -98,6 +97,7 @@ bool    vnodeShouldRollback(SVnode* pVnode);
 // vnodeSync.c
 int32_t vnodeSyncOpen(SVnode* pVnode, char* path);
 void    vnodeSyncStart(SVnode* pVnode);
+void    vnodeSyncPreClose(SVnode* pVnode);
 void    vnodeSyncClose(SVnode* pVnode);
 void    vnodeRedirectRpcMsg(SVnode* pVnode, SRpcMsg* pMsg);
 bool    vnodeIsLeader(SVnode* pVnode);

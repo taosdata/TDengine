@@ -53,11 +53,10 @@ int32_t mndInitTopic(SMnode *pMnode) {
       .deleteFp = (SdbDeleteFp)mndTopicActionDelete,
   };
 
-  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_TOPIC, mndProcessCreateTopicReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_DROP_TOPIC, mndProcessDropTopicReq);
-  mndSetMsgHandle(pMnode, TDMT_VND_DROP_TOPIC_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_VND_ADD_CHECK_INFO_RSP, mndTransProcessRsp);
-  mndSetMsgHandle(pMnode, TDMT_VND_DELETE_CHECK_INFO_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_CREATE_TOPIC, mndProcessCreateTopicReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_TMQ_DROP_TOPIC, mndProcessDropTopicReq);
+  mndSetMsgHandle(pMnode, TDMT_VND_TMQ_ADD_CHECKINFO_RSP, mndTransProcessRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_TMQ_DEL_CHECKINFO_RSP, mndTransProcessRsp);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TOPICS, mndRetrieveTopic);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TOPICS, mndCancelGetNextTopic);
@@ -506,7 +505,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
       action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
       action.pCont = buf;
       action.contLen = sizeof(SMsgHead) + len;
-      action.msgType = TDMT_VND_ADD_CHECK_INFO;
+      action.msgType = TDMT_VND_TMQ_ADD_CHECKINFO;
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         taosMemoryFree(buf);
         sdbRelease(pSdb, pVgroup);
@@ -715,7 +714,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
       action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
       action.pCont = buf;
       action.contLen = sizeof(SMsgHead) + TSDB_TOPIC_FNAME_LEN;
-      action.msgType = TDMT_VND_DELETE_CHECK_INFO;
+      action.msgType = TDMT_VND_TMQ_DEL_CHECKINFO;
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
         taosMemoryFree(buf);
         sdbRelease(pSdb, pVgroup);

@@ -67,6 +67,7 @@ fi
 }
 
 
+
 function wgetFile {
 
 file=$1
@@ -75,7 +76,10 @@ if [ ! -f  ${file}  ];then
     echoColor  BD "wget https://www.taosdata.com/assets-download/3.0/${file}"
     wget https://www.taosdata.com/assets-download/3.0/${file}
 else
-    echoColor  YD "${file} already exists "
+    echoColor  YD "${file} already exists and use new file "
+    rm -rf ${file}
+    echoColor  BD "wget https://www.taosdata.com/assets-download/3.0/${file}"
+    wget https://www.taosdata.com/assets-download/3.0/${file}  
 fi
 }
 
@@ -211,7 +215,8 @@ elif [[ ${packgeName} =~ "tar" ]];then
 
     if [ ${diffNumbers} != 0 ];then
         echoColor R "The number and names of files is different from the previous installation package"
-        echoColor Y `cat ${installPath}/diffFile.log`
+        diffLog=`cat ${installPath}/diffFile.log`
+        echoColor Y "${diffLog}"
         exit -1
     else 
         echoColor G "The number and names of files are the same as previous installation packages"

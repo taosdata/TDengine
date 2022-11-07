@@ -1087,7 +1087,7 @@ int32_t filterAddUnitImpl(SFilterInfo *info, uint8_t optr, SFilterFieldId *left,
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    info->units = tmp;
+    info->units = (SFilterUnit*)tmp;
     memset(info->units + psize, 0, sizeof(*info->units) * FILTER_DEFAULT_UNIT_SIZE);
   }
 
@@ -1633,12 +1633,12 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
 
           SValueNode *var = (SValueNode *)field->desc;
           SDataType  *dType = &var->node.resType;
-          if (dType->type == TSDB_DATA_TYPE_VALUE_ARRAY) {
-            qDebug("VAL%d => [type:TS][val:[%" PRIi64 "] - [%" PRId64 "]]", i, *(int64_t *)field->data,
-                   *(((int64_t *)field->data) + 1));
-          } else {
+          //if (dType->type == TSDB_DATA_TYPE_VALUE_ARRAY) {
+          //  qDebug("VAL%d => [type:TS][val:[%" PRIi64 "] - [%" PRId64 "]]", i, *(int64_t *)field->data,
+          //         *(((int64_t *)field->data) + 1));
+          //} else {
             qDebug("VAL%d => [type:%d][val:%" PRIx64 "]", i, dType->type, var->datum.i);  // TODO
-          }
+          //}
         } else if (field->data) {
           qDebug("VAL%d => [type:NIL][val:NIL]", i);  // TODO
         }
@@ -3994,9 +3994,12 @@ int32_t filterSetDataFromColId(SFilterInfo *info, void *param) {
 }
 
 int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options) {
-  int32_t      code = 0;
   SFilterInfo *info = NULL;
+  if (pNode == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
 
+  int32_t code = 0;
   if (pNode == NULL || pInfo == NULL) {
     fltError("invalid param");
     FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
@@ -4034,9 +4037,7 @@ int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options) 
 _return:
 
   filterFreeInfo(*pInfo);
-
   *pInfo = NULL;
-
   FLT_RET(code);
 }
 
@@ -4059,10 +4060,12 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, SColumnInfoData **p, SC
     SArray *pList = taosArrayInit(1, POINTER_BYTES);
     taosArrayPush(pList, &pSrc);
 
-    FLT_ERR_RET(scalarCalculate(info->sclCtx.node, pList, &output));
-    *p = output.columnData;
-
+    int32_t code = scalarCalculate(info->sclCtx.node, pList, &output);
     taosArrayDestroy(pList);
+
+    FLT_ERR_RET(code);
+
+    *p = output.columnData;
 
     if (output.numOfQualified == output.numOfRows) {
       *pResultStatus = FILTER_RESULT_ALL_QUALIFIED;

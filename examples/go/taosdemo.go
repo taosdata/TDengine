@@ -26,7 +26,7 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/taosdata/driver-go/taosSql"
+	_ "github.com/taosdata/driver-go/v3/taosSql"
 )
 
 const (
@@ -173,7 +173,7 @@ func createDatabase(dbName string, supTblName string) {
 	time.Sleep(time.Second)
 
 	// create database
-	sqlStr = "create database " + dbName + " keep " + strconv.Itoa(configPara.keep) + " days " + strconv.Itoa(configPara.days)
+	sqlStr = "create database " + dbName
 	_, err = db.Exec(sqlStr)
 	checkErr(err, sqlStr)
 

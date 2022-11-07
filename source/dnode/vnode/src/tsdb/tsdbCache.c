@@ -684,7 +684,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
         if (*state->pDataFReader != NULL) {
           tsdbDataFReaderClose(state->pDataFReader);
 
-          resetLastBlockLoadInfo(state->pLoadInfo);
+          // resetLastBlockLoadInfo(state->pLoadInfo);
         }
 
         code = tsdbDataFReaderOpen(state->pDataFReader, state->pTsdb, pFileSet);
@@ -764,7 +764,7 @@ static int32_t getNextRowFromFS(void *iter, TSDBROW **ppRow) {
           if (--state->iBlock < 0) {
             tsdbDataFReaderClose(state->pDataFReader);
             *state->pDataFReader = NULL;
-            resetLastBlockLoadInfo(state->pLoadInfo);
+            // resetLastBlockLoadInfo(state->pLoadInfo);
 
             if (state->aBlockIdx) {
               taosArrayDestroy(state->aBlockIdx);

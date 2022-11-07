@@ -181,6 +181,7 @@ typedef enum { UNKNOWN_BIN = 0, USER_INPUT_BIN, LINEAR_BIN, LOG_BIN } EHistoBinT
 
 typedef struct SHLLFuncInfo {
   uint64_t result;
+  uint64_t totalCount;
   uint8_t  buckets[HLL_BUCKETS];
 } SHLLInfo;
 
@@ -489,7 +490,7 @@ EFuncDataRequired countDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWind
   if (QUERY_NODE_COLUMN == nodeType(pParam) && PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pParam)->colId) {
     return FUNC_DATA_REQUIRED_NOT_LOAD;
   }
-  return FUNC_DATA_REQUIRED_STATIS_LOAD;
+  return FUNC_DATA_REQUIRED_SMA_LOAD;
 }
 
 bool getCountFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
@@ -497,7 +498,7 @@ bool getCountFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   return true;
 }
 
-static FORCE_INLINE int32_t getNumOfElems(SqlFunctionCtx* pCtx) {
+static int32_t getNumOfElems(SqlFunctionCtx* pCtx) {
   int32_t numOfElem = 0;
 
   /*
@@ -551,7 +552,7 @@ int32_t countFunction(SqlFunctionCtx* pCtx) {
   if (tsCountAlwaysReturnValue) {
     pResInfo->numOfRes = 1;
   } else {
-    SET_VAL(pResInfo, 1, 1);
+    SET_VAL(pResInfo, *((int64_t*)buf), 1);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1103,7 +1104,7 @@ int32_t avgPartialFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 }
 
 EFuncDataRequired statisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
-  return FUNC_DATA_REQUIRED_STATIS_LOAD;
+  return FUNC_DATA_REQUIRED_SMA_LOAD;
 }
 
 bool minmaxFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInfo) {
@@ -2194,6 +2195,56 @@ int32_t leastSQRFunction(SqlFunctionCtx* pCtx) {
       break;
     }
 
+    case TSDB_DATA_TYPE_UTINYINT: {
+      uint8_t* plist = (uint8_t*)pCol->pData;
+      for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+        numOfElem++;
+        LEASTSQR_CAL(param, x, plist, i, pInfo->stepVal);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      uint16_t* plist = (uint16_t*)pCol->pData;
+      for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+
+        numOfElem++;
+        LEASTSQR_CAL(param, x, plist, i, pInfo->stepVal);
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_UINT: {
+      uint32_t* plist = (uint32_t*)pCol->pData;
+      for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+
+        numOfElem++;
+        LEASTSQR_CAL(param, x, plist, i, pInfo->stepVal);
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_UBIGINT: {
+      uint64_t* plist = (uint64_t*)pCol->pData;
+      for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
+        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+          continue;
+        }
+
+        numOfElem++;
+        LEASTSQR_CAL(param, x, plist, i, pInfo->stepVal);
+      }
+      break;
+    }
+
     case TSDB_DATA_TYPE_FLOAT: {
       float* plist = (float*)pCol->pData;
       for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {
@@ -2257,6 +2308,12 @@ int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   double param00 = param[0][0] - param[1][0] * (param[0][1] / param[1][1]);
   double param02 = param[0][2] - param[1][2] * (param[0][1] / param[1][1]);
+
+  if (0 == param00) {
+    colDataAppendNULL(pCol, currentRow);
+    return 0;
+  }
+
   // param[0][1] = 0;
   double param12 = param[1][2] - param02 * (param[1][0] / param00);
   // param[1][0] = 0;
@@ -2657,7 +2714,9 @@ int32_t apercentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
       taosMemoryFree(res);
     } else {  // no need to free
       // setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
-      return TSDB_CODE_SUCCESS;
+      // return TSDB_CODE_SUCCESS;
+      qDebug("%s get the final res, elements:%" PRId64 ", numOfEntry:%d. result is null", __FUNCTION__,
+             pInfo->pHisto->numOfElems, pInfo->pHisto->numOfEntries);
     }
   }
 
@@ -4547,7 +4606,14 @@ int32_t hllFunction(SqlFunctionCtx* pCtx) {
     }
   }
 
-  SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
+  pInfo->totalCount += numOfElems;
+
+  if (pInfo->totalCount == 0 && !tsCountAlwaysReturnValue) {
+    SET_VAL(GET_RES_INFO(pCtx), 0, 1);
+  } else {
+    SET_VAL(GET_RES_INFO(pCtx), 1, 1);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -4557,6 +4623,7 @@ static void hllTransferInfo(SHLLInfo* pInput, SHLLInfo* pOutput) {
       pOutput->buckets[k] = pInput->buckets[k];
     }
   }
+  pOutput->totalCount += pInput->totalCount;
 }
 
 int32_t hllFunctionMerge(SqlFunctionCtx* pCtx) {
@@ -4574,7 +4641,12 @@ int32_t hllFunctionMerge(SqlFunctionCtx* pCtx) {
     hllTransferInfo(pInputInfo, pInfo);
   }
 
-  SET_VAL(GET_RES_INFO(pCtx), 1, 1);
+  if (pInfo->totalCount == 0 && !tsCountAlwaysReturnValue) {
+    SET_VAL(GET_RES_INFO(pCtx), 0, 1);
+  } else {
+    SET_VAL(GET_RES_INFO(pCtx), 1, 1);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -5392,6 +5464,8 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   } else {
     colDataAppendNULL(pCol, currentRow);
   }
+
+  taosHashCleanup(pInfo->pHash);
 
   return pResInfo->numOfRes;
 }

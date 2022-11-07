@@ -353,11 +353,13 @@ static int32_t mndSetDropQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQn
   return 0;
 }
 
-int32_t mndSetDropQnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SQnodeObj *pObj) {
+int32_t mndSetDropQnodeInfoToTrans(SMnode *pMnode, STrans *pTrans, SQnodeObj *pObj, bool force) {
   if (pObj == NULL) return 0;
   if (mndSetDropQnodeRedoLogs(pTrans, pObj) != 0) return -1;
   if (mndSetDropQnodeCommitLogs(pTrans, pObj) != 0) return -1;
-  if (mndSetDropQnodeRedoActions(pTrans, pObj->pDnode, pObj) != 0) return -1;
+  if (!force) {
+    if (mndSetDropQnodeRedoActions(pTrans, pObj->pDnode, pObj) != 0) return -1;
+  }
   return 0;
 }
 
@@ -368,7 +370,7 @@ static int32_t mndDropQnode(SMnode *pMnode, SRpcMsg *pReq, SQnodeObj *pObj) {
   if (pTrans == NULL) goto _OVER;
 
   mInfo("trans:%d, used to drop qnode:%d", pTrans->id, pObj->id);
-  if (mndSetDropQnodeInfoToTrans(pMnode, pTrans, pObj) != 0) goto _OVER;
+  if (mndSetDropQnodeInfoToTrans(pMnode, pTrans, pObj, false) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
   code = 0;

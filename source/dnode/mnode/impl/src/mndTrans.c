@@ -375,7 +375,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
       if (taosArrayPush(pTrans->undoActions, &action) == NULL) goto _OVER;
       action.pCont = NULL;
     } else {
-      if (taosArrayPush(pTrans->redoActions, &action) == NULL) goto _OVER;
+      if (taosArrayPush(pTrans->undoActions, &action) == NULL) goto _OVER;
     }
   }
 

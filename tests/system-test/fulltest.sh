@@ -17,7 +17,7 @@ python3 ./test.py -f 0-others/taosdShell.py -N 5 -M 3 -Q 3
 python3 ./test.py -f 0-others/sysinfo.py
 python3 ./test.py -f 0-others/user_control.py
 python3 ./test.py -f 0-others/fsync.py
-python3 ./test.py  -f 0-others/compatibility.py   
+python3 ./test.py  -f 0-others/compatibility.py
 python3 ./test.py -f 1-insert/alter_database.py
 python3 ./test.py -f 1-insert/influxdb_line_taosc_insert.py
 python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
@@ -76,6 +76,8 @@ python3 ./test.py -f 2-query/count_partition.py
 python3 ./test.py -f 2-query/count_partition.py -R
 python3 ./test.py -f 2-query/count.py
 python3 ./test.py -f 2-query/count.py -R
+# python3 ./test.py -f 2-query/countAlwaysReturnValue.py
+# python3 ./test.py -f 2-query/countAlwaysReturnValue.py -R
 python3 ./test.py -f 2-query/db.py
 python3 ./test.py -f 2-query/db.py -R
 python3 ./test.py -f 2-query/diff.py
@@ -209,7 +211,7 @@ python3 ./test.py -f 2-query/varchar.py -R
 python3 ./test.py -f 1-insert/update_data.py
 python3 ./test.py -f 1-insert/tb_100w_data_order.py
 
-python3 ./test.py -f 1-insert/delete_data.py
+# TD-20200 python3 ./test.py -f 1-insert/delete_data.py
 python3 ./test.py -f 1-insert/keep_expired.py
 
 python3 ./test.py -f 2-query/join2.py
@@ -232,25 +234,35 @@ python3 ./test.py -f 2-query/function_diff.py
 python3 ./test.py -f 2-query/queryQnode.py
 
 python3 ./test.py -f 6-cluster/5dnode1mnode.py
-python3 ./test.py -f 6-cluster/5dnode2mnode.py  -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode2mnode.py  -N 5
 python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeStop.py -N 5 -M 3 -i False
 python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeStop2Follower.py -N 5 -M 3 -i False
 python3 ./test.py -f 6-cluster/5dnode3mnodeStopLoop.py -N 5 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 5 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 5 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 5 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDbRep3.py -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 6 -M 3
+# TD-20198 python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateDb.py -N 6 -M 3 -n 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 6 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateDb.py -N 6 -M 3 -n 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 6 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateDb.py  -N 6 -M 3 -n 3
 
-python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 5 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateStb.py  -N 5 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateStb.py  -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 6 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopDnodeCreateStb.py -N 6 -M 3 -n 3 
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateStb.py  -N 6 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopMnodeCreateStb.py  -N 6 -M 3 -n 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateStb.py  -N 6 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeSep1VnodeStopVnodeCreateStb.py  -N 6 -M 3  -n 3
 
-python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 5 -M 3
-python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 5 -M 3
-# python3 ./test.py -f 6-cluster/5dnode3mnodeRestartMnodeInsertData.py -N 5 -M 3
-# python3 ./test.py -f 6-cluster/5dnode3mnodeRestartVnodeInsertData.py -N 5 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 6 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertData.py -N 6 -M 3 -n 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3
+python3 ./test.py -f 6-cluster/5dnode3mnodeRestartDnodeInsertDataAsync.py -N 6 -M 3 -n 3
 
-python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 6 -M 3 -C 5
+
+python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6
+python3 ./test.py -f 6-cluster/5dnode3mnodeAdd1Ddnoe.py -N 7 -M 3 -C 6 -n 3
+
 # BUG python3 ./test.py -f 6-cluster/5dnode3mnodeStopInsert.py
 python3 ./test.py -f 6-cluster/5dnode3mnodeDrop.py -N 5
 # TD-19646 python3 test.py -f 6-cluster/5dnode3mnodeStopConnect.py -N 5 -M 3
@@ -375,6 +387,7 @@ python3 ./test.py -f 2-query/Today.py -Q 2
 python3 ./test.py -f 2-query/max.py -Q 2
 python3 ./test.py -f 2-query/min.py -Q 2
 python3 ./test.py -f 2-query/count.py -Q 2
+# python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 2
 python3 ./test.py -f 2-query/last.py -Q 2
 python3 ./test.py -f 2-query/first.py -Q 2
 python3 ./test.py -f 2-query/To_iso8601.py -Q 2
@@ -470,6 +483,7 @@ python3 ./test.py -f 2-query/Today.py -Q  3
 python3 ./test.py -f 2-query/max.py -Q  3
 python3 ./test.py -f 2-query/min.py -Q  3
 python3 ./test.py -f 2-query/count.py -Q  3
+# python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 3
 python3 ./test.py -f 2-query/last.py -Q  3
 python3 ./test.py -f 2-query/first.py -Q  3
 python3 ./test.py -f 2-query/To_iso8601.py -Q  3
@@ -567,6 +581,7 @@ python3 ./test.py -f 2-query/Today.py -Q  4
 python3 ./test.py -f 2-query/max.py -Q  4
 python3 ./test.py -f 2-query/min.py -Q  4
 python3 ./test.py -f 2-query/count.py -Q  4
+# python3 ./test.py -f 2-query/countAlwaysReturnValue.py -Q 4
 python3 ./test.py -f 2-query/last.py -Q  4
 python3 ./test.py -f 2-query/first.py -Q  4
 python3 ./test.py -f 2-query/To_iso8601.py -Q  4
@@ -582,7 +597,7 @@ python3 ./test.py -f 2-query/apercentile.py -Q  4
 python3 ./test.py -f 2-query/abs.py -Q  4
 python3 ./test.py -f 2-query/ceil.py -Q  4
 python3 ./test.py -f 2-query/floor.py -Q  4
-python3 ./test.py -f 2-query/round.py -Q  4 
+python3 ./test.py -f 2-query/round.py -Q  4
 python3 ./test.py -f 2-query/log.py -Q  4
 python3 ./test.py -f 2-query/pow.py -Q  4
 python3 ./test.py -f 2-query/sqrt.py -Q  4

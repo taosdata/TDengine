@@ -13,7 +13,7 @@ namespace Examples
             IntPtr wsConn = LibTaosWS.WSConnectWithDSN(DSN);
             if (wsConn == IntPtr.Zero)
             {
-                throw new Exception($"get WS connection failed,reason:{LibTaosWS.WSErrorStr(IntPtr.Zero)} code:{LibTaosWS.WSErrorNo(IntPtr.Zero)}");
+                throw new Exception("get WS connection failed");
             }
             else
             {

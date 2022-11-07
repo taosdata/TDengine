@@ -145,16 +145,17 @@ void syncRespCleanByTTL(SSyncRespMgr *pObj, int64_t ttl, bool rsp) {
       taosArrayPush(delIndexArray, pSeqNum);
       cnt++;
 
-      SFsmCbMeta cbMeta = {0};
-      cbMeta.index = SYNC_INDEX_INVALID;
-      cbMeta.lastConfigIndex = SYNC_INDEX_INVALID;
-      cbMeta.isWeak = false;
-      cbMeta.code = TSDB_CODE_SYN_TIMEOUT;
-      cbMeta.state = pSyncNode->state;
-      cbMeta.seqNum = *pSeqNum;
-      cbMeta.term = SYNC_TERM_INVALID;
-      cbMeta.currentTerm = pSyncNode->pRaftStore->currentTerm;
-      cbMeta.flag = 0;
+      SFsmCbMeta cbMeta = {
+          .index = SYNC_INDEX_INVALID,
+          .lastConfigIndex = SYNC_INDEX_INVALID,
+          .isWeak = false,
+          .code = TSDB_CODE_SYN_TIMEOUT,
+          .state = pSyncNode->state,
+          .seqNum = *pSeqNum,
+          .term = SYNC_TERM_INVALID,
+          .currentTerm = pSyncNode->pRaftStore->currentTerm,
+          .flag = 0,
+      };
 
       pStub->rpcMsg.pCont = NULL;
       pStub->rpcMsg.contLen = 0;
