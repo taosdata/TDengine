@@ -336,8 +336,6 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
   SGroupbyOperatorInfo* pInfo = pOperator->info;
-  SSDataBlock*          pRes = pInfo->binfo.pRes;
-
   if (pOperator->status == OP_RES_TO_RETURN) {
     return buildGroupResultDataBlock(pOperator);
   }
@@ -390,7 +388,6 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
     }
   }
 #endif
-  blockDataEnsureCapacity(pRes, pOperator->resultInfo.capacity);
   initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, 0);
 
   pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
@@ -422,6 +419,8 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SAggPhysiNode*
   }
 
   initResultSizeInfo(&pOperator->resultInfo, 4096);
+  blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
+
   code = initGroupOptrInfo(&pInfo->pGroupColVals, &pInfo->groupKeyLen, &pInfo->keyBuf, pInfo->pGroupCols);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -1082,14 +1081,16 @@ SOperatorInfo* createStreamPartitionOperatorInfo(SOperatorInfo* downstream, SStr
   }
   pInfo->partitionSup.needCalc = true;
 
-  SSDataBlock* pResBlock = createResDataBlock(pPartNode->part.node.pOutputDataBlockDesc);
-  if (!pResBlock) {
+  pInfo->binfo.pRes = createResDataBlock(pPartNode->part.node.pOutputDataBlockDesc);
+  if (pInfo->binfo.pRes == NULL) {
     goto _error;
   }
-  blockDataEnsureCapacity(pResBlock, 4096);
-  pInfo->binfo.pRes = pResBlock;
+
+  blockDataEnsureCapacity(pInfo->binfo.pRes, 4096);
+
   pInfo->parIte = NULL;
   pInfo->pInputDataBlock = NULL;
+
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pInfo->pPartitions = taosHashInit(1024, hashFn, false, HASH_NO_LOCK);
   pInfo->tsColIndex = 0;

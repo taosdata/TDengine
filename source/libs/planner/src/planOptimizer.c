@@ -279,7 +279,7 @@ static EFuncDataRequired scanPathOptPromoteDataRequired(EFuncDataRequired l, EFu
   switch (l) {
     case FUNC_DATA_REQUIRED_DATA_LOAD:
       return l;
-    case FUNC_DATA_REQUIRED_STATIS_LOAD:
+    case FUNC_DATA_REQUIRED_SMA_LOAD:
       return FUNC_DATA_REQUIRED_DATA_LOAD == r ? r : l;
     case FUNC_DATA_REQUIRED_NOT_LOAD:
       return FUNC_DATA_REQUIRED_FILTEROUT == r ? l : r;
