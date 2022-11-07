@@ -437,6 +437,47 @@ int32_t syncStepDown(int64_t rid, SyncTerm newTerm) {
   return 0;
 }
 
+bool syncIsReadyForRead(int64_t rid) {
+  SSyncNode* pSyncNode = syncNodeAcquire(rid);
+  if (pSyncNode == NULL) {
+    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    return false;
+  }
+  ASSERT(rid == pSyncNode->rid);
+
+  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER && pSyncNode->restoreFinish) {
+    syncNodeRelease(pSyncNode);
+    return true;
+  }
+
+  bool ready = false;
+  if (pSyncNode->state == TAOS_SYNC_STATE_LEADER && !pSyncNode->restoreFinish) {
+    if (!pSyncNode->pLogStore->syncLogIsEmpty(pSyncNode->pLogStore)) {
+      SSyncRaftEntry* pEntry = NULL;
+      int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(
+          pSyncNode->pLogStore, pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore), &pEntry);
+      if (code == 0 && pEntry != NULL) {
+        if (pEntry->originalRpcType == TDMT_SYNC_NOOP && pEntry->term == pSyncNode->pRaftStore->currentTerm) {
+          ready = true;
+        }
+
+        syncEntryDestory(pEntry);
+      }
+    }
+  }
+
+  if (!ready) {
+    if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+      terrno = TSDB_CODE_SYN_NOT_LEADER;
+    } else {
+      terrno = TSDB_CODE_APP_NOT_READY;
+    }
+  }
+
+  syncNodeRelease(pSyncNode);
+  return ready;
+}
+
 int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
   if (pSyncNode->peersNum == 0) {
     sDebug("only one replica, cannot leader transfer");
@@ -727,7 +768,7 @@ char* sync2SimpleStr(int64_t rid) {
     sTrace("syncSetRpc get pSyncNode is NULL, rid:%" PRId64, rid);
     return NULL;
   }
-  ASSERT(rid == pSyncNode->rid);
+
   char* s = syncNode2SimpleStr(pSyncNode);
   syncNodeRelease(pSyncNode);
 
@@ -737,11 +778,9 @@ char* sync2SimpleStr(int64_t rid) {
 int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
-    syncNodeRelease(pSyncNode);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     return -1;
   }
-  ASSERT(rid == pSyncNode->rid);
 
   int32_t ret = syncNodePropose(pSyncNode, pMsg, isWeak);
   syncNodeRelease(pSyncNode);
@@ -2969,7 +3008,11 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SyncClientRequest* pMsg, SyncInd
 
     // if only myself, maybe commit right now
     if (ths->replicaNum == 1) {
-      syncMaybeAdvanceCommitIndex(ths);
+      if (syncNodeIsMnode(ths)) {
+        syncMaybeAdvanceCommitIndex(ths);
+      } else {
+        syncOneReplicaAdvance(ths);
+      }
     }
   }
 
@@ -3063,15 +3106,15 @@ int32_t syncDoLeaderTransfer(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* p
 
   if (ths->pFsm->FpLeaderTransferCb != NULL) {
     SFsmCbMeta cbMeta = {
-        cbMeta.code = 0,
-        cbMeta.currentTerm = ths->pRaftStore->currentTerm,
-        cbMeta.flag = 0,
-        cbMeta.index = pEntry->index,
-        cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, pEntry->index),
-        cbMeta.isWeak = pEntry->isWeak,
-        cbMeta.seqNum = pEntry->seqNum,
-        cbMeta.state = ths->state,
-        cbMeta.term = pEntry->term,
+        .code = 0,
+        .currentTerm = ths->pRaftStore->currentTerm,
+        .flag = 0,
+        .index = pEntry->index,
+        .lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, pEntry->index),
+        .isWeak = pEntry->isWeak,
+        .seqNum = pEntry->seqNum,
+        .state = ths->state,
+        .term = pEntry->term,
     };
     ths->pFsm->FpLeaderTransferCb(ths->pFsm, pRpcMsg, &cbMeta);
   }

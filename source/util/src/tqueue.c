@@ -21,46 +21,6 @@
 int64_t tsRpcQueueMemoryAllowed = 0;
 int64_t tsRpcQueueMemoryUsed = 0;
 
-typedef struct STaosQnode STaosQnode;
-
-typedef struct STaosQnode {
-  STaosQnode *next;
-  STaosQueue *queue;
-  int64_t     timestamp;
-  int32_t     size;
-  int8_t      itype;
-  int8_t      reserved[3];
-  char        item[];
-} STaosQnode;
-
-typedef struct STaosQueue {
-  STaosQnode   *head;
-  STaosQnode   *tail;
-  STaosQueue   *next;     // for queue set
-  STaosQset    *qset;     // for queue set
-  void         *ahandle;  // for queue set
-  FItem         itemFp;
-  FItems        itemsFp;
-  TdThreadMutex mutex;
-  int64_t       memOfItems;
-  int32_t       numOfItems;
-} STaosQueue;
-
-typedef struct STaosQset {
-  STaosQueue   *head;
-  STaosQueue   *current;
-  TdThreadMutex mutex;
-  tsem_t        sem;
-  int32_t       numOfQueues;
-  int32_t       numOfItems;
-} STaosQset;
-
-typedef struct STaosQall {
-  STaosQnode *current;
-  STaosQnode *start;
-  int32_t     numOfItems;
-} STaosQall;
-
 STaosQueue *taosOpenQueue() {
   STaosQueue *queue = taosMemoryCalloc(1, sizeof(STaosQueue));
   if (queue == NULL) {

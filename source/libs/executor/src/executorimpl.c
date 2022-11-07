@@ -2783,8 +2783,10 @@ int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaul
     *defaultPgsz <<= 1u;
   }
 
+  // The default buffer for each operator in query is 10MB.
   // at least four pages need to be in buffer
-  *defaultBufsz = 4096 * 256;
+  // TODO: make this variable to be configurable.
+  *defaultBufsz = 4096 * 2560;
   if ((*defaultBufsz) <= (*defaultPgsz)) {
     (*defaultBufsz) = (*defaultPgsz) * 4;
   }
@@ -2971,7 +2973,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SAggPhysiN
 
   return pOperator;
 
-  _error:
+_error:
   if (pInfo != NULL) {
     destroyAggOperatorInfo(pInfo);
   }
@@ -3187,11 +3189,12 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SFillPhysiNode*
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
 
-  _error:
+_error:
   if (pInfo != NULL) {
     destroyFillOperatorInfo(pInfo);
   }
 
+  pTaskInfo->code = code;
   taosMemoryFreeClear(pOperator);
   return NULL;
 }

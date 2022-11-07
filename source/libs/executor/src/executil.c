@@ -421,7 +421,7 @@ static SColumnInfoData* getColInfoResult(void* metaHandle, int64_t suid, SArray*
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(ctx.cInfoList); ++i) {
-    SColumnInfoData colInfo = {{0}, 0};
+    SColumnInfoData colInfo = {0, {0}};
     colInfo.info = *(SColumnInfo*)taosArrayGet(ctx.cInfoList, i);
     blockDataAppendColInfo(pResBlock, &colInfo);
   }
@@ -582,7 +582,7 @@ int32_t getColInfoResultForGroupby(void* metaHandle, SNodeList* group, STableLis
   }
 
   for (int32_t i = 0; i < taosArrayGetSize(ctx.cInfoList); ++i) {
-    SColumnInfoData colInfo = {{0}, 0};
+    SColumnInfoData colInfo = {0, {0}};
     colInfo.info = *(SColumnInfo*)taosArrayGet(ctx.cInfoList, i);
     blockDataAppendColInfo(pResBlock, &colInfo);
   }
@@ -1495,10 +1495,6 @@ void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray
   while (i < numOfSrcCols && j < taosArrayGetSize(pColMatchInfo)) {
     SColumnInfoData* p = taosArrayGet(pCols, i);
     SColMatchItem*   pmInfo = taosArrayGet(pColMatchInfo, j);
-    /*    if (!outputEveryColumn && pmInfo->reserved) {
-          j++;
-          continue;
-        }*/
 
     if (p->info.colId == pmInfo->colId) {
       SColumnInfoData* pDst = taosArrayGet(pBlock->pDataBlock, pmInfo->dstSlotId);

@@ -5451,6 +5451,8 @@ int32_t modeFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     colDataAppendNULL(pCol, currentRow);
   }
 
+  taosHashCleanup(pInfo->pHash);
+
   return pResInfo->numOfRes;
 }
 

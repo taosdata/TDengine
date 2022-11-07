@@ -150,19 +150,19 @@ typedef struct {
 int32_t metaGetStbStats(SMeta* pMeta, int64_t uid, SMetaStbStats* pInfo);
 
 // tsdb
-int         tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg, int8_t rollback);
-int         tsdbClose(STsdb** pTsdb);
-int32_t     tsdbBegin(STsdb* pTsdb);
-int32_t     tsdbCommit(STsdb* pTsdb);
-int32_t     tsdbFinishCommit(STsdb* pTsdb);
-int32_t     tsdbRollbackCommit(STsdb* pTsdb);
-int32_t     tsdbDoRetention(STsdb* pTsdb, int64_t now);
-int         tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq* pMsg);
-int         tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq* pMsg, SSubmitRsp* pRsp);
-int32_t     tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock,
-                                SSubmitBlkRsp* pRsp);
-int32_t     tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
-int32_t     tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
+int     tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg, int8_t rollback);
+int     tsdbClose(STsdb** pTsdb);
+int32_t tsdbBegin(STsdb* pTsdb);
+int32_t tsdbCommit(STsdb* pTsdb);
+int32_t tsdbFinishCommit(STsdb* pTsdb);
+int32_t tsdbRollbackCommit(STsdb* pTsdb);
+int32_t tsdbDoRetention(STsdb* pTsdb, int64_t now);
+int     tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq* pMsg);
+int     tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq* pMsg, SSubmitRsp* pRsp);
+int32_t tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock,
+                            SSubmitBlkRsp* pRsp);
+int32_t tsdbDeleteTableData(STsdb* pTsdb, int64_t version, tb_uid_t suid, tb_uid_t uid, TSKEY sKey, TSKEY eKey);
+int32_t tsdbSetKeepCfg(STsdb* pTsdb, STsdbCfg* pCfg);
 
 // tq
 int     tqInit();
@@ -183,13 +183,13 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg);
 // tq-stream
 int32_t tqProcessTaskDeployReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessTaskDropReq(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
+int32_t tqProcessStreamTaskCheckReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessStreamTaskCheckRsp(STQ* pTq, int64_t version, char* msg, int32_t msgLen);
 int32_t tqProcessSubmitReq(STQ* pTq, SSubmitReq* data, int64_t ver);
 int32_t tqProcessDelReq(STQ* pTq, void* pReq, int32_t len, int64_t ver);
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg, bool exec);
 int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
-// int32_t tqProcessTaskRecoverReq(STQ* pTq, SRpcMsg* pMsg);
-// int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRetrieveRsp(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRecover1Req(STQ* pTq, SRpcMsg* pMsg);
