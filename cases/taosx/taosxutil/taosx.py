@@ -21,7 +21,7 @@ class Runtaosx():
     def __init__(self,logger):
         self.logger = logger
         self.remote: Remote = Remote(self.logger)
-    def get_json(self,json_path,host,port,dbname,stbname,tbname_m,tb_num,start_timestamp,row_num,drop_flag,child_table_exist,replica):
+    def get_json(self,json_path,host,port,dbname,stbname,tbname_m,tb_num,start_timestamp,row_num,drop_flag,child_table_exist,replica,vgroups,interlace_rows,insert_interval):
         dict = {}
         with open(json_path,'rb') as file:
             params = json.load(file)
@@ -30,12 +30,15 @@ class Runtaosx():
             params['databases'][0]['dbinfo']['name'] = dbname
             params['databases'][0]['dbinfo']['drop'] = drop_flag
             params['databases'][0]['dbinfo']['replica'] = replica
+            params['databases'][0]['dbinfo']['vgroups'] = vgroups
             params['databases'][0]['super_tables'][0]['name'] = stbname
             params['databases'][0]['super_tables'][0]['childtable_count'] = tb_num
             params['databases'][0]['super_tables'][0]['child_table_exists'] = child_table_exist
             params['databases'][0]['super_tables'][0]['insert_rows'] = row_num
             params['databases'][0]['super_tables'][0]['childtable_prefix'] = tbname_m
             params['databases'][0]['super_tables'][0]['start_timestamp'] = start_timestamp
+            params['databases'][0]['super_tables'][0]['interlace_rows'] = interlace_rows
+            params['databases'][0]['super_tables'][0]['insert_interval'] = insert_interval
             dict = params
         file.close()
         return dict
@@ -43,13 +46,13 @@ class Runtaosx():
         with open(json_path, 'w') as r:
             json.dump(dict, r)
         r.close()
-    def data_insert(self,source_taosd_list,dbname,stbname,tbname_m,tb_num,row_num,start_timestamp,drop_flag,child_table_exist_flag,taosBenchmark_fqdn,test_root,replica=1):
+    def data_insert(self,source_taosd_list,dbname,stbname,tbname_m,tb_num,row_num,start_timestamp,drop_flag,child_table_exist_flag,taosBenchmark_fqdn,test_root,replica=1,vgroups=2,interlace_rows=0,insert_interval=0):
         thread_list = []
         for source in range(len(source_taosd_list)):
             host = source_taosd_list[source][0]
             port = source_taosd_list[source][1]
             self.write_json(f'{test_root}/cases/taosx/basic{source}.json', self.get_json(f'{test_root}/cases/taosx/basic.json',
-                            host, int(port), dbname[source], stbname[source], tbname_m[source],tb_num,start_timestamp,row_num,drop_flag,child_table_exist_flag,replica))
+                            host, int(port), dbname[source], stbname[source], tbname_m[source],tb_num,start_timestamp,row_num,drop_flag,child_table_exist_flag,replica,vgroups,interlace_rows,insert_interval))
             self.remote.put(
                 taosBenchmark_fqdn[0], f'{test_root}/cases/taosx/basic{source}.json', f'/tmp/basic{source}')
         for source in range(len(source_taosd_list)):   
@@ -59,6 +62,7 @@ class Runtaosx():
         for thread in thread_list:
             thread.join() 
     def run_taosx_db_from_native_to_native(self,thread_list,taosx_setting,source_task,target_task,source_taosd_list,target_taosd,dbname,target_dbname,source,group_id,timeout):
+        # print(f"taosx run -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])}/{dbname[source]}?group.id={group_id}&timeout={timeout}' -t 'taos{target_task}://root:taosdata@{target_taosd[0]}:{int(target_taosd[1])}/{target_dbname}'")
         thread_list.append(threading.Thread(target=self.remote.cmd, args=(
                                 taosx_setting['fqdn'][0], f"taosx run \
                                     -f 'tmq{source_task}://root:taosdata@{source_taosd_list[source][0]}:{int(source_taosd_list[source][1])}/{dbname[source]}?group.id={group_id}&timeout={timeout}'\
