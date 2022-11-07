@@ -1172,11 +1172,7 @@ static int32_t doEnsureCapacity(SColumnInfoData* pColumn, const SDataBlockInfo* 
     pColumn->nullbitmap = tmp;
     memset(&pColumn->nullbitmap[oldLen], 0, BitmapLen(numOfRows) - oldLen);
 
-    if (pColumn->info.type == TSDB_DATA_TYPE_NULL) {
-      return TSDB_CODE_SUCCESS;
-    }
-
-    assert(pColumn->info.bytes);
+    ASSERT(pColumn->info.bytes);
     tmp = taosMemoryRealloc(pColumn->pData, numOfRows * pColumn->info.bytes);
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
