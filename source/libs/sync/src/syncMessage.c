@@ -836,8 +836,6 @@ SyncClientRequest* syncClientRequestAlloc(uint32_t dataLen) {
   SyncClientRequest* pMsg = taosMemoryCalloc(1, bytes);
   pMsg->bytes = bytes;
   pMsg->msgType = TDMT_SYNC_CLIENT_REQUEST;
-  pMsg->seqNum = 0;
-  pMsg->isWeak = false;
   pMsg->dataLen = dataLen;
   return pMsg;
 }

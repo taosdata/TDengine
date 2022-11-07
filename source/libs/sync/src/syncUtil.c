@@ -178,29 +178,11 @@ void syncUtilMsgNtoH(void* msg) {
   pHead->vgId = ntohl(pHead->vgId);
 }
 
-bool syncUtilUserPreCommit(tmsg_t msgType) {
-  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_LEADER_TRANSFER) {
-    return true;
-  }
+bool syncUtilUserPreCommit(tmsg_t msgType) { return msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_LEADER_TRANSFER; }
 
-  return false;
-}
+bool syncUtilUserCommit(tmsg_t msgType) { return msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_LEADER_TRANSFER; }
 
-bool syncUtilUserCommit(tmsg_t msgType) {
-  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_LEADER_TRANSFER) {
-    return true;
-  }
-
-  return false;
-}
-
-bool syncUtilUserRollback(tmsg_t msgType) {
-  if (msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_LEADER_TRANSFER) {
-    return true;
-  }
-
-  return false;
-}
+bool syncUtilUserRollback(tmsg_t msgType) { return msgType != TDMT_SYNC_NOOP && msgType != TDMT_SYNC_LEADER_TRANSFER; }
 
 void syncCfg2SimpleStr(const SSyncCfg* pCfg, char* buf, int32_t bufLen) {
   int32_t len = snprintf(buf, bufLen, "{r-num:%d, my:%d, ", pCfg->replicaNum, pCfg->myIndex);
