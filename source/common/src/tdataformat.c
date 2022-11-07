@@ -1749,7 +1749,7 @@ static FORCE_INLINE void tColDataCalcSMABool(SColData *pColData, int64_t *sum, i
       switch (tColDataGetBitValue(pColData, iVal)) {
         case 0:
         case 1:
-          *numOfNull++;
+          (*numOfNull)++;
           break;
         case 2:
           val = ((int8_t *)pColData->pData)[iVal] ? 1 : 0;
@@ -1781,7 +1781,7 @@ static FORCE_INLINE void tColDataCalcSMATinyInt(SColData *pColData, int64_t *sum
       switch (tColDataGetBitValue(pColData, iVal)) {
         case 0:
         case 1:
-          *numOfNull++;
+          (*numOfNull)++;
           break;
         case 2:
           val = ((int8_t *)pColData->pData)[iVal];
@@ -1813,7 +1813,7 @@ static FORCE_INLINE void tColDataCalcSMATinySmallInt(SColData *pColData, int64_t
       switch (tColDataGetBitValue(pColData, iVal)) {
         case 0:
         case 1:
-          *numOfNull++;
+          (*numOfNull)++;
           break;
         case 2:
           val = ((int16_t *)pColData->pData)[iVal];
@@ -1845,7 +1845,7 @@ static FORCE_INLINE void tColDataCalcSMAInt(SColData *pColData, int64_t *sum, in
       switch (tColDataGetBitValue(pColData, iVal)) {
         case 0:
         case 1:
-          *numOfNull++;
+          (*numOfNull)++;
           break;
         case 2:
           val = ((int32_t *)pColData->pData)[iVal];
@@ -1877,7 +1877,7 @@ static FORCE_INLINE void tColDataCalcSMABigInt(SColData *pColData, int64_t *sum,
       switch (tColDataGetBitValue(pColData, iVal)) {
         case 0:
         case 1:
-          *numOfNull++;
+          (*numOfNull)++;
           break;
         case 2:
           val = ((int64_t *)pColData->pData)[iVal];
@@ -1909,7 +1909,7 @@ static FORCE_INLINE void tColDataCalcSMAFloat(SColData *pColData, int64_t *sum, 
       switch (tColDataGetBitValue(pColData, iVal)) {
         case 0:
         case 1:
-          *numOfNull++;
+          (*numOfNull)++;
           break;
         case 2:
           val = ((float *)pColData->pData)[iVal];
@@ -1941,7 +1941,7 @@ static FORCE_INLINE void tColDataCalcSMADouble(SColData *pColData, int64_t *sum,
       switch (tColDataGetBitValue(pColData, iVal)) {
         case 0:
         case 1:
-          *numOfNull++;
+          (*numOfNull)++;
           break;
         case 2:
           val = ((double *)pColData->pData)[iVal];
@@ -1973,7 +1973,7 @@ static FORCE_INLINE void tColDataCalcSMAUTinyInt(SColData *pColData, int64_t *su
       switch (tColDataGetBitValue(pColData, iVal)) {
         case 0:
         case 1:
-          *numOfNull++;
+          (*numOfNull)++;
           break;
         case 2:
           val = ((uint8_t *)pColData->pData)[iVal];
@@ -2005,7 +2005,7 @@ static FORCE_INLINE void tColDataCalcSMATinyUSmallInt(SColData *pColData, int64_
       switch (tColDataGetBitValue(pColData, iVal)) {
         case 0:
         case 1:
-          *numOfNull++;
+          (*numOfNull)++;
           break;
         case 2:
           val = ((uint16_t *)pColData->pData)[iVal];
@@ -2037,7 +2037,7 @@ static FORCE_INLINE void tColDataCalcSMAUInt(SColData *pColData, int64_t *sum, i
       switch (tColDataGetBitValue(pColData, iVal)) {
         case 0:
         case 1:
-          *numOfNull++;
+          (*numOfNull)++;
           break;
         case 2:
           val = ((uint32_t *)pColData->pData)[iVal];
@@ -2069,7 +2069,7 @@ static FORCE_INLINE void tColDataCalcSMAUBigInt(SColData *pColData, int64_t *sum
       switch (tColDataGetBitValue(pColData, iVal)) {
         case 0:
         case 1:
-          *numOfNull++;
+          (*numOfNull)++;
           break;
         case 2:
           val = ((uint64_t *)pColData->pData)[iVal];
