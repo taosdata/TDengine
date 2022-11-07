@@ -78,6 +78,7 @@ class SyncRestartCreatingTables(TDCase):
             taosx_thread_list[source].start()
             print(f'taosx Thread:{source} start!')
         time.sleep(5)
+        self.taosd.kill_and_start(self.env_setting['settings'][0],3)
         for thread in taosBenchmark_thread_list:
             thread.join()
         for thread in taosx_thread_list:
