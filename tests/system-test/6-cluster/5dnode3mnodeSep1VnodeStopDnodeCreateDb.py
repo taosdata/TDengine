@@ -93,7 +93,7 @@ class TDTestCase:
     def fiveDnodeThreeMnode(self,dnodeNumbers,mnodeNums,restartNumbers,stopRole):
         tdLog.printNoPrefix("======== test case 1: ")
         paraDict = {'dbName':     'db',
-                    'dbNumbers':   8,
+                    'dbNumbers':   4,
                     'dropFlag':   1,
                     'event':      '',
                     'vgroups':    4,
@@ -109,9 +109,11 @@ class TDTestCase:
                     }
 
         dnodeNumbers=int(dnodeNumbers)
+        dbNumbers=paraDict['dbNumbers']
         mnodeNums=int(mnodeNums)
+        repeatNumber = 2
         vnodeNumbers = int(dnodeNumbers-mnodeNums)
-        allDbNumbers=(paraDict['dbNumbers']*restartNumbers)
+        allDbNumbers=dbNumbers
         allStbNumbers=(paraDict['stbNumbers']*restartNumbers)
         paraDict['replica'] = self.replicaVar
 
@@ -138,10 +140,12 @@ class TDTestCase:
         tdDnodes=cluster.dnodes
         stopcount =0
         threads=[]
-        for i in range(restartNumbers):
+        for i in range(dbNumbers):
             dbNameIndex = '%s%d'%(paraDict["dbName"],i)
             newTdSql=tdCom.newTdSql()
-            threads.append(threading.Thread(target=clusterComCreate.create_databases, args=(newTdSql, dbNameIndex,paraDict["dbNumbers"],paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])))
+            # a11111=paraDict["dbNumbers"]
+            # print(f"==================={dbNameIndex},{a11111}")
+            threads.append(threading.Thread(target=clusterComCreate.createDeltedatabases, args=(newTdSql, dbNameIndex,repeatNumber,paraDict["dropFlag"], paraDict["vgroups"],paraDict['replica'])))
 
         for tr in threads:
             tr.start()
