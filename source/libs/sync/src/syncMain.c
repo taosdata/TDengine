@@ -754,45 +754,11 @@ int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
   return ret;
 }
 
-static bool syncNodeBatchOK(SRpcMsg** pMsgPArr, int32_t arrSize) {
-  for (int32_t i = 0; i < arrSize; ++i) {
-    if (pMsgPArr[i]->msgType == TDMT_SYNC_CONFIG_CHANGE) {
-      return false;
-    }
-
-    if (pMsgPArr[i]->msgType == TDMT_SYNC_CONFIG_CHANGE_FINISH) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
 int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
   int32_t ret = 0;
   sNTrace(pSyncNode, "propose message, type:%s", TMSG_INFO(pMsg->msgType));
 
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
-    if (pSyncNode->changing && pMsg->msgType != TDMT_SYNC_CONFIG_CHANGE_FINISH) {
-      ret = -1;
-      terrno = TSDB_CODE_SYN_PROPOSE_NOT_READY;
-      sError("vgId:%d, failed to sync propose since not ready, type:%s", pSyncNode->vgId, TMSG_INFO(pMsg->msgType));
-      goto _END;
-    }
-
-    // config change
-    if (pMsg->msgType == TDMT_SYNC_CONFIG_CHANGE) {
-      if (!syncNodeCanChange(pSyncNode)) {
-        ret = -1;
-        terrno = TSDB_CODE_SYN_RECONFIG_NOT_READY;
-        sError("vgId:%d, failed to sync reconfig since not ready, type:%s", pSyncNode->vgId, TMSG_INFO(pMsg->msgType));
-        goto _END;
-      }
-
-      ASSERT(!pSyncNode->changing);
-      pSyncNode->changing = true;
-    }
-
     // not restored, vnode enable
     if (!pSyncNode->restoreFinish && pSyncNode->vgId != 1) {
       ret = -1;
@@ -2800,86 +2766,6 @@ int32_t syncNodeUpdateNewConfigIndex(SSyncNode* ths, SSyncCfg* pNewCfg) {
   return -1;
 }
 
-static int32_t syncNodeConfigChangeFinish(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry) {
-  SyncReconfigFinish* pFinish = syncReconfigFinishFromRpcMsg2(pRpcMsg);
-  ASSERT(pFinish);
-
-  if (ths->pFsm->FpReConfigCb != NULL) {
-    SReConfigCbMeta cbMeta = {0};
-    cbMeta.code = 0;
-    cbMeta.index = pEntry->index;
-    cbMeta.term = pEntry->term;
-    cbMeta.seqNum = pEntry->seqNum;
-    cbMeta.lastConfigIndex = syncNodeGetSnapshotConfigIndex(ths, pEntry->index);
-    cbMeta.state = ths->state;
-    cbMeta.currentTerm = ths->pRaftStore->currentTerm;
-    cbMeta.isWeak = pEntry->isWeak;
-    cbMeta.flag = 0;
-
-    cbMeta.oldCfg = pFinish->oldCfg;
-    cbMeta.newCfg = pFinish->newCfg;
-    cbMeta.newCfgIndex = pFinish->newCfgIndex;
-    cbMeta.newCfgTerm = pFinish->newCfgTerm;
-    cbMeta.newCfgSeqNum = pFinish->newCfgSeqNum;
-
-    ths->pFsm->FpReConfigCb(ths->pFsm, pRpcMsg, &cbMeta);
-  }
-
-  // clear changing
-  ths->changing = false;
-
-  char  oldCfgStr[1024] = {0};
-  char  newCfgStr[1024] = {0};
-  syncCfg2SimpleStr(&pFinish->oldCfg, oldCfgStr, sizeof(oldCfgStr));
-  syncCfg2SimpleStr(&pFinish->newCfg, oldCfgStr, sizeof(oldCfgStr));
-  sNTrace(ths, "config change finish from %d to %d, index:%" PRId64 ", %s  -->  %s", pFinish->oldCfg.replicaNum,
-          pFinish->newCfg.replicaNum, pFinish->newCfgIndex, oldCfgStr, newCfgStr);
-
-  syncReconfigFinishDestroy(pFinish);
-  return 0;
-}
-
-static int32_t syncNodeConfigChange(SSyncNode* ths, SRpcMsg* pRpcMsg, SSyncRaftEntry* pEntry,
-                                    SyncReconfigFinish* pFinish) {
-  // set changing
-  ths->changing = true;
-
-  // old config
-  SSyncCfg oldSyncCfg = ths->pRaftCfg->cfg;
-
-  // new config
-  SSyncCfg newSyncCfg;
-  int32_t  ret = syncCfgFromStr(pRpcMsg->pCont, &newSyncCfg);
-  ASSERT(ret == 0);
-
-  // update new config myIndex
-  syncNodeUpdateNewConfigIndex(ths, &newSyncCfg);
-
-  // do config change
-  syncNodeDoConfigChange(ths, &newSyncCfg, pEntry->index);
-
-  // set pFinish
-  pFinish->oldCfg = oldSyncCfg;
-  pFinish->newCfg = newSyncCfg;
-  pFinish->newCfgIndex = pEntry->index;
-  pFinish->newCfgTerm = pEntry->term;
-  pFinish->newCfgSeqNum = pEntry->seqNum;
-
-  return 0;
-}
-
-static int32_t syncNodeProposeConfigChangeFinish(SSyncNode* ths, SyncReconfigFinish* pFinish) {
-  SRpcMsg rpcMsg;
-  syncReconfigFinish2RpcMsg(pFinish, &rpcMsg);
-
-  int32_t code = syncNodePropose(ths, &rpcMsg, false);
-  if (code != 0) {
-    sError("syncNodeProposeConfigChangeFinish error");
-    ths->changing = false;
-  }
-  return 0;
-}
-
 bool syncNodeIsOptimizedOneReplica(SSyncNode* ths, SRpcMsg* pMsg) {
   return (ths->replicaNum == 1 && syncUtilUserCommit(pMsg->msgType) && ths->vgId != 1);
 }
@@ -2958,28 +2844,6 @@ int32_t syncNodeDoCommit(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endInde
 
             syncGetAndDelRespRpc(ths, cbMeta.seqNum, &rpcMsg.info);
             ths->pFsm->FpCommitCb(ths->pFsm, &rpcMsg, &cbMeta);
-          }
-        }
-
-        // config change
-        if (pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE) {
-          SyncReconfigFinish* pFinish = syncReconfigFinishBuild(ths->vgId);
-          ASSERT(pFinish != NULL);
-
-          code = syncNodeConfigChange(ths, &rpcMsg, pEntry, pFinish);
-          ASSERT(code == 0);
-
-          if (ths->state == TAOS_SYNC_STATE_LEADER) {
-            syncNodeProposeConfigChangeFinish(ths, pFinish);
-          }
-          syncReconfigFinishDestroy(pFinish);
-        }
-
-        // config change finish
-        if (pEntry->originalRpcType == TDMT_SYNC_CONFIG_CHANGE_FINISH) {
-          if (rpcMsg.pCont != NULL && rpcMsg.contLen > 0) {
-            code = syncNodeConfigChangeFinish(ths, &rpcMsg, pEntry);
-            ASSERT(code == 0);
           }
         }
 
