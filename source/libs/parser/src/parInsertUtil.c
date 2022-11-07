@@ -110,18 +110,17 @@ void insGetSTSRowAppendInfo(uint8_t rowType, SParsedDataColInfo* spd, col_id_t i
   }
 }
 
-int32_t insSetBlockInfo(SSubmitBlk* pBlocks, STableDataBlocks* dataBuf, int32_t numOfRows) {
+int32_t insSetBlockInfo(SSubmitBlk* pBlocks, STableDataBlocks* dataBuf, int32_t numOfRows, SMsgBuf* pMsg) {
   pBlocks->suid = (TSDB_NORMAL_TABLE == dataBuf->pTableMeta->tableType ? 0 : dataBuf->pTableMeta->suid);
   pBlocks->uid = dataBuf->pTableMeta->uid;
   pBlocks->sversion = dataBuf->pTableMeta->sversion;
   pBlocks->schemaLen = dataBuf->createTbReqLen;
 
   if (pBlocks->numOfRows + numOfRows >= INT32_MAX) {
-    return TSDB_CODE_TSC_INVALID_OPERATION;
-  } else {
-    pBlocks->numOfRows += numOfRows;
-    return TSDB_CODE_SUCCESS;
+    return buildInvalidOperationMsg(pMsg, "too many rows in sql, total number of rows should be less than INT32_MAX");
   }
+  pBlocks->numOfRows += numOfRows;
+  return TSDB_CODE_SUCCESS;
 }
 
 void insSetBoundColumnInfo(SParsedDataColInfo* pColList, SSchema* pSchema, col_id_t numOfCols) {
@@ -271,12 +270,8 @@ void insDestroyDataBlock(STableDataBlocks* pDataBlock) {
   }
 
   taosMemoryFreeClear(pDataBlock->pData);
-  //  if (!pDataBlock->cloned) {
-  // free the refcount for metermeta
   taosMemoryFreeClear(pDataBlock->pTableMeta);
-
   destroyBoundColumnInfo(&pDataBlock->boundColumnInfo);
-  //  }
   taosMemoryFreeClear(pDataBlock);
 }
 
@@ -312,20 +307,6 @@ int32_t insGetDataBlockFromList(SHashObj* pHashList, void* id, int32_t idLen, in
 
   return TSDB_CODE_SUCCESS;
 }
-#if 0
-static int32_t getRowExpandSize(STableMeta* pTableMeta) {
-  int32_t  result = TD_ROW_HEAD_LEN - sizeof(TSKEY);
-  int32_t  columns = getNumOfColumns(pTableMeta);
-  SSchema* pSchema = getTableColumnSchema(pTableMeta);
-  for (int32_t i = 0; i < columns; ++i) {
-    if (IS_VAR_DATA_TYPE((pSchema + i)->type)) {
-      result += TYPE_BYTES[TSDB_DATA_TYPE_BINARY];
-    }
-  }
-  result += (int32_t)TD_BITMAP_BYTES(columns - 1);
-  return result;
-}
-#endif
 
 void insDestroyBlockArrayList(SArray* pDataBlockList) {
   if (pDataBlockList == NULL) {
@@ -356,51 +337,6 @@ void insDestroyBlockHashmap(SHashObj* pDataBlockHash) {
 
   taosHashCleanup(pDataBlockHash);
 }
-
-#if 0
-// data block is disordered, sort it in ascending order
-void sortRemoveDataBlockDupRowsRaw(STableDataBlocks* dataBuf) {
-  SSubmitBlk* pBlocks = (SSubmitBlk*)dataBuf->pData;
-
-  // size is less than the total size, since duplicated rows may be removed yet.
-  assert(pBlocks->numOfRows * dataBuf->rowSize + sizeof(SSubmitBlk) == dataBuf->size);
-
-  if (!dataBuf->ordered) {
-    char* pBlockData = pBlocks->data;
-
-    // todo. qsort is unstable, if timestamp is same, should get the last one
-    taosSort(pBlockData, pBlocks->numOfRows, dataBuf->rowSize, rowDataCompar);
-
-    int32_t i = 0;
-    int32_t j = 1;
-
-    // delete rows with timestamp conflicts
-    while (j < pBlocks->numOfRows) {
-      TSKEY ti = *(TSKEY*)(pBlockData + dataBuf->rowSize * i);
-      TSKEY tj = *(TSKEY*)(pBlockData + dataBuf->rowSize * j);
-
-      if (ti == tj) {
-        ++j;
-        continue;
-      }
-
-      int32_t nextPos = (++i);
-      if (nextPos != j) {
-        memmove(pBlockData + dataBuf->rowSize * nextPos, pBlockData + dataBuf->rowSize * j, dataBuf->rowSize);
-      }
-
-      ++j;
-    }
-
-    dataBuf->ordered = true;
-
-    pBlocks->numOfRows = i + 1;
-    dataBuf->size = sizeof(SSubmitBlk) + dataBuf->rowSize * pBlocks->numOfRows;
-  }
-
-  dataBuf->prevTS = INT64_MIN;
-}
-#endif
 
 // data block is disordered, sort it in ascending order
 static int sortRemoveDataBlockDupRows(STableDataBlocks* dataBuf, SBlockKeyInfo* pBlkKeyInfo) {
@@ -896,6 +832,10 @@ int32_t insCreateSName(SName* pName, SToken* pTableName, int32_t acctId, const c
     }
   }
 
+  if (NULL != strchr(pName->tname, '.')) {
+    code = generateSyntaxErrMsgExt(pMsgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, "The table name cannot contain '.'");
+  }
+
   return code;
 }
 
@@ -994,24 +934,24 @@ static void buildMsgHeader(STableDataBlocks* src, SVgDataBlocks* blocks) {
   }
 }
 
-int32_t insBuildOutput(SInsertParseContext* pCxt) {
-  size_t numOfVg = taosArrayGetSize(pCxt->pVgDataBlocks);
-  pCxt->pOutput->pDataBlocks = taosArrayInit(numOfVg, POINTER_BYTES);
-  if (NULL == pCxt->pOutput->pDataBlocks) {
+int32_t insBuildOutput(SHashObj* pVgroupsHashObj, SArray* pVgDataBlocks, SArray** pDataBlocks) {
+  size_t numOfVg = taosArrayGetSize(pVgDataBlocks);
+  *pDataBlocks = taosArrayInit(numOfVg, POINTER_BYTES);
+  if (NULL == *pDataBlocks) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   for (size_t i = 0; i < numOfVg; ++i) {
-    STableDataBlocks* src = taosArrayGetP(pCxt->pVgDataBlocks, i);
+    STableDataBlocks* src = taosArrayGetP(pVgDataBlocks, i);
     SVgDataBlocks*    dst = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
     if (NULL == dst) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
-    taosHashGetDup(pCxt->pVgroupsHashObj, (const char*)&src->vgId, sizeof(src->vgId), &dst->vg);
+    taosHashGetDup(pVgroupsHashObj, (const char*)&src->vgId, sizeof(src->vgId), &dst->vg);
     dst->numOfTables = src->numOfTables;
     dst->size = src->size;
     TSWAP(dst->pData, src->pData);
     buildMsgHeader(src, dst);
-    taosArrayPush(pCxt->pOutput->pDataBlocks, &dst);
+    taosArrayPush(*pDataBlocks, &dst);
   }
   return TSDB_CODE_SUCCESS;
 }
