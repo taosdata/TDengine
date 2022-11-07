@@ -3994,9 +3994,12 @@ int32_t filterSetDataFromColId(SFilterInfo *info, void *param) {
 }
 
 int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options) {
-  int32_t      code = 0;
   SFilterInfo *info = NULL;
+  if (pNode == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
 
+  int32_t code = 0;
   if (pNode == NULL || pInfo == NULL) {
     fltError("invalid param");
     FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
@@ -4034,9 +4037,7 @@ int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pInfo, uint32_t options) 
 _return:
 
   filterFreeInfo(*pInfo);
-
   *pInfo = NULL;
-
   FLT_RET(code);
 }
 
