@@ -15,7 +15,9 @@ fn main() {
     dotenv::dotenv().ok();
     shadow_rs::new().unwrap();
 
-    if std::env::var("DATABASE_URL").is_err() {
+    if let Ok(dsn) = std::env::var("DATABASE_URL") {
+        sqlx::test_block_on(init_sqlx(&dsn)).unwrap();
+    } else {
         let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
         let root = std::path::Path::new(&manifest_dir);
         let target = root.join("target");
@@ -37,9 +39,7 @@ fn main() {
                 .unwrap();
         }
 
-        if !db.exists() {
-            sqlx::test_block_on(init_sqlx(&dsn)).unwrap();
-        }
+        sqlx::test_block_on(init_sqlx(&dsn)).unwrap();
     }
     // trigger recompilation when a new migration is added
     println!("cargo:rerun-if-changed=migrations");
