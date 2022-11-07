@@ -52,12 +52,8 @@ int64_t syncRespMgrAdd(SSyncRespMgr *pObj, SRespStub *pStub) {
   uint64_t keyCode = ++(pObj->seqNum);
   taosHashPut(pObj->pRespHash, &keyCode, sizeof(keyCode), pStub, sizeof(SRespStub));
 
-  SSyncNode *pSyncNode = pObj->data;
-  char       eventLog[128];
-  snprintf(eventLog, sizeof(eventLog), "save message handle, type:%s seq:%" PRIu64 " handle:%p",
-           TMSG_INFO(pStub->rpcMsg.msgType), keyCode, pStub->rpcMsg.info.handle);
-  syncNodeEventLog(pSyncNode, eventLog);
-
+  sNTrace(pObj->data, "save message handle, type:%s seq:%" PRIu64 " handle:%p", TMSG_INFO(pStub->rpcMsg.msgType),
+          keyCode, pStub->rpcMsg.info.handle);
   taosThreadMutexUnlock(&(pObj->mutex));
   return keyCode;
 }
@@ -78,12 +74,8 @@ int32_t syncRespMgrGet(SSyncRespMgr *pObj, uint64_t index, SRespStub *pStub) {
   if (pTmp != NULL) {
     memcpy(pStub, pTmp, sizeof(SRespStub));
 
-    SSyncNode *pSyncNode = pObj->data;
-    char       eventLog[128];
-    snprintf(eventLog, sizeof(eventLog), "get message handle, type:%s seq:%" PRIu64 " handle:%p",
-             TMSG_INFO(pStub->rpcMsg.msgType), index, pStub->rpcMsg.info.handle);
-    syncNodeEventLog(pSyncNode, eventLog);
-
+    sNTrace(pObj->data, "get message handle, type:%s seq:%" PRIu64 " handle:%p", TMSG_INFO(pStub->rpcMsg.msgType),
+            index, pStub->rpcMsg.info.handle);
     taosThreadMutexUnlock(&(pObj->mutex));
     return 1;  // get one object
   }
@@ -98,12 +90,8 @@ int32_t syncRespMgrGetAndDel(SSyncRespMgr *pObj, uint64_t index, SRespStub *pStu
   if (pTmp != NULL) {
     memcpy(pStub, pTmp, sizeof(SRespStub));
 
-    SSyncNode *pSyncNode = pObj->data;
-    char       eventLog[128];
-    snprintf(eventLog, sizeof(eventLog), "get-and-del message handle, type:%s seq:%" PRIu64 " handle:%p",
-             TMSG_INFO(pStub->rpcMsg.msgType), index, pStub->rpcMsg.info.handle);
-    syncNodeEventLog(pSyncNode, eventLog);
-
+    sNTrace(pObj->data, "get-and-del message handle, type:%s seq:%" PRIu64 " handle:%p",
+            TMSG_INFO(pStub->rpcMsg.msgType), index, pStub->rpcMsg.info.handle);
     taosHashRemove(pObj->pRespHash, &index, sizeof(index));
     taosThreadMutexUnlock(&(pObj->mutex));
     return 1;  // get one object

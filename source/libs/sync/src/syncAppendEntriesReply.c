@@ -43,12 +43,7 @@
 static void syncNodeStartSnapshotOnce(SSyncNode* ths, SyncIndex beginIndex, SyncIndex endIndex, SyncTerm lastApplyTerm,
                                       SyncAppendEntriesReply* pMsg) {
   if (beginIndex > endIndex) {
-    do {
-      char logBuf[128];
-      snprintf(logBuf, sizeof(logBuf), "snapshot param error, start:%" PRId64 ", end:%" PRId64, beginIndex, endIndex);
-      syncNodeErrorLog(ths, logBuf);
-    } while (0);
-
+    sNError(ths, "snapshot param error, start:%" PRId64 ", end:%" PRId64, beginIndex, endIndex);
     return;
   }
 
@@ -57,12 +52,7 @@ static void syncNodeStartSnapshotOnce(SSyncNode* ths, SyncIndex beginIndex, Sync
   ASSERT(pSender != NULL);
 
   if (snapshotSenderIsStart(pSender)) {
-    do {
-      char* eventLog = snapshotSender2SimpleStr(pSender, "snapshot sender already start");
-      syncNodeErrorLog(ths, eventLog);
-      taosMemoryFree(eventLog);
-    } while (0);
-
+    sSError(pSender, "snapshot sender already start");
     return;
   }
 

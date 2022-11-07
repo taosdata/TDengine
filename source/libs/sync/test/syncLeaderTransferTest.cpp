@@ -27,6 +27,35 @@ SyncLeaderTransfer *createMsg() {
   return pMsg;
 }
 
+// for debug ----------------------
+void syncLeaderTransferPrint(const SyncLeaderTransfer *pMsg) {
+  char *serialized = syncLeaderTransfer2Str(pMsg);
+  printf("syncLeaderTransferPrint | len:%d | %s \n", (int32_t)strlen(serialized), serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void syncLeaderTransferPrint2(char *s, const SyncLeaderTransfer *pMsg) {
+  char *serialized = syncLeaderTransfer2Str(pMsg);
+  printf("syncLeaderTransferPrint2 | len:%d | %s | %s \n", (int32_t)strlen(serialized), s, serialized);
+  fflush(NULL);
+  taosMemoryFree(serialized);
+}
+
+void syncLeaderTransferLog(const SyncLeaderTransfer *pMsg) {
+  char *serialized = syncLeaderTransfer2Str(pMsg);
+  sTrace("syncLeaderTransferLog | len:%d | %s", (int32_t)strlen(serialized), serialized);
+  taosMemoryFree(serialized);
+}
+
+void syncLeaderTransferLog2(char *s, const SyncLeaderTransfer *pMsg) {
+  if (gRaftDetailLog) {
+    char *serialized = syncLeaderTransfer2Str(pMsg);
+    sTrace("syncLeaderTransferLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
+    taosMemoryFree(serialized);
+  }
+}
+
 void test1() {
   SyncLeaderTransfer *pMsg = createMsg();
   syncLeaderTransferLog2((char *)"test1:", pMsg);

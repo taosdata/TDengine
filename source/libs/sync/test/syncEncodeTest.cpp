@@ -191,7 +191,7 @@ int main(int argc, char **argv) {
   // step5
   uint32_t len;
   char    *pMsg5 = step5(pMsg4, &len);
-  char    *s = syncUtilprintBin(pMsg5, len);
+  char    *s = syncUtilPrintBin(pMsg5, len);
   printf("==step5== [%s] \n", s);
   taosMemoryFree(s);
 

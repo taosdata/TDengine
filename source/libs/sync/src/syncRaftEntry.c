@@ -143,11 +143,11 @@ cJSON* syncEntry2Json(const SSyncRaftEntry* pEntry) {
     cJSON_AddNumberToObject(pRoot, "dataLen", pEntry->dataLen);
 
     char* s;
-    s = syncUtilprintBin((char*)(pEntry->data), pEntry->dataLen);
+    s = syncUtilPrintBin((char*)(pEntry->data), pEntry->dataLen);
     cJSON_AddStringToObject(pRoot, "data", s);
     taosMemoryFree(s);
 
-    s = syncUtilprintBin2((char*)(pEntry->data), pEntry->dataLen);
+    s = syncUtilPrintBin2((char*)(pEntry->data), pEntry->dataLen);
     cJSON_AddStringToObject(pRoot, "data2", s);
     taosMemoryFree(s);
   }
@@ -225,9 +225,9 @@ SRaftEntryHashCache* raftCacheCreate(SSyncNode* pSyncNode, int32_t maxCount) {
 
 void raftCacheDestroy(SRaftEntryHashCache* pCache) {
   if (pCache != NULL) {
-    taosThreadMutexLock(&(pCache->mutex));
+    taosThreadMutexLock(&pCache->mutex);
     taosHashCleanup(pCache->pEntryHash);
-    taosThreadMutexUnlock(&(pCache->mutex));
+    taosThreadMutexUnlock(&pCache->mutex);
     taosThreadMutexDestroy(&(pCache->mutex));
     taosMemoryFree(pCache);
   }
@@ -237,25 +237,20 @@ void raftCacheDestroy(SRaftEntryHashCache* pCache) {
 // max count, return 0
 // error, return -1
 int32_t raftCachePutEntry(struct SRaftEntryHashCache* pCache, SSyncRaftEntry* pEntry) {
-  taosThreadMutexLock(&(pCache->mutex));
+  taosThreadMutexLock(&pCache->mutex);
 
   if (pCache->currentCount >= pCache->maxCount) {
-    taosThreadMutexUnlock(&(pCache->mutex));
+    taosThreadMutexUnlock(&pCache->mutex);
     return 0;
   }
 
   taosHashPut(pCache->pEntryHash, &(pEntry->index), sizeof(pEntry->index), pEntry, pEntry->bytes);
   ++(pCache->currentCount);
 
-  do {
-    char eventLog[128];
-    snprintf(eventLog, sizeof(eventLog), "raft cache add, type:%s,%d, type2:%s,%d, index:%" PRId64 ", bytes:%d",
-             TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType,
-             pEntry->index, pEntry->bytes);
-    syncNodeEventLog(pCache->pSyncNode, eventLog);
-  } while (0);
-
-  taosThreadMutexUnlock(&(pCache->mutex));
+  sNTrace(pCache->pSyncNode, "raft cache add, type:%s,%d, type2:%s,%d, index:%" PRId64 ", bytes:%d",
+          TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType,
+          pEntry->index, pEntry->bytes);
+  taosThreadMutexUnlock(&pCache->mutex);
   return 1;
 }
 
@@ -268,26 +263,21 @@ int32_t raftCacheGetEntry(struct SRaftEntryHashCache* pCache, SyncIndex index, S
   }
   *ppEntry = NULL;
 
-  taosThreadMutexLock(&(pCache->mutex));
+  taosThreadMutexLock(&pCache->mutex);
   void* pTmp = taosHashGet(pCache->pEntryHash, &index, sizeof(index));
   if (pTmp != NULL) {
     SSyncRaftEntry* pEntry = pTmp;
     *ppEntry = taosMemoryMalloc(pEntry->bytes);
     memcpy(*ppEntry, pTmp, pEntry->bytes);
 
-    do {
-      char eventLog[128];
-      snprintf(eventLog, sizeof(eventLog), "raft cache get, type:%s,%d, type2:%s,%d, index:%" PRId64,
-               TMSG_INFO((*ppEntry)->msgType), (*ppEntry)->msgType, TMSG_INFO((*ppEntry)->originalRpcType),
-               (*ppEntry)->originalRpcType, (*ppEntry)->index);
-      syncNodeEventLog(pCache->pSyncNode, eventLog);
-    } while (0);
-
-    taosThreadMutexUnlock(&(pCache->mutex));
+    sNTrace(pCache->pSyncNode, "raft cache get, type:%s,%d, type2:%s,%d, index:%" PRId64,
+            TMSG_INFO((*ppEntry)->msgType), (*ppEntry)->msgType, TMSG_INFO((*ppEntry)->originalRpcType),
+            (*ppEntry)->originalRpcType, (*ppEntry)->index);
+    taosThreadMutexUnlock(&pCache->mutex);
     return 0;
   }
 
-  taosThreadMutexUnlock(&(pCache->mutex));
+  taosThreadMutexUnlock(&pCache->mutex);
   terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
   return -1;
 }
@@ -301,34 +291,29 @@ int32_t raftCacheGetEntryP(struct SRaftEntryHashCache* pCache, SyncIndex index, 
   }
   *ppEntry = NULL;
 
-  taosThreadMutexLock(&(pCache->mutex));
+  taosThreadMutexLock(&pCache->mutex);
   void* pTmp = taosHashGet(pCache->pEntryHash, &index, sizeof(index));
   if (pTmp != NULL) {
     SSyncRaftEntry* pEntry = pTmp;
     *ppEntry = pEntry;
 
-    do {
-      char eventLog[128];
-      snprintf(eventLog, sizeof(eventLog), "raft cache get, type:%s,%d, type2:%s,%d, index:%" PRId64,
-               TMSG_INFO((*ppEntry)->msgType), (*ppEntry)->msgType, TMSG_INFO((*ppEntry)->originalRpcType),
-               (*ppEntry)->originalRpcType, (*ppEntry)->index);
-      syncNodeEventLog(pCache->pSyncNode, eventLog);
-    } while (0);
-
-    taosThreadMutexUnlock(&(pCache->mutex));
+    sNTrace(pCache->pSyncNode, "raft cache get, type:%s,%d, type2:%s,%d, index:%" PRId64,
+            TMSG_INFO((*ppEntry)->msgType), (*ppEntry)->msgType, TMSG_INFO((*ppEntry)->originalRpcType),
+            (*ppEntry)->originalRpcType, (*ppEntry)->index);
+    taosThreadMutexUnlock(&pCache->mutex);
     return 0;
   }
 
-  taosThreadMutexUnlock(&(pCache->mutex));
+  taosThreadMutexUnlock(&pCache->mutex);
   terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
   return -1;
 }
 
 int32_t raftCacheDelEntry(struct SRaftEntryHashCache* pCache, SyncIndex index) {
-  taosThreadMutexLock(&(pCache->mutex));
+  taosThreadMutexLock(&pCache->mutex);
   taosHashRemove(pCache->pEntryHash, &index, sizeof(index));
   --(pCache->currentCount);
-  taosThreadMutexUnlock(&(pCache->mutex));
+  taosThreadMutexUnlock(&pCache->mutex);
   return 0;
 }
 
@@ -338,38 +323,34 @@ int32_t raftCacheGetAndDel(struct SRaftEntryHashCache* pCache, SyncIndex index, 
   }
   *ppEntry = NULL;
 
-  taosThreadMutexLock(&(pCache->mutex));
+  taosThreadMutexLock(&pCache->mutex);
   void* pTmp = taosHashGet(pCache->pEntryHash, &index, sizeof(index));
   if (pTmp != NULL) {
     SSyncRaftEntry* pEntry = pTmp;
     *ppEntry = taosMemoryMalloc(pEntry->bytes);
     memcpy(*ppEntry, pTmp, pEntry->bytes);
 
-    do {
-      char eventLog[128];
-      snprintf(eventLog, sizeof(eventLog), "raft cache get-and-del, type:%s,%d, type2:%s,%d, index:%" PRId64,
-               TMSG_INFO((*ppEntry)->msgType), (*ppEntry)->msgType, TMSG_INFO((*ppEntry)->originalRpcType),
-               (*ppEntry)->originalRpcType, (*ppEntry)->index);
-      syncNodeEventLog(pCache->pSyncNode, eventLog);
-    } while (0);
+    sNTrace(pCache->pSyncNode, "raft cache get-and-del, type:%s,%d, type2:%s,%d, index:%" PRId64,
+            TMSG_INFO((*ppEntry)->msgType), (*ppEntry)->msgType, TMSG_INFO((*ppEntry)->originalRpcType),
+            (*ppEntry)->originalRpcType, (*ppEntry)->index);
 
     taosHashRemove(pCache->pEntryHash, &index, sizeof(index));
     --(pCache->currentCount);
 
-    taosThreadMutexUnlock(&(pCache->mutex));
+    taosThreadMutexUnlock(&pCache->mutex);
     return 0;
   }
 
-  taosThreadMutexUnlock(&(pCache->mutex));
+  taosThreadMutexUnlock(&pCache->mutex);
   terrno = TSDB_CODE_WAL_LOG_NOT_EXIST;
   return -1;
 }
 
 int32_t raftCacheClear(struct SRaftEntryHashCache* pCache) {
-  taosThreadMutexLock(&(pCache->mutex));
+  taosThreadMutexLock(&pCache->mutex);
   taosHashClear(pCache->pEntryHash);
   pCache->currentCount = 0;
-  taosThreadMutexUnlock(&(pCache->mutex));
+  taosThreadMutexUnlock(&pCache->mutex);
   return 0;
 }
 
@@ -379,7 +360,7 @@ cJSON* raftCache2Json(SRaftEntryHashCache* pCache) {
   cJSON* pRoot = cJSON_CreateObject();
 
   if (pCache != NULL) {
-    taosThreadMutexLock(&(pCache->mutex));
+    taosThreadMutexLock(&pCache->mutex);
 
     snprintf(u64buf, sizeof(u64buf), "%p", pCache->pSyncNode);
     cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
@@ -401,7 +382,7 @@ cJSON* raftCache2Json(SRaftEntryHashCache* pCache) {
       }
     }
 
-    taosThreadMutexUnlock(&(pCache->mutex));
+    taosThreadMutexUnlock(&pCache->mutex);
   }
 
   cJSON* pJson = cJSON_CreateObject();
@@ -439,7 +420,7 @@ void raftCacheLog(SRaftEntryHashCache* pCache) {
 void raftCacheLog2(char* s, SRaftEntryHashCache* pCache) {
   if (gRaftDetailLog) {
     char* serialized = raftCache2Str(pCache);
-    sTraceLong("raftCacheLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
+    sLTrace("raftCacheLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -482,13 +463,13 @@ SRaftEntryCache* raftEntryCacheCreate(SSyncNode* pSyncNode, int32_t maxCount) {
 
 void raftEntryCacheDestroy(SRaftEntryCache* pCache) {
   if (pCache != NULL) {
-    taosThreadMutexLock(&(pCache->mutex));
+    taosThreadMutexLock(&pCache->mutex);
     tSkipListDestroy(pCache->pSkipList);
     if (pCache->refMgr != -1) {
       taosCloseRef(pCache->refMgr);
       pCache->refMgr = -1;
     }
-    taosThreadMutexUnlock(&(pCache->mutex));
+    taosThreadMutexUnlock(&pCache->mutex);
     taosThreadMutexDestroy(&(pCache->mutex));
     taosMemoryFree(pCache);
   }
@@ -498,10 +479,10 @@ void raftEntryCacheDestroy(SRaftEntryCache* pCache) {
 // max count, return 0
 // error, return -1
 int32_t raftEntryCachePutEntry(struct SRaftEntryCache* pCache, SSyncRaftEntry* pEntry) {
-  taosThreadMutexLock(&(pCache->mutex));
+  taosThreadMutexLock(&pCache->mutex);
 
   if (pCache->currentCount >= pCache->maxCount) {
-    taosThreadMutexUnlock(&(pCache->mutex));
+    taosThreadMutexUnlock(&pCache->mutex);
     return 0;
   }
 
@@ -512,15 +493,10 @@ int32_t raftEntryCachePutEntry(struct SRaftEntryCache* pCache, SSyncRaftEntry* p
   pEntry->rid = taosAddRef(pCache->refMgr, pEntry);
   ASSERT(pEntry->rid >= 0);
 
-  do {
-    char eventLog[128];
-    snprintf(eventLog, sizeof(eventLog), "raft cache add, type:%s,%d, type2:%s,%d, index:%" PRId64 ", bytes:%d",
-             TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType,
-             pEntry->index, pEntry->bytes);
-    syncNodeEventLog(pCache->pSyncNode, eventLog);
-  } while (0);
-
-  taosThreadMutexUnlock(&(pCache->mutex));
+  sNTrace(pCache->pSyncNode, "raft cache add, type:%s,%d, type2:%s,%d, index:%" PRId64 ", bytes:%d",
+          TMSG_INFO(pEntry->msgType), pEntry->msgType, TMSG_INFO(pEntry->originalRpcType), pEntry->originalRpcType,
+          pEntry->index, pEntry->bytes);
+  taosThreadMutexUnlock(&pCache->mutex);
   return 1;
 }
 
@@ -545,7 +521,7 @@ int32_t raftEntryCacheGetEntry(struct SRaftEntryCache* pCache, SyncIndex index, 
 // not found, return 0
 // error, return -1
 int32_t raftEntryCacheGetEntryP(struct SRaftEntryCache* pCache, SyncIndex index, SSyncRaftEntry** ppEntry) {
-  taosThreadMutexLock(&(pCache->mutex));
+  taosThreadMutexLock(&pCache->mutex);
 
   SyncIndex index2 = index;
   int32_t   code = 0;
@@ -569,7 +545,7 @@ int32_t raftEntryCacheGetEntryP(struct SRaftEntryCache* pCache, SyncIndex index,
   }
   taosArrayDestroy(entryPArray);
 
-  taosThreadMutexUnlock(&(pCache->mutex));
+  taosThreadMutexUnlock(&pCache->mutex);
   return code;
 }
 
@@ -578,7 +554,7 @@ int32_t raftEntryCacheGetEntryP(struct SRaftEntryCache* pCache, SyncIndex index,
 // return -1, error
 // return delete count
 int32_t raftEntryCacheClear(struct SRaftEntryCache* pCache, int32_t count) {
-  taosThreadMutexLock(&(pCache->mutex));
+  taosThreadMutexLock(&pCache->mutex);
   int32_t returnCnt = 0;
 
   if (count == -1) {
@@ -633,7 +609,7 @@ int32_t raftEntryCacheClear(struct SRaftEntryCache* pCache, int32_t count) {
   }
 
   pCache->currentCount -= returnCnt;
-  taosThreadMutexUnlock(&(pCache->mutex));
+  taosThreadMutexUnlock(&pCache->mutex);
   return returnCnt;
 }
 
@@ -642,7 +618,7 @@ cJSON* raftEntryCache2Json(SRaftEntryCache* pCache) {
   cJSON* pRoot = cJSON_CreateObject();
 
   if (pCache != NULL) {
-    taosThreadMutexLock(&(pCache->mutex));
+    taosThreadMutexLock(&pCache->mutex);
 
     snprintf(u64buf, sizeof(u64buf), "%p", pCache->pSyncNode);
     cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
@@ -660,7 +636,7 @@ cJSON* raftEntryCache2Json(SRaftEntryCache* pCache) {
     }
     tSkipListDestroyIter(pIter);
 
-    taosThreadMutexUnlock(&(pCache->mutex));
+    taosThreadMutexUnlock(&pCache->mutex);
   }
 
   cJSON* pJson = cJSON_CreateObject();
@@ -698,7 +674,7 @@ void raftEntryCacheLog(SRaftEntryCache* pObj) {
 void raftEntryCacheLog2(char* s, SRaftEntryCache* pObj) {
   if (gRaftDetailLog) {
     char* serialized = raftEntryCache2Str(pObj);
-    sTraceLong("raftEntryCacheLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
+    sLTrace("raftEntryCacheLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
