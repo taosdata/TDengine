@@ -282,7 +282,7 @@ void veriry_stmt(TAOS* taos) {
   int32_t* bin_len = malloc(sizeof(int32_t) * 10);
   int32_t* blob_len = malloc(sizeof(int32_t) * 10);
 
-  TAOS_STMT*      stmt = taos_stmt_init(taos);
+  TAOS_STMT*      stmt = taos_stmt_init_with_reqid(taos, genReqid());
   TAOS_MULTI_BIND params[10];
   char            is_null[10] = {0};
 

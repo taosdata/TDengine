@@ -286,7 +286,7 @@ void *createRequest(uint64_t connId, int32_t type, int64_t reqid) {
   }
 
   pRequest->resType = RES_TYPE__QUERY;
-  pRequest->requestId = reqid <= 0 ? generateRequestId() : reqid;
+  pRequest->requestId = reqid == 0 ? generateRequestId() : reqid;
   pRequest->metric.start = taosGetTimestampUs();
 
   pRequest->body.resInfo.convertUcs4 = true;  // convert ucs4 by default
