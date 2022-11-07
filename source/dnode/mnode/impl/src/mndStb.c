@@ -519,7 +519,6 @@ static void *mndBuildVDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb,
 
   pHead->contLen = htonl(contLen);
   pHead->vgId = htonl(pVgroup->vgId);
-  pHead->msgMask = htonl(0);
 
   void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
 

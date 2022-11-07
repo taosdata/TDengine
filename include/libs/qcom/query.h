@@ -57,6 +57,10 @@ typedef enum {
 #define QUERY_RSP_POLICY_DELAY 0
 #define QUERY_RSP_POLICY_QUICK 1
 
+#define QUERY_MSG_MASK_SHOW_REWRITE() (1 << 0)
+#define TEST_SHOW_REWRITE_MASK(m) (((m) & QUERY_MSG_MASK_SHOW_REWRITE()) != 0)
+
+
 typedef struct STableComInfo {
   uint8_t  numOfTags;     // the number of tags in schema
   uint8_t  precision;     // the number of precision
