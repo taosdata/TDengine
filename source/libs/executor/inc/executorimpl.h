@@ -298,6 +298,12 @@ typedef struct {
   SExprSupp*     pExprSup;  // expr supporter of aggregate operator
 } SAggOptrPushDownInfo;
 
+typedef struct STableMetaCacheInfo {
+  SLRUCache*             pTableMetaEntryCache; // 100 by default
+  uint64_t               metaFetch;
+  uint64_t               cacheHit;
+} STableMetaCacheInfo;
+
 typedef struct STableScanInfo {
   STsdbReader*           dataReader;
   SReadHandle            readHandle;
@@ -317,6 +323,7 @@ typedef struct STableScanInfo {
   int8_t                 scanMode;
   SAggOptrPushDownInfo   pdInfo;
   int8_t                 assignBlockUid;
+  STableMetaCacheInfo    metaCache;
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {
@@ -325,7 +332,6 @@ typedef struct STableMergeScanInfo {
   int32_t                tableEndIndex;
   bool                   hasGroupId;
   uint64_t               groupId;
-  SArray*                dataReaders;  // array of tsdbReaderT*
   SArray*                queryConds;   // array of queryTableDataCond
   STsdbReader*           pReader;
   SReadHandle            readHandle;
@@ -877,8 +883,8 @@ int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaul
 
 void    doSetOperatorCompleted(SOperatorInfo* pOperator);
 void    doFilter(SSDataBlock* pBlock, SFilterInfo* pFilterInfo, SColMatchInfo* pColMatchInfo);
-int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int32_t numOfPseudoExpr,
-                               SSDataBlock* pBlock, int32_t rows, const char* idStr);
+int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr,
+                               SSDataBlock* pBlock, int32_t rows, const char* idStr, STableMetaCacheInfo * pCache);
 
 void cleanupAggSup(SAggSupporter* pAggSup);
 void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);

@@ -482,24 +482,31 @@ SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSort
                                            SExecTaskInfo* pTaskInfo) {
   SGroupSortOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SGroupSortOperatorInfo));
   SOperatorInfo*          pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
-  if (pInfo == NULL || pOperator == NULL /* || rowSize > 100 * 1024 * 1024*/) {
+  if (pInfo == NULL || pOperator == NULL) {
     goto _error;
   }
 
+  SExprSupp* pSup = &pOperator->exprSupp;
   SDataBlockDescNode* pDescNode = pSortPhyNode->node.pOutputDataBlockDesc;
 
   int32_t      numOfCols = 0;
-  SSDataBlock* pResBlock = createResDataBlock(pDescNode);
   SExprInfo*   pExprInfo = createExprInfo(pSortPhyNode->pExprs, NULL, &numOfCols);
+
+  pSup->pExprInfo = pExprInfo;
+  pSup->numOfExprs = numOfCols;
+
+  initResultSizeInfo(&pOperator->resultInfo, 1024);
+  pOperator->exprSupp.pCtx = createSqlFunctionCtx(pExprInfo, numOfCols, &pOperator->exprSupp.rowEntryInfoOffset);
+
+  pInfo->binfo.pRes = createResDataBlock(pDescNode);
+  blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
 
   int32_t numOfOutputCols = 0;
   int32_t code = extractColMatchInfo(pSortPhyNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID,
                                      &pInfo->matchInfo);
-
-  pOperator->exprSupp.pCtx = createSqlFunctionCtx(pExprInfo, numOfCols, &pOperator->exprSupp.rowEntryInfoOffset);
-  pInfo->binfo.pRes = pResBlock;
-
-  initResultSizeInfo(&pOperator->resultInfo, 1024);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto  _error;
+  }
 
   pInfo->pSortInfo = createSortInfo(pSortPhyNode->pSortKeys);
 
@@ -508,8 +515,6 @@ SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSort
   pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
-  pOperator->exprSupp.pExprInfo = pExprInfo;
-  pOperator->exprSupp.numOfExprs = numOfCols;
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doGroupSort, NULL, NULL, destroyGroupSortOperatorInfo,
@@ -523,8 +528,10 @@ SOperatorInfo* createGroupSortOperatorInfo(SOperatorInfo* downstream, SGroupSort
   return pOperator;
 
 _error:
-  pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
-  taosMemoryFree(pInfo);
+  pTaskInfo->code = code;
+  if (pInfo != NULL) {
+    destroyGroupSortOperatorInfo(pInfo);
+  }
   taosMemoryFree(pOperator);
   return NULL;
 }

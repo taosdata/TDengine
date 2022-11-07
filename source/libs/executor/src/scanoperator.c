@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <vnode.h>
 #include "executorimpl.h"
 #include "filter.h"
 #include "function.h"
@@ -335,7 +336,7 @@ static void doSetTagColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* pBlo
     SExprSupp* pSup = &pTableScanInfo->pseudoSup;
 
     int32_t code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pBlock, rows,
-                                          GET_TASKID(pTaskInfo));
+                                          GET_TASKID(pTaskInfo), &pTableScanInfo->metaCache);
     if (code != TSDB_CODE_SUCCESS) {
       T_LONG_JMP(pTaskInfo->env, code);
     }
@@ -491,51 +492,128 @@ static void prepareForDescendingScan(STableScanInfo* pTableScanInfo, SqlFunction
   SET_REVERSE_SCAN_FLAG(pTableScanInfo);
 
   switchCtxOrder(pCtx, numOfOutput);
-  //  setupQueryRangeForReverseScan(pTableScanInfo);
-
   pTableScanInfo->cond.order = TSDB_ORDER_DESC;
   STimeWindow* pTWindow = &pTableScanInfo->cond.twindows;
   TSWAP(pTWindow->skey, pTWindow->ekey);
 }
 
-int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int32_t numOfPseudoExpr,
-                               SSDataBlock* pBlock, int32_t rows, const char* idStr) {
+typedef struct STableCachedVal {
+  const char* pName;
+  STag* pTags;
+} STableCachedVal;
+
+static void freeTableCachedVal(void* param) {
+  if (param == NULL) {
+    return;
+  }
+
+  STableCachedVal* pVal = param;
+  taosMemoryFree((void*)pVal->pName);
+  taosMemoryFree(pVal->pTags);
+  taosMemoryFree(pVal);
+}
+
+//const void *key, size_t keyLen, void *value
+static void freeCachedMetaItem(const void *key, size_t keyLen, void *value) {
+  freeTableCachedVal(value);
+}
+
+int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr,
+                               SSDataBlock* pBlock, int32_t rows, const char* idStr, STableMetaCacheInfo* pCache) {
   // currently only the tbname pseudo column
-  if (numOfPseudoExpr <= 0) {
+  if (numOfExpr <= 0) {
     return TSDB_CODE_SUCCESS;
   }
+
+  int32_t code = 0;
 
   // backup the rows
   int32_t backupRows = pBlock->info.rows;
   pBlock->info.rows = rows;
 
-  SMetaReader mr = {0};
-  metaReaderInit(&mr, pHandle->meta, 0);
-  int32_t code = metaGetTableEntryByUid(&mr, pBlock->info.uid);
-  metaReaderReleaseLock(&mr);
+  bool freeReader = false;
+  STableCachedVal val = {0};
 
-  if (code != TSDB_CODE_SUCCESS) {
-    qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
-    metaReaderClear(&mr);
-    return terrno;
+  SMetaReader mr = {0};
+  LRUHandle* h = NULL;
+
+  // 1. check if it is existed in meta cache
+  if (pCache == NULL) {
+    metaReaderInit(&mr, pHandle->meta, 0);
+    code = metaGetTableEntryByUid(&mr, pBlock->info.uid);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
+      metaReaderClear(&mr);
+      return terrno;
+    }
+
+    metaReaderReleaseLock(&mr);
+
+    val.pName = mr.me.name;
+    val.pTags = (STag*)mr.me.ctbEntry.pTags;
+
+    freeReader = true;
+  } else {
+    pCache->metaFetch += 1;
+
+    h = taosLRUCacheLookup(pCache->pTableMetaEntryCache, &pBlock->info.uid, sizeof(pBlock->info.uid));
+    if (h == NULL) {
+      metaReaderInit(&mr, pHandle->meta, 0);
+      code = metaGetTableEntryByUid(&mr, pBlock->info.uid);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("failed to get table meta, uid:0x%" PRIx64 ", code:%s, %s", pBlock->info.uid, tstrerror(terrno), idStr);
+        metaReaderClear(&mr);
+        return terrno;
+      }
+
+      metaReaderReleaseLock(&mr);
+
+      STableCachedVal* pVal = taosMemoryMalloc(sizeof(STableCachedVal));
+      pVal->pName = strdup(mr.me.name);
+      pVal->pTags = NULL;
+
+      // only child table has tag value
+      if (mr.me.type == TSDB_CHILD_TABLE) {
+        STag* pTag = (STag*)mr.me.ctbEntry.pTags;
+        pVal->pTags = taosMemoryMalloc(pTag->len);
+        memcpy(pVal->pTags, mr.me.ctbEntry.pTags, pTag->len);
+      }
+
+      val = *pVal;
+      freeReader = true;
+
+      int32_t ret = taosLRUCacheInsert(pCache->pTableMetaEntryCache, &pBlock->info.uid, sizeof(uint64_t), pVal, sizeof(STableCachedVal), freeCachedMetaItem, NULL, TAOS_LRU_PRIORITY_LOW);
+      if (ret != TAOS_LRU_STATUS_OK) {
+        qError("failed to put meta into lru cache, code:%d, %s", ret, idStr);
+        freeTableCachedVal(pVal);
+      }
+    } else {
+      pCache->cacheHit += 1;
+      STableCachedVal* pVal = taosLRUCacheValue(pCache->pTableMetaEntryCache, h);
+      val = *pVal;
+      taosLRUCacheRelease(pCache->pTableMetaEntryCache, h, false);
+    }
+
+    qDebug("retrieve table meta from cache:%"PRIu64", hit:%"PRIu64 " miss:%"PRIu64", %s", pCache->metaFetch, pCache->cacheHit,
+        (pCache->metaFetch - pCache->cacheHit), idStr);
   }
 
-  for (int32_t j = 0; j < numOfPseudoExpr; ++j) {
-    SExprInfo* pExpr = &pPseudoExpr[j];
-    int32_t    dstSlotId = pExpr->base.resSchema.slotId;
+  for (int32_t j = 0; j < numOfExpr; ++j) {
+    const SExprInfo* pExpr1 = &pExpr[j];
+    int32_t    dstSlotId = pExpr1->base.resSchema.slotId;
 
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotId);
     colInfoDataCleanup(pColInfoData, pBlock->info.rows);
 
-    int32_t functionId = pExpr->pExpr->_function.functionId;
+    int32_t functionId = pExpr1->pExpr->_function.functionId;
 
     // this is to handle the tbname
     if (fmIsScanPseudoColumnFunc(functionId)) {
-      setTbNameColData(pBlock, pColInfoData, functionId, mr.me.name);
+      setTbNameColData(pBlock, pColInfoData, functionId, val.pName);
     } else {  // these are tags
       STagVal tagVal = {0};
-      tagVal.cid = pExpr->base.pParam[0].pCol->colId;
-      const char* p = metaGetTableTagVal(mr.me.ctbEntry.pTags, pColInfoData->info.type, &tagVal);
+      tagVal.cid = pExpr1->base.pParam[0].pCol->colId;
+      const char* p = metaGetTableTagVal(val.pTags, pColInfoData->info.type, &tagVal);
 
       char* data = NULL;
       if (pColInfoData->info.type != TSDB_DATA_TYPE_JSON && p != NULL) {
@@ -560,10 +638,12 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int
     }
   }
 
-  metaReaderClear(&mr);
-
   // restore the rows
   pBlock->info.rows = backupRows;
+  if (freeReader) {
+    metaReaderClear(&mr);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -811,6 +891,7 @@ static void destroyTableScanOperatorInfo(void* param) {
     taosArrayDestroy(pTableScanInfo->matchInfo.pList);
   }
 
+  taosLRUCacheCleanup(pTableScanInfo->metaCache.pTableMetaEntryCache);
   cleanupExprSupp(&pTableScanInfo->pseudoSup);
   taosMemoryFreeClear(param);
 }
@@ -873,6 +954,9 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pOperator->info = pInfo;
   pOperator->exprSupp.numOfExprs = numOfCols;
   pOperator->pTaskInfo = pTaskInfo;
+
+  pInfo->metaCache.pTableMetaEntryCache = taosLRUCacheInit(1024*128, -1, .5);
+  taosLRUCacheSetStrictCapacity(pInfo->metaCache.pTableMetaEntryCache, false);
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableScan, NULL, NULL, destroyTableScanOperatorInfo,
                                          getTableScannerExecInfo);
@@ -1624,7 +1708,7 @@ static int32_t setBlockIntoRes(SStreamScanInfo* pInfo, const SSDataBlock* pBlock
   // currently only the tbname pseudo column
   if (pInfo->numOfPseudoExpr > 0) {
     int32_t code = addTagPseudoColumnData(&pInfo->readHandle, pInfo->pPseudoExpr, pInfo->numOfPseudoExpr, pInfo->pRes,
-                                          pInfo->pRes->info.rows, GET_TASKID(pTaskInfo));
+                                          pInfo->pRes->info.rows, GET_TASKID(pTaskInfo), NULL);
     if (code != TSDB_CODE_SUCCESS) {
       blockDataFreeRes((SSDataBlock*)pBlock);
       T_LONG_JMP(pTaskInfo->env, code);
@@ -4362,7 +4446,7 @@ static int32_t loadDataBlockFromOneTable(SOperatorInfo* pOperator, STableMergeSc
   SExprSupp* pSup = &pTableScanInfo->pseudoSup;
 
   int32_t code = addTagPseudoColumnData(&pTableScanInfo->readHandle, pSup->pExprInfo, pSup->numOfExprs, pBlock,
-                                        pBlock->info.rows, GET_TASKID(pTaskInfo));
+                                        pBlock->info.rows, GET_TASKID(pTaskInfo), NULL);
   if (code != TSDB_CODE_SUCCESS) {
     T_LONG_JMP(pTaskInfo->env, code);
   }
