@@ -3665,9 +3665,7 @@ int32_t tsdbReaderOpen(SVnode* pVnode, SQueryTableDataCond* pCond, void* pTableL
     }
   }
 
-  STsdbReader* p = pReader->innerReader[0] != NULL ? pReader->innerReader[0] : pReader;
-
-  pReader->status.pTableMap = createDataBlockScanInfo(p, pTableList, numOfTables);
+  pReader->status.pTableMap = createDataBlockScanInfo(pReader, pTableList, numOfTables);
   if (pReader->status.pTableMap == NULL) {
     tsdbReaderClose(pReader);
     *ppReader = NULL;
