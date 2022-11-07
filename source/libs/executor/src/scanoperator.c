@@ -593,7 +593,7 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       val = *pVal;
     }
 
-    qDebug("retrieve table meta:%"PRIu64", hit:%"PRIu64 " miss:%"PRIu64", %s", pCache->metaFetch, pCache->cacheHit,
+    qDebug("retrieve table meta from cache:%"PRIu64", hit:%"PRIu64 " miss:%"PRIu64", %s", pCache->metaFetch, pCache->cacheHit,
         (pCache->metaFetch - pCache->cacheHit), idStr);
   }
 
