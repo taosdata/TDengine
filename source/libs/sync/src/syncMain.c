@@ -452,16 +452,22 @@ bool syncIsReadyForRead(int64_t rid) {
 
   bool ready = false;
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER && !pSyncNode->restoreFinish) {
-    if (!pSyncNode->pLogStore->syncLogIsEmpty(pSyncNode->pLogStore)) {
-      SSyncRaftEntry* pEntry = NULL;
-      int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(
-          pSyncNode->pLogStore, pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore), &pEntry);
-      if (code == 0 && pEntry != NULL) {
-        if (pEntry->originalRpcType == TDMT_SYNC_NOOP && pEntry->term == pSyncNode->pRaftStore->currentTerm) {
-          ready = true;
-        }
+    if (!pSyncNode->pFsm->FpApplyQueueEmptyCb(pSyncNode->pFsm)) {
+      // apply queue not empty
+      ready = false;
 
-        syncEntryDestory(pEntry);
+    } else {
+      if (!pSyncNode->pLogStore->syncLogIsEmpty(pSyncNode->pLogStore)) {
+        SSyncRaftEntry* pEntry = NULL;
+        int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(
+            pSyncNode->pLogStore, pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore), &pEntry);
+        if (code == 0 && pEntry != NULL) {
+          if (pEntry->originalRpcType == TDMT_SYNC_NOOP && pEntry->term == pSyncNode->pRaftStore->currentTerm) {
+            ready = true;
+          }
+
+          syncEntryDestory(pEntry);
+        }
       }
     }
   }

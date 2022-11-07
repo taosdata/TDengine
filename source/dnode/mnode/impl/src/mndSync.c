@@ -202,6 +202,13 @@ static void mndBecomeLeader(const SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
 }
 
+static bool mndApplyQueueEmpty(const SSyncFSM *pFsm) {
+  SMnode *pMnode = pFsm->data;
+
+  int32_t itemSize = tmsgGetQueueSize(&pMnode->msgCb, 1, APPLY_QUEUE);
+  return (itemSize == 0);
+}
+
 SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pMnode;
@@ -210,6 +217,7 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   pFsm->FpRollBackCb = NULL;
   pFsm->FpRestoreFinishCb = mndRestoreFinish;
   pFsm->FpLeaderTransferCb = NULL;
+  pFsm->FpApplyQueueEmptyCb = mndApplyQueueEmpty;
   pFsm->FpReConfigCb = NULL;
   pFsm->FpBecomeLeaderCb = mndBecomeLeader;
   pFsm->FpBecomeFollowerCb = mndBecomeFollower;
