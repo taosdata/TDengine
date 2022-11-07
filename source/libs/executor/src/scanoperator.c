@@ -592,6 +592,9 @@ int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int
       STableCachedVal* pVal = taosLRUCacheValue(pCache->pTableMetaEntryCache, h);
       val = *pVal;
     }
+
+    qDebug("retrieve table meta:%"PRIu64", hit:%"PRIu64 " miss:%"PRIu64", %s", pCache->metaFetch, pCache->cacheHit,
+        (pCache->metaFetch - pCache->cacheHit), idStr);
   }
 
   for (int32_t j = 0; j < numOfExpr; ++j) {
