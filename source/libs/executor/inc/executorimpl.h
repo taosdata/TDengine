@@ -318,6 +318,7 @@ typedef struct STableScanInfo {
   int8_t                 scanMode;
   SAggOptrPushDownInfo   pdInfo;
   int8_t                 assignBlockUid;
+  SLRUCache*             pTableMetaEntryCache; // 100 by default
 } STableScanInfo;
 
 typedef struct STableMergeScanInfo {
@@ -896,8 +897,8 @@ int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaul
 
 void    doSetOperatorCompleted(SOperatorInfo* pOperator);
 void    doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, SColMatchInfo* pColMatchInfo, SFilterInfo* pFilterInfo);
-int32_t addTagPseudoColumnData(SReadHandle* pHandle, SExprInfo* pPseudoExpr, int32_t numOfPseudoExpr,
-                               SSDataBlock* pBlock, int32_t rows, const char* idStr);
+int32_t addTagPseudoColumnData(SReadHandle* pHandle, const SExprInfo* pExpr, int32_t numOfExpr,
+                               SSDataBlock* pBlock, int32_t rows, const char* idStr, SLRUCache* pCache);
 
 void cleanupAggSup(SAggSupporter* pAggSup);
 void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
