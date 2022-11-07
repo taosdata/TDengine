@@ -138,6 +138,7 @@ typedef struct SSyncFSM {
   void (*FpRestoreFinishCb)(const struct SSyncFSM* pFsm);
   void (*FpReConfigCb)(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, const SReConfigCbMeta* pMeta);
   void (*FpLeaderTransferCb)(const struct SSyncFSM* pFsm, const SRpcMsg* pMsg, const SFsmCbMeta* pMeta);
+  bool (*FpApplyQueueEmptyCb)(const struct SSyncFSM* pFsm);
 
   void (*FpBecomeLeaderCb)(const struct SSyncFSM* pFsm);
   void (*FpBecomeFollowerCb)(const struct SSyncFSM* pFsm);
