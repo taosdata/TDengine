@@ -248,6 +248,8 @@ static int32_t raftLogGetEntry(struct SSyncLogStore* pLogStore, SyncIndex index,
   SWalReader* pWalHandle = pData->pWalHandle;
   if (pWalHandle == NULL) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    sError("vgId:%d, wal handle is NULL", pData->pSyncNode->vgId);
+
     return -1;
   }
 

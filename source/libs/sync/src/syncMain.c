@@ -256,6 +256,7 @@ int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    sError("sync begin snapshot error");
     return -1;
   }
   ASSERT(rid == pSyncNode->rid);
@@ -394,6 +395,7 @@ int32_t syncEndSnapshot(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    sError("sync end snapshot error");
     return -1;
   }
   ASSERT(rid == pSyncNode->rid);
@@ -427,6 +429,7 @@ int32_t syncStepDown(int64_t rid, SyncTerm newTerm) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    sError("sync step down error");
     return -1;
   }
   ASSERT(rid == pSyncNode->rid);
@@ -441,6 +444,7 @@ bool syncIsReadyForRead(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    sError("sync ready for read error");
     return false;
   }
   ASSERT(rid == pSyncNode->rid);
@@ -786,6 +790,7 @@ int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
   if (pSyncNode == NULL) {
     syncNodeRelease(pSyncNode);
     terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
+    sError("sync propose error");
     return -1;
   }
   ASSERT(rid == pSyncNode->rid);
@@ -3004,9 +3009,19 @@ int32_t syncNodeOnClientRequest(SSyncNode* ths, SyncClientRequest* pMsg, SyncInd
     // append entry
     code = ths->pLogStore->syncLogAppendEntry(ths->pLogStore, pEntry);
     if (code != 0) {
-      // del resp mgr, call FpCommitCb
-      ASSERT(0);
-      return -1;
+      if (ths->replicaNum == 1) {
+        if (h) {
+          taosLRUCacheRelease(ths->pLogStore->pCache, h, false);
+        } else {
+          syncEntryDestory(pEntry);
+        }
+        return -1;
+
+      } else {
+        // del resp mgr, call FpCommitCb
+        ASSERT(0);
+        return -1;
+      }
     }
 
     // if mulit replica, start replicate right now
