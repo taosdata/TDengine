@@ -1933,6 +1933,10 @@ static void concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SExchangeIn
         }
       }
 
+      if (completed == totalSources) {
+        setAllSourcesCompleted(pOperator, startTs);
+      }
+
       return;
     }
 
