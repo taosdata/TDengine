@@ -5,13 +5,18 @@
 
 #include "clientStmt.h"
 
-char *gStmtStatusStr[] = {"unknown", "init", "prepare", "settbname", "settags", "fetchFields", "bind", "bindCol", "addBatch", "exec"};
+char* gStmtStatusStr[] = {"unknown",     "init", "prepare", "settbname", "settags",
+                          "fetchFields", "bind", "bindCol", "addBatch",  "exec"};
 
 static int32_t stmtCreateRequest(STscStmt* pStmt) {
   int32_t code = 0;
 
   if (pStmt->exec.pRequest == NULL) {
-    code = buildRequest(pStmt->taos->id, pStmt->sql.sqlStr, pStmt->sql.sqlLen, NULL, false, &pStmt->exec.pRequest);
+    code = buildRequest(pStmt->taos->id, pStmt->sql.sqlStr, pStmt->sql.sqlLen, NULL, false, &pStmt->exec.pRequest,
+                        pStmt->reqid);
+    if (pStmt->reqid != 0) {
+      pStmt->reqid++;
+    }
     if (TSDB_CODE_SUCCESS == code) {
       pStmt->exec.pRequest->syncQuery = true;
     }
@@ -207,10 +212,10 @@ int32_t stmtCacheBlock(STscStmt* pStmt) {
   }
 
   STableDataBlocks** pSrc = taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
-  if(!pSrc){
+  if (!pSrc) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  STableDataBlocks*  pDst = NULL;
+  STableDataBlocks* pDst = NULL;
 
   STMT_ERR_RET(qCloneStmtDataBlock(&pDst, *pSrc));
 
@@ -513,7 +518,7 @@ int32_t stmtResetStmt(STscStmt* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-TAOS_STMT* stmtInit(STscObj* taos) {
+TAOS_STMT* stmtInit(STscObj* taos, int64_t reqid) {
   STscObj*  pObj = (STscObj*)taos;
   STscStmt* pStmt = NULL;
 
@@ -533,9 +538,10 @@ TAOS_STMT* stmtInit(STscObj* taos) {
   pStmt->taos = pObj;
   pStmt->bInfo.needParse = true;
   pStmt->sql.status = STMT_INIT;
+  pStmt->reqid = reqid;
 
   STMT_LOG_SEQ(STMT_INIT);
-  
+
   tscDebug("stmt:%p initialized", pStmt);
 
   return pStmt;
