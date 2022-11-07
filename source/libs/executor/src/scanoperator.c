@@ -519,7 +519,6 @@ static void freeTableCachedVal(void* param) {
 
 //const void *key, size_t keyLen, void *value
 static void freeCachedMetaItem(const void *key, size_t keyLen, void *value) {
-  taosMemoryFree((void*)key);
   freeTableCachedVal(value);
 }
 
