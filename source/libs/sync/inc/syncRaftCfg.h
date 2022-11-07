@@ -93,9 +93,6 @@ typedef struct SRaftCfgMeta {
 
 int32_t raftCfgCreateFile(SSyncCfg *pCfg, SRaftCfgMeta meta, const char *path);
 
-// for debug -------------------
-void raftCfgIndexLog2(char *s, SRaftCfgIndex *pCfg);
-
 #ifdef __cplusplus
 }
 #endif

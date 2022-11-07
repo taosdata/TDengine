@@ -349,7 +349,7 @@ _DEL_WAL:
         sNTrace(pSyncNode, "wal snapshot begin, index:%" PRId64 ", last apply index:%" PRId64,
                 pSyncNode->snapshottingIndex, lastApplyIndex);
       } else {
-        sNTrace(pSyncNode, "wal snapshot begin error since:%s, index:%" PRId64 ", last apply index:%" PRId64,
+        sNError(pSyncNode, "wal snapshot begin error since:%s, index:%" PRId64 ", last apply index:%" PRId64,
                 terrstr(terrno), pSyncNode->snapshottingIndex, lastApplyIndex);
         atomic_store_64(&pSyncNode->snapshottingIndex, SYNC_INDEX_INVALID);
       }

@@ -13,11 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "syncElection.h"
 #include "syncMessage.h"
 #include "syncRaftCfg.h"
 #include "syncRaftStore.h"
 #include "syncVoteMgr.h"
+#include "syncUtil.h"
 
 // TLA+ Spec
 // RequestVote(i, j) ==

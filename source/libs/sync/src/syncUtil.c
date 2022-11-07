@@ -15,8 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "syncUtil.h"
-#include "syncEnv.h"
-#include "syncInt.h"
 #include "syncRaftCfg.h"
 #include "syncRaftStore.h"
 #include "syncSnapshot.h"
@@ -26,7 +24,7 @@ extern void addEpIntoEpSet(SEpSet* pEpSet, const char* fqdn, uint16_t port);
 uint64_t syncUtilAddr2U64(const char* host, uint16_t port) {
   uint32_t hostU32 = taosGetIpv4FromFqdn(host);
   if (hostU32 == (uint32_t)-1) {
-    sError("failed to resolve ipv4 addr. host:%s", host);
+    sError("failed to resolve ipv4 addr, host:%s", host);
     terrno = TSDB_CODE_TSC_INVALID_FQDN;
     return -1;
   }
@@ -62,7 +60,7 @@ void syncUtilraftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet) {
 bool syncUtilnodeInfo2raftId(const SNodeInfo* pInfo, SyncGroupId vgId, SRaftId* raftId) {
   uint32_t ipv4 = taosGetIpv4FromFqdn(pInfo->nodeFqdn);
   if (ipv4 == 0xFFFFFFFF || ipv4 == 1) {
-    sError("failed to resolve ipv4 addr. fqdn: %s", pInfo->nodeFqdn);
+    sError("failed to resolve ipv4 addr, fqdn: %s", pInfo->nodeFqdn);
     terrno = TSDB_CODE_TSC_INVALID_FQDN;
     return false;
   }
