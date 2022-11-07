@@ -26,6 +26,20 @@ TdFilePtr   pDataFile = NULL;
 STaosQueue *qhandle = NULL;
 STaosQset  *qset = NULL;
 
+void initLogEnv() {
+  const char  *logDir =  "/tmp/trans_svr"; 
+  const char*  defaultLogFileNamePrefix = "taoslog";
+  const int32_t maxLogFileNum = 10000;
+  tsAsyncLog = 0;
+  //idxDebugFlag = 143;
+  strcpy(tsLogDir, logDir);
+  taosRemoveDir(tsLogDir);
+  taosMkDir(tsLogDir); 
+     
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
+   printf("failed to open log file in directory:%s\n", tsLogDir);  
+  }
+}
 void processShellMsg() {
   static int num = 0;
   STaosQall *qall;
@@ -147,9 +161,9 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  tsAsyncLog = 0;
   rpcInit.connType = TAOS_CONN_SERVER;
-  taosInitLog("server.log", 100000);
+  
+  initLogEnv();
 
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {
