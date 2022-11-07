@@ -1181,7 +1181,7 @@ static SCliThrd* createThrdObj(void* trans) {
   pThrd->loop = (uv_loop_t*)taosMemoryMalloc(sizeof(uv_loop_t));
   uv_loop_init(pThrd->loop);
 
-  pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 5, pThrd, cliAsyncCb);
+  pThrd->asyncPool = transAsyncPoolCreate(pThrd->loop, 8, pThrd, cliAsyncCb);
 
   pThrd->prepare = taosMemoryCalloc(1, sizeof(uv_prepare_t));
   uv_prepare_init(pThrd->loop, pThrd->prepare);
@@ -1253,11 +1253,14 @@ void cliWalkCb(uv_handle_t* handle, void* arg) {
 }
 
 FORCE_INLINE int cliRBChoseIdx(STrans* pTransInst) {
-  int8_t index = pTransInst->index;
+  int32_t index = pTransInst->index;
   if (pTransInst->numOfThreads == 0) {
     return -1;
   }
-  if (pTransInst->index++ >= pTransInst->numOfThreads) {
+  /*
+   * no lock, and to avoid CPU load imbalance, set limit pTransInst->numOfThreads * 2000;
+   */
+  if (pTransInst->index++ >= pTransInst->numOfThreads * 2000) {
     pTransInst->index = 0;
   }
   return index % pTransInst->numOfThreads;
@@ -1271,7 +1274,7 @@ static FORCE_INLINE void doDelayTask(void* param) {
 static void doCloseIdleConn(void* param) {
   STaskArg* arg = param;
   SCliConn* conn = arg->param1;
-  tTrace("%s conn %p idle, close it", CONN_GET_INST_LABEL(conn), conn);
+  tDebug("%s conn %p idle, close it", CONN_GET_INST_LABEL(conn), conn);
   conn->task = NULL;
   cliDestroyConn(conn, true);
   taosMemoryFree(arg);
