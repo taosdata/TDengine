@@ -102,12 +102,12 @@ SRpcMsg *step0() {
 }
 
 SyncClientRequest *step1(const SRpcMsg *pMsg) {
-  SyncClientRequest *pRetMsg = syncClientRequestBuild2(pMsg, 123, true, 1000);
+  SyncClientRequest *pRetMsg = syncClientRequestBuild(pMsg, 123, true, 1000);
   return pRetMsg;
 }
 
 SRpcMsg *step2(const SyncClientRequest *pMsg) {
-  SRpcMsg *pRetMsg = (SRpcMsg *)taosMemoryMalloc(sizeof(SRpcMsg));
+  SRpcMsg *pRetMsg = (SRpcMsg *)taosMemoryCalloc(sizeof(SRpcMsg), 1);
   syncClientRequest2RpcMsg(pMsg, pRetMsg);
   return pRetMsg;
 }

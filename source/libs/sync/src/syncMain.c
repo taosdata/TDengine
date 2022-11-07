@@ -669,13 +669,11 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
       goto _END;
     }
 
-    SRespStub stub;
-    stub.createTime = taosGetTimestampMs();
-    stub.rpcMsg = *pMsg;
-    uint64_t seqNum = syncRespMgrAdd(pSyncNode->pSyncRespMgr, &stub);
+    SRespStub stub = {.createTime = taosGetTimestampMs(), .rpcMsg = *pMsg};
+    uint64_t  seqNum = syncRespMgrAdd(pSyncNode->pSyncRespMgr, &stub);
 
-    SyncClientRequest* pSyncMsg = syncClientRequestBuild2(pMsg, seqNum, isWeak, pSyncNode->vgId);
-    SRpcMsg            rpcMsg;
+    SyncClientRequest* pSyncMsg = syncClientRequestBuild(pMsg, seqNum, isWeak, pSyncNode->vgId);
+    SRpcMsg            rpcMsg = {0};
     syncClientRequest2RpcMsg(pSyncMsg, &rpcMsg);
 
     // optimized one replica
@@ -696,12 +694,9 @@ int32_t syncNodePropose(SSyncNode* pSyncNode, SRpcMsg* pMsg, bool isWeak) {
         sError("vgId:%d, failed to sync optimize index:%" PRId64 ", type:%s", pSyncNode->vgId, retIndex,
                TMSG_INFO(pMsg->msgType));
       }
-
     } else {
-      if (pSyncNode->syncEqMsg != NULL && (*pSyncNode->syncEqMsg)(pSyncNode->msgcb, &rpcMsg) == 0) {
-        ret = 0;
-      } else {
-        ret = -1;
+      ret = (*pSyncNode->syncEqMsg)(pSyncNode->msgcb, &rpcMsg);
+      if (ret != 0) {
         terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
         sError("vgId:%d, failed to enqueue msg since its null", pSyncNode->vgId);
       }
@@ -2322,7 +2317,7 @@ static int32_t syncNodeEqNoop(SSyncNode* ths) {
 
   uint32_t           entryLen;
   char*              serialized = syncEntrySerialize(pEntry, &entryLen);
-  SyncClientRequest* pSyncMsg = syncClientRequestBuild(entryLen);
+  SyncClientRequest* pSyncMsg = syncClientRequestAlloc(entryLen);
   ASSERT(pSyncMsg->dataLen == entryLen);
   memcpy(pSyncMsg->data, serialized, entryLen);
 
