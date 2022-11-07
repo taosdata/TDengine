@@ -314,6 +314,26 @@ Regular expression filtering is supported only on table names (TBNAME), BINARY t
 
 A regular expression string cannot exceed 128 bytes. You can configure this value by modifying the maxRegexStringLen parameter on the TDengine Client. The modified value takes effect when the client is restarted.
 
+## CASE Expressions
+
+### Syntax
+
+```txt
+CASE value WHEN compare_value THEN result [WHEN compare_value THEN result ...] [ELSE result] END
+CASE WHEN condition THEN result [WHEN condition THEN result ...] [ELSE result] END
+```
+
+### Description
+CASE expressions let you use IF ... THEN ... ELSE logic in SQL statements without having to invoke procedures. 
+
+The first CASE syntax returns the `result` for the first `value`=`compare_value` comparison that is true. 
+
+The second syntax returns the `result` for the first `condition` that is true. 
+
+If no comparison or condition is true, the result after ELSE is returned, or NULL if there is no ELSE part.
+
+The return type of the CASE expression is the result type of the first WHEN WHEN part, and the result type of the other WHEN WHEN parts and ELSE parts can be converted to them, otherwise TDengine will report an error.
+
 ## JOIN
 
 TDengine supports natural joins between supertables, between standard tables, and between subqueries. The difference between natural joins and inner joins is that natural joins require that the fields being joined in the supertables or standard tables must have the same name. Data or tag columns must be joined with the equivalent column in another table.
