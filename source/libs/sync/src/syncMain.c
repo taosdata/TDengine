@@ -222,7 +222,6 @@ SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode) {
 int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
   if (pSyncNode == NULL) {
-    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
     sError("sync begin snapshot error");
     return -1;
   }
