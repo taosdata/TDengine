@@ -420,7 +420,7 @@ void raftCacheLog(SRaftEntryHashCache* pCache) {
 void raftCacheLog2(char* s, SRaftEntryHashCache* pCache) {
   if (gRaftDetailLog) {
     char* serialized = raftCache2Str(pCache);
-    sTraceLong("raftCacheLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
+    sLTrace("raftCacheLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -674,7 +674,7 @@ void raftEntryCacheLog(SRaftEntryCache* pObj) {
 void raftEntryCacheLog2(char* s, SRaftEntryCache* pObj) {
   if (gRaftDetailLog) {
     char* serialized = raftEntryCache2Str(pObj);
-    sTraceLong("raftEntryCacheLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
+    sLTrace("raftEntryCacheLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }

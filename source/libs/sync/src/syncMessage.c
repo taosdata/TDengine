@@ -1138,7 +1138,7 @@ void syncClientRequestBatchLog(const SyncClientRequestBatch* pMsg) {
 void syncClientRequestBatchLog2(char* s, const SyncClientRequestBatch* pMsg) {
   if (gRaftDetailLog) {
     char* serialized = syncClientRequestBatch2Str(pMsg);
-    sTraceLong("syncClientRequestBatchLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
+    sLTrace("syncClientRequestBatchLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -1847,7 +1847,7 @@ void syncAppendEntriesBatchLog(const SyncAppendEntriesBatch* pMsg) {
 void syncAppendEntriesBatchLog2(char* s, const SyncAppendEntriesBatch* pMsg) {
   if (gRaftDetailLog) {
     char* serialized = syncAppendEntriesBatch2Str(pMsg);
-    sTraceLong("syncAppendEntriesBatchLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
+    sLTrace("syncAppendEntriesBatchLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }

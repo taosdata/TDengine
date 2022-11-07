@@ -28,18 +28,20 @@ extern "C" {
 #include "ttimer.h"
 
 // clang-format off
-#define sFatal(...) do { if (sDebugFlag & DEBUG_FATAL) { taosPrintLog("SYN FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
-#define sError(...) do { if (sDebugFlag & DEBUG_ERROR) { taosPrintLog("SYN ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
-#define sWarn(...)  do { if (sDebugFlag & DEBUG_WARN)  { taosPrintLog("SYN WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
-#define sInfo(...)  do { if (sDebugFlag & DEBUG_INFO)  { taosPrintLog("SYN ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
-#define sDebug(...) do { if (sDebugFlag & DEBUG_DEBUG) { taosPrintLog("SYN ", DEBUG_DEBUG, sDebugFlag, __VA_ARGS__); }}    while(0)
-#define sTrace(...) do { if (sDebugFlag & DEBUG_TRACE) { taosPrintLog("SYN ", DEBUG_TRACE, sDebugFlag, __VA_ARGS__); }}    while(0)
-#define sFatalLong(...) do { if (sDebugFlag & DEBUG_FATAL) { taosPrintLongString("SYN FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
-#define sErrorLong(...) do { if (sDebugFlag & DEBUG_ERROR) { taosPrintLongString("SYN ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
-#define sWarnLong(...)  do { if (sDebugFlag & DEBUG_WARN)  { taosPrintLongString("SYN WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
-#define sInfoLong(...)  do { if (sDebugFlag & DEBUG_INFO)  { taosPrintLongString("SYN ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
-#define sDebugLong(...) do { if (sDebugFlag & DEBUG_DEBUG) { taosPrintLongString("SYN ", DEBUG_DEBUG, sDebugFlag, __VA_ARGS__); }}    while(0)
-#define sTraceLong(...) do { if (sDebugFlag & DEBUG_TRACE) { taosPrintLongString("SYN ", DEBUG_TRACE, sDebugFlag, __VA_ARGS__); }}    while(0)
+
+#define sFatal(...) if (sDebugFlag & DEBUG_FATAL) { taosPrintLog("SYN FATAL ", DEBUG_FATAL, 255,        __VA_ARGS__); }
+#define sError(...) if (sDebugFlag & DEBUG_ERROR) { taosPrintLog("SYN ERROR ", DEBUG_ERROR, 255,        __VA_ARGS__); }
+#define sWarn(...)  if (sDebugFlag & DEBUG_WARN)  { taosPrintLog("SYN WARN ",  DEBUG_WARN,  255,        __VA_ARGS__); }
+#define sInfo(...)  if (sDebugFlag & DEBUG_INFO)  { taosPrintLog("SYN ",       DEBUG_INFO,  255,        __VA_ARGS__); }
+#define sDebug(...) if (sDebugFlag & DEBUG_DEBUG) { taosPrintLog("SYN ",       DEBUG_DEBUG, sDebugFlag, __VA_ARGS__); }
+#define sTrace(...) if (sDebugFlag & DEBUG_TRACE) { taosPrintLog("SYN ",       DEBUG_TRACE, sDebugFlag, __VA_ARGS__); }
+
+#define sLFatal(...) if (sDebugFlag & DEBUG_FATAL) { taosPrintLongString("SYN FATAL ", DEBUG_FATAL, 255,        __VA_ARGS__); }
+#define sLError(...) if (sDebugFlag & DEBUG_ERROR) { taosPrintLongString("SYN ERROR ", DEBUG_ERROR, 255,        __VA_ARGS__); }
+#define sLWarn(...)  if (sDebugFlag & DEBUG_WARN)  { taosPrintLongString("SYN WARN ",  DEBUG_WARN,  255,        __VA_ARGS__); }
+#define sLInfo(...)  if (sDebugFlag & DEBUG_INFO)  { taosPrintLongString("SYN ",       DEBUG_INFO,  255,        __VA_ARGS__); }
+#define sLDebug(...) if (sDebugFlag & DEBUG_DEBUG) { taosPrintLongString("SYN ",       DEBUG_DEBUG, sDebugFlag, __VA_ARGS__); }
+#define sLTrace(...) if (sDebugFlag & DEBUG_TRACE) { taosPrintLongString("SYN ",       DEBUG_TRACE, sDebugFlag, __VA_ARGS__); }
 
 #define sNFatal(pNode, ...)  if (sDebugFlag & DEBUG_FATAL) { syncPrintNodeLog("SYN FATAL ", DEBUG_FATAL, 255,        pNode, __VA_ARGS__); }
 #define sNError(pNode, ...)  if (sDebugFlag & DEBUG_ERROR) { syncPrintNodeLog("SYN ERROR ", DEBUG_ERROR, 255,        pNode, __VA_ARGS__); }
@@ -369,13 +371,6 @@ void syncLogRecvSyncSnapshotSend(SSyncNode* pSyncNode, const SyncSnapshotSend* p
 
 void syncLogSendSyncSnapshotRsp(SSyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s);
 void syncLogRecvSyncSnapshotRsp(SSyncNode* pSyncNode, const SyncSnapshotRsp* pMsg, const char* s);
-
-// for debug --------------
-void syncNodePrint(SSyncNode* pObj);
-void syncNodePrint2(char* s, SSyncNode* pObj);
-void syncNodeLog(SSyncNode* pObj);
-void syncNodeLog2(char* s, SSyncNode* pObj);
-void syncNodeLog3(char* s, SSyncNode* pObj);
 
 // syncUtil.h
 void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNode* pNode, const char* format, ...);

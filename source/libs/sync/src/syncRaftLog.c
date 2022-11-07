@@ -497,7 +497,7 @@ void logStorePrint2(char* s, SSyncLogStore* pLogStore) {
 void logStoreLog(SSyncLogStore* pLogStore) {
   if (gRaftDetailLog) {
     char* serialized = logStore2Str(pLogStore);
-    sTraceLong("logStoreLog | len:%d | %s", (int32_t)strlen(serialized), serialized);
+    sLTrace("logStoreLog | len:%d | %s", (int32_t)strlen(serialized), serialized);
     taosMemoryFree(serialized);
   }
 }
@@ -505,7 +505,7 @@ void logStoreLog(SSyncLogStore* pLogStore) {
 void logStoreLog2(char* s, SSyncLogStore* pLogStore) {
   if (gRaftDetailLog) {
     char* serialized = logStore2Str(pLogStore);
-    sTraceLong("logStoreLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
+    sLTrace("logStoreLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
     taosMemoryFree(serialized);
   }
 }

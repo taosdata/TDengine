@@ -2077,7 +2077,7 @@ void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {
   ASSERT(voteGrantedMajority(pSyncNode->pVotesGranted));
   syncNodeBecomeLeader(pSyncNode, "candidate to leader");
 
-  syncNodeLog2("==state change syncNodeCandidate2Leader==", pSyncNode);
+  sNTrace(pSyncNode, "state change syncNodeCandidate2Leader");
 
   // Raft 3.6.2 Committing entries from previous terms
   syncNodeAppendNoop(pSyncNode);
@@ -2268,41 +2268,6 @@ int32_t syncNodeGetPreIndexTerm(SSyncNode* pSyncNode, SyncIndex index, SyncIndex
   *pPreIndex = syncNodeGetPreIndex(pSyncNode, index);
   *pPreTerm = syncNodeGetPreTerm(pSyncNode, index);
   return 0;
-}
-
-// for debug --------------
-void syncNodePrint(SSyncNode* pObj) {
-  char* serialized = syncNode2Str(pObj);
-  printf("syncNodePrint | len:%d | %s \n", (int32_t)strlen(serialized), serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void syncNodePrint2(char* s, SSyncNode* pObj) {
-  char* serialized = syncNode2Str(pObj);
-  printf("syncNodePrint2 | len:%d | %s | %s \n", (int32_t)strlen(serialized), s, serialized);
-  fflush(NULL);
-  taosMemoryFree(serialized);
-}
-
-void syncNodeLog(SSyncNode* pObj) {
-  char* serialized = syncNode2Str(pObj);
-  sTraceLong("syncNodeLog | len:%d | %s", (int32_t)strlen(serialized), serialized);
-  taosMemoryFree(serialized);
-}
-
-void syncNodeLog2(char* s, SSyncNode* pObj) {
-  if (gRaftDetailLog) {
-    char* serialized = syncNode2Str(pObj);
-    sTraceLong("syncNodeLog2 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
-    taosMemoryFree(serialized);
-  }
-}
-
-void syncNodeLog3(char* s, SSyncNode* pObj) {
-  char* serialized = syncNode2Str(pObj);
-  sTraceLong("syncNodeLog3 | len:%d | %s | %s", (int32_t)strlen(serialized), s, serialized);
-  taosMemoryFree(serialized);
 }
 
 // ------ local funciton ---------

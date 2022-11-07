@@ -107,7 +107,7 @@ int main(int argc, char** argv) {
 
   SSyncNode* pSyncNode = createSyncNode(replicaNum, myIndex, gVgId, pWal, (char*)gDir);
   assert(pSyncNode != NULL);
-  syncNodeLog2((char*)"==syncElectTest==", pSyncNode);
+  sNTrace(pSyncNode, "==syncElectTest==");
 
   //---------------------------
   while (1) {
