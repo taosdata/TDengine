@@ -278,7 +278,6 @@ char*     syncNode2SimpleStr(const SSyncNode* pSyncNode);
 bool      syncNodeInConfig(SSyncNode* pSyncNode, const SSyncCfg* config);
 void      syncNodeDoConfigChange(SSyncNode* pSyncNode, SSyncCfg* newConfig, SyncIndex lastConfigChangeIndex);
 SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode);
-char*     syncNodePeerState2Str(const SSyncNode* pSyncNode);
 
 // raft state change --------------
 void syncNodeUpdateTerm(SSyncNode* pSyncNode, SyncTerm term);

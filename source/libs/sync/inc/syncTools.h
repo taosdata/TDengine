@@ -26,8 +26,6 @@ typedef struct SRaftId {
   SyncGroupId vgId;
 } SRaftId;
 
-char* sync2SimpleStr(int64_t rid);
-
 // for compatibility, the same as syncPropose
 int32_t syncForwardToPeer(int64_t rid, SRpcMsg* pMsg, bool isWeak);
 

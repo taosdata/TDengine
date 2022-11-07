@@ -202,6 +202,35 @@ bool syncUtilUserRollback(tmsg_t msgType) {
   return false;
 }
 
+void syncCfg2SimpleStr(const SSyncCfg* pCfg, char* buf, int32_t bufLen) {
+  int32_t len = snprintf(buf, bufLen, "{r-num:%d, my:%d, ", pCfg->replicaNum, pCfg->myIndex);
+
+  for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
+    if (i < pCfg->replicaNum - 1) {
+      len += snprintf(buf + len, bufLen - len, "%s:%d, ", pCfg->nodeInfo[i].nodeFqdn, pCfg->nodeInfo[i].nodePort);
+    } else {
+      len += snprintf(buf + len, bufLen - len, "%s:%d}", pCfg->nodeInfo[i].nodeFqdn, pCfg->nodeInfo[i].nodePort);
+    }
+  }
+}
+
+static void syncPeerState2Str(SSyncNode* pSyncNode, char* buf, int32_t bufLen) {
+  int32_t len = 1;
+
+  for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
+    SPeerState* pState = syncNodeGetPeerState(pSyncNode, &(pSyncNode->replicasId[i]));
+    if (pState == NULL) break;
+
+    if (i < pSyncNode->replicaNum - 1) {
+      len += snprintf(buf + len, bufLen - len, "%d:%" PRId64 " %" PRId64 ", ", i, pState->lastSendIndex,
+                     pState->lastSendTime);
+    } else {
+      len += snprintf(buf + len, bufLen - len, "%d:%" PRId64 " %" PRId64 "}", i, pState->lastSendIndex,
+                      pState->lastSendTime);
+    }
+  }
+}
+
 void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNode* pNode, const char* format, ...) {
   if (pNode == NULL || pNode->pRaftCfg != NULL && pNode->pRaftStore == NULL || pNode->pLogStore == NULL) return;
 
@@ -220,7 +249,9 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNo
   char cfgStr[1024];
   syncCfg2SimpleStr(&(pNode->pRaftCfg->cfg), cfgStr, sizeof(cfgStr));
 
-  char*   pPeerStateStr = syncNodePeerState2Str(pNode);
+  char peerStr[1024] = "{";
+  syncPeerState2Str(pNode, peerStr, sizeof(peerStr));
+
   int32_t quorum = syncNodeDynamicQuorum(pNode);
 
   char    eventLog[512];  // {0};
@@ -239,9 +270,7 @@ void syncPrintNodeLog(const char* flags, ELogLevel level, int32_t dflag, SSyncNo
                logBeginIndex, logLastIndex, pNode->minMatchIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
                pNode->pRaftCfg->isStandBy, pNode->pRaftCfg->snapshotStrategy, pNode->pRaftCfg->batchSize,
                pNode->replicaNum, pNode->pRaftCfg->lastConfigIndex, pNode->changing, pNode->restoreFinish, quorum,
-               pNode->electTimerLogicClock, pNode->heartbeatTimerLogicClockUser, pPeerStateStr, cfgStr);
-
-  taosMemoryFree(pPeerStateStr);
+               pNode->electTimerLogicClock, pNode->heartbeatTimerLogicClockUser, peerStr, cfgStr);
 }
 
 void syncPrintSnapshotSenderLog(const char* flags, ELogLevel level, int32_t dflag, SSyncSnapshotSender* pSender,
@@ -264,7 +293,9 @@ void syncPrintSnapshotSenderLog(const char* flags, ELogLevel level, int32_t dfla
   char cfgStr[1024];
   syncCfg2SimpleStr(&(pNode->pRaftCfg->cfg), cfgStr, sizeof(cfgStr));
 
-  char*    pPeerStateStr = syncNodePeerState2Str(pNode);
+  char peerStr[1024] = "{";
+  syncPeerState2Str(pNode, peerStr, sizeof(peerStr));
+
   int32_t  quorum = syncNodeDynamicQuorum(pNode);
   SRaftId  destId = pNode->replicasId[pSender->replicaIndex];
   char     host[64];
@@ -291,9 +322,7 @@ void syncPrintSnapshotSenderLog(const char* flags, ELogLevel level, int32_t dfla
                pNode->minMatchIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm, pNode->pRaftCfg->isStandBy,
                pNode->pRaftCfg->snapshotStrategy, pNode->pRaftCfg->batchSize, pNode->replicaNum,
                pNode->pRaftCfg->lastConfigIndex, pNode->changing, pNode->restoreFinish, quorum,
-               pNode->electTimerLogicClock, pNode->heartbeatTimerLogicClockUser, pPeerStateStr, cfgStr);
-
-  taosMemoryFree(pPeerStateStr);
+               pNode->electTimerLogicClock, pNode->heartbeatTimerLogicClockUser, peerStr, cfgStr);
 }
 
 void syncPrintSnapshotReceiverLog(const char* flags, ELogLevel level, int32_t dflag, SSyncSnapshotReceiver* pReceiver,
@@ -316,7 +345,9 @@ void syncPrintSnapshotReceiverLog(const char* flags, ELogLevel level, int32_t df
   char cfgStr[1024];
   syncCfg2SimpleStr(&(pNode->pRaftCfg->cfg), cfgStr, sizeof(cfgStr));
 
-  char*    pPeerStateStr = syncNodePeerState2Str(pNode);
+  char peerStr[1024] = "{";
+  syncPeerState2Str(pNode, peerStr, sizeof(peerStr));
+
   int32_t  quorum = syncNodeDynamicQuorum(pNode);
   SRaftId  fromId = pReceiver->fromId;
   char     host[128];
@@ -344,7 +375,5 @@ void syncPrintSnapshotReceiverLog(const char* flags, ELogLevel level, int32_t df
                logLastIndex, pNode->minMatchIndex, snapshot.lastApplyIndex, snapshot.lastApplyTerm,
                pNode->pRaftCfg->isStandBy, pNode->pRaftCfg->snapshotStrategy, pNode->pRaftCfg->batchSize,
                pNode->replicaNum, pNode->pRaftCfg->lastConfigIndex, pNode->changing, pNode->restoreFinish, quorum,
-               pNode->electTimerLogicClock, pNode->heartbeatTimerLogicClockUser, pPeerStateStr, cfgStr);
-
-  taosMemoryFree(pPeerStateStr);
+               pNode->electTimerLogicClock, pNode->heartbeatTimerLogicClockUser, peerStr, cfgStr);
 }

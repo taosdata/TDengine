@@ -249,18 +249,6 @@ char *syncCfg2Str(SSyncCfg *pSyncCfg) {
   return serialized;
 }
 
-void syncCfg2SimpleStr(const SSyncCfg *pCfg, char *buf, int32_t bufLen) {
-  int32_t len = snprintf(buf, bufLen, "{r-num:%d, my:%d, ", pCfg->replicaNum, pCfg->myIndex);
-
-  for (int32_t i = 0; i < pCfg->replicaNum; ++i) {
-    if (i < pCfg->replicaNum - 1) {
-      len += snprintf(buf + len, bufLen - len, "%s:%d, ", pCfg->nodeInfo[i].nodeFqdn, pCfg->nodeInfo[i].nodePort);
-    } else {
-      len += snprintf(buf + len, bufLen - len, "%s:%d}", pCfg->nodeInfo[i].nodeFqdn, pCfg->nodeInfo[i].nodePort);
-    }
-  }
-}
-
 int32_t syncCfgFromJson(const cJSON *pRoot, SSyncCfg *pSyncCfg) {
   memset(pSyncCfg, 0, sizeof(SSyncCfg));
   // cJSON *pJson = cJSON_GetObjectItem(pRoot, "SSyncCfg");

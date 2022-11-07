@@ -83,11 +83,10 @@ void syncStop(int64_t rid) {
 
 void syncPreStop(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) return;
-
-  syncNodePreClose(pSyncNode);
-
-  syncNodeRelease(pSyncNode);
+  if (pSyncNode != NULL) {
+    syncNodePreClose(pSyncNode);
+    syncNodeRelease(pSyncNode);
+  }
 }
 
 static bool syncNodeCheckNewConfig(SSyncNode* pSyncNode, const SSyncCfg* pCfg) {
@@ -217,48 +216,10 @@ SyncIndex syncMinMatchIndex(SSyncNode* pSyncNode) {
   return minMatchIndex;
 }
 
-char* syncNodePeerState2Str(const SSyncNode* pSyncNode) {
-  int32_t len = 128;
-  int32_t useLen = 0;
-  int32_t leftLen = len - useLen;
-  char*   pStr = taosMemoryMalloc(len);
-  memset(pStr, 0, len);
-
-  char*   p = pStr;
-  int32_t use = snprintf(p, leftLen, "{");
-  useLen += use;
-  leftLen -= use;
-
-  for (int32_t i = 0; i < pSyncNode->replicaNum; ++i) {
-    SPeerState* pState = syncNodeGetPeerState((SSyncNode*)pSyncNode, &(pSyncNode->replicasId[i]));
-    if (pState == NULL) {
-      sError("vgId:%d, replica maybe dropped", pSyncNode->vgId);
-      break;
-    }
-
-    p = pStr + useLen;
-    use = snprintf(p, leftLen, "%d:%" PRId64 " ,%" PRId64, i, pState->lastSendIndex, pState->lastSendTime);
-    useLen += use;
-    leftLen -= use;
-  }
-
-  p = pStr + useLen;
-  use = snprintf(p, leftLen, "}");
-  useLen += use;
-  leftLen -= use;
-
-  // sTrace("vgId:%d, ------------------ syncNodePeerState2Str:%s", pSyncNode->vgId, pStr);
-
-  return pStr;
-}
-
 int32_t syncBeginSnapshot(int64_t rid, int64_t lastApplyIndex) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-    return -1;
-  }
-  ASSERT(rid == pSyncNode->rid);
+  if (pSyncNode == NULL) return -1;
+
   int32_t code = 0;
 
   if (syncNodeIsMnode(pSyncNode)) {
@@ -366,19 +327,14 @@ _DEL_WAL:
 
 int32_t syncEndSnapshot(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-    return -1;
-  }
-  ASSERT(rid == pSyncNode->rid);
+  if (pSyncNode == NULL) return -1;
 
   int32_t code = 0;
   if (atomic_load_64(&pSyncNode->snapshottingIndex) != SYNC_INDEX_INVALID) {
     SSyncLogStoreData* pData = pSyncNode->pLogStore->data;
     code = walEndSnapshot(pData->pWal);
     if (code != 0) {
-      sError("vgId:%d, wal snapshot end error since:%s", pSyncNode->vgId, terrstr());
-
+      sNError(pSyncNode, "wal snapshot end error since:%s", terrstr());
       syncNodeRelease(pSyncNode);
       return -1;
     } else {
@@ -393,25 +349,16 @@ int32_t syncEndSnapshot(int64_t rid) {
 
 int32_t syncStepDown(int64_t rid, SyncTerm newTerm) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-    return -1;
-  }
-  ASSERT(rid == pSyncNode->rid);
+  if (pSyncNode == NULL) return -1;
 
   syncNodeStepDown(pSyncNode, newTerm);
-
   syncNodeRelease(pSyncNode);
   return 0;
 }
 
 bool syncIsReadyForRead(int64_t rid) {
   SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    terrno = TSDB_CODE_SYN_INTERNAL_ERROR;
-    return false;
-  }
-  ASSERT(rid == pSyncNode->rid);
+  if (pSyncNode == NULL) return -1;
 
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER && pSyncNode->restoreFinish) {
     syncNodeRelease(pSyncNode);
@@ -428,7 +375,7 @@ bool syncIsReadyForRead(int64_t rid) {
       if (!pSyncNode->pLogStore->syncLogIsEmpty(pSyncNode->pLogStore)) {
         SSyncRaftEntry* pEntry = NULL;
         int32_t         code = pSyncNode->pLogStore->syncLogGetEntry(
-            pSyncNode->pLogStore, pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore), &pEntry);
+                    pSyncNode->pLogStore, pSyncNode->pLogStore->syncLogLastIndex(pSyncNode->pLogStore), &pEntry);
         if (code == 0 && pEntry != NULL) {
           if (pEntry->originalRpcType == TDMT_SYNC_NOOP && pEntry->term == pSyncNode->pRaftStore->currentTerm) {
             ready = true;
@@ -469,8 +416,6 @@ int32_t syncNodeLeaderTransfer(SSyncNode* pSyncNode) {
 }
 
 int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader) {
-  int32_t ret = 0;
-
   if (pSyncNode->replicaNum == 1) {
     sDebug("only one replica, cannot leader transfer");
     terrno = TSDB_CODE_SYN_ONE_REPLICA;
@@ -488,40 +433,8 @@ int32_t syncNodeLeaderTransferTo(SSyncNode* pSyncNode, SNodeInfo newLeader) {
   syncLeaderTransfer2RpcMsg(pMsg, &rpcMsg);
   syncLeaderTransferDestroy(pMsg);
 
-  ret = syncNodePropose(pSyncNode, &rpcMsg, false);
+  int32_t ret = syncNodePropose(pSyncNode, &rpcMsg, false);
   return ret;
-}
-
-bool syncCanLeaderTransfer(int64_t rid) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    return false;
-  }
-  ASSERT(rid == pSyncNode->rid);
-
-  if (pSyncNode->replicaNum == 1) {
-    syncNodeRelease(pSyncNode);
-    return false;
-  }
-
-  if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {
-    syncNodeRelease(pSyncNode);
-    return true;
-  }
-
-  bool matchOK = true;
-  if (pSyncNode->state == TAOS_SYNC_STATE_CANDIDATE || pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
-    SyncIndex myCommitIndex = pSyncNode->commitIndex;
-    for (int i = 0; i < pSyncNode->peersNum; ++i) {
-      SyncIndex peerMatchIndex = syncIndexMgrGetIndex(pSyncNode->pMatchIndex, &(pSyncNode->peersId)[i]);
-      if (peerMatchIndex < myCommitIndex) {
-        matchOK = false;
-      }
-    }
-  }
-
-  syncNodeRelease(pSyncNode);
-  return matchOK;
 }
 
 int32_t syncForwardToPeer(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
@@ -706,7 +619,7 @@ void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
     memset(pEpSet, 0, sizeof(*pEpSet));
     return;
   }
-  ASSERT(rid == pSyncNode->rid);
+
   pEpSet->numOfEps = 0;
   for (int i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
     snprintf(pEpSet->eps[i].fqdn, sizeof(pEpSet->eps[i].fqdn), "%s", (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodeFqdn);
@@ -722,6 +635,7 @@ void syncGetRetryEpSet(int64_t rid, SEpSet* pEpSet) {
 
   syncNodeRelease(pSyncNode);
 }
+
 static void syncGetAndDelRespRpc(SSyncNode* pSyncNode, uint64_t index, SRpcHandleInfo* pInfo) {
   SRespStub stub;
   int32_t   ret = syncRespMgrGetAndDel(pSyncNode->pSyncRespMgr, index, &stub);
@@ -730,19 +644,6 @@ static void syncGetAndDelRespRpc(SSyncNode* pSyncNode, uint64_t index, SRpcHandl
   }
 
   sTrace("vgId:%d, get seq:%" PRIu64 " rpc handle:%p", pSyncNode->vgId, index, pInfo->handle);
-}
-
-char* sync2SimpleStr(int64_t rid) {
-  SSyncNode* pSyncNode = syncNodeAcquire(rid);
-  if (pSyncNode == NULL) {
-    sTrace("syncSetRpc get pSyncNode is NULL, rid:%" PRId64, rid);
-    return NULL;
-  }
-
-  char* s = syncNode2SimpleStr(pSyncNode);
-  syncNodeRelease(pSyncNode);
-
-  return s;
 }
 
 int32_t syncPropose(int64_t rid, SRpcMsg* pMsg, bool isWeak) {
